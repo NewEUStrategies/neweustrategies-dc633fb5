@@ -7,23 +7,17 @@
 // rejestracją innej trasy. Helpery żyją tu, obie trasy tylko je wołają.
 import { getRequest } from "@tanstack/react-start/server";
 import { trustedPublicHost } from "@/lib/http/requestHost";
+import {
+  CANONICAL_SITE_HOSTS,
+  CANONICAL_SITE_ORIGIN,
+  isNonCanonicalPublicHost,
+} from "@/lib/http/host";
 import type { RedirectIndex } from "@/lib/seo/redirects";
 
-export const SITEMAP_CANONICAL_ORIGIN = "https://neweuropeanstrategies.com";
-export const SITEMAP_CANONICAL_HOSTS: ReadonlySet<string> = new Set([
-  "neweuropeanstrategies.com",
-  "www.neweuropeanstrategies.com",
-]);
-
-function isLegacyPublicHost(host: string): boolean {
-  if (!host || SITEMAP_CANONICAL_HOSTS.has(host)) return false;
-  return (
-    host.endsWith(".lovable.app") ||
-    host.endsWith(".lovableproject.com") ||
-    host.endsWith(".pages.dev") ||
-    host.endsWith(".workers.dev")
-  );
-}
+// Aliasy nazw utrzymane dla czytelności wywołań w trasach sitemapy; źródłem
+// prawdy jest lib/http/host.ts (jedna lista dla 301, robots.txt i sitemapy).
+export const SITEMAP_CANONICAL_ORIGIN = CANONICAL_SITE_ORIGIN;
+export const SITEMAP_CANONICAL_HOSTS = CANONICAL_SITE_HOSTS;
 
 /**
  * Origin, na którym mapa publikuje adresy.
@@ -37,7 +31,7 @@ export async function sitemapRequestContext(): Promise<{ origin: string; host: s
   const proto = req.headers.get("x-forwarded-proto") ?? "https";
   const host = (await trustedPublicHost(req)) ?? "";
   const origin =
-    isLegacyPublicHost(host) || SITEMAP_CANONICAL_HOSTS.has(host)
+    isNonCanonicalPublicHost(host) || SITEMAP_CANONICAL_HOSTS.has(host)
       ? SITEMAP_CANONICAL_ORIGIN
       : host
         ? `${proto}://${host}`

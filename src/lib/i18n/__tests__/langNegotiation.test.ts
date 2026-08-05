@@ -5,6 +5,7 @@ import {
   langCookieHeaderValue,
   resolveHomepageLang,
 } from "../langNegotiation";
+import { readLangCookieFromHeader } from "../langCookie";
 
 describe("detectLangFromAcceptLanguage", () => {
   it("returns null without a header", () => {
@@ -32,17 +33,17 @@ describe("detectLangFromAcceptLanguage", () => {
 
 describe("resolveHomepageLang", () => {
   it("ignores every path but the bare homepage", () => {
-    expect(resolveHomepageLang("/analizy", "lovable_lang=en", null).location).toBeNull();
+    expect(resolveHomepageLang("/analizy", "nes_lang=en", null).location).toBeNull();
     expect(resolveHomepageLang("/post/x", null, "de").location).toBeNull();
   });
 
   it("redirects a stored EN preference", () => {
-    const d = resolveHomepageLang("/", "lovable_lang=en", "pl");
+    const d = resolveHomepageLang("/", "nes_lang=en", "pl");
     expect(d).toEqual({ lang: "en", location: "/en", persistCookie: false });
   });
 
   it("does not redirect a stored default preference", () => {
-    expect(resolveHomepageLang("/", "lovable_lang=pl", "de").location).toBeNull();
+    expect(resolveHomepageLang("/", "nes_lang=pl", "de").location).toBeNull();
   });
 
   it("falls back to Accept-Language and persists it", () => {
@@ -71,6 +72,24 @@ describe("langCookieHeaderValue", () => {
   it("marks the cookie Secure over https only", () => {
     expect(langCookieHeaderValue("en", true)).toContain("; Secure");
     expect(langCookieHeaderValue("en", false)).not.toContain("Secure");
-    expect(langCookieHeaderValue("en", false)).toContain("lovable_lang=en");
+    expect(langCookieHeaderValue("en", false)).toContain("nes_lang=en");
+  });
+});
+
+describe("nazwa cookie językowego: migracja", () => {
+  it("czyta jeszcze POPRZEDNIĄ nazwę cookie", () => {
+    // Cookie żyje rok. Bez odczytu zapasowego zmiana nazwy zabrałaby wracającemu
+    // czytelnikowi wybrany język i przekierowała go na wersję z Accept-Language.
+    expect(readLangCookieFromHeader("lovable_lang=en")).toBe("en");
+  });
+
+  it("nowa nazwa wygrywa, gdy w nagłówku są obie", () => {
+    expect(readLangCookieFromHeader("lovable_lang=en; nes_lang=pl")).toBe("pl");
+  });
+
+  it("zapisuje WYŁĄCZNIE nową nazwę - stara wygasa sama", () => {
+    const value = langCookieHeaderValue("pl", true);
+    expect(value).toContain("nes_lang=pl");
+    expect(value).not.toContain("lovable_lang");
   });
 });

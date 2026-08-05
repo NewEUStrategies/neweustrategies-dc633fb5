@@ -8,7 +8,7 @@ export interface LoginPopupOptions {
   description?: string;
 }
 
-const EVENT = "lovable:open-login";
+const EVENT = "nes:open-login";
 
 export function openLoginPopup(arg?: LoginPopupMode | LoginPopupOptions) {
   if (typeof window === "undefined") return;

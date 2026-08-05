@@ -1,6 +1,6 @@
 /**
  * Bramka po-wdrożeniowa: czy WSZYSTKIE wymagane tabele, widoki i RPC istnieją
- * w bazie (Lovable Cloud / Supabase).
+ * w bazie (Supabase).
  *
  * Oczekiwany zbiór obiektów nie jest ręczną listą - wynika z forward-only
  * migracji w supabase/migrations (CREATE minus DROP/RENAME), więc kontrakt

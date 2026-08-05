@@ -66,7 +66,7 @@ export function createRateLimiter(opts: RateLimitOptions) {
 
 /**
  * Best-effort client IP for rate-limiting. Reads the proxy-forwarded headers
- * (correct behind the Lovable edge proxy / any CDN); falls back to a constant so
+ * (correct behind the edge proxy / any CDN); falls back to a constant so
  * an IP-less request still shares one bucket rather than bypassing the limit.
  */
 export function clientIpFromHeaders(headers: Headers): string {

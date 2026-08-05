@@ -1,8 +1,13 @@
 // Dynamic robots.txt.
 // - On canonical brand hosts: allow indexing + advertise every sitemap surface.
-// - On legacy Lovable preview / worker hosts: fully disallow, so search
-//   engines drop cached *.lovable.app / <uuid>.lovableproject.com URLs.
+// - On non-canonical hosts of this deployment (hosting-layer aliases, legacy
+//   domains from `LEGACY_HOST_SUFFIXES`): fully disallow, so search engines drop
+//   cached alias URLs instead of keeping a duplicate of the site.
 // - On unknown hosts: safe default of full disallow.
+//
+// Klasyfikacja hosta jest JEDNA dla całego SEO (`lib/http/host.ts`), wspólna
+// z przekierowaniem kanonicznym i powierzchniami sitemapy - host nie może być
+// jednocześnie kanonizowany 301 i ogłaszany jako indeksowalny.
 //
 // Do 2026-08-03 deklarowana była JEDNA sitemapa (/sitemap.xml), więc
 // /news-sitemap.xml - trasa istniejąca i wymagana przez Google News - nie był
@@ -12,30 +17,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { trustedPublicHost } from "@/lib/http/requestHost";
+import {
+  CANONICAL_SITE_HOSTS,
+  CANONICAL_SITE_ORIGIN,
+  isEditorOrLocalHost,
+  isNonCanonicalPublicHost,
+} from "@/lib/http/host";
 import { buildRobotsTxt } from "@/lib/seo/robots";
 import { parseSeoSettings } from "@/lib/seo/settings";
 
-const CANONICAL_ORIGIN = "https://neweuropeanstrategies.com";
-const CANONICAL_HOSTS = new Set(["neweuropeanstrategies.com", "www.neweuropeanstrategies.com"]);
-
-function isLegacyPublicHost(host: string): boolean {
-  if (!host) return false;
-  return (
-    host.endsWith(".lovable.app") ||
-    host.endsWith(".lovableproject.com") ||
-    host.endsWith(".pages.dev") ||
-    host.endsWith(".workers.dev")
-  );
-}
-
-function isEditorOrLocal(host: string): boolean {
-  if (!host) return false;
-  if (host === "localhost" || host === "127.0.0.1" || host === "::1") return true;
-  if (host.endsWith(".localhost")) return true;
-  if (host.endsWith(".lovable.dev")) return true;
-  if (host.startsWith("id-preview--")) return true;
-  return false;
-}
+const CANONICAL_ORIGIN = CANONICAL_SITE_ORIGIN;
+const CANONICAL_HOSTS = CANONICAL_SITE_HOSTS;
 
 /**
  * Sitemapy do ogłoszenia. Indeks jest zawsze; news sitemap tylko gdy redakcja
@@ -69,7 +61,7 @@ export const Route = createFileRoute("/robots.txt")({
         const body = buildRobotsTxt({
           mode: canonical
             ? "canonical"
-            : isEditorOrLocal(host) || isLegacyPublicHost(host)
+            : isEditorOrLocalHost(host) || isNonCanonicalPublicHost(host)
               ? "legacy"
               : "unknown",
           origin: CANONICAL_ORIGIN,

@@ -1,4 +1,4 @@
-// Klient embeddingów bramki Lovable AI (OpenAI-zgodny endpoint /v1/embeddings)
+// Klient embeddingów bramki AI platformy (OpenAI-zgodny endpoint /v1/embeddings)
 // + partia indeksera dla jobs-tick. Warstwa semantyczna wyszukiwania jest
 // ADDYTYWNA: gdy bramka nie wspiera embeddingów (404/400) albo brakuje
 // klucza, wszystko degraduje się do czystego FTS - stąd null zamiast

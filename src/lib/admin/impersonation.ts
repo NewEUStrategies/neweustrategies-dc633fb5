@@ -5,8 +5,13 @@
 // 4) przywracanie sesji super admina: setSession(original) + zamknięcie audytu.
 import { supabase } from "@/integrations/supabase/client";
 import { startImpersonation, endImpersonation } from "@/lib/admin/impersonation.functions";
-
-const STORAGE_KEY = "lovable:impersonation";
+import {
+  IMPERSONATION_STORAGE_KEY,
+  browserStorage,
+  readStoredValue,
+  removeStoredValue,
+  writeStoredValue,
+} from "@/lib/storageKeys";
 
 export interface ImpersonationState {
   sessionId: string;
@@ -21,7 +26,7 @@ export interface ImpersonationState {
 export function getImpersonationState(): ImpersonationState | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.sessionStorage.getItem(STORAGE_KEY);
+    const raw = readStoredValue(browserStorage("session"), IMPERSONATION_STORAGE_KEY);
     if (!raw) return null;
     return JSON.parse(raw) as ImpersonationState;
   } catch {
@@ -31,8 +36,9 @@ export function getImpersonationState(): ImpersonationState | null {
 
 function setImpersonationState(state: ImpersonationState | null) {
   if (typeof window === "undefined") return;
-  if (!state) window.sessionStorage.removeItem(STORAGE_KEY);
-  else window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (!state) removeStoredValue(browserStorage("session"), IMPERSONATION_STORAGE_KEY);
+  else
+    writeStoredValue(browserStorage("session"), IMPERSONATION_STORAGE_KEY, JSON.stringify(state));
 }
 
 export async function impersonateUser(targetUserId: string, targetLabel: string): Promise<void> {

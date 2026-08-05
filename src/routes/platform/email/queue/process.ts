@@ -1,4 +1,4 @@
-// Powierzchnia HTTP drenu kolejek pocztowych: POST /lovable/email/queue/process
+// Powierzchnia HTTP drenu kolejek pocztowych: POST /platform/email/queue/process
 //
 // Cała logika ponowień, TTL, DLQ, limitu tempa i higieny listy żyje w
 // src/lib/email/queueDrain.server.ts - JEDNEJ implementacji, którą wywołuje też
@@ -18,7 +18,7 @@ const MAX_MESSAGES_PER_REQUEST = 100;
 /** Deadline przebiegu - bezpiecznie poniżej typowych timeoutów runtime. */
 const REQUEST_DEADLINE_MS = 20_000;
 
-export const Route = createFileRoute("/lovable/email/queue/process")({
+export const Route = createFileRoute("/platform/email/queue/process")({
   server: {
     handlers: {
       POST: async ({ request }) => {

@@ -248,7 +248,7 @@ Ocena modułu = kompozyt jego funkcji (kompletność + inżynieria + dopracowani
 | Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
 | ------- | :---: | ------- | -------- | -------------- |
 | GA4 (import + export) | **8** | **Realny** Data API (JWT RS256 service account) + Measurement Protocol | Klucze `GA4_*` nieudokumentowane w `.env.example`; zero cache (2× API na odświeżenie) | Dodać cache + docs env |
-| Search Console | **6** | Realne API przez gateway Lovable | Vendor lock + SPOF; status „zbiera dane" to **tylko test obecności env, bez pingu** | Ping API + własny OAuth jako alternatywa |
+| Search Console | **6** | Realne API przez gateway platformy | Vendor lock + SPOF; status „zbiera dane" to **tylko test obecności env, bez pingu** | Ping API + własny OAuth jako alternatywa |
 | First-party tracking | **7** | Pełny łańcuch track→tabela→dashboard, consent gate, rate limit | Sessionization per karta (przeszacowuje); **zero bot-filtering** (kod to przyznaje) | Dodać filtr botów + sessionization cross-tab |
 | Warstwa semantyczna | **9** | Reconciliation, authoritative vs corroborating, `safeRatio`, rozróżnia `not_configured`/`no_data`, testy+pgTAP | **6 z 7 zakładek omija słownik** — jeszcze nie obowiązująca | Przepiąć pozostałe zakładki na słownik |
 | „Silnik insightów" | **5** | Data-driven insighty GA4/GSC/semantic realne | Overview to **hardkodowane stringi z flag env**, nie z liczb; „silnik" semantic = 3 reguły | Generować Overview z liczb |

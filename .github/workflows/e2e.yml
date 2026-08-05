@@ -29,7 +29,7 @@ jobs:
         with:
           bun-version: "1.2.23"
 
-      # See ci.yml: the committed bun.lock pins tarballs to Lovable's private GAR
+      # See ci.yml: the committed bun.lock pins tarballs to the build platform's private GAR
       # cache; repoint to the public npm registry for CI (edit is never committed).
       - name: Repoint lockfile to the public npm registry
         run: |

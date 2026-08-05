@@ -1,6 +1,6 @@
 // Beacon endpoint: zdarzenia eksperymentów A/B (ekspozycje/konwersje) trafiają
 // tutaj i zapisują wpis do `builder_experiment_events`. Publiczny prefix
-// `/api/public/*` pomija auth broker Lovable, więc rate-limit + walidacja
+// `/api/public/*` pomija auth broker platformy, więc rate-limit + walidacja
 // zależności musi być tutaj - bezpośredni INSERT jest zablokowany (migracja
 // 20260730140000), bo sesja zalogowana mogła zalewać tabelę sfabrykowanymi
 // zdarzeniami i dowolnie ustawiać "zwycięzcę" testu A/B. Insert service_role

@@ -5,6 +5,17 @@
 // with the original URL preserved (lossless) so the renderer can still
 // surface a link / fallback iframe instead of dropping the content.
 
+/**
+ * Twitch wymaga, żeby `parent` wskazywał host, który FAKTYCZNIE osadza player -
+ * inaczej odtwarzacz odmawia startu ("Error 1000 / embed not allowed"). Do tej
+ * pory był tu wpisany host podglądu dostawcy platformy, więc na produkcji każdy
+ * embed Twitcha był martwy. Nadpisywalne przez `PUBLIC_SITE_HOST` (wdrożenia na
+ * innej domenie), z domyślną domeną kanoniczną.
+ */
+const TWITCH_EMBED_PARENT =
+  (typeof process !== "undefined" ? process.env?.PUBLIC_SITE_HOST : undefined) ||
+  "neweuropeanstrategies.com";
+
 export type EmbedProvider =
   | "youtube"
   | "vimeo"
@@ -190,7 +201,7 @@ export function parseEmbedUrl(raw: string): ParsedEmbed | null {
 
   // ---- Twitch (channel live + video VOD + clip) ----
   if (host === "twitch.tv") {
-    const parent = "lovable.app";
+    const parent = TWITCH_EMBED_PARENT;
     const vod = u.pathname.match(/^\/videos\/(\d+)/);
     if (vod)
       return {
@@ -211,7 +222,7 @@ export function parseEmbedUrl(raw: string): ParsedEmbed | null {
     if (clip)
       return {
         provider: "twitch",
-        embedUrl: `https://clips.twitch.tv/embed?clip=${clip}&parent=lovable.app`,
+        embedUrl: `https://clips.twitch.tv/embed?clip=${clip}&parent=${TWITCH_EMBED_PARENT}`,
         sourceUrl,
       };
   }

@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { RenderErrorBoundary, isDevEnv } from "./RenderErrorBoundary";
 
-vi.mock("@/lib/lovable-error-reporting", () => ({ reportLovableError: vi.fn() }));
-import { reportLovableError } from "@/lib/lovable-error-reporting";
+vi.mock("@/lib/platform-error-reporting", () => ({ reportPlatformError: vi.fn() }));
+import { reportPlatformError } from "@/lib/platform-error-reporting";
 
 function Boom({ message = "kaboom" }: { message?: string }): never {
   throw new Error(message);
@@ -14,7 +14,7 @@ describe("RenderErrorBoundary", () => {
   beforeEach(() => {
     // React logs caught boundary errors to console.error; silence the noise.
     consoleErr = vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.mocked(reportLovableError).mockClear();
+    vi.mocked(reportPlatformError).mockClear();
   });
   afterEach(() => consoleErr.mockRestore());
 
@@ -76,14 +76,14 @@ describe("RenderErrorBoundary", () => {
     expect((onError.mock.calls[0][0] as Error).message).toBe("reported");
   });
 
-  it("falls back to reportLovableError when no onError is given", () => {
+  it("falls back to reportPlatformError when no onError is given", () => {
     render(
       <RenderErrorBoundary label="section:s9" dev={false}>
         <Boom message="defaulted" />
       </RenderErrorBoundary>,
     );
-    expect(reportLovableError).toHaveBeenCalledTimes(1);
-    const [err, ctx] = vi.mocked(reportLovableError).mock.calls[0];
+    expect(reportPlatformError).toHaveBeenCalledTimes(1);
+    const [err, ctx] = vi.mocked(reportPlatformError).mock.calls[0];
     expect((err as Error).message).toBe("defaulted");
     expect(ctx).toMatchObject({ boundary: "builder_render_boundary", label: "section:s9" });
   });

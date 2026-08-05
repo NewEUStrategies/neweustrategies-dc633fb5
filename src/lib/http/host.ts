@@ -44,27 +44,105 @@ export function wwwToggledHost(host: string): string {
 }
 
 /**
- * Hosts that are legitimate previews of the DEFAULT tenant: local dev and the
- * platform-issued preview domains of this deployment (Cloudflare + Lovable).
- * Crawler surfaces fail CLOSED for every other unknown host (see
- * resolveCrawlerTenantForHost) - an unclaimed production domain must never
+ * Hosts that are legitimate previews of the DEFAULT tenant: local dev plus the
+ * preview domains issued by the hosting layer of this deployment (Cloudflare
+ * Pages / Workers). Crawler surfaces fail CLOSED for every other unknown host
+ * (see resolveCrawlerTenantForHost) - an unclaimed production domain must never
  * serve, advertise or index another tenant's content.
+ *
+ * The list is deliberately SHORT and vendor-neutral. Anything a specific
+ * deployment adds belongs in `PREVIEW_HOST_SUFFIXES` (env), not in source:
+ * a hardcoded vendor domain is a security-relevant allowlist entry that
+ * outlives the vendor, and every entry here widens the fail-open path of the
+ * crawler plane.
  */
-const PREVIEW_HOST_SUFFIXES = [
-  ".localhost",
-  ".pages.dev",
-  ".workers.dev",
-  ".lovable.app",
-  ".lovable.dev",
-  ".lovableproject.com",
-] as const;
+const BUILTIN_PREVIEW_HOST_SUFFIXES = [".localhost", ".pages.dev", ".workers.dev"] as const;
 
 const PREVIEW_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "0.0.0.0"]);
+
+/**
+ * Extra host suffixes from the environment (comma-separated, with or without the
+ * leading dot), e.g. `PREVIEW_HOST_SUFFIXES=".preview.example,.stage.example"`.
+ * Read once per isolate: the value cannot change inside a running worker.
+ */
+function envHostSuffixes(name: string): readonly string[] {
+  const raw = typeof process !== "undefined" ? process.env?.[name] : undefined;
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean)
+    .map((entry) => (entry.startsWith(".") ? entry : `.${entry}`));
+}
+
+const envPreviewHostSuffixes = envHostSuffixes("PREVIEW_HOST_SUFFIXES");
 
 /** True for local/dev/platform-preview hosts (never for customer domains). */
 export function isPreviewHost(rawHost: string | null | undefined): boolean {
   const host = normalizeHost(rawHost);
   if (!host) return false;
   if (PREVIEW_HOSTS.has(host)) return true;
-  return PREVIEW_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix));
+  if (BUILTIN_PREVIEW_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix))) return true;
+  return envPreviewHostSuffixes.some((suffix) => host.endsWith(suffix));
+}
+
+// ── Kanoniczny origin marki i hosty niekanoniczne ──────────────────────────
+//
+// JEDNA definicja dla wszystkich powierzchni SEO. Wcześniej `canonicalRedirect`,
+// `sitemapRequest.server` i `robots[.]txt` miały każde WŁASNĄ kopię listy
+// aliasów i originu kanonicznego - trzy allowlisty istotne dla indeksowania,
+// które mogły się rozjechać po cichu (host dopisany w jednym miejscu dostaje
+// 301, ale robots.txt dalej pozwala go indeksować - i mamy zduplikowaną treść
+// w wynikach wyszukiwania).
+
+/** Origin, na który zbiegają się wszystkie adresy publikowane crawlerom. */
+export const CANONICAL_SITE_ORIGIN = "https://neweuropeanstrategies.com";
+
+/** Hosty kanoniczne marki (apex + www). */
+export const CANONICAL_SITE_HOSTS: ReadonlySet<string> = new Set([
+  "neweuropeanstrategies.com",
+  "www.neweuropeanstrategies.com",
+]);
+
+export function isCanonicalSiteHost(rawHost: string | null | undefined): boolean {
+  const host = normalizeHost(rawHost);
+  return host !== null && CANONICAL_SITE_HOSTS.has(host);
+}
+
+/**
+ * Hosty edytora/podglądu, których NIE kanonizujemy ani nie blokujemy: lokalny
+ * dev i podgląd w edytorze (iframe). `EDITOR_HOST_SUFFIXES` nazywa domeny
+ * edytora danego wdrożenia; prefiks `id-preview--` zostaje, bo identyfikuje
+ * podgląd w edytorze niezależnie od domeny, która go obsługuje.
+ */
+const envEditorHostSuffixes = envHostSuffixes("EDITOR_HOST_SUFFIXES");
+
+export function isEditorOrLocalHost(rawHost: string | null | undefined): boolean {
+  const host = normalizeHost(rawHost);
+  if (!host) return false;
+  if (PREVIEW_HOSTS.has(host) || host.endsWith(".localhost")) return true;
+  if (host.startsWith("id-preview--")) return true;
+  return envEditorHostSuffixes.some((suffix) => host.endsWith(suffix));
+}
+
+/** Aliasy warstwy hostingu - zawsze niekanoniczne. */
+const BUILTIN_NON_CANONICAL_SUFFIXES = [".pages.dev", ".workers.dev"] as const;
+
+const envLegacyHostSuffixes = envHostSuffixes("LEGACY_HOST_SUFFIXES");
+
+/**
+ * Host, który obsługuje ten serwis, ale NIE jest kanoniczny: alias hostingu albo
+ * domena historyczna z `LEGACY_HOST_SUFFIXES`. Takie hosty dostają 301 na origin
+ * kanoniczny, a robots.txt zakazuje ich indeksowania - inaczej wyszukiwarki
+ * trzymają w indeksie dwie kopie tej samej treści.
+ */
+export function isNonCanonicalPublicHost(rawHost: string | null | undefined): boolean {
+  const host = normalizeHost(rawHost);
+  if (!host) return false;
+  if (CANONICAL_SITE_HOSTS.has(host)) return false;
+  if (isEditorOrLocalHost(host)) return false;
+  return (
+    BUILTIN_NON_CANONICAL_SUFFIXES.some((suffix) => host.endsWith(suffix)) ||
+    envLegacyHostSuffixes.some((suffix) => host.endsWith(suffix))
+  );
 }

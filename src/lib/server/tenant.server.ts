@@ -148,7 +148,7 @@ function forwardedHostCandidates(rawForwarded: string | null | undefined): strin
  *      (front z publiczną domeną przed originem o wewnętrznym `Host`);
  *      spreparowana wartość spoza katalogu nigdy tu nie przejdzie, a
  *      wartość wskazująca CUDZĄ domenę przegrywa z regułą 1;
- *   3. hosty podglądu (localhost / *.pages.dev / *.lovable.app itd.) -
+ *   3. hosty podglądu (localhost / *.pages.dev / *.workers.dev itd.) -
  *      powierzchnie tenanta domyślnego, jak dotychczas;
  *   4. katalog bez żadnej zajętej domeny (bootstrap przed multi-domain albo
  *      katalog nieosiągalny) - nie ma czego cross-tenantowo pomylić, więc

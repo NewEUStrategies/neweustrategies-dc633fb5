@@ -1,4 +1,4 @@
-// Webhook wykluczeń dostawcy platformy: POST /lovable/email/suppression
+// Webhook wykluczeń dostawcy platformy: POST /platform/email/suppression
 //
 // Druga (obok /api/public/webhooks/resend) pętla zwrotna dostarczalności - Go
 // API platformy raportuje tu odbicia, skargi i wypisy zgłoszone u dostawcy.
@@ -77,13 +77,13 @@ function classify(reason: SuppressionPayload["reason"]): {
   }
 }
 
-export const Route = createFileRoute("/lovable/email/suppression")({
+export const Route = createFileRoute("/platform/email/suppression")({
   server: {
     handlers: {
       POST: async ({ request }) => {
         const apiKey = process.env.LOVABLE_API_KEY;
         if (!apiKey) {
-          console.error("[lovable-suppression] LOVABLE_API_KEY not configured");
+          console.error("[platform-suppression] LOVABLE_API_KEY not configured");
           return Response.json({ error: "Server configuration error" }, { status: 500 });
         }
 
@@ -103,18 +103,18 @@ export const Route = createFileRoute("/lovable/email/suppression")({
             switch (error.code) {
               case "invalid_signature":
               case "stale_timestamp":
-                console.error("[lovable-suppression] rejected", { code: error.code });
+                console.error("[platform-suppression] rejected", { code: error.code });
                 return Response.json({ error: error.code }, { status: 401 });
               case "invalid_payload":
               case "invalid_json":
-                console.error("[lovable-suppression] bad payload", { code: error.code });
+                console.error("[platform-suppression] bad payload", { code: error.code });
                 return Response.json({ error: "Invalid payload" }, { status: 400 });
               default:
-                console.error("[lovable-suppression] verification failed", { code: error.code });
+                console.error("[platform-suppression] verification failed", { code: error.code });
                 return Response.json({ error: "Verification failed" }, { status: 401 });
             }
           }
-          console.error("[lovable-suppression] unexpected verification error", { error });
+          console.error("[platform-suppression] unexpected verification error", { error });
           return Response.json({ error: "Internal error" }, { status: 500 });
         }
 
@@ -129,8 +129,8 @@ export const Route = createFileRoute("/lovable/email/suppression")({
         // idempotencja po (provider, event_id) nic nie daje. Gdy dostawca nie
         // przysyła własnego, składamy go z adresu i powodu.
         const eventId = payload.message_id
-          ? `lovable:${payload.message_id}:${payload.reason}`
-          : `lovable:${email}:${payload.reason}`;
+          ? `platform:${payload.message_id}:${payload.reason}`
+          : `platform:${email}:${payload.reason}`;
 
         if (kind === "other") {
           // Wypis: nie ma tu zdarzenia dostarczalności do zaksięgowania, jest
@@ -138,7 +138,7 @@ export const Route = createFileRoute("/lovable/email/suppression")({
           // ale nie potwierdzenia płatności (patrz suppressionPolicy).
           const tenantId = await suppression.resolveTenantForAddress(supabaseAdmin, email);
           if (!tenantId) {
-            console.error("[lovable-suppression] no tenant for address", {
+            console.error("[platform-suppression] no tenant for address", {
               email_redacted: redactEmail(email),
             });
             return Response.json({ error: "Failed to write suppression" }, { status: 500 });
@@ -148,7 +148,7 @@ export const Route = createFileRoute("/lovable/email/suppression")({
             email,
             reason: "unsubscribe",
             source: "system",
-            provider: "lovable",
+            provider: "platform",
             providerMessageId: payload.message_id ?? null,
             eventId,
             diagnostic,
@@ -158,9 +158,9 @@ export const Route = createFileRoute("/lovable/email/suppression")({
         }
 
         const applied = await suppression.applyDeliveryEvent(supabaseAdmin, {
-          provider: "lovable",
+          provider: "platform",
           eventId,
-          eventType: `lovable.${payload.reason}`,
+          eventType: `platform.${payload.reason}`,
           kind,
           email,
           providerMessageId: payload.message_id ?? null,
@@ -171,7 +171,7 @@ export const Route = createFileRoute("/lovable/email/suppression")({
         });
 
         if (!applied.ok) {
-          console.error("[lovable-suppression] apply failed", {
+          console.error("[platform-suppression] apply failed", {
             email_redacted: redactEmail(email),
             reason: payload.reason,
           });
@@ -179,7 +179,7 @@ export const Route = createFileRoute("/lovable/email/suppression")({
           return Response.json({ error: "Failed to write suppression" }, { status: 500 });
         }
 
-        console.log("[lovable-suppression] processed", {
+        console.log("[platform-suppression] processed", {
           email_redacted: redactEmail(email),
           reason: payload.reason,
           duplicate: applied.duplicate,

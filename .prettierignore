@@ -13,11 +13,11 @@ src/lib/icons/lucideIconNodes.generated.ts
 # dokładnie tę, która zmieniła zbiór ról. Prettier rozbiłby to na setki linii i
 # rozjechał porównanie bajt w bajt w bramce parytetu.
 src/lib/authz/authzSnapshot.generated.ts
-# Generowane przez platformę Lovable (manifest MCP + plan) - przepisywane przy
+# Metadane sandboxu platformy (manifest MCP + plan) - przepisywane przy
 # każdym buildzie, więc formatowanie ich to tylko szum w diffie. Ten sam powód,
 # dla którego eslint.config.js ignoruje src/routes/mcp.ts i list-tools.ts.
 .lovable
-# Generowane przez wtyczkę @lovable.dev/mcp-js (ignorowane też przez ESLint).
+# Generowane przez wtyczkę MCP platformy (ignorowane też przez ESLint).
 src/routes/mcp.ts
 src/routes/**/list-tools.ts
 src/routes/**/invoke-tool/*.ts

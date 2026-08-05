@@ -6,9 +6,9 @@ import "@/lib/i18n-chat";
 import { chatPl } from "@/lib/i18n-chat";
 import { ChatSurfaceBoundary } from "../ChatSurfaceBoundary";
 
-// Raport błędu leci do Lovable - w teście nie chcemy sieci ani szumu w logach.
-vi.mock("@/lib/lovable-error-reporting", () => ({
-  reportLovableError: vi.fn(),
+// Raport błędu leci do platformy - w teście nie chcemy sieci ani szumu w logach.
+vi.mock("@/lib/platform-error-reporting", () => ({
+  reportPlatformError: vi.fn(),
 }));
 
 afterEach(cleanup);

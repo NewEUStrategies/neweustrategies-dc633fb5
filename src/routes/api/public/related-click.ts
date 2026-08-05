@@ -1,6 +1,6 @@
 // Beacon endpoint: kliknięcia w rekomendacje trafiają tutaj i zapisują wpis
 // do `related_post_clicks`. Publiczny prefix `/api/public/*` pomija auth
-// broker Lovable, więc rate-limit + walidacja zależności musi być tutaj.
+// broker platformy, więc rate-limit + walidacja zależności musi być tutaj.
 //
 // - Walidacja Zod (uuid + uuid, różne).
 // - Rate limit: max 30 wpisów / 5 min z tego samego `viewer_hash`.

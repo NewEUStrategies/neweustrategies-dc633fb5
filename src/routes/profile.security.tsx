@@ -146,13 +146,15 @@ function SecurityPage() {
     try {
       const result = await deleteMyAccount({ data: { password: delPw } });
       setDelOpen(false);
-      // Ile dowodów księgowych zostało - liczbą, nie ogólnikiem (art. 12 RODO).
-      // Zero zachowanych zamówień => zwykły komunikat, bez zbędnej prawniczej
-      // adnotacji dla kogoś, kto nigdy u nas nie płacił.
+      // Ile dowodów zostało - liczbą, nie ogólnikiem (art. 12 RODO). Liczymy
+      // ZAMÓWIENIA I UPRAWNIENIA ZAKUPOWE razem: dla użytkownika to jedna
+      // kategoria („dowody mojej płatności"), a rozbicie na tabele jest
+      // szczegółem implementacyjnym. Zero dowodów => zwykły komunikat, bez
+      // zbędnej prawniczej adnotacji dla kogoś, kto nigdy u nas nie płacił.
       toast.success(
-        result.retainedOrders > 0
+        result.retainedEvidence > 0
           ? t("profile.security.danger.deletedWithRetention", {
-              count: result.retainedOrders,
+              count: result.retainedEvidence,
             })
           : t("profile.security.danger.deleted"),
       );

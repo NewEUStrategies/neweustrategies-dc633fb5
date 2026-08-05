@@ -2,7 +2,7 @@
  * Public (anon) Supabase config - ONE resolution order for both bundles:
  *
  *   1. `import.meta.env.VITE_SUPABASE_*` - inlined at build time when the
- *      build environment carries them (Lovable sandbox, local dev with .env).
+ *      build environment carries them (platform sandbox, local dev with .env).
  *   2. `window.__SUPABASE_CONFIG__` - runtime handoff written into the
  *      document <head> by RootShell during SSR (see __root.tsx). This is what
  *      keeps the PUBLISHED site alive: the publish build does NOT inject

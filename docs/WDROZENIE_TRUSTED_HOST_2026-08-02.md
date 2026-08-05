@@ -42,7 +42,7 @@ ustalonym). Porządek zaufania:
    katalogu nigdy nie przechodzi, wartość wskazująca cudzą domenę przegrywa
    z regułą 1; lista po przecinku skanowana z twardym limitem 8 kandydatów;
 3. **hosty podglądu** (`isPreviewHost`: localhost, *.pages.dev,
-   *.lovable.app itd.) - powierzchnie tenanta domyślnego, jak dotychczas;
+   aliasy hostingu itd.) - powierzchnie tenanta domyślnego, jak dotychczas;
 4. **bootstrap** (żadna domena nie zajęta albo katalog nieosiągalny) -
    historyczny porządek `XFH ?? Host`; nie ma czego cross-tenantowo pomylić,
    a instalacja single-tenant zachowuje się bajt w bajt jak przed zmianą;

@@ -1,18 +1,30 @@
 /**
- * Bramka inwariantu: USUNIĘCIE KONTA NIE MOŻE NISZCZYĆ DOWODÓW KSIĘGOWYCH.
+ * Bramka inwariantu: USUNIĘCIE KONTA NIE MOŻE ANI NISZCZYĆ DOWODÓW, ANI
+ * ZOSTAWIAĆ SUROWEGO IDENTYFIKATORA OSOBY.
  *
- * PRZYCZYNA ZRODŁOWA (audyt "Usunięcie konta (RODO)", punkt otwarty trzy
- * wydania z rzędu): `payment_orders.user_id` miało `ON DELETE CASCADE` od
- * definicji tabeli (20260624172041). `auth.admin.deleteUser()` zabierał więc
- * całą ewidencję transakcji użytkownika, mimo że art. 74 ust. 2 ustawy o
- * rachunkowości każe ją trzymać 5 lat, a art. 17 ust. 3 lit. b RODO wprost
- * wyłącza prawo do usunięcia w takim zakresie. Naprawia to 20260803090002.
+ * PRZYCZYNA ŹRÓDŁOWA - dwa przeciwne kierunki tego samego błędu, każdy w innej
+ * tabeli transakcyjnej:
+ *
+ *   * `payment_orders.user_id` miało `ON DELETE CASCADE` od definicji tabeli
+ *     (20260624172041). `auth.admin.deleteUser()` zabierał więc całą ewidencję
+ *     transakcji, mimo że art. 74 ust. 2 ustawy o rachunkowości każe ją trzymać
+ *     5 lat, a art. 17 ust. 3 lit. b RODO wprost wyłącza prawo do usunięcia
+ *     w takim zakresie. Naprawia to 20260803090002.
+ *
+ *   * `user_purchases.user_id` był `uuid NOT NULL` BEZ ŻADNEGO klucza obcego
+ *     (20260601051732). Nigdy nie kaskadował - i dokładnie dlatego umknął
+ *     audytowi CASCADE trzy wydania z rzędu: nie było go na liście „miejsc,
+ *     gdzie CASCADE niszczy dowody", bo CASCADE tam nie było. Po usunięciu
+ *     konta wiersz ZOSTAWAŁ z identyfikatorem osoby w postaci surowej, bez
+ *     podstawy i bez terminu (art. 5 ust. 1 lit. e RODO). Naprawia to
+ *     20260805090100.
  *
  * Test jest STATYCZNY (bez bazy), bo migracje są forward-only: o stanie
  * końcowym decyduje OSTATNIA instrukcja dotykająca danego klucza obcego. Sama
  * obecność migracji naprawczej nic nie gwarantuje - dowolna późniejsza migracja
- * mogłaby przywrócić CASCADE, a dokładnie ten scenariusz powtarzał się w
- * audycie. Bramka pilnuje stanu końcowego, nie faktu istnienia poprawki.
+ * mogłaby przywrócić CASCADE albo zdjąć FK, a dokładnie ten scenariusz
+ * powtarzał się w audycie. Bramka pilnuje stanu końcowego, nie faktu istnienia
+ * poprawki.
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
@@ -22,7 +34,7 @@ const MIGRATIONS_DIR = "supabase/migrations";
 
 const REFERENTIAL_ACTIONS = "CASCADE|SET\\s+NULL|SET\\s+DEFAULT|RESTRICT|NO\\s+ACTION";
 
-/** Zdarzenie zmieniające stan końcowy klucza obcego `payment_orders.user_id`. */
+/** Zdarzenie zmieniające stan końcowy klucza obcego `<tabela>.user_id`. */
 interface FkEvent {
   readonly file: string;
   readonly at: number;
@@ -32,7 +44,7 @@ interface FkEvent {
   readonly action: string | null;
 }
 
-/** Zdarzenie zmieniające obowiązkowość kolumny `payment_orders.user_id`. */
+/** Zdarzenie zmieniające obowiązkowość kolumny `<tabela>.user_id`. */
 interface NullabilityEvent {
   readonly file: string;
   readonly at: number;
@@ -110,17 +122,28 @@ const MIGRATIONS: ReadonlyArray<{ file: string; sql: string }> = migrationFiles(
   sql: stripLineComments(readFileSync(join(MIGRATIONS_DIR, file), "utf8")),
 }));
 
-const IS_ORDERS_TABLE = /^\s*ALTER\s+TABLE\s+(?:ONLY\s+)?public\.payment_orders\b/i;
-const CREATE_ORDERS_TABLE =
-  /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?public\.payment_orders\s*\(([\s\S]*)\)\s*;?\s*$/i;
+const ALL_SQL = MIGRATIONS.map((m) => m.sql).join("\n");
 
-function collectFkEvents(): FkEvent[] {
+function isAlterOf(table: string): RegExp {
+  return new RegExp(`^\\s*ALTER\\s+TABLE\\s+(?:ONLY\\s+)?public\\.${table}\\b`, "i");
+}
+
+function isCreateOf(table: string): RegExp {
+  return new RegExp(
+    `CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?public\\.${table}\\s*\\(([\\s\\S]*)\\)\\s*;?\\s*$`,
+    "i",
+  );
+}
+
+function collectFkEvents(table: string): FkEvent[] {
   const events: FkEvent[] = [];
+  const isAlter = isAlterOf(table);
+  const isCreate = isCreateOf(table);
 
   for (const { file, sql } of MIGRATIONS) {
     for (const { text, at } of statements(sql)) {
       // (a) Definicja inline w CREATE TABLE.
-      const created = CREATE_ORDERS_TABLE.exec(text);
+      const created = isCreate.exec(text);
       if (created) {
         const inline = new RegExp(
           `user_id\\s+uuid[^,]*?REFERENCES\\s+auth\\.users\\s*\\(\\s*id\\s*\\)\\s*ON\\s+DELETE\\s+(${REFERENTIAL_ACTIONS})`,
@@ -132,7 +155,7 @@ function collectFkEvents(): FkEvent[] {
         continue;
       }
 
-      if (!IS_ORDERS_TABLE.test(text)) continue;
+      if (!isAlter.test(text)) continue;
 
       // (b) ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY (user_id).
       const added = new RegExp(
@@ -144,8 +167,12 @@ function collectFkEvents(): FkEvent[] {
         continue;
       }
 
-      // (c) ALTER TABLE ... DROP CONSTRAINT payment_orders_user_id_fkey.
-      if (/DROP\s+CONSTRAINT\s+(?:IF\s+EXISTS\s+)?payment_orders_user_id_fkey/i.test(text)) {
+      // (c) ALTER TABLE ... DROP CONSTRAINT <tabela>_user_id_fkey.
+      if (
+        new RegExp(`DROP\\s+CONSTRAINT\\s+(?:IF\\s+EXISTS\\s+)?${table}_user_id_fkey`, "i").test(
+          text,
+        )
+      ) {
         events.push({ file, at, kind: "drop", action: null });
       }
     }
@@ -154,19 +181,21 @@ function collectFkEvents(): FkEvent[] {
   return events;
 }
 
-function collectNullabilityEvents(): NullabilityEvent[] {
+function collectNullabilityEvents(table: string): NullabilityEvent[] {
   const events: NullabilityEvent[] = [];
+  const isAlter = isAlterOf(table);
+  const isCreate = isCreateOf(table);
 
   for (const { file, sql } of MIGRATIONS) {
     for (const { text, at } of statements(sql)) {
-      const created = CREATE_ORDERS_TABLE.exec(text);
+      const created = isCreate.exec(text);
       if (created) {
         if (/user_id\s+uuid\s+NOT\s+NULL/i.test(created[1])) {
           events.push({ file, at, notNull: true });
         }
         continue;
       }
-      if (!IS_ORDERS_TABLE.test(text)) continue;
+      if (!isAlter.test(text)) continue;
       const altered = /ALTER\s+COLUMN\s+user_id\s+(DROP|SET)\s+NOT\s+NULL/i.exec(text);
       if (altered) {
         events.push({ file, at, notNull: altered[1].toUpperCase() === "SET" });
@@ -192,66 +221,135 @@ function latestFunctionBody(name: string): { file: string; source: string } | nu
   return found;
 }
 
-describe("RODO x art. 74 uor: zamówienia przeżywają usunięcie konta", () => {
-  it("stan końcowy FK payment_orders.user_id to ON DELETE SET NULL", () => {
-    const events = collectFkEvents();
-    expect(
-      events.length,
-      "nie znaleziono ŻADNEJ definicji FK payment_orders.user_id",
-    ).toBeGreaterThan(0);
+/**
+ * Wspólny kontrakt obu tabel dowodowych. Parametryzacja jest tu POINTĄ, nie
+ * oszczędnością: `user_purchases` umknął audytowi dokładnie dlatego, że nikt nie
+ * sprawdzał go tą samą miarą co `payment_orders`.
+ */
+const EVIDENCE_TABLES = [
+  {
+    table: "payment_orders",
+    label: "zamówienia (ewidencja transakcji)",
+    fixMigration: "20260803090002",
+    anonymizer: "anonymize_payment_orders_for_user",
+    purge: "purge_expired_payment_orders",
+  },
+  {
+    table: "user_purchases",
+    label: "uprawnienia zakupowe (dowody zakupu dostępu)",
+    fixMigration: "20260805090100",
+    anonymizer: "anonymize_user_purchases_for_user",
+    purge: "purge_expired_user_purchases",
+  },
+] as const;
 
-    const last = events[events.length - 1];
-    expect(
-      last.kind,
-      `ostatnie zdarzenie FK to DROP w ${last.file} - zamówienia straciły klucz obcy zamiast go zmienić`,
-    ).toBe("add");
-    expect(
-      last.action,
-      `${last.file}: FK payment_orders.user_id ma ON DELETE ${last.action}. ` +
-        "CASCADE kasuje ewidencję transakcji razem z kontem (art. 74 ust. 2 uor). " +
-        "Wymagane: SET NULL + anonimizacja (patrz 20260803090002).",
-    ).toBe("SET NULL");
-  });
+describe.each(EVIDENCE_TABLES)(
+  "RODO x art. 74 uor: $table - $label",
+  ({ table, fixMigration, anonymizer, purge }) => {
+    it("stan końcowy FK <tabela>.user_id to ON DELETE SET NULL", () => {
+      const events = collectFkEvents(table);
+      expect(
+        events.length,
+        `nie znaleziono ŻADNEJ definicji FK ${table}.user_id - brak klucza obcego to ` +
+          "nie luźne sprzężenie, tylko brak gwarancji: usunięcie konta zostawia surowy " +
+          `identyfikator osoby (patrz ${fixMigration})`,
+      ).toBeGreaterThan(0);
 
-  it("po migracji naprawczej żadna migracja nie przywraca CASCADE", () => {
-    const events = collectFkEvents();
-    const fixIndex = events.findIndex((e) => e.action === "SET NULL");
-    expect(fixIndex, "brak migracji ustawiającej SET NULL").toBeGreaterThanOrEqual(0);
+      const last = events[events.length - 1];
+      expect(
+        last.kind,
+        `ostatnie zdarzenie FK to DROP w ${last.file} - tabela straciła klucz obcy zamiast go zmienić`,
+      ).toBe("add");
+      expect(
+        last.action,
+        `${last.file}: FK ${table}.user_id ma ON DELETE ${last.action}. ` +
+          "CASCADE kasuje dowody razem z kontem (art. 74 ust. 2 uor). " +
+          `Wymagane: SET NULL + anonimizacja (patrz ${fixMigration}).`,
+      ).toBe("SET NULL");
+    });
 
-    const regressions = events.slice(fixIndex).filter((e) => e.action === "CASCADE");
-    expect(regressions.map((e) => e.file)).toEqual([]);
-  });
+    it("po migracji naprawczej żadna migracja nie przywraca CASCADE", () => {
+      const events = collectFkEvents(table);
+      const fixIndex = events.findIndex((e) => e.action === "SET NULL");
+      expect(fixIndex, "brak migracji ustawiającej SET NULL").toBeGreaterThanOrEqual(0);
 
-  it("user_id jest nullowalny - inaczej SET NULL nie ma jak zadziałać", () => {
-    const events = collectNullabilityEvents();
-    expect(events.length).toBeGreaterThan(0);
-    const last = events[events.length - 1];
-    expect(
-      last.notNull,
-      `${last.file}: user_id jest NOT NULL, więc ON DELETE SET NULL rzuci błąd przy kasowaniu konta`,
-    ).toBe(false);
-  });
+      const regressions = events.slice(fixIndex).filter((e) => e.action === "CASCADE");
+      expect(regressions.map((e) => e.file)).toEqual([]);
+    });
 
-  it("anonimizacja jest SECURITY DEFINER i niedostępna dla ról klienckich", () => {
-    const fn = latestFunctionBody("anonymize_payment_orders_for_user");
-    expect(fn, "brak funkcji public.anonymize_payment_orders_for_user").not.toBeNull();
-    expect(fn!.source).toMatch(/SECURITY\s+DEFINER/i);
-    expect(fn!.source).toMatch(/SET\s+search_path\s*=\s*public/i);
+    it("user_id jest nullowalny - inaczej SET NULL nie ma jak zadziałać", () => {
+      const events = collectNullabilityEvents(table);
+      expect(events.length).toBeGreaterThan(0);
+      const last = events[events.length - 1];
+      expect(
+        last.notNull,
+        `${last.file}: user_id jest NOT NULL, więc ON DELETE SET NULL rzuci błąd przy kasowaniu konta`,
+      ).toBe(false);
+    });
 
-    const all = MIGRATIONS.map((m) => m.sql).join("\n");
-    // SECURITY DEFINER + dostęp dla `authenticated` = dowolny zalogowany
-    // użytkownik anonimizuje zamówienia dowolnego innego. Musi być odebrane.
-    expect(all).toMatch(
-      /REVOKE\s+EXECUTE\s+ON\s+FUNCTION\s+public\.anonymize_payment_orders_for_user\(uuid\)\s*\n?\s*FROM\s+PUBLIC,\s*anon,\s*authenticated/i,
-    );
-    expect(all).toMatch(
-      /GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+public\.anonymize_payment_orders_for_user\(uuid\)\s+TO\s+service_role/i,
-    );
+    it("anonimizacja jest SECURITY DEFINER i niedostępna dla ról klienckich", () => {
+      const fn = latestFunctionBody(anonymizer);
+      expect(fn, `brak funkcji public.${anonymizer}`).not.toBeNull();
+      expect(fn!.source).toMatch(/SECURITY\s+DEFINER/i);
+      expect(fn!.source).toMatch(/SET\s+search_path\s*=\s*public/i);
+
+      // SECURITY DEFINER + dostęp dla `authenticated` = dowolny zalogowany
+      // użytkownik anonimizuje dowody dowolnego innego. Musi być odebrane.
+      expect(ALL_SQL).toMatch(
+        new RegExp(
+          `REVOKE\\s+EXECUTE\\s+ON\\s+FUNCTION\\s+public\\.${anonymizer}\\(uuid\\)\\s*\\n?\\s*FROM\\s+PUBLIC,\\s*anon,\\s*authenticated`,
+          "i",
+        ),
+      );
+      expect(ALL_SQL).toMatch(
+        new RegExp(
+          `GRANT\\s+EXECUTE\\s+ON\\s+FUNCTION\\s+public\\.${anonymizer}\\(uuid\\)\\s+TO\\s+service_role`,
+          "i",
+        ),
+      );
+    });
+
+    it("retencja ma termin, stempel i sprzątanie - pseudonimizacja nie jest wieczysta", () => {
+      // Art. 5 ust. 1 lit. e RODO: po wygaśnięciu podstawy prawnej dane muszą
+      // zniknąć, więc "SET NULL + anonimizacja" bez terminu byłoby półśrodkiem.
+      expect(ALL_SQL).toMatch(
+        /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+public\.accounting_retention_until/i,
+      );
+      expect(ALL_SQL).toMatch(
+        new RegExp(`CREATE\\s+OR\\s+REPLACE\\s+FUNCTION\\s+public\\.${purge}`, "i"),
+      );
+      expect(ALL_SQL).toMatch(
+        new RegExp(`ALTER\\s+TABLE\\s+public\\.${table}[\\s\\S]{0,400}?retention_until`, "i"),
+      );
+      expect(ALL_SQL).toMatch(
+        new RegExp(`ALTER\\s+TABLE\\s+public\\.${table}[\\s\\S]{0,400}?retention_hold`, "i"),
+      );
+    });
+
+    it("kształt zanonimizowanego wiersza jest wymuszony przez CHECK", () => {
+      // Pseudonim bez identyfikatora, nigdy jedno bez drugiego - inaczej
+      // "anonimizacja" mogłaby zostawić oba albo żadnego.
+      expect(ALL_SQL).toMatch(
+        new RegExp(`CONSTRAINT\\s+${table}_anonymized_shape_chk\\s+CHECK`, "i"),
+      );
+    });
+  },
+);
+
+describe("wspólny punkt wejścia retencji", () => {
+  it("obie tabele są anonimizowane w JEDNEJ transakcji", () => {
+    // Dwa osobne RPC to okno, w którym zamówienia są już pseudonimizowane,
+    // a zakupy wciąż noszą surowy identyfikator - awaria w tym oknie zostawia
+    // naruszenie w danych.
+    const fn = latestFunctionBody("anonymize_accounting_evidence_for_user");
+    expect(fn, "brak funkcji public.anonymize_accounting_evidence_for_user").not.toBeNull();
+    expect(fn!.source).toMatch(/anonymize_payment_orders_for_user/);
+    expect(fn!.source).toMatch(/anonymize_user_purchases_for_user/);
   });
 
   it("trigger BEFORE DELETE na auth.users domyka ścieżki poza aplikacją", () => {
     // Kasowanie konta z dashboardu / CLI nie przechodzi przez deleteMyAccount,
-    // a i tak nie może zostawić na dowodzie adresu e-mail osoby, która właśnie
+    // a i tak nie może zostawić na dowodzie danych osoby, która właśnie
     // skorzystała z prawa do usunięcia danych.
     const creations: string[] = [];
     const drops: string[] = [];
@@ -277,27 +375,33 @@ describe("RODO x art. 74 uor: zamówienia przeżywają usunięcie konta", () => 
     expect(drops.filter((f) => f > lastCreation)).toEqual([]);
   });
 
-  it("retencja ma termin i sprzątanie - pseudonimizacja nie jest wieczysta", () => {
-    const all = MIGRATIONS.map((m) => m.sql).join("\n");
-    // Art. 5 ust. 1 lit. e RODO: po wygaśnięciu podstawy prawnej dane muszą
-    // zniknąć, więc "SET NULL + anonimizacja" bez terminu byłoby półśrodkiem.
-    expect(all).toMatch(/CREATE\s+OR\s+REPLACE\s+FUNCTION\s+public\.accounting_retention_until/i);
-    expect(all).toMatch(/CREATE\s+OR\s+REPLACE\s+FUNCTION\s+public\.purge_expired_payment_orders/i);
-    expect(all).toMatch(/retention_hold/);
+  it("trigger woła wspólny punkt wejścia, nie tylko zamówienia", () => {
+    const fn = latestFunctionBody("tg_auth_user_deleted_retain_accounting");
+    expect(fn).not.toBeNull();
+    expect(
+      fn!.source,
+      "trigger anonimizuje tylko zamówienia - user_purchases zostałoby z surowym user_id",
+    ).toMatch(/anonymize_accounting_evidence_for_user/);
+  });
+
+  it("pseudonim jest wspólny dla obu tabel (uzgodnienie ksiąg bez danych osobowych)", () => {
+    for (const { anonymizer } of EVIDENCE_TABLES) {
+      expect(latestFunctionBody(anonymizer)!.source).toMatch(/accounting_subject_ref/);
+    }
   });
 });
 
 describe("deleteMyAccount: kolejność kroków", () => {
   const source = readFileSync("src/lib/account.functions.ts", "utf8");
 
-  it("anonimizuje zamówienia PRZED skasowaniem użytkownika", () => {
+  it("anonimizuje dowody PRZED skasowaniem użytkownika", () => {
     const retention = source.indexOf("retainAccountingEvidence");
     const deletion = source.indexOf("auth.admin.deleteUser");
     expect(retention, "deleteMyAccount nie woła retainAccountingEvidence").toBeGreaterThan(-1);
     expect(deletion).toBeGreaterThan(-1);
     expect(
       retention,
-      "retencja dowodów księgowych musi wyprzedzać deleteUser - po skasowaniu konta nie ma czego anonimizować",
+      "retencja dowodów musi wyprzedzać deleteUser - po skasowaniu konta nie ma czego anonimizować",
     ).toBeLessThan(deletion);
   });
 

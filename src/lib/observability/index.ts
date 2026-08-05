@@ -27,7 +27,7 @@ export function initObservability(): () => void {
 
   // Global error capture: uncaught errors and rejected promises that React's
   // error boundaries never see. Beaconed to the observability endpoint (no-op
-  // when unconfigured), independent of Lovable's own capture.
+  // when unconfigured), independent of the hosting platform's own capture.
   const onError = (event: ErrorEvent) => {
     reportClientError(event.error ?? event.message, "onerror");
   };

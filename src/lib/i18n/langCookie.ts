@@ -5,23 +5,41 @@
 // render non-shareable.
 import { normalizeLang, type AppLang } from "./localePath";
 
-export const LANG_COOKIE = "lovable_lang";
+export const LANG_COOKIE = "nes_lang";
 export const LANG_COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 rok
+
+/**
+ * Poprzednia nazwa cookie preferencji języka. Czytamy ją nadal, bo cookie żyje
+ * rok: bez odczytu zapasowego każdy wracający czytelnik straciłby wybrany język
+ * i dostałby przekierowanie na wersję z Accept-Language. Zapis idzie WYŁĄCZNIE
+ * pod nową nazwą, więc stara wygasa sama.
+ */
+const LEGACY_LANG_COOKIES = ["lovable_lang"] as const;
+
+function cookiePattern(name: string, separator: string): RegExp {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?:^|${separator})${escaped}=([^;]*)`);
+}
+
+function readLangFrom(source: string, separator: string): AppLang | null {
+  for (const name of [LANG_COOKIE, ...LEGACY_LANG_COOKIES]) {
+    const match = source.match(cookiePattern(name, separator));
+    const lang = match ? normalizeLang(decodeURIComponent(match[1])) : null;
+    if (lang) return lang;
+  }
+  return null;
+}
 
 /** Parse the language cookie out of a raw `Cookie:` header. Pure + testable. */
 export function readLangCookieFromHeader(header: string | null | undefined): AppLang | null {
   if (!header) return null;
-  const escaped = LANG_COOKIE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = header.match(new RegExp(`(?:^|;\\s*)${escaped}=([^;]*)`));
-  return match ? normalizeLang(decodeURIComponent(match[1])) : null;
+  return readLangFrom(header, ";\\s*");
 }
 
 /** Read the language preference from `document.cookie` (client only). */
 export function readLangCookieClient(): AppLang | null {
   if (typeof document === "undefined") return null;
-  const escaped = LANG_COOKIE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = document.cookie.match(new RegExp(`(?:^|; )${escaped}=([^;]*)`));
-  return match ? normalizeLang(decodeURIComponent(match[1])) : null;
+  return readLangFrom(document.cookie, "; ");
 }
 
 /** Persist the language preference to `document.cookie` (client only). */

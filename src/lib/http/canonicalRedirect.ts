@@ -1,52 +1,30 @@
-// Global canonical-host redirect. Legacy Lovable preview hosts (both the
-// published `.lovable.app` alias and the sandbox `<uuid>.lovableproject.com`
-// preview) resolve to a full 301 to the canonical production origin so
-// share links, RSS enclosures and cached search-engine URLs converge on
-// neweuropeanstrategies.com.
+// Global canonical-host redirect. Every non-canonical host that still serves
+// this deployment (hosting-layer aliases, legacy domains from
+// `LEGACY_HOST_SUFFIXES`) answers with a full 301 to the canonical production
+// origin, so share links, RSS enclosures and cached search-engine URLs converge
+// on one origin instead of splitting link equity across aliases.
 //
-// The check runs server-side only (via createIsomorphicFn) and is a no-op
-// on the client and on local dev / editor internal hosts.
+// The host classification itself lives in `lib/http/host.ts`
+// (`isNonCanonicalPublicHost`) and is shared with the sitemap surfaces and
+// robots.txt - one list, so a host can never be redirected here while still
+// being advertised as indexable there.
+//
+// The check runs server-side only (via createIsomorphicFn) and is a no-op on
+// the client and on local dev / in-editor preview hosts.
 import { createIsomorphicFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { redirect } from "@tanstack/react-router";
 
-import { normalizeHost } from "./host";
-
-const CANONICAL_ORIGIN = "https://neweuropeanstrategies.com";
-const CANONICAL_HOSTS = new Set(["neweuropeanstrategies.com", "www.neweuropeanstrategies.com"]);
-
-// Hosts we intentionally do NOT redirect: local dev + Lovable in-editor
-// live preview iframe (id-preview--<uuid>.lovable.app / *.lovable.dev),
-// so the builder keeps working while the published aliases redirect.
-function isEditorOrLocal(host: string): boolean {
-  if (host === "localhost" || host === "127.0.0.1" || host === "::1") return true;
-  if (host.endsWith(".localhost")) return true;
-  if (host.endsWith(".lovable.dev")) return true;
-  if (host.startsWith("id-preview--")) return true;
-  return false;
-}
-
-// Hosts that must 301 to the canonical origin: both the published
-// `*.lovable.app` alias and the raw `<uuid>.lovableproject.com` preview.
-function isLegacyHost(host: string): boolean {
-  if (isEditorOrLocal(host)) return false;
-  if (CANONICAL_HOSTS.has(host)) return false;
-  return (
-    host.endsWith(".lovable.app") ||
-    host.endsWith(".lovableproject.com") ||
-    host.endsWith(".pages.dev") ||
-    host.endsWith(".workers.dev")
-  );
-}
+import { CANONICAL_SITE_ORIGIN, isNonCanonicalPublicHost, normalizeHost } from "./host";
 
 export const enforceCanonicalHost = createIsomorphicFn()
   .server((): void => {
     try {
       const req = getRequest();
       const host = normalizeHost(req.headers.get("host"));
-      if (!host || !isLegacyHost(host)) return;
+      if (!host || !isNonCanonicalPublicHost(host)) return;
       const url = new URL(req.url);
-      const target = `${CANONICAL_ORIGIN}${url.pathname}${url.search}`;
+      const target = `${CANONICAL_SITE_ORIGIN}${url.pathname}${url.search}`;
       throw redirect({ href: target, statusCode: 301, throw: true });
     } catch (err) {
       // Re-throw tanstack redirect; swallow header read failures.

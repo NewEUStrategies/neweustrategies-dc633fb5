@@ -168,7 +168,7 @@ src/assets/quiz/
 └── quiz-bg-dark-wide-2560x1800.webp
 ```
 
-> W projekcie używany jest system assetów Lovable (`*.asset.json`). Po wrzuceniu plików do `src/assets/quiz/` mogą wymagać wygenerowania / odświeżenia assetów. Alternatywnie można umieścić pliki w `public/quiz/` i odwoływać się bezpośrednio przez ścieżkę.
+> W projekcie używany jest system assetów platformy (`*.asset.json`). Po wrzuceniu plików do `src/assets/quiz/` mogą wymagać wygenerowania / odświeżenia assetów. Alternatywnie można umieścić pliki w `public/quiz/` i odwoływać się bezpośrednio przez ścieżkę.
 
 ### 8.2. Przykładowy komponent `QuizBackground`
 

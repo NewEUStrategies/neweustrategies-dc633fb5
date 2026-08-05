@@ -6,7 +6,7 @@
 // MobileDrawerBody i strony taksonomii renderują `BuilderRenderer` BEZ
 // `CurrentPostProvider`. Widget `post-*` wstawiony w takie miejsce pokazywał
 // REALNYM ODWIEDZAJĄCYM fikcyjnego "Jana Kowalskiego", "Tytuł przykładowego
-// wpisu", tagi "Lovable/CMS" i archiwum "Przykładowe archiwum / 12 wpisów".
+// wpisu", tagi "Przykład/CMS" i archiwum "Przykładowe archiwum / 12 wpisów".
 //
 // Test sprawdza trzy powierzchnie naraz:
 //   1. publiczna bez providera  -> pusto (żadnego napisu z próbki),
@@ -46,7 +46,7 @@ const SAMPLE_STRINGS: ReadonlyArray<string> = [
   "Sample post title",
   "Krótki opis wpisu pojawi się tutaj.",
   "jan.kowalski@example.com",
-  "Lovable",
+  "Przykład",
   "Przykładowe archiwum",
   "Wszystkie wpisy w tej sekcji.",
 ];

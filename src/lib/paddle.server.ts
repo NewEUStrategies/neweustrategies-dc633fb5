@@ -1,6 +1,6 @@
 // Współdzielona warstwa dostępu do dostawcy płatności (server-only).
 // Klucze API nigdy nie trafiają do kodu aplikacji - ruch idzie przez bramkę
-// konektorów Lovable, która dokłada właściwe poświadczenia per środowisko.
+// konektorów platformy, która dokłada właściwe poświadczenia per środowisko.
 import { Environment, Paddle, EventName } from "@paddle/paddle-node-sdk";
 
 const getEnv = (key: string): string => {

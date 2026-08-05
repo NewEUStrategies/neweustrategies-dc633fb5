@@ -1,7 +1,7 @@
 /**
  * PL vs EN parity + duplicate-content guard.
  *
- * Runs against Lovable Cloud via the anon Data API (respects RLS). No
+ * Runs against the hosted database via the anon Data API (respects RLS). No
  * browser needed - suited for CI. Checks:
  *  - Every published post has both PL and EN title + excerpt (no fallbacks).
  *  - Every published page has both PL and EN titles.
@@ -23,7 +23,7 @@ const d = shouldRun ? describe : describe.skip;
 const client = shouldRun
   ? createClient(SUPABASE_URL as string, SUPABASE_KEY as string, {
       auth: { persistSession: false, autoRefreshToken: false },
-      global: { headers: { "x-tenant-host": "neweustrategies.lovable.app" } },
+      global: { headers: { "x-tenant-host": "neweuropeanstrategies.com" } },
     })
   : null;
 

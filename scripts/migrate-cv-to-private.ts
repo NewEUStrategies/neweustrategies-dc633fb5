@@ -10,7 +10,7 @@
  *   - After the fix new uploads land in the PRIVATE `cv` bucket and
  *     `file_url` stores ONLY the storage path.
  *   - Migration cannot happen in SQL (bytes must be copied between buckets)
- *     and cannot happen from the Lovable sandbox (no prod storage access +
+ *     and cannot happen from the platform sandbox (no prod storage access +
  *     service role key is not exposed here). Run this locally / from CI with
  *     env vars set from the Supabase dashboard.
  *

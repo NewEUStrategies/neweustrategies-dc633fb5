@@ -21,7 +21,7 @@ import { speculationRulesJson } from "../lib/seo/speculationRules";
 import { afterPrerendering } from "../lib/prerender";
 import { getOrigin } from "../lib/seo/request";
 import { enforceCanonicalHost } from "../lib/http/canonicalRedirect";
-import { reportLovableError } from "../lib/lovable-error-reporting";
+import { reportPlatformError } from "../lib/platform-error-reporting";
 import { syncI18nToRequest, getRenderI18n } from "../lib/i18n";
 import { supabasePublicConfigScript } from "../lib/supabasePublicConfig";
 import { currentLang } from "../lib/i18n/localeRuntime";
@@ -116,7 +116,7 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   useEffect(() => {
-    reportLovableError(error, { boundary: "tanstack_root_error_component" });
+    reportPlatformError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
 
   return <FriendlyErrorPage error={error} reset={reset} />;
@@ -201,9 +201,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   // round-trip on the edge hydrates every layout chunk so chrome renders
   // in lockstep with the route body instead of popping in after hydration.
   loader: async ({ context, location }) => {
-    // 301 legacy Lovable hosts (`*.lovable.app`, `<uuid>.lovableproject.com`)
+    // 301 legacy/preview hosts of the hosting layer (see canonicalRedirect.ts)
     // to https://neweuropeanstrategies.com preserving path + query. Runs
-    // server-side only; editor preview (id-preview--*, *.lovable.dev) and
+    // server-side only; editor preview (id-preview--*, EDITOR_HOST_SUFFIXES) and
     // localhost are excluded so the builder iframe keeps working.
     enforceCanonicalHost();
     await syncI18nToRequest().catch(() => undefined);

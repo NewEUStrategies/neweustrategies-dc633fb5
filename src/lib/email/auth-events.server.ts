@@ -1,7 +1,7 @@
 // Warstwa danych diagnostyki webhooka maili autoryzacyjnych.
 //
 // Źródłem prawdy jest tabela auth_email_events, do której pisze
-// /lovable/email/auth/webhook. Tabela jest dostępna wyłącznie dla
+// /platform/email/auth/webhook. Tabela jest dostępna wyłącznie dla
 // service_role, więc odczyt idzie przez klienta admina - rola wywołującego
 // jest wcześniej weryfikowana w middleware server function.
 

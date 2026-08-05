@@ -255,7 +255,7 @@ const pl = {
         failed: "Nie udało się usunąć konta.",
         retentionTitle: "Co zostaje po usunięciu konta",
         retentionBody:
-          "Historia płatności (kwoty, waluty, daty, numery transakcji u operatora) zostaje jako dowód księgowy, ale tracisz z nią związek: usuwamy identyfikator konta, adres e-mail do potwierdzeń i dane opisowe, a w ich miejsce wchodzi nieodwracalny pseudonim.",
+          "Historia płatności (kwoty, waluty, daty, numery transakcji u operatora) oraz zapisy o wykupionym dostępie zostają jako dowód księgowy, ale tracisz z nimi związek: usuwamy identyfikator konta, adres e-mail do potwierdzeń i dane opisowe, a w ich miejsce wchodzi nieodwracalny pseudonim. Darmowe przyznania dostępu, które nic nie dowodzą, usuwamy razem z kontem.",
         retentionBasis:
           "Podstawa: art. 74 ust. 2 ustawy o rachunkowości (5 lat od końca roku obrotowego) w związku z art. 17 ust. 3 lit. b RODO. Po tym terminie zapisy usuwamy automatycznie.",
       },
@@ -851,7 +851,7 @@ const en: typeof pl = {
         failed: "Could not delete the account.",
         retentionTitle: "What stays after deletion",
         retentionBody:
-          "Your payment history (amounts, currencies, dates, provider transaction ids) stays on file as accounting evidence, but it can no longer be traced to you: we drop the account id, the receipt e-mail address and descriptive fields, and put an irreversible pseudonym in their place.",
+          "Your payment history (amounts, currencies, dates, provider transaction ids) and the records of access you purchased stay on file as accounting evidence, but they can no longer be traced to you: we drop the account id, the receipt e-mail address and descriptive fields, and put an irreversible pseudonym in their place. Free access grants prove nothing, so they are deleted along with the account.",
         retentionBasis:
           "Legal basis: Article 74(2) of the Polish Accounting Act (5 years from the end of the financial year) read with Article 17(3)(b) GDPR. Records are purged automatically once that period lapses.",
       },

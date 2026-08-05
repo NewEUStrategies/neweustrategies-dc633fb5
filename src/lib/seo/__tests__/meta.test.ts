@@ -122,7 +122,7 @@ describe("buildRootHead", () => {
     for (const lang of ["pl", "en"] as const) {
       const meta = buildRootHead(lang);
       // URL fields legitimately carry the canonical brand origin (a
-      // *.lovable.app host until the custom domain ships). The generator's
+      // a hosting-layer alias until the custom domain ships). The generator's
       // BRANDING must not leak into any textual field: title, descriptions,
       // author, site name, card copy.
       const urlFields = new Set(["og:image", "twitter:image", "og:url"]);

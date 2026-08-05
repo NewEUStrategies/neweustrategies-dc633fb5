@@ -122,8 +122,8 @@ po zmianie z sekcji 1-5) zostały naprawione, plus dwa znalezione po drodze.
   reassignowane).
 - Trzy martwe dyrektywy `eslint-disable` (SiteMenu, `lib/mcp/index.ts`,
   `admin.users.index.tsx`) - reguły nie zgłaszały już nic, a wyciszenie zostało.
-- `.prettierignore` dostaje `coverage` i pliki generowane przez platformę
-  Lovable (`.lovable`, `src/routes/mcp.ts`, `list-tools`, `invoke-tool`,
+- `.prettierignore` dostaje `coverage` i pliki generowane przez
+  platformę (metadane sandboxu, `src/routes/mcp.ts`, `list-tools`, `invoke-tool`,
   `oauth-protected-resource`) - to samo, co ESLint ignoruje od dawna, więc
   `prettier --check .` nie łapie już szumu z generatora.
 

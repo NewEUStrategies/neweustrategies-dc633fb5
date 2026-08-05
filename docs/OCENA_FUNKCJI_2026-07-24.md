@@ -320,7 +320,7 @@ w robots). Buildery `src/lib/seo/*` framework-free, 18 plików testów.
 | Funkcja | Ocena | Opis i uzasadnienie |
 | ------- | ----- | ------------------- |
 | Dane strukturalne / JSON-LD (`jsonld.ts`) | **9** | `safeJsonLd` neutralizuje `</script>` + U+2028/9 (testowany), poprawne typy: `NewsMediaOrganization` (@id), `WebSite`+`SearchAction`, `BreadcrumbList`, `NewsArticle` z **Google paywall markup** (`isAccessibleForFree`+`hasPart`) + warstwa AEO (`articleSection`/`keywords`/`abstract`/`Speakable`). Minus: `publisher` detached zamiast `@id` ref; brak capa `headline`. |
-| Meta / head management (`meta.ts`/`head.ts`) | **8** | `buildContentHead` — absolutny canonical bez query, pełne OG+Twitter, `og:locale`+alternate, **canonical-override poprawnie tłumi hreflang**, pixel-width SERP grader, `activeLang` (anty-race SSR), obszerne testy. **Concern:** hardcoded single-tenant brand (`SITE_NAME`, `SITE_CANONICAL_ORIGIN` = domena staging `lovable.app`, token `google-site-verification`) serwowane na **każdym** tenancie. |
+| Meta / head management (`meta.ts`/`head.ts`) | **8** | `buildContentHead` — absolutny canonical bez query, pełne OG+Twitter, `og:locale`+alternate, **canonical-override poprawnie tłumi hreflang**, pixel-width SERP grader, `activeLang` (anty-race SSR), obszerne testy. **Concern:** hardcoded single-tenant brand (`SITE_NAME`, `SITE_CANONICAL_ORIGIN` = domena staging `aliasu hostingu`, token `google-site-verification`) serwowane na **każdym** tenancie. |
 | Main RSS | **8** | Poprawny RSS 2.0 (`atom:link self`/`language`/`ttl`/`guid`), `xmlEscape` wszędzie, excerpt-only (paywall-safe), `/feed` 301. Minus: brak `category`/`dc:creator` (nie selektuje kolumn), `lastBuildDate` = first nie max. |
 | Taxonomy RSS (kategoria/tag/program) | **8** | Jedna DRY-fabryka dla trzech, reuse `buildRssXml`, fail-closed, 404 unknown. Minus: brak testu; nazwa PL bez fallbacku EN. |
 | XML sitemap | **8** | 11 typów encji + alternatywy hreflang, noindex-aware, degradacja do wpisów statycznych, escaped, testowane. **Minus:** **sprzeczność z robots na `/people`** (sitemap listuje, robots blokuje → warningi GSC); niespójny filtr `deleted_at`; N+1 `page_full_path`; brak sitemap-index/split 50k. |
@@ -395,7 +395,7 @@ rekomendacji jest niewykryty. RLS/prywatność mocne (RPC-only deny-all).
 
 # 11. Newsletter · średnia 7,7
 
-Klasa produkcyjna, security-conscious. Wysyłka przez Resend (gateway Lovable), double opt-in serwerowy,
+Klasa produkcyjna, security-conscious. Wysyłka przez Resend (gateway platformy), double opt-in serwerowy,
 tokeny trackingu **odsprzężone** od tokenów wypisu.
 
 | Funkcja | Ocena | Opis i uzasadnienie |
@@ -550,7 +550,7 @@ Prawie nic nie jest mockowane — prawdziwe integracje i silnik insightów.
 | Funkcja | Ocena | Opis i uzasadnienie |
 | ------- | ----- | ------------------- |
 | GA4 BI dashboard | **9** | **Prawdziwa Google API**: service-account JWT RS256 (`node:crypto`), OAuth2 refresh, Data API `runReport`, Measurement Protocol; 4 tryby połączenia + Looker embed, ECharts, insights + drill; admin-gated tenant-scoped. Minus: część config UI hardcode PL. |
-| Search Console BI | **9** | **Prawdziwa GSC API** via Lovable connector (sites/searchAnalytics/urlInspection), 2-day lag handling, weighted position. Minus: 2 niezależne GSC UI (duplikacja); zależność od connector gateway. |
+| Search Console BI | **9** | **Prawdziwa GSC API** via connector platformy (sites/searchAnalytics/urlInspection), 2-day lag handling, weighted position. Minus: 2 niezależne GSC UI (duplikacja); zależność od connector gateway. |
 | Web Vitals RUM | **9** | Ingest `sendBeacon` → `web_vitals` (token-bucket 60, 2 KB, whitelist, redakcja, tenant, 204); read admin-gated SAMPLE_CAP 20 k, RPC `web_vitals_daily_p75` + fallback; `aggregate` + `thresholds` **testowane**. |
 | Client error tracking | **9** | Ingest `client_errors` rate-limit 30 + **PII scrubbing** (`redactPii/Url/Meta`) **przed** persist, source whitelist; read SAMPLE_CAP 5 k, aggregate testowany. |
 | Silnik insightów (ga4/gsc) | **9** | Rule-based severity + fixes, GSC z **expected-CTR-by-position benchmark**, detekcja branded/zero-click, treemap, i18n 208 kluczy (1434 l). Genuinie wyrafinowane. |

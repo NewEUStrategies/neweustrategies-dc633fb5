@@ -1,6 +1,7 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import { DEFAULT_LANG, type AppLang } from "@/lib/i18n/localePath";
+import { LANG_STORAGE_KEY } from "@/lib/storageKeys";
 import { currentLang, setClientLang } from "@/lib/i18n/localeRuntime";
 import {
   readLangCookieClient,
@@ -56,7 +57,7 @@ export async function ensureCoreLanguage(lng: string): Promise<void> {
 // is the source of truth; localStorage is a resilience backstop for clients
 // that drop the cookie. Neither affects a content render's cacheability - the
 // language is taken from the URL path now.
-const STORAGE_KEY = "lovable.lang";
+const STORAGE_KEY = LANG_STORAGE_KEY.key;
 
 /**
  * Push the i18next runtime to the language this request/app is currently

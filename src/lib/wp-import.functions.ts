@@ -28,9 +28,9 @@ import {
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/wordpress_com";
 
 async function wpFetch(path: string, query?: Record<string, string>): Promise<Response> {
-  const lovableKey = process.env.LOVABLE_API_KEY;
+  const platformApiKey = process.env.LOVABLE_API_KEY;
   const wpKey = process.env.WORDPRESS_COM_API_KEY;
-  if (!lovableKey || !wpKey) {
+  if (!platformApiKey || !wpKey) {
     throw new Error(
       "Konektor WordPress nie jest gotowy (brak LOVABLE_API_KEY / WORDPRESS_COM_API_KEY).",
     );
@@ -39,7 +39,7 @@ async function wpFetch(path: string, query?: Record<string, string>): Promise<Re
   return fetch(`${GATEWAY_URL}${path}${qs}`, {
     method: "GET",
     headers: {
-      Authorization: `Bearer ${lovableKey}`,
+      Authorization: `Bearer ${platformApiKey}`,
       "X-Connection-Api-Key": wpKey,
     },
   });

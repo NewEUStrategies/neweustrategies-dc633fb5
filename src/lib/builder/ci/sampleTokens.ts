@@ -17,7 +17,7 @@ import { PLACEHOLDER_POST_CTX } from "../currentPostContext";
 
 /**
  * Napisy zbyt krótkie albo zbyt ogólne, by ich obecność w HTML-u cokolwiek
- * dowodziła (slug "podglad", identyfikator "preview", nazwa kategorii "Lovable"
+ * dowodziła (slug "podglad", identyfikator "preview", nazwa kategorii "Przykład"
  * czy typ archiwum "category" trafiają do klas CSS, atrybutów i realnych treści).
  * Bramka pilnuje fraz, które MOGĄ pochodzić wyłącznie z próbki.
  */
@@ -26,7 +26,7 @@ const NOT_DISTINCTIVE: ReadonlySet<string> = new Set([
   "podglad",
   "category",
   "Start",
-  "Lovable",
+  "Przykład",
   "CMS",
   "cms",
   "wiadomosci",

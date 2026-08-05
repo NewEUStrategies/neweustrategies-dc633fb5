@@ -2,7 +2,7 @@
 //
 // Gość gromadzi na urządzeniu dwa zbiory danych:
 //   - zainteresowania (kategorie/tagi) w localStorage "nes.interests.anon.v1",
-//   - zapisane artykuły w localStorage "lovable:saved-articles".
+//   - zapisane artykuły w localStorage (GUEST_SAVED_ARTICLES_KEY).
 //
 // Poprzednia wersja merge'u żyła w useMyInterests i miała trzy wady, które ten
 // moduł usuwa:
@@ -26,11 +26,11 @@ import {
   PERSONALIZED_SETTINGS_KEY,
 } from "@/hooks/usePersonalizedSettings";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
+import { GUEST_SAVED_ARTICLES_KEY, browserStorage, readStoredValue } from "@/lib/storageKeys";
 import { slugFromUrl } from "./slug";
 import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 
 const ANON_INTERESTS_KEY = "nes.interests.anon.v1";
-const GUEST_SAVED_KEY = "lovable:saved-articles";
 const DAY_MS = 86_400_000;
 
 interface AnonInterests {
@@ -52,7 +52,12 @@ export interface AnonMergeResult {
 function readJson<T>(key: string): T | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(key);
+    // Klucz zapisanych artykułów przechodzi przez readStoredValue(), żeby
+    // scalanie stanu gościa widziało też wartość zapisaną pod poprzednią nazwą.
+    const raw =
+      key === GUEST_SAVED_ARTICLES_KEY.key
+        ? readStoredValue(browserStorage("local"), GUEST_SAVED_ARTICLES_KEY)
+        : window.localStorage.getItem(key);
     return raw ? (JSON.parse(raw) as T) : null;
   } catch {
     return null;
@@ -83,7 +88,7 @@ export function readAnonInterestIds(): AnonInterests {
 }
 
 function readGuestSaved(): GuestSavedItem[] {
-  const parsed = readJson<GuestSavedItem[]>(GUEST_SAVED_KEY);
+  const parsed = readJson<GuestSavedItem[]>(GUEST_SAVED_ARTICLES_KEY.key);
   return Array.isArray(parsed) ? parsed.filter((s) => typeof s?.url === "string") : [];
 }
 
@@ -139,7 +144,7 @@ async function mergeGuestBookmarks(userId: string, maxAgeDays: number): Promise<
   const saved = all.filter(
     (item) => cutoff === null || typeof item.savedAt !== "number" || item.savedAt >= cutoff,
   );
-  if (saved.length !== all.length) writeJson(GUEST_SAVED_KEY, saved);
+  if (saved.length !== all.length) writeJson(GUEST_SAVED_ARTICLES_KEY.key, saved);
   if (saved.length === 0) return 0;
 
   const bySlug = new Map<string, GuestSavedItem>();
@@ -180,7 +185,7 @@ async function mergeGuestBookmarks(userId: string, maxAgeDays: number): Promise<
     const slug = slugFromUrl(item.url);
     return !slug || !mergedSlugs.has(slug);
   });
-  writeJson(GUEST_SAVED_KEY, remaining);
+  writeJson(GUEST_SAVED_ARTICLES_KEY.key, remaining);
   return rows.length;
 }
 

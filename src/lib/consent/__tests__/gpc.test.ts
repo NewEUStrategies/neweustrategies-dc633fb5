@@ -76,7 +76,7 @@ describe("readGpcFromHeaders", () => {
 
 describe("readGpcCookie", () => {
   it("finds the cookie among others, regardless of position", () => {
-    expect(readGpcCookie(`theme=dark; ${GPC_COOKIE}=1; lovable_lang=pl`)).toBe(true);
+    expect(readGpcCookie(`theme=dark; ${GPC_COOKIE}=1; nes_lang=pl`)).toBe(true);
     expect(readGpcCookie(`${GPC_COOKIE}=1`)).toBe(true);
   });
 

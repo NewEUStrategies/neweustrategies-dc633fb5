@@ -6,7 +6,7 @@
 // `useCurrentPostCtx() ?? PLACEHOLDER_POST_CTX`, a nagłówek, stopka, popup,
 // szuflada mobilna i archiwa renderują `BuilderRenderer` BEZ providera - więc
 // widget `post-*` wstawiony w takie miejsce pokazywał realnym odwiedzającym
-// fikcyjnego "Jana Kowalskiego", zmyślony tytuł i tagi "Lovable/CMS".
+// fikcyjnego "Jana Kowalskiego", zmyślony tytuł i tagi "Przykład/CMS".
 // Teraz brak kontekstu poza edytorem = `null` (widget po prostu znika).
 import { createElement, type ComponentType, type ReactElement, type SVGProps } from "react";
 import { useQuery } from "@tanstack/react-query";

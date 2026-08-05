@@ -1,15 +1,24 @@
 // @vitest-environment node
 //
-// fetchWithTenantHost injects x-tenant-host into Supabase calls (re-audit N2)
-// so the database can resolve public_tenant_id() per request host.
+// fetchWithTenantHost wstrzykuje DWA nagłówki w wywołania Supabase:
+//   * `x-tenant-host` (re-audyt N2) - żeby baza rozstrzygnęła public_tenant_id()
+//     per host żądania;
+//   * `x-tenant-assert` (audyt 05.08 §4.1) - POŚWIADCZENIE krawędzi dla tego
+//     samego hosta. Bez niego szczebel VERIFIED w bazie jest martwy i każde
+//     żądanie idzie jako sama DEKLARACJA klienta.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TENANT_HOST_HEADER } from "@/lib/http/host";
+import { TENANT_ASSERTION_HEADER } from "@/lib/http/tenantAssertion";
 import { fetchWithTenantHost } from "@/integrations/supabase/tenant-host-fetch";
 
-const state = vi.hoisted(() => ({ host: null as string | null }));
+const state = vi.hoisted(() => ({
+  host: null as string | null,
+  assertion: null as string | null,
+}));
 
 vi.mock("@/lib/http/requestHost", () => ({
   currentTenantHost: () => Promise.resolve(state.host),
+  currentTenantAssertion: () => Promise.resolve(state.assertion),
   requestPublicHost: () => state.host,
 }));
 
@@ -30,6 +39,7 @@ const calls: CapturedCall[] = [];
 beforeEach(() => {
   calls.length = 0;
   state.host = null;
+  state.assertion = null;
   vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
     calls.push({ input, init });
     return Promise.resolve(new Response("ok"));
@@ -81,12 +91,54 @@ describe("fetchWithTenantHost", () => {
 
   it("supports Request-object input", async () => {
     state.host = "b.example";
+    state.assertion = "v1.edge1.Yi5leGFtcGxl.4000000000.c2ln";
     await fetchWithTenantHost(
       new Request("https://db.example/rest/v1/posts", { headers: { apikey: "anon-key" } }),
     );
     const headers = headersOfLastCall();
     expect(headers.get(TENANT_HOST_HEADER)).toBe("b.example");
+    expect(headers.get(TENANT_ASSERTION_HEADER)).toBe("v1.edge1.Yi5leGFtcGxl.4000000000.c2ln");
     expect(headers.get("apikey")).toBe("anon-key");
+  });
+});
+
+describe("fetchWithTenantHost - poświadczenie krawędzi", () => {
+  it("dokłada poświadczenie obok hosta", async () => {
+    state.host = "b.example";
+    state.assertion = "v1.edge1.Yi5leGFtcGxl.4000000000.c2ln";
+    await fetchWithTenantHost("https://db.example/rest/v1/posts");
+    const headers = headersOfLastCall();
+    expect(headers.get(TENANT_HOST_HEADER)).toBe("b.example");
+    expect(headers.get(TENANT_ASSERTION_HEADER)).toBe("v1.edge1.Yi5leGFtcGxl.4000000000.c2ln");
+  });
+
+  it("brak poświadczenia NIE blokuje wysłania hosta (szczebel ASSERTED)", async () => {
+    // Wdrożenie bez klucza podpisującego musi działać jak przed zmianą - baza
+    // degraduje wtedy w stronę BEZPIECZNĄ (tenant domowy zalogowanego).
+    state.host = "b.example";
+    await fetchWithTenantHost("https://db.example/rest/v1/posts");
+    const headers = headersOfLastCall();
+    expect(headers.get(TENANT_HOST_HEADER)).toBe("b.example");
+    expect(headers.has(TENANT_ASSERTION_HEADER)).toBe(false);
+  });
+
+  it("poświadczenie leci nawet bez rozstrzygniętego hosta", async () => {
+    // Poświadczenie SAMO niesie host (podpisany), więc jest silniejszym
+    // wejściem niż nagłówek hosta - nie wolno go gubić.
+    state.assertion = "v1.edge1.Yi5leGFtcGxl.4000000000.c2ln";
+    await fetchWithTenantHost("https://db.example/rest/v1/posts");
+    const headers = headersOfLastCall();
+    expect(headers.has(TENANT_HOST_HEADER)).toBe(false);
+    expect(headers.get(TENANT_ASSERTION_HEADER)).toBe("v1.edge1.Yi5leGFtcGxl.4000000000.c2ln");
+  });
+
+  it("nigdy nie nadpisuje jawnie ustawionego poświadczenia", async () => {
+    state.host = "b.example";
+    state.assertion = "v1.edge1.Yi5leGFtcGxl.4000000000.c2ln";
+    await fetchWithTenantHost("https://db.example/rest/v1/posts", {
+      headers: { [TENANT_ASSERTION_HEADER]: "pinned" },
+    });
+    expect(headersOfLastCall().get(TENANT_ASSERTION_HEADER)).toBe("pinned");
   });
 });
 

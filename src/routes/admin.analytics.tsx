@@ -234,8 +234,8 @@ function Ga4ConfigPanel({ status }: { status: AnalyticsStatus["ga4"] }) {
       <div>
         <div className="text-sm font-semibold">Sposoby podłączenia GA4</div>
         <p className="text-xs text-muted-foreground mt-1">
-          Wybierz dowolny tryb - sekrety dodaj przez Lovable Cloud → Secrets. Priorytet dla raportów
-          Data API: Service Account → OAuth refresh token.
+          Wybierz dowolny tryb - sekrety dodaj w sekretach środowiska wdrożeniowego. Priorytet dla
+          raportów Data API: Service Account → OAuth refresh token.
         </p>
       </div>
 
@@ -565,7 +565,7 @@ function OverviewPanel({ status }: { status: AnalyticsStatus }) {
         <div className="font-semibold">Jak podłączyć klucze Google?</div>
         <ul className="list-disc pl-5 text-muted-foreground space-y-1">
           <li>
-            <b>Search Console</b> — Lovable łączy przez OAuth. Otwórz Ustawienia projektu →
+            <b>Search Console</b> - konektor łączy przez OAuth. Otwórz Ustawienia projektu →
             Konektory → Google Search Console.
           </li>
           <li>

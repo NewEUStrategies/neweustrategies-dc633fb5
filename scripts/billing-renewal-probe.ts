@@ -55,16 +55,16 @@ function summary(line: string): void {
   if (file) writeFileSync(file, `${line}\n`, { flag: "a" });
 }
 
-function keys(): { connection: string; lovable: string } | null {
+function keys(): { connection: string; platform: string } | null {
   const connection = process.env.PADDLE_SANDBOX_API_KEY;
   const lovable = process.env.LOVABLE_API_KEY;
-  if (!connection || !lovable) return null;
-  return { connection, lovable };
+  if (!connection || !platform) return null;
+  return { connection, platform };
 }
 
 async function api<T>(
   path: string,
-  init: RequestInit & { auth: { connection: string; lovable: string } },
+  init: RequestInit & { auth: { connection: string; platform: string } },
 ): Promise<T> {
   const { auth, ...rest } = init;
   const res = await fetch(`${GATEWAY}${path}`, {
@@ -72,7 +72,7 @@ async function api<T>(
     headers: {
       "Content-Type": "application/json",
       "X-Connection-Api-Key": auth.connection,
-      "Lovable-API-Key": auth.lovable,
+      "Lovable-API-Key": auth.platform,
       ...rest.headers,
     },
   });
@@ -82,7 +82,7 @@ async function api<T>(
   return JSON.parse(text) as T;
 }
 
-async function arm(auth: { connection: string; lovable: string }): Promise<number> {
+async function arm(auth: { connection: string; platform: string }): Promise<number> {
   const listed = await api<{ data?: Subscription[] }>("/subscriptions?status=active&per_page=50", {
     auth,
   });
@@ -116,7 +116,7 @@ async function arm(auth: { connection: string; lovable: string }): Promise<numbe
   return 0;
 }
 
-async function verify(auth: { connection: string; lovable: string }): Promise<number> {
+async function verify(auth: { connection: string; platform: string }): Promise<number> {
   let state: ProbeState;
   try {
     state = JSON.parse(readFileSync(STATE_FILE, "utf8")) as ProbeState;

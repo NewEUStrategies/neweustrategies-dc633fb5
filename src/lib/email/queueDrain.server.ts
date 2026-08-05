@@ -14,7 +14,7 @@
 // Ten moduł jest tym brakującym konsumentem, wpiętym w istniejący, JEDEN
 // harmonogram platformy (`runJobsTick` -> pg_cron + pg_net co minutę), zamiast
 // wymagać drugiego, zewnętrznego crona. Endpoint HTTP
-// /lovable/email/queue/process zostaje jako druga powierzchnia dla środowisk z
+// /platform/email/queue/process zostaje jako druga powierzchnia dla środowisk z
 // własnym harmonogramem i deleguje TUTAJ - jedna implementacja ponowień.
 //
 // Gwarancje:

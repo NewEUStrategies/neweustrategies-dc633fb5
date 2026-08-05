@@ -4,7 +4,7 @@ Data: 2026-07-20 · Zakres: moduły wpisów (posty/analizy) i stron (builder) or
 
 Metoda: pełny inwentarz kodu (322 migracje, ~150 tabel, ~83 trasy admina, 2 silniki treści), zestawiony z
 `AUDYT_PLATFORMY_2026-07-13.md`, `OCENA_MODULOW_2026-07-20.md`, `OCENA_KONKURENCYJNA_MODULOW_2026-07-20.md`
-i aktywnym planem `.lovable/plan.md`. Każda pozycja oznaczona „nowa" została zweryfikowana przeciw kodowi
+i aktywnym planem ``.lovable/plan.md` (metadane sandboxu)`. Każda pozycja oznaczona „nowa" została zweryfikowana przeciw kodowi
 (grep po rejestrach bloków/widgetów, schemacie `types.ts`, trasach) — żadna nie dubluje istniejącej funkcji.
 
 **Zasada przewodnia:** platforma funkcjonalnie wyprzedza całą stawkę think-tankową (śr. 8,3 za wpisy w ocenie
@@ -18,7 +18,7 @@ pętli już w połowie zbudowanych, (3) higiena z audytu. Nie: kolejne duże mod
 | Dokument                                    | Pozycje tam przypisane                                                                                                                                                                                      |
 | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `OCENA_MODULOW_2026-07-20.md` (P0–P2)       | tryb czytania artykułu; „pisz od razu" w edytorze; diff rewizji; inline editing na kanwie buildera; miniatury w palecie widgetów; style presets; alerty zapisanych wyszukiwań; multi-select faset; pgvector |
-| `.lovable/plan.md` (fazy 1–4)               | scalenie kategorii + merge tool; walidator SEO w edytorze; sugestie linków wewnętrznych; dashboard Search Console                                                                                           |
+| ``.lovable/plan.md` (metadane sandboxu)` (fazy 1–4)               | scalenie kategorii + merge tool; walidator SEO w edytorze; sugestie linków wewnętrznych; dashboard Search Console                                                                                           |
 | `OCENA_KONKURENCYJNA_MODULOW_2026-07-20.md` | 2–3 flagowe digital features / microsites (dorobek, nie zdolność); A/B na lejkach subskrypcji                                                                                                               |
 
 Niniejszy dokument jest trzecim filarem: **backlog nowych funkcji produktowych** wpisów i stron.
@@ -99,7 +99,7 @@ workflow i publikacji planowanej brak tego widoku jest najbardziej odczuwalną l
 
 Scoring kompletności SEO już istnieje w `/admin/seo` — wystarczy go zsyntetyzować w edytorze jako bramkę
 przy „Publikuj": okładka, kategoria, zajawka, takeaways, SEO title/desc, wersja EN. Komplementarne wobec
-walidatora SEO z fazy 2 `.lovable/plan.md` (tam liczniki znaków, tu kompletność wpisu).
+walidatora SEO z fazy 2 ``.lovable/plan.md` (metadane sandboxu)` (tam liczniki znaków, tu kompletność wpisu).
 
 ### B3. Panel parytetu językowego PL/EN — P0, koszt niski, nowa
 
