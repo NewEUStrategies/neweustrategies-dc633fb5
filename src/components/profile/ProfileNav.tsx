@@ -31,6 +31,7 @@ type NavKey =
   | "follows"
   | "network"
   | "membership"
+  | "plan"
   | "organization"
   | "billing"
   | "subscription"
@@ -68,6 +69,7 @@ const CONTENT: NavItem[] = [
 
 const FINANCE: NavItem[] = [
   { to: "/profile/membership", key: "membership", icon: Crown },
+  { to: "/profile/plan", key: "plan", icon: CreditCard },
   { to: "/profile/billing", key: "billing", icon: CreditCard },
   { to: "/profile/subscription", key: "subscription", icon: RefreshCw },
   { to: "/profile/orders", key: "orders", icon: FileText },
