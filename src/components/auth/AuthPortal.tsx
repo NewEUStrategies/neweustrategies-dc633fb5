@@ -43,12 +43,22 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
   const [mode, setMode] = useState<Mode>(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
   const [name, setName] = useState("");
+  // Wartości pól rejestracji sterowanych globalną konfiguracją (Admin →
+  // Popupy / Strona logowania). Klucze = klucze rejestru pól.
+  const [extra, setExtra] = useState<Partial<Record<RegistrationFieldKey, string>>>({});
   const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
   const [mfaOpen, setMfaOpen] = useState(false);
   // Holds the auto-redirect while an aal1 session waits for its TOTP step-up.
   const [mfaPending, setMfaPending] = useState(false);
+
+  const reg = useRegistrationFields(isPl ? "pl" : "en");
+  const val = (key: RegistrationFieldKey) => extra[key] ?? "";
+  const setVal = (key: RegistrationFieldKey, v: string) =>
+    setExtra((prev) => ({ ...prev, [key]: v }));
+
 
   const runPreAuthGuard = useServerFn(preAuthGuard);
 
