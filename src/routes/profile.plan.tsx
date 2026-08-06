@@ -111,8 +111,9 @@ function PlanPage() {
                 <dt className="text-xs text-muted-foreground">{t("profile.subscription.plan")}</dt>
                 <dd className="flex flex-wrap items-center gap-2 text-sm font-semibold">
                   {planName(plan, lang)}
-                  {lookupKey && (
-                    <Badge variant="outline" className="font-mono text-[11px]">
+                  {/* `lookup_key` to identyfikator techniczny - tylko dla adminów. */}
+                  {isAdmin && lookupKey && (
+                    <Badge variant="outline" className="text-[11px]">
                       {lookupKey}
                     </Badge>
                   )}
