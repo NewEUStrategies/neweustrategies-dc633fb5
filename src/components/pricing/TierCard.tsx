@@ -282,30 +282,30 @@ function TierCardCta({
     }
     return (
       <div className="space-y-1.5">
-      <Button asChild className={ctaClass} variant={variant}>
-        <Link
-          to="/checkout/$planId"
-          params={{ planId: plan.id }}
-          onClick={() =>
-            trackCta("pricing_checkout_click", {
-              tier_key: tier.key,
-              tier_id: tier.id,
-              plan_id: plan.id,
-              interval,
-              amount_cents: plan.price_cents,
-              currency: plan.currency,
-            })
-          }
-        >
-          {t("pricing.choose")}
-        </Link>
-      </Button>
-      {/* Skrót do pełnych szczegółów planu (benefity, limity, porównanie). */}
-      <Button asChild variant="link" size="sm" className="h-auto w-full p-0 text-xs">
-        <Link to="/plans/$planId" params={{ planId: plan.id }}>
-          {t("pricing.planDetails.cta")}
-        </Link>
-      </Button>
+        <Button asChild className={ctaClass} variant={variant}>
+          <Link
+            to="/checkout/$planId"
+            params={{ planId: plan.id }}
+            onClick={() =>
+              trackCta("pricing_checkout_click", {
+                tier_key: tier.key,
+                tier_id: tier.id,
+                plan_id: plan.id,
+                interval,
+                amount_cents: plan.price_cents,
+                currency: plan.currency,
+              })
+            }
+          >
+            {t("pricing.choose")}
+          </Link>
+        </Button>
+        {/* Skrót do pełnych szczegółów planu (benefity, limity, porównanie). */}
+        <Button asChild variant="link" size="sm" className="h-auto w-full p-0 text-xs">
+          <Link to="/plans/$planId" params={{ planId: plan.id }}>
+            {t("pricing.planDetails.cta")}
+          </Link>
+        </Button>
       </div>
     );
   }

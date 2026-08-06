@@ -39,7 +39,9 @@ export function isValidVerificationDomain(value: string): boolean {
   return DOMAIN_RE.test(value);
 }
 
-function toRow(row: Omit<VerificationDomainRow, "badge"> & { badge: string }): VerificationDomainRow | null {
+function toRow(
+  row: Omit<VerificationDomainRow, "badge"> & { badge: string },
+): VerificationDomainRow | null {
   if (!isProfileBadgeKind(row.badge)) return null;
   return { ...row, badge: row.badge };
 }

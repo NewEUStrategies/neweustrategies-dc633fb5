@@ -56,8 +56,20 @@ jobs:
       # i klaster hreflang PL/EN oraz markup schema.org Q&A. Uruchamiany osobno,
       # żeby regresja SEO była widoczna jako własny, nazwany krok w CI (te same
       # findingi wracały wcześniej z audytów zewnętrznych).
+      #
+      # W tym samym kroku jedzie bramka precedencji assetów: plik statyczny z
+      # `public/` nie może przesłaniać trasy serwerowej. Tak umarła cała logika
+      # /robots.txt - zacommitowany `public/robots.txt` wygrywał z workerem, więc
+      # aliasy hostingu były zaproszone do indeksowania, a news sitemap nie była
+      # ogłoszona nigdzie. Testy jednostkowe trasy przechodziły, bo testowały kod,
+      # którego nikt nie wykonywał.
       - name: SEO head + schema contract
-        run: bunx vitest run src/lib/seo/__tests__ src/routes/-sitemap.xml.test.ts
+        run: |
+          bunx vitest run \
+            src/lib/seo/__tests__ \
+            src/routes/-sitemap.xml.test.ts \
+            src/lib/ci/__tests__/staticAssetShadowing.test.ts \
+            src/lib/server/__tests__/robotsPolicy.test.ts
 
       # Blokująca bramka i18n: każdy klucz bramkowanych powierzchni (bloki
       # Gutenberga, widgety buildera, raport porównawczy) musi mieć wersję PL
@@ -102,7 +114,6 @@ jobs:
           # come from project secrets in deploy environments.
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://placeholder.supabase.co' }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}
-          VITE_SUPABASE_PROJECT_ID: ${{ secrets.VITE_SUPABASE_PROJECT_ID || 'placeholder' }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://placeholder.supabase.co' }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}
 
@@ -142,6 +153,22 @@ jobs:
       - name: SQL app_role literal invariant
         run: bun run check:sql-app-role
 
+      # Blocking parity gate: the /admin/permissions matrix is GENERATED from the
+      # authorization gates found in migrations, so a stale snapshot makes the page
+      # lie again - exactly what the hand-written table did before. The script was
+      # in package.json but never wired here, and the snapshot drifted within days:
+      # 20260806094104 silently dropped 'super_admin' from profiles_guard_verification
+      # (has_role matches the role EXACTLY - no hierarchy), and only the unit test
+      # caught it, turning `main` red. Gate it where it belongs.
+      - name: Authorization snapshot parity
+        run: bun run check:authz-snapshot
+
+      # Blocking parity gate for the consumer side of that snapshot: role sets,
+      # dangling references, new enum values and the enforced/decorative flag of
+      # every capability. Complements the snapshot check above (data vs. renderer).
+      - name: Permissions matrix parity
+        run: bun run check:permissions-parity
+
       # Blocking security gate: fails if any table accepts a PERMISSIVE anonymous
       # INSERT (anon/public role + WITH CHECK true), or if an intake table
       # (contact_messages, crm_consent_log, related_post_clicks,
@@ -157,10 +184,20 @@ jobs:
       # the old provider outside comments (import, identifier, string literal,
       # env var, gateway URL) means a code path that talks to a payment operator
       # this project no longer has - it would fail only at runtime, mid-checkout.
+      # Scope now includes .github/ and the root manifests: the most expensive
+      # instance of this defect was a dead PADDLE_* secret in a workflow, which
+      # the src/-and-scripts-only predecessor could never see.
       - name: No live legacy payment-provider references
-        run: bun run check:no-paddle
+        run: bun run check:legacy-payment-refs
 
-
+      # Blocking wiring gate: every env var a workflow exports must have a
+      # reader. Workflow and script are separately valid when the names drift
+      # apart, and both sides tolerate a missing value, so the combination
+      # yields a run that checks nothing and stays green - which is exactly how
+      # the nightly billing probe slept 40 minutes a night against a secret no
+      # script ever read.
+      - name: Workflow env contract (no dead exports)
+        run: bun run check:workflow-env-contract
 
       # Blocking reproducibility gate: can the database still be recreated from
       # migrations? Two classes, both invisible to an incremental `db push` and

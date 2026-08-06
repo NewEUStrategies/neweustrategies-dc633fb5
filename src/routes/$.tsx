@@ -981,7 +981,9 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                     tak jak para przyciskow na desktopie. */}
                 <div className="no-print mb-3 grid grid-cols-2 items-stretch gap-2 sm:hidden">
                   {giftButton && (
-                    <span className="min-w-0 [&_button]:h-full [&_button]:w-full">{giftButton}</span>
+                    <span className="min-w-0 [&_button]:h-full [&_button]:w-full">
+                      {giftButton}
+                    </span>
                   )}
                   <GooglePreferredSourceBadge
                     device="mobile"

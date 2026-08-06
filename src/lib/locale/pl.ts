@@ -883,7 +883,7 @@ export const pl = {
       llmsEnabled: "Serwuj /llms.txt",
       aiCrawlers: "Crawlery AI",
       aiCrawlersHint:
-        "Wyszukiwawcze crawlery cytują treści w odpowiedziach AI; treningowe tylko uczą modele.",
+        "Wyszukiwawcze crawlery cytują treści w odpowiedziach AI; treningowe tylko uczą modele. Wyłączenie dopisuje grupy zakazu do /robots.txt.",
       aiSearchAllowed: "Wpuszczaj crawlery wyszukiwawcze AI (cytowania w odpowiedziach - zalecane)",
       aiTrainingAllowed: "Wpuszczaj crawlery treningowe (uczenie modeli)",
       sectionEntity: "Marka i dane strukturalne",
@@ -1292,7 +1292,7 @@ export const pl = {
       allowPromoHint: "Kupujący wpisze kod rabatowy bezpośrednio na stronie płatności.",
       automaticTax: "Stripe Tax - automatyczny VAT",
       automaticTaxHint:
-        "Wymaga aktywacji Stripe Tax na koncie Stripe. Wymusza pobranie adresu rozliczeniowego.",
+        "Wymaga aktywacji Stripe Tax na koncie Stripe. Wymusza pobranie adresu rozliczeniowego i PRZEJMUJE rozliczenie podatku od Stripe jako operatora (MoR) - włączaj tylko, jeśli rozliczasz VAT samodzielnie.",
       taxIdCollection: "Zbieraj NIP / VAT ID (trafia na fakturę)",
       taxIdCollectionHint: "Kupujący firmowy poda NIP w Checkout; Stripe umieści go na fakturze.",
       addressCollection: "Adres rozliczeniowy",
@@ -1300,9 +1300,15 @@ export const pl = {
       addressRequired: "Zawsze wymagany",
       invoiceCreation: "Faktura Stripe dla płatności jednorazowych",
       invoiceCreationHint:
-        "Subskrypcje mają faktury zawsze; ta opcja włącza je też dla zakupów jednorazowych. Link „Pobierz fakturę” pojawi się w Zamówieniach klienta.",
+        "Subskrypcje mają faktury zawsze; ta opcja włącza je też dla zakupów jednorazowych. Link „Pobierz fakturę” pojawi się w Zamówieniach klienta. W trybie operatora rozliczeniowego (MoR) fakturę wystawia Stripe i parametr nie jest wysyłany.",
       checkoutSaved: "Zapisano ustawienia checkoutu",
       checkoutSaveError: "Nie udało się zapisać ustawień checkoutu.",
+      planTitle: "Płaszczyzna rozliczeniowa sesji",
+      planManaged:
+        "Stripe jako operator rozliczeniowy (MoR): to Stripe nalicza podatek i wystawia fakturę. Do sesji jadą kupony, NIP i adres rozliczeniowy.",
+      planMerchant:
+        "Sprzedawca rozlicza podatek samodzielnie (Stripe Tax na Twoim koncie): do sesji jedzie automatyczny VAT, wymagany adres oraz - dla płatności jednorazowych - faktura Stripe.",
+      planParams: "Parametry sesji: {{params}}",
     },
   },
   blocks: {

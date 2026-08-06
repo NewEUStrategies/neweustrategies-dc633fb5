@@ -10,10 +10,7 @@ import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 
 import { runBillingRemindersNow } from "@/lib/billing/reminders.functions";
-import {
-  getCatalogSyncState,
-  syncPaymentCatalogNow,
-} from "@/lib/billing/catalogSync.functions";
+import { getCatalogSyncState, syncPaymentCatalogNow } from "@/lib/billing/catalogSync.functions";
 import { getJobRunnerSettings } from "@/lib/newsletter-admin.functions";
 import { Link } from "@tanstack/react-router";
 
