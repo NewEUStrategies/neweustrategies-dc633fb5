@@ -11,6 +11,7 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { loadEnv } from "vite";
 
 import { MACHINE_SURFACES } from "./src/lib/seo/machineSurfaces";
+import { chunkInventoryPlugin } from "./scripts/lib/chunkInventoryPlugin";
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 
