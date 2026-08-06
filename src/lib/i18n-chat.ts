@@ -442,7 +442,24 @@ export const chatPl = {
     discoverableOn: "Profil widoczny dla zalogowanych użytkowników",
     discoverableOff: "Profil ukryty - nikt nie znajdzie Cię w wyszukiwarce",
     externalNote:
-      "Niezależnie od tego ustawienia Twój profil nigdy nie jest widoczny ani indeksowany poza platformą - osoby niezalogowane i roboty wyszukiwarek nie mają do niego dostępu.",
+      "To ustawienie dotyczy wyłącznie wyszukiwarki WEWNĘTRZNEJ. O tym, czy Twój profil jest osiągalny poza platformą, decyduje publiczna obecność (rola redakcyjna, odznaka eksperta, publiczny profil autorski lub prelegenta, opublikowane materiały) - poniżej pokazujemy faktyczny stan, nie ogólną obietnicę.",
+    exposureLoading: "Sprawdzamy widoczność Twojego profilu poza platformą...",
+    exposureUnknownTitle: "Nie udało się teraz ustalić widoczności zewnętrznej",
+    exposureUnknownBody:
+      "Odśwież stronę, aby sprawdzić ponownie. Ustawienia poniżej działają niezależnie od tego odczytu.",
+    exposurePrivateTitle: "Poza platformą Twój profil jest niedostępny",
+    exposurePrivateBody:
+      "Osoby niezalogowane i roboty wyszukiwarek nie odczytają Twojego profilu - bazie brakuje podstawy, by go wydać, niezależnie od ustawień w tej sekcji.",
+    exposurePublicTitle: "Twój profil jest dostępny publicznie",
+    exposurePublicBody:
+      "Masz publiczną stronę osoby (imię i nazwisko, zdjęcie, bio, stanowisko, linki), którą widzą także osoby niezalogowane. Powód:",
+    exposureReason: {
+      editorialRole: "Konto redakcyjne (autor, edytor lub administrator)",
+      expertBadge: "Odznaka eksperta",
+      authorProfile: "Publiczny profil autorski",
+      speakerProfile: "Publiczny profil prelegenta",
+      publishedContent: "Opublikowane materiały (wpisy, podcasty, wydarzenia)",
+    },
     expertRequestsLabel: "Przyjmuj zapytania do eksperta",
     expertRequestsHint:
       "Gdy włączone, na Twoim profilu pojawia się przycisk „Zapytanie do eksperta” i inni mogą przesłać Ci formalne zapytanie. Wyłączenie ukrywa przycisk i blokuje nowe zapytania. Administrator może też wyłączyć tę funkcję globalnie.",
@@ -886,7 +903,24 @@ export const chatEn = {
     discoverableOn: "Profile visible to signed-in users",
     discoverableOff: "Profile hidden - nobody can find you in the search",
     externalNote:
-      "Regardless of this setting, your profile is never visible or indexable outside the platform - anonymous visitors and search engine bots have no access to it.",
+      "This setting covers the INTERNAL people search only. Whether your profile is reachable outside the platform depends on your public presence (editorial role, expert badge, public author or speaker profile, published material) - the actual state is shown below, instead of a blanket promise.",
+    exposureLoading: "Checking how visible your profile is outside the platform...",
+    exposureUnknownTitle: "External visibility could not be determined right now",
+    exposureUnknownBody:
+      "Refresh the page to check again. The settings below work regardless of this reading.",
+    exposurePrivateTitle: "Your profile is not reachable outside the platform",
+    exposurePrivateBody:
+      "Anonymous visitors and search engine bots cannot read your profile - the database has no grounds to serve it, regardless of the settings in this section.",
+    exposurePublicTitle: "Your profile is publicly reachable",
+    exposurePublicBody:
+      "You have a public person page (name, photo, bio, job title, links) that anonymous visitors can see too. Reason:",
+    exposureReason: {
+      editorialRole: "Editorial account (author, editor or administrator)",
+      expertBadge: "Expert badge",
+      authorProfile: "Public author profile",
+      speakerProfile: "Public speaker profile",
+      publishedContent: "Published material (posts, podcasts, events)",
+    },
     expertRequestsLabel: "Accept expert requests",
     expertRequestsHint:
       'When enabled, an "Ask the expert" button appears on your profile and others can send you a formal request. Turning it off hides the button and blocks new requests. An admin can also disable this feature globally.',

@@ -1,16 +1,22 @@
 // Kiedy hub osoby (/author/$slug) może być indeksowany przez wyszukiwarki.
 //
-// PROBLEM: profiles_public zawęża tylko po tenant_id (bez bramki discoverable),
-// więc każdy profil - także zwykłego członka, który nie wyraził zgody na
-// widoczność w katalogu - był osiągalny pod /author/<slug|uuid> i miał na sztywno
-// `robots: index, follow`. Skutek: strony niezgłoszonych do katalogu członków
-// (imię, avatar, bio, stanowisko, linki social) trafiały do indeksu Google.
+// DRUGA WARSTWA, nie jedyna. Historycznie ten moduł był JEDYNĄ mitygacją
+// dziury w `profiles_public` (definer + GRANT dla `anon`, zawężenie wyłącznie po
+// tenant_id): każdy profil tenanta - także zwykłego członka - był osiągalny pod
+// /author/<slug|uuid>, a `noindex` jest prośbą do crawlera, nie kontrolą
+// dostępu. Interfejs obiecywał przy tym w PL i EN, że osoby niezalogowane
+// dostępu nie mają.
 //
-// ROZWIĄZANIE (minimalne, bez zmiany powierzchni danych, którą współdzieli
-// wiele bylinów/avatarów): indeksujemy wyłącznie profile z realną PUBLICZNĄ
-// obecnością - ekspert (odznaka) albo kurowany dorobek (materiały, programy,
-// obszary ekspertyzy, obecność medialna). Goły profil członka bez żadnego z tych
-// sygnałów dostaje noindex. Dane pochodzą z ładunku huba - bez dodatkowego I/O.
+// DOSTĘP zamyka teraz baza: migracja 20260806160000 dała widokowi dwie
+// addytywne warstwy widoczności, a warstwa publiczna wymaga realnej publicznej
+// obecności (profile_has_public_presence). Goły profil członka nie wychodzi już
+// z Data API dla `anon` - nie ma czego indeksować ani czym enumerować.
+//
+// Ten moduł został przy swojej właściwej roli: INDEKSACJI. Zbiór profili
+// osiągalnych publicznie jest szerszy niż zbiór wart indeksowania (konto
+// redakcyjne bez dorobku jest osiągalne, ale nie zasługuje na wpis w Google),
+// więc hub nadal dostaje `noindex`, dopóki nie ma odznaki eksperta albo
+// kurowanego dorobku. Dane pochodzą z ładunku huba - bez dodatkowego I/O.
 
 export interface ProfileIndexSignals {
   /** Ma odznakę "expert" (kurowany ekspert). */
