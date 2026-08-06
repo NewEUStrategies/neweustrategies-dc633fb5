@@ -103,6 +103,9 @@ const KNOWN_CONTENT_TWINS: readonly string[] = [
   // idempotentny (CREATE OR REPLACE + DROP TRIGGER IF EXISTS).
   "20260806160001_expert_request_single_generation.sql|20260806185055_1272fb55-fdb9-4eac-9035-66377484ac2c.sql",
   "20260806160002_profile_verification_guard_insert_parity.sql|20260806190257_9386c9cc-9f1f-4ce8-8320-b3abad5ecc3f.sql",
+  // Wdrożenie PR #191 ("Udostępnij pełny artykuł"): plik z gałęzi i bliźniak
+  // wygenerowany przy zastosowaniu migracji na hostowanej bazie.
+  "20260806170000_share_full_article_click_budget.sql|20260806205328_8865e928-2b12-4e88-a855-d3b4309c82f4.sql",
 ];
 
 /**
