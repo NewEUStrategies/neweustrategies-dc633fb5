@@ -54,6 +54,13 @@ export async function deleteCropSize(id: string): Promise<void> {
  * - For non-Supabase URLs (CDN/external), appends `?w=&h=` so userland CDN
  *   can pick it up; harmless query params otherwise.
  */
+/**
+ * Jakosc rekompresji dla wariantow ze Storage. 75 dawalo widoczne zmiekczenie
+ * (rozmyte twarze na awatarach i tekst na okladkach), 88 jest wizualnie
+ * bezstratne przy niewielkim wzroscie wagi pliku.
+ */
+export const IMAGE_QUALITY = 88;
+
 export function buildTransformedImageUrl(
   src: string,
   size: { width: number; height: number; resize?: "cover" | "contain" | "fill" },
@@ -70,7 +77,7 @@ export function buildTransformedImageUrl(
       url.searchParams.set("width", String(size.width));
       url.searchParams.set("height", String(size.height));
       url.searchParams.set("resize", resize);
-      url.searchParams.set("quality", "80");
+      url.searchParams.set("quality", String(IMAGE_QUALITY));
       return url.toString();
     }
     url.searchParams.set("w", String(size.width));
@@ -99,7 +106,7 @@ export function isSupabaseStorageUrl(src: string): boolean {
  * Width-only scaled variant (preserves aspect ratio, unlike the cropping
  * buildTransformedImageUrl). Used to build responsive srcSets.
  */
-export function buildScaledImageUrl(src: string, width: number, quality = 75): string {
+export function buildScaledImageUrl(src: string, width: number, quality = IMAGE_QUALITY): string {
   if (!src) return src;
   try {
     const url = new URL(src);
@@ -126,7 +133,7 @@ export function buildScaledImageUrl(src: string, width: number, quality = 75): s
 }
 
 /** Default responsive breakpoints (device-ish widths) for cover/card imagery. */
-export const RESPONSIVE_WIDTHS = [320, 480, 640, 768, 1024, 1280, 1536] as const;
+export const RESPONSIVE_WIDTHS = [320, 480, 640, 768, 1024, 1280, 1536, 1920, 2560] as const;
 
 /**
  * Build a `srcSet` of width-scaled candidates for a Supabase storage image.
@@ -136,8 +143,28 @@ export const RESPONSIVE_WIDTHS = [320, 480, 640, 768, 1024, 1280, 1536] as const
 export function buildImageSrcSet(
   src: string,
   widths: readonly number[] = RESPONSIVE_WIDTHS,
-  quality = 75,
+  quality = IMAGE_QUALITY,
 ): string {
   if (!isSupabaseStorageUrl(src)) return "";
   return widths.map((w) => `${buildScaledImageUrl(src, w, quality)} ${w}w`).join(", ");
+}
+
+/**
+ * Kwadratowy wariant awatara doklejony do realnego rozmiaru wyswietlania.
+ *
+ * Bez tego male awatary (20-24 px) laduja oryginal 1600x1600 i to przegladarka
+ * skaluje go w dol jednym przebiegiem - efekt jest wyrazny: twarz robi sie
+ * miekka i "papkowata". Serwerowy resize do 2x/3x docelowego boku daje ostry
+ * obraz i przy okazji kilkadziesiat razy mniejszy transfer.
+ */
+export function buildAvatarSrc(src: string, sizePx: number, dpr = 2): string {
+  if (!src || !isSupabaseStorageUrl(src)) return src;
+  const side = Math.max(32, Math.round(sizePx * dpr));
+  return buildTransformedImageUrl(src, { width: side, height: side, resize: "cover" });
+}
+
+/** `srcSet` 1x/2x/3x dla awatara o zadanym boku CSS. */
+export function buildAvatarSrcSet(src: string, sizePx: number): string {
+  if (!src || !isSupabaseStorageUrl(src)) return "";
+  return [1, 2, 3].map((d) => `${buildAvatarSrc(src, sizePx, d)} ${d}x`).join(", ");
 }

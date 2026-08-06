@@ -13,6 +13,7 @@
 import type { CSSProperties, MouseEventHandler, ReactNode } from "react";
 import { AppLink } from "@/components/atoms/AppLink";
 import { safeImageUrl } from "@/lib/sanitize";
+import { buildAvatarSrc, buildAvatarSrcSet } from "@/lib/cropSizes";
 import {
   AUTHOR_AVATAR_RADIUS_PX_DEFAULT,
   AUTHOR_AVATAR_SIZE_PX_DEFAULT,
@@ -125,7 +126,10 @@ export function AuthorByline({
   const avatar = display.showAvatar ? (
     safeAvatar ? (
       <img
-        src={safeAvatar}
+        // Serwerowy resize do rozmiaru wyswietlania (1x/2x/3x): przegladarka
+        // dostaje maly, ostry kwadrat zamiast skalowac oryginal 1600 px.
+        src={buildAvatarSrc(safeAvatar, avatarSizeDesktop)}
+        srcSet={buildAvatarSrcSet(safeAvatar, avatarSizeDesktop) || undefined}
         // Nazwisko stoi obok jako tekst, więc zdjęcie jest dekoracyjne -
         // czytnik ekranu nie ma go powtarzać. Bez nazwiska niesie treść.
         alt={display.showName ? "" : safeName}

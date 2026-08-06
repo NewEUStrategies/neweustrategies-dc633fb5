@@ -1,6 +1,7 @@
 // Awatar prelegenta - spec produktu: zdjecia profilowe maja promien 6px
 // (patrz ChatAvatar). Fallback = inicjaly (max 2 znaki) na tle muted.
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
+import { PX_BY_SIZE } from "./speakerAvatarSizes";
 
 const SIZES = {
   sm: "h-8 w-8 text-[11px]",
@@ -37,6 +38,7 @@ export function SpeakerAvatar({ name, photoUrl, size = "md", className }: Speake
           src={photoUrl}
           alt=""
           aspectRatio={1}
+          crop={{ width: PX_BY_SIZE[size] * 2, height: PX_BY_SIZE[size] * 2, resize: "cover" }}
           className="h-full w-full rounded-[6px] object-cover"
         />
       </span>
