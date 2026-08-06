@@ -2053,6 +2053,7 @@ export const pl = {
       groupByConversationHint: "Zwiń wiele wiadomości z tego samego czatu w jeden wpis.",
       kinds: {
         message: "Wiadomości na czacie",
+        expert_request: "Zapytania do ekspertów",
         comment: "Komentarze",
         follow: "Nowi obserwujący",
         subscription: "Aktualizacje subskrypcji",

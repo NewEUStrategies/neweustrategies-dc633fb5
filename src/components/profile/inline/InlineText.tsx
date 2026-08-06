@@ -52,6 +52,14 @@ export function InlineText({
     setBusy(true);
     try {
       await onSave(next);
+    } catch (error) {
+      // Komunikat dla użytkownika należy do wołającego (toast + rollback w
+      // saveField). Atom przechwytuje wyjątek, bo commit() jest odpalany z
+      // `void` z obsługi klawiatury i bluru - nieprzechwycone odrzucenie
+      // wypływałoby jako `unhandledrejection` do globalnego przechwytywania
+      // błędów i raportowało się jako awaria platformy zamiast nieudanego
+      // zapisu pola.
+      console.error("[InlineText] save failed", error);
     } finally {
       setBusy(false);
       setEditing(false);

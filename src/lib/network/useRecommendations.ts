@@ -102,15 +102,25 @@ function toRecommendation(row: ListRow): Recommendation {
   };
 }
 
+/**
+ * Klucz niesie TAKŻE id oglądającego, nie tylko odbiorcy rekomendacji. To nie
+ * jest ozdoba: ta sama lista wygląda inaczej zależnie od tego, KTO pyta - baza
+ * pokazuje autorowi jego `hidden`/`declined` jako `pending` (prywatność
+ * moderacji), a odbiorcy prawdziwe statusy. Klucz bez oglądającego oznaczał
+ * jeden wpis w cache na dwie różne odpowiedzi, więc zmiana konta bez twardego
+ * przeładowania serwowała cudzy obraz moderacji. Reguła jak w networkKeys.
+ */
 const keys = {
-  list: (recipientId: string) => ["network", "recommendations", recipientId] as const,
+  list: (viewerId: string | undefined, recipientId: string) =>
+    ["network", "recommendations", viewerId ?? "anon", recipientId] as const,
 };
 
 export function useRecommendations(
   recipientId: string | null | undefined,
 ): UseQueryResult<ReadonlyArray<Recommendation>> {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: keys.list(recipientId ?? "none"),
+    queryKey: keys.list(user?.id, recipientId ?? "none"),
     enabled: Boolean(recipientId),
     staleTime: 30_000,
     queryFn: async (): Promise<ReadonlyArray<Recommendation>> => {
@@ -128,6 +138,7 @@ export function useWriteRecommendation(
   recipientId: string,
 ): UseMutationResult<string, Error, { body: string; relationship: RecommendationRelationship }> {
   const qc = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async ({ body, relationship }) => {
       const { data, error } = await supabase.rpc("write_recommendation", {
@@ -139,7 +150,7 @@ export function useWriteRecommendation(
       return String(data);
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: keys.list(recipientId) });
+      void qc.invalidateQueries({ queryKey: keys.list(user?.id, recipientId) });
     },
   });
 }
@@ -166,8 +177,10 @@ export function useRespondRecommendation(): UseMutationResult<
       if (error) throw error;
     },
     onSuccess: (_r, v) => {
-      void qc.invalidateQueries({ queryKey: keys.list(v.recipientId) });
-      if (user?.id) void qc.invalidateQueries({ queryKey: keys.list(user.id) });
+      // Odbiorca zmienia widoczność cudzej rekomendacji: odświeżamy listę
+      // profilu, którego dotyczy decyzja, ORAZ własną listę oglądającego.
+      void qc.invalidateQueries({ queryKey: keys.list(user?.id, v.recipientId) });
+      if (user?.id) void qc.invalidateQueries({ queryKey: keys.list(user.id, user.id) });
     },
   });
 }

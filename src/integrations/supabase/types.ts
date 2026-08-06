@@ -12661,6 +12661,8 @@ export type Database = {
         }
         Returns: undefined
       }
+      caller_is_connected_to: { Args: { p_user_id: string }; Returns: boolean }
+      caller_is_tenant_staff: { Args: never; Returns: boolean }
       can_access_entity_presence: {
         Args: { _entity_id: string; _entity_type: string }
         Returns: boolean
@@ -13280,6 +13282,18 @@ export type Database = {
           label: string
           reference_id: string
           relation: string
+        }[]
+      }
+      get_my_public_exposure: {
+        Args: never
+        Returns: {
+          by_author_profile: boolean
+          by_editorial_role: boolean
+          by_expert_badge: boolean
+          by_published_content: boolean
+          by_speaker_profile: boolean
+          discoverable: boolean
+          is_public: boolean
         }[]
       }
       get_my_qa_question_ids: {
@@ -14315,6 +14329,10 @@ export type Database = {
       profile_badge_activity_points: {
         Args: { p_since?: string; p_tenant_id: string; p_user_id: string }
         Returns: number
+      }
+      profile_has_public_presence: {
+        Args: { p_tenant_id: string; p_user_id: string }
+        Returns: boolean
       }
       profile_is_public: { Args: { _user_id: string }; Returns: boolean }
       profile_view_stats: {

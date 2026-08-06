@@ -2023,6 +2023,7 @@ export const en = {
       groupByConversationHint: "Collapse multiple messages from the same chat into one row.",
       kinds: {
         message: "Chat messages",
+        expert_request: "Expert requests",
         comment: "Comments",
         follow: "New followers",
         subscription: "Subscription updates",

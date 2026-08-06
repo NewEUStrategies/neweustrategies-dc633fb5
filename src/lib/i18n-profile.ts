@@ -220,7 +220,9 @@ const pl = {
       export: {
         title: "Twoje dane (RODO)",
         subtitle:
-          "Pobierz kopię danych osobowych, które o Tobie przechowujemy (art. 15 i 20 RODO): profil, komentarze, obserwacje, zamówienia i preferencje - jako plik JSON.",
+          "Pobierz kopię danych osobowych, które o Tobie przechowujemy (art. 15 i 20 RODO), jako plik JSON: profil i profil eksperta, sekcje CV oraz wzmianki medialne, sieć kontaktów i rekomendacje, czat (Twoje wiadomości i metadane rozmów), zapytania do ekspertów, komentarze, obserwacje, zamówienia, zgody i preferencje.",
+        scopeNote:
+          "Plik niesie własny manifest: spis wszystkich sekcji oraz to, czego świadomie nie zawiera i dlaczego (na przykład wiadomości napisanych przez inne osoby - art. 15 ust. 4 RODO).",
         busy: "Przygotowywanie...",
         download: "Pobierz moje dane (JSON)",
       },
@@ -946,7 +948,9 @@ const en: typeof pl = {
       export: {
         title: "Your data (GDPR)",
         subtitle:
-          "Download a copy of the personal data we store about you (Art. 15 and 20 GDPR): profile, comments, follows, orders and preferences - as a JSON file.",
+          "Download a copy of the personal data we store about you (Art. 15 and 20 GDPR) as a JSON file: profile and expert profile, CV sections and media mentions, network and recommendations, chat (your messages and conversation metadata), expert requests, comments, follows, orders, consents and preferences.",
+        scopeNote:
+          "The file carries its own manifest: every section it contains, plus what is deliberately left out and why (for example messages written by other people - Art. 15(4) GDPR).",
         busy: "Preparing...",
         download: "Download my data (JSON)",
       },
