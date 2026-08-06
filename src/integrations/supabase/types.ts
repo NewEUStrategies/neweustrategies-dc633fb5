@@ -12358,6 +12358,33 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      admin_list_expert_requests: {
+        Args: { p_limit?: number; p_offset?: number; p_status?: string }
+        Returns: {
+          admin_note: string | null
+          converted_conversation_id: string | null
+          created_at: string
+          decline_reason: string | null
+          expected_answers: string | null
+          external_links: string[]
+          id: string
+          questions: string[]
+          reason: string
+          recipient_id: string
+          responded_at: string | null
+          sender_id: string
+          status: string
+          subject: string
+          tenant_id: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "expert_inmails"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       admin_list_inmails: {
         Args: { p_limit?: number; p_offset?: number; p_status?: string }
         Returns: {
@@ -13839,6 +13866,33 @@ export type Database = {
           total_count: number
         }[]
       }
+      list_my_expert_requests: {
+        Args: { p_box?: string }
+        Returns: {
+          admin_note: string | null
+          converted_conversation_id: string | null
+          created_at: string
+          decline_reason: string | null
+          expected_answers: string | null
+          external_links: string[]
+          id: string
+          questions: string[]
+          reason: string
+          recipient_id: string
+          responded_at: string | null
+          sender_id: string
+          status: string
+          subject: string
+          tenant_id: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "expert_inmails"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       list_my_inmails: {
         Args: { p_box?: string }
         Returns: {
@@ -14537,6 +14591,10 @@ export type Database = {
       request_verified_host: { Args: never; Returns: string }
       resolve_expert_inmail: {
         Args: { p_action: string; p_inmail_id: string; p_note?: string }
+        Returns: Json
+      }
+      resolve_expert_request: {
+        Args: { p_action: string; p_note?: string; p_request_id: string }
         Returns: Json
       }
       resolve_job_runner_base_url: { Args: never; Returns: string }

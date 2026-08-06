@@ -1,0 +1,1 @@
+REVOKE ALL ON public.expert_inmails FROM anon;
