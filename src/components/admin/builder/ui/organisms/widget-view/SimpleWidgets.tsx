@@ -60,6 +60,8 @@ import {
   socialHoverStyle,
   type SocialHoverPlan,
 } from "./socialHover";
+import { SocialMailIcon } from "./socialGlyphs";
+
 
 import { DeferredFrame } from "@/components/atoms/DeferredFrame";
 import { ImageWidget, PostsSliderWidget } from "./mediaWidgets";
@@ -577,22 +579,10 @@ export function renderSimpleWidget(
 
       // Newsletter jest wierszem listy jak każda platforma - ta sama ikona w
       // kafelku, separator, etykieta i CTA - żeby nie odstawał wyglądem.
-      const MailIcon = ({ size: s = 14 }: { size?: number }) => (
-        <svg
-          width={s}
-          height={s}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.9"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <rect x="2.5" y="4.5" width="19" height="15" rx="2.5" />
-          <path d="M3 7l9 6 9-6" />
-        </svg>
-      );
+      // Rysunek koperty pochodzi ze wspólnego modułu (socialGlyphs), tego
+      // samego, którego używa samodzielny widget „Newsletter".
+      const MailIcon = SocialMailIcon;
+
 
       const renderSocials = (globalLinks: GlobalSocialLinks): ReactElement => {
         if (layout === "list") {
