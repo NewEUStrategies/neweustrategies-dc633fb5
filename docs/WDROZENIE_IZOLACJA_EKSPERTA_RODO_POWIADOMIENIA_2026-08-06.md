@@ -30,7 +30,7 @@ praktycznie nielimitowane zapytania - bez wykupionego progu. Bramka
 monetyzacyjna była obchodzona danymi spoza tenanta, czyli dokładnie tym, czego
 izolacja obszarów roboczych ma zabraniać.
 
-### Wdrożenie - `20260806160000_tenant_scoped_expert_vip_predicates.sql`
+### Wdrożenie - `20260806160003_tenant_scoped_expert_vip_predicates.sql`
 
 1. **Warianty dwuargumentowe** `(_uid, _tenant)` - kanoniczne, jawnie skalowane.
    Każde źródło dostaje predykat na tenanta; `event_speakers` nie ma własnej

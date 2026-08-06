@@ -98,6 +98,11 @@ const KNOWN_CONTENT_TWINS: readonly string[] = [
   "20260803140001_consent_gpc_signal.sql|20260803190927_fff99c9d-23b7-4465-adad-c3aef71099ff.sql",
   "20260804145341_26ab64e2-3671-4530-8e8e-b4d7ff4ec953.sql|20260804150000_newsletter_popup_design_jsonb.sql",
   "20260806084556_16d8191a-65d0-4002-b075-3a41d62ed1a5.sql|20260806120000_mobile_bottom_bar_reference_look.sql",
+  // Wdrożenia PR #189 / #190: plik z gałęzi i wygenerowany bliźniak z zastosowania
+  // migracji na hostowanej bazie. Obie wersje są już w ledgerze, a SQL jest
+  // idempotentny (CREATE OR REPLACE + DROP TRIGGER IF EXISTS).
+  "20260806160001_expert_request_single_generation.sql|20260806185055_1272fb55-fdb9-4eac-9035-66377484ac2c.sql",
+  "20260806160002_profile_verification_guard_insert_parity.sql|20260806190257_9386c9cc-9f1f-4ce8-8320-b3abad5ecc3f.sql",
 ];
 
 /**

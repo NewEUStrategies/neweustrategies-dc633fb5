@@ -129,7 +129,7 @@ Wariant `_profiles_verification_guard_super_admin.sql` z tej sesji **nigdy nie w
 żadnego środowiska i został usunięty z repo** - opisuje to sekcja „Kolizja wersji" niżej.
 Żywym rozstrzygnięciem jest `20260806150000_profile_verification_authority.sql` (jeden
 predykat `can_manage_profile_verification()` + rozdział własności kolumn), domknięte przez
-`20260806160000_profile_verification_guard_insert_parity.sql` (parytet INSERT/UPDATE).
+`20260806160002_profile_verification_guard_insert_parity.sql` (parytet INSERT/UPDATE).
 Różnica względem usuniętego wariantu, dla porządku:
 
 | Aspekt | usunięty wariant | stan żywy |
