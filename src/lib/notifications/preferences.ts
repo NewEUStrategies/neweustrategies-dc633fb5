@@ -29,7 +29,8 @@ export type NotificationKind =
   | "tracker"
   | "connection"
   | "saved_search"
-  | "crm_task";
+  | "crm_task"
+  | "expert_request";
 
 /** Kto może ZACZĄĆ nową rozmowę z użytkownikiem (istniejące wątki żyją dalej). */
 export type AllowMessagesFrom = "everyone" | "existing" | "nobody";
@@ -55,6 +56,12 @@ export interface NotificationPreferences {
   enabled_saved_search: boolean;
   /** Przypomnienia o follow-upach CRM (producent: run_crm_task_reminders). */
   enabled_crm_task: boolean;
+  /**
+   * Zapytania do ekspertów - obie strony wymiany (producent:
+   * tg_expert_request_notify): odbiorca dostaje sygnał o NOWYM zapytaniu,
+   * nadawca o decyzji eksperta (przyjęte / odpowiedziane / odrzucone).
+   */
+  enabled_expert_request: boolean;
   auto_mark_on_open: boolean;
   group_by_conversation: boolean;
   /**
@@ -103,6 +110,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   enabled_connection: true,
   enabled_saved_search: true,
   enabled_crm_task: true,
+  enabled_expert_request: true,
   auto_mark_on_open: true,
   group_by_conversation: true,
   read_receipts_enabled: true,
@@ -122,6 +130,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
  */
 export const TOGGLEABLE_NOTIFICATION_KINDS = [
   "message",
+  "expert_request",
   "comment",
   "follow",
   "connection",

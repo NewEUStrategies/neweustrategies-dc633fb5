@@ -1,0 +1,208 @@
+// Manifest eksportu danych osobowych (RODO art. 15 i 20) - CZYSTY moduł.
+//
+// PO CO OSOBNY PLIK. Do 2026-08-06 zakres eksportu żył wyłącznie w ciele server
+// fn, a jego kompletność była DEKLARACJĄ w komentarzu („zwraca komplet
+// danych") i w podtytule na /profile/security. Deklaracja rozjechała się z
+// kodem: eksport pomijał CAŁY czat (rozmowy, wiadomości, blokady, przezwiska),
+// CAŁY moduł zapytań do ekspertów i KOMPLET rozszerzeń profilu (profil autora,
+// doświadczenie, wykształcenie, umiejętności, wyróżnienia, zainteresowania,
+// pliki CV, wzmianki medialne, rekomendacje, poparcia, wyświetlenia profilu).
+// Osoba, której dane dotyczą, dostawała plik podpisany jako komplet - i nie
+// miała jak zauważyć, czego w nim nie ma.
+//
+// Poprawka jest strukturalna, nie redakcyjna: zakres jest teraz DANYMI
+// (rejestr poniżej), payload niesie własny manifest, a bramka
+// `assertExportManifestMatches` porównuje deklarację z tym, co realnie
+// zbudowała warstwa serwerowa. Sekcja dopisana bez wpisu w rejestrze (albo wpis
+// bez sekcji) wywala test, zanim rozjazd trafi do pliku użytkownika.
+//
+// Wyłączenia są równie ważne jak zawartość: to, czego NIE ma, musi być
+// nazwane w pliku razem z powodem - inaczej brak znowu wygląda jak komplet.
+
+/** Wartość przenośna: eksport jest kontraktem JSON, nie zrzutem obiektów JS. */
+export type JsonValue =
+  | null
+  | boolean
+  | number
+  | string
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+/** Wersja formatu. Zmiana ZAKRESU sekcji = zmiana wersji (konsument to czyta). */
+export const PERSONAL_DATA_EXPORT_FORMAT = "nes.personal-data-export.v2" as const;
+
+/**
+ * Sekcje pogrupowane dziedzinowo. Grupa jest częścią kontraktu - konsument
+ * (i człowiek czytający plik) widzi, że eksport ma wszystkie obszary produktu,
+ * a nie tylko te, które ktoś pamiętał.
+ */
+export const EXPORT_SECTION_GROUPS = {
+  /** Tożsamość i podstawa przetwarzania. */
+  identity: ["profile", "author_profile", "roles", "badges", "consents", "consent_events"],
+  /** Rozszerzenia profilu (CV, dorobek, obecność medialna). */
+  profile_extensions: [
+    "profile_experiences",
+    "profile_education",
+    "profile_skills",
+    "profile_awards",
+    "profile_hobbies",
+    "profile_cv_files",
+    "media_mentions",
+    "personality_results",
+  ],
+  /** Aktywność czytelnicza i publiczna. */
+  activity: [
+    "follows",
+    "policy_tracker_follows",
+    "bookmarks",
+    "reading_history",
+    "comments",
+    "user_reports_filed",
+  ],
+  /** Sieć kontaktów i reputacja zawodowa. */
+  network: [
+    "network_connections",
+    "network_invitations_sent",
+    "network_invitations_received",
+    "network_introductions",
+    "recommendations_received",
+    "recommendations_written",
+    "skill_endorsements_given",
+    "skill_endorsements_received",
+    "profile_viewers",
+    "profile_view_stats",
+  ],
+  /** Czat: metadane rozmów, własne wiadomości, ustawienia par. */
+  chat: [
+    "chat_conversations",
+    "chat_participation",
+    "chat_messages_sent",
+    "chat_nicknames_set",
+    "chat_blocks",
+  ],
+  /** Zapytania do ekspertów - obie skrzynki. */
+  expert_requests: ["expert_requests_sent", "expert_requests_received"],
+  /** Płatności i uprawnienia zakupowe. */
+  commerce: ["orders", "subscriptions", "purchases"],
+  /** Preferencje i kanały doręczeń. */
+  preferences: [
+    "notification_preferences",
+    "notifications",
+    "push_subscriptions",
+    "invitations_sent",
+  ],
+} as const satisfies Readonly<Record<string, readonly string[]>>;
+
+export type ExportSectionGroup = keyof typeof EXPORT_SECTION_GROUPS;
+export type ExportSectionId = (typeof EXPORT_SECTION_GROUPS)[ExportSectionGroup][number];
+
+/** Płaska lista identyfikatorów sekcji, w kolejności grup. */
+export const EXPORT_SECTION_IDS: readonly ExportSectionId[] = Object.values(
+  EXPORT_SECTION_GROUPS,
+).flat() as ExportSectionId[];
+
+/** Odwrotne odwzorowanie: sekcja -> grupa (konsument grupuje bez zgadywania). */
+export const EXPORT_SECTION_GROUP_OF: Readonly<Record<string, ExportSectionGroup>> = Object.freeze(
+  Object.fromEntries(
+    (Object.keys(EXPORT_SECTION_GROUPS) as ExportSectionGroup[]).flatMap((group) =>
+      EXPORT_SECTION_GROUPS[group].map((id) => [id, group] as const),
+    ),
+  ),
+);
+
+export interface ExportExclusion {
+  id: string;
+  reason_pl: string;
+  reason_en: string;
+}
+
+/**
+ * Czego eksport ŚWIADOMIE nie zawiera - i dlaczego. Lista jedzie do pliku, więc
+ * brak jest widoczny dla odbiorcy zamiast być domyślany z pustego miejsca.
+ */
+export const EXPORT_EXCLUSIONS: readonly ExportExclusion[] = [
+  {
+    id: "messages_authored_by_others",
+    reason_pl:
+      "Wiadomości napisane przez Twoich rozmówców. Art. 15 ust. 4 RODO - prawo do kopii nie może naruszać praw i wolności innych osób. Eksportujemy Twoje wiadomości oraz metadane rozmów, w których uczestniczysz.",
+    reason_en:
+      "Messages written by the people you talk to. GDPR art. 15(4) - the right to a copy must not adversely affect the rights and freedoms of others. We export your own messages plus the metadata of conversations you take part in.",
+  },
+  {
+    id: "attachment_binaries",
+    reason_pl:
+      "Treść binarna załączników i plików CV. W eksporcie są metadane i ścieżki w magazynie plików - same pliki pobierzesz z rozmowy lub z profilu, w oryginalnym formacie.",
+    reason_en:
+      "Binary contents of attachments and CV files. The export carries their metadata and storage paths - download the files themselves from the conversation or your profile, in their original format.",
+  },
+  {
+    id: "published_authored_content",
+    reason_pl:
+      "Opublikowane treści autorskie (wpisy, odcinki podcastu, materiały eksperckie). Są dostępne pod własnymi adresami publicznymi; eksport zawiera profil autora i metadane, a nie kopie publikacji.",
+    reason_en:
+      "Published authored content (articles, podcast episodes, expert materials). It lives under its own public URLs; the export carries the author profile and metadata rather than copies of the publications.",
+  },
+  {
+    id: "pseudonymous_analytics",
+    reason_pl:
+      "Zdarzenia analityczne i pomiary wydajności zbierane bez identyfikatora konta. Nie da się ich przypisać do osoby, więc nie są danymi osobowymi w rozumieniu art. 4 pkt 1 RODO.",
+    reason_en:
+      "Analytics and performance events collected without an account identifier. They cannot be linked back to a person, so they are not personal data under GDPR art. 4(1).",
+  },
+  {
+    id: "security_and_audit_logs",
+    reason_pl:
+      "Logi bezpieczeństwa i ślad audytowy (adresy IP żądań, wykryte nadużycia) przechowywane w celu ustalenia i obrony roszczeń - art. 17 ust. 3 lit. e RODO. Udostępniamy je na wniosek skierowany do inspektora ochrony danych.",
+    reason_en:
+      "Security and audit logs (request IP addresses, abuse signals) retained for the establishment and defence of legal claims - GDPR art. 17(3)(e). They are provided on request to the data protection officer.",
+  },
+];
+
+export interface ExportManifest {
+  format: typeof PERSONAL_DATA_EXPORT_FORMAT;
+  /** Sekcje, które eksport ZADEKLAROWAŁ - w kolejności grup. */
+  sections: readonly string[];
+  /** Grupa dziedzinowa każdej sekcji. */
+  groups: Readonly<Record<string, string>>;
+  /** Sekcje, które w tym przebiegu skończyły się błędem (odmowa RLS, grant). */
+  failed: readonly string[];
+  /** Świadome wyłączenia zakresu wraz z uzasadnieniem. */
+  excluded: readonly ExportExclusion[];
+}
+
+/** Manifest dołączany do payloadu - „co miało być, co się nie udało, czego nie ma". */
+export function buildExportManifest(failedSectionIds: readonly string[]): ExportManifest {
+  const failed = EXPORT_SECTION_IDS.filter((id) => failedSectionIds.includes(id));
+  return {
+    format: PERSONAL_DATA_EXPORT_FORMAT,
+    sections: EXPORT_SECTION_IDS,
+    groups: EXPORT_SECTION_GROUP_OF,
+    failed,
+    excluded: EXPORT_EXCLUSIONS,
+  };
+}
+
+export interface ExportManifestMismatch {
+  /** Zadeklarowane w rejestrze, nieobecne w zbudowanym eksporcie. */
+  missing: readonly string[];
+  /** Zbudowane przez warstwę serwerową, nieobecne w rejestrze. */
+  undeclared: readonly string[];
+}
+
+/**
+ * Bramka rozjazdu deklaracja ⇄ implementacja. Wywoływana w teście oraz w samej
+ * server fn - rozjazd nie może przecieknąć do pliku użytkownika w ciszy.
+ */
+export function diffExportManifest(builtSectionIds: readonly string[]): ExportManifestMismatch {
+  const declared = new Set<string>(EXPORT_SECTION_IDS);
+  const built = new Set(builtSectionIds);
+  return {
+    missing: EXPORT_SECTION_IDS.filter((id) => !built.has(id)),
+    undeclared: builtSectionIds.filter((id) => !declared.has(id)),
+  };
+}
+
+export function exportManifestMatches(builtSectionIds: readonly string[]): boolean {
+  const diff = diffExportManifest(builtSectionIds);
+  return diff.missing.length === 0 && diff.undeclared.length === 0;
+}

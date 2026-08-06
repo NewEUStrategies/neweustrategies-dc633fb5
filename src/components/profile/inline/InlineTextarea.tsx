@@ -51,6 +51,10 @@ export function InlineTextarea({
     setBusy(true);
     try {
       await onSave(next);
+    } catch (error) {
+      // Jak w InlineText: wołający pokazuje komunikat, atom nie zostawia
+      // wiszącego odrzucenia (commit() jest odpalany z `void`).
+      console.error("[InlineTextarea] save failed", error);
     } finally {
       setBusy(false);
       setEditing(false);

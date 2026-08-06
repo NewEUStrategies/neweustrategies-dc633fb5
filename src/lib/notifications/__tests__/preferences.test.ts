@@ -23,6 +23,7 @@ describe("TOGGLEABLE_NOTIFICATION_KINDS", () => {
   it("lists the user-toggleable kinds and excludes security", () => {
     expect([...TOGGLEABLE_NOTIFICATION_KINDS]).toEqual([
       "message",
+      "expert_request",
       "comment",
       "follow",
       "connection",
@@ -59,6 +60,7 @@ describe("NOTIFICATION_KINDS", () => {
       "connection",
       "saved_search",
       "crm_task",
+      "expert_request",
     ];
     expect([...NOTIFICATION_KINDS].sort()).toEqual([...dbKinds].sort());
   });

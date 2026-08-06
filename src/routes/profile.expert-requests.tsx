@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import {
   useMyExpertRequests,
   useResolveExpertRequest,
@@ -11,18 +12,31 @@ import {
   type ExpertRequestRow,
 } from "@/lib/chat/useExpertRequests";
 import { ensureI18n as ensureExpertRequestI18n } from "@/lib/i18n-expert-request";
+// Głęboki link z powiadomienia (`?box=…&r=<uuid>`) - walidacja żyje w czystym
+// module, więc ma własny test i nie rozszczelnia fast refresh trasy.
+import { validateExpertRequestsSearch } from "@/lib/chat/expertRequestsSearch";
 
 export const Route = createFileRoute("/profile/expert-requests")({
   head: () => ({
     meta: [{ title: "Zapytania do ekspertów" }, { name: "robots", content: "noindex, nofollow" }],
   }),
+  validateSearch: validateExpertRequestsSearch,
   component: ProfileExpertRequests,
 });
 
-function ExpertRequestList({ box }: { box: ExpertRequestBox }) {
+function ExpertRequestList({ box, highlightId }: { box: ExpertRequestBox; highlightId?: string }) {
   const { t } = useTranslation();
   const q = useMyExpertRequests(box);
   const resolve = useResolveExpertRequest();
+  const highlightRef = useRef<HTMLLIElement | null>(null);
+
+  // Wejście z powiadomienia: przewiń do wskazanego zapytania, gdy tylko lista
+  // się załaduje. `block: "center"` zamiast domyślnego „start", żeby wiersz nie
+  // schował się pod przyklejonym nagłówkiem profilu.
+  useEffect(() => {
+    if (!highlightId || !highlightRef.current) return;
+    highlightRef.current.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [highlightId, q.data]);
 
   async function act(row: ExpertRequestRow, action: "approve" | "decline" | "answered" | "cancel") {
     try {
@@ -48,7 +62,16 @@ function ExpertRequestList({ box }: { box: ExpertRequestBox }) {
   return (
     <ul className="flex flex-col gap-2">
       {rows.map((row) => (
-        <li key={row.id} className="rounded-[6px] border border-border bg-card p-3">
+        <li
+          key={row.id}
+          ref={row.id === highlightId ? highlightRef : undefined}
+          className={cn(
+            "rounded-[6px] border bg-card p-3 transition-colors",
+            row.id === highlightId
+              ? "border-[var(--brand)] ring-1 ring-[var(--brand)]/40"
+              : "border-border",
+          )}
+        >
           <div className="flex items-center justify-between gap-2">
             <p className="truncate text-sm font-semibold">{row.subject}</p>
             <span className="rounded-[6px] border border-border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider">
@@ -93,7 +116,13 @@ function ExpertRequestList({ box }: { box: ExpertRequestBox }) {
 function ProfileExpertRequests() {
   ensureExpertRequestI18n();
   const { t } = useTranslation();
-  const [tab, setTab] = useState<ExpertRequestBox>("received");
+  const { box, r } = Route.useSearch();
+  const [tab, setTab] = useState<ExpertRequestBox>(box ?? "received");
+  // Kolejne kliknięcie w powiadomienie (ta sama trasa, inna skrzynka) musi
+  // przestawić zakładkę - stan lokalny sam z siebie by tego nie zauważył.
+  useEffect(() => {
+    if (box) setTab(box);
+  }, [box]);
   return (
     <div className="flex flex-col gap-4">
       <header>
@@ -108,10 +137,10 @@ function ProfileExpertRequests() {
           <TabsTrigger value="sent">{t("expertRequest.box.sent")}</TabsTrigger>
         </TabsList>
         <TabsContent value="received" className="mt-3">
-          <ExpertRequestList box="received" />
+          <ExpertRequestList box="received" {...(r ? { highlightId: r } : {})} />
         </TabsContent>
         <TabsContent value="sent" className="mt-3">
-          <ExpertRequestList box="sent" />
+          <ExpertRequestList box="sent" {...(r ? { highlightId: r } : {})} />
         </TabsContent>
       </Tabs>
     </div>
