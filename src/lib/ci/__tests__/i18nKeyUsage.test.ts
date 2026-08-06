@@ -1,0 +1,238 @@
+// Testy skanera „cichego rozjazdu słownika": co skaner musi ZOBACZYĆ
+// (wywołania, template literale, referencje w stałych) i czego NIE ma widzieć
+// (inne wywołania kończące się na `t(`, ścieżki importów, klucze zapytań).
+import { describe, expect, it } from "vitest";
+import {
+  auditKeyUsage,
+  keyUsageFailed,
+  maskComments,
+  renderKeyUsageReport,
+  scanKeyReferences,
+  scanKeyUsage,
+  scanTranslationCalls,
+} from "@/lib/ci/i18nKeyUsage";
+import type { ResourceTree } from "@/lib/ci/i18nParity";
+
+const PL: ResourceTree = {
+  network: {
+    connect: "Dodaj do sieci",
+    mutual_one: "{{count}} wspólny kontakt",
+    mutual_few: "{{count}} wspólne kontakty",
+    mutual_many: "{{count}} wspólnych kontaktów",
+    mutual_other: "{{count}} wspólnych kontaktów",
+    reportReasons: { spam: "Spam", other: "Inne" },
+  },
+};
+
+const EN: ResourceTree = {
+  network: {
+    connect: "Connect",
+    mutual_one: "{{count}} mutual connection",
+    mutual_other: "{{count}} mutual connections",
+    reportReasons: { spam: "Spam", other: "Other" },
+  },
+};
+
+describe("scanTranslationCalls", () => {
+  it("czyta klucz z literału i podaje numer linii", () => {
+    const src = ["const a = 1;", 'const label = t("network.connect");'].join("\n");
+    expect(scanTranslationCalls("a.tsx", src)).toEqual([
+      {
+        key: "network.connect",
+        kind: "literal",
+        file: "a.tsx",
+        line: 2,
+        defaultValue: null,
+        plural: false,
+      },
+    ]);
+  });
+
+  it("wyłapuje defaultValue i count, także gdy opcje mają zagnieżdżone wywołania", () => {
+    const src = 't("network.mutualLinkAria", { count: Math.max(0, n), defaultValue: "Zobacz" })';
+    const [usage] = scanTranslationCalls("a.tsx", src);
+    expect(usage.defaultValue).toBe("Zobacz");
+    expect(usage.plural).toBe(true);
+    expect(usage.key).toBe("network.mutualLinkAria");
+  });
+
+  it("template literal z interpolacją daje prefiks gałęzi", () => {
+    const src = "const x = t(`network.reportReasons.${reason}`);";
+    expect(scanTranslationCalls("a.tsx", src)).toEqual([
+      {
+        key: "network.reportReasons",
+        kind: "prefix",
+        file: "a.tsx",
+        line: 1,
+        defaultValue: null,
+        plural: false,
+      },
+    ]);
+  });
+
+  it("template literal bez interpolacji jest zwykłym kluczem", () => {
+    expect(scanTranslationCalls("a.tsx", "t(`network.connect`)")[0]).toMatchObject({
+      key: "network.connect",
+      kind: "literal",
+    });
+  });
+
+  it("obsługuje i18n.t(...) i pomija metody kończące się na t(", () => {
+    const src = [
+      'i18n.t("network.connect");',
+      "rows.at(0);",
+      'items.split("network.nope");',
+      "items.filter((x) => x);",
+      'const s = fmt("network.nope2");',
+    ].join("\n");
+    expect(scanTranslationCalls("a.tsx", src).map((u) => u.key)).toEqual(["network.connect"]);
+  });
+
+  it("pomija klucz zbudowany ze zmiennej (łapie go dopiero skan referencji)", () => {
+    expect(scanTranslationCalls("a.tsx", "t(emptyKey)")).toEqual([]);
+  });
+
+  it("nie wybucha na niedomkniętym wywołaniu", () => {
+    expect(scanTranslationCalls("a.tsx", 't("network.connect"')).toEqual([]);
+  });
+
+  it("ignoruje wywołania w komentarzach i teksty ze spacjami", () => {
+    const src = [
+      '// t("network.commented")',
+      "/* t(`network.blockComment`) */",
+      't("chat: expert requires request")',
+    ].join("\n");
+    expect(scanTranslationCalls("a.tsx", src)).toEqual([]);
+  });
+
+  it("nie bierze `//` z wnętrza łańcucha za początek komentarza", () => {
+    const src = ['const url = "https://example.test";', 't("network.connect");'].join("\n");
+    expect(scanTranslationCalls("a.tsx", src).map((u) => u.line)).toEqual([2]);
+  });
+});
+
+describe("maskComments", () => {
+  it("zachowuje długość, linie i treść kodu", () => {
+    const src = 'const a = 1; // t("x")\nconst b = 2;';
+    const masked = maskComments(src);
+    expect(masked).toHaveLength(src.length);
+    expect(masked.split("\n")).toHaveLength(2);
+    expect(masked).toContain("const a = 1;");
+    expect(masked).not.toContain('t("x")');
+  });
+});
+
+describe("scanKeyReferences", () => {
+  it("łapie ścieżki kluczy w stałych i propsach pod zadanym korzeniem", () => {
+    const src = [
+      'const MAP = { must_be_connected: "network.errors.notConnected" };',
+      '<List emptyKey="network.introductions.emptyBridge" />',
+    ].join("\n");
+    expect(scanKeyReferences("a.tsx", src, ["network"]).map((u) => u.key)).toEqual([
+      "network.errors.notConnected",
+      "network.introductions.emptyBridge",
+    ]);
+  });
+
+  it("nie bierze ścieżek importów, kluczy zapytań ani innych korzeni", () => {
+    const src = [
+      'import "@/lib/i18n-network";',
+      'const key = ["network", "policy-followers"];',
+      'const other = "billing.invoice.title";',
+    ].join("\n");
+    expect(scanKeyReferences("a.tsx", src, ["network"])).toEqual([]);
+  });
+
+  it("bez podanych korzeni nie zgłasza nic (skan referencji jest opt-in)", () => {
+    expect(scanKeyReferences("a.tsx", 'const k = "network.connect";', [])).toEqual([]);
+  });
+});
+
+describe("scanKeyUsage", () => {
+  it("scala wywołania i referencje bez duplikatów", () => {
+    const src = [
+      't("network.connect");',
+      'const again = "network.connect";',
+      'const ref = "network.other";',
+    ].join("\n");
+    const usage = scanKeyUsage("a.tsx", src, { referencePrefixes: ["network"] });
+    expect(usage.map((u) => `${u.kind}:${u.key}`)).toEqual([
+      "literal:network.connect",
+      "reference:network.other",
+    ]);
+  });
+});
+
+describe("auditKeyUsage", () => {
+  const trees = { pl: PL, en: EN };
+
+  it("klucz obecny w obu słownikach nie jest zgłaszany", () => {
+    const audit = auditKeyUsage(scanKeyUsage("a.tsx", 't("network.connect")'), trees);
+    expect(keyUsageFailed(audit)).toBe(false);
+    expect(renderKeyUsageReport(audit)).toBe("Brak rozjazdów słownika.");
+  });
+
+  it("formy mnogie zaspokajają klucz z count (PL few/many, EN one/other)", () => {
+    const audit = auditKeyUsage(scanKeyUsage("a.tsx", 't("network.mutual", { count: 3 })'), trees);
+    expect(keyUsageFailed(audit)).toBe(false);
+  });
+
+  it("brak w obu słownikach bez defaultValue idzie do `missing`", () => {
+    const audit = auditKeyUsage(scanKeyUsage("a.tsx", 't("network.ghost")'), trees);
+    expect(audit.missing.map((f) => f.reason)).toEqual(["missing_both"]);
+    expect(audit.masked).toEqual([]);
+  });
+
+  it("brak zamaskowany defaultValue idzie do `masked` - to najgroźniejsza klasa", () => {
+    const audit = auditKeyUsage(
+      scanKeyUsage("a.tsx", 't("network.ghost", { defaultValue: "Zobacz" })'),
+      trees,
+    );
+    expect(audit.missing).toEqual([]);
+    expect(audit.masked).toHaveLength(1);
+    expect(renderKeyUsageReport(audit)).toContain("ZAMASKOWANE defaultValue");
+    expect(renderKeyUsageReport(audit)).toContain('defaultValue: "Zobacz"');
+  });
+
+  it("rozróżnia brak tylko w EN i tylko w PL", () => {
+    const onlyPl: ResourceTree = { network: { a: "PL" } };
+    const onlyEn: ResourceTree = { network: { b: "EN" } };
+    const audit = auditKeyUsage(scanKeyUsage("a.tsx", 't("network.a"); t("network.b");'), {
+      pl: onlyPl,
+      en: onlyEn,
+    });
+    expect(audit.missing.map((f) => f.reason)).toEqual(["missing_en", "missing_pl"]);
+  });
+
+  it("gałąź dynamiczna z różnymi podkluczami PL/EN to `branch_mismatch`", () => {
+    const pl: ResourceTree = { network: { reportReasons: { spam: "Spam", extra: "Nadmiar" } } };
+    const audit = auditKeyUsage(scanKeyUsage("a.tsx", "t(`network.reportReasons.${r}`)"), {
+      pl,
+      en: EN,
+    });
+    expect(audit.branches).toHaveLength(1);
+    expect(audit.branches[0].reason).toBe("branch_mismatch");
+    expect(audit.branches[0].detail).toContain("extra");
+  });
+
+  it("gałąź dynamiczna, która nie prowadzi do obiektu, to `branch_missing`", () => {
+    const audit = auditKeyUsage(scanKeyUsage("a.tsx", "t(`network.nosuch.${r}`)"), trees);
+    expect(audit.branches.map((f) => f.reason)).toEqual(["branch_missing"]);
+  });
+
+  it("gałąź zgodna po odrzuceniu wariantów mnogich przechodzi", () => {
+    const pl: ResourceTree = {
+      network: { count: { item_one: "1", item_few: "2", item_many: "5" } },
+    };
+    const en: ResourceTree = { network: { count: { item_one: "1", item_other: "n" } } };
+    const audit = auditKeyUsage(scanKeyUsage("a.tsx", "t(`network.count.${x}`)"), { pl, en });
+    expect(audit.branches).toEqual([]);
+  });
+
+  it("ignoreKeys wycisza świadomie techniczne klucze", () => {
+    const audit = auditKeyUsage(scanKeyUsage("a.tsx", 't("network.ghost")'), trees, {
+      ignoreKeys: ["network.ghost"],
+    });
+    expect(keyUsageFailed(audit)).toBe(false);
+  });
+});

@@ -23,10 +23,7 @@ export function MutualConnectionsHint({ userId }: { userId: string }) {
     <Link
       to="/network/mutual/$userId"
       params={{ userId }}
-      aria-label={t("network.mutualLinkAria", {
-        count: mutual,
-        defaultValue: "Zobacz {{count}} wspólnych kontaktów",
-      })}
+      aria-label={t("network.mutualLinkAria", { count: mutual })}
       className="inline-flex items-center gap-1 rounded-[4px] px-1 -mx-1 text-xs font-medium text-muted-foreground transition-colors hover:text-[var(--brand)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <Users className="h-3.5 w-3.5" aria-hidden />

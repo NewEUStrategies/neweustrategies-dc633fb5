@@ -22,11 +22,28 @@ export interface RouterLinkStubProps extends AnchorHTMLAttributes<HTMLAnchorElem
   children?: ReactNode;
 }
 
+/**
+ * Fills `$param` placeholders in a route template from `params`, so assertions
+ * can read the REAL destination (`/author/anna-nowak`) instead of the template
+ * (`/author/$slug`). Suites used to re-implement this locally.
+ */
+function resolveHref(to: unknown, params: unknown): string {
+  if (typeof to !== "string") return "#";
+  if (params === null || typeof params !== "object") return to;
+  let href = to;
+  for (const [key, value] of Object.entries(params)) {
+    if (typeof value === "string" || typeof value === "number") {
+      href = href.replace(`$${key}`, String(value));
+    }
+  }
+  return href;
+}
+
 export function RouterLinkStub({
   to,
   children,
+  params,
   // Router-only props must not leak onto the DOM element.
-  params: _params,
   search: _search,
   hash: _hash,
   replace: _replace,
@@ -36,7 +53,7 @@ export function RouterLinkStub({
   ...rest
 }: RouterLinkStubProps) {
   return (
-    <a href={typeof to === "string" ? to : "#"} {...rest}>
+    <a href={resolveHref(to, params)} {...rest}>
       {children}
     </a>
   );
