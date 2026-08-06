@@ -6970,8 +6970,8 @@ html {
   position: absolute;
   left: 0;
   bottom: 99%;
-  width: 10.9em;
-  height: 2.4em;
+  width: 12.6em;
+  height: 3em;
   background-color: var(--mbb-bg);
   pointer-events: none;
   transition:
