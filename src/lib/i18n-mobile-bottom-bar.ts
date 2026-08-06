@@ -4,6 +4,29 @@ import i18n from "./i18n";
 const pl = {
   mobileBottomBar: {
     nav: "Nawigacja mobilna",
+    // Etykiety domyślnych pozycji: trzymane w i18n (a nie w site_settings),
+    // dzięki czemu przełączenie języka zmienia je natychmiast i bez zapisu w
+    // bazie. Administrator może je nadpisać per pozycja w panelu.
+    // UWAGA: klucz to `itemLabels`, nie `items` - `items` jest już zajęte przez
+    // nagłówek sekcji w panelu i zderzenie ucichłoby jako nadpisanie obiektu.
+    itemLabels: {
+      home: "Start",
+      network: "Sieć kontaktów",
+      chats: "Czaty",
+      saved: "Zapisane",
+      profile: "Profil",
+    },
+    badge: "Licznik",
+    badgeHint: "Kropka z liczbą nieprzeczytanych. Widoczna tylko dla zalogowanych.",
+    badgeNone: "Bez licznika",
+    badgeChat: "Nieprzeczytane wiadomości",
+    badgeNetwork: "Zaproszenia do sieci",
+    badgeNotifications: "Nieprzeczytane powiadomienia",
+    // Etykiety czytane przez czytniki ekranu przy liczniku (aria-label).
+    unreadChat: "Nieprzeczytane wiadomości: {{count}}",
+    unreadNetwork: "Oczekujące zaproszenia do sieci: {{count}}",
+    unreadNotifications: "Nieprzeczytane powiadomienia: {{count}}",
+    labelFallback: "Domyślnie: {{label}}",
     adminTitle: "Pasek mobilny",
     adminSubtitle:
       "Dolny pasek nawigacji widoczny wyłącznie na urządzeniach mobilnych. Treści, ikony, kolory i linki edytujesz poniżej - pasek respektuje tryb jasny i ciemny oraz język serwisu.",
@@ -37,6 +60,8 @@ const pl = {
     href: "Adres (link)",
     hrefHint: "Ścieżka wewnętrzna (np. /analizy) albo pełny adres https://",
     color: "Kolor akcentu",
+    colorLight: "Akcent - tryb jasny",
+    colorDark: "Akcent - tryb ciemny",
     itemEnabled: "Widoczna",
     preview: "Podgląd",
     previewLight: "Tryb jasny",
@@ -48,6 +73,23 @@ const pl = {
 const en = {
   mobileBottomBar: {
     nav: "Mobile navigation",
+    itemLabels: {
+      home: "Home",
+      network: "My network",
+      chats: "Chats",
+      saved: "Saved",
+      profile: "Profile",
+    },
+    badge: "Counter",
+    badgeHint: "Unread counter dot. Shown to signed-in users only.",
+    badgeNone: "No counter",
+    badgeChat: "Unread messages",
+    badgeNetwork: "Network invitations",
+    badgeNotifications: "Unread notifications",
+    unreadChat: "Unread messages: {{count}}",
+    unreadNetwork: "Pending network invitations: {{count}}",
+    unreadNotifications: "Unread notifications: {{count}}",
+    labelFallback: "Default: {{label}}",
     adminTitle: "Mobile bottom bar",
     adminSubtitle:
       "Bottom navigation bar shown on mobile devices only. Edit content, icons, colours and links below - the bar follows light/dark mode and the site language.",
@@ -81,6 +123,8 @@ const en = {
     href: "Link",
     hrefHint: "Internal path (e.g. /analysis) or a full https:// address",
     color: "Accent colour",
+    colorLight: "Accent - light mode",
+    colorDark: "Accent - dark mode",
     itemEnabled: "Visible",
     preview: "Preview",
     previewLight: "Light mode",

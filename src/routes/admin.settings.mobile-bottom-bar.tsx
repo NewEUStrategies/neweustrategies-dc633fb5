@@ -6,22 +6,41 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSettings, useDraft } from "@/lib/admin/useSettings";
-import { Field, Text, Checkbox, NumberInput, SaveBar } from "@/components/admin/settings/fields";
-import { LucideIconPicker } from "@/components/admin/builder/ui/molecules/LucideIconPicker";
-import { MobileBottomBarView } from "@/components/mobile/MobileBottomBar";
 import {
+  Field,
+  Text,
+  Checkbox,
+  NumberInput,
+  Select,
+  SaveBar,
+} from "@/components/admin/settings/fields";
+import { LucideIconPicker } from "@/components/admin/builder/ui/molecules/LucideIconPicker";
+import { MobileBottomBarView } from "@/components/mobile/bottomBar/MobileBottomBarView";
+import {
+  BOTTOM_BAR_BADGE_SOURCES,
   MAX_BOTTOM_BAR_ITEMS,
   MOBILE_BOTTOM_BAR_DEFAULTS,
   MOBILE_BOTTOM_BAR_SETTINGS_KEY,
+  bottomBarLabel,
   clampOffset,
   clampRadius,
   newBottomBarItem,
+  normalizeBadgeSource,
   visibleBottomBarItems,
+  type BottomBarBadgeSource,
   type MobileBottomBarConfig,
   type MobileBottomBarItem,
 } from "@/lib/mobileBottomBar/config";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import "@/lib/i18n-mobile-bottom-bar";
+
+/** Etykiety opcji licznika - klucze i18n, żeby panel też był dwujęzyczny. */
+const BADGE_LABEL_KEYS: Record<BottomBarBadgeSource, string> = {
+  none: "mobileBottomBar.badgeNone",
+  chat: "mobileBottomBar.badgeChat",
+  network: "mobileBottomBar.badgeNetwork",
+  notifications: "mobileBottomBar.badgeNotifications",
+};
 
 export const Route = createFileRoute("/admin/settings/mobile-bottom-bar")({
   head: () => ({
@@ -156,7 +175,10 @@ function MobileBottomBarSettings() {
           value={draft.icon_dark}
           onChange={(v) => setDraft({ ...draft, icon_dark: v })}
         />
-        <Field label={t("mobileBottomBar.useItemColor")} hint={t("mobileBottomBar.useItemColorHint")}>
+        <Field
+          label={t("mobileBottomBar.useItemColor")}
+          hint={t("mobileBottomBar.useItemColorHint")}
+        >
           <Checkbox
             label={t("mobileBottomBar.useItemColor")}
             checked={draft.use_item_color}
@@ -222,10 +244,14 @@ function MobileBottomBarSettings() {
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  {/* Pozycje domyślne mają etykietę w i18n (label_key). Puste
+                      pole = używamy tłumaczenia; wpis administratora je
+                      nadpisuje. Placeholder pokazuje, co zobaczy czytelnik. */}
                   <label className="text-xs font-medium">
                     {t("mobileBottomBar.labelPl")}
                     <Text
                       value={item.label_pl}
+                      placeholder={bottomBarLabel({ ...item, label_pl: "" }, "pl", (k) => t(k))}
                       onChange={(e) => patchItem(index, { label_pl: e.currentTarget.value })}
                       className="mt-1"
                     />
@@ -234,6 +260,7 @@ function MobileBottomBarSettings() {
                     {t("mobileBottomBar.labelEn")}
                     <Text
                       value={item.label_en}
+                      placeholder={bottomBarLabel({ ...item, label_en: "" }, "en", (k) => t(k))}
                       onChange={(e) => patchItem(index, { label_en: e.currentTarget.value })}
                       className="mt-1"
                     />
@@ -258,12 +285,14 @@ function MobileBottomBarSettings() {
                       />
                     </div>
                   </div>
+                  {/* Akcent osobno na motyw jasny i ciemny - jeden kolor nigdy
+                      nie ma dobrego kontrastu na obu tłach naraz. */}
                   <div className="text-xs font-medium">
-                    {t("mobileBottomBar.color")}
+                    {t("mobileBottomBar.colorLight")}
                     <div className="mt-1 flex items-center gap-2">
                       <input
                         type="color"
-                        aria-label={t("mobileBottomBar.color")}
+                        aria-label={t("mobileBottomBar.colorLight")}
                         value={/^#[0-9a-fA-F]{6}$/.test(item.color) ? item.color : "#4343f5"}
                         onChange={(e) => patchItem(index, { color: e.currentTarget.value })}
                         className="h-10 w-12 cursor-pointer rounded-md border border-border bg-transparent p-1"
@@ -274,6 +303,45 @@ function MobileBottomBarSettings() {
                       />
                     </div>
                   </div>
+                  <div className="text-xs font-medium">
+                    {t("mobileBottomBar.colorDark")}
+                    <div className="mt-1 flex items-center gap-2">
+                      <input
+                        type="color"
+                        aria-label={t("mobileBottomBar.colorDark")}
+                        value={
+                          /^#[0-9a-fA-F]{6}$/.test(item.color_dark ?? "")
+                            ? (item.color_dark as string)
+                            : "#8f8ffb"
+                        }
+                        onChange={(e) => patchItem(index, { color_dark: e.currentTarget.value })}
+                        className="h-10 w-12 cursor-pointer rounded-md border border-border bg-transparent p-1"
+                      />
+                      <Text
+                        value={item.color_dark ?? ""}
+                        onChange={(e) => patchItem(index, { color_dark: e.currentTarget.value })}
+                      />
+                    </div>
+                  </div>
+                  <label className="text-xs font-medium">
+                    {t("mobileBottomBar.badge")}
+                    <Select
+                      value={normalizeBadgeSource(item.badge)}
+                      onChange={(e) =>
+                        patchItem(index, { badge: normalizeBadgeSource(e.currentTarget.value) })
+                      }
+                      className="mt-1"
+                    >
+                      {BOTTOM_BAR_BADGE_SOURCES.map((source) => (
+                        <option key={source} value={source}>
+                          {t(BADGE_LABEL_KEYS[source])}
+                        </option>
+                      ))}
+                    </Select>
+                    <span className="mt-1 block text-[11px] font-normal text-muted-foreground">
+                      {t("mobileBottomBar.badgeHint")}
+                    </span>
+                  </label>
                   <div className="flex items-end">
                     <Checkbox
                       label={t("mobileBottomBar.itemEnabled")}
@@ -306,11 +374,15 @@ function MobileBottomBarSettings() {
         >
           <div className="w-full max-w-sm">
             {previewItems.length > 0 ? (
+              // Podgląd celuje w środkową pozycję - dokładnie tam, gdzie w
+              // domyślnej konfiguracji siedzi strona główna. withBadges=false,
+              // bo panel nie ma odpytywać czatu i sieci o liczniki admina.
               <MobileBottomBarView
                 config={draft}
                 items={previewItems}
-                activeIndex={0}
+                activeIndex={Math.floor((previewItems.length - 1) / 2)}
                 lang={i18n.language || "pl"}
+                withBadges={false}
               />
             ) : (
               <p className="text-center text-sm text-muted-foreground">
