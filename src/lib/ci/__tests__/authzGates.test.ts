@@ -569,21 +569,8 @@ describe("dryf snapshotu bramek", () => {
     expect(report).toContain("generate:authz-snapshot");
     expect(formatAuthzDriftReport([])).toContain("zgadza się");
   });
+  // Odpowiednik tej regresji (provenance pola `file`) jest pokryty wyżej,
+  // w bloku z dostępnym `built` - patrz "przeniesienie definicji do nowszej
+  // migracji raportuje provenance, nie uprawnienia".
 
-  // Regresja 2026-08-06: bramka padała na mainie z komunikatem
-  // „snapshot {X} vs migracje {X}" - z DWIEMA IDENTYCZNYMI wartościami, bo
-  // porównywała cały obiekt, a drukowała tylko cztery wybrane pola. Rozjazd
-  // dotyczył `file` (funkcję przedefiniowała nowsza migracja), którego komunikat
-  // w ogóle nie pokazywał.
-  it("nazywa pole, które się zmieniło - także spoza zbioru ról", () => {
-    const before = selectAuthzSnapshot(built, { roleGateRefs: ["fn:admin_list_users/0"] });
-    const movedFile = {
-      ...before,
-      roleGates: before.roleGates.map((gate) => ({ ...gate, file: "20990101000000_inna.sql" })),
-    };
-    const problems = diffAuthzSnapshots(before, movedFile);
-    expect(problems).toHaveLength(1);
-    expect(problems[0]).toContain("file");
-    expect(problems[0]).toContain("20990101000000_inna.sql");
-  });
 });
