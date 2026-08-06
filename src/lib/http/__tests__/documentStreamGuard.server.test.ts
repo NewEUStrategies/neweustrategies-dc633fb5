@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  DOC_GUARD_HEADER,
+  DOC_GUARD_TRUNCATION_MARKER,
   HtmlEndScanner,
   getDocumentGuardSnapshot,
   guardDocumentResponse,
@@ -97,19 +99,28 @@ describe("guardDocumentStream", () => {
     const startedAt = Date.now();
     const out = await readAll(stream);
     expect(Date.now() - startedAt).toBeLessThan(2_000);
-    // Dokument był kompletny - ogon awaryjny NIE jest dosztukowywany.
+    // Dokument był kompletny - ogon awaryjny NIE jest dosztukowywany, więc
+    // nie ma też sygnatury ucięcia (inaczej bramka e2e miałaby fałszywy alarm).
     expect(out).toBe("<html><body>ok</body></html>");
+    expect(out).not.toContain(DOC_GUARD_TRUNCATION_MARKER);
     expect(getDocumentGuardSnapshot().closedBySentinel).toBe(1);
   });
 
-  it("idle: ucięty dokument dostaje parsowalny ogon i incydent", async () => {
+  it("idle: ucięty dokument dostaje parsowalny ogon z sygnaturą i incydent", async () => {
     const stream = guardDocumentStream(neverClosingStream(["<html><body>partial"]), {
       idleMs: 40,
       maxMs: 5_000,
       label: "test/idle",
     });
     const out = await readAll(stream);
-    expect(out).toBe("<html><body>partial\n</body></html>");
+    // Ogon jest parsowalny dla crawlera...
+    expect(out.startsWith("<html><body>partial")).toBe(true);
+    expect(out.trimEnd().endsWith("</body></html>")).toBe(true);
+    // ...ale NIE udaje dokumentu kompletnego: nosi maszynowo pewną sygnaturę
+    // z powodem zamknięcia. To jedyny sposób, w jaki bramka e2e może odróżnić
+    // dokument ucięty od dokumentu domkniętego przez sam render.
+    expect(out).toContain(DOC_GUARD_TRUNCATION_MARKER);
+    expect(out).toContain('reason="idle"');
     const snapshot = getDocumentGuardSnapshot();
     expect(snapshot.closedByIdle).toBe(1);
     expect(snapshot.incidents[0]).toMatchObject({
@@ -137,13 +148,16 @@ describe("guardDocumentStream", () => {
       guardDocumentStream(trickle, { idleMs: 5_000, maxMs: 120, label: "test/timeout" }),
     );
     expect(out.endsWith("\n</body></html>")).toBe(true);
+    expect(out).toContain('reason="timeout"');
     expect(getDocumentGuardSnapshot().closedByTimeout).toBe(1);
   });
 
   it("timeout przed pierwszym bajtem zamyka pusty strumień z ogonem", async () => {
     const silent = new ReadableStream<Uint8Array>({ start() {} });
     const out = await readAll(guardDocumentStream(silent, { maxMs: 40, label: "test/empty" }));
-    expect(out).toBe("\n</body></html>");
+    expect(out).toContain(DOC_GUARD_TRUNCATION_MARKER);
+    expect(out.trimEnd().endsWith("</body></html>")).toBe(true);
+    expect(out).toContain('bytes="0"');
     expect(getDocumentGuardSnapshot().closedByTimeout).toBe(1);
   });
 });
@@ -157,9 +171,13 @@ describe("guardDocumentResponse", () => {
     });
     const guarded = guardDocumentResponse(request, response, { sentinelGraceMs: 20 });
     expect(guarded).not.toBe(response);
-    // Nagłówki i status przechodzą bez zmian.
+    // Nagłówki i status przechodzą bez zmian...
     expect(guarded.headers.get("x-nes-cache")).toBe("MISS");
     expect(guarded.status).toBe(200);
+    // ...dochodzi wyłącznie ślad uzbrojenia strażnika (dowód dla bramki e2e,
+    // że asercja "brak sygnatury ucięcia" nie jest pusta).
+    expect(guarded.headers.get(DOC_GUARD_HEADER)).toBe("on");
+    expect(response.headers.get(DOC_GUARD_HEADER)).toBeNull();
     const out = await readAll(guarded.body!);
     expect(out).toBe("<html><body>x</body></html>");
   });

@@ -222,6 +222,7 @@ function collectHasRoleLiterals(): Hit[] {
 
   for (const dir of SCAN_DIRS) {
     for (const file of listFiles(dir)) {
+      if (isTestFixture(file)) continue;
       const raw = readFileSync(file, "utf8");
       if (!raw.includes("has_role")) continue;
       const text = file.endsWith(".sql") ? stripSqlComments(raw) : stripTsComments(raw);

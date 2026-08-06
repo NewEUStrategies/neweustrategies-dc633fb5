@@ -334,3 +334,107 @@ BEGIN
     SELECT 1 FROM public.media_mentions WHERE user_id = v_admin AND outlet = m.outlet AND title = m.title
   );
 END $$;
+
+-- ---------- 6. Strony redagowane w BUILDERZE (inwariant jednego H1) ---------
+-- Dwie strony pokrywają OBA kierunki inwariantu z `BuilderPageShell`:
+--   * `seed-strona-buildera`           - dokument BEZ nagłówka poziomu 1
+--     -> trasa dorysowuje `h1.sr-only` z tytułu strony,
+--   * `seed-strona-buildera-naglowek`  - dokument z widgetem nagłówka `h1`
+--     -> trasa NIE dorysowuje niczego (żadnych dwóch `h1`).
+-- Do 2026-08-06 żadna bramka nie pokrywała szablonu buildera na trasie `$.tsx`
+-- (audyt, korekta 2), więc regres „zero H1" / „dwa H1" przechodził bez sygnału.
+-- Asercje: e2e/user-paths.spec.ts (E2E_SEEDED=1).
+DO $$
+DECLARE
+  v_tenant uuid;
+  v_admin uuid;
+BEGIN
+  SELECT id INTO v_tenant FROM public.tenants WHERE slug = 'nes';
+  SELECT id INTO v_admin FROM auth.users WHERE email = 'admin@nes.local';
+  IF v_tenant IS NULL OR v_admin IS NULL THEN
+    RAISE NOTICE 'seed: tenant or admin user missing - skipping builder page seed';
+    RETURN;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.pages
+     WHERE tenant_id = v_tenant AND slug = 'seed-strona-buildera'
+  ) THEN
+    INSERT INTO public.pages (
+      tenant_id, author_id, slug, title_pl, title_en, status, published_at,
+      editor, builder_data
+    ) VALUES (
+      v_tenant, v_admin, 'seed-strona-buildera',
+      'Strona buildera bez nagłówka', 'Builder page without a heading',
+      'published', now(), 'builder',
+      jsonb_build_object(
+        'version', 1,
+        'sections', jsonb_build_array(
+          jsonb_build_object(
+            'id', 'seed-sec-1', 'kind', 'section',
+            'children', jsonb_build_array(
+              jsonb_build_object(
+                'id', 'seed-col-1', 'kind', 'column',
+                'span', jsonb_build_object('desktop', 12),
+                'children', jsonb_build_array(
+                  jsonb_build_object(
+                    'id', 'seed-w-1', 'kind', 'widget', 'type', 'text',
+                    'content', jsonb_build_object(
+                      'html_pl', '<p>Sekcja bez nagłówka poziomu 1.</p>',
+                      'html_en', '<p>A section without a level-1 heading.</p>'
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+      )
+    );
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.pages
+     WHERE tenant_id = v_tenant AND slug = 'seed-strona-buildera-naglowek'
+  ) THEN
+    INSERT INTO public.pages (
+      tenant_id, author_id, slug, title_pl, title_en, status, published_at,
+      editor, builder_data
+    ) VALUES (
+      v_tenant, v_admin, 'seed-strona-buildera-naglowek',
+      'Strona buildera z nagłówkiem', 'Builder page with a heading',
+      'published', now(), 'builder',
+      jsonb_build_object(
+        'version', 1,
+        'sections', jsonb_build_array(
+          jsonb_build_object(
+            'id', 'seed-sec-2', 'kind', 'section',
+            'children', jsonb_build_array(
+              jsonb_build_object(
+                'id', 'seed-col-2', 'kind', 'column',
+                'span', jsonb_build_object('desktop', 12),
+                'children', jsonb_build_array(
+                  jsonb_build_object(
+                    'id', 'seed-w-2', 'kind', 'widget', 'type', 'heading',
+                    'content', jsonb_build_object(
+                      'tag', 'h1',
+                      'text_pl', 'Własny nagłówek kanwy',
+                      'text_en', 'Canvas own heading'
+                    )
+                  ),
+                  jsonb_build_object(
+                    'id', 'seed-w-3', 'kind', 'widget', 'type', 'text',
+                    'content', jsonb_build_object(
+                      'html_pl', '<p>Treść pod własnym nagłówkiem.</p>',
+                      'html_en', '<p>Content under the canvas heading.</p>'
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+      )
+    );
+  END IF;
+END $$;
