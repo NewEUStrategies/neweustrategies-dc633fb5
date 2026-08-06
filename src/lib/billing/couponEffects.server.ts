@@ -56,12 +56,9 @@ function parseOutcome(raw: unknown): CouponEffectsOutcome {
 export async function applyCouponEffectsForOrder(orderId: string): Promise<CouponEffectsOutcome> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    // `as never`: RPC z migracji 20260725090300, jeszcze nie w wygenerowanych
-    // typach - do usunięcia przy regeneracji types.ts.
-    const { data, error } = await supabaseAdmin.rpc(
-      "apply_b2b_coupon_effects" as never,
-      { _order_id: orderId } as never,
-    );
+    const { data, error } = await supabaseAdmin.rpc("apply_b2b_coupon_effects", {
+      _order_id: orderId,
+    });
     if (error) {
       console.error("[billing] coupon effects failed", orderId, error.message);
       return { applied: false, reason: "rpc_error" };

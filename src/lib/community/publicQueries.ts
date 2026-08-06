@@ -168,12 +168,9 @@ export async function rsvpEvent(eventId: string, status: RsvpRequestStatus): Pro
 
 /** Własna pozycja na liście rezerwowej (NULL poza kolejką); wiersze są owner-only. */
 export async function fetchEventWaitlistPosition(eventId: string): Promise<number | null> {
-  // `as never`: RPC z migracji 20260721150000, jeszcze nie w wygenerowanych
-  // typach - do usunięcia przy regeneracji types.ts.
-  const { data, error } = await supabase.rpc(
-    "get_event_waitlist_position" as never,
-    { p_event_id: eventId } as never,
-  );
+  const { data, error } = await supabase.rpc("get_event_waitlist_position", {
+    p_event_id: eventId,
+  });
   if (error) throw error;
   return typeof data === "number" ? data : null;
 }
@@ -226,16 +223,11 @@ function parsePollResult(raw: unknown): PollResults {
 export async function fetchPollResults(pollIds: string[]): Promise<Map<string, PollResults>> {
   const map = new Map<string, PollResults>();
   if (pollIds.length === 0) return map;
-  // `as never`: RPC z migracji 20260713200000, jeszcze nie w wygenerowanych
-  // typach - do usunięcia przy regeneracji types.ts.
-  const { data, error } = await supabase.rpc(
-    "get_poll_results_bulk" as never,
-    {
-      p_poll_ids: pollIds,
-    } as never,
-  );
+  const { data, error } = await supabase.rpc("get_poll_results_bulk", {
+    p_poll_ids: pollIds,
+  });
   if (error) throw error;
-  for (const row of (data ?? []) as unknown as Array<{ poll_id: string; result: unknown }>) {
+  for (const row of data ?? []) {
     map.set(row.poll_id, parsePollResult(row.result));
   }
   return map;
@@ -356,16 +348,11 @@ export interface PublicQaQuestion {
  * user_id nie opuszcza bazy (anonimowość); głosy policzone w jednej podróży.
  */
 export async function fetchPublicQaQuestions(sessionId: string): Promise<PublicQaQuestion[]> {
-  // `as never`: RPC z migracji 20260713200000, jeszcze nie w wygenerowanych
-  // typach - do usunięcia przy regeneracji types.ts.
-  const { data, error } = await supabase.rpc(
-    "list_qa_questions" as never,
-    {
-      p_session_id: sessionId,
-    } as never,
-  );
+  const { data, error } = await supabase.rpc("list_qa_questions", {
+    p_session_id: sessionId,
+  });
   if (error) throw error;
-  return (data ?? []) as unknown as PublicQaQuestion[];
+  return data ?? [];
 }
 
 /**

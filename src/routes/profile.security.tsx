@@ -1,10 +1,17 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+// BEZPIECZEŃSTWO KONTA (/profile/security) - hasło, adres e-mail, sesje,
+// logowanie dwuskładnikowe.
+//
+// §10 audytu IA prywatności: eksport danych (art. 15/20 RODO) i usunięcie konta
+// (art. 17) przeniosły się stąd do huba prywatności (/profile/privacy). To dwie
+// różne sprawy: tutaj odpowiadamy na pytanie „czy ktoś dostanie się na moje
+// konto", tam na „co o mnie wiecie i jak to zabrać". Link na dole strony
+// prowadzi tam wprost, bo granica nie jest oczywista z samej nazwy pozycji.
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { changeMyEmail, deleteMyAccount } from "@/lib/account.functions";
-import { exportMyData } from "@/lib/profile/export.functions";
+import { changeMyEmail } from "@/lib/account.functions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -22,7 +29,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { FieldLabel } from "@/components/profile/FieldLabel";
 import { PasswordStrengthMeter } from "@/components/molecules/PasswordStrengthMeter";
-import { LegalRetentionNotice } from "@/components/molecules/LegalRetentionNotice";
+import { ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import type { Factor } from "@supabase/supabase-js";
 import { toQrDataUri } from "@/lib/auth/mfa";
@@ -34,7 +41,6 @@ export const Route = createFileRoute("/profile/security")({
 function SecurityPage() {
   const { t, i18n } = useTranslation();
   const { user, signOut } = useAuth();
-  const navigate = useNavigate();
   const isPl = i18n.language?.startsWith("pl") ?? false;
 
   const [current, setCurrent] = useState("");
@@ -46,10 +52,6 @@ function SecurityPage() {
   const [newEmail, setNewEmail] = useState("");
   const [emailPw, setEmailPw] = useState("");
   const [emailBusy, setEmailBusy] = useState(false);
-
-  const [delPw, setDelPw] = useState("");
-  const [delBusy, setDelBusy] = useState(false);
-  const [delOpen, setDelOpen] = useState(false);
 
   // Two-factor (TOTP): enrolled factors + in-progress enrollment + removal.
   const [factors, setFactors] = useState<Factor[]>([]);
@@ -63,28 +65,6 @@ function SecurityPage() {
   const [removeId, setRemoveId] = useState<string | null>(null);
   const [removePw, setRemovePw] = useState("");
   const [removeBusy, setRemoveBusy] = useState(false);
-
-  // Eksport danych (RODO art. 15/20): serwer składa JSON, klient pobiera plik.
-  const [exportBusy, setExportBusy] = useState(false);
-  const downloadMyData = async () => {
-    setExportBusy(true);
-    try {
-      const data = await exportMyData();
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `moje-dane-${new Date().toISOString().slice(0, 10)}.json`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch {
-      toast.error(t("profile.security.exportFailed"));
-    } finally {
-      setExportBusy(false);
-    }
-  };
 
   const updatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -137,34 +117,6 @@ function SecurityPage() {
       toast.error(err instanceof Error ? err.message : t("profile.security.email.invalid"));
     } finally {
       setEmailBusy(false);
-    }
-  };
-
-  const confirmDelete = async () => {
-    if (!delPw) return;
-    setDelBusy(true);
-    try {
-      const result = await deleteMyAccount({ data: { password: delPw } });
-      setDelOpen(false);
-      // Ile dowodów zostało - liczbą, nie ogólnikiem (art. 12 RODO). Liczymy
-      // ZAMÓWIENIA I UPRAWNIENIA ZAKUPOWE razem: dla użytkownika to jedna
-      // kategoria („dowody mojej płatności"), a rozbicie na tabele jest
-      // szczegółem implementacyjnym. Zero dowodów => zwykły komunikat, bez
-      // zbędnej prawniczej adnotacji dla kogoś, kto nigdy u nas nie płacił.
-      toast.success(
-        result.retainedEvidence > 0
-          ? t("profile.security.danger.deletedWithRetention", {
-              count: result.retainedEvidence,
-            })
-          : t("profile.security.danger.deleted"),
-      );
-      // Konto już nie istnieje - czyścimy lokalną sesję i wracamy na stronę główną.
-      await supabase.auth.signOut().catch(() => {});
-      navigate({ to: "/" });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("profile.security.danger.failed"));
-    } finally {
-      setDelBusy(false);
     }
   };
 
@@ -573,111 +525,13 @@ function SecurityPage() {
           </AlertDialogContent>
         </AlertDialog>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              {t("profile.security.export.title", {
-                defaultValue: i18n.language === "en" ? "Your data (GDPR)" : "Twoje dane (RODO)",
-              })}
-            </CardTitle>
-            <CardDescription>
-              {t("profile.security.export.subtitle", {
-                defaultValue:
-                  i18n.language === "en"
-                    ? "Download a copy of the personal data we store about you (Art. 15 and 20 GDPR) as a JSON file: profile and expert profile, CV sections and media mentions, network and recommendations, chat (your messages and conversation metadata), expert requests, comments, follows, orders, consents and preferences."
-                    : "Pobierz kopię danych osobowych, które o Tobie przechowujemy (art. 15 i 20 RODO), jako plik JSON: profil i profil eksperta, sekcje CV oraz wzmianki medialne, sieć kontaktów i rekomendacje, czat (Twoje wiadomości i metadane rozmów), zapytania do ekspertów, komentarze, obserwacje, zamówienia, zgody i preferencje.",
-              })}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            {/* Zakres eksportu jest deklarowany w samym pliku (manifest), więc
-                użytkownik nie musi wierzyć podtytułowi na słowo. */}
-            <p className="text-xs text-muted-foreground">
-              {t("profile.security.export.scopeNote", {
-                defaultValue:
-                  i18n.language === "en"
-                    ? "The file carries its own manifest: every section it contains, plus what is deliberately left out and why (for example messages written by other people - Art. 15(4) GDPR)."
-                    : "Plik niesie własny manifest: spis wszystkich sekcji oraz to, czego świadomie nie zawiera i dlaczego (na przykład wiadomości napisanych przez inne osoby - art. 15 ust. 4 RODO).",
-              })}
-            </p>
-            <Button
-              variant="outline"
-              className="self-start"
-              onClick={() => void downloadMyData()}
-              disabled={exportBusy}
-            >
-              {exportBusy
-                ? t("profile.security.export.busy", {
-                    defaultValue: i18n.language === "en" ? "Preparing..." : "Przygotowywanie...",
-                  })
-                : t("profile.security.export.download", {
-                    defaultValue:
-                      i18n.language === "en"
-                        ? "Download my data (JSON)"
-                        : "Pobierz moje dane (JSON)",
-                  })}
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card className="border-destructive/40">
-          <CardHeader>
-            <CardTitle className="text-destructive">{t("profile.security.danger.title")}</CardTitle>
-            <CardDescription>{t("profile.security.danger.subtitle")}</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            {/* Nota retencyjna PRZED przyciskiem: użytkownik ma wiedzieć, co
-                zostaje, zanim otworzy dialog - nie dopiero w nim. */}
-            <LegalRetentionNotice />
-            <AlertDialog
-              open={delOpen}
-              onOpenChange={(o) => {
-                setDelOpen(o);
-                if (!o) setDelPw("");
-              }}
-            >
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" className="justify-self-start">
-                  {t("profile.security.danger.button")}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>{t("profile.security.danger.confirmTitle")}</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {t("profile.security.danger.confirmBody")}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <LegalRetentionNotice variant="compact" />
-                <div className="grid gap-2 py-2">
-                  <FieldLabel htmlFor="del-pw">
-                    {t("profile.security.danger.passwordLabel")}
-                  </FieldLabel>
-                  <Input
-                    id="del-pw"
-                    type="password"
-                    value={delPw}
-                    onChange={(e) => setDelPw(e.target.value)}
-                    autoComplete="current-password"
-                  />
-                </div>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>{t("profile.security.danger.cancel")}</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={(e) => {
-                      e.preventDefault();
-                      void confirmDelete();
-                    }}
-                    disabled={delBusy || !delPw}
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  >
-                    {t("profile.security.danger.confirm")}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </CardContent>
-        </Card>
+        <Link
+          to="/profile/privacy"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+        >
+          {t("profile.security.privacyLink")}
+          <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+        </Link>
       </div>
     </TooltipProvider>
   );

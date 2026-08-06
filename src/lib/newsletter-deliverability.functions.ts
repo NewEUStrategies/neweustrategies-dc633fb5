@@ -127,10 +127,9 @@ export const getDeliverabilityMetrics = createServerFn({ method: "GET" })
       .parse(data ?? {}),
   )
   .handler(async ({ data, context }): Promise<DeliverabilityMetrics> => {
-    const { data: raw, error } = await context.supabase.rpc(
-      "newsletter_deliverability_metrics" as never,
-      { p_days: data.days } as never,
-    );
+    const { data: raw, error } = await context.supabase.rpc("newsletter_deliverability_metrics", {
+      p_days: data.days,
+    });
     if (error) throw new Error(error.message);
     const row: Record<string, unknown> = isRecord(raw) ? raw : {};
 
@@ -193,7 +192,7 @@ export const listSuppressions = createServerFn({ method: "GET" })
   .validator((data: unknown) => SuppressionQuery.parse(data ?? {}))
   .handler(async ({ data, context }): Promise<SuppressionRow[]> => {
     let query = context.supabase
-      .from("email_suppressions" as never)
+      .from("email_suppressions")
       .select(
         "id, email, reason, scope, source, occurrences, diagnostic, note, campaign_id, expires_at, first_seen_at, last_seen_at, released_at",
       )
@@ -244,14 +243,12 @@ export const addSuppression = createServerFn({ method: "POST" })
       .parse(data),
   )
   .handler(async ({ data, context }): Promise<{ ok: true }> => {
-    const { error } = await context.supabase.rpc(
-      "email_suppression_add" as never,
-      {
-        p_email: data.email.toLowerCase(),
-        p_reason: data.reason,
-        p_note: data.note ?? null,
-      } as never,
-    );
+    const { error } = await context.supabase.rpc("email_suppression_add", {
+      p_email: data.email.toLowerCase(),
+      p_reason: data.reason,
+      // Pominięty klucz => DEFAULT NULL po stronie RPC (patrz recordJobRun).
+      p_note: data.note ?? undefined,
+    });
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -269,13 +266,10 @@ export const releaseSuppression = createServerFn({ method: "POST" })
       .parse(data),
   )
   .handler(async ({ data, context }): Promise<{ ok: true }> => {
-    const { error } = await context.supabase.rpc(
-      "email_suppression_release" as never,
-      {
-        p_id: data.id,
-        p_resubscribe: data.resubscribe,
-      } as never,
-    );
+    const { error } = await context.supabase.rpc("email_suppression_release", {
+      p_id: data.id,
+      p_resubscribe: data.resubscribe,
+    });
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -305,7 +299,7 @@ export const getDeliverabilitySetup = createServerFn({ method: "GET" })
     ).replace(/\/+$/, "");
 
     const { data: rows } = await context.supabase
-      .from("email_delivery_events" as never)
+      .from("email_delivery_events")
       .select("occurred_at")
       .order("occurred_at", { ascending: false })
       .limit(1);

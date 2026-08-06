@@ -65,12 +65,9 @@ function AudienceDashboard() {
   const funnelQ = useQuery({
     queryKey: ["admin", "audience", "funnel", days],
     queryFn: async (): Promise<FunnelRow | null> => {
-      const { data, error } = await supabase.rpc(
-        "admin_member_funnel" as never,
-        {
-          p_days: days,
-        } as never,
-      );
+      const { data, error } = await supabase.rpc("admin_member_funnel", {
+        p_days: days,
+      });
       if (error) throw error;
       return ((data as unknown as FunnelRow[]) ?? [])[0] ?? null;
     },
@@ -79,12 +76,9 @@ function AudienceDashboard() {
   const seriesQ = useQuery({
     queryKey: ["admin", "audience", "series", days],
     queryFn: async (): Promise<SeriesRow[]> => {
-      const { data, error } = await supabase.rpc(
-        "admin_member_activity_series" as never,
-        {
-          p_days: days,
-        } as never,
-      );
+      const { data, error } = await supabase.rpc("admin_member_activity_series", {
+        p_days: days,
+      });
       if (error) throw error;
       return (data as unknown as SeriesRow[]) ?? [];
     },
@@ -93,12 +87,9 @@ function AudienceDashboard() {
   const retentionQ = useQuery({
     queryKey: ["admin", "audience", "retention"],
     queryFn: async (): Promise<RetentionRow[]> => {
-      const { data, error } = await supabase.rpc(
-        "admin_member_retention" as never,
-        {
-          p_weeks: 8,
-        } as never,
-      );
+      const { data, error } = await supabase.rpc("admin_member_retention", {
+        p_weeks: 8,
+      });
       if (error) throw error;
       return (data as unknown as RetentionRow[]) ?? [];
     },

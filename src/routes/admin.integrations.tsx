@@ -239,10 +239,10 @@ function AdminIntegrationsPage() {
       // Sekret idzie osobno przez RPC (Vault) i tylko gdy admin go zmienia.
       if (endpointId && (d.clear_secret || d.new_secret.trim().length > 0)) {
         const plain = d.clear_secret ? "" : d.new_secret.trim();
-        const { error: rpcErr } = await supabase.rpc(
-          "integration_endpoint_set_secret" as never,
-          { _endpoint_id: endpointId, _plaintext: plain } as never,
-        );
+        const { error: rpcErr } = await supabase.rpc("integration_endpoint_set_secret", {
+          _endpoint_id: endpointId,
+          _plaintext: plain,
+        });
         if (rpcErr) throw rpcErr;
       }
       return endpointId as string;

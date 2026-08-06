@@ -1,10 +1,22 @@
-// Pełna historia płatności i faktur użytkownika - jedna lista scalona z
-// zamówień i dokumentów operatora, z eksportem do CSV i PDF. Skrót tej samej
-// listy pokazuje /profile/plan.
+// „Płatności i faktury" - JEDNO miejsce na całą historię pieniędzy użytkownika
+// (§11 audytu IA finansów).
+//
+// Do 06.08 ta sama treść była rozdana na dwie pozycje nawigacji:
+//   * /profile/orders   - tabela zamówień + rejestr dokumentów + wyszukiwarka faktur,
+//   * /profile/payments - scalona historia płatności + TA SAMA wyszukiwarka faktur.
+// Użytkownik szukający faktury musiał zgadnąć, która z dwóch pozycji ją ma
+// (odpowiedź brzmiała „obie, inaczej"). Trasa zamówień jest teraz
+// przekierowaniem, a jej karty mieszkają tutaj - nic nie zniknęło.
+//
+// Kolejność jest celowa: od tego, czego szuka się najczęściej (ile i kiedy
+// zapłaciłem), przez dowody (zamówienia, dokumenty), po odzyskanie faktury i
+// wyjaśnienie zasad.
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import { PaymentHistoryCard } from "@/components/billing/PaymentHistoryCard";
+import { OrdersTableCard } from "@/components/billing/OrdersTableCard";
+import { BillingDocumentsCard } from "@/components/billing/BillingDocumentsCard";
 import { InvoiceLookupCard } from "@/components/billing/InvoiceLookupCard";
 import { HowPaymentsWorkCard } from "@/components/billing/HowPaymentsWorkCard";
 
@@ -21,6 +33,11 @@ function PaymentsHistoryPage() {
         <p className="text-sm text-muted-foreground">{t("profile.planPage.history.pageHint")}</p>
       </header>
       <PaymentHistoryCard showExport />
+      {/* Rejestr zamówień (przeniesiony z /profile/orders). */}
+      <OrdersTableCard />
+      {/* Dokumenty rozliczeniowe z odnowień - zasilane webhookiem operatora. */}
+      <BillingDocumentsCard />
+      {/* Odzyskanie faktury po numerze transakcji + mail z linkiem do portalu. */}
       <InvoiceLookupCard />
       <HowPaymentsWorkCard />
     </div>

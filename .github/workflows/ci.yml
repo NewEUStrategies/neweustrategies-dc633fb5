@@ -239,6 +239,18 @@ jobs:
       - name: No live legacy payment-provider references
         run: bun run check:legacy-payment-refs
 
+      # Blocking gate on the Supabase type boundary: `as never` is the repo's
+      # sanctioned escape hatch for the window between a migration and the next
+      # regeneration of src/integrations/supabase/types.ts - and nothing ever
+      # closed that window. A cast on a name the generated types already know
+      # erases both the row type (forcing a hand-written `as unknown as X` that
+      # then drifts from the database in silence) and the RPC argument type
+      # (a misspelled parameter compiles and fails as a PostgREST 400 in the
+      # browser). On 2026-08-06 the repo carried 25 such casts, some behind a
+      # "remove after regenerating types.ts" comment several releases old.
+      - name: No stale `as never` casts on the Supabase boundary
+        run: bun run check:stale-never-casts
+
       # Blocking wiring gate: every env var a workflow exports must have a
       # reader. Workflow and script are separately valid when the names drift
       # apart, and both sides tolerate a missing value, so the combination

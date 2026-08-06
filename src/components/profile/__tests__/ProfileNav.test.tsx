@@ -1,11 +1,16 @@
-// Nawigacja profilu: trzy nazwane grupy (tożsamość / treści / płatności),
-// stan aktywny wyliczany z adresu oraz warunkowa pozycja „Organizacja".
+// Nawigacja profilu: cztery nazwane grupy (tożsamość / treści / finanse /
+// prywatność i bezpieczeństwo), stan aktywny wyliczany z adresu oraz warunkowa
+// pozycja „Organizacja".
 //
-// Testy pilnują dwóch rzeczy trudnych do wyłapania okiem:
+// Testy pilnują rzeczy trudnych do wyłapania okiem:
 //   * „Organizacja" pojawia się WYŁĄCZNIE posiadaczom miejsca w organizacji i
 //     zawsze zaraz po „Członkostwie" (kolejność jest częścią IA, nie przypadkiem),
 //   * dopasowanie prefiksem nie może podświetlać „Przegląd" (/profile) na
-//     każdej podstronie profilu - to była klasyczna pułapka `startsWith`.
+//     każdej podstronie profilu - to była klasyczna pułapka `startsWith`,
+//   * konsolidacja IA (§10/§11): prywatność i bezpieczeństwo NIE wiszą już
+//     w grupie finansów, a trasy scalone (/profile/orders,
+//     /profile/subscription) nie mają własnych pozycji - są przekierowaniami,
+//     więc pozycja nawigacji prowadziłaby do przeskoku.
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 
@@ -42,12 +47,32 @@ beforeEach(() => {
 });
 
 describe("ProfileNav", () => {
-  it("grupuje pozycje w trzy nazwane sekcje", () => {
+  it("grupuje pozycje w cztery nazwane sekcje", () => {
     render(<ProfileNav />);
     expect(screen.getByText("profile.navGroups.identity")).toBeInTheDocument();
     expect(screen.getByText("profile.navGroups.content")).toBeInTheDocument();
     expect(screen.getByText("profile.navGroups.finance")).toBeInTheDocument();
+    expect(screen.getByText("profile.navGroups.privacy")).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "profile.title" })).toBeInTheDocument();
+  });
+
+  it("prywatność i bezpieczeństwo mają własną grupę, nie grupę finansów", () => {
+    render(<ProfileNav />);
+    const hrefs = linkHrefs();
+    // Obie pozycje istnieją...
+    expect(hrefs).toContain("/profile/privacy");
+    expect(hrefs).toContain("/profile/security");
+    // ...i stoją PO ostatniej pozycji finansowej, czyli w kolejnej grupie.
+    expect(hrefs.indexOf("/profile/privacy")).toBeGreaterThan(hrefs.indexOf("/profile/billing"));
+  });
+
+  it("nie prowadzi do tras scalonych - nawigacja nie celuje w przekierowania", () => {
+    render(<ProfileNav />);
+    const hrefs = linkHrefs();
+    expect(hrefs).not.toContain("/profile/orders");
+    expect(hrefs).not.toContain("/profile/subscription");
+    expect(hrefs).toContain("/profile/payments");
+    expect(hrefs).toContain("/profile/plan");
   });
 
   it("prowadzi do zapytań do ekspertów, sieci kontaktów i powiadomień", () => {
@@ -80,7 +105,7 @@ describe("ProfileNav", () => {
   });
 
   it('„Przegląd" nie świeci się na podstronach profilu (pułapka startsWith)', () => {
-    h.pathname.current = "/profile/orders";
+    h.pathname.current = "/profile/payments";
     render(<ProfileNav />);
     const overview = screen.getAllByRole("link").find((a) => a.getAttribute("href") === "/profile");
     expect(overview).toBeDefined();

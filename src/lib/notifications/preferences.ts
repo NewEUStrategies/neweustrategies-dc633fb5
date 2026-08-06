@@ -32,8 +32,30 @@ export type NotificationKind =
   | "crm_task"
   | "expert_request";
 
-/** Kto może ZACZĄĆ nową rozmowę z użytkownikiem (istniejące wątki żyją dalej). */
-export type AllowMessagesFrom = "everyone" | "existing" | "nobody";
+/**
+ * Kto może ZACZĄĆ nowy wątek z użytkownikiem - rozmowę bezpośrednią albo krąg
+ * (istniejące wątki żyją dalej, poza `nobody`). Kolejność w unii jest kolejnością
+ * MALEJĄCEJ otwartości i odpowiada `notification_preferences_allow_messages_from_check`
+ * oraz `public.chat_accepts_new_thread` (migracja 20260806221000):
+ *
+ *   everyone  - ktokolwiek z obszaru roboczego,
+ *   contacts  - wyłącznie zaakceptowana sieć kontaktów,
+ *   existing  - wyłącznie osoby, z którymi wątek już istnieje,
+ *   nobody    - nikt (dodatkowo wycisza przychodzące w istniejących wątkach).
+ *
+ * `contacts` do 20260806221000 wisiało w bramce rozmowy bezpośredniej jako
+ * literał, którego CHECK nigdy nie dopuszczał - i którego bramka NIE
+ * weryfikowała. Dziś to realny poziom, a bramka sprawdza połączenie.
+ */
+export type AllowMessagesFrom = "everyone" | "contacts" | "existing" | "nobody";
+
+/** Kolejność malejącej otwartości - jedyne źródło kolejności opcji w UI. */
+export const ALLOW_MESSAGES_FROM_LEVELS = [
+  "everyone",
+  "contacts",
+  "existing",
+  "nobody",
+] as const satisfies readonly AllowMessagesFrom[];
 
 /** Kto może wysłać zaproszenie do sieci kontaktów (istniejące kontakty zostają). */
 export type AllowConnectionsFrom = "everyone" | "mutual" | "nobody";
@@ -71,7 +93,8 @@ export interface NotificationPreferences {
    * - typing_indicators_enabled: przestaje nadawać pingi "pisze...",
    * - show_online_status: przestaje ogłaszać obecność na kanale presence,
    * - allow_messages_from: 'nobody' wycisza też przychodzące w istniejących
-   *   wątkach (trigger w bazie), 'existing' blokuje tylko NOWE rozmowy.
+   *   wątkach (trigger w bazie); 'contacts' i 'existing' blokują tylko NOWE
+   *   wątki - odpowiednio spoza sieci kontaktów i spoza dotychczasowych rozmów.
    */
   read_receipts_enabled: boolean;
   typing_indicators_enabled: boolean;

@@ -184,8 +184,7 @@ export const getSchedulerHealth = createServerFn({ method: "GET" })
     const { schedulerFreshness, normalizeSchedulerSource } = await import("@/lib/jobs/scheduler");
     // RPC autoryzuje i skaluje dane tym samym tenantem (has_role +
     // current_tenant_id), więc jedzie user-scoped klientem, nie service role.
-    // `as never`: RPC z migracji 20260731110000, jeszcze nie w wygenerowanych typach.
-    const { data, error } = await context.supabase.rpc("job_scheduler_health" as never);
+    const { data, error } = await context.supabase.rpc("job_scheduler_health");
     if (error) throw new Error(error.message);
     const payload = (data ?? {}) as HealthPayload;
 

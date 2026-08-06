@@ -51,7 +51,7 @@ export function useSetDiscoverable() {
 
 // Zgoda eksperta na przyjmowanie "Zapytań do eksperta" (profiles.expert_requests_enabled).
 // Steruje widocznością przycisku na WŁASNYM profilu (obok globalnego przełącznika
-// admina). Kolumna z migracji 20260724130000 - `as never` do czasu regeneracji types.ts.
+// admina). Kolumna z migracji 20260724130000.
 const expertRequestsKey = (uid: string | undefined) =>
   ["profile", "expert-requests-enabled", uid ?? "anon"] as const;
 
@@ -64,14 +64,12 @@ export function useExpertRequestsEnabled(): UseQueryResult<boolean> {
     queryFn: async (): Promise<boolean> => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("expert_requests_enabled" as never)
+        .select("expert_requests_enabled")
         .eq("id", user?.id ?? "")
         .maybeSingle();
       if (error) throw error;
       // Domyślnie true (kolumna NOT NULL DEFAULT true); brak wiersza -> true.
-      return (
-        (data as { expert_requests_enabled?: boolean } | null)?.expert_requests_enabled ?? true
-      );
+      return data?.expert_requests_enabled ?? true;
     },
   });
 }
@@ -84,7 +82,7 @@ export function useSetExpertRequestsEnabled() {
       if (!user) throw new Error("auth required");
       const { error } = await supabase
         .from("profiles")
-        .update({ expert_requests_enabled: next } as never)
+        .update({ expert_requests_enabled: next })
         .eq("id", user.id);
       if (error) throw error;
       return next;

@@ -58,7 +58,7 @@ export const Route = createFileRoute("/api/public/vitals")({
           // `web_vitals` is created by a migration not yet reflected in the
           // generated Supabase types, so the table name/payload are cast here.
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-          await supabaseAdmin.from("web_vitals" as never).insert({
+          await supabaseAdmin.from("web_vitals").insert({
             metric,
             value,
             rating,

@@ -16,6 +16,7 @@
 // dzwonek) nigdy nie wywracają przetwarzania.
 //
 // Moduł server-only (klient service_role) - importuj wyłącznie z handlerów.
+import { PROFILE_PLAN_PATH } from "@/lib/profile/routes";
 
 /** Kwalifikacja zdarzenia korygującego przysłanego przez operatora. */
 export type AdjustmentAction = "refund" | "chargeback" | "chargeback_warning" | "credit" | "other";
@@ -206,7 +207,7 @@ async function pushRefundNotification(
       title_en: reason === "chargeback" ? "Chargeback" : "Payment refunded",
       body_pl: "Dostęp powiązany ze zwróconą płatnością został zakończony.",
       body_en: "Access linked to the refunded payment has ended.",
-      href: "/profile/subscription",
+      href: PROFILE_PLAN_PATH,
       icon: "receipt",
     });
   } catch (err) {

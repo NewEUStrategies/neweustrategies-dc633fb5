@@ -229,7 +229,7 @@ export const getCampaignEngagement = createServerFn({ method: "GET" })
     // types yet -> cast (precedent: web_vitals).
     const countKind = async (kind: "open" | "click"): Promise<number> => {
       const { count, error } = await context.supabase
-        .from("newsletter_campaign_events" as never)
+        .from("newsletter_campaign_events")
         .select("*", { count: "exact", head: true })
         .eq("tenant_id", tenantId)
         .eq("campaign_id", data.id)

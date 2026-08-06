@@ -5,6 +5,7 @@ import type { TxEmailType } from "@/lib/email-templates/tx-copy";
 import { txCopy } from "@/lib/email-templates/tx-copy";
 import { formatDate, formatMoney, sendTxEmail } from "@/lib/email/transactional.server";
 import type { TxDetail } from "@/lib/email-templates/transactional";
+import { PROFILE_PLAN_PATH } from "@/lib/profile/routes";
 
 /**
  * Powiadomienia mailowe cyklu życia subskrypcji i płatnych wydarzeń.
@@ -195,7 +196,7 @@ export async function notifySubscriptionEmail(input: SubscriptionNotifyInput): P
             ? formatMoney(input.prorationCents, currency, lang)
             : null,
       },
-      ctaPath: input.kind === "subscription_canceled" ? "/cennik" : "/profile/subscription",
+      ctaPath: input.kind === "subscription_canceled" ? "/cennik" : PROFILE_PLAN_PATH,
       idempotencyKey: `${input.kind}:${input.idempotencySeed}`,
     });
   } catch (err) {
@@ -350,7 +351,7 @@ export async function notifyPaymentEmail(input: PaymentNotifyInput): Promise<voi
         accessUntil: input.accessUntil ? formatDate(input.accessUntil, lang) : null,
         graceDays: input.graceDays ?? null,
       },
-      ctaPath: "/profile/subscription",
+      ctaPath: PROFILE_PLAN_PATH,
       idempotencyKey: `${input.kind}:${input.idempotencySeed}`,
     });
   } catch (err) {
@@ -410,7 +411,7 @@ export async function notifyRefundEmail(input: RefundNotifyInput): Promise<void>
         amount: amount !== null ? formatMoney(amount, currency, lang) : null,
         accessUntil: input.accessUntil ? formatDate(input.accessUntil, lang) : null,
       },
-      ctaPath: "/profile/subscription",
+      ctaPath: PROFILE_PLAN_PATH,
       idempotencyKey: `payment_refunded:${input.idempotencySeed}`,
     });
   } catch (err) {
@@ -474,7 +475,7 @@ export async function notifyReminderEmail(input: ReminderNotifyInput): Promise<v
         interval: plan?.interval ? INTERVAL_LABEL[lang][plan.interval] : null,
       },
 
-      ctaPath: "/profile/subscription",
+      ctaPath: PROFILE_PLAN_PATH,
       idempotencyKey: `${input.kind}:${input.idempotencySeed}`,
     });
   } catch (err) {

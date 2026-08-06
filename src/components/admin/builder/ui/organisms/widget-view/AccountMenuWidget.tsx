@@ -90,9 +90,19 @@ export const ACCOUNT_PRESETS: Array<{
   {
     key: "security",
     href: "/profile/security",
-    label_pl: "Bezpieczeństwo",
-    label_en: "Security",
+    label_pl: "Bezpieczeństwo konta",
+    label_en: "Account security",
     icon: "Shield",
+  },
+  {
+    // Prywatność ma teraz własny hub (§10 IA prywatności): widoczność, zgody
+    // i prawa do danych. Wcześniej dało się z tego menu wskazać tylko
+    // bezpieczeństwo konta, choć to dwie różne sprawy.
+    key: "privacy",
+    href: "/profile/privacy",
+    label_pl: "Prywatność i dane",
+    label_en: "Privacy & data",
+    icon: "Lock",
   },
   {
     key: "social",
@@ -151,10 +161,12 @@ export const ACCOUNT_PRESETS: Array<{
     icon: "BookOpen",
   },
   {
+    // Klucz zostaje (widget zapisuje go w dokumentach buildera) - adres celuje
+    // w kanoniczną trasę po konsolidacji IA finansów (§11).
     key: "subscription",
-    href: "/profile/subscription",
-    label_pl: "Subskrypcja",
-    label_en: "Subscription",
+    href: "/profile/plan",
+    label_pl: "Plan i subskrypcja",
+    label_en: "Plan & subscription",
     icon: "Crown",
   },
   {
@@ -166,9 +178,9 @@ export const ACCOUNT_PRESETS: Array<{
   },
   {
     key: "orders",
-    href: "/profile/orders",
-    label_pl: "Zamówienia",
-    label_en: "Orders",
+    href: "/profile/payments",
+    label_pl: "Płatności i faktury",
+    label_en: "Payments & invoices",
     icon: "ShoppingBag",
   },
   { key: "pricing", href: "/pricing", label_pl: "Cennik", label_en: "Pricing", icon: "Tag" },

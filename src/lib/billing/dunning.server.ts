@@ -10,6 +10,7 @@
 // Moduł server-only - importuj wyłącznie z handlerów webhooka.
 import { notifyPaymentEmail } from "@/lib/billing/notifications.server";
 import { resolvePlanForPrice } from "@/lib/billing/purchaseEffects.server";
+import { PROFILE_PLAN_PATH } from "@/lib/profile/routes";
 
 export interface DunningContext {
   subscriptionId: string;
@@ -70,7 +71,7 @@ async function pushNotification(params: {
       title_en: params.titleEn,
       body_pl: params.bodyPl,
       body_en: params.bodyEn,
-      href: "/profile/subscription",
+      href: PROFILE_PLAN_PATH,
       icon: params.icon,
     });
   } catch (err) {
