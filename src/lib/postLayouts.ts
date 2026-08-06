@@ -14,19 +14,31 @@ interface RecommendedImageSize {
   ratio?: string;
 }
 
+export type LayoutHeaderMode =
+  "above-cover" | "below-cover" | "overlay" | "side-by-side" | "no-cover";
+
+export type LayoutCoverMode =
+  | "wide" // pełna szerokość kolumny artykułu
+  | "full-bleed" // wychodzi poza padding kontenera strony
+  | "boxed" // ograniczona do BOXED_COVER_MAX_WIDTH
+  | "side" // obok nagłówka (split)
+  | "ratio" // konfigurowalny ratio (l6/l10/l11)
+  | "none";
+
+/**
+ * Szerokość ramki cover w wariancie "boxed" (Layout 2). Trzymana obok
+ * `coverImageSizes()`, bo ta sama liczba trafia do atrybutu `sizes` -
+ * rozjazd oznaczałby pobranie innego kandydata niż malowany.
+ */
+export const BOXED_COVER_MAX_WIDTH = 672;
+
 export interface LayoutPreset {
   id: string;
   label: string;
   /** Pozycja nagłówka względem cover image */
-  header: "above-cover" | "below-cover" | "overlay" | "side-by-side" | "no-cover";
+  header: LayoutHeaderMode;
   /** Sposób wyświetlenia obrazu wyróżniającego */
-  cover:
-    | "wide" // pełna szerokość kontenera
-    | "full-bleed" // pełna szerokość ekranu
-    | "boxed" // ograniczona do max-width
-    | "side" // obok nagłówka
-    | "ratio" // konfigurowalny ratio (l6/l10/l11)
-    | "none";
+  cover: LayoutCoverMode;
   /** Czy układ pokazuje sidebar (placeholder) */
   hasSidebar: boolean;
   /** Centrowanie nagłówka domyślnie (może być nadpisane globalnym setting) */
@@ -35,6 +47,17 @@ export interface LayoutPreset {
   featuredRatioKey?: "featured_ratio_l6" | "featured_ratio_l10" | "featured_ratio_l11";
   /** Rekomendowany rozmiar grafiki wyróżniającej (px). */
   recommendedImage?: RecommendedImageSize;
+  /**
+   * Czy nagłówek pokazuje excerpt (lead). Domyślnie tak; Layout 1(a) to
+   * dokładnie ten sam układ co Layout 1, ale bez zajawki pod tytułem.
+   */
+  showExcerpt?: boolean;
+  /**
+   * Twardy limit szerokości kolumny artykułu (px) dla układów "wąskich".
+   * Zawęża globalne `no_sidebar_max_width` / `has_sidebar_max_width` -
+   * nigdy ich nie poszerza (bierzemy min z obu).
+   */
+  contentMaxWidth?: number;
 }
 
 export const STANDARD_LAYOUTS: LayoutPreset[] = [
@@ -52,6 +75,7 @@ export const STANDARD_LAYOUTS: LayoutPreset[] = [
     header: "above-cover",
     cover: "wide",
     hasSidebar: false,
+    showExcerpt: false,
     recommendedImage: { width: 1600, height: 900, ratio: "16:9" },
   },
   {
@@ -61,6 +85,7 @@ export const STANDARD_LAYOUTS: LayoutPreset[] = [
     cover: "boxed",
     hasSidebar: false,
     centerHeaderDefault: true,
+    contentMaxWidth: BOXED_COVER_MAX_WIDTH,
     recommendedImage: { width: 800, height: 450, ratio: "16:9" },
   },
   {
@@ -198,8 +223,47 @@ export function findLayout(format: PostFormat, id: string): LayoutPreset {
 export function coverImageSizes(preset: LayoutPreset): string {
   if (preset.header === "overlay") return "100vw";
   if (preset.header === "side-by-side") return "(max-width: 1024px) 100vw, 50vw";
-  if (preset.cover === "boxed") return "(max-width: 768px) 100vw, 672px";
+  if (preset.cover === "boxed") return `(max-width: 768px) 100vw, ${BOXED_COVER_MAX_WIDTH}px`;
   return "100vw";
+}
+
+/**
+ * Czy preset w ogóle maluje obraz wyróżniający. `cover: "none"` i
+ * `header: "no-cover"` (Layout 9) to ten sam werdykt widziany z dwóch stron -
+ * renderer, podgląd CMS i preload LCP w route musi je czytać tak samo.
+ */
+export function rendersCover(preset: LayoutPreset): boolean {
+  return preset.cover !== "none" && preset.header !== "no-cover";
+}
+
+/**
+ * Szerokość kolumny czytania (px): globalne ustawienie z panelu, zawężone
+ * przez ewentualny limit presetu (Layout 2 - wąski).
+ */
+export function layoutContentMaxWidth(
+  preset: LayoutPreset,
+  settings: Pick<PostLayoutSettings, "has_sidebar_max_width" | "no_sidebar_max_width">,
+  hasSidebar: boolean,
+): number {
+  const base = hasSidebar ? settings.has_sidebar_max_width : settings.no_sidebar_max_width;
+  return preset.contentMaxWidth ? Math.min(base, preset.contentMaxWidth) : base;
+}
+
+/**
+ * Proporcja ramki cover jako string do `style.aspectRatio`. Kolejność:
+ *  1. preset z konfigurowalnym ratio (l6/l10/l11) - wartość z panelu,
+ *  2. hero overlay - filmowy pas 16:8 (tytuł ma trafić w dolną nakładkę),
+ *  3. rekomendowany rozmiar grafiki - kadr 1:1 z podpowiedzią w panelu,
+ *  4. fallback 16:9.
+ * Dzięki punktowi 3 "Grafika: 1600×675px · 16:9" z panelu opisuje dokładnie
+ * ten kadr, który zobaczy czytelnik - bez dodatkowego przycięcia.
+ */
+export function coverAspectRatio(preset: LayoutPreset, ratioPct?: number | null): string {
+  if (preset.cover === "ratio" && ratioPct && ratioPct > 0) return `100 / ${ratioPct}`;
+  if (preset.header === "overlay") return "16 / 8";
+  const rec = preset.recommendedImage;
+  if (rec && rec.width > 0 && rec.height > 0) return `${rec.width} / ${rec.height}`;
+  return "16 / 9";
 }
 
 export interface PostLayoutSettings {

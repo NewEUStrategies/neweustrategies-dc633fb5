@@ -175,6 +175,24 @@ function Page() {
                     : t("adminLayouts.postLayouts.sidebarNo")}
                 </b>
               </li>
+              <li>
+                {t("adminLayouts.postLayouts.excerptRow")}{" "}
+                <b>
+                  {selected.showExcerpt === false
+                    ? t("adminLayouts.postLayouts.excerptHidden")
+                    : t("adminLayouts.postLayouts.excerptShown")}
+                </b>
+              </li>
+              {selected.contentMaxWidth && (
+                <li>
+                  {t("adminLayouts.postLayouts.contentWidthRow")}{" "}
+                  <b>
+                    {t("adminLayouts.postLayouts.contentWidthNarrow", {
+                      max: selected.contentMaxWidth,
+                    })}
+                  </b>
+                </li>
+              )}
               {selected.featuredRatioKey && (
                 <li>
                   Ratio: <b>{local[selected.featuredRatioKey]}%</b>

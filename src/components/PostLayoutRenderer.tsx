@@ -1,12 +1,27 @@
 // Renderuje pojedynczy wpis zgodnie z wybranym presetem layoutu.
 // Owija stronę "single post" w odpowiedni układ (cover, nagłówek, content area).
-import type { ReactNode } from "react";
+//
+// Presety NIE są kosmetyką - `preset.header` decyduje o strukturze strony:
+//   above-cover  -> nagłówek, pod nim cover, pod nim treść (Layout 1/1a/2/3/6/10/11)
+//   below-cover  -> cover, pod nim nagłówek, pod nim treść (Layout 8 - magazine)
+//   overlay      -> tytuł/zajawka/meta NA okładce (Layout 4/5/12)
+//   side-by-side -> cover obok nagłówka, treść pod spodem (Layout 7 - split)
+//   no-cover     -> sam nagłówek, okładka pomijana nawet gdy wpis ją ma (Layout 9)
+// Sidebar (gdy włączony) jest prawą szyną na całą wysokość artykułu - nagłówek,
+// cover i treść siedzą w lewej kolumnie, dokładnie jak na kaflach w
+// /admin/post-layouts i w podglądzie edytora (LayoutScaffold).
+import type { CSSProperties, ReactNode } from "react";
 import {
   findLayout,
   coverImageSizes,
+  coverAspectRatio,
   effectiveHasSidebar,
+  layoutContentMaxWidth,
   overlayTypographyStyle,
   headerTypographyStyle,
+  rendersCover,
+  BOXED_COVER_MAX_WIDTH,
+  type LayoutHeaderMode,
   type PostFormat,
   type PostLayoutSettings,
 } from "@/lib/postLayouts";
@@ -36,7 +51,19 @@ interface Props {
   entityId?: string;
   /** Rodzaj encji zapisywanej do zakładek (post lub page). */
   entityType?: "post" | "page";
+  /**
+   * Per-wpis nadpisanie sidebara (`layout_overrides.has_sidebar`). Wygrywa nad
+   * globalnym `layout_sidebar_overrides` i domyślną wartością presetu.
+   */
+  sidebarOverride?: boolean | null;
 }
+
+/**
+ * Portretowe ratio (np. Layout 6 - 150%) na szerokiej kolumnie dałoby hero
+ * wyższe niż ekran. Ramka zostaje w proporcji, dopóki mieści się w kadrze;
+ * powyżej - przycina się do 80% wysokości okna.
+ */
+const RATIO_COVER_MAX_HEIGHT = "80vh";
 
 export function PostLayoutRenderer({
   format,
@@ -53,25 +80,46 @@ export function PostLayoutRenderer({
   coverViewTransitionId,
   entityId,
   entityType = "post",
+  sidebarOverride,
 }: Props) {
   const excerpt = cleanExcerpt(rawExcerpt);
   const preset = findLayout(format, layoutId);
-  const hasSidebar = effectiveHasSidebar(preset, settings);
+  // Sidebar tylko wtedy, gdy preset/override go chce ORAZ strona ma czym go
+  // wypełnić - inaczej siatka zostawiłaby po prawej pustą, 320-px kolumnę,
+  // a treść trzymałaby zwężoną szerokość "z sidebarem".
+  const hasSidebar = effectiveHasSidebar(preset, settings, sidebarOverride) && sidebar != null;
   const center = settings.center_header ?? preset.centerHeaderDefault ?? false;
   const ratioPct = preset.featuredRatioKey ? settings[preset.featuredRatioKey] : null;
-  const contentMaxW = hasSidebar ? settings.has_sidebar_max_width : settings.no_sidebar_max_width;
+  const contentMaxW = layoutContentMaxWidth(preset, settings, hasSidebar);
   const headerTypoStyle = headerTypographyStyle(settings);
   const overlayTypoStyle = overlayTypographyStyle(settings);
 
-  const header = (
-    <header className={`mb-8 ${center ? "text-center" : ""}`} style={headerTypoStyle}>
+  // Okładka pojawia się tylko wtedy, gdy preset jej chce ORAZ wpis ją ma.
+  // Bez zdjęcia każdy układ degraduje się do klasycznego nagłówka - inaczej
+  // "below-cover" czy "overlay" renderowałyby pustą, czarną ramę.
+  const showCover = rendersCover(preset) && !!coverImageUrl;
+  const headerMode: LayoutHeaderMode = showCover ? preset.header : "no-cover";
+  const showExcerpt = preset.showExcerpt !== false && !!excerpt;
+
+  // Klasyczny nagłówek: kategorie -> tytuł -> zajawka -> meta.
+  // `constrained` trzyma go w tej samej skrzynce co treść, więc przy
+  // wyrównaniu do lewej krawędzie tytułu i akapitów są w jednej linii.
+  const classicHeader = (constrained = true) => (
+    <header
+      className={`mb-8 min-w-0 w-full max-w-full ${constrained ? "mx-auto" : ""} ${
+        center ? "text-center" : ""
+      }`}
+      style={constrained ? { ...headerTypoStyle, maxWidth: `${contentMaxW}px` } : headerTypoStyle}
+    >
       {categoryBadges && (
         <div className={`mb-4 flex flex-wrap gap-2 ${center ? "justify-center" : ""}`}>
           {categoryBadges}
         </div>
       )}
       <h1 className="header-title-typography font-display font-bold leading-[1.1] mb-4">{title}</h1>
-      {excerpt && <p className="header-excerpt-typography text-muted-foreground mb-4">{excerpt}</p>}
+      {showExcerpt && (
+        <p className="header-excerpt-typography text-muted-foreground mb-4">{excerpt}</p>
+      )}
       {meta && (
         <div
           className={`cms-meta cms-meta-info ${settings.center_entry_meta ? "justify-center" : ""} flex flex-wrap gap-3 ${center ? "justify-center" : ""}`}
@@ -98,7 +146,7 @@ export function PostLayoutRenderer({
         <h1 className="overlay-meta-title overlay-title-typography font-display font-bold leading-[1.15] mb-2 text-white line-clamp-3 sm:line-clamp-none [text-shadow:0_2px_12px_rgba(0,0,0,0.85)]">
           {title}
         </h1>
-        {excerpt && (
+        {showExcerpt && (
           <p
             className={`overlay-meta-description overlay-excerpt-typography hidden sm:block text-white/80 mb-3 line-clamp-2 max-w-2xl ${center ? "mx-auto" : ""}`}
           >
@@ -116,37 +164,79 @@ export function PostLayoutRenderer({
     </div>
   );
 
-  // Wrapper dla cover + overlay. Full-bleed używa filmowego kadru 16/8
-  // (jak w podglądzie edytora) - nie 70vh, żeby cover nie zajmował całego
-  // ekranu i tytuł/subtytuł/meta trafiały w wyraźny dolny pas nakładki.
-  const coverWithOverlay = (extraWrapClass = "") => {
+  // Wspólna ramka okładki dla wszystkich wariantów. `overlay` dokłada
+  // gradienty i nakładkę z tytułem, pozostałe warianty malują czyste zdjęcie.
+  const coverFrame = ({ overlay = false }: { overlay?: boolean } = {}) => {
     if (!coverImageUrl) return null;
     const isFullBleed = preset.cover === "full-bleed";
-    const useRatio = preset.cover === "ratio" && ratioPct;
-    const aspectStyle = isFullBleed
-      ? { aspectRatio: "16 / 8" as const }
-      : useRatio
-        ? { aspectRatio: `100 / ${ratioPct}` }
-        : undefined;
-    // Domyslny cover (bez full-bleed i bez wlasnej proporcji): stala,
-    // mniejsza wysokosc niezalezna od wysokosci okna, wysrodkowana w kolumnie -
-    // kazdy wpis dostaje dokladnie ten sam kadr.
-    const heightClass = isFullBleed
-      ? ""
-      : useRatio
-        ? ""
-        : "h-[220px] sm:h-[300px] lg:h-[360px]";
-    const frameClass = isFullBleed || useRatio ? "" : "mx-auto w-full max-w-3xl";
+    const isRatio = preset.cover === "ratio" && !!ratioPct;
+    // Full-bleed wychodzi poza padding strony tylko bez sidebara - w siatce
+    // z prawą szyną ujemne marginesy wjeżdżałyby pod sidebar.
+    const bleed = isFullBleed && !hasSidebar;
+    const frameStyle: CSSProperties = {
+      aspectRatio: coverAspectRatio(preset, ratioPct),
+      borderRadius: "6px",
+      ...(isRatio ? { maxHeight: RATIO_COVER_MAX_HEIGHT } : null),
+      ...(coverViewTransitionId
+        ? { viewTransitionName: `post-cover-${coverViewTransitionId}` }
+        : null),
+    };
     return (
-      <div
-        className={`relative min-w-0 max-w-full ${isFullBleed ? "sm:-mx-4 lg:-mx-8" : ""} ${extraWrapClass}`}
-      >
-        <div className={`relative mb-8 ${frameClass}`}>
-          <div
-            className={`relative ${heightClass} overflow-hidden bg-neutral-900`}
+      <div className={`relative min-w-0 max-w-full ${bleed ? "sm:-mx-4 lg:-mx-8" : ""}`}>
+        <div
+          className={`relative mb-8 ${preset.cover === "boxed" ? "mx-auto w-full" : "w-full"}`}
+          style={preset.cover === "boxed" ? { maxWidth: `${BOXED_COVER_MAX_WIDTH}px` } : undefined}
+        >
+          <div className="relative overflow-hidden bg-neutral-900" style={frameStyle}>
+            <OptimizedImage
+              src={coverImageUrl}
+              alt={title}
+              className={`absolute inset-0 w-full h-full object-cover ${overlay ? "opacity-80" : ""}`}
+              priority
+              responsive
+              sizes={coverImageSizes(preset)}
+            />
+            {overlay && (
+              <>
+                {/* Ciemna nakładka - taka sama recepta jak w podglądzie edytora
+                    (gradient + radial vignetta), żeby tytuł/excerpt były czytelne
+                    niezależnie od zdjęcia. */}
+                <div
+                  className={
+                    isFullBleed
+                      ? "absolute inset-0 bg-gradient-to-b from-black/30 via-black/25 to-black/60"
+                      : "absolute inset-0 bg-gradient-to-b from-black/60 via-black/55 to-black/90"
+                  }
+                />
+                <div
+                  className={
+                    isFullBleed
+                      ? "absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_0%,_rgba(0,0,0,0.28)_75%)]"
+                      : "absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_0%,_rgba(0,0,0,0.55)_75%)]"
+                  }
+                />
+                {/* Mobile: dodatkowy dolny scrim - overlay ma malo miejsca, wiec
+                    tytul/meta musza miec pewny kontrast niezaleznie od zdjecia. */}
+                <div className="absolute inset-0 sm:hidden bg-gradient-to-t from-black/90 via-black/55 to-black/25" />
+                {overlayMetaCard}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
+  // Split (Layout 7): okładka i nagłówek w dwóch kolumnach, treść pod spodem.
+  const sideBySideTop = () => {
+    if (!coverImageUrl) return classicHeader();
+    return (
+      <div className="mb-8 grid min-w-0 gap-6 lg:grid-cols-2 lg:items-center">
+        <div className="relative min-w-0">
+          <div
+            className="relative overflow-hidden bg-neutral-900"
             style={{
-              ...aspectStyle,
+              aspectRatio: coverAspectRatio(preset, ratioPct),
               borderRadius: "6px",
               ...(coverViewTransitionId
                 ? { viewTransitionName: `post-cover-${coverViewTransitionId}` }
@@ -156,107 +246,74 @@ export function PostLayoutRenderer({
             <OptimizedImage
               src={coverImageUrl}
               alt={title}
-              className="absolute inset-0 w-full h-full object-cover opacity-80"
+              className="absolute inset-0 w-full h-full object-cover"
               priority
               responsive
               sizes={coverImageSizes(preset)}
             />
-            {/* Ciemna nakładka - taka sama recepta jak w podglądzie edytora
-                (gradient + radial vignetta), żeby tytuł/excerpt były czytelne
-                niezależnie od zdjęcia. */}
-            <div
-              className={
-                isFullBleed
-                  ? "absolute inset-0 bg-gradient-to-b from-black/30 via-black/25 to-black/60"
-                  : "absolute inset-0 bg-gradient-to-b from-black/60 via-black/55 to-black/90"
-              }
-            />
-            <div
-              className={
-                isFullBleed
-                  ? "absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_0%,_rgba(0,0,0,0.28)_75%)]"
-                  : "absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_0%,_rgba(0,0,0,0.55)_75%)]"
-              }
-            />
-            {/* Mobile: dodatkowy dolny scrim - overlay ma malo miejsca, wiec
-                tytul/meta musza miec pewny kontrast niezaleznie od zdjecia. */}
-            <div className="absolute inset-0 sm:hidden bg-gradient-to-t from-black/90 via-black/55 to-black/25" />
-
-            {overlayMetaCard}
           </div>
         </div>
+        {/* Nagłówek jest już w połowie szerokości - bez dodatkowego limitu. */}
+        <div className="min-w-0">{classicHeader(false)}</div>
       </div>
     );
   };
 
-  // Wszystkie warianty z cover photo używają nakładki (overlay meta-card).
-  if (coverImageUrl && preset.cover !== "none") {
-    return (
-      <>
-        <ReadingHeader title={title} entityId={entityId} entityType={entityType} />
-        {coverWithOverlay()}
-        <LayoutBody
-          contentMaxW={contentMaxW}
-          content={content}
-          sidebar={hasSidebar ? sidebar : undefined}
-          footer={footer}
-        />
-      </>
-    );
-  }
+  const top = (() => {
+    switch (headerMode) {
+      case "overlay":
+        return coverFrame({ overlay: true });
+      case "below-cover":
+        return (
+          <>
+            {coverFrame()}
+            {classicHeader()}
+          </>
+        );
+      case "side-by-side":
+        return sideBySideTop();
+      case "no-cover":
+        return classicHeader();
+      case "above-cover":
+      default:
+        return (
+          <>
+            {classicHeader()}
+            {coverFrame()}
+          </>
+        );
+    }
+  })();
 
-  // Brak cover photo – klasyczny nagłówek nad treścią.
-  return (
-    <>
-      <ReadingHeader title={title} entityId={entityId} entityType={entityType} />
-      <div>
-        {header}
-        <LayoutBody
-          contentMaxW={contentMaxW}
-          content={content}
-          sidebar={hasSidebar ? sidebar : undefined}
-          footer={footer}
-        />
-      </div>
-    </>
-  );
-}
-
-function LayoutBody({
-  contentMaxW,
-  content,
-  sidebar,
-  footer,
-}: {
-  contentMaxW: number;
-  content: ReactNode;
-  sidebar?: ReactNode;
-  footer?: ReactNode;
-}) {
-  if (sidebar) {
-    return (
-      <div className="grid min-w-0 max-w-full lg:grid-cols-[minmax(0,1fr)_320px] gap-10">
-        <div className="min-w-0 max-w-full">
-          <div
-            style={{ maxWidth: `${contentMaxW}px` }}
-            className="min-w-0 w-full max-w-full mx-auto"
-          >
-            {content}
-          </div>
-          {footer}
-        </div>
-        <aside className="min-w-0 max-w-full space-y-6 lg:sticky lg:top-24 lg:self-start lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:[scrollbar-width:thin]">
-          {sidebar}
-        </aside>
-      </div>
-    );
-  }
-  return (
+  const article = (
     <div className="min-w-0 max-w-full">
+      {top}
       <div style={{ maxWidth: `${contentMaxW}px` }} className="min-w-0 w-full max-w-full mx-auto">
         {content}
       </div>
       {footer}
+    </div>
+  );
+
+  return (
+    <div
+      className="min-w-0 max-w-full"
+      data-post-layout={preset.id}
+      data-layout-header={headerMode}
+      data-layout-cover={showCover ? preset.cover : "none"}
+      data-layout-sidebar={hasSidebar ? "true" : "false"}
+    >
+      <ReadingHeader title={title} entityId={entityId} entityType={entityType} />
+      {hasSidebar ? (
+        <div className="grid min-w-0 max-w-full lg:grid-cols-[minmax(0,1fr)_320px] gap-10">
+          {article}
+          <aside className="min-w-0 max-w-full space-y-6 lg:sticky lg:top-24 lg:self-start lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:[scrollbar-width:thin]">
+            {sidebar}
+          </aside>
+        </div>
+      ) : (
+        article
+      )}
     </div>
   );
 }

@@ -116,6 +116,7 @@ import {
   pickLayoutId,
   findLayout,
   coverImageSizes,
+  rendersCover,
   defaultPostLayoutSettings,
   type PostFormat,
   type PostLayoutSettings,
@@ -169,7 +170,7 @@ function buildCoverPreload(item: PostData, settings: PostLayoutSettings): CoverP
   const format: PostFormat = item.layout_overrides?.format ?? item.post_format ?? "standard";
   const layoutId = pickLayoutId(settings, format, item.layout_overrides?.layout);
   const preset = findLayout(format, layoutId);
-  if (preset.cover === "none") return null;
+  if (!rendersCover(preset)) return null;
   return {
     href: cover,
     imageSrcSet: buildImageSrcSet(cover),
@@ -941,6 +942,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
             coverViewTransitionId={it.id}
             entityId={it.id}
             entityType="post"
+            sidebarOverride={overrides?.has_sidebar ?? null}
             meta={
               <PostOverlayMeta
                 lang={lang}
