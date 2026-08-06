@@ -592,7 +592,6 @@ function EditPage() {
                 </Link>
               )}
             </div>
-
           </div>
         </div>
       )}

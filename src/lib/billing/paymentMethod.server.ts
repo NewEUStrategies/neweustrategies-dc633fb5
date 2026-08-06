@@ -45,8 +45,10 @@ export async function fetchPaymentMethodPreview(input: {
     expand: ["invoice_settings.default_payment_method"],
   });
   if (!("deleted" in customer) || customer.deleted !== true) {
-    const fromCustomer = (customer as Stripe.Customer).invoice_settings
-      ?.default_payment_method as Stripe.PaymentMethod | string | null;
+    const fromCustomer = (customer as Stripe.Customer).invoice_settings?.default_payment_method as
+      | Stripe.PaymentMethod
+      | string
+      | null;
     if (fromCustomer && typeof fromCustomer !== "string") return toPreview(fromCustomer);
   }
 

@@ -174,13 +174,14 @@ function mapTransactionFromInvoice(invoice: Raw): TransactionData & Raw {
     idOf(invoice.subscription) ??
     idOf(subDetails?.subscription) ??
     idOf(lineSubDetails?.subscription);
-  const metadata = isRecord(invoice.metadata) && Object.keys(invoice.metadata).length > 0
-    ? invoice.metadata
-    : isRecord(subDetails?.metadata) && Object.keys(subDetails.metadata as Raw).length > 0
-      ? (subDetails.metadata as Raw)
-      : isRecord(firstLine?.metadata) && Object.keys(firstLine?.metadata as Raw).length > 0
-        ? (firstLine?.metadata as Raw)
-        : null;
+  const metadata =
+    isRecord(invoice.metadata) && Object.keys(invoice.metadata).length > 0
+      ? invoice.metadata
+      : isRecord(subDetails?.metadata) && Object.keys(subDetails.metadata as Raw).length > 0
+        ? (subDetails.metadata as Raw)
+        : isRecord(firstLine?.metadata) && Object.keys(firstLine?.metadata as Raw).length > 0
+          ? (firstLine?.metadata as Raw)
+          : null;
 
   return {
     id: idOf(invoice.id) ?? "",

@@ -460,7 +460,6 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
       className="fixed inset-0 z-[10000] bg-background overscroll-contain sm:bg-background/70 sm:backdrop-blur-xl animate-in fade-in duration-200"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-
       <div className="absolute inset-x-0 top-0 flex h-full max-h-full justify-center overflow-y-auto px-0 pt-0 pb-0 sm:h-auto sm:max-h-screen sm:px-4 sm:pt-[12vh] sm:pb-8">
         <div
           ref={panelRef}

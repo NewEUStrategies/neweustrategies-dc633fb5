@@ -567,7 +567,6 @@ function SiteMenuImpl({ menuKey, lang, mobile }: Props) {
     );
   }
 
-
   if (mobile) {
     return (
       <nav aria-label={lang === "en" ? "Primary navigation" : "Nawigacja główna"}>
