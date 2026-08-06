@@ -6998,7 +6998,8 @@ html {
   transform: translateX(0.6em);
 }
 .mbb__label {
-  font-size: 1em;
+  /* Etykiety jeszcze odrobinę mniejsze niż reszta paska. */
+  font-size: 0.85em;
   line-height: 1.2;
   font-weight: 600;
   letter-spacing: 0.01em;
