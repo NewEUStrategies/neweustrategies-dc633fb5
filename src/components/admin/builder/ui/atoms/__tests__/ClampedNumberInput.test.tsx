@@ -24,6 +24,7 @@ describe("ClampedNumberInput", () => {
     fireEvent.change(input, { target: { value: "99" } });
     expect(input.value).toBe("99");
     fireEvent.blur(input, { target: { value: "99" } });
+    fireEvent.focusOut(input);
     expect(input.value).toBe("12");
     expect(onCommit).toHaveBeenLastCalledWith(12);
   });
@@ -35,6 +36,7 @@ describe("ClampedNumberInput", () => {
     fireEvent.focus(input);
     fireEvent.change(input, { target: { value: "" } });
     fireEvent.blur(input, { target: { value: "" } });
+    fireEvent.focusOut(input);
     expect(input.value).toBe("4");
   });
 
@@ -47,6 +49,7 @@ describe("ClampedNumberInput", () => {
     fireEvent.focus(input);
     fireEvent.change(input, { target: { value: "" } });
     fireEvent.blur(input, { target: { value: "" } });
+    fireEvent.focusOut(input);
     expect(onCommit).toHaveBeenLastCalledWith(undefined);
   });
 });
