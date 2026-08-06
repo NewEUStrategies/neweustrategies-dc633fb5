@@ -494,9 +494,9 @@ const SHARED_STYLES = `
   scale: var(--eh-scale);
   transition: opacity 700ms cubic-bezier(.22,.61,.36,1), scale var(--eh-transition-duration) ease-in;
   transform-origin: center center;
-  /* Bez stałego `will-change`/`backface-visibility`: trwale promowana warstwa
-     jest rasteryzowana raz i skalowana, przez co zdjęcia i tekst wyglądają
-     miękko. Warstwę tworzymy dopiero na hover/focus, czyli w trakcie animacji. */
+  /* Bez stalego will-change/backface-visibility: trwale promowana warstwa
+     jest rasteryzowana raz i skalowana, przez co zdjecia i tekst wygladaja
+     miekko. Warstwe tworzymy dopiero na hover/focus, w trakcie animacji. */
 }
 .eh-slider *:hover > [data-fill-image],
 .eh-slider *:focus-within > [data-fill-image] {
