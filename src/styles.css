@@ -6815,7 +6815,6 @@ html {
   --mbb-bg: var(--mbb-bg-light, #ffffff);
   --mbb-active: var(--mbb-active-light, var(--brand));
   --mbb-icon: var(--mbb-icon-light, #6b7280);
-  --mbb-border-color: color-mix(in oklab, var(--border) 60%, transparent);
   font-size: 0.625rem;
   position: relative;
   pointer-events: auto;
@@ -6825,7 +6824,7 @@ html {
   background-color: var(--mbb-bg);
   box-shadow:
     0 0.5em 1em rgb(0 0 0 / 0.12),
-    0 0 0 1px var(--mbb-border-color);
+    0 0 0 1px color-mix(in oklab, var(--border) 60%, transparent);
 }
 .dark .mbb {
   --mbb-bg: var(--mbb-bg-dark, #111318);
@@ -6833,7 +6832,7 @@ html {
   --mbb-icon: var(--mbb-icon-dark, #9aa3b2);
   box-shadow:
     0 0.5em 1em rgb(0 0 0 / 0.45),
-    0 0 0 1px var(--mbb-border-color);
+    0 0 0 1px color-mix(in oklab, var(--border) 60%, transparent);
 }
 
 /* .svg-container z referencji: sam nośnik <clipPath>, zero wymiarów. */
@@ -6878,8 +6877,9 @@ html {
   color: var(--mbb-icon);
   text-decoration: none;
   cursor: pointer;
+  will-change: transform;
   -webkit-tap-highlight-color: transparent;
-  transition: transform var(--timeOut, 0.45s) cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform var(--timeOut, 0.5s);
 }
 .mbb__item.active {
   transform: translate3d(0, -0.8em, 0);
@@ -6918,8 +6918,8 @@ html {
   transform: scale(0);
   background-color: var(--bgColorItem, var(--brand));
   transition:
-    transform 0.45s cubic-bezier(0.34, 1.36, 0.64, 1),
-    background-color 0.45s ease;
+    transform 0.5s,
+    background-color 0.5s;
 }
 .dark .mbb__iconwrap::before {
   background-color: var(--bgColorItem-dark, var(--brand));
@@ -6966,30 +6966,19 @@ html {
 
 /* .menu__border - garb wycięty ścieżką SVG, przesuwany pod aktywną pozycję.
    `bottom: 99%` sadza go tuż nad paskiem; wspólne tło sprawia, że sylwetka
-   paska i garbu jest ciągła. Kolor `currentColor` niesie obramowanie garbu,
-   identyczne z linią bottom bar (zob. --mbb-border-color). */
+   paska i garbu jest ciągła. */
 .mbb__border {
   position: absolute;
   left: 0;
   bottom: 99%;
-  width: 8em;
-  height: 1.8em;
+  width: 10.9em;
+  height: 2.4em;
   background-color: var(--mbb-bg);
-  color: var(--mbb-border-color);
   pointer-events: none;
+  will-change: transform;
   transition:
-    transform var(--timeOut, 0.45s) cubic-bezier(0.22, 1, 0.36, 1),
+    transform var(--timeOut, 0.5s),
     opacity 0.2s ease;
-}
-/* SVG stroke dokładnie pokrywa ścieżkę wycinka; pół grubości wypada wewnątrz
-   widocznego garbu, dając 1 px ciągłej krawędzi zgodnej z pigułką. */
-.mbb__border-stroke {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  display: block;
-  overflow: visible;
 }
 /* Przed pomiarem i na trasach spoza paska garb nie ma sensownej pozycji. */
 .mbb[data-ready="false"] .mbb__border {
