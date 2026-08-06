@@ -644,7 +644,7 @@ export function collectAuthzSnapshotDrift(
       message:
         severity === "authorization"
           ? `bramka '${ref}' ${describeAuthorizationChange(fields)}: ${describeFields(fields)} (snapshot -> migracje)`
-          : `bramka '${ref}' pochodzi z innej migracji: ${describeFields(fields)} - wystarczy regeneracja snapshotu`,
+          : `bramka '${ref}' zmieniła provenance (bez zmiany uprawnień): ${describeFields(fields)} - wystarczy regeneracja snapshotu`,
     });
   }
 
@@ -688,7 +688,7 @@ export function collectAuthzSnapshotDrift(
       message:
         severity === "authorization"
           ? `bramka flagi '${key}' ${describeAuthorizationChange(fields)}: ${describeFields(fields)} (snapshot -> migracje)`
-          : `bramka flagi '${key}' pochodzi z innej migracji: ${describeFields(fields)} - wystarczy regeneracja snapshotu`,
+          : `bramka flagi '${key}' zmieniła provenance (bez zmiany uprawnień): ${describeFields(fields)} - wystarczy regeneracja snapshotu`,
     });
   }
 
