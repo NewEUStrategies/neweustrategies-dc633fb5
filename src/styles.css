@@ -6852,3 +6852,29 @@ html {
     transition: none;
   }
 }
+
+/* Byline autora: mobile trzyma wartości z panelu, desktop (>= 768 px) skaluje
+   proporcjonalnie - kontrakt domyślny 12/20 px daje 16/24 px.
+   `!important` jest konieczne, bo warstwa typografii widgetu generuje reguły
+   z `!important`, które inaczej biją styl inline i te zmienne. */
+@media (min-width: 768px) {
+  [data-author-byline],
+  [data-author-byline] [data-author-byline-name],
+  [data-author-byline] [data-author-byline-label],
+  [data-author-byline] [data-author-byline-name] span {
+    font-size: var(--abl-fs-desktop) !important;
+  }
+
+  [data-author-byline] [data-author-byline-avatar] {
+    width: var(--abl-av-desktop) !important;
+    height: var(--abl-av-desktop) !important;
+    min-width: var(--abl-av-desktop) !important;
+    min-height: var(--abl-av-desktop) !important;
+    max-width: var(--abl-av-desktop) !important;
+    max-height: var(--abl-av-desktop) !important;
+  }
+
+  [data-author-byline] span[data-author-byline-avatar] {
+    font-size: var(--abl-av-fs-desktop) !important;
+  }
+}
