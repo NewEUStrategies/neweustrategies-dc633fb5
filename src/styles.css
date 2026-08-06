@@ -6955,9 +6955,11 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .mbb-slot,
   .mbb__marker,
+  .mbb__icon,
   .mbb__link {
     transition: none;
   }
+  .mbb__item[data-active="true"] .mbb__icon,
   .mbb__link:active {
     transform: none;
   }
