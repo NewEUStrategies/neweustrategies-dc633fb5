@@ -370,7 +370,10 @@ function MobileBottomBarSettings() {
           </button>
         </div>
         <div
-          className={`${previewTheme === "dark" ? "dark bg-neutral-900" : "bg-neutral-100"} flex justify-center rounded-lg border border-border p-6`}
+          // Górny padding jest większy: nad paskiem unosi się garb z aktywną
+          // pozycją, więc podgląd musi zostawić mu miejsce, żeby nie wyglądał
+          // na przycięty.
+          className={`${previewTheme === "dark" ? "dark bg-neutral-900" : "bg-neutral-100"} flex justify-center rounded-lg border border-border px-6 pt-14 pb-6`}
         >
           <div className="w-full max-w-sm">
             {previewItems.length > 0 ? (

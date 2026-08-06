@@ -73,14 +73,21 @@ export type MobileBottomBarConfig = {
   items: MobileBottomBarItem[];
 };
 
-/** Zaokrąglenie zgodne z systemem designu serwisu (pigułki, chipy, badge). */
-export const DEFAULT_BAR_RADIUS = 6;
+/**
+ * Zaokrąglenie pigułki paska. 20 px to `2em` z referencyjnego komponentu przy
+ * jego bazie 10 px - przy wysokości paska ~44 px daje pełną pigułkę, w której
+ * garb nad aktywną pozycją czyta się jako ciągła sylwetka.
+ */
+export const DEFAULT_BAR_RADIUS = 20;
 /** Domyślny odstęp paska od dolnej krawędzi (ponad safe-area). */
 export const DEFAULT_BAR_OFFSET = 12;
 
 export const MOBILE_BOTTOM_BAR_DEFAULTS: MobileBottomBarConfig = {
   enabled: true,
-  show_labels: true,
+  // Wygląd referencyjny jest BEZ podpisów: aktywna pozycja unosi się w garb i
+  // dostaje wypełnione koło, a etykieta zostaje nazwą dostępną (sr-only).
+  // Administrator może podpisy włączyć - wtedy unos jest o połowę krótszy.
+  show_labels: false,
   hide_on_scroll: true,
   offset_bottom: DEFAULT_BAR_OFFSET,
   radius: DEFAULT_BAR_RADIUS,

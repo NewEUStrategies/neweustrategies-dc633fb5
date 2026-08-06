@@ -1,14 +1,30 @@
 // Organizm: prezentacyjna warstwa mobilnego paska dolnego.
 //
-// Czysto sterowany propsami (config + items + activeIndex), więc ten sam kod
-// renderuje pasek publiczny i podgląd w panelu admina - podgląd nie może
-// rozjechać się z produkcją, bo to fizycznie ten sam komponent.
+// Wierne odwzorowanie referencyjnego "animated tab bar": nad paskiem unosi się
+// GARB wycięty ścieżką SVG (clip-path), a aktywna pozycja wyjeżdża w górę i
+// dostaje wypełnione koło w swoim kolorze, po którym ikona rysuje się od nowa
+// (stroke-dashoffset). Odwzorowane 1:1 z referencji:
 //
-// Znacznik aktywnej pozycji ("marker") jest jednym elementem pozycjonowanym
-// absolutnie i przesuwanym `transform`em. Pozycje mają równą szerokość
-// (flex: 1 1 0), więc animuje się wyłącznie translacja - bez reflow, bez
-// skalowania, które deformowałoby promień 6 px.
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+//   .svg-container  -> .mbb__clip      (nośnik <clipPath>, zerowe wymiary)
+//   .menu           -> .mbb            (pigułka paska)
+//   .menu__item     -> .mbb__item      (klikalna pozycja)
+//   .menu__border   -> .mbb__border    (garb przesuwany transformem)
+//   .icon           -> .mbb__icon
+//   --bgColorItem   -> --bgColorItem   (bez zmian)
+//   --timeOut       -> --timeOut       (bez zmian)
+//
+// Trzy świadome odstępstwa od referencji, każde uzasadnione:
+//  1. <button> -> <a> (AppLink). To jest NAWIGACJA po trasach, więc pozycja
+//     musi dać się otworzyć w nowej karcie, skopiować i przeczytać jako link.
+//     Wygląd i animacja są identyczne.
+//  2. id clip-path jest unikalny per instancja (useId). Referencja ma je zaszyte
+//     na sztywno, a u nas pasek renderuje się także w podglądzie panelu - dwa
+//     te same id w jednym dokumencie łamią odwołanie url(#...).
+//  3. Formuła pozycji garbu liczy się względem prostokąta listy, nie
+//     `menu.offsetLeft`. W referencji pasek stoi w wycentrowanym kontenerze bez
+//     przewijania, więc oba układy odniesienia się pokrywają; u nas pasek jest
+//     `position: fixed`, gdzie offsetLeft dałby przesunięcie.
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import { BottomBarTab } from "./BottomBarTab";
@@ -21,10 +37,19 @@ import {
   type MobileBottomBarItem,
 } from "@/lib/mobileBottomBar/config";
 
+/**
+ * Ścieżka garbu z referencji, bez zmian. `clipPathUnits="objectBoundingBox"` +
+ * skala 1/202.9 x 1/45.5 normalizuje viewBox do jedynek, dzięki czemu ten sam
+ * kształt skaluje się do dowolnej szerokości elementu .mbb__border.
+ */
+const CLIP_SCALE = "scale(0.0049285362247413 0.021978021978022)";
+const CLIP_PATH_D =
+  "M6.7,45.5c5.7,0.1,14.1-0.4,23.3-4c5.7-2.3,9.9-5,18.1-10.5c10.7-7.1,11.8-9.2,20.6-14.3c5-2.9,9.2-5.2,15.2-7 c7.1-2.1,13.3-2.3,17.6-2.1c4.2-0.2,10.5,0.1,17.6,2.1c6.1,1.8,10.2,4.1,15.2,7c8.8,5,9.9,7.1,20.6,14.3c8.3,5.5,12.4,8.2,18.1,10.5 c9.2,3.6,17.6,4.2,23.3,4H6.7z";
+
 export interface MobileBottomBarViewProps {
   config: MobileBottomBarConfig;
   items: MobileBottomBarItem[];
-  /** -1 = żadna pozycja nie odpowiada bieżącej trasie (marker ukryty). */
+  /** -1 = żadna pozycja nie odpowiada bieżącej trasie (garb ukryty). */
   activeIndex: number;
   lang: string;
   className?: string;
@@ -46,48 +71,72 @@ export function MobileBottomBarView({
   onMeasure,
 }: MobileBottomBarViewProps) {
   const { t } = useTranslation();
+  const rawId = useId();
+  // useId zwraca ":r0:" - dwukropki wychodzą poza to, co bezpiecznie znosi
+  // fragment w url(#...), więc je zdejmujemy.
+  const clipId = `mbb-clip-${rawId.replace(/:/g, "")}`;
+
   const navRef = useRef<HTMLElement | null>(null);
   const listRef = useRef<HTMLUListElement | null>(null);
-  const markerRef = useRef<HTMLSpanElement | null>(null);
-  const itemRefs = useRef<Array<HTMLLIElement | null>>([]);
+  const borderRef = useRef<HTMLSpanElement | null>(null);
+  const itemRefs = useRef<Array<HTMLAnchorElement | null>>([]);
   const [ready, setReady] = useState(false);
 
   const hasActive = activeIndex >= 0 && activeIndex < items.length;
 
-  const positionMarker = useCallback(() => {
+  /** Referencyjne `offsetMenuBorder()`: garb centruje się pod aktywną pozycją. */
+  const offsetBorder = useCallback(() => {
     const list = listRef.current;
-    const marker = markerRef.current;
-    const active = hasActive ? itemRefs.current[activeIndex] : null;
-    if (!list || !marker || !active) return;
-    marker.style.width = `${active.offsetWidth}px`;
-    marker.style.transform = `translate3d(${Math.round(active.offsetLeft)}px, 0, 0)`;
+    const border = borderRef.current;
+    const activeItem = hasActive ? itemRefs.current[activeIndex] : null;
+    if (!list || !border || !activeItem) return;
+
+    const item = activeItem.getBoundingClientRect();
+    const frame = list.getBoundingClientRect();
+    const left = Math.floor(item.left - frame.left - (border.offsetWidth - item.width) / 2);
+    border.style.transform = `translate3d(${left}px, 0, 0)`;
   }, [activeIndex, hasActive]);
 
   useLayoutEffect(() => {
-    positionMarker();
-    // Druga próba po pierwszej klatce: ikony lucide i webfont etykiet mogą
-    // dojechać po layoucie, a marker musi trafić w ostateczne wymiary.
+    offsetBorder();
+    // Druga próba po pierwszej klatce: ikony i webfont etykiet mogą dojechać po
+    // layoucie, a garb musi trafić w ostateczne wymiary.
     const frame = window.requestAnimationFrame(() => {
-      positionMarker();
+      offsetBorder();
       setReady(true);
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [positionMarker, items.length, config.show_labels]);
+  }, [offsetBorder, items.length, config.show_labels]);
 
-  // ResizeObserver zamiast nasłuchu na `resize`: łapie też zmianę wysokości po
-  // dojechaniu fontu i obrót ekranu, w którym `resize` bywa zgłaszany przed
-  // przeliczeniem layoutu.
+  // `--timeOut` z referencji: w trakcie zmiany rozmiaru przejście jest wyłączone
+  // ("transition: transform none" jest nieprawidłowe, więc przeglądarka schodzi
+  // do wartości początkowej = 0s), dzięki czemu garb nie goni okna animacją.
+  //
+  // Odstępstwo: referencja kasuje flagę dopiero przy kliknięciu, więc po
+  // pierwszym obrocie ekranu animacja zostaje martwa aż do dotknięcia paska.
+  // U nas aktywną pozycję zmienia też nawigacja po trasach, więc flagę zdejmuje
+  // klatka po ustabilizowaniu rozmiaru - intencja ta sama, bez martwej animacji.
   useEffect(() => {
     const nav = navRef.current;
     if (!nav || typeof ResizeObserver === "undefined") return;
+
+    let restore = 0;
     const observer = new ResizeObserver(() => {
-      positionMarker();
+      nav.style.setProperty("--timeOut", "none");
+      offsetBorder();
       onMeasure?.(nav.offsetHeight);
+      window.cancelAnimationFrame(restore);
+      restore = window.requestAnimationFrame(() => nav.style.removeProperty("--timeOut"));
     });
     observer.observe(nav);
     onMeasure?.(nav.offsetHeight);
-    return () => observer.disconnect();
-  }, [positionMarker, onMeasure]);
+
+    return () => {
+      window.cancelAnimationFrame(restore);
+      observer.disconnect();
+      nav.style.removeProperty("--timeOut");
+    };
+  }, [offsetBorder, onMeasure]);
 
   const activeItem = hasActive ? items[activeIndex] : undefined;
   const accentLight = config.use_item_color
@@ -115,9 +164,20 @@ export function MobileBottomBarView({
       style={style}
       data-ready={ready ? "true" : "false"}
       data-has-active={hasActive ? "true" : "false"}
+      data-labels={config.show_labels ? "true" : "false"}
+      data-own-colors={config.use_item_color ? "true" : "false"}
     >
+      {/* Nośnik ścieżki wycinającej garb. Zerowe wymiary - element nigdy nie
+          zajmuje miejsca, jest wyłącznie definicją dla clip-path. */}
+      <div className="mbb__clip" aria-hidden="true">
+        <svg viewBox="0 0 202.9 45.5" focusable="false">
+          <clipPath id={clipId} clipPathUnits="objectBoundingBox" transform={CLIP_SCALE}>
+            <path d={CLIP_PATH_D} />
+          </clipPath>
+        </svg>
+      </div>
+
       <ul className="mbb__list" ref={listRef}>
-        <span aria-hidden="true" className="mbb__marker" ref={markerRef} />
         {items.map((item, index) => (
           <BottomBarTab
             key={item.id || `${item.href}-${index}`}
@@ -132,6 +192,12 @@ export function MobileBottomBarView({
             }}
           />
         ))}
+        <span
+          aria-hidden="true"
+          className="mbb__border"
+          ref={borderRef}
+          style={{ clipPath: `url(#${clipId})` }}
+        />
       </ul>
     </nav>
   );
