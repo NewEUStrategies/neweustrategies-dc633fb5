@@ -664,6 +664,7 @@ const pl = {
       },
       titlePlaceholder: "Tytuł wpisu",
       excerptPlaceholder: 'Excerpt - uzupełnij w „Szczegóły"',
+      excerptHidden: "Ten layout nie pokazuje zajawki pod tytułem",
     },
   },
 };
@@ -1328,6 +1329,7 @@ const en: typeof pl = {
       },
       titlePlaceholder: "Post title",
       excerptPlaceholder: 'Excerpt - fill in under "Details"',
+      excerptHidden: "This layout hides the lead under the title",
     },
   },
 };

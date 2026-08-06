@@ -9,8 +9,13 @@ import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-blocks";
 import {
   findLayout,
+  coverAspectRatio,
+  effectiveHasSidebar,
+  layoutContentMaxWidth,
   overlayTypographyStyle,
   headerTypographyStyle,
+  rendersCover,
+  BOXED_COVER_MAX_WIDTH,
   type PostFormat,
   type PostLayoutSettings,
   type LayoutPreset,
@@ -44,23 +49,20 @@ function Cover({
   ratio: number;
 }) {
   const { t } = useTranslation();
-  if (preset.cover === "none") return null;
-  const aspect =
-    preset.cover === "ratio"
-      ? `100 / ${ratio}`
-      : preset.cover === "full-bleed"
-        ? "16 / 7"
-        : preset.cover === "boxed"
-          ? "16 / 9"
-          : "21 / 9";
-  const wrap =
-    preset.cover === "full-bleed"
-      ? "-mx-4 lg:-mx-8"
-      : preset.cover === "boxed"
-        ? "max-w-2xl mx-auto"
-        : "";
+  if (!rendersCover(preset)) return null;
+  // Ta sama proporcja co w publicznym rendererze (PostLayoutRenderer) - autor
+  // widzi w edytorze dokładnie ten kadr, który dostanie czytelnik.
+  const aspect = coverAspectRatio(preset, ratio);
+  const wrap = preset.cover === "full-bleed" ? "-mx-4 lg:-mx-8" : "";
   return (
-    <div className={`relative ${wrap}`}>
+    <div
+      className={`relative ${wrap}`}
+      style={
+        preset.cover === "boxed"
+          ? { maxWidth: `${BOXED_COVER_MAX_WIDTH}px`, marginInline: "auto" }
+          : undefined
+      }
+    >
       <ZoneTag
         label={t("admin.layoutScaffold.cover.label", {
           defaultValue: "Cover - {{variant}}",
@@ -155,11 +157,14 @@ function Header({
   excerpt,
   center,
   settings,
+  showExcerpt = true,
 }: {
   title: string;
   excerpt?: string | null;
   center: boolean;
   settings: PostLayoutSettings;
+  /** Layout 1(a) chowa zajawkę - wireframe musi to pokazać. */
+  showExcerpt?: boolean;
 }) {
   const { t } = useTranslation();
   return (
@@ -184,7 +189,13 @@ function Header({
             </span>
           )}
         </h1>
-        {excerpt ? (
+        {!showExcerpt ? (
+          <p className="text-xs text-muted-foreground/60 mb-4 italic">
+            {t("admin.layoutScaffold.excerptHidden", {
+              defaultValue: "Ten layout nie pokazuje zajawki pod tytułem",
+            })}
+          </p>
+        ) : excerpt ? (
           <p className="header-excerpt-typography text-muted-foreground mb-4">{excerpt}</p>
         ) : (
           <p className="text-xs text-muted-foreground/60 mb-4">
@@ -384,9 +395,21 @@ export function LayoutScaffold({
   const preset = findLayout(format, layoutId);
   const ratio = preset.featuredRatioKey ? settings[preset.featuredRatioKey] : 56;
   const center = settings.center_header ?? preset.centerHeaderDefault ?? false;
-  const contentMaxW = preset.hasSidebar
-    ? settings.has_sidebar_max_width
-    : settings.no_sidebar_max_width;
+  // Sidebar czytamy tak samo jak front: override z /admin/post-layouts wygrywa
+  // nad domyślną wartością presetu (kafle w panelu zapisują właśnie override).
+  const hasSidebar = effectiveHasSidebar(preset, settings);
+  const contentMaxW = layoutContentMaxWidth(preset, settings, hasSidebar);
+  const showExcerpt = preset.showExcerpt !== false;
+
+  const headerZone = (
+    <Header
+      title={title}
+      excerpt={excerpt}
+      center={center}
+      settings={settings}
+      showExcerpt={showExcerpt}
+    />
+  );
 
   const topZone = (() => {
     if (preset.header === "overlay") {
@@ -394,30 +417,37 @@ export function LayoutScaffold({
         <OverlayCover
           url={coverImageUrl}
           title={title}
-          excerpt={excerpt}
+          excerpt={showExcerpt ? excerpt : null}
           center={center}
           settings={settings}
         />
       );
     }
     if (preset.header === "side-by-side") {
-      return <SideBySide url={coverImageUrl} title={title} excerpt={excerpt} settings={settings} />;
+      return (
+        <SideBySide
+          url={coverImageUrl}
+          title={title}
+          excerpt={showExcerpt ? excerpt : null}
+          settings={settings}
+        />
+      );
     }
     if (preset.header === "below-cover") {
       return (
         <>
           <Cover url={coverImageUrl} preset={preset} ratio={ratio} />
-          <Header title={title} excerpt={excerpt} center={center} settings={settings} />
+          {headerZone}
         </>
       );
     }
     if (preset.header === "no-cover") {
-      return <Header title={title} excerpt={excerpt} center={center} settings={settings} />;
+      return headerZone;
     }
     // above-cover (default)
     return (
       <>
-        <Header title={title} excerpt={excerpt} center={center} settings={settings} />
+        {headerZone}
         {coverImageUrl !== undefined && <Cover url={coverImageUrl} preset={preset} ratio={ratio} />}
       </>
     );
@@ -462,22 +492,28 @@ export function LayoutScaffold({
             value: preset.cover,
           })}
         </span>
-        {preset.hasSidebar && (
+        {hasSidebar && (
           <span className="px-1.5 py-0.5 rounded bg-brand/20">
             {t("admin.layoutScaffold.summary.sidebar", { defaultValue: "+ sidebar" })}
           </span>
         )}
       </div>
 
-      {topZone}
-
-      {preset.hasSidebar ? (
-        <div className="grid lg:grid-cols-[1fr_320px] gap-6 mt-4">
-          <div>{contentZone}</div>
+      {/* Sidebar jest szyną na całą wysokość artykułu - nagłówek i cover
+          siedzą w lewej kolumnie, tak jak w publicznym rendererze. */}
+      {hasSidebar ? (
+        <div className="grid lg:grid-cols-[1fr_320px] gap-6">
+          <div className="min-w-0">
+            {topZone}
+            {contentZone}
+          </div>
           <Sidebar />
         </div>
       ) : (
-        contentZone
+        <>
+          {topZone}
+          {contentZone}
+        </>
       )}
 
       <FooterBars s={settings} />

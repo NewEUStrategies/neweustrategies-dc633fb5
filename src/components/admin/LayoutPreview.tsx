@@ -37,8 +37,11 @@ export function LayoutPreview({ preset, settings, hasSidebarOverride, className 
       className={`${h} w-full rounded bg-gradient-to-br from-brand/40 to-brand/10 border border-border`}
     />
   );
+  // Layouty "wąskie" (contentMaxWidth) zwężają kolumnę czytania - kafel musi
+  // to pokazać, inaczej Layout 2 wyglądałby identycznie jak Layout 1.
+  const narrow = typeof preset.contentMaxWidth === "number";
   const Lines = () => (
-    <div className="space-y-1">
+    <div className={`space-y-1 ${narrow ? "mx-auto w-3/4" : ""}`}>
       <Bar w="w-full" h="h-1.5" c="bg-foreground/30" />
       <Bar w="w-11/12" h="h-1.5" c="bg-foreground/30" />
       <Bar w="w-10/12" h="h-1.5" c="bg-foreground/30" />
@@ -46,11 +49,13 @@ export function LayoutPreview({ preset, settings, hasSidebarOverride, className 
     </div>
   );
 
+  // Trzeci pasek nagłówka to zajawka - Layout 1(a) jej nie ma.
+  const showExcerpt = preset.showExcerpt !== false;
   const Header = ({ small = false }: { small?: boolean }) => (
     <div className={`flex flex-col ${headerJustify} gap-1`}>
       <Bar w="w-1/3" h="h-1" c="bg-brand" />
       <Bar w={small ? "w-3/4" : "w-5/6"} h={small ? "h-2" : "h-3"} c="bg-foreground" />
-      <Bar w={small ? "w-1/2" : "w-2/3"} h="h-1.5" c="bg-foreground/40" />
+      {showExcerpt && <Bar w={small ? "w-1/2" : "w-2/3"} h="h-1.5" c="bg-foreground/40" />}
     </div>
   );
 
