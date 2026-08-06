@@ -625,8 +625,19 @@ export function collectAuthzSnapshotDrift(
       });
       continue;
     }
-    const drift = describeRoleGateDrift(gate, fresh);
-    if (drift !== "") problems.push(drift);
+    const fields = fieldDrift(gate, fresh, ROLE_GATE_FIELD_SEVERITY);
+    if (fields.length === 0) continue;
+    const severity = worstSeverity(fields);
+    drift.push({
+      kind: "gate_changed",
+      severity,
+      subject: ref,
+      fields,
+      message:
+        severity === "authorization"
+          ? `bramka '${ref}' ${describeAuthorizationChange(fields)}: ${describeFields(fields)} (snapshot -> migracje)`
+          : `bramka '${ref}' zmieniła provenance (bez zmiany uprawnień): ${describeFields(fields)} - wystarczy regeneracja snapshotu`,
+    });
   }
 
   for (const ref of derivedGates.keys()) {
