@@ -266,6 +266,7 @@ import { Route as PlatformEmailTransactionalPreviewRouteImport } from './routes/
 import { Route as PlatformEmailQueueProcessRouteImport } from './routes/platform/email/queue/process'
 import { Route as PlatformEmailAuthWebhookRouteImport } from './routes/platform/email/auth/webhook'
 import { Route as PlatformEmailAuthPreviewRouteImport } from './routes/platform/email/auth/preview'
+import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
 import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
@@ -1591,6 +1592,12 @@ const PlatformEmailAuthPreviewRoute =
     path: '/platform/email/auth/preview',
     getParentRoute: () => rootRouteImport,
   } as any)
+const LovableEmailTransactionalPreviewRoute =
+  LovableEmailTransactionalPreviewRouteImport.update({
+    id: '/lovable/email/transactional/preview',
+    path: '/lovable/email/transactional/preview',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const LovableEmailQueueProcessRoute =
   LovableEmailQueueProcessRouteImport.update({
     id: '/lovable/email/queue/process',
@@ -1903,6 +1910,7 @@ export interface FileRoutesByFullPath {
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
+  '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/platform/email/auth/preview': typeof PlatformEmailAuthPreviewRoute
   '/platform/email/auth/webhook': typeof PlatformEmailAuthWebhookRoute
   '/platform/email/queue/process': typeof PlatformEmailQueueProcessRoute
@@ -2161,6 +2169,7 @@ export interface FileRoutesByTo {
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
+  '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/platform/email/auth/preview': typeof PlatformEmailAuthPreviewRoute
   '/platform/email/auth/webhook': typeof PlatformEmailAuthWebhookRoute
   '/platform/email/queue/process': typeof PlatformEmailQueueProcessRoute
@@ -2430,6 +2439,7 @@ export interface FileRoutesById {
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
+  '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/platform/email/auth/preview': typeof PlatformEmailAuthPreviewRoute
   '/platform/email/auth/webhook': typeof PlatformEmailAuthWebhookRoute
   '/platform/email/queue/process': typeof PlatformEmailQueueProcessRoute
@@ -2700,6 +2710,7 @@ export interface FileRouteTypes {
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
+    | '/lovable/email/transactional/preview'
     | '/platform/email/auth/preview'
     | '/platform/email/auth/webhook'
     | '/platform/email/queue/process'
@@ -2958,6 +2969,7 @@ export interface FileRouteTypes {
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
+    | '/lovable/email/transactional/preview'
     | '/platform/email/auth/preview'
     | '/platform/email/auth/webhook'
     | '/platform/email/queue/process'
@@ -3226,6 +3238,7 @@ export interface FileRouteTypes {
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
+    | '/lovable/email/transactional/preview'
     | '/platform/email/auth/preview'
     | '/platform/email/auth/webhook'
     | '/platform/email/queue/process'
@@ -3337,6 +3350,7 @@ export interface RootRouteChildren {
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
   LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
+  LovableEmailTransactionalPreviewRoute: typeof LovableEmailTransactionalPreviewRoute
   PlatformEmailAuthPreviewRoute: typeof PlatformEmailAuthPreviewRoute
   PlatformEmailAuthWebhookRoute: typeof PlatformEmailAuthWebhookRoute
   PlatformEmailQueueProcessRoute: typeof PlatformEmailQueueProcessRoute
@@ -5145,6 +5159,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlatformEmailAuthPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/lovable/email/transactional/preview': {
+      id: '/lovable/email/transactional/preview'
+      path: '/lovable/email/transactional/preview'
+      fullPath: '/lovable/email/transactional/preview'
+      preLoaderRoute: typeof LovableEmailTransactionalPreviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/lovable/email/queue/process': {
       id: '/lovable/email/queue/process'
       path: '/lovable/email/queue/process'
@@ -5868,6 +5889,7 @@ const rootRouteChildren: RootRouteChildren = {
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
   LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
+  LovableEmailTransactionalPreviewRoute: LovableEmailTransactionalPreviewRoute,
   PlatformEmailAuthPreviewRoute: PlatformEmailAuthPreviewRoute,
   PlatformEmailAuthWebhookRoute: PlatformEmailAuthWebhookRoute,
   PlatformEmailQueueProcessRoute: PlatformEmailQueueProcessRoute,
