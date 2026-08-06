@@ -201,17 +201,9 @@ const CLIENT_DIR =
 //                                         właściwa droga to leniwa rejestracja
 //                                         słownika, nie wymuszony chunk,
 //   * zod                       132 kB, tailwind-merge 97 kB, dompurify 82 kB.
-// 2026-08-06 (2): re-floor po dryfie maina PO scaleniu #183. Pomiar pełnym
-// buildem na tym samym hoście: 541,9 KB chunk / 1893,2 KB public / 3137,3 KB
-// overall przy floorach 542 / 1890 / 3132. Nadwyżka (+3,2 public / +5,3 overall)
-// jest w całości ODZIEDZICZONA - ta gałąź dotyka wyłącznie skryptów CI
-// (bramka literałów app_role, raport dryfu snapshotu) i konfiguracji wtyczki
-// pomiarowej, czyli kodu, który nie trafia do bundla klienta. CHUNK zostaje na
-// 542 (mieści się). Realna redukcja (split locale'i PL/EN, odchudzenie
-// eager-owego zestawu widgetów chrome, @tanstack poza entry) - osobna praca.
-const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 542); // largest single gzipped JS chunk (zmierzone: 541,9KB, the client entry)
-const MAX_PUBLIC_KB = Number(process.env.MAX_PUBLIC_KB ?? 1896); // gzipped JS a public visitor can load (zmierzone: 1893,2KB)
-const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 3140); // gzipped JS incl. admin/editor-only chunks (zmierzone: 3137,3KB)
+const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 542); // largest single gzipped JS chunk (zmierzone: 540,8KB, the client entry)
+const MAX_PUBLIC_KB = Number(process.env.MAX_PUBLIC_KB ?? 1890); // gzipped JS a public visitor can load (zmierzone: 1888,6KB)
+const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 3132); // gzipped JS incl. admin/editor-only chunks (zmierzone: 3130,6KB)
 
 // Chunks reachable ONLY from the auth-gated /admin (CMS) routes - never from a
 // public URL, so they never count against the public-perf budget. Matched on the

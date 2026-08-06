@@ -461,55 +461,76 @@ export function renderAuthzSnapshotModule(selected: SelectedAuthzSnapshot): stri
 }
 
 // ---------------------------------------------------------------------------
-// Dryf snapshotu: waga (uprawnienia vs provenance) + dowód na poziomie pola
+// Diagnostyka dryfu snapshotu (komunikat bramki parytetu)
 // ---------------------------------------------------------------------------
+//
+// PO CO OSOBNA WARSTWA: poprzednia wersja porównywała CAŁY obiekt bramki
+// (`json(gate) !== json(fresh)`), a w komunikacie drukowała cztery wybrane pola -
+// więc dryf pola `file` (przeniesiona definicja przy niezmienionym zbiorze ról)
+// dawał komunikat „bramka rozjechała się: {A} vs {A}" z dwoma IDENTYCZNYMI
+// obiektami. Bramka miała rację, ale pokazywała dowód przeczący własnej tezie i
+// wrzucała zmianę kosmetyczną do jednego worka z realnym zawężeniem uprawnień
+// (`profiles_guard_verification`: [admin, super_admin] -> [admin]).
+//
+// INWARIANT KONSTRUKCYJNY: porównanie i wydruk czytają z JEDNEJ tablicy pól
+// (`GATE_FIELD_SEVERITY` / `FEATURE_FIELD_SEVERITY`), a jej typ to
+// `Record<Exclude<keyof …, klucz>, …>` - dopisanie pola do kontraktu snapshotu
+// NIE skompiluje się, dopóki nie zostanie sklasyfikowane. Dowód nie może więc
+// znów rozminąć się z tezą, a „nowe pole, którego nikt nie porównuje" przestaje
+// być możliwe.
 
 /**
- * Waga rozjazdu. `authorization` zmienia krąg uprawnionych albo warunki dostępu
- * i wymaga świadomej decyzji w code review. `provenance` oznacza ten sam stan
- * uprawnień w innym miejscu historii migracji - wystarczy regeneracja pliku.
+ * Waga dryfu - rozdziela dwie rzeczy, które poprzednia diagnostyka mieszała:
+ *  - `authorization` - zmienił się KRĄG UPRAWNIONYCH albo semantyka bramki
+ *    (role, wiązanie z tenantem, SECURITY DEFINER, czytane flagi warstw),
+ *  - `provenance`    - to samo uprawnienie, inne miejsce w historii migracji
+ *    (pole `file`) albo starszy skan (`stats`): snapshot trzeba zregenerować,
+ *    ale nikt nie zyskał ani nie stracił dostępu.
  */
 export type AuthzDriftSeverity = "authorization" | "provenance";
 
-/** Pojedyncze pole, które faktycznie się różni (dowód pod tezą komunikatu). */
+export type AuthzDriftKind =
+  | "app_roles"
+  | "stats"
+  | "gate_removed"
+  | "gate_added"
+  | "gate_changed"
+  | "feature_gate_removed"
+  | "feature_gate_added"
+  | "feature_gate_changed";
+
+/** Jedno pole, które faktycznie się różni (tylko takie trafiają do komunikatu). */
 export interface AuthzFieldDrift {
   readonly field: string;
   readonly severity: AuthzDriftSeverity;
+  /** Wartość z zacommitowanego snapshotu. */
   readonly committed: string;
+  /** Wartość odtworzona z migracji. */
   readonly derived: string;
 }
 
-export type AuthzDriftKind =
-  | "app_roles"
-  | "gate_added"
-  | "gate_removed"
-  | "gate_changed"
-  | "feature_gate_added"
-  | "feature_gate_removed"
-  | "feature_gate_changed"
-  | "stats";
-
-/** Jeden wpis rozjazdu snapshotu wobec `supabase/migrations`. */
 export interface AuthzSnapshotDrift {
   readonly kind: AuthzDriftKind;
   readonly severity: AuthzDriftSeverity;
-  /** Bramka / klucz, którego dotyczy wpis (używany też do sortowania). */
+  /** Referencja bramki, klucz `flaga|referencja`, `app_role` albo `stats`. */
   readonly subject: string;
+  /** Puste dla dryfu obecności (bramka doszła / zniknęła). */
   readonly fields: readonly AuthzFieldDrift[];
+  /** Komunikat dla CI - zawiera DOKŁADNIE te pola, które się różnią. */
   readonly message: string;
 }
 
-const SEVERITY_RANK: Record<AuthzDriftSeverity, number> = {
-  authorization: 0,
-  provenance: 1,
-};
+/** Wartości pól snapshotu (kontrakt: string, boolean albo lista stringów). */
+type SnapshotFieldValue = string | boolean | readonly string[];
 
 /**
- * Klasyfikacja pól bramki rolowej. `Record<Exclude<keyof RoleGateEntry, "ref">>`
- * jest celowy: nowe pole w kontrakcie bramki nie skompiluje się, dopóki ktoś nie
- * zdecyduje, czy jego zmiana to zmiana uprawnień, czy tylko provenance.
+ * Pola bramki rolowej objęte porównaniem, wraz z wagą. Kolejność deklaracji =
+ * kolejność w komunikacie, więc role idą pierwsze, a provenance na końcu.
+ * `ref` jest kluczem porównania, nie polem - stąd `Exclude`.
  */
-const ROLE_GATE_FIELD_SEVERITY: Record<Exclude<keyof RoleGateEntry, "ref">, AuthzDriftSeverity> = {
+const GATE_FIELD_SEVERITY: Readonly<
+  Record<Exclude<keyof RoleGateEntry, "ref">, AuthzDriftSeverity>
+> = {
   anyRoles: "authorization",
   allRoles: "authorization",
   tenantRef: "authorization",
@@ -520,9 +541,9 @@ const ROLE_GATE_FIELD_SEVERITY: Record<Exclude<keyof RoleGateEntry, "ref">, Auth
   file: "provenance",
 };
 
-const FEATURE_FIELD_SEVERITY: Record<
-  Exclude<keyof FeatureGateEntry, "capability" | "ref">,
-  AuthzDriftSeverity
+/** To samo dla bramki flagi warstwy - `capability|ref` jest kluczem. */
+const FEATURE_FIELD_SEVERITY: Readonly<
+  Record<Exclude<keyof FeatureGateEntry, "capability" | "ref">, AuthzDriftSeverity>
 > = {
   bypassRoles: "authorization",
   tenantRef: "authorization",
@@ -531,60 +552,79 @@ const FEATURE_FIELD_SEVERITY: Record<
   file: "provenance",
 };
 
-/**
- * Metryki skanu porównujemy WYŁĄCZNIE po liczbie migracji: to ona mówi, że
- * snapshot powstał z innego stanu `supabase/migrations`. Liczba funkcji i
- * polityk zmienia się przy każdym zawężeniu zaznaczenia, więc raportowana
- * osobno tylko szumiałaby w komunikacie.
- */
-const STATS_FIELD_SEVERITY: Record<string, AuthzDriftSeverity> = {
+/** Pola metryk skanu - dryf tu znaczy „snapshot z innego stanu migracji". */
+const STATS_FIELD_SEVERITY: Readonly<Record<keyof AuthzSnapshotStats, AuthzDriftSeverity>> = {
   migrations: "provenance",
+  functions: "provenance",
+  policies: "provenance",
 };
 
-/** Pola niosące ZBIÓR RÓL - tylko one uzasadniają tezę „krąg uprawnionych". */
-const ROLE_BEARING_FIELDS = new Set(["anyRoles", "allRoles", "bypassRoles", "appRoles"]);
-
-/** Czytelna wartość pola: tablice jako `[a, b]`, reszta bez cudzysłowów JSON-a. */
-function formatFieldValue(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map((item) => String(item)).join(", ")}]`;
-  return String(value);
+function formatFieldValue(value: SnapshotFieldValue | number): string {
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (typeof value === "number") return String(value);
+  if (typeof value === "string") return value;
+  return `[${value.join(", ")}]`;
 }
 
-/** Różnice pól dwóch obiektów w kolejności deklaracji klasyfikacji. */
-function fieldDrift<T extends object>(
+/**
+ * Różnice pole-po-polu dla dwóch wersji tego samego obiektu. Zbiór porównywanych
+ * pól bierze się z tablicy wag, więc nie da się porównać pola, którego nie
+ * potrafimy nazwać w komunikacie (i odwrotnie).
+ */
+function fieldDrift<K extends string, T extends { readonly [P in K]: SnapshotFieldValue | number }>(
   committed: T,
   derived: T,
-  severities: Record<string, AuthzDriftSeverity>,
+  severity: Readonly<Record<K, AuthzDriftSeverity>>,
 ): AuthzFieldDrift[] {
   const out: AuthzFieldDrift[] = [];
-  for (const [field, severity] of Object.entries(severities)) {
-    const a = (committed as Record<string, unknown>)[field];
-    const b = (derived as Record<string, unknown>)[field];
-    if (JSON.stringify(a) === JSON.stringify(b)) continue;
-    out.push({ field, severity, committed: formatFieldValue(a), derived: formatFieldValue(b) });
+  for (const field of Object.keys(severity) as K[]) {
+    const before = committed[field];
+    const after = derived[field];
+    if (json(before) === json(after)) continue;
+    out.push({
+      field,
+      severity: severity[field],
+      committed: formatFieldValue(before),
+      derived: formatFieldValue(after),
+    });
   }
   return out;
 }
 
+/** `anyRoles: [admin, super_admin] -> [admin]` (snapshot -> migracje). */
 function describeFields(fields: readonly AuthzFieldDrift[]): string {
-  return fields.map((f) => `${f.field}: ${f.committed} -> ${f.derived}`).join(", ");
+  return fields.map((field) => `${field.field}: ${field.committed} -> ${field.derived}`).join("; ");
 }
 
 function worstSeverity(fields: readonly AuthzFieldDrift[]): AuthzDriftSeverity {
-  return fields.some((f) => f.severity === "authorization") ? "authorization" : "provenance";
+  return fields.some((field) => field.severity === "authorization")
+    ? "authorization"
+    : "provenance";
 }
 
-/** Teza komunikatu: krąg uprawnionych zmieniamy TYLKO przy polach z rolami. */
-function describeAuthorizationChange(fields: readonly AuthzFieldDrift[]): string {
-  const roles = fields.some(
-    (f) => f.severity === "authorization" && ROLE_BEARING_FIELDS.has(f.field),
-  );
-  return roles ? "zmieniła krąg uprawnionych" : "zmieniła warunki dostępu";
-}
+/** Pola, których zmiana przestawia ZBIÓR RÓL (a nie inny warunek bramki). */
+const ROLE_SET_FIELDS: readonly string[] = ["anyRoles", "allRoles", "bypassRoles"];
 
 /**
- * Pełny dryf snapshotu wobec migracji: wpisy z wagą i dowodem na poziomie pola,
- * posortowane „najpierw uprawnienia".
+ * Teza komunikatu musi zgadzać się z dowodem: „krąg uprawnionych" tylko wtedy,
+ * gdy zmieniły się role. Zmiana `tenantRef` czy `securityDefiner` też jest
+ * zmianą dostępu, ale nie dopisuje ani nie odejmuje żadnej roli.
+ */
+function describeAuthorizationChange(fields: readonly AuthzFieldDrift[]): string {
+  return fields.some((field) => ROLE_SET_FIELDS.includes(field.field))
+    ? "zmieniła krąg uprawnionych"
+    : "zmieniła warunki dostępu";
+}
+
+const SEVERITY_RANK: Readonly<Record<AuthzDriftSeverity, number>> = {
+  authorization: 0,
+  provenance: 1,
+};
+
+/**
+ * Pełny, ustrukturyzowany dryf między zacommitowanym snapshotem a odtworzeniem
+ * z migracji. Kolejność: najpierw zmiany uprawnień, potem provenance, w obu
+ * grupach po referencji - komunikat CI jest więc deterministyczny.
  */
 export function collectAuthzSnapshotDrift(
   committed: AuthzSnapshot,
@@ -625,7 +665,7 @@ export function collectAuthzSnapshotDrift(
       });
       continue;
     }
-    const fields = fieldDrift(gate, fresh, ROLE_GATE_FIELD_SEVERITY);
+    const fields = fieldDrift(gate, fresh, GATE_FIELD_SEVERITY);
     if (fields.length === 0) continue;
     const severity = worstSeverity(fields);
     drift.push({
@@ -636,7 +676,7 @@ export function collectAuthzSnapshotDrift(
       message:
         severity === "authorization"
           ? `bramka '${ref}' ${describeAuthorizationChange(fields)}: ${describeFields(fields)} (snapshot -> migracje)`
-          : `bramka '${ref}' zmieniła provenance (bez zmiany uprawnień): ${describeFields(fields)} - wystarczy regeneracja snapshotu`,
+          : `bramka '${ref}' ma to samo uprawnienie w innej migracji: ${describeFields(fields)} - wystarczy regeneracja snapshotu`,
     });
   }
 

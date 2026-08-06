@@ -40,19 +40,30 @@ function checksRole(body: string, role: string): boolean {
   return new RegExp(`has_role\\s*\\([^,()]*(?:\\([^()]*\\))?[^,()]*,\\s*'${role}'`, "i").test(body);
 }
 
+/**
+ * Bramka wolno delegować decyzję do jednego źródła prawdy
+ * (`can_manage_profile_verification`) - wtedy wymagany zbiór ról sprawdzamy
+ * w TEJ funkcji. Inwariant pozostaje ten sam: obie role personelu przechodzą.
+ */
+function effectiveGuardBody(): string {
+  const guard = latest("profiles_guard_verification").body;
+  if (!/can_manage_profile_verification/i.test(guard)) return guard;
+  return `${guard}\n${latest("can_manage_profile_verification", 1).body}`;
+}
+
 describe("profiles_guard_verification: stan końcowy migracji", () => {
   it("przepuszcza rolę admin", () => {
-    expect(checksRole(latest("profiles_guard_verification").body, "admin")).toBe(true);
+    expect(checksRole(effectiveGuardBody(), "admin")).toBe(true);
   });
 
   it("przepuszcza rolę super_admin (regresja z 20260806094104)", () => {
     const def = latest("profiles_guard_verification");
     expect(
-      checksRole(def.body, "super_admin"),
-      `Ostatnia definicja profiles_guard_verification (${def.file}) nie sprawdza roli 'super_admin'. ` +
+      checksRole(effectiveGuardBody(), "super_admin"),
+      `Ostatnia definicja profiles_guard_verification (${def.file}) nie sprawdza roli 'super_admin' ` +
+        "ani bezpośrednio, ani przez can_manage_profile_verification. " +
         "has_role() dopasowuje rolę DOKŁADNIE - bez tej gałęzi super_admin nie może " +
-        "nadać ani zdjąć weryfikacji i dostaje wyjątek zamiast przejść bramkę. " +
-        "Wymieniaj OBIE role jawnie przy każdym CREATE OR REPLACE tej funkcji.",
+        "nadać ani zdjąć weryfikacji i dostaje wyjątek zamiast przejść bramkę.",
     ).toBe(true);
   });
 
