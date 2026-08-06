@@ -35,6 +35,7 @@ export { MeetingBookingView } from "@/components/admin/builder/ui/organisms/widg
 export { EventSponsorsView } from "@/components/admin/builder/ui/organisms/widget-view/EventSponsorsView";
 export { RatedListView } from "@/components/admin/builder/ui/organisms/widget-view/RatedListView";
 export { TabsBlock } from "@/components/admin/builder/ui/organisms/widget-view/TabsBlock";
+export { CircularCarouselView } from "@/components/admin/builder/ui/organisms/widget-view/CircularCarouselView";
 export { AdSlotById } from "@/components/ads/AdSlotById";
 export { DonationsWidgetView } from "@/components/donations/DonationsWidgetView";
 export { RichTextView } from "@/components/admin/builder/ui/organisms/widget-view/RichTextView";

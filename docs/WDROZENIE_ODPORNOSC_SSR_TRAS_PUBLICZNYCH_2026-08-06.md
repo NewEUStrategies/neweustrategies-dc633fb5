@@ -137,6 +137,37 @@ Menu startuje teraz równolegle z ustawieniami; druga fala dostaje rozgrzane
 obietnice i czeka wyłącznie na to, co naprawdę wymagało ustawień. Budżety,
 strażnik stanu `pending` po HMR i pochłanianie odrzuceń - bez zmian.
 
+## 8. Pierwsze malowanie: karuzela okrężna poza bundlem wejściowym
+
+`BUNDLE_INVENTORY=1` pokazał, że karuzela okrężna (dodana ostatnim commitem)
+siedzi w chunku WEJŚCIOWYM - 12.2 kB przed minifikacją, płacone przez KAŻDEGO
+czytelnika, także na stronach bez karuzeli. Trafiła tam przez statyczny import
+w `WidgetView.tsx`, wbrew kryterium z nagłówka `lazyWidgets.tsx`: eager zostaje
+to, co jest layout-krytyczne, nawigacyjne albo zwykle nad zgięciem. Karuzela
+dekoracyjna nie jest żadną z tych rzeczy.
+
+Bramka rozmiaru miała przy tym **0.1 kB zapasu** na największym chunku - czyli
+następna zmiana dotykająca wejścia i tak położyłaby CI.
+
+| Metryka (gzip)               | Przed     | Po           |
+| ---------------------------- | --------- | ------------ |
+| Największy chunk (wejściowy) | 438.9 kB  | **437.5 kB** |
+| Zapas do progu 439 kB        | 0.1 kB    | **1.5 kB**   |
+| Publiczne łącznie            | 1908.2 kB | 1909.0 kB    |
+
+Uczciwy bilans: wejście (płacone zawsze, przez wszystkich) maleje o 1.4 kB;
+suma osiągalnego kodu publicznego rośnie o 0.8 kB, ale ten przyrost pobierają
+wyłącznie strony, które karuzelę faktycznie renderują. SSR rozwiązuje dynamiczny
+import po stronie serwera, więc HTML jest identyczny - odroczone jest tylko
+pobranie po stronie klienta.
+
+Parytet eksportów `lazyWidgets` ↔ `src/test/eagerWidgetChunks.tsx` pilnuje
+istniejąca bramka `eagerWidgetChunks.test.ts` - i faktycznie złapała brakujący
+eksport przy tej zmianie.
+
+Bramki po zmianie: `check:bundle` ✓, `check:chunks` (graf acykliczny) ✓,
+`check:entry-purity` ✓, `check:chunk-parity` ✓.
+
 ---
 
 ## Pliki
@@ -152,3 +183,5 @@ strażnik stanu `pending` po HMR i pochłanianie odrzuceń - bez zmian.
 | `src/routes/{podcasts.index,web-stories.index}.tsx` | j.w.                                      |
 | `src/routes/{podcasts.$show,author.$slug}.tsx`      | j.w. + kontrakt zapytania tożsamościowego |
 | `src/routes/__root.tsx`                             | menu chrome'u równolegle z ustawieniami   |
+| `.../widget-view/lazyWidgets.tsx`                   | karuzela okrężna poza bundlem wejściowym  |
+| `src/test/eagerWidgetChunks.tsx`                    | parytet eksportów lustra testowego        |
