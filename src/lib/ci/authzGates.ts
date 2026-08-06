@@ -534,10 +534,14 @@ const FEATURE_FIELD_SEVERITY: Record<
   file: "provenance",
 };
 
-const STATS_FIELD_SEVERITY: Record<keyof AuthzSnapshot["stats"], AuthzDriftSeverity> = {
+/**
+ * Metryki skanu porównujemy WYŁĄCZNIE po liczbie migracji: to ona mówi, że
+ * snapshot powstał z innego stanu `supabase/migrations`. Liczba funkcji i
+ * polityk zmienia się przy każdym zawężeniu zaznaczenia, więc raportowana
+ * osobno tylko szumiałaby w komunikacie.
+ */
+const STATS_FIELD_SEVERITY: Record<string, AuthzDriftSeverity> = {
   migrations: "provenance",
-  functions: "provenance",
-  policies: "provenance",
 };
 
 /** Pola niosące ZBIÓR RÓL - tylko one uzasadniają tezę „krąg uprawnionych". */
