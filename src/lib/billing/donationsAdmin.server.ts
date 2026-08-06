@@ -164,6 +164,7 @@ export async function syncDonationsFromStripe(
             amountCents: session.amount_total ?? null,
             currency: session.currency ?? null,
             donorEmail: session.customer_details?.email ?? null,
+            paidAt: isoOf(session.created),
           });
           report.settled += 1;
         } else if (session.status === "expired") {
@@ -219,6 +220,7 @@ export async function syncDonationsFromStripe(
           amountCents: session.amount_total ?? null,
           currency: session.currency ?? null,
           donorEmail: session.customer_details?.email ?? null,
+          paidAt: isoOf(session.created),
         });
         await supabase
           .from("donations")
@@ -249,6 +251,13 @@ export async function syncDonationsFromStripe(
   } catch (e) {
     report.warnings.push("stripe_list_failed");
     console.error("[donations sync] sessions.list failed", e);
+  }
+
+  // Uzgodnienie zmieniło rejestr - publiczne statystyki (cache 60 s per izolat)
+  // muszą pokazać nowy stan od razu po kliknięciu, a nie za minutę.
+  if (report.settled + report.imported + report.refunded + report.expired > 0) {
+    const { invalidateEdgeTtlCache } = await import("@/lib/ssrCache");
+    await invalidateEdgeTtlCache("donations:public-stats");
   }
 
   return report;

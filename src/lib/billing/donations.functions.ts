@@ -1,93 +1,129 @@
-// Publiczne statystyki darowizn dla widgetu CMS builder.
+// Publiczna warstwa `createServerFn` modułu darowizn: konfiguracja, statystyki
+// i otwarcie kasy. Logika mieszka w `donations.server.ts`.
 //
-// Same wpłaty są zbierane w zewnętrznym serwisie zbiórkowym (zrzutka.pl,
-// patrz donationsExternal.ts) - serwis NIE tworzy transakcji darowizn
-// u operatora płatności (wymóg AUP Paddle). Tabela public.donations pozostaje
-// rejestrem historycznych wpłat i wpisów dodawanych przez administrację;
-// widget czyta z niej wyłącznie zagregowane sumy.
+// Model wpłat jest konfigurowalny (`site_settings.donations`):
+//   * `stripe`   - własny checkout (jednorazowo / miesięcznie), wpłaty lądują
+//                  w `public.donations` przez webhook operatora,
+//   * `external` - zewnętrzna zbiórka (tryb awaryjny, wyłącznie link).
+// Podstawa prawno-podatkowa zmiany modelu: docs/WDROZENIE_DAROWIZNY_WLASNY_CHECKOUT_2026-08-06.md.
+//
+// Odczyty publiczne (konfiguracja + statystyki) idą przez `edgeTtlCache`, więc
+// widget CMS na stronie głównej nie generuje jednego zapytania na render -
+// jeden odczyt na 60 s na najemcę, współdzielony przez wszystkie żądania SSR.
 import { createServerFn } from "@tanstack/react-start";
 import { normalizeCheckoutLocale, type CheckoutLocale } from "@/lib/billing/checkoutLocale";
+import { edgeTtlCache } from "@/lib/ssrCache";
+import type { DonationsConfig } from "@/lib/billing/donationsConfig";
+
+/** TTL wspólny dla konfiguracji i statystyk (te same dane widzi cała strona). */
+const PUBLIC_TTL_MS = 60_000;
+/** Twardy sufit skanu wpłat - ochrona pamięci izolatu przy dużym rejestrze. */
+const STATS_ROW_CAP = 20_000;
+const STATS_PAGE = 1_000;
+
+export interface DonationsPublicStats {
+  totalCents: number;
+  monthCents: number;
+  count: number;
+  monthCount: number;
+  currency: string;
+  recent: { amount_cents: number; currency: string; created_at: string }[];
+  /** `true`, gdy rejestr przekroczył sufit skanu i sumy są przycięte. */
+  truncated: boolean;
+}
+
+function emptyStats(currency: string): DonationsPublicStats {
+  return {
+    totalCents: 0,
+    monthCents: 0,
+    count: 0,
+    monthCount: 0,
+    currency,
+    recent: [],
+    truncated: false,
+  };
+}
 
 /**
- * Publiczne, zagregowane statystyki darowizn dla widgetu CMS builder.
- * NIE wystawia PII (donor_email, message) - tylko sumy i historyczne kwoty
- * ostatnich N pozycji. Odczyt service-role (RLS na tabeli nie dopuszcza anona);
- * skopowane do tenantu hosta, tylko status='paid'. Cache 60s.
+ * Publiczne, zagregowane statystyki darowizn dla widgetu CMS i formularza.
+ *
+ * NIE wystawia PII (donor_email, message) - tylko sumy i kwoty ostatnich N
+ * pozycji. Odczyt service-role (RLS nie dopuszcza anona), zawężony do tenantu
+ * hosta i `status='paid'`.
+ *
+ * Sumujemy WYŁĄCZNIE wpłaty w walucie zbiórki: rejestr bywa dwuwalutowy
+ * (PLN historycznie, EUR po zmianie ustawień), a dodanie groszy do centów
+ * dawało pasek postępu oderwany od celu zbiórki wyrażonego w jednej walucie.
  */
-export const getDonationsPublicStats = createServerFn({ method: "GET" }).handler(async () => {
-  const [{ resolveTenantIdForHost }, { currentTenantHost }, { supabaseAdmin }] = await Promise.all([
-    import("@/lib/server/tenant.server"),
-    import("@/lib/http/requestHost"),
-    import("@/integrations/supabase/client.server"),
-  ]);
-  const tenantId = await resolveTenantIdForHost(await currentTenantHost());
-  if (!tenantId) {
-    return {
-      totalCents: 0,
-      monthCents: 0,
-      count: 0,
-      monthCount: 0,
-      currency: "PLN",
-      recent: [] as { amount_cents: number; currency: string; created_at: string }[],
-    };
-  }
+export const getDonationsPublicStats = createServerFn({ method: "GET" }).handler(
+  async (): Promise<DonationsPublicStats> => {
+    return edgeTtlCache("donations:public-stats", PUBLIC_TTL_MS, async () => {
+      const [{ resolveTenantIdForHost }, { currentTenantHost }, { supabaseAdmin }, config] =
+        await Promise.all([
+          import("@/lib/server/tenant.server"),
+          import("@/lib/http/requestHost"),
+          import("@/integrations/supabase/client.server"),
+          loadConfigCached(),
+        ]);
+      const tenantId = await resolveTenantIdForHost(await currentTenantHost());
+      if (!tenantId) return emptyStats(config.currency);
 
-  // Data początku bieżącego miesiąca w UTC.
-  const now = new Date();
-  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+      // Początek bieżącego miesiąca w UTC - ta sama granica co w eksportach.
+      const now = new Date();
+      const monthStart = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+      ).toISOString();
 
-  const { data, error } = await supabaseAdmin
-    .from("donations")
-    .select("amount_cents,currency,created_at")
-    .eq("tenant_id", tenantId)
-    .eq("status", "paid")
-    .order("created_at", { ascending: false })
-    .limit(1000);
-  if (error) {
-    console.error("[donations] public stats failed", error);
-    return {
-      totalCents: 0,
-      monthCents: 0,
-      count: 0,
-      monthCount: 0,
-      currency: "PLN",
-      recent: [] as { amount_cents: number; currency: string; created_at: string }[],
-    };
-  }
+      const stats = emptyStats(config.currency);
+      for (let offset = 0; offset < STATS_ROW_CAP; offset += STATS_PAGE) {
+        const { data, error } = await supabaseAdmin
+          .from("donations")
+          .select("amount_cents,currency,created_at")
+          .eq("tenant_id", tenantId)
+          .eq("status", "paid")
+          .eq("currency", config.currency)
+          .order("created_at", { ascending: false })
+          .range(offset, offset + STATS_PAGE - 1);
+        if (error) {
+          console.error("[donations] public stats failed", error.message);
+          return emptyStats(config.currency);
+        }
+        const rows = data ?? [];
+        for (const row of rows) {
+          stats.totalCents += row.amount_cents;
+          stats.count += 1;
+          if (row.created_at >= monthStart) {
+            stats.monthCents += row.amount_cents;
+            stats.monthCount += 1;
+          }
+          if (stats.recent.length < 5) {
+            stats.recent.push({
+              amount_cents: row.amount_cents,
+              currency: row.currency,
+              created_at: row.created_at,
+            });
+          }
+        }
+        if (rows.length < STATS_PAGE) return stats;
+      }
+      stats.truncated = true;
+      return stats;
+    });
+  },
+);
 
-  const rows = data ?? [];
-  let totalCents = 0;
-  let monthCents = 0;
-  let monthCount = 0;
-  for (const r of rows) {
-    totalCents += r.amount_cents;
-    if (r.created_at >= monthStart) {
-      monthCents += r.amount_cents;
-      monthCount += 1;
-    }
-  }
-  const currency = rows[0]?.currency ?? "PLN";
-  const recent = rows.slice(0, 5).map((r) => ({
-    amount_cents: r.amount_cents,
-    currency: r.currency,
-    created_at: r.created_at,
-  }));
-
-  return {
-    totalCents,
-    monthCents,
-    count: rows.length,
-    monthCount,
-    currency,
-    recent,
-  };
-});
+/** Konfiguracja z cache per izolat - współdzielona przez stats i server fn. */
+function loadConfigCached(): Promise<DonationsConfig> {
+  return edgeTtlCache("donations:config", PUBLIC_TTL_MS, async () => {
+    const { loadDonationsConfig } = await import("@/lib/billing/donations.server");
+    return loadDonationsConfig();
+  });
+}
 
 /** Publiczna konfiguracja darowizn dla formularza i CTA (bez sekretów). */
-export const getDonationsConfig = createServerFn({ method: "GET" }).handler(async () => {
-  const { loadDonationsConfig } = await import("@/lib/billing/donations.server");
-  return loadDonationsConfig();
-});
+export const getDonationsConfig = createServerFn({ method: "GET" }).handler(
+  async (): Promise<DonationsConfig> => loadConfigCached(),
+);
 
 export interface DonationCheckoutInput {
   environment: "sandbox" | "live";
@@ -100,9 +136,12 @@ export interface DonationCheckoutInput {
 }
 
 /**
- * Otwiera sesję Stripe Embedded Checkout dla darowizny. Endpoint jest publiczny
- * (wpłata nie wymaga konta), więc kwota, waluta i limity są walidowane
- * WYŁĄCZNIE po stronie serwera, a próby są limitowane per IP.
+ * Otwiera sesję osadzonej kasy dla darowizny. Endpoint jest publiczny (wpłata
+ * nie wymaga konta), więc kwota, waluta i limity są walidowane WYŁĄCZNIE po
+ * stronie serwera, a próby limitowane per podmiot (skrót IP albo konto).
+ *
+ * Tożsamość czytamy miękko: zalogowany darczyńca dostaje wpłatę w rejestrze
+ * profilu i status wspierającego, anonimowy - pełną anonimowość.
  */
 export const createDonationCheckout = createServerFn({ method: "POST" })
   .inputValidator((data: DonationCheckoutInput) => {
@@ -116,18 +155,22 @@ export const createDonationCheckout = createServerFn({ method: "POST" })
     return data;
   })
   .handler(async ({ data }) => {
-    const [{ getRequest }, { createDonationSession }] = await Promise.all([
+    const [
+      { getRequest },
+      { createDonationSession },
+      { requestRateSubject },
+      { optionalUserIdFromRequest },
+    ] = await Promise.all([
       import("@tanstack/react-start/server"),
       import("@/lib/billing/donations.server"),
+      import("@/lib/server/rateSubject.server"),
+      import("@/lib/auth/optionalUser.server"),
     ]);
 
-    let rateKey = "unknown-ip";
+    const userId = await optionalUserIdFromRequest();
+    let headers: Headers | null = null;
     try {
-      const req = getRequest();
-      const fwd = req.headers.get("x-forwarded-for");
-      rateKey =
-        req.headers.get("cf-connecting-ip") ??
-        (fwd ? (fwd.split(",")[0]?.trim() ?? "unknown-ip") : "unknown-ip");
+      headers = getRequest()?.headers ?? null;
     } catch {
       /* brak kontekstu HTTP - wspólny kubełek limitu */
     }
@@ -138,8 +181,9 @@ export const createDonationCheckout = createServerFn({ method: "POST" })
       recurring: Boolean(data.recurring),
       donorEmail: data.donorEmail ?? null,
       message: data.message ?? null,
+      userId,
       returnUrl: data.returnUrl,
       locale: normalizeCheckoutLocale(data.locale),
-      rateKey,
+      rateKey: requestRateSubject(headers, userId),
     });
   });
