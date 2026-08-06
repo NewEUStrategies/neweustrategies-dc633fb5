@@ -31,6 +31,7 @@
     "check:sql-tenant-scope": "bun run scripts/check-sql-tenant-scope.ts",
     "check:sql-app-role": "bun run scripts/check-sql-app-role-literals.ts",
     "check:sql-anon-insert": "bun run scripts/check-sql-anon-insert.ts",
+    "check:public-assets": "bun run scripts/check-public-asset-shadowing.ts",
     "check:legacy-payment-refs": "bun run scripts/check-legacy-payment-refs.ts",
     "check:workflow-env-contract": "bun run scripts/check-workflow-env-contract.ts",
     "check:sql-migration-replay": "bun run scripts/check-sql-migration-replay.ts",
