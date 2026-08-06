@@ -51,6 +51,19 @@ export async function edgeTtlCache<T>(
   return data;
 }
 
+/**
+ * Drop one entry for the CURRENT request host. Best-effort by design: the
+ * store is per-isolate, so a write handled by isolate A cannot expire isolate
+ * B's copy - the TTL still bounds staleness everywhere. Use it where an
+ * operator action must be visible immediately in the same session (e.g. the
+ * donations reconciliation button), not as a correctness mechanism.
+ */
+export async function invalidateEdgeTtlCache(key: string): Promise<void> {
+  if (typeof window !== "undefined") return;
+  const scope = (await currentTenantHost()) ?? "no-host";
+  store.delete(`${scope}::${key}`);
+}
+
 /** Test hook: drop every cached entry (all host scopes). */
 export function clearEdgeTtlCache(): void {
   store.clear();
