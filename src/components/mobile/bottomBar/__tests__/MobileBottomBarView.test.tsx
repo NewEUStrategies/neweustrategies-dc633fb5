@@ -139,7 +139,7 @@ describe("MobileBottomBarView - wierność referencji", () => {
     // garb nie ma kształtu z referencji.
     expect(clipPath!.getAttribute("clipPathUnits")).toBe("objectBoundingBox");
     expect(clipPath!.getAttribute("transform")).toContain("scale(0.0049285362247413");
-    expect(container.querySelector("clipPath path")?.getAttribute("d")).toMatch(/^M6\.7,45\.5c/);
+    expect(container.querySelector("clipPath path")?.getAttribute("d")).toMatch(/^M0,45\.5h/);
 
     // Garb odwołuje się dokładnie do tej definicji.
     expect(border!.style.clipPath).toBe(`url(#${clipPath!.id})`);
