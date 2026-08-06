@@ -19,10 +19,13 @@
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import {
+  collectAuthzSnapshotDrift,
   deriveAuthzSnapshot,
+  formatAuthzDriftReport,
   renderAuthzSnapshotModule,
   selectAuthzSnapshot,
 } from "../src/lib/ci/authzGates";
+import { AUTHZ_SNAPSHOT } from "../src/lib/authz/authzSnapshot.generated";
 import { DOCUMENTED_ROLE_GATE_REFS } from "../src/lib/authz/permissionRows";
 import { readAuthzSource } from "./lib/authzSource";
 
@@ -58,9 +61,17 @@ function main(): void {
 
   if (checkOnly) {
     if (current !== rendered) {
+      // Nie tylko "jest nieaktualny": drukujemy CO sie rozjechalo, z podzialem na
+      // zmiane uprawnien i przeniesiona definicje. Sam komunikat "zregeneruj"
+      // kazal recenzentowi diffowac 1000-liniowy artefakt, zeby dowiedziec sie,
+      // czy ktos wlasnie stracil dostep.
+      const drift = collectAuthzSnapshotDrift(AUTHZ_SNAPSHOT, selected);
       console.error(
         `✗ ${OUTPUT} jest nieaktualny wobec supabase/migrations.\n` +
-          "  Uruchom `bun run generate:authz-snapshot` i zacommituj wynik.",
+          formatAuthzDriftReport(drift)
+            .split("\n")
+            .map((line) => `  ${line}`)
+            .join("\n"),
       );
       process.exit(1);
     }

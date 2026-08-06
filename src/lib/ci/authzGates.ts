@@ -66,7 +66,16 @@ export type AuthzSnapshot = AuthzSnapshotModule;
  *
  * `any` = alternatywa (gałąź OR), `all` = twardy warunek (RAISE gdy brak roli).
  */
-const ROLE_ALIAS_ANY: readonly string[] = ["is_staff", "is_super_admin", "can_publish_content"];
+const ROLE_ALIAS_ANY: readonly string[] = [
+  "is_staff",
+  "is_super_admin",
+  "can_publish_content",
+  // 20260806150000: jedyne źródło prawdy dla „kto zmienia weryfikację profilu".
+  // Trigger, RPC panelu, RPC domen weryfikacji i polityka RLS czytają ten sam
+  // predykat, więc zbiory ról tych bramek nie mogą się już rozjechać - a macierz
+  // nadal liczy je z SQL-a, bo alias rozwija się z własnego ciała.
+  "can_manage_profile_verification",
+];
 const ROLE_ALIAS_ALL: readonly string[] = ["assert_admin_tenant"];
 
 /** `has_role(<uid>, 'rola')` - z opcjonalnym rzutowaniem i wyrażeniem w 1. argumencie. */
@@ -496,9 +505,21 @@ export function diffAuthzSnapshots(committed: AuthzSnapshot, derived: AuthzSnaps
   const problems: string[] = [];
 
   if (json(committed.appRoles) !== json(derived.appRoles)) {
-    problems.push(
-      `app_role: snapshot ma [${committed.appRoles.join(", ")}], migracje dają [${derived.appRoles.join(", ")}]`,
-    );
+    const fields: AuthzFieldDrift[] = [
+      {
+        field: "appRoles",
+        severity: "authorization",
+        committed: formatFieldValue(committed.appRoles),
+        derived: formatFieldValue(derived.appRoles),
+      },
+    ];
+    drift.push({
+      kind: "app_roles",
+      severity: "authorization",
+      subject: "app_role",
+      fields,
+      message: `enum app_role rozjechał się: ${describeFields(fields)} (snapshot -> migracje)`,
+    });
   }
 
   const committedGates = new Map(committed.roleGates.map((gate) => [gate.ref, gate]));
@@ -507,29 +528,125 @@ export function diffAuthzSnapshots(committed: AuthzSnapshot, derived: AuthzSnaps
   for (const [ref, gate] of committedGates) {
     const fresh = derivedGates.get(ref);
     if (fresh === undefined) {
-      problems.push(`bramka '${ref}' jest w snapshocie, ale nie ma jej już w migracjach`);
+      drift.push({
+        kind: "gate_removed",
+        severity: "authorization",
+        subject: ref,
+        fields: [],
+        message: `bramka '${ref}' jest w snapshocie, ale nie ma jej już w migracjach`,
+      });
       continue;
     }
     const drift = describeRoleGateDrift(gate, fresh);
     if (drift !== "") problems.push(drift);
   }
+
   for (const ref of derivedGates.keys()) {
-    if (!committedGates.has(ref))
-      problems.push(`bramka '${ref}' jest w migracjach, ale nie w snapshocie`);
+    if (committedGates.has(ref)) continue;
+    drift.push({
+      kind: "gate_added",
+      severity: "authorization",
+      subject: ref,
+      fields: [],
+      message: `bramka '${ref}' jest w migracjach, ale nie w snapshocie`,
+    });
   }
 
-  const committedFeatures = new Map(
-    committed.featureGates.map((gate) => [`${gate.capability}|${gate.ref}`, gate]),
-  );
-  const derivedFeatures = new Map(
-    derived.featureGates.map((gate) => [`${gate.capability}|${gate.ref}`, gate]),
-  );
-  for (const key of committedFeatures.keys()) {
-    if (!derivedFeatures.has(key)) problems.push(`bramka flagi '${key}' zniknęła z migracji`);
+  const featureKey = (gate: FeatureGateEntry): string => `${gate.capability}|${gate.ref}`;
+  const committedFeatures = new Map(committed.featureGates.map((gate) => [featureKey(gate), gate]));
+  const derivedFeatures = new Map(derived.featureGates.map((gate) => [featureKey(gate), gate]));
+
+  for (const [key, gate] of committedFeatures) {
+    const fresh = derivedFeatures.get(key);
+    if (fresh === undefined) {
+      drift.push({
+        kind: "feature_gate_removed",
+        severity: "authorization",
+        subject: key,
+        fields: [],
+        message: `bramka flagi '${key}' zniknęła z migracji`,
+      });
+      continue;
+    }
+    // Zmiana POLA bramki flagi (np. dopisany bypass stafowy) była wcześniej
+    // niewidoczna - porównywaliśmy tylko obecność klucza.
+    const fields = fieldDrift(gate, fresh, FEATURE_FIELD_SEVERITY);
+    if (fields.length === 0) continue;
+    const severity = worstSeverity(fields);
+    drift.push({
+      kind: "feature_gate_changed",
+      severity,
+      subject: key,
+      fields,
+      message:
+        severity === "authorization"
+          ? `bramka flagi '${key}' ${describeAuthorizationChange(fields)}: ${describeFields(fields)} (snapshot -> migracje)`
+          : `bramka flagi '${key}' pochodzi z innej migracji: ${describeFields(fields)} - wystarczy regeneracja snapshotu`,
+    });
   }
+
   for (const key of derivedFeatures.keys()) {
-    if (!committedFeatures.has(key)) problems.push(`bramka flagi '${key}' doszła w migracjach`);
+    if (committedFeatures.has(key)) continue;
+    drift.push({
+      kind: "feature_gate_added",
+      severity: "authorization",
+      subject: key,
+      fields: [],
+      message: `bramka flagi '${key}' doszła w migracjach`,
+    });
   }
 
-  return problems;
+  // Metryki skanu: snapshot z innego stanu `supabase/migrations` jest nieaktualny
+  // nawet wtedy, gdy żadna DOKUMENTOWANA bramka się nie zmieniła. Bez tego test
+  // parytetu przechodził, a bajtowa bramka `check:authz-snapshot` padała - dwa
+  // pomiary tego samego artefaktu nie mogą mówić czegoś innego.
+  const statsFields = fieldDrift(committed.stats, derived.stats, STATS_FIELD_SEVERITY);
+  if (statsFields.length > 0) {
+    drift.push({
+      kind: "stats",
+      severity: "provenance",
+      subject: "stats",
+      fields: statsFields,
+      message: `snapshot pochodzi ze starszego skanu migracji: ${describeFields(statsFields)} - wystarczy regeneracja snapshotu`,
+    });
+  }
+
+  return drift.sort(
+    (a, b) =>
+      SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] || a.subject.localeCompare(b.subject),
+  );
+}
+
+/**
+ * Czytelny diff snapshotów dla komunikatu bramki parytetu - lista komunikatów w
+ * kolejności „najpierw uprawnienia". Pusta lista = snapshot zgadza się z migracjami.
+ */
+export function diffAuthzSnapshots(committed: AuthzSnapshot, derived: AuthzSnapshot): string[] {
+  return collectAuthzSnapshotDrift(committed, derived).map((entry) => entry.message);
+}
+
+/** Czy w dryfie jest cokolwiek, co zmienia krąg uprawnionych. */
+export function hasAuthorizationDrift(drift: readonly AuthzSnapshotDrift[]): boolean {
+  return drift.some((entry) => entry.severity === "authorization");
+}
+
+/**
+ * Raport dla CI: sekcje wg wagi, żeby „zawężenie uprawnień" nigdy nie schowało
+ * się między wpisami o przeniesionej definicji.
+ */
+export function formatAuthzDriftReport(drift: readonly AuthzSnapshotDrift[]): string {
+  if (drift.length === 0) return "Snapshot bramek zgadza się z supabase/migrations.";
+
+  const section = (severity: AuthzDriftSeverity, title: string): string[] => {
+    const entries = drift.filter((item) => item.severity === severity);
+    if (entries.length === 0) return [];
+    return [`${title} (${entries.length}):`, ...entries.map((item) => `  • ${item.message}`)];
+  };
+
+  return [
+    "Snapshot bramek rozjechał się z supabase/migrations.",
+    ...section("authorization", "ZMIANA UPRAWNIEŃ - do rozstrzygnięcia w code review"),
+    ...section("provenance", "PROVENANCE - ten sam krąg uprawnionych, inne miejsce w historii"),
+    "Regeneracja: `bun run generate:authz-snapshot` (i commit wyniku).",
+  ].join("\n");
 }

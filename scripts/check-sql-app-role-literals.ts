@@ -25,6 +25,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { MIGRATIONS_DIR, extractLatestDefinitions, stripSqlComments } from "./lib/sqlMigrations";
+import { stripTsComments } from "./lib/stripComments";
 
 /** Poza migracjami (tam liczy sie stan koncowy funkcji) skanujemy pgTAP i klienta. */
 const SCAN_DIRS = ["supabase/tests", "src"] as const;
@@ -79,6 +80,7 @@ function collectAppRoleValues(): Set<string> {
 function listFiles(dir: string): string[] {
   const out: string[] = [];
   const walk = (current: string): void => {
+    if (SCAN_EXCLUDED_DIRS.some((excluded) => current === excluded)) return;
     for (const entry of readdirSync(current)) {
       if (entry === "node_modules" || entry.startsWith(".")) continue;
       if ((TS_TEST_DIR_SEGMENTS as readonly string[]).includes(entry)) continue;

@@ -26,7 +26,7 @@ const SNAPSHOT: AuthzSnapshotModule = {
       ref: "fn:admin_list_users/0",
       kind: "function",
       object: "admin_list_users",
-      file: "x.sql",
+      file: "20260806150000_profile_verification_authority.sql",
       anyRoles: ["admin"],
       allRoles: [],
       tenantRef: "caller",
@@ -40,7 +40,7 @@ const SNAPSHOT: AuthzSnapshotModule = {
       ref: "fn:has_content_access/2",
       kind: "function",
       object: "has_content_access",
-      file: "x.sql",
+      file: "20260806150000_profile_verification_authority.sql",
       bypassRoles: [],
       tenantRef: "row",
     },
@@ -111,6 +111,20 @@ describe("PermissionMatrixTable", () => {
     const { getByText } = renderMatrix();
     expect(getByText("Lista użytkowników obszaru roboczego")).toBeInTheDocument();
     expect(getByText("admin_list_users")).toBeInTheDocument();
+  });
+
+  // Provenance zamyka pytanie „od kiedy i czym": migracje są forward-only, więc
+  // prawem jest OSTATNIA definicja bramki. To pole (`file`) było w snapshocie od
+  // początku i właśnie jego dryf dawał w bramce parytetu komunikat „bramka
+  // rozjechała się" z dwoma identycznymi obiektami - teraz jest widoczne tam,
+  // gdzie ktoś czyta uprawnienia.
+  it("pokazuje provenance bramki: datę migracji w chipie i pełny plik w tooltipie", () => {
+    const { getByRole } = renderMatrix();
+    const row = getByRole("row", { name: /Lista użytkowników obszaru roboczego/ });
+    expect(within(row).getByText("2026-08-06")).toBeInTheDocument();
+    expect(
+      within(row).getByTitle(/20260806150000_profile_verification_authority\.sql/),
+    ).toBeInTheDocument();
   });
 
   it("odróżnia 'brak' (bramka nie przepuszcza) od 'nie dotyczy' (inna oś)", () => {

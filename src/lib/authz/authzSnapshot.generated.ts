@@ -11,6 +11,7 @@ import type { AuthzSnapshotModule } from "@/lib/authz/authzSnapshotTypes";
 export const AUTHZ_SNAPSHOT: AuthzSnapshotModule = {
   appRoles: ["admin","author","editor","super_admin","user"],
   roleGates: [
+    {"ref":"fn:admin_assert_verification_admin/0","kind":"function","object":"admin_assert_verification_admin","file":"20260806150000_profile_verification_authority.sql","anyRoles":["admin","super_admin"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:admin_community_stats/0","kind":"function","object":"admin_community_stats","file":"20260713200000_chat_admin_tenant_scope_fix.sql","anyRoles":["admin","editor","super_admin"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:admin_get_user_consent/1","kind":"function","object":"admin_get_user_consent","file":"20260715214120_2fd9eeb4-46f1-4217-92d0-37dd3e99727a.sql","anyRoles":["admin","super_admin"],"allRoles":[],"tenantRef":"none","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:admin_get_user/1","kind":"function","object":"admin_get_user","file":"20260703173228_0fa8ea9c-e96f-47a1-b7ad-b6f2ed3721c9.sql","anyRoles":["admin","super_admin"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
