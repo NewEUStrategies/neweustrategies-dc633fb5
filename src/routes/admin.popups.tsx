@@ -34,11 +34,7 @@ import {
 import { Copy, Pencil, Plus, Trash2 } from "@/lib/lucide-shim";
 import { usePopupsAdmin, type BuilderPopup, type PopupSettings } from "@/lib/builder/popups";
 import { SignupPopupContentSection } from "@/components/admin/popups/SignupPopupContentSection";
-import {
-  useNewsletterSettings,
-  useSaveNewsletterSettings,
-} from "@/hooks/useNewsletterSettings";
-
+import { useNewsletterSettings, useSaveNewsletterSettings } from "@/hooks/useNewsletterSettings";
 
 export const Route = createFileRoute("/admin/popups")({
   component: PopupsLayout,
@@ -137,7 +133,6 @@ function SignupPopupRow() {
 }
 
 function PopupsList() {
-
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const popups = usePopupsAdmin();
@@ -247,7 +242,6 @@ function PopupsList() {
           {t("admin.popups.loading", { defaultValue: "Ładowanie…" })}
         </p>
       ) : (
-
         <div className="border border-border rounded-lg overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
@@ -357,7 +351,6 @@ function PopupsList() {
       <div id="signup-popup-editor" className="scroll-mt-24">
         <SignupPopupContentSection />
       </div>
-
 
       <Dialog open={createOpen} onOpenChange={(o) => !creating && setCreateOpen(o)}>
         <DialogContent className="sm:max-w-md">

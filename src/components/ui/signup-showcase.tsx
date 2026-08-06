@@ -168,7 +168,6 @@ export function SignupShowcase({
           minHeight: "var(--nl-grid-h)",
         }}
       >
-
         {/* Wygaszenia SIEDZĄ POD zdjęciami (z-0, mozaika z-10): mają miękko
             wtapiać krawędzie panelu w tło, a nie kłaść kolorową płachtę na
             kadrach. */}

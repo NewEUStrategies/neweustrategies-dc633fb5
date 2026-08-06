@@ -35,14 +35,7 @@ function GridPattern({
       )}
     >
       <defs>
-        <pattern
-          id={id}
-          width={width}
-          height={height}
-          patternUnits="userSpaceOnUse"
-          x={x}
-          y={y}
-        >
+        <pattern id={id} width={width} height={height} patternUnits="userSpaceOnUse" x={x} y={y}>
           <path d={`M.5 ${height}V.5H${width}`} fill="none" strokeDasharray={strokeDasharray} />
         </pattern>
       </defs>

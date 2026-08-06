@@ -324,7 +324,8 @@ export async function recordRecurringDonationPayment(
   }
 
   const currency = payment.currency ? payment.currency.toUpperCase() : anchor.currency;
-  const amountCents = payment.amountCents && payment.amountCents > 0 ? payment.amountCents : anchor.amount_cents;
+  const amountCents =
+    payment.amountCents && payment.amountCents > 0 ? payment.amountCents : anchor.amount_cents;
   const donorEmail = payment.donorEmail?.toLowerCase() ?? anchor.donor_email;
 
   if (anchor.status === "pending") {

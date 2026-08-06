@@ -8,7 +8,6 @@ import { PaymentHistoryCard } from "@/components/billing/PaymentHistoryCard";
 import { InvoiceLookupCard } from "@/components/billing/InvoiceLookupCard";
 import { HowPaymentsWorkCard } from "@/components/billing/HowPaymentsWorkCard";
 
-
 export const Route = createFileRoute("/profile/payments")({
   component: PaymentsHistoryPage,
 });
@@ -24,7 +23,6 @@ function PaymentsHistoryPage() {
       <PaymentHistoryCard showExport />
       <InvoiceLookupCard />
       <HowPaymentsWorkCard />
-
     </div>
   );
 }

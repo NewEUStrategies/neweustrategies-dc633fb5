@@ -10,10 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
 import { billingKeys } from "@/lib/billing/keys";
 import { fetchMyStripeSubscription } from "@/lib/billing/subscriptionQueries";
-import {
-  deriveSubscriptionStatus,
-  type SubscriptionTone,
-} from "@/lib/billing/subscriptionStatus";
+import { deriveSubscriptionStatus, type SubscriptionTone } from "@/lib/billing/subscriptionStatus";
 import type { UserSubscriptionRow } from "@/lib/billing/types";
 import { getStripeEnvironmentSafe, isPaymentsConfigured } from "@/lib/stripe";
 import { getMyPaymentMethod } from "@/utils/payments.functions";
@@ -90,9 +87,7 @@ export function SubscriptionStatusCard({ subscription }: Props) {
       </CardHeader>
       <CardContent className="grid gap-4 sm:grid-cols-3">
         <div>
-          <p className="text-xs text-muted-foreground">
-            {t("profile.planPage.statusCard.status")}
-          </p>
+          <p className="text-xs text-muted-foreground">{t("profile.planPage.statusCard.status")}</p>
           <p className="mt-1 flex flex-wrap items-center gap-2">
             <Badge className={TONE_CLASS[view.tone]}>
               {t(`profile.planPage.subStatus.${view.key}`)}
@@ -130,9 +125,7 @@ export function SubscriptionStatusCard({ subscription }: Props) {
         </div>
 
         <div>
-          <p className="text-xs text-muted-foreground">
-            {t("profile.planPage.statusCard.method")}
-          </p>
+          <p className="text-xs text-muted-foreground">{t("profile.planPage.statusCard.method")}</p>
           {methodQ.isPending && isPaymentsConfigured() ? (
             <span className="mt-1 block h-5 w-28 animate-pulse rounded bg-muted" />
           ) : method ? (

@@ -25,13 +25,7 @@ const EVENT_META: Record<
   error: { icon: AlertTriangle, pl: "Błędy", en: "Errors" },
 };
 
-const ORDER: NewsletterPopupEventName[] = [
-  "impression",
-  "open",
-  "submit",
-  "success",
-  "error",
-];
+const ORDER: NewsletterPopupEventName[] = ["impression", "open", "submit", "success", "error"];
 
 export function PopupEventsPanel() {
   const { i18n } = useTranslation();
@@ -44,10 +38,7 @@ export function PopupEventsPanel() {
     queryFn: () => fetchStats({ data: { days } }),
   });
 
-  const pct = useMemo(
-    () => (value: number) => `${(value * 100).toFixed(1)}%`,
-    [],
-  );
+  const pct = useMemo(() => (value: number) => `${(value * 100).toFixed(1)}%`, []);
 
   return (
     <section className="bg-card border border-border rounded-xl p-5 space-y-4">
@@ -119,10 +110,7 @@ export function PopupEventsPanel() {
               label={isPl ? "Skuteczność zapisu" : "Signup success rate"}
               value={pct(data.successRate)}
             />
-            <Ratio
-              label={isPl ? "Udział błędów" : "Error share"}
-              value={pct(data.errorRate)}
-            />
+            <Ratio label={isPl ? "Udział błędów" : "Error share"} value={pct(data.errorRate)} />
           </div>
 
           {data.days.length > 0 && (
@@ -143,10 +131,7 @@ export function PopupEventsPanel() {
                     <tr key={row.day} className="border-t border-border">
                       <td className="py-2 pr-3 text-foreground">{row.day}</td>
                       {ORDER.map((key) => (
-                        <td
-                          key={key}
-                          className="py-2 px-3 text-right tabular-nums text-foreground"
-                        >
+                        <td key={key} className="py-2 px-3 text-right tabular-nums text-foreground">
                           {row.counts[key]}
                         </td>
                       ))}
@@ -158,9 +143,7 @@ export function PopupEventsPanel() {
           )}
           {data.days.length === 0 && (
             <p className="text-sm text-muted-foreground">
-              {isPl
-                ? "Brak zdarzeń w wybranym okresie."
-                : "No events in the selected period."}
+              {isPl ? "Brak zdarzeń w wybranym okresie." : "No events in the selected period."}
             </p>
           )}
         </>

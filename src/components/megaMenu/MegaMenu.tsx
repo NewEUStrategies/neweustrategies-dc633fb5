@@ -84,7 +84,6 @@ export interface MegaMenuConfig {
   columns?: MegaMenuColumn[];
 }
 
-
 interface Props {
   config: MegaMenuConfig;
   lang: MegaMenuLang;
@@ -241,7 +240,6 @@ export const MegaMenu = memo(function MegaMenu({ config, lang, mobile = false }:
           )}
         </div>
       )}
-
     </div>
   );
 });

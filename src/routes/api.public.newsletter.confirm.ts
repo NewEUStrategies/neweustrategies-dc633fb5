@@ -127,7 +127,6 @@ export const Route = createFileRoute("/api/public/newsletter/confirm")({
         }
 
         return Response.json({ ok: true });
-
       },
     },
   },

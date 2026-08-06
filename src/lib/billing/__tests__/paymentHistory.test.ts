@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  historyFileName,
-  mergePaymentHistory,
-  paymentHistoryToCsv,
-} from "../paymentHistory";
+import { historyFileName, mergePaymentHistory, paymentHistoryToCsv } from "../paymentHistory";
 import type { BillingDocument, PaymentOrder } from "../types";
 
 function order(patch: Partial<PaymentOrder> = {}): PaymentOrder {
@@ -91,7 +87,6 @@ describe("paymentHistoryToCsv", () => {
     );
   });
 
-
   it("quotes values containing the separator", () => {
     const csv = paymentHistoryToCsv(
       mergePaymentHistory([], [document({ number: 'FV;2026 "A"' })]),
@@ -135,26 +130,30 @@ describe("mergePaymentHistory discounts and gifts", () => {
   });
 
   it("adds access grants as gift rows and skips revoked ones", () => {
-    const rows = mergePaymentHistory([], [], [
-      {
-        id: "g1",
-        tierKey: "vip",
-        source: "expert",
-        note: null,
-        startsAt: "2026-01-01T00:00:00.000Z",
-        expiresAt: null,
-        revokedAt: null,
-      },
-      {
-        id: "g2",
-        tierKey: "plus",
-        source: "manual",
-        note: null,
-        startsAt: "2026-01-02T00:00:00.000Z",
-        expiresAt: null,
-        revokedAt: "2026-02-01T00:00:00.000Z",
-      },
-    ]);
+    const rows = mergePaymentHistory(
+      [],
+      [],
+      [
+        {
+          id: "g1",
+          tierKey: "vip",
+          source: "expert",
+          note: null,
+          startsAt: "2026-01-01T00:00:00.000Z",
+          expiresAt: null,
+          revokedAt: null,
+        },
+        {
+          id: "g2",
+          tierKey: "plus",
+          source: "manual",
+          note: null,
+          startsAt: "2026-01-02T00:00:00.000Z",
+          expiresAt: null,
+          revokedAt: "2026-02-01T00:00:00.000Z",
+        },
+      ],
+    );
     expect(rows).toHaveLength(1);
     expect(rows[0].kind).toBe("grant");
     expect(rows[0].gift).toBe(true);

@@ -303,7 +303,6 @@ export function buildRootHead(
   ];
   if (alt) meta.push({ property: "og:image:alt", content: alt });
   return meta;
-
 }
 
 export interface ImagePreloadInput {

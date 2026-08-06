@@ -142,6 +142,22 @@ jobs:
       - name: SQL app_role literal invariant
         run: bun run check:sql-app-role
 
+      # Blocking parity gate: the /admin/permissions matrix is GENERATED from the
+      # authorization gates found in migrations, so a stale snapshot makes the page
+      # lie again - exactly what the hand-written table did before. The script was
+      # in package.json but never wired here, and the snapshot drifted within days:
+      # 20260806094104 silently dropped 'super_admin' from profiles_guard_verification
+      # (has_role matches the role EXACTLY - no hierarchy), and only the unit test
+      # caught it, turning `main` red. Gate it where it belongs.
+      - name: Authorization snapshot parity
+        run: bun run check:authz-snapshot
+
+      # Blocking parity gate for the consumer side of that snapshot: role sets,
+      # dangling references, new enum values and the enforced/decorative flag of
+      # every capability. Complements the snapshot check above (data vs. renderer).
+      - name: Permissions matrix parity
+        run: bun run check:permissions-parity
+
       # Blocking security gate: fails if any table accepts a PERMISSIVE anonymous
       # INSERT (anon/public role + WITH CHECK true), or if an intake table
       # (contact_messages, crm_consent_log, related_post_clicks,
