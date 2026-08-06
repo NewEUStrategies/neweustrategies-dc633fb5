@@ -186,7 +186,7 @@ export function PaymentHistoryCard({ limit, showExport = false, showAllLink = fa
               <TableBody>
                 {rows.map((row) => (
                   <TableRow key={row.id}>
-                    <TableCell className="font-mono text-xs">{row.number}</TableCell>
+                    <TableCell className="text-xs">{row.number}</TableCell>
                     <TableCell className="whitespace-nowrap">{fmtDate(row.date)}</TableCell>
                     <TableCell>{kindLabel(row.kind)}</TableCell>
                     <TableCell className="whitespace-nowrap text-right">

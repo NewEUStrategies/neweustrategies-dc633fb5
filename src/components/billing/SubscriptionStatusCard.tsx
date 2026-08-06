@@ -139,7 +139,7 @@ export function SubscriptionStatusCard({ subscription }: Props) {
             <p className="mt-1 flex flex-wrap items-center gap-2 text-sm font-medium">
               <CreditCard className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
               <span className="uppercase">{method.brand ?? method.type}</span>
-              {method.last4 && <span className="font-mono">•••• {method.last4}</span>}
+              {method.last4 && <span>•••• {method.last4}</span>}
               {method.expMonth && method.expYear && (
                 <span className="text-xs text-muted-foreground">
                   {t("profile.planPage.statusCard.expires", {

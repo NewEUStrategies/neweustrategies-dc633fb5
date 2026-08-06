@@ -12,6 +12,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ArrowDownRight, ArrowUpRight, Loader2 } from "lucide-react";
 import { billingKeys } from "@/lib/billing/keys";
+import { useAuth } from "@/hooks/useAuth";
 import { changeMySubscriptionPlan, fetchActivePlans } from "@/lib/billing/queries";
 import { buildPlanSwitchBoard, type PlanSwitchOption } from "@/lib/billing/planSwitch";
 import { formatMoney, planName, type AccessPlan, type UserSubscriptionRow } from "@/lib/billing/types";
@@ -38,6 +39,7 @@ interface PlanSwitchBoardProps {
 
 export function PlanSwitchBoard({ subscription }: PlanSwitchBoardProps) {
   const { t, i18n } = useTranslation();
+  const { isAdmin } = useAuth();
   const lang = i18n.language;
   const qc = useQueryClient();
 
@@ -82,9 +84,12 @@ export function PlanSwitchBoard({ subscription }: PlanSwitchBoardProps) {
               aria-hidden="true"
             />
             <span className="truncate text-sm font-semibold">{planName(option.plan, lang)}</span>
-            <Badge variant="outline" className="font-mono text-[11px]">
-              {option.lookupKey}
-            </Badge>
+            {/* Techniczny `lookup_key` katalogu widzą wyłącznie admin/super_admin. */}
+            {isAdmin && (
+              <Badge variant="outline" className="text-[11px]">
+                {option.lookupKey}
+              </Badge>
+            )}
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
             {formatMoney(option.plan.price_cents, option.plan.currency, lang)}{" "}
