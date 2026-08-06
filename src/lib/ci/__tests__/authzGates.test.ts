@@ -381,6 +381,15 @@ describe("zaznaczenie i render snapshotu", () => {
 // „bramka rozjechała się: {A} vs {A}" z dwoma IDENTYCZNYMI obiektami i wrzucała
 // przeniesioną definicję do jednego worka z realnym zawężeniem uprawnień.
 describe("dryf snapshotu bramek", () => {
+  // Snapshot bazowy odtworzony ze SQL-a (ten sam materiał, co w bloku
+  // „zaznaczenie i render snapshotu") - potrzebny w regresji o polu `file`.
+  const built = deriveAuthzSnapshot(
+    source([
+      fn("admin_list_users", "SELECT public.has_role(auth.uid(),'admin')"),
+      fn("other_gate", "SELECT public.has_role(auth.uid(),'editor')"),
+    ]),
+  );
+
   const gate = (over: Partial<RoleGateEntry> = {}): RoleGateEntry => ({
     ref: "fn:profiles_guard_verification/0",
     kind: "function",
