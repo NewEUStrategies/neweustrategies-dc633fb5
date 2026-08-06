@@ -875,7 +875,7 @@ export const en = {
       llmsEnabled: "Serve /llms.txt",
       aiCrawlers: "AI crawlers",
       aiCrawlersHint:
-        "Search crawlers cite content in AI answers; training crawlers only train models.",
+        "Search crawlers cite content in AI answers; training crawlers only train models. Turning a group off adds its disallow block to /robots.txt.",
       aiSearchAllowed: "Allow AI search crawlers (citations in answers - recommended)",
       aiTrainingAllowed: "Allow training crawlers (model training)",
       sectionEntity: "Brand and structured data",

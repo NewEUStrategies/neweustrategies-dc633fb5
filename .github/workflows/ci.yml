@@ -56,8 +56,20 @@ jobs:
       # i klaster hreflang PL/EN oraz markup schema.org Q&A. Uruchamiany osobno,
       # żeby regresja SEO była widoczna jako własny, nazwany krok w CI (te same
       # findingi wracały wcześniej z audytów zewnętrznych).
+      #
+      # W tym samym kroku jedzie bramka precedencji assetów: plik statyczny z
+      # `public/` nie może przesłaniać trasy serwerowej. Tak umarła cała logika
+      # /robots.txt - zacommitowany `public/robots.txt` wygrywał z workerem, więc
+      # aliasy hostingu były zaproszone do indeksowania, a news sitemap nie była
+      # ogłoszona nigdzie. Testy jednostkowe trasy przechodziły, bo testowały kod,
+      # którego nikt nie wykonywał.
       - name: SEO head + schema contract
-        run: bunx vitest run src/lib/seo/__tests__ src/routes/-sitemap.xml.test.ts
+        run: |
+          bunx vitest run \
+            src/lib/seo/__tests__ \
+            src/routes/-sitemap.xml.test.ts \
+            src/lib/ci/__tests__/staticAssetShadowing.test.ts \
+            src/lib/server/__tests__/robotsPolicy.test.ts
 
       # Blokująca bramka i18n: każdy klucz bramkowanych powierzchni (bloki
       # Gutenberga, widgety buildera, raport porównawczy) musi mieć wersję PL

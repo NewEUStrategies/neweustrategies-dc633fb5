@@ -146,3 +146,28 @@ export function isNonCanonicalPublicHost(rawHost: string | null | undefined): bo
     envLegacyHostSuffixes.some((suffix) => host.endsWith(suffix))
   );
 }
+
+/**
+ * Origin, na którym powierzchnie crawlerowe PUBLIKUJĄ adresy dla danego hosta.
+ *
+ * JEDNA reguła dla mapy strony i dla robots.txt - inaczej sitemapa emituje
+ * adresy na jednym originie, a robots.txt ogłasza tę samą mapę pod innym
+ * (Search Console traktuje to jako mapę spoza właściwości i ją odrzuca).
+ *
+ *   * host kanoniczny marki i każdy jego alias (hosting, domena legacy) -
+ *     origin kanoniczny: aliasy dostają 301, więc nie wolno publikować na nich
+ *     adresów, choćby żądanie przyszło właśnie tam;
+ *   * domena własna tenanta (i host podglądowy) - jej WŁASNY origin: ten host
+ *     serwuje swój serwis i nie jest kanonizowany na markę.
+ */
+export function crawlerPublishOrigin(
+  rawHost: string | null | undefined,
+  proto: string = "https",
+): string {
+  const host = normalizeHost(rawHost);
+  if (!host) return "";
+  if (CANONICAL_SITE_HOSTS.has(host) || isNonCanonicalPublicHost(host)) {
+    return CANONICAL_SITE_ORIGIN;
+  }
+  return `${proto}://${host}`;
+}
