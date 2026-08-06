@@ -23,6 +23,7 @@ import {
   useResolveExpertRequest,
   type ExpertRequestRow,
 } from "@/lib/chat/useExpertRequests";
+import { expertRequestErrorI18nKey } from "@/lib/chat/expertRequestErrors";
 import { ensureI18n as ensureExpertRequestI18n } from "@/lib/i18n-expert-request";
 
 export const Route = createFileRoute("/admin/expert-requests")({
@@ -49,8 +50,8 @@ function AdminExpertRequests() {
     try {
       const res = await resolve.mutateAsync({ requestId: row.id, action });
       toast.success(t(`expertRequest.status.${res?.status ?? action}`));
-    } catch {
-      toast.error(t("expertRequest.error.generic"));
+    } catch (error) {
+      toast.error(t(expertRequestErrorI18nKey(error)));
     }
   }
 
