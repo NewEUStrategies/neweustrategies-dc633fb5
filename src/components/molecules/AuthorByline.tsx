@@ -95,8 +95,20 @@ export function AuthorByline({
   //     ani ciasny kontener nie zmienią realnych pikseli.
   // Bez tego ustawienie w panelu było „dekoracyjne": zmieniało treść, a nie obraz.
   const exempt = { "data-typography-exempt": "" } as const;
-  const textStyle: CSSProperties = { fontSize: `${display.nameSizePx}px`, lineHeight: 1.35 };
-  const avatarStyle: CSSProperties = {
+  // SKALOWANIE DESKTOP (>= 768 px): mobile trzyma wartości ustawione w panelu,
+  // a desktop dostaje proporcjonalnie większy byline. Dla kontraktu domyślnego
+  // (12 px / 20 px) daje to dokładnie 16 px czcionki i 24 px zdjęcia.
+  // Wartości jadą jako custom properties, bo media query nie istnieje w stylu
+  // inline - reguły `@media` żyją w `src/styles.css` i mają `!important`,
+  // żeby wygrać z warstwą typografii widgetu.
+  const nameSizeDesktop = Math.round((display.nameSizePx * 16) / AUTHOR_NAME_SIZE_PX_DEFAULT);
+  const avatarSizeDesktop = Math.round((display.avatarSizePx * 24) / AUTHOR_AVATAR_SIZE_PX_DEFAULT);
+  const textStyle: CSSProperties & Record<string, string | number> = {
+    fontSize: `${display.nameSizePx}px`,
+    lineHeight: 1.35,
+    "--abl-fs-desktop": `${nameSizeDesktop}px`,
+  };
+  const avatarStyle: CSSProperties & Record<string, string | number> = {
     width: display.avatarSizePx,
     height: display.avatarSizePx,
     minWidth: display.avatarSizePx,
@@ -105,7 +117,10 @@ export function AuthorByline({
     maxHeight: display.avatarSizePx,
     borderRadius: display.avatarRadiusPx,
     flex: "0 0 auto",
+    "--abl-av-desktop": `${avatarSizeDesktop}px`,
+    "--abl-av-fs-desktop": `${Math.round(avatarSizeDesktop * 0.55)}px`,
   };
+
 
   const avatar = display.showAvatar ? (
     safeAvatar ? (
