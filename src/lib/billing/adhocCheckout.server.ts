@@ -150,6 +150,8 @@ export interface PlanCheckoutSessionInput {
    * zostaje obciążona od razu, mimo że plan i cennik obiecują okres próbny.
    */
   trialDays?: number;
+  /** Ustawienia checkoutu tenantu (kupony, VAT, NIP, faktura). */
+  settings?: CheckoutSettings;
 }
 
 /**
