@@ -67,6 +67,16 @@ export const expertRequestPl = {
       received: "Otrzymane",
       empty: "Brak wiadomości w tej skrzynce.",
     },
+    inbox: {
+      tab: "Zapytania",
+      title: "Zapytania z formularzy",
+      empty: "Brak zapytań. Gdy ktoś wypełni formularz zapytania do Ciebie, pojawi się tutaj.",
+      more: "Pokaż szczegóły",
+      less: "Ukryj szczegóły",
+      questions: "Pytania",
+      reply: "Odpowiedz w czacie",
+      openedToast: "Rozmowa otwarta - odpowiedz w czacie.",
+    },
     actions: {
       approve: "Otwórz rozmowę",
       decline: "Odrzuć",
@@ -160,6 +170,16 @@ export const expertRequestEn = {
       sent: "Sent",
       received: "Received",
       empty: "This inbox is empty.",
+    },
+    inbox: {
+      tab: "Requests",
+      title: "Form requests",
+      empty: "No requests yet. When someone submits a request to you, it shows up here.",
+      more: "Show details",
+      less: "Hide details",
+      questions: "Questions",
+      reply: "Reply in chat",
+      openedToast: "Conversation opened - reply in chat.",
     },
     actions: {
       approve: "Open conversation",
