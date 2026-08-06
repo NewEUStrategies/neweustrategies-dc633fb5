@@ -168,6 +168,37 @@ eksport przy tej zmianie.
 Bramki po zmianie: `check:bundle` ✓, `check:chunks` (graf acykliczny) ✓,
 `check:entry-purity` ✓, `check:chunk-parity` ✓.
 
+## 9. Największa pozostała dźwignia pierwszego malowania - zmierzona, NIE wdrożona
+
+Ten sam pomiar wskazał kandydata dużo grubszego niż karuzela, ale z realnym
+ryzykiem, którego nie wolno wziąć w ciemno. Zapisuję liczby, żeby decyzja miała
+podstawę, a nie przeczucie.
+
+**`node-html-parser` jedzie do PRZEGLĄDAREK: 201.7 kB przed minifikacją,
+8.1 % chunku wejściowego** (potwierdzone też w samym artefakcie - w zminifikowanym
+`assets/index-*.js` siedzą wewnętrzne symbole parsera). Sam pakiet waży 62.8 kB
+w gzipie, czyli mówimy o rzędzie kilkudziesięciu kB na KAŻDYM pierwszym wejściu.
+
+Skąd się tam bierze - i dlaczego to NIE jest zwykły przeciek serwerowego kodu:
+
+- `lib/sanitize.ts` istotnie odcina gałąź SSR przez `import.meta.env.SSR`,
+- ale `lib/builder/normalizeRichHtml.ts` importuje `parse` **bezpośrednio**,
+  a używa go `RichHtmlView` - publiczny renderer widgetu rich-text,
+- normalizacja jest wołana **także w przeglądarce**, bo klient dostaje z cache'u
+  RAW HTML i musi wyprodukować dokładnie ten sam wynik co serwer. Wycięcie jej
+  po stronie klienta dałoby natychmiastowy hydration mismatch na każdej stronie
+  z treścią bogatą - czyli lekarstwo gorsze od choroby.
+
+Poprawne wdrożenie to implementacja normalizacji na natywnym DOM (`DOMParser`,
+zero zależności) **z dowodem równoważności** wobec wariantu na node-html-parser:
+korpus HTML-a z realnych wpisów (import WordPress/Elementor), test różnicowy
+uruchamiający oba warianty na każdej próbce i porównujący wynik bajt w bajt.
+Bez takiego dowodu zmiana wymienia 60 kB na klasę błędów hydratacji, których
+nie widać w testach jednostkowych.
+
+Szacowana nagroda: ~10 % chunku wejściowego. Szacowany koszt: osobne wdrożenie
+z korpusem i testem różnicowym - nie doklejka do tego commita.
+
 ---
 
 ## Pliki
