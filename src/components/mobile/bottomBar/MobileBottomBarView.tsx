@@ -197,7 +197,25 @@ export function MobileBottomBarView({
           className="mbb__border"
           ref={borderRef}
           style={{ clipPath: `url(#${clipId})` }}
-        />
+        >
+          {/* Obramowanie garbu - ta sama linia co bottom bar. Ścieżka jest
+              identyczna z wycinkiem clip-path; pół grubości stroke pada wewnątrz
+              widocznego kształtu, dając 1 px ciągłej krawędzi. */}
+          <svg
+            className="mbb__border-stroke"
+            viewBox="0 0 202.9 45.5"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <path
+              d={CLIP_PATH_D}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
+        </span>
       </ul>
     </nav>
   );
