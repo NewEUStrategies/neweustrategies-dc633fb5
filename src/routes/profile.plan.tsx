@@ -30,7 +30,7 @@ export const Route = createFileRoute("/profile/plan")({
 function PlanPage() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
-  const { session } = useAuth();
+  const { session, isAdmin } = useAuth();
   const uid = session?.user?.id;
 
   const subQ = useQuery({
