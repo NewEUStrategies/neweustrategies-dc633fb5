@@ -18,6 +18,7 @@ import type { CSSProperties } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { MobileBottomBarView } from "@/components/mobile/bottomBar/MobileBottomBarView";
+import { useAuth } from "@/hooks/useAuth";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import {
   MOBILE_BOTTOM_BAR_DEFAULTS,
@@ -109,9 +110,16 @@ function useReservedSpace(enabled: boolean, offset: number): (height: number) =>
   );
 }
 
-/** Kontener podpięty pod site_settings + routing (montowany w SiteChrome). */
+/**
+ * Kontener podpięty pod site_settings + routing (montowany w SiteChrome).
+ *
+ * Pasek jest skrótem do przestrzeni użytkownika (sieć, wiadomości, zapisane,
+ * profil), więc dla gościa nie ma czego skracać - renderujemy go WYŁĄCZNIE dla
+ * zalogowanych. Brak sesji = brak paska i brak rezerwacji miejsca na dole.
+ */
 export function MobileBottomBar() {
   const { i18n } = useTranslation();
+  const { session } = useAuth();
   const config = useSiteSetting<MobileBottomBarConfig>(
     MOBILE_BOTTOM_BAR_SETTINGS_KEY,
     MOBILE_BOTTOM_BAR_DEFAULTS,
@@ -119,7 +127,7 @@ export function MobileBottomBar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   const items = visibleBottomBarItems(config);
-  const active = config.enabled && items.length > 0;
+  const active = Boolean(session) && config.enabled && items.length > 0;
   const offset = clampOffset(config.offset_bottom);
 
   const hidden = useHideOnScroll(active && config.hide_on_scroll);
