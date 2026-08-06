@@ -6781,9 +6781,9 @@ html {
    .menu__border -> .mbb__border, .icon -> .mbb__icon, .svg-container ->
    .mbb__clip. Zmienne --bgColorItem i --timeOut zachowują oryginalne nazwy.
 
-   Wymiary referencji są w `em` przy podstawie 10 px (4.2em koła = 42 px,
-   2.6em ikony = 26 px, 10.9em garbu = 109 px). Bazę niesie `.mbb` jako
-   0.625rem, więc skala nadal reaguje na powiększenie czcionki w systemie.
+   Wymiary referencji są w `em` przy podstawie ~9.2 px (4.2em koła = ~39 px,
+   2.6em ikony = ~24 px, 10.9em garbu = ~100 px). Bazę niesie `.mbb` jako
+   0.575rem, więc skala nadal reaguje na powiększenie czcionki w systemie.
 
    Tryb jasny/ciemny: komponent podaje OBA warianty każdego koloru
    (--mbb-active-light / --mbb-active-dark, --bgColorItem / --bgColorItem-dark),
