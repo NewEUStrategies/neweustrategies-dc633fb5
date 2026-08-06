@@ -142,9 +142,7 @@ export function ConsentAuditSummary() {
       </div>
 
       {/* Dziennik decyzji */}
-      <h4 className="mt-6 mb-2 text-sm font-medium">
-        {t("adminConsentAudit.decisions.title")}
-      </h4>
+      <h4 className="mt-6 mb-2 text-sm font-medium">{t("adminConsentAudit.decisions.title")}</h4>
       <div className="overflow-x-auto rounded-lg border border-border">
         <table className="w-full min-w-[820px] text-sm">
           <thead className="bg-muted/40 text-xs text-muted-foreground">

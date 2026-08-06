@@ -25,10 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ChangePlanCard } from "@/components/billing/ChangePlanCard";
-import {
-  SubscriptionCard,
-  useMySubscriptionProvider,
-} from "@/components/billing/SubscriptionCard";
+import { SubscriptionCard, useMySubscriptionProvider } from "@/components/billing/SubscriptionCard";
 import { RetentionDialog } from "@/components/billing/RetentionDialog";
 import { CustomerPortalButton } from "@/components/billing/CustomerPortalButton";
 import { SyncBillingButton } from "@/components/billing/SyncBillingButton";
@@ -253,7 +250,6 @@ export function SubscriptionManagerSection() {
                 <CustomerPortalButton size="default" />
                 {/* Ratunek na spóźniony webhook: pobiera stan wprost od operatora. */}
                 <SyncBillingButton size="default" />
-
 
                 {!data.canceled_at && (
                   <>

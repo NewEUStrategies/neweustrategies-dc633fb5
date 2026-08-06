@@ -17,12 +17,7 @@ const newLink = (): CookieBannerLink => ({
   label_en: "",
 });
 
-export function CookieBannerBrandingSection({
-  logo,
-  links,
-  onLogoChange,
-  onLinksChange,
-}: Props) {
+export function CookieBannerBrandingSection({ logo, links, onLogoChange, onLinksChange }: Props) {
   const setLink = (id: string, patch: Partial<CookieBannerLink>) =>
     onLinksChange(links.map((l) => (l.id === id ? { ...l, ...patch } : l)));
 
@@ -51,9 +46,7 @@ export function CookieBannerBrandingSection({
             value={logo.size}
             min={24}
             max={72}
-            onChange={(e) =>
-              onLogoChange({ ...logo, size: Number(e.currentTarget.value) || 36 })
-            }
+            onChange={(e) => onLogoChange({ ...logo, size: Number(e.currentTarget.value) || 36 })}
           />
         </Field>
       </section>

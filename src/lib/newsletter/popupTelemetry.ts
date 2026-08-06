@@ -4,7 +4,10 @@
 // success w obrębie jednej wizyty bez cookie i bez identyfikatora osoby.
 // Wysyłka jest fire-and-forget: żaden błąd telemetrii nie może zablokować
 // zapisu do newslettera.
-import { logNewsletterPopupEvent, type NewsletterPopupEventName } from "@/lib/newsletter-popup-events.functions";
+import {
+  logNewsletterPopupEvent,
+  type NewsletterPopupEventName,
+} from "@/lib/newsletter-popup-events.functions";
 
 const SESSION_KEY = "nes:nl-popup-session";
 

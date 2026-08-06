@@ -95,7 +95,9 @@ export const TERMS_CONTENT: LegalDocContent = {
           "Subskrypcję możesz anulować w dowolnej chwili w portalu klienta - dostęp zachowujesz do końca opłaconego okresu.",
           `Szczegółowe warunki płatności, rozliczeń i anulowania określa regulamin kupującego ${PAYMENT_PROVIDER_NAME}/Link.`,
         ],
-        paragraphs: [`Warunki kupującego ${PAYMENT_PROVIDER_NAME}: ${PAYMENT_PROVIDER_BUYER_TERMS_URL}.`],
+        paragraphs: [
+          `Warunki kupującego ${PAYMENT_PROVIDER_NAME}: ${PAYMENT_PROVIDER_BUYER_TERMS_URL}.`,
+        ],
       },
       {
         id: "payment-provider",

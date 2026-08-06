@@ -2,13 +2,7 @@
 // Wydzielona z ekranu /admin/settings/social-preview, żeby kontrakt
 // „skąd bierze się karta" dało się objąć testem regresji.
 
-export type SocialSourceId =
-  | "home"
-  | "posts"
-  | "pages"
-  | "authors"
-  | "podcasts"
-  | "newsletter";
+export type SocialSourceId = "home" | "posts" | "pages" | "authors" | "podcasts" | "newsletter";
 
 export interface SocialSourceRow {
   id: SocialSourceId;

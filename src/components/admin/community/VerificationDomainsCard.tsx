@@ -71,7 +71,8 @@ export function VerificationDomainsCard({ language, tenantId }: Props) {
         requireEmailConfirmed: input.requireEmailConfirmed,
       }),
     onSuccess: () => invalidate(),
-    onError: () => toast.error(isPl ? "Nie udało się zmienić domeny" : "Could not update the domain"),
+    onError: () =>
+      toast.error(isPl ? "Nie udało się zmienić domeny" : "Could not update the domain"),
   });
 
   const deleteM = useMutation({
@@ -80,7 +81,8 @@ export function VerificationDomainsCard({ language, tenantId }: Props) {
       invalidate();
       toast.success(isPl ? "Domena usunięta" : "Domain removed");
     },
-    onError: () => toast.error(isPl ? "Nie udało się usunąć domeny" : "Could not remove the domain"),
+    onError: () =>
+      toast.error(isPl ? "Nie udało się usunąć domeny" : "Could not remove the domain"),
   });
 
   const sweepM = useMutation({
