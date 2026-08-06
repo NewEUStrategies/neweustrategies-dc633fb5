@@ -58,7 +58,7 @@ function UserDetail() {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { user, isSuperAdmin, tenantId } = useAuth();
+  const { user, isAdmin, isSuperAdmin, tenantId } = useAuth();
   const locale = i18n.language === "pl" ? "pl-PL" : "en-GB";
   const isPL = i18n.language === "pl";
   const L = (pl: string, en: string) => (isPL ? pl : en);
@@ -73,38 +73,6 @@ function UserDetail() {
       return { ...row, roles: (row.roles ?? []) as Role[] };
     },
   });
-
-  // Weryfikacja zawodowa - kolumna nowsza niż wygenerowane typy (20260713160000).
-  const verificationQ = useQuery({
-    queryKey: ["admin-user-verification", id],
-    queryFn: async (): Promise<{ verified_at: string | null }> => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("verified_at" as never)
-        .eq("id", id)
-        .maybeSingle();
-      if (error) throw error;
-      return (data ?? { verified_at: null }) as { verified_at: string | null };
-    },
-  });
-  const [verifyBusy, setVerifyBusy] = useState(false);
-  const setVerified = async (next: boolean) => {
-    setVerifyBusy(true);
-    const { error } = await supabase.rpc(
-      "admin_set_profile_verification" as never,
-      {
-        p_user_id: id,
-        p_verified: next,
-      } as never,
-    );
-    setVerifyBusy(false);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    toast.success(t("admin.saved", { defaultValue: L("Zapisano", "Saved") }));
-    qc.invalidateQueries({ queryKey: ["admin-user-verification", id] });
-  };
 
   const changeRole = async (role: Role) => {
     const { error } = await supabase.rpc("change_user_role", {
@@ -333,6 +301,10 @@ function UserDetail() {
               />
             )}
             {data.gender && <Field label={L("Płeć", "Gender")} value={String(data.gender)} />}
+          </Card>
+
+          <Card title={L("Weryfikacja zawodowa", "Professional verification")}>
+            <VerificationAdminToggle userId={data.id} isPL={isPL} canEdit={isAdmin} />
           </Card>
 
           <Card title={L("Odznaki", "Badges")}>
@@ -647,6 +619,107 @@ function BadgesEditor({ userId }: { userId: string }) {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// Weryfikacja zawodowa (profiles.verified_at / verified_by) - sygnał, który
+// napędza flagę `verified` w katalogu osób (search_people) i filtr
+// p_verified_only. Odczyt wprost z profiles (kolumnowy grant SELECT na
+// verified_at + polityka "Profiles authenticated read" dla stafu w tenancie),
+// zapis WYŁĄCZNIE przez SECURITY DEFINER admin_set_profile_verification:
+// profiles UPDATE jest own-row, a pola weryfikacji dodatkowo pilnuje trigger
+// profiles_guard_verification (admin | super_admin, 42501 - migracja
+// 20260806130000). `canEdit` to klientowe odbicie TEGO SAMEGO zbioru rol:
+// /admin jest otwarty dla is_staff (także editor/author), więc bez tego
+// przełącznik odpowiadałby edytorowi surowym 42501.
+function VerificationAdminToggle({
+  userId,
+  isPL,
+  canEdit,
+}: {
+  userId: string;
+  isPL: boolean;
+  canEdit: boolean;
+}) {
+  const L = (pl: string, en: string) => (isPL ? pl : en);
+  const locale = isPL ? "pl-PL" : "en-GB";
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+
+  // Kolumna nowsza niż wygenerowane typy (20260713160000) - stąd rzutowania.
+  const q = useQuery({
+    queryKey: ["admin-user-verification", userId],
+    queryFn: async (): Promise<string | null> => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("verified_at" as never)
+        .eq("id", userId)
+        .maybeSingle();
+      if (error) throw error;
+      return (data as { verified_at?: string | null } | null)?.verified_at ?? null;
+    },
+  });
+  const verifiedAt = q.data ?? null;
+
+  const setVerified = async (next: boolean) => {
+    setBusy(true);
+    const { error } = await supabase.rpc(
+      "admin_set_profile_verification" as never,
+      {
+        p_user_id: userId,
+        p_verified: next,
+      } as never,
+    );
+    setBusy(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(L("Zapisano", "Saved"));
+    qc.invalidateQueries({ queryKey: ["admin-user-verification", userId] });
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-medium inline-flex items-center gap-1.5">
+            <BadgeCheck
+              className={`w-4 h-4 shrink-0 ${verifiedAt ? "text-primary" : "text-muted-foreground"}`}
+            />
+            {L("Profil zweryfikowany", "Profile verified")}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {verifiedAt
+              ? L(
+                  `Zweryfikowany ${new Date(verifiedAt).toLocaleString(locale)}`,
+                  `Verified on ${new Date(verifiedAt).toLocaleString(locale)}`,
+                )
+              : L(
+                  "Steruje odznaką w katalogu osób i filtrem „tylko zweryfikowani”.",
+                  'Drives the directory badge and the "verified only" filter.',
+                )}
+          </p>
+        </div>
+        <Switch
+          checked={verifiedAt !== null}
+          disabled={!canEdit || q.isLoading || busy}
+          onCheckedChange={(v) => void setVerified(v)}
+          aria-label={L("Weryfikacja zawodowa", "Professional verification")}
+        />
+      </div>
+      <p className="text-xs text-muted-foreground m-0">
+        {canEdit
+          ? L(
+              "Nadanie ręczne jest niezależne od weryfikacji po domenie e-mail - przegląd zbiorczy nie cofa decyzji administratora.",
+              "A manual grant is independent of e-mail domain verification - the bulk review does not undo an administrator's decision.",
+            )
+          : L(
+              "Zmiana wymaga roli admin lub super admin.",
+              "Changing this requires the admin or super admin role.",
+            )}
+      </p>
     </div>
   );
 }
