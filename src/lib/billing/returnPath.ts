@@ -24,9 +24,11 @@ export function safeReturnPath(
   // Ścieżka absolutna w obrębie serwisu; `//host` i `/\host` to protocol-relative.
   if (!trimmed.startsWith("/")) return fallback;
   if (trimmed.startsWith("//") || trimmed.startsWith("/\\")) return fallback;
-  // Znaki sterujące i białe znaki potrafią rozbić parsowanie URL-a. Klasa
-  // znaków sterujących jest tu CELEM kontroli, a nie przeoczeniem - reguła
-  // no-control-regex ostrzega przed nią jako przed literówką w zwykłym wzorcu.
+  // Znaki sterujące i białe znaki potrafią rozbić parsowanie URL-a.
+  // Klasa sterująca jest tu CELOWA - to sanityzacja wejścia, nie przeoczenie:
+  // `no-control-regex` ostrzega przed przypadkowym znakiem sterującym we wzorcu,
+  // a my dokładnie takich znaków szukamy, żeby je ODRZUCIĆ (CR/LF w ścieżce powrotu
+  // to wektor wstrzyknięcia nagłówka).
   // eslint-disable-next-line no-control-regex
   if (/[\u0000-\u001f\u007f\s]/.test(trimmed)) return fallback;
   // Schemat w środku (np. "/redirect?to=javascript:...") jest nieszkodliwy dla

@@ -98,10 +98,18 @@ Ten podział jest testowany osobno - bez niego cała mapa „egzekwowana / dekor
 | flaga czytana przez bramkę, nieopisana w rejestrze | „flaga egzekwowana, a macierz o niej milczy" |
 | `enforced: true` bez bramki / bramka przy `enforced: false` | dwa osobne przypadki testowe |
 | wiersz albo kolumna bez tłumaczenia PL/EN | bramka i18n (`adminPermissions` w `GATED_PREFIXES`) + test kompletności etykiet |
-| snapshot nieodświeżony po migracji | `check:authz-snapshot` (tryb `--check`, bez zapisu) |
+| snapshot nieodświeżony po migracji | `check:authz-snapshot` (tryb `--check`, bez zapisu) - krok CI **„Authorization snapshot freshness"** |
 
-Parser ma **własne** 24 testy na syntetycznym SQL-u. Bez nich ślepy parser dawałby dwa równie puste
+Parser ma **własne** 26 testów na syntetycznym SQL-u. Bez nich ślepy parser dawałby dwa równie puste
 zbiory i bramka przechodziłaby na zielono, nie pilnując niczego.
+
+**Podział pracy między tymi dwoma sygnałami jest istotny** (nauczka z regresu
+`profiles_guard_verification`, 2026-08-06 - patrz `docs/WDROZENIE_GUARD_WERYFIKACJI_2026-08-06.md`):
+`authzSnapshotParity` porównuje snapshot **semantycznie** (bramka → role), więc pozostaje zielony,
+gdy artefakt dryfuje w provenance (`file`) albo w statystykach skanu. `check:authz-snapshot`
+regeneruje plik i porównuje **bajt w bajt** - i dopiero on wyłapuje przeniesienie definicji do
+nowszej migracji oraz nieodświeżone `stats`. Do 2026-08-06 był tylko w `package.json`, poza CI,
+dlatego snapshot na `main` był 10 migracji z tyłu.
 
 ## 5. Co bramka znalazła od razu
 

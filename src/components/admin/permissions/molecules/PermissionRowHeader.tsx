@@ -4,7 +4,7 @@
 // nikogo: etykietę w języku UI, klucz flagi (gdy to flaga warstwy), badge
 // egzekwowania, nazwy bramek SQL i sposób wiązania z tenantem.
 import { useTranslation } from "react-i18next";
-import { EnforcementBadge, GateChip, TenantScopeBadge } from "../atoms";
+import { EnforcementBadge, GateChip, GateProvenanceChip, TenantScopeBadge } from "../atoms";
 import type { MatrixRow } from "@/lib/authz/permissionMatrix";
 
 export interface PermissionRowHeaderProps {
@@ -46,6 +46,12 @@ export function PermissionRowHeader({ row, label }: PermissionRowHeaderProps) {
               />
             ))}
             <TenantScopeBadge tenantRef={gate.tenantRef} />
+            {/* Provenance: jedna migracja = jeden chip (kilka bramek wiersza może
+                pochodzić z tej samej). Na najwęższych ekranach schodzi z widoku -
+                to informacja audytowa, nie treść wiersza. */}
+            {[...new Set(gate.files)].map((file) => (
+              <GateProvenanceChip key={file} file={file} className="hidden sm:inline-flex" />
+            ))}
             {gate.mode !== "any" && gate.mode !== "none" && (
               <span
                 className="rounded-full border border-border px-1.5 py-0 text-[10px] text-muted-foreground"

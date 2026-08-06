@@ -3,18 +3,6 @@
 // sandbox, .env.production -> live). Środowisko wyprowadzamy z PREFIKSU
 // tokena - nigdy nie zgadujemy "live" przy braku konfiguracji, bo to kończy
 // się kryptycznym błędem serwera zamiast czytelnego komunikatu na stronie.
-//
-// TEN MODUŁ NIE MOŻE STATYCZNIE IMPORTOWAĆ `@stripe/stripe-js` (2026-08-06).
-// Sięga po niego 17 miejsc, w tym powierzchnie czysto informacyjne (klucze
-// zapytań `getStripeEnvironmentSafe`, baner trybu testowego, karta subskrypcji).
-// Statyczny `import { loadStripe }` sprawiał, że loader SDK operatora płatności
-// był WSPÓLNYM przodkiem wszystkich tych modułów i Rollup hoistował go do
-// chunku ENTRY - czyli każdy anonimowy czytelnik dowolnego artykułu pobierał i
-// parsował kod bramki płatniczej (marker `js.stripe.com` siedział w entry).
-// Sam `loadStripe` jest więc importowany DYNAMICZNIE, w `getStripe()`. Dzięki
-// temu helpery środowiskowe poniżej są zerokosztowe (czysty parsing prefiksu
-// tokena), a SDK schodzi z sieci dopiero przy realnej intencji zakupu.
-// Inwariant pilnuje `scripts/check-entry-purity.ts` (blokujący krok CI).
 import type { Stripe } from "@stripe/stripe-js";
 
 export type StripeEnv = "sandbox" | "live";
@@ -44,17 +32,20 @@ export function getStripeEnvironmentSafe(): StripeEnv {
 let stripePromise: Promise<Stripe | null> | null = null;
 
 /**
- * Instancja Stripe.js - memoizowana, więc `js.stripe.com` schodzi raz na sesję.
+ * Instancja SDK operatora - JEDYNE miejsce, które ładuje `@stripe/stripe-js`.
  *
- * Rzuca SYNCHRONICZNIE (`payments_not_configured`) przy braku tokena, dokładnie
- * jak poprzednia, statyczna wersja: wołający mają dostać czytelny błąd w swoim
- * try/catch, a nie odrzuconą obietnicę bez obsługi.
+ * Import jest dynamiczny celowo: ten moduł eksportuje też czyste helpery
+ * środowiska (`getStripeEnvironment`, `isPaymentsConfigured`), które czytają
+ * wyłącznie prefiks tokena i są importowane przez paywall, banery i karty
+ * rozliczeń renderowane KAŻDEMU czytelnikowi. Przy statycznym imporcie SDK
+ * jechało razem z nimi do wspólnego chunku, mimo że potrzebuje go dopiero
+ * osadzona kasa (korekta 1 z audytu 2026-08-06).
  */
 export function getStripe(): Promise<Stripe | null> {
   if (!stripePromise) {
     paymentsEnvironment();
     const token = clientToken as string;
-    stripePromise = import("@stripe/stripe-js").then(({ loadStripe }) => loadStripe(token));
+    stripePromise = import("@stripe/stripe-js").then((m) => m.loadStripe(token));
   }
   return stripePromise;
 }

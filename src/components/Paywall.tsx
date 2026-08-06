@@ -31,13 +31,7 @@ import type { ContentAccessRule, AccessPlan } from "@/hooks/useContentAccess";
 import { formatMoney, planDescription, planName } from "@/lib/billing/types";
 import { createCheckoutOrder } from "@/lib/billing/checkout.functions";
 import { getStripeEnvironment } from "@/lib/stripe";
-// Paywall jest statycznie importowany przez publiczny resolver `routes/$.tsx`,
-// więc CAŁY jego graf statyczny trafia na ścieżkę bootowania czytelnika. Modal
-// poniżej jest lekki (Dialog + baner), a ramka operatora wchodzi dopiero przez
-// `React.lazy` - patrz nagłówek `EmbeddedCheckoutFrame`. `checkoutIntentHandlers`
-// rozgrzewa ten chunk na hover/focus przycisku zakupu, więc kupujący nie czeka.
-import { EmbeddedCheckoutDialog } from "@/components/checkout/EmbeddedCheckoutDialog";
-import { checkoutIntentHandlers } from "@/components/checkout/checkoutIntent";
+import { LazyEmbeddedCheckoutDialog } from "@/components/checkout/LazyEmbeddedCheckoutDialog";
 import {
   formatMeterResetDate,
   meterPaywallVariant,
@@ -214,7 +208,7 @@ export function Paywall({
 
   return (
     <>
-      <EmbeddedCheckoutDialog
+      <LazyEmbeddedCheckoutDialog
         clientSecret={checkoutSecret}
         onOpenChange={(open) => {
           if (!open) setCheckoutSecret(null);
@@ -448,12 +442,7 @@ export function Paywall({
                         {t("paywall.oneTime")}
                       </span>
                     </span>
-                    <Button
-                      size="sm"
-                      onClick={startOneTime}
-                      disabled={busy}
-                      {...checkoutIntentHandlers}
-                    >
+                    <Button size="sm" onClick={startOneTime} disabled={busy}>
                       {busy ? t("paywall.processing") : t("paywall.buy")}
                     </Button>
                   </div>

@@ -153,7 +153,13 @@ function mapTransactionFromCheckoutSession(session: Raw): TransactionData {
 function mapTransactionFromInvoice(invoice: Raw): TransactionData & Raw {
   const amountPaid = typeof invoice.amount_paid === "number" ? invoice.amount_paid : null;
   const amountDue = typeof invoice.total === "number" ? invoice.total : null;
-  const grandTotal = amountPaid ?? amountDue;
+  // `amount_paid` jest ZEROWE na nieudanej płatności - i zero nie jest nullish,
+  // więc `amountPaid ?? amountDue` wygrywało z kwotą należną. Dunning czytał
+  // stąd 0, co dodatkowo blokowało fallback na cenę planu
+  // (`dunning.server.ts` -> `ctx.amountCents ?? plan?.priceCents`), i klient
+  // dostawał wezwanie do zapłaty na 0,00. Zero traktujemy jako "nic nie
+  // zapłacono", nie jako "tyle wynosi faktura".
+  const grandTotal = amountPaid !== null && amountPaid > 0 ? amountPaid : (amountDue ?? amountPaid);
   const lines =
     isRecord(invoice.lines) && Array.isArray(invoice.lines.data) ? invoice.lines.data : [];
   const firstLine = isRecord(lines[0]) ? lines[0] : null;

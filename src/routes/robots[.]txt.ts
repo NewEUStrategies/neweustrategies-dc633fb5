@@ -1,80 +1,34 @@
-// Dynamic robots.txt.
-// - On canonical brand hosts: allow indexing + advertise every sitemap surface.
-// - On non-canonical hosts of this deployment (hosting-layer aliases, legacy
-//   domains from `LEGACY_HOST_SUFFIXES`): fully disallow, so search engines drop
-//   cached alias URLs instead of keeping a duplicate of the site.
-// - On unknown hosts: safe default of full disallow.
+// Dynamiczne robots.txt.
+// - Na hostach kanonicznych (marka albo domena tenanta): indeksowanie dozwolone,
+//   ogłoszone sitemapy i redakcyjna polityka crawlerów AI.
+// - Na hostach niekanonicznych tego wdrożenia (aliasy warstwy hostingu, domeny
+//   historyczne z `LEGACY_HOST_SUFFIXES`, podglądy edytora): pełny zakaz, żeby
+//   wyszukiwarki wyrzuciły z indeksu adresy aliasu, a nie trzymały duplikatu.
+// - Na hostach nieznanych: bezpieczny domyślny zakaz (fail-closed).
 //
-// Klasyfikacja hosta jest JEDNA dla całego SEO (`lib/http/host.ts`), wspólna
-// z przekierowaniem kanonicznym i powierzchniami sitemapy - host nie może być
-// jednocześnie kanonizowany 301 i ogłaszany jako indeksowalny.
+// UWAGA WDROŻENIOWA (audyt 2026-08-06): ta trasa MUSI pozostać jedynym źródłem
+// /robots.txt. Plik `public/robots.txt` trafiał do `.output/public/`, które
+// wrangler wiąże jako `assets`, a warstwa assetów odpowiada PRZED workerem -
+// przez to trasa była na produkcji nieosiągalna i każdy host (także alias
+// hostingu) dostawał statyczne `Allow: /`. Plik został usunięty, a przed
+// powrotem chroni bramka CI `check:public-assets`.
 //
-// Do 2026-08-03 deklarowana była JEDNA sitemapa (/sitemap.xml), więc
-// /news-sitemap.xml - trasa istniejąca i wymagana przez Google News - nie był
-// odkrywalny ŻADNYM kanałem: ani z robots.txt, ani z indeksu (indeksu nie było).
-// Teraz robots.txt ogłasza indeks + news sitemap, a treść składa czysty builder
-// (@/lib/seo/robots), objęty testem kontraktu.
+// Cała logika (klasyfikacja hosta, tenant, ustawienia, nagłówki) żyje w
+// `robotsRequest.server.ts` i `lib/seo/robots.ts` - tu zostaje samo wiązanie
+// żądania z odpowiedzią. Import serwerowego modułu jest DYNAMICZNY: graf
+// serwerowy (katalog tenantów, klient admina) nie może wejść do bundle'a
+// klienta przez drzewo tras.
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
-import { trustedPublicHost } from "@/lib/http/requestHost";
-import {
-  CANONICAL_SITE_HOSTS,
-  CANONICAL_SITE_ORIGIN,
-  isEditorOrLocalHost,
-  isNonCanonicalPublicHost,
-} from "@/lib/http/host";
-import { buildRobotsTxt } from "@/lib/seo/robots";
-import { parseSeoSettings } from "@/lib/seo/settings";
-
-const CANONICAL_ORIGIN = CANONICAL_SITE_ORIGIN;
-const CANONICAL_HOSTS = CANONICAL_SITE_HOSTS;
-
-/**
- * Sitemapy do ogłoszenia. Indeks jest zawsze; news sitemap tylko gdy redakcja
- * ma go włączonego - trasa odpowiada wtedy 404, a robots.txt kierujący crawlera
- * na 404 to gotowy błąd w raporcie Search Console. Odczyt ustawień jest
- * best-effort: przy awarii zostaje sam indeks (crawl działa dalej).
- */
-async function sitemapPathsFor(host: string): Promise<string[]> {
-  const paths = ["/sitemap.xml"];
-  try {
-    const { resolveCrawlerTenantIdForHost } = await import("@/lib/server/tenant.server");
-    const tenantId = await resolveCrawlerTenantIdForHost(host);
-    if (!tenantId) return paths;
-    const { fetchSeoSettingsValue } = await import("@/lib/server/publishedContent.server");
-    const settings = parseSeoSettings(await fetchSeoSettingsValue(tenantId));
-    if (settings.news_sitemap_enabled) paths.push("/news-sitemap.xml");
-  } catch (e) {
-    console.warn("[seo] robots.txt sitemap settings unavailable:", e);
-  }
-  return paths;
-}
+import { robotsHeaders } from "@/lib/seo/robots";
 
 export const Route = createFileRoute("/robots.txt")({
   server: {
     handlers: {
       GET: async () => {
-        const req = getRequest();
-        const host = (await trustedPublicHost(req)) ?? "";
-        const canonical = CANONICAL_HOSTS.has(host);
-
-        const body = buildRobotsTxt({
-          mode: canonical
-            ? "canonical"
-            : isEditorOrLocalHost(host) || isNonCanonicalPublicHost(host)
-              ? "legacy"
-              : "unknown",
-          origin: CANONICAL_ORIGIN,
-          sitemapPaths: canonical ? await sitemapPathsFor(host) : [],
-        });
-
-        return new Response(body, {
-          headers: {
-            "Content-Type": "text/plain; charset=utf-8",
-            "Cache-Control": "public, max-age=3600",
-            "X-Robots-Tag": canonical ? "all" : "noindex, nofollow",
-          },
-        });
+        const { planRobotsTxt } = await import("@/lib/server/robotsRequest.server");
+        const plan = await planRobotsTxt(getRequest());
+        return new Response(plan.body, { headers: robotsHeaders(plan) });
       },
     },
   },

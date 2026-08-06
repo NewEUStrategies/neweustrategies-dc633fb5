@@ -1,58 +1,69 @@
-// `stripTsComments` jest zależnością BLOKUJĄCEJ bramki `check:sql-app-role`
-// (i testu granicy leniwego checkoutu), a jego błąd jest cichy: zgubiony stan
-// cudzysłowu wycina pół pliku i bramka przestaje cokolwiek widzieć. Stąd
-// osobne, punktowe próby na każdej klasie konstrukcji.
+// Testy wycinania komentarzy TS dla bramek statycznych.
+//
+// PO CO OSOBNY PLIK: bramka `check:sql-app-role` skanowała `.ts/.tsx` jako goły
+// tekst i wywalała CI na WŁASNEJ dokumentacji - komentarz cytujący wzorzec
+// `has_role(uid, 'rola')` liczył się jak żywe wywołanie (cztery doby czerwonego
+// kroku w `verify`). Wycinanie komentarzy naprawia fałszywe POZYTYWY, ale zrobione
+// regexem wprowadziłoby fałszywe NEGATYWY: `"https://…"` albo `'/*'` w literale
+// zjadłyby resztę pliku razem z prawdziwymi wywołaniami. Stąd parser znakowy - i
+// stąd te testy.
+//
+// Ten katalog jest jednocześnie jedynym miejscem, gdzie bramka app_role NIE
+// skanuje literałów (fixture'y analizatora), więc można tu trzymać przypadki
+// brzegowe bez oszukiwania bramki.
 import { describe, expect, it } from "vitest";
-import { stripTsComments } from "../../../../scripts/lib/stripTsComments";
+import { stripTsComments } from "../../../../scripts/lib/stripComments";
 
 describe("stripTsComments", () => {
-  it("usuwa komentarz liniowy, zachowując numerację linii", () => {
-    // app-role-literal-exempt: PRÓBKA WEJŚCIOWA strippera - literał żyje w
-    // stringu testu i nigdy nie dociera do bazy. To dokładnie ten kształt,
-    // który bramka `check:sql-app-role` ma po tej zmianie odsiewać.
-    const out = stripTsComments("const a = 1; // has_role(uid, 'tenant_admin')\nconst b = 2;\n");
+  it("wycina komentarz liniowy, zostawia kod", () => {
+    const out = stripTsComments(`const a = 1; // has_role(uid, 'rola')\nconst b = 2;`);
     expect(out).toContain("const a = 1;");
-    expect(out).not.toContain("tenant_admin");
-    expect(out.split("\n")).toHaveLength(3);
+    expect(out).toContain("const b = 2;");
+    expect(out).not.toContain("rola");
   });
 
-  it("usuwa komentarz blokowy wielolinijkowy, nie zmieniając liczby linii", () => {
-    const src = "a;\n/**\n * has_role(uid, 'X')\n */\nb;\n"; // app-role-literal-exempt
-    const out = stripTsComments(src);
-    expect(out).not.toContain("has_role");
-    expect(out.split("\n")).toHaveLength(src.split("\n").length);
-    expect(out).toContain("a;");
-    expect(out).toContain("b;");
+  it("wycina komentarz blokowy, także wielolinijkowy", () => {
+    const out = stripTsComments(`/* has_role(uid, 'X')\n   druga linia */\nconst a = 1;`);
+    expect(out).not.toContain("'X'");
+    expect(out).toContain("const a = 1;");
   });
 
-  it("nie tyka `//` wewnątrz stringów (URL-e)", () => {
-    const out = stripTsComments('const u = "https://js.stripe.com/v3";\nconst v = 1;\n');
-    expect(out).toContain('"https://js.stripe.com/v3"');
-    expect(out).toContain("const v = 1;");
+  it("ZACHOWUJE numery linii (komunikaty bramek wskazują to samo miejsce)", () => {
+    const source = `// komentarz\n/* blok\n   blok */\nconst a = 1;`;
+    expect(stripTsComments(source).split("\n")).toHaveLength(source.split("\n").length);
+    expect(stripTsComments(source).split("\n")[3]).toBe("const a = 1;");
   });
 
-  it("nie gubi stanu na literale regexpa z cudzysłowami", () => {
-    // Bez obsługi regexpów apostrof w klasie znaków otwierałby string i zjadał
-    // resztę pliku - łącznie z prawdziwym wywołaniem poniżej.
-    const src = "const re = /['\"]/g;\nconst call = \"has_role(auth.uid(), 'admin')\";\n";
-    const out = stripTsComments(src);
-    expect(out).toContain("has_role(auth.uid(), 'admin')");
+  it("NIE tyka `//` ani `/*` wewnątrz literałów tekstowych", () => {
+    const single = stripTsComments(`const url = 'https://example.test/a'; const g = '/*';`);
+    expect(single).toContain("'https://example.test/a'");
+    expect(single).toContain("'/*'");
+
+    const double = stripTsComments(`const url = "https://example.test/b";`);
+    expect(double).toContain('"https://example.test/b"');
   });
 
-  it("zachowuje szablony wielolinijkowe", () => {
-    const src = "const t = `linia 1\nlinia 2`;\nconst z = 3;\n";
-    expect(stripTsComments(src)).toBe(src);
+  it("zachowuje treść szablonów (z interpolacją i nowymi liniami)", () => {
+    const out = stripTsComments("const q = `select 1\n  from t`; // ogon");
+    expect(out).toContain("select 1");
+    expect(out).toContain("from t");
+    expect(out).not.toContain("ogon");
   });
 
-  it("nie myli dzielenia z początkiem regexpa", () => {
-    const src = "const x = a / b; // koniec\nconst y = c / d;\n";
-    const out = stripTsComments(src);
-    expect(out).toContain("const x = a / b;");
-    expect(out).toContain("const y = c / d;");
-    expect(out).not.toContain("koniec");
+  it("nie zjada pliku po niedomkniętym apostrofie w jednej linii", () => {
+    const out = stripTsComments(`const a = 'nie domkniete\nconst b = 2;`);
+    expect(out).toContain("const b = 2;");
   });
 
-  it("znosi niedomknięty komentarz blokowy bez zapętlenia", () => {
-    expect(stripTsComments("a;\n/* dalej już nic").trimEnd()).toBe("a;");
+  it("escape'y w literałach nie kończą literału przedwcześnie", () => {
+    const out = stripTsComments(`const a = 'it\\'s'; // ogon\nconst b = 2;`);
+    expect(out).toContain("it\\'s");
+    expect(out).not.toContain("ogon");
+    expect(out).toContain("const b = 2;");
+  });
+
+  it("plik bez komentarzy wraca bajt w bajt", () => {
+    const source = `const a = 1;\nconst b = "x";\n`;
+    expect(stripTsComments(source)).toBe(source);
   });
 });

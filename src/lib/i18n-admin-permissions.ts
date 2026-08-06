@@ -92,6 +92,9 @@ const adminPermissionsPl = {
       definerHint: "Funkcja omija RLS, więc jej własna bramka roli jest jedynym ograniczeniem.",
       label: "Bramka",
       none: "brak bramki",
+      provenance: "Migracja",
+      provenanceHint:
+        "Migracje są forward-only, więc prawem jest OSTATNIA definicja tej bramki. Plik z tą definicją:",
     },
 
     toolbar: {
@@ -164,8 +167,9 @@ const adminPermissionsPl = {
       users_detail: "Karta użytkownika (dane kontaktowe)",
       roles_assign: "Nadawanie i odbieranie ról",
       user_consents: "Zgody użytkownika i ich historia",
-      profile_verification: "Weryfikacja profilu (odznaka)",
-      profile_privileged_columns: "Kolumny chronione profilu",
+      profile_verification: "Weryfikacja profilu (odznaka, dożywotni VIP eksperta)",
+      verification_domains: "Domeny weryfikacji organizacji",
+      profile_privileged_columns: "Firma w profilu (kolumna chroniona)",
       badges_grant: "Nadawanie odznak profilu",
       avatar_replace: "Podmiana avatara użytkownika",
       org_seats: "Limit miejsc w organizacji",
@@ -313,6 +317,9 @@ const adminPermissionsEn = {
       definerHint: "The function bypasses RLS, so its own role gate is the only constraint.",
       label: "Gate",
       none: "no gate",
+      provenance: "Migration",
+      provenanceHint:
+        "Migrations are forward-only, so the LAST definition of this gate is the law. The file holding it:",
     },
 
     toolbar: {
@@ -382,8 +389,9 @@ const adminPermissionsEn = {
       users_detail: "User record (contact data)",
       roles_assign: "Granting and revoking roles",
       user_consents: "User consents and their history",
-      profile_verification: "Profile verification (badge)",
-      profile_privileged_columns: "Protected profile columns",
+      profile_verification: "Profile verification (badge, expert lifetime VIP)",
+      verification_domains: "Organisation verification domains",
+      profile_privileged_columns: "Profile company link (protected column)",
       badges_grant: "Granting profile badges",
       avatar_replace: "Replacing a user avatar",
       org_seats: "Organisation seat limit",

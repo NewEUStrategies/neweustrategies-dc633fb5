@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { loadEnv } from "vite";
 
-import { chunkInventoryPlugin } from "./scripts/lib/chunkInventoryPlugin";
+import { MACHINE_SURFACES } from "./src/lib/seo/machineSurfaces";
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -34,7 +34,42 @@ Object.assign(process.env, loadEnv(process.env.NODE_ENV ?? "development", rootDi
 // opcją Nitro (https://nitro.build/config#minify). Przypisanie przez zmienną
 // omija excess-property-check bez żadnego rzutowania; jawny `preset` powtarza
 // dotychczasowy default (cloudflare-module) i spełnia weak-type check.
-const nitroOptions = { preset: "cloudflare-module", minify: true };
+
+// Powierzchnie maszynowe MUSZĄ odpowiadać z workera, nigdy z warstwy assetów
+// (audyt 2026-08-06). Wrangler wiąże `.output/public/` jako `assets`, a Asset
+// Worker odpowiada PRZED naszym workerem - dlatego zacommitowany
+// `public/robots.txt` unieruchamiał dynamiczną trasę /robots.txt na produkcji
+// (statyczne `Allow: /` dla każdego hosta, bez klasyfikacji hostów, bez
+// `X-Robots-Tag`, bez news sitemap) i nie dawało się tego zauważyć: dev-server
+// serwuje trasę normalnie. `run_worker_first` odwraca pierwszeństwo dla
+// DOKŁADNIE tych adresów, więc powrót takiego pliku niczego już nie zepsuje
+// (pierwsza bariera to bramka CI `check:public-assets`).
+//
+// Lista pochodzi z rejestru powierzchni maszynowych, więc nowy feed/sitemapa
+// jest chroniona automatycznie - bez drugiego miejsca do pamiętania.
+// Nitro scala `cloudflare.wrangler` (defu) z własnymi `overrides`, więc
+// `assets.binding`/`assets.directory` pozostają nitrowe, a dokładamy tylko
+// `run_worker_first`. Build loguje przy tym ostrzeżenie "[cloudflare] Wrangler
+// config `assets` ... is overridden" - dotyczy nadpisywanych podkluczy, nie
+// naszego; tak wygląda poprawne działanie tego scalania.
+const WORKER_FIRST_PATHS = MACHINE_SURFACES.map((surface) => surface.path);
+
+// `deployConfig: true` powtarza domyślne zachowanie presetu (nitro robi
+// `deployConfig ??= true`) i jest potrzebne z powodu typów: zadeklarowany
+// podzbiór `cloudflare` zna tylko `nodeCompat`/`deployConfig`, a typ złożony
+// wyłącznie z opcjonalnych pól jest "weak type" - obiekt z samym `wrangler`
+// nie miałby z nim ANI JEDNEGO wspólnego pola i nie przeszedłby kompilacji.
+// Ten sam mechanizm co przy jawnym `preset` powyżej; runtime forwarduje CAŁY
+// obiekt `cloudflare` do nitro (w sandboxie przez spread), więc `wrangler`
+// dociera na miejsce bez żadnego rzutowania.
+const nitroOptions = {
+  preset: "cloudflare-module",
+  minify: true,
+  cloudflare: {
+    deployConfig: true,
+    wrangler: { assets: { run_worker_first: WORKER_FIRST_PATHS } },
+  },
+};
 
 export default defineConfig({
   nitro: nitroOptions,

@@ -174,6 +174,17 @@ provenance przeskoczył z `20260725180745…` na `20260806094239…` przy niezmi
 ma więc rację, że coś się zmieniło, ale **pokazuje dowód, który zaprzecza jej własnej tezie**, i miesza
 zmianę kosmetyczną (przeniesiona definicja) z realnym zawężeniem uprawnień w tym samym komunikacie.
 
+> **STATUS (rozstrzygnięte po tej rewizji, migracja `20260806150000_profile_verification_authority`).**
+> Intencja: `super_admin` **ma** móc nadawać weryfikację, `editor` **nie** (odznaka eksperta = dożywotni
+> VIP). Decyzja przeszła do jednego predykatu `can_manage_profile_verification()`, z którego czytają
+> trigger, RPC panelu (`admin_set_profile_verification` też miało tylko `admin`), RPC domen weryfikacji
+> i polityka RLS - zbiory ról tych bramek nie mogą się już rozjechać. Własność kolumn rozdzielona
+> (weryfikacja: twarde `42501`; `current_company_id`: cichy revert, ale właściciel wiersza ma prawo do
+> swojej firmy - ta ścieżka UI cofała się po cichu). Diagnostyka porównuje pole-po-polu i rozdziela
+> `authorization` od `provenance`, a zbiór pól jest wymuszony typem, więc nowe pole bez klasyfikacji nie
+> skompiluje się. `check:authz-snapshot` i `check:permissions-parity` są w jobie `verify`; snapshot był
+> nieaktualny o **9 migracji**, co ujawnił dopiero dryf metryk skanu dopisany do diagnostyki.
+
 **4. Dwie liczby „śladu audytowego" z r1 nie są odtwarzalne w tym repozytorium.**
 - **Historia commitów.** r1 podała „1592 commity / 9 dni" i wyliczyła z tego „~95% commitów poza PR-ami".
   W tym klonie `git rev-list --count HEAD` = **217**, `--all` = **422**, a korzeń historii to
