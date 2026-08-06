@@ -6815,6 +6815,7 @@ html {
   --mbb-bg: var(--mbb-bg-light, #ffffff);
   --mbb-active: var(--mbb-active-light, var(--brand));
   --mbb-icon: var(--mbb-icon-light, #6b7280);
+  --mbb-border-color: color-mix(in oklab, var(--border) 60%, transparent);
   font-size: 0.625rem;
   position: relative;
   pointer-events: auto;
@@ -6824,7 +6825,7 @@ html {
   background-color: var(--mbb-bg);
   box-shadow:
     0 0.5em 1em rgb(0 0 0 / 0.12),
-    0 0 0 1px color-mix(in oklab, var(--border) 60%, transparent);
+    0 0 0 1px var(--mbb-border-color);
 }
 .dark .mbb {
   --mbb-bg: var(--mbb-bg-dark, #111318);
@@ -6832,7 +6833,7 @@ html {
   --mbb-icon: var(--mbb-icon-dark, #9aa3b2);
   box-shadow:
     0 0.5em 1em rgb(0 0 0 / 0.45),
-    0 0 0 1px color-mix(in oklab, var(--border) 60%, transparent);
+    0 0 0 1px var(--mbb-border-color);
 }
 
 /* .svg-container z referencji: sam nośnik <clipPath>, zero wymiarów. */
