@@ -242,6 +242,22 @@ export async function resolveCrawlerTenantForHost(
   return fallbackIsSafe ? directory.defaultTenant : null;
 }
 
+/**
+ * Tenant, który ZGŁOSIŁ ten host w katalogu domen (`tenants.domain`, dokładnie
+ * albo przez alias www./apex) - BEZ fallbacku na tenanta domyślnego.
+ *
+ * To predykat „czyja to własna domena", a nie „komu wyświetlić treść": robots.txt
+ * potrzebuje właśnie tego rozróżnienia, bo domena własna tenanta jest dla niego
+ * hostem KANONICZNYM (serwuje swój serwis, nie dostaje 301 na markę), a host
+ * niezgłoszony przez nikogo musi zostać zamknięty dla crawlerów.
+ */
+export async function resolveClaimedTenantForHost(
+  rawHost: string | null | undefined,
+): Promise<TenantDirectoryEntry | null> {
+  const directory = await getTenantDirectory();
+  return matchDomain(directory, normalizeHost(rawHost));
+}
+
 /** Convenience: crawler-plane tenant id for a host (null = fail closed). */
 export async function resolveCrawlerTenantIdForHost(
   rawHost: string | null | undefined,

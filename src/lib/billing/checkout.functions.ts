@@ -356,7 +356,9 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
           customerEmail: receiptEmail,
           returnUrl,
           discount,
-          settings,
+          // Bez tego okres próbny planu jest martwy: metadane ceny w katalogu
+          // operatora niczego nie wymuszają, a karta zostaje obciążona od razu.
+          trialDays,
         });
         if (!createdSub.ok) {
           await supabase.from("payment_orders").update({ status: "failed" }).eq("id", order.id);

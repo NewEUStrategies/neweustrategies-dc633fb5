@@ -73,9 +73,7 @@ export const changeStripePlan = createServerFn({ method: "POST" })
 export const createStripePortalSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { environment: StripeEnv; returnPath?: string }) =>
-    z
-      .object({ environment: envSchema, returnPath: z.string().max(300).optional() })
-      .parse(data),
+    z.object({ environment: envSchema, returnPath: z.string().max(300).optional() }).parse(data),
   )
   .handler(async ({ data, context }) => {
     const { data: sub, error } = await context.supabase

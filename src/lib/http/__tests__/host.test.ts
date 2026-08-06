@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { isPreviewHost, normalizeHost, wwwToggledHost } from "@/lib/http/host";
+import {
+  CANONICAL_SITE_ORIGIN,
+  crawlerPublishOrigin,
+  isPreviewHost,
+  normalizeHost,
+  wwwToggledHost,
+} from "@/lib/http/host";
 
 describe("normalizeHost", () => {
   it("lowercases and trims", () => {
@@ -65,5 +71,35 @@ describe("isPreviewHost", () => {
   it("nieznana domena produkcyjna nigdy nie jest podglądem", () => {
     expect(isPreviewHost("neweuropeanstrategies.com")).toBe(false);
     expect(isPreviewHost("www.neweuropeanstrategies.com")).toBe(false);
+  });
+});
+
+describe("crawlerPublishOrigin", () => {
+  // JEDNA reguła originu dla mapy strony i dla robots.txt: mapa i jej ogłoszenie
+  // muszą wskazywać ten sam origin, inaczej Search Console odrzuca mapę jako
+  // pochodzącą spoza właściwości.
+  it("zbiera hosty marki na originie kanonicznym", () => {
+    expect(crawlerPublishOrigin("neweuropeanstrategies.com")).toBe(CANONICAL_SITE_ORIGIN);
+    expect(crawlerPublishOrigin("www.neweuropeanstrategies.com")).toBe(CANONICAL_SITE_ORIGIN);
+  });
+
+  it("aliasy hostingu publikują adresy kanoniczne (dostają 301, nie wolno ich indeksować)", () => {
+    expect(crawlerPublishOrigin("nes.pages.dev")).toBe(CANONICAL_SITE_ORIGIN);
+    expect(crawlerPublishOrigin("nes.workers.dev")).toBe(CANONICAL_SITE_ORIGIN);
+  });
+
+  it("własna domena tenanta publikuje na SWOIM originie", () => {
+    expect(crawlerPublishOrigin("b.example")).toBe("https://b.example");
+    expect(crawlerPublishOrigin("www.b.example")).toBe("https://www.b.example");
+  });
+
+  it("honoruje protokół żądania i normalizuje hosta", () => {
+    expect(crawlerPublishOrigin("127.0.0.1:4173", "http")).toBe("http://127.0.0.1");
+    expect(crawlerPublishOrigin("B.EXAMPLE")).toBe("https://b.example");
+  });
+
+  it("bez hosta nie zmyśla originu", () => {
+    expect(crawlerPublishOrigin(null)).toBe("");
+    expect(crawlerPublishOrigin("")).toBe("");
   });
 });
