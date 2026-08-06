@@ -761,7 +761,9 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
       REGISTER_FIELDS.filter(
         (def) =>
           def.structural === true ||
-          readAuthFlag(data, [`show${capitalize(def.key)}`, ...def.legacyShowKeys],
+          readAuthFlag(
+            data,
+            [`show${capitalize(def.key)}`, ...def.legacyShowKeys],
             def.globalKey ? reg.isEnabled(def.globalKey) : def.defaultShow,
           ),
       ).map((def) => ({

@@ -359,7 +359,6 @@ function LoginSettingsPage() {
 
           <RegistrationFieldsSection />
         </TabsContent>
-
       </Tabs>
     </div>
   );

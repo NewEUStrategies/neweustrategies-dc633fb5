@@ -3,7 +3,7 @@
 // sandbox, .env.production -> live). Środowisko wyprowadzamy z PREFIKSU
 // tokena - nigdy nie zgadujemy "live" przy braku konfiguracji, bo to kończy
 // się kryptycznym błędem serwera zamiast czytelnego komunikatu na stronie.
-import { loadStripe, type Stripe } from "@stripe/stripe-js";
+import type { Stripe } from "@stripe/stripe-js";
 
 export type StripeEnv = "sandbox" | "live";
 
@@ -31,10 +31,21 @@ export function getStripeEnvironmentSafe(): StripeEnv {
 
 let stripePromise: Promise<Stripe | null> | null = null;
 
+/**
+ * Instancja SDK operatora - JEDYNE miejsce, które ładuje `@stripe/stripe-js`.
+ *
+ * Import jest dynamiczny celowo: ten moduł eksportuje też czyste helpery
+ * środowiska (`getStripeEnvironment`, `isPaymentsConfigured`), które czytają
+ * wyłącznie prefiks tokena i są importowane przez paywall, banery i karty
+ * rozliczeń renderowane KAŻDEMU czytelnikowi. Przy statycznym imporcie SDK
+ * jechało razem z nimi do wspólnego chunku, mimo że potrzebuje go dopiero
+ * osadzona kasa (korekta 1 z audytu 2026-08-06).
+ */
 export function getStripe(): Promise<Stripe | null> {
   if (!stripePromise) {
     paymentsEnvironment();
-    stripePromise = loadStripe(clientToken as string);
+    const token = clientToken as string;
+    stripePromise = import("@stripe/stripe-js").then((m) => m.loadStripe(token));
   }
   return stripePromise;
 }

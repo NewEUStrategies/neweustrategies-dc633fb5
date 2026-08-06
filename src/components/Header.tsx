@@ -421,7 +421,6 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
     };
     attachChrome();
 
-
     // Chrome montuje się dopiero gdy rozwiąże się <Suspense> nad HeaderInner.
     const mo = new MutationObserver(attachChrome);
     mo.observe(el, { childList: true });
@@ -432,7 +431,7 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
       window.clearTimeout(timer);
       if (raf) window.cancelAnimationFrame(raf);
       ro.disconnect();
-      
+
       mo.disconnect();
       window.removeEventListener("resize", schedule);
       delete el.dataset.metrics;

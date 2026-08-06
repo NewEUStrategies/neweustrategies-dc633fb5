@@ -68,6 +68,33 @@ test.describe("SEO surfaces", () => {
     expect(body).toMatch(/<rss|<feed/);
   });
 
+  test("robots.txt comes from the ROUTE, not a static file in public/", async ({ request }) => {
+    // FINDING 2026-08-06: `public/robots.txt` byl kopiowany do `.output/public/`,
+    // a asset warstwy hostingu wygrywa z workerem - cala trasa (klasyfikacja
+    // hosta, zakaz dla aliasow, polityka crawlerow AI, news sitemap) byla na
+    // produkcji NIEOSIAGALNA, a plik statyczny zapraszal do indeksowania kazdy
+    // host. Statyczny asset nigdy nie wystawia `X-Robots-Tag`, wiec ten naglowek
+    // jest dowodem pochodzenia odpowiedzi - niezaleznym od hosta, na ktorym
+    // jedzie suita (w CI to host podgladowy, wiec tresc jest celowo zamknieta).
+    const res = await request.get("/robots.txt");
+    expect(res.status()).toBe(200);
+    const tag = res.headers()["x-robots-tag"] ?? "";
+    expect(tag, "brak X-Robots-Tag = odpowiada plik statyczny, nie trasa").toMatch(
+      /^(all|noindex, nofollow)$/,
+    );
+    // Naglowek i tresc musza mowic to samo - inaczej crawler dostaje sprzeczna
+    // polityke (indeksuj / nie indeksuj) i wybiera restrykcyjniejsza.
+    const body = await res.text();
+    if (tag === "all") {
+      expect(body).toContain("Allow: /");
+      expect(body).toContain("Disallow: /admin/");
+      expect(body).toContain("Sitemap: http");
+    } else {
+      expect(body).toContain("Disallow: /");
+      expect(body).not.toContain("Sitemap:");
+    }
+  });
+
   test("robots.txt exposes crawl policy", async ({ request }) => {
     const res = await request.get("/robots.txt");
     expect(res.status()).toBe(200);

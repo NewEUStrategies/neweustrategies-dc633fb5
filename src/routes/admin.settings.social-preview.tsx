@@ -19,11 +19,7 @@ import { formatBytes } from "@/components/admin/media/lib/mediaFormat";
 import { prepareOgImageFile, type OgIssue } from "@/lib/media/ogImage";
 import { socialSourceRows } from "@/lib/seo/socialPreviewSources";
 import "@/lib/i18n-og-upload";
-import {
-  DEFAULT_SEO_SETTINGS,
-  SEO_SETTINGS_KEY,
-  type SeoSettings,
-} from "@/lib/seo/settings";
+import { DEFAULT_SEO_SETTINGS, SEO_SETTINGS_KEY, type SeoSettings } from "@/lib/seo/settings";
 import {
   SITE_CANONICAL_ORIGIN,
   SITE_DEFAULT_DESCRIPTION,
@@ -66,7 +62,6 @@ function SocialPreviewTab() {
     : `${SITE_CANONICAL_ORIGIN}${SITE_DEFAULT_OG_IMAGE}`;
 
   const rows = socialSourceRows(lang);
-
 
   return (
     <div>
@@ -156,7 +151,9 @@ function SocialPreviewTab() {
       <h3 className="text-sm font-semibold mt-8 mb-2">
         {t("admin.socialPreview.sourcesTitle", {
           defaultValue:
-            lang === "pl" ? "Skąd bierze się obrazek każdej strony" : "Where each page's image comes from",
+            lang === "pl"
+              ? "Skąd bierze się obrazek każdej strony"
+              : "Where each page's image comes from",
         })}
       </h3>
       <div className="overflow-hidden rounded-lg border border-border">
@@ -185,4 +182,3 @@ function SocialPreviewTab() {
     </div>
   );
 }
-

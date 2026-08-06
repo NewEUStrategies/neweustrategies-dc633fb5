@@ -4,16 +4,18 @@
 // (createCheckoutOrder czyta ustawienia własnym zapytaniem).
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { normalizeCheckoutSettings, type CheckoutSettings } from "@/lib/billing/checkoutSettings";
+import {
+  CHECKOUT_SETTINGS_COLUMNS,
+  normalizeCheckoutSettings,
+  type CheckoutSettings,
+} from "@/lib/billing/checkoutSettings";
 
 export const CHECKOUT_SETTINGS_QUERY_KEY = ["checkout-settings"] as const;
 
 export async function fetchCheckoutSettings(): Promise<CheckoutSettings> {
   const { data, error } = await supabase
     .from("checkout_settings")
-    .select(
-      "allow_promotion_codes, automatic_tax, tax_id_collection, billing_address_collection, invoice_creation",
-    )
+    .select(CHECKOUT_SETTINGS_COLUMNS)
     .maybeSingle();
   if (error) throw error;
   return normalizeCheckoutSettings(data);

@@ -12,10 +12,7 @@ import {
   type PopupFieldConfig,
 } from "@/lib/newsletter/popupFields";
 
-export function FieldsTab({
-  value,
-  onChange,
-}: Pick<SignupPopupTabProps, "value" | "onChange">) {
+export function FieldsTab({ value, onChange }: Pick<SignupPopupTabProps, "value" | "onChange">) {
   const { t } = useTranslation();
   const fields = resolvePopupFields(value.popup_fields);
 

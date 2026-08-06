@@ -427,7 +427,6 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
     </SubscribeButton>
   );
 
-
   return (
     <div className={`cf-shell cf-shell--${variant}`} style={shellStyle}>
       {fontSizeCss && <style dangerouslySetInnerHTML={{ __html: fontSizeCss }} />}
@@ -775,6 +774,3 @@ function Field({
     </div>
   );
 }
-
-
-

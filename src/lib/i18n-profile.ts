@@ -417,7 +417,6 @@ const pl = {
           "Masz pytanie do konkretnej transakcji? Skorzystaj z wyszukiwarki faktur powyżej lub napisz do nas - podaj numer transakcji, nigdy pełnego numeru karty.",
       },
       history: {
-
         title: "Faktury i płatności",
         pageTitle: "Historia płatności",
         pageHint:
@@ -690,6 +689,7 @@ const pl = {
     promoHint: "Masz kupon? Kod rabatowy wpiszesz na bezpiecznej stronie płatności.",
     taxHint: "VAT zostanie naliczony automatycznie według Twojego adresu.",
     taxIdHint: "NIP/VAT ID do faktury podasz na stronie płatności.",
+    invoiceHint: "Fakturę pobierzesz z historii płatności w swoim profilu.",
     subtotal: "Wartość",
     applyFailed: "Nie udało się zastosować kuponu.",
     headTitle: "Finalizacja zamówienia · Checkout",
@@ -1147,7 +1147,6 @@ const en: typeof pl = {
           "Question about a specific transaction? Use the invoice lookup above or contact us - share the transaction number, never your full card number.",
       },
       history: {
-
         title: "Invoices and payments",
         pageTitle: "Payment history",
         pageHint:
@@ -1418,6 +1417,7 @@ const en: typeof pl = {
     promoHint: "Have a coupon? Enter your promo code on the secure payment page.",
     taxHint: "VAT is calculated automatically based on your address.",
     taxIdHint: "You can provide your VAT ID for the invoice on the payment page.",
+    invoiceHint: "You can download the invoice from the payment history in your profile.",
     subtotal: "Subtotal",
     applyFailed: "Could not apply the coupon.",
     headTitle: "Checkout · Finalizacja zamówienia",

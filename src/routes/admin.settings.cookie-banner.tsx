@@ -271,7 +271,6 @@ function CookieBannerSettings() {
         </Field>
       </section>
 
-
       {/* Colors */}
       <section className="mb-6">
         <h3 className="text-sm font-semibold mb-2">Kolory (puste = motyw)</h3>
@@ -362,13 +361,7 @@ function CookieBannerSettings() {
 
 // Podgląd na żywo: ConsentBanner dostaje NIEZAPISANY szkic (configOverride),
 // więc kolory, logo, treści i odnośniki widać przed kliknięciem „Zapisz".
-function PreviewOverlay({
-  config,
-  onClose,
-}: {
-  config: CookieBannerConfig;
-  onClose: () => void;
-}) {
+function PreviewOverlay({ config, onClose }: { config: CookieBannerConfig; onClose: () => void }) {
   const [surface, setSurface] = useState<"light" | "dark">("light");
   // ConsentBanner hides once the user has decided; dispatch OPEN_PREFS_EVENT so
   // it opens the expanded modal for the preview regardless of prior consent.

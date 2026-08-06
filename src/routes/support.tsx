@@ -1,7 +1,8 @@
 // Publiczna strona darowizn / mecenatu obywatelskiego. URL: /support
-// Wpłaty obsługuje zewnętrzna zbiórka (zrzutka.pl) - to decyzja produktowa,
-// darowizny prowadzimy poza naszym operatorem płatności. Strona wyłącznie
-// informuje i linkuje.
+// Strona informuje o mecenacie i kieruje do wpłaty. DOKĄD - rozstrzyga
+// konfiguracja modułu (`site_settings.donations`): własna kasa `/donate`
+// (domyślnie) albo zbiórka zewnętrzna w trybie awaryjnym. Podstawa modelu:
+// docs/WDROZENIE_DAROWIZNY_WLASNY_CHECKOUT_2026-08-06.md.
 import { useRef } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -9,7 +10,7 @@ import { useTranslation } from "react-i18next";
 import { ArrowLeft, CheckCircle2, ExternalLink, HandHeart, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { EXTERNAL_DONATIONS_URL } from "@/lib/billing/donationsExternal";
+import { useDonationTarget } from "@/lib/billing/donationsConfigQuery";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
@@ -95,6 +96,56 @@ function SupportBuilderDocument({ page, lang }: { page: PageData; lang: "pl" | "
   );
 }
 
+/**
+ * Karta wpłaty. Dokąd prowadzi przycisk, decyduje konfiguracja modułu
+ * (`resolveDonationTarget`), nie ta trasa: nasza kasa `/donate`, zbiórka
+ * zewnętrzna w nowej karcie albo komunikat o wstrzymanej zbiórce. Dzięki temu
+ * strona wsparcia, CTA widgetu i formularz mówią zawsze to samo.
+ */
+function SupportGiftCard() {
+  const { t } = useTranslation();
+  const target = useDonationTarget();
+
+  if (target.kind === "disabled") {
+    return (
+      <Card className="mt-8">
+        <CardContent className="pt-6 text-center text-sm text-muted-foreground">
+          {t("support.closed")}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const external = target.kind === "external";
+  return (
+    <Card className="mt-8">
+      <CardContent className="space-y-4 pt-6 text-center">
+        <p className="text-sm text-muted-foreground">
+          {t(external ? "support.externalLead" : "support.ctaLead")}
+        </p>
+        <Button asChild className="w-full" size="lg">
+          {external ? (
+            <a href={target.href} target="_blank" rel="noopener noreferrer">
+              <HandHeart className="h-4 w-4" aria-hidden="true" />
+              {t("support.externalCta")}
+              <ExternalLink className="h-3.5 w-3.5 opacity-80" aria-hidden="true" />
+            </a>
+          ) : (
+            <Link to={target.href}>
+              <HandHeart className="h-4 w-4" aria-hidden="true" />
+              {t("support.cta")}
+            </Link>
+          )}
+        </Button>
+        <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+          <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+          {t(external ? "support.externalNote" : "support.ctaNote")}
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
 function SupportPage() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
   ensureSupportI18n();
@@ -142,22 +193,7 @@ function SupportPage() {
       </h1>
       <p className="mt-3 text-muted-foreground">{t("support.intro")}</p>
 
-      <Card className="mt-8">
-        <CardContent className="space-y-4 pt-6 text-center">
-          <p className="text-sm text-muted-foreground">{t("support.ctaLead")}</p>
-          <Button asChild className="w-full" size="lg">
-            <a href={EXTERNAL_DONATIONS_URL} target="_blank" rel="noopener noreferrer">
-              <HandHeart className="h-4 w-4" aria-hidden="true" />
-              {t("support.cta")}
-              <ExternalLink className="h-3.5 w-3.5 opacity-80" aria-hidden="true" />
-            </a>
-          </Button>
-          <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
-            <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-            {t("support.ctaNote")}
-          </p>
-        </CardContent>
-      </Card>
+      <SupportGiftCard />
 
       <section className="mt-10" aria-labelledby="support-why">
         <h2 id="support-why" className="text-lg font-semibold">

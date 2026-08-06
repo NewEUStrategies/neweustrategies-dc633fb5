@@ -35,8 +35,83 @@
 // Warstwa wykonawcza (odczyt katalogu + exit code) żyje w
 // `scripts/check-sql-migration-replay.ts`; ten moduł jest czysty i testowalny.
 
+// ── INWARIANT 3: żadna migracja nie wjeżdża DWA RAZY pod dwiema nazwami ─────
+// Bramka wersji pilnuje KLUCZA, nie TREŚCI - a duplikaty treści przechodziły
+// przez nią bez śladu, bo mają różne timestampy. Powstają mechanicznie: ta sama
+// zmiana raz jako plik pisany w PR-ze, raz jako plik wygenerowany po merge'u
+// przez dashboard platformy (nazwa z UUID). Wszystkie są idempotentne
+// (`ADD COLUMN IF NOT EXISTS`, `DROP POLICY IF EXISTS`), więc odtwarzanie bazy
+// nie pęka - koszt jest inny: HISTORIA MIGRACJI PRZESTAJE MÓWIĆ PRAWDĘ o tym,
+// kiedy zmiana realnie weszła. Przy spłaszczonej historii commitów to jedyne
+// narzędzie datowania regresji, jakie zostaje audytowi i debuggerowi.
+//
+// SKALA (pomiar 2026-08-06, pierwszy w historii repo): **34 pary**, najstarsza
+// z 30 czerwca. Audyt 05.08 naliczył sześć - bo szukał ręcznie, wśród migracji
+// z ostatnich dni. Zjawisko jest systemowe i ciągnie się od początku projektu;
+// dopiero bramka pokazała jego rozmiar.
+//
+// Dlaczego lista długu zamiast twardej odmowy: te pary są już ZASTOSOWANE (ich
+// wersje siedzą w `schema_migrations` na produkcji). Skasowanie pliku
+// zastosowanej migracji rozjeżdża ledger z repo i wymaga świadomej decyzji
+// operatora, nie commita audytowego. Ratchet działa w jedną stronę: lista może
+// tylko maleć, a KAŻDA nowa para wywala CI.
+
 /** `20260803090000_opis.sql` -> wersja + opis. */
 const FILE_RE = /^(\d{14})_(.+)\.sql$/;
+
+/**
+ * Bliźniaki treści zastane 2026-08-06. Klucz: nazwy plików pary, posortowane
+ * i połączone `|`. Wpis wolno WYŁĄCZNIE usunąć (po uporządkowaniu ledgera).
+ */
+const KNOWN_CONTENT_TWINS: readonly string[] = [
+  "20260630095255_8eed6a02-fe17-4a5d-b379-e149b5617099.sql|20260630130000_web_vitals_daily_p75.sql",
+  "20260702090000_workflow_status_values.sql|20260702112958_449e5bf2-540b-4b63-82ad-5d0aabf999b9.sql",
+  "20260702090100_editorial_workflow.sql|20260702113027_d3940358-76a0-4e77-bf9c-52f475d524b6.sql",
+  "20260708170000_profiles_pii_grant_fix.sql|20260708205846_ba807e22-1223-434c-ae83-1ab83ab71329.sql",
+  "20260711120200_payment_orders_subscription_ref.sql|20260711170456_5a2f7744-f674-4a50-9cb4-8ca70573e171.sql",
+  "20260711130000_drop_dead_subscription_tiers.sql|20260711170409_336c351b-badf-4e31-a246-90dff05d18ca.sql",
+  "20260711200000_domain_event_bus.sql|20260711220607_555aaf71-75e5-4153-a123-4d3b78715ffc.sql",
+  "20260711201000_cross_references_and_mentions.sql|20260711220719_8ea0af08-fe4b-4184-bc57-56ce7cdfd8c3.sql",
+  "20260711202000_pending_counters.sql|20260711220826_7d40944d-a182-433f-968c-70dfeaba4ebe.sql",
+  "20260711203000_idempotency_and_integration_outbox.sql|20260711220935_220b8de1-c64d-481d-8ca7-3cb8e677dc72.sql",
+  "20260711204000_workflow_engine.sql|20260711221058_9dbe5dcf-e0b7-4760-a0a7-c40e80042a56.sql",
+  "20260711205000_enqueue_notification_recipient_tenant.sql|20260711221135_e1498398-269b-415e-8cd2-1c649381ca1c.sql",
+  "20260712190000_chat_privacy_tenant_hardening.sql|20260712192421_f5534986-5cf6-4b3b-81b3-8dd3cbf060d2.sql",
+  "20260713080601_c143de36-df8b-414b-9980-215c6a7bdf13.sql|20260714090000_integration_endpoints_secret_vault.sql",
+  "20260719231236_9814f56f-06d5-40f4-891f-c34a43628255.sql|20260801121000_revoke_content_access_password_hints_authenticated.sql",
+  "20260721211451_add_slug_to_get_chat_peers.sql|20260721211552_f786a170-6950-4356-8d9a-e8d9decec852.sql",
+  "20260722194752_91a36022-8b3a-4628-82bc-65fab0012b4c.sql|20260722200000_pricing_audiences_faq.sql",
+  "20260722223653_3a30e875-d618-4cfb-b88b-6989cd025470.sql|20260722230000_pricing_catalog_v3_retention.sql",
+  "20260722232800_cccc5cf5-2ad0-4c34-8d9c-fafaab2e60f4.sql|20260723090000_tier_content_gating_tracker.sql",
+  "20260723060808_0c9d46bb-7d5e-429e-9a19-cb6b08e637fc.sql|20260723150000_plan_interval_quarter.sql",
+  "20260723104913_5b9c4d2f-b2aa-4b13-ad64-513dc74393dd.sql|20260723170000_expert_request_capability.sql",
+  "20260724104608_1d969894-68ab-4185-a781-933b1fd09894.sql|20260724110000_harden_user_bookmarks_tenant_scope.sql",
+  "20260724192249_flatten_menu_taxonomy_hrefs.sql|20260724192307_b51fd20f-484c-41ea-b740-206f6d456f78.sql",
+  "20260726090000_related_posts_config_provisioning.sql|20260728093211_8ffa7d51-40cf-4128-addb-c4fd4904b26e.sql",
+  "20260730190000_plan_interval_two_weeks.sql|20260730194544_eea8e34d-649f-410b-89c1-32c01bae53c9.sql",
+  "20260730191000_business_partner_catalog.sql|20260730194653_461c4aeb-4d8d-4b9b-a32a-1ed55f020448.sql",
+  "20260731193000_get_expert_materials.sql|20260731213605_c59ddd2f-6697-4a68-ba6d-12c0f6d86c4e.sql",
+  "20260731210001_expert_layout_inline_overrides.sql|20260731211632_832b5da6-50c1-4907-86b5-8abf90033136.sql",
+  "20260731220000_payment_orders_environment_isolation.sql|20260801135636_3f04a060-6643-497b-ac56-554258fd2703.sql",
+  "20260803090001_link_monitor_archive_and_alerts.sql|20260803092325_19f1e04f-5ff8-4f47-b28a-129254553dd0.sql",
+  "20260803095150_6d9df3b2-518b-47a1-8d3c-2e947eeda4a2.sql|20260803113000_profile_badge_domain_sync.sql",
+  "20260803140001_consent_gpc_signal.sql|20260803190927_fff99c9d-23b7-4465-adad-c3aef71099ff.sql",
+  "20260804145341_26ab64e2-3671-4530-8e8e-b4d7ff4ec953.sql|20260804150000_newsletter_popup_design_jsonb.sql",
+  "20260806084556_16d8191a-65d0-4002-b075-3a41d62ed1a5.sql|20260806120000_mobile_bottom_bar_reference_look.sql",
+];
+
+/**
+ * Treść migracji bez komentarzy i bez różnic w białych znakach. Dwa pliki
+ * generowane osobno dla tej samej zmiany różnią się zwykle wyłącznie nagłówkiem
+ * i wcięciami, więc porównanie surowych bajtów nic by nie znalazło.
+ */
+function normalizeSql(sql: string): string {
+  return sql
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/--[^\n]*/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 /** Zapis do storage.objects, który trigger `protect_objects_delete` blokuje. */
 const STORAGE_WRITE_RE = /\b(?:DELETE\s+FROM|UPDATE)\s+storage\.objects\b/i;
@@ -61,6 +136,12 @@ export interface MigrationReplayReport {
   readonly outOfOrder: readonly string[];
   /** Pliki z WYKONYWANYM zapisem do storage.objects bez furtki GUC. */
   readonly unguardedStorageWrites: readonly string[];
+  /** NOWE bliźniaki treści (identyczna treść po odjęciu komentarzy), spoza listy długu. */
+  readonly contentTwins: readonly (readonly string[])[];
+  /** Bliźniaki z listy znanego długu, które nadal istnieją - raportowane, nie blokujące. */
+  readonly knownContentTwins: readonly (readonly string[])[];
+  /** Wpisy listy długu, których już nie ma w repo - ratchet każe je usunąć. */
+  readonly staleKnownTwins: readonly string[];
 }
 
 /**
@@ -162,7 +243,53 @@ export function analyzeMigrationReplay(
     .map(({ file }) => file)
     .sort();
 
-  return { total: parsed.length, unparsable, duplicates, outOfOrder, unguardedStorageWrites };
+  // Bliźniaki treści: grupujemy po znormalizowanym SQL-u. Pustych (sam komentarz
+  // albo plik zerowy) nie grupujemy - byłyby fałszywym alarmem.
+  const byContent = new Map<string, string[]>();
+  for (const { file, sql } of sources) {
+    const key = normalizeSql(sql);
+    if (key === "") continue;
+    const bucket = byContent.get(key);
+    if (bucket) bucket.push(file);
+    else byContent.set(key, [file]);
+  }
+  const known = new Set(KNOWN_CONTENT_TWINS);
+  const seenKnown = new Set<string>();
+  const contentTwins: string[][] = [];
+  const knownContentTwins: string[][] = [];
+  for (const group of byContent.values()) {
+    if (group.length < 2) continue;
+    const sortedGroup = [...group].sort();
+    const key = sortedGroup.join("|");
+    if (known.has(key)) {
+      seenKnown.add(key);
+      knownContentTwins.push(sortedGroup);
+    } else {
+      contentTwins.push(sortedGroup);
+    }
+  }
+  contentTwins.sort((a, b) => a[0].localeCompare(b[0]));
+  knownContentTwins.sort((a, b) => a[0].localeCompare(b[0]));
+  // Ratchet: wpis jest NIEAKTUALNY, gdy para przestała być bliźniacza, mimo że
+  // jej pliki są w zakresie analizy (usunięto jeden plik albo treści się
+  // rozjechały). Gdy ŻADNEGO pliku pary nie ma w zakresie, wpis jest po prostu
+  // poza zasięgiem tego wywołania - inaczej analiza cząstkowa (testy
+  // jednostkowe na syntetycznych plikach) uznałaby całą listę za martwą.
+  const scanned = new Set(sources.map(({ file }) => file));
+  const staleKnownTwins = [...known]
+    .filter((key) => !seenKnown.has(key) && key.split("|").some((file) => scanned.has(file)))
+    .sort();
+
+  return {
+    total: parsed.length,
+    unparsable,
+    duplicates,
+    outOfOrder,
+    unguardedStorageWrites,
+    contentTwins,
+    knownContentTwins,
+    staleKnownTwins,
+  };
 }
 
 export function migrationReplayFailed(report: MigrationReplayReport): boolean {
@@ -170,7 +297,12 @@ export function migrationReplayFailed(report: MigrationReplayReport): boolean {
     report.duplicates.size > 0 ||
     report.unparsable.length > 0 ||
     report.outOfOrder.length > 0 ||
-    report.unguardedStorageWrites.length > 0
+    report.unguardedStorageWrites.length > 0 ||
+    // Nowy bliźniak treści = czerwone CI. Znane pary są tylko raportowane,
+    // ale wpis, który przestał odpowiadać rzeczywistości, też blokuje - inaczej
+    // lista długu rosłaby w nieskończoność, zamiast maleć.
+    report.contentTwins.length > 0 ||
+    report.staleKnownTwins.length > 0
   );
 }
 
@@ -212,11 +344,40 @@ export function renderMigrationReplayReport(report: MigrationReplayReport): stri
     );
   }
 
+  if (report.contentTwins.length > 0) {
+    lines.push("✗ Ta sama migracja wjechała DWA RAZY pod różnymi nazwami (identyczna treść):");
+    for (const group of report.contentTwins) {
+      lines.push(`  ${group.length} pliki o tej samej treści:`);
+      for (const file of group) lines.push(`    - ${file}`);
+    }
+    lines.push(
+      "  Odtwarzanie bazy przeżyje (migracje są idempotentne), ale HISTORIA KŁAMIE",
+      "  o tym, kiedy zmiana realnie weszła - a przy spłaszczonej historii commitów",
+      "  to jedyne narzędzie datowania regresji.",
+      "  Napraw: zostaw plik z PR-a, usuń wygenerowany duplikat PRZED wdrożeniem.",
+      "  Jeśli obie wersje są już zastosowane, dopisz parę do KNOWN_CONTENT_TWINS",
+      "  wraz z decyzją operatora - lista może tylko maleć.",
+    );
+  }
+
+  if (report.staleKnownTwins.length > 0) {
+    lines.push("✗ Nieaktualne wpisy KNOWN_CONTENT_TWINS (te pary już nie istnieją):");
+    for (const key of report.staleKnownTwins) lines.push(`    - ${key}`);
+    lines.push("  Usuń je z listy - ratchet działa tylko wtedy, gdy lista odzwierciedla stan.");
+  }
+
   if (lines.length === 0) {
+    const debt =
+      report.knownContentTwins.length > 0
+        ? `, ${report.knownContentTwins.length} znanych par bliźniaków treści (dług, lista może tylko maleć)`
+        : "";
     lines.push(
       `✓ Inwariant odtwarzalności migracji OK (${report.total} plików: zero kolizji wersji, ` +
-        "zero niezabezpieczonych zapisów do storage.objects).",
+        `zero niezabezpieczonych zapisów do storage.objects${debt}).`,
     );
+    for (const group of report.knownContentTwins) {
+      lines.push(`    dług: ${group.join(" ≡ ")}`);
+    }
   }
   return lines.join("\n");
 }

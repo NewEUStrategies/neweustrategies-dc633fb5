@@ -10,7 +10,12 @@
 // Darowizna nie jest sprzedażą towaru ani usługi, dlatego świadomie NIE
 // włączamy tu `managed_payments` ani `automatic_tax` (inaczej niż w checkoucie
 // planów i biletów).
+//
+// PODSTAWA PRAWNO-PODATKOWA modelu (dlaczego wolno zbierać u operatora i
+// dlaczego bez podatku w sesji): docs/WDROZENIE_DAROWIZNY_WLASNY_CHECKOUT_2026-08-06.md.
+// Zmiana któregokolwiek z tych ustawień wymaga aktualizacji tamtego dokumentu.
 import type Stripe from "stripe";
+import type { Database } from "@/integrations/supabase/types";
 import { createStripeClient, getStripeErrorMessage, type StripeEnv } from "@/lib/stripe.server";
 import { normalizeCheckoutLocale, type CheckoutLocale } from "@/lib/billing/checkoutLocale";
 import {
@@ -23,6 +28,7 @@ import {
 } from "@/lib/billing/donationsConfig";
 
 type SessionCreateParams = Parameters<Stripe["checkout"]["sessions"]["create"]>[0];
+type DonationUpdate = Database["public"]["Tables"]["donations"]["Update"];
 
 /**
  * Nazwa pozycji i opis widoczne w formularzu Stripe - ramka nie ma dostępu do
@@ -92,20 +98,19 @@ export async function loadDonationsConfig(): Promise<DonationsConfig> {
  * Limit żądań: 10 prób otwarcia checkoutu na 10 minut dla jednego podmiotu.
  * Formularz jest publiczny (darowizna bez konta), więc bez tej bramki byłby
  * darmowym generatorem sesji u operatora.
+ *
+ * Fail-OPEN (domyślka wspólnego limitera): awaria bazy nie może zablokować
+ * wpłat - najwyżej przepuści garść dodatkowych sesji, których i tak nikt nie
+ * opłaci.
  */
 async function allowDonationAttempt(rateKey: string): Promise<boolean> {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data, error } = await supabaseAdmin.rpc("rate_limit_hit", {
-    _scope: "donation_checkout",
-    _subject: rateKey,
-    _max: 10,
-    _window_minutes: 10,
+  const { rateLimit } = await import("@/lib/server/rate-limit.server");
+  return rateLimit({
+    scope: "donation_checkout",
+    subjectId: rateKey,
+    max: 10,
+    windowMinutes: 10,
   });
-  if (error) {
-    console.error("[donations] rate limit check failed", error.message);
-    return true;
-  }
-  return data?.[0]?.allowed !== false;
 }
 
 /** Tworzy sesję darowizny i rejestruje ją jako wpłatę oczekującą. */
@@ -143,6 +148,10 @@ export async function createDonationSession(
       message,
       provider: "stripe",
       provider_session_id: `pending:${crypto.randomUUID()}`,
+      // Deklaracja trybu zapada TU, nie przy księgowaniu: panel i eksporty
+      // widzą darowiznę cykliczną, nawet jeśli pierwsza faktura nigdy nie
+      // dojdzie (porzucony checkout, odrzucona karta).
+      recurring: input.recurring,
       status: "pending",
     })
     .select("id")
@@ -213,39 +222,83 @@ export interface DonationSettlement {
   amountCents?: number | null;
   currency?: string | null;
   donorEmail?: string | null;
+  /** Moment zapłaty u operatora (ISO). Brak = teraz. */
+  paidAt?: string | null;
+}
+
+/** Kolumna, po której odnajdujemy wiersz darowizny przy księgowaniu. */
+type SettlementMatch = { column: "id" | "provider_session_id"; value: string };
+
+/**
+ * Nakłada łatkę księgującą i mówi, czy realnie ruszyła jakiś wiersz.
+ *
+ * Dwie reguły domenowe zaszyte w filtrach:
+ *   1. `status <> 'refunded'` - spóźnione ponowienie webhooka nie wskrzesza
+ *      zwróconej darowizny (pieniądze wróciły do darczyńcy, a trigger
+ *      `tg_donations_grant_supporter` cofnął już nadanie „supporter"),
+ *   2. `paid_at` ustawiamy WYŁĄCZNIE, gdy jest puste - data księgowania to
+ *      pierwsza zapłata, nie moment ostatniego ponowienia dostawcy.
+ */
+async function applyDonationSettlement(
+  match: SettlementMatch,
+  patch: DonationUpdate,
+  paidAtIso: string,
+): Promise<boolean> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+  const first = await supabaseAdmin
+    .from("donations")
+    .update({ ...patch, paid_at: paidAtIso })
+    .eq(match.column, match.value)
+    .neq("status", "refunded")
+    .is("paid_at", null)
+    .select("id");
+  if (first.error) throw new Error(`donation settle failed: ${first.error.message}`);
+  if ((first.data?.length ?? 0) > 0) return true;
+
+  // Wiersz ma już datę zapłaty (ponowienie webhooka) albo jest zwrócony -
+  // druga próba bez `paid_at` rozstrzyga, który z tych przypadków zaszedł.
+  const retry = await supabaseAdmin
+    .from("donations")
+    .update(patch)
+    .eq(match.column, match.value)
+    .neq("status", "refunded")
+    .select("id");
+  if (retry.error) throw new Error(`donation settle failed: ${retry.error.message}`);
+  return (retry.data?.length ?? 0) > 0;
 }
 
 /**
  * Księguje opłaconą darowiznę (webhook). Idempotentne: wiersz jest odnajdywany
  * po `donationId` z metadanych albo po identyfikatorze sesji, a status ustawiany
- * na `paid` niezależnie od liczby ponowień dostawcy.
+ * na `paid` niezależnie od liczby ponowień dostawcy. Zwraca `false`, gdy nie
+ * było czego zaksięgować - wywołujący raportuje wtedy „skipped" zamiast
+ * udawać sukces.
  */
 export async function settleDonation(settlement: DonationSettlement): Promise<boolean> {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const patch = {
+  const patch: DonationUpdate = {
     status: "paid",
     ...(settlement.intentId ? { provider_intent_id: settlement.intentId } : {}),
     ...(settlement.amountCents ? { amount_cents: settlement.amountCents } : {}),
     ...(settlement.currency ? { currency: settlement.currency.toUpperCase() } : {}),
     ...(settlement.donorEmail ? { donor_email: settlement.donorEmail.toLowerCase() } : {}),
   };
+  const paidAtIso = settlement.paidAt ?? new Date().toISOString();
 
   if (settlement.donationId) {
-    const { error } = await supabaseAdmin
-      .from("donations")
-      .update(patch)
-      .eq("id", settlement.donationId);
-    if (error) throw new Error(`donation settle failed: ${error.message}`);
-    return true;
+    return applyDonationSettlement(
+      { column: "id", value: settlement.donationId },
+      patch,
+      paidAtIso,
+    );
   }
 
   if (settlement.sessionId) {
-    const { error } = await supabaseAdmin
-      .from("donations")
-      .update(patch)
-      .eq("provider_session_id", settlement.sessionId);
-    if (error) throw new Error(`donation settle failed: ${error.message}`);
-    return true;
+    return applyDonationSettlement(
+      { column: "provider_session_id", value: settlement.sessionId },
+      patch,
+      paidAtIso,
+    );
   }
 
   console.warn("[donations] settlement without donationId/sessionId - skipped");
@@ -324,11 +377,12 @@ export async function recordRecurringDonationPayment(
   }
 
   const currency = payment.currency ? payment.currency.toUpperCase() : anchor.currency;
-  const amountCents = payment.amountCents && payment.amountCents > 0 ? payment.amountCents : anchor.amount_cents;
+  const amountCents =
+    payment.amountCents && payment.amountCents > 0 ? payment.amountCents : anchor.amount_cents;
   const donorEmail = payment.donorEmail?.toLowerCase() ?? anchor.donor_email;
 
   if (anchor.status === "pending") {
-    const { error } = await supabaseAdmin
+    const { data, error } = await supabaseAdmin
       .from("donations")
       .update({
         status: "paid",
@@ -341,9 +395,13 @@ export async function recordRecurringDonationPayment(
         donor_email: donorEmail,
       })
       .eq("id", anchor.id)
-      .eq("status", "pending");
+      .eq("status", "pending")
+      .select("id");
     if (error) throw new Error(`donation recurring settle failed: ${error.message}`);
-    return "settled";
+    // Zero wierszy = kotwica przestała być `pending` między odczytem a zapisem
+    // (równolegle dostarczony webhook). Ta faktura jest wtedy odnowieniem,
+    // a nie pierwszą wpłatą - wpada niżej i dopisuje własny wiersz.
+    if ((data?.length ?? 0) > 0) return "settled";
   }
 
   const { error } = await supabaseAdmin.from("donations").insert({

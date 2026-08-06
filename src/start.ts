@@ -38,7 +38,6 @@ function isInternalPlatformPath(pathname: string): boolean {
   );
 }
 
-
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
     return await next();
