@@ -79,6 +79,7 @@ import {
 } from "./ui/organisms/widget-view/frame";
 import { OnboardingFormView } from "./ui/organisms/widget-view/OnboardingFormView";
 import { ProgressCarouselView } from "./ui/organisms/widget-view/ProgressCarouselView";
+import { CircularCarouselView } from "./ui/organisms/widget-view/CircularCarouselView";
 import { MOTION_INITIAL, MOTION_FINAL } from "./ui/organisms/widget-view/motion";
 import { Editable } from "./ui/molecules/Editable";
 // Eager: layout-critical / above-the-fold / navigation widgets.
@@ -1151,6 +1152,9 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
 
     case "progress-carousel":
       return wrap(<ProgressCarouselView c={c} lang={lang} />);
+
+    case "circular-carousel":
+      return wrap(<CircularCarouselView c={c} lang={lang} />);
 
     case "cta": {
       const tKey = `title_${lang}`;

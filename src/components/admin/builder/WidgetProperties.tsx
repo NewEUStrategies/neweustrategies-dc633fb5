@@ -83,6 +83,7 @@ import {
   TimelineEditor,
   LogoCloudEditor,
   ProgressCarouselEditor,
+  CircularCarouselEditor,
   PricingEditor,
   RatedListEditor,
   ImageEditor,
@@ -106,6 +107,7 @@ import {
   SponsorsEditor,
   IMAGE_EDITOR_HANDLED_KEYS,
   PROGRESS_CAROUSEL_EDITOR_HANDLED_KEYS,
+  CIRCULAR_CAROUSEL_EDITOR_HANDLED_KEYS,
 } from "./ui/organisms/widget-properties";
 
 interface Props {
@@ -1661,6 +1663,7 @@ export const PANEL_EXTRA_CONTENT_KEYS: Partial<Record<WidgetType, ReadonlySet<st
 const CUSTOM_EDITOR_HANDLED_KEYS: Partial<Record<WidgetType, ReadonlySet<string>>> = {
   image: IMAGE_EDITOR_HANDLED_KEYS,
   "progress-carousel": PROGRESS_CAROUSEL_EDITOR_HANDLED_KEYS,
+  "circular-carousel": CIRCULAR_CAROUSEL_EDITOR_HANDLED_KEYS,
 };
 
 /**
@@ -1695,6 +1698,8 @@ function customContentEditor(
       return <LogoCloudEditor c={c} lang={lang} setContent={setContent} />;
     case "progress-carousel":
       return <ProgressCarouselEditor c={c} lang={lang} setContent={setContent} />;
+    case "circular-carousel":
+      return <CircularCarouselEditor c={c} lang={lang} setContent={setContent} />;
     case "pricing":
       return <PricingEditor c={c} lang={lang} setContent={setContent} />;
     case "image":
