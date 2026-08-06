@@ -60,6 +60,8 @@ import {
   socialHoverStyle,
   type SocialHoverPlan,
 } from "./socialHover";
+import { SocialMailIcon } from "./socialGlyphs";
+
 
 import { DeferredFrame } from "@/components/atoms/DeferredFrame";
 import { ImageWidget, PostsSliderWidget } from "./mediaWidgets";
