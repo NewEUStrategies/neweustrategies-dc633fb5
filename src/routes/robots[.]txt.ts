@@ -1,54 +1,32 @@
 // Dynamic robots.txt.
-// - On canonical brand hosts: allow indexing + advertise every sitemap surface.
+// - On canonical hosts (brand domain or a tenant's own domain): allow indexing,
+//   apply the editorial AI-crawler policy and advertise every sitemap surface.
 // - On non-canonical hosts of this deployment (hosting-layer aliases, legacy
-//   domains from `LEGACY_HOST_SUFFIXES`): fully disallow, so search engines drop
-//   cached alias URLs instead of keeping a duplicate of the site.
-// - On unknown hosts: safe default of full disallow.
+//   domains from `LEGACY_HOST_SUFFIXES`, editor/local previews): fully disallow,
+//   so search engines drop cached alias URLs instead of keeping a duplicate of
+//   the site.
+// - On hosts no tenant has claimed: safe default of full disallow.
 //
 // Klasyfikacja hosta jest JEDNA dla całego SEO (`lib/http/host.ts`), wspólna
 // z przekierowaniem kanonicznym i powierzchniami sitemapy - host nie może być
-// jednocześnie kanonizowany 301 i ogłaszany jako indeksowalny.
+// jednocześnie kanonizowany 301 i ogłaszany jako indeksowalny - a origin, na
+// którym ogłaszamy mapy, liczy ta sama funkcja co dla samych map
+// (`crawlerPublishOrigin`).
 //
-// Do 2026-08-03 deklarowana była JEDNA sitemapa (/sitemap.xml), więc
-// /news-sitemap.xml - trasa istniejąca i wymagana przez Google News - nie był
-// odkrywalny ŻADNYM kanałem: ani z robots.txt, ani z indeksu (indeksu nie było).
-// Teraz robots.txt ogłasza indeks + news sitemap, a treść składa czysty builder
-// (@/lib/seo/robots), objęty testem kontraktu.
+// UWAGA WDROŻENIOWA: ta trasa działa TYLKO dopóki w `public/` nie ma pliku
+// `robots.txt`. Statyczny asset z `.output/public/` wygrywa z workerem, więc
+// zacommitowany `public/robots.txt` czynił całą tę logikę nieosiągalną na
+// produkcji (finding 2026-08-06). Pilnuje tego bramka CI
+// `src/lib/ci/__tests__/staticAssetShadowing.test.ts` plus test e2e sprawdzający,
+// że odpowiedź pochodzi z trasy (nagłówek `X-Robots-Tag`).
+//
+// Cała logika (klasyfikacja hosta, tenant, ustawienia, nagłówki) żyje w
+// `robotsRequest.server.ts` i `lib/seo/robots.ts` - tu zostaje samo wiązanie
+// żądania z odpowiedzią.
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { trustedPublicHost } from "@/lib/http/requestHost";
-import {
-  CANONICAL_SITE_HOSTS,
-  CANONICAL_SITE_ORIGIN,
-  isEditorOrLocalHost,
-  isNonCanonicalPublicHost,
-} from "@/lib/http/host";
 import { buildRobotsTxt } from "@/lib/seo/robots";
-import { parseSeoSettings } from "@/lib/seo/settings";
-
-const CANONICAL_ORIGIN = CANONICAL_SITE_ORIGIN;
-const CANONICAL_HOSTS = CANONICAL_SITE_HOSTS;
-
-/**
- * Sitemapy do ogłoszenia. Indeks jest zawsze; news sitemap tylko gdy redakcja
- * ma go włączonego - trasa odpowiada wtedy 404, a robots.txt kierujący crawlera
- * na 404 to gotowy błąd w raporcie Search Console. Odczyt ustawień jest
- * best-effort: przy awarii zostaje sam indeks (crawl działa dalej).
- */
-async function sitemapPathsFor(host: string): Promise<string[]> {
-  const paths = ["/sitemap.xml"];
-  try {
-    const { resolveCrawlerTenantIdForHost } = await import("@/lib/server/tenant.server");
-    const tenantId = await resolveCrawlerTenantIdForHost(host);
-    if (!tenantId) return paths;
-    const { fetchSeoSettingsValue } = await import("@/lib/server/publishedContent.server");
-    const settings = parseSeoSettings(await fetchSeoSettingsValue(tenantId));
-    if (settings.news_sitemap_enabled) paths.push("/news-sitemap.xml");
-  } catch (e) {
-    console.warn("[seo] robots.txt sitemap settings unavailable:", e);
-  }
-  return paths;
-}
 
 export const Route = createFileRoute("/robots.txt")({
   server: {
@@ -56,22 +34,21 @@ export const Route = createFileRoute("/robots.txt")({
       GET: async () => {
         const req = getRequest();
         const host = (await trustedPublicHost(req)) ?? "";
-        const canonical = CANONICAL_HOSTS.has(host);
+        const proto = req.headers.get("x-forwarded-proto") ?? "https";
 
-        const body = buildRobotsTxt({
-          mode: canonical
-            ? "canonical"
-            : isEditorOrLocalHost(host) || isNonCanonicalPublicHost(host)
-              ? "legacy"
-              : "unknown",
-          origin: CANONICAL_ORIGIN,
-          sitemapPaths: canonical ? await sitemapPathsFor(host) : [],
-        });
+        // Import dynamiczny: graf serwerowy (katalog tenantów, klient admina
+        // Supabase) nie może wejść do bundle'a klienta przez drzewo tras.
+        const { resolveRobotsPolicy } = await import("@/lib/server/robotsPolicy.server");
+        const policy = await resolveRobotsPolicy(host, proto);
+        const canonical = policy.mode === "canonical";
 
-        return new Response(body, {
+        return new Response(buildRobotsTxt(policy), {
           headers: {
             "Content-Type": "text/plain; charset=utf-8",
             "Cache-Control": "public, max-age=3600",
+            // Nagłówek jest JEDNOCZEŚNIE sygnałem dla crawlera i znacznikiem
+            // pochodzenia odpowiedzi: statyczny plik z `public/` nigdy go nie
+            // wystawi, więc test e2e wykrywa nim przesłonięcie trasy.
             "X-Robots-Tag": canonical ? "all" : "noindex, nofollow",
           },
         });

@@ -14,6 +14,12 @@
 import type Stripe from "stripe";
 import { createStripeClient, resolveEnvironment, type StripeEnv } from "@/lib/stripe.server";
 import { normalizeCheckoutLocale, type CheckoutLocale } from "@/lib/billing/checkoutLocale";
+import {
+  checkoutSessionParams,
+  DEFAULT_CHECKOUT_SETTINGS,
+  type CheckoutSessionParams,
+  type CheckoutSettings,
+} from "@/lib/billing/checkoutSettings";
 
 // SDK Stripe (esm) nie eksportuje `Stripe.Checkout.SessionCreateParams` jako
 // nazwanego typu - wyprowadzamy go z sygnatury metody, żeby nie duplikować
@@ -23,6 +29,24 @@ type SessionCreateParams = Parameters<Stripe["checkout"]["sessions"]["create"]>[
   managed_payments?: { enabled: boolean };
 };
 
+// Kontrakt czystego opisu z `checkoutSettings.ts` vs faktyczny kształt API
+// Stripe, pilnowany przez kompilator: (a) każdy klucz musi istnieć w
+// `SessionCreateParams` - literówka w nazwie parametru nie przejdzie budowania;
+// (b) typy wartości muszą być przypisywalne (sprawdza `sessionFlags` niżej).
+type UnknownStripeParamKeys = Exclude<keyof CheckoutSessionParams, keyof SessionCreateParams>;
+type AssertParamsMatchStripe = UnknownStripeParamKeys extends never ? true : never;
+const _paramsMatchStripe: AssertParamsMatchStripe = true;
+void _paramsMatchStripe;
+
+// Flagi tenantu (kupony / Stripe Tax / NIP / faktury) wjeżdżają do sesji
+// dokładnie w tym jednym miejscu na ścieżkę.
+function sessionFlags(
+  settings: CheckoutSettings | undefined,
+  context: { mode: "payment" | "subscription"; hasCustomer: boolean; hasDiscount: boolean },
+): SessionCreateParams {
+  return checkoutSessionParams(settings ?? DEFAULT_CHECKOUT_SETTINGS, context);
+}
+
 export { resolveEnvironment };
 export type { StripeEnv };
 
@@ -30,8 +54,7 @@ export type { StripeEnv };
 export const MIN_ADHOC_AMOUNT_CENTS = 50;
 
 export type CheckoutSessionResult =
-  | { ok: true; clientSecret: string; sessionId: string }
-  | { ok: false; error: string };
+  { ok: true; clientSecret: string; sessionId: string } | { ok: false; error: string };
 
 /**
  * Znajduje istniejącego klienta Stripe po `metadata.userId`, potem po
@@ -119,6 +142,16 @@ export interface PlanCheckoutSessionInput {
   discount?: { coupon: string } | { promotionCode: string } | null;
   /** Język formularza Stripe (ramka nie dziedziczy naszego i18n). */
   locale?: CheckoutLocale;
+  /**
+   * Okres próbny planu w dniach (0 = brak). MUSI trafić do sesji, bo u tego
+   * operatora trial NIE siedzi na cenie - inaczej niż u poprzedniego. Katalog
+   * zapisuje `trial_days` wyłącznie do metadanych ceny (catalogSync), a metadane
+   * są dla Stripe bezwładne: bez `subscription_data.trial_period_days` karta
+   * zostaje obciążona od razu, mimo że plan i cennik obiecują okres próbny.
+   */
+  trialDays?: number;
+  /** Ustawienia checkoutu tenantu (kupony, VAT, NIP, faktura). */
+  settings?: CheckoutSettings;
 }
 
 /**
@@ -157,6 +190,13 @@ export async function createPlanCheckoutSession(
         ]
       : undefined;
 
+    // Operator przyjmuje 1-730 dni; ułamki i wartości spoza zakresu odrzuca
+    // błędem walidacji, więc normalizujemy tutaj, a nie u wołającego.
+    const trialPeriodDays =
+      mode === "subscription" && Number.isFinite(input.trialDays)
+        ? Math.min(Math.max(Math.trunc(input.trialDays as number), 0), 730)
+        : 0;
+
     const params: SessionCreateParams = {
       mode,
       ui_mode: "embedded_page",
@@ -170,6 +210,9 @@ export async function createPlanCheckoutSession(
         ? {
             subscription_data: {
               metadata: { userId: input.userId, planId: input.planId, orderId: input.orderId },
+              // Trial przekazujemy TYLKO gdy plan go ma - `trial_period_days: 0`
+              // jest u operatora błędem walidacji, nie "brakiem triala".
+              ...(trialPeriodDays ? { trial_period_days: trialPeriodDays } : {}),
             },
           }
         : {
@@ -178,9 +221,16 @@ export async function createPlanCheckoutSession(
               metadata: { userId: input.userId, planId: input.planId, orderId: input.orderId },
             },
           }),
-      // Sprzedawca w Polsce, produkty cyfrowe -> podatek liczy operator
-      // płatności (nie łączymy z automatic_tax - patrz dyrektywy repo).
-      managed_payments: { enabled: true },
+      // Kupony, Stripe Tax, NIP, faktury i płaszczyzna rozliczeniowa
+      // (`managed_payments` vs własny `automatic_tax`) - wszystko z ustawień
+      // tenantu, rozstrzygnięte w `checkoutSessionParams`. Sesja z rabatem
+      // operatora nie dostanie pola na kod promocyjny, a klient jest tu zawsze
+      // przypięty, więc `customer_creation` nigdy nie wjedzie.
+      ...sessionFlags(input.settings, {
+        mode,
+        hasCustomer: true,
+        hasDiscount: !!discounts,
+      }),
     } as SessionCreateParams;
 
     const session = await stripe.checkout.sessions.create(params);
@@ -210,6 +260,8 @@ export interface AdhocCheckoutSessionInput {
   metadata?: Record<string, string>;
   /** Język formularza Stripe (ramka nie dziedziczy naszego i18n). */
   locale?: CheckoutLocale;
+  /** Flagi checkoutu tenantu zamówienia (brak -> bezpieczne domyślne). */
+  settings?: CheckoutSettings;
 }
 
 /**
@@ -267,9 +319,14 @@ export async function createAdhocCheckoutSession(
         description: input.name.slice(0, 200),
         metadata,
       },
-      // Sprzedawca w Polsce, produkty cyfrowe -> podatek liczy operator
-      // płatności (nie łączymy z automatic_tax - patrz dyrektywy repo).
-      managed_payments: { enabled: true },
+      // Jak wyżej - flagi tenantu. Tu klient bywa nieprzypięty (anonimowa
+      // darowizna), więc `customer_creation=always` dojedzie wtedy, gdy sesja
+      // musi zapisać NIP, policzyć podatek albo wystawić fakturę.
+      ...sessionFlags(input.settings, {
+        mode: "payment",
+        hasCustomer: !!customerId,
+        hasDiscount: false,
+      }),
     } as SessionCreateParams;
 
     const session = await stripe.checkout.sessions.create(params);

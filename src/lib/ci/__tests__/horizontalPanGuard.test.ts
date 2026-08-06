@@ -63,7 +63,6 @@ describe("zwijany header nie poszerza dokumentu", () => {
     expect(CSS).not.toMatch(/width:\s*calc\(100%\s*\/\s*var\(--hdr-scale\)\)/);
   });
 
-
   it("header przycina nadmiarową szerokość, ale nie tnie dropdownów w pionie", () => {
     const shrink = ruleBody(CSS, "header[data-site-header].site-header-shrink");
     expect(shrink).toMatch(/overflow-x:\s*clip/);

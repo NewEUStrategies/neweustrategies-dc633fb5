@@ -26,8 +26,7 @@ export interface BuildAdhocOrderArgs {
 }
 
 export type BuildAdhocOrderResult =
-  | { ok: true; clientSecret: string; orderId: string }
-  | { ok: false; error: string };
+  { ok: true; clientSecret: string; orderId: string } | { ok: false; error: string };
 
 interface ResolvedAmount {
   amountCents: number;
@@ -145,11 +144,19 @@ export async function buildAdhocOrder(args: BuildAdhocOrderArgs): Promise<BuildA
       environment,
       metadata: { label: resolved.name, purpose: data.purpose, ...resolved.metadata },
     } as never)
-    .select("id")
+    .select("id, tenant_id")
     .single();
   if (insertErr) throw insertErr;
 
-  const { createAdhocCheckoutSession } = await import("@/lib/billing/adhocCheckout.server");
+  const [{ createAdhocCheckoutSession }, { loadCheckoutSettings }] = await Promise.all([
+    import("@/lib/billing/adhocCheckout.server"),
+    import("@/lib/billing/checkoutSettings.server"),
+  ]);
+  // Flagi checkoutu tenantu zamówienia - te same, co dla planów z katalogu.
+  // Klient jest tu nietypowany (`SupabaseClient` bez generyka `Database`), więc
+  // zawężamy `tenant_id` jawnie zamiast ufać wnioskowaniu.
+  const orderTenantId = typeof order.tenant_id === "string" ? order.tenant_id : null;
+  const settings = await loadCheckoutSettings(supabase, orderTenantId);
   const result = await createAdhocCheckoutSession({
     environment,
     name: resolved.name,
@@ -162,6 +169,7 @@ export async function buildAdhocOrder(args: BuildAdhocOrderArgs): Promise<BuildA
     returnUrl: data.returnUrl,
     locale,
     metadata: resolved.metadata,
+    settings,
   });
 
   if (!result.ok) {

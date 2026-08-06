@@ -60,7 +60,6 @@ const TONES: Record<SubscriptionStatusKey, SubscriptionTone> = {
   none: "muted",
 };
 
-
 function isFuture(iso: string | null, now: number): boolean {
   if (!iso) return false;
   const ts = new Date(iso).getTime();
@@ -135,5 +134,4 @@ export function deriveSubscriptionStatus(input: {
   if (local.status === "expired" || local.status === "refunded")
     return grant ? buildGrant() : build("canceled", false, false);
   return build("active", true, withinPeriod || !periodEnd);
-
 }

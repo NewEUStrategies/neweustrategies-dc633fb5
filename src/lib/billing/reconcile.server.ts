@@ -262,13 +262,19 @@ async function replayEvent(
       ? new Date(event.created * 1000).toISOString()
       : new Date().toISOString();
 
-  await log.claimWebhookEvent({
+  // Dziennik webhooków JEST bramką idempotencji: `false` znaczy "to zdarzenie
+  // jest już w stanie końcowym (processed/skipped)". Produkcyjna trasa webhooka
+  // to honoruje i kończy jako duplikat; naprawa z panelu tego nie robiła, więc
+  // powtórne kliknięcie "Napraw" przepuszczało pełny handler dla domkniętego
+  // zdarzenia i nadpisywało `processed_at`/`duration_ms` istniejącego wpisu.
+  const claimed = await log.claimWebhookEvent({
     eventId: event.id,
     eventType: event.type,
     environment,
     occurredAt,
     payload: { eventType: normalized.eventType, data: normalized.data },
   });
+  if (!claimed) return { reference, status: "skipped", error: null };
 
   const startedAt = Date.now();
   try {

@@ -19,10 +19,17 @@ export interface SegmentedControlProps<T extends string> {
   onChange: (value: T) => void;
   /** Etykieta grupy dla czytników ekranu. */
   ariaLabel: string;
-  size?: "sm" | "md";
+  /** `lg` - powierzchnie publiczne (formularz darowizny), reszta - panele. */
+  size?: "sm" | "md" | "lg";
   className?: string;
   disabled?: boolean;
 }
+
+const SIZE_CLASS: Record<NonNullable<SegmentedControlProps<string>["size"]>, string> = {
+  sm: "px-1.5 py-0.5 text-[11px]",
+  md: "px-2.5 py-1 text-xs",
+  lg: "px-4 py-2 text-sm font-medium",
+};
 
 export function SegmentedControl<T extends string>({
   value,
@@ -57,7 +64,7 @@ export function SegmentedControl<T extends string>({
             onClick={() => onChange(option.value)}
             className={cn(
               "inline-flex items-center justify-center gap-1 rounded-[5px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50",
-              size === "sm" ? "px-1.5 py-0.5 text-[11px]" : "px-2.5 py-1 text-xs",
+              SIZE_CLASS[size],
               active
                 ? "bg-background text-foreground shadow-sm border border-border/70"
                 : "text-muted-foreground hover:text-foreground",

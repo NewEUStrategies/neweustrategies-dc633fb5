@@ -62,12 +62,18 @@ describe("deriveSubscriptionStatus", () => {
 
   it("keeps trials and overdue payments distinct from plain active", () => {
     expect(
-      deriveSubscriptionStatus({ local: null, provider: provider({ status: "trialing" }), now: NOW })
-        .key,
+      deriveSubscriptionStatus({
+        local: null,
+        provider: provider({ status: "trialing" }),
+        now: NOW,
+      }).key,
     ).toBe("trialing");
     expect(
-      deriveSubscriptionStatus({ local: null, provider: provider({ status: "past_due" }), now: NOW })
-        .key,
+      deriveSubscriptionStatus({
+        local: null,
+        provider: provider({ status: "past_due" }),
+        now: NOW,
+      }).key,
     ).toBe("pastDue");
     expect(
       deriveSubscriptionStatus({ local: null, provider: provider({ status: "paused" }), now: NOW })

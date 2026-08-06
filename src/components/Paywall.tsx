@@ -31,7 +31,7 @@ import type { ContentAccessRule, AccessPlan } from "@/hooks/useContentAccess";
 import { formatMoney, planDescription, planName } from "@/lib/billing/types";
 import { createCheckoutOrder } from "@/lib/billing/checkout.functions";
 import { getStripeEnvironment } from "@/lib/stripe";
-import { EmbeddedCheckoutDialog } from "@/components/checkout/EmbeddedCheckoutDialog";
+import { LazyEmbeddedCheckoutDialog } from "@/components/checkout/LazyEmbeddedCheckoutDialog";
 import {
   formatMeterResetDate,
   meterPaywallVariant,
@@ -208,261 +208,261 @@ export function Paywall({
 
   return (
     <>
-      <EmbeddedCheckoutDialog
+      <LazyEmbeddedCheckoutDialog
         clientSecret={checkoutSecret}
         onOpenChange={(open) => {
           if (!open) setCheckoutSecret(null);
         }}
       />
-    <div className="mt-10 border border-border rounded-xl overflow-hidden bg-gradient-to-b from-muted/40 to-background">
-      {teaser && (
-        <div className="px-6 pt-6 pb-2 prose prose-lg dark:prose-invert max-w-none">
-          <p className="text-foreground/80">{teaser}…</p>
-        </div>
-      )}
-      <div className="px-6 py-8 text-center border-t border-border bg-background/60">
-        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-brand/10 text-brand-ink mb-4">
-          {rule.mode === "members" ? <LogIn className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
-        </div>
-        <h2 className="font-display text-2xl font-bold mb-2">
-          {meterVariant === "register"
-            ? t("paywall.meter.registerTitle")
-            : meterVariant === "exhausted"
-              ? t("paywall.meter.exhaustedTitle")
-              : rule.mode === "members"
-                ? t("paywall.membersOnly")
-                : rule.mode === "password"
-                  ? t("paywall.passwordOnly")
-                  : t("paywall.paidOnly")}
-        </h2>
-        <p className="text-sm text-muted-foreground max-w-md mx-auto mb-6">
-          {meterVariant === "register"
-            ? t("paywall.meter.registerDesc", { count: meterSettings?.member_monthly_limit ?? 0 })
-            : meterVariant === "exhausted"
-              ? t("paywall.meter.exhaustedDesc", {
-                  used: meterState?.used ?? 0,
-                  limit: meterState?.monthlyLimit ?? 0,
-                })
-              : rule.mode === "members"
-                ? t("paywall.membersDesc")
-                : rule.mode === "password"
-                  ? t("paywall.passwordDesc")
-                  : t("paywall.paidDesc")}
-        </p>
+      <div className="mt-10 border border-border rounded-xl overflow-hidden bg-gradient-to-b from-muted/40 to-background">
+        {teaser && (
+          <div className="px-6 pt-6 pb-2 prose prose-lg dark:prose-invert max-w-none">
+            <p className="text-foreground/80">{teaser}…</p>
+          </div>
+        )}
+        <div className="px-6 py-8 text-center border-t border-border bg-background/60">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-brand/10 text-brand-ink mb-4">
+            {rule.mode === "members" ? <LogIn className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
+          </div>
+          <h2 className="font-display text-2xl font-bold mb-2">
+            {meterVariant === "register"
+              ? t("paywall.meter.registerTitle")
+              : meterVariant === "exhausted"
+                ? t("paywall.meter.exhaustedTitle")
+                : rule.mode === "members"
+                  ? t("paywall.membersOnly")
+                  : rule.mode === "password"
+                    ? t("paywall.passwordOnly")
+                    : t("paywall.paidOnly")}
+          </h2>
+          <p className="text-sm text-muted-foreground max-w-md mx-auto mb-6">
+            {meterVariant === "register"
+              ? t("paywall.meter.registerDesc", { count: meterSettings?.member_monthly_limit ?? 0 })
+              : meterVariant === "exhausted"
+                ? t("paywall.meter.exhaustedDesc", {
+                    used: meterState?.used ?? 0,
+                    limit: meterState?.monthlyLimit ?? 0,
+                  })
+                : rule.mode === "members"
+                  ? t("paywall.membersDesc")
+                  : rule.mode === "password"
+                    ? t("paywall.passwordDesc")
+                    : t("paywall.paidDesc")}
+          </p>
 
-        {/* Wyczerpany limit: wizualny licznik zużycia (ten sam atom co baner w
+          {/* Wyczerpany limit: wizualny licznik zużycia (ten sam atom co baner w
             warstwie treści) + konkretna data odnowienia - czytelnik widzi, ILE
             przeczytał i KIEDY limit wróci, zanim zdecyduje o planie. */}
-        {meterVariant === "exhausted" && meterState && meterState.monthlyLimit > 0 && (
-          <div className="max-w-xs mx-auto mb-6" data-testid="paywall-meter">
-            <QuotaMeter
-              used={meterState.used}
-              limit={meterState.monthlyLimit}
-              label={t("paywall.meter.progressLabel")}
-              valueText={t("paywall.meter.progressValue", {
-                used: Math.min(meterState.used, meterState.monthlyLimit),
-                limit: meterState.monthlyLimit,
-              })}
-              size="md"
-            />
-            <p className="mt-2 text-xs text-muted-foreground">
-              {t("paywall.meter.resetsOn", { date: formatMeterResetDate(lang) })}
-            </p>
-          </div>
-        )}
-
-        {/* Password-protected */}
-        {rule.mode === "password" && (
-          <form onSubmit={submitPassword} className="max-w-sm mx-auto space-y-2.5">
-            {hint && (
-              <p className="text-xs text-muted-foreground">
-                <span className="font-medium">{t("paywall.passwordHintLabel")}</span> {hint}
-              </p>
-            )}
-            <div className="flex gap-2">
-              <Input
-                type="password"
-                autoComplete="off"
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  if (pwdError) setPwdError(false);
-                }}
-                placeholder={t("paywall.passwordPlaceholder")}
-                aria-invalid={pwdError}
-                aria-label={t("paywall.passwordPlaceholder")}
-                disabled={passwordVerifying || locked}
-                className={pwdError ? "border-destructive focus-visible:ring-destructive/40" : ""}
+          {meterVariant === "exhausted" && meterState && meterState.monthlyLimit > 0 && (
+            <div className="max-w-xs mx-auto mb-6" data-testid="paywall-meter">
+              <QuotaMeter
+                used={meterState.used}
+                limit={meterState.monthlyLimit}
+                label={t("paywall.meter.progressLabel")}
+                valueText={t("paywall.meter.progressValue", {
+                  used: Math.min(meterState.used, meterState.monthlyLimit),
+                  limit: meterState.monthlyLimit,
+                })}
+                size="md"
               />
-              <Button
-                type="submit"
-                disabled={passwordVerifying || locked || !password.trim()}
-                className="min-w-[92px]"
-              >
-                {passwordVerifying ? (
-                  <span className="inline-flex items-center gap-1.5">
-                    <span
-                      className="h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin"
-                      aria-hidden="true"
-                    />
-                    {t("paywall.passwordChecking")}
-                  </span>
-                ) : (
-                  t("paywall.passwordSubmit")
-                )}
-              </Button>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {t("paywall.meter.resetsOn", { date: formatMeterResetDate(lang) })}
+              </p>
             </div>
-            {locked ? (
-              <div
-                role="alert"
-                className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive"
-              >
-                <Lock className="h-3.5 w-3.5 shrink-0" />
-                <span>{t("paywall.passwordLocked", { seconds: secondsLeft })}</span>
+          )}
+
+          {/* Password-protected */}
+          {rule.mode === "password" && (
+            <form onSubmit={submitPassword} className="max-w-sm mx-auto space-y-2.5">
+              {hint && (
+                <p className="text-xs text-muted-foreground">
+                  <span className="font-medium">{t("paywall.passwordHintLabel")}</span> {hint}
+                </p>
+              )}
+              <div className="flex gap-2">
+                <Input
+                  type="password"
+                  autoComplete="off"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (pwdError) setPwdError(false);
+                  }}
+                  placeholder={t("paywall.passwordPlaceholder")}
+                  aria-invalid={pwdError}
+                  aria-label={t("paywall.passwordPlaceholder")}
+                  disabled={passwordVerifying || locked}
+                  className={pwdError ? "border-destructive focus-visible:ring-destructive/40" : ""}
+                />
+                <Button
+                  type="submit"
+                  disabled={passwordVerifying || locked || !password.trim()}
+                  className="min-w-[92px]"
+                >
+                  {passwordVerifying ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <span
+                        className="h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin"
+                        aria-hidden="true"
+                      />
+                      {t("paywall.passwordChecking")}
+                    </span>
+                  ) : (
+                    t("paywall.passwordSubmit")
+                  )}
+                </Button>
               </div>
-            ) : pwdError ? (
-              <div
-                role="alert"
-                className="flex items-center justify-between gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive"
-              >
-                <span className="font-medium">{t("paywall.passwordWrong")}</span>
-                {attemptsLeft > 0 && (
-                  <span className="tabular-nums opacity-80">
-                    {t("paywall.passwordAttemptsLeft", { count: attemptsLeft })}
-                  </span>
+              {locked ? (
+                <div
+                  role="alert"
+                  className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+                >
+                  <Lock className="h-3.5 w-3.5 shrink-0" />
+                  <span>{t("paywall.passwordLocked", { seconds: secondsLeft })}</span>
+                </div>
+              ) : pwdError ? (
+                <div
+                  role="alert"
+                  className="flex items-center justify-between gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+                >
+                  <span className="font-medium">{t("paywall.passwordWrong")}</span>
+                  {attemptsLeft > 0 && (
+                    <span className="tabular-nums opacity-80">
+                      {t("paywall.passwordAttemptsLeft", { count: attemptsLeft })}
+                    </span>
+                  )}
+                </div>
+              ) : null}
+            </form>
+          )}
+
+          {/* Members-only / not logged in. Wariant "register" odwraca akcenty:
+            rejestracja (wejście do darmowego limitu meteringu) jest primary. */}
+          {rule.mode !== "password" && !session && (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                {meterVariant === "register" ? (
+                  <>
+                    <Link to="/login" search={{ mode: "signup" }}>
+                      <Button>{t("paywall.signup")}</Button>
+                    </Link>
+                    <Link to="/login">
+                      <Button variant="outline">
+                        <LogIn className="w-4 h-4 mr-2" /> {t("paywall.signin")}
+                      </Button>
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <Link to="/login">
+                      <Button>
+                        <LogIn className="w-4 h-4 mr-2" /> {t("paywall.signin")}
+                      </Button>
+                    </Link>
+                    <Link to="/login" search={{ mode: "signup" }}>
+                      <Button variant="outline">{t("paywall.signup")}</Button>
+                    </Link>
+                  </>
                 )}
               </div>
-            ) : null}
-          </form>
-        )}
-
-        {/* Members-only / not logged in. Wariant "register" odwraca akcenty:
-            rejestracja (wejście do darmowego limitu meteringu) jest primary. */}
-        {rule.mode !== "password" && !session && (
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              {meterVariant === "register" ? (
-                <>
-                  <Link to="/login" search={{ mode: "signup" }}>
-                    <Button>{t("paywall.signup")}</Button>
-                  </Link>
-                  <Link to="/login">
-                    <Button variant="outline">
-                      <LogIn className="w-4 h-4 mr-2" /> {t("paywall.signin")}
-                    </Button>
-                  </Link>
-                </>
-              ) : (
-                <>
-                  <Link to="/login">
-                    <Button>
-                      <LogIn className="w-4 h-4 mr-2" /> {t("paywall.signin")}
-                    </Button>
-                  </Link>
-                  <Link to="/login" search={{ mode: "signup" }}>
-                    <Button variant="outline">{t("paywall.signup")}</Button>
-                  </Link>
-                </>
+              {meterVariant === "register" && (
+                <p className="text-xs text-muted-foreground">{t("paywall.meter.registerNote")}</p>
               )}
             </div>
-            {meterVariant === "register" && (
-              <p className="text-xs text-muted-foreground">{t("paywall.meter.registerNote")}</p>
-            )}
-          </div>
-        )}
+          )}
 
-        {/* Paid - logged in, show plans + one-time */}
-        {session && rule.mode === "paid" && (
-          <div className="space-y-4">
-            {plans.length > 0 && (
-              <div className="grid sm:grid-cols-2 gap-3 max-w-2xl mx-auto text-left">
-                {plans.map((p) => {
-                  const name = planName(p, lang);
-                  const desc = planDescription(p, lang);
-                  const intervalLabel =
-                    p.interval === "month"
-                      ? t("paywall.perMonth")
-                      : p.interval === "two_weeks"
-                        ? t("paywall.perTwoWeeks")
-                        : p.interval === "quarter"
-                          ? t("paywall.perQuarter")
-                          : p.interval === "year"
-                            ? t("paywall.perYear")
-                            : t("paywall.oneTime");
-                  return (
-                    <div
-                      key={p.id}
-                      className="border border-border rounded-lg p-4 bg-background hover:border-brand transition"
-                    >
-                      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-brand-ink mb-1">
-                        <Star className="w-3.5 h-3.5" /> {name}
+          {/* Paid - logged in, show plans + one-time */}
+          {session && rule.mode === "paid" && (
+            <div className="space-y-4">
+              {plans.length > 0 && (
+                <div className="grid sm:grid-cols-2 gap-3 max-w-2xl mx-auto text-left">
+                  {plans.map((p) => {
+                    const name = planName(p, lang);
+                    const desc = planDescription(p, lang);
+                    const intervalLabel =
+                      p.interval === "month"
+                        ? t("paywall.perMonth")
+                        : p.interval === "two_weeks"
+                          ? t("paywall.perTwoWeeks")
+                          : p.interval === "quarter"
+                            ? t("paywall.perQuarter")
+                            : p.interval === "year"
+                              ? t("paywall.perYear")
+                              : t("paywall.oneTime");
+                    return (
+                      <div
+                        key={p.id}
+                        className="border border-border rounded-lg p-4 bg-background hover:border-brand transition"
+                      >
+                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-brand-ink mb-1">
+                          <Star className="w-3.5 h-3.5" /> {name}
+                        </div>
+                        <div className="text-2xl font-bold">
+                          {formatMoney(p.price_cents, p.currency, lang)}
+                          <span className="text-xs font-normal text-muted-foreground ml-1">
+                            {intervalLabel}
+                          </span>
+                        </div>
+                        {p.trial_days > 0 && p.interval !== "one_time" && (
+                          <span className="mt-1 inline-block rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-medium text-brand-ink">
+                            {t("paywall.trialBadge", { days: p.trial_days })}
+                          </span>
+                        )}
+                        {desc && (
+                          <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{desc}</p>
+                        )}
+                        <Button asChild size="sm" className="w-full mt-3" disabled={busy}>
+                          <Link
+                            to="/checkout/$planId"
+                            params={{ planId: p.id }}
+                            onClick={rememberReturn}
+                          >
+                            {t("paywall.subscribe")}
+                          </Link>
+                        </Button>
                       </div>
-                      <div className="text-2xl font-bold">
-                        {formatMoney(p.price_cents, p.currency, lang)}
-                        <span className="text-xs font-normal text-muted-foreground ml-1">
-                          {intervalLabel}
-                        </span>
-                      </div>
-                      {p.trial_days > 0 && p.interval !== "one_time" && (
-                        <span className="mt-1 inline-block rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-medium text-brand-ink">
-                          {t("paywall.trialBadge", { days: p.trial_days })}
-                        </span>
-                      )}
-                      {desc && (
-                        <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{desc}</p>
-                      )}
-                      <Button asChild size="sm" className="w-full mt-3" disabled={busy}>
-                        <Link
-                          to="/checkout/$planId"
-                          params={{ planId: p.id }}
-                          onClick={rememberReturn}
-                        >
-                          {t("paywall.subscribe")}
-                        </Link>
-                      </Button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            {buyableEntity &&
-              rule.one_time_price_cents != null &&
-              rule.one_time_price_cents > 0 && (
-                <div className="inline-flex items-center gap-3 border border-border rounded-lg px-4 py-3 bg-background">
-                  <span className="text-sm">
-                    {t("paywall.buy")}:{" "}
-                    <strong>
-                      {formatMoney(
-                        rule.one_time_price_cents,
-                        rule.one_time_currency || "PLN",
-                        lang,
-                      )}
-                    </strong>
-                    <span className="text-xs text-muted-foreground ml-1">
-                      {t("paywall.oneTime")}
-                    </span>
-                  </span>
-                  <Button size="sm" onClick={startOneTime} disabled={busy}>
-                    {busy ? t("paywall.processing") : t("paywall.buy")}
-                  </Button>
+                    );
+                  })}
                 </div>
               )}
-            <p className="text-xs text-muted-foreground italic max-w-md mx-auto">
-              {t("paywall.secureNote")}
-            </p>
-            {/* Kanoniczny lejek: paywall odsyła do pełnego cennika (porównanie
+              {buyableEntity &&
+                rule.one_time_price_cents != null &&
+                rule.one_time_price_cents > 0 && (
+                  <div className="inline-flex items-center gap-3 border border-border rounded-lg px-4 py-3 bg-background">
+                    <span className="text-sm">
+                      {t("paywall.buy")}:{" "}
+                      <strong>
+                        {formatMoney(
+                          rule.one_time_price_cents,
+                          rule.one_time_currency || "PLN",
+                          lang,
+                        )}
+                      </strong>
+                      <span className="text-xs text-muted-foreground ml-1">
+                        {t("paywall.oneTime")}
+                      </span>
+                    </span>
+                    <Button size="sm" onClick={startOneTime} disabled={busy}>
+                      {busy ? t("paywall.processing") : t("paywall.buy")}
+                    </Button>
+                  </div>
+                )}
+              <p className="text-xs text-muted-foreground italic max-w-md mx-auto">
+                {t("paywall.secureNote")}
+              </p>
+              {/* Kanoniczny lejek: paywall odsyła do pełnego cennika (porównanie
                 planów, FAQ) zamiast być równoległym, ślepym lejkiem. */}
-            <Link
-              to="/pricing"
-              className="inline-block text-sm text-brand-ink hover:underline"
-              onClick={rememberReturn}
-            >
-              {t("paywall.seeAllPlans")} →
-            </Link>
-          </div>
-        )}
+              <Link
+                to="/pricing"
+                className="inline-block text-sm text-brand-ink hover:underline"
+                onClick={rememberReturn}
+              >
+                {t("paywall.seeAllPlans")} →
+              </Link>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
     </>
   );
 }

@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { createCheckoutOrder } from "@/lib/billing/checkout.functions";
 import { getStripeEnvironment } from "@/lib/stripe";
-import { EmbeddedCheckoutDialog } from "@/components/checkout/EmbeddedCheckoutDialog";
+import { LazyEmbeddedCheckoutDialog } from "@/components/checkout/LazyEmbeddedCheckoutDialog";
 import { formatMoney } from "@/lib/billing/types";
 
 export interface EventTicketPurchaseProps {
@@ -96,22 +96,22 @@ export function EventTicketPurchase({
 
   return (
     <>
-      <EmbeddedCheckoutDialog
+      <LazyEmbeddedCheckoutDialog
         clientSecret={checkoutSecret}
         onOpenChange={(open) => {
           if (!open) setCheckoutSecret(null);
         }}
       />
-    <Button onClick={() => void buy()} disabled={busy || isFull}>
-      <Ticket className="mr-2 h-4 w-4" aria-hidden="true" />
-      {isFull
-        ? lang === "pl"
-          ? "Brak miejsc"
-          : "Sold out"
-        : lang === "pl"
-          ? `Kup bilet - ${price}`
-          : `Buy ticket - ${price}`}
-    </Button>
+      <Button onClick={() => void buy()} disabled={busy || isFull}>
+        <Ticket className="mr-2 h-4 w-4" aria-hidden="true" />
+        {isFull
+          ? lang === "pl"
+            ? "Brak miejsc"
+            : "Sold out"
+          : lang === "pl"
+            ? `Kup bilet - ${price}`
+            : `Buy ticket - ${price}`}
+      </Button>
     </>
   );
 }

@@ -100,7 +100,9 @@ export function catalogPriceForPlan(plan: {
 }
 
 /** Odwrotne mapowanie: czytelny identyfikator ceny -> wpis katalogu. */
-export function catalogEntryByPriceId(priceId: string | null | undefined): CatalogPriceEntry | null {
+export function catalogEntryByPriceId(
+  priceId: string | null | undefined,
+): CatalogPriceEntry | null {
   if (!priceId) return null;
   return BILLING_CATALOG.find((e) => e.priceId === priceId) ?? null;
 }
