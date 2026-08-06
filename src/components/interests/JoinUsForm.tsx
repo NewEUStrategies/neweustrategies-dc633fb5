@@ -241,6 +241,7 @@ export function JoinUsForm({
   const lang = (i18n.language?.startsWith("en") ? "en" : "pl") as "pl" | "en";
   const { data: nl } = useNewsletterSettings();
   const interestGroups = useInterestGroups(lang, interestSlugs);
+  const fieldLabels = useNewsletterFieldLabels(lang);
   const catalog = interestGroups.catalog;
   const my = useMyInterests();
   const subscribe = useServerFn(subscribeToNewsletter);
@@ -556,17 +557,17 @@ export function JoinUsForm({
   const btnLoading = submittingLabel || t("joinUs.submitting");
   const consent = consentText || t("joinUs.consent");
   const okText = successText || t("joinUs.success");
+  // Etykiety pól = globalna konfiguracja (Admin → Popupy) z możliwością
+  // nadpisania per-widget. Ten sam zestaw obowiązuje w każdym widgecie newslettera.
   const phName = namePlaceholder || t("joinUs.name");
-  const phEmail = emailPlaceholder || t("joinUs.email");
-  const phFirst = firstNamePlaceholder || (lang === "en" ? "First name" : "Imię");
-  const phLast = lastNamePlaceholder || (lang === "en" ? "Last name" : "Nazwisko");
-  const phPosition =
-    positionPlaceholder || (lang === "en" ? "Position (LinkedIn)" : "Stanowisko (LinkedIn)");
-  const phLinkedin =
-    linkedinPlaceholder || (lang === "en" ? "LinkedIn profile URL" : "Adres profilu LinkedIn");
-  const phPhone = phonePlaceholder || (lang === "en" ? "Phone" : "Telefon");
-  const phCompany = companyPlaceholder || (lang === "en" ? "Company" : "Firma");
-  const phCountry = countryPlaceholder || (lang === "en" ? "Country" : "Kraj");
+  const phEmail = fieldLabels.label("email", emailPlaceholder);
+  const phFirst = fieldLabels.label("firstName", firstNamePlaceholder);
+  const phLast = fieldLabels.label("lastName", lastNamePlaceholder);
+  const phPosition = fieldLabels.label("position", positionPlaceholder);
+  const phLinkedin = fieldLabels.label("linkedin", linkedinPlaceholder);
+  const phPhone = fieldLabels.label("phone", phonePlaceholder);
+  const phCompany = fieldLabels.label("company", companyPlaceholder);
+  const phCountry = fieldLabels.label("country", countryPlaceholder);
 
   // Kontener: domyślnie `bg-card` (global colors); gdy operator ustawi
   // `bgLight`/`bgDark` (w tym "transparent") - drop `bg-card` i użyj CSS
