@@ -6,9 +6,19 @@ name: Rozliczenia (nocna sonda odnowienia i dunningu)
 # i weryfikuje, że okres rozliczeniowy oraz transakcja faktycznie powstały.
 #
 # Konfiguracja (Settings -> Secrets and variables -> Actions):
-#   secrets.PADDLE_SANDBOX_API_KEY
+#   secrets.STRIPE_SANDBOX_API_KEY
 #   secrets.LOVABLE_API_KEY
-# Bez nich przebieg kończy się zielono z ostrzeżeniem.
+#
+# UWAGA (naprawa 06.08): workflow eksportował `PADDLE_SANDBOX_API_KEY`, a skrypt
+# czyta `STRIPE_SANDBOX_API_KEY` od czasu migracji na Stripe. `keys()` zwracało
+# więc zawsze null i przebieg kończył się ZIELONO po 40 minutach snu - „sonda
+# nieskonfigurowana" była nieodróżnialna od „rozliczenia działają". Dlatego:
+#   * nazwa sekretu zgodna ze skryptem,
+#   * na przebiegu z HARMONOGRAMU brak sekretów jest BŁĘDEM (PROBE_REQUIRE_CONFIG),
+#     bo cicho wyłączona jedyna weryfikacja odnowienia jest gorsza niż czerwony job;
+#     ręczne uruchomienie (fork, świeży klon) nadal tylko ostrzega,
+#   * ślepy `sleep` zastąpiony odpytywaniem Test Clocka - przebieg kończy się,
+#     gdy Stripe skończy przeliczać, zamiast palić 40 minut runnera codziennie.
 
 on:
   schedule:
@@ -32,9 +42,11 @@ jobs:
     # przebieg musi mieć zapas na oczekiwanie plus weryfikację.
     timeout-minutes: 55
     env:
-      PADDLE_SANDBOX_API_KEY: ${{ secrets.PADDLE_SANDBOX_API_KEY }}
+      STRIPE_SANDBOX_API_KEY: ${{ secrets.STRIPE_SANDBOX_API_KEY }}
       LOVABLE_API_KEY: ${{ secrets.LOVABLE_API_KEY }}
       PROBE_STATE_FILE: ${{ github.workspace }}/billing-renewal-probe.json
+      # Nocny przebieg to monitoring produkcyjny - brak sekretów ma być czerwony.
+      PROBE_REQUIRE_CONFIG: ${{ github.event_name == 'schedule' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -45,9 +57,9 @@ jobs:
       - name: Przesuń datę kolejnego obciążenia
         run: bun scripts/billing-renewal-probe.ts arm
 
+      # Odpytywanie Test Clocka z warunkiem wyjścia (sufit 40 min, próba co 30 s).
       - name: Poczekaj na naliczenie
-        run: |
-          for i in $(seq 1 40); do sleep 60; done
+        run: bun scripts/billing-renewal-probe.ts wait
 
       - name: Zweryfikuj odnowienie i dunning
         run: bun scripts/billing-renewal-probe.ts verify

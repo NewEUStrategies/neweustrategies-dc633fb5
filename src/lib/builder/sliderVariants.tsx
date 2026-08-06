@@ -791,12 +791,15 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     return `${m[1]}${m[2] ?? "px"}`;
   };
   const resolvedTitleFs = cssLen(titleSize) ?? (titleSizePx > 0 ? `${titleSizePx}px` : undefined);
-  const resolvedDescFs = cssLen(descSize) ?? (subtitleSizePx > 0 ? `${subtitleSizePx}px` : undefined);
+  const resolvedDescFs =
+    cssLen(descSize) ?? (subtitleSizePx > 0 ? `${subtitleSizePx}px` : undefined);
   const resolvedGap = titleDescriptionGapPx >= 0 ? `${titleDescriptionGapPx}px` : undefined;
   const instanceId = `eh-i-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const instanceSel = `.eh-slider.${instanceId}.${instanceId}.${instanceId}`;
   const instanceCss = [
-    resolvedTitleFs ? `${instanceSel} .cms-post-title{font-size:${resolvedTitleFs} !important;}` : "",
+    resolvedTitleFs
+      ? `${instanceSel} .cms-post-title{font-size:${resolvedTitleFs} !important;}`
+      : "",
     resolvedDescFs
       ? `${instanceSel} .cms-post-excerpt{font-size:${resolvedDescFs} !important;}`
       : "",
@@ -804,8 +807,6 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   ]
     .filter(Boolean)
     .join("\n");
-
-
 
   const [idx, setIdx] = useState(0);
   useEffect(() => {
@@ -1152,7 +1153,8 @@ function EditorialHeroVariant(p: VariantProps) {
           (href ? (
             <AppLink href={href} className="block">
               <p
-                data-eh-gap className="cms-post-excerpt eh-clamp-2 mt-4 text-muted-foreground max-w-3xl mx-auto"
+                data-eh-gap
+                className="cms-post-excerpt eh-clamp-2 mt-4 text-muted-foreground max-w-3xl mx-auto"
                 style={p.subtitleStyle}
               >
                 {sub || "\u00A0"}
@@ -1160,7 +1162,8 @@ function EditorialHeroVariant(p: VariantProps) {
             </AppLink>
           ) : (
             <p
-              data-eh-gap className="cms-post-excerpt eh-clamp-2 mt-4 text-muted-foreground max-w-3xl mx-auto"
+              data-eh-gap
+              className="cms-post-excerpt eh-clamp-2 mt-4 text-muted-foreground max-w-3xl mx-auto"
               style={p.subtitleStyle}
             >
               {sub || "\u00A0"}
@@ -1298,7 +1301,8 @@ function MultiCardVariant(p: VariantProps) {
                     (href ? (
                       <AppLink href={href} className="block">
                         <p
-                          data-eh-gap className="cms-post-excerpt eh-clamp-2 mt-1.5 text-muted-foreground"
+                          data-eh-gap
+                          className="cms-post-excerpt eh-clamp-2 mt-1.5 text-muted-foreground"
                           style={p.subtitleStyle}
                         >
                           {sub}
@@ -1306,7 +1310,8 @@ function MultiCardVariant(p: VariantProps) {
                       </AppLink>
                     ) : (
                       <p
-                        data-eh-gap className="cms-post-excerpt eh-clamp-2 mt-1.5 text-muted-foreground"
+                        data-eh-gap
+                        className="cms-post-excerpt eh-clamp-2 mt-1.5 text-muted-foreground"
                         style={p.subtitleStyle}
                       >
                         {sub}
@@ -1425,7 +1430,8 @@ function CinematicOverlayVariant(p: VariantProps) {
             )}
             {p.showExcerpt && sub && (
               <p
-                data-eh-gap className="cms-post-excerpt eh-clamp-2 mt-3 text-white/85 max-w-2xl"
+                data-eh-gap
+                className="cms-post-excerpt eh-clamp-2 mt-3 text-white/85 max-w-2xl"
                 style={p.subtitleStyle}
               >
                 {sub}
@@ -1573,7 +1579,8 @@ function SplitFeatureVariant(p: VariantProps) {
           (href ? (
             <AppLink href={href} className="block">
               <p
-                data-eh-gap className="cms-post-excerpt eh-clamp-3 mt-3 text-muted-foreground"
+                data-eh-gap
+                className="cms-post-excerpt eh-clamp-3 mt-3 text-muted-foreground"
                 style={p.subtitleStyle}
               >
                 {sub}
@@ -1581,7 +1588,8 @@ function SplitFeatureVariant(p: VariantProps) {
             </AppLink>
           ) : (
             <p
-              data-eh-gap className="cms-post-excerpt eh-clamp-3 mt-3 text-muted-foreground"
+              data-eh-gap
+              className="cms-post-excerpt eh-clamp-3 mt-3 text-muted-foreground"
               style={p.subtitleStyle}
             >
               {sub}
@@ -1688,7 +1696,11 @@ function MinimalStripVariant(p: VariantProps) {
             </h3>
           )}
           {p.showExcerpt && sub && (
-            <p data-eh-gap className="cms-post-excerpt mt-1 text-white/85 line-clamp-1" style={p.subtitleStyle}>
+            <p
+              data-eh-gap
+              className="cms-post-excerpt mt-1 text-white/85 line-clamp-1"
+              style={p.subtitleStyle}
+            >
               {sub}
             </p>
           )}

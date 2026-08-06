@@ -119,6 +119,14 @@ export interface PlanCheckoutSessionInput {
   discount?: { coupon: string } | { promotionCode: string } | null;
   /** Język formularza Stripe (ramka nie dziedziczy naszego i18n). */
   locale?: CheckoutLocale;
+  /**
+   * Okres próbny planu w dniach (0 = brak). MUSI trafić do sesji, bo u tego
+   * operatora trial NIE siedzi na cenie - inaczej niż u poprzedniego. Katalog
+   * zapisuje `trial_days` wyłącznie do metadanych ceny (catalogSync), a metadane
+   * są dla Stripe bezwładne: bez `subscription_data.trial_period_days` karta
+   * zostaje obciążona od razu, mimo że plan i cennik obiecują okres próbny.
+   */
+  trialDays?: number;
 }
 
 /**
@@ -157,6 +165,13 @@ export async function createPlanCheckoutSession(
         ]
       : undefined;
 
+    // Operator przyjmuje 1-730 dni; ułamki i wartości spoza zakresu odrzuca
+    // błędem walidacji, więc normalizujemy tutaj, a nie u wołającego.
+    const trialPeriodDays =
+      mode === "subscription" && Number.isFinite(input.trialDays)
+        ? Math.min(Math.max(Math.trunc(input.trialDays as number), 0), 730)
+        : 0;
+
     const params: SessionCreateParams = {
       mode,
       ui_mode: "embedded_page",
@@ -170,6 +185,9 @@ export async function createPlanCheckoutSession(
         ? {
             subscription_data: {
               metadata: { userId: input.userId, planId: input.planId, orderId: input.orderId },
+              // Trial przekazujemy TYLKO gdy plan go ma - `trial_period_days: 0`
+              // jest u operatora błędem walidacji, nie "brakiem triala".
+              ...(trialPeriodDays ? { trial_period_days: trialPeriodDays } : {}),
             },
           }
         : {

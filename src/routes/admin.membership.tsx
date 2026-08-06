@@ -300,7 +300,6 @@ function AdminMembershipPage() {
           </TabsTrigger>
         </TabsList>
 
-
         {/* ————— WARSTWY ————— */}
         <TabsContent value="tiers" className="mt-4 space-y-4">
           <SectionCard

@@ -122,7 +122,6 @@ export function AuthorByline({
     "--abl-av-fs-desktop": `${Math.round(avatarSizeDesktop * 0.55)}px`,
   };
 
-
   const avatar = display.showAvatar ? (
     safeAvatar ? (
       <img

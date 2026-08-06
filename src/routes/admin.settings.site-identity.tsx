@@ -14,11 +14,7 @@ import { useSettings, useDraft } from "@/lib/admin/useSettings";
 import { SaveBar } from "@/components/admin/settings/fields";
 import { SeoTextField } from "@/components/admin/seo/SeoTextField";
 import { ensureI18n } from "@/lib/i18n-admin-site-identity";
-import {
-  DEFAULT_SEO_SETTINGS,
-  SEO_SETTINGS_KEY,
-  type SeoSettings,
-} from "@/lib/seo/settings";
+import { DEFAULT_SEO_SETTINGS, SEO_SETTINGS_KEY, type SeoSettings } from "@/lib/seo/settings";
 import { SITE_DEFAULT_DESCRIPTION, SITE_DEFAULT_TITLE } from "@/lib/seo/meta";
 
 ensureI18n();
@@ -125,9 +121,7 @@ function SiteIdentityTab() {
         />
       </div>
 
-      <h3 className="text-sm font-semibold mt-8 mb-1">
-        {t("adminSiteIdentity.sectionEcosystem")}
-      </h3>
+      <h3 className="text-sm font-semibold mt-8 mb-1">{t("adminSiteIdentity.sectionEcosystem")}</h3>
       <p className="text-xs text-muted-foreground mb-2">{t("adminSiteIdentity.ecosystemIntro")}</p>
       <div className="overflow-hidden rounded-lg border border-border">
         <table className="w-full text-sm">

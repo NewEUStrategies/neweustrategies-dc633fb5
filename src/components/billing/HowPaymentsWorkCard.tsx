@@ -41,7 +41,9 @@ export function HowPaymentsWorkCard() {
             </li>
           ))}
         </ul>
-        <p className="text-xs text-muted-foreground">{t("profile.planPage.howPayments.footnote")}</p>
+        <p className="text-xs text-muted-foreground">
+          {t("profile.planPage.howPayments.footnote")}
+        </p>
       </CardContent>
     </Card>
   );

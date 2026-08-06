@@ -102,16 +102,16 @@ export function EventTicketPurchase({
           if (!open) setCheckoutSecret(null);
         }}
       />
-    <Button onClick={() => void buy()} disabled={busy || isFull}>
-      <Ticket className="mr-2 h-4 w-4" aria-hidden="true" />
-      {isFull
-        ? lang === "pl"
-          ? "Brak miejsc"
-          : "Sold out"
-        : lang === "pl"
-          ? `Kup bilet - ${price}`
-          : `Buy ticket - ${price}`}
-    </Button>
+      <Button onClick={() => void buy()} disabled={busy || isFull}>
+        <Ticket className="mr-2 h-4 w-4" aria-hidden="true" />
+        {isFull
+          ? lang === "pl"
+            ? "Brak miejsc"
+            : "Sold out"
+          : lang === "pl"
+            ? `Kup bilet - ${price}`
+            : `Buy ticket - ${price}`}
+      </Button>
     </>
   );
 }

@@ -417,7 +417,6 @@ const pl = {
           "Masz pytanie do konkretnej transakcji? Skorzystaj z wyszukiwarki faktur powyżej lub napisz do nas - podaj numer transakcji, nigdy pełnego numeru karty.",
       },
       history: {
-
         title: "Faktury i płatności",
         pageTitle: "Historia płatności",
         pageHint:
@@ -1147,7 +1146,6 @@ const en: typeof pl = {
           "Question about a specific transaction? Use the invoice lookup above or contact us - share the transaction number, never your full card number.",
       },
       history: {
-
         title: "Invoices and payments",
         pageTitle: "Payment history",
         pageHint:

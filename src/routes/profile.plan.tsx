@@ -45,8 +45,7 @@ function PlanPage() {
   const tierQ = useCurrentTier();
   const activeGrant =
     (grantsQ.data ?? []).find(
-      (g) =>
-        !g.revoked_at && (!g.expires_at || new Date(g.expires_at).getTime() > Date.now()),
+      (g) => !g.revoked_at && (!g.expires_at || new Date(g.expires_at).getTime() > Date.now()),
     ) ?? null;
 
   const subscription = subQ.data ?? null;
@@ -123,7 +122,9 @@ function PlanPage() {
                 <dt className="text-xs text-muted-foreground">
                   {t("profile.subscription.status")}
                 </dt>
-                <dd className="text-sm">{t(`profile.status.${subscription?.status ?? "active"}`)}</dd>
+                <dd className="text-sm">
+                  {t(`profile.status.${subscription?.status ?? "active"}`)}
+                </dd>
               </div>
               <div>
                 <dt className="text-xs text-muted-foreground">
@@ -160,7 +161,6 @@ function PlanPage() {
       <LifetimeAccessCard />
 
       <PlanSwitchBoard subscription={subscription} />
-
 
       <PaymentHistoryCard limit={10} showAllLink />
     </div>

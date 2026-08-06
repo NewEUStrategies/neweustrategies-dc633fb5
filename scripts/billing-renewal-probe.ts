@@ -27,6 +27,10 @@ import { readFileSync, writeFileSync } from "node:fs";
 const GATEWAY = "https://connector-gateway.lovable.dev/stripe";
 const STATE_FILE = process.env.PROBE_STATE_FILE ?? "/tmp/billing-renewal-probe.json";
 
+/** Sufit czekania na Test Clock i odstęp odpytywania (tryb `wait`). */
+const WAIT_TIMEOUT_MS = Number(process.env.PROBE_WAIT_TIMEOUT_MS ?? 40 * 60 * 1000);
+const WAIT_POLL_MS = Number(process.env.PROBE_WAIT_POLL_MS ?? 30 * 1000);
+
 interface ProbeState {
   subscriptionId: string;
   testClockId: string;
@@ -229,16 +233,64 @@ async function verify(auth: Auth): Promise<number> {
   return 0;
 }
 
+/**
+ * Czeka, aż Test Clock skończy przeliczanie - zamiast ślepego `sleep`.
+ *
+ * PRZYCZYNA ZMIANY: krok „Poczekaj na naliczenie" robił `for i in $(seq 1 40);
+ * do sleep 60; done`, czyli **40 minut runnera dziennie** niezależnie od tego,
+ * czy Stripe skończył po dwóch minutach, czy nie skończył wcale. Odpytywanie
+ * kończy przebieg, gdy zegar jest gotowy, a gdy nie zdąży - mówi to wprost,
+ * zamiast oddawać sterowanie weryfikacji, która i tak wypisze „pominięte".
+ */
+async function wait(auth: Auth): Promise<number> {
+  let state: ProbeState;
+  try {
+    state = JSON.parse(readFileSync(STATE_FILE, "utf8")) as ProbeState;
+  } catch {
+    summary("::warning title=Brak stanu sondy::Krok `arm` nic nie uzbroił - czekanie pominięte.");
+    return 0;
+  }
+
+  const deadline = Date.now() + WAIT_TIMEOUT_MS;
+  let last = "";
+  while (Date.now() < deadline) {
+    const clock = await api<StripeTestClock>(`/test_helpers/test_clocks/${state.testClockId}`, {
+      auth,
+    });
+    last = clock.status;
+    if (clock.status !== "advancing") {
+      summary(
+        `Test Clock gotowy po ${Math.round((WAIT_TIMEOUT_MS - (deadline - Date.now())) / 1000)} s (status: ${clock.status}).`,
+      );
+      return 0;
+    }
+    await new Promise((resolve) => setTimeout(resolve, WAIT_POLL_MS));
+  }
+
+  summary(
+    `::warning title=Test Clock nie zdążył::Po ${Math.round(WAIT_TIMEOUT_MS / 60000)} min status to nadal \`${last}\`. Weryfikacja i tak sprawdzi stan.`,
+  );
+  return 0;
+}
+
 async function main(): Promise<void> {
   const auth = keys();
   if (!auth) {
+    // Brak sekretów NIE MOŻE wyglądać jak sukces na przebiegu nocnym: to jedyna
+    // weryfikacja odnowienia i dunningu, jaką mamy, więc „nieskonfigurowana"
+    // musi być odróżnialne od „rozliczenia działają". Na uruchomieniu ręcznym
+    // (fork, świeży klon) zostaje ostrzeżenie - tam brak sekretów jest normą.
+    const required = process.env.PROBE_REQUIRE_CONFIG === "true";
     summary(
-      "::warning title=Sonda rozliczeń nieskonfigurowana::Ustaw secrets.STRIPE_SANDBOX_API_KEY oraz secrets.LOVABLE_API_KEY, żeby nocna sonda odnowienia działała.",
+      `::${required ? "error" : "warning"} title=Sonda rozliczeń nieskonfigurowana::Ustaw secrets.STRIPE_SANDBOX_API_KEY oraz secrets.LOVABLE_API_KEY, żeby nocna sonda odnowienia działała.`,
     );
+    if (required) process.exitCode = 1;
     return;
   }
-  const mode = process.argv[2] === "verify" ? "verify" : "arm";
-  const code = mode === "verify" ? await verify(auth) : await arm(auth);
+  const arg = process.argv[2];
+  const mode = arg === "verify" || arg === "wait" ? arg : "arm";
+  const code =
+    mode === "verify" ? await verify(auth) : mode === "wait" ? await wait(auth) : await arm(auth);
   if (code !== 0) process.exitCode = code;
 }
 
