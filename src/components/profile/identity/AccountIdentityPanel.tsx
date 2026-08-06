@@ -29,6 +29,8 @@ import {
   useExpertRequestsEnabled,
   useSetExpertRequestsEnabled,
 } from "@/lib/chat/useDiscoverable";
+import { usePublicExposure } from "@/lib/profile/usePublicExposure";
+import { PublicExposureNotice } from "@/components/molecules/PublicExposureNotice";
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   useNotificationPreferences,
@@ -109,6 +111,9 @@ function PrivacyVisibilitySection() {
   const expertRequestsOn = expertRequestsQ.data ?? true;
   const prefsQ = useNotificationPreferences();
   const updatePrefs = useUpdateNotificationPreferences();
+  // Ekspozycja poza platformą jest NIEZALEŻNA od `discoverable` (ten steruje
+  // wyłącznie katalogiem wewnętrznym) - stąd osobny odczyt i osobna nota.
+  const exposureQ = usePublicExposure();
   const on = discoverableQ.data ?? false;
   const allowFrom: AllowMessagesFrom =
     prefsQ.data?.allow_messages_from ?? DEFAULT_NOTIFICATION_PREFERENCES.allow_messages_from;
@@ -142,6 +147,11 @@ function PrivacyVisibilitySection() {
           <p className="mt-1 text-[11px] leading-snug text-muted-foreground/80">
             {t("profilePrivacy.externalNote")}
           </p>
+          <PublicExposureNotice
+            className="mt-2"
+            exposure={exposureQ.data ?? null}
+            loading={exposureQ.isLoading}
+          />
         </div>
         <div className="flex shrink-0 items-center gap-2 pt-0.5">
           <Switch

@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { FloatingInput, FloatingTextarea } from "@/components/ui/floating-input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useSendExpertRequest, useMyExpertRequestQuota } from "@/lib/chat/useExpertRequests";
+import { expertRequestErrorI18nKey } from "@/lib/chat/expertRequestErrors";
 import type { ExpertRequestPrefill } from "@/lib/chat/expertRequestDialogBus";
 
 const schema = z.object({
@@ -85,6 +86,8 @@ export function ExpertRequestDialog({ open, onOpenChange, prefill }: ExpertReque
   }, [quota, t]);
 
   const outOfQuota = !!quota && !quota.direct && quota.remaining <= 0;
+  /** Pula skończona (nie „bezpośrednia" i nie zerowa) - tylko wtedy licznik boli. */
+  const hasLimitedQuota = !!quota && !quota.direct && quota.quota > 0;
 
   const canSubmit = useMemo(
     () =>
@@ -133,13 +136,10 @@ export function ExpertRequestDialog({ open, onOpenChange, prefill }: ExpertReque
       toast.success(t("expertRequest.sentToast"));
       onOpenChange(false);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "";
-      if (msg.includes("monthly quota")) toast.error(t("expertRequest.error.monthlyQuota"));
-      else if (msg.includes("rate limit")) toast.error(t("expertRequest.error.rateLimit"));
-      else if (msg.includes("recipient is not gated") || msg.includes("not an expert"))
-        toast.error(t("expertRequest.error.notExpert"));
-      else if (msg.includes("tier disabled")) toast.error(t("expertRequest.error.tierDisabled"));
-      else toast.error(t("expertRequest.error.generic"));
+      // Wszystkie bramki serwerowe mają jedno mapowanie (expertRequestErrors),
+      // więc opt-out odbiorcy i wyłączony moduł tenanta nie lądują już w
+      // „Spróbuj ponownie" - użytkownik wie, co zmienić.
+      toast.error(t(expertRequestErrorI18nKey(err)));
     }
   }
 
@@ -181,6 +181,13 @@ export function ExpertRequestDialog({ open, onOpenChange, prefill }: ExpertReque
               role="status"
             >
               {quotaLine}
+              {/* Pula liczy też zapytania wycofane - mówimy o tym PRZED wysyłką,
+                  a nie dopiero przy próbie „odzyskania" limitu anulowaniem. */}
+              {hasLimitedQuota && (
+                <span className="mt-1 block font-normal opacity-80">
+                  {t("expertRequest.quota.cancelledCounts")}
+                </span>
+              )}
             </p>
           )}
 

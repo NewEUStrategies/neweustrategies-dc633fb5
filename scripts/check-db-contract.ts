@@ -39,17 +39,17 @@ const key =
 const CONCURRENCY = 8;
 
 /**
- * Obiekty świadomie wycofane po zmianie nazewnictwa: migracja
- * 20260723180000 przemianowywała expert_inmails -> expert_requests, ale
- * produkcja (i kod aplikacji) została przy `expert_inmails` / `send_expert_request`
- * + `resolve_expert_inmail`. Nie są to luki wdrożenia, więc nie blokują bramki.
+ * Obiekty świadomie wycofane - lista może TYLKO maleć.
+ *
+ * Historycznie mieszkały tu cztery obiekty generacji „expert_request": migracja
+ * 20260723180000 przemianowywała `expert_inmails` -> `expert_requests`, ale
+ * produkcja została przy starej nazwie (blok z RENAME nigdy się nie wykonał),
+ * więc połowa tamtej generacji nie istniała nigdzie poza plikiem migracji.
+ * 20260806160000 scala oba światy: jedna relacja fizyczna (`expert_inmails`)
+ * i KOMPLET dziesięciu RPC (5 nazw wołanych przez klienta + 5 domenowych),
+ * więc bramka może wymagać ich wszystkich - wpisy zniknęły.
  */
-const SUPERSEDED = new Set([
-  "expert_requests",
-  "admin_list_expert_requests",
-  "list_my_expert_requests",
-  "resolve_expert_request",
-]);
+const SUPERSEDED = new Set<string>([]);
 
 function loadMigrations() {
   return readdirSync(MIGRATIONS_DIR)

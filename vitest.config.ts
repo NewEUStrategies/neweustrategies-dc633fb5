@@ -181,6 +181,36 @@ export default defineConfig({
           lines: 100,
           branches: 95,
         },
+        // Sieć kontaktów - warstwa danych RPC-only. Do 2026-08-06 CAŁY moduł
+        // miał 0% (audyt: „pokrycie modułu 15,4%, src/lib/network na 0%"),
+        // mimo że decyduje o prywatności odmów zaproszeń, izolacji kont w
+        // cache i kontrakcie czasowników RPC. Próg jest zaporą przed powrotem
+        // do zera, wyznaczoną tuż pod osiągniętym poziomem.
+        "src/lib/network/**": {
+          statements: 85,
+          functions: 95,
+          lines: 95,
+          branches: 65,
+        },
+        // Manifest eksportu RODO: rejestr sekcji + bramka rozjazdu z server fn.
+        // Czysty moduł, więc trzymamy go pod 100%.
+        "src/lib/profile/exportManifest.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
+        // Powierzchnia profilu użytkownika - również startowała z 0%. Duże
+        // panele (edytor autora, panele tożsamości, wybór firmy) są jeszcze
+        // nieotestowane, dlatego próg jest niski, ale REALNY: pilnuje atomów
+        // edycji „w miejscu", nawigacji, bramki sesji, podglądu mediów oraz
+        // sekcji CV, w których żyje stempel tenanta.
+        "src/components/profile/**": {
+          statements: 25,
+          functions: 25,
+          lines: 25,
+          branches: 25,
+        },
       },
     },
   },

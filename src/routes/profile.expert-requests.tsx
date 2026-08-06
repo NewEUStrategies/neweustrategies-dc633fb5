@@ -1,39 +1,55 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import {
   useMyExpertRequests,
+  useMyExpertRequestQuota,
   useResolveExpertRequest,
   type ExpertRequestBox,
   type ExpertRequestRow,
 } from "@/lib/chat/useExpertRequests";
+import { expertRequestErrorI18nKey } from "@/lib/chat/expertRequestErrors";
 import { ensureI18n as ensureExpertRequestI18n } from "@/lib/i18n-expert-request";
+// Głęboki link z powiadomienia (`?box=…&r=<uuid>`) - walidacja żyje w czystym
+// module, więc ma własny test i nie rozszczelnia fast refresh trasy.
+import { validateExpertRequestsSearch } from "@/lib/chat/expertRequestsSearch";
 
 export const Route = createFileRoute("/profile/expert-requests")({
   head: () => ({
     meta: [{ title: "Zapytania do ekspertów" }, { name: "robots", content: "noindex, nofollow" }],
   }),
+  validateSearch: validateExpertRequestsSearch,
   component: ProfileExpertRequests,
 });
 
-function ExpertRequestList({ box }: { box: ExpertRequestBox }) {
+function ExpertRequestList({ box, highlightId }: { box: ExpertRequestBox; highlightId?: string }) {
   const { t } = useTranslation();
   const q = useMyExpertRequests(box);
   const resolve = useResolveExpertRequest();
+  const highlightRef = useRef<HTMLLIElement | null>(null);
+
+  // Wejście z powiadomienia: przewiń do wskazanego zapytania, gdy tylko lista
+  // się załaduje. `block: "center"` zamiast domyślnego „start", żeby wiersz nie
+  // schował się pod przyklejonym nagłówkiem profilu.
+  useEffect(() => {
+    if (!highlightId || !highlightRef.current) return;
+    highlightRef.current.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [highlightId, q.data]);
 
   async function act(row: ExpertRequestRow, action: "approve" | "decline" | "answered" | "cancel") {
     try {
       await resolve.mutateAsync({ requestId: row.id, action });
       toast.success(
-        t(
-          `expertRequest.status.${action === "cancel" ? "cancelled" : action === "approve" ? "approved" : action}`,
-        ),
+        action === "cancel"
+          ? t("expertRequest.confirmCancel.doneToast")
+          : t(`expertRequest.status.${action === "approve" ? "approved" : action}`),
       );
-    } catch {
-      toast.error(t("expertRequest.error.generic"));
+    } catch (error) {
+      toast.error(t(expertRequestErrorI18nKey(error)));
     }
   }
 
@@ -48,7 +64,16 @@ function ExpertRequestList({ box }: { box: ExpertRequestBox }) {
   return (
     <ul className="flex flex-col gap-2">
       {rows.map((row) => (
-        <li key={row.id} className="rounded-[6px] border border-border bg-card p-3">
+        <li
+          key={row.id}
+          ref={row.id === highlightId ? highlightRef : undefined}
+          className={cn(
+            "rounded-[6px] border bg-card p-3 transition-colors",
+            row.id === highlightId
+              ? "border-[var(--brand)] ring-1 ring-[var(--brand)]/40"
+              : "border-border",
+          )}
+        >
           <div className="flex items-center justify-between gap-2">
             <p className="truncate text-sm font-semibold">{row.subject}</p>
             <span className="rounded-[6px] border border-border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider">
@@ -73,27 +98,77 @@ function ExpertRequestList({ box }: { box: ExpertRequestBox }) {
                     size="sm"
                     variant="outline"
                     className="rounded-[6px]"
-                    onClick={() => act(row, "decline")}
+                    onClick={() => setPendingCancel(row)}
                   >
-                    {t("expertRequest.actions.decline")}
+                    {t("expertRequest.actions.cancel")}
                   </Button>
-                  <Button size="sm" className="rounded-[6px]" onClick={() => act(row, "approve")}>
-                    {t("expertRequest.actions.approve")}
-                  </Button>
-                </>
-              )}
-            </div>
-          )}
-        </li>
-      ))}
-    </ul>
+                ) : (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-[6px]"
+                      onClick={() => void act(row, "decline")}
+                    >
+                      {t("expertRequest.actions.decline")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="rounded-[6px]"
+                      onClick={() => void act(row, "approve")}
+                    >
+                      {t("expertRequest.actions.approve")}
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      <ExpertRequestCancelDialog
+        subject={pendingCancel?.subject ?? null}
+        busy={resolve.isPending}
+        onOpenChange={(open) => {
+          if (!open) setPendingCancel(null);
+        }}
+        onConfirm={async () => {
+          const row = pendingCancel;
+          if (!row) return;
+          await act(row, "cancel");
+          setPendingCancel(null);
+        }}
+      />
+    </>
+  );
+}
+
+/** Pasek stanu puli - ta sama liczba, którą egzekwuje bramka wysyłki. */
+function QuotaNote() {
+  const { t } = useTranslation();
+  const quotaQ = useMyExpertRequestQuota();
+  const quota = quotaQ.data;
+  if (!quota || quota.direct || quota.quota <= 0) return null;
+
+  return (
+    <p className="rounded-[6px] border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+      {t("expertRequest.quota.remaining", { remaining: quota.remaining, quota: quota.quota })}{" "}
+      {t("expertRequest.quota.cancelledCounts")}
+    </p>
   );
 }
 
 function ProfileExpertRequests() {
   ensureExpertRequestI18n();
   const { t } = useTranslation();
-  const [tab, setTab] = useState<ExpertRequestBox>("received");
+  const { box, r } = Route.useSearch();
+  const [tab, setTab] = useState<ExpertRequestBox>(box ?? "received");
+  // Kolejne kliknięcie w powiadomienie (ta sama trasa, inna skrzynka) musi
+  // przestawić zakładkę - stan lokalny sam z siebie by tego nie zauważył.
+  useEffect(() => {
+    if (box) setTab(box);
+  }, [box]);
   return (
     <div className="flex flex-col gap-4">
       <header>
@@ -102,16 +177,17 @@ function ProfileExpertRequests() {
         </h1>
         <p className="mt-1 text-xs text-muted-foreground">{t("expertRequest.profile.subtitle")}</p>
       </header>
+      <QuotaNote />
       <Tabs value={tab} onValueChange={(v) => setTab(v as ExpertRequestBox)}>
         <TabsList>
           <TabsTrigger value="received">{t("expertRequest.box.received")}</TabsTrigger>
           <TabsTrigger value="sent">{t("expertRequest.box.sent")}</TabsTrigger>
         </TabsList>
         <TabsContent value="received" className="mt-3">
-          <ExpertRequestList box="received" />
+          <ExpertRequestList box="received" {...(r ? { highlightId: r } : {})} />
         </TabsContent>
         <TabsContent value="sent" className="mt-3">
-          <ExpertRequestList box="sent" />
+          <ExpertRequestList box="sent" {...(r ? { highlightId: r } : {})} />
         </TabsContent>
       </Tabs>
     </div>

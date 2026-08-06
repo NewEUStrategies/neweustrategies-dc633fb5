@@ -7,6 +7,13 @@
 -- na kazdej stronie eksperta. Frontend (src/lib/experts/queries.ts) czyta
 -- wylacznie z tego widoku po slugu.
 --
+-- OD 20260806160000 (bramka anon na profiles_public) sam wiersz w profilu NIE
+-- wystarcza: warstwa publiczna widoku wymaga REALNEJ publicznej obecnosci
+-- (rola redakcyjna / odznaka expert / publiczny profil autorski / opublikowana
+-- tresc). Fixture dostaje wiec role `author` - dokladnie taka, jaka ma kazda
+-- osoba z wlasna strona /author/:slug. Semantyke samej bramki (kto wypada i
+-- dlaczego) przybija profiles_public_anon_gate_test.sql.
+--
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
@@ -33,6 +40,11 @@ SELECT
   'Test Expert AuthPub',
   'Test',
   'Expert';
+
+-- Publiczna obecnosc: konto redakcyjne w tym samym tenancie (patrz naglowek).
+INSERT INTO public.user_roles (user_id, role, tenant_id)
+SELECT 'ab000000-0000-0000-0000-0000000000a1', 'author'::public.app_role,
+       public.public_tenant_id();
 
 -- --- 1) Widok istnieje i ma wymagane grants -------------------------------
 SELECT has_view('public', 'profiles_public', 'profiles_public exists');

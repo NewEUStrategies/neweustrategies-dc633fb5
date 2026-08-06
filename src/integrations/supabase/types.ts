@@ -6094,6 +6094,7 @@ export type Database = {
           enabled_connection: boolean
           enabled_content: boolean
           enabled_crm_task: boolean
+          enabled_expert_request: boolean
           enabled_follow: boolean
           enabled_message: boolean
           enabled_saved_search: boolean
@@ -6122,6 +6123,7 @@ export type Database = {
           enabled_connection?: boolean
           enabled_content?: boolean
           enabled_crm_task?: boolean
+          enabled_expert_request?: boolean
           enabled_follow?: boolean
           enabled_message?: boolean
           enabled_saved_search?: boolean
@@ -6150,6 +6152,7 @@ export type Database = {
           enabled_connection?: boolean
           enabled_content?: boolean
           enabled_crm_task?: boolean
+          enabled_expert_request?: boolean
           enabled_follow?: boolean
           enabled_message?: boolean
           enabled_saved_search?: boolean
@@ -12661,6 +12664,8 @@ export type Database = {
         }
         Returns: undefined
       }
+      caller_is_connected_to: { Args: { p_user_id: string }; Returns: boolean }
+      caller_is_tenant_staff: { Args: never; Returns: boolean }
       can_access_entity_presence: {
         Args: { _entity_id: string; _entity_type: string }
         Returns: boolean
@@ -13282,6 +13287,18 @@ export type Database = {
           relation: string
         }[]
       }
+      get_my_public_exposure: {
+        Args: never
+        Returns: {
+          by_author_profile: boolean
+          by_editorial_role: boolean
+          by_expert_badge: boolean
+          by_published_content: boolean
+          by_speaker_profile: boolean
+          discoverable: boolean
+          is_public: boolean
+        }[]
+      }
       get_my_qa_question_ids: {
         Args: { p_session_id: string }
         Returns: string[]
@@ -13722,12 +13739,16 @@ export type Database = {
         Args: { _experiment_id: string }
         Returns: boolean
       }
-      is_expert_user: { Args: { _uid: string }; Returns: boolean }
+      is_expert_user:
+        | { Args: { _uid: string }; Returns: boolean }
+        | { Args: { _tenant: string; _uid: string }; Returns: boolean }
       is_form_field_active: {
         Args: { _field: string; _form_type: string; _tenant: string }
         Returns: boolean
       }
-      is_gated_recipient: { Args: { _uid: string }; Returns: boolean }
+      is_gated_recipient:
+        | { Args: { _uid: string }; Returns: boolean }
+        | { Args: { _tenant: string; _uid: string }; Returns: boolean }
       is_org_owner: { Args: { p_org: string }; Returns: boolean }
       is_staff: { Args: never; Returns: boolean }
       is_super_admin: { Args: { _user_id?: string }; Returns: boolean }
@@ -13735,7 +13756,9 @@ export type Database = {
         Args: { _conv: string; _user: string }
         Returns: boolean
       }
-      is_vip_user: { Args: { _uid: string }; Returns: boolean }
+      is_vip_user:
+        | { Args: { _uid: string }; Returns: boolean }
+        | { Args: { _tenant: string; _uid: string }; Returns: boolean }
       job_runner_autoarm: { Args: never; Returns: boolean }
       job_runner_base_url: { Args: never; Returns: string }
       job_scheduler_health: { Args: never; Returns: Json }
@@ -14315,6 +14338,10 @@ export type Database = {
       profile_badge_activity_points: {
         Args: { p_since?: string; p_tenant_id: string; p_user_id: string }
         Returns: number
+      }
+      profile_has_public_presence: {
+        Args: { p_tenant_id: string; p_user_id: string }
+        Returns: boolean
       }
       profile_is_public: { Args: { _user_id: string }; Returns: boolean }
       profile_view_stats: {
