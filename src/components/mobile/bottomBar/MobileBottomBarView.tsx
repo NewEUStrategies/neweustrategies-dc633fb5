@@ -112,31 +112,55 @@ export function MobileBottomBarView({
   // ("transition: transform none" jest nieprawidłowe, więc przeglądarka schodzi
   // do wartości początkowej = 0s), dzięki czemu garb nie goni okna animacją.
   //
-  // Odstępstwo: referencja kasuje flagę dopiero przy kliknięciu, więc po
-  // pierwszym obrocie ekranu animacja zostaje martwa aż do dotknięcia paska.
-  // U nas aktywną pozycję zmienia też nawigacja po trasach, więc flagę zdejmuje
-  // klatka po ustabilizowaniu rozmiaru - intencja ta sama, bez martwej animacji.
+  // Dwa odstępstwa, oba wymuszone tym, że u nas aktywną pozycję zmienia także
+  // nawigacja po trasach:
+  //  1. Referencja kasuje flagę dopiero przy kliknięciu - u nas zdejmuje ją
+  //     klatka po ustabilizowaniu rozmiaru, inaczej po obrocie ekranu animacja
+  //     zostaje martwa aż do dotknięcia paska.
+  //  2. Obserwator montuje się RAZ i czyta świeże domknięcia z refów. Wcześniej
+  //     zależał od `offsetBorder`, który zmienia tożsamość przy każdej zmianie
+  //     trasy - obserwator wpinał się od nowa, jego pierwsze (natychmiastowe)
+  //     wywołanie ustawiało `--timeOut: none` i przejście garbu było ucinane
+  //     dokładnie wtedy, gdy miało się odegrać. Dodatkowo reagujemy tylko na
+  //     FAKTYCZNĄ zmianę wymiaru, a nie na samo zgłoszenie obserwatora.
+  const offsetBorderRef = useRef(offsetBorder);
+  offsetBorderRef.current = offsetBorder;
+  const onMeasureRef = useRef(onMeasure);
+  onMeasureRef.current = onMeasure;
+
   useEffect(() => {
     const nav = navRef.current;
-    if (!nav || typeof ResizeObserver === "undefined") return;
+    if (!nav) return;
+
+    onMeasureRef.current?.(nav.offsetHeight);
+    if (typeof ResizeObserver === "undefined") return;
 
     let restore = 0;
+    let lastWidth = nav.offsetWidth;
+    let lastHeight = nav.offsetHeight;
+
     const observer = new ResizeObserver(() => {
+      const width = nav.offsetWidth;
+      const height = nav.offsetHeight;
+      if (width === lastWidth && height === lastHeight) return;
+      lastWidth = width;
+      lastHeight = height;
+
       nav.style.setProperty("--timeOut", "none");
-      offsetBorder();
-      onMeasure?.(nav.offsetHeight);
+      offsetBorderRef.current();
+      onMeasureRef.current?.(height);
       window.cancelAnimationFrame(restore);
       restore = window.requestAnimationFrame(() => nav.style.removeProperty("--timeOut"));
     });
     observer.observe(nav);
-    onMeasure?.(nav.offsetHeight);
 
     return () => {
       window.cancelAnimationFrame(restore);
       observer.disconnect();
       nav.style.removeProperty("--timeOut");
     };
-  }, [offsetBorder, onMeasure]);
+  }, []);
+
 
   const activeItem = hasActive ? items[activeIndex] : undefined;
   const accentLight = config.use_item_color
