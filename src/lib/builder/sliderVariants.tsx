@@ -400,7 +400,7 @@ const SHARED_STYLES = `
 /* Excerpt block: always reserve 2 lines so the widget height stays stable. */
 .eh-slider .eh-clamp-2.cms-post-excerpt { height: calc(2 * 1.5em); height: 2lh; }
 .eh-slider .eh-clamp-3.cms-post-excerpt { height: calc(3 * 1.5em); height: 3lh; }
-.eh-slider .eh-img { transform: none; transform-origin: center center; backface-visibility: hidden; }
+.eh-slider .eh-img { transform: none; transform-origin: center center; }
 .eh-slider:hover .eh-img { transform: none; }
 .eh-slider .eh-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .eh-slider .eh-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
@@ -513,7 +513,8 @@ const SHARED_STYLES = `
 
 
 /* Multi-card carousel track */
-.eh-slider .eh-track { display: flex; gap: 16px; will-change: transform; transition: transform var(--eh-speed, 480ms) cubic-bezier(.22,.61,.36,1); }
+.eh-slider .eh-track { display: flex; gap: 16px; transition: transform var(--eh-speed, 480ms) cubic-bezier(.22,.61,.36,1); }
+.eh-slider .eh-track.is-dragging, .eh-slider .eh-track.is-animating { will-change: transform; }
 .eh-slider .eh-track.is-dragging { transition: none; }
 .eh-slider .eh-card { flex: 0 0 auto; }
 /* A fixed builder height resizes the complete carousel rather than cropping it.
@@ -1210,7 +1211,7 @@ function MultiCardVariant(p: VariantProps) {
   const cols = p.columns;
   const gapPx = 16;
   const cardWidth = `calc((100% - ${(cols - 1) * gapPx}px) / ${cols})`;
-  const trackTransform = `translate3d(calc(${-p.safeIdx * (100 / cols)}% + ${p.dragDx}px), 0, 0)`;
+  const trackTransform = `translateX(calc(${-p.safeIdx * (100 / cols)}% + ${p.dragDx}px))`;
   return (
     <div className="relative eh-multi-card">
       <div
