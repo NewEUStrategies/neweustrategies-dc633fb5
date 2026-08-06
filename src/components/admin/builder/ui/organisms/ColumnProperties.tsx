@@ -19,6 +19,8 @@ import {
   resetMode,
 } from "@/lib/builder/themed";
 import { PropField } from "../atoms/PropField";
+import { ClampedNumberInput } from "../atoms/ClampedNumberInput";
+
 import { ColorField } from "../atoms/ColorField";
 import { SpacingControl } from "../molecules/SpacingControl";
 import { MotionControl } from "../molecules/MotionControl";
