@@ -1,14 +1,26 @@
 name: Rozliczenia (nocna sonda odnowienia i dunningu)
 
 # Odnowienie subskrypcji i ścieżka nieudanej płatności to jedyne części lejka,
-# których nie da się sprawdzić klikając checkout. Przebieg przesuwa datę
-# kolejnego obciążenia w środowisku TESTOWYM operatora, czeka na naliczenie
-# i weryfikuje, że okres rozliczeniowy oraz transakcja faktycznie powstały.
+# których nie da się sprawdzić klikając checkout. Przebieg przesuwa Test Clock
+# w sandboxie Stripe, ODPYTUJE go do skutku i weryfikuje, że powstała nowa
+# faktura cykliczna, okres poszedł do przodu, a stan faktury jest spójny ze
+# stanem subskrypcji.
+#
+# HISTORIA TEGO PLIKU (nie usuwać - to uzasadnienie trybu ścisłego):
+# do 2026-08 job eksportował sekret pod nazwą poprzedniego operatora płatności,
+# podczas gdy sonda czytała STRIPE_SANDBOX_API_KEY. Skutek: co dobę 40 minut
+# `sleep`, zielony wynik i zero żądań do operatora. Dlatego przebieg
+# z harmonogramu działa teraz w trybie ścisłym - pominięta weryfikacja jest
+# BŁĘDEM, a nie ostrzeżeniem.
 #
 # Konfiguracja (Settings -> Secrets and variables -> Actions):
-#   secrets.PADDLE_SANDBOX_API_KEY
-#   secrets.LOVABLE_API_KEY
-# Bez nich przebieg kończy się zielono z ostrzeżeniem.
+#   secrets.STRIPE_SANDBOX_API_KEY  - dokładnie ta nazwa, co w src/lib/stripe.server.ts
+#   secrets.LOVABLE_API_KEY         - klucz platformy do bramki konektorów
+#   vars.BILLING_PROBE_SUBSCRIPTION - opcjonalnie: konkretna subskrypcja testowa
+#   vars.BILLING_PROBE_DISABLED=1   - jawny wyłącznik (job się nie uruchamia)
+#
+# Sandbox musi mieć klienta z Test Clockiem i aktywną subskrypcję opłaconą
+# kartą testową; bez tego sonda nie ma czego przesuwać.
 
 on:
   schedule:
@@ -26,15 +38,26 @@ permissions:
 jobs:
   renewal:
     name: Odnowienie i dunning (środowisko testowe)
-    if: github.event_name != 'schedule' || github.repository_owner == 'NewEUStrategies'
+    # Wyłącznik jest JAWNY (repository variable), bo alternatywa - cicha zielona
+    # sonda przy braku sekretów - jest dokładnie tym, co ten plik naprawia.
+    if: >-
+      vars.BILLING_PROBE_DISABLED != '1' &&
+      (github.event_name != 'schedule' || github.repository_owner == 'NewEUStrategies')
     runs-on: ubuntu-latest
-    # Operator nie pozwala przesunąć obciążenia bliżej niż 30 minut, więc
-    # przebieg musi mieć zapas na oczekiwanie plus weryfikację.
-    timeout-minutes: 55
+    # Czekanie na Test Clock jest odpytywaniem z twardym terminem
+    # (PROBE_WAIT_TIMEOUT_S), więc typowy przebieg trwa minuty, nie 40 minut.
+    # Limit joba jest zapasem nad tym terminem, nie planowanym czasem trwania.
+    timeout-minutes: 30
     env:
-      PADDLE_SANDBOX_API_KEY: ${{ secrets.PADDLE_SANDBOX_API_KEY }}
+      STRIPE_SANDBOX_API_KEY: ${{ secrets.STRIPE_SANDBOX_API_KEY }}
       LOVABLE_API_KEY: ${{ secrets.LOVABLE_API_KEY }}
       PROBE_STATE_FILE: ${{ github.workspace }}/billing-renewal-probe.json
+      PROBE_REPORT_FILE: ${{ github.workspace }}/reports/billing-renewal-probe.json
+      PROBE_SUBSCRIPTION_ID: ${{ vars.BILLING_PROBE_SUBSCRIPTION }}
+      # Tryb ścisły tylko dla harmonogramu: ręczne uruchomienie z forka albo
+      # świeżego klona nadal kończy się ostrzeżeniem, nie czerwonym krzyżykiem.
+      PROBE_STRICT: ${{ github.event_name == 'schedule' }}
+      PROBE_WAIT_TIMEOUT_S: "1200"
     steps:
       - uses: actions/checkout@v4
 
@@ -42,12 +65,25 @@ jobs:
         with:
           bun-version: "1.2.23"
 
-      - name: Przesuń datę kolejnego obciążenia
+      - name: Przesuń Test Clock za koniec okresu
+        id: arm
         run: bun scripts/billing-renewal-probe.ts arm
 
-      - name: Poczekaj na naliczenie
-        run: |
-          for i in $(seq 1 40); do sleep 60; done
+      # Zastępuje `for i in $(seq 1 40); do sleep 60; done`. Stripe wystawia
+      # `status` zegara (`advancing` -> `ready`), więc czekanie jest odpytywaniem
+      # z backoffem: kończy się, gdy operator skończy, a nie po stałych 40 min.
+      - name: Poczekaj na przeliczenie zegara
+        if: steps.arm.outputs.outcome == 'armed'
+        run: bun scripts/billing-renewal-probe.ts await
 
       - name: Zweryfikuj odnowienie i dunning
+        if: steps.arm.outputs.outcome == 'armed'
         run: bun scripts/billing-renewal-probe.ts verify
+
+      - name: Zachowaj raport sondy
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: billing-renewal-probe
+          path: reports/billing-renewal-probe.json
+          if-no-files-found: ignore
