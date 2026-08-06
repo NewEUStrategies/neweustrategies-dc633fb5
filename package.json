@@ -25,6 +25,8 @@
     "verify:migration": "bun run scripts/verify-migration.ts",
     "check:bundle": "bun run scripts/check-bundle-size.ts",
     "check:chunks": "bun run scripts/check-chunk-graph.ts",
+    "check:entry-purity": "bun run scripts/check-entry-purity.ts",
+    "report:chunk-inventory": "bun run scripts/chunk-inventory.ts",
     "generate:authz-snapshot": "bun run scripts/generate-authz-snapshot.ts",
     "check:authz-snapshot": "bun run scripts/generate-authz-snapshot.ts --check",
     "check:permissions-parity": "vitest run src/lib/authz src/lib/ci/__tests__/authzGates.test.ts src/components/admin/permissions",

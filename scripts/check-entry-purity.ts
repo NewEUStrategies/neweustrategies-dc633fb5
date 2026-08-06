@@ -1,0 +1,189 @@
+/**
+ * Bramka CZYSTOŚCI ŚCIEŻKI BOOTOWANIA klienta: żaden ciężki SDK zewnętrznego
+ * operatora nie może być STATYCZNIE osiągalny z chunku startowego przeglądarki.
+ *
+ * INCYDENT 2026-08-06 (bramka `check:bundle` czerwona na mainie). Łańcuch:
+ *   routes/$.tsx -> components/Paywall.tsx -> EmbeddedCheckoutDialog
+ *     -> @stripe/react-stripe-js  +  lib/stripe.ts -> loadStripe (@stripe/stripe-js)
+ * Wszystkie krawędzie były STATYCZNE, a `lib/stripe.ts` miało 17 importerów
+ * rozsianych po aplikacji (większość tylko po helper środowiskowy do kluczy
+ * zapytań). Rollup hoistuje moduł współdzielony przez wiele chunków do ich
+ * wspólnego przodka - czyli do ENTRY. Skutek: KAŻDY anonimowy czytelnik
+ * dowolnego artykułu pobierał i parsował SDK bramki płatniczej (marker
+ * `js.stripe.com` w chunku entry), choć nigdy nie zobaczy checkoutu.
+ *
+ * Dlaczego osobna, statyczna bramka, skoro jest już `check:bundle`? Bo budżet
+ * kilobajtów mierzy SKUTEK i to z opóźnieniem: wystarczy, że ktoś w tym samym
+ * PR zetnie inne kilobajty, i regresja architektoniczna przechodzi niezauważona.
+ * Ta bramka mierzy PRZYCZYNĘ - krawędź w grafie chunków - więc jest odporna na
+ * kompensację i mówi wprost, który import ją złamał. Ten sam wzorzec, co
+ * `check-chunk-graph.ts` (cykle) i `check-no-paddle.ts` (martwy operator).
+ *
+ * ZASADA: SDK operatora ma trafiać do przeglądarki wyłącznie przez `import()`
+ * na INTENCJĘ zakupu (patrz `components/checkout/EmbeddedCheckoutFrame.tsx`).
+ * Ładowanie leniwe jest w porządku; statyczna krawędź z bootu - nie.
+ *
+ * Usage: bun run scripts/check-entry-purity.ts   (po `bun run build`)
+ */
+import { readdirSync, readFileSync } from "node:fs";
+import { basename, join } from "node:path";
+
+/** Pakiet zewnętrzny + literały, po których go rozpoznajemy w zminifikowanym chunku. */
+interface ForbiddenSdk {
+  readonly label: string;
+  /** Literały przetrwają minifikację (URL-e, komunikaty błędów) - identyfikatory nie. */
+  readonly markers: readonly string[];
+  /** Jak ma być ładowany zamiast tego. */
+  readonly remedy: string;
+}
+
+const FORBIDDEN_SDKS: readonly ForbiddenSdk[] = [
+  {
+    label: "@stripe/stripe-js (loader Stripe.js)",
+    markers: ["js.stripe.com"],
+    remedy: "importuj `loadStripe` dynamicznie w `lib/stripe.ts` (`getStripe()`), nigdy statycznie",
+  },
+  {
+    label: "@stripe/react-stripe-js (bindingi React)",
+    markers: ["Unsupported prop change: options.", "in both a checkout provider"],
+    remedy:
+      "jedynym statycznym importerem ma być `components/checkout/StripeEmbeddedFrame.tsx`, " +
+      "wciągany przez `React.lazy` w `EmbeddedCheckoutFrame`",
+  },
+];
+
+const CLIENT_DIR =
+  process.env["CLIENT_DIR"] ??
+  [".output/public/assets", "dist/client/assets"].find((d) => listJs(d).length > 0) ??
+  ".output/public/assets";
+
+/** Katalogi, w których szukamy manifestu TanStack Start (wskazuje chunk startowy). */
+const SERVER_DIRS = [".output/server", "dist/server"] as const;
+
+function listJs(dir: string): string[] {
+  try {
+    return readdirSync(dir).filter((f) => f.endsWith(".js"));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Chunki startowe: to, co serwer wstrzykuje jako `<script type="module">` przy
+ * renderze SSR. Czytamy je z manifestu TanStack Start zamiast zgadywać po
+ * nazwie/rozmiarze - manifest jest jedynym miejscem, które NAPRAWDĘ mówi, co
+ * pobiera przeglądarka. Override: ENTRY_CHUNKS="a.js,b.js".
+ */
+function findBootChunks(): string[] {
+  const override = process.env["ENTRY_CHUNKS"];
+  if (override) return override.split(",").map((s) => basename(s.trim()));
+
+  const scriptRe = /scripts:\s*\[[^\]]*?src:\s*["']\/assets\/([A-Za-z0-9._$-]+\.js)["']/g;
+  const found = new Set<string>();
+  for (const dir of SERVER_DIRS) {
+    let entries: string[];
+    try {
+      entries = readdirSync(dir);
+    } catch {
+      continue;
+    }
+    for (const file of entries) {
+      if (!file.endsWith(".mjs") && !file.endsWith(".js")) continue;
+      const src = readFileSync(join(dir, file), "utf8");
+      for (const m of src.matchAll(scriptRe)) found.add(m[1]);
+    }
+    if (found.size > 0) break;
+  }
+  return [...found];
+}
+
+/**
+ * Statyczne krawędzie chunk -> chunk. `import(` NIE tworzy krawędzi
+ * inicjalizacyjnej (ten sam filtr, co w `check-chunk-graph.ts`).
+ */
+const IMPORT_RE = /(import\s*\(?\s*|from\s*)["'](\.\/[^"']+\.js)["']/g;
+
+function staticEdges(files: readonly string[]): Map<string, Set<string>> {
+  const edges = new Map<string, Set<string>>();
+  for (const f of files) {
+    const src = readFileSync(join(CLIENT_DIR, f), "utf8");
+    const out = new Set<string>();
+    for (const m of src.matchAll(IMPORT_RE)) {
+      if (m[1].trimEnd().endsWith("(")) continue;
+      const target = basename(m[2]);
+      if (target !== f) out.add(target);
+    }
+    edges.set(f, out);
+  }
+  return edges;
+}
+
+function reachable(roots: readonly string[], edges: Map<string, Set<string>>): Set<string> {
+  const seen = new Set<string>();
+  const stack = [...roots];
+  while (stack.length > 0) {
+    const node = stack.pop() as string;
+    if (seen.has(node) || !edges.has(node)) continue;
+    seen.add(node);
+    for (const next of edges.get(node) ?? []) stack.push(next);
+  }
+  return seen;
+}
+
+function main(): void {
+  const files = listJs(CLIENT_DIR);
+  if (files.length === 0) {
+    console.error(`✗ Brak chunków JS w ${CLIENT_DIR}. Najpierw \`bun run build\`.`);
+    process.exit(1);
+  }
+
+  const boot = findBootChunks().filter((f) => files.includes(f));
+  if (boot.length === 0) {
+    console.error(
+      "✗ Nie udalo sie ustalic chunku startowego z manifestu TanStack Start.\n" +
+        `  Szukano \`scripts:[{attrs:{src:"/assets/*.js"}}]\` w: ${SERVER_DIRS.join(", ")}.\n` +
+        "  Jesli adapter zmienil uklad artefaktu, podaj chunk jawnie: ENTRY_CHUNKS=index-HASH.js",
+    );
+    process.exit(1);
+  }
+
+  const edges = staticEdges(files);
+  const bootGraph = reachable(boot, edges);
+
+  const violations: string[] = [];
+  for (const sdk of FORBIDDEN_SDKS) {
+    const hits: string[] = [];
+    for (const chunk of bootGraph) {
+      const src = readFileSync(join(CLIENT_DIR, chunk), "utf8");
+      if (sdk.markers.some((marker) => src.includes(marker))) hits.push(chunk);
+    }
+    if (hits.length > 0) {
+      violations.push(
+        `  • ${sdk.label}\n` +
+          hits.map((h) => `      w chunku startowym: ${h}`).join("\n") +
+          `\n      naprawa: ${sdk.remedy}`,
+      );
+    }
+  }
+
+  console.log(
+    `Sciezka bootowania: ${boot.join(", ")} -> ${bootGraph.size} chunkow statycznie osiagalnych ` +
+      `(z ${files.length}).`,
+  );
+
+  if (violations.length > 0) {
+    console.error(`\n✗ SDK operatora na sciezce bootowania czytelnika:\n${violations.join("\n")}`);
+    console.error(
+      "\n  Kazdy anonimowy czytelnik pobiera i parsuje ten kod, zanim zobaczy tresc -\n" +
+        "  a niemal nikt z nich nie wchodzi w checkout. SDK ma sie ladowac przez\n" +
+        "  `import()` na intencje zakupu (checkoutIntentHandlers + React.lazy).",
+    );
+    process.exit(1);
+  }
+
+  console.log(
+    `✓ Sciezka bootowania czysta (sprawdzono: ${FORBIDDEN_SDKS.map((s) => s.label).join(", ")}).`,
+  );
+}
+
+main();

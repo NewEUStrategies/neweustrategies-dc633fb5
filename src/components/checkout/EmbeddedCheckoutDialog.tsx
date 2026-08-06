@@ -1,20 +1,20 @@
 // Wspólny modal osadzonego checkoutu Stripe. Używany wszędzie tam, gdzie
-// wcześniej otwierała się nakładka Paddle.js (paywall, bilety, test w panelu
-// admina): dostajemy `clientSecret` z funkcji serwerowej i renderujemy formularz
-// w miejscu, bez przekierowania na zewnętrzną domenę.
+// wcześniej otwierała się nakładka Paddle.js (paywall, bilety, darowizny, test
+// w panelu admina): dostajemy `clientSecret` z funkcji serwerowej i renderujemy
+// formularz w miejscu, bez przekierowania na zewnętrzną domenę.
 //
-// Motyw i język: ramka Stripe nie dziedziczy naszych tokenów ani i18n.
-//   * język ustawiamy przy TWORZENIU sesji (`locale`, patrz `checkoutLocale.ts`),
-//   * motyw sygnalizujemy ramce przez `color-scheme` na kontenerze i wymuszamy
-//     przemontowanie providera (klucz `clientSecret + theme`), bo Stripe czyta
-//     schemat kolorów tylko przy inicjalizacji ramki. Bez tego przełączenie na
-//     tryb ciemny zostawiało biały formularz na ciemnym tle modala.
-import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
+// Sam modal jest LEKKI z założenia: ramka operatora (i całe `@stripe/*`)
+// siedzi za `EmbeddedCheckoutFrame`, czyli za granicą `React.lazy`. Dzięki temu
+// `Paywall` (statycznie importowany przez publiczny resolver `routes/$.tsx`)
+// nie wciąga SDK płatności do chunku entry - patrz nagłówek
+// `EmbeddedCheckoutFrame` i bramka `scripts/check-entry-purity.ts`.
+//
+// Język ramki ustawiamy przy TWORZENIU sesji (`locale`, patrz
+// `checkoutLocale.ts`); motyw obsługuje ramka (`colorScheme`).
 import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
-import { useTheme } from "@/components/ThemeProvider";
-import { getStripe } from "@/lib/stripe";
+import { EmbeddedCheckoutFrame } from "@/components/checkout/EmbeddedCheckoutFrame";
 import "@/lib/i18n-payments-banner";
 
 export interface EmbeddedCheckoutDialogProps {
@@ -30,7 +30,6 @@ export function EmbeddedCheckoutDialog({
   title,
 }: EmbeddedCheckoutDialogProps) {
   const { t } = useTranslation();
-  const { theme } = useTheme();
 
   return (
     <Dialog open={clientSecret !== null} onOpenChange={onOpenChange}>
@@ -39,17 +38,7 @@ export function EmbeddedCheckoutDialog({
           <DialogTitle className="text-base">{title ?? t("paymentsBanner.checkout")}</DialogTitle>
         </DialogHeader>
         <PaymentTestModeBanner />
-        {clientSecret && (
-          <div className="mt-3" style={{ colorScheme: theme }}>
-            <EmbeddedCheckoutProvider
-              key={`${clientSecret}:${theme}`}
-              stripe={getStripe()}
-              options={{ clientSecret }}
-            >
-              <EmbeddedCheckout />
-            </EmbeddedCheckoutProvider>
-          </div>
-        )}
+        {clientSecret && <EmbeddedCheckoutFrame clientSecret={clientSecret} className="mt-3" />}
       </DialogContent>
     </Dialog>
   );

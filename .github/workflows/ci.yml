@@ -119,6 +119,17 @@ jobs:
       - name: Chunk graph acyclicity
         run: bun run check:chunks
 
+      # Blokująca bramka architektury bundla: żaden ciężki SDK operatora
+      # (Stripe.js + bindingi React) nie może być STATYCZNIE osiągalny z chunku
+      # startowego przeglądarki. `check:bundle` mierzy skutek w kilobajtach i da
+      # się go skompensować cięciem gdzie indziej; ta bramka mierzy PRZYCZYNĘ -
+      # krawędź w grafie chunków - i wskazuje wprost import, który ją złamał.
+      # Regresja 2026-08-06: routes/$.tsx -> Paywall -> EmbeddedCheckoutDialog
+      # -> @stripe/*, przez co każdy anonimowy czytelnik artykułu pobierał SDK
+      # bramki płatniczej (marker js.stripe.com w chunku entry).
+      - name: Client boot path free of payment SDKs
+        run: bun run check:entry-purity
+
       # Blocking: the Prettier backlog was cleared (repo-wide format commit) and
       # all remaining ESLint errors were fixed, so lint now gates merges like
       # typecheck and tests.
@@ -159,8 +170,6 @@ jobs:
       # this project no longer has - it would fail only at runtime, mid-checkout.
       - name: No live legacy payment-provider references
         run: bun run check:no-paddle
-
-
 
       # Blocking reproducibility gate: can the database still be recreated from
       # migrations? Two classes, both invisible to an incremental `db push` and

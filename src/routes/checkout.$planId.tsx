@@ -23,8 +23,12 @@ import { toast } from "sonner";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 import { catalogPriceForPlan } from "@/lib/billing/catalog";
 import { useCheckout } from "@/hooks/useCheckout";
-import { getStripe } from "@/lib/stripe";
-import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
+// Ramka operatora wchodzi przez granicę `React.lazy` (patrz nagłówek
+// EmbeddedCheckoutFrame) - trasa checkoutu nie może być drugim statycznym
+// importerem `@stripe/react-stripe-js`, bo wspólny przodek dwóch takich
+// importerów to chunk entry, który pobiera każdy czytelnik.
+import { EmbeddedCheckoutFrame } from "@/components/checkout/EmbeddedCheckoutFrame";
+import { checkoutIntentHandlers } from "@/components/checkout/checkoutIntent";
 import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
 export const Route = createFileRoute("/checkout/$planId")({
   component: CheckoutPage,
@@ -241,6 +245,7 @@ function CheckoutPage() {
                       size="lg"
                       disabled={busy || !hasBilling}
                       onClick={submit}
+                      {...checkoutIntentHandlers}
                     >
                       {busy ? (
                         t("checkout.processing")
@@ -260,9 +265,7 @@ function CheckoutPage() {
                     {clientSecret && (
                       <div className="space-y-2">
                         <PaymentTestModeBanner />
-                        <EmbeddedCheckoutProvider stripe={getStripe()} options={{ clientSecret }}>
-                          <EmbeddedCheckout />
-                        </EmbeddedCheckoutProvider>
+                        <EmbeddedCheckoutFrame clientSecret={clientSecret} />
                       </div>
                     )}
                     <p className="text-xs text-muted-foreground text-center">

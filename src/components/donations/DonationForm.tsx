@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { EmbeddedCheckoutDialog } from "@/components/checkout/EmbeddedCheckoutDialog";
+import { checkoutIntentHandlers } from "@/components/checkout/checkoutIntent";
 import { getStripeEnvironment } from "@/lib/stripe";
 import { normalizeCheckoutLocale } from "@/lib/billing/checkoutLocale";
 import {
@@ -213,7 +214,12 @@ export function DonationForm({ className }: { className?: string }) {
         </p>
       )}
 
-      <Button type="submit" size="lg" disabled={pending || amountCents <= 0}>
+      <Button
+        type="submit"
+        size="lg"
+        disabled={pending || amountCents <= 0}
+        {...checkoutIntentHandlers}
+      >
         <HandHeart className="mr-2 h-4 w-4" aria-hidden />
         {pending ? t("donate.submitting") : t("donate.submit")}
       </Button>

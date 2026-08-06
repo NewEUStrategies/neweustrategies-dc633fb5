@@ -10,6 +10,8 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { loadEnv } from "vite";
 
+import { chunkInventoryPlugin } from "./scripts/lib/chunkInventoryPlugin";
+
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 
 // Trasy serwerowe (m.in. /platform/email/*) czytają sekrety BEZ prefiksu VITE_
@@ -51,6 +53,11 @@ export default defineConfig({
   },
 
   vite: {
+    // Przyrząd pomiarowy składu bundla - INERTNY, dopóki nie ustawisz
+    // BUNDLE_INVENTORY=1 (patrz nagłówek wtyczki). Nie duplikuje żadnej wtyczki
+    // z @lovable.dev/vite-tanstack-config: ma wyłącznie hook `generateBundle`.
+    plugins: [chunkInventoryPlugin()],
+
     // React Email ciągnie htmlparser2 -> entities. Wersje 5+ usunęły
     // `entities/lib/decode.js`, więc każdy zagnieżdżony nowszy egzemplarz
     // wywraca SSR. Alias przypina WSZYSTKIE importy do hoistowanej 4.5.0.
