@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
 } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, X } from "lucide-react";
@@ -480,7 +481,7 @@ export function GroupTabs({
     };
   }, [groups]);
 
-  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+  const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     const bar = barRef.current;
     if (!bar) return;
     if ((e.target as HTMLElement).closest("[data-tab-nudge]")) return;
@@ -491,7 +492,7 @@ export function GroupTabs({
       /* ignore */
     }
   };
-  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+  const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     const bar = barRef.current;
     const d = dragRef.current;
     if (!bar || !d) return;
@@ -499,7 +500,7 @@ export function GroupTabs({
     if (Math.abs(dx) > 3) d.moved = true;
     if (d.moved) bar.scrollLeft = d.startLeft - dx;
   };
-  const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+  const onPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
     const bar = barRef.current;
     try {
       bar?.releasePointerCapture?.(e.pointerId);
