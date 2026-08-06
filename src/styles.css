@@ -6930,14 +6930,15 @@ html {
   transform: scale(1);
 }
 
-/* .icon - stroke w kolorze pozycji, a na aktywnej wycięty w kolorze paska,
-   więc glif czyta się jak dziura w kolorowym kole. */
+/* .icon - wszystkie nieaktywne ikony w jednolitym, neutralnym kolorze paska.
+   Dopiero aktywna pozycja przełącza stroke: najpierw na kolor tła paska,
+   żeby glif czytał się jak wycięta dziura w kolorowym kole pozycji. */
 .mbb__icon {
   display: block;
   width: 2.6em;
   height: 2.6em;
   fill: none;
-  stroke: var(--bgColorItem, currentColor);
+  stroke: var(--mbb-icon);
   stroke-width: 1.6;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -6948,13 +6949,6 @@ html {
   transition:
     stroke 0.5s,
     transform 0.5s;
-}
-.dark .mbb__icon {
-  stroke: var(--bgColorItem-dark, currentColor);
-}
-/* Wyłączone „kolory pozycji" = wszystkie ikony w jednym, neutralnym odcieniu. */
-.mbb[data-own-colors="false"] .mbb__icon {
-  stroke: var(--mbb-icon);
 }
 .mbb__item.active .mbb__icon {
   stroke: var(--mbb-bg);
