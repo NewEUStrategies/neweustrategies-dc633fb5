@@ -12884,6 +12884,10 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      comments_moderation_enabled: {
+        Args: { _tenant_id: string }
+        Returns: boolean
+      }
       complete_command: {
         Args: { p_key: string; p_result?: Json; p_succeeded: boolean }
         Returns: undefined
