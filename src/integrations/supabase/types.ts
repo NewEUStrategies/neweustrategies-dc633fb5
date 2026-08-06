@@ -12762,12 +12762,12 @@ export type Database = {
         Returns: boolean
       }
       can_gift_articles: { Args: never; Returns: boolean }
-      can_share_full_article: { Args: never; Returns: boolean }
       can_manage_profile_verification: {
         Args: { _user_id?: string }
         Returns: boolean
       }
       can_publish_content: { Args: { _user_id?: string }; Returns: boolean }
+      can_share_full_article: { Args: never; Returns: boolean }
       cancel_my_meeting_booking: {
         Args: { p_slot_id: string }
         Returns: boolean
