@@ -365,10 +365,13 @@ describe("zaznaczenie i render snapshotu", () => {
       before,
       selectAuthzSnapshot(moved, { roleGateRefs: ["fn:admin_list_users/0"] }),
     );
-    expect(problems).toHaveLength(1);
-    expect(problems[0]).toContain("provenance");
-    expect(problems[0]).toContain("0009_przeniesione.sql");
-    expect(problems[0]).not.toContain("anyRoles");
+    // Obok wpisu bramki pojawia się drugi, o statystykach skanu (inne źródło
+    // migracji) - istotne jest, że rozjazd bramki to provenance, nie role.
+    const gateProblem = problems.find((p) => p.includes("admin_list_users"));
+    expect(gateProblem).toBeDefined();
+    expect(gateProblem).toContain("provenance");
+    expect(gateProblem).toContain("0009_przeniesione.sql");
+    expect(gateProblem).not.toContain("anyRoles");
   });
 });
 
