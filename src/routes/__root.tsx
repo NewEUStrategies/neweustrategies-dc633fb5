@@ -179,6 +179,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       // render-blocking third-party request, and no visitor IPs sent to Google.
       links: [
         { rel: "stylesheet", href: appCss },
+        // Favicon - jawnie zadeklarowany, żeby crawlery i podglądy linków
+        // (w tym karta "How your site appears") pobrały znak marki NES.
+        { rel: "icon", href: "/favicon.ico", sizes: "any" },
+        { rel: "apple-touch-icon", href: "/favicon.ico" },
+
         // Preload the critical font subset(s) so heading text (a frequent LCP
         // element) swaps in without waiting for the CSS to parse first. Latin
         // backs both languages; Latin-ext (Polish diacritics) only for PL.
