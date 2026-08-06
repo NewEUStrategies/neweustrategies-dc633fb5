@@ -193,7 +193,7 @@ function ProjectCard({ project, lang }: { project: ProgramProject; lang: "pl" | 
       {summary && <p className="text-sm text-muted-foreground">{summary}</p>}
       {project.url && (
         <span className="inline-flex items-center gap-1 text-sm text-primary">
-          {lang === "en" ? "Learn more" : "Więcej"}
+          {lang === "en" ? `Open project: ${name}` : `Otwórz projekt: ${name}`}
           <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
         </span>
       )}
