@@ -919,31 +919,49 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       }
       if (variant === "icon-only" || variant === "icon") {
         const withLabel = variant === "icon";
+        // Kafelek jest DOKŁADNIE taki sam jak w widgecie „Ikony social":
+        // wspólny rysunek koperty, ten sam kwadrat (size + 6), promień i hover.
+        // Domyślna koperta idzie ze wspólnego modułu; własna ikona z panelu
+        // (iconName ≠ Mail) nadal wygrywa.
+        const glyphSize = getNum(c, "size", 14);
+        const useHouseMail = !getStr(c, "iconName") || iconName === "Mail";
+        const glyph = useHouseMail ? (
+          <SocialMailIcon size={glyphSize} />
+        ) : IconCmp ? (
+          <IconCmp className="w-5 h-5" />
+        ) : (
+          <span>✉</span>
+        );
+        const tileCls = `${SOCIAL_GLYPH_TILE_CLASS} ${withLabel ? "" : ""}`;
         const triggerCls = withLabel
-          ? "inline-flex items-center gap-2 text-foreground hover:opacity-80 transition-colors"
-          : "inline-flex items-center justify-center rounded-full text-foreground hover:opacity-80 transition-colors";
-        const triggerInner = (
+          ? "inline-flex items-center gap-2 text-foreground transition-colors"
+          : tileCls;
+        const tileStyle = useHouseMail ? socialGlyphBoxStyle(glyphSize) : undefined;
+        const triggerInner = withLabel ? (
           <>
-            {IconCmp ? <IconCmp className="w-5 h-5" /> : <span>✉</span>}
-            {withLabel &&
-              (canEdit ? (
-                <Editable
-                  as="span"
-                  value={title}
-                  onCommit={(v) => commit(tKey, v)}
-                  className="text-sm font-medium"
-                  placeholder="Newsletter…"
-                />
-              ) : (
-                <span className="text-sm font-medium">{title}</span>
-              ))}
+            <span className={tileCls} style={tileStyle}>
+              {glyph}
+            </span>
+            {canEdit ? (
+              <Editable
+                as="span"
+                value={title}
+                onCommit={(v) => commit(tKey, v)}
+                className="text-sm font-medium"
+                placeholder="Newsletter…"
+              />
+            ) : (
+              <span className="text-sm font-medium">{title}</span>
+            )}
           </>
+        ) : (
+          glyph
         );
         if (editable) {
           return wrap(
             <div
               className={`${triggerCls} cursor-pointer`}
-              style={compactRowStyle}
+              style={{ ...compactRowStyle, ...(withLabel ? {} : (tileStyle ?? {})) }}
               title={title}
               aria-label={withLabel ? undefined : title}
             >
@@ -955,7 +973,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           <a
             href="#newsletter"
             className={triggerCls}
-            style={compactRowStyle}
+            style={{ ...compactRowStyle, ...(withLabel ? {} : (tileStyle ?? {})) }}
             title={title}
             aria-label={withLabel ? undefined : title}
           >
@@ -963,6 +981,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           </a>,
         );
       }
+
 
       // Warianty z formularzem (inline / card): jeden komponent, jeden config.
       const liveForm = (
