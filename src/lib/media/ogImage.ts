@@ -38,8 +38,7 @@ const isConvertible = (mime: string) =>
 /** Sprawdza typ MIME: akceptowany, wymagający konwersji albo odrzucony. */
 export function checkOgMime(mime: string): OgIssue | null {
   if (isAccepted(mime)) return null;
-  if (isConvertible(mime))
-    return { code: "mime_converted", severity: "warning", params: { mime } };
+  if (isConvertible(mime)) return { code: "mime_converted", severity: "warning", params: { mime } };
   return { code: "mime_unsupported", severity: "error", params: { mime: mime || "?" } };
 }
 
@@ -105,7 +104,9 @@ export interface OgRejection {
 
 export type OgPrepareResult = OgPreparedFile | OgRejection;
 
-const decode = async (file: File): Promise<{ width: number; height: number; bitmap: ImageBitmap }> => {
+const decode = async (
+  file: File,
+): Promise<{ width: number; height: number; bitmap: ImageBitmap }> => {
   const bitmap = await createImageBitmap(file);
   return { width: bitmap.width, height: bitmap.height, bitmap };
 };

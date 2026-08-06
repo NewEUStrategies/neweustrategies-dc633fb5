@@ -1,25 +1,24 @@
-// Wspólny modal osadzonego checkoutu. Używany wszędzie tam, gdzie kupujemy bez
-// opuszczania strony: paywall wpisu, bilety na wydarzenia, darowizny oraz test
-// kasy w panelu admina. Dostajemy `clientSecret` z funkcji serwerowej i
-// renderujemy formularz w miejscu, bez przekierowania na obcą domenę.
+// Wspólny modal osadzonego checkoutu Stripe. Używany wszędzie tam, gdzie
+// wcześniej otwierała się nakładka Paddle.js (paywall, bilety, darowizny, test
+// w panelu admina): dostajemy `clientSecret` z funkcji serwerowej i renderujemy
+// formularz w miejscu, bez przekierowania na zewnętrzną domenę.
 //
-// PODZIAŁ KODU: ten plik jest LEKKI i wolno go importować statycznie. Całe SDK
-// operatora płatności siedzi za `React.lazy` w `EmbeddedCheckoutFrame` - modal
-// (ramka Radixa, nagłówek, baner trybu testowego) pojawia się natychmiast po
-// kliknięciu, a formularz wskakuje w miejsce szkieletu. Powód i pomiar: patrz
-// nagłówek `EmbeddedCheckoutFrame.tsx`.
+// Sam modal jest LEKKI z założenia: ramka operatora (i całe `@stripe/*`)
+// siedzi za `EmbeddedCheckoutFrame`, czyli za granicą `React.lazy`. Dzięki temu
+// `Paywall` (statycznie importowany przez publiczny resolver `routes/$.tsx`)
+// nie wciąga SDK płatności do chunku entry - patrz nagłówek
+// `EmbeddedCheckoutFrame` i bramka `scripts/check-entry-purity.ts`.
 //
-// Język i motyw: ramka operatora nie dziedziczy naszych tokenów ani i18n -
-//   * język ustawiamy przy TWORZENIU sesji (`locale`, patrz `checkoutLocale.ts`),
-//   * schemat kolorów niesie `EmbeddedCheckoutFrame`.
+// Język ramki ustawiamy przy TWORZENIU sesji (`locale`, patrz
+// `checkoutLocale.ts`); motyw obsługuje ramka (`colorScheme`).
 import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
-import { EmbeddedCheckoutFrame } from "./EmbeddedCheckoutFrame";
+import { EmbeddedCheckoutFrame } from "@/components/checkout/EmbeddedCheckoutFrame";
 import "@/lib/i18n-payments-banner";
 
 export interface EmbeddedCheckoutDialogProps {
-  /** `clientSecret` sesji kasy; `null` zamyka modal. */
+  /** `clientSecret` sesji Stripe; `null` zamyka modal. */
   clientSecret: string | null;
   onOpenChange: (open: boolean) => void;
   title?: string;
@@ -39,9 +38,7 @@ export function EmbeddedCheckoutDialog({
           <DialogTitle className="text-base">{title ?? t("paymentsBanner.checkout")}</DialogTitle>
         </DialogHeader>
         <PaymentTestModeBanner />
-        <div className="mt-3">
-          <EmbeddedCheckoutFrame clientSecret={clientSecret} />
-        </div>
+        {clientSecret && <EmbeddedCheckoutFrame clientSecret={clientSecret} className="mt-3" />}
       </DialogContent>
     </Dialog>
   );

@@ -127,7 +127,6 @@ export function PopupSignupForm({
   const pairTightClass = form.twoColumnPairs ? "grid grid-cols-2 gap-2.5" : "space-y-2.5";
   const pairClass = form.twoColumnPairs ? "grid grid-cols-1 gap-2.5 sm:grid-cols-2" : "space-y-2.5";
 
-
   const t = (pl: string, en: string) => (isPl ? pl : en);
 
   const track = (event: "submit" | "success" | "error", errorCode?: string) =>
@@ -402,7 +401,6 @@ export function PopupSignupForm({
       />
     );
   }
-
 
   const showFirst = ext && fieldOn("first_name");
   const showLast = ext && fieldOn("last_name");

@@ -73,7 +73,10 @@ export function SignupSuccessPanel({ email, lang, redirectTo, previewOnly = fals
             {email}
           </p>
         ) : null}
-        <p className="text-[11px] opacity-80" style={{ color: "var(--nl-muted, var(--muted-foreground))" }}>
+        <p
+          className="text-[11px] opacity-80"
+          style={{ color: "var(--nl-muted, var(--muted-foreground))" }}
+        >
           {t(
             "Nie widzisz wiadomości? Sprawdź folder Spam lub Oferty.",
             "Can't find the message? Check your Spam or Promotions folder.",

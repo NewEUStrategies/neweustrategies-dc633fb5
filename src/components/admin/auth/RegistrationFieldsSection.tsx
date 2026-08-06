@@ -29,10 +29,7 @@ export function RegistrationFieldsSection() {
     if (data && !dirty) setDraft(data);
   }, [data, dirty]);
 
-  const current = useMemo(
-    () => draft ?? data ?? defaultNewsletterSettings(),
-    [draft, data],
-  );
+  const current = useMemo(() => draft ?? data ?? defaultNewsletterSettings(), [draft, data]);
 
   const update = (patch: Partial<NewsletterSettings>) => {
     setDirty(true);

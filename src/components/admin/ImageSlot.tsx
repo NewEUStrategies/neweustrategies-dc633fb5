@@ -85,7 +85,6 @@ export function ImageSlot({
     }
   };
 
-
   return (
     <div className="space-y-1.5">
       <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
@@ -155,7 +154,6 @@ export function ImageSlot({
           {error}
         </div>
       )}
-
     </div>
   );
 }

@@ -166,8 +166,13 @@ export function PostLayoutRenderer({
 
   // Wspólna ramka okładki dla wszystkich wariantów. `overlay` dokłada
   // gradienty i nakładkę z tytułem, pozostałe warianty malują czyste zdjęcie.
-  const coverFrame = ({ overlay = false }: { overlay?: boolean } = {}) => {
-    if (!coverImageUrl) return null;
+  //
+  // Okładka wchodzi PARAMETREM, nie z domknięcia: `headerMode` inne niż
+  // "no-cover" już gwarantuje `coverImageUrl` (patrz `showCover` wyżej), więc
+  // wewnętrzny strażnik `if (!coverImageUrl)` był kodem, którego nie dało się
+  // ani wykonać, ani pokryć testem - i to on trzymał bramkę pokrycia tego pliku
+  // pod progiem. Parametr przenosi tę gwarancję do systemu typów.
+  const coverFrame = (coverUrl: string, { overlay = false }: { overlay?: boolean } = {}) => {
     const isFullBleed = preset.cover === "full-bleed";
     const isRatio = preset.cover === "ratio" && !!ratioPct;
     // Full-bleed wychodzi poza padding strony tylko bez sidebara - w siatce
@@ -189,7 +194,7 @@ export function PostLayoutRenderer({
         >
           <div className="relative overflow-hidden bg-neutral-900" style={frameStyle}>
             <OptimizedImage
-              src={coverImageUrl}
+              src={coverUrl}
               alt={title}
               className={`absolute inset-0 w-full h-full object-cover ${overlay ? "opacity-80" : ""}`}
               priority
@@ -228,8 +233,8 @@ export function PostLayoutRenderer({
   };
 
   // Split (Layout 7): okładka i nagłówek w dwóch kolumnach, treść pod spodem.
-  const sideBySideTop = () => {
-    if (!coverImageUrl) return classicHeader();
+  // Okładka parametrem z tego samego powodu, co w `coverFrame` wyżej.
+  const sideBySideTop = (coverUrl: string) => {
     return (
       <div className="mb-8 grid min-w-0 gap-6 lg:grid-cols-2 lg:items-center">
         <div className="relative min-w-0">
@@ -244,7 +249,7 @@ export function PostLayoutRenderer({
             }}
           >
             <OptimizedImage
-              src={coverImageUrl}
+              src={coverUrl}
               alt={title}
               className="absolute inset-0 w-full h-full object-cover"
               priority
@@ -260,26 +265,29 @@ export function PostLayoutRenderer({
   };
 
   const top = (() => {
+    // Jedno zawężenie dla wszystkich wariantów z okładką: `showCover` (wyżej)
+    // wiąże `headerMode !== "no-cover"` z istnieniem `coverImageUrl`, ale
+    // TypeScript nie przeniesie tego do domknięć - stąd jawny strażnik tutaj,
+    // zamiast powtarzanego (i martwego) w każdej z funkcji renderujących.
+    if (headerMode === "no-cover" || !coverImageUrl) return classicHeader();
     switch (headerMode) {
       case "overlay":
-        return coverFrame({ overlay: true });
+        return coverFrame(coverImageUrl, { overlay: true });
       case "below-cover":
         return (
           <>
-            {coverFrame()}
+            {coverFrame(coverImageUrl)}
             {classicHeader()}
           </>
         );
       case "side-by-side":
-        return sideBySideTop();
-      case "no-cover":
-        return classicHeader();
+        return sideBySideTop(coverImageUrl);
       case "above-cover":
       default:
         return (
           <>
             {classicHeader()}
-            {coverFrame()}
+            {coverFrame(coverImageUrl)}
           </>
         );
     }

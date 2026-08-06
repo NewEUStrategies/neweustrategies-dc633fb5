@@ -1,31 +1,37 @@
-// Ramka osadzonej kasy operatora płatności - ZAWARTOŚĆ LENIWEGO CHUNKU.
+// JEDYNY moduł aplikacji, który statycznie importuje `@stripe/react-stripe-js`.
 //
-// To jedyny komponent aplikacji, który importuje `@stripe/react-stripe-js`
-// i loader SDK (`@/lib/stripe/sdk`). Nikt nie importuje go statycznie: wchodzi
-// wyłącznie przez `React.lazy` z `EmbeddedCheckoutFrame.tsx`, więc kod ramki
-// i adres `js.stripe.com` schodzą dopiero do czytelnika, który REALNIE otwiera
-// kasę. Inwariant pilnuje `src/lib/ci/paymentSdkGraph.ts`.
+// Dostają się tu wyłącznie przez `React.lazy` w `EmbeddedCheckoutFrame` - nigdy
+// bezpośrednio. Dopisanie drugiego statycznego importera bindingów Stripe
+// przywraca dokładnie tę regresję, przez którą loader operatora płatności
+// wylądował w chunku ENTRY (anonimowy czytelnik artykułu pobierał SDK bramki
+// płatniczej); pilnuje tego blokujący krok CI `scripts/check-entry-purity.ts`.
 //
-// Motyw: ramka jest cudzym <iframe> i nie dziedziczy naszych tokenów. Schemat
-// kolorów sygnalizujemy przez `color-scheme` na kontenerze i wymuszamy
-// przemontowanie providera kluczem `clientSecret + colorScheme`, bo operator
-// czyta schemat tylko przy inicjalizacji ramki. Bez tego przełączenie na tryb
-// ciemny zostawiało biały formularz na ciemnym tle.
+// Motyw: ramka Stripe nie dziedziczy naszych tokenów CSS. Schemat kolorów
+// sygnalizujemy przez `color-scheme` na kontenerze i wymuszamy przemontowanie
+// providera (klucz `clientSecret + colorScheme`), bo Stripe czyta schemat tylko
+// przy inicjalizacji ramki - bez tego przełączenie na tryb ciemny zostawiało
+// biały formularz na ciemnym tle.
 //
-// i18n: zero treści własnych - język ramki ustawiamy przy TWORZENIU sesji
-// (`locale`, patrz `lib/billing/checkoutLocale.ts`).
-import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
-import { getStripe } from "@/lib/stripe/sdk";
+// Język ustawiamy przy TWORZENIU sesji (`locale`, patrz `checkoutLocale.ts`),
+// nie tutaj - ramka nie ma runtime'owego przełącznika języka.
+import { EmbeddedCheckout, EmbeddedCheckoutProvider } from "@stripe/react-stripe-js";
+import { getStripe } from "@/lib/stripe";
 
 export interface StripeEmbeddedFrameProps {
-  /** `clientSecret` sesji kasy - zawsze niepusty (host montuje warunkowo). */
+  /** `clientSecret` sesji Stripe - zawsze niepusty (mount jest warunkowy). */
   clientSecret: string;
+  /** Schemat kolorów przekazany ramce operatora. */
   colorScheme: "light" | "dark";
+  className?: string;
 }
 
-export function StripeEmbeddedFrame({ clientSecret, colorScheme }: StripeEmbeddedFrameProps) {
+export default function StripeEmbeddedFrame({
+  clientSecret,
+  colorScheme,
+  className,
+}: StripeEmbeddedFrameProps) {
   return (
-    <div style={{ colorScheme }}>
+    <div className={className} style={{ colorScheme }} data-testid="stripe-embedded-frame">
       <EmbeddedCheckoutProvider
         key={`${clientSecret}:${colorScheme}`}
         stripe={getStripe()}
@@ -36,5 +42,3 @@ export function StripeEmbeddedFrame({ clientSecret, colorScheme }: StripeEmbedde
     </div>
   );
 }
-
-export default StripeEmbeddedFrame;

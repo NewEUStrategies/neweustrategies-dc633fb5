@@ -31,10 +31,11 @@
  * ale skrypt głośno mówi, że mierzy pod innym progiem.
  *
  * PODNOSZENIE PROGU JEST OSTATECZNOŚCIĄ, NIE ODRUCHEM
- * Historia poniżej to głównie kolejne re-floory - bo bramka mówiła ILE, nigdy
- * PRZEZ CO. Od 2026-08-06 jest na to narzędzie: `BUNDLE_STATS=1 bun run build`
- * + `bun run analyze:bundle` pokazuje skład każdego chunku z dokładnością do
- * modułu. Zanim podniesiesz próg - sprawdź, co dokładnie urosło.
+ * Kronika poniżej to w większości kolejne re-floory - bo bramka mówiła ILE,
+ * nigdy PRZEZ CO. Od 2026-08-06 jest na to przyrząd:
+ * `BUNDLE_INVENTORY=1 bun run build` + `bun run report:chunk-inventory index`
+ * pokazuje skład każdego chunku z dokładnością do modułu. Zanim podniesiesz
+ * próg - zmierz, co dokładnie urosło, i dopisz to do kroniki.
  *
  * Usage: bun run scripts/check-bundle-size.ts   (run after `bun run build`)
  */
@@ -75,52 +76,136 @@ const CLIENT_DIR =
 // 2026-08-06  KONIEC ERY „RE-FLOOR ZAMIAST NAPRAWY". Ta zmiana najpierw
 //             NAPRAWIA, potem mierzy, a progi zamraża w kodzie (bez env w CI):
 //
-//   * kasa poza chunk wejściowy - `routes/$.tsx` -> `Paywall` ->
-//     `EmbeddedCheckoutDialog` -> `@stripe/react-stripe-js` + `loadStripe`
-//     wciągało SDK operatora płatności do entry, czyli do KAŻDEGO anonimowego
-//     czytelnika (w artefakcie były i `EmbeddedCheckout`, i `js.stripe.com`).
-//     Teraz SDK żyje w leniwej wyspie `StripeEmbeddedFrame` + `lib/stripe/sdk`,
-//     pilnowanej bez builda przez `src/lib/ci/bundleIslands.ts`.
-//   * `vendor-tanstack` wreszcie POWSTAJE. Reguła istniała od tygodni, ale
-//     nigdy nie działała: wejściem klienta jest plik POD
-//     /node_modules/@tanstack/, a Rollup nie potrafi przenieść modułu
-//     wejściowego do nazwanego chunku - zamiast tego zapadał cały chunk z
-//     powrotem w entry. ~330 KB (surowo) routera i react-query jechało w
-//     `index-*.js` bez żadnego ostrzeżenia.
-//   * `vendor-lucide` - ikony w jednym, trwale cache'owalnym chunku zamiast
-//     kilkudziesięciu 300-bajtowych odprysków.
-//   * słownik buildera (~101 KB źródła) wypada z entry: `Editable.tsx` nie
-//     rejestruje już `i18n-builder` side-effectem, bo renderuje się wyłącznie
-//     w kanwie edytora (ta sama zasada, co w `resizeWrappers.tsx`).
+// PUBLIC musi się ruszyć pierwszy raz od 07-25 - nie dlatego, że ta gałąź go
+// przebiła, ale dlatego, że main przebił go SAM (1794,0 > 1790). Floor idzie
+// nad zmierzony ślad po scaleniu, nie "z zapasem". Realna redukcja (split
+// locale'i PL/EN, odchudzenie eager-owego zestawu widgetów chrome, @tanstack
+// poza entry) pozostaje osobną, pilniejszą niż dotąd pracą.
+// 2026-08-06 (SDK płatności poza ścieżką bootowania + re-floor po dryfie maina).
 //
-// Efekt zmierzony na tym samym hoście i tej samej wersji zależności:
-// największy chunk 541,6 -> 433,5 KB gzip. Progi poniżej stoją nad
-// zmierzonym śladem TEJ gałęzi.
+// STAN WYJŚCIOWY. Bramka była czerwona na CZYSTYM mainie (d4edce2), i to nie
+// pierwszy raz niezauważenie: krok `Bundle size budget` stoi w jobie `verify`
+// PO `Test + coverage gate`, a ten padał na rozjeździe snapshotu bramek autoryzacji,
+// więc build i ten skrypt w ogóle się NIE WYKONYWAŁY. Pomiar pełnym buildem na
+// jednym hoście i jednej wersji zależności:
+//   * czysty main:        541,8 KB chunk / 1887,1 KB public / 3129,2 KB overall,
+//   * floory przed:       511    /  1799   /  3005  -> przekroczenia +30,8 / +88,1 / +124,2.
 //
-// NASTĘPNA DŹWIGNIA (zmierzona, świadomie NIE w tej zmianie): `node-html-parser`
-// waży 201,7 KB surowo W CHUNKU WEJŚCIOWYM. Ciągną go dwa importy:
-// `lib/sanitize.ts` (gałąź `import.meta.env.SSR` jest w kliencie MARTWA, ale
-// pakiet nie deklaruje `sideEffects:false`, więc nie jest wytrząsany) oraz
-// `lib/builder/normalizeRichHtml.ts` (realnie używany w przeglądarce przez
-// `RichHtmlView`). Usunięcie wymaga przepisania normalizacji list na natywny
-// `DOMParser` po stronie klienta - to zmiana dotykająca renderowania
-// OPUBLIKOWANEJ treści, więc należy jej się własny PR z testami parytetu
-// wyjścia, a nie doklejenie do zmiany bundlowej.
-// ---------------------------------------------------------------------------
+// CO ZROBIŁA TA GAŁĄŹ. Wyprowadziła SDK operatora płatności ze ścieżki bootowania
+// czytelnika. Łańcuch był w całości STATYCZNY: routes/$.tsx -> Paywall ->
+// EmbeddedCheckoutDialog -> @stripe/react-stripe-js, a lib/stripe.ts (loadStripe)
+// miało 17 statycznych importerów, w większości sięgających wyłącznie po helper
+// środowiskowy do kluczy zapytań. Moduł współdzielony przez wiele chunków Rollup
+// hoistuje do wspólnego przodka - czyli do ENTRY - więc marker `js.stripe.com`
+// siedział w chunku startowym KAŻDEGO anonimowego czytelnika. Teraz ramka wchodzi
+// przez `React.lazy` (components/checkout/EmbeddedCheckoutFrame), a `loadStripe`
+// przez `import()`; nowy blokujący krok CI `check:entry-purity` pilnuje tej
+// krawędzi w grafie chunków, a nie jej skutku w kilobajtach.
+//
+// UCZCIWY BILANS TEJ ZMIANY: -1,0 KB w entry, +1,5 KB public, +1,4 KB overall
+// (541,8 -> 540,8 / 1887,1 -> 1888,6 / 3129,2 -> 3130,6). Loader Stripe.js to
+// ~1 KB gzip, a dołożony placeholder ramki, granica błędu i klucze PL/EN kosztują
+// tyle samo. To NIE jest zmiana o wadze - jest o tym, KTO i KIEDY pobiera kod
+// bramki płatniczej. Nie udajemy, że zamyka lukę 88 KB.
+//
+// DLACZEGO PUBLIC/OVERALL NIE MOGŁY SPAŚĆ. PUBLIC liczy KAŻDY chunk osiągalny z
+// publicznego URL-a, nie pierwsze wczytanie - więc przeniesienie kodu z eager do
+// lazy nie rusza tej liczby ani o bajt. PUBLIC spada wyłącznie wtedy, gdy kod
+// znika albo staje się osiągalny wyłącznie spod /admin.
+//
+// NIEUDANY EKSPERYMENT - ZAPISANY, ŻEBY NIE POWTÓRZYĆ GO PO RAZ TRZECI.
+// Przyrząd (`BUNDLE_INVENTORY=1 bun run build` + `bun run report:chunk-inventory
+// index`) pokazał 156,5 kB źródeł słowników i18n powierzchni WYŁĄCZNIE adminowych
+// w chunku startowym (i18n-builder 101,3 kB, i18n-admin-post-panes 26,1 kB,
+// i18n-admin-popup-signup 15,4 kB i cztery mniejsze) - wszystkie mają importerów
+// tylko pod components/admin/** albo routes/admin*, a do entry trafiły tą samą
+// mechaniką co Stripe. Wymuszony `manualChunks` po DOKŁADNYCH ścieżkach plików
+// (nigdy po katalogu, dokładnie jak radzi notatka z 07-25) dał pozornie świetny
+// wynik: 492,7 KB chunk / 1842,1 KB public. Wynik był FAŁSZYWY. Rollup wciągnął do
+// nazwanego chunku także `src/lib/i18n.ts` (bootstrap i18n potrzebny na KAŻDEJ
+// stronie), więc chunk stał się statycznym importem entry i wszystkich tras
+// publicznych - czytelnik pobierał te same bajty, tylko w dwóch plikach zamiast
+// jednego (492,7 + 48,2 = 540,9, czyli tyle samo), a ADMIN_ONLY rozliczał je do
+// OVERALL i PUBLIC zaniżał się o 48 KB. Zmiana została wycofana: bramka, która
+// pokazuje ładniejszą liczbę bez pokrycia w bajtach, jest gorsza niż czerwona.
+//
+// FLOORY wracają więc do swojej funkcji „tuż nad zmierzonym śladem" (bez zapasu -
+// zapas z 08-01 i tak zjadł dryf w kilka dni). Mają łapać regresje od tego
+// poziomu, zamiast być permanentnie czerwone i blokować wszystkie kroki za sobą.
+//
+// ZMIERZONY BACKLOG REDUKCJI (entry, bajty źródeł przed minifikacją - z przyrządu,
+// nie z pamięci; dotąd ta lista była zgadywana):
+//   * src/components/admin      437 kB  - warstwa widoku buildera współdzielona
+//                                         przez publiczny renderer i edytor CMS,
+//   * node-html-parser          202 kB  - przez lib/builder/normalizeRichHtml
+//                                         (RichHtmlView), w przeglądarce do
+//                                         zastąpienia natywnym DOM-em,
+//   * src/lib/builder           190 kB,
+//   * lucide-react              187 kB,
+//   * i18n powierzchni admina   157 kB  - patrz nieudany eksperyment wyżej;
+//                                         właściwa droga to leniwa rejestracja
+//                                         słownika, nie wymuszony chunk,
+//   * zod                       132 kB, tailwind-merge 97 kB, dompurify 82 kB.
+// 2026-08-06 (2): PODZIAŁ CHUNKÓW - trzy naprawy i KONIEC ERY „re-floor zamiast
+// naprawy". Ta gałąź startuje z powyższego stanu (540,8 / 1888,6 / 3130,6) i po
+// raz pierwszy od tygodni RUSZA największy chunk w dół, zamiast podnosić próg.
+//
+// 1. `vendor-tanstack` NIGDY NIE POWSTAWAŁ. Reguła `manualChunks` dla
+//    /node_modules/@tanstack/ siedziała w konfiguracji od tygodni i była martwa:
+//    wejściem klienta TanStack Start jest
+//    `@tanstack/react-start/dist/plugin/default-entry/client.tsx`, czyli plik POD
+//    tą samą ścieżką. Reguła przypisywała więc MODUŁ WEJŚCIOWY do nazwanego
+//    chunku, a Rollup odpowiada na to zapadnięciem CAŁEGO chunku z powrotem do
+//    entry - bez ostrzeżenia. Skutkiem ~330 kB (surowo) routera i react-query w
+//    `index-*.js`. Naprawa: `manualChunks` pomija moduły wejściowe
+//    (`meta.getModuleInfo(id)?.isEntry`), wydziela wyłącznie biblioteki LIŚCIOWE
+//    (react-router, router-core, history, store, query-core, react-query,
+//    *-ssr-query-core) wraz z domknięciem spoza vendor-react (seroval,
+//    seroval-plugins, cookie-es, isbot - inaczej vendor-tanstack importuje je z
+//    entry i powstaje CYKL, klasa awarii z 2026-07-20), a runtime bootstrapu
+//    (@tanstack/*start*) zostaje w entry. To ostatnie nie jest ozdobnikiem:
+//    pierwsza próba z całą rodziną w chunku dała entry 0,2 KB i vendor-tanstack
+//    1,59 MB, bo Rollup barwi nazwanym chunkiem cały graf osiągalny z jego
+//    modułów, a przez rodzinę *start* biegnie droga do `src/router.tsx`.
+// 2. `vendor-lucide`. Po (1) Rollup rozsypał ikony na 45 plików po 300-400 B
+//    (każda ikona współdzielona przez >=2 leniwe chunki dostawała własny) -
+//    ~22 KB gzip samego narzutu nagłówków, bo pliki tej wielkości się nie
+//    kompresują. Jeden chunk cofa ten koszt i jest trwale cache'owalny.
+// 3. Słownik buildera (~101 kB źródła, pierwsza pozycja backlogu wyżej) wypada
+//    z entry: `Editable.tsx` nie rejestruje już `i18n-builder` side-effectem.
+//    UWAGA - to NIE jest powtórka nieudanego eksperymentu opisanego wyżej:
+//    tamten WYMUSZAŁ `manualChunks` po ścieżkach i wciągnął `lib/i18n.ts`; ten
+//    usuwa krawędź w grafie i pozwala Rollupowi zdecydować samemu. `Editable`
+//    renderuje się wyłącznie przy `canEdit = editable && onContentChange`, czyli
+//    w kanwie buildera - a chunk kanwy rejestruje ten słownik przy inicjalizacji.
+//    Ta sama zasada jest już udokumentowana i stosowana w
+//    `widget-view/resizeWrappers.tsx`.
+//
+// POMIAR (ten sam host, ta sama wersja zależności, pełny build):
+//   * baza (main po scaleniu): 540,8 / 1888,6 / 3130,6 KB,
+//   * ta gałąź:                434,1 / 1896,1 / 3142,7 KB.
+// Największy chunk - jedyna z tych liczb, którą płaci KAŻDE pierwsze wejście -
+// spada o 106,7 KB. PUBLIC/OVERALL są płaskie z powodu dokładnie tego,
+// co opisuje akapit „DLACZEGO PUBLIC/OVERALL NIE MOGŁY SPAŚĆ" powyżej: drobniejszy
+// podział przenosi bajty między plikami, nie usuwa ich.
 
 /**
- * Progi ZAMROŻONE. W CI obowiązują wyłącznie te liczby - zmiana wymaga commita
- * i review razem z przyczyną wzrostu. Poza CI można je nadpisać zmiennymi
- * MAX_CHUNK_KB / MAX_PUBLIC_KB / MAX_TOTAL_KB do lokalnego eksperymentu.
+ * Progi ZAMROŻONE (2026-08-06). Do tej pory każdy z nich dało się rozluźnić
+ * jedną zmienną środowiskową w workflow - bramka, którą wolno wyłączyć bez
+ * commita, jest sugestią, nie bramką. W CI zmienne MAX_CHUNK_KB /
+ * MAX_PUBLIC_KB / MAX_TOTAL_KB są więc IGNOROWANE (skrypt mówi to głośno):
+ * obowiązują wyłącznie stałe poniżej, a ich zmiana przechodzi przez review
+ * razem z przyczyną wzrostu i wpisem do kroniki. Poza CI nadpisanie działa -
+ * do lokalnego eksperymentu „ile zejdzie, jeśli...".
  */
 const FROZEN_BUDGET_KB = {
-  chunk: 438, // największy pojedynczy chunk gzip (zmierzone: 433,5 KB)
-  public: 1910, // gzip JS osiągalny z publicznego URL-a (zmierzone: 1891,2 KB)
-  overall: 3168, // gzip JS łącznie z kodem tylko adminowym (zmierzone: 3135,9 KB)
+  chunk: 439, // największy pojedynczy chunk gzip (zmierzone: 434,1 KB)
+  public: 1915, // gzip JS osiągalny z publicznego URL-a (zmierzone: 1896,1 KB)
+  overall: 3175, // gzip JS łącznie z kodem tylko adminowym (zmierzone: 3142,7 KB)
 } as const;
 
 /** GitHub Actions ustawia CI=true; honorujemy też generyczne CI innych runnerów. */
-const IN_CI = process.env.CI === "true" || process.env.CI === "1";
+const IN_CI = process.env["CI"] === "true" || process.env["CI"] === "1";
 
 function budget(name: keyof typeof FROZEN_BUDGET_KB, envVar: string): number {
   const frozen = FROZEN_BUDGET_KB[name];

@@ -31,8 +31,7 @@ import type { ContentAccessRule, AccessPlan } from "@/hooks/useContentAccess";
 import { formatMoney, planDescription, planName } from "@/lib/billing/types";
 import { createCheckoutOrder } from "@/lib/billing/checkout.functions";
 import { getStripeEnvironment } from "@/lib/stripe";
-import { EmbeddedCheckoutDialog } from "@/components/checkout/EmbeddedCheckoutDialog";
-import { prefetchEmbeddedCheckout } from "@/components/checkout/stripeFrameChunk";
+import { LazyEmbeddedCheckoutDialog } from "@/components/checkout/LazyEmbeddedCheckoutDialog";
 import {
   formatMeterResetDate,
   meterPaywallVariant,
@@ -179,9 +178,6 @@ export function Paywall({
     const entityType = rule.entity_type;
     rememberReturn();
     setBusy(true);
-    // Chunk ramki kasy pobiera się RÓWNOLEGLE z tworzeniem sesji - patrz
-    // EmbeddedCheckoutFrame.tsx (dopóki nikt nie kupuje, SDK nie schodzi wcale).
-    prefetchEmbeddedCheckout();
     try {
       const res = await checkout({
         data: {
@@ -212,7 +208,7 @@ export function Paywall({
 
   return (
     <>
-      <EmbeddedCheckoutDialog
+      <LazyEmbeddedCheckoutDialog
         clientSecret={checkoutSecret}
         onOpenChange={(open) => {
           if (!open) setCheckoutSecret(null);

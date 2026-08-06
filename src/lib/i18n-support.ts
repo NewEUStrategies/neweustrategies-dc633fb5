@@ -11,10 +11,18 @@ export const supportPl = {
     intro:
       "New European Strategies utrzymuje się z subskrypcji i mecenatu obywatelskiego. Darowizna finansuje pracę analityczną - analizy polityki europejskiej, raporty, wywiady i debaty publiczne - i nie nadaje żadnych uprawnień: to wsparcie, nie zakup.",
     backToPricing: "Wróć do cennika",
-    ctaLead: "Zbiórkę prowadzimy w serwisie zrzutka.pl - wybierz tam kwotę i metodę płatności.",
-    cta: "Przekaż darowiznę przez zrzutka.pl",
+    // Wariant „nasza kasa" - domyślny tryb modułu darowizn.
+    ctaLead: "Wpłać bezpośrednio na naszej stronie - wybierz kwotę jednorazową lub miesięczną.",
+    cta: "Przejdź do wpłaty",
     ctaNote:
-      "Link otwiera zbiórkę w nowej karcie. Wpłaty obsługuje zrzutka.pl - nie przechowujemy danych płatniczych.",
+      "Płatność obsługuje operator kartowy - nie przechowujemy danych karty. Darowizna nie nadaje uprawnień w serwisie.",
+    // Wariant awaryjny - zbiórka w serwisie zewnętrznym.
+    externalLead:
+      "Zbiórkę prowadzimy w serwisie zewnętrznym - wybierz tam kwotę i metodę płatności.",
+    externalCta: "Przejdź do zbiórki",
+    externalNote:
+      "Link otwiera zbiórkę w nowej karcie. Wpłaty obsługuje operator zbiórki - nie przechowujemy danych płatniczych.",
+    closed: "Zbiórka jest chwilowo wyłączona. Zajrzyj do nas ponownie wkrótce.",
     whyTitle: "Na co idą środki",
     whyItems: [
       "Analizy polityki europejskiej i procesów decyzyjnych UE",
@@ -30,10 +38,18 @@ export const supportEn = {
     intro:
       "New European Strategies is funded by subscriptions and citizen patronage. A donation funds analytical work - European policy analysis, reports, interviews and public debates - and grants no entitlements: it is support, not a purchase.",
     backToPricing: "Back to pricing",
-    ctaLead: "Our fundraiser runs on zrzutka.pl - choose the amount and payment method there.",
-    cta: "Donate via zrzutka.pl",
+    // "Our own checkout" variant - the module's default mode.
+    ctaLead: "Give directly on our site - choose a one-off or a monthly amount.",
+    cta: "Continue to your gift",
     ctaNote:
-      "The link opens the fundraiser in a new tab. Payments are handled by zrzutka.pl - we never store payment details.",
+      "Payments are processed by our card provider - we never store card data. A donation grants no entitlements on the site.",
+    // Fallback variant - fundraiser hosted by an external service.
+    externalLead:
+      "Our fundraiser runs on an external service - choose the amount and payment method there.",
+    externalCta: "Go to the fundraiser",
+    externalNote:
+      "The link opens the fundraiser in a new tab. Payments are handled by the fundraiser platform - we never store payment details.",
+    closed: "Donations are temporarily closed. Please check back soon.",
     whyTitle: "Where the money goes",
     whyItems: [
       "Analysis of European policy and EU decision-making processes",

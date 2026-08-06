@@ -1,196 +1,189 @@
-# Wdrożenie: bundle publiczny - 2026-08-06
+# Wdrożenie: podział chunków bundla publicznego - 2026-08-06
 
 **Zakres:** sygnał „Bundle publiczny" z `docs/OCENA_FUNKCJI_TABELE_2026-08-06_R2.md`
-(korekta 1) - bramka `check:bundle` czerwona na wszystkich trzech budżetach, SDK operatora
-płatności w chunku wejściowym każdej publicznej strony, progi nadpisywalne z env.
+(korekta 1) - **część dotycząca PODZIAŁU CHUNKÓW i ZAMROŻENIA PROGÓW**.
 
-**Weryfikacja na tej sesji:** `tsc --noEmit` czysty · `vitest run src/lib/ci src/lib/access
-src/lib/builder src/components/checkout src/lib/sanitize.test.ts` → **714 passed / 0 failed** ·
-pełny `vite build` zielony · `check:bundle` i `check:chunks` uruchomione na finalnym
-artefakcie · `eslint` bez błędów na plikach tej zmiany (repo ma osobny, wcześniejszy dług
-formatowania w plikach nietkniętych tą zmianą).
+**Relacja do PR #183.** Ta gałąź powstała równolegle z `claude/bundle-stripe-optimization`
+i niezależnie doszła do tej samej architektury leniwej kasy. PR #183 scalił się pierwszy,
+więc **cała powierzchnia Stripe przy scaleniu została wzięta z `main`** (`EmbeddedCheckoutFrame`,
+`StripeEmbeddedFrame`, `atoms/CheckoutFrameSkeleton`, `checkoutIntent`, `lib/stripe.ts`
+z dynamicznym `loadStripe`, bramka `check:entry-purity`, przyrząd
+`report:chunk-inventory`). Wersja z maina jest w kilku miejscach lepsza od tutejszej -
+ma `ErrorBoundary` z akcją ponowienia i strażnika montowania - i nie ma sensu utrzymywać
+dwóch takich samych rozwiązań. Ta gałąź nie dokłada więc do tematu Stripe niczego; opisany
+niżej zakres to **to, czego `main` nie ma**.
+
+**Weryfikacja na tej sesji:** `tsc --noEmit` czysty · `vitest run src/lib/ci src/lib/authz
+src/components/checkout src/components/admin/permissions` → 354 passed / 0 failed ·
+pełny `vite build` zielony · `check:bundle`, `check:chunks`, `check:entry-purity`
+uruchomione na finalnym artefakcie · `eslint` bez błędów na plikach tej zmiany.
 
 ---
 
+## 0. Dwie awarie ODZIEDZICZONE z `main`, naprawione po drodze
+
+Bez nich ta gałąź nie miała jak się zbudować ani przejść typecheckiem. Obie pochodzą ze
+scalenia PR #182 i #183, obie są na `main` w tej chwili.
+
+**1. `vite.config.ts` woła `chunkInventoryPlugin()` bez importu.** Plik
+`scripts/lib/chunkInventoryPlugin.ts` istnieje i eksportuje funkcję, ale instrukcja importu
+nie dojechała. Skutek: `vite build` pada na `chunkInventoryPlugin is not defined`,
+a `tsc --noEmit` na TS2304. Naprawa: dodany import (jedna linia, z komentarzem skąd się
+wziął brak).
+
+**2. `src/lib/ci/authzGates.ts` ma zdublowaną funkcję `diffAuthzSnapshots`.** Scalenie
+`48b1fd1` („Merge branch 'main' into claude/authz-snapshot-diagnosis-fix") wstawiło nagłówek
+i pierwszy fragment STAREJ implementacji w środek NOWEJ (`collectAuthzSnapshotDrift`
+z modelem wagi `authorization` / `provenance`). Efekt: `TS2323` (redeklaracja), `TS2393`
+(duplikat implementacji), `TS2304` na `AuthzFieldDrift`, `formatFieldValue`, `describeFields`
+oraz zmienna `drift` używana przed deklaracją. Cały plik `src/lib/ci/**` nie kompilował się,
+więc razem z nim padał typecheck całego repozytorium.
+
+Naprawa jest jednoznaczna, bo uszkodzenie było punktowe: różnica między plikiem z maina
+a ostatnią spójną wersją (`28a2279`) to **dokładnie dwa hunki**, oba w środku bloku
+diagnostyki i oba cofające go do implementacji sprzed tamtego commita. Reszta pliku jest
+identyczna. Przywrócono więc `28a2279` w całości - to wersja, przeciw której napisane są
+`src/lib/authz/__tests__/authzSnapshotParity.test.ts` (właściwa bramka CI) oraz
+`scripts/generate-authz-snapshot.ts`.
+
+Konsekwencje w plikach towarzyszących:
+
+- `src/lib/ci/__tests__/authzGates.test.ts` - usunięty **zduplikowany** test „nazywa pole,
+  które się zmieniło": to samo scalenie skopiowało go do bloku `describe`, w którym
+  `built` nie jest w zasięgu (`TS2304`), a zjawisko, które sprawdzał, pokrywa już test
+  „przeniesienie definicji do nowszej migracji raportuje provenance".
+- Ten ostatni test przepisano na API, które faktycznie zostało w kodzie: asercja idzie
+  teraz na **wagę** dryfu (`severity === "provenance"`, `hasAuthorizationDrift === false`),
+  a nie na brzmienie komunikatu, i buduje próbkę z `before` zamiast z drugiego
+  `deriveAuthzSnapshot` - inaczej różniłyby się też metryki skanu i test mierzyłby dwa
+  zjawiska naraz.
+- `src/lib/authz/authzSnapshot.generated.ts` - **zregenerowany**. Snapshot był starszy niż
+  migracja `20260806150000_profile_verification_authority.sql`, dodana w tym samym PR #182.
+  Regeneracja daje dokładnie to, co raportowała bramka, i nic ponadto:
+  `profiles_guard_privileged_columns` i `profiles_guard_verification` przechodzą na
+  `tenantRef: none -> caller` (ZAWĘŻENIE - guard zostaje związany z tenantem wywołującego),
+  zbiory ról BEZ ZMIAN, `stats` 625→626 migracji / 554→555 funkcji.
+
+**3. `src/__tests__/profilesVerificationGuard.invariant.test.ts` - dwa fałszywe alarmy.**
+Bramka sprawdzała regexem, czy w CIELE `profiles_guard_verification` stoi
+`has_role(..., 'admin')` i `has_role(..., 'super_admin')`. Migracja
+`20260806150000_profile_verification_authority.sql` (ten sam PR #182) celowo sprowadziła
+decyzję „kto może" do jednego predykatu `can_manage_profile_verification()` - literały ról
+zjechały o poziom niżej i regex zaczął raportować UTRATĘ obu ról przy uprawnieniach, które
+są nienaruszone.
+
+Nie wystarczy rozluźnić asercji: ten sam regex przepuściłby też ciche ZAWĘŻENIE predykatu,
+bo w guardzie nic by się wtedy nie zmieniło. Test czyta więc teraz EFEKTYWNY zbiór ról
+z `deriveAuthzSnapshot` (rozwinięcie aliasów - to samo, czym liczy snapshot), wciąż
+odtwarzany z MIGRACJI, więc `generate:authz-snapshot` nadal go nie ucisza - a to była
+wprost deklarowana racja bytu tego pliku. Dołożona jest też druga strona inwariantu:
+zbiór efektywny musi być DOKŁADNIE `["admin", "super_admin"]`, żeby rozwinięcie aliasów nie
+mogło po cichu POSZERZYĆ kręgu uprawnionych (kanarkiem jest `editor` - weryfikacja steruje
+odznaką, a odznaka `expert` nadaje dożywotni VIP).
+
 ## 1. Pomiar: przed i po
 
-Ten sam host, ta sama wersja zależności (`bun install --frozen-lockfile`), pełny
-`vite build`, bramka `scripts/check-bundle-size.ts`.
+Ten sam host, ta sama wersja zależności, pełny `vite build`, bramka
+`scripts/check-bundle-size.ts`. Baza = `main` po naprawach z sekcji 0 (bez nich nie ma
+z czym porównywać, bo `main` się nie buduje).
 
-| Metryka                       |    Przed |     Po |     Delta | Poprzedni budżet |
-| ----------------------------- | -------: | -----: | --------: | ---------------: |
-| największy chunk (entry) gzip |  541,6KB | 433,5KB | **-108,1KB (-20,0%)** | ≤511 (był czerwony) |
-| public total gzip             | 1886,9KB | 1891,2KB |   +4,3KB | ≤1799 (był czerwony) |
-| overall total gzip            | 3129,0KB | 3135,9KB |   +6,9KB | ≤3005 (był czerwony) |
-| plików JS                     |      551 |    556 |        +5 |                  - |
-| graf chunków                  | 550 / 2125 krawędzi, acykliczny | 555 / 2584, acykliczny | - | - |
+| Metryka                       |    `main` |     ta gałąź |                  Delta |
+| ----------------------------- | --------: | -----------: | ---------------------: |
+| największy chunk (entry) gzip |  540,8 KB | **434,1 KB** | **-106,7 KB (-19,7%)** |
+| public total gzip             | 1888,6 KB |    1896,1 KB |                +7,5 KB |
+| overall total gzip            | 3130,6 KB |    3142,7 KB |               +12,1 KB |
 
-**Jak to czytać.** Redukcja siedzi tam, gdzie płaci ją realny czytelnik: chunk wejściowy
-pobiera i parsuje KAŻDE pierwsze wejście na dowolny publiczny URL, zanim cokolwiek się
-zhydratuje. `public total` to natomiast suma WSZYSTKICH chunków, jakie da się kiedykolwiek
-pobrać przechodząc po publicznych trasach - drobniejszy podział przesuwa bajty między
-plikami i podnosi tę sumę o ułamek procenta (nagłówki gzip osobnych plików), nie zwiększając
-kosztu żadnej pojedynczej wizyty. +4,3 KB rozproszone po chunkach ładowanych na żądanie za
--108,1 KB z pierwszego ładowania to wymiana korzystna dla użytkownika i taka jest intencja
-tej zmiany.
+**Jak to czytać.** Chunk wejściowy pobiera i parsuje KAŻDE pierwsze wejście na dowolny
+publiczny URL, zanim cokolwiek się zhydratuje - to jedyna z tych liczb, którą płaci realny
+czytelnik. `public total` sumuje WSZYSTKIE chunki osiągalne z publicznych tras, więc
+drobniejszy podział przesuwa w niej bajty między plikami zamiast je usuwać; ten sam
+mechanizm opisuje akapit „DLACZEGO PUBLIC/OVERALL NIE MOGŁY SPAŚĆ" w nagłówku bramki,
+dopisany przez PR #183.
 
-Progi zostały ustawione **po** pomiarze, z ~1% zapasu: **438 / 1910 / 3168 KB**.
+## 2. `vendor-tanstack` wreszcie POWSTAJE
 
-## 2. Kasa poza chunk wejściowy (przyczyna z audytu, doprowadzona do końca)
-
-Łańcuch z audytu: `routes/$.tsx` → `Paywall` → `EmbeddedCheckoutDialog` →
-`@stripe/react-stripe-js`, a osobno `Paywall` → `lib/stripe` → `loadStripe`. W artefakcie
-siedziały w entry i nazwa `EmbeddedCheckout`, i adres `js.stripe.com`.
-
-Naprawa to nie samo `lazy()` - `lazy()` na całym modalu dałoby sekundę pustki po kliknięciu
-„Kup". Granica biegnie **wewnątrz** modala:
-
-| Moduł                                        | Kiedy się ładuje | Co zawiera                                        |
-| -------------------------------------------- | ---------------- | ------------------------------------------------- |
-| `checkout/EmbeddedCheckoutDialog.tsx`         | eager (lekki)    | ramka Radixa, nagłówek, baner trybu testowego      |
-| `checkout/EmbeddedCheckoutFrame.tsx`          | eager (lekki)    | granica `Suspense` + szkielet w kształcie formularza |
-| `checkout/stripeFrameChunk.ts`                | eager (~0)       | jedyny `import()` chunku kasy + `prefetchEmbeddedCheckout()` |
-| `checkout/StripeEmbeddedFrame.tsx`            | **leniwie**      | `@stripe/react-stripe-js`, provider, `<EmbeddedCheckout/>` |
-| `lib/stripe/sdk.ts`                           | **leniwie**      | `loadStripe` (`js.stripe.com`)                      |
-
-`lib/stripe.ts` rozjechał się na `lib/stripe/index.ts` (samo ŚRODOWISKO - 17 importerów,
-zero SDK) i `lib/stripe/sdk.ts` (loader). To była druga połowa problemu: import jest
-krawędzią grafu, nie wywołaniem, więc `getStripeEnvironment()` w `Paywall` wciągał
-`loadStripe` niezależnie od tego, czy ktokolwiek go wywoła.
-
-**Płynność bez spekulacji.** `prefetchEmbeddedCheckout()` startuje pobieranie chunku na
-POCZĄTKU każdej z pięciu procedur zakupu (paywall, darowizna, bilet, test w panelu admina,
-trasa `/checkout/$planId`) - równolegle z żądaniem tworzącym sesję. Round-trip serwera
-pokrywa pobranie chunku, więc szkielet w praktyce nie mruga, a ruch, który nie kończy się
-zakupem, nie pobiera ani bajta SDK. Świadomie NIE prefetchujemy na hover.
-
-Trasa `/checkout/$planId` (piąte miejsce montowania, poza czterema z audytu) importowała
-SDK bezpośrednio - teraz używa tej samej granicy, więc chunk kasy jest jeden, współdzielony.
-
-**Weryfikacja w artefakcie:** `grep -c "js.stripe.com" .output/public/assets/index-*.js` → 0.
-
-## 3. `vendor-tanstack` wreszcie POWSTAJE
-
-Reguła `manualChunks` dla `@tanstack` istniała w konfiguracji od tygodni i **nigdy nie
-zadziałała** - chunk nie powstawał, a ~330 KB (surowo) routera i react-query jechało w
-`index-*.js`. Bez żadnego ostrzeżenia.
+Reguła `manualChunks` dla `/node_modules/@tanstack/` była w konfiguracji od tygodni
+i **nigdy nie zadziałała** - chunk nie powstawał, a ~330 KB (surowo) routera i react-query
+jechało w `index-*.js`. Bez ostrzeżenia: Rollup nie zgłasza tego w żaden sposób.
 
 Przyczyna: wejściem klienta TanStack Start jest
 `node_modules/@tanstack/react-start/dist/plugin/default-entry/client.tsx`, czyli plik POD
-`/node_modules/@tanstack/`. Reguła przypisywała więc **moduł wejściowy** do
-`"vendor-tanstack"`, a Rollup nie potrafi przenieść entry do nazwanego chunku - zamiast tego
-zapada cały ten chunk z powrotem w entry.
+tą samą ścieżką. Reguła przypisywała więc **moduł wejściowy** do nazwanego chunku,
+a Rollup odpowiada na to zapadnięciem CAŁEGO chunku z powrotem w entry.
 
-Naprawa jest dwuczęściowa, bo pierwsza próba (`isEntry → undefined`, cała rodzina
-`@tanstack` w chunku) dała wynik odwrotny do zamierzonego: entry spadło do 0,2 KB,
-a `vendor-tanstack` spuchł do 1,59 MB, wciągając CAŁY kod aplikacji. Rollup barwi bowiem
-nazwanym chunkiem graf osiągalny z jego modułów, a przez rodzinę `*start*` biegnie droga do
-`src/router.tsx`. Ostateczna reguła:
+Naprawa jest trzyczęściowa i każda część wynika z pomiaru, nie z teorii:
 
-- pomija moduł wejściowy (`meta.getModuleInfo(id)?.isEntry`) - udokumentowana pułapka,
-- wydziela wyłącznie biblioteki **liściowe**: `react-router`, `router-core`, `history`,
-  `store`, `react-store`, `query-core`, `react-query`, `*-ssr-query-core`,
-- dokłada ich domknięcie spoza `vendor-react`: `seroval`, `seroval-plugins`, `cookie-es`,
-  `isbot` (bez tego `vendor-tanstack` importowałby je z entry, a entry importuje
-  `vendor-tanstack` → CYKL, ta sama klasa awarii co incydent 2026-07-20),
-- zostawia w entry runtime bootstrapu (`@tanstack/*start*`, 26,3 KB).
+1. `manualChunks` pomija moduły wejściowe (`meta.getModuleInfo(id)?.isEntry`).
+2. Wydzielamy wyłącznie biblioteki **liściowe** (`react-router`, `router-core`, `history`,
+   `store`, `react-store`, `query-core`, `react-query`, `*-ssr-query-core`). Rodzina
+   `@tanstack/*start*` zostaje w entry: pierwsza próba z całą rodziną w chunku dała entry
+   **0,2 KB** i vendor-tanstack **1,59 MB** - Rollup barwi nazwanym chunkiem cały graf
+   osiągalny z jego modułów, a przez runtime bootstrapu biegnie droga do `src/router.tsx`.
+3. Dokładamy domknięcie spoza `vendor-react`: `seroval`, `seroval-plugins`, `cookie-es`,
+   `isbot`. Bez nich `vendor-tanstack` importowałby je z chunku wejściowego, a entry
+   importuje `vendor-tanstack` - czyli CYKL, ta sama klasa awarii co incydent 2026-07-20.
+   `check:chunks` potwierdza acykliczność wynikowego grafu.
 
-Efekt: `vendor-tanstack` = 159,4 KB surowo, trwale cache'owalny; `check:chunks` potwierdza
-acykliczność.
+## 3. `vendor-lucide`
 
-## 4. `vendor-lucide`
+Po (2) Rollup rozsypał ikony na 45 osobnych plików po 300-400 B - każda ikona współdzielona
+przez ≥2 leniwe chunki dostawała własny. To ~22 KB gzip samego narzutu nagłówków, bo pliki
+tej wielkości praktycznie się nie kompresują. Jedna reguła (`lucide-react` →
+`vendor-lucide`) scala je w jeden, trwale cache'owalny chunk i przy okazji zabiera ~95 KB
+surowo z entry. Domknięcie trywialne: `lucide-react` importuje wyłącznie React.
 
-Po wydzieleniu `vendor-tanstack` Rollup rozsypał ikony na 45 osobnych plików po 300-400 B
-(każda ikona współdzielona przez ≥2 leniwe chunki dostawała własny) - ~22 KB gzip samego
-narzutu, bo pliki tej wielkości praktycznie się nie kompresują. Jedna reguła
-(`lucide-react` → `vendor-lucide`) scala je w jeden chunk: 613 → 556 plików,
-overall 3152,2 → 3135,9 KB, a dodatkowo 94,8 KB surowo wychodzi z entry.
+## 4. Słownik buildera poza chunkiem wejściowym
 
-## 5. Słownik buildera poza chunkiem wejściowym
+`Editable.tsx` rejestrowała `@/lib/i18n-builder` side-effectowym importem. Moduł leży
+w EAGER-owej ścieżce publicznego chrome (`Header/Footer → BuilderRenderer → WidgetView →
+Editable`), więc ~101 KB źródła ciągów edytora jechało do każdego anonimowego czytelnika -
+pierwsza pozycja „zmierzonego backlogu redukcji", który PR #183 zapisał w nagłówku bramki.
 
-`Editable.tsx` (molekuła click-to-edit) rejestrowała `@/lib/i18n-builder` side-effectowym
-importem. Moduł leży w EAGER-owej ścieżce publicznego chrome
-(`Header/Footer → BuilderRenderer → WidgetView → Editable`), więc ~101 KB źródła ciągów
-edytora jechało do każdego anonimowego czytelnika. `Editable` renderuje się wyłącznie przy
-`canEdit = editable && onContentChange`, czyli w kanwie buildera - a chunk kanwy
-(`Toolbar`, `WidgetProperties`, `Navigator`, `WidgetLibrary`) rejestruje ten słownik przy
-inicjalizacji modułu. Usunięcie side-effectu powtarza więc regułę już udokumentowaną
-i stosowaną w `widget-view/resizeWrappers.tsx`.
+**To NIE jest powtórka nieudanego eksperymentu opisanego tamże.** Tamten WYMUSZAŁ
+`manualChunks` po ścieżkach plików i wciągnął do nazwanego chunku `src/lib/i18n.ts`
+(bootstrap potrzebny na każdej stronie), przez co liczba spadła bez pokrycia w bajtach.
+Ta zmiana nie wymusza niczego - **usuwa krawędź w grafie** i pozostawia decyzję Rollupowi.
+`Editable` renderuje się wyłącznie przy `canEdit = editable && onContentChange`
+(`WidgetView.tsx`), czyli w kanwie buildera, a chunk kanwy (`Toolbar`, `WidgetProperties`,
+`Navigator`, `WidgetLibrary`) rejestruje ten słownik przy inicjalizacji modułu. Ta sama
+zasada jest już udokumentowana i stosowana w `widget-view/resizeWrappers.tsx`.
 
-Słownik jest teraz osobnym chunkiem (79,6 KB surowo). **Nie** przenieśliśmy go do
-`ADMIN_ONLY` w bramce: analiza grafu chunków pokazuje, że dwa jego importery
-(`StructurePicker`, `EmptyContainerPickerBox`) są osiągalne ścieżką niewiodącą przez chunk
-adminowy, więc rozliczenie w budżecie PUBLIC jest poprawne.
+Słownik jest teraz osobnym chunkiem. **Nie** przeniesiono go do `ADMIN_ONLY`: analiza grafu
+chunków pokazuje, że dwa jego importery (`StructurePicker`, `EmptyContainerPickerBox`) są
+osiągalne ścieżką niewiodącą przez chunk adminowy, więc rozliczanie go w PUBLIC jest
+poprawne. Liczba w bramce ma pokrycie w bajtach - inaczej niż w wycofanym eksperymencie.
 
-## 6. Progi zamrożone (bez env w CI)
+## 5. Progi ZAMROŻONE (bez env w CI)
 
-`MAX_CHUNK_KB` / `MAX_PUBLIC_KB` / `MAX_TOTAL_KB` są w CI **ignorowane** (skrypt mówi to
-głośno na stderr) - obowiązują stałe z `scripts/check-bundle-size.ts`, więc każda zmiana
-progu przechodzi przez review razem z przyczyną wzrostu. Poza CI nadpisanie nadal działa,
-do lokalnego eksperymentu.
+`MAX_CHUNK_KB` / `MAX_PUBLIC_KB` / `MAX_TOTAL_KB` są w CI **ignorowane** - skrypt mówi to
+głośno na stderr, a obowiązują stałe z `scripts/check-bundle-size.ts`. Bramka, którą wolno
+rozluźnić jedną zmienną w workflow, jest sugestią, nie bramką; teraz każda zmiana progu
+przechodzi przez review razem z przyczyną wzrostu i wpisem do kroniki. Poza CI nadpisanie
+nadal działa - do lokalnego eksperymentu „ile zejdzie, jeśli...".
 
-Kronika re-floorów w nagłówku pliku została skondensowana do zwartego zapisu (daty, liczby,
-przyczyny) - dotąd rosła o akapit na każdy re-floor i przestała być czytelna dokładnie
-wtedy, gdy zaczęła być potrzebna.
+Kronika floorów z maina zostaje w całości (razem z uczciwym bilansem PR #183 i opisem
+wycofanego eksperymentu); ta zmiana dopisuje własny wpis.
 
-## 7. Nowe narzędzia i bramki
+## 6. `check:chunk-parity` - nowa bramka, blokująca, bez builda
 
-### `check:bundle-islands` - inwariant „wysp leniwych chunków" (bez builda)
+`vite.smoke.config.ts` istnieje po to, żeby zbudować artefakt PRODUKCYJNY na preset
+node-server i sprawdzić BOOT KLIENTA prawdziwą przeglądarką - incydent 2026-07-20 był
+niewidoczny w dev (brak chunków) i w testach jednostkowych. Ta weryfikacja jest warta tyle,
+ile **zgodność podziału chunków z produkcją**, a dotąd pilnował jej wyłącznie komentarz
+„UWAGA: trzymać w synchronizacji". `src/lib/ci/__tests__/viteChunkParity.test.ts` zamienia
+prośbę w inwariant: bloki `manualChunks` obu konfiguracji muszą być identyczne, obie muszą
+mieć `hoistTransitiveImports: false`, a reguła vendorowa musi pomijać moduł wejściowy.
 
-`src/lib/ci/bundleIslands.ts` + testy. Analiza statyczna grafu importów `src/`, dwie połowy
-inwariantu:
+Ostatni punkt nie jest ozdobnikiem - to zakodowana pamięć o pułapce z sekcji 2, przez którą
+martwa reguła przeżyła tygodnie.
 
-1. pakiet strzeżony (`@stripe/stripe-js`, `@stripe/react-stripe-js`) wolno importować
-   statycznie WYŁĄCZNIE modułowi wyspy,
-2. moduł wyspy wolno importować statycznie WYŁĄCZNIE innemu modułowi tej samej wyspy -
-   z zewnątrz tylko przez `import()`.
+Bramka nie potrzebuje builda (czyta dwa pliki konfiguracji), więc stoi w CI PRZED krokiem
+`Build`.
 
-Bez (2) sam podział plików nic nie gwarantuje. Analiza jest zachowawcza (importy typów
-pomijane, reszta liczy się jako krawędź), więc gate może co najwyżej zgłosić krawędź, którą
-tree-shaking i tak by usunął - nigdy nie przepuści prawdziwej. Bramka wskazuje plik, linię
-i łańcuch; `check:bundle` mówił tylko „public urósł o X KB". Krok w CI stoi PRZED buildem,
-bo builda nie potrzebuje.
+## 7. Świadomie NIE w tej zmianie
 
-Sprawdzone, że bramka **nie jest pusta**: uruchomiona na treści plików sprzed tej zmiany
-(`git show HEAD:...`) zwraca naruszenia.
-
-### `check:bundle-islands` - parytet konfiguracji
-
-`vite.smoke.config.ts` buduje artefakt produkcyjny na preset node-server, żeby dało się
-sprawdzić BOOT KLIENTA prawdziwą przeglądarką (incydent 2026-07-20). Ta weryfikacja jest
-warta tyle, ile zgodność obu konfiguracji - dotąd pilnował jej wyłącznie komentarz „UWAGA:
-trzymać w synchronizacji". `viteChunkParity.test.ts` zamienia prośbę w inwariant: bloki
-`manualChunks` muszą być identyczne.
-
-### `analyze:bundle` - odpowiedź na pytanie „PRZEZ CO"
-
-```bash
-BUNDLE_STATS=1 bun run build     # plugin zrzuca reports/bundle-modules.json
-bun run analyze:bundle           # 20 najcięższych chunków + skład entry
-bun run analyze:bundle vendor-radix
-bun run analyze:bundle --package echarts
-```
-
-Plugin (`scripts/lib/bundleStatsPlugin.ts`) bez zmiennej środowiskowej **nie ma żadnego
-hooka** - artefakt produkcyjny jest bit-w-bit identyczny. Cała diagnostyka w tym dokumencie
-(w tym ustalenie, że `vendor-tanstack` nigdy nie powstawał) pochodzi z tego narzędzia.
-
-## 8. Świadomie NIE w tej zmianie
-
-**`node-html-parser`: 201,7 KB surowo w chunku wejściowym.** Największa pozostała pozycja.
-Ciągną go dwa importy:
-
-- `lib/sanitize.ts` - gałąź `import.meta.env.SSR` jest w kliencie MARTWA, ale pakiet nie
-  deklaruje `sideEffects:false`, więc Rollup jej nie wytrząsa;
-- `lib/builder/normalizeRichHtml.ts` - realnie używany w przeglądarce przez `RichHtmlView`
-  (normalizacja list z importów WordPress/Elementor).
-
-Usunięcie wymaga przepisania normalizacji na natywny `DOMParser` po stronie klienta. To
-zmiana dotykająca renderowania OPUBLIKOWANEJ treści (markup list), więc należy jej się
-własny PR z testami parytetu wyjścia, a nie doklejenie do zmiany bundlowej.
-
-**Klasyfikacja `ADMIN_ONLY` w bramce** pozostaje ręczną listą wzorców nazw chunków.
-Poprawniejsza byłaby klasyfikacja z grafu chunków („chunk jest adminowy, gdy każda ścieżka
-od entry prowadzi przez chunk adminowy"), ale przeklasyfikowałaby też pozycje istniejące
-(m.in. `EChartClient`) i zmieniłaby znaczenie obu sum - to osobna decyzja produktowa
-o tym, co uznajemy za koszt czytelnika.
+Pozostałe pozycje „zmierzonego backlogu redukcji" z nagłówka bramki - w szczególności
+`node-html-parser` (202 kB surowo w entry, przez `lib/builder/normalizeRichHtml`
+i `RichHtmlView`). Usunięcie wymaga przepisania normalizacji list na natywny `DOMParser`
+po stronie klienta, czyli dotyka renderowania OPUBLIKOWANEJ treści. Należy mu się własny PR
+z testami parytetu wyjścia, a nie doklejenie do zmiany bundlowej.

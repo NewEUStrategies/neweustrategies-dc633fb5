@@ -13,8 +13,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { createCheckoutOrder } from "@/lib/billing/checkout.functions";
 import { getStripeEnvironment } from "@/lib/stripe";
-import { EmbeddedCheckoutDialog } from "@/components/checkout/EmbeddedCheckoutDialog";
-import { prefetchEmbeddedCheckout } from "@/components/checkout/stripeFrameChunk";
+import { LazyEmbeddedCheckoutDialog } from "@/components/checkout/LazyEmbeddedCheckoutDialog";
 import { formatMoney } from "@/lib/billing/types";
 
 export interface EventTicketPurchaseProps {
@@ -69,8 +68,6 @@ export function EventTicketPurchase({
       return;
     }
     setBusy(true);
-    // Rozgrzewka leniwego chunku kasy równolegle z tworzeniem sesji.
-    prefetchEmbeddedCheckout();
     try {
       const res = await checkout({
         data: {
@@ -99,7 +96,7 @@ export function EventTicketPurchase({
 
   return (
     <>
-      <EmbeddedCheckoutDialog
+      <LazyEmbeddedCheckoutDialog
         clientSecret={checkoutSecret}
         onOpenChange={(open) => {
           if (!open) setCheckoutSecret(null);

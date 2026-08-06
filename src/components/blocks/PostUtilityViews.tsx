@@ -32,7 +32,6 @@ import {
   CRUMB_SEPARATOR_CLASS,
 } from "@/components/Breadcrumbs";
 
-
 type Lang = "pl" | "en";
 
 const L = {
@@ -132,7 +131,6 @@ export function BreadcrumbsView({
     </nav>
   );
 }
-
 
 // -------- Reading time --------
 

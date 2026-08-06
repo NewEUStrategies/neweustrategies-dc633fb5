@@ -15,6 +15,7 @@ import { useCheckoutSettings } from "@/hooks/useCheckoutSettings";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { GuestCheckoutGate } from "@/components/checkout/GuestCheckoutGate";
+import { CheckoutAssurances } from "@/components/checkout/CheckoutAssurances";
 import { BillingProfileForm } from "@/components/billing/BillingProfileForm";
 import { CouponInput } from "@/components/checkout/CouponInput";
 import { FxRateNotice } from "@/components/checkout/FxRateNotice";
@@ -23,8 +24,12 @@ import { toast } from "sonner";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 import { catalogPriceForPlan } from "@/lib/billing/catalog";
 import { useCheckout } from "@/hooks/useCheckout";
+// Ramka operatora wchodzi przez granicę `React.lazy` (patrz nagłówek
+// EmbeddedCheckoutFrame) - trasa checkoutu nie może być drugim statycznym
+// importerem `@stripe/react-stripe-js`, bo wspólny przodek dwóch takich
+// importerów to chunk entry, który pobiera każdy czytelnik.
 import { EmbeddedCheckoutFrame } from "@/components/checkout/EmbeddedCheckoutFrame";
-import { prefetchEmbeddedCheckout } from "@/components/checkout/stripeFrameChunk";
+import { checkoutIntentHandlers } from "@/components/checkout/checkoutIntent";
 import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
 export const Route = createFileRoute("/checkout/$planId")({
   component: CheckoutPage,
@@ -68,6 +73,10 @@ function CheckoutPage() {
   }, [plan.isSuccess, plan.data, t]);
 
   const hasBilling = !!billing.data?.address_line1 && !!billing.data?.city;
+  // Tryb sesji u operatora wynika z cyklu planu - plan jednorazowy jedzie jako
+  // `payment`, każdy cykliczny jako `subscription` (patrz `catalog.ts`).
+  const checkoutMode: "payment" | "subscription" =
+    plan.data?.interval === "one_time" ? "payment" : "subscription";
   const displayCurrency = displayCurrencyForLang(i18n.language);
   const planCurrency = plan.data?.currency ?? "PLN";
   // Kwoty do wyświetlenia po konwersji (parytet z /pricing i /support).
@@ -86,8 +95,6 @@ function CheckoutPage() {
   const submit = async () => {
     if (!plan.data || !hasBilling) return;
     setBusy(true);
-    // Rozgrzewka leniwego chunku kasy równolegle z tworzeniem sesji.
-    prefetchEmbeddedCheckout();
     try {
       const price = catalogPriceForPlan(plan.data);
       if (!price) {
@@ -243,6 +250,7 @@ function CheckoutPage() {
                       size="lg"
                       disabled={busy || !hasBilling}
                       onClick={submit}
+                      {...checkoutIntentHandlers}
                     >
                       {busy ? (
                         t("checkout.processing")
@@ -262,25 +270,20 @@ function CheckoutPage() {
                     {clientSecret && (
                       <div className="space-y-2">
                         <PaymentTestModeBanner />
-                        {/* Ta sama granica podziału kodu, co w modalu kasy -
-                            SDK operatora nie wchodzi do chunku trasy. */}
                         <EmbeddedCheckoutFrame clientSecret={clientSecret} />
                       </div>
                     )}
                     <p className="text-xs text-muted-foreground text-center">
                       {t("checkout.terms")}
                     </p>
-                    {(checkoutSettings?.allow_promotion_codes ||
-                      checkoutSettings?.automatic_tax ||
-                      checkoutSettings?.tax_id_collection) && (
-                      <ul className="space-y-1 border-t pt-3 text-xs text-muted-foreground">
-                        {checkoutSettings.allow_promotion_codes && (
-                          <li>{t("checkout.promoHint")}</li>
-                        )}
-                        {checkoutSettings.automatic_tax && <li>{t("checkout.taxHint")}</li>}
-                        {checkoutSettings.tax_id_collection && <li>{t("checkout.taxIdHint")}</li>}
-                      </ul>
-                    )}
+                    {/* Wskazówki liczone tą samą czystą funkcją, którą serwer
+                        rozwija w parametrach sesji Stripe - obietnica nie może
+                        rozjechać się z tym, co zobaczy kupujący w formularzu. */}
+                    <CheckoutAssurances
+                      settings={checkoutSettings}
+                      mode={checkoutMode}
+                      hasDiscount={!!coupon && coupon.discountCents > 0}
+                    />
                   </>
                 ) : (
                   <p className="text-sm text-muted-foreground">{t("checkout.notFound")}</p>

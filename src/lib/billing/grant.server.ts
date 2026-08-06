@@ -199,11 +199,13 @@ export async function grantEntitlement(
   }
 
   if (entitlement.type === "purchase") {
-    // Zamówienie po anonimizacji konta nie ma właściciela (`user_id` NULL od
-    // 20260803090002). Retry webhooka na takim zamówieniu nie może wstawić
-    // uprawnienia „dla nikogo": wiersz z `user_id` NULL to w tej tabeli DOWÓD
-    // po usuniętym koncie, a nie nowe uprawnienie. Nie ma komu przyznać dostępu.
-    if (!order.user_id) return;
+    // Zamówienie po anonimizacji konta (`user_id` NULL od 20260803090002) nie
+    // dochodzi tutaj W OGÓLE: odsiewa je wspólny strażnik na wejściu funkcji.
+    // Powtórzony `if (!order.user_id) return;` stał w tym miejscu jako kod
+    // NIEOSIĄGALNY - nie dało się go ani wykonać, ani pokryć testem (test
+    // „pomija grant zakupu jednorazowego, gdy zamówienie stracilo właściciela"
+    // kończy bieg na tamtym strażniku), a trzymał bramkę pokrycia tego pliku
+    // pod progiem 100%.
     const { error } = await supabaseAdmin.from("user_purchases").upsert(
       {
         user_id: order.user_id,

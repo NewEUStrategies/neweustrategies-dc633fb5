@@ -88,7 +88,7 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
         environment,
         metadata: data.couponCode ? { coupon_code: data.couponCode.trim().toUpperCase() } : {},
       } as never)
-      .select("id")
+      .select("id, tenant_id")
       .single();
     if (insertErr) throw insertErr;
 
@@ -106,8 +106,15 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
       }
     }
 
-    const { createPlanCheckoutSession: createSession } =
-      await import("@/lib/billing/adhocCheckout.server");
+    const [{ createPlanCheckoutSession: createSession }, { loadCheckoutSettings }] =
+      await Promise.all([
+        import("@/lib/billing/adhocCheckout.server"),
+        import("@/lib/billing/checkoutSettings.server"),
+      ]);
+    // Flagi checkoutu tenantu, który stempluje zamówienie - ta sama ścieżka co
+    // w `checkout.functions.ts`, żeby oba silniki checkoutu składały sesję
+    // identycznie (kupony, Stripe Tax, NIP, faktury).
+    const settings = await loadCheckoutSettings(supabase, order.tenant_id);
     const result = await createSession({
       environment,
       priceLookupKey: data.priceId,
@@ -119,6 +126,7 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
       returnUrl: data.returnUrl,
       discount,
       locale: data.locale,
+      settings,
     });
 
     if (!result.ok) {

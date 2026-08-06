@@ -25,10 +25,20 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { MIGRATIONS_DIR, extractLatestDefinitions, stripSqlComments } from "./lib/sqlMigrations";
+import { stripTsComments } from "./lib/stripComments";
 
 /** Poza migracjami (tam liczy sie stan koncowy funkcji) skanujemy pgTAP i klienta. */
 const SCAN_DIRS = ["supabase/tests", "src"] as const;
 const SCAN_EXTENSIONS = [".sql", ".ts", ".tsx"] as const;
+
+/**
+ * Katalogi testow jednostkowych TS sa POZA skanem: fixture negatywny musi moc
+ * podac literal spoza enuma, bo dokladnie to testuje (patrz
+ * src/lib/ci/__tests__/authzGates.test.ts - "odsiewa literal, ktorego nie ma w
+ * enumie"). Kontrakty pgTAP (supabase/tests) zostaja w skanie: tam literal
+ * trafia do PRAWDZIWEJ bazy, wiec ten sam blad enuma jest realny.
+ */
+const TS_TEST_DIR_SEGMENTS = ["__tests__", "__mocks__"] as const;
 
 interface Hit {
   readonly literal: string;
@@ -70,14 +80,78 @@ function collectAppRoleValues(): Set<string> {
 function listFiles(dir: string): string[] {
   const out: string[] = [];
   const walk = (current: string): void => {
+    if (SCAN_EXCLUDED_DIRS.some((excluded) => current === excluded)) return;
     for (const entry of readdirSync(current)) {
       if (entry === "node_modules" || entry.startsWith(".")) continue;
+      if ((TS_TEST_DIR_SEGMENTS as readonly string[]).includes(entry)) continue;
       const full = join(current, entry);
       if (statSync(full).isDirectory()) walk(full);
       else if (SCAN_EXTENSIONS.some((ext) => full.endsWith(ext))) out.push(full);
     }
   };
   walk(dir);
+  return out;
+}
+
+/**
+ * Wycina komentarze TS/TSX, ZACHOWUJAC numeracje linii (znaki komentarza ida na
+ * spacje, znaki nowej linii zostaja). Bez tego bramka wywalala sie na WLASNEJ
+ * dokumentacji: `has_role(uid, 'X')` w komentarzu opisujacym wzorzec jest
+ * tekstem, nie wywolaniem (patrz src/lib/ci/authzGates.ts).
+ *
+ * Maszyna stanow rozpoznaje stringi ('", szablony `), zeby nie uciac kodu przez
+ * `//` wewnatrz literalu (np. w URL-u). Ograniczenie swiadome: literal wyrazenia
+ * regularnego zawierajacy sekwencje komentarza nie jest rozpoznawany - odrozniac
+ * regex od dzielenia bez parsera to koszt niewspolmierny do ryzyka, a skutkiem
+ * jest co najwyzej pominiecie trafienia w egzotycznym regexie, nie falszywy alarm.
+ */
+function stripTsComments(src: string): string {
+  let out = "";
+  let i = 0;
+  const blank = (text: string): string => text.replace(/[^\n]/g, " ");
+
+  while (i < src.length) {
+    const two = src.slice(i, i + 2);
+
+    if (two === "//") {
+      const end = src.indexOf("\n", i);
+      const stop = end === -1 ? src.length : end;
+      out += blank(src.slice(i, stop));
+      i = stop;
+      continue;
+    }
+
+    if (two === "/*") {
+      const end = src.indexOf("*/", i + 2);
+      const stop = end === -1 ? src.length : end + 2;
+      out += blank(src.slice(i, stop));
+      i = stop;
+      continue;
+    }
+
+    const ch = src[i];
+    if (ch === "'" || ch === '"' || ch === "`") {
+      const quote = ch;
+      let j = i + 1;
+      while (j < src.length) {
+        if (src[j] === "\\") {
+          j += 2;
+          continue;
+        }
+        if (src[j] === quote) {
+          j += 1;
+          break;
+        }
+        j += 1;
+      }
+      out += src.slice(i, j);
+      i = j;
+      continue;
+    }
+
+    out += ch;
+    i += 1;
+  }
   return out;
 }
 
@@ -94,6 +168,28 @@ function literalsIn(text: string): string[] {
   let match: RegExpExecArray | null;
   while ((match = CALL_RE.exec(text)) !== null) out.push(match[1]);
   return out;
+}
+
+/** Czy linia jest komentarzem (do cofania sie po bloku nad trafieniem). */
+function isCommentLine(line: string | undefined): boolean {
+  const trimmed = line?.trim() ?? "";
+  return trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*");
+}
+
+/**
+ * Zwolnienie obowiazuje, gdy marker jest w TEJ linii albo gdziekolwiek w bloku
+ * komentarza bezposrednio nad nia. Uzasadnienie zwolnienia to zwykle kilka zdan,
+ * wiec ograniczenie do jednej linii wyzej wymuszaloby wciskanie go w jedna
+ * linijke - a zwolnienie bez uzasadnienia jest bezwartosciowe. Blok musi
+ * PRZYLEGAC do linii z literalem: pusta linia albo kod przerywaja zasieg, wiec
+ * marker nie rozlewa sie na caly plik.
+ */
+function isExempt(rawLines: readonly string[], index: number): boolean {
+  if (rawLines[index]?.includes(EXEMPT_MARKER)) return true;
+  for (let i = index - 1; i >= 0 && isCommentLine(rawLines[i]); i -= 1) {
+    if (rawLines[i].includes(EXEMPT_MARKER)) return true;
+  }
+  return false;
 }
 
 function collectHasRoleLiterals(): Hit[] {
@@ -128,9 +224,12 @@ function collectHasRoleLiterals(): Hit[] {
     for (const file of listFiles(dir)) {
       const raw = readFileSync(file, "utf8");
       if (!raw.includes("has_role")) continue;
-      const text = file.endsWith(".sql") ? stripSqlComments(raw) : raw;
+      const text = file.endsWith(".sql") ? stripSqlComments(raw) : stripTsComments(raw);
       const lines = text.split("\n");
       for (let i = 0; i < lines.length; i += 1) {
+        // Zwolnienie czytamy z SUROWEJ linii (albo tej nad nia), bo marker jest
+        // komentarzem - a komentarze zostaly wlasnie sciete.
+        if (isExempt(rawLines, i)) continue;
         for (const literal of literalsIn(lines[i])) {
           hits.push({ literal, file, line: i + 1, where: "" });
         }
