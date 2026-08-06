@@ -6503,6 +6503,28 @@ header[data-site-header][data-metrics="ready"].site-header-shrink .site-header-c
      przerysowuje warstwę w docelowej skali - ostro. */
 }
 
+/* Po zakończeniu animacji zwijania transform ustępuje miejsca `zoom`: skala
+   przestaje być operacją kompozytora (rasteryzacja w skali warstwy = miękkie
+   litery przez cały czas przewijania), a staje się operacją układu, więc tekst,
+   ikony i logo renderują się w pełnej rozdzielczości ekranu - ostro. Wymiary są
+   identyczne (`zoom` skaluje pudełko dokładnie tak jak scale wokół górnej
+   krawędzi), więc podmiana jest niewidoczna, a --hdr-visible-h nadal pasuje. */
+header[data-site-header][data-metrics="ready"][data-settled="true"].site-header-shrink
+  .site-header-chrome {
+  transform: none;
+  zoom: var(--hdr-scale);
+}
+/* Ta sama zasada dla powiększanej sekcji headera builderowego na home - tytuły
+   i opisy w niej były rozciąganym rastrem, teraz skaluje się układ. */
+header[data-site-header][data-metrics="ready"][data-settled="true"]
+  .home-header-grow
+  > div
+  > section[data-sec-id]:first-of-type
+  > div:nth-of-type(2) {
+  transform: none;
+  zoom: calc(1 + 0.12 * var(--hdr-p));
+}
+
 /* Trending ticker ("na czasie") zwija się razem z resztą, po tej samej krzywej
    (ten sam --hdr-p), więc całkowita wysokość headera zmienia się po jednej
    gładkiej krzywej zamiast po sumie dwóch. Napis gaśnie szybciej niż zwija się
