@@ -74,13 +74,9 @@ describe("granica leniwego ładowania SDK płatności", () => {
   });
 
   it("StripeEmbeddedFrame jest osiągalny wyłącznie przez import dynamiczny", () => {
-    const importers = files
-      .filter((file) => file !== FRAME_MODULE)
-      .filter((file) =>
-        staticImportsOf(readFileSync(file, "utf8")).some((spec) =>
-          spec.endsWith("checkout/StripeEmbeddedFrame"),
-        ),
-      );
+    const importers = importersMatching((spec) =>
+      spec.endsWith("checkout/StripeEmbeddedFrame"),
+    );
     expect(importers, "Pośredniość istnieje po to, by ten moduł wchodził tylko przez lazy").toEqual(
       [],
     );
