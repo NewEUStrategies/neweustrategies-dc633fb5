@@ -192,7 +192,6 @@ function subEvent(
   };
 }
 
-
 /** Domyślne odczyty: istniejąca subskrypcja, plan, profil, lead w CRM. */
 function seed(
   existing: Record<string, unknown> | null,

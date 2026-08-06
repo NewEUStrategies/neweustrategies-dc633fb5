@@ -191,3 +191,58 @@ describe("self-test na realnym katalogu supabase/migrations", () => {
     expect(migrationReplayFailed(report)).toBe(false);
   });
 });
+
+describe("inwariant bliźniaków treści", () => {
+  const twin = "CREATE TABLE IF NOT EXISTS public.x (id uuid PRIMARY KEY);";
+
+  it("łapie tę samą migrację wpuszczoną dwa razy pod różnymi nazwami", () => {
+    const files = ["20260101000000_pisana_w_pr.sql", "20260101000001_wygenerowana.sql"];
+    const report = analyzeMigrationReplay(files, [
+      { file: files[0], sql: `-- nagłówek z PR-a\n${twin}` },
+      { file: files[1], sql: twin },
+    ]);
+
+    expect(report.contentTwins).toEqual([[files[0], files[1]]]);
+    expect(migrationReplayFailed(report)).toBe(true);
+    expect(renderMigrationReplayReport(report)).toContain("DWA RAZY");
+  });
+
+  it("nie myli różnych migracji o podobnym kształcie", () => {
+    const files = ["20260101000000_a.sql", "20260101000001_b.sql"];
+    const report = analyzeMigrationReplay(files, [
+      { file: files[0], sql: "CREATE TABLE public.a (id uuid);" },
+      { file: files[1], sql: "CREATE TABLE public.b (id uuid);" },
+    ]);
+
+    expect(report.contentTwins).toEqual([]);
+    expect(migrationReplayFailed(report)).toBe(false);
+  });
+
+  it("pomija pliki, z których po odjęciu komentarzy nic nie zostaje", () => {
+    const files = ["20260101000000_a.sql", "20260101000001_b.sql"];
+    const report = analyzeMigrationReplay(files, [
+      { file: files[0], sql: "-- tylko komentarz" },
+      { file: files[1], sql: "/* też nic */" },
+    ]);
+
+    expect(report.contentTwins).toEqual([]);
+    expect(migrationReplayFailed(report)).toBe(false);
+  });
+
+  it("ratchet: lista znanego długu odzwierciedla stan repo", () => {
+    const repoFiles = readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith(".sql"));
+    const repoSources = repoFiles.map((file) => ({
+      file,
+      sql: readFileSync(join(MIGRATIONS_DIR, file), "utf8"),
+    }));
+    const report = analyzeMigrationReplay(repoFiles, repoSources);
+    expect(
+      report.contentTwins,
+      "nowa para bliźniaków - usuń wygenerowany duplikat przed wdrożeniem",
+    ).toEqual([]);
+    expect(
+      report.staleKnownTwins,
+      "wpis KNOWN_CONTENT_TWINS bez pokrycia w repo - lista może tylko maleć",
+    ).toEqual([]);
+  });
+});

@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { isPreviewHost, normalizeHost, wwwToggledHost } from "@/lib/http/host";
+import {
+  CANONICAL_SITE_ORIGIN,
+  classifyCrawlHost,
+  crawlHostIsIndexable,
+  crawlHostOrigin,
+  crawlerPublishOrigin,
+  isNonCanonicalPublicHost,
+  isPreviewHost,
+  normalizeHost,
+  wwwToggledHost,
+} from "@/lib/http/host";
 
 describe("normalizeHost", () => {
   it("lowercases and trims", () => {
@@ -65,5 +75,108 @@ describe("isPreviewHost", () => {
   it("nieznana domena produkcyjna nigdy nie jest podglądem", () => {
     expect(isPreviewHost("neweuropeanstrategies.com")).toBe(false);
     expect(isPreviewHost("www.neweuropeanstrategies.com")).toBe(false);
+  });
+});
+
+// Klasyfikacja hosta jest JEDNYM wejściem do decyzji "indeksować / na jakim
+// originie" dla robots.txt i sitemapy. Rozjazd między nimi = duplikat treści w
+// indeksie albo zaproszenie aliasu hostingu do indeksowania (audyt 2026-08-06).
+describe("classifyCrawlHost", () => {
+  it("recognises the brand hosts (apex + www, port and case irrelevant)", () => {
+    expect(classifyCrawlHost({ host: "neweuropeanstrategies.com" })).toBe("brand");
+    expect(classifyCrawlHost({ host: "WWW.NewEuropeanStrategies.com:443" })).toBe("brand");
+  });
+
+  it("recognises hosting aliases and preview hosts as never-indexable", () => {
+    expect(classifyCrawlHost({ host: "nes.pages.dev" })).toBe("alias");
+    expect(classifyCrawlHost({ host: "nes.workers.dev" })).toBe("alias");
+    expect(classifyCrawlHost({ host: "localhost:4173" })).toBe("editor");
+    expect(classifyCrawlHost({ host: "id-preview--abc.example" })).toBe("editor");
+  });
+
+  it("promotes a registered tenant domain to a canonical host of its own", () => {
+    // REGRESJA: przed poprawką domena tenanta trafiała do "unknown", więc
+    // robots.txt zakazywał indeksowania CAŁEGO serwisu tenanta, choć sitemapa
+    // równolegle publikowała jego adresy.
+    expect(classifyCrawlHost({ host: "tenant-b.eu", tenantDomain: true })).toBe("tenant");
+    expect(classifyCrawlHost({ host: "tenant-b.eu" })).toBe("unknown");
+  });
+
+  it("keeps a hosting alias unindexable even if someone registers it as a domain", () => {
+    expect(classifyCrawlHost({ host: "nes.pages.dev", tenantDomain: true })).toBe("alias");
+    expect(classifyCrawlHost({ host: "localhost", tenantDomain: true })).toBe("editor");
+  });
+
+  it("fails closed without a host", () => {
+    expect(classifyCrawlHost({ host: "" })).toBe("unknown");
+    expect(classifyCrawlHost({ host: null })).toBe("unknown");
+  });
+
+  it("never opens indexing for a host the canonical redirect would 301", () => {
+    // Inwariant międzymodułowy: `enforceCanonicalHost` przekierowuje każdy host
+    // spełniający `isNonCanonicalPublicHost`. Host jednocześnie kanonizowany
+    // 301 i ogłoszony jako indeksowalny to duplikat treści w indeksie.
+    for (const host of ["nes.pages.dev", "nes.workers.dev"]) {
+      expect(isNonCanonicalPublicHost(host), host).toBe(true);
+      expect(crawlHostIsIndexable(classifyCrawlHost({ host, tenantDomain: true })), host).toBe(
+        false,
+      );
+    }
+  });
+
+  it("opens indexing for canonical classes only", () => {
+    expect(["brand", "tenant"].map((c) => crawlHostIsIndexable(c as "brand"))).toEqual([
+      true,
+      true,
+    ]);
+    expect(crawlHostIsIndexable("alias")).toBe(false);
+    expect(crawlHostIsIndexable("editor")).toBe(false);
+    expect(crawlHostIsIndexable("unknown")).toBe(false);
+  });
+});
+
+describe("crawlHostOrigin", () => {
+  it("converges the brand and its aliases on the canonical origin", () => {
+    expect(crawlHostOrigin("brand", "www.neweuropeanstrategies.com")).toBe(CANONICAL_SITE_ORIGIN);
+    expect(crawlHostOrigin("alias", "nes.pages.dev")).toBe(CANONICAL_SITE_ORIGIN);
+  });
+
+  it("publishes a tenant domain on its own origin", () => {
+    expect(crawlHostOrigin("tenant", "tenant-b.eu")).toBe("https://tenant-b.eu");
+    expect(crawlHostOrigin("editor", "localhost", "http")).toBe("http://localhost");
+  });
+
+  it("has no origin to publish without a host", () => {
+    expect(crawlHostOrigin("unknown", "")).toBe("");
+  });
+});
+
+describe("crawlerPublishOrigin", () => {
+  // JEDNA reguła originu dla mapy strony i dla robots.txt: mapa i jej ogłoszenie
+  // muszą wskazywać ten sam origin, inaczej Search Console odrzuca mapę jako
+  // pochodzącą spoza właściwości.
+  it("zbiera hosty marki na originie kanonicznym", () => {
+    expect(crawlerPublishOrigin("neweuropeanstrategies.com")).toBe(CANONICAL_SITE_ORIGIN);
+    expect(crawlerPublishOrigin("www.neweuropeanstrategies.com")).toBe(CANONICAL_SITE_ORIGIN);
+  });
+
+  it("aliasy hostingu publikują adresy kanoniczne (dostają 301, nie wolno ich indeksować)", () => {
+    expect(crawlerPublishOrigin("nes.pages.dev")).toBe(CANONICAL_SITE_ORIGIN);
+    expect(crawlerPublishOrigin("nes.workers.dev")).toBe(CANONICAL_SITE_ORIGIN);
+  });
+
+  it("własna domena tenanta publikuje na SWOIM originie", () => {
+    expect(crawlerPublishOrigin("b.example")).toBe("https://b.example");
+    expect(crawlerPublishOrigin("www.b.example")).toBe("https://www.b.example");
+  });
+
+  it("honoruje protokół żądania i normalizuje hosta", () => {
+    expect(crawlerPublishOrigin("127.0.0.1:4173", "http")).toBe("http://127.0.0.1");
+    expect(crawlerPublishOrigin("B.EXAMPLE")).toBe("https://b.example");
+  });
+
+  it("bez hosta nie zmyśla originu", () => {
+    expect(crawlerPublishOrigin(null)).toBe("");
+    expect(crawlerPublishOrigin("")).toBe("");
   });
 });

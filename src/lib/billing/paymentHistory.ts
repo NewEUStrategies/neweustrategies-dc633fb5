@@ -165,7 +165,6 @@ export function mergePaymentHistory(
     });
 
   return [...fromDocuments, ...fromOrders, ...grantsToHistory(grants)].sort(
-
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
   );
 }
@@ -219,7 +218,6 @@ export function paymentHistoryToCsv(rows: PaymentHistoryRow[], labels: HistoryCs
     ]
       .map(csvCell)
       .join(";"),
-
   );
   return `\uFEFF${[header.map(csvCell).join(";"), ...lines].join("\r\n")}\r\n`;
 }

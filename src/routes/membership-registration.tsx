@@ -13,9 +13,7 @@ export const Route = createFileRoute("/membership-registration")({
     const url = getRequestUrl() || "/membership-registration";
     const lang = activeLang(url);
     const isEn = lang === "en";
-    const title = isEn
-      ? `Create your account - ${SITE_NAME}`
-      : `Załóż konto - ${SITE_NAME}`;
+    const title = isEn ? `Create your account - ${SITE_NAME}` : `Załóż konto - ${SITE_NAME}`;
     const description = isEn
       ? "Register a New European Strategies account: strategy, knowledge and impact in one ecosystem."
       : "Załóż konto w New European Strategies: strategia, wiedza i wpływ - jeden ekosystem.";

@@ -1,63 +1,34 @@
--- pgTAP: kto naprawde moze zmienic verified_at / verified_by w public.profiles.
+-- pgTAP: bramka pól weryfikacji profilu - KTO może zmienić `verified_at` /
+-- `verified_by`, jak wygląda odmowa i które ścieżki są sankcjonowane.
 --
--- Weryfikacja profilu nie jest kosmetyka: steruje odznaka `verified`, a odznaka
--- eksperta pociaga dozywotni dostep VIP (sync_expert_vip_grant). Dlatego kolumny
--- weryfikacji maja DWIE warstwy obrony na public.profiles (triggery BEFORE UPDATE
--- odpalaja sie alfabetycznie, wiec w tej kolejnosci):
+-- PO CO TEN PLIK (regres 20260806094104). Migracja weryfikacji po domenie
+-- e-mail odbudowała `profiles_guard_verification()` na najstarszej definicji i
+-- po cichu ZAWĘZIŁA krąg uprawnionych do samego `admin`: `super_admin` bez
+-- osobno nadanej roli `admin` przestał móc nadawać weryfikację, choć polityka
+-- RLS "Admins can update tenant profiles", `admin_grant_profile_badge()` i
+-- `admin_assert_verification_admin()` przepuszczają go bez zastrzeżeń. Wersja
+-- wcześniejsza (20260805122338) miała `super_admin` i `ERRCODE 42501`, ale
+-- poprzedni wariant tego pliku sprawdzał WYŁĄCZNIE strukturę (istnienie
+-- funkcji, trigger, SECURITY DEFINER), więc zawężenie przeszło na zielono.
+-- Migracja 20260806130000 przywraca zbiór ról i ERRCODE; ten plik pilnuje
+-- ZACHOWANIA, nie kształtu.
 --
---   1. profiles_guard_privileged_columns_trg - dla NIE-staffu CICHO przywraca
---      stare wartosci (zwykly czlonek nie dostaje bledu, jego wartosci po prostu
---      nie maja skutku),
---   2. profiles_guard_verification_trg - dla staffu BEZ prawa do weryfikacji
---      (czyli `editor`, ktory przechodzi warstwe 1.) zmiana MUSI polec glosno,
---      kodem 42501.
+-- WARSTWY, KTÓRE TU WIDAĆ (celowo testowane razem, bo dopiero razem dają
+-- obserwowalny kontrakt tabeli `profiles`):
+--   * `profiles_guard_privileged_columns_trg` - odpala się PIERWSZY (kolejność
+--     alfabetyczna nazw triggerów) i dla nie-stafu po cichu wycofuje pola
+--     weryfikacji (`NEW.verified_at := OLD.verified_at`), więc dla zwykłego
+--     użytkownika NIE MA wyjątku - jest brak efektu;
+--   * `profiles_guard_verification_trg` - odmawia twardo (42501) temu, kto pola
+--     realnie zmienia, a nie jest `admin`/`super_admin` (czyli m.in. `editor`,
+--     który przechodzi bliźniaczy guard).
 --
--- Poprzednia wersja tego pliku sprawdzala tylko istnienie funkcji, triggera i
--- flagi SECURITY DEFINER, wiec przezyla dwie zmiany semantyki bez jednego
--- czerwonego przebiegu - w tym zawezenie kregu uprawnionych do samego `admin`
--- (migracja 20260806094104), ktore odcielo `super_admin` od nadawania
--- weryfikacji. Ten test sprawdza ZACHOWANIE dla kazdej roli osobno.
+-- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(18);
+SELECT plan(20);
 
-ALTER TABLE auth.users DISABLE TRIGGER USER;
-
-INSERT INTO public.tenants (id, slug, name) VALUES
-  ('c1111111-1111-1111-1111-111111111111', 'verify-guard', 'Verify Guard');
-
-INSERT INTO auth.users (id, email) VALUES
-  ('c1000000-0000-0000-0000-0000000000aa', 'admin@verify-guard.test'),
-  ('c1000000-0000-0000-0000-0000000000bb', 'super@verify-guard.test'),
-  ('c1000000-0000-0000-0000-0000000000cc', 'editor@verify-guard.test'),
-  ('c1000000-0000-0000-0000-0000000000dd', 'member@verify-guard.test'),
-  ('c1000000-0000-0000-0000-0000000000ee', 'target@verify-guard.test');
-
-INSERT INTO public.profiles (id, email, display_name, tenant_id) VALUES
-  ('c1000000-0000-0000-0000-0000000000aa', 'admin@verify-guard.test', 'Admin',
-   'c1111111-1111-1111-1111-111111111111'),
-  ('c1000000-0000-0000-0000-0000000000bb', 'super@verify-guard.test', 'Super',
-   'c1111111-1111-1111-1111-111111111111'),
-  ('c1000000-0000-0000-0000-0000000000cc', 'editor@verify-guard.test', 'Editor',
-   'c1111111-1111-1111-1111-111111111111'),
-  ('c1000000-0000-0000-0000-0000000000dd', 'member@verify-guard.test', 'Member',
-   'c1111111-1111-1111-1111-111111111111'),
-  ('c1000000-0000-0000-0000-0000000000ee', 'target@verify-guard.test', 'Target',
-   'c1111111-1111-1111-1111-111111111111');
-
--- Super admin CELOWO nie ma osobnej roli `admin` - dokladnie ten przypadek
--- przestal dzialac po zawezeniu bramki.
-INSERT INTO public.user_roles (tenant_id, user_id, role) VALUES
-  ('c1111111-1111-1111-1111-111111111111',
-   'c1000000-0000-0000-0000-0000000000aa', 'admin'),
-  ('c1111111-1111-1111-1111-111111111111',
-   'c1000000-0000-0000-0000-0000000000bb', 'super_admin'),
-  ('c1111111-1111-1111-1111-111111111111',
-   'c1000000-0000-0000-0000-0000000000cc', 'editor');
-
--- ---------------------------------------------------------------------------
--- 1) Struktura: funkcja, trigger, SECURITY DEFINER, kod bledu
--- ---------------------------------------------------------------------------
+-- ── 1-4. Struktura bramki ───────────────────────────────────────────────────
 SELECT has_function('public', 'profiles_guard_verification', 'guard function exists');
 
 SELECT ok(
@@ -67,197 +38,347 @@ SELECT ok(
        AND tgname = 'profiles_guard_verification_trg'
        AND NOT tgisinternal
   ),
-  'BEFORE UPDATE trigger on public.profiles is installed'
+  'trigger profiles_guard_verification_trg jest zainstalowany'
+);
+
+-- tgtype: 1 = ROW, 2 = BEFORE, 4 = INSERT, 16 = UPDATE => 23.
+-- INSERT jest w kontrakcie od 20260806130000: polityka "Users insert own
+-- profile" pozwala wstawić WŁASNY wiersz, a oba guardy były BEFORE UPDATE,
+-- więc self-insert z `verified_at` nie przechodził żadnej kontroli.
+SELECT is(
+  (SELECT tgtype::int FROM pg_trigger
+    WHERE tgrelid = 'public.profiles'::regclass
+      AND tgname = 'profiles_guard_verification_trg'),
+  23,
+  'bramka pilnuje BEFORE INSERT OR UPDATE FOR EACH ROW (nie tylko UPDATE)'
 );
 
 SELECT ok(
   (SELECT prosecdef FROM pg_proc
     WHERE oid = 'public.profiles_guard_verification()'::regprocedure),
-  'guard runs as SECURITY DEFINER (role check cannot be bypassed by RLS)'
+  'guard dziala jako SECURITY DEFINER (bramki roli nie omija RLS)'
 );
 
--- 42501 (insufficient_privilege), a nie generyczne P0001: klient rozpoznaje
--- odmowe uprawnien po kodzie, nie po tresci komunikatu. Reszta modulu
--- (admin_grant_profile_badge, admin_assert_verification_admin) rzuca tak samo.
+-- Dublowana wlasnosc kolumn byla przyczyna zrodlowa: cichy revert w bramce
+-- "privileged" odpalal sie alfabetycznie PRZED "verification" i maskowal odmowe.
 SELECT ok(
-  (SELECT prosrc FROM pg_proc
-    WHERE oid = 'public.profiles_guard_verification()'::regprocedure) LIKE '%42501%',
-  'guard raises 42501 (insufficient_privilege), not a generic P0001'
+  pg_get_functiondef('public.profiles_guard_privileged_columns()'::regprocedure)
+    NOT LIKE '%verified_at%',
+  'profiles_guard_privileged_columns NIE dotyka kolumn weryfikacji (jedna kolumna = jedna bramka)'
 );
 
--- ---------------------------------------------------------------------------
--- 2) Zwykly czlonek: samonadanie nie ma skutku (warstwa 1. cicho cofa wartosci)
--- ---------------------------------------------------------------------------
+-- -- 5-8. Predykat: admin i super_admin tak, editor i czlonek nie ------------
 SET LOCAL ROLE authenticated;
-SELECT set_config(
-  'request.jwt.claims',
-  '{"sub":"c1000000-0000-0000-0000-0000000000dd","role":"authenticated"}',
-  true
-);
+
+SELECT set_config('request.jwt.claims',
+  '{"sub":"b1000000-0000-0000-0000-0000000000a1","role":"authenticated"}', true);
+SELECT is(public.can_manage_profile_verification(), true,
+  'admin przechodzi predykat weryfikacji');
+
+SELECT set_config('request.jwt.claims',
+  '{"sub":"b1000000-0000-0000-0000-0000000000a2","role":"authenticated"}', true);
+SELECT is(public.can_manage_profile_verification(), true,
+  'super_admin BEZ osobnej roli admin przechodzi predykat weryfikacji (regresja 20260806094104)');
+
+SELECT set_config('request.jwt.claims',
+  '{"sub":"b1000000-0000-0000-0000-0000000000a3","role":"authenticated"}', true);
+SELECT is(public.can_manage_profile_verification(), false,
+  'editor NIE nadaje weryfikacji (odznaka eksperta = dozywotni VIP)');
+
+SELECT set_config('request.jwt.claims',
+  '{"sub":"b1000000-0000-0000-0000-0000000000a4","role":"authenticated"}', true);
+SELECT is(public.can_manage_profile_verification(), false,
+  'zwykly czlonek NIE nadaje weryfikacji');
+
+-- -- 9-10. super_admin nadaje weryfikacje przez RPC panelu -------------------
+SELECT set_config('request.jwt.claims',
+  '{"sub":"b1000000-0000-0000-0000-0000000000a2","role":"authenticated"}', true);
 
 SELECT lives_ok(
-  $$ UPDATE public.profiles
-        SET verified_at = now(), verified_by = 'c1000000-0000-0000-0000-0000000000dd'
-      WHERE id = 'c1000000-0000-0000-0000-0000000000dd' $$,
-  'zwykly czlonek nie dostaje bledu - jego wartosci sa cicho cofane'
+  $$ SELECT public.admin_set_profile_verification(
+       'b1000000-0000-0000-0000-0000000000a4', true) $$,
+  'super_admin nadaje weryfikacje profilu w swoim obszarze roboczym'
+);
+
+RESET ROLE;
+SELECT is(
+  (SELECT verified_by FROM public.profiles
+    WHERE id = 'b1000000-0000-0000-0000-0000000000a4'),
+  'b1000000-0000-0000-0000-0000000000a2'::uuid,
+  'verified_by stempluje super_admina, ktory nadal weryfikacje'
+);
+SET LOCAL ROLE authenticated;
+
+-- -- 11-12. Odmowy: editor przez RPC, czlonek bezposrednim UPDATE ------------
+SELECT set_config('request.jwt.claims',
+  '{"sub":"b1000000-0000-0000-0000-0000000000a3","role":"authenticated"}', true);
+SELECT throws_ok(
+  $$ SELECT public.admin_set_profile_verification(
+       'b1000000-0000-0000-0000-0000000000a4', false) $$,
+  '42501', NULL,
+  'editor dostaje czysta odmowe 42501 z RPC weryfikacji'
+);
+
+SELECT set_config('request.jwt.claims',
+  '{"sub":"b1000000-0000-0000-0000-0000000000a4","role":"authenticated"}', true);
+-- Twarda odmowa zostawia SLAD - do 20260806150000 samonadanie bylo po cichu
+-- wycofywane przez bramke kolumn uprzywilejowanych i nie logowalo sie nigdzie.
+SELECT throws_ok(
+  $$ UPDATE public.profiles SET verified_at = now()
+      WHERE id = 'b1000000-0000-0000-0000-0000000000a4' $$,
+  '42501', NULL,
+  'czlonek nie nadaje sobie weryfikacji (42501, nie cichy revert)'
+);
+
+-- -- 13-15. Firma w profilu: wlasciciel ma prawo do SWOJEJ, obca jest cofana -
+SELECT lives_ok(
+  $$ SELECT public.link_current_company('b1c00000-0000-0000-0000-0000000000c1') $$,
+  'czlonek przypisuje sobie firme z wlasnego obszaru roboczego (sciezka UI)'
+);
+
+RESET ROLE;
+SELECT is(
+  (SELECT current_company_id FROM public.profiles
+    WHERE id = 'b1000000-0000-0000-0000-0000000000a4'),
+  'b1c00000-0000-0000-0000-0000000000c1'::uuid,
+  'przypisanie firmy przez wlasciciela FAKTYCZNIE zapisuje sie w bazie'
+);
+SET LOCAL ROLE authenticated;
+
+SELECT set_config('request.jwt.claims',
+  '{"sub":"b1000000-0000-0000-0000-0000000000a4","role":"authenticated"}', true);
+-- Firma z obcego tenanta: zapis przechodzi (to nie jest atak wymagajacy wyjatku),
+-- ale bramka cofa wartosc - inaczej profil wskazywalby firme z innego tenanta.
+UPDATE public.profiles SET current_company_id = 'b2c00000-0000-0000-0000-0000000000c2'
+ WHERE id = 'b1000000-0000-0000-0000-0000000000a4';
+
+RESET ROLE;
+SELECT is(
+  (SELECT current_company_id FROM public.profiles
+    WHERE id = 'b1000000-0000-0000-0000-0000000000a4'),
+  'b1c00000-0000-0000-0000-0000000000c1'::uuid,
+  'firma z OBCEGO tenanta jest po cichu wycofana (zostaje poprzednia)'
+);
+SET LOCAL ROLE authenticated;
+
+-- -- 16. Izolacja obszarow roboczych w weryfikacji ---------------------------
+SELECT set_config('request.jwt.claims',
+  '{"sub":"b2000000-0000-0000-0000-0000000000b1","role":"authenticated"}', true);
+SELECT throws_like(
+  $$ SELECT public.admin_set_profile_verification(
+       'b1000000-0000-0000-0000-0000000000a4', true) $$,
+  '%target outside caller tenant%',
+  'admin obcego tenanta nie zweryfikuje profilu z tenanta A'
+);
+
+-- ── Seed ────────────────────────────────────────────────────────────────────
+ALTER TABLE auth.users DISABLE TRIGGER USER;
+
+INSERT INTO public.tenants (id, slug, name) VALUES
+  ('c9111111-1111-1111-1111-111111111111', 'tenant-vg', 'Tenant VG');
+
+INSERT INTO auth.users (id, email) VALUES
+  ('c9000000-0000-0000-0000-0000000000aa', 'admin-vg@vg.test'),
+  ('c9000000-0000-0000-0000-0000000000bb', 'super-vg@vg.test'),
+  ('c9000000-0000-0000-0000-0000000000cc', 'editor-vg@vg.test'),
+  ('c9000000-0000-0000-0000-0000000000dd', 'member-vg@vg.test'),
+  ('c9000000-0000-0000-0000-0000000000ee', 'target-vg@vg.test'),
+  ('c9000000-0000-0000-0000-0000000000ff', 'claim-vg@vg.test');
+
+-- `ff` celowo BEZ wiersza w profiles - to okno, w którym self-INSERT jest
+-- możliwy (skasowany profil przy żywym koncie auth.users).
+INSERT INTO public.profiles (id, email, display_name, tenant_id) VALUES
+  ('c9000000-0000-0000-0000-0000000000aa', 'admin-vg@vg.test', 'Admin VG',
+   'c9111111-1111-1111-1111-111111111111'),
+  ('c9000000-0000-0000-0000-0000000000bb', 'super-vg@vg.test', 'Super VG',
+   'c9111111-1111-1111-1111-111111111111'),
+  ('c9000000-0000-0000-0000-0000000000cc', 'editor-vg@vg.test', 'Editor VG',
+   'c9111111-1111-1111-1111-111111111111'),
+  ('c9000000-0000-0000-0000-0000000000dd', 'member-vg@vg.test', 'Member VG',
+   'c9111111-1111-1111-1111-111111111111'),
+  ('c9000000-0000-0000-0000-0000000000ee', 'target-vg@vg.test', 'Target VG',
+   'c9111111-1111-1111-1111-111111111111');
+
+-- `super_admin` BEZ osobnej roli `admin` - dokładnie konto, które regres
+-- 20260806094104 pozbawił uprawnienia.
+INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES
+  ('c9000000-0000-0000-0000-0000000000aa', 'admin',
+   'c9111111-1111-1111-1111-111111111111'),
+  ('c9000000-0000-0000-0000-0000000000bb', 'super_admin',
+   'c9111111-1111-1111-1111-111111111111'),
+  ('c9000000-0000-0000-0000-0000000000cc', 'editor',
+   'c9111111-1111-1111-1111-111111111111');
+
+-- ── 5-6. Zwykły użytkownik: brak wyjątku, brak efektu ───────────────────────
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"c9000000-0000-0000-0000-0000000000dd","role":"authenticated"}', true);
+
+SELECT lives_ok(
+  $$ UPDATE public.profiles SET verified_at = now()
+      WHERE id = 'c9000000-0000-0000-0000-0000000000dd' $$,
+  'nie-staff: UPDATE nie wybucha (bliźniaczy guard po cichu wycofuje pola)'
 );
 
 RESET ROLE;
 SELECT is(
   (SELECT verified_at FROM public.profiles
-    WHERE id = 'c1000000-0000-0000-0000-0000000000dd'),
+    WHERE id = 'c9000000-0000-0000-0000-0000000000dd'),
   NULL::timestamptz,
-  'samonadanie weryfikacji NIE zostaje zapisane'
-);
-SELECT is(
-  (SELECT verified_by FROM public.profiles
-    WHERE id = 'c1000000-0000-0000-0000-0000000000dd'),
-  NULL::uuid,
-  'samonadanie nie zapisuje takze verified_by'
+  'zwykły użytkownik NIE nadaje sobie weryfikacji'
 );
 
--- ---------------------------------------------------------------------------
--- 3) Editor: staff, wiec warstwa 1. go przepuszcza -> bramka MUSI rzucic 42501
--- ---------------------------------------------------------------------------
+-- ── 7-8. Editor: przechodzi bliźniaczy guard, ale nie ten - twarde 42501 ────
 SET LOCAL ROLE authenticated;
-SELECT set_config(
-  'request.jwt.claims',
-  '{"sub":"c1000000-0000-0000-0000-0000000000cc","role":"authenticated"}',
-  true
-);
+SELECT set_config('request.jwt.claims',
+  '{"sub":"c9000000-0000-0000-0000-0000000000cc","role":"authenticated"}', true);
 
 SELECT throws_ok(
-  $$ UPDATE public.profiles
-        SET verified_at = now(), verified_by = 'c1000000-0000-0000-0000-0000000000cc'
-      WHERE id = 'c1000000-0000-0000-0000-0000000000cc' $$,
-  '42501', NULL,
-  'editor nie nada sobie weryfikacji - bramka odrzuca zmiane glosno'
+  $$ UPDATE public.profiles SET verified_at = now()
+      WHERE id = 'c9000000-0000-0000-0000-0000000000cc' $$,
+  '42501',
+  'profiles: verification fields can only be changed by admin or super_admin',
+  'editor dostaje 42501 z komunikatem bramki (parytet z admin_grant_profile_badge)'
 );
 
 RESET ROLE;
 SELECT is(
   (SELECT verified_at FROM public.profiles
-    WHERE id = 'c1000000-0000-0000-0000-0000000000cc'),
+    WHERE id = 'c9000000-0000-0000-0000-0000000000cc'),
   NULL::timestamptz,
-  'proba editora nie zostawia sladu w danych'
+  'editor nie nadaje sobie weryfikacji'
 );
 
--- ---------------------------------------------------------------------------
--- 4) Admin: nadaje weryfikacje w swoim tenancie
--- ---------------------------------------------------------------------------
+-- ── 9-10. super_admin BEZ roli admin: REGRES 20260806094104 ─────────────────
 SET LOCAL ROLE authenticated;
-SELECT set_config(
-  'request.jwt.claims',
-  '{"sub":"c1000000-0000-0000-0000-0000000000aa","role":"authenticated"}',
-  true
-);
+SELECT set_config('request.jwt.claims',
+  '{"sub":"c9000000-0000-0000-0000-0000000000bb","role":"authenticated"}', true);
 
 SELECT lives_ok(
   $$ UPDATE public.profiles
-        SET verified_at = now(), verified_by = 'c1000000-0000-0000-0000-0000000000aa'
-      WHERE id = 'c1000000-0000-0000-0000-0000000000ee' $$,
-  'admin nadaje weryfikacje'
+        SET verified_at = now(),
+            verified_by = 'c9000000-0000-0000-0000-0000000000bb'
+      WHERE id = 'c9000000-0000-0000-0000-0000000000bb' $$,
+  'super_admin bez roli admin przechodzi bramkę weryfikacji'
 );
 
 RESET ROLE;
-SELECT ok(
-  (SELECT verified_at IS NOT NULL FROM public.profiles
-    WHERE id = 'c1000000-0000-0000-0000-0000000000ee'),
-  'nadanie admina zostaje zapisane'
+SELECT isnt(
+  (SELECT verified_at FROM public.profiles
+    WHERE id = 'c9000000-0000-0000-0000-0000000000bb'),
+  NULL::timestamptz,
+  'super_admin realnie zapisuje pola weryfikacji (regres 20260806094104)'
 );
+
+-- ── 11-12. Admin: zapis w cudzym wierszu tenanta + stempel audytu ───────────
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"c9000000-0000-0000-0000-0000000000aa","role":"authenticated"}', true);
+
+SELECT lives_ok(
+  $$ UPDATE public.profiles
+        SET verified_at = now(),
+            verified_by = 'c9000000-0000-0000-0000-0000000000aa'
+      WHERE id = 'c9000000-0000-0000-0000-0000000000ee' $$,
+  'admin nadaje weryfikację w wierszu członka swojego tenantu'
+);
+
+RESET ROLE;
 SELECT is(
   (SELECT verified_by FROM public.profiles
-    WHERE id = 'c1000000-0000-0000-0000-0000000000ee'),
-  'c1000000-0000-0000-0000-0000000000aa'::uuid,
-  'slad audytowy wskazuje aktora nadania'
+    WHERE id = 'c9000000-0000-0000-0000-0000000000ee'),
+  'c9000000-0000-0000-0000-0000000000aa'::uuid,
+  'verified_by stempluje admina nadającego weryfikację'
 );
 
--- ---------------------------------------------------------------------------
--- 5) Super admin BEZ osobnej roli admin: cofa weryfikacje.
---    REGRESJA 20260806094104 - bramka zawezona do `admin` odbijala go kodem
---    P0001, mimo ze wszystkie bramki-rodzenstwo modulu go przepuszczaja.
--- ---------------------------------------------------------------------------
+-- ── 13. Sankcjonowana furtka synchronizacji domenowej ───────────────────────
+-- `sync_org_verification()` ustawia tę flagę lokalnie na czas własnego UPDATE;
+-- bez niej automat nie mógłby domknąć weryfikacji po potwierdzeniu e-maila
+-- (sesją jest wtedy zwykły użytkownik, nie staff).
 SET LOCAL ROLE authenticated;
-SELECT set_config(
-  'request.jwt.claims',
-  '{"sub":"c1000000-0000-0000-0000-0000000000bb","role":"authenticated"}',
-  true
-);
-
-SELECT lives_ok(
-  $$ UPDATE public.profiles
-        SET verified_at = NULL, verified_by = NULL
-      WHERE id = 'c1000000-0000-0000-0000-0000000000ee' $$,
-  'super_admin bez roli admin cofa weryfikacje (bramka go przepuszcza)'
-);
-
-RESET ROLE;
-SELECT is(
-  (SELECT verified_at FROM public.profiles
-    WHERE id = 'c1000000-0000-0000-0000-0000000000ee'),
-  NULL::timestamptz,
-  'cofniecie przez super_admina zostaje zapisane'
-);
-
--- ---------------------------------------------------------------------------
--- 6) Sciezka synchronizacji domenowej: flaga app.verification_sync przepuszcza
---    zapis bez roli (sync_org_verification ustawia ja transakcyjnie).
--- ---------------------------------------------------------------------------
-SET LOCAL ROLE authenticated;
-SELECT set_config(
-  'request.jwt.claims',
-  '{"sub":"c1000000-0000-0000-0000-0000000000dd","role":"authenticated"}',
-  true
-);
+SELECT set_config('request.jwt.claims',
+  '{"sub":"c9000000-0000-0000-0000-0000000000dd","role":"authenticated"}', true);
 SELECT set_config('app.verification_sync', 'on', true);
 
 SELECT lives_ok(
-  $$ UPDATE public.profiles
-        SET verified_at = now()
-      WHERE id = 'c1000000-0000-0000-0000-0000000000dd' $$,
-  'synchronizacja domenowa (app.verification_sync=on) nie odbija sie od bramki'
+  $$ UPDATE public.profiles SET verified_at = now()
+      WHERE id = 'c9000000-0000-0000-0000-0000000000dd' $$,
+  'furtka app.verification_sync przepuszcza zapis automatu'
 );
 
 SELECT set_config('app.verification_sync', 'off', true);
 RESET ROLE;
 
-SELECT ok(
-  (SELECT verified_at IS NOT NULL FROM public.profiles
-    WHERE id = 'c1000000-0000-0000-0000-0000000000dd'),
-  'zapis synchronizacji domenowej faktycznie ladnie przechodzi do danych'
+-- ── 14-15. Brak sesji (service_role / cron): bramka milczy, pola pinuje
+--          bliźniak - dlatego automat MUSI iść przez furtkę wyżej ────────────
+SELECT set_config('request.jwt.claims', '', true);
+
+SELECT lives_ok(
+  $$ UPDATE public.profiles SET verified_at = now()
+      WHERE id = 'c9000000-0000-0000-0000-0000000000cc' $$,
+  'ścieżka bez auth.uid() nie jest traktowana jak samonadanie (brak 42501)'
 );
 
--- ---------------------------------------------------------------------------
--- 7) Reczna sciezka RPC ma ten sam krag uprawnionych, co bramka triggera.
--- ---------------------------------------------------------------------------
+SELECT is(
+  (SELECT verified_at FROM public.profiles
+    WHERE id = 'c9000000-0000-0000-0000-0000000000cc'),
+  NULL::timestamptz,
+  'bez furtki zapis i tak nie wchodzi (pin bliźniaczego guardu) - kontrakt warstw'
+);
+
+-- ── 16-17. INSERT: wiersz nie rodzi się zweryfikowany ───────────────────────
 SET LOCAL ROLE authenticated;
-SELECT set_config(
-  'request.jwt.claims',
-  '{"sub":"c1000000-0000-0000-0000-0000000000bb","role":"authenticated"}',
-  true
+SELECT set_config('request.jwt.claims',
+  '{"sub":"c9000000-0000-0000-0000-0000000000ff","role":"authenticated"}', true);
+
+SELECT throws_ok(
+  $$ INSERT INTO public.profiles (id, email, display_name, tenant_id, verified_at)
+     VALUES ('c9000000-0000-0000-0000-0000000000ff', 'claim-vg@vg.test', 'Claim VG',
+             'c9111111-1111-1111-1111-111111111111', now()) $$,
+  '42501',
+  'profiles: verification fields can only be changed by admin or super_admin',
+  'self-INSERT z verified_at jest odrzucany (luka zamknięta w 20260806130000)'
 );
 
 SELECT lives_ok(
-  $$ SELECT public.admin_set_profile_verification(
-       'c1000000-0000-0000-0000-0000000000ee', true
-     ) $$,
-  'admin_set_profile_verification dziala dla super_admina (parytet z bramka)'
+  $$ INSERT INTO public.profiles (id, email, display_name, tenant_id)
+     VALUES ('c9000000-0000-0000-0000-0000000000ff', 'claim-vg@vg.test', 'Claim VG',
+             'c9111111-1111-1111-1111-111111111111') $$,
+  'ten sam self-INSERT bez pól weryfikacji przechodzi (bramka nie jest szeroka)'
 );
 
-SELECT set_config(
-  'request.jwt.claims',
-  '{"sub":"c1000000-0000-0000-0000-0000000000cc","role":"authenticated"}',
-  true
-);
-SELECT throws_ok(
+-- ── 18-20. RPC panelu: ten sam zbiór ról co guard ───────────────────────────
+-- Bez parytetu naprawa guardu byłaby martwa: `admin_set_profile_verification`
+-- to jedyna ścieżka zapisu z panelu (src/routes/admin.users.$id.tsx).
+SELECT set_config('request.jwt.claims',
+  '{"sub":"c9000000-0000-0000-0000-0000000000bb","role":"authenticated"}', true);
+
+SELECT lives_ok(
   $$ SELECT public.admin_set_profile_verification(
-       'c1000000-0000-0000-0000-0000000000ee', false
-     ) $$,
-  '42501', NULL,
-  'admin_set_profile_verification odrzuca editora kodem 42501'
+       'c9000000-0000-0000-0000-0000000000cc', true) $$,
+  'super_admin nadaje weryfikację przez RPC panelu'
 );
 
 RESET ROLE;
+SELECT is(
+  (SELECT verified_by FROM public.profiles
+    WHERE id = 'c9000000-0000-0000-0000-0000000000cc'),
+  'c9000000-0000-0000-0000-0000000000bb'::uuid,
+  'RPC stempluje super_admina jako nadającego'
+);
 
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"c9000000-0000-0000-0000-0000000000cc","role":"authenticated"}', true);
+
+SELECT throws_ok(
+  $$ SELECT public.admin_set_profile_verification(
+       'c9000000-0000-0000-0000-0000000000dd', true) $$,
+  '42501',
+  'forbidden: admin role required',
+  'RPC odmawia editorowi z ERRCODE 42501 (nie gołym P0001)'
+);
+
+RESET ROLE;
 SELECT * FROM finish();
 ROLLBACK;

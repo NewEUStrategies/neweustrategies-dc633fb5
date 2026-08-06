@@ -5,6 +5,7 @@
 // agrees on shape and fallbacks.
 import { z } from "zod";
 import { SITE_NAME } from "@/lib/seo/meta";
+import type { RobotsGroup } from "@/lib/seo/robots";
 
 export const SEO_SETTINGS_KEY = "seo";
 
@@ -131,16 +132,22 @@ export function parseSeoSettings(raw: unknown): SeoSettings {
   return parsed.success ? parsed.data : DEFAULT_SEO_SETTINGS;
 }
 
-/** robots.txt directive blocks for the AI-crawler policy. */
-export function aiCrawlerDirectives(settings: SeoSettings): string[] {
-  const lines: string[] = [];
-  const block = (agents: readonly string[]) => {
-    for (const agent of agents) {
-      lines.push(`User-agent: ${agent}`);
-    }
-    lines.push("Disallow: /", "");
-  };
-  if (!settings.ai_search_crawlers_allowed) block(AI_SEARCH_CRAWLERS);
-  if (!settings.ai_training_crawlers_allowed) block(AI_TRAINING_CRAWLERS);
-  return lines;
+/**
+ * Grupy robots.txt wynikające z redakcyjnej polityki crawlerów AI.
+ *
+ * Zwraca STRUKTURY, nie linie tekstu: składanie pliku należy do jednego
+ * buildera (`buildRobotsTxt`), więc format grupy nie może się rozjechać między
+ * polityką AI a resztą pliku. Poprzednia wersja zwracała gotowe linie i - co
+ * ważniejsze - nikt jej nie wołał: przełączniki z `/admin/settings/seo`
+ * nie docierały do robots.txt w ogóle (audyt 2026-08-06).
+ */
+export function aiCrawlerGroups(settings: SeoSettings): RobotsGroup[] {
+  const groups: RobotsGroup[] = [];
+  if (!settings.ai_search_crawlers_allowed) {
+    groups.push({ agents: AI_SEARCH_CRAWLERS, disallow: ["/"] });
+  }
+  if (!settings.ai_training_crawlers_allowed) {
+    groups.push({ agents: AI_TRAINING_CRAWLERS, disallow: ["/"] });
+  }
+  return groups;
 }

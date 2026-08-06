@@ -72,8 +72,30 @@ jobs:
       # i klaster hreflang PL/EN oraz markup schema.org Q&A. Uruchamiany osobno,
       # żeby regresja SEO była widoczna jako własny, nazwany krok w CI (te same
       # findingi wracały wcześniej z audytów zewnętrznych).
+      #
+      # W tym samym kroku jedzie bramka precedencji assetów: plik statyczny z
+      # `public/` nie może przesłaniać trasy serwerowej. Tak umarła cała logika
+      # /robots.txt - zacommitowany `public/robots.txt` wygrywał z workerem, więc
+      # aliasy hostingu były zaproszone do indeksowania, a news sitemap nie była
+      # ogłoszona nigdzie. Testy jednostkowe trasy przechodziły, bo testowały kod,
+      # którego nikt nie wykonywał.
       - name: SEO head + schema contract
-        run: bunx vitest run src/lib/seo/__tests__ src/routes/-sitemap.xml.test.ts
+        run: |
+          bunx vitest run \
+            src/lib/seo/__tests__ \
+            src/routes/-sitemap.xml.test.ts \
+            src/lib/ci/__tests__/staticAssetShadowing.test.ts \
+            src/lib/server/__tests__/robotsPolicy.test.ts
+
+      # Blokująca bramka wdrożeniowa: żaden plik z `public/` nie może przesłonić
+      # trasy. Wrangler wiąże `.output/public/` jako `assets`, a warstwa assetów
+      # odpowiada PRZED workerem - `public/robots.txt` (4 linie, `Allow: /` dla
+      # każdego hosta) przez miesiące unieruchamiał dynamiczną trasę
+      # /robots.txt na produkcji: bez klasyfikacji hostów, bez `X-Robots-Tag` i
+      # bez ogłoszenia news sitemap. Awarii nie widział ŻADEN inny test -
+      # dev-server serwuje trasę normalnie (audyt 2026-08-06, MODUŁ 8).
+      - name: public/ nie przesłania tras
+        run: bun run check:public-assets
 
       # Blokująca bramka i18n: każdy klucz bramkowanych powierzchni (bloki
       # Gutenberga, widgety buildera, raport porównawczy) musi mieć wersję PL
@@ -118,7 +140,6 @@ jobs:
           # come from project secrets in deploy environments.
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://placeholder.supabase.co' }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}
-          VITE_SUPABASE_PROJECT_ID: ${{ secrets.VITE_SUPABASE_PROJECT_ID || 'placeholder' }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://placeholder.supabase.co' }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}
 
@@ -134,6 +155,17 @@ jobs:
       # interactivity) and is invisible to dev mode and unit tests.
       - name: Chunk graph acyclicity
         run: bun run check:chunks
+
+      # Blokująca bramka architektury bundla: żaden ciężki SDK operatora
+      # (Stripe.js + bindingi React) nie może być STATYCZNIE osiągalny z chunku
+      # startowego przeglądarki. `check:bundle` mierzy skutek w kilobajtach i da
+      # się go skompensować cięciem gdzie indziej; ta bramka mierzy PRZYCZYNĘ -
+      # krawędź w grafie chunków - i wskazuje wprost import, który ją złamał.
+      # Regresja 2026-08-06: routes/$.tsx -> Paywall -> EmbeddedCheckoutDialog
+      # -> @stripe/*, przez co każdy anonimowy czytelnik artykułu pobierał SDK
+      # bramki płatniczej (marker js.stripe.com w chunku entry).
+      - name: Client boot path free of payment SDKs
+        run: bun run check:entry-purity
 
       # Blocking: the Prettier backlog was cleared (repo-wide format commit) and
       # all remaining ESLint errors were fixed, so lint now gates merges like
@@ -158,6 +190,22 @@ jobs:
       - name: SQL app_role literal invariant
         run: bun run check:sql-app-role
 
+      # Blocking parity gate: the /admin/permissions matrix is GENERATED from the
+      # authorization gates found in migrations, so a stale snapshot makes the page
+      # lie again - exactly what the hand-written table did before. The script was
+      # in package.json but never wired here, and the snapshot drifted within days:
+      # 20260806094104 silently dropped 'super_admin' from profiles_guard_verification
+      # (has_role matches the role EXACTLY - no hierarchy), and only the unit test
+      # caught it, turning `main` red. Gate it where it belongs.
+      - name: Authorization snapshot parity
+        run: bun run check:authz-snapshot
+
+      # Blocking parity gate for the consumer side of that snapshot: role sets,
+      # dangling references, new enum values and the enforced/decorative flag of
+      # every capability. Complements the snapshot check above (data vs. renderer).
+      - name: Permissions matrix parity
+        run: bun run check:permissions-parity
+
       # Blocking security gate: fails if any table accepts a PERMISSIVE anonymous
       # INSERT (anon/public role + WITH CHECK true), or if an intake table
       # (contact_messages, crm_consent_log, related_post_clicks,
@@ -173,10 +221,20 @@ jobs:
       # the old provider outside comments (import, identifier, string literal,
       # env var, gateway URL) means a code path that talks to a payment operator
       # this project no longer has - it would fail only at runtime, mid-checkout.
+      # Scope now includes .github/ and the root manifests: the most expensive
+      # instance of this defect was a dead PADDLE_* secret in a workflow, which
+      # the src/-and-scripts-only predecessor could never see.
       - name: No live legacy payment-provider references
-        run: bun run check:no-paddle
+        run: bun run check:legacy-payment-refs
 
-
+      # Blocking wiring gate: every env var a workflow exports must have a
+      # reader. Workflow and script are separately valid when the names drift
+      # apart, and both sides tolerate a missing value, so the combination
+      # yields a run that checks nothing and stays green - which is exactly how
+      # the nightly billing probe slept 40 minutes a night against a secret no
+      # script ever read.
+      - name: Workflow env contract (no dead exports)
+        run: bun run check:workflow-env-contract
 
       # Blocking reproducibility gate: can the database still be recreated from
       # migrations? Two classes, both invisible to an incremental `db push` and
@@ -203,6 +261,18 @@ jobs:
       # until its entry is removed, so the list can only shrink.
       - name: SQL owner tenant-scope invariant
         run: bun run check:sql-owner-tenant-scope
+
+      # Blocking freshness gate for the authorization snapshot that feeds the
+      # permission matrix (/admin/permissions). The Vitest parity test compares
+      # the snapshot SEMANTICALLY (gate -> roles), so it stays green while the
+      # generated file drifts in provenance (`file`) and scan `stats` - exactly
+      # what happened when 20260806094104 narrowed profiles_guard_verification
+      # to `admin` outside a PR: the committed snapshot lagged 10 migrations
+      # behind. This step regenerates and diffs byte-for-byte, so any migration
+      # that moves or rewrites a documented gate must ship the regenerated
+      # artifact (`bun run generate:authz-snapshot`) in the same commit.
+      - name: Authorization snapshot freshness
+        run: bun run check:authz-snapshot
 
   # pgTAP: RLS tenant isolation, role management and full-text search run
   # against a real local Postgres (supabase db start applies migrations +

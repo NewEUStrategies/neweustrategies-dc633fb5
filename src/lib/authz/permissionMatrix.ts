@@ -58,6 +58,14 @@ export interface GateSummary {
   /** Nazwy obiektów SQL - to pokazujemy w UI. */
   readonly objects: readonly string[];
   readonly kinds: readonly ("function" | "policy")[];
+  /**
+   * Migracje z OSTATNIĄ (żywą) definicją - równolegle do `refs`. Provenance jest
+   * tu nie dla ozdoby: dryf tego właśnie pola dawał w bramce parytetu komunikat
+   * „bramka rozjechała się" z dwoma identycznymi obiektami, bo diagnostyka
+   * porównywała pole, którego nie drukowała. Audytor widzi teraz na stronie, KTÓRA
+   * migracja jest dziś prawem dla danej bramki.
+   */
+  readonly files: readonly string[];
   /** `any` = alternatywa OR, `all` = twardy warunek, `mixed` = jedno i drugie. */
   readonly mode: "any" | "all" | "mixed" | "none";
   /** Najsłabsze odniesienie do tenanta ze wszystkich bramek wiersza. */
@@ -123,6 +131,33 @@ function tenantRefWeight(ref: TenantRef): number {
   return ref === "caller" ? 2 : ref === "row" ? 1 : 0;
 }
 
+/** Provenance bramki: wersja migracji + data, czytelnie dla człowieka. */
+export interface MigrationProvenance {
+  /** Prefiks wersji (`YYYYMMDDHHMMSS`) albo cała nazwa pliku, gdy nie pasuje. */
+  readonly version: string;
+  /** `2026-08-06` albo null, gdy prefiks nie jest datą (migracje sprzed konwencji). */
+  readonly date: string | null;
+  /** Pełna nazwa pliku - to jest adres, pod który idzie audytor. */
+  readonly file: string;
+}
+
+const MIGRATION_VERSION_RE = /^(\d{4})(\d{2})(\d{2})(\d{6})?(?:_|$)/;
+
+/**
+ * Rozbiera nazwę pliku migracji na wersję i datę. Czysta funkcja (bez i18n i bez
+ * DOM-u), bo tę samą wartość pokazuje UI i mogą czytać raporty.
+ */
+export function migrationProvenance(file: string): MigrationProvenance {
+  const match = MIGRATION_VERSION_RE.exec(file);
+  if (match === null) return { version: file, date: null, file };
+  const [, year, month, day, time] = match;
+  return {
+    version: `${year}${month}${day}${time ?? ""}`,
+    date: `${year}-${month}-${day}`,
+    file,
+  };
+}
+
 function featureFlag(features: unknown, key: string): boolean {
   if (features === null || typeof features !== "object" || Array.isArray(features)) return false;
   return (features as Record<string, unknown>)[key] === true;
@@ -160,6 +195,7 @@ function summarizeGates(gates: readonly RoleGateEntry[]): GateSummary | null {
     refs: gates.map((gate) => gate.ref),
     objects: gates.map((gate) => gate.object),
     kinds: gates.map((gate) => gate.kind),
+    files: gates.map((gate) => gate.file),
     mode: modes.size === 1 ? [...modes][0] : "mixed",
     // Najsłabsze ogniwo decyduje o komunikacie o tenancie.
     tenantRef: gates.reduce<TenantRef>(
@@ -416,6 +452,9 @@ export function filterMatrix(
       row.capability ?? "",
       ...(row.gate?.objects ?? []),
       ...(row.gate?.refs ?? []),
+      // Provenance jest szukalna: „20260806" wyciąga wszystkie bramki, które
+      // zmieniła dzisiejsza delta migracji - dokładnie to pytanie zadaje audyt.
+      ...(row.gate?.files ?? []),
     ]
       .join(" ")
       .toLowerCase();

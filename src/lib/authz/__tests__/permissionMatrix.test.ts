@@ -11,6 +11,7 @@ import {
   buildPermissionMatrix,
   filterMatrix,
   groupRows,
+  migrationProvenance,
   roleActorId,
   rowLabel,
   tierActorId,
@@ -35,7 +36,7 @@ const SNAPSHOT: AuthzSnapshotModule = {
       ref: "fn:admin_list_users/0",
       kind: "function",
       object: "admin_list_users",
-      file: "x.sql",
+      file: "20260703173228_admin_users.sql",
       anyRoles: ["admin", "super_admin"],
       allRoles: [],
       tenantRef: "caller",
@@ -46,7 +47,7 @@ const SNAPSHOT: AuthzSnapshotModule = {
       ref: "fn:is_staff/0",
       kind: "function",
       object: "is_staff",
-      file: "x.sql",
+      file: "20260703173228_admin_users.sql",
       anyRoles: ["admin", "author", "editor"],
       allRoles: [],
       tenantRef: "none",
@@ -57,7 +58,7 @@ const SNAPSHOT: AuthzSnapshotModule = {
       ref: "fn:admin_grant_membership/4",
       kind: "function",
       object: "admin_grant_membership",
-      file: "x.sql",
+      file: "20260703173228_admin_users.sql",
       anyRoles: [],
       allRoles: ["admin"],
       tenantRef: "row",
@@ -71,7 +72,7 @@ const SNAPSHOT: AuthzSnapshotModule = {
       ref: "fn:has_content_access/2",
       kind: "function",
       object: "has_content_access",
-      file: "x.sql",
+      file: "20260703173228_admin_users.sql",
       bypassRoles: [],
       tenantRef: "row",
     },
@@ -80,7 +81,7 @@ const SNAPSHOT: AuthzSnapshotModule = {
       ref: "fn:get_event_access/1",
       kind: "function",
       object: "get_event_access",
-      file: "x.sql",
+      file: "20260703173228_admin_users.sql",
       bypassRoles: ["admin", "editor"],
       tenantRef: "caller",
     },
@@ -89,7 +90,7 @@ const SNAPSHOT: AuthzSnapshotModule = {
       ref: "fn:my_expert_request_quota/0",
       kind: "function",
       object: "my_expert_request_quota",
-      file: "x.sql",
+      file: "20260703173228_admin_users.sql",
       bypassRoles: ["super_admin"],
       tenantRef: "none",
     },
@@ -404,5 +405,49 @@ describe("kompletność tłumaczeń macierzy (PL i EN)", () => {
       const resolved = actorName(actor, "pl", translate);
       expect(resolved.startsWith("adminPermissions."), `kolumna ${actor.id}`).toBe(false);
     }
+  });
+});
+
+describe("provenance bramki (z której migracji pochodzi żywa definicja)", () => {
+  it("rozbiera wersję i datę z nazwy pliku migracji", () => {
+    expect(migrationProvenance("20260806150000_profile_verification_authority.sql")).toEqual({
+      version: "20260806150000",
+      date: "2026-08-06",
+      file: "20260806150000_profile_verification_authority.sql",
+    });
+  });
+
+  it("radzi sobie z plikiem bez części czasowej", () => {
+    expect(migrationProvenance("20260713_people.sql")).toEqual({
+      version: "20260713",
+      date: "2026-07-13",
+      file: "20260713_people.sql",
+    });
+  });
+
+  it("plik poza konwencją zwraca sam siebie (bez zmyślonej daty)", () => {
+    expect(migrationProvenance("seed.sql")).toEqual({
+      version: "seed.sql",
+      date: null,
+      file: "seed.sql",
+    });
+  });
+
+  it("wiersz macierzy nosi provenance swoich bramek", () => {
+    const matrix = buildPermissionMatrix({ tiers: [], snapshot: SNAPSHOT });
+    const row = matrix.rows.find((entry) => entry.gate !== null);
+    expect(row?.gate?.files).toHaveLength(row?.gate?.refs.length ?? 0);
+  });
+
+  it("po nazwie migracji da się wyszukać wiersz (audyt: co zmieniła ta delta)", () => {
+    const matrix = buildPermissionMatrix({ tiers: [], snapshot: SNAPSHOT });
+    const gated = matrix.rows.find((entry) => entry.gate !== null);
+    const needle = gated?.gate?.files[0] ?? "";
+    const { rows } = filterMatrix(
+      matrix,
+      { ...EMPTY_MATRIX_FILTER, query: needle.slice(0, 8) },
+      (row) => row.id,
+    );
+    expect(rows.some((row) => row.id === gated?.id)).toBe(true);
   });
 });

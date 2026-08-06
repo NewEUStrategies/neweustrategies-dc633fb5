@@ -247,6 +247,27 @@ describe("PostLayoutRenderer", () => {
       expect(isBefore(img, header)).toBe(true);
     });
 
+    // Kontrakt utrwalony po usunięciu martwych strażników w komponencie:
+    // preset z okładką BEZ zdjęcia nie renderuje pustej ramki ani siatki 2-kolumnowej,
+    // tylko schodzi do klasycznego nagłówka (headerMode = "no-cover").
+    it("falls back to the classic header when a cover preset has no image (layout-7)", () => {
+      const { container, getByRole } = renderWithQueryClient(
+        <PostLayoutRenderer
+          format="standard"
+          layoutId="layout-7"
+          settings={defaultPostLayoutSettings()}
+          title="Bez okładki"
+          content={<div>Treść</div>}
+        />,
+      );
+      expect(
+        container.querySelector("[data-layout-header]")!.getAttribute("data-layout-header"),
+      ).toBe("no-cover");
+      expect(container.querySelector(".lg\\:grid-cols-2")).toBeNull();
+      expect(container.querySelector("img")).toBeNull();
+      expect(getByRole("heading", { level: 1 }).textContent).toBe("Bez okładki");
+    });
+
     it("drops the excerpt for the no-excerpt preset (layout-1a)", () => {
       const preset = findLayout("standard", "layout-1a");
       expect(preset.showExcerpt).toBe(false);

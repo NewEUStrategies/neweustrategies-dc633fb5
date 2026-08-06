@@ -169,7 +169,6 @@ export function NewsletterPopup() {
     markDismissed();
   };
 
-
   const showcase = s.popup_layout === "showcase";
   const split = s.popup_layout === "split";
   const eyebrow = isPl ? s.popup_eyebrow_pl || "Newsletter" : s.popup_eyebrow_en || "Newsletter";
@@ -196,8 +195,6 @@ export function NewsletterPopup() {
       style={{ backgroundColor: palette.overlay }}
       onClick={close}
     >
-
-
       {showcase ? (
         // Panel showcase w całości pochodzi ze wspólnego komponentu - dokładnie
         // ten sam markup renderuje podgląd w panelu admina.
@@ -297,11 +294,7 @@ export function NewsletterPopup() {
                     {desc}
                   </p>
                 )}
-                <PopupSignupForm
-                  settings={s}
-                  lang={isPl ? "pl" : "en"}
-                  onSuccess={onSuccess}
-                    />
+                <PopupSignupForm settings={s} lang={isPl ? "pl" : "en"} onSuccess={onSuccess} />
               </div>
             </>
           ) : (
@@ -326,11 +319,7 @@ export function NewsletterPopup() {
                 {s.popup_extended_fields ||
                 s.popup_mailing_lists.length > 0 ||
                 s.popup_require_terms ? (
-                  <PopupSignupForm
-                    settings={s}
-                    lang={isPl ? "pl" : "en"}
-                    onSuccess={onSuccess}
-                        />
+                  <PopupSignupForm settings={s} lang={isPl ? "pl" : "en"} onSuccess={onSuccess} />
                 ) : (
                   <NewsletterForm lang={isPl ? "pl" : "en"} source="popup" variant="inline" />
                 )}

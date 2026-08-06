@@ -61,7 +61,10 @@ describe("googleSourceBadge config", () => {
     expect(isBadgeVisible(cfg(), "desktop")).toBe(true);
     expect(isBadgeVisible(cfg({ enabled: false }), "desktop")).toBe(false);
     expect(
-      isBadgeVisible(cfg({ mobile: { ...GOOGLE_SOURCE_BADGE_DEFAULTS.mobile, enabled: false } }), "mobile"),
+      isBadgeVisible(
+        cfg({ mobile: { ...GOOGLE_SOURCE_BADGE_DEFAULTS.mobile, enabled: false } }),
+        "mobile",
+      ),
     ).toBe(false);
   });
 });

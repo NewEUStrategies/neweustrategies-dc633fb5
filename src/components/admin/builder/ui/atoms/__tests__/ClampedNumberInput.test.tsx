@@ -41,7 +41,14 @@ describe("ClampedNumberInput", () => {
   it("zatwierdza pustą wartość, gdy allowEmpty", () => {
     const onCommit = vi.fn();
     render(
-      <ClampedNumberInput value={200} min={0} max={2000} allowEmpty ariaLabel="h" onCommit={onCommit} />,
+      <ClampedNumberInput
+        value={200}
+        min={0}
+        max={2000}
+        allowEmpty
+        ariaLabel="h"
+        onCommit={onCommit}
+      />,
     );
     const input = screen.getByLabelText("h") as HTMLInputElement;
     fireEvent.focus(input);

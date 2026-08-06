@@ -14,7 +14,6 @@ function cssAttributeValue(value: string): string {
     .replace(/[\n\r\f]/g, "\\a ");
 }
 
-
 /** Najmniejszy rozmiar, jaki ma sens dla realnego tekstu (px). */
 const MIN_READABLE_FONT_PX = 6;
 
@@ -173,9 +172,7 @@ function buildWidgetTypographyRules(
 
   const fontFamily = cleanCssValue(typography.fontFamily);
   const fontSize = cleanCssValue(pickFontSize(typography.fontSize, device));
-  const descriptionFontSize = cleanCssValue(
-    pickFontSize(typography.descriptionFontSize, device),
-  );
+  const descriptionFontSize = cleanCssValue(pickFontSize(typography.descriptionFontSize, device));
   const fontWeight = cleanCssValue(typography.fontWeight);
   const lineHeight = cleanCssValue(typography.lineHeight);
   const letterSpacing = cleanCssValue(typography.letterSpacing);

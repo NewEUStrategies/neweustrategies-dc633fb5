@@ -7,19 +7,27 @@
 // (vs zapisy w seedach), stan końcowy funkcji i żywotność polityk RLS.
 import { describe, expect, it } from "vitest";
 import {
+  collectAuthzSnapshotDrift,
   deriveAppRoles,
   deriveAuthzSnapshot,
   deriveLivePolicies,
   diffAuthzSnapshots,
+  formatAuthzDriftReport,
   gateEffectiveRoles,
   gateMode,
   gatedFeatureKeys,
+  hasAuthorizationDrift,
   renderAuthzSnapshotModule,
   selectAuthzSnapshot,
   splitSqlStatements,
   type AuthzFunctionInput,
   type AuthzGateSource,
 } from "@/lib/ci/authzGates";
+import type {
+  AuthzSnapshotModule,
+  FeatureGateEntry,
+  RoleGateEntry,
+} from "@/lib/authz/authzSnapshotTypes";
 
 const ENUM_SQL = {
   file: "0001_roles.sql",
@@ -90,9 +98,12 @@ describe("literały ról w bramkach", () => {
   });
 
   it("odsiewa literał, którego nie ma w enumie", () => {
-    const snapshot = deriveAuthzSnapshot(
-      source([fn("stale", "SELECT public.has_role(auth.uid(), 'tenant_admin')")]),
-    );
+    // NEGATYWNA próbka parsera: 'tenant_admin' jest tu celowo spoza enuma - ten
+    // test dowodzi, że parser go odsiewa, czyli broni dokładnie tej regresji,
+    // dla której istnieje `check:sql-app-role`. Fixture nigdy nie dociera do
+    // bazy, więc nie podlega inwariantowi runtime'owemu - stąd zwolnienie.
+    const staleGate = "SELECT public.has_role(auth.uid(), 'tenant_admin')"; // app-role-literal-exempt
+    const snapshot = deriveAuthzSnapshot(source([fn("stale", staleGate)]));
     expect(snapshot.roleGates).toEqual([]);
   });
 });
@@ -324,65 +335,255 @@ describe("zaznaczenie i render snapshotu", () => {
       before,
       selectAuthzSnapshot(after, { roleGateRefs: ["fn:admin_list_users/0"] }),
     );
-    expect(problems).toHaveLength(1);
+    // Zmiana uprawnień jest PIERWSZA (sortowanie po wadze), a dryf metryk skanu
+    // (inna liczba funkcji w źródle) dochodzi jako provenance.
     expect(problems[0]).toContain("fn:admin_list_users/0");
+    expect(problems[0]).toContain("krąg uprawnionych");
     expect(problems[0]).toContain("super_admin");
-    // Komunikat pokazuje TYLKO pole, które się zmieniło - bez tego czytelnik
-    // dostawał cztery pola, z których trzy były identyczne.
     expect(problems[0]).toContain("anyRoles");
-    expect(problems[0]).not.toContain("tenantRef");
   });
 
-  // REGRESJA (audyt 2026-08-06, korekta 3): przeniesienie definicji bramki do
-  // nowej migracji zmienia tylko `file`, ale porównanie leci po całym obiekcie.
-  // Komunikat drukował wtedy cztery pola rolowo-tenantowe - identyczne po obu
-  // stronach - czyli "rozjechała się: {A} vs {A}". Dowód zaprzeczał tezie.
-  it("przeniesienie definicji do innej migracji raportuje proweniencję, nie identyczne obiekty", () => {
+  it("identyczne snapshoty nie generują ani jednego komunikatu", () => {
+    const same = selectAuthzSnapshot(built, { roleGateRefs: ["fn:admin_list_users/0"] });
+    expect(diffAuthzSnapshots(same, same)).toEqual([]);
+  });
+
+  it("przeniesienie definicji do nowszej migracji raportuje provenance, nie uprawnienia", () => {
+    // Dokładnie regres z audytu 2026-08-06: zbiór rol się nie zmienił, zmienił
+    // się plik z ostatnią żywą definicją - stary komunikat drukował dwa
+    // identyczne obiekty i zaprzeczał własnej tezie.
     const before = selectAuthzSnapshot(built, { roleGateRefs: ["fn:admin_list_users/0"] });
-    const moved = deriveAuthzSnapshot({
-      functions: [
+    const moved = deriveAuthzSnapshot(
+      source([
         {
-          key: "public.admin_list_users/0",
-          name: "public.admin_list_users",
+          ...fn("admin_list_users", "SELECT public.has_role(auth.uid(),'admin')"),
           file: "0009_przeniesione.sql",
-          body: "SELECT public.has_role(auth.uid(),'admin')",
-          attrs: "LANGUAGE sql STABLE SECURITY DEFINER",
         },
-      ],
-      migrations: [ENUM_SQL],
-    });
+      ]),
+    );
     const problems = diffAuthzSnapshots(
       before,
       selectAuthzSnapshot(moved, { roleGateRefs: ["fn:admin_list_users/0"] }),
     );
     expect(problems).toHaveLength(1);
-    expect(problems[0]).toContain("proweniencja");
+    expect(problems[0]).toContain("provenance");
     expect(problems[0]).toContain("0009_przeniesione.sql");
-    // Zbiór ról się nie zmienił, więc NIE MA go w komunikacie.
     expect(problems[0]).not.toContain("anyRoles");
   });
+});
 
-  it("zmiana ról i proweniencji naraz wypisuje oba pola", () => {
-    const before = selectAuthzSnapshot(built, { roleGateRefs: ["fn:admin_list_users/0"] });
-    const both = deriveAuthzSnapshot({
-      functions: [
-        {
-          key: "public.admin_list_users/0",
-          name: "public.admin_list_users",
-          file: "0009_przeniesione.sql",
-          body:
-            "SELECT public.has_role(auth.uid(),'admin')" +
-            " OR public.has_role(auth.uid(),'super_admin')",
-          attrs: "LANGUAGE sql STABLE SECURITY DEFINER",
-        },
-      ],
-      migrations: [ENUM_SQL],
-    });
-    const [problem] = diffAuthzSnapshots(
-      before,
-      selectAuthzSnapshot(both, { roleGateRefs: ["fn:admin_list_users/0"] }),
+// ---------------------------------------------------------------------------
+// Diagnostyka dryfu: dowód MUSI zgadzać się z tezą
+// ---------------------------------------------------------------------------
+//
+// REGRESJA, KTÓRĄ TU PRZYBIJAMY: poprzednia diagnostyka porównywała cały obiekt
+// bramki, a drukowała cztery wybrane pola - więc dryf pola `file` dawał komunikat
+// „bramka rozjechała się: {A} vs {A}" z dwoma IDENTYCZNYMI obiektami i wrzucała
+// przeniesioną definicję do jednego worka z realnym zawężeniem uprawnień.
+describe("dryf snapshotu bramek", () => {
+  const gate = (over: Partial<RoleGateEntry> = {}): RoleGateEntry => ({
+    ref: "fn:profiles_guard_verification/0",
+    kind: "function",
+    object: "profiles_guard_verification",
+    file: "20260805122338_stary.sql",
+    anyRoles: ["admin", "super_admin"],
+    allRoles: [],
+    tenantRef: "none",
+    securityDefiner: true,
+    featureKeys: [],
+    ...over,
+  });
+
+  const featureGate = (over: Partial<FeatureGateEntry> = {}): FeatureGateEntry => ({
+    capability: "premium_content",
+    ref: "fn:has_content_access/2",
+    kind: "function",
+    object: "has_content_access",
+    file: "20260723090000_tier.sql",
+    bypassRoles: ["admin"],
+    tenantRef: "caller",
+    ...over,
+  });
+
+  const snapshot = (
+    roleGates: readonly RoleGateEntry[],
+    featureGates: readonly FeatureGateEntry[] = [],
+  ): AuthzSnapshotModule => ({
+    appRoles: ["admin", "author", "editor", "super_admin", "user"],
+    roleGates,
+    featureGates,
+    stats: { migrations: 10, functions: 5, policies: 3 },
+  });
+
+  it("zgodny snapshot nie produkuje ŻADNEGO wpisu", () => {
+    expect(collectAuthzSnapshotDrift(snapshot([gate()]), snapshot([gate()]))).toEqual([]);
+    expect(diffAuthzSnapshots(snapshot([gate()]), snapshot([gate()]))).toEqual([]);
+  });
+
+  it("dryf SAMEGO pola `file` to provenance - bez tezy o zmianie uprawnień", () => {
+    const drift = collectAuthzSnapshotDrift(
+      snapshot([gate()]),
+      snapshot([gate({ file: "20260806150000_nowy.sql" })]),
     );
-    expect(problem).toContain("anyRoles");
-    expect(problem).toContain("proweniencja");
+
+    expect(drift).toHaveLength(1);
+    expect(drift[0].severity).toBe("provenance");
+    expect(drift[0].kind).toBe("gate_changed");
+    expect(drift[0].fields.map((field) => field.field)).toEqual(["file"]);
+    // Komunikat pokazuje OBIE wartości pola, które się różni (dowód = teza),
+    // i nie twierdzi, że ktokolwiek zyskał albo stracił dostęp.
+    expect(drift[0].message).toContain("20260805122338_stary.sql");
+    expect(drift[0].message).toContain("20260806150000_nowy.sql");
+    expect(drift[0].message).not.toContain("krąg uprawnionych");
+    expect(hasAuthorizationDrift(drift)).toBe(false);
+  });
+
+  it("zawężenie zbioru ról to dryf uprawnień z nazwanym polem", () => {
+    const drift = collectAuthzSnapshotDrift(
+      snapshot([gate()]),
+      snapshot([gate({ anyRoles: ["admin"] })]),
+    );
+
+    expect(drift).toHaveLength(1);
+    expect(drift[0].severity).toBe("authorization");
+    expect(drift[0].fields).toEqual([
+      {
+        field: "anyRoles",
+        severity: "authorization",
+        committed: "[admin, super_admin]",
+        derived: "[admin]",
+      },
+    ]);
+    expect(drift[0].message).toContain("krąg uprawnionych");
+    expect(hasAuthorizationDrift(drift)).toBe(true);
+  });
+
+  it("zmiana warunku bez zmiany ról NIE jest opisana jako zmiana kręgu uprawnionych", () => {
+    const drift = collectAuthzSnapshotDrift(
+      snapshot([gate()]),
+      snapshot([gate({ tenantRef: "caller" })]),
+    );
+
+    expect(drift[0].severity).toBe("authorization");
+    expect(drift[0].message).toContain("warunki dostępu");
+    expect(drift[0].message).toContain("tenantRef: none -> caller");
+  });
+
+  it("uprawnienia i provenance w jednym wpisie: waga bierze GORSZĄ, komunikat oba pola", () => {
+    const drift = collectAuthzSnapshotDrift(
+      snapshot([gate()]),
+      snapshot([gate({ anyRoles: ["admin"], file: "20260806150000_nowy.sql" })]),
+    );
+
+    expect(drift).toHaveLength(1);
+    expect(drift[0].severity).toBe("authorization");
+    expect(drift[0].fields.map((field) => field.field)).toEqual(["anyRoles", "file"]);
+  });
+
+  it("KAŻDE pole bramki jest porównywane (inaczej dryf przechodzi w ciszy)", () => {
+    const mutations: ReadonlyArray<{ field: string; over: Partial<RoleGateEntry> }> = [
+      { field: "anyRoles", over: { anyRoles: ["admin"] } },
+      { field: "allRoles", over: { allRoles: ["admin"] } },
+      { field: "tenantRef", over: { tenantRef: "row" } },
+      { field: "securityDefiner", over: { securityDefiner: false } },
+      { field: "featureKeys", over: { featureKeys: ["premium_content"] } },
+      { field: "kind", over: { kind: "policy" } },
+      { field: "object", over: { object: "inna_nazwa" } },
+      { field: "file", over: { file: "20260806150000_nowy.sql" } },
+    ];
+    // Lista pokrywa CAŁY kontrakt bramki poza `ref` (kluczem porównania) - gdyby
+    // doszło nowe pole, `Record<Exclude<keyof RoleGateEntry, "ref">, …>` w
+    // authzGates.ts nie skompiluje się bez klasyfikacji, a ten test bez wpisu.
+    expect(mutations.map((mutation) => mutation.field).sort()).toEqual(
+      Object.keys(gate())
+        .filter((key) => key !== "ref")
+        .sort(),
+    );
+
+    for (const { field, over } of mutations) {
+      const drift = collectAuthzSnapshotDrift(snapshot([gate()]), snapshot([gate(over)]));
+      expect(drift, `pole ${field} nie jest porównywane`).toHaveLength(1);
+      expect(drift[0].fields.map((entry) => entry.field)).toEqual([field]);
+    }
+  });
+
+  it("bramka, która zniknęła / doszła, jest dryfem uprawnień", () => {
+    const removed = collectAuthzSnapshotDrift(snapshot([gate()]), snapshot([]));
+    expect(removed[0].kind).toBe("gate_removed");
+    expect(removed[0].severity).toBe("authorization");
+
+    const added = collectAuthzSnapshotDrift(snapshot([]), snapshot([gate()]));
+    expect(added[0].kind).toBe("gate_added");
+    expect(added[0].severity).toBe("authorization");
+  });
+
+  it("bramka flagi warstwy: zmiana bypassu stafowego przestaje być niewidoczna", () => {
+    const drift = collectAuthzSnapshotDrift(
+      snapshot([], [featureGate()]),
+      snapshot([], [featureGate({ bypassRoles: ["admin", "editor"] })]),
+    );
+
+    expect(drift).toHaveLength(1);
+    expect(drift[0].kind).toBe("feature_gate_changed");
+    expect(drift[0].severity).toBe("authorization");
+    expect(drift[0].message).toContain("premium_content|fn:has_content_access/2");
+    expect(drift[0].message).toContain("bypassRoles: [admin] -> [admin, editor]");
+  });
+
+  it("starszy skan migracji jest raportowany (bramka bajtowa i test parytetu mówią to samo)", () => {
+    const stale: AuthzSnapshotModule = {
+      ...snapshot([gate()]),
+      stats: { migrations: 612, functions: 545, policies: 504 },
+    };
+    const drift = collectAuthzSnapshotDrift(stale, snapshot([gate()]));
+
+    expect(drift).toHaveLength(1);
+    expect(drift[0].kind).toBe("stats");
+    expect(drift[0].severity).toBe("provenance");
+    expect(drift[0].message).toContain("migrations: 612 -> 10");
+  });
+
+  it("enum app_role liczy się jako dryf uprawnień", () => {
+    const drift = collectAuthzSnapshotDrift(snapshot([gate()]), {
+      ...snapshot([gate()]),
+      appRoles: ["admin", "author", "editor", "super_admin"],
+    });
+
+    expect(drift[0].kind).toBe("app_roles");
+    expect(drift[0].severity).toBe("authorization");
+    expect(drift[0].message).toContain("user");
+  });
+
+  it("raport dla CI rozdziela sekcje i stawia uprawnienia PRZED provenance", () => {
+    const drift = collectAuthzSnapshotDrift(
+      snapshot([gate(), gate({ ref: "fn:inna/0", object: "inna" })]),
+      snapshot([
+        gate({ anyRoles: ["admin"] }),
+        gate({ ref: "fn:inna/0", object: "inna", file: "20260806150000_nowy.sql" }),
+      ]),
+    );
+    const report = formatAuthzDriftReport(drift);
+
+    expect(report.indexOf("ZMIANA UPRAWNIEŃ")).toBeGreaterThan(-1);
+    expect(report.indexOf("ZMIANA UPRAWNIEŃ")).toBeLessThan(report.indexOf("PROVENANCE"));
+    expect(report).toContain("generate:authz-snapshot");
+    expect(formatAuthzDriftReport([])).toContain("zgadza się");
+  });
+
+  // Regresja 2026-08-06: bramka padała na mainie z komunikatem
+  // „snapshot {X} vs migracje {X}" - z DWIEMA IDENTYCZNYMI wartościami, bo
+  // porównywała cały obiekt, a drukowała tylko cztery wybrane pola. Rozjazd
+  // dotyczył `file` (funkcję przedefiniowała nowsza migracja), którego komunikat
+  // w ogóle nie pokazywał.
+  it("nazywa pole, które się zmieniło - także spoza zbioru ról", () => {
+    const before = selectAuthzSnapshot(built, { roleGateRefs: ["fn:admin_list_users/0"] });
+    const movedFile = {
+      ...before,
+      roleGates: before.roleGates.map((gate) => ({ ...gate, file: "20990101000000_inna.sql" })),
+    };
+    const problems = diffAuthzSnapshots(before, movedFile);
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain("file");
+    expect(problems[0]).toContain("20990101000000_inna.sql");
   });
 });

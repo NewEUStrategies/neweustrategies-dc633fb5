@@ -18,7 +18,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { getStripeEnvironmentSafe } from "@/lib/stripe";
 import { useCheckout } from "@/hooks/useCheckout";
-import { EmbeddedCheckoutDialog } from "@/components/checkout/EmbeddedCheckoutDialog";
+import { LazyEmbeddedCheckoutDialog } from "@/components/checkout/LazyEmbeddedCheckoutDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { BILLING_CATALOG } from "@/lib/billing/catalog";
 import { getPaymentsDiagnostics, syncCouponsToProvider } from "@/lib/billing/diagnostics.functions";
@@ -151,7 +151,7 @@ export function AdminPaymentsDiagnosticsPanel() {
 
   return (
     <div className="space-y-4">
-      <EmbeddedCheckoutDialog
+      <LazyEmbeddedCheckoutDialog
         clientSecret={checkoutSecret}
         onOpenChange={(open) => {
           if (!open) setCheckoutSecret(null);

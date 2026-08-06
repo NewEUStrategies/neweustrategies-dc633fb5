@@ -1,14 +1,32 @@
 name: Rozliczenia (nocna sonda odnowienia i dunningu)
 
 # Odnowienie subskrypcji i ścieżka nieudanej płatności to jedyne części lejka,
-# których nie da się sprawdzić klikając checkout. Przebieg przesuwa datę
-# kolejnego obciążenia w środowisku TESTOWYM operatora, czeka na naliczenie
-# i weryfikuje, że okres rozliczeniowy oraz transakcja faktycznie powstały.
+# których nie da się sprawdzić klikając checkout. Przebieg przesuwa Test Clock
+# w sandboxie Stripe, ODPYTUJE go do skutku i weryfikuje, że powstała nowa
+# faktura cykliczna, okres poszedł do przodu, a stan faktury jest spójny ze
+# stanem subskrypcji.
+#
+# HISTORIA TEGO PLIKU (nie usuwać - to uzasadnienie trybu ścisłego):
+# do 2026-08 job eksportował sekret pod nazwą poprzedniego operatora płatności,
+# podczas gdy sonda czytała STRIPE_SANDBOX_API_KEY. Skutek: co dobę 40 minut
+# `sleep`, zielony wynik i zero żądań do operatora. Dlatego przebieg
+# z harmonogramu działa teraz w trybie ścisłym - pominięta weryfikacja jest
+# BŁĘDEM, a nie ostrzeżeniem.
 #
 # Konfiguracja (Settings -> Secrets and variables -> Actions):
-#   secrets.PADDLE_SANDBOX_API_KEY
+#   secrets.STRIPE_SANDBOX_API_KEY
 #   secrets.LOVABLE_API_KEY
-# Bez nich przebieg kończy się zielono z ostrzeżeniem.
+#
+# UWAGA (naprawa 06.08): workflow eksportował `PADDLE_SANDBOX_API_KEY`, a skrypt
+# czyta `STRIPE_SANDBOX_API_KEY` od czasu migracji na Stripe. `keys()` zwracało
+# więc zawsze null i przebieg kończył się ZIELONO po 40 minutach snu - „sonda
+# nieskonfigurowana" była nieodróżnialna od „rozliczenia działają". Dlatego:
+#   * nazwa sekretu zgodna ze skryptem,
+#   * na przebiegu z HARMONOGRAMU brak sekretów jest BŁĘDEM (PROBE_REQUIRE_CONFIG),
+#     bo cicho wyłączona jedyna weryfikacja odnowienia jest gorsza niż czerwony job;
+#     ręczne uruchomienie (fork, świeży klon) nadal tylko ostrzega,
+#   * ślepy `sleep` zastąpiony odpytywaniem Test Clocka - przebieg kończy się,
+#     gdy Stripe skończy przeliczać, zamiast palić 40 minut runnera codziennie.
 
 on:
   schedule:
@@ -26,15 +44,22 @@ permissions:
 jobs:
   renewal:
     name: Odnowienie i dunning (środowisko testowe)
-    if: github.event_name != 'schedule' || github.repository_owner == 'NewEUStrategies'
+    # Wyłącznik jest JAWNY (repository variable), bo alternatywa - cicha zielona
+    # sonda przy braku sekretów - jest dokładnie tym, co ten plik naprawia.
+    if: >-
+      vars.BILLING_PROBE_DISABLED != '1' &&
+      (github.event_name != 'schedule' || github.repository_owner == 'NewEUStrategies')
     runs-on: ubuntu-latest
-    # Operator nie pozwala przesunąć obciążenia bliżej niż 30 minut, więc
-    # przebieg musi mieć zapas na oczekiwanie plus weryfikację.
-    timeout-minutes: 55
+    # Czekanie na Test Clock jest odpytywaniem z twardym terminem
+    # (PROBE_WAIT_TIMEOUT_S), więc typowy przebieg trwa minuty, nie 40 minut.
+    # Limit joba jest zapasem nad tym terminem, nie planowanym czasem trwania.
+    timeout-minutes: 30
     env:
-      PADDLE_SANDBOX_API_KEY: ${{ secrets.PADDLE_SANDBOX_API_KEY }}
+      STRIPE_SANDBOX_API_KEY: ${{ secrets.STRIPE_SANDBOX_API_KEY }}
       LOVABLE_API_KEY: ${{ secrets.LOVABLE_API_KEY }}
       PROBE_STATE_FILE: ${{ github.workspace }}/billing-renewal-probe.json
+      # Nocny przebieg to monitoring produkcyjny - brak sekretów ma być czerwony.
+      PROBE_REQUIRE_CONFIG: ${{ github.event_name == 'schedule' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -42,12 +67,22 @@ jobs:
         with:
           bun-version: "1.2.23"
 
-      - name: Przesuń datę kolejnego obciążenia
+      - name: Przesuń Test Clock za koniec okresu
+        id: arm
         run: bun scripts/billing-renewal-probe.ts arm
 
+      # Odpytywanie Test Clocka z warunkiem wyjścia (sufit 40 min, próba co 30 s).
       - name: Poczekaj na naliczenie
-        run: |
-          for i in $(seq 1 40); do sleep 60; done
+        run: bun scripts/billing-renewal-probe.ts wait
 
       - name: Zweryfikuj odnowienie i dunning
+        if: steps.arm.outputs.outcome == 'armed'
         run: bun scripts/billing-renewal-probe.ts verify
+
+      - name: Zachowaj raport sondy
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: billing-renewal-probe
+          path: reports/billing-renewal-probe.json
+          if-no-files-found: ignore

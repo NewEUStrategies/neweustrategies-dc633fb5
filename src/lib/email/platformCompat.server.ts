@@ -28,9 +28,8 @@ export async function forwardToPlatformRoute(
 
   // Ciało czytamy jako bajty: żadnego parsowania i re-serializacji, inaczej
   // podpis nad ciałem przestałby się zgadzać.
-  const body = request.method === "GET" || request.method === "HEAD"
-    ? undefined
-    : await request.arrayBuffer();
+  const body =
+    request.method === "GET" || request.method === "HEAD" ? undefined : await request.arrayBuffer();
 
   const headers = new Headers(request.headers);
   // Host docelowy jest ten sam (self-subrequest), ale `content-length` musi
