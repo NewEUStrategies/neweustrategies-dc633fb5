@@ -119,8 +119,11 @@ export function PostExcerptView({
         <>
           {" "}
           <AppLink href={`/post/${ctx.slug}`} className="text-primary hover:underline">
-            {lang === "en" ? "Read more" : "Czytaj dalej"}
+            {lang === "en"
+              ? `Read the full analysis: ${ctx.title_en ?? ctx.title_pl ?? ""}`.trim()
+              : `Przeczytaj całą analizę: ${ctx.title_pl ?? ctx.title_en ?? ""}`.trim()}
           </AppLink>
+
         </>
       )}
     </p>
