@@ -6972,8 +6972,8 @@ html {
   position: absolute;
   left: 0;
   bottom: 99%;
-  width: 12.6em;
-  height: 3em;
+  width: 8em;
+  height: 1.8em;
   background-color: var(--mbb-bg);
   color: var(--mbb-border-color);
   pointer-events: none;
