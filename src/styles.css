@@ -6497,7 +6497,10 @@ header[data-site-header][data-metrics="ready"].site-header-shrink {
 header[data-site-header][data-metrics="ready"].site-header-shrink .site-header-chrome {
   transform: scale(var(--hdr-scale));
   transform-origin: top center;
-  will-change: transform;
+  /* Bez will-change: przy trwale promowanej warstwie przeglądarka rasteryzuje
+     treść raz (w skali 1) i tylko ją rozciąga, przez co logo, awatary i tekst
+     w zwiniętym headerze robią się miękkie. Bez tej podpowiedzi kompozytor
+     przerysowuje warstwę w docelowej skali - ostro. */
 }
 
 /* Trending ticker ("na czasie") zwija się razem z resztą, po tej samej krzywej
