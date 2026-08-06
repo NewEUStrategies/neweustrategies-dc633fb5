@@ -6094,6 +6094,7 @@ export type Database = {
           enabled_connection: boolean
           enabled_content: boolean
           enabled_crm_task: boolean
+          enabled_expert_request: boolean
           enabled_follow: boolean
           enabled_message: boolean
           enabled_saved_search: boolean
@@ -6122,6 +6123,7 @@ export type Database = {
           enabled_connection?: boolean
           enabled_content?: boolean
           enabled_crm_task?: boolean
+          enabled_expert_request?: boolean
           enabled_follow?: boolean
           enabled_message?: boolean
           enabled_saved_search?: boolean
@@ -6150,6 +6152,7 @@ export type Database = {
           enabled_connection?: boolean
           enabled_content?: boolean
           enabled_crm_task?: boolean
+          enabled_expert_request?: boolean
           enabled_follow?: boolean
           enabled_message?: boolean
           enabled_saved_search?: boolean
@@ -13736,12 +13739,16 @@ export type Database = {
         Args: { _experiment_id: string }
         Returns: boolean
       }
-      is_expert_user: { Args: { _uid: string }; Returns: boolean }
+      is_expert_user:
+        | { Args: { _uid: string }; Returns: boolean }
+        | { Args: { _tenant: string; _uid: string }; Returns: boolean }
       is_form_field_active: {
         Args: { _field: string; _form_type: string; _tenant: string }
         Returns: boolean
       }
-      is_gated_recipient: { Args: { _uid: string }; Returns: boolean }
+      is_gated_recipient:
+        | { Args: { _uid: string }; Returns: boolean }
+        | { Args: { _tenant: string; _uid: string }; Returns: boolean }
       is_org_owner: { Args: { p_org: string }; Returns: boolean }
       is_staff: { Args: never; Returns: boolean }
       is_super_admin: { Args: { _user_id?: string }; Returns: boolean }
@@ -13749,7 +13756,9 @@ export type Database = {
         Args: { _conv: string; _user: string }
         Returns: boolean
       }
-      is_vip_user: { Args: { _uid: string }; Returns: boolean }
+      is_vip_user:
+        | { Args: { _uid: string }; Returns: boolean }
+        | { Args: { _tenant: string; _uid: string }; Returns: boolean }
       job_runner_autoarm: { Args: never; Returns: boolean }
       job_runner_base_url: { Args: never; Returns: string }
       job_scheduler_health: { Args: never; Returns: Json }
