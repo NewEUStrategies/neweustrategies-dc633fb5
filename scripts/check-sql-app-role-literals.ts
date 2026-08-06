@@ -30,6 +30,8 @@ import { stripTsComments } from "./lib/stripComments";
 /** Poza migracjami (tam liczy sie stan koncowy funkcji) skanujemy pgTAP i klienta. */
 const SCAN_DIRS = ["supabase/tests", "src"] as const;
 const SCAN_EXTENSIONS = [".sql", ".ts", ".tsx"] as const;
+/** Katalogi wyłączone ze skanu (artefakty builda, cache). */
+const SCAN_EXCLUDED_DIRS: readonly string[] = [".output", "dist", "node_modules"];
 
 /**
  * Katalogi testow jednostkowych TS sa POZA skanem: fixture negatywny musi moc
