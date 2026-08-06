@@ -6829,25 +6829,25 @@ html {
   padding: 6px;
   list-style: none;
 }
-/* Marker: wypełniona płytka pod aktywną pozycją. Promień dziedziczy po pasku
-   (6 px), ale nigdy nie przekracza jego wnętrza - stąd min() z połową
-   wysokości. Szerokość ustawia JS z faktycznego wymiaru pozycji. */
+/* Marker: CIENKA LINIA nad aktywną pozycją - jedyny element, który niesie
+   kolor pozycji. Świadomie NIE ma wypełnionej płytki ani poświaty pod ikoną:
+   tło pod ikonami rozmywało kontur glifu i konkurowało z treścią strony.
+   Szerokość ustawia JS z faktycznego wymiaru pozycji. */
 .mbb__marker {
   position: absolute;
-  top: 4px;
-  bottom: 4px;
+  top: 2px;
   left: 0;
+  height: 2px;
   width: 0;
-  border-radius: min(var(--mbb-radius, 6px), 12px);
-  background: color-mix(in oklab, var(--mbb-active, var(--brand)) 12%, transparent);
+  border-radius: 2px;
+  background: var(--mbb-active, var(--brand));
   transition:
-    transform 0.4s cubic-bezier(0.4, 0.6, 0.3, 1.2),
-    background-color 0.25s ease,
+    transform 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.3s ease,
     opacity 0.2s ease;
   pointer-events: none;
-}
-.dark .mbb__marker {
-  background: color-mix(in oklab, var(--mbb-active, var(--brand)) 20%, transparent);
+  will-change: transform;
 }
 /* Przed pomiarem oraz na trasach spoza paska marker nie ma sensownej pozycji. */
 .mbb[data-ready="false"] .mbb__marker {
@@ -6877,7 +6877,8 @@ html {
   -webkit-tap-highlight-color: transparent;
   transition:
     color 0.25s ease,
-    transform 0.35s cubic-bezier(0.4, 0.6, 0.3, 1.2);
+    opacity 0.25s ease,
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .dark .mbb__link {
   color: var(--mbb-icon-dark, #9aa3b2);
@@ -6886,12 +6887,21 @@ html {
   outline: 2px solid var(--mbb-active, var(--brand));
   outline-offset: -2px;
 }
+/* Kolor tekstu i ikon jest JEDNOLITY dla wszystkich pozycji - aktywną wyróżnia
+   wyłącznie linia markera oraz nieco mocniejszy kontrast. */
 .mbb__item[data-active="true"] .mbb__link {
-  color: var(--mbb-active, var(--brand));
+  color: var(--foreground);
+}
+.mbb__item[data-active="true"] .mbb__icon {
+  transform: translateY(-1px);
+}
+.mbb__icon {
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .mbb__link:active {
-  transform: scale(0.94);
+  transform: scale(0.96);
 }
+
 /* Kotwica dla licznika: badge jest pozycjonowany względem samej ikony, nie
    całego linku, więc nie przesuwa etykiety ani nie zmienia wysokości paska. */
 .mbb__iconwrap {
@@ -6945,9 +6955,11 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .mbb-slot,
   .mbb__marker,
+  .mbb__icon,
   .mbb__link {
     transition: none;
   }
+  .mbb__item[data-active="true"] .mbb__icon,
   .mbb__link:active {
     transform: none;
   }
