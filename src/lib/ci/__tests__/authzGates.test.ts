@@ -327,5 +327,62 @@ describe("zaznaczenie i render snapshotu", () => {
     expect(problems).toHaveLength(1);
     expect(problems[0]).toContain("fn:admin_list_users/0");
     expect(problems[0]).toContain("super_admin");
+    // Komunikat pokazuje TYLKO pole, które się zmieniło - bez tego czytelnik
+    // dostawał cztery pola, z których trzy były identyczne.
+    expect(problems[0]).toContain("anyRoles");
+    expect(problems[0]).not.toContain("tenantRef");
+  });
+
+  // REGRESJA (audyt 2026-08-06, korekta 3): przeniesienie definicji bramki do
+  // nowej migracji zmienia tylko `file`, ale porównanie leci po całym obiekcie.
+  // Komunikat drukował wtedy cztery pola rolowo-tenantowe - identyczne po obu
+  // stronach - czyli "rozjechała się: {A} vs {A}". Dowód zaprzeczał tezie.
+  it("przeniesienie definicji do innej migracji raportuje proweniencję, nie identyczne obiekty", () => {
+    const before = selectAuthzSnapshot(built, { roleGateRefs: ["fn:admin_list_users/0"] });
+    const moved = deriveAuthzSnapshot({
+      functions: [
+        {
+          key: "public.admin_list_users/0",
+          name: "public.admin_list_users",
+          file: "0009_przeniesione.sql",
+          body: "SELECT public.has_role(auth.uid(),'admin')",
+          attrs: "LANGUAGE sql STABLE SECURITY DEFINER",
+        },
+      ],
+      migrations: [ENUM_SQL],
+    });
+    const problems = diffAuthzSnapshots(
+      before,
+      selectAuthzSnapshot(moved, { roleGateRefs: ["fn:admin_list_users/0"] }),
+    );
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain("proweniencja");
+    expect(problems[0]).toContain("0009_przeniesione.sql");
+    // Zbiór ról się nie zmienił, więc NIE MA go w komunikacie.
+    expect(problems[0]).not.toContain("anyRoles");
+  });
+
+  it("zmiana ról i proweniencji naraz wypisuje oba pola", () => {
+    const before = selectAuthzSnapshot(built, { roleGateRefs: ["fn:admin_list_users/0"] });
+    const both = deriveAuthzSnapshot({
+      functions: [
+        {
+          key: "public.admin_list_users/0",
+          name: "public.admin_list_users",
+          file: "0009_przeniesione.sql",
+          body:
+            "SELECT public.has_role(auth.uid(),'admin')" +
+            " OR public.has_role(auth.uid(),'super_admin')",
+          attrs: "LANGUAGE sql STABLE SECURITY DEFINER",
+        },
+      ],
+      migrations: [ENUM_SQL],
+    });
+    const [problem] = diffAuthzSnapshots(
+      before,
+      selectAuthzSnapshot(both, { roleGateRefs: ["fn:admin_list_users/0"] }),
+    );
+    expect(problem).toContain("anyRoles");
+    expect(problem).toContain("proweniencja");
   });
 });

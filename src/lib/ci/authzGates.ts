@@ -451,6 +451,44 @@ export function renderAuthzSnapshotModule(selected: SelectedAuthzSnapshot): stri
   ].join("\n");
 }
 
+/**
+ * Pola bramki porównywane w diagnostyce - KOMPLETNY zbiór pól `RoleGateEntry`
+ * poza `ref` (kluczem porównania). Gdy dochodzi nowe pole, TypeScript wymusi
+ * dopisanie go tutaj, więc komunikat nie może znowu "zgubić" realnej różnicy.
+ */
+const GATE_DELTA_FIELDS: readonly (keyof Omit<RoleGateEntry, "ref">)[] = [
+  "kind",
+  "object",
+  "file",
+  "anyRoles",
+  "allRoles",
+  "tenantRef",
+  "securityDefiner",
+  "featureKeys",
+];
+
+/** Etykiety pól - `file` czytelnie jako "proweniencja" (migracja z definicją). */
+const GATE_DELTA_LABELS: Partial<Record<keyof RoleGateEntry, string>> = {
+  file: "proweniencja",
+};
+
+/**
+ * Opis różnicy dwóch wersji tej samej bramki: wyłącznie pola, które NAPRAWDĘ
+ * się różnią, każde z osobna. Zmiana ról ("anyRoles: [admin] → [admin, super_admin]")
+ * czyta się wtedy inaczej niż samo przeniesienie definicji do nowej migracji.
+ */
+export function describeGateDelta(committed: RoleGateEntry, derived: RoleGateEntry): string {
+  const parts = GATE_DELTA_FIELDS.filter(
+    (field) => json(committed[field]) !== json(derived[field]),
+  ).map((field) => {
+    const label = GATE_DELTA_LABELS[field] ?? field;
+    return `${label}: ${json(committed[field])} → ${json(derived[field])}`;
+  });
+  // Pusta lista jest teoretycznie nieosiągalna (wołamy po nierówności JSON-a),
+  // ale komunikat "bez różnicy" jest lepszy niż pusty nawias.
+  return parts.length > 0 ? parts.join("; ") : "brak różnicy w opisanych polach";
+}
+
 /** Czytelny diff snapshotów dla komunikatu bramki parytetu. */
 export function diffAuthzSnapshots(committed: AuthzSnapshot, derived: AuthzSnapshot): string[] {
   const problems: string[] = [];
@@ -471,19 +509,12 @@ export function diffAuthzSnapshots(committed: AuthzSnapshot, derived: AuthzSnaps
       continue;
     }
     if (json(gate) !== json(fresh)) {
-      problems.push(
-        `bramka '${ref}' rozjechała się: snapshot ${json({
-          anyRoles: gate.anyRoles,
-          allRoles: gate.allRoles,
-          tenantRef: gate.tenantRef,
-          featureKeys: gate.featureKeys,
-        })} vs migracje ${json({
-          anyRoles: fresh.anyRoles,
-          allRoles: fresh.allRoles,
-          tenantRef: fresh.tenantRef,
-          featureKeys: fresh.featureKeys,
-        })}`,
-      );
+      // Komunikat MUSI drukować to samo, co porównanie: wcześniej pokazywał
+      // tylko role/tenant/flagi, więc przeniesienie definicji do nowej migracji
+      // (zmiana `file` przy identycznym zbiorze rol) dawało diagnostykę
+      // "rozjechała się: {A} vs {A}" - dowód zaprzeczający własnej tezie.
+      // Dlatego drukujemy WYŁĄCZNIE realnie różne pola, wraz z proweniencją.
+      problems.push(`bramka '${ref}' rozjechała się: ${describeGateDelta(gate, fresh)}`);
     }
   }
   for (const ref of derivedGates.keys()) {

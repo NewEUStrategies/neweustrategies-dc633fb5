@@ -118,6 +118,50 @@ test.describe("user paths (seeded)", () => {
     expect(rss).toContain(POST.title_pl);
   });
 
+  // INWARIANT SZABLONU BUILDERA: dokładnie jeden `h1` na stronę - w obie strony.
+  // Trasa `$.tsx` z szablonem buildera nie była pokryta żadną bramką (audyt
+  // 2026-08-06, korekta 2), więc najpierw pojechał na produkcję podwójny `h1`,
+  // a potem "naprawa", która zostawiła strony buildera BEZ `h1` (i przeniosła
+  // tytuł do `aria-label` na `<div>` bez roli, gdzie czytniki go nie widzą).
+  // Asercje idą po SUROWYM HTML-u: liczy się to, co dostaje crawler.
+  const h1sIn = (html: string): string[] =>
+    [...html.matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/gi)].map((m) =>
+      m[1].replace(/<[^>]*>/g, "").trim(),
+    );
+
+  test("builder page WITHOUT its own heading gets exactly one sr-only h1 from the title", async ({
+    request,
+  }) => {
+    const res = await request.get("/seed-strona-buildera");
+    expect(res.status()).toBe(200);
+    const html = await res.text();
+    const headings = h1sIn(html);
+    expect(headings, `znaleziono ${headings.length} nagłówków h1`).toHaveLength(1);
+    expect(headings[0]).toBe("Strona buildera bez nagłówka");
+    // Zastępczy nagłówek jest dla czytników, nie dla layoutu.
+    expect(html).toMatch(/<h1[^>]*class="[^"]*sr-only/i);
+    // Nazwa strony NIE wraca do `aria-label` na kontenerze bez roli.
+    expect(html).not.toContain('aria-label="Strona buildera bez nagłówka"');
+  });
+
+  test("builder page WITH its own h1 widget does not get a second one", async ({ request }) => {
+    const res = await request.get("/seed-strona-buildera-naglowek");
+    expect(res.status()).toBe(200);
+    const html = await res.text();
+    const headings = h1sIn(html);
+    expect(headings, `znaleziono ${headings.length} nagłówków h1`).toHaveLength(1);
+    expect(headings[0]).toContain("Własny nagłówek kanwy");
+    expect(html).not.toContain("Strona buildera z nagłówkiem</h1>");
+  });
+
+  test("builder page keeps the invariant in English too", async ({ request }) => {
+    const bare = await (await request.get("/en/seed-strona-buildera")).text();
+    expect(h1sIn(bare)).toEqual(["Builder page without a heading"]);
+    const withHeading = await (await request.get("/en/seed-strona-buildera-naglowek")).text();
+    expect(h1sIn(withHeading)).toHaveLength(1);
+    expect(h1sIn(withHeading)[0]).toContain("Canvas own heading");
+  });
+
   test("legacy /post/<slug> URL redirects permanently (301) to the canonical path", async ({
     request,
   }) => {

@@ -21,6 +21,8 @@ import { resolveContentEngine } from "@/lib/content/contentEngine";
 import { prepareContentForRender } from "@/lib/content/prepareContent";
 import type { BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
 import { parseBuilderDoc } from "@/lib/builder/parse";
+import { builderDocHasTopHeading } from "@/lib/builder/headings";
+import { BuilderPageShell } from "@/components/pages/BuilderPageShell";
 import { FloatingShareBar } from "@/components/share/FloatingShareBar";
 import { PostSidebarRenderer } from "@/components/post/PostSidebarRenderer";
 import { AutoLoadNextPost } from "@/components/post/AutoLoadNextPost";
@@ -981,7 +983,9 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                     tak jak para przyciskow na desktopie. */}
                 <div className="no-print mb-3 grid grid-cols-2 items-stretch gap-2 sm:hidden">
                   {giftButton && (
-                    <span className="min-w-0 [&_button]:h-full [&_button]:w-full">{giftButton}</span>
+                    <span className="min-w-0 [&_button]:h-full [&_button]:w-full">
+                      {giftButton}
+                    </span>
                   )}
                   <GooglePreferredSourceBadge
                     device="mobile"
@@ -1197,20 +1201,22 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   // Pages authored in the CMS builder are self-contained (hero, sections,
   // own headings, own container widths). Render them bare and full width so
   // the published page matches the builder canvas 1:1 - no auto-injected
-  // max-w wrapper, breadcrumbs, ads, or duplicate H1 above the document.
+  // max-w wrapper, breadcrumbs or ads above the document.
+  //
+  // H1: nie zgadujemy. `builderDocHasTopHeading` czyta dokument, więc strona
+  // z własnym nagłówkiem poziomu 1 nie dostaje drugiego (defekt SEO), a strona
+  // bez nagłówka nie zostaje bez żadnego (defekt a11y) - patrz BuilderPageShell.
   const page = it as PageData;
   if (it.editor === "builder") {
     return (
-      <div
-        className="flex flex-col bg-background text-foreground"
-        data-page-template="builder"
-        data-page-header-override={page.header_override ?? "default"}
-        aria-label={title}
+      <BuilderPageShell
+        title={title}
+        hasOwnTopHeading={builderDocHasTopHeading(doc)}
+        headerOverride={page.header_override ?? null}
+        footer={<FooterSlideup pageType={adPageType} pageId={it.id} />}
       >
-        <div className="flex-1 w-full">{contentBlock}</div>
-
-        <FooterSlideup pageType={adPageType} pageId={it.id} />
-      </div>
+        {contentBlock}
+      </BuilderPageShell>
     );
   }
 

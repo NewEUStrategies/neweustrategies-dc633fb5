@@ -95,6 +95,80 @@ export function stripSqlComments(sql: string): string {
   return out;
 }
 
+/**
+ * Usuwa komentarze TypeScriptu (`// do konca linii`, bloki i JSDoc), zachowujac
+ * podzial na linie i tresc literalow (apostrof, cudzyslow, backtick).
+ *
+ * PO CO: bramki skanuja takze `src/**`, bo ten sam literal podany po stronie
+ * klienta konczy sie tym samym bledem enuma. Bez tego kroku bramka trafia we
+ * WLASNA dokumentacje - naglowek `src/lib/ci/authzGates.ts` cytuje wzorzec
+ * `has_role(uid, 'X')`, wiec gate `check:sql-app-role` wywalal sie na opisie
+ * samego siebie (a nie na zadnym realnym wywolaniu).
+ *
+ * Swiadome uproszczenie: nie parsujemy wyrazen regularnych, wiec `/` w regexie
+ * moze zostac wziete za start komentarza. Jedyny skutek to WIECEJ wyciecia
+ * (mozliwe pominiecie trafienia), nigdy falszywe naruszenie - a wywolania
+ * `has_role` w repo nie mieszkaja w literalach regex.
+ */
+export function stripTsComments(source: string): string {
+  let out = "";
+  let i = 0;
+  let inLine = false;
+  let inBlock = false;
+  let quote: '"' | "'" | "`" | null = null;
+
+  while (i < source.length) {
+    const ch = source[i]!;
+    const next = source[i + 1];
+
+    if (inLine) {
+      if (ch === "\n") {
+        inLine = false;
+        out += ch;
+      }
+      i += 1;
+      continue;
+    }
+    if (inBlock) {
+      if (ch === "*" && next === "/") {
+        inBlock = false;
+        i += 2;
+        continue;
+      }
+      if (ch === "\n") out += ch;
+      i += 1;
+      continue;
+    }
+    if (quote !== null) {
+      out += ch;
+      // Escape: `\'` w literale nie konczy literalu.
+      if (ch === "\\" && next !== undefined) {
+        out += next;
+        i += 2;
+        continue;
+      }
+      if (ch === quote) quote = null;
+      i += 1;
+      continue;
+    }
+
+    if (ch === "/" && next === "/") {
+      inLine = true;
+      i += 2;
+      continue;
+    }
+    if (ch === "/" && next === "*") {
+      inBlock = true;
+      i += 2;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === "`") quote = ch;
+    out += ch;
+    i += 1;
+  }
+  return out;
+}
+
 /** Dzieli liste parametrow po przecinkach najwyzszego poziomu. */
 function splitTopLevel(list: string): string[] {
   const out: string[] = [];

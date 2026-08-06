@@ -24,11 +24,32 @@
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { MIGRATIONS_DIR, extractLatestDefinitions, stripSqlComments } from "./lib/sqlMigrations";
+import {
+  MIGRATIONS_DIR,
+  extractLatestDefinitions,
+  stripSqlComments,
+  stripTsComments,
+} from "./lib/sqlMigrations";
 
 /** Poza migracjami (tam liczy sie stan koncowy funkcji) skanujemy pgTAP i klienta. */
 const SCAN_DIRS = ["supabase/tests", "src"] as const;
 const SCAN_EXTENSIONS = [".sql", ".ts", ".tsx"] as const;
+
+/**
+ * Fixture'y testowe to NIE sciezki wywolan: plik testowy nigdy nie rozmawia z
+ * baza, a bramki parsujace SQL musza miec w fixture'ach literal POZA enumem,
+ * zeby dowiesc, ze go widza (`src/lib/ci/__tests__/authzGates.test.ts`).
+ * Skanujemy wiec kod produkcyjny; realne wywolanie w `src/**` nadal jest
+ * naruszeniem.
+ */
+function isTestFixture(file: string): boolean {
+  return (
+    file.includes("__tests__") ||
+    file.includes(".test.") ||
+    file.includes(".spec.") ||
+    file.endsWith("/testUtils.ts")
+  );
+}
 
 interface Hit {
   readonly literal: string;
@@ -126,9 +147,12 @@ function collectHasRoleLiterals(): Hit[] {
 
   for (const dir of SCAN_DIRS) {
     for (const file of listFiles(dir)) {
+      if (isTestFixture(file)) continue;
       const raw = readFileSync(file, "utf8");
       if (!raw.includes("has_role")) continue;
-      const text = file.endsWith(".sql") ? stripSqlComments(raw) : raw;
+      // Komentarze lecą w OBU jezykach - inaczej bramka czyta wlasne (i cudze)
+      // naglowki dokumentacyjne jako wywolania.
+      const text = file.endsWith(".sql") ? stripSqlComments(raw) : stripTsComments(raw);
       const lines = text.split("\n");
       for (let i = 0; i < lines.length; i += 1) {
         for (const literal of literalsIn(lines[i])) {
