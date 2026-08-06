@@ -6818,6 +6818,9 @@ html {
   /* Lekko zmniejszona baza (było 0.625rem) - skaluje cały pasek w dół,
      w tym etykiety i ikony, bez psucia proporcji em. */
   font-size: 0.575rem;
+  /* Jedna krzywa dla garbu, unoszenia pozycji i koła - inaczej elementy tej
+     samej animacji rozjeżdżają się w czasie i przejście wygląda na ucięte. */
+  --mbb-ease: cubic-bezier(0.22, 1, 0.36, 1);
   position: relative;
   pointer-events: auto;
   width: 100%;
@@ -6881,7 +6884,7 @@ html {
   cursor: pointer;
   will-change: transform;
   -webkit-tap-highlight-color: transparent;
-  transition: transform var(--timeOut, 0.5s);
+  transition: transform var(--timeOut, 0.45s) var(--mbb-ease);
 }
 .mbb__item.active {
   transform: translate3d(0, -0.8em, 0);
@@ -6920,8 +6923,8 @@ html {
   transform: scale(0);
   background-color: var(--bgColorItem, var(--brand));
   transition:
-    transform 0.5s,
-    background-color 0.5s;
+    transform var(--timeOut, 0.45s) var(--mbb-ease),
+    background-color 0.3s ease;
 }
 .dark .mbb__iconwrap::before {
   background-color: var(--bgColorItem-dark, var(--brand));
@@ -6947,12 +6950,12 @@ html {
   stroke-dasharray: 400;
   stroke-dashoffset: 0;
   transition:
-    stroke 0.5s,
-    transform 0.5s;
+    stroke 0.3s ease,
+    transform var(--timeOut, 0.45s) var(--mbb-ease);
 }
 .mbb__item.active .mbb__icon {
   stroke: var(--mbb-bg);
-  animation: mbb-strok 1.5s reverse;
+  animation: mbb-strok 0.6s var(--mbb-ease) reverse;
 }
 @keyframes mbb-strok {
   100% {
@@ -6973,7 +6976,7 @@ html {
   pointer-events: none;
   will-change: transform;
   transition:
-    transform var(--timeOut, 0.5s),
+    transform var(--timeOut, 0.45s) var(--mbb-ease),
     opacity 0.2s ease;
 }
 /* Przed pomiarem i na trasach spoza paska garb nie ma sensownej pozycji. */

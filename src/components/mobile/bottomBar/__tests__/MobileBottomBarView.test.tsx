@@ -221,3 +221,31 @@ describe("MobileBottomBarView - wierność referencji", () => {
     expect(nav!.style.getPropertyValue("--mbb-active-dark")).toBe("var(--brand)");
   });
 });
+
+describe("MobileBottomBarView - płynność przejścia", () => {
+  it("nie wyłącza przejścia (--timeOut) przy samej zmianie aktywnej pozycji", () => {
+    // Regresja: obserwator rozmiaru wpinał się od nowa przy każdej nawigacji,
+    // a jego natychmiastowe pierwsze wywołanie ustawiało `--timeOut: none` -
+    // garb przeskakiwał zamiast przejechać pod nową pozycję.
+    const { rerender, container } = render(
+      <MobileBottomBarView
+        config={MOBILE_BOTTOM_BAR_DEFAULTS}
+        items={items}
+        activeIndex={0}
+        lang="pl"
+      />,
+    );
+    rerender(
+      <MobileBottomBarView
+        config={MOBILE_BOTTOM_BAR_DEFAULTS}
+        items={items}
+        activeIndex={3}
+        lang="pl"
+      />,
+    );
+
+    const nav = container.querySelector<HTMLElement>(".mbb");
+    expect(nav).not.toBeNull();
+    expect(nav?.style.getPropertyValue("--timeOut")).toBe("");
+  });
+});
