@@ -219,7 +219,8 @@ export function TopicsDroplist({
 
       {display === "droplist" ? (
         <div className="space-y-2">
-          {picked.size > 0 && (
+  const pickedCount = picked.size;
+          {pickedCount > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {allItems
                 .filter((it) => picked.has(it.id))
@@ -258,8 +259,8 @@ export function TopicsDroplist({
               style={triggerStyle}
               {...(editTargets ? { "data-edit-target": "placeholderSize" } : {})}
             >
-              <span className={picked.size ? "text-foreground" : "text-muted-foreground"}>
-                {topicsTriggerText(picked.size, lang)}
+              <span className={pickedCount ? "text-foreground" : "text-muted-foreground"}>
+                {topicsTriggerText(pickedCount, lang)}
               </span>
               <ChevronDown
                 className={cn("shrink-0 opacity-60 transition-transform", dropOpen && "rotate-180")}
@@ -344,12 +345,12 @@ export function TopicsDroplist({
                   </div>
                   <footer className="flex items-center justify-between gap-2 border-t border-border bg-popover px-3 py-2">
                     <span className="text-[11px] text-muted-foreground tabular-nums">
-                      {picked.size > 0
-                        ? topicsTriggerText(picked.size, lang)
+                      {pickedCount > 0
+                        ? topicsTriggerText(pickedCount, lang)
                         : topicLabel("empty", lang)}
                     </span>
                     <div className="flex items-center gap-1">
-                      {picked.size > 0 && (
+                      {pickedCount > 0 && (
                         <button
                           type="button"
                           onClick={onClear}
