@@ -71,7 +71,7 @@ migracji naprawczej raport wskazuje dokładnie te pięć pozycji.
 
 ## 3. Co weszło
 
-**Migracja `20260806160000_expert_request_single_generation.sql`**
+**Migracja `20260806160001_expert_request_single_generation.sql`**
 
 - **Zbieżność relacji**: blok `DO` przemianowuje `expert_requests` → `expert_inmails`
   (tylko na świeżej bazie), zatrzymuje się głośno, gdy istnieją **obie** tabele (scalenie

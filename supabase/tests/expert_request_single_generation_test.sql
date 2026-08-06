@@ -1,5 +1,5 @@
 -- pgTAP: „Zapytanie do eksperta" po scaleniu dwóch generacji (migracja
--- 20260806160000_expert_request_single_generation).
+-- 20260806160001_expert_request_single_generation).
 --
 -- Plik przybija dokładnie te własności, których brak kosztował dwie dziury
 -- i jedną martwą funkcję na świeżej bazie:
