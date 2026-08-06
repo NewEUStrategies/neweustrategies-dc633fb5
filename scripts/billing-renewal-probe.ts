@@ -1,31 +1,55 @@
 /**
- * Nocna sonda odnowienia i dunningu w środowisku testowym Stripe.
+ * Nocna sonda odnowienia i dunningu w środowisku testowym Stripe - runner.
  *
- * Dlaczego istnieje: odnowienie subskrypcji i ścieżka nieudanej płatności są
- * jedynymi elementami lejka, których nie da się sprawdzić klikając checkout -
- * trzeba przesunąć zegar rozliczeniowy i poczekać, aż Stripe naliczy fakturę.
- * Sonda robi to za nas i zostawia dowód w podsumowaniu przebiegu CI.
- *
- * Jak to działa w Stripe (inaczej niż u poprzedniego operatora): nie da się
- * dowolnie przesunąć `next_billed_at`. Odnowienie w sandboxie wymusza się
- * przez Test Clock przypięty do klienta subskrypcji - sonda przesuwa zegar
- * tuż za koniec bieżącego okresu i weryfikuje, czy powstała nowa faktura.
+ * Cała logika decyzyjna (wybór subskrypcji, klasyfikacja wyniku, format
+ * podsumowania) i jej uzasadnienie żyją w `src/lib/ci/billingRenewalProbe.ts`,
+ * gdzie mają test jednostkowy. Tutaj zostaje wyłącznie wejście/wyjście: HTTP
+ * przez bramkę konektorów, plik stanu między krokami joba i kod wyjścia.
  *
  * Tryby:
- *   arm    - wybiera aktywną subskrypcję testową z Test Clockiem, przesuwa
- *            zegar na `current_period_end + 60 s` i zapisuje stan do pliku
- *            wskazanego przez PROBE_STATE_FILE,
- *   verify - sprawdza, czy po armowaniu powstała nowa faktura i czy okres
- *            rozliczeniowy przesunął się do przodu; dodatkowo raportuje
- *            subskrypcje w stanie `past_due` (dunning).
+ *   arm    - wybiera aktywną subskrypcję testową z Test Clockiem, zapamiętuje
+ *            istniejące faktury i przesuwa zegar tuż za koniec bieżącego okresu,
+ *   await  - ODPYTUJE Test Clock, aż przestanie przeliczać (`advancing` ->
+ *            `ready`). Zastępuje ślepe `sleep 40m`: Stripe kończy zwykle
+ *            w kilkadziesiąt sekund, a przy awarii i tak mamy twardy termin,
+ *   verify - sprawdza, czy powstała NOWA faktura cykliczna, czy okres poszedł
+ *            do przodu i czy stan faktury jest spójny ze stanem subskrypcji.
  *
- * Brak kluczy = zielone wyjście z ostrzeżeniem: świeży klon i fork nie mogą
- * wywracać CI, ale brak konfiguracji ma być widoczny.
+ * Brak kluczy: domyślnie zielone wyjście z ostrzeżeniem (świeży klon i fork nie
+ * mogą wywracać CI). W trybie ścisłym (`PROBE_STRICT=true`, ustawianym dla
+ * przebiegów z harmonogramu w repozytorium właściciela) brak konfiguracji jest
+ * BŁĘDEM - nocna sonda, która nic nie sprawdza, nie ma prawa świecić na zielono.
+ *
+ * Zmienne: STRIPE_SANDBOX_API_KEY, LOVABLE_API_KEY, PROBE_STATE_FILE,
+ *          PROBE_REPORT_FILE, PROBE_STRICT, PROBE_SUBSCRIPTION_ID,
+ *          PROBE_WAIT_TIMEOUT_S, PROBE_REQUEST_TIMEOUT_MS, PROBE_GATEWAY_URL
  */
-import { readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
+import {
+  type ProbeOutcome,
+  type ProbeState,
+  type StripeInvoice,
+  type StripeSubscription,
+  type StripeTestClock,
+  classifyRenewal,
+  isFailure,
+  parseProbeState,
+  periodEndOf,
+  renderArmSummary,
+  renderVerifySummary,
+  selectRenewalCandidate,
+} from "../src/lib/ci/billingRenewalProbe";
 
-const GATEWAY = "https://connector-gateway.lovable.dev/stripe";
+/**
+ * Bramka konektorów platformy - SDK ani skrypt nigdy nie widzą prawdziwego
+ * klucza operatora. Nadpisywalna, żeby dało się przepuścić pełną ścieżkę
+ * arm -> await -> verify przez lokalny serwer atrap; w CI zawsze domyślna.
+ */
+const GATEWAY = process.env.PROBE_GATEWAY_URL ?? "https://connector-gateway.lovable.dev/stripe";
 const STATE_FILE = process.env.PROBE_STATE_FILE ?? "/tmp/billing-renewal-probe.json";
+const REPORT_FILE = process.env.PROBE_REPORT_FILE ?? "reports/billing-renewal-probe.json";
+const STRICT = /^(1|true|yes)$/i.test(process.env.PROBE_STRICT ?? "");
 
 /** Sufit czekania na Test Clock i odstęp odpytywania (tryb `wait`). */
 const WAIT_TIMEOUT_MS = Number(process.env.PROBE_WAIT_TIMEOUT_MS ?? 40 * 60 * 1000);
@@ -39,46 +63,62 @@ interface ProbeState {
   previousPeriodEnd: number | null;
 }
 
-interface StripeSubscriptionItem {
-  quantity?: number;
-  current_period_end?: number | null;
-  price?: { lookup_key?: string | null } | null;
+interface Auth {
+  readonly connection: string;
+  readonly platform: string;
 }
 
-interface StripeSubscription {
-  id: string;
-  status: string;
-  customer: string | { id: string; test_clock?: string | { id: string } | null };
-  test_clock?: string | { id: string } | null;
-  items?: { data?: StripeSubscriptionItem[] };
-}
-
-interface StripeInvoice {
-  id: string;
-  status: string | null;
-  created: number;
-  billing_reason?: string | null;
-}
+/**
+ * Wynik pojedynczego kroku. `arm` i `await` mają własne etykiety, żeby wartość
+ * w `GITHUB_OUTPUT` mówiła, CO się stało, a nie tylko „poszło".
+ */
+type StepOutcome = ProbeOutcome | "armed" | "ready";
 
 interface StripeList<T> {
-  data?: T[];
+  readonly data?: readonly T[];
 }
 
-interface StripeTestClock {
-  id: string;
-  status: string;
-  frozen_time: number;
+/**
+ * Odczyt liczbowy z jawnie PRZEKAZANĄ wartością. Dynamiczne `process.env[name]`
+ * byłoby niewidoczne dla bramki kontraktu env (check:workflow-env-contract),
+ * która dopasowuje statyczne odczyty - a to ona pilnuje, żeby workflow nie
+ * eksportował zmiennych, których nikt nie czyta.
+ */
+function positiveNumber(raw: string | undefined, fallback: number): number {
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-interface Auth {
-  connection: string;
-  platform: string;
-}
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 
-function summary(line: string): void {
-  console.log(line);
+/** Treść widoczna w podsumowaniu przebiegu (i w logu kroku). */
+function summary(markdown: string): void {
+  console.log(markdown);
   const file = process.env.GITHUB_STEP_SUMMARY;
-  if (file) writeFileSync(file, `${line}\n`, { flag: "a" });
+  if (file) appendFileSync(file, `${markdown}\n\n`);
+}
+
+/**
+ * Adnotacja workflow. Musi iść WYŁĄCZNIE na stdout - wpisana do podsumowania
+ * renderuje się jako surowy tekst `::warning title=...`, co poprzednia wersja
+ * robiła przy każdym ostrzeżeniu.
+ */
+function annotate(level: "warning" | "error" | "notice", title: string, message: string): void {
+  const clean = (value: string): string => value.replaceAll("\n", " ").replaceAll("::", ":");
+  console.log(`::${level} title=${clean(title)}::${clean(message)}`);
+}
+
+function setOutput(key: string, value: string): void {
+  const file = process.env.GITHUB_OUTPUT;
+  if (file) appendFileSync(file, `${key}=${value}\n`);
+}
+
+function writeJson(path: string, value: unknown): void {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 
 function keys(): Auth | null {
@@ -91,146 +131,262 @@ function keys(): Auth | null {
 /** Stripe przyjmuje wyłącznie `application/x-www-form-urlencoded`. */
 function form(body: Record<string, string | number>): string {
   return Object.entries(body)
-    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
     .join("&");
 }
 
+/**
+ * Żądanie do bramki konektorów. Nocny przebieg rozmawia z usługą zdalną, więc
+ * pojedynczy 502 na odczycie nie może oznaczać „odnowienie nie działa" -
+ * inaczej bramka generuje fałszywe alarmy i przestaje być czytana.
+ *
+ * Ponawiane są WYŁĄCZNIE odczyty (GET). `POST .../advance` nie jest idempotentny
+ * i nie ma klucza idempotencji: przy błędzie sieciowym nie wiadomo, czy operator
+ * przesunął już zegar, a ponowienie w tym stanie zwraca 400 „clock is currently
+ * advancing" - czyli zamienia jedną usterkę przejściową w czerwony przebieg
+ * z mylącym komunikatem. Zapis ma paść od razu, z prawdziwą przyczyną.
+ */
 async function api<T>(
   path: string,
   init: { auth: Auth; method?: "GET" | "POST"; body?: Record<string, string | number> },
 ): Promise<T> {
   const { auth, method = "GET", body } = init;
-  const res = await fetch(`${GATEWAY}/v1${path}`, {
-    method,
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      "X-Connection-Api-Key": auth.connection,
-      "Lovable-API-Key": auth.platform,
-    },
-    ...(body ? { body: form(body) } : {}),
-  });
-  const text = await res.text();
-  if (!res.ok) throw new Error(`${method} ${path} -> ${res.status}: ${text.slice(0, 400)}`);
-  return JSON.parse(text) as T;
-}
+  const attempts = method === "GET" ? RETRY_DELAYS_MS.length : 0;
+  let lastError = "";
 
-function idOf(value: string | { id: string } | null | undefined): string | null {
-  if (!value) return null;
-  return typeof value === "string" ? value : value.id;
-}
+  for (let attempt = 0; attempt <= attempts; attempt += 1) {
+    if (attempt > 0) await sleep(RETRY_DELAYS_MS[attempt - 1]);
 
-function periodEndOf(sub: StripeSubscription): number | null {
-  // W API `2026-03-25.dahlia` okres rozliczeniowy żyje na pozycji subskrypcji.
-  const ends = (sub.items?.data ?? [])
-    .map((item) => item.current_period_end ?? null)
-    .filter((v): v is number => typeof v === "number");
-  return ends.length ? Math.max(...ends) : null;
-}
+    let response: Response;
+    try {
+      response = await fetch(`${GATEWAY}/v1${path}`, {
+        method,
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "X-Connection-Api-Key": auth.connection,
+          "Lovable-API-Key": auth.platform,
+        },
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        ...(body ? { body: form(body) } : {}),
+      });
+    } catch (error) {
+      lastError = `${method} ${path} -> ${error instanceof Error ? error.message : String(error)}`;
+      continue;
+    }
 
-async function arm(auth: Auth): Promise<number> {
-  const listed = await api<StripeList<StripeSubscription>>(
-    "/subscriptions?status=active&limit=50&expand[]=data.customer",
-    { auth },
-  );
-  // Odnowienie da się wymusić tylko na subskrypcji z Test Clockiem - inaczej
-  // trzeba by czekać realny miesiąc.
-  const candidate = (listed.data ?? []).find((sub) => {
-    const clock =
-      idOf(sub.test_clock) ??
-      (typeof sub.customer === "object" ? idOf(sub.customer.test_clock) : null);
-    return sub.status === "active" && !!clock && periodEndOf(sub) !== null;
-  });
-  const testClockId = candidate
-    ? (idOf(candidate.test_clock) ??
-      (typeof candidate.customer === "object" ? idOf(candidate.customer.test_clock) : null))
-    : null;
+    const text = await response.text();
+    if (response.ok) return JSON.parse(text) as T;
 
-  if (!candidate || !testClockId) {
-    summary(
-      "::warning title=Brak subskrypcji testowej z Test Clockiem::Sonda odnowienia pominięta - w sandboxie Stripe nie ma aktywnej subskrypcji przypiętej do Test Clocka. Utwórz klienta z Test Clockiem i wykonaj checkout kartą 4242 4242 4242 4242.",
-    );
-    return 0;
+    lastError = `${method} ${path} -> ${response.status}: ${text.slice(0, 400)}`;
+    if (!RETRYABLE_STATUS.has(response.status)) break;
   }
 
-  const previousPeriodEnd = periodEndOf(candidate);
-  const advancedTo = (previousPeriodEnd ?? Math.floor(Date.now() / 1000)) + 60;
-  await api(`/test_helpers/test_clocks/${testClockId}/advance`, {
+  throw new Error(lastError);
+}
+
+async function listInvoiceIds(auth: Auth, subscriptionId: string): Promise<string[]> {
+  const invoices = await api<StripeList<StripeInvoice>>(
+    `/invoices?subscription=${encodeURIComponent(subscriptionId)}&limit=100`,
+    { auth },
+  );
+  return (invoices.data ?? []).map((invoice) => invoice.id);
+}
+
+async function arm(auth: Auth): Promise<StepOutcome> {
+  const listed = await api<StripeList<StripeSubscription>>(
+    "/subscriptions?status=active&limit=100&expand[]=data.customer",
+    { auth },
+  );
+
+  // Niezdefiniowana zmienna repozytorium dociera tu jako pusty łańcuch.
+  const preferred = process.env.PROBE_SUBSCRIPTION_ID?.trim() || null;
+  const candidate = selectRenewalCandidate(listed.data ?? [], preferred);
+
+  if (!candidate) {
+    annotate(
+      "warning",
+      "Brak subskrypcji testowej z Test Clockiem",
+      preferred
+        ? `W sandboxie nie ma aktywnej subskrypcji ${preferred} przypiętej do Test Clocka.`
+        : "W sandboxie Stripe nie ma aktywnej subskrypcji przypiętej do Test Clocka. " +
+            "Utwórz klienta z Test Clockiem i wykonaj checkout kartą 4242 4242 4242 4242.",
+    );
+    return "skipped";
+  }
+
+  const clock = await api<StripeTestClock>(`/test_helpers/test_clocks/${candidate.testClockId}`, {
+    auth,
+  });
+  // Zegar w trakcie przeliczania odrzuca `advance` błędem 400. Zdarza się po
+  // przebiegu przerwanym w połowie - lepszy jawny komunikat niż surowy 400
+  // z bramki, który wygląda na awarię integracji.
+  if (clock.status !== "ready") {
+    annotate(
+      "warning",
+      "Test Clock zajęty",
+      `Zegar ${clock.id} ma status ${clock.status} - poprzedni przebieg prawdopodobnie nie dobiegł końca. Zbrojenie pominięte.`,
+    );
+    return "pending";
+  }
+
+  const previousPeriodEnd = periodEndOf(candidate.subscription);
+  // Zegara nie da się cofnąć: celujemy tuż ZA koniec okresu, a gdyby okres już
+  // minął (przebieg po awarii) - tuż za aktualny czas zegara.
+  const advancedTo = Math.max(previousPeriodEnd ?? 0, clock.frozen_time) + 60;
+  const knownInvoiceIds = await listInvoiceIds(auth, candidate.subscription.id);
+
+  await api(`/test_helpers/test_clocks/${candidate.testClockId}/advance`, {
     auth,
     method: "POST",
     body: { frozen_time: advancedTo },
   });
 
   const state: ProbeState = {
-    subscriptionId: candidate.id,
-    testClockId,
+    version: 1,
+    subscriptionId: candidate.subscription.id,
+    testClockId: candidate.testClockId,
     armedAt: new Date().toISOString(),
+    frozenBefore: clock.frozen_time,
     advancedTo,
     previousPeriodEnd,
+    knownInvoiceIds,
   };
-  writeFileSync(STATE_FILE, JSON.stringify(state));
-  summary(
-    `### Sonda odnowienia\nSubskrypcja \`${candidate.id}\` - Test Clock \`${testClockId}\` przesunięty na ${new Date(advancedTo * 1000).toISOString()}.`,
-  );
-  return 0;
+  writeJson(STATE_FILE, state);
+  summary(renderArmSummary(state));
+  return "armed";
 }
 
-async function verify(auth: Auth): Promise<number> {
-  let state: ProbeState;
-  try {
-    state = JSON.parse(readFileSync(STATE_FILE, "utf8")) as ProbeState;
-  } catch {
-    summary(
-      "::warning title=Brak stanu sondy::Krok `arm` nie zapisał stanu - weryfikacja pominięta.",
-    );
-    return 0;
+/**
+ * Czeka na zakończenie przeliczania Test Clocka, ODPYTUJĄC jego status.
+ *
+ * Poprzednia wersja miała w tym miejscu `for i in $(seq 1 40); do sleep 60; done`
+ * - 40 minut runnera co dobę, niezależnie od tego, czy Stripe skończył po
+ * dwudziestu sekundach, i bez żadnej reakcji, gdyby nie skończył nigdy.
+ */
+async function awaitClock(auth: Auth): Promise<StepOutcome> {
+  const state = readState();
+  if (!state) return "skipped";
+
+  const startedAt = Date.now();
+  let delay = 5_000;
+
+  for (;;) {
+    const clock = await api<StripeTestClock>(`/test_helpers/test_clocks/${state.testClockId}`, {
+      auth,
+    });
+
+    if (clock.status === "ready") {
+      const seconds = Math.round((Date.now() - startedAt) / 1000);
+      summary(`Test Clock \`${clock.id}\` gotowy po ${seconds} s (status \`ready\`).`);
+      return "ready";
+    }
+
+    if (clock.status === "internal_failure") {
+      annotate(
+        "error",
+        "Test Clock padł po stronie Stripe",
+        `Zegar ${clock.id} zakończył przeliczanie stanem internal_failure - odnowienia nie da się zweryfikować.`,
+      );
+      return "failed";
+    }
+
+    if (Date.now() - startedAt >= WAIT_TIMEOUT_MS) {
+      // `pending`, nie `skipped`: opieszałość operatora nie jest naszym błędem
+      // konfiguracyjnym, więc tryb ścisły nie ma jej zamieniać w czerwony job.
+      annotate(
+        "warning",
+        "Test Clock wciąż przelicza",
+        `Po ${Math.round(WAIT_TIMEOUT_MS / 1000)} s zegar ${clock.id} nadal ma status ${clock.status} - weryfikacja nierozstrzygnięta w tym przebiegu.`,
+      );
+      return "pending";
+    }
+
+    await sleep(delay);
+    // Łagodny backoff: gęsto na starcie (typowy przypadek to kilkadziesiąt
+    // sekund), rzadziej przy dłuższym przeliczaniu.
+    delay = Math.min(delay * 2, 30_000);
   }
+}
+
+function readState(): ProbeState | null {
+  let raw: string;
+  try {
+    raw = readFileSync(STATE_FILE, "utf8");
+  } catch {
+    annotate(
+      "warning",
+      "Brak stanu sondy",
+      "Krok `arm` nie zapisał stanu - dalsze kroki pominięte.",
+    );
+    return null;
+  }
+  const state = parseProbeState(raw);
+  if (!state) {
+    annotate(
+      "warning",
+      "Uszkodzony stan sondy",
+      `Plik ${STATE_FILE} nie zawiera poprawnego stanu w wersji 1 - dalsze kroki pominięte.`,
+    );
+  }
+  return state;
+}
+
+async function verify(auth: Auth): Promise<StepOutcome> {
+  const state = readState();
+  if (!state) return "skipped";
 
   const clock = await api<StripeTestClock>(`/test_helpers/test_clocks/${state.testClockId}`, {
     auth,
   });
-  if (clock.status === "advancing") {
-    summary(
-      "::warning title=Test Clock wciąż przesuwa czas::Stripe nie zakończył przeliczania - weryfikacja pominięta w tym przebiegu.",
+  if (clock.status !== "ready") {
+    annotate(
+      "warning",
+      "Test Clock nie jest gotowy",
+      `Status ${clock.status} - Stripe nie zakończył przeliczania, weryfikacja nierozstrzygnięta.`,
     );
-    return 0;
+    return "pending";
   }
 
-  const sub = await api<StripeSubscription>(`/subscriptions/${state.subscriptionId}`, { auth });
-  const periodEnd = periodEndOf(sub);
-  const moved =
-    periodEnd !== null && (state.previousPeriodEnd === null || periodEnd > state.previousPeriodEnd);
+  const [subscription, invoices, dunning] = await Promise.all([
+    api<StripeSubscription>(`/subscriptions/${state.subscriptionId}`, { auth }),
+    api<StripeList<StripeInvoice>>(
+      `/invoices?subscription=${encodeURIComponent(state.subscriptionId)}&limit=100`,
+      { auth },
+    ),
+    api<StripeList<StripeSubscription>>("/subscriptions?status=past_due&limit=100", { auth }),
+  ]);
 
-  const invoices = await api<StripeList<StripeInvoice>>(
-    `/invoices?subscription=${state.subscriptionId}&limit=20`,
-    { auth },
-  );
-  const armedAtUnix = Math.floor(new Date(state.armedAt).getTime() / 1000);
-  const renewal = (invoices.data ?? []).find(
-    (inv) => inv.created >= armedAtUnix || inv.billing_reason === "subscription_cycle",
-  );
+  const verdict = classifyRenewal({ subscription, invoices: invoices.data ?? [], state });
+  const dunningCensus = (dunning.data ?? []).length;
 
-  const pastDue = await api<StripeList<StripeSubscription>>(
-    "/subscriptions?status=past_due&limit=50",
-    { auth },
-  );
+  summary(renderVerifySummary({ state, subscription, verdict, dunningCensus }));
+  writeJson(REPORT_FILE, {
+    generatedAt: new Date().toISOString(),
+    outcome: verdict.outcome,
+    reason: verdict.reason,
+    subscriptionId: state.subscriptionId,
+    subscriptionStatus: subscription.status,
+    renewalInvoiceId: verdict.renewalInvoice?.id ?? null,
+    renewalInvoiceStatus: verdict.renewalInvoice?.status ?? null,
+    previousPeriodEnd: state.previousPeriodEnd,
+    periodEnd: verdict.periodEnd,
+    periodMoved: verdict.periodMoved,
+    dunningCensus,
+  });
 
-  summary(
-    [
-      "### Weryfikacja odnowienia",
-      `- subskrypcja: \`${state.subscriptionId}\``,
-      `- nowa faktura: ${renewal ? `\`${renewal.id}\` (${renewal.status ?? "-"})` : "brak"}`,
-      `- okres rozliczeniowy przesunięty: ${moved ? "tak" : "nie"} (${periodEnd ? new Date(periodEnd * 1000).toISOString() : "-"})`,
-      `- subskrypcje w dunningu (past_due): ${(pastDue.data ?? []).length}`,
-    ].join("\n"),
-  );
-
-  if (!renewal || !moved) {
-    summary(
-      "::error title=Odnowienie nie zadziałało::Po przesunięciu Test Clocka Stripe nie wystawił faktury odnowieniowej albo okres się nie przesunął - sprawdź dziennik webhooków w panelu administratora.",
-    );
-    return 1;
+  if (verdict.outcome === "failed") {
+    annotate("error", "Regresja odnowienia lub dunningu", verdict.reason);
+  } else if (verdict.outcome === "pending") {
+    annotate("warning", "Wynik nierozstrzygnięty", verdict.reason);
   }
-  return 0;
+  return verdict.outcome;
+}
+
+type Mode = "arm" | "await" | "verify";
+
+function resolveMode(argument: string | undefined): Mode {
+  if (argument === "await" || argument === "verify") return argument;
+  return "arm";
 }
 
 /**
@@ -274,7 +430,9 @@ async function wait(auth: Auth): Promise<number> {
 }
 
 async function main(): Promise<void> {
+  const mode = resolveMode(process.argv[2]);
   const auth = keys();
+
   if (!auth) {
     // Brak sekretów NIE MOŻE wyglądać jak sukces na przebiegu nocnym: to jedyna
     // weryfikacja odnowienia i dunningu, jaką mamy, więc „nieskonfigurowana"
@@ -294,7 +452,12 @@ async function main(): Promise<void> {
   if (code !== 0) process.exitCode = code;
 }
 
-void main().catch((e: unknown) => {
-  summary(`::error title=Sonda rozliczeń przerwana::${e instanceof Error ? e.message : String(e)}`);
+void main().catch((error: unknown) => {
+  annotate(
+    "error",
+    "Sonda rozliczeń przerwana",
+    error instanceof Error ? error.message : String(error),
+  );
+  setOutput("outcome", "failed");
   process.exitCode = 1;
 });
