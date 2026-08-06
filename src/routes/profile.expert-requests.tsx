@@ -62,38 +62,29 @@ function ExpertRequestList({ box, highlightId }: { box: ExpertRequestBox; highli
     );
   }
   return (
-    <ul className="flex flex-col gap-2">
-      {rows.map((row) => (
-        <li
-          key={row.id}
-          ref={row.id === highlightId ? highlightRef : undefined}
-          className={cn(
-            "rounded-[6px] border bg-card p-3 transition-colors",
-            row.id === highlightId
-              ? "border-[var(--brand)] ring-1 ring-[var(--brand)]/40"
-              : "border-border",
-          )}
-        >
-          <div className="flex items-center justify-between gap-2">
-            <p className="truncate text-sm font-semibold">{row.subject}</p>
-            <span className="rounded-[6px] border border-border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider">
-              {t(`expertRequest.status.${row.status}`)}
-            </span>
-          </div>
-          <p className="mt-1 line-clamp-3 text-xs text-muted-foreground">{row.reason}</p>
-          {row.status === "pending" && (
-            <div className="mt-2 flex flex-wrap justify-end gap-1.5">
-              {box === "sent" ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="rounded-[6px]"
-                  onClick={() => act(row, "cancel")}
-                >
-                  {t("expertRequest.actions.cancel")}
-                </Button>
-              ) : (
-                <>
+    <>
+      <ul className="flex flex-col gap-2">
+        {rows.map((row) => (
+          <li
+            key={row.id}
+            ref={row.id === highlightId ? highlightRef : undefined}
+            className={cn(
+              "rounded-[6px] border bg-card p-3 transition-colors",
+              row.id === highlightId
+                ? "border-[var(--brand)] ring-1 ring-[var(--brand)]/40"
+                : "border-border",
+            )}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p className="truncate text-sm font-semibold">{row.subject}</p>
+              <span className="rounded-[6px] border border-border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider">
+                {t(`expertRequest.status.${row.status}`)}
+              </span>
+            </div>
+            <p className="mt-1 line-clamp-3 text-xs text-muted-foreground">{row.reason}</p>
+            {row.status === "pending" && (
+              <div className="mt-2 flex flex-wrap justify-end gap-1.5">
+                {box === "sent" ? (
                   <Button
                     size="sm"
                     variant="outline"
@@ -126,6 +117,7 @@ function ExpertRequestList({ box, highlightId }: { box: ExpertRequestBox; highli
           </li>
         ))}
       </ul>
+
 
       <ExpertRequestCancelDialog
         subject={pendingCancel?.subject ?? null}
