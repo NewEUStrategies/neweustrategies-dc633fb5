@@ -91,6 +91,12 @@ import { SiteMenu } from "@/components/menu/SiteMenu";
 import { CategoriesView } from "./ui/organisms/widget-view/CategoriesView";
 import { TagsView } from "./ui/organisms/widget-view/TagsView";
 import { renderSimpleWidget, ResizableBox } from "./ui/organisms/widget-view/SimpleWidgets";
+import {
+  SocialMailIcon,
+  socialGlyphBoxStyle,
+  SOCIAL_GLYPH_TILE_CLASS,
+} from "./ui/organisms/widget-view/socialGlyphs";
+
 import { RichHtmlView } from "./ui/organisms/widget-view/RichHtmlView";
 export { getWidgetFrameStyle, hiddenOnDevice };
 
