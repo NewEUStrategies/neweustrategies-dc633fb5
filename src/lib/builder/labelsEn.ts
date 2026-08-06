@@ -1186,6 +1186,10 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Animuj wejście karty": "Animate the card entrance",
   "Wyłączane automatycznie przy systemowym „ogranicz ruch” (prefers-reduced-motion).":
     "Switched off automatically under the system “reduce motion” setting (prefers-reduced-motion).",
+  "Droplista tematów (zainteresowania)?": "Topics droplist (interests)?",
+  "Promień poziomy (px)": "Horizontal radius (px)",
+  "Promień pionowy (px)": "Vertical radius (px)",
+  "Ramka aktywnej karty, licznik i kropki. Puste = kolor marki.": "Active card border, counter and dots. Empty = brand color.",
 };
 /* eslint-enable prettier/prettier */
 

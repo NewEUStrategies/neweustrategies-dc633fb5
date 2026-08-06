@@ -3285,6 +3285,16 @@ pushLabelsFor("contact-form", [
     ],
     default: "1",
   },
+  {
+    key: "showInterests",
+    type: "select",
+    label: "Droplista tematów (zainteresowania)?",
+    options: [
+      { value: "1", label: "tak" },
+      { value: "0", label: "nie" },
+    ],
+    default: "1",
+  },
   customFieldsField,
 );
 
