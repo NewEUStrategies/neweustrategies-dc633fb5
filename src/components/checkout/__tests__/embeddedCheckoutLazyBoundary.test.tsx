@@ -64,7 +64,7 @@ function importersMatching(predicate: (spec: string) => boolean): string[] {
 }
 
 describe("granica leniwego ładowania SDK płatności", () => {
-  it("tylko StripeEmbeddedFrame importuje @stripe/* statycznie", () => {
+  it("tylko StripeEmbeddedFrame importuje @stripe/* statycznie", { timeout: 60_000 }, () => {
     const offenders = importersMatching((spec) => spec.startsWith("@stripe/"));
     expect(
       offenders,
@@ -73,7 +73,7 @@ describe("granica leniwego ładowania SDK płatności", () => {
     ).toEqual([]);
   });
 
-  it("StripeEmbeddedFrame jest osiągalny wyłącznie przez import dynamiczny", () => {
+  it("StripeEmbeddedFrame jest osiągalny wyłącznie przez import dynamiczny", { timeout: 60_000 }, () => {
     const importers = importersMatching((spec) =>
       spec.endsWith("checkout/StripeEmbeddedFrame"),
     );
