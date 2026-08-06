@@ -51,14 +51,14 @@ export function defaultSocialImage(origin: string): string {
  * front page and any route without its own head() stay byte-identical.
  */
 export const SITE_DEFAULT_TITLE: Record<Lang, string> = {
-  pl: "New European Strategies - Bezpieczeństwo i geopolityka",
-  en: "New European Strategies - Security & Geopolitics",
+  pl: "New European Strategies - bezpieczeństwo Europy",
+  en: "New European Strategies - European Security Analysis",
 };
 
 /** Brand-default meta description per language (see SITE_DEFAULT_TITLE). */
 export const SITE_DEFAULT_DESCRIPTION: Record<Lang, string> = {
-  pl: "Think-tank o europejskim bezpieczeństwie, geopolityce i grze mocarstw. Analizy, raporty, wywiady i policy papers.",
-  en: "A think-tank on European security, geopolitics and great-power rivalry. Analyses, reports, interviews and policy papers.",
+  pl: "Niezależny think-tank o bezpieczeństwie Europy i geopolityce: analizy, raporty, wywiady i policy papers na temat gry mocarstw.",
+  en: "An independent think-tank on European security and geopolitics: analyses, reports, interviews and policy papers on great-power rivalry.",
 };
 
 /** Absolute origin for the canonical brand deployment - used to resolve the
