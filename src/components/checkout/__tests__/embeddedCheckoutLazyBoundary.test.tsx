@@ -46,13 +46,26 @@ function staticImportsOf(rawSource: string): string[] {
 
 const files = walk(SRC_DIR);
 
+/**
+ * Skan drzewa `src` wykonujemy RAZ i trzymamy w pamięci: dwa niezależne
+ * przejścia po ~tysiącu plików potrafiły przekroczyć domyślny timeout, gdy
+ * pełny przebieg CI rywalizuje o I/O między workerami (stąd „przechodzi solo,
+ * pada w pakiecie"). Jedno przejście = deterministyczny koszt.
+ */
+const importGraph = new Map<string, string[]>(
+  files.map((file) => [file, staticImportsOf(readFileSync(file, "utf8"))]),
+);
+
+function importersMatching(predicate: (spec: string) => boolean): string[] {
+  return [...importGraph.entries()]
+    .filter(([file]) => file !== FRAME_MODULE)
+    .filter(([, specs]) => specs.some(predicate))
+    .map(([file]) => file);
+}
+
 describe("granica leniwego ładowania SDK płatności", () => {
-  it("tylko StripeEmbeddedFrame importuje @stripe/* statycznie", () => {
-    const offenders = files
-      .filter((file) => file !== FRAME_MODULE)
-      .filter((file) =>
-        staticImportsOf(readFileSync(file, "utf8")).some((spec) => spec.startsWith("@stripe/")),
-      );
+  it("tylko StripeEmbeddedFrame importuje @stripe/* statycznie", { timeout: 60_000 }, () => {
+    const offenders = importersMatching((spec) => spec.startsWith("@stripe/"));
     expect(
       offenders,
       "Statyczny import @stripe/* poza StripeEmbeddedFrame wraca do wspólnego przodka " +
@@ -60,14 +73,10 @@ describe("granica leniwego ładowania SDK płatności", () => {
     ).toEqual([]);
   });
 
-  it("StripeEmbeddedFrame jest osiągalny wyłącznie przez import dynamiczny", () => {
-    const importers = files
-      .filter((file) => file !== FRAME_MODULE)
-      .filter((file) =>
-        staticImportsOf(readFileSync(file, "utf8")).some((spec) =>
-          spec.endsWith("checkout/StripeEmbeddedFrame"),
-        ),
-      );
+  it("StripeEmbeddedFrame jest osiągalny wyłącznie przez import dynamiczny", { timeout: 60_000 }, () => {
+    const importers = importersMatching((spec) =>
+      spec.endsWith("checkout/StripeEmbeddedFrame"),
+    );
     expect(importers, "Pośredniość istnieje po to, by ten moduł wchodził tylko przez lazy").toEqual(
       [],
     );

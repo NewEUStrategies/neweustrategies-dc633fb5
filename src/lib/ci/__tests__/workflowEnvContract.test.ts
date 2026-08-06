@@ -214,7 +214,10 @@ function walk(dir: string, out: string[]): string[] {
 }
 
 describe("self-test na realnym repozytorium", () => {
-  it("żaden workflow w repo nie eksportuje zmiennej bez odbiorcy", () => {
+  // Skan całego repo (workflowy + wszystkie źródła) jest z natury I/O-bound:
+  // przy pełnym przebiegu workery rywalizują o dysk i domyślne 5 s bywa za
+  // mało. Limit jest jawny, żeby nie mylić wolnego I/O z regresją kontraktu.
+  it("żaden workflow w repo nie eksportuje zmiennej bez odbiorcy", { timeout: 60_000 }, () => {
     const workflows: WorkflowFile[] = readdirSync(WORKFLOWS_DIR)
       .filter((file) => file.endsWith(".yml") || file.endsWith(".yaml"))
       .map((file) => ({
