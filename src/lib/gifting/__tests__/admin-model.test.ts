@@ -19,17 +19,19 @@ const SETTINGS: GiftAdminSettings = {
   enabled: true,
   monthly_limit: 10,
   link_ttl_days: 30,
-  max_redemptions_per_link: 50,
+  max_redemptions_per_link: 5,
+  eligibility: "registered",
 };
 
 describe("GIFT_ADMIN_BOUNDS", () => {
   it("odzwierciedla CHECK-i z migracji (20260722112736, 20260724090600)", () => {
     expect(GIFT_ADMIN_BOUNDS.monthly_limit).toEqual({ min: 0, max: 1000, fallback: 10 });
     expect(GIFT_ADMIN_BOUNDS.link_ttl_days).toEqual({ min: 0, max: 365, fallback: 30 });
+    // Budzet klikniec: po migracji 20260806170000 domyslne 5, nie 50.
     expect(GIFT_ADMIN_BOUNDS.max_redemptions_per_link).toEqual({
       min: 0,
       max: 100000,
-      fallback: 50,
+      fallback: 5,
     });
   });
 
@@ -38,7 +40,8 @@ describe("GIFT_ADMIN_BOUNDS", () => {
       enabled: true,
       monthly_limit: 10,
       link_ttl_days: 30,
-      max_redemptions_per_link: 50,
+      max_redemptions_per_link: 5,
+      eligibility: "registered",
     });
   });
 });
@@ -79,6 +82,7 @@ describe("validateGiftAdminDraft / draftToGiftAdminSettings", () => {
       monthly_limit: 1001,
       link_ttl_days: -1,
       max_redemptions_per_link: 100001,
+      eligibility: "registered" as const,
     };
     expect(validateGiftAdminDraft(draft)).toEqual({
       monthly_limit: "range",
@@ -109,14 +113,18 @@ describe("giftAdminSettingsEqual", () => {
     expect(giftAdminSettingsEqual(SETTINGS, { ...SETTINGS, max_redemptions_per_link: 51 })).toBe(
       false,
     );
+    // Bramka uprawnienia to tez ustawienie - zmiana musi odblokowac zapis.
+    expect(giftAdminSettingsEqual(SETTINGS, { ...SETTINGS, eligibility: "subscribers" })).toBe(
+      false,
+    );
   });
 });
 
 describe("giftCapExhausted", () => {
   it("lustro warunku redeem_gift_link: cap > 0 AND count >= cap", () => {
-    expect(giftCapExhausted(49, 50)).toBe(false);
-    expect(giftCapExhausted(50, 50)).toBe(true);
-    expect(giftCapExhausted(51, 50)).toBe(true);
+    expect(giftCapExhausted(4, 5)).toBe(false);
+    expect(giftCapExhausted(5, 5)).toBe(true);
+    expect(giftCapExhausted(6, 5)).toBe(true);
   });
 
   it("cap 0 = bez limitu, nigdy nie wyczerpany", () => {

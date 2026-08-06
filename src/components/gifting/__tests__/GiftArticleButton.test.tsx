@@ -1,15 +1,31 @@
 // Testy zachowan GiftArticleButton: fazy popovera (gosc / bez subskrypcji /
-// subskrybent / limit / wylaczone) + idempotentne auto-generowanie linku.
-// Warstwa danych (lib/gifting/hooks) jest mockowana - macierz faz ma wlasne
-// testy w lib/gifting/__tests__/model.test.ts.
+// uprawniony / limit miesieczny / wyczerpany budzet klikniec / wylaczone),
+// idempotentne auto-generowanie linku i widocznosc budzetu. Warstwa danych
+// (lib/gifting/hooks) jest mockowana - macierz faz ma wlasne testy w
+// lib/gifting/__tests__/model.test.ts.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, screen } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
+import { giftClickBudget } from "@/lib/gifting/model";
 import type { GiftArticleState, GiftLinkResult, GiftSettings } from "@/lib/gifting/model";
+
+const BASE_SETTINGS: GiftSettings = {
+  enabled: true,
+  monthly_limit: 0,
+  link_ttl_days: 0,
+  max_redemptions_per_link: 5,
+  eligibility: "registered",
+};
 
 const h = vi.hoisted(() => ({
   session: null as { user: { id: string } } | null,
-  settings: { enabled: true, monthly_limit: 0, link_ttl_days: 0 } as GiftSettings,
+  settings: {
+    enabled: true,
+    monthly_limit: 0,
+    link_ttl_days: 0,
+    max_redemptions_per_link: 5,
+    eligibility: "registered",
+  } as GiftSettings,
   state: null as GiftArticleState | null,
   stateLoading: false,
   stateError: false,
@@ -37,6 +53,12 @@ vi.mock("@/hooks/useAuth", () => ({
 
 vi.mock("@/components/atoms/BrandIcon", () => ({
   BrandIcon: ({ alt }: { alt?: string }) => <span data-testid="brand-icon">{alt}</span>,
+}));
+
+// Data odnowienia budzetu pochodzi z modulu meteringu (jedno zrodlo prawdy dla
+// "kiedy limit wraca") - w tescie wystarczy stabilna wartosc.
+vi.mock("@/lib/access/metering", () => ({
+  formatMeterResetDate: () => "1 września",
 }));
 
 vi.mock("sonner", () => ({
@@ -77,6 +99,8 @@ function makeState(partial: Partial<GiftArticleState>): GiftArticleState {
     remaining: null,
     existingCode: null,
     expiresAt: null,
+    eligibility: "registered",
+    budget: giftClickBudget(0, 5),
     ...partial,
   };
 }
@@ -98,7 +122,7 @@ function openPopover() {
 
 beforeEach(() => {
   h.session = null;
-  h.settings = { enabled: true, monthly_limit: 0, link_ttl_days: 0 };
+  h.settings = { ...BASE_SETTINGS };
   h.state = null;
   h.stateLoading = false;
   h.stateError = false;
@@ -108,7 +132,7 @@ beforeEach(() => {
 
 describe("GiftArticleButton", () => {
   it("nie renderuje niczego, gdy funkcja jest wylaczona w tenancie", () => {
-    h.settings = { enabled: false, monthly_limit: 0, link_ttl_days: 0 };
+    h.settings = { ...BASE_SETTINGS, enabled: false };
     const { container } = renderButton();
     expect(container).toBeEmptyDOMElement();
   });
@@ -125,7 +149,12 @@ describe("GiftArticleButton", () => {
 
   it("zalogowany bez platnej subskrypcji: CTA planow, bez generowania", () => {
     h.session = { user: { id: "u1" } };
-    h.state = makeState({ canGift: false, requiresSubscription: true });
+    h.settings = { ...BASE_SETTINGS, eligibility: "subscribers" };
+    h.state = makeState({
+      canGift: false,
+      requiresSubscription: true,
+      eligibility: "subscribers",
+    });
     renderButton();
     openPopover();
     expect(screen.getByText("gifting.subscriptionTitle")).toBeInTheDocument();
@@ -136,7 +165,7 @@ describe("GiftArticleButton", () => {
     expect(h.mutate).not.toHaveBeenCalled();
   });
 
-  it("subskrybent bez linku: otwarcie popovera auto-generuje dokladnie raz", () => {
+  it("zalogowany czytelnik bez linku: otwarcie popovera auto-generuje dokladnie raz", () => {
     h.session = { user: { id: "u1" } };
     h.state = makeState({});
     renderButton();
@@ -145,12 +174,15 @@ describe("GiftArticleButton", () => {
     expect(screen.getByText("gifting.preparing")).toBeInTheDocument();
   });
 
-  it("subskrybent z istniejacym kodem: kanaly + kopiowanie, bez ponownego create", () => {
+  it("uprawniony z istniejacym kodem: budzet, kanaly i kopiowanie, bez ponownego create", () => {
     h.session = { user: { id: "u1" } };
-    h.state = makeState({ existingCode: CODE });
+    h.state = makeState({ existingCode: CODE, budget: giftClickBudget(2, 5) });
     renderButton();
     openPopover();
     expect(h.mutate).not.toHaveBeenCalled();
+    // Budzet klikniec widoczny dla nadawcy: 2 z 5 zuzyte, 3 zostaly.
+    expect(screen.getByTestId("gift-budget")).toHaveAttribute("data-remaining", "3");
+    expect(screen.getByTestId("quota-meter")).toHaveAttribute("aria-valuenow", "2");
     expect(screen.getByText("gifting.unlimitedNote")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "gifting.copyLink" })).toBeInTheDocument();
     const fb = screen.getByRole("link", { name: "gifting.channels.facebook" });
@@ -160,7 +192,20 @@ describe("GiftArticleButton", () => {
     );
     // 7 kanalow platformy: mail, facebook, linkedin, whatsapp, telegram, x, reddit.
     expect(screen.getAllByTestId("brand-icon")).toHaveLength(7);
-    expect(screen.getByText(/gifting.anyoneCanRead/)).toBeInTheDocument();
+    // Stopka mowi prawde o mechanice: pierwszych N czytelnikow, nie "kazdy".
+    expect(screen.getByText(/gifting.firstNCanRead/)).toBeInTheDocument();
+  });
+
+  it("wyczerpany budzet klikniec: stan terminalny zamiast martwego 'skopiuj link'", () => {
+    h.session = { user: { id: "u1" } };
+    h.state = makeState({ existingCode: CODE, budget: giftClickBudget(5, 5) });
+    renderButton();
+    openPopover();
+    expect(screen.getByTestId("gift-budget-spent")).toBeInTheDocument();
+    expect(screen.getByText("gifting.budget.spentTitle")).toBeInTheDocument();
+    expect(screen.getByText(/gifting.budget.resetsOn/)).toBeInTheDocument();
+    expect(screen.queryByTestId("gift-copy-button")).not.toBeInTheDocument();
+    expect(h.mutate).not.toHaveBeenCalled();
   });
 
   it("blad odczytu stanu: komunikat + ponowienie (bez wiecznego 'preparing')", () => {

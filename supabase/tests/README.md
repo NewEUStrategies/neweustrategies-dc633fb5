@@ -98,3 +98,20 @@ pg_prove -d "$DATABASE_URL" supabase/tests/*.sql
 - runner zadań tła: `job_runner_settings.enabled` ma `DEFAULT true`, a
   `job_runner_base_url()` wylicza adres z domeny tenanta domyślnego, gdy
   konfiguracja jest pusta.
+
+`share_full_article_budget_test.sql` - kontrakt mechaniki „Udostępnij pełny
+artykuł" po migracji `20260806170000_share_full_article_click_budget.sql`:
+
+- bramka `eligibility`: przy `registered` link generuje **każde konto tenanta**
+  (anonim nie), przy `subscribers` wraca warunek płatnej subskrypcji;
+- `create_gift_link` jest idempotentne per (wpis, nadawca), a limit miesięczny
+  liczy **artykuły**, nie wiersze linków;
+- treść bez paywalla i treść na hasło są wykluczone (`gift_post_not_gated`);
+- budżet kliknięć: N różnych odbiorców dostaje body, kolejny `reason='exhausted'`
+  **bez body**; powrót tego samego odbiorcy podbija `hits`, nie zużywa slotu;
+- nadawca (`owner`) i czytelnik z własnym uprawnieniem (`entitled`) nie zużywają
+  budżetu; `revoked` / `expired` / `invalid` mają własne powody;
+- budżet jest **zamrożony na linku** - zmiana ustawień tenanta nie rusza linków
+  już udostępnionych;
+- rejestr `post_gift_redemptions` jest niewidoczny dla anona i zwykłego konta
+  (tożsamość odbiorcy nie wraca do nadawcy).

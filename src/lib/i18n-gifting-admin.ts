@@ -3,9 +3,9 @@ import i18n from "./i18n";
 
 const pl = {
   giftingAdmin: {
-    title: "Podaruj artykuł",
+    title: "Udostępnij pełny artykuł",
     subtitle:
-      "Ustawienia funkcji „Podaruj artykuł” (linki podarunkowe NYT-style) oraz audyt zdarzeń w tym tenancie.",
+      "Ustawienia funkcji „Udostępnij pełny artykuł” (linki otwierające treść zza paywalla) oraz audyt zdarzeń w tym tenancie.",
     tabs: {
       settings: "Ustawienia",
       links: "Linki",
@@ -19,11 +19,24 @@ const pl = {
       monthlyLimitHint: "0 = bez limitu (jak NYT All Access).",
       ttl: "Ważność linku (dni)",
       ttlHint: "0 = link bezterminowy. Wygasłe linki są automatycznie rotowane.",
-      cap: "Limit odsłon na link",
+      eligibility: "Kto może udostępniać",
+      eligibilityHint:
+        "Bramka przycisku „Udostępnij pełny artykuł”. Zmiana działa natychmiast - istniejące linki pozostają ważne.",
+      eligibilityOptions: {
+        registered: {
+          label: "Każda zarejestrowana osoba",
+          hint: "Wystarczy konto w tym serwisie - domyślne ustawienie mechaniki „udostępnij pełny artykuł”.",
+        },
+        subscribers: {
+          label: "Tylko subskrybenci",
+          hint: "Aktywna płatna subskrypcja albo warstwa z dostępem premium (jak NYT All Access).",
+        },
+      },
+      cap: "Budżet kliknięć na link",
       capHint:
-        "Ilu odbiorców może otworzyć artykuł z jednego linku, zanim kod przestanie odblokowywać treść. Domyślnie 50.",
+        "Ilu NOWYCH odbiorców otworzy artykuł z jednego linku, zanim kod przestanie działać. Domyślnie 5. Powrót tej samej osoby nie zużywa kolejnego kliknięcia, a wartość jest zamrażana na linku w chwili utworzenia.",
       capZeroWarning:
-        "0 = bez limitu odsłon - jeden upubliczniony link odblokuje artykuł nieograniczonej liczbie osób.",
+        "0 = bez limitu kliknięć - jeden upubliczniony link odblokuje artykuł nieograniczonej liczbie osób.",
       defaultsNotice:
         "Ten tenant nie ma jeszcze zapisanych ustawień - poniżej efektywne wartości domyślne. Zapis utrwali je w bazie.",
       errors: {
@@ -43,6 +56,8 @@ const pl = {
       totalCreated: "Łącznie utworzonych",
       totalRedeemed: "Łącznie otwarć",
       gifters: "Unikalni darczyńcy",
+      recipients: "Unikalni odbiorcy",
+      exhausted: "Wyczerpane budżety",
     },
     links: {
       filterAll: "Wszystkie",
@@ -68,7 +83,21 @@ const pl = {
       confirmRevoke: "Cofnąć ten link podarunkowy? Odbiorcy stracą dostęp.",
       revoked: "Link został cofnięty.",
       copyCode: "Skopiuj kod",
-      capReached: "Limit odsłon wyczerpany - kod nie odblokuje treści kolejnym odbiorcom.",
+      capReached: "Budżet kliknięć wyczerpany - kod nie odblokuje treści kolejnym odbiorcom.",
+      capNote_one:
+        "Nowe linki dostają budżet {{count}} kliknięcia. Kolumna „Otwarcia” pokazuje budżet zamrożony na danym linku, więc starsze linki mogą mieć inną wartość.",
+      capNote_few:
+        "Nowe linki dostają budżet {{count}} kliknięć. Kolumna „Otwarcia” pokazuje budżet zamrożony na danym linku, więc starsze linki mogą mieć inną wartość.",
+      capNote_many:
+        "Nowe linki dostają budżet {{count}} kliknięć. Kolumna „Otwarcia” pokazuje budżet zamrożony na danym linku, więc starsze linki mogą mieć inną wartość.",
+      capNote_other:
+        "Nowe linki dostają budżet {{count}} kliknięć. Kolumna „Otwarcia” pokazuje budżet zamrożony na danym linku, więc starsze linki mogą mieć inną wartość.",
+      capNoteUnlimited:
+        "Nowe linki są bez limitu kliknięć. Kolumna „Otwarcia” pokazuje budżet zamrożony na danym linku.",
+      recipients_one: "{{count}} odbiorca",
+      recipients_few: "{{count}} odbiorców",
+      recipients_many: "{{count}} odbiorców",
+      recipients_other: "{{count}} odbiorcy",
       empty: "Brak linków spełniających kryteria.",
     },
     audit: {
@@ -76,6 +105,7 @@ const pl = {
       filterCreated: "Utworzone",
       filterRedeemed: "Otwarte",
       filterRevoked: "Cofnięte",
+      filterExhausted: "Odbicia",
       col: {
         when: "Kiedy",
         type: "Typ",
@@ -88,6 +118,7 @@ const pl = {
         redeemed: "otwarty",
         revoked: "cofnięty",
         expired: "wygasł",
+        exhausted: "odbicie (budżet wyczerpany)",
       },
       anonymous: "anonimowy odbiorca",
       empty: "Brak zdarzeń.",
@@ -102,9 +133,9 @@ const pl = {
 
 const en: typeof pl = {
   giftingAdmin: {
-    title: "Gift articles",
+    title: "Share full article",
     subtitle:
-      "Manage the „Share full article” feature (NYT-style gift links) and audit gifting events in this tenant.",
+      "Manage the „Share full article” feature (links that open paywalled content) and audit sharing events in this tenant.",
     tabs: {
       settings: "Settings",
       links: "Links",
@@ -118,11 +149,24 @@ const en: typeof pl = {
       monthlyLimitHint: "0 = unlimited (like NYT All Access).",
       ttl: "Link validity (days)",
       ttlHint: "0 = never expires. Expired links are rotated automatically.",
-      cap: "Per-link open cap",
+      eligibility: "Who can share",
+      eligibilityHint:
+        "Gate for the „Share full article” button. Changes apply immediately - links already shared stay valid.",
+      eligibilityOptions: {
+        registered: {
+          label: "Any registered reader",
+          hint: "An account on this site is enough - the default for the share-full-article mechanic.",
+        },
+        subscribers: {
+          label: "Subscribers only",
+          hint: "An active paid subscription or a premium tier (NYT All Access style).",
+        },
+      },
+      cap: "Per-link click budget",
       capHint:
-        "How many recipients can open the article from a single link before the code stops unlocking content. Default 50.",
+        "How many NEW recipients can open the article from a single link before the code stops working. Default 5. A returning reader does not spend another click, and the value is frozen on the link when it is created.",
       capZeroWarning:
-        "0 = no open cap - one publicly shared link unlocks the article for an unlimited audience.",
+        "0 = no click budget - one publicly shared link unlocks the article for an unlimited audience.",
       defaultsNotice:
         "This tenant has no saved settings yet - the values below are the effective defaults. Saving will persist them.",
       errors: {
@@ -142,6 +186,8 @@ const en: typeof pl = {
       totalCreated: "Total created",
       totalRedeemed: "Total opens",
       gifters: "Unique gifters",
+      recipients: "Unique recipients",
+      exhausted: "Spent budgets",
     },
     links: {
       filterAll: "All",
@@ -167,7 +213,21 @@ const en: typeof pl = {
       confirmRevoke: "Revoke this gift link? Recipients will lose access.",
       revoked: "Link revoked.",
       copyCode: "Copy code",
-      capReached: "Open cap reached - the code no longer unlocks content for new recipients.",
+      capReached: "Click budget spent - the code no longer unlocks content for new recipients.",
+      capNote_one:
+        "New links get a budget of {{count}} click. The „Opens” column shows the budget frozen on each link, so older links may differ.",
+      capNote_few:
+        "New links get a budget of {{count}} clicks. The „Opens” column shows the budget frozen on each link, so older links may differ.",
+      capNote_many:
+        "New links get a budget of {{count}} clicks. The „Opens” column shows the budget frozen on each link, so older links may differ.",
+      capNote_other:
+        "New links get a budget of {{count}} clicks. The „Opens” column shows the budget frozen on each link, so older links may differ.",
+      capNoteUnlimited:
+        "New links have no click budget. The „Opens” column shows the budget frozen on each link.",
+      recipients_one: "{{count}} recipient",
+      recipients_few: "{{count}} recipients",
+      recipients_many: "{{count}} recipients",
+      recipients_other: "{{count}} recipients",
       empty: "No links match the filters.",
     },
     audit: {
@@ -175,6 +235,7 @@ const en: typeof pl = {
       filterCreated: "Created",
       filterRedeemed: "Opened",
       filterRevoked: "Revoked",
+      filterExhausted: "Bounces",
       col: {
         when: "When",
         type: "Type",
@@ -187,6 +248,7 @@ const en: typeof pl = {
         redeemed: "opened",
         revoked: "revoked",
         expired: "expired",
+        exhausted: "bounced (budget spent)",
       },
       anonymous: "anonymous recipient",
       empty: "No events.",

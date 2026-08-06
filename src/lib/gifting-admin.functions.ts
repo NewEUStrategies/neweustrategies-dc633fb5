@@ -17,6 +17,7 @@ import {
   type GiftAdminLimitField,
   type GiftAdminSettings,
 } from "@/lib/gifting/admin-model";
+import { normalizeGiftEligibility } from "@/lib/gifting/model";
 
 const limitSchema = (field: GiftAdminLimitField) =>
   z.number().int().min(GIFT_ADMIN_BOUNDS[field].min).max(GIFT_ADMIN_BOUNDS[field].max);
@@ -26,6 +27,8 @@ const SettingsSchema = z.object({
   monthly_limit: limitSchema("monthly_limit"),
   link_ttl_days: limitSchema("link_ttl_days"),
   max_redemptions_per_link: limitSchema("max_redemptions_per_link"),
+  // Lustro CHECK-a z migracji 20260806170000.
+  eligibility: z.enum(["registered", "subscribers"]),
 });
 
 export interface GiftAdminSettingsRow extends GiftAdminSettings {
@@ -43,12 +46,13 @@ export const getGiftAdminSettings = createServerFn({ method: "GET" })
     const { data, error } = await context.supabase
       .from("gift_article_settings")
       .select(
-        "enabled, monthly_limit, link_ttl_days, max_redemptions_per_link, updated_at, updated_by",
+        "enabled, monthly_limit, link_ttl_days, max_redemptions_per_link, eligibility, updated_at, updated_by",
       )
       .maybeSingle();
     if (error) throw new Error(error.message);
     // Brak wiersza != "wszystko na zero": create/redeem_gift_link egzekwuja
-    // wtedy bezpieczne fallbacki (10/30/50). Panel musi pokazywac wlasnie je.
+    // wtedy bezpieczne fallbacki (10/30/5 + bramka rejestracji). Panel musi
+    // pokazywac wlasnie je.
     if (!data) {
       return {
         ...DEFAULT_GIFT_ADMIN_SETTINGS,
@@ -57,7 +61,11 @@ export const getGiftAdminSettings = createServerFn({ method: "GET" })
         persisted: false,
       };
     }
-    return { ...data, persisted: true };
+    return {
+      ...data,
+      eligibility: normalizeGiftEligibility(data.eligibility),
+      persisted: true,
+    };
   });
 
 export const updateGiftAdminSettings = createServerFn({ method: "POST" })
@@ -80,6 +88,7 @@ export const updateGiftAdminSettings = createServerFn({ method: "POST" })
         monthly_limit: data.monthly_limit,
         link_ttl_days: data.link_ttl_days,
         max_redemptions_per_link: data.max_redemptions_per_link,
+        eligibility: data.eligibility,
         updated_by: context.userId,
         updated_at: new Date().toISOString(),
       },
@@ -101,11 +110,13 @@ export const getGiftAdminStats = createServerFn({ method: "GET" })
         active_links: 0,
         revoked_links: 0,
         expired_links: 0,
+        exhausted_links: 0,
         total_created: 0,
         total_redeemed: 0,
         created_this_month: 0,
         redeemed_this_month: 0,
         unique_gifters: 0,
+        unique_recipients: 0,
       }
     );
   });
@@ -130,6 +141,10 @@ export interface GiftLinkAdminRow {
   expires_at: string | null;
   revoked_at: string | null;
   redemption_count: number;
+  /** Budzet klikniec zamrozony na linku (0 = bez limitu). */
+  max_redemptions: number;
+  /** Liczba UNIKALNYCH odbiorcow (rejestr post_gift_redemptions). */
+  unique_recipients: number;
   last_redeemed_at: string | null;
   total_count: number;
 }
@@ -172,7 +187,7 @@ export const revokeGiftLinkAdmin = createServerFn({ method: "POST" })
 // -------------------- Events (audit log) --------------------
 
 /** Znane typy zdarzen audytu (trigger gift_links_audit_tg). */
-export type GiftEventType = "created" | "redeemed" | "revoked" | "expired";
+export type GiftEventType = "created" | "redeemed" | "revoked" | "expired" | "exhausted";
 
 /**
  * Wiersz z list_gift_events_admin - jak wyzej, uczciwa nullowalnosc.
@@ -195,7 +210,9 @@ export interface GiftEventAdminRow {
 const ListEventsInput = z.object({
   limit: z.number().int().min(1).max(500).default(100),
   offset: z.number().int().min(0).default(0),
-  event_type: z.enum(["all", "created", "redeemed", "revoked", "expired"]).default("all"),
+  event_type: z
+    .enum(["all", "created", "redeemed", "revoked", "expired", "exhausted"])
+    .default("all"),
   link_id: z.string().uuid().nullish(),
 });
 

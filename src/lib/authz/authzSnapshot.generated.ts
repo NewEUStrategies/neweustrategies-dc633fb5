@@ -39,7 +39,7 @@ export const AUTHZ_SNAPSHOT: AuthzSnapshotModule = {
     {"ref":"fn:integration_endpoint_set_secret/2","kind":"function","object":"integration_endpoint_set_secret","file":"20260714090000_integration_endpoints_secret_vault.sql","anyRoles":["admin","super_admin"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:is_staff/0","kind":"function","object":"is_staff","file":"20260628230000_tenant_isolation_and_authz.sql","anyRoles":["admin","author","editor"],"allRoles":[],"tenantRef":"none","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:job_scheduler_health/0","kind":"function","object":"job_scheduler_health","file":"20260731210000_community_cron_db_schedule.sql","anyRoles":["admin","editor","super_admin"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
-    {"ref":"fn:list_gift_links_admin/4","kind":"function","object":"list_gift_links_admin","file":"20260722113410_35a7de44-0ce9-40d8-a126-62eb892cca51.sql","anyRoles":["admin","editor"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
+    {"ref":"fn:list_gift_links_admin/4","kind":"function","object":"list_gift_links_admin","file":"20260806170000_share_full_article_click_budget.sql","anyRoles":["admin","editor"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:metering_impact_preview/1","kind":"function","object":"metering_impact_preview","file":"20260725090100_fix_metering_preview_app_role_enum.sql","anyRoles":["admin","editor","super_admin"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:monetization_dashboard/4","kind":"function","object":"monetization_dashboard","file":"20260724100000_fix_definer_header_tenant_scope.sql","anyRoles":["admin","editor"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:org_set_seats_limit/3","kind":"function","object":"org_set_seats_limit","file":"20260729204314_73c57056-a7c4-4055-9612-6a43a0d588d2.sql","anyRoles":["admin"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
@@ -72,5 +72,5 @@ export const AUTHZ_SNAPSHOT: AuthzSnapshotModule = {
     {"capability":"recordings","ref":"fn:get_event_access/1","kind":"function","object":"get_event_access","file":"20260724100000_fix_definer_header_tenant_scope.sql","bypassRoles":["admin","editor"],"tenantRef":"caller"},
     {"capability":"regulatory_monitoring","ref":"policy:eu_policy_follows/policy follows owner all","kind":"policy","object":"eu_policy_follows","file":"20260723090000_tier_content_gating_tracker.sql","bypassRoles":[],"tenantRef":"row"},
   ],
-  stats: {"migrations":628,"functions":559,"policies":505},
+  stats: {"migrations":629,"functions":562,"policies":506},
 };

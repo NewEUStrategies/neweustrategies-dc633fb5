@@ -23,6 +23,7 @@ import {
 } from "@/lib/gifting-admin.functions";
 import {
   GIFT_ADMIN_BOUNDS,
+  GIFT_ELIGIBILITY_OPTIONS,
   draftToGiftAdminSettings,
   giftAdminSettingsEqual,
   giftCapExhausted,
@@ -128,6 +129,8 @@ function StatsPanel() {
         { label: t("giftingAdmin.stats.totalCreated"), value: data.total_created },
         { label: t("giftingAdmin.stats.totalRedeemed"), value: data.total_redeemed },
         { label: t("giftingAdmin.stats.gifters"), value: data.unique_gifters },
+        { label: t("giftingAdmin.stats.recipients"), value: data.unique_recipients },
+        { label: t("giftingAdmin.stats.exhausted"), value: data.exhausted_links },
         { label: t("giftingAdmin.stats.revoked"), value: data.revoked_links },
         { label: t("giftingAdmin.stats.expired"), value: data.expired_links },
       ]
@@ -136,7 +139,7 @@ function StatsPanel() {
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
       {isLoading
-        ? Array.from({ length: 8 }).map((_, i) => (
+        ? Array.from({ length: 10 }).map((_, i) => (
             <div
               key={i}
               className="h-20 rounded-[6px] border border-border bg-muted/30 animate-pulse"
@@ -237,6 +240,7 @@ function SettingsPanel() {
         monthly_limit: data.monthly_limit,
         link_ttl_days: data.link_ttl_days,
         max_redemptions_per_link: data.max_redemptions_per_link,
+        eligibility: data.eligibility,
       }
     : null;
 
@@ -299,6 +303,47 @@ function SettingsPanel() {
           </p>
         </div>
       </label>
+
+      {/* Bramka uprawnienia - kto w ogole zobaczy przycisk „Udostepnij pelny
+        artykul" i wygeneruje link. Radiogroup zamiast selecta: dwie opcje z
+        realnymi konsekwencjami biznesowymi czyta sie lepiej obok siebie. */}
+      <fieldset className="rounded-[6px] border border-border bg-card p-4">
+        <legend className="px-1 text-sm font-semibold text-foreground">
+          {t("giftingAdmin.settings.eligibility")}
+        </legend>
+        <p className="text-xs text-muted-foreground mb-3">
+          {t("giftingAdmin.settings.eligibilityHint")}
+        </p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {GIFT_ELIGIBILITY_OPTIONS.map((option) => (
+            <label
+              key={option}
+              className={`flex cursor-pointer items-start gap-3 rounded-[6px] border p-3 transition-colors ${
+                effective.eligibility === option
+                  ? "border-brand bg-brand/5"
+                  : "border-border hover:bg-muted/40"
+              }`}
+            >
+              <input
+                type="radio"
+                name="gift-admin-eligibility"
+                className="mt-1 h-4 w-4 border-border accent-brand"
+                value={option}
+                checked={effective.eligibility === option}
+                onChange={() => setDraft({ ...effective, eligibility: option })}
+              />
+              <span>
+                <span className="block text-sm font-semibold text-foreground">
+                  {t(`giftingAdmin.settings.eligibilityOptions.${option}.label`)}
+                </span>
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  {t(`giftingAdmin.settings.eligibilityOptions.${option}.hint`)}
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
 
       <div className="grid gap-5 sm:grid-cols-2">
         <LimitField
@@ -391,8 +436,10 @@ function LinksPanel({ dateLocale }: { dateLocale: string }) {
   ];
 
   const rows = data?.rows ?? [];
-  // Cap per tenant do kolumny "otwarcia / cap"; 0 lub brak danych = bez capu.
-  const cap = settings?.max_redemptions_per_link ?? 0;
+  // Budzet czytamy z LINKU (zamrozony przy tworzeniu), nie z biezacych
+  // ustawien tenanta - inaczej kolumna klamalaby po kazdej zmianie suwaka.
+  // Ustawienia sluza juz tylko do noty "domyslnie N" nad tabela.
+  const defaultCap = settings?.max_redemptions_per_link ?? 0;
 
   const statusOf = (r: (typeof rows)[number]): "active" | "revoked" | "expired" => {
     if (r.revoked_at) return "revoked";
@@ -402,6 +449,11 @@ function LinksPanel({ dateLocale }: { dateLocale: string }) {
 
   return (
     <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">
+        {defaultCap > 0
+          ? t("giftingAdmin.links.capNote", { count: defaultCap })
+          : t("giftingAdmin.links.capNoteUnlimited")}
+      </p>
       <div className="flex flex-wrap gap-2">
         {filters.map((f) => (
           <button
@@ -450,6 +502,7 @@ function LinksPanel({ dateLocale }: { dateLocale: string }) {
               )}
               {rows.map((r) => {
                 const s = statusOf(r);
+                const cap = r.max_redemptions;
                 const exhausted = giftCapExhausted(r.redemption_count, cap);
                 return (
                   <tr key={r.id} className="hover:bg-muted/20">
@@ -486,6 +539,11 @@ function LinksPanel({ dateLocale }: { dateLocale: string }) {
                       ) : (
                         r.redemption_count
                       )}
+                      {/* Unikalni odbiorcy: klikniecia sa deduplikowane, wiec
+                        ta liczba mowi, ILU LUDZI realnie otworzylo artykul. */}
+                      <span className="ml-1 text-[11px] text-muted-foreground">
+                        ({t("giftingAdmin.links.recipients", { count: r.unique_recipients })})
+                      </span>
                     </td>
                     <td className="px-3 py-2">
                       <StatusPill status={s} label={t(`giftingAdmin.links.status.${s}`)} />
@@ -555,7 +613,7 @@ function StatusPill({
 
 // ---------------- Audit ----------------
 
-type EventFilter = "all" | "created" | "redeemed" | "revoked";
+type EventFilter = "all" | "created" | "redeemed" | "revoked" | "exhausted";
 
 function AuditPanel({ dateLocale }: { dateLocale: string }) {
   const { t } = useTranslation();
@@ -579,6 +637,7 @@ function AuditPanel({ dateLocale }: { dateLocale: string }) {
     { id: "created", label: t("giftingAdmin.audit.filterCreated") },
     { id: "redeemed", label: t("giftingAdmin.audit.filterRedeemed") },
     { id: "revoked", label: t("giftingAdmin.audit.filterRevoked") },
+    { id: "exhausted", label: t("giftingAdmin.audit.filterExhausted") },
   ];
 
   return (
@@ -672,6 +731,7 @@ const EVENT_PILL_CLS: Record<GiftEventType, string> = {
   redeemed: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
   revoked: "bg-destructive/10 text-destructive border-destructive/20",
   expired: "bg-muted text-muted-foreground border-border",
+  exhausted: "bg-amber-500/10 text-amber-600 border-amber-500/20",
 };
 
 function isKnownEventType(type: string): type is GiftEventType {
