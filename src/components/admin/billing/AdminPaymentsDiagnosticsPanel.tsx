@@ -19,6 +19,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { getStripeEnvironmentSafe } from "@/lib/stripe";
 import { useCheckout } from "@/hooks/useCheckout";
 import { EmbeddedCheckoutDialog } from "@/components/checkout/EmbeddedCheckoutDialog";
+import { prefetchEmbeddedCheckout } from "@/components/checkout/stripeFrameChunk";
 import { supabase } from "@/integrations/supabase/client";
 import { BILLING_CATALOG } from "@/lib/billing/catalog";
 import { getPaymentsDiagnostics, syncCouponsToProvider } from "@/lib/billing/diagnostics.functions";
@@ -112,6 +113,8 @@ export function AdminPaymentsDiagnosticsPanel() {
       );
       return;
     }
+    // Rozgrzewka leniwego chunku kasy równolegle z tworzeniem sesji testowej.
+    prefetchEmbeddedCheckout();
     try {
       const plan = (plansQ.data ?? []).find((row) => row.id === testPlanId);
       if (!plan) {

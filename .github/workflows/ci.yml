@@ -95,6 +95,17 @@ jobs:
           path: reports/widget-fidelity.txt
           if-no-files-found: ignore
 
+      # Blocking gate BEFORE the build, because it does not need one: static
+      # analysis of the src/ import graph. Fails if the payment operator's
+      # browser SDK is statically reachable from anything but its lazy island
+      # (components/checkout/StripeEmbeddedFrame + lib/stripe/sdk). That exact
+      # edge - routes/$.tsx -> Paywall -> EmbeddedCheckoutDialog ->
+      # @stripe/react-stripe-js - shipped Stripe to every anonymous reader for
+      # weeks; check:bundle only reported an aggregate KB number and never
+      # pointed at the cause. This one names the file, line and chain.
+      - name: Lazy-chunk island invariants
+        run: bun run check:bundle-islands
+
       - name: Build
         run: bun run build
         env:
@@ -159,8 +170,6 @@ jobs:
       # this project no longer has - it would fail only at runtime, mid-checkout.
       - name: No live legacy payment-provider references
         run: bun run check:no-paddle
-
-
 
       # Blocking reproducibility gate: can the database still be recreated from
       # migrations? Two classes, both invisible to an incremental `db push` and

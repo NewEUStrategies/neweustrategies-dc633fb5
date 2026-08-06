@@ -23,8 +23,8 @@ import { toast } from "sonner";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 import { catalogPriceForPlan } from "@/lib/billing/catalog";
 import { useCheckout } from "@/hooks/useCheckout";
-import { getStripe } from "@/lib/stripe";
-import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
+import { EmbeddedCheckoutFrame } from "@/components/checkout/EmbeddedCheckoutFrame";
+import { prefetchEmbeddedCheckout } from "@/components/checkout/stripeFrameChunk";
 import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
 export const Route = createFileRoute("/checkout/$planId")({
   component: CheckoutPage,
@@ -86,6 +86,8 @@ function CheckoutPage() {
   const submit = async () => {
     if (!plan.data || !hasBilling) return;
     setBusy(true);
+    // Rozgrzewka leniwego chunku kasy równolegle z tworzeniem sesji.
+    prefetchEmbeddedCheckout();
     try {
       const price = catalogPriceForPlan(plan.data);
       if (!price) {
@@ -260,9 +262,9 @@ function CheckoutPage() {
                     {clientSecret && (
                       <div className="space-y-2">
                         <PaymentTestModeBanner />
-                        <EmbeddedCheckoutProvider stripe={getStripe()} options={{ clientSecret }}>
-                          <EmbeddedCheckout />
-                        </EmbeddedCheckoutProvider>
+                        {/* Ta sama granica podziału kodu, co w modalu kasy -
+                            SDK operatora nie wchodzi do chunku trasy. */}
+                        <EmbeddedCheckoutFrame clientSecret={clientSecret} />
                       </div>
                     )}
                     <p className="text-xs text-muted-foreground text-center">

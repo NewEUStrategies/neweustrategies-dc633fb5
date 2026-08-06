@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { EmbeddedCheckoutDialog } from "@/components/checkout/EmbeddedCheckoutDialog";
+import { prefetchEmbeddedCheckout } from "@/components/checkout/stripeFrameChunk";
 import { getStripeEnvironment } from "@/lib/stripe";
 import { normalizeCheckoutLocale } from "@/lib/billing/checkoutLocale";
 import {
@@ -89,6 +90,8 @@ export function DonationForm({ className }: { className?: string }) {
     if (!config) return;
     setError(null);
     setPending(true);
+    // Rozgrzewka leniwego chunku kasy równolegle z tworzeniem sesji.
+    prefetchEmbeddedCheckout();
     try {
       const result = await submit({
         data: {
