@@ -584,13 +584,28 @@ function SecurityPage() {
               {t("profile.security.export.subtitle", {
                 defaultValue:
                   i18n.language === "en"
-                    ? "Download a copy of the personal data we store about you (Art. 15 and 20 GDPR): profile, comments, follows, orders and preferences - as a JSON file."
-                    : "Pobierz kopię danych osobowych, które o Tobie przechowujemy (art. 15 i 20 RODO): profil, komentarze, obserwacje, zamówienia i preferencje - jako plik JSON.",
+                    ? "Download a copy of the personal data we store about you (Art. 15 and 20 GDPR) as a JSON file: profile and expert profile, CV sections and media mentions, network and recommendations, chat (your messages and conversation metadata), expert requests, comments, follows, orders, consents and preferences."
+                    : "Pobierz kopię danych osobowych, które o Tobie przechowujemy (art. 15 i 20 RODO), jako plik JSON: profil i profil eksperta, sekcje CV oraz wzmianki medialne, sieć kontaktów i rekomendacje, czat (Twoje wiadomości i metadane rozmów), zapytania do ekspertów, komentarze, obserwacje, zamówienia, zgody i preferencje.",
               })}
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <Button variant="outline" onClick={() => void downloadMyData()} disabled={exportBusy}>
+          <CardContent className="flex flex-col gap-3">
+            {/* Zakres eksportu jest deklarowany w samym pliku (manifest), więc
+                użytkownik nie musi wierzyć podtytułowi na słowo. */}
+            <p className="text-xs text-muted-foreground">
+              {t("profile.security.export.scopeNote", {
+                defaultValue:
+                  i18n.language === "en"
+                    ? "The file carries its own manifest: every section it contains, plus what is deliberately left out and why (for example messages written by other people - Art. 15(4) GDPR)."
+                    : "Plik niesie własny manifest: spis wszystkich sekcji oraz to, czego świadomie nie zawiera i dlaczego (na przykład wiadomości napisanych przez inne osoby - art. 15 ust. 4 RODO).",
+              })}
+            </p>
+            <Button
+              variant="outline"
+              className="self-start"
+              onClick={() => void downloadMyData()}
+              disabled={exportBusy}
+            >
               {exportBusy
                 ? t("profile.security.export.busy", {
                     defaultValue: i18n.language === "en" ? "Preparing..." : "Przygotowywanie...",

@@ -54,11 +54,11 @@ export const AUTHZ_SNAPSHOT: AuthzSnapshotModule = {
     {"ref":"fn:tg_comments_owner_edit/0","kind":"function","object":"tg_comments_owner_edit","file":"20260713098000_comments_editing.sql","anyRoles":["admin","editor"],"allRoles":[],"tenantRef":"row","securityDefiner":true,"featureKeys":[]},
   ],
   featureGates: [
-    {"capability":"chat_direct_gated","ref":"fn:get_or_create_direct_conversation/1","kind":"function","object":"get_or_create_direct_conversation","file":"20260725175514_a26fc813-a207-49a7-b559-e23e40be9da7.sql","bypassRoles":["super_admin"],"tenantRef":"row"},
+    {"capability":"chat_direct_gated","ref":"fn:get_or_create_direct_conversation/1","kind":"function","object":"get_or_create_direct_conversation","file":"20260806160000_tenant_scoped_expert_vip_predicates.sql","bypassRoles":["super_admin"],"tenantRef":"row"},
     {"capability":"chat_direct_gated","ref":"fn:my_expert_request_quota/0","kind":"function","object":"my_expert_request_quota","file":"20260724090500_fix_expert_request_quota_race_and_cancel.sql","bypassRoles":["super_admin"],"tenantRef":"row"},
     {"capability":"chat_direct_gated","ref":"fn:my_inmail_quota/0","kind":"function","object":"my_inmail_quota","file":"20260723092200_e56cab2c-a09a-4d83-9bb4-982af8abc892.sql","bypassRoles":["super_admin"],"tenantRef":"none"},
     {"capability":"chat_direct_gated","ref":"fn:send_expert_inmail/6","kind":"function","object":"send_expert_inmail","file":"20260724130000_expert_request_visibility.sql","bypassRoles":["super_admin"],"tenantRef":"row"},
-    {"capability":"chat_enabled","ref":"fn:get_or_create_direct_conversation/1","kind":"function","object":"get_or_create_direct_conversation","file":"20260725175514_a26fc813-a207-49a7-b559-e23e40be9da7.sql","bypassRoles":["super_admin"],"tenantRef":"row"},
+    {"capability":"chat_enabled","ref":"fn:get_or_create_direct_conversation/1","kind":"function","object":"get_or_create_direct_conversation","file":"20260806160000_tenant_scoped_expert_vip_predicates.sql","bypassRoles":["super_admin"],"tenantRef":"row"},
     {"capability":"chat_inmail_quota_2","ref":"fn:my_inmail_quota/0","kind":"function","object":"my_inmail_quota","file":"20260723092200_e56cab2c-a09a-4d83-9bb4-982af8abc892.sql","bypassRoles":["super_admin"],"tenantRef":"none"},
     {"capability":"chat_inmail_quota_2","ref":"fn:send_expert_inmail/6","kind":"function","object":"send_expert_inmail","file":"20260724130000_expert_request_visibility.sql","bypassRoles":["super_admin"],"tenantRef":"row"},
     {"capability":"chat_inmail_quota_5","ref":"fn:my_inmail_quota/0","kind":"function","object":"my_inmail_quota","file":"20260723092200_e56cab2c-a09a-4d83-9bb4-982af8abc892.sql","bypassRoles":["super_admin"],"tenantRef":"none"},

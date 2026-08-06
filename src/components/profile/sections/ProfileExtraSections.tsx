@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -944,10 +944,16 @@ function MiniField({
   type?: string;
   disabled?: boolean;
 }) {
+  // Etykieta MUSI być powiązana z polem: bez `htmlFor`/`id` czytnik ekranu
+  // czyta „pole edycji" bez nazwy, a kliknięcie w etykietę nie ustawia fokusu.
+  const id = useId();
   return (
     <div className="space-y-1">
-      <Label className="text-[11px] text-muted-foreground">{label}</Label>
+      <Label htmlFor={id} className="text-[11px] text-muted-foreground">
+        {label}
+      </Label>
       <Input
+        id={id}
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -967,10 +973,14 @@ function MiniArea({
   value: string;
   onChange: (v: string) => void;
 }) {
+  const id = useId();
   return (
     <div className="space-y-1">
-      <Label className="text-[11px] text-muted-foreground">{label}</Label>
+      <Label htmlFor={id} className="text-[11px] text-muted-foreground">
+        {label}
+      </Label>
       <Textarea
+        id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         rows={3}
