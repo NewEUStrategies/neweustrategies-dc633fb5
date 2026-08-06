@@ -38,6 +38,12 @@ export const AI_TRAINING_CRAWLERS: readonly string[] = [
 ];
 
 export const SeoSettingsSchema = z.object({
+  /** Redakcyjny tytuł serwisu (pusty = stały fallback marki z meta.ts). */
+  site_title_pl: z.string().max(120),
+  site_title_en: z.string().max(120),
+  /** Redakcyjny opis serwisu (pusty = stały fallback marki z meta.ts). */
+  site_description_pl: z.string().max(320),
+  site_description_en: z.string().max(320),
   /** Append " - <site name>" to derived document titles. */
   title_suffix_enabled: z.boolean(),
   /** Custom suffix; empty falls back to the site name. */
@@ -72,6 +78,10 @@ export const SeoSettingsSchema = z.object({
 export type SeoSettings = z.infer<typeof SeoSettingsSchema>;
 
 export const DEFAULT_SEO_SETTINGS: SeoSettings = {
+  site_title_pl: "",
+  site_title_en: "",
+  site_description_pl: "",
+  site_description_en: "",
   title_suffix_enabled: true,
   title_suffix: "",
   rss_enabled: true,
@@ -87,6 +97,16 @@ export const DEFAULT_SEO_SETTINGS: SeoSettings = {
   default_og_image_url: "",
   default_og_image_alt: "",
 };
+
+/** Redakcyjny tytuł serwisu dla języka ("" = użyj fallbacku marki). */
+export function siteTitleOverride(settings: SeoSettings, lang: "pl" | "en"): string {
+  return (lang === "en" ? settings.site_title_en : settings.site_title_pl).trim();
+}
+
+/** Redakcyjny opis serwisu dla języka ("" = użyj fallbacku marki). */
+export function siteDescriptionOverride(settings: SeoSettings, lang: "pl" | "en"): string {
+  return (lang === "en" ? settings.site_description_en : settings.site_description_pl).trim();
+}
 
 /** Effective <title> suffix (null = disabled). */
 export function effectiveTitleSuffix(settings: SeoSettings): string | null {
