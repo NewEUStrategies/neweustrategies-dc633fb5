@@ -6815,7 +6815,9 @@ html {
   --mbb-bg: var(--mbb-bg-light, #ffffff);
   --mbb-active: var(--mbb-active-light, var(--brand));
   --mbb-icon: var(--mbb-icon-light, #6b7280);
-  font-size: 0.625rem;
+  /* Lekko zmniejszona baza (było 0.625rem) - skaluje cały pasek w dół,
+     w tym etykiety i ikony, bez psucia proporcji em. */
+  font-size: 0.575rem;
   position: relative;
   pointer-events: auto;
   width: 100%;
