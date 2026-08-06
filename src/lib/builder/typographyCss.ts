@@ -22,6 +22,33 @@ function pickResponsiveValue<T>(
   return value[device] ?? value.desktop ?? value.tablet ?? value.mobile;
 }
 
+/** Najmniejszy rozmiar, jaki ma sens dla realnego tekstu (px). */
+const MIN_READABLE_FONT_PX = 6;
+
+/**
+ * Rozmiar czcionki bywa zapisany per urządzenie z czasów, gdy panel pozwalał
+ * ustawiać każdy breakpoint osobno - w danych zostały wartości typu `1px`
+ * (przypadkowy klik w stepper), przez które etykieta sekcji na mobile była
+ * praktycznie niewidoczna. Traktujemy taką wartość jak brak i schodzimy po
+ * łańcuchu urządzeń do pierwszej czytelnej.
+ */
+function isUnreadableFontSize(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  const match = value.trim().match(/^(-?[\d.]+)\s*px$/i);
+  if (!match) return false;
+  const px = Number(match[1]);
+  return Number.isFinite(px) && px < MIN_READABLE_FONT_PX;
+}
+
+function pickFontSize(
+  value: { desktop?: string; tablet?: string; mobile?: string } | undefined,
+  device: Device,
+): string | undefined {
+  if (!value) return undefined;
+  const chain = [value[device], value.desktop, value.tablet, value.mobile];
+  return chain.find((candidate) => candidate && !isUnreadableFontSize(candidate));
+}
+
 function cleanCssValue(value: string | undefined): string | undefined {
   const next = value?.trim();
   if (!next) return undefined;
@@ -152,9 +179,9 @@ function buildWidgetTypographyRules(
   const rules: string[] = [];
 
   const fontFamily = cleanCssValue(typography.fontFamily);
-  const fontSize = cleanCssValue(pickResponsiveValue(typography.fontSize, device));
+  const fontSize = cleanCssValue(pickFontSize(typography.fontSize, device));
   const descriptionFontSize = cleanCssValue(
-    pickResponsiveValue(typography.descriptionFontSize, device),
+    pickFontSize(typography.descriptionFontSize, device),
   );
   const fontWeight = cleanCssValue(typography.fontWeight);
   const lineHeight = cleanCssValue(typography.lineHeight);
