@@ -93,7 +93,10 @@ export function SiteChrome({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="flex min-h-screen flex-col">
+    // data-site-shell: stabilny uchwyt dla reguł, które muszą znać wysokość
+    // powłoki strony - m.in. rezerwacja miejsca pod mobilnym paskiem dolnym
+    // (styles.css, html[data-mbb="on"]), która obniża min-height o zajęty pas.
+    <div data-site-shell className="flex min-h-screen flex-col">
       <SkipToContentLink />
       <ImpersonationBanner />
       <RouteProgress />

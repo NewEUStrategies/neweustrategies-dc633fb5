@@ -63,6 +63,11 @@ let currentPath = "/";
 vi.mock("@tanstack/react-router", () => ({
   useRouterState: <T,>({ select }: { select: (s: unknown) => T }): T =>
     select({ location: { pathname: currentPath }, matches: [] }),
+  // <MobileBottomBar /> renderuje <AppLink>, a ten woła useRouter({warn:false}).
+  // Poza providerem prawdziwy hook zwraca undefined i AppLink to obsługuje
+  // (klik degraduje się do zwykłej nawigacji przeglądarki) - atrapa musi
+  // zachowywać się tak samo, inaczej test wywala się na braku eksportu.
+  useRouter: () => undefined,
 }));
 
 // Import AFTER the mocks so SiteChrome picks up the mocked Header/Footer.
