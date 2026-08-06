@@ -42,6 +42,14 @@ const SCAN_EXCLUDED_DIRS: readonly string[] = [".output", "dist", "node_modules"
  */
 const TS_TEST_DIR_SEGMENTS = ["__tests__", "__mocks__"] as const;
 
+/** Pliki testowe/fixture'y - nie trafiają do bazy, więc nie podlegają bramce. */
+function isTestFixture(file: string): boolean {
+  return (
+    /\.(test|spec)\.[jt]sx?$/.test(file) ||
+    TS_TEST_DIR_SEGMENTS.some((segment) => file.includes(`/${segment}/`))
+  );
+}
+
 interface Hit {
   readonly literal: string;
   readonly file: string;
