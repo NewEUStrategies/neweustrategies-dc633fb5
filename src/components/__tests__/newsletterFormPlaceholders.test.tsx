@@ -11,7 +11,13 @@ import { FLOATING_LABEL_SPACER } from "@/components/ui/floating-input";
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     from: () => ({}),
-    channel: () => ({ on: () => ({ subscribe: () => ({}) }), subscribe: () => ({}) }),
+    channel: () => {
+      const ch: { on: () => typeof ch; subscribe: () => typeof ch } = {
+        on: () => ch,
+        subscribe: () => ch,
+      };
+      return ch;
+    },
     removeChannel: () => {},
   },
 }));
