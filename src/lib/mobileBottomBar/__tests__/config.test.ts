@@ -141,11 +141,17 @@ describe("mobileBottomBar config", () => {
 describe("mobileBottomBar - kontrakt domyślnego paska", () => {
   const items = visibleBottomBarItems(MOBILE_BOTTOM_BAR_DEFAULTS);
 
-  it("jest włączony, zaokrąglony na 6 px i ma pięć pozycji", () => {
+  it("jest włączony, pigułkowy i ma pięć pozycji", () => {
     expect(MOBILE_BOTTOM_BAR_DEFAULTS.enabled).toBe(true);
-    expect(MOBILE_BOTTOM_BAR_DEFAULTS.radius).toBe(6);
+    // 20 px = 2em z referencji przy jej bazie 10 px.
+    expect(MOBILE_BOTTOM_BAR_DEFAULTS.radius).toBe(DEFAULT_BAR_RADIUS);
+    expect(DEFAULT_BAR_RADIUS).toBe(20);
     expect(items).toHaveLength(5);
     expect(items.length).toBeLessThanOrEqual(MAX_BOTTOM_BAR_ITEMS);
+  });
+
+  it("domyślnie jest bez podpisów - tak jak referencja", () => {
+    expect(MOBILE_BOTTOM_BAR_DEFAULTS.show_labels).toBe(false);
   });
 
   it("trzyma stronę główną DOKŁADNIE na środku", () => {

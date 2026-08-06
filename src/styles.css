@@ -1478,7 +1478,6 @@ span[data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge]
   }
 }
 
-
 /* Reusable per-line animated underline for titles that must ALSO be
    line-clamped. `-webkit-line-clamp` requires the clamped element to be
    `display: -webkit-box`, which cancels the per-line gradient. Solution:
@@ -5486,7 +5485,6 @@ textarea::placeholder {
     }
   }
 
-
   /* Pola popupu to NIEZMIENIONY atom platformy (`.input-group` + `.input` +
      `.user-label`) - ten sam, którego używa widget „Dołącz do nas". Zero reguł
      `.nlp` na polach: geometria etykiety (w spoczynku w polu, po focusie /
@@ -6486,7 +6484,6 @@ header[data-site-header][data-metrics="ready"].site-header-shrink {
   margin-bottom: calc(
     (var(--hdr-nat) + var(--hdr-extra) - var(--hdr-visible-h)) * var(--hdr-gap-keep)
   );
-
 }
 /* Chrome zachowuje STAŁĄ szerokość układu (100%) i tylko się skaluje.
    Wcześniejsza kompensacja `width: 100% / var(--hdr-scale)` animowała szerokość
@@ -6775,17 +6772,23 @@ html {
 }
 
 /* -------------------------------------------------------------------------
-   Mobilny pasek dolny (MobileBottomBar)
+   Mobilny pasek dolny (MobileBottomBar) - "animated tab bar"
    -------------------------------------------------------------------------
-   Kolory pochodzą z site_settings (zmienne --mbb-*), więc tryb jasny/ciemny
-   działa bez przebudowy JS: komponent podaje OBA akcenty (--mbb-active-light
-   i --mbb-active-dark), a wybór należy do kaskady. Dzięki temu nie ma odczytu
-   motywu w Reakcie ani rozjazdu przy hydratacji SSR.
+   Wierne odwzorowanie referencyjnego komponentu. Nad paskiem unosi się GARB
+   wycięty ścieżką SVG (clip-path), a aktywna pozycja wyjeżdża w górę i dostaje
+   wypełnione koło w swoim kolorze, po którym ikona rysuje się od nowa.
+   Odpowiedniki klas referencji: .menu -> .mbb, .menu__item -> .mbb__item,
+   .menu__border -> .mbb__border, .icon -> .mbb__icon, .svg-container ->
+   .mbb__clip. Zmienne --bgColorItem i --timeOut zachowują oryginalne nazwy.
 
-   Podświetlenie aktywnej pozycji to jeden element przesuwany transformem -
-   zmiana zakładki nie wywołuje reflow. Pozycje mają równą szerokość
-   (flex: 1 1 0), więc animuje się wyłącznie translacja, a promień 6 px
-   pozostaje nieodkształcony. */
+   Wymiary referencji są w `em` przy podstawie 10 px (4.2em koła = 42 px,
+   2.6em ikony = 26 px, 10.9em garbu = 109 px). Bazę niesie `.mbb` jako
+   0.625rem, więc skala nadal reaguje na powiększenie czcionki w systemie.
+
+   Tryb jasny/ciemny: komponent podaje OBA warianty każdego koloru
+   (--mbb-active-light / --mbb-active-dark, --bgColorItem / --bgColorItem-dark),
+   a wybiera kaskada. Dzięki temu nie ma odczytu motywu w Reakcie ani rozjazdu
+   przy hydratacji SSR. */
 .mbb-slot {
   position: fixed;
   left: 0;
@@ -6804,130 +6807,207 @@ html {
   transform: translate3d(0, calc(100% + var(--mbb-offset, 12px) + 16px), 0);
   opacity: 0;
 }
+
+/* Pigułka paska. Obrys jest cieniem, a NIE `border`em: element garbu jest
+   pozycjonowany absolutnie, więc ramka przesuwałaby jego układ odniesienia
+   o 1 px względem prostokąta mierzonego w JS. */
 .mbb {
+  --mbb-bg: var(--mbb-bg-light, #ffffff);
   --mbb-active: var(--mbb-active-light, var(--brand));
+  --mbb-icon: var(--mbb-icon-light, #6b7280);
+  font-size: 0.625rem;
+  position: relative;
   pointer-events: auto;
   width: 100%;
   max-width: 460px;
-  border-radius: var(--mbb-radius, 6px);
-  background: var(--mbb-bg-light, #fff);
-  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
-  box-shadow: 0 10px 30px -12px rgb(0 0 0 / 0.35);
-  backdrop-filter: blur(8px);
+  border-radius: var(--mbb-radius, 2em);
+  background-color: var(--mbb-bg);
+  box-shadow:
+    0 0.5em 1em rgb(0 0 0 / 0.12),
+    0 0 0 1px color-mix(in oklab, var(--border) 60%, transparent);
 }
 .dark .mbb {
+  --mbb-bg: var(--mbb-bg-dark, #111318);
   --mbb-active: var(--mbb-active-dark, var(--brand));
-  background: var(--mbb-bg-dark, #111318);
-  box-shadow: 0 10px 30px -12px rgb(0 0 0 / 0.65);
+  --mbb-icon: var(--mbb-icon-dark, #9aa3b2);
+  box-shadow:
+    0 0.5em 1em rgb(0 0 0 / 0.45),
+    0 0 0 1px color-mix(in oklab, var(--border) 60%, transparent);
 }
+
+/* .svg-container z referencji: sam nośnik <clipPath>, zero wymiarów. */
+.mbb__clip {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
 .mbb__list {
   position: relative;
   display: flex;
-  align-items: stretch;
+  align-items: center;
   justify-content: space-between;
   margin: 0;
-  padding: 6px;
+  padding: 0 1.6em;
   list-style: none;
 }
-/* Marker: CIENKA LINIA nad aktywną pozycją - jedyny element, który niesie
-   kolor pozycji. Świadomie NIE ma wypełnionej płytki ani poświaty pod ikoną:
-   tło pod ikonami rozmywało kontur glifu i konkurowało z treścią strony.
-   Szerokość ustawia JS z faktycznego wymiaru pozycji. */
-.mbb__marker {
-  position: absolute;
-  top: 2px;
-  left: 0;
-  height: 2px;
-  width: 0;
-  border-radius: 2px;
-  background: var(--mbb-active, var(--brand));
-  transition:
-    transform 0.42s cubic-bezier(0.22, 1, 0.36, 1),
-    width 0.42s cubic-bezier(0.22, 1, 0.36, 1),
-    background-color 0.3s ease,
-    opacity 0.2s ease;
-  pointer-events: none;
-  will-change: transform;
-}
-/* Przed pomiarem oraz na trasach spoza paska marker nie ma sensownej pozycji. */
-.mbb[data-ready="false"] .mbb__marker {
-  opacity: 0;
-  transition: none;
-}
-.mbb[data-has-active="false"] .mbb__marker {
-  opacity: 0;
-}
-.mbb__item {
+.mbb__cell {
+  display: flex;
   flex: 1 1 0;
   min-width: 0;
 }
-.mbb__link {
+
+/* .menu__item - unosi się o 0.8em, gdy jest aktywna. Czas przejścia bierze z
+   --timeOut: w trakcie zmiany rozmiaru okna komponent ustawia tam `none`,
+   co unieważnia deklarację i sprowadza czas do 0s (trik z referencji). */
+.mbb__item {
   position: relative;
+  z-index: 1;
+  flex-grow: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  /* 44 px minimalnego celu dotykowego (WCAG 2.5.8 / HIG). */
-  min-height: 44px;
-  padding: 7px 2px 6px;
-  border-radius: min(var(--mbb-radius, 6px), 12px);
-  color: var(--mbb-icon-light, #6b7280);
+  gap: 0.3em;
+  /* Referencja: .55em 0 .85em. Podniesione tak, aby cel dotykowy pozycji miał
+     pełne 44 px (WCAG 2.5.8 / HIG) - różnica 4 px jest niewidoczna. */
+  padding: 0.75em 0 1.05em;
+  color: var(--mbb-icon);
   text-decoration: none;
+  cursor: pointer;
+  will-change: transform;
   -webkit-tap-highlight-color: transparent;
-  transition:
-    color 0.25s ease,
-    opacity 0.25s ease,
-    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform var(--timeOut, 0.5s);
 }
-.dark .mbb__link {
-  color: var(--mbb-icon-dark, #9aa3b2);
+.mbb__item.active {
+  transform: translate3d(0, -0.8em, 0);
 }
-.mbb__link:focus-visible {
+/* Wariant z podpisami. Koło zostaje w referencyjnych 4.2em, więc wystaje 0.8em
+   poniżej ikony - odstęp do etykiety musi być od niego większy, inaczej koło
+   wchodzi na tekst. Unos jest o połowę krótszy, bo pozycja jest wyższa i pełny
+   wypychałby etykietę poza pasek. */
+.mbb[data-labels="true"] .mbb__item {
+  gap: 1em;
+}
+.mbb[data-labels="true"] .mbb__item.active {
+  transform: translate3d(0, -0.4em, 0);
+}
+.mbb__item:focus-visible {
   outline: 2px solid var(--mbb-active, var(--brand));
-  outline-offset: -2px;
-}
-/* Kolor tekstu i ikon jest JEDNOLITY dla wszystkich pozycji - aktywną wyróżnia
-   wyłącznie linia markera oraz nieco mocniejszy kontrast. */
-.mbb__item[data-active="true"] .mbb__link {
-  color: var(--foreground);
-}
-.mbb__item[data-active="true"] .mbb__icon {
-  transform: translateY(-1px);
-}
-.mbb__icon {
-  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.mbb__link:active {
-  transform: scale(0.96);
+  outline-offset: -0.2em;
+  border-radius: 0.6em;
 }
 
-/* Kotwica dla licznika: badge jest pozycjonowany względem samej ikony, nie
-   całego linku, więc nie przesuwa etykiety ani nie zmienia wysokości paska. */
+/* Kotwica ikony. Nosi koło (::before) i licznik, dzięki czemu koło zostaje
+   wyśrodkowane na ikonie także w wariancie z podpisami. */
 .mbb__iconwrap {
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
+.mbb__iconwrap::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  width: 4.2em;
+  height: 4.2em;
+  border-radius: 50%;
+  transform: scale(0);
+  background-color: var(--bgColorItem, var(--brand));
+  transition:
+    transform 0.5s,
+    background-color 0.5s;
+}
+.dark .mbb__iconwrap::before {
+  background-color: var(--bgColorItem-dark, var(--brand));
+}
+.mbb__item.active .mbb__iconwrap::before {
+  transform: scale(1);
+}
+
+/* .icon - stroke w kolorze pozycji, a na aktywnej wycięty w kolorze paska,
+   więc glif czyta się jak dziura w kolorowym kole. */
+.mbb__icon {
+  display: block;
+  width: 2.6em;
+  height: 2.6em;
+  fill: none;
+  stroke: var(--bgColorItem, currentColor);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-miterlimit: 10;
+  /* Wspólny wzór kreski dla animacji rysowania (stroke-dashoffset). */
+  stroke-dasharray: 400;
+  stroke-dashoffset: 0;
+  transition:
+    stroke 0.5s,
+    transform 0.5s;
+}
+.dark .mbb__icon {
+  stroke: var(--bgColorItem-dark, currentColor);
+}
+/* Wyłączone „kolory pozycji" = wszystkie ikony w jednym, neutralnym odcieniu. */
+.mbb[data-own-colors="false"] .mbb__icon {
+  stroke: var(--mbb-icon);
+}
+.mbb__item.active .mbb__icon {
+  stroke: var(--mbb-bg);
+  animation: mbb-strok 1.5s reverse;
+}
+@keyframes mbb-strok {
+  100% {
+    stroke-dashoffset: 400;
+  }
+}
+
+/* .menu__border - garb wycięty ścieżką SVG, przesuwany pod aktywną pozycję.
+   `bottom: 99%` sadza go tuż nad paskiem; wspólne tło sprawia, że sylwetka
+   paska i garbu jest ciągła. */
+.mbb__border {
+  position: absolute;
+  left: 0;
+  bottom: 99%;
+  width: 10.9em;
+  height: 2.4em;
+  background-color: var(--mbb-bg);
+  pointer-events: none;
+  will-change: transform;
+  transition:
+    transform var(--timeOut, 0.5s),
+    opacity 0.2s ease;
+}
+/* Przed pomiarem i na trasach spoza paska garb nie ma sensownej pozycji. */
+.mbb[data-ready="false"] .mbb__border {
+  opacity: 0;
+  transition: none;
+}
+.mbb[data-has-active="false"] .mbb__border {
+  opacity: 0;
+}
+
 .mbb__badge {
   position: absolute;
-  top: -5px;
+  top: -0.2em;
   left: 50%;
-  transform: translateX(2px);
+  transform: translateX(0.6em);
 }
 .mbb__label {
-  font-size: 10px;
+  font-size: 1em;
   line-height: 1.2;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0.01em;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition: color 0.5s;
 }
-.mbb__item[data-active="true"] .mbb__label {
-  font-weight: 700;
+.mbb__item.active .mbb__label {
+  color: var(--mbb-active);
 }
 
 /* Rezerwacja dolnej krawędzi. `--mbb-space` (wysokość paska + jego odstęp)
@@ -6952,16 +7032,19 @@ html {
   }
 }
 
+/* Ograniczony ruch: zostaje sama informacja (koło, kolor, pozycja garbu),
+   znikają przejścia i rysowanie ikony. */
 @media (prefers-reduced-motion: reduce) {
   .mbb-slot,
-  .mbb__marker,
+  .mbb__item,
   .mbb__icon,
-  .mbb__link {
+  .mbb__label,
+  .mbb__border,
+  .mbb__iconwrap::before {
     transition: none;
   }
-  .mbb__item[data-active="true"] .mbb__icon,
-  .mbb__link:active {
-    transform: none;
+  .mbb__item.active .mbb__icon {
+    animation: none;
   }
 }
 
