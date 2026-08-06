@@ -14,6 +14,8 @@
 /** Ścieżki, na które wolno przekazać - zamknięta lista, nie parametr z żądania. */
 export type PlatformCompatTarget =
   | "/platform/email/auth/webhook"
+  | "/platform/email/auth/preview"
+  | "/platform/email/transactional/preview"
   | "/platform/email/suppression"
   | "/platform/email/queue/process";
 
