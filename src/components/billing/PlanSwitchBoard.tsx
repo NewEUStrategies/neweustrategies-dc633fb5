@@ -12,6 +12,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ArrowDownRight, ArrowUpRight, Loader2 } from "lucide-react";
 import { billingKeys } from "@/lib/billing/keys";
+import { useAuth } from "@/hooks/useAuth";
 import { changeMySubscriptionPlan, fetchActivePlans } from "@/lib/billing/queries";
 import { buildPlanSwitchBoard, type PlanSwitchOption } from "@/lib/billing/planSwitch";
 import { formatMoney, planName, type AccessPlan, type UserSubscriptionRow } from "@/lib/billing/types";
