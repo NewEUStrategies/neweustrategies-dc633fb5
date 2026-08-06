@@ -6781,9 +6781,9 @@ html {
    .menu__border -> .mbb__border, .icon -> .mbb__icon, .svg-container ->
    .mbb__clip. Zmienne --bgColorItem i --timeOut zachowują oryginalne nazwy.
 
-   Wymiary referencji są w `em` przy podstawie 10 px (4.2em koła = 42 px,
-   2.6em ikony = 26 px, 10.9em garbu = 109 px). Bazę niesie `.mbb` jako
-   0.625rem, więc skala nadal reaguje na powiększenie czcionki w systemie.
+   Wymiary referencji są w `em` przy podstawie ~9.2 px (4.2em koła = ~39 px,
+   2.6em ikony = ~24 px, 10.9em garbu = ~100 px). Bazę niesie `.mbb` jako
+   0.575rem, więc skala nadal reaguje na powiększenie czcionki w systemie.
 
    Tryb jasny/ciemny: komponent podaje OBA warianty każdego koloru
    (--mbb-active-light / --mbb-active-dark, --bgColorItem / --bgColorItem-dark),
@@ -6815,7 +6815,9 @@ html {
   --mbb-bg: var(--mbb-bg-light, #ffffff);
   --mbb-active: var(--mbb-active-light, var(--brand));
   --mbb-icon: var(--mbb-icon-light, #6b7280);
-  font-size: 0.625rem;
+  /* Lekko zmniejszona baza (było 0.625rem) - skaluje cały pasek w dół,
+     w tym etykiety i ikony, bez psucia proporcji em. */
+  font-size: 0.575rem;
   position: relative;
   pointer-events: auto;
   width: 100%;
@@ -6996,7 +6998,8 @@ html {
   transform: translateX(0.6em);
 }
 .mbb__label {
-  font-size: 1em;
+  /* Etykiety jeszcze odrobinę mniejsze niż reszta paska. */
+  font-size: 0.85em;
   line-height: 1.2;
   font-weight: 600;
   letter-spacing: 0.01em;
