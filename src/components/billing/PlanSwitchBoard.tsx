@@ -82,9 +82,12 @@ export function PlanSwitchBoard({ subscription }: PlanSwitchBoardProps) {
               aria-hidden="true"
             />
             <span className="truncate text-sm font-semibold">{planName(option.plan, lang)}</span>
-            <Badge variant="outline" className="font-mono text-[11px]">
-              {option.lookupKey}
-            </Badge>
+            {/* Techniczny `lookup_key` katalogu widzą wyłącznie admin/super_admin. */}
+            {isAdmin && (
+              <Badge variant="outline" className="text-[11px]">
+                {option.lookupKey}
+              </Badge>
+            )}
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
             {formatMoney(option.plan.price_cents, option.plan.currency, lang)}{" "}
