@@ -6966,7 +6966,8 @@ html {
 
 /* .menu__border - garb wycięty ścieżką SVG, przesuwany pod aktywną pozycję.
    `bottom: 99%` sadza go tuż nad paskiem; wspólne tło sprawia, że sylwetka
-   paska i garbu jest ciągła. */
+   paska i garbu jest ciągła. Kolor `currentColor` niesie obramowanie garbu,
+   identyczne z linią bottom bar (zob. --mbb-border-color). */
 .mbb__border {
   position: absolute;
   left: 0;
@@ -6974,10 +6975,21 @@ html {
   width: 12.6em;
   height: 3em;
   background-color: var(--mbb-bg);
+  color: var(--mbb-border-color);
   pointer-events: none;
   transition:
     transform var(--timeOut, 0.45s) cubic-bezier(0.22, 1, 0.36, 1),
     opacity 0.2s ease;
+}
+/* SVG stroke dokładnie pokrywa ścieżkę wycinka; pół grubości wypada wewnątrz
+   widocznego garbu, dając 1 px ciągłej krawędzi zgodnej z pigułką. */
+.mbb__border-stroke {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
 }
 /* Przed pomiarem i na trasach spoza paska garb nie ma sensownej pozycji. */
 .mbb[data-ready="false"] .mbb__border {
