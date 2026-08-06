@@ -349,9 +349,13 @@ describe("zaznaczenie i render snapshotu", () => {
   });
 
   it("przeniesienie definicji do nowszej migracji raportuje provenance, nie uprawnienia", () => {
-    // Dokładnie regres z audytu 2026-08-06: zbiór rol się nie zmienił, zmienił
+    // Dokładnie regres z audytu 2026-08-06: zbiór ról się nie zmienił, zmienił
     // się plik z ostatnią żywą definicją - stary komunikat drukował dwa
     // identyczne obiekty i zaprzeczał własnej tezie.
+    //
+    // `moved` powstaje z `before` przez podmianę SAMEGO `file`, a nie z drugiego
+    // `deriveAuthzSnapshot` - inaczej różniłyby się też metryki skanu (`stats`)
+    // i test mierzyłby dwa zjawiska naraz zamiast tego, o które pyta.
     const before = selectAuthzSnapshot(built, { roleGateRefs: ["fn:admin_list_users/0"] });
     const moved = deriveAuthzSnapshot(
       source([

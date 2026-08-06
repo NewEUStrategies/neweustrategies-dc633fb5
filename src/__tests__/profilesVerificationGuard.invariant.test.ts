@@ -26,8 +26,31 @@
 import { describe, it, expect } from "vitest";
 
 import { extractLatestDefinitions, type FnDef } from "../../scripts/lib/sqlMigrations";
+import { readAuthzSource } from "../../scripts/lib/authzSource";
+import { deriveAuthzSnapshot, gateEffectiveRoles } from "@/lib/ci/authzGates";
 
 const LATEST = extractLatestDefinitions();
+
+// Zbiór ról czytamy przez ROZWINIĘCIE ALIASÓW, nie regexem po ciele funkcji.
+// Powód (2026-08-06): `20260806150000_profile_verification_authority.sql`
+// sprowadziła decyzję „kto może" do jednego predykatu
+// `can_manage_profile_verification()`, z którego czytają trigger, RPC panelu,
+// RPC domen i polityka RLS. Literały ról nie stoją już w ciele guardu - stoją
+// o jeden poziom niżej. Regex widział to jako UTRATĘ obu ról i świecił na
+// czerwono przy uprawnieniach, które są nienaruszone; szedłby też na zielono,
+// gdyby predykat po cichu zawęził krąg uprawnionych, bo w guardzie nic by się
+// nie zmieniło. `deriveAuthzSnapshot` rozwija wywołania funkcji pomocniczych i
+// zwraca EFEKTYWNY zbiór ról - czyli mierzy dokładnie to, o co pyta ten plik.
+//
+// Źródłem są MIGRACJE, nie zacommitowany snapshot, więc `generate:authz-snapshot`
+// nadal nie potrafi uciszyć tej bramki (patrz akapit wyżej).
+const DERIVED = deriveAuthzSnapshot(readAuthzSource());
+
+function effectiveRoles(ref: string): string[] {
+  const gate = DERIVED.roleGates.find((entry) => entry.ref === ref);
+  expect(gate, `brak bramki ${ref} w snapshocie odtworzonym z migracji`).toBeDefined();
+  return gateEffectiveRoles(gate!);
+}
 
 function latest(name: string, arity = 0): FnDef {
   const def = LATEST.get(`public.${name}/${arity}`);

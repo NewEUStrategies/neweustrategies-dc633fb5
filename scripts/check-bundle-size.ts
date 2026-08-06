@@ -21,9 +21,21 @@
  * Counting admin-only chunks against the PUBLIC budget would penalise shipping a
  * richer CMS that has zero user-facing cost, so they are billed to OVERALL only.
  *
- * Budgets are floored just above the current footprint (same philosophy as the
- * coverage gate): they guard against regressions without being brittle. Tune via
- * env (MAX_PUBLIC_KB / MAX_TOTAL_KB / MAX_CHUNK_KB) or edit the defaults below.
+ * PROGI SĄ ZAMROŻONE W KODZIE (2026-08-06)
+ * Do tej pory każdy próg dało się nadpisać zmienną środowiskową
+ * (MAX_PUBLIC_KB / MAX_TOTAL_KB / MAX_CHUNK_KB). Bramka, którą wolno rozluźnić
+ * jedną zmienną w workflow, nie jest bramką - jest sugestią. W CI zmienne są
+ * więc IGNOROWANE: obowiązują wyłącznie stałe z tego pliku, a ich zmiana
+ * wymaga commita, czyli przechodzi przez review razem z przyczyną wzrostu.
+ * Poza CI nadpisanie nadal działa (lokalny eksperyment „ile zejdzie, jeśli…"),
+ * ale skrypt głośno mówi, że mierzy pod innym progiem.
+ *
+ * PODNOSZENIE PROGU JEST OSTATECZNOŚCIĄ, NIE ODRUCHEM
+ * Kronika poniżej to w większości kolejne re-floory - bo bramka mówiła ILE,
+ * nigdy PRZEZ CO. Od 2026-08-06 jest na to przyrząd:
+ * `BUNDLE_INVENTORY=1 bun run build` + `bun run report:chunk-inventory index`
+ * pokazuje skład każdego chunku z dokładnością do modułu. Zanim podniesiesz
+ * próg - zmierz, co dokładnie urosło, i dopisz to do kroniki.
  *
  * Usage: bun run scripts/check-bundle-size.ts   (run after `bun run build`)
  */
@@ -37,99 +49,32 @@ const CLIENT_DIR =
   process.env.CLIENT_DIR ??
   [".output/public", "dist/client", "dist"].find((d) => walkJs(d).length > 0) ??
   ".output/public";
-// 2026-07-20: budżety przywrócone do funkcji "floor tuż nad bieżącym śladem".
-// Historia: gate stał na 250/1000/1300 (ślad ~181/930/1201 KB), po czym seria
-// regresji (m.in. `minify:false` obejmujące bundle klienta, pełny import
-// lucide-react w chrome, side-effectowe słowniki i18n w plikach tras) rozdęła
-// ślad do 1067/2500/3403 KB i gate był permanentnie czerwony. Po odzyskaniu
-// (503/1420/2383 KB) floory schodzą do wartości niżej - mają ŁAPAĆ REGRESJE
-// od nowego poziomu; dalsza redukcja (docelowo znów ~250/1000/1300) to osobna
-// praca: split locale'i PL/EN, odchudzenie eager-owego zestawu widgetów
-// chrome, wydzielenie @tanstack z entry.
-// 2026-07-20 (2): po incydencie martwej hydratacji vendor-radix wraca jako
-// bezpieczny split (pełne domknięcie zależności + hoistTransitiveImports:false,
-// acykliczność pilnowana przez scripts/check-chunk-graph.ts); floory lekko
-// wyżej niż przed incydentem, bo main dołożył wyszukiwarkę v5.
-// 2026-07-21: re-floor po zmierzonym dryfie maina. Gate stal czerwony od
-// dawki nieotestowanego wzrostu (wyszukiwarka v5, atomic design edytora
-// wpisow i MediaManagera, analityka kuponow) - main mierzyl tego dnia
-// 1451,6 KB public / 2461,9 KB overall przy floorach 1440/2420, wiec zaden
-// PR nie mogl przejsc bramki niezaleznie od wlasnej wagi. Floory wracaja do
-// funkcji "tuz nad biezacym sladem" (PUBLIC 1455 / OVERALL 2470 / CHUNK 350);
-// ten sam PR wycina jedyny import recharts (drugi silnik wykresow) na rzecz
-// wspolnego EChart - usuniecie samej zaleznosci z package.json to osobna
-// zmiana dotykajaca lockfile. Realna redukcja (split locale'i, odchudzenie
-// chrome, @tanstack poza entry) pozostaje osobna praca jak nizej.
-// 2026-07-22: re-floor po kolejnym dryfie maina. CZYSTY origin/main mierzył
-// tego dnia 1471,7 KB public / 2511,7 KB overall przy floorach 1455/2470
-// (Gift Articles #64 dołożyły przycisk/baner na PUBLICZNEJ stronie wpisu,
-// przebudowa CRM + gift-admin urosły OVERALL) - bramka była czerwona na main
-// PRZED tą gałęzią. Ten PR (usunięcie martwego kodu CRM + dialog "Nowa firma"
-// + wspólne hooki mutacji leada) dokłada ~0,4 KB public / ~1,4 KB overall
-// (martwy kod był nieimportowany, więc jego usunięcie nie zmniejsza bundla).
-// Floory wracają "tuż nad śladem" tej gałęzi.
-// 2026-08-01: re-floor po dryfie maina, który przez tygodnie był NIEWIDOCZNY.
-// Bramka bundla stoi w jobie `verify` PO kroku `Test + coverage gate`, a ten
-// padał na mainie (progi coverage widget-view/**), więc build i check:bundle
-// nigdy się nie wykonywały - dryf rósł bez żadnego sygnału. Po naprawieniu
-// coverage w tej gałęzi bramka wreszcie się wykonuje i pokazuje zaległość.
-// Pomiar z tego dnia (ten sam host, ta sama wersja zależności):
-//   * czysty origin/main (3270e489e): 1740,8 KB public / 2924,9 KB overall /
-//     492,4 KB największy chunk,
-//   * ta gałąź: 1735,5 / 2924,2 / 487,3 KB - czyli NIŻEJ niż main
-//     (gałąź nie dokłada wagi; cała nadwyżka jest odziedziczona).
-// Floory wracają więc do swojej funkcji "tuż nad bieżącym śladem MAINA" -
-// mają łapać regresje od zmierzonego poziomu, zamiast być permanentnie
-// czerwone. Realna redukcja (split locale'i PL/EN, odchudzenie eager-owego
-// zestawu widgetów chrome, @tanstack poza entry) pozostaje osobną pracą -
-// dopiero teraz w ogóle mierzalną, bo bramka się wykonuje.
-// 2026-08-01 (2): floory dostają JAWNY ZAPAS ~2% zamiast dotychczasowego
-// "tuż nad śladem". Powód jest empiryczny: przy zapasie rzędu 3 KB bramka
-// zapalała się od CUDZYCH merge'ów - w ciągu jednej godziny main wchłonął
-// poprawki sitemapy i tłumaczeń EN, ślad publiczny urósł 1741,8 -> 1755,9 KB
-// i PR, który sam nie dokładał wagi, znów był czerwony. To jest dokładnie ta
-// patologia, którą sprzątamy: bramka czerwona z powodu niezwiązanego z
-// gałęzią BLOKUJE wszystkie kroki za sobą (lint, inwarianty SQL), więc
-// przestaje cokolwiek chronić i zaczyna być ignorowana.
-// Zapas 2% nadal łapie to, po co ta bramka istnieje (utrata code-splittingu
-// albo nowa ciężka zależność to dziesiątki-setki KB), a przestaje reagować na
-// zwykły ruch na mainie. Zejście z powrotem do ciasnych floorów ma sens
-// dopiero po realnej redukcji (split locale'i PL/EN, odchudzenie eager-owego
-// zestawu widgetów chrome, @tanstack poza entry) - to osobna praca.
-// 2026-08-03: pomiar na tym samym hoście i tej samej wersji zależności,
-// gałąź kanonicznego lektora TTS vs jej baza (be5e79d):
-//   * baza:    504,8 KB chunk / 1788,3 KB public / 2986,4 KB overall,
-//   * gałąź:   505,4 KB chunk / 1788,9 KB public / 2990,3 KB overall.
-// Zapas dwóch floorów zjadł dryf maina (0,2 KB przy chunku i przy overall -
-// 0,04% zamiast założonych ~2%), więc bramka zapalała się na +0,6 KB w entry
-// (przycisk odsłuchu na mobile, który dotąd wołał endpoint redakcyjny i dla
-// czytelnika po prostu nie działał) i na +3,3 KB kodu WYŁĄCZNIE adminowego.
-// CHUNK i OVERALL wracają więc do funkcji "floor nad zmierzonym śladem".
-// PUBLIC zostaje na 1790 świadomie: to jedyny budżet o znaczeniu wydajnościowym
-// dla czytelnika i ta gałąź się w nim MIEŚCI (1788,9), więc nie ma powodu go
-// rozluźniać. Realna redukcja (split locale'i PL/EN, odchudzenie eager-owego
-// zestawu widgetów chrome, @tanstack poza entry) pozostaje osobną pracą.
-// 2026-08-03 (Global Privacy Control): pomiar na tym samym hoście i tej samej
-// wersji zależności (main nie zmieniał package.json ani bun.lock), gałąź GPC
-// PO SCALENIU z mainem vs sam main (85b4c7b):
-//   * sam main:  509,5 KB chunk / 1794,0 KB public / 2999,6 KB overall,
-//   * po scaleniu: 510,7 KB chunk / 1798,4 KB public / 3004,0 KB overall.
+// ---------------------------------------------------------------------------
+// KRONIKA FLOORÓW (skrót - pełne uzasadnienia w historii gita tego pliku)
 //
-// UWAGA DLA RECENZENTA - rozdzielenie odpowiedzialności, bo sam main przekracza
-// WSZYSTKIE TRZY poprzednie floory (508 / 1790 / 2996) NIEZALEŻNIE od tej
-// gałęzi: chunk +1,5 KB, public +4,0 KB, overall +3,6 KB dryfu maina.
-// Udział tej gałęzi to dokładnie +1,2 KB chunk i +4,4 KB public/overall,
-// stabilny w dwóch niezależnych pomiarach (wcześniej: baza e55e38b 508,7 /
-// 1783,9 / 2993,5 -> gałąź 510,0 / 1788,3 / 2997,8, czyli te same +1,2/+4,4).
+// 2026-07-20  250/1000/1300 -> 503/1420/2383. Seria regresji: `minify:false`
+//             obejmujące bundle klienta, pełny import lucide-react w chrome,
+//             side-effectowe słowniki i18n w plikach tras.
+// 2026-07-20  Powrót vendor-radix po incydencie martwej hydratacji (domknięcie
+//             zależności + hoistTransitiveImports:false + gate check:chunks).
+// 2026-07-21  1440/2420 -> 350/1455/2470. Zmierzony dryf maina (wyszukiwarka
+//             v5, atomic design edytora wpisów, analityka kuponów) blokował
+//             KAŻDY PR niezależnie od jego wagi.
+// 2026-07-22  -> 1471,7/2511,7 (Gift Articles + przebudowa CRM).
+// 2026-08-01  -> 1740,8/2924,9/492,4. Dryf był NIEWIDOCZNY tygodniami: krok
+//             bramki stoi PO `Test + coverage gate`, a ten padał na mainie,
+//             więc build i check:bundle nigdy się nie wykonywały.
+// 2026-08-01  Floory dostają ~2% zapasu, bo przy zapasie ~3 KB bramka zapalała
+//             się od CUDZYCH merge'ów w ciągu godziny.
+// 2026-08-03  508/1790/2996 (kanoniczny lektor TTS).
+// 2026-08-03  511/1799/3005 (Global Privacy Control). OSTATNI wpis „na ślepo":
+//             audyt r2 z 2026-08-06 wykazał, że te trzy liczby NIE BYŁY już
+//             pomiarem - bramka nie była uruchamiana, a rzeczywisty ślad maina
+//             wynosił 541,6 / 1886,9 / 3129,0 KB (przekroczenia +30,6 / +87,9
+//             / +124,0 KB).
 //
-// Z tych +4,4 KB tylko +1,2 KB siedzi w entry i jest NIEREDUKOWALNE: klamra
-// sygnału musi działać synchronicznie, zanim cokolwiek wstrzyknie skrypt
-// analityczny (`lib/consent/gpc.ts` + `gpcClient.ts` + klamra w
-// `useEffectiveConsent`/`hasCategoryConsent`). Pozostałe ~3,2 KB to LENIWY chunk
-// powierzchni prezentacyjnej (`components/consent/GpcSurfaceSlots.tsx`: nota,
-// badge, deklaracja + nakładka i18n `consentGpc.*`) - liczy się do PUBLIC, bo
-// jest osiągalny z publicznego URL-a, ale pobierają go WYŁĄCZNIE osoby realnie
-// wysyłające sygnał. Bez tego zabiegu w entry byłoby +3,0 KB zamiast +1,2 KB.
+// 2026-08-06  KONIEC ERY „RE-FLOOR ZAMIAST NAPRAWY". Ta zmiana najpierw
+//             NAPRAWIA, potem mierzy, a progi zamraża w kodzie (bez env w CI):
 //
 // PUBLIC musi się ruszyć pierwszy raz od 07-25 - nie dlatego, że ta gałąź go
 // przebiła, ale dlatego, że main przebił go SAM (1794,0 > 1790). Floor idzie
@@ -201,9 +146,89 @@ const CLIENT_DIR =
 //                                         właściwa droga to leniwa rejestracja
 //                                         słownika, nie wymuszony chunk,
 //   * zod                       132 kB, tailwind-merge 97 kB, dompurify 82 kB.
-const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 542); // largest single gzipped JS chunk (zmierzone: 540,8KB, the client entry)
-const MAX_PUBLIC_KB = Number(process.env.MAX_PUBLIC_KB ?? 1890); // gzipped JS a public visitor can load (zmierzone: 1888,6KB)
-const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 3132); // gzipped JS incl. admin/editor-only chunks (zmierzone: 3130,6KB)
+// 2026-08-06 (2): PODZIAŁ CHUNKÓW - trzy naprawy i KONIEC ERY „re-floor zamiast
+// naprawy". Ta gałąź startuje z powyższego stanu (540,8 / 1888,6 / 3130,6) i po
+// raz pierwszy od tygodni RUSZA największy chunk w dół, zamiast podnosić próg.
+//
+// 1. `vendor-tanstack` NIGDY NIE POWSTAWAŁ. Reguła `manualChunks` dla
+//    /node_modules/@tanstack/ siedziała w konfiguracji od tygodni i była martwa:
+//    wejściem klienta TanStack Start jest
+//    `@tanstack/react-start/dist/plugin/default-entry/client.tsx`, czyli plik POD
+//    tą samą ścieżką. Reguła przypisywała więc MODUŁ WEJŚCIOWY do nazwanego
+//    chunku, a Rollup odpowiada na to zapadnięciem CAŁEGO chunku z powrotem do
+//    entry - bez ostrzeżenia. Skutkiem ~330 kB (surowo) routera i react-query w
+//    `index-*.js`. Naprawa: `manualChunks` pomija moduły wejściowe
+//    (`meta.getModuleInfo(id)?.isEntry`), wydziela wyłącznie biblioteki LIŚCIOWE
+//    (react-router, router-core, history, store, query-core, react-query,
+//    *-ssr-query-core) wraz z domknięciem spoza vendor-react (seroval,
+//    seroval-plugins, cookie-es, isbot - inaczej vendor-tanstack importuje je z
+//    entry i powstaje CYKL, klasa awarii z 2026-07-20), a runtime bootstrapu
+//    (@tanstack/*start*) zostaje w entry. To ostatnie nie jest ozdobnikiem:
+//    pierwsza próba z całą rodziną w chunku dała entry 0,2 KB i vendor-tanstack
+//    1,59 MB, bo Rollup barwi nazwanym chunkiem cały graf osiągalny z jego
+//    modułów, a przez rodzinę *start* biegnie droga do `src/router.tsx`.
+// 2. `vendor-lucide`. Po (1) Rollup rozsypał ikony na 45 plików po 300-400 B
+//    (każda ikona współdzielona przez >=2 leniwe chunki dostawała własny) -
+//    ~22 KB gzip samego narzutu nagłówków, bo pliki tej wielkości się nie
+//    kompresują. Jeden chunk cofa ten koszt i jest trwale cache'owalny.
+// 3. Słownik buildera (~101 kB źródła, pierwsza pozycja backlogu wyżej) wypada
+//    z entry: `Editable.tsx` nie rejestruje już `i18n-builder` side-effectem.
+//    UWAGA - to NIE jest powtórka nieudanego eksperymentu opisanego wyżej:
+//    tamten WYMUSZAŁ `manualChunks` po ścieżkach i wciągnął `lib/i18n.ts`; ten
+//    usuwa krawędź w grafie i pozwala Rollupowi zdecydować samemu. `Editable`
+//    renderuje się wyłącznie przy `canEdit = editable && onContentChange`, czyli
+//    w kanwie buildera - a chunk kanwy rejestruje ten słownik przy inicjalizacji.
+//    Ta sama zasada jest już udokumentowana i stosowana w
+//    `widget-view/resizeWrappers.tsx`.
+//
+// POMIAR (ten sam host, ta sama wersja zależności, pełny build):
+//   * baza (main po scaleniu): 540,8 / 1888,6 / 3130,6 KB,
+//   * ta gałąź:                434,1 / 1896,1 / 3142,7 KB.
+// Największy chunk - jedyna z tych liczb, którą płaci KAŻDE pierwsze wejście -
+// spada o 106,7 KB. PUBLIC/OVERALL są płaskie z powodu dokładnie tego,
+// co opisuje akapit „DLACZEGO PUBLIC/OVERALL NIE MOGŁY SPAŚĆ" powyżej: drobniejszy
+// podział przenosi bajty między plikami, nie usuwa ich.
+
+/**
+ * Progi ZAMROŻONE (2026-08-06). Do tej pory każdy z nich dało się rozluźnić
+ * jedną zmienną środowiskową w workflow - bramka, którą wolno wyłączyć bez
+ * commita, jest sugestią, nie bramką. W CI zmienne MAX_CHUNK_KB /
+ * MAX_PUBLIC_KB / MAX_TOTAL_KB są więc IGNOROWANE (skrypt mówi to głośno):
+ * obowiązują wyłącznie stałe poniżej, a ich zmiana przechodzi przez review
+ * razem z przyczyną wzrostu i wpisem do kroniki. Poza CI nadpisanie działa -
+ * do lokalnego eksperymentu „ile zejdzie, jeśli...".
+ */
+const FROZEN_BUDGET_KB = {
+  chunk: 439, // największy pojedynczy chunk gzip (zmierzone: 434,1 KB)
+  public: 1915, // gzip JS osiągalny z publicznego URL-a (zmierzone: 1896,1 KB)
+  overall: 3175, // gzip JS łącznie z kodem tylko adminowym (zmierzone: 3142,7 KB)
+} as const;
+
+/** GitHub Actions ustawia CI=true; honorujemy też generyczne CI innych runnerów. */
+const IN_CI = process.env["CI"] === "true" || process.env["CI"] === "1";
+
+function budget(name: keyof typeof FROZEN_BUDGET_KB, envVar: string): number {
+  const frozen = FROZEN_BUDGET_KB[name];
+  const override = process.env[envVar];
+  if (!override) return frozen;
+  if (IN_CI) {
+    console.warn(
+      `! ${envVar}=${override} ZIGNOROWANE - w CI obowiązuje próg zamrożony (${frozen} KB).`,
+    );
+    return frozen;
+  }
+  const parsed = Number(override);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    console.error(`✗ ${envVar}="${override}" nie jest dodatnią liczbą.`);
+    process.exit(1);
+  }
+  console.warn(`! Lokalne nadpisanie: ${envVar}=${parsed} KB (próg zamrożony: ${frozen} KB).`);
+  return parsed;
+}
+
+const MAX_CHUNK_KB = budget("chunk", "MAX_CHUNK_KB");
+const MAX_PUBLIC_KB = budget("public", "MAX_PUBLIC_KB");
+const MAX_TOTAL_KB = budget("overall", "MAX_TOTAL_KB");
 
 // Chunks reachable ONLY from the auth-gated /admin (CMS) routes - never from a
 // public URL, so they never count against the public-perf budget. Matched on the

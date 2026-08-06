@@ -19,6 +19,7 @@
 //     error logger plugins, and sandbox detection (port/host/strictPort).
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
+import type { Rollup } from "vite";
 
 // `minify: true` jak w produkcyjnym vite.config.ts - smoke ma odwzorowywać
 // realny artefakt (różni się wyłącznie presetem: node-server zamiast
@@ -98,8 +99,20 @@ export default defineConfig({
               // (scripts/check-chunk-graph.ts). Koszt (głębszy waterfall przy
               // dynamic importach) pokrywa modulepreload z mapDeps.
               hoistTransitiveImports: false,
-              manualChunks(id: string) {
+              manualChunks(id: string, meta: Rollup.ManualChunkMeta) {
                 if (!id.includes("/node_modules/")) return undefined;
+                // PUŁAPKA (2026-08-06): Rollup NIE POTRAFI przenieść modułu
+                // WEJŚCIOWEGO do nazwanego chunku. Gdy `manualChunks` przypisze
+                // entry do nazwy X, cały chunk X zapada się z powrotem w chunk
+                // wejściowy - razem z każdym innym modułem przypisanym do X.
+                // Dokładnie tak umarł `vendor-tanstack`: wejściem klienta jest
+                // `@tanstack/react-start/dist/plugin/default-entry/client.tsx`,
+                // czyli plik POD /node_modules/@tanstack/, więc reguła niżej
+                // przypisywała entry do "vendor-tanstack" i ~320 KB (surowo)
+                // routera, react-query i start-client-core jechało w
+                // `index-*.js` mimo pozornie poprawnej konfiguracji. Chunk po
+                // prostu nigdy nie powstawał - bez ostrzeżenia.
+                if (meta.getModuleInfo(id)?.isEntry) return undefined;
                 // ZASADA (incydent 2026-07-20, martwa hydratacja na KAŻDEJ
                 // stronie): chunk vendorowy musi zawierać DOMKNIĘCIE
                 // zależności swoich pakietów spoza vendor-react. Rozdzielenie
@@ -119,7 +132,41 @@ export default defineConfig({
                   return "vendor-react";
                 }
                 if (id.includes("/node_modules/@supabase/")) return "vendor-supabase";
-                if (id.includes("/node_modules/@tanstack/")) return "vendor-tanstack";
+                // Router + react-query + ich domknięcie spoza vendor-react:
+                // seroval / seroval-plugins (serializacja SSR w router-core),
+                // cookie-es (router-core), isbot (react-router). Bez tych
+                // czterech vendor-tanstack importowałby je z chunku
+                // wejściowego, a entry importuje vendor-tanstack - czyli CYKL,
+                // ta sama klasa awarii co 2026-07-20. `use-sync-external-store`
+                // zostaje w vendor-react (krawędź vendor-tanstack ->
+                // vendor-react jest jednokierunkowa).
+                //
+                // ŚWIADOMIE POZA CHUNKIEM: rodzina `@tanstack/*start*`
+                // (react-start, react-start-client, start-client-core,
+                // start-fn-stubs). To RUNTIME BOOTSTRAPU, przez który biegnie
+                // droga od modułu wejściowego do `src/router.tsx`. Przypisanie
+                // jej do nazwanego chunku sprawia, że Rollup barwi tym chunkiem
+                // cały osiągalny stąd graf APLIKACJI: zmierzone - entry spadał
+                // do 0,2 KB, a vendor-tanstack puchł do 1,59 MB (cały kod
+                // aplikacji + vendor w jednym pliku), czyli dokładnie odwrotnie
+                // do celu. Bootstrap zostaje więc w entry, a wydzielamy tylko
+                // biblioteki liściowe.
+                if (
+                  /\/node_modules\/(@tanstack\/(react-router|router-core|history|store|react-store|query-core|react-query|router-ssr-query-core|react-router-ssr-query)|seroval|seroval-plugins|cookie-es|isbot)\//.test(
+                    id,
+                  )
+                ) {
+                  return "vendor-tanstack";
+                }
+                // Ikony w JEDNYM chunku vendorowym. Bez tej reguły Rollup
+                // rozsypywał je na dziesiątki 300-400-bajtowych plików (każda
+                // ikona współdzielona przez >=2 leniwe chunki dostawała własny)
+                // - 45 takich odprysków kosztowało ~22 KB gzip samego
+                // narzutu nagłówków, bo pliki tej wielkości praktycznie się nie
+                // kompresują. Jeden chunk jest też trwale cache'owalny: zestaw
+                // ikon zmienia się rzadziej niż kod aplikacji. Domknięcie
+                // trywialne - lucide-react importuje wyłącznie React.
+                if (id.includes("/node_modules/lucide-react/")) return "vendor-lucide";
                 // Radix + jego sidecary (scroll-lock, aria-hidden, floating-ui)
                 // w JEDNYM chunku - patrz zasada domknięcia wyżej.
                 if (

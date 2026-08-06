@@ -18,7 +18,15 @@ import {
 import { useTranslation } from "react-i18next";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { normalizeBuilderRichHtml } from "@/lib/builder/normalizeRichHtml";
-import "@/lib/i18n-builder";
+// BEZ side-effectowego `import "@/lib/i18n-builder"` - ta sama zasada, co w
+// `widget-view/resizeWrappers.tsx`. Moduł leży w EAGER-owej ścieżce publicznego
+// chrome (WidgetView <- BuilderRenderer <- Header/Footer), a słownik buildera
+// waży ~101 KB źródła. Dopóki ten import tu był, każdy anonimowy czytelnik
+// pobierał w chunku wejściowym komplet ciągów edytora, których nigdy nie
+// zobaczy: `Editable` renderuje się WYŁĄCZNIE przy `canEdit = editable &&
+// onContentChange` (WidgetView.tsx), czyli w kanwie buildera - a chunk kanwy
+// (Toolbar, WidgetProperties, Navigator, WidgetLibrary) rejestruje ten słownik
+// przy inicjalizacji modułu, zanim cokolwiek się wyrenderuje.
 
 interface Props {
   as?: ElementType;

@@ -133,6 +133,18 @@ jobs:
           path: reports/widget-fidelity.txt
           if-no-files-found: ignore
 
+      # Blocking gate BEFORE the build, because it does not need one: it only
+      # reads two config files. `vite.smoke.config.ts` exists so a PRODUCTION
+      # artifact can be booted in a real browser (the 2026-07-20 dead-hydration
+      # incident was invisible to dev and unit tests) - and that verification is
+      # worth exactly as much as its chunk split matching production. Until now
+      # only a comment asked for it. A silently wrong chunk rule survives for
+      # weeks: `vendor-tanstack` never materialised at all because the rule
+      # assigned the client ENTRY module to it, and Rollup answers that by
+      # collapsing the whole named chunk back into the entry - no warning.
+      - name: Chunk-split config parity (prod vs smoke)
+        run: bun run check:chunk-parity
+
       - name: Build
         run: bun run build
         env:

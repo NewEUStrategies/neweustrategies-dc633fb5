@@ -1015,7 +1015,10 @@ function CheckoutSettingsCard() {
   };
 
   type CheckoutToggleKey =
-    "allow_promotion_codes" | "automatic_tax" | "tax_id_collection" | "invoice_creation";
+    | "allow_promotion_codes"
+    | "automatic_tax"
+    | "tax_id_collection"
+    | "invoice_creation";
 
   const toggle = (labelKey: string, hintKey: string, key: CheckoutToggleKey) =>
     current ? (
