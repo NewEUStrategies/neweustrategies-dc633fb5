@@ -8,7 +8,13 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import { FLOATING_LABEL_SPACER } from "@/components/ui/floating-input";
 
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => ({}) } }));
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: {
+    from: () => ({}),
+    channel: () => ({ on: () => ({ subscribe: () => ({}) }), subscribe: () => ({}) }),
+    removeChannel: () => {},
+  },
+}));
 vi.mock("@/lib/i18n-public", () => ({}));
 vi.mock("@tanstack/react-start", () => ({ useServerFn: () => vi.fn() }));
 vi.mock("@/lib/newsletter.functions", () => ({ subscribeToNewsletter: {} }));
