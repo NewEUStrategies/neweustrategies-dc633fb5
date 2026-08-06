@@ -11148,6 +11148,53 @@ export type Database = {
           },
         ]
       }
+      verification_domains: {
+        Row: {
+          active: boolean
+          badge: string
+          created_at: string
+          created_by: string | null
+          domain: string
+          id: string
+          note: string | null
+          require_email_confirmed: boolean
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          badge?: string
+          created_at?: string
+          created_by?: string | null
+          domain: string
+          id?: string
+          note?: string | null
+          require_email_confirmed?: boolean
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          badge?: string
+          created_at?: string
+          created_by?: string | null
+          domain?: string
+          id?: string
+          note?: string | null
+          require_email_confirmed?: boolean
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "verification_domains_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       web_stories: {
         Row: {
           author_id: string | null
@@ -12067,6 +12114,7 @@ export type Database = {
         Args: { p_conversation_id: string; p_member_ids: string[] }
         Returns: number
       }
+      admin_assert_verification_admin: { Args: never; Returns: string }
       admin_clear_content_password: {
         Args: {
           _entity_id: string
@@ -12106,6 +12154,10 @@ export type Database = {
       admin_delete_speaker_profile: {
         Args: { p_user_id: string }
         Returns: boolean
+      }
+      admin_delete_verification_domain: {
+        Args: { p_id: string }
+        Returns: undefined
       }
       admin_get_author_profile: {
         Args: { _user_id: string }
@@ -12399,6 +12451,27 @@ export type Database = {
           website_url: string
         }[]
       }
+      admin_list_verification_domains: {
+        Args: never
+        Returns: {
+          active: boolean
+          badge: string
+          created_at: string
+          created_by: string | null
+          domain: string
+          id: string
+          note: string | null
+          require_email_confirmed: boolean
+          tenant_id: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "verification_domains"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       admin_member_activity_series: {
         Args: { p_days?: number }
         Returns: {
@@ -12455,6 +12528,7 @@ export type Database = {
         Args: { p_badge: string; p_user_id: string }
         Returns: boolean
       }
+      admin_run_org_verification: { Args: never; Returns: Json }
       admin_set_content_password: {
         Args: {
           _entity_id: string
@@ -12498,6 +12572,16 @@ export type Database = {
           p_user_id: string
         }
         Returns: Json
+      }
+      admin_upsert_verification_domain: {
+        Args: {
+          p_active?: boolean
+          p_badge?: string
+          p_domain: string
+          p_note?: string
+          p_require_email_confirmed?: boolean
+        }
+        Returns: string
       }
       analytics_semantic_snapshot: {
         Args: { p_since: string; p_until: string }
@@ -14803,6 +14887,7 @@ export type Database = {
         }[]
       }
       storage_path_tenant: { Args: { _name: string }; Returns: string }
+      sync_org_verification: { Args: { p_user_id: string }; Returns: Json }
       tenant_id_for_public_host: { Args: { p_host: string }; Returns: string }
       trending_posts: {
         Args: { _days?: number; _limit?: number }
@@ -14845,6 +14930,14 @@ export type Database = {
           label: string
           ok: boolean
         }[]
+      }
+      verification_domain_badges: {
+        Args: {
+          p_email: string
+          p_email_confirmed: boolean
+          p_tenant_id: string
+        }
+        Returns: string[]
       }
       verify_content_password: {
         Args: {

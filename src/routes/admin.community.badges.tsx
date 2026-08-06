@@ -27,6 +27,7 @@ import {
   type ProfileBadgeKind,
 } from "@/lib/profile/badgeCatalog";
 import { ProfileBadge } from "@/components/atoms/ProfileBadge";
+import { VerificationDomainsCard } from "@/components/admin/community/VerificationDomainsCard";
 import { useAuth } from "@/hooks/useAuth";
 
 export const Route = createFileRoute("/admin/community/badges")({
@@ -179,6 +180,10 @@ function BadgesAdmin() {
           </Button>
         </CardContent>
       </Card>
+
+      <VerificationDomainsCard language={language} tenantId={tenantId} />
+
+
 
       <Card>
         <CardHeader>
