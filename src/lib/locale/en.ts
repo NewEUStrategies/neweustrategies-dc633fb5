@@ -1281,7 +1281,7 @@ export const en = {
       allowPromoHint: "Buyers enter discount codes directly on the payment page.",
       automaticTax: "Stripe Tax - automatic VAT",
       automaticTaxHint:
-        "Requires Stripe Tax to be activated on your Stripe account. Forces billing address collection.",
+        "Requires Stripe Tax to be activated on your Stripe account. Forces billing address collection and TAKES OVER tax handling from Stripe as merchant of record (MoR) - enable it only if you settle VAT yourself.",
       taxIdCollection: "Collect Tax ID / VAT number (appears on the invoice)",
       taxIdCollectionHint:
         "Business buyers provide their VAT ID in Checkout; Stripe places it on the invoice.",
@@ -1290,9 +1290,15 @@ export const en = {
       addressRequired: "Always required",
       invoiceCreation: "Stripe invoice for one-time payments",
       invoiceCreationHint:
-        'Subscriptions always get invoices; this enables them for one-time purchases too. A "Download invoice" link appears in the customer\'s Orders.',
+        'Subscriptions always get invoices; this enables them for one-time purchases too. A "Download invoice" link appears in the customer\'s Orders. Under merchant-of-record (MoR) mode Stripe issues the invoice itself and the parameter is not sent.',
       checkoutSaved: "Checkout settings saved",
       checkoutSaveError: "Could not save checkout settings.",
+      planTitle: "Session billing plane",
+      planManaged:
+        "Stripe as merchant of record (MoR): Stripe calculates tax and issues the invoice. Coupons, tax ID and billing address still go into the session.",
+      planMerchant:
+        "You settle tax yourself (Stripe Tax on your account): the session carries automatic VAT, a required address and - for one-time payments - a Stripe invoice.",
+      planParams: "Session parameters: {{params}}",
     },
   },
   blocks: {

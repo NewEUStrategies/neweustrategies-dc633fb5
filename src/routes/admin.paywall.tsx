@@ -29,7 +29,11 @@ import {
   type MeteringSettings,
 } from "@/lib/access/metering";
 import { CHECKOUT_SETTINGS_QUERY_KEY, useCheckoutSettings } from "@/hooks/useCheckoutSettings";
-import type { CheckoutSettings } from "@/lib/billing/checkoutSettings";
+import {
+  checkoutBillingPlane,
+  checkoutSessionParams,
+  type CheckoutSettings,
+} from "@/lib/billing/checkoutSettings";
 import { Plus, Trash2 as Trash } from "@/lib/lucide-shim";
 import { Layers, Gauge, SlidersHorizontal, CreditCard, Sparkles, Activity } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -1011,10 +1015,7 @@ function CheckoutSettingsCard() {
   };
 
   type CheckoutToggleKey =
-    | "allow_promotion_codes"
-    | "automatic_tax"
-    | "tax_id_collection"
-    | "invoice_creation";
+    "allow_promotion_codes" | "automatic_tax" | "tax_id_collection" | "invoice_creation";
 
   const toggle = (labelKey: string, hintKey: string, key: CheckoutToggleKey) =>
     current ? (
@@ -1076,11 +1077,40 @@ function CheckoutSettingsCard() {
               </SelectContent>
             </Select>
           </div>
+          {/* Podgląd tego, co NAPRAWDĘ pojedzie do sesji Stripe - liczony tą
+              samą czystą funkcją co serwer, więc panel nie może obiecać flagi,
+              której API nie dostanie (np. `automatic_tax` w trybie MoR). */}
+          <CheckoutPlanePreview settings={current} />
           <Button onClick={save} disabled={busy}>
             {t("admin.save")}
           </Button>
         </div>
       )}
     </section>
+  );
+}
+
+/** Płaszczyzna rozliczeniowa + lista parametrów sesji dla bieżących ustawień. */
+function CheckoutPlanePreview({ settings }: { settings: CheckoutSettings }) {
+  const { t } = useTranslation();
+  const plane = checkoutBillingPlane(settings);
+  // Podgląd dla zakupu jednorazowego z przypiętym klientem - jedyny tryb, w
+  // którym widać komplet flag (subskrypcja nie przyjmuje `invoice_creation`).
+  const params = checkoutSessionParams(settings, {
+    mode: "payment",
+    hasCustomer: true,
+    hasDiscount: false,
+  });
+  const keys = Object.keys(params).sort().join(", ");
+  return (
+    <div className="rounded-md border border-border bg-muted/40 p-3">
+      <p className="text-xs font-medium">{t("admin.paywall.planTitle")}</p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {plane === "managed" ? t("admin.paywall.planManaged") : t("admin.paywall.planMerchant")}
+      </p>
+      <p className="mt-2 font-mono text-[11px] leading-relaxed text-muted-foreground break-words">
+        {t("admin.paywall.planParams", { params: keys })}
+      </p>
+    </div>
   );
 }

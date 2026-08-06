@@ -292,7 +292,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
             : {}),
         },
       } as never)
-      .select("id")
+      .select("id, tenant_id")
       .single();
     if (insertError) throw insertError;
 
@@ -319,6 +319,12 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
 
     if (paymentsReady) {
       const returnUrl = resolveReturnUrl(data.success_path);
+
+      // Flagi checkoutu TENANTA ZAMÓWIENIA (kupony, Stripe Tax, NIP, faktury).
+      // Zawężamy je do `order.tenant_id`, a nie do tenantu żądania - sesja u
+      // operatora ma jechać na tej konfiguracji, którą stempluje zamówienie.
+      const { loadCheckoutSettings } = await import("@/lib/billing/checkoutSettings.server");
+      const settings = await loadCheckoutSettings(supabase, order.tenant_id);
 
       // Subskrypcja: sesja z CENY KATALOGOWEJ (cykl rozliczeniowy, trial,
       // lokalizacja waluty przez ceny Stripe). Tylko taka sesja zakłada u
@@ -399,6 +405,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         customerEmail: receiptEmail,
         returnUrl,
         metadata: eventId ? { event_id: eventId } : {},
+        settings,
       });
       if (!created.ok) {
         await supabase.from("payment_orders").update({ status: "failed" }).eq("id", order.id);
