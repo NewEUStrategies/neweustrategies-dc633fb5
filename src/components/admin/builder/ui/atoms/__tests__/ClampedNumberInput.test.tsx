@@ -23,8 +23,7 @@ describe("ClampedNumberInput", () => {
     fireEvent.focus(input);
     fireEvent.change(input, { target: { value: "99" } });
     expect(input.value).toBe("99");
-    fireEvent.blur(input, { target: { value: "99" } });
-    fireEvent.focusOut(input);
+    fireEvent.blur(input);
     expect(input.value).toBe("12");
     expect(onCommit).toHaveBeenLastCalledWith(12);
   });
@@ -35,8 +34,7 @@ describe("ClampedNumberInput", () => {
     const input = screen.getByLabelText("w") as HTMLInputElement;
     fireEvent.focus(input);
     fireEvent.change(input, { target: { value: "" } });
-    fireEvent.blur(input, { target: { value: "" } });
-    fireEvent.focusOut(input);
+    fireEvent.blur(input);
     expect(input.value).toBe("4");
   });
 
@@ -48,8 +46,7 @@ describe("ClampedNumberInput", () => {
     const input = screen.getByLabelText("h") as HTMLInputElement;
     fireEvent.focus(input);
     fireEvent.change(input, { target: { value: "" } });
-    fireEvent.blur(input, { target: { value: "" } });
-    fireEvent.focusOut(input);
+    fireEvent.blur(input);
     expect(onCommit).toHaveBeenLastCalledWith(undefined);
   });
 });
