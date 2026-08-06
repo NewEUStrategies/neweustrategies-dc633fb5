@@ -238,7 +238,8 @@ export function JoinUsForm({
   const { t, i18n } = useTranslation();
   const lang = (i18n.language?.startsWith("en") ? "en" : "pl") as "pl" | "en";
   const { data: nl } = useNewsletterSettings();
-  const catalog = useInterestCatalog(lang);
+  const interestGroups = useInterestGroups(lang, interestSlugs);
+  const catalog = interestGroups.catalog;
   const my = useMyInterests();
   const subscribe = useServerFn(subscribeToNewsletter);
   const fetchPrefill = useServerFn(getJoinUsPrefill);
@@ -264,70 +265,6 @@ export function JoinUsForm({
   const [customValues, setCustomValues] = useState<Record<string, string>>({});
   const [state, setState] = useState<"idle" | "loading" | "ok" | "err">("idle");
   const [errMsg, setErrMsg] = useState<string | null>(null);
-  const [dropOpen, setDropOpen] = useState(false);
-  const dropRef = useRef<HTMLDivElement | null>(null);
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const popupRef = useRef<HTMLDivElement | null>(null);
-  const [popupStyle, setPopupStyle] = useState<CSSProperties | null>(null);
-  useEffect(() => {
-    if (!dropOpen) return;
-    const onDoc = (e: MouseEvent) => {
-      const t = e.target as Node;
-      // Popup renderowany jest przez portal (poza dropRef), więc sprawdzamy
-      // trigger i popup osobno.
-      if (
-        (dropRef.current && dropRef.current.contains(t)) ||
-        (popupRef.current && popupRef.current.contains(t))
-      ) {
-        return;
-      }
-      setDropOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setDropOpen(false);
-    };
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [dropOpen]);
-
-  // Pozycjonowanie popupu przez portal - pozwala popupowi wyjść poza
-  // przycięte kontenery (overflow-hidden formy / builder canvas).
-  useLayoutEffect(() => {
-    if (!dropOpen) {
-      setPopupStyle(null);
-      return;
-    }
-    const compute = () => {
-      const btn = triggerRef.current;
-      if (!btn) return;
-      const r = btn.getBoundingClientRect();
-      const vh = window.innerHeight;
-      const spaceBelow = vh - r.bottom;
-      const spaceAbove = r.top;
-      const openUp = spaceBelow < 260 && spaceAbove > spaceBelow;
-      const maxH = Math.max(180, Math.min(420, openUp ? spaceAbove - 12 : spaceBelow - 12));
-      setPopupStyle({
-        position: "fixed",
-        left: `${r.left}px`,
-        width: `${r.width}px`,
-        top: openUp ? undefined : `${r.bottom + 4}px`,
-        bottom: openUp ? `${vh - r.top + 4}px` : undefined,
-        maxHeight: `${maxH}px`,
-        zIndex: 1000,
-      });
-    };
-    compute();
-    window.addEventListener("scroll", compute, true);
-    window.addEventListener("resize", compute);
-    return () => {
-      window.removeEventListener("scroll", compute, true);
-      window.removeEventListener("resize", compute);
-    };
-  }, [dropOpen]);
   const cfList = customFields ?? [];
   const setCustom = (id: string, v: string) => setCustomValues((prev) => ({ ...prev, [id]: v }));
 
@@ -350,86 +287,9 @@ export function JoinUsForm({
   // po stronie serwera przy subskrypcji dla zalogowanego usera.
   void fetchPrefill;
 
-  const allItems = useMemo(() => {
-    const cats = catalog.data?.categories ?? [];
-    const tags = catalog.data?.tags ?? [];
-    const all = [...cats, ...tags];
-    const allow = (interestSlugs ?? []).map((s) => s.trim().toLowerCase()).filter(Boolean);
-    if (!allow.length) return all;
-    const set = new Set(allow);
-    return all.filter((it) => set.has(it.slug.toLowerCase()));
-  }, [catalog.data, interestSlugs]);
+  const { allItems } = interestGroups;
 
-  // Grupowanie po obszarach: kategorie dzieci trafiają pod etykietę rodzica
-  // (Region, Specjalizacja...), top-level kategorie (bez parenta) lądują pod
-  // "Obszary tematyczne", a tagi w osobnej grupie "Tematy". Kolejność grup
-  // jest deterministyczna: najpierw znane obszary z drzewa kategorii, potem
-  // pozostałe. Struktura używana przez droplist i chips zarazem.
-  interface InterestGroup {
-    key: string;
-    title: string;
-    items: typeof allItems;
-    parentSlug: string | null;
-  }
-  const groupedItems = useMemo<InterestGroup[]>(() => {
-    const topLevelAreaTitle = lang === "en" ? "Areas" : "Obszary";
-    const topicsTitle = lang === "en" ? "Topics" : "Tematy";
-
-    // Zbuduj mapę id -> kategoria z PEŁNEGO katalogu (nie z `allItems`, które
-    // może być odfiltrowane przez `interestSlugs`) - potrzebna do wspinaczki
-    // po parent_id aż do korzenia drzewa (Region, Specjalizacja, Recenzja...).
-    const allCats = catalog.data?.categories ?? [];
-    const catById = new Map<string, (typeof allCats)[number]>();
-    for (const c of allCats) catById.set(c.id, c);
-    const rootOf = (id: string): { id: string; slug: string; label: string } | null => {
-      let cur = catById.get(id);
-      if (!cur) return null;
-      // Wspinaj się do korzenia (parentId === null).
-      while (cur.parentId) {
-        const p = catById.get(cur.parentId);
-        if (!p) break;
-        cur = p;
-      }
-      return { id: cur.id, slug: cur.slug, label: cur.label };
-    };
-
-    const byRoot = new Map<string, InterestGroup>();
-    const orderedKeys: string[] = [];
-    const tagItems: typeof allItems = [];
-    for (const it of allItems) {
-      if (it.type === "tag") {
-        tagItems.push(it);
-        continue;
-      }
-      const root = rootOf(it.id);
-      // Element sam jest korzeniem - własna grupa "Obszary" (poniżej).
-      if (!root || root.id === it.id) {
-        const key = "top";
-        if (!byRoot.has(key)) {
-          byRoot.set(key, { key, title: topLevelAreaTitle, items: [], parentSlug: null });
-          orderedKeys.push(key);
-        }
-        byRoot.get(key)!.items.push(it);
-        continue;
-      }
-      const key = `root:${root.slug}`;
-      if (!byRoot.has(key)) {
-        byRoot.set(key, { key, title: root.label, items: [], parentSlug: root.slug });
-        orderedKeys.push(key);
-      }
-      byRoot.get(key)!.items.push(it);
-    }
-    const groups: InterestGroup[] = [];
-    for (const key of orderedKeys) {
-      const g = byRoot.get(key)!;
-      if (g.items.length > 0) groups.push(g);
-    }
-    if (tagItems.length > 0) {
-      groups.push({ key: "tags", title: topicsTitle, items: tagItems, parentSlug: null });
-    }
-    return groups;
-  }, [allItems, catalog.data, lang]);
-
+  const clearPicked = () => setPicked(new Set());
   const togglePick = (id: string) => {
     setPicked((prev) => {
       const next = new Set(prev);
