@@ -242,21 +242,34 @@ export async function resolveCrawlerTenantForHost(
   return fallbackIsSafe ? directory.defaultTenant : null;
 }
 
-/**
- * Tenant, który ZGŁOSIŁ ten host w katalogu domen (`tenants.domain`, dokładnie
- * albo przez alias www./apex) - BEZ fallbacku na tenanta domyślnego.
- *
- * To predykat „czyja to własna domena", a nie „komu wyświetlić treść": robots.txt
- * potrzebuje właśnie tego rozróżnienia, bo domena własna tenanta jest dla niego
- * hostem KANONICZNYM (serwuje swój serwis, nie dostaje 301 na markę), a host
- * niezgłoszony przez nikogo musi zostać zamknięty dla crawlerów.
- */
-export async function resolveClaimedTenantForHost(
-  rawHost: string | null | undefined,
-): Promise<TenantDirectoryEntry | null> {
-  const directory = await getTenantDirectory();
-  return matchDomain(directory, normalizeHost(rawHost));
+export interface DomainBinding {
+  /** Tenant, którego `tenants.domain` DOKŁADNIE pasuje do hosta (lub przez alias www/apex). */
+  readonly tenant: TenantDirectoryEntry | null;
+  /**
+   * Czy katalog domen jest zasiedlony. `false` = żaden tenant nie zajął domeny
+   * ALBO katalog był nieosiągalny; w obu przypadkach brak dopasowania NIE jest
+   * dowodem, że host jest obcy - wołający musi odróżnić "nie ten host" od
+   * "nie wiem" (robots.txt nie cache'uje wtedy fail-closed zakazu).
+   */
+  readonly directoryPopulated: boolean;
 }
+
+/**
+ * ŚCIŚLE domenowe rozstrzygnięcie hosta - bez żadnego fallbacku na tenanta
+ * domyślnego. Używane tam, gdzie "host wygląda znajomo" nie wystarcza, bo
+ * decyzja dotyczy indeksowania: robots.txt otwiera indeksowanie WYŁĄCZNIE dla
+ * hosta marki albo domeny faktycznie zajętej w katalogu.
+ */
+export async function resolveDomainBinding(
+  rawHost: string | null | undefined,
+): Promise<DomainBinding> {
+  const directory = await getTenantDirectory();
+  return {
+    tenant: matchDomain(directory, normalizeHost(rawHost)),
+    directoryPopulated: directory.byDomain.size > 0,
+  };
+}
+
 
 /** Convenience: crawler-plane tenant id for a host (null = fail closed). */
 export async function resolveCrawlerTenantIdForHost(
