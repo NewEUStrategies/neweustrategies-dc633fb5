@@ -28,6 +28,21 @@ export interface FnDef {
   readonly attrs: string;
 }
 
+export interface TriggerDef {
+  /** Nazwa triggera (bez cudzyslowow, lowercase). */
+  readonly name: string;
+  /** Tabela, na ktorej trigger wisi (`public.profiles`). */
+  readonly table: string;
+  readonly file: string;
+  /** Cala instrukcja `CREATE TRIGGER ... ;` bez komentarzy. */
+  readonly statement: string;
+  /** Zdarzenia z klauzuli: `INSERT` / `UPDATE` / `DELETE` / `TRUNCATE`. */
+  readonly events: readonly string[];
+  /** Kolumny z `UPDATE OF a, b` - pusta lista oznacza brak zawezenia. */
+  readonly updateOfColumns: readonly string[];
+  readonly timing: "BEFORE" | "AFTER" | "INSTEAD OF";
+}
+
 /**
  * Usuwa komentarze SQL (`-- do konca linii` i bloki `/* ... *\/`), zachowujac
  * podzial na linie, zeby numery linii w raportach nadal wskazywaly zrodlo.
@@ -245,6 +260,68 @@ export function extractLatestDefinitions(): Map<string, FnDef> {
 
       const key = `${name}/${arity}`;
       latest.set(key, { key, name, arity, file, body, attrs });
+    }
+  }
+  return latest;
+}
+
+/**
+ * Najnowsza definicja kazdego triggera (klucz: nazwa triggera).
+ *
+ * PO CO. Cialo funkcji triggerowej mowi, CO bramka sprawdza; instrukcja
+ * `CREATE TRIGGER` mowi, KIEDY bramka w ogole sie odpali - a to drugie da sie
+ * cofnac, nie ruszajac pierwszego. Dokladnie tak zniknelo pokrycie INSERT dla
+ * `profiles_guard_verification` (20260806150000 przepiela trigger na
+ * `BEFORE UPDATE OF verified_at, verified_by`): funkcja byla bez zarzutu, wiec
+ * ani snapshot autoryzacji, ani bramka literalow rol nie mialy czego zglosic.
+ *
+ * `updateOfColumns` jest osobnym polem, bo `BEFORE UPDATE OF kolumna` odpala sie
+ * wedlug LISTY `SET` w zapytaniu, a nie wedlug realnej zmiany wartosci - wartosc
+ * podstawiona przez wczesniejszy trigger BEFORE mija taka bramke bez sladu.
+ */
+export function extractLatestTriggerDefinitions(): Map<string, TriggerDef> {
+  const files = readdirSync(MIGRATIONS_DIR)
+    .filter((f) => f.endsWith(".sql"))
+    .sort();
+  const createRe =
+    /CREATE\s+(?:OR\s+REPLACE\s+)?(?:CONSTRAINT\s+)?TRIGGER\s+([A-Za-z0-9_."]+)([\s\S]*?);/gi;
+  const latest = new Map<string, TriggerDef>();
+
+  for (const file of files) {
+    const sql = stripSqlComments(readFileSync(join(MIGRATIONS_DIR, file), "utf8"));
+    createRe.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = createRe.exec(sql)) !== null) {
+      const name = match[1].replace(/"/g, "").toLowerCase();
+      const statement = match[0];
+      const clause = match[2];
+
+      // Wszystko przed `ON <tabela>` to klauzula czasu i zdarzen - dalej stoi juz
+      // tabela, `FOR EACH ROW`, `WHEN` i `EXECUTE FUNCTION`, gdzie slowo "UPDATE"
+      // moze wystapic w nazwie funkcji (`set_updated_at`).
+      const onMatch = /\bON\s+([A-Za-z0-9_."]+)/i.exec(clause);
+      const table = (onMatch?.[1] ?? "").replace(/"/g, "");
+      const eventClause = onMatch ? clause.slice(0, onMatch.index) : clause;
+
+      const timing = /\bINSTEAD\s+OF\b/i.test(eventClause)
+        ? "INSTEAD OF"
+        : /\bAFTER\b/i.test(eventClause)
+          ? "AFTER"
+          : "BEFORE";
+
+      const events = (["INSERT", "UPDATE", "DELETE", "TRUNCATE"] as const).filter((event) =>
+        new RegExp(`\\b${event}\\b`, "i").test(eventClause),
+      );
+
+      const updateOf = /\bUPDATE\s+OF\s+([A-Za-z0-9_",\s]+)$/i.exec(eventClause.trimEnd());
+      const updateOfColumns = updateOf
+        ? updateOf[1]
+            .split(",")
+            .map((col) => col.replace(/"/g, "").trim().toLowerCase())
+            .filter((col) => col !== "")
+        : [];
+
+      latest.set(name, { name, table, file, statement, events, updateOfColumns, timing });
     }
   }
   return latest;

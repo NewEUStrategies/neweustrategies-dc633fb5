@@ -38,6 +38,7 @@
     "check:legacy-payment-refs": "bun run scripts/check-legacy-payment-refs.ts",
     "check:workflow-env-contract": "bun run scripts/check-workflow-env-contract.ts",
     "check:sql-migration-replay": "bun run scripts/check-sql-migration-replay.ts",
+    "check:pgtap-plan": "bun run scripts/check-pgtap-plan.ts",
     "check:sql-owner-tenant-scope": "bun run scripts/check-sql-owner-tenant-scope.ts",
     "check:db-contract": "bun run scripts/check-db-contract.ts",
     "check:i18n-parity": "vitest run src/__tests__/i18nParity.gate.test.ts src/lib/ci/__tests__",

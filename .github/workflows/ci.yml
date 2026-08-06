@@ -262,6 +262,19 @@ jobs:
       - name: SQL migration replay safety
         run: bun run check:sql-migration-replay
 
+      # Blokująca bramka spójności suity pgTAP: `plan(N)` musi zgadzać się z
+      # liczbą asercji w pliku. pgTAP porównuje je w RUNTIME i rozjazd traktuje
+      # jako porażkę pliku - tylko dowiadujemy się o tym z jobu `pgtap`, czyli po
+      # `supabase db start`. Gdy TAMTEN job pada wcześniej z innego powodu (na
+      # 2026-08-06: dwie migracje dzieliły wersję 20260806150000, a
+      # `schema_migrations.version` to klucz główny), rozjazd zostaje
+      # NIEWIDOCZNY - i wraca jako czerwony przebieg dopiero po naprawie tamtej
+      # awarii. Tak przeżył zlepek dwóch suit w
+      # profiles_verification_guard_test.sql: plan(20) przy 33 asercjach.
+      # Bramka jest statyczna: bez Dockera, bez bazy, milisekundy na 73 pliki.
+      - name: pgTAP plan vs assertion count
+        run: bun run check:pgtap-plan
+
       # Blocking tenant-isolation gate: fails if an owner-scoped RLS clause
       # (`auth.uid() = <column>`) drops the tenant binding while a sibling
       # clause on the SAME table keeps it. That asymmetry made author_profiles
