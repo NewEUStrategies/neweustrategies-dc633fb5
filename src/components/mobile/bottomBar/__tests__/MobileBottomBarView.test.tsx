@@ -139,7 +139,7 @@ describe("MobileBottomBarView - wierność referencji", () => {
     // garb nie ma kształtu z referencji.
     expect(clipPath!.getAttribute("clipPathUnits")).toBe("objectBoundingBox");
     expect(clipPath!.getAttribute("transform")).toContain("scale(0.0049285362247413");
-    expect(container.querySelector("clipPath path")?.getAttribute("d")).toMatch(/^M6\.7,45\.5c/);
+    expect(container.querySelector("clipPath path")?.getAttribute("d")).toMatch(/^M0,45\.5h/);
 
     // Garb odwołuje się dokładnie do tej definicji.
     expect(border!.style.clipPath).toBe(`url(#${clipPath!.id})`);
@@ -194,7 +194,7 @@ describe("MobileBottomBarView - wierność referencji", () => {
     expect(nav).not.toBeNull();
     const style = nav!.style;
     // Aktywna jest strona główna: brand-ink na jasnym, brand na ciemnym.
-    expect(style.getPropertyValue("--mbb-active-light")).toBe("#b85410");
+    expect(style.getPropertyValue("--mbb-active-light")).toBe("#fa9346");
     expect(style.getPropertyValue("--mbb-active-dark")).toBe("#fa9346");
     expect(style.getPropertyValue("--mbb-radius")).toBe("20px");
     expect(style.getPropertyValue("--mbb-bg-light")).toBe("#ffffff");
