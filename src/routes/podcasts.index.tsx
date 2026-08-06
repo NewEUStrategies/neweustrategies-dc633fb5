@@ -10,10 +10,12 @@ import { useTranslation } from "react-i18next";
 import { Mic } from "@/lib/lucide-shim";
 import { Rss } from "lucide-react";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
+import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 import {
   latestPodcastsQueryOptions,
   publishedShowsQueryOptions,
   showEpisodeStatsQueryOptions,
+  type ShowEpisodeStat,
 } from "@/lib/queries/podcasts";
 import {
   podcastTitle,
@@ -21,7 +23,11 @@ import {
   formatDuration,
   showTitle,
   showDescription,
+  type Podcast,
+  type PodcastShow,
 } from "@/lib/podcast/types";
+import { anyDegraded, loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import {
@@ -33,13 +39,25 @@ import {
 
 const INDEX_LIMIT = 30;
 
+/** Puste kolekcje jako fallback zdegradowanego renderu (lib/ssr/resilientLoad). */
+const NO_EPISODES: Podcast[] = [];
+const NO_SHOWS: PodcastShow[] = [];
+const NO_STATS: ShowEpisodeStat[] = [];
+
 export const Route = createFileRoute("/podcasts/")({
-  loader: ({ context }) =>
-    Promise.all([
-      context.queryClient.ensureQueryData(latestPodcastsQueryOptions(INDEX_LIMIT)),
-      context.queryClient.ensureQueryData(publishedShowsQueryOptions),
-      context.queryClient.ensureQueryData(showEpisodeStatsQueryOptions),
-    ]),
+  // Odporne SSR: trzy zapytania biegną RÓWNOLEGLE, każde z własnym budżetem,
+  // więc wall-clock loadera to jeden budżet, nie suma trzech. Blip backendu
+  // daje HTTP 200 z uczciwym komunikatem zamiast 500 (lib/ssr/resilientLoad).
+  loader: async ({ context }) => {
+    const [episodes, shows, stats] = await Promise.all([
+      loadResilient(context.queryClient, latestPodcastsQueryOptions(INDEX_LIMIT), NO_EPISODES),
+      loadResilient(context.queryClient, publishedShowsQueryOptions, NO_SHOWS),
+      loadResilient(context.queryClient, showEpisodeStatsQueryOptions, NO_STATS),
+    ]);
+    const degraded = anyDegraded(episodes, shows, stats);
+    setCacheControlHeader(resilientCacheControl(degraded));
+    return { degraded };
+  },
   head: () => {
     const url = getRequestUrl() || "/podcasts";
     const lang = activeLang(url);
@@ -79,6 +97,7 @@ function PodcastsIndex() {
   const { data: episodes } = useSuspenseQuery(latestPodcastsQueryOptions(INDEX_LIMIT));
   const { data: shows } = useSuspenseQuery(publishedShowsQueryOptions);
   const { data: stats } = useSuspenseQuery(showEpisodeStatsQueryOptions);
+  const { degraded } = Route.useLoaderData();
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
 
@@ -126,107 +145,122 @@ function PodcastsIndex() {
         </a>
       </header>
 
-      {hasShows && (
-        <section className="space-y-4">
-          <h2 className="font-display text-xl">{lang === "en" ? "Programs" : "Programy"}</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {shows.map((s) => {
-              const st = showStats.get(s.id);
-              const desc = showDescription(s, lang);
-              const count = st?.count ?? 0;
-              return (
-                <Link
-                  key={s.id}
-                  to="/podcasts/$show"
-                  params={{ show: s.slug }}
-                  className="group flex flex-col rounded-xl border border-border overflow-hidden hover:shadow-md transition-shadow bg-card"
-                >
-                  <div className="aspect-video bg-muted relative overflow-hidden">
-                    {s.cover_image_url ? (
-                      <img
-                        src={s.cover_image_url}
-                        alt=""
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Mic className="w-10 h-10 text-muted-foreground/40" />
+      {/* Pusty katalog i „nic nie dojechało" wyglądają identycznie - przy
+          degradacji mówimy wprost, co się stało, zamiast sugerować, że sieci
+          podcastów nie ma. */}
+      {degraded ? (
+        <DegradedDataNotice
+          title={lang === "en" ? "Couldn't load podcasts" : "Nie udało się załadować podcastów"}
+        />
+      ) : (
+        <>
+          {hasShows && (
+            <section className="space-y-4">
+              <h2 className="font-display text-xl">{lang === "en" ? "Programs" : "Programy"}</h2>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {shows.map((s) => {
+                  const st = showStats.get(s.id);
+                  const desc = showDescription(s, lang);
+                  const count = st?.count ?? 0;
+                  return (
+                    <Link
+                      key={s.id}
+                      to="/podcasts/$show"
+                      params={{ show: s.slug }}
+                      className="group flex flex-col rounded-xl border border-border overflow-hidden hover:shadow-md transition-shadow bg-card"
+                    >
+                      <div className="aspect-video bg-muted relative overflow-hidden">
+                        {s.cover_image_url ? (
+                          <img
+                            src={s.cover_image_url}
+                            alt=""
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Mic className="w-10 h-10 text-muted-foreground/40" />
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                  <div className="p-4 space-y-1.5 flex-1 flex flex-col">
-                    <h3 className="font-medium leading-snug group-hover:text-primary transition-colors">
-                      {showTitle(s, lang)}
-                    </h3>
-                    {desc && (
-                      <p className="text-sm text-muted-foreground line-clamp-2 flex-1">{desc}</p>
-                    )}
-                    <div className="text-xs text-muted-foreground pt-1">
-                      {count} {lang === "en" ? (count === 1 ? "episode" : "episodes") : "odc."}
-                      {st && st.seconds > 0 ? ` · ${formatDuration(st.seconds)}` : ""}
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </section>
-      )}
+                      <div className="p-4 space-y-1.5 flex-1 flex flex-col">
+                        <h3 className="font-medium leading-snug group-hover:text-primary transition-colors">
+                          {showTitle(s, lang)}
+                        </h3>
+                        {desc && (
+                          <p className="text-sm text-muted-foreground line-clamp-2 flex-1">
+                            {desc}
+                          </p>
+                        )}
+                        <div className="text-xs text-muted-foreground pt-1">
+                          {count} {lang === "en" ? (count === 1 ? "episode" : "episodes") : "odc."}
+                          {st && st.seconds > 0 ? ` · ${formatDuration(st.seconds)}` : ""}
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
-      <section className="space-y-4">
-        <h2 className="font-display text-xl">
-          {lang === "en" ? "Latest episodes" : "Najnowsze odcinki"}
-        </h2>
-        {episodes.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-16 text-center">
-            {lang === "en" ? "No episodes published yet." : "Brak opublikowanych odcinków."}
-          </p>
-        ) : (
-          <ul className="space-y-3">
-            {episodes.map((e) => {
-              const ep = podcastEpisodeLabel(e, lang);
-              const excerpt =
-                lang === "en" ? e.excerpt_en || e.excerpt_pl : e.excerpt_pl || e.excerpt_en;
-              const showName = e.show_id ? showTitleById.get(e.show_id) : null;
-              return (
-                <li key={e.id}>
-                  <Link
-                    to="/podcast/$slug"
-                    params={{ slug: e.slug }}
-                    className="flex gap-4 p-4 rounded-lg border border-border hover:bg-muted/40 transition-colors"
-                  >
-                    {e.cover_image_url ? (
-                      <img
-                        src={e.cover_image_url}
-                        alt=""
-                        className="w-20 h-20 rounded-md object-cover border border-border shrink-0"
-                      />
-                    ) : (
-                      <div className="w-20 h-20 rounded-md bg-muted flex items-center justify-center shrink-0">
-                        <Mic className="w-6 h-6 text-muted-foreground" />
-                      </div>
-                    )}
-                    <div className="min-w-0 space-y-1">
-                      <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-muted-foreground">
-                        {showName && <span className="text-primary font-semibold">{showName}</span>}
-                        {showName && ep && <span aria-hidden>·</span>}
-                        {ep && <span>{ep}</span>}
-                      </div>
-                      <h3 className="font-medium leading-snug">{podcastTitle(e, lang)}</h3>
-                      {excerpt && (
-                        <p className="text-sm text-muted-foreground line-clamp-2">{excerpt}</p>
-                      )}
-                      <div className="text-xs text-muted-foreground">
-                        {formatDuration(e.duration_seconds)}
-                      </div>
-                    </div>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+          <section className="space-y-4">
+            <h2 className="font-display text-xl">
+              {lang === "en" ? "Latest episodes" : "Najnowsze odcinki"}
+            </h2>
+            {episodes.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-16 text-center">
+                {lang === "en" ? "No episodes published yet." : "Brak opublikowanych odcinków."}
+              </p>
+            ) : (
+              <ul className="space-y-3">
+                {episodes.map((e) => {
+                  const ep = podcastEpisodeLabel(e, lang);
+                  const excerpt =
+                    lang === "en" ? e.excerpt_en || e.excerpt_pl : e.excerpt_pl || e.excerpt_en;
+                  const showName = e.show_id ? showTitleById.get(e.show_id) : null;
+                  return (
+                    <li key={e.id}>
+                      <Link
+                        to="/podcast/$slug"
+                        params={{ slug: e.slug }}
+                        className="flex gap-4 p-4 rounded-lg border border-border hover:bg-muted/40 transition-colors"
+                      >
+                        {e.cover_image_url ? (
+                          <img
+                            src={e.cover_image_url}
+                            alt=""
+                            className="w-20 h-20 rounded-md object-cover border border-border shrink-0"
+                          />
+                        ) : (
+                          <div className="w-20 h-20 rounded-md bg-muted flex items-center justify-center shrink-0">
+                            <Mic className="w-6 h-6 text-muted-foreground" />
+                          </div>
+                        )}
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-muted-foreground">
+                            {showName && (
+                              <span className="text-primary font-semibold">{showName}</span>
+                            )}
+                            {showName && ep && <span aria-hidden>·</span>}
+                            {ep && <span>{ep}</span>}
+                          </div>
+                          <h3 className="font-medium leading-snug">{podcastTitle(e, lang)}</h3>
+                          {excerpt && (
+                            <p className="text-sm text-muted-foreground line-clamp-2">{excerpt}</p>
+                          )}
+                          <div className="text-xs text-muted-foreground">
+                            {formatDuration(e.duration_seconds)}
+                          </div>
+                        </div>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+        </>
+      )}
     </div>
   );
 }

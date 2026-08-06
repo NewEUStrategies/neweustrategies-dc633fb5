@@ -34,6 +34,16 @@ export interface ExpertsDirectoryData {
   };
 }
 
+/**
+ * Pusta powłoka katalogu - fallback renderu zdegradowanego (patrz
+ * `lib/ssr/resilientLoad`). Trzymana PRZY zapytaniu, żeby kształt pustego
+ * wyniku miał jedno źródło prawdy i nie rozjechał się z typem danych.
+ */
+export const EXPERTS_DIRECTORY_EMPTY: ExpertsDirectoryData = Object.freeze({
+  experts: [],
+  facets: { areas: [], programs: [] },
+});
+
 export const expertsDirectoryQueryOptions = () =>
   queryOptions({
     queryKey: ["public", "experts-directory"] as const,

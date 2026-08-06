@@ -296,6 +296,11 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Tag (SEO)": "Tag (SEO)",
   "Rozmiar (preset)": "Size (preset)",
   "Rozmiar (px)": "Size (px)",
+  // Karuzela okrężna - geometria elipsy i akcent aktywnej karty.
+  "Promień poziomy (px)": "Horizontal radius (px)",
+  "Promień pionowy (px)": "Vertical radius (px)",
+  "Ramka aktywnej karty, licznik i kropki. Puste = kolor marki.":
+    "Active card border, counter and dots. Empty = brand colour.",
   "Rozmiar tytułu (px)": "Title size (px)",
   "Rozmiar podtytułu (px)": "Subtitle size (px)",
   "Rozmiar opisu (px)": "Description size (px)",

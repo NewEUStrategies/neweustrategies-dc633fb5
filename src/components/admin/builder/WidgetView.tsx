@@ -989,7 +989,6 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
         );
       }
 
-
       // Warianty z formularzem (inline / card): jeden komponent, jeden config.
       const liveForm = (
         <NewsletterFormPreviewable

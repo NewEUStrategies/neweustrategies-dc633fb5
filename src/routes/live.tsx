@@ -11,7 +11,10 @@ import { AppLink } from "@/components/atoms/AppLink";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
-import { isLiveNow, liveBlogsQueryOptions } from "@/lib/queries/liveBlogs";
+import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
+import { isLiveNow, liveBlogsQueryOptions, type LiveBlogListItem } from "@/lib/queries/liveBlogs";
+import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { activeLang } from "@/lib/seo/head";
 import {
   SITE_CANONICAL_ORIGIN,
@@ -21,8 +24,22 @@ import {
 } from "@/lib/seo/meta";
 import { getRequestUrl } from "@/lib/seo/request";
 
+/** Pusta lista jako fallback zdegradowanego renderu (lib/ssr/resilientLoad). */
+const NO_LIVE_BLOGS: LiveBlogListItem[] = [];
+
 export const Route = createFileRoute("/live")({
-  loader: ({ context }) => context.queryClient.ensureQueryData(liveBlogsQueryOptions()),
+  // Odporne SSR: blip backendu daje HTTP 200 z uczciwym komunikatem zamiast
+  // 500 (patrz lib/ssr/resilientLoad). Zdegradowany render nie idzie do
+  // cache'a wspólnego, więc pustka nie zamarza na brzegu CDN.
+  loader: async ({ context }) => {
+    const { degraded } = await loadResilient(
+      context.queryClient,
+      liveBlogsQueryOptions(),
+      NO_LIVE_BLOGS,
+    );
+    setCacheControlHeader(resilientCacheControl(degraded));
+    return { degraded };
+  },
   head: () => {
     const url = getRequestUrl() || "/live";
     const lang = activeLang(url);
@@ -69,6 +86,7 @@ export const Route = createFileRoute("/live")({
 
 function LiveIndex() {
   const { data } = useSuspenseQuery(liveBlogsQueryOptions());
+  const { degraded } = Route.useLoaderData();
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
@@ -90,7 +108,13 @@ function LiveIndex() {
         </p>
       </header>
 
-      {data.length === 0 ? (
+      {degraded ? (
+        // Pusta lista i „nic nie dojechało" wyglądają identycznie - a to dwie
+        // różne prawdy. Przy degradacji mówimy wprost, co się stało.
+        <DegradedDataNotice
+          title={L("Nie udało się załadować relacji", "Couldn't load live coverage")}
+        />
+      ) : data.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-12 text-center text-sm text-muted-foreground">
           {L(
             "Obecnie nie prowadzimy żadnej relacji na żywo. Zajrzyj później.",

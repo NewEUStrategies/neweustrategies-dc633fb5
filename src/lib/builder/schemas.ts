@@ -1189,6 +1189,23 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         return v === "icon" || v === "icon-only";
       },
     },
+    {
+      // Renderer honoruje `size` od zawsze (kafelek koperty dzieli rysunek
+      // i geometrię z widgetem „Ikony social"), ale panel go nie oferował -
+      // ustawienie było osiągalne tylko przez ręczną edycję dokumentu.
+      // Ta sama bramka widoczności co `iconName`: pozostałe warianty nie mają
+      // kafelka, więc rozmiar ikony byłby w nich martwym polem.
+      key: "size",
+      type: "number",
+      label: "Rozmiar ikony (px)",
+      min: 10,
+      max: 64,
+      default: 14,
+      visibleWhen: (c) => {
+        const v = typeof c.variant === "string" ? c.variant : "icon";
+        return v === "icon" || v === "icon-only";
+      },
+    },
     { key: "placeholder", type: "i18nText", label: "Placeholder pola email" },
     { key: "cta", type: "i18nText", label: "Etykieta przycisku" },
   ],

@@ -19,7 +19,10 @@ import { breadcrumbListJsonLd, eventsCollectionJsonLd, safeJsonLd } from "@/lib/
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
 import { EventsListSkeleton } from "@/components/community/EventsListSkeleton";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
+import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
+import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 
 /** Ile nadchodzących wydarzeń trafia do projekcji head (JSON-LD). */
 const HEAD_EVENTS_LIMIT = 30;
@@ -39,23 +42,40 @@ interface EventsLoaderData {
   /** Lekka projekcja nadchodzących wydarzeń pod JSON-LD w head(); pełne
    *  wiersze jadą raz - w dehydratowanym cache React Query. */
   headEvents: EventsHeadEvent[];
+  /** Lista nie dojechała w budżecie SSR - body pokazuje uczciwy komunikat. */
+  degraded: boolean;
 }
+
+/** Pusta lista jako fallback zdegradowanego renderu (patrz lib/ssr/resilientLoad). */
+const NO_EVENTS: PublicEvent[] = [];
 
 export const Route = createFileRoute("/events")({
   // Bramka modułu jest fail-soft (toggle ma bezpieczne domyślne "włączone",
   // a odczyt dedupuje się z root loaderem - ten sam klucz zapytania, zero
-  // dodatkowych round-tripów). Sama lista jest fail-loud: awaria backendu
-  // renderuje errorComponent z retry zamiast pustej strony.
+  // dodatkowych round-tripów).
+  //
+  // Sama lista była wcześniej fail-loud i to był błąd w warstwie TRANSPORTU:
+  // rzut z loadera dawał HTTP 500, więc blip backendu wypadał z cache'a CDN,
+  // podnosił monitory i wyglądał dla crawlera jak awaria serwera. Teraz trasa
+  // degraduje się na 200 (patrz lib/ssr/resilientLoad), ale NIE udaje, że
+  // wydarzeń nie ma: `degraded` jedzie do body, które renderuje uczciwy
+  // komunikat z ponowieniem zamiast pustej listy.
   loader: async ({ context }): Promise<EventsLoaderData> => {
     const settings = await context.queryClient
       .ensureQueryData(siteSettingsQueryOptions)
       .catch(() => undefined);
     const modules = resolveSetting(settings, COMMUNITY_MODULES_KEY, COMMUNITY_MODULES_DEFAULTS);
-    if (!modules.events_enabled) return { headEvents: [] };
+    if (!modules.events_enabled) return { headEvents: [], degraded: false };
 
-    const events = await context.queryClient.ensureQueryData(publicEventsQueryOptions());
+    const { data: events, degraded } = await loadResilient(
+      context.queryClient,
+      publicEventsQueryOptions(),
+      NO_EVENTS,
+    );
+    setCacheControlHeader(resilientCacheControl(degraded));
     const now = Date.now();
     return {
+      degraded,
       headEvents: events
         .filter((ev) => new Date(ev.ends_at ?? ev.starts_at).getTime() >= now)
         .sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime())
@@ -129,7 +149,22 @@ function EventsPage() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
   ensureCommunityI18n();
   const modules = useCommunityModules();
+  const { degraded } = Route.useLoaderData();
   if (!modules.events_enabled) return <CommunityDisabled />;
+  // Render zdegradowany: zamiast fałszywego „brak wydarzeń" pokazujemy, co się
+  // naprawdę stało, z przyciskiem ponowienia (router.invalidate przeładuje
+  // loader - po stronie klienta backend zwykle już odpowiada).
+  if (degraded) {
+    return (
+      <div className="container mx-auto max-w-5xl px-4 py-12 md:py-16">
+        <DegradedDataNotice
+          title={
+            activeLang() === "en" ? "Couldn't load events" : "Nie udało się załadować wydarzeń"
+          }
+        />
+      </div>
+    );
+  }
   return <EventsPageBody />;
 }
 

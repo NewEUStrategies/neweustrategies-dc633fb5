@@ -23,7 +23,12 @@ describe("circular-carousel model", () => {
       "pl",
     );
     expect(items).toHaveLength(2);
-    expect(items[0]).toMatchObject({ id: "karta", title: "Karta", description: "Opis", tag: "Tag" });
+    expect(items[0]).toMatchObject({
+      id: "karta",
+      title: "Karta",
+      description: "Opis",
+      tag: "Tag",
+    });
     expect(items[1].id).toBe("karta-2");
   });
 
