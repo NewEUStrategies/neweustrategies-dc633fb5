@@ -194,6 +194,9 @@ function isCommentLine(line: string | undefined): boolean {
  * PRZYLEGAC do linii z literalem: pusta linia albo kod przerywaja zasieg, wiec
  * marker nie rozlewa sie na caly plik.
  */
+/** Marker zwolnienia w komentarzu tuż nad linią (albo w niej samej). */
+const EXEMPT_MARKER = "app-role-literal-exempt";
+
 function isExempt(rawLines: readonly string[], index: number): boolean {
   if (rawLines[index]?.includes(EXEMPT_MARKER)) return true;
   for (let i = index - 1; i >= 0 && isCommentLine(rawLines[i]); i -= 1) {
