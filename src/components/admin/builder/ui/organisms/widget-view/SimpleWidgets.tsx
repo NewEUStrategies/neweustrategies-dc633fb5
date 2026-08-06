@@ -721,16 +721,42 @@ export function renderSimpleWidget(
           );
         }
 
+        // Newsletter jest w układzie „rząd" takim samym kafelkiem jak
+        // platformy społecznościowe: ten sam rozmiar, kształt, tło i hover.
+        // Wcześniej rendrował się wyłącznie w układzie „lista", więc redakcja
+        // musiała dokładać osobny widget newslettera, który wyglądał inaczej.
+        const rowNewsletterHref =
+          getStr(c, "newsletterUrl") ||
+          localizedPath("/dolacz-do-newslettera", lang === "en" ? "en" : "pl");
+        const rowItems: Array<{
+          k: string;
+          altKeys?: string[];
+          Cmp: IconCmp;
+          label: string;
+          href?: string;
+          external?: boolean;
+        }> = [...items];
+        if (getStr(c, "showNewsletter") !== "0") {
+          rowItems.push({
+            k: "newsletter",
+            Cmp: MailIcon,
+            label: "Newsletter",
+            href: rowNewsletterHref,
+            external: /^https?:/i.test(rowNewsletterHref),
+          });
+        }
+
         return (
           <>
             <div
               className={`flex flex-wrap items-center text-foreground ${ICON_TONE} ${themeCls} ${hoverScope}`}
               style={{ ...compactRowStyle, gap: `${gap}px` }}
             >
-              {items.map(({ k, altKeys, Cmp, label }) => {
-                const href = hrefOf(k, altKeys, globalLinks);
+              {rowItems.map(({ k, altKeys, Cmp, label, href: fixedHref, external }) => {
+                const href = fixedHref ?? hrefOf(k, altKeys, globalLinks);
                 const active = !!href;
                 if (!active && !showEmpty) return null;
+                const isExternal = external ?? true;
                 const bg = resolveBg(k, active);
                 const style: CSSProperties = {
                   ...chipStyle(k, active),
@@ -748,8 +774,9 @@ export function renderSimpleWidget(
                     key={k}
                     href={safeUrl(href)}
                     aria-label={label}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    title={label}
+                    target={isExternal ? "_blank" : undefined}
+                    rel={isExternal ? "noopener noreferrer" : undefined}
                     className={cls}
                     style={style}
                   >
@@ -767,6 +794,7 @@ export function renderSimpleWidget(
                 );
               })}
             </div>
+
             {hoverCssTag}
           </>
         );
