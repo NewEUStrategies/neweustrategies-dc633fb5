@@ -18,6 +18,7 @@ import type { CSSProperties } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { MobileBottomBarView } from "@/components/mobile/bottomBar/MobileBottomBarView";
+import { useAuth } from "@/hooks/useAuth";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import {
   MOBILE_BOTTOM_BAR_DEFAULTS,
