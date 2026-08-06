@@ -1,6 +1,6 @@
 # Audyt modułu profili (użytkownik / ekspert / rodzaje subskrypcji) oraz czatu i sieci kontaktów — 2026-08-06
 
-**Data:** 2026-08-06 · **HEAD:** `633d02e` · **Gałąź:** `claude/user-profile-chat-audit-i4na3t`
+**Data:** 2026-08-06 · **HEAD:** `d42e5eb` (`main` po merge'u PR #184) · **Gałąź:** `claude/user-profile-chat-audit-i4na3t`
 **Zakres:** profil użytkownika, profil eksperta, warstwy/rodzaje subskrypcji, czat (DM, grupy,
 załączniki, „Zapytanie do eksperta”), sieć kontaktów (połączenia, rekomendacje, poparcia,
 przedstawienia, odsłony profilu, blokady, zgłoszenia).
@@ -10,22 +10,30 @@ egzekwują albo nie mają jak zostać wyłapane. Nie jest oceną punktową (tę 
 `OCENA_FUNKCJI_TABELE_*`). Każde ustalenie ma dowód: ścieżkę `plik:linia`, wynik uruchomionego
 narzędzia albo odtworzone zachowanie.
 
+> **Nota o pomiarze (ważna dla czytania §1 i §2).** Pierwszy przebieg audytu zmierzył HEAD
+> `633d02e`. Zanim dokument trafił do przeglądu, `main` przesunął się o 26 commitów (do `d42e5eb`)
+> i **zamknął dwa ustalenia krytyczne**: kolizję wersji migracji (§1) oraz dryf autorytetu
+> weryfikacji profilu (§2). Wszystkie sygnały w tym dokumencie są **ponownie zmierzone na
+> `d42e5eb`**. §1 i §2 zostawiam w treści jako **zamknięte** — z zachowanym opisem mechanizmu, bo
+> obie klasy defektu są cykliczne w tym repozytorium i ich diagnoza jest nadal użyteczna
+> (konwencja z `AUDYT_FUNKCJONALNY_MODULOW_2026-07-25.md`). Ustalenia §3–§16 **potwierdziłem
+> ponownie na nowym HEAD** — żadne z nich nie zostało naprawione.
+
 > **Najkrótsze streszczenie.** Moduł jest inżynieryjnie mocny (RPC-only sieć, RLS na wszystkim,
-> rejestr capabilities z maszynowym parytetem, jeden kanał realtime per user). Trzy rzeczy
-> wymagają jednak natychmiastowej reakcji:
+> rejestr capabilities z maszynowym parytetem, jeden kanał realtime per user), a suita jest na tym
+> HEAD **zielona**. Dwie rzeczy wymagają jednak reakcji:
 >
-> 1. **Wszystkie 4 czerwone testy w 6705-testowej suicie leżą dokładnie w tym module** — w bramce
->    weryfikacji profilu — a przyczyną jest **kolizja wersji dwóch migracji o tym samym znaczniku
->    `20260806150000`**, która dodatkowo **uniemożliwia `supabase db start`**, czyli wywala cały job
->    pgTAP (74 pliki) i pozbawia moduł jedynej warstwy testów bazodanowych (§1, §2).
-> 2. **„Zapytanie do eksperta” istnieje w dwóch równoległych generacjach**, a żywa (ta, którą woła
+> 1. **„Zapytanie do eksperta” istnieje w dwóch równoległych generacjach**, a żywa (ta, którą woła
 >    klient) nie dostała **dwóch poprawek bezpieczeństwa**, które trafiły do generacji nieużywanej:
 >    pulę miesięczną da się dziś obejść pętlą „wyślij → anuluj → wyślij”, a równoległe wysyłki nie
 >    są serializowane. Dodatkowo na **świeżej bazie** cała funkcja przestaje działać (`42P01`),
->    bo tabela zmienia nazwę (§6).
-> 3. Widok `profiles_public` serwuje **anonimowi 22-kolumnową projekcję KAŻDEGO profilu**
+>    bo tabela zmienia nazwę, a klient woła RPC celujące w starą (§6).
+> 2. Widok `profiles_public` serwuje **anonimowi 22-kolumnową projekcję KAŻDEGO profilu**
 >    publicznego tenanta, mimo że interfejs obiecuje w PL i EN, że „osoby niezalogowane nie mają
 >    do niego dostępu” (§3).
+>
+> Dwa ustalenia krytyczne z pierwszego przebiegu (§1 kolizja wersji migracji, §2 dryf autorytetu
+> weryfikacji) **zostały zamknięte na `main` w trakcie audytu** — patrz nota o pomiarze wyżej.
 
 ---
 
@@ -34,39 +42,40 @@ narzędzia albo odtworzone zachowanie.
 Zależności zainstalowano tak, jak robi to CI (`bun.lock` przepięty z prywatnego GAR na publiczny
 npm — `.github/workflows/ci.yml:37`), 848 pakietów, instalacja czysta.
 
-| Sprawdzenie | Pokrycie | **Wynik na `633d02e`** |
-| ----------- | -------- | ---------------------- |
-| `tsc --noEmit` | całość repo | **✓ czysto** |
-| `vitest run` (pełna suita) | 617 plików | **✗ 612 pass / 3 FAIL / 2 skip · 6705 testów: 6651 pass / 4 FAIL / 50 skip** |
-| `vitest run` (tylko moduły audytu) | chat, network, experts, profile, billing, pricing, access | **✓ 62 pliki / 670 testów, wszystkie zielone** |
-| `check:sql-migration-replay` | 627 plików migracji | **✗ CZERWONO — zduplikowana wersja `20260806150000`** (§1) |
-| `check:authz-snapshot` | snapshot bramek vs migracje | **✗ CZERWONO — dryf `fn:profiles_guard_verification/0`** (§2) |
-| `check:permissions-parity` | 4 pliki / 99 testów | **✗ 1 FAIL** (ten sam dryf) |
-| `check:i18n-parity` | 16 plików / 229 testów | **✗ 2 FAIL — collateral z §1** (glob obejmuje `src/lib/ci/__tests__`) |
+| Sprawdzenie | Pokrycie | **Wynik na `d42e5eb`** | Było na `633d02e` |
+| ----------- | -------- | ---------------------- | ----------------- |
+| `tsc --noEmit` | całość repo | **✓ czysto** | ✓ czysto |
+| `vitest run` (pełna suita) | 618 plików | **✓ ZIELONO — 616 pass / 2 skip · 6707 testów: 6657 pass / 50 skip** | ✗ 4 FAIL |
+| `vitest run` (tylko moduły audytu) | chat, network, experts, profile, billing, pricing, access | **✓ 62 pliki / 670 testów** | ✓ |
+| `check:sql-migration-replay` | 627 plików migracji | **✓ (exit 0)** — zero kolizji wersji | ✗ dubel `20260806150000` (§1) |
+| `check:authz-snapshot` | snapshot bramek vs migracje | **✓ zgodny z migracjami** | ✗ dryf `fn:profiles_guard_verification/0` (§2) |
+| `check:permissions-parity` | 4 pliki / 99 testów | **✓** (w ramach zielonej suity) | ✗ 1 FAIL |
+| `check:i18n-parity` | 16 plików / 229 testów | **✓** | ✗ 2 FAIL (collateral z §1) |
 | `check:db-contract` | schemat żywej bazy vs kod | **nie dało się uruchomić** — brak `SUPABASE_URL`/klucza; w CI jest krokiem po wdrożeniu (`ci.yml:385`), więc rozjazd nazwy tabeli z §6 nie jest łapany przed mergem |
 | Kontrakt nazw RPC klient↔SQL↔typy | 56 unikalnych RPC modułu | **✓ czysto** — każde istnieje w migracjach i w `types.ts` |
 | Kontrakt nazw **tabel** w ciałach RPC vs stan po replayu | ścieżka „Zapytanie do eksperta” | **✗ rozjazd** — 5 RPC celuje w tabelę, która po replayu nie istnieje (§6) |
 | Pokrycie testami modułu (v8) | 7 katalogów (lib+components) | **15,44 % stmt / 14,2 % br / 13,19 % fn** (861 z 5573 instrukcji) (§12) |
 | `knip` | całość | 6 martwych plików, 205 martwych eksportów — **w tym module wszystkie sprawdzone trafienia okazały się pozorne** i NIE są raportowane jako ustalenia: `lib/profile/badges.ts` to barrel re-eksportujący `badgeCatalog.ts` (oba używane), `ChatUnreadBadge`/`NetworkPendingBadge` są ładowane leniwie przez `LiveTabBadge` (`BottomBarTab.tsx:17`), `ReportUserDialog` jest wpięty w `AuthorMoreMenu.tsx:55` i `ConnectButton.tsx:370` (martwy jest tylko dodatkowy eksport `ReportUserButton`) |
 
-Cztery czerwone testy to (pełne nazwy, wszystkie w obszarze weryfikacji profilu):
+Na `633d02e` czerwone były cztery testy — **wszystkie w obszarze weryfikacji profilu**, wszystkie
+zielone po naprawie na `main`. Zostawiam listę, bo pokazuje, jak wąsko ta klasa defektu uderza:
 
-| Plik testu | Test |
-| ---------- | ---- |
-| `src/lib/ci/__tests__/migrationReplay.test.ts:176` | „ŻADNA wersja się nie powtarza” |
-| `src/lib/ci/__tests__/migrationReplay.test.ts:191` | „nazwy są parsowalne i porządek nazw = porządek wersji” |
-| `src/lib/authz/__tests__/authzSnapshotParity.test.ts:49` | „zacommitowany snapshot zgadza się z odtworzeniem z migracji” |
-| `src/__tests__/profilesVerificationGuard.invariant.test.ts:56` | „przepuszcza rolę super_admin (regresja z 20260806094104)” |
+| Plik testu | Test | `633d02e` | `d42e5eb` |
+| ---------- | ---- | --------- | --------- |
+| `src/lib/ci/__tests__/migrationReplay.test.ts` | „ŻADNA wersja się nie powtarza” | ✗ | ✓ |
+| `src/lib/ci/__tests__/migrationReplay.test.ts` | „nazwy są parsowalne i porządek nazw = porządek wersji” | ✗ | ✓ |
+| `src/lib/authz/__tests__/authzSnapshotParity.test.ts` | „zacommitowany snapshot zgadza się z odtworzeniem z migracji” | ✗ | ✓ |
+| `src/__tests__/profilesVerificationGuard.invariant.test.ts` | „przepuszcza rolę super_admin (regresja z 20260806094104)” | ✗ | ✓ |
 
-**Czego NIE dało się uruchomić:** pgTAP (`supabase test db`, 74 pliki, w tym
+**Czego NIE dało się uruchomić: pgTAP** (`supabase test db`, 74 pliki, w tym
 `chat_privacy_isolation_test.sql`, `connections_v2_test.sql`, `introductions_flow_test.sql`,
-`profiles_verification_guard_test.sql`, `expert_request_visibility_test.sql`) — bo `supabase db
-start` przerywa się na kolizji wersji z §1. To nie ograniczenie środowiska audytu, lecz **skutek
-defektu §1**: repozytorium samo to opisało przy poprzednim wystąpieniu tej klasy
-(`supabase/migrations/20260724130000_expert_request_visibility.sql:202–205` — „DWA pliki o tym
-samym znaczniku czasu wywalają `duplicate key value violates unique constraint
-schema_migrations_pkey` i przerywają CAŁY `supabase db start` — to dlatego job pgtap w CI nie
-dobiegał nawet do pierwszego testu”).
+`profiles_verification_guard_test.sql`, `expert_request_visibility_test.sql`). Na `633d02e`
+blokowała to kolizja wersji (§1); na `d42e5eb` kolizji już nie ma, ale w tym środowisku brakuje
+lokalnego stacku Supabase (`supabase db start` wymaga Dockera). **Ta luka jest istotna dla wagi
+§6b:** jedyna warstwa testów, która sprawdza schemat po pełnym replayu migracji, nie została
+w tym audycie uruchomiona ani razu — a to właśnie replay ujawnia rozjazd nazwy tabeli. Wnioski
+o stanie po replayu wyprowadzam z analizy statycznej łańcucha migracji, nie z uruchomionej bazy;
+zaznaczam to wprost, żeby nikt nie czytał §6b jako obserwacji z działającego środowiska.
 
 ## 2. Inwentarz modułu (co realnie istnieje)
 
@@ -109,8 +118,8 @@ w dokumentacji, bo „subskrypcja” w kodzie znaczy dwie różne rzeczy zależn
 
 | # | Obszar | Ustalenie | Waga |
 | --- | ------ | --------- | ---- |
-| 1 | Profil — weryfikacja / migracje | Dwie migracje o wersji `20260806150000`: `supabase db start` pada, pgTAP nie startuje, 2 bramki CI czerwone | **Krytyczna** |
-| 2 | Profil — autorytet weryfikacji | Inwariant „jeden predykat” złamany: trigger nie czyta `can_manage_profile_verification`, efektywny krąg jest międzytenantowy, dokumentacja opisuje inny stan | **Krytyczna** |
+| 1 | Profil — weryfikacja / migracje | Dwie migracje o wersji `20260806150000`: `supabase db start` pada, pgTAP nie startuje, 2 bramki CI czerwone | ~~Krytyczna~~ **✅ zamknięte na `d42e5eb`** |
+| 2 | Profil — autorytet weryfikacji | Inwariant „jeden predykat” złamany: trigger nie czyta `can_manage_profile_verification`, efektywny krąg jest międzytenantowy, dokumentacja opisuje inny stan | ~~Krytyczna~~ **✅ zamknięte na `d42e5eb`** |
 | 3 | Profil — prywatność | `profiles_public` (definer, grant dla `anon`) serwuje 22 kolumny **każdego** profilu; `discoverable` nie jest honorowane; copy UI obiecuje odwrotnie | **Wysoka** |
 | 4 | Czat — bramka tierów | `is_expert_user` / `is_vip_user` / `is_gated_recipient` nie są skalowane tenantem, w przeciwieństwie do `my_effective_tier_features()` | **Wysoka** |
 | 5 | Profil — RODO | Eksport danych (art. 15/20) pomija czat, zapytania do ekspertów, artefakty sieci i CAŁE „rozszerzenia profilu”, deklarując komplet | **Wysoka** |
@@ -131,9 +140,17 @@ w dokumentacji, bo „subskrypcja” w kodzie znaczy dwie różne rzeczy zależn
 
 ---
 
-# §1. KRYTYCZNA — dwie migracje o tej samej wersji `20260806150000`
+# §1. ✅ ZAMKNIĘTE (było: KRYTYCZNA) — dwie migracje o tej samej wersji `20260806150000`
 
-**Pliki:**
+> **Status na `d42e5eb`: naprawione, potwierdzone pomiarem.** Commit `1e17363` przemianował
+> kolidujący plik na `20260806150001_…` (rename R100, treść bit w bit), a `62ac3be` usunął go
+> całkowicie — na `main` została wyłącznie migracja *authority*. Zmierzone ponownie:
+> `check:sql-migration-replay` **✓ (exit 0)**, zero zduplikowanych wersji wśród 627 plików,
+> oba testy `migrationReplay` zielone. Opis mechanizmu zostawiam, bo **to była druga
+> manifestacja tej klasy** w repozytorium (pierwsza — patrz §6b — do dziś rzutuje na schemat)
+> i jest to jedyny znany mi zapis obu przypadków w jednym miejscu.
+
+**Pliki (stan `633d02e`, przed naprawą):**
 `supabase/migrations/20260806150000_profile_verification_authority.sql` (266 linii)
 `supabase/migrations/20260806150000_profiles_verification_guard_super_admin.sql` (134 linie)
 
@@ -174,15 +191,38 @@ scalenie plików. Bramka `check:sql-migration-replay` powstała właśnie po tam
 i tym razem **działa poprawnie**: wykrywa kolizję i podaje gotową instrukcję naprawy. Defektem
 jest to, że zmiana została zmergowana pomimo czerwonej bramki.
 
-🔧 **Naprawa** (dokładnie ta, którą podaje bramka): przenumerować wszystkie poza pierwszym
-alfabetycznie (`…_profile_verification_authority.sql` zapisał się w ledgerze jako pierwszy) na
-kolejne sekundy z zachowaniem względnej kolejności — konwencja repo `…0000 / …0001`
-(precedens: `20260731210000` / `20260731210001`). Czyli:
-`20260806150000_profiles_verification_guard_super_admin.sql` → `20260806150001_…`.
-**Ale najpierw** trzeba rozstrzygnąć §2, bo przenumerowanie utrwali obecną, sprzeczną z dokumentacją
-semantykę.
+🔧 **Naprawa — wykonana na `main`, opis dla porządku.** Rekomendacja brzmiała: przenumerować
+wszystkie poza pierwszym alfabetycznie (`…_profile_verification_authority.sql` zapisał się
+w ledgerze jako pierwszy) na kolejne sekundy, z zachowaniem względnej kolejności — konwencja repo
+`…0000 / …0001` (precedens: `20260731210000` / `20260731210001`); i **najpierw** rozstrzygnąć §2,
+żeby przenumerowanie nie utrwaliło semantyki sprzecznej z dokumentacją.
 
-# §2. KRYTYCZNA — autorytet weryfikacji profilu: „jeden predykat” już nie obowiązuje
+Faktycznie wykonano dokładnie to, i o krok dalej: `1e17363` przemianował plik na
+`20260806150001_…` (rename R100), a `62ac3be` **usunął go w całości** — czyli zamiast utrwalać
+wariant `is_super_admin`, porzucono go na rzecz migracji *authority*. To rozwiązuje §1 i §2
+jednym ruchem i jest lepsze niż sama rekomendacja: nie zostawia w łańcuchu drugiej definicji
+tej samej bramki. Zweryfikowane pomiarem na `d42e5eb` — patrz banner na początku tego paragrafu.
+
+# §2. ✅ ZAMKNIĘTE (było: KRYTYCZNA) — autorytet weryfikacji profilu: „jeden predykat” już nie obowiązuje
+
+> **Status na `d42e5eb`: naprawione, i to dokładnie tak, jak rekomendowała pierwsza wersja tego
+> paragrafu.** Po usunięciu kolidującej migracji (§1) ostatnią definicją `profiles_guard_verification()`
+> jest wariant *authority*: woła `can_manage_profile_verification(v_uid)` zamiast wyliczać role
+> inline, a dodatkowo egzekwuje `OLD.tenant_id = current_tenant_id()` (świadomie `OLD`, bo
+> `tenant_id` przypina późniejszy alfabetycznie trigger). Inwariant behawioralny został przy tym
+> **wzmocniony, nie poluzowany**: `profilesVerificationGuard.invariant.test.ts:68–74` doszywa
+> teraz do badanego ciała treść predykatu (`effectiveGuardBody()`), więc test akceptuje wywołanie
+> `can_manage_profile_verification`, ale nadal wymaga, żeby oba zbiory ról dało się w nim
+> odnaleźć — czyli nie da się go „naprawić” samym schowaniem ról za funkcję. Zmierzone:
+> `check:authz-snapshot` **✓ zgodny z migracjami**, cała suita zielona.
+> Dokumentacja `docs/WERYFIKACJA_PROFILI.md` znów opisuje stan faktyczny — bez zmian w niej samej.
+>
+> Diagnozę poniżej zostawiam z jednego powodu: `profiles_guard_verification()` ma w łańcuchu
+> migracji **10 definicji, z czego 7 z jednego dnia (2026-08-06)** — `094104`, `130000`, `135804`,
+> `140000`, `145814`, `145900`, `150000`. Siedem prób naprawy tej samej bramki w ciągu doby, z których
+> każda kolejna korygowała poprzednią, to sygnał procesowy, nie techniczny — i jedyny trwały wniosek
+> z tej historii. Poniższy opis mechanizmu (dwie bramki na tych samych kolumnach, o wyniku decyduje
+> alfabetyczna kolejność triggerów) tłumaczy, dlaczego tyle prób było potrzebnych.
 
 **Pliki:** `supabase/migrations/20260806150000_profile_verification_authority.sql:39–59`, `:88`, `:199`, `:236`, `:252`
 · `supabase/migrations/20260806150000_profiles_verification_guard_super_admin.sql:66–72`
@@ -444,8 +484,12 @@ Rozjazd nie jest przypadkiem — repozytorium sam go opisało, gdy się o niego 
 
 Czyli: generacja B nie weszła na produkcję **wyłącznie dlatego**, że jej migracja miała wtedy
 zdublowaną wersję — ten sam defekt co §1, tylko wcześniejszy. Ta kolizja została w międzyczasie
-usunięta (skan 627 plików pokazuje **jedną** zdublowaną wersję: `20260806150000`), więc rename
-**zostanie zastosowany przy każdym replayu od zera**. Z tego wynikają cztery ustalenia.
+usunięta przez **scalenie** obu plików w jeden (marker `SCALONE Z: 20260723180000_expert_request_quota.sql`
+— `20260723180000_chat_plus_tier_gating_and_benefit.sql:260`), więc rename **jest dziś częścią
+każdego replayu od zera**. Zweryfikowane na `d42e5eb`: wersja `20260723180000` jest unikalna,
+`ALTER TABLE … RENAME TO expert_requests` siedzi w `:299`, a w całych 627 migracjach **nie ma
+żadnego `RENAME TO expert_inmails` ani `CREATE TABLE … expert_inmails` po tym punkcie**.
+Z tego wynikają cztery ustalenia.
 
 ## §6a. WYSOKA — pulę „Zapytań do eksperta” obchodzi pętla „wyślij → anuluj → wyślij”
 
@@ -861,22 +905,34 @@ wyraźnie powyżej średniej i **nie należy ich ruszać przy naprawach**:
 
 ## 5. Kolejność naprawy
 
+Kolejność dotyczy **stanu na `d42e5eb`**, czyli po zamknięciu §1 i §2.
+
 | Priorytet | Pozycje | Uzasadnienie kolejności |
 | --------- | ------- | ----------------------- |
-| **P0 — teraz** | §1, §2, **§6a** | §1 blokuje CI i uniemożliwia postawienie środowiska oraz uruchomienie 74 testów pgTAP; §2 trzeba rozstrzygnąć **przed** przenumerowaniem migracji z §1, bo inaczej utrwalimy semantykę sprzeczną z `docs/WERYFIKACJA_PROFILI.md` (§1+§2 = jeden PR). §6a jest osobno i pilnie, bo to obejście płatnego limitu dostępne z UI, a poprawka jest już napisana — trzeba ją tylko przenieść do żywej funkcji (dwie linie SQL). |
-| **P1 — w tym tygodniu** | §3, §4, §5, **§6b** | Prywatność i zgodność: obietnica w UI vs faktyczny dostęp anonimowy (§3), bramka autoryzacyjna nieskalowana tenantem (§4), niekompletny eksport RODO deklarujący komplet (§5). §6b (rozjazd nazwy tabeli) dołącza tu, bo dopóki trwa, **każde nowe środowisko rodzi się z zepsutą funkcją** — a naprawa to jedna idempotentna migracja. Każda pozycja to samodzielny, niewielki PR. |
+| **P0 — teraz** | **§6a** | Obejście płatnego limitu dostępne wprost z UI (pętla „wyślij → anuluj → wyślij”), bez żadnych narzędzi. Poprawka jest już napisana w tym repozytorium — trzeba ją tylko przenieść do żywej funkcji: usunięcie jednego warunku w dwóch `count(*)`. |
+| **P1 — w tym tygodniu** | §3, §4, §5, **§6b** | Prywatność i zgodność: obietnica w UI vs faktyczny dostęp anonimowy (§3), bramka autoryzacyjna nieskalowana tenantem (§4), niekompletny eksport RODO deklarujący komplet (§5). §6b dołącza tu, bo dopóki trwa, **każde nowe środowisko rodzi się z zepsutą funkcją** — a naprawa to jedna idempotentna migracja. Każda pozycja to samodzielny, niewielki PR. |
 | **P2 — planowo** | §6c, §6d, §7, §8, §9 | Reszta ścieżki „Zapytanie do eksperta” (TOCTOU, brak `direct`, zero powiadomień) i wyszukiwarka kontaktów (§8, §9). §6c/§6d to przeniesienie gotowego kodu z generacji B; §7 korzysta z gotowego wzorca powiadomień sieci. |
 | **P3 — dług** | §10, §11, §12, §13 | IA prywatności i finansów (§10, §11) — wzorzec konsolidacji istnieje już w grupie „Tożsamość”. §12 zaczynać od trzech testów wymienionych w naprawie, nie od podnoszenia progów globalnych. |
 | **Do rozstrzygnięcia** | §14, §15, §16 | Decyzje projektowe, nie błędy — wymagają zapisania wyboru, niekoniecznie zmiany kodu. |
+| ✅ **Zamknięte w trakcie audytu** | §1, §2 | Naprawione na `main` (`1e17363`, `62ac3be`) — potwierdzone pomiarem, nie deklaracją. |
 
-**Uwaga o kolejności §1 ↔ §6.** Te dwa ustalenia są tą samą klasą defektu w dwóch odsłonach:
-zdublowana wersja migracji, która „przypadkiem” chroni produkcję przed niedokończoną zmianą.
-Za pierwszym razem (2026-07) uratowała produkcję od rename’u tabeli (§6b), za drugim (2026-08)
-zamroziła rozstrzygnięcie autorytetu weryfikacji (§2). Bramka `check:sql-migration-replay`
-powstała po pierwszym incydencie i **działa** — wykryła drugi. Wniosek procesowy: dopóki
-zdublowana wersja jest jedynym mechanizmem powstrzymującym niedokończone zmiany, każda jej
-naprawa odpala tę zmianę na świeżych bazach. Dlatego §1 nie wolno „naprawić” samym
-przenumerowaniem plików bez sprawdzenia, co ten krok odblokuje.
+**Wniosek procesowy, który przeżył naprawę §1.** §1 i §6b to ta sama klasa defektu w dwóch
+odsłonach: **zdublowana wersja migracji, która „przypadkiem” chroni produkcję przed niedokończoną
+zmianą**. Za pierwszym razem (2026-07) uchroniła produkcję przed rename’em tabeli zapytań do
+eksperta — i dlatego §6b nadal istnieje jako rozjazd produkcja↔replay. Za drugim (2026-08)
+zamroziła rozstrzygnięcie autorytetu weryfikacji (§2). Bramka `check:sql-migration-replay` powstała
+po pierwszym incydencie, **wykryła drugi i doprowadziła do jego naprawy w ciągu jednego dnia** —
+to zadziałało dokładnie tak, jak miało.
+
+Konsekwencja, o którą tu chodzi, jest jednak ogólniejsza: **usunięcie kolizji odmraża zmianę,
+którą kolizja wcześniej wstrzymywała.** Dla jasności — to *nie* naprawa §1 odblokowała rename
+tabeli z §6b. Tamta kolizja (`20260723180000`) została zdjęta wcześniej, przez scalenie obu
+plików w jeden (marker `SCALONE Z:` w `20260723180000_chat_plus_tier_gating_and_benefit.sql:260`),
+i już wtedy rename stał się częścią każdego replayu. §6b jest więc żywy niezależnie od §1 —
+sprawdzone na `d42e5eb`: wersja `20260723180000` jest unikalna, `ALTER TABLE … RENAME TO
+expert_requests` (`:299`) nie ma nic, co by je powstrzymywało, i nie istnieje migracja odwracająca.
+Wniosek na przyszłość: przy każdym zdejmowaniu kolizji wersji trzeba osobno sprawdzić, **co ta
+kolizja dotąd wstrzymywała** — bo produkcja i świeża baza mogły się przez ten czas rozjechać.
 
 Żadna z napraw §3–§16 nie wymaga zmiany architektury: wszystkie mieszczą się w istniejących
 wzorcach tego repozytorium (definer view z filtrem, `has_role`/`current_tenant_id`, sekcja
