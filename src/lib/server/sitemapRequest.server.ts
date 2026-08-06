@@ -10,7 +10,8 @@ import { trustedPublicHost } from "@/lib/http/requestHost";
 import {
   CANONICAL_SITE_HOSTS,
   CANONICAL_SITE_ORIGIN,
-  isNonCanonicalPublicHost,
+  classifyCrawlHost,
+  crawlHostOrigin,
 } from "@/lib/http/host";
 import type { RedirectIndex } from "@/lib/seo/redirects";
 
@@ -24,19 +25,19 @@ export const SITEMAP_CANONICAL_HOSTS = CANONICAL_SITE_HOSTS;
  *
  * Legacy / kanoniczne hosty marki ZAWSZE emitują adresy na originie kanonicznym,
  * żeby wyszukiwarki zbiegały się na neweuropeanstrategies.com niezależnie od
- * tego, który alias obsłużył żądanie mapy.
+ * tego, który alias obsłużył żądanie mapy. Decyzję podejmuje ta sama
+ * klasyfikacja hosta, z której korzysta robots.txt (`classifyCrawlHost`) - mapa
+ * i polityka indeksowania nie mogą mieć osobnych, rozjeżdżających się reguł.
+ *
+ * Katalog domen nie jest tu potrzebny: domena tenanta i host nieznany publikują
+ * na TYM SAMYM originie (własnym hoście), a odsianie hosta bez tenanta należy do
+ * `resolveSitemapTenant` (fail-closed 404).
  */
 export async function sitemapRequestContext(): Promise<{ origin: string; host: string }> {
   const req = getRequest();
   const proto = req.headers.get("x-forwarded-proto") ?? "https";
   const host = (await trustedPublicHost(req)) ?? "";
-  const origin =
-    isNonCanonicalPublicHost(host) || SITEMAP_CANONICAL_HOSTS.has(host)
-      ? SITEMAP_CANONICAL_ORIGIN
-      : host
-        ? `${proto}://${host}`
-        : "";
-  return { origin, host };
+  return { origin: crawlHostOrigin(classifyCrawlHost({ host }), host, proto), host };
 }
 
 /** Hosty uznawane za „ten sam serwis" przy kanonizacji przekierowań. */

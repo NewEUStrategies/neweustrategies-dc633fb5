@@ -8,6 +8,7 @@ import { useSettings, useDraft } from "@/lib/admin/useSettings";
 import { Field, Text, NumberInput, Checkbox, SaveBar } from "@/components/admin/settings/fields";
 import { ImageSlot } from "@/components/admin/ImageSlot";
 import { LinkedSourceHeader, LinkedImagePreview } from "@/components/admin/settings/LinkedSource";
+import { RobotsTxtPreview } from "@/components/admin/seo/RobotsTxtPreview";
 import {
   AI_SEARCH_CRAWLERS,
   AI_TRAINING_CRAWLERS,
@@ -177,6 +178,16 @@ function SeoSettingsTab() {
             onChange={(v) => set("ai_training_crawlers_allowed", v)}
           />
         </div>
+      </Field>
+
+      <Field
+        label={t("admin.seoSettings.robotsPreview", { defaultValue: "robots.txt" })}
+        hint={t("admin.seoSettings.robotsPreviewHint", {
+          defaultValue:
+            "Plik składa trasa /robots.txt dla każdego żądania - z klasyfikacją hosta, ogłoszeniem sitemap i polityką crawlerów AI z tego ekranu. Poniżej podgląd dla domeny publikacji.",
+        })}
+      >
+        <RobotsTxtPreview settings={draft} />
       </Field>
 
       <h3 className="text-sm font-semibold mt-6 mb-1">
