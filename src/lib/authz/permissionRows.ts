@@ -58,6 +58,11 @@ export const ROLE_PERMISSION_ROWS: readonly RolePermissionRow[] = [
   { id: "user_consents", group: "users", gateRef: "fn:admin_get_user_consent/1" },
   { id: "profile_verification", group: "users", gateRef: "fn:profiles_guard_verification/0" },
   {
+    id: "verification_domains",
+    group: "users",
+    gateRef: "fn:admin_assert_verification_admin/0",
+  },
+  {
     id: "profile_privileged_columns",
     group: "users",
     gateRef: "fn:profiles_guard_privileged_columns/0",

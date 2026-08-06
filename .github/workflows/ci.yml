@@ -142,6 +142,25 @@ jobs:
       - name: SQL app_role literal invariant
         run: bun run check:sql-app-role
 
+      # Blokująca bramka snapshotu autoryzacji: `authzSnapshot.generated.ts` to
+      # lockfile macierzy uprawnień (/admin/permissions) - kto przechodzi każdą
+      # dokumentowaną bramkę SQL. Krok drukuje dryf Z PODZIAŁEM na zmianę
+      # uprawnień i przeniesioną definicję, więc recenzent widzi od razu, czy
+      # ktoś właśnie zyskał/stracił dostęp, czy tylko trzeba zregenerować
+      # artefakt. Do 2026-08-06 bramka nie była wpięta w workflow: snapshot
+      # zdryfował o 9 migracji, a zawężenie `profiles_guard_verification` do
+      # samego `admin` (super_admin przestał móc nadawać weryfikację, która
+      # steruje odznaką eksperta, a ta dożywotnim VIP-em) przeszło niezauważone.
+      - name: Authz snapshot lockfile
+        run: bun run check:authz-snapshot
+
+      # Blokująca bramka parytetu macierzy uprawnień: odtwarza bramki wprost z
+      # supabase/migrations i porównuje z artefaktem, rejestrem capabilities i
+      # tłumaczeniami. Osobny, nazwany krok (jak SEO i i18n) - regresja
+      # uprawnień nie ma się chować w podsumowaniu całej suity.
+      - name: Permissions matrix parity
+        run: bun run check:permissions-parity
+
       # Blocking security gate: fails if any table accepts a PERMISSIVE anonymous
       # INSERT (anon/public role + WITH CHECK true), or if an intake table
       # (contact_messages, crm_consent_log, related_post_clicks,
@@ -159,8 +178,6 @@ jobs:
       # this project no longer has - it would fail only at runtime, mid-checkout.
       - name: No live legacy payment-provider references
         run: bun run check:no-paddle
-
-
 
       # Blocking reproducibility gate: can the database still be recreated from
       # migrations? Two classes, both invisible to an incremental `db push` and

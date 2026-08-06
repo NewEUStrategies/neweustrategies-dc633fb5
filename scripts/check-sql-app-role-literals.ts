@@ -25,10 +25,19 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { MIGRATIONS_DIR, extractLatestDefinitions, stripSqlComments } from "./lib/sqlMigrations";
+import { stripTsComments } from "./lib/stripComments";
 
 /** Poza migracjami (tam liczy sie stan koncowy funkcji) skanujemy pgTAP i klienta. */
 const SCAN_DIRS = ["supabase/tests", "src"] as const;
 const SCAN_EXTENSIONS = [".sql", ".ts", ".tsx"] as const;
+
+/**
+ * Fixture'y analizatora bramek: syntetyczny SQL z literalem POZA enumem jest tam
+ * przypadkiem testowym ("odsiewa literal, ktorego nie ma w enumie"), a nie
+ * wywolaniem, ktore kiedykolwiek dojdzie do bazy. Bez tego wyjatku bramka
+ * czerwieni CI za test, ktory jej samej pilnuje.
+ */
+const SCAN_EXCLUDED_DIRS = ["src/lib/ci/__tests__"] as const;
 
 interface Hit {
   readonly literal: string;
@@ -70,6 +79,7 @@ function collectAppRoleValues(): Set<string> {
 function listFiles(dir: string): string[] {
   const out: string[] = [];
   const walk = (current: string): void => {
+    if (SCAN_EXCLUDED_DIRS.some((excluded) => current === excluded)) return;
     for (const entry of readdirSync(current)) {
       if (entry === "node_modules" || entry.startsWith(".")) continue;
       const full = join(current, entry);
@@ -128,7 +138,11 @@ function collectHasRoleLiterals(): Hit[] {
     for (const file of listFiles(dir)) {
       const raw = readFileSync(file, "utf8");
       if (!raw.includes("has_role")) continue;
-      const text = file.endsWith(".sql") ? stripSqlComments(raw) : raw;
+      // Komentarze wycinamy w OBU jezykach. Wczesniej `.ts/.tsx` szly jako goly
+      // tekst, wiec komentarz cytujacy naprawiany literal (np. wzorzec
+      // rozpoznawania w src/lib/ci/authzGates.ts) liczyl sie jak zywe wywolanie -
+      // bramka czerwienila CI za wlasna dokumentacje.
+      const text = file.endsWith(".sql") ? stripSqlComments(raw) : stripTsComments(raw);
       const lines = text.split("\n");
       for (let i = 0; i < lines.length; i += 1) {
         for (const literal of literalsIn(lines[i])) {

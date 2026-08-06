@@ -13,8 +13,9 @@
 //   5. flaga oznaczona jako egzekwowana, której żadna bramka już nie czyta.
 import { describe, expect, it } from "vitest";
 import {
+  collectAuthzSnapshotDrift,
   deriveAuthzSnapshot,
-  diffAuthzSnapshots,
+  formatAuthzDriftReport,
   renderAuthzSnapshotModule,
   selectAuthzSnapshot,
 } from "@/lib/ci/authzGates";
@@ -36,15 +37,15 @@ describe("snapshot bramek autoryzacji vs migracje", () => {
     expect(derived.roleGates.length).toBeGreaterThan(50);
   });
 
+  // Komunikat jest raportem z podziałem na wagę: zawężenie uprawnień nie może
+  // schować się między wpisami o przeniesionej definicji, a każdy wpis wymienia
+  // DOKŁADNIE te pola, które się różnią (wcześniej komunikat potrafił pokazać dwa
+  // identyczne obiekty i twierdzić, że się rozjechały - patrz authzGates.ts).
   it("zacommitowany snapshot zgadza się z odtworzeniem z migracji", () => {
-    const problems = diffAuthzSnapshots(AUTHZ_SNAPSHOT, selected);
+    const drift = collectAuthzSnapshotDrift(AUTHZ_SNAPSHOT, selected);
     expect(
-      problems,
-      [
-        "Snapshot bramek rozjechał się z supabase/migrations.",
-        "Uruchom `bun run generate:authz-snapshot` i zacommituj wynik.",
-        ...problems.map((problem) => `  • ${problem}`),
-      ].join("\n"),
+      drift.map((entry) => `[${entry.severity}] ${entry.message}`),
+      formatAuthzDriftReport(drift),
     ).toEqual([]);
   });
 
