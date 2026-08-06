@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { PropField, ItemFrame } from "../../atoms";
-import { SchemaFieldControl } from "./SchemaFieldControl";
+import { SchemaFieldControl } from "../../molecules/SchemaFieldControl";
 import { ListShell } from "./ListShell";
 import { itemsOf, type Item } from "./shared";
 import { useTranslation } from "react-i18next";
