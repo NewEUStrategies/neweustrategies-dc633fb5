@@ -1,6 +1,6 @@
 # Audyt modułu profili (użytkownik / ekspert / rodzaje subskrypcji) oraz czatu i sieci kontaktów — 2026-08-06
 
-**Data:** 2026-08-06 · **HEAD:** `d42e5eb` (`main` po merge'u PR #184) · **Gałąź:** `claude/user-profile-chat-audit-i4na3t`
+**Data:** 2026-08-06 · **HEAD:** `c6f94cf` (`main` po merge'u PR #187–#191) · **Gałąź:** `claude/user-profile-chat-audit-i4na3t`
 **Zakres:** profil użytkownika, profil eksperta, warstwy/rodzaje subskrypcji, czat (DM, grupy,
 załączniki, „Zapytanie do eksperta”), sieć kontaktów (połączenia, rekomendacje, poparcia,
 przedstawienia, odsłony profilu, blokady, zgłoszenia).
@@ -10,30 +10,34 @@ egzekwują albo nie mają jak zostać wyłapane. Nie jest oceną punktową (tę 
 `OCENA_FUNKCJI_TABELE_*`). Każde ustalenie ma dowód: ścieżkę `plik:linia`, wynik uruchomionego
 narzędzia albo odtworzone zachowanie.
 
-> **Nota o pomiarze (ważna dla czytania §1 i §2).** Pierwszy przebieg audytu zmierzył HEAD
-> `633d02e`. Zanim dokument trafił do przeglądu, `main` przesunął się o 26 commitów (do `d42e5eb`)
-> i **zamknął dwa ustalenia krytyczne**: kolizję wersji migracji (§1) oraz dryf autorytetu
-> weryfikacji profilu (§2). Wszystkie sygnały w tym dokumencie są **ponownie zmierzone na
-> `d42e5eb`**. §1 i §2 zostawiam w treści jako **zamknięte** — z zachowanym opisem mechanizmu, bo
-> obie klasy defektu są cykliczne w tym repozytorium i ich diagnoza jest nadal użyteczna
-> (konwencja z `AUDYT_FUNKCJONALNY_MODULOW_2026-07-25.md`). Ustalenia §3–§16 **potwierdziłem
-> ponownie na nowym HEAD** — żadne z nich nie zostało naprawione.
+> **Nota o pomiarze — trzy przebiegi, nie jeden.** Dokument powstawał w trakcie aktywnych prac na
+> `main`, więc każde ustalenie ma jawnie przypisany HEAD:
+>
+> | Przebieg | HEAD | Co się zmieniło |
+> | -------- | ---- | --------------- |
+> | 1. Audyt | `633d02e` | 16 ustaleń, suita czerwona (4 testy) |
+> | 2. Re-pomiar | `d42e5eb` | `main` zamknął §1 i §2; suita zielona; §3–§16 potwierdzone jako otwarte |
+> | 3. **Weryfikacja wdrożenia** | **`c6f94cf`** | PR #187–#190 zamknęły **9 z 14** otwartych ustaleń — patrz sekcja „Weryfikacja” |
+>
+> Ustalenia zamknięte zostawiam w treści z zachowanym opisem mechanizmu (konwencja
+> z `AUDYT_FUNKCJONALNY_MODULOW_2026-07-25.md`): opis dokumentuje **defekt**, nie stan bieżący,
+> a kilka z tych klas jest w tym repozytorium cyklicznych. Każdy zamknięty paragraf ma na
+> początku banner ze statusem i dowodem pomiaru.
 
-> **Najkrótsze streszczenie.** Moduł jest inżynieryjnie mocny (RPC-only sieć, RLS na wszystkim,
-> rejestr capabilities z maszynowym parytetem, jeden kanał realtime per user), a suita jest na tym
-> HEAD **zielona**. Dwie rzeczy wymagają jednak reakcji:
+> **Najkrótsze streszczenie (stan na `c6f94cf`).** Moduł był inżynieryjnie mocny już na wejściu
+> (RPC-only sieć, RLS na wszystkim, rejestr capabilities z maszynowym parytetem, jeden kanał
+> realtime per user). W trakcie audytu **zamknięto 11 z 16 ustaleń**, w tym **wszystkie
+> o wadze krytycznej i wysokiej** — łącznie z obejściem płatnego limitu, ekspozycją profili dla
+> anonimów, izolacją tenanta w bramce eksperta i niekompletnym eksportem RODO. Suita urosła
+> z 6707 do **6991 testów i jest zielona**, a pokrycie audytowanych katalogów podniosło się
+> z 15,4 % do **25,1 %** (`src/lib/network`: **0 % → 89,7 %**).
 >
-> 1. **„Zapytanie do eksperta” istnieje w dwóch równoległych generacjach**, a żywa (ta, którą woła
->    klient) nie dostała **dwóch poprawek bezpieczeństwa**, które trafiły do generacji nieużywanej:
->    pulę miesięczną da się dziś obejść pętlą „wyślij → anuluj → wyślij”, a równoległe wysyłki nie
->    są serializowane. Dodatkowo na **świeżej bazie** cała funkcja przestaje działać (`42P01`),
->    bo tabela zmienia nazwę, a klient woła RPC celujące w starą (§6).
-> 2. Widok `profiles_public` serwuje **anonimowi 22-kolumnową projekcję KAŻDEGO profilu**
->    publicznego tenanta, mimo że interfejs obiecuje w PL i EN, że „osoby niezalogowane nie mają
->    do niego dostępu” (§3).
->
-> Dwa ustalenia krytyczne z pierwszego przebiegu (§1 kolizja wersji migracji, §2 dryf autorytetu
-> weryfikacji) **zostały zamknięte na `main` w trakcie audytu** — patrz nota o pomiarze wyżej.
+> **Otwarte pozostaje 5 pozycji**, wszystkie o wadze średniej i niskiej: wyszukiwarka kontaktów
+> bez escapowania i indeksu (§8), dryf słownika `allow_messages_from` wraz z brakującą środkową
+> opcją prywatności (§9), rozproszona informacja o prywatności (§10), zdublowana nawigacja
+> finansów (§11) oraz przedawnione rzuty `as never` (§13). Do tego §12 jest zamknięte **częściowo**:
+> `src/components/network` nadal ma 4,6 % pokrycia i 12 z 13 plików na zerze, w tym
+> `ConnectButton.tsx` (423 linie, pięć stanów relacji).
 
 ---
 
@@ -114,7 +118,50 @@ Rozdział jest **celowy i spójny** — `subscriptions` nigdy nie wchodzi do dec
 nie jest źródłem dla dunningu. To dobra granica i nie jest defektem; wymaga jednak nazwania
 w dokumentacji, bo „subskrypcja” w kodzie znaczy dwie różne rzeczy zależnie od pliku.
 
-## 3. Tabela zbiorcza ustaleń
+## 3. Weryfikacja wdrożenia (HEAD `c6f94cf`, PR #187–#190)
+
+Poniższe **nie jest streszczeniem opisów z PR-ów** — każdą pozycję sprawdziłem na ostatniej
+definicji funkcji/widoku w łańcuchu migracji albo na kodzie, i uruchomiłem bramki od nowa.
+
+| # | Ustalenie | Status | Dowód pomiaru |
+| - | --------- | ------ | ------------- |
+| 1 | Kolizja wersji migracji | ✅ **zamknięte** | `check:sql-migration-replay` exit 0; zero duplikatów w 638 plikach |
+| 2 | Autorytet weryfikacji profilu | ✅ **zamknięte** | trigger woła `can_manage_profile_verification` + `OLD.tenant_id = current_tenant_id()`; `check:authz-snapshot` zgodny |
+| 3 | `profiles_public` dla anonimów | ✅ **zamknięte, mocniej niż rekomendacja** | widok (`20260806183256`) filtruje: własny wiersz **lub** `discoverable` **lub** staff **lub** `caller_is_connected_to()`; dla anonimów wyłącznie `profile_has_public_presence()` (rola redakcyjna / odznaka `expert` / profil autora / materiały). Copy PL+EN przepisane — zamiast obietnicy „nikt spoza platformy” pokazuje **faktyczny stan ekspozycji** (`i18n-chat.ts:444`, `:905`) |
+| 4 | Bramki eksperta/VIP bez tenanta | ✅ **zamknięte** | `is_expert_user`, `is_vip_user`, `is_gated_recipient` przedefiniowane w `20260806184400` — odpowiednio 12 / 7 / 23 odwołania do `tenant_id` |
+| 5 | Niekompletny eksport RODO | ✅ **zamknięte, z nawiązką** | 17 → **50 sekcji**: `chat_messages_sent`, `chat_conversations`, `chat_participation`, `chat_blocks`, `chat_nicknames_set`, `expert_requests_sent/received`, `profile_{experiences,education,skills,awards,hobbies,cv_files}`, `recommendations_written/received`, `skill_endorsements_given/received`, `network_introductions`, `profile_viewers`, `profile_view_stats`, `user_reports_filed`, `media_mentions`, `notifications` + `manifest` |
+| 6a | Obejście puli pętlą anulowań | ✅ **zamknięte** | `my_expert_request_quota` (`20260806185055`): `used` liczy wszystko z bieżącego miesiąca, **bez** filtra statusu, i jest skalowane `ei.tenant_id = v_tenant` |
+| 6b | Rozjazd nazwy tabeli | ✅ **zamknięte** | kanoniczne `expert_inmails` (rename powrotny + indeksy, `20260806185055:28–31`); `send_expert_inmail` i `my_inmail_quota` to dziś **cienkie delegaty** do `send_expert_request` / `my_expert_request_quota` — jedna implementacja, dwie nazwy dla zgodności kontraktu klienta |
+| 6c | TOCTOU przy wysyłce | ✅ **zamknięte** | `pg_advisory_xact_lock(hashtext('expert_request:' || v_uid))` w jedynej implementacji |
+| 6d | Brak klucza `direct` | ✅ **zamknięte** | delegat zwraca `direct` we wszystkich gałęziach → `ExpertRequestButton.tsx:77` wreszcie działa |
+| 7 | Brak powiadomień o zapytaniach | ✅ **zamknięte** | rodzaj `expert_request` w `NotificationKind` (`preferences.ts:33`), przełącznik `enabled_expert_request` (`:64`, `:113`), producent `tg_expert_request_notify` (`20260806161000_expert_request_notifications.sql`) |
+| 16 | Pula bez skalowania tenantem | ✅ **zamknięte** | `ei.tenant_id = v_tenant` w liczniku |
+| 12 | Pokrycie testami modułu | 🟡 **częściowo** | całość **15,44 % → 25,05 %**; `src/lib/network` **0 % → 89,7 %** (0 plików na zerze), `src/components/profile` **0 % → 26,1 %**. **Ale `src/components/network` bez zmian: 4,6 %, 12 z 13 plików na zerze** — w tym `ConnectButton.tsx` |
+| 8 | `search_chat_contacts` | ❌ **otwarte** | ostatnia definicja nadal: surowe `p_query` w 7 × `ILIKE '%…%'`, bez `esc`/`unaccent`, bez `discovery_search` |
+| 9 | Fantomowe `'contacts'` | ❌ **otwarte** | `NOT IN ('everyone','contacts')` w najnowszej definicji bramki (`20260806184400:53`); CHECK nadal `everyone/existing/nobody` |
+| 10 | IA prywatności | ❌ **otwarte** | `/profile/privacy` wciąż ma 0 odwołań do `discoverable` / `profile_view_mode` |
+| 11 | IA finansów | ❌ **otwarte** | `FINANCE` nadal 6 pozycji; `/profile/subscription` wciąż podzbiór `/profile/membership` |
+| 13 | Przedawnione `as never` | ❌ **otwarte** | 3 + 1 + 3 wystąpienia w `useConversations.ts` / `attachments.ts` / `useDiscoverable.ts` |
+| 14, 15 | Decyzje projektowe | ⚪ bez zmian | świadomie — wymagają zapisania wyboru, nie kodu |
+
+**Bramki i suita na `c6f94cf`:** `tsc --noEmit` ✓ · `check:sql-migration-replay` ✓ ·
+`check:authz-snapshot` ✓ · pełna suita **✓ ZIELONA: 633 pliki pass / 2 skip, 6991 testów pass /
+50 skip** (wzrost o 284 testy względem `d42e5eb`). Migracji: 627 → **638**.
+
+**Trzy rzeczy zrobione lepiej, niż rekomendował audyt.** (1) `profiles_public` — zamiast mojego
+`user_is_editorial(id) OR discoverable` powstał pełny predykat obecności publicznej plus
+**wycofanie fałszywej obietnicy z copy**, czego nie proponowałem, a co było sednem problemu
+zgodnościowego. (2) „Zapytanie do eksperta” — zamiast łatać żywą generację i usuwać drugą,
+zrobiono **delegaty**, więc kontrakt klienta (i `types.ts`) został nietknięty, a implementacja
+jest jedna. (3) Do puli dołożono **antyspam 5/24 h per odbiorca**, którego audyt nie wskazywał.
+
+**Czego ta weryfikacja NIE obejmuje:** pgTAP nadal nie został uruchomiony (brak lokalnego stacku
+Supabase — patrz metodyka). Wnioski o stanie schematu po replayu, w tym o zamknięciu §6b, pochodzą
+z analizy statycznej łańcucha 638 migracji, nie z postawionej bazy. Przy najbliższej okazji warto
+potwierdzić §6b na realnym `supabase db start` — to jedyne ustalenie z tej serii, którego natura
+(rozjazd produkcja↔replay) sprawia, że analiza statyczna jest słabszym dowodem niż zwykle.
+
+## 4. Tabela zbiorcza ustaleń (stan pierwotny, z pierwszego przebiegu)
 
 | # | Obszar | Ustalenie | Waga |
 | --- | ------ | --------- | ---- |
@@ -862,7 +909,7 @@ z §6a/§6c**: to ta sama para funkcji i ten sam `count(*)`, więc jedna edycja 
 
 ---
 
-## 4. Co w tym module jest zrobione dobrze (zmierzone, nie uprzejmość)
+## 5. Co w tym module jest zrobione dobrze (zmierzone, nie uprzejmość)
 
 Audyt szuka defektów, ale przemilczenie tego byłoby zafałszowaniem obrazu — kilka rozwiązań jest
 wyraźnie powyżej średniej i **nie należy ich ruszać przy naprawach**:
@@ -903,18 +950,25 @@ wyraźnie powyżej średniej i **nie należy ich ruszać przy naprawach**:
   jedna kolumna `discovery_search` z indeksem trigramowym, twarde `p.discoverable` i równość
   tenanta. To wzorzec, do którego należy dociągnąć §8.
 
-## 5. Kolejność naprawy
+## 6. Kolejność naprawy
 
-Kolejność dotyczy **stanu na `d42e5eb`**, czyli po zamknięciu §1 i §2.
+Kolejność dotyczy **stanu na `c6f94cf`**, czyli po wdrożeniu PR #187–#190. Wszystkie pozycje
+krytyczne i wysokie są zamknięte, więc to, co zostało, jest planowe — żadna z tych rzeczy nie
+wymaga pośpiechu.
 
 | Priorytet | Pozycje | Uzasadnienie kolejności |
 | --------- | ------- | ----------------------- |
-| **P0 — teraz** | **§6a** | Obejście płatnego limitu dostępne wprost z UI (pętla „wyślij → anuluj → wyślij”), bez żadnych narzędzi. Poprawka jest już napisana w tym repozytorium — trzeba ją tylko przenieść do żywej funkcji: usunięcie jednego warunku w dwóch `count(*)`. |
-| **P1 — w tym tygodniu** | §3, §4, §5, **§6b** | Prywatność i zgodność: obietnica w UI vs faktyczny dostęp anonimowy (§3), bramka autoryzacyjna nieskalowana tenantem (§4), niekompletny eksport RODO deklarujący komplet (§5). §6b dołącza tu, bo dopóki trwa, **każde nowe środowisko rodzi się z zepsutą funkcją** — a naprawa to jedna idempotentna migracja. Każda pozycja to samodzielny, niewielki PR. |
-| **P2 — planowo** | §6c, §6d, §7, §8, §9 | Reszta ścieżki „Zapytanie do eksperta” (TOCTOU, brak `direct`, zero powiadomień) i wyszukiwarka kontaktów (§8, §9). §6c/§6d to przeniesienie gotowego kodu z generacji B; §7 korzysta z gotowego wzorca powiadomień sieci. |
-| **P3 — dług** | §10, §11, §12, §13 | IA prywatności i finansów (§10, §11) — wzorzec konsolidacji istnieje już w grupie „Tożsamość”. §12 zaczynać od trzech testów wymienionych w naprawie, nie od podnoszenia progów globalnych. |
-| **Do rozstrzygnięcia** | §14, §15, §16 | Decyzje projektowe, nie błędy — wymagają zapisania wyboru, niekoniecznie zmiany kodu. |
-| ✅ **Zamknięte w trakcie audytu** | §1, §2 | Naprawione na `main` (`1e17363`, `62ac3be`) — potwierdzone pomiarem, nie deklaracją. |
+| **P2 — planowo** | §8, §9 | §8 to przeniesienie gotowego CTE `q` z `search_people` (escape `\ % _` + `unaccent` + trigramowy `discovery_search`) — zysk: identyczna semantyka wyszukiwania w `/people` i w oknie „nowa rozmowa”, jeden indeks na obie ścieżki. §9 wymaga **decyzji produktowej**, nie tylko kodu: albo dodać realną wartość `'contacts'` (bramka jest już pod nią napisana i brakuje tej opcji między „wszyscy” a „nikt nowy”), albo usunąć martwy literał i doprecyzować etykietę. |
+| **P3 — dług** | §10, §11, §12*, §13 | IA prywatności i finansów (§10, §11) — wzorzec konsolidacji istnieje już w grupie „Tożsamość” (trzy trasy → jedna z zakładkami + przekierowania). §13 to usunięcie trzech przedawnionych rzutów. **§12 tylko w części `src/components/network`** — reszta zamknięta. |
+| **Do rozstrzygnięcia** | §14, §15 | Decyzje projektowe, nie błędy — wymagają zapisania wyboru, niekoniecznie zmiany kodu. |
+| ✅ **Zamknięte** | §1, §2, §3, §4, §5, §6a–d, §7, §16 | Potwierdzone pomiarem na `c6f94cf` — patrz sekcja 3. |
+
+**Jedna rekomendacja domykająca §12.** `src/components/network` to jedyny katalog audytu, którego
+fala poprawek nie ruszyła: 4,6 % pokrycia, 12 z 13 plików na zerze. Priorytetem nie jest procent,
+lecz `ConnectButton.tsx` (423 linie) — obsługuje pięć stanów relacji × `canInvite` × blokadę,
+czyli dokładnie tę logikę, w której cichy rozjazd słownika już raz wystąpił
+(historia w `useRecommendations.ts:6–14`). Wzór testu macierzowego jest gotowy obok:
+`RequestIntroductionButton.matrix.test.tsx`.
 
 **Wniosek procesowy, który przeżył naprawę §1.** §1 i §6b to ta sama klasa defektu w dwóch
 odsłonach: **zdublowana wersja migracji, która „przypadkiem” chroni produkcję przed niedokończoną
