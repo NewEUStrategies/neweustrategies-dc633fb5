@@ -13,6 +13,7 @@ import {
   type ExpertRequestRow,
 } from "@/lib/chat/useExpertRequests";
 import { expertRequestErrorI18nKey } from "@/lib/chat/expertRequestErrors";
+import { ExpertRequestCancelDialog } from "@/components/chat/ExpertRequestCancelDialog";
 import { ensureI18n as ensureExpertRequestI18n } from "@/lib/i18n-expert-request";
 // Głęboki link z powiadomienia (`?box=…&r=<uuid>`) - walidacja żyje w czystym
 // module, więc ma własny test i nie rozszczelnia fast refresh trasy.
