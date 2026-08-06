@@ -34,6 +34,7 @@ vi.mock("@/hooks/useNewsletterSettings", async () => {
   };
 });
 
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NewsletterForm } from "../NewsletterForm";
 
 afterEach(() => cleanup());
@@ -41,7 +42,12 @@ afterEach(() => cleanup());
 type Cfg = Record<string, unknown>;
 
 function renderForm(widgetConfig: Cfg, lang: "pl" | "en" = "pl") {
-  const { container } = render(<NewsletterForm lang={lang} widgetConfig={widgetConfig} />);
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const { container } = render(
+    <QueryClientProvider client={qc}>
+      <NewsletterForm lang={lang} widgetConfig={widgetConfig} />
+    </QueryClientProvider>,
+  );
   const byType = (type: string): HTMLInputElement => {
     const el = container.querySelector<HTMLInputElement>(`input[type="${type}"]`);
     expect(el, `input[type="${type}"]`).toBeTruthy();
