@@ -71,6 +71,16 @@ jobs:
             src/lib/ci/__tests__/staticAssetShadowing.test.ts \
             src/lib/server/__tests__/robotsPolicy.test.ts
 
+      # Blokująca bramka wdrożeniowa: żaden plik z `public/` nie może przesłonić
+      # trasy. Wrangler wiąże `.output/public/` jako `assets`, a warstwa assetów
+      # odpowiada PRZED workerem - `public/robots.txt` (4 linie, `Allow: /` dla
+      # każdego hosta) przez miesiące unieruchamiał dynamiczną trasę
+      # /robots.txt na produkcji: bez klasyfikacji hostów, bez `X-Robots-Tag` i
+      # bez ogłoszenia news sitemap. Awarii nie widział ŻADEN inny test -
+      # dev-server serwuje trasę normalnie (audyt 2026-08-06, MODUŁ 8).
+      - name: public/ nie przesłania tras
+        run: bun run check:public-assets
+
       # Blokująca bramka i18n: każdy klucz bramkowanych powierzchni (bloki
       # Gutenberga, widgety buildera, raport porównawczy) musi mieć wersję PL
       # i EN. Nowy blok dodany tylko po polsku wcześniej trafiał na produkcję

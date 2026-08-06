@@ -109,6 +109,37 @@ test.describe("SEO surfaces", () => {
     }
   });
 
+  // REGRESJA WDROZENIOWA (audyt 2026-08-06): `public/robots.txt` trafial do
+  // `.output/public/`, ktore wrangler wiaze jako `assets`, a warstwa assetow
+  // odpowiada PRZED workerem - dynamiczna trasa byla na produkcji nieosiagalna
+  // i KAZDY host dostawal statyczne `Allow: /` z jedna sitemapa. Ten test
+  // sprawdza dwie rzeczy, ktorych plik statyczny miec nie moze: naglowek
+  // `X-Robots-Tag` (warstwa assetow go nie dokłada) i polityke ZALEZNA od hosta.
+  // Suite jedzie po hoscie podgladowym (127.0.0.1), wiec kontraktem jest tu
+  // pelny zakaz - dokladne przeciwienstwo tresci starego statycznego pliku.
+  test("robots.txt is served by the route, not by a static asset", async ({ request }) => {
+    const res = await request.get("/robots.txt");
+    expect(res.status()).toBe(200);
+    // Naglowek = dowod, ze odpowiedziala trasa.
+    expect(res.headers()["x-robots-tag"] ?? "", "X-Robots-Tag").toContain("noindex");
+
+    const body = await res.text();
+    // Host podgladowy: pelny zakaz i ZERO deklaracji sitemap. Gdyby wrocil
+    // statyczny plik (`Allow: /` + `Sitemap:`), obie asercje padna.
+    expect(body).toContain("Disallow: /");
+    expect(body).not.toContain("Allow: /");
+    expect(body).not.toContain("Sitemap:");
+
+    // Sfalszowany `X-Forwarded-Host` wskazujacy niezarejestrowana domene NIE
+    // MOZE otworzyc indeksowania - host jest walidowany wzgledem tenants.domain
+    // (pickTrustedHost), a powierzchnie crawlera sa fail-closed.
+    const spoofed = await request.get("/robots.txt", {
+      headers: { "x-forwarded-host": "squatter.invalid" },
+    });
+    expect(spoofed.headers()["x-robots-tag"] ?? "").toContain("noindex");
+    expect(await spoofed.text()).toContain("Disallow: /");
+  });
+
   test("content feeds respond for the tracker and live coverage", async ({ request }) => {
     // Dwa kanaly dopisane w audycie - 404 jest akceptowalny tylko gdy redakcja
     // wylaczyla RSS w ustawieniach SEO (wtedy /rss.xml tez zwraca 404).

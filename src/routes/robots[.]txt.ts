@@ -20,11 +20,9 @@
 // `src/lib/ci/__tests__/staticAssetShadowing.test.ts` plus test e2e sprawdzający,
 // że odpowiedź pochodzi z trasy (nagłówek `X-Robots-Tag`).
 //
-// Do 2026-08-03 deklarowana była JEDNA sitemapa (/sitemap.xml), więc
-// /news-sitemap.xml - trasa istniejąca i wymagana przez Google News - nie był
-// odkrywalny ŻADNYM kanałem: ani z robots.txt, ani z indeksu (indeksu nie było).
-// Teraz robots.txt ogłasza indeks + news sitemap, a treść składa czysty builder
-// (@/lib/seo/robots), objęty testem kontraktu.
+// Cała logika (klasyfikacja hosta, tenant, ustawienia, nagłówki) żyje w
+// `robotsRequest.server.ts` i `lib/seo/robots.ts` - tu zostaje samo wiązanie
+// żądania z odpowiedzią.
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { trustedPublicHost } from "@/lib/http/requestHost";

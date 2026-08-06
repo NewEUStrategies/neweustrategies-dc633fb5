@@ -82,16 +82,14 @@ export function robotsModeFor(facts: RobotsHostFacts): RobotsMode {
 
 export function buildRobotsTxt(input: RobotsInput): string {
   if (input.mode !== "canonical") {
-    const lines =
+    const blocks =
       input.mode === "legacy"
         ? [
-            "# Legacy / preview host - not the canonical domain.",
-            "User-agent: *",
-            "Disallow: /",
-            "",
+            ["# Legacy / preview host - not the canonical domain."],
+            ["User-agent: *", "Disallow: /"],
           ]
-        : ["User-agent: *", "Disallow: /", ""];
-    return lines.join("\n");
+        : [["User-agent: *", "Disallow: /"]];
+    return render(blocks);
   }
 
   const disallow = input.disallow ?? ROBOTS_DEFAULT_DISALLOW;

@@ -886,6 +886,14 @@ export const pl = {
         "Wyszukiwawcze crawlery cytują treści w odpowiedziach AI; treningowe tylko uczą modele. Wyłączenie dopisuje grupy zakazu do /robots.txt.",
       aiSearchAllowed: "Wpuszczaj crawlery wyszukiwawcze AI (cytowania w odpowiedziach - zalecane)",
       aiTrainingAllowed: "Wpuszczaj crawlery treningowe (uczenie modeli)",
+      robotsPreview: "robots.txt",
+      robotsPreviewHint:
+        "Plik składa trasa /robots.txt dla każdego żądania - z klasyfikacją hosta, ogłoszeniem sitemap i polityką crawlerów AI z tego ekranu. Poniżej podgląd dla domeny publikacji.",
+      robotsOpenLive: "Otwórz /robots.txt",
+      robotsAliasHint:
+        "Aliasy hostingu, domeny historyczne i podglądy dostają pełny zakaz (Disallow: /).",
+      robotsPreviewHostHint:
+        "Panel działa na hoście podglądu - powyżej jest polityka domeny publikacji.",
       sectionEntity: "Marka i dane strukturalne",
       publisherLogo: "Logo wydawcy",
       publisherLogoHint:

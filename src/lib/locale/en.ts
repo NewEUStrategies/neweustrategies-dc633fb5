@@ -878,6 +878,14 @@ export const en = {
         "Search crawlers cite content in AI answers; training crawlers only train models. Turning a group off adds its disallow block to /robots.txt.",
       aiSearchAllowed: "Allow AI search crawlers (citations in answers - recommended)",
       aiTrainingAllowed: "Allow training crawlers (model training)",
+      robotsPreview: "robots.txt",
+      robotsPreviewHint:
+        "The /robots.txt route builds this file per request - host classification, sitemap declarations and the AI-crawler policy from this screen. Below is the preview for the publishing domain.",
+      robotsOpenLive: "Open /robots.txt",
+      robotsAliasHint:
+        "Hosting aliases, legacy domains and previews are fully disallowed (Disallow: /).",
+      robotsPreviewHostHint:
+        "The admin runs on a preview host - the policy above is the publishing domain's.",
       sectionEntity: "Brand and structured data",
       publisherLogo: "Publisher logo",
       publisherLogoHint:
