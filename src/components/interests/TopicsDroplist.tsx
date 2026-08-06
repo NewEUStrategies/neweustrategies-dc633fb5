@@ -136,6 +136,7 @@ export function TopicsDroplist({
   iconTargetProps,
 }: TopicsDroplistProps) {
   const uid = useId().replace(/[:]/g, "");
+  const pickedCount = picked.size;
   const [dropOpen, setDropOpen] = useState(false);
   const dropRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
@@ -219,7 +220,6 @@ export function TopicsDroplist({
 
       {display === "droplist" ? (
         <div className="space-y-2">
-  const pickedCount = picked.size;
           {pickedCount > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {allItems
