@@ -100,33 +100,34 @@ export function ColumnProperties({
           {cp("editing", { device })}
         </div>
         <PropField label={cp("width")} hint={cp("widthHint")}>
-          <Input
-            type="number"
+          <ClampedNumberInput
+            value={currentSpan}
             min={1}
             max={12}
-            value={currentSpan}
-            onChange={(e) => setSpan(Math.max(1, Math.min(12, Number(e.target.value) || 12)))}
-            className="h-8 text-xs"
+            ariaLabel={String(cp("width"))}
+            onCommit={(v) => setSpan(v ?? 12)}
           />
         </PropField>
         <PropField label={cp("minHeight")} hint={cp("minHeightHint")}>
-          <Input
-            type="number"
+          <ClampedNumberInput
+            value={
+              column.style?.minHeight
+                ? (parseInt(String(column.style.minHeight), 10) ?? undefined)
+                : undefined
+            }
             min={0}
             max={2000}
-            value={
-              column.style?.minHeight ? parseInt(String(column.style.minHeight), 10) || "" : ""
-            }
+            allowEmpty
             placeholder="auto"
-            onChange={(e) => {
-              const v = e.target.value;
+            ariaLabel={String(cp("minHeight"))}
+            onCommit={(v) =>
               setStyle((s) => {
-                s.minHeight = v === "" ? undefined : `${Math.max(0, Number(v) || 0)}px`;
-              });
-            }}
-            className="h-8 text-xs"
+                s.minHeight = v === undefined ? undefined : `${v}px`;
+              })
+            }
           />
         </PropField>
+
         <PropField label={cp("hAlign")}>
           <div className="flex gap-1">
             {(
