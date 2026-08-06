@@ -1205,9 +1205,10 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
         className="flex flex-col bg-background text-foreground"
         data-page-template="builder"
         data-page-header-override={page.header_override ?? "default"}
+        aria-label={title}
       >
-        <h1 className="sr-only">{title}</h1>
         <div className="flex-1 w-full">{contentBlock}</div>
+
         <FooterSlideup pageType={adPageType} pageId={it.id} />
       </div>
     );
