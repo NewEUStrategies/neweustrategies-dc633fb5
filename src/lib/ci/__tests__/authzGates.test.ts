@@ -369,7 +369,7 @@ describe("zaznaczenie i render snapshotu", () => {
     // migracji) - istotne jest, że rozjazd bramki to provenance, nie role.
     const gateProblem = problems.find((p) => p.includes("admin_list_users"));
     expect(gateProblem).toBeDefined();
-    expect(gateProblem).toContain("provenance");
+    expect(gateProblem).toContain("to samo uprawnienie w innej migracji");
     expect(gateProblem).toContain("0009_przeniesione.sql");
     expect(gateProblem).not.toContain("anyRoles");
   });
