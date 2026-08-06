@@ -38,6 +38,7 @@ interface PlanSwitchBoardProps {
 
 export function PlanSwitchBoard({ subscription }: PlanSwitchBoardProps) {
   const { t, i18n } = useTranslation();
+  const { isAdmin } = useAuth();
   const lang = i18n.language;
   const qc = useQueryClient();
 
