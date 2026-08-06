@@ -14,12 +14,6 @@ function cssAttributeValue(value: string): string {
     .replace(/[\n\r\f]/g, "\\a ");
 }
 
-function pickResponsiveValue<T>(
-  value: { desktop?: T; tablet?: T; mobile?: T } | undefined,
-  device: Device,
-): T | undefined {
-  if (!value) return undefined;
-  return value[device] ?? value.desktop ?? value.tablet ?? value.mobile;
 }
 
 /** Najmniejszy rozmiar, jaki ma sens dla realnego tekstu (px). */
