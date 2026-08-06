@@ -237,6 +237,7 @@ function collectHasRoleLiterals(): Hit[] {
       if (!raw.includes("has_role")) continue;
       const text = file.endsWith(".sql") ? stripSqlComments(raw) : stripTsComments(raw);
       const lines = text.split("\n");
+      const rawLines = raw.split("\n");
       for (let i = 0; i < lines.length; i += 1) {
         // Zwolnienie czytamy z SUROWEJ linii (albo tej nad nia), bo marker jest
         // komentarzem - a komentarze zostaly wlasnie sciete.
