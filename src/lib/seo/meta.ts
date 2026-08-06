@@ -10,6 +10,7 @@ import {
   type AppLang,
 } from "@/lib/i18n/localePath";
 import { socialDefaultsFor } from "@/lib/seo/socialDefaults";
+import { brandDefaultsFor } from "@/lib/seo/brandDefaults";
 
 // The language type and the supported list live in the locale-path core (the
 // single source of truth for the language <-> URL mapping); re-exported here so
@@ -60,6 +61,19 @@ export const SITE_DEFAULT_DESCRIPTION: Record<Lang, string> = {
   pl: "Niezależny think-tank o bezpieczeństwie Europy i geopolityce: analizy, raporty, wywiady i policy papers na temat gry mocarstw.",
   en: "An independent think-tank on European security and geopolitics: analyses, reports, interviews and policy papers on great-power rivalry.",
 };
+
+/**
+ * Efektywny tytuł serwisu: redakcyjne nadpisanie z /admin/settings/site-identity
+ * (zapamiętane per host przez root loader) albo stały fallback marki.
+ */
+export function siteTitle(lang: Lang, origin?: string): string {
+  return brandDefaultsFor(origin).title[lang] || SITE_DEFAULT_TITLE[lang];
+}
+
+/** Efektywny opis serwisu - patrz `siteTitle`. */
+export function siteDescription(lang: Lang, origin?: string): string {
+  return brandDefaultsFor(origin).description[lang] || SITE_DEFAULT_DESCRIPTION[lang];
+}
 
 /** Absolute origin for the canonical brand deployment - used to resolve the
  *  root-head social image to a fully-qualified URL (scrapers ignore relative
@@ -260,8 +274,8 @@ export function buildRootHead(
   lang: Lang,
   origin: string = SITE_CANONICAL_ORIGIN,
 ): Array<Record<string, string>> {
-  const title = SITE_DEFAULT_TITLE[lang];
-  const description = SITE_DEFAULT_DESCRIPTION[lang];
+  const title = siteTitle(lang, origin);
+  const description = siteDescription(lang, origin);
   const image = defaultSocialImage(origin || SITE_CANONICAL_ORIGIN);
   const alt = socialDefaultsFor(origin).imageAlt;
   const meta: Array<Record<string, string>> = [

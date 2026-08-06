@@ -27,8 +27,8 @@ import { activeLang } from "@/lib/seo/head";
 import {
   buildContentHead,
   splitUrl,
-  SITE_DEFAULT_TITLE,
-  SITE_DEFAULT_DESCRIPTION,
+  siteTitle,
+  siteDescription,
 } from "@/lib/seo/meta";
 import {
   organizationJsonLd,
@@ -254,10 +254,10 @@ export const Route = createFileRoute("/")({
             : homePage.excerpt_pl || homePage.excerpt_en,
           "",
         )) ||
-      SITE_DEFAULT_DESCRIPTION[lang];
+      siteDescription(lang, url);
     const seo = homePage
-      ? resolveSeoText(homePage, lang, SITE_DEFAULT_TITLE[lang], fallbackDescription)
-      : { title: SITE_DEFAULT_TITLE[lang], description: fallbackDescription };
+      ? resolveSeoText(homePage, lang, siteTitle(lang, url), fallbackDescription)
+      : { title: siteTitle(lang, url), description: fallbackDescription };
     const image = homePage ? resolveSocialImage(homePage, homePage.cover_image_url) : null;
     const head = buildContentHead({
       url,

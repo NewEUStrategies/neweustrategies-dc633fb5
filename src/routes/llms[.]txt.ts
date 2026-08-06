@@ -10,7 +10,7 @@ import { localizedPath } from "@/lib/i18n/localePath";
 import { SITE_DEFAULT_DESCRIPTION, SITE_NAME } from "@/lib/seo/meta";
 import { buildLlmsTxt, type LlmsTxtArticle } from "@/lib/seo/llms";
 import { llmsTxtResourceLines } from "@/lib/seo/machineSurfaces";
-import { parseSeoSettings } from "@/lib/seo/settings";
+import { parseSeoSettings, siteDescriptionOverride } from "@/lib/seo/settings";
 import {
   fetchPublicCategories,
   fetchPublishedPosts,
@@ -66,8 +66,8 @@ export const Route = createFileRoute("/llms.txt")({
         const body = buildLlmsTxt({
           siteName: SITE_NAME,
           origin,
-          descriptionPl: SITE_DEFAULT_DESCRIPTION.pl,
-          descriptionEn: SITE_DEFAULT_DESCRIPTION.en,
+          descriptionPl: siteDescriptionOverride(settings, "pl") || SITE_DEFAULT_DESCRIPTION.pl,
+          descriptionEn: siteDescriptionOverride(settings, "en") || SITE_DEFAULT_DESCRIPTION.en,
           sections: categories.map((c) => ({
             name:
               c.name_pl && c.name_en && c.name_pl !== c.name_en

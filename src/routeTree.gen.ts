@@ -230,6 +230,7 @@ import { Route as AdminSettingsMobileBottomBarRouteImport } from './routes/admin
 import { Route as AdminSettingsPrivacyRouteImport } from './routes/admin.settings.privacy'
 import { Route as AdminSettingsReadingRouteImport } from './routes/admin.settings.reading'
 import { Route as AdminSettingsSeoRouteImport } from './routes/admin.settings.seo'
+import { Route as AdminSettingsSiteIdentityRouteImport } from './routes/admin.settings.site-identity'
 import { Route as AdminSettingsSocialPreviewRouteImport } from './routes/admin.settings.social-preview'
 import { Route as AdminSuperMobileDrawerRouteImport } from './routes/admin.super.mobile-drawer'
 import { Route as AdminUsersIndexRouteImport } from './routes/admin.users.index'
@@ -1399,6 +1400,12 @@ const AdminSettingsSeoRoute = AdminSettingsSeoRouteImport.update({
   path: '/seo',
   getParentRoute: () => AdminSettingsRoute,
 } as any)
+const AdminSettingsSiteIdentityRoute =
+  AdminSettingsSiteIdentityRouteImport.update({
+    id: '/site-identity',
+    path: '/site-identity',
+    getParentRoute: () => AdminSettingsRoute,
+  } as any)
 const AdminSettingsSocialPreviewRoute =
   AdminSettingsSocialPreviewRouteImport.update({
     id: '/social-preview',
@@ -1846,6 +1853,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings/privacy': typeof AdminSettingsPrivacyRoute
   '/admin/settings/reading': typeof AdminSettingsReadingRoute
   '/admin/settings/seo': typeof AdminSettingsSeoRoute
+  '/admin/settings/site-identity': typeof AdminSettingsSiteIdentityRoute
   '/admin/settings/social-preview': typeof AdminSettingsSocialPreviewRoute
   '/admin/super/mobile-drawer': typeof AdminSuperMobileDrawerRoute
   '/admin/users/$id': typeof AdminUsersIdRoute
@@ -2102,6 +2110,7 @@ export interface FileRoutesByTo {
   '/admin/settings/privacy': typeof AdminSettingsPrivacyRoute
   '/admin/settings/reading': typeof AdminSettingsReadingRoute
   '/admin/settings/seo': typeof AdminSettingsSeoRoute
+  '/admin/settings/site-identity': typeof AdminSettingsSiteIdentityRoute
   '/admin/settings/social-preview': typeof AdminSettingsSocialPreviewRoute
   '/admin/super/mobile-drawer': typeof AdminSuperMobileDrawerRoute
   '/admin/users/$id': typeof AdminUsersIdRoute
@@ -2369,6 +2378,7 @@ export interface FileRoutesById {
   '/admin/settings/privacy': typeof AdminSettingsPrivacyRoute
   '/admin/settings/reading': typeof AdminSettingsReadingRoute
   '/admin/settings/seo': typeof AdminSettingsSeoRoute
+  '/admin/settings/site-identity': typeof AdminSettingsSiteIdentityRoute
   '/admin/settings/social-preview': typeof AdminSettingsSocialPreviewRoute
   '/admin/super/mobile-drawer': typeof AdminSuperMobileDrawerRoute
   '/admin/users/$id': typeof AdminUsersIdRoute
@@ -2637,6 +2647,7 @@ export interface FileRouteTypes {
     | '/admin/settings/privacy'
     | '/admin/settings/reading'
     | '/admin/settings/seo'
+    | '/admin/settings/site-identity'
     | '/admin/settings/social-preview'
     | '/admin/super/mobile-drawer'
     | '/admin/users/$id'
@@ -2893,6 +2904,7 @@ export interface FileRouteTypes {
     | '/admin/settings/privacy'
     | '/admin/settings/reading'
     | '/admin/settings/seo'
+    | '/admin/settings/site-identity'
     | '/admin/settings/social-preview'
     | '/admin/super/mobile-drawer'
     | '/admin/users/$id'
@@ -3159,6 +3171,7 @@ export interface FileRouteTypes {
     | '/admin/settings/privacy'
     | '/admin/settings/reading'
     | '/admin/settings/seo'
+    | '/admin/settings/site-identity'
     | '/admin/settings/social-preview'
     | '/admin/super/mobile-drawer'
     | '/admin/users/$id'
@@ -4867,6 +4880,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsSeoRouteImport
       parentRoute: typeof AdminSettingsRoute
     }
+    '/admin/settings/site-identity': {
+      id: '/admin/settings/site-identity'
+      path: '/site-identity'
+      fullPath: '/admin/settings/site-identity'
+      preLoaderRoute: typeof AdminSettingsSiteIdentityRouteImport
+      parentRoute: typeof AdminSettingsRoute
+    }
     '/admin/settings/social-preview': {
       id: '/admin/settings/social-preview'
       path: '/social-preview'
@@ -5398,6 +5418,7 @@ interface AdminSettingsRouteChildren {
   AdminSettingsPrivacyRoute: typeof AdminSettingsPrivacyRoute
   AdminSettingsReadingRoute: typeof AdminSettingsReadingRoute
   AdminSettingsSeoRoute: typeof AdminSettingsSeoRoute
+  AdminSettingsSiteIdentityRoute: typeof AdminSettingsSiteIdentityRoute
   AdminSettingsSocialPreviewRoute: typeof AdminSettingsSocialPreviewRoute
   AdminSettingsIndexRoute: typeof AdminSettingsIndexRoute
 }
@@ -5414,6 +5435,7 @@ const AdminSettingsRouteChildren: AdminSettingsRouteChildren = {
   AdminSettingsPrivacyRoute: AdminSettingsPrivacyRoute,
   AdminSettingsReadingRoute: AdminSettingsReadingRoute,
   AdminSettingsSeoRoute: AdminSettingsSeoRoute,
+  AdminSettingsSiteIdentityRoute: AdminSettingsSiteIdentityRoute,
   AdminSettingsSocialPreviewRoute: AdminSettingsSocialPreviewRoute,
   AdminSettingsIndexRoute: AdminSettingsIndexRoute,
 }

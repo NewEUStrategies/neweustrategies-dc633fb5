@@ -9,6 +9,7 @@ import { getRequest } from "@tanstack/react-start/server";
 import { trustedPublicHost } from "@/lib/http/requestHost";
 import { DEFAULT_LANG, localizedPath, stripLangPrefix, type AppLang } from "@/lib/i18n/localePath";
 import { SITE_DEFAULT_DESCRIPTION, SITE_DEFAULT_TITLE, SITE_NAME } from "@/lib/seo/meta";
+import { siteDescriptionOverride, siteTitleOverride } from "@/lib/seo/settings";
 import { buildRssXml, type RssItem } from "@/lib/seo/rss";
 import { parseSeoSettings } from "@/lib/seo/settings";
 import { fetchPublishedPosts, fetchSeoSettingsValue } from "@/lib/server/publishedContent.server";
@@ -62,8 +63,8 @@ export const Route = createFileRoute("/rss.xml")({
         }));
 
         const xml = buildRssXml({
-          title: SITE_DEFAULT_TITLE[lang],
-          description: SITE_DEFAULT_DESCRIPTION[lang],
+          title: siteTitleOverride(settings, lang) || SITE_DEFAULT_TITLE[lang],
+          description: siteDescriptionOverride(settings, lang) || SITE_DEFAULT_DESCRIPTION[lang],
           siteUrl: `${origin}${localizedPath("/", lang)}`,
           feedUrl: `${origin}${localizedPath("/rss.xml", lang)}`,
           language: lang,

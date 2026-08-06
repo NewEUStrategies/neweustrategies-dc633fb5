@@ -48,6 +48,7 @@ import { CohesionLiveSync } from "../lib/realtime/cohesionLiveSync";
 import { resolveSetting, siteSettingsQueryOptions } from "../lib/useSiteSetting";
 import { parseSeoSettings, SEO_SETTINGS_KEY } from "../lib/seo/settings";
 import { rememberSocialDefaults } from "../lib/seo/socialDefaults";
+import { rememberBrandDefaults } from "../lib/seo/brandDefaults";
 import { headerTickerQueryOptions } from "../lib/views/headerTickerQuery";
 import { resolveActiveTickerConfig } from "../lib/views/tickerVariants";
 import { designTokensQueryOptions } from "../lib/builder/designTokens";
@@ -257,6 +258,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       rememberSocialDefaults(getOrigin(), {
         imageUrl: seo.default_og_image_url,
         imageAlt: seo.default_og_image_alt,
+      });
+      // Redakcyjny tytuł i opis serwisu (/admin/settings/site-identity) - ta
+      // sama droga: pamięć kluczowana hostem czytana przez buildRootHead()
+      // i head() strony głównej.
+      rememberBrandDefaults(getOrigin(), {
+        title: { pl: seo.site_title_pl, en: seo.site_title_en },
+        description: { pl: seo.site_description_pl, en: seo.site_description_en },
       });
     } catch {
       /* karta społecznościowa to dekoracja - nigdy nie wywraca renderu */

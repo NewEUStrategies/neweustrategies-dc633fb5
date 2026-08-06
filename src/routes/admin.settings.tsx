@@ -21,6 +21,10 @@ function SettingsLayout() {
     { to: "/admin/crop-sizes", label: t("admin.settingsNav.cropSizes") },
     { to: "/admin/settings/seo", label: t("admin.settingsNav.seo", { defaultValue: "SEO" }) },
     {
+      to: "/admin/settings/site-identity",
+      label: t("admin.settingsNav.siteIdentity", { defaultValue: "Tytuł i opis serwisu" }),
+    },
+    {
       to: "/admin/settings/social-preview",
       label: t("admin.settingsNav.socialPreview", { defaultValue: "Podgląd linków (OG)" }),
     },
