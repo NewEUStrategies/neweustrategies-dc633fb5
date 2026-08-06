@@ -44,7 +44,7 @@ import {
  */
 const CLIP_SCALE = "scale(0.0049285362247413 0.021978021978022)";
 const CLIP_PATH_D =
-  "M0,45.5H20.5C46.9,45.5,54.4,42.3,63.2,31.6C73.9,18.6,81.8,1.6,101.45,1.6S129,18.6,139.7,31.6C148.5,42.3,156,45.5,182.4,45.5H202.9H0z";
+  "M0,45.5H19C35,45.5,80,15,101.45,15C123,15,168,45.5,184,45.5H202.9H0z";
 
 export interface MobileBottomBarViewProps {
   config: MobileBottomBarConfig;
