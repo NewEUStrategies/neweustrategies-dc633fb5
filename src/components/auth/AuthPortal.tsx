@@ -37,7 +37,7 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
   const { i18n } = useTranslation();
   const isPl = i18n.language?.startsWith("pl");
   const navigate = useNavigate();
-  const { session, isStaff, loading } = useAuth();
+  const { session, loading } = useAuth();
   const settings = useAuthSettings();
   const { theme, toggle: toggleTheme } = useTheme();
   const [mode, setMode] = useState<Mode>(initialMode);
@@ -68,17 +68,10 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
 
   useEffect(() => {
     if (loading || !session || mfaPending) return;
-    if (isStaff) {
-      navigate({ to: "/admin" });
-      return;
-    }
-    // Czytelnik po zalogowaniu nie zostaje na formularzu: honorujemy
-    // skonfigurowany cel (tylko ścieżki wewnętrzne), domyślnie strona główna.
-    const target = settings.logged_in_redirect_url?.startsWith("/")
-      ? settings.logged_in_redirect_url
-      : "/";
-    navigate({ to: target });
-  }, [session, isStaff, loading, mfaPending, navigate, settings.logged_in_redirect_url]);
+    // Po zalogowaniu każdy użytkownik (również staff) trafia na stronę główną.
+    navigate({ to: "/" });
+  }, [session, loading, mfaPending, navigate]);
+
 
   const t = useMemo(() => {
     const dict = {
