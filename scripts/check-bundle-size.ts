@@ -157,8 +157,8 @@ const CLIENT_DIR =
 // przez `import()`; nowy blokujący krok CI `check:entry-purity` pilnuje tej
 // krawędzi w grafie chunków, a nie jej skutku w kilobajtach.
 //
-// UCZCIWY BILANS TEJ ZMIANY: -0,9 KB w entry, +1,7 KB public, +1,7 KB overall
-// (541,8 -> 540,9 / 1887,1 -> 1888,8 / 3129,2 -> 3130,9). Loader Stripe.js to
+// UCZCIWY BILANS TEJ ZMIANY: -1,0 KB w entry, +1,5 KB public, +1,4 KB overall
+// (541,8 -> 540,8 / 1887,1 -> 1888,6 / 3129,2 -> 3130,6). Loader Stripe.js to
 // ~1 KB gzip, a dołożony placeholder ramki, granica błędu i klucze PL/EN kosztują
 // tyle samo. To NIE jest zmiana o wadze - jest o tym, KTO i KIEDY pobiera kod
 // bramki płatniczej. Nie udajemy, że zamyka lukę 88 KB.
@@ -201,9 +201,9 @@ const CLIENT_DIR =
 //                                         właściwa droga to leniwa rejestracja
 //                                         słownika, nie wymuszony chunk,
 //   * zod                       132 kB, tailwind-merge 97 kB, dompurify 82 kB.
-const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 542); // largest single gzipped JS chunk (zmierzone: 540,9KB, the client entry)
-const MAX_PUBLIC_KB = Number(process.env.MAX_PUBLIC_KB ?? 1890); // gzipped JS a public visitor can load (zmierzone: 1888,8KB)
-const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 3132); // gzipped JS incl. admin/editor-only chunks (zmierzone: 3130,9KB)
+const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 542); // largest single gzipped JS chunk (zmierzone: 540,8KB, the client entry)
+const MAX_PUBLIC_KB = Number(process.env.MAX_PUBLIC_KB ?? 1890); // gzipped JS a public visitor can load (zmierzone: 1888,6KB)
+const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 3132); // gzipped JS incl. admin/editor-only chunks (zmierzone: 3130,6KB)
 
 // Chunks reachable ONLY from the auth-gated /admin (CMS) routes - never from a
 // public URL, so they never count against the public-perf budget. Matched on the

@@ -451,6 +451,26 @@ export function renderAuthzSnapshotModule(selected: SelectedAuthzSnapshot): stri
   ].join("\n");
 }
 
+/**
+ * Pola bramki, które NAPRAWDĘ się różnią.
+ *
+ * Poprzednia wersja komunikatu porównywała cały obiekt, ale drukowała tylko
+ * cztery wybrane pola - więc rozjazd w `file` (funkcja przedefiniowana nowszą
+ * migracją, czyli najczęstszy przypadek) dawał komunikat postaci
+ * „snapshot {X} vs migracje {X}", z DWIEMA IDENTYCZNYMI wartościami. Bramka
+ * blokująca merge musi mówić, co konkretnie zmienić - inaczej kosztuje
+ * następną osobę godzinę na odtwarzanie tego, co skrypt już wiedział.
+ */
+function changedFields(
+  committed: RoleGateEntry,
+  derived: RoleGateEntry,
+): { field: string; before: unknown; after: unknown }[] {
+  const fields = Object.keys(committed) as (keyof RoleGateEntry)[];
+  return fields
+    .filter((field) => json(committed[field]) !== json(derived[field]))
+    .map((field) => ({ field, before: committed[field], after: derived[field] }));
+}
+
 /** Czytelny diff snapshotów dla komunikatu bramki parytetu. */
 export function diffAuthzSnapshots(committed: AuthzSnapshot, derived: AuthzSnapshot): string[] {
   const problems: string[] = [];
@@ -470,19 +490,13 @@ export function diffAuthzSnapshots(committed: AuthzSnapshot, derived: AuthzSnaps
       problems.push(`bramka '${ref}' jest w snapshocie, ale nie ma jej już w migracjach`);
       continue;
     }
-    if (json(gate) !== json(fresh)) {
+    const changed = changedFields(gate, fresh);
+    if (changed.length > 0) {
       problems.push(
-        `bramka '${ref}' rozjechała się: snapshot ${json({
-          anyRoles: gate.anyRoles,
-          allRoles: gate.allRoles,
-          tenantRef: gate.tenantRef,
-          featureKeys: gate.featureKeys,
-        })} vs migracje ${json({
-          anyRoles: fresh.anyRoles,
-          allRoles: fresh.allRoles,
-          tenantRef: fresh.tenantRef,
-          featureKeys: fresh.featureKeys,
-        })}`,
+        `bramka '${ref}' rozjechała się: ` +
+          changed
+            .map(({ field, before, after }) => `${field} ${json(before)} -> ${json(after)}`)
+            .join(", "),
       );
     }
   }

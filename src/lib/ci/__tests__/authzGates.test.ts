@@ -90,9 +90,12 @@ describe("literały ról w bramkach", () => {
   });
 
   it("odsiewa literał, którego nie ma w enumie", () => {
-    const snapshot = deriveAuthzSnapshot(
-      source([fn("stale", "SELECT public.has_role(auth.uid(), 'tenant_admin')")]),
-    );
+    // NEGATYWNA próbka parsera: 'tenant_admin' jest tu celowo spoza enuma - ten
+    // test dowodzi, że parser go odsiewa, czyli broni dokładnie tej regresji,
+    // dla której istnieje `check:sql-app-role`. Fixture nigdy nie dociera do
+    // bazy, więc nie podlega inwariantowi runtime'owemu - stąd zwolnienie.
+    const staleGate = "SELECT public.has_role(auth.uid(), 'tenant_admin')"; // app-role-literal-exempt
+    const snapshot = deriveAuthzSnapshot(source([fn("stale", staleGate)]));
     expect(snapshot.roleGates).toEqual([]);
   });
 });
@@ -326,6 +329,24 @@ describe("zaznaczenie i render snapshotu", () => {
     );
     expect(problems).toHaveLength(1);
     expect(problems[0]).toContain("fn:admin_list_users/0");
+    expect(problems[0]).toContain("anyRoles");
     expect(problems[0]).toContain("super_admin");
+  });
+
+  // Regresja 2026-08-06: bramka padała na mainie z komunikatem
+  // „snapshot {X} vs migracje {X}" - z DWIEMA IDENTYCZNYMI wartościami, bo
+  // porównywała cały obiekt, a drukowała tylko cztery wybrane pola. Rozjazd
+  // dotyczył `file` (funkcję przedefiniowała nowsza migracja), którego komunikat
+  // w ogóle nie pokazywał.
+  it("nazywa pole, które się zmieniło - także spoza zbioru ról", () => {
+    const before = selectAuthzSnapshot(built, { roleGateRefs: ["fn:admin_list_users/0"] });
+    const movedFile = {
+      ...before,
+      roleGates: before.roleGates.map((gate) => ({ ...gate, file: "20990101000000_inna.sql" })),
+    };
+    const problems = diffAuthzSnapshots(before, movedFile);
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain("file");
+    expect(problems[0]).toContain("20990101000000_inna.sql");
   });
 });
