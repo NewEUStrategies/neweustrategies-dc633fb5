@@ -25,11 +25,17 @@
  */
 import { describe, it, expect } from "vitest";
 
-import { extractLatestDefinitions, type FnDef } from "../../scripts/lib/sqlMigrations";
+import {
+  extractLatestDefinitions,
+  extractLatestTriggerDefinitions,
+  type FnDef,
+  type TriggerDef,
+} from "../../scripts/lib/sqlMigrations";
 import { readAuthzSource } from "../../scripts/lib/authzSource";
 import { deriveAuthzSnapshot, gateEffectiveRoles } from "@/lib/ci/authzGates";
 
 const LATEST = extractLatestDefinitions();
+const LATEST_TRIGGERS = extractLatestTriggerDefinitions();
 
 // Zbiór ról czytamy przez ROZWINIĘCIE ALIASÓW, nie regexem po ciele funkcji.
 // Powód (2026-08-06): `20260806150000_profile_verification_authority.sql`
@@ -55,6 +61,12 @@ function effectiveRoles(ref: string): string[] {
 function latest(name: string, arity = 0): FnDef {
   const def = LATEST.get(`public.${name}/${arity}`);
   expect(def, `brak funkcji public.${name}/${arity} w migracjach`).toBeDefined();
+  return def!;
+}
+
+function latestTrigger(name: string): TriggerDef {
+  const def = LATEST_TRIGGERS.get(name);
+  expect(def, `brak triggera ${name} w migracjach`).toBeDefined();
   return def!;
 }
 
@@ -113,5 +125,72 @@ describe("profiles_guard_verification: stan końcowy migracji", () => {
     const { attrs } = latest("profiles_guard_verification");
     expect(/SECURITY\s+DEFINER/i.test(attrs)).toBe(true);
     expect(/SET\s+search_path/i.test(attrs)).toBe(true);
+  });
+
+  it("wiąże weryfikację z obszarem roboczym wiersza (tenant_id vs current_tenant_id)", () => {
+    const { body, file } = latest("profiles_guard_verification");
+    expect(
+      /current_tenant_id\s*\(/i.test(body) && /tenant_id/i.test(body),
+      `Ostatnia definicja profiles_guard_verification (${file}) nie porównuje tenanta wiersza ` +
+        "z current_tenant_id(). Bez tego admin tenanta A stempluje odznakę - a przez " +
+        "sync_expert_vip_grant dożywotni VIP - w tenancie B.",
+    ).toBe(true);
+  });
+});
+
+/**
+ * Ciało funkcji mówi, CO bramka sprawdza. Instrukcja `CREATE TRIGGER` mówi, KIEDY
+ * bramka w ogóle się odpali - i to drugie da się cofnąć, nie ruszając pierwszego.
+ * Tak zniknęło pokrycie INSERT: `20260806150000` przepięła trigger na
+ * `BEFORE UPDATE OF verified_at, verified_by`, więc funkcja pozostała bez zarzutu
+ * i ani snapshot autoryzacji, ani bramka literałów ról nie miały czego zgłosić.
+ * Kontrakt pgTAP (`tgtype = 23`) mówił jedno, migracje drugie - i dowiedzieliśmy
+ * się o tym z prawdziwego Postgresa, po `supabase db start`.
+ */
+describe("profiles_guard_verification_trg: zasięg bramki", () => {
+  it("odpala się przed zapisem, na INSERT ORAZ UPDATE", () => {
+    const trg = latestTrigger("profiles_guard_verification_trg");
+    expect(trg.table).toBe("public.profiles");
+    expect(trg.timing).toBe("BEFORE");
+    expect(
+      trg.events,
+      `Ostatnia definicja triggera (${trg.file}) nie pokrywa INSERT-u. Polityka ` +
+        '"Users insert own profile" pozwala wstawić WŁASNY wiersz profilu, gdy jeszcze ' +
+        "go nie ma - bramka na samym UPDATE nie widzi wiersza, który RODZI SIĘ " +
+        "zweryfikowany (luka zamknięta w 20260806130000).",
+    ).toEqual(["INSERT", "UPDATE"]);
+  });
+
+  it("nie zawęża się listą kolumn (`UPDATE OF`)", () => {
+    const trg = latestTrigger("profiles_guard_verification_trg");
+    expect(
+      trg.updateOfColumns,
+      `Ostatnia definicja triggera (${trg.file}) ma listę kolumn: ` +
+        `[${trg.updateOfColumns.join(", ")}]. \`BEFORE UPDATE OF kolumna\` odpala się ` +
+        "według LISTY SET w zapytaniu, a NIE według realnej zmiany wartości - wartość " +
+        "podstawiona przez wcześniejszy trigger BEFORE (nazwy sortują się alfabetycznie) " +
+        "mija taką bramkę bez śladu. Wczesne wyjście przez IS NOT DISTINCT FROM daje ten " +
+        "sam zysk bez tego założenia.",
+    ).toEqual([]);
+  });
+
+  it("bramka firmy trzyma ten sam zasięg (wiersz nie rodzi się z obcą firmą)", () => {
+    const trg = latestTrigger("profiles_guard_privileged_columns_trg");
+    expect(trg.table).toBe("public.profiles");
+    expect(trg.timing).toBe("BEFORE");
+    expect(trg.events).toEqual(["INSERT", "UPDATE"]);
+    expect(trg.updateOfColumns).toEqual([]);
+  });
+
+  it("bramka firmy NIE jest współwłaścicielem kolumn weryfikacji", () => {
+    // Dublowana własność była przyczyną źródłową: cichy revert w bramce
+    // „privileged" odpalał się alfabetycznie PRZED „verification" i maskował
+    // twardą odmowę, więc oba zbiory ról mogły dryfować niezależnie.
+    const { body, file } = latest("profiles_guard_privileged_columns");
+    expect(
+      /verified_at|verified_by/i.test(body),
+      `${file}: profiles_guard_privileged_columns znów dotyka kolumn weryfikacji. ` +
+        "Jedna kolumna = jedna bramka, inaczej naruszenie nie zostawia śladu.",
+    ).toBe(false);
   });
 });

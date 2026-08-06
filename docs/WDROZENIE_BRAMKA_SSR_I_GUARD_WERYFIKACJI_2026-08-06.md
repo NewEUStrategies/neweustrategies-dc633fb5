@@ -125,25 +125,64 @@ osobnej roli `admin` mógł zarządzać domenami weryfikacyjnymi i uruchamiać p
 zbiorczy, ale nie mógł nadać ani odebrać samej weryfikacji - w module, w którym
 weryfikacja pociąga odznakę, a odznaka eksperta dożywotni VIP.
 
-`20260806150000_profiles_verification_guard_super_admin.sql`:
+Wariant `_profiles_verification_guard_super_admin.sql` z tej sesji **nigdy nie wjechał do
+żadnego środowiska i został usunięty z repo** - opisuje to sekcja „Kolizja wersji" niżej.
+Żywym rozstrzygnięciem jest `20260806150000_profile_verification_authority.sql` (jeden
+predykat `can_manage_profile_verification()` + rozdział własności kolumn), domknięte przez
+`20260806160002_profile_verification_guard_insert_parity.sql` (parytet INSERT/UPDATE).
+Różnica względem usuniętego wariantu, dla porządku:
 
-- krąg `has_role(admin) OR is_super_admin()` (`is_super_admin`, bo `has_role` jest
-  skalowane tenantem domowym, a super-admin platformy pracuje ponad tenantami),
-- `ERRCODE = '42501'` z powrotem,
-- zachowana furtka `app.verification_sync` i ścieżka serwisowa bez `auth.uid()`,
-- wczesny `RETURN` gdy kolumny weryfikacji się nie zmieniają (żaden zwykły zapis profilu
-  nie płaci już za dwa sprawdzenia roli),
-- `admin_set_profile_verification()` dostaje ten sam krąg i ten sam kod błędu - inaczej
-  `super_admin` przechodziłby trigger, ale odbijał się od RPC. Skalowanie danych bez
-  zmian (tenant domowy wołającego).
+| Aspekt | usunięty wariant | stan żywy |
+| ------ | ---------------- | --------- |
+| krąg uprawnionych | `has_role(admin) OR is_super_admin()` | `can_manage_profile_verification()` - jeden predykat, cztery ścieżki |
+| skalowanie tenantem | brak (`is_super_admin` ponad tenantami) | tenant WIERSZA (`OLD`/`NEW.tenant_id` vs `current_tenant_id()`) |
+| własność kolumn | dublowana z `privileged_columns` | jedna kolumna = jedna bramka |
+| zasięg triggera | `BEFORE INSERT OR UPDATE`, bez `OF` | to samo (przywrócone w 20260806160000) |
+| `ERRCODE` | `42501` | `42501` (bez zmian) |
+| furtki | `app.verification_sync`, brak `auth.uid()` | te same |
+
+`is_super_admin()` ponad tenantami odpadło świadomie: weryfikacja nadaje odznakę, a
+odznaka `expert` dożywotni VIP, więc admin (także platformowy) rozstrzyga to w SWOIM
+obszarze roboczym - tak samo jak `admin_set_profile_verification()` od `20260713160000`.
+
+### Kolizja wersji `20260806150000` - jak dwa pliki dzieliły klucz główny
+
+Oba warianty naprawy powstały równolegle pod tym samym timestampem, a
+`supabase_migrations.schema_migrations.version` to KLUCZ GŁÓWNY: `supabase db start` padał
+na `duplicate key value`, więc job `pgtap` (74 pliki, w tym jedyne testy izolacji
+prywatności czatu) nie dobiegał do pierwszej asercji, a `check:sql-migration-replay`
+świecił czerwono. **Żadna z dwóch migracji nie została zaaplikowana w jakimkolwiek
+środowisku** - dlatego usunięcie zbędnego pliku nie rozjeżdża ledgera z repo (kryterium
+z `src/lib/ci/migrationReplay.ts`, inwariant 3) i jest właściwym domknięciem, a nie
+łamaniem zasady forward-only.
+
+Skutkiem ubocznym kolizji był złamany inwariant „jeden predykat": dwa pliki
+przedefiniowywały `profiles_guard_verification()` w dwóch różnych kontraktach, a o żywym
+stanie decydowała kolejność alfabetyczna nazw. Bramka wersji z
+`check:sql-migration-replay` pilnuje KLUCZA - nie pilnuje tego, że dwie migracje z tej
+samej doby opisują tę samą bramkę inaczej. To pilnuje `check:authz-snapshot` (efektywny
+krąg ról odtworzony z migracji) oraz test inwariantu
+`src/__tests__/profilesVerificationGuard.invariant.test.ts` - od tej sesji także w części
+„zasięg triggera”, bo `20260806150000` cofnęła pokrycie INSERT nie ruszając ciała funkcji:
+funkcja była bez zarzutu, więc ani snapshot, ani bramka literałów ról nie miały czego
+zgłosić, a jedyny sygnał (`tgtype = 23` w pgTAP) leżał za `supabase db start`.
 
 ### pgTAP: z istnienia na zachowanie
 
 Poprzedni plik sprawdzał wyłącznie istnienie funkcji, triggera i flagi `SECURITY DEFINER` -
-i dlatego przeżył dwie zmiany semantyki bez jednego czerwonego przebiegu. Nowa wersja
-(18 asercji) sprawdza zachowanie osobno dla: zwykłego użytkownika (cichy no-op),
-`editora` (42501), `admina`, `super_admina` bez roli `admin` (regresja), flagi
-synchronizacji domenowej oraz obu ścieżek RPC.
+i dlatego przeżył dwie zmiany semantyki bez jednego czerwonego przebiegu. Wersja końcowa
+(37 asercji) sprawdza ZACHOWANIE osobno dla: zwykłego członka (twarde `42501`, nie cichy
+no-op), `editora`, `admina`, `super_admina` bez roli `admin` (regres 20260806094104), obu
+sankcjonowanych furtek, izolacji obszarów roboczych w triggerze ORAZ w RPC, pokrycia
+INSERT i ścieżki UI przypisania firmy.
+
+Uwaga o pułapce, w którą ten plik wpadł po drodze: dwie wersje suity zlały się w jeden
+zlepek - `plan(20)` przy 33 asercjach, seed w ŚRODKU pliku (pierwsze 17 asercji
+odwoływało się do fixture'ów, które jeszcze nie istniały) i dwie wzajemnie sprzeczne
+asercje dla tego samego zapisu (członek: `42501` kontra `lives_ok`). pgTAP powiedziałby to
+od razu - tylko że job `pgtap` padał wcześniej na kolizji wersji migracji. Stąd nowa
+bramka `check:pgtap-plan`: porównuje `plan(N)` z liczbą asercji STATYCZNIE, nad całą
+suitą, bez Dockera i bez bazy.
 
 ### CI: bramka, która o tym powie
 

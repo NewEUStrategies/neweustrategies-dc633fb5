@@ -3,7 +3,7 @@
 // podcast_guest). Zapis idzie przez RLS "media_mentions owner manage", więc
 // user CRUD-uje wyłącznie własne wiersze. Publiczny odczyt (huba eksperta)
 // filtruje `is_public=true` osobną politykę.
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
@@ -80,6 +80,10 @@ function emptyRow(): Row {
 export function MediaMentionsSection({ userId }: { userId: string }) {
   const { t, i18n } = useTranslation();
   const lang = i18n.language?.startsWith("en") ? "en" : "pl";
+  // Etykiety pól muszą być POWIĄZANE z kontrolkami (htmlFor/id): bez tego
+  // czytnik ekranu czyta „pole edycji" bez nazwy, a kliknięcie w etykietę nie
+  // przenosi fokusu. Identyfikatory są stabilne per wiersz i pole.
+  const fieldId = useId();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -229,6 +233,7 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
           {rows.map((row, idx) => {
             const Icon = KIND_META[row.kind].icon;
             const isNew = row.id === null;
+            const idFor = (field: string) => `${fieldId}-${idx}-${field}`;
             return (
               <li
                 key={row.id ?? `new-${idx}`}
@@ -239,11 +244,11 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
                     <Icon className="h-4 w-4" aria-hidden />
                   </div>
                   <div className="grid gap-2">
-                    <Label className="text-[11px] text-muted-foreground">
+                    <Label htmlFor={idFor("kind")} className="text-[11px] text-muted-foreground">
                       {t("profile.author.media.kind", { defaultValue: "Rodzaj" })}
                     </Label>
                     <Select value={row.kind} onValueChange={(v) => patch(idx, { kind: v as Kind })}>
-                      <SelectTrigger className="h-9">
+                      <SelectTrigger id={idFor("kind")} className="h-9">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -256,10 +261,14 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
                     </Select>
                   </div>
                   <div className="grid gap-2">
-                    <Label className="text-[11px] text-muted-foreground">
+                    <Label
+                      htmlFor={idFor("publishedOn")}
+                      className="text-[11px] text-muted-foreground"
+                    >
                       {t("profile.author.media.publishedOn", { defaultValue: "Data publikacji" })}
                     </Label>
                     <Input
+                      id={idFor("publishedOn")}
                       type="date"
                       value={row.published_on}
                       onChange={(e) => patch(idx, { published_on: e.target.value })}
@@ -268,12 +277,13 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
                 </div>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <div className="grid gap-2">
-                    <Label className="text-[11px] text-muted-foreground">
+                    <Label htmlFor={idFor("outlet")} className="text-[11px] text-muted-foreground">
                       {t("profile.author.media.outlet", {
                         defaultValue: "Wydawca / stacja / podcast",
                       })}
                     </Label>
                     <Input
+                      id={idFor("outlet")}
                       placeholder="Rzeczpospolita, TVN24, Polityka Insight..."
                       value={row.outlet}
                       maxLength={160}
@@ -281,12 +291,16 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label className="text-[11px] text-muted-foreground">
+                    <Label
+                      htmlFor={idFor("language")}
+                      className="text-[11px] text-muted-foreground"
+                    >
                       {t("profile.author.media.language", {
                         defaultValue: "Język (opcjonalnie)",
                       })}
                     </Label>
                     <Input
+                      id={idFor("language")}
                       placeholder="pl / en"
                       maxLength={8}
                       value={row.language ?? ""}
@@ -294,10 +308,11 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
                     />
                   </div>
                   <div className="grid gap-2 sm:col-span-2">
-                    <Label className="text-[11px] text-muted-foreground">
+                    <Label htmlFor={idFor("title")} className="text-[11px] text-muted-foreground">
                       {t("profile.author.media.title", { defaultValue: "Tytuł materiału" })}
                     </Label>
                     <Input
+                      id={idFor("title")}
                       placeholder={t("profile.author.media.titlePlaceholder", {
                         defaultValue: "np. Wywiad o polityce bezpieczeństwa UE",
                       })}
@@ -307,11 +322,15 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
                     />
                   </div>
                   <div className="grid gap-2 sm:col-span-2">
-                    <Label className="text-[11px] text-muted-foreground inline-flex items-center gap-1">
+                    <Label
+                      htmlFor={idFor("url")}
+                      className="text-[11px] text-muted-foreground inline-flex items-center gap-1"
+                    >
                       <ExternalLink className="h-3 w-3" aria-hidden />
                       {t("profile.author.media.url", { defaultValue: "Link (URL)" })}
                     </Label>
                     <Input
+                      id={idFor("url")}
                       type="url"
                       placeholder="https://..."
                       value={row.url ?? ""}
@@ -320,7 +339,10 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
                   </div>
                   {KINDS_WITH_COVER.includes(row.kind) && (
                     <div className="grid gap-2 sm:col-span-2">
-                      <Label className="text-[11px] text-muted-foreground inline-flex items-center gap-1">
+                      <Label
+                        htmlFor={idFor("cover")}
+                        className="text-[11px] text-muted-foreground inline-flex items-center gap-1"
+                      >
                         <ImageIcon className="h-3 w-3" aria-hidden />
                         {t("profile.author.media.cover", {
                           defaultValue: "Okładka - URL obrazu (opcjonalnie)",
@@ -340,6 +362,7 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
                           </div>
                         )}
                         <Input
+                          id={idFor("cover")}
                           type="url"
                           placeholder="https://.../cover.jpg"
                           value={row.cover_url ?? ""}

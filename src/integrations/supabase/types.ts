@@ -6097,6 +6097,7 @@ export type Database = {
           enabled_connection: boolean
           enabled_content: boolean
           enabled_crm_task: boolean
+          enabled_expert_request: boolean
           enabled_follow: boolean
           enabled_message: boolean
           enabled_saved_search: boolean
@@ -6125,6 +6126,7 @@ export type Database = {
           enabled_connection?: boolean
           enabled_content?: boolean
           enabled_crm_task?: boolean
+          enabled_expert_request?: boolean
           enabled_follow?: boolean
           enabled_message?: boolean
           enabled_saved_search?: boolean
@@ -6153,6 +6155,7 @@ export type Database = {
           enabled_connection?: boolean
           enabled_content?: boolean
           enabled_crm_task?: boolean
+          enabled_expert_request?: boolean
           enabled_follow?: boolean
           enabled_message?: boolean
           enabled_saved_search?: boolean
@@ -12419,6 +12422,33 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      admin_list_expert_requests: {
+        Args: { p_limit?: number; p_offset?: number; p_status?: string }
+        Returns: {
+          admin_note: string | null
+          converted_conversation_id: string | null
+          created_at: string
+          decline_reason: string | null
+          expected_answers: string | null
+          external_links: string[]
+          id: string
+          questions: string[]
+          reason: string
+          recipient_id: string
+          responded_at: string | null
+          sender_id: string
+          status: string
+          subject: string
+          tenant_id: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "expert_inmails"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       admin_list_inmails: {
         Args: { p_limit?: number; p_offset?: number; p_status?: string }
         Returns: {
@@ -12725,6 +12755,8 @@ export type Database = {
         }
         Returns: undefined
       }
+      caller_is_connected_to: { Args: { p_user_id: string }; Returns: boolean }
+      caller_is_tenant_staff: { Args: never; Returns: boolean }
       can_access_entity_presence: {
         Args: { _entity_id: string; _entity_type: string }
         Returns: boolean
@@ -13352,6 +13384,18 @@ export type Database = {
           relation: string
         }[]
       }
+      get_my_public_exposure: {
+        Args: never
+        Returns: {
+          by_author_profile: boolean
+          by_editorial_role: boolean
+          by_expert_badge: boolean
+          by_published_content: boolean
+          by_speaker_profile: boolean
+          discoverable: boolean
+          is_public: boolean
+        }[]
+      }
       get_my_qa_question_ids: {
         Args: { p_session_id: string }
         Returns: string[]
@@ -13797,12 +13841,16 @@ export type Database = {
         Args: { _experiment_id: string }
         Returns: boolean
       }
-      is_expert_user: { Args: { _uid: string }; Returns: boolean }
+      is_expert_user:
+        | { Args: { _uid: string }; Returns: boolean }
+        | { Args: { _tenant: string; _uid: string }; Returns: boolean }
       is_form_field_active: {
         Args: { _field: string; _form_type: string; _tenant: string }
         Returns: boolean
       }
-      is_gated_recipient: { Args: { _uid: string }; Returns: boolean }
+      is_gated_recipient:
+        | { Args: { _uid: string }; Returns: boolean }
+        | { Args: { _tenant: string; _uid: string }; Returns: boolean }
       is_org_owner: { Args: { p_org: string }; Returns: boolean }
       is_staff: { Args: never; Returns: boolean }
       is_super_admin: { Args: { _user_id?: string }; Returns: boolean }
@@ -13810,7 +13858,9 @@ export type Database = {
         Args: { _conv: string; _user: string }
         Returns: boolean
       }
-      is_vip_user: { Args: { _uid: string }; Returns: boolean }
+      is_vip_user:
+        | { Args: { _uid: string }; Returns: boolean }
+        | { Args: { _tenant: string; _uid: string }; Returns: boolean }
       job_runner_autoarm: { Args: never; Returns: boolean }
       job_runner_base_url: { Args: never; Returns: string }
       job_scheduler_health: { Args: never; Returns: Json }
@@ -13892,6 +13942,33 @@ export type Database = {
           total_count: number
           unique_recipients: number
         }[]
+      }
+      list_my_expert_requests: {
+        Args: { p_box?: string }
+        Returns: {
+          admin_note: string | null
+          converted_conversation_id: string | null
+          created_at: string
+          decline_reason: string | null
+          expected_answers: string | null
+          external_links: string[]
+          id: string
+          questions: string[]
+          reason: string
+          recipient_id: string
+          responded_at: string | null
+          sender_id: string
+          status: string
+          subject: string
+          tenant_id: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "expert_inmails"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       list_my_inmails: {
         Args: { p_box?: string }
@@ -14393,6 +14470,10 @@ export type Database = {
         Args: { p_since?: string; p_tenant_id: string; p_user_id: string }
         Returns: number
       }
+      profile_has_public_presence: {
+        Args: { p_tenant_id: string; p_user_id: string }
+        Returns: boolean
+      }
       profile_is_public: { Args: { _user_id: string }; Returns: boolean }
       profile_view_stats: {
         Args: never
@@ -14591,6 +14672,10 @@ export type Database = {
       request_verified_host: { Args: never; Returns: string }
       resolve_expert_inmail: {
         Args: { p_action: string; p_inmail_id: string; p_note?: string }
+        Returns: Json
+      }
+      resolve_expert_request: {
+        Args: { p_action: string; p_note?: string; p_request_id: string }
         Returns: Json
       }
       resolve_job_runner_base_url: { Args: never; Returns: string }

@@ -16,6 +16,8 @@ export const expertRequestPl = {
       direct: "Twój plan pozwala pisać do ekspertów bezpośrednio - bez limitu zapytań.",
       none: "Twój plan nie obejmuje zapytań do ekspertów. Zaktualizuj plan, aby napisać.",
       exhausted: "Wykorzystałeś miesięczną pulę zapytań ({{quota}}). Odnowi się 1. dnia miesiąca.",
+      cancelledCounts:
+        "Wysłane zapytanie zużywa pulę także po wycofaniu - pula odnawia się 1. dnia miesiąca.",
     },
     fields: {
       subject: "Temat rozmowy",
@@ -53,6 +55,12 @@ export const expertRequestPl = {
         "Ten użytkownik nie wymaga zapytania - napisz do niego bezpośrednio z listy kontaktów.",
       tierDisabled:
         "Twoja warstwa nie umożliwia wysyłania zapytań do ekspertów. Zaktualizuj plan (Plus, Pro lub VIP).",
+      recipientDisabled: "Ten ekspert wstrzymał przyjmowanie zapytań. Spróbuj ponownie później.",
+      featureDisabled: "Zapytania do ekspertów są wyłączone w tej organizacji.",
+      notAvailable: "Ten odbiorca jest niedostępny w Twoim obszarze roboczym.",
+      invalidTransition: "To zapytanie zostało już rozstrzygnięte - odśwież listę.",
+      notFound: "Nie znaleziono zapytania - mogło zostać usunięte.",
+      forbidden: "Nie masz uprawnień do tej operacji.",
       generic: "Nie udało się wysłać. Spróbuj ponownie.",
     },
     status: {
@@ -86,6 +94,14 @@ export const expertRequestPl = {
       noteLabel: "Notatka (opcjonalna)",
       declineReasonLabel: "Powód odrzucenia (opcjonalny)",
       confirm: "Zatwierdź",
+    },
+    confirmCancel: {
+      title: "Wycofać to zapytanie?",
+      description:
+        "Ekspert przestanie je widzieć jako oczekujące. Wycofanie NIE zwraca puli - zapytanie nadal liczy się do limitu w tym miesiącu.",
+      confirm: "Wycofaj zapytanie",
+      keep: "Zostaw",
+      doneToast: "Zapytanie wycofane.",
     },
     admin: {
       title: "Zapytania do ekspertów",
@@ -121,6 +137,8 @@ export const expertRequestEn = {
       direct: "Your plan lets you message experts directly - no request limit.",
       none: "Your plan does not include expert requests. Upgrade your plan to write.",
       exhausted: "You have used your monthly quota ({{quota}}). It renews on the 1st of the month.",
+      cancelledCounts:
+        "A sent request uses your quota even after you withdraw it - the quota renews on the 1st of the month.",
     },
     fields: {
       subject: "Subject",
@@ -157,6 +175,12 @@ export const expertRequestEn = {
       notExpert: "This user does not require a request - send a normal DM instead.",
       tierDisabled:
         "Your tier does not include expert requests. Upgrade your plan (Plus, Pro or VIP).",
+      recipientDisabled: "This expert has paused incoming requests. Please try again later.",
+      featureDisabled: "Expert requests are switched off for this organisation.",
+      notAvailable: "This recipient is not available in your workspace.",
+      invalidTransition: "This request has already been resolved - refresh the list.",
+      notFound: "Request not found - it may have been removed.",
+      forbidden: "You do not have permission for this action.",
       generic: "Could not send. Please try again.",
     },
     status: {
@@ -185,11 +209,19 @@ export const expertRequestEn = {
       approve: "Open conversation",
       decline: "Decline",
       answered: "Mark as answered",
-      cancel: "Cancel",
+      cancel: "Withdraw",
       openConversation: "Open conversation",
       noteLabel: "Note (optional)",
       declineReasonLabel: "Decline reason (optional)",
       confirm: "Confirm",
+    },
+    confirmCancel: {
+      title: "Withdraw this request?",
+      description:
+        "The expert will no longer see it as pending. Withdrawing does NOT refund your quota - the request still counts towards this month's limit.",
+      confirm: "Withdraw request",
+      keep: "Keep it",
+      doneToast: "Request withdrawn.",
     },
     admin: {
       title: "Expert requests",

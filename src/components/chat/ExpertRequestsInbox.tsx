@@ -15,6 +15,7 @@ import {
   useResolveExpertRequest,
   type ExpertRequestRow,
 } from "@/lib/chat/useExpertRequests";
+import { expertRequestErrorI18nKey } from "@/lib/chat/expertRequestErrors";
 import { relTime, type ChatLang } from "@/lib/chat/time";
 import { ensureI18n as ensureExpertRequestI18n } from "@/lib/i18n-expert-request";
 
@@ -75,8 +76,8 @@ export function ExpertRequestsInbox({ onOpenConversation, className }: ExpertReq
         toast.success(t("expertRequest.inbox.openedToast"));
         onOpenConversation(conversationId);
       }
-    } catch {
-      toast.error(t("expertRequest.error.generic"));
+    } catch (error) {
+      toast.error(t(expertRequestErrorI18nKey(error)));
     } finally {
       setBusyId(null);
     }

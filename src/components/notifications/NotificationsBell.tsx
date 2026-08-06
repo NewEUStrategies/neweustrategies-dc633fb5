@@ -18,6 +18,7 @@ import {
   Check,
   Circle,
   Crown,
+  HelpCircle,
   Inbox,
   Info,
   Landmark,
@@ -92,6 +93,7 @@ const KIND_ICONS: Record<NotificationKind, React.ComponentType<{ className?: str
   message: Mail,
   tracker: Landmark,
   saved_search: BellRing,
+  expert_request: HelpCircle,
 };
 
 // `notifications.kind` przychodzi z bazy jako `string`, więc odczyt idzie przez

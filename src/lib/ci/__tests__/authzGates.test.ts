@@ -579,5 +579,4 @@ describe("dryf snapshotu bramek", () => {
   // Odpowiednik tej regresji (provenance pola `file`) jest pokryty wyżej,
   // w bloku z dostępnym `built` - patrz "przeniesienie definicji do nowszej
   // migracji raportuje provenance, nie uprawnienia".
-
 });
