@@ -1,5 +1,21 @@
 // Hooki systemu „Zapytanie do eksperta" (Plus/Pro → ekspert/VIP). RPC są
 // SECURITY DEFINER i tenant-scoped; klient tylko relayuje intencje. RLS-safe.
+//
+// NAZWY RPC SĄ KONTRAKTEM WYWOŁAŃ, NIE MIEJSCEM LOGIKI. Piątka `*_inmail*`
+// poniżej to historyczne nazwy z pierwszej generacji funkcji; od migracji
+// 20260806160000 są CIENKIMI DELEGATAMI do funkcji domenowych
+// (`my_expert_request_quota`, `send_expert_request`, `resolve_expert_request`,
+// `list_my_expert_requests`, `admin_list_expert_requests`), w których mieszka
+// cała autoryzacja, pula i granica tenanta. Trzymamy nazwy wołane, bo dzięki
+// temu wdrożenie migracji nie jest sprzęgnięte z deployem frontu - a bramka CI
+// `check:rpc-contract` pilnuje, że każda z nich nadal istnieje w stanie
+// końcowym migracji i celuje w istniejącą relację (klasa błędu 42P01/PGRST202,
+// która przez dwa tygodnie zabijała tę funkcję na każdej świeżej bazie).
+//
+// PULA: `used` liczy WSZYSTKIE zapytania wysłane w bieżącym miesiącu, także
+// wycofane - anulowanie nie zwraca limitu (inaczej pętla „wyślij → anuluj →
+// wyślij" czyniła pulę fikcją). UI mówi o tym wprost: patrz
+// `expertRequest.quota.cancelledCounts` oraz ExpertRequestCancelDialog.
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
