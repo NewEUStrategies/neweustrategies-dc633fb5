@@ -161,7 +161,6 @@ export function MobileBottomBarView({
     };
   }, []);
 
-
   const activeItem = hasActive ? items[activeIndex] : undefined;
   const accentLight = config.use_item_color
     ? itemAccent(activeItem, "light", "var(--brand)")

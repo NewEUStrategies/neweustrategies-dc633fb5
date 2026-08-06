@@ -43,8 +43,8 @@ export const AUTHZ_SNAPSHOT: AuthzSnapshotModule = {
     {"ref":"fn:monetization_dashboard/4","kind":"function","object":"monetization_dashboard","file":"20260724100000_fix_definer_header_tenant_scope.sql","anyRoles":["admin","editor"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:org_set_seats_limit/3","kind":"function","object":"org_set_seats_limit","file":"20260729204314_73c57056-a7c4-4055-9612-6a43a0d588d2.sql","anyRoles":["admin"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:payment_orders_guard_status/0","kind":"function","object":"payment_orders_guard_status","file":"20260724143429_ac474056-b701-40c9-978d-5244c18df2f7.sql","anyRoles":["admin"],"allRoles":[],"tenantRef":"none","securityDefiner":true,"featureKeys":[]},
-    {"ref":"fn:profiles_guard_privileged_columns/0","kind":"function","object":"profiles_guard_privileged_columns","file":"20260725180745_90a55241-3963-4167-9f13-530c400e6229.sql","anyRoles":["admin","editor","super_admin"],"allRoles":[],"tenantRef":"none","securityDefiner":true,"featureKeys":[]},
-    {"ref":"fn:profiles_guard_verification/0","kind":"function","object":"profiles_guard_verification","file":"20260805122338_1b964d18-2270-49fa-9e77-a8cb80773286.sql","anyRoles":["admin","super_admin"],"allRoles":[],"tenantRef":"none","securityDefiner":true,"featureKeys":[]},
+    {"ref":"fn:profiles_guard_privileged_columns/0","kind":"function","object":"profiles_guard_privileged_columns","file":"20260806094239_919e4360-c2b0-45a4-8d6f-be35e41ad807.sql","anyRoles":["admin","editor","super_admin"],"allRoles":[],"tenantRef":"none","securityDefiner":true,"featureKeys":[]},
+    {"ref":"fn:profiles_guard_verification/0","kind":"function","object":"profiles_guard_verification","file":"20260806145814_2dfdb3a9-c4c7-46d4-845b-6afee235aae5.sql","anyRoles":["admin","super_admin"],"allRoles":[],"tenantRef":"none","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:profiles_pin_tenant_id/0","kind":"function","object":"profiles_pin_tenant_id","file":"20260721052806_67afab94-0343-483e-95f0-f2a6687a54a3.sql","anyRoles":["super_admin"],"allRoles":[],"tenantRef":"row","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:publish_legal_version/1","kind":"function","object":"publish_legal_version","file":"20260730205424_55821b5e-04d7-47c6-9853-ec7cc030d4bc.sql","anyRoles":["admin","editor","super_admin"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:publish_qa_session_summary/2","kind":"function","object":"publish_qa_session_summary","file":"20260724100000_fix_definer_header_tenant_scope.sql","anyRoles":["admin","editor","super_admin"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
@@ -71,5 +71,5 @@ export const AUTHZ_SNAPSHOT: AuthzSnapshotModule = {
     {"capability":"recordings","ref":"fn:get_event_access/1","kind":"function","object":"get_event_access","file":"20260724100000_fix_definer_header_tenant_scope.sql","bypassRoles":["admin","editor"],"tenantRef":"caller"},
     {"capability":"regulatory_monitoring","ref":"policy:eu_policy_follows/policy follows owner all","kind":"policy","object":"eu_policy_follows","file":"20260723090000_tier_content_gating_tracker.sql","bypassRoles":[],"tenantRef":"row"},
   ],
-  stats: {"migrations":612,"functions":545,"policies":504},
+  stats: {"migrations":625,"functions":554,"policies":505},
 };

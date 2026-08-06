@@ -32,9 +32,9 @@ export function DetectedElementsPanel() {
         <div>
           <h3 className="text-sm font-semibold">Wykryte elementy</h3>
           <p className="text-xs text-muted-foreground mt-1">
-            Skan przeglądarki: {result.scannedKeys} kluczy (cookies, localStorage,
-            sessionStorage). Elementy spoza rejestru zostały opisane automatycznie i trafiają do
-            deklaracji w banerze.
+            Skan przeglądarki: {result.scannedKeys} kluczy (cookies, localStorage, sessionStorage).
+            Elementy spoza rejestru zostały opisane automatycznie i trafiają do deklaracji w
+            banerze.
           </p>
         </div>
         <button

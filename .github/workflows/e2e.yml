@@ -50,7 +50,6 @@ jobs:
           CI: "true"
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://placeholder.supabase.co' }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}
-          VITE_SUPABASE_PROJECT_ID: ${{ secrets.VITE_SUPABASE_PROJECT_ID || 'placeholder' }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://placeholder.supabase.co' }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}
 
@@ -107,7 +106,6 @@ jobs:
           eval "$(supabase status -o env | grep -E '^[A-Z_]+=')"
           export VITE_SUPABASE_URL="$API_URL"
           export VITE_SUPABASE_PUBLISHABLE_KEY="$ANON_KEY"
-          export VITE_SUPABASE_PROJECT_ID="local"
           export SUPABASE_URL="$API_URL"
           export SUPABASE_PUBLISHABLE_KEY="$ANON_KEY"
           # Klucz service_role MUSI trafić pod nazwę SUPABASE_SERVICE_ROLE_KEY -

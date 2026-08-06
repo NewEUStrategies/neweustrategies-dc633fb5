@@ -24,12 +24,7 @@ import {
 import { parsePageSearch } from "@/lib/routing/pageSearch";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
-import {
-  buildContentHead,
-  splitUrl,
-  siteTitle,
-  siteDescription,
-} from "@/lib/seo/meta";
+import { buildContentHead, splitUrl, siteTitle, siteDescription } from "@/lib/seo/meta";
 import {
   organizationJsonLd,
   safeJsonLd,

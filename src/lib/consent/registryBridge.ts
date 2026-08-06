@@ -213,7 +213,6 @@ export function withDecisionMetadata(entries: RegistryEntry[]): RegistryEntry[] 
   }));
 }
 
-
 // Kolejka FIFO zapisów do rejestru (per karta). Dwie szybkie decyzje to dwa
 // niezależne requesty bez gwarancji kolejności dostarczenia - wolniejszy,
 // STARSZY zapis mógłby nadpisać nowszą decyzję w user_consents i pomieszać

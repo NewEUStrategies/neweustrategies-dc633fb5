@@ -27,7 +27,7 @@ thin layers that never re-implement logic:
 | `rss.ts`, `newsSitemap.ts`, `llms.ts` | RSS 2.0, Google News sitemap and llms.txt document builders                                                     |
 | `sitemapIndex.ts`, `sitemapXml.ts`    | `<sitemapindex>` + shard naming/limits; `<urlset>` rendering, hreflang cluster, deterministic URL expansion     |
 | `machineSurfaces.ts`                  | Single registry of machine-readable surfaces (sitemaps, feeds, llms.txt) - consumed by llms.txt + contract test |
-| `robots.ts`                           | robots.txt body builder (crawl policy, per-agent groups, sitemap declarations) + response headers               |
+| `robots.ts`                           | robots.txt body builder (crawl policy + sitemap declarations)                                                   |
 | `serp.ts`                             | Pixel-width SERP metrics (Google truncates by px, not chars) for the admin preview                              |
 | `ogCard.ts` + `ogCardCanvas.ts`       | 1200x630 OG-card layout (pure) + browser canvas renderer/uploader                                               |
 | `settings.ts`                         | Site-wide SEO settings schema (site_settings key `"seo"`) + AI-crawler policy                                   |
@@ -66,51 +66,34 @@ Two invariants make sharding safe:
   rather than an empty `<urlset>` (an empty file reads as a publishing failure in
   Search Console).
 
-### robots.txt is a route, and `public/` must never shadow it
+### robots.txt is a route, and nothing may shadow it
 
 `/robots.txt` is generated per request (`src/routes/robots[.]txt.ts` →
-`src/lib/server/robotsRequest.server.ts` → `src/lib/seo/robots.ts`). One host
-classification (`classifyCrawlHost` in `src/lib/http/host.ts`) drives both the
-crawl policy and the origin the sitemaps are announced on, so canonicalization
-and indexing can never disagree:
+`resolveRobotsPolicy` in `src/lib/server/robotsPolicy.server.ts` → the pure
+`robotsModeFor` / `buildRobotsTxt` in `src/lib/seo/robots.ts`). The mode decision
+and the publishing origin (`crawlerPublishOrigin`) are shared with the sitemap
+surfaces and the canonical redirect, so a host can never be 301'd to the brand
+origin while robots.txt still advertises it as indexable.
 
-| Host class | Example                    | robots.txt                                        | `X-Robots-Tag`      |
-| ---------- | -------------------------- | ------------------------------------------------- | ------------------- |
-| `brand`    | `neweuropeanstrategies.com`| `Allow: /` + sitemaps on the canonical origin     | `all`               |
-| `tenant`   | a domain in `tenants.domain` | `Allow: /` + sitemaps on **that host's** origin  | `all`               |
-| `alias`    | `*.pages.dev`, legacy domains | `Disallow: /` (they 301 to the canonical origin) | `noindex, nofollow` |
-| `editor`   | `localhost`, editor previews | `Disallow: /`                                    | `noindex, nofollow` |
-| `unknown`  | an unclaimed domain        | `Disallow: /` (fail-closed)                       | `noindex, nofollow` |
+The Cloudflare deploy binds `.output/public/` as `assets`, and the Asset Worker
+answers *before* our worker, so a static file at a route's URL silently disables
+that route in production (`public/robots.txt` did exactly that - see
+`docs/WDROZENIE_ROBOTS_TXT_ROUTING_2026-08-06.md`). Two barriers guard it:
 
-Only an exact `tenants.domain` match (or its www/apex alias) counts as `tenant` -
-the default-tenant fallback of `resolveCrawlerTenantForHost` must never open
-indexing on a foreign domain. When the tenant directory is unreachable the
-answer is still fail-closed but marked **volatile** and served `no-store`, so a
-minute-long database outage cannot freeze `Disallow: /` in a CDN or in Google.
+1. **repo** - `src/lib/ci/staticAssetShadowing.ts` (blocking CI step): no file in
+   `public/` may resolve to a URL a route declares. It accounts for `index.html`
+   claiming its directory path, any other `.html` claiming its extensionless path,
+   and parameterised segments (`public/sitemaps/core.xml` would shadow
+   `/sitemaps/$section`). Deliberate exceptions require a `SHADOWING_ALLOWLIST`
+   entry;
+2. **deploy** - `assets.run_worker_first` in `vite.config.ts`, listing every path
+   from `MACHINE_SURFACES`. The worker wins for machine-readable surfaces even
+   when a file enters the artifact from outside the repository (a CI step, a
+   postbuild script) - which the repo gate cannot see.
 
-Declarations are only made for surfaces that actually answer: the news sitemap
-appears when the editors enabled it, and no sitemap is announced at all when the
-sitemap routes would fail closed for this host (a robots.txt pointing a crawler
-at a 404 is a ready-made Search Console error).
-
-**Deployment invariant.** The Cloudflare deploy binds `.output/public/` as
-`assets`, and the Asset Worker answers *before* our worker. A committed
-`public/robots.txt` therefore disabled this whole route in production while
-every test stayed green (the dev server has no asset layer in front of the
-router) - the audit of 2026-08-06 found production serving static `Allow: /` to
-every host, hosting aliases included. Two barriers now prevent a recurrence:
-
-1. `bun run check:public-assets` (blocking CI step, logic in
-   `src/lib/ci/publicAssetShadowing.ts`) fails if any file in `public/` resolves
-   to a URL served by a route - including `.html` files, which the asset layer
-   also serves at their extensionless path;
-2. `assets.run_worker_first` in `vite.config.ts` lists every path from
-   `MACHINE_SURFACES`, so the worker wins for machine-readable surfaces even if
-   a static file reappears in the bundle.
-
-The `RobotsTxtPreview` molecule on `/admin/settings/seo` renders the file with
-the same builder the route uses and links to the live URL, so a divergence
-between the two is visible to editors in two clicks.
+`RobotsTxtPreview` on `/admin/settings/seo` renders the file with the same
+builder the route uses and links to the live URL, so editors can spot a
+divergence between the two without developer tools.
 
 ### Feed autodiscovery
 
@@ -190,9 +173,3 @@ item count, news sitemap + publication name, llms.txt toggle, AI-crawler policy
 (search vs training crawlers), Organization `sameAs`, publisher logo,
 `twitter:site`. Parsed everywhere through `parseSeoSettings` (partial blobs
 merge over defaults; corrupted rows fall back to defaults).
-
-The AI-crawler policy reaches crawlers as separate per-agent groups in
-robots.txt (`aiCrawlerGroups` → `buildRobotsTxt`): blocking AI bots never
-touches the `User-agent: *` group, because a crawler obeys only the most
-specific group that matches its name. Until 2026-08-06 that function had no
-caller at all - the toggles were editable and completely inert.

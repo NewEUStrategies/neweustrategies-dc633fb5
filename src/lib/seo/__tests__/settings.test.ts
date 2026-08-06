@@ -1,14 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
-  aiCrawlerGroups,
-  AI_SEARCH_CRAWLERS,
-  AI_TRAINING_CRAWLERS,
+  aiCrawlerDirectives,
   DEFAULT_SEO_SETTINGS,
   effectiveNewsPublicationName,
   effectiveTitleSuffix,
   parseSeoSettings,
 } from "@/lib/seo/settings";
-import { buildRobotsTxt } from "@/lib/seo/robots";
 import { SITE_NAME } from "@/lib/seo/meta";
 
 describe("parseSeoSettings", () => {
@@ -41,51 +38,24 @@ describe("effective values", () => {
   });
 });
 
-describe("aiCrawlerGroups", () => {
+describe("aiCrawlerDirectives", () => {
   it("emits nothing when everything is allowed (GEO default)", () => {
-    expect(aiCrawlerGroups(DEFAULT_SEO_SETTINGS)).toEqual([]);
+    expect(aiCrawlerDirectives(DEFAULT_SEO_SETTINGS)).toEqual([]);
   });
   it("blocks training crawlers independently of search crawlers", () => {
-    const groups = aiCrawlerGroups({
+    const lines = aiCrawlerDirectives({
       ...DEFAULT_SEO_SETTINGS,
       ai_training_crawlers_allowed: false,
     });
-    expect(groups).toEqual([{ agents: AI_TRAINING_CRAWLERS, disallow: ["/"] }]);
-    expect(groups.flatMap((g) => g.agents)).not.toContain("PerplexityBot");
+    expect(lines).toContain("User-agent: GPTBot");
+    expect(lines).toContain("Disallow: /");
+    expect(lines.join("\n")).not.toContain("PerplexityBot");
   });
   it("blocks search crawlers when disabled", () => {
-    const groups = aiCrawlerGroups({
+    const lines = aiCrawlerDirectives({
       ...DEFAULT_SEO_SETTINGS,
       ai_search_crawlers_allowed: false,
     });
-    expect(groups).toEqual([{ agents: AI_SEARCH_CRAWLERS, disallow: ["/"] }]);
-  });
-  it("blocks both families when the editors opt out of AI entirely", () => {
-    const groups = aiCrawlerGroups({
-      ...DEFAULT_SEO_SETTINGS,
-      ai_search_crawlers_allowed: false,
-      ai_training_crawlers_allowed: false,
-    });
-    expect(groups).toHaveLength(2);
-  });
-
-  // REGRESJA (audyt 2026-08-06): te przełączniki NIE MIAŁY ŻADNEGO WOŁAJĄCEGO -
-  // redakcja mogła zabronić crawlerom AI w panelu, a robots.txt nigdy o tym nie
-  // wspominał. Test wiąże ustawienie z gotowym plikiem, nie tylko z funkcją.
-  it("reaches the rendered robots.txt as a separate per-agent group", () => {
-    const body = buildRobotsTxt({
-      mode: "canonical",
-      origin: "https://neweuropeanstrategies.com",
-      sitemapPaths: ["/sitemap.xml"],
-      groups: aiCrawlerGroups({
-        ...DEFAULT_SEO_SETTINGS,
-        ai_training_crawlers_allowed: false,
-      }),
-    });
-    expect(body).toContain("User-agent: GPTBot");
-    // Grupa `*` nadal zaprasza wyszukiwarki - blokada dotyczy tylko botów AI.
-    expect(body).toContain("Allow: /");
-    expect(body.indexOf("User-agent: GPTBot")).toBeGreaterThan(body.indexOf("Allow: /"));
-    expect(body).not.toContain("PerplexityBot");
+    expect(lines.join("\n")).toContain("User-agent: PerplexityBot");
   });
 });

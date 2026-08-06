@@ -451,6 +451,46 @@ export function renderAuthzSnapshotModule(selected: SelectedAuthzSnapshot): stri
   ].join("\n");
 }
 
+/**
+ * Pola bramki rolowej, których rozjazd raportujemy - w kolejności czytania.
+ * `file` (provenance ostatniej żywej definicji) MUSI tu być: przeniesienie
+ * definicji do nowszej migracji przy niezmienionym zbiorze ról jest realnym
+ * rozjazdem snapshotu, a bez tego pola komunikat drukował dwa IDENTYCZNE
+ * obiekty i zaprzeczał własnej tezie.
+ */
+const ROLE_GATE_DIFF_FIELDS: readonly (keyof RoleGateEntry)[] = [
+  "anyRoles",
+  "allRoles",
+  "tenantRef",
+  "securityDefiner",
+  "featureKeys",
+  "kind",
+  "object",
+  "file",
+];
+
+/**
+ * Komunikat rozjazdu jednej bramki: WYŁĄCZNIE pola, które faktycznie się
+ * różnią, więc dowód w komunikacie zawsze uzasadnia tezę. Zmiana samego
+ * `file` (definicja przeniesiona do nowszej migracji) jest oznaczona jako
+ * `provenance`, żeby nie mylić jej ze zmianą uprawnień.
+ */
+function describeRoleGateDrift(committed: RoleGateEntry, derived: RoleGateEntry): string {
+  const changed = ROLE_GATE_DIFF_FIELDS.filter(
+    (field) => json(committed[field]) !== json(derived[field]),
+  );
+  if (changed.length === 0) return "";
+
+  const onlyProvenance = changed.length === 1 && changed[0] === "file";
+  const detail = changed
+    .map((field) => `${field}: ${json(committed[field])} -> ${json(derived[field])}`)
+    .join(", ");
+
+  return onlyProvenance
+    ? `bramka '${committed.ref}' zmieniła provenance (bez zmiany uprawnień): ${detail}`
+    : `bramka '${committed.ref}' rozjechała się: ${detail} (snapshot -> migracje)`;
+}
+
 /** Czytelny diff snapshotów dla komunikatu bramki parytetu. */
 export function diffAuthzSnapshots(committed: AuthzSnapshot, derived: AuthzSnapshot): string[] {
   const problems: string[] = [];
@@ -470,21 +510,8 @@ export function diffAuthzSnapshots(committed: AuthzSnapshot, derived: AuthzSnaps
       problems.push(`bramka '${ref}' jest w snapshocie, ale nie ma jej już w migracjach`);
       continue;
     }
-    if (json(gate) !== json(fresh)) {
-      problems.push(
-        `bramka '${ref}' rozjechała się: snapshot ${json({
-          anyRoles: gate.anyRoles,
-          allRoles: gate.allRoles,
-          tenantRef: gate.tenantRef,
-          featureKeys: gate.featureKeys,
-        })} vs migracje ${json({
-          anyRoles: fresh.anyRoles,
-          allRoles: fresh.allRoles,
-          tenantRef: fresh.tenantRef,
-          featureKeys: fresh.featureKeys,
-        })}`,
-      );
-    }
+    const drift = describeRoleGateDrift(gate, fresh);
+    if (drift !== "") problems.push(drift);
   }
   for (const ref of derivedGates.keys()) {
     if (!committedGates.has(ref))

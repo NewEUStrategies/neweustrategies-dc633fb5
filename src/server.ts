@@ -58,10 +58,13 @@ function isH3SwallowedErrorBody(body: string): boolean {
 // aplikacji: nie logujemy i nie renderujemy strony błędu.
 function isClientAbort(request: Request, error?: unknown): boolean {
   if (request.signal?.aborted) return true;
-  const err = error as { code?: string; name?: string; message?: string; cause?: unknown } | undefined;
+  const err = error as
+    | { code?: string; name?: string; message?: string; cause?: unknown }
+    | undefined;
   if (!err) return false;
   const text = `${err.code ?? ""} ${err.name ?? ""} ${err.message ?? ""}`.toLowerCase();
-  if (text.includes("econnreset") || text.includes("aborted") || text.includes("abort")) return true;
+  if (text.includes("econnreset") || text.includes("aborted") || text.includes("abort"))
+    return true;
   if (err.cause && err.cause !== error) return isClientAbort(request, err.cause);
   return false;
 }

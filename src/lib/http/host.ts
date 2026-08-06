@@ -147,73 +147,27 @@ export function isNonCanonicalPublicHost(rawHost: string | null | undefined): bo
   );
 }
 
-// ── Klasa hosta na powierzchniach crawlera ─────────────────────────────────
-//
-// JEDNA decyzja, z której korzystają wszystkie powierzchnie maszynowe:
-// robots.txt rozstrzyga nią, czy host wolno indeksować, a sitemapa - na jakim
-// originie publikuje adresy. Wcześniej każda powierzchnia składała ten wniosek
-// z trzech osobnych predykatów, we własnej kolejności; rozjazd między nimi to
-// dokładnie ten błąd, który daje w indeksie dwie kopie tej samej treści (albo
-// zaproszenie do indeksowania aliasu hostingu).
-
-export type CrawlHostClass =
-  /** Kanoniczny host marki (apex/www): indeksowanie, origin kanoniczny. */
-  | "brand"
-  /** Domena zajęta przez tenanta (`tenants.domain`): indeksowanie na WŁASNYM originie. */
-  | "tenant"
-  /** Alias warstwy hostingu / domena historyczna: 301 + pełny zakaz indeksowania. */
-  | "alias"
-  /** Podgląd w edytorze albo lokalny dev: nigdy nieindeksowany, własny origin. */
-  | "editor"
-  /** Host, którego nie objął żaden tenant: fail-closed (pełny zakaz). */
-  | "unknown";
-
-export interface CrawlHostFacts {
-  /** Surowy host żądania - normalizowany wewnątrz. */
-  readonly host: string | null | undefined;
-  /**
-   * Czy host jest DOKŁADNIE domeną zarejestrowaną w `tenants.domain` (także
-   * przez alias www/apex). Tylko twarde dopasowanie: fallback na tenanta
-   * domyślnego (hosty podglądu, pusty katalog domen) NIE czyni hosta
-   * kanonicznym i nie może otworzyć indeksowania obcej domeny.
-   */
-  readonly tenantDomain?: boolean;
-}
-
 /**
- * Klasa hosta dla powierzchni crawlera. Kolejność reguł jest częścią kontraktu:
- * marka > podgląd/alias > katalog domen. Podgląd i alias hostingu wygrywają z
- * katalogiem, więc nawet wpisanie `*.pages.dev` jako domeny tenanta nie
- * otworzy indeksowania aliasu.
- */
-export function classifyCrawlHost(facts: CrawlHostFacts): CrawlHostClass {
-  const host = normalizeHost(facts.host);
-  if (!host) return "unknown";
-  if (CANONICAL_SITE_HOSTS.has(host)) return "brand";
-  if (isEditorOrLocalHost(host)) return "editor";
-  if (isNonCanonicalPublicHost(host)) return "alias";
-  return facts.tenantDomain ? "tenant" : "unknown";
-}
-
-/** Czy powierzchnie crawlera mogą zaprosić ten host do indeksowania. */
-export function crawlHostIsIndexable(hostClass: CrawlHostClass): boolean {
-  return hostClass === "brand" || hostClass === "tenant";
-}
-
-/**
- * Origin, na którym host tej klasy publikuje adresy crawlerom.
+ * Origin, na którym powierzchnie crawlerowe PUBLIKUJĄ adresy dla danego hosta.
  *
- * Marka i jej aliasy ZAWSZE zbiegają się na originie kanonicznym (alias
- * obsłużył żądanie, ale adresy w mapie i w robots.txt muszą wskazywać domenę
- * docelową). Domena tenanta, podgląd i host nieznany publikują na własnym
- * originie - inaczej mapa jednego serwisu reklamowałaby adresy drugiego.
+ * JEDNA reguła dla mapy strony i dla robots.txt - inaczej sitemapa emituje
+ * adresy na jednym originie, a robots.txt ogłasza tę samą mapę pod innym
+ * (Search Console traktuje to jako mapę spoza właściwości i ją odrzuca).
+ *
+ *   * host kanoniczny marki i każdy jego alias (hosting, domena legacy) -
+ *     origin kanoniczny: aliasy dostają 301, więc nie wolno publikować na nich
+ *     adresów, choćby żądanie przyszło właśnie tam;
+ *   * domena własna tenanta (i host podglądowy) - jej WŁASNY origin: ten host
+ *     serwuje swój serwis i nie jest kanonizowany na markę.
  */
-export function crawlHostOrigin(
-  hostClass: CrawlHostClass,
+export function crawlerPublishOrigin(
   rawHost: string | null | undefined,
-  proto = "https",
+  proto: string = "https",
 ): string {
-  if (hostClass === "brand" || hostClass === "alias") return CANONICAL_SITE_ORIGIN;
   const host = normalizeHost(rawHost);
-  return host ? `${proto}://${host}` : "";
+  if (!host) return "";
+  if (CANONICAL_SITE_HOSTS.has(host) || isNonCanonicalPublicHost(host)) {
+    return CANONICAL_SITE_ORIGIN;
+  }
+  return `${proto}://${host}`;
 }

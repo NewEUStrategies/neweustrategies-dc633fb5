@@ -15,7 +15,12 @@ import { billingKeys } from "@/lib/billing/keys";
 import { useAuth } from "@/hooks/useAuth";
 import { changeMySubscriptionPlan, fetchActivePlans } from "@/lib/billing/queries";
 import { buildPlanSwitchBoard, type PlanSwitchOption } from "@/lib/billing/planSwitch";
-import { formatMoney, planName, type AccessPlan, type UserSubscriptionRow } from "@/lib/billing/types";
+import {
+  formatMoney,
+  planName,
+  type AccessPlan,
+  type UserSubscriptionRow,
+} from "@/lib/billing/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

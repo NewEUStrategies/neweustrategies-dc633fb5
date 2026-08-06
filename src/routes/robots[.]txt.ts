@@ -1,34 +1,59 @@
-// Dynamiczne robots.txt.
-// - Na hostach kanonicznych (marka albo domena tenanta): indeksowanie dozwolone,
-//   ogłoszone sitemapy i redakcyjna polityka crawlerów AI.
-// - Na hostach niekanonicznych tego wdrożenia (aliasy warstwy hostingu, domeny
-//   historyczne z `LEGACY_HOST_SUFFIXES`, podglądy edytora): pełny zakaz, żeby
-//   wyszukiwarki wyrzuciły z indeksu adresy aliasu, a nie trzymały duplikatu.
-// - Na hostach nieznanych: bezpieczny domyślny zakaz (fail-closed).
+// Dynamic robots.txt.
+// - On canonical hosts (brand domain or a tenant's own domain): allow indexing,
+//   apply the editorial AI-crawler policy and advertise every sitemap surface.
+// - On non-canonical hosts of this deployment (hosting-layer aliases, legacy
+//   domains from `LEGACY_HOST_SUFFIXES`, editor/local previews): fully disallow,
+//   so search engines drop cached alias URLs instead of keeping a duplicate of
+//   the site.
+// - On hosts no tenant has claimed: safe default of full disallow.
 //
-// UWAGA WDROŻENIOWA (audyt 2026-08-06): ta trasa MUSI pozostać jedynym źródłem
-// /robots.txt. Plik `public/robots.txt` trafiał do `.output/public/`, które
-// wrangler wiąże jako `assets`, a warstwa assetów odpowiada PRZED workerem -
-// przez to trasa była na produkcji nieosiągalna i każdy host (także alias
-// hostingu) dostawał statyczne `Allow: /`. Plik został usunięty, a przed
-// powrotem chronią dwie bariery: bramka CI `check:public-assets` (żaden plik z
-// `public/` nie może przesłonić trasy) i `assets.run_worker_first` w konfiguracji
-// nitro/wranglera (worker wygrywa dla powierzchni maszynowych).
+// Klasyfikacja hosta jest JEDNA dla całego SEO (`lib/http/host.ts`), wspólna
+// z przekierowaniem kanonicznym i powierzchniami sitemapy - host nie może być
+// jednocześnie kanonizowany 301 i ogłaszany jako indeksowalny - a origin, na
+// którym ogłaszamy mapy, liczy ta sama funkcja co dla samych map
+// (`crawlerPublishOrigin`).
 //
-// Cała logika (klasyfikacja hosta, tenant, ustawienia, nagłówki) żyje w
-// `robotsRequest.server.ts` i `lib/seo/robots.ts` - tu zostaje samo wiązanie
-// żądania z odpowiedzią.
+// UWAGA WDROŻENIOWA: ta trasa działa TYLKO dopóki w `public/` nie ma pliku
+// `robots.txt`. Statyczny asset z `.output/public/` wygrywa z workerem, więc
+// zacommitowany `public/robots.txt` czynił całą tę logikę nieosiągalną na
+// produkcji (finding 2026-08-06). Pilnuje tego bramka CI
+// `src/lib/ci/__tests__/staticAssetShadowing.test.ts` plus test e2e sprawdzający,
+// że odpowiedź pochodzi z trasy (nagłówek `X-Robots-Tag`).
+//
+// Do 2026-08-03 deklarowana była JEDNA sitemapa (/sitemap.xml), więc
+// /news-sitemap.xml - trasa istniejąca i wymagana przez Google News - nie był
+// odkrywalny ŻADNYM kanałem: ani z robots.txt, ani z indeksu (indeksu nie było).
+// Teraz robots.txt ogłasza indeks + news sitemap, a treść składa czysty builder
+// (@/lib/seo/robots), objęty testem kontraktu.
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
-import { robotsHeaders } from "@/lib/seo/robots";
-import { planRobotsTxt } from "@/lib/server/robotsRequest.server";
+import { trustedPublicHost } from "@/lib/http/requestHost";
+import { buildRobotsTxt } from "@/lib/seo/robots";
 
 export const Route = createFileRoute("/robots.txt")({
   server: {
     handlers: {
       GET: async () => {
-        const plan = await planRobotsTxt(getRequest());
-        return new Response(plan.body, { headers: robotsHeaders(plan) });
+        const req = getRequest();
+        const host = (await trustedPublicHost(req)) ?? "";
+        const proto = req.headers.get("x-forwarded-proto") ?? "https";
+
+        // Import dynamiczny: graf serwerowy (katalog tenantów, klient admina
+        // Supabase) nie może wejść do bundle'a klienta przez drzewo tras.
+        const { resolveRobotsPolicy } = await import("@/lib/server/robotsPolicy.server");
+        const policy = await resolveRobotsPolicy(host, proto);
+        const canonical = policy.mode === "canonical";
+
+        return new Response(buildRobotsTxt(policy), {
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            "Cache-Control": "public, max-age=3600",
+            // Nagłówek jest JEDNOCZEŚNIE sygnałem dla crawlera i znacznikiem
+            // pochodzenia odpowiedzi: statyczny plik z `public/` nigdy go nie
+            // wystawi, więc test e2e wykrywa nim przesłonięcie trasy.
+            "X-Robots-Tag": canonical ? "all" : "noindex, nofollow",
+          },
+        });
       },
     },
   },

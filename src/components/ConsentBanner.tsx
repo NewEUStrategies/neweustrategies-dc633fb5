@@ -45,7 +45,6 @@ const PRIVACY_DEFAULTS: PrivacyConfig = { privacy_page_slug: "", cookie_banner: 
 
 type Vendor = DataElement;
 
-
 const CATEGORY_ORDER: ConsentCategory[] = ["necessary", "functional", "analytics", "marketing"];
 
 // Exit animation length for the compact card - the decision is written first,
@@ -304,8 +303,6 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
     setInventory(detectCollectedElements().byCategory);
   }, [detailsOpen, banner.autoInventory]);
 
-
-
   useEffect(() => {
     setDraft({
       necessary: true,
@@ -482,8 +479,7 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
       <a href={dataProcessingHref} className={LINK}>
         {tr("common.dataProcessingTerms")}
       </a>
-      .
-      {/* Dodatkowe odnośniki z panelu admina (np. regulamin, RODO, kontakt). */}
+      .{/* Dodatkowe odnośniki z panelu admina (np. regulamin, RODO, kontakt). */}
       {(banner.links ?? [])
         .filter((l) => l.url && (isPl ? l.label_pl : l.label_en))
         .map((l) => (
@@ -497,7 +493,6 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
         ))}
     </>
   );
-
 
   const categoryRows = (clampDesc: boolean) =>
     CATEGORY_ORDER.map((cat) => (

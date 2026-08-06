@@ -29,10 +29,7 @@ import {
 import { asBool, asNumInRange, asOneOf, asStr, pickI18n } from "@/lib/builder/contentValue";
 import { GalleryLightboxZone } from "./GalleryLightbox";
 import { safeWidgetColor } from "@/lib/builder/cssColor";
-import {
-  SOCIAL_OFFICIAL_COLOR,
-  socialBrandGradient,
-} from "@/lib/builder/socialBrand";
+import { SOCIAL_OFFICIAL_COLOR, socialBrandGradient } from "@/lib/builder/socialBrand";
 import { localizedPath } from "@/lib/i18n/localePath";
 import { autoInvertColor } from "@/lib/builder/autoInvertColor";
 import { DynamicTagWidget } from "./DynamicTagWidgets";
@@ -577,9 +574,6 @@ export function renderSimpleWidget(
           "--sb-ico-h": socialHoverIconColor(hoverPlan, k) ?? "currentColor",
         }) as CSSProperties;
       const hoverCssTag = hoverSheet ? <style>{hoverSheet.css}</style> : null;
-
-
-
 
       // Newsletter jest wierszem listy jak każda platforma - ta sama ikona w
       // kafelku, separator, etykieta i CTA - żeby nie odstawał wyglądem.

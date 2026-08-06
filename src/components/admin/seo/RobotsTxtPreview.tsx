@@ -1,53 +1,53 @@
 // Molekuła: podgląd DOKŁADNEJ treści /robots.txt dla bieżących ustawień SEO.
 //
 // Skład pliku robi ten sam builder, którego używa trasa (`buildRobotsTxt` +
-// `aiCrawlerGroups`), więc panel nie ma własnej reprezentacji polityki, która
-// mogłaby się rozjechać z tym, co dostaje crawler.
+// `aiCrawlerDirectives`), więc panel nie ma własnej reprezentacji polityki,
+// która mogłaby się rozjechać z tym, co dostaje crawler.
 //
-// PRZYCZYNA (audyt 2026-08-06): /robots.txt był na produkcji przesłonięty
-// statycznym plikiem z `public/` i nikt tego nie zauważył przez miesiące - bo
-// nigdzie w panelu nie było widać, co ta powierzchnia w ogóle publikuje.
-// Podgląd obok przełączników plus link do żywego pliku zamyka tę pętlę: różnica
-// między podglądem a plikiem jest teraz widoczna w dwóch kliknięciach.
+// PO CO TO JEST (audyt 2026-08-06): /robots.txt był na produkcji przesłonięty
+// statycznym plikiem z `public/` i nikt tego nie zauważył przez miesiące -
+// między innymi dlatego, że nigdzie w panelu nie było widać, co ta powierzchnia
+// publikuje. Podgląd obok przełączników plus link do żywego pliku zamyka pętlę:
+// różnica między podglądem a rzeczywistą odpowiedzią jest widoczna w dwóch
+// kliknięciach, bez narzędzi deweloperskich.
 import { useTranslation } from "react-i18next";
 import {
   CANONICAL_SITE_ORIGIN,
-  classifyCrawlHost,
-  crawlHostIsIndexable,
-  crawlHostOrigin,
+  crawlerPublishOrigin,
+  isEditorOrLocalHost,
   normalizeHost,
-  type CrawlHostClass,
 } from "@/lib/http/host";
 import { buildRobotsTxt } from "@/lib/seo/robots";
-import { aiCrawlerGroups, type SeoSettings } from "@/lib/seo/settings";
+import { aiCrawlerDirectives, type SeoSettings } from "@/lib/seo/settings";
 
 /**
- * Origin, którym podgląd się posługuje. Host podglądu/edytora nie jest adresem
- * publikacji, więc dla niego pokazujemy politykę hosta marki - inaczej redakcja
+ * Origin, dla którego pokazujemy politykę. Host edytora/lokalny nie jest
+ * adresem publikacji, więc dla niego pokazujemy origin marki - inaczej redakcja
  * widziałaby `Sitemap: http://localhost/...` i uznała to za błąd konfiguracji.
+ * Dla domeny własnej tenanta obowiązuje ta sama reguła co na produkcji.
  */
-function previewOrigin(host: string | null): { origin: string; hostClass: CrawlHostClass } {
-  const hostClass = classifyCrawlHost({ host, tenantDomain: true });
-  if (!crawlHostIsIndexable(hostClass)) return { origin: CANONICAL_SITE_ORIGIN, hostClass };
-  return { origin: crawlHostOrigin(hostClass, host), hostClass };
+function publishOriginForPreview(host: string | null): string {
+  if (!host || isEditorOrLocalHost(host)) return CANONICAL_SITE_ORIGIN;
+  return crawlerPublishOrigin(host) || CANONICAL_SITE_ORIGIN;
 }
 
 export function RobotsTxtPreview({ settings }: { settings: SeoSettings }) {
   const { t } = useTranslation();
   const host = typeof window === "undefined" ? null : normalizeHost(window.location.host);
-  const { origin, hostClass } = previewOrigin(host);
+  const previewHost = host === null || isEditorOrLocalHost(host);
 
   const body = buildRobotsTxt({
+    // Podgląd zawsze pokazuje politykę hosta KANONICZNEGO - to jedyna, którą
+    // redakcja może kształtować z tego ekranu. Aliasy i podglądy dostają pełny
+    // zakaz niezależnie od ustawień (wyjaśnia to podpowiedź poniżej).
     mode: "canonical",
-    origin,
-    // Indeks jest zawsze; news sitemap tylko gdy trasa faktycznie odpowiada.
+    origin: publishOriginForPreview(host),
+    // Indeks jest zawsze; news sitemap tylko gdy trasa faktycznie odpowie 200.
     sitemapPaths: settings.news_sitemap_enabled
       ? ["/sitemap.xml", "/news-sitemap.xml"]
       : ["/sitemap.xml"],
-    groups: aiCrawlerGroups(settings),
+    agentGroups: aiCrawlerDirectives(settings),
   });
-
-  const nonCanonicalHost = !crawlHostIsIndexable(hostClass);
 
   return (
     <div className="space-y-2">
@@ -69,7 +69,7 @@ export function RobotsTxtPreview({ settings }: { settings: SeoSettings }) {
               "Aliasy hostingu, domeny historyczne i podglądy dostają pełny zakaz (Disallow: /).",
           })}
         </span>
-        {nonCanonicalHost && (
+        {previewHost && (
           <span>
             {t("admin.seoSettings.robotsPreviewHostHint", {
               defaultValue:

@@ -29,9 +29,7 @@ import {
 import illustrationLight from "@/assets/login-illustration-light.jpg";
 import illustrationDark from "@/assets/login-illustration-dark.jpg";
 
-
 export type Mode = "signin" | "signup" | "reset";
-
 
 export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
   const { i18n } = useTranslation();
@@ -58,7 +56,6 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
   const setVal = (key: RegistrationFieldKey, v: string) =>
     setExtra((prev) => ({ ...prev, [key]: v }));
 
-
   const runPreAuthGuard = useServerFn(preAuthGuard);
 
   const rateLimitedMessage = () =>
@@ -71,7 +68,6 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
     // Po zalogowaniu każdy użytkownik (również staff) trafia na stronę główną.
     navigate({ to: "/" });
   }, [session, loading, mfaPending, navigate]);
-
 
   const t = useMemo(() => {
     const dict = {
@@ -644,7 +640,6 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
                 )}
               </>
             )}
-
 
             {mode === "reset" && (
               <p className="text-xs text-muted-foreground -mt-2">{t.resetSub}</p>

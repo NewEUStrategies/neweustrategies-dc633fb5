@@ -183,8 +183,6 @@ function BadgesAdmin() {
 
       <VerificationDomainsCard language={language} tenantId={tenantId} />
 
-
-
       <Card>
         <CardHeader>
           <CardTitle className="text-base">

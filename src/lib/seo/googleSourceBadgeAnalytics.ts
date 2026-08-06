@@ -2,7 +2,10 @@
 // analytics_events przez /api/public/track (raporty w /admin/analytics) oraz
 // GA4 gtag, jeśli skrypt został wczytany po zgodzie marketingowej.
 import { track } from "@/lib/analytics/track";
-import type { GoogleSourceBadgeDevice, GoogleSourceBadgeVariant } from "@/lib/seo/googleSourceBadge";
+import type {
+  GoogleSourceBadgeDevice,
+  GoogleSourceBadgeVariant,
+} from "@/lib/seo/googleSourceBadge";
 
 /** Stabilna nazwa zdarzenia - dashboardy grupują po niej bez migracji. */
 export const GOOGLE_SOURCE_BADGE_EVENT = "google_preferred_source_click";

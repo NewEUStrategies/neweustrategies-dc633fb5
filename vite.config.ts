@@ -42,8 +42,10 @@ Object.assign(process.env, loadEnv(process.env.NODE_ENV ?? "development", rootDi
 // (statyczne `Allow: /` dla każdego hosta, bez klasyfikacji hostów, bez
 // `X-Robots-Tag`, bez news sitemap) i nie dawało się tego zauważyć: dev-server
 // serwuje trasę normalnie. `run_worker_first` odwraca pierwszeństwo dla
-// DOKŁADNIE tych adresów, więc powrót takiego pliku niczego już nie zepsuje
-// (pierwsza bariera to bramka CI `check:public-assets`).
+// DOKŁADNIE tych adresów, więc powrót takiego pliku niczego już nie zepsuje.
+// To DRUGA bariera, na poziomie wdrożenia: pierwszą jest bramka repo
+// (`src/lib/ci/staticAssetShadowing.ts`), która pilnuje samego `public/`. Bramka
+// nie widzi jednak plików wnoszonych do artefaktu poza repo, a ta opcja tak.
 //
 // Lista pochodzi z rejestru powierzchni maszynowych, więc nowy feed/sitemapa
 // jest chroniona automatycznie - bez drugiego miejsca do pamiętania.
