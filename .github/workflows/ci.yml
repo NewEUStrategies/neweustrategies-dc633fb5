@@ -52,6 +52,22 @@ jobs:
       - name: Test + coverage gate
         run: bun run test:coverage
 
+      # Blokująca bramka snapshotu autoryzacji: `authzSnapshot.generated.ts` MUSI
+      # zgadzać się z bramkami odtworzonymi z supabase/migrations. Skrypt istniał
+      # od wprowadzenia macierzy uprawnień, ale NIE BYŁ wpięty w CI - i dokładnie
+      # dlatego zmiana kręgu uprawnionych w `profiles_guard_verification()`
+      # (migracja 20260806094104 zawężająca weryfikację do samego `admin`)
+      # przeszła bez sygnału, a suita na `main` stała czerwona czwartą dobę.
+      # Krok stoi TU, przed buildem i lintem: rozjazd autoryzacji ma być widoczny
+      # od razu, a nie po dwudziestu minutach kompilacji.
+      - name: Authz snapshot vs migrations
+        run: bun run check:authz-snapshot
+
+      # Ten sam kontrakt od strony strony /admin/permissions: wiersze macierzy,
+      # role zawężone i rejestr capabilities kontra realne bramki SQL.
+      - name: Permissions matrix parity
+        run: bun run check:permissions-parity
+
       # Blokujący kontrakt SEO: og:image / og:title / viewport / lang, kanoniki
       # i klaster hreflang PL/EN oraz markup schema.org Q&A. Uruchamiany osobno,
       # żeby regresja SEO była widoczna jako własny, nazwany krok w CI (te same

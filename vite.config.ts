@@ -10,9 +10,6 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { loadEnv, type Rollup } from "vite";
 
-// UWAGA: import DODANY przy scalaniu. `main` (PR #183) wołał
-// `chunkInventoryPlugin()` bez importu, więc `vite build` i `tsc --noEmit`
-// padały na `chunkInventoryPlugin is not defined` / TS2304.
 import { chunkInventoryPlugin } from "./scripts/lib/chunkInventoryPlugin";
 import { MACHINE_SURFACES } from "./src/lib/seo/machineSurfaces";
 

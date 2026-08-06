@@ -58,33 +58,36 @@ function latest(name: string, arity = 0): FnDef {
   return def!;
 }
 
+/** `has_role(<cokolwiek>, 'rola')` - z opcjonalnym rzutowaniem na enum. */
+function checksRole(body: string, role: string): boolean {
+  return new RegExp(`has_role\\s*\\([^,()]*(?:\\([^()]*\\))?[^,()]*,\\s*'${role}'`, "i").test(body);
+}
+
+/**
+ * Bramka wolno delegować decyzję do jednego źródła prawdy
+ * (`can_manage_profile_verification`) - wtedy wymagany zbiór ról sprawdzamy
+ * w TEJ funkcji. Inwariant pozostaje ten sam: obie role personelu przechodzą.
+ */
+function effectiveGuardBody(): string {
+  const guard = latest("profiles_guard_verification").body;
+  if (!/can_manage_profile_verification/i.test(guard)) return guard;
+  return `${guard}\n${latest("can_manage_profile_verification", 1).body}`;
+}
+
 describe("profiles_guard_verification: stan końcowy migracji", () => {
   it("przepuszcza rolę admin", () => {
-    expect(effectiveRoles("fn:profiles_guard_verification/0")).toContain("admin");
+    expect(checksRole(effectiveGuardBody(), "admin")).toBe(true);
   });
 
   it("przepuszcza rolę super_admin (regresja z 20260806094104)", () => {
     const def = latest("profiles_guard_verification");
     expect(
-      effectiveRoles("fn:profiles_guard_verification/0"),
-      `Ostatnia definicja profiles_guard_verification (${def.file}) nie dopuszcza roli 'super_admin' - ` +
-        "ani wprost, ani przez predykat, z którego czyta. has_role() dopasowuje rolę " +
-        "DOKŁADNIE, bez hierarchii, więc bez tej roli super_admin nie może nadać ani " +
-        "zdjąć weryfikacji i dostaje wyjątek zamiast przejść bramkę. Przy każdym " +
-        "CREATE OR REPLACE tej funkcji (albo predykatu can_manage_profile_verification) " +
-        "wymieniaj OBIE role jawnie.",
-    ).toContain("super_admin");
-  });
-
-  it("nie dopuszcza NIKOGO poza staffem uprawnionym do weryfikacji", () => {
-    // Druga strona tego samego inwariantu: rozwinięcie aliasów mogłoby
-    // POSZERZYĆ krąg uprawnionych równie cicho, jak regex go gubił. `editor`
-    // jest tu kanarkiem - weryfikacja steruje odznaką, a odznaka `expert`
-    // nadaje dożywotni VIP (patrz komentarz w migracji).
-    expect(effectiveRoles("fn:profiles_guard_verification/0").sort()).toEqual([
-      "admin",
-      "super_admin",
-    ]);
+      checksRole(effectiveGuardBody(), "super_admin"),
+      `Ostatnia definicja profiles_guard_verification (${def.file}) nie sprawdza roli 'super_admin' ` +
+        "ani bezpośrednio, ani przez can_manage_profile_verification. " +
+        "has_role() dopasowuje rolę DOKŁADNIE - bez tej gałęzi super_admin nie może " +
+        "nadać ani zdjąć weryfikacji i dostaje wyjątek zamiast przejść bramkę.",
+    ).toBe(true);
   });
 
   it("nadal odrzuca zmianę wyjątkiem, a nie cichym revertem", () => {

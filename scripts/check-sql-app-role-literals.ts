@@ -30,6 +30,8 @@ import { stripTsComments } from "./lib/stripComments";
 /** Poza migracjami (tam liczy sie stan koncowy funkcji) skanujemy pgTAP i klienta. */
 const SCAN_DIRS = ["supabase/tests", "src"] as const;
 const SCAN_EXTENSIONS = [".sql", ".ts", ".tsx"] as const;
+/** Katalogi wyłączone ze skanu (artefakty builda, cache). */
+const SCAN_EXCLUDED_DIRS: readonly string[] = [".output", "dist", "node_modules"];
 
 /**
  * Katalogi testow jednostkowych TS sa POZA skanem: fixture negatywny musi moc
@@ -39,6 +41,14 @@ const SCAN_EXTENSIONS = [".sql", ".ts", ".tsx"] as const;
  * trafia do PRAWDZIWEJ bazy, wiec ten sam blad enuma jest realny.
  */
 const TS_TEST_DIR_SEGMENTS = ["__tests__", "__mocks__"] as const;
+
+/** Pliki testowe/fixture'y - nie trafiają do bazy, więc nie podlegają bramce. */
+function isTestFixture(file: string): boolean {
+  return (
+    /\.(test|spec)\.[jt]sx?$/.test(file) ||
+    TS_TEST_DIR_SEGMENTS.some((segment) => file.includes(`/${segment}/`))
+  );
+}
 
 interface Hit {
   readonly literal: string;
@@ -184,6 +194,9 @@ function isCommentLine(line: string | undefined): boolean {
  * PRZYLEGAC do linii z literalem: pusta linia albo kod przerywaja zasieg, wiec
  * marker nie rozlewa sie na caly plik.
  */
+/** Marker zwolnienia w komentarzu tuż nad linią (albo w niej samej). */
+const EXEMPT_MARKER = "app-role-literal-exempt";
+
 function isExempt(rawLines: readonly string[], index: number): boolean {
   if (rawLines[index]?.includes(EXEMPT_MARKER)) return true;
   for (let i = index - 1; i >= 0 && isCommentLine(rawLines[i]); i -= 1) {
@@ -222,10 +235,12 @@ function collectHasRoleLiterals(): Hit[] {
 
   for (const dir of SCAN_DIRS) {
     for (const file of listFiles(dir)) {
+      if (isTestFixture(file)) continue;
       const raw = readFileSync(file, "utf8");
       if (!raw.includes("has_role")) continue;
       const text = file.endsWith(".sql") ? stripSqlComments(raw) : stripTsComments(raw);
       const lines = text.split("\n");
+      const rawLines = raw.split("\n");
       for (let i = 0; i < lines.length; i += 1) {
         // Zwolnienie czytamy z SUROWEJ linii (albo tej nad nia), bo marker jest
         // komentarzem - a komentarze zostaly wlasnie sciete.

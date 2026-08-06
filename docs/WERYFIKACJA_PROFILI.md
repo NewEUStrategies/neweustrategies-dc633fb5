@@ -1,11 +1,13 @@
 # Proces weryfikacji profili
 
 ## Cel
+
 Odznaka „Zweryfikowany” potwierdza, że konto należy do osoby z organizacji o zaufanej
 domenie e-mail (m.in. `neweuropeanstrategies.com`, `neweustrategies.com`). Wszyscy
 członkowie New European Strategies są weryfikowani automatycznie.
 
 ## Ścieżka automatyczna (domyślna)
+
 1. Administrator dodaje domenę w Panel → Społeczność → Odznaki → **Weryfikacja domenowa**.
 2. Użytkownik rejestruje się adresem w tej domenie i **potwierdza e-mail**
    (jeśli domena ma włączone „Wymagaj potwierdzenia e-mail”).
@@ -43,6 +45,7 @@ weryfikacji - to zawężenie jest zamierzone i identyczne z `admin_grant_profile
 Historia decyzji: `docs/WDROZENIE_GUARD_WERYFIKACJI_2026-08-06.md`.
 
 ## Przegląd zbiorczy
+
 Przycisk **Uruchom przegląd** wywołuje `admin_run_org_verification()` - przechodzi po
 wszystkich profilach tenanta, dopina brakujące odznaki i cofa nieaktualne automatyczne.
 Zwraca licznik `checked / granted / revoked`. Uruchamiaj po dodaniu nowej domeny lub
@@ -87,6 +90,7 @@ firmę”, która przed `20260806150000` cofała się po cichu dla każdego nie-
 widział zielony toast i zero zmiany w bazie.
 
 ## Bezpieczeństwo
+
 - `verification_domains` jest RLS-owane i skalowane per tenant; zapis wyłącznie przez
   RPC SECURITY DEFINER (`admin_upsert_verification_domain`, `admin_delete_verification_domain`).
 - Pola weryfikacji chronią DWA triggery BEFORE na `profiles` i kolejność ma znaczenie

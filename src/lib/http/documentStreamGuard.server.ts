@@ -20,7 +20,9 @@
 //     sami - to zamienia 61-sekundowy ogon w ~ćwierć sekundy,
 //   * cisza między chunkami (idle) -> wewnętrzne budżety (5-10 s) już dawno
 //     minęły, nic więcej nie przyjedzie; dosztukowujemy domykający ogon
-//     `</body></html>` (dokument parsowalny dla crawlera) i zamykamy,
+//     `</body></html>` (dokument parsowalny dla crawlera) POPRZEDZONY sygnaturą
+//     `<!--ssr-doc-guard:truncated ...-->`, żeby ucięcie dało się rozpoznać
+//     w teście, w logu i w podglądzie źródła strony, i zamykamy,
 //   * twardy limit (max) -> zamykamy bezwarunkowo.
 // Każde wymuszone zamknięcie anuluje czytnik źródła (upstream sprząta swoje
 // zasoby przez własny `cancel` -> `serverSsr.cleanup`) i zostawia głośny ślad
@@ -41,9 +43,44 @@
 /** Bajty sentinela "</html>" (litery porównywane case-insensitive). */
 const HTML_END_SENTINEL = [60, 47, 104, 116, 109, 108, 62] as const;
 const SENTINEL_LENGTH = HTML_END_SENTINEL.length;
+/**
+ * Maska case-insensitive policzona RAZ: 0x20 dla liter, 0 dla `<`, `/`, `>`.
+ * Skaner robi wtedy jedno `|` na bajt, bez sprawdzania "czy to litera".
+ */
+const SENTINEL_MASK = HTML_END_SENTINEL.map((byte) =>
+  byte >= 97 && byte <= 122 ? 32 : 0,
+) as readonly number[];
+
+const ENCODER = new TextEncoder();
+
+/**
+ * Sygnatura dokumentu UCIĘTEGO, wstawiana w dosztukowany ogon.
+ *
+ * PO CO: sam ogon `</body></html>` czyni dokument parsowalnym dla crawlera - i
+ * dokładnie dlatego czyni go NIEODRÓŻNIALNYM od dokumentu kompletnego. Bramka
+ * e2e "HTML kończy się `</html>`" nie mogła więc zafailować NIGDY: strażnik
+ * dopisywał końcówkę, której test szukał (audyt 2026-08-06, wiersz "Bramka
+ * kompletności SSR"). Komentarz HTML jest niewidoczny dla użytkownika i
+ * ignorowany przez parsery, a jednocześnie daje maszynowo pewny dowód, że
+ * dokument został domknięty przez strażnika - dla testów, logów i diagnostyki
+ * produkcyjnej ("dlaczego ta strona nie ma hydratacji").
+ */
+export const DOC_GUARD_TRUNCATION_MARKER = "<!--ssr-doc-guard:truncated";
+
+/** Nagłówek: ten dokument PRZESZEDŁ przez strażnika (bramka e2e sprawdza uzbrojenie). */
+export const DOC_GUARD_HEADER = "x-ssr-doc-guard";
 
 /** Ogon domykający dokument ucięty w połowie - crawler dostaje parsowalny HTML. */
-const FORCED_CLOSE_TAIL = "\n</body></html>";
+function forcedCloseTail(
+  reason: DocumentGuardCloseReason,
+  elapsedMs: number,
+  bytes: number,
+): string {
+  return (
+    `\n${DOC_GUARD_TRUNCATION_MARKER} reason="${reason}" ms="${elapsedMs}" bytes="${bytes}"-->` +
+    "\n</body></html>"
+  );
+}
 
 /** Po sentinelu dokument jest kompletny - tyle łaski ma źródło na samodzielne domknięcie. */
 export const DOC_GUARD_SENTINEL_GRACE_MS = 250;
@@ -141,14 +178,14 @@ export class HtmlEndScanner {
       index < tailLength ? this.tail[index]! : chunk[index - tailLength]!;
 
     // Dopasowanie musi zawierać >=1 nowy bajt - starsze pozycje sprawdziły
-    // poprzednie wywołania. Litery porównujemy z bitem 0x20 (case-insensitive).
+    // poprzednie wywołania. Litery porównujemy z bitem 0x20 (case-insensitive),
+    // maska jest policzona raz w SENTINEL_MASK.
     const firstStart = Math.max(0, tailLength - (SENTINEL_LENGTH - 1));
     outer: for (let start = firstStart; start <= total - SENTINEL_LENGTH; start++) {
       for (let offset = 0; offset < SENTINEL_LENGTH; offset++) {
-        const expected = HTML_END_SENTINEL[offset]!;
-        const isLetter = expected >= 97 && expected <= 122;
-        const actual = byteAt(start + offset);
-        if ((isLetter ? actual | 32 : actual) !== expected) continue outer;
+        if ((byteAt(start + offset) | SENTINEL_MASK[offset]!) !== HTML_END_SENTINEL[offset]!) {
+          continue outer;
+        }
       }
       this.found = true;
       this.tail = new Uint8Array(0);
@@ -225,10 +262,12 @@ export function guardDocumentStream(
           `elapsedMs=${elapsedMs} bytes=${bytes} sawHtmlEnd=${scanner.seen}`,
       );
       if (!scanner.seen) {
-        // Dokument ucięty przed `</html>` - dosztukuj parsowalny ogon. Klient
-        // po hydratacji i tak dociąga brakujące dane (kontrakt strażników SSR).
+        // Dokument ucięty przed `</html>` - dosztukuj parsowalny ogon Z SYGNATURĄ.
+        // Klient po hydratacji i tak dociąga brakujące dane (kontrakt strażników
+        // SSR), a sygnatura zostawia w samym dokumencie dowód ucięcia: bez niej
+        // ucięta odpowiedź wygląda bajt w bajt jak kompletna.
         try {
-          controller?.enqueue(new TextEncoder().encode(FORCED_CLOSE_TAIL));
+          controller?.enqueue(ENCODER.encode(forcedCloseTail(reason, elapsedMs, bytes)));
         } catch {
           /* konsument już zniknął */
         }
@@ -331,6 +370,13 @@ export function guardDocumentResponse(
   if (!contentType.includes("text/html")) return response;
   if (!response.body || response.bodyUsed) return response;
 
+  // Kopia nagłówków (nie mutujemy oryginalnej odpowiedzi) + ślad uzbrojenia.
+  // Bez tego nagłówka asercja "dokument nie nosi sygnatury ucięcia" byłaby
+  // pozorna również w drugą stronę: przechodziłaby także wtedy, gdy strażnik
+  // jest wyłączony przez SSR_DOC_GUARD=off i nikt niczego nie pilnuje.
+  const headers = new Headers(response.headers);
+  headers.set(DOC_GUARD_HEADER, "on");
+
   return new Response(
     guardDocumentStream(response.body, {
       ...options,
@@ -339,7 +385,7 @@ export function guardDocumentResponse(
     {
       status: response.status,
       statusText: response.statusText,
-      headers: response.headers,
+      headers,
     },
   );
 }

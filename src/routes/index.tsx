@@ -8,6 +8,7 @@ import { useInFeedAds } from "@/components/ads/useInFeedAds";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { PaginatedPostGrid } from "@/components/archive/PaginatedPostGrid";
 import { parseBuilderDoc } from "@/lib/builder/parse";
+import { builderDocHasTopHeading } from "@/lib/builder/headings";
 import { prepareContentForRender } from "@/lib/content/prepareContent";
 import { FootnotesList, FootnoteTooltips } from "@/components/Footnotes";
 import { prefetchCachedRouteQueries } from "@/lib/builder/prefetch";
@@ -340,15 +341,19 @@ function Index() {
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       <div className="flex-1 w-full">
-        {/* Screen-reader-only H1 so the homepage always exposes a descriptive
-            landmark heading, even when the CMS builder renders its own visual
-            hierarchy. Search engines and assistive tech get the brand headline
-            regardless of the builder document above. */}
-        <h1 className="sr-only">
-          {lang === "en"
-            ? "New European Strategies - Strategic thinking, new perspectives"
-            : "New European Strategies - Strategiczne myślenie, nowe perspektywy"}
-        </h1>
+        {/* Screen-reader-only H1: strona główna MUSI eksponować opisowy nagłówek
+            poziomu 1 - ale tylko wtedy, gdy dokument buildera sam żadnego nie
+            renderuje. Bezwarunkowy `h1` dawał DWA nagłówki poziomu 1 na kanwie
+            z własnym nagłówkiem (ten sam defekt, co na stronach buildera -
+            audyt 2026-08-06, korekta 2). Inwariant jest jeden dla obu tras:
+            dokładnie jeden `h1` (patrz `builderDocHasTopHeading`). */}
+        {!builderDocHasTopHeading(doc) && (
+          <h1 className="sr-only">
+            {lang === "en"
+              ? "New European Strategies - Strategic thinking, new perspectives"
+              : "New European Strategies - Strategiczne myślenie, nowe perspektywy"}
+          </h1>
+        )}
         {isLatestPosts ? (
           <LatestPostsHome lang={lang} />
         ) : doc && doc.sections.length > 0 ? (

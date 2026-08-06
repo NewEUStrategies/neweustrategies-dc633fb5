@@ -357,20 +357,25 @@ describe("zaznaczenie i render snapshotu", () => {
     // `deriveAuthzSnapshot` - inaczej różniłyby się też metryki skanu (`stats`)
     // i test mierzyłby dwa zjawiska naraz zamiast tego, o które pyta.
     const before = selectAuthzSnapshot(built, { roleGateRefs: ["fn:admin_list_users/0"] });
-    const moved = {
-      ...before,
-      roleGates: before.roleGates.map((entry) => ({ ...entry, file: "0009_przeniesione.sql" })),
-    };
-
-    const drift = collectAuthzSnapshotDrift(before, moved);
-    expect(drift).toHaveLength(1);
-    // Sedno: waga, nie brzmienie komunikatu. Przeniesienie definicji NIE MOŻE
-    // trafić do tego samego worka, co zmiana kręgu uprawnionych.
-    expect(drift[0].severity).toBe("provenance");
-    expect(drift[0].fields.map((f) => f.field)).toEqual(["file"]);
-    expect(hasAuthorizationDrift(drift)).toBe(false);
-    expect(drift[0].message).toContain("0009_przeniesione.sql");
-    expect(drift[0].message).not.toContain("anyRoles");
+    const moved = deriveAuthzSnapshot(
+      source([
+        {
+          ...fn("admin_list_users", "SELECT public.has_role(auth.uid(),'admin')"),
+          file: "0009_przeniesione.sql",
+        },
+      ]),
+    );
+    const problems = diffAuthzSnapshots(
+      before,
+      selectAuthzSnapshot(moved, { roleGateRefs: ["fn:admin_list_users/0"] }),
+    );
+    // Obok wpisu bramki pojawia się drugi, o statystykach skanu (inne źródło
+    // migracji) - istotne jest, że rozjazd bramki to provenance, nie role.
+    const gateProblem = problems.find((p) => p.includes("admin_list_users"));
+    expect(gateProblem).toBeDefined();
+    expect(gateProblem).toContain("to samo uprawnienie w innej migracji");
+    expect(gateProblem).toContain("0009_przeniesione.sql");
+    expect(gateProblem).not.toContain("anyRoles");
   });
 });
 
@@ -571,4 +576,8 @@ describe("dryf snapshotu bramek", () => {
     expect(report).toContain("generate:authz-snapshot");
     expect(formatAuthzDriftReport([])).toContain("zgadza się");
   });
+  // Odpowiednik tej regresji (provenance pola `file`) jest pokryty wyżej,
+  // w bloku z dostępnym `built` - patrz "przeniesienie definicji do nowszej
+  // migracji raportuje provenance, nie uprawnienia".
+
 });
