@@ -16,9 +16,31 @@ członkowie New European Strategies są weryfikowani automatycznie.
    (`grant_source = system`); nadania ręczne pozostają nietknięte.
 
 ## Ścieżka ręczna (wyjątki)
-Dla osób bez firmowego adresu (partnerzy, eksperci zewnętrzni): Panel → Społeczność →
-Odznaki → **Przyznaj odznakę**, z obowiązkową notatką uzasadniającą (kto/na jakiej
-podstawie). Takie nadania mają `grant_source = manual` i są odporne na przeglądy.
+Dla osób bez firmowego adresu (partnerzy, eksperci zewnętrzni) są dwie kontrolki i
+**celowo nie są tym samym**:
+
+| Kontrolka | Co zapisuje | Co z tego wynika |
+| --------- | ----------- | ---------------- |
+| Panel → Użytkownicy → *(osoba)* → **Weryfikacja zawodowa** | `profiles.verified_at` + `verified_by` (RPC `admin_set_profile_verification`) | flaga `verified` w katalogu osób (`search_people`) i filtr „tylko zweryfikowani"; `verified_by` to stempel audytowy |
+| Panel → Społeczność → Odznaki → **Przyznaj odznakę** | wiersz w `profile_badges` (`grant_source = manual`) | odznaka prezentacyjna przy profilu; odznaka `expert` dodatkowo nadaje dożywotni VIP (`sync_expert_vip_grant`, 20260805201517) |
+
+Nadanie ręczne (z obowiązkową notatką uzasadniającą: kto / na jakiej podstawie) jest
+odporne na przeglądy zbiorcze: sweep cofa wyłącznie nadania automatyczne
+(`grant_source = system`), a `verified_at` czyści tylko wtedy, gdy `verified_by IS NULL`
+- czyli nigdy po decyzji administratora.
+
+## Kto może nadawać weryfikację
+`admin` **albo** `super_admin` - jeden zbiór ról w trzech miejscach, pilnowany testami:
+
+| Warstwa | Bramka |
+| ------- | ------ |
+| trigger `profiles_guard_verification_trg` na `profiles` (INSERT + UPDATE) | `has_role(admin)` OR `is_super_admin()`; odmowa = `42501` |
+| RPC panelu `admin_set_profile_verification` | ten sam zbiór + skalowanie tenantem wołającego |
+| polityka RLS `"Admins can update tenant profiles"` | `admin` OR `super_admin` w tenancie domowym |
+
+`editor` przechodzi bliźniaczy `profiles_guard_privileged_columns`, ale **nie** bramkę
+weryfikacji - to zawężenie jest zamierzone i identyczne z `admin_grant_profile_badge`.
+Historia decyzji: `docs/WDROZENIE_GUARD_WERYFIKACJI_2026-08-06.md`.
 
 ## Przegląd zbiorczy
 Przycisk **Uruchom przegląd** wywołuje `admin_run_org_verification()` - przechodzi po
@@ -29,7 +51,25 @@ po masowym imporcie kont.
 ## Bezpieczeństwo
 - `verification_domains` jest RLS-owane i skalowane per tenant; zapis wyłącznie przez
   RPC SECURITY DEFINER (`admin_upsert_verification_domain`, `admin_delete_verification_domain`).
-- `profiles.verified_at` i kolumny uprzywilejowane chroni `profiles_guard_privileged_columns()`;
-  zapis przechodzi tylko z flagą `app.verification_sync` ustawianą przez funkcję synchronizującą.
+- Pola weryfikacji chronią DWA triggery BEFORE na `profiles` i kolejność ma znaczenie
+  (triggery odpalają się alfabetycznie po nazwie):
+  1. `profiles_guard_privileged_columns_trg` - dla nie-stafu **po cichu wycofuje**
+     `verified_at`/`verified_by`/`current_company_id` (brak wyjątku, brak efektu);
+  2. `profiles_guard_verification_trg` - **odmawia twardo** (`42501`) temu, kto pola
+     realnie zmienia, a nie jest `admin`/`super_admin`.
+  Dlatego zwykły użytkownik nie widzi błędu (zmiana wyparowuje), a `editor` - który
+  przechodzi pierwszy trigger - dostaje `42501` z drugiego.
+- Ścieżka automatyczna nie ma sesji stafowej, więc przechodzi sankcjonowaną furtką
+  `app.verification_sync = 'on'`, ustawianą lokalnie (`set_config(..., true)`) wyłącznie
+  przez `sync_org_verification()`. Wnioski praktyczne: **`service_role` też podlega
+  triggerom** - `UPDATE profiles SET verified_at = ...` z klucza serwisowego bez tej
+  flagi zostanie po cichu wycofany, więc automaty muszą iść przez
+  `sync_org_verification()` / `admin_run_org_verification()`.
+- Wiersz nie może **urodzić się** zweryfikowany: bramka obowiązuje także na INSERT
+  (polityka `"Users insert own profile"` pozwala wstawić własny wiersz, gdy profilu
+  jeszcze/już nie ma - migracja 20260806130000).
 - Sama deklaracja adresu nie wystarcza - liczy się `email_confirmed_at`, co blokuje
   eskalację uprawnień przez rejestrację cudzym adresem.
+- Zbiór ról bramki jest źródłem wiersza `profile_verification` w macierzy uprawnień
+  (`/admin/permissions`) - snapshot autoryzacji odtwarza go ze SQL-a, a bramka CI
+  `check:authz-snapshot` nie przepuści zmiany bramki bez zregenerowanego artefaktu.

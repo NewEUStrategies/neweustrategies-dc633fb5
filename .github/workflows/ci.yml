@@ -188,6 +188,18 @@ jobs:
       - name: SQL owner tenant-scope invariant
         run: bun run check:sql-owner-tenant-scope
 
+      # Blocking freshness gate for the authorization snapshot that feeds the
+      # permission matrix (/admin/permissions). The Vitest parity test compares
+      # the snapshot SEMANTICALLY (gate -> roles), so it stays green while the
+      # generated file drifts in provenance (`file`) and scan `stats` - exactly
+      # what happened when 20260806094104 narrowed profiles_guard_verification
+      # to `admin` outside a PR: the committed snapshot lagged 10 migrations
+      # behind. This step regenerates and diffs byte-for-byte, so any migration
+      # that moves or rewrites a documented gate must ship the regenerated
+      # artifact (`bun run generate:authz-snapshot`) in the same commit.
+      - name: Authorization snapshot freshness
+        run: bun run check:authz-snapshot
+
   # pgTAP: RLS tenant isolation, role management and full-text search run
   # against a real local Postgres (supabase db start applies migrations +
   # seed.sql). Complements Vitest, which never touches RLS policies.

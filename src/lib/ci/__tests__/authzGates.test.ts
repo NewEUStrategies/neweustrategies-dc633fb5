@@ -327,5 +327,34 @@ describe("zaznaczenie i render snapshotu", () => {
     expect(problems).toHaveLength(1);
     expect(problems[0]).toContain("fn:admin_list_users/0");
     expect(problems[0]).toContain("super_admin");
+    expect(problems[0]).toContain("anyRoles");
+  });
+
+  it("identyczne snapshoty nie generują ani jednego komunikatu", () => {
+    const same = selectAuthzSnapshot(built, { roleGateRefs: ["fn:admin_list_users/0"] });
+    expect(diffAuthzSnapshots(same, same)).toEqual([]);
+  });
+
+  it("przeniesienie definicji do nowszej migracji raportuje provenance, nie uprawnienia", () => {
+    // Dokładnie regres z audytu 2026-08-06: zbiór rol się nie zmienił, zmienił
+    // się plik z ostatnią żywą definicją - stary komunikat drukował dwa
+    // identyczne obiekty i zaprzeczał własnej tezie.
+    const before = selectAuthzSnapshot(built, { roleGateRefs: ["fn:admin_list_users/0"] });
+    const moved = deriveAuthzSnapshot(
+      source([
+        {
+          ...fn("admin_list_users", "SELECT public.has_role(auth.uid(),'admin')"),
+          file: "0009_przeniesione.sql",
+        },
+      ]),
+    );
+    const problems = diffAuthzSnapshots(
+      before,
+      selectAuthzSnapshot(moved, { roleGateRefs: ["fn:admin_list_users/0"] }),
+    );
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain("provenance");
+    expect(problems[0]).toContain("0009_przeniesione.sql");
+    expect(problems[0]).not.toContain("anyRoles");
   });
 });
