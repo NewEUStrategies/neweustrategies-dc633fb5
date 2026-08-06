@@ -10,6 +10,7 @@ import {
   Bell,
   ChevronDown,
   ChevronRight,
+  MessageSquareQuote,
   MessagesSquare,
   Search,
   ShieldCheck,
@@ -24,6 +25,8 @@ import { DEMO_BOT_ID, DemoBotChat } from "@/components/chat/DemoBotChat";
 import { DemoBotListItem } from "@/components/chat/DemoBotListItem";
 import { GroupCreateDialog } from "@/components/chat/GroupCreateDialog";
 import { NewChatSearch } from "@/components/chat/NewChatSearch";
+import { ExpertRequestsInbox } from "@/components/chat/ExpertRequestsInbox";
+import { useMyExpertRequests } from "@/lib/chat/useExpertRequests";
 import { NotificationsCenter } from "@/components/notifications/NotificationsCenter";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
@@ -49,7 +52,7 @@ import { SearchSnippet } from "@/components/search/SearchSnippet";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { cn } from "@/lib/utils";
 
-type MessagesView = "chats" | "notifications" | "consents";
+type MessagesView = "chats" | "notifications" | "consents" | "requests";
 type ListFilter = "all" | "unread" | "circles";
 
 interface MessagesSearch {
@@ -72,9 +75,11 @@ export const Route = createFileRoute("/messages")({
         ? "notifications"
         : rawView === "consents"
           ? "consents"
-          : rawView === "chats"
-            ? "chats"
-            : undefined;
+          : rawView === "requests"
+            ? "requests"
+            : rawView === "chats"
+              ? "chats"
+              : undefined;
     return { c, view };
   },
   head: () => ({
@@ -101,9 +106,24 @@ function MessagesInner() {
   // przekierowuje na powiadomienia - inaczej czat dzialalby przez bezposredni URL.
   const chatEnabled = useCommunityModules().chat_enabled;
   const resolvedView: MessagesView =
-    view === "notifications" ? "notifications" : view === "consents" ? "consents" : "chats";
+    view === "notifications"
+      ? "notifications"
+      : view === "consents"
+        ? "consents"
+        : view === "requests"
+          ? "requests"
+          : "chats";
+  // Zakładka „Zapytania" dotyczy WYŁĄCZNIE ekspertów - RPC zwraca rekordy tylko
+  // wtedy, gdy zalogowany użytkownik jest odbiorcą zapytań z formularza.
+  const expertRequestsQ = useMyExpertRequests("received");
+  const expertRequests = useMemo(() => expertRequestsQ.data ?? [], [expertRequestsQ.data]);
+  const isExpertRecipient = expertRequests.length > 0;
+  const pendingRequests = expertRequests.filter((r) => r.status === "pending").length;
   const activeView: MessagesView =
-    !chatEnabled && resolvedView === "chats" ? "notifications" : resolvedView;
+    (!chatEnabled && resolvedView === "chats") ||
+    (resolvedView === "requests" && !isExpertRecipient)
+      ? "notifications"
+      : resolvedView;
   const unreadNotifQ = useUnreadCount();
   const unreadNotif = unreadNotifQ.data ?? 0;
 
@@ -212,6 +232,16 @@ function MessagesInner() {
           },
         ]
       : []),
+    ...(isExpertRecipient
+      ? [
+          {
+            id: "requests" as const,
+            label: t("expertRequest.inbox.tab", { defaultValue: "Zapytania" }),
+            icon: MessageSquareQuote,
+            badge: pendingRequests,
+          },
+        ]
+      : []),
     {
       id: "notifications",
       label: t("notifications.title", { defaultValue: "Powiadomienia" }),
@@ -275,6 +305,25 @@ function MessagesInner() {
         {activeView === "notifications" ? (
           <div className="w-full min-w-0">
             <NotificationsCenter mode="inbox" />
+          </div>
+        ) : activeView === "requests" ? (
+          <div className="flex w-full min-w-0 flex-col">
+            <div className="border-b border-border/60 px-4 py-3">
+              <h1 className="text-lg font-bold tracking-tight">
+                {t("expertRequest.inbox.title", { defaultValue: "Zapytania z formularzy" })}
+              </h1>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {t("expertRequest.dialogSubtitle")}
+              </p>
+            </div>
+            <ExpertRequestsInbox
+              className="min-h-0 flex-1"
+              onOpenConversation={(id) => {
+                setSelected(id);
+                setMode("list");
+                void navigate({ search: { c: id }, replace: true });
+              }}
+            />
           </div>
         ) : activeView === "consents" ? (
           <div className="w-full min-w-0">
