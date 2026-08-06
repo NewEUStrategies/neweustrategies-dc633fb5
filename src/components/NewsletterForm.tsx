@@ -227,7 +227,8 @@ export function NewsletterForm({
       const meta: Record<string, string> = {};
       if (company.trim()) meta.company = company.trim();
 
-      if (picked.size) {
+      const pickedCount = picked.size;
+      if (pickedCount > 0) {
         const pickedItems = allItems.filter((it) => picked.has(it.id));
         const areas = pickedItems.filter((it) => it.type === "category").map((it) => it.label);
         const topics = pickedItems.filter((it) => it.type === "tag").map((it) => it.label);
