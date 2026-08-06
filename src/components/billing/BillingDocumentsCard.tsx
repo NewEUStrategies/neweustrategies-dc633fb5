@@ -78,7 +78,7 @@ export function BillingDocumentsCard() {
                 {documents.map((doc) => (
                   <TableRow key={doc.id}>
                     <TableCell className="whitespace-nowrap">{fmtDate(doc.issued_at)}</TableCell>
-                    <TableCell className="font-mono text-xs">{doc.number ?? "-"}</TableCell>
+                    <TableCell className="text-xs">{doc.number ?? "-"}</TableCell>
                     <TableCell>
                       <span className="inline-flex items-center gap-1.5">
                         {doc.kind === "receipt" ? (
