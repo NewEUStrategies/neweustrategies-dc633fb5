@@ -60,6 +60,7 @@ import {
 } from "@/lib/access/metering";
 import { MeterBanner } from "@/components/molecules/MeterBanner";
 import { useGiftCodeFromUrl, useGiftRedemption } from "@/lib/gifting/hooks";
+import { giftBannerVariant } from "@/lib/gifting/model";
 import { GiftArticleButton } from "@/components/gifting/GiftArticleButton";
 import { GiftBanner } from "@/components/gifting/GiftBanner";
 import { GooglePreferredSourceBadge } from "@/components/seo/GooglePreferredSourceBadge";
@@ -814,21 +815,16 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
     breadcrumbs: crumbs.map((b) => ({ label: b.label, href: b.href ?? undefined })),
   };
 
-  // Baner odbiorcy prezentu - wylacznie gdy kod byl potrzebny (bez niego
-  // trafialby tu paywall) i rozstrzygniety: wazny = "artykul podarowany",
-  // niewazny = delikatna informacja nad paywallem.
+  // Baner odbiorcy - wylacznie gdy kod byl potrzebny (bez niego trafialby tu
+  // paywall) i rozstrzygniety. Wariant bierzemy z POWODU zwroconego przez
+  // serwer, zeby "budzet klikniec wyczerpany" i "link wygasl" nie zlewaly sie
+  // w bezuzyteczne "link nieprawidlowy".
   const giftMattered = isPost && !!giftCode && shouldShowPaywall(accessRule?.mode, bodyBeforeGift);
-  const giftBannerVariant: "gifted" | "invalid" | null = !giftMattered
-    ? null
-    : gifted.valid === true
-      ? "gifted"
-      : gifted.valid === false
-        ? "invalid"
-        : null;
+  const bannerVariant = giftMattered && gifted.reason ? giftBannerVariant(gifted.reason) : null;
 
   const contentBlock = (
     <div ref={articleRef} className="article-body">
-      {giftBannerVariant && <GiftBanner variant={giftBannerVariant} />}
+      {bannerVariant && <GiftBanner variant={bannerVariant} />}
       {accessRule && showPaywall ? (
         <Paywall
           rule={accessRule}
@@ -899,13 +895,15 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
     const format: PostFormat = (overrides?.format ?? post.post_format ?? "standard") as PostFormat;
     const layoutId = pickLayoutId(globalLayoutSettings, format, overrides?.layout);
     const merged = mergeOverrides(globalLayoutSettings, overrides);
-    // Gift Articles ("Udostepnij pelny artykul") - w wierszu quick-view nad
-    // trescia lub, gdy pasek jest wylaczony, jako samodzielny wiersz akcji.
-    // Wpisy na haslo sa wykluczone z podarowywania (sekret autora).
-    const giftButton =
-      accessRule?.mode !== "password" ? (
-        <GiftArticleButton postId={it.id} title={title} url={citationUrl} lang={lang} />
-      ) : null;
+    // "Udostepnij pelny artykul" - w wierszu quick-view nad trescia lub, gdy
+    // pasek jest wylaczony, jako samodzielny wiersz akcji. Funkcja dotyczy
+    // WYLACZNIE tresci za paywallem: dla wpisu publicznego link niczego nie
+    // odblokowuje (serwer i tak odmawia - gift_post_not_gated), a wpisy na
+    // haslo sa wykluczone na stale (sekret autora nie chodzi linkiem).
+    const shareableArticle = isGatedMode(accessRule?.mode) && accessRule?.mode !== "password";
+    const giftButton = shareableArticle ? (
+      <GiftArticleButton postId={it.id} title={title} url={citationUrl} lang={lang} />
+    ) : null;
     // Obok akcji podarunkowej stoi badge „Preferowane zrodlo w Google".
     const articleActions = (
       <div className="no-print flex items-stretch gap-2">

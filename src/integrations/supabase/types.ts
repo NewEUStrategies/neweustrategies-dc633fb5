@@ -3848,6 +3848,7 @@ export type Database = {
       }
       gift_article_settings: {
         Row: {
+          eligibility: string
           enabled: boolean
           link_ttl_days: number
           max_redemptions_per_link: number
@@ -3857,6 +3858,7 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          eligibility?: string
           enabled?: boolean
           link_ttl_days?: number
           max_redemptions_per_link?: number
@@ -3866,6 +3868,7 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          eligibility?: string
           enabled?: boolean
           link_ttl_days?: number
           max_redemptions_per_link?: number
@@ -7602,6 +7605,7 @@ export type Database = {
           expires_at: string | null
           id: string
           last_redeemed_at: string | null
+          max_redemptions: number
           period_month: string
           post_id: string
           redemption_count: number
@@ -7615,6 +7619,7 @@ export type Database = {
           expires_at?: string | null
           id?: string
           last_redeemed_at?: string | null
+          max_redemptions?: number
           period_month?: string
           post_id: string
           redemption_count?: number
@@ -7628,6 +7633,7 @@ export type Database = {
           expires_at?: string | null
           id?: string
           last_redeemed_at?: string | null
+          max_redemptions?: number
           period_month?: string
           post_id?: string
           redemption_count?: number
@@ -7644,6 +7650,64 @@ export type Database = {
           },
           {
             foreignKeyName: "post_gift_links_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_gift_redemptions: {
+        Row: {
+          first_seen_at: string
+          hits: number
+          id: string
+          last_seen_at: string
+          link_id: string
+          post_id: string
+          recipient_id: string | null
+          recipient_key: string
+          tenant_id: string
+        }
+        Insert: {
+          first_seen_at?: string
+          hits?: number
+          id?: string
+          last_seen_at?: string
+          link_id: string
+          post_id: string
+          recipient_id?: string | null
+          recipient_key: string
+          tenant_id: string
+        }
+        Update: {
+          first_seen_at?: string
+          hits?: number
+          id?: string
+          last_seen_at?: string
+          link_id?: string
+          post_id?: string
+          recipient_id?: string | null
+          recipient_key?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_gift_redemptions_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "post_gift_links"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_gift_redemptions_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_gift_redemptions_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -12698,6 +12762,7 @@ export type Database = {
         Returns: boolean
       }
       can_gift_articles: { Args: never; Returns: boolean }
+      can_share_full_article: { Args: never; Returns: boolean }
       can_manage_profile_verification: {
         Args: { _user_id?: string }
         Returns: boolean
@@ -12925,7 +12990,10 @@ export type Database = {
         Returns: {
           code: string
           expires_at: string
+          max_redemptions: number
           monthly_limit: number
+          redemption_count: number
+          redemptions_remaining: number
           remaining: number
           used: number
         }[]
@@ -13294,12 +13362,14 @@ export type Database = {
         Returns: {
           active_links: number
           created_this_month: number
+          exhausted_links: number
           expired_links: number
           redeemed_this_month: number
           revoked_links: number
           total_created: number
           total_redeemed: number
           unique_gifters: number
+          unique_recipients: number
         }[]
       }
       get_linked_items: {
@@ -13709,16 +13779,21 @@ export type Database = {
         Args: { _post_id: string }
         Returns: {
           can_gift: boolean
+          eligibility: string
           enabled: boolean
           existing_code: string
           expires_at: string
+          max_redemptions: number
           monthly_limit: number
+          redemption_count: number
+          redemptions_remaining: number
           remaining: number
           requires_auth: boolean
           requires_subscription: boolean
           used: number
         }[]
       }
+      gift_share_eligibility: { Args: never; Returns: string }
       guess_gender_from_name: {
         Args: { _name: string }
         Returns: Database["public"]["Enums"]["name_gender"]
@@ -13858,12 +13933,14 @@ export type Database = {
           expires_at: string
           id: string
           last_redeemed_at: string
+          max_redemptions: number
           post_id: string
           post_slug: string
           post_title: string
           redemption_count: number
           revoked_at: string
           total_count: number
+          unique_recipients: number
         }[]
       }
       list_my_expert_requests: {
@@ -14551,12 +14628,16 @@ export type Database = {
         Returns: boolean
       }
       redeem_gift_link: {
-        Args: { _code: string; _post_id: string }
+        Args: { _code: string; _post_id: string; _visitor_id?: string }
         Returns: {
           blocks_data: Json
           builder_data: Json
           content_en: string
           content_pl: string
+          max_redemptions: number
+          reason: string
+          redemption_count: number
+          redemptions_remaining: number
           valid: boolean
         }[]
       }

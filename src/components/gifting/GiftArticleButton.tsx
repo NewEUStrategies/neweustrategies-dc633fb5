@@ -1,33 +1,40 @@
-// Gift Articles - przycisk "Udostepnij pelny artykul" + popover podarunkowy
-// (wzor NYT "Share full article" / "Gift articles"). Samowystarczalny modul:
-// sam czyta ustawienia tenanta, stan uprawnien i generuje link, wiec mozna go
-// osadzic w dowolnym pasku wpisu (QuickViewInfoBar, przyszly reading header).
+// "Udostepnij pelny artykul" - przycisk + popover udostepniania (wzor NYT
+// "Share full article"). Organizm: sam czyta ustawienia tenanta, stan
+// uprawnien i generuje link, wiec mozna go osadzic w dowolnym pasku wpisu
+// (QuickViewInfoBar, przyszly reading header). Sklada sie z atomow
+// (GiftCopyButton, GiftChannelLink) i molekul (GiftClickBudgetMeter,
+// GiftShareChannels) - tu zostaje wylacznie orkiestracja i efekty uboczne.
 //
 // Fazy (macierz w lib/gifting/model.resolveGiftPhase):
-//   gosc -> CTA logowania; zalogowany bez platnej subskrypcji -> CTA planow;
-//   subskrybent -> auto-generowany, idempotentny link + kanaly udostepniania;
-//   wyczerpany limit -> komunikat z licznikiem. Wylaczone w tenancie -> brak
+//   gosc -> CTA logowania/rejestracji; przy eligibility=subscribers zalogowany
+//   bez subskrypcji -> CTA planow; uprawniony -> auto-generowany, idempotentny
+//   link + budzet klikniec + kanaly; wyczerpany budzet linku albo miesieczny
+//   limit artykulow -> komunikat terminalny. Wylaczone w tenancie -> brak
 //   przycisku w ogole.
-import { useEffect, useMemo, useState, type ComponentType } from "react";
+//
+// Mechanika, ktora obiecuje copy: link otwiera pelna tresc PIERWSZYM N
+// odbiorcom (domyslnie 5). Slot zuzywa nowy odbiorca, nie odswiezenie strony -
+// egzekwuje to serwer (redeem_gift_link + rejestr post_gift_redemptions).
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
-import { Gift, Check } from "lucide-react";
+import { Gift } from "lucide-react";
 import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { BrandIcon } from "@/components/atoms/BrandIcon";
-import { XIcon } from "@/components/atoms/XIcon";
-import { Facebook, Linkedin, Mail, Copy, Share2 } from "@/lib/lucide-shim";
 import { useAuth } from "@/hooks/useAuth";
 import { formatDate } from "@/lib/i18n/format";
+import { formatMeterResetDate } from "@/lib/access/metering";
 import {
   buildGiftShareTargets,
   buildGiftUrl,
   DEFAULT_GIFT_SETTINGS,
   resolveGiftPhase,
-  type GiftChannelId,
   type GiftLang,
 } from "@/lib/gifting/model";
 import { useCreateGiftLink, useGiftArticleState, useGiftSettings } from "@/lib/gifting/hooks";
+import { GiftCopyButton } from "@/components/gifting/atoms/GiftCopyButton";
+import { GiftClickBudgetMeter } from "@/components/gifting/molecules/GiftClickBudgetMeter";
+import { GiftShareChannels } from "@/components/gifting/molecules/GiftShareChannels";
 import "@/lib/i18n-gifting";
 
 interface Props {
@@ -39,18 +46,6 @@ interface Props {
   className?: string;
 }
 
-type ChannelIcon = ComponentType<{ className?: string }>;
-
-const CHANNEL_FALLBACK_ICONS: Record<GiftChannelId, ChannelIcon> = {
-  mail: Mail,
-  facebook: Facebook,
-  linkedin: Linkedin,
-  whatsapp: Share2,
-  telegram: Share2,
-  x: XIcon,
-  reddit: Share2,
-};
-
 export function GiftArticleButton({ postId, title, url, lang, className }: Props) {
   const { t } = useTranslation();
   const { session } = useAuth();
@@ -59,9 +54,13 @@ export function GiftArticleButton({ postId, title, url, lang, className }: Props
   const [justCopied, setJustCopied] = useState(false);
 
   const settings = useGiftSettings().data ?? DEFAULT_GIFT_SETTINGS;
-  const stateQuery = useGiftArticleState(postId, open && isLoggedIn);
+  const stateQuery = useGiftArticleState(
+    postId,
+    open && isLoggedIn,
+    settings.max_redemptions_per_link,
+  );
   const state = stateQuery.data ?? null;
-  const { mutation, errorKey } = useCreateGiftLink(postId);
+  const { mutation, errorKey } = useCreateGiftLink(postId, settings.max_redemptions_per_link);
 
   const phase = resolveGiftPhase({
     isLoggedIn,
@@ -74,6 +73,9 @@ export function GiftArticleButton({ postId, title, url, lang, className }: Props
   // cache stanu, wiec po chwili oba zrodla sa spojne).
   const code = state?.existingCode ?? mutation.data?.code ?? null;
   const expiresAt = state?.expiresAt ?? mutation.data?.expiresAt ?? null;
+  // Budzet: stan serwera wygrywa, swieza mutacja jest zapasem na jeden render
+  // przed zasianiem cache.
+  const budget = state?.budget ?? mutation.data?.budget ?? null;
 
   // Auto-generowanie po otwarciu popovera: create_gift_link jest idempotentne
   // per (wpis, darczynca), wiec link jest gotowy zanim czytelnik kliknie
@@ -121,6 +123,10 @@ export function GiftArticleButton({ postId, title, url, lang, className }: Props
   // resolveGiftPhase widzi brak stanu, a zapytanie juz nie jest w locie.
   const stateFailed = stateQuery.isError;
   const preparing = phase === "ready" && !giftUrl && !mutation.isError;
+  // Copy bramki wejscia zalezy od tego, KTO moze udostepniac: przy bramce
+  // rejestracyjnej obiecujemy konto, a nie subskrypcje.
+  const authDescKey =
+    settings.eligibility === "subscribers" ? "gifting.authDescSubscribers" : "gifting.authDesc";
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -157,7 +163,11 @@ export function GiftArticleButton({ postId, title, url, lang, className }: Props
             </span>
             {t("gifting.popoverTitle")}
           </p>
-          <p className="text-[12px] leading-snug text-muted-foreground">{t("gifting.lead")}</p>
+          <p className="text-[12px] leading-snug text-muted-foreground">
+            {settings.max_redemptions_per_link > 0
+              ? t("gifting.leadCapped", { count: settings.max_redemptions_per_link })
+              : t("gifting.lead")}
+          </p>
         </div>
 
         {phase === "requiresAuth" && (
@@ -165,9 +175,7 @@ export function GiftArticleButton({ postId, title, url, lang, className }: Props
             <p className="text-[12.5px] font-semibold text-foreground mb-1">
               {t("gifting.authTitle")}
             </p>
-            <p className="text-[12px] leading-snug text-muted-foreground mb-3">
-              {t("gifting.authDesc")}
-            </p>
+            <p className="text-[12px] leading-snug text-muted-foreground mb-3">{t(authDescKey)}</p>
             <div className="grid grid-cols-2 gap-1.5">
               <Link
                 to="/login"
@@ -210,6 +218,23 @@ export function GiftArticleButton({ postId, title, url, lang, className }: Props
             </p>
             <p className="text-[12px] leading-snug text-muted-foreground">
               {t("gifting.limitDesc", { used: state.used, limit: state.monthlyLimit })}
+            </p>
+          </div>
+        )}
+
+        {/* Budzet klikniec wyczerpany: stan TERMINALNY do przelomu miesiaca -
+          rotacja linku dziedziczy zuzycie, wiec nie obiecujemy nowego kodu. */}
+        {phase === "budgetExhausted" && budget && (
+          <div className="border-t border-border/60 px-4 py-3.5" data-testid="gift-budget-spent">
+            <p className="text-[12.5px] font-semibold text-foreground mb-1">
+              {t("gifting.budget.spentTitle")}
+            </p>
+            <p className="text-[12px] leading-snug text-muted-foreground mb-3">
+              {t("gifting.budget.spentDesc", { limit: budget.limit })}
+            </p>
+            <GiftClickBudgetMeter budget={budget} className="mb-3" />
+            <p className="text-[11px] leading-snug text-muted-foreground">
+              {t("gifting.budget.resetsOn", { date: formatMeterResetDate(lang) })}
             </p>
           </div>
         )}
@@ -257,56 +282,19 @@ export function GiftArticleButton({ postId, title, url, lang, className }: Props
 
         {phase === "ready" && giftUrl && (
           <div className="border-t border-border/60 px-4 py-3.5">
+            {/* Budzet klikniec przed akcjami: nadawca widzi, ILU odbiorcow
+              jeszcze przeczyta, zanim wysle link kolejnej osobie. */}
+            {budget && <GiftClickBudgetMeter budget={budget} className="mb-3" />}
             <p className="text-[12px] font-semibold text-foreground mb-2.5">{usageNote}</p>
 
-            {/* Skopiuj link - akcja pierwszego wyboru (jak w NYT). */}
-            <button
-              type="button"
-              onClick={onCopy}
-              className={[
-                "w-full inline-flex items-center justify-center gap-1.5 h-9 rounded-[5px]",
-                "text-[12px] font-semibold tracking-tight transition active:scale-[0.98]",
-                justCopied
-                  ? "bg-brand/10 text-brand border border-brand/40"
-                  : "bg-brand text-brand-foreground hover:opacity-90 shadow-sm",
-              ].join(" ")}
-            >
-              {justCopied ? (
-                <Check className="w-[14px] h-[14px]" aria-hidden />
-              ) : (
-                <Copy className="w-[14px] h-[14px]" aria-hidden />
-              )}
-              {justCopied ? t("gifting.copied") : t("gifting.copyLink")}
-            </button>
+            <GiftCopyButton
+              copied={justCopied}
+              label={t("gifting.copyLink")}
+              copiedLabel={t("gifting.copied")}
+              onClick={() => void onCopy()}
+            />
 
-            {/* Kanaly - ta sama siatka i ikonografia co panel czytania. */}
-            <p className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground mt-3 mb-1.5">
-              {t("gifting.shareVia")}
-            </p>
-            <div className="grid grid-cols-7 gap-1">
-              {targets.map((target) => {
-                const Icon = CHANNEL_FALLBACK_ICONS[target.id];
-                const label = t(`gifting.channels.${target.id}`);
-                return (
-                  <a
-                    key={target.id}
-                    href={target.href}
-                    target={target.id === "mail" ? "_self" : "_blank"}
-                    rel="noopener noreferrer"
-                    aria-label={label}
-                    title={label}
-                    className="inline-flex items-center justify-center h-9 rounded-[5px] text-muted-foreground hover:text-brand hover:bg-muted transition-colors"
-                  >
-                    <BrandIcon
-                      name={target.id}
-                      fallback={Icon}
-                      alt={label}
-                      className="w-[15px] h-[15px]"
-                    />
-                  </a>
-                );
-              })}
-            </div>
+            <GiftShareChannels targets={targets} />
           </div>
         )}
 
@@ -314,7 +302,9 @@ export function GiftArticleButton({ postId, title, url, lang, className }: Props
         {phase === "ready" && giftUrl && (
           <div className="border-t border-border/60 bg-muted/30 px-4 py-2.5">
             <p className="text-[11px] leading-snug text-muted-foreground">
-              {t("gifting.anyoneCanRead")}
+              {budget && !budget.unlimited
+                ? t("gifting.firstNCanRead", { count: budget.limit })
+                : t("gifting.anyoneCanRead")}
               {expiresAt ? ` ${t("gifting.expiresOn", { date: formatDate(expiresAt, lang) })}` : ""}
             </p>
           </div>

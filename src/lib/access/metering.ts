@@ -17,6 +17,9 @@ import { useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-q
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { EMPTY_BODY, hasRenderableBody, type BodyParts } from "@/lib/access/gating";
+// Tożsamość gościa jest współdzielona z budżetem kliknięć linku
+// podarunkowego - jeden klucz w localStorage, jedno miejsce definicji.
+import { getVisitorId } from "@/lib/access/visitor";
 import type { AccessMode } from "@/hooks/useContentAccess";
 
 export type MeteringPolicy = "inherit" | "metered" | "exempt";
@@ -188,28 +191,6 @@ export function meterPaywallVariant(input: {
     return "exhausted";
   }
   return null;
-}
-
-const VISITOR_STORAGE_KEY = "nes:metering:visitor";
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/**
- * Tożsamość gościa dla miękkiego licznika anonimów. Trwały uuid per
- * przeglądarka; SSR zwraca null (konsumpcja i tak startuje po hydracji).
- */
-export function getVisitorId(): string | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const existing = window.localStorage.getItem(VISITOR_STORAGE_KEY);
-    if (existing && UUID_RE.test(existing)) return existing;
-    const fresh = window.crypto.randomUUID();
-    window.localStorage.setItem(VISITOR_STORAGE_KEY, fresh);
-    return fresh;
-  } catch {
-    // Prywatny tryb / zablokowany storage: bez tożsamości nie ma licznika
-    // anonimowego; użytkownik zobaczy wariant rejestracyjny.
-    return null;
-  }
 }
 
 interface ConsumeRow {

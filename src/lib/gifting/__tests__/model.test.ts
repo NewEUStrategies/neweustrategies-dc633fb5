@@ -1,12 +1,17 @@
-// Testy czystej logiki Gift Articles: budowa/parsowanie URL-i podarunkowych,
-// macierz faz popovera i mapowanie bledow RPC. Zero DOM/Supabase.
+// Testy czystej logiki "Udostepnij pelny artykul": budowa/parsowanie URL-i,
+// budzet klikniec, macierz faz popovera, mapowanie bledow RPC i powodow
+// odmowy na warianty banera. Zero DOM/Supabase.
 import { describe, it, expect } from "vitest";
 import {
   buildGiftShareTargets,
   buildGiftUrl,
   GIFT_QUERY_PARAM,
+  giftBannerVariant,
+  giftClickBudget,
   isValidGiftCode,
   mapGiftError,
+  normalizeGiftEligibility,
+  normalizeRedeemReason,
   parseGiftCode,
   resolveGiftPhase,
   type GiftArticleState,
@@ -25,6 +30,8 @@ function state(partial: Partial<GiftArticleState>): GiftArticleState {
     remaining: null,
     existingCode: null,
     expiresAt: null,
+    eligibility: "registered",
+    budget: giftClickBudget(0, 5),
     ...partial,
   };
 }
@@ -165,6 +172,28 @@ describe("resolveGiftPhase", () => {
     ).toBe("ready");
   });
 
+  it("wyczerpany budzet klikniec linku wygrywa z istniejacym kodem", () => {
+    expect(
+      resolveGiftPhase({
+        isLoggedIn: true,
+        settingsEnabled: true,
+        state: state({ existingCode: CODE, budget: giftClickBudget(5, 5) }),
+        stateLoading: false,
+      }),
+    ).toBe("budgetExhausted");
+  });
+
+  it("link z wolnym budzetem zostaje w fazie ready", () => {
+    expect(
+      resolveGiftPhase({
+        isLoggedIn: true,
+        settingsEnabled: true,
+        state: state({ existingCode: CODE, budget: giftClickBudget(4, 5) }),
+        stateLoading: false,
+      }),
+    ).toBe("ready");
+  });
+
   it("subskrybent bez limitu = ready", () => {
     expect(
       resolveGiftPhase({
@@ -184,7 +213,69 @@ describe("mapGiftError", () => {
     expect(mapGiftError("gift_limit_reached")).toBe("limitReached");
     expect(mapGiftError("gift_disabled")).toBe("disabled");
     expect(mapGiftError("gift_post_not_found")).toBe("notFound");
+    expect(mapGiftError("gift_post_not_gated")).toBe("notGated");
     expect(mapGiftError("cokolwiek innego")).toBe("unknown");
     expect(mapGiftError(null)).toBe("unknown");
+  });
+});
+
+describe("giftClickBudget", () => {
+  it("liczy pozostale otwarcia i wykrywa wyczerpanie", () => {
+    expect(giftClickBudget(0, 5)).toEqual({
+      used: 0,
+      limit: 5,
+      remaining: 5,
+      exhausted: false,
+      unlimited: false,
+    });
+    expect(giftClickBudget(3, 5).remaining).toBe(2);
+    expect(giftClickBudget(5, 5).exhausted).toBe(true);
+  });
+
+  it("nie schodzi ponizej zera, gdy serwer przeskoczyl limit", () => {
+    const budget = giftClickBudget(9, 5);
+    expect(budget.remaining).toBe(0);
+    expect(budget.exhausted).toBe(true);
+  });
+
+  it("limit 0 znaczy bez limitu - nigdy nie jest wyczerpany", () => {
+    const budget = giftClickBudget(120, 0);
+    expect(budget.unlimited).toBe(true);
+    expect(budget.remaining).toBeNull();
+    expect(budget.exhausted).toBe(false);
+  });
+
+  it("odsiewa wartosci ujemne i ulamkowe (obrona przed smieciem z RPC)", () => {
+    expect(giftClickBudget(-3, 5).used).toBe(0);
+    expect(giftClickBudget(2.7, 5.9).limit).toBe(5);
+    expect(giftClickBudget(2.7, 5.9).used).toBe(2);
+  });
+});
+
+describe("normalizeGiftEligibility", () => {
+  it("zawezia surowa wartosc, nieznana traktuje jak rejestracyjna", () => {
+    expect(normalizeGiftEligibility("subscribers")).toBe("subscribers");
+    expect(normalizeGiftEligibility("registered")).toBe("registered");
+    expect(normalizeGiftEligibility("cokolwiek")).toBe("registered");
+    expect(normalizeGiftEligibility(null)).toBe("registered");
+  });
+});
+
+describe("normalizeRedeemReason / giftBannerVariant", () => {
+  it("zawezia powod z RPC (nieznany = invalid)", () => {
+    expect(normalizeRedeemReason("exhausted")).toBe("exhausted");
+    expect(normalizeRedeemReason("owner")).toBe("owner");
+    expect(normalizeRedeemReason("kosmos")).toBe("invalid");
+    expect(normalizeRedeemReason(undefined)).toBe("invalid");
+  });
+
+  it("kazdy powod odmowy ma WLASNY baner (nie zlewa sie w 'invalid')", () => {
+    expect(giftBannerVariant("ok")).toBe("gifted");
+    expect(giftBannerVariant("owner")).toBe("gifted");
+    expect(giftBannerVariant("entitled")).toBe("gifted");
+    expect(giftBannerVariant("exhausted")).toBe("exhausted");
+    expect(giftBannerVariant("expired")).toBe("expired");
+    expect(giftBannerVariant("revoked")).toBe("invalid");
+    expect(giftBannerVariant("invalid")).toBe("invalid");
   });
 });
