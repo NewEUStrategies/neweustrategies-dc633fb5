@@ -1714,6 +1714,44 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       hint: "Kolor paska postępu. Puste = kolor marki.",
     },
   ],
+  // Lista kart ma własny edytor (CircularCarouselEditor); te pola czyta
+  // renderer (CircularCarouselView) i rysuje je SchemaFieldControl.
+  "circular-carousel": [
+    {
+      key: "visibleCount",
+      type: "number",
+      label: "Widoczne karty (3-7, nieparzyste)",
+      min: 3,
+      max: 7,
+      default: 5,
+      group: "Wygląd",
+    },
+    {
+      key: "radiusX",
+      type: "number",
+      label: "Promień poziomy (px)",
+      min: 40,
+      max: 600,
+      default: 220,
+      group: "Wygląd",
+    },
+    {
+      key: "radiusY",
+      type: "number",
+      label: "Promień pionowy (px)",
+      min: 40,
+      max: 600,
+      default: 100,
+      group: "Wygląd",
+    },
+    {
+      key: "accentColor",
+      type: "color",
+      label: "Kolor akcentu (opcjonalny)",
+      hint: "Ramka aktywnej karty, licznik i kropki. Puste = kolor marki.",
+      group: "Wygląd",
+    },
+  ],
   "meeting-booking": [],
   "event-sponsors": [],
   "event-list": [
