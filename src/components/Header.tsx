@@ -291,6 +291,19 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
   const stickyShrink = headerMode === "sticky-shrink";
   const [scrolled, setScrolled] = useState(false);
   const headerRef = useRef<HTMLElement | null>(null);
+  // `transform: scale()` rasteryzuje tekst w skali warstwy, więc zwinięty header
+  // trzymał rozmyte napisy tak długo, jak długo strona była przewinięta.
+  // Transform zostaje TYLKO na czas animacji (płynny, bez przeliczania układu),
+  // a po jej ustaniu przełączamy się na `zoom`, które skaluje układ - litery
+  // wracają do pełnej rozdzielczości urządzenia i są idealnie ostre.
+  const [settled, setSettled] = useState(true);
+  useEffect(() => {
+    if (!stickyShrink) return;
+    setSettled(false);
+    const HDR_DURATION_MS = 460;
+    const timer = window.setTimeout(() => setSettled(true), HDR_DURATION_MS + 40);
+    return () => window.clearTimeout(timer);
+  }, [scrolled, stickyShrink]);
   useEffect(() => {
     if (!stickyShrink) return;
     // Histereza + koalescencja w rAF: bez tego stan przełącza się wielokrotnie
