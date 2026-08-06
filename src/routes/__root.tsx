@@ -167,7 +167,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       // Branded New European Strategies defaults (PL/EN). Any route without its
       // own head() - error pages, parts of the admin, fallbacks - and the first
       // social-share preview inherit these instead of the generator defaults.
-      meta: buildRootHead(lang, getOrigin()),
+      meta: [
+        // Mobile viewport is declared directly in the root route so every page
+        // (including error/fallback renders) carries it, even when a child route
+        // overrides the rest of the meta stack.
+        { name: "viewport", content: "width=device-width, initial-scale=1" },
+        ...buildRootHead(lang, getOrigin()),
+      ],
       // Red Hat Display is self-hosted via @font-face in styles.css (see there),
       // so no Google Fonts stylesheet / preconnect is needed - one fewer
       // render-blocking third-party request, and no visitor IPs sent to Google.
