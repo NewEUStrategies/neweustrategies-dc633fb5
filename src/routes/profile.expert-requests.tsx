@@ -27,11 +27,19 @@ export const Route = createFileRoute("/profile/expert-requests")({
   component: ProfileExpertRequests,
 });
 
-function ExpertRequestList({ box, highlightId }: { box: ExpertRequestBox; highlightId?: string }) {
+export function ExpertRequestList({
+  box,
+  highlightId,
+}: {
+  box: ExpertRequestBox;
+  highlightId?: string;
+}) {
   const { t } = useTranslation();
   const q = useMyExpertRequests(box);
   const resolve = useResolveExpertRequest();
   const highlightRef = useRef<HTMLLIElement | null>(null);
+  // Wycofanie zużywa pulę miesięczną, więc wymaga jawnego potwierdzenia.
+  const [pendingCancel, setPendingCancel] = useState<ExpertRequestRow | null>(null);
 
   // Wejście z powiadomienia: przewiń do wskazanego zapytania, gdy tylko lista
   // się załaduje. `block: "center"` zamiast domyślnego „start", żeby wiersz nie
