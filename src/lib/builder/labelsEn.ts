@@ -87,7 +87,8 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "własne, a gdy puste - globalne": "own, fall back to global when empty",
   "globalne (Opcje motywu → Ikony social)": "global (Theme options → Social icons)",
   "tylko wpisane poniżej": "only the ones entered below",
-  "Globalne linki do mediów społecznościowych ustawia się raz w Admin → Wygląd → Opcje motywu → „Ikony social” (/admin/theme-options). Widgety zaciągają je automatycznie.": "Global social media links are set once in Admin → Appearance → Theme options → “Social icons” (/admin/theme-options). Widgets pick them up automatically.",
+  "Globalne linki do mediów społecznościowych ustawia się raz w Admin → Wygląd → Opcje motywu → „Ikony social” (/admin/theme-options). Widgety zaciągają je automatycznie.":
+    "Global social media links are set once in Admin → Appearance → Theme options → “Social icons” (/admin/theme-options). Widgets pick them up automatically.",
   // Widget social-icons: podświetlenie po najechaniu (wiersz listy / kafelek).
   "Podświetlenie po najechaniu": "Hover highlight",
   // („gradient marki platformy" ma już wpis wyżej - klucz musi być unikalny.)
@@ -195,12 +196,14 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Etykieta osi Y (prawdopodobieństwo)": "Y axis label (likelihood)",
   "Etykieta podczas wysyłki": "Label while submitting",
   "Etykieta programu (nad kartą)": "Programme label (above the card)",
-  "Portret 3:4. Wgraj lub wybierz z biblioteki mediów.": "3:4 portrait. Upload or pick from the media library.",
+  "Portret 3:4. Wgraj lub wybierz z biblioteki mediów.":
+    "3:4 portrait. Upload or pick from the media library.",
   "Etykieta nad nazwiskiem": "Label above the name",
   "Opis / bio": "Description / bio",
   "Pokaż ikony social": "Show social icons",
   "Wyłączenie ukrywa całą listę odnośników.": "Turning this off hides the whole list of links.",
-  "Działa po powiązaniu osoby z katalogu ekspertów.": "Works once a person from the experts directory is linked.",
+  "Działa po powiązaniu osoby z katalogu ekspertów.":
+    "Works once a person from the experts directory is linked.",
   "Karta profilu autora": "Author profile card",
   "Etykieta przycisku": "Button label",
   "Etykieta w edytorze": "Label in the editor",

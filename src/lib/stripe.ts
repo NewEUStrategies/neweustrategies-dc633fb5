@@ -49,3 +49,18 @@ export function getStripe(): Promise<Stripe | null> {
   }
   return stripePromise;
 }
+
+/**
+ * Rozgrzewka SDK na INTENCJĘ (hover/focus/pointerdown przycisku zakupu), zanim
+ * padnie kliknięcie. Nigdy nie rzuca i nigdy nie raportuje błędu - brak
+ * konfiguracji płatności albo offline nie może zaszkodzić stronie, na której
+ * czytelnik tylko przesunął kursor nad przyciskiem.
+ */
+export function preloadStripeSdk(): void {
+  if (!isPaymentsConfigured()) return;
+  try {
+    void getStripe().catch(() => undefined);
+  } catch {
+    /* payments_not_configured - rozgrzewka jest best-effort */
+  }
+}

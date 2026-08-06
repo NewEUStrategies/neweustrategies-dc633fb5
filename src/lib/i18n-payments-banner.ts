@@ -1,5 +1,6 @@
-// Baner trybu testowego dla checkoutu Stripe - osobny mały bundle (jak inne
-// i18n-*), żeby strony bez płatności nie ładowały tych kluczy.
+// Chrome checkoutu Stripe (baner trybu testowego + stany leniwej ramki) -
+// osobny mały bundle (jak inne i18n-*), żeby strony bez płatności nie ładowały
+// tych kluczy.
 import i18n from "./i18n";
 
 const pl = {

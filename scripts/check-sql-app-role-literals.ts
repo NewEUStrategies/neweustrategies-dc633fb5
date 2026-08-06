@@ -170,6 +170,28 @@ function literalsIn(text: string): string[] {
   return out;
 }
 
+/** Czy linia jest komentarzem (do cofania sie po bloku nad trafieniem). */
+function isCommentLine(line: string | undefined): boolean {
+  const trimmed = line?.trim() ?? "";
+  return trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*");
+}
+
+/**
+ * Zwolnienie obowiazuje, gdy marker jest w TEJ linii albo gdziekolwiek w bloku
+ * komentarza bezposrednio nad nia. Uzasadnienie zwolnienia to zwykle kilka zdan,
+ * wiec ograniczenie do jednej linii wyzej wymuszaloby wciskanie go w jedna
+ * linijke - a zwolnienie bez uzasadnienia jest bezwartosciowe. Blok musi
+ * PRZYLEGAC do linii z literalem: pusta linia albo kod przerywaja zasieg, wiec
+ * marker nie rozlewa sie na caly plik.
+ */
+function isExempt(rawLines: readonly string[], index: number): boolean {
+  if (rawLines[index]?.includes(EXEMPT_MARKER)) return true;
+  for (let i = index - 1; i >= 0 && isCommentLine(rawLines[i]); i -= 1) {
+    if (rawLines[i].includes(EXEMPT_MARKER)) return true;
+  }
+  return false;
+}
+
 function collectHasRoleLiterals(): Hit[] {
   const hits: Hit[] = [];
 
@@ -205,6 +227,9 @@ function collectHasRoleLiterals(): Hit[] {
       const text = file.endsWith(".sql") ? stripSqlComments(raw) : stripTsComments(raw);
       const lines = text.split("\n");
       for (let i = 0; i < lines.length; i += 1) {
+        // Zwolnienie czytamy z SUROWEJ linii (albo tej nad nia), bo marker jest
+        // komentarzem - a komentarze zostaly wlasnie sciete.
+        if (isExempt(rawLines, i)) continue;
         for (const literal of literalsIn(lines[i])) {
           hits.push({ literal, file, line: i + 1, where: "" });
         }

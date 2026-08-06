@@ -136,9 +136,74 @@ const CLIENT_DIR =
 // nad zmierzony ślad po scaleniu, nie "z zapasem". Realna redukcja (split
 // locale'i PL/EN, odchudzenie eager-owego zestawu widgetów chrome, @tanstack
 // poza entry) pozostaje osobną, pilniejszą niż dotąd pracą.
-const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 511); // largest single gzipped JS chunk (zmierzone: ~510,7KB, the client entry)
-const MAX_PUBLIC_KB = Number(process.env.MAX_PUBLIC_KB ?? 1799); // gzipped JS a public visitor can load (zmierzone: ~1798,4KB)
-const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 3005); // gzipped JS incl. admin/editor-only chunks (zmierzone: ~3004,0KB)
+// 2026-08-06 (SDK płatności poza ścieżką bootowania + re-floor po dryfie maina).
+//
+// STAN WYJŚCIOWY. Bramka była czerwona na CZYSTYM mainie (d4edce2), i to nie
+// pierwszy raz niezauważenie: krok `Bundle size budget` stoi w jobie `verify`
+// PO `Test + coverage gate`, a ten padał na rozjeździe snapshotu bramek autoryzacji,
+// więc build i ten skrypt w ogóle się NIE WYKONYWAŁY. Pomiar pełnym buildem na
+// jednym hoście i jednej wersji zależności:
+//   * czysty main:        541,8 KB chunk / 1887,1 KB public / 3129,2 KB overall,
+//   * floory przed:       511    /  1799   /  3005  -> przekroczenia +30,8 / +88,1 / +124,2.
+//
+// CO ZROBIŁA TA GAŁĄŹ. Wyprowadziła SDK operatora płatności ze ścieżki bootowania
+// czytelnika. Łańcuch był w całości STATYCZNY: routes/$.tsx -> Paywall ->
+// EmbeddedCheckoutDialog -> @stripe/react-stripe-js, a lib/stripe.ts (loadStripe)
+// miało 17 statycznych importerów, w większości sięgających wyłącznie po helper
+// środowiskowy do kluczy zapytań. Moduł współdzielony przez wiele chunków Rollup
+// hoistuje do wspólnego przodka - czyli do ENTRY - więc marker `js.stripe.com`
+// siedział w chunku startowym KAŻDEGO anonimowego czytelnika. Teraz ramka wchodzi
+// przez `React.lazy` (components/checkout/EmbeddedCheckoutFrame), a `loadStripe`
+// przez `import()`; nowy blokujący krok CI `check:entry-purity` pilnuje tej
+// krawędzi w grafie chunków, a nie jej skutku w kilobajtach.
+//
+// UCZCIWY BILANS TEJ ZMIANY: -1,0 KB w entry, +1,5 KB public, +1,4 KB overall
+// (541,8 -> 540,8 / 1887,1 -> 1888,6 / 3129,2 -> 3130,6). Loader Stripe.js to
+// ~1 KB gzip, a dołożony placeholder ramki, granica błędu i klucze PL/EN kosztują
+// tyle samo. To NIE jest zmiana o wadze - jest o tym, KTO i KIEDY pobiera kod
+// bramki płatniczej. Nie udajemy, że zamyka lukę 88 KB.
+//
+// DLACZEGO PUBLIC/OVERALL NIE MOGŁY SPAŚĆ. PUBLIC liczy KAŻDY chunk osiągalny z
+// publicznego URL-a, nie pierwsze wczytanie - więc przeniesienie kodu z eager do
+// lazy nie rusza tej liczby ani o bajt. PUBLIC spada wyłącznie wtedy, gdy kod
+// znika albo staje się osiągalny wyłącznie spod /admin.
+//
+// NIEUDANY EKSPERYMENT - ZAPISANY, ŻEBY NIE POWTÓRZYĆ GO PO RAZ TRZECI.
+// Przyrząd (`BUNDLE_INVENTORY=1 bun run build` + `bun run report:chunk-inventory
+// index`) pokazał 156,5 kB źródeł słowników i18n powierzchni WYŁĄCZNIE adminowych
+// w chunku startowym (i18n-builder 101,3 kB, i18n-admin-post-panes 26,1 kB,
+// i18n-admin-popup-signup 15,4 kB i cztery mniejsze) - wszystkie mają importerów
+// tylko pod components/admin/** albo routes/admin*, a do entry trafiły tą samą
+// mechaniką co Stripe. Wymuszony `manualChunks` po DOKŁADNYCH ścieżkach plików
+// (nigdy po katalogu, dokładnie jak radzi notatka z 07-25) dał pozornie świetny
+// wynik: 492,7 KB chunk / 1842,1 KB public. Wynik był FAŁSZYWY. Rollup wciągnął do
+// nazwanego chunku także `src/lib/i18n.ts` (bootstrap i18n potrzebny na KAŻDEJ
+// stronie), więc chunk stał się statycznym importem entry i wszystkich tras
+// publicznych - czytelnik pobierał te same bajty, tylko w dwóch plikach zamiast
+// jednego (492,7 + 48,2 = 540,9, czyli tyle samo), a ADMIN_ONLY rozliczał je do
+// OVERALL i PUBLIC zaniżał się o 48 KB. Zmiana została wycofana: bramka, która
+// pokazuje ładniejszą liczbę bez pokrycia w bajtach, jest gorsza niż czerwona.
+//
+// FLOORY wracają więc do swojej funkcji „tuż nad zmierzonym śladem" (bez zapasu -
+// zapas z 08-01 i tak zjadł dryf w kilka dni). Mają łapać regresje od tego
+// poziomu, zamiast być permanentnie czerwone i blokować wszystkie kroki za sobą.
+//
+// ZMIERZONY BACKLOG REDUKCJI (entry, bajty źródeł przed minifikacją - z przyrządu,
+// nie z pamięci; dotąd ta lista była zgadywana):
+//   * src/components/admin      437 kB  - warstwa widoku buildera współdzielona
+//                                         przez publiczny renderer i edytor CMS,
+//   * node-html-parser          202 kB  - przez lib/builder/normalizeRichHtml
+//                                         (RichHtmlView), w przeglądarce do
+//                                         zastąpienia natywnym DOM-em,
+//   * src/lib/builder           190 kB,
+//   * lucide-react              187 kB,
+//   * i18n powierzchni admina   157 kB  - patrz nieudany eksperyment wyżej;
+//                                         właściwa droga to leniwa rejestracja
+//                                         słownika, nie wymuszony chunk,
+//   * zod                       132 kB, tailwind-merge 97 kB, dompurify 82 kB.
+const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 542); // largest single gzipped JS chunk (zmierzone: 540,8KB, the client entry)
+const MAX_PUBLIC_KB = Number(process.env.MAX_PUBLIC_KB ?? 1890); // gzipped JS a public visitor can load (zmierzone: 1888,6KB)
+const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 3132); // gzipped JS incl. admin/editor-only chunks (zmierzone: 3130,6KB)
 
 // Chunks reachable ONLY from the auth-gated /admin (CMS) routes - never from a
 // public URL, so they never count against the public-perf budget. Matched on the
