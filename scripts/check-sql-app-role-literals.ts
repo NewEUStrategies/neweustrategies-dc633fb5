@@ -32,6 +32,20 @@ const SCAN_DIRS = ["supabase/tests", "src"] as const;
 const SCAN_EXTENSIONS = [".sql", ".ts", ".tsx"] as const;
 
 /**
+ * Katalogi wylaczone ze skanu w calosci. `src/integrations/supabase` to artefakt
+ * generowany z bazy (types.ts) - literal roli jest tam ODBICIEM enuma, nie jego
+ * uzyciem, wiec nie ma czego pilnowac, a plik ma dziesiatki tysiecy linii.
+ */
+const SCAN_EXCLUDED_DIRS = ["src/integrations/supabase"] as const;
+
+/**
+ * Marker zwolnienia w komentarzu nad literalem (albo w tej samej linii). Sluzy
+ * do swiadomego dopuszczenia literala spoza enuma - np. fixture negatywnego -
+ * ZAWSZE z uzasadnieniem w tym samym bloku komentarza.
+ */
+const EXEMPT_MARKER = "app-role-literal-exempt";
+
+/**
  * Katalogi testow jednostkowych TS sa POZA skanem: fixture negatywny musi moc
  * podac literal spoza enuma, bo dokladnie to testuje (patrz
  * src/lib/ci/__tests__/authzGates.test.ts - "odsiewa literal, ktorego nie ma w
