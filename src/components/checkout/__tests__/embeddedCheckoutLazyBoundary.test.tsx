@@ -73,14 +73,17 @@ describe("granica leniwego ładowania SDK płatności", () => {
     ).toEqual([]);
   });
 
-  it("StripeEmbeddedFrame jest osiągalny wyłącznie przez import dynamiczny", { timeout: 60_000 }, () => {
-    const importers = importersMatching((spec) =>
-      spec.endsWith("checkout/StripeEmbeddedFrame"),
-    );
-    expect(importers, "Pośredniość istnieje po to, by ten moduł wchodził tylko przez lazy").toEqual(
-      [],
-    );
-  });
+  it(
+    "StripeEmbeddedFrame jest osiągalny wyłącznie przez import dynamiczny",
+    { timeout: 60_000 },
+    () => {
+      const importers = importersMatching((spec) => spec.endsWith("checkout/StripeEmbeddedFrame"));
+      expect(
+        importers,
+        "Pośredniość istnieje po to, by ten moduł wchodził tylko przez lazy",
+      ).toEqual([]);
+    },
+  );
 
   it("lib/stripe.ts ładuje loadStripe dynamicznie", () => {
     const source = readFileSync("src/lib/stripe.ts", "utf8");
