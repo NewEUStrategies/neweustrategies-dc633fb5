@@ -69,8 +69,22 @@ else
   STUB=0
 fi
 
+# Wybor migracji po TRESCI, nie po nazwie pliku.
+#
+# Wczesniej harness bral wylacznie pliki *discussion_clubs*, co zostawialo
+# martwe pole: migracja klubowa nazwana losowym UUID-em (tak nazywa je panel
+# Lovable) nie byla aplikowana w ogole. Realnie sie to zemscilo - migracja
+# 20260807172345 redefiniowala club_list, club_replies_list i
+# admin_club_moderation_queue, a harness tego nie widzial, wiec kolizja
+# sygnatur z pozniejszymi migracjami wyszla dopiero w CI.
+#
+# Sortowanie jest ISTOTNE: dokladnie w tej kolejnosci aplikuje pliki Supabase
+# CLI, wiec tylko ona odtwarza realny stan koncowy.
+MIGRATIONS="$(grep -lE 'public\.(club_|admin_club_)' "$REPO"/supabase/migrations/*.sql | sort)"
+echo "Migracje dotykajace modulu: $(echo "$MIGRATIONS" | grep -c .)"
+
 fail=0
-for f in "$REPO"/supabase/migrations/*discussion_clubs*.sql; do
+for f in $MIGRATIONS; do
   name="$(basename "$f")"
   [ -n "$PREFIX" ] && case "$name" in "$PREFIX"*) ;; *) continue ;; esac
   src="$f"

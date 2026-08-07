@@ -105,7 +105,6 @@ const KNOWN_CONTENT_TWINS: readonly string[] = [
   "20260806160002_profile_verification_guard_insert_parity.sql|20260806190257_9386c9cc-9f1f-4ce8-8320-b3abad5ecc3f.sql",
   // Wdrożenie PR #191 ("Udostępnij pełny artykuł"): plik z gałęzi i bliźniak
   // wygenerowany przy zastosowaniu migracji na hostowanej bazie.
-  "20260806170000_share_full_article_click_budget.sql|20260806205328_8865e928-2b12-4e88-a855-d3b4309c82f4.sql",
 ];
 
 /**
@@ -150,6 +149,17 @@ export interface MigrationReplayReport {
   readonly knownContentTwins: readonly (readonly string[])[];
   /** Wpisy listy długu, których już nie ma w repo - ratchet każe je usunąć. */
   readonly staleKnownTwins: readonly string[];
+  /** `CREATE FUNCTION` (bez OR REPLACE) dla sygnatury utworzonej wcześniej. */
+  readonly recreatedFunctions: readonly RecreatedFunction[];
+}
+
+export interface RecreatedFunction {
+  /** `nazwa/liczba_argumentów` - tyle wystarczy, bo PostgreSQL rozstrzyga po niej. */
+  readonly signature: string;
+  /** Plik, który próbuje utworzyć sygnaturę drugi raz. */
+  readonly file: string;
+  /** Plik, który utworzył ją wcześniej. */
+  readonly earlier: string;
 }
 
 /**
@@ -198,6 +208,98 @@ export function hasUnguardedStorageWrite(sql: string): boolean {
 export interface MigrationSource {
   readonly file: string;
   readonly sql: string;
+}
+
+/**
+ * Liczba argumentów z listy parametrów. Liczymy przecinki NA POZIOMIE ZERO,
+ * bo `numeric(10,2)`, `DEFAULT (a, b)` i literały z przecinkiem w środku
+ * dawałyby inaczej zawyżoną arność - a arność jest tu całym kluczem tożsamości.
+ */
+function paramArity(params: string): number {
+  const trimmed = params.trim();
+  if (trimmed === "") return 0;
+  let depth = 0;
+  let quote: string | null = null;
+  let count = 1;
+  for (let i = 0; i < trimmed.length; i += 1) {
+    const ch = trimmed[i];
+    if (quote !== null) {
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === "'" || ch === '"') quote = ch;
+    else if (ch === "(" || ch === "[") depth += 1;
+    else if (ch === ")" || ch === "]") depth -= 1;
+    else if (ch === "," && depth === 0) count += 1;
+  }
+  return count;
+}
+
+/** Wyciąga `nazwa/arność` dla każdego dopasowania nagłówka funkcji. */
+function functionSignatures(sql: string, header: RegExp): string[] {
+  const out: string[] = [];
+  let match: RegExpExecArray | null;
+  const re = new RegExp(
+    header.source,
+    header.flags.includes("g") ? header.flags : `${header.flags}g`,
+  );
+  while ((match = re.exec(sql)) !== null) {
+    let depth = 0;
+    let start = -1;
+    for (let i = re.lastIndex - 1; i < sql.length; i += 1) {
+      if (sql[i] === "(") {
+        if (depth === 0) start = i + 1;
+        depth += 1;
+      } else if (sql[i] === ")") {
+        depth -= 1;
+        if (depth === 0) {
+          out.push(`${match[1]}/${paramArity(sql.slice(start, i))}`);
+          break;
+        }
+      }
+    }
+  }
+  return out;
+}
+
+const PLAIN_CREATE_FN = /(?<!OR\s{1,8}REPLACE\s{1,8})\bCREATE\s+FUNCTION\s+public\.(\w+)\s*\(/gi;
+const REPLACE_CREATE_FN = /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+public\.(\w+)\s*\(/gi;
+const DROP_FN = /DROP\s+FUNCTION\s+(?:IF\s+EXISTS\s+)?public\.(\w+)\s*\(/gi;
+
+/**
+ * `CREATE FUNCTION` bez `OR REPLACE` dla sygnatury, którą utworzyła już
+ * wcześniejsza migracja, wywala CAŁY replay błędem 42723 ("function already
+ * exists with same argument types"). Na bazie, która obie migracje ma już
+ * zastosowane, nic się nie dzieje - dlatego ten błąd jest niewidoczny aż do
+ * chwili, gdy ktoś odtwarza schemat od zera. Właśnie tak położyło CI
+ * `redeem_gift_link/3` (08.2026): jedna migracja zdjęła wariant dwuargumentowy
+ * i utworzyła trzyargumentowy, a druga powtórzyła dokładnie ten sam ruch.
+ *
+ * Zdjęcie DOKŁADNIE tej sygnatury w tym samym pliku jest legalne i częste -
+ * tak zmienia się typ zwracany, którego `CREATE OR REPLACE` nie przepuszcza.
+ */
+function findRecreatedFunctions(sources: readonly MigrationSource[]): RecreatedFunction[] {
+  const createdIn = new Map<string, string>();
+  const problems: RecreatedFunction[] = [];
+
+  for (const { file, sql } of [...sources].sort((a, b) => a.file.localeCompare(b.file))) {
+    // Nagłówki zostają, ciała znikają - inaczej `CREATE FUNCTION` w komentarzu
+    // albo w treści innej funkcji liczyłoby się jak realna definicja.
+    const executed = stripFunctionBodies(sql);
+    const dropped = new Set(functionSignatures(executed, DROP_FN));
+
+    for (const signature of functionSignatures(executed, PLAIN_CREATE_FN)) {
+      const earlier = createdIn.get(signature);
+      if (earlier !== undefined && earlier !== file && !dropped.has(signature)) {
+        problems.push({ signature, file, earlier });
+      }
+      createdIn.set(signature, file);
+    }
+    for (const signature of functionSignatures(executed, REPLACE_CREATE_FN)) {
+      createdIn.set(signature, file);
+    }
+  }
+  return problems;
 }
 
 /**
@@ -297,6 +399,7 @@ export function analyzeMigrationReplay(
     contentTwins,
     knownContentTwins,
     staleKnownTwins,
+    recreatedFunctions: findRecreatedFunctions(sources),
   };
 }
 
@@ -310,7 +413,8 @@ export function migrationReplayFailed(report: MigrationReplayReport): boolean {
     // ale wpis, który przestał odpowiadać rzeczywistości, też blokuje - inaczej
     // lista długu rosłaby w nieskończoność, zamiast maleć.
     report.contentTwins.length > 0 ||
-    report.staleKnownTwins.length > 0
+    report.staleKnownTwins.length > 0 ||
+    report.recreatedFunctions.length > 0
   );
 }
 
@@ -333,6 +437,23 @@ export function renderMigrationReplayReport(report: MigrationReplayReport): stri
   if (report.unparsable.length > 0) {
     lines.push("✗ Nazwy bez parsowalnej wersji (oczekiwane: 14 cyfr + '_' + opis + '.sql'):");
     for (const file of report.unparsable) lines.push(`    - ${file}`);
+  }
+
+  if (report.recreatedFunctions.length > 0) {
+    lines.push(
+      "✗ CREATE FUNCTION (bez OR REPLACE) dla sygnatury utworzonej wcześniej -",
+      "  odtworzenie schematu od zera wywala się błędem 42723:",
+    );
+    for (const entry of report.recreatedFunctions) {
+      lines.push(`    - ${entry.signature}`);
+      lines.push(`        tworzy ponownie: ${entry.file}`);
+      lines.push(`        wcześniej:       ${entry.earlier}`);
+    }
+    lines.push(
+      "  Napraw: dopisz `DROP FUNCTION IF EXISTS public.<nazwa>(<te same typy>);`",
+      "  bezpośrednio nad CREATE, albo użyj CREATE OR REPLACE, jeśli typ zwracany",
+      "  się nie zmienia. Na bazie już zmigrowanej DROP IF EXISTS jest bez skutku.",
+    );
   }
 
   if (report.outOfOrder.length > 0) {

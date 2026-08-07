@@ -367,6 +367,11 @@ REVOKE ALL ON FUNCTION public.create_gift_link(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.create_gift_link(uuid) TO authenticated, service_role;
 
 DROP FUNCTION IF EXISTS public.redeem_gift_link(uuid, text);
+-- Wariant TRZYARGUMENTOWY tworzy juz 20260806170000_share_full_article_click_budget.sql,
+-- wiec samo zdjecie starej dwuargumentowej nie wystarcza: CREATE FUNCTION (bez
+-- OR REPLACE) trafia w istniejaca sygnature i wywala replay bledem 42723.
+-- Na bazie, ktora te migracje juz wykonala, DROP IF EXISTS jest bez skutku.
+DROP FUNCTION IF EXISTS public.redeem_gift_link(uuid, text, uuid);
 CREATE FUNCTION public.redeem_gift_link(
   _post_id uuid,
   _code text,

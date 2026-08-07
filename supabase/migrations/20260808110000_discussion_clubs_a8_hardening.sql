@@ -1039,6 +1039,9 @@ END; $$;
 -- ----------------------------------------------------------------------------
 DROP FUNCTION IF EXISTS public.club_replies_list(uuid, text);
 
+-- Ta sygnatura powstaje juz w 20260807172345, wiec bez zdjecia jej tutaj
+-- CREATE FUNCTION wywala replay bledem 42723.
+DROP FUNCTION IF EXISTS public.club_replies_list(uuid, text, integer, integer);
 CREATE FUNCTION public.club_replies_list(
   p_thread_id uuid, p_sort text DEFAULT 'chronological',
   p_limit integer DEFAULT 200, p_offset integer DEFAULT 0

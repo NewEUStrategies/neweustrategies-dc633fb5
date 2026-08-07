@@ -229,6 +229,71 @@ describe("inwariant bliźniaków treści", () => {
     expect(migrationReplayFailed(report)).toBe(false);
   });
 
+  // Ta klasa błędu POŁOŻYŁA CI w sierpniu 2026: dwie migracje zdjęły wariant
+  // dwuargumentowy `redeem_gift_link` i obie utworzyły trzyargumentowy. Na bazie
+  // już zmigrowanej nic się nie dzieje - błąd wychodzi dopiero przy odtwarzaniu
+  // schematu od zera, czyli w jobie pgtap.
+  it("łapie CREATE FUNCTION dla sygnatury utworzonej przez wcześniejszą migrację", () => {
+    const report = analyzeMigrationReplay(
+      ["20260101000000_a.sql", "20260101000001_b.sql"],
+      [
+        {
+          file: "20260101000000_a.sql",
+          sql: "DROP FUNCTION IF EXISTS public.f(uuid, text);\nCREATE FUNCTION public.f(a uuid, b text, c uuid DEFAULT NULL) RETURNS void LANGUAGE sql AS $$ SELECT 1 $$;",
+        },
+        {
+          file: "20260101000001_b.sql",
+          sql: "DROP FUNCTION IF EXISTS public.f(uuid, text);\nCREATE FUNCTION public.f(a uuid, b text, c uuid DEFAULT NULL) RETURNS void LANGUAGE sql AS $$ SELECT 2 $$;",
+        },
+      ],
+    );
+
+    expect(report.recreatedFunctions).toEqual([
+      { signature: "f/3", file: "20260101000001_b.sql", earlier: "20260101000000_a.sql" },
+    ]);
+    expect(migrationReplayFailed(report)).toBe(true);
+  });
+
+  it("zdjęcie DOKŁADNIE tej sygnatury w tym samym pliku jest legalne", () => {
+    // Tak zmienia się typ zwracany, którego CREATE OR REPLACE nie przepuszcza.
+    const report = analyzeMigrationReplay(
+      ["20260101000000_a.sql", "20260101000001_b.sql"],
+      [
+        {
+          file: "20260101000000_a.sql",
+          sql: "CREATE FUNCTION public.f(a uuid) RETURNS void LANGUAGE sql AS $$ SELECT 1 $$;",
+        },
+        {
+          file: "20260101000001_b.sql",
+          sql: "DROP FUNCTION IF EXISTS public.f(uuid);\nCREATE FUNCTION public.f(a uuid) RETURNS integer LANGUAGE sql AS $$ SELECT 2 $$;",
+        },
+      ],
+    );
+
+    expect(report.recreatedFunctions).toEqual([]);
+    expect(migrationReplayFailed(report)).toBe(false);
+  });
+
+  it("arność liczy przecinki na poziomie zero, nie wszystkie", () => {
+    // numeric(10,2) i DEFAULT z przecinkiem w literale nie mogą zawyżać arności,
+    // bo to ona jest całym kluczem tożsamości sygnatury.
+    const report = analyzeMigrationReplay(
+      ["20260101000000_a.sql", "20260101000001_b.sql"],
+      [
+        {
+          file: "20260101000000_a.sql",
+          sql: "CREATE FUNCTION public.f(a numeric(10,2), b text DEFAULT 'x,y') RETURNS void LANGUAGE sql AS $$ SELECT 1 $$;",
+        },
+        {
+          file: "20260101000001_b.sql",
+          sql: "CREATE FUNCTION public.f(a numeric(10,2), b text DEFAULT 'x,y') RETURNS void LANGUAGE sql AS $$ SELECT 2 $$;",
+        },
+      ],
+    );
+
+    expect(report.recreatedFunctions.map((r) => r.signature)).toEqual(["f/2"]);
+  });
+
   it("ratchet: lista znanego długu odzwierciedla stan repo", () => {
     const repoFiles = readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith(".sql"));
     const repoSources = repoFiles.map((file) => ({
@@ -243,6 +308,10 @@ describe("inwariant bliźniaków treści", () => {
     expect(
       report.staleKnownTwins,
       "wpis KNOWN_CONTENT_TWINS bez pokrycia w repo - lista może tylko maleć",
+    ).toEqual([]);
+    expect(
+      report.recreatedFunctions,
+      "CREATE FUNCTION dla istniejącej sygnatury - replay od zera padnie na 42723",
     ).toEqual([]);
   });
 });
