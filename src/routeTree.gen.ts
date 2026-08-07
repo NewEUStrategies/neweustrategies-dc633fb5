@@ -192,6 +192,7 @@ import { Route as NetworkMutualUserIdRouteImport } from './routes/network.mutual
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as ClubJoinTokenRouteImport } from './routes/club.join.$token'
 import { Route as ClubClubSlugNewRouteImport } from './routes/club.$clubSlug.new'
+import { Route as ClubClubSlugMinisiteRouteImport } from './routes/club.$clubSlug.minisite'
 import { Route as ClubClubSlugAboutRouteImport } from './routes/club.$clubSlug.about'
 import { Route as CategorySlugRssDotxmlRouteImport } from './routes/category.$slug.rss[.]xml'
 import { Route as ApiPublicVitalsRouteImport } from './routes/api/public/vitals'
@@ -1206,6 +1207,11 @@ const ClubClubSlugNewRoute = ClubClubSlugNewRouteImport.update({
   path: '/club/$clubSlug/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ClubClubSlugMinisiteRoute = ClubClubSlugMinisiteRouteImport.update({
+  id: '/club/$clubSlug/minisite',
+  path: '/club/$clubSlug/minisite',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ClubClubSlugAboutRoute = ClubClubSlugAboutRouteImport.update({
   id: '/club/$clubSlug/about',
   path: '/club/$clubSlug/about',
@@ -1953,6 +1959,7 @@ export interface FileRoutesByFullPath {
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/category/$slug/rss.xml': typeof CategorySlugRssDotxmlRoute
   '/club/$clubSlug/about': typeof ClubClubSlugAboutRoute
+  '/club/$clubSlug/minisite': typeof ClubClubSlugMinisiteRoute
   '/club/$clubSlug/new': typeof ClubClubSlugNewRoute
   '/club/join/$token': typeof ClubJoinTokenRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -2222,6 +2229,7 @@ export interface FileRoutesByTo {
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/category/$slug/rss.xml': typeof CategorySlugRssDotxmlRoute
   '/club/$clubSlug/about': typeof ClubClubSlugAboutRoute
+  '/club/$clubSlug/minisite': typeof ClubClubSlugMinisiteRoute
   '/club/$clubSlug/new': typeof ClubClubSlugNewRoute
   '/club/join/$token': typeof ClubJoinTokenRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -2502,6 +2510,7 @@ export interface FileRoutesById {
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/category/$slug/rss.xml': typeof CategorySlugRssDotxmlRoute
   '/club/$clubSlug/about': typeof ClubClubSlugAboutRoute
+  '/club/$clubSlug/minisite': typeof ClubClubSlugMinisiteRoute
   '/club/$clubSlug/new': typeof ClubClubSlugNewRoute
   '/club/join/$token': typeof ClubJoinTokenRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -2783,6 +2792,7 @@ export interface FileRouteTypes {
     | '/api/public/vitals'
     | '/category/$slug/rss.xml'
     | '/club/$clubSlug/about'
+    | '/club/$clubSlug/minisite'
     | '/club/$clubSlug/new'
     | '/club/join/$token'
     | '/lovable/email/suppression'
@@ -3052,6 +3062,7 @@ export interface FileRouteTypes {
     | '/api/public/vitals'
     | '/category/$slug/rss.xml'
     | '/club/$clubSlug/about'
+    | '/club/$clubSlug/minisite'
     | '/club/$clubSlug/new'
     | '/club/join/$token'
     | '/lovable/email/suppression'
@@ -3331,6 +3342,7 @@ export interface FileRouteTypes {
     | '/api/public/vitals'
     | '/category/$slug/rss.xml'
     | '/club/$clubSlug/about'
+    | '/club/$clubSlug/minisite'
     | '/club/$clubSlug/new'
     | '/club/join/$token'
     | '/lovable/email/suppression'
@@ -3466,6 +3478,7 @@ export interface RootRouteChildren {
   ApiPublicVersionRoute: typeof ApiPublicVersionRoute
   ApiPublicVitalsRoute: typeof ApiPublicVitalsRoute
   ClubClubSlugAboutRoute: typeof ClubClubSlugAboutRoute
+  ClubClubSlugMinisiteRoute: typeof ClubClubSlugMinisiteRoute
   ClubClubSlugNewRoute: typeof ClubClubSlugNewRoute
   ClubJoinTokenRoute: typeof ClubJoinTokenRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
@@ -4769,6 +4782,13 @@ declare module '@tanstack/react-router' {
       path: '/club/$clubSlug/new'
       fullPath: '/club/$clubSlug/new'
       preLoaderRoute: typeof ClubClubSlugNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/club/$clubSlug/minisite': {
+      id: '/club/$clubSlug/minisite'
+      path: '/club/$clubSlug/minisite'
+      fullPath: '/club/$clubSlug/minisite'
+      preLoaderRoute: typeof ClubClubSlugMinisiteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/club/$clubSlug/about': {
@@ -6088,6 +6108,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicVersionRoute: ApiPublicVersionRoute,
   ApiPublicVitalsRoute: ApiPublicVitalsRoute,
   ClubClubSlugAboutRoute: ClubClubSlugAboutRoute,
+  ClubClubSlugMinisiteRoute: ClubClubSlugMinisiteRoute,
   ClubClubSlugNewRoute: ClubClubSlugNewRoute,
   ClubJoinTokenRoute: ClubJoinTokenRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
