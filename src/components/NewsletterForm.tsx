@@ -259,6 +259,10 @@ export function NewsletterForm({
 
       const meta: Record<string, string> = {};
       if (company.trim()) meta.company = company.trim();
+      if (linkedin.trim()) meta.linkedin = linkedin.trim().slice(0, 300);
+      if (phone.trim()) meta.phone = phone.trim().slice(0, 40);
+      if (country.trim()) meta.country = country.trim().slice(0, 100);
+
 
       const pickedItemIds = Array.from(picked);
       if (pickedItemIds.length > 0) {
