@@ -44,3 +44,4 @@ test-results/
 
 # Raporty bramek CI (kontrakt bazy, parytet i18n, raport wdrożenia)
 reports/
+.audit-findings.json

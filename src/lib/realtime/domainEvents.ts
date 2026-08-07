@@ -58,6 +58,18 @@ export const DOMAIN_EVENT_TYPES = [
   // checkoutu i odnowień oraz paragony; updated = zmiana statusu (refund).
   "billing_document.issued.v1",
   "billing_document.updated.v1",
+  // Kluby dyskusyjne (migracja 20260808140000). Zdarzenia sa emitowane
+  // z triggerow, a nie z RPC, bo watek powstaje dwiema sciezkami
+  // (produktowa i administracyjna), a odpowiedz trzema. Payload niesie
+  // WYLACZNIE identyfikatory: domain_events czyta caly staff tenantu, a
+  // czlonkostwo w klubie to inna bramka niz rola redakcyjna. Wpis anonimowy
+  // albo w trybie chatham emituje sie BEZ aktora, a klub 'secret' nie emituje
+  // w ogole - inaczej szyna zdarzen bylaby obejsciem reguly Chatham House.
+  "club_thread.created.v1",
+  "club_thread.status_changed.v1",
+  "club_reply.created.v1",
+  "club_reply.status_changed.v1",
+  "club_member.changed.v1",
 ] as const;
 
 export type DomainEventType = (typeof DOMAIN_EVENT_TYPES)[number];
@@ -100,6 +112,9 @@ export const DOMAIN_AGGREGATE_TYPES = [
   "org_seat",
   "donation",
   "billing_document",
+  "club_thread",
+  "club_reply",
+  "club_member",
 ] as const;
 
 export type DomainAggregateType = (typeof DOMAIN_AGGREGATE_TYPES)[number];

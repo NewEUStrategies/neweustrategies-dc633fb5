@@ -2056,7 +2056,8 @@ export const pl = {
       groupByConversationHint: "Zwiń wiele wiadomości z tego samego czatu w jeden wpis.",
       kindGroups: {
         conversations: "Rozmowy",
-        conversationsHint: "Bezpośredni kontakt: czat i formalne zapytania do ekspertów.",
+        conversationsHint:
+          "Bezpośredni kontakt: czat, formalne zapytania do ekspertów i dyskusje w klubach.",
         network: "Sieć i profil",
         networkHint:
           "Sygnały o tym, kto Cię szuka, poleca i chce poznać. Odmowa wprowadzenia oraz odrzucenie rekomendacji pozostają ciche.",
@@ -2068,6 +2069,7 @@ export const pl = {
       kinds: {
         message: "Wiadomości na czacie",
         expert_request: "Zapytania do ekspertów",
+        club: "Kluby dyskusyjne",
         comment: "Komentarze",
         follow: "Nowi obserwujący",
         subscription: "Aktualizacje subskrypcji",

@@ -115,6 +115,7 @@ const pl = {
     tabs: {
       posts: "Wpisy",
       topics: "Tematyka",
+      clubs: "Kluby",
       people: "Osoby",
       experts: "Eksperci",
       ariaLabel: "Kategorie wyników",
@@ -228,6 +229,7 @@ const en: typeof pl = {
     tabs: {
       posts: "Posts",
       topics: "Topics",
+      clubs: "Clubs",
       people: "People",
       experts: "Experts",
       ariaLabel: "Result categories",

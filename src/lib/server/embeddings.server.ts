@@ -183,3 +183,60 @@ export async function runProfileSemanticIndexBatch(
   if (upsertError) throw new Error(upsertError.message);
   return { scanned: rows.length, embedded: payload.length, pruned };
 }
+
+/**
+ * Jedna partia indeksera WATKOW KLUBOWYCH: kolejka
+ * z club_threads_needing_embeddings -> embeddingi -> upsert
+ * club_thread_embeddings.
+ *
+ * Tabela i funkcja wyszukiwania (club_semantic_search) istnialy od migracji A6,
+ * ale nikt ich nie karmil - wyszukiwanie semantyczne po klubach zwracalo zero
+ * wynikow nie dlatego, ze nic nie pasowalo, tylko dlatego, ze tabela wektorow
+ * byla pusta.
+ *
+ * Sprzatanie idzie PRZED embedowaniem, tak samo jak przy profilach: watek,
+ * ktory wladowal do grupy roboczej albo zostal ukryty, ma zniknac z wyszukiwania
+ * w TYM ticku, takze wtedy, gdy bramka embeddingow jest niedostepna.
+ */
+export async function runClubThreadIndexBatch(
+  admin: DbClient,
+  batch = 16,
+  options: { prune?: boolean } = {},
+): Promise<ProfileSemanticIndexResult> {
+  let pruned: number | undefined;
+  if (options.prune) {
+    const { data, error } = await admin.rpc("club_prune_thread_embeddings");
+    if (error) throw new Error(error.message);
+    pruned = typeof data === "number" ? data : 0;
+  }
+
+  const { data: queue, error } = await admin.rpc("club_threads_needing_embeddings", {
+    p_limit: batch,
+  });
+  if (error) throw new Error(error.message);
+  const rows = queue ?? [];
+  if (rows.length === 0) return { scanned: 0, embedded: 0, pruned };
+
+  const vectors = await embedTexts(rows.map((r) => r.source ?? ""));
+  if (vectors === null) {
+    return {
+      scanned: rows.length,
+      embedded: 0,
+      pruned,
+      skipped: "embeddings provider unavailable",
+    };
+  }
+
+  const payload = rows.map((r, i) => ({
+    thread_id: r.thread_id,
+    tenant_id: r.tenant_id,
+    source_hash: r.source_hash,
+    embedding: toVectorLiteral(vectors[i]) as unknown as string,
+    updated_at: new Date().toISOString(),
+  }));
+  const { error: upsertError } = await admin
+    .from("club_thread_embeddings")
+    .upsert(payload, { onConflict: "thread_id" });
+  if (upsertError) throw new Error(upsertError.message);
+  return { scanned: rows.length, embedded: payload.length, pruned };
+}

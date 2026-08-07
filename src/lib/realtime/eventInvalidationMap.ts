@@ -8,6 +8,7 @@ import { billingKeys } from "@/lib/billing/keys";
 import { chatKeys } from "@/lib/chat/keys";
 import { pendingCounterKeys } from "@/lib/counters/keys";
 import { linkedItemsKeys } from "@/lib/links/keys";
+import { clubKeys } from "@/lib/clubs/queryKeys";
 import { eventPayloadText, type DomainEventRow, type DomainEventType } from "./domainEvents";
 
 export interface InvalidationContext {
@@ -161,6 +162,22 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
   // właściciel), profil odświeża listę i historię zamówień bez F5.
   "billing_document.issued.v1": () => billingDocumentKeys(),
   "billing_document.updated.v1": () => billingDocumentKeys(),
+  // Kluby dyskusyjne. Zdarzenie moze przyjsc BEZ aktora (wpis anonimowy) -
+  // to nie zmienia niczego dla inwalidacji, bo klucze cache sa per klub
+  // i per watek, a nie per autor.
+  "club_thread.created.v1": (event) => clubEventKeys(event),
+  "club_thread.status_changed.v1": (event) => clubEventKeys(event),
+  "club_reply.created.v1": (event) => [
+    ...clubEventKeys(event),
+    clubKeys.repliesAll(eventPayloadText(event, "thread_id")),
+  ],
+  "club_reply.status_changed.v1": (event) => [
+    ...clubEventKeys(event),
+    clubKeys.repliesAll(eventPayloadText(event, "thread_id")),
+  ],
+  // Zmiana czlonkostwa rusza takze WLASNE czlonkostwa odbiorcy: lista "Moje
+  // kluby" w naglowku produktu przestaje byc prawdziwa w tej samej chwili.
+  "club_member.changed.v1": (event) => [...clubEventKeys(event), clubKeys.memberships()],
 };
 
 function billingDocumentKeys(): QueryKey[] {
@@ -211,6 +228,20 @@ function membershipGrantKeys(): QueryKey[] {
 // w nawigacji admina to link zewnętrzny), więc nie ma klucza admina.
 function donationKeys(): QueryKey[] {
   return [billingKeys.myDonationsAll()];
+}
+
+/**
+ * Kluby: payload niesie club_id i thread_id, ale NIE slug - a klucze cache sa
+ * budowane na slugu tam, gdzie strona zna tylko adres. Dlatego unieważniamy
+ * prefiks klubu (dotyka listy tematow, karty klubu i statystyk) plus punktowo
+ * watek, gdy zdarzenie go wskazuje. To ta sama argumentacja co przy kluczach
+ * sieci: w chwili odbioru zdarzenia nie znamy wszystkich wspolrzednych.
+ */
+function clubEventKeys(event: DomainEventRow): QueryKey[] {
+  const clubId = eventPayloadText(event, "club_id");
+  const keys: QueryKey[] = [clubKeys.all];
+  if (clubId !== "") keys.push(clubKeys.club(clubId));
+  return keys;
 }
 
 const eventKeysList: QueryKey[] = [

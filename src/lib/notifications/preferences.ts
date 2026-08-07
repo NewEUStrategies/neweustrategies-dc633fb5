@@ -35,7 +35,8 @@ export type NotificationKind =
   | "recommendation"
   | "endorsement"
   | "profile_view"
-  | "meeting_booking";
+  | "meeting_booking"
+  | "club";
 
 /**
  * Kto może ZACZĄĆ nowy wątek z użytkownikiem - rozmowę bezpośrednią albo krąg
@@ -118,6 +119,15 @@ export interface NotificationPreferences {
    * wyciszało także spotkania.
    */
   enabled_meeting_booking: boolean;
+  /**
+   * Kluby dyskusyjne (producenci: club_notify i piec siostrzanych triggerow -
+   * odpowiedz w watku, wzmianka, zaproszenie, decyzja o dostepie, akcja
+   * moderacyjna). Kolumna `enabled_club` i galaz WHEN 'club' w
+   * enqueue_notification istnialy od migracji A4; brakowalo wylacznie
+   * przelacznika, wiec strumienia klubowego nie dalo sie wyciszyc inaczej niz
+   * przez opuszczenie klubu.
+   */
+  enabled_club: boolean;
   auto_mark_on_open: boolean;
   group_by_conversation: boolean;
   /**
@@ -173,6 +183,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   enabled_endorsement: true,
   enabled_profile_view: true,
   enabled_meeting_booking: true,
+  enabled_club: true,
   auto_mark_on_open: true,
   group_by_conversation: true,
   read_receipts_enabled: true,
@@ -211,7 +222,7 @@ export const NOTIFICATION_KIND_GROUPS = [
   {
     id: "conversations",
     icon: "MessagesSquare",
-    kinds: ["message", "expert_request"],
+    kinds: ["message", "expert_request", "club"],
   },
   {
     id: "network",
