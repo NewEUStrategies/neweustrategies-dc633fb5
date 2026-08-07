@@ -55,6 +55,7 @@ import { Route as TrackerIndexRouteImport } from './routes/tracker.index'
 import { Route as ProgramsIndexRouteImport } from './routes/programs.index'
 import { Route as ProfileIndexRouteImport } from './routes/profile.index'
 import { Route as PodcastsIndexRouteImport } from './routes/podcasts.index'
+import { Route as ClubIndexRouteImport } from './routes/club.index'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as WebStoriesSlugRouteImport } from './routes/web-stories.$slug'
@@ -173,6 +174,7 @@ import { Route as AdminAdsRouteImport } from './routes/admin.ads'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as Char91DotwellKnownChar93GpcChar91DotChar93jsonRouteImport } from './routes/[.well-known]/gpc[.]json'
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
+import { Route as ClubClubSlugIndexRouteImport } from './routes/club.$clubSlug.index'
 import { Route as AdminUsersIndexRouteImport } from './routes/admin.users.index'
 import { Route as AdminSettingsIndexRouteImport } from './routes/admin.settings.index'
 import { Route as AdminNewsletterIndexRouteImport } from './routes/admin.newsletter.index'
@@ -187,6 +189,9 @@ import { Route as PodcastsShowRssDotxmlRouteImport } from './routes/podcasts.$sh
 import { Route as PlatformEmailSuppressionRouteImport } from './routes/platform/email/suppression'
 import { Route as NetworkMutualUserIdRouteImport } from './routes/network.mutual.$userId'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
+import { Route as ClubJoinTokenRouteImport } from './routes/club.join.$token'
+import { Route as ClubClubSlugNewRouteImport } from './routes/club.$clubSlug.new'
+import { Route as ClubClubSlugAboutRouteImport } from './routes/club.$clubSlug.about'
 import { Route as CategorySlugRssDotxmlRouteImport } from './routes/category.$slug.rss[.]xml'
 import { Route as ApiPublicVitalsRouteImport } from './routes/api/public/vitals'
 import { Route as ApiPublicVersionRouteImport } from './routes/api/public/version'
@@ -261,6 +266,7 @@ import { Route as AdminAppearanceCategoryArchiveRouteImport } from './routes/adm
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
 import { Route as AdminNewsletterCampaignsIndexRouteImport } from './routes/admin.newsletter.campaigns.index'
 import { Route as AdminCrmFunnelIndexRouteImport } from './routes/admin.crm.funnel.index'
+import { Route as AdminCommunityClubsIndexRouteImport } from './routes/admin.community.clubs.index'
 import { Route as PlatformEmailTransactionalSendRouteImport } from './routes/platform/email/transactional/send'
 import { Route as PlatformEmailTransactionalPreviewRouteImport } from './routes/platform/email/transactional/preview'
 import { Route as PlatformEmailQueueProcessRouteImport } from './routes/platform/email/queue/process'
@@ -270,12 +276,14 @@ import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/l
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
 import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
+import { Route as ClubClubSlugTThreadSlugRouteImport } from './routes/club.$clubSlug.t.$threadSlug'
 import { Route as ApiPublicWebhooksResendRouteImport } from './routes/api/public/webhooks.resend'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
 import { Route as ApiPublicNewsletterUnsubscribeRouteImport } from './routes/api.public.newsletter.unsubscribe'
 import { Route as ApiPublicNewsletterConfirmRouteImport } from './routes/api.public.newsletter.confirm'
 import { Route as ApiPublicHooksRefreshOgImageRouteImport } from './routes/api/public/hooks.refresh-og-image'
 import { Route as AdminNewsletterCampaignsIdRouteImport } from './routes/admin.newsletter.campaigns.$id'
+import { Route as AdminCommunityClubsClubIdRouteImport } from './routes/admin.community.clubs.$clubId'
 
 const ZwrotyIReklamacjeRoute = ZwrotyIReklamacjeRouteImport.update({
   id: '/zwroty-i-reklamacje',
@@ -505,6 +513,11 @@ const ProfileIndexRoute = ProfileIndexRouteImport.update({
 const PodcastsIndexRoute = PodcastsIndexRouteImport.update({
   id: '/podcasts/',
   path: '/podcasts/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClubIndexRoute = ClubIndexRouteImport.update({
+  id: '/club/',
+  path: '/club/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BlogIndexRoute = BlogIndexRouteImport.update({
@@ -1100,6 +1113,11 @@ const Char91DotmcpChar93ListToolsRoute =
     path: '/.mcp/list-tools',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ClubClubSlugIndexRoute = ClubClubSlugIndexRouteImport.update({
+  id: '/club/$clubSlug/',
+  path: '/club/$clubSlug/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminUsersIndexRoute = AdminUsersIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -1169,6 +1187,21 @@ const NetworkMutualUserIdRoute = NetworkMutualUserIdRouteImport.update({
 const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
   id: '/lovable/email/suppression',
   path: '/lovable/email/suppression',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClubJoinTokenRoute = ClubJoinTokenRouteImport.update({
+  id: '/club/join/$token',
+  path: '/club/join/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClubClubSlugNewRoute = ClubClubSlugNewRouteImport.update({
+  id: '/club/$clubSlug/new',
+  path: '/club/$clubSlug/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClubClubSlugAboutRoute = ClubClubSlugAboutRouteImport.update({
+  id: '/club/$clubSlug/about',
+  path: '/club/$clubSlug/about',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CategorySlugRssDotxmlRoute = CategorySlugRssDotxmlRouteImport.update({
@@ -1562,6 +1595,12 @@ const AdminCrmFunnelIndexRoute = AdminCrmFunnelIndexRouteImport.update({
   path: '/funnel/',
   getParentRoute: () => AdminCrmRoute,
 } as any)
+const AdminCommunityClubsIndexRoute =
+  AdminCommunityClubsIndexRouteImport.update({
+    id: '/clubs/',
+    path: '/clubs/',
+    getParentRoute: () => AdminCommunityRoute,
+  } as any)
 const PlatformEmailTransactionalSendRoute =
   PlatformEmailTransactionalSendRouteImport.update({
     id: '/platform/email/transactional/send',
@@ -1614,6 +1653,11 @@ const LovableEmailAuthPreviewRoute = LovableEmailAuthPreviewRouteImport.update({
   path: '/lovable/email/auth/preview',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ClubClubSlugTThreadSlugRoute = ClubClubSlugTThreadSlugRouteImport.update({
+  id: '/club/$clubSlug/t/$threadSlug',
+  path: '/club/$clubSlug/t/$threadSlug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicWebhooksResendRoute = ApiPublicWebhooksResendRouteImport.update({
   id: '/api/public/webhooks/resend',
   path: '/api/public/webhooks/resend',
@@ -1648,6 +1692,12 @@ const AdminNewsletterCampaignsIdRoute =
     id: '/$id',
     path: '/$id',
     getParentRoute: () => AdminNewsletterCampaignsRoute,
+  } as any)
+const AdminCommunityClubsClubIdRoute =
+  AdminCommunityClubsClubIdRouteImport.update({
+    id: '/clubs/$clubId',
+    path: '/clubs/$clubId',
+    getParentRoute: () => AdminCommunityRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -1810,6 +1860,7 @@ export interface FileRoutesByFullPath {
   '/web-stories/$slug': typeof WebStoriesSlugRouteWithChildren
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
+  '/club/': typeof ClubIndexRoute
   '/podcasts/': typeof PodcastsIndexRoute
   '/profile/': typeof ProfileIndexRoute
   '/programs/': typeof ProgramsIndexRoute
@@ -1887,6 +1938,9 @@ export interface FileRoutesByFullPath {
   '/api/public/version': typeof ApiPublicVersionRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/category/$slug/rss.xml': typeof CategorySlugRssDotxmlRoute
+  '/club/$clubSlug/about': typeof ClubClubSlugAboutRoute
+  '/club/$clubSlug/new': typeof ClubClubSlugNewRoute
+  '/club/join/$token': typeof ClubJoinTokenRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
   '/platform/email/suppression': typeof PlatformEmailSuppressionRoute
@@ -1901,12 +1955,15 @@ export interface FileRoutesByFullPath {
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
+  '/club/$clubSlug/': typeof ClubClubSlugIndexRoute
+  '/admin/community/clubs/$clubId': typeof AdminCommunityClubsClubIdRoute
   '/admin/newsletter/campaigns/$id': typeof AdminNewsletterCampaignsIdRoute
   '/api/public/hooks/refresh-og-image': typeof ApiPublicHooksRefreshOgImageRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/webhooks/resend': typeof ApiPublicWebhooksResendRoute
+  '/club/$clubSlug/t/$threadSlug': typeof ClubClubSlugTThreadSlugRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -1916,6 +1973,7 @@ export interface FileRoutesByFullPath {
   '/platform/email/queue/process': typeof PlatformEmailQueueProcessRoute
   '/platform/email/transactional/preview': typeof PlatformEmailTransactionalPreviewRoute
   '/platform/email/transactional/send': typeof PlatformEmailTransactionalSendRoute
+  '/admin/community/clubs/': typeof AdminCommunityClubsIndexRoute
   '/admin/crm/funnel/': typeof AdminCrmFunnelIndexRoute
   '/admin/newsletter/campaigns/': typeof AdminNewsletterCampaignsIndexRoute
 }
@@ -2070,6 +2128,7 @@ export interface FileRoutesByTo {
   '/web-stories/$slug': typeof WebStoriesSlugRouteWithChildren
   '/admin': typeof AdminIndexRoute
   '/blog': typeof BlogIndexRoute
+  '/club': typeof ClubIndexRoute
   '/podcasts': typeof PodcastsIndexRoute
   '/profile': typeof ProfileIndexRoute
   '/programs': typeof ProgramsIndexRoute
@@ -2146,6 +2205,9 @@ export interface FileRoutesByTo {
   '/api/public/version': typeof ApiPublicVersionRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/category/$slug/rss.xml': typeof CategorySlugRssDotxmlRoute
+  '/club/$clubSlug/about': typeof ClubClubSlugAboutRoute
+  '/club/$clubSlug/new': typeof ClubClubSlugNewRoute
+  '/club/join/$token': typeof ClubJoinTokenRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
   '/platform/email/suppression': typeof PlatformEmailSuppressionRoute
@@ -2160,12 +2222,15 @@ export interface FileRoutesByTo {
   '/admin/newsletter': typeof AdminNewsletterIndexRoute
   '/admin/settings': typeof AdminSettingsIndexRoute
   '/admin/users': typeof AdminUsersIndexRoute
+  '/club/$clubSlug': typeof ClubClubSlugIndexRoute
+  '/admin/community/clubs/$clubId': typeof AdminCommunityClubsClubIdRoute
   '/admin/newsletter/campaigns/$id': typeof AdminNewsletterCampaignsIdRoute
   '/api/public/hooks/refresh-og-image': typeof ApiPublicHooksRefreshOgImageRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/webhooks/resend': typeof ApiPublicWebhooksResendRoute
+  '/club/$clubSlug/t/$threadSlug': typeof ClubClubSlugTThreadSlugRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -2175,6 +2240,7 @@ export interface FileRoutesByTo {
   '/platform/email/queue/process': typeof PlatformEmailQueueProcessRoute
   '/platform/email/transactional/preview': typeof PlatformEmailTransactionalPreviewRoute
   '/platform/email/transactional/send': typeof PlatformEmailTransactionalSendRoute
+  '/admin/community/clubs': typeof AdminCommunityClubsIndexRoute
   '/admin/crm/funnel': typeof AdminCrmFunnelIndexRoute
   '/admin/newsletter/campaigns': typeof AdminNewsletterCampaignsIndexRoute
 }
@@ -2339,6 +2405,7 @@ export interface FileRoutesById {
   '/web-stories/$slug': typeof WebStoriesSlugRouteWithChildren
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
+  '/club/': typeof ClubIndexRoute
   '/podcasts/': typeof PodcastsIndexRoute
   '/profile/': typeof ProfileIndexRoute
   '/programs/': typeof ProgramsIndexRoute
@@ -2416,6 +2483,9 @@ export interface FileRoutesById {
   '/api/public/version': typeof ApiPublicVersionRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/category/$slug/rss.xml': typeof CategorySlugRssDotxmlRoute
+  '/club/$clubSlug/about': typeof ClubClubSlugAboutRoute
+  '/club/$clubSlug/new': typeof ClubClubSlugNewRoute
+  '/club/join/$token': typeof ClubJoinTokenRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
   '/platform/email/suppression': typeof PlatformEmailSuppressionRoute
@@ -2430,12 +2500,15 @@ export interface FileRoutesById {
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
+  '/club/$clubSlug/': typeof ClubClubSlugIndexRoute
+  '/admin/community/clubs/$clubId': typeof AdminCommunityClubsClubIdRoute
   '/admin/newsletter/campaigns/$id': typeof AdminNewsletterCampaignsIdRoute
   '/api/public/hooks/refresh-og-image': typeof ApiPublicHooksRefreshOgImageRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/webhooks/resend': typeof ApiPublicWebhooksResendRoute
+  '/club/$clubSlug/t/$threadSlug': typeof ClubClubSlugTThreadSlugRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -2445,6 +2518,7 @@ export interface FileRoutesById {
   '/platform/email/queue/process': typeof PlatformEmailQueueProcessRoute
   '/platform/email/transactional/preview': typeof PlatformEmailTransactionalPreviewRoute
   '/platform/email/transactional/send': typeof PlatformEmailTransactionalSendRoute
+  '/admin/community/clubs/': typeof AdminCommunityClubsIndexRoute
   '/admin/crm/funnel/': typeof AdminCrmFunnelIndexRoute
   '/admin/newsletter/campaigns/': typeof AdminNewsletterCampaignsIndexRoute
 }
@@ -2610,6 +2684,7 @@ export interface FileRouteTypes {
     | '/web-stories/$slug'
     | '/admin/'
     | '/blog/'
+    | '/club/'
     | '/podcasts/'
     | '/profile/'
     | '/programs/'
@@ -2687,6 +2762,9 @@ export interface FileRouteTypes {
     | '/api/public/version'
     | '/api/public/vitals'
     | '/category/$slug/rss.xml'
+    | '/club/$clubSlug/about'
+    | '/club/$clubSlug/new'
+    | '/club/join/$token'
     | '/lovable/email/suppression'
     | '/network/mutual/$userId'
     | '/platform/email/suppression'
@@ -2701,12 +2779,15 @@ export interface FileRouteTypes {
     | '/admin/newsletter/'
     | '/admin/settings/'
     | '/admin/users/'
+    | '/club/$clubSlug/'
+    | '/admin/community/clubs/$clubId'
     | '/admin/newsletter/campaigns/$id'
     | '/api/public/hooks/refresh-og-image'
     | '/api/public/newsletter/confirm'
     | '/api/public/newsletter/unsubscribe'
     | '/api/public/payments/webhook'
     | '/api/public/webhooks/resend'
+    | '/club/$clubSlug/t/$threadSlug'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
@@ -2716,6 +2797,7 @@ export interface FileRouteTypes {
     | '/platform/email/queue/process'
     | '/platform/email/transactional/preview'
     | '/platform/email/transactional/send'
+    | '/admin/community/clubs/'
     | '/admin/crm/funnel/'
     | '/admin/newsletter/campaigns/'
   fileRoutesByTo: FileRoutesByTo
@@ -2870,6 +2952,7 @@ export interface FileRouteTypes {
     | '/web-stories/$slug'
     | '/admin'
     | '/blog'
+    | '/club'
     | '/podcasts'
     | '/profile'
     | '/programs'
@@ -2946,6 +3029,9 @@ export interface FileRouteTypes {
     | '/api/public/version'
     | '/api/public/vitals'
     | '/category/$slug/rss.xml'
+    | '/club/$clubSlug/about'
+    | '/club/$clubSlug/new'
+    | '/club/join/$token'
     | '/lovable/email/suppression'
     | '/network/mutual/$userId'
     | '/platform/email/suppression'
@@ -2960,12 +3046,15 @@ export interface FileRouteTypes {
     | '/admin/newsletter'
     | '/admin/settings'
     | '/admin/users'
+    | '/club/$clubSlug'
+    | '/admin/community/clubs/$clubId'
     | '/admin/newsletter/campaigns/$id'
     | '/api/public/hooks/refresh-og-image'
     | '/api/public/newsletter/confirm'
     | '/api/public/newsletter/unsubscribe'
     | '/api/public/payments/webhook'
     | '/api/public/webhooks/resend'
+    | '/club/$clubSlug/t/$threadSlug'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
@@ -2975,6 +3064,7 @@ export interface FileRouteTypes {
     | '/platform/email/queue/process'
     | '/platform/email/transactional/preview'
     | '/platform/email/transactional/send'
+    | '/admin/community/clubs'
     | '/admin/crm/funnel'
     | '/admin/newsletter/campaigns'
   id:
@@ -3138,6 +3228,7 @@ export interface FileRouteTypes {
     | '/web-stories/$slug'
     | '/admin/'
     | '/blog/'
+    | '/club/'
     | '/podcasts/'
     | '/profile/'
     | '/programs/'
@@ -3215,6 +3306,9 @@ export interface FileRouteTypes {
     | '/api/public/version'
     | '/api/public/vitals'
     | '/category/$slug/rss.xml'
+    | '/club/$clubSlug/about'
+    | '/club/$clubSlug/new'
+    | '/club/join/$token'
     | '/lovable/email/suppression'
     | '/network/mutual/$userId'
     | '/platform/email/suppression'
@@ -3229,12 +3323,15 @@ export interface FileRouteTypes {
     | '/admin/newsletter/'
     | '/admin/settings/'
     | '/admin/users/'
+    | '/club/$clubSlug/'
+    | '/admin/community/clubs/$clubId'
     | '/admin/newsletter/campaigns/$id'
     | '/api/public/hooks/refresh-og-image'
     | '/api/public/newsletter/confirm'
     | '/api/public/newsletter/unsubscribe'
     | '/api/public/payments/webhook'
     | '/api/public/webhooks/resend'
+    | '/club/$clubSlug/t/$threadSlug'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
@@ -3244,6 +3341,7 @@ export interface FileRouteTypes {
     | '/platform/email/queue/process'
     | '/platform/email/transactional/preview'
     | '/platform/email/transactional/send'
+    | '/admin/community/clubs/'
     | '/admin/crm/funnel/'
     | '/admin/newsletter/campaigns/'
   fileRoutesById: FileRoutesById
@@ -3320,6 +3418,7 @@ export interface RootRouteChildren {
   TrackerRssDotxmlRoute: typeof TrackerRssDotxmlRoute
   WebStoriesSlugRoute: typeof WebStoriesSlugRouteWithChildren
   BlogIndexRoute: typeof BlogIndexRoute
+  ClubIndexRoute: typeof ClubIndexRoute
   PodcastsIndexRoute: typeof PodcastsIndexRoute
   ProgramsIndexRoute: typeof ProgramsIndexRoute
   TrackerIndexRoute: typeof TrackerIndexRoute
@@ -3340,13 +3439,18 @@ export interface RootRouteChildren {
   ApiPublicTrackRoute: typeof ApiPublicTrackRoute
   ApiPublicVersionRoute: typeof ApiPublicVersionRoute
   ApiPublicVitalsRoute: typeof ApiPublicVitalsRoute
+  ClubClubSlugAboutRoute: typeof ClubClubSlugAboutRoute
+  ClubClubSlugNewRoute: typeof ClubClubSlugNewRoute
+  ClubJoinTokenRoute: typeof ClubJoinTokenRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   PlatformEmailSuppressionRoute: typeof PlatformEmailSuppressionRoute
+  ClubClubSlugIndexRoute: typeof ClubClubSlugIndexRoute
   ApiPublicHooksRefreshOgImageRoute: typeof ApiPublicHooksRefreshOgImageRoute
   ApiPublicNewsletterConfirmRoute: typeof ApiPublicNewsletterConfirmRoute
   ApiPublicNewsletterUnsubscribeRoute: typeof ApiPublicNewsletterUnsubscribeRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
   ApiPublicWebhooksResendRoute: typeof ApiPublicWebhooksResendRoute
+  ClubClubSlugTThreadSlugRoute: typeof ClubClubSlugTThreadSlugRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
   LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
@@ -3680,6 +3784,13 @@ declare module '@tanstack/react-router' {
       path: '/podcasts'
       fullPath: '/podcasts/'
       preLoaderRoute: typeof PodcastsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/club/': {
+      id: '/club/'
+      path: '/club'
+      fullPath: '/club/'
+      preLoaderRoute: typeof ClubIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/blog/': {
@@ -4508,6 +4619,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Char91DotmcpChar93ListToolsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/club/$clubSlug/': {
+      id: '/club/$clubSlug/'
+      path: '/club/$clubSlug'
+      fullPath: '/club/$clubSlug/'
+      preLoaderRoute: typeof ClubClubSlugIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/users/': {
       id: '/admin/users/'
       path: '/'
@@ -4604,6 +4722,27 @@ declare module '@tanstack/react-router' {
       path: '/lovable/email/suppression'
       fullPath: '/lovable/email/suppression'
       preLoaderRoute: typeof LovableEmailSuppressionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/club/join/$token': {
+      id: '/club/join/$token'
+      path: '/club/join/$token'
+      fullPath: '/club/join/$token'
+      preLoaderRoute: typeof ClubJoinTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/club/$clubSlug/new': {
+      id: '/club/$clubSlug/new'
+      path: '/club/$clubSlug/new'
+      fullPath: '/club/$clubSlug/new'
+      preLoaderRoute: typeof ClubClubSlugNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/club/$clubSlug/about': {
+      id: '/club/$clubSlug/about'
+      path: '/club/$clubSlug/about'
+      fullPath: '/club/$clubSlug/about'
+      preLoaderRoute: typeof ClubClubSlugAboutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/category/$slug/rss.xml': {
@@ -5124,6 +5263,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCrmFunnelIndexRouteImport
       parentRoute: typeof AdminCrmRoute
     }
+    '/admin/community/clubs/': {
+      id: '/admin/community/clubs/'
+      path: '/clubs'
+      fullPath: '/admin/community/clubs/'
+      preLoaderRoute: typeof AdminCommunityClubsIndexRouteImport
+      parentRoute: typeof AdminCommunityRoute
+    }
     '/platform/email/transactional/send': {
       id: '/platform/email/transactional/send'
       path: '/platform/email/transactional/send'
@@ -5187,6 +5333,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LovableEmailAuthPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/club/$clubSlug/t/$threadSlug': {
+      id: '/club/$clubSlug/t/$threadSlug'
+      path: '/club/$clubSlug/t/$threadSlug'
+      fullPath: '/club/$clubSlug/t/$threadSlug'
+      preLoaderRoute: typeof ClubClubSlugTThreadSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/webhooks/resend': {
       id: '/api/public/webhooks/resend'
       path: '/api/public/webhooks/resend'
@@ -5229,6 +5382,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminNewsletterCampaignsIdRouteImport
       parentRoute: typeof AdminNewsletterCampaignsRoute
     }
+    '/admin/community/clubs/$clubId': {
+      id: '/admin/community/clubs/$clubId'
+      path: '/clubs/$clubId'
+      fullPath: '/admin/community/clubs/$clubId'
+      preLoaderRoute: typeof AdminCommunityClubsClubIdRouteImport
+      parentRoute: typeof AdminCommunityRoute
+    }
   }
 }
 
@@ -5266,6 +5426,8 @@ interface AdminCommunityRouteChildren {
   AdminCommunityPollsRoute: typeof AdminCommunityPollsRoute
   AdminCommunityQaRoute: typeof AdminCommunityQaRoute
   AdminCommunityIndexRoute: typeof AdminCommunityIndexRoute
+  AdminCommunityClubsClubIdRoute: typeof AdminCommunityClubsClubIdRoute
+  AdminCommunityClubsIndexRoute: typeof AdminCommunityClubsIndexRoute
 }
 
 const AdminCommunityRouteChildren: AdminCommunityRouteChildren = {
@@ -5278,6 +5440,8 @@ const AdminCommunityRouteChildren: AdminCommunityRouteChildren = {
   AdminCommunityPollsRoute: AdminCommunityPollsRoute,
   AdminCommunityQaRoute: AdminCommunityQaRoute,
   AdminCommunityIndexRoute: AdminCommunityIndexRoute,
+  AdminCommunityClubsClubIdRoute: AdminCommunityClubsClubIdRoute,
+  AdminCommunityClubsIndexRoute: AdminCommunityClubsIndexRoute,
 }
 
 const AdminCommunityRouteWithChildren = AdminCommunityRoute._addFileChildren(
@@ -5859,6 +6023,7 @@ const rootRouteChildren: RootRouteChildren = {
   TrackerRssDotxmlRoute: TrackerRssDotxmlRoute,
   WebStoriesSlugRoute: WebStoriesSlugRouteWithChildren,
   BlogIndexRoute: BlogIndexRoute,
+  ClubIndexRoute: ClubIndexRoute,
   PodcastsIndexRoute: PodcastsIndexRoute,
   ProgramsIndexRoute: ProgramsIndexRoute,
   TrackerIndexRoute: TrackerIndexRoute,
@@ -5879,13 +6044,18 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicTrackRoute: ApiPublicTrackRoute,
   ApiPublicVersionRoute: ApiPublicVersionRoute,
   ApiPublicVitalsRoute: ApiPublicVitalsRoute,
+  ClubClubSlugAboutRoute: ClubClubSlugAboutRoute,
+  ClubClubSlugNewRoute: ClubClubSlugNewRoute,
+  ClubJoinTokenRoute: ClubJoinTokenRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   PlatformEmailSuppressionRoute: PlatformEmailSuppressionRoute,
+  ClubClubSlugIndexRoute: ClubClubSlugIndexRoute,
   ApiPublicHooksRefreshOgImageRoute: ApiPublicHooksRefreshOgImageRoute,
   ApiPublicNewsletterConfirmRoute: ApiPublicNewsletterConfirmRoute,
   ApiPublicNewsletterUnsubscribeRoute: ApiPublicNewsletterUnsubscribeRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
   ApiPublicWebhooksResendRoute: ApiPublicWebhooksResendRoute,
+  ClubClubSlugTThreadSlugRoute: ClubClubSlugTThreadSlugRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
   LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,

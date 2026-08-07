@@ -126,7 +126,6 @@ function PersonRow({
   degree = 0,
   bridge = null,
   highlighted,
-  degree,
   intents,
   children,
 }: {
@@ -161,13 +160,6 @@ function PersonRow({
           <BadgeCheck
             className="h-3.5 w-3.5 shrink-0 text-sky-600 dark:text-sky-400"
             aria-label={t("people.verifiedBadge")}
-          />
-        )}
-        {degree !== undefined && (
-          <NetworkDegreeBadge
-            degree={degree}
-            label={t(networkDegreeShortKey(degree))}
-            ariaLabel={t(networkDegreeLabelKey(degree))}
           />
         )}
       </p>
