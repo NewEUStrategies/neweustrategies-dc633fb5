@@ -263,9 +263,21 @@ export function ExpertLayoutHero({
   const nameNode = (
     <>
       {name}
+      {/* Kolejność świadoma: nazwisko -> stopień sieci (sama odznaka, bez
+          zdania) -> „Zweryfikowany". Kontekst relacji czyta się razem
+          z nazwiskiem, a nie w pasku akcji. */}
+      <NetworkDistance
+        userId={e.id}
+        displayName={name}
+        avatarUrl={e.avatar_url}
+        path="none"
+        density="compact"
+        className="ml-2 align-middle"
+      />
       {e.verified_at ? <VerifiedProfileBadge className="ml-2" /> : null}
     </>
   );
+
   const role = e.job_title ?? "";
   const company = e.company ?? "";
   const realRoleLine = [role, company].filter(Boolean).join(" · ");
