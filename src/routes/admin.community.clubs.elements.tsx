@@ -37,9 +37,13 @@ function AdminClubElementsPage() {
       <Card>
         <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
           <ShieldAlert className="size-6 text-muted-foreground" />
-          <p className="text-sm font-medium">{t("adminClubs.adminOnly")}</p>
+          <p className="text-sm font-medium">{t("adminClubs.noPermissionTitle")}</p>
+          <p className="max-w-sm text-sm text-muted-foreground">
+            {t("adminClubs.noPermissionBody")}
+          </p>
         </CardContent>
       </Card>
+
     );
   }
 
