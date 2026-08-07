@@ -31,6 +31,7 @@ import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { ensureI18n as ensureTrackerI18n } from "@/lib/i18n-tracker";
+import { ClubAnchorThreads } from "@/components/clubs/organisms/ClubAnchorThreads";
 export const Route = createFileRoute("/tracker/$slug")({
   loader: async ({ params, context }) => {
     // Crawler surfaces degrade, never 500 - brak wiersza obsługuje komponent.
@@ -357,6 +358,11 @@ function TrackerDetail() {
           />
         </section>
       )}
+
+      {/* Szew z klubami dyskusyjnymi: wątki przypięte do TEGO dossier. Sekcja
+          znika w całości, gdy nie ma czego pokazać - także wtedy, gdy wątki są,
+          ale czytelnik nie ma do nich dostępu. */}
+      <ClubAnchorThreads anchorType="eu_policy_item" anchorId={item.id} className="mt-10" />
 
       {(relatedQ.data?.length ?? 0) > 0 && (
         <section className="mt-10">

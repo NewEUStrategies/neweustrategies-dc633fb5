@@ -4,12 +4,14 @@
 // którego edycja psuje coś poza formularzem - istniejące linki do klubu.
 import { useTranslation } from "react-i18next";
 import { AlertTriangle } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CoverImagePicker } from "@/components/admin/CoverImagePicker";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ClubEnumSelect } from "../molecules/ClubEnumSelect";
-import { CLUB_STATUSES, type ClubStatus } from "@/lib/clubs/types";
+import { ClubLayoutPicker } from "../molecules/ClubLayoutPicker";
+import { CLUB_STATUSES, type ClubLayout, type ClubStatus } from "@/lib/clubs/types";
 
 export interface ClubGeneralDraft {
   slug: string;
@@ -23,6 +25,8 @@ export interface ClubGeneralDraft {
   rulesEn: string;
   policyArea: string;
   status: ClubStatus;
+  cover: string;
+  layout: ClubLayout;
 }
 
 interface ClubGeneralTabProps {
@@ -179,6 +183,35 @@ export function ClubGeneralTab({ draft, persistedSlug, onChange, disabled }: Clu
               onChange={(e) => onChange({ rulesEn: e.target.value })}
             />
             <p className="text-xs text-muted-foreground">{t("adminClubs.fields.rulesHint")}</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* --- prezentacja: okładka i układ ---
+          Oba pola istniały w bazie od pierwszej migracji i nie miały ŻADNEJ
+          kontrolki, więc klub wyglądał zawsze tak samo, a `cover_image_url`
+          było martwą kolumną. */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">{t("adminClubs.presentation")}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <CoverImagePicker
+            label={t("adminClubs.fields.cover")}
+            value={draft.cover}
+            onChange={(cover) => onChange({ cover })}
+            folder="clubs"
+          />
+          <div className="space-y-2">
+            <div>
+              <Label>{t("adminClubs.layout.label")}</Label>
+              <p className="text-xs text-muted-foreground">{t("adminClubs.layout.hint")}</p>
+            </div>
+            <ClubLayoutPicker
+              value={draft.layout}
+              onChange={(layout) => onChange({ layout })}
+              disabled={disabled}
+            />
           </div>
         </CardContent>
       </Card>

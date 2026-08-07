@@ -15,6 +15,12 @@ export const clubKeys = {
   /** Moje czlonkostwa - zasila nawigacje. */
   memberships: () => [...clubKeys.all, "memberships"] as const,
 
+  /** Strumien aktywnosci na stronie glownej klubow. Filtry sa czescia klucza,
+   *  bo przelaczenie zakladki "gorace"/"najnowsze" albo obszaru to inna lista,
+   *  a nie odswiezenie tej samej. */
+  activity: (sort: string, policyArea: string | null) =>
+    [...clubKeys.all, "activity", sort, policyArea ?? "all"] as const,
+
   /** Wszystko, co dotyczy jednego klubu. Prefiks dla grup, czlonkow, zdolnosci. */
   club: (clubId: string) => [...clubKeys.all, "club", clubId] as const,
 

@@ -1151,6 +1151,201 @@ SELECT pg_temp.assert(
   (SELECT count(*) FROM public.club_list(100, 0) WHERE slug = 'tajny') = 1,
   'administrator NADAL widzi klub secret - bramka nie zgubila tej sciezki');
 
+\echo '== 52. [A14] Zakladanie klubu: adres, uklad, czytelne odmowy =='
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+
+-- Dostepnosc adresu ZANIM cokolwiek zapiszemy.
+SELECT pg_temp.assert(
+  public.admin_club_slug_available('adres-ktorego-nie-ma', NULL),
+  'wolny adres jest raportowany jako wolny');
+SELECT pg_temp.assert(
+  NOT public.admin_club_slug_available('klub', NULL),
+  'zajety adres jest raportowany jako zajety');
+-- Przy edycji WLASNY slug klubu nie moze liczyc sie jako zajety, inaczej nie
+-- dalo by sie zapisac formularza bez zmiany adresu.
+SELECT pg_temp.assert(
+  public.admin_club_slug_available('klub', :'club_id'::uuid),
+  'wlasny adres klubu nie blokuje zapisu tego klubu');
+
+-- Kolizja adresu ma WLASNY kod, nie surowy 23505 z indeksu.
+SELECT pg_temp.assert_raises(
+  $q$ SELECT public.admin_club_upsert('{"slug":"klub","name_pl":"Duplikat"}'::jsonb) $q$,
+  'zalozenie klubu na zajetym adresie odrzucone');
+SELECT pg_temp.assert_raises(
+  $q$ SELECT public.admin_club_upsert('{"name_pl":"Bez adresu"}'::jsonb) $q$,
+  'zalozenie bez adresu odrzucone');
+
+-- Uklad: domyslny, zapisywalny, domkniety slownikiem.
+SELECT public.admin_club_upsert(
+  '{"slug":"klub-z-ukladem","name_pl":"Klub z ukladem","layout":"magazine"}'::jsonb) AS lay_club \gset
+SELECT pg_temp.assert(
+  (SELECT layout FROM public.admin_club_get(:'lay_club'::uuid)) = 'magazine',
+  'uklad zapisuje sie przy zakladaniu');
+SELECT pg_temp.assert(
+  (SELECT layout FROM public.club_view('klub')) = 'list',
+  'domyslny uklad to lista - strona produktowa wie, jak sie narysowac');
+SELECT public.admin_club_upsert(
+  format('{"id":"%s","layout":"cards"}', :'lay_club')::jsonb);
+SELECT pg_temp.assert(
+  (SELECT layout FROM public.admin_club_get(:'lay_club'::uuid)) = 'cards',
+  'uklad da sie zmienic patchem');
+SELECT pg_temp.assert_raises(
+  format($q$ UPDATE public.clubs SET layout = 'karuzela' WHERE id = '%s' $q$, :'lay_club'),
+  'uklad spoza slownika odrzucony przez baze');
+
+-- Patch NIE gubi pol, ktorych nie przyslano - to jest cala umowa tej funkcji.
+SELECT pg_temp.assert(
+  (SELECT name_pl FROM public.admin_club_get(:'lay_club'::uuid)) = 'Klub z ukladem',
+  'patch ukladu nie skasowal nazwy');
+-- Okladka: pole istnialo od A1 i nikt go nie ustawial. Teraz jedzie patchem
+-- i - co wazniejsze - da sie je WYCZYSCIC, bo pusty string znaczy NULL.
+SELECT public.admin_club_upsert(
+  format('{"id":"%s","cover_image_url":"https://example.test/cover.jpg"}', :'lay_club')::jsonb);
+SELECT pg_temp.assert(
+  (SELECT cover_image_url FROM public.admin_club_get(:'lay_club'::uuid))
+    = 'https://example.test/cover.jpg',
+  'okladka zapisuje sie patchem');
+SELECT public.admin_club_upsert(
+  format('{"id":"%s","cover_image_url":""}', :'lay_club')::jsonb);
+SELECT pg_temp.assert(
+  (SELECT cover_image_url FROM public.admin_club_get(:'lay_club'::uuid)) IS NULL,
+  'pusta okladka znaczy WYCZYSC, nie "nie ruszaj"');
+
+-- Nowy klub dostaje grupe domyslna: bez niej nie ma gdzie zalozyc tematu.
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_groups g WHERE g.club_id = :'lay_club'::uuid) = 1,
+  'nowy klub ma od razu grupe domyslna');
+
+-- Nie-admin nie zaklada klubu i nie pyta o dostepnosc adresu.
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000003';
+SELECT pg_temp.assert_raises(
+  $q$ SELECT public.admin_club_upsert('{"slug":"z-ulicy","name_pl":"Z ulicy"}'::jsonb) $q$,
+  'nie-admin nie zaklada klubu');
+SELECT pg_temp.assert(
+  NOT public.admin_club_slug_available('cokolwiek', NULL),
+  'nie-admin nie dostaje odpowiedzi o dostepnosci adresu');
+
+
+\echo '== 53. [A15] Strumien aktywnosci ponad klubami =='
+-- Hub pokazuje jedna liste z wielu klubow, wiec kazda regula dostepu, ktora
+-- w club_threads_list dziala na jeden klub, musi tu dzialac PER WIERSZ.
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_activity_feed(30, 'new', NULL)) > 0,
+  'strumien zwraca watki bez podania klubu');
+-- Watek z klubu secret jest w strumieniu admina...
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_activity_feed(30, 'new', NULL)
+    WHERE thread_id = :'secret_thread'::uuid) = 1,
+  'admin widzi w strumieniu watek z klubu secret');
+-- ...i znika dla obcego. To jest ten sam wyciek, co lista klubow, tylko
+-- jedno pietro nizej: tresc zdradzalaby istnienie klubu, ktorego nazwa nie
+-- ma prawa wyjsc.
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000004';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_activity_feed(30, 'new', NULL)
+    WHERE thread_id = :'secret_thread'::uuid) = 0,
+  'obcy nie widzi w strumieniu watku z klubu secret');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_activity_feed(30, 'new', NULL)
+    WHERE club_slug = 'tajny') = 0,
+  'nazwa klubu secret nie wychodzi strumieniem');
+
+-- Limit jest przybity po obu stronach: 0 podnosi sie do 1, 999 scina do 30.
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_activity_feed(1, 'new', NULL)) = 1,
+  'limit jednego wiersza jest respektowany');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_activity_feed(999, 'new', NULL)) <= 30,
+  'limit strumienia jest przybity od gory');
+
+-- Dlawik rownowagi. Klub 'klub' ma kilkadziesiat zasianych watkow; bez tej
+-- reguly zajmowal cala liste i hub pokazywal jeden klub zamiast wszystkich.
+SELECT pg_temp.assert(
+  (SELECT max(cnt) FROM (
+     SELECT count(*) AS cnt FROM public.club_activity_feed(30, 'new', NULL, 2)
+      GROUP BY club_slug) q) <= 2,
+  'zaden klub nie zajmuje w strumieniu wiecej miejsc, niz mu wolno');
+SELECT pg_temp.assert(
+  (SELECT count(DISTINCT club_slug) FROM public.club_activity_feed(30, 'new', NULL, 2)) > 1,
+  'strumien pokazuje wiecej niz jeden klub - po to jest dlawik');
+
+-- Filtr obszaru polityki - nawigacja "per tematyka" na stronie glownej.
+-- Limit dobowy watkow liczy sie na autora, a admin zdazyl w tym pliku zalozyc
+-- ich dziesiec. Cofamy znaczniki czasu poza okno - nie luzujemy limitu, tylko
+-- przestajemy testowac go po raz kolejny przy okazji innej rzeczy.
+UPDATE public.club_threads SET created_at = created_at - interval '48 hours';
+SELECT public.admin_club_upsert(
+  '{"slug":"klub-energia","name_pl":"Energia","policy_area":"energy","status":"active"}'::jsonb)
+  AS energy_club \gset
+SELECT id AS energy_group FROM public.club_groups
+ WHERE club_id = :'energy_club'::uuid LIMIT 1 \gset
+SELECT id AS energy_thread FROM public.club_create_thread(:'energy_group'::uuid,
+  'Ceny energii','Tresc watku o cenach energii, dluzsza niz dziesiec znakow.',
+  'discussion') \gset
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_activity_feed(30, 'new', 'energy')
+    WHERE thread_id = :'energy_thread'::uuid) = 1,
+  'filtr obszaru wpuszcza watek z tego obszaru');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_activity_feed(30, 'new', 'climate')
+    WHERE thread_id = :'energy_thread'::uuid) = 0,
+  'filtr obszaru odcina watek z innego obszaru');
+
+-- Anonimowosc jest wlasnoscia KLUBU, wiec w strumieniu miesza sie z jawna.
+-- Watek z klubu chatham nie moze wyjsc z nazwiskiem, a klub attributed musi.
+SELECT public.admin_club_upsert(
+  '{"slug":"klub-chatham","name_pl":"Chatham","attribution_mode":"chatham","status":"active"}'::jsonb)
+  AS ch_club \gset
+SELECT id AS ch_group FROM public.club_groups
+ WHERE club_id = :'ch_club'::uuid LIMIT 1 \gset
+SELECT id AS ch_thread FROM public.club_create_thread(:'ch_group'::uuid,
+  'Watek pod regula Chatham','Tresc watku chatham, dluzsza niz dziesiec znakow.',
+  'discussion') \gset
+SELECT pg_temp.assert(
+  (SELECT author_name FROM public.club_activity_feed(30, 'new', NULL)
+    WHERE thread_id = :'ch_thread'::uuid) IS NULL,
+  'strumien nie zdradza nazwiska w klubie chatham');
+SELECT pg_temp.assert(
+  (SELECT author_alias FROM public.club_activity_feed(30, 'new', NULL)
+    WHERE thread_id = :'ch_thread'::uuid) IS NOT NULL,
+  'w klubie chatham strumien podaje pseudonim');
+SELECT pg_temp.assert(
+  (SELECT author_name FROM public.club_activity_feed(30, 'new', NULL)
+    WHERE thread_id = :'energy_thread'::uuid) IS NOT NULL,
+  'w klubie attributed strumien podaje nazwisko - inaczej filtr bylby zawsze-null');
+
+-- Sortowanie "gorace" musi realnie zmieniac kolejnosc, a nie tylko przyjmowac
+-- parametr. Podbijamy ranking najstarszego watku i sprawdzamy, ze wyszedl na gore.
+BEGIN;
+UPDATE public.club_threads SET hotness = 999999 WHERE id = :'energy_thread'::uuid;
+SELECT pg_temp.assert(
+  (SELECT thread_id FROM public.club_activity_feed(30, 'hot', NULL) LIMIT 1)
+    = :'energy_thread'::uuid,
+  'sort "gorace" wypycha watek o najwyzszym rankingu na pierwsze miejsce');
+ROLLBACK;
+
+-- Watek oczekujacy na moderacje nie nalezy do powierzchni odkrywania NAWET
+-- dla admina: hub pokazuje dyskusje, nie prace do wykonania.
+BEGIN;
+UPDATE public.club_threads SET status = 'pending' WHERE id = :'energy_thread'::uuid;
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_activity_feed(30, 'new', NULL)
+    WHERE thread_id = :'energy_thread'::uuid) = 0,
+  'watek pending nie trafia do strumienia nawet adminowi');
+ROLLBACK;
+
+-- Grupa robocza nie wystawia tresci nikomu poza zarzadzajacym.
+BEGIN;
+UPDATE public.club_groups SET status = 'draft' WHERE id = :'energy_group'::uuid;
+SET LOCAL request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000004';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_activity_feed(30, 'new', NULL)
+    WHERE thread_id = :'energy_thread'::uuid) = 0,
+  'watek z grupy roboczej nie wychodzi strumieniem do obcego');
+ROLLBACK;
+
 \echo ''
 \echo '=========================================='
 \echo ' WSZYSTKIE ASERCJE PRZESZLY'

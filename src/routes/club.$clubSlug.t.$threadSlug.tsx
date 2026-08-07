@@ -8,7 +8,15 @@ import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { ArrowLeft, CheckCircle2, Lock, MessageSquare, Pin, ShieldQuestion } from "lucide-react";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Lock,
+  MessageSquare,
+  Pencil,
+  Pin,
+  ShieldQuestion,
+} from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,12 +28,21 @@ import {
   useClubBySlug,
   useClubReactions,
   useClubReplies,
+  useClubStanceSummary,
   useClubThread,
+  useEditClubReply,
+  useEditClubThread,
+  useMyThreadSubscription,
   useReplyToThread,
   useResolveClubThread,
+  useSetClubStance,
+  useSetThreadSubscription,
   useToggleClubReaction,
 } from "@/lib/clubs/useClubs";
-import { ClubReactionBar } from "@/components/clubs/ClubReactionBar";
+import { ClubReactionBar } from "@/components/clubs/molecules/ClubReactionBar";
+import { ClubFollowButton } from "@/components/clubs/molecules/ClubFollowButton";
+import { ClubInlineEditor } from "@/components/clubs/molecules/ClubInlineEditor";
+import { ClubStanceBar } from "@/components/clubs/molecules/ClubStanceBar";
 import {
   buildClubReplyTree,
   toAuthorLabel,
@@ -56,9 +73,23 @@ function ClubThreadView() {
   const [body, setBody] = useState("");
   const [anonymous, setAnonymous] = useState(false);
   const [replyTo, setReplyTo] = useState<string | null>(null);
+  // Redakcja: `"thread"` albo id odpowiedzi. Jeden stan, bo w danej chwili
+  // otwarty jest najwyżej jeden edytor - dwa naraz to dwie wersje tej samej
+  // dyskusji na ekranie.
+  const [editing, setEditing] = useState<string | null>(null);
 
   const replyM = useReplyToThread(club?.id ?? "", threadSlug);
   const resolveM = useResolveClubThread(club?.id ?? "", threadSlug);
+  const editThreadM = useEditClubThread(club?.id ?? "", threadSlug);
+  const editReplyM = useEditClubReply(threadQ.data?.id ?? "");
+
+  // Stanowiska tylko dla wątku typu "position" - baza odrzuca resztę
+  // z 22023, więc pytanie o nie gdzie indziej byłoby pytaniem o błąd.
+  const isPosition = threadQ.data?.kind === "position";
+  const stanceQ = useClubStanceSummary(isPosition ? threadQ.data?.id : undefined);
+  const setStanceM = useSetClubStance(threadQ.data?.id ?? "");
+  const subscriptionQ = useMyThreadSubscription(threadQ.data?.id);
+  const setSubscriptionM = useSetThreadSubscription(threadQ.data?.id ?? "");
 
   // Dwie partie, dwa zapytania wsadowe - nigdy jedno na wpis.
   const threadIds = thread ? [thread.id] : [];
@@ -104,6 +135,12 @@ function ClubThreadView() {
     thread.kind === "question" && (thread.can_moderate || thread.author_id === user?.id);
   // Anonimowość wolno włączyć wyłącznie tam, gdzie tryb klubu na to pozwala.
   const canGoAnonymous = thread.attribution_mode === "anonymous_allowed";
+  // Autor poprawia SWÓJ wpis; moderacja - każdy. W klubie pod regułą Chatham
+  // House `author_id` nie wychodzi z RPC, więc porównanie jest tam zawsze
+  // fałszywe - i tak ma być: baza i tak sprawdzi autorstwo przy zapisie, a
+  // interfejs nie ma prawa zdradzić, że to wpis czytającego.
+  const isMyThread = thread.author_id !== null && thread.author_id === user?.id;
+  const canEditThread = (isMyThread || thread.can_moderate) && thread.locked_at === null;
 
   const submitReply = () => {
     const trimmed = body.trim();
@@ -162,9 +199,34 @@ function ClubThreadView() {
           {thread.edited_at !== null ? <span>({t("club.edited")})</span> : null}
         </div>
 
-        <div className="mt-4 whitespace-pre-wrap text-[15px] leading-relaxed">{thread.body}</div>
+        {editing === "thread" ? (
+          <div className="mt-4">
+            <ClubInlineEditor
+              idPrefix="club-thread-edit"
+              initialTitle={thread.title}
+              initialBody={thread.body}
+              showReason={!isMyThread}
+              pending={editThreadM.isPending}
+              onCancel={() => setEditing(null)}
+              onSave={(patch) =>
+                editThreadM.mutate(
+                  { threadId: thread.id, ...patch },
+                  {
+                    onSuccess: () => {
+                      setEditing(null);
+                      toast.success(t("club.editor.saved"));
+                    },
+                    onError: () => toast.error(t("adminClubs.saveFailed")),
+                  },
+                )
+              }
+            />
+          </div>
+        ) : (
+          <div className="mt-4 whitespace-pre-wrap text-[15px] leading-relaxed">{thread.body}</div>
+        )}
 
-        <div className="mt-4 border-t border-border/60 pt-3">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-3">
           <ClubReactionBar
             tallies={threadReactionsQ.data?.get(thread.id) ?? []}
             disabled={!thread.can_reply || toggleThreadReaction.isPending}
@@ -173,8 +235,46 @@ function ClubThreadView() {
               toggleThreadReaction.mutate({ targetId: thread.id, kind, active })
             }
           />
+          <div className="flex flex-wrap gap-2">
+            {canEditThread && editing !== "thread" ? (
+              <Button size="sm" variant="ghost" onClick={() => setEditing("thread")}>
+                <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                {t("club.editor.edit")}
+              </Button>
+            ) : null}
+            <ClubFollowButton
+              state={subscriptionQ.data ?? null}
+              pending={setSubscriptionM.isPending}
+              disabled={subscriptionQ.isPending}
+              onChange={(next) =>
+                setSubscriptionM.mutate(next, {
+                  onError: () => toast.error(t("adminClubs.saveFailed")),
+                })
+              }
+            />
+          </div>
         </div>
       </article>
+
+      {/* --- stanowiska (wyłącznie wątek typu "stanowisko") --- */}
+      {isPosition ? (
+        <div className="mt-4">
+          <ClubStanceBar
+            rows={stanceQ.data ?? []}
+            disabled={!thread.can_reply}
+            pending={setStanceM.isPending}
+            onSet={(stance) =>
+              setStanceM.mutate(
+                { stance },
+                {
+                  onSuccess: () => toast.success(t("club.stance.saved")),
+                  onError: () => toast.error(t("adminClubs.saveFailed")),
+                },
+              )
+            }
+          />
+        </div>
+      ) : null}
 
       {/* --- odpowiedzi --- */}
       <section className="mt-6">
@@ -198,6 +298,24 @@ function ClubThreadView() {
                 isPl={isPl}
                 canResolve={canResolve}
                 canReact={thread.can_reply}
+                canModerate={thread.can_moderate}
+                threadLocked={thread.locked_at !== null}
+                myUserId={user?.id ?? null}
+                editing={editing}
+                editPending={editReplyM.isPending}
+                onEdit={setEditing}
+                onSaveEdit={(replyId, patch) =>
+                  editReplyM.mutate(
+                    { replyId, body: patch.body, reason: patch.reason },
+                    {
+                      onSuccess: () => {
+                        setEditing(null);
+                        toast.success(t("club.editor.saved"));
+                      },
+                      onError: () => toast.error(t("adminClubs.saveFailed")),
+                    },
+                  )
+                }
                 reactions={replyReactionsQ.data ?? new Map()}
                 onToggleReaction={(targetId, kind, active) =>
                   toggleReplyReaction.mutate({ targetId, kind, active })
@@ -278,28 +396,51 @@ function ClubThreadView() {
   );
 }
 
-function ReplyBranch({
-  node,
-  isPl,
-  canResolve,
-  canReact,
-  reactions,
-  onToggleReaction,
-  onReply,
-  onResolve,
-}: {
+interface ReplyBranchProps {
   node: ClubReplyNode;
   isPl: boolean;
   canResolve: boolean;
   canReact: boolean;
+  canModerate: boolean;
+  threadLocked: boolean;
+  myUserId: string | null;
+  /** `"thread"` albo id odpowiedzi w edycji; `null` gdy nic nie jest otwarte. */
+  editing: string | null;
+  editPending: boolean;
+  onEdit: (target: string | null) => void;
+  onSaveEdit: (replyId: string, patch: { body: string; reason: string | null }) => void;
   reactions: Map<string, ClubReactionTally[]>;
   onToggleReaction: (targetId: string, kind: ClubReactionKind, active: boolean) => void;
   onReply: (replyId: string) => void;
   onResolve: (replyId: string) => void;
-}) {
+}
+
+function ReplyBranch(props: ReplyBranchProps) {
+  const {
+    node,
+    isPl,
+    canResolve,
+    canReact,
+    canModerate,
+    threadLocked,
+    myUserId,
+    editing,
+    editPending,
+    onEdit,
+    onSaveEdit,
+    reactions,
+    onToggleReaction,
+    onReply,
+    onResolve,
+  } = props;
   const { t } = useTranslation();
   const { reply, children } = node;
   const author = toAuthorLabel(reply, t("club.anonymousAuthor"), t("club.deletedAuthor"));
+  // W klubie pod regułą Chatham House `author_id` nie wychodzi z RPC, więc
+  // porównanie jest tam zawsze fałszywe - i tak ma być. Baza sprawdzi
+  // autorstwo przy zapisie, a interfejs nie może zdradzić, czyj to wpis.
+  const isMine = reply.author_id !== null && reply.author_id === myUserId;
+  const canEdit = (isMine || canModerate) && !threadLocked && reply.status !== "removed";
 
   return (
     <li>
@@ -332,7 +473,20 @@ function ReplyBranch({
           ) : null}
         </div>
 
-        <div className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed">{reply.body}</div>
+        {editing === reply.id ? (
+          <div className="mt-3">
+            <ClubInlineEditor
+              idPrefix={`club-reply-edit-${reply.id}`}
+              initialBody={reply.body}
+              showReason={!isMine}
+              pending={editPending}
+              onCancel={() => onEdit(null)}
+              onSave={(patch) => onSaveEdit(reply.id, { body: patch.body, reason: patch.reason })}
+            />
+          </div>
+        ) : (
+          <div className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed">{reply.body}</div>
+        )}
 
         {/* Pasek zwinięty: przy trzydziestu odpowiedziach sześć pustych
             przycisków pod każdą byłoby ścianą szumu. */}
@@ -369,23 +523,24 @@ function ReplyBranch({
               {t("club.markResolution")}
             </Button>
           ) : null}
+          {canEdit && editing !== reply.id ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-xs"
+              onClick={() => onEdit(reply.id)}
+            >
+              <Pencil className="mr-1 h-3 w-3" />
+              {t("club.editor.edit")}
+            </Button>
+          ) : null}
         </div>
       </div>
 
       {children.length > 0 ? (
         <ul className="mt-2 space-y-2 border-l-2 border-border/40 pl-3 sm:pl-5">
           {children.map((child) => (
-            <ReplyBranch
-              key={child.reply.id}
-              node={child}
-              isPl={isPl}
-              canResolve={canResolve}
-              canReact={canReact}
-              reactions={reactions}
-              onToggleReaction={onToggleReaction}
-              onReply={onReply}
-              onResolve={onResolve}
-            />
+            <ReplyBranch {...props} key={child.reply.id} node={child} />
           ))}
         </ul>
       ) : null}

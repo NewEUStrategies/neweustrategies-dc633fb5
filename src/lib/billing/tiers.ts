@@ -36,32 +36,10 @@ export interface CurrentTier {
   features: Json;
 }
 
-/**
- * Rangi kanoniczne (seed DB, katalog v3): Essential=0, wspierający=5,
- * Plus=10 (student/kadra akademicka również 10), Pro=20 (NGO=20), VIP=25
- * (zespół=25), Enterprise=30, Strategic Partner=40, Partner Generalny=50,
- * President's Circle=60.
- *
- * Parzystość z seedem pricing_catalog_v3_rows() wymusza test
- * tierCatalogParity.test.ts - edycja seedu bez aktualizacji tej mapy
- * (i odwrotnie) obleje CI zamiast cicho dryfować.
- */
-export const TIER_RANKS = {
-  reader: 0,
-  supporter: 5,
-  member: 10,
-  student: 10,
-  educator: 10,
-  pro: 20,
-  ngo: 20,
-  vip: 25,
-  team: 25,
-  business: 28,
-  corporate: 30,
-  partner: 40,
-  partner_general: 50,
-  presidents_circle: 60,
-} as const;
+// Rangi warstw mieszkaja w module lisciowym `tierRanks.ts` - reeksport
+// zostaje, zeby istniejace importy `from "@/lib/billing/tiers"` dzialaly bez
+// zmian, a czysta logika dostepu mogla siegnac po sama mape bez React Query.
+export { TIER_RANKS, type TierKey } from "./tierRanks";
 
 export function parseTierBenefits(benefits: Json): TierBenefit[] {
   if (!Array.isArray(benefits)) return [];

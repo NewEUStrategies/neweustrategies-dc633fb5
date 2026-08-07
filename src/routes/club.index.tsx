@@ -1,44 +1,107 @@
-// /club - indeks klubów: moje kluby, odkryj, zaproszenia.
+// /club - strona główna klubów dyskusyjnych (minisite).
 //
 // `noindex` dla całej powierzchni poza klubami public - ta sama doktryna,
 // co /people i /network. Klub public jest indeksowalny i staje się realnym
 // lejkiem pozyskania, ale ta STRONA jest listą, a lista miesza kluby publiczne
 // z members-only, więc indeksowanie jej wyciekałoby nazwy klubów zamkniętych.
+//
+// UKŁAD. Strona jest zbudowana z modułów w kolejności "co jest pilne" ->
+// "co jest moje" -> "co się dzieje" -> "co mogę dołączyć" -> "jak to działa":
+//
+//   1. Nagłówek ze stanem dostępu (i zaproszeniem do planu, gdy go brak).
+//   2. Zaproszenia - jedyny moduł z terminem, więc stoi najwyżej.
+//   3. Liczniki - liczone z już pobranej listy, bez drugiego zapytania.
+//   4. Nawigacja po obszarach polityki - to jest wejście "per tematyka".
+//   5. Strumień aktywności PONAD klubami.
+//   6. Moje kluby / odkryj.
+//   7. Jak to działa - trzy reguły, których nie widać z interfejsu.
+//
+// FILTR TEMATYCZNY dotyczy jednocześnie strumienia i siatki "odkryj", bo
+// inaczej wybór obszaru zawężałby połowę ekranu, a drugą zostawiał - i nikt
+// nie wiedziałby, którą.
+//
+// BRAMKA DOSTĘPU JEST MIĘKKA. Rozstrzyga wyłącznie, jaki panel narysować.
+// Twardą trzyma `club_capabilities` w bazie - stąd `locked` nie zabiera z listy
+// ani jednego wiersza, który RPC już zwróciło.
+import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { Link } from "@tanstack/react-router";
-import { MessagesSquare, Users2, Layers, Mail } from "lucide-react";
+import { MessagesSquare } from "lucide-react";
+import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { useClubList, useMyClubInvitations, useRespondClubInvitation } from "@/lib/clubs/useClubs";
-import { CLUB_VISIBILITIES, type ClubVisibility } from "@/lib/clubs/types";
+import { useCurrentTier } from "@/lib/billing/tiers";
+import {
+  useClubActivityFeed,
+  useClubList,
+  useMyClubInvitations,
+  useRespondClubInvitation,
+} from "@/lib/clubs/useClubs";
+import { resolveClubHubAccess } from "@/lib/clubs/hubAccess";
+import { toClubSaveError, type ClubActivitySort } from "@/lib/clubs/types";
+import { ClubHubHero } from "@/components/clubs/organisms/ClubHubHero";
+import { ClubInvitationInbox } from "@/components/clubs/organisms/ClubInvitationInbox";
+import { ClubActivityFeed } from "@/components/clubs/organisms/ClubActivityFeed";
+import { ClubDirectory } from "@/components/clubs/organisms/ClubDirectory";
+import { ClubHowItWorks } from "@/components/clubs/organisms/ClubHowItWorks";
+import { ClubStatStrip } from "@/components/clubs/molecules/ClubStatStrip";
+import { ClubTopicNav } from "@/components/clubs/molecules/ClubTopicNav";
 import { ensureClubI18n } from "@/lib/i18n-club";
-import { toast } from "sonner";
 
 export const Route = createFileRoute("/club/")({
   head: () => ({
     meta: [{ title: "Kluby dyskusyjne" }, { name: "robots", content: "noindex,nofollow" }],
   }),
-  component: ClubIndex,
+  component: ClubHub,
 });
 
-function asVisibility(value: string): ClubVisibility {
-  return (CLUB_VISIBILITIES as readonly string[]).includes(value)
-    ? (value as ClubVisibility)
-    : "members";
-}
-
-function ClubIndex() {
+function ClubHub() {
   ensureClubI18n();
   const { t, i18n } = useTranslation();
   const isPl = (i18n.language ?? "pl").startsWith("pl");
-  const { session } = useAuth();
+  const { session, isStaff } = useAuth();
+
+  const [topic, setTopic] = useState<string | null>(null);
+  const [sort, setSort] = useState<ClubActivitySort>("new");
 
   const clubsQ = useClubList();
   const invitationsQ = useMyClubInvitations(Boolean(session));
+  const tierQ = useCurrentTier();
   const respondM = useRespondClubInvitation();
+
+  const clubs = useMemo(() => clubsQ.data?.rows ?? [], [clubsQ.data]);
+  const invitations = invitationsQ.data ?? [];
+
+  // Strumień pyta o treść klubów, więc nie ma po co wołać go dla wylogowanego -
+  // ekran dla anonima kończy się na zachęcie do logowania.
+  const activityQ = useClubActivityFeed({
+    sort,
+    policyArea: topic,
+    limit: 12,
+    enabled: Boolean(session),
+  });
+
+  const access = resolveClubHubAccess({
+    tierRank: tierQ.data?.rank ?? null,
+    activeMemberships: clubs.filter((c) => c.my_status === "active").length,
+    pendingInvitations: invitations.length,
+    isStaff,
+  });
+
+  const mine = clubs.filter((c) => c.my_status === "active");
+  const discover = clubs.filter(
+    (c) => c.my_status !== "active" && (topic === null || c.policy_area === topic),
+  );
+
+  const respond = (invitationId: string, accept: boolean) =>
+    respondM.mutate(
+      { invitationId, accept },
+      {
+        onSuccess: () =>
+          toast.success(accept ? t("club.invitationAccepted") : t("club.invitationDeclined")),
+        onError: (error) => toast.error(t(`adminClubs.create.error.${toClubSaveError(error)}`)),
+      },
+    );
 
   if (!session) {
     return (
@@ -54,80 +117,35 @@ function ClubIndex() {
     );
   }
 
-  const clubs = clubsQ.data?.rows ?? [];
-  // Rozdzielamy w kliencie, bo RPC zwraca jedną listę posortowaną tak, że
-  // moje kluby są na górze - drugi round-trip po ten sam zbiór byłby marnotrawstwem.
-  const mine = clubs.filter((c) => c.my_status === "active");
-  const discover = clubs.filter((c) => c.my_status !== "active");
-  const invitations = invitationsQ.data ?? [];
-
   return (
     <div className="container mx-auto max-w-5xl px-4 py-8">
-      <header className="mb-8">
-        <h1 className="text-3xl font-semibold">{t("club.title")}</h1>
-        <p className="mt-1 max-w-2xl text-muted-foreground">{t("club.subtitle")}</p>
-      </header>
+      <ClubHubHero access={access} />
 
-      {invitations.length > 0 ? (
-        <section className="mb-8">
-          <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
-            <Mail className="h-4 w-4" />
-            {t("club.invitations")}
-            <Badge variant="secondary">{invitations.length}</Badge>
-          </h2>
-          <ul className="space-y-2">
-            {invitations.map((inv) => (
-              <li
-                key={inv.id}
-                className="flex flex-wrap items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 p-4"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium">{isPl ? inv.club_name_pl : inv.club_name_en}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {t("club.invitedBy", { name: inv.inviter_name })}
-                    {inv.message ? ` - ${inv.message}` : ""}
-                  </p>
-                </div>
-                <div className="flex shrink-0 gap-2">
-                  <Button
-                    size="sm"
-                    disabled={respondM.isPending}
-                    onClick={() =>
-                      respondM.mutate(
-                        { invitationId: inv.id, accept: true },
-                        {
-                          onSuccess: () => toast.success(t("club.invitationAccepted")),
-                          onError: () => toast.error(t("adminClubs.saveFailed")),
-                        },
-                      )
-                    }
-                  >
-                    {t("club.acceptInvitation")}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={respondM.isPending}
-                    onClick={() =>
-                      respondM.mutate(
-                        { invitationId: inv.id, accept: false },
-                        {
-                          onSuccess: () => toast.success(t("club.invitationDeclined")),
-                          onError: () => toast.error(t("adminClubs.saveFailed")),
-                        },
-                      )
-                    }
-                  >
-                    {t("club.declineInvitation")}
-                  </Button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
+      <ClubInvitationInbox
+        invitations={invitations}
+        isPl={isPl}
+        pending={respondM.isPending}
+        onRespond={respond}
+      />
+
+      {clubs.length > 0 ? (
+        <div className="mb-6">
+          <ClubStatStrip clubs={clubs} />
+        </div>
       ) : null}
 
-      <ClubSection
+      <div className="mb-8 space-y-5">
+        <ClubTopicNav clubs={clubs} value={topic} onChange={setTopic} isPl={isPl} />
+        <ClubActivityFeed
+          rows={activityQ.data ?? []}
+          sort={sort}
+          onSortChange={setSort}
+          pending={activityQ.isPending}
+          isPl={isPl}
+        />
+      </div>
+
+      <ClubDirectory
         title={t("club.myClubs")}
         empty={t("club.empty")}
         clubs={mine}
@@ -135,98 +153,15 @@ function ClubIndex() {
         loading={clubsQ.isPending}
       />
 
-      <ClubSection
+      <ClubDirectory
         title={t("club.discover")}
-        empty={t("club.emptyDiscover")}
+        empty={topic === null ? t("club.emptyDiscover") : t("club.hub.emptyTopic")}
         clubs={discover}
         isPl={isPl}
         loading={clubsQ.isPending}
       />
+
+      <ClubHowItWorks />
     </div>
-  );
-}
-
-interface ClubCardData {
-  id: string;
-  slug: string;
-  name_pl: string;
-  name_en: string;
-  tagline_pl: string | null;
-  tagline_en: string | null;
-  visibility: string;
-  member_count: number;
-  thread_count: number;
-  group_count: number;
-}
-
-function ClubSection({
-  title,
-  empty,
-  clubs,
-  isPl,
-  loading,
-}: {
-  title: string;
-  empty: string;
-  clubs: ClubCardData[];
-  isPl: boolean;
-  loading: boolean;
-}) {
-  const { t } = useTranslation();
-
-  return (
-    <section className="mb-10">
-      <h2 className="mb-3 text-lg font-semibold">{title}</h2>
-      {loading ? (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true">
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="h-36 animate-pulse rounded-lg bg-muted/50" />
-          ))}
-        </div>
-      ) : clubs.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border/60 p-6 text-center text-sm text-muted-foreground">
-          {empty}
-        </p>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {clubs.map((club) => (
-            <Link
-              key={club.id}
-              to="/club/$clubSlug"
-              params={{ clubSlug: club.slug }}
-              className="group flex flex-col rounded-lg border border-border/60 bg-card p-4 transition-colors hover:border-primary/40"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <h3 className="font-medium leading-tight group-hover:text-primary">
-                  {isPl ? club.name_pl : club.name_en}
-                </h3>
-                <Badge variant="outline" className="shrink-0 text-[11px]">
-                  {t(`club.visibility.${asVisibility(club.visibility)}`)}
-                </Badge>
-              </div>
-              {(isPl ? club.tagline_pl : club.tagline_en) ? (
-                <p className="mt-1.5 line-clamp-2 text-sm text-muted-foreground">
-                  {isPl ? club.tagline_pl : club.tagline_en}
-                </p>
-              ) : null}
-              <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-1 pt-3 text-xs text-muted-foreground">
-                <span className="inline-flex items-center gap-1.5">
-                  <Users2 className="h-3.5 w-3.5" />
-                  {t("club.membersCount", { count: club.member_count })}
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <MessagesSquare className="h-3.5 w-3.5" />
-                  {t("club.threadsCount", { count: club.thread_count })}
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <Layers className="h-3.5 w-3.5" />
-                  {t("club.groupsCount", { count: club.group_count })}
-                </span>
-              </div>
-            </Link>
-          ))}
-        </div>
-      )}
-    </section>
   );
 }

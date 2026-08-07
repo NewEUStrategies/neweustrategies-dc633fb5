@@ -8,7 +8,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 import { Plus, Search, ShieldAlert, MessagesSquare } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -22,7 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ClubsTable } from "@/components/admin/clubs/organisms/ClubsTable";
-import { useAdminClubs, useUpsertClub } from "@/lib/clubs/useClubs";
+import { useAdminClubs } from "@/lib/clubs/useClubs";
+import { ClubCreateDialog } from "@/components/admin/clubs/organisms/ClubCreateDialog";
 import {
   CLUB_STATUSES,
   CLUB_VISIBILITIES,
@@ -60,7 +60,7 @@ function AdminClubsList() {
   );
 
   const clubsQ = useAdminClubs(filters, isAdmin);
-  const createM = useUpsertClub();
+  const [createOpen, setCreateOpen] = useState(false);
 
   if (!isAdmin) {
     return (
@@ -79,32 +79,6 @@ function AdminClubsList() {
   const rows = clubsQ.data?.rows ?? [];
   const hasFilters = debouncedSearch.trim().length > 0 || status !== null || visibility !== null;
 
-  const handleCreate = () => {
-    // Nowy klub powstaje od razu jako wersja robocza z unikalnym slugiem
-    // opartym o znacznik czasu: pusty formularz "utwórz" wymagałby drugiego
-    // ekranu, a wersja robocza i tak nie jest widoczna dla nikogo poza adminem.
-    const stamp = Date.now().toString(36);
-    createM.mutate(
-      {
-        slug: `klub-${stamp}`,
-        name_pl: isPl ? "Nowy klub" : "New club",
-        name_en: "New club",
-        status: "draft",
-      },
-      {
-        onSuccess: (clubId) => {
-          toast.success(t("adminClubs.saved"));
-          void navigate({
-            to: "/admin/community/clubs/$clubId",
-            params: { clubId },
-            search: { tab: "general" as const },
-          });
-        },
-        onError: () => toast.error(t("adminClubs.saveFailed")),
-      },
-    );
-  };
-
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-3">
@@ -112,7 +86,7 @@ function AdminClubsList() {
           <h1 className="text-2xl font-semibold">{t("adminClubs.title")}</h1>
           <p className="max-w-2xl text-sm text-muted-foreground">{t("adminClubs.subtitle")}</p>
         </div>
-        <Button onClick={handleCreate} disabled={createM.isPending}>
+        <Button onClick={() => setCreateOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
           {t("adminClubs.newClub")}
         </Button>
@@ -191,6 +165,18 @@ function AdminClubsList() {
       ) : (
         <ClubsTable rows={rows} isPl={isPl} />
       )}
+
+      <ClubCreateDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={(clubId) =>
+          void navigate({
+            to: "/admin/community/clubs/$clubId",
+            params: { clubId },
+            search: { tab: "general" as const },
+          })
+        }
+      />
     </div>
   );
 }
