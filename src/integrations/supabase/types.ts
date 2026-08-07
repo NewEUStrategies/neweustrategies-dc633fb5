@@ -15283,6 +15283,7 @@ export type Database = {
       email_unsubscribe_by_token: { Args: { p_token: string }; Returns: Json }
       emit_domain_event: {
         Args: {
+          p_actor_id?: string
           p_aggregate_id: string
           p_aggregate_type: string
           p_event_type: string
