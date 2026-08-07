@@ -161,18 +161,20 @@ const SECTION_SIZE: Record<SectionId, number> = {
   errors: CLUB_INVITE_ERRORS.length + CLUB_SAVE_ERRORS.length,
 };
 
-const SECTION_ORDER: readonly SectionId[] = [
-  "vocab",
-  "threadVocab",
-  "opsVocab",
-  "badges",
-  "access",
-  "gallery",
-  "matrix",
-  "reactions",
-  "reasons",
-  "errors",
+type GroupId = "vocab" | "components" | "rules" | "codes";
+
+/** Cztery powierzchnie katalogu - słowniki, komponenty, reguły, kody odmów. */
+const GROUPS: readonly {
+  id: GroupId;
+  icon: typeof BookMarked;
+  sections: readonly SectionId[];
+}[] = [
+  { id: "vocab", icon: BookMarked, sections: ["vocab", "threadVocab", "opsVocab"] },
+  { id: "components", icon: Shapes, sections: ["badges", "gallery", "reactions"] },
+  { id: "rules", icon: KeyRound, sections: ["access", "matrix"] },
+  { id: "codes", icon: TriangleAlert, sections: ["reasons", "errors"] },
 ];
+
 
 /** Sekcje bez własnego słownika wartości - szukanie ich nie filtruje. */
 const UNFILTERABLE: ReadonlySet<SectionId> = new Set<SectionId>(["access", "gallery", "matrix"]);
