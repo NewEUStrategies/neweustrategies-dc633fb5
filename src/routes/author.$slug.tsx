@@ -502,15 +502,10 @@ function ExpertHubPage() {
                 iconOnly
               />
               <RequestIntroductionButton userId={expert.id} displayName={name} />
-              {/* „Jak daleko" (1°/2°/3°) + „którędy" (Ty -> Anna -> Marek),
-                  a zaraz obok „ilu" - trzy warstwy tego samego dowodu
-                  społecznego, wszystkie z jednego batchowanego RPC. */}
-              <NetworkDistance
-                userId={expert.id}
-                displayName={name}
-                avatarUrl={expert.avatar_url}
-              />
+              {/* Stopień („1°") jedzie już przy nazwisku w hero - tutaj zostaje
+                  wyłącznie „ilu", żeby pasek akcji nie zamieniał się w zdanie. */}
               <MutualConnectionsHint userId={expert.id} />
+
               <AuthorMoreMenu userId={expert.id} displayName={name} />
             </div>
           }
