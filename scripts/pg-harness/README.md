@@ -43,7 +43,16 @@ bun run scripts/pg-harness/run.sh --only 2026080809    # tylko migracje z tym pr
 ```
 
 Skrypt stawia instancję na `/tmp/nespg`, wykonuje harness, potem migracje
-w kolejności, potem `runtime_test.sql`. Kod wyjścia 0 znaczy, że wszystkie
+w kolejności, potem `runtime_test.sql`.
+
+Migracje wybierane są po TREŚCI (`grep` za `public.club_` / `public.admin_club_`),
+nie po nazwie pliku. Wcześniejszy wybór po wzorcu `*discussion_clubs*` zostawiał
+martwe pole: migracja klubowa nazwana losowym UUID-em - a tak nazywa je panel
+Lovable - nie była aplikowana w ogóle. Zemściło się to realnie: migracja
+`20260807172345` redefiniowała `club_list`, `club_replies_list`
+i `admin_club_moderation_queue`, harness jej nie widział, więc kolizja sygnatur
+z późniejszymi migracjami wyszła dopiero w CI (błąd 42723 przy odtwarzaniu
+schematu od zera). Kod wyjścia 0 znaczy, że wszystkie
 asercje przeszły; niespełniona asercja przerywa skrypt kodem 1 i wypisuje,
 ile asercji zdążyło przejść przed błędem.
 
