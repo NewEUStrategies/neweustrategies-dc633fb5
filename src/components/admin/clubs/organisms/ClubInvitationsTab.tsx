@@ -350,8 +350,12 @@ export function ClubInvitationsTab({ clubId, isPl }: { clubId: string; isPl: boo
                                   destructive: true,
                                   onConfirm: () =>
                                     revokeM.mutateAsync(link.id).then(
-                                      () => toast.success(t("adminClubs.invitations.revoked")),
-                                      () => toast.error(t("adminClubs.saveFailed")),
+                                      () => {
+                                        toast.success(t("adminClubs.invitations.revoked"));
+                                      },
+                                      () => {
+                                        toast.error(t("adminClubs.saveFailed"));
+                                      },
                                     ),
                                 })
                               }

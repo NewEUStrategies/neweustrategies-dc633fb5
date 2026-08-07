@@ -142,11 +142,14 @@ export function ClubMembersTab({ clubId, isPl }: { clubId: string; isPl: boolean
       destructive: true,
       onConfirm: () =>
         removeM.mutateAsync(row.user_id).then(
-          () =>
+          () => {
             toast.success(
               reject ? t("adminClubs.members.rejected") : t("adminClubs.members.removed"),
-            ),
-          () => toast.error(t("adminClubs.saveFailed")),
+            );
+          },
+          () => {
+            toast.error(t("adminClubs.saveFailed"));
+          },
         ),
     });
 
