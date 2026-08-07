@@ -873,6 +873,32 @@ export const clubEn = {
     membersOnlyBody: "Sign in or create an account to join clubs and take part in discussions.",
     empty: "You do not belong to any club yet.",
     emptyDiscover: "No clubs available to you right now.",
+    notFoundTitle: "This club could not be found.",
+    backToHub: "Back to clubs",
+
+    // --- club minisite (separate content view) ---
+    minisite: {
+      eyebrow: "Club minisite",
+      toDiscussion: "Go to the discussion",
+      aboutTitle: "About this club",
+      readingTitle: "Worth reading",
+      empty: "This club has no topics to show yet.",
+      lockedTitle: "The minisite is for Pro plans and invited guests",
+      lockedBody:
+        "Conversation excerpts are shown to club members, people with a pending invitation, and Pro plans and above.",
+      noReadTitle: "This club does not share its content",
+      noReadBody:
+        "The club card is visible, its content is not. Ask a club lead for an invitation or for access.",
+      access: {
+        member: "You are in this club",
+        invited: "You have an invitation",
+        entitled: "Your plan includes this club",
+        locked: "Limited access",
+        no_read: "Content hidden",
+      },
+    },
+
+
 
     // --- editing your own post ---
     editor: {
