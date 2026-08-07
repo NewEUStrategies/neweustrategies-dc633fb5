@@ -301,7 +301,12 @@ export function NewsletterForm({
       setFirstName("");
       setLastName("");
       setCompany("");
+      setLinkedin("");
+      setPhone("");
+      setCountry("");
+      setConsent(false);
       setPicked(new Set());
+
     } catch (err) {
       setErrMsg(subscribeErrorMessage(err instanceof Error ? err.message : String(err), lang));
       setState("err");
