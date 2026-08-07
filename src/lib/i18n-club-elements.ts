@@ -164,6 +164,13 @@ export const clubElementsEn = {
         "No value, code or label matches the query. Tool sections (access, gallery) stay visible.",
     },
 
+    group: {
+      vocab: "Vocabularies",
+      components: "Components",
+      rules: "Access and capabilities",
+      codes: "Refusal codes",
+    },
+
     section: {
       vocab: "Domain vocabularies",
       vocabHint:
