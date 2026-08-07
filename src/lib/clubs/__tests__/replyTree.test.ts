@@ -22,10 +22,14 @@ function reply(overrides: Partial<ClubReplyRow> & { id: string }): ClubReplyRow 
     author_avatar: overrides.author_avatar ?? null,
     author_slug: overrides.author_slug ?? null,
     author_alias: overrides.author_alias ?? null,
+    posted_by_admin_name: overrides.posted_by_admin_name ?? null,
     reaction_count: overrides.reaction_count ?? 0,
     created_at: overrides.created_at ?? "2026-08-08T10:00:00Z",
     edited_at: overrides.edited_at ?? null,
     is_resolution: overrides.is_resolution ?? false,
+    // Kolumna okienkowa z RPC. Atrapa musi ja miec, bo jej brak znaczyl, ze
+    // test sprawdza inny ksztalt niz ten, ktory dostaje komponent.
+    total_count: overrides.total_count ?? 1,
   };
 }
 

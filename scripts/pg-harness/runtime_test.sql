@@ -659,6 +659,134 @@ SELECT pg_temp.assert(
     WHERE status='banned') = 1,
   'moderacja NADAL widzi zbanowanych');
 
+\echo '== 39. [A9] Grupa robocza nie wychodzi zadnym kanalem =='
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT public.admin_club_group_upsert(
+  format('{"club_id":"%s","slug":"robocza","name_pl":"Robocza","name_en":"Draft","status":"draft"}',
+         :'club_id')::jsonb
+) AS draft_group \gset
+-- Admin ma can_post_thread takze w grupie roboczej - i wlasnie dlatego watek
+-- w niej powstaje normalnie, ze statusem 'open'. To jest scenariusz z audytu.
+SELECT id AS draft_thread, slug AS draft_slug FROM public.club_create_thread(
+  :'draft_group'::uuid, 'Temat w grupie roboczej',
+  'Tresc, ktora nie moze wyjsc poza zarzadzajacego.',
+  'discussion', false, NULL, NULL) \gset
+-- Sciezka administracyjna: limit 5 odpowiedzi/min zdazyl sie wyczerpac
+-- wczesniejszymi sekcjami, a tu chodzi o WIDOCZNOSC, nie o limit.
+SELECT public.admin_club_reply_create(:'draft_thread'::uuid,
+  'Odpowiedz w grupie roboczej', NULL, NULL);
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_thread_view(:'club_id'::uuid, :'draft_slug')) = 1,
+  'zarzadzajacy NADAL widzi swoja grupe robocza');
+
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000003';
+SELECT pg_temp.assert(
+  NOT (SELECT can_read FROM public.club_capabilities(:'club_id'::uuid, :'draft_group'::uuid,
+       'a0000000-0000-0000-0000-000000000003')),
+  'czlonek NIE czyta grupy roboczej - can_read, nie tylko can_post');
+SELECT pg_temp.assert(
+  (SELECT reason FROM public.club_capabilities(:'club_id'::uuid, :'draft_group'::uuid,
+     'a0000000-0000-0000-0000-000000000003')) = 'not_open_yet',
+  'powod mowi, co jest grane, zamiast milczec');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_thread_view(:'club_id'::uuid, :'draft_slug')) = 0,
+  'widok watku nie oddaje tresci z grupy roboczej');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_replies_list(:'draft_thread'::uuid,'chronological',200,0)) = 0,
+  'lista odpowiedzi nie oddaje dyskusji z grupy roboczej');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_search('robocz', :'club_id'::uuid, 20)) = 0,
+  'wyszukiwarka nie znajduje watku z grupy roboczej');
+-- Grupa zamrozona zostaje CZYTELNA: "mozna czytac, nie mozna pisac" to inna
+-- regula niz "grupa w przygotowaniu nie istnieje".
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT public.admin_club_group_upsert(
+  format('{"club_id":"%s","slug":"zamrozona","name_pl":"Zamrozona","name_en":"Frozen","status":"frozen"}',
+         :'club_id')::jsonb
+) AS frozen_group \gset
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000003';
+SELECT pg_temp.assert(
+  (SELECT can_read FROM public.club_capabilities(:'club_id'::uuid, :'frozen_group'::uuid,
+     'a0000000-0000-0000-0000-000000000003')),
+  'grupa zamrozona NADAL jest do czytania');
+SELECT pg_temp.assert(
+  NOT (SELECT can_post_thread FROM public.club_capabilities(:'club_id'::uuid,
+       :'frozen_group'::uuid, 'a0000000-0000-0000-0000-000000000003')),
+  'grupa zamrozona nie przyjmuje nowych tematow');
+-- Wektory: kolejka pomija grupe robocza, a prune sprzata to, co juz w niej jest.
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_threads_needing_embeddings(50)
+    WHERE thread_id = :'draft_thread'::uuid) = 0,
+  'kolejka osadzen pomija watek z grupy roboczej');
+
+\echo '== 40. [A9] Jedno stanowisko na wpis i osobe =='
+-- Aktorem jest admin, a celem hot_thread: uzytkownik ...003 jest w tym
+-- momencie 'observer' (zdegradowany w sekcji akcji wsadowych), a thread_id
+-- jest 'locked' - obserwator na zamknietym watku nie ma can_react i to jest
+-- poprawne zachowanie, nie przeszkoda do obejscia.
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT public.club_react('thread', :'hot_thread'::uuid, 'agree');
+SELECT public.club_react('thread', :'hot_thread'::uuid, 'disagree');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_reactions
+    WHERE target_type='thread' AND target_id=:'hot_thread'::uuid
+      AND user_id='a0000000-0000-0000-0000-000000000001'
+      AND kind IN ('agree','disagree')) = 1,
+  'po zmianie zdania zostaje DOKLADNIE jedno stanowisko');
+SELECT pg_temp.assert(
+  (SELECT kind FROM public.club_reactions
+    WHERE target_type='thread' AND target_id=:'hot_thread'::uuid
+      AND user_id='a0000000-0000-0000-0000-000000000001'
+      AND kind IN ('agree','disagree')) = 'disagree',
+  'obowiazuje ostatnia deklaracja, nie pierwsza');
+-- Trigger realizuje UX (podmiana zamiast bledu), ale to indeks jest
+-- ograniczeniem. Harness jest jednosesyjny, wiec wyscigu nie odtworzy -
+-- sprawdzamy wiec, ze twarda bramka ISTNIEJE, a nie ze "dziala sekwencyjnie".
+SELECT pg_temp.assert(
+  EXISTS (SELECT 1 FROM pg_indexes
+           WHERE schemaname='public' AND indexname='club_reactions_one_stance'),
+  'rozlacznosci stanowiska pilnuje indeks, nie sam trigger');
+-- Trigger wylaczony CELOWO: z nim wlaczonym kazdy INSERT przechodzi, bo to
+-- on kasuje przeciwne stanowisko. Pytanie brzmi, czy pod nim jest cokolwiek -
+-- i wlasnie to sprawdzamy. Rownolegla transakcja robi dokladnie to samo:
+-- jej DELETE nie widzi niezatwierdzonego wiersza obok, wiec do indeksu
+-- docieraja dwa stanowiska naraz.
+ALTER TABLE public.club_reactions DISABLE TRIGGER club_reactions_stance_exclusive_tg;
+SELECT pg_temp.assert_raises(
+  format($q$ INSERT INTO public.club_reactions
+             (tenant_id, club_id, target_type, target_id, user_id, kind)
+             SELECT r.tenant_id, r.club_id, 'thread', r.target_id, r.user_id, 'agree'
+               FROM public.club_reactions r
+              WHERE r.target_id='%s'
+                AND r.user_id='a0000000-0000-0000-0000-000000000001'
+                AND r.kind='disagree' $q$, :'hot_thread'),
+  'drugie stanowisko odrzuca INDEKS, nie trigger');
+ALTER TABLE public.club_reactions ENABLE TRIGGER club_reactions_stance_exclusive_tg;
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_reactions
+    WHERE target_type='thread' AND target_id=:'hot_thread'::uuid
+      AND user_id='a0000000-0000-0000-0000-000000000001'
+      AND kind IN ('agree','disagree')) = 1,
+  'po odrzuconej probie nadal jest jedno stanowisko');
+
+\echo '== 41. [A9] Limity antyspamowe sa zserializowane =='
+-- Wyscigu nie da sie odtworzyc w jednej sesji. Asercja jest STRUKTURALNA:
+-- pilnuje, ze blokada nie wyparuje z ciala funkcji przy kolejnym CREATE OR
+-- REPLACE - a to jest dokladnie ten sposob, w jaki znikaja takie poprawki.
+SELECT pg_temp.assert(
+  pg_get_functiondef('public.club_create_thread(uuid,text,text,text,boolean,text,text)'::regprocedure)
+    LIKE '%pg_advisory_xact_lock%',
+  'club_create_thread bierze blokade przed liczeniem limitu');
+SELECT pg_temp.assert(
+  pg_get_functiondef('public.club_invite_by_email(uuid,text,text,uuid)'::regprocedure)
+    LIKE '%club_invite:%',
+  'club_invite_by_email bierze TEN SAM klucz blokady co club_invite');
+SELECT pg_temp.assert(
+  pg_get_functiondef('public.club_invite(uuid,uuid,text,text,uuid)'::regprocedure)
+    LIKE '%club_invite:%',
+  'club_invite nadal bierze ten klucz - obie sciezki dziela licznik');
+
 \echo ''
 \echo '=========================================='
 \echo ' WSZYSTKIE ASERCJE PRZESZLY'

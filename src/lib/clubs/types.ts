@@ -60,6 +60,10 @@ export const CLUB_ACCESS_REASONS = [
   "archived",
   "banned",
   "pre_moderation",
+  // Podglad cudzych uprawnien nie ma sesji tamtej osoby, wiec nie policzy jej
+  // rangi planu. RPC zglasza to jawnie zamiast zgadywac - i panel ma to
+  // powtorzyc, bo "brak przeszkod" bylo tu po prostu nieprawda.
+  "tier_unknown",
 ] as const;
 export type ClubAccessReason = (typeof CLUB_ACCESS_REASONS)[number];
 
@@ -74,7 +78,18 @@ type Fn = Database["public"]["Functions"];
 
 type RowOf<T> = T extends readonly (infer R)[] ? R : never;
 
-export type ClubCapabilitiesRow = RowOf<Fn["club_capabilities"]["Returns"]>;
+/**
+ * Korekta nullowalnosci. Generator typow Supabase dla `RETURNS TABLE` wypuszcza
+ * KAZDA kolumne jako non-null, bo Postgres nie deklaruje tam nullowalnosci -
+ * a czesc z nich baza realnie zwraca jako NULL (autor w trybie chatham, rodzic
+ * odpowiedzi pierwszego poziomu, powod przy braku przeszkod). Bez tej korekty
+ * klient jest typowany na dane, ktorych nigdy nie dostanie: `?? null` w kodzie
+ * wyglada jak martwa galaz, a atrapa w tescie nie da sie napisac zgodnie
+ * z prawda.
+ */
+type NullableCols<T, K extends keyof T> = Omit<T, K> & { [P in K]: T[P] | null };
+
+export type ClubCapabilitiesRow = NullableCols<RowOf<Fn["club_capabilities"]["Returns"]>, "reason">;
 export type ClubListRow = RowOf<Fn["club_list"]["Returns"]>;
 export type ClubViewRow = RowOf<Fn["club_view"]["Returns"]>;
 export type ClubGroupRow = RowOf<Fn["club_groups_list"]["Returns"]>;
@@ -414,7 +429,17 @@ export type ClubReplySort = (typeof CLUB_REPLY_SORTS)[number];
 
 export type ClubThreadListRow = RowOf<Fn["club_threads_list"]["Returns"]>;
 export type ClubThreadViewRow = RowOf<Fn["club_thread_view"]["Returns"]>;
-export type ClubReplyRow = RowOf<Fn["club_replies_list"]["Returns"]>;
+export type ClubReplyRow = NullableCols<
+  RowOf<Fn["club_replies_list"]["Returns"]>,
+  | "parent_id"
+  | "author_id"
+  | "author_name"
+  | "author_avatar"
+  | "author_slug"
+  | "author_alias"
+  | "posted_by_admin_name"
+  | "edited_at"
+>;
 
 /**
  * Etykieta autora gotowa do renderu. Sedno: komponent NIE decyduje o

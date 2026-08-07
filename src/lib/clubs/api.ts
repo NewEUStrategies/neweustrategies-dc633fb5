@@ -56,7 +56,10 @@ import {
  * typowo, jak i odsiewa `undefined` - a wlasnie brak klucza znaczy w tym
  * kontrakcie "nie ruszaj pola".
  */
-function toJsonPayload(input: Record<string, unknown>): Json {
+// Parametr `object`, nie `Record<string, unknown>`: interfejs bez sygnatury
+// indeksowej nie jest przypisywalny do Record, a ta funkcja i tak niczego nie
+// indeksuje - przepuszcza wejscie przez JSON.
+function toJsonPayload(input: object): Json {
   const parsed: unknown = JSON.parse(JSON.stringify(input));
   return parsed as Json;
 }

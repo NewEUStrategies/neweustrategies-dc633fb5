@@ -125,6 +125,8 @@ export const clubPl = {
       archived: "Ten klub jest zarchiwizowany.",
       banned: "Twój dostęp do tego klubu został zablokowany.",
       pre_moderation: "Twoje wpisy trafiają najpierw do zatwierdzenia przez moderatora.",
+      tier_unknown:
+        "Nie da się sprawdzić planu tej osoby spoza jej sesji - próg planu pozostaje nierozstrzygnięty.",
     },
     // --- etap A3: tematy i odpowiedzi ---
     newThread: "Nowy temat",
@@ -725,6 +727,8 @@ export const clubEn = {
       archived: "This club is archived.",
       banned: "Your access to this club has been blocked.",
       pre_moderation: "Your posts go to a moderator for approval first.",
+      tier_unknown:
+        "This person's plan cannot be evaluated outside their own session - the plan threshold stays undetermined.",
     },
     // --- stage A3: threads and replies ---
     newThread: "New topic",
