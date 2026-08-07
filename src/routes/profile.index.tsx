@@ -64,7 +64,7 @@ import { useTheme } from "@/components/ThemeProvider";
 import { ensureI18n as ensureProfileExtras2I18n } from "@/lib/i18n-profile-extras2";
 import { ensureI18n as ensureProfileIntentI18n } from "@/lib/i18n-profile-intent";
 import { setGuestPreview } from "@/lib/profile/guestPreviewStore";
-import { VerifiedProfileBadge } from "@/components/profile/VerifiedProfileBadge";
+import { ProfileIdentityBadges } from "@/components/profile/ProfileIdentityBadges";
 import { ProfileViewsCard } from "@/components/network/ProfileViewsCard";
 import { IntroductionsCard } from "@/components/network/IntroductionsCard";
 
@@ -240,7 +240,7 @@ function ProfileInline() {
                 {fullName}
               </h1>
             )}
-            {data.verified_at ? <VerifiedProfileBadge /> : null}
+            <ProfileIdentityBadges verified={!!data.verified_at} />
           </div>
 
           {/* Company + Job */}

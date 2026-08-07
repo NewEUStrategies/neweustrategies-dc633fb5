@@ -18,7 +18,6 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { useRecordProfileView } from "@/lib/network/useProfileViews";
 
-import { BadgeCheck } from "lucide-react";
 import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
@@ -30,7 +29,7 @@ import { DirectMessageButton } from "@/components/network/DirectMessageButton";
 import { MutualConnectionsHint } from "@/components/network/MutualConnectionsHint";
 import { RequestIntroductionButton } from "@/components/network/RequestIntroductionButton";
 import { AuthorMoreMenu } from "@/components/network/AuthorMoreMenu";
-import { ProfileBadges } from "@/components/profile/ProfileBadges";
+import { ProfileIdentityBadges } from "@/components/profile/ProfileIdentityBadges";
 import { ExpertMaterialsExplorer } from "@/components/experts/ExpertMaterialsExplorer";
 import { ExpertHubDetails } from "@/components/experts/ExpertHubDetails";
 import { ExpertInTheNews } from "@/components/experts/ExpertInTheNews";
@@ -457,20 +456,11 @@ function ExpertHubPage() {
                 {t("expert.expertBadge")}
               </span>
             )}
-            {expert.verified_at && (
-              <span
-                className="inline-flex items-center gap-1 rounded-[6px] bg-sky-400/25 px-2 py-0.5 text-[11px] font-medium text-sky-900 dark:text-sky-50"
-                title={
-                  lang === "pl"
-                    ? "Profil zweryfikowany zawodowo"
-                    : "Professionally verified profile"
-                }
-              >
-                <BadgeCheck className="h-3.5 w-3.5" aria-hidden />
-                {t("expert.verifiedBadge")}
-              </span>
-            )}
-            <ProfileBadges badges={extraBadges} size="md" />
+            <ProfileIdentityBadges
+              verified={!!expert.verified_at}
+              badges={extraBadges}
+              size="md"
+            />
           </div>
         </div>
 

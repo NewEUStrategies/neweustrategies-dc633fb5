@@ -45,7 +45,6 @@ import { ChatAvatar } from "@/components/chat/ChatAvatar";
 import { ConnectButton } from "@/components/network/ConnectButton";
 import { DirectMessageButton } from "@/components/network/DirectMessageButton";
 import { ProfileLinkButton } from "@/components/network/ProfileLinkButton";
-import { DegreeBadge } from "@/components/network/atoms/DegreeBadge";
 import { IntentChip } from "@/components/atoms/IntentChip";
 import { SavedSearchesPanel } from "@/components/search/SavedSearchesPanel";
 import { ConnectionPathTrail } from "@/components/network/molecules/ConnectionPathTrail";
@@ -81,7 +80,7 @@ import {
   type PeopleSearchParams,
 } from "@/lib/profile/peopleSearchParams";
 import { useBadgesForUsers, type ProfileBadgeKind } from "@/lib/profile/badges";
-import { ProfileBadges } from "@/components/profile/ProfileBadges";
+import { ProfileIdentityBadges } from "@/components/profile/ProfileIdentityBadges";
 import { currentLang } from "@/lib/i18n/localeRuntime";
 import { cn } from "@/lib/utils";
 import { ensureI18n as ensureChatI18n } from "@/lib/i18n-chat";
@@ -227,8 +226,12 @@ function PersonCard({
         <span className="truncate">{person.display_name}</span>
         {/* Stopień oddalenia tuż przy nazwisku - tam, gdzie czytelnik szuka
             odpowiedzi na pytanie „czy to ktoś z mojego świata?". */}
-        <DegreeBadge degree={connection?.degree ?? 0} />
-        <ProfileBadges badges={badges} className="shrink-0" />
+        <ProfileIdentityBadges
+          degree={connection?.degree ?? 0}
+          badges={badges}
+          size="sm"
+          className="shrink-0"
+        />
       </p>
       {(person.job_title || person.current_company) && (
         <p className="truncate text-xs text-muted-foreground">
