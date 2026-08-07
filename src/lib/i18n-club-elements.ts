@@ -11,6 +11,20 @@ export const clubElementsPl = {
     subtitle:
       "Wszystkie elementy interfejsu Klubu dyskusyjnego w jednym miejscu: słowniki, znaczniki, macierz uprawnień, zdanie dostępu i reakcje semantyczne.",
     note: "Strona poglądowa. Dane są przykładowe - nic tu nie zapisuje się do bazy.",
+    ui: {
+      sandbox: "Podgląd",
+      searchLabel: "Szukaj w katalogu elementów",
+      searchPlaceholder: "Szukaj wartości, kodu lub etykiety (np. chatham, invite_expired)",
+      sections: "Sekcje katalogu",
+      clear: "Wyczyść",
+      copyHint: "Kliknij, aby skopiować surową wartość",
+      copied: "Skopiowano: {{value}}",
+      copyFailed: "Nie udało się skopiować wartości.",
+      noResults: "Brak wyników",
+      noResultsHint:
+        "Żadna wartość, kod ani etykieta nie pasuje do zapytania. Sekcje z narzędziami (dostęp, galeria) pozostają widoczne.",
+    },
+
     section: {
       vocab: "Słowniki domenowe",
       vocabHint: "Zbiory wartości wyprowadzone z CHECK-ów w bazie - jedyne źródło dropList.",
