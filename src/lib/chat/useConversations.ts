@@ -268,9 +268,10 @@ export function usePeopleSearch(query: string, limit = 20): UseQueryResult<Perso
         p_limit: limit,
       });
       if (error) throw error;
-      // search_chat_contacts nie zwraca kolumny `verified` (ma ją katalogowe
-      // search_people) - domykamy kształt PersonHit bezpiecznym fallbackiem.
-      return (data ?? []).map((row) => ({ ...row, verified: false }));
+      // Od 20260806220000 `search_chat_contacts` zwraca ten sam zestaw kolumn
+      // co katalogowe `search_people` (włącznie z `verified`) - bez fallbacku.
+      return data ?? [];
+
 
     },
   });
