@@ -46,6 +46,8 @@ import { ConnectButton } from "@/components/network/ConnectButton";
 import { DirectMessageButton } from "@/components/network/DirectMessageButton";
 import { ProfileLinkButton } from "@/components/network/ProfileLinkButton";
 import { DegreeBadge } from "@/components/network/atoms/DegreeBadge";
+import { IntentChip } from "@/components/atoms/IntentChip";
+import { SavedSearchesPanel } from "@/components/search/SavedSearchesPanel";
 import { ConnectionPathTrail } from "@/components/network/molecules/ConnectionPathTrail";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -228,7 +230,7 @@ function PersonCard({
         <DegreeBadge degree={connection?.degree ?? 0} />
         <ProfileBadges badges={badges} className="shrink-0" />
         {connection && (
-          <NetworkDegreeBadge
+          <DegreeBadge
             degree={connection.degree}
             label={t(networkDegreeShortKey(connection.degree))}
             ariaLabel={t(networkDegreeLabelKey(connection.degree))}
