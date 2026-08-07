@@ -56,6 +56,7 @@ import {
   Landmark,
   ListChecks,
   MessageCircle,
+  MessagesSquare,
   Radio,
   ShieldCheck,
   TrendingUp,
@@ -69,6 +70,7 @@ import {
   useAdminSidebarExtrasSlot,
 } from "@/components/admin/AdminSidebarExtras";
 import { useSiteSetting } from "@/lib/useSiteSetting";
+import { useClubPendingCounts } from "@/lib/clubs/useClubs";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -245,6 +247,10 @@ function AdminShellInner({
 }) {
   const { t, i18n } = useTranslation();
   const { signOut, isAdmin, isSuperAdmin } = useAuth();
+  // Licznik kolejek klubów (premoderacja + prośby o dostęp) na skrócie w menu.
+  const clubCounts = useClubPendingCounts(isAdmin);
+  const clubPending =
+    (clubCounts.data?.moderationPending ?? 0) + (clubCounts.data?.joinRequests ?? 0);
   const { theme, toggle } = useTheme();
   const navigate = useNavigate();
   const path = useRouterState({ select: (s) => s.location.pathname });
@@ -264,7 +270,7 @@ function AdminShellInner({
   // usługa zewnętrzna (`href`, nowa karta przez SidebarExternalNavLink) - np.
   // Darowizny, których zbiórka żyje na zrzutka.pl i nie ma trasy w panelu.
   type NavItem =
-    | { to: string; icon: NavIcon; label: string }
+    | { to: string; icon: NavIcon; label: string; badge?: number }
     | { href: string; icon: NavIcon; label: string };
   type NavGroup = { id: string; label?: string; items: NavItem[] };
 
@@ -476,6 +482,16 @@ function AdminShellInner({
           label: t("admin.nav.community", {
             defaultValue: lang === "pl" ? "Społeczność" : "Community",
           }),
+        },
+        {
+          // Skrót wprost do zarządzania klubami dyskusyjnymi - bez niego trzeba
+          // było przejść przez /admin/community i dopiero tam wybrać zakładkę.
+          to: "/admin/community/clubs",
+          icon: MessagesSquare,
+          label: t("admin.nav.clubs", {
+            defaultValue: lang === "pl" ? "Kluby dyskusyjne" : "Discussion clubs",
+          }),
+          badge: clubPending,
         },
         {
           to: "/admin/comments",
@@ -776,6 +792,11 @@ function AdminShellInner({
                         path === to ||
                         (to !== "/admin" &&
                           to !== "/admin/appearance" &&
+                          // Skrót do klubów ma własną pozycję, więc "Społeczność"
+                          // nie może się podświetlać razem z nim.
+                          !(
+                            to === "/admin/community" && path.startsWith("/admin/community/clubs")
+                          ) &&
                           !isCrmContacts &&
                           path.startsWith(`${to}/`));
 
@@ -807,6 +828,17 @@ function AdminShellInner({
                           >
                             <Icon className="w-3 h-3 shrink-0" />
                             <span className={`truncate ${compact ? "hidden" : ""}`}>{label}</span>
+                            {typeof item.badge === "number" && item.badge > 0 && !compact ? (
+                              <span
+                                className="ml-auto inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500/20 px-1 text-[10px] font-semibold tabular-nums text-amber-700 dark:text-amber-300"
+                                aria-label={t("admin.nav.pendingItems", {
+                                  defaultValue:
+                                    lang === "pl" ? "Elementy oczekujące" : "Pending items",
+                                })}
+                              >
+                                {item.badge > 99 ? "99+" : item.badge}
+                              </span>
+                            ) : null}
                           </Link>
                         </SidebarTooltip>
                       );
