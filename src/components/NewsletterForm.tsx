@@ -325,7 +325,15 @@ export function NewsletterForm({
 
   const inputCls = "px-3 py-2 rounded border border-input bg-background text-sm w-full";
   const hasExtras =
-    showFirstName || showLastName || showCompany || customFields.length > 0 || showInterests;
+    showFirstName ||
+    showLastName ||
+    showCompany ||
+    showLinkedin ||
+    showPhone ||
+    showCountry ||
+    customFields.length > 0 ||
+    showInterests;
+
 
   return (
     <section className={containerCls} aria-labelledby="newsletter-heading">
