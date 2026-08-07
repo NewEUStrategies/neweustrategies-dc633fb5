@@ -503,6 +503,7 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
       data-header-mode={headerMode}
       data-scrolled={scrolled ? "true" : "false"}
       data-settled={settled ? "true" : "false"}
+      data-is-home={isHome ? "true" : "false"}
       className={
         (stickyShrink ? "sticky top-0 " : "relative ") +
         "z-40 bg-background border-b border-border site-header-shrink"
