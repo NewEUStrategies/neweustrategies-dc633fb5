@@ -1,0 +1,57 @@
+// Atom: znacznik "Zweryfikowany profil" przy nazwisku.
+//
+// Jedno miejsce prawdy dla wszystkich powierzchni profilowych (własny profil
+// /profile, podgląd gościa, strona eksperta /author/$slug), żeby odznaka
+// wyglądała i zachowywała się identycznie niezależnie od kontekstu.
+import { useTranslation } from "react-i18next";
+import { BadgeCheck } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { ensureI18n as ensureExpertsI18n } from "@/lib/i18n-experts";
+
+export type VerifiedProfileBadgeSize = "sm" | "md";
+
+export function VerifiedProfileBadge({
+  size = "md",
+  withLabel = true,
+  className,
+}: {
+  size?: VerifiedProfileBadgeSize;
+  withLabel?: boolean;
+  className?: string;
+}) {
+  ensureExpertsI18n();
+  const { t } = useTranslation();
+  const label = t("expert.verifiedBadge", { defaultValue: "Zweryfikowany" });
+  const title = t("expert.verifiedBadgeTitle", {
+    defaultValue: "Profil zweryfikowany zawodowo",
+  });
+
+  if (!withLabel) {
+    return (
+      <BadgeCheck
+        className={cn(
+          "shrink-0 text-sky-600 dark:text-sky-300",
+          size === "sm" ? "h-4 w-4" : "h-5 w-5",
+          className,
+        )}
+        aria-label={label}
+      />
+    );
+  }
+
+  return (
+    <span
+      title={title}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-[6px] bg-sky-400/25 font-medium text-sky-900 dark:text-sky-50 align-middle",
+        size === "sm" ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-0.5 text-[11px]",
+        className,
+      )}
+    >
+      <BadgeCheck className={size === "sm" ? "h-3 w-3" : "h-3.5 w-3.5"} aria-hidden />
+      {label}
+    </span>
+  );
+}
+
+export default VerifiedProfileBadge;
