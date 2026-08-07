@@ -172,7 +172,7 @@ function ProfileInline() {
 
         <section className="rounded-[6px] border border-border bg-card px-5 sm:px-6 pt-16 sm:pt-20 pb-5">
           {/* Name */}
-          <div className="text-center sm:text-left">
+          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-center sm:text-left">
             {editable ? (
               <InlineText
                 value={data.display_name || fullName}
@@ -189,7 +189,9 @@ function ProfileInline() {
                 {fullName}
               </h1>
             )}
+            {data.verified_at ? <VerifiedProfileBadge /> : null}
           </div>
+
 
           {/* Company + Job */}
           <div className="mt-0.5 flex flex-wrap items-center justify-center sm:justify-start gap-x-1 gap-y-0.5 text-[13px] leading-[1.2]">
