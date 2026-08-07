@@ -18,7 +18,6 @@ import { useTranslation } from "react-i18next";
 
 export type BuilderLang = "pl" | "en";
 
-/* eslint-disable prettier/prettier */
 export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   // ------------------------------------------- social icons: colors + hover
   "Kolory platform": "Platform colors",
@@ -1193,7 +1192,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
     "Switched off automatically under the system “reduce motion” setting (prefers-reduced-motion).",
   "Droplista tematów (zainteresowania)?": "Topics droplist (interests)?",
 };
-/* eslint-enable prettier/prettier */
 
 /**
  * English rendering of a builder data-module label. Returns the source string
