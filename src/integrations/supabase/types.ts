@@ -1501,6 +1501,32 @@ export type Database = {
           },
         ]
       }
+      club_anonymity_salts: {
+        Row: {
+          created_at: string
+          salt: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          salt: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          salt?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_anonymity_salts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       club_groups: {
         Row: {
           accent_color: string | null
@@ -13460,6 +13486,7 @@ export type Database = {
           author_name: string
           body: string
           created_at: string
+          is_anonymous: boolean
           target_id: string
           target_type: string
           thread_slug: string
@@ -13561,6 +13588,7 @@ export type Database = {
           p_status?: string
         }
         Returns: {
+          attribution_mode: string
           author_id: string
           author_name: string
           created_at: string
@@ -14284,6 +14312,7 @@ export type Database = {
         }
       }
       club_accept_rules: { Args: { p_club_id: string }; Returns: boolean }
+      club_anonymity_salt: { Args: { _tenant_id: string }; Returns: string }
       club_author_alias: {
         Args: { _author_id: string; _thread_id: string }
         Returns: string
@@ -14651,6 +14680,10 @@ export type Database = {
           _reply_count: number
           _stance_count: number
         }
+        Returns: number
+      }
+      club_thread_quality_score: {
+        Args: { _thread_id: string }
         Returns: number
       }
       club_thread_view: {

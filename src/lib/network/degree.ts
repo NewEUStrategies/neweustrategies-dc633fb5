@@ -92,3 +92,23 @@ export const DEGREE_I18N_SUFFIX = {
   2: "second",
   3: "third",
 } as const satisfies Record<1 | 2 | 3, string>;
+
+// --- Aliasy domenowe -------------------------------------------------------
+// Powierzchnie sieci (karty /people, /network, profil) mówią „NetworkDegree",
+// bo tam „connection" znaczy konkretny wiersz zaproszenia, a stopień jest
+// cechą GRAFU. To ta sama wartość - alias, nie druga definicja, żeby nie dało
+// się ich rozjechać.
+export type NetworkDegree = ConnectionDegree;
+
+/** Normalizacja stopnia z RPC pod nazwą używaną przez warstwę sieci. */
+export const toNetworkDegree = normalizeDegree;
+
+/** Klucz i18n skrótu („1°/2°/3°") dla stopnia widocznego. */
+export function networkDegreeShortKey(degree: 1 | 2 | 3): string {
+  return `network.degree.short.${DEGREE_I18N_SUFFIX[degree]}`;
+}
+
+/** Klucz i18n pełnego opisu stopnia (tooltip, czytnik ekranu). */
+export function networkDegreeLabelKey(degree: 1 | 2 | 3): string {
+  return `network.degree.description.${DEGREE_I18N_SUFFIX[degree]}`;
+}
