@@ -247,6 +247,10 @@ function AdminShellInner({
 }) {
   const { t, i18n } = useTranslation();
   const { signOut, isAdmin, isSuperAdmin } = useAuth();
+  // Licznik kolejek klubów (premoderacja + prośby o dostęp) na skrócie w menu.
+  const clubCounts = useClubPendingCounts(isAdmin);
+  const clubPending =
+    (clubCounts.data?.moderationPending ?? 0) + (clubCounts.data?.joinRequests ?? 0);
   const { theme, toggle } = useTheme();
   const navigate = useNavigate();
   const path = useRouterState({ select: (s) => s.location.pathname });
@@ -266,7 +270,7 @@ function AdminShellInner({
   // usługa zewnętrzna (`href`, nowa karta przez SidebarExternalNavLink) - np.
   // Darowizny, których zbiórka żyje na zrzutka.pl i nie ma trasy w panelu.
   type NavItem =
-    | { to: string; icon: NavIcon; label: string }
+    | { to: string; icon: NavIcon; label: string; badge?: number }
     | { href: string; icon: NavIcon; label: string };
   type NavGroup = { id: string; label?: string; items: NavItem[] };
 
@@ -478,6 +482,16 @@ function AdminShellInner({
           label: t("admin.nav.community", {
             defaultValue: lang === "pl" ? "Społeczność" : "Community",
           }),
+        },
+        {
+          // Skrót wprost do zarządzania klubami dyskusyjnymi - bez niego trzeba
+          // było przejść przez /admin/community i dopiero tam wybrać zakładkę.
+          to: "/admin/community/clubs",
+          icon: MessagesSquare,
+          label: t("admin.nav.clubs", {
+            defaultValue: lang === "pl" ? "Kluby dyskusyjne" : "Discussion clubs",
+          }),
+          badge: clubPending,
         },
         {
           to: "/admin/comments",
