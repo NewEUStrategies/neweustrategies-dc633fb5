@@ -88,6 +88,7 @@ import {
   Upload as LUpload,
   User as LUser,
   Users as LUsers,
+  MessagesSquare as LMessagesSquare,
   Video as LVideo,
   X as LX,
   Lock as LLock,
@@ -282,6 +283,7 @@ export const RotateCcw = makeIcon("RotateCcw", LRotateCcw);
 export const Upload = makeIcon("Upload", LUpload);
 export const User = makeIcon("User", LUser);
 export const Users = makeIcon("Users", LUsers);
+export const MessagesSquare = makeIcon("MessagesSquare", LMessagesSquare);
 export const Video = makeIcon("Video", LVideo);
 export const X = makeIcon("X", LX);
 export const Lock = makeIcon("Lock", LLock);
