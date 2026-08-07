@@ -25,6 +25,13 @@ export const clubElementsPl = {
         "Żadna wartość, kod ani etykieta nie pasuje do zapytania. Sekcje z narzędziami (dostęp, galeria) pozostają widoczne.",
     },
 
+    group: {
+      vocab: "Słowniki",
+      components: "Komponenty",
+      rules: "Dostęp i uprawnienia",
+      codes: "Kody odmów",
+    },
+
     section: {
       vocab: "Słowniki domenowe",
       vocabHint: "Zbiory wartości wyprowadzone z CHECK-ów w bazie - jedyne źródło dropList.",
