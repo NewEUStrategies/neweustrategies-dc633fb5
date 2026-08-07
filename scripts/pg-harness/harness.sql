@@ -334,3 +334,132 @@ CREATE TABLE IF NOT EXISTS public.event_rsvps (
   status   text NOT NULL DEFAULT 'going',
   PRIMARY KEY (user_id, event_id)
 );
+
+-- ---------------------------------------------------------------------------
+-- Szyny miedzymodulowe, ktorych dotyka A12: szyna zdarzen, graf powiazan
+-- i wzmianki. Wszystko przepisane z ORYGINALNYCH migracji
+-- (20260711200000_domain_event_bus.sql, 20260711201000_cross_references_and_mentions.sql,
+-- 20260711220719_*.sql), bo harness na fikcji przepuszczalby bledy.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.domain_events (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id      uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  aggregate_type text NOT NULL,
+  aggregate_id   text NOT NULL,
+  event_type     text NOT NULL,
+  payload        jsonb NOT NULL DEFAULT '{}'::jsonb,
+  correlation_id uuid,
+  actor_id       uuid,
+  created_at     timestamptz NOT NULL DEFAULT now(),
+  CHECK (event_type ~ '^[a-z0-9_]+\.[a-z0-9_]+\.v[0-9]+$'),
+  CHECK (btrim(aggregate_type) <> '' AND btrim(aggregate_id) <> '')
+);
+
+CREATE TABLE IF NOT EXISTS public.cross_references (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id   uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  source_type text NOT NULL,
+  source_id   text NOT NULL,
+  target_type text NOT NULL,
+  target_id   text NOT NULL,
+  relation    text NOT NULL DEFAULT 'related',
+  created_by  uuid,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  CHECK (btrim(source_type) <> '' AND btrim(source_id) <> ''),
+  CHECK (btrim(target_type) <> '' AND btrim(target_id) <> ''),
+  CHECK (NOT (source_type = target_type AND source_id = target_id)),
+  UNIQUE (tenant_id, source_type, source_id, target_type, target_id, relation)
+);
+
+CREATE OR REPLACE FUNCTION public.request_correlation_id()
+RETURNS uuid LANGUAGE plpgsql STABLE SET search_path = public AS $$
+DECLARE v_raw text;
+BEGIN
+  v_raw := current_setting('request.headers', true)::jsonb ->> 'x-correlation-id';
+  IF v_raw IS NULL OR v_raw !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
+    RETURN NULL;
+  END IF;
+  RETURN v_raw::uuid;
+EXCEPTION WHEN OTHERS THEN RETURN NULL;
+END; $$;
+
+CREATE OR REPLACE FUNCTION public.emit_domain_event(
+  p_tenant_id uuid, p_aggregate_type text, p_aggregate_id text,
+  p_event_type text, p_payload jsonb DEFAULT '{}'::jsonb
+)
+RETURNS uuid LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_id uuid;
+BEGIN
+  IF p_tenant_id IS NULL OR p_aggregate_type IS NULL OR p_aggregate_id IS NULL
+     OR p_event_type IS NULL THEN
+    RETURN NULL;
+  END IF;
+  INSERT INTO public.domain_events (
+    tenant_id, aggregate_type, aggregate_id, event_type, payload, correlation_id, actor_id
+  ) VALUES (
+    p_tenant_id, p_aggregate_type, p_aggregate_id, p_event_type,
+    COALESCE(p_payload, '{}'::jsonb), public.request_correlation_id(), auth.uid()
+  ) RETURNING id INTO v_id;
+  RETURN v_id;
+EXCEPTION WHEN OTHERS THEN RETURN NULL;
+END; $$;
+
+CREATE OR REPLACE FUNCTION public.add_cross_reference(
+  p_tenant_id uuid, p_source_type text, p_source_id text,
+  p_target_type text, p_target_id text,
+  p_relation text DEFAULT 'related', p_created_by uuid DEFAULT NULL
+)
+RETURNS uuid LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_id uuid;
+BEGIN
+  IF p_tenant_id IS NULL OR btrim(COALESCE(p_source_id,'')) = ''
+     OR btrim(COALESCE(p_target_id,'')) = '' THEN
+    RETURN NULL;
+  END IF;
+  INSERT INTO public.cross_references (
+    tenant_id, source_type, source_id, target_type, target_id, relation, created_by
+  ) VALUES (
+    p_tenant_id, p_source_type, p_source_id, p_target_type, p_target_id,
+    COALESCE(p_relation,'related'), p_created_by
+  )
+  ON CONFLICT (tenant_id, source_type, source_id, target_type, target_id, relation)
+  DO NOTHING
+  RETURNING id INTO v_id;
+  RETURN v_id;
+EXCEPTION WHEN OTHERS THEN RETURN NULL;
+END; $$;
+
+CREATE OR REPLACE FUNCTION public.process_mentions(
+  p_tenant_id uuid, p_source_type text, p_source_id text, p_body text,
+  p_actor_id uuid, p_kind text, p_href text
+)
+RETURNS integer LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_slug text; v_profile record; v_actor_name text; v_count integer := 0;
+BEGIN
+  IF p_body IS NULL OR position('@' in p_body) = 0 THEN RETURN 0; END IF;
+  SELECT COALESCE(NULLIF(btrim(display_name), ''), 'Ktoś')
+    INTO v_actor_name FROM public.profiles WHERE id = p_actor_id;
+  v_actor_name := COALESCE(v_actor_name, 'Ktoś');
+  FOR v_slug IN
+    SELECT DISTINCT lower(m[1])
+    FROM regexp_matches(p_body, '(?:^|[^a-zA-Z0-9@._-])@([a-zA-Z0-9][a-zA-Z0-9_-]{1,63})', 'g') AS m
+    LIMIT 10
+  LOOP
+    SELECT id, display_name INTO v_profile
+      FROM public.profiles WHERE tenant_id = p_tenant_id AND slug = v_slug;
+    IF v_profile.id IS NULL OR v_profile.id = p_actor_id THEN CONTINUE; END IF;
+    PERFORM public.add_cross_reference(
+      p_tenant_id, p_source_type, p_source_id, 'profile', v_profile.id::text, 'mention', p_actor_id);
+    PERFORM public.enqueue_notification(
+      v_profile.id, p_kind, v_actor_name || ' wspomniał(a) o Tobie',
+      v_actor_name || ' mentioned you', NULL, NULL, p_href, 'at-sign');
+    PERFORM public.emit_domain_event(
+      p_tenant_id, p_source_type, p_source_id, 'mention.created.v1',
+      jsonb_build_object('mentioned_user_id', v_profile.id, 'actor_id', p_actor_id,
+                         'source_type', p_source_type));
+    v_count := v_count + 1;
+  END LOOP;
+  RETURN v_count;
+EXCEPTION WHEN OTHERS THEN RETURN v_count;
+END; $$;

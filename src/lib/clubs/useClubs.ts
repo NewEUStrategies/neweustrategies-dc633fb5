@@ -76,6 +76,8 @@ import {
   upsertClubMember,
   type AdminClubsPage,
   type AdminThreadsPage,
+  type AdminClubModerationPage,
+  type ClubListPage,
   type ClubMembersPage,
   type ClubThreadsPage,
   type CreateThreadResult,
@@ -128,10 +130,10 @@ const STALE_MS = 30_000;
 // Odczyt
 // ---------------------------------------------------------------------------
 
-export function useClubList(enabled = true): UseQueryResult<ClubListRow[], Error> {
+export function useClubList(enabled = true): UseQueryResult<ClubListPage, Error> {
   return useQuery({
     queryKey: clubKeys.list(),
-    queryFn: fetchClubList,
+    queryFn: () => fetchClubList({}),
     staleTime: STALE_MS,
     enabled,
   });
@@ -900,10 +902,10 @@ export function useClubPendingCounts(
 
 export function useClubModerationQueue(
   clubId: string | undefined,
-): UseQueryResult<AdminClubModerationItem[], Error> {
+): UseQueryResult<AdminClubModerationPage, Error> {
   return useQuery({
     queryKey: clubKeys.moderationQueue(clubId ?? ""),
-    queryFn: () => fetchClubModerationQueue(clubId ?? ""),
+    queryFn: () => fetchClubModerationQueue({ clubId: clubId ?? "" }),
     staleTime: 10_000,
     enabled: Boolean(clubId),
   });

@@ -61,6 +61,7 @@ const DIGEST_SECTIONS: { kinds: readonly string[] | null; pl: string; en: string
     pl: "Sieć i profil",
     en: "Network & profile",
   },
+  { kinds: ["club"], pl: "Kluby dyskusyjne", en: "Discussion clubs" },
   { kinds: ["follow"], pl: "Obserwujący", en: "Followers" },
   { kinds: ["subscription"], pl: "Subskrypcja", en: "Subscription" },
   { kinds: null, pl: "Pozostałe", en: "Other" },

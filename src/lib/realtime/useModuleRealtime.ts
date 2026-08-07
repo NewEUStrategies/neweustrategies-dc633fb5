@@ -14,7 +14,7 @@ import { subscribeToDomainEvents } from "./useDomainEventStream";
 import { invalidationKeysFor } from "./eventInvalidationMap";
 import type { DomainAggregateType, DomainEventRow } from "./domainEvents";
 
-export type ModuleRealtimeKey = "content" | "comments" | "chat" | "crm" | "newsletter";
+export type ModuleRealtimeKey = "content" | "comments" | "chat" | "crm" | "newsletter" | "club";
 
 export const MODULE_AGGREGATES: Record<ModuleRealtimeKey, readonly DomainAggregateType[]> = {
   content: ["post"],
@@ -22,6 +22,11 @@ export const MODULE_AGGREGATES: Record<ModuleRealtimeKey, readonly DomainAggrega
   chat: ["message"],
   crm: ["crm_lead", "crm_note", "crm_task", "newsletter_subscriber"],
   newsletter: ["newsletter_subscriber"],
+  // Watek dyskusyjny jest z definicji wieloosobowy i synchroniczny: dwie osoby
+  // czytajace ten sam watek musza widziec te sama tresc bez F5. Tabele club_*
+  // maja RLS deny-all, wiec postgres_changes na nich nie dostarczylby nic -
+  // szyna zdarzen jest tu jedynym kanalem.
+  club: ["club_thread", "club_reply", "club_member"],
 };
 
 const DEFAULT_DEBOUNCE_MS = 250;

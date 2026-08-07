@@ -12847,7 +12847,7 @@ export type Database = {
         }[]
       }
       admin_club_moderation_queue: {
-        Args: { p_club_id: string }
+        Args: { p_club_id: string; p_limit?: number; p_offset?: number }
         Returns: {
           author_name: string
           body: string
@@ -12857,6 +12857,7 @@ export type Database = {
           target_type: string
           thread_slug: string
           title: string
+          total_count: number
         }[]
       }
       admin_club_pending_counts: {
@@ -14024,7 +14025,7 @@ export type Database = {
         }[]
       }
       club_list: {
-        Args: Record<PropertyKey, never>
+        Args: { p_limit?: number; p_offset?: number }
         Returns: {
           accent_color: string
           can_read: boolean
@@ -14046,6 +14047,7 @@ export type Database = {
           tagline_en: string
           tagline_pl: string
           thread_count: number
+          total_count: number
           visibility: string
         }[]
       }

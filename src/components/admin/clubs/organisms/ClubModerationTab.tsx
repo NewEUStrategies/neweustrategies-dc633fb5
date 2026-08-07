@@ -118,7 +118,11 @@ export function ClubModerationTab({ clubId, isPl }: { clubId: string; isPl: bool
   const moderateM = useModerateClubTarget(clubId);
   const bulkM = useBulkModerateClub(clubId);
 
-  const queue = useMemo(() => queueQ.data ?? [], [queueQ.data]);
+  const queue = useMemo(() => queueQ.data?.rows ?? [], [queueQ.data]);
+  // Kolejka jest stronicowana po stronie RPC, wiec licznik przy tytule musi
+  // pochodzic z total_count, a nie z dlugosci strony - inaczej moderator
+  // widzialby "50" przy kolejce liczacej trzysta pozycji.
+  const queueTotal = queueQ.data?.total ?? 0;
 
   const toggle = (id: string) =>
     setSelected((prev) => {
@@ -186,9 +190,9 @@ export function ClubModerationTab({ clubId, isPl }: { clubId: string; isPl: bool
             <CardTitle className="flex items-center gap-2 text-base">
               <ShieldAlert className="h-4 w-4 text-amber-600 dark:text-amber-400" />
               {t("adminClubs.moderation.queueTitle")}
-              {queue.length > 0 ? (
+              {queueTotal > 0 ? (
                 <Badge variant="secondary" className="tabular-nums">
-                  {queue.length}
+                  {queueTotal}
                 </Badge>
               ) : null}
             </CardTitle>

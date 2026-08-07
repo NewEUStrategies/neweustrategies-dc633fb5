@@ -48,6 +48,12 @@ INSERT INTO public.profiles (id, tenant_id, display_name, discoverable) VALUES
   ('a0000000-0000-0000-0000-000000000005','11111111-1111-1111-1111-111111111111','Prowadzacy A',true),
   ('b0000000-0000-0000-0000-000000000001','22222222-2222-2222-2222-222222222222','Admin B',true);
 
+-- Slugi sa potrzebne wzmiankom: process_mentions rozwiazuje "@slug" po
+-- profiles.slug, wiec bez nich sekcja szwow testowalaby nic.
+UPDATE public.profiles SET slug = 'admin-a' WHERE id='a0000000-0000-0000-0000-000000000001';
+UPDATE public.profiles SET slug = 'czlonek-a' WHERE id='a0000000-0000-0000-0000-000000000003';
+UPDATE public.profiles SET slug = 'prowadzacy-a' WHERE id='a0000000-0000-0000-0000-000000000005';
+
 -- super_admin CELOWO bez osobnej roli 'admin' - uklad, w ktorym padlo
 -- profiles_guard_verification (audyt 2026-08-06).
 INSERT INTO public.user_roles (user_id, role) VALUES
@@ -895,6 +901,255 @@ SELECT pg_temp.assert(
 SELECT pg_temp.assert(
   (SELECT count(*)::int FROM public.club_moderation_log WHERE action='edit') = :edits_before,
   'wlasna poprawka NIE trafia do dziennika moderacji');
+
+\echo '== 45. [A12] Szyny miedzymodulowe: zdarzenia, wzmianki, krawedzie =='
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT g.id AS seam_group FROM public.club_groups g
+ WHERE g.club_id=:'club_id'::uuid AND g.status='active' LIMIT 1 \gset
+SELECT id AS seam_thread, slug AS seam_slug FROM public.club_create_thread(
+  :'seam_group'::uuid, 'Watek ze wzmianka',
+  'Pytanie do @czlonek-a o stanowisko w tej sprawie.',
+  'discussion', false, 'eu_policy_item', 'akt-2026-1') \gset
+
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.domain_events
+    WHERE event_type='club_thread.created.v1' AND aggregate_id=:'seam_thread') = 1,
+  'zalozenie watku emituje zdarzenie domenowe');
+SELECT pg_temp.assert(
+  (SELECT actor_id FROM public.domain_events
+    WHERE event_type='club_thread.created.v1' AND aggregate_id=:'seam_thread')
+  = 'a0000000-0000-0000-0000-000000000001',
+  'wpis podpisany niesie aktora - workflow i inwalidacja maja z czego korzystac');
+SELECT pg_temp.assert(
+  (SELECT payload->>'club_id' FROM public.domain_events
+    WHERE event_type='club_thread.created.v1' AND aggregate_id=:'seam_thread') = :'club_id',
+  'payload niesie klub, po ktorym filtruje sie strumien');
+SELECT pg_temp.assert(
+  (SELECT payload ? 'title' FROM public.domain_events
+    WHERE event_type='club_thread.created.v1' AND aggregate_id=:'seam_thread') = false,
+  'payload NIE niesie tytulu - domain_events czyta caly staff tenantu');
+
+-- Kotwica zamieniona na krawedz grafu: po to istnieje anchor_type.
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.cross_references
+    WHERE source_type='club_thread' AND source_id=:'seam_thread'
+      AND target_type='eu_policy_item' AND relation='discusses') = 1,
+  'kotwica watku staje sie krawedzia "discusses"');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.cross_references
+    WHERE source_type='club_thread' AND source_id=:'seam_thread'
+      AND target_type='club' AND relation='belongs_to') = 1,
+  'watek jest przypiety do klubu w grafie powiazan');
+
+-- Wzmianka dziala i niesie prawdziwe nazwisko przy wpisie podpisanym.
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.notifications n
+    WHERE n.user_id='a0000000-0000-0000-0000-000000000003'
+      AND n.kind='club' AND n.title_pl LIKE 'Admin A%') = 1,
+  'wzmianka w watku podpisanym powiadamia i podaje autora');
+
+\echo '== 46. [A12] Anonimowosc przezywa kazda z trzech szyn =='
+-- Wpis anonimowy: zdarzenie BEZ aktora, krawedz BEZ tworcy, wzmianka bez nazwiska.
+SELECT id AS anon_thread FROM public.club_create_thread(
+  :'seam_group'::uuid, 'Watek anonimowy ze wzmianka',
+  'Chcialbym uslyszec @prowadzacy-a w tej sprawie, ale zostaje anonimowy.',
+  'discussion', true, NULL, NULL) \gset
+SELECT pg_temp.assert(
+  (SELECT actor_id FROM public.domain_events
+    WHERE event_type='club_thread.created.v1' AND aggregate_id=:'anon_thread') IS NULL,
+  'wpis anonimowy emituje zdarzenie BEZ aktora - redakcja nie zdeanonimizuje go z szyny');
+SELECT pg_temp.assert(
+  (SELECT created_by FROM public.cross_references
+    WHERE source_type='club_thread' AND source_id=:'anon_thread'
+      AND target_type='club') IS NULL,
+  'krawedz grafu takze nie niesie autora');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.notifications n
+    WHERE n.user_id='a0000000-0000-0000-0000-000000000005'
+      AND n.kind='club' AND n.title_pl LIKE 'Uczestnik dyskusji%') = 1,
+  'wzmianka z wpisu anonimowego uzywa etykiety zastepczej, nie nazwiska');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.notifications n
+    WHERE n.user_id='a0000000-0000-0000-0000-000000000005'
+      AND n.kind='club' AND n.title_pl LIKE 'Admin A%') = 0,
+  'nazwisko ukrytego autora NIE pada w zadnym powiadomieniu');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.domain_events
+    WHERE event_type='mention.created.v1' AND aggregate_id=:'anon_thread'
+      AND actor_id IS NOT NULL) = 0,
+  'zdarzenie wzmianki z wpisu anonimowego takze jest bez aktora');
+
+-- Klub 'secret' nie emituje NICZEGO: nieodrozniany od nieistniejacego znaczy
+-- nieodrozniany takze w szynie zdarzen i w grafie powiazan.
+SELECT count(*)::int AS ev_before FROM public.domain_events \gset
+SELECT count(*)::int AS xr_before FROM public.cross_references \gset
+SELECT g.id AS secret_group FROM public.club_groups g
+ WHERE g.club_id = :'secret_id'::uuid LIMIT 1 \gset
+SELECT id AS secret_thread FROM public.club_create_thread(
+  :'secret_group'::uuid, 'Watek w klubie ukrytym',
+  'Tresc z klubu ukrytego, ze wzmianka @czlonek-a.',
+  'discussion', false, 'eu_policy_item', 'akt-2026-9') \gset
+SELECT pg_temp.assert(
+  (SELECT count(*)::int FROM public.domain_events) = :ev_before,
+  'klub secret nie emituje ZADNEGO zdarzenia');
+SELECT pg_temp.assert(
+  (SELECT count(*)::int FROM public.cross_references) = :xr_before,
+  'klub secret nie zostawia sladu w grafie powiazan');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.notifications n
+    WHERE n.user_id='a0000000-0000-0000-0000-000000000003'
+      AND n.href LIKE '%' || :'secret_thread' || '%') = 0,
+  'wzmianka z klubu secret nie wychodzi na zewnatrz');
+
+-- Etykieta w panelu powiazan: tytul tylko z klubu public/members.
+SELECT pg_temp.assert(
+  public.club_linked_item_label('club_thread', :'seam_thread') = 'Watek ze wzmianka',
+  'panel powiazan pokazuje tytul watku z klubu czlonkowskiego');
+SELECT pg_temp.assert(
+  public.club_linked_item_label('club_thread', :'secret_thread') IS NULL,
+  'panel powiazan nie zna watku z klubu ukrytego');
+
+\echo '== 47. [A13] Ranking wsadowy liczy to samo, co wersja per wiersz =='
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+-- Uklad, ktory demaskuje iloczyn kartezjanski: watek z KILKOMA odpowiedziami
+-- i JEDNA reakcja jakosciowa NA SAM WATEK. Naiwne zlaczenie po warunku OR
+-- policzyloby te reakcje raz na kazda odpowiedz.
+SELECT id AS cart_thread, slug AS cart_slug FROM public.club_create_thread(
+  :'seam_group'::uuid, 'Watek do testu iloczynu',
+  'Tresc watku, przy ktorym liczymy reakcje jakosciowe.',
+  'discussion', false, NULL, NULL) \gset
+SELECT public.admin_club_reply_create(:'cart_thread'::uuid, 'Pierwsza odpowiedz', NULL, NULL) AS c_r1 \gset
+SELECT public.admin_club_reply_create(:'cart_thread'::uuid, 'Druga odpowiedz', NULL, NULL) AS c_r2 \gset
+SELECT public.admin_club_reply_create(:'cart_thread'::uuid, 'Trzecia odpowiedz', NULL, NULL) AS c_r3 \gset
+SELECT public.club_react('thread', :'cart_thread'::uuid, 'insightful');
+
+SELECT pg_temp.assert(
+  public.club_thread_quality_score(:'cart_thread'::uuid) = 1,
+  'wersja per wiersz liczy JEDNA reakcje na watek, mimo trzech odpowiedzi');
+-- Porownanie MUSI byc w jednej transakcji: club_thread_hotness ma czlon
+-- wygaszania po czasie i czyta now(), ktore miedzy dwoma poleceniami psql
+-- jest juz inne. Bez BEGIN/COMMIT test mierzylby uplyw czasu, nie wzor.
+BEGIN;
+SELECT public.club_threads_refresh_hotness(1000);
+SELECT pg_temp.assert(
+  (SELECT t.hotness FROM public.club_threads t WHERE t.id=:'cart_thread'::uuid)
+  = (SELECT public.club_thread_hotness(
+       1, t.reply_count, t.participant_count, 0, t.created_at)
+       FROM public.club_threads t WHERE t.id=:'cart_thread'::uuid),
+  'przebieg WSADOWY daje ten sam ranking co wzor z jedna reakcja - bez iloczynu');
+-- Kontrola negatywna: gdyby zlaczenie dawalo iloczyn, reakcja policzylaby sie
+-- trzy razy (po jednej na kazda odpowiedz) i wynik bylby INNY.
+SELECT pg_temp.assert(
+  (SELECT t.hotness FROM public.club_threads t WHERE t.id=:'cart_thread'::uuid)
+  <> (SELECT public.club_thread_hotness(
+        3, t.reply_count, t.participant_count, 0, t.created_at)
+        FROM public.club_threads t WHERE t.id=:'cart_thread'::uuid),
+  'wynik NIE odpowiada policzeniu reakcji raz na kazda odpowiedz');
+COMMIT;
+
+-- Reakcja na SAM WATEK podnosi ranking. To jest przypadek, ktory poprzedni
+-- test rankingu omijal, bo szedl wylacznie sciezka przez odpowiedz.
+SELECT hotness AS cart_h1 FROM public.club_threads WHERE id=:'cart_thread'::uuid \gset
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000002';
+SELECT public.club_react('thread', :'cart_thread'::uuid, 'evidence');
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT public.club_threads_refresh_hotness(1000);
+SELECT pg_temp.assert(
+  (SELECT hotness FROM public.club_threads WHERE id=:'cart_thread'::uuid) > :'cart_h1'::numeric,
+  'reakcja jakosciowa NA WATEK podnosi ranking, nie tylko ta na odpowiedzi');
+
+\echo '== 48. [A13] Spacer po kursorze nie gubi i nie dubluje tematow =='
+-- Blad z A8 (przypiety watek wracajacy na kazdej stronie) byl bledem
+-- PAGINACJI i zostal naprawiony bez testu, ktory by go zlapal. Ten test
+-- przechodzi trzy strony i porownuje liczbe pobranych z liczba unikatow.
+DO $$
+DECLARE
+  v_group uuid;
+  v_i integer;
+  v_id uuid;
+BEGIN
+  SELECT g.id INTO v_group FROM public.club_groups g
+   JOIN public.clubs c ON c.id = g.club_id
+   WHERE c.slug = 'klub' AND g.status = 'active' LIMIT 1;
+  FOR v_i IN 1..45 LOOP
+    INSERT INTO public.club_threads (
+      tenant_id, club_id, group_id, author_id, slug, title, body, kind, status
+    )
+    SELECT g.club_id, g.club_id, v_group, 'a0000000-0000-0000-0000-000000000001',
+           'kursor-' || v_i::text, 'Kursor ' || v_i::text,
+           'Tresc watku numer ' || v_i::text, 'discussion', 'open'
+      FROM public.club_groups g WHERE g.id = v_group
+    RETURNING id INTO v_id;
+    -- Co pietnasty przypiety: przypiecie jest najbardziej znaczacym czlonem
+    -- klucza kursora, wiec bez niego test nie dotyka realnego ryzyka.
+    IF v_i % 15 = 0 THEN
+      UPDATE public.club_threads SET pinned_at = now() WHERE id = v_id;
+    END IF;
+  END LOOP;
+END $$;
+
+CREATE TEMP TABLE walk(id uuid);
+DO $$
+DECLARE
+  v_cursor text := NULL;
+  v_page   integer := 0;
+  v_rows   integer;
+  v_club   uuid;
+BEGIN
+  SELECT c.id INTO v_club FROM public.clubs c WHERE c.slug = 'klub';
+  LOOP
+    v_page := v_page + 1;
+    EXIT WHEN v_page > 10;
+    INSERT INTO walk(id)
+    SELECT l.id FROM public.club_threads_list(v_club, NULL, 'hot', NULL, v_cursor, 20) l;
+    GET DIAGNOSTICS v_rows = ROW_COUNT;
+    EXIT WHEN v_rows = 0;
+    SELECT l.cursor_value INTO v_cursor
+      FROM public.club_threads_list(v_club, NULL, 'hot', NULL, v_cursor, 20) l
+     ORDER BY l.cursor_value ASC LIMIT 1;
+    EXIT WHEN v_rows < 20;
+  END LOOP;
+END $$;
+
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM walk) = (SELECT count(DISTINCT id) FROM walk),
+  'spacer po kursorze nie zwraca ZADNEGO duplikatu - takze przy przypietych');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM walk) >= 45,
+  'spacer po kursorze obchodzi wszystkie zasiane tematy, nie gubi zadnego');
+
+\echo '== 49. [A13] Kolejka moderacji jest stronicowana i przycieta =='
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.admin_club_moderation_queue(:'club_id'::uuid, 1, 0)) <= 1,
+  'kolejka respektuje limit strony');
+SELECT pg_temp.assert(
+  (SELECT coalesce(max(length(body)), 0)
+     FROM public.admin_club_moderation_queue(:'club_id'::uuid, 200, 0)) <= 500,
+  'kolejka zwraca PODGLAD tresci, nie dwadziescia tysiecy znakow');
+
+\echo '== 50. [A13] Zakres rankingu przybity ograniczeniem =='
+SELECT pg_temp.assert_raises(
+  format($q$ UPDATE public.club_threads SET hotness = -1 WHERE id = '%s' $q$, :'cart_thread'),
+  'ujemny ranking odrzucony - kursor tekstowy odwrocilby dla niego porzadek');
+SELECT pg_temp.assert_raises(
+  format($q$ UPDATE public.club_threads SET hotness = 1e10 WHERE id = '%s' $q$, :'cart_thread'),
+  'ranking poza szerokoscia klucza kursora odrzucony');
+
+\echo '== 51. [A13] club_list: stronicowanie i klub secret =='
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000003';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_list(1, 0)) <= 1,
+  'lista klubow respektuje limit strony');
+SELECT pg_temp.assert(
+  (SELECT total_count FROM public.club_list(1, 0) LIMIT 1) >= 1,
+  'total_count zwraca pelna liczbe mimo limitu');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_list(100, 0) WHERE slug = 'tajny') = 0,
+  'tania bramka NADAL nie wpuszcza nie-czlonka do klubu secret');
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_list(100, 0) WHERE slug = 'tajny') = 1,
+  'administrator NADAL widzi klub secret - bramka nie zgubila tej sciezki');
 
 \echo ''
 \echo '=========================================='

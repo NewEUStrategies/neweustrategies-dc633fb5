@@ -51,6 +51,9 @@ export const clubKeys = {
 
   replies: (threadId: string, sort: string) =>
     [...clubKeys.all, "replies", threadId, sort] as const,
+  /** Prefiks bez sortowania - do uniewaznienia WSZYSTKICH wariantow sortu
+   *  jednego watku. Zdarzenie realtime nie wie, ktory sort ma otwarty czytelnik. */
+  repliesAll: (threadId: string) => [...clubKeys.all, "replies", threadId] as const,
 
   /** Reakcje partii celow. Klucz niesie CALA partie, bo zapytanie jest wsadowe
    *  - klucz per cel dalby N wpisow w cache dla jednego zapytania. */

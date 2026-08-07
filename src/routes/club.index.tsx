@@ -54,7 +54,7 @@ function ClubIndex() {
     );
   }
 
-  const clubs = clubsQ.data ?? [];
+  const clubs = clubsQ.data?.rows ?? [];
   // Rozdzielamy w kliencie, bo RPC zwraca jedną listę posortowaną tak, że
   // moje kluby są na górze - drugi round-trip po ten sam zbiór byłby marnotrawstwem.
   const mine = clubs.filter((c) => c.my_status === "active");

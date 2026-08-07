@@ -70,10 +70,26 @@ function toJsonPayload(input: object): Json {
 // Odczyt produktowy
 // ---------------------------------------------------------------------------
 
-export async function fetchClubList(): Promise<ClubListRow[]> {
-  const { data, error } = await supabase.rpc("club_list");
+export interface ClubListPage {
+  rows: ClubListRow[];
+  total: number;
+}
+
+/**
+ * Lista klubow. RPC ma teraz limit i offset, bo bez nich liczylo zdolnosci
+ * dla KAZDEGO klubu tenantu - klucz lateralny rowny id klubu jest unikatowy,
+ * wiec Memoize nie mial czego zapamietac.
+ */
+export async function fetchClubList(
+  params: { limit?: number; offset?: number } = {},
+): Promise<ClubListPage> {
+  const { data, error } = await supabase.rpc("club_list", {
+    p_limit: params.limit ?? 100,
+    p_offset: params.offset ?? 0,
+  });
   if (error) throw error;
-  return data ?? [];
+  const rows = data ?? [];
+  return { rows, total: rows.length > 0 ? Number(rows[0].total_count) : 0 };
 }
 
 /** Karta klubu po slugu. `null` = klub nie istnieje albo jest niewidoczny
@@ -854,12 +870,26 @@ export async function fetchClubPendingCounts(): Promise<{
   };
 }
 
-export async function fetchClubModerationQueue(clubId: string): Promise<AdminClubModerationItem[]> {
+export interface AdminClubModerationPage {
+  rows: AdminClubModerationItem[];
+  total: number;
+}
+
+/** Kolejka zwraca PODGLAD tresci (500 znakow) i jest stronicowana - pelna
+ *  tresc czyta sie w podgladzie watku, nie z listy decyzyjnej. */
+export async function fetchClubModerationQueue(params: {
+  clubId: string;
+  limit?: number;
+  offset?: number;
+}): Promise<AdminClubModerationPage> {
   const { data, error } = await supabase.rpc("admin_club_moderation_queue", {
-    p_club_id: clubId,
+    p_club_id: params.clubId,
+    p_limit: params.limit ?? 50,
+    p_offset: params.offset ?? 0,
   });
   if (error) throw error;
-  return data ?? [];
+  const rows = data ?? [];
+  return { rows, total: rows.length > 0 ? Number(rows[0].total_count) : 0 };
 }
 
 export async function fetchClubModerationLog(params: {

@@ -21,6 +21,7 @@
 // test jednostkowy, nie przebieg w przeglądarce.
 import type { QueryKey } from "@tanstack/react-query";
 import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
+import { clubKeys } from "@/lib/clubs/queryKeys";
 import type { NotificationKind } from "./preferences";
 
 /**
@@ -53,6 +54,11 @@ const KIND_INVALIDATION: Partial<Record<NotificationKind, readonly QueryKey[]>> 
   // „meeting-booking" (is_booked/booked_by_me) przestaje być prawdziwa
   // natychmiast - dla hosta i dla rezerwującego.
   meeting_booking: [[WIDGET_QUERY_ROOTS.meetingSlots]],
+  // Kluby: tabele club_* maja RLS deny-all, wiec wiersz w `notifications` jest
+  // JEDYNYM subskrybowalnym kanalem tego modulu i powstaje w tej samej
+  // transakcji co zmiana. Prefiks calego modulu, bo w chwili odbioru nie znamy
+  // ani clubId, ani threadId - powiadomienie niesie tylko href.
+  club: [clubKeys.all],
 };
 
 /** Klucze do unieważnienia po nadejściu powiadomienia danego rodzaju. */
