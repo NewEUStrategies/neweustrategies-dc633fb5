@@ -95,9 +95,7 @@ export function finalFunctionBodies(
 ): FinalFunction[] {
   const latest = new Map<string, FinalFunction>();
   for (const { name, sql } of [...files].sort((a, b) => a.name.localeCompare(b.name))) {
-    const defs = sql.matchAll(
-      /CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+public\.(\w+)/gi,
-    );
+    const defs = sql.matchAll(/CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+public\.(\w+)/gi);
     for (const def of defs) {
       const start = def.index ?? 0;
       // Ciało konczy sie na znaczniku dollar-quote domykajacym definicje.
