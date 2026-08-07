@@ -102,6 +102,9 @@ export function VisibilityAndContactSection() {
   const expertRequestsQ = useExpertRequestsEnabled();
   const setExpertRequests = useSetExpertRequestsEnabled();
   const expertRequestsOn = expertRequestsQ.data ?? true;
+  const hideAvatarQ = useHideAvatar();
+  const setHideAvatar = useSetHideAvatar();
+  const hideAvatarOn = hideAvatarQ.data ?? false;
   const prefsQ = useNotificationPreferences();
   const updatePrefs = useUpdateNotificationPreferences();
   // Ekspozycja poza platformą jest NIEZALEŻNA od `discoverable` (ten steruje
