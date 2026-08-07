@@ -229,13 +229,6 @@ function PersonCard({
             odpowiedzi na pytanie „czy to ktoś z mojego świata?". */}
         <DegreeBadge degree={connection?.degree ?? 0} />
         <ProfileBadges badges={badges} className="shrink-0" />
-        {connection && (
-          <DegreeBadge
-            degree={connection.degree}
-            label={t(networkDegreeShortKey(connection.degree))}
-            ariaLabel={t(networkDegreeLabelKey(connection.degree))}
-          />
-        )}
       </p>
       {(person.job_title || person.current_company) && (
         <p className="truncate text-xs text-muted-foreground">
