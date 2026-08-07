@@ -100,6 +100,7 @@
     "builder.chrome.scopeMenu",
     "builder.chrome.scopePopup",
     "builder.chrome.widget",
+    "builder.circularCarouselEditor.tag",
     "builder.columnProps.start",
     "builder.contextMenu.kindWidget",
     "builder.iconPicker.layout",
@@ -126,6 +127,6 @@
   "repoWide": {
     "missingEn": 0,
     "missingPl": 0,
-    "untranslated": 400
+    "untranslated": 402
   }
 }

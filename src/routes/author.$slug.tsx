@@ -69,8 +69,18 @@ import { isIndexableProfile, profileRobots } from "@/lib/experts/publicVisibilit
 import { ensureI18n as ensureExpertsI18n } from "@/lib/i18n-experts";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { contentCacheControl } from "@/lib/http/cachePolicy";
+import { loadResilient } from "@/lib/ssr/resilientLoad";
+import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
+import type { ExpertHubData } from "@/lib/experts/types";
 
 const NO_STORE = contentCacheControl({ preview: true });
+
+/**
+ * Fallback zapytania tożsamościowego. `null` jest tu WYŁĄCZNIE wartością
+ * zasiewu - o tym, czy profil nie istnieje, decyduje wynik zapytania, nigdy
+ * ten fallback (rozróżnia je flaga `degraded`). Patrz komentarz w loaderze.
+ */
+const HUB_UNKNOWN: ExpertHubData | null = null;
 
 // Inline-edytor ładowany leniwie - chunk pobierają wyłącznie właściciel
 // profilu i admini tenanta (publiczny gość nigdy nie widzi przycisku).
@@ -105,7 +115,30 @@ export const Route = createFileRoute("/author/$slug")({
     );
     // Hub - potrzebujemy `expert.tenant_id`, żeby dobrać właściwe
     // `expert_layout_settings` (per tenant, nie tylko dla tenanta hosta).
-    const data = await context.queryClient.ensureQueryData(expertHubQueryOptions(params.slug));
+    //
+    // To zapytanie TOŻSAMOŚCIOWE, więc degradacja NIE MOŻE dać `notFound()`:
+    // profil eksperta jest treścią indeksowaną, a sfabrykowany 404 przy blipie
+    // backendu wyrzuciłby go z wyników wyszukiwania. Trzy rozłączne stany:
+    //   * wiersz  -> render,
+    //   * `null`  -> 404 (prawda: takiego profilu nie ma),
+    //   * awaria / brak czasu -> HTTP 200 `no-store` + uczciwy komunikat.
+    const identity = await loadResilient(
+      context.queryClient,
+      expertHubQueryOptions(params.slug),
+      HUB_UNKNOWN,
+    );
+    if (identity.degraded) {
+      // Domknij równoległą gałąź, żeby degradacja nie zostawiała
+      // nieobsłużonego odrzucenia.
+      materialsPromise.catch(() => undefined);
+      setCacheControlHeader(NO_STORE);
+      return {
+        hub: null,
+        degraded: true,
+        archiveView: { page: deps.page, paginated: deps.paginated },
+      };
+    }
+    const data = identity.data;
     if (!data) {
       // Domknij równoległą gałąź, żeby 404 nie zostawiał unhandled rejection.
       materialsPromise.catch(() => undefined);
@@ -124,15 +157,28 @@ export const Route = createFileRoute("/author/$slug")({
           : defaultExpertLayoutSettings(data.expert.tenant_id ?? ""),
       );
     } else {
-      await context.queryClient.ensureQueryData(layoutOptions);
+      // Layout to dekoracja - jego awaria nie może wywrócić całego profilu.
+      await context.queryClient.ensureQueryData(layoutOptions).catch(() => undefined);
     }
-    await materialsPromise;
+    // Materiały są wtórne wobec tożsamości profilu: gdy nie dojadą, hub i tak
+    // ma się wyrenderować (lista dociągnie się po hydratacji).
+    const materials = await materialsPromise.then(
+      () => false,
+      () => true,
+    );
     // Non-indexable profile robots still share the same cacheable shell.
-    setCacheControlHeader(contentCacheControl());
-    return { ...data, archiveView: { page: deps.page, paginated: deps.paginated } };
+    setCacheControlHeader(materials ? NO_STORE : contentCacheControl());
+    return {
+      hub: data,
+      degraded: false,
+      archiveView: { page: deps.page, paginated: deps.paginated },
+    };
   },
   head: ({ loaderData, params }) => {
-    const expert = loaderData?.expert;
+    // Render zdegradowany nie ma huba - meta schodzi do wariantu ogólnego,
+    // żeby żadne pole SEO nie opisywało profilu, którego nie pobraliśmy.
+    const hub = loaderData?.hub ?? null;
+    const expert = hub?.expert;
     // Canonical bez parametrów eksploratora - każda strona/kombinacja filtrów
     // konsoliduje ranking na bazowym URL-u profilu (wzorzec taksonomii).
     const requestedUrl = getRequestUrl() || `/author/${params.slug}`;
@@ -165,7 +211,7 @@ export const Route = createFileRoute("/author/$slug")({
 
     // Fallback description bazujący na obszarach ekspertyzy - dla ekspertów bez
     // uzupełnionego bio dostajemy sensowne meta zamiast pustego stringa.
-    const areasLoc = (loaderData?.areas ?? []).map((a) => (isEn ? a.name_en : a.name_pl));
+    const areasLoc = (hub?.areas ?? []).map((a) => (isEn ? a.name_en : a.name_pl));
     const areasSentence = areasLoc.slice(0, 4).join(", ");
     const seoAreasTpl = isEn
       ? "{{name}} — expert in {{areas}}. Publications, commentary and appearances."
@@ -247,10 +293,10 @@ export const Route = createFileRoute("/author/$slug")({
     // nie trafia do wyszukiwarek, mimo że profiles_public jej nie bramkuje.
     const indexable = isIndexableProfile({
       isExpert: expert?.is_expert ?? false,
-      materialCount: loaderData?.materials?.length ?? 0,
-      programCount: loaderData?.programs?.length ?? 0,
-      areaCount: loaderData?.areas?.length ?? 0,
-      mediaMentionCount: loaderData?.mediaMentions?.length ?? 0,
+      materialCount: hub?.materials?.length ?? 0,
+      programCount: hub?.programs?.length ?? 0,
+      areaCount: hub?.areas?.length ?? 0,
+      mediaMentionCount: hub?.mediaMentions?.length ?? 0,
     });
 
     // Widoki spaginowane/przefiltrowane indeksowalnego profilu → noindex,follow
@@ -308,6 +354,7 @@ function ExpertHubPage() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
   ensureExpertsI18n();
   const { slug } = Route.useParams();
+  const { degraded } = Route.useLoaderData();
   const { data } = useSuspenseQuery(expertHubQueryOptions(slug));
   const { data: tenantSettings } = useSuspenseQuery(
     expertLayoutSettingsQueryOptions(data?.expert.tenant_id ?? null),
@@ -341,6 +388,18 @@ function ExpertHubPage() {
     () => mergeExpertLayout(tenantSettings, activeOverrides).settings,
     [tenantSettings, activeOverrides],
   );
+  // Kolejność jest istotna: przy degradacji NIE WIEMY, czy profil istnieje,
+  // więc nigdy nie pokazujemy „nie znaleziono" - to byłby fałszywy 404
+  // na indeksowanej stronie eksperta.
+  if (degraded) {
+    return (
+      <div className="container mx-auto max-w-4xl px-4 py-10">
+        <DegradedDataNotice
+          title={lang === "en" ? "Couldn't load this profile" : "Nie udało się załadować profilu"}
+        />
+      </div>
+    );
+  }
   if (!data) return <PublicNotFound />;
   const { expert } = data;
   // Inline-edytor widzą tylko właściciel strony i admin tego samego tenanta -

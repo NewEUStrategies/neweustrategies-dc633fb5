@@ -379,6 +379,7 @@ export type WidgetType =
   | "post-list"
   | "carousel"
   | "progress-carousel"
+  | "circular-carousel"
   | "categories"
   | "tags"
   // Forms

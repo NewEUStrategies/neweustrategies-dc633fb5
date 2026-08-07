@@ -235,6 +235,39 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // backend, one corrupt row) must degrade to defaults, never throw and 500
     // the whole site. `allSettled` never rejects; per-route content loaders
     // still fail loud (and render the localized error boundary) as before.
+    //
+    // WYPRZEDZAJĄCE menu chrome'u. Rozgrzewka szła dotąd DWIEMA falami:
+    // najpierw ustawienia, potem - dopiero po ich rozstrzygnięciu - menu,
+    // ticker i widgety chrome'u. Ticker i widgety faktycznie zależą od
+    // ustawień (konfiguracja siedzi w `header`/`footer`), ale menu `main`
+    // i `footer` mają STAŁE klucze i nie zależą od niczego. Trzymanie ich
+    // w drugiej fali dokładało jeden pełny round-trip do TTFB KAŻDEJ strony
+    // z chrome'em. Startujemy je tutaj, równolegle z ustawieniami; druga fala
+    // dostaje już rozgrzane obietnice i czeka tylko na to, co naprawdę
+    // wymagało ustawień.
+    const path = location.pathname;
+    const showsChrome =
+      path !== "/admin" &&
+      !path.startsWith("/admin/") &&
+      path !== "/login" &&
+      !path.startsWith("/login/");
+    // `.catch(() => null)` przy starcie, nie przy zbieraniu: obietnica leci
+    // w tle przez całą pierwszą falę i nieobsłużone odrzucenie w tym oknie
+    // wywróciłoby proces renderu.
+    const menuWarm: Promise<unknown>[] = showsChrome
+      ? [
+          import("../lib/menus/queries")
+            .then(({ menuWithItemsQueryOptions }) =>
+              Promise.all(
+                (["main", "footer"] as const).map((key) =>
+                  context.queryClient.ensureQueryData(menuWithItemsQueryOptions(key)),
+                ),
+              ),
+            )
+            .catch(() => null),
+        ]
+      : [];
+
     await withBudget(
       Promise.allSettled([
         context.queryClient.ensureQueryData(siteSettingsQueryOptions),
@@ -285,12 +318,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // after hydration and pushing the whole page down (the worst CLS on the
     // site). Both fetches sit behind per-isolate TTL caches (see ssrCache /
     // postViews.functions), so in steady state this adds no extra round-trips.
-    const path = location.pathname;
-    const showsChrome =
-      path !== "/admin" &&
-      !path.startsWith("/admin/") &&
-      path !== "/login" &&
-      !path.startsWith("/login/");
     if (showsChrome) {
       try {
         const header = resolveSetting<HeaderSettings>(settings, "header", {});
@@ -319,18 +346,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         const footerDoc = footer.builder_data?.sections?.length
           ? footer.builder_data
           : defaultDocFor("footer");
-        const chromeWarm: Promise<unknown>[] = [tickerWarm];
-        // Menu chrome (nawigacja główna + stopka) — pobieramy przez
-        // `ensureQueryData` opakowane `.catch(() => null)`, żeby anulowanie
-        // strumienia SSR (np. HMR podmieniający moduł w locie) NIE zostawiło
-        // zapytania w stanie `pending` w dehydratowanym `$_TSR.router`.
-        // Gdy się zdarzy, klient po hydratacji wykona własny fetch zamiast
-        // czekać w nieskończoność na streamowaną dopowiedź, której już nie
-        // będzie. Fallbackiem renderu jest komponent menu z własnym `useQuery`.
-        const { menuWithItemsQueryOptions } = await import("../lib/menus/queries");
-        const warmMenu = (key: string) =>
-          context.queryClient.ensureQueryData(menuWithItemsQueryOptions(key)).catch(() => null);
-        chromeWarm.push(warmMenu("main"), warmMenu("footer"));
+        // Menu chrome (nawigacja główna + stopka) wystartowało JUŻ przed falą
+        // ustawień (patrz `menuWarm` wyżej) - tutaj tylko dołączamy jego
+        // obietnice do wspólnego budżetu. W stanie ustalonym są w tym miejscu
+        // dawno rozstrzygnięte i nie dokładają do TTFB ani milisekundy.
+        // Odrzucenia są już pochłonięte przy starcie: anulowanie strumienia SSR
+        // (np. HMR podmieniający moduł w locie) NIE MOŻE zostawić zapytania
+        // w stanie `pending` w dehydratowanym `$_TSR.router` - inaczej klient
+        // po hydratacji czekałby w nieskończoność na strumień, który nie wróci
+        // (poniżej strażnik, który taki stan resetuje).
+        const chromeWarm: Promise<unknown>[] = [tickerWarm, ...menuWarm];
         if (headerVisible && header.builder_data) {
           chromeWarm.push(
             prefetchCachedRouteQueries(context.queryClient, header.builder_data, lang, 2500),

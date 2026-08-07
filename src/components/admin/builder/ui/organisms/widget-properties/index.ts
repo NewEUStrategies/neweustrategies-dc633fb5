@@ -30,3 +30,7 @@ export {
   ProgressCarouselEditor,
   PROGRESS_CAROUSEL_EDITOR_HANDLED_KEYS,
 } from "./ProgressCarouselEditor";
+export {
+  CircularCarouselEditor,
+  CIRCULAR_CAROUSEL_EDITOR_HANDLED_KEYS,
+} from "./CircularCarouselEditor";

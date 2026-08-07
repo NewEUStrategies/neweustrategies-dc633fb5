@@ -10,12 +10,15 @@ import { Mic } from "@/lib/lucide-shim";
 import { Rss } from "lucide-react";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { PublicNotFound } from "@/components/molecules/PublicNotFound";
+import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import {
   showBySlugQueryOptions,
   showEpisodesQueryOptions,
   episodesPeopleQueryOptions,
 } from "@/lib/queries/podcasts";
+import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import {
   podcastTitle,
   podcastEpisodeLabel,
@@ -24,6 +27,7 @@ import {
   showDescription,
   type Podcast,
   type PodcastPerson,
+  type PodcastShow,
 } from "@/lib/podcast/types";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
@@ -35,12 +39,44 @@ import {
 } from "@/lib/seo/meta";
 import { safeJsonLd } from "@/lib/seo/jsonld";
 
+/**
+ * Fallbacki renderu zdegradowanego. `SHOW_UNKNOWN` jest `null` WYŁĄCZNIE jako
+ * wartość zasiewu - loader nigdy nie interpretuje go jako „program nie istnieje"
+ * (od tego jest flaga `degraded`), więc żaden blip nie zamieni się w 404.
+ */
+const SHOW_UNKNOWN: PodcastShow | null = null;
+const NO_EPISODES: Podcast[] = [];
+
 export const Route = createFileRoute("/podcasts/$show")({
+  // Zapytanie TOŻSAMOŚCIOWE (czy ten program istnieje?) NIE MOŻE degradować się
+  // do `null` - to sfabrykowałoby 404 na realnie istniejącej stronie, a 404
+  // wyrzuca URL z indeksu wyszukiwarki. Rozróżniamy więc trzy stany:
+  //   * zapytanie zwróciło wiersz  -> render,
+  //   * zapytanie zwróciło `null`  -> notFound() (404 jest PRAWDĄ),
+  //   * zapytanie padło / nie zdążyło -> nie wiemy: HTTP 200 `no-store`
+  //     z uczciwym komunikatem i ponowieniem. Crawler wróci, nic nie wypada
+  //     z indeksu, a monitor nie widzi awarii.
+  // Lista odcinków jest wtórna - degraduje się do pustej (lib/ssr/resilientLoad).
   loader: async ({ context, params }) => {
-    const show = await context.queryClient.ensureQueryData(showBySlugQueryOptions(params.show));
+    const identity = await loadResilient(
+      context.queryClient,
+      showBySlugQueryOptions(params.show),
+      SHOW_UNKNOWN,
+    );
+    if (identity.degraded) {
+      setCacheControlHeader(resilientCacheControl(true));
+      return { show: null, degraded: true };
+    }
+    const show = identity.data;
     if (!show) throw notFound();
-    await context.queryClient.ensureQueryData(showEpisodesQueryOptions(show.id));
-    return { show };
+
+    const episodes = await loadResilient(
+      context.queryClient,
+      showEpisodesQueryOptions(show.id),
+      NO_EPISODES,
+    );
+    setCacheControlHeader(resilientCacheControl(episodes.degraded));
+    return { show, degraded: episodes.degraded };
   },
   head: ({ loaderData, params }) => {
     const s = loaderData?.show;
@@ -135,6 +171,7 @@ function bySeasons(episodes: Podcast[]): Array<{ season: number | null; episodes
 
 function ShowPage() {
   const { show: slug } = Route.useParams();
+  const { degraded } = Route.useLoaderData();
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
 
@@ -143,6 +180,19 @@ function ShowPage() {
   const episodeIds = useMemo(() => episodes.map((e) => e.id), [episodes]);
   const { data: people } = useQuery(episodesPeopleQueryOptions(episodeIds));
 
+  // Kolejność ma znaczenie: przy degradacji NIE WIEMY, czy program istnieje,
+  // więc nigdy nie pokazujemy „nie znaleziono" - to byłby fałszywy 404.
+  if (degraded) {
+    return (
+      <div className="container mx-auto px-4 py-10 max-w-4xl">
+        <DegradedDataNotice
+          title={
+            lang === "en" ? "Couldn't load this programme" : "Nie udało się załadować programu"
+          }
+        />
+      </div>
+    );
+  }
   if (!show) return <PublicNotFound />;
 
   const title = showTitle(show, lang);

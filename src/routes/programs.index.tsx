@@ -5,11 +5,14 @@ import { ArrowRight } from "lucide-react";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
 import { ProgramIcon } from "@/components/programs/ProgramIcon";
+import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 import {
   latestProgramsQueryOptions,
   PROGRAMS_INDEX_LIMIT,
   type Program,
 } from "@/lib/queries/programs";
+import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { safeAccent, accentRgba } from "@/lib/programs/visual";
 import { getRequestUrl } from "@/lib/seo/request";
@@ -17,9 +20,22 @@ import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { ensureI18n as ensureProgramsI18n } from "@/lib/i18n-programs";
+
+/** Pusta lista jako fallback zdegradowanego renderu (lib/ssr/resilientLoad). */
+const NO_PROGRAMS: Program[] = [];
+
 export const Route = createFileRoute("/programs/")({
-  loader: ({ context }) =>
-    context.queryClient.ensureQueryData(latestProgramsQueryOptions(PROGRAMS_INDEX_LIMIT)),
+  // Odporne SSR: blip backendu daje HTTP 200 z uczciwym komunikatem zamiast
+  // 500 (patrz lib/ssr/resilientLoad); zdegradowany render omija cache wspólny.
+  loader: async ({ context }) => {
+    const { degraded } = await loadResilient(
+      context.queryClient,
+      latestProgramsQueryOptions(PROGRAMS_INDEX_LIMIT),
+      NO_PROGRAMS,
+    );
+    setCacheControlHeader(resilientCacheControl(degraded));
+    return { degraded };
+  },
   head: () => {
     const url = getRequestUrl() || "/programs";
     const lang = activeLang(url);
@@ -104,6 +120,7 @@ function ProgramsIndex() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
   ensureProgramsI18n();
   const { data: programs } = useSuspenseQuery(latestProgramsQueryOptions(PROGRAMS_INDEX_LIMIT));
+  const { degraded } = Route.useLoaderData();
   const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
 
@@ -114,7 +131,12 @@ function ProgramsIndex() {
         <p className="text-base text-muted-foreground">{t("programs.indexIntro")}</p>
       </header>
 
-      {programs.length === 0 ? (
+      {degraded ? (
+        // „Brak programów" i „nie udało się pobrać" to dwie różne prawdy.
+        <DegradedDataNotice
+          title={lang === "en" ? "Couldn't load programmes" : "Nie udało się załadować programów"}
+        />
+      ) : programs.length === 0 ? (
         <p className="text-sm text-muted-foreground py-16 text-center">{t("programs.empty")}</p>
       ) : (
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">

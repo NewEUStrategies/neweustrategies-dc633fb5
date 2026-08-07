@@ -1189,6 +1189,23 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         return v === "icon" || v === "icon-only";
       },
     },
+    {
+      // Renderer honoruje `size` od zawsze (kafelek koperty dzieli rysunek
+      // i geometrię z widgetem „Ikony social"), ale panel go nie oferował -
+      // ustawienie było osiągalne tylko przez ręczną edycję dokumentu.
+      // Ta sama bramka widoczności co `iconName`: pozostałe warianty nie mają
+      // kafelka, więc rozmiar ikony byłby w nich martwym polem.
+      key: "size",
+      type: "number",
+      label: "Rozmiar ikony (px)",
+      min: 10,
+      max: 64,
+      default: 14,
+      visibleWhen: (c) => {
+        const v = typeof c.variant === "string" ? c.variant : "icon";
+        return v === "icon" || v === "icon-only";
+      },
+    },
     { key: "placeholder", type: "i18nText", label: "Placeholder pola email" },
     { key: "cta", type: "i18nText", label: "Etykieta przycisku" },
   ],
@@ -1712,6 +1729,44 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       type: "color",
       label: "Kolor akcentu (opcjonalny)",
       hint: "Kolor paska postępu. Puste = kolor marki.",
+    },
+  ],
+  // Lista kart ma własny edytor (CircularCarouselEditor); te pola czyta
+  // renderer (CircularCarouselView) i rysuje je SchemaFieldControl.
+  "circular-carousel": [
+    {
+      key: "visibleCount",
+      type: "number",
+      label: "Widoczne karty (3-7, nieparzyste)",
+      min: 3,
+      max: 7,
+      default: 5,
+      group: "Wygląd",
+    },
+    {
+      key: "radiusX",
+      type: "number",
+      label: "Promień poziomy (px)",
+      min: 40,
+      max: 600,
+      default: 220,
+      group: "Wygląd",
+    },
+    {
+      key: "radiusY",
+      type: "number",
+      label: "Promień pionowy (px)",
+      min: 40,
+      max: 600,
+      default: 100,
+      group: "Wygląd",
+    },
+    {
+      key: "accentColor",
+      type: "color",
+      label: "Kolor akcentu (opcjonalny)",
+      hint: "Ramka aktywnej karty, licznik i kropki. Puste = kolor marki.",
+      group: "Wygląd",
     },
   ],
   "meeting-booking": [],
@@ -3241,6 +3296,16 @@ pushLabelsFor("contact-form", [
     key: "requireEmail",
     type: "select",
     label: "E-mail - wymagany?",
+    options: [
+      { value: "1", label: "tak" },
+      { value: "0", label: "nie" },
+    ],
+    default: "1",
+  },
+  {
+    key: "showInterests",
+    type: "select",
+    label: "Droplista tematów (zainteresowania)?",
     options: [
       { value: "1", label: "tak" },
       { value: "0", label: "nie" },
