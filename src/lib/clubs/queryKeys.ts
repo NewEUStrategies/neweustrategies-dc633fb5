@@ -56,6 +56,15 @@ export const clubKeys = {
   replies: (threadId: string, sort: string) =>
     [...clubKeys.all, "replies", threadId, sort] as const,
 
+  /** Reakcje partii celow. Klucz niesie CALA partie, bo zapytanie jest wsadowe
+   *  - klucz per cel dalby N wpisow w cache dla jednego zapytania. */
+  reactions: (targetType: string, targetIds: readonly string[]) =>
+    [...clubKeys.all, "reactions", targetType, [...targetIds].sort().join(",")] as const,
+
+  stances: (threadId: string) => [...clubKeys.all, "stances", threadId] as const,
+
+  subscription: (threadId: string) => [...clubKeys.all, "subscription", threadId] as const,
+
   capabilitiesPreview: (clubId: string, userId: string, groupId?: string | null) =>
     [...clubKeys.club(clubId), "capabilitiesPreview", userId, groupId ?? "club"] as const,
 } as const;

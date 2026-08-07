@@ -7,6 +7,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import {
+  groupReactions,
   toClubCapabilities,
   type AdminClubListFilters,
   type AdminClubDetailRow,
@@ -26,8 +27,14 @@ import {
   type ClubMemberUpsertInput,
   type ClubMembershipRow,
   type ClubMyInvitationRow,
+  type ClubReactionKind,
+  type ClubReactionTally,
+  type ClubReactionTarget,
   type ClubReplyRow,
   type ClubReplySort,
+  type ClubStance,
+  type ClubStanceSummaryRow,
+  type ClubSubscriptionState,
   type ClubThreadKind,
   type ClubThreadListRow,
   type ClubThreadSort,
@@ -504,4 +511,97 @@ export async function resolveClubThread(params: {
   });
   if (error) throw error;
   return data === true;
+}
+
+// ---------------------------------------------------------------------------
+// Etap A4: reakcje, stanowiska, subskrypcje
+// ---------------------------------------------------------------------------
+
+/** Odczyt WSADOWY dla całej widocznej partii - nigdy N+1. */
+export async function fetchClubReactions(params: {
+  targetType: ClubReactionTarget;
+  targetIds: string[];
+}): Promise<Map<string, ClubReactionTally[]>> {
+  if (params.targetIds.length === 0) return new Map();
+  const { data, error } = await supabase.rpc("club_reactions_for", {
+    p_target_type: params.targetType,
+    p_target_ids: params.targetIds,
+  });
+  if (error) throw error;
+  return groupReactions(data ?? []);
+}
+
+export async function reactToClubTarget(params: {
+  targetType: ClubReactionTarget;
+  targetId: string;
+  kind: ClubReactionKind;
+}): Promise<boolean> {
+  const { data, error } = await supabase.rpc("club_react", {
+    p_target_type: params.targetType,
+    p_target_id: params.targetId,
+    p_kind: params.kind,
+  });
+  if (error) throw error;
+  return data === true;
+}
+
+export async function unreactFromClubTarget(params: {
+  targetType: ClubReactionTarget;
+  targetId: string;
+  kind: ClubReactionKind;
+}): Promise<boolean> {
+  const { data, error } = await supabase.rpc("club_unreact", {
+    p_target_type: params.targetType,
+    p_target_id: params.targetId,
+    p_kind: params.kind,
+  });
+  if (error) throw error;
+  return data === true;
+}
+
+export async function fetchClubStanceSummary(
+  threadId: string,
+): Promise<ClubStanceSummaryRow[]> {
+  const { data, error } = await supabase.rpc("club_stance_summary", {
+    p_thread_id: threadId,
+  });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function setClubStance(params: {
+  threadId: string;
+  stance: ClubStance;
+  rationale?: string | null;
+}): Promise<boolean> {
+  const { data, error } = await supabase.rpc("club_set_stance", {
+    p_thread_id: params.threadId,
+    p_stance: params.stance,
+    p_rationale: params.rationale ?? undefined,
+  });
+  if (error) throw error;
+  return data === true;
+}
+
+export async function setClubThreadSubscription(params: {
+  threadId: string;
+  state: ClubSubscriptionState;
+}): Promise<boolean> {
+  const { data, error } = await supabase.rpc("club_subscribe_thread", {
+    p_thread_id: params.threadId,
+    p_state: params.state,
+  });
+  if (error) throw error;
+  return data === true;
+}
+
+/** `null` = brak wpisu, czyli domyślny poziom powiadomień klubu. */
+export async function fetchMyThreadSubscription(
+  threadId: string,
+): Promise<ClubSubscriptionState | null> {
+  const { data, error } = await supabase.rpc("club_my_subscription", {
+    p_thread_id: threadId,
+  });
+  if (error) throw error;
+  return data === "subscribed" || data === "muted" ? data : null;
 }

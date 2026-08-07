@@ -18,14 +18,19 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
   useClubBySlug,
+  useClubReactions,
   useClubReplies,
   useClubThread,
   useReplyToThread,
   useResolveClubThread,
+  useToggleClubReaction,
 } from "@/lib/clubs/useClubs";
+import { ClubReactionBar } from "@/components/clubs/ClubReactionBar";
 import {
   buildClubReplyTree,
   toAuthorLabel,
+  type ClubReactionKind,
+  type ClubReactionTally,
   type ClubReplyNode,
 } from "@/lib/clubs/types";
 import { ensureClubI18n } from "@/lib/i18n-club";
@@ -54,6 +59,17 @@ function ClubThreadView() {
 
   const replyM = useReplyToThread(club?.id ?? "", threadSlug);
   const resolveM = useResolveClubThread(club?.id ?? "", threadSlug);
+
+  // Dwie partie, dwa zapytania wsadowe - nigdy jedno na wpis.
+  const threadIds = thread ? [thread.id] : [];
+  const replyIds = (repliesQ.data ?? []).map((r) => r.id);
+  const threadReactionsQ = useClubReactions({ targetType: "thread", targetIds: threadIds });
+  const replyReactionsQ = useClubReactions({ targetType: "reply", targetIds: replyIds });
+  const toggleThreadReaction = useToggleClubReaction({
+    targetType: "thread",
+    targetIds: threadIds,
+  });
+  const toggleReplyReaction = useToggleClubReaction({ targetType: "reply", targetIds: replyIds });
 
   if (clubQ.isPending || threadQ.isPending) {
     return (
@@ -147,6 +163,17 @@ function ClubThreadView() {
         </div>
 
         <div className="mt-4 whitespace-pre-wrap text-[15px] leading-relaxed">{thread.body}</div>
+
+        <div className="mt-4 border-t border-border/60 pt-3">
+          <ClubReactionBar
+            tallies={threadReactionsQ.data?.get(thread.id) ?? []}
+            disabled={!thread.can_reply || toggleThreadReaction.isPending}
+            variant="full"
+            onToggle={(kind, active) =>
+              toggleThreadReaction.mutate({ targetId: thread.id, kind, active })
+            }
+          />
+        </div>
       </article>
 
       {/* --- odpowiedzi --- */}
@@ -170,6 +197,11 @@ function ClubThreadView() {
                 node={node}
                 isPl={isPl}
                 canResolve={canResolve}
+                canReact={thread.can_reply}
+                reactions={replyReactionsQ.data ?? new Map()}
+                onToggleReaction={(targetId, kind, active) =>
+                  toggleReplyReaction.mutate({ targetId, kind, active })
+                }
                 onReply={setReplyTo}
                 onResolve={(replyId) =>
                   resolveM.mutate(
@@ -245,12 +277,18 @@ function ReplyBranch({
   node,
   isPl,
   canResolve,
+  canReact,
+  reactions,
+  onToggleReaction,
   onReply,
   onResolve,
 }: {
   node: ClubReplyNode;
   isPl: boolean;
   canResolve: boolean;
+  canReact: boolean;
+  reactions: Map<string, ClubReactionTally[]>;
+  onToggleReaction: (targetId: string, kind: ClubReactionKind, active: boolean) => void;
   onReply: (replyId: string) => void;
   onResolve: (replyId: string) => void;
 }) {
@@ -291,6 +329,17 @@ function ReplyBranch({
 
         <div className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed">{reply.body}</div>
 
+        {/* Pasek zwinięty: przy trzydziestu odpowiedziach sześć pustych
+            przycisków pod każdą byłoby ścianą szumu. */}
+        <div className="mt-2">
+          <ClubReactionBar
+            tallies={reactions.get(reply.id) ?? []}
+            disabled={!canReact}
+            variant="compact"
+            onToggle={(kind, active) => onToggleReaction(reply.id, kind, active)}
+          />
+        </div>
+
         <div className="mt-2 flex flex-wrap gap-1">
           {/* Poziom 2 nie dostaje przycisku "Odpowiedz": drzewo jest przycięte,
               a przycisk, który po cichu przypina odpowiedź gdzie indziej,
@@ -326,6 +375,9 @@ function ReplyBranch({
               node={child}
               isPl={isPl}
               canResolve={canResolve}
+              canReact={canReact}
+              reactions={reactions}
+              onToggleReaction={onToggleReaction}
               onReply={onReply}
               onResolve={onResolve}
             />

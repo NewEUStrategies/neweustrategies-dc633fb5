@@ -13682,6 +13682,31 @@ export type Database = {
       }
       club_threads_mark_dormant: { Args: { p_limit?: number }; Returns: number }
       club_threads_refresh_hotness: { Args: { p_limit?: number }; Returns: number }
+      club_my_subscription: { Args: { p_thread_id: string }; Returns: string }
+      club_react: {
+        Args: { p_kind: string; p_target_id: string; p_target_type: string }
+        Returns: boolean
+      }
+      club_reactions_for: {
+        Args: { p_target_ids: string[]; p_target_type: string }
+        Returns: { kind: string; mine: boolean; target_id: string; total: number }[]
+      }
+      club_set_stance: {
+        Args: { p_rationale?: string; p_stance: string; p_thread_id: string }
+        Returns: boolean
+      }
+      club_stance_summary: {
+        Args: { p_thread_id: string }
+        Returns: { mine: boolean; stance: string; total: number }[]
+      }
+      club_subscribe_thread: {
+        Args: { p_state: string; p_thread_id: string }
+        Returns: boolean
+      }
+      club_unreact: {
+        Args: { p_kind: string; p_target_id: string; p_target_type: string }
+        Returns: boolean
+      }
       club_capabilities: {
         Args: { _club_id: string; _group_id?: string; _user_id?: string }
         Returns: {

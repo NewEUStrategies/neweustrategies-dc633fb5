@@ -501,3 +501,115 @@ export function buildClubReplyTree(rows: readonly ClubReplyRow[]): ClubReplyNode
   }
   return roots;
 }
+
+// ---------------------------------------------------------------------------
+// Etap A4: reakcje, stanowiska, subskrypcje
+// ---------------------------------------------------------------------------
+
+/**
+ * Slownik reakcji jest ZAMKNIETY i podzielony na dwie grupy o roznym
+ * zachowaniu. To nie jest lista emoji - to sa dane zasilajace ranking,
+ * reputacje i mape stanowisk (V1 §4.2).
+ */
+export const CLUB_QUALITY_REACTIONS = ["insightful", "evidence", "question", "thanks"] as const;
+export const CLUB_STANCE_REACTIONS = ["agree", "disagree"] as const;
+export const CLUB_REACTION_KINDS = [
+  ...CLUB_QUALITY_REACTIONS,
+  ...CLUB_STANCE_REACTIONS,
+] as const;
+
+export type ClubQualityReaction = (typeof CLUB_QUALITY_REACTIONS)[number];
+export type ClubStanceReaction = (typeof CLUB_STANCE_REACTIONS)[number];
+export type ClubReactionKind = (typeof CLUB_REACTION_KINDS)[number];
+
+export type ClubReactionTarget = "thread" | "reply";
+
+/** Reakcje grupy "stanowisko" wykluczaja sie wzajemnie - trigger w bazie
+ *  podmienia jedna na druga. Klient musi znac te regule, zeby optymistyczna
+ *  aktualizacja nie pokazala obu naraz przez ulamek sekundy. */
+export function isStanceReaction(kind: ClubReactionKind): kind is ClubStanceReaction {
+  return (CLUB_STANCE_REACTIONS as readonly string[]).includes(kind);
+}
+
+export const CLUB_STANCES = ["support", "oppose", "abstain"] as const;
+export type ClubStance = (typeof CLUB_STANCES)[number];
+
+export const CLUB_SUBSCRIPTION_STATES = ["subscribed", "muted"] as const;
+export type ClubSubscriptionState = (typeof CLUB_SUBSCRIPTION_STATES)[number];
+
+export type ClubReactionRow = RowOf<Fn["club_reactions_for"]["Returns"]>;
+export type ClubStanceSummaryRow = RowOf<Fn["club_stance_summary"]["Returns"]>;
+
+/** Reakcje jednego celu w formie gotowej do renderu paska. */
+export interface ClubReactionTally {
+  kind: ClubReactionKind;
+  total: number;
+  mine: boolean;
+}
+
+/**
+ * Grupuje wsadowy wynik `club_reactions_for` po celu. Zwraca mape, bo pasek
+ * reakcji renderuje sie per wpis, a jedno zapytanie obsluguje cala widoczna
+ * partie - dokladnie jak useBadgesForUsers na /people.
+ */
+export function groupReactions(
+  rows: readonly ClubReactionRow[],
+): Map<string, ClubReactionTally[]> {
+  const out = new Map<string, ClubReactionTally[]>();
+  for (const row of rows) {
+    if (!(CLUB_REACTION_KINDS as readonly string[]).includes(row.kind)) continue;
+    const list = out.get(row.target_id) ?? [];
+    list.push({
+      kind: row.kind as ClubReactionKind,
+      total: Number(row.total),
+      mine: row.mine === true,
+    });
+    out.set(row.target_id, list);
+  }
+  // Stala kolejnosc: najpierw jakosc, potem stanowisko. Pasek, w ktorym
+  // przyciski skacza po klikniecu, jest nieuzywalny.
+  const order = new Map(CLUB_REACTION_KINDS.map((k, i) => [k, i]));
+  for (const list of out.values()) {
+    list.sort((a, b) => (order.get(a.kind) ?? 0) - (order.get(b.kind) ?? 0));
+  }
+  return out;
+}
+
+/**
+ * Wynik przelaczenia reakcji PRZED odpowiedzia serwera. Odwzorowuje regule
+ * triggera: klikniecie tej samej reakcji ja zdejmuje, a klikniecie
+ * przeciwnego stanowiska PODMIENIA (nie dodaje drugiego).
+ */
+export function applyReactionToggle(
+  current: readonly ClubReactionTally[],
+  kind: ClubReactionKind,
+): ClubReactionTally[] {
+  const existing = current.find((r) => r.kind === kind);
+
+  if (existing?.mine === true) {
+    // Zdjecie wlasnej reakcji. Licznik zero znaczy, ze przycisk znika z paska.
+    return current
+      .map((r) => (r.kind === kind ? { ...r, total: r.total - 1, mine: false } : r))
+      .filter((r) => r.total > 0);
+  }
+
+  const next = current.map((r) => {
+    // Przeciwne stanowisko schodzi razem z postawieniem nowego.
+    if (isStanceReaction(kind) && isStanceReaction(r.kind) && r.kind !== kind && r.mine) {
+      return { ...r, total: r.total - 1, mine: false };
+    }
+    return r;
+  });
+
+  const idx = next.findIndex((r) => r.kind === kind);
+  if (idx >= 0) {
+    next[idx] = { ...next[idx], total: next[idx].total + 1, mine: true };
+  } else {
+    next.push({ kind, total: 1, mine: true });
+  }
+
+  const order = new Map(CLUB_REACTION_KINDS.map((k, i) => [k, i]));
+  return next
+    .filter((r) => r.total > 0)
+    .sort((a, b) => (order.get(a.kind) ?? 0) - (order.get(b.kind) ?? 0));
+}
