@@ -27,6 +27,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { FormSelect } from "@/components/atoms/FormSelect";
 import { floatingPlaceholder } from "@/components/ui/floating-input";
 import { TopicsDroplist, useInterestGroups } from "@/components/interests/TopicsDroplist";
+import { CountryCombobox } from "@/components/interests/CountryCombobox";
+
 import { useNewsletterFieldLabels } from "@/lib/newsletter/newsletterFieldLabels";
 import {
   collectCustomValues,
