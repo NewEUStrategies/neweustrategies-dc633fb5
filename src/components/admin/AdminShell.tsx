@@ -823,6 +823,17 @@ function AdminShellInner({
                           >
                             <Icon className="w-3 h-3 shrink-0" />
                             <span className={`truncate ${compact ? "hidden" : ""}`}>{label}</span>
+                            {typeof item.badge === "number" && item.badge > 0 && !compact ? (
+                              <span
+                                className="ml-auto inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500/20 px-1 text-[10px] font-semibold tabular-nums text-amber-700 dark:text-amber-300"
+                                aria-label={t("admin.nav.pendingItems", {
+                                  defaultValue:
+                                    lang === "pl" ? "Elementy oczekujące" : "Pending items",
+                                })}
+                              >
+                                {item.badge > 99 ? "99+" : item.badge}
+                              </span>
+                            ) : null}
                           </Link>
                         </SidebarTooltip>
                       );
