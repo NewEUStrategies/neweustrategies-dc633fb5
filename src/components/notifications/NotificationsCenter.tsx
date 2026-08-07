@@ -48,9 +48,10 @@ import {
 import { groupNotifications } from "@/lib/notifications/grouping";
 import {
   NOTIFICATION_KINDS,
-  TOGGLEABLE_NOTIFICATION_KINDS,
+  NOTIFICATION_KIND_GROUPS,
   isNotificationKindEnabled,
 } from "@/lib/notifications/preferences";
+import { NotificationKindToggle } from "./molecules/NotificationKindToggle";
 import {
   disablePushForThisBrowser,
   enablePushForThisBrowser,
@@ -742,37 +743,54 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                     defaultValue: "Wybierz, jakie alerty trafiają do skrzynki.",
                   })}
                 </p>
-                <div className="mt-3 space-y-2">
-                  {TOGGLEABLE_NOTIFICATION_KINDS.map((kind) => {
-                    const key = `enabled_${kind}` as keyof NotificationPreferences;
-                    const id = `notif-kind-${kind}`;
-                    return (
-                      <div
-                        key={kind}
-                        className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2"
+                {/* Sekcje tematyczne z katalogu (@/lib/notifications/preferences):
+                    szesnaście jednakowych wierszy to ściana, a nie wybór. Podział
+                    i kolejność są danymi, nie strukturą JSX. */}
+                <div className="mt-3 space-y-4">
+                  {NOTIFICATION_KIND_GROUPS.map((group) => (
+                    <section key={group.id} aria-labelledby={`notif-group-${group.id}`}>
+                      <h4
+                        id={`notif-group-${group.id}`}
+                        className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/70"
                       >
-                        <Label htmlFor={id} className="text-sm font-normal">
-                          {t(`notifications.settings.kinds.${kind}`, { defaultValue: kind })}
-                        </Label>
-                        <Switch
-                          id={id}
-                          checked={isNotificationKindEnabled(prefs, kind)}
-                          disabled={updatePrefs.isPending}
-                          onCheckedChange={(v) =>
-                            patch({ [key]: v } as Partial<NotificationPreferences>)
-                          }
-                        />
+                        <NotificationIcon name={group.icon} className="h-3.5 w-3.5 text-primary" />
+                        {t(`notifications.settings.kindGroups.${group.id}`, {
+                          defaultValue: group.id,
+                        })}
+                      </h4>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {t(`notifications.settings.kindGroups.${group.id}Hint`, {
+                          defaultValue: "",
+                        })}
+                      </p>
+                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                        {group.kinds.map((kind) => (
+                          <NotificationKindToggle
+                            key={kind}
+                            kind={kind}
+                            label={t(`notifications.settings.kinds.${kind}`, {
+                              defaultValue: kind,
+                            })}
+                            checked={isNotificationKindEnabled(prefs, kind)}
+                            disabled={updatePrefs.isPending}
+                            onCheckedChange={(v) =>
+                              patch({
+                                [`enabled_${kind}`]: v,
+                              } as Partial<NotificationPreferences>)
+                            }
+                          />
+                        ))}
                       </div>
-                    );
-                  })}
-                  <div className="flex items-center justify-between rounded-md border border-dashed border-border/60 px-3 py-2 opacity-70">
-                    <Label className="text-sm font-normal">
-                      {t("notifications.settings.kinds.security", {
-                        defaultValue: "Alerty bezpieczeństwa (zawsze włączone)",
-                      })}
-                    </Label>
-                    <Switch checked={isNotificationKindEnabled(prefs, "security")} disabled />
-                  </div>
+                    </section>
+                  ))}
+                  <NotificationKindToggle
+                    kind="security"
+                    alwaysOn
+                    label={t("notifications.settings.kinds.security", {
+                      defaultValue: "Alerty bezpieczeństwa (zawsze włączone)",
+                    })}
+                    checked={isNotificationKindEnabled(prefs, "security")}
+                  />
                 </div>
               </div>
 

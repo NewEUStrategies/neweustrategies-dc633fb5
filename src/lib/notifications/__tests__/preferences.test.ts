@@ -3,6 +3,7 @@ import {
   ALLOW_MESSAGES_FROM_LEVELS,
   DEFAULT_NOTIFICATION_PREFERENCES,
   NOTIFICATION_KINDS,
+  NOTIFICATION_KIND_GROUPS,
   NOTIFICATION_PREFERENCE_COLUMNS,
   NOTIFICATION_PREFERENCE_SELECT,
   TOGGLEABLE_NOTIFICATION_KINDS,
@@ -21,22 +22,60 @@ const prefs: NotificationPreferences = {
   enabled_crm_task: false,
 };
 
+// Sekcje ustawień: podział jest DANYMI (katalog grup), więc ma własny kontrakt.
+// Rozjazd grup <-> przełączników nie jest tu „możliwy do przetestowania" -
+// TOGGLEABLE_NOTIFICATION_KINDS jest z grup wyprowadzone. Testujemy to, co
+// wyprowadzenie NADAL może zepsuć: duplikat rodzaju w dwóch grupach, rodzaj
+// always-on wśród przełączników i grupę bez etykiety w którymś z języków.
+describe("NOTIFICATION_KIND_GROUPS", () => {
+  it("przypisuje każdy rodzaj do DOKŁADNIE jednej grupy", () => {
+    const flat = NOTIFICATION_KIND_GROUPS.flatMap((group) => [...group.kinds]);
+    expect(flat).toHaveLength(new Set(flat).size);
+  });
+
+  it("nie wciąga rodzaju always-on (security) do przełączników", () => {
+    for (const group of NOTIFICATION_KIND_GROUPS) {
+      expect(group.kinds).not.toContain("security");
+    }
+  });
+
+  it("każda grupa ma ikonę nagłówka i co najmniej jeden rodzaj", () => {
+    for (const group of NOTIFICATION_KIND_GROUPS) {
+      expect(group.icon).not.toBe("");
+      expect(group.kinds.length).toBeGreaterThan(0);
+    }
+  });
+});
+
 describe("TOGGLEABLE_NOTIFICATION_KINDS", () => {
   it("lists the user-toggleable kinds and excludes security", () => {
     expect([...TOGGLEABLE_NOTIFICATION_KINDS]).toEqual([
       "message",
       "expert_request",
-      "comment",
-      "follow",
       "connection",
-      "subscription",
+      "introduction",
+      "recommendation",
+      "endorsement",
+      "profile_view",
+      "meeting_booking",
+      "follow",
+      "comment",
       "content",
       "saved_search",
-      "crm_task",
       "tracker",
+      "crm_task",
+      "subscription",
       "system",
     ]);
     expect(TOGGLEABLE_NOTIFICATION_KINDS).not.toContain("security");
+  });
+
+  // Lista przełączników jest SPŁASZCZENIEM grup, nie drugą listą - inaczej
+  // rodzaj dopisany do jednej z nich cicho ginął w drugiej.
+  it("jest spłaszczeniem katalogu grup (jedno źródło kolejności)", () => {
+    expect([...TOGGLEABLE_NOTIFICATION_KINDS]).toEqual(
+      NOTIFICATION_KIND_GROUPS.flatMap((group) => [...group.kinds]),
+    );
   });
 });
 
@@ -63,6 +102,13 @@ describe("NOTIFICATION_KINDS", () => {
       "saved_search",
       "crm_task",
       "expert_request",
+      // 20260807073000: pięć zdarzeń sieciowych, które do 08.2026 nie miały
+      // ANI JEDNEGO producenta powiadomień.
+      "introduction",
+      "recommendation",
+      "endorsement",
+      "profile_view",
+      "meeting_booking",
     ];
     expect([...NOTIFICATION_KINDS].sort()).toEqual([...dbKinds].sort());
   });
@@ -145,6 +191,32 @@ describe("notification kind labels (PL/EN)", () => {
     expect(plLabel).not.toBe("");
     expect(enLabel).not.toBe("");
   });
+});
+
+// Nagłówki sekcji ustawień: brak któregokolwiek renderuje surowy identyfikator
+// grupy („workspace") jako tytuł sekcji.
+describe("notification kind group labels (PL/EN)", () => {
+  function groupLabels(bundle: unknown): Record<string, unknown> {
+    const tree = bundle as {
+      notifications?: { settings?: { kindGroups?: Record<string, unknown> } };
+    };
+    return tree.notifications?.settings?.kindGroups ?? {};
+  }
+
+  it.each(NOTIFICATION_KIND_GROUPS.map((group) => group.id))(
+    "ma tytuł i podpis PL oraz EN dla grupy %s",
+    (id) => {
+      for (const key of [id, `${id}Hint`]) {
+        const plLabel = groupLabels(pl)[key];
+        const enLabel = groupLabels(en)[key];
+        expect(typeof plLabel).toBe("string");
+        expect(typeof enLabel).toBe("string");
+        expect(plLabel).not.toBe("");
+        expect(enLabel).not.toBe("");
+        expect(plLabel).not.toBe(enLabel);
+      }
+    },
+  );
 });
 
 // §9 audytu: `contacts` przestał być fantomem w bramce czatu i stał się realnym

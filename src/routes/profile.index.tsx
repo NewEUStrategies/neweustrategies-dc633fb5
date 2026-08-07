@@ -68,12 +68,46 @@ import { IntroductionsCard } from "@/components/network/IntroductionsCard";
 
 import { promptDialog } from "@/lib/appDialogs";
 import { CompanyPickerDialog } from "@/components/profile/CompanyPickerDialog";
-export const Route = createFileRoute("/profile/")({
-  component: ProfileInline,
-});
-
 type Gender = "male" | "female" | "neutral";
 type TabKey = "about" | "experience" | "badges" | "activity" | "settings";
+/** Rola w karcie „Wprowadzenia" - do mnie / wysłane / o mnie. */
+type IntroBox = "bridge" | "requester" | "target";
+
+const TAB_KEYS: readonly TabKey[] = [
+  "about",
+  "experience",
+  "badges",
+  "activity",
+  "settings",
+] as const;
+const INTRO_BOXES: readonly IntroBox[] = ["bridge", "requester", "target"] as const;
+
+interface ProfileIndexSearch {
+  /** Zakładka otwierana z linku (powiadomienia, skróty w produkcie). */
+  tab?: TabKey;
+  /** Zakładka karty „Wprowadzenia" - `?intro=bridge` z powiadomienia o prośbie. */
+  intro?: IntroBox;
+}
+
+// Powiadomienia sieciowe (wprowadzenia, wyświetlenia profilu, rezerwacje
+// spotkań) linkują do KONKRETNEGO miejsca w tej trasie - `/profile?tab=activity
+// &intro=bridge#i-<id>-pending`. Bez walidacji parametrów link prowadziłby na
+// domyślną zakładkę „O mnie", a użytkownik szukałby ręcznie tego, o czym właśnie
+// został powiadomiony. Nieznana wartość jest po cichu ignorowana (fail-soft):
+// link ze starszej wersji produktu nie może wywrócić trasy profilu.
+export const Route = createFileRoute("/profile/")({
+  component: ProfileInline,
+  validateSearch: (search: Record<string, unknown>): ProfileIndexSearch => {
+    const rawTab = search["tab"];
+    const rawIntro = search["intro"];
+    const tab = TAB_KEYS.find((key) => key === rawTab);
+    const intro = INTRO_BOXES.find((key) => key === rawIntro);
+    return {
+      ...(tab ? { tab } : {}),
+      ...(intro ? { intro } : {}),
+    };
+  },
+});
 
 function ProfileInline() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
@@ -81,8 +115,16 @@ function ProfileInline() {
   const { t } = useTranslation();
   const { user, roles, session, isAdmin } = useAuth();
   const { data, loading, saveField, upload, progress, status } = useProfileEditor();
+  const { tab: tabFromUrl, intro: introFromUrl } = Route.useSearch();
   const [previewAsGuest, setPreviewAsGuest] = useState(false);
-  const [tab, setTab] = useState<TabKey>("about");
+  const [tab, setTab] = useState<TabKey>(tabFromUrl ?? "about");
+
+  // Kliknięcie w zakładkę zostaje stanem lokalnym (bez wpisów w historii), ale
+  // NOWY link musi przestawić widok także wtedy, gdy komponent już żyje -
+  // dwa powiadomienia o różne zakładki w tej samej sesji.
+  useEffect(() => {
+    if (tabFromUrl) setTab(tabFromUrl);
+  }, [tabFromUrl]);
   const [companyPickerOpen, setCompanyPickerOpen] = useState(false);
   const companyTriggerRef = useRef<HTMLButtonElement | null>(null);
 
@@ -158,7 +200,6 @@ function ProfileInline() {
 
   const activeTab: TabKey = tab === "settings" && !editable ? "about" : tab;
 
-
   return (
     <TooltipProvider>
       <div className="mx-auto w-full max-w-6xl space-y-4">
@@ -198,7 +239,6 @@ function ProfileInline() {
             )}
             {data.verified_at ? <VerifiedProfileBadge /> : null}
           </div>
-
 
           {/* Company + Job */}
           <div className="mt-0.5 flex flex-wrap items-center justify-center sm:justify-start gap-x-1 gap-y-0.5 text-[13px] leading-[1.2]">
@@ -621,14 +661,21 @@ function ProfileInline() {
                   />
                 </div>
               </Card>
-              <Card icon={<Eye className="h-3.5 w-3.5" />} title={t("network.profileViews.title")}>
+              {/* Kotwice `profile-views` / `introductions`: cel linków z
+                  powiadomień `profile_view` i `introduction`. */}
+              <Card
+                id="profile-views"
+                icon={<Eye className="h-3.5 w-3.5" />}
+                title={t("network.profileViews.title")}
+              >
                 <ProfileViewsCard />
               </Card>
               <Card
+                id="introductions"
                 icon={<Users className="h-3.5 w-3.5" />}
                 title={t("network.introductions.title")}
               >
-                <IntroductionsCard />
+                <IntroductionsCard {...(introFromUrl ? { initialRole: introFromUrl } : {})} />
               </Card>
 
               <Card icon={<Globe className="h-3.5 w-3.5" />} title={t("profile.inline.shortcuts")}>
@@ -963,14 +1010,20 @@ function Card({
   title,
   action,
   children,
+  id,
 }: {
   icon?: ReactNode;
   title: string;
   action?: ReactNode;
   children: ReactNode;
+  /** Kotwica dla linków z powiadomień (`/profile?tab=activity#introductions`). */
+  id?: string;
 }) {
   return (
-    <section className="rounded-[6px] border border-border bg-card p-4">
+    <section
+      {...(id ? { id } : {})}
+      className="scroll-mt-24 rounded-[6px] border border-border bg-card p-4"
+    >
       <header className="mb-3 flex items-center justify-between gap-2">
         <h2 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/70">
           {icon ? <span className="text-primary">{icon}</span> : null}

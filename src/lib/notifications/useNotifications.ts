@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { subscribeToTable } from "@/lib/realtime/tableChannelHub";
 import type { Database } from "@/integrations/supabase/types";
+import { invalidationKeysForNotificationKind } from "./kindInvalidation";
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   NOTIFICATION_PREFERENCE_SELECT,
@@ -247,15 +248,29 @@ export function useDeleteNotification() {
 // firehose across tenants. RLS still enforces isolation; the filter is a
 // bandwidth optimization. Kanał współdzielony przez tableChannelHub: dzwonek,
 // centrum notyfikacji i /messages używają JEDNEJ subskrypcji websocketowej.
+//
+// Powiadomienie jest tu TAKŻE zdarzeniem domenowym dla innych modułów: tabele
+// sieci kontaktów (wprowadzenia, rekomendacje, poparcia, wyświetlenia profilu,
+// rezerwacje spotkań) mają RLS zamykający bezpośredni odczyt i zapisy wyłącznie
+// przez RPC, więc nie da się ich subskrybować osobno. Reguła „co odświeżyć"
+// mieszka w czystym `./kindInvalidation` (testowalna), a nie w tym efekcie.
 export function useNotificationsRealtime(): void {
   const qc = useQueryClient();
   const { user } = useAuth();
   const uid = user?.id;
   useEffect(() => {
     if (!uid) return;
-    return subscribeToTable({ table: "notifications", filter: `user_id=eq.${uid}` }, () => {
+    return subscribeToTable({ table: "notifications", filter: `user_id=eq.${uid}` }, (payload) => {
       void qc.invalidateQueries({ queryKey: ["notifications"] });
       void qc.invalidateQueries({ queryKey: countKey(uid) });
+      // Rodzaj czytamy z wiersza (INSERT/UPDATE); przy DELETE `new` jest puste -
+      // usunięcie powiadomienia nie zmienia danych modułu, więc nie ma czego
+      // odświeżać.
+      const kind = (payload.new as { kind?: unknown } | null)?.kind;
+      if (typeof kind !== "string") return;
+      for (const key of invalidationKeysForNotificationKind(kind)) {
+        void qc.invalidateQueries({ queryKey: key });
+      }
     });
   }, [uid, qc]);
 }
