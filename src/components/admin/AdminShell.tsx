@@ -792,6 +792,9 @@ function AdminShellInner({
                         path === to ||
                         (to !== "/admin" &&
                           to !== "/admin/appearance" &&
+                          // Skrót do klubów ma własną pozycję, więc "Społeczność"
+                          // nie może się podświetlać razem z nim.
+                          !(to === "/admin/community" && path.startsWith("/admin/community/clubs")) &&
                           !isCrmContacts &&
                           path.startsWith(`${to}/`));
 
