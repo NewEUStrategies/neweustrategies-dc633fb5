@@ -1,13 +1,35 @@
 // People directory - internal, registered-only search over opted-in profiles.
 // Anonymous visitors see a sign-in gate; the route is noindex and disallowed
 // in robots.txt, and the underlying RPC rejects anonymous callers anyway.
-// Wyszukiwanie: trgm+unaccent po stronie DB (diakrytyki bez znaczenia),
-// filtry fasetowe (specjalizacja/firma/lokalizacja) i paginacja offsetowa
-// z rzetelnym licznikiem total_count.
+//
+// Wyszukiwanie: trgm+unaccent po stronie DB (diakrytyki bez znaczenia), filtry
+// fasetowe (specjalizacja / firma / rola / lokalizacja / INTENCJA) i paginacja
+// offsetowa z rzetelnym licznikiem total_count.
+//
+// STAN ŻYJE W URL-u (08.2026). Wcześniej fraza i filtry siedziały w useState,
+// więc katalogu nie dało się ani udostępnić linkiem, ani ZAPISAĆ - a bez
+// zapisanego stanu nie ma alertu "dołączył ktoś, kogo szukasz" (encja
+// 'people' w saved_searches, migracja 20260807142000). Parametry są krótkie
+// i czytelne, bo trafiają do href-a powiadomienia.
+//
+// Tryb SEMANTYCZNY (?sem=1) jest jawnym wyborem: kosztuje jedno wywołanie
+// bramki embeddingów per fraza i zmienia semantykę filtra (dopasowanie po
+// znaczeniu, nie po podciągu), więc nie może się włączać po cichu.
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { BadgeCheck, Eye, EyeOff, MapPin, Search, Trophy, Users, X } from "lucide-react";
+import {
+  BadgeCheck,
+  Compass,
+  Eye,
+  EyeOff,
+  MapPin,
+  Search,
+  Sparkles,
+  Trophy,
+  Users,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,20 +60,39 @@ import {
   type ConnectionState,
 } from "@/lib/network/useConnections";
 import {
-  EMPTY_PEOPLE_FILTERS,
   usePeopleDirectory,
   usePeopleFacets,
   type PeopleFilters,
 } from "@/lib/chat/usePeopleDirectory";
+import { PEOPLE_SEMANTIC_MIN_CHARS } from "@/lib/search/peopleSemantic.functions";
 import type { PersonHit } from "@/lib/chat/types";
+import {
+  normalizeProfileIntents,
+  profileIntentLabelKey,
+  type ProfileIntentCode,
+} from "@/lib/profile/intents";
+import {
+  clearedPeopleFacets,
+  hasPeopleFacetFilters,
+  isPeopleSearchSaveable,
+  parsePeopleSearchParams,
+  type PeopleSearchParams,
+} from "@/lib/profile/peopleSearchParams";
 import { useBadgesForUsers, type ProfileBadgeKind } from "@/lib/profile/badges";
 import { ProfileBadges } from "@/components/profile/ProfileBadges";
+import { currentLang } from "@/lib/i18n/localeRuntime";
 import { cn } from "@/lib/utils";
 import { ensureI18n as ensureChatI18n } from "@/lib/i18n-chat";
 import { ensureI18n as ensureNetworkI18n } from "@/lib/i18n-network";
 import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
+import { ensureI18n as ensureProfileIntentI18n } from "@/lib/i18n-profile-intent";
+
 export const Route = createFileRoute("/people")({
   component: PeoplePage,
+  // Model stanu URL zyje w lib/profile/peopleSearchParams: ten sam walidator
+  // obsluguje adres w przegladarce I snapshot z bazy przy przywracaniu
+  // zapisanego wyszukiwania.
+  validateSearch: parsePeopleSearchParams,
   head: () => ({
     meta: [{ title: "Osoby" }, { name: "robots", content: "noindex, nofollow" }],
   }),
@@ -62,6 +103,7 @@ function PeoplePage() {
   ensureChatI18n();
   ensureNetworkI18n();
   ensureCommunityI18n();
+  ensureProfileIntentI18n();
   const { t } = useTranslation();
   return (
     <AuthGate
@@ -128,7 +170,7 @@ function FacetSelect({
 }: {
   value: string | null;
   onChange: (next: string | null) => void;
-  options: { value: string; cnt: number }[];
+  options: { value: string; label?: string; cnt: number }[];
   allLabel: string;
   ariaLabel: string;
 }) {
@@ -145,12 +187,20 @@ function FacetSelect({
         <SelectItem value={ALL}>{allLabel}</SelectItem>
         {options.map((opt) => (
           <SelectItem key={opt.value} value={opt.value}>
-            {opt.value} ({opt.cnt})
+            {opt.label ?? opt.value} ({opt.cnt})
           </SelectItem>
         ))}
       </SelectContent>
     </Select>
   );
+}
+
+/** Fragment "czego szukam" w języku interfejsu, z fallbackiem na drugi. */
+function seekingText(person: PersonHit, lang: string): string | null {
+  const primary = lang === "en" ? person.seeking_en : person.seeking_pl;
+  const secondary = lang === "en" ? person.seeking_pl : person.seeking_en;
+  const value = (primary ?? "").trim() || (secondary ?? "").trim();
+  return value.length > 0 ? value : null;
 }
 
 function PersonCard({
@@ -165,6 +215,9 @@ function PersonCard({
   connection?: ConnectionState;
 }) {
   const { t } = useTranslation();
+  const lang = currentLang();
+  const intents = useMemo(() => normalizeProfileIntents(person.open_to), [person.open_to]);
+  const seeking = seekingText(person, lang);
 
   const details = (
     <>
@@ -174,6 +227,13 @@ function PersonCard({
             odpowiedzi na pytanie „czy to ktoś z mojego świata?". */}
         <DegreeBadge degree={connection?.degree ?? 0} />
         <ProfileBadges badges={badges} className="shrink-0" />
+        {connection && (
+          <NetworkDegreeBadge
+            degree={connection.degree}
+            label={t(networkDegreeShortKey(connection.degree))}
+            ariaLabel={t(networkDegreeLabelKey(connection.degree))}
+          />
+        )}
       </p>
       {(person.job_title || person.current_company) && (
         <p className="truncate text-xs text-muted-foreground">
@@ -190,6 +250,10 @@ function PersonCard({
             </span>
           )}
         </p>
+      )}
+      {/* Intencja: JEDYNY sygnał na karcie, który mówi PO CO się kontaktować. */}
+      {seeking && (
+        <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-foreground/75">{seeking}</p>
       )}
       {/* Dowód społeczny: wspólne kontakty z batchowanego connection_statuses. */}
       {(connection?.mutualCount ?? 0) > 0 && (
@@ -214,47 +278,62 @@ function PersonCard({
   );
 
   return (
-    <li className="flex items-center gap-3 rounded-[6px] border border-border/60 bg-card p-3 transition-colors hover:border-border">
-      <ChatAvatar
-        name={person.display_name}
-        avatarUrl={person.avatar_url}
-        online={online}
-        size="md"
-        to={person.slug ? `/author/${person.slug}` : undefined}
-      />
-      {person.slug ? (
-        <Link
-          to="/author/$slug"
-          params={{ slug: person.slug }}
-          className="min-w-0 flex-1 rounded-[4px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          aria-label={`${t("people.viewProfile")}: ${person.display_name}`}
-        >
-          {details}
-        </Link>
-      ) : (
-        <div className="min-w-0 flex-1">{details}</div>
-      )}
-      <div className="flex shrink-0 items-center gap-1.5">
-        {person.slug && (
-          <ProfileLinkButton slug={person.slug} displayName={person.display_name} compact />
+    <li className="flex flex-col gap-2 rounded-[6px] border border-border/60 bg-card p-3 transition-colors hover:border-border">
+      <div className="flex items-center gap-3">
+        <ChatAvatar
+          name={person.display_name}
+          avatarUrl={person.avatar_url}
+          online={online}
+          size="md"
+          to={person.slug ? `/author/${person.slug}` : undefined}
+        />
+        {person.slug ? (
+          <Link
+            to="/author/$slug"
+            params={{ slug: person.slug }}
+            className="min-w-0 flex-1 rounded-[4px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={`${t("people.viewProfile")}: ${person.display_name}`}
+          >
+            {details}
+          </Link>
+        ) : (
+          <div className="min-w-0 flex-1">{details}</div>
         )}
-        {/* Status z batchowanego RPC - bez mapy nie renderujemy przycisku,
-            żeby każda karta nie odpytywała o status osobno. */}
-        {connection && (
-          <ConnectButton
+        <div className="flex shrink-0 items-center gap-1.5">
+          {person.slug && (
+            <ProfileLinkButton slug={person.slug} displayName={person.display_name} compact />
+          )}
+          {/* Status z batchowanego RPC - bez mapy nie renderujemy przycisku,
+              żeby każda karta nie odpytywała o status osobno. */}
+          {connection && (
+            <ConnectButton
+              userId={person.id}
+              displayName={person.display_name}
+              state={connection}
+              compact
+            />
+          )}
+          <DirectMessageButton
             userId={person.id}
             displayName={person.display_name}
-            state={connection}
+            displayAvatar={person.avatar_url}
             compact
           />
-        )}
-        <DirectMessageButton
-          userId={person.id}
-          displayName={person.display_name}
-          displayAvatar={person.avatar_url}
-          compact
-        />
+        </div>
       </div>
+      {intents.length > 0 && (
+        <ul className="flex flex-wrap gap-1" aria-label={t("profileIntent.openToLabel")}>
+          {intents.map((code) => (
+            <li key={code}>
+              <IntentChip
+                readOnly
+                label={t(`profileIntent.openToShort.${code}`)}
+                ariaLabel={t(profileIntentLabelKey(code))}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
     </li>
   );
 }
@@ -263,17 +342,53 @@ function PeopleInner() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const online = useOnlineUsers();
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
 
-  const [input, setInput] = useState("");
-  const [query, setQuery] = useState("");
-  const [filters, setFilters] = useState<PeopleFilters>(EMPTY_PEOPLE_FILTERS);
+  // Fraza: lokalny input + debounce do URL-a. URL jest źródłem prawdy dla
+  // zapytania, ale nie może zmieniać się na każde wciśnięcie klawisza.
+  const [input, setInput] = useState(search.q ?? "");
   useEffect(() => {
-    const handle = setTimeout(() => setQuery(input), 250);
+    setInput(search.q ?? "");
+    // Reagujemy WYŁĄCZNIE na zmianę z zewnątrz (przywrócony zapis, link,
+    // przycisk "wstecz") - stąd zależność od search.q, nie od input.
+  }, [search.q]);
+  useEffect(() => {
+    const next = input.trim();
+    if (next === (search.q ?? "")) return;
+    const handle = setTimeout(() => {
+      void navigate({
+        search: (prev: PeopleSearchParams) => ({ ...prev, q: next.length > 0 ? next : undefined }),
+        replace: true,
+      });
+    }, 250);
     return () => clearTimeout(handle);
-  }, [input]);
+  }, [input, search.q, navigate]);
+
+  const query = search.q ?? "";
+  const filters: PeopleFilters = useMemo(
+    () => ({
+      specialization: search.specialization ?? null,
+      company: search.company ?? null,
+      location: search.location ?? null,
+      jobTitle: search.role ?? null,
+      verifiedOnly: search.verified === "1",
+      openTo: normalizeProfileIntents(search.open ?? ""),
+      semantic: search.sem === "1",
+    }),
+    [search],
+  );
+
+  const patch = (next: Partial<PeopleSearchParams>) => {
+    void navigate({ search: (prev: PeopleSearchParams) => ({ ...prev, ...next }), replace: true });
+  };
 
   const facetsQ = usePeopleFacets();
-  const peopleQ = usePeopleDirectory(query, filters);
+  const {
+    people: peopleQ,
+    semanticActive,
+    semanticUnavailable,
+  } = usePeopleDirectory(query, filters);
   const people = useMemo(
     () => Array.from(new Map((peopleQ.data?.pages ?? []).flat().map((p) => [p.id, p])).values()),
     [peopleQ.data],
@@ -287,12 +402,21 @@ function PeopleInner() {
     modules.connections_enabled ? people.map((p) => p.id) : [],
   );
   const pendingInvites = useUserCounter("connections_pending");
-  const hasActiveFilters =
-    filters.specialization !== null ||
-    filters.company !== null ||
-    filters.location !== null ||
-    filters.jobTitle !== null ||
-    filters.verifiedOnly;
+
+  const intentOptions = useMemo(
+    () =>
+      (facetsQ.data?.open_to ?? []).map((opt) => ({
+        value: opt.value,
+        label: t(`profileIntent.openToShort.${opt.value}`),
+        cnt: opt.cnt,
+      })),
+    [facetsQ.data?.open_to, t],
+  );
+  const activeIntent: ProfileIntentCode | null = filters.openTo[0] ?? null;
+
+  const hasActiveFilters = hasPeopleFacetFilters(search);
+  const canSave = isPeopleSearchSaveable(search);
+  const clearFilters = () => patch(clearedPeopleFacets());
 
   if (!user) return null;
 
@@ -361,41 +485,76 @@ function PeopleInner() {
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <FacetSelect
           value={filters.specialization}
-          onChange={(next) => setFilters((f) => ({ ...f, specialization: next }))}
+          onChange={(next) => patch({ specialization: next ?? undefined })}
           options={facetsQ.data?.specialization ?? []}
           allLabel={t("people.allSpecializations")}
           ariaLabel={t("people.filterSpecialization")}
         />
         <FacetSelect
           value={filters.company}
-          onChange={(next) => setFilters((f) => ({ ...f, company: next }))}
+          onChange={(next) => patch({ company: next ?? undefined })}
           options={facetsQ.data?.company ?? []}
           allLabel={t("people.allCompanies")}
           ariaLabel={t("people.filterCompany")}
         />
         <FacetSelect
           value={filters.jobTitle}
-          onChange={(next) => setFilters((f) => ({ ...f, jobTitle: next }))}
+          onChange={(next) => patch({ role: next ?? undefined })}
           options={facetsQ.data?.job_title ?? []}
           allLabel={t("people.allJobTitles")}
           ariaLabel={t("people.filterJobTitle")}
         />
         <FacetSelect
           value={filters.location}
-          onChange={(next) => setFilters((f) => ({ ...f, location: next }))}
+          onChange={(next) => patch({ location: next ?? undefined })}
           options={facetsQ.data?.location ?? []}
           allLabel={t("people.allLocations")}
           ariaLabel={t("people.filterLocation")}
         />
+        {/* Faseta INTENCJI - "pokaż wszystkich otwartych na konsorcja". */}
+        <FacetSelect
+          value={activeIntent}
+          onChange={(next) => patch({ open: next ?? undefined })}
+          options={intentOptions}
+          allLabel={t("people.allIntents")}
+          ariaLabel={t("people.filterIntent")}
+        />
         <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-[6px] border border-input bg-muted/30 px-3 text-xs">
           <Switch
             checked={filters.verifiedOnly}
-            onCheckedChange={(next) => setFilters((f) => ({ ...f, verifiedOnly: next }))}
+            onCheckedChange={(next) => patch({ verified: next ? "1" : undefined })}
             aria-label={t("people.verifiedOnly")}
           />
           <span className="inline-flex items-center gap-1">
             <BadgeCheck className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" aria-hidden />
             {t("people.verifiedOnly")}
+          </span>
+        </label>
+        {/* Tryb semantyczny: zmienia SEMANTYKĘ dopasowania, więc jest jawnym
+            przełącznikiem, nie ukrytą heurystyką. */}
+        <label
+          className={cn(
+            "inline-flex h-9 cursor-pointer items-center gap-2 rounded-[6px] border px-3 text-xs transition-colors",
+            filters.semantic
+              ? "border-[var(--brand)]/40 bg-[var(--brand)]/5"
+              : "border-input bg-muted/30",
+          )}
+          title={t("people.semanticHint", { min: PEOPLE_SEMANTIC_MIN_CHARS })}
+        >
+          <Switch
+            checked={filters.semantic}
+            onCheckedChange={(next) => patch({ sem: next ? "1" : undefined })}
+            aria-label={t("people.semanticMode")}
+          />
+          <span className="inline-flex items-center gap-1">
+            <Sparkles
+              className={cn(
+                "h-3.5 w-3.5",
+                semanticActive ? "text-[var(--brand)]" : "text-muted-foreground",
+              )}
+              aria-hidden
+            />
+            {t("people.semanticMode")}
           </span>
         </label>
         {hasActiveFilters && (
@@ -404,13 +563,41 @@ function PeopleInner() {
             variant="ghost"
             size="sm"
             className="h-9 gap-1 text-xs"
-            onClick={() => setFilters(EMPTY_PEOPLE_FILTERS)}
+            onClick={clearFilters}
           >
             <X className="h-3.5 w-3.5" aria-hidden />
             {t("people.clearFilters")}
           </Button>
         )}
       </div>
+
+      {/* Zapisane wyszukiwania katalogu osób (encja 'people'): nazwany snapshot
+          stanu URL + dzwonek alertu "dołączył ktoś, kogo szukasz". */}
+      <details className="mb-4 rounded-[6px] border border-border/60 bg-muted/20 px-3 py-2">
+        <summary className="cursor-pointer text-xs font-medium">
+          {t("people.savedSearchesTitle")}
+        </summary>
+        <div className="pt-3">
+          <SavedSearchesPanel
+            entity="people"
+            current={search}
+            canSave={canSave}
+            onApply={(params) => void navigate({ search: () => parsePeopleSearchParams(params) })}
+          />
+        </div>
+      </details>
+
+      {filters.semantic && semanticUnavailable && (
+        <p className="mb-3 rounded-[4px] border border-amber-500/40 bg-amber-500/5 px-2.5 py-1.5 text-[11px] leading-snug text-amber-700 dark:text-amber-400">
+          {t("people.semanticUnavailable")}
+        </p>
+      )}
+      {semanticActive && (
+        <p className="mb-3 flex items-center gap-1.5 text-[11px] text-[var(--brand)]">
+          <Compass className="h-3 w-3 shrink-0" aria-hidden />
+          {t("people.semanticActive")}
+        </p>
+      )}
 
       {!peopleQ.isLoading && people.length > 0 && (
         <p className="mb-3 text-xs text-muted-foreground">
@@ -447,7 +634,7 @@ function PeopleInner() {
               variant="ghost"
               size="sm"
               className="text-xs"
-              onClick={() => setFilters(EMPTY_PEOPLE_FILTERS)}
+              onClick={clearFilters}
             >
               {t("people.clearFilters")}
             </Button>

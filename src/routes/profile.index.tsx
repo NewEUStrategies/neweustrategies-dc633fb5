@@ -56,11 +56,13 @@ import {
   AwardsSection,
   CvSection,
 } from "@/components/profile/sections/ProfileExtraSections";
+import { ProfileIntentSection } from "@/components/profile/sections/ProfileIntentSection";
 import { cn } from "@/lib/utils";
 import { htmlToPlainText } from "@/lib/sanitize";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { useTheme } from "@/components/ThemeProvider";
 import { ensureI18n as ensureProfileExtras2I18n } from "@/lib/i18n-profile-extras2";
+import { ensureI18n as ensureProfileIntentI18n } from "@/lib/i18n-profile-intent";
 import { setGuestPreview } from "@/lib/profile/guestPreviewStore";
 import { VerifiedProfileBadge } from "@/components/profile/VerifiedProfileBadge";
 import { ProfileViewsCard } from "@/components/network/ProfileViewsCard";
@@ -112,6 +114,7 @@ export const Route = createFileRoute("/profile/")({
 function ProfileInline() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
   ensureProfileExtras2I18n();
+  ensureProfileIntentI18n();
   const { t } = useTranslation();
   const { user, roles, session, isAdmin } = useAuth();
   const { data, loading, saveField, upload, progress, status } = useProfileEditor();
@@ -590,6 +593,12 @@ function ProfileInline() {
                   </ContactRow>
                 </ul>
               </Card>
+
+              {/* Warstwa INTENCJI + miernik kompletnosci. Stoi w zakladce "O mnie"
+                  zaraz po bio i kontakcie, bo odpowiada na pytanie, ktore
+                  katalog zadaje jako nastepne: nie kim jestes, a po co ktos ma
+                  sie z Toba skontaktowac. */}
+              {editable && <ProfileIntentSection editable={editable} />}
 
               {user?.id && data.tenant_id ? (
                 <CvSection userId={user.id} tenantId={data.tenant_id} editable={editable} />

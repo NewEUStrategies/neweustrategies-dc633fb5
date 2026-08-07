@@ -77,6 +77,10 @@ export function stateFor(
   return connectionState({
     status,
     connectionId: needsRow ? NETWORK_IDS.connection : null,
+    // Stopień wynika ze statusu tak samo, jak w `connection_statuses`:
+    // połączenie to 1. stopień, wszystko inne domyślnie 3. (chyba że test
+    // jawnie ustawi 2. przez `overrides`).
+    degree: status === "connected" ? 1 : 3,
     ...overrides,
   });
 }

@@ -497,9 +497,10 @@ function SearchPage() {
           <SavedSearchesPanel
             current={url}
             canSave={enabled}
-            onApply={(params) =>
-              navigate({ search: () => ({ ...params, q: params.q ?? "" }) as SearchInput })
-            }
+            entity="posts"
+            // Snapshot z bazy jest nieufany (jsonb, mógł powstać w starszej
+            // wersji modelu), więc przechodzi przez ten sam walidator, co URL.
+            onApply={(params) => navigate({ search: () => SearchParams.parse(params) })}
           />
         </div>
       </aside>
