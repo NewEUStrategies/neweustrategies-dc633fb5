@@ -158,10 +158,7 @@ export function NewsletterForm({
 
   // Labels / placeholders (widget override > sensible defaults).
   const L = {
-    firstName: fieldLabels.label(
-      "firstName",
-      readI18nOverride(cfg, "firstNameLabel", lang, ""),
-    ),
+    firstName: fieldLabels.label("firstName", readI18nOverride(cfg, "firstNameLabel", lang, "")),
     lastName: fieldLabels.label("lastName", readI18nOverride(cfg, "lastNameLabel", lang, "")),
     email: fieldLabels.label("email", readI18nOverride(cfg, "emailLabel", lang, "")),
     company: fieldLabels.label("company", readI18nOverride(cfg, "companyLabel", lang, "")),
@@ -232,7 +229,10 @@ export function NewsletterForm({
         const pickedItems = allItems.filter((it) => pickedItemIds.includes(it.id));
         const areas = pickedItems.filter((it) => it.type === "category").map((it) => it.label);
         const topics = pickedItems.filter((it) => it.type === "tag").map((it) => it.label);
-        custom.interests = pickedItems.map((it) => it.label).join(", ").slice(0, 500);
+        custom.interests = pickedItems
+          .map((it) => it.label)
+          .join(", ")
+          .slice(0, 500);
         if (areas.length) custom.interests_areas = areas.join(", ").slice(0, 500);
         if (topics.length) custom.interests_topics = topics.join(", ").slice(0, 500);
       }

@@ -88,11 +88,10 @@ export const RENDERER_ENUMERATES_CONTENT: Partial<Record<WidgetType, string>> = 
 
 /** Zwolnienia per typ widgetu. Brak wpisu = widget jest w pełni pod bramką. */
 export const FIDELITY_WAIVERS: Partial<Record<WidgetType, WidgetFidelityWaiver>> = {
-  newsletter: {
-    hidden: {
-      size: "Odczyt `Set.size` we wspólnej dropliście tematów (TopicsDroplist), nie ustawienie widgetu.",
-    },
-  },
+  // `newsletter.hidden.size` (odczyt `Set.size` w dropliście tematów) usunięty
+  // 07.08.2026: po przebudowie droplisty klucz nie pojawia się już w diffie
+  // „hidden", więc zwolnienie było martwe - bramka „lista zwolnień nie gnije"
+  // wprost go zgłaszała.
   button: {
     hidden: {
       widthPx: "Ustawiane uchwytem zmiany rozmiaru na kanwie (ResizableBox), nie kontrolką panelu.",

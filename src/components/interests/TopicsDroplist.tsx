@@ -202,7 +202,9 @@ export function TopicsDroplist({
 
   if (!allItems.length) return null;
 
-  const chipStyle = labelSize ? ({ fontSize: `${labelSize}px` } satisfies CSSProperties) : undefined;
+  const chipStyle = labelSize
+    ? ({ fontSize: `${labelSize}px` } satisfies CSSProperties)
+    : undefined;
   const triggerStyle = placeholderSize
     ? ({ fontSize: `${placeholderSize}px` } satisfies CSSProperties)
     : undefined;
@@ -302,7 +304,11 @@ export function TopicsDroplist({
                         0,
                       );
                       return (
-                        <section key={`grp:${g.key}`} id={`${uid}-drop-grp-${g.key}`} className="scroll-mt-0">
+                        <section
+                          key={`grp:${g.key}`}
+                          id={`${uid}-drop-grp-${g.key}`}
+                          className="scroll-mt-0"
+                        >
                           <header className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border/60 bg-popover/95 px-3 py-1.5 backdrop-blur">
                             <span className="truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                               {g.title}

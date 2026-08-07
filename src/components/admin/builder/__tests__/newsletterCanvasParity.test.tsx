@@ -20,7 +20,8 @@ vi.mock("@/integrations/supabase/client", () => {
   const b: Record<string, unknown> = {};
   for (const m of ["select", "eq", "is", "in", "not", "order", "range", "limit"]) b[m] = () => b;
   b.then = (r: (v: unknown) => unknown) => r({ data: [], error: null });
-  return { supabase: {
+  return {
+    supabase: {
       channel: () => {
         const ch: { on: () => typeof ch; subscribe: () => typeof ch } = {
           on: () => ch,
@@ -29,7 +30,10 @@ vi.mock("@/integrations/supabase/client", () => {
         return ch;
       },
       removeChannel: () => {},
- from: () => b, rpc: async () => ({ data: [], error: null }) } };
+      from: () => b,
+      rpc: async () => ({ data: [], error: null }),
+    },
+  };
 });
 vi.mock("@/lib/i18n-public", () => ({}));
 vi.mock("@tanstack/react-start", async (importOriginal) => {

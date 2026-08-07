@@ -59,7 +59,12 @@ export function topicsTriggerText(count: number, lang: RegistrationLang): string
 }
 
 /** Mapowanie kluczy newslettera na klucze globalnej konfiguracji rejestracji. */
-const REGISTRATION_KEY: Partial<Record<NewsletterFieldKey, "first_name" | "last_name" | "email" | "job" | "linkedin" | "phone" | "company">> = {
+const REGISTRATION_KEY: Partial<
+  Record<
+    NewsletterFieldKey,
+    "first_name" | "last_name" | "email" | "job" | "linkedin" | "phone" | "company"
+  >
+> = {
   firstName: "first_name",
   lastName: "last_name",
   email: "email",
