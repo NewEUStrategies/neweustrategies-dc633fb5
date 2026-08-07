@@ -97,6 +97,7 @@ import { Route as NewsletterConfirmRouteImport } from './routes/newsletter.confi
 import { Route as LiveRssDotxmlRouteImport } from './routes/live_.rss[.]xml'
 import { Route as EventsSlugRouteImport } from './routes/events.$slug'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
+import { Route as ClubElementsRouteImport } from './routes/club.elements'
 import { Route as CheckoutSuccessRouteImport } from './routes/checkout.success'
 import { Route as CheckoutCancelRouteImport } from './routes/checkout.cancel'
 import { Route as CheckoutPlanIdRouteImport } from './routes/checkout.$planId'
@@ -723,6 +724,11 @@ const EventsSlugRoute = EventsSlugRouteImport.update({
 const EmailUnsubscribeRoute = EmailUnsubscribeRouteImport.update({
   id: '/email/unsubscribe',
   path: '/email/unsubscribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClubElementsRoute = ClubElementsRouteImport.update({
+  id: '/club/elements',
+  path: '/club/elements',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CheckoutSuccessRoute = CheckoutSuccessRouteImport.update({
@@ -1819,6 +1825,7 @@ export interface FileRoutesByFullPath {
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
+  '/club/elements': typeof ClubElementsRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/events/$slug': typeof EventsSlugRoute
   '/live/rss.xml': typeof LiveRssDotxmlRoute
@@ -2087,6 +2094,7 @@ export interface FileRoutesByTo {
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
+  '/club/elements': typeof ClubElementsRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/events/$slug': typeof EventsSlugRoute
   '/live/rss.xml': typeof LiveRssDotxmlRoute
@@ -2364,6 +2372,7 @@ export interface FileRoutesById {
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
+  '/club/elements': typeof ClubElementsRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/events/$slug': typeof EventsSlugRoute
   '/live_/rss.xml': typeof LiveRssDotxmlRoute
@@ -2643,6 +2652,7 @@ export interface FileRouteTypes {
     | '/checkout/$planId'
     | '/checkout/cancel'
     | '/checkout/success'
+    | '/club/elements'
     | '/email/unsubscribe'
     | '/events/$slug'
     | '/live/rss.xml'
@@ -2911,6 +2921,7 @@ export interface FileRouteTypes {
     | '/checkout/$planId'
     | '/checkout/cancel'
     | '/checkout/success'
+    | '/club/elements'
     | '/email/unsubscribe'
     | '/events/$slug'
     | '/live/rss.xml'
@@ -3187,6 +3198,7 @@ export interface FileRouteTypes {
     | '/checkout/$planId'
     | '/checkout/cancel'
     | '/checkout/success'
+    | '/club/elements'
     | '/email/unsubscribe'
     | '/events/$slug'
     | '/live_/rss.xml'
@@ -3398,6 +3410,7 @@ export interface RootRouteChildren {
   CheckoutPlanIdRoute: typeof CheckoutPlanIdRoute
   CheckoutCancelRoute: typeof CheckoutCancelRoute
   CheckoutSuccessRoute: typeof CheckoutSuccessRoute
+  ClubElementsRoute: typeof ClubElementsRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   LiveRssDotxmlRoute: typeof LiveRssDotxmlRoute
   NewsletterConfirmRoute: typeof NewsletterConfirmRoute
@@ -4078,6 +4091,13 @@ declare module '@tanstack/react-router' {
       path: '/email/unsubscribe'
       fullPath: '/email/unsubscribe'
       preLoaderRoute: typeof EmailUnsubscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/club/elements': {
+      id: '/club/elements'
+      path: '/club/elements'
+      fullPath: '/club/elements'
+      preLoaderRoute: typeof ClubElementsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/checkout/success': {
@@ -6003,6 +6023,7 @@ const rootRouteChildren: RootRouteChildren = {
   CheckoutPlanIdRoute: CheckoutPlanIdRoute,
   CheckoutCancelRoute: CheckoutCancelRoute,
   CheckoutSuccessRoute: CheckoutSuccessRoute,
+  ClubElementsRoute: ClubElementsRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   LiveRssDotxmlRoute: LiveRssDotxmlRoute,
   NewsletterConfirmRoute: NewsletterConfirmRoute,
