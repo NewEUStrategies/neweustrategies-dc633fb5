@@ -60,6 +60,7 @@ import { ClubReactionBar } from "@/components/clubs/molecules/ClubReactionBar";
 import { ClubFollowButton } from "@/components/clubs/molecules/ClubFollowButton";
 import { ClubInlineEditor } from "@/components/clubs/molecules/ClubInlineEditor";
 import { ClubStanceBar } from "@/components/clubs/molecules/ClubStanceBar";
+import { ClubThreadPoll } from "@/components/clubs/organisms/ClubThreadPoll";
 import { ClubNewRepliesBar } from "@/components/clubs/molecules/ClubNewRepliesBar";
 import { ClubReportButton } from "@/components/clubs/molecules/ClubReportDialog";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
@@ -350,6 +351,17 @@ function ClubThreadView() {
           </div>
         </div>
       </article>
+
+      {/* --- sondaż (wyłącznie wątek typu "sondaż") ---
+          Rodzaj `poll` był do A20 samą etykietą: model dopuszczał go od A3,
+          specyfikacja obiecywała reużycie `polls`, a krawędzi między wątkiem
+          a ankietą nie było. Teraz jest kolumna `poll_id` i to samo
+          głosowanie, co na /polls - z anti-anchoringiem włącznie. */}
+      {thread.kind === "poll" && thread.poll_id !== null ? (
+        <div className="mt-4">
+          <ClubThreadPoll pollId={thread.poll_id} lang={lang} userId={user?.id ?? null} />
+        </div>
+      ) : null}
 
       {/* --- stanowiska (wyłącznie wątek typu "stanowisko") --- */}
       {isPosition ? (

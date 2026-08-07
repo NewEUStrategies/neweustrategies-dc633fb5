@@ -325,6 +325,9 @@ export const clubPl = {
       joined: "Dołączył: {{date}}",
       truncated: "Pokazano {{shown}} z {{total}} członków.",
     },
+    poll: {
+      unavailable: "Ankieta tego wątku nie jest już dostępna. Dyskusja pod nią zostaje.",
+    },
     error: {
       title: "Nie udało się pobrać danych",
       body: "To problem po naszej stronie, nie z Twoim dostępem. Spróbuj ponownie za chwilę.",
@@ -1223,6 +1226,9 @@ export const clubEn = {
       verified: "Verified profile",
       joined: "Joined: {{date}}",
       truncated: "Showing {{shown}} of {{total}} members.",
+    },
+    poll: {
+      unavailable: "The poll for this thread is no longer available. The discussion below stays.",
     },
     error: {
       title: "Could not load the data",
