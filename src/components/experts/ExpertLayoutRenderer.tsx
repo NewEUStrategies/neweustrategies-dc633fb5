@@ -264,18 +264,14 @@ export function ExpertLayoutHero({
   const nameNode = (
     <>
       {name}
-      {/* Kolejność świadoma: nazwisko -> stopień sieci (sama odznaka, bez
-          zdania) -> „Zweryfikowany". Kontekst relacji czyta się razem
-          z nazwiskiem, a nie w pasku akcji. */}
-      <NetworkDistance
+      {/* Wspólny układ odznak: stopień sieci -> „Zweryfikowany" -> odznaki. */}
+      <ProfileIdentityBadges
         userId={e.id}
         displayName={name}
         avatarUrl={e.avatar_url}
-        path="none"
-        density="compact"
-        className="ml-2 align-middle"
+        verified={!!e.verified_at}
+        className="ml-2"
       />
-      {e.verified_at ? <VerifiedProfileBadge className="ml-2" /> : null}
     </>
   );
 
