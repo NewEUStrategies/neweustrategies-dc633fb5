@@ -13337,6 +13337,10 @@ export type Database = {
           who_can_post: string
         }[]
       }
+      admin_club_group_delete: {
+        Args: { p_group_id: string; p_move_to_group_id?: string }
+        Returns: number
+      }
       admin_club_group_reorder: {
         Args: { p_club_id: string; p_group_ids: string[] }
         Returns: number
@@ -13481,7 +13485,7 @@ export type Database = {
         }[]
       }
       admin_club_moderation_queue: {
-        Args: { p_club_id: string }
+        Args: { p_club_id: string; p_limit?: number; p_offset?: number }
         Returns: {
           author_name: string
           body: string
@@ -13491,6 +13495,7 @@ export type Database = {
           target_type: string
           thread_slug: string
           title: string
+          total_count: number
         }[]
       }
       admin_club_pending_counts: {
@@ -14428,7 +14433,7 @@ export type Database = {
       club_join: { Args: { p_club_id: string }; Returns: string }
       club_leave: { Args: { p_club_id: string }; Returns: boolean }
       club_list: {
-        Args: never
+        Args: { p_limit?: number; p_offset?: number }
         Returns: {
           accent_color: string
           can_read: boolean
@@ -14450,6 +14455,7 @@ export type Database = {
           tagline_en: string
           tagline_pl: string
           thread_count: number
+          total_count: number
           visibility: string
         }[]
       }
@@ -14563,7 +14569,12 @@ export type Database = {
         }[]
       }
       club_replies_list: {
-        Args: { p_sort?: string; p_thread_id: string }
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_sort?: string
+          p_thread_id: string
+        }
         Returns: {
           author_alias: string
           author_avatar: string
@@ -14581,6 +14592,7 @@ export type Database = {
           posted_by_admin_name: string
           reaction_count: number
           status: string
+          total_count: number
         }[]
       }
       club_reply: {
