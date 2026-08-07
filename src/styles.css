@@ -6505,21 +6505,30 @@ header[data-site-header][data-metrics="ready"].site-header-shrink .site-header-c
    litery przez cały czas przewijania), a staje się operacją układu, więc tekst,
    ikony i logo renderują się w pełnej rozdzielczości ekranu - ostro. Wymiary są
    identyczne (`zoom` skaluje pudełko dokładnie tak jak scale wokół górnej
-   krawędzi), więc podmiana jest niewidoczna, a --hdr-visible-h nadal pasuje. */
-header[data-site-header][data-metrics="ready"][data-settled="true"].site-header-shrink
-  .site-header-chrome {
-  transform: none;
-  zoom: var(--hdr-scale);
-}
-/* Ta sama zasada dla powiększanej sekcji headera builderowego na home - tytuły
-   i opisy w niej były rozciąganym rastrem, teraz skaluje się układ. */
-header[data-site-header][data-metrics="ready"][data-settled="true"]
-  .home-header-grow
-  > div
-  > section[data-sec-id]:first-of-type
-  > div:nth-of-type(2) {
-  transform: none;
-  zoom: calc(1 + 0.12 * var(--hdr-p));
+   krawędzi), więc podmiana jest niewidoczna, a --hdr-visible-h nadal pasuje.
+
+   @supports (zoom: 1): `zoom` trafił do Firefoksa dopiero w 126, a w instytucjach
+   UE (nasza grupa odbiorców) nadal żyje Firefox ESR 115. Tam cały blok jest
+   pomijany, więc `transform: scale()` z reguły wyżej ZOSTAJE - header zwija się
+   identycznie, tylko rasteryzacja jest kompozytorowa (minimalnie miększe litery
+   w stanie zwiniętym). Bez tego gate'a `transform: none` zadziałałoby, a `zoom`
+   nie - i zwinięty header wracałby do pełnej skali, rozjeżdżając --hdr-visible-h. */
+@supports (zoom: 1) {
+  header[data-site-header][data-metrics="ready"][data-settled="true"].site-header-shrink
+    .site-header-chrome {
+    transform: none;
+    zoom: var(--hdr-scale);
+  }
+  /* Ta sama zasada dla powiększanej sekcji headera builderowego na home - tytuły
+     i opisy w niej były rozciąganym rastrem, teraz skaluje się układ. */
+  header[data-site-header][data-metrics="ready"][data-settled="true"]
+    .home-header-grow
+    > div
+    > section[data-sec-id]:first-of-type
+    > div:nth-of-type(2) {
+    transform: none;
+    zoom: calc(1 + 0.12 * var(--hdr-p));
+  }
 }
 
 /* Trending ticker ("na czasie") zwija się razem z resztą, po tej samej krzywej
