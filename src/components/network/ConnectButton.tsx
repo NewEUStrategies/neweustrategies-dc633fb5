@@ -119,8 +119,9 @@ export function ConnectButton({
         },
         onError: (e) => {
           // Dedykowane komunikaty dla reguł DB, których generyczny mapper nie
-          // rozróżni (oba przychodzą jako wyjątek P0001 z RPC).
-          const msg = (e as { message?: string })?.message ?? "";
+          // rozróżni (oba przychodzą jako wyjątek P0001 z RPC). Mutacja jest
+          // typowana na `Error`, więc `message` czytamy bez rzutowania.
+          const msg = e.message;
           if (msg.includes("rate limited")) {
             setNoteOpen(false);
             toast.error(t("network.rateLimited"));
@@ -209,7 +210,7 @@ export function ConnectButton({
 
         <ConfirmDialog
           open={confirm === "withdraw"}
-          onOpenChange={(open) => setConfirm(open ? "withdraw" : null)}
+          onClose={() => setConfirm(null)}
           title={t("network.withdrawTitle", { name: displayName })}
           body={t("network.withdrawConfirm")}
           action={t("network.withdraw")}
@@ -263,7 +264,7 @@ export function ConnectButton({
         </div>
         <ConfirmDialog
           open={confirm === "decline"}
-          onOpenChange={(open) => setConfirm(open ? "decline" : null)}
+          onClose={() => setConfirm(null)}
           title={t("network.declineTitle", { name: displayName })}
           body={t("network.declineConfirm")}
           action={t("network.decline")}
@@ -317,27 +318,34 @@ export function ConnectButton({
             className="flex w-full items-center gap-2 rounded-[4px] px-2.5 py-2 text-sm hover:bg-muted disabled:opacity-50"
             onClick={() => {
               setConnectedOpen(false);
-              startChat.mutate(userId, {
-                onSuccess: (conversationId) => openChatWindow({ conversationId }),
-                onError: (err) => {
-                  const msg = err instanceof Error ? err.message : "";
-                  // ExpertRequestDialog otwiera się z busa (useStartConversation) -
-                  // toast byłby duplikatem tej samej informacji.
-                  if (msg.includes("chat: expert requires request")) return;
-                  if (msg.includes("chat: tier disabled")) {
-                    toast.error(t("expertRequest.chatGate.tierDisabledToast"), {
-                      action: {
-                        label: t("expertRequest.chatGate.openPricing"),
-                        onClick: () => {
-                          window.location.href = "/pricing";
+              // Forma obiektowa (nie samo id): przy odmowie „expert requires
+              // request" useStartConversation otwiera ExpertRequestDialog przez
+              // bus i bierze z niej prefill odbiorcy. Wersja z gołym id
+              // otwierała ten dialog bez nazwy osoby.
+              startChat.mutate(
+                { peerId: userId, peerName: displayName },
+                {
+                  onSuccess: (conversationId) => openChatWindow({ conversationId }),
+                  onError: (err) => {
+                    const msg = err instanceof Error ? err.message : "";
+                    // ExpertRequestDialog otwiera się z busa (useStartConversation) -
+                    // toast byłby duplikatem tej samej informacji.
+                    if (msg.includes("chat: expert requires request")) return;
+                    if (msg.includes("chat: tier disabled")) {
+                      toast.error(t("expertRequest.chatGate.tierDisabledToast"), {
+                        action: {
+                          label: t("expertRequest.chatGate.openPricing"),
+                          onClick: () => {
+                            window.location.href = "/pricing";
+                          },
                         },
-                      },
-                    });
-                    return;
-                  }
-                  toast.error(t("network.startError"));
+                      });
+                      return;
+                    }
+                    toast.error(t("network.startError"));
+                  },
                 },
-              });
+              );
             }}
           >
             <MessageCircle className="h-4 w-4 text-muted-foreground" aria-hidden />
@@ -375,7 +383,7 @@ export function ConnectButton({
       />
       <ConfirmDialog
         open={confirm === "remove"}
-        onOpenChange={(open) => setConfirm(open ? "remove" : null)}
+        onClose={() => setConfirm(null)}
         title={t("network.removeTitle", { name: displayName })}
         body={t("network.removeConfirm")}
         action={t("network.remove")}
@@ -392,29 +400,37 @@ export function ConnectButton({
 
 function ConfirmDialog({
   open,
-  onOpenChange,
+  onClose,
   title,
   body,
   action,
   onConfirm,
 }: {
   open: boolean;
-  onOpenChange: (open: boolean) => void;
+  /** Zamknięcie inicjowane przez dialog: Escape, klik w tło, „Anuluj". */
+  onClose: () => void;
   title: string;
   body: string;
   action: string;
   onConfirm: () => void;
 }) {
   const { t } = useTranslation();
+  // Potwierdzenie nigdy nie otwiera się samo - Radix woła tu wyłącznie
+  // `false`, więc atom przyjmuje jeden kierunek zamiast martwej gałęzi.
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
+    <AlertDialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+    >
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{body}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>{t("common.cancel", { defaultValue: "Anuluj" })}</AlertDialogCancel>
+          <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
           <AlertDialogAction onClick={onConfirm}>{action}</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

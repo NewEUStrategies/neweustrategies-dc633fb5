@@ -32,8 +32,8 @@ export function AuthorMoreMenu({ userId, displayName }: AuthorMoreMenuProps) {
             variant="outline"
             size="icon"
             className="h-8 w-8 shrink-0 transition-colors hover:bg-brand/10 hover:text-brand hover:border-brand/40 [&_svg]:transition-colors"
-            aria-label={t("common.more", { defaultValue: "Więcej" })}
-            title={t("common.more", { defaultValue: "Więcej" })}
+            aria-label={t("common.more")}
+            title={t("common.more")}
           >
             <MoreHorizontal className="h-4 w-4" aria-hidden />
           </Button>

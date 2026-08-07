@@ -28,6 +28,9 @@ export const pl = {
     save: "Zapisz",
     close: "Zamknij",
     back: "Wróć",
+    // Etykieta menu „trzy kropki" (overflow) - do 08.2026 żyła wyłącznie jako
+    // `defaultValue` w AuthorMoreMenu, więc EN dostawał polski tekst.
+    more: "Więcej",
     menu: "Menu",
     search: "Szukaj",
     openMenu: "Otwórz menu",

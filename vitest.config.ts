@@ -49,10 +49,17 @@ export default defineConfig({
         // grant.server odzyskaly swoje WYSOKIE progi per-sciezka faktycznym
         // pokryciem, nie obnizka). Floor lapie regresje od nowego poziomu;
         // powrot na 20/19 to osobna praca testowa nad trasami.
-        statements: 19.5,
-        functions: 13,
-        lines: 20,
-        branches: 15.75,
+        //
+        // 2026-08-06: RATCHET W GÓRĘ. Pomiar całego src/ na tym HEAD:
+        // 32,97% instrukcji / 28,49% gałęzi / 25,77% funkcji / 33,62% linii -
+        // czyli realne pokrycie odjechało od stałego floora o ponad 13 pp.
+        // Podnosimy próg do poziomu „zmierzone minus ~4 pp marginesu na dryf
+        // środowiska CI", żeby bramka znów łapała REGRESJE, a nie tylko
+        // katastrofę. Zasada bez zmian: ten próg wolno wyłącznie podnosić.
+        statements: 29,
+        functions: 22,
+        lines: 29,
+        branches: 25,
         // The builder widget rendering surface keeps a strong gate - floored
         // just below the level the suite genuinely achieves WITHOUT the
         // deleted render-farms (they inflated the layer by ~4pp).
@@ -191,6 +198,20 @@ export default defineConfig({
           functions: 95,
           lines: 95,
           branches: 65,
+        },
+        // Sieć kontaktów - warstwa KOMPONENTÓW. Do 06.08.2026 cały katalog stał
+        // na 4,6% (12 z 13 plików na zerze), w tym ConnectButton: jedna maszyna
+        // stanów na pięć stanów relacji × `canInvite` × blokadę, obsługująca
+        // trzy powierzchnie produktu. Teraz: 99% instrukcji, 100% linii i
+        // funkcji, ~96% gałęzi. Próg jest zaporą tuż pod osiągniętym poziomem -
+        // niedobite gałęzie to obronne ramiona, których nie da się wywołać
+        // (Radix nie woła `onOpenChange(true)` dla sterowanego dialogu,
+        // `preventDefault` na już zablokowanym przycisku itd.).
+        "src/components/network/**": {
+          statements: 97,
+          functions: 98,
+          lines: 98,
+          branches: 92,
         },
         // Manifest eksportu RODO: rejestr sekcji + bramka rozjazdu z server fn.
         // Czysty moduł, więc trzymamy go pod 100%.

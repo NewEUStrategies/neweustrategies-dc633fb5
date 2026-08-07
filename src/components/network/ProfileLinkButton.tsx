@@ -22,7 +22,7 @@ export function ProfileLinkButton({
   className,
 }: ProfileLinkButtonProps) {
   const { t } = useTranslation();
-  const label = t("network.viewProfile", { defaultValue: "Zobacz profil" });
+  const label = t("network.viewProfile");
   const aria = `${label}: ${displayName}`;
 
   return (

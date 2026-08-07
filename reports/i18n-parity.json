@@ -6,7 +6,9 @@
     "countryCompare",
     "adminBlocks",
     "adminThemeDesign",
-    "adminPermissions"
+    "adminPermissions",
+    "network",
+    "directMessage"
   ],
   "missing": [],
   "missingEn": [],

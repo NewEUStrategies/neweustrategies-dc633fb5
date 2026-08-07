@@ -32,6 +32,14 @@ const GATED_PREFIXES = [
   // flagi warstw), więc brak tłumaczenia oznaczałby surowy klucz na ekranie
   // audytu - to musi być bramkowane, nie tylko raportowane.
   "adminPermissions",
+  // Sieć kontaktów: cała powierzchnia ma dwie wersje językowe w UI, a jej
+  // komunikaty (ciche odmowy, limity zaproszeń, zgłoszenia do moderacji)
+  // decydują o tym, co użytkownik rozumie ze swojej prywatności. Rozjazd
+  // PL/EN już się tu raz zdarzył, więc od 08.2026 jest bramkowany, a nie
+  // tylko logowany jako ostrzeżenie. Komplement po stronie kodu:
+  // src/components/network/__tests__/networkI18nKeys.gate.test.ts.
+  "network",
+  "directMessage",
 ] as const;
 
 // Klucze, dla których identyczny tekst PL i EN jest poprawny (nazwy własne,
@@ -44,6 +52,9 @@ const IDENTICAL_ALLOWLIST: readonly string[] = [
   "adminPermissions.roles.editor.name",
   // Słowo kluczowe SQL - w obu językach brzmi tak samo, bo tak brzmi w bazie.
   "adminPermissions.gate.definer",
+  // Zapożyczenie funkcjonujące w polskim tak samo jak w angielskim - rodzaj
+  // relacji w rekomendacjach (słownik domknięty CHECK-iem w bazie).
+  "network.recommendations.relationshipOptions.mentor",
 ];
 
 function loadOverlays(): void {
