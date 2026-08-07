@@ -70,6 +70,12 @@ interface Props {
   lang?: "pl" | "en";
   source?: string;
   variant?: "card" | "inline";
+  /**
+   * `full` = pełny, spójny z widgetem „Dołącz do nas" zestaw pól
+   * (imię, nazwisko, e-mail, LinkedIn, telefon, firma, kraj, tematy, zgoda).
+   * Używane m.in. w widgecie newslettera pod wpisami.
+   */
+  fields?: "auto" | "full";
   /** Full widget content JSON from the builder (optional). */
   widgetConfig?: Record<string, unknown>;
 }
@@ -86,8 +92,10 @@ export function NewsletterForm({
   lang = "pl",
   source = "post-bottom",
   variant = "card",
+  fields = "auto",
   widgetConfig,
 }: Props) {
+
   const { t } = useTranslation();
   const { data: s } = useNewsletterSettings();
   // Inside the CMS builder canvas the widget must stay visible even when the
