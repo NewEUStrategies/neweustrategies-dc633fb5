@@ -35,7 +35,7 @@ import {
   ClubAccessTab,
   type ClubAccessDraft,
 } from "@/components/admin/clubs/organisms/ClubAccessTab";
-import { ClubReactionBar } from "@/components/clubs/ClubReactionBar";
+import { ClubReactionBar } from "@/components/clubs/molecules/ClubReactionBar";
 import {
   CAPABILITY_KEYS,
   CAPABILITY_ROLES,
