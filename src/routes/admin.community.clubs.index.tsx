@@ -94,7 +94,11 @@ function AdminClubsList() {
       {
         onSuccess: (clubId) => {
           toast.success(t("adminClubs.saved"));
-          void navigate({ to: "/admin/community/clubs/$clubId", params: { clubId } });
+          void navigate({
+            to: "/admin/community/clubs/$clubId",
+            params: { clubId },
+            search: { tab: "general" as const },
+          });
         },
         onError: () => toast.error(t("adminClubs.saveFailed")),
       },

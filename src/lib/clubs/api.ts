@@ -532,8 +532,8 @@ export async function editClubThread(params: {
 }): Promise<boolean> {
   const { data, error } = await supabase.rpc("club_edit_thread", {
     p_thread_id: params.threadId,
-    p_title: params.title,
-    p_body: params.body,
+    p_title: params.title ?? "",
+    p_body: params.body ?? "",
     p_reason: params.reason ?? undefined,
   });
   if (error) throw error;

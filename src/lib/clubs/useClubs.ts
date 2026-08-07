@@ -661,7 +661,7 @@ export function useEditClubThread(
 ): UseMutationResult<
   boolean,
   Error,
-  { threadId: string; title: string; body: string; reason?: string | null }
+  { threadId: string; title?: string; body?: string; reason?: string | null }
 > {
   const qc = useQueryClient();
   return useMutation({
