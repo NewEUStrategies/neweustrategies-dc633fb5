@@ -52,6 +52,7 @@ describe("TOGGLEABLE_NOTIFICATION_KINDS", () => {
     expect([...TOGGLEABLE_NOTIFICATION_KINDS]).toEqual([
       "message",
       "expert_request",
+      "club",
       "connection",
       "introduction",
       "recommendation",
@@ -109,6 +110,8 @@ describe("NOTIFICATION_KINDS", () => {
       "endorsement",
       "profile_view",
       "meeting_booking",
+      // 20260808094000 (etap A4 Klubu dyskusyjnego): rodzaj 'club'.
+      "club",
     ];
     expect([...NOTIFICATION_KINDS].sort()).toEqual([...dbKinds].sort());
   });
