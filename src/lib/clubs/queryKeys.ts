@@ -41,6 +41,21 @@ export const clubKeys = {
    *  bo zasilaja licznik w nawigacji niezaleznie od otwartego klubu. */
   myInvitations: () => [...clubKeys.all, "myInvitations"] as const,
 
+  /** Lista tematow. Filtry sa czescia klucza, wiec przelaczenie grupy albo
+   *  sortu to nowy cache, a nie refetch tego samego wpisu. */
+  threads: (
+    clubId: string,
+    groupId: string | null,
+    sort: string,
+    kind: string | null,
+  ) => [...clubKeys.club(clubId), "threads", groupId ?? "all", sort, kind ?? "all"] as const,
+
+  thread: (clubId: string, threadSlug: string) =>
+    [...clubKeys.club(clubId), "thread", threadSlug] as const,
+
+  replies: (threadId: string, sort: string) =>
+    [...clubKeys.all, "replies", threadId, sort] as const,
+
   capabilitiesPreview: (clubId: string, userId: string, groupId?: string | null) =>
     [...clubKeys.club(clubId), "capabilitiesPreview", userId, groupId ?? "club"] as const,
 } as const;

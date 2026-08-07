@@ -381,3 +381,123 @@ export function toClubInviteError(error: unknown): ClubInviteError | null {
   if (message.includes("banned")) return "banned";
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// Etap A3: tematy i odpowiedzi
+// ---------------------------------------------------------------------------
+
+/** Rodzaj tematu. To NIE jest etykieta - zmienia cykl zycia (V1 §1.3). */
+export const CLUB_THREAD_KINDS = [
+  "discussion",
+  "question",
+  "position",
+  "resource",
+  "announcement",
+  "poll",
+] as const;
+export type ClubThreadKind = (typeof CLUB_THREAD_KINDS)[number];
+
+export const CLUB_THREAD_STATUSES = [
+  "pending",
+  "open",
+  "resolved",
+  "dormant",
+  "locked",
+  "hidden",
+  "deleted",
+] as const;
+export type ClubThreadStatus = (typeof CLUB_THREAD_STATUSES)[number];
+
+/** Sorty listy tematow. `unanswered` jest celowo wyeksponowany: temat bez
+ *  odpowiedzi to porazka klubu, a nie neutralny stan (V1 §5.2). */
+export const CLUB_THREAD_SORTS = ["hot", "new", "unanswered", "top", "mine"] as const;
+export type ClubThreadSort = (typeof CLUB_THREAD_SORTS)[number];
+
+export const CLUB_REPLY_SORTS = ["chronological", "best"] as const;
+export type ClubReplySort = (typeof CLUB_REPLY_SORTS)[number];
+
+export type ClubThreadListRow = RowOf<Fn["club_threads_list"]["Returns"]>;
+export type ClubThreadViewRow = RowOf<Fn["club_thread_view"]["Returns"]>;
+export type ClubReplyRow = RowOf<Fn["club_replies_list"]["Returns"]>;
+
+/**
+ * Etykieta autora gotowa do renderu. Sedno: komponent NIE decyduje o
+ * anonimowosci - dostaje albo imie, albo alias, bo baza juz rozstrzygnela,
+ * co wolno pokazac. Gdyby decydowal komponent, kazde nowe miejsce renderujace
+ * autora byloby nowa szansa na wyciek tozsamosci.
+ */
+export interface ClubAuthorLabel {
+  kind: "named" | "alias" | "unknown";
+  name: string;
+  avatarUrl: string | null;
+  profileSlug: string | null;
+}
+
+interface AuthorProjection {
+  author_id: string | null;
+  author_name: string | null;
+  author_avatar: string | null;
+  author_slug: string | null;
+  author_alias: string | null;
+}
+
+/**
+ * @param anonymousLabel przetlumaczony wzorzec z {{alias}}, np. "Uczestnik {{alias}}"
+ * @param unknownLabel przetlumaczona etykieta usunietego konta
+ */
+export function toAuthorLabel(
+  row: AuthorProjection,
+  anonymousLabel: string,
+  unknownLabel: string,
+): ClubAuthorLabel {
+  if (row.author_alias !== null && row.author_alias.length > 0) {
+    return {
+      kind: "alias",
+      name: anonymousLabel.replace("{{alias}}", row.author_alias),
+      avatarUrl: null,
+      profileSlug: null,
+    };
+  }
+  if (row.author_name !== null && row.author_name.length > 0) {
+    return {
+      kind: "named",
+      name: row.author_name,
+      avatarUrl: row.author_avatar,
+      profileSlug: row.author_slug,
+    };
+  }
+  // Brak i imienia, i aliasu: konto usuniete (author_id -> NULL przy
+  // anonimizacji, V1 §7). Tresc zostaje, autorstwo nie.
+  return { kind: "unknown", name: unknownLabel, avatarUrl: null, profileSlug: null };
+}
+
+/** Wezel drzewa odpowiedzi. Drzewo sklada sie z plaskiej listy z `depth`. */
+export interface ClubReplyNode {
+  reply: ClubReplyRow;
+  children: ClubReplyNode[];
+}
+
+/**
+ * Sklada plaska liste w drzewo przyciete do 2 poziomow - ta sama regula, co
+ * buildCommentTree w lib/comments/tree.ts. Sierota (rodzic poza zbiorem, bo
+ * ukryty przez moderacje) laduje na poziomie glownym zamiast zniknac:
+ * odpowiedz, ktora przepadla razem z ukrytym rodzicem, wyglada jak utrata
+ * danych, a nie jak moderacja.
+ */
+export function buildClubReplyTree(rows: readonly ClubReplyRow[]): ClubReplyNode[] {
+  const nodes = new Map<string, ClubReplyNode>();
+  for (const reply of rows) nodes.set(reply.id, { reply, children: [] });
+
+  const roots: ClubReplyNode[] = [];
+  for (const reply of rows) {
+    const node = nodes.get(reply.id);
+    if (!node) continue;
+    const parent = reply.parent_id !== null ? nodes.get(reply.parent_id) : undefined;
+    if (parent && parent.reply.id !== reply.id) {
+      parent.children.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+  return roots;
+}

@@ -5,15 +5,20 @@
 // triggerem, wiec po KAZDEJ mutacji zmienia sie takze wiersz na liscie.
 // Punktowa inwalidacja pokazywalaby stary licznik obok nowego stanu.
 import {
+  useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
+  type UseInfiniteQueryResult,
   type UseMutationResult,
   type UseQueryResult,
 } from "@tanstack/react-query";
 import {
   acceptClubRules,
   createClubInviteLink,
+  createClubThread,
+  editClubReply,
+  editClubThread,
   fetchAdminClub,
   fetchAdminClubGroups,
   fetchAdminClubStats,
@@ -25,6 +30,9 @@ import {
   fetchClubInvitations,
   fetchClubInviteLinks,
   fetchClubMembers,
+  fetchClubReplies,
+  fetchClubThread,
+  fetchClubThreads,
   fetchMyClubInvitations,
   fetchMyClubMemberships,
   inviteClubMember,
@@ -32,6 +40,8 @@ import {
   joinClub,
   leaveClub,
   redeemClubInviteLink,
+  replyToClubThread,
+  resolveClubThread,
   respondClubInvitation,
   revokeClubInviteLink,
   setClubNotifyLevel,
@@ -43,6 +53,8 @@ import {
   upsertClubMember,
   type AdminClubsPage,
   type ClubMembersPage,
+  type ClubThreadsPage,
+  type CreateThreadResult,
 } from "./api";
 import { adminClubKeys, clubKeys } from "./queryKeys";
 import type {
@@ -63,6 +75,11 @@ import type {
   ClubMembershipRow,
   ClubMyInvitationRow,
   ClubNotifyLevel,
+  ClubReplyRow,
+  ClubReplySort,
+  ClubThreadKind,
+  ClubThreadSort,
+  ClubThreadViewRow,
   ClubUpsertInput,
   ClubViewRow,
 } from "./types";
@@ -450,6 +467,152 @@ export function useAcceptClubRules(clubId: string): UseMutationResult<boolean, E
     mutationFn: () => acceptClubRules(clubId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Etap A3: tematy i odpowiedzi
+// ---------------------------------------------------------------------------
+
+/**
+ * Lista tematow z paginacja kursorowa. useInfiniteQuery, nie offset: przy
+ * ruchliwej liscie offset gubi i duplikuje wiersze miedzy stronami, bo nowy
+ * temat na gorze przesuwa wszystko o jeden.
+ */
+export function useClubThreads(params: {
+  clubId: string | undefined;
+  groupId?: string | null;
+  sort?: ClubThreadSort;
+  kind?: ClubThreadKind | null;
+}): UseInfiniteQueryResult<{ pages: ClubThreadsPage[]; pageParams: unknown[] }, Error> {
+  const { clubId, groupId = null, sort = "hot", kind = null } = params;
+  return useInfiniteQuery({
+    queryKey: clubKeys.threads(clubId ?? "", groupId, sort, kind),
+    queryFn: ({ pageParam }) =>
+      fetchClubThreads({
+        clubId: clubId ?? "",
+        groupId,
+        sort,
+        kind,
+        cursor: typeof pageParam === "string" ? pageParam : null,
+      }),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last: ClubThreadsPage) => last.nextCursor,
+    staleTime: STALE_MS,
+    enabled: Boolean(clubId),
+  });
+}
+
+export function useClubThread(params: {
+  clubId: string | undefined;
+  slug: string | undefined;
+}): UseQueryResult<ClubThreadViewRow | null, Error> {
+  const { clubId, slug } = params;
+  return useQuery({
+    queryKey: clubKeys.thread(clubId ?? "", slug ?? ""),
+    queryFn: () => fetchClubThread({ clubId: clubId ?? "", slug: slug ?? "" }),
+    staleTime: STALE_MS,
+    enabled: Boolean(clubId) && Boolean(slug),
+  });
+}
+
+export function useClubReplies(params: {
+  threadId: string | undefined;
+  sort?: ClubReplySort;
+}): UseQueryResult<ClubReplyRow[], Error> {
+  const { threadId, sort = "chronological" } = params;
+  return useQuery({
+    queryKey: clubKeys.replies(threadId ?? "", sort),
+    queryFn: () => fetchClubReplies({ threadId: threadId ?? "", sort }),
+    staleTime: 10_000,
+    enabled: Boolean(threadId),
+  });
+}
+
+export interface CreateThreadVars {
+  groupId: string;
+  title: string;
+  body: string;
+  kind?: ClubThreadKind;
+  anonymous?: boolean;
+  anchorType?: string | null;
+  anchorId?: string | null;
+}
+
+export function useCreateClubThread(
+  clubId: string,
+): UseMutationResult<CreateThreadResult, Error, CreateThreadVars> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: createClubThread,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
+    },
+  });
+}
+
+export interface ReplyVars {
+  threadId: string;
+  body: string;
+  parentId?: string | null;
+  anonymous?: boolean;
+}
+
+export function useReplyToThread(
+  clubId: string,
+  threadSlug: string,
+): UseMutationResult<string, Error, ReplyVars> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: replyToClubThread,
+    onSuccess: (_id, vars) => {
+      // Odpowiedz zmienia licznik na liscie tematow i na karcie watku,
+      // wiec inwalidujemy oba - a nie tylko liste odpowiedzi.
+      void qc.invalidateQueries({ queryKey: clubKeys.replies(vars.threadId, "chronological") });
+      void qc.invalidateQueries({ queryKey: clubKeys.replies(vars.threadId, "best") });
+      void qc.invalidateQueries({ queryKey: clubKeys.thread(clubId, threadSlug) });
+      void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
+    },
+  });
+}
+
+export function useEditClubThread(
+  clubId: string,
+  threadSlug: string,
+): UseMutationResult<boolean, Error, { threadId: string; title: string; body: string }> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: editClubThread,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: clubKeys.thread(clubId, threadSlug) });
+    },
+  });
+}
+
+export function useEditClubReply(
+  threadId: string,
+): UseMutationResult<boolean, Error, { replyId: string; body: string }> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: editClubReply,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: clubKeys.replies(threadId, "chronological") });
+      void qc.invalidateQueries({ queryKey: clubKeys.replies(threadId, "best") });
+    },
+  });
+}
+
+export function useResolveClubThread(
+  clubId: string,
+  threadSlug: string,
+): UseMutationResult<boolean, Error, { threadId: string; replyId: string | null }> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: resolveClubThread,
+    onSuccess: (_ok, vars) => {
+      void qc.invalidateQueries({ queryKey: clubKeys.thread(clubId, threadSlug) });
+      void qc.invalidateQueries({ queryKey: clubKeys.replies(vars.threadId, "chronological") });
     },
   });
 }

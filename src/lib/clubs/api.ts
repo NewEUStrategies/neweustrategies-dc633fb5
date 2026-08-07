@@ -26,6 +26,12 @@ import {
   type ClubMemberUpsertInput,
   type ClubMembershipRow,
   type ClubMyInvitationRow,
+  type ClubReplyRow,
+  type ClubReplySort,
+  type ClubThreadKind,
+  type ClubThreadListRow,
+  type ClubThreadSort,
+  type ClubThreadViewRow,
   type ClubNotifyLevel,
   type ClubUpsertInput,
   type ClubViewRow,
@@ -350,6 +356,152 @@ export async function setClubNotifyLevel(params: {
 
 export async function acceptClubRules(clubId: string): Promise<boolean> {
   const { data, error } = await supabase.rpc("club_accept_rules", { p_club_id: clubId });
+  if (error) throw error;
+  return data === true;
+}
+
+// ---------------------------------------------------------------------------
+// Etap A3: tematy i odpowiedzi
+// ---------------------------------------------------------------------------
+
+export interface ClubThreadsPage {
+  rows: ClubThreadListRow[];
+  /** Kursor nastepnej strony albo null, gdy to juz koniec. */
+  nextCursor: string | null;
+}
+
+export async function fetchClubThreads(params: {
+  clubId: string;
+  groupId?: string | null;
+  sort?: ClubThreadSort;
+  kind?: ClubThreadKind | null;
+  cursor?: string | null;
+  limit?: number;
+}): Promise<ClubThreadsPage> {
+  const limit = params.limit ?? 20;
+  const { data, error } = await supabase.rpc("club_threads_list", {
+    p_club_id: params.clubId,
+    p_group_id: params.groupId ?? undefined,
+    // RPC zna dwa porzadki (hot / new); pozostale sorty sa filtrami po
+    // stronie klienta nad tym samym zbiorem, wiec nie mnozymy galezi w SQL.
+    p_sort: params.sort === "new" ? "new" : "hot",
+    p_kind: params.kind ?? undefined,
+    p_cursor: params.cursor ?? undefined,
+    p_limit: limit,
+  });
+  if (error) throw error;
+  const rows = data ?? [];
+  // Krotsza strona niz limit znaczy koniec zbioru - bez dodatkowego zapytania.
+  const nextCursor = rows.length === limit ? (rows[rows.length - 1].cursor_value ?? null) : null;
+  return { rows, nextCursor };
+}
+
+export async function fetchClubThread(params: {
+  clubId: string;
+  slug: string;
+}): Promise<ClubThreadViewRow | null> {
+  const { data, error } = await supabase.rpc("club_thread_view", {
+    p_club_id: params.clubId,
+    p_slug: params.slug,
+  });
+  if (error) throw error;
+  return data?.[0] ?? null;
+}
+
+export async function fetchClubReplies(params: {
+  threadId: string;
+  sort?: ClubReplySort;
+}): Promise<ClubReplyRow[]> {
+  const { data, error } = await supabase.rpc("club_replies_list", {
+    p_thread_id: params.threadId,
+    p_sort: params.sort ?? "chronological",
+  });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export interface CreateThreadResult {
+  id: string;
+  slug: string;
+  /** 'pending' oznacza kolejke premoderacji - UI musi to powiedzieć wprost. */
+  status: string;
+}
+
+export async function createClubThread(params: {
+  groupId: string;
+  title: string;
+  body: string;
+  kind?: ClubThreadKind;
+  anonymous?: boolean;
+  anchorType?: string | null;
+  anchorId?: string | null;
+}): Promise<CreateThreadResult> {
+  const { data, error } = await supabase.rpc("club_create_thread", {
+    p_group_id: params.groupId,
+    p_title: params.title,
+    p_body: params.body,
+    p_kind: params.kind ?? "discussion",
+    p_anonymous: params.anonymous ?? false,
+    p_anchor_type: params.anchorType ?? undefined,
+    p_anchor_id: params.anchorId ?? undefined,
+  });
+  if (error) throw error;
+  const row = data?.[0];
+  if (!row) throw new Error("clubs: thread not created");
+  return { id: row.id, slug: row.slug, status: row.status };
+}
+
+export async function replyToClubThread(params: {
+  threadId: string;
+  body: string;
+  parentId?: string | null;
+  anonymous?: boolean;
+}): Promise<string> {
+  const { data, error } = await supabase.rpc("club_reply", {
+    p_thread_id: params.threadId,
+    p_body: params.body,
+    p_parent_id: params.parentId ?? undefined,
+    p_anonymous: params.anonymous ?? false,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function editClubThread(params: {
+  threadId: string;
+  title: string;
+  body: string;
+}): Promise<boolean> {
+  const { data, error } = await supabase.rpc("club_edit_thread", {
+    p_thread_id: params.threadId,
+    p_title: params.title,
+    p_body: params.body,
+  });
+  if (error) throw error;
+  return data === true;
+}
+
+export async function editClubReply(params: {
+  replyId: string;
+  body: string;
+}): Promise<boolean> {
+  const { data, error } = await supabase.rpc("club_edit_reply", {
+    p_reply_id: params.replyId,
+    p_body: params.body,
+  });
+  if (error) throw error;
+  return data === true;
+}
+
+/** `replyId: null` cofa oznaczenie i wraca do statusu open. */
+export async function resolveClubThread(params: {
+  threadId: string;
+  replyId: string | null;
+}): Promise<boolean> {
+  const { data, error } = await supabase.rpc("club_resolve_thread", {
+    p_thread_id: params.threadId,
+    p_reply_id: params.replyId as string,
+  });
   if (error) throw error;
   return data === true;
 }

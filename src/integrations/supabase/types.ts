@@ -13550,6 +13550,138 @@ export type Database = {
         Args: { p_club_id: string; p_level: string }
         Returns: boolean
       }
+      club_author_alias: { Args: { _author_id: string; _thread_id: string }; Returns: string }
+      club_create_thread: {
+        Args: {
+          p_anchor_id?: string
+          p_anchor_type?: string
+          p_anonymous?: boolean
+          p_body: string
+          p_group_id: string
+          p_kind?: string
+          p_title: string
+        }
+        Returns: { id: string; slug: string; status: string }[]
+      }
+      club_edit_reply: { Args: { p_body: string; p_reply_id: string }; Returns: boolean }
+      club_edit_thread: {
+        Args: { p_body: string; p_thread_id: string; p_title: string }
+        Returns: boolean
+      }
+      club_replies_list: {
+        Args: { p_sort?: string; p_thread_id: string }
+        Returns: {
+          author_alias: string
+          author_avatar: string
+          author_id: string
+          author_name: string
+          author_slug: string
+          body: string
+          created_at: string
+          depth: number
+          edited_at: string
+          id: string
+          is_anonymous: boolean
+          is_resolution: boolean
+          parent_id: string
+          reaction_count: number
+          status: string
+        }[]
+      }
+      club_reply: {
+        Args: {
+          p_anonymous?: boolean
+          p_body: string
+          p_parent_id?: string
+          p_thread_id: string
+        }
+        Returns: string
+      }
+      club_resolve_thread: {
+        Args: { p_reply_id: string; p_thread_id: string }
+        Returns: boolean
+      }
+      club_thread_hotness: {
+        Args: {
+          _created_at: string
+          _participant_count: number
+          _quality_reactions: number
+          _reply_count: number
+          _stance_count: number
+        }
+        Returns: number
+      }
+      club_thread_view: {
+        Args: { p_club_id: string; p_slug: string }
+        Returns: {
+          anchor_id: string
+          anchor_type: string
+          attribution_mode: string
+          author_alias: string
+          author_avatar: string
+          author_id: string
+          author_name: string
+          author_slug: string
+          body: string
+          can_moderate: boolean
+          can_reply: boolean
+          club_id: string
+          created_at: string
+          edited_at: string
+          group_id: string
+          id: string
+          is_anonymous: boolean
+          kind: string
+          locked_at: string
+          participant_count: number
+          pinned_at: string
+          reaction_count: number
+          reason: string
+          reply_count: number
+          resolved_reply_id: string
+          slug: string
+          status: string
+          title: string
+        }[]
+      }
+      club_threads_list: {
+        Args: {
+          p_club_id: string
+          p_cursor?: string
+          p_group_id?: string
+          p_kind?: string
+          p_limit?: number
+          p_sort?: string
+        }
+        Returns: {
+          anchor_id: string
+          anchor_type: string
+          author_alias: string
+          author_avatar: string
+          author_id: string
+          author_name: string
+          author_slug: string
+          created_at: string
+          cursor_value: string
+          group_id: string
+          group_name_en: string
+          group_name_pl: string
+          hotness: number
+          id: string
+          is_anonymous: boolean
+          kind: string
+          last_reply_at: string
+          participant_count: number
+          pinned_at: string
+          reaction_count: number
+          reply_count: number
+          slug: string
+          status: string
+          title: string
+        }[]
+      }
+      club_threads_mark_dormant: { Args: { p_limit?: number }; Returns: number }
+      club_threads_refresh_hotness: { Args: { p_limit?: number }; Returns: number }
       club_capabilities: {
         Args: { _club_id: string; _group_id?: string; _user_id?: string }
         Returns: {
