@@ -44,7 +44,13 @@ bun run scripts/pg-harness/run.sh --only 2026080809    # tylko migracje z tym pr
 
 Skrypt stawia instancję na `/tmp/nespg`, wykonuje harness, potem migracje
 w kolejności, potem `runtime_test.sql`. Kod wyjścia 0 znaczy, że wszystkie
-asercje przeszły.
+asercje przeszły; niespełniona asercja przerywa skrypt kodem 1 i wypisuje,
+ile asercji zdążyło przejść przed błędem.
+
+Kod wyjścia `psql` jest przechwytywany PRZED potokiem `sed | grep`. Bez tego
+status potoku pochodził od `grep`, więc niespełniona asercja tylko drukowała
+się na ekranie, a skrypt kończył się zerem - bramka raportowała sukces
+dokładnie wtedy, gdy powinna być czerwona.
 
 ## Ustalenie warte zapamiętania
 

@@ -90,7 +90,25 @@ done
 [ "$fail" -eq 0 ] || { echo "Migracje nie przeszly."; exit 1; }
 
 echo
-psql -d nes -q -f "$HERE/runtime_test.sql" 2>&1 | sed 's/psql:[^ ]* //;s/NOTICE:  //' | grep -E "^==|  ok |ERROR|ASERCJA|====" || true
-psql -d nes -q -f /dev/null >/dev/null 2>&1
+# Kod wyjscia psql musi przezyc potok. Bez tego niespelniona asercja tylko
+# drukowala sie na ekranie, a skrypt konczyl sie zerem - czyli bramka
+# raportowala sukces dokladnie wtedy, gdy powinna byc czerwona.
+set +e
+psql -d nes -q -f "$HERE/runtime_test.sql" > "$PGDIR/runtime.out" 2>&1
+rc=$?
+set -e
+sed 's/psql:[^ ]* //;s/NOTICE:  //' "$PGDIR/runtime.out" \
+  | grep -E "^==|  ok |ERROR|ASERCJA|====" || true
+
+passed="$(grep -cE 'NOTICE: +ok +' "$PGDIR/runtime.out" || true)"
 echo
-[ "$KEEP" -eq 1 ] && echo "Baza zostaje: PGHOST=$PGDIR/run PGPORT=5433 psql -d nes"
+if [ "$rc" -ne 0 ]; then
+  echo "Testy runtime NIE przeszly (asercji zdanych przed bledem: $passed)."
+  [ "$KEEP" -eq 1 ] && echo "Baza zostaje: PGHOST=$PGDIR/run PGPORT=5433 psql -d nes"
+  exit 1
+fi
+echo "Testy runtime OK ($passed asercji)."
+if [ "$KEEP" -eq 1 ]; then
+  echo "Baza zostaje: PGHOST=$PGDIR/run PGPORT=5433 psql -d nes"
+fi
+exit 0

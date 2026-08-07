@@ -13,7 +13,7 @@
 --   7. dziedziczenie NULL -> wartosc klubu.
 -- ============================================================================
 BEGIN;
-SELECT plan(34);
+SELECT plan(38);
 
 -- ----------------------------------------------------------------------------
 -- Fixture: dwa tenanty, po jednym adminie, jeden super_admin bez roli 'admin'

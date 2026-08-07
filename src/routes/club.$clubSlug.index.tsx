@@ -58,9 +58,11 @@ function ClubHome() {
   const threadsQ = useClubThreads({ clubId: club?.id, groupId, sort, kind });
 
   if (clubQ.isPending) {
-    return <div className="container mx-auto max-w-5xl px-4 py-8">
-      <div className="h-64 animate-pulse rounded-lg bg-muted/50" aria-busy="true" />
-    </div>;
+    return (
+      <div className="container mx-auto max-w-5xl px-4 py-8">
+        <div className="h-64 animate-pulse rounded-lg bg-muted/50" aria-busy="true" />
+      </div>
+    );
   }
 
   // Zero wierszy z club_view oznacza 404, nie 403: klub `secret` bez dostępu
@@ -90,9 +92,7 @@ function ClubHome() {
           <CardContent className="space-y-4 p-8 text-center">
             <h1 className="text-2xl font-semibold">{isPl ? club.name_pl : club.name_en}</h1>
             {(isPl ? club.tagline_pl : club.tagline_en) ? (
-              <p className="text-muted-foreground">
-                {isPl ? club.tagline_pl : club.tagline_en}
-              </p>
+              <p className="text-muted-foreground">{isPl ? club.tagline_pl : club.tagline_en}</p>
             ) : null}
             <p className="text-sm text-muted-foreground">
               {club.reason ? t(`club.reason.${club.reason}`) : t("club.reason.not_member")}
@@ -128,11 +128,15 @@ function ClubHome() {
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
             <Button asChild variant="outline" size="sm">
-              <Link to="/club/$clubSlug/about" params={{ clubSlug }}>{t("club.about")}</Link>
+              <Link to="/club/$clubSlug/about" params={{ clubSlug }}>
+                {t("club.about")}
+              </Link>
             </Button>
             {club.can_post_thread ? (
               <Button asChild size="sm">
-                <Link to="/club/$clubSlug/new" params={{ clubSlug }}>{t("club.newThread")}</Link>
+                <Link to="/club/$clubSlug/new" params={{ clubSlug }}>
+                  {t("club.newThread")}
+                </Link>
               </Button>
             ) : null}
           </div>
@@ -166,10 +170,7 @@ function ClubHome() {
 
       {/* Filtry: grid, żeby na telefonie ułożyły się w kolumnę. */}
       <div className="mb-5 grid gap-2 sm:grid-cols-3">
-        <Select
-          value={groupId ?? ALL}
-          onValueChange={(v) => setGroupId(v === ALL ? null : v)}
-        >
+        <Select value={groupId ?? ALL} onValueChange={(v) => setGroupId(v === ALL ? null : v)}>
           <SelectTrigger aria-label={t("club.groups")}>
             <SelectValue placeholder={t("club.groups")} />
           </SelectTrigger>
@@ -255,7 +256,10 @@ function ClubHome() {
                         </Badge>
                       ) : null}
                       {thread.status === "pending" ? (
-                        <Badge variant="outline" className="text-[11px] text-amber-700 dark:text-amber-300">
+                        <Badge
+                          variant="outline"
+                          className="text-[11px] text-amber-700 dark:text-amber-300"
+                        >
                           {t("club.threadStatus.pending")}
                         </Badge>
                       ) : null}
@@ -278,9 +282,9 @@ function ClubHome() {
                       </span>
                       <span className="inline-flex items-center gap-1.5">
                         <Clock className="h-3.5 w-3.5" />
-                        {new Date(
-                          thread.last_reply_at ?? thread.created_at,
-                        ).toLocaleDateString(isPl ? "pl-PL" : "en-GB")}
+                        {new Date(thread.last_reply_at ?? thread.created_at).toLocaleDateString(
+                          isPl ? "pl-PL" : "en-GB",
+                        )}
                       </span>
                     </div>
                   </Link>

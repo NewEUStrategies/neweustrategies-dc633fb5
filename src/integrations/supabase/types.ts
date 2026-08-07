@@ -12610,6 +12610,14 @@ export type Database = {
         Returns: undefined
       }
       admin_community_stats: { Args: never; Returns: Json }
+      admin_club_bulk_member_role: {
+        Args: { p_club_id: string; p_role: string; p_user_ids: string[] }
+        Returns: number
+      }
+      admin_club_bulk_moderate: {
+        Args: { p_action: string; p_reason?: string; p_target_ids: string[]; p_target_type: string }
+        Returns: number
+      }
       admin_club_capabilities_preview: {
         Args: { _club_id: string; _group_id?: string; _user_id: string }
         Returns: {
@@ -12807,6 +12815,7 @@ export type Database = {
           author_name: string
           body: string
           created_at: string
+          is_anonymous: boolean
           target_id: string
           target_type: string
           thread_slug: string
@@ -12816,6 +12825,32 @@ export type Database = {
       admin_club_pending_counts: {
         Args: Record<PropertyKey, never>
         Returns: { join_requests: number; moderation_pending: number }[]
+      }
+      admin_club_replies: {
+        Args: { p_limit?: number; p_offset?: number; p_thread_id: string }
+        Returns: {
+          author_id: string
+          author_name: string
+          body: string
+          created_at: string
+          depth: number
+          edited_at: string
+          id: string
+          is_anonymous: boolean
+          parent_id: string
+          posted_by_admin_name: string
+          reaction_count: number
+          status: string
+          total_count: number
+        }[]
+      }
+      admin_club_reply_create: {
+        Args: { p_author_id?: string; p_body: string; p_parent_id?: string; p_thread_id: string }
+        Returns: string
+      }
+      admin_club_restore: {
+        Args: { p_reason?: string; p_target_id: string; p_target_type: string }
+        Returns: boolean
       }
       admin_club_segment_preview: {
         Args: { p_club_id: string; p_rule: Json }
@@ -12833,10 +12868,65 @@ export type Database = {
           banned_count: number
           group_count: number
           leads_count: number
+          median_first_reply_hours: number
           member_count: number
           moderators_count: number
           pending_members: number
+          replies_30d: number
+          reply_count: number
           thread_count: number
+          threads_30d: number
+          unanswered_count: number
+          unanswered_pct: number
+        }[]
+      }
+      admin_club_thread_create: {
+        Args: {
+          p_author_id?: string
+          p_body: string
+          p_group_id: string
+          p_kind?: string
+          p_pinned?: boolean
+          p_title: string
+        }
+        Returns: { thread_id: string; thread_slug: string }[]
+      }
+      admin_club_thread_move: {
+        Args: { p_group_id: string; p_thread_id: string }
+        Returns: boolean
+      }
+      admin_club_threads: {
+        Args: {
+          p_club_id: string
+          p_group_id?: string
+          p_kind?: string
+          p_limit?: number
+          p_offset?: number
+          p_search?: string
+          p_status?: string
+        }
+        Returns: {
+          attribution_mode: string
+          author_id: string
+          author_name: string
+          created_at: string
+          group_id: string
+          group_name_en: string
+          group_name_pl: string
+          id: string
+          is_anonymous: boolean
+          kind: string
+          last_reply_at: string
+          locked_at: string
+          participant_count: number
+          pinned_at: string
+          posted_by_admin_name: string
+          reaction_count: number
+          reply_count: number
+          slug: string
+          status: string
+          title: string
+          total_count: number
         }[]
       }
       admin_club_upsert: {
@@ -13606,7 +13696,12 @@ export type Database = {
         Returns: boolean
       }
       club_replies_list: {
-        Args: { p_sort?: string; p_thread_id: string }
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_sort?: string
+          p_thread_id: string
+        }
         Returns: {
           author_alias: string
           author_avatar: string
@@ -13621,8 +13716,10 @@ export type Database = {
           is_anonymous: boolean
           is_resolution: boolean
           parent_id: string
+          posted_by_admin_name: string
           reaction_count: number
           status: string
+          total_count: number
         }[]
       }
       club_reply: {
@@ -13648,6 +13745,7 @@ export type Database = {
         }
         Returns: number
       }
+      club_thread_quality_score: { Args: { _thread_id: string }; Returns: number }
       club_thread_view: {
         Args: { p_club_id: string; p_slug: string }
         Returns: {
@@ -13672,6 +13770,7 @@ export type Database = {
           locked_at: string
           participant_count: number
           pinned_at: string
+          posted_by_admin_name: string
           reaction_count: number
           reason: string
           reply_count: number
@@ -13710,6 +13809,7 @@ export type Database = {
           last_reply_at: string
           participant_count: number
           pinned_at: string
+          posted_by_admin_name: string
           reaction_count: number
           reply_count: number
           slug: string

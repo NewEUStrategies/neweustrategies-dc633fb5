@@ -353,6 +353,312 @@ SELECT pg_temp.assert((SELECT count(*) FROM public.club_search('rozporządzenie'
 SELECT pg_temp.assert((public.club_scheduler_tick() ? 'groups_opened'),
   'club_scheduler_tick zwraca raport');
 
+
+\echo '== 19. Koordynacja w panelu: publikacja W IMIENIU ze znacznikiem =='
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+
+-- Autor spoza klubu jest odrzucany: publikacja w imieniu kogos, kto nie nalezy,
+-- bylaby fabrykowaniem uczestnictwa.
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT * FROM public.admin_club_thread_create('%s','Protokol ze spotkania',
+    'Tresc protokolu, dluzsza niz dziesiec znakow.','b0000000-0000-0000-0000-000000000001','discussion',false) $q$,
+    :'group_id'),
+  'autor spoza klubu odrzucony przy publikacji w imieniu');
+
+SELECT thread_slug AS behalf_slug FROM public.admin_club_thread_create(
+  :'group_id'::uuid,'Protokol ze spotkania','Tresc protokolu, dluzsza niz dziesiec znakow.',
+  'a0000000-0000-0000-0000-000000000003','discussion',false) \gset
+
+SELECT pg_temp.assert(
+  (SELECT author_id FROM public.club_threads WHERE slug=:'behalf_slug')
+   = 'a0000000-0000-0000-0000-000000000003',
+  'autorstwo przypisane wskazanej osobie');
+SELECT pg_temp.assert(
+  (SELECT posted_by_admin_id FROM public.club_threads WHERE slug=:'behalf_slug')
+   = 'a0000000-0000-0000-0000-000000000001',
+  'znacznik "wprowadzil admin" jest zapisany');
+SELECT pg_temp.assert(
+  (SELECT posted_by_admin_name FROM public.club_thread_view(:'club_id'::uuid,:'behalf_slug')) IS NOT NULL,
+  'znacznik WYCHODZI w projekcji produktowej - podszycie nie jest ciche');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_moderation_log WHERE action='post_on_behalf')=1,
+  'publikacja w imieniu zostawila slad w logu');
+
+-- Publikacja pod wlasnym nazwiskiem NIE dostaje znacznika.
+SELECT thread_slug AS own_slug FROM public.admin_club_thread_create(
+  :'group_id'::uuid,'Wlasny temat admina','Tresc wlasnego tematu, dluzsza niz dziesiec znakow.',
+  NULL,'discussion',false) \gset
+SELECT pg_temp.assert(
+  (SELECT posted_by_admin_id FROM public.club_threads WHERE slug=:'own_slug') IS NULL,
+  'wlasny wpis admina nie dostaje znacznika');
+
+\echo '== 20. Admin odpowiada w ZAMKNIETYM watku =='
+-- Watek z sekcji 14 jest zamkniety; zwykly club_reply go odrzucil.
+SELECT pg_temp.assert(
+  public.admin_club_reply_create(:'thread_id'::uuid,'Sprostowanie redakcyjne',NULL,NULL) IS NOT NULL,
+  'admin odpowiada w zamknietym watku - zamkniecie dotyczy dyskusji, nie sprostowania');
+
+\echo '== 21. Miekkie usuwanie i przywracanie =='
+SELECT public.club_moderate('reply',:'r0'::uuid,'delete','test');
+SELECT pg_temp.assert((SELECT status FROM public.club_replies WHERE id=:'r0'::uuid)='deleted',
+  'odpowiedz oznaczona jako usunieta');
+SELECT pg_temp.assert((SELECT count(*) FROM public.club_replies WHERE id=:'r0'::uuid)=1,
+  'wiersz ZOSTAJE w bazie - usuniecie jest miekkie');
+SELECT pg_temp.assert(public.admin_club_restore('reply',:'r0'::uuid,'pomylka'),
+  'przywrocenie dziala');
+SELECT pg_temp.assert((SELECT status FROM public.club_replies WHERE id=:'r0'::uuid)='visible',
+  'odpowiedz wrocila do widocznych');
+SELECT pg_temp.assert((SELECT count(*) FROM public.club_moderation_log WHERE action='restore')=1,
+  'przywrocenie w logu');
+
+\echo '== 22. Przenoszenie tematu miedzy grupami =='
+SELECT public.admin_club_group_upsert(
+  format('{"club_id":"%s","slug":"druga","name_pl":"Druga","name_en":"Second","status":"active"}', :'club_id')::jsonb
+) AS group2 \gset
+SELECT pg_temp.assert(public.admin_club_thread_move(:'thread_id'::uuid, :'group2'::uuid),
+  'temat przeniesiony');
+SELECT pg_temp.assert(
+  (SELECT group_id FROM public.club_threads WHERE id=:'thread_id'::uuid) = :'group2'::uuid,
+  'temat jest w nowej grupie');
+SELECT pg_temp.assert((SELECT count(*) FROM public.club_moderation_log WHERE action='move')=1,
+  'przeniesienie w logu');
+
+-- Grupa z INNEGO klubu jest odrzucana: ma inne czlonkostwo, wiec przeniesienie
+-- odslonilo by tresc obcym.
+SELECT g.id AS foreign_group FROM public.club_groups g
+  JOIN public.clubs c ON c.id=g.club_id WHERE c.slug='chatham' LIMIT 1 \gset
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.admin_club_thread_move('%s','%s') $q$, :'thread_id', :'foreign_group'),
+  'przeniesienie do grupy innego klubu odrzucone');
+
+\echo '== 23. Akcje wsadowe =='
+SELECT pg_temp.assert(
+  public.admin_club_bulk_moderate('thread',
+    ARRAY[:'thread_id'::uuid, :'ch_thread'::uuid], 'pin', 'partia') = 2,
+  'akcja wsadowa objela oba tematy');
+-- Bledny element nie przerywa partii.
+SELECT pg_temp.assert(
+  public.admin_club_bulk_moderate('reply', ARRAY[:'r1'::uuid, :'r2'::uuid], 'pin', NULL) = 0,
+  'przypiecie odpowiedzi nie przechodzi, ale nie wywala partii');
+SELECT pg_temp.assert(
+  public.admin_club_bulk_member_role(:'club_id'::uuid,
+    ARRAY['a0000000-0000-0000-0000-000000000003'::uuid], 'observer') = 1,
+  'wsadowa zmiana roli');
+
+\echo '== 24. Statystyki: odsetek tematow bez odpowiedzi =='
+SELECT pg_temp.assert(
+  (SELECT unanswered_pct FROM public.admin_club_stats(:'club_id'::uuid)) BETWEEN 0 AND 100,
+  'unanswered_pct jest procentem, nie NULL-em');
+SELECT pg_temp.assert(
+  (SELECT unanswered_count FROM public.admin_club_stats(:'club_id'::uuid)) >= 0,
+  'licznik tematow bez odpowiedzi policzony');
+SELECT pg_temp.assert(
+  (SELECT median_first_reply_hours FROM public.admin_club_stats(:'club_id'::uuid)) >= 0,
+  'mediana czasu do pierwszej odpowiedzi policzona');
+
+\echo '== 25. Panel widzi autora takze w trybie chatham =='
+SELECT pg_temp.assert(
+  (SELECT author_id FROM public.admin_club_threads(:'ch_id'::uuid,NULL,NULL,NULL,NULL,50,0) LIMIT 1)
+   IS NOT NULL,
+  'panel widzi autora w klubie chatham - bez tego nie da sie moderowac');
+-- ...ale projekcja PRODUKTOWA nadal go nie zwraca.
+SELECT pg_temp.assert(
+  (SELECT author_id FROM public.club_threads_list(:'ch_id'::uuid,NULL,'hot',NULL,NULL,20) LIMIT 1)
+   IS NULL,
+  'projekcja produktowa NADAL nie zwraca author_id w chatham');
+
+\echo '== 26. Izolacja tenanta w nowych funkcjach A7 =='
+SET request.jwt.claim.sub = 'b0000000-0000-0000-0000-000000000001';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.admin_club_threads(:'club_id'::uuid,NULL,NULL,NULL,NULL,50,0))=0,
+  'admin tenanta B nie widzi tematow tenanta A');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.admin_club_replies(:'thread_id'::uuid,100,0))=0,
+  'admin tenanta B nie widzi odpowiedzi tenanta A');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.admin_club_stats(:'club_id'::uuid))=0,
+  'admin tenanta B nie odczyta statystyk tenanta A');
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.admin_club_thread_move('%s','%s') $q$, :'thread_id', :'group2'),
+  'admin tenanta B nie przeniesie tematu tenanta A');
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT * FROM public.admin_club_thread_create('%s','Obcy','Tresc obcego tematu.',NULL,'discussion',false) $q$, :'group_id'),
+  'admin tenanta B nie zalozy tematu w klubie tenanta A');
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+
+
+\echo '== 27. [HARTOWANIE] Deanonimizacja przez alias jest zamknieta =='
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000004';
+-- UWAGA: harness biegnie jako superuser, ktory omija granty. Wlasciwym testem
+-- jest wiec sprawdzenie SAMEGO GRANTU, nie proba wywolania.
+SELECT pg_temp.assert(
+  NOT has_function_privilege('authenticated','public.club_author_alias(uuid,uuid)','EXECUTE'),
+  'authenticated nie ma EXECUTE na aliasie');
+SELECT pg_temp.assert(
+  NOT has_function_privilege('anon','public.club_author_alias(uuid,uuid)','EXECUTE'),
+  'anon nie ma EXECUTE na aliasie');
+-- ...a projekcja NADAL zwraca alias, bo jest SECURITY DEFINER.
+SELECT pg_temp.assert(
+  (SELECT author_alias FROM public.club_thread_view(:'ch_id'::uuid,'temat-pod-regula-chatham'))
+   IS NOT NULL,
+  'projekcja nadal pokazuje alias - interfejs nic nie traci');
+-- Sol per tenant istnieje i jest niedostepna dla klienta.
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_anonymity_salts) > 0, 'sol per tenant zostala utworzona');
+SELECT pg_temp.assert(
+  NOT has_table_privilege('authenticated','public.club_anonymity_salts','SELECT'),
+  'klient nie odczyta soli');
+
+\echo '== 28. [HARTOWANIE] club_capabilities nie odpowiada o CUDZE uprawnienia =='
+-- Nie-staff pyta o role PROWADZACEGO. Ma dostac SWOJE uprawnienia.
+-- Ta osoba weszla wczesniej linkiem (sekcja 16), wiec jej wlasna rola to
+-- 'member' - i wlasnie ta wartosc musi wrocic, nigdy 'lead'.
+SELECT pg_temp.assert(
+  (SELECT effective_role FROM public.club_capabilities(:'club_id'::uuid,NULL,
+     'a0000000-0000-0000-0000-000000000005'))
+  = (SELECT effective_role FROM public.club_capabilities(:'club_id'::uuid,NULL,NULL)),
+  'pytanie o cudze id zwraca WLASNE uprawnienia - parametr jest ignorowany');
+SELECT pg_temp.assert(
+  (SELECT effective_role FROM public.club_capabilities(:'club_id'::uuid,NULL,
+     'a0000000-0000-0000-0000-000000000005')) <> 'lead',
+  'rola prowadzacego NIE wycieka do nie-staffu');
+SELECT pg_temp.assert(
+  NOT (SELECT can_manage FROM public.club_capabilities(:'club_id'::uuid,NULL,
+     'a0000000-0000-0000-0000-000000000001')),
+  'zdolnosci ADMINA nie wyciekaja do nie-staffu');
+-- Klub secret jest nieodrozniany od nieistniejacego takze dla cudzego id.
+SELECT pg_temp.assert(
+  (SELECT reason FROM public.club_capabilities(:'secret_id'::uuid,NULL,
+     'a0000000-0000-0000-0000-000000000001')) = 'not_found',
+  'klub secret nie zdradza istnienia nawet przy pytaniu o admina');
+-- Staff NADAL moze podejrzec cudze uprawnienia - to jest narzedzie diagnostyczne.
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT pg_temp.assert(
+  (SELECT effective_role FROM public.club_capabilities(:'club_id'::uuid,NULL,
+     'a0000000-0000-0000-0000-000000000005')) = 'lead',
+  'staff NADAL widzi cudze uprawnienia - Podglad jako... dziala');
+-- ...ale WYLACZNIE we wlasnym tenancie. is_club_admin() to rola platformowa,
+-- wiec bez zwiazania z current_tenant_id() admin tenanta B pytalby o role
+-- dowolnej osoby w klubie tenanta A - ta sama luka co w club_set_role.
+SET request.jwt.claim.sub = 'b0000000-0000-0000-0000-000000000001';
+SELECT pg_temp.assert(
+  (SELECT effective_role FROM public.club_capabilities(:'club_id'::uuid,NULL,
+     'a0000000-0000-0000-0000-000000000005')) <> 'lead',
+  'admin tenanta B NIE podejrzy roli czlonka klubu tenanta A');
+SELECT pg_temp.assert(
+  (SELECT reason FROM public.club_capabilities(:'club_id'::uuid,NULL,
+     'a0000000-0000-0000-0000-000000000005')) = 'not_found',
+  'obcy tenant dostaje not_found, a nie czastkowa odpowiedz');
+
+\echo '== 29. [HARTOWANIE] club_set_role skalowany po tenancie =='
+SET request.jwt.claim.sub = 'b0000000-0000-0000-0000-000000000001';
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_set_role('%s','a0000000-0000-0000-0000-000000000003','lead',NULL) $q$, :'club_id'),
+  'admin tenanta B NIE zmieni roli w klubie tenanta A');
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_ban_member('%s','a0000000-0000-0000-0000-000000000003',true,'x') $q$, :'club_id'),
+  'admin tenanta B NIE zbanuje czlonka klubu tenanta A');
+
+\echo '== 30. [HARTOWANIE] Trigger zaproszen nie wywala sie na enumie =='
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_members m JOIN public.clubs c ON c.id=m.club_id
+    WHERE c.slug='klub' AND m.user_id='a0000000-0000-0000-0000-000000000002') >= 0,
+  'stan wyjsciowy');
+UPDATE public.user_invitations
+   SET auth_user_id='a0000000-0000-0000-0000-000000000002', status='accepted'
+ WHERE email='ktos@zewnatrz.eu';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_members m JOIN public.clubs c ON c.id=m.club_id
+    WHERE c.slug='klub' AND m.user_id='a0000000-0000-0000-0000-000000000002'
+      AND m.invite_source='email') = 1,
+  'akceptacja zaproszenia e-mailowego REALNIE zapisuje czlonkostwo');
+
+\echo '== 31. [HARTOWANIE] Podglad segmentu dziala =='
+SELECT pg_temp.assert(
+  (SELECT matched FROM public.admin_club_segment_preview(:'club_id'::uuid,
+     '{"kind":"badge","badge":"expert"}'::jsonb)) >= 0,
+  'segment_preview zwraca liczby zamiast bledu');
+SELECT pg_temp.assert(
+  (SELECT will_send FROM public.admin_club_segment_preview(:'club_id'::uuid,
+     '{"kind":"nieznany"}'::jsonb)) = 0,
+  'nieznana regula daje zera, nie wyjatek');
+
+\echo '== 32. [HARTOWANIE] Kolejka moderacji nie ujawnia autora anonimowego =='
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.admin_club_moderation_queue(:'ch_id'::uuid)
+    WHERE author_name IS NOT NULL AND is_anonymous) = 0,
+  'w kolejce nie ma nazwiska przy wpisie chronionym regula');
+
+\echo '== 33. [HARTOWANIE] Subskrypcja wymaga dostepu do klubu =='
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000004';
+SELECT id AS secret_group FROM public.club_groups
+ WHERE club_id = :'secret_id'::uuid LIMIT 1 \gset
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT id AS secret_thread FROM public.club_create_thread(:'secret_group'::uuid,
+  'Temat w klubie tajnym','Tresc tematu tajnego, dluzsza niz dziesiec znakow.',
+  'discussion', false, NULL, NULL) \gset
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000004';
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_subscribe_thread('%s','subscribed') $q$, :'secret_thread'),
+  'obcy NIE zasubskrybuje watku z klubu secret');
+
+\echo '== 34. [HARTOWANIE] Limit zaproszen liczy OBIE sciezki =='
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT pg_temp.assert(public.club_invite_quota_ok('a0000000-0000-0000-0000-000000000001'),
+  'admin ma jeszcze limit');
+SELECT pg_temp.assert(
+  (SELECT position('user_invitations' IN pg_get_functiondef(p.oid)) > 0
+     FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='public' AND p.proname='club_invite_quota_ok'),
+  'limit liczy takze zaproszenia e-mailowe');
+
+\echo '== 35. [HARTOWANIE] IMMUTABLE -> STABLE tam, gdzie czytamy now() =='
+SELECT pg_temp.assert(
+  (SELECT provolatile FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='public' AND p.proname='club_effective_member_role') = 's',
+  'club_effective_member_role jest STABLE, nie IMMUTABLE');
+SELECT pg_temp.assert(
+  (SELECT provolatile FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='public' AND p.proname='club_thread_hotness') = 's',
+  'club_thread_hotness jest STABLE');
+
+\echo '== 36. [HARTOWANIE] Ranking nie gubi skladnika jakosciowego =='
+SELECT id AS hot_thread FROM public.club_create_thread(:'group_id'::uuid,
+  'Temat do rankingu jakosci','Tresc tematu do sprawdzenia rankingu, dluzsza niz dziesiec znakow.',
+  'discussion', false, NULL, NULL) \gset
+SELECT public.club_react('thread', :'hot_thread'::uuid, 'insightful');
+SELECT public.club_react('thread', :'hot_thread'::uuid, 'evidence');
+SELECT hotness AS h_before FROM public.club_threads WHERE id = :'hot_thread'::uuid \gset
+-- Odpowiedz PODNOSI ranking; wczesniej zerowala skladnik jakosciowy.
+-- Sciezka administracyjna, bo limit 5 odpowiedzi/min zdazyl sie wyczerpac
+-- wczesniejszymi sekcjami - i to jest poprawne zachowanie limitu.
+SELECT public.admin_club_reply_create(:'hot_thread'::uuid, 'Odpowiedz podnoszaca ranking', NULL, NULL);
+SELECT pg_temp.assert(
+  (SELECT hotness FROM public.club_threads WHERE id = :'hot_thread'::uuid) > :'h_before'::numeric,
+  'odpowiedz PODNOSI ranking zamiast kasowac wklad reakcji jakosciowych');
+
+\echo '== 37. [HARTOWANIE] Paginacja odpowiedzi ma limit =='
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_replies_list(:'thread_id'::uuid,'chronological',2,0)) <= 2,
+  'club_replies_list respektuje limit');
+SELECT pg_temp.assert(
+  (SELECT total_count FROM public.club_replies_list(:'thread_id'::uuid,'chronological',2,0) LIMIT 1) >= 2,
+  'total_count zwraca pelna liczbe mimo limitu');
+
+\echo '== 38. [HARTOWANIE] Zbanowani niewidoczni dla zwyklego czlonka =='
+SELECT public.club_ban_member(:'club_id'::uuid,'a0000000-0000-0000-0000-000000000004',true,'test');
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000003';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_members_list(:'club_id'::uuid,NULL,100,0)
+    WHERE status='banned') = 0,
+  'zwykly czlonek nie widzi zbanowanych');
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_members_list(:'club_id'::uuid,NULL,100,0)
+    WHERE status='banned') = 1,
+  'moderacja NADAL widzi zbanowanych');
+
 \echo ''
 \echo '=========================================='
 \echo ' WSZYSTKIE ASERCJE PRZESZLY'

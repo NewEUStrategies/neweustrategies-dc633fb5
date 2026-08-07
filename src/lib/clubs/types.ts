@@ -178,11 +178,7 @@ export interface ClubGroupSettings {
   attributionMode: InheritedSetting<ClubAttributionMode>;
 }
 
-function narrow<T extends string>(
-  value: string | null,
-  allowed: readonly T[],
-  fallback: T,
-): T {
+function narrow<T extends string>(value: string | null, allowed: readonly T[], fallback: T): T {
   return value !== null && (allowed as readonly string[]).includes(value) ? (value as T) : fallback;
 }
 
@@ -513,10 +509,7 @@ export function buildClubReplyTree(rows: readonly ClubReplyRow[]): ClubReplyNode
  */
 export const CLUB_QUALITY_REACTIONS = ["insightful", "evidence", "question", "thanks"] as const;
 export const CLUB_STANCE_REACTIONS = ["agree", "disagree"] as const;
-export const CLUB_REACTION_KINDS = [
-  ...CLUB_QUALITY_REACTIONS,
-  ...CLUB_STANCE_REACTIONS,
-] as const;
+export const CLUB_REACTION_KINDS = [...CLUB_QUALITY_REACTIONS, ...CLUB_STANCE_REACTIONS] as const;
 
 export type ClubQualityReaction = (typeof CLUB_QUALITY_REACTIONS)[number];
 export type ClubStanceReaction = (typeof CLUB_STANCE_REACTIONS)[number];
@@ -552,9 +545,7 @@ export interface ClubReactionTally {
  * reakcji renderuje sie per wpis, a jedno zapytanie obsluguje cala widoczna
  * partie - dokladnie jak useBadgesForUsers na /people.
  */
-export function groupReactions(
-  rows: readonly ClubReactionRow[],
-): Map<string, ClubReactionTally[]> {
+export function groupReactions(rows: readonly ClubReactionRow[]): Map<string, ClubReactionTally[]> {
   const out = new Map<string, ClubReactionTally[]>();
   for (const row of rows) {
     if (!(CLUB_REACTION_KINDS as readonly string[]).includes(row.kind)) continue;
@@ -612,4 +603,56 @@ export function applyReactionToggle(
   return next
     .filter((r) => r.total > 0)
     .sort((a, b) => (order.get(a.kind) ?? 0) - (order.get(b.kind) ?? 0));
+}
+
+// ---------------------------------------------------------------------------
+// Etap A7: koordynacja w panelu
+// ---------------------------------------------------------------------------
+
+export type AdminClubThreadRow = RowOf<Fn["admin_club_threads"]["Returns"]>;
+export type AdminClubReplyRow = RowOf<Fn["admin_club_replies"]["Returns"]>;
+export type AdminClubModerationItem = RowOf<Fn["admin_club_moderation_queue"]["Returns"]>;
+export type AdminClubModerationLogRow = RowOf<Fn["admin_club_moderation_log"]["Returns"]>;
+
+/** Akcje moderacyjne dostepne z panelu. `restore` idzie osobnym RPC, bo musi
+ *  wiedziec, DO JAKIEGO statusu wrocic - a to zalezy od rodzaju celu. */
+export const CLUB_MODERATION_ACTIONS = [
+  "approve",
+  "hide",
+  "delete",
+  "restore",
+  "lock",
+  "unlock",
+  "pin",
+  "unpin",
+] as const;
+export type ClubModerationAction = (typeof CLUB_MODERATION_ACTIONS)[number];
+
+/** Akcje, ktore dotycza WYLACZNIE watku - odpowiedzi nie da sie przypiac
+ *  ani zamknac. Panel musi to wiedziec, zeby nie pokazywac martwych przyciskow. */
+export const THREAD_ONLY_ACTIONS: readonly ClubModerationAction[] = [
+  "lock",
+  "unlock",
+  "pin",
+  "unpin",
+];
+
+export function isActionApplicable(
+  action: ClubModerationAction,
+  target: "thread" | "reply",
+): boolean {
+  return target === "thread" || !THREAD_ONLY_ACTIONS.includes(action);
+}
+
+/**
+ * Etykieta wpisu wprowadzonego przez redakcje. Zwraca `null`, gdy autor
+ * publikowal sam - komponent renderuje adnotacje TYLKO wtedy, gdy jest co
+ * powiedziec, zamiast pokazywac pusty znacznik przy kazdym wpisie.
+ */
+export function adminAttributionNote(
+  postedByAdminName: string | null,
+  template: string,
+): string | null {
+  if (postedByAdminName === null || postedByAdminName.length === 0) return null;
+  return template.replace("{{name}}", postedByAdminName);
 }

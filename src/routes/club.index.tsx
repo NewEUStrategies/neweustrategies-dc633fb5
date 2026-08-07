@@ -19,10 +19,7 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/club/")({
   head: () => ({
-    meta: [
-      { title: "Kluby dyskusyjne" },
-      { name: "robots", content: "noindex,nofollow" },
-    ],
+    meta: [{ title: "Kluby dyskusyjne" }, { name: "robots", content: "noindex,nofollow" }],
   }),
   component: ClubIndex,
 });

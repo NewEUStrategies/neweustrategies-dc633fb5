@@ -7,7 +7,7 @@
 -- umie obronic - stad powod obowiazkowy i slad w dwoch miejscach.
 -- ============================================================================
 BEGIN;
-SELECT plan(19);
+SELECT plan(17);
 
 INSERT INTO public.tenants (id, name, slug)
 VALUES ('11111111-1111-1111-1111-111111111111', 'Tenant A', 'tenant-a-mod-test')

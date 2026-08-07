@@ -15,12 +15,19 @@ import {
 } from "@tanstack/react-query";
 import {
   acceptClubRules,
+  adminCreateClubReply,
+  adminCreateClubThread,
+  banClubMember,
+  bulkModerateClubTargets,
+  bulkSetClubMemberRole,
   createClubInviteLink,
   createClubThread,
   editClubReply,
   editClubThread,
   fetchAdminClub,
   fetchAdminClubGroups,
+  fetchAdminClubReplies,
+  fetchAdminClubThreads,
   fetchAdminClubStats,
   fetchAdminClubs,
   fetchClubBySlug,
@@ -29,6 +36,8 @@ import {
   fetchClubList,
   fetchClubInvitations,
   fetchClubInviteLinks,
+  fetchClubModerationLog,
+  fetchClubModerationQueue,
   fetchClubMembers,
   fetchClubReactions,
   fetchClubReplies,
@@ -42,8 +51,11 @@ import {
   inviteClubMemberByEmail,
   joinClub,
   leaveClub,
+  moderateClubTarget,
+  moveClubThread,
   reactToClubTarget,
   redeemClubInviteLink,
+  revealClubAuthor,
   replyToClubThread,
   resolveClubThread,
   respondClubInvitation,
@@ -59,6 +71,7 @@ import {
   upsertClubGroup,
   upsertClubMember,
   type AdminClubsPage,
+  type AdminThreadsPage,
   type ClubMembersPage,
   type ClubThreadsPage,
   type CreateThreadResult,
@@ -70,6 +83,10 @@ import type {
   AdminClubGroupRow,
   AdminClubInvitationRow,
   AdminClubInviteLinkRow,
+  AdminClubModerationItem,
+  AdminClubModerationLogRow,
+  AdminClubReplyRow,
+  ClubModerationAction,
   AdminClubListFilters,
   AdminClubStatsRow,
   ClubCapabilities,
@@ -123,9 +140,7 @@ export function useMyClubMemberships(enabled = true): UseQueryResult<ClubMembers
   });
 }
 
-export function useClubBySlug(
-  slug: string | undefined,
-): UseQueryResult<ClubViewRow | null, Error> {
+export function useClubBySlug(slug: string | undefined): UseQueryResult<ClubViewRow | null, Error> {
   return useQuery({
     queryKey: clubKeys.bySlug(slug ?? ""),
     queryFn: () => fetchClubBySlug(slug ?? ""),
@@ -134,9 +149,7 @@ export function useClubBySlug(
   });
 }
 
-export function useClubGroups(
-  clubId: string | undefined,
-): UseQueryResult<ClubGroupRow[], Error> {
+export function useClubGroups(clubId: string | undefined): UseQueryResult<ClubGroupRow[], Error> {
   return useQuery({
     queryKey: clubKeys.groups(clubId ?? ""),
     queryFn: () => fetchClubGroups(clubId ?? ""),
@@ -236,8 +249,7 @@ export function useClubCapabilitiesPreview(params: {
   const { clubId, userId, groupId } = params;
   return useQuery({
     queryKey: clubKeys.capabilitiesPreview(clubId ?? "", userId ?? "", groupId),
-    queryFn: () =>
-      previewClubCapabilities({ clubId: clubId ?? "", userId: userId ?? "", groupId }),
+    queryFn: () => previewClubCapabilities({ clubId: clubId ?? "", userId: userId ?? "", groupId }),
     staleTime: 0, // podglad uprawnien musi byc swiezy - to narzedzie diagnostyczne
     enabled: Boolean(clubId) && Boolean(userId),
   });
@@ -272,9 +284,7 @@ export function useUpsertClubGroup(
   });
 }
 
-export function useReorderClubGroups(
-  clubId: string,
-): UseMutationResult<number, Error, string[]> {
+export function useReorderClubGroups(clubId: string): UseMutationResult<number, Error, string[]> {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (groupIds) => reorderClubGroups(clubId, groupIds),
@@ -297,9 +307,7 @@ export function useUpsertClubMember(
   });
 }
 
-export function useRemoveClubMember(
-  clubId: string,
-): UseMutationResult<boolean, Error, string> {
+export function useRemoveClubMember(clubId: string): UseMutationResult<boolean, Error, string> {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (userId) => removeClubMember(clubId, userId),
@@ -337,9 +345,7 @@ export function useClubInviteLinks(
 }
 
 /** Zaproszenia skierowane do zalogowanego - zasila licznik w nawigacji. */
-export function useMyClubInvitations(
-  enabled = true,
-): UseQueryResult<ClubMyInvitationRow[], Error> {
+export function useMyClubInvitations(enabled = true): UseQueryResult<ClubMyInvitationRow[], Error> {
   return useQuery({
     queryKey: clubKeys.myInvitations(),
     queryFn: fetchMyClubInvitations,
@@ -395,9 +401,7 @@ export function useCreateClubInviteLink(
   });
 }
 
-export function useRevokeClubInviteLink(
-  clubId: string,
-): UseMutationResult<boolean, Error, string> {
+export function useRevokeClubInviteLink(clubId: string): UseMutationResult<boolean, Error, string> {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: revokeClubInviteLink,
@@ -741,4 +745,187 @@ export function useSetThreadSubscription(
       qc.setQueryData(clubKeys.subscription(threadId), state);
     },
   });
+}
+
+// ---------------------------------------------------------------------------
+// Etap A7: koordynacja w panelu
+// ---------------------------------------------------------------------------
+
+export interface AdminThreadFilters {
+  groupId?: string | null;
+  status?: string | null;
+  kind?: string | null;
+  search?: string;
+  offset?: number;
+}
+
+export function useAdminClubThreads(
+  clubId: string | undefined,
+  filters: AdminThreadFilters,
+): UseQueryResult<AdminThreadsPage, Error> {
+  const { groupId = null, status = null, kind = null, search = "", offset = 0 } = filters;
+  return useQuery({
+    queryKey: clubKeys.adminThreads(clubId ?? "", groupId, status, kind, search, offset),
+    queryFn: () =>
+      fetchAdminClubThreads({ clubId: clubId ?? "", groupId, status, kind, search, offset }),
+    staleTime: 15_000,
+    enabled: Boolean(clubId),
+  });
+}
+
+export function useAdminClubReplies(
+  threadId: string | undefined,
+): UseQueryResult<AdminClubReplyRow[], Error> {
+  return useQuery({
+    queryKey: clubKeys.adminReplies(threadId ?? ""),
+    queryFn: () => fetchAdminClubReplies({ threadId: threadId ?? "" }),
+    staleTime: 10_000,
+    enabled: Boolean(threadId),
+  });
+}
+
+export function useClubModerationQueue(
+  clubId: string | undefined,
+): UseQueryResult<AdminClubModerationItem[], Error> {
+  return useQuery({
+    queryKey: clubKeys.moderationQueue(clubId ?? ""),
+    queryFn: () => fetchClubModerationQueue(clubId ?? ""),
+    staleTime: 10_000,
+    enabled: Boolean(clubId),
+  });
+}
+
+export function useClubModerationLog(
+  clubId: string | undefined,
+): UseQueryResult<AdminClubModerationLogRow[], Error> {
+  return useQuery({
+    queryKey: clubKeys.moderationLog(clubId ?? ""),
+    queryFn: () => fetchClubModerationLog({ clubId: clubId ?? "" }),
+    staleTime: 30_000,
+    enabled: Boolean(clubId),
+  });
+}
+
+export interface ModerateVars {
+  targetType: "thread" | "reply";
+  targetId: string;
+  action: ClubModerationAction;
+  reason?: string | null;
+}
+
+/**
+ * Akcja moderacyjna. Uniewaznia korzen klubu, bo kazda z nich zmienia
+ * jednoczesnie liste tematow, kolejke, log i liczniki - punktowa inwalidacja
+ * zostawialaby ktorys z tych widokow nieaktualny.
+ */
+export function useModerateClubTarget(
+  clubId: string,
+): UseMutationResult<boolean, Error, ModerateVars> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: moderateClubTarget,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
+      void qc.invalidateQueries({ queryKey: clubKeys.all });
+    },
+  });
+}
+
+export function useBulkModerateClub(
+  clubId: string,
+): UseMutationResult<number, Error, Omit<ModerateVars, "targetId"> & { targetIds: string[] }> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: bulkModerateClubTargets,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
+    },
+  });
+}
+
+export function useBulkSetClubMemberRole(
+  clubId: string,
+): UseMutationResult<number, Error, { userIds: string[]; role: ClubMemberRole }> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars) => bulkSetClubMemberRole({ clubId, ...vars }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
+    },
+  });
+}
+
+export function useAdminCreateThread(clubId: string): UseMutationResult<
+  { threadId: string; threadSlug: string },
+  Error,
+  {
+    groupId: string;
+    title: string;
+    body: string;
+    authorId?: string | null;
+    kind?: ClubThreadKind;
+    pinned?: boolean;
+  }
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: adminCreateClubThread,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
+    },
+  });
+}
+
+export function useAdminCreateReply(
+  clubId: string,
+): UseMutationResult<
+  string,
+  Error,
+  { threadId: string; body: string; authorId?: string | null; parentId?: string | null }
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: adminCreateClubReply,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
+      void qc.invalidateQueries({ queryKey: clubKeys.all });
+    },
+  });
+}
+
+export function useMoveClubThread(
+  clubId: string,
+): UseMutationResult<boolean, Error, { threadId: string; groupId: string }> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: moveClubThread,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
+    },
+  });
+}
+
+export function useBanClubMember(
+  clubId: string,
+): UseMutationResult<boolean, Error, { userId: string; banned: boolean; reason?: string | null }> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars) => banClubMember({ clubId, ...vars }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
+    },
+  });
+}
+
+/**
+ * Ujawnienie autora. NIE jest to useQuery: to operacja audytowana, ktora musi
+ * dziac sie na jawne zadanie, a nie przy wejsciu na ekran. Zapytanie
+ * uruchamialoby ja przy kazdym renderze.
+ */
+export function useRevealClubAuthor(): UseMutationResult<
+  { authorId: string; displayName: string; profileSlug: string | null } | null,
+  Error,
+  { targetType: "thread" | "reply"; targetId: string; reason: string }
+> {
+  return useMutation({ mutationFn: revealClubAuthor });
 }

@@ -8,7 +8,7 @@
 -- ZAWSZE wpisuje 'user', niezaleznie od zadanej roli klubowej.
 -- ============================================================================
 BEGIN;
-SELECT plan(18);
+SELECT plan(20);
 
 INSERT INTO public.tenants (id, name, slug)
 VALUES ('11111111-1111-1111-1111-111111111111', 'Tenant A', 'tenant-a-inv-test'),

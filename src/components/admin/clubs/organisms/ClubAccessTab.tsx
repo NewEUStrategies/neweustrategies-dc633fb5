@@ -176,7 +176,10 @@ export function ClubAccessTab({ draft, onChange, disabled }: ClubAccessTabProps)
             <ul className="space-y-2 text-sm">
               {sentences.map((sentence) => (
                 <li key={sentence} className="flex gap-2 text-muted-foreground">
-                  <span aria-hidden="true" className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-primary" />
+                  <span
+                    aria-hidden="true"
+                    className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-primary"
+                  />
                   <span>{sentence}</span>
                 </li>
               ))}

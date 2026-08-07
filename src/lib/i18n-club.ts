@@ -14,8 +14,7 @@ export const clubPl = {
   club: {
     // --- powierzchnia produktowa ---
     title: "Kluby dyskusyjne",
-    subtitle:
-      "Trwałe przestrzenie rozmowy między członkami - własna tożsamość, zasady i archiwum.",
+    subtitle: "Trwałe przestrzenie rozmowy między członkami - własna tożsamość, zasady i archiwum.",
     myClubs: "Moje kluby",
     discover: "Odkryj",
     invitations: "Zaproszenia",
@@ -240,6 +239,9 @@ export const clubPl = {
       mute: "Wycisz wątek",
     },
     inheritedFromClub: "Dziedziczone z klubu",
+    // Znacznik publikacji w czyimś imieniu. Zawsze widoczny przy wpisie -
+    // decyzja produktowa: wprowadzenie treści przez redakcję jest jawne.
+    postedOnBehalf: "wprowadzone przez: {{name}}",
   },
 
   adminClubs: {
@@ -402,7 +404,6 @@ export const clubPl = {
       },
     },
 
-
     invitations: {
       send: "Wyślij zaproszenie",
       sent: "Zaproszenie wysłane",
@@ -458,8 +459,155 @@ export const clubPl = {
       },
     },
 
+    threads: {
+      title: "Temat",
+      searchPlaceholder: "Szukaj w tytułach i treści...",
+      newThread: "Nowy temat",
+      newThreadHint: "Temat założony z panelu trafia do klubu od razu, z pominięciem premoderacji.",
+      empty: "Brak tematów spełniających wybrane filtry.",
+      replies: "Odpowiedzi",
+      open: "Podgląd",
+      pin: "Przypnij",
+      unpin: "Odepnij",
+      lock: "Zamknij",
+      unlock: "Otwórz",
+      delete: "Usuń",
+      restore: "Przywróć",
+      deleteBody:
+        "Usunięcie jest miękkie: wpis znika z klubu, ale zostaje w bazie i można go przywrócić.",
+      move: "Przenieś do innej grupy",
+      moveTarget: "Wybierz grupę docelową",
+      moved: "Temat przeniesiony",
+      noOtherGroup: "Ten klub ma tylko jedną grupę.",
+      addReply: "Dodaj odpowiedź z panelu",
+      created: "Temat opublikowany",
+      validation: "Uzupełnij grupę, tytuł (min. 5 znaków) i treść (min. 10 znaków).",
+      protectedIdentity: "Tożsamość chroniona",
+      selectAll: "Zaznacz wszystkie",
+      selected_one: "Zaznaczono {{count}} temat",
+      selected_few: "Zaznaczono {{count}} tematy",
+      selected_many: "Zaznaczono {{count}} tematów",
+      selected_other: "Zaznaczono {{count}} tematów",
+      clearSelection: "Wyczyść zaznaczenie",
+      bulkDeleteTitle_one: "Usunąć {{count}} temat?",
+      bulkDeleteTitle_few: "Usunąć {{count}} tematy?",
+      bulkDeleteTitle_many: "Usunąć {{count}} tematów?",
+      bulkDeleteTitle_other: "Usunąć {{count}} tematów?",
+      bulkDone: "Zmieniono {{done}} z {{total}}",
+      onBehalfLabel: "Publikacja w imieniu członka (opcjonalnie)",
+      onBehalfPlaceholder: "Wybierz osobę...",
+      onBehalfHint: "Puste pole = publikujesz pod własnym nazwiskiem.",
+      onBehalfWarning:
+        "Wpis dostanie widoczny znacznik „wprowadzone przez” z Twoim nazwiskiem i wpis w dzienniku moderacji.",
+    },
+
+    moderation: {
+      queueTitle: "Kolejka premoderacji",
+      queueHint:
+        "Wpisy czekające na zatwierdzenie. Autor wpisu anonimowego nie jest tu pokazywany.",
+      queueEmpty: "Kolejka jest pusta.",
+      approve: "Zatwierdź",
+      hide: "Ukryj",
+      delete: "Usuń",
+      deleteTitle: "Usunąć ten wpis?",
+      deleteBody:
+        "Usunięcie jest miękkie: wpis znika z klubu, ale zostaje w bazie i można go przywrócić.",
+      bulkDeleteTitle_one: "Usunąć {{count}} wpis?",
+      bulkDeleteTitle_few: "Usunąć {{count}} wpisy?",
+      bulkDeleteTitle_many: "Usunąć {{count}} wpisów?",
+      bulkDeleteTitle_other: "Usunąć {{count}} wpisów?",
+      bulkDone: "Zmieniono {{done}} z {{total}}",
+      selectAll: "Zaznacz całą kolejkę",
+      selected_one: "Zaznaczono {{count}} wpis",
+      selected_few: "Zaznaczono {{count}} wpisy",
+      selected_many: "Zaznaczono {{count}} wpisów",
+      selected_other: "Zaznaczono {{count}} wpisów",
+      clearSelection: "Wyczyść zaznaczenie",
+      anonymous: "Wpis anonimowy",
+      reason: "Powód",
+      done: {
+        approve: "Zatwierdzono",
+        hide: "Ukryto",
+        delete: "Usunięto",
+      },
+      target: {
+        thread: "Temat",
+        reply: "Odpowiedź",
+        member: "Członek",
+      },
+
+      bansTitle: "Blokady w klubie",
+      bansHint:
+        "Blokada odcina dostęp do treści tego klubu. Nie usuwa konta ani wpisów - te moderuje się osobno.",
+      ban: "Zablokuj",
+      banWho: "Kogo zablokować",
+      banWhoPlaceholder: "Wybierz członka...",
+      banWhoHint: "Prowadzącego i administratora może zablokować wyłącznie administrator.",
+      banReasonPlaceholder: "Powtarzające się naruszenia zasad klubu",
+      banConfirmTitle: "Zablokować tę osobę w klubie?",
+      banConfirmBody:
+        "Straci dostęp do treści i nie dołączy ponownie, dopóki blokada nie zostanie zdjęta.",
+      banned: "Zablokowano",
+      banFailed: "Nie udało się zablokować tej osoby.",
+      unban: "Zdejmij blokadę",
+      unbanned: "Blokada zdjęta",
+      noBans: "Nikt nie jest zablokowany w tym klubie.",
+
+      logTitle: "Dziennik moderacji",
+      logHint: "Każda decyzja moderacyjna zostaje zapisana wraz z osobą i powodem.",
+      logEmpty: "Nie podjęto jeszcze żadnej decyzji moderacyjnej.",
+      logEmptyFiltered: "Brak wpisów dla wybranej akcji.",
+      filterAction: "Akcja",
+      when: "Kiedy",
+      who: "Kto",
+      what: "Akcja",
+      targetLabel: "Cel",
+      action: {
+        approve: "Zatwierdzenie",
+        hide: "Ukrycie",
+        delete: "Usunięcie",
+        restore: "Przywrócenie",
+        lock: "Zamknięcie wątku",
+        unlock: "Otwarcie wątku",
+        pin: "Przypięcie",
+        unpin: "Odpięcie",
+        ban: "Blokada",
+        unban: "Zdjęcie blokady",
+        role_change: "Zmiana roli",
+        reveal_author: "Ujawnienie autora",
+      },
+
+      reveal: "Ujawnij autora",
+      revealTitle: "Ujawnienie autora wpisu anonimowego",
+      revealBody:
+        "Ta operacja przełamuje regułę Chatham House. Wykonuje się ją, gdy wpis może naruszać prawo lub zasady klubu.",
+      revealWarning:
+        "Fakt ujawnienia zostanie zapisany w dzienniku moderacji klubu oraz w logu audytowym platformy - wraz z Twoim nazwiskiem i podanym powodem.",
+      revealReason: "Powód ujawnienia (wymagany)",
+      revealReasonPlaceholder: "Zgłoszenie naruszenia zasad, sprawa nr ...",
+      revealReasonHint: "Minimum {{min}} znaków. Ten tekst trafia do dziennika.",
+      revealConfirm: "Ujawnij i zapisz w dzienniku",
+      revealResult: "Autor wpisu",
+      revealOpenProfile: "Otwórz profil",
+      revealLogged: "Zapisano w dzienniku moderacji i w logu audytowym.",
+      revealEmpty: "Ten wpis nie ma przypisanego autora.",
+      revealFailed: "Nie udało się ujawnić autora.",
+    },
+
     stats: {
-      title: "Statystyki klubu",
+      title: "Obsada klubu",
+      healthTitle: "Zdrowie dyskusji",
+      healthHint:
+        "Klub umiera na tematy bez odpowiedzi, nie na małą liczbę członków - dlatego ta metryka stoi pierwsza.",
+      unanswered: "Bez odpowiedzi",
+      unansweredHint: "{{count}} tematów bez ani jednej odpowiedzi",
+      firstReply: "Mediana pierwszej odpowiedzi",
+      firstReplyHint: "Ile trwa, zanim ktoś odpowie na nowy temat",
+      hours: "{{value}} godz.",
+      threads30d: "Nowe tematy / 30 dni",
+      threads30dHint: "Łącznie w klubie: {{count}}",
+      replies30d: "Odpowiedzi / 30 dni",
+      replies30dHint: "Łącznie w klubie: {{count}}",
       members: "Członkowie",
       active30d: "Aktywni / 30 dni",
       pending: "Oczekujący",
@@ -469,19 +617,13 @@ export const clubPl = {
       leads: "Prowadzący",
       moderators: "Moderatorzy",
     },
-
-    comingSoon: {
-      threads: "Tematy pojawią się w kolejnym etapie wdrożenia.",
-      moderation: "Kolejka moderacji pojawi się w kolejnym etapie wdrożenia.",
-    },
   },
 };
 
 export const clubEn = {
   club: {
     title: "Discussion clubs",
-    subtitle:
-      "Lasting spaces for member-to-member conversation - own identity, rules and archive.",
+    subtitle: "Lasting spaces for member-to-member conversation - own identity, rules and archive.",
     myClubs: "My clubs",
     discover: "Discover",
     invitations: "Invitations",
@@ -531,8 +673,7 @@ export const clubEn = {
     },
     attributionHint: {
       attributed: "Every post is signed with the author's name.",
-      chatham:
-        "Content is quotable, identity is not. Posts appear under a per-thread pseudonym.",
+      chatham: "Content is quotable, identity is not. Posts appear under a per-thread pseudonym.",
       anonymous_allowed: "The author decides per post whether to sign it.",
     },
     whoCanPost: {
@@ -696,12 +837,14 @@ export const clubEn = {
       mute: "Mute thread",
     },
     inheritedFromClub: "Inherited from club",
+    postedOnBehalf: "posted by: {{name}}",
   },
 
   adminClubs: {
     navLabel: "Discussion clubs",
     title: "Discussion clubs",
-    subtitle: "Structure, permissions and memberships. Members create content within the scope you grant.",
+    subtitle:
+      "Structure, permissions and memberships. Members create content within the scope you grant.",
     newClub: "New club",
     editClub: "Edit club",
     noPermissionTitle: "No permission",
@@ -821,7 +964,8 @@ export const clubEn = {
       title: "Capability matrix",
       hint: "Rows are capabilities, columns are roles. The same function computes access in the database and here.",
       previewAs: "Preview as...",
-      previewHint: "Shows the result of club_capabilities() for the selected person, including the denial reason.",
+      previewHint:
+        "Shows the result of club_capabilities() for the selected person, including the denial reason.",
       previewEmpty: "Pick a person to see their real permissions.",
       effectiveRole: "Effective role",
       reasonLabel: "Reason",
@@ -853,7 +997,6 @@ export const clubEn = {
         conditional: "Depends on settings",
       },
     },
-
 
     invitations: {
       send: "Send invitation",
@@ -910,8 +1053,148 @@ export const clubEn = {
       },
     },
 
+    threads: {
+      title: "Topic",
+      searchPlaceholder: "Search titles and content...",
+      newThread: "New topic",
+      newThreadHint:
+        "A topic created from the panel goes live immediately, skipping premoderation.",
+      empty: "No topics match the selected filters.",
+      replies: "Replies",
+      open: "Preview",
+      pin: "Pin",
+      unpin: "Unpin",
+      lock: "Lock",
+      unlock: "Unlock",
+      delete: "Delete",
+      restore: "Restore",
+      deleteBody:
+        "Deletion is soft: the entry disappears from the club but stays in the database and can be restored.",
+      move: "Move to another group",
+      moveTarget: "Pick the target group",
+      moved: "Topic moved",
+      noOtherGroup: "This club has only one group.",
+      addReply: "Add a reply from the panel",
+      created: "Topic published",
+      validation:
+        "Fill in the group, a title (min. 5 characters) and content (min. 10 characters).",
+      protectedIdentity: "Protected identity",
+      selectAll: "Select all",
+      selected_one: "{{count}} topic selected",
+      selected_other: "{{count}} topics selected",
+      clearSelection: "Clear selection",
+      bulkDeleteTitle_one: "Delete {{count}} topic?",
+      bulkDeleteTitle_other: "Delete {{count}} topics?",
+      bulkDone: "Changed {{done}} of {{total}}",
+      onBehalfLabel: "Publish on behalf of a member (optional)",
+      onBehalfPlaceholder: "Pick a person...",
+      onBehalfHint: "Leave empty to publish under your own name.",
+      onBehalfWarning:
+        'The entry will carry a visible "posted by" marker with your name and an entry in the moderation log.',
+    },
+
+    moderation: {
+      queueTitle: "Premoderation queue",
+      queueHint: "Entries awaiting approval. The author of an anonymous entry is not shown here.",
+      queueEmpty: "The queue is empty.",
+      approve: "Approve",
+      hide: "Hide",
+      delete: "Delete",
+      deleteTitle: "Delete this entry?",
+      deleteBody:
+        "Deletion is soft: the entry disappears from the club but stays in the database and can be restored.",
+      bulkDeleteTitle_one: "Delete {{count}} entry?",
+      bulkDeleteTitle_other: "Delete {{count}} entries?",
+      bulkDone: "Changed {{done}} of {{total}}",
+      selectAll: "Select the whole queue",
+      selected_one: "{{count}} entry selected",
+      selected_other: "{{count}} entries selected",
+      clearSelection: "Clear selection",
+      anonymous: "Anonymous entry",
+      reason: "Reason",
+      done: {
+        approve: "Approved",
+        hide: "Hidden",
+        delete: "Deleted",
+      },
+      target: {
+        thread: "Topic",
+        reply: "Reply",
+        member: "Member",
+      },
+
+      bansTitle: "Club bans",
+      bansHint:
+        "A ban cuts off access to this club's content. It does not remove the account or the entries - those are moderated separately.",
+      ban: "Ban",
+      banWho: "Who to ban",
+      banWhoPlaceholder: "Pick a member...",
+      banWhoHint: "Only an administrator can ban a lead or a staff member.",
+      banReasonPlaceholder: "Repeated breaches of the club rules",
+      banConfirmTitle: "Ban this person from the club?",
+      banConfirmBody:
+        "They will lose access to the content and cannot rejoin until the ban is lifted.",
+      banned: "Banned",
+      banFailed: "Could not ban this person.",
+      unban: "Lift the ban",
+      unbanned: "Ban lifted",
+      noBans: "Nobody is banned in this club.",
+
+      logTitle: "Moderation log",
+      logHint: "Every moderation decision is recorded together with the person and the reason.",
+      logEmpty: "No moderation decision has been taken yet.",
+      logEmptyFiltered: "No entries for the selected action.",
+      filterAction: "Action",
+      when: "When",
+      who: "Who",
+      what: "Action",
+      targetLabel: "Target",
+      action: {
+        approve: "Approval",
+        hide: "Hidden",
+        delete: "Deletion",
+        restore: "Restore",
+        lock: "Thread locked",
+        unlock: "Thread unlocked",
+        pin: "Pinned",
+        unpin: "Unpinned",
+        ban: "Ban",
+        unban: "Ban lifted",
+        role_change: "Role change",
+        reveal_author: "Author revealed",
+      },
+
+      reveal: "Reveal the author",
+      revealTitle: "Reveal the author of an anonymous entry",
+      revealBody:
+        "This breaks the Chatham House rule. Use it when an entry may breach the law or the club rules.",
+      revealWarning:
+        "The reveal will be recorded in the club moderation log and in the platform audit log - together with your name and the reason you give.",
+      revealReason: "Reason for the reveal (required)",
+      revealReasonPlaceholder: "Reported rule breach, case no. ...",
+      revealReasonHint: "At least {{min}} characters. This text goes into the log.",
+      revealConfirm: "Reveal and record in the log",
+      revealResult: "Entry author",
+      revealOpenProfile: "Open profile",
+      revealLogged: "Recorded in the moderation log and in the audit log.",
+      revealEmpty: "This entry has no author assigned.",
+      revealFailed: "Could not reveal the author.",
+    },
+
     stats: {
-      title: "Club statistics",
+      title: "Club roster",
+      healthTitle: "Discussion health",
+      healthHint:
+        "A club dies of unanswered topics, not of a small headcount - which is why this metric comes first.",
+      unanswered: "Unanswered",
+      unansweredHint: "{{count}} topics without a single reply",
+      firstReply: "Median first reply",
+      firstReplyHint: "How long before someone answers a new topic",
+      hours: "{{value}} h",
+      threads30d: "New topics / 30 days",
+      threads30dHint: "Total in the club: {{count}}",
+      replies30d: "Replies / 30 days",
+      replies30dHint: "Total in the club: {{count}}",
       members: "Members",
       active30d: "Active / 30 days",
       pending: "Pending",
@@ -920,11 +1203,6 @@ export const clubEn = {
       banned: "Banned",
       leads: "Leads",
       moderators: "Moderators",
-    },
-
-    comingSoon: {
-      threads: "Topics arrive in the next implementation stage.",
-      moderation: "The moderation queue arrives in the next implementation stage.",
     },
   },
 };

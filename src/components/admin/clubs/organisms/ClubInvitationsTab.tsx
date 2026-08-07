@@ -227,7 +227,9 @@ export function ClubInvitationsTab({ clubId, isPl }: { clubId: string; isPl: boo
 
           <Button
             onClick={handleSend}
-            disabled={sending || (mode === "person" ? userId.length === 0 : email.trim().length === 0)}
+            disabled={
+              sending || (mode === "person" ? userId.length === 0 : email.trim().length === 0)
+            }
           >
             <Send className="mr-2 h-4 w-4" />
             {t("adminClubs.invitations.send")}
@@ -301,9 +303,7 @@ export function ClubInvitationsTab({ clubId, isPl }: { clubId: string; isPl: boo
                   <TableRow>
                     <TableHead>{t("adminClubs.invitations.linkLabel")}</TableHead>
                     <TableHead>{t("adminClubs.columns.role")}</TableHead>
-                    <TableHead className="text-right">
-                      {t("adminClubs.invitations.uses")}
-                    </TableHead>
+                    <TableHead className="text-right">{t("adminClubs.invitations.uses")}</TableHead>
                     <TableHead>{t("adminClubs.fields.closesAt")}</TableHead>
                     <TableHead>{t("adminClubs.columns.status")}</TableHead>
                     <TableHead className="w-10 sr-only">

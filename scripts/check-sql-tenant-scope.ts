@@ -38,6 +38,8 @@ const PUBLIC_PATH_ALLOWLIST: Readonly<Record<string, string>> = {
     "dostep do wydarzenia; obejscie stafowe zwiazane z v_event.tenant_id = current_tenant_id()",
   "public.get_poll_results/1":
     "wyniki ankiety spolecznosci; podglad stafowy zwiazany z v_poll.tenant_id = current_tenant_id()",
+  "public.club_capabilities/3":
+    "klub publiczny czytany anonimowo po hoscie; podglad cudzych uprawnien zwiazany z v_club.tenant_id = current_tenant_id()",
 };
 
 function main(): void {

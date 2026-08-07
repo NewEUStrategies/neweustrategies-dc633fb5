@@ -55,9 +55,7 @@ const GROUP_STATUS_TONE: Record<ClubGroupStatus, Tone> = {
 
 export function ClubGroupStatusBadge({ status }: { status: ClubGroupStatus }) {
   const { t } = useTranslation();
-  return (
-    <ToneBadge tone={GROUP_STATUS_TONE[status]}>{t(`club.groupStatus.${status}`)}</ToneBadge>
-  );
+  return <ToneBadge tone={GROUP_STATUS_TONE[status]}>{t(`club.groupStatus.${status}`)}</ToneBadge>;
 }
 
 // Widoczność: im węższa, tym mocniejszy sygnał. `secret` jest informacją

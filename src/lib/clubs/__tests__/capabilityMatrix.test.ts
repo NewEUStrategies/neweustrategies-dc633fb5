@@ -44,7 +44,14 @@ describe("macierz zdolności klubu", () => {
     const row = CLUB_CAPABILITY_MATRIX.can_manage;
     expect(row.super_admin).toBe("yes");
     expect(row.admin).toBe("yes");
-    for (const role of ["editor", "lead", "moderator", "member", "observer", "non_member"] as const) {
+    for (const role of [
+      "editor",
+      "lead",
+      "moderator",
+      "member",
+      "observer",
+      "non_member",
+    ] as const) {
       expect(row[role], `rola ${role}`).toBe("no");
     }
   });

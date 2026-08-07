@@ -77,8 +77,7 @@ function AdminClubsList() {
   }
 
   const rows = clubsQ.data?.rows ?? [];
-  const hasFilters =
-    debouncedSearch.trim().length > 0 || status !== null || visibility !== null;
+  const hasFilters = debouncedSearch.trim().length > 0 || status !== null || visibility !== null;
 
   const handleCreate = () => {
     // Nowy klub powstaje od razu jako wersja robocza z unikalnym slugiem

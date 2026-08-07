@@ -28,8 +28,10 @@ import {
 import { ClubGroupsTab } from "@/components/admin/clubs/organisms/ClubGroupsTab";
 import { ClubInvitationsTab } from "@/components/admin/clubs/organisms/ClubInvitationsTab";
 import { ClubMembersTab } from "@/components/admin/clubs/organisms/ClubMembersTab";
+import { ClubModerationTab } from "@/components/admin/clubs/organisms/ClubModerationTab";
 import { ClubPermissionsTab } from "@/components/admin/clubs/organisms/ClubPermissionsTab";
 import { ClubStatsTab } from "@/components/admin/clubs/organisms/ClubStatsTab";
+import { ClubThreadsTab } from "@/components/admin/clubs/organisms/ClubThreadsTab";
 import { ClubStatusBadge } from "@/components/admin/clubs/atoms/ClubBadges";
 import { useAdminClub, useUpsertClub } from "@/lib/clubs/useClubs";
 import {
@@ -48,9 +50,6 @@ import {
   type ClubVisibility,
 } from "@/lib/clubs/types";
 import { ensureClubI18n } from "@/lib/i18n-club";
-
-/** Zakładki, których treść przychodzi w kolejnych etapach wdrożenia. */
-const PENDING_TABS = ["threads", "moderation"] as const;
 
 const TAB_KEYS = [
   "general",
@@ -296,6 +295,17 @@ function ClubEditor() {
           <ClubGroupsTab clubId={club.id} isPl={isPl} />
         </TabsContent>
 
+        {/* Zakładki treściowe montują się dopiero po wybraniu (`forceMount`
+            domyślnie wyłączony w Radiksie): kolejka moderacji i lista tematów
+            to trzy zapytania każda, a edytor otwiera się na "Ogólnych". */}
+        <TabsContent value="threads" className="mt-5">
+          <ClubThreadsTab clubId={club.id} isPl={isPl} />
+        </TabsContent>
+
+        <TabsContent value="moderation" className="mt-5">
+          <ClubModerationTab clubId={club.id} isPl={isPl} />
+        </TabsContent>
+
         <TabsContent value="members" className="mt-5">
           <ClubMembersTab clubId={club.id} isPl={isPl} />
         </TabsContent>
@@ -311,16 +321,6 @@ function ClubEditor() {
         <TabsContent value="analytics" className="mt-5">
           <ClubStatsTab clubId={club.id} />
         </TabsContent>
-
-        {PENDING_TABS.map((key) => (
-          <TabsContent key={key} value={key} className="mt-5">
-            <Card>
-              <CardContent className="p-10 text-center text-sm text-muted-foreground">
-                {t(`adminClubs.comingSoon.${key}`)}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        ))}
       </Tabs>
     </div>
   );

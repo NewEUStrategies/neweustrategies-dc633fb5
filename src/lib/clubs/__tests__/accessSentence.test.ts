@@ -72,15 +72,15 @@ describe("detectAccessWarnings", () => {
   // Najczęstsza pomyłka: klub, który miał być dla członków, jest publiczny
   // i wpuszcza każdego bez decyzji człowieka.
   it("ostrzega przy kombinacji publiczny + wejście otwarte", () => {
-    expect(
-      detectAccessWarnings({ ...BASE, visibility: "public", joinPolicy: "open" }),
-    ).toContain("public_open");
+    expect(detectAccessWarnings({ ...BASE, visibility: "public", joinPolicy: "open" })).toContain(
+      "public_open",
+    );
   });
 
   it("ostrzega przy sprzecznej kombinacji ukryty + wejście otwarte", () => {
-    expect(
-      detectAccessWarnings({ ...BASE, visibility: "secret", joinPolicy: "open" }),
-    ).toContain("secret_public_entry");
+    expect(detectAccessWarnings({ ...BASE, visibility: "secret", joinPolicy: "open" })).toContain(
+      "secret_public_entry",
+    );
   });
 
   it("ostrzega przy Chatham House w klubie publicznym", () => {
@@ -104,8 +104,8 @@ describe("detectAccessWarnings", () => {
   // Klub publiczny na zaproszenie to POPRAWNA i częsta kombinacja (publiczna
   // wizytówka zamkniętego grona, V1 §1.1) - nie wolno jej zgłaszać jako błędu.
   it("nie ostrzega przy publiczny + na zaproszenie", () => {
-    expect(
-      detectAccessWarnings({ ...BASE, visibility: "public", joinPolicy: "invite" }),
-    ).toEqual([]);
+    expect(detectAccessWarnings({ ...BASE, visibility: "public", joinPolicy: "invite" })).toEqual(
+      [],
+    );
   });
 });

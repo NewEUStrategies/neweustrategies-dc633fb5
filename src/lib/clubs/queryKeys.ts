@@ -43,12 +43,8 @@ export const clubKeys = {
 
   /** Lista tematow. Filtry sa czescia klucza, wiec przelaczenie grupy albo
    *  sortu to nowy cache, a nie refetch tego samego wpisu. */
-  threads: (
-    clubId: string,
-    groupId: string | null,
-    sort: string,
-    kind: string | null,
-  ) => [...clubKeys.club(clubId), "threads", groupId ?? "all", sort, kind ?? "all"] as const,
+  threads: (clubId: string, groupId: string | null, sort: string, kind: string | null) =>
+    [...clubKeys.club(clubId), "threads", groupId ?? "all", sort, kind ?? "all"] as const,
 
   thread: (clubId: string, threadSlug: string) =>
     [...clubKeys.club(clubId), "thread", threadSlug] as const,
@@ -64,6 +60,30 @@ export const clubKeys = {
   stances: (threadId: string) => [...clubKeys.all, "stances", threadId] as const,
 
   subscription: (threadId: string) => [...clubKeys.all, "subscription", threadId] as const,
+
+  /** Panel: lista tematow z filtrami. */
+  adminThreads: (
+    clubId: string,
+    groupId: string | null,
+    status: string | null,
+    kind: string | null,
+    search: string,
+    offset: number,
+  ) =>
+    [
+      ...clubKeys.club(clubId),
+      "adminThreads",
+      groupId ?? "all",
+      status ?? "any",
+      kind ?? "any",
+      search,
+      offset,
+    ] as const,
+
+  adminReplies: (threadId: string) => [...clubKeys.all, "adminReplies", threadId] as const,
+
+  moderationQueue: (clubId: string) => [...clubKeys.club(clubId), "moderationQueue"] as const,
+  moderationLog: (clubId: string) => [...clubKeys.club(clubId), "moderationLog"] as const,
 
   capabilitiesPreview: (clubId: string, userId: string, groupId?: string | null) =>
     [...clubKeys.club(clubId), "capabilitiesPreview", userId, groupId ?? "club"] as const,

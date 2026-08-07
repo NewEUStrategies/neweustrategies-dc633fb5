@@ -31,7 +31,10 @@ function CapabilityCell({ value }: { value: CapabilityValue }) {
   const { t } = useTranslation();
   if (value === "yes") {
     return (
-      <span className="inline-flex items-center justify-center" title={t("adminClubs.permissions.value.yes")}>
+      <span
+        className="inline-flex items-center justify-center"
+        title={t("adminClubs.permissions.value.yes")}
+      >
         <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
         <span className="sr-only">{t("adminClubs.permissions.value.yes")}</span>
       </span>
@@ -49,7 +52,10 @@ function CapabilityCell({ value }: { value: CapabilityValue }) {
     );
   }
   return (
-    <span className="inline-flex items-center justify-center" title={t("adminClubs.permissions.value.no")}>
+    <span
+      className="inline-flex items-center justify-center"
+      title={t("adminClubs.permissions.value.no")}
+    >
       <Minus className="h-4 w-4 text-muted-foreground/60" />
       <span className="sr-only">{t("adminClubs.permissions.value.no")}</span>
     </span>

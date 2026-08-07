@@ -7,7 +7,7 @@
 -- wyciekaloby do devtoolsow mimo poprawnego interfejsu.
 -- ============================================================================
 BEGIN;
-SELECT plan(24);
+SELECT plan(23);
 
 INSERT INTO public.tenants (id, name, slug)
 VALUES ('11111111-1111-1111-1111-111111111111', 'Tenant A', 'tenant-a-thr-test')

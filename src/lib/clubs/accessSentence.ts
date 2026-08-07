@@ -8,12 +8,7 @@
 // Czysta funkcja bez Reacta i bez i18next: przyjmuje gotowe tłumaczenia
 // fragmentów i zwraca listę zdań. Dzięki temu testuje się ją bez renderu
 // i bez mockowania tłumaczeń.
-import type {
-  ClubAttributionMode,
-  ClubJoinPolicy,
-  ClubPostPolicy,
-  ClubVisibility,
-} from "./types";
+import type { ClubAttributionMode, ClubJoinPolicy, ClubPostPolicy, ClubVisibility } from "./types";
 
 export interface AccessSentenceInput {
   visibility: ClubVisibility;

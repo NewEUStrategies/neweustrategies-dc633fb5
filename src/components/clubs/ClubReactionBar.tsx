@@ -10,14 +10,7 @@
 // zwinięty do reakcji już postawionych plus jednego przycisku "dodaj" - sześć
 // pustych przycisków pod każdą z trzydziestu odpowiedzi to ściana szumu.
 import { useTranslation } from "react-i18next";
-import {
-  BookOpenCheck,
-  Heart,
-  HelpCircle,
-  Lightbulb,
-  ThumbsDown,
-  ThumbsUp,
-} from "lucide-react";
+import { BookOpenCheck, Heart, HelpCircle, Lightbulb, ThumbsDown, ThumbsUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {

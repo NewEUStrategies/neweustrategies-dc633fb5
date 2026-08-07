@@ -33,12 +33,7 @@ interface ClubGeneralTabProps {
   disabled?: boolean;
 }
 
-export function ClubGeneralTab({
-  draft,
-  persistedSlug,
-  onChange,
-  disabled,
-}: ClubGeneralTabProps) {
+export function ClubGeneralTab({ draft, persistedSlug, onChange, disabled }: ClubGeneralTabProps) {
   const { t } = useTranslation();
   const slugChanged = draft.slug !== persistedSlug && persistedSlug.length > 0;
 

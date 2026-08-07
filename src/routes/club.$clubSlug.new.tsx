@@ -83,7 +83,9 @@ function ClubNewThread() {
               {club?.reason ? t(`club.reason.${club.reason}`) : t("club.cannotPost")}
             </p>
             <Button asChild variant="outline" size="sm">
-              <Link to="/club/$clubSlug" params={{ clubSlug }}>{t("club.backToClub")}</Link>
+              <Link to="/club/$clubSlug" params={{ clubSlug }}>
+                {t("club.backToClub")}
+              </Link>
             </Button>
           </CardContent>
         </Card>

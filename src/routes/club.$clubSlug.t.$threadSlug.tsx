@@ -87,7 +87,7 @@ function ClubThreadView() {
             <p className="text-sm text-muted-foreground">{t("club.reason.not_found")}</p>
             <Button asChild variant="outline" size="sm">
               <Link to="/club/$clubSlug" params={{ clubSlug }}>
-                {isPl ? club?.name_pl ?? t("club.title") : club?.name_en ?? t("club.title")}
+                {isPl ? (club?.name_pl ?? t("club.title")) : (club?.name_en ?? t("club.title"))}
               </Link>
             </Button>
           </CardContent>
@@ -224,7 +224,12 @@ function ClubThreadView() {
           {replyTo !== null ? (
             <div className="mb-2 flex items-center justify-between gap-2 rounded-md bg-muted/50 px-3 py-1.5 text-xs">
               <span className="text-muted-foreground">{t("club.replyingTo")}</span>
-              <Button size="sm" variant="ghost" className="h-6 px-2" onClick={() => setReplyTo(null)}>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 px-2"
+                onClick={() => setReplyTo(null)}
+              >
                 {t("club.cancelReplyTo")}
               </Button>
             </div>

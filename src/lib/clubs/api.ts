@@ -14,6 +14,10 @@ import {
   type AdminClubGroupRow,
   type AdminClubInvitationRow,
   type AdminClubInviteLinkRow,
+  type AdminClubModerationItem,
+  type AdminClubModerationLogRow,
+  type AdminClubReplyRow,
+  type AdminClubThreadRow,
   type AdminClubRow,
   type AdminClubStatsRow,
   type ClubCapabilities,
@@ -24,6 +28,7 @@ import {
   type ClubInviteLinkInput,
   type ClubMemberRole,
   type ClubMemberStatus,
+  type ClubModerationAction,
   type ClubMemberUpsertInput,
   type ClubMembershipRow,
   type ClubMyInvitationRow,
@@ -488,10 +493,7 @@ export async function editClubThread(params: {
   return data === true;
 }
 
-export async function editClubReply(params: {
-  replyId: string;
-  body: string;
-}): Promise<boolean> {
+export async function editClubReply(params: { replyId: string; body: string }): Promise<boolean> {
   const { data, error } = await supabase.rpc("club_edit_reply", {
     p_reply_id: params.replyId,
     p_body: params.body,
@@ -559,9 +561,7 @@ export async function unreactFromClubTarget(params: {
   return data === true;
 }
 
-export async function fetchClubStanceSummary(
-  threadId: string,
-): Promise<ClubStanceSummaryRow[]> {
+export async function fetchClubStanceSummary(threadId: string): Promise<ClubStanceSummaryRow[]> {
   const { data, error } = await supabase.rpc("club_stance_summary", {
     p_thread_id: threadId,
   });
@@ -604,4 +604,213 @@ export async function fetchMyThreadSubscription(
   });
   if (error) throw error;
   return data === "subscribed" || data === "muted" ? data : null;
+}
+
+// ---------------------------------------------------------------------------
+// Etap A7: koordynacja w panelu
+// ---------------------------------------------------------------------------
+
+export interface AdminThreadsPage {
+  rows: AdminClubThreadRow[];
+  total: number;
+}
+
+export async function fetchAdminClubThreads(params: {
+  clubId: string;
+  groupId?: string | null;
+  status?: string | null;
+  kind?: string | null;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<AdminThreadsPage> {
+  const search = params.search?.trim();
+  const { data, error } = await supabase.rpc("admin_club_threads", {
+    p_club_id: params.clubId,
+    p_group_id: params.groupId ?? undefined,
+    p_status: params.status ?? undefined,
+    p_kind: params.kind ?? undefined,
+    p_search: search && search.length > 0 ? search : undefined,
+    p_limit: params.limit ?? 50,
+    p_offset: params.offset ?? 0,
+  });
+  if (error) throw error;
+  const rows = data ?? [];
+  return { rows, total: rows.length > 0 ? Number(rows[0].total_count) : 0 };
+}
+
+export async function fetchAdminClubReplies(params: {
+  threadId: string;
+  limit?: number;
+  offset?: number;
+}): Promise<AdminClubReplyRow[]> {
+  const { data, error } = await supabase.rpc("admin_club_replies", {
+    p_thread_id: params.threadId,
+    p_limit: params.limit ?? 100,
+    p_offset: params.offset ?? 0,
+  });
+  if (error) throw error;
+  return data ?? [];
+}
+
+/** `authorId: null` = publikacja pod wlasnym nazwiskiem admina. */
+export async function adminCreateClubThread(params: {
+  groupId: string;
+  title: string;
+  body: string;
+  authorId?: string | null;
+  kind?: ClubThreadKind;
+  pinned?: boolean;
+}): Promise<{ threadId: string; threadSlug: string }> {
+  const { data, error } = await supabase.rpc("admin_club_thread_create", {
+    p_group_id: params.groupId,
+    p_title: params.title,
+    p_body: params.body,
+    p_author_id: params.authorId ?? undefined,
+    p_kind: params.kind ?? "discussion",
+    p_pinned: params.pinned ?? false,
+  });
+  if (error) throw error;
+  const row = data?.[0];
+  if (!row) throw new Error("clubs: thread not created");
+  return { threadId: row.thread_id, threadSlug: row.thread_slug };
+}
+
+export async function adminCreateClubReply(params: {
+  threadId: string;
+  body: string;
+  authorId?: string | null;
+  parentId?: string | null;
+}): Promise<string> {
+  const { data, error } = await supabase.rpc("admin_club_reply_create", {
+    p_thread_id: params.threadId,
+    p_body: params.body,
+    p_author_id: params.authorId ?? undefined,
+    p_parent_id: params.parentId ?? undefined,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function moderateClubTarget(params: {
+  targetType: "thread" | "reply";
+  targetId: string;
+  action: ClubModerationAction;
+  reason?: string | null;
+}): Promise<boolean> {
+  // `restore` ma osobne RPC: musi wiedziec, do jakiego statusu wrocic.
+  if (params.action === "restore") {
+    const { data, error } = await supabase.rpc("admin_club_restore", {
+      p_target_type: params.targetType,
+      p_target_id: params.targetId,
+      p_reason: params.reason ?? undefined,
+    });
+    if (error) throw error;
+    return data === true;
+  }
+  const { data, error } = await supabase.rpc("club_moderate", {
+    p_target_type: params.targetType,
+    p_target_id: params.targetId,
+    p_action: params.action,
+    p_reason: params.reason ?? undefined,
+  });
+  if (error) throw error;
+  return data === true;
+}
+
+/** Zwraca liczbe wpisow, ktore FAKTYCZNIE przeszly - UI mowi "zmieniono 47 z 50". */
+export async function bulkModerateClubTargets(params: {
+  targetType: "thread" | "reply";
+  targetIds: string[];
+  action: ClubModerationAction;
+  reason?: string | null;
+}): Promise<number> {
+  const { data, error } = await supabase.rpc("admin_club_bulk_moderate", {
+    p_target_type: params.targetType,
+    p_target_ids: params.targetIds,
+    p_action: params.action,
+    p_reason: params.reason ?? undefined,
+  });
+  if (error) throw error;
+  return typeof data === "number" ? data : 0;
+}
+
+export async function bulkSetClubMemberRole(params: {
+  clubId: string;
+  userIds: string[];
+  role: ClubMemberRole;
+}): Promise<number> {
+  const { data, error } = await supabase.rpc("admin_club_bulk_member_role", {
+    p_club_id: params.clubId,
+    p_user_ids: params.userIds,
+    p_role: params.role,
+  });
+  if (error) throw error;
+  return typeof data === "number" ? data : 0;
+}
+
+export async function moveClubThread(params: {
+  threadId: string;
+  groupId: string;
+}): Promise<boolean> {
+  const { data, error } = await supabase.rpc("admin_club_thread_move", {
+    p_thread_id: params.threadId,
+    p_group_id: params.groupId,
+  });
+  if (error) throw error;
+  return data === true;
+}
+
+export async function fetchClubModerationQueue(clubId: string): Promise<AdminClubModerationItem[]> {
+  const { data, error } = await supabase.rpc("admin_club_moderation_queue", {
+    p_club_id: clubId,
+  });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function fetchClubModerationLog(params: {
+  clubId: string;
+  limit?: number;
+}): Promise<AdminClubModerationLogRow[]> {
+  const { data, error } = await supabase.rpc("admin_club_moderation_log", {
+    p_club_id: params.clubId,
+    p_limit: params.limit ?? 100,
+  });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function banClubMember(params: {
+  clubId: string;
+  userId: string;
+  banned: boolean;
+  reason?: string | null;
+}): Promise<boolean> {
+  const { data, error } = await supabase.rpc("club_ban_member", {
+    p_club_id: params.clubId,
+    p_user_id: params.userId,
+    p_banned: params.banned,
+    p_reason: params.reason ?? undefined,
+  });
+  if (error) throw error;
+  return data === true;
+}
+
+/** Ujawnienie autora anonimowej wypowiedzi. Powod jest OBOWIAZKOWY. */
+export async function revealClubAuthor(params: {
+  targetType: "thread" | "reply";
+  targetId: string;
+  reason: string;
+}): Promise<{ authorId: string; displayName: string; profileSlug: string | null } | null> {
+  const { data, error } = await supabase.rpc("club_moderator_reveal_author", {
+    p_target_type: params.targetType,
+    p_target_id: params.targetId,
+    p_reason: params.reason,
+  });
+  if (error) throw error;
+  const row = data?.[0];
+  return row
+    ? { authorId: row.author_id, displayName: row.display_name, profileSlug: row.profile_slug }
+    : null;
 }
