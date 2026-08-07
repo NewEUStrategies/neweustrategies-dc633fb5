@@ -25,6 +25,7 @@ import { subscribeToTable } from "@/lib/realtime/tableChannelHub";
 import { toNetworkDegree, type NetworkDegree } from "@/lib/network/degree";
 import type { Database } from "@/integrations/supabase/types";
 import { networkKeys } from "./keys";
+import { readDegree, type ConnectionBridge, type ConnectionDegree } from "./degree";
 
 type Fns = Database["public"]["Functions"];
 export type MyConnectionRow = Fns["my_connections"]["Returns"][number];
@@ -43,12 +44,10 @@ export interface ConnectionState {
   mutualCount: number;
   /** Czy świeże zaproszenie ma sens (widoczność, tenant, blokady, polityka). */
   canInvite: boolean;
-  /**
-   * Stopień sieci wprost z bazy (1 / 2 / 3+). Do 20260807143000 klient musiał
-   * go zgadywać z `mutualCount` - i nie zgadywał, więc drugi stopień był
-   * liczony i nigdzie nie pokazany. Definicja mieszka w `connection_statuses`.
-   */
-  degree: NetworkDegree;
+  /** Stopień oddalenia w grafie zaakceptowanych relacji (0 = poza zasięgiem). */
+  degree: ConnectionDegree;
+  /** Mój kontakt 1. stopnia otwierający ścieżkę do tej osoby (2°/3°). */
+  bridge: ConnectionBridge | null;
 }
 
 export const NO_CONNECTION: ConnectionState = {
@@ -56,7 +55,8 @@ export const NO_CONNECTION: ConnectionState = {
   connectionId: null,
   mutualCount: 0,
   canInvite: true,
-  degree: 3,
+  degree: 0,
+  bridge: null,
 };
 
 const PAGE_SIZE = 24;
@@ -91,7 +91,7 @@ export function useConnectionStatuses(
             connectionId: row.connection_id,
             mutualCount: row.mutual_count,
             canInvite: row.can_invite,
-            degree: toNetworkDegree(row.degree),
+            ...readDegree(row),
           });
         }
       }

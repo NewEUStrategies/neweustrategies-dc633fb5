@@ -14,6 +14,7 @@ import type {
   MyConnectionRow,
   PolicyItemFollowerRow,
 } from "@/lib/network/useConnections";
+import type { ConnectionBridge } from "@/lib/network/degree";
 import type { IntroductionRow } from "@/lib/network/useIntroductions";
 import type { ProfileViewer } from "@/lib/network/useProfileViews";
 import type { Recommendation } from "@/lib/network/useRecommendations";
@@ -38,15 +39,31 @@ export const NETWORK_IDS = {
 
 export const PEER_NAME = "Anna Nowak";
 
-/** Stan relacji z `connection_statuses` (domyślnie: brak relacji, można zaprosić). */
+/**
+ * Stan relacji z `connection_statuses` (domyślnie: brak relacji, można
+ * zaprosić, poza zasięgiem sieci). `degree`/`bridge` mają domyślne wartości
+ * „nic nie twierdzimy", żeby test, który ich nie dotyczy, nie musiał ich
+ * wypisywać - a test stopnia oddalenia ustawiał je jawnie.
+ */
 export function connectionState(overrides: Partial<ConnectionState> = {}): ConnectionState {
   return {
     status: "none",
     connectionId: null,
     mutualCount: 0,
     canInvite: true,
-    // Domyślnie 3. stopień - fixture "brak relacji" nie może udawać bliskości.
-    degree: 3,
+    degree: 0,
+    bridge: null,
+    ...overrides,
+  };
+}
+
+/** Most (mój kontakt 1. stopnia) - domyślnie „Jan Kowalski" z fixture'ów sieci. */
+export function connectionBridge(overrides: Partial<ConnectionBridge> = {}): ConnectionBridge {
+  return {
+    id: NETWORK_IDS.bridge,
+    name: "Jan Kowalski",
+    avatarUrl: null,
+    slug: "jan-kowalski",
     ...overrides,
   };
 }

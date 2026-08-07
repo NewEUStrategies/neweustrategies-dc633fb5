@@ -76,6 +76,27 @@ export const networkPl = {
     mutualLinkAria_few: "Zobacz {{count}} wspólne kontakty",
     mutualLinkAria_many: "Zobacz {{count}} wspólnych kontaktów",
     mutualLinkAria_other: "Zobacz {{count}} wspólnych kontaktów",
+    // Stopień oddalenia (1°/2°/3°). Gałęzie `short` i `description` muszą mieć
+    // IDENTYCZNY zbiór podkluczy w PL i EN - komponenty czytają je przez
+    // template literal, a bramka rozjazdu kodu pilnuje parytetu gałęzi.
+    degree: {
+      short: {
+        first: "1°",
+        second: "2°",
+        third: "3°",
+      },
+      description: {
+        first: "Kontakt 1. stopnia - jesteście połączeni",
+        second: "Kontakt 2. stopnia - macie wspólny kontakt",
+        third: "Kontakt 3. stopnia - dwa kroki od Twojej sieci",
+      },
+      you: "Ty",
+      hiddenNode: "Osoba spoza Twojej sieci",
+      pathAria: "Droga do kontaktu: {{path}}",
+      via: "przez {{name}}",
+      legend:
+        "Stopień oddalenia liczymy w grafie zaakceptowanych połączeń - most nazywamy tylko wtedy, gdy sam zgodził się być widoczny.",
+    },
     requestedAt: "Wysłano {{date}}",
     connectedAt: "W sieci od {{date}}",
     viewProfile: "Zobacz profil",
@@ -344,6 +365,24 @@ export const networkEn = {
     mutual_other: "{{count}} mutual connections",
     mutualLinkAria_one: "View {{count}} mutual connection",
     mutualLinkAria_other: "View {{count}} mutual connections",
+    degree: {
+      short: {
+        first: "1°",
+        second: "2°",
+        third: "3°",
+      },
+      description: {
+        first: "1st-degree connection - you are connected",
+        second: "2nd-degree connection - you share a contact",
+        third: "3rd-degree connection - two steps from your network",
+      },
+      you: "You",
+      hiddenNode: "Someone outside your network",
+      pathAria: "Path to this person: {{path}}",
+      via: "via {{name}}",
+      legend:
+        "Degrees are computed on the graph of accepted connections - we name the bridge only when they opted in to being visible.",
+    },
     requestedAt: "Sent {{date}}",
     connectedAt: "Connected since {{date}}",
     viewProfile: "View profile",

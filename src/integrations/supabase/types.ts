@@ -6130,7 +6130,7 @@ export type Database = {
           enabled_expert_request: boolean
           enabled_follow: boolean
           enabled_introduction: boolean
-          enabled_meeting: boolean
+          enabled_meeting_booking: boolean
           enabled_message: boolean
           enabled_profile_view: boolean
           enabled_recommendation: boolean
@@ -6164,7 +6164,7 @@ export type Database = {
           enabled_expert_request?: boolean
           enabled_follow?: boolean
           enabled_introduction?: boolean
-          enabled_meeting?: boolean
+          enabled_meeting_booking?: boolean
           enabled_message?: boolean
           enabled_profile_view?: boolean
           enabled_recommendation?: boolean
@@ -6198,7 +6198,7 @@ export type Database = {
           enabled_expert_request?: boolean
           enabled_follow?: boolean
           enabled_introduction?: boolean
-          enabled_meeting?: boolean
+          enabled_meeting_booking?: boolean
           enabled_message?: boolean
           enabled_profile_view?: boolean
           enabled_recommendation?: boolean
@@ -13058,6 +13058,10 @@ export type Database = {
       connection_statuses: {
         Args: { p_user_ids: string[] }
         Returns: {
+          bridge_avatar: string
+          bridge_id: string
+          bridge_name: string
+          bridge_slug: string
           can_invite: boolean
           connection_id: string
           degree: number
@@ -13070,7 +13074,10 @@ export type Database = {
         Args: { p_limit?: number }
         Returns: {
           avatar_url: string
-          completeness_score: number
+          bridge_avatar: string
+          bridge_id: string
+          bridge_name: string
+          bridge_slug: string
           current_company: string
           degree: number
           display_name: string
@@ -14484,6 +14491,8 @@ export type Database = {
         }[]
       }
       normalize_public_host: { Args: { p_raw: string }; Returns: string }
+      notification_actor_name: { Args: { p_user_id: string }; Returns: string }
+      notification_profile_ref: { Args: { p_user_id: string }; Returns: string }
       org_add_seat: {
         Args: { p_email: string; p_org: string; p_role?: string }
         Returns: string

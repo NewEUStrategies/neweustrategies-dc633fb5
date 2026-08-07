@@ -28,13 +28,14 @@ import { ChatAvatar } from "@/components/chat/ChatAvatar";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
 import { ConnectButton } from "@/components/network/ConnectButton";
 import { DirectMessageButton } from "@/components/network/DirectMessageButton";
-import { IntentChip } from "@/components/atoms/IntentChip";
-import { NetworkDegreeBadge } from "@/components/atoms/NetworkDegreeBadge";
+import { DegreeBadge } from "@/components/network/atoms/DegreeBadge";
+import { ConnectionPathTrail } from "@/components/network/molecules/ConnectionPathTrail";
 import { useAuth } from "@/hooks/useAuth";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { useOnlineUsers } from "@/lib/chat/presence";
 import { currentLang } from "@/lib/i18n/localeRuntime";
 import {
+  NO_CONNECTION,
   useConnectionRequests,
   useConnectionSuggestions,
   useMyConnections,
@@ -44,22 +45,7 @@ import {
   type ConnectionSuggestionRow,
   type MyConnectionRow,
 } from "@/lib/network/useConnections";
-import {
-  useDismissedSuggestionsCount,
-  useDismissSuggestion,
-  useRestoreSuggestions,
-} from "@/lib/network/useSuggestionFeedback";
-import {
-  networkDegreeLabelKey,
-  networkDegreeShortKey,
-  toNetworkDegree,
-  type NetworkDegree,
-} from "@/lib/network/degree";
-import {
-  normalizeProfileIntents,
-  profileIntentLabelKey,
-  type ProfileIntentCode,
-} from "@/lib/profile/intents";
+import { readDegree, type ConnectionBridge, type ConnectionDegree } from "@/lib/network/degree";
 import { cn } from "@/lib/utils";
 import { ensureI18n as ensureNetworkI18n } from "@/lib/i18n-network";
 import { ensureI18n as ensureProfileIntentI18n } from "@/lib/i18n-profile-intent";
@@ -137,6 +123,8 @@ function PersonRow({
   verified,
   online,
   meta,
+  degree = 0,
+  bridge = null,
   highlighted,
   degree,
   intents,
@@ -152,6 +140,10 @@ function PersonRow({
   verified: boolean;
   online: boolean;
   meta?: string;
+  /** Stopień oddalenia (0 = nie twierdzimy nic - np. wiersz zaproszenia). */
+  degree?: ConnectionDegree;
+  /** Mój kontakt 1. stopnia otwierający drogę do tej osoby. */
+  bridge?: ConnectionBridge | null;
   highlighted?: boolean;
   /** Stopień sieci z bazy (`connection_statuses` / `connection_suggestions`). */
   degree?: NetworkDegree;
@@ -164,6 +156,7 @@ function PersonRow({
     <>
       <p className="flex min-w-0 items-center gap-1.5 truncate text-sm font-semibold">
         <span className="truncate">{displayName}</span>
+        <DegreeBadge degree={degree} />
         {verified && (
           <BadgeCheck
             className="h-3.5 w-3.5 shrink-0 text-sky-600 dark:text-sky-400"
@@ -194,6 +187,16 @@ function PersonRow({
           {meta && <span className="truncate">{meta}</span>}
         </p>
       )}
+      {/* „Którędy": ścieżka mostu. Bez linku - cały blok jest już linkiem. */}
+      <ConnectionPathTrail
+        degree={degree}
+        bridge={bridge}
+        targetName={displayName}
+        targetAvatarUrl={avatarUrl}
+        targetSlug={slug}
+        interactive={false}
+        className="mt-0.5"
+      />
     </>
   );
   return (
@@ -369,6 +372,9 @@ function ConnectionsTab({ highlightId }: { highlightId?: string }) {
                     ? t("network.connectedAt", { date: formatDate(c.connected_at) })
                     : undefined
                 }
+                // Moja sieć to z definicji 1. stopień - i tak ma być
+                // podpisana, żeby skala „1°/2°/3°" była czytelna wszędzie.
+                degree={1}
                 highlighted={highlightId === c.connection_id}
               >
                 <DirectMessageButton
@@ -382,9 +388,9 @@ function ConnectionsTab({ highlightId }: { highlightId?: string }) {
                   userId={c.user_id}
                   displayName={c.display_name}
                   state={{
+                    ...NO_CONNECTION,
                     status: "connected",
                     connectionId: c.connection_id,
-                    mutualCount: 0,
                     canInvite: false,
                     degree: 1,
                   }}
@@ -520,9 +526,11 @@ function RequestsTab({
                   userId={r.user_id}
                   displayName={r.display_name}
                   state={{
+                    // Zaproszenie w toku nie jest stopniem - graf relacji
+                    // opisuje fakty, nie intencje (stąd `degree` z NO_CONNECTION).
+                    ...NO_CONNECTION,
                     status: "pending_in",
                     connectionId: r.connection_id,
-                    mutualCount: 0,
                     canInvite: false,
                     degree: 3,
                   }}
@@ -533,9 +541,9 @@ function RequestsTab({
                   userId={r.user_id}
                   displayName={r.display_name}
                   state={{
+                    ...NO_CONNECTION,
                     status: "pending_out",
                     connectionId: r.connection_id,
-                    mutualCount: 0,
                     canInvite: false,
                     degree: 3,
                   }}
@@ -618,10 +626,10 @@ function SuggestionsTab() {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">{t("network.suggestionsHint")}</p>
-        {restoreButton}
-      </div>
+      <p className="text-xs text-muted-foreground">{t("network.suggestionsHint")}</p>
+      {/* Skala 1°/2°/3° wymaga jednego zdania wyjaśnienia - inaczej odznaka
+          jest ozdobą, a nie informacją (i nie widać reguły prywatności mostu). */}
+      <p className="text-[11px] text-muted-foreground/80">{t("network.degree.legend")}</p>
       <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {rows.map((s: ConnectionSuggestionRow) => (
           <PersonRow
@@ -635,8 +643,10 @@ function SuggestionsTab() {
             slug={s.slug}
             verified={s.verified}
             online={online.has(s.user_id)}
-            degree={toNetworkDegree(s.degree)}
-            intents={normalizeProfileIntents(s.open_to)}
+            // Ten sam odczyt stopnia co w connection_statuses - sugestia
+            // wreszcie MÓWI, dlaczego kogoś proponuje (patrz migracja
+            // 20260807100000), zamiast liczyć drugi stopień po cichu.
+            {...readDegree(s)}
             meta={
               [
                 s.mutual_count > 0 ? t("network.mutual", { count: s.mutual_count }) : null,

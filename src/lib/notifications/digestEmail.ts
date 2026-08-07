@@ -31,21 +31,45 @@ export function pickDigestText(
 }
 
 /**
- * Nagłówki sekcji digestu per rodzaj powiadomienia. Alerty trackera dostają
- * własną sekcję na górze, żeby digest czytał się jak brief legislacyjny, a nie
- * płaska lista - to krok w stronę produktu danych (Politico PRO). Kolejność w
- * tej tablicy wyznacza kolejność sekcji; rodzaje spoza listy trafiają do
- * sekcji "pozostałe" (kind === null).
+ * Nagłówki sekcji digestu. Alerty trackera dostają własną sekcję na górze, żeby
+ * digest czytał się jak brief legislacyjny, a nie płaska lista - to krok w
+ * stronę produktu danych (Politico PRO). Kolejność w tej tablicy wyznacza
+ * kolejność sekcji; rodzaje spoza wszystkich sekcji trafiają do „Pozostałe"
+ * (kinds === null).
+ *
+ * Sekcja bierze LISTĘ rodzajów, nie jeden: po domknięciu katalogu (08.2026)
+ * zdarzenia sieciowe (zaproszenia, wprowadzenia, rekomendacje, poparcia,
+ * wyświetlenia profilu, rezerwacje spotkań) to sześć rodzajów opowiadających
+ * JEDNĄ historię - „co się dzieje wokół Twojego profilu". Sześć jednopozycyjnych
+ * sekcji byłoby szumem, a „Pozostałe" - zakopaniem najbardziej osobistej części
+ * digestu pod stopką.
  */
-const DIGEST_SECTIONS: { kind: string | null; pl: string; en: string }[] = [
-  { kind: "tracker", pl: "Tracker legislacyjny UE", en: "EU legislative tracker" },
-  { kind: "content", pl: "Nowe treści", en: "New content" },
-  { kind: "comment", pl: "Komentarze", en: "Comments" },
-  { kind: "message", pl: "Wiadomości", en: "Messages" },
-  { kind: "follow", pl: "Obserwujący", en: "Followers" },
-  { kind: "subscription", pl: "Subskrypcja", en: "Subscription" },
-  { kind: null, pl: "Pozostałe", en: "Other" },
+const DIGEST_SECTIONS: { kinds: readonly string[] | null; pl: string; en: string }[] = [
+  { kinds: ["tracker"], pl: "Tracker legislacyjny UE", en: "EU legislative tracker" },
+  { kinds: ["content"], pl: "Nowe treści", en: "New content" },
+  { kinds: ["comment"], pl: "Komentarze", en: "Comments" },
+  { kinds: ["message"], pl: "Wiadomości", en: "Messages" },
+  {
+    kinds: [
+      "connection",
+      "introduction",
+      "recommendation",
+      "endorsement",
+      "profile_view",
+      "meeting_booking",
+    ],
+    pl: "Sieć i profil",
+    en: "Network & profile",
+  },
+  { kinds: ["follow"], pl: "Obserwujący", en: "Followers" },
+  { kinds: ["subscription"], pl: "Subskrypcja", en: "Subscription" },
+  { kinds: null, pl: "Pozostałe", en: "Other" },
 ];
+
+/** Czy rodzaj ma własną sekcję (fałsz = trafia do „Pozostałe"). */
+function hasOwnSection(kind: string): boolean {
+  return DIGEST_SECTIONS.some((s) => s.kinds !== null && s.kinds.includes(kind));
+}
 
 export function digestSubject(
   count: number,
@@ -111,9 +135,7 @@ export function buildDigestHtml(opts: {
   const distinctKinds = new Set(items.map((i) => i.kind));
   const rows = DIGEST_SECTIONS.map((section) => {
     const inSection = items.filter((i) =>
-      section.kind === null
-        ? !DIGEST_SECTIONS.some((s) => s.kind === i.kind)
-        : i.kind === section.kind,
+      section.kinds === null ? !hasOwnSection(i.kind) : section.kinds.includes(i.kind),
     );
     if (inSection.length === 0) return "";
     const body = inSection.map(renderItem).filter(Boolean).join("");

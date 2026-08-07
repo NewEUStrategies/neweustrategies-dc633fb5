@@ -8,6 +8,8 @@ import { ArrowLeft, BadgeCheck, MapPin, Users, UsersRound } from "lucide-react";
 import { AuthGate } from "@/components/profile/AuthGate";
 import { ChatAvatar } from "@/components/chat/ChatAvatar";
 import { DirectMessageButton } from "@/components/network/DirectMessageButton";
+import { DegreeBadge } from "@/components/network/atoms/DegreeBadge";
+import { NetworkDistance } from "@/components/network/organisms/NetworkDistance";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useOnlineUsers } from "@/lib/chat/presence";
@@ -137,6 +139,16 @@ function MutualConnectionsPage() {
                       defaultValue: "Osoby, które znacie oboje.",
                     })}
               </p>
+              {/* Podsumowanie drogi nad pełną listą mostów: jeden stopień,
+                  jedna ścieżka, potem dopiero wszystkie warianty niżej. */}
+              {targetName ? (
+                <NetworkDistance
+                  userId={userId}
+                  displayName={targetName}
+                  avatarUrl={target?.avatar_url}
+                  className="mt-1.5"
+                />
+              ) : null}
             </div>
           </div>
         </header>
@@ -192,6 +204,9 @@ function MutualConnectionsPage() {
                       >
                         <p className="flex min-w-0 items-center gap-1.5 truncate text-sm font-semibold">
                           <span className="truncate">{r.display_name}</span>
+                          {/* Każdy most jest moim kontaktem 1. stopnia - to on
+                              robi z tej listy listę realnych dróg. */}
+                          <DegreeBadge degree={1} />
                           {r.verified && (
                             <BadgeCheck
                               className="h-3.5 w-3.5 shrink-0 text-sky-600 dark:text-sky-400"
@@ -201,7 +216,10 @@ function MutualConnectionsPage() {
                         </p>
                       </Link>
                     ) : (
-                      <p className="truncate text-sm font-semibold">{r.display_name}</p>
+                      <p className="flex min-w-0 items-center gap-1.5 truncate text-sm font-semibold">
+                        <span className="truncate">{r.display_name}</span>
+                        <DegreeBadge degree={1} />
+                      </p>
                     )}
                     {(r.job_title || r.current_company) && (
                       <p className="truncate text-xs text-muted-foreground">

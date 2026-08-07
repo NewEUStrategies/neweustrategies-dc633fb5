@@ -91,6 +91,10 @@ describe("useConnectionStatuses", () => {
           mutual_count: 3,
           can_invite: false,
           degree: 1,
+          bridge_id: null,
+          bridge_name: null,
+          bridge_avatar: null,
+          bridge_slug: null,
         },
         {
           user_id: "peer-2",
@@ -98,7 +102,11 @@ describe("useConnectionStatuses", () => {
           connection_id: null,
           mutual_count: 0,
           can_invite: true,
-          degree: 3,
+          degree: 0,
+          bridge_id: null,
+          bridge_name: null,
+          bridge_avatar: null,
+          bridge_slug: null,
         },
       ]),
     );
@@ -117,8 +125,77 @@ describe("useConnectionStatuses", () => {
       mutualCount: 3,
       canInvite: false,
       degree: 1,
+      bridge: null,
     });
     expect(result.current.data?.get("peer-2")?.status).toBe("none");
+  });
+
+  // Stopień oddalenia (luka #6 audytu): drugi stopień był liczony w bazie od
+  // v2 i NIGDZIE nie wychodził. Kontrakt mapowania jest tu tak samo ważny jak
+  // sam status - bez niego karta nie wie ani „jak daleko", ani „którędy".
+  it("przenosi stopień oddalenia i most z RPC do stanu relacji", async () => {
+    h.rpc.mockImplementation(() =>
+      ok([
+        {
+          user_id: "peer-2nd",
+          status: "none",
+          connection_id: null,
+          mutual_count: 2,
+          can_invite: true,
+          degree: 2,
+          bridge_id: "bridge-1",
+          bridge_name: "Anna Nowak",
+          bridge_avatar: "https://cdn.test/anna.jpg",
+          bridge_slug: "anna-nowak",
+        },
+        {
+          // 3. stopień z mostem UKRYTYM (bez opt-inu discoverable): dystans
+          // znamy, drogi nie wolno nam nazwać.
+          user_id: "peer-3rd",
+          status: "none",
+          connection_id: null,
+          mutual_count: 0,
+          can_invite: true,
+          degree: 3,
+          bridge_id: null,
+          bridge_name: null,
+          bridge_avatar: null,
+          bridge_slug: null,
+        },
+        {
+          // Starsza wersja funkcji w bazie / wartość spoza zakresu degraduje
+          // się do 0 zamiast wpuszczać „NaN°" do UI.
+          user_id: "peer-legacy",
+          status: "none",
+          connection_id: null,
+          mutual_count: 0,
+          can_invite: true,
+          degree: 9,
+          bridge_id: "bridge-1",
+          bridge_name: "Anna Nowak",
+          bridge_avatar: null,
+          bridge_slug: null,
+        },
+      ]),
+    );
+    const client = makeClient();
+    const { result } = renderHook(
+      () => useConnectionStatuses(["peer-2nd", "peer-3rd", "peer-legacy"]),
+      { wrapper: wrapperFor(client) },
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.get("peer-2nd")).toMatchObject({
+      degree: 2,
+      bridge: {
+        id: "bridge-1",
+        name: "Anna Nowak",
+        avatarUrl: "https://cdn.test/anna.jpg",
+        slug: "anna-nowak",
+      },
+    });
+    expect(result.current.data?.get("peer-3rd")).toMatchObject({ degree: 3, bridge: null });
+    expect(result.current.data?.get("peer-legacy")).toMatchObject({ degree: 0, bridge: null });
   });
 
   it("odrzuca status spoza słownika zamiast wpuszczać go do UI", async () => {
@@ -170,8 +247,10 @@ describe("useConnectionStatuses", () => {
       connectionId: null,
       mutualCount: 0,
       canInvite: true,
-      // Stan startowy karty nie ma prawa udawać bliskiej relacji.
-      degree: 3,
+      // „Poza zasięgiem" to brak twierdzenia, a nie twierdzenie o dystansie -
+      // UI ma wtedy nie rysować żadnej odznaki.
+      degree: 0,
+      bridge: null,
     });
   });
 });

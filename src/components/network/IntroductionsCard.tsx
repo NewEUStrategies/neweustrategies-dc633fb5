@@ -4,7 +4,7 @@
 //   - Ode mnie (requester): wysłane - status + Withdraw,
 //   - O mnie (target): tylko podgląd zaakceptowanych (info kto Cię polecił).
 // Wszystko na jednym RPC (`my_introduction_requests`) w trzech wywołaniach.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import {
@@ -193,9 +193,25 @@ function List({
   );
 }
 
-export function IntroductionsCard() {
+export interface IntroductionsCardProps {
+  /**
+   * Zakładka otwierana na starcie. Powiadomienia rodzaju `introduction` linkują
+   * wprost do swojej roli (`/profile?tab=activity&intro=target`), bo prośba
+   * przekazana OSOBIE DOCELOWEJ nie jest widoczna w domyślnej zakładce mostu -
+   * bez tego link prowadził do karty, w której nie było o czym mowa.
+   */
+  initialRole?: Role;
+}
+
+export function IntroductionsCard({ initialRole }: IntroductionsCardProps = {}) {
   const { t } = useTranslation();
-  const [tab, setTab] = useState<Role>("bridge");
+  const [tab, setTab] = useState<Role>(initialRole ?? "bridge");
+
+  // Kolejny link z powiadomienia w tej samej sesji musi przestawić zakładkę
+  // także wtedy, gdy karta jest już zamontowana.
+  useEffect(() => {
+    if (initialRole) setTab(initialRole);
+  }, [initialRole]);
 
   const bridgeQ = useMyIntroductions("bridge");
   const requesterQ = useMyIntroductions("requester");

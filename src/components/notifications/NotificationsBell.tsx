@@ -31,6 +31,7 @@ import {
   Quote,
   ShieldAlert,
   Sparkles,
+  ThumbsUp,
   UserCheck,
   UserPlus,
 } from "lucide-react";
@@ -101,9 +102,9 @@ const KIND_ICONS: Record<NotificationKind, React.ComponentType<{ className?: str
   expert_request: HelpCircle,
   introduction: Handshake,
   recommendation: Quote,
-  endorsement: BadgeCheck,
+  endorsement: ThumbsUp,
   profile_view: Eye,
-  meeting: CalendarClock,
+  meeting_booking: CalendarClock,
 };
 
 // `notifications.kind` przychodzi z bazy jako `string`, więc odczyt idzie przez
