@@ -56,6 +56,7 @@ import {
   Landmark,
   ListChecks,
   MessageCircle,
+  MessagesSquare,
   Radio,
   ShieldCheck,
   TrendingUp,
@@ -69,6 +70,7 @@ import {
   useAdminSidebarExtrasSlot,
 } from "@/components/admin/AdminSidebarExtras";
 import { useSiteSetting } from "@/lib/useSiteSetting";
+import { useClubPendingCounts } from "@/lib/clubs/useClubs";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
