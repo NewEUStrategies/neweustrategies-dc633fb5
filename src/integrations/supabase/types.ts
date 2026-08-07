@@ -12666,6 +12666,10 @@ export type Database = {
           who_can_post: string
         }[]
       }
+      admin_club_group_delete: {
+        Args: { p_group_id: string; p_move_to_group_id?: string }
+        Returns: number
+      }
       admin_club_group_reorder: {
         Args: { p_club_id: string; p_group_ids: string[] }
         Returns: number
@@ -12789,6 +12793,7 @@ export type Database = {
       }
       admin_club_member_upsert: {
         Args: {
+          p_clear_role_expiry?: boolean
           p_club_id: string
           p_role?: string
           p_role_expires_at?: string
@@ -13690,9 +13695,12 @@ export type Database = {
         }
         Returns: { id: string; slug: string; status: string }[]
       }
-      club_edit_reply: { Args: { p_body: string; p_reply_id: string }; Returns: boolean }
+      club_edit_reply: {
+        Args: { p_body: string; p_reason?: string; p_reply_id: string }
+        Returns: boolean
+      }
       club_edit_thread: {
-        Args: { p_body: string; p_thread_id: string; p_title: string }
+        Args: { p_body: string; p_reason?: string; p_thread_id: string; p_title: string }
         Returns: boolean
       }
       club_replies_list: {

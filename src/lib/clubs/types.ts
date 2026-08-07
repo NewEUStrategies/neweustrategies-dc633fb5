@@ -308,7 +308,12 @@ export interface ClubMemberUpsertInput {
   userId: string;
   role?: ClubMemberRole;
   status?: ClubMemberStatus;
+  /** Pominiete = "nie ruszaj kadencji". Do jej zdjecia sluzy `clearRoleExpiry`. */
   roleExpiresAt?: string | null;
+  /** Jawne zdjecie kadencji. Bez tego pola nie da sie odroznic "nie przyslalem
+   *  terminu" od "zdejmij termin" - a wczesniej ta niejednoznacznosc cicho
+   *  kasowala kadencje przy KAZDEJ zmianie roli z panelu. */
+  clearRoleExpiry?: boolean;
 }
 
 export interface AdminClubListFilters {
@@ -661,6 +666,37 @@ export const THREAD_ONLY_ACTIONS: readonly ClubModerationAction[] = [
   "pin",
   "unpin",
 ];
+
+/**
+ * Pelny slownik akcji, jakie moga stac w `club_moderation_log`. Nadzbior
+ * CLUB_MODERATION_ACTIONS: dziennik notuje takze zdarzenia, ktorych nie da sie
+ * WYWOLAC jako akcji moderacyjnej (blokada, publikacja w imieniu, kasowanie
+ * grupy). Filtr dziennika czyta wlasnie te liste, a nie te powyzej.
+ */
+export const CLUB_LOG_ACTIONS = [
+  "approve",
+  "hide",
+  "delete",
+  "restore",
+  "lock",
+  "unlock",
+  "pin",
+  "unpin",
+  "ban",
+  "unban",
+  "reveal_author",
+  "role_change",
+  "member_add",
+  "post_on_behalf",
+  "move",
+  "edit",
+  "group_delete",
+] as const;
+export type ClubLogAction = (typeof CLUB_LOG_ACTIONS)[number];
+
+/** Typy celu, jakie moga stac w dzienniku. */
+export const CLUB_LOG_TARGETS = ["thread", "reply", "member", "group"] as const;
+export type ClubLogTarget = (typeof CLUB_LOG_TARGETS)[number];
 
 export function isActionApplicable(
   action: ClubModerationAction,

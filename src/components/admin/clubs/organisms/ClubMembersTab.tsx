@@ -4,12 +4,27 @@
 // w tej tabeli - osobny dialog na każdą zmianę zamieniłby minutę pracy
 // w kwadrans. Usunięcie idzie przez potwierdzenie, bo jest nieodwracalne
 // w sensie utraty historii członkostwa.
-import { useState } from "react";
+//
+// Trzy rzeczy, których tu nie było:
+//   1. KOLEJKA PRÓŚB. `join_policy: 'request'` jest domyślną polityką klubu,
+//      więc kolejka powstaje w każdym nowym klubie - a jedyną drogą do jej
+//      obsłużenia było ponowne "dodanie" osoby kartą wyżej. To działało, ale
+//      przestawiało rolę na 'member' i kasowało kadencję, więc zatwierdzenie
+//      prośby z linku niosącego rolę moderatora po cichu ją odbierało.
+//   2. KADENCJA. Kolumna była wyłącznie do odczytu, a `club_scheduler_tick`
+//      wygasza role po terminie - nie miał czego wygaszać, bo terminu nie dało
+//      się nigdzie ustawić.
+//   3. WERSJA MOBILNA. Tabela z sześcioma kolumnami scrollowała się w poziomie,
+//      przez co droplista roli i kosz lądowały poza ekranem.
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Trash2, UserPlus } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CalendarClock, Check, Trash2, UserPlus, X } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -25,6 +40,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { MemberPicker } from "@/components/admin/community/MemberPicker";
 import { ConfirmDialog, type ConfirmState } from "@/components/admin/ConfirmDialog";
 import { ClubMemberStatusBadge } from "../atoms/ClubBadges";
@@ -32,6 +55,7 @@ import { useClubMembers, useRemoveClubMember, useUpsertClubMember } from "@/lib/
 import {
   CLUB_MEMBER_ROLES,
   CLUB_MEMBER_STATUSES,
+  type ClubMemberRow,
   type ClubMemberRole,
   type ClubMemberStatus,
 } from "@/lib/clubs/types";
@@ -50,17 +74,28 @@ function asStatus(value: string): ClubMemberStatus {
     : "active";
 }
 
+function isExpired(value: string | null): boolean {
+  return value !== null && new Date(value).getTime() <= Date.now();
+}
+
 export function ClubMembersTab({ clubId, isPl }: { clubId: string; isPl: boolean }) {
   const { t } = useTranslation();
   const [statusFilter, setStatusFilter] = useState<ClubMemberStatus | null>(null);
   const [newMemberId, setNewMemberId] = useState("");
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
+  const [tenure, setTenure] = useState<ClubMemberRow | null>(null);
 
   const membersQ = useClubMembers({ clubId, status: statusFilter });
+  // Kolejka próśb jest wołana OSOBNO od tabeli: ma być widoczna niezależnie od
+  // tego, jaki filtr statusu wybrał administrator. Zgłoszenie, które znika po
+  // przełączeniu filtra, jest zgłoszeniem, o którym się zapomina.
+  const pendingQ = useClubMembers({ clubId, status: "pending" });
+
   const upsertM = useUpsertClubMember(clubId);
   const removeM = useRemoveClubMember(clubId);
 
   const rows = membersQ.data?.rows ?? [];
+  const pending = useMemo(() => pendingQ.data?.rows ?? [], [pendingQ.data]);
 
   const handleAdd = () => {
     if (newMemberId.length === 0) return;
@@ -76,8 +111,103 @@ export function ClubMembersTab({ clubId, isPl }: { clubId: string; isPl: boolean
     );
   };
 
+  /** Zatwierdzenie ZACHOWUJE rolę z prośby: zaproszenie z linku może nieść
+   *  rolę moderatora, a przepisanie jej na 'member' cicho ją odbierało. */
+  const approve = (row: ClubMemberRow) =>
+    upsertM.mutate(
+      { userId: row.user_id, role: asRole(row.role), status: "active" },
+      {
+        onSuccess: () => toast.success(t("adminClubs.members.approved")),
+        onError: () => toast.error(t("adminClubs.saveFailed")),
+      },
+    );
+
+  const changeRole = (row: ClubMemberRow, role: string) =>
+    upsertM.mutate(
+      { userId: row.user_id, role: asRole(role), status: asStatus(row.status) },
+      {
+        onSuccess: () => toast.success(t("adminClubs.members.roleChanged")),
+        onError: () => toast.error(t("adminClubs.saveFailed")),
+      },
+    );
+
+  const confirmRemove = (row: ClubMemberRow, reject: boolean) =>
+    setConfirm({
+      title: reject
+        ? t("adminClubs.members.rejectConfirmTitle", { name: row.display_name })
+        : t("adminClubs.members.removeConfirmTitle", { name: row.display_name }),
+      description: reject
+        ? t("adminClubs.members.rejectConfirmBody")
+        : t("adminClubs.members.removeConfirmBody"),
+      destructive: true,
+      onConfirm: () =>
+        removeM.mutateAsync(row.user_id).then(
+          () =>
+            toast.success(
+              reject ? t("adminClubs.members.rejected") : t("adminClubs.members.removed"),
+            ),
+          () => toast.error(t("adminClubs.saveFailed")),
+        ),
+    });
+
   return (
     <div className="space-y-6">
+      {/* ------------------------------------------------------------------ */}
+      {/* Kolejka próśb o dostęp                                              */}
+      {/* ------------------------------------------------------------------ */}
+      {pending.length > 0 ? (
+        <Card className="border-amber-500/40 bg-amber-500/5">
+          <CardHeader className="gap-1 pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              {t("adminClubs.members.requestsTitle")}
+              <Badge variant="secondary" className="tabular-nums">
+                {pending.length}
+              </Badge>
+            </CardTitle>
+            <CardDescription>{t("adminClubs.members.requestsHint")}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="grid gap-2 sm:grid-cols-2">
+              {pending.map((row) => (
+                <li
+                  key={row.user_id}
+                  className="flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-card p-2.5"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{row.display_name}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {t(`club.role.${asRole(row.role)}`)}
+                      {row.current_company !== null && row.current_company !== ""
+                        ? ` · ${row.current_company}`
+                        : ""}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="h-8"
+                    disabled={upsertM.isPending}
+                    onClick={() => approve(row)}
+                  >
+                    <Check className="mr-1.5 h-3.5 w-3.5" />
+                    {t("adminClubs.members.approve")}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 text-destructive"
+                    disabled={removeM.isPending}
+                    onClick={() => confirmRemove(row, true)}
+                  >
+                    <X className="mr-1.5 h-3.5 w-3.5" />
+                    {t("adminClubs.members.reject")}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      ) : null}
+
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
@@ -114,7 +244,10 @@ export function ClubMembersTab({ clubId, isPl }: { clubId: string; isPl: boolean
             value={statusFilter ?? ANY}
             onValueChange={(v) => setStatusFilter(v === ANY ? null : asStatus(v))}
           >
-            <SelectTrigger className="w-[200px]" aria-label={t("adminClubs.members.filterStatus")}>
+            <SelectTrigger
+              className="w-full sm:w-[200px]"
+              aria-label={t("adminClubs.members.filterStatus")}
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -140,27 +273,26 @@ export function ClubMembersTab({ clubId, isPl }: { clubId: string; isPl: boolean
               {t("adminClubs.members.empty")}
             </p>
           ) : (
-            <div className="overflow-x-auto rounded-lg border border-border/60">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t("adminClubs.columns.name")}</TableHead>
-                    <TableHead className="min-w-[150px]">{t("adminClubs.columns.role")}</TableHead>
-                    <TableHead>{t("adminClubs.columns.status")}</TableHead>
-                    <TableHead>{t("adminClubs.columns.joined")}</TableHead>
-                    <TableHead>{t("adminClubs.columns.roleExpires")}</TableHead>
-                    <TableHead className="w-10 sr-only">
-                      {t("adminClubs.columns.actions")}
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rows.map((row) => {
-                    const role = asRole(row.role);
-                    const expired =
-                      row.role_expires_at !== null &&
-                      new Date(row.role_expires_at).getTime() <= Date.now();
-                    return (
+            <>
+              {/* Tabela od lg w górę */}
+              <div className="hidden overflow-hidden rounded-lg border border-border/60 lg:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t("adminClubs.columns.name")}</TableHead>
+                      <TableHead className="min-w-[150px]">
+                        {t("adminClubs.columns.role")}
+                      </TableHead>
+                      <TableHead>{t("adminClubs.columns.status")}</TableHead>
+                      <TableHead>{t("adminClubs.columns.joined")}</TableHead>
+                      <TableHead>{t("adminClubs.columns.roleExpires")}</TableHead>
+                      <TableHead className="w-20 sr-only">
+                        {t("adminClubs.columns.actions")}
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.map((row) => (
                       <TableRow key={row.user_id}>
                         <TableCell>
                           <div className="font-medium">{row.display_name}</div>
@@ -169,35 +301,11 @@ export function ClubMembersTab({ clubId, isPl }: { clubId: string; isPl: boolean
                           ) : null}
                         </TableCell>
                         <TableCell>
-                          <Select
-                            value={role}
+                          <RoleSelect
+                            row={row}
                             disabled={upsertM.isPending}
-                            onValueChange={(v) =>
-                              upsertM.mutate(
-                                {
-                                  userId: row.user_id,
-                                  role: asRole(v),
-                                  status: asStatus(row.status),
-                                },
-                                {
-                                  onSuccess: () =>
-                                    toast.success(t("adminClubs.members.roleChanged")),
-                                  onError: () => toast.error(t("adminClubs.saveFailed")),
-                                },
-                              )
-                            }
-                          >
-                            <SelectTrigger className="h-8 w-full">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {CLUB_MEMBER_ROLES.map((r) => (
-                                <SelectItem key={r} value={r}>
-                                  {t(`club.role.${r}`)}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            onChange={(v) => changeRole(row, v)}
+                          />
                         </TableCell>
                         <TableCell>
                           <ClubMemberStatusBadge status={asStatus(row.status)} />
@@ -206,59 +314,258 @@ export function ClubMembersTab({ clubId, isPl }: { clubId: string; isPl: boolean
                           {new Date(row.joined_at).toLocaleDateString(isPl ? "pl-PL" : "en-GB")}
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-sm">
-                          {row.role_expires_at === null ? (
-                            <span className="text-muted-foreground">-</span>
-                          ) : expired ? (
-                            <span className="text-amber-700 dark:text-amber-300">
-                              {t("adminClubs.members.roleExpired")}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">
-                              {new Date(row.role_expires_at).toLocaleDateString(
-                                isPl ? "pl-PL" : "en-GB",
-                              )}
-                            </span>
-                          )}
+                          <TenureCell row={row} isPl={isPl} onEdit={() => setTenure(row)} />
                         </TableCell>
                         <TableCell>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                            disabled={removeM.isPending}
-                            onClick={() =>
+                          <div className="flex gap-1">
+                            {row.status === "pending" ? (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8"
+                                disabled={upsertM.isPending}
+                                onClick={() => approve(row)}
+                                aria-label={t("adminClubs.members.approve")}
+                              >
+                                <Check className="h-4 w-4" />
+                              </Button>
+                            ) : null}
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              disabled={removeM.isPending}
                               // Dialog aplikacji, nie window.confirm: natywne
                               // okna zostały świadomie usunięte z panelu, bo nie
                               // dają się ostylować ani przetłumaczyć.
-                              setConfirm({
-                                title: t("adminClubs.members.removeConfirmTitle", {
-                                  name: row.display_name,
-                                }),
-                                description: t("adminClubs.members.removeConfirmBody"),
-                                destructive: true,
-                                onConfirm: () =>
-                                  removeM.mutateAsync(row.user_id).then(
-                                    () => toast.success(t("adminClubs.members.removed")),
-                                    () => toast.error(t("adminClubs.saveFailed")),
-                                  ),
-                              })
-                            }
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            <span className="sr-only">{t("adminClubs.columns.actions")}</span>
-                          </Button>
+                              onClick={() => confirmRemove(row, false)}
+                              aria-label={t("adminClubs.members.removed")}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Karty poniżej lg - te same operacje, układ pionowy */}
+              <ul className="grid gap-2 lg:hidden">
+                {rows.map((row) => (
+                  <li key={row.user_id} className="rounded-lg border border-border/60 p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{row.display_name}</p>
+                        {row.job_title ? (
+                          <p className="truncate text-xs text-muted-foreground">{row.job_title}</p>
+                        ) : null}
+                      </div>
+                      <ClubMemberStatusBadge status={asStatus(row.status)} />
+                    </div>
+
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      <RoleSelect
+                        row={row}
+                        disabled={upsertM.isPending}
+                        onChange={(v) => changeRole(row, v)}
+                      />
+                      <div className="flex items-center text-sm">
+                        <TenureCell row={row} isPl={isPl} onEdit={() => setTenure(row)} />
+                      </div>
+                    </div>
+
+                    <div className="mt-2 flex flex-wrap gap-1 border-t border-border/60 pt-2">
+                      {row.status === "pending" ? (
+                        <Button
+                          size="sm"
+                          className="h-8"
+                          disabled={upsertM.isPending}
+                          onClick={() => approve(row)}
+                        >
+                          <Check className="mr-1.5 h-3.5 w-3.5" />
+                          {t("adminClubs.members.approve")}
+                        </Button>
+                      ) : null}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 text-destructive"
+                        disabled={removeM.isPending}
+                        onClick={() => confirmRemove(row, false)}
+                      >
+                        <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                        {t("common.delete")}
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
         </CardContent>
       </Card>
 
+      <TenureDialog
+        clubId={clubId}
+        member={tenure}
+        onOpenChange={(open) => !open && setTenure(null)}
+      />
       <ConfirmDialog state={confirm} onOpenChange={(open) => !open && setConfirm(null)} />
     </div>
+  );
+}
+
+function RoleSelect({
+  row,
+  disabled,
+  onChange,
+}: {
+  row: ClubMemberRow;
+  disabled: boolean;
+  onChange: (value: string) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <Select value={asRole(row.role)} disabled={disabled} onValueChange={onChange}>
+      <SelectTrigger className="h-8 w-full" aria-label={t("adminClubs.columns.role")}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {CLUB_MEMBER_ROLES.map((r) => (
+          <SelectItem key={r} value={r}>
+            {t(`club.role.${r}`)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+/** Kadencja jako przycisk, nie tekst: bez tego kolumna była martwym odczytem,
+ *  a `club_scheduler_tick` nie miał czego wygaszać. */
+function TenureCell({
+  row,
+  isPl,
+  onEdit,
+}: {
+  row: ClubMemberRow;
+  isPl: boolean;
+  onEdit: () => void;
+}) {
+  const { t } = useTranslation();
+  const expired = isExpired(row.role_expires_at);
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="h-7 gap-1.5 px-2 text-xs font-normal"
+      onClick={onEdit}
+    >
+      <CalendarClock className="h-3.5 w-3.5 shrink-0" />
+      {row.role_expires_at === null ? (
+        <span className="text-muted-foreground">{t("adminClubs.members.tenureNone")}</span>
+      ) : expired ? (
+        <span className="text-amber-700 dark:text-amber-300">
+          {t("adminClubs.members.roleExpired")}
+        </span>
+      ) : (
+        <span className="text-muted-foreground">
+          {new Date(row.role_expires_at).toLocaleDateString(isPl ? "pl-PL" : "en-GB")}
+        </span>
+      )}
+    </Button>
+  );
+}
+
+function TenureDialog({
+  clubId,
+  member,
+  onOpenChange,
+}: {
+  clubId: string;
+  member: ClubMemberRow | null;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { t } = useTranslation();
+  const upsertM = useUpsertClubMember(clubId);
+  const [value, setValue] = useState("");
+
+  // Pole daty startuje puste także wtedy, gdy kadencja jest ustawiona:
+  // dialog otwiera się po to, żeby ją ZMIENIĆ, a bieżący termin i tak stoi
+  // w zdaniu wyżej. Wstępne wypełnienie kusiłoby do zapisu bez zmiany.
+  const current = member?.role_expires_at ?? null;
+
+  const save = (clear: boolean) => {
+    if (!member) return;
+    if (!clear && value.trim() === "") return;
+    upsertM.mutate(
+      {
+        userId: member.user_id,
+        role: asRole(member.role),
+        status: asStatus(member.status),
+        roleExpiresAt: clear ? null : new Date(value).toISOString(),
+        clearRoleExpiry: clear,
+      },
+      {
+        onSuccess: () => {
+          toast.success(clear ? t("adminClubs.members.tenureCleared") : t("adminClubs.saved"));
+          setValue("");
+          onOpenChange(false);
+        },
+        onError: () => toast.error(t("adminClubs.saveFailed")),
+      },
+    );
+  };
+
+  return (
+    <Dialog open={member !== null} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-left">{t("adminClubs.members.tenureTitle")}</DialogTitle>
+          <DialogDescription className="text-left">
+            {t("adminClubs.members.tenureHint")}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <p className="rounded-md bg-muted/50 px-3 py-2 text-sm">
+            <span className="font-medium">{member?.display_name}</span>
+            {" · "}
+            {current === null
+              ? t("adminClubs.members.tenureNone")
+              : new Date(current).toLocaleString()}
+          </p>
+          <div className="space-y-1.5">
+            <Label htmlFor="club-tenure-date">{t("adminClubs.members.tenureUntil")}</Label>
+            <Input
+              id="club-tenure-date"
+              type="date"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <DialogFooter className="flex-col gap-2 sm:flex-row">
+          <Button
+            variant="ghost"
+            className="sm:mr-auto"
+            disabled={current === null || upsertM.isPending}
+            onClick={() => save(true)}
+          >
+            {t("adminClubs.members.tenureClear")}
+          </Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+            {t("common.cancel")}
+          </Button>
+          <Button disabled={value.trim() === "" || upsertM.isPending} onClick={() => save(false)}>
+            {t("common.save")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

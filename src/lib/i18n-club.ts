@@ -316,6 +316,7 @@ export const clubPl = {
       visibility: "Widoczność",
       joinPolicy: "Polityka wstępu",
       minTier: "Minimalny plan",
+      minTierRank: "Ranga minimalnego planu",
       minTierNone: "Bez wymagań",
       attributionMode: "Tryb atrybucji",
       whoCanPost: "Kto zakłada temat",
@@ -351,6 +352,35 @@ export const clubPl = {
       reordered: "Kolejność zapisana",
       inherit: "Dziedzicz z klubu",
       override: "Nadpisz",
+      editTitle: "Ustawienia grupy",
+      editHint:
+        "Grupa może nadpisać ustawienia klubu albo je dziedziczyć. Nadpisanie dotyczy wyłącznie tej grupy.",
+      overridesTitle: "Nadpisania klubu",
+      overridesHint:
+        "Pole dziedziczone zmienia się razem z klubem. Nadpisane zostaje takie, jak je tu ustawisz.",
+      scheduleTitle: "Harmonogram",
+      scheduleHint:
+        "Przed otwarciem grupa nie przyjmuje wpisów, po zamknięciu zostaje do odczytu. Puste pole = bez ograniczenia.",
+      opensAt: "Otwarcie",
+      closesAt: "Zamknięcie",
+      delete: "Usuń grupę",
+      deleteTitle: "Usunięcie grupy",
+      deleteEmpty: "Ta grupa jest pusta - zniknie od razu.",
+      deleteWithThreads_one: "W tej grupie jest {{count}} temat. Wskaż, dokąd ma trafić.",
+      deleteWithThreads_few: "W tej grupie są {{count}} tematy. Wskaż, dokąd mają trafić.",
+      deleteWithThreads_many: "W tej grupie jest {{count}} tematów. Wskaż, dokąd mają trafić.",
+      deleteWithThreads_other: "W tej grupie jest {{count}} tematów. Wskaż, dokąd mają trafić.",
+      moveTarget: "Grupa docelowa dla tematów",
+      deleteConfirmTitle: "Usunąć tę grupę?",
+      deleteConfirmBody: "Grupy nie da się przywrócić. Sama grupa, nie tematy.",
+      deleteConfirmMove: "Tematy przeniosą się do wskazanej grupy. Grupy nie da się przywrócić.",
+      deleted: "Grupa usunięta",
+      deletedWithMove_one: "Grupa usunięta, przeniesiono {{count}} temat",
+      deletedWithMove_few: "Grupa usunięta, przeniesiono {{count}} tematy",
+      deletedWithMove_many: "Grupa usunięta, przeniesiono {{count}} tematów",
+      deletedWithMove_other: "Grupa usunięta, przeniesiono {{count}} tematów",
+      deleteNeedsTarget: "Wskaż grupę docelową - w tej są jeszcze tematy.",
+      deleteLast: "To ostatnia grupa klubu. Klub bez grupy nie ma gdzie przyjąć tematu.",
     },
 
     members: {
@@ -367,6 +397,23 @@ export const clubPl = {
       filterStatus: "Status członkostwa",
       roleExpiresHint: "Po tej dacie rola wraca do poziomu Członek.",
       roleExpired: "Kadencja wygasła",
+      requestsTitle: "Prośby o dostęp",
+      requestsHint:
+        "Zatwierdzenie zachowuje rolę z prośby - także tę, którą niósł link zapraszający.",
+      approve: "Zatwierdź",
+      approved: "Prośba zatwierdzona",
+      reject: "Odrzuć",
+      rejected: "Prośba odrzucona",
+      rejectConfirmTitle: "Odrzucić prośbę: {{name}}?",
+      rejectConfirmBody:
+        "Osoba nie dostanie dostępu. Może poprosić ponownie, jeśli klub przyjmuje prośby.",
+      tenureTitle: "Kadencja roli",
+      tenureHint:
+        "Po tym terminie rola spada do zwykłego członkostwa. Dzieje się to natychmiast przy sprawdzaniu uprawnień, nie dopiero przy przebiegu harmonogramu.",
+      tenureUntil: "Kadencja do",
+      tenureNone: "Bezterminowo",
+      tenureClear: "Zdejmij kadencję",
+      tenureCleared: "Kadencja zdjęta",
     },
 
     permissions: {
@@ -536,6 +583,7 @@ export const clubPl = {
         thread: "Temat",
         reply: "Odpowiedź",
         member: "Członek",
+        group: "Grupa",
       },
 
       bansTitle: "Blokady w klubie",
@@ -577,8 +625,21 @@ export const clubPl = {
         unban: "Zdjęcie blokady",
         role_change: "Zmiana roli",
         reveal_author: "Ujawnienie autora",
+        member_add: "Dodanie członka",
+        post_on_behalf: "Publikacja w imieniu",
+        move: "Przeniesienie tematu",
+        edit: "Redakcja wpisu",
+        group_delete: "Usunięcie grupy",
       },
 
+      edit: "Popraw",
+      editTitle: "Redakcja cudzego wpisu",
+      editHint:
+        "Poprawka wchodzi od razu i nie czeka na okno 15 minut, które obowiązuje autora. Służy do zaczernienia danych, nie do przepisywania cudzego zdania.",
+      editReason: "Powód poprawki (wymagany)",
+      editReasonPlaceholder: "Zaczernienie danych osobowych",
+      editWarning: "Powód i Twoje nazwisko trafiają do dziennika moderacji.",
+      edited: "Wpis poprawiony",
       reveal: "Ujawnij autora",
       revealTitle: "Ujawnienie autora wpisu anonimowego",
       revealBody:
@@ -913,6 +974,7 @@ export const clubEn = {
       visibility: "Visibility",
       joinPolicy: "Join policy",
       minTier: "Minimum plan",
+      minTierRank: "Minimum plan rank",
       minTierNone: "No requirement",
       attributionMode: "Attribution mode",
       whoCanPost: "Who starts topics",
@@ -946,6 +1008,32 @@ export const clubEn = {
       reordered: "Order saved",
       inherit: "Inherit from club",
       override: "Override",
+      editTitle: "Group settings",
+      editHint:
+        "A group can override the club settings or inherit them. An override applies to this group only.",
+      overridesTitle: "Club overrides",
+      overridesHint:
+        "An inherited field changes together with the club. An overridden one stays as you set it here.",
+      scheduleTitle: "Schedule",
+      scheduleHint:
+        "Before it opens the group takes no posts; after it closes it stays readable. Empty means no limit.",
+      opensAt: "Opens",
+      closesAt: "Closes",
+      delete: "Delete group",
+      deleteTitle: "Deleting the group",
+      deleteEmpty: "This group is empty - it goes right away.",
+      deleteWithThreads_one: "This group holds {{count}} topic. Say where it should go.",
+      deleteWithThreads_other: "This group holds {{count}} topics. Say where they should go.",
+      moveTarget: "Target group for the topics",
+      deleteConfirmTitle: "Delete this group?",
+      deleteConfirmBody: "A group cannot be restored. The group itself, not the topics.",
+      deleteConfirmMove: "The topics move to the group you picked. The group cannot be restored.",
+      deleted: "Group deleted",
+      deletedWithMove_one: "Group deleted, {{count}} topic moved",
+      deletedWithMove_other: "Group deleted, {{count}} topics moved",
+      deleteNeedsTarget: "Pick a target group - this one still holds topics.",
+      deleteLast:
+        "This is the club's last group. A club without a group has nowhere to put a topic.",
     },
 
     members: {
@@ -962,6 +1050,23 @@ export const clubEn = {
       filterStatus: "Membership status",
       roleExpiresHint: "After this date the role reverts to Member.",
       roleExpired: "Term expired",
+      requestsTitle: "Access requests",
+      requestsHint:
+        "Approving keeps the role the request carried - including one that came from an invite link.",
+      approve: "Approve",
+      approved: "Request approved",
+      reject: "Reject",
+      rejected: "Request rejected",
+      rejectConfirmTitle: "Reject the request from {{name}}?",
+      rejectConfirmBody:
+        "They will not get access. They can ask again if the club accepts requests.",
+      tenureTitle: "Role term",
+      tenureHint:
+        "After this date the role drops to plain membership. It happens the moment permissions are evaluated, not when the scheduler next runs.",
+      tenureUntil: "Term until",
+      tenureNone: "No end date",
+      tenureClear: "Remove the term",
+      tenureCleared: "Term removed",
     },
 
     permissions: {
@@ -1125,6 +1230,7 @@ export const clubEn = {
         thread: "Topic",
         reply: "Reply",
         member: "Member",
+        group: "Group",
       },
 
       bansTitle: "Club bans",
@@ -1166,8 +1272,21 @@ export const clubEn = {
         unban: "Ban lifted",
         role_change: "Role change",
         reveal_author: "Author revealed",
+        member_add: "Member added",
+        post_on_behalf: "Posted on behalf",
+        move: "Topic moved",
+        edit: "Entry edited",
+        group_delete: "Group deleted",
       },
 
+      edit: "Edit",
+      editTitle: "Editing someone else's entry",
+      editHint:
+        "The edit lands immediately and does not wait for the 15-minute window that binds the author. Use it to redact, not to rewrite what someone said.",
+      editReason: "Reason for the edit (required)",
+      editReasonPlaceholder: "Redacting personal data",
+      editWarning: "The reason and your name go into the moderation log.",
+      edited: "Entry edited",
       reveal: "Reveal the author",
       revealTitle: "Reveal the author of an anonymous entry",
       revealBody:

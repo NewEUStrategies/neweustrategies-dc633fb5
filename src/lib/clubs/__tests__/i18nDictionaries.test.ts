@@ -24,6 +24,8 @@ vi.mock("@/lib/i18n", () => ({
 import { clubEn, clubPl } from "@/lib/i18n-club";
 import {
   CLUB_ACCESS_REASONS,
+  CLUB_LOG_ACTIONS,
+  CLUB_LOG_TARGETS,
   CLUB_MEMBER_ROLES,
   CLUB_MEMBER_STATUSES,
   CLUB_MODERATION_ACTIONS,
@@ -68,6 +70,18 @@ const DICTIONARIES: ReadonlyArray<{
     label: "akcje moderacyjne",
     prefix: "adminClubs.moderation.action",
     codes: CLUB_MODERATION_ACTIONS,
+  },
+  // Dziennik notuje wiecej niz da sie wywolac: blokada, publikacja w imieniu,
+  // kasowanie grupy. Filtr dziennika renderuje KAZDA z tych etykiet.
+  {
+    label: "akcje dziennika",
+    prefix: "adminClubs.moderation.action",
+    codes: CLUB_LOG_ACTIONS,
+  },
+  {
+    label: "typy celu w dzienniku",
+    prefix: "adminClubs.moderation.target",
+    codes: CLUB_LOG_TARGETS,
   },
 ];
 

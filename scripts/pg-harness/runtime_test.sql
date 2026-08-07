@@ -149,8 +149,16 @@ SELECT pg_temp.assert(
 SELECT pg_temp.assert(
   NOT (SELECT can_post_thread FROM public.club_capabilities(:'club_id'::uuid,NULL,'a0000000-0000-0000-0000-000000000005')),
   'po wygasnieciu kadencji traci prawo zakladania tematow');
--- przywrocenie na potrzeby dalszych testow
-SELECT public.admin_club_member_upsert(:'club_id'::uuid,'a0000000-0000-0000-0000-000000000005','lead','active',NULL);
+-- Przywrocenie na potrzeby dalszych testow. Kadencje trzeba teraz zdjac
+-- JAWNIE: NULL w p_role_expires_at znaczy "nie ruszaj", a nie "wyczysc" -
+-- wczesniej ta linia dzialala tylko dzieki bledowi, ktory cicho zerowal
+-- kadencje przy kazdej zmianie roli z panelu.
+SELECT public.admin_club_member_upsert(:'club_id'::uuid,'a0000000-0000-0000-0000-000000000005',
+  'lead','active',NULL,true);
+SELECT pg_temp.assert(
+  (SELECT role_expires_at FROM public.club_members
+    WHERE club_id=:'club_id'::uuid AND user_id='a0000000-0000-0000-0000-000000000005') IS NULL,
+  'jawne czyszczenie kadencji dziala');
 
 \echo '== 8. Klub secret nie istnieje dla obcego =='
 SELECT public.admin_club_upsert('{"slug":"tajny","name_pl":"Tajny","name_en":"Secret",
@@ -786,6 +794,107 @@ SELECT pg_temp.assert(
   pg_get_functiondef('public.club_invite(uuid,uuid,text,text,uuid)'::regprocedure)
     LIKE '%club_invite:%',
   'club_invite nadal bierze ten klucz - obie sciezki dziela licznik');
+
+\echo '== 42. [A10] Kadencja przezywa zmiane roli, zmiana idzie do dziennika =='
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT public.admin_club_member_upsert(:'club_id'::uuid,'a0000000-0000-0000-0000-000000000005',
+  'lead','active', now() + interval '30 days');
+SELECT role_expires_at AS kadencja FROM public.club_members
+ WHERE club_id=:'club_id'::uuid AND user_id='a0000000-0000-0000-0000-000000000005' \gset
+-- Zmiana samej roli, bez podania terminu. Wczesniej ta operacja cicho
+-- kasowala kadencje, wiec club_scheduler_tick nie mial czego wygaszac.
+SELECT public.admin_club_member_upsert(:'club_id'::uuid,'a0000000-0000-0000-0000-000000000005',
+  'moderator','active',NULL);
+SELECT pg_temp.assert(
+  (SELECT role_expires_at FROM public.club_members
+    WHERE club_id=:'club_id'::uuid AND user_id='a0000000-0000-0000-0000-000000000005')
+  = :'kadencja'::timestamptz,
+  'kadencja PRZEZYWA zmiane roli - pusty parametr znaczy "nie ruszaj"');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_moderation_log
+    WHERE action='role_change' AND target_type='member'
+      AND target_id='a0000000-0000-0000-0000-000000000005') >= 1,
+  'zmiana roli z panelu zostawia slad w dzienniku');
+-- Ta sama rola i status drugi raz: dziennik nie moze puchnac od zapisow
+-- "ustawiono moderator na moderator".
+SELECT count(*)::int AS log_before FROM public.club_moderation_log WHERE action='role_change' \gset
+SELECT public.admin_club_member_upsert(:'club_id'::uuid,'a0000000-0000-0000-0000-000000000005',
+  'moderator','active',NULL);
+SELECT pg_temp.assert(
+  (SELECT count(*)::int FROM public.club_moderation_log WHERE action='role_change') = :log_before,
+  'zapis bez realnej zmiany NIE trafia do dziennika');
+SELECT public.admin_club_member_upsert(:'club_id'::uuid,'a0000000-0000-0000-0000-000000000005',
+  'lead','active',NULL,true);
+
+\echo '== 43. [A10] Kasowanie grupy =='
+SELECT public.admin_club_group_upsert(
+  format('{"club_id":"%s","slug":"do-skasowania","name_pl":"Do skasowania","name_en":"Scratch","status":"active"}',
+         :'club_id')::jsonb
+) AS doomed \gset
+SELECT pg_temp.assert(public.admin_club_group_delete(:'doomed'::uuid) = 0,
+  'pusta grupa znika bez pytania');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_groups WHERE id=:'doomed'::uuid) = 0,
+  'grupy naprawde nie ma');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_moderation_log
+    WHERE action='group_delete' AND target_type='group') = 1,
+  'kasowanie grupy jest w dzienniku');
+-- Grupa z watkami wymaga wskazania celu.
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.admin_club_group_delete('%s') $q$, :'group2'),
+  'grupa z watkami nie znika po cichu');
+SELECT g.id AS survivor FROM public.club_groups g
+ WHERE g.club_id=:'club_id'::uuid AND g.id <> :'group2'::uuid
+   AND g.slug NOT IN ('robocza','zamrozona') LIMIT 1 \gset
+SELECT pg_temp.assert(
+  public.admin_club_group_delete(:'group2'::uuid, :'survivor'::uuid) >= 1,
+  'grupa z watkami znika razem z przeniesieniem tresci');
+SELECT pg_temp.assert(
+  (SELECT group_id FROM public.club_threads WHERE id=:'thread_id'::uuid) = :'survivor'::uuid,
+  'watki wyladowaly w grupie docelowej, a nie zniknely');
+-- Grupa docelowa z innego klubu jest odrzucana, tak samo jak przy przenoszeniu.
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.admin_club_group_delete('%s','%s') $q$, :'survivor', :'ch_group'),
+  'grupa docelowa z obcego klubu odrzucona');
+
+\echo '== 44. [A10] Redakcja moderatorska poza oknem 15 minut =='
+-- Watek autorstwa CZLONKA (wprowadzony w imieniu w sekcji 19), postarzony
+-- recznie: okno autora zamkniete. Watek zalozony przez admina by tu nie
+-- pasowal - moderator bylby jednoczesnie autorem i sciezka by sie nie rozeszla.
+SELECT id AS member_thread FROM public.club_threads WHERE slug = :'behalf_slug' \gset
+UPDATE public.club_threads SET created_at = now() - interval '2 hours'
+ WHERE id = :'member_thread'::uuid;
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000003';
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_edit_thread('%s','Nowy tytul','Nowa tresc',NULL) $q$, :'member_thread'),
+  'autor po oknie 15 minut NIE poprawi wlasnego wpisu');
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT pg_temp.assert(
+  public.club_edit_thread(:'member_thread'::uuid,'Tytul po zaczernieniu',
+    'Tresc po usunieciu danych osobowych','zgloszenie RODO'),
+  'moderacja poprawia takze po oknie - zaczernienie nie czeka na zegar');
+SELECT pg_temp.assert(
+  (SELECT title FROM public.club_threads WHERE id=:'member_thread'::uuid) = 'Tytul po zaczernieniu',
+  'poprawka faktycznie weszla');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_moderation_log
+    WHERE action='edit' AND target_type='thread' AND target_id=:'member_thread'::uuid
+      AND reason='zgloszenie RODO') = 1,
+  'ingerencja w cudzy wpis zostawia slad z powodem');
+-- Wlasna poprawka w oknie NIE zasmieca dziennika.
+SELECT count(*)::int AS edits_before FROM public.club_moderation_log WHERE action='edit' \gset
+SELECT own_id AS fresh_thread FROM (
+  SELECT t.id AS own_id FROM public.club_threads t
+   WHERE t.author_id='a0000000-0000-0000-0000-000000000001'
+     AND t.created_at > now() - interval '15 minutes'
+   ORDER BY t.created_at DESC LIMIT 1) x \gset
+SELECT pg_temp.assert(
+  public.club_edit_thread(:'fresh_thread'::uuid,'Poprawiona literowka','',NULL),
+  'autor poprawia swoj swiezy wpis');
+SELECT pg_temp.assert(
+  (SELECT count(*)::int FROM public.club_moderation_log WHERE action='edit') = :edits_before,
+  'wlasna poprawka NIE trafia do dziennika moderacji');
 
 \echo ''
 \echo '=========================================='

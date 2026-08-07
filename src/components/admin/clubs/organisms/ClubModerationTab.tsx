@@ -16,7 +16,7 @@
 // pozycja kolejki to cytat treści - tabela ucięłaby to, po czym decyzja
 // zapadałaby na podstawie pierwszych pięciu słów. Dziennik ma tabelę od lg
 // w górę i karty poniżej.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
@@ -24,6 +24,7 @@ import {
   EyeOff,
   History,
   Loader2,
+  PencilLine,
   RotateCcw,
   ShieldAlert,
   ShieldOff,
@@ -32,6 +33,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -68,35 +70,27 @@ import {
   useClubModerationLog,
   useClubModerationQueue,
   useModerateClubTarget,
+  useModeratorEditReply,
+  useModeratorEditThread,
   useRevealClubAuthor,
 } from "@/lib/clubs/useClubs";
-import type { AdminClubModerationItem } from "@/lib/clubs/types";
+import {
+  CLUB_LOG_ACTIONS,
+  CLUB_LOG_TARGETS,
+  type AdminClubModerationItem,
+} from "@/lib/clubs/types";
 
 const ANY = "__any__";
 
 /** Powód ujawnienia autora poniżej tej długości to nie powód, tylko klik. */
 const MIN_REVEAL_REASON = 10;
 
-/** Akcje, jakie potrafi wyprodukować `club_moderation_log`. Domknięty zbiór,
- *  bo filtr dziennika ma być listą wyboru, a nie polem tekstowym. */
-const LOG_ACTIONS = [
-  "approve",
-  "hide",
-  "delete",
-  "restore",
-  "lock",
-  "unlock",
-  "pin",
-  "unpin",
-  "ban",
-  "unban",
-  "role_change",
-  "reveal_author",
-] as const;
-
-/** Typy celu, jakie trafiają do dziennika. `member` pojawia się przy blokadzie
- *  i zmianie roli, więc dziennik musi go umieć nazwać. */
-const LOG_TARGETS: readonly string[] = ["thread", "reply", "member"];
+// Słowniki dziennika mieszkają w types.ts razem z resztą kontraktu bazy:
+// dopisanie akcji w migracji ma mieć DOKŁADNIE JEDNO miejsce do poprawienia
+// po stronie klienta. Lokalna kopia rozjechała się już raz - filtr nie znał
+// akcji 'post_on_behalf', 'move' ani 'edit', mimo że baza je zapisywała.
+const LOG_ACTIONS = CLUB_LOG_ACTIONS;
+const LOG_TARGETS: readonly string[] = CLUB_LOG_TARGETS;
 
 /**
  * Nazwa typu celu bez `defaultValue` - moduł nie opiera żadnego napisu na
@@ -118,6 +112,7 @@ export function ClubModerationTab({ clubId, isPl }: { clubId: string; isPl: bool
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [reveal, setReveal] = useState<RevealTarget | null>(null);
+  const [editing, setEditing] = useState<AdminClubModerationItem | null>(null);
 
   const queueQ = useClubModerationQueue(clubId);
   const moderateM = useModerateClubTarget(clubId);
@@ -343,6 +338,17 @@ export function ClubModerationTab({ clubId, isPl }: { clubId: string; isPl: bool
                       <Trash2 className="mr-1.5 h-3.5 w-3.5" />
                       {t("adminClubs.moderation.delete")}
                     </Button>
+                    {/* Redakcja PRZED zatwierdzeniem: wpis z jednym zdaniem
+                        do zaczernienia nie musi wracać do autora. */}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8"
+                      onClick={() => setEditing(item)}
+                    >
+                      <PencilLine className="mr-1.5 h-3.5 w-3.5" />
+                      {t("adminClubs.moderation.edit")}
+                    </Button>
                     {item.is_anonymous ? (
                       <Button
                         size="sm"
@@ -371,6 +377,11 @@ export function ClubModerationTab({ clubId, isPl }: { clubId: string; isPl: bool
       <BannedMembersCard clubId={clubId} isPl={isPl} />
       <ModerationLogCard clubId={clubId} isPl={isPl} />
 
+      <ModeratorEditDialog
+        clubId={clubId}
+        item={editing}
+        onOpenChange={(open) => !open && setEditing(null)}
+      />
       <RevealAuthorDialog target={reveal} onOpenChange={(open) => !open && setReveal(null)} />
       <ConfirmDialog state={confirm} onOpenChange={(open) => !open && setConfirm(null)} />
     </div>
@@ -777,6 +788,121 @@ function RevealAuthorDialog({
               {t("adminClubs.moderation.revealConfirm")}
             </Button>
           ) : null}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Redakcja cudzego wpisu - zawsze z powodem, zawsze do dziennika
+// ---------------------------------------------------------------------------
+function ModeratorEditDialog({
+  clubId,
+  item,
+  onOpenChange,
+}: {
+  clubId: string;
+  item: AdminClubModerationItem | null;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { t } = useTranslation();
+  const threadM = useModeratorEditThread(clubId);
+  const replyM = useModeratorEditReply(clubId);
+
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [reason, setReason] = useState("");
+
+  const isThread = item?.target_type === "thread";
+  const pending = threadM.isPending || replyM.isPending;
+
+  // Formularz startuje TRESCIA WPISU, nie pustka: moderator zaczernia fragment,
+  // a nie pisze wypowiedzi od nowa. Zależność po id, żeby refetch kolejki
+  // nie kasował poprawki w trakcie pisania.
+  const targetId = item?.target_id;
+  useEffect(() => {
+    setTitle(item?.title ?? "");
+    setBody(item?.body ?? "");
+    setReason("");
+  }, [item, targetId]);
+
+  const submit = () => {
+    if (!item || reason.trim().length < 3 || body.trim() === "") return;
+    const done = {
+      onSuccess: () => {
+        toast.success(t("adminClubs.moderation.edited"));
+        onOpenChange(false);
+      },
+      onError: () => toast.error(t("adminClubs.saveFailed")),
+    };
+    if (isThread) {
+      threadM.mutate(
+        { threadId: item.target_id, title: title.trim(), body: body.trim(), reason: reason.trim() },
+        done,
+      );
+    } else {
+      replyM.mutate({ replyId: item.target_id, body: body.trim(), reason: reason.trim() }, done);
+    }
+  };
+
+  return (
+    <Dialog open={item !== null} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-left">{t("adminClubs.moderation.editTitle")}</DialogTitle>
+          <DialogDescription className="text-left">
+            {t("adminClubs.moderation.editHint")}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          {isThread ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="club-mod-edit-title">{t("club.threadTitle")}</Label>
+              <Input
+                id="club-mod-edit-title"
+                value={title}
+                maxLength={200}
+                onChange={(e) => setTitle(e.target.value)}
+              />
+            </div>
+          ) : null}
+          <div className="space-y-1.5">
+            <Label htmlFor="club-mod-edit-body">{t("club.threadBody")}</Label>
+            <Textarea
+              id="club-mod-edit-body"
+              rows={8}
+              maxLength={20000}
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3">
+            <Label htmlFor="club-mod-edit-reason">{t("adminClubs.moderation.editReason")}</Label>
+            <Input
+              id="club-mod-edit-reason"
+              value={reason}
+              maxLength={500}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder={t("adminClubs.moderation.editReasonPlaceholder")}
+            />
+            <p className="text-xs text-amber-800 dark:text-amber-200">
+              {t("adminClubs.moderation.editWarning")}
+            </p>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+            {t("common.cancel")}
+          </Button>
+          <Button
+            disabled={pending || reason.trim().length < 3 || body.trim() === ""}
+            onClick={submit}
+          >
+            {t("common.save")}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

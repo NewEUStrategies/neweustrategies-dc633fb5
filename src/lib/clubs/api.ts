@@ -188,9 +188,26 @@ export async function upsertClubMember(input: ClubMemberUpsertInput): Promise<st
     p_role: input.role ?? "member",
     p_status: input.status ?? "active",
     p_role_expires_at: input.roleExpiresAt ?? undefined,
+    p_clear_role_expiry: input.clearRoleExpiry ?? false,
   });
   if (error) throw error;
   return data;
+}
+
+/**
+ * Kasuje grupe. Zwraca liczbe PRZENIESIONYCH watkow, zeby UI mogl powiedziec
+ * "grupa usunieta, 12 tematow przeniesiono", a nie samo "gotowe".
+ */
+export async function deleteClubGroup(params: {
+  groupId: string;
+  moveToGroupId?: string | null;
+}): Promise<number> {
+  const { data, error } = await supabase.rpc("admin_club_group_delete", {
+    p_group_id: params.groupId,
+    p_move_to_group_id: params.moveToGroupId ?? undefined,
+  });
+  if (error) throw error;
+  return typeof data === "number" ? data : 0;
 }
 
 export async function removeClubMember(clubId: string, userId: string): Promise<boolean> {
@@ -482,24 +499,36 @@ export async function replyToClubThread(params: {
   return data;
 }
 
+/**
+ * `reason` dotyczy WYLACZNIE redakcji cudzego wpisu: RPC zapisuje go wtedy
+ * w dzienniku moderacji. Przy wlasnej poprawce parametr jest ignorowany, wiec
+ * komponent produktowy moze go po prostu nie podawac.
+ */
 export async function editClubThread(params: {
   threadId: string;
   title: string;
   body: string;
+  reason?: string | null;
 }): Promise<boolean> {
   const { data, error } = await supabase.rpc("club_edit_thread", {
     p_thread_id: params.threadId,
     p_title: params.title,
     p_body: params.body,
+    p_reason: params.reason ?? undefined,
   });
   if (error) throw error;
   return data === true;
 }
 
-export async function editClubReply(params: { replyId: string; body: string }): Promise<boolean> {
+export async function editClubReply(params: {
+  replyId: string;
+  body: string;
+  reason?: string | null;
+}): Promise<boolean> {
   const { data, error } = await supabase.rpc("club_edit_reply", {
     p_reply_id: params.replyId,
     p_body: params.body,
+    p_reason: params.reason ?? undefined,
   });
   if (error) throw error;
   return data === true;

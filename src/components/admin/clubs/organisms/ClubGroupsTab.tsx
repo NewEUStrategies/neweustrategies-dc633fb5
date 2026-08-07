@@ -24,10 +24,11 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Plus, Layers } from "lucide-react";
+import { GripVertical, Plus, Layers, Settings2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ClubGroupStatusBadge, ClubVisibilityBadge } from "../atoms/ClubBadges";
+import { ClubGroupEditorDialog } from "./ClubGroupEditorDialog";
 import { useAdminClubGroups, useReorderClubGroups, useUpsertClubGroup } from "@/lib/clubs/useClubs";
 import {
   CLUB_GROUP_STATUSES,
@@ -50,7 +51,15 @@ function asVisibility(value: string): ClubVisibility {
     : "members";
 }
 
-function SortableGroupRow({ group, isPl }: { group: AdminClubGroupRow; isPl: boolean }) {
+function SortableGroupRow({
+  group,
+  isPl,
+  onEdit,
+}: {
+  group: AdminClubGroupRow;
+  isPl: boolean;
+  onEdit: () => void;
+}) {
   const { t } = useTranslation();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: group.id,
@@ -76,8 +85,16 @@ function SortableGroupRow({ group, isPl }: { group: AdminClubGroupRow; isPl: boo
         <GripVertical className="h-4 w-4" />
       </button>
 
+      {/* Nazwa jest przyciskiem: kliknięcie w wiersz to najkrótsza droga do
+          ustawień, a ikona obok zostaje dla tych, którzy jej szukają. */}
       <div className="min-w-0 flex-1">
-        <div className="truncate font-medium">{isPl ? group.name_pl : group.name_en}</div>
+        <button
+          type="button"
+          onClick={onEdit}
+          className="block w-full truncate text-left font-medium hover:text-primary"
+        >
+          {isPl ? group.name_pl : group.name_en}
+        </button>
         <div className="text-xs text-muted-foreground">/{group.slug}</div>
       </div>
 
@@ -93,6 +110,15 @@ function SortableGroupRow({ group, isPl }: { group: AdminClubGroupRow; isPl: boo
         <span className="text-xs tabular-nums text-muted-foreground">
           {t("club.threadsCount", { count: group.thread_count })}
         </span>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8"
+          onClick={onEdit}
+          aria-label={t("adminClubs.groups.editTitle")}
+        >
+          <Settings2 className="h-4 w-4" />
+        </Button>
       </div>
     </li>
   );
@@ -107,6 +133,7 @@ export function ClubGroupsTab({ clubId, isPl }: { clubId: string; isPl: boolean 
   // Lokalna kopia kolejności: dnd-kit potrzebuje natychmiastowej zmiany,
   // a odpowiedź serwera przychodzi po round-tripie.
   const [order, setOrder] = useState<AdminClubGroupRow[]>([]);
+  const [editing, setEditing] = useState<AdminClubGroupRow | null>(null);
   useEffect(() => {
     if (groupsQ.data) setOrder(groupsQ.data);
   }, [groupsQ.data]);
@@ -150,6 +177,9 @@ export function ClubGroupsTab({ clubId, isPl }: { clubId: string; isPl: boolean 
         status: "draft",
       },
       {
+        // Świeżo założona grupa otwiera się od razu w edytorze: bez tego
+        // administrator dostaje wiersz "Nowa grupa" i musi się domyślić,
+        // że trzeba w niego kliknąć.
         onSuccess: () => toast.success(t("adminClubs.saved")),
         onError: () => toast.error(t("adminClubs.saveFailed")),
       },
@@ -201,7 +231,12 @@ export function ClubGroupsTab({ clubId, isPl }: { clubId: string; isPl: boolean 
               >
                 <ul className="space-y-2">
                   {order.map((group) => (
-                    <SortableGroupRow key={group.id} group={group} isPl={isPl} />
+                    <SortableGroupRow
+                      key={group.id}
+                      group={group}
+                      isPl={isPl}
+                      onEdit={() => setEditing(group)}
+                    />
                   ))}
                 </ul>
               </SortableContext>
@@ -209,6 +244,14 @@ export function ClubGroupsTab({ clubId, isPl }: { clubId: string; isPl: boolean 
           </>
         )}
       </CardContent>
+
+      <ClubGroupEditorDialog
+        clubId={clubId}
+        group={editing}
+        siblings={order}
+        isPl={isPl}
+        onOpenChange={(open) => !open && setEditing(null)}
+      />
     </Card>
   );
 }

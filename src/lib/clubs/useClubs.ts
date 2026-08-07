@@ -36,6 +36,7 @@ import {
   fetchClubList,
   fetchClubInvitations,
   fetchClubInviteLinks,
+  deleteClubGroup,
   fetchClubModerationLog,
   fetchClubModerationQueue,
   fetchClubMembers,
@@ -303,6 +304,58 @@ export function useUpsertClubMember(
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
       void qc.invalidateQueries({ queryKey: adminClubKeys.all });
+    },
+  });
+}
+
+export function useDeleteClubGroup(
+  clubId: string,
+): UseMutationResult<number, Error, { groupId: string; moveToGroupId?: string | null }> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: deleteClubGroup,
+    onSuccess: () => {
+      // Kasowanie grupy przenosi watki, wiec uniewaznia takze liste tematow
+      // i statystyki - punktowa inwalidacja samych grup zostawilaby liste
+      // tematow z martwym filtrem grupy.
+      void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
+      void qc.invalidateQueries({ queryKey: adminClubKeys.all });
+    },
+  });
+}
+
+/**
+ * Redakcja CUDZEGO wpisu z panelu. Osobno od produktowego useEditClubThread,
+ * bo rozni sie dwiema rzeczami: niesie powod (RPC zapisuje go w dzienniku)
+ * i uniewaznia korzen klubu zamiast pojedynczego watku - poprawka moderatorska
+ * zmienia jednoczesnie liste tematow, dziennik i widok watku.
+ */
+export function useModeratorEditThread(
+  clubId: string,
+): UseMutationResult<
+  boolean,
+  Error,
+  { threadId: string; title?: string; body?: string; reason?: string | null }
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: editClubThread,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
+      void qc.invalidateQueries({ queryKey: clubKeys.all });
+    },
+  });
+}
+
+export function useModeratorEditReply(
+  clubId: string,
+): UseMutationResult<boolean, Error, { replyId: string; body: string; reason?: string | null }> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: editClubReply,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
+      void qc.invalidateQueries({ queryKey: clubKeys.all });
     },
   });
 }
@@ -598,7 +651,11 @@ export function useReplyToThread(
 export function useEditClubThread(
   clubId: string,
   threadSlug: string,
-): UseMutationResult<boolean, Error, { threadId: string; title: string; body: string }> {
+): UseMutationResult<
+  boolean,
+  Error,
+  { threadId: string; title: string; body: string; reason?: string | null }
+> {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: editClubThread,
@@ -610,7 +667,7 @@ export function useEditClubThread(
 
 export function useEditClubReply(
   threadId: string,
-): UseMutationResult<boolean, Error, { replyId: string; body: string }> {
+): UseMutationResult<boolean, Error, { replyId: string; body: string; reason?: string | null }> {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: editClubReply,
