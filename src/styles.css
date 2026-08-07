@@ -6556,16 +6556,28 @@ header[data-site-header][data-metrics="ready"]
   transform-origin: top center;
 }
 
-/* Dodatkowe, niezależne zmniejszenie logotypu na stronie głównej podczas
-   zwijania headera. Dzięki osobnej transformacji logo „zostaje” w układzie
-   mniejsze niż reszta chrome'u, a treść poniżej podciąga się przez niższy
-   --hdr-gap-keep dla [data-is-home]. */
-header[data-is-home="true"][data-site-header][data-metrics="ready"]
-  .home-header-grow
+/* Dodatkowe, niezależne zmniejszenie logotypu we wszystkich headerach podczas
+   zwijania. Dzięki osobnej transformacji logo „zostaje" w układzie mniejsze
+   niż reszta chrome'u, a treść poniżej podciąga się przez niższy
+   --hdr-gap-keep. Animacja jest zsynchronizowana z główną tranzycją headera. */
+header[data-site-header][data-metrics="ready"].site-header-shrink
+  .site-header-chrome
   img[data-is-logo="true"] {
-  transform: scale(calc(1 - 0.38 * var(--hdr-p)));
+  transform: scale(calc(1 - 0.45 * var(--hdr-p)));
   transform-origin: center center;
   transition: transform var(--hdr-duration) var(--hdr-ease);
+  will-change: transform;
+}
+
+/* Na stronie głównej logotyp dodatkowo „wędruje" ku górze, żeby zachować
+   równowagę wizualną przy bardziej agresywnym podciągnięciu treści. */
+header[data-is-home="true"][data-site-header][data-metrics="ready"].site-header-shrink
+  .site-header-chrome
+  img[data-is-logo="true"] {
+  translate: 0 calc(-0.18 * var(--hdr-p) * var(--hdr-nat));
+  transition:
+    transform var(--hdr-duration) var(--hdr-ease),
+    translate var(--hdr-duration) var(--hdr-ease);
 }
 
 @media (prefers-reduced-motion: reduce) {
