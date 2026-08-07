@@ -1346,6 +1346,67 @@ SELECT pg_temp.assert(
   'watek z grupy roboczej nie wychodzi strumieniem do obcego');
 ROLLBACK;
 
+\echo '== 54. [NAPRAWA] emit_domain_event ma DOKLADNIE jedno przeciazenie =='
+-- Regresja z A12: obok wariantu (…, jsonb, uuid) stanal wariant
+-- (…, jsonb, boolean), oba z domyslnym szostym argumentem. Wszystkie 82
+-- wywolania w kodzie podaja PIEC argumentow, wiec kazde stalo sie
+-- niejednoznaczne (42725) - a wlasny EXCEPTION emiterow zamienil blad w cisze.
+-- Asercja liczy PRZECIAZENIA, nie efekt: efekt byl caly czas "brak zdarzenia",
+-- czyli dokladnie to samo, co poprawne odrzucenie.
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM pg_proc p
+     JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public' AND p.proname = 'emit_domain_event') = 1,
+  'emit_domain_event istnieje w dokladnie jednym wariancie');
+
+-- Wywolanie pieciooargumentowe MUSI sie rozstrzygnac. To jest ksztalt, ktorego
+-- uzywa kazdy z trzydziestu triggerow fan-outu.
+SELECT pg_temp.assert(
+  public.emit_domain_event(
+    '11111111-1111-1111-1111-111111111111'::uuid,
+    'club', gen_random_uuid()::text, 'club.smoke.v1', '{}'::jsonb) IS NOT NULL,
+  'wywolanie pieciooargumentowe rozstrzyga sie i zapisuje zdarzenie');
+
+-- Aktor: domyslnie sesja, jawny parametr ma pierwszenstwo, a tlumienie bije
+-- jedno i drugie. Trzy sciezki, bo A12 zgubila srodkowa.
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT public.emit_domain_event(
+  '11111111-1111-1111-1111-111111111111'::uuid,
+  'club', 'aktor-sesja', 'club.smoke.v1', '{}'::jsonb) AS ev_session \gset
+SELECT pg_temp.assert(
+  (SELECT actor_id FROM public.domain_events WHERE id = :'ev_session'::uuid)
+    = 'a0000000-0000-0000-0000-000000000001',
+  'bez parametrow aktorem jest sesja');
+
+-- Aktor jawny idzie NAZWA, nie pozycja: szosta pozycja nalezy do
+-- p_suppress_actor, bo tak wolaja triggery z A12.
+SELECT public.emit_domain_event(
+  '11111111-1111-1111-1111-111111111111'::uuid,
+  'club', 'aktor-jawny', 'club.smoke.v1', '{}'::jsonb,
+  p_actor_id => 'a0000000-0000-0000-0000-000000000005'::uuid) AS ev_explicit \gset
+SELECT pg_temp.assert(
+  (SELECT actor_id FROM public.domain_events WHERE id = :'ev_explicit'::uuid)
+    = 'a0000000-0000-0000-0000-000000000005',
+  'jawny aktor bije sesje - parametr z migracji lipcowej NIE zniknal');
+
+SELECT public.emit_domain_event(
+  '11111111-1111-1111-1111-111111111111'::uuid,
+  'club', 'aktor-ukryty', 'club.smoke.v1', '{}'::jsonb,
+  true, 'a0000000-0000-0000-0000-000000000005'::uuid) AS ev_hidden \gset
+SELECT pg_temp.assert(
+  (SELECT actor_id FROM public.domain_events WHERE id = :'ev_hidden'::uuid) IS NULL,
+  'tlumienie aktora bije nawet jawny parametr - reguly chatham nie da sie obejsc');
+
+-- Ksztalt, ktorym wolaja triggery A12: szesc argumentow, szosty boolean.
+-- To jest wywolanie, ktore zlamalby kazdy porzadek parametrow z aktorem na
+-- szostej pozycji - stad wlasna asercja, a nie zaufanie do przegladu.
+SELECT public.emit_domain_event(
+  '11111111-1111-1111-1111-111111111111'::uuid,
+  'club', 'ksztalt-a12', 'club.smoke.v1', '{}'::jsonb, true) AS ev_a12 \gset
+SELECT pg_temp.assert(
+  (SELECT actor_id FROM public.domain_events WHERE id = :'ev_a12'::uuid) IS NULL,
+  'szescioargumentowe wywolanie z booleanem (ksztalt A12) wiaze sie i tlumi aktora');
+
 \echo ''
 \echo '=========================================='
 \echo ' WSZYSTKIE ASERCJE PRZESZLY'

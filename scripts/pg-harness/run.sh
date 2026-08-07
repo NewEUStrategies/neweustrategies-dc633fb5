@@ -80,7 +80,21 @@ fi
 #
 # Sortowanie jest ISTOTNE: dokladnie w tej kolejnosci aplikuje pliki Supabase
 # CLI, wiec tylko ona odtwarza realny stan koncowy.
-MIGRATIONS="$(grep -lE 'public\.(club_|admin_club_)' "$REPO"/supabase/migrations/*.sql | sort)"
+# Dobor po TRESCI plus po nazwie modulu.
+#
+# Tresc (`public.club_`, `public.admin_club_`) lapie migracje klubowe nazwane
+# UUID-em przez rownolegle sesje - glob po samej nazwie by je pominal.
+#
+# Nazwa (`discussion_clubs`) lapie migracje modulu, ktore ruszaja WYLACZNIE
+# powierzchnie wspoldzielona. A16 jest wlasnie taka: naprawia sygnature
+# `emit_domain_event`, zepsuta przez A12, i nie wymienia zadnej funkcji
+# klubowej. Bez tego czlonu harness nie widzialby ani przyczyny, ani naprawy.
+#
+# Selektor po samym `emit_domain_event` bylby zly: nazwa siedzi w czterdziestu
+# migracjach calej aplikacji, a harness celowo STUBUJE tamte schematy.
+MIGRATIONS="$( { grep -lE 'public\.(club_|admin_club_)' "$REPO"/supabase/migrations/*.sql
+                 ls "$REPO"/supabase/migrations/*discussion_clubs*.sql 2>/dev/null
+               } | sort -u)"
 echo "Migracje dotykajace modulu: $(echo "$MIGRATIONS" | grep -c .)"
 
 fail=0
