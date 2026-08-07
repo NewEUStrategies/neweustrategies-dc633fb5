@@ -110,6 +110,8 @@ describe("NOTIFICATION_KINDS", () => {
       "endorsement",
       "profile_view",
       "meeting_booking",
+      // 20260808094000 (etap A4 Klubu dyskusyjnego): rodzaj 'club'.
+      "club",
     ];
     expect([...NOTIFICATION_KINDS].sort()).toEqual([...dbKinds].sort());
   });
