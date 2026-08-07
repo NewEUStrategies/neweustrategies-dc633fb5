@@ -488,8 +488,8 @@ export async function createClubThread(params: {
 }): Promise<CreateThreadResult> {
   const { data, error } = await supabase.rpc("club_create_thread", {
     p_group_id: params.groupId,
-    p_title: params.title,
-    p_body: params.body,
+    p_title: params.title ?? undefined,
+    p_body: params.body ?? undefined,
     p_kind: params.kind ?? "discussion",
     p_anonymous: params.anonymous ?? false,
     p_anchor_type: params.anchorType ?? undefined,
@@ -524,14 +524,16 @@ export async function replyToClubThread(params: {
  */
 export async function editClubThread(params: {
   threadId: string;
-  title: string;
-  body: string;
+  // Redakcja moderatorska bywa czesciowa (sam tytul albo samo cialo), wiec
+  // oba pola sa opcjonalne - RPC zostawia nietkniete to, czego nie przyslano.
+  title?: string;
+  body?: string;
   reason?: string | null;
 }): Promise<boolean> {
   const { data, error } = await supabase.rpc("club_edit_thread", {
     p_thread_id: params.threadId,
-    p_title: params.title,
-    p_body: params.body,
+    p_title: params.title ?? "",
+    p_body: params.body ?? "",
     p_reason: params.reason ?? undefined,
   });
   if (error) throw error;

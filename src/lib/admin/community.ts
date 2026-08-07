@@ -65,6 +65,9 @@ export async function fetchCommunityModules(): Promise<CommunityModulesSettings>
     badges_enabled: raw.badges_enabled !== false,
     push_enabled: raw.push_enabled !== false,
     expert_requests_enabled: raw.expert_requests_enabled !== false,
+    // Kluby są opt-in (domyślnie wyłączone), więc czytamy `=== true`, a nie
+    // `!== false` - brak wpisu w site_settings ma znaczyć „wyłączone".
+    clubs_enabled: raw.clubs_enabled === true,
     default_message_ttl_seconds:
       typeof raw.default_message_ttl_seconds === "number" ? raw.default_message_ttl_seconds : null,
   };

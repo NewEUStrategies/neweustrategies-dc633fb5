@@ -12,6 +12,7 @@ import {
   Clock,
   FileText,
   Loader2,
+  MessagesSquare,
   Search,
   SlidersHorizontal,
   Tags,
@@ -47,6 +48,7 @@ type Mode = "standalone" | "dropdown" | "fullscreen";
 const TAB_ICON: Record<OverlayTab, typeof FileText> = {
   posts: FileText,
   topics: Tags,
+  clubs: MessagesSquare,
   people: Users,
   experts: User,
 };

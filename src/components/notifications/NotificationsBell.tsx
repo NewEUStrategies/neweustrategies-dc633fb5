@@ -28,6 +28,7 @@ import {
   Landmark,
   Mail,
   MessageCircle,
+  MessagesSquare,
   Quote,
   ShieldAlert,
   Sparkles,
@@ -105,6 +106,7 @@ const KIND_ICONS: Record<NotificationKind, React.ComponentType<{ className?: str
   endorsement: ThumbsUp,
   profile_view: Eye,
   meeting_booking: CalendarClock,
+  club: MessagesSquare,
 };
 
 // `notifications.kind` przychodzi z bazy jako `string`, więc odczyt idzie przez
