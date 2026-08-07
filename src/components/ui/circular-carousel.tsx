@@ -86,6 +86,20 @@ export function getItemPosition(
 
 const pad2 = (n: number): string => String(n).padStart(2, "0");
 
+/** Tytuł + opis karty - wspólne dla wariantu z linkiem i bez. */
+function CardBody({ title, description }: { title: string; description: string }) {
+  return (
+    <>
+      <p className="truncate text-sm font-semibold text-foreground">{title}</p>
+      {description ? (
+        <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+          {description}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
 export function CircularCarousel({
   items,
   activeIndex: controlledIndex,
@@ -206,14 +220,23 @@ export function CircularCarousel({
                   {item.tag}
                 </span>
               ) : null}
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-foreground">{item.title}</p>
-                {item.description ? (
-                  <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-                    {item.description}
-                  </p>
-                ) : null}
-              </div>
+              {item.href ? (
+                // Link karty: klik w treść nawiguje, klik w kartę nadal tylko
+                // aktywuje (stopPropagation). Poza aktywną kartą link wypada
+                // z taba, żeby nie rozbić nawigacji po listboxie.
+                <a
+                  href={item.href}
+                  tabIndex={isActive ? 0 : -1}
+                  onClick={(e) => e.stopPropagation()}
+                  className="min-w-0 rounded-[6px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <CardBody title={item.title} description={item.description} />
+                </a>
+              ) : (
+                <div className="min-w-0">
+                  <CardBody title={item.title} description={item.description} />
+                </div>
+              )}
             </div>
           );
         })}
