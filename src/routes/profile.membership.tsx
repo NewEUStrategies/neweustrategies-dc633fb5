@@ -120,7 +120,7 @@ function MembershipHub() {
           )}
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline" size="sm">
-              <Link to="/profile/subscription">{t("membership.manageSubscription")}</Link>
+              <Link to="/profile/plan">{t("membership.manageSubscription")}</Link>
             </Button>
             <Button asChild size="sm">
               <Link to="/pricing">{t("membership.seePlans")}</Link>

@@ -1,120 +1,12 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
-import { useAuth } from "@/hooks/useAuth";
-import { billingKeys } from "@/lib/billing/keys";
-import { fetchMyOrders } from "@/lib/billing/queries";
-import { BillingDocumentsCard } from "@/components/billing/BillingDocumentsCard";
-import { InvoiceLookupCard } from "@/components/billing/InvoiceLookupCard";
-
-import { formatMoney } from "@/lib/billing/types";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+// Konsolidacja IA finansów (§11): zamówienia i historia płatności były dwiema
+// listami tych samych transakcji, obie z wyszukiwarką faktur. Trasa zostaje
+// jako przekierowanie, żeby stare linki, zakładki, wyniki wyszukiwarki
+// wewnętrznej i pozycje menu konta nie umarły - dokładnie jak /profile/account
+// po konsolidacji edycji tożsamości.
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/profile/orders")({
-  component: OrdersPage,
+  beforeLoad: () => {
+    throw redirect({ to: "/profile/payments", replace: true });
+  },
 });
-
-function OrdersPage() {
-  const { t, i18n } = useTranslation();
-  const { session } = useAuth();
-  const { data } = useQuery({
-    queryKey: billingKeys.myOrders(session?.user?.id),
-    queryFn: fetchMyOrders,
-    enabled: !!session,
-  });
-
-  const fmtDate = (iso: string) =>
-    new Date(iso).toLocaleDateString(i18n.language === "en" ? "en-GB" : "pl-PL", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-
-  const statusVariant = (s: string): "default" | "secondary" | "destructive" | "outline" => {
-    if (s === "paid") return "default";
-    if (s === "failed" || s === "refunded" || s === "canceled") return "destructive";
-    return "secondary";
-  };
-
-  return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("profile.orders.title")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {!data || data.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t("profile.orders.empty")}</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("profile.orders.colDate")}</TableHead>
-                  <TableHead>{t("profile.orders.colItem")}</TableHead>
-                  <TableHead className="text-right">{t("profile.orders.colAmount")}</TableHead>
-                  <TableHead>{t("profile.orders.colStatus")}</TableHead>
-                  <TableHead>{t("profile.orders.colInvoice")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.map((o) => {
-                  const label =
-                    (o.metadata && typeof o.metadata.label === "string"
-                      ? o.metadata.label
-                      : null) ??
-                    (o.kind === "subscription"
-                      ? t("profile.orders.kindSubscription")
-                      : t("profile.orders.kindOneTime"));
-                  return (
-                    <TableRow key={o.id}>
-                      <TableCell>{fmtDate(o.created_at)}</TableCell>
-                      <TableCell>{label}</TableCell>
-                      <TableCell className="text-right">
-                        {formatMoney(o.amount_cents, o.currency, i18n.language)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={statusVariant(o.status)}>
-                          {t(`profile.status.${o.status}`)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {o.invoice_url ? (
-                          <a
-                            href={o.invoice_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-primary hover:underline"
-                          >
-                            {t("profile.orders.invoice")}
-                          </a>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Rejestr dokumentów rozliczeniowych (faktury z odnowień, paragony) -
-          zasilany webhookiem Stripe, odświeżany zdarzeniem z szyny. */}
-      <BillingDocumentsCard />
-
-      {/* Odzyskanie faktury po numerze transakcji + mail z linkiem do portalu. */}
-      <InvoiceLookupCard />
-    </div>
-  );
-}

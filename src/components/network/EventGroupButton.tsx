@@ -49,7 +49,8 @@ export function EventGroupButton({
               void navigate({ to: "/messages", search: { c: conversationId } });
             },
             onError: (e) => {
-              const msg = (e as { message?: string })?.message ?? "";
+              // `useCreateEventGroup` jest typowane na `Error` - bez rzutowania.
+              const msg = e.message;
               if (msg.includes("no attendees") || msg.includes("no eligible members")) {
                 toast.error(t("network.eventGroupEmpty"));
               } else {

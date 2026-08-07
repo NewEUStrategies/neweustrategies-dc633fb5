@@ -124,10 +124,9 @@ export async function runIntegrationDispatch(limit: number): Promise<DispatchSum
         // Secret lives in Supabase Vault (migracja 20260714090000); read it via
         // the service-role-only RPC. Dla webhooka to klucz HMAC, dla HubSpota
         // token Bearer - formats.ts decyduje, jak go użyć.
-        const { data: secretVal } = await supabaseAdmin.rpc(
-          "integration_endpoint_get_secret" as never,
-          { _endpoint_id: delivery.endpoint_id } as never,
-        );
+        const { data: secretVal } = await supabaseAdmin.rpc("integration_endpoint_get_secret", {
+          _endpoint_id: delivery.endpoint_id,
+        });
         const secretText: unknown = secretVal;
         const secret = typeof secretText === "string" && secretText.length > 0 ? secretText : null;
         const kind = normalizeIntegrationKind(endpoint.integration);

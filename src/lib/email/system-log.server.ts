@@ -166,7 +166,7 @@ export async function fetchSystemEmailReport(query: SystemEmailQuery): Promise<S
   since.setUTCHours(0, 0, 0, 0);
 
   const { data, error } = await supabaseAdmin
-    .from("email_send_log" as never)
+    .from("email_send_log")
     .select("message_id, template_name, recipient_email, status, error_message, created_at")
     .gte("created_at", since.toISOString())
     .order("created_at", { ascending: false })
@@ -215,7 +215,7 @@ export async function fetchSystemEmailReport(query: SystemEmailQuery): Promise<S
   // blokady - raport pokazywał więc adresy, na które od dawna wolno już wysyłać.
   let suppressedRecipients = 0;
   const { count } = await supabaseAdmin
-    .from("email_suppressions" as never)
+    .from("email_suppressions")
     .select("id", { count: "exact", head: true })
     .is("released_at", null)
     .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`);

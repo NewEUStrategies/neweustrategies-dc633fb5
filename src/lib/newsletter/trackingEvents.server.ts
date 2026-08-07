@@ -42,7 +42,7 @@ export async function recordCampaignEvent(
     // `newsletter_campaign_events` is created by a migration not yet reflected
     // in the generated Supabase types, so the table/payload are cast here
     // (precedent: web_vitals / client_errors ingest).
-    await supabaseAdmin.from("newsletter_campaign_events" as never).insert({
+    await supabaseAdmin.from("newsletter_campaign_events").insert({
       tenant_id: camp.tenant_id,
       campaign_id: camp.id,
       subscriber_id: verifiedSubscriberId,

@@ -41,7 +41,7 @@ export const Route = createFileRoute("/api/public/popup-event")({
 
           // `popup_events` is not yet in the generated Supabase types (cast).
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-          await supabaseAdmin.from("popup_events" as never).insert({
+          await supabaseAdmin.from("popup_events").insert({
             popup_id: popupId,
             kind,
             ...(tenantId ? { tenant_id: tenantId } : {}),

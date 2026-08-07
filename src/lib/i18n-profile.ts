@@ -8,8 +8,11 @@ const pl = {
     title: "Mój profil",
     subtitle: "Centrum zarządzania",
     privacy: {
-      title: "Prywatność i zgody",
-      hint: "Jedno miejsce na wszystkie zgody: pliki cookie, komunikację i personalizację. Wybory są zapisywane, synchronizowane z profilem i audytowane.",
+      title: "Prywatność i dane",
+      hint: "Jedno miejsce na wszystko, co dotyczy Twojej prywatności: kto Cię widzi i kto może się z Tobą skontaktować, na co się zgadzasz oraz jak pobrać albo usunąć swoje dane. Wybory zapisują się natychmiast, są egzekwowane po stronie serwera i audytowane.",
+      consentsSection: "Zgody",
+      dataSection: "Twoje dane (RODO)",
+      securityLink: "Bezpieczeństwo konta: hasło, e-mail, sesje i logowanie dwuskładnikowe",
       registryNote:
         "Każdą decyzję zapisujemy w niezmiennym rejestrze RODO (data, wersja treści, źródło, adres IP i przeglądarka). Zgody cookie działają też na tym urządzeniu bez logowania.",
       openBanner: "Otwórz ustawienia banera cookie",
@@ -83,18 +86,22 @@ const pl = {
       membership: "Członkostwo",
       organization: "Organizacja",
       billing: "Dane rozliczeniowe",
-      plan: "Mój plan",
+      plan: "Plan i subskrypcja",
       subscription: "Subskrypcja",
       orders: "Zamówienia",
-      payments: "Historia płatności",
-      security: "Bezpieczeństwo",
-      privacy: "Prywatność",
+      payments: "Płatności i faktury",
+      security: "Bezpieczeństwo konta",
+      privacy: "Prywatność i dane",
       expertRequests: "Zapytania do ekspertów",
     },
     navGroups: {
       identity: "Tożsamość",
       content: "Treści i personalizacja",
-      finance: "Płatności i bezpieczeństwo",
+      // Do 06.08 jedna grupa nazywała się „Płatności i bezpieczeństwo" i mieściła
+      // osiem pozycji, w tym prywatność i bezpieczeństwo konta - czyli dwie
+      // rzeczy, które z płatnościami nie mają nic wspólnego. Rozdzielone.
+      finance: "Płatności i plan",
+      privacy: "Prywatność i bezpieczeństwo",
     },
     edit: {
       title: "Edycja profilu",
@@ -136,6 +143,9 @@ const pl = {
       personalSection: "Dane osobowe",
       contactSection: "Dane kontaktowe",
       mediaSection: "Awatar i tło",
+      privacyHintTitle: "Prywatność i widoczność przeniosły się",
+      privacyHintBody:
+        "Widoczność w wyszukiwarce osób, przyjmowanie zapytań do eksperta, kto może zacząć z Tobą rozmowę i zaprosić Cię do sieci, potwierdzenia odczytu, wskaźnik pisania i status dostępności - wszystko w jednym miejscu, razem ze zgodami i prawami do danych.",
       coverPlaceholder: "Brak tła profilu",
       avatarPlaceholder: "Brak awatara",
       unnamed: "Użytkownik",
@@ -202,6 +212,7 @@ const pl = {
     },
 
     security: {
+      privacyLink: "Prywatność i dane: widoczność, zgody, eksport i usunięcie konta",
       changePassword: "Zmień hasło",
       currentPassword: "Obecne hasło",
       newPassword: "Nowe hasło",
@@ -738,8 +749,11 @@ const en: typeof pl = {
     title: "My profile",
     subtitle: "Management centre",
     privacy: {
-      title: "Privacy & consent",
-      hint: "One place for all your consents: cookies, communications and personalization. Choices persist, sync to your profile and are audited.",
+      title: "Privacy & data",
+      hint: "One place for everything about your privacy: who can see you and who can contact you, what you consent to, and how to download or delete your data. Choices save instantly, are enforced server-side and audited.",
+      consentsSection: "Consents",
+      dataSection: "Your data (GDPR)",
+      securityLink: "Account security: password, e-mail, sessions and two-factor sign-in",
       registryNote:
         "Every decision is stored in an immutable GDPR audit log (date, content version, source, IP address and browser). Cookie consents also apply on this device without signing in.",
       openBanner: "Open cookie banner settings",
@@ -812,18 +826,19 @@ const en: typeof pl = {
       membership: "Membership",
       organization: "Organisation",
       billing: "Billing details",
-      plan: "My plan",
+      plan: "Plan & subscription",
       subscription: "Subscription",
       orders: "Orders",
-      payments: "Payment history",
-      security: "Security",
-      privacy: "Privacy",
+      payments: "Payments & invoices",
+      security: "Account security",
+      privacy: "Privacy & data",
       expertRequests: "Expert requests",
     },
     navGroups: {
       identity: "Identity",
       content: "Content & personalization",
-      finance: "Payments & security",
+      finance: "Payments & plan",
+      privacy: "Privacy & security",
     },
     edit: {
       title: "Edit profile",
@@ -865,6 +880,9 @@ const en: typeof pl = {
       personalSection: "Personal details",
       contactSection: "Contact details",
       mediaSection: "Avatar and cover",
+      privacyHintTitle: "Privacy and visibility have moved",
+      privacyHintBody:
+        "Visibility in the people search, accepting expert requests, who can start a conversation with you and invite you to their network, read receipts, typing indicator and online status - all in one place, together with consents and data rights.",
       coverPlaceholder: "No cover image",
       avatarPlaceholder: "No avatar",
       unnamed: "User",
@@ -930,6 +948,7 @@ const en: typeof pl = {
     },
 
     security: {
+      privacyLink: "Privacy & data: visibility, consents, export and account deletion",
       changePassword: "Change password",
       currentPassword: "Current password",
       newPassword: "New password",

@@ -6,6 +6,7 @@ import { Search, UserRoundSearch } from "lucide-react";
 import { toast } from "sonner";
 import { usePeopleSearch, useStartConversation } from "@/lib/chat/useConversations";
 import { useOnlineUsers } from "@/lib/chat/presence";
+import { ProfileBadges } from "@/components/profile/ProfileBadges";
 import { ChatAvatar } from "./ChatAvatar";
 
 export function NewChatSearch({ onOpened }: { onOpened: (conversationId: string) => void }) {
@@ -99,8 +100,14 @@ export function NewChatSearch({ onOpened }: { onOpened: (conversationId: string)
                     size="sm"
                   />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] font-medium">
-                      {person.display_name}
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="truncate text-[13px] font-medium">
+                        {person.display_name}
+                      </span>
+                      {/* Odznaka weryfikacji: to samo źródło i ten sam atom co
+                          katalog osób - RPC czatu zwraca `verified` od
+                          20260806220000. */}
+                      {person.verified && <ProfileBadges badges={["verified"]} />}
                     </span>
                     {(person.job_title || person.current_company) && (
                       <span className="block truncate text-[11px] text-muted-foreground">

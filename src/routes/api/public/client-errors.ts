@@ -69,7 +69,7 @@ export const Route = createFileRoute("/api/public/client-errors")({
           // `client_errors` is created by a migration not yet reflected in the
           // generated Supabase types, so the table name/payload are cast here.
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-          await supabaseAdmin.from("client_errors" as never).insert({
+          await supabaseAdmin.from("client_errors").insert({
             message,
             stack,
             source,

@@ -263,14 +263,16 @@ export function usePeopleSearch(query: string, limit = 20): UseQueryResult<Perso
     enabled: !!user,
     staleTime: 30_000,
     queryFn: async (): Promise<PersonHit[]> => {
-      // `as never` do czasu regeneracji types.ts (konwencja repo, patrz
-      // chat_check_upload_quota w attachments.ts).
-      const { data, error } = await supabase.rpc(
-        "search_chat_contacts" as never,
-        { p_query: q, p_limit: limit } as never,
-      );
+      const { data, error } = await supabase.rpc("search_chat_contacts", {
+        p_query: q,
+        p_limit: limit,
+      });
       if (error) throw error;
-      return (data ?? []) as PersonHit[];
+      // Od 20260806220000 `search_chat_contacts` zwraca ten sam zestaw kolumn
+      // co katalogowe `search_people` (włącznie z `verified`) - bez fallbacku.
+      return data ?? [];
+
+
     },
   });
 }

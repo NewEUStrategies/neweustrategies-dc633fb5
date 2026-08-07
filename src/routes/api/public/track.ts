@@ -123,7 +123,7 @@ export const Route = createFileRoute("/api/public/track")({
           if (rows.length === 0) return noContent();
 
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-          await supabaseAdmin.from("analytics_events" as never).insert(rows as never);
+          await supabaseAdmin.from("analytics_events").insert(rows as never);
         } catch {
           // Ingest jest best-effort - nigdy nie zwracamy błędu.
         }

@@ -62,6 +62,7 @@ import { useSiteSetting } from "@/lib/useSiteSetting";
 import { useTheme } from "@/components/ThemeProvider";
 import { ensureI18n as ensureProfileExtras2I18n } from "@/lib/i18n-profile-extras2";
 import { setGuestPreview } from "@/lib/profile/guestPreviewStore";
+import { VerifiedProfileBadge } from "@/components/profile/VerifiedProfileBadge";
 import { ProfileViewsCard } from "@/components/network/ProfileViewsCard";
 import { IntroductionsCard } from "@/components/network/IntroductionsCard";
 
@@ -144,13 +145,19 @@ function ProfileInline() {
     );
   }
 
+  // "Ustawienia" to strefa prywatna - dane (płeć, miejsce zamieszkania) ustawia
+  // wyłącznie właściciel na swoim profilu i nie są widoczne publicznie,
+  // więc w podglądzie gościa zakładka w ogóle nie istnieje.
   const tabs: { key: TabKey; label: string }[] = [
     { key: "about", label: t("profile.tabs.about") },
     { key: "experience", label: t("profile.tabs.experience") },
     { key: "badges", label: t("profile.tabs.badges") },
     { key: "activity", label: t("profile.tabs.activity") },
-    { key: "settings", label: t("profile.tabs.settings") },
+    ...(editable ? [{ key: "settings" as const, label: t("profile.tabs.settings") }] : []),
   ];
+
+  const activeTab: TabKey = tab === "settings" && !editable ? "about" : tab;
+
 
   return (
     <TooltipProvider>
@@ -172,7 +179,7 @@ function ProfileInline() {
 
         <section className="rounded-[6px] border border-border bg-card px-5 sm:px-6 pt-16 sm:pt-20 pb-5">
           {/* Name */}
-          <div className="text-center sm:text-left">
+          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-center sm:text-left">
             {editable ? (
               <InlineText
                 value={data.display_name || fullName}
@@ -189,7 +196,9 @@ function ProfileInline() {
                 {fullName}
               </h1>
             )}
+            {data.verified_at ? <VerifiedProfileBadge /> : null}
           </div>
+
 
           {/* Company + Job */}
           <div className="mt-0.5 flex flex-wrap items-center justify-center sm:justify-start gap-x-1 gap-y-0.5 text-[13px] leading-[1.2]">
@@ -358,7 +367,7 @@ function ProfileInline() {
         <nav className="sticky top-0 z-10 rounded-[6px] border border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
           <div className="flex items-center gap-0.5 overflow-x-auto px-2">
             {tabs.map((it) => {
-              const active = tab === it.key;
+              const active = activeTab === it.key;
               return (
                 <button
                   key={it.key}
@@ -384,7 +393,7 @@ function ProfileInline() {
 
         {/* MAIN */}
         <div className="space-y-4 min-w-0">
-          {tab === "about" && (
+          {activeTab === "about" && (
             <>
               <Card icon={<Activity className="h-3.5 w-3.5" />} title={t("profile.account.bio")}>
                 {editable ? (
@@ -548,7 +557,7 @@ function ProfileInline() {
             </>
           )}
 
-          {tab === "experience" && user?.id && data.tenant_id && (
+          {activeTab === "experience" && user?.id && data.tenant_id && (
             <>
               <ExperienceSection userId={user.id} tenantId={data.tenant_id} editable={editable} />
               <EducationSection userId={user.id} tenantId={data.tenant_id} editable={editable} />
@@ -556,7 +565,7 @@ function ProfileInline() {
             </>
           )}
 
-          {tab === "badges" && user?.id && data.tenant_id && (
+          {activeTab === "badges" && user?.id && data.tenant_id && (
             <>
               <AwardsSection
                 userId={user.id}
@@ -579,7 +588,7 @@ function ProfileInline() {
             </>
           )}
 
-          {tab === "activity" && (
+          {activeTab === "activity" && (
             <>
               <Card
                 icon={<Activity className="h-3.5 w-3.5" />}
@@ -656,7 +665,7 @@ function ProfileInline() {
             </>
           )}
 
-          {tab === "settings" && (
+          {activeTab === "settings" && editable && (
             <Card icon={<ShieldCheck className="h-3.5 w-3.5" />} title={t("profile.tabs.settings")}>
               <dl className="grid gap-2 text-sm">
                 <Row label={t("profile.account.gender")}>

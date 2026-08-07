@@ -28,6 +28,9 @@ export const en = {
     save: "Save",
     close: "Close",
     back: "Back",
+    // Overflow ("three dots") menu label - see the PL note: this key only ever
+    // existed as a Polish `defaultValue` at the call site.
+    more: "More",
     menu: "Menu",
     search: "Search",
     openMenu: "Open menu",

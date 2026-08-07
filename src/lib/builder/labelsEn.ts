@@ -1191,8 +1191,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Wyłączane automatycznie przy systemowym „ogranicz ruch” (prefers-reduced-motion).":
     "Switched off automatically under the system “reduce motion” setting (prefers-reduced-motion).",
   "Droplista tematów (zainteresowania)?": "Topics droplist (interests)?",
-  // Etykiety karuzeli okrężnej mieszkają w sekcji "structure" wyżej -
-  // nie duplikuj ich tutaj (TS1117 + rozjazd pisowni colour/color).
 };
 
 /**

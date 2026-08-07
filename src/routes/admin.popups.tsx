@@ -154,12 +154,12 @@ function PopupsList() {
         popups.items.map(async (p) => {
           const [{ count: v }, { count: c }] = await Promise.all([
             supabase
-              .from("popup_events" as never)
+              .from("popup_events")
               .select("*", { count: "exact", head: true })
               .eq("popup_id", p.id)
               .eq("kind", "view"),
             supabase
-              .from("popup_events" as never)
+              .from("popup_events")
               .select("*", { count: "exact", head: true })
               .eq("popup_id", p.id)
               .eq("kind", "conversion"),

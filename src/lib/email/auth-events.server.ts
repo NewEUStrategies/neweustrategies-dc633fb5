@@ -130,7 +130,7 @@ export async function fetchAuthEmailEvents(
   since.setUTCHours(0, 0, 0, 0);
 
   const { data, error } = await supabaseAdmin
-    .from("auth_email_events" as never)
+    .from("auth_email_events")
     .select("*")
     .gte("created_at", since.toISOString())
     .order("created_at", { ascending: false })

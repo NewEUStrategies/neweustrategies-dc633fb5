@@ -23,6 +23,8 @@ export interface ProfileEditorRow {
   gender: Gender | null;
   linkedin_url: string | null;
   twitter_url: string | null;
+  /** Znacznik weryfikacji profilu (read-only dla właściciela). */
+  verified_at: string | null;
 }
 
 const EMPTY: ProfileEditorRow = {
@@ -42,6 +44,7 @@ const EMPTY: ProfileEditorRow = {
   gender: null,
   linkedin_url: null,
   twitter_url: null,
+  verified_at: null,
 };
 
 type UploadKind = "avatar" | "cover";
@@ -58,7 +61,7 @@ const MAX_SIZE: Record<UploadKind, number> = {
 // user-bio editors thus converge on profiles.bio_pl (mirror trigger keeps the
 // legacy `bio` column populated for older readers).
 const FIELDS =
-  "display_name, first_name, last_name, job_title, current_company, current_company_id, specialization, location, phone, bio, bio_pl, avatar_url, cover_url, tenant_id, gender, linkedin_url, twitter_url";
+  "display_name, first_name, last_name, job_title, current_company, current_company_id, specialization, location, phone, bio, bio_pl, avatar_url, cover_url, tenant_id, gender, linkedin_url, twitter_url, verified_at";
 
 export const profileEditorKey = (uid: string | null | undefined) =>
   ["profile-editor", uid ?? undefined] as const;

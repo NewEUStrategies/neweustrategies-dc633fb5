@@ -156,7 +156,7 @@ export const getJobRunnerSettings = createServerFn({ method: "GET" })
   .handler(async (): Promise<JobRunnerSettings> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
-      .from("job_runner_settings" as never)
+      .from("job_runner_settings")
       .select(
         "enabled, base_url, secret, updated_at, last_tick_at, last_tick_status, last_tick_error, tick_count",
       )
@@ -179,8 +179,8 @@ export const getJobRunnerSettings = createServerFn({ method: "GET" })
     // newsletter_deliverability_metrics). Oba są best-effort: panel ma się
     // wyświetlić także na bazie bez pgmq.
     const [{ data: effectiveUrl }, { data: depth }] = await Promise.all([
-      supabaseAdmin.rpc("job_runner_base_url" as never),
-      supabaseAdmin.rpc("email_queue_depth" as never),
+      supabaseAdmin.rpc("job_runner_base_url"),
+      supabaseAdmin.rpc("email_queue_depth"),
     ]);
 
     const depthRow =
@@ -226,7 +226,7 @@ export const updateJobRunnerSettings = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{ ok: true }> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin
-      .from("job_runner_settings" as never)
+      .from("job_runner_settings")
       .update({ enabled: data.enabled, base_url: data.base_url.replace(/\/+$/, "") } as never)
       .eq("id", 1);
     if (error) throw new Error(error.message);

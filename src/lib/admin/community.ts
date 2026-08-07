@@ -515,14 +515,14 @@ export async function publishQaSessionSummary(
   sessionId: string,
   publish: boolean,
 ): Promise<QaSummaryResult> {
-  // `as never`: RPC z migracji 20260721151000, jeszcze nie w wygenerowanych
-  // typach - do usunięcia przy regeneracji types.ts.
-  const { data, error } = await supabase.rpc(
-    "publish_qa_session_summary" as never,
-    { p_session_id: sessionId, p_publish: publish } as never,
-  );
+  const { data, error } = await supabase.rpc("publish_qa_session_summary", {
+    p_session_id: sessionId,
+    p_publish: publish,
+  });
   if (error) throw error;
-  const obj = (data ?? {}) as Record<string, unknown>;
+  // Zwrotka to `Json` (jsonb w bazie) - zawężamy do rekordu przed odczytem pól.
+  const obj: Record<string, unknown> =
+    data !== null && typeof data === "object" && !Array.isArray(data) ? data : {};
   return {
     post_id: typeof obj.post_id === "string" ? obj.post_id : "",
     slug: typeof obj.slug === "string" ? obj.slug : "",

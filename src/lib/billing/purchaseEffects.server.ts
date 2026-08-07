@@ -9,6 +9,7 @@ import {
 import { notifySubscriptionEmail } from "@/lib/billing/notifications.server";
 import { catalogEntryByPriceId } from "@/lib/billing/catalog";
 import { buildPremiumNewsletterRow, canAutoSubscribe } from "@/lib/billing/premiumNewsletter";
+import { PROFILE_PLAN_PATH } from "@/lib/profile/routes";
 
 export interface PurchaseContext {
   userId: string;
@@ -257,7 +258,7 @@ export async function applyPurchaseEffects(ctx: PurchaseContext): Promise<void> 
     titleEn: "Subscription active",
     bodyPl: "Dostęp do treści premium został włączony.",
     bodyEn: "Access to premium content is now enabled.",
-    href: "/profile/subscription",
+    href: PROFILE_PLAN_PATH,
     icon: "badge-check",
   });
 }
@@ -333,7 +334,7 @@ export async function applyPlanChangeEffects(
       ctx.direction === "upgrade"
         ? "The new plan is active now; the difference was prorated."
         : "The lower plan starts once the paid period ends.",
-    href: "/profile/subscription",
+    href: PROFILE_PLAN_PATH,
     icon: "arrow-up-right",
   });
 }
@@ -372,7 +373,7 @@ export async function applyCancellationEffects(ctx: PurchaseContext): Promise<vo
     titleEn: "Subscription canceled",
     bodyPl: "Dostęp działa do końca opłaconego okresu. Powiedz nam, co możemy poprawić.",
     bodyEn: "Access remains until the paid period ends. Tell us what we can improve.",
-    href: "/profile/subscription?retention=1",
+    href: `${PROFILE_PLAN_PATH}?retention=1`,
     icon: "message-circle-question",
   });
 }
@@ -407,7 +408,7 @@ export async function applyStatusTransitionEffects(ctx: StatusTransitionContext)
       titleEn: "Subscription paused",
       bodyPl: "Dostęp do treści premium jest nieaktywny do czasu wznowienia.",
       bodyEn: "Premium access is inactive until you resume the subscription.",
-      href: "/profile/subscription",
+      href: PROFILE_PLAN_PATH,
       icon: "pause-circle",
     });
     await notifySubscriptionEmail({
@@ -432,7 +433,7 @@ export async function applyStatusTransitionEffects(ctx: StatusTransitionContext)
         titleEn: "Subscription resumed",
         bodyPl: "Dostęp do treści premium znów działa.",
         bodyEn: "Premium access is active again.",
-        href: "/profile/subscription",
+        href: PROFILE_PLAN_PATH,
         icon: "badge-check",
       });
       await notifySubscriptionEmail({

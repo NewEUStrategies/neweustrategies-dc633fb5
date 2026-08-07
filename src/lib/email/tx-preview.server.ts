@@ -15,6 +15,7 @@ import {
   TX_OVERRIDES_DEFAULTS,
   type TxOverrides,
 } from "@/lib/email/txOverrides";
+import { PROFILE_PLAN_PATH } from "@/lib/profile/routes";
 
 export const TX_EMAIL_TYPES: readonly TxEmailType[] = [
   "subscription_confirmed",
@@ -75,7 +76,7 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
           { label: l.period, value: lang === "pl" ? "miesięczny" : "monthly" },
           { label: l.renewsAt, value: lang === "pl" ? "29 sierpnia 2026" : "29 August 2026" },
         ],
-        ctaUrl: `${SITE_URL}/profile/subscription`,
+        ctaUrl: `${SITE_URL}${PROFILE_PLAN_PATH}`,
       };
     case "subscription_canceled":
       return {
@@ -94,7 +95,7 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
           { label: l.newPlan, value: "Executive" },
           { label: l.renewsAt, value: lang === "pl" ? "29 sierpnia 2026" : "29 August 2026" },
         ],
-        ctaUrl: `${SITE_URL}/profile/subscription`,
+        ctaUrl: `${SITE_URL}${PROFILE_PLAN_PATH}`,
       };
     case "subscription_downgraded":
       return {
@@ -104,7 +105,7 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
           { label: l.newPlan, value: "Essential" },
           { label: l.renewsAt, value: lang === "pl" ? "29 sierpnia 2026" : "29 August 2026" },
         ],
-        ctaUrl: `${SITE_URL}/profile/subscription`,
+        ctaUrl: `${SITE_URL}${PROFILE_PLAN_PATH}`,
       };
     case "subscription_paused":
       return {
@@ -113,7 +114,7 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
           { label: l.plan, value: plan },
           { label: l.endsAt, value: lang === "pl" ? "29 sierpnia 2026" : "29 August 2026" },
         ],
-        ctaUrl: `${SITE_URL}/profile/subscription`,
+        ctaUrl: `${SITE_URL}${PROFILE_PLAN_PATH}`,
       };
     case "subscription_resumed":
       return {
@@ -122,7 +123,7 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
           { label: l.plan, value: plan },
           { label: l.renewsAt, value: lang === "pl" ? "29 sierpnia 2026" : "29 August 2026" },
         ],
-        ctaUrl: `${SITE_URL}/profile/subscription`,
+        ctaUrl: `${SITE_URL}${PROFILE_PLAN_PATH}`,
       };
     case "payment_failed":
       return {
@@ -134,7 +135,7 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
           { label: l.retryAt, value: lang === "pl" ? "1 sierpnia 2026" : "1 August 2026" },
           { label: l.accessUntil, value: lang === "pl" ? "29 sierpnia 2026" : "29 August 2026" },
         ],
-        ctaUrl: `${SITE_URL}/profile/subscription`,
+        ctaUrl: `${SITE_URL}${PROFILE_PLAN_PATH}`,
       };
     case "payment_recovered":
       return {
@@ -144,7 +145,7 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
           { label: l.price, value: "249,00 PLN" },
           { label: l.renewsAt, value: lang === "pl" ? "29 sierpnia 2026" : "29 August 2026" },
         ],
-        ctaUrl: `${SITE_URL}/profile/subscription`,
+        ctaUrl: `${SITE_URL}${PROFILE_PLAN_PATH}`,
       };
     case "payment_refunded":
       return {
@@ -155,7 +156,7 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
           { label: l.transaction, value: "txn_01hxyz9k2m4n6p8q" },
           { label: l.accessUntil, value: lang === "pl" ? "29 lipca 2026" : "29 July 2026" },
         ],
-        ctaUrl: `${SITE_URL}/profile/subscription`,
+        ctaUrl: `${SITE_URL}${PROFILE_PLAN_PATH}`,
       };
     case "subscription_renewal_reminder":
       return {
@@ -165,7 +166,7 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
           { label: l.price, value: "249,00 PLN" },
           { label: l.renewsAt, value: lang === "pl" ? "5 sierpnia 2026" : "5 August 2026" },
         ],
-        ctaUrl: `${SITE_URL}/profile/subscription`,
+        ctaUrl: `${SITE_URL}${PROFILE_PLAN_PATH}`,
       };
     case "subscription_expiring":
       return {
@@ -174,7 +175,7 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
           { label: l.plan, value: plan },
           { label: l.endsAt, value: lang === "pl" ? "5 sierpnia 2026" : "5 August 2026" },
         ],
-        ctaUrl: `${SITE_URL}/profile/subscription`,
+        ctaUrl: `${SITE_URL}${PROFILE_PLAN_PATH}`,
       };
     case "event_registered":
       return {
@@ -211,7 +212,7 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
           { label: l.plan, value: plan },
           { label: l.renewsAt, value: lang === "pl" ? "29 sierpnia 2026" : "29 August 2026" },
         ],
-        ctaUrl: `${SITE_URL}/profile/subscription`,
+        ctaUrl: `${SITE_URL}${PROFILE_PLAN_PATH}`,
       };
     case "team_seat_grace":
       return {
@@ -220,7 +221,7 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
           { label: lang === "pl" ? "Organizacja" : "Organisation", value: "Acme Group" },
           { label: l.endsAt, value: lang === "pl" ? "5 sierpnia 2026" : "5 August 2026" },
         ],
-        ctaUrl: `${SITE_URL}/profile/subscription`,
+        ctaUrl: `${SITE_URL}${PROFILE_PLAN_PATH}`,
       };
     case "team_seat_grace_reminder":
       return {
@@ -233,7 +234,7 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
             value: lang === "pl" ? "7 dni" : "7 days",
           },
         ],
-        ctaUrl: `${SITE_URL}/profile/subscription`,
+        ctaUrl: `${SITE_URL}${PROFILE_PLAN_PATH}`,
       };
     case "team_seat_access_ended":
       return {

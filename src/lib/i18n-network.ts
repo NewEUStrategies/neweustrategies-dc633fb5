@@ -69,6 +69,13 @@ export const networkPl = {
     mutual_few: "{{count}} wspólne kontakty",
     mutual_many: "{{count}} wspólnych kontaktów",
     mutual_other: "{{count}} wspólnych kontaktów",
+    // Etykieta czytnika ekranu dla linku „wspólne kontakty". Do 08.2026 klucz
+    // istniał tylko jako `defaultValue` w MutualConnectionsHint, więc EN czytał
+    // polskie zdanie - patrz bramka networkI18nKeys.gate.
+    mutualLinkAria_one: "Zobacz {{count}} wspólny kontakt",
+    mutualLinkAria_few: "Zobacz {{count}} wspólne kontakty",
+    mutualLinkAria_many: "Zobacz {{count}} wspólnych kontaktów",
+    mutualLinkAria_other: "Zobacz {{count}} wspólnych kontaktów",
     requestedAt: "Wysłano {{date}}",
     connectedAt: "W sieci od {{date}}",
     viewProfile: "Zobacz profil",
@@ -299,6 +306,8 @@ export const networkEn = {
     respond: "Respond",
     mutual_one: "{{count}} mutual connection",
     mutual_other: "{{count}} mutual connections",
+    mutualLinkAria_one: "View {{count}} mutual connection",
+    mutualLinkAria_other: "View {{count}} mutual connections",
     requestedAt: "Sent {{date}}",
     connectedAt: "Connected since {{date}}",
     viewProfile: "View profile",

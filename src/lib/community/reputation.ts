@@ -105,21 +105,13 @@ export async function fetchContributorLeaderboard(
   days: number,
   limit = 20,
 ): Promise<LeaderboardEntry[]> {
-  // `as never`: RPC z migracji 20260721152000, jeszcze nie w wygenerowanych
-  // typach - do usunięcia przy regeneracji types.ts.
-  const { data, error } = await supabase.rpc(
-    "get_contributor_leaderboard" as never,
-    { p_days: days, p_limit: limit } as never,
-  );
+  const { data, error } = await supabase.rpc("get_contributor_leaderboard", {
+    p_days: days,
+    p_limit: limit,
+  });
   if (error) throw error;
   // RPC zwraca board_position ('position' to słowo zarezerwowane w RETURNS TABLE).
-  const rows = (data ?? []) as unknown as Array<
-    Omit<LeaderboardEntry, "breakdown" | "position"> & {
-      board_position: number;
-      breakdown: unknown;
-    }
-  >;
-  return rows.map(({ board_position, breakdown, ...row }) => ({
+  return (data ?? []).map(({ board_position, breakdown, ...row }) => ({
     ...row,
     position: board_position,
     breakdown: parseBreakdown(breakdown),
@@ -149,14 +141,11 @@ export interface MyReputation {
 
 /** Własny wynik - widoczny także bez opt-in do tablicy (bez pozycji). */
 export async function fetchMyReputation(days: number): Promise<MyReputation> {
-  // `as never`: RPC z migracji 20260721152000, jeszcze nie w wygenerowanych
-  // typach - do usunięcia przy regeneracji types.ts.
-  const { data, error } = await supabase.rpc(
-    "get_my_reputation" as never,
-    { p_days: days } as never,
-  );
+  const { data, error } = await supabase.rpc("get_my_reputation", { p_days: days });
   if (error) throw error;
-  const obj = (data ?? {}) as Record<string, unknown>;
+  // Zwrotka to `Json` (jsonb w bazie) - zawężamy do rekordu przed odczytem pól.
+  const obj: Record<string, unknown> =
+    data !== null && typeof data === "object" && !Array.isArray(data) ? data : {};
   return {
     points: typeof obj.points === "number" ? obj.points : 0,
     breakdown: parseBreakdown(obj.breakdown),

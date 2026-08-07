@@ -18,10 +18,27 @@
 // Wszystko jest best-effort: log ani zbrojenie nie mogą wywalić wysyłki, która
 // właśnie się udała.
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/integrations/supabase/types";
+import type { Database, Json } from "@/integrations/supabase/types";
 import { normalizeArmOrigin, type SchedulerJob, type SchedulerSource } from "@/lib/jobs/scheduler";
 
 type DbClient = SupabaseClient<Database>;
+
+/**
+ * Podsumowanie ticku jest heterogeniczne (każdy job zwraca własny kształt albo
+ * `{ error }`), a kolumna docelowa to `jsonb`. Round-trip przez JSON daje
+ * DOKŁADNIE to, co i tak wylądowałoby w bazie, i robi to w typie `Json` -
+ * zamiast chować rozjazd pod castem. Nigdy nie rzuca: log jest best-effort,
+ * więc wartość niedająca się zserializować (cykl, BigInt) degraduje się do
+ * `null`, a nie wywraca zapisu, który właśnie potwierdza żywy harmonogram.
+ */
+function toJson(value: unknown): Json {
+  if (value === undefined) return null;
+  try {
+    return JSON.parse(JSON.stringify(value)) as Json;
+  } catch {
+    return null;
+  }
+}
 
 async function adminClient(client?: DbClient): Promise<DbClient> {
   if (client) return client;
@@ -49,21 +66,19 @@ export interface JobRunReport {
 export async function recordJobRun(report: JobRunReport, client?: DbClient): Promise<void> {
   try {
     const db = await adminClient(client);
-    // `as never`: RPC z migracji 20260731110000, jeszcze nie w wygenerowanych
-    // typach Supabase (src/integrations/supabase/types.ts jest generowane).
-    const { error } = await db.rpc(
-      "record_job_run" as never,
-      {
-        p_source: report.source,
-        p_job: report.job,
-        p_ok: report.ok,
-        p_duration_ms: Math.max(0, Math.round(report.durationMs)),
-        p_result: report.result ?? null,
-        p_error: report.error ?? null,
-        p_tenant_id: report.tenantId ?? null,
-        p_actor_id: report.actorId ?? null,
-      } as never,
-    );
+    // Argumenty opcjonalne pomijamy przez `undefined` zamiast wysyłać `null`:
+    // PostgREST nie wstawia takiego klucza do payloadu, więc zadziała DEFAULT
+    // NULL z sygnatury RPC - efekt identyczny, a typ argumentów się zgadza.
+    const { error } = await db.rpc("record_job_run", {
+      p_source: report.source,
+      p_job: report.job,
+      p_ok: report.ok,
+      p_duration_ms: Math.max(0, Math.round(report.durationMs)),
+      p_result: toJson(report.result),
+      p_error: report.error ?? undefined,
+      p_tenant_id: report.tenantId ?? undefined,
+      p_actor_id: report.actorId ?? undefined,
+    });
     if (error) throw error;
   } catch (err) {
     console.error("[scheduler] record_job_run failed", err);
@@ -86,13 +101,7 @@ export async function ensureJobRunnerArmed(
   if (!baseUrl) return "invalid_base_url";
   try {
     const db = await adminClient(client);
-    // `as never`: patrz komentarz w recordJobRun.
-    const { data, error } = await db.rpc(
-      "arm_job_runner" as never,
-      {
-        p_base_url: baseUrl,
-      } as never,
-    );
+    const { data, error } = await db.rpc("arm_job_runner", { p_base_url: baseUrl });
     if (error) throw error;
     const outcome = (data ?? null) as { armed?: boolean; reason?: string } | null;
     if (outcome?.armed) {

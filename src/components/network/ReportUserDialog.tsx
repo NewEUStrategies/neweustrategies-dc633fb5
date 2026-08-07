@@ -56,7 +56,8 @@ export function ReportUserDialog({
           toast.success(t("network.reportedToast"));
         },
         onError: (e) => {
-          const msg = (e as { message?: string })?.message ?? "";
+          // `useReportUser` jest typowane na `Error`, więc bez rzutowania.
+          const msg = e.message;
           if (msg.includes("rate limited")) toast.error(t("network.reportRateLimited"));
           else toastError(e, "save");
         },
