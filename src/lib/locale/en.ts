@@ -2026,7 +2026,7 @@ export const en = {
       groupByConversationHint: "Collapse multiple messages from the same chat into one row.",
       kindGroups: {
         conversations: "Conversations",
-        conversationsHint: "Direct contact: chat and formal expert requests.",
+        conversationsHint: "Direct contact: chat, formal expert requests and club discussions.",
         network: "Network & profile",
         networkHint:
           "Signals about who is looking for you, recommending you and wants to meet you. A declined introduction and a rejected recommendation stay silent.",
@@ -2038,6 +2038,7 @@ export const en = {
       kinds: {
         message: "Chat messages",
         expert_request: "Expert requests",
+        club: "Discussion clubs",
         comment: "Comments",
         follow: "New followers",
         subscription: "Subscription updates",

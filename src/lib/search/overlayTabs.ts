@@ -6,7 +6,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-export const OVERLAY_TABS = ["posts", "topics", "people", "experts"] as const;
+export const OVERLAY_TABS = ["posts", "topics", "clubs", "people", "experts"] as const;
 export type OverlayTab = (typeof OVERLAY_TABS)[number];
 
 export interface OverlayHit {
@@ -22,6 +22,7 @@ export type OverlayResults = Record<OverlayTab, OverlayHit[]>;
 export const emptyOverlayResults = (): OverlayResults => ({
   posts: [],
   topics: [],
+  clubs: [],
   people: [],
   experts: [],
 });
@@ -79,6 +80,30 @@ async function fetchTopics(q: string, lang: Lang, limit: number): Promise<Overla
   return out.slice(0, limit);
 }
 
+/**
+ * Wątki klubów. RPC filtruje po club_capabilities per wątek, więc do overlaya
+ * trafia wyłącznie to, co wolający i tak może przeczytać - sekcja nie zdradza
+ * istnienia klubu zamkniętego. Brak funkcji w bazie (starsze wdrożenie) kończy
+ * się pustą sekcją, tak samo jak reszta źródeł.
+ */
+async function fetchClubs(q: string, limit: number): Promise<OverlayHit[]> {
+  const { data, error } = await supabase.rpc("club_search", {
+    p_query: q,
+    p_club_id: undefined,
+    p_limit: limit,
+  });
+  if (error) return [];
+  return (data ?? []).map((r) => ({
+    id: r.thread_id,
+    label: r.title,
+    // Snippet z ts_headline niesie znaczniki <b>; overlay renderuje tekst,
+    // więc zdejmujemy je tutaj zamiast wstrzykiwać HTML do listy wyników.
+    meta: (r.snippet ?? "").replace(/<\/?b>/g, "") || null,
+    href: `/club/${r.club_slug}/t/${r.thread_slug}`,
+    avatarUrl: null,
+  }));
+}
+
 async function fetchPeople(q: string, limit: number): Promise<OverlayHit[]> {
   // Pełny zestaw argumentów: 2-argumentowe wywołanie jest niejednoznaczne
   // między przeciążeniami search_people (42725).
@@ -119,13 +144,14 @@ export const overlaySearchQueryOptions = (q: string, lang: Lang, limit: number) 
     enabled: q.length >= 2,
     staleTime: 60_000,
     queryFn: async (): Promise<OverlayResults> => {
-      const [posts, topics, people, experts] = await Promise.all([
+      const [posts, topics, clubs, people, experts] = await Promise.all([
         fetchPosts(q, lang, limit).catch(() => []),
         fetchTopics(q, lang, limit).catch(() => []),
+        fetchClubs(q, limit).catch(() => []),
         fetchPeople(q, limit).catch(() => []),
         fetchExperts(q, lang, limit).catch(() => []),
       ]);
-      return { posts, topics, people, experts };
+      return { posts, topics, clubs, people, experts };
     },
   });
 

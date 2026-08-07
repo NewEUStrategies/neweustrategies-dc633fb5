@@ -39,6 +39,7 @@ import {
   deleteClubGroup,
   fetchClubModerationLog,
   fetchClubModerationQueue,
+  fetchClubThreadsForAnchor,
   fetchClubMembers,
   fetchClubReactions,
   fetchClubReplies,
@@ -47,6 +48,7 @@ import {
   fetchClubThreads,
   fetchMyClubInvitations,
   fetchMyClubMemberships,
+  searchClubThreads,
   fetchMyThreadSubscription,
   inviteClubMember,
   inviteClubMemberByEmail,
@@ -86,6 +88,8 @@ import type {
   AdminClubInviteLinkRow,
   AdminClubModerationItem,
   AdminClubModerationLogRow,
+  ClubAnchorHit,
+  ClubSearchHit,
   AdminClubReplyRow,
   ClubModerationAction,
   AdminClubListFilters,
@@ -838,6 +842,42 @@ export function useAdminClubReplies(
     queryFn: () => fetchAdminClubReplies({ threadId: threadId ?? "" }),
     staleTime: 10_000,
     enabled: Boolean(threadId),
+  });
+}
+
+/**
+ * Wyszukiwanie watkow. `enabled` pilnuje progu dwoch znakow - bez tego kazde
+ * nacisniecie klawisza w polu wyszukiwania to round-trip po calej bazie.
+ */
+export function useClubSearch(params: {
+  query: string;
+  clubId?: string | null;
+  limit?: number;
+  enabled?: boolean;
+}): UseQueryResult<ClubSearchHit[], Error> {
+  const { query, clubId = null, limit = 20, enabled = true } = params;
+  const trimmed = query.trim();
+  return useQuery({
+    queryKey: clubKeys.search(trimmed, clubId),
+    queryFn: () => searchClubThreads({ query: trimmed, clubId, limit }),
+    staleTime: 30_000,
+    enabled: enabled && trimmed.length >= 2,
+  });
+}
+
+/** Watki przypiete do kotwicy - uzywane przez strony spoza modulu klubow. */
+export function useClubThreadsForAnchor(params: {
+  anchorType: string | undefined;
+  anchorId: string | undefined;
+  limit?: number;
+}): UseQueryResult<ClubAnchorHit[], Error> {
+  const { anchorType, anchorId, limit = 5 } = params;
+  return useQuery({
+    queryKey: clubKeys.anchor(anchorType ?? "", anchorId ?? ""),
+    queryFn: () =>
+      fetchClubThreadsForAnchor({ anchorType: anchorType ?? "", anchorId: anchorId ?? "", limit }),
+    staleTime: 60_000,
+    enabled: Boolean(anchorType) && Boolean(anchorId),
   });
 }
 

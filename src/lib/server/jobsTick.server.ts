@@ -75,6 +75,14 @@ export interface JobsTickResult {
     | { scanned: number; embedded: number; pruned?: number; skipped?: string }
     | { error: string };
   /**
+   * Warstwa semantyczna WĄTKÓW KLUBOWYCH. Znowu osobne pole, nie wspólny
+   * licznik z profilami: tabela wektorów klubu (A6) stała pusta, bo nikt jej
+   * nie karmił, i po wspólnym liczniku nie dałoby się tego odczytać z logu.
+   */
+  clubThreadIndex:
+    | { scanned: number; embedded: number; pruned?: number; skipped?: string }
+    | { error: string };
+  /**
    * Harmonogram Discussion Club (V2 §5): otwarcia grup zaplanowanych, zamknięcia
    * okien dyskusji, wygasłe kadencje ról i zaproszenia, usypianie martwych
    * tematów, odświeżenie rankingu. JEDEN job zamiast pięciu - runbook społeczności
@@ -207,6 +215,17 @@ export async function runJobsTick(
       })
     : skipped;
 
+  // Wektory WĄTKÓW KLUBOWYCH: co 15 minut, partia 16 - ta sama kadencja co
+  // profile, bo obie kolejki dzielą limit bramki embeddingów, a dyskusja
+  // klubowa nie musi być przeszukiwalna semantycznie w minutę od publikacji.
+  // Sprzątanie raz na godzinę (operacja czysto bazowa).
+  const clubThreadIndex = everyNthMinute(15)
+    ? await runJobStep(overBudget, async () => {
+        const { runClubThreadIndexBatch } = await import("@/lib/server/embeddings.server");
+        return runClubThreadIndexBatch(admin, 16, { prune: everyNthMinute(60) });
+      })
+    : skipped;
+
   // Harmonogram klubów: operacja czysto bazowa i tania (jeden RPC), ale nie ma
   // sensu co minutę - grupa otwierana "co do minuty" i tak czeka na najbliższy
   // tick, a kadencje ról są egzekwowane w locie przez club_effective_member_role,
@@ -240,6 +259,7 @@ export async function runJobsTick(
     integrations,
     semanticIndex,
     profileIndex,
+    clubThreadIndex,
     clubScheduler,
   };
 

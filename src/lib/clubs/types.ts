@@ -641,6 +641,8 @@ export function applyReactionToggle(
 
 export type AdminClubThreadRow = RowOf<Fn["admin_club_threads"]["Returns"]>;
 export type AdminClubReplyRow = RowOf<Fn["admin_club_replies"]["Returns"]>;
+export type ClubSearchHit = RowOf<Fn["club_search"]["Returns"]>;
+export type ClubAnchorHit = RowOf<Fn["club_threads_for_anchor"]["Returns"]>;
 export type AdminClubModerationItem = RowOf<Fn["admin_club_moderation_queue"]["Returns"]>;
 export type AdminClubModerationLogRow = RowOf<Fn["admin_club_moderation_log"]["Returns"]>;
 

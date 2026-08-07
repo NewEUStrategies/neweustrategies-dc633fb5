@@ -82,6 +82,13 @@ export const clubKeys = {
 
   adminReplies: (threadId: string) => [...clubKeys.all, "adminReplies", threadId] as const,
 
+  /** Wyszukiwanie jest GLOBALNE (klub opcjonalny), wiec klucz nie wisi pod
+   *  konkretnym klubem - inaczej czyszczenie cache jednego klubu kasowaloby
+   *  wyniki wyszukiwania po calej platformie. */
+  search: (query: string, clubId: string | null) =>
+    [...clubKeys.all, "search", query, clubId ?? "all"] as const,
+  anchor: (anchorType: string, anchorId: string) =>
+    [...clubKeys.all, "anchor", anchorType, anchorId] as const,
   moderationQueue: (clubId: string) => [...clubKeys.club(clubId), "moderationQueue"] as const,
   moderationLog: (clubId: string) => [...clubKeys.club(clubId), "moderationLog"] as const,
 

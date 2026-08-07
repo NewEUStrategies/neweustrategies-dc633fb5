@@ -1603,6 +1603,38 @@ export type Database = {
           },
         ]
       }
+      club_thread_embeddings: {
+        Row: {
+          embedding: string | null
+          source_hash: string | null
+          tenant_id: string
+          thread_id: string
+          updated_at: string
+        }
+        Insert: {
+          embedding?: string | null
+          source_hash?: string | null
+          tenant_id: string
+          thread_id: string
+          updated_at?: string
+        }
+        Update: {
+          embedding?: string | null
+          source_hash?: string | null
+          tenant_id?: string
+          thread_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_thread_embeddings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       club_members: {
         Row: {
           banned_reason: string | null
@@ -13754,6 +13786,16 @@ export type Database = {
         Returns: number
       }
       club_thread_quality_score: { Args: { _thread_id: string }; Returns: number }
+      club_prune_thread_embeddings: { Args: never; Returns: number }
+      club_threads_needing_embeddings: {
+        Args: { p_limit?: number }
+        Returns: {
+          source: string
+          source_hash: string
+          tenant_id: string
+          thread_id: string
+        }[]
+      }
       club_thread_view: {
         Args: { p_club_id: string; p_slug: string }
         Returns: {

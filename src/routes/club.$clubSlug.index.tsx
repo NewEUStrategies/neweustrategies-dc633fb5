@@ -13,12 +13,15 @@ import {
   MessageSquare,
   MessagesSquare,
   Pin,
+  Search,
   ShieldQuestion,
   Users2,
+  X,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -26,10 +29,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useClubBySlug, useClubGroups, useClubThreads } from "@/lib/clubs/useClubs";
+import { useClubBySlug, useClubGroups, useClubSearch, useClubThreads } from "@/lib/clubs/useClubs";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
   CLUB_THREAD_KINDS,
   toAuthorLabel,
+  type ClubSearchHit,
   type ClubThreadKind,
   type ClubThreadSort,
 } from "@/lib/clubs/types";
@@ -51,11 +56,23 @@ function ClubHome() {
   const [groupId, setGroupId] = useState<string | null>(null);
   const [sort, setSort] = useState<ClubThreadSort>("hot");
   const [kind, setKind] = useState<ClubThreadKind | null>(null);
+  const [query, setQuery] = useState("");
 
   const clubQ = useClubBySlug(clubSlug);
   const club = clubQ.data ?? null;
   const groupsQ = useClubGroups(club?.id);
   const threadsQ = useClubThreads({ clubId: club?.id, groupId, sort, kind });
+
+  // Wyszukiwanie ZASTĘPUJE listę, nie stoi obok niej: dwie listy naraz na
+  // telefonie znaczą, że użytkownik nie wie, którą czyta. Debounce 250 ms,
+  // próg dwóch znaków po stronie hooka.
+  const debouncedQuery = useDebouncedValue(query, 250);
+  const searching = debouncedQuery.trim().length >= 2;
+  const searchQ = useClubSearch({
+    query: debouncedQuery,
+    clubId: club?.id ?? null,
+    enabled: searching && Boolean(club?.id),
+  });
 
   if (clubQ.isPending) {
     return (
@@ -168,8 +185,36 @@ function ClubHome() {
         ) : null}
       </header>
 
-      {/* Filtry: grid, żeby na telefonie ułożyły się w kolumnę. */}
-      <div className="mb-5 grid gap-2 sm:grid-cols-3">
+      {/* Wyszukiwanie: nad filtrami, bo fraza jest silniejszym zawężeniem niż
+          grupa czy rodzaj - a gdy jest wpisana, filtry i tak nie mają na co
+          działać (RPC wyszukiwania nie przyjmuje ich jako parametrów). */}
+      <div className="relative mb-3">
+        <Search
+          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+          aria-hidden="true"
+        />
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={t("club.searchPlaceholder")}
+          aria-label={t("club.searchPlaceholder")}
+          className="pl-9 pr-9"
+        />
+        {query !== "" ? (
+          <button
+            type="button"
+            onClick={() => setQuery("")}
+            aria-label={t("club.searchClear")}
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        ) : null}
+      </div>
+
+      {/* Filtry znikają w trybie wyszukiwania: droplista, która nic nie robi,
+          jest gorsza niż jej brak. */}
+      <div className={`mb-5 grid gap-2 sm:grid-cols-3 ${searching ? "hidden" : ""}`}>
         <Select value={groupId ?? ALL} onValueChange={(v) => setGroupId(v === ALL ? null : v)}>
           <SelectTrigger aria-label={t("club.groups")}>
             <SelectValue placeholder={t("club.groups")} />
@@ -212,7 +257,14 @@ function ClubHome() {
         </Select>
       </div>
 
-      {threadsQ.isPending ? (
+      {searching ? (
+        <SearchResults
+          clubSlug={clubSlug}
+          hits={searchQ.data ?? []}
+          pending={searchQ.isPending}
+          query={debouncedQuery}
+        />
+      ) : threadsQ.isPending ? (
         <div className="space-y-2" aria-busy="true">
           {[0, 1, 2].map((i) => (
             <div key={i} className="h-20 animate-pulse rounded-lg bg-muted/50" />
@@ -307,5 +359,85 @@ function ClubHome() {
         </>
       )}
     </div>
+  );
+}
+
+/** Wyniki wyszukiwania - osobny komponent, bo mają inną treść wiersza niż
+ *  lista tematów: cytat z dopasowaniem zamiast metryk aktywności. */
+function SearchResults({
+  clubSlug,
+  hits,
+  pending,
+  query,
+}: {
+  clubSlug: string;
+  hits: readonly ClubSearchHit[];
+  pending: boolean;
+  query: string;
+}) {
+  const { t } = useTranslation();
+
+  if (pending) {
+    return (
+      <div className="space-y-2" aria-busy="true">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="h-16 animate-pulse rounded-lg bg-muted/50" />
+        ))}
+      </div>
+    );
+  }
+
+  if (hits.length === 0) {
+    return (
+      <Card>
+        <CardContent className="p-10 text-center text-sm text-muted-foreground">
+          {t("club.searchEmpty", { query })}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <>
+      <p className="mb-2 text-xs text-muted-foreground">
+        {t("club.searchCount", { count: hits.length })}
+      </p>
+      <ul className="space-y-2">
+        {hits.map((hit) => (
+          <li key={hit.thread_id}>
+            <Link
+              to="/club/$clubSlug/t/$threadSlug"
+              params={{ clubSlug, threadSlug: hit.thread_slug }}
+              className="block rounded-lg border border-border/60 bg-card p-4 transition-colors hover:border-primary/40"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline" className="text-[11px]">
+                  {t(`club.kind.${hit.kind}`)}
+                </Badge>
+                <h3 className="min-w-0 flex-1 truncate font-medium">{hit.title}</h3>
+              </div>
+              {/* ts_headline zwraca fragment ze znacznikami <b>. Renderujemy go
+                  jako TEKST po zdjęciu znaczników - wstrzykiwanie HTML z bazy
+                  do listy wyników nie jest tego warte. */}
+              <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                {(hit.snippet ?? "").replace(/<\/?b>/g, "")}
+              </p>
+              <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                <span className="inline-flex items-center gap-1">
+                  <MessageSquare className="h-3 w-3" />
+                  {hit.reply_count}
+                </span>
+                {hit.last_reply_at !== null ? (
+                  <span className="inline-flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    {new Date(hit.last_reply_at).toLocaleDateString()}
+                  </span>
+                ) : null}
+              </div>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }

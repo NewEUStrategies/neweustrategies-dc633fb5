@@ -16,6 +16,8 @@ import {
   type AdminClubInviteLinkRow,
   type AdminClubModerationItem,
   type AdminClubModerationLogRow,
+  type ClubAnchorHit,
+  type ClubSearchHit,
   type AdminClubReplyRow,
   type AdminClubThreadRow,
   type AdminClubRow,
@@ -791,6 +793,46 @@ export async function moveClubThread(params: {
   });
   if (error) throw error;
   return data === true;
+}
+
+/**
+ * Wyszukiwanie pelnotekstowe po watkach. Zwraca WYLACZNIE to, do czego wolajacy
+ * ma dostep - filtr siedzi w RPC (club_capabilities per watek), wiec klient
+ * nie musi (i nie moze) go powtarzac.
+ */
+export async function searchClubThreads(params: {
+  query: string;
+  clubId?: string | null;
+  limit?: number;
+}): Promise<ClubSearchHit[]> {
+  const query = params.query.trim();
+  if (query.length < 2) return [];
+  const { data, error } = await supabase.rpc("club_search", {
+    p_query: query,
+    p_club_id: params.clubId ?? undefined,
+    p_limit: params.limit ?? 20,
+  });
+  if (error) throw error;
+  return data ?? [];
+}
+
+/**
+ * Watki powiazane z kotwica (akt prawny, wydarzenie, wpis). To jest szew
+ * miedzymodulowy: strona aktu pyta klub o dyskusje na swoj temat, nie znajac
+ * modelu klubu.
+ */
+export async function fetchClubThreadsForAnchor(params: {
+  anchorType: string;
+  anchorId: string;
+  limit?: number;
+}): Promise<ClubAnchorHit[]> {
+  const { data, error } = await supabase.rpc("club_threads_for_anchor", {
+    p_anchor_type: params.anchorType,
+    p_anchor_id: params.anchorId,
+    p_limit: params.limit ?? 5,
+  });
+  if (error) throw error;
+  return data ?? [];
 }
 
 export async function fetchClubModerationQueue(clubId: string): Promise<AdminClubModerationItem[]> {
