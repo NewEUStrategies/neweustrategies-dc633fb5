@@ -27,6 +27,8 @@ export interface ExpertRequestButtonProps {
   recipientEnabled?: boolean;
   /** Zwarta wersja (ikona + krótka etykieta) na listy/karty. */
   compact?: boolean;
+  /** Wariant „tylko ikona" (h-8 w-8) - gęsty pasek akcji na profilu eksperta. */
+  iconOnly?: boolean;
   className?: string;
 }
 
