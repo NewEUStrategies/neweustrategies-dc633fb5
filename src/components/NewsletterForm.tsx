@@ -26,6 +26,8 @@ import { SubscribeButton } from "@/components/ui/subscribe-button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FormSelect } from "@/components/atoms/FormSelect";
 import { floatingPlaceholder } from "@/components/ui/floating-input";
+import { TopicsDroplist, useInterestGroups } from "@/components/interests/TopicsDroplist";
+import { useNewsletterFieldLabels } from "@/lib/newsletter/newsletterFieldLabels";
 import {
   collectCustomValues,
   parseCustomFields,
@@ -113,6 +115,18 @@ export function NewsletterForm({
     [cfg.customFields],
   );
 
+  // Wspólne dla wszystkich widgetów newslettera: etykiety pól + droplista tematów.
+  const fieldLabels = useNewsletterFieldLabels(lang);
+  const { allItems, groups } = useInterestGroups(lang, null);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const togglePick = (id: string) =>
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
   // Nowy builder: jesli tenant ma inline_doc i tryb pozwala na inline, uzywamy
   // NewsletterDocRenderer (Elementor-style). Legacy fallback nizej.
   if (s && s.enabled && s.inline_doc && s.mode !== "off" && s.mode !== "popup") {
@@ -144,11 +158,15 @@ export function NewsletterForm({
 
   // Labels / placeholders (widget override > sensible defaults).
   const L = {
-    firstName: readI18nOverride(cfg, "firstNameLabel", lang, t("newsletterForm.firstNameLabel")),
-    lastName: readI18nOverride(cfg, "lastNameLabel", lang, t("newsletterForm.lastNameLabel")),
-    email: readI18nOverride(cfg, "emailLabel", lang, t("newsletterForm.emailLabel")),
-    company: readI18nOverride(cfg, "companyLabel", lang, t("newsletterForm.companyLabel")),
+    firstName: fieldLabels.label(
+      "firstName",
+      readI18nOverride(cfg, "firstNameLabel", lang, ""),
+    ),
+    lastName: fieldLabels.label("lastName", readI18nOverride(cfg, "lastNameLabel", lang, "")),
+    email: fieldLabels.label("email", readI18nOverride(cfg, "emailLabel", lang, "")),
+    company: fieldLabels.label("company", readI18nOverride(cfg, "companyLabel", lang, "")),
   };
+  const showInterests = boolCfg(cfg, "showInterests", true) && allItems.length > 0;
   const P = {
     firstName: readI18nOverride(
       cfg,
@@ -209,6 +227,16 @@ export function NewsletterForm({
       const meta: Record<string, string> = {};
       if (company.trim()) meta.company = company.trim();
 
+      const pickedItemIds = Array.from(picked);
+      if (pickedItemIds.length > 0) {
+        const pickedItems = allItems.filter((it) => pickedItemIds.includes(it.id));
+        const areas = pickedItems.filter((it) => it.type === "category").map((it) => it.label);
+        const topics = pickedItems.filter((it) => it.type === "tag").map((it) => it.label);
+        custom.interests = pickedItems.map((it) => it.label).join(", ").slice(0, 500);
+        if (areas.length) custom.interests_areas = areas.join(", ").slice(0, 500);
+        if (topics.length) custom.interests_topics = topics.join(", ").slice(0, 500);
+      }
+
       const res = await subscribe({
         data: {
           email: trimmedEmail,
@@ -236,6 +264,7 @@ export function NewsletterForm({
       setFirstName("");
       setLastName("");
       setCompany("");
+      setPicked(new Set());
     } catch (err) {
       setErrMsg(subscribeErrorMessage(err instanceof Error ? err.message : String(err), lang));
       setState("err");
@@ -253,7 +282,8 @@ export function NewsletterForm({
       : "border-t border-b border-border py-8") + ` nl-shell nl-shell--${variant}`;
 
   const inputCls = "px-3 py-2 rounded border border-input bg-background text-sm w-full";
-  const hasExtras = showFirstName || showLastName || showCompany || customFields.length > 0;
+  const hasExtras =
+    showFirstName || showLastName || showCompany || customFields.length > 0 || showInterests;
 
   return (
     <section className={containerCls} aria-labelledby="newsletter-heading">
@@ -382,6 +412,17 @@ export function NewsletterForm({
                   />
                 ))}
               </div>
+
+              {showInterests && (
+                <TopicsDroplist
+                  lang={lang}
+                  allItems={allItems}
+                  groups={groups}
+                  picked={picked}
+                  onToggle={togglePick}
+                  onClear={() => setPicked(new Set())}
+                />
+              )}
 
               <SubscribeButton
                 type="submit"

@@ -105,6 +105,7 @@ export const WIDGET_TYPES = [
   // Slider
   "slider",
   "progress-carousel",
+  "circular-carousel",
   // Animated heading
   "animated-heading",
   // Rotating text (stagger by chars/words/lines)

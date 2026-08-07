@@ -177,6 +177,7 @@ export function WidgetLibrary({
     contact: "utility",
     "onboarding-form": "utility",
     "progress-carousel": "blocks",
+    "circular-carousel": "blocks",
     // navigation
     "nav-link": "menus",
     "mega-menu": "menus",

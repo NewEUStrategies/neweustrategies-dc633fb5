@@ -296,6 +296,11 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Tag (SEO)": "Tag (SEO)",
   "Rozmiar (preset)": "Size (preset)",
   "Rozmiar (px)": "Size (px)",
+  // Karuzela okrężna - geometria elipsy i akcent aktywnej karty.
+  "Promień poziomy (px)": "Horizontal radius (px)",
+  "Promień pionowy (px)": "Vertical radius (px)",
+  "Ramka aktywnej karty, licznik i kropki. Puste = kolor marki.":
+    "Active card border, counter and dots. Empty = brand colour.",
   "Rozmiar tytułu (px)": "Title size (px)",
   "Rozmiar podtytułu (px)": "Subtitle size (px)",
   "Rozmiar opisu (px)": "Description size (px)",
@@ -796,6 +801,7 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Karuzela kart (3-up)": "Card carousel (3-up)",
   "Karuzela logo (marquee)": "Logo carousel (marquee)",
   "Karuzela z paskiem postępu": "Progress carousel",
+  "Karuzela okrężna": "Circular carousel",
   "Grid dwukolumnowy": "Two-column grid",
   "Lista pionowa (klasyczna)": "Vertical list (classic)",
   "Lista (ikona + nazwa + CTA)": "List (icon + name + CTA)",
@@ -1185,6 +1191,10 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Animuj wejście karty": "Animate the card entrance",
   "Wyłączane automatycznie przy systemowym „ogranicz ruch” (prefers-reduced-motion).":
     "Switched off automatically under the system “reduce motion” setting (prefers-reduced-motion).",
+  "Droplista tematów (zainteresowania)?": "Topics droplist (interests)?",
+  "Promień poziomy (px)": "Horizontal radius (px)",
+  "Promień pionowy (px)": "Vertical radius (px)",
+  "Ramka aktywnej karty, licznik i kropki. Puste = kolor marki.": "Active card border, counter and dots. Empty = brand color.",
 };
 /* eslint-enable prettier/prettier */
 

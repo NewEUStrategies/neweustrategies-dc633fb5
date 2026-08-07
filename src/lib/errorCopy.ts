@@ -24,6 +24,18 @@ type ErrorCopy = {
   unauthorized: ErrorScenario;
   sessionExpired: ErrorScenario;
   network: ErrorScenario;
+  /**
+   * Render ZDEGRADOWANY: strona wyszła poprawnie (HTTP 200), ale jedna sekcja
+   * nie zdążyła pobrać danych w budżecie SSR. Osobny scenariusz, bo `network`
+   * każe czytelnikowi sprawdzić WŁASNE łącze - a tu zawiodła nasza strona.
+   */
+  degraded: ErrorScenario;
+  /**
+   * Nadlinia karty przy degradacji. `errorTitle` („Nie udało się załadować
+   * strony") byłby przy niej wprost nieprawdziwy - strona załadowała się
+   * w całości, brakuje tylko danych jednej sekcji, a odpowiedź ma status 200.
+   */
+  degradedEyebrow: string;
   generic: ErrorScenario;
 };
 
@@ -71,6 +83,19 @@ const COPY: Record<"pl" | "en", ErrorCopy> = {
       primaryAction: "Spróbuj ponownie",
       secondaryAction: "Strona główna",
     },
+    degraded: {
+      title: "Ta sekcja chwilowo nie ma danych",
+      body: "Reszta strony działa normalnie - nie udało się tylko pobrać tej listy na czas.",
+      stepsTitle: "Co zrobić?",
+      steps: [
+        "Kliknij „Spróbuj ponownie” - dane zwykle wracają od razu.",
+        "Możesz też odświeżyć stronę za chwilę.",
+        "Pozostała treść strony jest kompletna i możesz z niej korzystać.",
+      ],
+      primaryAction: "Spróbuj ponownie",
+      secondaryAction: "Strona główna",
+    },
+    degradedEyebrow: "Strona załadowana",
     generic: {
       title: "Nie udało się załadować strony",
       body: "Coś poszło nie tak po naszej stronie. Przepraszamy za utrudnienia.",
@@ -127,6 +152,19 @@ const COPY: Record<"pl" | "en", ErrorCopy> = {
       primaryAction: "Try again",
       secondaryAction: "Go home",
     },
+    degraded: {
+      title: "This section has no data right now",
+      body: "The rest of the page is fine - we just couldn't fetch this list in time.",
+      stepsTitle: "What to do",
+      steps: [
+        "Click Try again - the data usually comes back immediately.",
+        "You can also refresh the page in a moment.",
+        "The rest of the page is complete and ready to use.",
+      ],
+      primaryAction: "Try again",
+      secondaryAction: "Go home",
+    },
+    degradedEyebrow: "Page loaded",
     generic: {
       title: "This page didn't load",
       body: "Something went wrong on our end. We're sorry for the inconvenience.",
@@ -142,7 +180,14 @@ const COPY: Record<"pl" | "en", ErrorCopy> = {
   },
 };
 
-export type ErrorKind = "unauthorized" | "sessionExpired" | "network" | "generic";
+export type ErrorKind = "unauthorized" | "sessionExpired" | "network" | "degraded" | "generic";
+
+/**
+ * Znacznik renderu zdegradowanego. `classifyError` rozpoznaje go po polu
+ * `kind`, a nie po treści komunikatu - degradacja jest stanem, który zgłasza
+ * sama aplikacja, więc nie ma sensu zgadywać jej z tekstu błędu.
+ */
+export const DEGRADED_ERROR = Object.freeze({ kind: "degraded" as const });
 
 export function errorCopy(): ErrorCopy {
   return COPY[currentLang() === "pl" ? "pl" : "en"];
@@ -157,6 +202,10 @@ export function classifyError(error: unknown): ErrorKind {
   if (!error || typeof error !== "object") return "generic";
 
   const e = error as Record<string, unknown>;
+  // Degradacja jest zgłaszana jawnie przez aplikację (DEGRADED_ERROR), więc
+  // rozstrzygamy ją przed wszystkimi heurystykami po treści komunikatu.
+  if (e.kind === "degraded") return "degraded";
+
   const status =
     typeof e.status === "number"
       ? e.status

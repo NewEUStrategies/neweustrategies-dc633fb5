@@ -24,6 +24,7 @@ const SPLIT_WIDGETS = [
   "EventSponsorsView",
   "RatedListView",
   "TabsBlock",
+  "CircularCarouselView",
   "AdSlotById",
   "DonationsWidgetView",
   "RichTextView",

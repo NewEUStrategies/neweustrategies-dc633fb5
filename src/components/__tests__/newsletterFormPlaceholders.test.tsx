@@ -8,7 +8,19 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import { FLOATING_LABEL_SPACER } from "@/components/ui/floating-input";
 
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => ({}) } }));
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: {
+    from: () => ({}),
+    channel: () => {
+      const ch: { on: () => typeof ch; subscribe: () => typeof ch } = {
+        on: () => ch,
+        subscribe: () => ch,
+      };
+      return ch;
+    },
+    removeChannel: () => {},
+  },
+}));
 vi.mock("@/lib/i18n-public", () => ({}));
 vi.mock("@tanstack/react-start", () => ({ useServerFn: () => vi.fn() }));
 vi.mock("@/lib/newsletter.functions", () => ({ subscribeToNewsletter: {} }));
@@ -34,6 +46,7 @@ vi.mock("@/hooks/useNewsletterSettings", async () => {
   };
 });
 
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NewsletterForm } from "../NewsletterForm";
 
 afterEach(() => cleanup());
@@ -41,7 +54,12 @@ afterEach(() => cleanup());
 type Cfg = Record<string, unknown>;
 
 function renderForm(widgetConfig: Cfg, lang: "pl" | "en" = "pl") {
-  const { container } = render(<NewsletterForm lang={lang} widgetConfig={widgetConfig} />);
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const { container } = render(
+    <QueryClientProvider client={qc}>
+      <NewsletterForm lang={lang} widgetConfig={widgetConfig} />
+    </QueryClientProvider>,
+  );
   const byType = (type: string): HTMLInputElement => {
     const el = container.querySelector<HTMLInputElement>(`input[type="${type}"]`);
     expect(el, `input[type="${type}"]`).toBeTruthy();
