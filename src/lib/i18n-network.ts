@@ -120,18 +120,6 @@ export const networkPl = {
     // STOPIEŃ sieci - jedna definicja etykiet dla katalogu, sugestii i profilu.
     // Baza liczyła go od 20260717170000, ale nie wychodził na zewnątrz; od
     // 20260807143000 jest jawną kolumną, a to jego jedyne tłumaczenie.
-    degree: {
-      short: {
-        "1": "1.",
-        "2": "2.",
-        "3": "3.+",
-      },
-      label: {
-        "1": "Pierwszy stopień - macie połączenie",
-        "2": "Drugi stopień - macie wspólne kontakty",
-        "3": "Trzeci stopień lub dalej - brak wspólnych kontaktów",
-      },
-    },
     suggestions: {
       dismiss: "Ukryj sugestię: {{name}}",
       dismissedToast: "{{name}} nie będzie już proponowana",
@@ -397,18 +385,6 @@ export const networkEn = {
     sharedEvents_one: "{{count}} shared event",
     sharedEvents_other: "{{count}} shared events",
     coldStartTitle: "Start with these people",
-    degree: {
-      short: {
-        "1": "1st",
-        "2": "2nd",
-        "3": "3rd+",
-      },
-      label: {
-        "1": "First degree - you are connected",
-        "2": "Second degree - you share mutual contacts",
-        "3": "Third degree or further - no mutual contacts",
-      },
-    },
     suggestions: {
       dismiss: "Hide suggestion: {{name}}",
       dismissedToast: "{{name}} will no longer be suggested",

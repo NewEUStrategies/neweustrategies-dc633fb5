@@ -92,3 +92,27 @@ export const DEGREE_I18N_SUFFIX = {
   2: "second",
   3: "third",
 } as const satisfies Record<1 | 2 | 3, string>;
+
+// ---------------------------------------------------------------------------
+// Aliasy warstwy prezentacji (PR #199). Nazewnictwo `NetworkDegree*` jest
+// używane przez atomy i katalog osób; semantyka i źródło prawdy pozostają
+// wyżej w tym module - to jest wyłącznie cienka fasada nad ConnectionDegree.
+// ---------------------------------------------------------------------------
+export type NetworkDegree = ConnectionDegree;
+
+/** Normalizacja wartości z RPC do stopnia sieci. */
+export const toNetworkDegree = normalizeDegree;
+
+/** Klucz i18n skrótu odznaki (1°/2°/3°). */
+export function networkDegreeShortKey(degree: NetworkDegree): string {
+  return isDegreeVisible(degree)
+    ? `network.degree.short.${DEGREE_I18N_SUFFIX[degree]}`
+    : "network.degree.short.third";
+}
+
+/** Klucz i18n pełnego opisu stopnia (czytnik ekranu, tooltip). */
+export function networkDegreeLabelKey(degree: NetworkDegree): string {
+  return isDegreeVisible(degree)
+    ? `network.degree.description.${DEGREE_I18N_SUFFIX[degree]}`
+    : "network.degree.description.third";
+}
