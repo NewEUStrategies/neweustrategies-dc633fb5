@@ -339,10 +339,13 @@ export function ClubElementsCatalog() {
   const { t } = useTranslation();
 
   const [rawQuery, setRawQuery] = useState("");
+  const [group, setGroup] = useState<GroupId>("vocab");
   const [draft, setDraft] = useState<ClubAccessDraft>(INITIAL_DRAFT);
   const [tallies, setTallies] = useState<ClubReactionTally[]>(INITIAL_TALLIES);
   const query = useMemo(() => normalize(rawQuery.trim()), [rawQuery]);
   const filtering = query.length > 0;
+  const activeSections: readonly SectionId[] =
+    GROUPS.find((entry) => entry.id === group)?.sections ?? [];
 
   const toggleReaction = (kind: ClubReactionKind, active: boolean) => {
     setTallies((prev) =>
