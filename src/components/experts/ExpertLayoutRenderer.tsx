@@ -642,7 +642,7 @@ export function ExpertLayoutHero({
             >
               {LABELS[lang].profileTagline}
             </p>
-            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <h1
                 className="font-display leading-[1.05]"
                 style={{ fontSize: "var(--pv-name-size)" }}
