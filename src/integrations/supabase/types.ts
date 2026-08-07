@@ -14854,6 +14854,7 @@ export type Database = {
           last_reply_at: string;
           participant_count: number;
           pinned_at: string;
+          posted_by_admin_name: string;
           reaction_count: number;
           reply_count: number;
           slug: string;

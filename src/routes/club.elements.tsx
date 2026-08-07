@@ -35,25 +35,43 @@ import {
   ClubAccessTab,
   type ClubAccessDraft,
 } from "@/components/admin/clubs/organisms/ClubAccessTab";
-import { ClubReactionBar } from "@/components/clubs/ClubReactionBar";
+import { ClubReactionBar } from "@/components/clubs/molecules/ClubReactionBar";
 import {
   CAPABILITY_KEYS,
   CAPABILITY_ROLES,
   capabilityValue,
   type CapabilityValue,
 } from "@/lib/clubs/capabilityMatrix";
+import { ClubElementsGallery } from "@/components/clubs/organisms/ClubElementsGallery";
 import {
   CLUB_ACCESS_REASONS,
+  CLUB_ACTIVITY_SORTS,
   CLUB_ATTRIBUTION_MODES,
   CLUB_GROUP_STATUSES,
+  CLUB_INVITATION_STATUSES,
+  CLUB_INVITE_CHANNELS,
+  CLUB_INVITE_ERRORS,
   CLUB_JOIN_POLICIES,
+  CLUB_LAYOUTS,
+  CLUB_LOG_ACTIONS,
+  CLUB_LOG_TARGETS,
   CLUB_MEMBER_ROLES,
   CLUB_MEMBER_STATUSES,
+  CLUB_MODERATION_ACTIONS,
   CLUB_MODERATION_MODES,
   CLUB_NOTIFY_LEVELS,
   CLUB_POST_POLICIES,
+  CLUB_QUALITY_REACTIONS,
   CLUB_REACTION_KINDS,
+  CLUB_REPLY_SORTS,
+  CLUB_SAVE_ERRORS,
+  CLUB_STANCES,
+  CLUB_STANCE_REACTIONS,
   CLUB_STATUSES,
+  CLUB_SUBSCRIPTION_STATES,
+  CLUB_THREAD_KINDS,
+  CLUB_THREAD_SORTS,
+  CLUB_THREAD_STATUSES,
   CLUB_VISIBILITIES,
   type ClubReactionKind,
   type ClubReactionTally,
@@ -230,6 +248,109 @@ function ClubElementsPage() {
               values={CLUB_REACTION_KINDS}
               prefix="club.reaction"
             />
+            <VocabRow
+              label={t("clubElements.vocab.layout")}
+              values={CLUB_LAYOUTS}
+              prefix="adminClubs.layout"
+            />
+          </CardContent>
+        </Card>
+      </Section>
+
+      <Section
+        title={t("clubElements.section.threadVocab")}
+        hint={t("clubElements.section.threadVocabHint")}
+      >
+        <Card>
+          <CardContent className="p-5">
+            <VocabRow
+              label={t("clubElements.vocab.threadKind")}
+              values={CLUB_THREAD_KINDS}
+              prefix="club.kind"
+            />
+            <VocabRow
+              label={t("clubElements.vocab.threadStatus")}
+              values={CLUB_THREAD_STATUSES}
+              prefix="club.threadStatus"
+            />
+            <VocabRow
+              label={t("clubElements.vocab.threadSort")}
+              values={CLUB_THREAD_SORTS}
+              prefix="club.sort"
+            />
+            <VocabRow
+              label={t("clubElements.vocab.replySort")}
+              values={CLUB_REPLY_SORTS}
+              prefix="club.replySort"
+            />
+            <VocabRow
+              label={t("clubElements.vocab.activitySort")}
+              values={CLUB_ACTIVITY_SORTS}
+              prefix="club.sort"
+            />
+            <VocabRow
+              label={t("clubElements.vocab.stance")}
+              values={CLUB_STANCES}
+              prefix="club.stance"
+            />
+            <VocabRow
+              label={t("clubElements.vocab.subscription")}
+              values={CLUB_SUBSCRIPTION_STATES}
+              prefix="club.subscription"
+            />
+          </CardContent>
+        </Card>
+
+        {/* Reakcje dzielą się na DWIE rozłączne grupy i to jest reguła bazy,
+            nie konwencja interfejsu: trigger podmienia jedno stanowisko na
+            drugie, a oceny jakości sumują się niezależnie. */}
+        <Card>
+          <CardContent className="p-5">
+            <VocabRow
+              label={t("clubElements.vocab.qualityReaction")}
+              values={CLUB_QUALITY_REACTIONS}
+              prefix="club.reaction"
+            />
+            <VocabRow
+              label={t("clubElements.vocab.stanceReaction")}
+              values={CLUB_STANCE_REACTIONS}
+              prefix="club.reaction"
+            />
+          </CardContent>
+        </Card>
+      </Section>
+
+      <Section
+        title={t("clubElements.section.opsVocab")}
+        hint={t("clubElements.section.opsVocabHint")}
+      >
+        <Card>
+          <CardContent className="p-5">
+            <VocabRow
+              label={t("clubElements.vocab.inviteChannel")}
+              values={CLUB_INVITE_CHANNELS}
+              prefix="adminClubs.invites.channelName"
+            />
+            <VocabRow
+              label={t("clubElements.vocab.invitationStatus")}
+              values={CLUB_INVITATION_STATUSES}
+              prefix="adminClubs.invites.statusName"
+            />
+            <VocabRow
+              label={t("clubElements.vocab.moderationAction")}
+              values={CLUB_MODERATION_ACTIONS}
+              prefix="adminClubs.moderation.action"
+            />
+            <VocabRow
+              label={t("clubElements.vocab.logAction")}
+              values={CLUB_LOG_ACTIONS}
+              prefix="adminClubs.moderation.action"
+            />
+            <VocabRow
+              label={t("clubElements.vocab.logTarget")}
+              values={CLUB_LOG_TARGETS}
+              prefix="adminClubs.moderation.target"
+            />
           </CardContent>
         </Card>
       </Section>
@@ -283,6 +404,13 @@ function ClubElementsPage() {
 
       <Section title={t("clubElements.section.access")} hint={t("clubElements.section.accessHint")}>
         <ClubAccessTab draft={draft} onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))} />
+      </Section>
+
+      <Section
+        title={t("clubElements.section.gallery")}
+        hint={t("clubElements.section.galleryHint")}
+      >
+        <ClubElementsGallery />
       </Section>
 
       <Section title={t("clubElements.section.matrix")} hint={t("clubElements.section.matrixHint")}>
@@ -352,6 +480,37 @@ function ClubElementsPage() {
         </Card>
       </Section>
 
+      <Section title={t("clubElements.section.errors")} hint={t("clubElements.section.errorsHint")}>
+        <div className="grid gap-3 lg:grid-cols-2">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">{t("clubElements.errors.invite")}</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-2 p-5 pt-0">
+              {CLUB_INVITE_ERRORS.map((code) => (
+                <div key={code} className="rounded-md border border-border/60 p-3">
+                  <p className="font-mono text-xs text-muted-foreground">{code}</p>
+                  <p className="mt-1 text-sm">{t(`adminClubs.invites.error.${code}`)}</p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">{t("clubElements.errors.save")}</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-2 p-5 pt-0">
+              {CLUB_SAVE_ERRORS.map((code) => (
+                <div key={code} className="rounded-md border border-border/60 p-3">
+                  <p className="font-mono text-xs text-muted-foreground">{code}</p>
+                  <p className="mt-1 text-sm">{t(`adminClubs.create.error.${code}`)}</p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+      </Section>
+
       <Section title={t("clubElements.section.routes")} hint={t("clubElements.section.routesHint")}>
         <Card>
           <CardHeader className="pb-2">
@@ -360,6 +519,9 @@ function ClubElementsPage() {
           <CardContent className="flex flex-wrap gap-2 p-5 pt-0">
             <Button asChild size="sm" variant="outline">
               <Link to="/club">{t("clubElements.routes.index")}</Link>
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <Link to="/club/elements">{t("clubElements.routes.elements")}</Link>
             </Button>
             <Button asChild size="sm" variant="outline">
               <Link to="/admin/community/clubs">{t("clubElements.routes.admin")}</Link>

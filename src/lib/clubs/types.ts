@@ -511,7 +511,32 @@ export type ClubThreadSort = (typeof CLUB_THREAD_SORTS)[number];
 export const CLUB_REPLY_SORTS = ["chronological", "best"] as const;
 export type ClubReplySort = (typeof CLUB_REPLY_SORTS)[number];
 
-export type ClubThreadListRow = RowOf<Fn["club_threads_list"]["Returns"]>;
+/**
+ * Wiersz listy tematow z kolumnami NULLOWALNYMI oznaczonymi jawnie.
+ *
+ * Generator typow Supabase deklaruje kazda kolumne RETURNS TABLE jako
+ * niepusta, a `club_threads_list` zwraca NULL w calej projekcji autora, kiedy
+ * klub dziala pod regula Chatham House albo wpis jest anonimowy. Bez tego
+ * `thread.author_name.trim()` kompilowalo sie i wywracalo dopiero na produkcji
+ * - dokladnie w klubie, w ktorym najbardziej zalezy nam na poprawnosci.
+ *
+ * `ClubReplyRow` mial to od poczatku; brak tego samego na watkach byl
+ * niedopatrzeniem, nie decyzja.
+ */
+export type ClubThreadListRow = NullableCols<
+  RowOf<Fn["club_threads_list"]["Returns"]>,
+  | "anchor_type"
+  | "anchor_id"
+  | "author_id"
+  | "author_name"
+  | "author_avatar"
+  | "author_slug"
+  | "author_alias"
+  | "posted_by_admin_name"
+  | "pinned_at"
+  | "last_reply_at"
+  | "excerpt"
+>;
 export type ClubThreadViewRow = RowOf<Fn["club_thread_view"]["Returns"]>;
 export type ClubReplyRow = NullableCols<
   RowOf<Fn["club_replies_list"]["Returns"]>,

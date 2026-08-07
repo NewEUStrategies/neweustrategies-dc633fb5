@@ -6,30 +6,18 @@
 // warta jednej linijki, nie własnego bloku.
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
-import { KeyRound, Lock, MailCheck, ShieldCheck } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ClubHubAccessBadge } from "@/components/clubs/atoms/ClubHubAccessBadge";
 import type { ClubHubAccess } from "@/lib/clubs/hubAccess";
-
-const ACCESS_ICON: Record<ClubHubAccess, React.ComponentType<{ className?: string }>> = {
-  member: ShieldCheck,
-  invited: MailCheck,
-  entitled: KeyRound,
-  locked: Lock,
-};
 
 export function ClubHubHero({ access }: { access: ClubHubAccess }) {
   const { t } = useTranslation();
-  const Icon = ACCESS_ICON[access];
 
   return (
     <header className="mb-8">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-3xl font-semibold sm:text-4xl">{t("club.title")}</h1>
-        <Badge variant={access === "locked" ? "outline" : "secondary"} className="gap-1.5">
-          <Icon className="h-3.5 w-3.5" />
-          {t(`club.hub.access.${access}`)}
-        </Badge>
+        <ClubHubAccessBadge access={access} />
       </div>
 
       <p className="mt-2 max-w-2xl text-muted-foreground">{t("club.hub.lead")}</p>

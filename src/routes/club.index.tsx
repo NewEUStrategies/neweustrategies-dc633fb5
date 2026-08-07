@@ -34,9 +34,12 @@ import { useCurrentTier } from "@/lib/billing/tiers";
 import {
   useClubActivityFeed,
   useClubList,
+  useClubSearch,
   useMyClubInvitations,
+  useMyClubMemberships,
   useRespondClubInvitation,
 } from "@/lib/clubs/useClubs";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { resolveClubHubAccess } from "@/lib/clubs/hubAccess";
 import { toClubSaveError, type ClubActivitySort } from "@/lib/clubs/types";
 import { ClubHubHero } from "@/components/clubs/organisms/ClubHubHero";
@@ -44,6 +47,11 @@ import { ClubInvitationInbox } from "@/components/clubs/organisms/ClubInvitation
 import { ClubActivityFeed } from "@/components/clubs/organisms/ClubActivityFeed";
 import { ClubDirectory } from "@/components/clubs/organisms/ClubDirectory";
 import { ClubHowItWorks } from "@/components/clubs/organisms/ClubHowItWorks";
+import { ClubMembershipPanel } from "@/components/clubs/organisms/ClubMembershipPanel";
+import {
+  ClubGlobalSearchInput,
+  ClubGlobalSearchResults,
+} from "@/components/clubs/organisms/ClubGlobalSearch";
 import { ClubStatStrip } from "@/components/clubs/molecules/ClubStatStrip";
 import { ClubTopicNav } from "@/components/clubs/molecules/ClubTopicNav";
 import { ensureClubI18n } from "@/lib/i18n-club";
@@ -63,8 +71,10 @@ function ClubHub() {
 
   const [topic, setTopic] = useState<string | null>(null);
   const [sort, setSort] = useState<ClubActivitySort>("new");
+  const [query, setQuery] = useState("");
 
   const clubsQ = useClubList();
+  const membershipsQ = useMyClubMemberships(Boolean(session));
   const invitationsQ = useMyClubInvitations(Boolean(session));
   const tierQ = useCurrentTier();
   const respondM = useRespondClubInvitation();
@@ -72,13 +82,26 @@ function ClubHub() {
   const clubs = useMemo(() => clubsQ.data?.rows ?? [], [clubsQ.data]);
   const invitations = invitationsQ.data ?? [];
 
+  // Wyszukiwanie ZASTĘPUJE strumień, nie stoi obok niego. Próg dwóch znaków
+  // i debounce siedzą w hooku - tutaj tylko decyzja, który moduł rysować.
+  const debouncedQuery = useDebouncedValue(query, 250);
+  const searching = debouncedQuery.trim().length >= 2;
+  const searchQ = useClubSearch({
+    query: debouncedQuery,
+    // `null` = szukaj po WSZYSTKICH klubach. RPC umiał to od A6, tylko nikt
+    // go tak nie wołał: strona klubu zawsze podawała swoje id.
+    clubId: null,
+    enabled: searching && Boolean(session),
+  });
+
   // Strumień pyta o treść klubów, więc nie ma po co wołać go dla wylogowanego -
-  // ekran dla anonima kończy się na zachęcie do logowania.
+  // ekran dla anonima kończy się na zachęcie do logowania. Podczas szukania
+  // też nie: jego wynik i tak nie trafiłby na ekran.
   const activityQ = useClubActivityFeed({
     sort,
     policyArea: topic,
     limit: 12,
-    enabled: Boolean(session),
+    enabled: Boolean(session) && !searching,
   });
 
   const access = resolveClubHubAccess({
@@ -134,15 +157,38 @@ function ClubHub() {
         </div>
       ) : null}
 
+      <ClubMembershipPanel
+        memberships={membershipsQ.data ?? []}
+        isPl={isPl}
+        loading={membershipsQ.isPending}
+      />
+
       <div className="mb-8 space-y-5">
-        <ClubTopicNav clubs={clubs} value={topic} onChange={setTopic} isPl={isPl} />
-        <ClubActivityFeed
-          rows={activityQ.data ?? []}
-          sort={sort}
-          onSortChange={setSort}
-          pending={activityQ.isPending}
-          isPl={isPl}
-        />
+        <ClubGlobalSearchInput value={query} onChange={setQuery} />
+
+        {/* Filtr tematyczny znika w trybie wyszukiwania: chipsy, które nie mają
+            na co działać (RPC wyszukiwania nie przyjmuje obszaru), są gorsze
+            niż ich brak. */}
+        {searching ? null : (
+          <ClubTopicNav clubs={clubs} value={topic} onChange={setTopic} isPl={isPl} />
+        )}
+
+        {searching ? (
+          <ClubGlobalSearchResults
+            hits={searchQ.data ?? []}
+            pending={searchQ.isPending}
+            query={debouncedQuery}
+            isPl={isPl}
+          />
+        ) : (
+          <ClubActivityFeed
+            rows={activityQ.data ?? []}
+            sort={sort}
+            onSortChange={setSort}
+            pending={activityQ.isPending}
+            isPl={isPl}
+          />
+        )}
       </div>
 
       <ClubDirectory

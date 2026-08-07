@@ -412,7 +412,14 @@ export function ClubInvitationsTab({ clubId, isPl }: { clubId: string; isPl: boo
                         </Badge>
                       </TableCell>
                       <TableCell>{t(`club.role.${row.club_role}`)}</TableCell>
-                      <TableCell className="text-sm">{row.status}</TableCell>
+                      <TableCell className="text-sm">
+                        {/* Status jechał tu surowym kluczem z bazy - jedyne
+                            miejsce w module, gdzie angielski wyciekał do
+                            polskiego interfejsu. */}
+                        {t(`adminClubs.invites.statusName.${row.status}`, {
+                          defaultValue: row.status,
+                        })}
+                      </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {row.inviter_name}
                       </TableCell>
