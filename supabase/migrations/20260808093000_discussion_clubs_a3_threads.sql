@@ -706,11 +706,14 @@ BEGIN
     RAISE EXCEPTION 'clubs: invalid thread kind %', p_kind USING ERRCODE = '22023';
   END IF;
 
-  SELECT * INTO v_group FROM public.club_groups WHERE id = p_group_id;
+  -- Tabele MUSZA byc aliasowane: funkcja ma parametry OUT o nazwach id/slug/
+  -- status, wiec niekwalifikowane `WHERE id = ...` jest dla plpgsql
+  -- niejednoznaczne i wywala sie dopiero W RUNTIME (42702), nie przy CREATE.
+  SELECT * INTO v_group FROM public.club_groups g WHERE g.id = p_group_id;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'clubs: not found' USING ERRCODE = '42501';
   END IF;
-  SELECT * INTO v_club FROM public.clubs WHERE id = v_group.club_id;
+  SELECT * INTO v_club FROM public.clubs c WHERE c.id = v_group.club_id;
 
   SELECT * INTO v_caps FROM public.club_capabilities(v_group.club_id, p_group_id, v_uid);
   IF NOT COALESCE(v_caps.can_post_thread, false) THEN

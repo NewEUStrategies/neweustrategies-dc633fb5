@@ -451,10 +451,18 @@ RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   v_club public.clubs%ROWTYPE;
 BEGIN
-  IF NEW.status <> 'active' OR COALESCE(OLD.status, '') = 'active' THEN
+  IF NEW.status <> 'active' THEN
     RETURN NULL;
   END IF;
-  SELECT * INTO v_club FROM public.clubs WHERE id = NEW.club_id;
+  -- Trigger musi lapac INSERT ORAZ UPDATE. Wszystkie trzy realne sciezki
+  -- dolaczenia - admin_club_member_upsert, club_redeem_invite_link
+  -- i club_respond_invitation - WSTAWIAJA wiersz od razu ze statusem 'active'.
+  -- Wersja tylko na UPDATE nie odpalala sie NIGDY poza recznym odbanowaniem.
+  IF TG_OP = 'UPDATE' AND COALESCE(OLD.status, '') = 'active' THEN
+    RETURN NULL;   -- status sie nie zmienil, to nie jest dolaczenie
+  END IF;
+
+  SELECT * INTO v_club FROM public.clubs c WHERE c.id = NEW.club_id;
   PERFORM public.club_notify(
     NEW.user_id, NULL,
     'Dołączyłeś do klubu', 'You joined a club',
@@ -465,7 +473,7 @@ END; $$;
 
 DROP TRIGGER IF EXISTS club_members_notify_tg ON public.club_members;
 CREATE TRIGGER club_members_notify_tg
-  AFTER UPDATE OF status ON public.club_members
+  AFTER INSERT OR UPDATE OF status ON public.club_members
   FOR EACH ROW EXECUTE FUNCTION public.club_members_notify();
 
 -- Producent: watek rozstrzygniety -> autor odpowiedzi rozstrzygajacej.
