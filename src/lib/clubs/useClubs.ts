@@ -39,6 +39,7 @@ import {
   deleteClubGroup,
   fetchClubModerationLog,
   fetchClubModerationQueue,
+  fetchClubPendingCounts,
   fetchClubThreadsForAnchor,
   fetchClubMembers,
   fetchClubReactions,
@@ -878,6 +879,22 @@ export function useClubThreadsForAnchor(params: {
       fetchClubThreadsForAnchor({ anchorType: anchorType ?? "", anchorId: anchorId ?? "", limit }),
     staleTime: 60_000,
     enabled: Boolean(anchorType) && Boolean(anchorId),
+  });
+}
+
+/**
+ * Licznik do plakietki w nawigacji. `enabled` jest po stronie wolajacego:
+ * pasek widzi tylko admin, a dla reszty RPC i tak zwrocilo by zera - ale
+ * round-trip po nie jest niepotrzebny.
+ */
+export function useClubPendingCounts(
+  enabled = true,
+): UseQueryResult<{ moderationPending: number; joinRequests: number }, Error> {
+  return useQuery({
+    queryKey: clubKeys.pendingCounts(),
+    queryFn: fetchClubPendingCounts,
+    staleTime: 60_000,
+    enabled,
   });
 }
 

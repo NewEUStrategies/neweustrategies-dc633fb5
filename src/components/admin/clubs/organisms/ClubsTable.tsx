@@ -5,7 +5,7 @@
 // kolumna "Akcje" jest niewidoczna dokładnie wtedy, gdy jest potrzebna.
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
-import { ChevronRight, Users2, Layers, MessagesSquare, Clock } from "lucide-react";
+import { ChevronRight, Clock, ExternalLink, Layers, MessagesSquare, Users2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -106,12 +106,28 @@ export function ClubsTable({ rows, isPl }: ClubsTableProps) {
                   <ClubStatusBadge status={asStatus(row.status)} />
                 </TableCell>
                 <TableCell>
-                  <Button asChild size="icon" variant="ghost" className="h-8 w-8">
-                    <Link to="/admin/community/clubs/$clubId" params={{ clubId: row.id }}>
-                      <ChevronRight className="h-4 w-4" />
-                      <span className="sr-only">{t("adminClubs.editClub")}</span>
-                    </Link>
-                  </Button>
+                  <div className="flex gap-1">
+                    {/* Podgląd strony klubu. Ta sama treść widziana oczami
+                        członka jest szybszą weryfikacją ustawień dostępu niż
+                        czytanie pięciu dropList w edytorze. Nowa karta, bo
+                        edycja klubu ma zostać otwarta. */}
+                    <Button asChild size="icon" variant="ghost" className="h-8 w-8">
+                      <a
+                        href={`/club/${row.slug}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-label={t("adminClubs.openPublic")}
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                    </Button>
+                    <Button asChild size="icon" variant="ghost" className="h-8 w-8">
+                      <Link to="/admin/community/clubs/$clubId" params={{ clubId: row.id }}>
+                        <ChevronRight className="h-4 w-4" />
+                        <span className="sr-only">{t("adminClubs.editClub")}</span>
+                      </Link>
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -157,6 +173,20 @@ export function ClubsTable({ rows, isPl }: ClubsTableProps) {
 
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <ClubVisibilityBadge visibility={asVisibility(row.visibility)} />
+              {/* Karta jest jednym wielkim linkiem do edytora, więc podgląd
+                  musi zatrzymać propagację - inaczej klik otwiera oba. */}
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 rounded-full border border-border/60 px-2 py-0.5 text-[11px] text-muted-foreground"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  window.open(`/club/${row.slug}`, "_blank", "noopener,noreferrer");
+                }}
+              >
+                <ExternalLink className="h-3 w-3" />
+                {t("adminClubs.openPublic")}
+              </button>
               {row.pending_count > 0 ? (
                 <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300">
                   {t("adminClubs.columns.pending")}: {row.pending_count}

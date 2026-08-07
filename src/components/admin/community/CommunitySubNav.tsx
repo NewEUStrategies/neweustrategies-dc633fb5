@@ -1,6 +1,14 @@
 // Sticky sub-nav dla /admin/community/*.
+//
+// Zakładka "Kluby dyskusyjne" niesie plakietkę z sumą dwóch kolejek:
+// premoderacji treści i próśb o dostęp. RPC admin_club_pending_counts
+// istniało od migracji A5 i nie miało ANI JEDNEGO wywołania - bez plakietki
+// wpis czekający na zatwierdzenie był niewidoczny, dopóki ktoś sam nie wszedł
+// w konkretny klub i nie otworzył zakładki moderacji.
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { useAuth } from "@/hooks/useAuth";
+import { useClubPendingCounts } from "@/lib/clubs/useClubs";
 import {
   LayoutDashboard,
   MessageCircle,
@@ -102,6 +110,10 @@ export function CommunitySubNav() {
   const { i18n } = useTranslation();
   const isPl = (i18n.language ?? "pl").startsWith("pl");
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { isAdmin } = useAuth();
+  const clubCounts = useClubPendingCounts(isAdmin);
+  const clubPending =
+    (clubCounts.data?.moderationPending ?? 0) + (clubCounts.data?.joinRequests ?? 0);
 
   return (
     <div className="sticky top-0 z-30 -mx-4 md:-mx-6 px-4 md:px-6 py-3 bg-background/95 backdrop-blur border-b border-border">
@@ -134,6 +146,14 @@ export function CommunitySubNav() {
               >
                 <Icon className="w-3.5 h-3.5" />
                 {isPl ? tab.labelPl : tab.labelEn}
+                {tab.key === "clubs" && clubPending > 0 ? (
+                  <span
+                    className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500/20 px-1 text-[10px] font-semibold tabular-nums text-amber-700 dark:text-amber-300"
+                    aria-label={isPl ? "Oczekujące w klubach" : "Pending in clubs"}
+                  >
+                    {clubPending > 99 ? "99+" : clubPending}
+                  </span>
+                ) : null}
               </Link>
             );
           })}

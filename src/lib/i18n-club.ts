@@ -260,6 +260,7 @@ export const clubPl = {
     subtitle: "Struktura, uprawnienia i członkostwa. Treść tworzą członkowie w nadanym zakresie.",
     newClub: "Nowy klub",
     editClub: "Edytuj klub",
+    openPublic: "Zobacz jako członek",
     noPermissionTitle: "Brak uprawnień",
     noPermissionBody:
       "Zarządzanie klubami dyskusyjnymi jest dostępne wyłącznie dla administratorów.",
@@ -924,6 +925,7 @@ export const clubEn = {
       "Structure, permissions and memberships. Members create content within the scope you grant.",
     newClub: "New club",
     editClub: "Edit club",
+    openPublic: "View as a member",
     noPermissionTitle: "No permission",
     noPermissionBody: "Managing discussion clubs is available to administrators only.",
     empty: "No clubs yet. Start with the first one.",

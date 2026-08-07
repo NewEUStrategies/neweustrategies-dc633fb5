@@ -89,6 +89,7 @@ export const clubKeys = {
     [...clubKeys.all, "search", query, clubId ?? "all"] as const,
   anchor: (anchorType: string, anchorId: string) =>
     [...clubKeys.all, "anchor", anchorType, anchorId] as const,
+  pendingCounts: () => [...clubKeys.all, "pendingCounts"] as const,
   moderationQueue: (clubId: string) => [...clubKeys.club(clubId), "moderationQueue"] as const,
   moderationLog: (clubId: string) => [...clubKeys.club(clubId), "moderationLog"] as const,
 

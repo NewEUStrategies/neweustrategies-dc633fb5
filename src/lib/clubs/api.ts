@@ -835,6 +835,25 @@ export async function fetchClubThreadsForAnchor(params: {
   return data ?? [];
 }
 
+/**
+ * Liczniki do plakietki przy zakladce "Kluby dyskusyjne". Jeden RPC zamiast
+ * sumowania po liscie klubow: moderacja tresci i prosby o dostep to dwie
+ * osobne kolejki, a plakietka ma pokazac, ze COS czeka, zanim ktokolwiek
+ * wejdzie w liste.
+ */
+export async function fetchClubPendingCounts(): Promise<{
+  moderationPending: number;
+  joinRequests: number;
+}> {
+  const { data, error } = await supabase.rpc("admin_club_pending_counts");
+  if (error) throw error;
+  const row = data?.[0];
+  return {
+    moderationPending: row?.moderation_pending ?? 0,
+    joinRequests: row?.join_requests ?? 0,
+  };
+}
+
 export async function fetchClubModerationQueue(clubId: string): Promise<AdminClubModerationItem[]> {
   const { data, error } = await supabase.rpc("admin_club_moderation_queue", {
     p_club_id: clubId,
