@@ -152,9 +152,7 @@ function ClubActivityItem({ row, isPl }: { row: ClubActivityRow; isPl: boolean }
         </span>
         <span className="inline-flex items-center gap-1.5">
           <Clock className="h-3.5 w-3.5" />
-          <time dateTime={when.toISOString()}>
-            {formatDateShort(when, isPl ? "pl" : "en")}
-          </time>
+          <time dateTime={when.toISOString()}>{formatDateShort(when, isPl ? "pl" : "en")}</time>
         </span>
       </div>
     </Link>

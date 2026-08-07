@@ -80,7 +80,13 @@ function ThreadTeaser({
         {thread.title}
       </h3>
       {thread.excerpt !== null && thread.excerpt.trim() !== "" ? (
-        <p className={featured ? "text-sm text-muted-foreground" : "line-clamp-3 text-sm text-muted-foreground"}>
+        <p
+          className={
+            featured
+              ? "text-sm text-muted-foreground"
+              : "line-clamp-3 text-sm text-muted-foreground"
+          }
+        >
           {thread.excerpt}
         </p>
       ) : null}

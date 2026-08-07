@@ -114,10 +114,7 @@ function MembershipRow({ row, isPl }: { row: ClubMembershipRow; isPl: boolean })
               // `aria-label` byl przez czytniki ignorowany. Tekst dla czytnika
               // idzie w klasie sr-only, kropka zostaje dekoracja.
               <>
-                <span
-                  className="h-2 w-2 shrink-0 rounded-full bg-primary"
-                  aria-hidden="true"
-                />
+                <span className="h-2 w-2 shrink-0 rounded-full bg-primary" aria-hidden="true" />
                 <span className="sr-only">{t("club.hub.unseenDot")}</span>
               </>
             ) : null}

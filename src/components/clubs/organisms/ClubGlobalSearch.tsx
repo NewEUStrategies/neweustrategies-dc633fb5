@@ -16,16 +16,22 @@ import { Link } from "@tanstack/react-router";
 import { Clock, MessageSquare, Search, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
 import type { ClubSearchHit } from "@/lib/clubs/types";
 import { formatDateShort } from "@/lib/i18n/format";
 
 export function ClubGlobalSearchInput({
   value,
   onChange,
+  placeholderKey = "club.hub.searchPlaceholder",
 }: {
   value: string;
   onChange: (value: string) => void;
+  /** Strona klubu szuka W KLUBIE, hub - ponad klubami; poza etykietą pola
+   *  kontrolka jest identyczna, więc różni je jeden klucz, a nie kopia. */
+  placeholderKey?: string;
 }) {
   const { t } = useTranslation();
   return (
@@ -37,19 +43,24 @@ export function ClubGlobalSearchInput({
       <Input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={t("club.hub.searchPlaceholder")}
-        aria-label={t("club.hub.searchPlaceholder")}
-        className="pl-9 pr-9"
+        placeholder={t(placeholderKey)}
+        aria-label={t(placeholderKey)}
+        className="pl-9 pr-11"
       />
       {value !== "" ? (
-        <button
+        // Prymityw `Button`, nie gołe `<button>`: to on dokłada
+        // `pointer-coarse:min-h-11`, czyli cel dotykowy 44 px wymagany przez
+        // regułę repo (WCAG 2.5.5), oraz spójny pierścień focus-visible.
+        <Button
           type="button"
+          size="icon"
+          variant="ghost"
           onClick={() => onChange("")}
           aria-label={t("club.searchClear")}
-          className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
+          className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 text-muted-foreground hover:text-foreground"
         >
-          <X className="h-4 w-4" />
-        </button>
+          <X className="h-4 w-4" aria-hidden="true" />
+        </Button>
       ) : null}
     </div>
   );
@@ -58,15 +69,25 @@ export function ClubGlobalSearchInput({
 export function ClubGlobalSearchResults({
   hits,
   pending,
+  failed,
   query,
   isPl,
+  onRetry,
 }: {
   hits: readonly ClubSearchHit[];
   pending: boolean;
+  /** Awaria RPC. Bez tego "brak wyników" i "nie udało się szukać" wyglądają
+   *  identycznie, a to są dwie zupełnie różne informacje dla czytelnika. */
+  failed?: boolean;
   query: string;
   isPl: boolean;
+  onRetry?: () => void;
 }) {
   const { t } = useTranslation();
+
+  if (failed === true) {
+    return <ClubErrorNotice compact onRetry={onRetry} />;
+  }
 
   if (pending) {
     return (
@@ -90,7 +111,9 @@ export function ClubGlobalSearchResults({
 
   return (
     <>
-      <p className="mb-2 text-xs text-muted-foreground">
+      {/* Wyniki ZASTĘPUJĄ strumień, a zmiana zachodzi po debounce, gdy fokus
+          został w polu - bez regionu live czytnik ekranu nie ogłasza niczego. */}
+      <p aria-live="polite" className="mb-2 text-xs text-muted-foreground">
         {t("club.hub.searchCount", { count: hits.length })}
       </p>
       <ul className="space-y-2">

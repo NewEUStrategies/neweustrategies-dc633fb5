@@ -62,6 +62,7 @@ import { ClubInlineEditor } from "@/components/clubs/molecules/ClubInlineEditor"
 import { ClubStanceBar } from "@/components/clubs/molecules/ClubStanceBar";
 import { ClubNewRepliesBar } from "@/components/clubs/molecules/ClubNewRepliesBar";
 import { ClubReportButton } from "@/components/clubs/molecules/ClubReportDialog";
+import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
 import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
 import { fetchClubBySlug } from "@/lib/clubs/api";
 import { clubKeys } from "@/lib/clubs/queryKeys";
@@ -155,10 +156,31 @@ function ClubThreadView() {
   });
   const toggleReplyReaction = useToggleClubReaction({ targetType: "reply", targetIds: replyIds });
 
-  if (clubQ.isPending || threadQ.isPending) {
+  // Zapytanie o wątek jest WYŁĄCZONE, dopóki nie znamy id klubu, a wyłączone
+  // `useQuery` zostaje w stanie `isPending` na zawsze. Warunek musi więc pytać
+  // o wątek tylko wtedy, gdy klub faktycznie jest - inaczej wejście na
+  // nieistniejący slug kończy się wiecznym szkieletem zamiast 404.
+  if (clubQ.isPending || (club !== null && threadQ.isPending)) {
     return (
       <div className="container mx-auto max-w-3xl px-4 py-8">
         <div className="h-64 animate-pulse rounded-lg bg-muted/50" aria-busy="true" />
+      </div>
+    );
+  }
+
+  // Awaria zapytania to NIE jest "nie ma takiego wątku". Pusta odpowiedź znaczy
+  // 404 (klub `secret` nie ma prawa zdradzić, że istnieje), a błąd sieci albo
+  // bazy ma powiedzieć, że to problem po naszej stronie i da się spróbować
+  // ponownie - inaczej użytkownik kasuje poprawny link jako martwy.
+  if (clubQ.isError || threadQ.isError) {
+    return (
+      <div className="container mx-auto max-w-3xl px-4 py-12">
+        <ClubErrorNotice
+          onRetry={() => {
+            void clubQ.refetch();
+            void threadQ.refetch();
+          }}
+        />
       </div>
     );
   }

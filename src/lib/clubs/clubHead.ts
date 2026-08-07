@@ -107,8 +107,7 @@ export function buildClubHead(input: ClubHeadInput): ReturnType<typeof buildCont
   const subtitle = (input.subtitle ?? "").trim();
   const base = clubName || FALLBACK_TITLE[lang];
   const title = subtitle.length > 0 ? `${subtitle} - ${base}` : base;
-  const description =
-    (input.description ?? "").trim() || tagline || FALLBACK_DESCRIPTION[lang];
+  const description = (input.description ?? "").trim() || tagline || FALLBACK_DESCRIPTION[lang];
 
   const indexable = !input.forceNoindex && isClubIndexable(input.club);
 

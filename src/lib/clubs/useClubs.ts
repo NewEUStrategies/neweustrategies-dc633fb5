@@ -219,7 +219,10 @@ export function useClubMembers(params: {
 }): UseQueryResult<ClubMembersPage, Error> {
   const { clubId, status = "active", limit = 50, offset = 0 } = params;
   return useQuery({
-    queryKey: clubKeys.members(clubId ?? "", status, offset),
+    // Limit JEST częścią klucza: dwa widoki tej samej listy z różnymi limitami
+    // (zakładka członków 50, panel moderacji 100) liczyły ten sam klucz, więc
+    // ten, który trafił drugi, dostawał krótszą stronę z cache i milczał o tym.
+    queryKey: clubKeys.members(clubId ?? "", status, offset, limit),
     queryFn: () => fetchClubMembers({ clubId: clubId ?? "", status, limit, offset }),
     staleTime: STALE_MS,
     enabled: Boolean(clubId),
@@ -733,7 +736,13 @@ export function useEditClubThread(
   return useMutation({
     mutationFn: editClubThread,
     onSuccess: () => {
+      // Tytuł i treść są PROJEKCJĄ listy tematów (`title` + `left(body, 280)`
+      // jako fragment) i wyników wyszukiwania, więc redakcja zmienia trzy
+      // widoki, nie jeden. Punktowa inwalidacja zostawiała w katalogu stary
+      // tytuł obok poprawionego wątku.
       void qc.invalidateQueries({ queryKey: clubKeys.thread(clubId, threadSlug) });
+      void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
+      void qc.invalidateQueries({ queryKey: clubKeys.searchAll() });
     },
   });
 }
@@ -1015,6 +1024,13 @@ export function useModerateClubTarget(
   });
 }
 
+/**
+ * Akcja masowa robi to samo, co jednostkowa - tylko na wielu wpisach naraz -
+ * więc musi unieważniać DOKŁADNIE ten sam zakres. Wcześniej czyściła sam korzeń
+ * klubu, a odpowiedzi, podgląd panelu, stanowiska, wyniki wyszukiwania
+ * i licznik plakietki wiszą pod `clubKeys.all`, nie pod klubem: moderator
+ * ukrywał trzydzieści wpisów i dalej widział je w otwartej kolejce.
+ */
 export function useBulkModerateClub(
   clubId: string,
 ): UseMutationResult<number, Error, Omit<ModerateVars, "targetId"> & { targetIds: string[] }> {
@@ -1023,6 +1039,7 @@ export function useBulkModerateClub(
     mutationFn: bulkModerateClubTargets,
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
+      void qc.invalidateQueries({ queryKey: clubKeys.all });
     },
   });
 }

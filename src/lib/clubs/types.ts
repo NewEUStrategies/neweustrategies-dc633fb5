@@ -123,6 +123,19 @@ export const CLUB_NOTIFY_LEVELS = ["all", "mentions", "digest", "none"] as const
 export type ClubNotifyLevel = (typeof CLUB_NOTIFY_LEVELS)[number];
 
 /**
+ * Poziom powiadomien z bazy sprowadzony do slownika kodu. `digest` jest
+ * domyslna wartoscia kolumny w `club_members`, wiec jest tez poprawnym
+ * domyslem dla wiersza, ktorego jeszcze nie ma (osoba przed dolaczeniem).
+ */
+export function toClubNotifyLevel(value: string | null | undefined): ClubNotifyLevel {
+  return value !== null &&
+    value !== undefined &&
+    (CLUB_NOTIFY_LEVELS as readonly string[]).includes(value)
+    ? (value as ClubNotifyLevel)
+    : "digest";
+}
+
+/**
  * Kody powodu z club_capabilities().reason. UI mapuje kod na zdanie ORAZ na
  * wlasciwa akcje - dlatego to jest domkniety slownik, a nie wolny tekst.
  * Zbior musi odpowiadac galeziom w migracji 20260808090000.
@@ -512,14 +525,7 @@ export type ClubThreadStatus = (typeof CLUB_THREAD_STATUSES)[number];
  * mapowala reszte na 'hot', wiec trzy pozycje droplisty byly nieodroznialne
  * od domyslnej. Rozszerzenie tej listy bez galezi w SQL powtorzy ten blad.
  */
-export const CLUB_THREAD_SORTS = [
-  "hot",
-  "new",
-  "unanswered",
-  "top",
-  "mine",
-  "subscribed",
-] as const;
+export const CLUB_THREAD_SORTS = ["hot", "new", "unanswered", "top", "mine", "subscribed"] as const;
 export type ClubThreadSort = (typeof CLUB_THREAD_SORTS)[number];
 
 /** Sorty, ktore wymagaja sesji: filtruja po wolajacym, wiec dla anonima

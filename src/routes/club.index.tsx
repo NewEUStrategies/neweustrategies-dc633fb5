@@ -154,7 +154,7 @@ function ClubHub() {
       <ClubInvitationInbox
         invitations={invitations}
         isPl={isPl}
-        pending={respondM.isPending}
+        pendingId={respondM.isPending ? (respondM.variables?.invitationId ?? null) : null}
         onRespond={respond}
       />
 

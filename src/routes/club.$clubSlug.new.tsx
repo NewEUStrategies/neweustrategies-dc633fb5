@@ -16,7 +16,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { ClubEnumSelect } from "@/components/admin/clubs/molecules/ClubEnumSelect";
 import {
@@ -27,11 +26,36 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useClubBySlug, useClubGroups, useCreateClubThread } from "@/lib/clubs/useClubs";
+import { MentionTextarea } from "@/components/mentions/MentionTextarea";
+import {
+  ClubAnchorPicker,
+  type ClubAnchorValue,
+} from "@/components/clubs/molecules/ClubAnchorPicker";
+import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
+import { fetchClubBySlug } from "@/lib/clubs/api";
+import { clubKeys } from "@/lib/clubs/queryKeys";
 import { CLUB_THREAD_KINDS, type ClubThreadKind } from "@/lib/clubs/types";
 import { ensureClubI18n } from "@/lib/i18n-club";
 
 export const Route = createFileRoute("/club/$clubSlug/new")({
-  head: () => ({ meta: [{ name: "robots", content: "noindex,nofollow" }] }),
+  loader: async ({ context, params }) => {
+    const club = await context.queryClient
+      .ensureQueryData({
+        queryKey: clubKeys.bySlug(params.clubSlug),
+        queryFn: () => fetchClubBySlug(params.clubSlug),
+      })
+      .catch(() => null);
+    return { club: toClubHeadSource(club) };
+  },
+  // `forceNoindex`: kompozytor jest powierzchnią CZYNNOŚCIOWĄ. Nawet w klubie
+  // publicznym pusty formularz w indeksie wyszukiwarki jest szumem, a nie
+  // lejkiem - do indeksu należy wątek, nie narzędzie do jego napisania.
+  head: ({ loaderData, params }) =>
+    buildClubHead({
+      fallbackPath: `/club/${params.clubSlug}/new`,
+      club: loaderData?.club ?? null,
+      forceNoindex: true,
+    }),
   component: ClubNewThread,
 });
 
@@ -57,6 +81,12 @@ function ClubNewThread() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [anonymous, setAnonymous] = useState(false);
+  // Kotwica jest krawędzią w grafie treści (V1 §1.4), a nie ozdobnym linkiem:
+  // dossier pokazuje "3 wątki w klubach dyskutują ten plik", a zdarzenie
+  // `policy.updated.v1` może obudzić wątek sprzed miesiąca. Do A18 nie było
+  // żadnej ścieżki, która pozwalałaby ją ustawić, więc karta na stronie aktu
+  // prawnego z definicji świeciła pustką.
+  const [anchor, setAnchor] = useState<ClubAnchorValue | null>(null);
 
   // Grupa domyślna: pierwsza, w której wolno założyć temat. Bez tego
   // użytkownik z dostępem do jednej grupy i tak musiałby ją wybrać ręcznie.
@@ -100,7 +130,15 @@ function ClubNewThread() {
   const submit = () => {
     if (!titleOk || !bodyOk || groupId === "") return;
     createM.mutate(
-      { groupId, title: title.trim(), body: body.trim(), kind, anonymous },
+      {
+        groupId,
+        title: title.trim(),
+        body: body.trim(),
+        kind,
+        anonymous,
+        anchorType: anchor?.anchorType ?? null,
+        anchorId: anchor?.anchorId ?? null,
+      },
       {
         onSuccess: ({ slug, status }) => {
           // Wpis w kolejce premoderacji nie prowadzi do wątku, którego
@@ -178,19 +216,30 @@ function ClubNewThread() {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="thread-body">{t("club.threadBody")}</Label>
-            <Textarea
+            {/* Wzmianki: ten sam komponent i ten sam parser, co w komentarzach.
+                `process_mentions` obsługuje `club_thread` po stronie bazy od
+                A12, więc bez podpowiedzi w polu jedyną drogą do wzmianki było
+                wpisanie sluga z pamięci. */}
+            <MentionTextarea
               id="thread-body"
+              label={t("club.threadBody")}
+              value={body}
+              onChange={setBody}
+              lang={isPl ? "pl" : "en"}
               rows={12}
               maxLength={BODY_MAX}
-              value={body}
-              disabled={createM.isPending}
-              onChange={(e) => setBody(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
               {body.trim().length} / {BODY_MAX}
             </p>
           </div>
+
+          <ClubAnchorPicker
+            value={anchor}
+            onChange={setAnchor}
+            isPl={isPl}
+            disabled={createM.isPending}
+          />
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-4">
             {canGoAnonymous ? (

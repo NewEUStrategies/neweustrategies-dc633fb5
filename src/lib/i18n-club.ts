@@ -48,8 +48,6 @@ export const clubPl = {
       },
     },
 
-
-
     // --- redakcja własnego wpisu ---
     editor: {
       edit: "Edytuj",
@@ -303,6 +301,11 @@ export const clubPl = {
     newReplies_many: "{{count}} nowych odpowiedzi",
     newReplies_other: "{{count}} nowych odpowiedzi",
     newRepliesShow: "Pokaż",
+    error: {
+      title: "Nie udało się pobrać danych",
+      body: "To problem po naszej stronie, nie z Twoim dostępem. Spróbuj ponownie za chwilę.",
+      retry: "Spróbuj ponownie",
+    },
     repliesTruncated: "Pokazano {{shown}} z {{total}} odpowiedzi.",
     report: {
       action: "Zgłoś",
@@ -947,8 +950,6 @@ export const clubEn = {
       },
     },
 
-
-
     // --- editing your own post ---
     editor: {
       edit: "Edit",
@@ -1182,6 +1183,11 @@ export const clubEn = {
     newReplies_one: "{{count}} new reply",
     newReplies_other: "{{count}} new replies",
     newRepliesShow: "Show",
+    error: {
+      title: "Could not load the data",
+      body: "This is a problem on our side, not with your access. Please try again in a moment.",
+      retry: "Try again",
+    },
     repliesTruncated: "Showing {{shown}} of {{total}} replies.",
     report: {
       action: "Report",
@@ -1197,7 +1203,8 @@ export const clubEn = {
         other: "Other reason",
       },
       detailsLabel: "Details (optional)",
-      detailsPlaceholder: "What exactly is the problem? The more specific, the faster the decision.",
+      detailsPlaceholder:
+        "What exactly is the problem? The more specific, the faster the decision.",
       submit: "Send report",
       cancel: "Cancel",
       sent: "Report received. The club moderators will see it.",

@@ -16,14 +16,32 @@ import {
   useClubBySlug,
   useJoinClub,
   useLeaveClub,
+  useMyClubMemberships,
   useSetClubNotifyLevel,
 } from "@/lib/clubs/useClubs";
 import { ClubEnumSelect } from "@/components/admin/clubs/molecules/ClubEnumSelect";
-import { CLUB_NOTIFY_LEVELS, toClubInviteError, type ClubNotifyLevel } from "@/lib/clubs/types";
+import { CLUB_NOTIFY_LEVELS, toClubInviteError, toClubNotifyLevel } from "@/lib/clubs/types";
+import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
+import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
+import { fetchClubBySlug } from "@/lib/clubs/api";
+import { clubKeys } from "@/lib/clubs/queryKeys";
 import { ensureClubI18n } from "@/lib/i18n-club";
 
 export const Route = createFileRoute("/club/$clubSlug/about")({
-  head: () => ({ meta: [{ name: "robots", content: "noindex,nofollow" }] }),
+  loader: async ({ context, params }) => {
+    const club = await context.queryClient
+      .ensureQueryData({
+        queryKey: clubKeys.bySlug(params.clubSlug),
+        queryFn: () => fetchClubBySlug(params.clubSlug),
+      })
+      .catch(() => null);
+    return { club: toClubHeadSource(club) };
+  },
+  head: ({ loaderData, params }) =>
+    buildClubHead({
+      fallbackPath: `/club/${params.clubSlug}/about`,
+      club: loaderData?.club ?? null,
+    }),
   component: ClubAbout,
 });
 
@@ -40,11 +58,27 @@ function ClubAbout() {
   const leaveM = useLeaveClub();
   const rulesM = useAcceptClubRules(club?.id ?? "");
   const notifyM = useSetClubNotifyLevel(club?.id ?? "");
+  // `club_view` NIE zwraca poziomu powiadomień - jedynym źródłem jest
+  // `club_my_memberships.notify_level`. Kontrolka miała tu literał "digest",
+  // więc pokazywała ten poziom KAŻDEMU: użytkownik ustawiał "wszystkie",
+  // dostawał zielony toast i natychmiast widział z powrotem "skrót", bez
+  // żadnego sposobu sprawdzenia, co faktycznie ma ustawione.
+  const membershipsQ = useMyClubMemberships(Boolean(session));
+  const myNotifyLevel = toClubNotifyLevel(
+    membershipsQ.data?.find((row) => row.club_id === club?.id)?.notify_level,
+  );
 
   if (clubQ.isPending) {
     return (
       <div className="container mx-auto max-w-3xl px-4 py-8">
         <div className="h-64 animate-pulse rounded-lg bg-muted/50" aria-busy="true" />
+      </div>
+    );
+  }
+  if (clubQ.isError) {
+    return (
+      <div className="container mx-auto max-w-3xl px-4 py-12">
+        <ClubErrorNotice onRetry={() => void clubQ.refetch()} />
       </div>
     );
   }
@@ -123,7 +157,7 @@ function ClubAbout() {
                 <ClubEnumSelect
                   id="club-notify"
                   label={t("club.notifyLevel")}
-                  value={"digest" as ClubNotifyLevel}
+                  value={myNotifyLevel}
                   options={CLUB_NOTIFY_LEVELS}
                   i18nPrefix="club.notify"
                   onChange={(level) =>

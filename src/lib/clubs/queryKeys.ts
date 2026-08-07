@@ -40,8 +40,8 @@ export const clubKeys = {
 
   groups: (clubId: string) => [...clubKeys.club(clubId), "groups"] as const,
 
-  members: (clubId: string, status: ClubMemberStatus | null, offset: number) =>
-    [...clubKeys.club(clubId), "members", status ?? "all", offset] as const,
+  members: (clubId: string, status: ClubMemberStatus | null, offset: number, limit: number) =>
+    [...clubKeys.club(clubId), "members", status ?? "all", offset, limit] as const,
 
   capabilities: (clubId: string, groupId?: string | null) =>
     [...clubKeys.club(clubId), "capabilities", groupId ?? "club"] as const,
@@ -107,6 +107,9 @@ export const clubKeys = {
    *  wyniki wyszukiwania po calej platformie. */
   search: (query: string, clubId: string | null) =>
     [...clubKeys.all, "search", query, clubId ?? "all"] as const,
+  /** Prefiks wszystkich fraz - redakcja tytulu zmienia KAZDY wynik, ktory go
+   *  cytuje, a mutacja nie wie, jakie frazy ma otwarte czytelnik. */
+  searchAll: () => [...clubKeys.all, "search"] as const,
   anchor: (anchorType: string, anchorId: string) =>
     [...clubKeys.all, "anchor", anchorType, anchorId] as const,
   /** Podpowiedzi kotwicy w kompozytorze - fraza i opcjonalne zawezenie typu. */

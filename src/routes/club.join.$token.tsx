@@ -4,7 +4,7 @@
 // transakcji po stronie bazy. Ta trasa tylko woła RPC i tłumaczy wynik -
 // gdyby sprawdzała cokolwiek sama, powstałaby druga definicja tych reguł.
 import { useEffect, useRef, useState } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -97,8 +97,12 @@ function ClubJoinByLink() {
               </p>
             </>
           )}
+          {/* `Link`, nie surowe `<a href>`: tylko router przepuszcza adres
+              przez `rewrite.output`, który dokleja prefiks języka. Surowy
+              odnośnik wyrzucał czytelnika z /en/ na polską wersję i przeładowywał
+              całą aplikację. */}
           <Button asChild variant="outline" size="sm">
-            <a href="/club">{t("club.title")}</a>
+            <Link to="/club">{t("club.title")}</Link>
           </Button>
         </CardContent>
       </Card>

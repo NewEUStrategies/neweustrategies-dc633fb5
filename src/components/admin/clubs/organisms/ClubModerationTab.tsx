@@ -293,9 +293,7 @@ export function ClubModerationTab({ clubId, isPl }: { clubId: string; isPl: bool
                         ) : (
                           <span className="font-medium text-foreground">{item.author_name}</span>
                         )}
-                        <span>
-                          {formatDateTime(item.created_at, isPl ? "pl" : "en")}
-                        </span>
+                        <span>{formatDateTime(item.created_at, isPl ? "pl" : "en")}</span>
                       </div>
                       <p className="mt-1 truncate text-sm font-medium">{item.title}</p>
                       {/* line-clamp, nie truncate: moderator musi zobaczyć,
