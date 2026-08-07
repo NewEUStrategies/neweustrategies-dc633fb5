@@ -19,6 +19,8 @@ export interface NetworkDistanceProps {
   displayName: string;
   avatarUrl?: string | null;
   density?: "full" | "compact";
+  /** Ile kontekstu obok odznaki - patrz ConnectionDistance. */
+  path?: "trail" | "via" | "none";
   className?: string;
 }
 
@@ -27,6 +29,7 @@ export function NetworkDistance({
   displayName,
   avatarUrl,
   density = "full",
+  path = "trail",
   className,
 }: NetworkDistanceProps) {
   const { user } = useAuth();
@@ -44,7 +47,9 @@ export function NetworkDistance({
       targetName={displayName}
       targetAvatarUrl={avatarUrl}
       density={density}
+      path={path}
       className={className}
     />
   );
 }
+
