@@ -615,7 +615,7 @@ export function NewsletterForm({
           </div>
         </div>
       )}
-      {policy && (
+      {policy && !requireConsent && (
         <p
           className="nl-consent nl-fineprint mt-3 text-muted-foreground"
           dangerouslySetInnerHTML={{ __html: sanitizeHtml(policy) }}
