@@ -74,6 +74,22 @@ export interface JobsTickResult {
   profileIndex:
     | { scanned: number; embedded: number; pruned?: number; skipped?: string }
     | { error: string };
+  /**
+   * Harmonogram Discussion Club (V2 §5): otwarcia grup zaplanowanych, zamknięcia
+   * okien dyskusji, wygasłe kadencje ról i zaproszenia, usypianie martwych
+   * tematów, odświeżenie rankingu. JEDEN job zamiast pięciu - runbook społeczności
+   * opisuje jeden kanoniczny potok doręczeń, a drugi cron by go rozspoił.
+   */
+  clubScheduler:
+    | {
+        groups_opened: number;
+        groups_closed: number;
+        roles_expired: number;
+        invitations_expired: number;
+        threads_dormant: number;
+        hotness_refreshed: number;
+      }
+    | { error: string };
 }
 
 /** Kto wywołał tick - ląduje w logu przebiegów (public.job_runner_runs). */
@@ -191,6 +207,27 @@ export async function runJobsTick(
       })
     : skipped;
 
+  // Harmonogram klubów: operacja czysto bazowa i tania (jeden RPC), ale nie ma
+  // sensu co minutę - grupa otwierana "co do minuty" i tak czeka na najbliższy
+  // tick, a kadencje ról są egzekwowane w locie przez club_effective_member_role,
+  // więc ten job je tylko sprząta. Co 5 minut wystarcza.
+  const clubScheduler = everyNthMinute(5)
+    ? await runJobStep(overBudget, async () => {
+        const { data, error } = await admin.rpc("club_scheduler_tick");
+        if (error) throw error;
+        const row = (data ?? {}) as Record<string, unknown>;
+        const n = (v: unknown) => (typeof v === "number" ? v : Number(v ?? 0));
+        return {
+          groups_opened: n(row.groups_opened),
+          groups_closed: n(row.groups_closed),
+          roles_expired: n(row.roles_expired),
+          invitations_expired: n(row.invitations_expired),
+          threads_dormant: n(row.threads_dormant),
+          hotness_refreshed: n(row.hotness_refreshed),
+        };
+      })
+    : skipped;
+
   const result: JobsTickResult = {
     newsletter,
     emailQueue,
@@ -203,6 +240,7 @@ export async function runJobsTick(
     integrations,
     semanticIndex,
     profileIndex,
+    clubScheduler,
   };
 
   // Heartbeat: KAŻDY tick (cron bazy, scheduler repo, ręczny z panelu) zostawia

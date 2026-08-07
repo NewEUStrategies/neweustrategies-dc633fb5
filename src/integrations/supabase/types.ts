@@ -12789,6 +12789,43 @@ export type Database = {
         }
         Returns: string
       }
+      admin_club_moderation_log: {
+        Args: { p_club_id: string; p_limit?: number }
+        Returns: {
+          action: string
+          created_at: string
+          id: string
+          moderator_name: string
+          reason: string
+          target_id: string
+          target_type: string
+        }[]
+      }
+      admin_club_moderation_queue: {
+        Args: { p_club_id: string }
+        Returns: {
+          author_name: string
+          body: string
+          created_at: string
+          target_id: string
+          target_type: string
+          thread_slug: string
+          title: string
+        }[]
+      }
+      admin_club_pending_counts: {
+        Args: Record<PropertyKey, never>
+        Returns: { join_requests: number; moderation_pending: number }[]
+      }
+      admin_club_segment_preview: {
+        Args: { p_club_id: string; p_rule: Json }
+        Returns: {
+          already_member: number
+          blocked: number
+          matched: number
+          will_send: number
+        }[]
+      }
       admin_club_stats: {
         Args: { p_club_id: string }
         Returns: {
@@ -13706,6 +13743,80 @@ export type Database = {
       club_unreact: {
         Args: { p_kind: string; p_target_id: string; p_target_type: string }
         Returns: boolean
+      }
+      club_ban_member: {
+        Args: { p_banned: boolean; p_club_id: string; p_reason?: string; p_user_id: string }
+        Returns: boolean
+      }
+      club_moderate: {
+        Args: { p_action: string; p_reason?: string; p_target_id: string; p_target_type: string }
+        Returns: boolean
+      }
+      club_moderator_reveal_author: {
+        Args: { p_reason: string; p_target_id: string; p_target_type: string }
+        Returns: { author_id: string; display_name: string; profile_slug: string }[]
+      }
+      club_scheduler_tick: { Args: Record<PropertyKey, never>; Returns: Json }
+      club_search: {
+        Args: { p_club_id?: string; p_limit?: number; p_query: string }
+        Returns: {
+          club_id: string
+          club_name_en: string
+          club_name_pl: string
+          club_slug: string
+          kind: string
+          last_reply_at: string
+          rank: number
+          reply_count: number
+          snippet: string
+          thread_id: string
+          thread_slug: string
+          title: string
+        }[]
+      }
+      club_semantic_search: {
+        Args: {
+          p_club_id?: string
+          p_embedding: number[]
+          p_limit?: number
+          p_threshold?: number
+        }
+        Returns: {
+          club_id: string
+          club_name_en: string
+          club_name_pl: string
+          club_slug: string
+          kind: string
+          last_reply_at: string
+          reply_count: number
+          similarity: number
+          thread_id: string
+          thread_slug: string
+          title: string
+        }[]
+      }
+      club_set_role: {
+        Args: {
+          p_club_id: string
+          p_expires_at?: string
+          p_role: string
+          p_user_id: string
+        }
+        Returns: boolean
+      }
+      club_threads_for_anchor: {
+        Args: { p_anchor_id: string; p_anchor_type: string; p_limit?: number }
+        Returns: {
+          club_name_en: string
+          club_name_pl: string
+          club_slug: string
+          kind: string
+          last_reply_at: string
+          reply_count: number
+          thread_id: string
+          thread_slug: string
+          title: string
+        }[]
       }
       club_capabilities: {
         Args: { _club_id: string; _group_id?: string; _user_id?: string }
