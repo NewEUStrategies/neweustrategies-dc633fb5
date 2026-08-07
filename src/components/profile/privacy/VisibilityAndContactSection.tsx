@@ -171,6 +171,25 @@ export function VisibilityAndContactSection() {
         />
       </SettingRow>
 
+      {/* Zdjęcie profilowe w wyszukiwarce i katalogu osób (profiles.hide_avatar). */}
+      <SettingRow
+        label={t("profilePrivacy.hideAvatarLabel")}
+        hint={t("profilePrivacy.hideAvatarHint")}
+        control={
+          <Switch
+            checked={hideAvatarOn}
+            disabled={hideAvatarQ.isLoading || setHideAvatar.isPending}
+            onCheckedChange={(next) =>
+              setHideAvatar.mutate(next, {
+                onSuccess: () => toast.success(t("profilePrivacy.saved")),
+                onError: () => toast.error(t("profilePrivacy.saveError")),
+              })
+            }
+            aria-label={t("profilePrivacy.hideAvatarLabel")}
+          />
+        }
+      />
+
       {/* Zgoda na "Zapytanie do eksperta" - steruje przyciskiem na Twoim profilu
           (obok globalnego przełącznika admina; egzekwowane też w DB). */}
       <SettingRow
