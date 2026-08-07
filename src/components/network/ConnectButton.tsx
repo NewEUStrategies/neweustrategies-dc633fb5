@@ -234,8 +234,9 @@ export function ConnectButton({
             type="button"
             size={size}
             disabled={busy}
-            className="gap-1.5"
+            className={cn("gap-1.5", iconOnlyClass)}
             aria-label={`${t("network.accept")}: ${displayName}`}
+            title={iconOnly ? t("network.accept") : undefined}
             onClick={() => {
               if (!resolved.connectionId) return;
               respond.mutate(
@@ -248,15 +249,18 @@ export function ConnectButton({
             }}
           >
             <Check className="h-3.5 w-3.5" aria-hidden />
-            <span className={cn(compact && "hidden sm:inline")}>{t("network.accept")}</span>
+            {!iconOnly && (
+              <span className={cn(compact && "hidden sm:inline")}>{t("network.accept")}</span>
+            )}
           </Button>
           <Button
             type="button"
             variant="ghost"
             size={size}
             disabled={busy}
-            className="gap-1 text-muted-foreground"
+            className={cn("gap-1 text-muted-foreground", iconOnlyClass)}
             aria-label={`${t("network.decline")}: ${displayName}`}
+            title={iconOnly ? t("network.decline") : undefined}
             onClick={() => setConfirm("decline")}
           >
             <X className="h-3.5 w-3.5" aria-hidden />
