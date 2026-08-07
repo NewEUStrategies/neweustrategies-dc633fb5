@@ -16,6 +16,8 @@ import {
   type AdminClubInviteLinkRow,
   type AdminClubModerationItem,
   type AdminClubModerationLogRow,
+  type ClubActivityRow,
+  type ClubActivitySort,
   type ClubAnchorHit,
   type ClubSearchHit,
   type AdminClubReplyRow,
@@ -179,6 +181,24 @@ export async function upsertClub(input: ClubUpsertInput): Promise<string> {
   });
   if (error) throw error;
   return data;
+}
+
+/**
+ * Czy adres jest wolny. Osobne RPC zamiast czekania na blad zapisu: formularz
+ * ma powiedziec "zajety" przy wpisywaniu, a nie po kliknieciu "Utworz".
+ * Przy edycji przekazujemy `clubId`, zeby WLASNY slug klubu nie liczyl sie
+ * jako zajety.
+ */
+export async function checkClubSlugAvailable(params: {
+  slug: string;
+  clubId?: string | null;
+}): Promise<boolean> {
+  const { data, error } = await supabase.rpc("admin_club_slug_available", {
+    p_slug: params.slug,
+    p_club_id: params.clubId ?? undefined,
+  });
+  if (error) throw error;
+  return data === true;
 }
 
 export async function upsertClubGroup(input: ClubGroupUpsertInput): Promise<string> {
@@ -829,6 +849,27 @@ export async function searchClubThreads(params: {
     p_query: query,
     p_club_id: params.clubId ?? undefined,
     p_limit: params.limit ?? 20,
+  });
+  if (error) throw error;
+  return data ?? [];
+}
+
+/**
+ * Strumien aktywnosci PONAD klubami - zasila strone glowna klubow. Jedno
+ * zapytanie zamiast N list tematow: hub ma pokazac, ze kluby zyja, a nie
+ * odpytac kazdy z osobna.
+ */
+export async function fetchClubActivityFeed(params: {
+  sort: ClubActivitySort;
+  policyArea: string | null;
+  limit?: number;
+  perClub?: number;
+}): Promise<ClubActivityRow[]> {
+  const { data, error } = await supabase.rpc("club_activity_feed", {
+    p_limit: params.limit ?? 12,
+    p_sort: params.sort,
+    p_policy_area: params.policyArea ?? undefined,
+    p_per_club: params.perClub ?? 3,
   });
   if (error) throw error;
   return data ?? [];

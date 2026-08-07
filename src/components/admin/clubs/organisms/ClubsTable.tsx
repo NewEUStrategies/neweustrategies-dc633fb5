@@ -74,7 +74,8 @@ export function ClubsTable({ rows, isPl }: ClubsTableProps) {
                 <TableCell>
                   <Link
                     to="/admin/community/clubs/$clubId"
-                    params={{ clubId: row.id }} search={{ tab: "general" }}
+                    params={{ clubId: row.id }}
+                    search={{ tab: "general" }}
                     className="font-medium hover:text-primary transition-colors"
                   >
                     {isPl ? row.name_pl : row.name_en}
@@ -122,7 +123,11 @@ export function ClubsTable({ rows, isPl }: ClubsTableProps) {
                       </a>
                     </Button>
                     <Button asChild size="icon" variant="ghost" className="h-8 w-8">
-                      <Link to="/admin/community/clubs/$clubId" params={{ clubId: row.id }} search={{ tab: "general" }}>
+                      <Link
+                        to="/admin/community/clubs/$clubId"
+                        params={{ clubId: row.id }}
+                        search={{ tab: "general" }}
+                      >
                         <ChevronRight className="h-4 w-4" />
                         <span className="sr-only">{t("adminClubs.editClub")}</span>
                       </Link>
@@ -141,7 +146,8 @@ export function ClubsTable({ rows, isPl }: ClubsTableProps) {
           <Link
             key={row.id}
             to="/admin/community/clubs/$clubId"
-            params={{ clubId: row.id }} search={{ tab: "general" }}
+            params={{ clubId: row.id }}
+            search={{ tab: "general" }}
             className="rounded-lg border border-border/60 bg-card p-4 transition-colors hover:border-primary/40"
           >
             <div className="flex items-start justify-between gap-3">

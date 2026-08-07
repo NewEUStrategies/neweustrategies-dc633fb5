@@ -41,6 +41,84 @@ export type ClubMemberRole = (typeof CLUB_MEMBER_ROLES)[number];
 export const CLUB_MEMBER_STATUSES = ["active", "pending", "invited", "banned", "left"] as const;
 export type ClubMemberStatus = (typeof CLUB_MEMBER_STATUSES)[number];
 
+/**
+ * Uklad strony klubu. Nie kosmetyka: `magazine` wyroznia jeden watek, wiec
+ * zmienia to, co czytelnik zobaczy PIERWSZE. Slownik musi odpowiadac CHECK-owi
+ * clubs_layout_check z migracji 20260808160000.
+ */
+export const CLUB_LAYOUTS = ["list", "cards", "magazine"] as const;
+export type ClubLayout = (typeof CLUB_LAYOUTS)[number];
+
+export function toClubLayout(value: string | null | undefined): ClubLayout {
+  return value !== null &&
+    value !== undefined &&
+    (CLUB_LAYOUTS as readonly string[]).includes(value)
+    ? (value as ClubLayout)
+    : "list";
+}
+
+/**
+ * Kody odmowy zapisu klubu. Panel pokazywal dotad jedno zdanie "Nie udalo sie
+ * zapisac" na KAZDA awarie - a zajety adres, nierozwiazany tenant i brak
+ * uprawnien to trzy rozne problemy z trzema roznymi nastepnymi krokami.
+ * Administrator, ktory nie wie, ktory z nich go spotkal, nie ma co zrobic.
+ */
+export const CLUB_SAVE_ERRORS = [
+  "slug_taken",
+  "missing_fields",
+  "forbidden",
+  "tenant_unresolved",
+  "not_found",
+  "unknown",
+] as const;
+export type ClubSaveError = (typeof CLUB_SAVE_ERRORS)[number];
+
+/**
+ * Mapuje wyjatek z RPC na kod slownikowy. Dopasowanie idzie po TRESCI
+ * komunikatu, bo PostgREST nie przepuszcza SQLSTATE w ustrukturyzowanej formie,
+ * a komunikaty sa stalymi literalami w migracji - nie tlumaczymy ich, wiec sa
+ * stabilne.
+ */
+export function toClubSaveError(error: unknown): ClubSaveError {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  if (message.includes("slug already taken")) return "slug_taken";
+  if (message.includes("slug and name_pl are required")) return "missing_fields";
+  if (message.includes("tenant not resolved")) return "tenant_unresolved";
+  if (message.includes("not found")) return "not_found";
+  if (message.includes("forbidden")) return "forbidden";
+  return "unknown";
+}
+
+/**
+ * Slug z nazwy. Ta sama regula, co w club_create_thread po stronie bazy:
+ * male litery, cyfry i myslniki, polskie znaki rozlozone na ASCII. Robimy to
+ * w kliencie, zeby pole adresu wypelnialo sie na oczach piszacego - a nie
+ * dopiero po zapisie.
+ */
+const PL_MAP: Readonly<Record<string, string>> = {
+  ą: "a",
+  ć: "c",
+  ę: "e",
+  ł: "l",
+  ń: "n",
+  ó: "o",
+  ś: "s",
+  ź: "z",
+  ż: "z",
+};
+
+export function clubSlugFromName(name: string): string {
+  const lowered = name.toLowerCase();
+  let ascii = "";
+  for (const ch of lowered) ascii += PL_MAP[ch] ?? ch;
+  return ascii
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+}
+
 export const CLUB_NOTIFY_LEVELS = ["all", "mentions", "digest", "none"] as const;
 export type ClubNotifyLevel = (typeof CLUB_NOTIFY_LEVELS)[number];
 
@@ -273,6 +351,7 @@ export interface ClubUpsertInput {
   rules_pl?: string | null;
   rules_en?: string | null;
   status?: ClubStatus;
+  layout?: ClubLayout;
 }
 
 /**
@@ -643,6 +722,14 @@ export type AdminClubThreadRow = RowOf<Fn["admin_club_threads"]["Returns"]>;
 export type AdminClubReplyRow = RowOf<Fn["admin_club_replies"]["Returns"]>;
 export type ClubSearchHit = RowOf<Fn["club_search"]["Returns"]>;
 export type ClubAnchorHit = RowOf<Fn["club_threads_for_anchor"]["Returns"]>;
+
+/** Wiersz strumienia aktywnosci ponad klubami (strona glowna klubow). Nie ma
+ *  tu `author_id` w ZADNYM trybie atrybucji - hub jest powierzchnia odkrywania,
+ *  a czego RPC nie zwraca, tego zaden komponent nie wyswietli przez pomylke. */
+export type ClubActivityRow = RowOf<Fn["club_activity_feed"]["Returns"]>;
+
+export const CLUB_ACTIVITY_SORTS = ["new", "hot"] as const;
+export type ClubActivitySort = (typeof CLUB_ACTIVITY_SORTS)[number];
 export type AdminClubModerationItem = RowOf<Fn["admin_club_moderation_queue"]["Returns"]>;
 export type AdminClubModerationLogRow = RowOf<Fn["admin_club_moderation_log"]["Returns"]>;
 

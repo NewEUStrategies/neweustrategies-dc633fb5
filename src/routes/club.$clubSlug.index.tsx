@@ -9,10 +9,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import {
   Clock,
-  Lock,
   MessageSquare,
   MessagesSquare,
-  Pin,
   Search,
   ShieldQuestion,
   Users2,
@@ -31,9 +29,11 @@ import {
 } from "@/components/ui/select";
 import { useClubBySlug, useClubGroups, useClubSearch, useClubThreads } from "@/lib/clubs/useClubs";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { ClubThreadList } from "@/components/clubs/organisms/ClubThreadList";
+import { ClubCover } from "@/components/clubs/atoms/ClubCover";
 import {
   CLUB_THREAD_KINDS,
-  toAuthorLabel,
+  toClubLayout,
   type ClubSearchHit,
   type ClubThreadKind,
   type ClubThreadSort,
@@ -105,7 +105,14 @@ function ClubHome() {
   if (!club.can_read) {
     return (
       <div className="container mx-auto max-w-3xl px-4 py-12">
-        <Card>
+        <Card className="overflow-hidden">
+          {/* Okładka jest częścią WIZYTÓWKI, nie treści - klub zamknięty ma
+              prawo wyglądać jak klub, mimo że wątków nie pokazuje. */}
+          <ClubCover
+            url={club.cover_image_url}
+            variant="banner"
+            className="rounded-none border-0"
+          />
           <CardContent className="space-y-4 p-8 text-center">
             <h1 className="text-2xl font-semibold">{isPl ? club.name_pl : club.name_en}</h1>
             {(isPl ? club.tagline_pl : club.tagline_en) ? (
@@ -134,6 +141,7 @@ function ClubHome() {
   return (
     <div className="container mx-auto max-w-5xl px-4 py-8">
       <header className="mb-6">
+        <ClubCover url={club.cover_image_url} variant="banner" className="mb-5" />
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <h1 className="text-3xl font-semibold">{isPl ? club.name_pl : club.name_en}</h1>
@@ -278,72 +286,12 @@ function ClubHome() {
         </Card>
       ) : (
         <>
-          <ul className="space-y-2">
-            {threads.map((thread) => {
-              const author = toAuthorLabel(
-                thread,
-                t("club.anonymousAuthor"),
-                t("club.deletedAuthor"),
-              );
-              return (
-                <li key={thread.id}>
-                  <Link
-                    to="/club/$clubSlug/t/$threadSlug"
-                    params={{ clubSlug, threadSlug: thread.slug }}
-                    className="block rounded-lg border border-border/60 bg-card p-4 transition-colors hover:border-primary/40"
-                  >
-                    <div className="flex flex-wrap items-center gap-2">
-                      {thread.pinned_at !== null ? (
-                        <Pin className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-                      ) : null}
-                      {thread.status === "locked" ? (
-                        <Lock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-                      ) : null}
-                      <Badge variant="outline" className="text-[11px]">
-                        {t(`club.kind.${thread.kind}`)}
-                      </Badge>
-                      {thread.status === "resolved" ? (
-                        <Badge className="bg-emerald-500/15 text-[11px] text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-300">
-                          {t("club.threadStatus.resolved")}
-                        </Badge>
-                      ) : null}
-                      {thread.status === "pending" ? (
-                        <Badge
-                          variant="outline"
-                          className="text-[11px] text-amber-700 dark:text-amber-300"
-                        >
-                          {t("club.threadStatus.pending")}
-                        </Badge>
-                      ) : null}
-                      <span className="text-xs text-muted-foreground">
-                        {isPl ? thread.group_name_pl : thread.group_name_en}
-                      </span>
-                    </div>
-
-                    <h3 className="mt-1.5 font-medium leading-snug">{thread.title}</h3>
-
-                    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                      <span>{author.name}</span>
-                      <span className="inline-flex items-center gap-1.5">
-                        <MessageSquare className="h-3.5 w-3.5" />
-                        {thread.reply_count}
-                      </span>
-                      <span className="inline-flex items-center gap-1.5">
-                        <Users2 className="h-3.5 w-3.5" />
-                        {thread.participant_count}
-                      </span>
-                      <span className="inline-flex items-center gap-1.5">
-                        <Clock className="h-3.5 w-3.5" />
-                        {new Date(thread.last_reply_at ?? thread.created_at).toLocaleDateString(
-                          isPl ? "pl-PL" : "en-GB",
-                        )}
-                      </span>
-                    </div>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+          <ClubThreadList
+            clubSlug={clubSlug}
+            threads={threads}
+            layout={toClubLayout(club.layout)}
+            isPl={isPl}
+          />
 
           {threadsQ.hasNextPage ? (
             <div className="mt-4 text-center">

@@ -51,7 +51,13 @@ import {
 import { MemberPicker } from "@/components/admin/community/MemberPicker";
 import { ConfirmDialog, type ConfirmState } from "@/components/admin/ConfirmDialog";
 import { ClubMemberStatusBadge } from "../atoms/ClubBadges";
-import { useClubMembers, useRemoveClubMember, useUpsertClubMember } from "@/lib/clubs/useClubs";
+import {
+  useBulkSetClubMemberRole,
+  useClubMembers,
+  useRemoveClubMember,
+  useUpsertClubMember,
+} from "@/lib/clubs/useClubs";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   CLUB_MEMBER_ROLES,
   CLUB_MEMBER_STATUSES,
@@ -93,6 +99,13 @@ export function ClubMembersTab({ clubId, isPl }: { clubId: string; isPl: boolean
 
   const upsertM = useUpsertClubMember(clubId);
   const removeM = useRemoveClubMember(clubId);
+  const bulkRoleM = useBulkSetClubMemberRole(clubId);
+
+  // Zaznaczenie trzyma IDENTYFIKATORY, nie wiersze. Po refetchu obiekty
+  // wierszy sa nowe, wiec zbior obiektow rozjechalby sie z tabela i pasek
+  // masowy pokazywalby liczbe, ktorej nie ma na ekranie.
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [bulkRole, setBulkRole] = useState<ClubMemberRole>("member");
 
   const rows = membersQ.data?.rows ?? [];
   const pending = useMemo(() => pendingQ.data?.rows ?? [], [pendingQ.data]);
@@ -130,6 +143,42 @@ export function ClubMembersTab({ clubId, isPl }: { clubId: string; isPl: boolean
         onError: () => toast.error(t("adminClubs.saveFailed")),
       },
     );
+
+  const toggleOne = (userId: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+
+  // "Zaznacz wszystko" dotyczy WIDOCZNEJ strony, nie calego klubu - inaczej
+  // jeden klik na przefiltrowanej liscie zmienialby role osobom, ktorych
+  // administrator nigdy nie zobaczyl.
+  const visibleIds = rows.map((r) => r.user_id);
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
+  const toggleAllVisible = () =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) visibleIds.forEach((id) => next.delete(id));
+      else visibleIds.forEach((id) => next.add(id));
+      return next;
+    });
+
+  const applyBulkRole = () => {
+    const userIds = [...selected];
+    if (userIds.length === 0) return;
+    bulkRoleM.mutate(
+      { userIds, role: bulkRole },
+      {
+        onSuccess: (changed) => {
+          toast.success(t("adminClubs.members.bulkDone", { count: changed }));
+          setSelected(new Set());
+        },
+        onError: () => toast.error(t("adminClubs.saveFailed")),
+      },
+    );
+  };
 
   const confirmRemove = (row: ClubMemberRow, reject: boolean) =>
     setConfirm({
@@ -277,11 +326,54 @@ export function ClubMembersTab({ clubId, isPl }: { clubId: string; isPl: boolean
             </p>
           ) : (
             <>
+              {/* Pasek masowy pojawia sie DOPIERO po zaznaczeniu: pusty pasek
+                  z nieaktywna droplista to szum nad kazda tabela. */}
+              {selected.size > 0 ? (
+                <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+                  <span className="text-sm font-medium">
+                    {t("adminClubs.members.bulkSelected", { count: selected.size })}
+                  </span>
+                  <Select value={bulkRole} onValueChange={(v) => setBulkRole(asRole(v))}>
+                    <SelectTrigger
+                      className="w-full sm:w-[190px]"
+                      aria-label={t("adminClubs.members.bulkRole")}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CLUB_MEMBER_ROLES.map((r) => (
+                        <SelectItem key={r} value={r}>
+                          {t(`club.memberRole.${r}`)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button size="sm" disabled={bulkRoleM.isPending} onClick={applyBulkRole}>
+                    {t("adminClubs.members.bulkApply")}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={bulkRoleM.isPending}
+                    onClick={() => setSelected(new Set())}
+                  >
+                    {t("adminClubs.members.bulkClear")}
+                  </Button>
+                </div>
+              ) : null}
+
               {/* Tabela od lg w górę */}
               <div className="hidden overflow-hidden rounded-lg border border-border/60 lg:block">
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-10">
+                        <Checkbox
+                          checked={allVisibleSelected}
+                          onCheckedChange={toggleAllVisible}
+                          aria-label={t("adminClubs.members.bulkSelectAll")}
+                        />
+                      </TableHead>
                       <TableHead>{t("adminClubs.columns.name")}</TableHead>
                       <TableHead className="min-w-[150px]">
                         {t("adminClubs.columns.role")}
@@ -296,7 +388,17 @@ export function ClubMembersTab({ clubId, isPl }: { clubId: string; isPl: boolean
                   </TableHeader>
                   <TableBody>
                     {rows.map((row) => (
-                      <TableRow key={row.user_id}>
+                      <TableRow
+                        key={row.user_id}
+                        data-state={selected.has(row.user_id) ? "selected" : undefined}
+                      >
+                        <TableCell>
+                          <Checkbox
+                            checked={selected.has(row.user_id)}
+                            onCheckedChange={() => toggleOne(row.user_id)}
+                            aria-label={row.display_name}
+                          />
+                        </TableCell>
                         <TableCell>
                           <div className="font-medium">{row.display_name}</div>
                           {row.job_title ? (
@@ -359,11 +461,21 @@ export function ClubMembersTab({ clubId, isPl }: { clubId: string; isPl: boolean
                 {rows.map((row) => (
                   <li key={row.user_id} className="rounded-lg border border-border/60 p-3">
                     <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="truncate font-medium">{row.display_name}</p>
-                        {row.job_title ? (
-                          <p className="truncate text-xs text-muted-foreground">{row.job_title}</p>
-                        ) : null}
+                      <div className="flex min-w-0 items-start gap-2">
+                        <Checkbox
+                          className="mt-0.5"
+                          checked={selected.has(row.user_id)}
+                          onCheckedChange={() => toggleOne(row.user_id)}
+                          aria-label={row.display_name}
+                        />
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">{row.display_name}</p>
+                          {row.job_title ? (
+                            <p className="truncate text-xs text-muted-foreground">
+                              {row.job_title}
+                            </p>
+                          ) : null}
+                        </div>
                       </div>
                       <ClubMemberStatusBadge status={asStatus(row.status)} />
                     </div>

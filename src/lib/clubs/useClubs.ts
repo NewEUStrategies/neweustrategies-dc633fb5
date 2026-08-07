@@ -36,10 +36,12 @@ import {
   fetchClubList,
   fetchClubInvitations,
   fetchClubInviteLinks,
+  checkClubSlugAvailable,
   deleteClubGroup,
   fetchClubModerationLog,
   fetchClubModerationQueue,
   fetchClubPendingCounts,
+  fetchClubActivityFeed,
   fetchClubThreadsForAnchor,
   fetchClubMembers,
   fetchClubReactions,
@@ -91,6 +93,8 @@ import type {
   AdminClubInviteLinkRow,
   AdminClubModerationItem,
   AdminClubModerationLogRow,
+  ClubActivityRow,
+  ClubActivitySort,
   ClubAnchorHit,
   ClubSearchHit,
   AdminClubReplyRow,
@@ -144,6 +148,25 @@ export function useMyClubMemberships(enabled = true): UseQueryResult<ClubMembers
     queryKey: clubKeys.memberships(),
     queryFn: fetchMyClubMemberships,
     staleTime: STALE_MS,
+    enabled,
+  });
+}
+
+/**
+ * Strumien aktywnosci na stronie glownej klubow. Krotki staleTime, bo to
+ * powierzchnia "co sie dzieje" - lista sprzed piecu minut przeczy jej celowi.
+ */
+export function useClubActivityFeed(params: {
+  sort: ClubActivitySort;
+  policyArea: string | null;
+  limit?: number;
+  enabled?: boolean;
+}): UseQueryResult<ClubActivityRow[], Error> {
+  const { sort, policyArea, limit, enabled = true } = params;
+  return useQuery({
+    queryKey: clubKeys.activity(sort, policyArea),
+    queryFn: () => fetchClubActivityFeed({ sort, policyArea, limit }),
+    staleTime: 30_000,
     enabled,
   });
 }
@@ -299,6 +322,24 @@ export function useReorderClubGroups(clubId: string): UseMutationResult<number, 
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: clubKeys.groups(clubId) });
     },
+  });
+}
+
+/**
+ * Dostepnosc adresu, odpytywana na biezaco przy pisaniu. `enabled` odcina
+ * zapytanie dla pustego i zbyt krotkiego sluga - inaczej kazde nacisniecie
+ * klawisza bylo by osobnym round-tripem po odpowiedz, ktora i tak brzmi "nie".
+ */
+export function useClubSlugAvailable(
+  slug: string,
+  clubId?: string | null,
+): UseQueryResult<boolean, Error> {
+  const trimmed = slug.trim();
+  return useQuery({
+    queryKey: [...adminClubKeys.all, "slug", trimmed, clubId ?? ""],
+    queryFn: () => checkClubSlugAvailable({ slug: trimmed, clubId }),
+    staleTime: 30_000,
+    enabled: trimmed.length >= 3,
   });
 }
 

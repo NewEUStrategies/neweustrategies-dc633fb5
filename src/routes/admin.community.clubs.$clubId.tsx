@@ -40,6 +40,8 @@ import {
   CLUB_MODERATION_MODES,
   CLUB_POST_POLICIES,
   CLUB_STATUSES,
+  toClubLayout,
+  toClubSaveError,
   CLUB_VISIBILITIES,
   type AdminClubDetailRow,
   type ClubAttributionMode,
@@ -94,6 +96,8 @@ function toGeneralDraft(club: AdminClubDetailRow): ClubGeneralDraft {
     rulesEn: club.rules_en ?? "",
     policyArea: club.policy_area ?? "",
     status: narrow<ClubStatus>(club.status, CLUB_STATUSES, "draft"),
+    cover: club.cover_image_url ?? "",
+    layout: toClubLayout(club.layout),
   };
 }
 
@@ -201,6 +205,8 @@ function ClubEditor() {
         rules_en: general.rulesEn.trim() || null,
         policy_area: general.policyArea.trim() || null,
         status: general.status,
+        cover_image_url: general.cover.trim() || null,
+        layout: general.layout,
         visibility: access.visibility,
         join_policy: access.joinPolicy,
         min_tier_rank: access.minTierRank,
@@ -210,15 +216,9 @@ function ClubEditor() {
       },
       {
         onSuccess: () => toast.success(t("adminClubs.saved")),
-        onError: (error) => {
-          // 23505 z RPC znaczy dokładnie jedno: slug zajęty w tym tenancie.
-          const message = error instanceof Error ? error.message : "";
-          toast.error(
-            message.includes("slug already taken")
-              ? t("adminClubs.slugTaken")
-              : t("adminClubs.saveFailed"),
-          );
-        },
+        // Ten sam słownik powodów, co przy zakładaniu klubu: "Nie udało się
+        // zapisać" bez powodu zostawia administratora bez następnego kroku.
+        onError: (error) => toast.error(t(`adminClubs.create.error.${toClubSaveError(error)}`)),
       },
     );
   };
