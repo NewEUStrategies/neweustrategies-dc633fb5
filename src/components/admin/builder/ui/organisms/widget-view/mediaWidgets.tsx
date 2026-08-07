@@ -172,7 +172,6 @@ export function ImageWidget({
         onError={applyLogoFallback}
         hoverEffect={hoverEffect}
         fadeIn={!isLogo}
-        data-is-logo={isLogo ? "true" : undefined}
       />
       <OptimizedImage
         src={darkSrc}
@@ -184,7 +183,6 @@ export function ImageWidget({
         onError={applyLogoFallback}
         hoverEffect={hoverEffect}
         fadeIn={!isLogo}
-        data-is-logo={isLogo ? "true" : undefined}
       />
     </>
   ) : isFramed ? (
@@ -198,7 +196,6 @@ export function ImageWidget({
       onError={applyLogoFallback}
       hoverEffect={hoverEffect}
       fadeIn={!isLogo}
-      data-is-logo={isLogo ? "true" : undefined}
     />
   ) : (
     <OptimizedImage
@@ -211,7 +208,6 @@ export function ImageWidget({
       onError={applyLogoFallback}
       hoverEffect={hoverEffect}
       fadeIn={!isLogo}
-      data-is-logo={isLogo ? "true" : undefined}
     />
   );
   const framedImgEl = isFramed ? (
