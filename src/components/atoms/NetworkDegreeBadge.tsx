@@ -25,6 +25,7 @@ interface NetworkDegreeBadgeProps {
 }
 
 const TONE: Record<NetworkDegree, string> = {
+  0: "border-border/60 bg-muted/30 text-muted-foreground/80",
   1: "border-[var(--brand)]/40 bg-[var(--brand)]/10 text-[var(--brand)]",
   2: "border-border bg-muted/60 text-foreground/80",
   3: "border-border/60 bg-muted/30 text-muted-foreground/80",
