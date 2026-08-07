@@ -14,6 +14,12 @@ export interface CommunityModulesSettings {
   push_enabled: boolean;
   /** Globalny przełącznik przycisku "Zapytanie do eksperta" (per tenant). */
   expert_requests_enabled: boolean;
+  /**
+   * Kluby dyskusyjne. Domyślnie WYŁĄCZONE - moduł włącza się świadomie,
+   * a nie pojawia się wszystkim po deployu (V2 §6.3). Wyłączenie chowa go
+   * z nawigacji użytkownika bez rebuildu, jak każdy inny moduł.
+   */
+  clubs_enabled: boolean;
   default_message_ttl_seconds: number | null;
 }
 
@@ -27,6 +33,7 @@ export const COMMUNITY_MODULES_DEFAULTS: CommunityModulesSettings = {
   badges_enabled: true,
   push_enabled: true,
   expert_requests_enabled: true,
+  clubs_enabled: false,
   default_message_ttl_seconds: null,
 };
 

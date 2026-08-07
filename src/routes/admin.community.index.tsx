@@ -219,6 +219,17 @@ function CommunityOverview() {
               onChange={(v) => saveModules.mutate({ push_enabled: v })}
             />
             <ToggleRow
+              label={isPl ? "Kluby dyskusyjne" : "Discussion clubs"}
+              hint={
+                isPl
+                  ? "Trwałe przestrzenie dyskusji między członkami"
+                  : "Lasting member-to-member discussion spaces"
+              }
+              checked={modules?.clubs_enabled ?? false}
+              disabled={saveModules.isPending || !modules}
+              onChange={(v) => saveModules.mutate({ clubs_enabled: v })}
+            />
+            <ToggleRow
               label={isPl ? "Zapytania do eksperta" : "Expert requests"}
               hint={
                 isPl

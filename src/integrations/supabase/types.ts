@@ -1501,6 +1501,284 @@ export type Database = {
           },
         ]
       }
+      club_groups: {
+        Row: {
+          accent_color: string | null
+          anchor_id: string | null
+          anchor_type: string | null
+          attribution_mode: string | null
+          closes_at: string | null
+          club_id: string
+          created_at: string
+          created_by: string | null
+          description_en: string | null
+          description_pl: string | null
+          icon: string | null
+          id: string
+          last_activity_at: string | null
+          min_tier_rank: number | null
+          moderation_mode: string | null
+          name_en: string
+          name_pl: string
+          opens_at: string | null
+          slug: string
+          sort_order: number
+          status: string
+          tenant_id: string
+          thread_count: number
+          updated_at: string
+          visibility: string | null
+          who_can_post: string | null
+        }
+        Insert: {
+          accent_color?: string | null
+          anchor_id?: string | null
+          anchor_type?: string | null
+          attribution_mode?: string | null
+          closes_at?: string | null
+          club_id: string
+          created_at?: string
+          created_by?: string | null
+          description_en?: string | null
+          description_pl?: string | null
+          icon?: string | null
+          id?: string
+          last_activity_at?: string | null
+          min_tier_rank?: number | null
+          moderation_mode?: string | null
+          name_en: string
+          name_pl: string
+          opens_at?: string | null
+          slug: string
+          sort_order?: number
+          status?: string
+          tenant_id: string
+          thread_count?: number
+          updated_at?: string
+          visibility?: string | null
+          who_can_post?: string | null
+        }
+        Update: {
+          accent_color?: string | null
+          anchor_id?: string | null
+          anchor_type?: string | null
+          attribution_mode?: string | null
+          closes_at?: string | null
+          club_id?: string
+          created_at?: string
+          created_by?: string | null
+          description_en?: string | null
+          description_pl?: string | null
+          icon?: string | null
+          id?: string
+          last_activity_at?: string | null
+          min_tier_rank?: number | null
+          moderation_mode?: string | null
+          name_en?: string
+          name_pl?: string
+          opens_at?: string | null
+          slug?: string
+          sort_order?: number
+          status?: string
+          tenant_id?: string
+          thread_count?: number
+          updated_at?: string
+          visibility?: string | null
+          who_can_post?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_groups_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_groups_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      club_members: {
+        Row: {
+          banned_reason: string | null
+          club_id: string
+          created_at: string
+          id: string
+          invite_source: string
+          invited_by: string | null
+          joined_at: string
+          last_read_at: string | null
+          notify_level: string
+          role: string
+          role_expires_at: string | null
+          rules_accepted_at: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          banned_reason?: string | null
+          club_id: string
+          created_at?: string
+          id?: string
+          invite_source?: string
+          invited_by?: string | null
+          joined_at?: string
+          last_read_at?: string | null
+          notify_level?: string
+          role?: string
+          role_expires_at?: string | null
+          rules_accepted_at?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          banned_reason?: string | null
+          club_id?: string
+          created_at?: string
+          id?: string
+          invite_source?: string
+          invited_by?: string | null
+          joined_at?: string
+          last_read_at?: string | null
+          notify_level?: string
+          role?: string
+          role_expires_at?: string | null
+          rules_accepted_at?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_members_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_members_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clubs: {
+        Row: {
+          accent_color: string | null
+          attribution_mode: string
+          cover_image_url: string | null
+          created_at: string
+          created_by: string | null
+          description_en: string | null
+          description_pl: string | null
+          group_count: number
+          icon: string
+          id: string
+          join_policy: string
+          last_activity_at: string | null
+          member_count: number
+          min_tier_rank: number
+          moderation_mode: string
+          name_en: string
+          name_pl: string
+          policy_area: string | null
+          rules_en: string | null
+          rules_pl: string | null
+          slug: string
+          status: string
+          tagline_en: string | null
+          tagline_pl: string | null
+          tenant_id: string
+          thread_count: number
+          updated_at: string
+          visibility: string
+          who_can_post: string
+        }
+        Insert: {
+          accent_color?: string | null
+          attribution_mode?: string
+          cover_image_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          description_en?: string | null
+          description_pl?: string | null
+          group_count?: number
+          icon?: string
+          id?: string
+          join_policy?: string
+          last_activity_at?: string | null
+          member_count?: number
+          min_tier_rank?: number
+          moderation_mode?: string
+          name_en: string
+          name_pl: string
+          policy_area?: string | null
+          rules_en?: string | null
+          rules_pl?: string | null
+          slug: string
+          status?: string
+          tagline_en?: string | null
+          tagline_pl?: string | null
+          tenant_id: string
+          thread_count?: number
+          updated_at?: string
+          visibility?: string
+          who_can_post?: string
+        }
+        Update: {
+          accent_color?: string | null
+          attribution_mode?: string
+          cover_image_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          description_en?: string | null
+          description_pl?: string | null
+          group_count?: number
+          icon?: string
+          id?: string
+          join_policy?: string
+          last_activity_at?: string | null
+          member_count?: number
+          min_tier_rank?: number
+          moderation_mode?: string
+          name_en?: string
+          name_pl?: string
+          policy_area?: string | null
+          rules_en?: string | null
+          rules_pl?: string | null
+          slug?: string
+          status?: string
+          tagline_en?: string | null
+          tagline_pl?: string | null
+          tenant_id?: string
+          thread_count?: number
+          updated_at?: string
+          visibility?: string
+          who_can_post?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clubs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       command_idempotency: {
         Row: {
           actor_id: string | null
@@ -12332,6 +12610,158 @@ export type Database = {
         Returns: undefined
       }
       admin_community_stats: { Args: never; Returns: Json }
+      admin_club_capabilities_preview: {
+        Args: { _club_id: string; _group_id?: string; _user_id: string }
+        Returns: {
+          can_invite: boolean
+          can_manage: boolean
+          can_moderate: boolean
+          can_post_thread: boolean
+          can_react: boolean
+          can_read: boolean
+          can_reply: boolean
+          can_reveal_author: boolean
+          can_see_members: boolean
+          effective_role: string
+          reason: string
+        }[]
+      }
+      admin_club_get: {
+        Args: { p_club_id: string }
+        Returns: {
+          accent_color: string
+          attribution_mode: string
+          cover_image_url: string
+          created_at: string
+          description_en: string
+          description_pl: string
+          group_count: number
+          icon: string
+          id: string
+          join_policy: string
+          last_activity_at: string
+          member_count: number
+          min_tier_rank: number
+          moderation_mode: string
+          name_en: string
+          name_pl: string
+          policy_area: string
+          rules_en: string
+          rules_pl: string
+          slug: string
+          status: string
+          tagline_en: string
+          tagline_pl: string
+          thread_count: number
+          updated_at: string
+          visibility: string
+          who_can_post: string
+        }[]
+      }
+      admin_club_group_reorder: {
+        Args: { p_club_id: string; p_group_ids: string[] }
+        Returns: number
+      }
+      admin_club_group_upsert: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
+      admin_club_groups: {
+        Args: { p_club_id: string }
+        Returns: {
+          accent_color: string
+          anchor_id: string
+          anchor_type: string
+          attribution_mode: string
+          attribution_mode_inherited: boolean
+          closes_at: string
+          club_id: string
+          description_en: string
+          description_pl: string
+          icon: string
+          id: string
+          last_activity_at: string
+          min_tier_rank: number
+          min_tier_rank_inherited: boolean
+          moderation_mode: string
+          moderation_mode_inherited: boolean
+          name_en: string
+          name_pl: string
+          opens_at: string
+          slug: string
+          sort_order: number
+          status: string
+          thread_count: number
+          visibility: string
+          visibility_inherited: boolean
+          who_can_post: string
+          who_can_post_inherited: boolean
+        }[]
+      }
+      admin_club_list: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_search?: string
+          p_status?: string
+          p_visibility?: string
+        }
+        Returns: {
+          accent_color: string
+          attribution_mode: string
+          created_at: string
+          group_count: number
+          icon: string
+          id: string
+          join_policy: string
+          last_activity_at: string
+          lead_names: string[]
+          member_count: number
+          min_tier_rank: number
+          moderation_mode: string
+          name_en: string
+          name_pl: string
+          pending_count: number
+          policy_area: string
+          slug: string
+          status: string
+          thread_count: number
+          total_count: number
+          visibility: string
+          who_can_post: string
+        }[]
+      }
+      admin_club_member_remove: {
+        Args: { p_club_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      admin_club_member_upsert: {
+        Args: {
+          p_club_id: string
+          p_role?: string
+          p_role_expires_at?: string
+          p_status?: string
+          p_user_id: string
+        }
+        Returns: string
+      }
+      admin_club_stats: {
+        Args: { p_club_id: string }
+        Returns: {
+          active_members_30d: number
+          banned_count: number
+          group_count: number
+          leads_count: number
+          member_count: number
+          moderators_count: number
+          pending_members: number
+          thread_count: number
+        }[]
+      }
+      admin_club_upsert: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
       admin_consent_decisions: {
         Args: { p_limit?: number; p_offset?: number; p_source?: string }
         Returns: {
@@ -13029,6 +13459,171 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      club_capabilities: {
+        Args: { _club_id: string; _group_id?: string; _user_id?: string }
+        Returns: {
+          can_invite: boolean
+          can_manage: boolean
+          can_moderate: boolean
+          can_post_thread: boolean
+          can_react: boolean
+          can_read: boolean
+          can_reply: boolean
+          can_reveal_author: boolean
+          can_see_members: boolean
+          effective_role: string
+          reason: string
+        }[]
+      }
+      club_effective_member_role: {
+        Args: { _role: string; _role_expires_at: string }
+        Returns: string
+      }
+      club_groups_list: {
+        Args: { p_club_id: string }
+        Returns: {
+          accent_color: string
+          anchor_id: string
+          anchor_type: string
+          attribution_mode: string
+          attribution_mode_inherited: boolean
+          can_post_thread: boolean
+          can_read: boolean
+          closes_at: string
+          club_id: string
+          description_en: string
+          description_pl: string
+          icon: string
+          id: string
+          last_activity_at: string
+          min_tier_rank: number
+          min_tier_rank_inherited: boolean
+          moderation_mode: string
+          moderation_mode_inherited: boolean
+          name_en: string
+          name_pl: string
+          opens_at: string
+          reason: string
+          slug: string
+          sort_order: number
+          status: string
+          thread_count: number
+          visibility: string
+          visibility_inherited: boolean
+          who_can_post: string
+          who_can_post_inherited: boolean
+        }[]
+      }
+      club_list: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          accent_color: string
+          can_read: boolean
+          cover_image_url: string
+          group_count: number
+          icon: string
+          id: string
+          join_policy: string
+          last_activity_at: string
+          member_count: number
+          min_tier_rank: number
+          my_role: string
+          my_status: string
+          name_en: string
+          name_pl: string
+          policy_area: string
+          slug: string
+          status: string
+          tagline_en: string
+          tagline_pl: string
+          thread_count: number
+          visibility: string
+        }[]
+      }
+      club_members_list: {
+        Args: {
+          p_club_id: string
+          p_limit?: number
+          p_offset?: number
+          p_status?: string
+        }
+        Returns: {
+          avatar_url: string
+          current_company: string
+          display_name: string
+          invite_source: string
+          job_title: string
+          joined_at: string
+          role: string
+          role_expires_at: string
+          slug: string
+          status: string
+          total_count: number
+          user_id: string
+          verified: boolean
+        }[]
+      }
+      club_my_memberships: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          accent_color: string
+          club_id: string
+          icon: string
+          last_activity_at: string
+          last_read_at: string
+          member_count: number
+          name_en: string
+          name_pl: string
+          notify_level: string
+          role: string
+          role_expires_at: string
+          slug: string
+          status: string
+          thread_count: number
+        }[]
+      }
+      club_view: {
+        Args: { p_slug: string }
+        Returns: {
+          accent_color: string
+          attribution_mode: string
+          can_invite: boolean
+          can_manage: boolean
+          can_moderate: boolean
+          can_post_thread: boolean
+          can_read: boolean
+          can_reply: boolean
+          can_see_members: boolean
+          cover_image_url: string
+          created_at: string
+          description_en: string
+          description_pl: string
+          group_count: number
+          icon: string
+          id: string
+          join_policy: string
+          last_activity_at: string
+          member_count: number
+          min_tier_rank: number
+          moderation_mode: string
+          my_role: string
+          my_status: string
+          name_en: string
+          name_pl: string
+          policy_area: string
+          reason: string
+          rules_accepted_at: string
+          rules_en: string
+          rules_pl: string
+          slug: string
+          status: string
+          tagline_en: string
+          tagline_pl: string
+          thread_count: number
+          visibility: string
+          who_can_post: string
+        }[]
       }
       comments_moderation_enabled: {
         Args: { _tenant_id: string }
@@ -13999,6 +14594,7 @@ export type Database = {
       invoke_community_cron: { Args: { p_job?: string }; Returns: undefined }
       invoke_jobs_tick: { Args: never; Returns: undefined }
       is_blocked_pair: { Args: { _a: string; _b: string }; Returns: boolean }
+      is_club_admin: { Args: { _user_id?: string }; Returns: boolean }
       is_connected_pair: { Args: { _a: string; _b: string }; Returns: boolean }
       is_conversation_member: {
         Args: { _conv: string; _user: string }

@@ -12,6 +12,7 @@ import {
   Bell,
   BarChart3,
   Users2,
+  MessagesSquare,
 } from "lucide-react";
 
 const tabs = [
@@ -29,6 +30,14 @@ const tabs = [
     icon: MessageCircle,
     labelPl: "Chat",
     labelEn: "Chat",
+    exact: false,
+  },
+  {
+    to: "/admin/community/clubs" as const,
+    key: "clubs",
+    icon: MessagesSquare,
+    labelPl: "Kluby dyskusyjne",
+    labelEn: "Discussion clubs",
     exact: false,
   },
   {

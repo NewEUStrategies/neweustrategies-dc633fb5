@@ -40,6 +40,13 @@ const GATED_PREFIXES = [
   // src/components/network/__tests__/networkI18nKeys.gate.test.ts.
   "network",
   "directMessage",
+  // Discussion Club: komunikaty odmowy dostępu (kody z club_capabilities)
+  // mówią użytkownikowi, CO ZROBIĆ - poprosić o dostęp, wykupić plan, poczekać
+  // na otwarcie grupy. Surowy klucz zamiast zdania zostawiłby go bez następnego
+  // kroku, więc powierzchnia jest bramkowana od pierwszego dnia, a nie po tym,
+  // jak rozjazd PL/EN raz się zdarzy (lekcja z prefiksu "network").
+  "club",
+  "adminClubs",
 ] as const;
 
 // Klucze, dla których identyczny tekst PL i EN jest poprawny (nazwy własne,
@@ -55,6 +62,16 @@ const IDENTICAL_ALLOWLIST: readonly string[] = [
   // Zapożyczenie funkcjonujące w polskim tak samo jak w angielskim - rodzaj
   // relacji w rekomendacjach (słownik domknięty CHECK-iem w bazie).
   "network.recommendations.relationshipOptions.mentor",
+  // Discussion Club: nazwy własne ról i zapożyczenia brzmiące tak samo w obu
+  // językach. "Moderator", "Status", "Administrator" i "Super admin" to nie
+  // są nieprzetłumaczone stringi - to są te same słowa.
+  "club.role.moderator",
+  "adminClubs.filterStatus",
+  "adminClubs.columns.status",
+  "adminClubs.fields.status",
+  "adminClubs.permissions.roles.super_admin",
+  "adminClubs.permissions.roles.admin",
+  "adminClubs.permissions.roles.moderator",
   // To samo zapożyczenie w katalogu intencji profilu (pełna etykieta i skrót):
   // "mentoring" jest po polsku tym samym słowem, więc tłumaczenie byłoby błędem.
   "profileIntent.openTo.mentoring",
