@@ -207,6 +207,16 @@ function ClubHome() {
                 {t("club.about")}
               </Link>
             </Button>
+            {/* Skład klubu pokazujemy tylko wtedy, gdy baza na to pozwala -
+                `can_see_members` liczy się w club_capabilities i do tej pory
+                nie miało po stronie produktu żadnego konsumenta. */}
+            {club.can_see_members ? (
+              <Button asChild variant="outline" size="sm">
+                <Link to="/club/$clubSlug/members" params={{ clubSlug }}>
+                  {t("club.members")}
+                </Link>
+              </Button>
+            ) : null}
             {club.can_post_thread ? (
               <Button asChild size="sm">
                 <Link to="/club/$clubSlug/new" params={{ clubSlug }}>

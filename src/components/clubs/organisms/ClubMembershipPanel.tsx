@@ -6,9 +6,15 @@
 // różne źródła: `club_list` zna klub, `club_my_memberships` zna MOJĄ relację
 // z klubem - rolę, kadencję, poziom powiadomień i datę ostatniej wizyty.
 //
-// Kropka nowości bierze się z zestawienia `last_activity_at` z `last_read_at`.
-// Świadomie nie ma licznika "3 nowe": baza nie liczy nieprzeczytanych, a
-// liczba, której nie da się policzyć uczciwie, jest gorsza niż kropka.
+// Licznik nowości przychodzi z bazy (`club_my_memberships.unread_count`,
+// migracja A18) i jest utrzymywany triggerem, a nie liczony po fakcie. Ta sama
+// liczba zasila plakietkę w nawigacji przez `user_pending_counters`, więc dwa
+// miejsca w interfejsie nie mogą się rozjechać. Gdy licznika brak (członkostwo
+// sprzed migracji), zostaje kropka z porównania znaczników czasu.
+//
+// "Oznacz jako przeczytane" stoi TUTAJ, bo to jedyny ekran, na którym widać
+// wszystkie kluby naraz - a decyzja "ten nadrobię, tamten odpuszczam" jest
+// z natury porównawcza.
 //
 // Poziom powiadomień siedzi tutaj, a nie tylko na /club/$slug/about, bo to
 // jedyne miejsce, gdzie widać wszystkie kluby naraz - a wyciszenie jednego
@@ -16,8 +22,10 @@
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { BellRing, MessagesSquare, Users2 } from "lucide-react";
+import { BellRing, CheckCheck, MessagesSquare, Users2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
 import {
   Select,
   SelectContent,
@@ -37,12 +45,21 @@ export function ClubMembershipPanel({
   memberships,
   isPl,
   loading,
+  failed,
+  markingClubId,
+  onMarkRead,
 }: {
   memberships: readonly ClubMembershipRow[];
   isPl: boolean;
   loading: boolean;
+  failed?: boolean;
+  /** Klub, dla którego trwa oznaczanie - per wiersz, nie flaga listy. */
+  markingClubId?: string | null;
+  onMarkRead?: (clubId: string) => void;
 }) {
   const { t } = useTranslation();
+
+  if (failed === true) return <ClubErrorNotice compact className="mb-8" />;
 
   if (loading) {
     return (
@@ -58,6 +75,7 @@ export function ClubMembershipPanel({
 
   const rows = sortMemberships(memberships);
   const unseen = rows.filter(hasUnseenActivity).length;
+  const unreadTotal = rows.reduce((sum, row) => sum + row.unread_count, 0);
 
   return (
     <section className="mb-8" aria-labelledby="club-memberships-heading">
@@ -67,7 +85,11 @@ export function ClubMembershipPanel({
       >
         <BellRing className="h-4 w-4" />
         {t("club.hub.membershipsTitle")}
-        {unseen > 0 ? (
+        {unreadTotal > 0 ? (
+          <Badge variant="secondary" className="tabular-nums">
+            {t("club.hub.unreadTotal", { count: unreadTotal })}
+          </Badge>
+        ) : unseen > 0 ? (
           <Badge variant="secondary" className="tabular-nums">
             {t("club.hub.unseenCount", { count: unseen })}
           </Badge>
@@ -76,14 +98,30 @@ export function ClubMembershipPanel({
 
       <ul className="grid gap-2 sm:grid-cols-2">
         {rows.map((row) => (
-          <MembershipRow key={row.club_id} row={row} isPl={isPl} />
+          <MembershipRow
+            key={row.club_id}
+            row={row}
+            isPl={isPl}
+            marking={markingClubId === row.club_id}
+            onMarkRead={onMarkRead}
+          />
         ))}
       </ul>
     </section>
   );
 }
 
-function MembershipRow({ row, isPl }: { row: ClubMembershipRow; isPl: boolean }) {
+function MembershipRow({
+  row,
+  isPl,
+  marking,
+  onMarkRead,
+}: {
+  row: ClubMembershipRow;
+  isPl: boolean;
+  marking: boolean;
+  onMarkRead?: (clubId: string) => void;
+}) {
   const { t } = useTranslation();
   const notifyM = useSetClubNotifyLevel(row.club_id);
   const unseen = hasUnseenActivity(row);
@@ -107,8 +145,12 @@ function MembershipRow({ row, isPl }: { row: ClubMembershipRow; isPl: boolean })
       <div className="flex items-start justify-between gap-2">
         <Link to="/club/$clubSlug" params={{ clubSlug: row.slug }} className="group min-w-0 flex-1">
           <span className="flex items-center gap-2">
-            {/* Kropka, nie liczba - patrz nagłówek pliku. */}
-            {unseen ? (
+            {/* Liczba, gdy baza ją policzyła; kropka jako awaryjny sygnał. */}
+            {row.unread_count > 0 ? (
+              <Badge className="shrink-0 px-1.5 py-0 text-[11px] tabular-nums">
+                {row.unread_count}
+              </Badge>
+            ) : unseen ? (
               // Kolor sam w sobie nie jest nosnikiem informacji: goly <span>
               // ma role `generic`, ktorej ARIA zabrania nazywac, wiec
               // `aria-label` byl przez czytniki ignorowany. Tekst dla czytnika
@@ -136,10 +178,10 @@ function MembershipRow({ row, isPl }: { row: ClubMembershipRow; isPl: boolean })
         </Link>
       </div>
 
-      <div className="mt-2 border-t border-border/60 pt-2">
+      <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border/60 pt-2">
         <Select value={level} onValueChange={(v) => change(v as ClubNotifyLevel)}>
           <SelectTrigger
-            className="h-8 text-xs"
+            className="h-8 min-w-0 flex-1 text-xs"
             aria-label={t("club.hub.notifyLabel", {
               club: isPl ? row.name_pl : row.name_en,
             })}
@@ -155,6 +197,21 @@ function MembershipRow({ row, isPl }: { row: ClubMembershipRow; isPl: boolean })
             ))}
           </SelectContent>
         </Select>
+
+        {/* Przycisk pojawia się WYŁĄCZNIE wtedy, gdy jest co zerować -
+            "oznacz jako przeczytane" przy zerze to kontrolka bez skutku. */}
+        {row.unread_count > 0 && onMarkRead !== undefined ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 shrink-0 px-2 text-xs"
+            disabled={marking}
+            onClick={() => onMarkRead(row.club_id)}
+          >
+            <CheckCheck className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+            {t("club.hub.markRead")}
+          </Button>
+        ) : null}
       </div>
     </li>
   );

@@ -93,6 +93,20 @@ export const clubPl = {
       unseenCount_many: "{{count}} z nowościami",
       unseenCount_other: "{{count}} z nowościami",
       unseenDot: "Nowa aktywność od Twojej ostatniej wizyty",
+      unreadTotal_one: "{{count}} nieprzeczytany wpis",
+      unreadTotal_few: "{{count}} nieprzeczytane wpisy",
+      unreadTotal_many: "{{count}} nieprzeczytanych wpisów",
+      unreadTotal_other: "{{count}} nieprzeczytanych wpisów",
+      markRead: "Oznacz jako przeczytane",
+      publicCatalog: "Kluby otwarte",
+      anonLead:
+        "Kluby dyskusyjne to trwałe przestrzenie, w których członkowie prowadzą własne wątki - nie komentują cudzych. Wątek ma zamierzony wynik, a reakcje są danymi, nie ozdobą.",
+      anonOpenCount_one: "{{count}} klub jest otwarty do przejrzenia bez konta.",
+      anonOpenCount_few: "{{count}} kluby są otwarte do przejrzenia bez konta.",
+      anonOpenCount_many: "{{count}} klubów jest otwartych do przejrzenia bez konta.",
+      anonOpenCount_other: "{{count}} klubów jest otwartych do przejrzenia bez konta.",
+      anonNoPublic:
+        "Żaden klub nie jest w tej chwili otwarty publicznie. Zaloguj się, aby zobaczyć pozostałe.",
       notifyLabel: "Powiadomienia z klubu {{club}}",
       notifySaved: "Poziom powiadomień zapisany.",
       searchPlaceholder: "Szukaj we wszystkich swoich klubach...",
@@ -301,6 +315,16 @@ export const clubPl = {
     newReplies_many: "{{count}} nowych odpowiedzi",
     newReplies_other: "{{count}} nowych odpowiedzi",
     newRepliesShow: "Pokaż",
+    // Nie `members` - ten klucz jest juz zajety przez etykiete kolumny
+    // ("Czlonkowie") i galaz nadpisalaby liscia.
+    roster: {
+      title: "Członkowie klubu",
+      hidden: "Ten klub nie pokazuje swojego składu osobom spoza grona członków.",
+      empty: "Nikt jeszcze nie dołączył do tego klubu.",
+      verified: "Profil zweryfikowany",
+      joined: "Dołączył: {{date}}",
+      truncated: "Pokazano {{shown}} z {{total}} członków.",
+    },
     error: {
       title: "Nie udało się pobrać danych",
       body: "To problem po naszej stronie, nie z Twoim dostępem. Spróbuj ponownie za chwilę.",
@@ -991,6 +1015,15 @@ export const clubEn = {
       unseenCount_one: "{{count}} with news",
       unseenCount_other: "{{count}} with news",
       unseenDot: "New activity since your last visit",
+      unreadTotal_one: "{{count}} unread post",
+      unreadTotal_other: "{{count}} unread posts",
+      markRead: "Mark as read",
+      publicCatalog: "Open clubs",
+      anonLead:
+        "Discussion clubs are persistent spaces where members run their own threads rather than comment on someone else's. A thread has an intended outcome, and reactions are data, not decoration.",
+      anonOpenCount_one: "{{count}} club is open to browse without an account.",
+      anonOpenCount_other: "{{count}} clubs are open to browse without an account.",
+      anonNoPublic: "No club is publicly open right now. Sign in to see the rest.",
       notifyLabel: "Notifications from {{club}}",
       notifySaved: "Notification level saved.",
       searchPlaceholder: "Search across all your clubs...",
@@ -1183,6 +1216,14 @@ export const clubEn = {
     newReplies_one: "{{count}} new reply",
     newReplies_other: "{{count}} new replies",
     newRepliesShow: "Show",
+    roster: {
+      title: "Club members",
+      hidden: "This club does not show its roster to people outside the membership.",
+      empty: "Nobody has joined this club yet.",
+      verified: "Verified profile",
+      joined: "Joined: {{date}}",
+      truncated: "Showing {{shown}} of {{total}} members.",
+    },
     error: {
       title: "Could not load the data",
       body: "This is a problem on our side, not with your access. Please try again in a moment.",

@@ -1,40 +1,55 @@
-// /club - strona główna klubów dyskusyjnych (minisite).
+// /club - strona główna klubów dyskusyjnych.
 //
-// `noindex` dla całej powierzchni poza klubami public - ta sama doktryna,
-// co /people i /network. Klub public jest indeksowalny i staje się realnym
-// lejkiem pozyskania, ale ta STRONA jest listą, a lista miesza kluby publiczne
-// z members-only, więc indeksowanie jej wyciekałoby nazwy klubów zamkniętych.
+// PRZEMODELOWANIE (08.2026). Poprzedni układ był poprawną listą modułów, ale
+// miał trzy wady strukturalne, które audyt nazwał po imieniu:
 //
-// UKŁAD. Strona jest zbudowana z modułów w kolejności "co jest pilne" ->
-// "co jest moje" -> "co się dzieje" -> "co mogę dołączyć" -> "jak to działa":
+//   1. TWARDA BRAMKA NA ANONIMIE. Cała strona kończyła się dla wylogowanego
+//      kartą "zaloguj się". Klub `public` miał być według specyfikacji (V1 §5.1)
+//      JEDYNĄ powierzchnią modułu, która dowozi ruch z wyszukiwarek i pracuje
+//      jako lejek pozyskania - a nie dało się go zobaczyć bez konta. Bramka
+//      jest teraz MIĘKKA: anonim widzi katalog klubów publicznych i wie, co
+//      dostanie po zalogowaniu, zamiast patrzeć w ścianę.
+//   2. AWARIA WYGLĄDAŁA JAK PUSTKA. `clubsQ.data ?? []` przy padniętym RPC
+//      dawało "Nie należysz jeszcze do żadnego klubu" - komunikat fałszywy.
+//   3. LICZNIK NIEPRZECZYTANYCH NIE MIAŁ ŹRÓDŁA. Panel członkostw pokazywał
+//      kropkę liczoną z `last_activity_at`, a od A18 istnieje policzony przez
+//      bazę `club_unread` - i akcja "oznacz jako przeczytane".
+//
+// UKŁAD. Moduły w kolejności "co jest pilne" -> "co jest moje" -> "co się
+// dzieje" -> "co mogę dołączyć" -> "jak to działa". Ta kolejność się broni
+// i została:
 //
 //   1. Nagłówek ze stanem dostępu (i zaproszeniem do planu, gdy go brak).
 //   2. Zaproszenia - jedyny moduł z terminem, więc stoi najwyżej.
 //   3. Liczniki - liczone z już pobranej listy, bez drugiego zapytania.
-//   4. Nawigacja po obszarach polityki - to jest wejście "per tematyka".
-//   5. Strumień aktywności PONAD klubami.
-//   6. Moje kluby / odkryj.
-//   7. Jak to działa - trzy reguły, których nie widać z interfejsu.
+//   4. Moje kluby (panel skrótów z licznikiem nieprzeczytanych).
+//   5. Wyszukiwanie ponad klubami + nawigacja po obszarach polityki.
+//   6. Strumień aktywności PONAD klubami (albo wyniki wyszukiwania).
+//   7. Katalog: moje / odkryj.
+//   8. Jak to działa - trzy reguły, których nie widać z interfejsu.
 //
 // FILTR TEMATYCZNY dotyczy jednocześnie strumienia i siatki "odkryj", bo
 // inaczej wybór obszaru zawężałby połowę ekranu, a drugą zostawiał - i nikt
 // nie wiedziałby, którą.
 //
-// BRAMKA DOSTĘPU JEST MIĘKKA. Rozstrzyga wyłącznie, jaki panel narysować.
-// Twardą trzyma `club_capabilities` w bazie - stąd `locked` nie zabiera z listy
-// ani jednego wiersza, który RPC już zwróciło.
+// `noindex` dla tej strony zostaje, mimo punktu 1: to jest LISTA, która miesza
+// kluby publiczne z members-only, więc jej zaindeksowanie wyciekałoby nazwy
+// klubów zamkniętych. Indeksowalna jest strona KLUBU (patrz lib/clubs/clubHead),
+// i to ona jest wejściem z wyszukiwarki.
 import { useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { MessagesSquare } from "lucide-react";
+import { LogIn, MessagesSquare } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useCurrentTier } from "@/lib/billing/tiers";
 import {
   useClubActivityFeed,
   useClubList,
   useClubSearch,
+  useMarkClubRead,
   useMyClubInvitations,
   useMyClubMemberships,
   useRespondClubInvitation,
@@ -48,6 +63,7 @@ import { ClubActivityFeed } from "@/components/clubs/organisms/ClubActivityFeed"
 import { ClubDirectory } from "@/components/clubs/organisms/ClubDirectory";
 import { ClubHowItWorks } from "@/components/clubs/organisms/ClubHowItWorks";
 import { ClubMembershipPanel } from "@/components/clubs/organisms/ClubMembershipPanel";
+import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
 import {
   ClubGlobalSearchInput,
   ClubGlobalSearchResults,
@@ -58,12 +74,14 @@ import {
   useClubHubLayout,
 } from "@/components/clubs/molecules/ClubHubLayoutSwitch";
 import { ClubTopicNav } from "@/components/clubs/molecules/ClubTopicNav";
+import { buildClubHead } from "@/lib/clubs/clubHead";
 import { ensureClubI18n } from "@/lib/i18n-club";
 
 export const Route = createFileRoute("/club/")({
-  head: () => ({
-    meta: [{ title: "Kluby dyskusyjne" }, { name: "robots", content: "noindex,nofollow" }],
-  }),
+  // Tytuł jechał tu polskim literałem, także pod /en/ - a `/club` NIE jest na
+  // liście tras nielokalizowanych, więc wersja angielska realnie istnieje.
+  // `buildClubHead` bez klubu daje zlokalizowany tytuł modułu i `noindex`.
+  head: () => buildClubHead({ fallbackPath: "/club", club: null, forceNoindex: true }),
   component: ClubHub,
 });
 
@@ -72,6 +90,7 @@ function ClubHub() {
   const { t, i18n } = useTranslation();
   const isPl = (i18n.language ?? "pl").startsWith("pl");
   const { session, isStaff } = useAuth();
+  const signedIn = Boolean(session);
 
   const [topic, setTopic] = useState<string | null>(null);
   const [sort, setSort] = useState<ClubActivitySort>("new");
@@ -80,11 +99,15 @@ function ClubHub() {
   // w bazie - w odróżnieniu od `clubs.layout`, którym rządzi administrator.
   const [hubLayout, setHubLayout] = useClubHubLayout();
 
+  // `club_list` jest nadane roli `anon` i samo odsiewa wiersze: dla wołającego
+  // bez sesji zwraca WYŁĄCZNIE kluby `public` o statusie `active`. Wołamy je
+  // więc także dla anonima - bramka jest w bazie, nie w tym pliku.
   const clubsQ = useClubList();
-  const membershipsQ = useMyClubMemberships(Boolean(session));
-  const invitationsQ = useMyClubInvitations(Boolean(session));
+  const membershipsQ = useMyClubMemberships(signedIn);
+  const invitationsQ = useMyClubInvitations(signedIn);
   const tierQ = useCurrentTier();
   const respondM = useRespondClubInvitation();
+  const markReadM = useMarkClubRead();
 
   const clubs = useMemo(() => clubsQ.data?.rows ?? [], [clubsQ.data]);
   const invitations = invitationsQ.data ?? [];
@@ -98,17 +121,17 @@ function ClubHub() {
     // `null` = szukaj po WSZYSTKICH klubach. RPC umiał to od A6, tylko nikt
     // go tak nie wołał: strona klubu zawsze podawała swoje id.
     clubId: null,
-    enabled: searching && Boolean(session),
+    enabled: searching && signedIn,
   });
 
-  // Strumień pyta o treść klubów, więc nie ma po co wołać go dla wylogowanego -
-  // ekran dla anonima kończy się na zachęcie do logowania. Podczas szukania
-  // też nie: jego wynik i tak nie trafiłby na ekran.
+  // Strumień pyta o treść klubów, więc dla wylogowanego nie ma czego pokazać -
+  // `club_activity_feed` jest nadane wyłącznie roli `authenticated`. Podczas
+  // szukania też nie: jego wynik i tak nie trafiłby na ekran.
   const activityQ = useClubActivityFeed({
     sort,
     policyArea: topic,
     limit: 12,
-    enabled: Boolean(session) && !searching,
+    enabled: signedIn && !searching,
   });
 
   const access = resolveClubHubAccess({
@@ -133,30 +156,32 @@ function ClubHub() {
       },
     );
 
-  if (!session) {
+  // Awaria listy klubów to jedyny stan, w którym strona nie ma z czego zbudować
+  // ŻADNEGO modułu - reszta (strumień, wyszukiwarka) zgłasza się sama.
+  if (clubsQ.isError) {
     return (
       <div className="container mx-auto max-w-3xl px-4 py-12">
-        <Card>
-          <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
-            <MessagesSquare className="h-8 w-8 text-muted-foreground" />
-            <h1 className="text-xl font-semibold">{t("club.membersOnlyTitle")}</h1>
-            <p className="max-w-md text-sm text-muted-foreground">{t("club.membersOnlyBody")}</p>
-          </CardContent>
-        </Card>
+        <ClubErrorNotice onRetry={() => void clubsQ.refetch()} />
       </div>
     );
   }
 
   return (
     <div className="container mx-auto max-w-5xl px-4 py-8">
-      <ClubHubHero access={access} />
+      {signedIn ? (
+        <>
+          <ClubHubHero access={access} />
 
-      <ClubInvitationInbox
-        invitations={invitations}
-        isPl={isPl}
-        pendingId={respondM.isPending ? (respondM.variables?.invitationId ?? null) : null}
-        onRespond={respond}
-      />
+          <ClubInvitationInbox
+            invitations={invitations}
+            isPl={isPl}
+            pendingId={respondM.isPending ? (respondM.variables?.invitationId ?? null) : null}
+            onRespond={respond}
+          />
+        </>
+      ) : (
+        <AnonymousIntro publicClubCount={clubs.length} />
+      )}
 
       {clubs.length > 0 ? (
         <div className="mb-6">
@@ -164,14 +189,27 @@ function ClubHub() {
         </div>
       ) : null}
 
-      <ClubMembershipPanel
-        memberships={membershipsQ.data ?? []}
-        isPl={isPl}
-        loading={membershipsQ.isPending}
-      />
+      {signedIn ? (
+        <ClubMembershipPanel
+          memberships={membershipsQ.data ?? []}
+          isPl={isPl}
+          loading={membershipsQ.isPending}
+          failed={membershipsQ.isError}
+          markingClubId={markReadM.isPending ? (markReadM.variables ?? null) : null}
+          onMarkRead={(clubId) =>
+            markReadM.mutate(clubId, {
+              onError: () => toast.error(t("adminClubs.saveFailed")),
+            })
+          }
+        />
+      ) : null}
 
       <div className="mb-8 space-y-5">
-        <ClubGlobalSearchInput value={query} onChange={setQuery} />
+        {/* Wyszukiwarka wymaga sesji: `club_search` liczy widoczność per wiersz
+            przez club_capabilities, a dla anonima ten filtr przepuszcza tylko
+            kluby publiczne - czyli dokładnie to, co i tak widać w katalogu
+            niżej. Pole, które nie ma czego dodać, jest gorsze niż jego brak. */}
+        {signedIn ? <ClubGlobalSearchInput value={query} onChange={setQuery} /> : null}
 
         {/* Filtr tematyczny znika w trybie wyszukiwania: chipsy, które nie mają
             na co działać (RPC wyszukiwania nie przyjmuje obszaru), są gorsze
@@ -180,12 +218,14 @@ function ClubHub() {
           <ClubTopicNav clubs={clubs} value={topic} onChange={setTopic} isPl={isPl} />
         )}
 
-        {searching ? (
+        {!signedIn ? null : searching ? (
           <ClubGlobalSearchResults
             hits={searchQ.data ?? []}
             pending={searchQ.isPending}
+            failed={searchQ.isError}
             query={debouncedQuery}
             isPl={isPl}
+            onRetry={() => void searchQ.refetch()}
           />
         ) : (
           <ClubActivityFeed
@@ -193,31 +233,74 @@ function ClubHub() {
             sort={sort}
             onSortChange={setSort}
             pending={activityQ.isPending}
+            failed={activityQ.isError}
             isPl={isPl}
+            onRetry={() => void activityQ.refetch()}
           />
         )}
       </div>
 
-      <ClubDirectory
-        title={t("club.myClubs")}
-        empty={t("club.empty")}
-        clubs={mine}
-        isPl={isPl}
-        loading={clubsQ.isPending}
-        layout={hubLayout}
-        action={<ClubHubLayoutSwitch value={hubLayout} onChange={setHubLayout} />}
-      />
+      {signedIn ? (
+        <ClubDirectory
+          title={t("club.myClubs")}
+          empty={t("club.empty")}
+          clubs={mine}
+          isPl={isPl}
+          loading={clubsQ.isPending}
+          layout={hubLayout}
+          action={<ClubHubLayoutSwitch value={hubLayout} onChange={setHubLayout} />}
+        />
+      ) : null}
 
       <ClubDirectory
-        title={t("club.discover")}
+        title={signedIn ? t("club.discover") : t("club.hub.publicCatalog")}
         empty={topic === null ? t("club.emptyDiscover") : t("club.hub.emptyTopic")}
         clubs={discover}
         isPl={isPl}
         loading={clubsQ.isPending}
         layout={hubLayout}
+        action={
+          signedIn ? undefined : <ClubHubLayoutSwitch value={hubLayout} onChange={setHubLayout} />
+        }
       />
 
       <ClubHowItWorks />
     </div>
+  );
+}
+
+/**
+ * Wejście dla wylogowanego. NIE jest ścianą: mówi, co ta powierzchnia robi,
+ * ile klubów publicznych da się przejrzeć bez konta i co dokładnie odblokowuje
+ * zalogowanie. Poprzednia wersja kończyła stronę na "zaloguj się", więc klub
+ * publiczny - jedyna powierzchnia modułu pomyślana jako lejek pozyskania - nie
+ * miał żadnej drogi wejścia dla kogoś, kto trafił tu z wyszukiwarki.
+ */
+function AnonymousIntro({ publicClubCount }: { publicClubCount: number }) {
+  const { t } = useTranslation();
+
+  return (
+    <Card className="mb-6 overflow-hidden border-primary/30">
+      <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 space-y-1.5">
+          <h1 className="flex items-center gap-2 text-xl font-semibold">
+            <MessagesSquare className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+            {t("club.title")}
+          </h1>
+          <p className="max-w-xl text-sm text-muted-foreground">{t("club.hub.anonLead")}</p>
+          <p className="text-sm text-muted-foreground">
+            {publicClubCount > 0
+              ? t("club.hub.anonOpenCount", { count: publicClubCount })
+              : t("club.hub.anonNoPublic")}
+          </p>
+        </div>
+        <Button asChild className="shrink-0">
+          <Link to="/membership-registration">
+            <LogIn className="mr-1.5 h-4 w-4" aria-hidden="true" />
+            {t("club.signIn")}
+          </Link>
+        </Button>
+      </CardContent>
+    </Card>
   );
 }

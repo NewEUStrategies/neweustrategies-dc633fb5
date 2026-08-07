@@ -14623,6 +14623,7 @@ export type Database = {
           slug: string
           status: string
           thread_count: number
+          unread_count: number
         }[]
       }
       club_my_subscription: { Args: { p_thread_id: string }; Returns: string }

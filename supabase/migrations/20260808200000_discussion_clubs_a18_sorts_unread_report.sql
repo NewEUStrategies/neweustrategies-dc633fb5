@@ -381,6 +381,49 @@ CREATE TRIGGER club_replies_unread_tg
   AFTER INSERT ON public.club_replies
   FOR EACH ROW EXECUTE FUNCTION public.tg_club_replies_unread();
 
+-- Licznik musi dojsc do interfejsu, inaczej jest tylko kolumna. `club_my_memberships`
+-- to jedyne miejsce, ktore i tak zna MOJA relacje z klubem, wiec dokladamy go
+-- tam zamiast wystawiac osobne RPC dla jednej liczby. Zmiana typu zwracanego,
+-- wiec DROP + CREATE w tym samym pliku.
+DROP FUNCTION IF EXISTS public.club_my_memberships();
+
+CREATE FUNCTION public.club_my_memberships()
+RETURNS TABLE (
+  club_id uuid, slug text, name_pl text, name_en text, icon text,
+  accent_color text, role text, status text, notify_level text,
+  role_expires_at timestamptz, last_read_at timestamptz,
+  member_count integer, thread_count integer, last_activity_at timestamptz,
+  unread_count integer
+)
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT
+    c.id, c.slug, c.name_pl, c.name_en, c.icon, c.accent_color,
+    public.club_effective_member_role(m.role, m.role_expires_at),
+    m.status, m.notify_level, m.role_expires_at, m.last_read_at,
+    c.member_count, c.thread_count, c.last_activity_at,
+    -- Wyciszony klub nie zapala plakietki (patrz club_bump_unread), wiec i tu
+    -- pokazujemy zero: dwie liczby mowiace co innego o tym samym klubie to
+    -- gwarantowany rozjazd.
+    CASE WHEN m.notify_level = 'none' THEN 0 ELSE m.unread_count END
+  FROM public.club_members m
+  JOIN public.clubs c ON c.id = m.club_id
+  JOIN public.profiles p ON p.id = m.user_id
+  WHERE m.user_id = auth.uid()
+    AND auth.uid() IS NOT NULL
+    AND m.status IN ('active', 'pending', 'invited')
+    AND c.status <> 'archived'
+    AND c.tenant_id = p.tenant_id
+  ORDER BY (m.status = 'active') DESC, c.last_activity_at DESC NULLS LAST
+$$;
+
+COMMENT ON FUNCTION public.club_my_memberships() IS
+  'Kluby wolajacego (aktywne, oczekujace, zaproszenia) - jedno zapytanie dla nawigacji, razem z liczba nieprzeczytanych wpisow w kazdym z nich.';
+
+REVOKE EXECUTE ON FUNCTION public.club_my_memberships() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.club_my_memberships() TO authenticated, service_role;
+
 -- Oznaczenie klubu jako przeczytanego. Odejmuje DOKLADNIE tyle, ile ten klub
 -- dolozyl - stad licznik per czlonkostwo, a nie sam skalar globalny.
 CREATE OR REPLACE FUNCTION public.club_mark_read(p_club_id uuid)
