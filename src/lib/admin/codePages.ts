@@ -30,11 +30,24 @@ export interface CodePageDef {
 
 export const CODE_PAGES: readonly CodePageDef[] = [
   {
+    // Hub klubów dyskusyjnych. Trasa to `club.index.tsx` (rodzeństwo tras
+    // `club.$clubSlug.*`), więc plik nie nazywa się `club.tsx` - dlatego test
+    // parzystości akceptuje oba warianty pliku.
+    slug: "club",
+    path: "/club",
+    label_pl: "Kluby dyskusyjne (hub: moje kluby, katalog, aktywność)",
+    label_en: "Discussion clubs (hub: my clubs, directory, activity)",
+    manage_path: "/admin/community/clubs",
+    manage_label_pl: "Zarządzaj klubami: Kluby dyskusyjne",
+    manage_label_en: "Manage clubs: Discussion clubs",
+  },
+  {
     slug: "pricing",
     path: "/pricing",
     label_pl: "Cennik (plany, segmenty, porównanie)",
     label_en: "Pricing (plans, segments, comparison)",
   },
+
   {
     slug: "membership-registration",
     path: "/membership-registration",
