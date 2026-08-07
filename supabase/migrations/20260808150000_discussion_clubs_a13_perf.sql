@@ -239,6 +239,9 @@ GRANT EXECUTE ON FUNCTION public.club_threads_refresh_hotness(integer) TO servic
 -- 4) Kolejka moderacji: strona zamiast calosci, podglad zamiast pelnej tresci
 -- ----------------------------------------------------------------------------
 DROP FUNCTION IF EXISTS public.admin_club_moderation_queue(uuid);
+-- Wariant stronicowany istnieje juz od 20260807172345 - zdejmujemy OBIE
+-- sygnatury, inaczej CREATE FUNCTION trafia w istniejaca i wywala replay.
+DROP FUNCTION IF EXISTS public.admin_club_moderation_queue(uuid, integer, integer);
 
 CREATE FUNCTION public.admin_club_moderation_queue(
   p_club_id uuid,
