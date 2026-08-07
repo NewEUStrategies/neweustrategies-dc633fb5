@@ -8,7 +8,9 @@
     "adminThemeDesign",
     "adminPermissions",
     "network",
-    "directMessage"
+    "directMessage",
+    "club",
+    "adminClubs"
   ],
   "missing": [],
   "missingEn": [],

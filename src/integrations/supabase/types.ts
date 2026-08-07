@@ -7088,6 +7088,7 @@ export type Database = {
           enabled_expert_request: boolean
           enabled_follow: boolean
           enabled_introduction: boolean
+          enabled_meeting: boolean
           enabled_meeting_booking: boolean
           enabled_message: boolean
           enabled_profile_view: boolean
@@ -7123,6 +7124,7 @@ export type Database = {
           enabled_expert_request?: boolean
           enabled_follow?: boolean
           enabled_introduction?: boolean
+          enabled_meeting?: boolean
           enabled_meeting_booking?: boolean
           enabled_message?: boolean
           enabled_profile_view?: boolean
@@ -7158,6 +7160,7 @@ export type Database = {
           enabled_expert_request?: boolean
           enabled_follow?: boolean
           enabled_introduction?: boolean
+          enabled_meeting?: boolean
           enabled_meeting_booking?: boolean
           enabled_message?: boolean
           enabled_profile_view?: boolean
@@ -9936,6 +9939,35 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "profile_skills_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profile_view_alert_state: {
+        Row: {
+          last_alert_at: string
+          last_alerted_view_at: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          last_alert_at?: string
+          last_alerted_view_at: string
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          last_alert_at?: string
+          last_alerted_view_at?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_view_alert_state_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -14432,6 +14464,10 @@ export type Database = {
       club_invite_quota_ok: { Args: { _user_id: string }; Returns: boolean }
       club_join: { Args: { p_club_id: string }; Returns: string }
       club_leave: { Args: { p_club_id: string }; Returns: boolean }
+      club_linked_item_label: {
+        Args: { p_id: string; p_type: string }
+        Returns: string
+      }
       club_list: {
         Args: { p_limit?: number; p_offset?: number }
         Returns: {
@@ -14697,6 +14733,18 @@ export type Database = {
       club_thread_quality_score: {
         Args: { _thread_id: string }
         Returns: number
+      }
+      club_thread_seam_context: {
+        Args: { p_thread_id: string }
+        Returns: {
+          club_id: string
+          club_slug: string
+          emit: boolean
+          group_id: string
+          hide_actor: boolean
+          tenant_id: string
+          thread_slug: string
+        }[]
       }
       club_thread_view: {
         Args: { p_club_id: string; p_slug: string }
@@ -15197,6 +15245,7 @@ export type Database = {
           p_aggregate_type: string
           p_event_type: string
           p_payload?: Json
+          p_suppress_actor?: boolean
           p_tenant_id: string
         }
         Returns: string
@@ -16298,6 +16347,11 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: string
       }
+      nes_profile_href: { Args: { _user_id: string }; Returns: string }
+      nes_profile_label: {
+        Args: { _fallback?: string; _user_id: string }
+        Returns: string
+      }
       nes_profile_open_to_catalog: { Args: never; Returns: string[] }
       nes_search_positive_rest: { Args: { _q: string }; Returns: string }
       nes_search_tsquery: { Args: { _q: string }; Returns: unknown }
@@ -16484,9 +16538,11 @@ export type Database = {
       process_mentions: {
         Args: {
           p_actor_id: string
+          p_actor_label?: string
           p_body: string
           p_href: string
           p_kind: string
+          p_record_actor?: boolean
           p_source_id: string
           p_source_type: string
           p_tenant_id: string
@@ -16743,6 +16799,10 @@ export type Database = {
       }
       run_crm_task_reminders: { Args: never; Returns: number }
       run_event_reminders: { Args: never; Returns: number }
+      run_profile_view_alerts: {
+        Args: { p_max_profiles?: number }
+        Returns: number
+      }
       run_saved_search_alerts: {
         Args: { p_max_searches?: number }
         Returns: number
