@@ -53,6 +53,10 @@ import {
   ClubGlobalSearchResults,
 } from "@/components/clubs/organisms/ClubGlobalSearch";
 import { ClubStatStrip } from "@/components/clubs/molecules/ClubStatStrip";
+import {
+  ClubHubLayoutSwitch,
+  useClubHubLayout,
+} from "@/components/clubs/molecules/ClubHubLayoutSwitch";
 import { ClubTopicNav } from "@/components/clubs/molecules/ClubTopicNav";
 import { ensureClubI18n } from "@/lib/i18n-club";
 
@@ -72,6 +76,9 @@ function ClubHub() {
   const [topic, setTopic] = useState<string | null>(null);
   const [sort, setSort] = useState<ClubActivitySort>("new");
   const [query, setQuery] = useState("");
+  // Układ katalogu jest decyzją CZYTELNIKA, więc mieszka w localStorage, a nie
+  // w bazie - w odróżnieniu od `clubs.layout`, którym rządzi administrator.
+  const [hubLayout, setHubLayout] = useClubHubLayout();
 
   const clubsQ = useClubList();
   const membershipsQ = useMyClubMemberships(Boolean(session));
@@ -197,6 +204,8 @@ function ClubHub() {
         clubs={mine}
         isPl={isPl}
         loading={clubsQ.isPending}
+        layout={hubLayout}
+        action={<ClubHubLayoutSwitch value={hubLayout} onChange={setHubLayout} />}
       />
 
       <ClubDirectory
@@ -205,6 +214,7 @@ function ClubHub() {
         clubs={discover}
         isPl={isPl}
         loading={clubsQ.isPending}
+        layout={hubLayout}
       />
 
       <ClubHowItWorks />

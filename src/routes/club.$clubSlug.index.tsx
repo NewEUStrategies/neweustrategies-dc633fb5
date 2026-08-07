@@ -153,6 +153,11 @@ function ClubHome() {
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
             <Button asChild variant="outline" size="sm">
+              <Link to="/club/$clubSlug/minisite" params={{ clubSlug }}>
+                {t("club.minisite.eyebrow")}
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
               <Link to="/club/$clubSlug/about" params={{ clubSlug }}>
                 {t("club.about")}
               </Link>
