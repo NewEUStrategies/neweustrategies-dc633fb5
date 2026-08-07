@@ -2350,98 +2350,101 @@ export type Database = {
       };
       clubs: {
         Row: {
-          accent_color: string | null;
-          attribution_mode: string;
-          cover_image_url: string | null;
-          created_at: string;
-          created_by: string | null;
-          description_en: string | null;
-          description_pl: string | null;
-          group_count: number;
-          icon: string;
-          id: string;
-          join_policy: string;
-          last_activity_at: string | null;
-          member_count: number;
-          min_tier_rank: number;
-          moderation_mode: string;
-          name_en: string;
-          name_pl: string;
-          policy_area: string | null;
-          rules_en: string | null;
-          rules_pl: string | null;
-          slug: string;
-          status: string;
-          tagline_en: string | null;
-          tagline_pl: string | null;
-          tenant_id: string;
-          thread_count: number;
-          updated_at: string;
-          visibility: string;
-          who_can_post: string;
-        };
+          accent_color: string | null
+          attribution_mode: string
+          cover_image_url: string | null
+          created_at: string
+          created_by: string | null
+          description_en: string | null
+          description_pl: string | null
+          group_count: number
+          icon: string
+          id: string
+          join_policy: string
+          last_activity_at: string | null
+          layout: string
+          member_count: number
+          min_tier_rank: number
+          moderation_mode: string
+          name_en: string
+          name_pl: string
+          policy_area: string | null
+          rules_en: string | null
+          rules_pl: string | null
+          slug: string
+          status: string
+          tagline_en: string | null
+          tagline_pl: string | null
+          tenant_id: string
+          thread_count: number
+          updated_at: string
+          visibility: string
+          who_can_post: string
+        }
         Insert: {
-          accent_color?: string | null;
-          attribution_mode?: string;
-          cover_image_url?: string | null;
-          created_at?: string;
-          created_by?: string | null;
-          description_en?: string | null;
-          description_pl?: string | null;
-          group_count?: number;
-          icon?: string;
-          id?: string;
-          join_policy?: string;
-          last_activity_at?: string | null;
-          member_count?: number;
-          min_tier_rank?: number;
-          moderation_mode?: string;
-          name_en: string;
-          name_pl: string;
-          policy_area?: string | null;
-          rules_en?: string | null;
-          rules_pl?: string | null;
-          slug: string;
-          status?: string;
-          tagline_en?: string | null;
-          tagline_pl?: string | null;
-          tenant_id: string;
-          thread_count?: number;
-          updated_at?: string;
-          visibility?: string;
-          who_can_post?: string;
-        };
+          accent_color?: string | null
+          attribution_mode?: string
+          cover_image_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          description_en?: string | null
+          description_pl?: string | null
+          group_count?: number
+          icon?: string
+          id?: string
+          join_policy?: string
+          last_activity_at?: string | null
+          layout?: string
+          member_count?: number
+          min_tier_rank?: number
+          moderation_mode?: string
+          name_en: string
+          name_pl: string
+          policy_area?: string | null
+          rules_en?: string | null
+          rules_pl?: string | null
+          slug: string
+          status?: string
+          tagline_en?: string | null
+          tagline_pl?: string | null
+          tenant_id: string
+          thread_count?: number
+          updated_at?: string
+          visibility?: string
+          who_can_post?: string
+        }
         Update: {
-          accent_color?: string | null;
-          attribution_mode?: string;
-          cover_image_url?: string | null;
-          created_at?: string;
-          created_by?: string | null;
-          description_en?: string | null;
-          description_pl?: string | null;
-          group_count?: number;
-          icon?: string;
-          id?: string;
-          join_policy?: string;
-          last_activity_at?: string | null;
-          member_count?: number;
-          min_tier_rank?: number;
-          moderation_mode?: string;
-          name_en?: string;
-          name_pl?: string;
-          policy_area?: string | null;
-          rules_en?: string | null;
-          rules_pl?: string | null;
-          slug?: string;
-          status?: string;
-          tagline_en?: string | null;
-          tagline_pl?: string | null;
-          tenant_id?: string;
-          thread_count?: number;
-          updated_at?: string;
-          visibility?: string;
-          who_can_post?: string;
-        };
+          accent_color?: string | null
+          attribution_mode?: string
+          cover_image_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          description_en?: string | null
+          description_pl?: string | null
+          group_count?: number
+          icon?: string
+          id?: string
+          join_policy?: string
+          last_activity_at?: string | null
+          layout?: string
+          member_count?: number
+          min_tier_rank?: number
+          moderation_mode?: string
+          name_en?: string
+          name_pl?: string
+          policy_area?: string | null
+          rules_en?: string | null
+          rules_pl?: string | null
+          slug?: string
+          status?: string
+          tagline_en?: string | null
+          tagline_pl?: string | null
+          tenant_id?: string
+          thread_count?: number
+          updated_at?: string
+          visibility?: string
+          who_can_post?: string
+        }
         Relationships: [
           {
             foreignKeyName: "clubs_tenant_id_fkey";
@@ -14834,35 +14837,35 @@ export type Database = {
           p_sort?: string;
         };
         Returns: {
-          anchor_id: string;
-          anchor_type: string;
-          author_alias: string;
-          author_avatar: string;
-          author_id: string;
-          author_name: string;
-          author_slug: string;
-          created_at: string;
-          cursor_value: string;
-          excerpt: string;
-          group_id: string;
-          group_name_en: string;
-          group_name_pl: string;
-          hotness: number;
-          id: string;
-          is_anonymous: boolean;
-          kind: string;
-          last_reply_at: string;
-          participant_count: number;
-          pinned_at: string;
-          posted_by_admin_name: string;
-          reaction_count: number;
-          reply_count: number;
-          slug: string;
-          status: string;
-          title: string;
-        }[];
-      };
-      club_threads_mark_dormant: { Args: { p_limit?: number }; Returns: number };
+          anchor_id: string
+          anchor_type: string
+          author_alias: string
+          author_avatar: string
+          author_id: string
+          author_name: string
+          author_slug: string
+          created_at: string
+          cursor_value: string
+          excerpt: string
+          group_id: string
+          group_name_en: string
+          group_name_pl: string
+          hotness: number
+          id: string
+          is_anonymous: boolean
+          kind: string
+          last_reply_at: string
+          participant_count: number
+          pinned_at: string
+          posted_by_admin_name: string
+          reaction_count: number
+          reply_count: number
+          slug: string
+          status: string
+          title: string
+        }[]
+      }
+      club_threads_mark_dormant: { Args: { p_limit?: number }; Returns: number }
       club_threads_needing_embeddings: {
         Args: { p_limit?: number };
         Returns: {
