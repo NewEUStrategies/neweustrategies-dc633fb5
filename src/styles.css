@@ -6585,13 +6585,22 @@ header[data-site-header][data-metrics="ready"]
    szerokich monitorach 2K/4K. Poniżej 1024px (tablet/mobile) pozostaje
    domyślne 16px, aby nie zaburzać czytelności na małych ekranach.
 
-   Krzywa: 15px @ 1280px  →  16px @ 1493px  →  18px @ 1920px
-   (slope 3px na 640px viewport = 0.46875vw, offset 9px).
+   Krzywa (przy domyślnych 16px w przeglądarce): 15px @ 1280px → 16px @ 1493px
+   → 18px @ 1920px (slope 3px na 640px viewport = 0.46875vw, offset 9px).
    Powyżej 1920px stabilizuje się na 18px, żeby na 4K nie skalować
-   proporcjonalnie do rozmiarów fizycznych ekranu. */
+   proporcjonalnie do rozmiarów fizycznych ekranu.
+
+   DLACZEGO rem, A NIE px: `rem` użyty NA :root liczy się od domyślnego rozmiaru
+   czcionki przeglądarki, nie od naszego. Poprzednia wersja (sztywne px)
+   ignorowała ustawienie „rozmiar czcionki” w Chrome/Firefox/Edge/Safari na
+   każdym desktopie ≥1024px, więc osoba niedowidząca, która podniosła bazę do
+   20px, dostawała nadal 15-18px - naruszenie WCAG 1.4.4. Te same liczby zapisane
+   względnie (15/16 = 0.9375rem, 9/16 = 0.5625rem, 18/16 = 1.125rem) dają
+   identyczny render przy domyślnych 16px, a skalują się razem z preferencją
+   użytkownika. Ikony (`size-4` = rem) i odstępy jadą za bazą automatycznie. */
 @media (min-width: 1024px) {
   :root {
-    font-size: clamp(15px, calc(9px + 0.46875vw), 18px);
+    font-size: clamp(0.9375rem, calc(0.5625rem + 0.46875vw), 1.125rem);
   }
 }
 
