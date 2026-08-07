@@ -534,6 +534,33 @@ export function NewsletterForm({
                 />
               )}
 
+              {requireConsent && (
+                <div>
+                  <label className="widget-align-row nl-fineprint flex cursor-pointer items-center gap-2">
+                    <Checkbox
+                      checked={consent}
+                      onCheckedChange={(v) => setConsent(v === true)}
+                      aria-required
+                      className="h-[16px] w-[16px] shrink-0"
+                    />
+                    <span
+                      className="min-w-0"
+                      dangerouslySetInnerHTML={{
+                        __html: sanitizeHtml(policy || t("newsletterForm.consentDefault")),
+                      }}
+                      onClick={(e) => {
+                        if ((e.target as HTMLElement).closest("a")) e.stopPropagation();
+                      }}
+                    />
+                  </label>
+                  {errors.consent && (
+                    <span className="mt-1 block text-[11px] text-destructive">
+                      {errors.consent}
+                    </span>
+                  )}
+                </div>
+              )}
+
               <SubscribeButton
                 type="submit"
                 loading={state === "loading"}
@@ -542,6 +569,7 @@ export function NewsletterForm({
               >
                 {t("newsletterForm.subscribe")}
               </SubscribeButton>
+
             </>
           ) : (
             <>
