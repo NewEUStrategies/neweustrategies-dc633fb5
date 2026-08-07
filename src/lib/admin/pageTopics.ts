@@ -17,6 +17,8 @@ export type PageTopicKey =
   | "events"
   | "conferences"
   | "chatham"
+  | "clubs"
+
   | "debates"
   | "interviews"
   | "podcasts"
@@ -86,6 +88,15 @@ export const TOPICS: readonly PageTopicDef[] = [
     label_en: "Chatham House meetings",
     slugPatterns: ["chatham-%", "%chatham-house%", "spotkania-chatham%", "spotkanie-chatham%"],
   },
+  {
+    // Kluby dyskusyjne: hub /club plus podstrony klubów. Osobny temat, bo to
+    // moduł zamknięty (pro+ i zaproszeni), a nie publiczne wydarzenie.
+    key: "clubs",
+    label_pl: "Kluby dyskusyjne",
+    label_en: "Discussion clubs",
+    slugPatterns: ["club", "club-%", "kluby%", "klub-%"],
+  },
+
   {
     key: "debates",
     label_pl: "Debaty",
