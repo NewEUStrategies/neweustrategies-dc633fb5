@@ -6485,6 +6485,12 @@ header[data-site-header][data-metrics="ready"].site-header-shrink {
     (var(--hdr-nat) + var(--hdr-extra) - var(--hdr-visible-h)) * var(--hdr-gap-keep)
   );
 }
+
+/* Na stronie głównej odzyskujemy więcej przestrzeni pod zwiniętym headerem,
+   żeby treść pod logo podjechała wyżej. */
+header[data-is-home="true"][data-metrics="ready"].site-header-shrink {
+  --hdr-gap-keep: 0.04;
+}
 /* Chrome zachowuje STAŁĄ szerokość układu (100%) i tylko się skaluje.
    Wcześniejsza kompensacja `width: 100% / var(--hdr-scale)` animowała szerokość
    razem ze skalą, więc w trakcie zwijania nawigacja przelewała się do drugiego
@@ -6547,6 +6553,18 @@ header[data-site-header][data-metrics="ready"]
   > div:nth-of-type(2) {
   transform: scale(calc(1 + 0.12 * var(--hdr-p)));
   transform-origin: top center;
+}
+
+/* Dodatkowe, niezależne zmniejszenie logotypu na stronie głównej podczas
+   zwijania headera. Dzięki osobnej transformacji logo „zostaje” w układzie
+   mniejsze niż reszta chrome'u, a treść poniżej podciąga się przez niższy
+   --hdr-gap-keep dla [data-is-home]. */
+header[data-is-home="true"][data-site-header][data-metrics="ready"]
+  .home-header-grow
+  img[data-is-logo="true"] {
+  transform: scale(calc(1 - 0.38 * var(--hdr-p)));
+  transform-origin: center center;
+  transition: transform var(--hdr-duration) var(--hdr-ease);
 }
 
 @media (prefers-reduced-motion: reduce) {
