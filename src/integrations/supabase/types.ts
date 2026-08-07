@@ -6097,9 +6097,14 @@ export type Database = {
           enabled_connection: boolean
           enabled_content: boolean
           enabled_crm_task: boolean
+          enabled_endorsement: boolean
           enabled_expert_request: boolean
           enabled_follow: boolean
+          enabled_introduction: boolean
+          enabled_meeting_booking: boolean
           enabled_message: boolean
+          enabled_profile_view: boolean
+          enabled_recommendation: boolean
           enabled_saved_search: boolean
           enabled_security: boolean
           enabled_subscription: boolean
@@ -6126,9 +6131,14 @@ export type Database = {
           enabled_connection?: boolean
           enabled_content?: boolean
           enabled_crm_task?: boolean
+          enabled_endorsement?: boolean
           enabled_expert_request?: boolean
           enabled_follow?: boolean
+          enabled_introduction?: boolean
+          enabled_meeting_booking?: boolean
           enabled_message?: boolean
+          enabled_profile_view?: boolean
+          enabled_recommendation?: boolean
           enabled_saved_search?: boolean
           enabled_security?: boolean
           enabled_subscription?: boolean
@@ -6155,9 +6165,14 @@ export type Database = {
           enabled_connection?: boolean
           enabled_content?: boolean
           enabled_crm_task?: boolean
+          enabled_endorsement?: boolean
           enabled_expert_request?: boolean
           enabled_follow?: boolean
+          enabled_introduction?: boolean
+          enabled_meeting_booking?: boolean
           enabled_message?: boolean
+          enabled_profile_view?: boolean
+          enabled_recommendation?: boolean
           enabled_saved_search?: boolean
           enabled_security?: boolean
           enabled_subscription?: boolean
@@ -12919,13 +12934,8 @@ export type Database = {
       connection_statuses: {
         Args: { p_user_ids: string[] }
         Returns: {
-          bridge_avatar: string
-          bridge_id: string
-          bridge_name: string
-          bridge_slug: string
           can_invite: boolean
           connection_id: string
-          degree: number
           mutual_count: number
           status: string
           user_id: string
@@ -12935,12 +12945,7 @@ export type Database = {
         Args: { p_limit?: number }
         Returns: {
           avatar_url: string
-          bridge_avatar: string
-          bridge_id: string
-          bridge_name: string
-          bridge_slug: string
           current_company: string
-          degree: number
           display_name: string
           job_title: string
           location: string
@@ -14323,6 +14328,8 @@ export type Database = {
         }[]
       }
       normalize_public_host: { Args: { p_raw: string }; Returns: string }
+      notification_actor_name: { Args: { p_user_id: string }; Returns: string }
+      notification_profile_ref: { Args: { p_user_id: string }; Returns: string }
       org_add_seat: {
         Args: { p_email: string; p_org: string; p_role?: string }
         Returns: string
