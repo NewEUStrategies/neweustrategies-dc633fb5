@@ -29,6 +29,8 @@ import {
   useSetDiscoverable,
   useExpertRequestsEnabled,
   useSetExpertRequestsEnabled,
+  useHideAvatar,
+  useSetHideAvatar,
 } from "@/lib/chat/useDiscoverable";
 import { usePublicExposure } from "@/lib/profile/usePublicExposure";
 import {
@@ -100,6 +102,9 @@ export function VisibilityAndContactSection() {
   const expertRequestsQ = useExpertRequestsEnabled();
   const setExpertRequests = useSetExpertRequestsEnabled();
   const expertRequestsOn = expertRequestsQ.data ?? true;
+  const hideAvatarQ = useHideAvatar();
+  const setHideAvatar = useSetHideAvatar();
+  const hideAvatarOn = hideAvatarQ.data ?? false;
   const prefsQ = useNotificationPreferences();
   const updatePrefs = useUpdateNotificationPreferences();
   // Ekspozycja poza platformą jest NIEZALEŻNA od `discoverable` (ten steruje
@@ -165,6 +170,25 @@ export function VisibilityAndContactSection() {
           loading={exposureQ.isLoading}
         />
       </SettingRow>
+
+      {/* Zdjęcie profilowe w wyszukiwarce i katalogu osób (profiles.hide_avatar). */}
+      <SettingRow
+        label={t("profilePrivacy.hideAvatarLabel")}
+        hint={t("profilePrivacy.hideAvatarHint")}
+        control={
+          <Switch
+            checked={hideAvatarOn}
+            disabled={hideAvatarQ.isLoading || setHideAvatar.isPending}
+            onCheckedChange={(next) =>
+              setHideAvatar.mutate(next, {
+                onSuccess: () => toast.success(t("profilePrivacy.saved")),
+                onError: () => toast.error(t("profilePrivacy.saveError")),
+              })
+            }
+            aria-label={t("profilePrivacy.hideAvatarLabel")}
+          />
+        }
+      />
 
       {/* Zgoda na "Zapytanie do eksperta" - steruje przyciskiem na Twoim profilu
           (obok globalnego przełącznika admina; egzekwowane też w DB). */}

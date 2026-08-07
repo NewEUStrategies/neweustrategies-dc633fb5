@@ -481,6 +481,9 @@ export const chatPl = {
     onlineStatusLabel: "Status dostępności (zielona kropka)",
     onlineStatusHint:
       "Gdy wyłączysz, nie ogłaszasz swojej obecności online innym użytkownikom. Ty nadal widzisz, kto jest dostępny.",
+    hideAvatarLabel: "Ukryj moje zdjęcie profilowe",
+    hideAvatarHint:
+      "Gdy włączone, Twoje zdjęcie nie pojawia się w wyszukiwarce, katalogu osób ani na publicznych profilach - inni widzą inicjały. Egzekwowane w bazie danych, nie tylko w interfejsie.",
     saved: "Ustawienia widoczności zapisane",
     saveError: "Nie udało się zapisać ustawienia. Spróbuj ponownie.",
   },
@@ -943,6 +946,9 @@ export const chatEn = {
     onlineStatusLabel: "Online status (green dot)",
     onlineStatusHint:
       "When off, your presence is not announced to other users. You still see who is online.",
+    hideAvatarLabel: "Hide my profile photo",
+    hideAvatarHint:
+      "When on, your photo is not shown in search, the people directory or on public profiles - other users see initials instead. Enforced in the database, not just in the UI.",
     saved: "Visibility settings saved",
     saveError: "Could not save the setting. Please try again.",
   },

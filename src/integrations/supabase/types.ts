@@ -8935,6 +8935,7 @@ export type Database = {
           facebook_url: string | null
           first_name: string | null
           gender: Database["public"]["Enums"]["name_gender"] | null
+          hide_avatar: boolean
           id: string
           instagram_url: string | null
           job_title: string | null
@@ -8972,6 +8973,7 @@ export type Database = {
           facebook_url?: string | null
           first_name?: string | null
           gender?: Database["public"]["Enums"]["name_gender"] | null
+          hide_avatar?: boolean
           id: string
           instagram_url?: string | null
           job_title?: string | null
@@ -9009,6 +9011,7 @@ export type Database = {
           facebook_url?: string | null
           first_name?: string | null
           gender?: Database["public"]["Enums"]["name_gender"] | null
+          hide_avatar?: boolean
           id?: string
           instagram_url?: string | null
           job_title?: string | null
@@ -12073,7 +12076,7 @@ export type Database = {
           website_url: string | null
         }
         Insert: {
-          avatar_url?: string | null
+          avatar_url?: never
           bio_en?: string | null
           bio_pl?: string | null
           cover_url?: string | null
@@ -12097,7 +12100,7 @@ export type Database = {
           website_url?: string | null
         }
         Update: {
-          avatar_url?: string | null
+          avatar_url?: never
           bio_en?: string | null
           bio_pl?: string | null
           cover_url?: string | null
@@ -13479,6 +13482,7 @@ export type Database = {
           facebook_url: string | null
           first_name: string | null
           gender: Database["public"]["Enums"]["name_gender"] | null
+          hide_avatar: boolean
           id: string
           instagram_url: string | null
           job_title: string | null
