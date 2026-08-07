@@ -52,6 +52,7 @@ describe("TOGGLEABLE_NOTIFICATION_KINDS", () => {
     expect([...TOGGLEABLE_NOTIFICATION_KINDS]).toEqual([
       "message",
       "expert_request",
+      "club",
       "connection",
       "introduction",
       "recommendation",
