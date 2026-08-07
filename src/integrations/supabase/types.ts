@@ -2368,6 +2368,7 @@ export type Database = {
           id: string
           join_policy: string
           last_activity_at: string | null
+          layout: string
           member_count: number
           min_tier_rank: number
           moderation_mode: string
@@ -2399,6 +2400,7 @@ export type Database = {
           id?: string
           join_policy?: string
           last_activity_at?: string | null
+          layout?: string
           member_count?: number
           min_tier_rank?: number
           moderation_mode?: string
@@ -2430,6 +2432,7 @@ export type Database = {
           id?: string
           join_policy?: string
           last_activity_at?: string | null
+          layout?: string
           member_count?: number
           min_tier_rank?: number
           moderation_mode?: string
@@ -13351,6 +13354,7 @@ export type Database = {
           id: string
           join_policy: string
           last_activity_at: string
+          layout: string
           member_count: number
           min_tier_rank: number
           moderation_mode: string
@@ -13576,6 +13580,10 @@ export type Database = {
           matched: number
           will_send: number
         }[]
+      }
+      admin_club_slug_available: {
+        Args: { p_club_id?: string; p_slug: string }
+        Returns: boolean
       }
       admin_club_stats: {
         Args: { p_club_id: string }
@@ -14349,6 +14357,37 @@ export type Database = {
         }
       }
       club_accept_rules: { Args: { p_club_id: string }; Returns: boolean }
+      club_activity_feed: {
+        Args: {
+          p_limit?: number
+          p_per_club?: number
+          p_policy_area?: string
+          p_sort?: string
+        }
+        Returns: {
+          author_alias: string
+          author_name: string
+          club_cover_image_url: string
+          club_id: string
+          club_name_en: string
+          club_name_pl: string
+          club_policy_area: string
+          club_slug: string
+          created_at: string
+          excerpt: string
+          group_name_en: string
+          group_name_pl: string
+          is_anonymous: boolean
+          kind: string
+          last_reply_at: string
+          participant_count: number
+          reply_count: number
+          status: string
+          thread_id: string
+          thread_slug: string
+          title: string
+        }[]
+      }
       club_anonymity_salt: { Args: { _tenant_id: string }; Returns: string }
       club_author_alias: {
         Args: { _author_id: string; _thread_id: string }
@@ -14813,6 +14852,7 @@ export type Database = {
           author_slug: string
           created_at: string
           cursor_value: string
+          excerpt: string
           group_id: string
           group_name_en: string
           group_name_pl: string
@@ -14823,6 +14863,7 @@ export type Database = {
           last_reply_at: string
           participant_count: number
           pinned_at: string
+          posted_by_admin_name: string
           reaction_count: number
           reply_count: number
           slug: string
@@ -14877,6 +14918,7 @@ export type Database = {
           id: string
           join_policy: string
           last_activity_at: string
+          layout: string
           member_count: number
           min_tier_rank: number
           moderation_mode: string
