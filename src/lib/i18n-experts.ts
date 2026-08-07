@@ -9,6 +9,7 @@ const pl = {
     // Nagłówek profilu
     expertBadge: "Ekspert",
     verifiedBadge: "Zweryfikowany",
+    verifiedBadgeTitle: "Profil zweryfikowany zawodowo",
     functions: "Funkcje",
     programsHeading: "Programy i projekty",
     departmentsHeading: "Departamenty",
@@ -118,6 +119,7 @@ const en = {
   expert: {
     expertBadge: "Expert",
     verifiedBadge: "Verified",
+    verifiedBadgeTitle: "Professionally verified profile",
     functions: "Functions",
     programsHeading: "Programs and projects",
     departmentsHeading: "Departments",
