@@ -415,6 +415,62 @@ export function NewsletterForm({
                     />
                   </FieldWrap>
                 )}
+                <FieldWrap
+                  label={L.email}
+                  required={requireEmail}
+                  showMark={inBuilder}
+                  error={errors.email}
+                >
+                  <input
+                    type="email"
+                    required={requireEmail}
+                    aria-required={requireEmail || undefined}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder={P.email}
+                    className={inputCls}
+                    maxLength={254}
+                    autoComplete="email"
+                  />
+                </FieldWrap>
+                {showLinkedin && (
+                  <FieldWrap
+                    label={L.linkedin}
+                    required={requireLinkedin}
+                    showMark={inBuilder}
+                    error={errors.linkedin}
+                  >
+                    <input
+                      type="url"
+                      value={linkedin}
+                      onChange={(e) => setLinkedin(e.target.value)}
+                      className={inputCls}
+                      maxLength={300}
+                      required={requireLinkedin}
+                      aria-required={requireLinkedin || undefined}
+                      autoComplete="url"
+                    />
+                  </FieldWrap>
+                )}
+                {showPhone && (
+                  <FieldWrap
+                    label={L.phone}
+                    required={requirePhone}
+                    showMark={inBuilder}
+                    error={errors.phone}
+                  >
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className={inputCls}
+                      maxLength={40}
+                      required={requirePhone}
+                      aria-required={requirePhone || undefined}
+                      autoComplete="tel"
+                    />
+                  </FieldWrap>
+                )}
                 {showCompany && (
                   <FieldWrap
                     label={L.company}
@@ -431,26 +487,28 @@ export function NewsletterForm({
                       maxLength={200}
                       required={requireCompany}
                       aria-required={requireCompany || undefined}
+                      autoComplete="organization"
                     />
                   </FieldWrap>
                 )}
-                <FieldWrap
-                  label={L.email}
-                  required={requireEmail}
-                  showMark={inBuilder}
-                  error={errors.email}
-                >
-                  <input
-                    type="email"
-                    required={requireEmail}
-                    aria-required={requireEmail || undefined}
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder={P.email}
-                    className={inputCls}
-                    maxLength={254}
-                  />
-                </FieldWrap>
+                {showCountry && (
+                  <div className="sm:col-span-2">
+                    <CountryCombobox
+                      value={country}
+                      onChange={setCountry}
+                      lang={lang}
+                      label={L.country}
+                      required={requireCountry}
+                      maxLength={100}
+                    />
+                    {errors.country && (
+                      <span className="mt-1.5 block pl-1 text-[11px] text-destructive">
+                        {errors.country}
+                      </span>
+                    )}
+                  </div>
+                )}
+
                 {customFields.map((f) => (
                   <CustomFieldRender
                     key={f.id}
