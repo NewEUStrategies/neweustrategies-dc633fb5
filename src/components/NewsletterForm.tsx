@@ -189,7 +189,11 @@ export function NewsletterForm({
     lastName: fieldLabels.label("lastName", readI18nOverride(cfg, "lastNameLabel", lang, "")),
     email: fieldLabels.label("email", readI18nOverride(cfg, "emailLabel", lang, "")),
     company: fieldLabels.label("company", readI18nOverride(cfg, "companyLabel", lang, "")),
+    linkedin: fieldLabels.label("linkedin", readI18nOverride(cfg, "linkedinLabel", lang, "")),
+    phone: fieldLabels.label("phone", readI18nOverride(cfg, "phoneLabel", lang, "")),
+    country: fieldLabels.label("country", readI18nOverride(cfg, "countryLabel", lang, "")),
   };
+
   const showInterests = boolCfg(cfg, "showInterests", true) && allItems.length > 0;
   const P = {
     firstName: readI18nOverride(
