@@ -494,14 +494,16 @@ function AdminShellInner({
           badge: clubPending,
         },
         {
-          // Katalog elementów Klubu (publiczna trasa) - podglad wszystkich
-          // odznak, reakcji i macierzy uprawnien bez wchodzenia w konkretny klub.
-          to: "/club/elements",
+          // Katalog elementów Klubu - słowniki, odznaki, macierz uprawnień
+          // i kody odmów bez wchodzenia w konkretny klub. Od przeniesienia do
+          // panelu trasa jest administracyjna; /club/elements przekierowuje.
+          to: "/admin/community/clubs/elements",
           icon: Shapes,
           label: t("admin.nav.clubElements", {
             defaultValue: lang === "pl" ? "Klub - elementy" : "Club elements",
           }),
         },
+
         {
           to: "/admin/comments",
           icon: MessageCircle,
