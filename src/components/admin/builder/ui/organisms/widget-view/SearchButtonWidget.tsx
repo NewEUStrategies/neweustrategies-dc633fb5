@@ -886,7 +886,6 @@ export function SearchButtonWidget({
                Transition dodany na transform, żeby unoszenie było animowane. */
             .builder-search-widget .input-group > .user-label {
               color: color-mix(in oklab, var(--muted-foreground) 65%, transparent);
-              font-size: 0.8125rem;
               font-weight: 400;
               z-index: 50;
               transition: transform 180ms cubic-bezier(0.4, 0, 0.2, 1),
