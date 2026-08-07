@@ -12919,8 +12919,13 @@ export type Database = {
       connection_statuses: {
         Args: { p_user_ids: string[] }
         Returns: {
+          bridge_avatar: string
+          bridge_id: string
+          bridge_name: string
+          bridge_slug: string
           can_invite: boolean
           connection_id: string
+          degree: number
           mutual_count: number
           status: string
           user_id: string
@@ -12930,7 +12935,12 @@ export type Database = {
         Args: { p_limit?: number }
         Returns: {
           avatar_url: string
+          bridge_avatar: string
+          bridge_id: string
+          bridge_name: string
+          bridge_slug: string
           current_company: string
+          degree: number
           display_name: string
           job_title: string
           location: string

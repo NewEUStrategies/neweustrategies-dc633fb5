@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, screen } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
+import { connectionState } from "@/test/network/fixtures";
 import type { ConnectionState } from "@/lib/network/useConnections";
 
 const h = vi.hoisted(() => ({
@@ -53,7 +54,7 @@ vi.mock("@/components/network/RequestIntroductionDialog", () => ({
 import { RequestIntroductionButton } from "@/components/network/RequestIntroductionButton";
 
 function state(overrides: Partial<ConnectionState>): ConnectionState {
-  return { status: "none", connectionId: null, mutualCount: 0, canInvite: true, ...overrides };
+  return connectionState(overrides);
 }
 
 function renderButton() {

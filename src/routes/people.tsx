@@ -23,6 +23,8 @@ import { ChatAvatar } from "@/components/chat/ChatAvatar";
 import { ConnectButton } from "@/components/network/ConnectButton";
 import { DirectMessageButton } from "@/components/network/DirectMessageButton";
 import { ProfileLinkButton } from "@/components/network/ProfileLinkButton";
+import { DegreeBadge } from "@/components/network/atoms/DegreeBadge";
+import { ConnectionPathTrail } from "@/components/network/molecules/ConnectionPathTrail";
 import { useAuth } from "@/hooks/useAuth";
 
 import { useOnlineUsers } from "@/lib/chat/presence";
@@ -30,7 +32,11 @@ import { useOnlineUsers } from "@/lib/chat/presence";
 import { useDiscoverable, useSetDiscoverable } from "@/lib/chat/useDiscoverable";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { useUserCounter } from "@/lib/counters/usePendingCounters";
-import { useConnectionStatuses, type ConnectionState } from "@/lib/network/useConnections";
+import {
+  NO_CONNECTION,
+  useConnectionStatuses,
+  type ConnectionState,
+} from "@/lib/network/useConnections";
 import {
   EMPTY_PEOPLE_FILTERS,
   usePeopleDirectory,
@@ -164,6 +170,9 @@ function PersonCard({
     <>
       <p className="flex min-w-0 items-center gap-1.5 truncate text-sm font-semibold">
         <span className="truncate">{person.display_name}</span>
+        {/* Stopień oddalenia tuż przy nazwisku - tam, gdzie czytelnik szuka
+            odpowiedzi na pytanie „czy to ktoś z mojego świata?". */}
+        <DegreeBadge degree={connection?.degree ?? 0} />
         <ProfileBadges badges={badges} className="shrink-0" />
       </p>
       {(person.job_title || person.current_company) && (
@@ -187,6 +196,19 @@ function PersonCard({
         <p className="truncate text-[11px] font-medium text-[var(--brand)]">
           {t("network.mutual", { count: connection?.mutualCount ?? 0 })}
         </p>
+      )}
+      {/* ...i KTĘDY ta droga biegnie. Bez `interactive`, bo cały blok danych
+          jest już linkiem do profilu (zagnieżdżone <a> to nieprawidłowy HTML). */}
+      {connection && (
+        <ConnectionPathTrail
+          degree={connection.degree}
+          bridge={connection.bridge}
+          targetName={person.display_name}
+          targetAvatarUrl={person.avatar_url}
+          targetSlug={person.slug}
+          interactive={false}
+          className="mt-0.5"
+        />
       )}
     </>
   );
@@ -442,12 +464,7 @@ function PeopleInner() {
                 badges={badgesQ.data?.get(person.id)}
                 connection={
                   connectionsQ.data
-                    ? (connectionsQ.data.get(person.id) ?? {
-                        status: "none",
-                        connectionId: null,
-                        mutualCount: 0,
-                        canInvite: true,
-                      })
+                    ? (connectionsQ.data.get(person.id) ?? NO_CONNECTION)
                     : undefined
                 }
               />
