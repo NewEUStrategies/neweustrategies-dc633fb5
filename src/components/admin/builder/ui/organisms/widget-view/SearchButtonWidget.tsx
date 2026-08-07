@@ -465,7 +465,11 @@ export function SearchButtonWidget({
                 className="flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:outline-none"
               >
                 <LucideIcons.Mic
-                  style={{ width: iconSize, height: iconSize }}
+                  style={
+                    voice.listening
+                      ? { width: iconSize, height: iconSize, color: "var(--destructive)" }
+                      : { width: iconSize, height: iconSize }
+                  }
                   className={voice.listening ? "animate-pulse" : ""}
                   aria-hidden
                 />
