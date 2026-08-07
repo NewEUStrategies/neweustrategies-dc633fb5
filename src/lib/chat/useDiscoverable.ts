@@ -92,3 +92,48 @@ export function useSetExpertRequestsEnabled() {
     },
   });
 }
+
+// Prywatność zdjęcia profilowego (profiles.hide_avatar). Maskowanie jest
+// egzekwowane w bazie (widok profiles_public + funkcje wyszukiwania), tutaj
+// tylko odczyt/zapis własnej preferencji.
+const hideAvatarKey = (uid: string | undefined) =>
+  ["profile", "hide-avatar", uid ?? "anon"] as const;
+
+export function useHideAvatar(): UseQueryResult<boolean> {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: hideAvatarKey(user?.id),
+    enabled: !!user,
+    staleTime: 60_000,
+    queryFn: async (): Promise<boolean> => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("hide_avatar")
+        .eq("id", user?.id ?? "")
+        .maybeSingle();
+      if (error) throw error;
+      return data?.hide_avatar ?? false;
+    },
+  });
+}
+
+export function useSetHideAvatar() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (next: boolean) => {
+      if (!user) throw new Error("auth required");
+      const { error } = await supabase
+        .from("profiles")
+        .update({ hide_avatar: next })
+        .eq("id", user.id);
+      if (error) throw error;
+      return next;
+    },
+    onSuccess: (next) => {
+      qc.setQueryData(hideAvatarKey(user?.id), next);
+      void qc.invalidateQueries({ queryKey: ["chat", "people"] });
+      void qc.invalidateQueries({ queryKey: ["search-overlay-tabs"] });
+    },
+  });
+}
