@@ -6,17 +6,32 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { GalleryHorizontal } from "@/lib/lucide-shim";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
+import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 import { latestWebStoriesQueryOptions } from "@/lib/queries/webStories";
-import { storyTitle, storyDescription } from "@/lib/web-stories/types";
+import { storyTitle, storyDescription, type WebStory } from "@/lib/web-stories/types";
+import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
 
 const INDEX_LIMIT = 48;
 
+/** Pusta lista jako fallback zdegradowanego renderu (lib/ssr/resilientLoad). */
+const NO_STORIES: WebStory[] = [];
+
 export const Route = createFileRoute("/web-stories/")({
-  loader: ({ context }) =>
-    context.queryClient.ensureQueryData(latestWebStoriesQueryOptions(INDEX_LIMIT)),
+  // Odporne SSR: blip backendu daje HTTP 200 z uczciwym komunikatem zamiast
+  // 500 (patrz lib/ssr/resilientLoad); zdegradowany render omija cache wspólny.
+  loader: async ({ context }) => {
+    const { degraded } = await loadResilient(
+      context.queryClient,
+      latestWebStoriesQueryOptions(INDEX_LIMIT),
+      NO_STORIES,
+    );
+    setCacheControlHeader(resilientCacheControl(degraded));
+    return { degraded };
+  },
   head: () => {
     const url = getRequestUrl() || "/web-stories";
     const lang = activeLang(url);
@@ -39,6 +54,7 @@ export const Route = createFileRoute("/web-stories/")({
 
 function WebStoriesIndex() {
   const { data: stories } = useSuspenseQuery(latestWebStoriesQueryOptions(INDEX_LIMIT));
+  const { degraded } = Route.useLoaderData();
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
 
@@ -56,7 +72,12 @@ function WebStoriesIndex() {
         </div>
       </header>
 
-      {stories.length === 0 ? (
+      {degraded ? (
+        // „Brak historii" i „nie udało się pobrać" to dwie różne prawdy.
+        <DegradedDataNotice
+          title={lang === "en" ? "Couldn't load stories" : "Nie udało się załadować historii"}
+        />
+      ) : stories.length === 0 ? (
         <p className="text-sm text-muted-foreground py-16 text-center">
           {lang === "en" ? "No stories published yet." : "Brak opublikowanych historii."}
         </p>

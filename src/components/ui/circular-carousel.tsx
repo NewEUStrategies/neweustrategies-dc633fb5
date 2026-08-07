@@ -199,7 +199,8 @@ export function CircularCarousel({
                   className="rounded-[6px] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider"
                   style={{
                     color: "var(--circular-carousel-accent, var(--brand))",
-                    background: "color-mix(in oklab, var(--circular-carousel-accent, var(--brand)) 12%, transparent)",
+                    background:
+                      "color-mix(in oklab, var(--circular-carousel-accent, var(--brand)) 12%, transparent)",
                   }}
                 >
                   {item.tag}
@@ -256,7 +257,9 @@ export function CircularCarousel({
                 aria-current={i === activeIndex}
                 className={cn(
                   "h-1.5 rounded-full transition-all duration-300",
-                  i === activeIndex ? "w-6" : "w-1.5 bg-muted-foreground/30 hover:bg-muted-foreground/60",
+                  i === activeIndex
+                    ? "w-6"
+                    : "w-1.5 bg-muted-foreground/30 hover:bg-muted-foreground/60",
                 )}
                 style={
                   i === activeIndex

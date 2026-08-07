@@ -62,7 +62,6 @@ import {
 } from "./socialHover";
 import { SocialMailIcon } from "./socialGlyphs";
 
-
 import { DeferredFrame } from "@/components/atoms/DeferredFrame";
 import { ImageWidget, PostsSliderWidget } from "./mediaWidgets";
 import { SearchButtonWidget } from "./SearchButtonWidget";
@@ -582,7 +581,6 @@ export function renderSimpleWidget(
       // Rysunek koperty pochodzi ze wspólnego modułu (socialGlyphs), tego
       // samego, którego używa samodzielny widget „Newsletter".
       const MailIcon = SocialMailIcon;
-
 
       const renderSocials = (globalLinks: GlobalSocialLinks): ReactElement => {
         if (layout === "list") {

@@ -45,6 +45,7 @@ import type { EventCountdownView as EventCountdownViewImpl } from "./EventCountd
 import type { MeetingBookingView as MeetingBookingViewImpl } from "./MeetingBookingView";
 import type { EventSponsorsView as EventSponsorsViewImpl } from "./EventSponsorsView";
 import type { RatedListView as RatedListViewImpl } from "./RatedListView";
+import type { CircularCarouselView as CircularCarouselViewImpl } from "./CircularCarouselView";
 import type { TabsBlock as TabsBlockImpl } from "./TabsBlock";
 import type { AdSlotById as AdSlotByIdImpl } from "@/components/ads/AdSlotById";
 import type { DonationsWidgetView as DonationsWidgetViewImpl } from "@/components/donations/DonationsWidgetView";
@@ -187,6 +188,16 @@ const TabsBlockLazy = lazy(() =>
   import("./TabsBlock").then((m) => ({ default: m.TabsBlock })),
 ) as ComponentType<ComponentProps<typeof TabsBlockImpl>>;
 export const TabsBlock = withSuspense(TabsBlockLazy);
+
+// Karuzela okrężna: widget dekoracyjny, nie nawigacyjny i praktycznie nigdy
+// nad zgięciem - trafiła do bundla WEJŚCIOWEGO przez statyczny import
+// w WidgetView (zmierzone: 12.2 kB przed minifikacją w `assets/index-*.js`,
+// płacone przez KAŻDEGO czytelnika, także na stronach bez karuzeli).
+// Kryterium „eager" z nagłówka tego pliku jej nie obejmuje.
+const CircularCarouselViewLazy = lazy(() =>
+  import("./CircularCarouselView").then((m) => ({ default: m.CircularCarouselView })),
+) as ComponentType<ComponentProps<typeof CircularCarouselViewImpl>>;
+export const CircularCarouselView = withSuspense(CircularCarouselViewLazy);
 
 // --- ads / donations ------------------------------------------------------
 const AdSlotByIdLazy = lazy(() =>

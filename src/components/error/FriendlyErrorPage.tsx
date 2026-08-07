@@ -8,6 +8,7 @@ import {
   AlertCircle,
   ArrowLeft,
   Clock,
+  CloudOff,
   HelpCircle,
   Home,
   LogIn,
@@ -41,6 +42,7 @@ const ICONS: Record<ErrorKind, React.ComponentType<{ className?: string; size?: 
   unauthorized: ShieldAlert,
   sessionExpired: Clock,
   network: WifiOff,
+  degraded: CloudOff,
   generic: AlertCircle,
 };
 
@@ -48,6 +50,8 @@ const CODE_LABEL: Record<ErrorKind, string> = {
   unauthorized: "401",
   sessionExpired: "302",
   network: "NET",
+  // Render zdegradowany wychodzi z HTTP 200 - etykieta nie może sugerować awarii.
+  degraded: "200",
   generic: "ERR",
 };
 
@@ -67,7 +71,10 @@ export function FriendlyErrorPage({
   const lang = currentLang();
 
   useEffect(() => {
-    if (error) {
+    // Degradacja nie jest awarią klienta: serwer zalogował ją już przy zasiewie
+    // fallbacku (`[ssr-resilient]`), więc raport z przeglądarki tylko dublowałby
+    // ten sam incydent - raz na każdą odsłonę zdegradowanej strony.
+    if (error && kind !== "degraded") {
       reportPlatformError(error instanceof Error ? error : new Error(String(error)), {
         boundary: "friendly_error_page",
         kind,
@@ -113,7 +120,12 @@ export function FriendlyErrorPage({
                 {code}
               </span>
               <span className="h-1 w-1 rounded-full bg-muted-foreground/60" />
-              <span className="text-xs text-muted-foreground">{copy.errorTitle}</span>
+              {/* Przy degradacji strona ZAŁADOWAŁA się w całości (HTTP 200) -
+                  nadlinia „Nie udało się załadować strony" przeczyłaby temu,
+                  co czytelnik ma przed oczami. */}
+              <span className="text-xs text-muted-foreground">
+                {kind === "degraded" ? copy.degradedEyebrow : copy.errorTitle}
+              </span>
             </div>
             <h1 className="mt-1 font-display text-xl font-semibold leading-tight text-foreground sm:text-2xl">
               {title ?? scenario.title}

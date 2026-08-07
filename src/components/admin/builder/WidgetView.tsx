@@ -61,6 +61,7 @@ import {
   EventCountdownView,
   MeetingBookingView,
   EventSponsorsView,
+  CircularCarouselView,
 } from "./ui/organisms/widget-view/lazyWidgets";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { AppLink } from "@/components/atoms/AppLink";
@@ -79,7 +80,6 @@ import {
 } from "./ui/organisms/widget-view/frame";
 import { OnboardingFormView } from "./ui/organisms/widget-view/OnboardingFormView";
 import { ProgressCarouselView } from "./ui/organisms/widget-view/ProgressCarouselView";
-import { CircularCarouselView } from "./ui/organisms/widget-view/CircularCarouselView";
 import { MOTION_INITIAL, MOTION_FINAL } from "./ui/organisms/widget-view/motion";
 import { Editable } from "./ui/molecules/Editable";
 // Eager: layout-critical / above-the-fold / navigation widgets.
@@ -988,7 +988,6 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           </a>,
         );
       }
-
 
       // Warianty z formularzem (inline / card): jeden komponent, jeden config.
       const liveForm = (

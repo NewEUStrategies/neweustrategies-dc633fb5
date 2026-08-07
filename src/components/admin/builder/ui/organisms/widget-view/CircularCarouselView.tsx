@@ -4,10 +4,7 @@
 import type { CSSProperties } from "react";
 import type { WidgetContent } from "@/lib/builder/types";
 import { safeUrl } from "@/lib/sanitize";
-import {
-  CircularCarousel,
-  type CircularCarouselLabels,
-} from "@/components/ui/circular-carousel";
+import { CircularCarousel, type CircularCarouselLabels } from "@/components/ui/circular-carousel";
 import {
   clampInterval,
   clampRadius,

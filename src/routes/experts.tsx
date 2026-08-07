@@ -17,7 +17,9 @@ import { Button } from "@/components/ui/button";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
-import { expertsDirectoryQueryOptions } from "@/lib/experts/directory";
+import { EXPERTS_DIRECTORY_EMPTY, expertsDirectoryQueryOptions } from "@/lib/experts/directory";
+import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
@@ -34,8 +36,16 @@ export const Route = createFileRoute("/experts")({
     area: typeof s.area === "string" ? s.area : undefined,
     program: typeof s.program === "string" ? s.program : undefined,
   }),
+  // Odporne SSR: blip backendu daje pustą, samoleczącą się powłokę (HTTP 200),
+  // nigdy 500 - patrz `lib/ssr/resilientLoad`. Zdegradowany render wychodzi
+  // jako `no-store`, więc nie zamraża pustego katalogu na brzegu CDN.
   loader: async ({ context }) => {
-    await context.queryClient.ensureQueryData(expertsDirectoryQueryOptions());
+    const { degraded } = await loadResilient(
+      context.queryClient,
+      expertsDirectoryQueryOptions(),
+      EXPERTS_DIRECTORY_EMPTY,
+    );
+    setCacheControlHeader(resilientCacheControl(degraded));
     return null;
   },
   head: () => {

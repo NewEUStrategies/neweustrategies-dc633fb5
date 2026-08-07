@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyError, errorCopy } from "../errorCopy";
+import { DEGRADED_ERROR, classifyError, errorCopy } from "../errorCopy";
 
 describe("errorCopy", () => {
   it("returns Polish copy by default when currentLang is pl", () => {
@@ -14,7 +14,19 @@ describe("errorCopy", () => {
     expect(copy.unauthorized.steps).toHaveLength(3);
     expect(copy.sessionExpired.steps).toHaveLength(3);
     expect(copy.network.steps).toHaveLength(3);
+    expect(copy.degraded.steps).toHaveLength(3);
     expect(copy.generic.steps).toHaveLength(3);
+  });
+
+  it("scenariusz degradacji nie obwinia łącza czytelnika", () => {
+    // Render zdegradowany to awaria NASZEGO backendu. Kopia z `network`
+    // ("sprawdź swoje łącze") wysyłałaby diagnozę w maliny i sugerowała winę
+    // po stronie użytkownika - dlatego to osobny scenariusz, nie alias.
+    const copy = errorCopy();
+    const text = `${copy.degraded.body} ${copy.degraded.steps.join(" ")}`.toLowerCase();
+    expect(text).not.toContain("internet");
+    expect(text).not.toContain("łącz");
+    expect(copy.degraded.title).not.toBe(copy.network.title);
   });
 });
 
@@ -70,6 +82,19 @@ describe("classifyError", () => {
     expect(classifyError({ name: "TypeError", message: "x.map is not a function" })).toBe(
       "generic",
     );
+  });
+
+  it("rozpoznaje jawny znacznik degradacji", () => {
+    expect(classifyError(DEGRADED_ERROR)).toBe("degraded");
+    expect(classifyError({ kind: "degraded" })).toBe("degraded");
+  });
+
+  it("degradacja wygrywa z heurystykami po treści komunikatu", () => {
+    // Aplikacja zgłasza degradację JAWNIE. Gdyby heurystyki szły pierwsze,
+    // znacznik niosący słowo "timeout"/"abort" (typowe przy ścięciu budżetu
+    // SSR) zostałby zaklasyfikowany jako problem sieciowy użytkownika.
+    expect(classifyError({ kind: "degraded", message: "fetch timeout" })).toBe("degraded");
+    expect(classifyError({ kind: "degraded", status: 401 })).toBe("degraded");
   });
 
   it("falls back to generic for unknown errors", () => {
