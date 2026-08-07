@@ -38,6 +38,7 @@ export function ExpertRequestButton({
   expertAvatar,
   recipientEnabled,
   compact,
+  iconOnly,
   className,
 }: ExpertRequestButtonProps) {
   ensureExpertRequestI18n();
