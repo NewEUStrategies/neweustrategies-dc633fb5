@@ -19,11 +19,23 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Check, Copy, Minus, SearchX, Settings2, X } from "lucide-react";
+import {
+  BookMarked,
+  Check,
+  Copy,
+  KeyRound,
+  Minus,
+  SearchX,
+  Settings2,
+  Shapes,
+  TriangleAlert,
+  X,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
