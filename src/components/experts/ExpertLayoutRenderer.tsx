@@ -15,6 +15,7 @@ import {
   GraduationCap,
 } from "lucide-react";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
+import { VerifiedProfileBadge } from "@/components/profile/VerifiedProfileBadge";
 import { XIcon } from "@/components/atoms/XIcon";
 import type { ExpertHubData } from "@/lib/experts/types";
 import {
@@ -257,6 +258,14 @@ export function ExpertLayoutHero({
   const name =
     (e.display_name && e.display_name.trim()) ||
     (showPlaceholders ? (lang === "en" ? "Sample Expert" : "Przykładowy Ekspert") : "");
+  // Odznaka weryfikacji towarzyszy nazwisku w KAŻDYM presecie hero - inaczej
+  // znikała przy layoutach bez paska nad hero.
+  const nameNode = (
+    <>
+      {name}
+      {e.verified_at ? <VerifiedProfileBadge className="ml-2" /> : null}
+    </>
+  );
   const role = e.job_title ?? "";
   const company = e.company ?? "";
   const realRoleLine = [role, company].filter(Boolean).join(" · ");
@@ -426,7 +435,7 @@ export function ExpertLayoutHero({
             className="mt-4 font-display leading-tight"
             style={{ fontSize: "var(--pv-name-size)" }}
           >
-            {name}
+            {nameNode}
           </h1>
           <p className="mt-1" style={roleStyle}>
             {roleLine}
@@ -455,7 +464,7 @@ export function ExpertLayoutHero({
             <div className="flex-1 min-w-0">
               <ActionBar className="mb-2" />
               <h1 className="font-display" style={{ fontSize: "var(--pv-name-size)" }}>
-                {name}
+                {nameNode}
               </h1>
               <p className="mt-1" style={roleStyle}>
                 {roleLine}
@@ -486,7 +495,7 @@ export function ExpertLayoutHero({
           >
             {avatar("h-28 w-28", "rounded-[6px]", "480×480 px")}
             <h1 className="mt-3 font-display" style={{ fontSize: "var(--pv-name-size-base)" }}>
-              {name}
+              {nameNode}
             </h1>
             <p className="text-xs" style={{ ...roleStyle, fontSize: 12 }}>
               {roleLine}
@@ -509,7 +518,7 @@ export function ExpertLayoutHero({
         <div className={centered ? "text-center" : ""}>
           <div className="h-0.5 w-10 mb-4" style={{ backgroundColor: "var(--pv-accent)" }} />
           <h1 className="font-display" style={{ fontSize: "var(--pv-name-size)" }}>
-            {name}
+            {nameNode}
           </h1>
           <p className="mt-1" style={roleStyle}>
             {roleLine}
@@ -534,7 +543,7 @@ export function ExpertLayoutHero({
           <div className={`flex-1 min-w-0 ${centered ? "text-center mx-auto" : ""}`}>
             <ActionBar className="mb-2" />
             <h1 className="font-display" style={{ fontSize: "var(--pv-name-size)" }}>
-              {name}
+              {nameNode}
             </h1>
             <p className="mt-1" style={roleStyle}>
               {roleLine}
@@ -563,7 +572,7 @@ export function ExpertLayoutHero({
                   fontFamily: "'Playfair Display', Georgia, serif",
                 }}
               >
-                {name}
+                {nameNode}
               </h1>
               <p className="text-white/80 italic mt-1">{roleLine}</p>
             </div>
@@ -626,7 +635,7 @@ export function ExpertLayoutHero({
                 className="font-display leading-[1.05]"
                 style={{ fontSize: "var(--pv-name-size)" }}
               >
-                {name}
+                {nameNode}
               </h1>
               <ActionBar />
             </div>
