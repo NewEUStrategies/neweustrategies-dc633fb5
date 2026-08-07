@@ -64,6 +64,16 @@ export interface JobsTickResult {
     | { error: string };
   integrations: { claimed: number; delivered: number; failed: number } | { error: string };
   semanticIndex: { scanned: number; embedded: number; skipped?: string } | { error: string };
+  /**
+   * Warstwa semantyczna KATALOGU OSÓB (20260807144000). Osobne pole, nie
+   * wspólny licznik z wpisami: obie kolejki mogą degradować niezależnie
+   * (bramka bez embeddingów gasi obie, ale pusty katalog gasi tylko tę), a bez
+   * rozdzielenia nie da się z logu odczytać, KTÓRA kolejka stoi.
+   * `pruned` = wektory usunięte po opt-oucie z katalogu.
+   */
+  profileIndex:
+    | { scanned: number; embedded: number; pruned?: number; skipped?: string }
+    | { error: string };
 }
 
 /** Kto wywołał tick - ląduje w logu przebiegów (public.job_runner_runs). */
@@ -170,6 +180,16 @@ export async function runJobsTick(
         return runSemanticIndexBatch(admin, 24);
       })
     : skipped;
+  // Wektory PROFILI: rzadziej niż wpisy (co 15 minut, partia 16), bo profil
+  // zmienia się o rzędy wielkości rzadziej niż pojawia się nowa treść, a obie
+  // kolejki dzielą ten sam limit bramki. Sprzątanie po opt-oucie z katalogu
+  // (`prune`) jest raz na godzinę - to operacja czysto bazowa i tania.
+  const profileIndex = everyNthMinute(15)
+    ? await runJobStep(overBudget, async () => {
+        const { runProfileSemanticIndexBatch } = await import("@/lib/server/embeddings.server");
+        return runProfileSemanticIndexBatch(admin, 16, { prune: everyNthMinute(60) });
+      })
+    : skipped;
 
   const result: JobsTickResult = {
     newsletter,
@@ -182,6 +202,7 @@ export async function runJobsTick(
     linkCheck,
     integrations,
     semanticIndex,
+    profileIndex,
   };
 
   // Heartbeat: KAŻDY tick (cron bazy, scheduler repo, ręczny z panelu) zostawia

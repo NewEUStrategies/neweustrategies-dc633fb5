@@ -13,11 +13,23 @@ export type MessageRow = Omit<Database["public"]["Tables"]["messages"]["Row"], "
 export type ReactionRow = Database["public"]["Tables"]["message_reactions"]["Row"];
 
 export type PeerProfile = Database["public"]["Functions"]["get_chat_peers"]["Returns"][number];
-// `verified` dołożone ręcznie do czasu regeneracji typów (migracja
-// 20260713160000 dodaje kolumnę wyniku search_people).
-export type PersonHit = Database["public"]["Functions"]["search_people"]["Returns"][number] & {
-  verified?: boolean;
-};
+
+/**
+ * Wiersz KATALOGU OSÓB (`search_people`). Od 20260807144000 projekcja niesie
+ * także warstwę intencji (`open_to`, `seeking_*`), kompletność profilu
+ * i `match_score` (blend trigram + semantyka), więc karta katalogu ma czym
+ * uzasadnić trafienie - nie tylko kto to jest, ale dlaczego się pokazał.
+ */
+export type PersonHit = Database["public"]["Functions"]["search_people"]["Returns"][number];
+
+/**
+ * Wiersz WYSZUKIWARKI ODBIORCÓW CZATU (`search_chat_contacts`). Węższy zbiór
+ * kolumn niż katalog i węższy zbiór osób (tylko zaakceptowana sieć), dlatego
+ * osobny typ: pickery czatu nie mają po co znać intencji ani kompletności,
+ * a wspólny alias zmuszałby je do udawania, że je dostają.
+ */
+export type ChatContactHit =
+  Database["public"]["Functions"]["search_chat_contacts"]["Returns"][number];
 
 export type MessageKind = "text" | "image" | "file";
 

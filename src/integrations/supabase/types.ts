@@ -1609,6 +1609,35 @@ export type Database = {
           },
         ]
       }
+      connection_suggestion_dismissals: {
+        Row: {
+          created_at: string
+          dismissed_user_id: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          dismissed_user_id: string
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          dismissed_user_id?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "connection_suggestion_dismissals_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contact_form_settings: {
         Row: {
           auto_reply_body_en: string
@@ -8679,6 +8708,59 @@ export type Database = {
           },
         ]
       }
+      profile_embeddings: {
+        Row: {
+          content_hash: string
+          embedding: string
+          profile_id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          content_hash: string
+          embedding: string
+          profile_id: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          content_hash?: string
+          embedding?: string
+          profile_id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_embeddings_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "crm_funnel_view"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "profile_embeddings_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profile_embeddings_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profile_embeddings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profile_experiences: {
         Row: {
           company: string | null
@@ -8937,6 +9019,7 @@ export type Database = {
           bio: string | null
           bio_en: string | null
           bio_pl: string | null
+          completeness_score: number
           contact_email: string | null
           cover_url: string | null
           created_at: string
@@ -8953,13 +9036,19 @@ export type Database = {
           hide_avatar: boolean
           id: string
           instagram_url: string | null
+          intent_updated_at: string | null
           job_title: string | null
           last_name: string | null
           linkedin_url: string | null
           location: string | null
+          offering_en: string | null
+          offering_pl: string | null
+          open_to: string[]
           phone: string | null
           prefs: Json
           profile_view_mode: string
+          seeking_en: string | null
+          seeking_pl: string | null
           slug: string | null
           specialization: string | null
           spotify_url: string | null
@@ -8975,6 +9064,7 @@ export type Database = {
           bio?: string | null
           bio_en?: string | null
           bio_pl?: string | null
+          completeness_score?: number
           contact_email?: string | null
           cover_url?: string | null
           created_at?: string
@@ -8991,13 +9081,19 @@ export type Database = {
           hide_avatar?: boolean
           id: string
           instagram_url?: string | null
+          intent_updated_at?: string | null
           job_title?: string | null
           last_name?: string | null
           linkedin_url?: string | null
           location?: string | null
+          offering_en?: string | null
+          offering_pl?: string | null
+          open_to?: string[]
           phone?: string | null
           prefs?: Json
           profile_view_mode?: string
+          seeking_en?: string | null
+          seeking_pl?: string | null
           slug?: string | null
           specialization?: string | null
           spotify_url?: string | null
@@ -9013,6 +9109,7 @@ export type Database = {
           bio?: string | null
           bio_en?: string | null
           bio_pl?: string | null
+          completeness_score?: number
           contact_email?: string | null
           cover_url?: string | null
           created_at?: string
@@ -9029,13 +9126,19 @@ export type Database = {
           hide_avatar?: boolean
           id?: string
           instagram_url?: string | null
+          intent_updated_at?: string | null
           job_title?: string | null
           last_name?: string | null
           linkedin_url?: string | null
           location?: string | null
+          offering_en?: string | null
+          offering_pl?: string | null
+          open_to?: string[]
           phone?: string | null
           prefs?: Json
           profile_view_mode?: string
+          seeking_en?: string | null
+          seeking_pl?: string | null
           slug?: string | null
           specialization?: string | null
           spotify_url?: string | null
@@ -10136,9 +10239,11 @@ export type Database = {
         Row: {
           alert_enabled: boolean
           created_at: string
+          entity: string
           id: string
           last_alert_at: string | null
           last_alert_check_at: string | null
+          last_seen_profile_at: string | null
           last_seen_published_at: string | null
           name: string
           params: Json
@@ -10149,9 +10254,11 @@ export type Database = {
         Insert: {
           alert_enabled?: boolean
           created_at?: string
+          entity?: string
           id?: string
           last_alert_at?: string | null
           last_alert_check_at?: string | null
+          last_seen_profile_at?: string | null
           last_seen_published_at?: string | null
           name: string
           params?: Json
@@ -10162,9 +10269,11 @@ export type Database = {
         Update: {
           alert_enabled?: boolean
           created_at?: string
+          entity?: string
           id?: string
           last_alert_at?: string | null
           last_alert_check_at?: string | null
+          last_seen_profile_at?: string | null
           last_seen_published_at?: string | null
           name?: string
           params?: Json
@@ -12954,12 +13063,14 @@ export type Database = {
           bridge_id: string
           bridge_name: string
           bridge_slug: string
+          completeness_score: number
           current_company: string
           degree: number
           display_name: string
           job_title: string
           location: string
           mutual_count: number
+          open_to: string[]
           shared_events: number
           shared_follows: number
           slug: string
@@ -13170,6 +13281,10 @@ export type Database = {
       }
       delete_my_meeting_slot: { Args: { p_slot_id: string }; Returns: boolean }
       discovery_search_norm: { Args: { _q: string }; Returns: string }
+      dismiss_connection_suggestion: {
+        Args: { p_user_id: string }
+        Returns: boolean
+      }
       email_apply_delivery_event: {
         Args: {
           p_bounce_class?: string
@@ -13494,6 +13609,7 @@ export type Database = {
           bio: string | null
           bio_en: string | null
           bio_pl: string | null
+          completeness_score: number
           contact_email: string | null
           cover_url: string | null
           created_at: string
@@ -13510,13 +13626,19 @@ export type Database = {
           hide_avatar: boolean
           id: string
           instagram_url: string | null
+          intent_updated_at: string | null
           job_title: string | null
           last_name: string | null
           linkedin_url: string | null
           location: string | null
+          offering_en: string | null
+          offering_pl: string | null
+          open_to: string[]
           phone: string | null
           prefs: Json
           profile_view_mode: string
+          seeking_en: string | null
+          seeking_pl: string | null
           slug: string | null
           specialization: string | null
           spotify_url: string | null
@@ -14188,6 +14310,7 @@ export type Database = {
           verified: boolean
         }[]
       }
+      my_dismissed_suggestions_count: { Args: never; Returns: number }
       my_effective_tier_features: { Args: never; Returns: Json }
       my_event_participation: {
         Args: never
@@ -14313,6 +14436,33 @@ export type Database = {
         }
         Returns: unknown
       }
+      nes_profile_completeness: { Args: { p_user_id: string }; Returns: number }
+      nes_profile_completeness_row: {
+        Args: {
+          p_avatar_url: string
+          p_bio_en: string
+          p_bio_pl: string
+          p_current_company: string
+          p_display_name: string
+          p_education: number
+          p_experiences: number
+          p_first_name: string
+          p_job_title: string
+          p_last_name: string
+          p_location: string
+          p_open_to: string[]
+          p_seeking_en: string
+          p_seeking_pl: string
+          p_skills: number
+          p_specialization: string
+        }
+        Returns: number
+      }
+      nes_profile_embedding_source: {
+        Args: { p_user_id: string }
+        Returns: string
+      }
+      nes_profile_open_to_catalog: { Args: never; Returns: string[] }
       nes_search_positive_rest: { Args: { _q: string }; Returns: string }
       nes_search_tsquery: { Args: { _q: string }; Returns: unknown }
       nes_search_tsquery_adv: {
@@ -14528,10 +14678,20 @@ export type Database = {
         Args: { _base: string }
         Returns: string
       }
+      profiles_needing_embeddings: {
+        Args: { _limit?: number; _min_completeness?: number }
+        Returns: {
+          content_hash: string
+          embed_text: string
+          profile_id: string
+          tenant_id: string
+        }[]
+      }
       promote_event_waitlist: { Args: { p_event_id: string }; Returns: number }
       prune_command_idempotency: { Args: never; Returns: number }
       prune_domain_events: { Args: { p_keep?: string }; Returns: number }
       prune_integration_deliveries: { Args: never; Returns: number }
+      prune_profile_embeddings: { Args: never; Returns: number }
       prune_push_queue: { Args: { p_keep?: string }; Returns: number }
       public_tenant_id: { Args: never; Returns: string }
       publish_due_pages: { Args: never; Returns: number }
@@ -14735,6 +14895,7 @@ export type Database = {
         Args: { p_action: string; p_id: string }
         Returns: undefined
       }
+      restore_connection_suggestions: { Args: never; Returns: number }
       retire_tenant_host_assertion_key: {
         Args: { p_kid: string }
         Returns: boolean
@@ -14845,21 +15006,28 @@ export type Database = {
       search_people: {
         Args: {
           p_company?: string
+          p_embedding?: number[]
           p_job_title?: string
           p_limit?: number
           p_location?: string
           p_offset?: number
+          p_open_to?: string[]
           p_query?: string
           p_specialization?: string
           p_verified_only?: boolean
         }
         Returns: {
           avatar_url: string
+          completeness_score: number
           current_company: string
           display_name: string
           id: string
           job_title: string
           location: string
+          match_score: number
+          open_to: string[]
+          seeking_en: string
+          seeking_pl: string
           slug: string
           specialization: string
           total_count: number
@@ -14959,6 +15127,13 @@ export type Database = {
         Args: { _embedding: number[]; _limit?: number }
         Returns: {
           post_id: string
+          similarity: number
+        }[]
+      }
+      semantic_search_profiles: {
+        Args: { _embedding: number[]; _limit?: number }
+        Returns: {
+          profile_id: string
           similarity: number
         }[]
       }
