@@ -1167,7 +1167,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                 )}
                 {merged.show_bottom_newsletter && (
                   <div className="no-print">
-                    <NewsletterForm lang={lang} source={`post:${post.slug}`} />
+                    <NewsletterForm lang={lang} source={`post:${post.slug}`} fields="full" />
                   </div>
                 )}
                 <div className="no-print">

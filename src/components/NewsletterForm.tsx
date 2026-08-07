@@ -27,6 +27,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { FormSelect } from "@/components/atoms/FormSelect";
 import { floatingPlaceholder } from "@/components/ui/floating-input";
 import { TopicsDroplist, useInterestGroups } from "@/components/interests/TopicsDroplist";
+import { CountryCombobox } from "@/components/interests/CountryCombobox";
+
 import { useNewsletterFieldLabels } from "@/lib/newsletter/newsletterFieldLabels";
 import {
   collectCustomValues,
@@ -70,6 +72,12 @@ interface Props {
   lang?: "pl" | "en";
   source?: string;
   variant?: "card" | "inline";
+  /**
+   * `full` = pełny, spójny z widgetem „Dołącz do nas" zestaw pól
+   * (imię, nazwisko, e-mail, LinkedIn, telefon, firma, kraj, tematy, zgoda).
+   * Używane m.in. w widgecie newslettera pod wpisami.
+   */
+  fields?: "auto" | "full";
   /** Full widget content JSON from the builder (optional). */
   widgetConfig?: Record<string, unknown>;
 }
@@ -86,8 +94,10 @@ export function NewsletterForm({
   lang = "pl",
   source = "post-bottom",
   variant = "card",
+  fields = "auto",
   widgetConfig,
 }: Props) {
+
   const { t } = useTranslation();
   const { data: s } = useNewsletterSettings();
   // Inside the CMS builder canvas the widget must stay visible even when the
@@ -104,6 +114,11 @@ export function NewsletterForm({
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [company, setCompany] = useState("");
+  const [linkedin, setLinkedin] = useState("");
+  const [phone, setPhone] = useState("");
+  const [country, setCountry] = useState("");
+  const [consent, setConsent] = useState(false);
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [state, setState] = useState<"idle" | "loading" | "ok" | "err">("idle");
   const [okStatus, setOkStatus] = useState<SubscribeStatus>("pending");
@@ -134,13 +149,24 @@ export function NewsletterForm({
   }
 
   // Per-widget visibility toggles for the extra fields.
-  const showFirstName = boolCfg(cfg, "showFirstName", false);
-  const showLastName = boolCfg(cfg, "showLastName", false);
-  const showCompany = boolCfg(cfg, "showCompany", false);
+  // `fields="full"` (widget pod wpisami) domyślnie pokazuje komplet pól -
+  // ten sam zestaw, co widget „Dołącz do nas".
+  const full = fields === "full";
+  const showFirstName = boolCfg(cfg, "showFirstName", full);
+  const showLastName = boolCfg(cfg, "showLastName", full);
+  const showCompany = boolCfg(cfg, "showCompany", full);
+  const showLinkedin = boolCfg(cfg, "showLinkedin", full);
+  const showPhone = boolCfg(cfg, "showPhone", full);
+  const showCountry = boolCfg(cfg, "showCountry", full);
   const requireFirstName = boolCfg(cfg, "requireFirstName", false);
   const requireLastName = boolCfg(cfg, "requireLastName", false);
   const requireCompany = boolCfg(cfg, "requireCompany", false);
+  const requireLinkedin = boolCfg(cfg, "requireLinkedin", false);
+  const requirePhone = boolCfg(cfg, "requirePhone", false);
+  const requireCountry = boolCfg(cfg, "requireCountry", false);
   const requireEmail = boolCfg(cfg, "requireEmail", true);
+  const requireConsent = boolCfg(cfg, "requireConsent", full);
+
 
   if (!s || !s.enabled) {
     if (!inBuilder) return null;
@@ -165,7 +191,11 @@ export function NewsletterForm({
     lastName: fieldLabels.label("lastName", readI18nOverride(cfg, "lastNameLabel", lang, "")),
     email: fieldLabels.label("email", readI18nOverride(cfg, "emailLabel", lang, "")),
     company: fieldLabels.label("company", readI18nOverride(cfg, "companyLabel", lang, "")),
+    linkedin: fieldLabels.label("linkedin", readI18nOverride(cfg, "linkedinLabel", lang, "")),
+    phone: fieldLabels.label("phone", readI18nOverride(cfg, "phoneLabel", lang, "")),
+    country: fieldLabels.label("country", readI18nOverride(cfg, "countryLabel", lang, "")),
   };
+
   const showInterests = boolCfg(cfg, "showInterests", true) && allItems.length > 0;
   const P = {
     firstName: readI18nOverride(
@@ -209,7 +239,12 @@ export function NewsletterForm({
     if (showFirstName && requireFirstName && !firstName.trim()) errs.firstName = requiredText;
     if (showLastName && requireLastName && !lastName.trim()) errs.lastName = requiredText;
     if (showCompany && requireCompany && !company.trim()) errs.company = requiredText;
+    if (showLinkedin && requireLinkedin && !linkedin.trim()) errs.linkedin = requiredText;
+    if (showPhone && requirePhone && !phone.trim()) errs.phone = requiredText;
+    if (showCountry && requireCountry && !country.trim()) errs.country = requiredText;
+    if (requireConsent && !consent) errs.consent = requiredText;
     Object.assign(errs, validateCustom(customFields, custom, requiredText));
+
 
     if (Object.keys(errs).length) {
       setErrors(errs);
@@ -226,6 +261,10 @@ export function NewsletterForm({
 
       const meta: Record<string, string> = {};
       if (company.trim()) meta.company = company.trim();
+      if (linkedin.trim()) meta.linkedin = linkedin.trim().slice(0, 300);
+      if (phone.trim()) meta.phone = phone.trim().slice(0, 40);
+      if (country.trim()) meta.country = country.trim().slice(0, 100);
+
 
       const pickedItemIds = Array.from(picked);
       if (pickedItemIds.length > 0) {
@@ -264,7 +303,12 @@ export function NewsletterForm({
       setFirstName("");
       setLastName("");
       setCompany("");
+      setLinkedin("");
+      setPhone("");
+      setCountry("");
+      setConsent(false);
       setPicked(new Set());
+
     } catch (err) {
       setErrMsg(subscribeErrorMessage(err instanceof Error ? err.message : String(err), lang));
       setState("err");
@@ -283,7 +327,15 @@ export function NewsletterForm({
 
   const inputCls = "px-3 py-2 rounded border border-input bg-background text-sm w-full";
   const hasExtras =
-    showFirstName || showLastName || showCompany || customFields.length > 0 || showInterests;
+    showFirstName ||
+    showLastName ||
+    showCompany ||
+    showLinkedin ||
+    showPhone ||
+    showCountry ||
+    customFields.length > 0 ||
+    showInterests;
+
 
   return (
     <section className={containerCls} aria-labelledby="newsletter-heading">
@@ -365,6 +417,62 @@ export function NewsletterForm({
                     />
                   </FieldWrap>
                 )}
+                <FieldWrap
+                  label={L.email}
+                  required={requireEmail}
+                  showMark={inBuilder}
+                  error={errors.email}
+                >
+                  <input
+                    type="email"
+                    required={requireEmail}
+                    aria-required={requireEmail || undefined}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder={P.email}
+                    className={inputCls}
+                    maxLength={254}
+                    autoComplete="email"
+                  />
+                </FieldWrap>
+                {showLinkedin && (
+                  <FieldWrap
+                    label={L.linkedin}
+                    required={requireLinkedin}
+                    showMark={inBuilder}
+                    error={errors.linkedin}
+                  >
+                    <input
+                      type="url"
+                      value={linkedin}
+                      onChange={(e) => setLinkedin(e.target.value)}
+                      className={inputCls}
+                      maxLength={300}
+                      required={requireLinkedin}
+                      aria-required={requireLinkedin || undefined}
+                      autoComplete="url"
+                    />
+                  </FieldWrap>
+                )}
+                {showPhone && (
+                  <FieldWrap
+                    label={L.phone}
+                    required={requirePhone}
+                    showMark={inBuilder}
+                    error={errors.phone}
+                  >
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className={inputCls}
+                      maxLength={40}
+                      required={requirePhone}
+                      aria-required={requirePhone || undefined}
+                      autoComplete="tel"
+                    />
+                  </FieldWrap>
+                )}
                 {showCompany && (
                   <FieldWrap
                     label={L.company}
@@ -381,26 +489,28 @@ export function NewsletterForm({
                       maxLength={200}
                       required={requireCompany}
                       aria-required={requireCompany || undefined}
+                      autoComplete="organization"
                     />
                   </FieldWrap>
                 )}
-                <FieldWrap
-                  label={L.email}
-                  required={requireEmail}
-                  showMark={inBuilder}
-                  error={errors.email}
-                >
-                  <input
-                    type="email"
-                    required={requireEmail}
-                    aria-required={requireEmail || undefined}
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder={P.email}
-                    className={inputCls}
-                    maxLength={254}
-                  />
-                </FieldWrap>
+                {showCountry && (
+                  <div className="sm:col-span-2">
+                    <CountryCombobox
+                      value={country}
+                      onChange={setCountry}
+                      lang={lang}
+                      label={L.country}
+                      required={requireCountry}
+                      maxLength={100}
+                    />
+                    {errors.country && (
+                      <span className="mt-1.5 block pl-1 text-[11px] text-destructive">
+                        {errors.country}
+                      </span>
+                    )}
+                  </div>
+                )}
+
                 {customFields.map((f) => (
                   <CustomFieldRender
                     key={f.id}
@@ -424,6 +534,33 @@ export function NewsletterForm({
                 />
               )}
 
+              {requireConsent && (
+                <div>
+                  <label className="widget-align-row nl-fineprint flex cursor-pointer items-center gap-2">
+                    <Checkbox
+                      checked={consent}
+                      onCheckedChange={(v) => setConsent(v === true)}
+                      aria-required
+                      className="h-[16px] w-[16px] shrink-0"
+                    />
+                    <span
+                      className="min-w-0"
+                      dangerouslySetInnerHTML={{
+                        __html: sanitizeHtml(policy || t("newsletterForm.consentDefault")),
+                      }}
+                      onClick={(e) => {
+                        if ((e.target as HTMLElement).closest("a")) e.stopPropagation();
+                      }}
+                    />
+                  </label>
+                  {errors.consent && (
+                    <span className="mt-1 block text-[11px] text-destructive">
+                      {errors.consent}
+                    </span>
+                  )}
+                </div>
+              )}
+
               <SubscribeButton
                 type="submit"
                 loading={state === "loading"}
@@ -432,6 +569,7 @@ export function NewsletterForm({
               >
                 {t("newsletterForm.subscribe")}
               </SubscribeButton>
+
             </>
           ) : (
             <>
@@ -477,7 +615,7 @@ export function NewsletterForm({
           </div>
         </div>
       )}
-      {policy && (
+      {policy && !requireConsent && (
         <p
           className="nl-consent nl-fineprint mt-3 text-muted-foreground"
           dangerouslySetInnerHTML={{ __html: sanitizeHtml(policy) }}

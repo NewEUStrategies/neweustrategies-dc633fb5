@@ -707,7 +707,7 @@ export const renderNewsletter: BlockRenderer = ({ block, cls, lang }) => {
     >
       {title && <h3 className="text-lg font-semibold m-0 mb-1">{title}</h3>}
       {description && <p className="text-sm text-muted-foreground mb-3 m-0">{description}</p>}
-      <NewsletterForm lang={lang} source="inline-block" variant={variant} />
+      <NewsletterForm lang={lang} source="inline-block" variant={variant} fields="full" />
     </section>
   );
 };
