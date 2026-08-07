@@ -6574,10 +6574,9 @@ header[data-site-header][data-metrics="ready"].site-header-shrink
 header[data-is-home="true"][data-site-header][data-metrics="ready"].site-header-shrink
   .site-header-chrome
   img[data-is-logo="true"] {
-  translate: 0 calc(-0.18 * var(--hdr-p) * var(--hdr-nat));
-  transition:
-    transform var(--hdr-duration) var(--hdr-ease),
-    translate var(--hdr-duration) var(--hdr-ease);
+  transform:
+    scale(calc(1 - 0.45 * var(--hdr-p)))
+    translateY(calc(-0.18 * var(--hdr-p) * var(--hdr-nat)));
 }
 
 @media (prefers-reduced-motion: reduce) {
