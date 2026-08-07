@@ -11,6 +11,20 @@ export const clubElementsPl = {
     subtitle:
       "Wszystkie elementy interfejsu Klubu dyskusyjnego w jednym miejscu: słowniki, znaczniki, macierz uprawnień, zdanie dostępu i reakcje semantyczne.",
     note: "Strona poglądowa. Dane są przykładowe - nic tu nie zapisuje się do bazy.",
+    ui: {
+      sandbox: "Podgląd",
+      searchLabel: "Szukaj w katalogu elementów",
+      searchPlaceholder: "Szukaj wartości, kodu lub etykiety (np. chatham, invite_expired)",
+      sections: "Sekcje katalogu",
+      clear: "Wyczyść",
+      copyHint: "Kliknij, aby skopiować surową wartość",
+      copied: "Skopiowano: {{value}}",
+      copyFailed: "Nie udało się skopiować wartości.",
+      noResults: "Brak wyników",
+      noResultsHint:
+        "Żadna wartość, kod ani etykieta nie pasuje do zapytania. Sekcje z narzędziami (dostęp, galeria) pozostają widoczne.",
+    },
+
     section: {
       vocab: "Słowniki domenowe",
       vocabHint: "Zbiory wartości wyprowadzone z CHECK-ów w bazie - jedyne źródło dropList.",
@@ -129,6 +143,20 @@ export const clubElementsEn = {
     subtitle:
       "Every Discussion Club interface element in one place: vocabularies, state badges, the capability matrix, the access sentence and semantic reactions.",
     note: "Reference page. All data is sample data - nothing is written to the database.",
+    ui: {
+      sandbox: "Preview",
+      searchLabel: "Search the element catalogue",
+      searchPlaceholder: "Search a value, code or label (e.g. chatham, invite_expired)",
+      sections: "Catalogue sections",
+      clear: "Clear",
+      copyHint: "Click to copy the raw value",
+      copied: "Copied: {{value}}",
+      copyFailed: "Could not copy the value.",
+      noResults: "No matches",
+      noResultsHint:
+        "No value, code or label matches the query. Tool sections (access, gallery) stay visible.",
+    },
+
     section: {
       vocab: "Domain vocabularies",
       vocabHint:

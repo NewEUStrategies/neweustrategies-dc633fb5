@@ -284,6 +284,7 @@ import { Route as ApiPublicNewsletterUnsubscribeRouteImport } from './routes/api
 import { Route as ApiPublicNewsletterConfirmRouteImport } from './routes/api.public.newsletter.confirm'
 import { Route as ApiPublicHooksRefreshOgImageRouteImport } from './routes/api/public/hooks.refresh-og-image'
 import { Route as AdminNewsletterCampaignsIdRouteImport } from './routes/admin.newsletter.campaigns.$id'
+import { Route as AdminCommunityClubsElementsRouteImport } from './routes/admin.community.clubs.elements'
 import { Route as AdminCommunityClubsClubIdRouteImport } from './routes/admin.community.clubs.$clubId'
 
 const ZwrotyIReklamacjeRoute = ZwrotyIReklamacjeRouteImport.update({
@@ -1699,6 +1700,12 @@ const AdminNewsletterCampaignsIdRoute =
     path: '/$id',
     getParentRoute: () => AdminNewsletterCampaignsRoute,
   } as any)
+const AdminCommunityClubsElementsRoute =
+  AdminCommunityClubsElementsRouteImport.update({
+    id: '/clubs/elements',
+    path: '/clubs/elements',
+    getParentRoute: () => AdminCommunityRoute,
+  } as any)
 const AdminCommunityClubsClubIdRoute =
   AdminCommunityClubsClubIdRouteImport.update({
     id: '/clubs/$clubId',
@@ -1964,6 +1971,7 @@ export interface FileRoutesByFullPath {
   '/admin/users/': typeof AdminUsersIndexRoute
   '/club/$clubSlug/': typeof ClubClubSlugIndexRoute
   '/admin/community/clubs/$clubId': typeof AdminCommunityClubsClubIdRoute
+  '/admin/community/clubs/elements': typeof AdminCommunityClubsElementsRoute
   '/admin/newsletter/campaigns/$id': typeof AdminNewsletterCampaignsIdRoute
   '/api/public/hooks/refresh-og-image': typeof ApiPublicHooksRefreshOgImageRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
@@ -2232,6 +2240,7 @@ export interface FileRoutesByTo {
   '/admin/users': typeof AdminUsersIndexRoute
   '/club/$clubSlug': typeof ClubClubSlugIndexRoute
   '/admin/community/clubs/$clubId': typeof AdminCommunityClubsClubIdRoute
+  '/admin/community/clubs/elements': typeof AdminCommunityClubsElementsRoute
   '/admin/newsletter/campaigns/$id': typeof AdminNewsletterCampaignsIdRoute
   '/api/public/hooks/refresh-og-image': typeof ApiPublicHooksRefreshOgImageRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
@@ -2511,6 +2520,7 @@ export interface FileRoutesById {
   '/admin/users/': typeof AdminUsersIndexRoute
   '/club/$clubSlug/': typeof ClubClubSlugIndexRoute
   '/admin/community/clubs/$clubId': typeof AdminCommunityClubsClubIdRoute
+  '/admin/community/clubs/elements': typeof AdminCommunityClubsElementsRoute
   '/admin/newsletter/campaigns/$id': typeof AdminNewsletterCampaignsIdRoute
   '/api/public/hooks/refresh-og-image': typeof ApiPublicHooksRefreshOgImageRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
@@ -2791,6 +2801,7 @@ export interface FileRouteTypes {
     | '/admin/users/'
     | '/club/$clubSlug/'
     | '/admin/community/clubs/$clubId'
+    | '/admin/community/clubs/elements'
     | '/admin/newsletter/campaigns/$id'
     | '/api/public/hooks/refresh-og-image'
     | '/api/public/newsletter/confirm'
@@ -3059,6 +3070,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/club/$clubSlug'
     | '/admin/community/clubs/$clubId'
+    | '/admin/community/clubs/elements'
     | '/admin/newsletter/campaigns/$id'
     | '/api/public/hooks/refresh-og-image'
     | '/api/public/newsletter/confirm'
@@ -3337,6 +3349,7 @@ export interface FileRouteTypes {
     | '/admin/users/'
     | '/club/$clubSlug/'
     | '/admin/community/clubs/$clubId'
+    | '/admin/community/clubs/elements'
     | '/admin/newsletter/campaigns/$id'
     | '/api/public/hooks/refresh-og-image'
     | '/api/public/newsletter/confirm'
@@ -5402,6 +5415,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminNewsletterCampaignsIdRouteImport
       parentRoute: typeof AdminNewsletterCampaignsRoute
     }
+    '/admin/community/clubs/elements': {
+      id: '/admin/community/clubs/elements'
+      path: '/clubs/elements'
+      fullPath: '/admin/community/clubs/elements'
+      preLoaderRoute: typeof AdminCommunityClubsElementsRouteImport
+      parentRoute: typeof AdminCommunityRoute
+    }
     '/admin/community/clubs/$clubId': {
       id: '/admin/community/clubs/$clubId'
       path: '/clubs/$clubId'
@@ -5447,6 +5467,7 @@ interface AdminCommunityRouteChildren {
   AdminCommunityQaRoute: typeof AdminCommunityQaRoute
   AdminCommunityIndexRoute: typeof AdminCommunityIndexRoute
   AdminCommunityClubsClubIdRoute: typeof AdminCommunityClubsClubIdRoute
+  AdminCommunityClubsElementsRoute: typeof AdminCommunityClubsElementsRoute
   AdminCommunityClubsIndexRoute: typeof AdminCommunityClubsIndexRoute
 }
 
@@ -5461,6 +5482,7 @@ const AdminCommunityRouteChildren: AdminCommunityRouteChildren = {
   AdminCommunityQaRoute: AdminCommunityQaRoute,
   AdminCommunityIndexRoute: AdminCommunityIndexRoute,
   AdminCommunityClubsClubIdRoute: AdminCommunityClubsClubIdRoute,
+  AdminCommunityClubsElementsRoute: AdminCommunityClubsElementsRoute,
   AdminCommunityClubsIndexRoute: AdminCommunityClubsIndexRoute,
 }
 
