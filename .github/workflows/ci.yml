@@ -287,6 +287,17 @@ jobs:
       - name: RPC contract (client calls ⇄ migrations)
         run: bun run check:rpc-contract
 
+      # Blocking gate: the SIXTH positional argument of emit_domain_event is the
+      # actor (uuid), never a flag. A12 added a second overload with a boolean
+      # there; A16 collapsed the overload but kept the boolean sixth, and the 25
+      # call sites in billing, monetization and badges stopped binding. Every
+      # emitter swallows its own exception so the fan-out cannot abort business
+      # transactions - which turned a hard 42883 into silence and an empty event
+      # bus. Judged on the FINAL migration state: migrations are forward-only,
+      # so a later file recreating the function is the fix, not an edit.
+      - name: Domain event actor is the sixth argument
+        run: bun run check:sql-emit-actor
+
       # Blocking tenant-isolation gate: fails if an owner-scoped RLS clause
       # (`auth.uid() = <column>`) drops the tenant binding while a sibling
       # clause on the SAME table keeps it. That asymmetry made author_profiles

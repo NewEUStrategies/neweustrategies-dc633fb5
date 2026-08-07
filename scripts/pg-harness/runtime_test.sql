@@ -1378,12 +1378,15 @@ SELECT pg_temp.assert(
     = 'a0000000-0000-0000-0000-000000000001',
   'bez parametrow aktorem jest sesja');
 
--- Aktor jawny idzie NAZWA, nie pozycja: szosta pozycja nalezy do
--- p_suppress_actor, bo tak wolaja triggery z A12.
+-- Aktor jawny POZYCYJNIE na szostej pozycji. To jest ksztalt dwudziestu
+-- pieciu wywolan w billingu, monetyzacji i odznakach - A16 przestawila ten
+-- parametr na siodme miejsce i wszystkie przestaly sie wiazac. Asercja
+-- pozycyjna, nie nazwana: nazwana przechodzila przy zlej kolejnosci i to
+-- dlatego regresja wyszla dopiero z CI.
 SELECT public.emit_domain_event(
   '11111111-1111-1111-1111-111111111111'::uuid,
   'club', 'aktor-jawny', 'club.smoke.v1', '{}'::jsonb,
-  p_actor_id => 'a0000000-0000-0000-0000-000000000005'::uuid) AS ev_explicit \gset
+  'a0000000-0000-0000-0000-000000000005'::uuid) AS ev_explicit \gset
 SELECT pg_temp.assert(
   (SELECT actor_id FROM public.domain_events WHERE id = :'ev_explicit'::uuid)
     = 'a0000000-0000-0000-0000-000000000005',
@@ -1392,20 +1395,30 @@ SELECT pg_temp.assert(
 SELECT public.emit_domain_event(
   '11111111-1111-1111-1111-111111111111'::uuid,
   'club', 'aktor-ukryty', 'club.smoke.v1', '{}'::jsonb,
-  true, 'a0000000-0000-0000-0000-000000000005'::uuid) AS ev_hidden \gset
+  'a0000000-0000-0000-0000-000000000005'::uuid, true) AS ev_hidden \gset
 SELECT pg_temp.assert(
   (SELECT actor_id FROM public.domain_events WHERE id = :'ev_hidden'::uuid) IS NULL,
   'tlumienie aktora bije nawet jawny parametr - reguly chatham nie da sie obejsc');
 
--- Ksztalt, ktorym wolaja triggery A12: szesc argumentow, szosty boolean.
--- To jest wywolanie, ktore zlamalby kazdy porzadek parametrow z aktorem na
--- szostej pozycji - stad wlasna asercja, a nie zaufanie do przegladu.
+-- Tlumienie aktora WYLACZNIE argumentem nazwanym - tak wolaja teraz szwy
+-- z A12. Pozycyjny boolean na szostym miejscu jest od A17 bledem typu i to
+-- jest zamierzone: szosta pozycja nalezy do aktora.
 SELECT public.emit_domain_event(
   '11111111-1111-1111-1111-111111111111'::uuid,
-  'club', 'ksztalt-a12', 'club.smoke.v1', '{}'::jsonb, true) AS ev_a12 \gset
+  'club', 'ksztalt-a12', 'club.smoke.v1', '{}'::jsonb,
+  p_suppress_actor => true) AS ev_a12 \gset
 SELECT pg_temp.assert(
   (SELECT actor_id FROM public.domain_events WHERE id = :'ev_a12'::uuid) IS NULL,
-  'szescioargumentowe wywolanie z booleanem (ksztalt A12) wiaze sie i tlumi aktora');
+  'tlumienie argumentem nazwanym wiaze sie i zeruje aktora');
+
+-- KONTRAKT KOLEJNOSCI, spisany wprost. Ta asercja jest odpowiedzia na to, co
+-- poszlo zle w A16: sprawdzalem WLASNY nowy ksztalt wywolania zamiast
+-- ksztaltow, ktorych uzywa reszta bazy.
+SELECT pg_temp.assert(
+  pg_get_function_identity_arguments(
+    'public.emit_domain_event(uuid,text,text,text,jsonb,uuid,boolean)'::regprocedure)
+    LIKE '%p_actor_id uuid%p_suppress_actor boolean%',
+  'aktor stoi PRZED tlumieniem - odwrotna kolejnosc rozwiazuje 25 wywolan billingu');
 
 \echo ''
 \echo '=========================================='
