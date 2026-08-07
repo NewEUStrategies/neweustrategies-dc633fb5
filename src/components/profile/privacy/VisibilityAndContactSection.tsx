@@ -29,6 +29,8 @@ import {
   useSetDiscoverable,
   useExpertRequestsEnabled,
   useSetExpertRequestsEnabled,
+  useHideAvatar,
+  useSetHideAvatar,
 } from "@/lib/chat/useDiscoverable";
 import { usePublicExposure } from "@/lib/profile/usePublicExposure";
 import {
