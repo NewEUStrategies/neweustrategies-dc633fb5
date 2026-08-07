@@ -321,7 +321,11 @@ export function ExpertLayoutHero({
     center?: boolean;
   }) =>
     action ? (
-      <div className={`flex ${center ? "justify-center" : "justify-end"} ${className}`}>
+      // Mobile: pasek akcji wyrównany do lewej krawędzi treści (obszar
+      // bezpieczny = ten sam padding co hero); od sm wraca do prawej.
+      <div
+        className={`flex ${center ? "justify-center" : "justify-start sm:justify-end"} ${className}`}
+      >
         {action}
       </div>
     ) : null;
