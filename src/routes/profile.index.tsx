@@ -144,13 +144,19 @@ function ProfileInline() {
     );
   }
 
+  // "Ustawienia" to strefa prywatna - dane (płeć, miejsce zamieszkania) ustawia
+  // wyłącznie właściciel na swoim profilu i nie są widoczne publicznie,
+  // więc w podglądzie gościa zakładka w ogóle nie istnieje.
   const tabs: { key: TabKey; label: string }[] = [
     { key: "about", label: t("profile.tabs.about") },
     { key: "experience", label: t("profile.tabs.experience") },
     { key: "badges", label: t("profile.tabs.badges") },
     { key: "activity", label: t("profile.tabs.activity") },
-    { key: "settings", label: t("profile.tabs.settings") },
+    ...(editable ? [{ key: "settings" as const, label: t("profile.tabs.settings") }] : []),
   ];
+
+  const activeTab: TabKey = tab === "settings" && !editable ? "about" : tab;
+
 
   return (
     <TooltipProvider>
