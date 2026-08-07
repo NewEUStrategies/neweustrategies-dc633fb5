@@ -62,6 +62,7 @@ import { useSiteSetting } from "@/lib/useSiteSetting";
 import { useTheme } from "@/components/ThemeProvider";
 import { ensureI18n as ensureProfileExtras2I18n } from "@/lib/i18n-profile-extras2";
 import { setGuestPreview } from "@/lib/profile/guestPreviewStore";
+import { VerifiedProfileBadge } from "@/components/profile/VerifiedProfileBadge";
 import { ProfileViewsCard } from "@/components/network/ProfileViewsCard";
 import { IntroductionsCard } from "@/components/network/IntroductionsCard";
 
