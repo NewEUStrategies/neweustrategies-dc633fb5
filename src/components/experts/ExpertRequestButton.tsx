@@ -8,6 +8,12 @@
 import { useTranslation } from "react-i18next";
 import { MessageSquareQuote } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
@@ -27,6 +33,8 @@ export interface ExpertRequestButtonProps {
   recipientEnabled?: boolean;
   /** Zwarta wersja (ikona + krótka etykieta) na listy/karty. */
   compact?: boolean;
+  /** Wariant „tylko ikona" (h-8 w-8) - gęsty pasek akcji na profilu eksperta. */
+  iconOnly?: boolean;
   className?: string;
 }
 
@@ -36,6 +44,7 @@ export function ExpertRequestButton({
   expertAvatar,
   recipientEnabled,
   compact,
+  iconOnly,
   className,
 }: ExpertRequestButtonProps) {
   ensureExpertRequestI18n();
@@ -59,15 +68,21 @@ export function ExpertRequestButton({
       <Button
         type="button"
         variant="outline"
-        size={compact ? "sm" : "default"}
+        size={iconOnly ? "icon" : compact ? "sm" : "default"}
         disabled
         aria-hidden
-        className={cn("h-8 gap-1.5 opacity-60 pointer-events-none", className)}
+        className={cn(
+          "h-8 gap-1.5 opacity-60 pointer-events-none",
+          iconOnly && "w-8 shrink-0",
+          className,
+        )}
       >
         <MessageSquareQuote className="h-3.5 w-3.5" aria-hidden />
-        <span className={cn(compact && "hidden sm:inline")}>
-          {compact ? t("expertRequest.ctaShort") : t("expertRequest.cta")}
-        </span>
+        {!iconOnly && (
+          <span className={cn(compact && "hidden sm:inline")}>
+            {compact ? t("expertRequest.ctaShort") : t("expertRequest.cta")}
+          </span>
+        )}
       </Button>
     );
   }
@@ -81,14 +96,18 @@ export function ExpertRequestButton({
   const isUnlimited = !!quota && quota.quota >= UNLIMITED_THRESHOLD;
   const hasAllowance = !!quota && quota.quota > 0 && !isUnlimited;
   const exhausted = hasAllowance && quota.remaining <= 0;
+  const tooltip = hasAllowance
+    ? `${t("expertRequest.cta")} (${quota.remaining}/${quota.quota})`
+    : t("expertRequest.cta");
 
-  return (
+  const button = (
     <Button
       type="button"
       variant="outline"
-      size={compact ? "sm" : "default"}
+      size={iconOnly ? "icon" : compact ? "sm" : "default"}
       className={cn(
         "h-8 gap-1.5 transition-colors hover:bg-brand/10 hover:text-brand hover:border-brand/40 [&_svg]:transition-colors",
+        iconOnly && "relative w-8 shrink-0",
         className,
       )}
       aria-label={`${t("expertRequest.cta")}: ${expertName}`}
@@ -101,10 +120,12 @@ export function ExpertRequestButton({
       }
     >
       <MessageSquareQuote className="h-3.5 w-3.5" aria-hidden />
-      <span className={cn(compact && "hidden sm:inline")}>
-        {compact ? t("expertRequest.ctaShort") : t("expertRequest.cta")}
-      </span>
-      {hasAllowance && (
+      {!iconOnly && (
+        <span className={cn(compact && "hidden sm:inline")}>
+          {compact ? t("expertRequest.ctaShort") : t("expertRequest.cta")}
+        </span>
+      )}
+      {hasAllowance && !iconOnly && (
         <span
           className={cn(
             "ml-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums",
@@ -116,6 +137,27 @@ export function ExpertRequestButton({
           {quota.remaining}/{quota.quota}
         </span>
       )}
+      {/* W trybie ikonowym pula jest tylko sygnałem wyczerpania - pełna
+          informacja („x/y") żyje w tooltipie, żeby nie rozpychać paska akcji. */}
+      {hasAllowance && iconOnly && exhausted && (
+        <span
+          aria-hidden
+          className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-amber-500"
+        />
+      )}
     </Button>
+  );
+
+  if (!iconOnly) return button;
+
+  return (
+    <TooltipProvider delayDuration={150}>
+      <Tooltip>
+        <TooltipTrigger asChild>{button}</TooltipTrigger>
+        <TooltipContent side="top" sideOffset={6}>
+          {tooltip}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }

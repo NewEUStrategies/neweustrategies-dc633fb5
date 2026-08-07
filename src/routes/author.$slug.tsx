@@ -480,7 +480,7 @@ function ExpertHubPage() {
           lang={lang}
           showPlaceholders={false}
           action={
-            <div className="flex flex-wrap items-center justify-end gap-1.5">
+            <div className="flex w-full min-w-0 flex-wrap items-center justify-start gap-1.5 sm:w-auto sm:justify-end">
               {personalized.followInAuthorHeader && (
                 <FollowButton targetType="author" targetId={expert.id} lang={lang} />
               )}
@@ -498,6 +498,7 @@ function ExpertHubPage() {
                 expertName={name}
                 expertAvatar={expert.avatar_url}
                 recipientEnabled={expert.expert_requests_enabled}
+                iconOnly
               />
               <RequestIntroductionButton userId={expert.id} displayName={name} />
               <MutualConnectionsHint userId={expert.id} />
