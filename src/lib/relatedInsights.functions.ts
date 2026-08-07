@@ -98,10 +98,10 @@ export const getRelatedInsights = createServerFn({ method: "POST" })
     const tenantId = await resolveUserTenantId(supabaseAdmin, context.userId);
 
     try {
-      const { data: rpcData, error } = await context.supabase.rpc(
-        "related_posts_signals" as never,
-        { _tenant: tenantId, _since_days: data.days } as never,
-      );
+      const { data: rpcData, error } = await context.supabase.rpc("related_posts_signals", {
+        _tenant: tenantId,
+        _since_days: data.days,
+      });
       if (error) throw new Error(error.message);
       if (!rpcData) return { ...EMPTY, summary: { ...EMPTY.summary, window_days: data.days } };
       // RPC zwraca jsonb - już parsowany przez PostgREST do JS-owego obiektu.

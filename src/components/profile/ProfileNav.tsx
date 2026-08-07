@@ -35,8 +35,6 @@ type NavKey =
   | "plan"
   | "organization"
   | "billing"
-  | "subscription"
-  | "orders"
   | "payments"
   | "security"
   | "privacy"
@@ -50,9 +48,9 @@ type NavItem = {
 };
 
 // 13 pozycji w płaskiej liście przytłaczało (audyt IA profilu) - nawigacja
-// jest pogrupowana w trzy nazwane sekcje: tożsamość / treści / płatności.
-// Konsolidacja tożsamości (ocena modułów 2026-07-20): trzy dawne pozycje
-// edycji (account/author/social) to teraz JEDNA strona z zakładkami.
+// jest pogrupowana w nazwane sekcje. Konsolidacja tożsamości (ocena modułów
+// 2026-07-20): trzy dawne pozycje edycji (account/author/social) to teraz
+// JEDNA strona z zakładkami.
 const IDENTITY: NavItem[] = [
   { to: "/profile", key: "overview", icon: UserCircle },
   { to: "/profile/edit", key: "edit", icon: UserCog },
@@ -69,15 +67,29 @@ const CONTENT: NavItem[] = [
   { to: "/profile/expert-requests", key: "expertRequests", icon: MessageSquareQuote },
 ];
 
+// FINANSE - cztery pozycje zamiast sześciu (§11 audytu IA). Dwie z dawnej listy
+// były osobnymi wejściami do tej samej treści i zostały przekierowane:
+//   * „Subskrypcja" (/profile/subscription) renderowała wyłącznie
+//     SubscriptionManagerSection - komponent, który i tak jest częścią huba
+//     członkostwa; jego pełniejszy odpowiednik to „Plan i subskrypcja",
+//   * „Zamówienia" (/profile/orders) i „Historia płatności" (/profile/payments)
+//     to były dwie listy tych samych transakcji, obie z InvoiceLookupCard.
+// Użytkownik nie musi już zgadywać, czy faktury są pod „Zamówieniami", czy pod
+// „Historią płatności" - jest jedno miejsce: „Płatności i faktury".
 const FINANCE: NavItem[] = [
   { to: "/profile/membership", key: "membership", icon: Crown },
-  { to: "/profile/plan", key: "plan", icon: CreditCard },
-  { to: "/profile/billing", key: "billing", icon: CreditCard },
-  { to: "/profile/subscription", key: "subscription", icon: RefreshCw },
-  { to: "/profile/orders", key: "orders", icon: FileText },
+  { to: "/profile/plan", key: "plan", icon: RefreshCw },
   { to: "/profile/payments", key: "payments", icon: Receipt },
-  { to: "/profile/security", key: "security", icon: Shield },
+  { to: "/profile/billing", key: "billing", icon: FileText },
+];
+
+// PRYWATNOŚĆ I BEZPIECZEŃSTWO - własna grupa (§10 audytu IA). Do 06.08 obie
+// pozycje wisiały w grupie nazwanej „Płatności i bezpieczeństwo": ustawienia
+// prywatności i kasowanie konta stały pod nagłówkiem o płatnościach, a same
+// przełączniki widoczności mieszkały w formularzu edycji profilu.
+const PRIVACY: NavItem[] = [
   { to: "/profile/privacy", key: "privacy", icon: Lock },
+  { to: "/profile/security", key: "security", icon: Shield },
 ];
 
 // Pozycja "Organizacja" pojawia się tylko u posiadaczy miejsca w organizacji
@@ -167,6 +179,10 @@ export function ProfileNav() {
 
       <NavGroup titleKey="profile.navGroups.finance" icon={CreditCard}>
         {financeItems.map(renderItem)}
+      </NavGroup>
+
+      <NavGroup titleKey="profile.navGroups.privacy" icon={Lock}>
+        {PRIVACY.map(renderItem)}
       </NavGroup>
     </nav>
   );

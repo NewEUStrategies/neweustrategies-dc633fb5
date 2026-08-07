@@ -664,13 +664,10 @@ function VerificationAdminToggle({
 
   const setVerified = async (next: boolean) => {
     setBusy(true);
-    const { error } = await supabase.rpc(
-      "admin_set_profile_verification" as never,
-      {
-        p_user_id: userId,
-        p_verified: next,
-      } as never,
-    );
+    const { error } = await supabase.rpc("admin_set_profile_verification", {
+      p_user_id: userId,
+      p_verified: next,
+    });
     setBusy(false);
     if (error) {
       toast.error(error.message);
@@ -750,13 +747,10 @@ function ExpertRequestsAdminToggle({ userId, isPL }: { userId: string; isPL: boo
 
   const setEnabled = async (next: boolean) => {
     setBusy(true);
-    const { error } = await supabase.rpc(
-      "admin_set_expert_requests_enabled" as never,
-      {
-        p_user_id: userId,
-        p_enabled: next,
-      } as never,
-    );
+    const { error } = await supabase.rpc("admin_set_expert_requests_enabled", {
+      p_user_id: userId,
+      p_enabled: next,
+    });
     setBusy(false);
     if (error) {
       toast.error(error.message);
@@ -815,12 +809,9 @@ function UserConsentPanel({ userId, isPL }: { userId: string; isPL: boolean }) {
   const { data, isLoading, error } = useQuery({
     queryKey: ["admin-user-consent", userId],
     queryFn: async (): Promise<UserConsentResult> => {
-      const { data, error } = await supabase.rpc(
-        "admin_get_user_consent" as never,
-        {
-          _user_id: userId,
-        } as never,
-      );
+      const { data, error } = await supabase.rpc("admin_get_user_consent", {
+        _user_id: userId,
+      });
       if (error) throw error;
       return (data ?? null) as UserConsentResult;
     },

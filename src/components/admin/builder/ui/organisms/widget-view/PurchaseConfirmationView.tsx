@@ -286,7 +286,8 @@ export function PurchaseConfirmationView({ c, lang }: { c: WidgetContent; lang: 
         ) : null}
         {showOrdersLink ? (
           <Button asChild variant="outline" className="h-12 rounded-[6px]">
-            <Link to="/profile/orders">{copy.orders}</Link>
+            {/* Zamówienia i historia płatności to od 06.08 jedna strona (§11). */}
+            <Link to="/profile/payments">{copy.orders}</Link>
           </Button>
         ) : null}
         <Button asChild variant="ghost" className="h-12 rounded-[6px]">

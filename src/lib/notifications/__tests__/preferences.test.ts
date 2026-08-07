@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  ALLOW_MESSAGES_FROM_LEVELS,
   DEFAULT_NOTIFICATION_PREFERENCES,
   NOTIFICATION_KINDS,
   NOTIFICATION_PREFERENCE_COLUMNS,
@@ -11,6 +12,7 @@ import {
 } from "../preferences";
 import { pl } from "@/lib/locale/pl";
 import { en } from "@/lib/locale/en";
+import { chatPl, chatEn } from "@/lib/i18n-chat";
 
 const prefs: NotificationPreferences = {
   ...DEFAULT_NOTIFICATION_PREFERENCES,
@@ -142,5 +144,57 @@ describe("notification kind labels (PL/EN)", () => {
     expect(typeof enLabel).toBe("string");
     expect(plLabel).not.toBe("");
     expect(enLabel).not.toBe("");
+  });
+});
+
+// §9 audytu: `contacts` przestał być fantomem w bramce czatu i stał się realnym
+// poziomem prywatności. Trzy rzeczy muszą trzymać się razem, bo rozjazd
+// któregokolwiek daje albo martwą opcję w UI, albo naruszenie CHECK-a w bazie:
+//   1. unia typu = CHECK `notification_preferences_allow_messages_from_check`,
+//   2. kolejność listy = malejąca otwartość (kolejność opcji w selectcie),
+//   3. wartość domyślna zostaje `everyone` - migracja nikomu nic nie zacieśnia.
+describe("ALLOW_MESSAGES_FROM_LEVELS", () => {
+  it("zawiera dokładnie cztery poziomy w kolejności malejącej otwartości", () => {
+    expect([...ALLOW_MESSAGES_FROM_LEVELS]).toEqual(["everyone", "contacts", "existing", "nobody"]);
+  });
+
+  it("nie zmienia wartości domyślnej", () => {
+    expect(DEFAULT_NOTIFICATION_PREFERENCES.allow_messages_from).toBe("everyone");
+  });
+
+  it("każdy poziom jest przypisywalny do preferencji (unia pokrywa listę)", () => {
+    for (const level of ALLOW_MESSAGES_FROM_LEVELS) {
+      const next: NotificationPreferences = {
+        ...DEFAULT_NOTIFICATION_PREFERENCES,
+        allow_messages_from: level,
+      };
+      expect(next.allow_messages_from).toBe(level);
+    }
+  });
+});
+
+// Etykiety opcji: brak którejkolwiek daje select z surowym kluczem i18n.
+describe("allow_messages_from labels (PL/EN)", () => {
+  function optionLabels(bundle: unknown): Record<string, unknown> {
+    const tree = bundle as { profilePrivacy?: Record<string, unknown> };
+    return tree.profilePrivacy ?? {};
+  }
+
+  const KEY_BY_LEVEL: Readonly<Record<string, string>> = {
+    everyone: "allowMessagesEveryone",
+    contacts: "allowMessagesContacts",
+    existing: "allowMessagesExisting",
+    nobody: "allowMessagesNobody",
+  };
+
+  it.each([...ALLOW_MESSAGES_FROM_LEVELS])("ma etykietę PL i EN dla %s", (level) => {
+    const key = KEY_BY_LEVEL[level] ?? "";
+    const plLabel = optionLabels(chatPl)[key];
+    const enLabel = optionLabels(chatEn)[key];
+    expect(typeof plLabel).toBe("string");
+    expect(typeof enLabel).toBe("string");
+    expect(plLabel).not.toBe("");
+    expect(enLabel).not.toBe("");
+    expect(plLabel).not.toBe(enLabel);
   });
 });

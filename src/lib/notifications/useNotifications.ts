@@ -27,7 +27,7 @@ export type NotificationRow = Database["public"]["Tables"]["notifications"]["Row
 // Model preferencji (typy + wartości domyślne + lista kolumn) mieszka w
 // czystym module `./preferences`; re-eksport trzyma jedno miejsce importu dla
 // konsumentów warstwy danych.
-export { DEFAULT_NOTIFICATION_PREFERENCES } from "./preferences";
+export { ALLOW_MESSAGES_FROM_LEVELS, DEFAULT_NOTIFICATION_PREFERENCES } from "./preferences";
 export type {
   AllowConnectionsFrom,
   AllowMessagesFrom,

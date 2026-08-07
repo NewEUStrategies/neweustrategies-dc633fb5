@@ -86,7 +86,7 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
       // Accurate window size via a cheap COUNT(*) - the TRUE total even when the
       // aggregated sample set below is capped, so the dashboard never understates.
       const { count: windowCount, error: countErr } = await supabaseAdmin
-        .from("web_vitals" as never)
+        .from("web_vitals")
         .select("*", { count: "exact", head: true })
         .eq("tenant_id", tenantId)
         .gte("created_at", since)
@@ -94,7 +94,7 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
       if (countErr) throw new Error(countErr.message);
 
       const { data: rows, error } = await supabaseAdmin
-        .from("web_vitals" as never)
+        .from("web_vitals")
         .select("metric, value, rating, path, created_at")
         .eq("tenant_id", tenantId)
         .gte("created_at", since)
@@ -117,8 +117,8 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
       if (!hasCustomUntil) {
         try {
           const { data: trendRows, error: trendErr } = await supabaseAdmin.rpc(
-            "web_vitals_daily_p75" as never,
-            { p_since: since, p_tenant: tenantId } as never,
+            "web_vitals_daily_p75",
+            { p_since: since, p_tenant: tenantId },
           );
           if (!trendErr && Array.isArray(trendRows)) {
             trends = trendsFromDailyP75(trendRows as unknown as DailyP75Row[]);

@@ -29,7 +29,7 @@ export const Route = createFileRoute("/api/public/jobs-tick")({
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { data: cfg } = await supabaseAdmin
-          .from("job_runner_settings" as never)
+          .from("job_runner_settings")
           .select("enabled, secret")
           .eq("id", 1)
           .maybeSingle();

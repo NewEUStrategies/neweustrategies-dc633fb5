@@ -82,7 +82,7 @@ export const Route = createFileRoute("/api/public/ad-event")({
           }
 
           // `ad_events` is not yet in the generated Supabase types (cast).
-          await supabaseAdmin.from("ad_events" as never).insert({
+          await supabaseAdmin.from("ad_events").insert({
             slot_id: slotId,
             placement_id: verifiedPlacementId,
             kind,

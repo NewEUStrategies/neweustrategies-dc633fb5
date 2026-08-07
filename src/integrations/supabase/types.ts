@@ -12779,6 +12779,10 @@ export type Database = {
         }
         Returns: Database["public"]["Enums"]["app_role"][]
       }
+      chat_accepts_new_thread: {
+        Args: { _initiator: string; _peer: string }
+        Returns: boolean
+      }
       chat_allow_messages_from: { Args: { _user: string }; Returns: string }
       chat_check_upload_quota: { Args: never; Returns: undefined }
       chat_clear_history: {
@@ -13137,6 +13141,7 @@ export type Database = {
         Returns: boolean
       }
       delete_my_meeting_slot: { Args: { p_slot_id: string }; Returns: boolean }
+      discovery_search_norm: { Args: { _q: string }; Returns: string }
       email_apply_delivery_event: {
         Args: {
           p_bounce_class?: string
@@ -13891,6 +13896,7 @@ export type Database = {
         Args: { p_conversation_id: string }
         Returns: undefined
       }
+      like_escape: { Args: { _s: string }; Returns: string }
       link_current_company: {
         Args: { _company_id: string }
         Returns: undefined
@@ -14744,6 +14750,7 @@ export type Database = {
           slug: string
           specialization: string
           total_count: number
+          verified: boolean
         }[]
       }
       search_companies_public: {

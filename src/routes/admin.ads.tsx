@@ -725,12 +725,12 @@ function StatsPanel() {
         slots.map(async (s) => {
           const [{ count: imp }, { count: clk }] = await Promise.all([
             supabase
-              .from("ad_events" as never)
+              .from("ad_events")
               .select("*", { count: "exact", head: true })
               .eq("slot_id", s.id)
               .eq("kind", "impression"),
             supabase
-              .from("ad_events" as never)
+              .from("ad_events")
               .select("*", { count: "exact", head: true })
               .eq("slot_id", s.id)
               .eq("kind", "click"),

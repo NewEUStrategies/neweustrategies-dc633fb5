@@ -54,9 +54,9 @@ export const AUTHZ_SNAPSHOT: AuthzSnapshotModule = {
     {"ref":"fn:tg_comments_owner_edit/0","kind":"function","object":"tg_comments_owner_edit","file":"20260713098000_comments_editing.sql","anyRoles":["admin","editor"],"allRoles":[],"tenantRef":"row","securityDefiner":true,"featureKeys":[]},
   ],
   featureGates: [
-    {"capability":"chat_direct_gated","ref":"fn:get_or_create_direct_conversation/1","kind":"function","object":"get_or_create_direct_conversation","file":"20260806184400_7d4073f2-59a7-41c3-967c-819fe13b4c18.sql","bypassRoles":["super_admin"],"tenantRef":"row"},
+    {"capability":"chat_direct_gated","ref":"fn:get_or_create_direct_conversation/1","kind":"function","object":"get_or_create_direct_conversation","file":"20260806221000_chat_privacy_contacts_level.sql","bypassRoles":["super_admin"],"tenantRef":"row"},
     {"capability":"chat_direct_gated","ref":"fn:my_expert_request_quota/0","kind":"function","object":"my_expert_request_quota","file":"20260806185055_1272fb55-fdb9-4eac-9035-66377484ac2c.sql","bypassRoles":["super_admin"],"tenantRef":"row"},
-    {"capability":"chat_enabled","ref":"fn:get_or_create_direct_conversation/1","kind":"function","object":"get_or_create_direct_conversation","file":"20260806184400_7d4073f2-59a7-41c3-967c-819fe13b4c18.sql","bypassRoles":["super_admin"],"tenantRef":"row"},
+    {"capability":"chat_enabled","ref":"fn:get_or_create_direct_conversation/1","kind":"function","object":"get_or_create_direct_conversation","file":"20260806221000_chat_privacy_contacts_level.sql","bypassRoles":["super_admin"],"tenantRef":"row"},
     {"capability":"chat_inmail_quota_2","ref":"fn:my_expert_request_quota/0","kind":"function","object":"my_expert_request_quota","file":"20260806185055_1272fb55-fdb9-4eac-9035-66377484ac2c.sql","bypassRoles":["super_admin"],"tenantRef":"row"},
     {"capability":"chat_inmail_quota_5","ref":"fn:my_expert_request_quota/0","kind":"function","object":"my_expert_request_quota","file":"20260806185055_1272fb55-fdb9-4eac-9035-66377484ac2c.sql","bypassRoles":["super_admin"],"tenantRef":"row"},
     {"capability":"expert_request_quota","ref":"fn:my_expert_request_quota/0","kind":"function","object":"my_expert_request_quota","file":"20260806185055_1272fb55-fdb9-4eac-9035-66377484ac2c.sql","bypassRoles":["super_admin"],"tenantRef":"row"},

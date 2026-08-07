@@ -21,25 +21,8 @@ import {
 } from "@/components/ui/select";
 import { FieldLabel } from "@/components/profile/FieldLabel";
 import { ProfileMediaPreview } from "@/components/profile/ProfileMediaPreview";
-import { Switch } from "@/components/ui/switch";
-import { Eye, EyeOff } from "lucide-react";
-import {
-  useDiscoverable,
-  useSetDiscoverable,
-  useExpertRequestsEnabled,
-  useSetExpertRequestsEnabled,
-} from "@/lib/chat/useDiscoverable";
-import { usePublicExposure } from "@/lib/profile/usePublicExposure";
-import { PublicExposureNotice } from "@/components/molecules/PublicExposureNotice";
-import {
-  DEFAULT_NOTIFICATION_PREFERENCES,
-  useNotificationPreferences,
-  useUpdateNotificationPreferences,
-  type AllowConnectionsFrom,
-  type AllowMessagesFrom,
-  type NotificationPreferences,
-} from "@/lib/notifications/useNotifications";
-import { ensureI18n as ensureNetworkI18n } from "@/lib/i18n-network";
+import { Lock, ArrowRight } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { ImageCropDialog, CROP_PRESETS } from "@/components/media/ImageCropDialog";
 
@@ -64,236 +47,35 @@ const ACCEPT = "image/jpeg,image/png,image/webp,image/avif";
 const MAX_AVATAR = 2 * 1024 * 1024;
 const MAX_COVER = 5 * 1024 * 1024;
 
-/** One boolean chat-privacy preference row (label + hint + switch). */
-function ChatPrivacyToggle(props: {
-  prefKey: "read_receipts_enabled" | "typing_indicators_enabled" | "show_online_status";
-  labelKey: string;
-  hintKey: string;
-}) {
+/** Wskazówka nawigacyjna do huba prywatności - jedyny ślad po sekcji, która
+ *  mieszkała w tym formularzu do 06.08. */
+function PrivacyHubHint() {
   const { t } = useTranslation();
-  const prefsQ = useNotificationPreferences();
-  const updatePrefs = useUpdateNotificationPreferences();
-  const prefs: NotificationPreferences = prefsQ.data ?? DEFAULT_NOTIFICATION_PREFERENCES;
-  const checked = prefs[props.prefKey];
-
   return (
-    <div className="flex items-start gap-3 border-t border-border/40 pt-3">
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium leading-snug">{t(props.labelKey)}</p>
-        <p className="mt-1 text-xs leading-snug text-muted-foreground">{t(props.hintKey)}</p>
-      </div>
-      <div className="shrink-0 pt-0.5">
-        <Switch
-          checked={checked}
-          disabled={prefsQ.isLoading || updatePrefs.isPending}
-          onCheckedChange={(next) =>
-            updatePrefs.mutate(
-              { [props.prefKey]: next },
-              {
-                onSuccess: () => toast.success(t("profilePrivacy.saved")),
-                onError: () => toast.error(t("profilePrivacy.saveError")),
-              },
-            )
-          }
-          aria-label={t(props.labelKey)}
-        />
-      </div>
-    </div>
-  );
-}
-
-function PrivacyVisibilitySection() {
-  const { t } = useTranslation();
-  const discoverableQ = useDiscoverable();
-  const setDiscoverable = useSetDiscoverable();
-  const expertRequestsQ = useExpertRequestsEnabled();
-  const setExpertRequests = useSetExpertRequestsEnabled();
-  const expertRequestsOn = expertRequestsQ.data ?? true;
-  const prefsQ = useNotificationPreferences();
-  const updatePrefs = useUpdateNotificationPreferences();
-  // Ekspozycja poza platformą jest NIEZALEŻNA od `discoverable` (ten steruje
-  // wyłącznie katalogiem wewnętrznym) - stąd osobny odczyt i osobna nota.
-  const exposureQ = usePublicExposure();
-  const on = discoverableQ.data ?? false;
-  const allowFrom: AllowMessagesFrom =
-    prefsQ.data?.allow_messages_from ?? DEFAULT_NOTIFICATION_PREFERENCES.allow_messages_from;
-  const allowConnections: AllowConnectionsFrom =
-    prefsQ.data?.allow_connections_from ?? DEFAULT_NOTIFICATION_PREFERENCES.allow_connections_from;
-
-  return (
-    <section
-      className={
-        "grid gap-2 rounded-[6px] border px-4 py-3 " +
-        (on ? "border-border/60 bg-muted/30" : "border-[var(--brand)]/40 bg-[var(--brand)]/5")
-      }
+    <Link
+      to="/profile/privacy"
+      className="flex items-start gap-3 rounded-[6px] border border-border/60 bg-muted/30 px-4 py-3 transition-colors hover:bg-muted/60"
     >
-      <h3 className="text-sm font-semibold text-foreground/80">{t("profilePrivacy.section")}</h3>
-      <div className="flex items-start gap-3">
-        {on ? (
-          <Eye
-            className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400"
-            aria-hidden
-          />
-        ) : (
-          <EyeOff className="mt-0.5 h-4 w-4 shrink-0 text-[var(--brand)]" aria-hidden />
-        )}
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium leading-snug">
-            {t("profilePrivacy.discoverableLabel")}
-          </p>
-          <p className="mt-1 text-xs leading-snug text-muted-foreground">
-            {t("profilePrivacy.discoverableHint")}
-          </p>
-          <p className="mt-1 text-[11px] leading-snug text-muted-foreground/80">
-            {t("profilePrivacy.externalNote")}
-          </p>
-          <PublicExposureNotice
-            className="mt-2"
-            exposure={exposureQ.data ?? null}
-            loading={exposureQ.isLoading}
-          />
-        </div>
-        <div className="flex shrink-0 items-center gap-2 pt-0.5">
-          <Switch
-            checked={on}
-            disabled={discoverableQ.isLoading || setDiscoverable.isPending}
-            onCheckedChange={(next) =>
-              setDiscoverable.mutate(next, {
-                onSuccess: () => toast.success(t("profilePrivacy.saved")),
-                onError: () => toast.error(t("profilePrivacy.saveError")),
-              })
-            }
-            aria-label={t("profilePrivacy.discoverableLabel")}
-          />
-          <span className="hidden text-xs font-medium sm:inline">
-            {on ? t("profilePrivacy.discoverableOn") : t("profilePrivacy.discoverableOff")}
-          </span>
-        </div>
-      </div>
-
-      {/* Zgoda na "Zapytanie do eksperta" - steruje przyciskiem na Twoim profilu
-          (obok globalnego przełącznika admina; egzekwowane też w DB). */}
-      <div className="flex items-start gap-3 border-t border-border/40 pt-3">
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium leading-snug">
-            {t("profilePrivacy.expertRequestsLabel")}
-          </p>
-          <p className="mt-1 text-xs leading-snug text-muted-foreground">
-            {t("profilePrivacy.expertRequestsHint")}
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2 pt-0.5">
-          <Switch
-            checked={expertRequestsOn}
-            disabled={expertRequestsQ.isLoading || setExpertRequests.isPending}
-            onCheckedChange={(next) =>
-              setExpertRequests.mutate(next, {
-                onSuccess: () => toast.success(t("profilePrivacy.saved")),
-                onError: () => toast.error(t("profilePrivacy.saveError")),
-              })
-            }
-            aria-label={t("profilePrivacy.expertRequestsLabel")}
-          />
-          <span className="hidden text-xs font-medium sm:inline">
-            {expertRequestsOn
-              ? t("profilePrivacy.expertRequestsOn")
-              : t("profilePrivacy.expertRequestsOff")}
-          </span>
-        </div>
-      </div>
-
-      {/* Kto może rozpocząć nową rozmowę (egzekwowane w DB, nie tylko w UI). */}
-      <div className="flex flex-wrap items-start gap-3 border-t border-border/40 pt-3">
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium leading-snug">
-            {t("profilePrivacy.allowMessagesLabel")}
-          </p>
-          <p className="mt-1 text-xs leading-snug text-muted-foreground">
-            {t("profilePrivacy.allowMessagesHint")}
-          </p>
-        </div>
-        <div className="w-full shrink-0 sm:w-56">
-          <Select
-            value={allowFrom}
-            disabled={prefsQ.isLoading || updatePrefs.isPending}
-            onValueChange={(next) =>
-              updatePrefs.mutate(
-                { allow_messages_from: next as AllowMessagesFrom },
-                {
-                  onSuccess: () => toast.success(t("profilePrivacy.saved")),
-                  onError: () => toast.error(t("profilePrivacy.saveError")),
-                },
-              )
-            }
-          >
-            <SelectTrigger aria-label={t("profilePrivacy.allowMessagesLabel")}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="everyone">{t("profilePrivacy.allowMessagesEveryone")}</SelectItem>
-              <SelectItem value="existing">{t("profilePrivacy.allowMessagesExisting")}</SelectItem>
-              <SelectItem value="nobody">{t("profilePrivacy.allowMessagesNobody")}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {/* Kto może wysłać zaproszenie do sieci kontaktów (egzekwowane w DB). */}
-      <div className="flex flex-wrap items-start gap-3 border-t border-border/40 pt-3">
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium leading-snug">{t("network.allowConnectionsLabel")}</p>
-          <p className="mt-1 text-xs leading-snug text-muted-foreground">
-            {t("network.allowConnectionsHint")}
-          </p>
-        </div>
-        <div className="w-full shrink-0 sm:w-56">
-          <Select
-            value={allowConnections}
-            disabled={prefsQ.isLoading || updatePrefs.isPending}
-            onValueChange={(next) =>
-              updatePrefs.mutate(
-                { allow_connections_from: next as AllowConnectionsFrom },
-                {
-                  onSuccess: () => toast.success(t("profilePrivacy.saved")),
-                  onError: () => toast.error(t("profilePrivacy.saveError")),
-                },
-              )
-            }
-          >
-            <SelectTrigger aria-label={t("network.allowConnectionsLabel")}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="everyone">{t("network.allowConnectionsEveryone")}</SelectItem>
-              <SelectItem value="mutual">{t("network.allowConnectionsMutual")}</SelectItem>
-              <SelectItem value="nobody">{t("network.allowConnectionsNobody")}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      <ChatPrivacyToggle
-        prefKey="read_receipts_enabled"
-        labelKey="profilePrivacy.readReceiptsLabel"
-        hintKey="profilePrivacy.readReceiptsHint"
-      />
-      <ChatPrivacyToggle
-        prefKey="typing_indicators_enabled"
-        labelKey="profilePrivacy.typingLabel"
-        hintKey="profilePrivacy.typingHint"
-      />
-      <ChatPrivacyToggle
-        prefKey="show_online_status"
-        labelKey="profilePrivacy.onlineStatusLabel"
-        hintKey="profilePrivacy.onlineStatusHint"
-      />
-    </section>
+      <span
+        aria-hidden
+        className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
+      >
+        <Lock className="h-4 w-4" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium leading-snug">
+          {t("profile.account.privacyHintTitle")}
+        </span>
+        <span className="mt-1 block text-xs leading-snug text-muted-foreground">
+          {t("profile.account.privacyHintBody")}
+        </span>
+      </span>
+      <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+    </Link>
   );
 }
 
 export function AccountIdentityPanel() {
-  // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
-  ensureNetworkI18n();
   const { t } = useTranslation();
   const { user } = useAuth();
   const [data, setData] = useState<ProfileRow>({
@@ -485,11 +267,12 @@ export function AccountIdentityPanel() {
         </CardHeader>
         <CardContent>
           <form className="grid gap-5" onSubmit={save}>
-            {/* Privacy & visibility - deliberately first and highlighted:
-                the user must clearly see and control whether their profile is
-                indexed by the internal people search. External access (anon
-                visitors, crawlers) is always blocked regardless. */}
-            <PrivacyVisibilitySection />
+            {/* Prywatność i widoczność przeniosły się do huba /profile/privacy
+                (§10 audytu IA). Mieszkały tutaj, w środku formularza tożsamości,
+                pod przyciskiem „Zapisz", którego wcale nie dotyczyły - każdy
+                przełącznik zapisywał się od razu własną mutacją. Zostaje
+                wskazówka, żeby nikt nie szukał ich tu na oślep. */}
+            <PrivacyHubHint />
 
             {/* Personal */}
             <section className="grid gap-4">
