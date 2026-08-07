@@ -23,6 +23,32 @@ export const clubPl = {
       "Zaloguj się lub załóż konto, aby dołączać do klubów i brać udział w dyskusjach.",
     empty: "Nie należysz jeszcze do żadnego klubu.",
     emptyDiscover: "Brak klubów dostępnych dla Ciebie w tej chwili.",
+    notFoundTitle: "Nie znaleziono takiego klubu.",
+    backToHub: "Wróć do klubów",
+
+    // --- minisite klubu (osobny widok treści) ---
+    minisite: {
+      eyebrow: "Minisite klubu",
+      toDiscussion: "Przejdź do dyskusji",
+      aboutTitle: "O tym klubie",
+      readingTitle: "Do przeczytania",
+      empty: "W tym klubie nie ma jeszcze tematów do pokazania.",
+      lockedTitle: "Minisite jest dla planu Pro i osób zaproszonych",
+      lockedBody:
+        "Fragmenty rozmów pokazujemy członkom klubu, osobom z czekającym zaproszeniem oraz planom Pro i wyższym.",
+      noReadTitle: "Ten klub nie udostępnia treści",
+      noReadBody:
+        "Karta klubu jest widoczna, treść nie. Poproś prowadzącego o zaproszenie albo o dostęp.",
+      access: {
+        member: "Jesteś w klubie",
+        invited: "Masz zaproszenie",
+        entitled: "Twój plan obejmuje ten klub",
+        locked: "Dostęp ograniczony",
+        no_read: "Treść ukryta",
+      },
+    },
+
+
 
     // --- redakcja własnego wpisu ---
     editor: {
