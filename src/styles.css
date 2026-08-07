@@ -41,14 +41,25 @@ span[data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge]
 }
 
 /* Metrycznie dopasowany fallback (capsize): dopóki Red Hat Display się nie
-   pobierze, tekst renderuje się Arialem przeskalowanym tak, by zajmować TĘ
-   SAMĄ przestrzeń (size-adjust z ważonej częstością szerokości znaków;
-   overrides z metryk hhea RHD: ascent 1018 / descent 305 / upm 1000).
+   pobierze, tekst renderuje się krojem zastępczym przeskalowanym tak, by
+   zajmować TĘ SAMĄ przestrzeń (size-adjust z ważonej częstością szerokości
+   znaków; overrides z metryk hhea RHD: ascent 1018 / descent 305 / upm 1000).
    Podmiana fontu przestaje przesuwać układ - kluczowe dla CLS pierwszego
-   wczytania, zwłaszcza na mobile, gdzie fonty schodzą wolniej. */
+   wczytania, zwłaszcza na mobile, gdzie fonty schodzą wolniej.
+
+   Lista local(): Arial jest pewny tylko na Windows i macOS. Na Linuksie i
+   ChromeOS (a takie maszyny mają instytucje i część redakcji) go nie ma, więc
+   cały @font-face nie ładował się wcale i fallback spadał na system-ui - inne
+   metryki, czyli dokładnie ten CLS, któremu ta reguła miała zapobiec.
+   Liberation Sans i Nimbus Sans są metrycznie zgodne z Arialem (te same
+   szerokości znaków), Helvetica/Helvetica Neue różnią się śladowo. Kolejność =
+   od najwierniejszego do najszerzej dostępnego. Główną czcionką pozostaje
+   Red Hat Display - to wyłącznie krój na czas pobierania woff2. */
 @font-face {
   font-family: "Red Hat Display Fallback";
-  src: local("Arial");
+  src:
+    local("Arial"), local("Liberation Sans"), local("Nimbus Sans"), local("Helvetica Neue"),
+    local("Helvetica");
   size-adjust: 96.03%;
   ascent-override: 106.01%;
   descent-override: 31.76%;
