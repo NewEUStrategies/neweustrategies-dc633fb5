@@ -74,6 +74,11 @@ export function ClubCreateDialog({
   const [attribution, setAttribution] = useState<ClubAttributionMode>("attributed");
   const [layout, setLayout] = useState<ClubLayout>("list");
   const [cover, setCover] = useState("");
+  // Kolizja zgłoszona przez RPC przy ZAPISIE. Sprawdzanie na żywo łapie
+  // większość przypadków, ale nie wyścig: ktoś inny mógł zająć ten adres
+  // między sprawdzeniem a kliknięciem. Wtedy toast znika po chwili, a
+  // formularz musi zostać z widocznym powodem przy właściwym polu.
+  const [slugConflict, setSlugConflict] = useState<string | null>(null);
 
   const effectiveSlug = slugTouched ? slug : clubSlugFromName(namePl);
   const debouncedSlug = useDebouncedValue(effectiveSlug, 350);
@@ -91,16 +96,23 @@ export function ClubCreateDialog({
     setAttribution("attributed");
     setLayout("list");
     setCover("");
+    setSlugConflict(null);
   }, [open]);
+
+  // Zajęty adres z serwera unieważnia się sam, gdy tylko adres się zmieni.
+  useEffect(() => {
+    setSlugConflict((current) => (current !== null && current !== effectiveSlug ? null : current));
+  }, [effectiveSlug]);
 
   const slugState = useMemo(() => {
     if (effectiveSlug.length === 0) return "empty" as const;
     if (effectiveSlug.length < 3) return "short" as const;
+    if (slugConflict === effectiveSlug) return "taken" as const;
     if (debouncedSlug !== effectiveSlug || availableQ.isFetching) return "checking" as const;
     if (availableQ.data === false) return "taken" as const;
     if (availableQ.data === true) return "free" as const;
     return "checking" as const;
-  }, [effectiveSlug, debouncedSlug, availableQ.isFetching, availableQ.data]);
+  }, [effectiveSlug, debouncedSlug, availableQ.isFetching, availableQ.data, slugConflict]);
 
   const canSubmit = namePl.trim().length >= 3 && slugState === "free" && !createM.isPending;
 
@@ -129,7 +141,15 @@ export function ClubCreateDialog({
         // Konkretny powód zamiast "Nie udało się zapisać". Kod slug_taken
         // dodatkowo NIE zamyka dialogu - formularz zostaje z wpisaną treścią,
         // żeby dało się poprawić sam adres.
-        onError: (error) => toast.error(t(`adminClubs.create.error.${toClubSaveError(error)}`)),
+        onError: (error) => {
+          const code = toClubSaveError(error);
+          // Dialog zostaje otwarty w KAŻDYM przypadku - wpisana treść jest
+          // wartościowsza niż czysty ekran. Przy zajętym adresie dokładamy
+          // trwały komunikat przy polu, bo to jedyna odmowa, którą piszący
+          // naprawia jednym polem.
+          if (code === "slug_taken") setSlugConflict(effectiveSlug);
+          toast.error(t(`adminClubs.create.error.${code}`));
+        },
       },
     );
   };
@@ -185,7 +205,15 @@ export function ClubCreateDialog({
               />
               <SlugState state={slugState} />
             </div>
-            <p id="club-create-slug-state" className="text-xs text-muted-foreground">
+            <p
+              id="club-create-slug-state"
+              role={slugState === "taken" ? "alert" : undefined}
+              className={
+                slugState === "taken"
+                  ? "text-xs font-medium text-destructive"
+                  : "text-xs text-muted-foreground"
+              }
+            >
               {slugState === "taken"
                 ? t("adminClubs.create.slugTaken")
                 : slugState === "free"
