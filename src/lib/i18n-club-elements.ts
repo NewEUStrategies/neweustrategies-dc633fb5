@@ -143,6 +143,20 @@ export const clubElementsEn = {
     subtitle:
       "Every Discussion Club interface element in one place: vocabularies, state badges, the capability matrix, the access sentence and semantic reactions.",
     note: "Reference page. All data is sample data - nothing is written to the database.",
+    ui: {
+      sandbox: "Preview",
+      searchLabel: "Search the element catalogue",
+      searchPlaceholder: "Search a value, code or label (e.g. chatham, invite_expired)",
+      sections: "Catalogue sections",
+      clear: "Clear",
+      copyHint: "Click to copy the raw value",
+      copied: "Copied: {{value}}",
+      copyFailed: "Could not copy the value.",
+      noResults: "No matches",
+      noResultsHint:
+        "No value, code or label matches the query. Tool sections (access, gallery) stay visible.",
+    },
+
     section: {
       vocab: "Domain vocabularies",
       vocabHint:
