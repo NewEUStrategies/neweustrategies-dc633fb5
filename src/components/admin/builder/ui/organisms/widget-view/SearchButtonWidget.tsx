@@ -332,12 +332,20 @@ export function SearchButtonWidget({
   // więc niższy widget + label pływający WEWNĄTRZ inputa (poniżej) chroni
   // przed przycinaniem chipu na górnej krawędzi headera.
   const h = Math.max(28, Math.min(120, height || 36));
-  const pad = Math.max(8, Math.round(h * 0.28));
+  const labelSize = Math.max(10, Math.min(24, fontSize));
+  const iconSize = labelSize;
+  const padY = Math.max(2, Math.round((h - labelSize - 2) / 2));
+  const padX = Math.max(8, Math.round(h * 0.28));
 
-  // Trailing icon cluster width (X + Search + divider + Mic). Reserved as
-  // right padding so text never slides under the icons. Without Web Speech
-  // support the mic (and its divider) is hidden, so the cluster is narrower.
-  const trailingPad = (q ? 108 : 84) - (voice.supported ? 0 : 27);
+  // Trailing icon cluster is sized and aligned to the floating-label height,
+  // so the placeholder text, search/mic/clear icons and divider share one axis.
+  const iconBtnW = iconSize + 8; // 4px horizontal padding on each side
+  const gap = 8;
+  const dividerW = 1;
+  let trailing = iconBtnW + gap; // search button + gap
+  if (q) trailing += iconBtnW + gap; // clear button
+  if (voice.supported) trailing += dividerW + gap + iconBtnW + gap; // divider + mic
+  const trailingPad = trailing + padX;
 
   return (
     <div
@@ -385,6 +393,9 @@ export function SearchButtonWidget({
             minHeight: `${h}px`,
             borderRadius: `${radius}px`,
             fontSize: `${fontSize}px`,
+            lineHeight: 1,
+            paddingTop: `${padY}px`,
+            paddingBottom: `${padY}px`,
             paddingLeft: "0.9rem",
             paddingRight: `${trailingPad}px`,
             textAlign: "left",
@@ -392,13 +403,18 @@ export function SearchButtonWidget({
             unicodeBidi: "plaintext",
           }}
         />
-        <label className="user-label">{placeholder}</label>
+        <label className="user-label" style={{ fontSize: `${labelSize}px`, lineHeight: 1 }}>
+          {placeholder}
+        </label>
         <div
-          className="absolute top-0 flex h-full items-center gap-2"
-          style={{ right: `${pad}px` }}
+          className="absolute top-1/2 -translate-y-1/2 flex items-center gap-2"
+          style={{ right: `${padX}px`, height: `${labelSize}px` }}
         >
           {loading && (
-            <LucideIcons.Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />
+            <LucideIcons.Loader2
+              style={{ width: iconSize, height: iconSize }}
+              className="animate-spin text-muted-foreground shrink-0"
+            />
           )}
           {q && (
             <button
@@ -413,7 +429,7 @@ export function SearchButtonWidget({
               }}
               className="shrink-0 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:outline-none focus:ring-0"
             >
-              <LucideIcons.X className="w-3.5 h-3.5" />
+              <LucideIcons.X style={{ width: iconSize, height: iconSize }} />
             </button>
           )}
           <button
@@ -431,11 +447,15 @@ export function SearchButtonWidget({
             }}
             className="flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:outline-none"
           >
-            <LucideIcons.Search className="w-[18px] h-[18px]" aria-hidden />
+            <LucideIcons.Search style={{ width: iconSize, height: iconSize }} aria-hidden />
           </button>
           {voice.supported && (
             <>
-              <span aria-hidden className="h-6 w-px shrink-0 bg-border" />
+              <span
+                aria-hidden
+                className="w-px shrink-0 bg-border"
+                style={{ height: iconSize }}
+              />
               <button
                 type="button"
                 onClick={voice.toggle}
@@ -445,10 +465,12 @@ export function SearchButtonWidget({
                 className="flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:outline-none"
               >
                 <LucideIcons.Mic
-                  className={`w-[18px] h-[18px] ${voice.listening ? "animate-pulse" : ""}`}
-                  // Inline style wygrywa z regułą .builder-search-widget button svg
-                  // - mikrofon świeci na czerwono przez cały czas nagrywania.
-                  style={voice.listening ? { color: "var(--destructive)" } : undefined}
+                  style={
+                    voice.listening
+                      ? { width: iconSize, height: iconSize, color: "var(--destructive)" }
+                      : { width: iconSize, height: iconSize }
+                  }
+                  className={voice.listening ? "animate-pulse" : ""}
                   aria-hidden
                 />
               </button>
@@ -864,7 +886,6 @@ export function SearchButtonWidget({
                Transition dodany na transform, żeby unoszenie było animowane. */
             .builder-search-widget .input-group > .user-label {
               color: color-mix(in oklab, var(--muted-foreground) 65%, transparent);
-              font-size: 0.8125rem;
               font-weight: 400;
               z-index: 50;
               transition: transform 180ms cubic-bezier(0.4, 0, 0.2, 1),
