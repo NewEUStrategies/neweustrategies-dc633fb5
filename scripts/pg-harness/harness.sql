@@ -383,9 +383,16 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN RETURN NULL;
 END; $$;
 
+-- UWAGA NA SYGNATURE. Atrapa musi odwzorowywac stan PRODUKCJI sprzed migracji
+-- klubowych, a tam od 20260723120000 stoi wariant SZESCIOARGUMENTOWY z aktorem
+-- (piatka zostala wtedy skasowana celowo, zeby nie bylo przeciazenia).
+-- Atrapa z piatka klamala: A12 kasowala ja i harness konczyl z jedna funkcja,
+-- podczas gdy na prawdziwej bazie zostawaly DWIE i kazde wywolanie stawalo sie
+-- niejednoznaczne. Trzy dni martwej szyny zdarzen kosztowala ta jedna roznica.
 CREATE OR REPLACE FUNCTION public.emit_domain_event(
   p_tenant_id uuid, p_aggregate_type text, p_aggregate_id text,
-  p_event_type text, p_payload jsonb DEFAULT '{}'::jsonb
+  p_event_type text, p_payload jsonb DEFAULT '{}'::jsonb,
+  p_actor_id uuid DEFAULT NULL
 )
 RETURNS uuid LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $$
 DECLARE v_id uuid;
@@ -398,7 +405,8 @@ BEGIN
     tenant_id, aggregate_type, aggregate_id, event_type, payload, correlation_id, actor_id
   ) VALUES (
     p_tenant_id, p_aggregate_type, p_aggregate_id, p_event_type,
-    COALESCE(p_payload, '{}'::jsonb), public.request_correlation_id(), auth.uid()
+    COALESCE(p_payload, '{}'::jsonb), public.request_correlation_id(),
+    COALESCE(p_actor_id, auth.uid())
   ) RETURNING id INTO v_id;
   RETURN v_id;
 EXCEPTION WHEN OTHERS THEN RETURN NULL;
