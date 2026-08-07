@@ -28,7 +28,6 @@ import { FollowButton } from "@/components/FollowButton";
 import { ConnectButton } from "@/components/network/ConnectButton";
 import { DirectMessageButton } from "@/components/network/DirectMessageButton";
 import { MutualConnectionsHint } from "@/components/network/MutualConnectionsHint";
-import { NetworkDistance } from "@/components/network/organisms/NetworkDistance";
 import { RequestIntroductionButton } from "@/components/network/RequestIntroductionButton";
 import { AuthorMoreMenu } from "@/components/network/AuthorMoreMenu";
 import { ProfileBadges } from "@/components/profile/ProfileBadges";
