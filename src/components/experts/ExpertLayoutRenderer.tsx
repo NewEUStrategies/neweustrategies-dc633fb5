@@ -15,6 +15,7 @@ import {
   GraduationCap,
 } from "lucide-react";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
+import { NetworkDistance } from "@/components/network/organisms/NetworkDistance";
 import { VerifiedProfileBadge } from "@/components/profile/VerifiedProfileBadge";
 import { XIcon } from "@/components/atoms/XIcon";
 import type { ExpertHubData } from "@/lib/experts/types";
