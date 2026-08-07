@@ -90,6 +90,7 @@ describe("useConnectionStatuses", () => {
           connection_id: "c-1",
           mutual_count: 3,
           can_invite: false,
+          degree: 1,
         },
         {
           user_id: "peer-2",
@@ -97,6 +98,7 @@ describe("useConnectionStatuses", () => {
           connection_id: null,
           mutual_count: 0,
           can_invite: true,
+          degree: 3,
         },
       ]),
     );
@@ -114,6 +116,7 @@ describe("useConnectionStatuses", () => {
       connectionId: "c-1",
       mutualCount: 3,
       canInvite: false,
+      degree: 1,
     });
     expect(result.current.data?.get("peer-2")?.status).toBe("none");
   });
@@ -167,6 +170,8 @@ describe("useConnectionStatuses", () => {
       connectionId: null,
       mutualCount: 0,
       canInvite: true,
+      // Stan startowy karty nie ma prawa udawać bliskiej relacji.
+      degree: 3,
     });
   });
 });

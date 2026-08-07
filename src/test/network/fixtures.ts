@@ -40,7 +40,15 @@ export const PEER_NAME = "Anna Nowak";
 
 /** Stan relacji z `connection_statuses` (domyślnie: brak relacji, można zaprosić). */
 export function connectionState(overrides: Partial<ConnectionState> = {}): ConnectionState {
-  return { status: "none", connectionId: null, mutualCount: 0, canInvite: true, ...overrides };
+  return {
+    status: "none",
+    connectionId: null,
+    mutualCount: 0,
+    canInvite: true,
+    // Domyślnie 3. stopień - fixture "brak relacji" nie może udawać bliskości.
+    degree: 3,
+    ...overrides,
+  };
 }
 
 /** Stan dla konkretnego statusu; dla stanów z wierszem dokłada `connectionId`. */
@@ -52,6 +60,10 @@ export function stateFor(
   return connectionState({
     status,
     connectionId: needsRow ? NETWORK_IDS.connection : null,
+    // Stopień wynika ze statusu tak samo, jak w `connection_statuses`:
+    // połączenie to 1. stopień, wszystko inne domyślnie 3. (chyba że test
+    // jawnie ustawi 2. przez `overrides`).
+    degree: status === "connected" ? 1 : 3,
     ...overrides,
   });
 }

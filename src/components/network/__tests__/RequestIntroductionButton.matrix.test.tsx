@@ -53,7 +53,14 @@ vi.mock("@/components/network/RequestIntroductionDialog", () => ({
 import { RequestIntroductionButton } from "@/components/network/RequestIntroductionButton";
 
 function state(overrides: Partial<ConnectionState>): ConnectionState {
-  return { status: "none", connectionId: null, mutualCount: 0, canInvite: true, ...overrides };
+  return {
+    status: "none",
+    connectionId: null,
+    mutualCount: 0,
+    canInvite: true,
+    degree: 3,
+    ...overrides,
+  };
 }
 
 function renderButton() {

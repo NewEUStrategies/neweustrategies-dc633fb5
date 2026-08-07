@@ -30,7 +30,12 @@ export type NotificationKind =
   | "connection"
   | "saved_search"
   | "crm_task"
-  | "expert_request";
+  | "expert_request"
+  | "introduction"
+  | "recommendation"
+  | "endorsement"
+  | "profile_view"
+  | "meeting";
 
 /**
  * Kto może ZACZĄĆ nowy wątek z użytkownikiem - rozmowę bezpośrednią albo krąg
@@ -84,6 +89,31 @@ export interface NotificationPreferences {
    * nadawca o decyzji eksperta (przyjęte / odpowiedziane / odrzucone).
    */
   enabled_expert_request: boolean;
+  /**
+   * Wprowadzenia (producent: tg_introduction_notify) - wszystkie trzy role
+   * łańcucha requester -> bridge -> target. Most dowiaduje się o prośbie, cel
+   * o przekazaniu, proszący o decyzji. Wycofanie własnej prośby milczy.
+   */
+  enabled_introduction: boolean;
+  /**
+   * Rekomendacje (producent: tg_recommendation_notify): odbiorca dostaje
+   * sygnał o nowej rekomendacji DO ZATWIERDZENIA, autor o jej publikacji.
+   * Odmowa i ukrycie milczą - to decyzja odbiorcy o cudzym tekście.
+   */
+  enabled_recommendation: boolean;
+  /** Potwierdzenia umiejętności (producent: tg_endorsement_notify). */
+  enabled_endorsement: boolean;
+  /**
+   * Odsłony profilu (producent: run_profile_view_alerts) - ZBIORCZY sygnał
+   * dobowy ponad znakiem wodnym, nie alert per odsłona.
+   */
+  enabled_profile_view: boolean;
+  /**
+   * Spotkania 1-1 (producenci: book_meeting_slot / cancel_my_meeting_booking /
+   * delete_my_meeting_slot) - obie strony wymiany: host o rezerwacji
+   * i anulowaniu, rezerwujący o odwołanym spotkaniu.
+   */
+  enabled_meeting: boolean;
   auto_mark_on_open: boolean;
   group_by_conversation: boolean;
   /**
@@ -134,6 +164,11 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   enabled_saved_search: true,
   enabled_crm_task: true,
   enabled_expert_request: true,
+  enabled_introduction: true,
+  enabled_recommendation: true,
+  enabled_endorsement: true,
+  enabled_profile_view: true,
+  enabled_meeting: true,
   auto_mark_on_open: true,
   group_by_conversation: true,
   read_receipts_enabled: true,
@@ -157,6 +192,14 @@ export const TOGGLEABLE_NOTIFICATION_KINDS = [
   "comment",
   "follow",
   "connection",
+  // Zdarzenia sieci kontaktów - jedna grupa, w kolejności "jak mocno ktoś
+  // zainwestował swój czas w relację": wprowadzenie (poręczenie) -> spotkanie
+  // (kalendarz) -> rekomendacja (tekst) -> endorsement (klik) -> odsłona.
+  "introduction",
+  "meeting",
+  "recommendation",
+  "endorsement",
+  "profile_view",
   "subscription",
   "content",
   "saved_search",

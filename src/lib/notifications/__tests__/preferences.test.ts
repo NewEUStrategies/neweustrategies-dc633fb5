@@ -29,6 +29,14 @@ describe("TOGGLEABLE_NOTIFICATION_KINDS", () => {
       "comment",
       "follow",
       "connection",
+      // Zdarzenia sieci kontaktów (20260807140000) - kolejność wg tego, ile
+      // czasu ktoś zainwestował w relację: poręczenie -> kalendarz -> tekst ->
+      // klik -> odsłona.
+      "introduction",
+      "meeting",
+      "recommendation",
+      "endorsement",
+      "profile_view",
       "subscription",
       "content",
       "saved_search",
@@ -63,6 +71,12 @@ describe("NOTIFICATION_KINDS", () => {
       "saved_search",
       "crm_task",
       "expert_request",
+      // 20260807140000: pięć zdarzeń sieciowych przestało milczeć.
+      "introduction",
+      "recommendation",
+      "endorsement",
+      "profile_view",
+      "meeting",
     ];
     expect([...NOTIFICATION_KINDS].sort()).toEqual([...dbKinds].sort());
   });

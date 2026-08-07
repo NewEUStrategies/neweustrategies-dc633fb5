@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { pendingCounterKeys } from "@/lib/counters/keys";
 import { subscribeToTable } from "@/lib/realtime/tableChannelHub";
+import { toNetworkDegree, type NetworkDegree } from "@/lib/network/degree";
 import type { Database } from "@/integrations/supabase/types";
 import { networkKeys } from "./keys";
 
@@ -42,6 +43,12 @@ export interface ConnectionState {
   mutualCount: number;
   /** Czy świeże zaproszenie ma sens (widoczność, tenant, blokady, polityka). */
   canInvite: boolean;
+  /**
+   * Stopień sieci wprost z bazy (1 / 2 / 3+). Do 20260807143000 klient musiał
+   * go zgadywać z `mutualCount` - i nie zgadywał, więc drugi stopień był
+   * liczony i nigdzie nie pokazany. Definicja mieszka w `connection_statuses`.
+   */
+  degree: NetworkDegree;
 }
 
 export const NO_CONNECTION: ConnectionState = {
@@ -49,6 +56,7 @@ export const NO_CONNECTION: ConnectionState = {
   connectionId: null,
   mutualCount: 0,
   canInvite: true,
+  degree: 3,
 };
 
 const PAGE_SIZE = 24;
@@ -83,6 +91,7 @@ export function useConnectionStatuses(
             connectionId: row.connection_id,
             mutualCount: row.mutual_count,
             canInvite: row.can_invite,
+            degree: toNetworkDegree(row.degree),
           });
         }
       }

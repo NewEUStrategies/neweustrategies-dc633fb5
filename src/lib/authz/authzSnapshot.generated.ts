@@ -54,9 +54,9 @@ export const AUTHZ_SNAPSHOT: AuthzSnapshotModule = {
     {"ref":"fn:tg_comments_owner_edit/0","kind":"function","object":"tg_comments_owner_edit","file":"20260713098000_comments_editing.sql","anyRoles":["admin","editor"],"allRoles":[],"tenantRef":"row","securityDefiner":true,"featureKeys":[]},
   ],
   featureGates: [
-    {"capability":"chat_direct_gated","ref":"fn:get_or_create_direct_conversation/1","kind":"function","object":"get_or_create_direct_conversation","file":"20260806221000_chat_privacy_contacts_level.sql","bypassRoles":["super_admin"],"tenantRef":"row"},
+    {"capability":"chat_direct_gated","ref":"fn:get_or_create_direct_conversation/1","kind":"function","object":"get_or_create_direct_conversation","file":"20260807054859_a72ef6bd-541a-4d59-a822-616f71e003f7.sql","bypassRoles":["super_admin"],"tenantRef":"row"},
     {"capability":"chat_direct_gated","ref":"fn:my_expert_request_quota/0","kind":"function","object":"my_expert_request_quota","file":"20260806185055_1272fb55-fdb9-4eac-9035-66377484ac2c.sql","bypassRoles":["super_admin"],"tenantRef":"row"},
-    {"capability":"chat_enabled","ref":"fn:get_or_create_direct_conversation/1","kind":"function","object":"get_or_create_direct_conversation","file":"20260806221000_chat_privacy_contacts_level.sql","bypassRoles":["super_admin"],"tenantRef":"row"},
+    {"capability":"chat_enabled","ref":"fn:get_or_create_direct_conversation/1","kind":"function","object":"get_or_create_direct_conversation","file":"20260807054859_a72ef6bd-541a-4d59-a822-616f71e003f7.sql","bypassRoles":["super_admin"],"tenantRef":"row"},
     {"capability":"chat_inmail_quota_2","ref":"fn:my_expert_request_quota/0","kind":"function","object":"my_expert_request_quota","file":"20260806185055_1272fb55-fdb9-4eac-9035-66377484ac2c.sql","bypassRoles":["super_admin"],"tenantRef":"row"},
     {"capability":"chat_inmail_quota_5","ref":"fn:my_expert_request_quota/0","kind":"function","object":"my_expert_request_quota","file":"20260806185055_1272fb55-fdb9-4eac-9035-66377484ac2c.sql","bypassRoles":["super_admin"],"tenantRef":"row"},
     {"capability":"expert_request_quota","ref":"fn:my_expert_request_quota/0","kind":"function","object":"my_expert_request_quota","file":"20260806185055_1272fb55-fdb9-4eac-9035-66377484ac2c.sql","bypassRoles":["super_admin"],"tenantRef":"row"},
@@ -68,5 +68,5 @@ export const AUTHZ_SNAPSHOT: AuthzSnapshotModule = {
     {"capability":"recordings","ref":"fn:get_event_access/1","kind":"function","object":"get_event_access","file":"20260724100000_fix_definer_header_tenant_scope.sql","bypassRoles":["admin","editor"],"tenantRef":"caller"},
     {"capability":"regulatory_monitoring","ref":"policy:eu_policy_follows/policy follows owner all","kind":"policy","object":"eu_policy_follows","file":"20260723090000_tier_content_gating_tracker.sql","bypassRoles":[],"tenantRef":"row"},
   ],
-  stats: {"migrations":639,"functions":567,"policies":508},
+  stats: {"migrations":648,"functions":589,"policies":508},
 };

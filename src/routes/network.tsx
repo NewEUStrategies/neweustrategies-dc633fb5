@@ -13,11 +13,14 @@ import {
   ChevronLeft,
   ChevronRight,
   MapPin,
+  RotateCcw,
   Search,
   UserPlus,
   Users,
   UsersRound,
+  X,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AuthGate } from "@/components/profile/AuthGate";
@@ -25,6 +28,8 @@ import { ChatAvatar } from "@/components/chat/ChatAvatar";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
 import { ConnectButton } from "@/components/network/ConnectButton";
 import { DirectMessageButton } from "@/components/network/DirectMessageButton";
+import { IntentChip } from "@/components/atoms/IntentChip";
+import { NetworkDegreeBadge } from "@/components/atoms/NetworkDegreeBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { useOnlineUsers } from "@/lib/chat/presence";
@@ -39,8 +44,25 @@ import {
   type ConnectionSuggestionRow,
   type MyConnectionRow,
 } from "@/lib/network/useConnections";
+import {
+  useDismissedSuggestionsCount,
+  useDismissSuggestion,
+  useRestoreSuggestions,
+} from "@/lib/network/useSuggestionFeedback";
+import {
+  networkDegreeLabelKey,
+  networkDegreeShortKey,
+  toNetworkDegree,
+  type NetworkDegree,
+} from "@/lib/network/degree";
+import {
+  normalizeProfileIntents,
+  profileIntentLabelKey,
+  type ProfileIntentCode,
+} from "@/lib/profile/intents";
 import { cn } from "@/lib/utils";
 import { ensureI18n as ensureNetworkI18n } from "@/lib/i18n-network";
+import { ensureI18n as ensureProfileIntentI18n } from "@/lib/i18n-profile-intent";
 type NetworkTab = "connections" | "received" | "sent" | "suggestions";
 
 interface NetworkSearch {
@@ -71,6 +93,7 @@ export const Route = createFileRoute("/network")({
 function NetworkPage() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
   ensureNetworkI18n();
+  ensureProfileIntentI18n();
   const { t } = useTranslation();
   const modules = useCommunityModules();
   if (!modules.connections_enabled) return <CommunityDisabled />;
@@ -115,6 +138,8 @@ function PersonRow({
   online,
   meta,
   highlighted,
+  degree,
+  intents,
   children,
 }: {
   userId: string;
@@ -128,6 +153,10 @@ function PersonRow({
   online: boolean;
   meta?: string;
   highlighted?: boolean;
+  /** Stopień sieci z bazy (`connection_statuses` / `connection_suggestions`). */
+  degree?: NetworkDegree;
+  /** Kody intencji profilu - "po co się z tą osobą kontaktować". */
+  intents?: readonly ProfileIntentCode[];
   children?: React.ReactNode;
 }) {
   const { t } = useTranslation();
@@ -139,6 +168,13 @@ function PersonRow({
           <BadgeCheck
             className="h-3.5 w-3.5 shrink-0 text-sky-600 dark:text-sky-400"
             aria-label={t("people.verifiedBadge")}
+          />
+        )}
+        {degree !== undefined && (
+          <NetworkDegreeBadge
+            degree={degree}
+            label={t(networkDegreeShortKey(degree))}
+            ariaLabel={t(networkDegreeLabelKey(degree))}
           />
         )}
       </p>
@@ -164,31 +200,46 @@ function PersonRow({
     <li
       ref={highlightRef(!!highlighted)}
       className={cn(
-        "flex items-center gap-3 rounded-[6px] border border-border/60 bg-card p-3 transition-colors hover:border-border",
+        "flex flex-col gap-2 rounded-[6px] border border-border/60 bg-card p-3 transition-colors hover:border-border",
         highlighted && "border-[var(--brand)]/60 ring-1 ring-[var(--brand)]/40",
       )}
       data-user-id={userId}
     >
-      <ChatAvatar
-        name={displayName}
-        avatarUrl={avatarUrl}
-        online={online}
-        size="md"
-        to={slug ? `/author/${slug}` : undefined}
-      />
-      {slug ? (
-        <Link
-          to="/author/$slug"
-          params={{ slug }}
-          className="min-w-0 flex-1 rounded-[4px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          aria-label={`${t("network.viewProfile")}: ${displayName}`}
-        >
-          {details}
-        </Link>
-      ) : (
-        <div className="min-w-0 flex-1">{details}</div>
+      <div className="flex items-center gap-3">
+        <ChatAvatar
+          name={displayName}
+          avatarUrl={avatarUrl}
+          online={online}
+          size="md"
+          to={slug ? `/author/${slug}` : undefined}
+        />
+        {slug ? (
+          <Link
+            to="/author/$slug"
+            params={{ slug }}
+            className="min-w-0 flex-1 rounded-[4px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={`${t("network.viewProfile")}: ${displayName}`}
+          >
+            {details}
+          </Link>
+        ) : (
+          <div className="min-w-0 flex-1">{details}</div>
+        )}
+        <div className="flex shrink-0 items-center gap-1.5">{children}</div>
+      </div>
+      {intents && intents.length > 0 && (
+        <ul className="flex flex-wrap gap-1" aria-label={t("profileIntent.openToLabel")}>
+          {intents.map((code) => (
+            <li key={code}>
+              <IntentChip
+                readOnly
+                label={t(`profileIntent.openToShort.${code}`)}
+                ariaLabel={t(profileIntentLabelKey(code))}
+              />
+            </li>
+          ))}
+        </ul>
       )}
-      <div className="flex shrink-0 items-center gap-1.5">{children}</div>
     </li>
   );
 }
@@ -335,6 +386,7 @@ function ConnectionsTab({ highlightId }: { highlightId?: string }) {
                     connectionId: c.connection_id,
                     mutualCount: 0,
                     canInvite: false,
+                    degree: 1,
                   }}
                   compact
                 />
@@ -472,6 +524,7 @@ function RequestsTab({
                     connectionId: r.connection_id,
                     mutualCount: 0,
                     canInvite: false,
+                    degree: 3,
                   }}
                   compact
                 />
@@ -484,6 +537,7 @@ function RequestsTab({
                     connectionId: r.connection_id,
                     mutualCount: 0,
                     canInvite: false,
+                    degree: 3,
                   }}
                   compact
                 />
@@ -501,19 +555,73 @@ function RequestsTab({
   );
 }
 
+/**
+ * "Osoby, które możesz znać" z PĘTLĄ ZWROTNĄ.
+ *
+ * Do 20260807143000 lista nie miała pamięci: pominięta osoba wracała przy
+ * każdym wejściu, bo funkcja odsiewała tylko istniejące relacje. Teraz każda
+ * karta ma "nie, dziękuję" (trwałe ukrycie), a nagłówek - jeden przycisk
+ * przywracający wszystkie ukryte. Żadnego "przypomnę Ci za miesiąc".
+ */
 function SuggestionsTab() {
   const { t } = useTranslation();
   const online = useOnlineUsers();
   const suggestionsQ = useConnectionSuggestions(12);
+  const dismissedQ = useDismissedSuggestionsCount();
+  const dismiss = useDismissSuggestion();
+  const restore = useRestoreSuggestions();
+  const dismissedCount = dismissedQ.data ?? 0;
+
+  const restoreButton =
+    dismissedCount > 0 ? (
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="h-7 gap-1 text-[11px]"
+        disabled={restore.isPending}
+        onClick={() =>
+          restore.mutate(undefined, {
+            onSuccess: (count) => toast.success(t("network.suggestions.restoredToast", { count })),
+            onError: () => toast.error(t("network.suggestions.dismissError")),
+          })
+        }
+      >
+        <RotateCcw className="h-3 w-3" aria-hidden />
+        {t("network.suggestions.restore", { count: dismissedCount })}
+      </Button>
+    ) : null;
 
   if (suggestionsQ.isError) return <ErrorBox retry={() => void suggestionsQ.refetch()} />;
   if (suggestionsQ.isLoading) return <LoadingList />;
   const rows = suggestionsQ.data ?? [];
-  if (rows.length === 0) return <EmptyState text={t("network.emptySuggestions")} cta />;
+
+  // Pusta lista przy niezerowym liczniku ukrytych to INNY stan niż "brak
+  // kandydatów": użytkownik sam ją opróżnił i musi mieć drogę powrotu.
+  if (rows.length === 0) {
+    return (
+      <div className="space-y-3">
+        {dismissedCount > 0 ? (
+          <div className="flex flex-col items-center gap-3 rounded-[6px] border border-dashed border-border/70 p-10 text-center">
+            <Users className="h-6 w-6 text-muted-foreground/50" aria-hidden />
+            <p className="text-sm text-muted-foreground">
+              {t("network.suggestions.emptyAllDismissed", { count: dismissedCount })}
+            </p>
+            {restoreButton}
+          </div>
+        ) : (
+          <EmptyState text={t("network.emptySuggestions")} cta />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">{t("network.suggestionsHint")}</p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">{t("network.suggestionsHint")}</p>
+        {restoreButton}
+      </div>
       <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {rows.map((s: ConnectionSuggestionRow) => (
           <PersonRow
@@ -527,6 +635,8 @@ function SuggestionsTab() {
             slug={s.slug}
             verified={s.verified}
             online={online.has(s.user_id)}
+            degree={toNetworkDegree(s.degree)}
+            intents={normalizeProfileIntents(s.open_to)}
             meta={
               [
                 s.mutual_count > 0 ? t("network.mutual", { count: s.mutual_count }) : null,
@@ -536,7 +646,7 @@ function SuggestionsTab() {
                 s.shared_events > 0 ? t("network.sharedEvents", { count: s.shared_events }) : null,
               ]
                 .filter(Boolean)
-                .join(" · ") || undefined
+                .join(" \u00b7 ") || undefined
             }
           >
             <DirectMessageButton
@@ -547,6 +657,26 @@ function SuggestionsTab() {
               iconOnly
             />
             <ConnectButton userId={s.user_id} displayName={s.display_name} compact />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+              disabled={dismiss.isPending}
+              aria-label={t("network.suggestions.dismiss", { name: s.display_name })}
+              title={t("network.suggestions.dismiss", { name: s.display_name })}
+              onClick={() =>
+                dismiss.mutate(s.user_id, {
+                  onSuccess: () =>
+                    toast.success(
+                      t("network.suggestions.dismissedToast", { name: s.display_name }),
+                    ),
+                  onError: () => toast.error(t("network.suggestions.dismissError")),
+                })
+              }
+            >
+              <X className="h-3.5 w-3.5" aria-hidden />
+            </Button>
           </PersonRow>
         ))}
       </ul>

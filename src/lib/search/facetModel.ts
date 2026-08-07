@@ -26,8 +26,14 @@ export const SEARCH_TABS: readonly SearchTab[] = [
   "people",
 ] as const;
 
-/** Zserializowane parametry URL strony /search (źródło prawdy stanu wyszukiwarki). */
-export interface SearchUrl {
+/**
+ * Zserializowane parametry URL strony /search (źródło prawdy stanu wyszukiwarki).
+ *
+ * Alias typu, nie `interface`: snapshot jedzie do encjo-agnostycznego panelu
+ * zapisanych wyszukiwań jako `Record<string, unknown>`, a TypeScript wyprowadza
+ * dorozumianą sygnaturę indeksu WYŁĄCZNIE dla aliasów typu obiektowego.
+ */
+export type SearchUrl = {
   q: string;
   spec?: string; // kind=category  (specjalizacja)
   type?: string; // kind=pub_type  (typ publikacji)
@@ -50,7 +56,7 @@ export interface SearchUrl {
   scope?: SearchScope;
   /** Aktywna sekcja wyników (all domyślna - nieserializowana). */
   tab?: SearchTab;
-}
+};
 
 /** Wymiar taksonomii → nazwa parametru URL (pojedynczy wybór na wymiar). */
 export const DIM_PARAM: Record<TaxonomyDim, keyof SearchUrl> = {

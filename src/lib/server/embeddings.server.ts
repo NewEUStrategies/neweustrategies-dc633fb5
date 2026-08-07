@@ -113,3 +113,73 @@ export async function runSemanticIndexBatch(
   if (upsertError) throw new Error(upsertError.message);
   return { scanned: rows.length, embedded: payload.length };
 }
+
+/**
+ * Minimalna kompletność profilu, od której liczymy wektor. Lustro domyślnej
+ * wartości `_min_completeness` w `profiles_needing_embeddings` i progu
+ * `PROFILE_SEMANTIC_MIN_SCORE` po stronie interfejsu (kafel kompletności
+ * pokazuje ten sam próg jako cel).
+ *
+ * To nie jest oszczędność na wywołaniach bramki - to jakość sąsiedztwa.
+ * Wektor policzony z samego stanowiska ("Analityk") jest podobny do
+ * wszystkiego, co ma w tekście "analityk", i wypycha z listy osoby, które
+ * naprawdę opisały, czym się zajmują.
+ */
+export const PROFILE_EMBEDDING_MIN_COMPLETENESS = 40;
+
+export interface ProfileSemanticIndexResult extends SemanticIndexResult {
+  /** Wektory usunięte, bo profil wyszedł z katalogu albo spadł poniżej progu. */
+  pruned?: number;
+}
+
+/**
+ * Jedna partia indeksera PROFILI (jobs-tick): kolejka
+ * z profiles_needing_embeddings -> embeddingi -> upsert profile_embeddings.
+ *
+ * Sprzątanie (`prune`) idzie PRZED embedowaniem: opt-out z katalogu musi
+ * skutkować zniknięciem z wyszukiwania semantycznego w tym samym ticku, także
+ * wtedy, gdy bramka embeddingów jest niedostępna i partia i tak nic nie policzy.
+ */
+export async function runProfileSemanticIndexBatch(
+  admin: DbClient,
+  batch = 16,
+  options: { prune?: boolean } = {},
+): Promise<ProfileSemanticIndexResult> {
+  let pruned: number | undefined;
+  if (options.prune) {
+    const { data, error } = await admin.rpc("prune_profile_embeddings");
+    if (error) throw new Error(error.message);
+    pruned = typeof data === "number" ? data : 0;
+  }
+
+  const { data: queue, error } = await admin.rpc("profiles_needing_embeddings", {
+    _limit: batch,
+    _min_completeness: PROFILE_EMBEDDING_MIN_COMPLETENESS,
+  });
+  if (error) throw new Error(error.message);
+  const rows = queue ?? [];
+  if (rows.length === 0) return { scanned: 0, embedded: 0, pruned };
+
+  const vectors = await embedTexts(rows.map((r) => r.embed_text ?? ""));
+  if (vectors === null) {
+    return {
+      scanned: rows.length,
+      embedded: 0,
+      pruned,
+      skipped: "embeddings provider unavailable",
+    };
+  }
+
+  const payload = rows.map((r, i) => ({
+    profile_id: r.profile_id,
+    tenant_id: r.tenant_id,
+    content_hash: r.content_hash,
+    embedding: toVectorLiteral(vectors[i]) as unknown as string,
+    updated_at: new Date().toISOString(),
+  }));
+  const { error: upsertError } = await admin
+    .from("profile_embeddings")
+    .upsert(payload, { onConflict: "profile_id" });
+  if (upsertError) throw new Error(upsertError.message);
+  return { scanned: rows.length, embedded: payload.length, pruned };
+}

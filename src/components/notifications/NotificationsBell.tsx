@@ -12,18 +12,23 @@ import { useQuery } from "@tanstack/react-query";
 // lookupem wciągał CAŁĄ bibliotekę ikon (~640 KB raw) do bundla wejściowego.
 import {
   AlarmClock,
+  BadgeCheck,
   Bell,
   BellOff,
   BellRing,
+  CalendarClock,
   Check,
   Circle,
   Crown,
+  Eye,
+  Handshake,
   HelpCircle,
   Inbox,
   Info,
   Landmark,
   Mail,
   MessageCircle,
+  Quote,
   ShieldAlert,
   Sparkles,
   UserCheck,
@@ -94,6 +99,11 @@ const KIND_ICONS: Record<NotificationKind, React.ComponentType<{ className?: str
   tracker: Landmark,
   saved_search: BellRing,
   expert_request: HelpCircle,
+  introduction: Handshake,
+  recommendation: Quote,
+  endorsement: BadgeCheck,
+  profile_view: Eye,
+  meeting: CalendarClock,
 };
 
 // `notifications.kind` przychodzi z bazy jako `string`, więc odczyt idzie przez
