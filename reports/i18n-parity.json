@@ -10,7 +10,8 @@
     "network",
     "directMessage",
     "club",
-    "adminClubs"
+    "adminClubs",
+    "clubElements"
   ],
   "missing": [],
   "missingEn": [],

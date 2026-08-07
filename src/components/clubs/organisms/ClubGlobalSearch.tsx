@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { ClubSearchHit } from "@/lib/clubs/types";
+import { formatDateShort } from "@/lib/i18n/format";
 
 export function ClubGlobalSearchInput({
   value,
@@ -125,7 +126,7 @@ export function ClubGlobalSearchResults({
                 {hit.last_reply_at !== null ? (
                   <span className="inline-flex items-center gap-1">
                     <Clock className="h-3 w-3" />
-                    {new Date(hit.last_reply_at).toLocaleDateString(isPl ? "pl-PL" : "en-GB")}
+                    {formatDateShort(hit.last_reply_at, isPl ? "pl" : "en")}
                   </span>
                 ) : null}
               </div>

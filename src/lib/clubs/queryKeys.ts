@@ -24,8 +24,19 @@ export const clubKeys = {
   /** Wszystko, co dotyczy jednego klubu. Prefiks dla grup, czlonkow, zdolnosci. */
   club: (clubId: string) => [...clubKeys.all, "club", clubId] as const,
 
-  /** Karta klubu po slugu - osobna galaz, bo slug moze sie zmienic. */
+  /** Karta klubu po slugu - osobna galaz, bo slug moze sie zmienic.
+   *
+   *  UWAGA DLA MUTACJI: ta galaz NIE jest potomkiem `club(clubId)`, wiec
+   *  `invalidateQueries({ queryKey: clubKeys.club(id) })` jej nie dotyka.
+   *  Kazda mutacja zmieniajaca karte klubu (dolaczenie, wyjscie, akceptacja
+   *  zasad, nowy watek) musi uniewaznic ROWNIEZ ten klucz - inaczej naglowek
+   *  klubu zostaje ze starym licznikiem i starym przyciskiem "Dolacz" mimo
+   *  wykonanej akcji. Sluzy do tego `clubKeys.bySlugAll()`. */
   bySlug: (slug: string) => [...clubKeys.all, "bySlug", slug] as const,
+
+  /** Prefiks WSZYSTKICH kart po slugu. Mutacja nie zna slugu (pracuje na id),
+   *  a prefiks trafia w kazda z nich - w tym w te otwarta na ekranie. */
+  bySlugAll: () => [...clubKeys.all, "bySlug"] as const,
 
   groups: (clubId: string) => [...clubKeys.club(clubId), "groups"] as const,
 
@@ -98,6 +109,9 @@ export const clubKeys = {
     [...clubKeys.all, "search", query, clubId ?? "all"] as const,
   anchor: (anchorType: string, anchorId: string) =>
     [...clubKeys.all, "anchor", anchorType, anchorId] as const,
+  /** Podpowiedzi kotwicy w kompozytorze - fraza i opcjonalne zawezenie typu. */
+  anchorSuggest: (query: string, anchorType: string | null) =>
+    [...clubKeys.all, "anchorSuggest", query, anchorType ?? "all"] as const,
   pendingCounts: () => [...clubKeys.all, "pendingCounts"] as const,
   moderationQueue: (clubId: string) => [...clubKeys.club(clubId), "moderationQueue"] as const,
   moderationLog: (clubId: string) => [...clubKeys.club(clubId), "moderationLog"] as const,

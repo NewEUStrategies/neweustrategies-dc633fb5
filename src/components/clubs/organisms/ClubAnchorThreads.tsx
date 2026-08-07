@@ -16,9 +16,10 @@ import { Link } from "@tanstack/react-router";
 import { MessageSquare, MessagesSquare } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useClubThreadsForAnchor } from "@/lib/clubs/useClubs";
+import type { ClubAnchorType } from "@/lib/clubs/types";
 import { ensureClubI18n } from "@/lib/i18n-club";
 
-export type ClubAnchorType = "eu_policy_item" | "post" | "event" | "research_program";
+export type { ClubAnchorType };
 
 export function ClubAnchorThreads({
   anchorType,

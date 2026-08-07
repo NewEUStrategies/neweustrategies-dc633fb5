@@ -74,6 +74,7 @@ import {
   useModeratorEditThread,
   useRevealClubAuthor,
 } from "@/lib/clubs/useClubs";
+import { formatDateShort, formatDateTime } from "@/lib/i18n/format";
 import {
   CLUB_LOG_ACTIONS,
   CLUB_LOG_TARGETS,
@@ -293,7 +294,7 @@ export function ClubModerationTab({ clubId, isPl }: { clubId: string; isPl: bool
                           <span className="font-medium text-foreground">{item.author_name}</span>
                         )}
                         <span>
-                          {new Date(item.created_at).toLocaleString(isPl ? "pl-PL" : "en-GB")}
+                          {formatDateTime(item.created_at, isPl ? "pl" : "en")}
                         </span>
                       </div>
                       <p className="mt-1 truncate text-sm font-medium">{item.title}</p>
@@ -511,7 +512,7 @@ function BannedMembersCard({ clubId, isPl }: { clubId: string; isPl: boolean }) 
                       ? m.job_title
                       : t(`club.role.${m.role}`)}
                     {" · "}
-                    {new Date(m.joined_at).toLocaleDateString(isPl ? "pl-PL" : "en-GB")}
+                    {formatDateShort(m.joined_at, isPl ? "pl" : "en")}
                   </p>
                 </div>
                 <Button
@@ -607,7 +608,7 @@ function ModerationLogCard({ clubId, isPl }: { clubId: string; isPl: boolean }) 
                   {rows.map((r) => (
                     <TableRow key={r.id}>
                       <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                        {new Date(r.created_at).toLocaleString(isPl ? "pl-PL" : "en-GB")}
+                        {formatDateTime(r.created_at, isPl ? "pl" : "en")}
                       </TableCell>
                       <TableCell className="text-sm">{r.moderator_name}</TableCell>
                       <TableCell>
@@ -650,7 +651,7 @@ function ModerationLogCard({ clubId, isPl }: { clubId: string; isPl: boolean }) 
                     </Badge>
                     <span className="text-sm font-medium">{r.moderator_name}</span>
                     <span className="ml-auto text-xs text-muted-foreground">
-                      {new Date(r.created_at).toLocaleString(isPl ? "pl-PL" : "en-GB")}
+                      {formatDateTime(r.created_at, isPl ? "pl" : "en")}
                     </span>
                   </div>
                   {r.reason !== null && r.reason !== "" ? (

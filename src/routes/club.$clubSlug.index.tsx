@@ -39,6 +39,7 @@ import {
   type ClubThreadSort,
 } from "@/lib/clubs/types";
 import { ensureClubI18n } from "@/lib/i18n-club";
+import { formatDateShort } from "@/lib/i18n/format";
 
 export const Route = createFileRoute("/club/$clubSlug/")({
   head: () => ({ meta: [{ name: "robots", content: "noindex,nofollow" }] }),
@@ -328,7 +329,7 @@ function SearchResults({
   pending: boolean;
   query: string;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   if (pending) {
     return (
@@ -383,7 +384,7 @@ function SearchResults({
                 {hit.last_reply_at !== null ? (
                   <span className="inline-flex items-center gap-1">
                     <Clock className="h-3 w-3" />
-                    {new Date(hit.last_reply_at).toLocaleDateString()}
+                    {formatDateShort(hit.last_reply_at, i18n.language)}
                   </span>
                 ) : null}
               </div>

@@ -32,6 +32,24 @@ export function formatDateShort(date: string | number | Date, lang: string | und
   return formatDate(date, lang, { year: "numeric", month: "numeric", day: "numeric" });
 }
 
+/**
+ * Data z godziną: "12.07.2026, 14:30" / "12/07/2026, 14:30".
+ *
+ * Powstało dla dyskusji i moderacji, gdzie sama data nie wystarcza (dwa wpisy
+ * z tego samego dnia trzeba móc uszeregować), a `toLocaleString()` bez locale -
+ * którego moduł klubów używał w kilkunastu miejscach - daje wynik zależny od
+ * ustawień przeglądarki, więc SSR i klient renderują różny tekst.
+ */
+export function formatDateTime(date: string | number | Date, lang: string | undefined): string {
+  return formatDate(date, lang, {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function formatNumber(
   value: number,
   lang: string | undefined,

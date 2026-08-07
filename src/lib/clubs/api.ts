@@ -19,6 +19,9 @@ import {
   type ClubActivityRow,
   type ClubActivitySort,
   type ClubAnchorHit,
+  type ClubAnchorSuggestion,
+  type ClubAnchorType,
+  type ClubReportReason,
   type ClubSearchHit,
   type AdminClubReplyRow,
   type AdminClubThreadRow,
@@ -121,13 +124,20 @@ export interface ClubMembersPage {
 
 export async function fetchClubMembers(params: {
   clubId: string;
+  /** `null` = WSZYSTKIE statusy (tak brzmi domyslny filtr w panelu),
+   *  `undefined` = brak preferencji, czyli domyslne 'active'. */
   status?: ClubMemberStatus | null;
   limit?: number;
   offset?: number;
 }): Promise<ClubMembersPage> {
   const { data, error } = await supabase.rpc("club_members_list", {
     p_club_id: params.clubId,
-    p_status: params.status ?? "active",
+    // `??` zamienialo jawne `null` na "active", wiec droplista "Wszystkie" -
+    // stan poczatkowy zakladki czlonkow - cicho pokazywala wylacznie aktywnych,
+    // a wiersze 'invited' i 'pending' byly nieosiagalne z panelu. Rozroznienie
+    // undefined/null musi tu przezyc: pominiecie klucza da serwerowy DEFAULT
+    // 'active', a nie NULL.
+    p_status: params.status === undefined ? "active" : params.status,
     p_limit: params.limit ?? 50,
     p_offset: params.offset ?? 0,
   });
@@ -452,9 +462,11 @@ export async function fetchClubThreads(params: {
   const { data, error } = await supabase.rpc("club_threads_list", {
     p_club_id: params.clubId,
     p_group_id: params.groupId ?? undefined,
-    // RPC zna dwa porzadki (hot / new); pozostale sorty sa filtrami po
-    // stronie klienta nad tym samym zbiorem, wiec nie mnozymy galezi w SQL.
-    p_sort: params.sort === "new" ? "new" : "hot",
+    // KAZDY sort jest realnym porzadkiem w RPC (A18). Wczesniej wszystko poza
+    // 'new' ladowalo na 'hot', a komentarz obiecywal nieistniejaca filtracje
+    // po stronie klienta - ktora i tak byla by bledna, bo filtrowanie strony
+    // kursorowej po jej pobraniu daje niepelne strony i gubi wiersze.
+    p_sort: params.sort ?? "hot",
     p_kind: params.kind ?? undefined,
     p_cursor: params.cursor ?? undefined,
     p_limit: limit,
@@ -478,16 +490,34 @@ export async function fetchClubThread(params: {
   return data?.[0] ?? null;
 }
 
+export interface ClubRepliesPage {
+  rows: ClubReplyRow[];
+  /** Wszystkie widoczne odpowiedzi watku, nie tylko pobrana strona. */
+  total: number;
+}
+
+/**
+ * Odpowiedzi watku. RPC ma limit i offset od A8, ale klient ich nie uzywal
+ * i wyrzucal `total_count` - watek powyzej dwustu odpowiedzi urywal sie bez
+ * sladu w interfejsie, a naglowek pokazywal przy tym pelna liczbe z licznika
+ * denormalizowanego. Strona i suma jada teraz razem, wiec widok wie, kiedy
+ * doladowac.
+ */
 export async function fetchClubReplies(params: {
   threadId: string;
   sort?: ClubReplySort;
-}): Promise<ClubReplyRow[]> {
+  limit?: number;
+  offset?: number;
+}): Promise<ClubRepliesPage> {
   const { data, error } = await supabase.rpc("club_replies_list", {
     p_thread_id: params.threadId,
     p_sort: params.sort ?? "chronological",
+    p_limit: params.limit ?? 200,
+    p_offset: params.offset ?? 0,
   });
   if (error) throw error;
-  return data ?? [];
+  const rows = data ?? [];
+  return { rows, total: rows.length > 0 ? Number(rows[0].total_count) : 0 };
 }
 
 export interface CreateThreadResult {
@@ -581,7 +611,11 @@ export async function resolveClubThread(params: {
 }): Promise<boolean> {
   const { data, error } = await supabase.rpc("club_resolve_thread", {
     p_thread_id: params.threadId,
-    p_reply_id: params.replyId as string,
+    // NULL jest tu POPRAWNA wartoscia (cofniecie oznaczenia), wiec przekazujemy
+    // ja wprost. Wczesniejsze `as string` klamalo kompilatorowi o typie, ktory
+    // funkcja ma w kontrakcie - i maskowalo blad w wygenerowanych typach
+    // zamiast go pokazac.
+    p_reply_id: params.replyId,
   });
   if (error) throw error;
   return data === true;
@@ -711,18 +745,26 @@ export async function fetchAdminClubThreads(params: {
   return { rows, total: rows.length > 0 ? Number(rows[0].total_count) : 0 };
 }
 
+export interface AdminRepliesPage {
+  rows: AdminClubReplyRow[];
+  total: number;
+}
+
 export async function fetchAdminClubReplies(params: {
   threadId: string;
   limit?: number;
   offset?: number;
-}): Promise<AdminClubReplyRow[]> {
+}): Promise<AdminRepliesPage> {
   const { data, error } = await supabase.rpc("admin_club_replies", {
     p_thread_id: params.threadId,
     p_limit: params.limit ?? 100,
     p_offset: params.offset ?? 0,
   });
   if (error) throw error;
-  return data ?? [];
+  const rows = data ?? [];
+  // Suma jedzie razem ze strona: moderator, ktory widzi sto pozycji ze stu
+  // osiemdziesieciu i nie wie o tym, podejmuje decyzje na niepelnym materiale.
+  return { rows, total: rows.length > 0 ? Number(rows[0].total_count) : 0 };
 }
 
 /** `authorId: null` = publikacja pod wlasnym nazwiskiem admina. */
@@ -961,6 +1003,55 @@ export async function banClubMember(params: {
   });
   if (error) throw error;
   return data === true;
+}
+
+/**
+ * Zgloszenie wpisu do moderacji. Wskazujemy TRESC, nie osobe - pod regula
+ * Chatham House klient nie zna autora i znac go nie moze, a zgloszenie ma
+ * dzialac tak samo w kazdym trybie atrybucji. Autora rozwiazuje RPC.
+ */
+export async function reportClubContent(params: {
+  targetType: ClubReactionTarget;
+  targetId: string;
+  reason: ClubReportReason;
+  details?: string | null;
+}): Promise<string | null> {
+  const { data, error } = await supabase.rpc("club_report_content", {
+    p_target_type: params.targetType,
+    p_target_id: params.targetId,
+    p_reason: params.reason,
+    p_details: params.details ?? undefined,
+  });
+  if (error) throw error;
+  return typeof data === "string" ? data : null;
+}
+
+/**
+ * Podpowiedzi kotwicy dla kompozytora. Bez tego kolumna `anchor_type` byla
+ * martwa: model danych, szew w `cross_references` i karta na stronie aktu
+ * prawnego istnialy, ale zadna sciezka nie pozwalala kotwicy USTAWIC.
+ */
+export async function fetchClubAnchorSuggestions(params: {
+  query: string;
+  anchorType?: ClubAnchorType | null;
+  limit?: number;
+}): Promise<ClubAnchorSuggestion[]> {
+  const query = params.query.trim();
+  if (query.length < 2) return [];
+  const { data, error } = await supabase.rpc("club_anchor_suggest", {
+    p_query: query,
+    p_anchor_type: params.anchorType ?? undefined,
+    p_limit: params.limit ?? 8,
+  });
+  if (error) throw error;
+  return data ?? [];
+}
+
+/** Zeruje nieprzeczytane klubu. Zwraca liczbe wpisow, ktore byly nieprzeczytane. */
+export async function markClubRead(clubId: string): Promise<number> {
+  const { data, error } = await supabase.rpc("club_mark_read", { p_club_id: clubId });
+  if (error) throw error;
+  return typeof data === "number" ? data : 0;
 }
 
 /** Ujawnienie autora anonimowej wypowiedzi. Powod jest OBOWIAZKOWY. */

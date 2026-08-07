@@ -13,6 +13,7 @@ import { Clock, Lock, MessageSquare, Pin, Users2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { toAuthorLabel, type ClubLayout, type ClubThreadListRow } from "@/lib/clubs/types";
+import { formatDateShort } from "@/lib/i18n/format";
 
 function ThreadBadges({ thread, isPl }: { thread: ClubThreadListRow; isPl: boolean }) {
   const { t } = useTranslation();
@@ -60,9 +61,7 @@ function ThreadMeta({ thread, isPl }: { thread: ClubThreadListRow; isPl: boolean
       </span>
       <span className="inline-flex items-center gap-1.5">
         <Clock className="h-3.5 w-3.5" />
-        {new Date(thread.last_reply_at ?? thread.created_at).toLocaleDateString(
-          isPl ? "pl-PL" : "en-GB",
-        )}
+        {formatDateShort(thread.last_reply_at ?? thread.created_at, isPl ? "pl" : "en")}
       </span>
     </div>
   );

@@ -38,6 +38,7 @@ import {
   useRevokeClubInviteLink,
 } from "@/lib/clubs/useClubs";
 import { toClubInviteError, type ClubMemberRole } from "@/lib/clubs/types";
+import { formatDateShort } from "@/lib/i18n/format";
 
 /** Role możliwe do nadania zaproszeniem masowym. `lead` celowo poza listą. */
 const INVITABLE_ROLES = ["moderator", "member", "observer"] as const;
@@ -326,7 +327,7 @@ export function ClubInvitationsTab({ clubId, isPl }: { clubId: string; isPl: boo
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                           {link.expires_at
-                            ? new Date(link.expires_at).toLocaleDateString(isPl ? "pl-PL" : "en-GB")
+                            ? formatDateShort(link.expires_at, isPl ? "pl" : "en")
                             : "-"}
                         </TableCell>
                         <TableCell>
@@ -413,18 +414,19 @@ export function ClubInvitationsTab({ clubId, isPl }: { clubId: string; isPl: boo
                       </TableCell>
                       <TableCell>{t(`club.role.${row.club_role}`)}</TableCell>
                       <TableCell className="text-sm">
-                        {/* Status jechał tu surowym kluczem z bazy - jedyne
-                            miejsce w module, gdzie angielski wyciekał do
-                            polskiego interfejsu. */}
-                        {t(`adminClubs.invites.statusName.${row.status}`, {
-                          defaultValue: row.status,
-                        })}
+                        {/* Prefiks słownika to `invitations`, nie `invites` -
+                            literówka sprawiała, że t() zawsze schodziło do
+                            defaultValue i wypisywało surowy status z bazy.
+                            defaultValue znika razem z nią: brak klucza ma
+                            oblewać bramkę i18n, a nie cicho pokazywać
+                            angielski identyfikator w polskim interfejsie. */}
+                        {t(`adminClubs.invitations.statusName.${row.status}`)}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {row.inviter_name}
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                        {new Date(row.created_at).toLocaleDateString(isPl ? "pl-PL" : "en-GB")}
+                        {formatDateShort(row.created_at, isPl ? "pl" : "en")}
                       </TableCell>
                     </TableRow>
                   ))}

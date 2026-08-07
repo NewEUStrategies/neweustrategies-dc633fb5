@@ -109,17 +109,24 @@ function MembershipRow({ row, isPl }: { row: ClubMembershipRow; isPl: boolean })
           <span className="flex items-center gap-2">
             {/* Kropka, nie liczba - patrz nagłówek pliku. */}
             {unseen ? (
-              <span
-                className="h-2 w-2 shrink-0 rounded-full bg-primary"
-                aria-label={t("club.hub.unseenDot")}
-              />
+              // Kolor sam w sobie nie jest nosnikiem informacji: goly <span>
+              // ma role `generic`, ktorej ARIA zabrania nazywac, wiec
+              // `aria-label` byl przez czytniki ignorowany. Tekst dla czytnika
+              // idzie w klasie sr-only, kropka zostaje dekoracja.
+              <>
+                <span
+                  className="h-2 w-2 shrink-0 rounded-full bg-primary"
+                  aria-hidden="true"
+                />
+                <span className="sr-only">{t("club.hub.unseenDot")}</span>
+              </>
             ) : null}
             <span className="truncate font-medium group-hover:text-primary">
               {isPl ? row.name_pl : row.name_en}
             </span>
           </span>
           <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-            <span>{t(`club.role.${row.role}`, { defaultValue: row.role })}</span>
+            <span>{t(`club.role.${row.role}`)}</span>
             <span className="inline-flex items-center gap-1">
               <Users2 className="h-3 w-3" />
               {row.member_count}

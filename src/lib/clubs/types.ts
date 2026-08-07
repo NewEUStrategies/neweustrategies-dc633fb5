@@ -503,12 +503,36 @@ export const CLUB_THREAD_STATUSES = [
 ] as const;
 export type ClubThreadStatus = (typeof CLUB_THREAD_STATUSES)[number];
 
-/** Sorty listy tematow. `unanswered` jest celowo wyeksponowany: temat bez
- *  odpowiedzi to porazka klubu, a nie neutralny stan (V1 §5.2). */
-export const CLUB_THREAD_SORTS = ["hot", "new", "unanswered", "top", "mine"] as const;
+/**
+ * Sorty listy tematow. `unanswered` jest celowo wyeksponowany: temat bez
+ * odpowiedzi to porazka klubu, a nie neutralny stan (V1 §5.2).
+ *
+ * KAZDA wartosc jest realnym porzadkiem w `club_threads_list` (migracja A18).
+ * Wczesniej slownik obiecywal piec, a RPC znalo dwa - warstwa API po cichu
+ * mapowala reszte na 'hot', wiec trzy pozycje droplisty byly nieodroznialne
+ * od domyslnej. Rozszerzenie tej listy bez galezi w SQL powtorzy ten blad.
+ */
+export const CLUB_THREAD_SORTS = [
+  "hot",
+  "new",
+  "unanswered",
+  "top",
+  "mine",
+  "subscribed",
+] as const;
 export type ClubThreadSort = (typeof CLUB_THREAD_SORTS)[number];
 
-export const CLUB_REPLY_SORTS = ["chronological", "best"] as const;
+/** Sorty, ktore wymagaja sesji: filtruja po wolajacym, wiec dla anonima
+ *  zwrocilyby pusty zbior i sugerowaly, ze klub jest pusty. */
+export const CLUB_THREAD_SORTS_REQUIRING_SESSION: readonly ClubThreadSort[] = [
+  "mine",
+  "subscribed",
+];
+
+/** Porzadki odpowiedzi. `stance` grupuje wg stanowiska autora - to jedyny
+ *  widok, ktory pokazuje MAPE SPORU zamiast kolejnosci wpisywania (V1 §4.4),
+ *  i ma sens wylacznie w watku typu `position`. */
+export const CLUB_REPLY_SORTS = ["chronological", "best", "stance"] as const;
 export type ClubReplySort = (typeof CLUB_REPLY_SORTS)[number];
 
 /**
@@ -548,7 +572,48 @@ export type ClubReplyRow = NullableCols<
   | "author_alias"
   | "posted_by_admin_name"
   | "edited_at"
+  // Stanowisko wychodzi wylacznie w watku `position` i wylacznie przy
+  // autorstwie jawnym - we wszystkich pozostalych przypadkach jest NULL-em.
+  | "author_stance"
 >;
+
+/**
+ * Statusy odpowiedzi w projekcji odczytowej. Slownik jest zamkniety i musi
+ * zgadzac sie z CHECK-iem w `club_replies` - komponent porownujacy status
+ * z wartoscia spoza tego zbioru pisze warunek, ktory nigdy nie jest prawdziwy,
+ * i cicho zostawia akcje na wpisie, ktory jej nie powinien miec.
+ */
+export const CLUB_REPLY_STATUSES = ["pending", "visible", "hidden", "deleted"] as const;
+export type ClubReplyStatus = (typeof CLUB_REPLY_STATUSES)[number];
+
+/** Czy wpis jest jeszcze w obiegu dyskusji (a wiec: czy wolno go redagowac,
+ *  cytowac i na niego reagowac). */
+export function isClubReplyLive(status: string): boolean {
+  return status === "visible" || status === "pending";
+}
+
+/** Powody zgloszenia - ten sam slownik, co w `user_reports`. */
+export const CLUB_REPORT_REASONS = [
+  "spam",
+  "harassment",
+  "impersonation",
+  "inappropriate",
+  "other",
+] as const;
+export type ClubReportReason = (typeof CLUB_REPORT_REASONS)[number];
+
+/** Podpowiedz kotwicy dla kompozytora (RPC `club_anchor_suggest`). */
+export type ClubAnchorSuggestion = RowOf<Fn["club_anchor_suggest"]["Returns"]>;
+
+/** Rodzaje kotwic dopuszczane przez CHECK na `club_threads.anchor_type`. */
+export const CLUB_ANCHOR_TYPES = [
+  "eu_policy_item",
+  "post",
+  "event",
+  "research_program",
+  "club_thread",
+] as const;
+export type ClubAnchorType = (typeof CLUB_ANCHOR_TYPES)[number];
 
 /**
  * Etykieta autora gotowa do renderu. Sedno: komponent NIE decyduje o

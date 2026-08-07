@@ -74,6 +74,7 @@ import {
   type AdminClubThreadRow,
   type ClubThreadKind,
 } from "@/lib/clubs/types";
+import { formatDateTime } from "@/lib/i18n/format";
 
 const ANY = "__any__";
 
@@ -679,7 +680,9 @@ function ThreadDetailDialog({
   const [authorId, setAuthorId] = useState("");
   const [showMove, setShowMove] = useState(false);
 
-  const replies = repliesQ.data ?? [];
+  const replies = repliesQ.data?.rows ?? [];
+  // Suma z RPC, nie dlugosc strony: moderator ma wiedziec, ze widzi wycinek.
+  const repliesTotal = repliesQ.data?.total ?? 0;
   const groups = (groupsQ.data ?? []).filter((g) => g.id !== thread?.group_id);
 
   const submitReply = () => {
@@ -750,8 +753,13 @@ function ThreadDetailDialog({
         {/* Odpowiedzi */}
         <div className="space-y-2">
           <h3 className="text-sm font-semibold">
-            {t("club.repliesCount", { count: replies.length })}
+            {t("club.repliesCount", { count: repliesTotal })}
           </h3>
+          {repliesTotal > replies.length ? (
+            <p className="text-xs text-muted-foreground">
+              {t("club.repliesTruncated", { shown: replies.length, total: repliesTotal })}
+            </p>
+          ) : null}
           {repliesQ.isPending ? (
             <div className="h-20 animate-pulse rounded-lg bg-muted/50" aria-busy="true" />
           ) : replies.length === 0 ? (
@@ -775,7 +783,7 @@ function ThreadDetailDialog({
                       <span className="font-medium text-foreground">
                         {r.is_anonymous ? t("adminClubs.threads.protectedIdentity") : r.author_name}
                       </span>
-                      <span>{new Date(r.created_at).toLocaleString(isPl ? "pl-PL" : "en-GB")}</span>
+                      <span>{formatDateTime(r.created_at, isPl ? "pl" : "en")}</span>
                       {note !== null ? <span className="italic">{note}</span> : null}
                       {removed ? (
                         <Badge variant="outline" className="text-[11px] text-destructive">

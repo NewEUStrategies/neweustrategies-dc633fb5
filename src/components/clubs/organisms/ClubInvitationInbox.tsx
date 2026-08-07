@@ -22,6 +22,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import type { ClubMyInvitationRow } from "@/lib/clubs/types";
+import { formatDateShort } from "@/lib/i18n/format";
 
 export function ClubInvitationInbox({
   invitations,
@@ -65,7 +66,7 @@ export function ClubInvitationInbox({
               {inv.expires_at !== null ? (
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {t("club.hub.inviteExpires", {
-                    date: new Date(inv.expires_at).toLocaleDateString(isPl ? "pl-PL" : "en-GB"),
+                    date: formatDateShort(inv.expires_at, isPl ? "pl" : "en"),
                   })}
                 </p>
               ) : null}

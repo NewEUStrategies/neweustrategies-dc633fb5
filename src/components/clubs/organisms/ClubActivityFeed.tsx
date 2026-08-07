@@ -15,9 +15,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import {
   CLUB_ACTIVITY_SORTS,
+  toAuthorLabel,
   type ClubActivityRow,
   type ClubActivitySort,
 } from "@/lib/clubs/types";
+import { formatDateShort } from "@/lib/i18n/format";
 
 export function ClubActivityFeed({
   rows,
@@ -96,7 +98,20 @@ export function ClubActivityFeed({
 
 function ClubActivityItem({ row, isPl }: { row: ClubActivityRow; isPl: boolean }) {
   const { t } = useTranslation();
-  const author = row.author_name ?? row.author_alias ?? t("club.anonymousAuthor");
+  // `club.anonymousAuthor` to WZORZEC z placeholderem ("Uczestnik {{alias}}"),
+  // wiec renderowany wprost pokazywal na ekranie surowa interpolacje. Wspolna
+  // funkcja podstawia alias i obsluguje konto usuniete.
+  const author = toAuthorLabel(
+    {
+      author_id: null,
+      author_name: row.author_name,
+      author_avatar: null,
+      author_slug: null,
+      author_alias: row.author_alias,
+    },
+    t("club.anonymousAuthor"),
+    t("club.deletedAuthor"),
+  ).name;
   const when = new Date(row.last_reply_at ?? row.created_at);
 
   return (
@@ -138,7 +153,7 @@ function ClubActivityItem({ row, isPl }: { row: ClubActivityRow; isPl: boolean }
         <span className="inline-flex items-center gap-1.5">
           <Clock className="h-3.5 w-3.5" />
           <time dateTime={when.toISOString()}>
-            {when.toLocaleDateString(isPl ? "pl-PL" : "en-GB")}
+            {formatDateShort(when, isPl ? "pl" : "en")}
           </time>
         </span>
       </div>

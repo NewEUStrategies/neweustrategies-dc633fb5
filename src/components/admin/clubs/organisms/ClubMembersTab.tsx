@@ -65,6 +65,7 @@ import {
   type ClubMemberRole,
   type ClubMemberStatus,
 } from "@/lib/clubs/types";
+import { formatDateShort, formatDateTime } from "@/lib/i18n/format";
 
 const ANY = "__any__";
 
@@ -343,7 +344,7 @@ export function ClubMembersTab({ clubId, isPl }: { clubId: string; isPl: boolean
                     <SelectContent>
                       {CLUB_MEMBER_ROLES.map((r) => (
                         <SelectItem key={r} value={r}>
-                          {t(`club.memberRole.${r}`)}
+                          {t(`club.role.${r}`)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -416,7 +417,7 @@ export function ClubMembersTab({ clubId, isPl }: { clubId: string; isPl: boolean
                           <ClubMemberStatusBadge status={asStatus(row.status)} />
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                          {new Date(row.joined_at).toLocaleDateString(isPl ? "pl-PL" : "en-GB")}
+                          {formatDateShort(row.joined_at, isPl ? "pl" : "en")}
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-sm">
                           <TenureCell row={row} isPl={isPl} onEdit={() => setTenure(row)} />
@@ -525,6 +526,7 @@ export function ClubMembersTab({ clubId, isPl }: { clubId: string; isPl: boolean
       <TenureDialog
         clubId={clubId}
         member={tenure}
+        isPl={isPl}
         onOpenChange={(open) => !open && setTenure(null)}
       />
       <ConfirmDialog state={confirm} onOpenChange={(open) => !open && setConfirm(null)} />
@@ -588,7 +590,7 @@ function TenureCell({
         </span>
       ) : (
         <span className="text-muted-foreground">
-          {new Date(row.role_expires_at).toLocaleDateString(isPl ? "pl-PL" : "en-GB")}
+          {formatDateShort(row.role_expires_at, isPl ? "pl" : "en")}
         </span>
       )}
     </Button>
@@ -598,10 +600,12 @@ function TenureCell({
 function TenureDialog({
   clubId,
   member,
+  isPl,
   onOpenChange,
 }: {
   clubId: string;
   member: ClubMemberRow | null;
+  isPl: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useTranslation();
@@ -651,7 +655,7 @@ function TenureDialog({
             {" · "}
             {current === null
               ? t("adminClubs.members.tenureNone")
-              : new Date(current).toLocaleString()}
+              : formatDateTime(current, isPl ? "pl" : "en")}
           </p>
           <div className="space-y-1.5">
             <Label htmlFor="club-tenure-date">{t("adminClubs.members.tenureUntil")}</Label>

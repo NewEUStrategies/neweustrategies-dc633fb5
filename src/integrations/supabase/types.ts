@@ -14388,6 +14388,16 @@ export type Database = {
           title: string
         }[]
       }
+      club_anchor_suggest: {
+        Args: { p_anchor_type?: string; p_limit?: number; p_query: string }
+        Returns: {
+          anchor_id: string
+          anchor_type: string
+          hint: string
+          label_en: string
+          label_pl: string
+        }[]
+      }
       club_anonymity_salt: { Args: { _tenant_id: string }; Returns: string }
       club_author_alias: {
         Args: { _author_id: string; _thread_id: string }
@@ -14435,11 +14445,16 @@ export type Database = {
         }[]
       }
       club_edit_reply: {
-        Args: { p_body: string; p_reply_id: string }
+        Args: { p_body: string; p_reason?: string; p_reply_id: string }
         Returns: boolean
       }
       club_edit_thread: {
-        Args: { p_body: string; p_thread_id: string; p_title: string }
+        Args: {
+          p_body: string
+          p_reason?: string
+          p_thread_id: string
+          p_title: string
+        }
         Returns: boolean
       }
       club_effective_member_role: {
@@ -14534,12 +14549,13 @@ export type Database = {
           visibility: string
         }[]
       }
+      club_mark_read: { Args: { p_club_id: string }; Returns: number }
       club_members_list: {
         Args: {
           p_club_id: string
           p_limit?: number
           p_offset?: number
-          p_status?: string
+          p_status?: string | null
         }
         Returns: {
           avatar_url: string
@@ -14656,6 +14672,7 @@ export type Database = {
           author_id: string
           author_name: string
           author_slug: string
+          author_stance: string
           body: string
           created_at: string
           depth: number
@@ -14679,8 +14696,17 @@ export type Database = {
         }
         Returns: string
       }
+      club_report_content: {
+        Args: {
+          p_details?: string
+          p_reason: string
+          p_target_id: string
+          p_target_type: string
+        }
+        Returns: string
+      }
       club_resolve_thread: {
-        Args: { p_reply_id: string; p_thread_id: string }
+        Args: { p_reply_id: string | null; p_thread_id: string }
         Returns: boolean
       }
       club_respond_invitation: {
