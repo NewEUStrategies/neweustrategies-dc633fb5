@@ -30,7 +30,12 @@ export type NotificationKind =
   | "connection"
   | "saved_search"
   | "crm_task"
-  | "expert_request";
+  | "expert_request"
+  | "introduction"
+  | "recommendation"
+  | "endorsement"
+  | "profile_view"
+  | "meeting_booking";
 
 /**
  * Kto może ZACZĄĆ nowy wątek z użytkownikiem - rozmowę bezpośrednią albo krąg
@@ -84,6 +89,35 @@ export interface NotificationPreferences {
    * nadawca o decyzji eksperta (przyjęte / odpowiedziane / odrzucone).
    */
   enabled_expert_request: boolean;
+  /**
+   * Wprowadzenia (producent: tg_introduction_notify): nowa prośba u mostu,
+   * przekazanie u proszącego i osoby docelowej, wycofanie u mostu. ODMOWA
+   * MOSTU JEST CICHA - producent celowo jej nie doręcza (gwarancja z
+   * `network.introductions.bridgeHint`).
+   */
+  enabled_introduction: boolean;
+  /**
+   * Rekomendacje profilowe (producent: tg_recommendation_notify): treść do
+   * moderacji u odbiorcy, publikacja u autora. Odrzucenie i ukrycie są ciche -
+   * tak samo jak w `list_recommendations`, które prezentuje je autorowi jako
+   * „oczekujące".
+   */
+  enabled_recommendation: boolean;
+  /** Poparcia umiejętności (producent: tg_endorsement_notify). */
+  enabled_endorsement: boolean;
+  /**
+   * Wyświetlenia profilu (producent: tg_profile_view_notify). Tożsamość widza
+   * trafia do treści WYŁĄCZNIE w trybie `public` - dokładnie tak jak w
+   * `my_profile_viewers`.
+   */
+  enabled_profile_view: boolean;
+  /**
+   * Spotkania 1-1 (producent: tg_meeting_booking_notify): rezerwacja u hosta,
+   * potwierdzenie u rezerwującego, anulowanie u hosta. Do 08.2026 rezerwacje
+   * jechały pod rodzajem `content`, więc wyłączenie strumienia redakcyjnego
+   * wyciszało także spotkania.
+   */
+  enabled_meeting_booking: boolean;
   auto_mark_on_open: boolean;
   group_by_conversation: boolean;
   /**
@@ -134,6 +168,11 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   enabled_saved_search: true,
   enabled_crm_task: true,
   enabled_expert_request: true,
+  enabled_introduction: true,
+  enabled_recommendation: true,
+  enabled_endorsement: true,
+  enabled_profile_view: true,
+  enabled_meeting_booking: true,
   auto_mark_on_open: true,
   group_by_conversation: true,
   read_receipts_enabled: true,
@@ -146,24 +185,72 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   chat_bell_enabled: true,
 };
 
+/** Identyfikatory grup przełączników w ustawieniach (klucze i18n). */
+export type NotificationKindGroupId = "conversations" | "network" | "content" | "workspace";
+
+export interface NotificationKindGroup {
+  readonly id: NotificationKindGroupId;
+  /** Ikona lucide dla nagłówka sekcji (rozwiązywana przez DynamicIcon). */
+  readonly icon: string;
+  readonly kinds: readonly NotificationKind[];
+}
+
 /**
- * Rodzaje, które użytkownik może przełączać w ustawieniach. `security` jest
- * celowo pominięty: alerty bezpieczeństwa docierają zawsze (baza wprost omija
- * dla nich bramkę) i renderujemy je jako przełącznik always-on.
+ * Przełączniki POGRUPOWANE tematycznie - jedyne źródło kolejności i podziału
+ * sekcji w ustawieniach skrzynki.
+ *
+ * Dlaczego grupy, a nie płaska lista: po domknięciu katalogu (08.2026) rodzajów
+ * przełączalnych jest szesnaście. Płaska lista szesnastu jednakowych wierszy
+ * przestaje być wyborem, a staje się ścianą - użytkownik nie widzi, że
+ * „Wprowadzenia" i „Zaproszenia do sieci kontaktów" to jedna decyzja o tym, ile
+ * sieci wpuszcza do skrzynki, a „Nowe treści" i „Alerty zapisanych wyszukiwań" -
+ * całkiem inna. Podział jest deklarowany TUTAJ (czysty moduł, testowalny), a nie
+ * w JSX, więc nowy rodzaj wpada do właściwej sekcji przez jedną linię.
  */
-export const TOGGLEABLE_NOTIFICATION_KINDS = [
-  "message",
-  "expert_request",
-  "comment",
-  "follow",
-  "connection",
-  "subscription",
-  "content",
-  "saved_search",
-  "crm_task",
-  "tracker",
-  "system",
-] as const satisfies readonly NotificationKind[];
+export const NOTIFICATION_KIND_GROUPS = [
+  {
+    id: "conversations",
+    icon: "MessagesSquare",
+    kinds: ["message", "expert_request"],
+  },
+  {
+    id: "network",
+    icon: "Users",
+    kinds: [
+      "connection",
+      "introduction",
+      "recommendation",
+      "endorsement",
+      "profile_view",
+      "meeting_booking",
+      "follow",
+    ],
+  },
+  {
+    id: "content",
+    icon: "FileText",
+    kinds: ["comment", "content", "saved_search", "tracker"],
+  },
+  {
+    id: "workspace",
+    icon: "Briefcase",
+    kinds: ["crm_task", "subscription", "system"],
+  },
+] as const satisfies readonly NotificationKindGroup[];
+
+/**
+ * Rodzaje, które użytkownik może przełączać w ustawieniach - SPŁASZCZONE GRUPY,
+ * a nie druga, ręcznie utrzymywana lista. Rozjazd między listą przełączników i
+ * podziałem na sekcje jest z definicji niemożliwy: rodzaj nieprzypisany do
+ * żadnej grupy po prostu nie istnieje w ustawieniach (a pgTAP i test parytetu
+ * poniżej zapalają się, gdy zniknie z katalogu bazy).
+ *
+ * `security` jest celowo pominięty: alerty bezpieczeństwa docierają zawsze
+ * (baza wprost omija dla nich bramkę) i renderujemy je jako przełącznik
+ * always-on.
+ */
+export const TOGGLEABLE_NOTIFICATION_KINDS: readonly NotificationKind[] =
+  NOTIFICATION_KIND_GROUPS.flatMap((group) => [...group.kinds]);
 
 /**
  * Pełny katalog rodzajów w kolejności prezentacji - przełączalne + always-on
@@ -171,10 +258,10 @@ export const TOGGLEABLE_NOTIFICATION_KINDS = [
  * lądujący w skrzynce (tracker, connection, security) nie był poza zasięgiem
  * filtra.
  */
-export const NOTIFICATION_KINDS = [
+export const NOTIFICATION_KINDS: readonly NotificationKind[] = [
   ...TOGGLEABLE_NOTIFICATION_KINDS,
   "security",
-] as const satisfies readonly NotificationKind[];
+];
 
 /**
  * Kolumny wiersza preferencji - wprost z kluczy wartości domyślnych, więc nowe
