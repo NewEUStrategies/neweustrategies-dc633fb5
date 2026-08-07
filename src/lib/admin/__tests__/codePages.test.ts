@@ -11,10 +11,14 @@ describe("rejestr stron renderowanych z kodu", () => {
 
   it("każdy slug ma odpowiadającą trasę React w src/routes", () => {
     for (const page of CODE_PAGES) {
-      const file = resolve(process.cwd(), `src/routes/${page.slug}.tsx`);
-      expect(existsSync(file), `brak trasy dla /${page.slug}`).toBe(true);
+      // Trasa liściowa może być plikiem płaskim (`pricing.tsx`) albo indeksem
+      // rodziny tras (`club.index.tsx`, gdy istnieją też `club.$clubSlug.*`).
+      const candidates = [`src/routes/${page.slug}.tsx`, `src/routes/${page.slug}.index.tsx`];
+      const found = candidates.some((rel) => existsSync(resolve(process.cwd(), rel)));
+      expect(found, `brak trasy dla /${page.slug}`).toBe(true);
     }
   });
+
 
   it("ścieżka publiczna odpowiada slugowi", () => {
     for (const page of CODE_PAGES) {
