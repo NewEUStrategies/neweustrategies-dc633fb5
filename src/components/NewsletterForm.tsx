@@ -112,6 +112,11 @@ export function NewsletterForm({
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [company, setCompany] = useState("");
+  const [linkedin, setLinkedin] = useState("");
+  const [phone, setPhone] = useState("");
+  const [country, setCountry] = useState("");
+  const [consent, setConsent] = useState(false);
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [state, setState] = useState<"idle" | "loading" | "ok" | "err">("idle");
   const [okStatus, setOkStatus] = useState<SubscribeStatus>("pending");
