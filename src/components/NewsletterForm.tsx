@@ -147,13 +147,24 @@ export function NewsletterForm({
   }
 
   // Per-widget visibility toggles for the extra fields.
-  const showFirstName = boolCfg(cfg, "showFirstName", false);
-  const showLastName = boolCfg(cfg, "showLastName", false);
-  const showCompany = boolCfg(cfg, "showCompany", false);
+  // `fields="full"` (widget pod wpisami) domyślnie pokazuje komplet pól -
+  // ten sam zestaw, co widget „Dołącz do nas".
+  const full = fields === "full";
+  const showFirstName = boolCfg(cfg, "showFirstName", full);
+  const showLastName = boolCfg(cfg, "showLastName", full);
+  const showCompany = boolCfg(cfg, "showCompany", full);
+  const showLinkedin = boolCfg(cfg, "showLinkedin", full);
+  const showPhone = boolCfg(cfg, "showPhone", full);
+  const showCountry = boolCfg(cfg, "showCountry", full);
   const requireFirstName = boolCfg(cfg, "requireFirstName", false);
   const requireLastName = boolCfg(cfg, "requireLastName", false);
   const requireCompany = boolCfg(cfg, "requireCompany", false);
+  const requireLinkedin = boolCfg(cfg, "requireLinkedin", false);
+  const requirePhone = boolCfg(cfg, "requirePhone", false);
+  const requireCountry = boolCfg(cfg, "requireCountry", false);
   const requireEmail = boolCfg(cfg, "requireEmail", true);
+  const requireConsent = boolCfg(cfg, "requireConsent", full);
+
 
   if (!s || !s.enabled) {
     if (!inBuilder) return null;
