@@ -2368,6 +2368,7 @@ export type Database = {
           id: string
           join_policy: string
           last_activity_at: string | null
+          layout: string
           member_count: number
           min_tier_rank: number
           moderation_mode: string
@@ -2399,6 +2400,7 @@ export type Database = {
           id?: string
           join_policy?: string
           last_activity_at?: string | null
+          layout?: string
           member_count?: number
           min_tier_rank?: number
           moderation_mode?: string
@@ -2430,6 +2432,7 @@ export type Database = {
           id?: string
           join_policy?: string
           last_activity_at?: string | null
+          layout?: string
           member_count?: number
           min_tier_rank?: number
           moderation_mode?: string
@@ -14860,6 +14863,7 @@ export type Database = {
           last_reply_at: string
           participant_count: number
           pinned_at: string
+          posted_by_admin_name: string
           reaction_count: number
           reply_count: number
           slug: string
