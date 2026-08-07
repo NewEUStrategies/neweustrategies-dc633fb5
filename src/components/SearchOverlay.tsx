@@ -289,6 +289,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
                     href={r.href}
                     label={r.label}
                     meta={r.meta ?? undefined}
+                    avatarUrl={r.avatarUrl}
                     icon={TAB_ICON[tab]}
                     active={i === active}
                     onSelect={() => selectAndClose(q)}
