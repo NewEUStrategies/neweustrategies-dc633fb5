@@ -19,11 +19,23 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Check, Copy, Minus, SearchX, Settings2, X } from "lucide-react";
+import {
+  BookMarked,
+  Check,
+  Copy,
+  KeyRound,
+  Minus,
+  SearchX,
+  Settings2,
+  Shapes,
+  TriangleAlert,
+  X,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -149,18 +161,20 @@ const SECTION_SIZE: Record<SectionId, number> = {
   errors: CLUB_INVITE_ERRORS.length + CLUB_SAVE_ERRORS.length,
 };
 
-const SECTION_ORDER: readonly SectionId[] = [
-  "vocab",
-  "threadVocab",
-  "opsVocab",
-  "badges",
-  "access",
-  "gallery",
-  "matrix",
-  "reactions",
-  "reasons",
-  "errors",
+type GroupId = "vocab" | "components" | "rules" | "codes";
+
+/** Cztery powierzchnie katalogu - słowniki, komponenty, reguły, kody odmów. */
+const GROUPS: readonly {
+  id: GroupId;
+  icon: typeof BookMarked;
+  sections: readonly SectionId[];
+}[] = [
+  { id: "vocab", icon: BookMarked, sections: ["vocab", "threadVocab", "opsVocab"] },
+  { id: "components", icon: Shapes, sections: ["badges", "gallery", "reactions"] },
+  { id: "rules", icon: KeyRound, sections: ["access", "matrix"] },
+  { id: "codes", icon: TriangleAlert, sections: ["reasons", "errors"] },
 ];
+
 
 /** Sekcje bez własnego słownika wartości - szukanie ich nie filtruje. */
 const UNFILTERABLE: ReadonlySet<SectionId> = new Set<SectionId>(["access", "gallery", "matrix"]);
@@ -325,10 +339,13 @@ export function ClubElementsCatalog() {
   const { t } = useTranslation();
 
   const [rawQuery, setRawQuery] = useState("");
+  const [group, setGroup] = useState<GroupId>("vocab");
   const [draft, setDraft] = useState<ClubAccessDraft>(INITIAL_DRAFT);
   const [tallies, setTallies] = useState<ClubReactionTally[]>(INITIAL_TALLIES);
   const query = useMemo(() => normalize(rawQuery.trim()), [rawQuery]);
   const filtering = query.length > 0;
+  const activeSections: readonly SectionId[] =
+    GROUPS.find((entry) => entry.id === group)?.sections ?? [];
 
   const toggleReaction = (kind: ClubReactionKind, active: boolean) => {
     setTallies((prev) =>
@@ -419,43 +436,67 @@ export function ClubElementsCatalog() {
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[220px_minmax(0,1fr)]">
-        {/* Spis sekcji. Na małych ekranach to zwykły, przewijalny pas chipów -
-            pionowa lista zjadłaby cały pierwszy ekran telefonu. */}
+      {nothingFound ? (
+        <Card>
+          <CardContent className="flex flex-col items-center gap-2 py-10 text-center">
+            <SearchX className="size-6 text-muted-foreground" />
+            <p className="text-sm font-medium">{t("clubElements.ui.noResults")}</p>
+            <p className="max-w-sm text-sm text-muted-foreground">
+              {t("clubElements.ui.noResultsHint")}
+            </p>
+            <Button size="sm" variant="outline" onClick={() => setRawQuery("")}>
+              {t("clubElements.ui.clear")}
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* Zakładki zamiast dziesięciu sekcji jedna pod drugą: operator wchodzi
+          tu po JEDNĄ rzecz (wartość słownika albo kod odmowy), więc katalog
+          dzieli się na cztery powierzchnie zamiast jednego kilometrowego
+          przewijania. Spis sekcji w danej zakładce zostaje jako skróty. */}
+      <Tabs value={group} onValueChange={(value) => setGroup(value as GroupId)} className="gap-6">
+        <TabsList className="h-auto w-full flex-wrap justify-start gap-1 bg-muted/40 p-1">
+          {GROUPS.map((entry) => {
+            const Icon = entry.icon;
+            return (
+              <TabsTrigger
+                key={entry.id}
+                value={entry.id}
+                className="gap-2 px-3 py-1.5 data-[state=active]:shadow-sm"
+              >
+                <Icon aria-hidden className="size-4" />
+                <span>{t(`clubElements.group.${entry.id}`)}</span>
+                <Badge
+                  variant="secondary"
+                  className="ml-0.5 h-5 min-w-5 justify-center px-1.5 text-[11px] tabular-nums"
+                >
+                  {entry.sections.reduce((sum, id) => sum + SECTION_SIZE[id], 0)}
+                </Badge>
+              </TabsTrigger>
+            );
+          })}
+        </TabsList>
+
+        {/* Skróty do sekcji AKTYWNEJ zakładki - poziomy pas, bo zakładka ma
+            teraz najwyżej trzy sekcje i pionowa kolumna byłaby marnotrawstwem. */}
         <nav
           aria-label={t("clubElements.ui.sections")}
-          className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 xl:sticky xl:top-20 xl:mx-0 xl:h-fit xl:flex-col xl:overflow-visible xl:px-0"
+          className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1"
         >
-          {SECTION_ORDER.map((id) => (
+          {activeSections.map((id) => (
             <a
               key={id}
               href={`#club-elements-${id}`}
-              className="flex shrink-0 items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground xl:shrink"
+              className="inline-flex shrink-0 items-center gap-2 rounded-md border border-border/60 bg-card px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:bg-accent hover:text-foreground"
             >
               <span className="whitespace-nowrap">{t(`clubElements.section.${id}`)}</span>
-              <Badge variant="secondary" className="hidden tabular-nums xl:inline-flex">
-                {SECTION_SIZE[id]}
-              </Badge>
+              <span className="text-xs tabular-nums opacity-70">{SECTION_SIZE[id]}</span>
             </a>
           ))}
         </nav>
 
-        <div className="min-w-0 space-y-10">
-          {nothingFound ? (
-            <Card>
-              <CardContent className="flex flex-col items-center gap-2 py-10 text-center">
-                <SearchX className="size-6 text-muted-foreground" />
-                <p className="text-sm font-medium">{t("clubElements.ui.noResults")}</p>
-                <p className="max-w-sm text-sm text-muted-foreground">
-                  {t("clubElements.ui.noResultsHint")}
-                </p>
-                <Button size="sm" variant="outline" onClick={() => setRawQuery("")}>
-                  {t("clubElements.ui.clear")}
-                </Button>
-              </CardContent>
-            </Card>
-          ) : null}
-
+        <TabsContent value="vocab" className="min-w-0 space-y-10">
           <Section
             id="vocab"
             title={t("clubElements.section.vocab")}
@@ -620,7 +661,9 @@ export function ClubElementsCatalog() {
               />
             </VocabCard>
           </Section>
+        </TabsContent>
 
+        <TabsContent value="components" className="min-w-0 space-y-10">
           {emptyUnderFilter("badges", badgesVisible) ? null : (
             <Section
               id="badges"
@@ -675,6 +718,35 @@ export function ClubElementsCatalog() {
           )}
 
           <Section
+            id="gallery"
+            title={t("clubElements.section.gallery")}
+            hint={t("clubElements.section.galleryHint")}
+          >
+            <ClubElementsGallery />
+          </Section>
+
+          <Section
+            id="reactions"
+            title={t("clubElements.section.reactions")}
+            hint={t("clubElements.section.reactionsHint")}
+          >
+            <Card>
+              <CardContent className="space-y-5 p-4 sm:p-5">
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">{t("clubElements.reactions.full")}</p>
+                  <ClubReactionBar tallies={tallies} variant="full" onToggle={toggleReaction} />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">{t("clubElements.reactions.compact")}</p>
+                  <ClubReactionBar tallies={tallies} variant="compact" onToggle={toggleReaction} />
+                </div>
+              </CardContent>
+            </Card>
+          </Section>
+        </TabsContent>
+
+        <TabsContent value="rules" className="min-w-0 space-y-10">
+          <Section
             id="access"
             title={t("clubElements.section.access")}
             hint={t("clubElements.section.accessHint")}
@@ -683,14 +755,6 @@ export function ClubElementsCatalog() {
               draft={draft}
               onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))}
             />
-          </Section>
-
-          <Section
-            id="gallery"
-            title={t("clubElements.section.gallery")}
-            hint={t("clubElements.section.galleryHint")}
-          >
-            <ClubElementsGallery />
           </Section>
 
           <Section
@@ -734,26 +798,9 @@ export function ClubElementsCatalog() {
               </CardContent>
             </Card>
           </Section>
+        </TabsContent>
 
-          <Section
-            id="reactions"
-            title={t("clubElements.section.reactions")}
-            hint={t("clubElements.section.reactionsHint")}
-          >
-            <Card>
-              <CardContent className="space-y-5 p-4 sm:p-5">
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">{t("clubElements.reactions.full")}</p>
-                  <ClubReactionBar tallies={tallies} variant="full" onToggle={toggleReaction} />
-                </div>
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">{t("clubElements.reactions.compact")}</p>
-                  <ClubReactionBar tallies={tallies} variant="compact" onToggle={toggleReaction} />
-                </div>
-              </CardContent>
-            </Card>
-          </Section>
-
+        <TabsContent value="codes" className="min-w-0 space-y-10">
           {emptyUnderFilter("reasons", reasons.length > 0) ? null : (
             <Section
               id="reasons"
@@ -804,8 +851,9 @@ export function ClubElementsCatalog() {
               </div>
             </Section>
           )}
-        </div>
-      </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
+
