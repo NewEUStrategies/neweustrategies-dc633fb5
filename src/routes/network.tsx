@@ -13,11 +13,14 @@ import {
   ChevronLeft,
   ChevronRight,
   MapPin,
+  RotateCcw,
   Search,
   UserPlus,
   Users,
   UsersRound,
+  X,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AuthGate } from "@/components/profile/AuthGate";
@@ -43,8 +46,16 @@ import {
   type MyConnectionRow,
 } from "@/lib/network/useConnections";
 import { readDegree, type ConnectionBridge, type ConnectionDegree } from "@/lib/network/degree";
+import { IntentChip } from "@/components/atoms/IntentChip";
+import { profileIntentLabelKey, type ProfileIntentCode } from "@/lib/profile/intents";
+import {
+  useDismissSuggestion,
+  useDismissedSuggestionsCount,
+  useRestoreSuggestions,
+} from "@/lib/network/useSuggestionFeedback";
 import { cn } from "@/lib/utils";
 import { ensureI18n as ensureNetworkI18n } from "@/lib/i18n-network";
+import { ensureI18n as ensureProfileIntentI18n } from "@/lib/i18n-profile-intent";
 type NetworkTab = "connections" | "received" | "sent" | "suggestions";
 
 interface NetworkSearch {
@@ -75,6 +86,7 @@ export const Route = createFileRoute("/network")({
 function NetworkPage() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
   ensureNetworkI18n();
+  ensureProfileIntentI18n();
   const { t } = useTranslation();
   const modules = useCommunityModules();
   if (!modules.connections_enabled) return <CommunityDisabled />;
@@ -121,6 +133,7 @@ function PersonRow({
   degree = 0,
   bridge = null,
   highlighted,
+  intents,
   children,
 }: {
   userId: string;
@@ -138,6 +151,8 @@ function PersonRow({
   /** Mój kontakt 1. stopnia otwierający drogę do tej osoby. */
   bridge?: ConnectionBridge | null;
   highlighted?: boolean;
+  /** Kody intencji profilu - "po co się z tą osobą kontaktować". */
+  intents?: readonly ProfileIntentCode[];
   children?: React.ReactNode;
 }) {
   const { t } = useTranslation();
@@ -185,31 +200,46 @@ function PersonRow({
     <li
       ref={highlightRef(!!highlighted)}
       className={cn(
-        "flex items-center gap-3 rounded-[6px] border border-border/60 bg-card p-3 transition-colors hover:border-border",
+        "flex flex-col gap-2 rounded-[6px] border border-border/60 bg-card p-3 transition-colors hover:border-border",
         highlighted && "border-[var(--brand)]/60 ring-1 ring-[var(--brand)]/40",
       )}
       data-user-id={userId}
     >
-      <ChatAvatar
-        name={displayName}
-        avatarUrl={avatarUrl}
-        online={online}
-        size="md"
-        to={slug ? `/author/${slug}` : undefined}
-      />
-      {slug ? (
-        <Link
-          to="/author/$slug"
-          params={{ slug }}
-          className="min-w-0 flex-1 rounded-[4px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          aria-label={`${t("network.viewProfile")}: ${displayName}`}
-        >
-          {details}
-        </Link>
-      ) : (
-        <div className="min-w-0 flex-1">{details}</div>
+      <div className="flex items-center gap-3">
+        <ChatAvatar
+          name={displayName}
+          avatarUrl={avatarUrl}
+          online={online}
+          size="md"
+          to={slug ? `/author/${slug}` : undefined}
+        />
+        {slug ? (
+          <Link
+            to="/author/$slug"
+            params={{ slug }}
+            className="min-w-0 flex-1 rounded-[4px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={`${t("network.viewProfile")}: ${displayName}`}
+          >
+            {details}
+          </Link>
+        ) : (
+          <div className="min-w-0 flex-1">{details}</div>
+        )}
+        <div className="flex shrink-0 items-center gap-1.5">{children}</div>
+      </div>
+      {intents && intents.length > 0 && (
+        <ul className="flex flex-wrap gap-1" aria-label={t("profileIntent.openToLabel")}>
+          {intents.map((code) => (
+            <li key={code}>
+              <IntentChip
+                readOnly
+                label={t(`profileIntent.openToShort.${code}`)}
+                ariaLabel={t(profileIntentLabelKey(code))}
+              />
+            </li>
+          ))}
+        </ul>
       )}
-      <div className="flex shrink-0 items-center gap-1.5">{children}</div>
     </li>
   );
 }
@@ -499,6 +529,7 @@ function RequestsTab({
                     status: "pending_in",
                     connectionId: r.connection_id,
                     canInvite: false,
+                    degree: 3,
                   }}
                   compact
                 />
@@ -511,6 +542,7 @@ function RequestsTab({
                     status: "pending_out",
                     connectionId: r.connection_id,
                     canInvite: false,
+                    degree: 3,
                   }}
                   compact
                 />
@@ -528,15 +560,66 @@ function RequestsTab({
   );
 }
 
+/**
+ * "Osoby, które możesz znać" z PĘTLĄ ZWROTNĄ.
+ *
+ * Do 20260807143000 lista nie miała pamięci: pominięta osoba wracała przy
+ * każdym wejściu, bo funkcja odsiewała tylko istniejące relacje. Teraz każda
+ * karta ma "nie, dziękuję" (trwałe ukrycie), a nagłówek - jeden przycisk
+ * przywracający wszystkie ukryte. Żadnego "przypomnę Ci za miesiąc".
+ */
 function SuggestionsTab() {
   const { t } = useTranslation();
   const online = useOnlineUsers();
   const suggestionsQ = useConnectionSuggestions(12);
+  const dismissedQ = useDismissedSuggestionsCount();
+  const dismiss = useDismissSuggestion();
+  const restore = useRestoreSuggestions();
+  const dismissedCount = dismissedQ.data ?? 0;
+
+  const restoreButton =
+    dismissedCount > 0 ? (
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="h-7 gap-1 text-[11px]"
+        disabled={restore.isPending}
+        onClick={() =>
+          restore.mutate(undefined, {
+            onSuccess: (count) => toast.success(t("network.suggestions.restoredToast", { count })),
+            onError: () => toast.error(t("network.suggestions.dismissError")),
+          })
+        }
+      >
+        <RotateCcw className="h-3 w-3" aria-hidden />
+        {t("network.suggestions.restore", { count: dismissedCount })}
+      </Button>
+    ) : null;
 
   if (suggestionsQ.isError) return <ErrorBox retry={() => void suggestionsQ.refetch()} />;
   if (suggestionsQ.isLoading) return <LoadingList />;
   const rows = suggestionsQ.data ?? [];
-  if (rows.length === 0) return <EmptyState text={t("network.emptySuggestions")} cta />;
+
+  // Pusta lista przy niezerowym liczniku ukrytych to INNY stan niż "brak
+  // kandydatów": użytkownik sam ją opróżnił i musi mieć drogę powrotu.
+  if (rows.length === 0) {
+    return (
+      <div className="space-y-3">
+        {dismissedCount > 0 ? (
+          <div className="flex flex-col items-center gap-3 rounded-[6px] border border-dashed border-border/70 p-10 text-center">
+            <Users className="h-6 w-6 text-muted-foreground/50" aria-hidden />
+            <p className="text-sm text-muted-foreground">
+              {t("network.suggestions.emptyAllDismissed", { count: dismissedCount })}
+            </p>
+            {restoreButton}
+          </div>
+        ) : (
+          <EmptyState text={t("network.emptySuggestions")} cta />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">
@@ -570,7 +653,7 @@ function SuggestionsTab() {
                 s.shared_events > 0 ? t("network.sharedEvents", { count: s.shared_events }) : null,
               ]
                 .filter(Boolean)
-                .join(" · ") || undefined
+                .join(" \u00b7 ") || undefined
             }
           >
             <DirectMessageButton
@@ -581,6 +664,26 @@ function SuggestionsTab() {
               iconOnly
             />
             <ConnectButton userId={s.user_id} displayName={s.display_name} compact />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+              disabled={dismiss.isPending}
+              aria-label={t("network.suggestions.dismiss", { name: s.display_name })}
+              title={t("network.suggestions.dismiss", { name: s.display_name })}
+              onClick={() =>
+                dismiss.mutate(s.user_id, {
+                  onSuccess: () =>
+                    toast.success(
+                      t("network.suggestions.dismissedToast", { name: s.display_name }),
+                    ),
+                  onError: () => toast.error(t("network.suggestions.dismissError")),
+                })
+              }
+            >
+              <X className="h-3.5 w-3.5" aria-hidden />
+            </Button>
           </PersonRow>
         ))}
       </ul>

@@ -55,6 +55,12 @@ const IDENTICAL_ALLOWLIST: readonly string[] = [
   // Zapożyczenie funkcjonujące w polskim tak samo jak w angielskim - rodzaj
   // relacji w rekomendacjach (słownik domknięty CHECK-iem w bazie).
   "network.recommendations.relationshipOptions.mentor",
+  // To samo zapożyczenie w katalogu intencji profilu (pełna etykieta i skrót):
+  // "mentoring" jest po polsku tym samym słowem, więc tłumaczenie byłoby błędem.
+  "profileIntent.openTo.mentoring",
+  "profileIntent.openToShort.mentoring",
+  // Czysty format liczbowy miernika kompletności - nie ma czego tłumaczyć.
+  "profileCompleteness.score",
 ];
 
 function loadOverlays(): void {

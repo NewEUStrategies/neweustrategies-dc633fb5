@@ -117,6 +117,30 @@ export const networkPl = {
     sharedEvents_many: "{{count}} wspólnych wydarzeń",
     sharedEvents_other: "{{count}} wspólnych wydarzeń",
     coldStartTitle: "Zacznij od tych osób",
+    // STOPIEŃ sieci - jedna definicja etykiet dla katalogu, sugestii i profilu.
+    // Baza liczyła go od 20260717170000, ale nie wychodził na zewnątrz; od
+    // 20260807143000 jest jawną kolumną, a to jego jedyne tłumaczenie.
+    suggestions: {
+      dismiss: "Ukryj sugestię: {{name}}",
+      dismissedToast: "{{name}} nie będzie już proponowana",
+      dismissError: "Nie udało się zapisać decyzji",
+      restore_one: "Przywróć {{count}} ukrytą sugestię",
+      restore_few: "Przywróć {{count}} ukryte sugestie",
+      restore_many: "Przywróć {{count}} ukrytych sugestii",
+      restore_other: "Przywróć {{count}} ukrytych sugestii",
+      restoredToast_one: "Przywrócono {{count}} sugestię",
+      restoredToast_few: "Przywrócono {{count}} sugestie",
+      restoredToast_many: "Przywrócono {{count}} sugestii",
+      restoredToast_other: "Przywrócono {{count}} sugestii",
+      emptyAllDismissed_one:
+        "Ukryłeś wszystkie sugestie ({{count}}). Przywróć je, jeśli chcesz zobaczyć je ponownie.",
+      emptyAllDismissed_few:
+        "Ukryłeś wszystkie sugestie ({{count}}). Przywróć je, jeśli chcesz zobaczyć je ponownie.",
+      emptyAllDismissed_many:
+        "Ukryłeś wszystkie sugestie ({{count}}). Przywróć je, jeśli chcesz zobaczyć je ponownie.",
+      emptyAllDismissed_other:
+        "Ukryłeś wszystkie sugestie ({{count}}). Przywróć je, jeśli chcesz zobaczyć je ponownie.",
+    },
     dossierFollowersTitle: "Kto jeszcze śledzi ten plik",
     dossierFollowersHint:
       "Widoczni członkowie obserwujący to dossier - nawiąż kontakt wokół wspólnego tematu.",
@@ -361,6 +385,19 @@ export const networkEn = {
     sharedEvents_one: "{{count}} shared event",
     sharedEvents_other: "{{count}} shared events",
     coldStartTitle: "Start with these people",
+    suggestions: {
+      dismiss: "Hide suggestion: {{name}}",
+      dismissedToast: "{{name}} will no longer be suggested",
+      dismissError: "Could not save your choice",
+      restore_one: "Restore {{count}} hidden suggestion",
+      restore_other: "Restore {{count}} hidden suggestions",
+      restoredToast_one: "Restored {{count}} suggestion",
+      restoredToast_other: "Restored {{count}} suggestions",
+      emptyAllDismissed_one:
+        "You hid every suggestion ({{count}}). Restore them if you want to see them again.",
+      emptyAllDismissed_other:
+        "You hid every suggestion ({{count}}). Restore them if you want to see them again.",
+    },
     dossierFollowersTitle: "Who else is tracking this file",
     dossierFollowersHint: "Visible members following this dossier - connect around a shared topic.",
     eventGroupCreate: "Create attendee group",

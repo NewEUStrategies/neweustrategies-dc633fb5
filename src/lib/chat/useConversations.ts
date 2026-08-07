@@ -20,11 +20,11 @@ import { chatKeys } from "./keys";
 // bezpieczny: obie strony sięgają po eksporty wyłącznie wewnątrz funkcji.
 import { invalidateMuteCache } from "./useIncomingChatToasts";
 import type {
+  ChatContactHit,
   ConversationRow,
   ConversationView,
   ParticipantRow,
   PeerProfile,
-  PersonHit,
 } from "./types";
 
 type ParticipantWithConversation = ParticipantRow & { conversation: ConversationRow | null };
@@ -255,24 +255,20 @@ export function usePeerProfiles(
  * było niejednoznaczne między przeciążeniami (42725) i wyszukiwarka była
  * martwa; wariant katalogowy (8-arg) pokazywałby z kolei osoby spoza sieci.
  */
-export function usePeopleSearch(query: string, limit = 20): UseQueryResult<PersonHit[]> {
+export function usePeopleSearch(query: string, limit = 20): UseQueryResult<ChatContactHit[]> {
   const { user } = useAuth();
   const q = query.trim();
   return useQuery({
     queryKey: chatKeys.people(user?.id, `${q}:${limit}`),
     enabled: !!user,
     staleTime: 30_000,
-    queryFn: async (): Promise<PersonHit[]> => {
+    queryFn: async (): Promise<ChatContactHit[]> => {
       const { data, error } = await supabase.rpc("search_chat_contacts", {
         p_query: q,
         p_limit: limit,
       });
       if (error) throw error;
-      // Od 20260806220000 `search_chat_contacts` zwraca ten sam zestaw kolumn
-      // co katalogowe `search_people` (włącznie z `verified`) - bez fallbacku.
       return data ?? [];
-
-
     },
   });
 }

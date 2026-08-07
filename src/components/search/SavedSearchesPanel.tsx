@@ -2,6 +2,12 @@
 // nazwany snapshot; klik na pozycji przywraca parametry. Wzorzec useBookmarks.
 // Dzwonek per pozycja włącza alert o nowych wynikach (producent w DB skanuje
 // co 20 minut i wysyła powiadomienie / digest przez enqueue_notification).
+//
+// Panel jest ENCJO-AGNOSTYCZNY (20260807142000): ta sama powierzchnia obsługuje
+// wyszukiwarkę treści (`posts`) i katalog osób (`people`). Lista jest zawężona
+// do encji, bo przywrócenie parametrów katalogu osób w URL-u wyszukiwarki
+// treści dałoby zapytanie, którego ta strona nie rozumie. Typ parametrów jest
+// dlatego mapą stringów, nie modelem jednej powierzchni.
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -16,21 +22,26 @@ import {
   useDeleteSavedSearch,
   useToggleSavedSearchAlert,
   type SavedSearch,
+  type SavedSearchEntity,
 } from "@/hooks/useSavedSearches";
-import type { SearchUrl } from "@/lib/search/facetModel";
 import { cn } from "@/lib/utils";
 
+/** Snapshot stanu URL - wspólny mianownik obu powierzchni. */
+export type SavedSearchParams = Record<string, unknown>;
+
 interface Props {
-  current: SearchUrl;
+  current: SavedSearchParams;
   /** Czy jest co zapisać (fraza lub jakikolwiek filtr). */
   canSave: boolean;
-  onApply: (params: SearchUrl) => void;
+  onApply: (params: SavedSearchParams) => void;
+  /** Obserwowana encja. Domyślnie wyszukiwarka treści (zachowanie sprzed 08.2026). */
+  entity?: SavedSearchEntity;
 }
 
-export function SavedSearchesPanel({ current, canSave, onApply }: Props) {
+export function SavedSearchesPanel({ current, canSave, onApply, entity = "posts" }: Props) {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const { data: saved } = useSavedSearches();
+  const { data: saved } = useSavedSearches(entity);
   const save = useSaveSearch();
   const del = useDeleteSavedSearch();
   const toggleAlert = useToggleSavedSearchAlert();
@@ -45,10 +56,7 @@ export function SavedSearchesPanel({ current, canSave, onApply }: Props) {
     const trimmed = name.trim();
     if (!trimmed) return;
     try {
-      await save.mutateAsync({
-        name: trimmed,
-        params: current as unknown as Record<string, unknown>,
-      });
+      await save.mutateAsync({ name: trimmed, params: current, entity });
       toast.success(t("search.saved.saved_toast"));
       setName("");
       setNaming(false);
@@ -141,7 +149,7 @@ export function SavedSearchesPanel({ current, canSave, onApply }: Props) {
             <li key={s.id} className="flex items-center gap-1">
               <button
                 type="button"
-                onClick={() => onApply((s.params ?? {}) as unknown as SearchUrl)}
+                onClick={() => onApply(s.params ?? {})}
                 className="flex-1 text-left truncate rounded px-2 py-1 text-sm hover:bg-muted"
                 title={s.name}
               >
