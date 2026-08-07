@@ -66,7 +66,8 @@ export function ProfileIdentityBadges({
           density={size === "sm" ? "compact" : "full"}
         />
       ) : null}
-      {verified ? <VerifiedProfileBadge size={size} /> : null}
+      {/* Sam znacznik, bez napisu - etykieta zostaje dla czytników ekranu. */}
+      {verified ? <VerifiedProfileBadge size={size} withLabel={false} /> : null}
       <ProfileBadges badges={badges} size={size} className="shrink-0" />
     </span>
   );
