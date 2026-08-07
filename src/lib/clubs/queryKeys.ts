@@ -31,6 +31,16 @@ export const clubKeys = {
 
   stats: (clubId: string) => [...clubKeys.club(clubId), "stats"] as const,
 
+  /** Zaproszenia klubu w panelu (obie sciezki w jednej liscie). */
+  invitations: (clubId: string) => [...clubKeys.club(clubId), "invitations"] as const,
+
+  /** Linki zapraszajace klubu. */
+  inviteLinks: (clubId: string) => [...clubKeys.club(clubId), "inviteLinks"] as const,
+
+  /** Zaproszenia skierowane do wolajacego - poza galezia konkretnego klubu,
+   *  bo zasilaja licznik w nawigacji niezaleznie od otwartego klubu. */
+  myInvitations: () => [...clubKeys.all, "myInvitations"] as const,
+
   capabilitiesPreview: (clubId: string, userId: string, groupId?: string | null) =>
     [...clubKeys.club(clubId), "capabilitiesPreview", userId, groupId ?? "club"] as const,
 } as const;

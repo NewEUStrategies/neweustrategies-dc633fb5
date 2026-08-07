@@ -307,3 +307,77 @@ export interface AdminClubListFilters {
   limit?: number;
   offset?: number;
 }
+
+// ---------------------------------------------------------------------------
+// Etap A2: zaproszenia
+// ---------------------------------------------------------------------------
+
+/** Cztery sciezki wejscia do klubu (V2 §3.1). */
+export const CLUB_INVITE_CHANNELS = ["direct", "email", "link", "segment"] as const;
+export type ClubInviteChannel = (typeof CLUB_INVITE_CHANNELS)[number];
+
+export const CLUB_INVITATION_STATUSES = [
+  "pending",
+  "accepted",
+  "declined",
+  "expired",
+  "revoked",
+] as const;
+export type ClubInvitationStatus = (typeof CLUB_INVITATION_STATUSES)[number];
+
+export type ClubMyInvitationRow = RowOf<Fn["club_my_invitations"]["Returns"]>;
+export type AdminClubInvitationRow = RowOf<Fn["admin_club_invitations"]["Returns"]>;
+export type AdminClubInviteLinkRow = RowOf<Fn["admin_club_invite_links"]["Returns"]>;
+
+export interface ClubInviteLinkInput {
+  clubId: string;
+  label?: string | null;
+  /** Rola `lead` jest tu celowo NIEDOSTEPNA - prowadzacego nadaje sie
+   *  imiennie, nie masowo linkiem z newslettera. */
+  role?: Exclude<ClubMemberRole, "lead">;
+  maxUses?: number | null;
+  expiresAt?: string | null;
+  requiresApproval?: boolean;
+  groupId?: string | null;
+}
+
+/**
+ * Kody bledow rzucanych przez RPC zaproszen. Mapowane na komunikat, ktory mowi
+ * uzytkownikowi, CO ZROBIC - a nie powtarza tresci wyjatku z bazy.
+ */
+export const CLUB_INVITE_ERRORS = [
+  "quota_exceeded",
+  "already_member",
+  "recently_declined",
+  "user_unavailable",
+  "elevated_role",
+  "link_expired",
+  "link_revoked",
+  "link_exhausted",
+  "invitation_required",
+  "tier_too_low",
+  "banned",
+] as const;
+export type ClubInviteError = (typeof CLUB_INVITE_ERRORS)[number];
+
+/**
+ * Tlumaczy komunikat wyjatku z Postgresa na kod slownikowy. Baza rzuca teksty
+ * po angielsku ("clubs: invite quota exceeded"), a interfejs potrzebuje kodu,
+ * z ktorego zlozy zdanie w jezyku uzytkownika. Zero regexpow po polskiej
+ * stronie - dopasowanie idzie po stalym fragmencie komunikatu z migracji.
+ */
+export function toClubInviteError(error: unknown): ClubInviteError | null {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  if (message.includes("invite quota exceeded")) return "quota_exceeded";
+  if (message.includes("already a member")) return "already_member";
+  if (message.includes("recently declined")) return "recently_declined";
+  if (message.includes("user not available")) return "user_unavailable";
+  if (message.includes("elevated role requires admin")) return "elevated_role";
+  if (message.includes("link expired")) return "link_expired";
+  if (message.includes("link revoked")) return "link_revoked";
+  if (message.includes("link exhausted")) return "link_exhausted";
+  if (message.includes("invitation required")) return "invitation_required";
+  if (message.includes("tier too low")) return "tier_too_low";
+  if (message.includes("banned")) return "banned";
+  return null;
+}

@@ -26,6 +26,7 @@ import {
   type ClubAccessDraft,
 } from "@/components/admin/clubs/organisms/ClubAccessTab";
 import { ClubGroupsTab } from "@/components/admin/clubs/organisms/ClubGroupsTab";
+import { ClubInvitationsTab } from "@/components/admin/clubs/organisms/ClubInvitationsTab";
 import { ClubMembersTab } from "@/components/admin/clubs/organisms/ClubMembersTab";
 import { ClubPermissionsTab } from "@/components/admin/clubs/organisms/ClubPermissionsTab";
 import { ClubStatsTab } from "@/components/admin/clubs/organisms/ClubStatsTab";
@@ -49,7 +50,7 @@ import {
 import { ensureClubI18n } from "@/lib/i18n-club";
 
 /** Zakładki, których treść przychodzi w kolejnych etapach wdrożenia. */
-const PENDING_TABS = ["threads", "invitations", "moderation"] as const;
+const PENDING_TABS = ["threads", "moderation"] as const;
 
 const TAB_KEYS = [
   "general",
@@ -297,6 +298,10 @@ function ClubEditor() {
 
         <TabsContent value="members" className="mt-5">
           <ClubMembersTab clubId={club.id} isPl={isPl} />
+        </TabsContent>
+
+        <TabsContent value="invitations" className="mt-5">
+          <ClubInvitationsTab clubId={club.id} isPl={isPl} />
         </TabsContent>
 
         <TabsContent value="permissions" className="mt-5">

@@ -290,6 +290,62 @@ export const clubPl = {
       },
     },
 
+
+    invitations: {
+      send: "Wyślij zaproszenie",
+      sent: "Zaproszenie wysłane",
+      modePerson: "Osoba z platformy",
+      modeEmail: "Adres e-mail",
+      emailLabel: "Adres e-mail",
+      emailHint:
+        "Osoba spoza platformy dostanie zaproszenie z magic linkiem i po akceptacji trafi od razu do klubu.",
+      messageLabel: "Wiadomość do zaproszenia (opcjonalnie)",
+      links: "Linki zapraszające",
+      createLink: "Utwórz link",
+      linkCreated: "Link utworzony",
+      linkCopied: "Link skopiowany",
+      linkLabel: "Etykieta",
+      linkLabelPlaceholder: "Konferencja Bruksela 09.2026",
+      linkUnnamed: "Bez etykiety",
+      linkMaxUses: "Limit użyć",
+      uses: "Użycia",
+      copy: "Kopiuj",
+      tokenOnceHint:
+        "Ten link widzisz tylko teraz - skopiuj go. Później zostaje etykieta i licznik użyć.",
+      noLinks: "Ten klub nie ma jeszcze linków zapraszających.",
+      revokeLink: "Unieważnij link",
+      revoked: "Unieważniony",
+      activeLink: "Aktywny",
+      revokeConfirmTitle: "Unieważnić ten link?",
+      revokeConfirmBody:
+        "Osoby, które już weszły, zostają w klubie. Nowe wejścia przez ten link będą odrzucane.",
+      history: "Historia zaproszeń",
+      noHistory: "Nie wysłano jeszcze żadnego zaproszenia.",
+      recipient: "Adresat",
+      channel: "Kanał",
+      inviter: "Zapraszający",
+      channelName: {
+        direct: "Bezpośrednie",
+        email: "E-mail",
+        link: "Link",
+        segment: "Segment",
+      },
+      error: {
+        quota_exceeded: "Osiągnięto dzienny limit zaproszeń. Spróbuj jutro.",
+        already_member: "Ta osoba już należy do klubu.",
+        recently_declined:
+          "Ta osoba odrzuciła zaproszenie w ciągu ostatnich 90 dni. Ponowić może administrator.",
+        user_unavailable: "Nie można zaprosić tej osoby.",
+        elevated_role: "Rolę prowadzącego i moderatora nadaje wyłącznie administrator.",
+        link_expired: "Ten link wygasł.",
+        link_revoked: "Ten link został unieważniony.",
+        link_exhausted: "Ten link wyczerpał limit użyć.",
+        invitation_required: "Ten klub przyjmuje wyłącznie na zaproszenie.",
+        tier_too_low: "Ten klub wymaga wyższego planu członkowskiego.",
+        banned: "Twój dostęp do tego klubu został zablokowany.",
+      },
+    },
+
     stats: {
       title: "Statystyki klubu",
       members: "Członkowie",
@@ -304,7 +360,6 @@ export const clubPl = {
 
     comingSoon: {
       threads: "Tematy pojawią się w kolejnym etapie wdrożenia.",
-      invitations: "System zaproszeń pojawi się w kolejnym etapie wdrożenia.",
       moderation: "Kolejka moderacji pojawi się w kolejnym etapie wdrożenia.",
     },
   },
@@ -577,6 +632,62 @@ export const clubEn = {
       },
     },
 
+
+    invitations: {
+      send: "Send invitation",
+      sent: "Invitation sent",
+      modePerson: "Person on the platform",
+      modeEmail: "Email address",
+      emailLabel: "Email address",
+      emailHint:
+        "Someone outside the platform gets a magic-link invitation and lands straight in the club after accepting.",
+      messageLabel: "Message with the invitation (optional)",
+      links: "Invite links",
+      createLink: "Create link",
+      linkCreated: "Link created",
+      linkCopied: "Link copied",
+      linkLabel: "Label",
+      linkLabelPlaceholder: "Brussels conference 09.2026",
+      linkUnnamed: "No label",
+      linkMaxUses: "Use limit",
+      uses: "Uses",
+      copy: "Copy",
+      tokenOnceHint:
+        "You can see this link only now - copy it. Afterwards only the label and use counter remain.",
+      noLinks: "This club has no invite links yet.",
+      revokeLink: "Revoke link",
+      revoked: "Revoked",
+      activeLink: "Active",
+      revokeConfirmTitle: "Revoke this link?",
+      revokeConfirmBody:
+        "People who already joined stay in the club. New entries through this link will be rejected.",
+      history: "Invitation history",
+      noHistory: "No invitation has been sent yet.",
+      recipient: "Recipient",
+      channel: "Channel",
+      inviter: "Invited by",
+      channelName: {
+        direct: "Direct",
+        email: "Email",
+        link: "Link",
+        segment: "Segment",
+      },
+      error: {
+        quota_exceeded: "Daily invitation limit reached. Try again tomorrow.",
+        already_member: "This person is already a club member.",
+        recently_declined:
+          "This person declined an invitation within the last 90 days. Only an administrator can retry.",
+        user_unavailable: "This person cannot be invited.",
+        elevated_role: "Only an administrator grants the lead and moderator roles.",
+        link_expired: "This link has expired.",
+        link_revoked: "This link has been revoked.",
+        link_exhausted: "This link has reached its use limit.",
+        invitation_required: "This club accepts members by invitation only.",
+        tier_too_low: "This club requires a higher membership plan.",
+        banned: "Your access to this club has been blocked.",
+      },
+    },
+
     stats: {
       title: "Club statistics",
       members: "Members",
@@ -591,7 +702,6 @@ export const clubEn = {
 
     comingSoon: {
       threads: "Topics arrive in the next implementation stage.",
-      invitations: "The invitation system arrives in the next implementation stage.",
       moderation: "The moderation queue arrives in the next implementation stage.",
     },
   },

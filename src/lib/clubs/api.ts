@@ -11,6 +11,8 @@ import {
   type AdminClubListFilters,
   type AdminClubDetailRow,
   type AdminClubGroupRow,
+  type AdminClubInvitationRow,
+  type AdminClubInviteLinkRow,
   type AdminClubRow,
   type AdminClubStatsRow,
   type ClubCapabilities,
@@ -18,9 +20,13 @@ import {
   type ClubGroupUpsertInput,
   type ClubListRow,
   type ClubMemberRow,
+  type ClubInviteLinkInput,
+  type ClubMemberRole,
   type ClubMemberStatus,
   type ClubMemberUpsertInput,
   type ClubMembershipRow,
+  type ClubMyInvitationRow,
+  type ClubNotifyLevel,
   type ClubUpsertInput,
   type ClubViewRow,
 } from "./types";
@@ -208,4 +214,142 @@ export async function previewClubCapabilities(params: {
   });
   if (error) throw error;
   return toClubCapabilities(data?.[0]);
+}
+
+// ---------------------------------------------------------------------------
+// Etap A2: zaproszenia i samoobsluga czlonkostwa
+// ---------------------------------------------------------------------------
+
+/** Sciezka A: zaproszenie osoby, ktora jest juz na platformie. */
+export async function inviteClubMember(params: {
+  clubId: string;
+  userId: string;
+  role?: ClubMemberRole;
+  message?: string | null;
+  groupId?: string | null;
+}): Promise<string> {
+  const { data, error } = await supabase.rpc("club_invite", {
+    p_club_id: params.clubId,
+    p_user_id: params.userId,
+    p_role: params.role ?? "member",
+    p_message: params.message ?? undefined,
+    p_group_id: params.groupId ?? undefined,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/** Sciezka B: zaproszenie e-mailowe przez user_invitations. */
+export async function inviteClubMemberByEmail(params: {
+  clubId: string;
+  email: string;
+  role?: Exclude<ClubMemberRole, "lead">;
+  groupId?: string | null;
+}): Promise<string> {
+  const { data, error } = await supabase.rpc("club_invite_by_email", {
+    p_club_id: params.clubId,
+    p_email: params.email,
+    p_role: params.role ?? "member",
+    p_group_id: params.groupId ?? undefined,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/** Sciezka C: token linku jest zwracany RAZ, przy tworzeniu. */
+export async function createClubInviteLink(
+  input: ClubInviteLinkInput,
+): Promise<{ id: string; token: string }> {
+  const { data, error } = await supabase.rpc("admin_club_invite_link_create", {
+    p_club_id: input.clubId,
+    p_label: input.label ?? undefined,
+    p_role: input.role ?? "member",
+    p_max_uses: input.maxUses ?? undefined,
+    p_expires_at: input.expiresAt ?? undefined,
+    p_requires_approval: input.requiresApproval ?? false,
+    p_group_id: input.groupId ?? undefined,
+  });
+  if (error) throw error;
+  const row = data?.[0];
+  if (!row) throw new Error("clubs: link not created");
+  return { id: row.id, token: row.token };
+}
+
+export async function revokeClubInviteLink(linkId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc("admin_club_invite_link_revoke", {
+    p_link_id: linkId,
+  });
+  if (error) throw error;
+  return data === true;
+}
+
+export async function fetchClubInviteLinks(clubId: string): Promise<AdminClubInviteLinkRow[]> {
+  const { data, error } = await supabase.rpc("admin_club_invite_links", { p_club_id: clubId });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function fetchClubInvitations(clubId: string): Promise<AdminClubInvitationRow[]> {
+  const { data, error } = await supabase.rpc("admin_club_invitations", { p_club_id: clubId });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function fetchMyClubInvitations(): Promise<ClubMyInvitationRow[]> {
+  const { data, error } = await supabase.rpc("club_my_invitations");
+  if (error) throw error;
+  return data ?? [];
+}
+
+/** Zwraca status wynikowy: 'active' (klub otwarty) albo 'pending' (na prosbe). */
+export async function joinClub(clubId: string): Promise<string> {
+  const { data, error } = await supabase.rpc("club_join", { p_club_id: clubId });
+  if (error) throw error;
+  return typeof data === "string" ? data : "pending";
+}
+
+export async function leaveClub(clubId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc("club_leave", { p_club_id: clubId });
+  if (error) throw error;
+  return data === true;
+}
+
+export async function respondClubInvitation(params: {
+  invitationId: string;
+  accept: boolean;
+}): Promise<string> {
+  const { data, error } = await supabase.rpc("club_respond_invitation", {
+    p_invitation_id: params.invitationId,
+    p_accept: params.accept,
+  });
+  if (error) throw error;
+  return typeof data === "string" ? data : "declined";
+}
+
+export async function redeemClubInviteLink(
+  token: string,
+): Promise<{ clubSlug: string; status: string }> {
+  const { data, error } = await supabase.rpc("club_redeem_invite_link", { p_token: token });
+  if (error) throw error;
+  const row = data?.[0];
+  if (!row) throw new Error("clubs: invalid link");
+  return { clubSlug: row.club_slug, status: row.status };
+}
+
+export async function setClubNotifyLevel(params: {
+  clubId: string;
+  level: ClubNotifyLevel;
+}): Promise<boolean> {
+  const { data, error } = await supabase.rpc("club_set_notify_level", {
+    p_club_id: params.clubId,
+    p_level: params.level,
+  });
+  if (error) throw error;
+  return data === true;
+}
+
+export async function acceptClubRules(clubId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc("club_accept_rules", { p_club_id: clubId });
+  if (error) throw error;
+  return data === true;
 }

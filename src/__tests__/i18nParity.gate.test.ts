@@ -72,6 +72,9 @@ const IDENTICAL_ALLOWLIST: readonly string[] = [
   "adminClubs.permissions.roles.super_admin",
   "adminClubs.permissions.roles.admin",
   "adminClubs.permissions.roles.moderator",
+  // "Link" i "Segment" to zapozyczenia brzmiace tak samo w obu jezykach.
+  "adminClubs.invitations.channelName.link",
+  "adminClubs.invitations.channelName.segment",
   // To samo zapożyczenie w katalogu intencji profilu (pełna etykieta i skrót):
   // "mentoring" jest po polsku tym samym słowem, więc tłumaczenie byłoby błędem.
   "profileIntent.openTo.mentoring",

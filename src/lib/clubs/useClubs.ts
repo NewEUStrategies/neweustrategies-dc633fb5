@@ -12,6 +12,8 @@ import {
   type UseQueryResult,
 } from "@tanstack/react-query";
 import {
+  acceptClubRules,
+  createClubInviteLink,
   fetchAdminClub,
   fetchAdminClubGroups,
   fetchAdminClubStats,
@@ -20,8 +22,19 @@ import {
   fetchClubCapabilities,
   fetchClubGroups,
   fetchClubList,
+  fetchClubInvitations,
+  fetchClubInviteLinks,
   fetchClubMembers,
+  fetchMyClubInvitations,
   fetchMyClubMemberships,
+  inviteClubMember,
+  inviteClubMemberByEmail,
+  joinClub,
+  leaveClub,
+  redeemClubInviteLink,
+  respondClubInvitation,
+  revokeClubInviteLink,
+  setClubNotifyLevel,
   previewClubCapabilities,
   removeClubMember,
   reorderClubGroups,
@@ -35,15 +48,21 @@ import { adminClubKeys, clubKeys } from "./queryKeys";
 import type {
   AdminClubDetailRow,
   AdminClubGroupRow,
+  AdminClubInvitationRow,
+  AdminClubInviteLinkRow,
   AdminClubListFilters,
   AdminClubStatsRow,
   ClubCapabilities,
   ClubGroupRow,
   ClubGroupUpsertInput,
   ClubListRow,
+  ClubInviteLinkInput,
+  ClubMemberRole,
   ClubMemberStatus,
   ClubMemberUpsertInput,
   ClubMembershipRow,
+  ClubMyInvitationRow,
+  ClubNotifyLevel,
   ClubUpsertInput,
   ClubViewRow,
 } from "./types";
@@ -256,6 +275,181 @@ export function useRemoveClubMember(
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
       void qc.invalidateQueries({ queryKey: adminClubKeys.all });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Etap A2: zaproszenia
+// ---------------------------------------------------------------------------
+
+export function useClubInvitations(
+  clubId: string | undefined,
+): UseQueryResult<AdminClubInvitationRow[], Error> {
+  return useQuery({
+    queryKey: clubKeys.invitations(clubId ?? ""),
+    queryFn: () => fetchClubInvitations(clubId ?? ""),
+    staleTime: 15_000,
+    enabled: Boolean(clubId),
+  });
+}
+
+export function useClubInviteLinks(
+  clubId: string | undefined,
+): UseQueryResult<AdminClubInviteLinkRow[], Error> {
+  return useQuery({
+    queryKey: clubKeys.inviteLinks(clubId ?? ""),
+    queryFn: () => fetchClubInviteLinks(clubId ?? ""),
+    staleTime: 15_000,
+    enabled: Boolean(clubId),
+  });
+}
+
+/** Zaproszenia skierowane do zalogowanego - zasila licznik w nawigacji. */
+export function useMyClubInvitations(
+  enabled = true,
+): UseQueryResult<ClubMyInvitationRow[], Error> {
+  return useQuery({
+    queryKey: clubKeys.myInvitations(),
+    queryFn: fetchMyClubInvitations,
+    staleTime: STALE_MS,
+    enabled,
+  });
+}
+
+export interface InviteMemberVars {
+  userId: string;
+  role?: ClubMemberRole;
+  message?: string | null;
+}
+
+export function useInviteClubMember(
+  clubId: string,
+): UseMutationResult<string, Error, InviteMemberVars> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars) => inviteClubMember({ ...vars, clubId }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
+    },
+  });
+}
+
+export interface InviteByEmailVars {
+  email: string;
+  role?: Exclude<ClubMemberRole, "lead">;
+}
+
+export function useInviteClubMemberByEmail(
+  clubId: string,
+): UseMutationResult<string, Error, InviteByEmailVars> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars) => inviteClubMemberByEmail({ ...vars, clubId }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: clubKeys.invitations(clubId) });
+    },
+  });
+}
+
+export function useCreateClubInviteLink(
+  clubId: string,
+): UseMutationResult<{ id: string; token: string }, Error, Omit<ClubInviteLinkInput, "clubId">> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input) => createClubInviteLink({ ...input, clubId }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: clubKeys.inviteLinks(clubId) });
+    },
+  });
+}
+
+export function useRevokeClubInviteLink(
+  clubId: string,
+): UseMutationResult<boolean, Error, string> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: revokeClubInviteLink,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: clubKeys.inviteLinks(clubId) });
+    },
+  });
+}
+
+// --- samoobsluga czlonkostwa -----------------------------------------------
+
+export function useJoinClub(): UseMutationResult<string, Error, string> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: joinClub,
+    onSuccess: (_status, clubId) => {
+      void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
+      void qc.invalidateQueries({ queryKey: clubKeys.list() });
+      void qc.invalidateQueries({ queryKey: clubKeys.memberships() });
+    },
+  });
+}
+
+export function useLeaveClub(): UseMutationResult<boolean, Error, string> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: leaveClub,
+    onSuccess: (_ok, clubId) => {
+      void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
+      void qc.invalidateQueries({ queryKey: clubKeys.list() });
+      void qc.invalidateQueries({ queryKey: clubKeys.memberships() });
+    },
+  });
+}
+
+export function useRespondClubInvitation(): UseMutationResult<
+  string,
+  Error,
+  { invitationId: string; accept: boolean }
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: respondClubInvitation,
+    onSuccess: () => {
+      // Odpowiedz na zaproszenie zmienia i liste zaproszen, i liste klubow,
+      // i czlonkostwa - inwalidacja od korzenia jest tu tansza niz trzy klucze.
+      void qc.invalidateQueries({ queryKey: clubKeys.all });
+    },
+  });
+}
+
+export function useRedeemClubInviteLink(): UseMutationResult<
+  { clubSlug: string; status: string },
+  Error,
+  string
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: redeemClubInviteLink,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: clubKeys.all });
+    },
+  });
+}
+
+export function useSetClubNotifyLevel(
+  clubId: string,
+): UseMutationResult<boolean, Error, ClubNotifyLevel> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (level) => setClubNotifyLevel({ clubId, level }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: clubKeys.memberships() });
+    },
+  });
+}
+
+export function useAcceptClubRules(clubId: string): UseMutationResult<boolean, Error, void> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => acceptClubRules(clubId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
     },
   });
 }

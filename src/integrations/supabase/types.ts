@@ -12698,6 +12698,50 @@ export type Database = {
           who_can_post_inherited: boolean
         }[]
       }
+      admin_club_invitations: {
+        Args: { p_club_id: string }
+        Returns: {
+          channel: string
+          club_role: string
+          created_at: string
+          expires_at: string
+          id: string
+          inviter_name: string
+          recipient: string
+          status: string
+        }[]
+      }
+      admin_club_invite_link_create: {
+        Args: {
+          p_club_id: string
+          p_expires_at?: string
+          p_group_id?: string
+          p_label?: string
+          p_max_uses?: number
+          p_requires_approval?: boolean
+          p_role?: string
+        }
+        Returns: { id: string; token: string }[]
+      }
+      admin_club_invite_link_revoke: {
+        Args: { p_link_id: string }
+        Returns: boolean
+      }
+      admin_club_invite_links: {
+        Args: { p_club_id: string }
+        Returns: {
+          club_role: string
+          created_at: string
+          expires_at: string
+          id: string
+          label: string
+          max_uses: number
+          requires_approval: boolean
+          revoked_at: string
+          token: string
+          used_count: number
+        }[]
+      }
       admin_club_list: {
         Args: {
           p_limit?: number
@@ -13459,6 +13503,52 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      club_accept_rules: { Args: { p_club_id: string }; Returns: boolean }
+      club_invite: {
+        Args: {
+          p_club_id: string
+          p_group_id?: string
+          p_message?: string
+          p_role?: string
+          p_user_id: string
+        }
+        Returns: string
+      }
+      club_invite_by_email: {
+        Args: { p_club_id: string; p_email: string; p_group_id?: string; p_role?: string }
+        Returns: string
+      }
+      club_invite_quota_ok: { Args: { _user_id: string }; Returns: boolean }
+      club_join: { Args: { p_club_id: string }; Returns: string }
+      club_leave: { Args: { p_club_id: string }; Returns: boolean }
+      club_my_invitations: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          club_icon: string
+          club_id: string
+          club_name_en: string
+          club_name_pl: string
+          club_role: string
+          club_slug: string
+          created_at: string
+          expires_at: string
+          id: string
+          inviter_name: string
+          message: string
+        }[]
+      }
+      club_redeem_invite_link: {
+        Args: { p_token: string }
+        Returns: { club_slug: string; status: string }[]
+      }
+      club_respond_invitation: {
+        Args: { p_accept: boolean; p_invitation_id: string }
+        Returns: string
+      }
+      club_set_notify_level: {
+        Args: { p_club_id: string; p_level: string }
+        Returns: boolean
       }
       club_capabilities: {
         Args: { _club_id: string; _group_id?: string; _user_id?: string }
