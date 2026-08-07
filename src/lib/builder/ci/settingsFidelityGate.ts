@@ -88,11 +88,6 @@ export const RENDERER_ENUMERATES_CONTENT: Partial<Record<WidgetType, string>> = 
 
 /** Zwolnienia per typ widgetu. Brak wpisu = widget jest w pełni pod bramką. */
 export const FIDELITY_WAIVERS: Partial<Record<WidgetType, WidgetFidelityWaiver>> = {
-  newsletter: {
-    hidden: {
-      size: "Odczyt `Set.size` we wspólnej dropliście tematów (TopicsDroplist), nie ustawienie widgetu.",
-    },
-  },
   button: {
     hidden: {
       widthPx: "Ustawiane uchwytem zmiany rozmiaru na kanwie (ResizableBox), nie kontrolką panelu.",
