@@ -1841,6 +1841,105 @@ export type Database = {
           },
         ]
       }
+      club_moderation_log: {
+        Row: {
+          action: string
+          club_id: string
+          created_at: string
+          id: string
+          moderator_id: string | null
+          reason: string | null
+          target_id: string
+          target_type: string
+          tenant_id: string
+        }
+        Insert: {
+          action: string
+          club_id: string
+          created_at?: string
+          id?: string
+          moderator_id?: string | null
+          reason?: string | null
+          target_id: string
+          target_type: string
+          tenant_id: string
+        }
+        Update: {
+          action?: string
+          club_id?: string
+          created_at?: string
+          id?: string
+          moderator_id?: string | null
+          reason?: string | null
+          target_id?: string
+          target_type?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_moderation_log_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_moderation_log_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      club_reactions: {
+        Row: {
+          club_id: string
+          created_at: string
+          id: string
+          kind: string
+          target_id: string
+          target_type: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          club_id: string
+          created_at?: string
+          id?: string
+          kind: string
+          target_id: string
+          target_type: string
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          club_id?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          target_id?: string
+          target_type?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_reactions_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_reactions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       club_replies: {
         Row: {
           author_id: string | null
@@ -1853,6 +1952,7 @@ export type Database = {
           id: string
           is_anonymous: boolean
           parent_id: string | null
+          posted_by_admin_id: string | null
           reaction_count: number
           search_vector: unknown
           status: string
@@ -1871,6 +1971,7 @@ export type Database = {
           id?: string
           is_anonymous?: boolean
           parent_id?: string | null
+          posted_by_admin_id?: string | null
           reaction_count?: number
           search_vector?: unknown
           status?: string
@@ -1889,6 +1990,7 @@ export type Database = {
           id?: string
           is_anonymous?: boolean
           parent_id?: string | null
+          posted_by_admin_id?: string | null
           reaction_count?: number
           search_vector?: unknown
           status?: string
@@ -1981,6 +2083,132 @@ export type Database = {
           },
         ]
       }
+      club_stances: {
+        Row: {
+          club_id: string
+          created_at: string
+          id: string
+          rationale: string | null
+          stance: string
+          tenant_id: string
+          thread_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          club_id: string
+          created_at?: string
+          id?: string
+          rationale?: string | null
+          stance: string
+          tenant_id: string
+          thread_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          club_id?: string
+          created_at?: string
+          id?: string
+          rationale?: string | null
+          stance?: string
+          tenant_id?: string
+          thread_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_stances_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_stances_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_stances_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "club_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      club_thread_embeddings: {
+        Row: {
+          embedding: string | null
+          source_hash: string | null
+          tenant_id: string
+          thread_id: string
+          updated_at: string
+        }
+        Insert: {
+          embedding?: string | null
+          source_hash?: string | null
+          tenant_id: string
+          thread_id: string
+          updated_at?: string
+        }
+        Update: {
+          embedding?: string | null
+          source_hash?: string | null
+          tenant_id?: string
+          thread_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_thread_embeddings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_thread_embeddings_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: true
+            referencedRelation: "club_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      club_thread_subscriptions: {
+        Row: {
+          created_at: string
+          state: string
+          thread_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          state?: string
+          thread_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          state?: string
+          thread_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_thread_subscriptions_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "club_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       club_threads: {
         Row: {
           anchor_id: string | null
@@ -2000,6 +2228,7 @@ export type Database = {
           locked_at: string | null
           participant_count: number
           pinned_at: string | null
+          posted_by_admin_id: string | null
           reaction_count: number
           reply_count: number
           resolved_reply_id: string | null
@@ -2028,6 +2257,7 @@ export type Database = {
           locked_at?: string | null
           participant_count?: number
           pinned_at?: string | null
+          posted_by_admin_id?: string | null
           reaction_count?: number
           reply_count?: number
           resolved_reply_id?: string | null
@@ -2056,6 +2286,7 @@ export type Database = {
           locked_at?: string | null
           participant_count?: number
           pinned_at?: string | null
+          posted_by_admin_id?: string | null
           reaction_count?: number
           reply_count?: number
           resolved_reply_id?: string | null
@@ -6822,6 +7053,7 @@ export type Database = {
           created_at: string
           digest_last_sent_at: string | null
           email_digest: string
+          enabled_club: boolean
           enabled_comment: boolean
           enabled_connection: boolean
           enabled_content: boolean
@@ -6856,6 +7088,7 @@ export type Database = {
           created_at?: string
           digest_last_sent_at?: string | null
           email_digest?: string
+          enabled_club?: boolean
           enabled_comment?: boolean
           enabled_connection?: boolean
           enabled_content?: boolean
@@ -6890,6 +7123,7 @@ export type Database = {
           created_at?: string
           digest_last_sent_at?: string | null
           email_digest?: string
+          enabled_club?: boolean
           enabled_comment?: boolean
           enabled_connection?: boolean
           enabled_content?: boolean
@@ -13016,6 +13250,19 @@ export type Database = {
         }
         Returns: undefined
       }
+      admin_club_bulk_member_role: {
+        Args: { p_club_id: string; p_role: string; p_user_ids: string[] }
+        Returns: number
+      }
+      admin_club_bulk_moderate: {
+        Args: {
+          p_action: string
+          p_reason?: string
+          p_target_ids: string[]
+          p_target_type: string
+        }
+        Returns: number
+      }
       admin_club_capabilities_preview: {
         Args: { _club_id: string; _group_id?: string; _user_id: string }
         Returns: {
@@ -13195,6 +13442,77 @@ export type Database = {
         }
         Returns: string
       }
+      admin_club_moderation_log: {
+        Args: { p_club_id: string; p_limit?: number }
+        Returns: {
+          action: string
+          created_at: string
+          id: string
+          moderator_name: string
+          reason: string
+          target_id: string
+          target_type: string
+        }[]
+      }
+      admin_club_moderation_queue: {
+        Args: { p_club_id: string }
+        Returns: {
+          author_name: string
+          body: string
+          created_at: string
+          target_id: string
+          target_type: string
+          thread_slug: string
+          title: string
+        }[]
+      }
+      admin_club_pending_counts: {
+        Args: never
+        Returns: {
+          join_requests: number
+          moderation_pending: number
+        }[]
+      }
+      admin_club_replies: {
+        Args: { p_limit?: number; p_offset?: number; p_thread_id: string }
+        Returns: {
+          author_id: string
+          author_name: string
+          body: string
+          created_at: string
+          depth: number
+          edited_at: string
+          id: string
+          is_anonymous: boolean
+          parent_id: string
+          posted_by_admin_name: string
+          reaction_count: number
+          status: string
+          total_count: number
+        }[]
+      }
+      admin_club_reply_create: {
+        Args: {
+          p_author_id?: string
+          p_body: string
+          p_parent_id?: string
+          p_thread_id: string
+        }
+        Returns: string
+      }
+      admin_club_restore: {
+        Args: { p_reason?: string; p_target_id: string; p_target_type: string }
+        Returns: boolean
+      }
+      admin_club_segment_preview: {
+        Args: { p_club_id: string; p_rule: Json }
+        Returns: {
+          already_member: number
+          blocked: number
+          matched: number
+          will_send: number
+        }[]
+      }
       admin_club_stats: {
         Args: { p_club_id: string }
         Returns: {
@@ -13202,10 +13520,67 @@ export type Database = {
           banned_count: number
           group_count: number
           leads_count: number
+          median_first_reply_hours: number
           member_count: number
           moderators_count: number
           pending_members: number
+          replies_30d: number
+          reply_count: number
           thread_count: number
+          threads_30d: number
+          unanswered_count: number
+          unanswered_pct: number
+        }[]
+      }
+      admin_club_thread_create: {
+        Args: {
+          p_author_id?: string
+          p_body: string
+          p_group_id: string
+          p_kind?: string
+          p_pinned?: boolean
+          p_title: string
+        }
+        Returns: {
+          thread_id: string
+          thread_slug: string
+        }[]
+      }
+      admin_club_thread_move: {
+        Args: { p_group_id: string; p_thread_id: string }
+        Returns: boolean
+      }
+      admin_club_threads: {
+        Args: {
+          p_club_id: string
+          p_group_id?: string
+          p_kind?: string
+          p_limit?: number
+          p_offset?: number
+          p_search?: string
+          p_status?: string
+        }
+        Returns: {
+          author_id: string
+          author_name: string
+          created_at: string
+          group_id: string
+          group_name_en: string
+          group_name_pl: string
+          id: string
+          is_anonymous: boolean
+          kind: string
+          last_reply_at: string
+          locked_at: string
+          participant_count: number
+          pinned_at: string
+          posted_by_admin_name: string
+          reaction_count: number
+          reply_count: number
+          slug: string
+          status: string
+          title: string
+          total_count: number
         }[]
       }
       admin_club_upsert: { Args: { p_payload: Json }; Returns: string }
@@ -13913,6 +14288,15 @@ export type Database = {
         Args: { _author_id: string; _thread_id: string }
         Returns: string
       }
+      club_ban_member: {
+        Args: {
+          p_banned: boolean
+          p_club_id: string
+          p_reason?: string
+          p_user_id: string
+        }
+        Returns: boolean
+      }
       club_capabilities: {
         Args: { _club_id: string; _group_id?: string; _user_id?: string }
         Returns: {
@@ -14063,6 +14447,23 @@ export type Database = {
           verified: boolean
         }[]
       }
+      club_moderate: {
+        Args: {
+          p_action: string
+          p_reason?: string
+          p_target_id: string
+          p_target_type: string
+        }
+        Returns: boolean
+      }
+      club_moderator_reveal_author: {
+        Args: { p_reason: string; p_target_id: string; p_target_type: string }
+        Returns: {
+          author_id: string
+          display_name: string
+          profile_slug: string
+        }[]
+      }
       club_my_invitations: {
         Args: never
         Returns: {
@@ -14098,6 +14499,33 @@ export type Database = {
           thread_count: number
         }[]
       }
+      club_my_subscription: { Args: { p_thread_id: string }; Returns: string }
+      club_notify: {
+        Args: {
+          _actor_id: string
+          _body_en: string
+          _body_pl: string
+          _href: string
+          _title_en: string
+          _title_pl: string
+          _user_id: string
+        }
+        Returns: undefined
+      }
+      club_prune_thread_embeddings: { Args: never; Returns: number }
+      club_react: {
+        Args: { p_kind: string; p_target_id: string; p_target_type: string }
+        Returns: boolean
+      }
+      club_reactions_for: {
+        Args: { p_target_ids: string[]; p_target_type: string }
+        Returns: {
+          kind: string
+          mine: boolean
+          target_id: string
+          total: number
+        }[]
+      }
       club_redeem_invite_link: {
         Args: { p_token: string }
         Returns: {
@@ -14121,6 +14549,7 @@ export type Database = {
           is_anonymous: boolean
           is_resolution: boolean
           parent_id: string
+          posted_by_admin_name: string
           reaction_count: number
           status: string
         }[]
@@ -14142,9 +14571,77 @@ export type Database = {
         Args: { p_accept: boolean; p_invitation_id: string }
         Returns: string
       }
+      club_scheduler_tick: { Args: never; Returns: Json }
+      club_search: {
+        Args: { p_club_id?: string; p_limit?: number; p_query: string }
+        Returns: {
+          club_id: string
+          club_name_en: string
+          club_name_pl: string
+          club_slug: string
+          kind: string
+          last_reply_at: string
+          rank: number
+          reply_count: number
+          snippet: string
+          thread_id: string
+          thread_slug: string
+          title: string
+        }[]
+      }
+      club_semantic_search: {
+        Args: {
+          p_club_id?: string
+          p_embedding: number[]
+          p_limit?: number
+          p_threshold?: number
+        }
+        Returns: {
+          club_id: string
+          club_name_en: string
+          club_name_pl: string
+          club_slug: string
+          kind: string
+          last_reply_at: string
+          reply_count: number
+          similarity: number
+          thread_id: string
+          thread_slug: string
+          title: string
+        }[]
+      }
       club_set_notify_level: {
         Args: { p_club_id: string; p_level: string }
         Returns: boolean
+      }
+      club_set_role: {
+        Args: {
+          p_club_id: string
+          p_expires_at?: string
+          p_role: string
+          p_user_id: string
+        }
+        Returns: boolean
+      }
+      club_set_stance: {
+        Args: { p_rationale?: string; p_stance: string; p_thread_id: string }
+        Returns: boolean
+      }
+      club_stance_summary: {
+        Args: { p_thread_id: string }
+        Returns: {
+          mine: boolean
+          stance: string
+          total: number
+        }[]
+      }
+      club_subscribe_thread: {
+        Args: { p_state: string; p_thread_id: string }
+        Returns: boolean
+      }
+      club_thread_embedding_source: {
+        Args: { p_thread_id: string }
+        Returns: string
       }
       club_thread_hotness: {
         Args: {
@@ -14180,12 +14677,27 @@ export type Database = {
           locked_at: string
           participant_count: number
           pinned_at: string
+          posted_by_admin_name: string
           reaction_count: number
           reason: string
           reply_count: number
           resolved_reply_id: string
           slug: string
           status: string
+          title: string
+        }[]
+      }
+      club_threads_for_anchor: {
+        Args: { p_anchor_id: string; p_anchor_type: string; p_limit?: number }
+        Returns: {
+          club_name_en: string
+          club_name_pl: string
+          club_slug: string
+          kind: string
+          last_reply_at: string
+          reply_count: number
+          thread_id: string
+          thread_slug: string
           title: string
         }[]
       }
@@ -14226,9 +14738,30 @@ export type Database = {
         }[]
       }
       club_threads_mark_dormant: { Args: { p_limit?: number }; Returns: number }
+      club_threads_needing_embeddings: {
+        Args: { p_limit?: number }
+        Returns: {
+          source: string
+          source_hash: string
+          tenant_id: string
+          thread_id: string
+        }[]
+      }
       club_threads_refresh_hotness: {
         Args: { p_limit?: number }
         Returns: number
+      }
+      club_unreact: {
+        Args: { p_kind: string; p_target_id: string; p_target_type: string }
+        Returns: boolean
+      }
+      club_upsert_thread_embedding: {
+        Args: {
+          p_embedding: number[]
+          p_source_hash: string
+          p_thread_id: string
+        }
+        Returns: boolean
       }
       club_view: {
         Args: { p_slug: string }
