@@ -31,7 +31,10 @@ import {
   ClubStatusBadge,
   ClubVisibilityBadge,
 } from "@/components/admin/clubs/atoms/ClubBadges";
-import { ClubAccessTab, type ClubAccessDraft } from "@/components/admin/clubs/organisms/ClubAccessTab";
+import {
+  ClubAccessTab,
+  type ClubAccessDraft,
+} from "@/components/admin/clubs/organisms/ClubAccessTab";
 import { ClubReactionBar } from "@/components/clubs/ClubReactionBar";
 import {
   CAPABILITY_KEYS,
@@ -189,10 +192,7 @@ function ClubElementsPage() {
         <p className="text-xs text-muted-foreground/80">{t("clubElements.note")}</p>
       </header>
 
-      <Section
-        title={t("clubElements.section.vocab")}
-        hint={t("clubElements.section.vocabHint")}
-      >
+      <Section title={t("clubElements.section.vocab")} hint={t("clubElements.section.vocabHint")}>
         <Card>
           <CardContent className="p-5">
             <VocabRow
@@ -234,10 +234,7 @@ function ClubElementsPage() {
         </Card>
       </Section>
 
-      <Section
-        title={t("clubElements.section.badges")}
-        hint={t("clubElements.section.badgesHint")}
-      >
+      <Section title={t("clubElements.section.badges")} hint={t("clubElements.section.badgesHint")}>
         <Card>
           <CardContent className="space-y-4 p-5">
             <div className="space-y-1.5">
@@ -284,17 +281,11 @@ function ClubElementsPage() {
         </Card>
       </Section>
 
-      <Section
-        title={t("clubElements.section.access")}
-        hint={t("clubElements.section.accessHint")}
-      >
+      <Section title={t("clubElements.section.access")} hint={t("clubElements.section.accessHint")}>
         <ClubAccessTab draft={draft} onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))} />
       </Section>
 
-      <Section
-        title={t("clubElements.section.matrix")}
-        hint={t("clubElements.section.matrixHint")}
-      >
+      <Section title={t("clubElements.section.matrix")} hint={t("clubElements.section.matrixHint")}>
         <Card>
           <CardContent className="overflow-x-auto p-0">
             <Table>
@@ -361,10 +352,7 @@ function ClubElementsPage() {
         </Card>
       </Section>
 
-      <Section
-        title={t("clubElements.section.routes")}
-        hint={t("clubElements.section.routesHint")}
-      >
+      <Section title={t("clubElements.section.routes")} hint={t("clubElements.section.routesHint")}>
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">/club</CardTitle>

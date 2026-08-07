@@ -71,7 +71,8 @@ export const clubElementsEn = {
     note: "Reference page. All data is sample data - nothing is written to the database.",
     section: {
       vocab: "Domain vocabularies",
-      vocabHint: "Value sets derived from database CHECK constraints - the only source of dropdowns.",
+      vocabHint:
+        "Value sets derived from database CHECK constraints - the only source of dropdowns.",
       badges: "State badges",
       badgesHint: "Colour carries meaning: red = cut off, amber = awaiting a human decision.",
       access: "Access settings and live preview",
