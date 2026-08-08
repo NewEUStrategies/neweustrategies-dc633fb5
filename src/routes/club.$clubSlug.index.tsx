@@ -349,8 +349,7 @@ function ClubHome() {
           </SelectContent>
         </Select>
 
-          </SelectContent>
-        </Select>
+
 
         <Select
           value={kind ?? ALL}
