@@ -533,6 +533,8 @@ export async function fetchClubThreads(params: {
   /** `true` = tylko zakotwiczone, `false` = tylko bez kotwicy, `null` = wszystkie. */
   anchored?: boolean | null;
   unreadOnly?: boolean;
+  /** Obszar tematyczny ze slownika CLUB_TOPICS; null = bez filtra. */
+  topic?: string | null;
   cursor?: string | null;
   limit?: number;
 }): Promise<ClubThreadsPage> {
@@ -551,6 +553,7 @@ export async function fetchClubThreads(params: {
     // filtra - rozroznienie null/false musi tu przezyc.
     p_anchored: params.anchored === null ? undefined : params.anchored,
     p_unread_only: params.unreadOnly ?? false,
+    p_topic: params.topic ?? undefined,
     p_cursor: params.cursor ?? undefined,
     p_limit: limit,
   });
@@ -633,6 +636,8 @@ export async function createClubThread(params: {
    * dyskusja zachowuje sie jak dotad.
    */
   lockReplies?: boolean;
+  /** Obszar tematyczny watku; brak = dziedziczy obszar klubu w RPC. */
+  topic?: string | null;
 }): Promise<CreateThreadResult> {
   const { data, error } = await supabase.rpc("club_create_thread", {
     p_group_id: params.groupId,
@@ -644,6 +649,7 @@ export async function createClubThread(params: {
     p_anchor_id: params.anchorId ?? undefined,
     p_idempotency_key: params.idempotencyKey ?? undefined,
     p_lock_replies: params.lockReplies ?? false,
+    p_topic: params.topic ?? undefined,
   });
   if (error) throw error;
   const row = data?.[0];
@@ -875,6 +881,7 @@ export async function adminCreateClubThread(params: {
   authorId?: string | null;
   kind?: ClubThreadKind;
   pinned?: boolean;
+  topic?: string | null;
 }): Promise<{ threadId: string; threadSlug: string }> {
   const { data, error } = await supabase.rpc("admin_club_thread_create", {
     p_group_id: params.groupId,
@@ -883,6 +890,7 @@ export async function adminCreateClubThread(params: {
     p_author_id: params.authorId ?? undefined,
     p_kind: params.kind ?? "discussion",
     p_pinned: params.pinned ?? false,
+    p_topic: params.topic ?? undefined,
   });
   if (error) throw error;
   const row = data?.[0];
