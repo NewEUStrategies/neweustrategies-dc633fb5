@@ -29,9 +29,9 @@ export function MobileAccountSection({ isPl, onNavigate }: Props) {
       </p>
       {session ? (
         <div className="flex flex-col gap-0.5">
-          <Link to={isStaff ? "/admin" : "/profile"} onClick={onNavigate} className={primaryBtn}>
-            {isStaff ? <LayoutDashboard className={accountIcon} /> : <User className={accountIcon} />}
-            {isStaff ? t("Moje konto", "My account") : t("Mój profil", "My profile")}
+          <Link to="/profile" onClick={onNavigate} className={primaryBtn}>
+            <User className={accountIcon} />
+            {t("Moje konto", "My account")}
           </Link>
           <button
             type="button"
