@@ -208,6 +208,7 @@ export function MobileBottomBarView({
             label={bottomBarLabel(item, lang, (key) => t(key))}
             active={index === activeIndex}
             showLabel={config.show_labels}
+            lang={lang}
             withBadge={withBadges}
             onSelect={onSelect ? () => onSelect(index) : undefined}
             ref={(el) => {

@@ -10,7 +10,7 @@
 // a kolory - w tym akcent aktywnej pozycji - są rozdzielone na tryb jasny i
 // ciemny, żeby kontrast nie zależał od motywu.
 import { safeUrl } from "@/lib/sanitize";
-import { stripLangPrefix } from "@/lib/i18n/localePath";
+import { DEFAULT_LANG, localizedPath, normalizeLang, stripLangPrefix } from "@/lib/i18n/localePath";
 
 export const MOBILE_BOTTOM_BAR_SETTINGS_KEY = "mobile_bottom_bar";
 
@@ -223,6 +223,22 @@ export function newBottomBarItem(index: number): MobileBottomBarItem {
   };
 }
 
+/**
+ * Kanoniczne adresy pozycji systemowych. Pasek jest konfigurowalny, ale te
+ * cztery skróty prowadzą do KONKRETNYCH modułów serwisu - jeżeli zapisana
+ * konfiguracja tenanta pamięta stary adres (np. sprzed przeniesienia klubów),
+ * kliknięcie lądowało poza modułem. Adres z bazy jest więc naprawiany do
+ * kanonicznego wyłącznie dla znanych identyfikatorów; własne pozycje admina
+ * (id `item-*`) zostają nietknięte.
+ */
+export const CANONICAL_ITEM_HREFS: Readonly<Record<string, string>> = {
+  network: "/network",
+  chats: "/messages",
+  home: "/",
+  clubs: "/club",
+  profile: "/profile",
+};
+
 /** Pozycje widoczne publicznie (włączone, z bezpiecznym adresem i badge'em). */
 export function visibleBottomBarItems(cfg: MobileBottomBarConfig): MobileBottomBarItem[] {
   return (Array.isArray(cfg.items) ? cfg.items : [])
@@ -230,9 +246,10 @@ export function visibleBottomBarItems(cfg: MobileBottomBarConfig): MobileBottomB
     .slice(0, MAX_BOTTOM_BAR_ITEMS)
     .map((item) => ({
       ...item,
-      href: safeUrl(item.href, "/"),
+      href: CANONICAL_ITEM_HREFS[item.id] ?? safeUrl(item.href, "/"),
       badge: normalizeBadgeSource(item.badge),
     }));
+
 }
 
 /** Tłumacz etykiet - podzbiór `t` z i18next, żeby config został czysty i testowalny. */
@@ -294,4 +311,20 @@ export function activeBottomBarIndex(items: MobileBottomBarItem[], pathname: str
     }
   });
   return best;
+}
+
+/**
+ * Adres pozycji dla bieżącego języka.
+ *
+ * Pasek trzyma adresy kanoniczne (bez prefiksu), a treść publiczna EN mieszka
+ * pod `/en/*`. Bez tej normalizacji przełączenie na kluby z wersji angielskiej
+ * wyrzucało użytkownika na wersję polską - a `activeBottomBarIndex` i tak
+ * porównuje ścieżki po zdjęciu prefiksu, więc podświetlenie zostawało.
+ * Adresy zewnętrzne (http/mailto) przechodzą bez zmian.
+ */
+export function bottomBarHref(item: MobileBottomBarItem, lang: string): string {
+  const href = item.href || "/";
+  if (!href.startsWith("/")) return href;
+  const [path, rest = ""] = [href.split(/(?=[?#])/)[0], href.slice(href.split(/(?=[?#])/)[0].length)];
+  return `${localizedPath(path, normalizeLang(lang) ?? DEFAULT_LANG)}${rest}`;
 }

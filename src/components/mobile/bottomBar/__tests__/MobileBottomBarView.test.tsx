@@ -49,7 +49,7 @@ describe("MobileBottomBarView - kontrakt produktowy", () => {
       "/network",
       "/messages",
       "/",
-      "/reading-list",
+      "/club",
       "/profile",
     ]);
     // Środek listy (indeks 2 z pięciu) to strona główna - to jest kontrakt
@@ -79,7 +79,7 @@ describe("MobileBottomBarView - kontrakt produktowy", () => {
     expect(within(navPl).getByText("Sieć kontaktów")).toBeInTheDocument();
     expect(within(navPl).getByText("Czaty")).toBeInTheDocument();
     expect(within(navPl).getByText("Start")).toBeInTheDocument();
-    expect(within(navPl).getByText("Zapisane")).toBeInTheDocument();
+    expect(within(navPl).getByText("Kluby dyskusyjne")).toBeInTheDocument();
     expect(within(navPl).getByText("Profil")).toBeInTheDocument();
     cleanup();
 
@@ -89,7 +89,7 @@ describe("MobileBottomBarView - kontrakt produktowy", () => {
     expect(within(navEn).getByText("My network")).toBeInTheDocument();
     expect(within(navEn).getByText("Chats")).toBeInTheDocument();
     expect(within(navEn).getByText("Home")).toBeInTheDocument();
-    expect(within(navEn).getByText("Saved")).toBeInTheDocument();
+    expect(within(navEn).getByText("Discussion clubs")).toBeInTheDocument();
     expect(within(navEn).getByText("Profile")).toBeInTheDocument();
     await i18n.changeLanguage("pl");
   });
