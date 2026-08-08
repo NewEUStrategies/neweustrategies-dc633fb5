@@ -223,11 +223,28 @@ export function newBottomBarItem(index: number): MobileBottomBarItem {
   };
 }
 
+/**
+ * Kanoniczne adresy pozycji systemowych. Pasek jest konfigurowalny, ale te
+ * cztery skróty prowadzą do KONKRETNYCH modułów serwisu - jeżeli zapisana
+ * konfiguracja tenanta pamięta stary adres (np. sprzed przeniesienia klubów),
+ * kliknięcie lądowało poza modułem. Adres z bazy jest więc naprawiany do
+ * kanonicznego wyłącznie dla znanych identyfikatorów; własne pozycje admina
+ * (id `item-*`) zostają nietknięte.
+ */
+export const CANONICAL_ITEM_HREFS: Readonly<Record<string, string>> = {
+  network: "/network",
+  chats: "/messages",
+  home: "/",
+  clubs: "/club",
+  profile: "/profile",
+};
+
 /** Pozycje widoczne publicznie (włączone, z bezpiecznym adresem i badge'em). */
 export function visibleBottomBarItems(cfg: MobileBottomBarConfig): MobileBottomBarItem[] {
   return (Array.isArray(cfg.items) ? cfg.items : [])
     .filter((item) => item && item.enabled !== false)
     .slice(0, MAX_BOTTOM_BAR_ITEMS)
+
     .map((item) => ({
       ...item,
       href: safeUrl(item.href, "/"),
