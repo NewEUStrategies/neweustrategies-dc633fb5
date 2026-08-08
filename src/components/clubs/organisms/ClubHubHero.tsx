@@ -48,7 +48,7 @@ export function ClubHubHero({
             <h1 className="text-xl font-semibold leading-tight sm:text-2xl">{t("club.title")}</h1>
             {access !== null ? <ClubHubAccessBadge access={access} /> : null}
           </div>
-          <p className="mt-1.5 line-clamp-2 max-w-2xl text-sm text-muted-foreground">
+          <p className="mt-1.5 line-clamp-2 max-w-3xl text-sm text-muted-foreground">
             {signedIn ? t("club.hub.lead") : t("club.hub.anonLead")}
           </p>
           <dl className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
