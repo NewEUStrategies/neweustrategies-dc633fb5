@@ -171,7 +171,7 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
               type="button"
               onClick={() => setSearchOpen(true)}
               aria-label={t("common.openSearch")}
-              className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-border text-foreground hover:bg-muted transition shrink-0"
+              className="inline-flex items-center justify-center h-10 w-10 rounded-md text-foreground hover:bg-muted transition shrink-0"
             >
               <Search className="w-5 h-5" aria-hidden />
             </button>
@@ -179,7 +179,7 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
               type="button"
               onClick={toggle}
               aria-label={t("common.toggleTheme", "Przełącz motyw")}
-              className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-border text-foreground hover:bg-muted transition shrink-0"
+              className="inline-flex items-center justify-center h-10 w-10 rounded-md text-foreground hover:bg-muted transition shrink-0"
             >
               {isDark ? (
                 <Sun className="w-5 h-5" aria-hidden />
@@ -215,7 +215,7 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
               aria-label={openA11y}
               aria-expanded={open}
               aria-controls="mobile-header-drawer"
-              className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-border text-foreground hover:bg-muted transition shrink-0"
+              className="inline-flex items-center justify-center h-10 w-10 rounded-md text-foreground hover:bg-muted transition shrink-0"
             >
               <Menu className="w-5 h-5" aria-hidden />
             </button>
