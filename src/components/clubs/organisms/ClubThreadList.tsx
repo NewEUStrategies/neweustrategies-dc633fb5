@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { toAuthorLabel, type ClubLayout, type ClubThreadListRow } from "@/lib/clubs/types";
 import { formatDateShort } from "@/lib/i18n/format";
+import { ClubThreadHeat } from "@/components/clubs/atoms/ClubThreadHeat";
 
 function ThreadBadges({ thread, isPl }: { thread: ClubThreadListRow; isPl: boolean }) {
   const { t } = useTranslation();
@@ -75,8 +76,11 @@ function ThreadMeta({ thread, isPl }: { thread: ClubThreadListRow; isPl: boolean
   const { t } = useTranslation();
   const author = toAuthorLabel(thread, t("club.anonymousAuthor"), t("club.deletedAuthor"));
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-      <span>{author.name}</span>
+    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+      {/* Wskaźnik dynamiki stoi PIERWSZY, przed nazwiskiem: dla wyboru wątku
+          "czy tu się coś dzieje" jest pytaniem wcześniejszym niż "kto założył". */}
+      <ClubThreadHeat thread={thread} />
+      <span className="truncate max-w-[14rem]">{author.name}</span>
       <span className="inline-flex items-center gap-1.5">
         <MessageSquare className="h-3.5 w-3.5" />
         {thread.reply_count}
@@ -120,7 +124,7 @@ function ThreadLink({
       to="/club/$clubSlug/t/$threadSlug"
       params={{ clubSlug, threadSlug: thread.slug }}
       className={cn(
-        "block rounded-lg border border-border/60 bg-card transition-colors hover:border-primary/40",
+        "block rounded-lg border border-border/60 bg-card transition-colors hover:border-primary/40 hover:bg-accent/30",
         className,
       )}
     >
@@ -147,10 +151,10 @@ export function ClubThreadList({
 
   if (layout === "cards") {
     return (
-      <ul className="grid gap-3 sm:grid-cols-2">
+      <ul className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
         {threads.map((thread) => (
           <li key={thread.id}>
-            <ThreadLink clubSlug={clubSlug} thread={thread} className="flex h-full flex-col p-4">
+            <ThreadLink clubSlug={clubSlug} thread={thread} className="flex h-full flex-col p-3.5">
               <ThreadBadges thread={thread} isPl={isPl} />
               <h3 className="mt-1.5 font-medium leading-snug">{thread.title}</h3>
               {/* Fragment treści jest tym, co odróżnia karty od listy - bez
@@ -172,7 +176,7 @@ export function ClubThreadList({
         <ThreadLink
           clubSlug={clubSlug}
           thread={featured}
-          className="border-primary/30 bg-primary/[0.03] p-5"
+          className="border-primary/30 bg-primary/[0.03] p-4"
         >
           <ThreadBadges thread={featured} isPl={isPl} />
           <h3 className="mt-2 text-xl font-semibold leading-snug">{featured.title}</h3>
