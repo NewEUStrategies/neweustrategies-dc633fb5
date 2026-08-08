@@ -58,7 +58,7 @@ function clubExcerpt(club: ClubDirectoryCard, isPl: boolean): string | null {
 function ClubStats({ club, isPl }: { club: ClubDirectoryCard; isPl: boolean }) {
   const { t } = useTranslation();
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
       <span className="inline-flex items-center gap-1.5">
         <Users2 className="h-3.5 w-3.5" aria-hidden="true" />
         {t("club.membersCount", { count: club.member_count })}
@@ -90,9 +90,9 @@ function CardTile({ club, isPl }: { club: ClubDirectoryCard; isPl: boolean }) {
       className="group flex flex-col overflow-hidden rounded-lg border border-border/60 bg-card transition-colors hover:border-primary/40"
     >
       <ClubCover url={club.cover_image_url} variant="card" />
-      <div className="flex flex-1 flex-col p-4">
+      <div className="flex flex-1 flex-col p-3">
         <div className="flex items-start justify-between gap-2">
-          <h3 className="font-medium leading-tight group-hover:text-primary">
+          <h3 className="text-sm font-medium leading-tight group-hover:text-primary">
             {clubName(club, isPl)}
           </h3>
           <Badge variant="outline" className="shrink-0 text-[11px]">
@@ -100,9 +100,9 @@ function CardTile({ club, isPl }: { club: ClubDirectoryCard; isPl: boolean }) {
           </Badge>
         </div>
         {excerpt !== null ? (
-          <p className="mt-1.5 line-clamp-2 text-sm text-muted-foreground">{excerpt}</p>
+          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{excerpt}</p>
         ) : null}
-        <div className="mt-auto pt-3">
+        <div className="mt-auto pt-2.5">
           <ClubStats club={club} isPl={isPl} />
         </div>
       </div>
@@ -122,11 +122,11 @@ function ListRow({ club, isPl }: { club: ClubDirectoryCard; isPl: boolean }) {
       <ClubCover
         url={club.cover_image_url}
         variant="card"
-        className="w-24 shrink-0 rounded-md sm:w-32"
+        className="w-20 shrink-0 rounded-md sm:w-28"
       />
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
-          <h3 className="truncate font-medium leading-tight group-hover:text-primary">
+          <h3 className="truncate text-sm font-medium leading-tight group-hover:text-primary">
             {clubName(club, isPl)}
           </h3>
           <Badge variant="outline" className="shrink-0 text-[11px]">
@@ -134,7 +134,7 @@ function ListRow({ club, isPl }: { club: ClubDirectoryCard; isPl: boolean }) {
           </Badge>
         </div>
         {excerpt !== null ? (
-          <p className="mt-1 line-clamp-1 text-sm text-muted-foreground sm:line-clamp-2">
+          <p className="mt-1 line-clamp-1 text-xs text-muted-foreground sm:line-clamp-2">
             {excerpt}
           </p>
         ) : null}
@@ -156,9 +156,9 @@ function MagazineLead({ club, isPl }: { club: ClubDirectoryCard; isPl: boolean }
       className="group grid overflow-hidden rounded-xl border border-border/60 bg-card transition-colors hover:border-primary/40 md:grid-cols-2"
     >
       <ClubCover url={club.cover_image_url} variant="card" className="rounded-none md:h-full" />
-      <div className="flex flex-col gap-2 p-5">
+      <div className="flex flex-col gap-2 p-4">
         <div className="flex items-start justify-between gap-2">
-          <h3 className="text-xl font-semibold leading-tight group-hover:text-primary">
+          <h3 className="text-lg font-semibold leading-tight group-hover:text-primary">
             {clubName(club, isPl)}
           </h3>
           <Badge variant="outline" className="shrink-0 text-[11px]">
@@ -166,7 +166,7 @@ function MagazineLead({ club, isPl }: { club: ClubDirectoryCard; isPl: boolean }
           </Badge>
         </div>
         {excerpt !== null ? (
-          <p className="line-clamp-4 text-sm text-muted-foreground">{excerpt}</p>
+          <p className="line-clamp-3 text-sm text-muted-foreground">{excerpt}</p>
         ) : null}
         <div className="mt-auto pt-2">
           <ClubStats club={club} isPl={isPl} />
@@ -194,16 +194,16 @@ export function ClubDirectory({
   action?: React.ReactNode;
 }) {
   return (
-    <section className="mb-10">
+    <section className="mb-8">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold">{title}</h2>
+        <h2 className="text-base font-semibold">{title}</h2>
         {action}
       </div>
 
       {loading ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="h-56 animate-pulse rounded-lg bg-muted/50" />
+            <div key={i} className="h-44 animate-pulse rounded-lg bg-muted/50" />
           ))}
         </div>
       ) : clubs.length === 0 ? (
