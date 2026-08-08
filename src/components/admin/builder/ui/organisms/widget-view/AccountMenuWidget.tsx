@@ -10,7 +10,7 @@ import { useGreeting } from "@/lib/greetings/useGreeting";
 import { useHeaderProfile } from "@/lib/profile/useHeaderProfile";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { LogIn } from "lucide-react";
+import { LogIn, ChevronRight } from "lucide-react";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
