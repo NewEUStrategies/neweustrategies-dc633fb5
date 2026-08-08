@@ -2257,6 +2257,7 @@ export type Database = {
           locked_at: string | null
           participant_count: number
           pinned_at: string | null
+          poll_id: string | null
           posted_by_admin_id: string | null
           reaction_count: number
           reply_count: number
@@ -2286,6 +2287,7 @@ export type Database = {
           locked_at?: string | null
           participant_count?: number
           pinned_at?: string | null
+          poll_id?: string | null
           posted_by_admin_id?: string | null
           reaction_count?: number
           reply_count?: number
@@ -2315,6 +2317,7 @@ export type Database = {
           locked_at?: string | null
           participant_count?: number
           pinned_at?: string | null
+          poll_id?: string | null
           posted_by_admin_id?: string | null
           reaction_count?: number
           reply_count?: number
@@ -2339,6 +2342,13 @@ export type Database = {
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "club_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_threads_poll_id_fkey"
+            columns: ["poll_id"]
+            isOneToOne: false
+            referencedRelation: "polls"
             referencedColumns: ["id"]
           },
           {
@@ -13544,6 +13554,23 @@ export type Database = {
           moderation_pending: number
         }[]
       }
+      admin_club_poll_create: {
+        Args: {
+          p_author_id?: string
+          p_body: string
+          p_ends_at?: string
+          p_group_id: string
+          p_options: Json
+          p_question_en: string
+          p_question_pl: string
+          p_title: string
+        }
+        Returns: {
+          poll_id: string
+          thread_id: string
+          thread_slug: string
+        }[]
+      }
       admin_club_replies: {
         Args: { p_limit?: number; p_offset?: number; p_thread_id: string }
         Returns: {
@@ -14838,6 +14865,7 @@ export type Database = {
           locked_at: string
           participant_count: number
           pinned_at: string
+          poll_id: string
           posted_by_admin_name: string
           reaction_count: number
           reason: string
