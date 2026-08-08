@@ -1180,6 +1180,18 @@ export const clubEn = {
       private: "Card visible to signed-in users, content only to members.",
       secret: "Visible exclusively to club members.",
     },
+    planTier: {
+      free: "Free",
+      plus: "Plus",
+      pro: "Pro",
+      vip: "VIP",
+    },
+    planTierHint: {
+      free: "No plan requirement.",
+      plus: "Requires the Plus plan or higher.",
+      pro: "Requires the Pro plan or higher.",
+      vip: "Requires the VIP plan.",
+    },
     joinPolicy: {
       open: "Open entry",
       request: "On request",
