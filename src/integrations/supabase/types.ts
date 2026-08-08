@@ -13414,21 +13414,6 @@ export type Database = {
           who_can_post_inherited: boolean
         }[]
       }
-      admin_club_invite_segment: {
-        Args: {
-          p_club_id: string
-          p_group_id?: string
-          p_max?: number
-          p_message?: string
-          p_role?: string
-          p_rule: Json
-          p_save_rule?: boolean
-        }
-        Returns: {
-          invited: number
-          rule_id: string
-        }[]
-      }
       admin_club_invitations: {
         Args: { p_club_id: string }
         Returns: {
@@ -14403,20 +14388,6 @@ export type Database = {
           title: string
         }[]
       }
-      club_anchor_label: {
-        Args: { p_id: string; p_type: string }
-        Returns: string
-      }
-      club_anchor_suggest: {
-        Args: { p_anchor_type?: string; p_limit?: number; p_query: string }
-        Returns: {
-          anchor_id: string
-          anchor_type: string
-          hint: string
-          label_en: string
-          label_pl: string
-        }[]
-      }
       club_anonymity_salt: { Args: { _tenant_id: string }; Returns: string }
       club_author_alias: {
         Args: { _author_id: string; _thread_id: string }
@@ -14454,9 +14425,7 @@ export type Database = {
           p_anonymous?: boolean
           p_body: string
           p_group_id: string
-          p_idempotency_key?: string
           p_kind?: string
-          p_lock_replies?: boolean
           p_title: string
         }
         Returns: {
@@ -14466,25 +14435,16 @@ export type Database = {
         }[]
       }
       club_edit_reply: {
-        Args: { p_body: string; p_reason?: string; p_reply_id: string }
+        Args: { p_body: string; p_reply_id: string }
         Returns: boolean
       }
       club_edit_thread: {
-        Args: {
-          p_body: string
-          p_reason?: string
-          p_thread_id: string
-          p_title: string
-        }
+        Args: { p_body: string; p_thread_id: string; p_title: string }
         Returns: boolean
       }
       club_effective_member_role: {
         Args: { _role: string; _role_expires_at: string }
         Returns: string
-      }
-      club_export_my_data: {
-        Args: { p_limit?: number }
-        Returns: Json
       }
       club_groups_list: {
         Args: { p_club_id: string }
@@ -14574,17 +14534,12 @@ export type Database = {
           visibility: string
         }[]
       }
-      club_mark_read: { Args: { p_club_id: string }; Returns: number }
-      club_mention_visible_to: {
-        Args: { p_source_id: string; p_source_type: string; p_user_id: string }
-        Returns: boolean
-      }
       club_members_list: {
         Args: {
           p_club_id: string
           p_limit?: number
           p_offset?: number
-          p_status?: string | null
+          p_status?: string
         }
         Returns: {
           avatar_url: string
@@ -14652,7 +14607,6 @@ export type Database = {
           slug: string
           status: string
           thread_count: number
-          unread_count: number
         }[]
       }
       club_my_subscription: { Args: { p_thread_id: string }; Returns: string }
@@ -14702,7 +14656,6 @@ export type Database = {
           author_id: string
           author_name: string
           author_slug: string
-          author_stance: string
           body: string
           created_at: string
           depth: number
@@ -14726,17 +14679,8 @@ export type Database = {
         }
         Returns: string
       }
-      club_report_content: {
-        Args: {
-          p_details?: string
-          p_reason: string
-          p_target_id: string
-          p_target_type: string
-        }
-        Returns: string
-      }
       club_resolve_thread: {
-        Args: { p_reply_id: string | null; p_thread_id: string }
+        Args: { p_reply_id: string; p_thread_id: string }
         Returns: boolean
       }
       club_respond_invitation: {
@@ -14865,7 +14809,6 @@ export type Database = {
           locked_at: string
           participant_count: number
           pinned_at: string
-          poll_id: string
           posted_by_admin_name: string
           reaction_count: number
           reason: string
@@ -14892,19 +14835,15 @@ export type Database = {
       }
       club_threads_list: {
         Args: {
-          p_anchored?: boolean
           p_club_id: string
           p_cursor?: string
           p_group_id?: string
           p_kind?: string
           p_limit?: number
           p_sort?: string
-          p_status?: string
-          p_unread_only?: boolean
         }
         Returns: {
           anchor_id: string
-          anchor_label: string
           anchor_type: string
           author_alias: string
           author_avatar: string
@@ -14919,9 +14858,7 @@ export type Database = {
           group_name_pl: string
           hotness: number
           id: string
-          insightful_count: number
           is_anonymous: boolean
-          is_unread: boolean
           kind: string
           last_reply_at: string
           participant_count: number
