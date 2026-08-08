@@ -15847,6 +15847,43 @@ export type Database = {
         Args: { p_state: string; p_thread_id: string }
         Returns: boolean
       }
+      club_thread_access: {
+        Args: { p_thread_id: string }
+        Returns: {
+          attribution_mode: string
+          author_id: string
+          can_moderate: boolean
+          can_read: boolean
+          can_reply: boolean
+          club_id: string
+          group_id: string
+          hide_identity: boolean
+          is_locked: boolean
+          tenant_id: string
+          thread_id: string
+        }[]
+      }
+      club_thread_documents_list: {
+        Args: { p_kind?: string; p_limit?: number; p_thread_id: string }
+        Returns: {
+          added_by_id: string
+          added_by_name: string
+          added_by_slug: string
+          byte_size: number
+          can_edit: boolean
+          created_at: string
+          description: string
+          id: string
+          is_primary: boolean
+          kind: string
+          mime_type: string
+          published_on: string
+          sort_order: number
+          source_label: string
+          title: string
+          url: string
+        }[]
+      }
       club_thread_embedding_source: {
         Args: { p_thread_id: string }
         Returns: string
@@ -15861,9 +15898,84 @@ export type Database = {
         }
         Returns: number
       }
+      club_thread_milestones_list: {
+        Args: {
+          p_from?: string
+          p_limit?: number
+          p_thread_id: string
+          p_to?: string
+        }
+        Returns: {
+          all_day: boolean
+          can_edit: boolean
+          created_at: string
+          description: string
+          ends_at: string
+          event_id: string
+          event_slug: string
+          id: string
+          kind: string
+          location: string
+          owner_id: string
+          owner_name: string
+          owner_slug: string
+          sort_order: number
+          starts_at: string
+          status: string
+          title: string
+          url: string
+        }[]
+      }
+      club_thread_participants: {
+        Args: { p_limit?: number; p_thread_id: string }
+        Returns: {
+          alias: string
+          avatar_url: string
+          club_role: string
+          display_name: string
+          document_count: number
+          first_at: string
+          is_thread_author: boolean
+          last_at: string
+          participant_key: string
+          profile_slug: string
+          question_count: number
+          reactions_received: number
+          reply_count: number
+          stance: string
+          user_id: string
+        }[]
+      }
       club_thread_quality_score: {
         Args: { _thread_id: string }
         Returns: number
+      }
+      club_thread_questions_list: {
+        Args: {
+          p_limit?: number
+          p_sort?: string
+          p_status?: string
+          p_thread_id: string
+        }
+        Returns: {
+          answer_body: string
+          answered_at: string
+          answered_by_id: string
+          answered_by_name: string
+          author_alias: string
+          author_avatar: string
+          author_id: string
+          author_name: string
+          author_slug: string
+          body: string
+          can_answer: boolean
+          can_edit: boolean
+          created_at: string
+          id: string
+          my_vote: boolean
+          status: string
+          vote_count: number
+        }[]
       }
       club_thread_seam_context: {
         Args: { p_thread_id: string }
@@ -15911,6 +16023,25 @@ export type Database = {
           status: string
           title: string
           topic: string
+        }[]
+      }
+      club_thread_workspace: {
+        Args: { p_thread_id: string }
+        Returns: {
+          can_contribute: boolean
+          can_curate: boolean
+          document_count: number
+          link_count: number
+          milestone_count: number
+          next_milestone_at: string
+          open_poll_count: number
+          open_question_count: number
+          participant_count: number
+          poll_count: number
+          question_count: number
+          reply_count: number
+          thread_id: string
+          upcoming_count: number
         }[]
       }
       club_threads_for_anchor: {
