@@ -21,13 +21,13 @@ export function MobileAccountSection({ isPl, onNavigate }: Props) {
   return (
     <div className="px-4 py-4 border-b border-border bg-muted/30">
       <p className="text-[11px] font-bold tracking-wider uppercase text-muted-foreground mb-2">
-        {t("Moje konto", "My account")}
+        {t("Konto", "Account")}
       </p>
       {session ? (
         <div className="flex flex-col gap-2">
           <Link to={isStaff ? "/admin" : "/profile"} onClick={onNavigate} className={primaryBtn}>
             {isStaff ? <LayoutDashboard className="w-4 h-4" /> : <User className="w-4 h-4" />}
-            {isStaff ? t("Panel", "Dashboard") : t("Mój profil", "My profile")}
+            {isStaff ? t("Moje konto", "My account") : t("Mój profil", "My profile")}
           </Link>
           <button
             type="button"
