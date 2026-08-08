@@ -13,6 +13,7 @@ import {
   MessagesSquare,
   Search,
   ShieldQuestion,
+  SlidersHorizontal,
   Users2,
   X,
 } from "lucide-react";
@@ -96,6 +97,10 @@ function ClubHome() {
   const [anchored, setAnchored] = useState<boolean | null>(null);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [query, setQuery] = useState("");
+  // Filtry są ZWINIĘTE domyślnie: pięć droplist nad listą wątków zjadało cały
+  // pierwszy ekran, a porządek sortowania - jedyna kontrolka używana za każdym
+  // wejściem - stoi w pasku na stałe.
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const { session } = useAuth();
   const signedIn = session !== null;
@@ -205,14 +210,22 @@ function ClubHome() {
   const threads = pages.flatMap((p) => p.rows);
 
   return (
-    <div className="container mx-auto max-w-5xl px-4 py-8">
-      <header className="mb-6">
-        <ClubCover url={club.cover_image_url} variant="banner" className="mb-5" />
+    <div className="container mx-auto max-w-5xl px-4 py-6">
+      {/* Nagłówek klubu jest KOMPAKTOWY: baner 6:1 zamiast 3:1 i tytuł 2xl,
+          bo wejście z huba ma pokazać WĄTKI, a nie okładkę na pół ekranu. */}
+      <header className="mb-5">
+        <ClubCover
+          url={club.cover_image_url}
+          variant="banner"
+          className="mb-3 aspect-[5/1] sm:aspect-[6/1]"
+        />
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-3xl font-semibold">{isPl ? club.name_pl : club.name_en}</h1>
+            <h1 className="text-2xl font-semibold leading-tight">
+              {isPl ? club.name_pl : club.name_en}
+            </h1>
             {(isPl ? club.tagline_pl : club.tagline_en) ? (
-              <p className="mt-1 text-muted-foreground">
+              <p className="mt-1 line-clamp-2 max-w-2xl text-sm text-muted-foreground">
                 {isPl ? club.tagline_pl : club.tagline_en}
               </p>
             ) : null}
@@ -248,22 +261,23 @@ function ClubHome() {
           </div>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
-            <Users2 className="h-4 w-4" />
+            <Users2 className="h-3.5 w-3.5" />
             {t("club.membersCount", { count: club.member_count })}
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <MessagesSquare className="h-4 w-4" />
+            <MessagesSquare className="h-3.5 w-3.5" />
             {t("club.threadsCount", { count: club.thread_count })}
           </span>
           {club.attribution_mode === "chatham" ? (
-            <Badge variant="outline" className="gap-1">
+            <Badge variant="outline" className="gap-1 text-[11px]">
               <ShieldQuestion className="h-3 w-3" />
               {t("club.attribution.chatham")}
             </Badge>
           ) : null}
         </div>
+
 
         {/* Powód informacyjny (np. premoderacja) mówi się PRZED napisaniem,
             nie po odrzuceniu wpisu. */}
@@ -280,22 +294,46 @@ function ClubHome() {
           Kontrolka jest WSPÓLNA z hubem: wcześniej ten sam układ (ikona, pole
           `pl-9 pr-9`, przycisk czyszczenia) stał tu w drugiej kopii, więc
           poprawka celu dotykowego musiałaby być robiona dwa razy. */}
-      <div className="mb-3">
+      {/* Pasek sterowania: fraza, porządek i przełącznik reszty filtrów w
+          jednym wierszu. Sortowanie zostaje na wierzchu, bo zmienia listę
+          przy każdym wejściu; grupa/rodzaj/status to zawężenia okazjonalne. */}
+      <div className="mb-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_11rem_auto]">
         <ClubGlobalSearchInput
           value={query}
           onChange={setQuery}
           placeholderKey="club.searchPlaceholder"
         />
+        {/* Sześć porządków z RPC (A18), nie dwa. `mine` i `subscribed`
+            filtrują po wołającym, więc dla anonima zwróciłyby pusty zbiór
+            i sugerowały, że klub jest pusty - dla niego ich nie ma. */}
+        <Select value={sort} onValueChange={(v) => setSort(v as ClubThreadSort)}>
+          <SelectTrigger aria-label={t("club.sort.label")} className={searching ? "hidden" : ""}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {availableSorts.map((value) => (
+              <SelectItem key={value} value={value}>
+                {t(`club.sort.${value}`)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          type="button"
+          variant="outline"
+          aria-expanded={filtersOpen}
+          onClick={() => setFiltersOpen((v) => !v)}
+          className={searching ? "hidden" : ""}
+        >
+          <SlidersHorizontal className="mr-1.5 h-4 w-4" aria-hidden="true" />
+          {t("club.filters.title")}
+        </Button>
       </div>
 
       {/* Filtry znikają w trybie wyszukiwania: droplista, która nic nie robi,
-          jest gorsza niż jej brak.
-          Siatka rośnie z liczbą kontrolek (od trzech do pięciu, zależnie od
-          roli i sesji), więc kolumny są deklarowane progami, a nie sztywną
-          trójką - inaczej piąty filtr lądowałby sam w nowym wierszu na desktopie
-          i zjadał wysokość nad listą. */}
+          jest gorsza niż jej brak. */}
       <div
-        className={`mb-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 ${searching ? "hidden" : ""}`}
+        className={`mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 ${searching || !filtersOpen ? "hidden" : ""}`}
       >
         <Select value={groupId ?? ALL} onValueChange={(v) => setGroupId(v === ALL ? null : v)}>
           <SelectTrigger aria-label={t("club.groups")}>
@@ -311,21 +349,7 @@ function ClubHome() {
           </SelectContent>
         </Select>
 
-        {/* Sześć porządków z RPC (A18), nie dwa. `mine` i `subscribed`
-            filtrują po wołającym, więc dla anonima zwróciłyby pusty zbiór
-            i sugerowały, że klub jest pusty - dla niego ich nie ma. */}
-        <Select value={sort} onValueChange={(v) => setSort(v as ClubThreadSort)}>
-          <SelectTrigger aria-label={t("club.sort.label")}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {availableSorts.map((value) => (
-              <SelectItem key={value} value={value}>
-                {t(`club.sort.${value}`)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+
 
         <Select
           value={kind ?? ALL}

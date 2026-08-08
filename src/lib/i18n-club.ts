@@ -61,6 +61,11 @@ export const clubPl = {
 
     // --- strona główna klubów (hub) ---
     hub: {
+      eyebrow: "Przestrzeń członkowska",
+      clubsCount_one: "{{count}} klub",
+      clubsCount_few: "{{count}} kluby",
+      clubsCount_many: "{{count}} klubów",
+      clubsCount_other: "{{count}} klubów",
       lead: "Kluby dyskusyjne to zamknięte przestrzenie rozmowy wokół konkretnych obszarów polityki. Dostęp mają osoby z planem Pro i wyżej oraz zaproszeni.",
       access: {
         member: "Masz dostęp",
@@ -1087,6 +1092,9 @@ export const clubEn = {
 
     // --- discussion clubs hub ---
     hub: {
+      eyebrow: "Members' space",
+      clubsCount_one: "{{count}} club",
+      clubsCount_other: "{{count}} clubs",
       lead: "Discussion clubs are closed spaces for conversation around specific policy areas. Open to Pro plans and above, and to invited guests.",
       access: {
         member: "You have access",
