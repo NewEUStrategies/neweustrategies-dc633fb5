@@ -61,7 +61,7 @@ function ThreadTeaser({
       params={{ clubSlug, threadSlug: thread.slug }}
       className={
         featured
-          ? "group flex flex-col gap-2 rounded-xl border border-primary/40 bg-primary/5 p-5 transition-colors hover:border-primary"
+          ? "group flex flex-col gap-2 rounded-lg border border-primary/40 bg-primary/5 p-5 transition-colors hover:border-primary"
           : "group flex flex-col gap-1.5 rounded-lg border border-border/60 bg-card p-4 transition-colors hover:border-primary/40"
       }
     >
@@ -165,7 +165,11 @@ export function ClubMinisite({
             <MessagesSquare className="h-4 w-4" aria-hidden="true" />
             {t("club.threadsCount", { count: club.thread_count })}
           </span>
-          <ClubTopicChip topic={club.policy_area} lang={isPl ? "pl" : "en"} catalog={topicCatalog} />
+          <ClubTopicChip
+            topic={club.policy_area}
+            lang={isPl ? "pl" : "en"}
+            catalog={topicCatalog}
+          />
           {club.attribution_mode === "chatham" ? (
             <Badge variant="outline" className="gap-1">
               <ShieldQuestion className="h-3 w-3" aria-hidden="true" />

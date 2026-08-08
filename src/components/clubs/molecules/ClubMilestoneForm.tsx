@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { ClubMilestoneInput } from "@/lib/clubs/workspaceApi";
+import type { ClubMilestoneInput } from "@/lib/clubs/threadWorkspaceApi";
 import {
   CLUB_MILESTONE_KINDS,
   CLUB_MILESTONE_STATUSES,
@@ -31,7 +31,7 @@ import {
   type ClubMilestoneKind,
   type ClubMilestoneStatus,
   type ClubThreadMilestoneRow,
-} from "@/lib/clubs/workspaceTypes";
+} from "@/lib/clubs/threadWorkspaceTypes";
 
 /** ISO -> wartość pola `datetime-local` (czas LOKALNY, bez strefy i sekund). */
 export function toLocalInputValue(iso: string | null, allDay: boolean): string {
@@ -104,7 +104,7 @@ export function ClubMilestoneForm({
 
   return (
     <form
-      className="rounded-xl border border-border/60 bg-card p-4 shadow-sm"
+      className="rounded-lg border border-border/60 bg-card p-4 shadow-sm"
       onSubmit={(event) => {
         event.preventDefault();
         if (invalid || startIso === null) return;
@@ -125,7 +125,7 @@ export function ClubMilestoneForm({
     >
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="sm:col-span-2">
-          <Label htmlFor="club-ms-title">{t("club.workspace.schedule.titleLabel")}</Label>
+          <Label htmlFor="club-ms-title">{t("club.threadHub.schedule.titleLabel")}</Label>
           <Input
             id="club-ms-title"
             className="mt-1"
@@ -137,7 +137,7 @@ export function ClubMilestoneForm({
         </div>
 
         <div>
-          <Label htmlFor="club-ms-kind">{t("club.workspace.schedule.kindLabel")}</Label>
+          <Label htmlFor="club-ms-kind">{t("club.threadHub.schedule.kindLabel")}</Label>
           <Select value={kind} onValueChange={(value) => setKind(toClubMilestoneKind(value))}>
             <SelectTrigger id="club-ms-kind" className="mt-1">
               <SelectValue />
@@ -145,7 +145,7 @@ export function ClubMilestoneForm({
             <SelectContent>
               {CLUB_MILESTONE_KINDS.map((option) => (
                 <SelectItem key={option} value={option}>
-                  {t(`club.workspace.milestoneKind.${option}`)}
+                  {t(`club.threadHub.milestoneKind.${option}`)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -153,7 +153,7 @@ export function ClubMilestoneForm({
         </div>
 
         <div>
-          <Label htmlFor="club-ms-status">{t("club.workspace.schedule.statusLabel")}</Label>
+          <Label htmlFor="club-ms-status">{t("club.threadHub.schedule.statusLabel")}</Label>
           <Select value={status} onValueChange={(value) => setStatus(toClubMilestoneStatus(value))}>
             <SelectTrigger id="club-ms-status" className="mt-1">
               <SelectValue />
@@ -161,7 +161,7 @@ export function ClubMilestoneForm({
             <SelectContent>
               {CLUB_MILESTONE_STATUSES.map((option) => (
                 <SelectItem key={option} value={option}>
-                  {t(`club.workspace.milestoneStatus.${option}`)}
+                  {t(`club.threadHub.milestoneStatus.${option}`)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -171,12 +171,12 @@ export function ClubMilestoneForm({
         <div className="flex items-center gap-2 sm:col-span-2">
           <Switch id="club-ms-allday" checked={allDay} onCheckedChange={switchAllDay} />
           <Label htmlFor="club-ms-allday" className="text-sm font-normal">
-            {t("club.workspace.schedule.allDay")}
+            {t("club.threadHub.schedule.allDay")}
           </Label>
         </div>
 
         <div>
-          <Label htmlFor="club-ms-start">{t("club.workspace.schedule.startsLabel")}</Label>
+          <Label htmlFor="club-ms-start">{t("club.threadHub.schedule.startsLabel")}</Label>
           <Input
             id="club-ms-start"
             type={allDay ? "date" : "datetime-local"}
@@ -188,7 +188,7 @@ export function ClubMilestoneForm({
         </div>
 
         <div>
-          <Label htmlFor="club-ms-end">{t("club.workspace.schedule.endsLabel")}</Label>
+          <Label htmlFor="club-ms-end">{t("club.threadHub.schedule.endsLabel")}</Label>
           <Input
             id="club-ms-end"
             type={allDay ? "date" : "datetime-local"}
@@ -200,13 +200,13 @@ export function ClubMilestoneForm({
           />
           {rangeInvalid ? (
             <p id="club-ms-end-error" className="mt-1 text-[11px] text-destructive">
-              {t("club.workspace.schedule.rangeError")}
+              {t("club.threadHub.schedule.rangeError")}
             </p>
           ) : null}
         </div>
 
         <div>
-          <Label htmlFor="club-ms-location">{t("club.workspace.schedule.locationLabel")}</Label>
+          <Label htmlFor="club-ms-location">{t("club.threadHub.schedule.locationLabel")}</Label>
           <Input
             id="club-ms-location"
             className="mt-1"
@@ -217,7 +217,7 @@ export function ClubMilestoneForm({
         </div>
 
         <div>
-          <Label htmlFor="club-ms-url">{t("club.workspace.schedule.urlLabel")}</Label>
+          <Label htmlFor="club-ms-url">{t("club.threadHub.schedule.urlLabel")}</Label>
           <Input
             id="club-ms-url"
             type="url"
@@ -230,7 +230,7 @@ export function ClubMilestoneForm({
         </div>
 
         <div className="sm:col-span-2">
-          <Label htmlFor="club-ms-desc">{t("club.workspace.schedule.descriptionLabel")}</Label>
+          <Label htmlFor="club-ms-desc">{t("club.threadHub.schedule.descriptionLabel")}</Label>
           <Textarea
             id="club-ms-desc"
             className="mt-1"
@@ -244,10 +244,10 @@ export function ClubMilestoneForm({
 
       <div className="mt-4 flex flex-wrap gap-2">
         <Button type="submit" size="sm" disabled={pending || invalid}>
-          {initial !== null ? t("club.workspace.save") : t("club.workspace.schedule.add")}
+          {initial !== null ? t("club.threadHub.save") : t("club.threadHub.schedule.add")}
         </Button>
         <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
-          {t("club.workspace.cancel")}
+          {t("club.threadHub.cancel")}
         </Button>
       </div>
     </form>

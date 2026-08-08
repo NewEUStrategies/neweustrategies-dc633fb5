@@ -115,24 +115,25 @@ export const clubKeys = {
   /** Liczniki paneli - zasilaja belke zakladek. */
   workspaceSummary: (threadId: string) => [...clubKeys.workspace(threadId), "summary"] as const,
 
-  participants: (threadId: string) => [...clubKeys.workspace(threadId), "participants"] as const,
+  threadParticipants: (threadId: string) =>
+    [...clubKeys.workspace(threadId), "participants"] as const,
 
-  documents: (threadId: string, kind: string | null) =>
+  threadDocuments: (threadId: string, kind: string | null) =>
     [...clubKeys.workspace(threadId), "documents", kind ?? "all"] as const,
 
   /** Zakres dat jest czescia klucza: siatka wrzesnia i siatka pazdziernika to
    *  dwa rozne zbiory, a nie odswiezenie tego samego. */
-  milestones: (threadId: string, from: string | null, to: string | null) =>
+  threadMilestones: (threadId: string, from: string | null, to: string | null) =>
     [...clubKeys.workspace(threadId), "milestones", from ?? "any", to ?? "any"] as const,
 
-  questions: (threadId: string, status: string | null, sort: string) =>
+  threadQuestions: (threadId: string, status: string | null, sort: string) =>
     [...clubKeys.workspace(threadId), "questions", status ?? "all", sort] as const,
 
   threadLinks: (threadId: string) => [...clubKeys.workspace(threadId), "links"] as const,
 
   threadPolls: (threadId: string) => [...clubKeys.workspace(threadId), "polls"] as const,
 
-  insights: (threadId: string, buckets: number) =>
+  threadInsights: (threadId: string, buckets: number) =>
     [...clubKeys.workspace(threadId), "insights", buckets] as const,
 
   /** Szukanie WEWNATRZ watku - inna galaz niz `search()`, ktore jest globalne.

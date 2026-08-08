@@ -41,7 +41,13 @@ export function ClubAuthorAvatar({
 
   if (avatarUrl !== null && avatarUrl !== undefined && avatarUrl !== "") {
     return (
-      <img src={avatarUrl} alt="" aria-hidden="true" loading="lazy" className={`${cls} object-cover`} />
+      <img
+        src={avatarUrl}
+        alt=""
+        aria-hidden="true"
+        loading="lazy"
+        className={`${cls} object-cover`}
+      />
     );
   }
 

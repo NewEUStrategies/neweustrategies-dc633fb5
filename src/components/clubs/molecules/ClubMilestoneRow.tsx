@@ -18,7 +18,7 @@ import {
   toClubMilestoneKind,
   toClubMilestoneStatus,
   type ClubThreadMilestoneRow,
-} from "@/lib/clubs/workspaceTypes";
+} from "@/lib/clubs/threadWorkspaceTypes";
 
 /** Etykieta terminu: całodniowy bez godziny, punktowy z godziną, zakres ze
  *  spójnikiem. Wydzielone, bo tego samego napisu używa lista i kafelek dnia. */
@@ -46,7 +46,7 @@ export function ClubMilestoneRow({
   const canAct = row.can_edit && (onEdit !== undefined || onRemove !== undefined);
 
   return (
-    <li className="group/ms relative flex gap-3 rounded-xl border border-border/60 bg-card p-3 transition-colors hover:border-primary/30 sm:gap-4 sm:p-4">
+    <li className="group/ms relative flex gap-3 rounded-lg border border-border/60 bg-card p-3 transition-colors hover:border-primary/30 sm:gap-4 sm:p-4">
       <span
         className={
           "mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg " +
@@ -64,7 +64,7 @@ export function ClubMilestoneRow({
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="text-sm font-medium">{row.title}</span>
           <ClubStatusPill
-            label={t(`club.workspace.milestoneStatus.${status}`)}
+            label={t(`club.threadHub.milestoneStatus.${status}`)}
             tone={milestoneTone(status)}
           />
         </div>
@@ -72,7 +72,7 @@ export function ClubMilestoneRow({
         <p className="mt-1 text-xs font-medium text-muted-foreground">
           <time dateTime={row.starts_at}>{milestoneWhen(row, lang)}</time>
           {" · "}
-          {t(`club.workspace.milestoneKind.${kind}`)}
+          {t(`club.threadHub.milestoneKind.${kind}`)}
         </p>
 
         {row.description !== null && row.description.length > 0 ? (
@@ -89,7 +89,7 @@ export function ClubMilestoneRow({
             </span>
           ) : null}
           {row.owner_name !== null ? (
-            <span>{t("club.workspace.schedule.owner", { name: row.owner_name })}</span>
+            <span>{t("club.threadHub.schedule.owner", { name: row.owner_name })}</span>
           ) : null}
           {/* Wydarzenie platformy: link do jego strony, a nie kopia opisu.
               Rejestracja, stream i nagranie żyją tam, nie tutaj. */}
@@ -100,7 +100,7 @@ export function ClubMilestoneRow({
               className="inline-flex items-center gap-1 font-medium text-primary underline-offset-4 hover:underline"
             >
               <CalendarPlus className="h-3 w-3" aria-hidden="true" />
-              {t("club.workspace.schedule.openEvent")}
+              {t("club.threadHub.schedule.openEvent")}
             </Link>
           ) : null}
           {row.url !== null && row.url.length > 0 ? (
@@ -111,7 +111,7 @@ export function ClubMilestoneRow({
               className="inline-flex items-center gap-1 underline-offset-4 hover:underline"
             >
               <ExternalLink className="h-3 w-3" aria-hidden="true" />
-              {t("club.workspace.openLink")}
+              {t("club.threadHub.openLink")}
             </a>
           ) : null}
         </div>
@@ -135,7 +135,7 @@ export function ClubMilestoneRow({
               size="sm"
               variant="ghost"
               className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-              aria-label={t("club.workspace.remove")}
+              aria-label={t("club.threadHub.remove")}
               onClick={() => onRemove(row)}
             >
               <Trash2 className="h-3.5 w-3.5" />

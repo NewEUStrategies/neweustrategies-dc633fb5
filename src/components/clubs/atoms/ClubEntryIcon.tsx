@@ -25,7 +25,7 @@ import type {
   ClubDocumentKind,
   ClubMilestoneKind,
   ClubWorkspaceSection,
-} from "@/lib/clubs/workspaceTypes";
+} from "@/lib/clubs/threadWorkspaceTypes";
 
 const DOCUMENT_ICONS: Record<ClubDocumentKind, typeof FileText> = {
   document: FileText,

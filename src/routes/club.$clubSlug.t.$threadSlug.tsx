@@ -14,31 +14,25 @@
 // Wejście "Zgłoś" stoi przy KAŻDYM wpisie - wątku i odpowiedzi (V1 §7).
 //
 // Od A28 widok jest PRZESTRZENIĄ ROBOCZĄ, nie samą dyskusją: pod postem
-// otwierającym stoi belka zakładek, a dyskusja jest jedną z nich - pierwszą
+// otwierającym stoi nawigacja sekcji, a dyskusja jest jedną z nich - pierwszą
 // i domyślną. Reszta (uczestnicy, źródła, harmonogram, pytania, głosowania,
-// powiązania, dane, szukanie) mieszka w `ClubThreadWorkspace` i ładuje się
+// powiązania, dane, szukanie) mieszka w `ClubThreadHub` i ładuje się
 // leniwie, panel po panelu. Trasa celowo NIE oddaje dyskusji do powłoki:
 // post, odpowiedzi i kompozytor mają się renderować bez czekania na cokolwiek
 // z A28, więc jadą jako `children`.
-import { lazy, Suspense, useState } from "react";
+//
+// A od tej wersji nie jest to już belka zakładek nad kartą, tylko HUB:
+// nagłówek na pełną szerokość + trójkolumnowa siatka (nawigacja | strumień |
+// kontekst). Uzasadnienie układu stoi w `ClubThreadHub`.
+import { lazy, Suspense, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import {
-  ArrowLeft,
-  CheckCircle2,
-  Link2,
-  Lock,
-  MessageSquare,
-  Pencil,
-  Pin,
-  ShieldQuestion,
-} from "lucide-react";
+import { CheckCircle2, MessageSquare, Pencil } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ClubTopicChip } from "@/components/clubs/atoms/ClubTopicChip";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -77,9 +71,12 @@ import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
 import { ClubThreadPulse } from "@/components/clubs/molecules/ClubThreadPulse";
 import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
 import { ClubThreadListSkeleton, Shimmer } from "@/components/clubs/atoms/ClubSkeletons";
-import { ClubThreadWorkspace } from "@/components/clubs/organisms/ClubThreadWorkspace";
-import { useClubThreadWorkspace } from "@/lib/clubs/useClubWorkspace";
-import { EMPTY_WORKSPACE_SUMMARY } from "@/lib/clubs/workspaceTypes";
+import { ClubThreadHero } from "@/components/clubs/molecules/ClubThreadHero";
+import { ClubHubStats } from "@/components/clubs/molecules/ClubHubStats";
+import { participantName } from "@/components/clubs/molecules/ClubParticipantRow";
+import { ClubThreadHub } from "@/components/clubs/organisms/ClubThreadHub";
+import { useClubThreadParticipants, useClubThreadWorkspace } from "@/lib/clubs/useThreadWorkspace";
+import { EMPTY_WORKSPACE_SUMMARY } from "@/lib/clubs/threadWorkspaceTypes";
 import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
 import { fetchClubBySlug } from "@/lib/clubs/api";
 import { clubKeys } from "@/lib/clubs/queryKeys";
@@ -182,6 +179,29 @@ function ClubThreadView() {
   // zobaczy, że w wątku nie ma ŻADNEGO dokumentu; a właśnie ta informacja
   // decyduje, czy w ogóle kliknie.
   const workspaceQ = useClubThreadWorkspace(threadQ.data?.id);
+  const summary = workspaceQ.data ?? EMPTY_WORKSPACE_SUMMARY;
+
+  // Twarze do nagłówka. TO SAMO zapytanie, którego używa szyna kontekstu
+  // (klucz nie niesie limitu, więc oba muszą pytać identycznie) - przycięcie
+  // do sześciu robimy tutaj, w widoku.
+  const participantsQ = useClubThreadParticipants({
+    threadId: threadQ.data?.id,
+    enabled: summary.participants > 0,
+  });
+  const aliasTemplate = t("club.anonymousAuthor");
+  const unknownAuthor = t("club.deletedAuthor");
+  const facepile = useMemo(
+    () =>
+      (participantsQ.data ?? []).slice(0, 6).map((row) => ({
+        key: row.participant_key,
+        name: participantName(row, aliasTemplate, unknownAuthor),
+        avatarUrl: row.avatar_url,
+        // Anonim pod aliasem dostaje stonowany awatar - interfejs nie sugeruje
+        // tożsamości, której baza celowo nie zdradza.
+        muted: row.display_name === null,
+      })),
+    [participantsQ.data, aliasTemplate, unknownAuthor],
+  );
 
   // Projekcja odroczona: dane są świeże (licznik w pasku musi być prawdziwy),
   // renderujemy tylko to, co czytelnik przyjął.
@@ -300,70 +320,71 @@ function ClubThreadView() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1280px] px-3 sm:px-5 lg:px-8 py-8">
-      <Button asChild variant="ghost" size="sm" className="-ml-2 mb-3 h-8 px-2">
-        <Link to="/club/$clubSlug" params={{ clubSlug }}>
-          <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
-          {isPl ? club.name_pl : club.name_en}
-        </Link>
-      </Button>
-
-      {/* --- post otwierający --- */}
-      <article className="rounded-xl border border-border/60 bg-card p-4 shadow-sm sm:p-5">
-        <div className="flex flex-wrap items-center gap-2">
-          {thread.pinned_at !== null ? <Pin className="h-4 w-4 text-primary" /> : null}
-          <Badge variant="outline">{t(`club.kind.${thread.kind}`)}</Badge>
-          {thread.status === "resolved" ? (
-            <Badge className="bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-300">
-              {t("club.threadStatus.resolved")}
-            </Badge>
-          ) : null}
-          {thread.locked_at !== null ? (
-            <Badge variant="outline" className="gap-1">
-              <Lock className="h-3 w-3" />
-              {t("club.threadStatus.locked")}
-            </Badge>
-          ) : null}
-          {thread.attribution_mode === "chatham" ? (
-            <Badge variant="outline" className="gap-1">
-              <ShieldQuestion className="h-3 w-3" />
-              {t("club.attribution.chatham")}
-            </Badge>
-          ) : null}
-          {/* Kotwica jest KRAWĘDZIĄ w grafie treści, więc pokazujemy ją tam,
-              gdzie czytelnik decyduje, czy wątek go dotyczy - w nagłówku, nie
-              na dole. */}
-          {/* Obszar tematyczny wątku - ten sam chip co na hubie i w klubie,
-              żeby czytelnik rozpoznał tematykę bez czytania etykiety. */}
-          <ClubTopicChip topic={thread.topic} lang={isPl ? "pl" : "en"} catalog={topicCatalog} />
-          {thread.anchor_type !== null ? (
-            <Badge variant="secondary" className="gap-1">
-              <Link2 className="h-3 w-3" aria-hidden="true" />
-              {t(`club.anchorType.${thread.anchor_type}`)}
-            </Badge>
-          ) : null}
-        </div>
-
-        <h1 className="mt-2 text-2xl font-semibold leading-snug">{thread.title}</h1>
-
-        <div className="mt-3 flex items-center gap-2.5">
-          <ClubAuthorAvatar
-            name={author.name}
-            avatarUrl={author.avatarUrl}
-            size="md"
-            muted={author.kind !== "named"}
-          />
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{author.name}</p>
-            <p className="truncate text-xs text-muted-foreground">
-              {formatDateTime(thread.created_at, lang)}
-              {thread.edited_at !== null ? ` \u00b7 ${t("club.edited")}` : ""}
-            </p>
-          </div>
-        </div>
-
-        {editing === "thread" ? (
-          <div className="mt-4">
+    <>
+      {/* --- naglowek watku ---
+          Pas na PELNA szerokosc, poza siatka huba: tytul, autor, twarze
+          uczestnikow i pasek statystyk to TOZSAMOSC watku, a nie jedna
+          z sekcji, miedzy ktorymi sie przelacza. */}
+      <ClubThreadHero
+        clubSlug={clubSlug}
+        clubName={isPl ? club.name_pl : club.name_en}
+        accentColor={club.accent_color}
+        title={thread.title}
+        kind={thread.kind}
+        status={thread.status}
+        topic={thread.topic}
+        topicCatalog={topicCatalog}
+        anchorType={thread.anchor_type}
+        pinned={thread.pinned_at !== null}
+        locked={thread.locked_at !== null}
+        chatham={thread.attribution_mode === "chatham"}
+        authorName={author.name}
+        authorAvatar={author.avatarUrl}
+        authorMuted={author.kind !== "named"}
+        createdAt={thread.created_at}
+        edited={thread.edited_at !== null}
+        lang={lang}
+        people={facepile}
+        participantTotal={Math.max(summary.participants, facepile.length)}
+        stats={<ClubHubStats summary={summary} replyCount={thread.reply_count} lang={lang} />}
+        actions={
+          <>
+            {canEditThread && editing !== "thread" ? (
+              <Button size="sm" variant="outline" onClick={() => setEditing("thread")}>
+                <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                {t("club.editor.edit")}
+              </Button>
+            ) : null}
+            {canReportThread ? <ClubReportButton targetType="thread" targetId={thread.id} /> : null}
+            <ClubFollowButton
+              state={subscriptionQ.data ?? null}
+              pending={setSubscriptionM.isPending}
+              disabled={subscriptionQ.isPending}
+              onChange={(next) =>
+                setSubscriptionM.mutate(next, {
+                  onError: () => toast.error(t("adminClubs.saveFailed")),
+                })
+              }
+            />
+          </>
+        }
+      />
+      {/* --- hub: nawigacja | strumien | kontekst ---
+          Strumien jedzie jako `children`, wiec renderuje sie natychmiast,
+          niezaleznie od tego, czy liczniki paneli zdazyly dojsc. */}
+      <ClubThreadHub
+        threadId={thread.id}
+        lang={lang}
+        userId={user?.id ?? null}
+        summary={summary}
+        canGoAnonymous={canGoAnonymous}
+      >
+        {/* --- post otwierajacy ---
+            Bez ramki karty: w strumieniu to PIERWSZA WYPOWIEDZ, a nie osobny
+            obiekt na stronie. Tytul, rodzaj i autorstwo stoja juz w naglowku,
+            wiec powtarzanie ich tutaj byloby druga kopia tej samej prawdy. */}
+        <article className="border-b border-border/60 pb-5">
+          {editing === "thread" ? (
             <ClubInlineEditor
               idPrefix="club-thread-edit"
               initialTitle={thread.title}
@@ -384,53 +405,26 @@ function ClubThreadView() {
                 )
               }
             />
-          </div>
-        ) : (
-          <div className="mt-4 whitespace-pre-wrap text-[15px] leading-relaxed">{thread.body}</div>
-        )}
+          ) : (
+            // Miara czytelnicza WYLACZNIE na prozie. Kolumna strumienia jest
+            // szeroka, bo mieszcza sie w niej kalendarz i wykres - ale zdanie
+            // ciagnace sie przez 1200 px czyta sie fatalnie.
+            <div className="max-w-[68ch] whitespace-pre-wrap text-[15px] leading-relaxed sm:text-base">
+              {thread.body}
+            </div>
+          )}
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-3">
-          <ClubReactionBar
-            tallies={threadReactionsQ.data?.get(thread.id) ?? []}
-            disabled={!thread.can_reply || toggleThreadReaction.isPending}
-            variant="full"
-            onToggle={(kind, active) =>
-              toggleThreadReaction.mutate({ targetId: thread.id, kind, active })
-            }
-          />
-          <div className="flex flex-wrap gap-2">
-            {canEditThread && editing !== "thread" ? (
-              <Button size="sm" variant="ghost" onClick={() => setEditing("thread")}>
-                <Pencil className="mr-1.5 h-3.5 w-3.5" />
-                {t("club.editor.edit")}
-              </Button>
-            ) : null}
-            {canReportThread ? <ClubReportButton targetType="thread" targetId={thread.id} /> : null}
-            <ClubFollowButton
-              state={subscriptionQ.data ?? null}
-              pending={setSubscriptionM.isPending}
-              disabled={subscriptionQ.isPending}
-              onChange={(next) =>
-                setSubscriptionM.mutate(next, {
-                  onError: () => toast.error(t("adminClubs.saveFailed")),
-                })
+          <div className="mt-4">
+            <ClubReactionBar
+              tallies={threadReactionsQ.data?.get(thread.id) ?? []}
+              disabled={!thread.can_reply || toggleThreadReaction.isPending}
+              variant="full"
+              onToggle={(kind, active) =>
+                toggleThreadReaction.mutate({ targetId: thread.id, kind, active })
               }
             />
           </div>
-        </div>
-      </article>
-
-      {/* --- przestrzeń robocza ---
-          Belka zakładek + panele A28. Dyskusja jedzie jako `children`, więc
-          renderuje się natychmiast, niezależnie od tego, czy liczniki paneli
-          zdążyły dojść. */}
-      <ClubThreadWorkspace
-        threadId={thread.id}
-        lang={lang}
-        userId={user?.id ?? null}
-        summary={workspaceQ.data ?? EMPTY_WORKSPACE_SUMMARY}
-        canGoAnonymous={canGoAnonymous}
-      >
+        </article>
         {/* --- puls dyskusji ---
           Dynamika (kto, ile, jak szybko, kiedy ostatnio) stoi MIĘDZY postem
           otwierającym a odpowiedziami: to jest moment, w którym czytelnik
@@ -483,12 +477,14 @@ function ClubThreadView() {
 
         {/* --- odpowiedzi --- */}
         <section className="mt-6">
-          {/* Pasek przykleja się POD belką zakładek, nie do tej samej krawędzi:
-              `position: sticky` nie układa się w stos sam z siebie, więc dwa
-              paski z `top-16` po prostu na siebie nachodzą. Offset przychodzi
-              z `--club-ws-stack` ustawianego przez powłokę przestrzeni - jedna
-              liczba na oba paski. */}
-          <div className="sticky top-[var(--club-ws-stack,4rem)] z-10 mb-3 -mx-1 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-background/85 px-1 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+          {/* Przyklejenie zależy od PROGU, bo nawigacja huba zmienia postać.
+              Poniżej `lg` jest ona poziomym paskiem przyklejonym na `top-16`,
+              więc ten pasek musi stanąć POD nią - `position: sticky` nie układa
+              się w stos sam z siebie i dwa paski na tej samej krawędzi po
+              prostu na siebie nachodzą. Od `lg` nawigacja jest pionową szyną
+              w kolumnie siatki i nie zajmuje już góry ekranu, więc pasek wraca
+              pod nagłówek strony. */}
+          <div className="sticky top-[6.5rem] z-10 mb-3 -mx-1 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-background/85 px-1 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/70 lg:top-16">
             <h2 className="flex items-center gap-2 text-sm font-semibold">
               <MessageSquare className="h-4 w-4 text-primary" aria-hidden="true" />
               {t("club.repliesCount", { count: thread.reply_count })}
@@ -635,8 +631,8 @@ function ClubThreadView() {
             {thread.reason ? t(`club.reason.${thread.reason}`) : t("club.cannotReply")}
           </p>
         )}
-      </ClubThreadWorkspace>
-    </div>
+      </ClubThreadHub>
+    </>
   );
 }
 

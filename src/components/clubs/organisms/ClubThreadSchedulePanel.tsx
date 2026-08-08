@@ -23,12 +23,12 @@ import {
   useClubThreadMilestones,
   useRemoveClubThreadMilestone,
   useUpsertClubThreadMilestone,
-} from "@/lib/clubs/useClubWorkspace";
+} from "@/lib/clubs/useThreadWorkspace";
 import {
   groupSchedule,
   toClubWorkspaceError,
   type ClubThreadMilestoneRow,
-} from "@/lib/clubs/workspaceTypes";
+} from "@/lib/clubs/threadWorkspaceTypes";
 
 type ScheduleView = "list" | "calendar";
 
@@ -70,7 +70,7 @@ export function ClubThreadSchedulePanel({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div
           role="group"
-          aria-label={t("club.workspace.schedule.viewLabel")}
+          aria-label={t("club.threadHub.schedule.viewLabel")}
           className="inline-flex rounded-lg border border-border/60 p-0.5"
         >
           {(["list", "calendar"] as const).map((option) => (
@@ -87,7 +87,7 @@ export function ClubThreadSchedulePanel({
               ) : (
                 <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
               )}
-              {t(`club.workspace.schedule.view.${option}`)}
+              {t(`club.threadHub.schedule.view.${option}`)}
             </Button>
           ))}
         </div>
@@ -95,7 +95,7 @@ export function ClubThreadSchedulePanel({
         {canCurate && !formOpen ? (
           <Button size="sm" onClick={() => setAdding(true)}>
             <Plus className="mr-1.5 h-3.5 w-3.5" />
-            {t("club.workspace.schedule.add")}
+            {t("club.threadHub.schedule.add")}
           </Button>
         ) : null}
       </div>
@@ -110,10 +110,10 @@ export function ClubThreadSchedulePanel({
             upsert.mutate(input, {
               onSuccess: () => {
                 closeForm();
-                toast.success(t("club.workspace.schedule.saved"));
+                toast.success(t("club.threadHub.schedule.saved"));
               },
               onError: (error) =>
-                toast.error(t(`club.workspace.error.${toClubWorkspaceError(error)}`)),
+                toast.error(t(`club.threadHub.error.${toClubWorkspaceError(error)}`)),
             })
           }
         />
@@ -122,17 +122,17 @@ export function ClubThreadSchedulePanel({
       {rows.length === 0 ? (
         <ClubWorkspaceEmpty
           icon={<CalendarDays className="h-5 w-5" />}
-          title={t("club.workspace.schedule.empty")}
+          title={t("club.threadHub.schedule.empty")}
           hint={
             canCurate
-              ? t("club.workspace.schedule.emptyHint")
-              : t("club.workspace.schedule.emptyReadonly")
+              ? t("club.threadHub.schedule.emptyHint")
+              : t("club.threadHub.schedule.emptyReadonly")
           }
           action={
             canCurate && !formOpen ? (
               <Button size="sm" variant="outline" onClick={() => setAdding(true)}>
                 <Plus className="mr-1.5 h-3.5 w-3.5" />
-                {t("club.workspace.schedule.addFirst")}
+                {t("club.threadHub.schedule.addFirst")}
               </Button>
             ) : undefined
           }
@@ -155,7 +155,7 @@ export function ClubThreadSchedulePanel({
           {groups.map((group) => (
             <section key={group.key}>
               <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {t(`club.workspace.schedule.group.${group.key}`)}
+                {t(`club.threadHub.schedule.group.${group.key}`)}
               </h3>
               <ul className="space-y-2">
                 {group.items.map((row) => (
@@ -168,11 +168,11 @@ export function ClubThreadSchedulePanel({
                       setEditing(target);
                     }}
                     onRemove={(target) => {
-                      if (!window.confirm(t("club.workspace.schedule.removeConfirm"))) return;
+                      if (!window.confirm(t("club.threadHub.schedule.removeConfirm"))) return;
                       remove.mutate(target.id, {
-                        onSuccess: () => toast.success(t("club.workspace.schedule.removed")),
+                        onSuccess: () => toast.success(t("club.threadHub.schedule.removed")),
                         onError: (error) =>
-                          toast.error(t(`club.workspace.error.${toClubWorkspaceError(error)}`)),
+                          toast.error(t(`club.threadHub.error.${toClubWorkspaceError(error)}`)),
                       });
                     }}
                   />

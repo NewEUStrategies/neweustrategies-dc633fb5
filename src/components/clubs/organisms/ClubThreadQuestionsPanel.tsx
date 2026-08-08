@@ -30,12 +30,12 @@ import {
   useAskClubThreadQuestion,
   useClubThreadQuestions,
   useVoteClubThreadQuestion,
-} from "@/lib/clubs/useClubWorkspace";
+} from "@/lib/clubs/useThreadWorkspace";
 import {
   CLUB_QUESTION_SORTS,
   toClubWorkspaceError,
   type ClubQuestionSort,
-} from "@/lib/clubs/workspaceTypes";
+} from "@/lib/clubs/threadWorkspaceTypes";
 
 const QUESTION_MAX = 2000;
 
@@ -67,7 +67,7 @@ export function ClubThreadQuestionsPanel({
   const openCount = useMemo(() => rows.filter((row) => row.status === "open").length, [rows]);
 
   const failed = (error: unknown) =>
-    toast.error(t(`club.workspace.error.${toClubWorkspaceError(error)}`));
+    toast.error(t(`club.threadHub.error.${toClubWorkspaceError(error)}`));
 
   if (query.isPending) return <ClubThreadListSkeleton count={3} />;
   if (query.isError) return <ClubErrorNotice onRetry={() => void query.refetch()} />;
@@ -77,21 +77,21 @@ export function ClubThreadQuestionsPanel({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
           {openCount > 0
-            ? t("club.workspace.questions.openCount", { count: openCount })
-            : t("club.workspace.questions.allAnswered")}
+            ? t("club.threadHub.questions.openCount", { count: openCount })
+            : t("club.threadHub.questions.allAnswered")}
         </p>
         {rows.length > 1 ? (
           <Select value={sort} onValueChange={(value) => setSort(value as ClubQuestionSort)}>
             <SelectTrigger
               className="h-8 w-auto min-w-40"
-              aria-label={t("club.workspace.questions.sortLabel")}
+              aria-label={t("club.threadHub.questions.sortLabel")}
             >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {CLUB_QUESTION_SORTS.map((option) => (
                 <SelectItem key={option} value={option}>
-                  {t(`club.workspace.questionSort.${option}`)}
+                  {t(`club.threadHub.questionSort.${option}`)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -102,11 +102,11 @@ export function ClubThreadQuestionsPanel({
       {rows.length === 0 ? (
         <ClubWorkspaceEmpty
           icon={<HelpCircle className="h-5 w-5" />}
-          title={t("club.workspace.questions.empty")}
+          title={t("club.threadHub.questions.empty")}
           hint={
             canContribute
-              ? t("club.workspace.questions.emptyHint")
-              : t("club.workspace.questions.emptyReadonly")
+              ? t("club.threadHub.questions.emptyHint")
+              : t("club.threadHub.questions.emptyReadonly")
           }
         />
       ) : (
@@ -123,7 +123,7 @@ export function ClubThreadQuestionsPanel({
                 answer.mutate(
                   { questionId: row.id, body: text },
                   {
-                    onSuccess: () => toast.success(t("club.workspace.questions.answerSaved")),
+                    onSuccess: () => toast.success(t("club.threadHub.questions.answerSaved")),
                     onError: failed,
                   },
                 )
@@ -134,16 +134,16 @@ export function ClubThreadQuestionsPanel({
       )}
 
       {canContribute ? (
-        <section className="rounded-xl border border-border/60 bg-card p-4 shadow-sm">
+        <section className="rounded-lg border border-border/60 bg-card p-4 shadow-sm">
           <Label htmlFor="club-question-body" className="text-sm font-medium">
-            {t("club.workspace.questions.askLabel")}
+            {t("club.threadHub.questions.askLabel")}
           </Label>
           <Textarea
             id="club-question-body"
             className="mt-2"
             rows={3}
             maxLength={QUESTION_MAX}
-            placeholder={t("club.workspace.questions.askPlaceholder")}
+            placeholder={t("club.threadHub.questions.askPlaceholder")}
             value={body}
             onChange={(event) => setBody(event.target.value)}
           />
@@ -176,14 +176,14 @@ export function ClubThreadQuestionsPanel({
                     onSuccess: () => {
                       setBody("");
                       setAnonymous(false);
-                      toast.success(t("club.workspace.questions.asked"));
+                      toast.success(t("club.threadHub.questions.asked"));
                     },
                     onError: failed,
                   },
                 )
               }
             >
-              {t("club.workspace.questions.ask")}
+              {t("club.threadHub.questions.ask")}
             </Button>
           </div>
         </section>

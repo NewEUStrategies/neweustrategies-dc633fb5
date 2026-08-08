@@ -12,7 +12,7 @@ import type { ClubLayout } from "@/lib/clubs/types";
 export function Shimmer({ className }: { className?: string }) {
   return (
     <div
-      className={`animate-pulse rounded-md bg-gradient-to-r from-muted/40 via-muted/70 to-muted/40 bg-[length:200%_100%] ${className ?? ""}`}
+      className={`animate-pulse rounded-lg bg-gradient-to-r from-muted/40 via-muted/70 to-muted/40 bg-[length:200%_100%] ${className ?? ""}`}
     />
   );
 }
@@ -71,7 +71,7 @@ export function ClubDirectorySkeleton({
   if (layout === "magazine") {
     return (
       <div className="space-y-3" aria-busy="true">
-        <div className="grid overflow-hidden rounded-xl border border-border/60 bg-card md:grid-cols-2">
+        <div className="grid overflow-hidden rounded-lg border border-border/60 bg-card md:grid-cols-2">
           <Shimmer className="aspect-[16/9] rounded-none md:h-full" />
           <div className="space-y-2 p-4">
             <Shimmer className="h-5 w-2/3" />
@@ -87,10 +87,7 @@ export function ClubDirectorySkeleton({
   }
 
   return (
-    <div
-      className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-      aria-busy="true"
-    >
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-busy="true">
       {items.map((i) => (
         <CardSkeleton key={i} />
       ))}

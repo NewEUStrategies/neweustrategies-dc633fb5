@@ -12,7 +12,7 @@ import { ExternalLink, Pencil, Star, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ClubDocumentIcon } from "@/components/clubs/atoms/ClubEntryIcon";
 import { formatDateShort } from "@/lib/i18n/format";
-import { toClubDocumentKind, type ClubThreadDocumentRow } from "@/lib/clubs/workspaceTypes";
+import { toClubDocumentKind, type ClubThreadDocumentRow } from "@/lib/clubs/threadWorkspaceTypes";
 
 /** Rozmiar pliku dla człowieka. Zwraca `null`, gdy baza go nie zna - "0 B"
  *  przy nieznanym rozmiarze byłoby informacją nieprawdziwą. */
@@ -48,14 +48,14 @@ export function ClubDocumentRow({
   // Metadane w jednym pasku: pomijamy te, których nie ma, zamiast rysować
   // puste separatory. Lista z dziurami wygląda na uszkodzoną.
   const meta = [
-    t(`club.workspace.documentKind.${kind}`),
+    t(`club.threadHub.documentKind.${kind}`),
     row.source_label,
     row.published_on !== null ? formatDateShort(row.published_on, lang) : null,
     size,
   ].filter((part): part is string => part !== null && part.length > 0);
 
   return (
-    <li className="group/doc rounded-xl border border-border/60 bg-card p-3 transition-colors hover:border-primary/30 sm:p-4">
+    <li className="group/doc rounded-lg border border-border/60 bg-card p-3 transition-colors hover:border-primary/30 sm:p-4">
       <div className="flex items-start gap-3">
         <span
           className={
@@ -84,10 +84,10 @@ export function ClubDocumentRow({
             {row.is_primary ? (
               <span
                 className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium leading-none text-primary"
-                title={t("club.workspace.documents.primaryHint")}
+                title={t("club.threadHub.documents.primaryHint")}
               >
                 <Star className="h-3 w-3" aria-hidden="true" />
-                {t("club.workspace.documents.primary")}
+                {t("club.threadHub.documents.primary")}
               </span>
             ) : null}
           </div>
@@ -106,7 +106,7 @@ export function ClubDocumentRow({
               więc ten wiersz po prostu nie powstaje. */}
           {row.added_by_name !== null ? (
             <p className="mt-1.5 text-[11px] text-muted-foreground">
-              {t("club.workspace.documents.addedBy", { name: row.added_by_name })}
+              {t("club.threadHub.documents.addedBy", { name: row.added_by_name })}
             </p>
           ) : null}
         </div>
@@ -129,7 +129,7 @@ export function ClubDocumentRow({
                 size="sm"
                 variant="ghost"
                 className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                aria-label={t("club.workspace.remove")}
+                aria-label={t("club.threadHub.remove")}
                 onClick={() => onRemove(row)}
               >
                 <Trash2 className="h-3.5 w-3.5" />

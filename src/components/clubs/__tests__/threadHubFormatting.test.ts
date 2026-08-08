@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { formatBytes } from "@/components/clubs/molecules/ClubDocumentRow";
 import { milestoneWhen } from "@/components/clubs/molecules/ClubMilestoneRow";
 import { toIsoValue, toLocalInputValue } from "@/components/clubs/molecules/ClubMilestoneForm";
-import type { ClubThreadMilestoneRow } from "@/lib/clubs/workspaceTypes";
+import type { ClubThreadMilestoneRow } from "@/lib/clubs/threadWorkspaceTypes";
 
 function milestone(overrides: Partial<ClubThreadMilestoneRow>): ClubThreadMilestoneRow {
   return {

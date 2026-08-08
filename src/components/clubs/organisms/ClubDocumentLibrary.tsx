@@ -235,7 +235,7 @@ export function ClubDocumentLibrary({ clubId, clubSlug }: { clubId: string; club
                 setPage(0);
               }}
               aria-label={t("club.searchClear")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground hover:text-foreground"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted-foreground hover:text-foreground"
             >
               <X className="h-4 w-4" aria-hidden="true" />
             </button>

@@ -34,7 +34,7 @@ export function ClubCover({
 
   const shape =
     variant === "banner"
-      ? "aspect-[3/1] w-full rounded-xl sm:aspect-[4/1]"
+      ? "aspect-[3/1] w-full rounded-lg sm:aspect-[4/1]"
       : "aspect-[16/9] w-full rounded-t-lg";
 
   if (!hasCover) {

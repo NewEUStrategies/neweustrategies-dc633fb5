@@ -15,8 +15,8 @@ import { useTranslation } from "react-i18next";
 import { BarChart3 } from "lucide-react";
 import { ClubWorkspaceEmpty } from "@/components/clubs/atoms/ClubWorkspaceEmpty";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
-import { useClubThreadInsights } from "@/lib/clubs/useClubWorkspace";
-import { toInsightSeries, type InsightBar } from "@/lib/clubs/workspaceTypes";
+import { useClubThreadInsights } from "@/lib/clubs/useThreadWorkspace";
+import { toInsightSeries, type InsightBar } from "@/lib/clubs/threadWorkspaceTypes";
 import { formatDateShort } from "@/lib/i18n/format";
 
 /** Cztery serie w stałej kolejności i stałych kolorach. Kolejność jest
@@ -49,7 +49,7 @@ export function ClubThreadInsightsPanel({
   const series = useMemo(() => toInsightSeries(query.data ?? []), [query.data]);
 
   if (query.isPending) {
-    return <div className="h-56 animate-pulse rounded-xl bg-muted/50" aria-busy="true" />;
+    return <div className="h-56 animate-pulse rounded-lg bg-muted/50" aria-busy="true" />;
   }
   if (query.isError) return <ClubErrorNotice onRetry={() => void query.refetch()} />;
 
@@ -57,8 +57,8 @@ export function ClubThreadInsightsPanel({
     return (
       <ClubWorkspaceEmpty
         icon={<BarChart3 className="h-5 w-5" />}
-        title={t("club.workspace.insights.empty")}
-        hint={t("club.workspace.insights.emptyHint")}
+        title={t("club.threadHub.insights.empty")}
+        hint={t("club.threadHub.insights.emptyHint")}
       />
     );
   }
@@ -77,27 +77,27 @@ export function ClubThreadInsightsPanel({
           KIEDY. */}
       <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {SERIES.map((entry) => (
-          <div key={entry.key} className="rounded-xl border border-border/60 bg-card p-3">
+          <div key={entry.key} className="rounded-lg border border-border/60 bg-card p-3">
             <dt className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
               <span aria-hidden="true" className={`h-2 w-2 rounded-sm ${entry.cls}`} />
-              {t(`club.workspace.insights.series.${entry.key}`)}
+              {t(`club.threadHub.insights.series.${entry.key}`)}
             </dt>
             <dd className="mt-1 text-xl font-semibold tabular-nums">{series.totals[entry.key]}</dd>
           </div>
         ))}
       </dl>
 
-      <section className="rounded-xl border border-border/60 bg-card p-3 sm:p-4">
+      <section className="rounded-lg border border-border/60 bg-card p-3 sm:p-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            {t("club.workspace.insights.timeline")}
+            {t("club.threadHub.insights.timeline")}
           </h3>
           <p className="text-[11px] text-muted-foreground">{rangeLabel}</p>
         </div>
 
         <div
           role="img"
-          aria-label={t("club.workspace.insights.chartAria", {
+          aria-label={t("club.threadHub.insights.chartAria", {
             total: series.grandTotal,
             range: rangeLabel,
           })}
@@ -131,13 +131,13 @@ export function ClubThreadInsightsPanel({
         {/* Tabela dostępnościowa: te same liczby, czytelne dla czytnika ekranu
             i do skopiowania. Ukryta wizualnie, bo obok stoi wykres. */}
         <table className="sr-only">
-          <caption>{t("club.workspace.insights.tableCaption")}</caption>
+          <caption>{t("club.threadHub.insights.tableCaption")}</caption>
           <thead>
             <tr>
-              <th scope="col">{t("club.workspace.insights.period")}</th>
+              <th scope="col">{t("club.threadHub.insights.period")}</th>
               {SERIES.map((entry) => (
                 <th key={entry.key} scope="col">
-                  {t(`club.workspace.insights.series.${entry.key}`)}
+                  {t(`club.threadHub.insights.series.${entry.key}`)}
                 </th>
               ))}
             </tr>

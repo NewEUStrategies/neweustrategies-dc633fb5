@@ -99,7 +99,7 @@ export function ClubHubLayoutSwitch({
       role="radiogroup"
       aria-label={t("club.hub.layoutLabel")}
       onKeyDown={onKeyDown}
-      className="inline-flex items-center gap-1 rounded-md border border-border/60 p-0.5"
+      className="inline-flex items-center gap-1 rounded-lg border border-border/60 p-0.5"
     >
       {CLUB_LAYOUTS.map((layout) => {
         const Icon = ICON[layout];

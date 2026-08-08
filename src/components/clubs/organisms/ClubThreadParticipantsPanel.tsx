@@ -17,8 +17,8 @@ import {
   ClubParticipantRow,
   participantName,
 } from "@/components/clubs/molecules/ClubParticipantRow";
-import { useClubThreadParticipants } from "@/lib/clubs/useClubWorkspace";
-import { toContributionBars } from "@/lib/clubs/workspaceTypes";
+import { useClubThreadParticipants } from "@/lib/clubs/useThreadWorkspace";
+import { toContributionBars } from "@/lib/clubs/threadWorkspaceTypes";
 
 export function ClubThreadParticipantsPanel({
   threadId,
@@ -45,8 +45,8 @@ export function ClubThreadParticipantsPanel({
     return (
       <ClubWorkspaceEmpty
         icon={<Users2 className="h-5 w-5" />}
-        title={t("club.workspace.participants.empty")}
-        hint={t("club.workspace.participants.emptyHint")}
+        title={t("club.threadHub.participants.empty")}
+        hint={t("club.threadHub.participants.emptyHint")}
       />
     );
   }
@@ -59,11 +59,11 @@ export function ClubThreadParticipantsPanel({
           co w `ClubThreadPulse`). */}
       {bars.length > 1 ? (
         <section
-          aria-label={t("club.workspace.participants.distribution")}
-          className="rounded-xl border border-border/60 bg-card p-3 sm:p-4"
+          aria-label={t("club.threadHub.participants.distribution")}
+          className="rounded-lg border border-border/60 bg-card p-3 sm:p-4"
         >
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            {t("club.workspace.participants.distribution")}
+            {t("club.threadHub.participants.distribution")}
           </h3>
           <ul className="mt-3 space-y-2">
             {bars.map((bar) => (

@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
 import { ClubStatusPill, questionTone } from "@/components/clubs/atoms/ClubStatusPill";
 import { formatDateTime } from "@/lib/i18n/format";
-import { toClubQuestionStatus, type ClubThreadQuestionRow } from "@/lib/clubs/workspaceTypes";
+import { toClubQuestionStatus, type ClubThreadQuestionRow } from "@/lib/clubs/threadWorkspaceTypes";
 
 const ANSWER_MAX = 10000;
 
@@ -51,7 +51,7 @@ export function ClubQuestionCard({
   return (
     <li
       className={
-        "rounded-xl border p-3 transition-colors sm:p-4 " +
+        "rounded-lg border p-3 transition-colors sm:p-4 " +
         (answered ? "border-emerald-500/40 bg-emerald-500/5" : "border-border/60 bg-card")
       }
     >
@@ -64,7 +64,7 @@ export function ClubQuestionCard({
             variant={row.my_vote ? "default" : "outline"}
             className="h-8 w-8 p-0"
             aria-pressed={row.my_vote}
-            aria-label={t("club.workspace.questions.vote")}
+            aria-label={t("club.threadHub.questions.vote")}
             disabled={votePending}
             onClick={() => onVote(!row.my_vote)}
           >
@@ -85,7 +85,7 @@ export function ClubQuestionCard({
               {formatDateTime(row.created_at, lang)}
             </span>
             <ClubStatusPill
-              label={t(`club.workspace.questionStatus.${status}`)}
+              label={t(`club.threadHub.questionStatus.${status}`)}
               tone={questionTone(status)}
             />
           </div>
@@ -100,8 +100,8 @@ export function ClubQuestionCard({
                     prowadzącego jest aktem oficjalnym, a anonimowa "odpowiedź
                     klubu" nie zobowiązuje nikogo. */}
                 {row.answered_by_name !== null
-                  ? t("club.workspace.questions.answeredBy", { name: row.answered_by_name })
-                  : t("club.workspace.questions.answer")}
+                  ? t("club.threadHub.questions.answeredBy", { name: row.answered_by_name })
+                  : t("club.threadHub.questions.answer")}
                 {row.answered_at !== null ? ` · ${formatDateTime(row.answered_at, lang)}` : ""}
               </p>
               <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">{row.answer_body}</p>
@@ -112,7 +112,7 @@ export function ClubQuestionCard({
             drafting ? (
               <div className="mt-3">
                 <Label htmlFor={`club-answer-${row.id}`} className="text-xs">
-                  {t("club.workspace.questions.answerLabel")}
+                  {t("club.threadHub.questions.answerLabel")}
                 </Label>
                 <Textarea
                   id={`club-answer-${row.id}`}
@@ -128,10 +128,10 @@ export function ClubQuestionCard({
                     disabled={answerPending || draft.trim().length === 0}
                     onClick={() => onAnswer(draft.trim())}
                   >
-                    {t("club.workspace.questions.publishAnswer")}
+                    {t("club.threadHub.questions.publishAnswer")}
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => setDrafting(false)}>
-                    {t("club.workspace.cancel")}
+                    {t("club.threadHub.cancel")}
                   </Button>
                 </div>
               </div>
@@ -146,8 +146,8 @@ export function ClubQuestionCard({
                 }}
               >
                 {answered
-                  ? t("club.workspace.questions.editAnswer")
-                  : t("club.workspace.questions.answerCta")}
+                  ? t("club.threadHub.questions.editAnswer")
+                  : t("club.threadHub.questions.answerCta")}
               </Button>
             )
           ) : null}

@@ -18,8 +18,8 @@ import { ClubWorkspaceEmpty } from "@/components/clubs/atoms/ClubWorkspaceEmpty"
 import { ClubSectionIcon } from "@/components/clubs/atoms/ClubEntryIcon";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
 import { ClubSnippet } from "@/components/clubs/molecules/ClubSnippet";
-import { useClubThreadSearch } from "@/lib/clubs/useClubWorkspace";
-import { groupSearchResults } from "@/lib/clubs/workspaceTypes";
+import { useClubThreadSearch } from "@/lib/clubs/useThreadWorkspace";
+import { groupSearchResults } from "@/lib/clubs/threadWorkspaceTypes";
 import { formatDateShort } from "@/lib/i18n/format";
 
 export function ClubThreadFinderPanel({ threadId, lang }: { threadId: string; lang: "pl" | "en" }) {
@@ -36,7 +36,7 @@ export function ClubThreadFinderPanel({ threadId, lang }: { threadId: string; la
     <div className="space-y-4">
       <div>
         <Label htmlFor="club-ws-search" className="text-sm font-medium">
-          {t("club.workspace.search.label")}
+          {t("club.threadHub.search.label")}
         </Label>
         <div className="relative mt-1.5">
           <Search
@@ -48,12 +48,12 @@ export function ClubThreadFinderPanel({ threadId, lang }: { threadId: string; la
             type="search"
             className="pl-9"
             value={query}
-            placeholder={t("club.workspace.search.placeholder")}
+            placeholder={t("club.threadHub.search.placeholder")}
             onChange={(event) => setQuery(event.target.value)}
           />
         </div>
         <p className="mt-1.5 text-[11px] text-muted-foreground">
-          {t("club.workspace.search.hint")}
+          {t("club.threadHub.search.hint")}
         </p>
       </div>
 
@@ -61,31 +61,31 @@ export function ClubThreadFinderPanel({ threadId, lang }: { threadId: string; la
           bez przerywania pisania. */}
       <div aria-live="polite" aria-atomic="true" className="sr-only">
         {hasResults
-          ? t("club.workspace.search.resultsCount", { count: search.data?.length ?? 0 })
+          ? t("club.threadHub.search.resultsCount", { count: search.data?.length ?? 0 })
           : ""}
       </div>
 
       {search.isError ? (
         <ClubErrorNotice onRetry={() => void search.refetch()} />
       ) : tooShort ? (
-        <p className="text-sm text-muted-foreground">{t("club.workspace.search.tooShort")}</p>
+        <p className="text-sm text-muted-foreground">{t("club.threadHub.search.tooShort")}</p>
       ) : search.isFetching ? (
         <div className="space-y-2" aria-busy="true">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="h-16 animate-pulse rounded-xl bg-muted/50" />
+            <div key={i} className="h-16 animate-pulse rounded-lg bg-muted/50" />
           ))}
         </div>
       ) : deferred.trim().length < 2 ? (
         <ClubWorkspaceEmpty
           icon={<Search className="h-5 w-5" />}
-          title={t("club.workspace.search.idle")}
-          hint={t("club.workspace.search.idleHint")}
+          title={t("club.threadHub.search.idle")}
+          hint={t("club.threadHub.search.idleHint")}
         />
       ) : !hasResults ? (
         <ClubWorkspaceEmpty
           icon={<Search className="h-5 w-5" />}
-          title={t("club.workspace.search.noResults", { query: deferred.trim() })}
-          hint={t("club.workspace.search.noResultsHint")}
+          title={t("club.threadHub.search.noResults", { query: deferred.trim() })}
+          hint={t("club.threadHub.search.noResultsHint")}
         />
       ) : (
         <div className="space-y-5">
@@ -93,14 +93,14 @@ export function ClubThreadFinderPanel({ threadId, lang }: { threadId: string; la
             <section key={group.section}>
               <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 <ClubSectionIcon section={group.section} className="h-3.5 w-3.5" />
-                {t(`club.workspace.section.${group.section}`)}
+                {t(`club.threadHub.section.${group.section}`)}
                 <span className="tabular-nums">({group.rows.length})</span>
               </h3>
               <ul className="space-y-2">
                 {group.rows.map((row) => (
                   <li
                     key={`${row.section}-${row.item_id}`}
-                    className="rounded-xl border border-border/60 bg-card p-3"
+                    className="rounded-lg border border-border/60 bg-card p-3"
                   >
                     {row.title !== null && row.title.length > 0 ? (
                       <p className="text-sm font-medium">{row.title}</p>

@@ -12,7 +12,7 @@ import { useTranslation } from "react-i18next";
 import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
 import { ClubStatusPill } from "@/components/clubs/atoms/ClubStatusPill";
 import { formatDateShort } from "@/lib/i18n/format";
-import type { ClubThreadParticipantRow } from "@/lib/clubs/workspaceTypes";
+import type { ClubThreadParticipantRow } from "@/lib/clubs/threadWorkspaceTypes";
 
 /**
  * Nazwa gotowa do renderu. Ta sama zasada, co w `toAuthorLabel`: komponent NIE
@@ -48,14 +48,14 @@ export function ClubParticipantRow({
   ].filter((stat) => stat.value > 0);
 
   return (
-    <li className="flex items-start gap-3 rounded-xl border border-border/60 bg-card p-3 transition-colors hover:border-primary/30">
+    <li className="flex items-start gap-3 rounded-lg border border-border/60 bg-card p-3 transition-colors hover:border-primary/30">
       <ClubAuthorAvatar name={name} avatarUrl={row.avatar_url} size="md" muted={anonymous} />
 
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="truncate text-sm font-medium">{name}</span>
           {row.is_thread_author ? (
-            <ClubStatusPill label={t("club.workspace.participants.author")} tone="active" />
+            <ClubStatusPill label={t("club.threadHub.participants.author")} tone="active" />
           ) : null}
           {row.club_role !== null ? (
             <ClubStatusPill label={t(`club.role.${row.club_role}`)} />
@@ -67,7 +67,7 @@ export function ClubParticipantRow({
           <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
             {stats.map((stat) => (
               <span key={stat.key} className="tabular-nums">
-                {t(`club.workspace.participants.${stat.key}`, { count: stat.value })}
+                {t(`club.threadHub.participants.${stat.key}`, { count: stat.value })}
               </span>
             ))}
           </p>
@@ -78,7 +78,7 @@ export function ClubParticipantRow({
             sprzed godziny. */}
         {row.last_at !== null ? (
           <p className="mt-0.5 text-[11px] text-muted-foreground">
-            {t("club.workspace.participants.lastActive", {
+            {t("club.threadHub.participants.lastActive", {
               date: formatDateShort(row.last_at, lang),
             })}
           </p>
@@ -89,7 +89,7 @@ export function ClubParticipantRow({
         <div className="shrink-0 text-right">
           <p className="text-sm font-semibold tabular-nums">{row.reactions_received}</p>
           <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-            {t("club.workspace.participants.reactions")}
+            {t("club.threadHub.participants.reactions")}
           </p>
         </div>
       ) : null}

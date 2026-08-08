@@ -29,14 +29,14 @@ import {
   useClubThreadDocuments,
   useRemoveClubThreadDocument,
   useUpsertClubThreadDocument,
-} from "@/lib/clubs/useClubWorkspace";
+} from "@/lib/clubs/useThreadWorkspace";
 import {
   CLUB_DOCUMENT_KINDS,
   toClubDocumentKind,
   toClubWorkspaceError,
   type ClubDocumentKind,
   type ClubThreadDocumentRow,
-} from "@/lib/clubs/workspaceTypes";
+} from "@/lib/clubs/threadWorkspaceTypes";
 
 /** `"all"` zamiast pustego stringa: Radix Select nie potrafi przechować `null`,
  *  a pusty string jest w nim wartością zarezerwowaną. */
@@ -84,9 +84,9 @@ export function ClubThreadDocumentsPanel({
     upsert.mutate(input, {
       onSuccess: () => {
         closeForm();
-        toast.success(t("club.workspace.documents.saved"));
+        toast.success(t("club.threadHub.documents.saved"));
       },
-      onError: (error) => toast.error(t(`club.workspace.error.${toClubWorkspaceError(error)}`)),
+      onError: (error) => toast.error(t(`club.threadHub.error.${toClubWorkspaceError(error)}`)),
     });
   };
 
@@ -105,15 +105,15 @@ export function ClubThreadDocumentsPanel({
           >
             <SelectTrigger
               className="h-8 w-auto min-w-40"
-              aria-label={t("club.workspace.documents.filterLabel")}
+              aria-label={t("club.threadHub.documents.filterLabel")}
             >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ALL}>{t("club.workspace.documents.allKinds")}</SelectItem>
+              <SelectItem value={ALL}>{t("club.threadHub.documents.allKinds")}</SelectItem>
               {CLUB_DOCUMENT_KINDS.map((kind) => (
                 <SelectItem key={kind} value={kind}>
-                  {t(`club.workspace.documentKind.${kind}`)}
+                  {t(`club.threadHub.documentKind.${kind}`)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -125,7 +125,7 @@ export function ClubThreadDocumentsPanel({
         {canContribute && !formOpen ? (
           <Button size="sm" onClick={() => setAdding(true)}>
             <Plus className="mr-1.5 h-3.5 w-3.5" />
-            {t("club.workspace.documents.add")}
+            {t("club.threadHub.documents.add")}
           </Button>
         ) : null}
       </div>
@@ -144,17 +144,17 @@ export function ClubThreadDocumentsPanel({
       {rows.length === 0 ? (
         <ClubWorkspaceEmpty
           icon={<FileText className="h-5 w-5" />}
-          title={t("club.workspace.documents.empty")}
+          title={t("club.threadHub.documents.empty")}
           hint={
             canContribute
-              ? t("club.workspace.documents.emptyHint")
-              : t("club.workspace.documents.emptyReadonly")
+              ? t("club.threadHub.documents.emptyHint")
+              : t("club.threadHub.documents.emptyReadonly")
           }
           action={
             canContribute && !formOpen ? (
               <Button size="sm" variant="outline" onClick={() => setAdding(true)}>
                 <Plus className="mr-1.5 h-3.5 w-3.5" />
-                {t("club.workspace.documents.addFirst")}
+                {t("club.threadHub.documents.addFirst")}
               </Button>
             ) : undefined
           }
@@ -171,11 +171,11 @@ export function ClubThreadDocumentsPanel({
                 setEditing(target);
               }}
               onRemove={(target) => {
-                if (!window.confirm(t("club.workspace.documents.removeConfirm"))) return;
+                if (!window.confirm(t("club.threadHub.documents.removeConfirm"))) return;
                 remove.mutate(target.id, {
-                  onSuccess: () => toast.success(t("club.workspace.documents.removed")),
+                  onSuccess: () => toast.success(t("club.threadHub.documents.removed")),
                   onError: (error) =>
-                    toast.error(t(`club.workspace.error.${toClubWorkspaceError(error)}`)),
+                    toast.error(t(`club.threadHub.error.${toClubWorkspaceError(error)}`)),
                 });
               }}
             />

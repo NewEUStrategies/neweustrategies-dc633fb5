@@ -17,7 +17,7 @@ import {
   type ClubThreadParticipantRow,
   type ClubWorkspaceSearchRow,
   type ClubWorkspaceSummary,
-} from "@/lib/clubs/workspaceTypes";
+} from "@/lib/clubs/threadWorkspaceTypes";
 
 /** Minimalny wiersz harmonogramu - test interesuje wyłącznie oś czasu. */
 function milestone(overrides: Partial<ClubThreadMilestoneRow>): ClubThreadMilestoneRow {

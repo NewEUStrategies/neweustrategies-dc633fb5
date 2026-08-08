@@ -38,7 +38,7 @@ export function ClubHubHero({
   const { t } = useTranslation();
 
   return (
-    <header className="mb-5 overflow-hidden rounded-xl border border-border/60 bg-card">
+    <header className="mb-5 overflow-hidden rounded-lg border border-border/60 bg-card">
       <div className="grid gap-3 bg-gradient-to-br from-primary/[0.06] via-transparent to-transparent p-4 md:grid-cols-[minmax(0,1fr)_18rem] md:items-center md:gap-6 md:p-5">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">

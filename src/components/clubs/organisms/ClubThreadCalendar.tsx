@@ -20,7 +20,7 @@ import {
   buildCalendarGrid,
   toClubMilestoneStatus,
   type ClubThreadMilestoneRow,
-} from "@/lib/clubs/workspaceTypes";
+} from "@/lib/clubs/threadWorkspaceTypes";
 
 /** Skrócone nazwy dni od PONIEDZIAŁKU - taki jest tydzień w PL i w instytucjach
  *  UE. Bierzemy je z `Intl`, więc nie ma tu żadnego słownika do utrzymania. */
@@ -61,13 +61,13 @@ export function ClubThreadCalendar({
   }, [cells]);
 
   return (
-    <div className="rounded-xl border border-border/60 bg-card p-3 sm:p-4">
+    <div className="rounded-lg border border-border/60 bg-card p-3 sm:p-4">
       <div className="mb-3 flex items-center justify-between gap-2">
         <Button
           size="sm"
           variant="ghost"
           className="h-8 w-8 p-0"
-          aria-label={t("club.workspace.calendar.previous")}
+          aria-label={t("club.threadHub.calendar.previous")}
           onClick={() => shift(-1)}
         >
           <ChevronLeft className="h-4 w-4" />
@@ -82,7 +82,7 @@ export function ClubThreadCalendar({
           size="sm"
           variant="ghost"
           className="h-8 w-8 p-0"
-          aria-label={t("club.workspace.calendar.next")}
+          aria-label={t("club.threadHub.calendar.next")}
           onClick={() => shift(1)}
         >
           <ChevronRight className="h-4 w-4" />
@@ -92,7 +92,7 @@ export function ClubThreadCalendar({
       <div className="overflow-x-auto">
         <table className="w-full min-w-[34rem] table-fixed border-collapse">
           <caption className="sr-only">
-            {t("club.workspace.calendar.caption", { month: monthLabel })}
+            {t("club.threadHub.calendar.caption", { month: monthLabel })}
           </caption>
           <thead>
             <tr>
@@ -157,7 +157,7 @@ export function ClubThreadCalendar({
                         })}
                         {cell.items.length > 2 ? (
                           <li className="px-1 text-[10px] text-muted-foreground">
-                            {t("club.workspace.calendar.more", { count: cell.items.length - 2 })}
+                            {t("club.threadHub.calendar.more", { count: cell.items.length - 2 })}
                           </li>
                         ) : null}
                       </ul>
@@ -172,15 +172,15 @@ export function ClubThreadCalendar({
 
       <p className="mt-3 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
         <ClubStatusPill
-          label={t("club.workspace.milestoneStatus.planned")}
+          label={t("club.threadHub.milestoneStatus.planned")}
           tone={milestoneTone("planned")}
         />
         <ClubStatusPill
-          label={t("club.workspace.milestoneStatus.done")}
+          label={t("club.threadHub.milestoneStatus.done")}
           tone={milestoneTone("done")}
         />
         <ClubStatusPill
-          label={t("club.workspace.milestoneStatus.cancelled")}
+          label={t("club.threadHub.milestoneStatus.cancelled")}
           tone={milestoneTone("cancelled")}
         />
       </p>

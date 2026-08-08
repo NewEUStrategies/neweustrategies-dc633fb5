@@ -74,7 +74,7 @@ export function ClubAnchorPicker({
     return (
       <div className="space-y-1.5">
         <Label>{fieldLabel ?? t("club.anchorPicker.label")}</Label>
-        <div className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/30 px-3 py-2">
+        <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-2">
           <Link2 className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           <Badge variant="outline" className="shrink-0 text-[11px]">
             {t(`club.anchorType.${value.anchorType}`)}
@@ -123,11 +123,11 @@ export function ClubAnchorPicker({
 
       {searching ? (
         rows.length === 0 && !suggestionsQ.isFetching ? (
-          <p className="rounded-md border border-dashed border-border/60 px-3 py-2 text-xs text-muted-foreground">
+          <p className="rounded-lg border border-dashed border-border/60 px-3 py-2 text-xs text-muted-foreground">
             {t("club.anchorPicker.empty")}
           </p>
         ) : (
-          <ul className="max-h-56 space-y-1 overflow-y-auto rounded-md border border-border/60 p-1">
+          <ul className="max-h-56 space-y-1 overflow-y-auto rounded-lg border border-border/60 p-1">
             {rows.map((row) => (
               <li key={`${row.anchor_type}:${row.anchor_id}`}>
                 <button

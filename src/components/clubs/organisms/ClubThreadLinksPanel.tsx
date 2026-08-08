@@ -18,9 +18,9 @@ import { Badge } from "@/components/ui/badge";
 import { ClubWorkspaceEmpty } from "@/components/clubs/atoms/ClubWorkspaceEmpty";
 import { ClubThreadListSkeleton } from "@/components/clubs/atoms/ClubSkeletons";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
-import { useClubThreadLinks, useRemoveClubThreadLink } from "@/lib/clubs/useClubWorkspace";
+import { useClubThreadLinks, useRemoveClubThreadLink } from "@/lib/clubs/useThreadWorkspace";
 import { formatDateShort } from "@/lib/i18n/format";
-import { toClubThreadRelation, toClubWorkspaceError } from "@/lib/clubs/workspaceTypes";
+import { toClubThreadRelation, toClubWorkspaceError } from "@/lib/clubs/threadWorkspaceTypes";
 
 export function ClubThreadLinksPanel({ threadId, lang }: { threadId: string; lang: "pl" | "en" }) {
   const { t } = useTranslation();
@@ -35,8 +35,8 @@ export function ClubThreadLinksPanel({ threadId, lang }: { threadId: string; lan
     return (
       <ClubWorkspaceEmpty
         icon={<Link2 className="h-5 w-5" />}
-        title={t("club.workspace.links.empty")}
-        hint={t("club.workspace.links.emptyHint")}
+        title={t("club.threadHub.links.empty")}
+        hint={t("club.threadHub.links.emptyHint")}
       />
     );
   }
@@ -49,12 +49,12 @@ export function ClubThreadLinksPanel({ threadId, lang }: { threadId: string; lan
         return (
           <li
             key={row.id}
-            className="group/link rounded-xl border border-border/60 bg-card p-3 transition-colors hover:border-primary/30 sm:p-4"
+            className="group/link rounded-lg border border-border/60 bg-card p-3 transition-colors hover:border-primary/30 sm:p-4"
           >
             <div className="flex items-start gap-3">
               <span
                 className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground"
-                title={t(`club.workspace.linkDirection.${row.direction}`)}
+                title={t(`club.threadHub.linkDirection.${row.direction}`)}
               >
                 {incoming ? (
                   <ArrowDownLeft className="h-4 w-4" aria-hidden="true" />
@@ -66,7 +66,7 @@ export function ClubThreadLinksPanel({ threadId, lang }: { threadId: string; lan
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline" className="text-[11px]">
-                    {t(`club.workspace.relation.${incoming ? "incoming" : "outgoing"}.${relation}`)}
+                    {t(`club.threadHub.relation.${incoming ? "incoming" : "outgoing"}.${relation}`)}
                   </Badge>
                   <Badge variant="secondary" className="text-[11px]">
                     {t(`club.kind.${row.kind}`)}
@@ -102,13 +102,13 @@ export function ClubThreadLinksPanel({ threadId, lang }: { threadId: string; lan
                   size="sm"
                   variant="ghost"
                   className="h-7 w-7 shrink-0 p-0 text-destructive opacity-70 transition-opacity hover:text-destructive focus-visible:opacity-100 group-hover/link:opacity-100"
-                  aria-label={t("club.workspace.remove")}
+                  aria-label={t("club.threadHub.remove")}
                   onClick={() => {
-                    if (!window.confirm(t("club.workspace.links.removeConfirm"))) return;
+                    if (!window.confirm(t("club.threadHub.links.removeConfirm"))) return;
                     remove.mutate(row.id, {
-                      onSuccess: () => toast.success(t("club.workspace.links.removed")),
+                      onSuccess: () => toast.success(t("club.threadHub.links.removed")),
                       onError: (error) =>
-                        toast.error(t(`club.workspace.error.${toClubWorkspaceError(error)}`)),
+                        toast.error(t(`club.threadHub.error.${toClubWorkspaceError(error)}`)),
                     });
                   }}
                 >

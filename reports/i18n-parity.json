@@ -130,11 +130,12 @@
     "club.filters.status",
     "club.insights.hours",
     "club.planTier.plus",
+    "club.threadHub.schedule.statusLabel",
     "club.topic.transport"
   ],
   "repoWide": {
     "missingEn": 0,
     "missingPl": 0,
-    "untranslated": 406
+    "untranslated": 407
   }
 }

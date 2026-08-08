@@ -88,14 +88,11 @@ export function ClubThreadPulse({
   className?: string;
 }) {
   const { t } = useTranslation();
-  const dynamics = useMemo(
-    () => computeThreadDynamics(createdAt, replies),
-    [createdAt, replies],
-  );
+  const dynamics = useMemo(() => computeThreadDynamics(createdAt, replies), [createdAt, replies]);
 
   return (
     <section
-      className={`rounded-xl border border-border/60 bg-card/60 p-4 ${className ?? ""}`}
+      className={`rounded-lg border border-border/60 bg-card/60 p-4 ${className ?? ""}`}
       aria-label={t("club.pulse.title")}
     >
       <div className="mb-3 flex items-center justify-between gap-2">

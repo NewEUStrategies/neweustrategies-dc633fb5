@@ -130,7 +130,7 @@ function ListRow({ club, isPl }: { club: ClubDirectoryCard; isPl: boolean }) {
       <ClubCover
         url={club.cover_image_url}
         variant="card"
-        className="w-20 shrink-0 rounded-md sm:w-28"
+        className="w-20 shrink-0 rounded-lg sm:w-28"
       />
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
@@ -161,7 +161,7 @@ function MagazineLead({ club, isPl }: { club: ClubDirectoryCard; isPl: boolean }
     <Link
       to="/club/$clubSlug"
       params={{ clubSlug: club.slug }}
-      className="group grid overflow-hidden rounded-xl border border-border/60 bg-card transition-colors hover:border-primary/40 md:grid-cols-2"
+      className="group grid overflow-hidden rounded-lg border border-border/60 bg-card transition-colors hover:border-primary/40 md:grid-cols-2"
     >
       <ClubCover url={club.cover_image_url} variant="card" className="rounded-none md:h-full" />
       <div className="flex flex-col gap-2 p-4">

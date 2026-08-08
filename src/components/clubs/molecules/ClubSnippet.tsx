@@ -9,7 +9,7 @@
 // Fragment rozbija czysta funkcja (`parseSnippet`), a trafienie rysuje
 // `<mark>` - element, który czytniki ekranu ogłaszają jako wyróżnienie, więc
 // niesie to samo znaczenie bez koloru.
-import { parseSnippet } from "@/lib/clubs/workspaceTypes";
+import { parseSnippet } from "@/lib/clubs/threadWorkspaceTypes";
 
 export function ClubSnippet({
   snippet,

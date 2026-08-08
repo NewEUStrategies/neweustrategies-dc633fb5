@@ -22,7 +22,7 @@ export function ClubWorkspaceEmpty({
   action?: ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-dashed border-border/60 px-4 py-8 text-center sm:py-10">
+    <div className="rounded-lg border border-dashed border-border/60 px-4 py-8 text-center sm:py-10">
       {icon !== undefined ? (
         <span
           aria-hidden="true"

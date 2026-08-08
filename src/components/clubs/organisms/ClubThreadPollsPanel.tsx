@@ -25,8 +25,8 @@ import {
   useClubThreadPolls,
   useCreateClubThreadPoll,
   useDetachClubThreadPoll,
-} from "@/lib/clubs/useClubWorkspace";
-import { toClubWorkspaceError } from "@/lib/clubs/workspaceTypes";
+} from "@/lib/clubs/useThreadWorkspace";
+import { toClubWorkspaceError } from "@/lib/clubs/threadWorkspaceTypes";
 
 /** Baza przyjmuje 2-8 wariantów (CHECK w `club_thread_poll_create`). Formularz
  *  zna tę samą granicę, więc odmowa nie przychodzi dopiero po wysłaniu. */
@@ -55,7 +55,7 @@ function PollComposer({
 
   return (
     <form
-      className="rounded-xl border border-border/60 bg-card p-4 shadow-sm"
+      className="rounded-lg border border-border/60 bg-card p-4 shadow-sm"
       onSubmit={(event) => {
         event.preventDefault();
         if (invalid) return;
@@ -68,7 +68,7 @@ function PollComposer({
     >
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <Label htmlFor="club-poll-pl">{t("club.workspace.polls.questionPl")}</Label>
+          <Label htmlFor="club-poll-pl">{t("club.threadHub.polls.questionPl")}</Label>
           <Input
             id="club-poll-pl"
             className="mt-1"
@@ -79,7 +79,7 @@ function PollComposer({
           />
         </div>
         <div>
-          <Label htmlFor="club-poll-en">{t("club.workspace.polls.questionEn")}</Label>
+          <Label htmlFor="club-poll-en">{t("club.threadHub.polls.questionEn")}</Label>
           <Input
             id="club-poll-en"
             className="mt-1"
@@ -92,14 +92,14 @@ function PollComposer({
       </div>
 
       <fieldset className="mt-3">
-        <legend className="text-sm font-medium">{t("club.workspace.polls.optionsLabel")}</legend>
+        <legend className="text-sm font-medium">{t("club.threadHub.polls.optionsLabel")}</legend>
         <div className="mt-2 space-y-2">
           {options.map((option, index) => (
             <div key={index} className="flex items-center gap-2">
               <Input
                 value={option}
                 maxLength={200}
-                aria-label={t("club.workspace.polls.optionAria", { index: index + 1 })}
+                aria-label={t("club.threadHub.polls.optionAria", { index: index + 1 })}
                 onChange={(event) =>
                   setOptions((current) =>
                     current.map((item, i) => (i === index ? event.target.value : item)),
@@ -112,7 +112,7 @@ function PollComposer({
                   size="sm"
                   variant="ghost"
                   className="h-8 w-8 shrink-0 p-0"
-                  aria-label={t("club.workspace.polls.removeOption")}
+                  aria-label={t("club.threadHub.polls.removeOption")}
                   onClick={() => setOptions((current) => current.filter((_, i) => i !== index))}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -130,17 +130,17 @@ function PollComposer({
             onClick={() => setOptions((current) => [...current, ""])}
           >
             <Plus className="mr-1.5 h-3.5 w-3.5" />
-            {t("club.workspace.polls.addOption")}
+            {t("club.threadHub.polls.addOption")}
           </Button>
         ) : null}
       </fieldset>
 
       <div className="mt-4 flex flex-wrap gap-2">
         <Button type="submit" size="sm" disabled={pending || invalid}>
-          {t("club.workspace.polls.create")}
+          {t("club.threadHub.polls.create")}
         </Button>
         <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
-          {t("club.workspace.cancel")}
+          {t("club.threadHub.cancel")}
         </Button>
       </div>
     </form>
@@ -168,7 +168,7 @@ export function ClubThreadPollsPanel({
   const rows = query.data ?? [];
 
   if (query.isPending) {
-    return <div className="h-40 animate-pulse rounded-xl bg-muted/50" aria-busy="true" />;
+    return <div className="h-40 animate-pulse rounded-lg bg-muted/50" aria-busy="true" />;
   }
   if (query.isError) return <ClubErrorNotice onRetry={() => void query.refetch()} />;
 
@@ -178,7 +178,7 @@ export function ClubThreadPollsPanel({
         <div className="flex justify-end">
           <Button size="sm" onClick={() => setComposing(true)}>
             <Plus className="mr-1.5 h-3.5 w-3.5" />
-            {t("club.workspace.polls.create")}
+            {t("club.threadHub.polls.create")}
           </Button>
         </div>
       ) : null}
@@ -191,10 +191,10 @@ export function ClubThreadPollsPanel({
             create.mutate(input, {
               onSuccess: () => {
                 setComposing(false);
-                toast.success(t("club.workspace.polls.created"));
+                toast.success(t("club.threadHub.polls.created"));
               },
               onError: (error) =>
-                toast.error(t(`club.workspace.error.${toClubWorkspaceError(error)}`)),
+                toast.error(t(`club.threadHub.error.${toClubWorkspaceError(error)}`)),
             })
           }
         />
@@ -203,11 +203,11 @@ export function ClubThreadPollsPanel({
       {rows.length === 0 ? (
         <ClubWorkspaceEmpty
           icon={<Vote className="h-5 w-5" />}
-          title={t("club.workspace.polls.empty")}
+          title={t("club.threadHub.polls.empty")}
           hint={
             canCurate
-              ? t("club.workspace.polls.emptyHint")
-              : t("club.workspace.polls.emptyReadonly")
+              ? t("club.threadHub.polls.emptyHint")
+              : t("club.threadHub.polls.emptyReadonly")
           }
         />
       ) : (
@@ -222,8 +222,8 @@ export function ClubThreadPollsPanel({
                   <ClubStatusPill
                     label={t(
                       row.poll_status === "open"
-                        ? "club.workspace.polls.open"
-                        : "club.workspace.polls.closed",
+                        ? "club.threadHub.polls.open"
+                        : "club.threadHub.polls.closed",
                     )}
                     tone={row.poll_status === "open" ? "active" : "done"}
                   />
@@ -234,15 +234,15 @@ export function ClubThreadPollsPanel({
                     variant="ghost"
                     className="h-7 px-2 text-xs text-destructive hover:text-destructive"
                     onClick={() => {
-                      if (!window.confirm(t("club.workspace.polls.detachConfirm"))) return;
+                      if (!window.confirm(t("club.threadHub.polls.detachConfirm"))) return;
                       detach.mutate(row.id, {
-                        onSuccess: () => toast.success(t("club.workspace.polls.detached")),
+                        onSuccess: () => toast.success(t("club.threadHub.polls.detached")),
                         onError: (error) =>
-                          toast.error(t(`club.workspace.error.${toClubWorkspaceError(error)}`)),
+                          toast.error(t(`club.threadHub.error.${toClubWorkspaceError(error)}`)),
                       });
                     }}
                   >
-                    {t("club.workspace.polls.detach")}
+                    {t("club.threadHub.polls.detach")}
                   </Button>
                 ) : null}
               </div>
