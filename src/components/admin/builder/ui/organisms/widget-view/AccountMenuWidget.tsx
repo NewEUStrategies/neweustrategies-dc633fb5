@@ -142,10 +142,19 @@ export const ACCOUNT_PRESETS: Array<{
   {
     key: "network",
     href: "/network",
-    label_pl: "Moja sieć",
-    label_en: "My network",
+    label_pl: "Sieć kontaktów",
+    label_en: "Network",
     icon: "UserPlus",
   },
+  {
+    // Hub klubów dyskusyjnych - moduł społecznościowy (/club).
+    key: "clubs",
+    href: "/club",
+    label_pl: "Kluby dyskusyjne",
+    label_en: "Discussion clubs",
+    icon: "MessagesSquare",
+  },
+
   {
     key: "interests",
     href: "/profile/interests",
