@@ -1420,6 +1420,162 @@ SELECT pg_temp.assert(
     LIKE '%p_actor_id uuid%p_suppress_actor boolean%',
   'aktor stoi PRZED tlumieniem - odwrotna kolejnosc rozwiazuje 25 wywolan billingu');
 
+\echo '== 55. [A28] Przestrzen robocza: dokumenty, kalendarz, harmonogram, pomiar =='
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+
+-- Bramka kuratorska. Jedna funkcja obsluguje dwanascie wywolan, wiec jej
+-- odmowa jest jedynym miejscem, w ktorym te dwanascie moze sie rozjechac.
+SELECT public.club_document_upsert(:'club_id'::uuid, format(
+  '{"slug":"raport-zapasy","title_pl":"Raport: zapasy","title_en":"Report: stocks",
+    "kind":"analysis","external_url":"https://example.org/a","visibility":"club"}')::jsonb)
+  AS doc_public \gset
+SELECT public.club_document_upsert(:'club_id'::uuid, format(
+  '{"slug":"notatka-robocza","title_pl":"Notatka","title_en":"Note",
+    "kind":"minutes","external_url":"https://example.org/b","visibility":"moderators"}')::jsonb)
+  AS doc_mod \gset
+
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_documents WHERE club_id = :'club_id'::uuid) = 2,
+  'A28: kurator dodal dwa dokumenty');
+SELECT pg_temp.assert(
+  (SELECT tenant_id FROM public.club_documents WHERE id = :'doc_public'::uuid)
+    = '11111111-1111-1111-1111-111111111111',
+  'A28: dokument dziedziczy tenanta z klubu (trigger, nie wejscie)');
+
+-- Dokument prowadzenia jest odsiewany W PROJEKCJI. Gdyby filtr siedzial
+-- w kliencie, notatka i tak przyjechalaby po sieci.
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_documents_list(:'club_id'::uuid,NULL,NULL,NULL,50,0)) = 2,
+  'A28: kurator widzi takze dokument moderatorski');
+
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000003';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_documents_list(:'club_id'::uuid,NULL,NULL,NULL,50,0)) = 1,
+  'A28: czlonek nie widzi dokumentu o widocznosci "moderators"');
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_document_upsert('%s','{"slug":"x","title_pl":"X","title_en":"X","external_url":"https://e.org"}'::jsonb) $q$, :'club_id'),
+  'A28: czlonek bez can_moderate nie dodaje dokumentu');
+
+-- UWAGA NA SEMANTYKE `members`: to jest "widoczne dla zalogowanych", a NIE
+-- "widoczne dla czlonkow klubu" (club_capabilities: visibility IN
+-- ('public','members') => can_read). Nie-czlonek widzi wiec biblioteke
+-- publiczna tego klubu - i to jest poprawne. Cisza wobec obcego jest
+-- testowana nizej, na klubie `private`.
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000004';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_documents_list(:'club_id'::uuid,NULL,NULL,NULL,50,0)) = 1,
+  'A28: nie-czlonek klubu "members" widzi wylacznie dokumenty jawne');
+
+-- Kalendarz + obecnosc.
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT public.club_event_upsert(:'club_id'::uuid,
+  ('{"slug":"posiedzenie-1","title_pl":"Posiedzenie","title_en":"Sitting",
+     "kind":"meeting","starts_at":"' || (now() + interval '7 day')::text ||
+   '","meeting_url":"https://meet.example/abc","rsvp_enabled":true,"capacity":1}')::jsonb)
+  AS ev_meet \gset
+
+SELECT pg_temp.assert(
+  (SELECT meeting_url FROM public.club_events_list(:'club_id'::uuid,NULL,NULL,NULL,50)
+    WHERE id = :'ev_meet'::uuid) = 'https://meet.example/abc',
+  'A28: kurator widzi adres pokoju spotkania');
+
+-- ADRES POKOJU SPOTKANIA to nie jest metadana wydarzenia, tylko klucz do
+-- niego. Nie-czlonek widzi, ZE spotkanie jest, i nie dostaje linku - inaczej
+-- kazdy zalogowany wchodzi na posiedzenie klubu, do ktorego nie nalezy.
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000004';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_events_list(:'club_id'::uuid,NULL,NULL,NULL,50)) = 1,
+  'A28: nie-czlonek klubu "members" widzi termin posiedzenia');
+SELECT pg_temp.assert(
+  (SELECT meeting_url FROM public.club_events_list(:'club_id'::uuid,NULL,NULL,NULL,50)
+    WHERE id = :'ev_meet'::uuid) IS NULL,
+  'A28: adres pokoju spotkania NIE wychodzi poza uczestnikow');
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_event_rsvp('%s','going') $q$, :'ev_meet'),
+  'A28: obecnosc wymaga AKTYWNEGO czlonkostwa, nie samego can_read');
+
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000003';
+SELECT public.club_event_rsvp(:'ev_meet'::uuid, 'going');
+SELECT pg_temp.assert(
+  (SELECT going_count FROM public.club_events WHERE id = :'ev_meet'::uuid) = 1,
+  'A28: trigger policzyl obecnych');
+-- Zmiana 'going' -> 'going' nie zajmuje DRUGIEGO miejsca przy limicie 1.
+SELECT public.club_event_rsvp(:'ev_meet'::uuid, 'going');
+SELECT pg_temp.assert(
+  (SELECT going_count FROM public.club_events WHERE id = :'ev_meet'::uuid) = 1,
+  'A28: powtorzona deklaracja nie zwieksza licznika');
+
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000005';
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_event_rsvp('%s','going') $q$, :'ev_meet'),
+  'A28: limit miejsc zamyka liste obecnych');
+-- Zejscie z listy NIGDY nie moze byc zablokowane przez limit.
+SELECT public.club_event_rsvp(:'ev_meet'::uuid, 'declined');
+SELECT pg_temp.assert(
+  (SELECT going_count FROM public.club_events WHERE id = :'ev_meet'::uuid) = 1,
+  'A28: odmowa przechodzi mimo pelnej listy i nie rusza licznika obecnych');
+
+-- Harmonogram: kolejnosc nadawana automatycznie, gdy klient jej nie poda.
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT public.club_milestone_upsert(:'club_id'::uuid,
+  '{"slug":"konsultacje","title_pl":"Konsultacje","title_en":"Consultations","state":"active"}'::jsonb) AS ms1 \gset
+SELECT public.club_milestone_upsert(:'club_id'::uuid,
+  '{"slug":"pierwsze-czytanie","title_pl":"Pierwsze czytanie","title_en":"First reading"}'::jsonb) AS ms2 \gset
+SELECT pg_temp.assert(
+  (SELECT order_index FROM public.club_milestones WHERE id = :'ms2'::uuid) = 1,
+  'A28: kolejny etap dostaje nastepna pozycje bez udzialu klienta');
+
+-- Pomiar. Szereg ma KAZDY dzien okna, takze pusty - inaczej wykres ma dziury.
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_activity_series(:'club_id'::uuid, 30)) = 30,
+  'A28: szereg dzienny wypelnia luki zerami');
+
+SELECT pg_temp.assert(
+  (SELECT documents_count FROM public.club_workspace_stats(:'club_id'::uuid, 30)) = 2,
+  'A28: przekroj liczy dokumenty widoczne dla wolajacego');
+SELECT pg_temp.assert(
+  (SELECT upcoming_events FROM public.club_workspace_stats(:'club_id'::uuid, 30)) = 1,
+  'A28: przekroj liczy nadchodzace wydarzenia');
+SELECT pg_temp.assert(
+  (SELECT open_milestones FROM public.club_workspace_stats(:'club_id'::uuid, 30)) = 2,
+  'A28: przekroj liczy otwarte etapy');
+
+-- Klub :club_id ma attribution_mode='anonymous_allowed', wiec ranking autorow
+-- MUSI byc pusty. To jest ta sama regula, co ukrywanie autora we wpisie:
+-- lista dziesieciu nazwisk deanonimizuje rozmowe skuteczniej niz podpis.
+SELECT pg_temp.assert(
+  (SELECT top_contributors FROM public.club_workspace_stats(:'club_id'::uuid, 30)) = '[]'::jsonb,
+  'A28: ranking autorow milczy poza klubem atrybuowanym');
+
+-- Cisza wobec obcego - na klubie, ktory REALNIE jest zamkniety. Pomiar jest
+-- wyciekiem tak samo jak tresc: liczba tematow i rozklad rodzajow opisuja
+-- klub wystarczajaco dokladnie, by nie oddawac ich osobie bez dostepu.
+SELECT public.admin_club_upsert('{"slug":"klub-zamkniety","name_pl":"Klub zamkniety",
+  "name_en":"Closed club","visibility":"private","status":"active"}'::jsonb) AS closed_club \gset
+SELECT public.club_document_upsert(:'closed_club'::uuid,
+  '{"slug":"tajny","title_pl":"Tajny","title_en":"Secret","external_url":"https://e.org/s"}'::jsonb);
+
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000004';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_documents_list(:'closed_club'::uuid,NULL,NULL,NULL,50,0)) = 0,
+  'A28: obcy nie widzi biblioteki klubu private');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_workspace_stats(:'closed_club'::uuid, 30)) = 0,
+  'A28: obcy nie pozna nawet ksztaltu dynamiki klubu private');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_activity_series(:'closed_club'::uuid, 30)) = 0,
+  'A28: szereg dzienny takze milczy wobec obcego');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_milestones_list(:'closed_club'::uuid)) = 0,
+  'A28: harmonogram klubu private takze milczy');
+
+-- Izolacja miedzy klubami: id z klubu B podane pod bramka klubu A.
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_document_upsert('%s','{"id":"%s","title_pl":"Przejete"}'::jsonb) $q$,
+         :'lay_club', :'doc_public'),
+  'A28: kurator nie przejmie dokumentu innego klubu, podajac jego id');
+
 \echo ''
 \echo '=========================================='
 \echo ' WSZYSTKIE ASERCJE PRZESZLY'

@@ -140,6 +140,49 @@ export const clubKeys = {
 
   capabilitiesPreview: (clubId: string, userId: string, groupId?: string | null) =>
     [...clubKeys.club(clubId), "capabilitiesPreview", userId, groupId ?? "club"] as const,
+
+  // --- przestrzen robocza (A28) ---
+  //
+  // Wszystkie galezie wisza pod `club(clubId)`, wiec jedna inwalidacja po
+  // mutacji kuratorskiej czysci biblioteke, kalendarz, harmonogram I pomiar.
+  // To jest celowe: dopiecie dokumentu do watku zmienia rowniez licznik
+  // w przekroju, a dwie osobne inwalidacje rozjechalyby sie przy pierwszej
+  // nowej mutacji.
+
+  /** Biblioteka. Kazdy filtr jest czescia klucza - inaczej przelaczenie
+   *  rodzaju pokazywaloby poprzednia strone jako swoja. */
+  documents: (
+    clubId: string,
+    groupId: string | null,
+    kind: string | null,
+    search: string,
+    offset: number,
+  ) =>
+    [
+      ...clubKeys.club(clubId),
+      "documents",
+      groupId ?? "all",
+      kind ?? "all",
+      search,
+      offset,
+    ] as const,
+  /** Prefiks wszystkich wariantow biblioteki - mutacja nie zna filtrow,
+   *  ktore czytelnik ma otwarte. */
+  documentsAll: (clubId: string) => [...clubKeys.club(clubId), "documents"] as const,
+
+  /** Kalendarz. Zakres jest czescia klucza, bo przejscie na kolejny miesiac
+   *  to INNE zapytanie, a nie odswiezenie tego samego. */
+  events: (clubId: string, from: string | null, to: string | null, kind: string | null) =>
+    [...clubKeys.club(clubId), "events", from ?? "any", to ?? "any", kind ?? "all"] as const,
+  eventsAll: (clubId: string) => [...clubKeys.club(clubId), "events"] as const,
+
+  milestones: (clubId: string) => [...clubKeys.club(clubId), "milestones"] as const,
+
+  /** Pomiar. Okno jest czescia klucza - 30 i 90 dni to dwa rozne wykresy. */
+  activitySeries: (clubId: string, days: number) =>
+    [...clubKeys.club(clubId), "activitySeries", days] as const,
+  workspaceStats: (clubId: string, days: number) =>
+    [...clubKeys.club(clubId), "workspaceStats", days] as const,
 } as const;
 
 export const adminClubKeys = {
