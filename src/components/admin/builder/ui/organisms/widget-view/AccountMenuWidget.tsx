@@ -352,25 +352,33 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
     </button>
   );
 
-  const renderItem = (entry: ReturnType<typeof sectionItems>[number]) => {
+  // Wspólna geometria pozycji: 6 px rounding (wytyczna platformy), pasek akcentu
+  // po lewej na hover/focus i wejście kaskadowe (`--am-i` = indeks pozycji).
+  const ITEM_CLASS =
+    "account-menu-item group relative flex w-full items-center gap-3 rounded-[6px] px-2.5 py-2 text-left text-sm outline-none transition-[background-color,transform,color] duration-200 hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-2 focus-visible:ring-[color:var(--account-accent)]/40";
+
+  const renderItem = (entry: ReturnType<typeof sectionItems>[number], index = 0) => {
     const it = entry.raw;
+    const style = { ["--am-i" as string]: index } as CSSProperties;
     if (it.kind === "separator") {
-      return <div key={it.id} className="my-1 h-px bg-border/70" role="separator" />;
+      return <div key={it.id} className="my-1.5 h-px bg-border/70" role="separator" />;
     }
     if (it.kind === "logout") {
       return (
         <button
           key={it.id}
           type="button"
+          style={style}
           onClick={async () => {
             setOpen(false);
             await signOut();
           }}
-          className="flex w-full items-start gap-3 rounded-md px-2.5 py-2 text-left text-sm hover:bg-muted/60 transition-colors"
+          className={ITEM_CLASS}
         >
+          <span className="account-menu-accent" aria-hidden />
           <IconByName
             name={it.icon || "LogOut"}
-            className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
+            className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-[color:var(--account-accent)]"
           />
           <span className="flex-1">
             <span className="block font-medium leading-tight">{entry.label || logoutLabel}</span>
@@ -384,7 +392,11 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
     if (!entry.href) return null;
     const content = (
       <>
-        <IconByName name={it.icon} className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+        <span className="account-menu-accent" aria-hidden />
+        <IconByName
+          name={it.icon}
+          className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-[color:var(--account-accent)]"
+        />
         <span className="flex-1 min-w-0">
           <span className="block font-medium leading-tight truncate">{entry.label}</span>
           {entry.desc ? (
@@ -393,6 +405,10 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
             </span>
           ) : null}
         </span>
+        <ChevronRight
+          className="h-3.5 w-3.5 shrink-0 -translate-x-1 text-muted-foreground/50 opacity-0 transition-all duration-200 group-hover:translate-x-0 group-hover:opacity-100"
+          aria-hidden
+        />
       </>
     );
     if (it.external) {
@@ -402,7 +418,8 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
           href={entry.href}
           target="_blank"
           rel="noreferrer noopener"
-          className="flex items-start gap-3 rounded-md px-2.5 py-2 text-sm hover:bg-muted/60 transition-colors"
+          style={style}
+          className={ITEM_CLASS}
           onClick={() => setOpen(false)}
         >
           {content}
@@ -413,13 +430,15 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
       <AppLink
         key={it.id}
         href={entry.href}
-        className="flex items-start gap-3 rounded-md px-2.5 py-2 text-sm hover:bg-muted/60 transition-colors"
+        style={style}
+        className={ITEM_CLASS}
         onClick={() => setOpen(false)}
       >
         {content}
       </AppLink>
     );
   };
+
 
   // Defaults when admin has not configured any menu items yet - sensible fallback so the
   // widget never looks empty even on a fresh install.
