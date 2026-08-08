@@ -201,11 +201,7 @@ export function ClubDirectory({
       </div>
 
       {loading ? (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-busy="true">
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="h-44 animate-pulse rounded-lg bg-muted/50" />
-          ))}
-        </div>
+        <ClubDirectorySkeleton layout={layout} />
       ) : clubs.length === 0 ? (
         <p className="rounded-lg border border-dashed border-border/60 p-6 text-center text-sm text-muted-foreground">
           {empty}
