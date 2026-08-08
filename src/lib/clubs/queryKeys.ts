@@ -189,9 +189,9 @@ export const clubKeys = {
   // w przekroju, a dwie osobne inwalidacje rozjechalyby sie przy pierwszej
   // nowej mutacji.
 
-  /** Biblioteka. Kazdy filtr jest czescia klucza - inaczej przelaczenie
-   *  rodzaju pokazywaloby poprzednia strone jako swoja. */
-  documents: (
+  /** Biblioteka KLUBU. Nazwa `library*` odroznia ja od `documents(threadId)`
+   *  z warstwy watku - to dwa rozne zbiory pod dwoma roznymi korzeniami. */
+  libraryDocuments: (
     clubId: string,
     groupId: string | null,
     kind: string | null,
@@ -216,7 +216,8 @@ export const clubKeys = {
     [...clubKeys.club(clubId), "events", from ?? "any", to ?? "any", kind ?? "all"] as const,
   eventsAll: (clubId: string) => [...clubKeys.club(clubId), "events"] as const,
 
-  milestones: (clubId: string) => [...clubKeys.club(clubId), "milestones"] as const,
+  clubMilestones: (clubId: string) => [...clubKeys.club(clubId), "milestones"] as const,
+
 
   /** Pomiar. Okno jest czescia klucza - 30 i 90 dni to dwa rozne wykresy. */
   activitySeries: (clubId: string, days: number) =>
