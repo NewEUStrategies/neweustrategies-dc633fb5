@@ -97,6 +97,10 @@ function ClubHome() {
   const [anchored, setAnchored] = useState<boolean | null>(null);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [query, setQuery] = useState("");
+  // Filtry są ZWINIĘTE domyślnie: pięć droplist nad listą wątków zjadało cały
+  // pierwszy ekran, a porządek sortowania - jedyna kontrolka używana za każdym
+  // wejściem - stoi w pasku na stałe.
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const { session } = useAuth();
   const signedIn = session !== null;
