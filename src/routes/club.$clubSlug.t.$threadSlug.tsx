@@ -12,7 +12,7 @@
 // podpowiedzi w polu jedyną drogą do wzmianki było wpisanie sluga z pamięci.
 //
 // Wejście "Zgłoś" stoi przy KAŻDYM wpisie - wątku i odpowiedzi (V1 §7).
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -60,9 +60,9 @@ import { ClubReactionBar } from "@/components/clubs/molecules/ClubReactionBar";
 import { ClubFollowButton } from "@/components/clubs/molecules/ClubFollowButton";
 import { ClubInlineEditor } from "@/components/clubs/molecules/ClubInlineEditor";
 import { ClubStanceBar } from "@/components/clubs/molecules/ClubStanceBar";
-import { ClubThreadPoll } from "@/components/clubs/organisms/ClubThreadPoll";
+
 import { ClubNewRepliesBar } from "@/components/clubs/molecules/ClubNewRepliesBar";
-import { ClubReportButton } from "@/components/clubs/molecules/ClubReportDialog";
+import { ClubReportButton } from "@/components/clubs/molecules/ClubReportButton";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
 import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
 import { fetchClubBySlug } from "@/lib/clubs/api";
@@ -81,6 +81,24 @@ import {
 import { ensureClubI18n } from "@/lib/i18n-club";
 
 const BODY_MAX = 10000;
+
+/**
+ * Sondaż i dialog zgłoszenia są ŁADOWANE LENIWIE - ta sama konwencja, co
+ * `lazyBlockViews` dla bloków interaktywnych, i z tego samego powodu:
+ *
+ *   * sondaż ciągnie za sobą całą warstwę `polls` (zapytania publiczne,
+ *     głosowanie, słupki), a dotyczy JEDNEGO z sześciu rodzajów wątku;
+ *   * dialog zgłoszenia ciągnie radix Dialog, a otwiera się raz na wiele
+ *     tysięcy odsłon.
+ *
+ * Statyczny import obu wciągał je do wspólnego grafu każdej odsłony wątku,
+ * czyli płaciliśmy za nie zawsze, żeby użyć ich prawie nigdy.
+ */
+const ClubThreadPoll = lazy(() =>
+  import("@/components/clubs/organisms/ClubThreadPoll").then((m) => ({
+    default: m.ClubThreadPoll,
+  })),
+);
 
 export const Route = createFileRoute("/club/$clubSlug/t/$threadSlug")({
   // Naglowek potrzebuje widocznosci klubu, zeby rozstrzygnac indeksowalnosc,
@@ -359,7 +377,13 @@ function ClubThreadView() {
           głosowanie, co na /polls - z anti-anchoringiem włącznie. */}
       {thread.kind === "poll" && thread.poll_id !== null ? (
         <div className="mt-4">
-          <ClubThreadPoll pollId={thread.poll_id} lang={lang} userId={user?.id ?? null} />
+          <Suspense
+            fallback={
+              <div className="h-40 animate-pulse rounded-lg bg-muted/50" aria-busy="true" />
+            }
+          >
+            <ClubThreadPoll pollId={thread.poll_id} lang={lang} userId={user?.id ?? null} />
+          </Suspense>
         </div>
       ) : null}
 
