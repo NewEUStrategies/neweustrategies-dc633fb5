@@ -7,7 +7,7 @@
 // kosztuje wiecej niz brak zakladki.
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { areaLabel } from "@/lib/tracker/stages";
+import { clubTopicLabel } from "@/lib/clubs/policyAreas";
 import { countClubTopics } from "@/lib/clubs/topics";
 import { cn } from "@/lib/utils";
 
@@ -46,7 +46,7 @@ export function ClubTopicNav({
               active={value === topic.area}
               onClick={() => onChange(value === topic.area ? null : topic.area)}
             >
-              {areaLabel(topic.area, lang)}
+              {clubTopicLabel(topic.area, lang, t)}
               <Count n={topic.count} />
             </TopicChip>
           </li>

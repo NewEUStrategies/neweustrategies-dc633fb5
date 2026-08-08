@@ -22,7 +22,7 @@ import { Link } from "@tanstack/react-router";
 import { Layers, MessagesSquare, Users2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ClubCover } from "@/components/clubs/atoms/ClubCover";
-import { areaLabel } from "@/lib/tracker/stages";
+import { clubTopicLabel } from "@/lib/clubs/policyAreas";
 import { CLUB_VISIBILITIES, type ClubLayout, type ClubVisibility } from "@/lib/clubs/types";
 
 export interface ClubDirectoryCard {
@@ -73,7 +73,7 @@ function ClubStats({ club, isPl }: { club: ClubDirectoryCard; isPl: boolean }) {
       </span>
       {club.policy_area !== null && club.policy_area.trim() !== "" ? (
         <span className="uppercase tracking-wide">
-          {areaLabel(club.policy_area, isPl ? "pl" : "en")}
+          {clubTopicLabel(club.policy_area, isPl ? "pl" : "en", t)}
         </span>
       ) : null}
     </div>
