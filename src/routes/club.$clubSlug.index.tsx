@@ -294,22 +294,46 @@ function ClubHome() {
           Kontrolka jest WSPÓLNA z hubem: wcześniej ten sam układ (ikona, pole
           `pl-9 pr-9`, przycisk czyszczenia) stał tu w drugiej kopii, więc
           poprawka celu dotykowego musiałaby być robiona dwa razy. */}
-      <div className="mb-3">
+      {/* Pasek sterowania: fraza, porządek i przełącznik reszty filtrów w
+          jednym wierszu. Sortowanie zostaje na wierzchu, bo zmienia listę
+          przy każdym wejściu; grupa/rodzaj/status to zawężenia okazjonalne. */}
+      <div className="mb-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_11rem_auto]">
         <ClubGlobalSearchInput
           value={query}
           onChange={setQuery}
           placeholderKey="club.searchPlaceholder"
         />
+        {/* Sześć porządków z RPC (A18), nie dwa. `mine` i `subscribed`
+            filtrują po wołającym, więc dla anonima zwróciłyby pusty zbiór
+            i sugerowały, że klub jest pusty - dla niego ich nie ma. */}
+        <Select value={sort} onValueChange={(v) => setSort(v as ClubThreadSort)}>
+          <SelectTrigger aria-label={t("club.sort.label")} className={searching ? "hidden" : ""}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {availableSorts.map((value) => (
+              <SelectItem key={value} value={value}>
+                {t(`club.sort.${value}`)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          type="button"
+          variant="outline"
+          aria-expanded={filtersOpen}
+          onClick={() => setFiltersOpen((v) => !v)}
+          className={searching ? "hidden" : ""}
+        >
+          <SlidersHorizontal className="mr-1.5 h-4 w-4" aria-hidden="true" />
+          {t("club.filters.title")}
+        </Button>
       </div>
 
       {/* Filtry znikają w trybie wyszukiwania: droplista, która nic nie robi,
-          jest gorsza niż jej brak.
-          Siatka rośnie z liczbą kontrolek (od trzech do pięciu, zależnie od
-          roli i sesji), więc kolumny są deklarowane progami, a nie sztywną
-          trójką - inaczej piąty filtr lądowałby sam w nowym wierszu na desktopie
-          i zjadał wysokość nad listą. */}
+          jest gorsza niż jej brak. */}
       <div
-        className={`mb-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 ${searching ? "hidden" : ""}`}
+        className={`mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 ${searching || !filtersOpen ? "hidden" : ""}`}
       >
         <Select value={groupId ?? ALL} onValueChange={(v) => setGroupId(v === ALL ? null : v)}>
           <SelectTrigger aria-label={t("club.groups")}>
@@ -325,19 +349,6 @@ function ClubHome() {
           </SelectContent>
         </Select>
 
-        {/* Sześć porządków z RPC (A18), nie dwa. `mine` i `subscribed`
-            filtrują po wołającym, więc dla anonima zwróciłyby pusty zbiór
-            i sugerowały, że klub jest pusty - dla niego ich nie ma. */}
-        <Select value={sort} onValueChange={(v) => setSort(v as ClubThreadSort)}>
-          <SelectTrigger aria-label={t("club.sort.label")}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {availableSorts.map((value) => (
-              <SelectItem key={value} value={value}>
-                {t(`club.sort.${value}`)}
-              </SelectItem>
-            ))}
           </SelectContent>
         </Select>
 
