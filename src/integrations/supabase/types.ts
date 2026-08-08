@@ -2527,6 +2527,94 @@ export type Database = {
           },
         ]
       }
+      club_thread_documents: {
+        Row: {
+          added_by: string | null
+          byte_size: number | null
+          club_id: string
+          created_at: string
+          description: string | null
+          id: string
+          is_primary: boolean
+          kind: string
+          mime_type: string | null
+          published_on: string | null
+          search_vector: unknown
+          sort_order: number
+          source_label: string | null
+          status: string
+          tenant_id: string
+          thread_id: string
+          title: string
+          updated_at: string
+          url: string | null
+        }
+        Insert: {
+          added_by?: string | null
+          byte_size?: number | null
+          club_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_primary?: boolean
+          kind?: string
+          mime_type?: string | null
+          published_on?: string | null
+          search_vector?: unknown
+          sort_order?: number
+          source_label?: string | null
+          status?: string
+          tenant_id: string
+          thread_id: string
+          title: string
+          updated_at?: string
+          url?: string | null
+        }
+        Update: {
+          added_by?: string | null
+          byte_size?: number | null
+          club_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_primary?: boolean
+          kind?: string
+          mime_type?: string | null
+          published_on?: string | null
+          search_vector?: unknown
+          sort_order?: number
+          source_label?: string | null
+          status?: string
+          tenant_id?: string
+          thread_id?: string
+          title?: string
+          updated_at?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_thread_documents_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_thread_documents_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_thread_documents_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "club_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       club_thread_embeddings: {
         Row: {
           embedding: string | null
@@ -2561,6 +2649,346 @@ export type Database = {
             foreignKeyName: "club_thread_embeddings_thread_id_fkey"
             columns: ["thread_id"]
             isOneToOne: true
+            referencedRelation: "club_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      club_thread_links: {
+        Row: {
+          club_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          note: string | null
+          related_thread_id: string
+          relation: string
+          tenant_id: string
+          thread_id: string
+        }
+        Insert: {
+          club_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          related_thread_id: string
+          relation?: string
+          tenant_id: string
+          thread_id: string
+        }
+        Update: {
+          club_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          related_thread_id?: string
+          relation?: string
+          tenant_id?: string
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_thread_links_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_thread_links_related_thread_id_fkey"
+            columns: ["related_thread_id"]
+            isOneToOne: false
+            referencedRelation: "club_threads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_thread_links_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_thread_links_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "club_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      club_thread_milestones: {
+        Row: {
+          all_day: boolean
+          club_id: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          ends_at: string | null
+          event_id: string | null
+          id: string
+          kind: string
+          location: string | null
+          owner_id: string | null
+          search_vector: unknown
+          sort_order: number
+          starts_at: string
+          status: string
+          tenant_id: string
+          thread_id: string
+          title: string
+          updated_at: string
+          url: string | null
+        }
+        Insert: {
+          all_day?: boolean
+          club_id: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          ends_at?: string | null
+          event_id?: string | null
+          id?: string
+          kind?: string
+          location?: string | null
+          owner_id?: string | null
+          search_vector?: unknown
+          sort_order?: number
+          starts_at: string
+          status?: string
+          tenant_id: string
+          thread_id: string
+          title: string
+          updated_at?: string
+          url?: string | null
+        }
+        Update: {
+          all_day?: boolean
+          club_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          ends_at?: string | null
+          event_id?: string | null
+          id?: string
+          kind?: string
+          location?: string | null
+          owner_id?: string | null
+          search_vector?: unknown
+          sort_order?: number
+          starts_at?: string
+          status?: string
+          tenant_id?: string
+          thread_id?: string
+          title?: string
+          updated_at?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_thread_milestones_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_thread_milestones_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_thread_milestones_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_thread_milestones_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "club_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      club_thread_polls: {
+        Row: {
+          club_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          label: string | null
+          poll_id: string
+          sort_order: number
+          tenant_id: string
+          thread_id: string
+        }
+        Insert: {
+          club_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label?: string | null
+          poll_id: string
+          sort_order?: number
+          tenant_id: string
+          thread_id: string
+        }
+        Update: {
+          club_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label?: string | null
+          poll_id?: string
+          sort_order?: number
+          tenant_id?: string
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_thread_polls_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_thread_polls_poll_id_fkey"
+            columns: ["poll_id"]
+            isOneToOne: false
+            referencedRelation: "polls"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_thread_polls_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_thread_polls_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "club_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      club_thread_question_votes: {
+        Row: {
+          created_at: string
+          question_id: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          question_id: string
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          question_id?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_thread_question_votes_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "club_thread_questions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_thread_question_votes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      club_thread_questions: {
+        Row: {
+          answer_body: string | null
+          answered_at: string | null
+          answered_by: string | null
+          author_id: string | null
+          body: string
+          club_id: string
+          created_at: string
+          id: string
+          is_anonymous: boolean
+          search_vector: unknown
+          status: string
+          tenant_id: string
+          thread_id: string
+          updated_at: string
+          vote_count: number
+        }
+        Insert: {
+          answer_body?: string | null
+          answered_at?: string | null
+          answered_by?: string | null
+          author_id?: string | null
+          body: string
+          club_id: string
+          created_at?: string
+          id?: string
+          is_anonymous?: boolean
+          search_vector?: unknown
+          status?: string
+          tenant_id: string
+          thread_id: string
+          updated_at?: string
+          vote_count?: number
+        }
+        Update: {
+          answer_body?: string | null
+          answered_at?: string | null
+          answered_by?: string | null
+          author_id?: string | null
+          body?: string
+          club_id?: string
+          created_at?: string
+          id?: string
+          is_anonymous?: boolean
+          search_vector?: unknown
+          status?: string
+          tenant_id?: string
+          thread_id?: string
+          updated_at?: string
+          vote_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_thread_questions_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_thread_questions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_thread_questions_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
             referencedRelation: "club_threads"
             referencedColumns: ["id"]
           },
