@@ -472,6 +472,30 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
         },
         {
           raw: {
+            id: "default-network",
+            section: "auth" as const,
+            kind: "preset" as const,
+            presetKey: "network",
+            icon: "UserPlus",
+          },
+          href: "/network",
+          label: lang === "pl" ? "Sieć kontaktów" : "Network",
+          desc: "",
+        },
+        {
+          raw: {
+            id: "default-clubs",
+            section: "auth" as const,
+            kind: "preset" as const,
+            presetKey: "clubs",
+            icon: "MessagesSquare",
+          },
+          href: "/club",
+          label: lang === "pl" ? "Kluby dyskusyjne" : "Discussion clubs",
+          desc: "",
+        },
+        {
+          raw: {
             id: "default-bookmarks",
             section: "auth" as const,
             kind: "preset" as const,
@@ -482,6 +506,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
           label: lang === "pl" ? "Zapisane" : "Saved",
           desc: "",
         },
+
         {
           raw: {
             id: "default-logout",
