@@ -529,6 +529,44 @@ export const clubPl = {
   },
 
   adminClubs: {
+    // --- katalog obszarów tematycznych ---
+    topics: {
+      title: "Obszary tematyczne",
+      subtitle:
+        "Wspólna taksonomia dla klubów i wątków. Zmiany widać od razu w kreatorze i w filtrach.",
+      add: "Dodaj obszar",
+      loading: "Wczytywanie obszarów...",
+      empty: "Nie ma jeszcze żadnych obszarów tematycznych.",
+      activeSummary: "Aktywne: {{active}} z {{total}}.",
+      system: "systemowy",
+      disabled: "wyłączony",
+      usage: "kluby: {{clubs}} · wątki: {{threads}}",
+      toggleAria: "Włącz lub wyłącz obszar {{name}}",
+      edit: "Edytuj obszar",
+      delete: "Usuń obszar",
+      deleted: "Obszar został usunięty.",
+      deleteTitle: "Usunąć obszar tematyczny?",
+      deleteBody:
+        "Usuwać można wyłącznie obszary, których nie używa żaden klub ani wątek. Pozostałe wyłącz przełącznikiem.",
+      dialogCreate: "Nowy obszar tematyczny",
+      dialogEdit: "Edycja obszaru",
+      dialogHint: "Podaj nazwę po polsku i angielsku - obie wersje są wymagane.",
+      labelPl: "Nazwa (PL)",
+      labelEn: "Nazwa (EN)",
+      key: "Klucz",
+      order: "Kolejność",
+      activeLabel: "Aktywny w tej organizacji",
+      save: "Zapisz",
+      saved: "Zapisano obszar.",
+      cancel: "Anuluj",
+      adminOnly: "Ta sekcja jest dostępna wyłącznie dla administratorów.",
+      errors: {
+        labels: "Nazwa PL i EN musi mieć co najmniej 2 znaki.",
+        key: "Klucz może zawierać tylko małe litery, cyfry i myślnik.",
+        duplicate: "Obszar o takim kluczu już istnieje.",
+        inUse: "Obszar jest używany przez kluby lub wątki - wyłącz go zamiast usuwać.",
+      },
+    },
     // --- panel administracyjny ---
     navLabel: "Kluby dyskusyjne",
     title: "Kluby dyskusyjne",
@@ -1570,6 +1608,44 @@ export const clubEn = {
   },
 
   adminClubs: {
+    // --- policy area catalogue ---
+    topics: {
+      title: "Policy areas",
+      subtitle:
+        "A shared taxonomy for clubs and threads. Changes apply instantly to creators and filters.",
+      add: "Add area",
+      loading: "Loading areas...",
+      empty: "No policy areas yet.",
+      activeSummary: "Active: {{active}} of {{total}}.",
+      system: "system",
+      disabled: "disabled",
+      usage: "clubs: {{clubs}} · threads: {{threads}}",
+      toggleAria: "Enable or disable the {{name}} area",
+      edit: "Edit area",
+      delete: "Delete area",
+      deleted: "Area deleted.",
+      deleteTitle: "Delete this policy area?",
+      deleteBody:
+        "Only areas unused by any club or thread can be deleted. Disable the rest with the toggle.",
+      dialogCreate: "New policy area",
+      dialogEdit: "Edit area",
+      dialogHint: "Provide both Polish and English names - both are required.",
+      labelPl: "Name (PL)",
+      labelEn: "Name (EN)",
+      key: "Key",
+      order: "Order",
+      activeLabel: "Active in this organisation",
+      save: "Save",
+      saved: "Area saved.",
+      cancel: "Cancel",
+      adminOnly: "This section is available to administrators only.",
+      errors: {
+        labels: "Both PL and EN names need at least 2 characters.",
+        key: "The key may contain lowercase letters, digits and hyphens only.",
+        duplicate: "An area with this key already exists.",
+        inUse: "The area is used by clubs or threads - disable it instead of deleting.",
+      },
+    },
     navLabel: "Discussion clubs",
     title: "Discussion clubs",
     subtitle:

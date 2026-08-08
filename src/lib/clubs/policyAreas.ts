@@ -1,61 +1,40 @@
-// Słownik obszarów tematycznych klubów dyskusyjnych.
+// Warstwa zgodności dla starej, zaszytej taksonomii obszarów tematycznych.
 //
-// Jedno miejsce prawdy po stronie klienta dla listy domkniętej w bazie przez
-// funkcję `public.club_topic_valid()`. Kluby (kolumna `clubs.policy_area`)
-// i wątki (`club_threads.topic`) korzystają z TEGO SAMEGO słownika - inaczej
-// nawigacja po tematyce w hubie rozjeżdża się z filtrem wewnątrz klubu.
-//
-// Etykiety idą przez i18n (`club.topic.<key>`), a nie przez zaszyte stringi:
-// PL i EN muszą pochodzić z bramki parytetu, żeby brak tłumaczenia oblewał CI,
-// zamiast pokazywać surowy klucz.
+// Źródłem prawdy jest teraz katalog w bazie (`club_topics`) i moduł
+// `topicCatalog.ts`. Ten plik zostaje, bo importuje go kilka miejsc, ale nie
+// zawiera już własnej listy - inaczej obszar dodany w panelu byłby "nieznany"
+// dla połowy aplikacji.
 
-import { areaLabel } from "@/lib/tracker/stages";
-export const CLUB_TOPICS = [
-  "geopolitics",
-  "transport",
-  "energy",
-  "cybersecurity",
-  "technology",
-  "finance",
-  "economy",
-  "diplomacy",
-  "international_relations",
-  "culture",
-] as const;
+import {
+  CLUB_TOPIC_FALLBACK,
+  CLUB_TOPIC_NONE,
+  normalizeTopicValue,
+  topicLabel,
+  type ClubLang,
+  type ClubTopicOption,
+} from "@/lib/clubs/topicCatalog";
 
-export type ClubTopic = (typeof CLUB_TOPICS)[number];
+export { CLUB_TOPIC_NONE };
+export type ClubTopic = string;
 
-/** Wartość sentinel dla "bez obszaru" - Radix Select nie przyjmuje "". */
-export const CLUB_TOPIC_NONE = "none";
+/** Domyślne klucze - używane wyłącznie jako lista awaryjna. */
+export const CLUB_TOPICS: readonly string[] = CLUB_TOPIC_FALLBACK.map((o) => o.key);
 
-export function isClubTopic(value: string | null | undefined): value is ClubTopic {
+export function isClubTopic(value: string | null | undefined): value is string {
   if (value === null || value === undefined) return false;
-  return (CLUB_TOPICS as readonly string[]).includes(value);
+  return value.trim() !== "";
 }
 
-/** Klucz i18n etykiety; dla wartości spoza słownika zwraca null. */
-export function clubTopicI18nKey(value: string): string | null {
-  return isClubTopic(value) ? `club.topic.${value}` : null;
+export function normalizeClubTopic(value: string | null | undefined): string | null {
+  return normalizeTopicValue(value);
 }
 
-/** Normalizacja z formularza: pusty string i sentinel znaczą "brak". */
-export function normalizeClubTopic(value: string | null | undefined): ClubTopic | null {
-  if (value === null || value === undefined) return null;
-  const trimmed = value.trim();
-  if (trimmed === "" || trimmed === CLUB_TOPIC_NONE) return null;
-  return isClubTopic(trimmed) ? trimmed : null;
-}
-
-/**
- * Etykieta do wyświetlenia. Wartości ze słownika idą przez i18n; starsze
- * wpisy (kluby założone przed wprowadzeniem taksonomii, np. klucze monitora
- * legislacyjnego) dostają etykietę z `areaLabel`, więc nic nie znika z UI.
- */
+/** Etykieta obszaru; `catalog` pozwala uwzględnić nazwy z panelu. */
 export function clubTopicLabel(
   value: string,
-  lang: "pl" | "en",
-  t: (key: string) => string,
+  lang: ClubLang,
+  _t?: (key: string) => string,
+  catalog: readonly ClubTopicOption[] = [],
 ): string {
-  const key = clubTopicI18nKey(value);
-  return key !== null ? t(key) : areaLabel(value, lang);
+  return topicLabel(value, lang, catalog);
 }

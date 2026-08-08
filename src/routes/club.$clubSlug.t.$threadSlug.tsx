@@ -30,6 +30,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ClubTopicChip } from "@/components/clubs/atoms/ClubTopicChip";
+import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -133,6 +135,7 @@ function ClubThreadView() {
   const isPl = lang === "pl";
   const { clubSlug, threadSlug } = Route.useParams();
   const { user } = useAuth();
+  const { topics: topicCatalog } = useClubTopics();
 
   const clubQ = useClubBySlug(clubSlug);
   const club = clubQ.data ?? null;
@@ -313,6 +316,9 @@ function ClubThreadView() {
           {/* Kotwica jest KRAWĘDZIĄ w grafie treści, więc pokazujemy ją tam,
               gdzie czytelnik decyduje, czy wątek go dotyczy - w nagłówku, nie
               na dole. */}
+          {/* Obszar tematyczny wątku - ten sam chip co na hubie i w klubie,
+              żeby czytelnik rozpoznał tematykę bez czytania etykiety. */}
+          <ClubTopicChip topic={thread.topic} lang={isPl ? "pl" : "en"} catalog={topicCatalog} />
           {thread.anchor_type !== null ? (
             <Badge variant="secondary" className="gap-1">
               <Link2 className="h-3 w-3" aria-hidden="true" />

@@ -503,6 +503,15 @@ function AdminShellInner({
             defaultValue: lang === "pl" ? "Klub - elementy" : "Club elements",
           }),
         },
+        {
+          // Taksonomia obszarów tematycznych jest wspólna dla całej
+          // organizacji, więc mieszka obok klubów, nie w konkretnym klubie.
+          to: "/admin/community/clubs/topics",
+          icon: Shapes,
+          label: t("admin.nav.clubTopics", {
+            defaultValue: lang === "pl" ? "Klub - obszary tematyczne" : "Club policy areas",
+          }),
+        },
 
         {
           to: "/admin/comments",

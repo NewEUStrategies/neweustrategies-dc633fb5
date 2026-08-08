@@ -49,7 +49,8 @@ import {
 } from "@/components/clubs/molecules/ClubHubLayoutSwitch";
 import { ClubTopicNav } from "@/components/clubs/molecules/ClubTopicNav";
 import { rankClubs } from "@/lib/clubs/clubMatch";
-import { clubTopicLabel } from "@/lib/clubs/policyAreas";
+import { topicLabel } from "@/lib/clubs/topicCatalog";
+import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import { buildClubHead } from "@/lib/clubs/clubHead";
 import { ensureClubI18n } from "@/lib/i18n-club";
 
@@ -69,6 +70,7 @@ function ClubHub() {
   const signedIn = Boolean(session);
 
   const [topic, setTopic] = useState<string | null>(null);
+  const { topics: topicCatalog } = useClubTopics();
   const [query, setQuery] = useState("");
   // Układ katalogu jest decyzją CZYTELNIKA, więc mieszka w localStorage, a nie
   // w bazie - w odróżnieniu od `clubs.layout`, którym rządzi administrator.
@@ -106,10 +108,10 @@ function ClubHub() {
             topicLabel: (club) =>
               club.policy_area === null
                 ? null
-                : clubTopicLabel(club.policy_area, isPl ? "pl" : "en", t),
+                : topicLabel(club.policy_area, isPl ? "pl" : "en", topicCatalog),
           })
         : [],
-    [searching, clubs, debouncedQuery, isPl, t],
+    [searching, clubs, debouncedQuery, isPl, topicCatalog],
   );
 
   const access = resolveClubHubAccess({
