@@ -43,6 +43,19 @@ import { CLUB_THREAD_KINDS, type ClubThreadKind } from "@/lib/clubs/types";
 import { ensureClubI18n } from "@/lib/i18n-club";
 
 export const Route = createFileRoute("/club/$clubSlug/new")({
+  // Rodzaj wątku przychodzi z kompozytora na hubie ("Zadaj pytanie",
+  // "Zajmij stanowisko"). Bez tego parametru te skróty byłyby ozdobą:
+  // prowadziłyby do formularza ustawionego zawsze na "dyskusję", więc
+  // użytkownik i tak musiałby przestawić droplistę, którą już raz kliknął.
+  //
+  // Wartość spoza słownika degraduje do domyślnej - adres jest wejściem
+  // użytkownika i nie ma prawa wywrócić kompozytora.
+  validateSearch: (search: Record<string, unknown>): { kind?: ClubThreadKind } => {
+    const raw = search["kind"];
+    return typeof raw === "string" && (CLUB_THREAD_KINDS as readonly string[]).includes(raw)
+      ? { kind: raw as ClubThreadKind }
+      : {};
+  },
   loader: async ({ context, params }) => {
     const club = await context.queryClient
       .ensureQueryData({
@@ -74,6 +87,7 @@ function ClubNewThread() {
   const { t, i18n } = useTranslation();
   const isPl = (i18n.language ?? "pl").startsWith("pl");
   const { clubSlug } = Route.useParams();
+  const search = Route.useSearch();
   const navigate = useNavigate();
 
   const clubQ = useClubBySlug(clubSlug);
@@ -82,7 +96,10 @@ function ClubNewThread() {
   const createM = useCreateClubThread(club?.id ?? "");
 
   const [groupId, setGroupId] = useState("");
-  const [kind, setKind] = useState<ClubThreadKind>("discussion");
+  // Rodzaj z adresu jest wartością POCZĄTKOWĄ, nie sterującą: po wejściu
+  // droplista należy do użytkownika i przeładowanie propsa nie ma prawa
+  // cofnąć jego wyboru.
+  const [kind, setKind] = useState<ClubThreadKind>(search.kind ?? "discussion");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [anonymous, setAnonymous] = useState(false);

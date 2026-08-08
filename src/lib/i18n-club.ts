@@ -61,6 +61,75 @@ export const clubPl = {
 
     // --- strona główna klubów (hub) ---
     hub: {
+      // --- hub pojedynczego klubu (strumień + dwie szyny) ---
+      sectionsLabel: "Sekcje klubu",
+      more: "Więcej",
+      sections: {
+        threads: "Strumień",
+        documents: "Dokumenty",
+        calendar: "Kalendarz",
+        schedule: "Harmonogram",
+        insights: "Dynamika",
+        members: "Skład",
+      },
+      identity: {
+        members: "członków",
+        threads: "tematów",
+      },
+      composer: {
+        placeholder: "Rozpocznij dyskusję w tym klubie...",
+        closed: {
+          moderators: "Tematy w tym klubie zakłada prowadzenie. Możesz odpowiadać w istniejących.",
+          members: "Dołącz do klubu, aby zakładać tematy i brać udział w dyskusji.",
+        },
+      },
+      feed: {
+        modeLabel: "Zawartość strumienia",
+        mode: {
+          all: "Wszystko",
+          threads: "Wątki",
+          documents: "Dokumenty",
+          calendar: "Terminy",
+        },
+        empty: {
+          all: "W tym klubie nie ma jeszcze nic do pokazania.",
+          threads: "W tym klubie nie ma jeszcze tematów.",
+          documents: "W tym klubie nie ma jeszcze dokumentów.",
+          calendar: "Nie ma zaplanowanych terminów.",
+        },
+        pinned: "Przypięty",
+        eventLabel: "W kalendarzu klubu",
+        documentLabel: "Materiał klubu",
+        documentsLabel: "Nowe materiały",
+        stageLabel: "Etap prac",
+        toSchedule: "Zobacz harmonogram",
+        participantsCount_one: "{{count}} uczestnik",
+        participantsCount_few: "{{count}} uczestników",
+        participantsCount_many: "{{count}} uczestników",
+        participantsCount_other: "{{count}} uczestników",
+      },
+      pulse: {
+        title: "Puls klubu",
+        chartLabel: "Aktywność klubu w ostatnich 30 dniach",
+        replies: "Odpowiedzi",
+        active: "Aktywni",
+        unanswered: "Bez odpowiedzi",
+      },
+      upNext: {
+        title: "Co przed nami",
+      },
+      stage: {
+        title: "Bieżący etap",
+        due: "termin: {{date}}",
+        doneOf: "{{done}} z {{total}} etapów zamkniętych",
+      },
+      freshDocs: {
+        title: "Świeże materiały",
+      },
+      people: {
+        title: "Kto tu rozmawia",
+      },
+
       eyebrow: "Przestrzeń członkowska",
       clubsCount_one: "{{count}} klub",
       clubsCount_few: "{{count}} kluby",
@@ -1338,6 +1407,73 @@ export const clubEn = {
 
     // --- discussion clubs hub ---
     hub: {
+      // --- single-club hub (stream + two rails) ---
+      sectionsLabel: "Club sections",
+      more: "More",
+      sections: {
+        threads: "Stream",
+        documents: "Documents",
+        calendar: "Calendar",
+        schedule: "Schedule",
+        insights: "Activity",
+        members: "Members",
+      },
+      identity: {
+        members: "members",
+        threads: "topics",
+      },
+      composer: {
+        placeholder: "Start a discussion in this club...",
+        closed: {
+          moderators: "Topics here are opened by the club leads. You can reply in existing ones.",
+          members: "Join the club to open topics and take part in the discussion.",
+        },
+      },
+      feed: {
+        modeLabel: "Stream contents",
+        mode: {
+          all: "Everything",
+          threads: "Topics",
+          documents: "Documents",
+          calendar: "Dates",
+        },
+        empty: {
+          all: "There is nothing to show in this club yet.",
+          threads: "This club has no topics yet.",
+          documents: "This club has no documents yet.",
+          calendar: "No dates are scheduled.",
+        },
+        pinned: "Pinned",
+        eventLabel: "In the club calendar",
+        documentLabel: "Club material",
+        documentsLabel: "New materials",
+        stageLabel: "Work stage",
+        toSchedule: "See the schedule",
+        participantsCount_one: "{{count}} participant",
+        participantsCount_other: "{{count}} participants",
+      },
+      pulse: {
+        title: "Club pulse",
+        chartLabel: "Club activity over the last 30 days",
+        replies: "Replies",
+        active: "Active",
+        unanswered: "Unanswered",
+      },
+      upNext: {
+        title: "What is ahead",
+      },
+      stage: {
+        title: "Current stage",
+        due: "due: {{date}}",
+        doneOf: "{{done}} of {{total}} stages closed",
+      },
+      freshDocs: {
+        title: "Fresh materials",
+      },
+      people: {
+        title: "Who is talking here",
+      },
+
       eyebrow: "Members' space",
       clubsCount_one: "{{count}} club",
       clubsCount_other: "{{count}} clubs",

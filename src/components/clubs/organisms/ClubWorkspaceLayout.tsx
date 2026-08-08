@@ -21,7 +21,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ClubCover } from "@/components/clubs/atoms/ClubCover";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
-import { ClubWorkspaceNav } from "@/components/clubs/molecules/ClubWorkspaceNav";
+// Ta sama nawigacja, co w hubie. Wcześniej stały tu dwie różne kontrolki
+// (pigułki na podstronach, szyna w hubie), więc ten sam zestaw sekcji miał
+// dwa kształty i dwa promienie - a użytkownik nie ma powodu domyślać się,
+// że to jest ta sama nawigacja.
+import { ClubHubSectionBar } from "@/components/clubs/molecules/ClubHubRail";
 import { ClubDetailSkeleton } from "@/components/clubs/atoms/ClubSkeletons";
 import { useClubBySlug } from "@/lib/clubs/useClubs";
 import type { ClubViewRow } from "@/lib/clubs/types";
@@ -137,7 +141,7 @@ export function ClubWorkspaceLayout({
           ) : null}
         </div>
 
-        <ClubWorkspaceNav
+        <ClubHubSectionBar
           clubSlug={clubSlug}
           canSeeMembers={club.can_see_members}
           className="mt-3"
