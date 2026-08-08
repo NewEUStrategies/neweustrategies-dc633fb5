@@ -45,9 +45,11 @@ import { useDeleteClubGroup, useUpsertClubGroup } from "@/lib/clubs/useClubs";
 import {
   CLUB_ATTRIBUTION_MODES,
   CLUB_GROUP_STATUSES,
+  CLUB_GROUP_VISIBILITIES,
   CLUB_MODERATION_MODES,
   CLUB_POST_POLICIES,
   CLUB_VISIBILITIES,
+  toClubGroupVisibility,
   toGroupSettings,
   type AdminClubGroupRow,
   type ClubAttributionMode,
@@ -314,15 +316,33 @@ export function ClubGroupEditorDialog({
               </p>
 
               <div className="grid gap-4 sm:grid-cols-2">
+                {/* Dwa różne słowniki dla jednego pola, bo to dwie różne role.
+                    Przy dziedziczeniu pokazujemy wartość EFEKTYWNĄ, a ta w
+                    klubie publicznym bywa 'public' - droplista musi umieć ją
+                    wyrenderować (jest wtedy i tak wyłączona, więc nic z niej
+                    nie poleci do bazy). Przy nadpisaniu obowiązuje CHECK
+                    `club_groups.visibility`, który 'public' odrzuca: dział nie
+                    może być bardziej otwarty niż klub. Stąd sprowadzenie
+                    wartości w momencie zdjęcia dziedziczenia - inaczej
+                    administrator zapisywałby wybór, który baza odbija. */}
                 <InheritedField
                   label={t("adminClubs.fields.visibility")}
                   inherited={draft.visibilityInherit}
-                  onToggleInherit={(inherit) => patch({ visibilityInherit: inherit })}
+                  onToggleInherit={(inherit) =>
+                    patch(
+                      inherit
+                        ? { visibilityInherit: true }
+                        : {
+                            visibilityInherit: false,
+                            visibility: toClubGroupVisibility(draft.visibility),
+                          },
+                    )
+                  }
                   disabled={saveM.isPending}
                 >
                   <ClubEnumSelect
                     value={draft.visibility}
-                    options={CLUB_VISIBILITIES}
+                    options={draft.visibilityInherit ? CLUB_VISIBILITIES : CLUB_GROUP_VISIBILITIES}
                     i18nPrefix="club.visibility"
                     onChange={(visibility) => patch({ visibility })}
                     disabled={saveM.isPending || draft.visibilityInherit}

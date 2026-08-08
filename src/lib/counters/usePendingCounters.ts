@@ -13,7 +13,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { subscribeToTable } from "@/lib/realtime/tableChannelHub";
 import { pendingCounterKeys } from "./keys";
 
-export type UserCounterKey = "notifications_unread" | "chat_unread" | "connections_pending";
+export type UserCounterKey =
+  | "notifications_unread"
+  | "chat_unread"
+  | "connections_pending"
+  // Nieprzeczytane wpisy w klubach dyskusyjnych. Licznik utrzymuje trigger
+  // `club_bump_unread` (migracja A18) - do 2026-08-08 nie mial po stronie
+  // klienta ANI JEDNEGO czytelnika, wiec baza liczyla go dla nikogo.
+  | "club_unread";
 export type TenantCounterKey = "comments_pending" | "crm_leads_new";
 
 export type CounterMap = Readonly<Record<string, number>>;

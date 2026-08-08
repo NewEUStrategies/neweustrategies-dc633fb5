@@ -366,7 +366,7 @@ export function ClubElementsCatalog() {
   })).filter((row) => matchesCode(row.code, row.sentence));
   const inviteErrors = CLUB_INVITE_ERRORS.map((code) => ({
     code,
-    sentence: t(`adminClubs.invites.error.${code}`),
+    sentence: t(`adminClubs.invitations.error.${code}`),
   })).filter((row) => matchesCode(row.code, row.sentence));
   const saveErrors = CLUB_SAVE_ERRORS.map((code) => ({
     code,
@@ -632,13 +632,13 @@ export function ClubElementsCatalog() {
               <VocabRow
                 label={t("clubElements.vocab.inviteChannel")}
                 values={CLUB_INVITE_CHANNELS}
-                prefix="adminClubs.invites.channelName"
+                prefix="adminClubs.invitations.channelName"
                 query={query}
               />
               <VocabRow
                 label={t("clubElements.vocab.invitationStatus")}
                 values={CLUB_INVITATION_STATUSES}
-                prefix="adminClubs.invites.statusName"
+                prefix="adminClubs.invitations.statusName"
                 query={query}
               />
               <VocabRow

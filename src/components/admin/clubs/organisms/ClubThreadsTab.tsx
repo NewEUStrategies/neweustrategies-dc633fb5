@@ -74,6 +74,7 @@ import {
   type AdminClubThreadRow,
   type ClubThreadKind,
 } from "@/lib/clubs/types";
+import { formatDateTime } from "@/lib/i18n/format";
 
 const ANY = "__any__";
 
@@ -100,8 +101,22 @@ export function ClubThreadsTab({ clubId, isPl }: { clubId: string; isPl: boolean
   const bulkM = useBulkModerateClub(clubId);
   const moveM = useMoveClubThread(clubId);
 
-  const rows = threadsQ.data?.rows ?? [];
+  // `useMemo` na pustej liście, a nie `?? []` w locie: bez tego każdy render
+  // daje nową referencję, a memoizacja niżej przestaje cokolwiek memoizować.
+  const rows = useMemo(() => threadsQ.data?.rows ?? [], [threadsQ.data]);
   const groups = groupsQ.data ?? [];
+
+  // Zaznaczenie jest DERYWOWANE względem tego, co realnie widać. Surowy zbiór
+  // trzymany bez przecięcia znaczył, że zmiana filtra (albo cudze skasowanie
+  // wątku między refetchami) zostawia w partii identyfikatory wierszy, których
+  // administrator nie ma już na ekranie - i "usuń 12" kasuje coś, czego nie
+  // widział. Przecięcie zamiast czyszczenia w useEffect: nie kosztuje dodatkowego
+  // renderu, a łapie też znikanie wierszy BEZ zmiany filtra.
+  const visibleIds = useMemo(() => new Set(rows.map((r) => r.id)), [rows]);
+  const selectedVisible = useMemo(
+    () => [...selected].filter((id) => visibleIds.has(id)),
+    [selected, visibleIds],
+  );
 
   const toggle = (id: string) =>
     setSelected((prev) => {
@@ -124,8 +139,8 @@ export function ClubThreadsTab({ clubId, isPl }: { clubId: string; isPl: boolean
     );
 
   const bulkAct = (action: "pin" | "unpin" | "lock" | "delete" | "restore") => {
-    if (selected.size === 0) return;
-    const ids = [...selected];
+    if (selectedVisible.length === 0) return;
+    const ids = selectedVisible;
     bulkM.mutate(
       { targetType: "thread", targetIds: ids, action },
       {
@@ -199,10 +214,10 @@ export function ClubThreadsTab({ clubId, isPl }: { clubId: string; isPl: boolean
       </div>
 
       {/* --- pasek akcji wsadowych: pojawia się tylko przy zaznaczeniu --- */}
-      {selected.size > 0 ? (
+      {selectedVisible.length > 0 ? (
         <div className="sticky top-16 z-20 flex flex-wrap items-center gap-2 rounded-lg border border-primary/40 bg-primary/5 p-3 backdrop-blur">
           <span className="text-sm font-medium">
-            {t("adminClubs.threads.selected", { count: selected.size })}
+            {t("adminClubs.threads.selected", { count: selectedVisible.length })}
           </span>
           <div className="flex flex-wrap gap-1.5">
             <Button
@@ -239,7 +254,7 @@ export function ClubThreadsTab({ clubId, isPl }: { clubId: string; isPl: boolean
               disabled={bulkM.isPending}
               onClick={() =>
                 setConfirm({
-                  title: t("adminClubs.threads.bulkDeleteTitle", { count: selected.size }),
+                  title: t("adminClubs.threads.bulkDeleteTitle", { count: selectedVisible.length }),
                   description: t("adminClubs.threads.deleteBody"),
                   destructive: true,
                   onConfirm: () => bulkAct("delete"),
@@ -283,7 +298,7 @@ export function ClubThreadsTab({ clubId, isPl }: { clubId: string; isPl: boolean
                   <TableHead className="w-10">
                     <Checkbox
                       aria-label={t("adminClubs.threads.selectAll")}
-                      checked={selected.size === rows.length && rows.length > 0}
+                      checked={selectedVisible.length === rows.length && rows.length > 0}
                       onCheckedChange={(v) =>
                         setSelected(v === true ? new Set(rows.map((r) => r.id)) : new Set())
                       }
@@ -679,7 +694,9 @@ function ThreadDetailDialog({
   const [authorId, setAuthorId] = useState("");
   const [showMove, setShowMove] = useState(false);
 
-  const replies = repliesQ.data ?? [];
+  const replies = repliesQ.data?.rows ?? [];
+  // Suma z RPC, nie dlugosc strony: moderator ma wiedziec, ze widzi wycinek.
+  const repliesTotal = repliesQ.data?.total ?? 0;
   const groups = (groupsQ.data ?? []).filter((g) => g.id !== thread?.group_id);
 
   const submitReply = () => {
@@ -750,8 +767,13 @@ function ThreadDetailDialog({
         {/* Odpowiedzi */}
         <div className="space-y-2">
           <h3 className="text-sm font-semibold">
-            {t("club.repliesCount", { count: replies.length })}
+            {t("club.repliesCount", { count: repliesTotal })}
           </h3>
+          {repliesTotal > replies.length ? (
+            <p className="text-xs text-muted-foreground">
+              {t("club.repliesTruncated", { shown: replies.length, total: repliesTotal })}
+            </p>
+          ) : null}
           {repliesQ.isPending ? (
             <div className="h-20 animate-pulse rounded-lg bg-muted/50" aria-busy="true" />
           ) : replies.length === 0 ? (
@@ -775,7 +797,7 @@ function ThreadDetailDialog({
                       <span className="font-medium text-foreground">
                         {r.is_anonymous ? t("adminClubs.threads.protectedIdentity") : r.author_name}
                       </span>
-                      <span>{new Date(r.created_at).toLocaleString(isPl ? "pl-PL" : "en-GB")}</span>
+                      <span>{formatDateTime(r.created_at, isPl ? "pl" : "en")}</span>
                       {note !== null ? <span className="italic">{note}</span> : null}
                       {removed ? (
                         <Badge variant="outline" className="text-[11px] text-destructive">

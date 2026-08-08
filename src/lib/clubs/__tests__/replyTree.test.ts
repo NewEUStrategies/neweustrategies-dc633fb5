@@ -27,6 +27,9 @@ function reply(overrides: Partial<ClubReplyRow> & { id: string }): ClubReplyRow 
     created_at: overrides.created_at ?? "2026-08-08T10:00:00Z",
     edited_at: overrides.edited_at ?? null,
     is_resolution: overrides.is_resolution ?? false,
+    // Stanowisko autora: wychodzi wylacznie w watku 'position' przy autorstwie
+    // jawnym, wiec domyslna atrapa ma je puste.
+    author_stance: overrides.author_stance ?? null,
     // Kolumna okienkowa z RPC. Atrapa musi ja miec, bo jej brak znaczyl, ze
     // test sprawdza inny ksztalt niz ten, ktory dostaje komponent.
     total_count: overrides.total_count ?? 1,

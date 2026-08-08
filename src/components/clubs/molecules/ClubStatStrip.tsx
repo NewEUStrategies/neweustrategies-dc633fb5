@@ -23,7 +23,11 @@ export function ClubStatStrip({ clubs }: { clubs: readonly ClubStatSource[] }) {
   const seats = clubs.reduce((sum, c) => sum + c.member_count, 0);
 
   return (
-    <dl className="grid grid-cols-3 gap-2 sm:gap-3">
+    // Trzy kolumny dopiero od `sm`. Na 360 px trzy kafle po ~110 px ucinały
+    // etykiety ("Wątk...", "Miejsc w klu..."), a `truncate` zamieniało to
+    // w wielokropek zamiast w informację. Reszta repo skaluje paski liczników
+    // tak samo: grid-cols-1/2 -> więcej dopiero wyżej.
+    <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
       <Stat
         icon={<Layers className="h-4 w-4" />}
         label={t("club.hub.statClubs")}
@@ -52,10 +56,10 @@ function Stat({
   hint?: string;
 }) {
   return (
-    <div className="rounded-lg border border-border/60 bg-card p-3">
+    <div className="min-w-0 rounded-lg border border-border/60 bg-card p-3">
       <dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
         {icon}
-        <span className="truncate">{label}</span>
+        <span className="min-w-0 truncate">{label}</span>
       </dt>
       <dd className="mt-1 text-2xl font-semibold tabular-nums leading-none">{value}</dd>
       {hint !== undefined ? <p className="mt-1 text-xs text-muted-foreground">{hint}</p> : null}

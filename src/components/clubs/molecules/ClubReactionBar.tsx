@@ -76,6 +76,15 @@ export function ClubReactionBar({
               // aria-pressed, bo to przycisk przełączany - czytnik ekranu musi
               // powiedzieć, czy reakcja jest już postawiona.
               aria-pressed={active}
+              // Nazwa dostępna JAWNIE, nie z treści. Poniżej breakpointu `sm`
+              // etykieta ma `display:none`, więc wypada z drzewa dostępności,
+              // a ikona lucide dostaje `aria-hidden` automatycznie - na telefonie
+              // czytnik ekranu odczytywał wyłącznie licznik ("12") i nie było
+              // wiadomo, czego dotyczy. Licznik dokładamy do etykiety, bo bez
+              // niego znika informacja, ile osób już tak zareagowało.
+              aria-label={
+                total > 0 ? `${t(`club.reaction.${kind}`)} (${total})` : t(`club.reaction.${kind}`)
+              }
               title={t(`club.reaction.${kind}`)}
               className={cn(
                 "h-7 gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors",
@@ -85,9 +94,15 @@ export function ClubReactionBar({
               )}
               onClick={() => onToggle(kind, active)}
             >
-              <Icon className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">{t(`club.reaction.${kind}`)}</span>
-              {total > 0 ? <span className="tabular-nums">{total}</span> : null}
+              <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+              <span aria-hidden="true" className="hidden sm:inline">
+                {t(`club.reaction.${kind}`)}
+              </span>
+              {total > 0 ? (
+                <span aria-hidden="true" className="tabular-nums">
+                  {total}
+                </span>
+              ) : null}
             </Button>
           );
         })}

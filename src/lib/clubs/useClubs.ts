@@ -31,7 +31,6 @@ import {
   fetchAdminClubStats,
   fetchAdminClubs,
   fetchClubBySlug,
-  fetchClubCapabilities,
   fetchClubGroups,
   fetchClubList,
   fetchClubInvitations,
@@ -45,16 +44,20 @@ import {
   fetchClubThreadsForAnchor,
   fetchClubMembers,
   fetchClubReactions,
+  fetchClubAnchorSuggestions,
   fetchClubReplies,
   fetchClubStanceSummary,
   fetchClubThread,
   fetchClubThreads,
   fetchMyClubInvitations,
   fetchMyClubMemberships,
+  markClubRead,
+  reportClubContent,
   searchClubThreads,
   fetchMyThreadSubscription,
   inviteClubMember,
   inviteClubMemberByEmail,
+  inviteClubSegment,
   joinClub,
   leaveClub,
   moderateClubTarget,
@@ -66,24 +69,30 @@ import {
   resolveClubThread,
   respondClubInvitation,
   revokeClubInviteLink,
+  setClubMemberRole,
   setClubNotifyLevel,
   setClubStance,
   setClubThreadSubscription,
   unreactFromClubTarget,
   previewClubCapabilities,
+  previewClubSegment,
   removeClubMember,
   reorderClubGroups,
   upsertClub,
   upsertClubGroup,
   upsertClubMember,
   type AdminClubsPage,
+  type AdminRepliesPage,
   type AdminThreadsPage,
   type AdminClubModerationPage,
   type ClubListPage,
   type ClubMembersPage,
+  type ClubRepliesPage,
   type ClubThreadsPage,
   type CreateThreadResult,
 } from "./api";
+import { pendingCounterKeys } from "@/lib/counters/keys";
+import { CLUB_SEMANTIC_MIN_CHARS, embedClubQuery } from "./clubSemantic.functions";
 import { adminClubKeys, clubKeys } from "./queryKeys";
 import { applyReactionToggle } from "./types";
 import type {
@@ -96,8 +105,12 @@ import type {
   ClubActivityRow,
   ClubActivitySort,
   ClubAnchorHit,
-  ClubSearchHit,
-  AdminClubReplyRow,
+  ClubAnchorSuggestion,
+  ClubAnchorType,
+  ClubReportReason,
+  ClubSearchResult,
+  ClubSegmentPreview,
+  ClubSegmentRule,
   ClubModerationAction,
   AdminClubListFilters,
   AdminClubStatsRow,
@@ -115,13 +128,13 @@ import type {
   ClubReactionKind,
   ClubReactionTally,
   ClubReactionTarget,
-  ClubReplyRow,
   ClubReplySort,
   ClubStance,
   ClubStanceSummaryRow,
   ClubSubscriptionState,
   ClubThreadKind,
   ClubThreadSort,
+  ClubThreadStatus,
   ClubThreadViewRow,
   ClubUpsertInput,
   ClubViewRow,
@@ -130,14 +143,31 @@ import type {
 /** Dane klubowe zmieniaja sie w rytmie dyskusji, nie sekund - 30 s wystarcza. */
 const STALE_MS = 30_000;
 
+/**
+ * Uniewaznienie po mutacji dotykajacej JEDNEGO klubu.
+ *
+ * Trzy klucze, nie jeden, bo karta klubu (`bySlug`) wisi POZA poddrzewem
+ * `club(clubId)` - mutacja pracuje na id, a widok czyta po slugu. Bez tego
+ * dolaczenie do klubu zapisywalo sie w bazie, odswiezalo liste i czlonkostwa,
+ * a naglowek otwartego klubu dalej pokazywal stary licznik i przycisk
+ * "Dolacz" - az do wygasniecia staleTime.
+ */
+function invalidateClubCard(qc: ReturnType<typeof useQueryClient>, clubId: string): void {
+  void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
+  void qc.invalidateQueries({ queryKey: clubKeys.list() });
+  void qc.invalidateQueries({ queryKey: clubKeys.bySlugAll() });
+}
+
 // ---------------------------------------------------------------------------
 // Odczyt
 // ---------------------------------------------------------------------------
 
-export function useClubList(enabled = true): UseQueryResult<ClubListPage, Error> {
+export function useClubList(enabled = true, limit = 100): UseQueryResult<ClubListPage, Error> {
   return useQuery({
-    queryKey: clubKeys.list(),
-    queryFn: () => fetchClubList({}),
+    // Limit JEST czescia klucza: "pokaz wiecej" zmienia rozmiar strony, a bez
+    // tego trafialoby w ten sam wpis cache i katalog zostawalby na setce.
+    queryKey: [...clubKeys.list(), limit] as const,
+    queryFn: () => fetchClubList({ limit }),
     staleTime: STALE_MS,
     enabled,
   });
@@ -197,29 +227,24 @@ export function useClubMembers(params: {
 }): UseQueryResult<ClubMembersPage, Error> {
   const { clubId, status = "active", limit = 50, offset = 0 } = params;
   return useQuery({
-    queryKey: clubKeys.members(clubId ?? "", status, offset),
+    // Limit JEST częścią klucza: dwa widoki tej samej listy z różnymi limitami
+    // (zakładka członków 50, panel moderacji 100) liczyły ten sam klucz, więc
+    // ten, który trafił drugi, dostawał krótszą stronę z cache i milczał o tym.
+    queryKey: clubKeys.members(clubId ?? "", status, offset, limit),
     queryFn: () => fetchClubMembers({ clubId: clubId ?? "", status, limit, offset }),
     staleTime: STALE_MS,
     enabled: Boolean(clubId),
   });
 }
 
-/**
- * Zdolnosci wolajacego. Trzymane osobno od karty klubu, bo ten sam wynik jest
- * potrzebny na kilku ekranach naraz (lista tematow, kompozytor, pasek akcji),
- * a jedno zrodlo w cache oznacza jedno zapytanie zamiast trzech.
- */
-export function useClubCapabilities(
-  clubId: string | undefined,
-  groupId?: string | null,
-): UseQueryResult<ClubCapabilities, Error> {
-  return useQuery({
-    queryKey: clubKeys.capabilities(clubId ?? "", groupId),
-    queryFn: () => fetchClubCapabilities(clubId ?? "", groupId),
-    staleTime: STALE_MS,
-    enabled: Boolean(clubId),
-  });
-}
+// USUNIETO `useClubCapabilities`. Hook mial zero konsumentow w calym src:
+// kazdy ekran produktowy czyta zdolnosci z kolumn, ktore RPC i tak zwraca
+// razem z trescia (`club_view.can_*`, `club_threads_list`, `club_thread_view`),
+// bo tam sa policzone dla TEJ SAMEJ pary (klub, grupa), ktorej dotyczy widok.
+// Osobne zapytanie o to samo bylo drugim zrodlem tej samej prawdy - i tym
+// samym drugim miejscem, w ktorym moglaby sie rozjechac. Zdolnosci w panelu
+// czyta `useClubCapabilitiesPreview`, ktore odpowiada na INNE pytanie:
+// "co zobaczy wskazana osoba", a nie "co widze ja".
 
 // ---------------------------------------------------------------------------
 // Panel administracyjny
@@ -349,6 +374,66 @@ export function useUpsertClubMember(
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input) => upsertClubMember({ ...input, clubId }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
+      void qc.invalidateQueries({ queryKey: adminClubKeys.all });
+    },
+  });
+}
+
+export interface SetClubRoleVars {
+  userId: string;
+  role: ClubMemberRole;
+  expiresAt?: string | null;
+}
+
+/**
+ * Zmiana roli czlonka Z POZIOMU KLUBU (prowadzacy), nie z panelu (administrator).
+ * Uniewaznia poddrzewo klubu, bo lista czlonkow i naglowek czytaja te sama role.
+ */
+export function useSetClubMemberRole(
+  clubId: string,
+): UseMutationResult<boolean, Error, SetClubRoleVars> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars) => setClubMemberRole({ clubId, ...vars }),
+    onSuccess: () => invalidateClubCard(qc, clubId),
+  });
+}
+
+/**
+ * Podglad kampanii segmentowej. Osobne zapytanie od wysylki, wiec administrator
+ * widzi liczby ZANIM cokolwiek pojdzie - i widzi je ponownie po kazdej zmianie
+ * reguly, bez klikania "przelicz".
+ */
+export function useClubSegmentPreview(params: {
+  clubId: string | undefined;
+  rule: ClubSegmentRule;
+  enabled: boolean;
+}): UseQueryResult<ClubSegmentPreview, Error> {
+  const { clubId, rule, enabled } = params;
+  return useQuery({
+    queryKey: [...clubKeys.club(clubId ?? ""), "segmentPreview", JSON.stringify(rule)] as const,
+    queryFn: () => previewClubSegment({ clubId: clubId ?? "", rule }),
+    staleTime: 15_000,
+    retry: false,
+    enabled: enabled && Boolean(clubId),
+  });
+}
+
+export interface InviteSegmentVars {
+  rule: ClubSegmentRule;
+  role: ClubMemberRole;
+  message?: string | null;
+  saveRule?: boolean;
+}
+
+export function useInviteClubSegment(
+  clubId: string,
+): UseMutationResult<number, Error, InviteSegmentVars> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars) => inviteClubSegment({ clubId, ...vars }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
       void qc.invalidateQueries({ queryKey: adminClubKeys.all });
@@ -519,8 +604,7 @@ export function useJoinClub(): UseMutationResult<string, Error, string> {
   return useMutation({
     mutationFn: joinClub,
     onSuccess: (_status, clubId) => {
-      void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
-      void qc.invalidateQueries({ queryKey: clubKeys.list() });
+      invalidateClubCard(qc, clubId);
       void qc.invalidateQueries({ queryKey: clubKeys.memberships() });
     },
   });
@@ -531,8 +615,7 @@ export function useLeaveClub(): UseMutationResult<boolean, Error, string> {
   return useMutation({
     mutationFn: leaveClub,
     onSuccess: (_ok, clubId) => {
-      void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
-      void qc.invalidateQueries({ queryKey: clubKeys.list() });
+      invalidateClubCard(qc, clubId);
       void qc.invalidateQueries({ queryKey: clubKeys.memberships() });
     },
   });
@@ -584,9 +667,7 @@ export function useAcceptClubRules(clubId: string): UseMutationResult<boolean, E
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () => acceptClubRules(clubId),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
-    },
+    onSuccess: () => invalidateClubCard(qc, clubId),
   });
 }
 
@@ -604,16 +685,30 @@ export function useClubThreads(params: {
   groupId?: string | null;
   sort?: ClubThreadSort;
   kind?: ClubThreadKind | null;
+  status?: ClubThreadStatus | null;
+  anchored?: boolean | null;
+  unreadOnly?: boolean;
 }): UseInfiniteQueryResult<{ pages: ClubThreadsPage[]; pageParams: unknown[] }, Error> {
-  const { clubId, groupId = null, sort = "hot", kind = null } = params;
+  const {
+    clubId,
+    groupId = null,
+    sort = "hot",
+    kind = null,
+    status = null,
+    anchored = null,
+    unreadOnly = false,
+  } = params;
   return useInfiniteQuery({
-    queryKey: clubKeys.threads(clubId ?? "", groupId, sort, kind),
+    queryKey: clubKeys.threads(clubId ?? "", groupId, sort, kind, status, anchored, unreadOnly),
     queryFn: ({ pageParam }) =>
       fetchClubThreads({
         clubId: clubId ?? "",
         groupId,
         sort,
         kind,
+        status,
+        anchored,
+        unreadOnly,
         cursor: typeof pageParam === "string" ? pageParam : null,
       }),
     initialPageParam: null as string | null,
@@ -636,14 +731,21 @@ export function useClubThread(params: {
   });
 }
 
+/**
+ * Odpowiedzi watku. Strona jest kursorem OFFSETOWYM przez `pageSize`, bo widok
+ * wątku doczytuje w dol i nigdy nie skacze - a `total` z RPC mowi, czy zostalo
+ * cokolwiek do doczytania. Wczesniej hook bral pierwsze 200 wierszy i milczal
+ * o reszcie, wiec dluga konsultacja urywala sie bez sladu w interfejsie.
+ */
 export function useClubReplies(params: {
   threadId: string | undefined;
   sort?: ClubReplySort;
-}): UseQueryResult<ClubReplyRow[], Error> {
-  const { threadId, sort = "chronological" } = params;
+  pageSize?: number;
+}): UseQueryResult<ClubRepliesPage, Error> {
+  const { threadId, sort = "chronological", pageSize = 200 } = params;
   return useQuery({
     queryKey: clubKeys.replies(threadId ?? "", sort),
-    queryFn: () => fetchClubReplies({ threadId: threadId ?? "", sort }),
+    queryFn: () => fetchClubReplies({ threadId: threadId ?? "", sort, limit: pageSize }),
     staleTime: 10_000,
     enabled: Boolean(threadId),
   });
@@ -657,6 +759,10 @@ export interface CreateThreadVars {
   anonymous?: boolean;
   anchorType?: string | null;
   anchorId?: string | null;
+  /** Patrz `createClubThread` - klucz per akcja uzytkownika, nie per proba. */
+  idempotencyKey?: string;
+  /** Zaloz watek od razu zamkniety (uprawnienie moderacyjne). */
+  lockReplies?: boolean;
 }
 
 export function useCreateClubThread(
@@ -665,9 +771,7 @@ export function useCreateClubThread(
   const qc = useQueryClient();
   return useMutation({
     mutationFn: createClubThread,
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
-    },
+    onSuccess: () => invalidateClubCard(qc, clubId),
   });
 }
 
@@ -686,10 +790,12 @@ export function useReplyToThread(
   return useMutation({
     mutationFn: replyToClubThread,
     onSuccess: (_id, vars) => {
+      // Prefiks BEZ sortu: wariantow jest trzy, a wyliczanie ich z reki
+      // gwarantuje, ze czwarty zostanie kiedys pominiety - dokladnie tak
+      // zniknal wczesniej sort 'stance'.
+      void qc.invalidateQueries({ queryKey: clubKeys.repliesAll(vars.threadId) });
       // Odpowiedz zmienia licznik na liscie tematow i na karcie watku,
       // wiec inwalidujemy oba - a nie tylko liste odpowiedzi.
-      void qc.invalidateQueries({ queryKey: clubKeys.replies(vars.threadId, "chronological") });
-      void qc.invalidateQueries({ queryKey: clubKeys.replies(vars.threadId, "best") });
       void qc.invalidateQueries({ queryKey: clubKeys.thread(clubId, threadSlug) });
       void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
     },
@@ -708,7 +814,13 @@ export function useEditClubThread(
   return useMutation({
     mutationFn: editClubThread,
     onSuccess: () => {
+      // Tytuł i treść są PROJEKCJĄ listy tematów (`title` + `left(body, 280)`
+      // jako fragment) i wyników wyszukiwania, więc redakcja zmienia trzy
+      // widoki, nie jeden. Punktowa inwalidacja zostawiała w katalogu stary
+      // tytuł obok poprawionego wątku.
       void qc.invalidateQueries({ queryKey: clubKeys.thread(clubId, threadSlug) });
+      void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
+      void qc.invalidateQueries({ queryKey: clubKeys.searchAll() });
     },
   });
 }
@@ -720,8 +832,7 @@ export function useEditClubReply(
   return useMutation({
     mutationFn: editClubReply,
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: clubKeys.replies(threadId, "chronological") });
-      void qc.invalidateQueries({ queryKey: clubKeys.replies(threadId, "best") });
+      void qc.invalidateQueries({ queryKey: clubKeys.repliesAll(threadId) });
     },
   });
 }
@@ -734,8 +845,11 @@ export function useResolveClubThread(
   return useMutation({
     mutationFn: resolveClubThread,
     onSuccess: (_ok, vars) => {
+      // Oznaczenie rozstrzygniecia zmienia i znacznik przy odpowiedzi, i jej
+      // pozycje (SQL wynosi rozstrzygajaca na gore w KAZDYM sorcie), wiec
+      // uniewazniamy caly prefiks, nie sam wariant chronologiczny.
       void qc.invalidateQueries({ queryKey: clubKeys.thread(clubId, threadSlug) });
-      void qc.invalidateQueries({ queryKey: clubKeys.replies(vars.threadId, "chronological") });
+      void qc.invalidateQueries({ queryKey: clubKeys.repliesAll(vars.threadId) });
     },
   });
 }
@@ -880,7 +994,7 @@ export function useAdminClubThreads(
 
 export function useAdminClubReplies(
   threadId: string | undefined,
-): UseQueryResult<AdminClubReplyRow[], Error> {
+): UseQueryResult<AdminRepliesPage, Error> {
   return useQuery({
     queryKey: clubKeys.adminReplies(threadId ?? ""),
     queryFn: () => fetchAdminClubReplies({ threadId: threadId ?? "" }),
@@ -890,20 +1004,46 @@ export function useAdminClubReplies(
 }
 
 /**
- * Wyszukiwanie watkow. `enabled` pilnuje progu dwoch znakow - bez tego kazde
- * nacisniecie klawisza w polu wyszukiwania to round-trip po calej bazie.
+ * Wyszukiwanie watkow: pelnotekstowe ORAZ semantyczne, scalone w jedna liste.
+ *
+ * `enabled` pilnuje progu dwoch znakow - bez tego kazde nacisniecie klawisza
+ * w polu wyszukiwania to round-trip po calej bazie.
+ *
+ * WEKTOR JEST OSOBNYM ZAPYTANIEM, celowo. Gdyby embedding liczyl sie w tej
+ * samej funkcji, co szukanie, kazda literka doplacalaby wywolanie bramki AI
+ * do wyniku, ktory i tak jest w cache React Query. Osobny klucz znaczy tez, ze
+ * awaria bramki nie uniewaznia wynikow pelnotekstowych.
  */
+function useClubQueryEmbedding(query: string, enabled: boolean): number[] | null {
+  const result = useQuery({
+    queryKey: [...clubKeys.all, "queryEmbedding", query] as const,
+    queryFn: () => embedClubQuery({ data: { q: query } }),
+    // Wektor frazy nie starzeje sie razem z trescia - ta sama fraza daje ten sam
+    // wektor, dopoki nie zmieni sie model. Godzina to kompromis miedzy tym
+    // a rozmiarem cache.
+    staleTime: 60 * 60_000,
+    gcTime: 60 * 60_000,
+    retry: false,
+    enabled: enabled && query.length >= CLUB_SEMANTIC_MIN_CHARS,
+  });
+  return result.data?.embedding ?? null;
+}
+
 export function useClubSearch(params: {
   query: string;
   clubId?: string | null;
   limit?: number;
   enabled?: boolean;
-}): UseQueryResult<ClubSearchHit[], Error> {
+}): UseQueryResult<ClubSearchResult[], Error> {
   const { query, clubId = null, limit = 20, enabled = true } = params;
   const trimmed = query.trim();
+  const embedding = useClubQueryEmbedding(trimmed, enabled);
   return useQuery({
-    queryKey: clubKeys.search(trimmed, clubId),
-    queryFn: () => searchClubThreads({ query: trimmed, clubId, limit }),
+    // Wektor jest CZESCIA klucza: wynik z semantyka i bez niej to dwie rozne
+    // listy, a doliczenie wektora po fakcie nie moze cicho podmienic tej,
+    // ktora czytelnik ma juz na ekranie pod tym samym kluczem.
+    queryKey: [...clubKeys.search(trimmed, clubId), embedding === null ? "fts" : "hybrid"] as const,
+    queryFn: () => searchClubThreads({ query: trimmed, clubId, limit, embedding }),
     staleTime: 30_000,
     enabled: enabled && trimmed.length >= 2,
   });
@@ -988,6 +1128,13 @@ export function useModerateClubTarget(
   });
 }
 
+/**
+ * Akcja masowa robi to samo, co jednostkowa - tylko na wielu wpisach naraz -
+ * więc musi unieważniać DOKŁADNIE ten sam zakres. Wcześniej czyściła sam korzeń
+ * klubu, a odpowiedzi, podgląd panelu, stanowiska, wyniki wyszukiwania
+ * i licznik plakietki wiszą pod `clubKeys.all`, nie pod klubem: moderator
+ * ukrywał trzydzieści wpisów i dalej widział je w otwartej kolejce.
+ */
 export function useBulkModerateClub(
   clubId: string,
 ): UseMutationResult<number, Error, Omit<ModerateVars, "targetId"> & { targetIds: string[] }> {
@@ -996,6 +1143,7 @@ export function useBulkModerateClub(
     mutationFn: bulkModerateClubTargets,
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
+      void qc.invalidateQueries({ queryKey: clubKeys.all });
     },
   });
 }
@@ -1070,6 +1218,63 @@ export function useBanClubMember(
     mutationFn: (vars) => banClubMember({ clubId, ...vars }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Etap A18: zgloszenia, kotwice, nieprzeczytane
+// ---------------------------------------------------------------------------
+
+/**
+ * Zgloszenie wpisu do moderacji. Bez inwalidacji czegokolwiek: dla zglaszajacego
+ * NIC sie nie zmienia (i nie powinno - zgloszenie nie jest publiczna akcja),
+ * a kolejka moderatora ma wlasny licznik odswiezany szyna zdarzen.
+ */
+export function useReportClubContent(): UseMutationResult<
+  string | null,
+  Error,
+  {
+    targetType: ClubReactionTarget;
+    targetId: string;
+    reason: ClubReportReason;
+    details?: string | null;
+  }
+> {
+  return useMutation({ mutationFn: reportClubContent });
+}
+
+/**
+ * Podpowiedzi kotwicy w kompozytorze. Prog dwoch znakow siedzi w api (zwraca
+ * pusta liste), tutaj powtarzamy go w `enabled`, zeby nie bylo round-tripu po
+ * odpowiedz, ktora znamy z gory.
+ */
+export function useClubAnchorSuggestions(params: {
+  query: string;
+  anchorType?: ClubAnchorType | null;
+  enabled?: boolean;
+}): UseQueryResult<ClubAnchorSuggestion[], Error> {
+  const { query, anchorType = null, enabled = true } = params;
+  const trimmed = query.trim();
+  return useQuery({
+    queryKey: clubKeys.anchorSuggest(trimmed, anchorType),
+    queryFn: () => fetchClubAnchorSuggestions({ query: trimmed, anchorType }),
+    staleTime: 60_000,
+    enabled: enabled && trimmed.length >= 2,
+  });
+}
+
+/**
+ * Oznaczenie klubu jako przeczytanego. Uniewaznia liczniki plakietek, a nie
+ * dane klubu: tresc sie nie zmienila, zmienil sie stan CZYTANIA.
+ */
+export function useMarkClubRead(): UseMutationResult<number, Error, string> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: markClubRead,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: pendingCounterKeys.all });
+      void qc.invalidateQueries({ queryKey: clubKeys.memberships() });
     },
   });
 }

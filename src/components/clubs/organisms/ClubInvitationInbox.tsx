@@ -22,16 +22,21 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import type { ClubMyInvitationRow } from "@/lib/clubs/types";
+import { formatDateShort } from "@/lib/i18n/format";
 
 export function ClubInvitationInbox({
   invitations,
   isPl,
-  pending,
+  pendingId,
   onRespond,
 }: {
   invitations: readonly ClubMyInvitationRow[];
   isPl: boolean;
-  pending: boolean;
+  /** Id zaproszenia, na ktorym trwa operacja - NIE flaga calej listy.
+   *  Wspolna flaga zapalala spinner i blokowala przyciski we WSZYSTKICH
+   *  wierszach, wiec przy trzech zaproszeniach klikniecie jednego wygladalo
+   *  jak przetwarzanie trzech. */
+  pendingId: string | null;
   onRespond: (invitationId: string, accept: boolean) => void;
 }) {
   const { t } = useTranslation();
@@ -65,20 +70,26 @@ export function ClubInvitationInbox({
               {inv.expires_at !== null ? (
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {t("club.hub.inviteExpires", {
-                    date: new Date(inv.expires_at).toLocaleDateString(isPl ? "pl-PL" : "en-GB"),
+                    date: formatDateShort(inv.expires_at, isPl ? "pl" : "en"),
                   })}
                 </p>
               ) : null}
             </div>
             <div className="flex shrink-0 gap-2">
-              <Button size="sm" disabled={pending} onClick={() => onRespond(inv.id, true)}>
-                {pending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+              <Button
+                size="sm"
+                disabled={pendingId !== null}
+                onClick={() => onRespond(inv.id, true)}
+              >
+                {pendingId === inv.id ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                ) : null}
                 {t("club.acceptInvitation")}
               </Button>
               <Button
                 size="sm"
                 variant="ghost"
-                disabled={pending}
+                disabled={pendingId !== null}
                 onClick={() => setDeclining(inv)}
               >
                 {t("club.declineInvitation")}

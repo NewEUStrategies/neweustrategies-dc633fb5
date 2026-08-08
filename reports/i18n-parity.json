@@ -10,7 +10,8 @@
     "network",
     "directMessage",
     "club",
-    "adminClubs"
+    "adminClubs",
+    "clubElements"
   ],
   "missing": [],
   "missingEn": [],
@@ -124,11 +125,12 @@
     "builder.widgetLibrary.catFeatures",
     "builder.widgetLibrary.catMedia",
     "builder.widgetLibrary.sub.audio",
-    "builder.widgetLibrary.sub.marketing"
+    "builder.widgetLibrary.sub.marketing",
+    "club.filters.status"
   ],
   "repoWide": {
     "missingEn": 0,
     "missingPl": 0,
-    "untranslated": 401
+    "untranslated": 402
   }
 }

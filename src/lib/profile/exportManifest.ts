@@ -82,6 +82,21 @@ export const EXPORT_SECTION_GROUPS = {
   ],
   /** Zapytania do ekspertów - obie skrzynki. */
   expert_requests: ["expert_requests_sent", "expert_requests_received"],
+  /**
+   * Kluby dyskusyjne: członkostwa, własne wypowiedzi, stanowiska, reakcje.
+   * Cały moduł powstał PO wprowadzeniu rejestru i do 2026-08-08 nie był do
+   * niego dopięty - eksport milczał o nim także w manifeście, więc brak
+   * wyglądał jak „nie korzystam", a nie jak luka w zakresie.
+   */
+  clubs: [
+    "club_memberships",
+    "club_threads_authored",
+    "club_replies_authored",
+    "club_stances",
+    "club_reactions",
+    "club_thread_subscriptions",
+    "club_invitations_received",
+  ],
   /** Płatności i uprawnienia zakupowe. */
   commerce: ["orders", "subscriptions", "purchases"],
   /** Preferencje i kanały doręczeń. */
@@ -127,6 +142,13 @@ export const EXPORT_EXCLUSIONS: readonly ExportExclusion[] = [
       "Wiadomości napisane przez Twoich rozmówców. Art. 15 ust. 4 RODO - prawo do kopii nie może naruszać praw i wolności innych osób. Eksportujemy Twoje wiadomości oraz metadane rozmów, w których uczestniczysz.",
     reason_en:
       "Messages written by the people you talk to. GDPR art. 15(4) - the right to a copy must not adversely affect the rights and freedoms of others. We export your own messages plus the metadata of conversations you take part in.",
+  },
+  {
+    id: "club_content_authored_by_others",
+    reason_pl:
+      "Wypowiedzi innych uczestników w klubach dyskusyjnych, w tym wpisy anonimowe i objęte regułą Chatham House. Art. 15 ust. 4 RODO - prawo do kopii nie może naruszać praw i wolności innych osób, a w klubie ochrona autorstwa jest dodatkowo warunkiem samej rozmowy. Eksportujemy Twoje członkostwa oraz Twoje wypowiedzi - także te opublikowane anonimowo, bo pozostają Twoimi danymi.",
+    reason_en:
+      "Contributions written by other participants in discussion clubs, including anonymous and Chatham House posts. GDPR art. 15(4) - the right to a copy must not adversely affect the rights and freedoms of others, and in a club the protection of authorship is a precondition of the conversation itself. We export your memberships and your own contributions - including those published anonymously, since they remain your data.",
   },
   {
     id: "attachment_binaries",

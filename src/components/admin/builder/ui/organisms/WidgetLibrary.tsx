@@ -148,6 +148,8 @@ export function WidgetLibrary({
     "event-list": "listings",
     "news-ticker": "listings",
     "podcast-latest": "listings",
+    "club-card": "listings",
+    "club-threads": "listings",
     "web-stories-carousel": "listings",
     categories: "taxonomy",
     tags: "taxonomy",

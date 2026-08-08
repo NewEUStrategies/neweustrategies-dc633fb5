@@ -16,6 +16,7 @@
 // Zastępnik jest tym samym chwytem, co okładka podcastu bez grafiki
 // (`podcasts.$show`): stonowane tło i ikona rodzaju treści.
 import { MessagesSquare } from "lucide-react";
+import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { cn } from "@/lib/utils";
 
 export function ClubCover({
@@ -54,12 +55,23 @@ export function ClubCover({
   return (
     <div className={cn("overflow-hidden border border-border/60 bg-muted", shape, className)}>
       {/* alt="" celowo: nazwa klubu stoi obok w nagłówku albo w tytule kafla,
-          więc czytnik ekranu przeczytałby ją dwa razy. */}
-      <img
+          więc czytnik ekranu przeczytałby ją dwa razy.
+
+          `OptimizedImage`, nie surowy <img>: okładki wgrywa się przez
+          CoverImagePicker do Supabase Storage, czyli dokładnie ten kształt URL,
+          dla którego atom generuje `srcSet` wariantów szerokości. Bez tego
+          kafel 16:9 o szerokości ~380 px ściągał plik w pełnej rozdzielczości,
+          a siatka katalogu ma ich na ekranie kilkanaście. */}
+      <OptimizedImage
         src={url}
         alt=""
-        loading={variant === "banner" ? "eager" : "lazy"}
-        decoding="async"
+        responsive
+        sizes={
+          variant === "banner"
+            ? "(min-width: 1024px) 64rem, 100vw"
+            : "(min-width: 1024px) 22rem, (min-width: 640px) 50vw, 100vw"
+        }
+        priority={variant === "banner"}
         className="h-full w-full object-cover"
       />
     </div>

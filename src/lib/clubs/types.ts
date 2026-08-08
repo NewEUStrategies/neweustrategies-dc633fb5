@@ -11,6 +11,29 @@ import type { Database } from "@/integrations/supabase/types";
 export const CLUB_VISIBILITIES = ["public", "members", "private", "secret"] as const;
 export type ClubVisibility = (typeof CLUB_VISIBILITIES)[number];
 
+/**
+ * Widocznosc, ktora wolno USTAWIC na dziale. CHECK w bazie
+ * (`club_groups_visibility_check`) zna tylko trzy wartosci - 'public' nie jest
+ * pomylka w slowniku, tylko swiadoma asymetria: dzial nie moze byc bardziej
+ * otwarty niz klub, ktory go zawiera, wiec publicznosc wychodzi wylacznie
+ * z DZIEDZICZENIA (NULL w kolumnie), nigdy z nadpisania.
+ *
+ * Dwie tablice zamiast jednej, bo to dwie rozne role: `CLUB_VISIBILITIES`
+ * opisuje wartosci, ktore wolno ZOBACZYC (takze odziedziczone 'public'),
+ * a ta - wartosci, ktore wolno ZAPISAC. Droplista nadpisania karmiona
+ * pierwsza z nich oddawala administratorowi wybor, ktory baza odrzuca
+ * dopiero przy zapisie - czyli po stracie tego, co wpisal.
+ */
+export const CLUB_GROUP_VISIBILITIES = ["members", "private", "secret"] as const;
+export type ClubGroupVisibility = (typeof CLUB_GROUP_VISIBILITIES)[number];
+
+/** Widocznosc efektywna -> najblizsza wartosc, ktora wolno ustawic na dziale. */
+export function toClubGroupVisibility(value: string): ClubGroupVisibility {
+  return (CLUB_GROUP_VISIBILITIES as readonly string[]).includes(value)
+    ? (value as ClubGroupVisibility)
+    : "members";
+}
+
 /** Polityka wstepu. Kombinacja public + invite jest poprawna i czesta. */
 export const CLUB_JOIN_POLICIES = ["open", "request", "invite"] as const;
 export type ClubJoinPolicy = (typeof CLUB_JOIN_POLICIES)[number];
@@ -121,6 +144,19 @@ export function clubSlugFromName(name: string): string {
 
 export const CLUB_NOTIFY_LEVELS = ["all", "mentions", "digest", "none"] as const;
 export type ClubNotifyLevel = (typeof CLUB_NOTIFY_LEVELS)[number];
+
+/**
+ * Poziom powiadomien z bazy sprowadzony do slownika kodu. `digest` jest
+ * domyslna wartoscia kolumny w `club_members`, wiec jest tez poprawnym
+ * domyslem dla wiersza, ktorego jeszcze nie ma (osoba przed dolaczeniem).
+ */
+export function toClubNotifyLevel(value: string | null | undefined): ClubNotifyLevel {
+  return value !== null &&
+    value !== undefined &&
+    (CLUB_NOTIFY_LEVELS as readonly string[]).includes(value)
+    ? (value as ClubNotifyLevel)
+    : "digest";
+}
 
 /**
  * Kody powodu z club_capabilities().reason. UI mapuje kod na zdanie ORAZ na
@@ -395,6 +431,71 @@ export interface ClubMemberUpsertInput {
   clearRoleExpiry?: boolean;
 }
 
+// ---------------------------------------------------------------------------
+// Sciezka D: kampanie segmentowe
+// ---------------------------------------------------------------------------
+
+/**
+ * Rodzaje regul segmentu. Slownik odpowiada galeziom
+ * `club_segment_candidate_ids` - regula spoza tej listy rozwiazuje sie
+ * w bazie na zbior PUSTY, wiec droplista z wlasnym pomyslem na rodzaj
+ * dawalaby kampanie, ktora cicho nie wysyla niczego.
+ */
+export const CLUB_SEGMENT_KINDS = [
+  "badge",
+  "specialization",
+  "other_club",
+  "policy_follow",
+  "event_rsvp",
+] as const;
+export type ClubSegmentKind = (typeof CLUB_SEGMENT_KINDS)[number];
+
+/** Regula w postaci, w ktorej jedzie do RPC jako jsonb. */
+export interface ClubSegmentRule {
+  kind: ClubSegmentKind;
+  /** `badge` */
+  badge?: string;
+  /** `specialization` */
+  value?: string;
+  /** `other_club` */
+  club_id?: string;
+  /** `policy_follow` */
+  item_id?: string;
+  /** `event_rsvp` */
+  event_id?: string;
+  /** Nazwa zapisywanej kampanii - `club_segment_rules.name` jest NOT NULL. */
+  name?: string;
+}
+
+/**
+ * Czy regula jest KOMPLETNA. Rodzaj bez swojej wartosci rozwiazuje sie na zbior
+ * pusty, wiec przycisk "wyslij" ma byc wtedy nieaktywny - a nie wysylac
+ * kampanie do zera osob i raportowac sukces.
+ */
+export function isClubSegmentRuleComplete(rule: ClubSegmentRule): boolean {
+  const filled = (value: string | undefined): boolean =>
+    value !== undefined && value.trim().length > 0;
+  switch (rule.kind) {
+    case "badge":
+      return filled(rule.badge);
+    case "specialization":
+      return filled(rule.value);
+    case "other_club":
+      return filled(rule.club_id);
+    case "policy_follow":
+      return filled(rule.item_id);
+    case "event_rsvp":
+      return filled(rule.event_id);
+  }
+}
+
+export interface ClubSegmentPreview {
+  matched: number;
+  already_member: number;
+  blocked: number;
+  will_send: number;
+}
+
 export interface AdminClubListFilters {
   search?: string;
   status?: ClubStatus | null;
@@ -503,12 +604,29 @@ export const CLUB_THREAD_STATUSES = [
 ] as const;
 export type ClubThreadStatus = (typeof CLUB_THREAD_STATUSES)[number];
 
-/** Sorty listy tematow. `unanswered` jest celowo wyeksponowany: temat bez
- *  odpowiedzi to porazka klubu, a nie neutralny stan (V1 §5.2). */
-export const CLUB_THREAD_SORTS = ["hot", "new", "unanswered", "top", "mine"] as const;
+/**
+ * Sorty listy tematow. `unanswered` jest celowo wyeksponowany: temat bez
+ * odpowiedzi to porazka klubu, a nie neutralny stan (V1 §5.2).
+ *
+ * KAZDA wartosc jest realnym porzadkiem w `club_threads_list` (migracja A18).
+ * Wczesniej slownik obiecywal piec, a RPC znalo dwa - warstwa API po cichu
+ * mapowala reszte na 'hot', wiec trzy pozycje droplisty byly nieodroznialne
+ * od domyslnej. Rozszerzenie tej listy bez galezi w SQL powtorzy ten blad.
+ */
+export const CLUB_THREAD_SORTS = ["hot", "new", "unanswered", "top", "mine", "subscribed"] as const;
 export type ClubThreadSort = (typeof CLUB_THREAD_SORTS)[number];
 
-export const CLUB_REPLY_SORTS = ["chronological", "best"] as const;
+/** Sorty, ktore wymagaja sesji: filtruja po wolajacym, wiec dla anonima
+ *  zwrocilyby pusty zbior i sugerowaly, ze klub jest pusty. */
+export const CLUB_THREAD_SORTS_REQUIRING_SESSION: readonly ClubThreadSort[] = [
+  "mine",
+  "subscribed",
+];
+
+/** Porzadki odpowiedzi. `stance` grupuje wg stanowiska autora - to jedyny
+ *  widok, ktory pokazuje MAPE SPORU zamiast kolejnosci wpisywania (V1 §4.4),
+ *  i ma sens wylacznie w watku typu `position`. */
+export const CLUB_REPLY_SORTS = ["chronological", "best", "stance"] as const;
 export type ClubReplySort = (typeof CLUB_REPLY_SORTS)[number];
 
 /**
@@ -527,6 +645,7 @@ export type ClubThreadListRow = NullableCols<
   RowOf<Fn["club_threads_list"]["Returns"]>,
   | "anchor_type"
   | "anchor_id"
+  | "anchor_label"
   | "author_id"
   | "author_name"
   | "author_avatar"
@@ -548,7 +667,48 @@ export type ClubReplyRow = NullableCols<
   | "author_alias"
   | "posted_by_admin_name"
   | "edited_at"
+  // Stanowisko wychodzi wylacznie w watku `position` i wylacznie przy
+  // autorstwie jawnym - we wszystkich pozostalych przypadkach jest NULL-em.
+  | "author_stance"
 >;
+
+/**
+ * Statusy odpowiedzi w projekcji odczytowej. Slownik jest zamkniety i musi
+ * zgadzac sie z CHECK-iem w `club_replies` - komponent porownujacy status
+ * z wartoscia spoza tego zbioru pisze warunek, ktory nigdy nie jest prawdziwy,
+ * i cicho zostawia akcje na wpisie, ktory jej nie powinien miec.
+ */
+export const CLUB_REPLY_STATUSES = ["pending", "visible", "hidden", "deleted"] as const;
+export type ClubReplyStatus = (typeof CLUB_REPLY_STATUSES)[number];
+
+/** Czy wpis jest jeszcze w obiegu dyskusji (a wiec: czy wolno go redagowac,
+ *  cytowac i na niego reagowac). */
+export function isClubReplyLive(status: string): boolean {
+  return status === "visible" || status === "pending";
+}
+
+/** Powody zgloszenia - ten sam slownik, co w `user_reports`. */
+export const CLUB_REPORT_REASONS = [
+  "spam",
+  "harassment",
+  "impersonation",
+  "inappropriate",
+  "other",
+] as const;
+export type ClubReportReason = (typeof CLUB_REPORT_REASONS)[number];
+
+/** Podpowiedz kotwicy dla kompozytora (RPC `club_anchor_suggest`). */
+export type ClubAnchorSuggestion = RowOf<Fn["club_anchor_suggest"]["Returns"]>;
+
+/** Rodzaje kotwic dopuszczane przez CHECK na `club_threads.anchor_type`. */
+export const CLUB_ANCHOR_TYPES = [
+  "eu_policy_item",
+  "post",
+  "event",
+  "research_program",
+  "club_thread",
+] as const;
+export type ClubAnchorType = (typeof CLUB_ANCHOR_TYPES)[number];
 
 /**
  * Etykieta autora gotowa do renderu. Sedno: komponent NIE decyduje o
@@ -746,7 +906,90 @@ export function applyReactionToggle(
 export type AdminClubThreadRow = RowOf<Fn["admin_club_threads"]["Returns"]>;
 export type AdminClubReplyRow = RowOf<Fn["admin_club_replies"]["Returns"]>;
 export type ClubSearchHit = RowOf<Fn["club_search"]["Returns"]>;
+export type ClubSemanticHit = RowOf<Fn["club_semantic_search"]["Returns"]>;
 export type ClubAnchorHit = RowOf<Fn["club_threads_for_anchor"]["Returns"]>;
+
+/**
+ * Wynik wyszukiwania po SCALENIU dwoch warstw: pelnotekstowej (`club_search`)
+ * i semantycznej (`club_semantic_search`). Warstwy odpowiadaja na dwa rozne
+ * pytania - "gdzie padlo to slowo" i "gdzie mowiono o tej sprawie" - wiec
+ * `match` jedzie do interfejsu: czytelnik ma widziec, dlaczego wiersz tu jest,
+ * zanim zdziwi sie brakiem swojej frazy w tytule.
+ */
+export interface ClubSearchResult {
+  thread_id: string;
+  thread_slug: string;
+  title: string;
+  kind: string;
+  club_id: string;
+  club_slug: string;
+  club_name_pl: string;
+  club_name_en: string;
+  reply_count: number;
+  last_reply_at: string | null;
+  /** Fragment z `ts_headline`. Warstwa semantyczna go nie ma - stad `null`. */
+  snippet: string | null;
+  match: "text" | "semantic";
+}
+
+/** Trafienie pelnotekstowe -> wiersz wyniku. */
+export function toClubSearchResult(hit: ClubSearchHit): ClubSearchResult {
+  return {
+    thread_id: hit.thread_id,
+    thread_slug: hit.thread_slug,
+    title: hit.title,
+    kind: hit.kind,
+    club_id: hit.club_id,
+    club_slug: hit.club_slug,
+    club_name_pl: hit.club_name_pl,
+    club_name_en: hit.club_name_en,
+    reply_count: hit.reply_count,
+    last_reply_at: hit.last_reply_at,
+    snippet: hit.snippet,
+    match: "text",
+  };
+}
+
+/** Trafienie semantyczne -> wiersz wyniku (bez fragmentu, bo RPC go nie liczy). */
+export function toClubSemanticResult(hit: ClubSemanticHit): ClubSearchResult {
+  return {
+    thread_id: hit.thread_id,
+    thread_slug: hit.thread_slug,
+    title: hit.title,
+    kind: hit.kind,
+    club_id: hit.club_id,
+    club_slug: hit.club_slug,
+    club_name_pl: hit.club_name_pl,
+    club_name_en: hit.club_name_en,
+    reply_count: hit.reply_count,
+    last_reply_at: hit.last_reply_at,
+    snippet: null,
+    match: "semantic",
+  };
+}
+
+/**
+ * Scalenie warstw. Pelnotekstowe idzie PIERWSZE i wygrywa duplikaty: jesli
+ * fraza dosłownie pada w watku, to jest lepsza odpowiedz niz podobienstwo
+ * kosinusowe, a fragment z podswietleniem jest tego dowodem dla czytelnika.
+ * Semantyka dokłada to, czego FTS z definicji nie znajdzie - inne slowa o tej
+ * samej sprawie.
+ */
+export function mergeClubSearchResults(
+  text: readonly ClubSearchHit[],
+  semantic: readonly ClubSemanticHit[],
+  limit = 20,
+): ClubSearchResult[] {
+  const out = text.map(toClubSearchResult);
+  const seen = new Set(out.map((r) => r.thread_id));
+  for (const hit of semantic) {
+    if (out.length >= limit) break;
+    if (seen.has(hit.thread_id)) continue;
+    seen.add(hit.thread_id);
+    out.push(toClubSemanticResult(hit));
+  }
+  return out.slice(0, limit);
+}
 
 /** Wiersz strumienia aktywnosci ponad klubami (strona glowna klubow). Nie ma
  *  tu `author_id` w ZADNYM trybie atrybucji - hub jest powierzchnia odkrywania,

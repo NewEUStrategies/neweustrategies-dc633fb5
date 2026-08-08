@@ -3,14 +3,23 @@
 // Nowe odpowiedzi NIE WSKAKUJĄ same do widoku. Gdy przyjdą, pojawia się pasek
 // "N nowych odpowiedzi - pokaż". Wstawianie treści pod kursorem czytającego to
 // najczęstszy błąd UX w tej klasie produktów: czat może sobie na to pozwolić,
-// długa deliberacja nie (V1 §5.4).
-import { useState } from "react";
+// długa deliberacja nie (V1 §5.4). Mechanikę trzyma `useDeferredReplies` -
+// wcześniej ten komentarz opisywał zachowanie, którego kod nie miał, a globalna
+// inwalidacja z szyny zdarzeń robiła dokładnie to, przed czym on ostrzega.
+//
+// Kompozytor reużywa `MentionTextarea` (V1 §4.1): parser wzmianek po stronie
+// bazy (`process_mentions` dla `club_reply`) jest wpięty od A12, więc bez
+// podpowiedzi w polu jedyną drogą do wzmianki było wpisanie sluga z pamięci.
+//
+// Wejście "Zgłoś" stoi przy KAŻDYM wpisie - wątku i odpowiedzi (V1 §7).
+import { lazy, Suspense, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
   ArrowLeft,
   CheckCircle2,
+  Link2,
   Lock,
   MessageSquare,
   Pencil,
@@ -21,9 +30,16 @@ import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { MentionTextarea } from "@/components/mentions/MentionTextarea";
 import {
   useClubBySlug,
   useClubReactions,
@@ -39,28 +55,79 @@ import {
   useSetThreadSubscription,
   useToggleClubReaction,
 } from "@/lib/clubs/useClubs";
+import { useDeferredReplies } from "@/lib/clubs/useDeferredReplies";
 import { ClubReactionBar } from "@/components/clubs/molecules/ClubReactionBar";
 import { ClubFollowButton } from "@/components/clubs/molecules/ClubFollowButton";
 import { ClubInlineEditor } from "@/components/clubs/molecules/ClubInlineEditor";
 import { ClubStanceBar } from "@/components/clubs/molecules/ClubStanceBar";
+
+import { ClubNewRepliesBar } from "@/components/clubs/molecules/ClubNewRepliesBar";
+import { ClubReportButton } from "@/components/clubs/molecules/ClubReportButton";
+import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
+import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
+import { fetchClubBySlug } from "@/lib/clubs/api";
+import { clubKeys } from "@/lib/clubs/queryKeys";
+import { formatDateTime } from "@/lib/i18n/format";
 import {
   buildClubReplyTree,
+  isClubReplyLive,
   toAuthorLabel,
+  CLUB_REPLY_SORTS,
   type ClubReactionKind,
   type ClubReactionTally,
   type ClubReplyNode,
+  type ClubReplySort,
 } from "@/lib/clubs/types";
 import { ensureClubI18n } from "@/lib/i18n-club";
 
+const BODY_MAX = 10000;
+
+/**
+ * Sondaż i dialog zgłoszenia są ŁADOWANE LENIWIE - ta sama konwencja, co
+ * `lazyBlockViews` dla bloków interaktywnych, i z tego samego powodu:
+ *
+ *   * sondaż ciągnie za sobą całą warstwę `polls` (zapytania publiczne,
+ *     głosowanie, słupki), a dotyczy JEDNEGO z sześciu rodzajów wątku;
+ *   * dialog zgłoszenia ciągnie radix Dialog, a otwiera się raz na wiele
+ *     tysięcy odsłon.
+ *
+ * Statyczny import obu wciągał je do wspólnego grafu każdej odsłony wątku,
+ * czyli płaciliśmy za nie zawsze, żeby użyć ich prawie nigdy.
+ */
+const ClubThreadPoll = lazy(() =>
+  import("@/components/clubs/organisms/ClubThreadPoll").then((m) => ({
+    default: m.ClubThreadPoll,
+  })),
+);
+
 export const Route = createFileRoute("/club/$clubSlug/t/$threadSlug")({
-  head: () => ({ meta: [{ name: "robots", content: "noindex,nofollow" }] }),
+  // Naglowek potrzebuje widocznosci klubu, zeby rozstrzygnac indeksowalnosc,
+  // a head() jest synchroniczne. Loader dowozi kartę klubu do cache (widok i tak
+  // ją zaraz przeczyta, więc to nie jest dodatkowy round-trip) i zwraca z niej
+  // MINIMUM. Awaria backendu kończy się `null`, czyli `noindex` - trasa nadal
+  // się renderuje (doktryna odporności publicznych tras).
+  loader: async ({ context, params }) => {
+    const club = await context.queryClient
+      .ensureQueryData({
+        queryKey: clubKeys.bySlug(params.clubSlug),
+        queryFn: () => fetchClubBySlug(params.clubSlug),
+      })
+      .catch(() => null);
+    return { club: toClubHeadSource(club) };
+  },
+  head: ({ loaderData, params }) =>
+    buildClubHead({
+      fallbackPath: `/club/${params.clubSlug}/t/${params.threadSlug}`,
+      club: loaderData?.club ?? null,
+    }),
   component: ClubThreadView,
 });
 
 function ClubThreadView() {
   ensureClubI18n();
   const { t, i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  const lang: "pl" | "en" = (i18n.language ?? "pl").startsWith("pl") ? "pl" : "en";
+  const isPl = lang === "pl";
   const { clubSlug, threadSlug } = Route.useParams();
   const { user } = useAuth();
 
@@ -68,7 +135,9 @@ function ClubThreadView() {
   const club = clubQ.data ?? null;
   const threadQ = useClubThread({ clubId: club?.id, slug: threadSlug });
   const thread = threadQ.data ?? null;
-  const repliesQ = useClubReplies({ threadId: thread?.id });
+
+  const [replySort, setReplySort] = useState<ClubReplySort>("chronological");
+  const repliesQ = useClubReplies({ threadId: thread?.id, sort: replySort });
 
   const [body, setBody] = useState("");
   const [anonymous, setAnonymous] = useState(false);
@@ -83,7 +152,7 @@ function ClubThreadView() {
   const editThreadM = useEditClubThread(club?.id ?? "", threadSlug);
   const editReplyM = useEditClubReply(threadQ.data?.id ?? "");
 
-  // Stanowiska tylko dla wątku typu "position" - baza odrzuca resztę
+  // Stanowiska tylko dla wątku typu "stanowisko" - baza odrzuca resztę
   // z 22023, więc pytanie o nie gdzie indziej byłoby pytaniem o błąd.
   const isPosition = threadQ.data?.kind === "position";
   const stanceQ = useClubStanceSummary(isPosition ? threadQ.data?.id : undefined);
@@ -91,9 +160,13 @@ function ClubThreadView() {
   const subscriptionQ = useMyThreadSubscription(threadQ.data?.id);
   const setSubscriptionM = useSetThreadSubscription(threadQ.data?.id ?? "");
 
+  // Projekcja odroczona: dane są świeże (licznik w pasku musi być prawdziwy),
+  // renderujemy tylko to, co czytelnik przyjął.
+  const deferred = useDeferredReplies(repliesQ.data?.rows, thread?.id);
+
   // Dwie partie, dwa zapytania wsadowe - nigdy jedno na wpis.
   const threadIds = thread ? [thread.id] : [];
-  const replyIds = (repliesQ.data ?? []).map((r) => r.id);
+  const replyIds = deferred.rows.map((r) => r.id);
   const threadReactionsQ = useClubReactions({ targetType: "thread", targetIds: threadIds });
   const replyReactionsQ = useClubReactions({ targetType: "reply", targetIds: replyIds });
   const toggleThreadReaction = useToggleClubReaction({
@@ -102,10 +175,31 @@ function ClubThreadView() {
   });
   const toggleReplyReaction = useToggleClubReaction({ targetType: "reply", targetIds: replyIds });
 
-  if (clubQ.isPending || threadQ.isPending) {
+  // Zapytanie o wątek jest WYŁĄCZONE, dopóki nie znamy id klubu, a wyłączone
+  // `useQuery` zostaje w stanie `isPending` na zawsze. Warunek musi więc pytać
+  // o wątek tylko wtedy, gdy klub faktycznie jest - inaczej wejście na
+  // nieistniejący slug kończy się wiecznym szkieletem zamiast 404.
+  if (clubQ.isPending || (club !== null && threadQ.isPending)) {
     return (
       <div className="container mx-auto max-w-3xl px-4 py-8">
         <div className="h-64 animate-pulse rounded-lg bg-muted/50" aria-busy="true" />
+      </div>
+    );
+  }
+
+  // Awaria zapytania to NIE jest "nie ma takiego wątku". Pusta odpowiedź znaczy
+  // 404 (klub `secret` nie ma prawa zdradzić, że istnieje), a błąd sieci albo
+  // bazy ma powiedzieć, że to problem po naszej stronie i da się spróbować
+  // ponownie - inaczej użytkownik kasuje poprawny link jako martwy.
+  if (clubQ.isError || threadQ.isError) {
+    return (
+      <div className="container mx-auto max-w-3xl px-4 py-12">
+        <ClubErrorNotice
+          onRetry={() => {
+            void clubQ.refetch();
+            void threadQ.refetch();
+          }}
+        />
       </div>
     );
   }
@@ -128,8 +222,9 @@ function ClubThreadView() {
   }
 
   const author = toAuthorLabel(thread, t("club.anonymousAuthor"), t("club.deletedAuthor"));
-  const replies = repliesQ.data ?? [];
-  const tree = buildClubReplyTree(replies);
+  const tree = buildClubReplyTree(deferred.rows);
+  const repliesTotal = repliesQ.data?.total ?? 0;
+  const repliesShown = repliesQ.data?.rows.length ?? 0;
   // Autor pytania i moderacja mogą wskazać odpowiedź rozstrzygającą.
   const canResolve =
     thread.kind === "question" && (thread.can_moderate || thread.author_id === user?.id);
@@ -141,6 +236,12 @@ function ClubThreadView() {
   // interfejs nie ma prawa zdradzić, że to wpis czytającego.
   const isMyThread = thread.author_id !== null && thread.author_id === user?.id;
   const canEditThread = (isMyThread || thread.can_moderate) && thread.locked_at === null;
+  // Zgłaszać wolno cudzy wpis i tylko zalogowanemu - własnego RPC i tak nie
+  // przyjmie (22023), więc przycisk, który zawsze kończy się błędem, nie ma po
+  // co stać na ekranie.
+  const canReportThread = Boolean(user) && !isMyThread;
+  // Sort "mapa sporu" ma sens wyłącznie tam, gdzie stanowiska w ogóle istnieją.
+  const replySorts = CLUB_REPLY_SORTS.filter((sort) => sort !== "stance" || isPosition);
 
   const submitReply = () => {
     const trimmed = body.trim();
@@ -151,6 +252,9 @@ function ClubThreadView() {
         onSuccess: () => {
           setBody("");
           setReplyTo(null);
+          // Własna odpowiedź nie czeka w kolejce "pokaż nowe": kazanie autorowi
+          // kliknąć, żeby zobaczyć to, co przed chwilą wysłał, byłoby absurdem.
+          deferred.reveal();
           toast.success(t("club.replyPosted"));
         },
         onError: () => toast.error(t("adminClubs.saveFailed")),
@@ -189,13 +293,22 @@ function ClubThreadView() {
               {t("club.attribution.chatham")}
             </Badge>
           ) : null}
+          {/* Kotwica jest KRAWĘDZIĄ w grafie treści, więc pokazujemy ją tam,
+              gdzie czytelnik decyduje, czy wątek go dotyczy - w nagłówku, nie
+              na dole. */}
+          {thread.anchor_type !== null ? (
+            <Badge variant="secondary" className="gap-1">
+              <Link2 className="h-3 w-3" aria-hidden="true" />
+              {t(`club.anchorType.${thread.anchor_type}`)}
+            </Badge>
+          ) : null}
         </div>
 
         <h1 className="mt-2 text-2xl font-semibold leading-snug">{thread.title}</h1>
 
         <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
           <span>{author.name}</span>
-          <span>{new Date(thread.created_at).toLocaleString(isPl ? "pl-PL" : "en-GB")}</span>
+          <span>{formatDateTime(thread.created_at, lang)}</span>
           {thread.edited_at !== null ? <span>({t("club.edited")})</span> : null}
         </div>
 
@@ -242,6 +355,7 @@ function ClubThreadView() {
                 {t("club.editor.edit")}
               </Button>
             ) : null}
+            {canReportThread ? <ClubReportButton targetType="thread" targetId={thread.id} /> : null}
             <ClubFollowButton
               state={subscriptionQ.data ?? null}
               pending={setSubscriptionM.isPending}
@@ -255,6 +369,23 @@ function ClubThreadView() {
           </div>
         </div>
       </article>
+
+      {/* --- sondaż (wyłącznie wątek typu "sondaż") ---
+          Rodzaj `poll` był do A20 samą etykietą: model dopuszczał go od A3,
+          specyfikacja obiecywała reużycie `polls`, a krawędzi między wątkiem
+          a ankietą nie było. Teraz jest kolumna `poll_id` i to samo
+          głosowanie, co na /polls - z anti-anchoringiem włącznie. */}
+      {thread.kind === "poll" && thread.poll_id !== null ? (
+        <div className="mt-4">
+          <Suspense
+            fallback={
+              <div className="h-40 animate-pulse rounded-lg bg-muted/50" aria-busy="true" />
+            }
+          >
+            <ClubThreadPoll pollId={thread.poll_id} lang={lang} userId={user?.id ?? null} />
+          </Suspense>
+        </div>
+      ) : null}
 
       {/* --- stanowiska (wyłącznie wątek typu "stanowisko") --- */}
       {isPosition ? (
@@ -278,10 +409,28 @@ function ClubThreadView() {
 
       {/* --- odpowiedzi --- */}
       <section className="mt-6">
-        <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-          <MessageSquare className="h-4 w-4" />
-          {t("club.repliesCount", { count: thread.reply_count })}
-        </h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+            <MessageSquare className="h-4 w-4" />
+            {t("club.repliesCount", { count: thread.reply_count })}
+          </h2>
+          {repliesTotal > 1 ? (
+            <Select value={replySort} onValueChange={(v) => setReplySort(v as ClubReplySort)}>
+              <SelectTrigger className="h-8 w-auto min-w-40" aria-label={t("club.replySort.label")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {replySorts.map((sort) => (
+                  <SelectItem key={sort} value={sort}>
+                    {t(`club.replySort.${sort}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
+        </div>
+
+        <ClubNewRepliesBar count={deferred.pendingCount} onReveal={deferred.reveal} />
 
         {repliesQ.isPending ? (
           <div className="h-24 animate-pulse rounded-lg bg-muted/50" aria-busy="true" />
@@ -295,7 +444,7 @@ function ClubThreadView() {
               <ReplyBranch
                 key={node.reply.id}
                 node={node}
-                isPl={isPl}
+                lang={lang}
                 canResolve={canResolve}
                 canReact={thread.can_reply}
                 canModerate={thread.can_moderate}
@@ -334,6 +483,15 @@ function ClubThreadView() {
             ))}
           </ul>
         )}
+
+        {/* Ucięcie strony mówi się WPROST. Nagłówek pokazuje pełny licznik
+            z denormalizacji, więc milcząca różnica wyglądałaby jak utrata
+            treści, a nie jak paginacja. */}
+        {repliesTotal > repliesShown ? (
+          <p className="mt-3 rounded-lg border border-dashed border-border/60 p-3 text-center text-xs text-muted-foreground">
+            {t("club.repliesTruncated", { shown: repliesShown, total: repliesTotal })}
+          </p>
+        ) : null}
       </section>
 
       {/* --- kompozytor --- */}
@@ -353,35 +511,38 @@ function ClubThreadView() {
             </div>
           ) : null}
 
-          <Label htmlFor="club-reply-body" className="sr-only">
-            {t("club.replyPlaceholder")}
-          </Label>
-          <Textarea
+          {/* Wzmianki: ten sam komponent i ten sam parser, co w komentarzach.
+              Backend obsługuje `club_reply` w `process_mentions` od A12, więc
+              bez podpowiedzi w polu jedyną drogą było wpisanie sluga z pamięci. */}
+          <MentionTextarea
             id="club-reply-body"
-            rows={4}
-            maxLength={10000}
+            label={t("club.replyPlaceholder")}
             value={body}
-            disabled={replyM.isPending}
-            placeholder={t("club.replyPlaceholder")}
-            onChange={(e) => setBody(e.target.value)}
+            onChange={setBody}
+            lang={lang}
+            rows={4}
+            maxLength={BODY_MAX}
           />
 
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-            {canGoAnonymous ? (
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="club-reply-anon"
-                  checked={anonymous}
-                  disabled={replyM.isPending}
-                  onCheckedChange={setAnonymous}
-                />
-                <Label htmlFor="club-reply-anon" className="text-sm">
-                  {t("club.postAnonymously")}
-                </Label>
-              </div>
-            ) : (
-              <span />
-            )}
+            <div className="flex flex-wrap items-center gap-3">
+              {canGoAnonymous ? (
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="club-reply-anon"
+                    checked={anonymous}
+                    disabled={replyM.isPending}
+                    onCheckedChange={setAnonymous}
+                  />
+                  <Label htmlFor="club-reply-anon" className="text-sm">
+                    {t("club.postAnonymously")}
+                  </Label>
+                </div>
+              ) : null}
+              <span className="text-xs text-muted-foreground">
+                {body.trim().length} / {BODY_MAX}
+              </span>
+            </div>
             <Button onClick={submitReply} disabled={replyM.isPending || body.trim().length === 0}>
               {t("club.postReply")}
             </Button>
@@ -398,7 +559,7 @@ function ClubThreadView() {
 
 interface ReplyBranchProps {
   node: ClubReplyNode;
-  isPl: boolean;
+  lang: "pl" | "en";
   canResolve: boolean;
   canReact: boolean;
   canModerate: boolean;
@@ -418,7 +579,7 @@ interface ReplyBranchProps {
 function ReplyBranch(props: ReplyBranchProps) {
   const {
     node,
-    isPl,
+    lang,
     canResolve,
     canReact,
     canModerate,
@@ -440,7 +601,12 @@ function ReplyBranch(props: ReplyBranchProps) {
   // porównanie jest tam zawsze fałszywe - i tak ma być. Baza sprawdzi
   // autorstwo przy zapisie, a interfejs nie może zdradzić, czyj to wpis.
   const isMine = reply.author_id !== null && reply.author_id === myUserId;
-  const canEdit = (isMine || canModerate) && !threadLocked && reply.status !== "removed";
+  // `isClubReplyLive` zamiast porównania ze stringiem: poprzednia wersja
+  // sprawdzała `status !== "removed"`, a takiego statusu nie ma w słowniku
+  // (`pending | visible | hidden | deleted`), więc warunek był zawsze prawdziwy
+  // i wpis usunięty przez moderację zachowywał przycisk redakcji.
+  const canEdit = (isMine || canModerate) && !threadLocked && isClubReplyLive(reply.status);
+  const canReport = myUserId !== null && !isMine;
 
   return (
     <li>
@@ -455,10 +621,18 @@ function ReplyBranch(props: ReplyBranchProps) {
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
           <span className="font-medium">{author.name}</span>
           <span className="text-xs text-muted-foreground">
-            {new Date(reply.created_at).toLocaleString(isPl ? "pl-PL" : "en-GB")}
+            {formatDateTime(reply.created_at, lang)}
           </span>
           {reply.edited_at !== null ? (
             <span className="text-xs text-muted-foreground">({t("club.edited")})</span>
+          ) : null}
+          {/* Stanowisko autora - jedyny sygnał, który zamienia listę odpowiedzi
+              w mapę sporu. Baza zwraca je wyłącznie w wątku `position` i
+              wyłącznie przy autorstwie jawnym. */}
+          {reply.author_stance !== null ? (
+            <Badge variant="outline" className="text-[11px]">
+              {t(`club.stance.${reply.author_stance}`)}
+            </Badge>
           ) : null}
           {reply.is_resolution ? (
             <Badge className="gap-1 bg-emerald-500/15 text-[11px] text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-300">
@@ -534,6 +708,7 @@ function ReplyBranch(props: ReplyBranchProps) {
               {t("club.editor.edit")}
             </Button>
           ) : null}
+          {canReport ? <ClubReportButton targetType="reply" targetId={reply.id} /> : null}
         </div>
       </div>
 

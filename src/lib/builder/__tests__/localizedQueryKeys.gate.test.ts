@@ -127,6 +127,11 @@ describe("konwencja `lang` / `_lang` jest prawdziwa, nie dekoracyjna", () => {
 describe("rejestr fabryk nie ma dziur", () => {
   /** Fabryki BEZ parametru języka - zapytania niezależne od wersji językowej. */
   const LANG_FREE = new Set([
+    // Widgety klubów: RPC zwraca OBIE wersje językowe w jednym wierszu
+    // (`name_pl`/`name_en`, `club_name_pl`/`club_name_en`), a komponent wybiera
+    // przy renderze. Klucz z językiem trzymałby dwa identyczne wpisy cache.
+    "clubCardQueryOptions",
+    "clubThreadsQueryOptions",
     "designTokensQueryOptions",
     "eventByIdQueryOptions",
     "eventRsvpCountsQueryOptions",

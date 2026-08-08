@@ -20,6 +20,7 @@ import {
   sliderUsesPostsSource,
 } from "@/lib/builder/sliderPostsQuery";
 import { eventByIdQueryOptions, eventsListQueryOptions } from "@/lib/builder/eventsQuery";
+import { clubCardQueryOptions, clubThreadsQueryOptions } from "@/lib/builder/clubsQuery";
 import {
   speakersByIdsQueryOptions,
   speakersQueryOptions,
@@ -111,6 +112,22 @@ function contentItems(c: WidgetContent): Record<string, unknown>[] {
  * `getQueryState` to observe the EXACT cache entries the widgets read - the key
  * to streamed sections never re-fetching after hydration.
  */
+/** Adres klubu z treści widgetu. Pusty = widget nieskonfigurowany, bez zapytania. */
+function clubWidgetSlug(content: unknown): string {
+  const raw = (content as { clubSlug?: unknown } | undefined)?.clubSlug;
+  return typeof raw === "string" ? raw.trim() : "";
+}
+
+/** Wejście strumienia wątków - te same wartości domyślne, co w widoku widgetu. */
+function clubThreadsInput(content: unknown): { sort: string; policyArea: string; limit: number } {
+  const c = content as { sort?: unknown; policyArea?: unknown; limit?: unknown } | undefined;
+  return {
+    sort: typeof c?.sort === "string" ? c.sort : "hot",
+    policyArea: typeof c?.policyArea === "string" ? c.policyArea : "",
+    limit: typeof c?.limit === "number" ? c.limit : 4,
+  };
+}
+
 export type BuilderSectionQuery =
   | ReturnType<typeof postListQueryOptions>
   | ReturnType<typeof newsTickerQueryOptions>
@@ -121,7 +138,9 @@ export type BuilderSectionQuery =
   | ReturnType<typeof eventsListQueryOptions>
   | ReturnType<typeof eventByIdQueryOptions>
   | ReturnType<typeof speakersQueryOptions>
-  | ReturnType<typeof speakersByIdsQueryOptions>;
+  | ReturnType<typeof speakersByIdsQueryOptions>
+  | ReturnType<typeof clubCardQueryOptions>
+  | ReturnType<typeof clubThreadsQueryOptions>;
 
 /**
  * Warm one builder query. BuilderSectionQuery is a union of three differently
@@ -164,6 +183,16 @@ export function widgetQueryOptionsList(widget: WidgetNode, lang: Lang): BuilderS
   }
   if (widget.type === "event-list") {
     out.push(eventsListQueryOptions(widget.content, lang));
+  }
+  // Kluby: bez rozgrzania widget na stronie głównej renderuje pustkę w HTML-u
+  // i dociąga treść dopiero po hydratacji - czyli dokładnie tam, gdzie ma
+  // przyciągać uwagę, przez chwilę nie ma nic.
+  if (widget.type === "club-card") {
+    const slug = clubWidgetSlug(widget.content);
+    if (slug !== "") out.push(clubCardQueryOptions(slug));
+  }
+  if (widget.type === "club-threads") {
+    out.push(clubThreadsQueryOptions(clubThreadsInput(widget.content)));
   }
   if (isCountdownWidget(widget)) {
     const eventId = countdownEventId(widget.content);
@@ -294,6 +323,17 @@ export function widgetCacheTargets(widget: WidgetNode, lang: Lang): WidgetCacheT
   }
   if (widget.type === "event-list") {
     const opts = eventsListQueryOptions(widget.content, lang);
+    out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
+  }
+  if (widget.type === "club-card") {
+    const slug = clubWidgetSlug(widget.content);
+    if (slug !== "") {
+      const opts = clubCardQueryOptions(slug);
+      out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
+    }
+  }
+  if (widget.type === "club-threads") {
+    const opts = clubThreadsQueryOptions(clubThreadsInput(widget.content));
     out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
   }
   if (isCountdownWidget(widget)) {

@@ -54,6 +54,29 @@ export const exportMyData = createServerFn({ method: "POST" })
       return { data: rows, error: null };
     };
 
+    // Kluby dyskusyjne są RLS deny-all z odebranym grantem SELECT dla roli
+    // `authenticated` (powierzchnia modułu jest RPC-only), więc `.from("club_*")`
+    // zwróciłoby tu pustkę wyglądającą jak „nie korzystam" zamiast błędu grantu.
+    // Cały moduł jedzie jednym SECURITY DEFINER RPC, rozbitym niżej na
+    // zadeklarowane sekcje - jedno wywołanie, siedem pozycji w manifeście.
+    //
+    // `Promise.resolve` jest tu istotne: builder PostgREST to *thenable*, które
+    // wykonuje żądanie przy KAŻDYM `.then()`. Bez opakowania siedem sekcji
+    // znaczyłoby siedem zapytań o ten sam payload.
+    const clubExport = Promise.resolve(supabase.rpc("club_export_my_data", { p_limit: ROW_LIMIT }));
+    const clubSection = (key: string): PromiseLike<SectionResult> =>
+      clubExport.then((result) => {
+        if (result.error) return { data: null, error: result.error };
+        const payload = result.data;
+        // Zawężenie zamiast rzutu: payload jest kontraktem jsonb, a brak klucza
+        // ma dać pustą listę, nie `undefined` w pliku użytkownika.
+        const rows =
+          payload !== null && typeof payload === "object" && !Array.isArray(payload)
+            ? (payload[key] ?? [])
+            : [];
+        return { data: rows, error: null };
+      });
+
     // Kolumny jawnie, bez "*": eksport ma być stabilnym kontraktem, nie
     // przypadkowym zrzutem schematu (i nie może się wywrócić na kolumnie
     // odciętej grantem).
@@ -274,6 +297,18 @@ export const exportMyData = createServerFn({ method: "POST" })
       // ── Zapytania do ekspertów ───────────────────────────────────────────
       expert_requests_sent: supabase.rpc("list_my_inmails", { p_box: "sent" }),
       expert_requests_received: supabase.rpc("list_my_inmails", { p_box: "received" }),
+
+      // ── Kluby dyskusyjne ─────────────────────────────────────────────────
+      // Własne wpisy anonimowe SĄ tutaj: `is_anonymous` to funkcja projekcji
+      // przy odczycie publicznym, a nie brak autorstwa. Cudze wypowiedzi -
+      // patrz manifest.excluded.club_content_authored_by_others.
+      club_memberships: clubSection("club_memberships"),
+      club_threads_authored: clubSection("club_threads_authored"),
+      club_replies_authored: clubSection("club_replies_authored"),
+      club_stances: clubSection("club_stances"),
+      club_reactions: clubSection("club_reactions"),
+      club_thread_subscriptions: clubSection("club_thread_subscriptions"),
+      club_invitations_received: clubSection("club_invitations_received"),
 
       // ── Płatności i uprawnienia zakupowe ─────────────────────────────────
       orders: supabase

@@ -18,6 +18,7 @@ import {
 import { ClubStatusBadge, ClubVisibilityBadge } from "../atoms/ClubBadges";
 import type { AdminClubRow, ClubStatus, ClubVisibility } from "@/lib/clubs/types";
 import { CLUB_STATUSES, CLUB_VISIBILITIES } from "@/lib/clubs/types";
+import { formatDate } from "@/lib/i18n/format";
 
 interface ClubsTableProps {
   rows: AdminClubRow[];
@@ -37,13 +38,15 @@ function asVisibility(value: string): ClubVisibility {
     : "members";
 }
 
-function formatDate(value: string | null, isPl: boolean): string {
+function formatLastActivity(value: string | null, isPl: boolean): string {
   if (!value) return "-";
-  return new Date(value).toLocaleDateString(isPl ? "pl-PL" : "en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  return (
+    formatDate(value, isPl ? "pl" : "en", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    }) || "-"
+  );
 }
 
 export function ClubsTable({ rows, isPl }: ClubsTableProps) {
@@ -101,7 +104,7 @@ export function ClubsTable({ rows, isPl }: ClubsTableProps) {
                   {row.lead_names.length > 0 ? row.lead_names.join(", ") : "-"}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                  {formatDate(row.last_activity_at, isPl)}
+                  {formatLastActivity(row.last_activity_at, isPl)}
                 </TableCell>
                 <TableCell>
                   <ClubStatusBadge status={asStatus(row.status)} />
@@ -173,7 +176,7 @@ export function ClubsTable({ rows, isPl }: ClubsTableProps) {
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <Clock className="h-3.5 w-3.5" />
-                {formatDate(row.last_activity_at, isPl)}
+                {formatLastActivity(row.last_activity_at, isPl)}
               </span>
             </div>
 

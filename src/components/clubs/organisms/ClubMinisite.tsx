@@ -25,17 +25,18 @@ import { ClubCover } from "@/components/clubs/atoms/ClubCover";
 import { areaLabel } from "@/lib/tracker/stages";
 import type { ClubMinisiteAccess } from "@/lib/clubs/minisiteAccess";
 import { showsClubMinisiteContent } from "@/lib/clubs/minisiteAccess";
-import type { ClubThreadListRow, ClubViewRow } from "@/lib/clubs/types";
+import { toAuthorLabel, type ClubThreadListRow, type ClubViewRow } from "@/lib/clubs/types";
+import { formatDate } from "@/lib/i18n/format";
 
 function fmtDate(value: string | null, isPl: boolean): string | null {
   if (value === null || value === "") return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleDateString(isPl ? "pl-PL" : "en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  return (
+    formatDate(value, isPl ? "pl" : "en", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }) || null
+  );
 }
 
 function ThreadTeaser({
@@ -51,6 +52,7 @@ function ThreadTeaser({
 }) {
   const { t } = useTranslation();
   const date = fmtDate(thread.last_reply_at ?? thread.created_at, isPl);
+  const author = toAuthorLabel(thread, t("club.anonymousAuthor"), t("club.deletedAuthor"));
 
   return (
     <Link
@@ -64,7 +66,7 @@ function ThreadTeaser({
     >
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <Badge variant="outline" className="text-[11px]">
-          {t(`club.kind.${thread.kind}`, { defaultValue: thread.kind })}
+          {t(`club.kind.${thread.kind}`)}
         </Badge>
         <span>{isPl ? thread.group_name_pl : thread.group_name_en}</span>
       </div>
@@ -78,7 +80,13 @@ function ThreadTeaser({
         {thread.title}
       </h3>
       {thread.excerpt !== null && thread.excerpt.trim() !== "" ? (
-        <p className={featured ? "text-sm text-muted-foreground" : "line-clamp-3 text-sm text-muted-foreground"}>
+        <p
+          className={
+            featured
+              ? "text-sm text-muted-foreground"
+              : "line-clamp-3 text-sm text-muted-foreground"
+          }
+        >
           {thread.excerpt}
         </p>
       ) : null}
@@ -93,7 +101,12 @@ function ThreadTeaser({
             {date}
           </span>
         ) : null}
-        <span>{thread.is_anonymous ? thread.author_alias : thread.author_name}</span>
+        {/* Etykieta autora idzie przez WSPOLNA funkcje, tak jak w kazdym
+            innym miejscu modulu. Wlasna wersja gubila dwa przypadki: wpis
+            w klubie 'chatham' (is_anonymous=false, ale author_name=NULL - pusty
+            napis) i konto usuniete (oba pola NULL). Trzecia: alias jest tu
+            renderowany surowo, bez szablonu "Uczestnik {{alias}}". */}
+        <span>{author.name}</span>
       </div>
     </Link>
   );

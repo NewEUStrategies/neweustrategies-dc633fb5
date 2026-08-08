@@ -13,12 +13,30 @@ import { useCurrentTier } from "@/lib/billing/tiers";
 import { useClubBySlug, useClubThreads, useMyClubInvitations } from "@/lib/clubs/useClubs";
 import { resolveClubMinisiteAccess } from "@/lib/clubs/minisiteAccess";
 import { ClubMinisite } from "@/components/clubs/organisms/ClubMinisite";
+import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
+import { fetchClubBySlug } from "@/lib/clubs/api";
+import { clubKeys } from "@/lib/clubs/queryKeys";
 import { ensureClubI18n } from "@/lib/i18n-club";
 
 export const Route = createFileRoute("/club/$clubSlug/minisite")({
-  head: () => ({
-    meta: [{ title: "Klub - minisite" }, { name: "robots", content: "noindex,nofollow" }],
-  }),
+  loader: async ({ context, params }) => {
+    const club = await context.queryClient
+      .ensureQueryData({
+        queryKey: clubKeys.bySlug(params.clubSlug),
+        queryFn: () => fetchClubBySlug(params.clubSlug),
+      })
+      .catch(() => null);
+    return { club: toClubHeadSource(club) };
+  },
+  // `forceNoindex` bez wyjątków, także dla klubu `public` - powód w nagłówku
+  // pliku. Tytuł i tak niesie nazwę klubu: zakładka przeglądarki nie należy do
+  // indeksu, a "Klub - minisite" po polsku było jedyną etykietą także dla /en/.
+  head: ({ loaderData, params }) =>
+    buildClubHead({
+      fallbackPath: `/club/${params.clubSlug}/minisite`,
+      club: loaderData?.club ?? null,
+      forceNoindex: true,
+    }),
   component: ClubMinisiteRoute,
 });
 

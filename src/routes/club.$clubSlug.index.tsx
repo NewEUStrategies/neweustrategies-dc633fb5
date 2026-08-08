@@ -19,6 +19,8 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -33,15 +35,46 @@ import { ClubThreadList } from "@/components/clubs/organisms/ClubThreadList";
 import { ClubCover } from "@/components/clubs/atoms/ClubCover";
 import {
   CLUB_THREAD_KINDS,
+  CLUB_THREAD_SORTS,
+  CLUB_THREAD_SORTS_REQUIRING_SESSION,
+  CLUB_THREAD_STATUSES,
   toClubLayout,
-  type ClubSearchHit,
   type ClubThreadKind,
   type ClubThreadSort,
+  type ClubThreadStatus,
 } from "@/lib/clubs/types";
+import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
+import {
+  ClubGlobalSearchInput,
+  ClubGlobalSearchResults,
+} from "@/components/clubs/organisms/ClubGlobalSearch";
+import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
+import { fetchClubBySlug } from "@/lib/clubs/api";
+import { clubKeys } from "@/lib/clubs/queryKeys";
+import { useAuth } from "@/hooks/useAuth";
 import { ensureClubI18n } from "@/lib/i18n-club";
+import { formatDateShort } from "@/lib/i18n/format";
 
 export const Route = createFileRoute("/club/$clubSlug/")({
-  head: () => ({ meta: [{ name: "robots", content: "noindex,nofollow" }] }),
+  // Indeksowalność liczy się z WIDOCZNOŚCI klubu, a head() jest synchroniczne -
+  // stąd loader. Wcześniej ta trasa emitowała bezwarunkowy `noindex`, mimo że
+  // komentarz w jej nagłówku opisywał zachowanie warunkowe, a specyfikacja
+  // (V1 §5.1) czyni klub `public` jedyną powierzchnią modułu, która ma dowozić
+  // ruch z wyszukiwarek.
+  loader: async ({ context, params }) => {
+    const club = await context.queryClient
+      .ensureQueryData({
+        queryKey: clubKeys.bySlug(params.clubSlug),
+        queryFn: () => fetchClubBySlug(params.clubSlug),
+      })
+      .catch(() => null);
+    return { club: toClubHeadSource(club) };
+  },
+  head: ({ loaderData, params }) =>
+    buildClubHead({
+      fallbackPath: `/club/${params.clubSlug}`,
+      club: loaderData?.club ?? null,
+    }),
   component: ClubHome,
 });
 
@@ -56,12 +89,33 @@ function ClubHome() {
   const [groupId, setGroupId] = useState<string | null>(null);
   const [sort, setSort] = useState<ClubThreadSort>("hot");
   const [kind, setKind] = useState<ClubThreadKind | null>(null);
+  // Filtry ze spec §5.2, których lista nie miała. `anchored === null` znaczy
+  // "wszystkie", a nie "bez kotwicy" - te dwie odpowiedzi są różne i muszą
+  // przeżyć drogę aż do RPC.
+  const [status, setStatus] = useState<ClubThreadStatus | null>(null);
+  const [anchored, setAnchored] = useState<boolean | null>(null);
+  const [unreadOnly, setUnreadOnly] = useState(false);
   const [query, setQuery] = useState("");
 
+  const { session } = useAuth();
+  const signedIn = session !== null;
   const clubQ = useClubBySlug(clubSlug);
   const club = clubQ.data ?? null;
   const groupsQ = useClubGroups(club?.id);
-  const threadsQ = useClubThreads({ clubId: club?.id, groupId, sort, kind });
+  const availableSorts = CLUB_THREAD_SORTS.filter(
+    (value) => session !== null || !CLUB_THREAD_SORTS_REQUIRING_SESSION.includes(value),
+  );
+  const threadsQ = useClubThreads({
+    clubId: club?.id,
+    groupId,
+    sort,
+    kind,
+    status,
+    anchored,
+    // Anonim nie ma czego nie przeczytać - wysłanie `true` bez sesji dałoby
+    // pustą listę wyglądającą jak pusty klub.
+    unreadOnly: signedIn && unreadOnly,
+  });
 
   // Wyszukiwanie ZASTĘPUJE listę, nie stoi obok niej: dwie listy naraz na
   // telefonie znaczą, że użytkownik nie wie, którą czyta. Debounce 250 ms,
@@ -78,6 +132,18 @@ function ClubHome() {
     return (
       <div className="container mx-auto max-w-5xl px-4 py-8">
         <div className="h-64 animate-pulse rounded-lg bg-muted/50" aria-busy="true" />
+      </div>
+    );
+  }
+
+  // Awaria RPC to NIE jest 404. Zero wierszy znaczy "nie ma czego pokazać"
+  // (klub `secret` bez dostępu nie ma prawa zdradzić, że istnieje), a błąd
+  // sieci albo bazy ma powiedzieć, że problem jest po naszej stronie -
+  // inaczej użytkownik z poprawnym linkiem dowiaduje się, że klub nie istnieje.
+  if (clubQ.isError) {
+    return (
+      <div className="container mx-auto max-w-3xl px-4 py-12">
+        <ClubErrorNotice onRetry={() => void clubQ.refetch()} />
       </div>
     );
   }
@@ -162,6 +228,16 @@ function ClubHome() {
                 {t("club.about")}
               </Link>
             </Button>
+            {/* Skład klubu pokazujemy tylko wtedy, gdy baza na to pozwala -
+                `can_see_members` liczy się w club_capabilities i do tej pory
+                nie miało po stronie produktu żadnego konsumenta. */}
+            {club.can_see_members ? (
+              <Button asChild variant="outline" size="sm">
+                <Link to="/club/$clubSlug/members" params={{ clubSlug }}>
+                  {t("club.members")}
+                </Link>
+              </Button>
+            ) : null}
             {club.can_post_thread ? (
               <Button asChild size="sm">
                 <Link to="/club/$clubSlug/new" params={{ clubSlug }}>
@@ -200,34 +276,27 @@ function ClubHome() {
 
       {/* Wyszukiwanie: nad filtrami, bo fraza jest silniejszym zawężeniem niż
           grupa czy rodzaj - a gdy jest wpisana, filtry i tak nie mają na co
-          działać (RPC wyszukiwania nie przyjmuje ich jako parametrów). */}
-      <div className="relative mb-3">
-        <Search
-          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-          aria-hidden="true"
-        />
-        <Input
+          działać (RPC wyszukiwania nie przyjmuje ich jako parametrów).
+          Kontrolka jest WSPÓLNA z hubem: wcześniej ten sam układ (ikona, pole
+          `pl-9 pr-9`, przycisk czyszczenia) stał tu w drugiej kopii, więc
+          poprawka celu dotykowego musiałaby być robiona dwa razy. */}
+      <div className="mb-3">
+        <ClubGlobalSearchInput
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={t("club.searchPlaceholder")}
-          aria-label={t("club.searchPlaceholder")}
-          className="pl-9 pr-9"
+          onChange={setQuery}
+          placeholderKey="club.searchPlaceholder"
         />
-        {query !== "" ? (
-          <button
-            type="button"
-            onClick={() => setQuery("")}
-            aria-label={t("club.searchClear")}
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        ) : null}
       </div>
 
       {/* Filtry znikają w trybie wyszukiwania: droplista, która nic nie robi,
-          jest gorsza niż jej brak. */}
-      <div className={`mb-5 grid gap-2 sm:grid-cols-3 ${searching ? "hidden" : ""}`}>
+          jest gorsza niż jej brak.
+          Siatka rośnie z liczbą kontrolek (od trzech do pięciu, zależnie od
+          roli i sesji), więc kolumny są deklarowane progami, a nie sztywną
+          trójką - inaczej piąty filtr lądowałby sam w nowym wierszu na desktopie
+          i zjadał wysokość nad listą. */}
+      <div
+        className={`mb-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 ${searching ? "hidden" : ""}`}
+      >
         <Select value={groupId ?? ALL} onValueChange={(v) => setGroupId(v === ALL ? null : v)}>
           <SelectTrigger aria-label={t("club.groups")}>
             <SelectValue placeholder={t("club.groups")} />
@@ -242,13 +311,19 @@ function ClubHome() {
           </SelectContent>
         </Select>
 
+        {/* Sześć porządków z RPC (A18), nie dwa. `mine` i `subscribed`
+            filtrują po wołającym, więc dla anonima zwróciłyby pusty zbiór
+            i sugerowały, że klub jest pusty - dla niego ich nie ma. */}
         <Select value={sort} onValueChange={(v) => setSort(v as ClubThreadSort)}>
           <SelectTrigger aria-label={t("club.sort.label")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="hot">{t("club.sort.hot")}</SelectItem>
-            <SelectItem value="new">{t("club.sort.new")}</SelectItem>
+            {availableSorts.map((value) => (
+              <SelectItem key={value} value={value}>
+                {t(`club.sort.${value}`)}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
 
@@ -268,15 +343,72 @@ function ClubHome() {
             ))}
           </SelectContent>
         </Select>
+
+        {/* Trzy filtry ze spec §5.2, których nie było: status, zakotwiczenie
+            i „tylko nieprzeczytane". Status pokazujemy WYŁĄCZNIE moderacji -
+            dla członka lista i tak zawiera tylko wątki widoczne, więc droplista
+            byłaby wyborem między „wszystkie" a „wszystkie". Filtr
+            nieprzeczytanych wymaga sesji z tego samego powodu, co sorty
+            `mine`/`subscribed`: anonim nie ma czego nie przeczytać. */}
+        <Select
+          value={anchored === null ? ALL : anchored ? "anchored" : "loose"}
+          onValueChange={(v) => setAnchored(v === ALL ? null : v === "anchored")}
+        >
+          <SelectTrigger aria-label={t("club.filters.anchor")}>
+            <SelectValue placeholder={t("club.filters.anchor")} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>{t("club.filters.anchorAny")}</SelectItem>
+            <SelectItem value="anchored">{t("club.filters.anchorOnly")}</SelectItem>
+            <SelectItem value="loose">{t("club.filters.anchorNone")}</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {club.can_moderate ? (
+          <Select
+            value={status ?? ALL}
+            onValueChange={(v) => setStatus(v === ALL ? null : (v as ClubThreadStatus))}
+          >
+            <SelectTrigger aria-label={t("club.filters.status")}>
+              <SelectValue placeholder={t("club.filters.status")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>{t("club.filters.status")}</SelectItem>
+              {CLUB_THREAD_STATUSES.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {t(`club.threadStatus.${s}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : null}
+
+        {signedIn ? (
+          <div className="flex items-center gap-2 rounded-md border border-border/60 px-3">
+            <Switch
+              id="club-unread-only"
+              checked={unreadOnly}
+              onCheckedChange={setUnreadOnly}
+              aria-label={t("club.filters.unreadOnly")}
+            />
+            <Label htmlFor="club-unread-only" className="text-sm font-normal">
+              {t("club.filters.unreadOnly")}
+            </Label>
+          </div>
+        ) : null}
       </div>
 
       {searching ? (
-        <SearchResults
-          clubSlug={clubSlug}
+        <ClubGlobalSearchResults
           hits={searchQ.data ?? []}
           pending={searchQ.isPending}
+          failed={searchQ.isError}
           query={debouncedQuery}
+          isPl={isPl}
+          onRetry={() => void searchQ.refetch()}
         />
+      ) : threadsQ.isError ? (
+        <ClubErrorNotice onRetry={() => void threadsQ.refetch()} />
       ) : threadsQ.isPending ? (
         <div className="space-y-2" aria-busy="true">
           {[0, 1, 2].map((i) => (
@@ -312,85 +444,5 @@ function ClubHome() {
         </>
       )}
     </div>
-  );
-}
-
-/** Wyniki wyszukiwania - osobny komponent, bo mają inną treść wiersza niż
- *  lista tematów: cytat z dopasowaniem zamiast metryk aktywności. */
-function SearchResults({
-  clubSlug,
-  hits,
-  pending,
-  query,
-}: {
-  clubSlug: string;
-  hits: readonly ClubSearchHit[];
-  pending: boolean;
-  query: string;
-}) {
-  const { t } = useTranslation();
-
-  if (pending) {
-    return (
-      <div className="space-y-2" aria-busy="true">
-        {[0, 1, 2].map((i) => (
-          <div key={i} className="h-16 animate-pulse rounded-lg bg-muted/50" />
-        ))}
-      </div>
-    );
-  }
-
-  if (hits.length === 0) {
-    return (
-      <Card>
-        <CardContent className="p-10 text-center text-sm text-muted-foreground">
-          {t("club.searchEmpty", { query })}
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <>
-      <p className="mb-2 text-xs text-muted-foreground">
-        {t("club.searchCount", { count: hits.length })}
-      </p>
-      <ul className="space-y-2">
-        {hits.map((hit) => (
-          <li key={hit.thread_id}>
-            <Link
-              to="/club/$clubSlug/t/$threadSlug"
-              params={{ clubSlug, threadSlug: hit.thread_slug }}
-              className="block rounded-lg border border-border/60 bg-card p-4 transition-colors hover:border-primary/40"
-            >
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline" className="text-[11px]">
-                  {t(`club.kind.${hit.kind}`)}
-                </Badge>
-                <h3 className="min-w-0 flex-1 truncate font-medium">{hit.title}</h3>
-              </div>
-              {/* ts_headline zwraca fragment ze znacznikami <b>. Renderujemy go
-                  jako TEKST po zdjęciu znaczników - wstrzykiwanie HTML z bazy
-                  do listy wyników nie jest tego warte. */}
-              <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                {(hit.snippet ?? "").replace(/<\/?b>/g, "")}
-              </p>
-              <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                <span className="inline-flex items-center gap-1">
-                  <MessageSquare className="h-3 w-3" />
-                  {hit.reply_count}
-                </span>
-                {hit.last_reply_at !== null ? (
-                  <span className="inline-flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    {new Date(hit.last_reply_at).toLocaleDateString()}
-                  </span>
-                ) : null}
-              </div>
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </>
   );
 }

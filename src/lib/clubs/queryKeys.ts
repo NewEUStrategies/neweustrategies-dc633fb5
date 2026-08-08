@@ -24,16 +24,24 @@ export const clubKeys = {
   /** Wszystko, co dotyczy jednego klubu. Prefiks dla grup, czlonkow, zdolnosci. */
   club: (clubId: string) => [...clubKeys.all, "club", clubId] as const,
 
-  /** Karta klubu po slugu - osobna galaz, bo slug moze sie zmienic. */
+  /** Karta klubu po slugu - osobna galaz, bo slug moze sie zmienic.
+   *
+   *  UWAGA DLA MUTACJI: ta galaz NIE jest potomkiem `club(clubId)`, wiec
+   *  `invalidateQueries({ queryKey: clubKeys.club(id) })` jej nie dotyka.
+   *  Kazda mutacja zmieniajaca karte klubu (dolaczenie, wyjscie, akceptacja
+   *  zasad, nowy watek) musi uniewaznic ROWNIEZ ten klucz - inaczej naglowek
+   *  klubu zostaje ze starym licznikiem i starym przyciskiem "Dolacz" mimo
+   *  wykonanej akcji. Sluzy do tego `clubKeys.bySlugAll()`. */
   bySlug: (slug: string) => [...clubKeys.all, "bySlug", slug] as const,
+
+  /** Prefiks WSZYSTKICH kart po slugu. Mutacja nie zna slugu (pracuje na id),
+   *  a prefiks trafia w kazda z nich - w tym w te otwarta na ekranie. */
+  bySlugAll: () => [...clubKeys.all, "bySlug"] as const,
 
   groups: (clubId: string) => [...clubKeys.club(clubId), "groups"] as const,
 
-  members: (clubId: string, status: ClubMemberStatus | null, offset: number) =>
-    [...clubKeys.club(clubId), "members", status ?? "all", offset] as const,
-
-  capabilities: (clubId: string, groupId?: string | null) =>
-    [...clubKeys.club(clubId), "capabilities", groupId ?? "club"] as const,
+  members: (clubId: string, status: ClubMemberStatus | null, offset: number, limit: number) =>
+    [...clubKeys.club(clubId), "members", status ?? "all", offset, limit] as const,
 
   stats: (clubId: string) => [...clubKeys.club(clubId), "stats"] as const,
 
@@ -47,10 +55,30 @@ export const clubKeys = {
    *  bo zasilaja licznik w nawigacji niezaleznie od otwartego klubu. */
   myInvitations: () => [...clubKeys.all, "myInvitations"] as const,
 
-  /** Lista tematow. Filtry sa czescia klucza, wiec przelaczenie grupy albo
-   *  sortu to nowy cache, a nie refetch tego samego wpisu. */
-  threads: (clubId: string, groupId: string | null, sort: string, kind: string | null) =>
-    [...clubKeys.club(clubId), "threads", groupId ?? "all", sort, kind ?? "all"] as const,
+  /**
+   * Lista watkow. KAZDY filtr jest czescia klucza - inaczej dwa rozne zestawy
+   * wynikow lezalyby pod jednym wpisem, a przelaczenie filtra pokazywaloby
+   * poprzednia strone kursorowa jako swoja.
+   */
+  threads: (
+    clubId: string,
+    groupId: string | null,
+    sort: string,
+    kind: string | null,
+    status: string | null = null,
+    anchored: boolean | null = null,
+    unreadOnly = false,
+  ) =>
+    [
+      ...clubKeys.club(clubId),
+      "threads",
+      groupId ?? "all",
+      sort,
+      kind ?? "all",
+      status ?? "all",
+      anchored === null ? "any" : anchored ? "anchored" : "loose",
+      unreadOnly ? "unread" : "all",
+    ] as const,
 
   thread: (clubId: string, threadSlug: string) =>
     [...clubKeys.club(clubId), "thread", threadSlug] as const,
@@ -96,8 +124,14 @@ export const clubKeys = {
    *  wyniki wyszukiwania po calej platformie. */
   search: (query: string, clubId: string | null) =>
     [...clubKeys.all, "search", query, clubId ?? "all"] as const,
+  /** Prefiks wszystkich fraz - redakcja tytulu zmienia KAZDY wynik, ktory go
+   *  cytuje, a mutacja nie wie, jakie frazy ma otwarte czytelnik. */
+  searchAll: () => [...clubKeys.all, "search"] as const,
   anchor: (anchorType: string, anchorId: string) =>
     [...clubKeys.all, "anchor", anchorType, anchorId] as const,
+  /** Podpowiedzi kotwicy w kompozytorze - fraza i opcjonalne zawezenie typu. */
+  anchorSuggest: (query: string, anchorType: string | null) =>
+    [...clubKeys.all, "anchorSuggest", query, anchorType ?? "all"] as const,
   pendingCounts: () => [...clubKeys.all, "pendingCounts"] as const,
   moderationQueue: (clubId: string) => [...clubKeys.club(clubId), "moderationQueue"] as const,
   moderationLog: (clubId: string) => [...clubKeys.club(clubId), "moderationLog"] as const,
@@ -121,6 +155,10 @@ export const adminClubKeys = {
       filters.search?.trim() ?? "",
       filters.status ?? "any",
       filters.visibility ?? "any",
+      // Rozmiar strony jest czescia klucza tak samo jak przesuniecie: bez tego
+      // zmiana "50 -> 200" przy offsecie 0 trafia w ten sam wpis cache i lista
+      // zostaje na piecdziesieciu wierszach, mimo ze licznik mowi co innego.
+      filters.limit ?? 50,
       filters.offset ?? 0,
     ] as const,
 } as const;

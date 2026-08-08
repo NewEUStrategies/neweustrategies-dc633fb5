@@ -39,6 +39,9 @@ export const WIDGET_QUERY_ROOTS = {
   ratedList: "rated-list-dyn",
   categories: "builder-cats",
   tags: "builder-tags",
+  // Kluby dyskusyjne (spec §5.5): karta klubu i strumień wątków ponad klubami.
+  clubCard: "builder-club-card",
+  clubThreads: "builder-club-threads",
   sliderPosts: "builder-slider-posts",
   sliderFallbackImages: "builder-slider-fallback-images",
   recommendedPosts: "recommended-posts",

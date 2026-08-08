@@ -15,22 +15,31 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import {
   CLUB_ACTIVITY_SORTS,
+  toAuthorLabel,
   type ClubActivityRow,
   type ClubActivitySort,
 } from "@/lib/clubs/types";
+import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
+import { formatDateShort } from "@/lib/i18n/format";
 
 export function ClubActivityFeed({
   rows,
   sort,
   onSortChange,
   pending,
+  failed,
   isPl,
+  onRetry,
 }: {
   rows: readonly ClubActivityRow[];
   sort: ClubActivitySort;
   onSortChange: (sort: ClubActivitySort) => void;
   pending: boolean;
+  /** Awaria RPC. Bez tego pusty strumień i padnięty strumień wyglądają
+   *  identycznie, a to są dwie różne informacje. */
+  failed?: boolean;
   isPl: boolean;
+  onRetry?: () => void;
 }) {
   const { t } = useTranslation();
 
@@ -53,15 +62,19 @@ export function ClubActivityFeed({
               onClick={() => onSortChange(option)}
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm transition-colors",
+                // Cel dotykowy 44 px i widoczny fokus - ta kontrolka jest pisana
+                // od zera, więc regułę prymitywu `Button` trzeba powtórzyć.
+                "pointer-coarse:min-h-11",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 sort === option
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
               {option === "hot" ? (
-                <Flame className="h-3.5 w-3.5" />
+                <Flame className="h-3.5 w-3.5" aria-hidden="true" />
               ) : (
-                <Sparkles className="h-3.5 w-3.5" />
+                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
               )}
               {t(`club.sort.${option}`)}
             </button>
@@ -69,7 +82,9 @@ export function ClubActivityFeed({
         </div>
       </div>
 
-      {pending ? (
+      {failed === true ? (
+        <ClubErrorNotice compact onRetry={onRetry} />
+      ) : pending ? (
         <div className="space-y-2" aria-busy="true">
           {[0, 1, 2, 3].map((i) => (
             <div key={i} className="h-20 animate-pulse rounded-lg bg-muted/50" />
@@ -96,7 +111,20 @@ export function ClubActivityFeed({
 
 function ClubActivityItem({ row, isPl }: { row: ClubActivityRow; isPl: boolean }) {
   const { t } = useTranslation();
-  const author = row.author_name ?? row.author_alias ?? t("club.anonymousAuthor");
+  // `club.anonymousAuthor` to WZORZEC z placeholderem ("Uczestnik {{alias}}"),
+  // wiec renderowany wprost pokazywal na ekranie surowa interpolacje. Wspolna
+  // funkcja podstawia alias i obsluguje konto usuniete.
+  const author = toAuthorLabel(
+    {
+      author_id: null,
+      author_name: row.author_name,
+      author_avatar: null,
+      author_slug: null,
+      author_alias: row.author_alias,
+    },
+    t("club.anonymousAuthor"),
+    t("club.deletedAuthor"),
+  ).name;
   const when = new Date(row.last_reply_at ?? row.created_at);
 
   return (
@@ -137,9 +165,7 @@ function ClubActivityItem({ row, isPl }: { row: ClubActivityRow; isPl: boolean }
         </span>
         <span className="inline-flex items-center gap-1.5">
           <Clock className="h-3.5 w-3.5" />
-          <time dateTime={when.toISOString()}>
-            {when.toLocaleDateString(isPl ? "pl-PL" : "en-GB")}
-          </time>
+          <time dateTime={when.toISOString()}>{formatDateShort(when, isPl ? "pl" : "en")}</time>
         </span>
       </div>
     </Link>

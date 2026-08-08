@@ -104,6 +104,52 @@ describe("kompletność zakresu (finding 2026-08-06)", () => {
   });
 });
 
+describe("kompletność zakresu: kluby dyskusyjne (finding 2026-08-08)", () => {
+  // Moduł klubów powstał PO wprowadzeniu rejestru i nie został do niego dopięty:
+  // `grep -i club` po exportManifest.ts oraz export.functions.ts nie zwracał ani
+  // jednego trafienia. Osoba z setkami wypowiedzi w klubach dostawała plik
+  // podpisany jako komplet, w którym całego modułu nie było - a manifest o nim
+  // milczał, więc brak wyglądał jak „nie korzystam".
+  const CLUB_SECTIONS = [
+    "club_memberships",
+    "club_threads_authored",
+    "club_replies_authored",
+    "club_stances",
+    "club_reactions",
+    "club_thread_subscriptions",
+    "club_invitations_received",
+  ] as const;
+
+  it.each(CLUB_SECTIONS)("zakres obejmuje sekcję %s", (id) => {
+    expect(EXPORT_SECTION_IDS).toContain(id);
+  });
+
+  it("sekcje klubowe siedzą we własnej grupie dziedzinowej", () => {
+    for (const id of CLUB_SECTIONS) {
+      expect(EXPORT_SECTION_GROUP_OF[id], id).toBe("clubs");
+    }
+  });
+
+  it("nazywa wyłączenie cudzych wypowiedzi - anonimowość innych osób nie jest moją daną", () => {
+    const exclusion = EXPORT_EXCLUSIONS.find((e) => e.id === "club_content_authored_by_others");
+    expect(
+      exclusion,
+      "wyłączenie musi być nazwane w pliku, nie domyślane z pustego miejsca",
+    ).toBeDefined();
+    expect(exclusion?.reason_pl).toMatch(/Chatham House/);
+    expect(exclusion?.reason_en).toMatch(/Chatham House/);
+  });
+
+  it("wszystkie sekcje klubowe jadą JEDNYM wywołaniem RPC", () => {
+    // Tabele klubowe są RLS deny-all, więc eksport nie ma innej drogi niż
+    // SECURITY DEFINER RPC. Siedem osobnych wywołań tego samego payloadu to
+    // siedem zapytań o ten sam plik - stąd wspólne, opakowane w Promise.
+    const source = readFileSync(SERVER_FN, "utf8");
+    expect([...source.matchAll(/supabase\.rpc\("club_export_my_data"/g)]).toHaveLength(1);
+    expect(source).toContain("Promise.resolve(");
+  });
+});
+
 describe("bramka: rejestr ⇄ server fn", () => {
   it("server fn buduje DOKŁADNIE zadeklarowane sekcje", () => {
     const built = sectionKeysFromServerFn();

@@ -19,7 +19,16 @@ export const MOBILE_BOTTOM_BAR_SETTINGS_KEY = "mobile_bottom_bar";
  * hookowi (czat / sieć / powiadomienia) i jest ładowane leniwie dopiero dla
  * zalogowanego użytkownika - guest nie pobiera ani bajta tych modułów.
  */
-export const BOTTOM_BAR_BADGE_SOURCES = ["none", "chat", "network", "notifications"] as const;
+export const BOTTOM_BAR_BADGE_SOURCES = [
+  "none",
+  "chat",
+  "network",
+  "notifications",
+  // Kluby dyskusyjne. `user_pending_counters.club_unread` istniał od A18
+  // i nie miał po stronie klienta ani jednego czytelnika - baza utrzymywała
+  // licznik triggerem dla nikogo.
+  "clubs",
+] as const;
 export type BottomBarBadgeSource = (typeof BOTTOM_BAR_BADGE_SOURCES)[number];
 
 export function normalizeBadgeSource(value: unknown): BottomBarBadgeSource {

@@ -227,16 +227,26 @@ export async function runClubThreadIndexBatch(
     };
   }
 
-  const payload = rows.map((r, i) => ({
-    thread_id: r.thread_id,
-    tenant_id: r.tenant_id,
-    source_hash: r.source_hash,
-    embedding: toVectorLiteral(vectors[i]) as unknown as string,
-    updated_at: new Date().toISOString(),
-  }));
-  const { error: upsertError } = await admin
-    .from("club_thread_embeddings")
-    .upsert(payload, { onConflict: "thread_id" });
-  if (upsertError) throw new Error(upsertError.message);
-  return { scanned: rows.length, embedded: payload.length, pruned };
+  // Zapis przez RPC, nie surowym upsertem na tabeli. `club_upsert_thread_embedding`
+  // powstalo w A6 dokladnie dla tej sciezki i nie mialo ani jednego wolajacego,
+  // a bezposredni upsert obchodzil trzy rzeczy, ktore ono robi:
+  //
+  //   * tenant_id bral z LADUNKU zamiast autorytatywnie z wiersza watku,
+  //   * wektor o zlej dlugosci wchodzil do bazy zamiast oblac walidacja 768
+  //     wymiarow (blad indeksera zapisywal sie jako uszkodzony wektor),
+  //   * wymagal rzutowania `as unknown as string` na literale wektora, bo
+  //     kolumna nie ma odpowiednika w typach klienta.
+  //
+  // RPC przyjmuje `double precision[]`, wiec rzutowanie znika razem z problemem.
+  let embedded = 0;
+  for (let i = 0; i < rows.length; i += 1) {
+    const { error: upsertError } = await admin.rpc("club_upsert_thread_embedding", {
+      p_thread_id: rows[i].thread_id,
+      p_embedding: vectors[i],
+      p_source_hash: rows[i].source_hash,
+    });
+    if (upsertError) throw new Error(upsertError.message);
+    embedded += 1;
+  }
+  return { scanned: rows.length, embedded, pruned };
 }

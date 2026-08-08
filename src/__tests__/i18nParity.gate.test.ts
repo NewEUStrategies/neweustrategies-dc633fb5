@@ -47,6 +47,10 @@ const GATED_PREFIXES = [
   // jak rozjazd PL/EN raz się zdarzy (lekcja z prefiksu "network").
   "club",
   "adminClubs",
+  // Trzeci slownik modulu (katalog elementow, /admin/community/clubs/elements).
+  // isGated() dopasowuje po prefiksie z kropka, wiec "club" NIE obejmuje
+  // "clubElements.*" - bez tego wpisu 95 kluczy stalo poza bramka.
+  "clubElements",
 ] as const;
 
 // Klucze, dla których identyczny tekst PL i EN jest poprawny (nazwy własne,

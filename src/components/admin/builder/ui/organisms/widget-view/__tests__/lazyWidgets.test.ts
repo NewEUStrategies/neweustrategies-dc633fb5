@@ -16,6 +16,9 @@ const SPLIT_WIDGETS = [
   "PodcastLatestView",
   "WebStoriesCarouselView",
   "NewsTickerView",
+  // Kluby dyskusyjne (spec §5.5)
+  "ClubCardView",
+  "ClubThreadsView",
   // Events ecosystem
   "EventScheduleView",
   "EventsListView",

@@ -1,8 +1,11 @@
-// Organizm: zakładka "Zaproszenia" - trzy panele w jednym ekranie (V2 §3).
+// Organizm: zakładka "Zaproszenia" - cztery panele w jednym ekranie (V2 §3).
 //
 //   Wyślij   - przełącznik ścieżki (osoba / e-mail), pod spodem właściwa kontrolka
+//   Segment  - kampania na zbiór wyliczony regułą (ścieżka D). Do 2026-08-08
+//              ta ścieżka miała w bazie tabelę reguł i RPC podglądu, a w panelu
+//              nic - czyli licznik "wyślę 137 zaproszeń" bez przycisku.
 //   Linki    - tabela z wykorzystaniem, wygasaniem, kopiowaniem i unieważnianiem
-//   Historia - obie ścieżki w jednej liście, bo administrator pyta "kogo
+//   Historia - wszystkie ścieżki w jednej liście, bo administrator pyta "kogo
 //              zaprosiliśmy", a nie "kogo zaprosiliśmy którą tabelą"
 //
 // Token linku pokazujemy RAZ, tuż po utworzeniu. Trzymanie go w widoku listy
@@ -29,6 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import { MemberPicker } from "@/components/admin/community/MemberPicker";
 import { ConfirmDialog, type ConfirmState } from "@/components/admin/ConfirmDialog";
 import { ClubEnumSelect } from "../molecules/ClubEnumSelect";
+import { ClubSegmentCampaign } from "./ClubSegmentCampaign";
 import {
   useClubInvitations,
   useClubInviteLinks,
@@ -38,6 +42,7 @@ import {
   useRevokeClubInviteLink,
 } from "@/lib/clubs/useClubs";
 import { toClubInviteError, type ClubMemberRole } from "@/lib/clubs/types";
+import { formatDateShort } from "@/lib/i18n/format";
 
 /** Role możliwe do nadania zaproszeniem masowym. `lead` celowo poza listą. */
 const INVITABLE_ROLES = ["moderator", "member", "observer"] as const;
@@ -189,7 +194,7 @@ export function ClubInvitationsTab({ clubId, isPl }: { clubId: string; isPl: boo
                   autoComplete="off"
                   value={email}
                   disabled={sending}
-                  placeholder="osoba@instytucja.eu"
+                  placeholder={t("adminClubs.invitations.emailPlaceholder")}
                   onChange={(e) => setEmail(e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">
@@ -237,7 +242,10 @@ export function ClubInvitationsTab({ clubId, isPl }: { clubId: string; isPl: boo
         </CardContent>
       </Card>
 
-      {/* --- Panel 2: linki --- */}
+      {/* --- Panel 2: kampania segmentowa (ścieżka D) --- */}
+      <ClubSegmentCampaign clubId={clubId} isPl={isPl} />
+
+      {/* --- Panel 3: linki --- */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
@@ -326,7 +334,7 @@ export function ClubInvitationsTab({ clubId, isPl }: { clubId: string; isPl: boo
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                           {link.expires_at
-                            ? new Date(link.expires_at).toLocaleDateString(isPl ? "pl-PL" : "en-GB")
+                            ? formatDateShort(link.expires_at, isPl ? "pl" : "en")
                             : "-"}
                         </TableCell>
                         <TableCell>
@@ -377,7 +385,7 @@ export function ClubInvitationsTab({ clubId, isPl }: { clubId: string; isPl: boo
         </CardContent>
       </Card>
 
-      {/* --- Panel 3: historia --- */}
+      {/* --- Panel 4: historia --- */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">{t("adminClubs.invitations.history")}</CardTitle>
@@ -413,18 +421,19 @@ export function ClubInvitationsTab({ clubId, isPl }: { clubId: string; isPl: boo
                       </TableCell>
                       <TableCell>{t(`club.role.${row.club_role}`)}</TableCell>
                       <TableCell className="text-sm">
-                        {/* Status jechał tu surowym kluczem z bazy - jedyne
-                            miejsce w module, gdzie angielski wyciekał do
-                            polskiego interfejsu. */}
-                        {t(`adminClubs.invites.statusName.${row.status}`, {
-                          defaultValue: row.status,
-                        })}
+                        {/* Prefiks słownika to `invitations`, nie `invites` -
+                            literówka sprawiała, że t() zawsze schodziło do
+                            defaultValue i wypisywało surowy status z bazy.
+                            defaultValue znika razem z nią: brak klucza ma
+                            oblewać bramkę i18n, a nie cicho pokazywać
+                            angielski identyfikator w polskim interfejsie. */}
+                        {t(`adminClubs.invitations.statusName.${row.status}`)}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {row.inviter_name}
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                        {new Date(row.created_at).toLocaleDateString(isPl ? "pl-PL" : "en-GB")}
+                        {formatDateShort(row.created_at, isPl ? "pl" : "en")}
                       </TableCell>
                     </TableRow>
                   ))}

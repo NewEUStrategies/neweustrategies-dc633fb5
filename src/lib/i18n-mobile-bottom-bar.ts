@@ -22,10 +22,12 @@ const pl = {
     badgeChat: "Nieprzeczytane wiadomości",
     badgeNetwork: "Zaproszenia do sieci",
     badgeNotifications: "Nieprzeczytane powiadomienia",
+    badgeClubs: "Nieprzeczytane w klubach",
     // Etykiety czytane przez czytniki ekranu przy liczniku (aria-label).
     unreadChat: "Nieprzeczytane wiadomości: {{count}}",
     unreadNetwork: "Oczekujące zaproszenia do sieci: {{count}}",
     unreadNotifications: "Nieprzeczytane powiadomienia: {{count}}",
+    unreadClubs: "Nieprzeczytane wpisy w klubach: {{count}}",
     labelFallback: "Domyślnie: {{label}}",
     adminTitle: "Pasek mobilny",
     adminSubtitle:
@@ -86,9 +88,11 @@ const en = {
     badgeChat: "Unread messages",
     badgeNetwork: "Network invitations",
     badgeNotifications: "Unread notifications",
+    badgeClubs: "Unread in clubs",
     unreadChat: "Unread messages: {{count}}",
     unreadNetwork: "Pending network invitations: {{count}}",
     unreadNotifications: "Unread notifications: {{count}}",
+    unreadClubs: "Unread club posts: {{count}}",
     labelFallback: "Default: {{label}}",
     adminTitle: "Mobile bottom bar",
     adminSubtitle:

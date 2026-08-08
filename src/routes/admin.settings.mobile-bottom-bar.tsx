@@ -40,6 +40,7 @@ const BADGE_LABEL_KEYS: Record<BottomBarBadgeSource, string> = {
   chat: "mobileBottomBar.badgeChat",
   network: "mobileBottomBar.badgeNetwork",
   notifications: "mobileBottomBar.badgeNotifications",
+  clubs: "mobileBottomBar.badgeClubs",
 };
 
 export const Route = createFileRoute("/admin/settings/mobile-bottom-bar")({
