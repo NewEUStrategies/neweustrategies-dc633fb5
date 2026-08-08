@@ -244,12 +244,12 @@ export function visibleBottomBarItems(cfg: MobileBottomBarConfig): MobileBottomB
   return (Array.isArray(cfg.items) ? cfg.items : [])
     .filter((item) => item && item.enabled !== false)
     .slice(0, MAX_BOTTOM_BAR_ITEMS)
-
     .map((item) => ({
       ...item,
-      href: safeUrl(item.href, "/"),
+      href: CANONICAL_ITEM_HREFS[item.id] ?? safeUrl(item.href, "/"),
       badge: normalizeBadgeSource(item.badge),
     }));
+
 }
 
 /** Tłumacz etykiet - podzbiór `t` z i18next, żeby config został czysty i testowalny. */
