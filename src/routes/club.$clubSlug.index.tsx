@@ -19,6 +19,8 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -35,9 +37,11 @@ import {
   CLUB_THREAD_KINDS,
   CLUB_THREAD_SORTS,
   CLUB_THREAD_SORTS_REQUIRING_SESSION,
+  CLUB_THREAD_STATUSES,
   toClubLayout,
   type ClubThreadKind,
   type ClubThreadSort,
+  type ClubThreadStatus,
 } from "@/lib/clubs/types";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
 import {
@@ -85,16 +89,33 @@ function ClubHome() {
   const [groupId, setGroupId] = useState<string | null>(null);
   const [sort, setSort] = useState<ClubThreadSort>("hot");
   const [kind, setKind] = useState<ClubThreadKind | null>(null);
+  // Filtry ze spec §5.2, których lista nie miała. `anchored === null` znaczy
+  // "wszystkie", a nie "bez kotwicy" - te dwie odpowiedzi są różne i muszą
+  // przeżyć drogę aż do RPC.
+  const [status, setStatus] = useState<ClubThreadStatus | null>(null);
+  const [anchored, setAnchored] = useState<boolean | null>(null);
+  const [unreadOnly, setUnreadOnly] = useState(false);
   const [query, setQuery] = useState("");
 
   const { session } = useAuth();
+  const signedIn = session !== null;
   const clubQ = useClubBySlug(clubSlug);
   const club = clubQ.data ?? null;
   const groupsQ = useClubGroups(club?.id);
   const availableSorts = CLUB_THREAD_SORTS.filter(
     (value) => session !== null || !CLUB_THREAD_SORTS_REQUIRING_SESSION.includes(value),
   );
-  const threadsQ = useClubThreads({ clubId: club?.id, groupId, sort, kind });
+  const threadsQ = useClubThreads({
+    clubId: club?.id,
+    groupId,
+    sort,
+    kind,
+    status,
+    anchored,
+    // Anonim nie ma czego nie przeczytać - wysłanie `true` bez sesji dałoby
+    // pustą listę wyglądającą jak pusty klub.
+    unreadOnly: signedIn && unreadOnly,
+  });
 
   // Wyszukiwanie ZASTĘPUJE listę, nie stoi obok niej: dwie listy naraz na
   // telefonie znaczą, że użytkownik nie wie, którą czyta. Debounce 250 ms,
@@ -268,8 +289,14 @@ function ClubHome() {
       </div>
 
       {/* Filtry znikają w trybie wyszukiwania: droplista, która nic nie robi,
-          jest gorsza niż jej brak. */}
-      <div className={`mb-5 grid gap-2 sm:grid-cols-3 ${searching ? "hidden" : ""}`}>
+          jest gorsza niż jej brak.
+          Siatka rośnie z liczbą kontrolek (od trzech do pięciu, zależnie od
+          roli i sesji), więc kolumny są deklarowane progami, a nie sztywną
+          trójką - inaczej piąty filtr lądowałby sam w nowym wierszu na desktopie
+          i zjadał wysokość nad listą. */}
+      <div
+        className={`mb-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 ${searching ? "hidden" : ""}`}
+      >
         <Select value={groupId ?? ALL} onValueChange={(v) => setGroupId(v === ALL ? null : v)}>
           <SelectTrigger aria-label={t("club.groups")}>
             <SelectValue placeholder={t("club.groups")} />
@@ -316,6 +343,59 @@ function ClubHome() {
             ))}
           </SelectContent>
         </Select>
+
+        {/* Trzy filtry ze spec §5.2, których nie było: status, zakotwiczenie
+            i „tylko nieprzeczytane". Status pokazujemy WYŁĄCZNIE moderacji -
+            dla członka lista i tak zawiera tylko wątki widoczne, więc droplista
+            byłaby wyborem między „wszystkie" a „wszystkie". Filtr
+            nieprzeczytanych wymaga sesji z tego samego powodu, co sorty
+            `mine`/`subscribed`: anonim nie ma czego nie przeczytać. */}
+        <Select
+          value={anchored === null ? ALL : anchored ? "anchored" : "loose"}
+          onValueChange={(v) => setAnchored(v === ALL ? null : v === "anchored")}
+        >
+          <SelectTrigger aria-label={t("club.filters.anchor")}>
+            <SelectValue placeholder={t("club.filters.anchor")} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>{t("club.filters.anchorAny")}</SelectItem>
+            <SelectItem value="anchored">{t("club.filters.anchorOnly")}</SelectItem>
+            <SelectItem value="loose">{t("club.filters.anchorNone")}</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {club.can_moderate ? (
+          <Select
+            value={status ?? ALL}
+            onValueChange={(v) => setStatus(v === ALL ? null : (v as ClubThreadStatus))}
+          >
+            <SelectTrigger aria-label={t("club.filters.status")}>
+              <SelectValue placeholder={t("club.filters.status")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>{t("club.filters.status")}</SelectItem>
+              {CLUB_THREAD_STATUSES.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {t(`club.threadStatus.${s}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : null}
+
+        {signedIn ? (
+          <div className="flex items-center gap-2 rounded-md border border-border/60 px-3">
+            <Switch
+              id="club-unread-only"
+              checked={unreadOnly}
+              onCheckedChange={setUnreadOnly}
+              aria-label={t("club.filters.unreadOnly")}
+            />
+            <Label htmlFor="club-unread-only" className="text-sm font-normal">
+              {t("club.filters.unreadOnly")}
+            </Label>
+          </div>
+        ) : null}
       </div>
 
       {searching ? (

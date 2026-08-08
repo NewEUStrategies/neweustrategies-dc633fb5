@@ -50,6 +50,7 @@ import {
   type ClubThreadKind,
   type ClubThreadListRow,
   type ClubThreadSort,
+  type ClubThreadStatus,
   type ClubThreadViewRow,
   type ClubNotifyLevel,
   type ClubUpsertInput,
@@ -442,6 +443,11 @@ export async function fetchClubThreads(params: {
   groupId?: string | null;
   sort?: ClubThreadSort;
   kind?: ClubThreadKind | null;
+  /** Zawezenie po statusie W RAMACH tego, co i tak wolno zobaczyc. */
+  status?: ClubThreadStatus | null;
+  /** `true` = tylko zakotwiczone, `false` = tylko bez kotwicy, `null` = wszystkie. */
+  anchored?: boolean | null;
+  unreadOnly?: boolean;
   cursor?: string | null;
   limit?: number;
 }): Promise<ClubThreadsPage> {
@@ -455,6 +461,11 @@ export async function fetchClubThreads(params: {
     // kursorowej po jej pobraniu daje niepelne strony i gubi wiersze.
     p_sort: params.sort ?? "hot",
     p_kind: params.kind ?? undefined,
+    p_status: params.status ?? undefined,
+    // `?? undefined` zamienialoby jawne `false` ("tylko bez kotwicy") na brak
+    // filtra - rozroznienie null/false musi tu przezyc.
+    p_anchored: params.anchored === null ? undefined : params.anchored,
+    p_unread_only: params.unreadOnly ?? false,
     p_cursor: params.cursor ?? undefined,
     p_limit: limit,
   });

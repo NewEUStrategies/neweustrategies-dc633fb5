@@ -580,6 +580,7 @@ export type ClubThreadListRow = NullableCols<
   RowOf<Fn["club_threads_list"]["Returns"]>,
   | "anchor_type"
   | "anchor_id"
+  | "anchor_label"
   | "author_id"
   | "author_name"
   | "author_avatar"

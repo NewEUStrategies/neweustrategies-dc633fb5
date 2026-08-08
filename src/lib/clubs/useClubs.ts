@@ -128,6 +128,7 @@ import type {
   ClubSubscriptionState,
   ClubThreadKind,
   ClubThreadSort,
+  ClubThreadStatus,
   ClubThreadViewRow,
   ClubUpsertInput,
   ClubViewRow,
@@ -616,16 +617,30 @@ export function useClubThreads(params: {
   groupId?: string | null;
   sort?: ClubThreadSort;
   kind?: ClubThreadKind | null;
+  status?: ClubThreadStatus | null;
+  anchored?: boolean | null;
+  unreadOnly?: boolean;
 }): UseInfiniteQueryResult<{ pages: ClubThreadsPage[]; pageParams: unknown[] }, Error> {
-  const { clubId, groupId = null, sort = "hot", kind = null } = params;
+  const {
+    clubId,
+    groupId = null,
+    sort = "hot",
+    kind = null,
+    status = null,
+    anchored = null,
+    unreadOnly = false,
+  } = params;
   return useInfiniteQuery({
-    queryKey: clubKeys.threads(clubId ?? "", groupId, sort, kind),
+    queryKey: clubKeys.threads(clubId ?? "", groupId, sort, kind, status, anchored, unreadOnly),
     queryFn: ({ pageParam }) =>
       fetchClubThreads({
         clubId: clubId ?? "",
         groupId,
         sort,
         kind,
+        status,
+        anchored,
+        unreadOnly,
         cursor: typeof pageParam === "string" ? pageParam : null,
       }),
     initialPageParam: null as string | null,

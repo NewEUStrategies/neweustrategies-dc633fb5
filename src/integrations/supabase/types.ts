@@ -14388,6 +14388,10 @@ export type Database = {
           title: string
         }[]
       }
+      club_anchor_label: {
+        Args: { p_id: string; p_type: string }
+        Returns: string
+      }
       club_anchor_suggest: {
         Args: { p_anchor_type?: string; p_limit?: number; p_query: string }
         Returns: {
@@ -14873,15 +14877,19 @@ export type Database = {
       }
       club_threads_list: {
         Args: {
+          p_anchored?: boolean
           p_club_id: string
           p_cursor?: string
           p_group_id?: string
           p_kind?: string
           p_limit?: number
           p_sort?: string
+          p_status?: string
+          p_unread_only?: boolean
         }
         Returns: {
           anchor_id: string
+          anchor_label: string
           anchor_type: string
           author_alias: string
           author_avatar: string
@@ -14896,7 +14904,9 @@ export type Database = {
           group_name_pl: string
           hotness: number
           id: string
+          insightful_count: number
           is_anonymous: boolean
+          is_unread: boolean
           kind: string
           last_reply_at: string
           participant_count: number

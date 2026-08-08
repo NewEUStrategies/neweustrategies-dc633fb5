@@ -55,10 +55,30 @@ export const clubKeys = {
    *  bo zasilaja licznik w nawigacji niezaleznie od otwartego klubu. */
   myInvitations: () => [...clubKeys.all, "myInvitations"] as const,
 
-  /** Lista tematow. Filtry sa czescia klucza, wiec przelaczenie grupy albo
-   *  sortu to nowy cache, a nie refetch tego samego wpisu. */
-  threads: (clubId: string, groupId: string | null, sort: string, kind: string | null) =>
-    [...clubKeys.club(clubId), "threads", groupId ?? "all", sort, kind ?? "all"] as const,
+  /**
+   * Lista watkow. KAZDY filtr jest czescia klucza - inaczej dwa rozne zestawy
+   * wynikow lezalyby pod jednym wpisem, a przelaczenie filtra pokazywaloby
+   * poprzednia strone kursorowa jako swoja.
+   */
+  threads: (
+    clubId: string,
+    groupId: string | null,
+    sort: string,
+    kind: string | null,
+    status: string | null = null,
+    anchored: boolean | null = null,
+    unreadOnly = false,
+  ) =>
+    [
+      ...clubKeys.club(clubId),
+      "threads",
+      groupId ?? "all",
+      sort,
+      kind ?? "all",
+      status ?? "all",
+      anchored === null ? "any" : anchored ? "anchored" : "loose",
+      unreadOnly ? "unread" : "all",
+    ] as const,
 
   thread: (clubId: string, threadSlug: string) =>
     [...clubKeys.club(clubId), "thread", threadSlug] as const,

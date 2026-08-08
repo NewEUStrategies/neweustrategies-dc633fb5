@@ -9,7 +9,7 @@
 // listy odznak rozjechałyby się przy pierwszej zmianie słownika rodzajów.
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
-import { Clock, Lock, MessageSquare, Pin, Users2 } from "lucide-react";
+import { Clock, Lightbulb, Link2, Lock, MessageSquare, Pin, Users2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { toAuthorLabel, type ClubLayout, type ClubThreadListRow } from "@/lib/clubs/types";
@@ -19,6 +19,18 @@ function ThreadBadges({ thread, isPl }: { thread: ClubThreadListRow; isPl: boole
   const { t } = useTranslation();
   return (
     <div className="flex flex-wrap items-center gap-2">
+      {/* Znacznik nieprzeczytanego stoi PIERWSZY i jest kropką, nie odznaką:
+          to jedyny sygnał w wierszu, który mówi coś o CZYTELNIKU, a nie o wątku,
+          i ma się dać zeskanować wzrokiem w pionie bez czytania. Kolumna
+          `is_unread` liczy się w RPC z `club_members.last_read_at` - pola, które
+          do tej pory zasilało wyłącznie licznik w nawigacji. */}
+      {thread.is_unread ? (
+        <span
+          className="h-2 w-2 shrink-0 rounded-full bg-primary"
+          title={t("club.unreadThread")}
+          aria-label={t("club.unreadThread")}
+        />
+      ) : null}
       {thread.pinned_at !== null ? (
         <Pin className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
       ) : null}
@@ -28,6 +40,20 @@ function ThreadBadges({ thread, isPl }: { thread: ClubThreadListRow; isPl: boole
       <Badge variant="outline" className="text-[11px]">
         {t(`club.kind.${thread.kind}`)}
       </Badge>
+      {/* Kotwica jako CHIP z nazwą, nie ikona: "zakotwiczony" bez wskazania
+          w czym nie zmienia decyzji o kliknięciu, a właśnie po to ten sygnał
+          w wierszu stoi. Etykieta przychodzi z RPC (club_anchor_label), więc
+          nie kosztuje dodatkowego zapytania per wiersz. */}
+      {thread.anchor_label !== null && thread.anchor_label !== "" ? (
+        <Badge
+          variant="secondary"
+          className="max-w-[220px] gap-1 text-[11px] font-normal"
+          title={thread.anchor_label}
+        >
+          <Link2 className="h-3 w-3 shrink-0" aria-hidden="true" />
+          <span className="truncate">{thread.anchor_label}</span>
+        </Badge>
+      ) : null}
       {thread.status === "resolved" ? (
         <Badge className="bg-emerald-500/15 text-[11px] text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-300">
           {t("club.threadStatus.resolved")}
@@ -59,6 +85,17 @@ function ThreadMeta({ thread, isPl }: { thread: ClubThreadListRow; isPl: boolean
         <Users2 className="h-3.5 w-3.5" />
         {thread.participant_count}
       </span>
+      {/* `insightful`, a NIE suma reakcji. To jest ta sama decyzja, co w rankingu
+          hotness (§5.3): jakość waży więcej niż objętość, a `agree`/`disagree`
+          nie podbijają. Wiersz pokazujący `reaction_count` mówił co innego niż
+          porządek, w którym stał - dwadzieścia „zgadzam się" wyglądało jak
+          dwadzieścia „to wnosi coś nowego". */}
+      {thread.insightful_count > 0 ? (
+        <span className="inline-flex items-center gap-1.5" title={t("club.reaction.insightful")}>
+          <Lightbulb className="h-3.5 w-3.5" />
+          {thread.insightful_count}
+        </span>
+      ) : null}
       <span className="inline-flex items-center gap-1.5">
         <Clock className="h-3.5 w-3.5" />
         {formatDateShort(thread.last_reply_at ?? thread.created_at, isPl ? "pl" : "en")}
