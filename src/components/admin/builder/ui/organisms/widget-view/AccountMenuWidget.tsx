@@ -565,11 +565,10 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
           sticky="always"
           hideWhenDetached={false}
           avoidCollisions
+          data-account-menu=""
           className={[
-            "p-2 shadow-xl border-border/60 backdrop-blur-md",
+            "p-1.5 shadow-xl border-border/60 backdrop-blur-md overflow-hidden",
             // Smoother in/out using Radix state + tailwindcss-animate keyframes.
-            // Overrides the default 150ms snap with a longer, cubic-bezier easing
-            // and adds a small vertical slide + subtle scale for a premium feel.
             "data-[state=open]:animate-in data-[state=closed]:animate-out",
             "data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0",
             "data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95",
@@ -583,21 +582,43 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
           aria-label={panelLabel || (lang === "pl" ? "Menu konta" : "Account menu")}
         >
           {panelLabel && (
-            <div className="px-2.5 pb-1.5 text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+            <div
+              className="account-menu-section px-2.5 pb-1.5 text-[11px] font-bold uppercase tracking-widest text-muted-foreground"
+              style={{ ["--am-i" as string]: 0 } as CSSProperties}
+            >
               {panelLabel}
             </div>
           )}
           {session ? (
             <>
               {user?.email && (
-                <div className="px-2.5 pt-1 pb-2 border-b border-border/60 mb-1">
-                  <div className="text-sm font-semibold truncate">{displayName || user.email}</div>
-                  {displayName && (
-                    <div className="text-xs text-muted-foreground truncate">{user.email}</div>
-                  )}
+                <div
+                  className="account-menu-section mb-1.5 flex items-center gap-2.5 rounded-[6px] bg-muted/40 px-2.5 py-2"
+                  style={{ ["--am-i" as string]: 0 } as CSSProperties}
+                >
+                  <Avatar className="h-9 w-9 rounded-[6px]">
+                    {avatarUrl ? (
+                      <AvatarImage src={avatarUrl} alt="" className="rounded-[6px] object-cover" />
+                    ) : null}
+                    <AvatarFallback className="rounded-[6px] text-xs">
+                      {(firstName || displayName || user.email).slice(0, 1).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold">
+                      {displayName || user.email}
+                    </span>
+                    {displayName && (
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {user.email}
+                      </span>
+                    )}
+                  </span>
                 </div>
               )}
-              <div className="flex flex-col gap-0.5">{effectiveAuth.map(renderItem)}</div>
+              <div className="flex flex-col gap-0.5">
+                {effectiveAuth.map((entry, i) => renderItem(entry, i + 1))}
+              </div>
               {isStaff &&
                 (() => {
                   // Auto-defaults for staff: ensure admin / super-admin always have a route
@@ -638,27 +659,34 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
                   const seen = new Set(autoStaff.map((x) => x.href));
                   const merged = [...autoStaff, ...staffItems.filter((x) => !seen.has(x.href))];
                   if (merged.length === 0) return null;
+                  const base = effectiveAuth.length + 1;
                   return (
                     <>
-                      <div className="my-1 h-px bg-border/70" />
-                      <div className="px-2.5 pt-1 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                      <div className="my-1.5 h-px bg-border/70" />
+                      <div
+                        className="account-menu-section px-2.5 pb-1 pt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground"
+                        style={{ ["--am-i" as string]: base } as CSSProperties}
+                      >
                         {isSuperAdmin
-                          ? lang === "pl"
-                            ? "Super Admin"
-                            : "Super Admin"
+                          ? "Super Admin"
                           : lang === "pl"
                             ? "Zespół"
                             : "Staff"}
                       </div>
-                      <div className="flex flex-col gap-0.5">{merged.map(renderItem)}</div>
+                      <div className="flex flex-col gap-0.5">
+                        {merged.map((entry, i) => renderItem(entry, base + i + 1))}
+                      </div>
                     </>
                   );
                 })()}
             </>
           ) : (
-            <div className="flex flex-col gap-0.5">{effectiveGuest.map(renderItem)}</div>
+            <div className="flex flex-col gap-0.5">
+              {effectiveGuest.map((entry, i) => renderItem(entry, i + 1))}
+            </div>
           )}
           <span className="sr-only">{t("nav.account", { defaultValue: "Account menu" })}</span>
+
         </PopoverContent>
       </Popover>
     </div>
