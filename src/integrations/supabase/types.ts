@@ -13474,6 +13474,21 @@ export type Database = {
           used_count: number
         }[]
       }
+      admin_club_invite_segment: {
+        Args: {
+          p_club_id: string
+          p_group_id?: string
+          p_max?: number
+          p_message?: string
+          p_role?: string
+          p_rule: Json
+          p_save_rule?: boolean
+        }
+        Returns: {
+          invited: number
+          rule_id: string
+        }[]
+      }
       admin_club_list: {
         Args: {
           p_limit?: number
@@ -14769,6 +14784,18 @@ export type Database = {
           thread_id: string
           thread_slug: string
           title: string
+        }[]
+      }
+      club_segment_candidate_ids: {
+        Args: { p_rule: Json }
+        Returns: {
+          user_id: string
+        }[]
+      }
+      club_segment_recipients: {
+        Args: { p_club_id: string; p_rule: Json }
+        Returns: {
+          user_id: string
         }[]
       }
       club_semantic_search: {
