@@ -144,6 +144,14 @@ function ClubNewThread() {
     if (!canModerate && kind === "announcement") setKind("discussion");
   }, [canModerate, kind]);
 
+  // Obszar klubu jest tylko DOMYSLNA podpowiedzia: raz dotknieta droplista
+  // przestaje sie nadpisywac, zeby refetch klubu nie cofal wyboru autora.
+  useEffect(() => {
+    if (topicTouched) return;
+    const inherited = normalizeClubTopic(club?.policy_area ?? null);
+    if (inherited !== null) setTopic(inherited);
+  }, [club?.policy_area, topicTouched]);
+
   // Ogłoszenie domyślnie jest komunikatem, nie dyskusją - ale to nadal DOMYŚLNA
   // wartość, nie przymus: moderator, który chce otworzyć dyskusję pod
   // ogłoszeniem, przestawia przełącznik i tak zostaje.
