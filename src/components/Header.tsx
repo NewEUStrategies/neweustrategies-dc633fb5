@@ -175,6 +175,18 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
             >
               <Search className="w-5 h-5" aria-hidden />
             </button>
+            <button
+              type="button"
+              onClick={toggle}
+              aria-label={t("common.toggleTheme", "Przełącz motyw")}
+              className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-border text-foreground hover:bg-muted transition shrink-0"
+            >
+              {isDark ? (
+                <Sun className="w-5 h-5" aria-hidden />
+              ) : (
+                <Moon className="w-5 h-5" aria-hidden />
+              )}
+            </button>
           </div>
           <AppLink
             href="/"
