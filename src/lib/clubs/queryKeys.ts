@@ -68,6 +68,7 @@ export const clubKeys = {
     status: string | null = null,
     anchored: boolean | null = null,
     unreadOnly = false,
+    topic: string | null = null,
   ) =>
     [
       ...clubKeys.club(clubId),
@@ -78,6 +79,7 @@ export const clubKeys = {
       status ?? "all",
       anchored === null ? "any" : anchored ? "anchored" : "loose",
       unreadOnly ? "unread" : "all",
+      topic ?? "all",
     ] as const,
 
   thread: (clubId: string, threadSlug: string) =>

@@ -18,6 +18,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { ClubEnumSelect } from "@/components/admin/clubs/molecules/ClubEnumSelect";
+import { ClubTopicSelect } from "@/components/clubs/molecules/ClubTopicSelect";
+import { normalizeClubTopic } from "@/lib/clubs/policyAreas";
 import {
   Select,
   SelectContent,
@@ -85,6 +87,10 @@ function ClubNewThread() {
   const [body, setBody] = useState("");
   const [anonymous, setAnonymous] = useState(false);
   const [lockReplies, setLockReplies] = useState(false);
+  // Obszar tematyczny watku - domyslnie dziedziczony z klubu, ale autor moze
+  // go zawezic albo wyczyscic; RPC waliduje wartosc slownikiem.
+  const [topic, setTopic] = useState<string | null>(null);
+  const [topicTouched, setTopicTouched] = useState(false);
   // Kotwica jest krawędzią w grafie treści (V1 §1.4), a nie ozdobnym linkiem:
   // dossier pokazuje "3 wątki w klubach dyskutują ten plik", a zdarzenie
   // `policy.updated.v1` może obudzić wątek sprzed miesiąca. Do A18 nie było
@@ -137,6 +143,14 @@ function ClubNewThread() {
   useEffect(() => {
     if (!canModerate && kind === "announcement") setKind("discussion");
   }, [canModerate, kind]);
+
+  // Obszar klubu jest tylko DOMYSLNA podpowiedzia: raz dotknieta droplista
+  // przestaje sie nadpisywac, zeby refetch klubu nie cofal wyboru autora.
+  useEffect(() => {
+    if (topicTouched) return;
+    const inherited = normalizeClubTopic(club?.policy_area ?? null);
+    if (inherited !== null) setTopic(inherited);
+  }, [club?.policy_area, topicTouched]);
 
   // Ogłoszenie domyślnie jest komunikatem, nie dyskusją - ale to nadal DOMYŚLNA
   // wartość, nie przymus: moderator, który chce otworzyć dyskusję pod
@@ -195,6 +209,7 @@ function ClubNewThread() {
         // Wysyłamy tylko tam, gdzie RPC to przyjmie - bez tego zwykły członek
         // dostałby odmowę za pole, którego nawet nie widział.
         lockReplies: canModerate ? lockReplies : false,
+        topic,
       },
       {
         onSuccess: ({ slug, status }) => {
@@ -249,6 +264,17 @@ function ClubNewThread() {
                 </SelectContent>
               </Select>
             </div>
+
+            <ClubTopicSelect
+              id="thread-topic"
+              label={t("club.topic.label")}
+              value={topic}
+              onChange={(next) => {
+                setTopicTouched(true);
+                setTopic(next);
+              }}
+              disabled={createM.isPending}
+            />
 
             <ClubEnumSelect
               id="thread-kind"

@@ -22,7 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ClubCover } from "@/components/clubs/atoms/ClubCover";
-import { areaLabel } from "@/lib/tracker/stages";
+import { clubTopicLabel } from "@/lib/clubs/policyAreas";
 import type { ClubMinisiteAccess } from "@/lib/clubs/minisiteAccess";
 import { showsClubMinisiteContent } from "@/lib/clubs/minisiteAccess";
 import { toAuthorLabel, type ClubThreadListRow, type ClubViewRow } from "@/lib/clubs/types";
@@ -165,7 +165,7 @@ export function ClubMinisite({
           </span>
           {club.policy_area !== null && club.policy_area.trim() !== "" ? (
             <span className="uppercase tracking-wide">
-              {areaLabel(club.policy_area, isPl ? "pl" : "en")}
+              {clubTopicLabel(club.policy_area, isPl ? "pl" : "en", t)}
             </span>
           ) : null}
           {club.attribution_mode === "chatham" ? (

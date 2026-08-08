@@ -55,6 +55,7 @@ import {
 } from "@/components/ui/dialog";
 import { MemberPicker } from "@/components/admin/community/MemberPicker";
 import { ConfirmDialog, type ConfirmState } from "@/components/admin/ConfirmDialog";
+import { ClubTopicSelect } from "@/components/clubs/molecules/ClubTopicSelect";
 import { ClubEnumSelect } from "../molecules/ClubEnumSelect";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
@@ -542,6 +543,7 @@ function ThreadComposerDialog({
   const [body, setBody] = useState("");
   const [kind, setKind] = useState<ClubThreadKind>("discussion");
   const [authorId, setAuthorId] = useState("");
+  const [topic, setTopic] = useState<string | null>(null);
 
   const groups = groupsQ.data ?? [];
   const effectiveGroup = groupId !== "" ? groupId : (groups[0]?.id ?? "");
@@ -558,6 +560,7 @@ function ThreadComposerDialog({
         body: body.trim(),
         kind,
         authorId: authorId !== "" ? authorId : null,
+        topic,
       },
       {
         onSuccess: () => {
@@ -608,6 +611,15 @@ function ThreadComposerDialog({
               disabled={createM.isPending}
             />
           </div>
+
+          <ClubTopicSelect
+            id="admin-thread-topic"
+            label={t("club.topic.label")}
+            hint={t("club.topic.hint")}
+            value={topic}
+            onChange={setTopic}
+            disabled={createM.isPending}
+          />
 
           <div className="space-y-1.5">
             <Label htmlFor="admin-thread-title">{t("club.threadTitle")}</Label>

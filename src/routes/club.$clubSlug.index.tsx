@@ -30,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CLUB_TOPICS } from "@/lib/clubs/policyAreas";
 import { useClubBySlug, useClubGroups, useClubSearch, useClubThreads } from "@/lib/clubs/useClubs";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { ClubThreadList } from "@/components/clubs/organisms/ClubThreadList";
@@ -96,6 +97,8 @@ function ClubHome() {
   const [status, setStatus] = useState<ClubThreadStatus | null>(null);
   const [anchored, setAnchored] = useState<boolean | null>(null);
   const [unreadOnly, setUnreadOnly] = useState(false);
+  // Obszar tematyczny - to samo slownictwo, co na hubie i w kreatorze klubu.
+  const [topic, setTopic] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   // Filtry są ZWINIĘTE domyślnie: pięć droplist nad listą wątków zjadało cały
   // pierwszy ekran, a porządek sortowania - jedyna kontrolka używana za każdym
@@ -120,6 +123,7 @@ function ClubHome() {
     // Anonim nie ma czego nie przeczytać - wysłanie `true` bez sesji dałoby
     // pustą listę wyglądającą jak pusty klub.
     unreadOnly: signedIn && unreadOnly,
+    topic,
   });
 
   // Wyszukiwanie ZASTĘPUJE listę, nie stoi obok niej: dwie listy naraz na
@@ -350,6 +354,20 @@ function ClubHome() {
         </Select>
 
 
+
+        <Select value={topic ?? ALL} onValueChange={(v) => setTopic(v === ALL ? null : v)}>
+          <SelectTrigger aria-label={t("club.topic.label")}>
+            <SelectValue placeholder={t("club.topic.label")} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>{t("club.topic.all")}</SelectItem>
+            {CLUB_TOPICS.map((value) => (
+              <SelectItem key={value} value={value}>
+                {t(`club.topic.${value}`)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
         <Select
           value={kind ?? ALL}

@@ -2267,6 +2267,7 @@ export type Database = {
           status: string
           tenant_id: string
           title: string
+          topic: string | null
           updated_at: string
         }
         Insert: {
@@ -2297,6 +2298,7 @@ export type Database = {
           status?: string
           tenant_id: string
           title: string
+          topic?: string | null
           updated_at?: string
         }
         Update: {
@@ -2327,6 +2329,7 @@ export type Database = {
           status?: string
           tenant_id?: string
           title?: string
+          topic?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -13657,6 +13660,7 @@ export type Database = {
           p_kind?: string
           p_pinned?: boolean
           p_title: string
+          p_topic?: string
         }
         Returns: {
           thread_id: string
@@ -14490,7 +14494,9 @@ export type Database = {
           p_group_id: string
           p_idempotency_key?: string
           p_kind?: string
+          p_lock_replies?: boolean
           p_title: string
+          p_topic?: string
         }
         Returns: {
           id: string
@@ -14911,6 +14917,7 @@ export type Database = {
           slug: string
           status: string
           title: string
+          topic: string
         }[]
       }
       club_threads_for_anchor: {
@@ -14937,6 +14944,7 @@ export type Database = {
           p_limit?: number
           p_sort?: string
           p_status?: string
+          p_topic?: string
           p_unread_only?: boolean
         }
         Returns: {
@@ -14969,6 +14977,7 @@ export type Database = {
           slug: string
           status: string
           title: string
+          topic: string
         }[]
       }
       club_threads_mark_dormant: { Args: { p_limit?: number }; Returns: number }
@@ -14985,6 +14994,7 @@ export type Database = {
         Args: { p_limit?: number }
         Returns: number
       }
+      club_topic_valid: { Args: { _topic: string }; Returns: boolean }
       club_unreact: {
         Args: { p_kind: string; p_target_id: string; p_target_type: string }
         Returns: boolean

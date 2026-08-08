@@ -688,6 +688,8 @@ export function useClubThreads(params: {
   status?: ClubThreadStatus | null;
   anchored?: boolean | null;
   unreadOnly?: boolean;
+  /** Obszar tematyczny ze slownika CLUB_TOPICS; null = bez zawezenia. */
+  topic?: string | null;
 }): UseInfiniteQueryResult<{ pages: ClubThreadsPage[]; pageParams: unknown[] }, Error> {
   const {
     clubId,
@@ -697,9 +699,19 @@ export function useClubThreads(params: {
     status = null,
     anchored = null,
     unreadOnly = false,
+    topic = null,
   } = params;
   return useInfiniteQuery({
-    queryKey: clubKeys.threads(clubId ?? "", groupId, sort, kind, status, anchored, unreadOnly),
+    queryKey: clubKeys.threads(
+      clubId ?? "",
+      groupId,
+      sort,
+      kind,
+      status,
+      anchored,
+      unreadOnly,
+      topic,
+    ),
     queryFn: ({ pageParam }) =>
       fetchClubThreads({
         clubId: clubId ?? "",
@@ -709,6 +721,7 @@ export function useClubThreads(params: {
         status,
         anchored,
         unreadOnly,
+        topic,
         cursor: typeof pageParam === "string" ? pageParam : null,
       }),
     initialPageParam: null as string | null,
@@ -763,6 +776,8 @@ export interface CreateThreadVars {
   idempotencyKey?: string;
   /** Zaloz watek od razu zamkniety (uprawnienie moderacyjne). */
   lockReplies?: boolean;
+  /** Obszar tematyczny watku ze slownika CLUB_TOPICS; null = bez obszaru. */
+  topic?: string | null;
 }
 
 export function useCreateClubThread(
@@ -1170,6 +1185,7 @@ export function useAdminCreateThread(clubId: string): UseMutationResult<
     authorId?: string | null;
     kind?: ClubThreadKind;
     pinned?: boolean;
+    topic?: string | null;
   }
 > {
   const qc = useQueryClient();
