@@ -15,20 +15,22 @@ import { forwardRef, type CSSProperties } from "react";
 import { AppLink } from "@/components/atoms/AppLink";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { LiveTabBadge } from "./LiveTabBadge";
-import { itemAccent, type MobileBottomBarItem } from "@/lib/mobileBottomBar/config";
+import { bottomBarHref, itemAccent, type MobileBottomBarItem } from "@/lib/mobileBottomBar/config";
 
 export interface BottomBarTabProps {
   item: MobileBottomBarItem;
   label: string;
   active: boolean;
   showLabel: boolean;
+  /** Bieżący język - decyduje o prefiksie adresu (`/en/*`). */
+  lang: string;
   /** Wyłącza żywe liczniki (podgląd w panelu admina). */
   withBadge?: boolean;
   onSelect?: () => void;
 }
 
 export const BottomBarTab = forwardRef<HTMLAnchorElement, BottomBarTabProps>(function BottomBarTab(
-  { item, label, active, showLabel, withBadge = true, onSelect },
+  { item, label, active, showLabel, lang, withBadge = true, onSelect },
   ref,
 ) {
   const style: CSSProperties = {
@@ -40,7 +42,7 @@ export const BottomBarTab = forwardRef<HTMLAnchorElement, BottomBarTabProps>(fun
     <li className="mbb__cell">
       <AppLink
         ref={ref}
-        href={item.href}
+        href={bottomBarHref(item, lang)}
         className={`mbb__item${active ? " active" : ""}`}
         style={style}
         aria-current={active ? "page" : undefined}
