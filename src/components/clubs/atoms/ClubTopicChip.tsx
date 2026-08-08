@@ -13,7 +13,7 @@ import { topicLabel, type ClubLang, type ClubTopicOption } from "@/lib/clubs/top
 export type ClubTopicChipSize = "sm" | "md";
 
 const BASE =
-  "inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-full border font-medium leading-none transition-colors";
+  "inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-lg border font-medium leading-none transition-colors";
 
 const SIZES: Record<ClubTopicChipSize, string> = {
   // Mobile schodzi o stopień niżej, ale nigdy poniżej 11 px - poniżej tej
