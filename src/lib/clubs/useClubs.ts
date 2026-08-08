@@ -776,6 +776,8 @@ export interface CreateThreadVars {
   idempotencyKey?: string;
   /** Zaloz watek od razu zamkniety (uprawnienie moderacyjne). */
   lockReplies?: boolean;
+  /** Obszar tematyczny watku ze slownika CLUB_TOPICS; null = bez obszaru. */
+  topic?: string | null;
 }
 
 export function useCreateClubThread(
