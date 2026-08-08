@@ -8,14 +8,17 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, Eye } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { ClubEnumSelect } from "../molecules/ClubEnumSelect";
 import {
   buildAccessSentences,
   detectAccessWarnings,
   type AccessSentenceInput,
 } from "@/lib/clubs/accessSentence";
+import {
+  CLUB_PLAN_TIERS,
+  planTierFromRank,
+  rankFromPlanTier,
+} from "@/lib/clubs/planTiers";
 import {
   CLUB_ATTRIBUTION_MODES,
   CLUB_JOIN_POLICIES,
@@ -71,7 +74,7 @@ export function ClubAccessTab({ draft, onChange, disabled }: ClubAccessTabProps)
       joinPolicy: dict("club.joinPolicy", CLUB_JOIN_POLICIES),
       attribution: dict("club.attributionHint", CLUB_ATTRIBUTION_MODES),
       whoCanPost: dict("club.whoCanPost", CLUB_POST_POLICIES),
-      tierRequired: t("adminClubs.accessPreviewTier", { rank: draft.minTierRank }),
+      tierRequired: t(`club.planTierHint.${planTierFromRank(draft.minTierRank)}`),
       tierNone: t("adminClubs.accessPreviewNoTier"),
     });
   }, [sentenceInput, draft.minTierRank, t]);
@@ -103,31 +106,16 @@ export function ClubAccessTab({ draft, onChange, disabled }: ClubAccessTabProps)
             disabled={disabled}
           />
 
-          <div className="space-y-1.5">
-            <Label htmlFor="club-min-tier" className="text-sm">
-              {t("adminClubs.fields.minTier")}
-            </Label>
-            <Input
-              id="club-min-tier"
-              type="number"
-              min={0}
-              max={100}
-              inputMode="numeric"
-              value={draft.minTierRank}
-              disabled={disabled}
-              onChange={(e) => {
-                // Ranga planu jest liczbą całkowitą >= 0. Pusty input daje NaN,
-                // więc degradujemy do 0 ("bez wymagań") zamiast zapisywać NaN.
-                const next = Number.parseInt(e.target.value, 10);
-                onChange({ minTierRank: Number.isFinite(next) && next > 0 ? next : 0 });
-              }}
-            />
-            <p className="text-xs text-muted-foreground">
-              {draft.minTierRank > 0
-                ? t("adminClubs.accessPreviewTier", { rank: draft.minTierRank })
-                : t("adminClubs.fields.minTierNone")}
-            </p>
-          </div>
+          <ClubEnumSelect
+            id="club-min-tier"
+            label={t("adminClubs.fields.minTier")}
+            value={planTierFromRank(draft.minTierRank)}
+            options={CLUB_PLAN_TIERS}
+            i18nPrefix="club.planTier"
+            hintPrefix="club.planTierHint"
+            onChange={(tier) => onChange({ minTierRank: rankFromPlanTier(tier) })}
+            disabled={disabled}
+          />
 
           <ClubEnumSelect
             id="club-attribution"

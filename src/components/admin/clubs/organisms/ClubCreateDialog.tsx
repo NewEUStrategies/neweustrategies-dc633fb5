@@ -17,6 +17,12 @@
 // konfigurowanie wszystkiego naraz.
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import {
+  CLUB_PLAN_TIERS,
+  DEFAULT_CLUB_PLAN_TIER,
+  rankFromPlanTier,
+  type ClubPlanTier,
+} from "@/lib/clubs/planTiers";
 import { toast } from "sonner";
 import { Check, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -73,6 +79,9 @@ export function ClubCreateDialog({
   const [joinPolicy, setJoinPolicy] = useState<ClubJoinPolicy>("request");
   const [attribution, setAttribution] = useState<ClubAttributionMode>("attributed");
   const [layout, setLayout] = useState<ClubLayout>("list");
+  // Próg planu jest domyślnie "pro": kluby powstają jako przestrzeń dla
+  // płacących członków, a obniżenie progu jest świadomą decyzją.
+  const [planTier, setPlanTier] = useState<ClubPlanTier>(DEFAULT_CLUB_PLAN_TIER);
   const [cover, setCover] = useState("");
   // Kolizja zgłoszona przez RPC przy ZAPISIE. Sprawdzanie na żywo łapie
   // większość przypadków, ale nie wyścig: ktoś inny mógł zająć ten adres
@@ -95,6 +104,7 @@ export function ClubCreateDialog({
     setJoinPolicy("request");
     setAttribution("attributed");
     setLayout("list");
+    setPlanTier(DEFAULT_CLUB_PLAN_TIER);
     setCover("");
     setSlugConflict(null);
   }, [open]);
@@ -129,6 +139,7 @@ export function ClubCreateDialog({
         join_policy: joinPolicy,
         attribution_mode: attribution,
         layout,
+        min_tier_rank: rankFromPlanTier(planTier),
         cover_image_url: cover.trim() || null,
         status: "draft",
       },
@@ -280,6 +291,16 @@ export function ClubCreateDialog({
               i18nPrefix="club.attribution"
               hintPrefix="club.attributionHint"
               onChange={setAttribution}
+              disabled={createM.isPending}
+            />
+            <ClubEnumSelect
+              id="club-create-min-tier"
+              label={t("adminClubs.fields.minTier")}
+              value={planTier}
+              options={CLUB_PLAN_TIERS}
+              i18nPrefix="club.planTier"
+              hintPrefix="club.planTierHint"
+              onChange={setPlanTier}
               disabled={createM.isPending}
             />
           </div>
