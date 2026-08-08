@@ -715,7 +715,7 @@ export async function resolveClubThread(params: {
     // ja wprost. Wczesniejsze `as string` klamalo kompilatorowi o typie, ktory
     // funkcja ma w kontrakcie - i maskowalo blad w wygenerowanych typach
     // zamiast go pokazac.
-    p_reply_id: params.replyId,
+    p_reply_id: params.replyId as RpcArgs<"club_resolve_thread">["p_reply_id"],
   });
   if (error) throw error;
   return data === true;
