@@ -76,7 +76,7 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
   const draft = useTickerDraft();
   const trending = draft ?? resolveActiveTickerConfig(cfg.trending);
   const siteName = (general.site_name && general.site_name.trim()) || "Menu";
-  const { theme: mode } = useTheme();
+  const { theme: mode, toggle } = useTheme();
   const isDark = mode === "dark";
   const themeLogo = theme.logo ?? {};
   const mobileLogo = isDark
