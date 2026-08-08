@@ -798,9 +798,10 @@ export function renderSimpleWidget(
         (lang === "pl" ? "Zmień język" : "Change language");
       return (
         <div className="inline-flex items-center text-xs leading-none" style={compactRowStyle}>
-          {/* Widoczna etykieta tekstowa została usunięta na życzenie UX –
-              zostaje jedynie sam switcher PL/EN. Aria-label pozostaje dla czytników. */}
-          <LangSwitcherDropdown label={label} showLabel={false} />
+          {/* Domyślnie widoczny jest sam switcher PL/EN (`showLabel` = false w
+              chromeDefaults), ale ustawienie z panelu realnie steruje etykietą.
+              Wyłączona etykieta zostaje jako aria-label dla czytników ekranu. */}
+          <LangSwitcherDropdown label={label} showLabel={getBool(c, "showLabel", false)} />
         </div>
       );
     }
