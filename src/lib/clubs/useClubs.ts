@@ -31,7 +31,6 @@ import {
   fetchAdminClubStats,
   fetchAdminClubs,
   fetchClubBySlug,
-  fetchClubCapabilities,
   fetchClubGroups,
   fetchClubList,
   fetchClubInvitations,
@@ -229,22 +228,14 @@ export function useClubMembers(params: {
   });
 }
 
-/**
- * Zdolnosci wolajacego. Trzymane osobno od karty klubu, bo ten sam wynik jest
- * potrzebny na kilku ekranach naraz (lista tematow, kompozytor, pasek akcji),
- * a jedno zrodlo w cache oznacza jedno zapytanie zamiast trzech.
- */
-export function useClubCapabilities(
-  clubId: string | undefined,
-  groupId?: string | null,
-): UseQueryResult<ClubCapabilities, Error> {
-  return useQuery({
-    queryKey: clubKeys.capabilities(clubId ?? "", groupId),
-    queryFn: () => fetchClubCapabilities(clubId ?? "", groupId),
-    staleTime: STALE_MS,
-    enabled: Boolean(clubId),
-  });
-}
+// USUNIETO `useClubCapabilities`. Hook mial zero konsumentow w calym src:
+// kazdy ekran produktowy czyta zdolnosci z kolumn, ktore RPC i tak zwraca
+// razem z trescia (`club_view.can_*`, `club_threads_list`, `club_thread_view`),
+// bo tam sa policzone dla TEJ SAMEJ pary (klub, grupa), ktorej dotyczy widok.
+// Osobne zapytanie o to samo bylo drugim zrodlem tej samej prawdy - i tym
+// samym drugim miejscem, w ktorym moglaby sie rozjechac. Zdolnosci w panelu
+// czyta `useClubCapabilitiesPreview`, ktore odpowiada na INNE pytanie:
+// "co zobaczy wskazana osoba", a nie "co widze ja".
 
 // ---------------------------------------------------------------------------
 // Panel administracyjny

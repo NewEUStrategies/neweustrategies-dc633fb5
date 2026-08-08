@@ -148,19 +148,6 @@ export async function fetchClubMembers(params: {
   return { rows, total: rows.length > 0 ? Number(rows[0].total_count) : 0 };
 }
 
-/** Zdolnosci wolajacego wobec klubu (opcjonalnie w kontekscie grupy). */
-export async function fetchClubCapabilities(
-  clubId: string,
-  groupId?: string | null,
-): Promise<ClubCapabilities> {
-  const { data, error } = await supabase.rpc("club_capabilities", {
-    _club_id: clubId,
-    _group_id: groupId ?? undefined,
-  });
-  if (error) throw error;
-  return toClubCapabilities(data?.[0]);
-}
-
 // ---------------------------------------------------------------------------
 // Panel administracyjny
 // ---------------------------------------------------------------------------

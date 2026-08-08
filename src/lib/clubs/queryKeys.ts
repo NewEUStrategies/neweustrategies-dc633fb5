@@ -43,9 +43,6 @@ export const clubKeys = {
   members: (clubId: string, status: ClubMemberStatus | null, offset: number, limit: number) =>
     [...clubKeys.club(clubId), "members", status ?? "all", offset, limit] as const,
 
-  capabilities: (clubId: string, groupId?: string | null) =>
-    [...clubKeys.club(clubId), "capabilities", groupId ?? "club"] as const,
-
   stats: (clubId: string) => [...clubKeys.club(clubId), "stats"] as const,
 
   /** Zaproszenia klubu w panelu (obie sciezki w jednej liscie). */
