@@ -9,6 +9,7 @@
 // PL i EN muszą pochodzić z bramki parytetu, żeby brak tłumaczenia oblewał CI,
 // zamiast pokazywać surowy klucz.
 
+import { areaLabel } from "@/lib/tracker/stages";
 export const CLUB_TOPICS = [
   "geopolitics",
   "transport",
@@ -43,4 +44,18 @@ export function normalizeClubTopic(value: string | null | undefined): ClubTopic 
   const trimmed = value.trim();
   if (trimmed === "" || trimmed === CLUB_TOPIC_NONE) return null;
   return isClubTopic(trimmed) ? trimmed : null;
+}
+
+/**
+ * Etykieta do wyświetlenia. Wartości ze słownika idą przez i18n; starsze
+ * wpisy (kluby założone przed wprowadzeniem taksonomii, np. klucze monitora
+ * legislacyjnego) dostają etykietę z `areaLabel`, więc nic nie znika z UI.
+ */
+export function clubTopicLabel(
+  value: string,
+  lang: "pl" | "en",
+  t: (key: string) => string,
+): string {
+  const key = clubTopicI18nKey(value);
+  return key !== null ? t(key) : areaLabel(value, lang);
 }
