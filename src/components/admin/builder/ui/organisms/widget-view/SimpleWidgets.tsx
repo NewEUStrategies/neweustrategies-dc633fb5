@@ -21,6 +21,7 @@ import { TextRotate } from "@/components/ui/text-rotate";
 import {
   COMPACT_ICON_BOX_SIZE,
   COMPACT_WIDGET_MIN_HEIGHT,
+  getBool,
   getStr,
   getNum,
   getStrArr,
