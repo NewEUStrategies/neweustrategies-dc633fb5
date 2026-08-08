@@ -7,7 +7,7 @@
 // Wybór rodzaju niesie JEDNOZDANIOWE wyjaśnienie, co dany rodzaj zmienia -
 // bo rodzaj zmienia cykl życia wątku, a nie tylko etykietę, i użytkownik nie
 // ma skąd tego wiedzieć.
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -35,6 +35,8 @@ import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
 import { fetchClubBySlug } from "@/lib/clubs/api";
 import { clubKeys } from "@/lib/clubs/queryKeys";
 import { newIdempotencyKey } from "@/lib/http/idempotency";
+import { useThreadDraft } from "@/lib/clubs/useThreadDraft";
+import { formatDateTime } from "@/lib/i18n/format";
 import { CLUB_THREAD_KINDS, type ClubThreadKind } from "@/lib/clubs/types";
 import { ensureClubI18n } from "@/lib/i18n-club";
 
@@ -82,6 +84,7 @@ function ClubNewThread() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [anonymous, setAnonymous] = useState(false);
+  const [lockReplies, setLockReplies] = useState(false);
   // Kotwica jest krawędzią w grafie treści (V1 §1.4), a nie ozdobnym linkiem:
   // dossier pokazuje "3 wątki w klubach dyskutują ten plik", a zdarzenie
   // `policy.updated.v1` może obudzić wątek sprzed miesiąca. Do A18 nie było
@@ -119,6 +122,33 @@ function ClubNewThread() {
   useEffect(() => {
     if (!canGoAnonymous) setAnonymous(false);
   }, [canGoAnonymous]);
+
+  // Rodzaje, których RPC i tak nie przepuści, nie mają prawa stać na dropliście.
+  // `announcement` wymaga moderacji (V1 §1.3), a lista karmiona pełnym
+  // słownikiem oferowała go każdemu - żeby po napisaniu tekstu odpowiedzieć
+  // "clubs: announcement requires moderator". Ten sam wzorzec, co przy
+  // anonimowości: wybór, którego nie da się zrealizować, jest błędem
+  // interfejsu, a nie ostrzeżeniem serwera.
+  const canModerate = club?.can_moderate === true;
+  const kinds = useMemo(
+    () => (canModerate ? CLUB_THREAD_KINDS : CLUB_THREAD_KINDS.filter((k) => k !== "announcement")),
+    [canModerate],
+  );
+  useEffect(() => {
+    if (!canModerate && kind === "announcement") setKind("discussion");
+  }, [canModerate, kind]);
+
+  // Ogłoszenie domyślnie jest komunikatem, nie dyskusją - ale to nadal DOMYŚLNA
+  // wartość, nie przymus: moderator, który chce otworzyć dyskusję pod
+  // ogłoszeniem, przestawia przełącznik i tak zostaje.
+  const lockTouched = useRef(false);
+  useEffect(() => {
+    if (!lockTouched.current) setLockReplies(kind === "announcement");
+  }, [kind]);
+
+  // Autozapis szkicu. Klucz per KLUB, więc równolegle rozpoczęte teksty w dwóch
+  // klubach się nie nadpisują; zmiana działu w trakcie pisania nic nie gubi.
+  const draft = useThreadDraft(club?.id, title, body);
 
   if (clubQ.isPending) {
     return (
@@ -162,9 +192,16 @@ function ClubNewThread() {
         anchorType: anchor?.anchorType ?? null,
         anchorId: anchor?.anchorId ?? null,
         idempotencyKey,
+        // Wysyłamy tylko tam, gdzie RPC to przyjmie - bez tego zwykły członek
+        // dostałby odmowę za pole, którego nawet nie widział.
+        lockReplies: canModerate ? lockReplies : false,
       },
       {
         onSuccess: ({ slug, status }) => {
+          // Tekst jest już w bazie, więc kopia w przeglądarce przestaje cokolwiek
+          // chronić - a zostawiona podpowiadałaby "wróć do niedokończonego"
+          // przy następnym wejściu na formularz.
+          draft.clear();
           // Wpis w kolejce premoderacji nie prowadzi do wątku, którego
           // jeszcze nie widać - mówimy o tym wprost i wracamy na listę.
           if (status === "pending") {
@@ -217,13 +254,42 @@ function ClubNewThread() {
               id="thread-kind"
               label={t("club.kind.label")}
               value={kind}
-              options={CLUB_THREAD_KINDS}
+              options={kinds}
               i18nPrefix="club.kind"
               hintPrefix="club.kindHint"
               onChange={setKind}
               disabled={createM.isPending}
             />
           </div>
+
+          {/* Pasek wznowienia stoi NAD polami, a nie pod nimi: informacja
+              "masz niedokończony tekst" jest bezużyteczna po tym, jak ktoś
+              zacznie pisać od nowa. */}
+          {draft.restored !== null ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-sm">
+              <span className="flex-1">
+                {t("club.composer.draftFound", {
+                  when: formatDateTime(draft.restored.savedAt, i18n.language),
+                })}
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8"
+                onClick={() => {
+                  if (draft.restored === null) return;
+                  setTitle(draft.restored.title);
+                  setBody(draft.restored.body);
+                  draft.discard();
+                }}
+              >
+                {t("club.composer.draftRestore")}
+              </Button>
+              <Button size="sm" variant="ghost" className="h-8" onClick={draft.discard}>
+                {t("club.composer.draftDiscard")}
+              </Button>
+            </div>
+          ) : null}
 
           <div className="space-y-1.5">
             <Label htmlFor="thread-title">{t("club.threadTitle")}</Label>
@@ -279,6 +345,35 @@ function ClubNewThread() {
             </p>
           ) : null}
 
+          {/* Ogłoszenie przypina się z definicji rodzaju (migracja A25), więc
+              autor musi o tym wiedzieć PRZED publikacją - przypięty wpis widzą
+              wszyscy członkowie klubu na górze listy. */}
+          {kind === "announcement" ? (
+            <p className="rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+              {t("club.composer.announcementPinned")}
+            </p>
+          ) : null}
+
+          {canModerate ? (
+            <div className="space-y-1.5 border-t border-border/60 pt-4">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="thread-lock"
+                  checked={lockReplies}
+                  disabled={createM.isPending}
+                  onCheckedChange={(next) => {
+                    lockTouched.current = true;
+                    setLockReplies(next);
+                  }}
+                />
+                <Label htmlFor="thread-lock" className="text-sm">
+                  {t("club.composer.lockReplies")}
+                </Label>
+              </div>
+              <p className="text-xs text-muted-foreground">{t("club.composer.lockRepliesHint")}</p>
+            </div>
+          ) : null}
+
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-4">
             {canGoAnonymous ? (
               <div className="flex items-center gap-2">
@@ -295,12 +390,24 @@ function ClubNewThread() {
             ) : (
               <span />
             )}
-            <Button
-              onClick={submit}
-              disabled={createM.isPending || !titleOk || !bodyOk || groupId === ""}
-            >
-              {t("club.publishThread")}
-            </Button>
+            <div className="flex items-center gap-3">
+              {/* Autozapis MUSI być widoczny, inaczej jest funkcją, o której nikt
+                  nie wie - a wtedy nie zmienia zachowania osoby, która właśnie
+                  boi się zamknąć kartę. */}
+              {draft.savedAt !== null ? (
+                <span className="text-xs text-muted-foreground" aria-live="polite">
+                  {t("club.composer.draftSaved", {
+                    when: formatDateTime(draft.savedAt, i18n.language),
+                  })}
+                </span>
+              ) : null}
+              <Button
+                onClick={submit}
+                disabled={createM.isPending || !titleOk || !bodyOk || groupId === ""}
+              >
+                {t("club.publishThread")}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

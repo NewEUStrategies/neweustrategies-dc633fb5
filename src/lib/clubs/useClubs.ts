@@ -678,6 +678,8 @@ export interface CreateThreadVars {
   anchorId?: string | null;
   /** Patrz `createClubThread` - klucz per akcja uzytkownika, nie per proba. */
   idempotencyKey?: string;
+  /** Zaloz watek od razu zamkniety (uprawnienie moderacyjne). */
+  lockReplies?: boolean;
 }
 
 export function useCreateClubThread(

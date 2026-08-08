@@ -14437,6 +14437,7 @@ export type Database = {
           p_group_id: string
           p_idempotency_key?: string
           p_kind?: string
+          p_lock_replies?: boolean
           p_title: string
         }
         Returns: {

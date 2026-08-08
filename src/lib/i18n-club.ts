@@ -246,6 +246,16 @@ export const clubPl = {
     publishThread: "Opublikuj",
     threadCreated: "Temat opublikowany",
     threadPending: "Temat czeka na zatwierdzenie przez moderatora",
+    composer: {
+      draftFound: "Masz niedokończony tekst z {{when}}.",
+      draftRestore: "Wróć do niego",
+      draftDiscard: "Zacznij od nowa",
+      draftSaved: "Szkic zapisany w tej przeglądarce o {{when}}",
+      lockReplies: "Zamknij odpowiedzi",
+      lockRepliesHint:
+        "Wpis pojawi się jako komunikat, bez możliwości odpowiadania. Odpowiedzi można otworzyć później.",
+      announcementPinned: "Ogłoszenie zostaje przypięte na górze listy tematów.",
+    },
     cannotPost: "Nie możesz zakładać tematów w tym klubie.",
     cannotReply: "Nie możesz odpowiadać w tym wątku.",
     backToClub: "Wróć do klubu",
@@ -1158,6 +1168,16 @@ export const clubEn = {
     publishThread: "Publish",
     threadCreated: "Topic published",
     threadPending: "The topic is waiting for moderator approval",
+    composer: {
+      draftFound: "You have an unfinished text from {{when}}.",
+      draftRestore: "Pick it up",
+      draftDiscard: "Start over",
+      draftSaved: "Draft saved in this browser at {{when}}",
+      lockReplies: "Close replies",
+      lockRepliesHint:
+        "The post appears as an announcement, with replies disabled. You can open replies later.",
+      announcementPinned: "An announcement is pinned to the top of the topic list.",
+    },
     cannotPost: "You cannot start topics in this club.",
     cannotReply: "You cannot reply in this thread.",
     backToClub: "Back to the club",

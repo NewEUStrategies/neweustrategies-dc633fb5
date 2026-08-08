@@ -530,6 +530,13 @@ export async function createClubThread(params: {
    * zakladalo drugi watek ze slugiem `temat-1`, ktorego autor nie usunie sam.
    */
   idempotencyKey?: string;
+  /**
+   * Zaloz watek OD RAZU zamkniety. Uprawnienie moderacyjne - RPC odrzuca
+   * wywolanie bez `can_moderate`, wiec kompozytor pokazuje przelacznik
+   * wylacznie tam, gdzie ma prawo zadzialac. Domyslnie `false`, wiec zwykla
+   * dyskusja zachowuje sie jak dotad.
+   */
+  lockReplies?: boolean;
 }): Promise<CreateThreadResult> {
   const { data, error } = await supabase.rpc("club_create_thread", {
     p_group_id: params.groupId,
@@ -540,6 +547,7 @@ export async function createClubThread(params: {
     p_anchor_type: params.anchorType ?? undefined,
     p_anchor_id: params.anchorId ?? undefined,
     p_idempotency_key: params.idempotencyKey ?? undefined,
+    p_lock_replies: params.lockReplies ?? false,
   });
   if (error) throw error;
   const row = data?.[0];
