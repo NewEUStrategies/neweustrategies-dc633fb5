@@ -5,7 +5,17 @@
 // pusty zbior nawet dla admina. To jest celowe - cala autoryzacja zyje w
 // SECURITY DEFINER, a nie w tym pliku.
 import { supabase } from "@/integrations/supabase/client";
-import type { Json } from "@/integrations/supabase/types";
+import type { Database, Json } from "@/integrations/supabase/types";
+
+/**
+ * Argumenty RPC z DEFAULT NULL: generator typów Supabase opisuje je jako
+ * `string | undefined`, chociaż w SQL `NULL` jest poprawną i ZNACZĄCĄ wartością
+ * (np. „wszystkie statusy”, „cofnij oznaczenie”). Pominięcie klucza daje
+ * serwerowy DEFAULT, więc `undefined` nie jest zamiennikiem dla `null` - stąd
+ * to jedno wąskie przejście typów zamiast `as any` w miejscu wywołania.
+ */
+type RpcArgs<K extends keyof Database["public"]["Functions"]> =
+  Database["public"]["Functions"][K]["Args"];
 import {
   groupReactions,
   mergeClubSearchResults,
