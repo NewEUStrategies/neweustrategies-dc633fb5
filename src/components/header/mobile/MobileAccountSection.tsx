@@ -1,7 +1,7 @@
 // Sekcja "Moje konto" - zaloguj / zarejestruj lub panel / wyloguj.
 // Wyekstrahowana z Header.tsx, żeby drawer składał się z klocków.
 import { Link } from "@tanstack/react-router";
-import { LogIn, UserPlus, User, LayoutDashboard, LogOut } from "lucide-react";
+import { LogIn, UserPlus, User, LogOut } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 type Props = {
