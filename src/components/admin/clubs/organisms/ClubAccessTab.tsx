@@ -103,31 +103,16 @@ export function ClubAccessTab({ draft, onChange, disabled }: ClubAccessTabProps)
             disabled={disabled}
           />
 
-          <div className="space-y-1.5">
-            <Label htmlFor="club-min-tier" className="text-sm">
-              {t("adminClubs.fields.minTier")}
-            </Label>
-            <Input
-              id="club-min-tier"
-              type="number"
-              min={0}
-              max={100}
-              inputMode="numeric"
-              value={draft.minTierRank}
-              disabled={disabled}
-              onChange={(e) => {
-                // Ranga planu jest liczbą całkowitą >= 0. Pusty input daje NaN,
-                // więc degradujemy do 0 ("bez wymagań") zamiast zapisywać NaN.
-                const next = Number.parseInt(e.target.value, 10);
-                onChange({ minTierRank: Number.isFinite(next) && next > 0 ? next : 0 });
-              }}
-            />
-            <p className="text-xs text-muted-foreground">
-              {draft.minTierRank > 0
-                ? t("adminClubs.accessPreviewTier", { rank: draft.minTierRank })
-                : t("adminClubs.fields.minTierNone")}
-            </p>
-          </div>
+          <ClubEnumSelect
+            id="club-min-tier"
+            label={t("adminClubs.fields.minTier")}
+            value={planTierFromRank(draft.minTierRank)}
+            options={CLUB_PLAN_TIERS}
+            i18nPrefix="club.planTier"
+            hintPrefix="club.planTierHint"
+            onChange={(tier) => onChange({ minTierRank: rankFromPlanTier(tier) })}
+            disabled={disabled}
+          />
 
           <ClubEnumSelect
             id="club-attribution"
