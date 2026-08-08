@@ -82,7 +82,7 @@ export function LangReelSwitcher({ label, className }: { label: string; classNam
       aria-label={`${label}: ${target.toUpperCase()}`}
       title={`${label}: ${target.toUpperCase()}`}
       className={cn(
-        "lang-switch shrink-0 rounded-[6px] border border-black/10 bg-[#f4f4f2] p-[2px] dark:border-white/10 dark:bg-[#27272a]",
+        "lang-switch shrink-0 rounded-[6px] bg-[#f4f4f2] p-[2px] dark:bg-[#27272a]",
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand,#2563eb)]",
         className,
       )}
