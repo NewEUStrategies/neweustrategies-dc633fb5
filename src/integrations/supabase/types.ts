@@ -15863,6 +15863,14 @@ export type Database = {
           thread_id: string
         }[]
       }
+      club_thread_document_remove: {
+        Args: { p_document_id: string }
+        Returns: undefined
+      }
+      club_thread_document_upsert: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
       club_thread_documents_list: {
         Args: { p_kind?: string; p_limit?: number; p_thread_id: string }
         Returns: {
@@ -15910,6 +15918,19 @@ export type Database = {
           replies: number
         }[]
       }
+      club_thread_link_add: {
+        Args: {
+          p_note?: string
+          p_related_thread_id: string
+          p_relation?: string
+          p_thread_id: string
+        }
+        Returns: string
+      }
+      club_thread_link_remove: {
+        Args: { p_link_id: string }
+        Returns: undefined
+      }
       club_thread_links_list: {
         Args: { p_thread_id: string }
         Returns: {
@@ -15930,6 +15951,14 @@ export type Database = {
           thread_slug: string
           title: string
         }[]
+      }
+      club_thread_milestone_remove: {
+        Args: { p_milestone_id: string }
+        Returns: undefined
+      }
+      club_thread_milestone_upsert: {
+        Args: { p_payload: Json }
+        Returns: string
       }
       club_thread_milestones_list: {
         Args: {
@@ -15979,6 +16008,21 @@ export type Database = {
           user_id: string
         }[]
       }
+      club_thread_poll_create: {
+        Args: {
+          p_ends_at?: string
+          p_label?: string
+          p_options: Json
+          p_question_en: string
+          p_question_pl: string
+          p_thread_id: string
+        }
+        Returns: string
+      }
+      club_thread_poll_detach: {
+        Args: { p_link_id: string }
+        Returns: undefined
+      }
       club_thread_polls_list: {
         Args: { p_thread_id: string }
         Returns: {
@@ -15996,6 +16040,18 @@ export type Database = {
       }
       club_thread_quality_score: {
         Args: { _thread_id: string }
+        Returns: number
+      }
+      club_thread_question_answer: {
+        Args: { p_body: string; p_question_id: string; p_status?: string }
+        Returns: undefined
+      }
+      club_thread_question_ask: {
+        Args: { p_anonymous?: boolean; p_body: string; p_thread_id: string }
+        Returns: string
+      }
+      club_thread_question_vote: {
+        Args: { p_on?: boolean; p_question_id: string }
         Returns: number
       }
       club_thread_questions_list: {
