@@ -128,14 +128,14 @@ function ClubHub() {
   // ŻADNEGO modułu - katalog JEST tą stroną.
   if (clubsQ.isError) {
     return (
-      <div className="container mx-auto max-w-3xl px-4 py-12">
+      <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-12">
         <ClubErrorNotice onRetry={() => void clubsQ.refetch()} />
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto max-w-6xl px-4 py-6">
+    <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-6">
       <ClubHubHero access={signedIn ? access : null} signedIn={signedIn} stats={stats}>
         {signedIn ? (
           <ClubGlobalSearchInput value={query} onChange={setQuery} />

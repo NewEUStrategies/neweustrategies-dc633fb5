@@ -55,7 +55,7 @@ function ClubRouteError(props: Parameters<typeof RouteErrorFallback>[0]) {
 /** Szkielet w rytmie strony klubu (nagłówek + lista), nie pusty ekran. */
 function ClubRoutePending() {
   return (
-    <div className="container mx-auto max-w-5xl px-4 py-8" aria-busy="true">
+    <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-8" aria-busy="true">
       <div className="mb-6 h-40 animate-pulse rounded-lg bg-muted/50" />
       <div className="space-y-2">
         {[0, 1, 2, 3].map((i) => (

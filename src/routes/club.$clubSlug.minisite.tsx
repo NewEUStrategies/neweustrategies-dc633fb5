@@ -59,7 +59,7 @@ function ClubMinisiteRoute() {
 
   if (!session) {
     return (
-      <div className="container mx-auto max-w-3xl px-4 py-12">
+      <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-12">
         <Card>
           <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
             <MessagesSquare className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
@@ -73,7 +73,7 @@ function ClubMinisiteRoute() {
 
   if (clubQ.isPending) {
     return (
-      <div className="container mx-auto max-w-4xl px-4 py-8" aria-busy="true">
+      <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-8" aria-busy="true">
         <div className="mb-5 aspect-[4/1] animate-pulse rounded-xl bg-muted/50" />
         <div className="h-8 w-1/2 animate-pulse rounded bg-muted/50" />
       </div>
@@ -82,7 +82,7 @@ function ClubMinisiteRoute() {
 
   if (club === null) {
     return (
-      <div className="container mx-auto max-w-3xl px-4 py-12">
+      <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-12">
         <Card>
           <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
             <h1 className="text-xl font-semibold">{t("club.notFoundTitle")}</h1>
