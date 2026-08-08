@@ -35,6 +35,7 @@ import { useClubBySlug, useClubGroups, useClubSearch, useClubThreads } from "@/l
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { ClubThreadList } from "@/components/clubs/organisms/ClubThreadList";
 import { ClubCover } from "@/components/clubs/atoms/ClubCover";
+import { ClubActivityStrip } from "@/components/clubs/molecules/ClubActivityStrip";
 import {
   CLUB_THREAD_KINDS,
   CLUB_THREAD_SORTS,
@@ -223,19 +224,19 @@ function ClubHome() {
     <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-6">
       {/* Nagłówek klubu jest KOMPAKTOWY: baner 6:1 zamiast 3:1 i tytuł 2xl,
           bo wejście z huba ma pokazać WĄTKI, a nie okładkę na pół ekranu. */}
-      <header className="mb-5">
+      <header className="mb-4">
         <ClubCover
           url={club.cover_image_url}
           variant="banner"
-          className="mb-3 aspect-[5/1] sm:aspect-[6/1]"
+          className="mb-3 aspect-[6/1] sm:aspect-[8/1]"
         />
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-2xl font-semibold leading-tight">
+            <h1 className="text-xl font-semibold leading-tight sm:text-2xl">
               {isPl ? club.name_pl : club.name_en}
             </h1>
             {(isPl ? club.tagline_pl : club.tagline_en) ? (
-              <p className="mt-1 line-clamp-2 max-w-2xl text-sm text-muted-foreground">
+              <p className="mt-1 line-clamp-2 max-w-3xl text-sm text-muted-foreground">
                 {isPl ? club.tagline_pl : club.tagline_en}
               </p>
             ) : null}
@@ -279,6 +280,10 @@ function ClubHome() {
             ) : null}
           </div>
         </div>
+
+        {/* Pasek dynamiki: stan (członkowie, tematy) i RUCH (14 dni) w jednym
+            wierszu - dopiero razem mówią, czy klub żyje. */}
+        <ClubActivityStrip threads={threads} className="mt-3" />
 
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
