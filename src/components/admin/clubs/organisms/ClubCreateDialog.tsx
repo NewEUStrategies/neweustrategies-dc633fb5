@@ -40,6 +40,7 @@ import {
 import { CoverImagePicker } from "@/components/admin/CoverImagePicker";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { ClubEnumSelect } from "../molecules/ClubEnumSelect";
+import { ClubTopicSelect } from "@/components/clubs/molecules/ClubTopicSelect";
 import { ClubLayoutPicker } from "../molecules/ClubLayoutPicker";
 import { useClubSlugAvailable, useUpsertClub } from "@/lib/clubs/useClubs";
 import {
@@ -83,6 +84,7 @@ export function ClubCreateDialog({
   // płacących członków, a obniżenie progu jest świadomą decyzją.
   const [planTier, setPlanTier] = useState<ClubPlanTier>(DEFAULT_CLUB_PLAN_TIER);
   const [cover, setCover] = useState("");
+  const [topic, setTopic] = useState<string | null>(null);
   // Kolizja zgłoszona przez RPC przy ZAPISIE. Sprawdzanie na żywo łapie
   // większość przypadków, ale nie wyścig: ktoś inny mógł zająć ten adres
   // między sprawdzeniem a kliknięciem. Wtedy toast znika po chwili, a
@@ -141,6 +143,7 @@ export function ClubCreateDialog({
         layout,
         min_tier_rank: rankFromPlanTier(planTier),
         cover_image_url: cover.trim() || null,
+        policy_area: topic,
         status: "draft",
       },
       {
@@ -253,6 +256,15 @@ export function ClubCreateDialog({
             </div>
             <ClubLayoutPicker value={layout} onChange={setLayout} disabled={createM.isPending} />
           </div>
+
+          <ClubTopicSelect
+            id="club-create-topic"
+            label={t("adminClubs.fields.policyArea")}
+            hint={t("club.topic.hint")}
+            value={topic}
+            onChange={setTopic}
+            disabled={createM.isPending}
+          />
 
           {/* --- okładka --- */}
           <CoverImagePicker
