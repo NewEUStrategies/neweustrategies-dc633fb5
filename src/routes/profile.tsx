@@ -1,4 +1,5 @@
 import { createFileRoute, Outlet, useLocation } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ProfileNav } from "@/components/profile/ProfileNav";
 import { AuthGate } from "@/components/profile/AuthGate";
@@ -6,8 +7,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { useHeaderProfile } from "@/lib/profile/useHeaderProfile";
 import { useGuestPreview } from "@/lib/profile/guestPreviewStore";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { UserCircle } from "lucide-react";
+import { UserCircle, PanelLeftOpen, PanelLeftClose } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
+
 export const Route = createFileRoute("/profile")({
   component: ProfileLayout,
   head: () => ({
