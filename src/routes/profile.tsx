@@ -1,4 +1,5 @@
 import { createFileRoute, Outlet, useLocation } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ProfileNav } from "@/components/profile/ProfileNav";
 import { AuthGate } from "@/components/profile/AuthGate";
@@ -6,8 +7,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { useHeaderProfile } from "@/lib/profile/useHeaderProfile";
 import { useGuestPreview } from "@/lib/profile/guestPreviewStore";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { UserCircle } from "lucide-react";
+import { UserCircle, PanelLeftOpen, PanelLeftClose } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
+
 export const Route = createFileRoute("/profile")({
   component: ProfileLayout,
   head: () => ({
@@ -38,6 +41,26 @@ function ProfileLayout() {
   // "Podgląd jak gość" - podstrony /profile/* zachowują nawigację.
   const hideSidebar = isRoot && guestPreview;
 
+  // Sidebar ustawień: domyślnie zwinięty (rail z ikonami). Stan czytamy po
+  // hydracji, żeby SSR i pierwszy render klienta były identyczne.
+  const [collapsed, setCollapsed] = useState(true);
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem("profile:sidebar") === "expanded") setCollapsed(false);
+    } catch {
+      /* prywatny tryb przeglądarki - zostaje domyślne zwinięcie */
+    }
+  }, []);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("profile:sidebar", collapsed ? "collapsed" : "expanded");
+    } catch {
+      /* jw. */
+    }
+  }, [collapsed]);
+
+
+
   // Ta sama pamięć podręczna, którą karmi useHeaderProfile w headerze - dzięki
   // temu wejście na /profile nie powoduje drugiego round-tripu do PostgREST.
   const { data: profile } = useHeaderProfile(user?.id);
@@ -59,36 +82,66 @@ function ProfileLayout() {
         <div className="container mx-auto max-w-[90rem] px-3 sm:px-4">
           <div className="overflow-hidden rounded-xl border border-border bg-card shadow-[0_4px_20px_-4px_color-mix(in oklab, var(--foreground) 8%, transparent)]">
             <div className="flex flex-col md:flex-row">
-              {/* Sidebar - ukryty w pełnym podglądzie gościa na /profile */}
+              {/* Sidebar - ukryty w pełnym podglądzie gościa na /profile.
+                  Domyślnie zwinięty (rail z ikonami); stan pamiętany lokalnie. */}
               {!hideSidebar && (
-                <aside className="w-full shrink-0 border-b border-border bg-muted/40 p-5 md:w-72 md:border-b-0 md:border-r">
-                  <div className="flex h-full flex-col gap-6">
-                    <div className="relative overflow-hidden rounded-[6px] border border-border/70 bg-gradient-to-br from-primary/[0.08] via-background to-background px-3 py-3">
-                      <span
-                        aria-hidden
-                        className="pointer-events-none absolute inset-y-0 left-0 w-[3px] rounded-l-[6px] bg-gradient-to-b from-primary via-primary/70 to-primary/30"
-                      />
-                      <div className="flex items-center gap-2.5">
+                <aside
+                  className={cn(
+                    "w-full shrink-0 border-b border-border bg-muted/40 transition-[width] duration-200 md:border-b-0 md:border-r",
+                    collapsed ? "p-2 md:w-[68px]" : "p-5 md:w-72",
+                  )}
+                  data-collapsed={collapsed ? "true" : "false"}
+                >
+                  <div className={cn("flex h-full flex-col", collapsed ? "gap-3" : "gap-6")}>
+                    {collapsed ? (
+                      <button
+                        type="button"
+                        onClick={() => setCollapsed(false)}
+                        aria-expanded={false}
+                        aria-label={t("profile.sidebar.expand", "Rozwiń ustawienia")}
+                        title={t("profile.sidebar.expand", "Rozwiń ustawienia")}
+                        className="mx-auto flex h-9 w-9 items-center justify-center rounded-[6px] border border-border/70 bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      >
+                        <PanelLeftOpen className="h-4 w-4" />
+                      </button>
+                    ) : (
+                      <div className="relative overflow-hidden rounded-[6px] border border-border/70 bg-gradient-to-br from-primary/[0.08] via-background to-background px-3 py-3">
                         <span
                           aria-hidden
-                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] bg-primary/10 text-primary ring-1 ring-primary/15"
-                        >
-                          <UserCircle className="h-4 w-4" />
-                        </span>
-                        <div className="min-w-0">
-                          <h1 className="truncate text-[15px] font-extrabold tracking-tight text-foreground">
-                            {t("profile.title")}
-                          </h1>
-                          <p className="mt-0.5 truncate text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
-                            {t("profile.subtitle", { defaultValue: "Centrum zarządzania" })}
-                          </p>
+                          className="pointer-events-none absolute inset-y-0 left-0 w-[3px] rounded-l-[6px] bg-gradient-to-b from-primary via-primary/70 to-primary/30"
+                        />
+                        <div className="flex items-center gap-2.5">
+                          <span
+                            aria-hidden
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] bg-primary/10 text-primary ring-1 ring-primary/15"
+                          >
+                            <UserCircle className="h-4 w-4" />
+                          </span>
+                          <div className="min-w-0">
+                            <h1 className="truncate text-[15px] font-extrabold tracking-tight text-foreground">
+                              {t("profile.title")}
+                            </h1>
+                            <p className="mt-0.5 truncate text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                              {t("profile.subtitle", { defaultValue: "Centrum zarządzania" })}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setCollapsed(true)}
+                            aria-expanded
+                            aria-label={t("profile.sidebar.collapse", "Zwiń ustawienia")}
+                            title={t("profile.sidebar.collapse", "Zwiń ustawienia")}
+                            className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] border border-border/70 bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                          >
+                            <PanelLeftClose className="h-4 w-4" />
+                          </button>
                         </div>
                       </div>
-                    </div>
+                    )}
 
-                    <ProfileNav />
+                    <ProfileNav collapsed={collapsed} />
 
-                    {user && (
+                    {user && !collapsed && (
                       <div className="mt-auto rounded-lg border border-border bg-background px-3 py-3 shadow-sm">
                         <div className="flex items-center gap-3">
                           <Avatar className="h-8 w-8 shrink-0 rounded-[6px]">
@@ -115,6 +168,7 @@ function ProfileLayout() {
                   </div>
                 </aside>
               )}
+
 
               {/* Main content */}
               <div className="min-w-0 flex-1 bg-card p-5 md:p-8">
