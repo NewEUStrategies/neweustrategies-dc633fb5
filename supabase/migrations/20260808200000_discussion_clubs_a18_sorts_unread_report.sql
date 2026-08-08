@@ -470,6 +470,15 @@ GRANT EXECUTE ON FUNCTION public.club_mark_read(uuid) TO authenticated, service_
 -- Zawor bezpieczenstwa przy dryfie: przeliczenie liczy klub z tego samego
 -- zrodla, co bump. Rozszerzamy istniejaca funkcje, zamiast dokladac druga -
 -- dwa miejsca liczace ten sam licznik to gwarantowany rozjazd.
+--
+-- UWAGA PRZY KAZDEJ NASTEPNEJ ZMIANIE TEJ FUNKCJI. `CREATE OR REPLACE`
+-- przepisuje ja W CALOSCI, wiec kazdy licznik pominiety w tresci ZNIKA -
+-- i to cicho, bo funkcja nadal istnieje i nadal dziala. Stan wejsciowy to
+-- 20260717162432 (notifications_unread + chat_unread + connections_pending
+-- z modulu sieci kontaktow); wersja z 20260711220826 zna tylko dwa pierwsze
+-- i NIE jest punktem odniesienia. Oparcie sie na niej kasowaloby plakietke
+-- zaproszen do kontaktow przy kazdym wywolaniu recompute_my_pending_counters,
+-- czyli dokladnie w momencie, w ktorym uzytkownik prosi o naprawe licznikow.
 CREATE OR REPLACE FUNCTION public.recompute_user_pending_counters(p_user_id uuid)
 RETURNS void
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER
@@ -479,6 +488,7 @@ DECLARE
   v_tenant uuid;
   v_notifications integer;
   v_chat integer;
+  v_connections integer;
   v_club integer;
 BEGIN
   SELECT tenant_id INTO v_tenant FROM public.profiles WHERE id = p_user_id;
@@ -488,6 +498,8 @@ BEGIN
     FROM public.notifications WHERE user_id = p_user_id AND read_at IS NULL;
   SELECT COALESCE(sum(unread_count), 0)::integer INTO v_chat
     FROM public.conversation_participants WHERE user_id = p_user_id;
+  SELECT count(*)::integer INTO v_connections
+    FROM public.user_connections WHERE addressee_id = p_user_id AND status = 'pending';
   SELECT COALESCE(sum(m.unread_count), 0)::integer INTO v_club
     FROM public.club_members m
    WHERE m.user_id = p_user_id AND m.status = 'active' AND m.notify_level <> 'none';
@@ -496,6 +508,7 @@ BEGIN
   VALUES
     (v_tenant, p_user_id, 'notifications_unread', v_notifications),
     (v_tenant, p_user_id, 'chat_unread', v_chat),
+    (v_tenant, p_user_id, 'connections_pending', v_connections),
     (v_tenant, p_user_id, 'club_unread', v_club)
   ON CONFLICT (user_id, counter_key) DO UPDATE
     SET value = EXCLUDED.value, updated_at = now();

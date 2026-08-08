@@ -34,6 +34,7 @@ import {
 import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
 import { fetchClubBySlug } from "@/lib/clubs/api";
 import { clubKeys } from "@/lib/clubs/queryKeys";
+import { newIdempotencyKey } from "@/lib/http/idempotency";
 import { CLUB_THREAD_KINDS, type ClubThreadKind } from "@/lib/clubs/types";
 import { ensureClubI18n } from "@/lib/i18n-club";
 
@@ -87,6 +88,13 @@ function ClubNewThread() {
   // żadnej ścieżki, która pozwalałaby ją ustawić, więc karta na stronie aktu
   // prawnego z definicji świeciła pustką.
   const [anchor, setAnchor] = useState<ClubAnchorValue | null>(null);
+  // Klucz idempotencji per AKCJA, nie per proba: powstaje raz przy wejściu na
+  // formularz i przeżywa podwójne kliknięcie oraz retry po timeoucie, więc oba
+  // zwracają TEN SAM wątek zamiast zakładać drugi (V1 §6.3). `useState`
+  // z inicjalizatorem leniwym, bo `newIdempotencyKey` losuje - wywołane
+  // w ciele komponentu dawałoby nowy klucz przy każdym renderze, czyli
+  // dokładnie zero idempotencji.
+  const [idempotencyKey] = useState(() => newIdempotencyKey("club_create_thread"));
 
   // Grupa domyślna: pierwsza, w której wolno założyć temat. Bez tego
   // użytkownik z dostępem do jednej grupy i tak musiałby ją wybrać ręcznie.
@@ -138,6 +146,7 @@ function ClubNewThread() {
         anonymous,
         anchorType: anchor?.anchorType ?? null,
         anchorId: anchor?.anchorId ?? null,
+        idempotencyKey,
       },
       {
         onSuccess: ({ slug, status }) => {

@@ -14435,6 +14435,7 @@ export type Database = {
           p_anonymous?: boolean
           p_body: string
           p_group_id: string
+          p_idempotency_key?: string
           p_kind?: string
           p_title: string
         }
@@ -14460,6 +14461,10 @@ export type Database = {
       club_effective_member_role: {
         Args: { _role: string; _role_expires_at: string }
         Returns: string
+      }
+      club_export_my_data: {
+        Args: { p_limit?: number }
+        Returns: Json
       }
       club_groups_list: {
         Args: { p_club_id: string }
@@ -14550,6 +14555,10 @@ export type Database = {
         }[]
       }
       club_mark_read: { Args: { p_club_id: string }; Returns: number }
+      club_mention_visible_to: {
+        Args: { p_source_id: string; p_source_type: string; p_user_id: string }
+        Returns: boolean
+      }
       club_members_list: {
         Args: {
           p_club_id: string

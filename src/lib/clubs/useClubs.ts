@@ -676,6 +676,8 @@ export interface CreateThreadVars {
   anonymous?: boolean;
   anchorType?: string | null;
   anchorId?: string | null;
+  /** Patrz `createClubThread` - klucz per akcja uzytkownika, nie per proba. */
+  idempotencyKey?: string;
 }
 
 export function useCreateClubThread(

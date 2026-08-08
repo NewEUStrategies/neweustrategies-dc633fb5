@@ -522,6 +522,14 @@ export async function createClubThread(params: {
   anonymous?: boolean;
   anchorType?: string | null;
   anchorId?: string | null;
+  /**
+   * Klucz idempotencji generowany per AKCJA uzytkownika (nie per proba), zeby
+   * podwojny klik i retry po timeoucie wspoldzielily jeden klucz i zwrocily
+   * TEN SAM watek. Bez niego RPC zachowuje sie jak dotad - blokada advisory
+   * serializuje wywolania, ale ich nie deduplikuje, wiec drugie klikniecie
+   * zakladalo drugi watek ze slugiem `temat-1`, ktorego autor nie usunie sam.
+   */
+  idempotencyKey?: string;
 }): Promise<CreateThreadResult> {
   const { data, error } = await supabase.rpc("club_create_thread", {
     p_group_id: params.groupId,
@@ -531,6 +539,7 @@ export async function createClubThread(params: {
     p_anonymous: params.anonymous ?? false,
     p_anchor_type: params.anchorType ?? undefined,
     p_anchor_id: params.anchorId ?? undefined,
+    p_idempotency_key: params.idempotencyKey ?? undefined,
   });
   if (error) throw error;
   const row = data?.[0];
