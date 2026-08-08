@@ -48,6 +48,8 @@ import {
   useClubHubLayout,
 } from "@/components/clubs/molecules/ClubHubLayoutSwitch";
 import { ClubTopicNav } from "@/components/clubs/molecules/ClubTopicNav";
+import { rankClubs } from "@/lib/clubs/clubMatch";
+import { clubTopicLabel } from "@/lib/clubs/policyAreas";
 import { buildClubHead } from "@/lib/clubs/clubHead";
 import { ensureClubI18n } from "@/lib/i18n-club";
 
@@ -92,6 +94,23 @@ function ClubHub() {
     clubId: null,
     enabled: searching && signedIn,
   });
+
+  // Wyszukiwanie serwerowe szuka w WĄTKACH. Nazwa klubu wpisana we fragmentach
+  // ("bezp srodkowo") nie trafiała więc w nic - katalog mamy w pamięci, więc
+  // dokładamy do wyników dopasowanie nazw posortowane po trafności.
+  const clubHits = useMemo(
+    () =>
+      searching
+        ? rankClubs(clubs, debouncedQuery, {
+            isPl,
+            topicLabel: (club) =>
+              club.policy_area === null
+                ? null
+                : clubTopicLabel(club.policy_area, isPl ? "pl" : "en", t),
+          })
+        : [],
+    [searching, clubs, debouncedQuery, isPl, t],
+  );
 
   const access = resolveClubHubAccess({
     tierRank: tierQ.data?.rank ?? null,
@@ -159,14 +178,26 @@ function ClubHub() {
       ) : null}
 
       {searching ? (
-        <ClubGlobalSearchResults
+        <>
+          {clubHits.length > 0 ? (
+            <ClubDirectory
+              title={t("club.hub.clubMatches")}
+              empty={t("club.emptyDiscover")}
+              clubs={clubHits}
+              isPl={isPl}
+              loading={false}
+              layout={hubLayout}
+            />
+          ) : null}
+          <ClubGlobalSearchResults
           hits={searchQ.data ?? []}
           pending={searchQ.isPending}
           failed={searchQ.isError}
           query={debouncedQuery}
           isPl={isPl}
-          onRetry={() => void searchQ.refetch()}
-        />
+            onRetry={() => void searchQ.refetch()}
+          />
+        </>
       ) : (
         <>
           {/* Pasek sterowania katalogiem: obszary polityki po lewej, układ po
