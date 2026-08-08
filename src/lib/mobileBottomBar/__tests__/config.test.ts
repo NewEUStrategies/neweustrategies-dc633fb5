@@ -4,6 +4,7 @@ import {
   MAX_BOTTOM_BAR_ITEMS,
   MOBILE_BOTTOM_BAR_DEFAULTS,
   activeBottomBarIndex,
+  bottomBarHref,
   bottomBarLabel,
   clampOffset,
   clampRadius,
@@ -40,12 +41,39 @@ describe("mobileBottomBar config", () => {
       ...MOBILE_BOTTOM_BAR_DEFAULTS,
       items: [
         { ...MOBILE_BOTTOM_BAR_DEFAULTS.items[0], enabled: false },
-        { ...MOBILE_BOTTOM_BAR_DEFAULTS.items[1], href: "javascript:alert(1)" },
+        { ...MOBILE_BOTTOM_BAR_DEFAULTS.items[1], id: "item-custom", href: "javascript:alert(1)" },
       ],
     };
     const items = visibleBottomBarItems(cfg);
     expect(items).toHaveLength(1);
     expect(items[0].href).toBe("/");
+  });
+
+  // Zapisana konfiguracja tenanta bywa starsza niż moduły serwisu (pasek
+  // pamiętał "/reading-list" pod pozycją klubów). Skróty systemowe muszą
+  // trafiać w swój moduł niezależnie od tego, co leży w bazie.
+  it("naprawia adres znanych pozycji do kanonicznego", () => {
+    const items = visibleBottomBarItems({
+      ...MOBILE_BOTTOM_BAR_DEFAULTS,
+      items: [
+        { ...MOBILE_BOTTOM_BAR_DEFAULTS.items[3], href: "/reading-list" },
+        { ...MOBILE_BOTTOM_BAR_DEFAULTS.items[0], href: "/siec" },
+      ],
+    });
+    expect(items.map((i) => i.href)).toEqual(["/club", "/network"]);
+  });
+
+  it("dodaje prefiks języka tylko tam, gdzie treść jest lokalizowana", () => {
+    const [network, chats, home, clubs, profile] = visibleBottomBarItems(
+      MOBILE_BOTTOM_BAR_DEFAULTS,
+    );
+    expect(bottomBarHref(home, "pl")).toBe("/");
+    expect(bottomBarHref(home, "en")).toBe("/en");
+    expect(bottomBarHref(network, "en")).toBe("/en/network");
+    expect(bottomBarHref(clubs, "en")).toBe("/en/club");
+    // /messages i /profile to powierzchnie osobiste - nigdy nie są prefiksowane.
+    expect(bottomBarHref(chats, "en")).toBe("/messages");
+    expect(bottomBarHref(profile, "en")).toBe("/profile");
   });
 
   it("normalizuje nieznane źródło licznika do 'none'", () => {
