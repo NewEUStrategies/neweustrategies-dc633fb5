@@ -9,10 +9,14 @@ type Props = {
   onNavigate: () => void;
 };
 
-const primaryBtn =
-  "flex-1 inline-flex items-center justify-center gap-2 h-10 px-3 rounded-md bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition";
-const secondaryBtn =
-  "flex-1 inline-flex items-center justify-center gap-2 h-10 px-3 rounded-md border border-border text-foreground text-sm font-semibold hover:bg-muted transition";
+// Styl spójny z desktopowym AccountMenuWidget: wiersze rounded-[6px],
+// ikona 4x4 w kolorze muted, tekst 14px, hover bg-muted/60.
+const accountRow =
+  "group relative flex w-full items-center gap-3 rounded-[6px] px-2.5 py-2 min-h-9 text-left text-sm font-medium outline-none transition-[background-color,color] duration-200 hover:bg-muted/60 focus-visible:bg-muted/60";
+const accountIcon =
+  "h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-[color:var(--account-accent,var(--primary))]";
+const primaryBtn = accountRow;
+const secondaryBtn = accountRow;
 
 export function MobileAccountSection({ isPl, onNavigate }: Props) {
   const { session, isStaff, signOut } = useAuth();
