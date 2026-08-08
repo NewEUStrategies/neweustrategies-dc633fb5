@@ -1811,6 +1811,7 @@ export type Database = {
           rules_accepted_at: string | null
           status: string
           tenant_id: string
+          unread_count: number
           updated_at: string
           user_id: string
         }
@@ -1829,6 +1830,7 @@ export type Database = {
           rules_accepted_at?: string | null
           status?: string
           tenant_id: string
+          unread_count?: number
           updated_at?: string
           user_id: string
         }
@@ -1847,6 +1849,7 @@ export type Database = {
           rules_accepted_at?: string | null
           status?: string
           tenant_id?: string
+          unread_count?: number
           updated_at?: string
           user_id?: string
         }
@@ -2254,6 +2257,7 @@ export type Database = {
           locked_at: string | null
           participant_count: number
           pinned_at: string | null
+          poll_id: string | null
           posted_by_admin_id: string | null
           reaction_count: number
           reply_count: number
@@ -2283,6 +2287,7 @@ export type Database = {
           locked_at?: string | null
           participant_count?: number
           pinned_at?: string | null
+          poll_id?: string | null
           posted_by_admin_id?: string | null
           reaction_count?: number
           reply_count?: number
@@ -2312,6 +2317,7 @@ export type Database = {
           locked_at?: string | null
           participant_count?: number
           pinned_at?: string | null
+          poll_id?: string | null
           posted_by_admin_id?: string | null
           reaction_count?: number
           reply_count?: number
@@ -2336,6 +2342,13 @@ export type Database = {
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "club_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_threads_poll_id_fkey"
+            columns: ["poll_id"]
+            isOneToOne: false
+            referencedRelation: "polls"
             referencedColumns: ["id"]
           },
           {
@@ -13414,21 +13427,6 @@ export type Database = {
           who_can_post_inherited: boolean
         }[]
       }
-      admin_club_invite_segment: {
-        Args: {
-          p_club_id: string
-          p_group_id?: string
-          p_max?: number
-          p_message?: string
-          p_role?: string
-          p_rule: Json
-          p_save_rule?: boolean
-        }
-        Returns: {
-          invited: number
-          rule_id: string
-        }[]
-      }
       admin_club_invitations: {
         Args: { p_club_id: string }
         Returns: {
@@ -13474,6 +13472,21 @@ export type Database = {
           revoked_at: string
           token: string
           used_count: number
+        }[]
+      }
+      admin_club_invite_segment: {
+        Args: {
+          p_club_id: string
+          p_group_id?: string
+          p_max?: number
+          p_message?: string
+          p_role?: string
+          p_rule: Json
+          p_save_rule?: boolean
+        }
+        Returns: {
+          invited: number
+          rule_id: string
         }[]
       }
       admin_club_list: {
@@ -13554,6 +13567,23 @@ export type Database = {
         Returns: {
           join_requests: number
           moderation_pending: number
+        }[]
+      }
+      admin_club_poll_create: {
+        Args: {
+          p_author_id?: string
+          p_body: string
+          p_ends_at?: string
+          p_group_id: string
+          p_options: Json
+          p_question_en: string
+          p_question_pl: string
+          p_title: string
+        }
+        Returns: {
+          poll_id: string
+          thread_id: string
+          thread_slug: string
         }[]
       }
       admin_club_replies: {
@@ -14431,6 +14461,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      club_bump_unread: {
+        Args: { p_actor_id: string; p_club_id: string }
+        Returns: undefined
+      }
       club_capabilities: {
         Args: { _club_id: string; _group_id?: string; _user_id?: string }
         Returns: {
@@ -14456,7 +14490,6 @@ export type Database = {
           p_group_id: string
           p_idempotency_key?: string
           p_kind?: string
-          p_lock_replies?: boolean
           p_title: string
         }
         Returns: {
@@ -14466,26 +14499,18 @@ export type Database = {
         }[]
       }
       club_edit_reply: {
-        Args: { p_body: string; p_reason?: string; p_reply_id: string }
+        Args: { p_body: string; p_reply_id: string }
         Returns: boolean
       }
       club_edit_thread: {
-        Args: {
-          p_body: string
-          p_reason?: string
-          p_thread_id: string
-          p_title: string
-        }
+        Args: { p_body: string; p_thread_id: string; p_title: string }
         Returns: boolean
       }
       club_effective_member_role: {
         Args: { _role: string; _role_expires_at: string }
         Returns: string
       }
-      club_export_my_data: {
-        Args: { p_limit?: number }
-        Returns: Json
-      }
+      club_export_my_data: { Args: { p_limit?: number }; Returns: Json }
       club_groups_list: {
         Args: { p_club_id: string }
         Returns: {
@@ -14575,16 +14600,12 @@ export type Database = {
         }[]
       }
       club_mark_read: { Args: { p_club_id: string }; Returns: number }
-      club_mention_visible_to: {
-        Args: { p_source_id: string; p_source_type: string; p_user_id: string }
-        Returns: boolean
-      }
       club_members_list: {
         Args: {
           p_club_id: string
           p_limit?: number
           p_offset?: number
-          p_status?: string | null
+          p_status?: string
         }
         Returns: {
           avatar_url: string
@@ -14601,6 +14622,10 @@ export type Database = {
           user_id: string
           verified: boolean
         }[]
+      }
+      club_mention_visible_to: {
+        Args: { p_source_id: string; p_source_type: string; p_user_id: string }
+        Returns: boolean
       }
       club_moderate: {
         Args: {
@@ -14736,7 +14761,7 @@ export type Database = {
         Returns: string
       }
       club_resolve_thread: {
-        Args: { p_reply_id: string | null; p_thread_id: string }
+        Args: { p_reply_id: string; p_thread_id: string }
         Returns: boolean
       }
       club_respond_invitation: {
@@ -14759,6 +14784,18 @@ export type Database = {
           thread_id: string
           thread_slug: string
           title: string
+        }[]
+      }
+      club_segment_candidate_ids: {
+        Args: { p_rule: Json }
+        Returns: {
+          user_id: string
+        }[]
+      }
+      club_segment_recipients: {
+        Args: { p_club_id: string; p_rule: Json }
+        Returns: {
+          user_id: string
         }[]
       }
       club_semantic_search: {

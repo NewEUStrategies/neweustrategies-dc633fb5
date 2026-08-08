@@ -5,7 +5,17 @@
 // pusty zbior nawet dla admina. To jest celowe - cala autoryzacja zyje w
 // SECURITY DEFINER, a nie w tym pliku.
 import { supabase } from "@/integrations/supabase/client";
-import type { Json } from "@/integrations/supabase/types";
+import type { Database, Json } from "@/integrations/supabase/types";
+
+/**
+ * Argumenty RPC z DEFAULT NULL: generator typów Supabase opisuje je jako
+ * `string | undefined`, chociaż w SQL `NULL` jest poprawną i ZNACZĄCĄ wartością
+ * (np. „wszystkie statusy”, „cofnij oznaczenie”). Pominięcie klucza daje
+ * serwerowy DEFAULT, więc `undefined` nie jest zamiennikiem dla `null` - stąd
+ * to jedno wąskie przejście typów zamiast `as any` w miejscu wywołania.
+ */
+type RpcArgs<K extends keyof Database["public"]["Functions"]> =
+  Database["public"]["Functions"][K]["Args"];
 import {
   groupReactions,
   mergeClubSearchResults,
@@ -141,7 +151,7 @@ export async function fetchClubMembers(params: {
     // a wiersze 'invited' i 'pending' byly nieosiagalne z panelu. Rozroznienie
     // undefined/null musi tu przezyc: pominiecie klucza da serwerowy DEFAULT
     // 'active', a nie NULL.
-    p_status: params.status === undefined ? "active" : params.status,
+    p_status: (params.status === undefined ? "active" : params.status) as RpcArgs<"club_members_list">["p_status"],
     p_limit: params.limit ?? 50,
     p_offset: params.offset ?? 0,
   });
@@ -705,7 +715,7 @@ export async function resolveClubThread(params: {
     // ja wprost. Wczesniejsze `as string` klamalo kompilatorowi o typie, ktory
     // funkcja ma w kontrakcie - i maskowalo blad w wygenerowanych typach
     // zamiast go pokazac.
-    p_reply_id: params.replyId,
+    p_reply_id: params.replyId as RpcArgs<"club_resolve_thread">["p_reply_id"],
   });
   if (error) throw error;
   return data === true;
