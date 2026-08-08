@@ -135,7 +135,7 @@ function NavGroup({ titleKey, icon: Icon, collapsed = false, children }: NavGrou
 }
 
 
-export function ProfileNav() {
+export function ProfileNav({ collapsed = false }: { collapsed?: boolean }) {
   const { t } = useTranslation();
   const { pathname } = useLocation();
   const myOrg = useMyOrganization();
@@ -146,33 +146,39 @@ export function ProfileNav() {
   const renderItem = (item: NavItem) => {
     const active = isActive(item.to);
     const Icon = item.icon;
+    const label = t(`profile.nav.${item.key}`);
     return (
       <Link
         key={item.to}
         to={item.to}
         {...(item.search ? { search: item.search } : {})}
         aria-current={active ? "page" : undefined}
+        title={collapsed ? label : undefined}
+        aria-label={collapsed ? label : undefined}
         className={cn(
-          "group relative flex items-center gap-2.5 rounded-[6px] px-2.5 py-2 text-sm font-medium transition-all",
+          "group relative flex items-center rounded-[6px] text-sm font-medium transition-all",
+          collapsed ? "h-9 w-9 justify-center" : "gap-2.5 px-2.5 py-2",
           active
             ? "bg-primary/10 text-foreground font-semibold shadow-sm ring-1 ring-primary/20"
             : "text-muted-foreground hover:bg-muted hover:text-foreground",
         )}
       >
-        <span
-          aria-hidden
-          className={cn(
-            "absolute left-0 top-1/2 -translate-y-1/2 w-0.5 rounded-full bg-primary transition-all duration-200",
-            active ? "h-5 opacity-100" : "h-0 opacity-0 group-hover:h-3 group-hover:opacity-60",
-          )}
-        />
+        {!collapsed && (
+          <span
+            aria-hidden
+            className={cn(
+              "absolute left-0 top-1/2 -translate-y-1/2 w-0.5 rounded-full bg-primary transition-all duration-200",
+              active ? "h-5 opacity-100" : "h-0 opacity-0 group-hover:h-3 group-hover:opacity-60",
+            )}
+          />
+        )}
         <Icon
           className={cn(
             "h-4 w-4 shrink-0 transition-colors",
             active ? "text-primary" : "text-muted-foreground group-hover:text-foreground",
           )}
         />
-        <span className="truncate">{t(`profile.nav.${item.key}`)}</span>
+        {!collapsed && <span className="truncate">{label}</span>}
       </Link>
     );
   };
@@ -180,22 +186,26 @@ export function ProfileNav() {
   const financeItems = myOrg.data ? [FINANCE[0], ORGANIZATION_ITEM, ...FINANCE.slice(1)] : FINANCE;
 
   return (
-    <nav className="flex flex-col gap-3" aria-label={t("profile.title")}>
-      <NavGroup titleKey="profile.navGroups.identity" icon={UserCircle}>
+    <nav
+      className={cn("flex flex-col gap-3", collapsed && "items-center gap-2")}
+      aria-label={t("profile.title")}
+    >
+      <NavGroup titleKey="profile.navGroups.identity" icon={UserCircle} collapsed={collapsed}>
         {IDENTITY.map(renderItem)}
       </NavGroup>
 
-      <NavGroup titleKey="profile.navGroups.content" icon={Heart}>
+      <NavGroup titleKey="profile.navGroups.content" icon={Heart} collapsed={collapsed}>
         {CONTENT.map(renderItem)}
       </NavGroup>
 
-      <NavGroup titleKey="profile.navGroups.finance" icon={CreditCard}>
+      <NavGroup titleKey="profile.navGroups.finance" icon={CreditCard} collapsed={collapsed}>
         {financeItems.map(renderItem)}
       </NavGroup>
 
-      <NavGroup titleKey="profile.navGroups.privacy" icon={Lock}>
+      <NavGroup titleKey="profile.navGroups.privacy" icon={Lock} collapsed={collapsed}>
         {PRIVACY.map(renderItem)}
       </NavGroup>
     </nav>
+
   );
 }
