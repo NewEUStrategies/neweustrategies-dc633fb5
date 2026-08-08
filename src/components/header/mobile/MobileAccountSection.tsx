@@ -1,7 +1,7 @@
 // Sekcja "Moje konto" - zaloguj / zarejestruj lub panel / wyloguj.
 // Wyekstrahowana z Header.tsx, żeby drawer składał się z klocków.
 import { Link } from "@tanstack/react-router";
-import { LogIn, UserPlus, User, LayoutDashboard, LogOut } from "lucide-react";
+import { LogIn, UserPlus, User, LogOut } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 type Props = {
@@ -19,7 +19,7 @@ const primaryBtn = accountRow;
 const secondaryBtn = accountRow;
 
 export function MobileAccountSection({ isPl, onNavigate }: Props) {
-  const { session, isStaff, signOut } = useAuth();
+  const { session, signOut } = useAuth();
   const t = (pl: string, en: string) => (isPl ? pl : en);
 
   return (
@@ -29,9 +29,9 @@ export function MobileAccountSection({ isPl, onNavigate }: Props) {
       </p>
       {session ? (
         <div className="flex flex-col gap-0.5">
-          <Link to={isStaff ? "/admin" : "/profile"} onClick={onNavigate} className={primaryBtn}>
-            {isStaff ? <LayoutDashboard className={accountIcon} /> : <User className={accountIcon} />}
-            {isStaff ? t("Moje konto", "My account") : t("Mój profil", "My profile")}
+          <Link to="/profile" onClick={onNavigate} className={primaryBtn}>
+            <User className={accountIcon} />
+            {t("Moje konto", "My account")}
           </Link>
           <button
             type="button"
