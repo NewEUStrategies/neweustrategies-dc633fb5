@@ -293,6 +293,16 @@ export function ClubCreateDialog({
               onChange={setAttribution}
               disabled={createM.isPending}
             />
+            <ClubEnumSelect
+              id="club-create-min-tier"
+              label={t("adminClubs.fields.minTier")}
+              value={planTier}
+              options={CLUB_PLAN_TIERS}
+              i18nPrefix="club.planTier"
+              hintPrefix="club.planTierHint"
+              onChange={setPlanTier}
+              disabled={createM.isPending}
+            />
           </div>
 
           <p className="text-xs text-muted-foreground">{t("adminClubs.create.draftNote")}</p>
