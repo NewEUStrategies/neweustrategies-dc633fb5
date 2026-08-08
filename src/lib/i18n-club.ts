@@ -171,6 +171,18 @@ export const clubPl = {
       private: "Karta widoczna dla zalogowanych, treść tylko dla członków.",
       secret: "Widoczny wyłącznie dla członków klubu.",
     },
+    planTier: {
+      free: "Darmowy",
+      plus: "Plus",
+      pro: "Pro",
+      vip: "VIP",
+    },
+    planTierHint: {
+      free: "Dostęp bez wymagań planu.",
+      plus: "Wymaga planu Plus lub wyższego.",
+      pro: "Wymaga planu Pro lub wyższego.",
+      vip: "Wymaga planu VIP.",
+    },
     joinPolicy: {
       open: "Wejście otwarte",
       request: "Na prośbę",
