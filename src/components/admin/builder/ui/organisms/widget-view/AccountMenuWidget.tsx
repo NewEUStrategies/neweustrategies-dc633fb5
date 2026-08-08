@@ -10,7 +10,7 @@ import { useGreeting } from "@/lib/greetings/useGreeting";
 import { useHeaderProfile } from "@/lib/profile/useHeaderProfile";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { LogIn } from "lucide-react";
+import { LogIn, ChevronRight } from "lucide-react";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -142,10 +142,19 @@ export const ACCOUNT_PRESETS: Array<{
   {
     key: "network",
     href: "/network",
-    label_pl: "Moja sieć",
-    label_en: "My network",
+    label_pl: "Sieć kontaktów",
+    label_en: "Network",
     icon: "UserPlus",
   },
+  {
+    // Hub klubów dyskusyjnych - moduł społecznościowy (/club).
+    key: "clubs",
+    href: "/club",
+    label_pl: "Kluby dyskusyjne",
+    label_en: "Discussion clubs",
+    icon: "MessagesSquare",
+  },
+
   {
     key: "interests",
     href: "/profile/interests",
@@ -343,25 +352,33 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
     </button>
   );
 
-  const renderItem = (entry: ReturnType<typeof sectionItems>[number]) => {
+  // Wspólna geometria pozycji: 6 px rounding (wytyczna platformy), pasek akcentu
+  // po lewej na hover/focus i wejście kaskadowe (`--am-i` = indeks pozycji).
+  const ITEM_CLASS =
+    "account-menu-item group relative flex w-full items-center gap-3 rounded-[6px] px-2.5 py-2 text-left text-sm outline-none transition-[background-color,transform,color] duration-200 hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-2 focus-visible:ring-[color:var(--account-accent)]/40";
+
+  const renderItem = (entry: ReturnType<typeof sectionItems>[number], index = 0) => {
     const it = entry.raw;
+    const style = { ["--am-i" as string]: index } as CSSProperties;
     if (it.kind === "separator") {
-      return <div key={it.id} className="my-1 h-px bg-border/70" role="separator" />;
+      return <div key={it.id} className="my-1.5 h-px bg-border/70" role="separator" />;
     }
     if (it.kind === "logout") {
       return (
         <button
           key={it.id}
           type="button"
+          style={style}
           onClick={async () => {
             setOpen(false);
             await signOut();
           }}
-          className="flex w-full items-start gap-3 rounded-md px-2.5 py-2 text-left text-sm hover:bg-muted/60 transition-colors"
+          className={ITEM_CLASS}
         >
+          <span className="account-menu-accent" aria-hidden />
           <IconByName
             name={it.icon || "LogOut"}
-            className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
+            className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-[color:var(--account-accent)]"
           />
           <span className="flex-1">
             <span className="block font-medium leading-tight">{entry.label || logoutLabel}</span>
@@ -375,7 +392,11 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
     if (!entry.href) return null;
     const content = (
       <>
-        <IconByName name={it.icon} className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+        <span className="account-menu-accent" aria-hidden />
+        <IconByName
+          name={it.icon}
+          className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-[color:var(--account-accent)]"
+        />
         <span className="flex-1 min-w-0">
           <span className="block font-medium leading-tight truncate">{entry.label}</span>
           {entry.desc ? (
@@ -384,6 +405,10 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
             </span>
           ) : null}
         </span>
+        <ChevronRight
+          className="h-3.5 w-3.5 shrink-0 -translate-x-1 text-muted-foreground/50 opacity-0 transition-all duration-200 group-hover:translate-x-0 group-hover:opacity-100"
+          aria-hidden
+        />
       </>
     );
     if (it.external) {
@@ -393,7 +418,8 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
           href={entry.href}
           target="_blank"
           rel="noreferrer noopener"
-          className="flex items-start gap-3 rounded-md px-2.5 py-2 text-sm hover:bg-muted/60 transition-colors"
+          style={style}
+          className={ITEM_CLASS}
           onClick={() => setOpen(false)}
         >
           {content}
@@ -404,13 +430,15 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
       <AppLink
         key={it.id}
         href={entry.href}
-        className="flex items-start gap-3 rounded-md px-2.5 py-2 text-sm hover:bg-muted/60 transition-colors"
+        style={style}
+        className={ITEM_CLASS}
         onClick={() => setOpen(false)}
       >
         {content}
       </AppLink>
     );
   };
+
 
   // Defaults when admin has not configured any menu items yet - sensible fallback so the
   // widget never looks empty even on a fresh install.
@@ -463,6 +491,30 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
         },
         {
           raw: {
+            id: "default-network",
+            section: "auth" as const,
+            kind: "preset" as const,
+            presetKey: "network",
+            icon: "UserPlus",
+          },
+          href: "/network",
+          label: lang === "pl" ? "Sieć kontaktów" : "Network",
+          desc: "",
+        },
+        {
+          raw: {
+            id: "default-clubs",
+            section: "auth" as const,
+            kind: "preset" as const,
+            presetKey: "clubs",
+            icon: "MessagesSquare",
+          },
+          href: "/club",
+          label: lang === "pl" ? "Kluby dyskusyjne" : "Discussion clubs",
+          desc: "",
+        },
+        {
+          raw: {
             id: "default-bookmarks",
             section: "auth" as const,
             kind: "preset" as const,
@@ -473,6 +525,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
           label: lang === "pl" ? "Zapisane" : "Saved",
           desc: "",
         },
+
         {
           raw: {
             id: "default-logout",
@@ -512,11 +565,10 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
           sticky="always"
           hideWhenDetached={false}
           avoidCollisions
+          data-account-menu=""
           className={[
-            "p-2 shadow-xl border-border/60 backdrop-blur-md",
+            "p-1.5 shadow-xl border-border/60 backdrop-blur-md overflow-hidden",
             // Smoother in/out using Radix state + tailwindcss-animate keyframes.
-            // Overrides the default 150ms snap with a longer, cubic-bezier easing
-            // and adds a small vertical slide + subtle scale for a premium feel.
             "data-[state=open]:animate-in data-[state=closed]:animate-out",
             "data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0",
             "data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95",
@@ -530,21 +582,43 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
           aria-label={panelLabel || (lang === "pl" ? "Menu konta" : "Account menu")}
         >
           {panelLabel && (
-            <div className="px-2.5 pb-1.5 text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+            <div
+              className="account-menu-section px-2.5 pb-1.5 text-[11px] font-bold uppercase tracking-widest text-muted-foreground"
+              style={{ ["--am-i" as string]: 0 } as CSSProperties}
+            >
               {panelLabel}
             </div>
           )}
           {session ? (
             <>
               {user?.email && (
-                <div className="px-2.5 pt-1 pb-2 border-b border-border/60 mb-1">
-                  <div className="text-sm font-semibold truncate">{displayName || user.email}</div>
-                  {displayName && (
-                    <div className="text-xs text-muted-foreground truncate">{user.email}</div>
-                  )}
+                <div
+                  className="account-menu-section mb-1.5 flex items-center gap-2.5 rounded-[6px] bg-muted/40 px-2.5 py-2"
+                  style={{ ["--am-i" as string]: 0 } as CSSProperties}
+                >
+                  <Avatar className="h-9 w-9 rounded-[6px]">
+                    {avatarUrl ? (
+                      <AvatarImage src={avatarUrl} alt="" className="rounded-[6px] object-cover" />
+                    ) : null}
+                    <AvatarFallback className="rounded-[6px] text-xs">
+                      {(firstName || displayName || user.email).slice(0, 1).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold">
+                      {displayName || user.email}
+                    </span>
+                    {displayName && (
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {user.email}
+                      </span>
+                    )}
+                  </span>
                 </div>
               )}
-              <div className="flex flex-col gap-0.5">{effectiveAuth.map(renderItem)}</div>
+              <div className="flex flex-col gap-0.5">
+                {effectiveAuth.map((entry, i) => renderItem(entry, i + 1))}
+              </div>
               {isStaff &&
                 (() => {
                   // Auto-defaults for staff: ensure admin / super-admin always have a route
@@ -585,27 +659,34 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
                   const seen = new Set(autoStaff.map((x) => x.href));
                   const merged = [...autoStaff, ...staffItems.filter((x) => !seen.has(x.href))];
                   if (merged.length === 0) return null;
+                  const base = effectiveAuth.length + 1;
                   return (
                     <>
-                      <div className="my-1 h-px bg-border/70" />
-                      <div className="px-2.5 pt-1 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                      <div className="my-1.5 h-px bg-border/70" />
+                      <div
+                        className="account-menu-section px-2.5 pb-1 pt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground"
+                        style={{ ["--am-i" as string]: base } as CSSProperties}
+                      >
                         {isSuperAdmin
-                          ? lang === "pl"
-                            ? "Super Admin"
-                            : "Super Admin"
+                          ? "Super Admin"
                           : lang === "pl"
                             ? "Zespół"
                             : "Staff"}
                       </div>
-                      <div className="flex flex-col gap-0.5">{merged.map(renderItem)}</div>
+                      <div className="flex flex-col gap-0.5">
+                        {merged.map((entry, i) => renderItem(entry, base + i + 1))}
+                      </div>
                     </>
                   );
                 })()}
             </>
           ) : (
-            <div className="flex flex-col gap-0.5">{effectiveGuest.map(renderItem)}</div>
+            <div className="flex flex-col gap-0.5">
+              {effectiveGuest.map((entry, i) => renderItem(entry, i + 1))}
+            </div>
           )}
           <span className="sr-only">{t("nav.account", { defaultValue: "Account menu" })}</span>
+
         </PopoverContent>
       </Popover>
     </div>

@@ -7073,3 +7073,48 @@ html {
     font-size: var(--abl-av-fs-desktop) !important;
   }
 }
+
+/* --- Menu konta w headerze (AccountMenuWidget) --------------------------- */
+/* Kaskadowe wejście pozycji + pasek akcentu na hover. Wyłączone dla osób
+   preferujących ograniczony ruch - panel pojawia się wtedy bez animacji. */
+.account-menu-accent {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  height: 0;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--account-accent, var(--primary));
+  opacity: 0;
+  transform: translateY(-50%);
+  transition:
+    height 220ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    opacity 220ms ease;
+}
+.account-menu-item:hover .account-menu-accent,
+.account-menu-item:focus-visible .account-menu-accent {
+  height: 60%;
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes account-menu-item-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  [data-account-menu][data-state="open"] .account-menu-item,
+  [data-account-menu][data-state="open"] .account-menu-section {
+    opacity: 0;
+    animation: account-menu-item-in 320ms cubic-bezier(0.1, 0.8, 0.2, 1) forwards;
+    animation-delay: calc(var(--am-i, 0) * 28ms + 50ms);
+  }
+  .account-menu-item:active {
+    transform: scale(0.985);
+  }
+}
