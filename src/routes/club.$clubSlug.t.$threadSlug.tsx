@@ -12,6 +12,14 @@
 // podpowiedzi w polu jedyną drogą do wzmianki było wpisanie sluga z pamięci.
 //
 // Wejście "Zgłoś" stoi przy KAŻDYM wpisie - wątku i odpowiedzi (V1 §7).
+//
+// Od A28 widok jest PRZESTRZENIĄ ROBOCZĄ, nie samą dyskusją: pod postem
+// otwierającym stoi belka zakładek, a dyskusja jest jedną z nich - pierwszą
+// i domyślną. Reszta (uczestnicy, źródła, harmonogram, pytania, głosowania,
+// powiązania, dane, szukanie) mieszka w `ClubThreadWorkspace` i ładuje się
+// leniwie, panel po panelu. Trasa celowo NIE oddaje dyskusji do powłoki:
+// post, odpowiedzi i kompozytor mają się renderować bez czekania na cokolwiek
+// z A28, więc jadą jako `children`.
 import { lazy, Suspense, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -69,6 +77,9 @@ import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
 import { ClubThreadPulse } from "@/components/clubs/molecules/ClubThreadPulse";
 import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
 import { ClubThreadListSkeleton, Shimmer } from "@/components/clubs/atoms/ClubSkeletons";
+import { ClubThreadWorkspace } from "@/components/clubs/organisms/ClubThreadWorkspace";
+import { useClubThreadWorkspace } from "@/lib/clubs/useClubWorkspace";
+import { EMPTY_WORKSPACE_SUMMARY } from "@/lib/clubs/workspaceTypes";
 import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
 import { fetchClubBySlug } from "@/lib/clubs/api";
 import { clubKeys } from "@/lib/clubs/queryKeys";
@@ -165,6 +176,12 @@ function ClubThreadView() {
   const setStanceM = useSetClubStance(threadQ.data?.id ?? "");
   const subscriptionQ = useMyThreadSubscription(threadQ.data?.id);
   const setSubscriptionM = useSetThreadSubscription(threadQ.data?.id ?? "");
+
+  // Liczniki paneli - JEDNO wywołanie na całą belkę zakładek. Osiem zapytań
+  // liczących po jednym liczniku to osiem round-tripów, zanim czytelnik
+  // zobaczy, że w wątku nie ma ŻADNEGO dokumentu; a właśnie ta informacja
+  // decyduje, czy w ogóle kliknie.
+  const workspaceQ = useClubThreadWorkspace(threadQ.data?.id);
 
   // Projekcja odroczona: dane są świeże (licznik w pasku musi być prawdziwy),
   // renderujemy tylko to, co czytelnik przyjął.
@@ -403,202 +420,222 @@ function ClubThreadView() {
         </div>
       </article>
 
-      {/* --- puls dyskusji ---
+      {/* --- przestrzeń robocza ---
+          Belka zakładek + panele A28. Dyskusja jedzie jako `children`, więc
+          renderuje się natychmiast, niezależnie od tego, czy liczniki paneli
+          zdążyły dojść. */}
+      <ClubThreadWorkspace
+        threadId={thread.id}
+        lang={lang}
+        userId={user?.id ?? null}
+        summary={workspaceQ.data ?? EMPTY_WORKSPACE_SUMMARY}
+        canGoAnonymous={canGoAnonymous}
+      >
+        {/* --- puls dyskusji ---
           Dynamika (kto, ile, jak szybko, kiedy ostatnio) stoi MIĘDZY postem
           otwierającym a odpowiedziami: to jest moment, w którym czytelnik
           decyduje, czy w ogóle wchodzi w wymianę. */}
-      {thread.reply_count > 0 ? (
-        <ClubThreadPulse
-          className="mt-4"
-          createdAt={thread.created_at}
-          replies={deferred.rows}
-          lang={lang}
-        />
-      ) : null}
+        {thread.reply_count > 0 ? (
+          <ClubThreadPulse
+            className="mt-4"
+            createdAt={thread.created_at}
+            replies={deferred.rows}
+            lang={lang}
+          />
+        ) : null}
 
-      {/* --- sondaż (wyłącznie wątek typu "sondaż") ---
+        {/* --- sondaż (wyłącznie wątek typu "sondaż") ---
           Rodzaj `poll` był do A20 samą etykietą: model dopuszczał go od A3,
           specyfikacja obiecywała reużycie `polls`, a krawędzi między wątkiem
           a ankietą nie było. Teraz jest kolumna `poll_id` i to samo
           głosowanie, co na /polls - z anti-anchoringiem włącznie. */}
-      {thread.kind === "poll" && thread.poll_id !== null ? (
-        <div className="mt-4">
-          <Suspense
-            fallback={
-              <div className="h-40 animate-pulse rounded-lg bg-muted/50" aria-busy="true" />
-            }
-          >
-            <ClubThreadPoll pollId={thread.poll_id} lang={lang} userId={user?.id ?? null} />
-          </Suspense>
-        </div>
-      ) : null}
+        {thread.kind === "poll" && thread.poll_id !== null ? (
+          <div className="mt-4">
+            <Suspense
+              fallback={
+                <div className="h-40 animate-pulse rounded-lg bg-muted/50" aria-busy="true" />
+              }
+            >
+              <ClubThreadPoll pollId={thread.poll_id} lang={lang} userId={user?.id ?? null} />
+            </Suspense>
+          </div>
+        ) : null}
 
-      {/* --- stanowiska (wyłącznie wątek typu "stanowisko") --- */}
-      {isPosition ? (
-        <div className="mt-4">
-          <ClubStanceBar
-            rows={stanceQ.data ?? []}
-            disabled={!thread.can_reply}
-            pending={setStanceM.isPending}
-            onSet={(stance) =>
-              setStanceM.mutate(
-                { stance },
-                {
-                  onSuccess: () => toast.success(t("club.stance.saved")),
-                  onError: () => toast.error(t("adminClubs.saveFailed")),
-                },
-              )
-            }
-          />
-        </div>
-      ) : null}
+        {/* --- stanowiska (wyłącznie wątek typu "stanowisko") --- */}
+        {isPosition ? (
+          <div className="mt-4">
+            <ClubStanceBar
+              rows={stanceQ.data ?? []}
+              disabled={!thread.can_reply}
+              pending={setStanceM.isPending}
+              onSet={(stance) =>
+                setStanceM.mutate(
+                  { stance },
+                  {
+                    onSuccess: () => toast.success(t("club.stance.saved")),
+                    onError: () => toast.error(t("adminClubs.saveFailed")),
+                  },
+                )
+              }
+            />
+          </div>
+        ) : null}
 
-      {/* --- odpowiedzi --- */}
-      <section className="mt-6">
-        <div className="sticky top-16 z-10 mb-3 -mx-1 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-background/85 px-1 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/70">
-          <h2 className="flex items-center gap-2 text-sm font-semibold">
-            <MessageSquare className="h-4 w-4 text-primary" aria-hidden="true" />
-            {t("club.repliesCount", { count: thread.reply_count })}
-          </h2>
-          {repliesTotal > 1 ? (
-            <Select value={replySort} onValueChange={(v) => setReplySort(v as ClubReplySort)}>
-              <SelectTrigger className="h-8 w-auto min-w-40" aria-label={t("club.replySort.label")}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {replySorts.map((sort) => (
-                  <SelectItem key={sort} value={sort}>
-                    {t(`club.replySort.${sort}`)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : null}
-        </div>
+        {/* --- odpowiedzi --- */}
+        <section className="mt-6">
+          {/* Pasek przykleja się POD belką zakładek, nie do tej samej krawędzi:
+              `position: sticky` nie układa się w stos sam z siebie, więc dwa
+              paski z `top-16` po prostu na siebie nachodzą. Offset przychodzi
+              z `--club-ws-stack` ustawianego przez powłokę przestrzeni - jedna
+              liczba na oba paski. */}
+          <div className="sticky top-[var(--club-ws-stack,4rem)] z-10 mb-3 -mx-1 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-background/85 px-1 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <MessageSquare className="h-4 w-4 text-primary" aria-hidden="true" />
+              {t("club.repliesCount", { count: thread.reply_count })}
+            </h2>
+            {repliesTotal > 1 ? (
+              <Select value={replySort} onValueChange={(v) => setReplySort(v as ClubReplySort)}>
+                <SelectTrigger
+                  className="h-8 w-auto min-w-40"
+                  aria-label={t("club.replySort.label")}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {replySorts.map((sort) => (
+                    <SelectItem key={sort} value={sort}>
+                      {t(`club.replySort.${sort}`)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
+          </div>
 
-        <ClubNewRepliesBar count={deferred.pendingCount} onReveal={deferred.reveal} />
+          <ClubNewRepliesBar count={deferred.pendingCount} onReveal={deferred.reveal} />
 
-        {repliesQ.isPending ? (
-          <ClubThreadListSkeleton count={3} />
-        ) : tree.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border/60 p-6 text-center text-sm text-muted-foreground">
-            {t("club.noReplies")}
-          </p>
-        ) : (
-          <ul className="space-y-2.5">
-            {tree.map((node) => (
-              <ReplyBranch
-                key={node.reply.id}
-                node={node}
-                lang={lang}
-                canResolve={canResolve}
-                canReact={thread.can_reply}
-                canModerate={thread.can_moderate}
-                threadLocked={thread.locked_at !== null}
-                myUserId={user?.id ?? null}
-                editing={editing}
-                editPending={editReplyM.isPending}
-                onEdit={setEditing}
-                onSaveEdit={(replyId, patch) =>
-                  editReplyM.mutate(
-                    { replyId, body: patch.body, reason: patch.reason },
-                    {
-                      onSuccess: () => {
-                        setEditing(null);
-                        toast.success(t("club.editor.saved"));
+          {repliesQ.isPending ? (
+            <ClubThreadListSkeleton count={3} />
+          ) : tree.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-border/60 p-6 text-center text-sm text-muted-foreground">
+              {t("club.noReplies")}
+            </p>
+          ) : (
+            <ul className="space-y-2.5">
+              {tree.map((node) => (
+                <ReplyBranch
+                  key={node.reply.id}
+                  node={node}
+                  lang={lang}
+                  canResolve={canResolve}
+                  canReact={thread.can_reply}
+                  canModerate={thread.can_moderate}
+                  threadLocked={thread.locked_at !== null}
+                  myUserId={user?.id ?? null}
+                  editing={editing}
+                  editPending={editReplyM.isPending}
+                  onEdit={setEditing}
+                  onSaveEdit={(replyId, patch) =>
+                    editReplyM.mutate(
+                      { replyId, body: patch.body, reason: patch.reason },
+                      {
+                        onSuccess: () => {
+                          setEditing(null);
+                          toast.success(t("club.editor.saved"));
+                        },
+                        onError: () => toast.error(t("adminClubs.saveFailed")),
                       },
-                      onError: () => toast.error(t("adminClubs.saveFailed")),
-                    },
-                  )
-                }
-                reactions={replyReactionsQ.data ?? new Map()}
-                onToggleReaction={(targetId, kind, active) =>
-                  toggleReplyReaction.mutate({ targetId, kind, active })
-                }
-                onReply={setReplyTo}
-                onResolve={(replyId) =>
-                  resolveM.mutate(
-                    { threadId: thread.id, replyId },
-                    {
-                      onSuccess: () => toast.success(t("club.resolvedToast")),
-                      onError: () => toast.error(t("adminClubs.saveFailed")),
-                    },
-                  )
-                }
-              />
-            ))}
-          </ul>
-        )}
+                    )
+                  }
+                  reactions={replyReactionsQ.data ?? new Map()}
+                  onToggleReaction={(targetId, kind, active) =>
+                    toggleReplyReaction.mutate({ targetId, kind, active })
+                  }
+                  onReply={setReplyTo}
+                  onResolve={(replyId) =>
+                    resolveM.mutate(
+                      { threadId: thread.id, replyId },
+                      {
+                        onSuccess: () => toast.success(t("club.resolvedToast")),
+                        onError: () => toast.error(t("adminClubs.saveFailed")),
+                      },
+                    )
+                  }
+                />
+              ))}
+            </ul>
+          )}
 
-        {/* Ucięcie strony mówi się WPROST. Nagłówek pokazuje pełny licznik
+          {/* Ucięcie strony mówi się WPROST. Nagłówek pokazuje pełny licznik
             z denormalizacji, więc milcząca różnica wyglądałaby jak utrata
             treści, a nie jak paginacja. */}
-        {repliesTotal > repliesShown ? (
-          <p className="mt-3 rounded-lg border border-dashed border-border/60 p-3 text-center text-xs text-muted-foreground">
-            {t("club.repliesTruncated", { shown: repliesShown, total: repliesTotal })}
-          </p>
-        ) : null}
-      </section>
-
-      {/* --- kompozytor --- */}
-      {thread.can_reply ? (
-        <section className="mt-6 rounded-xl border border-border/60 bg-card p-4 shadow-sm">
-          {replyTo !== null ? (
-            <div className="mb-2 flex items-center justify-between gap-2 rounded-md bg-muted/50 px-3 py-1.5 text-xs">
-              <span className="text-muted-foreground">{t("club.replyingTo")}</span>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-6 px-2"
-                onClick={() => setReplyTo(null)}
-              >
-                {t("club.cancelReplyTo")}
-              </Button>
-            </div>
+          {repliesTotal > repliesShown ? (
+            <p className="mt-3 rounded-lg border border-dashed border-border/60 p-3 text-center text-xs text-muted-foreground">
+              {t("club.repliesTruncated", { shown: repliesShown, total: repliesTotal })}
+            </p>
           ) : null}
+        </section>
 
-          {/* Wzmianki: ten sam komponent i ten sam parser, co w komentarzach.
+        {/* --- kompozytor --- */}
+        {thread.can_reply ? (
+          <section className="mt-6 rounded-xl border border-border/60 bg-card p-4 shadow-sm">
+            {replyTo !== null ? (
+              <div className="mb-2 flex items-center justify-between gap-2 rounded-md bg-muted/50 px-3 py-1.5 text-xs">
+                <span className="text-muted-foreground">{t("club.replyingTo")}</span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 px-2"
+                  onClick={() => setReplyTo(null)}
+                >
+                  {t("club.cancelReplyTo")}
+                </Button>
+              </div>
+            ) : null}
+
+            {/* Wzmianki: ten sam komponent i ten sam parser, co w komentarzach.
               Backend obsługuje `club_reply` w `process_mentions` od A12, więc
               bez podpowiedzi w polu jedyną drogą było wpisanie sluga z pamięci. */}
-          <MentionTextarea
-            id="club-reply-body"
-            label={t("club.replyPlaceholder")}
-            value={body}
-            onChange={setBody}
-            lang={lang}
-            rows={4}
-            maxLength={BODY_MAX}
-          />
+            <MentionTextarea
+              id="club-reply-body"
+              label={t("club.replyPlaceholder")}
+              value={body}
+              onChange={setBody}
+              lang={lang}
+              rows={4}
+              maxLength={BODY_MAX}
+            />
 
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-3">
-              {canGoAnonymous ? (
-                <div className="flex items-center gap-2">
-                  <Switch
-                    id="club-reply-anon"
-                    checked={anonymous}
-                    disabled={replyM.isPending}
-                    onCheckedChange={setAnonymous}
-                  />
-                  <Label htmlFor="club-reply-anon" className="text-sm">
-                    {t("club.postAnonymously")}
-                  </Label>
-                </div>
-              ) : null}
-              <span className="text-xs text-muted-foreground">
-                {body.trim().length} / {BODY_MAX}
-              </span>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                {canGoAnonymous ? (
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="club-reply-anon"
+                      checked={anonymous}
+                      disabled={replyM.isPending}
+                      onCheckedChange={setAnonymous}
+                    />
+                    <Label htmlFor="club-reply-anon" className="text-sm">
+                      {t("club.postAnonymously")}
+                    </Label>
+                  </div>
+                ) : null}
+                <span className="text-xs text-muted-foreground">
+                  {body.trim().length} / {BODY_MAX}
+                </span>
+              </div>
+              <Button onClick={submitReply} disabled={replyM.isPending || body.trim().length === 0}>
+                {t("club.postReply")}
+              </Button>
             </div>
-            <Button onClick={submitReply} disabled={replyM.isPending || body.trim().length === 0}>
-              {t("club.postReply")}
-            </Button>
-          </div>
-        </section>
-      ) : (
-        <p className="mt-6 rounded-lg border border-border/60 bg-muted/30 p-4 text-center text-sm text-muted-foreground">
-          {thread.reason ? t(`club.reason.${thread.reason}`) : t("club.cannotReply")}
-        </p>
-      )}
+          </section>
+        ) : (
+          <p className="mt-6 rounded-lg border border-border/60 bg-muted/30 p-4 text-center text-sm text-muted-foreground">
+            {thread.reason ? t(`club.reason.${thread.reason}`) : t("club.cannotReply")}
+          </p>
+        )}
+      </ClubThreadWorkspace>
     </div>
   );
 }

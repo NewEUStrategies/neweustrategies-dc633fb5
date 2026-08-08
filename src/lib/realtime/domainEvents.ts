@@ -70,6 +70,13 @@ export const DOMAIN_EVENT_TYPES = [
   "club_reply.created.v1",
   "club_reply.status_changed.v1",
   "club_member.changed.v1",
+  // Przestrzen robocza watku (migracja 20260808300000). Zrodlo i termin sa
+  // TRESCIA PLATFORMY, nie prywatna notatka watku: strona aktu prawnego pyta
+  // graf powiazan o "omawiane w klubie X, ze zrodlami", a nie modul klubow.
+  // Payload niesie identyfikatory i rodzaj - bez tytulu i bez adresu, bo
+  // domain_events czyta caly staff tenantu.
+  "club_thread.document_added.v1",
+  "club_thread.milestone_set.v1",
 ] as const;
 
 export type DomainEventType = (typeof DOMAIN_EVENT_TYPES)[number];

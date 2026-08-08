@@ -322,11 +322,17 @@ CREATE TABLE IF NOT EXISTS public.eu_policy_follows (
   PRIMARY KEY (user_id, item_id)
 );
 
+-- `slug` dolozony przy A28: harmonogram watku linkuje wydarzenie platformy
+-- po slugu (club_thread_milestones_list zwraca `e.slug`), wiec bez tej kolumny
+-- harness wywracal sie na WLASNYM brakiem, a nie na bledzie w migracji.
+-- Nazwa i typ z ORYGINALNEJ migracji 20260713093000.
 CREATE TABLE IF NOT EXISTS public.events (
   id        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  slug      text,
   title     text
 );
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS slug text;
 
 CREATE TABLE IF NOT EXISTS public.event_rsvps (
   user_id  uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
