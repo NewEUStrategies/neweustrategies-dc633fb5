@@ -1185,6 +1185,7 @@ export function useAdminCreateThread(clubId: string): UseMutationResult<
     authorId?: string | null;
     kind?: ClubThreadKind;
     pinned?: boolean;
+    topic?: string | null;
   }
 > {
   const qc = useQueryClient();
