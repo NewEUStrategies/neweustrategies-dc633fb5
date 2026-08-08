@@ -181,7 +181,7 @@ function ClubThreadView() {
   // nieistniejący slug kończy się wiecznym szkieletem zamiast 404.
   if (clubQ.isPending || (club !== null && threadQ.isPending)) {
     return (
-      <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-8">
+      <div className="mx-auto w-full max-w-[1280px] px-3 sm:px-5 lg:px-8 py-8">
         <div className="h-64 animate-pulse rounded-lg bg-muted/50" aria-busy="true" />
       </div>
     );
@@ -263,7 +263,7 @@ function ClubThreadView() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-8">
+    <div className="mx-auto w-full max-w-[1280px] px-3 sm:px-5 lg:px-8 py-8">
       <Button asChild variant="ghost" size="sm" className="-ml-2 mb-3 h-8 px-2">
         <Link to="/club/$clubSlug" params={{ clubSlug }}>
           <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
