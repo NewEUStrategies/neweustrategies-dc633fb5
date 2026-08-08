@@ -29,6 +29,7 @@ export const AUTHZ_SNAPSHOT: AuthzSnapshotModule = {
     {"ref":"fn:can_access_entity_presence/2","kind":"function","object":"can_access_entity_presence","file":"20260726121910_2aee5795-f498-4de1-b4b5-34b2b5422a50.sql","anyRoles":["admin","author","editor","super_admin"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:can_publish_content/1","kind":"function","object":"can_publish_content","file":"20260702113027_d3940358-76a0-4e77-bf9c-52f475d524b6.sql","anyRoles":["admin","super_admin"],"allRoles":[],"tenantRef":"none","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:change_user_role/2","kind":"function","object":"change_user_role","file":"20260703090100_profiles_column_grants_and_role_audit.sql","anyRoles":["admin","super_admin"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
+    {"ref":"fn:club_capabilities/3","kind":"function","object":"club_capabilities","file":"20260808120000_discussion_clubs_a9_group_scope.sql","anyRoles":["editor"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:comments_guard_update/0","kind":"function","object":"comments_guard_update","file":"20260724090400_fix_comments_remoderate_on_edit.sql","anyRoles":["admin","editor"],"allRoles":[],"tenantRef":"row","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:crm_backfill_all_leads/0","kind":"function","object":"crm_backfill_all_leads","file":"20260722080948_7dc684cd-0761-4c1c-90a6-91dd2e940438.sql","anyRoles":["admin","super_admin"],"allRoles":[],"tenantRef":"none","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:crm_set_merydian_secret/2","kind":"function","object":"crm_set_merydian_secret","file":"20260712175237_8b79ff74-c8a7-46f4-9f02-8ebbaac10629.sql","anyRoles":["admin","super_admin"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
@@ -37,6 +38,7 @@ export const AUTHZ_SNAPSHOT: AuthzSnapshotModule = {
     {"ref":"fn:get_poll_results/1","kind":"function","object":"get_poll_results","file":"20260724091000_harden_security_definer_tenant_scope.sql","anyRoles":["admin","editor"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:get_user_monthly_metering_count/1","kind":"function","object":"get_user_monthly_metering_count","file":"20260724100000_fix_definer_header_tenant_scope.sql","anyRoles":["admin","editor","super_admin"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:integration_endpoint_set_secret/2","kind":"function","object":"integration_endpoint_set_secret","file":"20260714090000_integration_endpoints_secret_vault.sql","anyRoles":["admin","super_admin"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
+    {"ref":"fn:is_club_admin/1","kind":"function","object":"is_club_admin","file":"20260808090000_discussion_clubs_a1_structure.sql","anyRoles":["admin","super_admin"],"allRoles":[],"tenantRef":"none","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:is_staff/0","kind":"function","object":"is_staff","file":"20260628230000_tenant_isolation_and_authz.sql","anyRoles":["admin","author","editor"],"allRoles":[],"tenantRef":"none","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:job_scheduler_health/0","kind":"function","object":"job_scheduler_health","file":"20260731210000_community_cron_db_schedule.sql","anyRoles":["admin","editor","super_admin"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:list_gift_links_admin/4","kind":"function","object":"list_gift_links_admin","file":"20260806205328_8865e928-2b12-4e88-a855-d3b4309c82f4.sql","anyRoles":["admin","editor"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
@@ -68,5 +70,5 @@ export const AUTHZ_SNAPSHOT: AuthzSnapshotModule = {
     {"capability":"recordings","ref":"fn:get_event_access/1","kind":"function","object":"get_event_access","file":"20260724100000_fix_definer_header_tenant_scope.sql","bypassRoles":["admin","editor"],"tenantRef":"caller"},
     {"capability":"regulatory_monitoring","ref":"policy:eu_policy_follows/policy follows owner all","kind":"policy","object":"eu_policy_follows","file":"20260723090000_tier_content_gating_tracker.sql","bypassRoles":[],"tenantRef":"row"},
   ],
-  stats: {"migrations":692,"functions":716,"policies":508},
+  stats: {"migrations":693,"functions":716,"policies":508},
 };

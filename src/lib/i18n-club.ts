@@ -609,6 +609,8 @@ export const clubPl = {
       requestsTitle: "Prośby o dostęp",
       requestsHint:
         "Zatwierdzenie zachowuje rolę z prośby - także tę, którą niósł link zapraszający.",
+      requestsTruncated:
+        "Widocznych {{shown}} z {{total}} próśb. Kolejne pojawią się po rozpatrzeniu tych.",
       approve: "Zatwierdź",
       approved: "Prośba zatwierdzona",
       reject: "Odrzuć",
@@ -1498,6 +1500,8 @@ export const clubEn = {
       requestsTitle: "Access requests",
       requestsHint:
         "Approving keeps the role the request carried - including one that came from an invite link.",
+      requestsTruncated:
+        "Showing {{shown}} of {{total}} requests. The rest appear once these are handled.",
       approve: "Approve",
       approved: "Request approved",
       reject: "Reject",

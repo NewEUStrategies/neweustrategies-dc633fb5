@@ -101,8 +101,22 @@ export function ClubThreadsTab({ clubId, isPl }: { clubId: string; isPl: boolean
   const bulkM = useBulkModerateClub(clubId);
   const moveM = useMoveClubThread(clubId);
 
-  const rows = threadsQ.data?.rows ?? [];
+  // `useMemo` na pustej liście, a nie `?? []` w locie: bez tego każdy render
+  // daje nową referencję, a memoizacja niżej przestaje cokolwiek memoizować.
+  const rows = useMemo(() => threadsQ.data?.rows ?? [], [threadsQ.data]);
   const groups = groupsQ.data ?? [];
+
+  // Zaznaczenie jest DERYWOWANE względem tego, co realnie widać. Surowy zbiór
+  // trzymany bez przecięcia znaczył, że zmiana filtra (albo cudze skasowanie
+  // wątku między refetchami) zostawia w partii identyfikatory wierszy, których
+  // administrator nie ma już na ekranie - i "usuń 12" kasuje coś, czego nie
+  // widział. Przecięcie zamiast czyszczenia w useEffect: nie kosztuje dodatkowego
+  // renderu, a łapie też znikanie wierszy BEZ zmiany filtra.
+  const visibleIds = useMemo(() => new Set(rows.map((r) => r.id)), [rows]);
+  const selectedVisible = useMemo(
+    () => [...selected].filter((id) => visibleIds.has(id)),
+    [selected, visibleIds],
+  );
 
   const toggle = (id: string) =>
     setSelected((prev) => {
@@ -125,8 +139,8 @@ export function ClubThreadsTab({ clubId, isPl }: { clubId: string; isPl: boolean
     );
 
   const bulkAct = (action: "pin" | "unpin" | "lock" | "delete" | "restore") => {
-    if (selected.size === 0) return;
-    const ids = [...selected];
+    if (selectedVisible.length === 0) return;
+    const ids = selectedVisible;
     bulkM.mutate(
       { targetType: "thread", targetIds: ids, action },
       {
@@ -200,10 +214,10 @@ export function ClubThreadsTab({ clubId, isPl }: { clubId: string; isPl: boolean
       </div>
 
       {/* --- pasek akcji wsadowych: pojawia się tylko przy zaznaczeniu --- */}
-      {selected.size > 0 ? (
+      {selectedVisible.length > 0 ? (
         <div className="sticky top-16 z-20 flex flex-wrap items-center gap-2 rounded-lg border border-primary/40 bg-primary/5 p-3 backdrop-blur">
           <span className="text-sm font-medium">
-            {t("adminClubs.threads.selected", { count: selected.size })}
+            {t("adminClubs.threads.selected", { count: selectedVisible.length })}
           </span>
           <div className="flex flex-wrap gap-1.5">
             <Button
@@ -240,7 +254,7 @@ export function ClubThreadsTab({ clubId, isPl }: { clubId: string; isPl: boolean
               disabled={bulkM.isPending}
               onClick={() =>
                 setConfirm({
-                  title: t("adminClubs.threads.bulkDeleteTitle", { count: selected.size }),
+                  title: t("adminClubs.threads.bulkDeleteTitle", { count: selectedVisible.length }),
                   description: t("adminClubs.threads.deleteBody"),
                   destructive: true,
                   onConfirm: () => bulkAct("delete"),
@@ -284,7 +298,7 @@ export function ClubThreadsTab({ clubId, isPl }: { clubId: string; isPl: boolean
                   <TableHead className="w-10">
                     <Checkbox
                       aria-label={t("adminClubs.threads.selectAll")}
-                      checked={selected.size === rows.length && rows.length > 0}
+                      checked={selectedVisible.length === rows.length && rows.length > 0}
                       onCheckedChange={(v) =>
                         setSelected(v === true ? new Set(rows.map((r) => r.id)) : new Set())
                       }

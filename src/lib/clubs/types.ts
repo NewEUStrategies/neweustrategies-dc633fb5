@@ -11,6 +11,29 @@ import type { Database } from "@/integrations/supabase/types";
 export const CLUB_VISIBILITIES = ["public", "members", "private", "secret"] as const;
 export type ClubVisibility = (typeof CLUB_VISIBILITIES)[number];
 
+/**
+ * Widocznosc, ktora wolno USTAWIC na dziale. CHECK w bazie
+ * (`club_groups_visibility_check`) zna tylko trzy wartosci - 'public' nie jest
+ * pomylka w slowniku, tylko swiadoma asymetria: dzial nie moze byc bardziej
+ * otwarty niz klub, ktory go zawiera, wiec publicznosc wychodzi wylacznie
+ * z DZIEDZICZENIA (NULL w kolumnie), nigdy z nadpisania.
+ *
+ * Dwie tablice zamiast jednej, bo to dwie rozne role: `CLUB_VISIBILITIES`
+ * opisuje wartosci, ktore wolno ZOBACZYC (takze odziedziczone 'public'),
+ * a ta - wartosci, ktore wolno ZAPISAC. Droplista nadpisania karmiona
+ * pierwsza z nich oddawala administratorowi wybor, ktory baza odrzuca
+ * dopiero przy zapisie - czyli po stracie tego, co wpisal.
+ */
+export const CLUB_GROUP_VISIBILITIES = ["members", "private", "secret"] as const;
+export type ClubGroupVisibility = (typeof CLUB_GROUP_VISIBILITIES)[number];
+
+/** Widocznosc efektywna -> najblizsza wartosc, ktora wolno ustawic na dziale. */
+export function toClubGroupVisibility(value: string): ClubGroupVisibility {
+  return (CLUB_GROUP_VISIBILITIES as readonly string[]).includes(value)
+    ? (value as ClubGroupVisibility)
+    : "members";
+}
+
 /** Polityka wstepu. Kombinacja public + invite jest poprawna i czesta. */
 export const CLUB_JOIN_POLICIES = ["open", "request", "invite"] as const;
 export type ClubJoinPolicy = (typeof CLUB_JOIN_POLICIES)[number];

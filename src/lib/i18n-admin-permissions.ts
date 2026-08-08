@@ -189,6 +189,8 @@ const adminPermissionsPl = {
       community_stats: "Statystyki społeczności",
       expert_requests_switch: "Przełącznik zapytań do eksperta",
       resource_download: "Autoryzacja pobrania zasobu",
+      clubs_structure: "Struktura klubów dyskusyjnych",
+      clubs_access: "Dostęp do klubu i działu",
 
       monetization_dashboard: "Pulpit monetyzacji",
       engagement_overview: "Przegląd zaangażowania",
@@ -411,6 +413,8 @@ const adminPermissionsEn = {
       community_stats: "Community statistics",
       expert_requests_switch: "Expert request switch",
       resource_download: "Authorising a resource download",
+      clubs_structure: "Discussion club structure",
+      clubs_access: "Club and section access",
 
       monetization_dashboard: "Monetisation dashboard",
       engagement_overview: "Engagement overview",

@@ -5,7 +5,7 @@
 // wyłącznie admin (V2 §0), więc bez tego warunku zobaczyliby pustą tabelę
 // zamiast zdania wyjaśniającego. Bramka po stronie serwera i tak jest w RPC -
 // ta tutaj sprawia tylko, że interfejs nie kłamie o dostępności.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { Plus, Search, ShieldAlert, MessagesSquare } from "lucide-react";
@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ClubsTable } from "@/components/admin/clubs/organisms/ClubsTable";
+import { AdminPagination } from "@/components/admin/molecules/AdminPagination";
 import { useAdminClubs } from "@/lib/clubs/useClubs";
 import { ClubCreateDialog } from "@/components/admin/clubs/organisms/ClubCreateDialog";
 import {
@@ -33,7 +34,7 @@ import { ensureClubI18n } from "@/lib/i18n-club";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
 export const Route = createFileRoute("/admin/community/clubs/")({
-  head: () => ({ meta: [{ title: "Kluby dyskusyjne · Admin" }] }),
+  head: () => ({ meta: [{ title: "Clubs · Community · Admin" }] }),
   component: AdminClubsList,
 });
 
@@ -54,9 +55,28 @@ function AdminClubsList() {
   // sprawia, że wyszukiwarki w całym panelu "reagują tak samo szybko".
   const debouncedSearch = useDebouncedValue(search, 250);
 
+  // Lista chodziła na domyślnym limicie RPC (50) i ani go nie przesuwała, ani
+  // nie czytała `total_count`, który to samo RPC zwraca w każdym wierszu.
+  // Pięćdziesiąty pierwszy klub istniał w bazie i nie istniał w panelu - bez
+  // komunikatu, bez licznika, bez sposobu, żeby to zauważyć.
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+
+  // Zmiana filtra przestawia na pierwszą stronę. Bez tego zawężenie wyników
+  // przy otwartej stronie trzeciej pokazuje pustkę zamiast trafień.
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, status, visibility, pageSize]);
+
   const filters = useMemo(
-    () => ({ search: debouncedSearch, status, visibility }),
-    [debouncedSearch, status, visibility],
+    () => ({
+      search: debouncedSearch,
+      status,
+      visibility,
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
+    }),
+    [debouncedSearch, status, visibility, page, pageSize],
   );
 
   const clubsQ = useAdminClubs(filters, isAdmin);
@@ -77,6 +97,7 @@ function AdminClubsList() {
   }
 
   const rows = clubsQ.data?.rows ?? [];
+  const total = clubsQ.data?.total ?? 0;
   const hasFilters = debouncedSearch.trim().length > 0 || status !== null || visibility !== null;
 
   return (
@@ -163,7 +184,24 @@ function AdminClubsList() {
           </CardContent>
         </Card>
       ) : (
-        <ClubsTable rows={rows} isPl={isPl} />
+        <div className="space-y-2">
+          {/* `ClubsTable` niesie własną ramkę (tabela od lg, karty niżej), więc
+              pasek stronicowania dostaje swoją zamiast zagnieżdżać się w cudzej.
+              Pokazujemy go dopiero, gdy jest co stronicować - "1-3 z 3" przy
+              trzech klubach to szum, a nie informacja. */}
+          <ClubsTable rows={rows} isPl={isPl} />
+          {total > pageSize ? (
+            <div className="overflow-hidden rounded-lg border border-border/60">
+              <AdminPagination
+                page={page}
+                pageSize={pageSize}
+                total={total}
+                onPageChange={setPage}
+                onPageSizeChange={setPageSize}
+              />
+            </div>
+          ) : null}
+        </div>
       )}
 
       <ClubCreateDialog

@@ -135,6 +135,10 @@ export const adminClubKeys = {
       filters.search?.trim() ?? "",
       filters.status ?? "any",
       filters.visibility ?? "any",
+      // Rozmiar strony jest czescia klucza tak samo jak przesuniecie: bez tego
+      // zmiana "50 -> 200" przy offsecie 0 trafia w ten sam wpis cache i lista
+      // zostaje na piecdziesieciu wierszach, mimo ze licznik mowi co innego.
+      filters.limit ?? 50,
       filters.offset ?? 0,
     ] as const,
 } as const;

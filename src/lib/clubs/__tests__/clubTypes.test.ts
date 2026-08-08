@@ -6,8 +6,11 @@
 import { describe, expect, it } from "vitest";
 import {
   CLUB_ACCESS_REASONS,
+  CLUB_GROUP_VISIBILITIES,
+  CLUB_VISIBILITIES,
   NO_CLUB_CAPABILITIES,
   toClubCapabilities,
+  toClubGroupVisibility,
   toGroupSettings,
   type GroupInheritanceFields,
 } from "../types";
@@ -132,5 +135,36 @@ describe("toGroupSettings - dziedziczenie ustawień grupy", () => {
   it("brak progu planu czyta się jako zero, nie jako NaN", () => {
     const s = toGroupSettings(groupRow({ min_tier_rank: null }));
     expect(s.minTierRank.value).toBe(0);
+  });
+});
+
+describe("widoczność działu: zobaczyć wolno więcej, niż wolno zapisać", () => {
+  // CHECK `club_groups_visibility_check` zna members/private/secret. Droplista
+  // nadpisania karmiona pełnym słownikiem klubu oddawała administratorowi
+  // wybór 'public', który baza odrzuca dopiero przy zapisie - czyli po stracie
+  // wypełnionego formularza.
+  it("słownik zapisu nie zawiera 'public'", () => {
+    expect(CLUB_GROUP_VISIBILITIES).not.toContain("public");
+    expect([...CLUB_GROUP_VISIBILITIES]).toEqual(["members", "private", "secret"]);
+  });
+
+  it("każda wartość zapisu jest też wartością odczytu (słowniki się nie rozjeżdżają)", () => {
+    for (const value of CLUB_GROUP_VISIBILITIES) {
+      expect(CLUB_VISIBILITIES).toContain(value);
+    }
+  });
+
+  it("sprowadza odziedziczone 'public' do najbliższej wartości ustawialnej", () => {
+    expect(toClubGroupVisibility("public")).toBe("members");
+  });
+
+  it("nie rusza wartości, które i tak wolno ustawić", () => {
+    expect(toClubGroupVisibility("private")).toBe("private");
+    expect(toClubGroupVisibility("secret")).toBe("secret");
+    expect(toClubGroupVisibility("members")).toBe("members");
+  });
+
+  it("nieznana wartość z nowszej migracji degraduje bezpiecznie", () => {
+    expect(toClubGroupVisibility("cosmic")).toBe("members");
   });
 });

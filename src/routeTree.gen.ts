@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as AdminRouteImport } from './routes/admin'
+import { Route as ClubRouteImport } from './routes/club'
 import { Route as ContributeRouteImport } from './routes/contribute'
 import { Route as ContributorsRouteImport } from './routes/contributors'
 import { Route as CookiesRouteImport } from './routes/cookies'
@@ -302,6 +303,11 @@ const SplatRoute = SplatRouteImport.update({
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
   path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClubRoute = ClubRouteImport.update({
+  id: '/club',
+  path: '/club',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ContributeRoute = ContributeRouteImport.update({
@@ -893,14 +899,14 @@ const CheckoutSuccessRoute = CheckoutSuccessRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const ClubIndexRoute = ClubIndexRouteImport.update({
-  id: '/club/',
-  path: '/club/',
-  getParentRoute: () => rootRouteImport,
+  id: '/',
+  path: '/',
+  getParentRoute: () => ClubRoute,
 } as any)
 const ClubElementsRoute = ClubElementsRouteImport.update({
-  id: '/club/elements',
-  path: '/club/elements',
-  getParentRoute: () => rootRouteImport,
+  id: '/elements',
+  path: '/elements',
+  getParentRoute: () => ClubRoute,
 } as any)
 const EmailUnsubscribeRoute = EmailUnsubscribeRouteImport.update({
   id: '/email/unsubscribe',
@@ -1538,34 +1544,34 @@ const CategorySlugRssDotxmlRoute = CategorySlugRssDotxmlRouteImport.update({
   getParentRoute: () => CategorySlugRoute,
 } as any)
 const ClubClubSlugIndexRoute = ClubClubSlugIndexRouteImport.update({
-  id: '/club/$clubSlug/',
-  path: '/club/$clubSlug/',
-  getParentRoute: () => rootRouteImport,
+  id: '/$clubSlug/',
+  path: '/$clubSlug/',
+  getParentRoute: () => ClubRoute,
 } as any)
 const ClubClubSlugAboutRoute = ClubClubSlugAboutRouteImport.update({
-  id: '/club/$clubSlug/about',
-  path: '/club/$clubSlug/about',
-  getParentRoute: () => rootRouteImport,
+  id: '/$clubSlug/about',
+  path: '/$clubSlug/about',
+  getParentRoute: () => ClubRoute,
 } as any)
 const ClubClubSlugMembersRoute = ClubClubSlugMembersRouteImport.update({
-  id: '/club/$clubSlug/members',
-  path: '/club/$clubSlug/members',
-  getParentRoute: () => rootRouteImport,
+  id: '/$clubSlug/members',
+  path: '/$clubSlug/members',
+  getParentRoute: () => ClubRoute,
 } as any)
 const ClubClubSlugMinisiteRoute = ClubClubSlugMinisiteRouteImport.update({
-  id: '/club/$clubSlug/minisite',
-  path: '/club/$clubSlug/minisite',
-  getParentRoute: () => rootRouteImport,
+  id: '/$clubSlug/minisite',
+  path: '/$clubSlug/minisite',
+  getParentRoute: () => ClubRoute,
 } as any)
 const ClubClubSlugNewRoute = ClubClubSlugNewRouteImport.update({
-  id: '/club/$clubSlug/new',
-  path: '/club/$clubSlug/new',
-  getParentRoute: () => rootRouteImport,
+  id: '/$clubSlug/new',
+  path: '/$clubSlug/new',
+  getParentRoute: () => ClubRoute,
 } as any)
 const ClubJoinTokenRoute = ClubJoinTokenRouteImport.update({
-  id: '/club/join/$token',
-  path: '/club/join/$token',
-  getParentRoute: () => rootRouteImport,
+  id: '/join/$token',
+  path: '/join/$token',
+  getParentRoute: () => ClubRoute,
 } as any)
 const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
   id: '/lovable/email/suppression',
@@ -1668,9 +1674,9 @@ const ApiPublicWebhooksResendRoute = ApiPublicWebhooksResendRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const ClubClubSlugTThreadSlugRoute = ClubClubSlugTThreadSlugRouteImport.update({
-  id: '/club/$clubSlug/t/$threadSlug',
-  path: '/club/$clubSlug/t/$threadSlug',
-  getParentRoute: () => rootRouteImport,
+  id: '/$clubSlug/t/$threadSlug',
+  path: '/$clubSlug/t/$threadSlug',
+  getParentRoute: () => ClubRoute,
 } as any)
 const LovableEmailAuthPreviewRoute = LovableEmailAuthPreviewRouteImport.update({
   id: '/lovable/email/auth/preview',
@@ -1729,6 +1735,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/admin': typeof AdminRouteWithChildren
+  '/club': typeof ClubRouteWithChildren
   '/contribute': typeof ContributeRoute
   '/contributors': typeof ContributorsRoute
   '/cookies': typeof CookiesRoute
@@ -2282,6 +2289,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/admin': typeof AdminRouteWithChildren
+  '/club': typeof ClubRouteWithChildren
   '/contribute': typeof ContributeRoute
   '/contributors': typeof ContributorsRoute
   '/cookies': typeof CookiesRoute
@@ -2565,6 +2573,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/admin'
+    | '/club'
     | '/contribute'
     | '/contributors'
     | '/cookies'
@@ -3117,6 +3126,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/admin'
+    | '/club'
     | '/contribute'
     | '/contributors'
     | '/cookies'
@@ -3399,6 +3409,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SplatRoute: typeof SplatRoute
   AdminRoute: typeof AdminRouteWithChildren
+  ClubRoute: typeof ClubRouteWithChildren
   ContributeRoute: typeof ContributeRoute
   ContributorsRoute: typeof ContributorsRoute
   CookiesRoute: typeof CookiesRoute
@@ -3447,7 +3458,6 @@ export interface RootRouteChildren {
   CheckoutPlanIdRoute: typeof CheckoutPlanIdRoute
   CheckoutCancelRoute: typeof CheckoutCancelRoute
   CheckoutSuccessRoute: typeof CheckoutSuccessRoute
-  ClubElementsRoute: typeof ClubElementsRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   LiveRssDotxmlRoute: typeof LiveRssDotxmlRoute
   NewsletterConfirmRoute: typeof NewsletterConfirmRoute
@@ -3468,7 +3478,6 @@ export interface RootRouteChildren {
   TrackerRssDotxmlRoute: typeof TrackerRssDotxmlRoute
   WebStoriesSlugRoute: typeof WebStoriesSlugRouteWithChildren
   BlogIndexRoute: typeof BlogIndexRoute
-  ClubIndexRoute: typeof ClubIndexRoute
   PodcastsIndexRoute: typeof PodcastsIndexRoute
   ProgramsIndexRoute: typeof ProgramsIndexRoute
   TrackerIndexRoute: typeof TrackerIndexRoute
@@ -3489,20 +3498,13 @@ export interface RootRouteChildren {
   ApiPublicTrackRoute: typeof ApiPublicTrackRoute
   ApiPublicVersionRoute: typeof ApiPublicVersionRoute
   ApiPublicVitalsRoute: typeof ApiPublicVitalsRoute
-  ClubClubSlugAboutRoute: typeof ClubClubSlugAboutRoute
-  ClubClubSlugMembersRoute: typeof ClubClubSlugMembersRoute
-  ClubClubSlugMinisiteRoute: typeof ClubClubSlugMinisiteRoute
-  ClubClubSlugNewRoute: typeof ClubClubSlugNewRoute
-  ClubJoinTokenRoute: typeof ClubJoinTokenRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   PlatformEmailSuppressionRoute: typeof PlatformEmailSuppressionRoute
-  ClubClubSlugIndexRoute: typeof ClubClubSlugIndexRoute
   ApiPublicHooksRefreshOgImageRoute: typeof ApiPublicHooksRefreshOgImageRoute
   ApiPublicNewsletterConfirmRoute: typeof ApiPublicNewsletterConfirmRoute
   ApiPublicNewsletterUnsubscribeRoute: typeof ApiPublicNewsletterUnsubscribeRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
   ApiPublicWebhooksResendRoute: typeof ApiPublicWebhooksResendRoute
-  ClubClubSlugTThreadSlugRoute: typeof ClubClubSlugTThreadSlugRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
   LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
@@ -3535,6 +3537,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/club': {
+      id: '/club'
+      path: '/club'
+      fullPath: '/club'
+      preLoaderRoute: typeof ClubRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/contribute': {
@@ -4358,17 +4367,17 @@ declare module '@tanstack/react-router' {
     }
     '/club/': {
       id: '/club/'
-      path: '/club'
+      path: '/'
       fullPath: '/club/'
       preLoaderRoute: typeof ClubIndexRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof ClubRoute
     }
     '/club/elements': {
       id: '/club/elements'
-      path: '/club/elements'
+      path: '/elements'
       fullPath: '/club/elements'
       preLoaderRoute: typeof ClubElementsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof ClubRoute
     }
     '/email/unsubscribe': {
       id: '/email/unsubscribe'
@@ -5233,45 +5242,45 @@ declare module '@tanstack/react-router' {
     }
     '/club/$clubSlug/': {
       id: '/club/$clubSlug/'
-      path: '/club/$clubSlug'
+      path: '/$clubSlug'
       fullPath: '/club/$clubSlug/'
       preLoaderRoute: typeof ClubClubSlugIndexRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof ClubRoute
     }
     '/club/$clubSlug/about': {
       id: '/club/$clubSlug/about'
-      path: '/club/$clubSlug/about'
+      path: '/$clubSlug/about'
       fullPath: '/club/$clubSlug/about'
       preLoaderRoute: typeof ClubClubSlugAboutRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof ClubRoute
     }
     '/club/$clubSlug/members': {
       id: '/club/$clubSlug/members'
-      path: '/club/$clubSlug/members'
+      path: '/$clubSlug/members'
       fullPath: '/club/$clubSlug/members'
       preLoaderRoute: typeof ClubClubSlugMembersRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof ClubRoute
     }
     '/club/$clubSlug/minisite': {
       id: '/club/$clubSlug/minisite'
-      path: '/club/$clubSlug/minisite'
+      path: '/$clubSlug/minisite'
       fullPath: '/club/$clubSlug/minisite'
       preLoaderRoute: typeof ClubClubSlugMinisiteRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof ClubRoute
     }
     '/club/$clubSlug/new': {
       id: '/club/$clubSlug/new'
-      path: '/club/$clubSlug/new'
+      path: '/$clubSlug/new'
       fullPath: '/club/$clubSlug/new'
       preLoaderRoute: typeof ClubClubSlugNewRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof ClubRoute
     }
     '/club/join/$token': {
       id: '/club/join/$token'
-      path: '/club/join/$token'
+      path: '/join/$token'
       fullPath: '/club/join/$token'
       preLoaderRoute: typeof ClubJoinTokenRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof ClubRoute
     }
     '/lovable/email/suppression': {
       id: '/lovable/email/suppression'
@@ -5401,10 +5410,10 @@ declare module '@tanstack/react-router' {
     }
     '/club/$clubSlug/t/$threadSlug': {
       id: '/club/$clubSlug/t/$threadSlug'
-      path: '/club/$clubSlug/t/$threadSlug'
+      path: '/$clubSlug/t/$threadSlug'
       fullPath: '/club/$clubSlug/t/$threadSlug'
       preLoaderRoute: typeof ClubClubSlugTThreadSlugRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof ClubRoute
     }
     '/lovable/email/auth/preview': {
       id: '/lovable/email/auth/preview'
@@ -5893,6 +5902,32 @@ const AdminRouteChildren: AdminRouteChildren = {
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
+interface ClubRouteChildren {
+  ClubElementsRoute: typeof ClubElementsRoute
+  ClubIndexRoute: typeof ClubIndexRoute
+  ClubClubSlugAboutRoute: typeof ClubClubSlugAboutRoute
+  ClubClubSlugMembersRoute: typeof ClubClubSlugMembersRoute
+  ClubClubSlugMinisiteRoute: typeof ClubClubSlugMinisiteRoute
+  ClubClubSlugNewRoute: typeof ClubClubSlugNewRoute
+  ClubJoinTokenRoute: typeof ClubJoinTokenRoute
+  ClubClubSlugIndexRoute: typeof ClubClubSlugIndexRoute
+  ClubClubSlugTThreadSlugRoute: typeof ClubClubSlugTThreadSlugRoute
+}
+
+const ClubRouteChildren: ClubRouteChildren = {
+  ClubElementsRoute: ClubElementsRoute,
+  ClubIndexRoute: ClubIndexRoute,
+  ClubClubSlugAboutRoute: ClubClubSlugAboutRoute,
+  ClubClubSlugMembersRoute: ClubClubSlugMembersRoute,
+  ClubClubSlugMinisiteRoute: ClubClubSlugMinisiteRoute,
+  ClubClubSlugNewRoute: ClubClubSlugNewRoute,
+  ClubJoinTokenRoute: ClubJoinTokenRoute,
+  ClubClubSlugIndexRoute: ClubClubSlugIndexRoute,
+  ClubClubSlugTThreadSlugRoute: ClubClubSlugTThreadSlugRoute,
+}
+
+const ClubRouteWithChildren = ClubRoute._addFileChildren(ClubRouteChildren)
+
 interface EventsRouteChildren {
   EventsSlugRoute: typeof EventsSlugRoute
 }
@@ -6035,6 +6070,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
   AdminRoute: AdminRouteWithChildren,
+  ClubRoute: ClubRouteWithChildren,
   ContributeRoute: ContributeRoute,
   ContributorsRoute: ContributorsRoute,
   CookiesRoute: CookiesRoute,
@@ -6085,7 +6121,6 @@ const rootRouteChildren: RootRouteChildren = {
   CheckoutPlanIdRoute: CheckoutPlanIdRoute,
   CheckoutCancelRoute: CheckoutCancelRoute,
   CheckoutSuccessRoute: CheckoutSuccessRoute,
-  ClubElementsRoute: ClubElementsRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   LiveRssDotxmlRoute: LiveRssDotxmlRoute,
   NewsletterConfirmRoute: NewsletterConfirmRoute,
@@ -6106,7 +6141,6 @@ const rootRouteChildren: RootRouteChildren = {
   TrackerRssDotxmlRoute: TrackerRssDotxmlRoute,
   WebStoriesSlugRoute: WebStoriesSlugRouteWithChildren,
   BlogIndexRoute: BlogIndexRoute,
-  ClubIndexRoute: ClubIndexRoute,
   PodcastsIndexRoute: PodcastsIndexRoute,
   ProgramsIndexRoute: ProgramsIndexRoute,
   TrackerIndexRoute: TrackerIndexRoute,
@@ -6127,20 +6161,13 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicTrackRoute: ApiPublicTrackRoute,
   ApiPublicVersionRoute: ApiPublicVersionRoute,
   ApiPublicVitalsRoute: ApiPublicVitalsRoute,
-  ClubClubSlugAboutRoute: ClubClubSlugAboutRoute,
-  ClubClubSlugMembersRoute: ClubClubSlugMembersRoute,
-  ClubClubSlugMinisiteRoute: ClubClubSlugMinisiteRoute,
-  ClubClubSlugNewRoute: ClubClubSlugNewRoute,
-  ClubJoinTokenRoute: ClubJoinTokenRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   PlatformEmailSuppressionRoute: PlatformEmailSuppressionRoute,
-  ClubClubSlugIndexRoute: ClubClubSlugIndexRoute,
   ApiPublicHooksRefreshOgImageRoute: ApiPublicHooksRefreshOgImageRoute,
   ApiPublicNewsletterConfirmRoute: ApiPublicNewsletterConfirmRoute,
   ApiPublicNewsletterUnsubscribeRoute: ApiPublicNewsletterUnsubscribeRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
   ApiPublicWebhooksResendRoute: ApiPublicWebhooksResendRoute,
-  ClubClubSlugTThreadSlugRoute: ClubClubSlugTThreadSlugRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
   LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,

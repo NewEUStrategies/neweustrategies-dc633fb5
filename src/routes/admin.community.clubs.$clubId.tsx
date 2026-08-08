@@ -71,7 +71,7 @@ interface ClubEditorSearch {
 }
 
 export const Route = createFileRoute("/admin/community/clubs/$clubId")({
-  head: () => ({ meta: [{ title: "Klub dyskusyjny · Admin" }] }),
+  head: () => ({ meta: [{ title: "Club · Community · Admin" }] }),
   validateSearch: (search: Record<string, unknown>): ClubEditorSearch => {
     const raw = typeof search.tab === "string" ? search.tab : "";
     return { tab: (TAB_KEYS as readonly string[]).includes(raw) ? (raw as TabKey) : "general" };

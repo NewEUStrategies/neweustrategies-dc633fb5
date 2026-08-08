@@ -104,6 +104,22 @@ function ClubNewThread() {
     if (groupId === "" && postable.length > 0) setGroupId(postable[0].id);
   }, [groupId, postable]);
 
+  // Tryb atrybucji DZIEDZICZY dział: NULL w kolumnie znaczy "weź z klubu",
+  // a `club_groups_list` zwraca już wartość EFEKTYWNĄ. Czytanie go z klubu
+  // sprawiało, że dział prowadzony w regule Chatham House pokazywał ustawienia
+  // klubu: przełącznik anonimowości pojawiał się tam, gdzie RPC go odrzuca,
+  // i znikał tam, gdzie jest jedynym sposobem na zabranie głosu.
+  const effectiveAttribution =
+    groups.find((g) => g.id === groupId)?.attribution_mode ?? club?.attribution_mode ?? null;
+  const canGoAnonymous = effectiveAttribution === "anonymous_allowed";
+
+  // Zmiana działu może odebrać prawo do anonimowości. Zostawiony włączony
+  // przełącznik kończyłby się odmową 'clubs: anonymous posting disabled'
+  // dopiero po kliknięciu "Opublikuj" - czyli po napisaniu całego tekstu.
+  useEffect(() => {
+    if (!canGoAnonymous) setAnonymous(false);
+  }, [canGoAnonymous]);
+
   if (clubQ.isPending) {
     return (
       <div className="container mx-auto max-w-3xl px-4 py-8">
@@ -133,7 +149,6 @@ function ClubNewThread() {
 
   const titleOk = title.trim().length >= TITLE_MIN && title.trim().length <= TITLE_MAX;
   const bodyOk = body.trim().length >= BODY_MIN && body.trim().length <= BODY_MAX;
-  const canGoAnonymous = club.attribution_mode === "anonymous_allowed";
 
   const submit = () => {
     if (!titleOk || !bodyOk || groupId === "") return;
@@ -249,6 +264,20 @@ function ClubNewThread() {
             isPl={isPl}
             disabled={createM.isPending}
           />
+
+          {/* Reguła autorstwa MUSI być widoczna przed publikacją, a nie dopiero
+              na wątku: w dziale prowadzonym w regule Chatham House wypowiedź
+              wychodzi pod pseudonimem, a autor - jeśli się tego nie spodziewał -
+              pisze inaczej, niż by chciał. Wartość jest efektywna dla WYBRANEGO
+              działu, więc zmienia się razem z dropListą wyżej. */}
+          {effectiveAttribution !== null ? (
+            <p className="rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">
+                {t(`club.attribution.${effectiveAttribution}`)}
+              </span>{" "}
+              {t(`club.attributionHint.${effectiveAttribution}`)}
+            </p>
+          ) : null}
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-4">
             {canGoAnonymous ? (

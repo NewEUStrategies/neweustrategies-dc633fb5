@@ -92,6 +92,18 @@ export const ROLE_PERMISSION_ROWS: readonly RolePermissionRow[] = [
     gateRef: "fn:admin_set_expert_requests_enabled/2",
   },
   { id: "resource_download", group: "community", gateRef: "fn:authorize_resource_download/1" },
+  // Kluby dyskusyjne. Macierz milczała o CAŁYM module, choć ma on dwie realne
+  // bramki rolowe w bazie - a to macierz jest miejscem, w którym administrator
+  // sprawdza, kto co może. Moduł nieopisany w macierzy wygląda jak moduł bez
+  // uprawnień.
+  //
+  // Świadomie DWA wiersze, nie dwadzieścia: reszta RPC klubowych woła
+  // `is_club_admin` albo `club_capabilities` zamiast rozwijać `has_role` u
+  // siebie, więc wpisanie ich osobno powielałoby tę samą bramkę pod różnymi
+  // nazwami - i pierwsza zmiana w jednym miejscu rozjechałaby dziewiętnaście
+  // wierszy naraz.
+  { id: "clubs_structure", group: "community", gateRef: "fn:is_club_admin/1" },
+  { id: "clubs_access", group: "community", gateRef: "fn:club_capabilities/3" },
 
   // --- Monetyzacja i analityka --------------------------------------------
   { id: "monetization_dashboard", group: "monetization", gateRef: "fn:monetization_dashboard/4" },
