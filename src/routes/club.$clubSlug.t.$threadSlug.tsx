@@ -64,6 +64,9 @@ import { ClubStanceBar } from "@/components/clubs/molecules/ClubStanceBar";
 import { ClubNewRepliesBar } from "@/components/clubs/molecules/ClubNewRepliesBar";
 import { ClubReportButton } from "@/components/clubs/molecules/ClubReportButton";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
+import { ClubThreadPulse } from "@/components/clubs/molecules/ClubThreadPulse";
+import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
+import { ClubThreadListSkeleton, Shimmer } from "@/components/clubs/atoms/ClubSkeletons";
 import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
 import { fetchClubBySlug } from "@/lib/clubs/api";
 import { clubKeys } from "@/lib/clubs/queryKeys";
@@ -181,8 +184,22 @@ function ClubThreadView() {
   // nieistniejący slug kończy się wiecznym szkieletem zamiast 404.
   if (clubQ.isPending || (club !== null && threadQ.isPending)) {
     return (
-      <div className="mx-auto w-full max-w-[1280px] px-3 sm:px-5 lg:px-8 py-8">
-        <div className="h-64 animate-pulse rounded-lg bg-muted/50" aria-busy="true" />
+      <div className="mx-auto w-full max-w-[1280px] px-3 sm:px-5 lg:px-8 py-8" aria-busy="true">
+        <Shimmer className="mb-4 h-8 w-48" />
+        <div className="rounded-xl border border-border/60 bg-card p-5">
+          <Shimmer className="h-4 w-24" />
+          <Shimmer className="mt-3 h-7 w-3/4" />
+          <Shimmer className="mt-3 h-4 w-1/3" />
+          <div className="mt-5 space-y-2">
+            <Shimmer className="h-4 w-full" />
+            <Shimmer className="h-4 w-11/12" />
+            <Shimmer className="h-4 w-4/5" />
+          </div>
+        </div>
+        <Shimmer className="mt-4 h-28 w-full rounded-xl" />
+        <div className="mt-6">
+          <ClubThreadListSkeleton count={3} />
+        </div>
       </div>
     );
   }
@@ -272,7 +289,7 @@ function ClubThreadView() {
       </Button>
 
       {/* --- post otwierający --- */}
-      <article className="rounded-lg border border-border/60 bg-card p-5">
+      <article className="rounded-xl border border-border/60 bg-card p-4 shadow-sm sm:p-5">
         <div className="flex flex-wrap items-center gap-2">
           {thread.pinned_at !== null ? <Pin className="h-4 w-4 text-primary" /> : null}
           <Badge variant="outline">{t(`club.kind.${thread.kind}`)}</Badge>
@@ -306,10 +323,20 @@ function ClubThreadView() {
 
         <h1 className="mt-2 text-2xl font-semibold leading-snug">{thread.title}</h1>
 
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-          <span>{author.name}</span>
-          <span>{formatDateTime(thread.created_at, lang)}</span>
-          {thread.edited_at !== null ? <span>({t("club.edited")})</span> : null}
+        <div className="mt-3 flex items-center gap-2.5">
+          <ClubAuthorAvatar
+            name={author.name}
+            avatarUrl={author.avatarUrl}
+            size="md"
+            muted={author.kind !== "named"}
+          />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium">{author.name}</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {formatDateTime(thread.created_at, lang)}
+              {thread.edited_at !== null ? ` \u00b7 ${t("club.edited")}` : ""}
+            </p>
+          </div>
         </div>
 
         {editing === "thread" ? (
@@ -370,6 +397,19 @@ function ClubThreadView() {
         </div>
       </article>
 
+      {/* --- puls dyskusji ---
+          Dynamika (kto, ile, jak szybko, kiedy ostatnio) stoi MIĘDZY postem
+          otwierającym a odpowiedziami: to jest moment, w którym czytelnik
+          decyduje, czy w ogóle wchodzi w wymianę. */}
+      {thread.reply_count > 0 ? (
+        <ClubThreadPulse
+          className="mt-4"
+          createdAt={thread.created_at}
+          replies={deferred.rows}
+          lang={lang}
+        />
+      ) : null}
+
       {/* --- sondaż (wyłącznie wątek typu "sondaż") ---
           Rodzaj `poll` był do A20 samą etykietą: model dopuszczał go od A3,
           specyfikacja obiecywała reużycie `polls`, a krawędzi między wątkiem
@@ -409,9 +449,9 @@ function ClubThreadView() {
 
       {/* --- odpowiedzi --- */}
       <section className="mt-6">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-            <MessageSquare className="h-4 w-4" />
+        <div className="sticky top-16 z-10 mb-3 -mx-1 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-background/85 px-1 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+          <h2 className="flex items-center gap-2 text-sm font-semibold">
+            <MessageSquare className="h-4 w-4 text-primary" aria-hidden="true" />
             {t("club.repliesCount", { count: thread.reply_count })}
           </h2>
           {repliesTotal > 1 ? (
@@ -433,13 +473,13 @@ function ClubThreadView() {
         <ClubNewRepliesBar count={deferred.pendingCount} onReveal={deferred.reveal} />
 
         {repliesQ.isPending ? (
-          <div className="h-24 animate-pulse rounded-lg bg-muted/50" aria-busy="true" />
+          <ClubThreadListSkeleton count={3} />
         ) : tree.length === 0 ? (
           <p className="rounded-lg border border-dashed border-border/60 p-6 text-center text-sm text-muted-foreground">
             {t("club.noReplies")}
           </p>
         ) : (
-          <ul className="space-y-3">
+          <ul className="space-y-2.5">
             {tree.map((node) => (
               <ReplyBranch
                 key={node.reply.id}
@@ -496,7 +536,7 @@ function ClubThreadView() {
 
       {/* --- kompozytor --- */}
       {thread.can_reply ? (
-        <section className="mt-6 rounded-lg border border-border/60 bg-card p-4">
+        <section className="mt-6 rounded-xl border border-border/60 bg-card p-4 shadow-sm">
           {replyTo !== null ? (
             <div className="mb-2 flex items-center justify-between gap-2 rounded-md bg-muted/50 px-3 py-1.5 text-xs">
               <span className="text-muted-foreground">{t("club.replyingTo")}</span>
@@ -612,13 +652,18 @@ function ReplyBranch(props: ReplyBranchProps) {
     <li>
       <div
         className={
-          "rounded-lg border p-4 " +
+          "group/reply rounded-xl border p-3 transition-colors sm:p-4 " +
           (reply.is_resolution
             ? "border-emerald-500/40 bg-emerald-500/5"
-            : "border-border/60 bg-card")
+            : "border-border/60 bg-card hover:border-primary/30")
         }
       >
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm">
+          <ClubAuthorAvatar
+            name={author.name}
+            avatarUrl={author.avatarUrl}
+            muted={author.kind !== "named"}
+          />
           <span className="font-medium">{author.name}</span>
           <span className="text-xs text-muted-foreground">
             {formatDateTime(reply.created_at, lang)}
@@ -673,7 +718,10 @@ function ReplyBranch(props: ReplyBranchProps) {
           />
         </div>
 
-        <div className="mt-2 flex flex-wrap gap-1">
+        {/* Akcje wyciszone do momentu najechania/fokusu: przy trzydziestu
+            odpowiedziach cztery przyciski pod każdą to ściana szumu, ale
+            ukrywanie ich zupełnie łamie klawiaturę - stąd opacity, nie hidden. */}
+        <div className="mt-1.5 flex flex-wrap gap-1 opacity-70 transition-opacity focus-within:opacity-100 group-hover/reply:opacity-100">
           {/* Poziom 2 nie dostaje przycisku "Odpowiedz": drzewo jest przycięte,
               a przycisk, który po cichu przypina odpowiedź gdzie indziej,
               wprowadza w błąd. */}
@@ -713,7 +761,7 @@ function ReplyBranch(props: ReplyBranchProps) {
       </div>
 
       {children.length > 0 ? (
-        <ul className="mt-2 space-y-2 border-l-2 border-border/40 pl-3 sm:pl-5">
+        <ul className="mt-2 space-y-2 border-l border-border/50 pl-3 sm:pl-5">
           {children.map((child) => (
             <ReplyBranch {...props} key={child.reply.id} node={child} />
           ))}
