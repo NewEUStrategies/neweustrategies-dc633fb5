@@ -154,7 +154,7 @@ export const MOBILE_BOTTOM_BAR_DEFAULTS: MobileBottomBarConfig = {
       label_key: "mobileBottomBar.itemLabels.clubs",
       label_pl: "",
       label_en: "",
-      icon: "users-round",
+      icon: "message-square",
       href: "/club",
       color: "#6d3fd4",
       color_dark: "#b79bff",
