@@ -36,6 +36,7 @@ export const en = {
     openMenu: "Open menu",
     closeMenu: "Close menu",
     openSearch: "Open search",
+    toggleTheme: "Toggle theme",
     alertBar: "Alert bar",
     dismissAlertBar: "Dismiss alert bar",
     and: "and",
