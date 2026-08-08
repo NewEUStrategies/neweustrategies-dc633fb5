@@ -15898,6 +15898,39 @@ export type Database = {
         }
         Returns: number
       }
+      club_thread_insights: {
+        Args: { p_buckets?: number; p_thread_id: string }
+        Returns: {
+          bucket_end: string
+          bucket_index: number
+          bucket_start: string
+          documents: number
+          milestones: number
+          questions: number
+          replies: number
+        }[]
+      }
+      club_thread_links_list: {
+        Args: { p_thread_id: string }
+        Returns: {
+          can_remove: boolean
+          club_name_en: string
+          club_name_pl: string
+          club_slug: string
+          created_at: string
+          direction: string
+          id: string
+          kind: string
+          last_reply_at: string
+          note: string
+          relation: string
+          reply_count: number
+          status: string
+          thread_id: string
+          thread_slug: string
+          title: string
+        }[]
+      }
       club_thread_milestones_list: {
         Args: {
           p_from?: string
@@ -15946,6 +15979,21 @@ export type Database = {
           user_id: string
         }[]
       }
+      club_thread_polls_list: {
+        Args: { p_thread_id: string }
+        Returns: {
+          can_remove: boolean
+          created_at: string
+          ends_at: string
+          id: string
+          label: string
+          poll_id: string
+          poll_status: string
+          question_en: string
+          question_pl: string
+          sort_order: number
+        }[]
+      }
       club_thread_quality_score: {
         Args: { _thread_id: string }
         Returns: number
@@ -15987,6 +16035,18 @@ export type Database = {
           hide_actor: boolean
           tenant_id: string
           thread_slug: string
+        }[]
+      }
+      club_thread_search: {
+        Args: { p_limit?: number; p_query: string; p_thread_id: string }
+        Returns: {
+          author_label: string
+          item_id: string
+          occurred_at: string
+          rank: number
+          section: string
+          snippet: string
+          title: string
         }[]
       }
       club_thread_view: {
