@@ -19,9 +19,10 @@
 // katalogu nie do odróżnienia od sąsiada.
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
-import { Layers, MessagesSquare, Users2 } from "lucide-react";
+import { ArrowRight, Layers, MessagesSquare, Users2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ClubCover } from "@/components/clubs/atoms/ClubCover";
+import { ClubDirectorySkeleton } from "@/components/clubs/atoms/ClubSkeletons";
 import { clubTopicLabel } from "@/lib/clubs/policyAreas";
 import { CLUB_VISIBILITIES, type ClubLayout, type ClubVisibility } from "@/lib/clubs/types";
 
@@ -104,6 +105,10 @@ function CardTile({ club, isPl }: { club: ClubDirectoryCard; isPl: boolean }) {
         ) : null}
         <div className="mt-auto pt-2.5">
           <ClubStats club={club} isPl={isPl} />
+          <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary opacity-80 transition-opacity group-hover:opacity-100">
+            {t("club.hub.goToThreads")}
+            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+          </span>
         </div>
       </div>
     </Link>
