@@ -1811,6 +1811,7 @@ export type Database = {
           rules_accepted_at: string | null
           status: string
           tenant_id: string
+          unread_count: number
           updated_at: string
           user_id: string
         }
@@ -1829,6 +1830,7 @@ export type Database = {
           rules_accepted_at?: string | null
           status?: string
           tenant_id: string
+          unread_count?: number
           updated_at?: string
           user_id: string
         }
@@ -1847,6 +1849,7 @@ export type Database = {
           rules_accepted_at?: string | null
           status?: string
           tenant_id?: string
+          unread_count?: number
           updated_at?: string
           user_id?: string
         }
@@ -14388,6 +14391,16 @@ export type Database = {
           title: string
         }[]
       }
+      club_anchor_suggest: {
+        Args: { p_anchor_type?: string; p_limit?: number; p_query: string }
+        Returns: {
+          anchor_id: string
+          anchor_type: string
+          hint: string
+          label_en: string
+          label_pl: string
+        }[]
+      }
       club_anonymity_salt: { Args: { _tenant_id: string }; Returns: string }
       club_author_alias: {
         Args: { _author_id: string; _thread_id: string }
@@ -14401,6 +14414,10 @@ export type Database = {
           p_user_id: string
         }
         Returns: boolean
+      }
+      club_bump_unread: {
+        Args: { p_actor_id: string; p_club_id: string }
+        Returns: undefined
       }
       club_capabilities: {
         Args: { _club_id: string; _group_id?: string; _user_id?: string }
@@ -14534,6 +14551,7 @@ export type Database = {
           visibility: string
         }[]
       }
+      club_mark_read: { Args: { p_club_id: string }; Returns: number }
       club_members_list: {
         Args: {
           p_club_id: string
@@ -14607,6 +14625,7 @@ export type Database = {
           slug: string
           status: string
           thread_count: number
+          unread_count: number
         }[]
       }
       club_my_subscription: { Args: { p_thread_id: string }; Returns: string }
@@ -14656,6 +14675,7 @@ export type Database = {
           author_id: string
           author_name: string
           author_slug: string
+          author_stance: string
           body: string
           created_at: string
           depth: number
@@ -14676,6 +14696,15 @@ export type Database = {
           p_body: string
           p_parent_id?: string
           p_thread_id: string
+        }
+        Returns: string
+      }
+      club_report_content: {
+        Args: {
+          p_details?: string
+          p_reason: string
+          p_target_id: string
+          p_target_type: string
         }
         Returns: string
       }
