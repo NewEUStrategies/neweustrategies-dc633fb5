@@ -515,6 +515,19 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
         },
         {
           raw: {
+            id: "default-messages",
+            section: "auth" as const,
+            kind: "preset" as const,
+            presetKey: "messages",
+            icon: "MessageCircle",
+          },
+          href: "/messages",
+          label: lang === "pl" ? "Czat" : "Chat",
+          desc: "",
+        },
+
+        {
+          raw: {
             id: "default-bookmarks",
             section: "auth" as const,
             kind: "preset" as const,
