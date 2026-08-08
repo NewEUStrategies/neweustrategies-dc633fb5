@@ -30,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CLUB_TOPICS } from "@/lib/clubs/policyAreas";
 import { useClubBySlug, useClubGroups, useClubSearch, useClubThreads } from "@/lib/clubs/useClubs";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { ClubThreadList } from "@/components/clubs/organisms/ClubThreadList";
