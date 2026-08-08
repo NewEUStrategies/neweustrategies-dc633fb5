@@ -14491,6 +14491,7 @@ export type Database = {
         Args: { _role: string; _role_expires_at: string }
         Returns: string
       }
+      club_export_my_data: { Args: { p_limit?: number }; Returns: Json }
       club_groups_list: {
         Args: { p_club_id: string }
         Returns: {
