@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { memo, Suspense, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Menu, Search, X } from "lucide-react";
+import { Menu, Moon, Search, Sun, X } from "lucide-react";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { cn } from "@/lib/utils";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
@@ -76,7 +76,7 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
   const draft = useTickerDraft();
   const trending = draft ?? resolveActiveTickerConfig(cfg.trending);
   const siteName = (general.site_name && general.site_name.trim()) || "Menu";
-  const { theme: mode } = useTheme();
+  const { theme: mode, toggle } = useTheme();
   const isDark = mode === "dark";
   const themeLogo = theme.logo ?? {};
   const mobileLogo = isDark
@@ -174,6 +174,18 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
               className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-border text-foreground hover:bg-muted transition shrink-0"
             >
               <Search className="w-5 h-5" aria-hidden />
+            </button>
+            <button
+              type="button"
+              onClick={toggle}
+              aria-label={t("common.toggleTheme", "Przełącz motyw")}
+              className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-border text-foreground hover:bg-muted transition shrink-0"
+            >
+              {isDark ? (
+                <Sun className="w-5 h-5" aria-hidden />
+              ) : (
+                <Moon className="w-5 h-5" aria-hidden />
+              )}
             </button>
           </div>
           <AppLink

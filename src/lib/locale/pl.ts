@@ -36,6 +36,7 @@ export const pl = {
     openMenu: "Otwórz menu",
     closeMenu: "Zamknij menu",
     openSearch: "Otwórz wyszukiwarkę",
+    toggleTheme: "Przełącz motyw",
     alertBar: "Pasek alertu",
     dismissAlertBar: "Zamknij pasek alertu",
     and: "oraz",
