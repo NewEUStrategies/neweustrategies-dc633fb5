@@ -34,11 +34,23 @@ export function ClubAnchorPicker({
   onChange,
   isPl,
   disabled,
+  anchorType = null,
+  fieldLabel,
 }: {
   value: ClubAnchorValue | null;
   onChange: (value: ClubAnchorValue | null) => void;
   isPl: boolean;
   disabled?: boolean;
+  /**
+   * Zawężenie do JEDNEGO typu encji. Kompozytor wątku go nie podaje (czytelnik
+   * szuka tematu, nie kategorii), ale kampania segmentowa musi: reguła
+   * `policy_follow` przyjmuje wyłącznie akt prawny, a `event_rsvp` wyłącznie
+   * wydarzenie - podpowiedź spoza typu dałaby regułę, która rozwiązuje się
+   * w bazie na zbiór pusty.
+   */
+  anchorType?: ClubAnchorType | null;
+  /** Nadpisanie etykiety pola - kampania nie mówi o "kotwicy", tylko o regule. */
+  fieldLabel?: string;
 }) {
   ensureClubI18n();
   const { t } = useTranslation();
@@ -47,9 +59,11 @@ export function ClubAnchorPicker({
 
   const suggestionsQ = useClubAnchorSuggestions({
     query: debounced,
-    // Bez zawezenia typu: czytelnik szuka TEMATU, a nie kategorii encji -
-    // droplista "gdzie szukac" przed polem wyszukiwania to pytanie, na ktore
-    // nikt nie chce odpowiadac przed zobaczeniem wynikow.
+    // Domyslnie BEZ zawezenia typu: czytelnik szuka TEMATU, a nie kategorii
+    // encji - droplista "gdzie szukac" przed polem wyszukiwania to pytanie, na
+    // ktore nikt nie chce odpowiadac przed zobaczeniem wynikow. Wolajacy, ktory
+    // POTRZEBUJE jednego typu (kampania segmentowa), podaje go jawnie.
+    anchorType,
     enabled: !disabled && value === null,
   });
 
@@ -59,7 +73,7 @@ export function ClubAnchorPicker({
   if (value !== null) {
     return (
       <div className="space-y-1.5">
-        <Label>{t("club.anchorPicker.label")}</Label>
+        <Label>{fieldLabel ?? t("club.anchorPicker.label")}</Label>
         <div className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/30 px-3 py-2">
           <Link2 className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           <Badge variant="outline" className="shrink-0 text-[11px]">
@@ -89,7 +103,7 @@ export function ClubAnchorPicker({
 
   return (
     <div className="space-y-1.5">
-      <Label htmlFor="club-anchor-query">{t("club.anchorPicker.label")}</Label>
+      <Label htmlFor="club-anchor-query">{fieldLabel ?? t("club.anchorPicker.label")}</Label>
       <p className="text-xs text-muted-foreground">{t("club.anchorPicker.hint")}</p>
       <div className="relative">
         <Input

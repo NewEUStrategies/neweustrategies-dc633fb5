@@ -431,6 +431,71 @@ export interface ClubMemberUpsertInput {
   clearRoleExpiry?: boolean;
 }
 
+// ---------------------------------------------------------------------------
+// Sciezka D: kampanie segmentowe
+// ---------------------------------------------------------------------------
+
+/**
+ * Rodzaje regul segmentu. Slownik odpowiada galeziom
+ * `club_segment_candidate_ids` - regula spoza tej listy rozwiazuje sie
+ * w bazie na zbior PUSTY, wiec droplista z wlasnym pomyslem na rodzaj
+ * dawalaby kampanie, ktora cicho nie wysyla niczego.
+ */
+export const CLUB_SEGMENT_KINDS = [
+  "badge",
+  "specialization",
+  "other_club",
+  "policy_follow",
+  "event_rsvp",
+] as const;
+export type ClubSegmentKind = (typeof CLUB_SEGMENT_KINDS)[number];
+
+/** Regula w postaci, w ktorej jedzie do RPC jako jsonb. */
+export interface ClubSegmentRule {
+  kind: ClubSegmentKind;
+  /** `badge` */
+  badge?: string;
+  /** `specialization` */
+  value?: string;
+  /** `other_club` */
+  club_id?: string;
+  /** `policy_follow` */
+  item_id?: string;
+  /** `event_rsvp` */
+  event_id?: string;
+  /** Nazwa zapisywanej kampanii - `club_segment_rules.name` jest NOT NULL. */
+  name?: string;
+}
+
+/**
+ * Czy regula jest KOMPLETNA. Rodzaj bez swojej wartosci rozwiazuje sie na zbior
+ * pusty, wiec przycisk "wyslij" ma byc wtedy nieaktywny - a nie wysylac
+ * kampanie do zera osob i raportowac sukces.
+ */
+export function isClubSegmentRuleComplete(rule: ClubSegmentRule): boolean {
+  const filled = (value: string | undefined): boolean =>
+    value !== undefined && value.trim().length > 0;
+  switch (rule.kind) {
+    case "badge":
+      return filled(rule.badge);
+    case "specialization":
+      return filled(rule.value);
+    case "other_club":
+      return filled(rule.club_id);
+    case "policy_follow":
+      return filled(rule.item_id);
+    case "event_rsvp":
+      return filled(rule.event_id);
+  }
+}
+
+export interface ClubSegmentPreview {
+  matched: number;
+  already_member: number;
+  blocked: number;
+  will_send: number;
+}
+
 export interface AdminClubListFilters {
   search?: string;
   status?: ClubStatus | null;
@@ -841,7 +906,90 @@ export function applyReactionToggle(
 export type AdminClubThreadRow = RowOf<Fn["admin_club_threads"]["Returns"]>;
 export type AdminClubReplyRow = RowOf<Fn["admin_club_replies"]["Returns"]>;
 export type ClubSearchHit = RowOf<Fn["club_search"]["Returns"]>;
+export type ClubSemanticHit = RowOf<Fn["club_semantic_search"]["Returns"]>;
 export type ClubAnchorHit = RowOf<Fn["club_threads_for_anchor"]["Returns"]>;
+
+/**
+ * Wynik wyszukiwania po SCALENIU dwoch warstw: pelnotekstowej (`club_search`)
+ * i semantycznej (`club_semantic_search`). Warstwy odpowiadaja na dwa rozne
+ * pytania - "gdzie padlo to slowo" i "gdzie mowiono o tej sprawie" - wiec
+ * `match` jedzie do interfejsu: czytelnik ma widziec, dlaczego wiersz tu jest,
+ * zanim zdziwi sie brakiem swojej frazy w tytule.
+ */
+export interface ClubSearchResult {
+  thread_id: string;
+  thread_slug: string;
+  title: string;
+  kind: string;
+  club_id: string;
+  club_slug: string;
+  club_name_pl: string;
+  club_name_en: string;
+  reply_count: number;
+  last_reply_at: string | null;
+  /** Fragment z `ts_headline`. Warstwa semantyczna go nie ma - stad `null`. */
+  snippet: string | null;
+  match: "text" | "semantic";
+}
+
+/** Trafienie pelnotekstowe -> wiersz wyniku. */
+export function toClubSearchResult(hit: ClubSearchHit): ClubSearchResult {
+  return {
+    thread_id: hit.thread_id,
+    thread_slug: hit.thread_slug,
+    title: hit.title,
+    kind: hit.kind,
+    club_id: hit.club_id,
+    club_slug: hit.club_slug,
+    club_name_pl: hit.club_name_pl,
+    club_name_en: hit.club_name_en,
+    reply_count: hit.reply_count,
+    last_reply_at: hit.last_reply_at,
+    snippet: hit.snippet,
+    match: "text",
+  };
+}
+
+/** Trafienie semantyczne -> wiersz wyniku (bez fragmentu, bo RPC go nie liczy). */
+export function toClubSemanticResult(hit: ClubSemanticHit): ClubSearchResult {
+  return {
+    thread_id: hit.thread_id,
+    thread_slug: hit.thread_slug,
+    title: hit.title,
+    kind: hit.kind,
+    club_id: hit.club_id,
+    club_slug: hit.club_slug,
+    club_name_pl: hit.club_name_pl,
+    club_name_en: hit.club_name_en,
+    reply_count: hit.reply_count,
+    last_reply_at: hit.last_reply_at,
+    snippet: null,
+    match: "semantic",
+  };
+}
+
+/**
+ * Scalenie warstw. Pelnotekstowe idzie PIERWSZE i wygrywa duplikaty: jesli
+ * fraza dosłownie pada w watku, to jest lepsza odpowiedz niz podobienstwo
+ * kosinusowe, a fragment z podswietleniem jest tego dowodem dla czytelnika.
+ * Semantyka dokłada to, czego FTS z definicji nie znajdzie - inne slowa o tej
+ * samej sprawie.
+ */
+export function mergeClubSearchResults(
+  text: readonly ClubSearchHit[],
+  semantic: readonly ClubSemanticHit[],
+  limit = 20,
+): ClubSearchResult[] {
+  const out = text.map(toClubSearchResult);
+  const seen = new Set(out.map((r) => r.thread_id));
+  for (const hit of semantic) {
+    if (out.length >= limit) break;
+    if (seen.has(hit.thread_id)) continue;
+    seen.add(hit.thread_id);
+    out.push(toClubSemanticResult(hit));
+  }
+  return out.slice(0, limit);
+}
 
 /** Wiersz strumienia aktywnosci ponad klubami (strona glowna klubow). Nie ma
  *  tu `author_id` w ZADNYM trybie atrybucji - hub jest powierzchnia odkrywania,

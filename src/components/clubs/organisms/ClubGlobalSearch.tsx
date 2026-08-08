@@ -19,7 +19,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
-import type { ClubSearchHit } from "@/lib/clubs/types";
+import type { ClubSearchResult } from "@/lib/clubs/types";
 import { formatDateShort } from "@/lib/i18n/format";
 
 export function ClubGlobalSearchInput({
@@ -74,7 +74,7 @@ export function ClubGlobalSearchResults({
   isPl,
   onRetry,
 }: {
-  hits: readonly ClubSearchHit[];
+  hits: readonly ClubSearchResult[];
   pending: boolean;
   /** Awaria RPC. Bez tego "brak wyników" i "nie udało się szukać" wyglądają
    *  identycznie, a to są dwie zupełnie różne informacje dla czytelnika. */
@@ -135,12 +135,22 @@ export function ClubGlobalSearchResults({
                 </Badge>
               </div>
               <h3 className="mt-1 font-medium leading-snug">{hit.title}</h3>
-              {/* ts_headline zwraca fragment ze znacznikami <b>. Renderujemy go
-                  jako TEKST po zdjęciu znaczników - wstrzykiwanie HTML z bazy
-                  do listy wyników nie jest tego warte. */}
-              <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                {(hit.snippet ?? "").replace(/<\/?b>/g, "")}
-              </p>
+              {/* Fragment jest DOWODEM trafienia, więc warstwa semantyczna,
+                  która go nie ma, musi powiedzieć wprost, czemu wiersz tu jest.
+                  Bez tego czytelnik szuka swojej frazy w tytule, nie znajduje
+                  jej i uznaje wynik za pomyłkę wyszukiwarki. */}
+              {hit.snippet !== null && hit.snippet !== "" ? (
+                // ts_headline zwraca fragment ze znacznikami <b>. Renderujemy go
+                // jako TEKST po zdjęciu znaczników - wstrzykiwanie HTML z bazy
+                // do listy wyników nie jest tego warte.
+                <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                  {hit.snippet.replace(/<\/?b>/g, "")}
+                </p>
+              ) : hit.match === "semantic" ? (
+                <p className="mt-1 text-xs italic text-muted-foreground">
+                  {t("club.searchSemanticHit")}
+                </p>
+              ) : null}
               <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1">
                   <MessageSquare className="h-3 w-3" />

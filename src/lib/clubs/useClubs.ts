@@ -57,6 +57,7 @@ import {
   fetchMyThreadSubscription,
   inviteClubMember,
   inviteClubMemberByEmail,
+  inviteClubSegment,
   joinClub,
   leaveClub,
   moderateClubTarget,
@@ -68,11 +69,13 @@ import {
   resolveClubThread,
   respondClubInvitation,
   revokeClubInviteLink,
+  setClubMemberRole,
   setClubNotifyLevel,
   setClubStance,
   setClubThreadSubscription,
   unreactFromClubTarget,
   previewClubCapabilities,
+  previewClubSegment,
   removeClubMember,
   reorderClubGroups,
   upsertClub,
@@ -89,6 +92,7 @@ import {
   type CreateThreadResult,
 } from "./api";
 import { pendingCounterKeys } from "@/lib/counters/keys";
+import { CLUB_SEMANTIC_MIN_CHARS, embedClubQuery } from "./clubSemantic.functions";
 import { adminClubKeys, clubKeys } from "./queryKeys";
 import { applyReactionToggle } from "./types";
 import type {
@@ -104,7 +108,9 @@ import type {
   ClubAnchorSuggestion,
   ClubAnchorType,
   ClubReportReason,
-  ClubSearchHit,
+  ClubSearchResult,
+  ClubSegmentPreview,
+  ClubSegmentRule,
   ClubModerationAction,
   AdminClubListFilters,
   AdminClubStatsRow,
@@ -366,6 +372,66 @@ export function useUpsertClubMember(
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input) => upsertClubMember({ ...input, clubId }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
+      void qc.invalidateQueries({ queryKey: adminClubKeys.all });
+    },
+  });
+}
+
+export interface SetClubRoleVars {
+  userId: string;
+  role: ClubMemberRole;
+  expiresAt?: string | null;
+}
+
+/**
+ * Zmiana roli czlonka Z POZIOMU KLUBU (prowadzacy), nie z panelu (administrator).
+ * Uniewaznia poddrzewo klubu, bo lista czlonkow i naglowek czytaja te sama role.
+ */
+export function useSetClubMemberRole(
+  clubId: string,
+): UseMutationResult<boolean, Error, SetClubRoleVars> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars) => setClubMemberRole({ clubId, ...vars }),
+    onSuccess: () => invalidateClubCard(qc, clubId),
+  });
+}
+
+/**
+ * Podglad kampanii segmentowej. Osobne zapytanie od wysylki, wiec administrator
+ * widzi liczby ZANIM cokolwiek pojdzie - i widzi je ponownie po kazdej zmianie
+ * reguly, bez klikania "przelicz".
+ */
+export function useClubSegmentPreview(params: {
+  clubId: string | undefined;
+  rule: ClubSegmentRule;
+  enabled: boolean;
+}): UseQueryResult<ClubSegmentPreview, Error> {
+  const { clubId, rule, enabled } = params;
+  return useQuery({
+    queryKey: [...clubKeys.club(clubId ?? ""), "segmentPreview", JSON.stringify(rule)] as const,
+    queryFn: () => previewClubSegment({ clubId: clubId ?? "", rule }),
+    staleTime: 15_000,
+    retry: false,
+    enabled: enabled && Boolean(clubId),
+  });
+}
+
+export interface InviteSegmentVars {
+  rule: ClubSegmentRule;
+  role: ClubMemberRole;
+  message?: string | null;
+  saveRule?: boolean;
+}
+
+export function useInviteClubSegment(
+  clubId: string,
+): UseMutationResult<number, Error, InviteSegmentVars> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars) => inviteClubSegment({ clubId, ...vars }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: clubKeys.club(clubId) });
       void qc.invalidateQueries({ queryKey: adminClubKeys.all });
@@ -936,20 +1002,46 @@ export function useAdminClubReplies(
 }
 
 /**
- * Wyszukiwanie watkow. `enabled` pilnuje progu dwoch znakow - bez tego kazde
- * nacisniecie klawisza w polu wyszukiwania to round-trip po calej bazie.
+ * Wyszukiwanie watkow: pelnotekstowe ORAZ semantyczne, scalone w jedna liste.
+ *
+ * `enabled` pilnuje progu dwoch znakow - bez tego kazde nacisniecie klawisza
+ * w polu wyszukiwania to round-trip po calej bazie.
+ *
+ * WEKTOR JEST OSOBNYM ZAPYTANIEM, celowo. Gdyby embedding liczyl sie w tej
+ * samej funkcji, co szukanie, kazda literka doplacalaby wywolanie bramki AI
+ * do wyniku, ktory i tak jest w cache React Query. Osobny klucz znaczy tez, ze
+ * awaria bramki nie uniewaznia wynikow pelnotekstowych.
  */
+function useClubQueryEmbedding(query: string, enabled: boolean): number[] | null {
+  const result = useQuery({
+    queryKey: [...clubKeys.all, "queryEmbedding", query] as const,
+    queryFn: () => embedClubQuery({ data: { q: query } }),
+    // Wektor frazy nie starzeje sie razem z trescia - ta sama fraza daje ten sam
+    // wektor, dopoki nie zmieni sie model. Godzina to kompromis miedzy tym
+    // a rozmiarem cache.
+    staleTime: 60 * 60_000,
+    gcTime: 60 * 60_000,
+    retry: false,
+    enabled: enabled && query.length >= CLUB_SEMANTIC_MIN_CHARS,
+  });
+  return result.data?.embedding ?? null;
+}
+
 export function useClubSearch(params: {
   query: string;
   clubId?: string | null;
   limit?: number;
   enabled?: boolean;
-}): UseQueryResult<ClubSearchHit[], Error> {
+}): UseQueryResult<ClubSearchResult[], Error> {
   const { query, clubId = null, limit = 20, enabled = true } = params;
   const trimmed = query.trim();
+  const embedding = useClubQueryEmbedding(trimmed, enabled);
   return useQuery({
-    queryKey: clubKeys.search(trimmed, clubId),
-    queryFn: () => searchClubThreads({ query: trimmed, clubId, limit }),
+    // Wektor jest CZESCIA klucza: wynik z semantyka i bez niej to dwie rozne
+    // listy, a doliczenie wektora po fakcie nie moze cicho podmienic tej,
+    // ktora czytelnik ma juz na ekranie pod tym samym kluczem.
+    queryKey: [...clubKeys.search(trimmed, clubId), embedding === null ? "fts" : "hybrid"] as const,
+    queryFn: () => searchClubThreads({ query: trimmed, clubId, limit, embedding }),
     staleTime: 30_000,
     enabled: enabled && trimmed.length >= 2,
   });

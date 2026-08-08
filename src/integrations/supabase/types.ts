@@ -13414,6 +13414,21 @@ export type Database = {
           who_can_post_inherited: boolean
         }[]
       }
+      admin_club_invite_segment: {
+        Args: {
+          p_club_id: string
+          p_group_id?: string
+          p_max?: number
+          p_message?: string
+          p_role?: string
+          p_rule: Json
+          p_save_rule?: boolean
+        }
+        Returns: {
+          invited: number
+          rule_id: string
+        }[]
+      }
       admin_club_invitations: {
         Args: { p_club_id: string }
         Returns: {

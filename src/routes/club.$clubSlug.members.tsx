@@ -17,13 +17,17 @@
 // jest treść, która ma trafiać do wyszukiwarki - ta sama doktryna, co /people.
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { ArrowLeft, BadgeCheck, Users2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ChatAvatar } from "@/components/chat/ChatAvatar";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
-import { useClubBySlug, useClubMembers } from "@/lib/clubs/useClubs";
+import { ClubEnumSelect } from "@/components/admin/clubs/molecules/ClubEnumSelect";
+import { useAuth } from "@/hooks/useAuth";
+import { CLUB_MEMBER_ROLES, type ClubMemberRole } from "@/lib/clubs/types";
+import { useClubBySlug, useClubMembers, useSetClubMemberRole } from "@/lib/clubs/useClubs";
 import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
 import { fetchClubBySlug } from "@/lib/clubs/api";
 import { clubKeys } from "@/lib/clubs/queryKeys";
@@ -31,6 +35,14 @@ import { formatDateShort } from "@/lib/i18n/format";
 import { ensureClubI18n } from "@/lib/i18n-club";
 
 const PAGE_SIZE = 60;
+
+/** Rola z RPC zawężona do słownika klienta - nieznana wartość z nowszej
+ *  migracji nie może wywrócić listy, więc degraduje do stanu domyślnego. */
+function asRole(value: string): ClubMemberRole {
+  return (CLUB_MEMBER_ROLES as readonly string[]).includes(value)
+    ? (value as ClubMemberRole)
+    : "member";
+}
 
 export const Route = createFileRoute("/club/$clubSlug/members")({
   loader: async ({ context, params }) => {
@@ -58,6 +70,7 @@ function ClubMembersRoute() {
   const lang = isPl ? "pl" : "en";
   const { clubSlug } = Route.useParams();
 
+  const { user, isAdmin } = useAuth();
   const clubQ = useClubBySlug(clubSlug);
   const club = clubQ.data ?? null;
   const canSee = club?.can_see_members === true;
@@ -66,6 +79,20 @@ function ClubMembersRoute() {
     status: "active",
     limit: PAGE_SIZE,
   });
+  const setRoleM = useSetClubMemberRole(club?.id ?? "");
+
+  // Prowadzący klubu zarządza rolami W KLUBIE - panel administracyjny jest dla
+  // niego zamknięty (bramka `isAdmin` na trasie), więc bez tego `club_set_role`
+  // nie miał ŻADNEJ drogi wywołania, a prowadzący nie mógł wyznaczyć moderatora
+  // we własnym klubie.
+  const canManage = club?.can_manage === true;
+  // `is_club_admin` w bazie to dokładnie admin|super_admin, czyli `isAdmin`
+  // tutaj. Role podwyższone (`lead`, `moderator`) RPC przepuszcza wyłącznie im,
+  // więc droplista prowadzącego ich nie oferuje - wybór, którego baza odrzuci,
+  // jest błędem interfejsu, a nie ostrzeżeniem serwera.
+  const assignableRoles: readonly ClubMemberRole[] = isAdmin
+    ? CLUB_MEMBER_ROLES
+    : (["member", "observer"] as const);
 
   if (clubQ.isPending) {
     return (
@@ -142,6 +169,12 @@ function ClubMembersRoute() {
         </Card>
       ) : (
         <>
+          {canManage ? (
+            <p className="mb-3 rounded-lg border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
+              {t("club.roster.manageHint")}
+            </p>
+          ) : null}
+
           <ul className="grid gap-2 sm:grid-cols-2">
             {rows.map((row) => {
               const body = (
@@ -165,7 +198,7 @@ function ClubMembersRoute() {
                           wierszu byłaby szumem, a nie informacją. */}
                       {row.role !== "member" ? (
                         <Badge variant="outline" className="shrink-0 text-[11px]">
-                          {t(`club.role.${row.role}`)}
+                          {t(`club.role.${asRole(row.role)}`)}
                         </Badge>
                       ) : null}
                     </div>
@@ -181,8 +214,12 @@ function ClubMembersRoute() {
                 </>
               );
 
+              // Zmiana WŁASNEJ roli nie ma sensu i jest jedyną, która mogłaby
+              // odebrać prowadzącemu dostęp do tej kontrolki - stąd wyjątek.
+              const editable = canManage && row.user_id !== user?.id;
+
               return (
-                <li key={row.user_id}>
+                <li key={row.user_id} className="space-y-1.5">
                   {row.slug ? (
                     <Link
                       to="/author/$slug"
@@ -196,6 +233,24 @@ function ClubMembersRoute() {
                       {body}
                     </div>
                   )}
+                  {editable ? (
+                    <ClubEnumSelect
+                      label={t("club.roster.roleLabel")}
+                      value={asRole(row.role)}
+                      options={assignableRoles}
+                      i18nPrefix="club.role"
+                      disabled={setRoleM.isPending}
+                      onChange={(role) =>
+                        setRoleM.mutate(
+                          { userId: row.user_id, role },
+                          {
+                            onSuccess: () => toast.success(t("club.roster.roleChanged")),
+                            onError: () => toast.error(t("club.roster.roleFailed")),
+                          },
+                        )
+                      }
+                    />
+                  ) : null}
                 </li>
               );
             })}

@@ -1,8 +1,11 @@
-// Organizm: zakładka "Zaproszenia" - trzy panele w jednym ekranie (V2 §3).
+// Organizm: zakładka "Zaproszenia" - cztery panele w jednym ekranie (V2 §3).
 //
 //   Wyślij   - przełącznik ścieżki (osoba / e-mail), pod spodem właściwa kontrolka
+//   Segment  - kampania na zbiór wyliczony regułą (ścieżka D). Do 2026-08-08
+//              ta ścieżka miała w bazie tabelę reguł i RPC podglądu, a w panelu
+//              nic - czyli licznik "wyślę 137 zaproszeń" bez przycisku.
 //   Linki    - tabela z wykorzystaniem, wygasaniem, kopiowaniem i unieważnianiem
-//   Historia - obie ścieżki w jednej liście, bo administrator pyta "kogo
+//   Historia - wszystkie ścieżki w jednej liście, bo administrator pyta "kogo
 //              zaprosiliśmy", a nie "kogo zaprosiliśmy którą tabelą"
 //
 // Token linku pokazujemy RAZ, tuż po utworzeniu. Trzymanie go w widoku listy
@@ -29,6 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import { MemberPicker } from "@/components/admin/community/MemberPicker";
 import { ConfirmDialog, type ConfirmState } from "@/components/admin/ConfirmDialog";
 import { ClubEnumSelect } from "../molecules/ClubEnumSelect";
+import { ClubSegmentCampaign } from "./ClubSegmentCampaign";
 import {
   useClubInvitations,
   useClubInviteLinks,
@@ -238,7 +242,10 @@ export function ClubInvitationsTab({ clubId, isPl }: { clubId: string; isPl: boo
         </CardContent>
       </Card>
 
-      {/* --- Panel 2: linki --- */}
+      {/* --- Panel 2: kampania segmentowa (ścieżka D) --- */}
+      <ClubSegmentCampaign clubId={clubId} isPl={isPl} />
+
+      {/* --- Panel 3: linki --- */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
@@ -378,7 +385,7 @@ export function ClubInvitationsTab({ clubId, isPl }: { clubId: string; isPl: boo
         </CardContent>
       </Card>
 
-      {/* --- Panel 3: historia --- */}
+      {/* --- Panel 4: historia --- */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">{t("adminClubs.invitations.history")}</CardTitle>

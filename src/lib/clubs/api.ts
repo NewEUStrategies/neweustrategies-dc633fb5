@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import {
   groupReactions,
+  mergeClubSearchResults,
   toClubCapabilities,
   type AdminClubListFilters,
   type AdminClubDetailRow,
@@ -22,7 +23,9 @@ import {
   type ClubAnchorSuggestion,
   type ClubAnchorType,
   type ClubReportReason,
-  type ClubSearchHit,
+  type ClubSearchResult,
+  type ClubSegmentPreview,
+  type ClubSegmentRule,
   type AdminClubReplyRow,
   type AdminClubThreadRow,
   type AdminClubRow,
@@ -215,6 +218,78 @@ export async function reorderClubGroups(clubId: string, groupIds: string[]): Pro
   });
   if (error) throw error;
   return typeof data === "number" ? data : 0;
+}
+
+/**
+ * Zmiana roli czlonka przez PROWADZACEGO klubu (albo administratora).
+ *
+ * Osobne RPC od `admin_club_member_upsert`, bo odpowiada na inne pytanie i ma
+ * inna bramke: tamto jest admin-only i zyje w panelu, do ktorego prowadzacy
+ * bez roli platformowej nie ma wstepu. `club_set_role` istnialo od PR 198
+ * i nie mialo ANI JEDNEGO wolajacego - czyli prowadzacy klubu nie mial ZADNEJ
+ * drogi, zeby wyznaczyc moderatora we wlasnym klubie.
+ *
+ * `expiresAt` to kadencja roli (V2 par. 5.4): po tej dacie rola wraca do
+ * `member` przy KAZDYM wyliczeniu zdolnosci, nie dopiero przez nocny job.
+ */
+export async function setClubMemberRole(params: {
+  clubId: string;
+  userId: string;
+  role: ClubMemberRole;
+  expiresAt?: string | null;
+}): Promise<boolean> {
+  const { data, error } = await supabase.rpc("club_set_role", {
+    p_club_id: params.clubId,
+    p_user_id: params.userId,
+    p_role: params.role,
+    p_expires_at: params.expiresAt ?? undefined,
+  });
+  if (error) throw error;
+  return data === true;
+}
+
+/**
+ * Podglad kampanii segmentowej. Cztery liczby, ktore MUSZA sie sumowac:
+ * `matched = already_member + blocked + will_send`. Baza liczy je z tego samego
+ * odsiewu, ktorego uzywa wysylka (A27) - wczesniej podglad pomijal blokady
+ * miedzy uzytkownikami i okno 90 dni po odmowie, wiec `will_send` bylo
+ * zawyzone wobec tego, co realnie poszloby.
+ */
+export async function previewClubSegment(params: {
+  clubId: string;
+  rule: ClubSegmentRule;
+}): Promise<ClubSegmentPreview> {
+  const { data, error } = await supabase.rpc("admin_club_segment_preview", {
+    p_club_id: params.clubId,
+    p_rule: toJsonPayload(params.rule),
+  });
+  if (error) throw error;
+  const row = data?.[0];
+  return {
+    matched: row?.matched ?? 0,
+    already_member: row?.already_member ?? 0,
+    blocked: row?.blocked ?? 0,
+    will_send: row?.will_send ?? 0,
+  };
+}
+
+/** Wysylka kampanii. Zwraca liczbe REALNIE zalozonych zaproszen. */
+export async function inviteClubSegment(params: {
+  clubId: string;
+  rule: ClubSegmentRule;
+  role: ClubMemberRole;
+  message?: string | null;
+  saveRule?: boolean;
+}): Promise<number> {
+  const { data, error } = await supabase.rpc("admin_club_invite_segment", {
+    p_club_id: params.clubId,
+    p_rule: toJsonPayload(params.rule),
+    p_role: params.role,
+    p_message: params.message ?? undefined,
+    p_save_rule: params.saveRule ?? true,
+  });
+  if (error) throw error;
+  return data?.[0]?.invited ?? 0;
 }
 
 export async function upsertClubMember(input: ClubMemberUpsertInput): Promise<string> {
@@ -899,16 +974,49 @@ export async function searchClubThreads(params: {
   query: string;
   clubId?: string | null;
   limit?: number;
-}): Promise<ClubSearchHit[]> {
+  /**
+   * Wektor frazy z `embedClubQuery`. `null` = bramka AI niedostepna albo fraza
+   * za krotka - wtedy wynik jest czysto pelnotekstowy, dokladnie jak wczesniej.
+   * Warstwa semantyczna istniala od PR 197 (tabela, batch, indeks, RPC) i nie
+   * miala ANI JEDNEGO wolajacego: platforma liczyla embeddingi kazdego watku,
+   * a nikt ich nie czytal.
+   */
+  embedding?: number[] | null;
+}): Promise<ClubSearchResult[]> {
   const query = params.query.trim();
   if (query.length < 2) return [];
-  const { data, error } = await supabase.rpc("club_search", {
+  const limit = params.limit ?? 20;
+
+  const textPromise = supabase.rpc("club_search", {
     p_query: query,
     p_club_id: params.clubId ?? undefined,
-    p_limit: params.limit ?? 20,
+    p_limit: limit,
   });
-  if (error) throw error;
-  return data ?? [];
+
+  // Obie warstwy leca ROWNOLEGLE. Sekwencyjnie znaczyloby, ze semantyka dokłada
+  // swoje opoznienie do kazdego wyszukiwania, takze wtedy, gdy FTS i tak
+  // odpowiedzial komplet.
+  const semanticPromise =
+    params.embedding && params.embedding.length > 0
+      ? supabase.rpc("club_semantic_search", {
+          p_embedding: params.embedding,
+          p_club_id: params.clubId ?? undefined,
+          p_limit: limit,
+        })
+      : null;
+
+  const [textRes, semanticRes] = await Promise.all([
+    textPromise,
+    // Awaria warstwy semantycznej nie moze zabrac wynikow pelnotekstowych:
+    // to jest dodatek, nie warunek dzialania wyszukiwarki.
+    semanticPromise === null
+      ? Promise.resolve(null)
+      : Promise.resolve(semanticPromise).catch(() => null),
+  ]);
+
+  if (textRes.error) throw textRes.error;
+  const semanticRows = semanticRes !== null && !semanticRes.error ? (semanticRes.data ?? []) : [];
+  return mergeClubSearchResults(textRes.data ?? [], semanticRows, limit);
 }
 
 /**
