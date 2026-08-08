@@ -1628,17 +1628,17 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "club_documents_thread_id_fkey"
-            columns: ["thread_id"]
-            isOneToOne: false
-            referencedRelation: "club_threads"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "club_documents_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_documents_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "club_threads"
             referencedColumns: ["id"]
           },
         ]
@@ -1787,17 +1787,17 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "club_events_thread_id_fkey"
-            columns: ["thread_id"]
-            isOneToOne: false
-            referencedRelation: "club_threads"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "club_events_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_events_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "club_threads"
             referencedColumns: ["id"]
           },
         ]
@@ -2212,17 +2212,17 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "club_milestones_thread_id_fkey"
-            columns: ["thread_id"]
-            isOneToOne: false
-            referencedRelation: "club_threads"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "club_milestones_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_milestones_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "club_threads"
             referencedColumns: ["id"]
           },
         ]
@@ -15005,10 +15005,7 @@ export type Database = {
         Args: { _role: string; _role_expires_at: string }
         Returns: string
       }
-      club_event_delete: {
-        Args: { p_event_id: string }
-        Returns: boolean
-      }
+      club_event_delete: { Args: { p_event_id: string }; Returns: boolean }
       club_event_rsvp: {
         Args: { p_event_id: string; p_state: string }
         Returns: boolean
@@ -15333,10 +15330,7 @@ export type Database = {
         }
         Returns: string
       }
-      club_require_curator: {
-        Args: { _club_id: string }
-        Returns: string
-      }
+      club_require_curator: { Args: { _club_id: string }; Returns: string }
       club_resolve_thread: {
         Args: { p_reply_id: string; p_thread_id: string }
         Returns: boolean
