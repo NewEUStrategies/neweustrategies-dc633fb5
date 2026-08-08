@@ -536,15 +536,21 @@ function BannedMembersCard({ clubId, isPl }: { clubId: string; isPl: boolean }) 
 // ---------------------------------------------------------------------------
 // Dziennik moderacji
 // ---------------------------------------------------------------------------
+/** Okna czasu dziennika. `null` = bez ograniczenia (cała historia). */
+const LOG_PERIODS: readonly { key: string; days: number | null }[] = [
+  { key: "7", days: 7 },
+  { key: "30", days: 30 },
+  { key: "90", days: 90 },
+  { key: "all", days: null },
+];
+
 function ModerationLogCard({ clubId, isPl }: { clubId: string; isPl: boolean }) {
   const { t } = useTranslation();
   const logQ = useClubModerationLog(clubId);
   const [action, setAction] = useState<string | null>(null);
-
-  const rows = useMemo(() => {
-    const all = logQ.data ?? [];
-    return action === null ? all : all.filter((r) => r.action === action);
-  }, [logQ.data, action]);
+  const [target, setTarget] = useState<string | null>(null);
+  const [period, setPeriod] = useState<string>("all");
+  const [query, setQuery] = useState("");
 
   const label = (value: string) => {
     // Dziennik jest zapisem historycznym: wpis sprzed zmiany słownika ma nie
@@ -553,39 +559,134 @@ function ModerationLogCard({ clubId, isPl }: { clubId: string; isPl: boolean }) 
     return known ? t(`adminClubs.moderation.action.${value}`) : value;
   };
 
+  const all = useMemo(() => logQ.data ?? [], [logQ.data]);
+
+  // Okno czasu stosujemy PRZED resztą filtrów, bo liczniki przy akcjach mają
+  // mówić o tym, co widać w wybranym oknie - inaczej "30 dni" pokazywałoby
+  // liczby z całej historii i moderator zaufałby złej liczbie.
+  const inWindow = useMemo(() => {
+    const days = LOG_PERIODS.find((p) => p.key === period)?.days ?? null;
+    if (days === null) return all;
+    const from = Date.now() - days * 86_400_000;
+    return all.filter((r) => new Date(r.created_at).getTime() >= from);
+  }, [all, period]);
+
+  /** Liczniki per akcja i per cel w bieżącym oknie czasu. */
+  const counts = useMemo(() => {
+    const byAction = new Map<string, number>();
+    const byTarget = new Map<string, number>();
+    for (const r of inWindow) {
+      byAction.set(r.action, (byAction.get(r.action) ?? 0) + 1);
+      byTarget.set(r.target_type, (byTarget.get(r.target_type) ?? 0) + 1);
+    }
+    return { byAction, byTarget };
+  }, [inWindow]);
+
+  const rows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return inWindow.filter((r) => {
+      if (action !== null && r.action !== action) return false;
+      if (target !== null && r.target_type !== target) return false;
+      if (q === "") return true;
+      const haystack = [
+        r.moderator_name,
+        r.reason ?? "",
+        label(r.action),
+        targetLabel(r.target_type, t),
+        r.target_id ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inWindow, action, target, query, t]);
+
+  const isFiltered = action !== null || target !== null || query.trim() !== "" || period !== "all";
+  const clearFilters = () => {
+    setAction(null);
+    setTarget(null);
+    setQuery("");
+    setPeriod("all");
+  };
+
   return (
     <Card>
-      <CardHeader className="gap-1">
+      <CardHeader className="gap-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <History className="h-4 w-4" />
             {t("adminClubs.moderation.logTitle")}
+            <Badge variant="secondary" className="tabular-nums">
+              {rows.length === all.length
+                ? all.length
+                : t("adminClubs.moderation.logCount", { shown: rows.length, total: all.length })}
+            </Badge>
           </CardTitle>
+          {isFiltered ? (
+            <Button size="sm" variant="ghost" className="h-8" onClick={clearFilters}>
+              {t("adminClubs.moderation.clearFilters")}
+            </Button>
+          ) : null}
+        </div>
+        <CardDescription>{t("adminClubs.moderation.logHint")}</CardDescription>
+
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t("adminClubs.moderation.logSearchPlaceholder")}
+            aria-label={t("adminClubs.moderation.logSearchPlaceholder")}
+            className="h-9"
+          />
           <Select value={action ?? ANY} onValueChange={(v) => setAction(v === ANY ? null : v)}>
-            <SelectTrigger
-              className="w-full sm:w-56"
-              aria-label={t("adminClubs.moderation.filterAction")}
-            >
+            <SelectTrigger className="h-9" aria-label={t("adminClubs.moderation.filterAction")}>
               <SelectValue placeholder={t("adminClubs.moderation.filterAction")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ANY}>{t("adminClubs.filterAny")}</SelectItem>
-              {LOG_ACTIONS.map((a) => (
+              <SelectItem value={ANY}>
+                {t("adminClubs.filterAny")} ({inWindow.length})
+              </SelectItem>
+              {LOG_ACTIONS.filter((a) => (counts.byAction.get(a) ?? 0) > 0).map((a) => (
                 <SelectItem key={a} value={a}>
-                  {t(`adminClubs.moderation.action.${a}`)}
+                  {t(`adminClubs.moderation.action.${a}`)} ({counts.byAction.get(a) ?? 0})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={target ?? ANY} onValueChange={(v) => setTarget(v === ANY ? null : v)}>
+            <SelectTrigger className="h-9" aria-label={t("adminClubs.moderation.filterTarget")}>
+              <SelectValue placeholder={t("adminClubs.moderation.filterTarget")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY}>{t("adminClubs.filterAny")}</SelectItem>
+              {LOG_TARGETS.filter((x) => (counts.byTarget.get(x) ?? 0) > 0).map((x) => (
+                <SelectItem key={x} value={x}>
+                  {targetLabel(x, t)} ({counts.byTarget.get(x) ?? 0})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={period} onValueChange={setPeriod}>
+            <SelectTrigger className="h-9" aria-label={t("adminClubs.moderation.filterPeriod")}>
+              <SelectValue placeholder={t("adminClubs.moderation.filterPeriod")} />
+            </SelectTrigger>
+            <SelectContent>
+              {LOG_PERIODS.map((p) => (
+                <SelectItem key={p.key} value={p.key}>
+                  {t(`adminClubs.moderation.period.${p.key}`)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
-        <CardDescription>{t("adminClubs.moderation.logHint")}</CardDescription>
       </CardHeader>
       <CardContent>
         {logQ.isPending ? (
           <div className="h-24 animate-pulse rounded-lg bg-muted/50" aria-busy="true" />
         ) : rows.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
-            {action === null
+            {!isFiltered
               ? t("adminClubs.moderation.logEmpty")
               : t("adminClubs.moderation.logEmptyFiltered")}
           </p>
