@@ -103,11 +103,22 @@ const ORGANIZATION_ITEM: NavItem = {
 type NavGroupProps = {
   titleKey: string;
   icon: ComponentType<{ className?: string }>;
+  collapsed?: boolean;
   children: ReactNode;
 };
 
-function NavGroup({ titleKey, icon: Icon, children }: NavGroupProps) {
+function NavGroup({ titleKey, icon: Icon, collapsed = false, children }: NavGroupProps) {
   const { t } = useTranslation();
+  if (collapsed) {
+    return (
+      <div
+        className="flex flex-col items-center gap-0.5 rounded-lg border border-border bg-background/60 p-1.5 shadow-sm"
+        aria-label={t(titleKey)}
+      >
+        {children}
+      </div>
+    );
+  }
   return (
     <div className="rounded-lg border border-border bg-background/60 p-2 shadow-sm">
       <div className="mb-2 flex items-center gap-2 px-2 pb-1.5 pt-0.5">
@@ -122,6 +133,7 @@ function NavGroup({ titleKey, icon: Icon, children }: NavGroupProps) {
     </div>
   );
 }
+
 
 export function ProfileNav() {
   const { t } = useTranslation();
