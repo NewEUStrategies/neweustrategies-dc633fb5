@@ -105,7 +105,7 @@ const defaultHeaderDoc = (): BuilderDocument =>
             ]),
             col(4, [
               widget("lang-switcher", {
-                showLabel: true,
+                showLabel: false,
                 label_pl: "Zmień język",
                 label_en: "Switch language",
               }),
