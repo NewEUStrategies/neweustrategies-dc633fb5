@@ -9,6 +9,7 @@ import { CoverImagePicker } from "@/components/admin/CoverImagePicker";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { ClubTopicSelect } from "@/components/clubs/molecules/ClubTopicSelect";
 import { ClubEnumSelect } from "../molecules/ClubEnumSelect";
 import { ClubLayoutPicker } from "../molecules/ClubLayoutPicker";
 import { CLUB_STATUSES, type ClubLayout, type ClubStatus } from "@/lib/clubs/types";
@@ -119,15 +120,14 @@ export function ClubGeneralTab({ draft, persistedSlug, onChange, disabled }: Clu
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="club-policy-area">{t("adminClubs.fields.policyArea")}</Label>
-              <Input
-                id="club-policy-area"
-                value={draft.policyArea}
-                disabled={disabled}
-                onChange={(e) => onChange({ policyArea: e.target.value })}
-              />
-            </div>
+            <ClubTopicSelect
+              id="club-policy-area"
+              label={t("adminClubs.fields.policyArea")}
+              hint={t("club.topic.hint")}
+              value={draft.policyArea}
+              disabled={disabled}
+              onChange={(topic) => onChange({ policyArea: topic ?? "" })}
+            />
             <ClubEnumSelect
               id="club-status"
               label={t("adminClubs.fields.status")}
