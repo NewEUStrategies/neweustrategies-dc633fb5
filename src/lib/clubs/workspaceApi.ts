@@ -212,3 +212,6 @@ export async function fetchClubWorkspaceStats(
   const rows = (data ?? []) as ClubWorkspaceStatsRow[];
   return rows[0] ?? null;
 }
+
+// Warstwa WATKU (A28) - patrz `threadWorkspaceApi`.
+export * from "./threadWorkspaceApi";

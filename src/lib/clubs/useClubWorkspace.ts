@@ -60,7 +60,7 @@ export function useClubDocuments(params: {
 }): UseQueryResult<ClubDocumentsPage, Error> {
   const { clubId, groupId = null, kind = null, search = "", offset = 0, limit = 50 } = params;
   return useQuery({
-    queryKey: clubKeys.documents(clubId ?? "none", groupId, kind, search, offset),
+    queryKey: clubKeys.libraryDocuments(clubId ?? "none", groupId, kind, search, offset),
     queryFn: () =>
       fetchClubDocuments({
         clubId: clubId ?? "",
@@ -152,7 +152,7 @@ export function useClubMilestones(
   clubId: string | undefined,
 ): UseQueryResult<ClubMilestoneRow[], Error> {
   return useQuery({
-    queryKey: clubKeys.milestones(clubId ?? "none"),
+    queryKey: clubKeys.clubMilestones(clubId ?? "none"),
     queryFn: () => fetchClubMilestones(clubId ?? ""),
     enabled: clubId !== undefined && clubId !== "",
     staleTime: 60_000,
@@ -210,3 +210,6 @@ export function useClubWorkspaceStats(
 }
 
 export type { ClubDocumentRow, ClubDocumentsPage };
+
+// Hooki warstwy WATKU (A28) - patrz `useThreadWorkspace`.
+export * from "./useThreadWorkspace";

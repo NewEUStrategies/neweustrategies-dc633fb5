@@ -371,3 +371,12 @@ export function isMilestoneOverdue(row: ClubMilestoneRow, today: string): boolea
   if (row.state === "done" || row.state === "cancelled") return false;
   return row.due_on < today;
 }
+
+// ---------------------------------------------------------------------------
+// Warstwa WATKU (A28)
+//
+// Kontrakt przestrzeni roboczej watku mieszka w osobnym module, zeby ten plik
+// nie urosl do tysiaca linii. Re-eksport trzyma JEDEN punkt importu dla
+// widokow - i tak juz siegaja tu po slowniki klubu.
+// ---------------------------------------------------------------------------
+export * from "./threadWorkspaceTypes";
