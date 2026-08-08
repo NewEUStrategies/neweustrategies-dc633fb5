@@ -1,8 +1,9 @@
 // Molekuła: wybór obszaru tematycznego (klub albo wątek), z opcją "bez obszaru".
 //
-// Nie używamy tu generycznego `ClubEnumSelect`, bo ten zakłada wartość zawsze
-// obecną. Obszar jest opcjonalny - klub bez tematyki wciąż jest poprawny i ląduje
-// w zakładce "wszystkie" na hubie, więc select musi umieć wrócić do pustki.
+// Lista pochodzi z katalogu organizacji (`club_topics`), a nie z zaszytej
+// tablicy - redakcja może dodać własny obszar i wyłączyć taki, którego nie
+// używa. Jeśli edytowany wpis ma obszar w międzyczasie wyłączony, opcja i tak
+// wraca do listy: inaczej pierwszy zapis po cichu skasowałby przypisanie.
 import { useTranslation } from "react-i18next";
 import {
   Select,
@@ -13,11 +14,12 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import {
-  CLUB_TOPICS,
   CLUB_TOPIC_NONE,
-  normalizeClubTopic,
-  type ClubTopic,
-} from "@/lib/clubs/policyAreas";
+  normalizeTopicValue,
+  optionsWithCurrent,
+  topicLabel,
+} from "@/lib/clubs/topicCatalog";
+import { useClubTopics } from "@/lib/clubs/useClubTopics";
 
 export function ClubTopicSelect({
   id,
@@ -31,11 +33,14 @@ export function ClubTopicSelect({
   label?: string;
   hint?: string;
   value: string | null;
-  onChange: (value: ClubTopic | null) => void;
+  onChange: (value: string | null) => void;
   disabled?: boolean;
 }) {
-  const { t } = useTranslation();
-  const current = normalizeClubTopic(value);
+  const { t, i18n } = useTranslation();
+  const lang = (i18n.language ?? "pl").startsWith("pl") ? "pl" : "en";
+  const { topics } = useClubTopics();
+  const current = normalizeTopicValue(value);
+  const options = optionsWithCurrent(topics, current, lang);
 
   return (
     <div className="space-y-1.5">
@@ -46,7 +51,7 @@ export function ClubTopicSelect({
       ) : null}
       <Select
         value={current ?? CLUB_TOPIC_NONE}
-        onValueChange={(next) => onChange(normalizeClubTopic(next))}
+        onValueChange={(next) => onChange(normalizeTopicValue(next))}
         disabled={disabled}
       >
         <SelectTrigger id={id} className="w-full">
@@ -54,9 +59,9 @@ export function ClubTopicSelect({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={CLUB_TOPIC_NONE}>{t("club.topic.none")}</SelectItem>
-          {CLUB_TOPICS.map((topic) => (
-            <SelectItem key={topic} value={topic}>
-              {t(`club.topic.${topic}`)}
+          {options.map((topic) => (
+            <SelectItem key={topic.key} value={topic.key}>
+              {topicLabel(topic.key, lang, options)}
             </SelectItem>
           ))}
         </SelectContent>

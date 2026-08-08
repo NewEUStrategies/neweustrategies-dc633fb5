@@ -2370,6 +2370,45 @@ export type Database = {
           },
         ]
       }
+      club_topics: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          is_system: boolean
+          key: string
+          label_en: string
+          label_pl: string
+          sort_order: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key: string
+          label_en: string
+          label_pl: string
+          sort_order?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key?: string
+          label_en?: string
+          label_pl?: string
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       clubs: {
         Row: {
           accent_color: string | null
@@ -13705,6 +13744,36 @@ export type Database = {
           total_count: number
         }[]
       }
+      admin_club_topic_delete: { Args: { _id: string }; Returns: boolean }
+      admin_club_topic_set_active: {
+        Args: { _id: string; _is_active: boolean }
+        Returns: boolean
+      }
+      admin_club_topic_upsert: {
+        Args: {
+          _id?: string
+          _is_active?: boolean
+          _key: string
+          _label_en: string
+          _label_pl: string
+          _sort_order?: number
+        }
+        Returns: string
+      }
+      admin_club_topics_list: {
+        Args: never
+        Returns: {
+          clubs_count: number
+          id: string
+          is_active: boolean
+          is_system: boolean
+          key: string
+          label_en: string
+          label_pl: string
+          sort_order: number
+          threads_count: number
+        }[]
+      }
       admin_club_upsert: { Args: { p_payload: Json }; Returns: string }
       admin_community_stats: { Args: never; Returns: Json }
       admin_consent_decisions: {
@@ -14995,6 +15064,15 @@ export type Database = {
         Returns: number
       }
       club_topic_valid: { Args: { _topic: string }; Returns: boolean }
+      club_topics_active: {
+        Args: never
+        Returns: {
+          key: string
+          label_en: string
+          label_pl: string
+          sort_order: number
+        }[]
+      }
       club_unreact: {
         Args: { p_kind: string; p_target_id: string; p_target_type: string }
         Returns: boolean

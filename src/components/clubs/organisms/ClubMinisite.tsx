@@ -22,7 +22,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ClubCover } from "@/components/clubs/atoms/ClubCover";
-import { clubTopicLabel } from "@/lib/clubs/policyAreas";
+import { ClubTopicChip } from "@/components/clubs/atoms/ClubTopicChip";
+import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import type { ClubMinisiteAccess } from "@/lib/clubs/minisiteAccess";
 import { showsClubMinisiteContent } from "@/lib/clubs/minisiteAccess";
 import { toAuthorLabel, type ClubThreadListRow, type ClubViewRow } from "@/lib/clubs/types";
@@ -126,6 +127,7 @@ export function ClubMinisite({
   isPl: boolean;
 }) {
   const { t } = useTranslation();
+  const { topics: topicCatalog } = useClubTopics();
   const name = isPl ? club.name_pl : club.name_en;
   const tagline = isPl ? club.tagline_pl : club.tagline_en;
   const description = isPl ? club.description_pl : club.description_en;
@@ -163,11 +165,7 @@ export function ClubMinisite({
             <MessagesSquare className="h-4 w-4" aria-hidden="true" />
             {t("club.threadsCount", { count: club.thread_count })}
           </span>
-          {club.policy_area !== null && club.policy_area.trim() !== "" ? (
-            <span className="uppercase tracking-wide">
-              {clubTopicLabel(club.policy_area, isPl ? "pl" : "en", t)}
-            </span>
-          ) : null}
+          <ClubTopicChip topic={club.policy_area} lang={isPl ? "pl" : "en"} catalog={topicCatalog} />
           {club.attribution_mode === "chatham" ? (
             <Badge variant="outline" className="gap-1">
               <ShieldQuestion className="h-3 w-3" aria-hidden="true" />

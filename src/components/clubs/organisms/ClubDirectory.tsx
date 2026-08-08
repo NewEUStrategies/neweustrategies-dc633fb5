@@ -23,7 +23,8 @@ import { ArrowRight, Layers, MessagesSquare, Users2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ClubCover } from "@/components/clubs/atoms/ClubCover";
 import { ClubDirectorySkeleton } from "@/components/clubs/atoms/ClubSkeletons";
-import { clubTopicLabel } from "@/lib/clubs/policyAreas";
+import { ClubTopicChip } from "@/components/clubs/atoms/ClubTopicChip";
+import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import { CLUB_VISIBILITIES, type ClubLayout, type ClubVisibility } from "@/lib/clubs/types";
 
 export interface ClubDirectoryCard {
@@ -58,6 +59,7 @@ function clubExcerpt(club: ClubDirectoryCard, isPl: boolean): string | null {
 
 function ClubStats({ club, isPl }: { club: ClubDirectoryCard; isPl: boolean }) {
   const { t } = useTranslation();
+  const { topics } = useClubTopics();
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
       <span className="inline-flex items-center gap-1.5">
@@ -72,11 +74,12 @@ function ClubStats({ club, isPl }: { club: ClubDirectoryCard; isPl: boolean }) {
         <Layers className="h-3.5 w-3.5" aria-hidden="true" />
         {t("club.groupsCount", { count: club.group_count })}
       </span>
-      {club.policy_area !== null && club.policy_area.trim() !== "" ? (
-        <span className="uppercase tracking-wide">
-          {clubTopicLabel(club.policy_area, isPl ? "pl" : "en", t)}
-        </span>
-      ) : null}
+      <ClubTopicChip
+        topic={club.policy_area}
+        lang={isPl ? "pl" : "en"}
+        catalog={topics}
+        size="sm"
+      />
     </div>
   );
 }

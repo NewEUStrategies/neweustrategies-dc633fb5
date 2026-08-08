@@ -287,6 +287,7 @@ import { Route as ApiPublicNewsletterUnsubscribeRouteImport } from './routes/api
 import { Route as ApiPublicNewsletterConfirmRouteImport } from './routes/api.public.newsletter.confirm'
 import { Route as ApiPublicHooksRefreshOgImageRouteImport } from './routes/api/public/hooks.refresh-og-image'
 import { Route as AdminNewsletterCampaignsIdRouteImport } from './routes/admin.newsletter.campaigns.$id'
+import { Route as AdminCommunityClubsTopicsRouteImport } from './routes/admin.community.clubs.topics'
 import { Route as AdminCommunityClubsElementsRouteImport } from './routes/admin.community.clubs.elements'
 import { Route as AdminCommunityClubsClubIdRouteImport } from './routes/admin.community.clubs.$clubId'
 
@@ -1718,6 +1719,12 @@ const AdminNewsletterCampaignsIdRoute =
     path: '/$id',
     getParentRoute: () => AdminNewsletterCampaignsRoute,
   } as any)
+const AdminCommunityClubsTopicsRoute =
+  AdminCommunityClubsTopicsRouteImport.update({
+    id: '/clubs/topics',
+    path: '/clubs/topics',
+    getParentRoute: () => AdminCommunityRoute,
+  } as any)
 const AdminCommunityClubsElementsRoute =
   AdminCommunityClubsElementsRouteImport.update({
     id: '/clubs/elements',
@@ -1993,6 +2000,7 @@ export interface FileRoutesByFullPath {
   '/club/$clubSlug/': typeof ClubClubSlugIndexRoute
   '/admin/community/clubs/$clubId': typeof AdminCommunityClubsClubIdRoute
   '/admin/community/clubs/elements': typeof AdminCommunityClubsElementsRoute
+  '/admin/community/clubs/topics': typeof AdminCommunityClubsTopicsRoute
   '/admin/newsletter/campaigns/$id': typeof AdminNewsletterCampaignsIdRoute
   '/api/public/hooks/refresh-og-image': typeof ApiPublicHooksRefreshOgImageRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
@@ -2264,6 +2272,7 @@ export interface FileRoutesByTo {
   '/club/$clubSlug': typeof ClubClubSlugIndexRoute
   '/admin/community/clubs/$clubId': typeof AdminCommunityClubsClubIdRoute
   '/admin/community/clubs/elements': typeof AdminCommunityClubsElementsRoute
+  '/admin/community/clubs/topics': typeof AdminCommunityClubsTopicsRoute
   '/admin/newsletter/campaigns/$id': typeof AdminNewsletterCampaignsIdRoute
   '/api/public/hooks/refresh-og-image': typeof ApiPublicHooksRefreshOgImageRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
@@ -2547,6 +2556,7 @@ export interface FileRoutesById {
   '/club/$clubSlug/': typeof ClubClubSlugIndexRoute
   '/admin/community/clubs/$clubId': typeof AdminCommunityClubsClubIdRoute
   '/admin/community/clubs/elements': typeof AdminCommunityClubsElementsRoute
+  '/admin/community/clubs/topics': typeof AdminCommunityClubsTopicsRoute
   '/admin/newsletter/campaigns/$id': typeof AdminNewsletterCampaignsIdRoute
   '/api/public/hooks/refresh-og-image': typeof ApiPublicHooksRefreshOgImageRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
@@ -2831,6 +2841,7 @@ export interface FileRouteTypes {
     | '/club/$clubSlug/'
     | '/admin/community/clubs/$clubId'
     | '/admin/community/clubs/elements'
+    | '/admin/community/clubs/topics'
     | '/admin/newsletter/campaigns/$id'
     | '/api/public/hooks/refresh-og-image'
     | '/api/public/newsletter/confirm'
@@ -3102,6 +3113,7 @@ export interface FileRouteTypes {
     | '/club/$clubSlug'
     | '/admin/community/clubs/$clubId'
     | '/admin/community/clubs/elements'
+    | '/admin/community/clubs/topics'
     | '/admin/newsletter/campaigns/$id'
     | '/api/public/hooks/refresh-og-image'
     | '/api/public/newsletter/confirm'
@@ -3384,6 +3396,7 @@ export interface FileRouteTypes {
     | '/club/$clubSlug/'
     | '/admin/community/clubs/$clubId'
     | '/admin/community/clubs/elements'
+    | '/admin/community/clubs/topics'
     | '/admin/newsletter/campaigns/$id'
     | '/api/public/hooks/refresh-og-image'
     | '/api/public/newsletter/confirm'
@@ -5464,6 +5477,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminNewsletterCampaignsIdRouteImport
       parentRoute: typeof AdminNewsletterCampaignsRoute
     }
+    '/admin/community/clubs/topics': {
+      id: '/admin/community/clubs/topics'
+      path: '/clubs/topics'
+      fullPath: '/admin/community/clubs/topics'
+      preLoaderRoute: typeof AdminCommunityClubsTopicsRouteImport
+      parentRoute: typeof AdminCommunityRoute
+    }
     '/admin/community/clubs/elements': {
       id: '/admin/community/clubs/elements'
       path: '/clubs/elements'
@@ -5517,6 +5537,7 @@ interface AdminCommunityRouteChildren {
   AdminCommunityIndexRoute: typeof AdminCommunityIndexRoute
   AdminCommunityClubsClubIdRoute: typeof AdminCommunityClubsClubIdRoute
   AdminCommunityClubsElementsRoute: typeof AdminCommunityClubsElementsRoute
+  AdminCommunityClubsTopicsRoute: typeof AdminCommunityClubsTopicsRoute
   AdminCommunityClubsIndexRoute: typeof AdminCommunityClubsIndexRoute
 }
 
@@ -5532,6 +5553,7 @@ const AdminCommunityRouteChildren: AdminCommunityRouteChildren = {
   AdminCommunityIndexRoute: AdminCommunityIndexRoute,
   AdminCommunityClubsClubIdRoute: AdminCommunityClubsClubIdRoute,
   AdminCommunityClubsElementsRoute: AdminCommunityClubsElementsRoute,
+  AdminCommunityClubsTopicsRoute: AdminCommunityClubsTopicsRoute,
   AdminCommunityClubsIndexRoute: AdminCommunityClubsIndexRoute,
 }
 

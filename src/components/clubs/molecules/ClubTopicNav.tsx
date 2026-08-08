@@ -1,15 +1,17 @@
-// Nawigacja po obszarach polityki - wejscie do klubow "per tematyka".
+// Nawigacja po obszarach tematycznych - wejscie do klubow "per tematyka".
 //
-// Obszary NIE sa listowane ze slownika POLICY_AREAS w calosci. Pokazujemy
-// wylacznie te, w ktorych faktycznie stoi jakis klub, i piszemy przy nich
-// liczbe. Pusta zakladka "Migracja", ktora po klinieciu daje pusty ekran, to
-// obietnica bez pokrycia - a na powierzchni odkrywania obietnica bez pokrycia
-// kosztuje wiecej niz brak zakladki.
+// Obszary NIE sa listowane z calego katalogu. Pokazujemy wylacznie te, w
+// ktorych faktycznie stoi jakis klub, i piszemy przy nich liczbe. Pusta
+// zakladka, ktora po kliknieciu daje pusty ekran, to obietnica bez pokrycia.
+//
+// Wyglad chipa pochodzi z atomu `ClubTopicChip` - ten sam ksztalt, ta sama
+// skala i te same kolory co chipy w klubie i w watku.
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { clubTopicLabel } from "@/lib/clubs/policyAreas";
+import { topicLabel } from "@/lib/clubs/topicCatalog";
+import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import { countClubTopics } from "@/lib/clubs/topics";
-import { cn } from "@/lib/utils";
+import { ClubTopicFilterChip } from "@/components/clubs/atoms/ClubTopicChip";
 
 export function ClubTopicNav({
   clubs,
@@ -23,6 +25,7 @@ export function ClubTopicNav({
   isPl: boolean;
 }) {
   const { t } = useTranslation();
+  const { topics: catalog } = useClubTopics();
   const topics = useMemo(() => countClubTopics(clubs), [clubs]);
 
   // Jedna tematyka to nie jest wybor - pasek z jednym przyciskiem tylko
@@ -35,20 +38,20 @@ export function ClubTopicNav({
     <nav aria-label={t("club.hub.topicsLabel")} className="-mx-4 overflow-x-auto px-4 pb-1">
       <ul className="flex w-max min-w-full gap-2">
         <li>
-          <TopicChip active={value === null} onClick={() => onChange(null)}>
+          <ClubTopicFilterChip active={value === null} onClick={() => onChange(null)}>
             {t("club.hub.allTopics")}
             <Count n={clubs.length} />
-          </TopicChip>
+          </ClubTopicFilterChip>
         </li>
         {topics.map((topic) => (
           <li key={topic.area}>
-            <TopicChip
+            <ClubTopicFilterChip
               active={value === topic.area}
               onClick={() => onChange(value === topic.area ? null : topic.area)}
             >
-              {clubTopicLabel(topic.area, lang, t)}
+              {topicLabel(topic.area, lang, catalog)}
               <Count n={topic.count} />
-            </TopicChip>
+            </ClubTopicFilterChip>
           </li>
         ))}
       </ul>
@@ -56,32 +59,6 @@ export function ClubTopicNav({
   );
 }
 
-function TopicChip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors",
-        active
-          ? "border-primary bg-primary text-primary-foreground"
-          : "border-border/60 bg-card text-foreground hover:border-primary/40",
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
 function Count({ n }: { n: number }) {
-  return <span className="text-xs opacity-70">{n}</span>;
+  return <span className="text-[10px] opacity-70">{n}</span>;
 }

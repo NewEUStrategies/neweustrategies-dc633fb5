@@ -30,7 +30,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CLUB_TOPICS } from "@/lib/clubs/policyAreas";
+import { optionsWithCurrent, topicLabel } from "@/lib/clubs/topicCatalog";
+import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import { useClubBySlug, useClubGroups, useClubSearch, useClubThreads } from "@/lib/clubs/useClubs";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { ClubThreadList } from "@/components/clubs/organisms/ClubThreadList";
@@ -104,6 +105,10 @@ function ClubHome() {
   const [unreadOnly, setUnreadOnly] = useState(false);
   // Obszar tematyczny - to samo slownictwo, co na hubie i w kreatorze klubu.
   const [topic, setTopic] = useState<string | null>(null);
+  const { topics: topicCatalog } = useClubTopics();
+  // Obszar wybrany w filtrze zostaje na liście nawet po wyłączeniu go w
+  // panelu - inaczej aktywny filtr wskazywałby na nieistniejącą opcję.
+  const topicOptions = optionsWithCurrent(topicCatalog, topic, isPl ? "pl" : "en");
   const [query, setQuery] = useState("");
   // Filtry są ZWINIĘTE domyślnie: pięć droplist nad listą wątków zjadało cały
   // pierwszy ekran, a porządek sortowania - jedyna kontrolka używana za każdym
@@ -381,9 +386,9 @@ function ClubHome() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>{t("club.topic.all")}</SelectItem>
-            {CLUB_TOPICS.map((value) => (
-              <SelectItem key={value} value={value}>
-                {t(`club.topic.${value}`)}
+            {topicOptions.map((option) => (
+              <SelectItem key={option.key} value={option.key}>
+                {topicLabel(option.key, isPl ? "pl" : "en", topicOptions)}
               </SelectItem>
             ))}
           </SelectContent>
