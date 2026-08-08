@@ -84,11 +84,24 @@ function ProfileLayout() {
             <div className="flex flex-col md:flex-row">
               {/* Sidebar - ukryty w pełnym podglądzie gościa na /profile.
                   Domyślnie zwinięty (rail z ikonami); stan pamiętany lokalnie. */}
+              {!hideSidebar && !collapsed && (
+                // Na mobile rozwinięty sidebar jest szufladą po lewej (overlay),
+                // żeby treść profilu nie była spychana w dół.
+                <button
+                  type="button"
+                  aria-hidden
+                  tabIndex={-1}
+                  onClick={() => setCollapsed(true)}
+                  className="fixed inset-0 z-40 bg-foreground/40 md:hidden"
+                />
+              )}
               {!hideSidebar && (
                 <aside
                   className={cn(
-                    "w-full shrink-0 border-b border-border bg-muted/40 transition-[width] duration-200 md:border-b-0 md:border-r",
-                    collapsed ? "p-2 md:w-[68px]" : "p-5 md:w-72",
+                    "shrink-0 border-border bg-muted/40 transition-[width] duration-200 md:border-b-0 md:border-r",
+                    collapsed
+                      ? "w-full border-b p-2 md:w-[68px]"
+                      : "fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] overflow-y-auto p-5 shadow-xl md:static md:z-auto md:w-72 md:max-w-none md:border-b-0 md:shadow-none",
                   )}
                   data-collapsed={collapsed ? "true" : "false"}
                 >
@@ -100,7 +113,7 @@ function ProfileLayout() {
                         aria-expanded={false}
                         aria-label={t("profile.sidebar.expand", "Rozwiń ustawienia")}
                         title={t("profile.sidebar.expand", "Rozwiń ustawienia")}
-                        className="mx-auto flex h-9 w-9 items-center justify-center rounded-[6px] border border-border/70 bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        className="flex h-9 w-9 items-center justify-center rounded-[6px] border border-border/70 bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:mx-auto"
                       >
                         <PanelLeftOpen className="h-4 w-4" />
                       </button>
@@ -139,7 +152,11 @@ function ProfileLayout() {
                       </div>
                     )}
 
-                    <ProfileNav collapsed={collapsed} />
+                    {/* Zwinięty rail z ikonami tylko na desktopie - na mobile
+                        zostaje sam przycisk, a profil widać od razu. */}
+                    <div className={cn(collapsed && "hidden md:block")}>
+                      <ProfileNav collapsed={collapsed} />
+                    </div>
 
                     {user && !collapsed && (
                       <div className="mt-auto rounded-lg border border-border bg-background px-3 py-3 shadow-sm">
