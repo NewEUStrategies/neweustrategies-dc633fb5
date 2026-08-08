@@ -178,6 +178,11 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
   // Zmiana czlonkostwa rusza takze WLASNE czlonkostwa odbiorcy: lista "Moje
   // kluby" w naglowku produktu przestaje byc prawdziwa w tej samej chwili.
   "club_member.changed.v1": (event) => [...clubEventKeys(event), clubKeys.memberships()],
+  // Przestrzen robocza watku: nowe zrodlo albo termin zmienia LICZNIK na belce
+  // zakladek i zawartosc panelu, wiec uniewazniamy caly prefiks przestrzeni -
+  // jeden klucz zamiast dwoch, bo licznik i lista i tak zmieniaja sie razem.
+  "club_thread.document_added.v1": (event) => clubWorkspaceEventKeys(event),
+  "club_thread.milestone_set.v1": (event) => clubWorkspaceEventKeys(event),
 };
 
 function billingDocumentKeys(): QueryKey[] {
@@ -241,6 +246,20 @@ function clubEventKeys(event: DomainEventRow): QueryKey[] {
   const clubId = eventPayloadText(event, "club_id");
   const keys: QueryKey[] = [clubKeys.all];
   if (clubId !== "") keys.push(clubKeys.club(clubId));
+  return keys;
+}
+
+/**
+ * Klucze przestrzeni roboczej watku. Identyfikator watku jest AGREGATEM
+ * zdarzenia (`aggregate_id`), a nie polem payloadu - te dwa emitery opisuja
+ * zmiane WEWNATRZ watku, wiec agregatem jest watek, a nie dolozony wiersz.
+ * Pusty agregat (teoretycznie mozliwy przy uszkodzonym wierszu) nie moze
+ * zbudowac klucza `workspace("")`, bo ten trafialby w cudze zapytania.
+ */
+function clubWorkspaceEventKeys(event: DomainEventRow): QueryKey[] {
+  const keys = clubEventKeys(event);
+  const threadId = typeof event.aggregate_id === "string" ? event.aggregate_id : "";
+  if (threadId !== "") keys.push(clubKeys.workspace(threadId));
   return keys;
 }
 

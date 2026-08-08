@@ -1420,6 +1420,276 @@ SELECT pg_temp.assert(
     LIKE '%p_actor_id uuid%p_suppress_actor boolean%',
   'aktor stoi PRZED tlumieniem - odwrotna kolejnosc rozwiazuje 25 wywolan billingu');
 
+-- ---------------------------------------------------------------------------
+-- A28: PRZESTRZEN ROBOCZA WATKU
+--
+-- CREATE FUNCTION dla plpgsql sprawdza WYLACZNIE skladnie, a dla `LANGUAGE sql`
+-- - tylko to, czy cialo sie parsuje. Ani jedno, ani drugie nie wylapie
+-- niezgodnej liczby kolumn RETURNS TABLE przy wywolaniu, triggera, ktory nigdy
+-- nie odpala, ani CHECK-a, ktory nie broni tego, co obiecuje komentarz. Te
+-- asercje wolaja KAZDE z dwudziestu RPC tego etapu.
+--
+-- Wlasny klub, bo A28 potrzebuje trybu `anonymous_allowed`: bez niego nie da
+-- sie sprawdzic tego, co w tej migracji jest najlatwiejsze do zepsucia -
+-- rozdzielenia wkladu jawnego i anonimowego TEJ SAMEJ osoby.
+-- ---------------------------------------------------------------------------
+\echo ''
+\echo '--- A28: przestrzen robocza watku ---'
+
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+
+SELECT public.admin_club_upsert('{"slug":"warsztat","name_pl":"Warsztat","name_en":"Workshop",
+  "visibility":"public","join_policy":"open","status":"active",
+  "attribution_mode":"anonymous_allowed","who_can_post":"members"}'::jsonb) AS ws_club \gset
+SELECT id AS ws_group FROM public.club_groups WHERE club_id = :'ws_club'::uuid LIMIT 1 \gset
+
+SELECT public.club_join(:'ws_club'::uuid);
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000003';
+SELECT public.club_join(:'ws_club'::uuid);
+
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT id AS ws_thread FROM public.club_create_thread(:'ws_group'::uuid,
+  'Rozporzadzenie o rynkach cyfrowych', 'Tresc watku otwierajacego dyskusje.',
+  'discussion') \gset
+SELECT id AS ws_other FROM public.club_create_thread(:'ws_group'::uuid,
+  'Poprzednia debata o DMA', 'Tresc wczesniejszej dyskusji w tym klubie.',
+  'discussion') \gset
+
+-- Bramka: jedno zrodlo prawdy dla wszystkich RPC etapu.
+SELECT pg_temp.assert(
+  (SELECT can_moderate FROM public.club_thread_access(:'ws_thread'::uuid)),
+  'A28 club_thread_access: administrator klubu moderuje');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_thread_access('00000000-0000-0000-0000-000000000000'::uuid)) = 0,
+  'A28 club_thread_access: nieistniejacy watek daje zbior pusty, nie wyjatek');
+
+-- Zrodla.
+SELECT public.club_thread_document_upsert(format(
+  '{"thread_id":"%s","kind":"document","title":"Tekst rozporzadzenia",
+    "url":"https://eur-lex.europa.eu/x","source_label":"Rada UE",
+    "published_on":"2019-04-17","is_primary":true}', :'ws_thread')::jsonb) AS ws_doc \gset
+SELECT public.club_thread_document_upsert(format(
+  '{"thread_id":"%s","kind":"note","title":"Ustalenia ze spotkania"}', :'ws_thread')::jsonb);
+
+SELECT pg_temp.assert(
+  (SELECT is_primary AND can_edit FROM public.club_thread_documents_list(:'ws_thread'::uuid)
+    WHERE id = :'ws_doc'::uuid),
+  'A28 documents_list: wyroznienie i can_edit liczone po stronie bazy');
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_thread_document_upsert('{"thread_id":"%s","kind":"dataset","title":"Zbior bez adresu"}'::jsonb) $q$, :'ws_thread'),
+  'A28 documents: wszystko poza notatka wymaga adresu (CHECK)');
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_thread_document_upsert('{"thread_id":"%s","kind":"wymyslony","title":"Zly rodzaj"}'::jsonb) $q$, :'ws_thread'),
+  'A28 documents: rodzaj spoza slownika odrzucony');
+
+-- Patch czesciowy: brak klucza znaczy "nie ruszaj". To jest kontrakt, na
+-- ktorym stoi kazdy formularz redakcji w tym module.
+SELECT public.club_thread_document_upsert(format(
+  '{"id":"%s","thread_id":"%s","title":"Tekst rozporzadzenia (skonsolidowany)"}',
+  :'ws_doc', :'ws_thread')::jsonb);
+SELECT pg_temp.assert(
+  (SELECT source_label FROM public.club_thread_documents_list(:'ws_thread'::uuid)
+    WHERE id = :'ws_doc'::uuid) = 'Rada UE',
+  'A28 documents: pole nieobecne w payloadzie PRZEZYWA redakcje');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_thread_documents_list(:'ws_thread'::uuid, 'note')) = 1,
+  'A28 documents_list: filtr rodzaju zaweza');
+
+-- Harmonogram: jeden zbior, dwie prezentacje (lista i siatka miesiaca).
+SELECT public.club_thread_milestone_upsert(format(
+  '{"thread_id":"%s","title":"Konsultacje publiczne","kind":"consultation",
+    "starts_at":"2026-09-01T00:00:00Z","ends_at":"2026-09-30T23:59:00Z","all_day":true}',
+  :'ws_thread')::jsonb);
+SELECT public.club_thread_milestone_upsert(format(
+  '{"thread_id":"%s","title":"Spotkanie klubu","kind":"meeting",
+    "starts_at":"2026-10-05T17:00:00Z"}', :'ws_thread')::jsonb);
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_thread_milestones_list(:'ws_thread'::uuid)) = 2,
+  'A28 milestones_list: bez zakresu zwraca caly harmonogram');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_thread_milestones_list(
+     :'ws_thread'::uuid, '2026-10-01T00:00:00Z'::timestamptz, '2026-10-31T00:00:00Z'::timestamptz)) = 1,
+  'A28 milestones_list: zakres wycina siatke miesiaca z tego samego zbioru');
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_thread_milestone_upsert('{"thread_id":"%s","title":"Zly koniec","starts_at":"2026-10-05T17:00:00Z","ends_at":"2026-10-01T17:00:00Z"}'::jsonb) $q$, :'ws_thread'),
+  'A28 milestones: koniec przed poczatkiem odrzucony przez CHECK');
+
+-- Pytania.
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000003';
+SELECT public.club_thread_question_ask(:'ws_thread'::uuid,
+  'Czy stanowisko klubu obejmuje takze art. 6?') AS ws_q \gset
+SELECT public.club_thread_question_ask(:'ws_thread'::uuid,
+  'Kiedy poznamy tresc opinii prawnej?', true) AS ws_q_anon \gset
+
+SELECT pg_temp.assert(
+  public.club_thread_question_vote(:'ws_q'::uuid, true) = 1
+  AND public.club_thread_question_vote(:'ws_q'::uuid, true) = 1,
+  'A28 question_vote: powtorny glos nie dubluje (klucz glowny, nie warstwa aplikacji)');
+SELECT pg_temp.assert(
+  public.club_thread_question_vote(:'ws_q'::uuid, false) = 0,
+  'A28 question_vote: cofniecie zdejmuje licznik utrzymywany triggerem');
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_thread_question_answer('%s'::uuid, 'Odpowiedz czlonka') $q$, :'ws_q'),
+  'A28 question_answer: czlonek bez moderacji nie odpowiada');
+SELECT pg_temp.assert(
+  (SELECT author_id IS NULL AND author_alias IS NOT NULL
+     FROM public.club_thread_questions_list(:'ws_thread'::uuid) WHERE id = :'ws_q_anon'::uuid),
+  'A28 questions_list: pytanie anonimowe nie zdradza autora, dostaje alias watku');
+
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT public.club_thread_question_answer(:'ws_q'::uuid, 'Tak, obejmuje takze art. 6.');
+SELECT pg_temp.assert(
+  (SELECT status FROM public.club_thread_questions_list(:'ws_thread'::uuid)
+    WHERE id = :'ws_q'::uuid) = 'answered',
+  'A28 question_answer: stan przechodzi na answered');
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_thread_question_answer('%s'::uuid, '   ') $q$, :'ws_q_anon'),
+  'A28 question_answer: pusta odpowiedz odrzucona (stan answered bez tresci to klamstwo)');
+
+-- Powiazania: ta sama krawedz z dwoch koncow.
+SELECT public.club_thread_link_add(:'ws_thread'::uuid, :'ws_other'::uuid, 'continues',
+  'Ciag dalszy debaty z maja') AS ws_link \gset
+SELECT pg_temp.assert(
+  (SELECT direction FROM public.club_thread_links_list(:'ws_thread'::uuid)
+    WHERE id = :'ws_link'::uuid) = 'outgoing'
+  AND (SELECT direction FROM public.club_thread_links_list(:'ws_other'::uuid)
+    WHERE id = :'ws_link'::uuid) = 'incoming',
+  'A28 links_list: krawedz czytana w OBIE strony z wlasciwym kierunkiem');
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_thread_link_add('%s'::uuid, '%s'::uuid, 'context') $q$,
+         :'ws_thread', :'ws_thread'),
+  'A28 link_add: watek nie laczy sie z samym soba');
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_thread_link_add('%s'::uuid, '%s'::uuid, 'wymyslona') $q$,
+         :'ws_thread', :'ws_other'),
+  'A28 link_add: relacja spoza slownika odrzucona');
+
+-- Glosowania: ankieta i krawedz w jednej transakcji.
+SELECT public.club_thread_poll_create(:'ws_thread'::uuid,
+  'Czy klub popiera poprawke?', 'Does the club support the amendment?',
+  '["Tak","Nie","Wstrzymuje sie"]'::jsonb);
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_thread_polls_list(:'ws_thread'::uuid)) = 1
+  AND (SELECT poll_status FROM public.club_thread_polls_list(:'ws_thread'::uuid)) = 'open',
+  'A28 poll_create: ankieta i krawedz powstaly razem, status czytany z polls');
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_thread_poll_create('%s'::uuid,'PL','EN','["Jeden"]'::jsonb) $q$, :'ws_thread'),
+  'A28 poll_create: jeden wariant odrzucony (potrzeba 2-8)');
+
+-- UCZESTNICY: najwazniejsza asercja tego etapu. Ta sama osoba wnosi wklad
+-- jawny i anonimowy - i musi wyjsc w DWOCH nierozroznialnych wierszach.
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000003';
+SELECT public.club_reply(:'ws_thread'::uuid, 'Wypowiedz jawna czlonka.', NULL, false);
+SELECT public.club_reply(:'ws_thread'::uuid, 'Wypowiedz anonimowa czlonka.', NULL, true);
+
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_thread_participants(:'ws_thread'::uuid)
+    WHERE display_name = 'Czlonek A') = 1,
+  'A28 participants: wklad jawny w jednym wierszu imiennym');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_thread_participants(:'ws_thread'::uuid)
+    WHERE alias IS NOT NULL) >= 1,
+  'A28 participants: wklad anonimowy w OSOBNYM wierszu aliasowym');
+SELECT pg_temp.assert(
+  (SELECT bool_and(user_id IS NULL AND club_role IS NULL AND stance IS NULL)
+     FROM public.club_thread_participants(:'ws_thread'::uuid) WHERE alias IS NOT NULL),
+  'A28 participants: wiersz aliasowy nie niesie ani identyfikatora, ani roli, ani stanowiska');
+SELECT pg_temp.assert(
+  (SELECT is_thread_author FROM public.club_thread_participants(:'ws_thread'::uuid)
+    WHERE display_name = 'Admin A'),
+  'A28 participants: znacznik autora laduje na wierszu z postem otwierajacym');
+
+-- Spis tresci. Licznik uczestnikow MUSI zgadzac sie z lista, ktora opisuje.
+SELECT pg_temp.assert(
+  (SELECT document_count = 2 AND milestone_count = 2 AND open_question_count = 1
+          AND link_count = 1 AND can_curate
+     FROM public.club_thread_workspace(:'ws_thread'::uuid)),
+  'A28 workspace: liczniki paneli i flagi uprawnien w jednym wywolaniu');
+SELECT pg_temp.assert(
+  (SELECT participant_count FROM public.club_thread_workspace(:'ws_thread'::uuid))
+    = (SELECT count(*) FROM public.club_thread_participants(:'ws_thread'::uuid, 200)),
+  'A28 workspace: licznik uczestnikow ZGODNY z dlugoscia listy, ktora opisuje');
+
+-- Wyszukiwarka wewnetrzna. Fraza w formie DOSLOWNEJ: `public.nes_polish`
+-- kopiuje `polish`, gdy slownik jest zainstalowany, a `simple` gdy go nie ma
+-- (PostgreSQL nie dostarcza polskiego w standardzie). Asercja ma dzialac
+-- w OBU konfiguracjach, wiec nie opiera sie na fleksji.
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_thread_search(:'ws_thread'::uuid, 'skonsolidowany')) >= 1,
+  'A28 search: fraza z tytulu zrodla znaleziona');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_thread_search(:'ws_thread'::uuid, 'Konsultacje')) >= 1,
+  'A28 search: fraza z harmonogramu znaleziona');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_thread_search(:'ws_thread'::uuid, 'art')) >= 1,
+  'A28 search: fraza z pytania znaleziona');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_thread_search(:'ws_thread'::uuid, '')) = 0,
+  'A28 search: pusta fraza nie dopasowuje niczego');
+
+-- Szereg czasowy pod wykres.
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_thread_insights(:'ws_thread'::uuid, 12)) = 12
+  AND (SELECT bool_and(bucket_end > bucket_start)
+         FROM public.club_thread_insights(:'ws_thread'::uuid, 12)),
+  'A28 insights: liczba kubelkow zgodna z parametrem, kazdy o dodatniej szerokosci');
+SELECT pg_temp.assert(
+  (SELECT sum(replies) FROM public.club_thread_insights(:'ws_thread'::uuid, 24)) = 2,
+  'A28 insights: wypowiedzi policzone w kubelkach');
+
+-- Szwy miedzymodulowe: zdarzenie i krawedz w grafie.
+SELECT pg_temp.assert(
+  EXISTS (SELECT 1 FROM public.domain_events
+           WHERE event_type = 'club_thread.document_added.v1' AND aggregate_id = :'ws_thread'),
+  'A28 szyna: zrodlo emituje zdarzenie z WATKIEM jako agregatem');
+SELECT pg_temp.assert(
+  EXISTS (SELECT 1 FROM public.domain_events
+           WHERE event_type = 'club_thread.milestone_set.v1' AND aggregate_id = :'ws_thread'),
+  'A28 szyna: termin emituje zdarzenie');
+SELECT pg_temp.assert(
+  EXISTS (SELECT 1 FROM public.cross_references
+           WHERE source_type = 'club_thread' AND target_type = 'club_thread_document'),
+  'A28 graf: zrodlo dostaje krawedz "cites"');
+
+-- Tenant pochodzi z KLUBU, nie z sesji - przez trigger, nie przez dyscypline
+-- autora RPC. Glosy na pytania maja WLASNY trigger, bo tabela nie ma club_id.
+SELECT pg_temp.assert(
+  (SELECT bool_and(tenant_id = '11111111-1111-1111-1111-111111111111'::uuid)
+     FROM public.club_thread_documents WHERE thread_id = :'ws_thread'::uuid),
+  'A28 tenant: zrodla przypiete do tenantu klubu');
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000003';
+SELECT public.club_thread_question_vote(:'ws_q'::uuid, true);
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_thread_question_votes) = 1
+  AND (SELECT bool_and(tenant_id = '11111111-1111-1111-1111-111111111111'::uuid)
+         FROM public.club_thread_question_votes),
+  'A28 tenant: glosy na pytania przypiete WLASNYM triggerem');
+
+-- Obcy: czyta klub publiczny, ale nie zapisuje niczego.
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000004';
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_thread_milestone_upsert('{"thread_id":"%s","title":"Cudzy termin","starts_at":"2026-11-01T10:00:00Z"}'::jsonb) $q$, :'ws_thread'),
+  'A28 harmonogram: osoba bez moderacji nie dopisuje terminu');
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_thread_link_add('%s'::uuid,'%s'::uuid,'context') $q$,
+         :'ws_thread', :'ws_other'),
+  'A28 powiazania: osoba bez moderacji nie zaklada krawedzi');
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_thread_document_remove('%s'::uuid) $q$, :'ws_doc'),
+  'A28 zrodla: obcy nie kasuje cudzej pozycji');
+
+-- Usuniecie zrodla jest MIEKKIE: pozycja cytowana w dyskusji nie moze zniknac
+-- bez sladu, bo zostawia wypowiedzi odwolujace sie do niczego.
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT public.club_thread_document_remove(:'ws_doc'::uuid);
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_thread_documents_list(:'ws_thread'::uuid)
+    WHERE id = :'ws_doc'::uuid) = 0
+  AND (SELECT status FROM public.club_thread_documents WHERE id = :'ws_doc'::uuid) = 'deleted',
+  'A28 documents: usuniecie znika z listy, ale wiersz zostaje ze statusem deleted');
+
 \echo ''
 \echo '=========================================='
 \echo ' WSZYSTKIE ASERCJE PRZESZLY'

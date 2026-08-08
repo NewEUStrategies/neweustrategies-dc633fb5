@@ -526,6 +526,287 @@ export const clubPl = {
     // Znacznik publikacji w czyimś imieniu. Zawsze widoczny przy wpisie -
     // decyzja produktowa: wprowadzenie treści przez redakcję jest jawne.
     postedOnBehalf: "wprowadzone przez: {{name}}",
+
+    // --- przestrzeń robocza wątku (A28) ---
+    //
+    // Etykiety paneli są RZECZOWNIKAMI, nie czasownikami: belka zakładek
+    // opisuje, CO tam jest, a nie co użytkownik ma zrobić. "Dokumenty" mówi
+    // to samo za każdym razem; "Dodaj dokument" byłoby kłamstwem dla osoby
+    // bez prawa zapisu.
+    workspace: {
+      tabsLabel: "Sekcje wątku",
+      save: "Zapisz",
+      cancel: "Anuluj",
+      remove: "Usuń",
+      openLink: "Otwórz odnośnik",
+
+      panel: {
+        discussion: "Dyskusja",
+        participants: "Uczestnicy",
+        documents: "Dokumenty",
+        schedule: "Harmonogram",
+        questions: "Pytania",
+        polls: "Głosowania",
+        links: "Powiązane",
+        insights: "Dane",
+        search: "Szukaj",
+      },
+
+      documentKind: {
+        document: "Dokument",
+        dataset: "Zbiór danych",
+        link: "Odnośnik",
+        note: "Notatka",
+        recording: "Nagranie",
+      },
+
+      milestoneKind: {
+        milestone: "Kamień milowy",
+        meeting: "Spotkanie",
+        deadline: "Termin",
+        publication: "Publikacja",
+        vote: "Głosowanie",
+        consultation: "Konsultacje",
+      },
+
+      milestoneStatus: {
+        planned: "Zaplanowane",
+        active: "W toku",
+        done: "Zrobione",
+        cancelled: "Odwołane",
+      },
+
+      questionStatus: {
+        open: "Bez odpowiedzi",
+        answered: "Odpowiedziane",
+        declined: "Bez odpowiedzi (odrzucone)",
+        hidden: "Ukryte",
+      },
+
+      questionSort: {
+        top: "Najważniejsze",
+        new: "Najnowsze",
+        unanswered: "Bez odpowiedzi",
+      },
+
+      section: {
+        reply: "Wypowiedzi",
+        document: "Dokumenty",
+        milestone: "Harmonogram",
+        question: "Pytania",
+      },
+
+      linkDirection: {
+        outgoing: "Ten wątek wskazuje",
+        incoming: "Wskazywany przez",
+      },
+
+      // Ta sama krawędź czyta się inaczej z każdego końca - stąd dwa zestawy
+      // etykiet zamiast jednego. Bez tego "kontynuuje" po stronie starszego
+      // wątku sugerowałoby odwrotną kolejność zdarzeń.
+      relation: {
+        outgoing: {
+          continues: "Kontynuuje",
+          supersedes: "Zastępuje",
+          contradicts: "Przeczy",
+          supports: "Wspiera",
+          duplicates: "Powiela",
+          context: "Kontekst",
+        },
+        incoming: {
+          continues: "Kontynuowany przez",
+          supersedes: "Zastąpiony przez",
+          contradicts: "Zakwestionowany przez",
+          supports: "Wspierany przez",
+          duplicates: "Powielony przez",
+          context: "Kontekst dla",
+        },
+      },
+
+      error: {
+        forbidden: "Nie masz uprawnień do tej operacji w tym wątku.",
+        not_found: "Tej pozycji już nie ma - odśwież widok.",
+        url_required: "Ten rodzaj wymaga adresu. Notatka jest jedyną pozycją bez odnośnika.",
+        anonymous_not_allowed: "Ten klub nie dopuszcza wpisów anonimowych.",
+        answer_required: "Odpowiedź nie może być pusta.",
+        self_link: "Wątku nie da się powiązać z samym sobą.",
+        poll_options: "Głosowanie potrzebuje od 2 do 8 wariantów.",
+        auth_required: "Zaloguj się, aby wykonać tę akcję.",
+        unknown: "Nie udało się zapisać. Spróbuj ponownie.",
+      },
+
+      documents: {
+        primary: "Podstawowe",
+        primaryHint: "Dokument, od którego zaczyna się ta sprawa.",
+        primaryLabel: "Oznacz jako dokument podstawowy",
+        addedBy: "Wniósł(-osła): {{name}}",
+        titleLabel: "Tytuł",
+        kindLabel: "Rodzaj",
+        publishedLabel: "Data wydania",
+        publishedHint: "Data dokumentu, nie data dodania do wątku.",
+        urlLabel: "Adres",
+        sourceLabel: "Źródło",
+        sourcePlaceholder: "np. Rada UE, Eurostat, KE - DG COMP",
+        descriptionLabel: "Opis",
+        filterLabel: "Filtr rodzaju",
+        allKinds: "Wszystkie rodzaje",
+        add: "Dodaj źródło",
+        addFirst: "Dodaj pierwsze źródło",
+        saved: "Źródło zapisane.",
+        removed: "Źródło usunięte.",
+        removeConfirm: "Usunąć to źródło z wątku?",
+        empty: "Ten wątek nie ma jeszcze źródeł.",
+        emptyHint:
+          "Dokumenty, zbiory danych i notatki zebrane tutaj zostają z wątkiem w archiwum - inaczej po pół roku zostaje sam link w cudzej wypowiedzi.",
+        emptyReadonly: "Gdy uczestnicy wniosą materiały, pojawią się w tym miejscu.",
+      },
+
+      schedule: {
+        owner: "Prowadzi: {{name}}",
+        openEvent: "Zobacz wydarzenie",
+        titleLabel: "Nazwa",
+        kindLabel: "Rodzaj",
+        statusLabel: "Status",
+        allDay: "Cały dzień (bez godziny)",
+        startsLabel: "Początek",
+        endsLabel: "Koniec",
+        rangeError: "Koniec nie może wypadać przed początkiem.",
+        locationLabel: "Miejsce",
+        urlLabel: "Adres",
+        descriptionLabel: "Opis",
+        viewLabel: "Widok harmonogramu",
+        view: {
+          list: "Lista",
+          calendar: "Kalendarz",
+        },
+        group: {
+          today: "Dziś",
+          upcoming: "Wkrótce",
+          past: "Minione",
+        },
+        add: "Dodaj termin",
+        addFirst: "Dodaj pierwszy termin",
+        saved: "Termin zapisany.",
+        removed: "Termin usunięty.",
+        removeConfirm: "Usunąć ten termin z harmonogramu?",
+        empty: "Ten wątek nie ma harmonogramu.",
+        emptyHint:
+          "Terminy konsultacji, spotkań i publikacji wpisane tutaj widać w liście i w kalendarzu - to jeden zbiór, nie dwa.",
+        emptyReadonly: "Prowadzący klubu może dopisać terminy do tej dyskusji.",
+      },
+
+      calendar: {
+        previous: "Poprzedni miesiąc",
+        next: "Następny miesiąc",
+        caption: "Harmonogram wątku - {{month}}",
+        more: "+{{count}} więcej",
+      },
+
+      participants: {
+        author: "Autor wątku",
+        distribution: "Rozkład wkładu",
+        reactions: "reakcji",
+        lastActive: "Ostatnio: {{date}}",
+        replies_one: "{{count}} wypowiedź",
+        replies_few: "{{count}} wypowiedzi",
+        replies_many: "{{count}} wypowiedzi",
+        replies_other: "{{count}} wypowiedzi",
+        questions_one: "{{count}} pytanie",
+        questions_few: "{{count}} pytania",
+        questions_many: "{{count}} pytań",
+        questions_other: "{{count}} pytań",
+        documents_one: "{{count}} źródło",
+        documents_few: "{{count}} źródła",
+        documents_many: "{{count}} źródeł",
+        documents_other: "{{count}} źródeł",
+        empty: "Nikt jeszcze nie zabrał głosu w tym wątku.",
+        emptyHint: "Lista powstaje z wypowiedzi, pytań i wniesionych źródeł.",
+      },
+
+      questions: {
+        vote: "Podbij ważność pytania",
+        ask: "Zadaj pytanie",
+        asked: "Pytanie wysłane.",
+        askLabel: "Twoje pytanie",
+        askPlaceholder: "O co chcesz zapytać prowadzącego tę dyskusję?",
+        answer: "Odpowiedź",
+        answeredBy: "Odpowiada: {{name}}",
+        answerLabel: "Treść odpowiedzi",
+        answerCta: "Odpowiedz",
+        editAnswer: "Popraw odpowiedź",
+        publishAnswer: "Opublikuj odpowiedź",
+        answerSaved: "Odpowiedź zapisana.",
+        sortLabel: "Kolejność pytań",
+        allAnswered: "Wszystkie pytania mają odpowiedź.",
+        openCount_one: "{{count}} pytanie bez odpowiedzi",
+        openCount_few: "{{count}} pytania bez odpowiedzi",
+        openCount_many: "{{count}} pytań bez odpowiedzi",
+        openCount_other: "{{count}} pytań bez odpowiedzi",
+        empty: "Nikt jeszcze nie zadał pytania.",
+        emptyHint:
+          "Pytanie ma adresata i stan: widać, na które nikt nie odpowiedział. W drzewie wypowiedzi ta informacja ginie.",
+        emptyReadonly: "Pytania do tej dyskusji pojawią się w tym miejscu.",
+      },
+
+      polls: {
+        create: "Nowe głosowanie",
+        created: "Głosowanie utworzone.",
+        questionPl: "Pytanie (PL)",
+        questionEn: "Pytanie (EN)",
+        optionsLabel: "Warianty odpowiedzi",
+        optionAria: "Wariant {{index}}",
+        addOption: "Dodaj wariant",
+        removeOption: "Usuń wariant",
+        open: "Otwarte",
+        closed: "Zamknięte",
+        detach: "Odepnij",
+        detached: "Głosowanie odpięte od wątku.",
+        detachConfirm: "Odpiąć to głosowanie od wątku? Oddane głosy zostaną zachowane.",
+        empty: "W tym wątku nie ma głosowań.",
+        emptyHint:
+          "Głosowanie rozstrzyga sprawę, o której dyskusja już się wypowiedziała - rozkład głosów widać dopiero po oddaniu własnego.",
+        emptyReadonly: "Prowadzący klubu może otworzyć głosowanie w tej dyskusji.",
+      },
+
+      links: {
+        empty: "Ten wątek nie ma powiązań z innymi.",
+        emptyHint:
+          "Powiązanie mówi, JAK dwa wątki się mają do siebie - że jeden kontynuuje drugi albo mu przeczy. Zakłada je prowadzący klubu.",
+        removed: "Powiązanie usunięte.",
+        removeConfirm: "Usunąć to powiązanie?",
+      },
+
+      insights: {
+        timeline: "Aktywność w czasie",
+        period: "Okres",
+        tableCaption: "Aktywność wątku w podziale na okresy",
+        chartAria: "Wykres aktywności: {{total}} zdarzeń w okresie {{range}}",
+        series: {
+          replies: "Wypowiedzi",
+          questions: "Pytania",
+          documents: "Źródła",
+          milestones: "Terminy",
+        },
+        empty: "Za mało danych, żeby coś pokazać.",
+        emptyHint: "Wykres pojawi się po pierwszych wypowiedziach, pytaniach albo źródłach.",
+      },
+
+      search: {
+        label: "Szukaj w tym wątku",
+        placeholder: "Fraza z wypowiedzi, źródła, terminu albo pytania...",
+        hint: "Szukamy w wypowiedziach, źródłach, harmonogramie i pytaniach tego wątku - nie po całej platformie.",
+        tooShort: "Wpisz co najmniej dwa znaki.",
+        idle: "Znajdź ustalenie bez czytania całości",
+        idleHint:
+          "Po trzech miesiącach dyskusji to jest różnica między odnalezieniem konkretu a przeczytaniem dwustu wypowiedzi od nowa.",
+        noResults: 'Brak wyników dla "{{query}}".',
+        noResultsHint: "Spróbuj innego słowa - szukamy po odmianie, ale nie po synonimach.",
+        resultsCount_one: "Znaleziono {{count}} wynik",
+        resultsCount_few: "Znaleziono {{count}} wyniki",
+        resultsCount_many: "Znaleziono {{count}} wyników",
+        resultsCount_other: "Znaleziono {{count}} wyników",
+      },
+    },
   },
 
   adminClubs: {
@@ -1605,6 +1886,269 @@ export const clubEn = {
     },
     inheritedFromClub: "Inherited from club",
     postedOnBehalf: "posted by: {{name}}",
+
+    // --- thread workspace (A28) ---
+    workspace: {
+      tabsLabel: "Thread sections",
+      save: "Save",
+      cancel: "Cancel",
+      remove: "Remove",
+      openLink: "Open link",
+
+      panel: {
+        discussion: "Discussion",
+        participants: "People",
+        documents: "Documents",
+        schedule: "Schedule",
+        questions: "Questions",
+        polls: "Votes",
+        links: "Related",
+        insights: "Data",
+        search: "Search",
+      },
+
+      documentKind: {
+        document: "Document",
+        dataset: "Dataset",
+        link: "Link",
+        note: "Note",
+        recording: "Recording",
+      },
+
+      milestoneKind: {
+        milestone: "Milestone",
+        meeting: "Meeting",
+        deadline: "Deadline",
+        publication: "Publication",
+        vote: "Vote",
+        consultation: "Consultation",
+      },
+
+      milestoneStatus: {
+        planned: "Planned",
+        active: "In progress",
+        done: "Done",
+        cancelled: "Cancelled",
+      },
+
+      questionStatus: {
+        open: "Unanswered",
+        answered: "Answered",
+        declined: "Unanswered (declined)",
+        hidden: "Hidden",
+      },
+
+      questionSort: {
+        top: "Most wanted",
+        new: "Newest",
+        unanswered: "Unanswered",
+      },
+
+      section: {
+        reply: "Replies",
+        document: "Documents",
+        milestone: "Schedule",
+        question: "Questions",
+      },
+
+      linkDirection: {
+        outgoing: "This thread points to",
+        incoming: "Pointed to by",
+      },
+
+      relation: {
+        outgoing: {
+          continues: "Continues",
+          supersedes: "Supersedes",
+          contradicts: "Contradicts",
+          supports: "Supports",
+          duplicates: "Duplicates",
+          context: "Context",
+        },
+        incoming: {
+          continues: "Continued by",
+          supersedes: "Superseded by",
+          contradicts: "Challenged by",
+          supports: "Supported by",
+          duplicates: "Duplicated by",
+          context: "Context for",
+        },
+      },
+
+      error: {
+        forbidden: "You are not allowed to do this in this thread.",
+        not_found: "This item is gone - refresh the view.",
+        url_required: "This kind needs an address. A note is the only entry without a link.",
+        anonymous_not_allowed: "This club does not allow anonymous entries.",
+        answer_required: "The answer cannot be empty.",
+        self_link: "A thread cannot be linked to itself.",
+        poll_options: "A vote needs between 2 and 8 options.",
+        auth_required: "Sign in to do this.",
+        unknown: "Could not save. Please try again.",
+      },
+
+      documents: {
+        primary: "Primary",
+        primaryHint: "The document this whole case starts from.",
+        primaryLabel: "Mark as the primary document",
+        addedBy: "Added by {{name}}",
+        titleLabel: "Title",
+        kindLabel: "Kind",
+        publishedLabel: "Publication date",
+        publishedHint: "The document's own date, not the date it was added here.",
+        urlLabel: "Address",
+        sourceLabel: "Source",
+        sourcePlaceholder: "e.g. Council of the EU, Eurostat, EC - DG COMP",
+        descriptionLabel: "Description",
+        filterLabel: "Filter by kind",
+        allKinds: "All kinds",
+        add: "Add source",
+        addFirst: "Add the first source",
+        saved: "Source saved.",
+        removed: "Source removed.",
+        removeConfirm: "Remove this source from the thread?",
+        empty: "This thread has no sources yet.",
+        emptyHint:
+          "Documents, datasets and notes collected here stay with the thread in the archive - otherwise all that is left after six months is a link inside someone's reply.",
+        emptyReadonly: "Once participants bring material in, it will appear here.",
+      },
+
+      schedule: {
+        owner: "Owner: {{name}}",
+        openEvent: "See event",
+        titleLabel: "Name",
+        kindLabel: "Kind",
+        statusLabel: "Status",
+        allDay: "All day (no time)",
+        startsLabel: "Starts",
+        endsLabel: "Ends",
+        rangeError: "The end cannot fall before the start.",
+        locationLabel: "Location",
+        urlLabel: "Address",
+        descriptionLabel: "Description",
+        viewLabel: "Schedule view",
+        view: {
+          list: "List",
+          calendar: "Calendar",
+        },
+        group: {
+          today: "Today",
+          upcoming: "Coming up",
+          past: "Past",
+        },
+        add: "Add date",
+        addFirst: "Add the first date",
+        saved: "Date saved.",
+        removed: "Date removed.",
+        removeConfirm: "Remove this date from the schedule?",
+        empty: "This thread has no schedule.",
+        emptyHint:
+          "Consultation deadlines, meetings and publication dates entered here show up in both the list and the calendar - it is one set of data, not two.",
+        emptyReadonly: "A club lead can add dates to this discussion.",
+      },
+
+      calendar: {
+        previous: "Previous month",
+        next: "Next month",
+        caption: "Thread schedule - {{month}}",
+        more: "+{{count}} more",
+      },
+
+      participants: {
+        author: "Thread author",
+        distribution: "Contribution split",
+        reactions: "reactions",
+        lastActive: "Last seen: {{date}}",
+        replies_one: "{{count}} reply",
+        replies_other: "{{count}} replies",
+        questions_one: "{{count}} question",
+        questions_other: "{{count}} questions",
+        documents_one: "{{count}} source",
+        documents_other: "{{count}} sources",
+        empty: "Nobody has spoken in this thread yet.",
+        emptyHint: "The list is built from replies, questions and sources brought in.",
+      },
+
+      questions: {
+        vote: "Push this question up",
+        ask: "Ask",
+        asked: "Question sent.",
+        askLabel: "Your question",
+        askPlaceholder: "What do you want to ask whoever runs this discussion?",
+        answer: "Answer",
+        answeredBy: "Answered by {{name}}",
+        answerLabel: "Answer text",
+        answerCta: "Answer",
+        editAnswer: "Edit answer",
+        publishAnswer: "Publish answer",
+        answerSaved: "Answer saved.",
+        sortLabel: "Question order",
+        allAnswered: "Every question has an answer.",
+        openCount_one: "{{count}} unanswered question",
+        openCount_other: "{{count}} unanswered questions",
+        empty: "Nobody has asked anything yet.",
+        emptyHint:
+          "A question has an addressee and a state: you can see which ones nobody answered. In a reply tree that information is invisible.",
+        emptyReadonly: "Questions about this discussion will show up here.",
+      },
+
+      polls: {
+        create: "New vote",
+        created: "Vote created.",
+        questionPl: "Question (PL)",
+        questionEn: "Question (EN)",
+        optionsLabel: "Answer options",
+        optionAria: "Option {{index}}",
+        addOption: "Add option",
+        removeOption: "Remove option",
+        open: "Open",
+        closed: "Closed",
+        detach: "Detach",
+        detached: "Vote detached from the thread.",
+        detachConfirm: "Detach this vote from the thread? Cast votes are kept.",
+        empty: "This thread has no votes.",
+        emptyHint:
+          "A vote settles what the discussion has already argued out - the split stays hidden until you cast your own.",
+        emptyReadonly: "A club lead can open a vote in this discussion.",
+      },
+
+      links: {
+        empty: "This thread is not linked to any other.",
+        emptyHint:
+          "A link says HOW two threads relate - that one continues the other, or contradicts it. Club leads create them.",
+        removed: "Link removed.",
+        removeConfirm: "Remove this link?",
+      },
+
+      insights: {
+        timeline: "Activity over time",
+        period: "Period",
+        tableCaption: "Thread activity by period",
+        chartAria: "Activity chart: {{total}} events between {{range}}",
+        series: {
+          replies: "Replies",
+          questions: "Questions",
+          documents: "Sources",
+          milestones: "Dates",
+        },
+        empty: "Not enough data to show anything.",
+        emptyHint: "The chart appears after the first replies, questions or sources.",
+      },
+
+      search: {
+        label: "Search this thread",
+        placeholder: "A phrase from a reply, source, date or question...",
+        hint: "We search the replies, sources, schedule and questions of this thread - not the whole platform.",
+        tooShort: "Type at least two characters.",
+        idle: "Find the decision without rereading everything",
+        idleHint:
+          "After three months of discussion this is the difference between finding one specific thing and rereading two hundred replies.",
+        noResults: 'No results for "{{query}}".',
+        noResultsHint: "Try another word - we match inflected forms, but not synonyms.",
+        resultsCount_one: "Found {{count}} result",
+        resultsCount_other: "Found {{count}} results",
+      },
+    },
   },
 
   adminClubs: {
