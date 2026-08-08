@@ -52,8 +52,8 @@ export function ClubHubHero({
             {signedIn ? t("club.hub.lead") : t("club.hub.anonLead")}
           </p>
           <dl className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-            <Stat value={t("club.hub.clubsCount", { count: stats.clubs })} />
-            <Stat value={t("club.threadsCount", { count: stats.threads })} />
+            <Stat value={t("club.hub.clubsCount", { count: stats.clubs })} separator />
+            <Stat value={t("club.threadsCount", { count: stats.threads })} separator />
             <Stat value={t("club.membersCount", { count: stats.seats })} />
           </dl>
         </div>
@@ -78,13 +78,15 @@ export function ClubHubHero({
   );
 }
 
-function Stat({ value }: { value: string }) {
+function Stat({ value, separator = false }: { value: string; separator?: boolean }) {
   return (
     <div className="inline-flex items-center gap-3">
       <dd className="tabular-nums">{value}</dd>
-      <span aria-hidden="true" className="text-border last:hidden">
-        ·
-      </span>
+      {separator ? (
+        <span aria-hidden="true" className="text-border">
+          ·
+        </span>
+      ) : null}
     </div>
   );
 }
