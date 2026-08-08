@@ -205,14 +205,22 @@ function ClubHome() {
   const threads = pages.flatMap((p) => p.rows);
 
   return (
-    <div className="container mx-auto max-w-5xl px-4 py-8">
-      <header className="mb-6">
-        <ClubCover url={club.cover_image_url} variant="banner" className="mb-5" />
+    <div className="container mx-auto max-w-5xl px-4 py-6">
+      {/* Nagłówek klubu jest KOMPAKTOWY: baner 6:1 zamiast 3:1 i tytuł 2xl,
+          bo wejście z huba ma pokazać WĄTKI, a nie okładkę na pół ekranu. */}
+      <header className="mb-5">
+        <ClubCover
+          url={club.cover_image_url}
+          variant="banner"
+          className="mb-3 aspect-[5/1] sm:aspect-[6/1]"
+        />
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-3xl font-semibold">{isPl ? club.name_pl : club.name_en}</h1>
+            <h1 className="text-2xl font-semibold leading-tight">
+              {isPl ? club.name_pl : club.name_en}
+            </h1>
             {(isPl ? club.tagline_pl : club.tagline_en) ? (
-              <p className="mt-1 text-muted-foreground">
+              <p className="mt-1 line-clamp-2 max-w-2xl text-sm text-muted-foreground">
                 {isPl ? club.tagline_pl : club.tagline_en}
               </p>
             ) : null}
