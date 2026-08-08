@@ -41,6 +41,26 @@ function ProfileLayout() {
   // "Podgląd jak gość" - podstrony /profile/* zachowują nawigację.
   const hideSidebar = isRoot && guestPreview;
 
+  // Sidebar ustawień: domyślnie zwinięty (rail z ikonami). Stan czytamy po
+  // hydracji, żeby SSR i pierwszy render klienta były identyczne.
+  const [collapsed, setCollapsed] = useState(true);
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem("profile:sidebar") === "expanded") setCollapsed(false);
+    } catch {
+      /* prywatny tryb przeglądarki - zostaje domyślne zwinięcie */
+    }
+  }, []);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("profile:sidebar", collapsed ? "collapsed" : "expanded");
+    } catch {
+      /* jw. */
+    }
+  }, [collapsed]);
+
+
+
   // Ta sama pamięć podręczna, którą karmi useHeaderProfile w headerze - dzięki
   // temu wejście na /profile nie powoduje drugiego round-tripu do PostgREST.
   const { data: profile } = useHeaderProfile(user?.id);
