@@ -41,6 +41,10 @@ import type { WebStoriesCarouselView as WebStoriesCarouselViewImpl } from "./Web
 import type { NewsTickerView as NewsTickerViewImpl } from "./NewsTickerView";
 import type { EventScheduleView as EventScheduleViewImpl } from "./EventScheduleView";
 import type { EventsListView as EventsListViewImpl } from "./EventsListView";
+import type {
+  ClubCardView as ClubCardViewImpl,
+  ClubThreadsView as ClubThreadsViewImpl,
+} from "./ClubWidgets";
 import type { EventCountdownView as EventCountdownViewImpl } from "./EventCountdownView";
 import type { MeetingBookingView as MeetingBookingViewImpl } from "./MeetingBookingView";
 import type { EventSponsorsView as EventSponsorsViewImpl } from "./EventSponsorsView";
@@ -163,6 +167,19 @@ const EventsListViewLazy = lazy(() =>
   import("./EventsListView").then((m) => ({ default: m.EventsListView })),
 ) as ComponentType<ComponentProps<typeof EventsListViewImpl>>;
 export const EventsListView = withSuspense(EventsListViewLazy);
+
+// Widgety klubow dyskusyjnych (spec §5.5). Leniwe z tego samego powodu, co
+// reszta dynamicznych: warstwa danych klubow nie ma prawa wejsc do bundla,
+// ktorym placi czytelnik strony bez zadnego widgetu klubowego.
+const ClubCardViewLazy = lazy(() =>
+  import("./ClubWidgets").then((m) => ({ default: m.ClubCardView })),
+) as ComponentType<ComponentProps<typeof ClubCardViewImpl>>;
+export const ClubCardView = withSuspense(ClubCardViewLazy);
+
+const ClubThreadsViewLazy = lazy(() =>
+  import("./ClubWidgets").then((m) => ({ default: m.ClubThreadsView })),
+) as ComponentType<ComponentProps<typeof ClubThreadsViewImpl>>;
+export const ClubThreadsView = withSuspense(ClubThreadsViewLazy);
 
 const EventCountdownViewLazy = lazy(() =>
   import("./EventCountdownView").then((m) => ({ default: m.EventCountdownView })),

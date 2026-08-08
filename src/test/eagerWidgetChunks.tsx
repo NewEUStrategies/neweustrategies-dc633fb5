@@ -26,6 +26,10 @@ export { AuthFormWidget } from "@/components/admin/builder/ui/organisms/widget-v
 export { InterestsCustomizer } from "@/components/interests/InterestsCustomizer";
 export { TtsPlayerHost } from "@/components/admin/builder/ui/molecules/TtsPlayerHost";
 export { PodcastLatestView } from "@/components/admin/builder/ui/organisms/widget-view/PodcastLatestView";
+export {
+  ClubCardView,
+  ClubThreadsView,
+} from "@/components/admin/builder/ui/organisms/widget-view/ClubWidgets";
 export { WebStoriesCarouselView } from "@/components/admin/builder/ui/organisms/widget-view/WebStoriesCarouselView";
 export { NewsTickerView } from "@/components/admin/builder/ui/organisms/widget-view/NewsTickerView";
 export { EventScheduleView } from "@/components/admin/builder/ui/organisms/widget-view/EventScheduleView";

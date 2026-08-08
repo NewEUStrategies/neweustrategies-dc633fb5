@@ -194,7 +194,7 @@ export function ClubInvitationsTab({ clubId, isPl }: { clubId: string; isPl: boo
                   autoComplete="off"
                   value={email}
                   disabled={sending}
-                  placeholder="osoba@instytucja.eu"
+                  placeholder={t("adminClubs.invitations.emailPlaceholder")}
                   onChange={(e) => setEmail(e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">

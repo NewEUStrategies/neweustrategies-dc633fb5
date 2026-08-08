@@ -19,11 +19,13 @@ type BadgeComponent = ComponentType<{ className?: string }>;
 const ChatUnreadBadge = lazy(() => import("./badges/ChatUnreadBadge"));
 const NetworkPendingBadge = lazy(() => import("./badges/NetworkPendingBadge"));
 const NotificationsUnreadBadge = lazy(() => import("./badges/NotificationsUnreadBadge"));
+const ClubUnreadBadge = lazy(() => import("./badges/ClubUnreadBadge"));
 
 const SOURCES: Partial<Record<BottomBarBadgeSource, BadgeComponent>> = {
   chat: ChatUnreadBadge,
   network: NetworkPendingBadge,
   notifications: NotificationsUnreadBadge,
+  clubs: ClubUnreadBadge,
 };
 
 export function LiveTabBadge({ source }: { source: BottomBarBadgeSource | undefined }) {

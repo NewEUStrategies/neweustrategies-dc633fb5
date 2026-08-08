@@ -1088,6 +1088,22 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Tekst pustej listy": "Empty-state text",
   "Brak zaplanowanych wydarzeń.": "No scheduled events.",
   "Lista wydarzeń": "Event list",
+  // Kluby dyskusyjne (spec §5.5)
+  "Klub: karta": "Club: card",
+  "Kluby: dyskusje": "Clubs: discussions",
+  "Adres klubu": "Club address",
+  "Fragment adresu po /club/. Pusty = widget nic nie pokazuje (i nie pyta bazy).":
+    "The part of the address after /club/. Empty = the widget renders nothing (and does not query the database).",
+  "Pokaż liczniki": "Show counters",
+  "Liczba członków i wątków. Obie pochodzą z denormalizacji, więc nie kosztują dodatkowego zapytania.":
+    "Member and topic counts. Both come from denormalised columns, so they cost no extra query.",
+  Porządek: "Order",
+  Gorące: "Hot",
+  Najnowsze: "Newest",
+  "Obszar polityki": "Policy area",
+  "Zawężenie do jednego obszaru. Puste = wszystkie kluby, do których wołający ma dostęp.":
+    "Narrow to one area. Empty = every club the reader has access to.",
+  "Liczba wątków": "Number of topics",
   // ---------------------------------------- widgety dynamiczne (post-* / archiwum)
   "Widget czyta dane bieżącego wpisu. Poza stroną wpisu (np. w nagłówku lub stopce) pozostaje ukryty - nigdy nie pokazuje danych przykładowych.":
     "The widget reads the current post. Outside a post page (for example in the header or the footer) it stays hidden - it never shows sample data.",

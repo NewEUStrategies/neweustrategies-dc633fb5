@@ -1771,6 +1771,45 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
   ],
   "meeting-booking": [],
   "event-sponsors": [],
+  // --- Kluby dyskusyjne (spec §5.5) ---
+  "club-card": [
+    {
+      key: "clubSlug",
+      type: "text",
+      label: "Adres klubu",
+      placeholder: "bezpieczenstwo-europy-srodkowo-wschodniej",
+      hint: "Fragment adresu po /club/. Pusty = widget nic nie pokazuje (i nie pyta bazy).",
+    },
+    {
+      key: "showStats",
+      type: "bool",
+      label: "Pokaż liczniki",
+      hint: "Liczba członków i wątków. Obie pochodzą z denormalizacji, więc nie kosztują dodatkowego zapytania.",
+      group: "Wygląd",
+    },
+    { key: "ctaLabel", type: "i18nText", label: "Etykieta przycisku", group: "Wygląd" },
+  ],
+  "club-threads": [
+    { key: "heading", type: "i18nText", label: "Nagłówek", placeholder: "Dyskusje w klubach" },
+    {
+      key: "sort",
+      type: "select",
+      label: "Porządek",
+      options: [
+        { value: "hot", label: "Gorące" },
+        { value: "new", label: "Najnowsze" },
+      ],
+      group: "Dane",
+    },
+    {
+      key: "policyArea",
+      type: "text",
+      label: "Obszar polityki",
+      hint: "Zawężenie do jednego obszaru. Puste = wszystkie kluby, do których wołający ma dostęp.",
+      group: "Dane",
+    },
+    { key: "limit", type: "number", label: "Liczba wątków", min: 1, max: 12, group: "Dane" },
+  ],
   "event-list": [
     { key: "heading", type: "i18nText", label: "Nagłówek", placeholder: "Nadchodzące wydarzenia" },
     {

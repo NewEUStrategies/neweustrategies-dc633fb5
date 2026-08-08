@@ -445,6 +445,9 @@ export type WidgetType =
   | "news-ticker"
   // Podcast
   | "podcast-latest"
+  // Kluby dyskusyjne (spec §5.5)
+  | "club-card"
+  | "club-threads"
   // Web Stories
   | "web-stories-carousel"
   // Auth forms (structural - never raw HTML)

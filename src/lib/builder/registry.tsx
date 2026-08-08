@@ -20,6 +20,7 @@ import {
   Mail,
   Send,
   Megaphone,
+  MessagesSquare,
   List,
   ListOrdered,
   PanelLeft,
@@ -1788,6 +1789,33 @@ export const WIDGETS: WidgetDef[] = [
       columns: 2,
       variant: "grid", // grid | list | featured
       showPlayer: "true",
+    }),
+  },
+  // Kluby dyskusyjne (spec §5.5). Dwie powierzchnie o dwóch różnych zadaniach:
+  // karta ZAPRASZA do jednego klubu, strumień POKAZUJE, że kluby żyją.
+  {
+    type: "club-card",
+    label: "Klub: karta",
+    category: "dynamic",
+    icon: MessagesSquare,
+    defaults: () => ({
+      clubSlug: "",
+      showStats: "true",
+      ctaLabel_pl: "Zobacz klub",
+      ctaLabel_en: "Open the club",
+    }),
+  },
+  {
+    type: "club-threads",
+    label: "Kluby: dyskusje",
+    category: "dynamic",
+    icon: MessagesSquare,
+    defaults: () => ({
+      heading_pl: "Dyskusje w klubach",
+      heading_en: "Club discussions",
+      sort: "hot",
+      policyArea: "",
+      limit: 4,
     }),
   },
   // Web Stories

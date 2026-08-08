@@ -740,6 +740,7 @@ export const clubPl = {
       modePerson: "Osoba z platformy",
       modeEmail: "Adres e-mail",
       emailLabel: "Adres e-mail",
+      emailPlaceholder: "osoba@instytucja.eu",
       emailHint:
         "Osoba spoza platformy dostanie zaproszenie z magic linkiem i po akceptacji trafi od razu do klubu.",
       messageLabel: "Wiadomość do zaproszenia (opcjonalnie)",
@@ -1697,6 +1698,7 @@ export const clubEn = {
       modePerson: "Person on the platform",
       modeEmail: "Email address",
       emailLabel: "Email address",
+      emailPlaceholder: "person@institution.eu",
       emailHint:
         "Someone outside the platform gets a magic-link invitation and lands straight in the club after accepting.",
       messageLabel: "Message with the invitation (optional)",
