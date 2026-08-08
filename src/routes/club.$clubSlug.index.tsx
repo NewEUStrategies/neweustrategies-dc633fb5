@@ -47,6 +47,10 @@ import {
 } from "@/lib/clubs/types";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
 import {
+  ClubDetailSkeleton,
+  ClubThreadListSkeleton,
+} from "@/components/clubs/atoms/ClubSkeletons";
+import {
   ClubGlobalSearchInput,
   ClubGlobalSearchResults,
 } from "@/components/clubs/organisms/ClubGlobalSearch";
@@ -137,10 +141,12 @@ function ClubHome() {
     enabled: searching && Boolean(club?.id),
   });
 
+  // Skeleton ma KSZTAŁT strony klubu (baner, tytuł, pasek sterowania, lista
+  // wątków), więc dojście danych nie przebudowuje układu.
   if (clubQ.isPending) {
     return (
-      <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-8">
-        <div className="h-64 animate-pulse rounded-lg bg-muted/50" aria-busy="true" />
+      <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-6">
+        <ClubDetailSkeleton />
       </div>
     );
   }
@@ -255,6 +261,15 @@ function ClubHome() {
                 </Link>
               </Button>
             ) : null}
+            {/* CTA do wątków: wejście z huba ma JEDEN oczywisty następny krok,
+                a nagłówek do tej pory oferował tylko odnogi (minisite, o
+                klubie, skład). Kotwica przewija do listy wątków. */}
+            <Button asChild size="sm" variant="secondary">
+              <a href="#club-threads">
+                <MessagesSquare className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                {t("club.hub.goToThreads")}
+              </a>
+            </Button>
             {club.can_post_thread ? (
               <Button asChild size="sm">
                 <Link to="/club/$clubSlug/new" params={{ clubSlug }}>
@@ -440,6 +455,8 @@ function ClubHome() {
         ) : null}
       </div>
 
+      <div id="club-threads" className="scroll-mt-24" />
+
       {searching ? (
         <ClubGlobalSearchResults
           hits={searchQ.data ?? []}
@@ -452,11 +469,7 @@ function ClubHome() {
       ) : threadsQ.isError ? (
         <ClubErrorNotice onRetry={() => void threadsQ.refetch()} />
       ) : threadsQ.isPending ? (
-        <div className="space-y-2" aria-busy="true">
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="h-20 animate-pulse rounded-lg bg-muted/50" />
-          ))}
-        </div>
+        <ClubThreadListSkeleton />
       ) : threads.length === 0 ? (
         <Card>
           <CardContent className="p-10 text-center text-sm text-muted-foreground">
