@@ -19,7 +19,7 @@ const primaryBtn = accountRow;
 const secondaryBtn = accountRow;
 
 export function MobileAccountSection({ isPl, onNavigate }: Props) {
-  const { session, isStaff, signOut } = useAuth();
+  const { session, signOut } = useAuth();
   const t = (pl: string, en: string) => (isPl ? pl : en);
 
   return (
