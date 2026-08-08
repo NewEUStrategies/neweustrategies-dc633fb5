@@ -14469,6 +14469,7 @@ export type Database = {
           p_anonymous?: boolean
           p_body: string
           p_group_id: string
+          p_idempotency_key?: string
           p_kind?: string
           p_title: string
         }
@@ -14601,6 +14602,10 @@ export type Database = {
           user_id: string
           verified: boolean
         }[]
+      }
+      club_mention_visible_to: {
+        Args: { p_source_id: string; p_source_type: string; p_user_id: string }
+        Returns: boolean
       }
       club_moderate: {
         Args: {
