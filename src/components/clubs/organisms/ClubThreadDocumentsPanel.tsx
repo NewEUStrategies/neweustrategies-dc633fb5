@@ -31,10 +31,10 @@ import {
   useUpsertClubThreadDocument,
 } from "@/lib/clubs/useClubWorkspace";
 import {
-  CLUB_DOCUMENT_KINDS,
+  CLUB_THREAD_DOCUMENT_KINDS as CLUB_DOCUMENT_KINDS,
   toClubDocumentKind,
   toClubWorkspaceError,
-  type ClubDocumentKind,
+  type ClubThreadDocumentKind as ClubDocumentKind,
   type ClubThreadDocumentRow,
 } from "@/lib/clubs/workspaceTypes";
 

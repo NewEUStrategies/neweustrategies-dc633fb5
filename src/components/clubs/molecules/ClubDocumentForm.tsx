@@ -24,10 +24,10 @@ import {
 } from "@/components/ui/select";
 import type { ClubDocumentInput } from "@/lib/clubs/workspaceApi";
 import {
-  CLUB_DOCUMENT_KINDS,
+  CLUB_THREAD_DOCUMENT_KINDS as CLUB_DOCUMENT_KINDS,
   clubDocumentNeedsUrl,
   toClubDocumentKind,
-  type ClubDocumentKind,
+  type ClubThreadDocumentKind as ClubDocumentKind,
   type ClubThreadDocumentRow,
 } from "@/lib/clubs/workspaceTypes";
 

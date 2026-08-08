@@ -22,7 +22,7 @@ import {
   Users2,
 } from "lucide-react";
 import type {
-  ClubDocumentKind,
+  ClubThreadDocumentKind as ClubDocumentKind,
   ClubMilestoneKind,
   ClubWorkspaceSection,
 } from "@/lib/clubs/workspaceTypes";
