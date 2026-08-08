@@ -74,7 +74,7 @@ export function ClubAccessTab({ draft, onChange, disabled }: ClubAccessTabProps)
       joinPolicy: dict("club.joinPolicy", CLUB_JOIN_POLICIES),
       attribution: dict("club.attributionHint", CLUB_ATTRIBUTION_MODES),
       whoCanPost: dict("club.whoCanPost", CLUB_POST_POLICIES),
-      tierRequired: t("adminClubs.accessPreviewTier", { rank: draft.minTierRank }),
+      tierRequired: t(`club.planTierHint.${planTierFromRank(draft.minTierRank)}`),
       tierNone: t("adminClubs.accessPreviewNoTier"),
     });
   }, [sentenceInput, draft.minTierRank, t]);
