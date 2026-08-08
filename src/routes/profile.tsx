@@ -113,7 +113,7 @@ function ProfileLayout() {
                         aria-expanded={false}
                         aria-label={t("profile.sidebar.expand", "Rozwiń ustawienia")}
                         title={t("profile.sidebar.expand", "Rozwiń ustawienia")}
-                        className="mx-auto flex h-9 w-9 items-center justify-center rounded-[6px] border border-border/70 bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        className="flex h-9 w-9 items-center justify-center rounded-[6px] border border-border/70 bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:mx-auto"
                       >
                         <PanelLeftOpen className="h-4 w-4" />
                       </button>
@@ -152,7 +152,11 @@ function ProfileLayout() {
                       </div>
                     )}
 
-                    <ProfileNav collapsed={collapsed} />
+                    {/* Zwinięty rail z ikonami tylko na desktopie - na mobile
+                        zostaje sam przycisk, a profil widać od razu. */}
+                    <div className={cn(collapsed && "hidden md:block")}>
+                      <ProfileNav collapsed={collapsed} />
+                    </div>
 
                     {user && !collapsed && (
                       <div className="mt-auto rounded-lg border border-border bg-background px-3 py-3 shadow-sm">
