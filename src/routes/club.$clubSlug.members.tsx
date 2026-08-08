@@ -96,7 +96,7 @@ function ClubMembersRoute() {
 
   if (clubQ.isPending) {
     return (
-      <div className="container mx-auto max-w-3xl px-4 py-8">
+      <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-8">
         <div className="h-64 animate-pulse rounded-lg bg-muted/50" aria-busy="true" />
       </div>
     );
@@ -104,7 +104,7 @@ function ClubMembersRoute() {
 
   if (clubQ.isError) {
     return (
-      <div className="container mx-auto max-w-3xl px-4 py-12">
+      <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-12">
         <ClubErrorNotice onRetry={() => void clubQ.refetch()} />
       </div>
     );
@@ -112,7 +112,7 @@ function ClubMembersRoute() {
 
   if (!club) {
     return (
-      <div className="container mx-auto max-w-3xl px-4 py-12">
+      <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-12">
         <Card>
           <CardContent className="p-10 text-center text-sm text-muted-foreground">
             {t("club.reason.not_found")}
@@ -126,7 +126,7 @@ function ClubMembersRoute() {
   const total = membersQ.data?.total ?? 0;
 
   return (
-    <div className="container mx-auto max-w-3xl px-4 py-8">
+    <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-8">
       <Button asChild variant="ghost" size="sm" className="-ml-2 mb-3 h-8 px-2">
         <Link to="/club/$clubSlug" params={{ clubSlug }}>
           <ArrowLeft className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />

@@ -201,7 +201,7 @@ export function ClubDirectory({
       </div>
 
       {loading ? (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-busy="true">
           {[0, 1, 2].map((i) => (
             <div key={i} className="h-44 animate-pulse rounded-lg bg-muted/50" />
           ))}
@@ -228,7 +228,7 @@ export function ClubDirectory({
           ) : null}
         </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {clubs.map((club) => (
             <CardTile key={club.id} club={club} isPl={isPl} />
           ))}

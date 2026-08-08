@@ -135,7 +135,7 @@ function ClubHome() {
 
   if (clubQ.isPending) {
     return (
-      <div className="container mx-auto max-w-5xl px-4 py-8">
+      <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-8">
         <div className="h-64 animate-pulse rounded-lg bg-muted/50" aria-busy="true" />
       </div>
     );
@@ -147,7 +147,7 @@ function ClubHome() {
   // inaczej użytkownik z poprawnym linkiem dowiaduje się, że klub nie istnieje.
   if (clubQ.isError) {
     return (
-      <div className="container mx-auto max-w-3xl px-4 py-12">
+      <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-12">
         <ClubErrorNotice onRetry={() => void clubQ.refetch()} />
       </div>
     );
@@ -157,7 +157,7 @@ function ClubHome() {
   // nie ma prawa zdradzić, że istnieje.
   if (!club) {
     return (
-      <div className="container mx-auto max-w-3xl px-4 py-12">
+      <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-12">
         <Card>
           <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
             <MessagesSquare className="h-8 w-8 text-muted-foreground" />
@@ -175,7 +175,7 @@ function ClubHome() {
   // widoczności. Pokazujemy powód i akcję zamiast pustej listy.
   if (!club.can_read) {
     return (
-      <div className="container mx-auto max-w-3xl px-4 py-12">
+      <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-12">
         <Card className="overflow-hidden">
           {/* Okładka jest częścią WIZYTÓWKI, nie treści - klub zamknięty ma
               prawo wyglądać jak klub, mimo że wątków nie pokazuje. */}
@@ -210,7 +210,7 @@ function ClubHome() {
   const threads = pages.flatMap((p) => p.rows);
 
   return (
-    <div className="container mx-auto max-w-5xl px-4 py-6">
+    <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-6">
       {/* Nagłówek klubu jest KOMPAKTOWY: baner 6:1 zamiast 3:1 i tytuł 2xl,
           bo wejście z huba ma pokazać WĄTKI, a nie okładkę na pół ekranu. */}
       <header className="mb-5">
