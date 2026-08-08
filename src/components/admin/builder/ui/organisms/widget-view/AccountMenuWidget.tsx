@@ -152,7 +152,7 @@ export const ACCOUNT_PRESETS: Array<{
     href: "/club",
     label_pl: "Kluby dyskusyjne",
     label_en: "Discussion clubs",
-    icon: "MessagesSquare",
+    icon: "Landmark",
   },
 
   {
@@ -507,7 +507,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
             section: "auth" as const,
             kind: "preset" as const,
             presetKey: "clubs",
-            icon: "MessagesSquare",
+            icon: "Landmark",
           },
           href: "/club",
           label: lang === "pl" ? "Kluby dyskusyjne" : "Discussion clubs",
