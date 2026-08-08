@@ -302,6 +302,20 @@ export const clubPl = {
     searchCount_few: "{{count}} wyniki",
     searchCount_many: "{{count}} wyników",
     searchCount_other: "{{count}} wyników",
+    heat: {
+      dormant: "Uśpiony",
+      slow: "Powolny",
+      steady: "Regularny",
+      active: "Aktywny",
+      hot: "Gorący",
+      tooltip: "{{state}} - {{perDay}} odpowiedzi dziennie, ostatnia aktywność {{hours}} h temu",
+    },
+    activity: {
+      chartLabel: "Aktywność wątków z ostatnich {{days}} dni",
+      week: "odpowiedzi w tym tygodniu",
+      live: "żywych wątków",
+      dormant: "uśpionych",
+    },
     pulse: {
       title: "Dynamika dyskusji",
       participants: "Uczestnicy",
@@ -1338,6 +1352,20 @@ export const clubEn = {
     searchEmpty: 'No topics match "{{query}}".',
     searchCount_one: "{{count}} result",
     searchCount_other: "{{count}} results",
+    heat: {
+      dormant: "Dormant",
+      slow: "Slow",
+      steady: "Steady",
+      active: "Active",
+      hot: "Hot",
+      tooltip: "{{state}} - {{perDay}} replies per day, last activity {{hours}} h ago",
+    },
+    activity: {
+      chartLabel: "Thread activity over the last {{days}} days",
+      week: "replies this week",
+      live: "live threads",
+      dormant: "dormant",
+    },
     pulse: {
       title: "Discussion dynamics",
       participants: "Participants",
