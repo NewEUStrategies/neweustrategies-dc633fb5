@@ -256,22 +256,23 @@ function ClubHome() {
           </div>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
-            <Users2 className="h-4 w-4" />
+            <Users2 className="h-3.5 w-3.5" />
             {t("club.membersCount", { count: club.member_count })}
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <MessagesSquare className="h-4 w-4" />
+            <MessagesSquare className="h-3.5 w-3.5" />
             {t("club.threadsCount", { count: club.thread_count })}
           </span>
           {club.attribution_mode === "chatham" ? (
-            <Badge variant="outline" className="gap-1">
+            <Badge variant="outline" className="gap-1 text-[11px]">
               <ShieldQuestion className="h-3 w-3" />
               {t("club.attribution.chatham")}
             </Badge>
           ) : null}
         </div>
+
 
         {/* Powód informacyjny (np. premoderacja) mówi się PRZED napisaniem,
             nie po odrzuceniu wpisu. */}
