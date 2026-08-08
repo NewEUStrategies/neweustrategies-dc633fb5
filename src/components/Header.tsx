@@ -260,7 +260,7 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
                   type="button"
                   onClick={() => setOpen(false)}
                   aria-label={closeA11y}
-                  className="inline-flex items-center justify-center h-9 w-9 rounded-md border border-border text-foreground hover:bg-muted transition"
+                  className="inline-flex items-center justify-center h-9 w-9 rounded-md text-foreground hover:bg-muted transition"
                 >
                   <X className="w-5 h-5" aria-hidden />
                 </button>
