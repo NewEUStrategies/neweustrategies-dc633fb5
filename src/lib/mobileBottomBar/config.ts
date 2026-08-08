@@ -10,7 +10,7 @@
 // a kolory - w tym akcent aktywnej pozycji - są rozdzielone na tryb jasny i
 // ciemny, żeby kontrast nie zależał od motywu.
 import { safeUrl } from "@/lib/sanitize";
-import { stripLangPrefix } from "@/lib/i18n/localePath";
+import { DEFAULT_LANG, localizedPath, normalizeLang, stripLangPrefix } from "@/lib/i18n/localePath";
 
 export const MOBILE_BOTTOM_BAR_SETTINGS_KEY = "mobile_bottom_bar";
 
@@ -311,4 +311,20 @@ export function activeBottomBarIndex(items: MobileBottomBarItem[], pathname: str
     }
   });
   return best;
+}
+
+/**
+ * Adres pozycji dla bieżącego języka.
+ *
+ * Pasek trzyma adresy kanoniczne (bez prefiksu), a treść publiczna EN mieszka
+ * pod `/en/*`. Bez tej normalizacji przełączenie na kluby z wersji angielskiej
+ * wyrzucało użytkownika na wersję polską - a `activeBottomBarIndex` i tak
+ * porównuje ścieżki po zdjęciu prefiksu, więc podświetlenie zostawało.
+ * Adresy zewnętrzne (http/mailto) przechodzą bez zmian.
+ */
+export function bottomBarHref(item: MobileBottomBarItem, lang: string): string {
+  const href = item.href || "/";
+  if (!href.startsWith("/")) return href;
+  const [path, rest = ""] = [href.split(/(?=[?#])/)[0], href.slice(href.split(/(?=[?#])/)[0].length)];
+  return `${localizedPath(path, normalizeLang(lang) ?? DEFAULT_LANG)}${rest}`;
 }
