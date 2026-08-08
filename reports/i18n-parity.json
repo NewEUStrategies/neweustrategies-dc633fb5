@@ -126,14 +126,15 @@
     "builder.widgetLibrary.catMedia",
     "builder.widgetLibrary.sub.audio",
     "builder.widgetLibrary.sub.marketing",
+    "club.calendar.kind.briefing",
     "club.filters.status",
+    "club.insights.hours",
     "club.planTier.plus",
-    "club.topic.transport",
-    "club.workspace.schedule.statusLabel"
+    "club.topic.transport"
   ],
   "repoWide": {
     "missingEn": 0,
     "missingPl": 0,
-    "untranslated": 405
+    "untranslated": 406
   }
 }

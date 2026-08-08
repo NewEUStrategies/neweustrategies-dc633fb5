@@ -798,7 +798,9 @@ export function renderSimpleWidget(
         (lang === "pl" ? "Zmień język" : "Change language");
       return (
         <div className="inline-flex items-center text-xs leading-none" style={compactRowStyle}>
-          <LangSwitcherDropdown label={label} showLabel={asBool(c["showLabel"], false)} />
+          {/* Widoczna etykieta tekstowa została usunięta na życzenie UX –
+              zostaje jedynie sam switcher PL/EN. Aria-label pozostaje dla czytników. */}
+          <LangSwitcherDropdown label={label} showLabel={false} />
         </div>
       );
     }

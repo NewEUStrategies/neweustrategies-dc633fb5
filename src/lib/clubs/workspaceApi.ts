@@ -1,45 +1,32 @@
-// Przestrzen robocza watku (A28) - warstwa dostepu do danych.
+// Discussion Club - warstwa dostepu do danych przestrzeni roboczej (A28).
 //
-// Jedna funkcja = jedno wywolanie RPC, zero zapytan tabelarycznych. Tabele
-// A28 nie maja grantow dla klienta (RLS deny-all), wiec
-// `supabase.from("club_thread_documents")` zwraca pusty zbior nawet adminowi -
-// i tak ma byc: cala autoryzacja zyje w SECURITY DEFINER, po jednej stronie.
+// Kazda funkcja to jedno wywolanie RPC. Zero zapytan tabelarycznych: tabele
+// `club_documents`, `club_events`, `club_event_rsvps` i `club_milestones` nie
+// maja grantow dla klienta, wiec `supabase.from("club_documents")` zwrocilby
+// pusty zbior nawet dla kuratora. To jest celowe - cala autoryzacja zyje
+// w SECURITY DEFINER, a nie w tym pliku.
 import { supabase } from "@/integrations/supabase/client";
-import type { Database, Json } from "@/integrations/supabase/types";
+import type { Json } from "@/integrations/supabase/types";
 import type {
-  ClubDocumentKind,
-  ClubMilestoneKind,
-  ClubMilestoneStatus,
-  ClubQuestionSort,
-  ClubQuestionStatus,
-  ClubThreadDocumentRow,
-  ClubThreadInsightRow,
-  ClubThreadLinkRow,
-  ClubThreadMilestoneRow,
-  ClubThreadParticipantRow,
-  ClubThreadPollRow,
-  ClubThreadQuestionRow,
-  ClubThreadRelation,
-  ClubWorkspaceRow,
-  ClubWorkspaceSearchRow,
+  ClubActivityPoint,
+  ClubDocumentRow,
+  ClubDocumentUpsertInput,
+  ClubEventRow,
+  ClubEventUpsertInput,
+  ClubMilestoneRow,
+  ClubMilestoneUpsertInput,
+  ClubRsvpState,
+  ClubWorkspaceStatsRow,
 } from "./workspaceTypes";
 
 /**
- * Argumenty RPC z DEFAULT NULL: generator opisuje je jako `string | undefined`,
- * chociaz w SQL `NULL` jest poprawna i ZNACZACA wartoscia ("wszystkie
- * rodzaje", "caly harmonogram"). Pominiecie klucza daje serwerowy DEFAULT,
- * wiec `undefined` nie jest zamiennikiem dla `null` - stad to jedno waskie
- * przejscie typow zamiast rzutowania w miejscu wywolania. Ta sama konstrukcja,
- * co `RpcArgs` w `api.ts`.
- */
-type RpcArgs<K extends keyof Database["public"]["Functions"]> =
-  Database["public"]["Functions"][K]["Args"];
-
-/**
- * Wejscia mutacji ida do RPC jako jsonb. Przejscie przez JSON odsiewa
- * `undefined` - a wlasnie BRAK klucza znaczy w kontrakcie A28 "nie ruszaj
- * tego pola". Gdyby `undefined` przetrwalo, kazdy zapis czesciowy kasowalby
- * pola, ktorych formularz nie mial na ekranie.
+ * Wejscia mutacji ida do RPC jako jsonb. Konwersja przez JSON zamiast przez
+ * `as unknown as Json`: obiekt patcha ma wylacznie pola serializowalne, wiec
+ * przejscie jest poprawne typowo i - co wazniejsze - ODSIEWA `undefined`,
+ * a wlasnie brak klucza znaczy w tym kontrakcie "nie ruszaj pola".
+ *
+ * `null` przezywa te droge nietkniety, bo `null` znaczy "wyczysc" i to jest
+ * inna odpowiedz niz pominiecie.
  */
 function toJsonPayload(input: object): Json {
   const parsed: unknown = JSON.parse(JSON.stringify(input));
@@ -47,290 +34,181 @@ function toJsonPayload(input: object): Json {
 }
 
 // ---------------------------------------------------------------------------
-// Odczyt
+// Biblioteka dokumentow
 // ---------------------------------------------------------------------------
 
-/** Spis tresci przestrzeni. `null` = brak prawa odczytu watku (albo watek
- *  nie istnieje) - RPC nie rozroznia tych przypadkow celowo. */
-export async function fetchClubThreadWorkspace(threadId: string): Promise<ClubWorkspaceRow | null> {
-  const { data, error } = await supabase.rpc("club_thread_workspace", {
-    p_thread_id: threadId,
-  });
-  if (error) throw error;
-  return data?.[0] ?? null;
+export interface ClubDocumentsPage {
+  rows: ClubDocumentRow[];
+  total: number;
 }
 
-export async function fetchClubThreadParticipants(params: {
-  threadId: string;
+export interface ClubDocumentsQuery {
+  clubId: string;
+  groupId?: string | null;
+  kind?: string | null;
+  search?: string | null;
   limit?: number;
-}): Promise<ClubThreadParticipantRow[]> {
-  const { data, error } = await supabase.rpc("club_thread_participants", {
-    p_thread_id: params.threadId,
-    p_limit: params.limit ?? 50,
-  });
-  if (error) throw error;
-  return data ?? [];
+  offset?: number;
 }
 
-export async function fetchClubThreadDocuments(params: {
-  threadId: string;
-  kind?: ClubDocumentKind | null;
-  limit?: number;
-}): Promise<ClubThreadDocumentRow[]> {
-  const args: RpcArgs<"club_thread_documents_list"> = {
-    p_thread_id: params.threadId,
+export async function fetchClubDocuments(params: ClubDocumentsQuery): Promise<ClubDocumentsPage> {
+  const { data, error } = await supabase.rpc("club_documents_list", {
+    p_club_id: params.clubId,
+    p_group_id: params.groupId ?? undefined,
     p_kind: params.kind ?? undefined,
-    p_limit: params.limit ?? 100,
-  };
-  const { data, error } = await supabase.rpc("club_thread_documents_list", args);
-  if (error) throw error;
-  return data ?? [];
-}
-
-/**
- * Harmonogram. Bez zakresu zwraca CALOSC (widok listy); z zakresem - wycinek
- * pod siatke miesiaca. Jedno RPC dla obu prezentacji, bo to jeden zbior
- * danych - dwa RPC rozjechalyby sie przy pierwszej zmianie projekcji.
- */
-export async function fetchClubThreadMilestones(params: {
-  threadId: string;
-  from?: string | null;
-  to?: string | null;
-  limit?: number;
-}): Promise<ClubThreadMilestoneRow[]> {
-  const args: RpcArgs<"club_thread_milestones_list"> = {
-    p_thread_id: params.threadId,
-    p_from: params.from ?? undefined,
-    p_to: params.to ?? undefined,
-    p_limit: params.limit ?? 200,
-  };
-  const { data, error } = await supabase.rpc("club_thread_milestones_list", args);
-  if (error) throw error;
-  return data ?? [];
-}
-
-export async function fetchClubThreadQuestions(params: {
-  threadId: string;
-  status?: ClubQuestionStatus | null;
-  sort?: ClubQuestionSort;
-  limit?: number;
-}): Promise<ClubThreadQuestionRow[]> {
-  const args: RpcArgs<"club_thread_questions_list"> = {
-    p_thread_id: params.threadId,
-    p_status: params.status ?? undefined,
-    p_sort: params.sort ?? "top",
-    p_limit: params.limit ?? 100,
-  };
-  const { data, error } = await supabase.rpc("club_thread_questions_list", args);
-  if (error) throw error;
-  return data ?? [];
-}
-
-export async function fetchClubThreadLinks(threadId: string): Promise<ClubThreadLinkRow[]> {
-  const { data, error } = await supabase.rpc("club_thread_links_list", {
-    p_thread_id: threadId,
+    p_search: params.search ?? undefined,
+    p_limit: params.limit ?? 50,
+    p_offset: params.offset ?? 0,
   });
   if (error) throw error;
-  return data ?? [];
+  const rows = (data ?? []) as ClubDocumentRow[];
+  // `total_count` jest oknem liczonym PRZED limitem, wiec pochodzi z wiersza,
+  // a nie z dlugosci strony. Pusta strona znaczy zero - i to jest prawda.
+  return { rows, total: rows.length > 0 ? Number(rows[0].total_count) : 0 };
 }
 
-export async function fetchClubThreadPolls(threadId: string): Promise<ClubThreadPollRow[]> {
-  const { data, error } = await supabase.rpc("club_thread_polls_list", {
-    p_thread_id: threadId,
-  });
-  if (error) throw error;
-  return data ?? [];
-}
-
-/**
- * Wyszukiwanie WEWNATRZ watku. Pusta fraza nie jedzie do bazy: pusty tsquery
- * i tak nie dopasuje niczego, a round-trip po zerowy wynik przy kazdym
- * nacisnieciu klawisza to koszt bez zysku.
- */
-export async function searchClubThreadWorkspace(params: {
-  threadId: string;
-  query: string;
-  limit?: number;
-}): Promise<ClubWorkspaceSearchRow[]> {
-  const query = params.query.trim();
-  if (query.length === 0) return [];
-  const { data, error } = await supabase.rpc("club_thread_search", {
-    p_thread_id: params.threadId,
-    p_query: query,
-    p_limit: params.limit ?? 30,
-  });
-  if (error) throw error;
-  return data ?? [];
-}
-
-export async function fetchClubThreadInsights(params: {
-  threadId: string;
-  buckets?: number;
-}): Promise<ClubThreadInsightRow[]> {
-  const { data, error } = await supabase.rpc("club_thread_insights", {
-    p_thread_id: params.threadId,
-    p_buckets: params.buckets ?? 24,
-  });
-  if (error) throw error;
-  return data ?? [];
-}
-
-// ---------------------------------------------------------------------------
-// Zapis
-// ---------------------------------------------------------------------------
-
-/**
- * Patch zrodla. Pole NIEOBECNE = "nie ruszaj", pole ustawione na `null` =
- * "wyczysc" - dlatego typy opcjonalnych tekstow to `string | null`, a nie
- * `string | undefined`. Ta sama umowa, co w `ClubUpsertInput`.
- */
-export interface ClubDocumentInput {
-  id?: string;
-  thread_id?: string;
-  kind?: ClubDocumentKind;
-  title?: string;
-  description?: string | null;
-  url?: string | null;
-  source_label?: string | null;
-  published_on?: string | null;
-  mime_type?: string | null;
-  byte_size?: number | null;
-  is_primary?: boolean;
-  sort_order?: number;
-  status?: "visible" | "hidden";
-}
-
-export async function upsertClubThreadDocument(input: ClubDocumentInput): Promise<string> {
-  const { data, error } = await supabase.rpc("club_thread_document_upsert", {
+export async function upsertClubDocument(
+  clubId: string,
+  input: ClubDocumentUpsertInput,
+): Promise<string> {
+  const { data, error } = await supabase.rpc("club_document_upsert", {
+    p_club_id: clubId,
     p_payload: toJsonPayload(input),
   });
   if (error) throw error;
-  return data ?? "";
+  return data;
 }
 
-export async function removeClubThreadDocument(documentId: string): Promise<void> {
-  const { error } = await supabase.rpc("club_thread_document_remove", {
+export async function deleteClubDocument(documentId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc("club_document_delete", {
     p_document_id: documentId,
   });
   if (error) throw error;
+  return data === true;
 }
 
-export interface ClubMilestoneInput {
-  id?: string;
-  thread_id?: string;
-  title?: string;
-  description?: string | null;
-  kind?: ClubMilestoneKind;
-  status?: ClubMilestoneStatus;
-  starts_at?: string;
-  ends_at?: string | null;
-  all_day?: boolean;
-  location?: string | null;
-  url?: string | null;
-  owner_id?: string | null;
-  event_id?: string | null;
-  sort_order?: number;
+/**
+ * Licznik pobran. Swiadomie NIE rzuca: nieudany licznik nie ma prawa przerwac
+ * otwierania pliku, ktory uzytkownik wlasnie kliknal. RPC z tego samego powodu
+ * zwraca `false` zamiast wyjatku, gdy bramka nie przepuszcza.
+ */
+export async function registerClubDocumentDownload(documentId: string): Promise<void> {
+  await supabase.rpc("club_document_register_download", { p_document_id: documentId });
 }
 
-export async function upsertClubThreadMilestone(input: ClubMilestoneInput): Promise<string> {
-  const { data, error } = await supabase.rpc("club_thread_milestone_upsert", {
+// ---------------------------------------------------------------------------
+// Kalendarz
+// ---------------------------------------------------------------------------
+
+export interface ClubEventsQuery {
+  clubId: string;
+  /** ISO 8601. Zakres domyka sie po `ends_at`, wiec wydarzenie trwajace przez
+   *  granice okna nie znika z widoku miesiaca. */
+  from?: string | null;
+  to?: string | null;
+  kind?: string | null;
+  limit?: number;
+}
+
+export async function fetchClubEvents(params: ClubEventsQuery): Promise<ClubEventRow[]> {
+  const { data, error } = await supabase.rpc("club_events_list", {
+    p_club_id: params.clubId,
+    p_from: params.from ?? undefined,
+    p_to: params.to ?? undefined,
+    p_kind: params.kind ?? undefined,
+    p_limit: params.limit ?? 200,
+  });
+  if (error) throw error;
+  return (data ?? []) as ClubEventRow[];
+}
+
+export async function upsertClubEvent(
+  clubId: string,
+  input: ClubEventUpsertInput,
+): Promise<string> {
+  const { data, error } = await supabase.rpc("club_event_upsert", {
+    p_club_id: clubId,
     p_payload: toJsonPayload(input),
   });
   if (error) throw error;
-  return data ?? "";
+  return data;
 }
 
-export async function removeClubThreadMilestone(milestoneId: string): Promise<void> {
-  const { error } = await supabase.rpc("club_thread_milestone_remove", {
+export async function deleteClubEvent(eventId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc("club_event_delete", { p_event_id: eventId });
+  if (error) throw error;
+  return data === true;
+}
+
+export async function setClubEventRsvp(eventId: string, state: ClubRsvpState): Promise<boolean> {
+  const { data, error } = await supabase.rpc("club_event_rsvp", {
+    p_event_id: eventId,
+    p_state: state,
+  });
+  if (error) throw error;
+  return data === true;
+}
+
+// ---------------------------------------------------------------------------
+// Harmonogram prac
+// ---------------------------------------------------------------------------
+
+export async function fetchClubMilestones(clubId: string): Promise<ClubMilestoneRow[]> {
+  const { data, error } = await supabase.rpc("club_milestones_list", { p_club_id: clubId });
+  if (error) throw error;
+  return (data ?? []) as ClubMilestoneRow[];
+}
+
+export async function upsertClubMilestone(
+  clubId: string,
+  input: ClubMilestoneUpsertInput,
+): Promise<string> {
+  const { data, error } = await supabase.rpc("club_milestone_upsert", {
+    p_club_id: clubId,
+    p_payload: toJsonPayload(input),
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteClubMilestone(milestoneId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc("club_milestone_delete", {
     p_milestone_id: milestoneId,
   });
   if (error) throw error;
+  return data === true;
 }
 
-export async function askClubThreadQuestion(params: {
-  threadId: string;
-  body: string;
-  anonymous?: boolean;
-}): Promise<string> {
-  const { data, error } = await supabase.rpc("club_thread_question_ask", {
-    p_thread_id: params.threadId,
-    p_body: params.body,
-    p_anonymous: params.anonymous ?? false,
+// ---------------------------------------------------------------------------
+// Pomiar
+// ---------------------------------------------------------------------------
+
+export async function fetchClubActivitySeries(
+  clubId: string,
+  days: number,
+): Promise<ClubActivityPoint[]> {
+  const { data, error } = await supabase.rpc("club_activity_series", {
+    p_club_id: clubId,
+    p_days: days,
   });
   if (error) throw error;
-  return data ?? "";
+  return data ?? [];
 }
 
-export async function answerClubThreadQuestion(params: {
-  questionId: string;
-  body: string;
-  status?: ClubQuestionStatus;
-}): Promise<void> {
-  const { error } = await supabase.rpc("club_thread_question_answer", {
-    p_question_id: params.questionId,
-    p_body: params.body,
-    p_status: params.status ?? "answered",
+/**
+ * `null` znaczy "nie ma czego pokazac" - RPC oddaje ZERO wierszy wolajacemu bez
+ * `can_read`. To jest ta sama doktryna, co przy `club_view`: brak wiersza to
+ * 404, nie 403, i pomiar tak samo nie ma prawa zdradzic ksztaltu klubu.
+ */
+export async function fetchClubWorkspaceStats(
+  clubId: string,
+  days: number,
+): Promise<ClubWorkspaceStatsRow | null> {
+  const { data, error } = await supabase.rpc("club_workspace_stats", {
+    p_club_id: clubId,
+    p_days: days,
   });
   if (error) throw error;
-}
-
-/** Zwraca licznik PO zapisie - klient nie zgaduje wyniku wyscigu dwoch glosow. */
-export async function voteClubThreadQuestion(params: {
-  questionId: string;
-  on: boolean;
-}): Promise<number> {
-  const { data, error } = await supabase.rpc("club_thread_question_vote", {
-    p_question_id: params.questionId,
-    p_on: params.on,
-  });
-  if (error) throw error;
-  return Number(data ?? 0);
-}
-
-export async function addClubThreadLink(params: {
-  threadId: string;
-  relatedThreadId: string;
-  relation?: ClubThreadRelation;
-  note?: string | null;
-}): Promise<string> {
-  const args: RpcArgs<"club_thread_link_add"> = {
-    p_thread_id: params.threadId,
-    p_related_thread_id: params.relatedThreadId,
-    p_relation: params.relation ?? "context",
-    p_note: params.note ?? undefined,
-  };
-  const { data, error } = await supabase.rpc("club_thread_link_add", args);
-  if (error) throw error;
-  return data ?? "";
-}
-
-export async function removeClubThreadLink(linkId: string): Promise<void> {
-  const { error } = await supabase.rpc("club_thread_link_remove", { p_link_id: linkId });
-  if (error) throw error;
-}
-
-export async function createClubThreadPoll(params: {
-  threadId: string;
-  questionPl: string;
-  questionEn: string;
-  options: Json;
-  endsAt?: string | null;
-  label?: string | null;
-}): Promise<string> {
-  const args: RpcArgs<"club_thread_poll_create"> = {
-    p_thread_id: params.threadId,
-    p_question_pl: params.questionPl,
-    p_question_en: params.questionEn,
-    p_options: params.options,
-    p_ends_at: params.endsAt ?? undefined,
-    p_label: params.label ?? undefined,
-  };
-  const { data, error } = await supabase.rpc("club_thread_poll_create", args);
-  if (error) throw error;
-  return data ?? "";
-}
-
-export async function detachClubThreadPoll(linkId: string): Promise<void> {
-  const { error } = await supabase.rpc("club_thread_poll_detach", { p_link_id: linkId });
-  if (error) throw error;
+  const rows = (data ?? []) as ClubWorkspaceStatsRow[];
+  return rows[0] ?? null;
 }

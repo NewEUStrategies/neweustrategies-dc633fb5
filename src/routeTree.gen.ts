@@ -192,9 +192,13 @@ import { Route as PlatformEmailSuppressionRouteImport } from './routes/platform/
 import { Route as NetworkMutualUserIdRouteImport } from './routes/network.mutual.$userId'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as ClubJoinTokenRouteImport } from './routes/club.join.$token'
+import { Route as ClubClubSlugScheduleRouteImport } from './routes/club.$clubSlug.schedule'
 import { Route as ClubClubSlugNewRouteImport } from './routes/club.$clubSlug.new'
 import { Route as ClubClubSlugMinisiteRouteImport } from './routes/club.$clubSlug.minisite'
 import { Route as ClubClubSlugMembersRouteImport } from './routes/club.$clubSlug.members'
+import { Route as ClubClubSlugInsightsRouteImport } from './routes/club.$clubSlug.insights'
+import { Route as ClubClubSlugDocumentsRouteImport } from './routes/club.$clubSlug.documents'
+import { Route as ClubClubSlugCalendarRouteImport } from './routes/club.$clubSlug.calendar'
 import { Route as ClubClubSlugAboutRouteImport } from './routes/club.$clubSlug.about'
 import { Route as CategorySlugRssDotxmlRouteImport } from './routes/category.$slug.rss[.]xml'
 import { Route as ApiPublicVitalsRouteImport } from './routes/api/public/vitals'
@@ -1210,6 +1214,11 @@ const ClubJoinTokenRoute = ClubJoinTokenRouteImport.update({
   path: '/join/$token',
   getParentRoute: () => ClubRoute,
 } as any)
+const ClubClubSlugScheduleRoute = ClubClubSlugScheduleRouteImport.update({
+  id: '/$clubSlug/schedule',
+  path: '/$clubSlug/schedule',
+  getParentRoute: () => ClubRoute,
+} as any)
 const ClubClubSlugNewRoute = ClubClubSlugNewRouteImport.update({
   id: '/$clubSlug/new',
   path: '/$clubSlug/new',
@@ -1223,6 +1232,21 @@ const ClubClubSlugMinisiteRoute = ClubClubSlugMinisiteRouteImport.update({
 const ClubClubSlugMembersRoute = ClubClubSlugMembersRouteImport.update({
   id: '/$clubSlug/members',
   path: '/$clubSlug/members',
+  getParentRoute: () => ClubRoute,
+} as any)
+const ClubClubSlugInsightsRoute = ClubClubSlugInsightsRouteImport.update({
+  id: '/$clubSlug/insights',
+  path: '/$clubSlug/insights',
+  getParentRoute: () => ClubRoute,
+} as any)
+const ClubClubSlugDocumentsRoute = ClubClubSlugDocumentsRouteImport.update({
+  id: '/$clubSlug/documents',
+  path: '/$clubSlug/documents',
+  getParentRoute: () => ClubRoute,
+} as any)
+const ClubClubSlugCalendarRoute = ClubClubSlugCalendarRouteImport.update({
+  id: '/$clubSlug/calendar',
+  path: '/$clubSlug/calendar',
   getParentRoute: () => ClubRoute,
 } as any)
 const ClubClubSlugAboutRoute = ClubClubSlugAboutRouteImport.update({
@@ -1979,9 +2003,13 @@ export interface FileRoutesByFullPath {
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/category/$slug/rss.xml': typeof CategorySlugRssDotxmlRoute
   '/club/$clubSlug/about': typeof ClubClubSlugAboutRoute
+  '/club/$clubSlug/calendar': typeof ClubClubSlugCalendarRoute
+  '/club/$clubSlug/documents': typeof ClubClubSlugDocumentsRoute
+  '/club/$clubSlug/insights': typeof ClubClubSlugInsightsRoute
   '/club/$clubSlug/members': typeof ClubClubSlugMembersRoute
   '/club/$clubSlug/minisite': typeof ClubClubSlugMinisiteRoute
   '/club/$clubSlug/new': typeof ClubClubSlugNewRoute
+  '/club/$clubSlug/schedule': typeof ClubClubSlugScheduleRoute
   '/club/join/$token': typeof ClubJoinTokenRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
@@ -2251,9 +2279,13 @@ export interface FileRoutesByTo {
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/category/$slug/rss.xml': typeof CategorySlugRssDotxmlRoute
   '/club/$clubSlug/about': typeof ClubClubSlugAboutRoute
+  '/club/$clubSlug/calendar': typeof ClubClubSlugCalendarRoute
+  '/club/$clubSlug/documents': typeof ClubClubSlugDocumentsRoute
+  '/club/$clubSlug/insights': typeof ClubClubSlugInsightsRoute
   '/club/$clubSlug/members': typeof ClubClubSlugMembersRoute
   '/club/$clubSlug/minisite': typeof ClubClubSlugMinisiteRoute
   '/club/$clubSlug/new': typeof ClubClubSlugNewRoute
+  '/club/$clubSlug/schedule': typeof ClubClubSlugScheduleRoute
   '/club/join/$token': typeof ClubJoinTokenRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
@@ -2535,9 +2567,13 @@ export interface FileRoutesById {
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/category/$slug/rss.xml': typeof CategorySlugRssDotxmlRoute
   '/club/$clubSlug/about': typeof ClubClubSlugAboutRoute
+  '/club/$clubSlug/calendar': typeof ClubClubSlugCalendarRoute
+  '/club/$clubSlug/documents': typeof ClubClubSlugDocumentsRoute
+  '/club/$clubSlug/insights': typeof ClubClubSlugInsightsRoute
   '/club/$clubSlug/members': typeof ClubClubSlugMembersRoute
   '/club/$clubSlug/minisite': typeof ClubClubSlugMinisiteRoute
   '/club/$clubSlug/new': typeof ClubClubSlugNewRoute
+  '/club/$clubSlug/schedule': typeof ClubClubSlugScheduleRoute
   '/club/join/$token': typeof ClubJoinTokenRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
@@ -2820,9 +2856,13 @@ export interface FileRouteTypes {
     | '/api/public/vitals'
     | '/category/$slug/rss.xml'
     | '/club/$clubSlug/about'
+    | '/club/$clubSlug/calendar'
+    | '/club/$clubSlug/documents'
+    | '/club/$clubSlug/insights'
     | '/club/$clubSlug/members'
     | '/club/$clubSlug/minisite'
     | '/club/$clubSlug/new'
+    | '/club/$clubSlug/schedule'
     | '/club/join/$token'
     | '/lovable/email/suppression'
     | '/network/mutual/$userId'
@@ -3092,9 +3132,13 @@ export interface FileRouteTypes {
     | '/api/public/vitals'
     | '/category/$slug/rss.xml'
     | '/club/$clubSlug/about'
+    | '/club/$clubSlug/calendar'
+    | '/club/$clubSlug/documents'
+    | '/club/$clubSlug/insights'
     | '/club/$clubSlug/members'
     | '/club/$clubSlug/minisite'
     | '/club/$clubSlug/new'
+    | '/club/$clubSlug/schedule'
     | '/club/join/$token'
     | '/lovable/email/suppression'
     | '/network/mutual/$userId'
@@ -3375,9 +3419,13 @@ export interface FileRouteTypes {
     | '/api/public/vitals'
     | '/category/$slug/rss.xml'
     | '/club/$clubSlug/about'
+    | '/club/$clubSlug/calendar'
+    | '/club/$clubSlug/documents'
+    | '/club/$clubSlug/insights'
     | '/club/$clubSlug/members'
     | '/club/$clubSlug/minisite'
     | '/club/$clubSlug/new'
+    | '/club/$clubSlug/schedule'
     | '/club/join/$token'
     | '/lovable/email/suppression'
     | '/network/mutual/$userId'
@@ -4812,6 +4860,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClubJoinTokenRouteImport
       parentRoute: typeof ClubRoute
     }
+    '/club/$clubSlug/schedule': {
+      id: '/club/$clubSlug/schedule'
+      path: '/$clubSlug/schedule'
+      fullPath: '/club/$clubSlug/schedule'
+      preLoaderRoute: typeof ClubClubSlugScheduleRouteImport
+      parentRoute: typeof ClubRoute
+    }
     '/club/$clubSlug/new': {
       id: '/club/$clubSlug/new'
       path: '/$clubSlug/new'
@@ -4831,6 +4886,27 @@ declare module '@tanstack/react-router' {
       path: '/$clubSlug/members'
       fullPath: '/club/$clubSlug/members'
       preLoaderRoute: typeof ClubClubSlugMembersRouteImport
+      parentRoute: typeof ClubRoute
+    }
+    '/club/$clubSlug/insights': {
+      id: '/club/$clubSlug/insights'
+      path: '/$clubSlug/insights'
+      fullPath: '/club/$clubSlug/insights'
+      preLoaderRoute: typeof ClubClubSlugInsightsRouteImport
+      parentRoute: typeof ClubRoute
+    }
+    '/club/$clubSlug/documents': {
+      id: '/club/$clubSlug/documents'
+      path: '/$clubSlug/documents'
+      fullPath: '/club/$clubSlug/documents'
+      preLoaderRoute: typeof ClubClubSlugDocumentsRouteImport
+      parentRoute: typeof ClubRoute
+    }
+    '/club/$clubSlug/calendar': {
+      id: '/club/$clubSlug/calendar'
+      path: '/$clubSlug/calendar'
+      fullPath: '/club/$clubSlug/calendar'
+      preLoaderRoute: typeof ClubClubSlugCalendarRouteImport
       parentRoute: typeof ClubRoute
     }
     '/club/$clubSlug/about': {
@@ -5928,9 +6004,13 @@ interface ClubRouteChildren {
   ClubElementsRoute: typeof ClubElementsRoute
   ClubIndexRoute: typeof ClubIndexRoute
   ClubClubSlugAboutRoute: typeof ClubClubSlugAboutRoute
+  ClubClubSlugCalendarRoute: typeof ClubClubSlugCalendarRoute
+  ClubClubSlugDocumentsRoute: typeof ClubClubSlugDocumentsRoute
+  ClubClubSlugInsightsRoute: typeof ClubClubSlugInsightsRoute
   ClubClubSlugMembersRoute: typeof ClubClubSlugMembersRoute
   ClubClubSlugMinisiteRoute: typeof ClubClubSlugMinisiteRoute
   ClubClubSlugNewRoute: typeof ClubClubSlugNewRoute
+  ClubClubSlugScheduleRoute: typeof ClubClubSlugScheduleRoute
   ClubJoinTokenRoute: typeof ClubJoinTokenRoute
   ClubClubSlugIndexRoute: typeof ClubClubSlugIndexRoute
   ClubClubSlugTThreadSlugRoute: typeof ClubClubSlugTThreadSlugRoute
@@ -5940,9 +6020,13 @@ const ClubRouteChildren: ClubRouteChildren = {
   ClubElementsRoute: ClubElementsRoute,
   ClubIndexRoute: ClubIndexRoute,
   ClubClubSlugAboutRoute: ClubClubSlugAboutRoute,
+  ClubClubSlugCalendarRoute: ClubClubSlugCalendarRoute,
+  ClubClubSlugDocumentsRoute: ClubClubSlugDocumentsRoute,
+  ClubClubSlugInsightsRoute: ClubClubSlugInsightsRoute,
   ClubClubSlugMembersRoute: ClubClubSlugMembersRoute,
   ClubClubSlugMinisiteRoute: ClubClubSlugMinisiteRoute,
   ClubClubSlugNewRoute: ClubClubSlugNewRoute,
+  ClubClubSlugScheduleRoute: ClubClubSlugScheduleRoute,
   ClubJoinTokenRoute: ClubJoinTokenRoute,
   ClubClubSlugIndexRoute: ClubClubSlugIndexRoute,
   ClubClubSlugTThreadSlugRoute: ClubClubSlugTThreadSlugRoute,

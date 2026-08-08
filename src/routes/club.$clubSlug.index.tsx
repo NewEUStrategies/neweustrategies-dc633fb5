@@ -37,6 +37,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { ClubThreadList } from "@/components/clubs/organisms/ClubThreadList";
 import { ClubCover } from "@/components/clubs/atoms/ClubCover";
 import { ClubActivityStrip } from "@/components/clubs/molecules/ClubActivityStrip";
+import { ClubWorkspaceNav } from "@/components/clubs/molecules/ClubWorkspaceNav";
 import {
   CLUB_THREAD_KINDS,
   CLUB_THREAD_SORTS,
@@ -48,10 +49,7 @@ import {
   type ClubThreadStatus,
 } from "@/lib/clubs/types";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
-import {
-  ClubDetailSkeleton,
-  ClubThreadListSkeleton,
-} from "@/components/clubs/atoms/ClubSkeletons";
+import { ClubDetailSkeleton, ClubThreadListSkeleton } from "@/components/clubs/atoms/ClubSkeletons";
 import {
   ClubGlobalSearchInput,
   ClubGlobalSearchResults,
@@ -257,16 +255,6 @@ function ClubHome() {
                 {t("club.about")}
               </Link>
             </Button>
-            {/* Skład klubu pokazujemy tylko wtedy, gdy baza na to pozwala -
-                `can_see_members` liczy się w club_capabilities i do tej pory
-                nie miało po stronie produktu żadnego konsumenta. */}
-            {club.can_see_members ? (
-              <Button asChild variant="outline" size="sm">
-                <Link to="/club/$clubSlug/members" params={{ clubSlug }}>
-                  {t("club.members")}
-                </Link>
-              </Button>
-            ) : null}
             {/* CTA do wątków: wejście z huba ma JEDEN oczywisty następny krok,
                 a nagłówek do tej pory oferował tylko odnogi (minisite, o
                 klubie, skład). Kotwica przewija do listy wątków. */}
@@ -285,6 +273,18 @@ function ClubHome() {
             ) : null}
           </div>
         </div>
+
+        {/* Zakładki przestrzeni roboczej. Zastąpiły dwa przyciski z tego
+            nagłówka (skład klubu i - po A28 - cztery kolejne odnogi): rząd
+            przycisków mówi tylko DOKĄD można pójść, zakładka mówi także,
+            GDZIE się jest. Skład pokazujemy wyłącznie wtedy, gdy pozwala na to
+            `can_see_members` z club_capabilities - to jest ta sama bramka,
+            która wcześniej rządziła osobnym przyciskiem. */}
+        <ClubWorkspaceNav
+          clubSlug={clubSlug}
+          canSeeMembers={club.can_see_members}
+          className="mt-3"
+        />
 
         {/* Pasek dynamiki: stan (członkowie, tematy) i RUCH (14 dni) w jednym
             wierszu - dopiero razem mówią, czy klub żyje. */}
@@ -306,7 +306,6 @@ function ClubHome() {
             </Badge>
           ) : null}
         </div>
-
 
         {/* Powód informacyjny (np. premoderacja) mówi się PRZED napisaniem,
             nie po odrzuceniu wpisu. */}
@@ -377,8 +376,6 @@ function ClubHome() {
             ))}
           </SelectContent>
         </Select>
-
-
 
         <Select value={topic ?? ALL} onValueChange={(v) => setTopic(v === ALL ? null : v)}>
           <SelectTrigger aria-label={t("club.topic.label")}>
