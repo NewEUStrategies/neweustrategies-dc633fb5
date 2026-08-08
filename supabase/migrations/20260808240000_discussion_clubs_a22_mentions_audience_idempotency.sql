@@ -204,6 +204,7 @@ DROP FUNCTION IF EXISTS public.club_create_thread(uuid, text, text, text, boolea
 -- wywolania w roznych grupach) - jest przeniesiona bez zmiany. Przepisanie
 -- funkcji z pamieci zamiast z jej biezacego zrodla to sposob, w jaki gubi sie
 -- warunek, ktorego nikt nie zauwazy, dopoki nie zawiedzie.
+DROP FUNCTION IF EXISTS public.club_create_thread(uuid, text, text, text, boolean, text, text, text);
 CREATE FUNCTION public.club_create_thread(
   p_group_id        uuid,
   p_title           text,
