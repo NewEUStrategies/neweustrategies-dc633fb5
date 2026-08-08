@@ -190,11 +190,11 @@ function ClubHub() {
             />
           ) : null}
           <ClubGlobalSearchResults
-          hits={searchQ.data ?? []}
-          pending={searchQ.isPending}
-          failed={searchQ.isError}
-          query={debouncedQuery}
-          isPl={isPl}
+            hits={searchQ.data ?? []}
+            pending={searchQ.isPending}
+            failed={searchQ.isError}
+            query={debouncedQuery}
+            isPl={isPl}
             onRetry={() => void searchQ.refetch()}
           />
         </>
