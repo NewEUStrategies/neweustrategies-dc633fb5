@@ -105,6 +105,7 @@ GRANT EXECUTE ON FUNCTION public.club_anchor_label(text, text)
 -- ----------------------------------------------------------------------------
 DROP FUNCTION IF EXISTS public.club_threads_list(uuid, uuid, text, text, text, integer);
 
+DROP FUNCTION IF EXISTS public.club_threads_list(uuid, uuid, text, text, text, integer, text, boolean, boolean);
 CREATE FUNCTION public.club_threads_list(
   p_club_id uuid, p_group_id uuid DEFAULT NULL, p_sort text DEFAULT 'hot',
   p_kind text DEFAULT NULL, p_cursor text DEFAULT NULL, p_limit integer DEFAULT 20,
