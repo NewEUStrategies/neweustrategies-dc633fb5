@@ -13,6 +13,7 @@ import {
   MessagesSquare,
   Search,
   ShieldQuestion,
+  SlidersHorizontal,
   Users2,
   X,
 } from "lucide-react";
