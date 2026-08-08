@@ -99,6 +99,7 @@ export const clubPl = {
       unreadTotal_other: "{{count}} nieprzeczytanych wpisów",
       markRead: "Oznacz jako przeczytane",
       publicCatalog: "Kluby otwarte",
+      showMore: "Pokaż więcej klubów ({{shown}} z {{total}})",
       anonLead:
         "Kluby dyskusyjne to trwałe przestrzenie, w których członkowie prowadzą własne wątki - nie komentują cudzych. Wątek ma zamierzony wynik, a reakcje są danymi, nie ozdobą.",
       anonOpenCount_one: "{{count}} klub jest otwarty do przejrzenia bez konta.",
@@ -1095,6 +1096,7 @@ export const clubEn = {
       unreadTotal_other: "{{count}} unread posts",
       markRead: "Mark as read",
       publicCatalog: "Open clubs",
+      showMore: "Show more clubs ({{shown}} of {{total}})",
       anonLead:
         "Discussion clubs are persistent spaces where members run their own threads rather than comment on someone else's. A thread has an intended outcome, and reactions are data, not decoration.",
       anonOpenCount_one: "{{count}} club is open to browse without an account.",

@@ -77,6 +77,9 @@ import { ClubTopicNav } from "@/components/clubs/molecules/ClubTopicNav";
 import { buildClubHead } from "@/lib/clubs/clubHead";
 import { ensureClubI18n } from "@/lib/i18n-club";
 
+/** Rozmiar porcji katalogu klubów na hubie. */
+const CATALOG_PAGE = 100;
+
 export const Route = createFileRoute("/club/")({
   // Tytuł jechał tu polskim literałem, także pod /en/ - a `/club` NIE jest na
   // liście tras nielokalizowanych, więc wersja angielska realnie istnieje.
@@ -102,7 +105,14 @@ function ClubHub() {
   // `club_list` jest nadane roli `anon` i samo odsiewa wiersze: dla wołającego
   // bez sesji zwraca WYŁĄCZNIE kluby `public` o statusie `active`. Wołamy je
   // więc także dla anonima - bramka jest w bazie, nie w tym pliku.
-  const clubsQ = useClubList();
+  // Katalog rósł do stu klubów i tam się kończył - `club_list` zwraca
+  // `total_count` w każdym wierszu, a klient go odrzucał. Sto pierwszy klub
+  // istniał w bazie i nie istniał na hubie: bez komunikatu, bez licznika, bez
+  // sposobu, żeby to zauważyć. "Pokaż więcej" zamiast paginacji, bo hub jest
+  // powierzchnią PRZEGLĄDANIA, a nie tabelą - numer strony byłby tu pytaniem,
+  // na które nikt nie umie odpowiedzieć.
+  const [catalogLimit, setCatalogLimit] = useState(CATALOG_PAGE);
+  const clubsQ = useClubList(true, catalogLimit);
   const membershipsQ = useMyClubMemberships(signedIn);
   const invitationsQ = useMyClubInvitations(signedIn);
   const tierQ = useCurrentTier();
@@ -110,6 +120,7 @@ function ClubHub() {
   const markReadM = useMarkClubRead();
 
   const clubs = useMemo(() => clubsQ.data?.rows ?? [], [clubsQ.data]);
+  const clubsTotal = clubsQ.data?.total ?? 0;
   const invitations = invitationsQ.data ?? [];
 
   // Wyszukiwanie ZASTĘPUJE strumień, nie stoi obok niego. Próg dwóch znaków
@@ -263,6 +274,17 @@ function ClubHub() {
           signedIn ? undefined : <ClubHubLayoutSwitch value={hubLayout} onChange={setHubLayout} />
         }
       />
+
+      {/* Ucięcie katalogu mówi się WPROST i daje następny krok. Milcząca
+          różnica między "to wszystkie kluby" a "to pierwsze sto" jest tym
+          rodzajem braku, którego nie da się zauważyć od środka. */}
+      {clubsTotal > clubs.length ? (
+        <div className="mb-10 -mt-6 text-center">
+          <Button variant="outline" onClick={() => setCatalogLimit((n) => n + CATALOG_PAGE)}>
+            {t("club.hub.showMore", { shown: clubs.length, total: clubsTotal })}
+          </Button>
+        </div>
+      ) : null}
 
       <ClubHowItWorks />
     </div>

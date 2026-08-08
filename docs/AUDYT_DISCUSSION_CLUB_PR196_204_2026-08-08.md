@@ -163,6 +163,12 @@ do `GATED_PREFIXES` - `isGated()` dopasowuje po prefiksie z kropką, więc
 | **A19**  | osiem poprawek bezpieczeństwa i poprawności z §1                                                                                                                                                                                                                                                                                   |
 | **A20**  | `club_threads.poll_id` + CHECK + projekcja + `admin_club_poll_create`; klub referencyjny                                                                                                                                                                                                                                           |
 | **A21**  | gałęzie klubowe w `linked_item_label` (A12 zostawiła tam blok `DO`, który czyta definicję do zmiennej i nigdy jej nie używa)                                                                                                                                                                                                       |
+| **A22**  | audytorium wzmianek (`club_mention_visible_to` + bramka w `process_mentions` - wzmianka w klubie prywatnym doręczała powiadomienie z tytułem wątku osobie spoza klubu), idempotentne `club_create_thread` (podwójne kliknięcie „Opublikuj" zakładało dwa wątki)                                                                    |
+| **A23**  | `club_export_my_data` - eksport RODO nie zawierał CAŁEGO modułu; `grep -i club` po `exportManifest.ts` i `export.functions.ts` nie zwracał ani jednego trafienia                                                                                                                                                                   |
+| **A24**  | `clubs_enabled` dostaje stan początkowy tam, gdzie klub realnie istnieje (skutek po stronie klienta: trasa układu `routes/club.tsx`)                                                                                                                                                                                               |
+| **A25**  | semantyka rodzaju `announcement`: przypięcie jest własnością rodzaju, nie ręcznym krokiem; `p_lock_replies` zakłada wątek od razu zamknięty                                                                                                                                                                                        |
+| **A26**  | trzy brakujące sygnały wiersza wątku ze spec §5.2 (kotwica z etykietą przez `club_anchor_label`, `insightful` zamiast sumy reakcji, znacznik nieprzeczytanego) + filtry: status, zakotwiczenie, tylko nieprzeczytane                                                                                                               |
+| **A27**  | ścieżka D (kampanie segmentowe) domknięta: `club_segment_candidate_ids` + `club_segment_recipients` jako JEDNO źródło dla podglądu i wysyłki, `admin_club_invite_segment`; poprawka w samym podglądzie (liczył „odsiane" bez blokad i okna 90 dni, więc `will_send` było zawyżone)                                                 |
 
 ### Klient
 
@@ -195,12 +201,14 @@ check:rpc-contract          OK      check:workflow-env-contract OK
 check:sql-emit-actor        OK      check:i18n-parity           OK
 check:sql-owner-tenant-scope OK     check:permissions-parity    OK
 check:entry-purity          OK      check:chunks                OK
-vitest (673 pliki, 7478 testów)     OK
+vitest (675 plików, 7526 testów)    OK
 ```
 
 **`check:bundle` - czerwona przed i po.** Zmierzone na `f43c114`:
-440,3 / 1964,4 / 3247,4 KB gzip wobec progów 439 / 1915 / 3175. Moduł dokłada
-**+9,9 KB gzip**, z czego +5,5 KB ląduje w chunku wejściowym: przy około
+440,3 / 1964,4 / 3247,4 KB gzip wobec progów 439 / 1915 / 3175. Po całej pracy:
+447,5 / 1983,3 / 3268,2 KB, czyli **+7,2 / +18,9 / +20,8 KB gzip** wobec stanu
+wyjściowego - przy czym stan wyjściowy przekraczał wszystkie trzy progi.
+Największa część tego przyrostu ląduje w chunku wejściowym: przy około
 dwudziestu pięciu chunkach trasowych importujących `src/lib/clubs/types.ts`
 Rollup przestaje trzymać go w osobnym pliku i wciąga do entry.
 
@@ -219,22 +227,37 @@ na część współdzieloną publicznie i część adminową.
 
 ## 6. Znane pozycje odłożone
 
-Nie są to defekty w wąskim sensie, ale powierzchnie, które istnieją w bazie
-i nie mają konsumenta. Każda kosztuje - albo utrzymaniem, albo mylącym
-sygnałem, że funkcja działa:
+Rozdział zamknięty. Wszystkie pięć pozycji z pierwszego przebiegu audytu
+zostało wdrożonych w drugiej fali (A22-A27 + warstwa klienta):
 
-1. **`club_semantic_search`** - indekser wektorowy chodzi co tick, płaci za
-   bramkę embeddingów i zapisuje wektory 768-wymiarowe, których nikt nie czyta.
-   Albo wpiąć wyszukiwanie semantyczne obok `club_search`, albo wyłączyć
-   `runClubThreadIndexBatch` z ticka.
-2. **`admin_club_segment_preview`** - czwarta ścieżka zaproszeń (segment) jest
-   w SQL i w słowniku `CLUB_INVITE_CHANNELS`, bez wejścia w panelu.
-3. **`club_set_role`** - prowadzący klubu bez roli administratora platformy nie
-   ma ścieżki nadania roli; panel woła wyłącznie `admin_club_member_upsert`.
-4. **Paginacja katalogu klubów na hubie** - `club_list` zwraca `total_count`,
-   klient go odrzuca i ucina katalog na stu klubach.
-5. **`errorComponent` / `pendingComponent`** na trasach klubu - moduł polega na
-   domyślnych granicach routera, w odróżnieniu od reszty rodzin tras.
+1. **`club_semantic_search`** - wpięty obok `club_search`. Warstwa istniała
+   w komplecie od PR 197 (tabela, batch w `jobs-tick`, indeks IVFFlat, RPC)
+   i nie miała ani jednego wołającego: platforma płaciła bramce AI za embedding
+   każdego wątku i nikt ich nie czytał. Wzorzec z katalogu osób - server fn
+   zamienia frazę na wektor, zapytanie leci z sesji użytkownika. Warstwy jadą
+   równolegle i scalają się: dosłowne trafienie bije podobieństwo.
+2. **`admin_club_segment_preview`** - czwarta ścieżka zaproszeń ma panel,
+   a przede wszystkim ma czym wysłać (A27 dokłada brakujące
+   `admin_club_invite_segment`). Podgląd bez wykonania był licznikiem
+   mówiącym „wyślę 137 zaproszeń" bez przycisku.
+3. **`club_set_role`** - zarządzanie rolami wchodzi na `/club/$slug/members`,
+   czyli tam, gdzie prowadzący klubu już jest. Panel administracyjny stoi za
+   bramką `isAdmin`, więc prowadzący bez roli platformowej nie miał ŻADNEJ
+   drogi wyznaczenia moderatora we własnym klubie.
+4. **Paginacja katalogu klubów na hubie** - „Pokaż więcej" z licznikiem
+   `{{shown}} z {{total}}`. Sto pierwszy klub istniał w bazie i nie istniał na
+   hubie: bez komunikatu, bez licznika, bez sposobu, żeby to zauważyć.
+5. **`errorComponent` / `pendingComponent`** - wpisane RAZ, na trasie układu
+   `routes/club.tsx`. Granica rodzica łapie każde dziecko, a siedem kopii tej
+   samej deklaracji rozjechałoby się przy pierwszej zmianie.
+
+Dołożone przy okazji, poza pierwotną listą: eksport RODO (A23), przełącznik
+modułu z realnym skutkiem (A24), semantyka `announcement` (A25), komplet
+sygnałów i filtrów wiersza wątku (A26), widgety buildera `club-card` /
+`club-threads` ze spec §5.5, plakietka `club_unread` w pasku mobilnym
+(licznik utrzymywany triggerem od A18 nie miał po stronie klienta ani jednego
+czytelnika), autozapis szkicu w kompozytorze oraz dwa wiersze klubowe
+w macierzy uprawnień.
 
 ---
 

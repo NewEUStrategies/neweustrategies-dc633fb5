@@ -22,6 +22,7 @@
 // mrugałoby ekranem "moduł wyłączony" przy każdym wejściu.
 import { Suspense, lazy } from "react";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
+import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { useClubsModule } from "@/lib/clubs/useClubsModule";
 
 // Ekran "moduł wyłączony" jest LENIWY, i to nie z ostrożności. `CommunityDisabled`
@@ -37,7 +38,33 @@ const CommunityDisabled = lazy(() =>
 
 export const Route = createFileRoute("/club")({
   component: ClubModuleLayout,
+  // Granice błędu i ładowania dla CAŁEJ rodziny tras. Moduł polegał na
+  // domyślnych granicach routera - w odróżnieniu od reszty rodzin tras - więc
+  // wyjątek w loaderze wątku dawał surowy ekran routera zamiast strony błędu
+  // serwisu. Trasa układu jest jedynym miejscem, w którym trzeba to wpisać raz:
+  // granica rodzica łapie każde dziecko, a siedem kopii tej samej deklaracji
+  // rozjechałoby się przy pierwszej zmianie.
+  errorComponent: ClubRouteError,
+  pendingComponent: ClubRoutePending,
 });
+
+function ClubRouteError(props: Parameters<typeof RouteErrorFallback>[0]) {
+  return <RouteErrorFallback {...props} />;
+}
+
+/** Szkielet w rytmie strony klubu (nagłówek + lista), nie pusty ekran. */
+function ClubRoutePending() {
+  return (
+    <div className="container mx-auto max-w-5xl px-4 py-8" aria-busy="true">
+      <div className="mb-6 h-40 animate-pulse rounded-lg bg-muted/50" />
+      <div className="space-y-2">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="h-16 animate-pulse rounded-lg bg-muted/40" />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function ClubModuleLayout() {
   const { disabled } = useClubsModule();

@@ -162,10 +162,12 @@ function invalidateClubCard(qc: ReturnType<typeof useQueryClient>, clubId: strin
 // Odczyt
 // ---------------------------------------------------------------------------
 
-export function useClubList(enabled = true): UseQueryResult<ClubListPage, Error> {
+export function useClubList(enabled = true, limit = 100): UseQueryResult<ClubListPage, Error> {
   return useQuery({
-    queryKey: clubKeys.list(),
-    queryFn: () => fetchClubList({}),
+    // Limit JEST czescia klucza: "pokaz wiecej" zmienia rozmiar strony, a bez
+    // tego trafialoby w ten sam wpis cache i katalog zostawalby na setce.
+    queryKey: [...clubKeys.list(), limit] as const,
+    queryFn: () => fetchClubList({ limit }),
     staleTime: STALE_MS,
     enabled,
   });
