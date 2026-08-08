@@ -101,7 +101,7 @@ describe("mobileBottomBar config", () => {
     expect(activeBottomBarIndex(items, "/network")).toBe(0);
     expect(activeBottomBarIndex(items, "/messages")).toBe(1);
     expect(activeBottomBarIndex(items, "/")).toBe(2);
-    expect(activeBottomBarIndex(items, "/reading-list")).toBe(3);
+    expect(activeBottomBarIndex(items, "/club")).toBe(3);
     expect(activeBottomBarIndex(items, "/profile/bookmarks")).toBe(4);
     expect(activeBottomBarIndex(items, "/nieznana")).toBe(-1);
   });
@@ -161,8 +161,8 @@ describe("mobileBottomBar - kontrakt domyślnego paska", () => {
     expect(activeBottomBarIndex(items, "/")).toBe(middle);
   });
 
-  it("kolejność to sieć / czaty / start / zapisane / profil", () => {
-    expect(items.map((i) => i.id)).toEqual(["network", "chats", "home", "saved", "profile"]);
+  it("kolejność to sieć / czaty / start / kluby / profil", () => {
+    expect(items.map((i) => i.id)).toEqual(["network", "chats", "home", "clubs", "profile"]);
   });
 
   it("każda pozycja ma akcent na oba motywy i klucz i18n", () => {
