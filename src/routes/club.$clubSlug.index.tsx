@@ -98,36 +98,16 @@ function ClubHubRoute() {
   }
 
   // Karta klubu zamkniętego jest widoczna, treść nie - to jest sens tej
-  // widoczności. Pokazujemy powód i akcję zamiast pustego strumienia.
+  // widoczności. Bramka nie tłumaczy się z odmowy, tylko pokazuje wartość
+  // klubu i drogę do środka (rejestracja albo podniesienie planu).
   if (!club.can_read) {
     return (
-      <div className={`${SHELL} py-12`}>
-        <Card className="overflow-hidden rounded-lg">
-          <ClubCover
-            url={club.cover_image_url}
-            variant="banner"
-            className="rounded-none border-0"
-          />
-          <CardContent className="space-y-4 p-8 text-center">
-            <h1 className="text-2xl font-semibold">{isPl ? club.name_pl : club.name_en}</h1>
-            {(isPl ? club.tagline_pl : club.tagline_en) ? (
-              <p className="text-muted-foreground">{isPl ? club.tagline_pl : club.tagline_en}</p>
-            ) : null}
-            <p className="text-sm text-muted-foreground">
-              {club.reason ? t(`club.reason.${club.reason}`) : t("club.reason.not_member")}
-            </p>
-            {club.join_policy !== "invite" ? (
-              <Button asChild className="rounded-lg">
-                <Link to="/club/$clubSlug/about" params={{ clubSlug }}>
-                  {club.join_policy === "open" ? t("club.join") : t("club.requestJoin")}
-                </Link>
-              </Button>
-            ) : null}
-          </CardContent>
-        </Card>
+      <div className={`${SHELL} py-8`}>
+        <ClubAccessGate club={club} isPl={isPl} />
       </div>
     );
   }
+
 
   return <ClubHub club={club} isPl={isPl} />;
 }
