@@ -12,7 +12,6 @@ import { Clock, Lightbulb, Link2, Lock, MessageSquare, MessagesSquare, Pin, User
 import { ClubThreadKindIcon } from "@/components/clubs/atoms/ClubThreadKindIcon";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { ClubInlineTitle } from "@/components/clubs/atoms/ClubInlineTitle";
 import {
   ClubDossierMetrics,
   ClubDossierRow,
