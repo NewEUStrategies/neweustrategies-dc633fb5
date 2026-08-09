@@ -125,7 +125,7 @@ function ThreadLink({
       to="/club/$clubSlug/t/$threadSlug"
       params={{ clubSlug, threadSlug: thread.slug }}
       className={cn(
-        "block rounded-lg border border-border/60 bg-card transition-colors hover:border-primary/40 hover:bg-accent/30",
+        "group/title block rounded-lg border border-border/60 bg-card transition-colors hover:border-primary/40 hover:bg-accent/30",
         className,
       )}
     >
