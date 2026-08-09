@@ -60,11 +60,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { normalizeClubThreadIcon } from "@/lib/clubs/threadIcons";
 import { cn } from "@/lib/utils";
-import {
-  clubDossierIconBoxClass,
-  clubDossierSpineClass,
-  clubThreadTone,
-} from "@/components/clubs/atoms/ClubDossierRow";
+import { ClubDossierRow, clubThreadTone } from "@/components/clubs/atoms/ClubDossierRow";
+
 import { ClubThreadKindIcon } from "@/components/clubs/atoms/ClubThreadKindIcon";
 import { ClubTopicChip } from "@/components/clubs/atoms/ClubTopicChip";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
