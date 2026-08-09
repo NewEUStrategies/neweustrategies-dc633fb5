@@ -332,7 +332,7 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
 
       <div className="grid items-start gap-4 lg:grid-cols-[15rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)_20rem]">
         {/* Lewa szyna: tylko od `lg`. Niżej jej nawigacja wraca paskiem. */}
-        <aside className="hidden lg:sticky lg:top-20 lg:block">
+        <aside className="hidden lg:sticky lg:top-20 lg:block lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:overscroll-contain lg:pr-1 [scrollbar-width:thin]">
           <ClubHubRail
             clubSlug={clubSlug}
             canSeeMembers={club.can_see_members}
@@ -533,7 +533,7 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
           <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:hidden">{context}</div>
         </main>
 
-        <aside className="hidden xl:sticky xl:top-20 xl:block">
+        <aside className="hidden xl:sticky xl:top-20 xl:block xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto xl:overscroll-contain xl:pl-1 [scrollbar-width:thin]">
           <div className="flex flex-col gap-3">{context}</div>
         </aside>
       </div>
