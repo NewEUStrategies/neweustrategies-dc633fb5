@@ -12,7 +12,6 @@ import { useTranslation } from "react-i18next";
 import { FileText, MessagesSquare, Network, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HUB_SURFACE } from "@/components/clubs/atoms/ClubHubPrimitives";
-import { ClubTopicChip } from "@/components/clubs/atoms/ClubTopicChip";
 import {
   CLUB_GROUP_TINT,
   ClubGroupIcon,
@@ -22,7 +21,6 @@ import {
   clubGroupDescription,
   clubGroupName,
 } from "@/components/clubs/molecules/ClubGroupTree";
-import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import type { ClubGroupNode } from "@/lib/clubs/groupTree";
 
 function Metric({
@@ -59,7 +57,6 @@ export function ClubGroupPanel({
   className?: string;
 }) {
   const { t } = useTranslation();
-  const { topics } = useClubTopics();
   const { group, depth, children, totalThreads } = node;
   const description = clubGroupDescription(group, isPl);
   const ancestors = path.slice(0, -1);
@@ -115,9 +112,6 @@ export function ClubGroupPanel({
           <Metric icon={FileText} value={documentCount} label={t("club.group.documents")} />
           {children.length > 0 ? (
             <Metric icon={Network} value={children.length} label={t("club.group.subgroups")} />
-          ) : null}
-          {group.anchor_type !== null && group.anchor_type !== "" ? (
-            <ClubTopicChip topic={group.anchor_type} lang={isPl ? "pl" : "en"} catalog={topics} />
           ) : null}
         </div>
 
