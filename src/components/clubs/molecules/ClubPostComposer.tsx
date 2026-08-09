@@ -28,6 +28,7 @@ export function ClubPostComposer({
   groupId,
   threadId = null,
   canPost,
+  chromeless = false,
   className,
 }: {
   clubId: string;
@@ -35,6 +36,8 @@ export function ClubPostComposer({
   /** Ustawione na widoku wątku - wpis wchodzi wtedy także do tej rozmowy. */
   threadId?: string | null;
   canPost: boolean;
+  /** Bez własnej ramki - kompozytor stoi wtedy wewnątrz karty z zakładkami. */
+  chromeless?: boolean;
   className?: string;
 }) {
   const { t } = useTranslation();
@@ -87,7 +90,10 @@ export function ClubPostComposer({
   const busy = uploading || create.isPending;
 
   return (
-    <section className={cn(HUB_SURFACE, "p-3.5 sm:p-4", className)} data-testid="club-post-composer">
+    <section
+      className={cn(chromeless ? "" : cn(HUB_SURFACE, "p-3.5 sm:p-4"), className)}
+      data-testid="club-post-composer"
+    >
       <Textarea
         value={body}
         onChange={(event) => setBody(event.target.value)}

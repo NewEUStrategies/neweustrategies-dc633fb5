@@ -83,6 +83,21 @@ export const clubPl = {
           members: "Dołącz do klubu, aby zakładać tematy i brać udział w dyskusji.",
         },
       },
+      create: {
+        tabs: {
+          post: "Stwórz post",
+          thread: "Stwórz dyskusję",
+        },
+        targetLabel: "Gdzie ma trafić dyskusja",
+        targetPlaceholder: "Wybierz wątek albo dział",
+        newThread: "Nowy wątek w klubie",
+        groupsHeading: "Działy klubu",
+        threadsHeading: "Istniejące wątki",
+        kindLabel: "Rodzaj wypowiedzi",
+        continueThread: "Przejdź do wątku",
+        start: "Przejdź do kompozytora",
+      },
+
       feed: {
         modeLabel: "Zawartość strumienia",
         mode: {
@@ -1612,6 +1627,20 @@ export const clubEn = {
           moderators: "Topics here are opened by the club leads. You can reply in existing ones.",
           members: "Join the club to open topics and take part in the discussion.",
         },
+      },
+      create: {
+        tabs: {
+          post: "Create a post",
+          thread: "Start a discussion",
+        },
+        targetLabel: "Where the discussion goes",
+        targetPlaceholder: "Pick a thread or a section",
+        newThread: "New thread in this club",
+        groupsHeading: "Club sections",
+        threadsHeading: "Existing threads",
+        kindLabel: "Kind of contribution",
+        continueThread: "Open the thread",
+        start: "Open the composer",
       },
       feed: {
         modeLabel: "Stream contents",
