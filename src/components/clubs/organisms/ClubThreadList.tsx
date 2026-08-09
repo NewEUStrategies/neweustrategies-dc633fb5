@@ -12,7 +12,11 @@ import { Clock, Lightbulb, Link2, Lock, MessageSquare, MessagesSquare, Pin, User
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { ClubInlineTitle } from "@/components/clubs/atoms/ClubInlineTitle";
-import { ClubDossierMetrics, ClubDossierRow } from "@/components/clubs/atoms/ClubDossierRow";
+import {
+  ClubDossierMetrics,
+  ClubDossierRow,
+  clubThreadTone,
+} from "@/components/clubs/atoms/ClubDossierRow";
 import { toAuthorLabel, type ClubLayout, type ClubThreadListRow } from "@/lib/clubs/types";
 import { formatDateShort } from "@/lib/i18n/format";
 import { ClubThreadHeat } from "@/components/clubs/atoms/ClubThreadHeat";
