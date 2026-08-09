@@ -39,7 +39,14 @@ import {
   ClubMilestoneStateChip,
   clubEventToneClass,
 } from "@/components/clubs/atoms/ClubWorkspaceBadges";
-import { toAuthorLabel, type ClubThreadListRow } from "@/lib/clubs/types";
+import {
+  toAuthorLabel,
+  type ClubReactionKind,
+  type ClubReactionTally,
+  type ClubThreadListRow,
+} from "@/lib/clubs/types";
+import { ClubEngagementBar } from "@/components/clubs/molecules/ClubEngagementBar";
+
 import {
   documentHref,
   toDocumentKind,
@@ -96,6 +103,10 @@ function ThreadCard({
   topicsCatalog,
   activeTopic,
   onTopicSelect,
+  reactions,
+  reactionsPending,
+  canReact = true,
+  onReact,
 }: {
   thread: ClubThreadListRow;
   clubSlug: string;
@@ -106,7 +117,13 @@ function ThreadCard({
   topicsCatalog: readonly ClubTopicOption[];
   activeTopic: string | null;
   onTopicSelect?: (topic: string | null) => void;
+  reactions?: readonly ClubReactionTally[];
+  reactionsPending?: boolean;
+  /** Czy zalogowany użytkownik ma prawo reagować w tym klubie. */
+  canReact?: boolean;
+  onReact?: (targetId: string, kind: ClubReactionKind, active: boolean) => void;
 }) {
+
   const { t } = useTranslation();
   const lang = isPl ? "pl" : "en";
   const author = toAuthorLabel(thread, t("club.anonymousAuthor"), t("club.deletedAuthor"));
@@ -218,6 +235,24 @@ function ThreadCard({
         ) : null}
         <ClubThreadHeat thread={thread} className="ml-auto" />
       </div>
+
+      {/* Zaangażowanie: reakcja zostaje w strumieniu, komentarz wprowadza
+          do wątku - patrz nagłówek `ClubEngagementBar`. */}
+      <ClubEngagementBar
+        className="mt-2.5"
+        clubSlug={clubSlug}
+        threadSlug={thread.slug}
+        tallies={reactions ?? []}
+        replyCount={thread.reply_count}
+        canReact={canReact}
+        pending={reactionsPending}
+        onToggle={
+          onReact === undefined
+            ? undefined
+            : (kind, active) => onReact(thread.id, kind, active)
+        }
+      />
+
     </article>
   );
 }
@@ -397,6 +432,10 @@ export function ClubFeedItem({
   onTopicSelect,
   onPostLike,
   onPostDelete,
+  threadReactions,
+  reactionsPending,
+  canReact = true,
+  onThreadReact,
 }: {
   entry: ClubFeedEntry;
   clubSlug: string;
@@ -413,6 +452,11 @@ export function ClubFeedItem({
   onTopicSelect?: (topic: string | null) => void;
   onPostLike?: (postId: string) => void;
   onPostDelete?: (postId: string) => void;
+  /** Reakcje CAŁEJ widocznej partii wątków - jedno zapytanie nad listą. */
+  threadReactions?: ReadonlyMap<string, ClubReactionTally[]>;
+  reactionsPending?: boolean;
+  canReact?: boolean;
+  onThreadReact?: (threadId: string, kind: ClubReactionKind, active: boolean) => void;
 }) {
   if (entry.kind === "thread") {
     return (
@@ -426,6 +470,10 @@ export function ClubFeedItem({
         topicsCatalog={topicsCatalog}
         activeTopic={activeTopic}
         onTopicSelect={onTopicSelect}
+        reactions={threadReactions?.get(entry.thread.id) ?? []}
+        reactionsPending={reactionsPending}
+        canReact={canReact}
+        onReact={onThreadReact}
       />
     );
   }
@@ -441,6 +489,7 @@ export function ClubFeedItem({
         onSourceSelect={onSourceSelect}
         onLike={onPostLike}
         onDelete={onPostDelete}
+        canComment={canReact}
       />
     );
   }

@@ -20,6 +20,7 @@ import { useTranslation } from "react-i18next";
 import {
   ExternalLink,
   FileText,
+  MessageSquarePlus,
   MessagesSquare,
   MoreHorizontal,
   ThumbsUp,
@@ -268,6 +269,7 @@ export function ClubPostCard({
   onSourceSelect,
   onLike,
   onDelete,
+  canComment = true,
   /** Ukrywa plakietkę wątku tam, gdzie wątek JEST kontekstem ekranu. */
   hideThreadLink = false,
   className,
@@ -282,6 +284,8 @@ export function ClubPostCard({
   onSourceSelect?: (groupId: string | null) => void;
   onLike?: (postId: string) => void;
   onDelete?: (postId: string) => void;
+  /** Wyłącza wejście w dyskusję dla użytkownika bez prawa głosu w klubie. */
+  canComment?: boolean;
   hideThreadLink?: boolean;
   className?: string;
 }) {
@@ -411,6 +415,38 @@ export function ClubPostCard({
           <ThumbsUp className="h-3.5 w-3.5" aria-hidden="true" />
           {post.like_count > 0 ? post.like_count : t("club.post.like")}
         </Button>
+        {/* KOMENTARZ PROWADZI DO WĄTKU. Wpis jest krótką formą i celowo nie ma
+            własnej nitki komentarzy - pogłębiona dyskusja ma jedno miejsce.
+            Gdy wpis jest już podpięty pod wątek, idziemy prosto do kompozytora
+            odpowiedzi; gdy nie jest, jedyną uczciwą propozycją jest ZAŁOŻENIE
+            wątku, a nie martwy przycisk. */}
+        {canComment && !hideThreadLink ? (
+          post.thread_slug !== null ? (
+            <Button asChild type="button" variant="ghost" size="sm" className="h-8 gap-1.5 rounded-lg px-2.5 text-xs">
+              <Link
+                to="/club/$clubSlug/t/$threadSlug"
+                params={{ clubSlug, threadSlug: post.thread_slug }}
+                search={{ reply: true }}
+                data-testid="club-post-comment"
+              >
+                <MessageSquarePlus className="h-3.5 w-3.5" aria-hidden="true" />
+                {t("club.post.comment")}
+              </Link>
+            </Button>
+          ) : (
+            <Button asChild type="button" variant="ghost" size="sm" className="h-8 gap-1.5 rounded-lg px-2.5 text-xs">
+              <Link
+                to="/club/$clubSlug/new"
+                params={{ clubSlug }}
+                search={post.group_id === null ? {} : { groupId: post.group_id }}
+                data-testid="club-post-start-thread"
+              >
+                <MessagesSquare className="h-3.5 w-3.5" aria-hidden="true" />
+                {t("club.post.startThread")}
+              </Link>
+            </Button>
+          )
+        ) : null}
         {media.length > 0 ? (
           <Badge variant="outline" className="rounded-lg text-[11px]">
             {t("club.post.attachmentsCount", { count: media.length })}

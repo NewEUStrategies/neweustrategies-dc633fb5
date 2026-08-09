@@ -20,7 +20,14 @@
 // leniwie, panel po panelu. Trasa celowo NIE oddaje dyskusji do powłoki:
 // post, odpowiedzi i kompozytor mają się renderować bez czekania na cokolwiek
 // z A28, więc jadą jako `children`.
-import { lazy, Suspense, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -118,6 +125,15 @@ const ClubThreadPoll = lazy(() =>
 );
 
 export const Route = createFileRoute("/club/$clubSlug/t/$threadSlug")({
+  // `?reply=1` przychodzi z paska zaangażowania w strumieniu huba. Reakcja
+  // zostaje na karcie, ale KOMENTARZ prowadzi tutaj - i musi wylądować w
+  // kompozytorze, a nie na górze strony pod postem otwierającym. Bez tego
+  // parametru "Komentuj" byłoby zwykłym linkiem do wątku, a użytkownik i tak
+  // musiałby sam przewinąć do dołu i znaleźć pole.
+  validateSearch: (search: Record<string, unknown>): { reply?: true } => {
+    const raw = search["reply"];
+    return raw === true || raw === "true" || raw === "1" ? { reply: true } : {};
+  },
   // Naglowek potrzebuje widocznosci klubu, zeby rozstrzygnac indeksowalnosc,
   // a head() jest synchroniczne. Loader dowozi kartę klubu do cache (widok i tak
   // ją zaraz przeczyta, więc to nie jest dodatkowy round-trip) i zwraca z niej
@@ -146,6 +162,7 @@ function ClubThreadView() {
   const lang: "pl" | "en" = (i18n.language ?? "pl").startsWith("pl") ? "pl" : "en";
   const isPl = lang === "pl";
   const { clubSlug, threadSlug } = Route.useParams();
+  const { reply: replyIntent } = Route.useSearch();
   const { user } = useAuth();
   const { topics: topicCatalog } = useClubTopics();
 
@@ -648,6 +665,8 @@ function ClubThreadView() {
         {/* --- kompozytor --- */}
         {thread.can_reply ? (
           <section
+            ref={composerRef}
+            id="club-reply-composer"
             className="mt-6 rounded-xl border border-border/60 bg-card p-4 shadow-sm"
             onKeyDown={onComposerKeyDown}
           >
