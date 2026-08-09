@@ -129,6 +129,7 @@ function ThreadRow({
       tone={clubThreadTone(thread.kind)}
       unread={thread.is_unread}
       pinned={thread.pinned_at !== null}
+      titleStyle="headline"
       className={cn("h-full", featured && "border-primary/40 bg-primary/[0.04]")}
       icon={<ClubThreadKindIcon kind={thread.kind} icon={icon} />}
       meta={<ThreadMeta thread={thread} isPl={isPl} />}
@@ -137,11 +138,9 @@ function ThreadRow({
           <Link
             to="/club/$clubSlug/t/$threadSlug"
             params={{ clubSlug, threadSlug: thread.slug }}
-            className="group/title inline-block max-w-full"
+            className="group/title inline-block max-w-full focus:outline-none"
           >
-            <ClubInlineTitle tone="thread" size={featured ? "md" : "sm"} interactive>
-              {thread.title}
-            </ClubInlineTitle>
+            <span className="[overflow-wrap:anywhere]">{thread.title}</span>
           </Link>
         </h3>
       }
