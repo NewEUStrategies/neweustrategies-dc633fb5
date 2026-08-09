@@ -277,6 +277,9 @@ function ClubNewThread() {
         lockReplies: canModerate ? lockReplies : false,
         topic,
         icon: normalizeClubThreadIcon(icon),
+        // Anonimowosc UCZESTNIKOW watku. `null` = dziedzicz dzial, wiec nie
+        // wysylamy wartosci, ktorej autor swiadomie nie wybral.
+        attributionMode: attributionOverride,
       },
       {
         onSuccess: ({ slug, status }) => {
@@ -447,6 +450,48 @@ function ClubNewThread() {
               </span>{" "}
               {t(`club.attributionHint.${effectiveAttribution}`)}
             </p>
+          ) : null}
+
+          {/* Anonimowosc UCZESTNIKOW - decyzja o CALEJ rozmowie, nie o wlasnym
+              podpisie. Droplista pokazuje wylacznie zaostrzenia dozwolone dla
+              tej osoby, bo RPC waliduje to samo i odmowa po napisaniu tekstu
+              byla bledem interfejsu, a nie ostrzezeniem serwera. */}
+          {attributionChoices.length > 0 ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="thread-attribution" className="text-sm">
+                {t("club.composer.participantAnonymity")}
+              </Label>
+              <Select
+                value={attributionOverride ?? "inherit"}
+                disabled={createM.isPending}
+                onValueChange={(next) =>
+                  setAttributionOverride(isClubAttributionMode(next) ? next : null)
+                }
+              >
+                <SelectTrigger id="thread-attribution">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="inherit">
+                    {baseAttribution === null
+                      ? t("club.attribution.attributed")
+                      : t("club.composer.participantAnonymityInherit", {
+                          mode: t(`club.attribution.${baseAttribution}`),
+                        })}
+                  </SelectItem>
+                  {attributionChoices.map((mode) => (
+                    <SelectItem key={mode} value={mode}>
+                      {t(`club.attribution.${mode}`)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {effectiveAttribution === "chatham"
+                  ? t("club.composer.participantAnonymityChatham")
+                  : t("club.composer.participantAnonymityHint")}
+              </p>
+            </div>
           ) : null}
 
           {/* Ogłoszenie przypina się z definicji rodzaju (migracja A25), więc
