@@ -443,7 +443,7 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
               options={feedOptions}
               onChange={setMode}
               ariaLabel={t("club.hub.feed.modeLabel")}
-              className="mb-3"
+              className="mb-2"
             />
           ) : null}
 
