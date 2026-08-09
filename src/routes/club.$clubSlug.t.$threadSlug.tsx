@@ -264,10 +264,16 @@ function ClubThreadView() {
     const node = composerRef.current;
     if (node === null) return;
     focusedRef.current = true;
-    node.scrollIntoView({ behavior: "smooth", block: "center" });
+    // Wejście z "Komentuj" NIE przewija już do kompozytora na dole. Czytelnik
+    // ma zacząć od góry wątku (kontekst dyskusji), a dopiero potem zejść do
+    // odpowiedzi - dlatego ustawiamy widok na początek strony, a pole tekstowe
+    // dostaje fokus bez przewijania (`preventScroll`).
+    window.scrollTo({ top: 0, behavior: "auto" });
     const field = document.getElementById("club-reply-body");
-    if (field instanceof HTMLTextAreaElement || field instanceof HTMLInputElement) field.focus();
+    if (field instanceof HTMLTextAreaElement || field instanceof HTMLInputElement)
+      field.focus({ preventScroll: true });
   }, [replyIntent, thread]);
+
 
   // Zapytanie o wątek jest WYŁĄCZONE, dopóki nie znamy id klubu, a wyłączone
   // `useQuery` zostaje w stanie `isPending` na zawsze. Warunek musi więc pytać
