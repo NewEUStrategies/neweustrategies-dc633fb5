@@ -25,6 +25,7 @@ import type { AutosuggestItem } from "@/lib/queries/archives";
 import type { Lang } from "./frame";
 import i18n from "@/lib/i18n";
 import "@/lib/i18n-search";
+import { buildAvatarSrc, buildAvatarSrcSet } from "@/lib/cropSizes";
 
 interface BucketedItem {
   item: AutosuggestItem;
@@ -655,10 +656,15 @@ export function SearchButtonWidget({
                                 />
                                 {it.kind === "author" && it.id && authorAvatars[it.id] ? (
                                   <img
-                                    src={authorAvatars[it.id] as string}
+                                    src={buildAvatarSrc(authorAvatars[it.id] as string, 28)}
+                                    srcSet={
+                                      buildAvatarSrcSet(authorAvatars[it.id] as string, 28) ||
+                                      undefined
+                                    }
                                     alt=""
                                     aria-hidden
                                     loading="lazy"
+                                    decoding="async"
                                     className="h-7 w-7 shrink-0 rounded-md border border-border/60 object-cover"
                                   />
                                 ) : (

@@ -77,6 +77,7 @@ import { TocWidget } from "./TocWidget";
 import { PricingPlansView } from "./PricingPlansView";
 import { AuthorByline } from "@/components/molecules/AuthorByline";
 import { resolveAuthorDisplay, widgetAuthorDisplayDefaults } from "@/lib/builder/authorDisplay";
+import { buildAvatarSrc, buildAvatarSrcSet } from "@/lib/cropSizes";
 export { ResizableBox } from "./resizeWrappers";
 
 // Render-prop most do globalnych linków social (site_settings → opcje motywu).
@@ -1372,8 +1373,11 @@ export function renderSimpleWidget(
                   <div className="relative z-10 size-7 flex justify-center items-center">
                     {iconType === "avatar" && avatar ? (
                       <img
-                        src={avatar}
+                        src={buildAvatarSrc(avatar, 28)}
+                        srcSet={buildAvatarSrcSet(avatar, 28) || undefined}
                         alt=""
+                        loading="lazy"
+                        decoding="async"
                         className="shrink-0 size-7 rounded-[6px] object-cover border border-border"
                       />
                     ) : iconType === "lucide" && IconCmp ? (
@@ -1403,8 +1407,11 @@ export function renderSimpleWidget(
                         <>
                           {actorAvatar ? (
                             <img
-                              src={actorAvatar}
+                              src={buildAvatarSrc(actorAvatar, 16)}
+                              srcSet={buildAvatarSrcSet(actorAvatar, 16) || undefined}
                               alt=""
+                              loading="lazy"
+                              decoding="async"
                               className="shrink-0 size-4 rounded-[6px] object-cover border border-border"
                             />
                           ) : (
