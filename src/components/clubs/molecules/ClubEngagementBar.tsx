@@ -16,6 +16,10 @@ import { useTranslation } from "react-i18next";
 import { MessageSquarePlus, SmilePlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ClubReactionBar } from "@/components/clubs/molecules/ClubReactionBar";
+import {
+  ClubHoverActionBody,
+  clubHoverActionClass,
+} from "@/components/clubs/atoms/ClubHoverAction";
 import type { ClubReactionKind, ClubReactionTally } from "@/lib/clubs/types";
 
 export interface ClubEngagementBarProps {
