@@ -21,6 +21,7 @@
 //    od użytkowników, a wyróżnienia robimy klasami na węzłach, nie parsowaniem
 //    HTML-a.
 import { cn } from "@/lib/utils";
+import { parseProseBlocks } from "@/lib/clubs/proseBlocks";
 
 /**
  * Rozbija surowy tekst wpisu na akapity. Pusta linia (lub kilka) rozdziela;
