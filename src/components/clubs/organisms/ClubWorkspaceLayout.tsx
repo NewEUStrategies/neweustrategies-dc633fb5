@@ -25,7 +25,7 @@ import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
 // (pigułki na podstronach, szyna w hubie), więc ten sam zestaw sekcji miał
 // dwa kształty i dwa promienie - a użytkownik nie ma powodu domyślać się,
 // że to jest ta sama nawigacja.
-import { ClubHubSectionBar } from "@/components/clubs/molecules/ClubHubRail";
+import { ClubHubSectionBar, ClubWorkspaceRail } from "@/components/clubs/molecules/ClubHubRail";
 import { ClubDetailSkeleton } from "@/components/clubs/atoms/ClubSkeletons";
 import { useClubBySlug } from "@/lib/clubs/useClubs";
 import type { ClubViewRow } from "@/lib/clubs/types";
@@ -118,37 +118,49 @@ export function ClubWorkspaceLayout({
 
   return (
     <div className={SHELL}>
-      <header className="mb-4">
-        {/* Nazwa klubu jako nadtytuł i link: powierzchnia robocza jest
-            WEWNĄTRZ klubu, więc droga powrotna musi być widoczna bez
-            szukania przycisku "wstecz". */}
-        <Link
-          to="/club/$clubSlug"
-          params={{ clubSlug }}
-          className="text-xs uppercase tracking-wide text-muted-foreground hover:text-foreground"
-        >
-          {name}
-        </Link>
-        <div className="mt-1 flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-xl font-semibold leading-tight sm:text-2xl">{title}</h1>
-            {lead !== undefined && lead !== "" ? (
-              <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{lead}</p>
-            ) : null}
-          </div>
-          {actions !== undefined ? (
-            <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>
-          ) : null}
-        </div>
+      {/* Dwie kolumny, dokładnie jak w hubie: szyna sekcji stoi w tym samym
+          miejscu na każdej powierzchni klubu, więc nawigacja nie „przeskakuje"
+          między stroną klubu a jego podstroną. Poniżej `lg` szyna znika, a jej
+          lista wraca jako pasek nad treścią. */}
+      <div className="grid items-start gap-4 lg:grid-cols-[13.5rem_minmax(0,1fr)]">
+        <aside className="hidden lg:sticky lg:top-20 lg:block">
+          <ClubWorkspaceRail club={club} isPl={isPl} />
+        </aside>
 
-        <ClubHubSectionBar
-          clubSlug={clubSlug}
-          canSeeMembers={club.can_see_members}
-          className="mt-3"
-        />
-      </header>
+        <main className="min-w-0">
+          <ClubHubSectionBar
+            clubSlug={clubSlug}
+            canSeeMembers={club.can_see_members}
+            className="mb-3 lg:hidden"
+          />
 
-      {children(club)}
+          <header className="mb-4 rounded-lg border border-border/60 bg-card p-4 sm:p-5">
+            {/* Nazwa klubu jako nadtytuł i link: powierzchnia robocza jest
+                WEWNĄTRZ klubu, więc droga powrotna musi być widoczna bez
+                szukania przycisku "wstecz". */}
+            <Link
+              to="/club/$clubSlug"
+              params={{ clubSlug }}
+              className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground"
+            >
+              {name}
+            </Link>
+            <div className="mt-1.5 flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h1 className="text-xl font-semibold leading-tight sm:text-2xl">{title}</h1>
+                {lead !== undefined && lead !== "" ? (
+                  <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{lead}</p>
+                ) : null}
+              </div>
+              {actions !== undefined ? (
+                <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>
+              ) : null}
+            </div>
+          </header>
+
+          {children(club)}
+        </main>
+      </div>
     </div>
   );
 }

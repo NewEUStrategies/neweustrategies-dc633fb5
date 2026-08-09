@@ -26,9 +26,11 @@ import { cn } from "@/lib/utils";
 import { ClubRailPanel } from "@/components/clubs/atoms/ClubHubPrimitives";
 import { ClubTopicChip } from "@/components/clubs/atoms/ClubTopicChip";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
+import { useClubGroups } from "@/lib/clubs/useClubs";
 import { ClubGroupTree, clubGroupName } from "@/components/clubs/molecules/ClubGroupTree";
 import { ClubRegimeMark, hasOwnRegime } from "@/components/clubs/atoms/ClubRegimeMark";
-import type { ClubAttributionMode, ClubGroupRow } from "@/lib/clubs/types";
+import { toClubAttributionMode } from "@/lib/clubs/types";
+import type { ClubAttributionMode, ClubGroupRow, ClubViewRow } from "@/lib/clubs/types";
 
 const SECTIONS = [
   { key: "threads", to: "/club/$clubSlug", icon: MessagesSquare, exact: true },
@@ -43,8 +45,13 @@ type SectionKey = (typeof SECTIONS)[number]["key"];
 /** Unia LITERAŁÓW tras - `string` zamieniłby literówkę w martwy link. */
 type SectionTo = (typeof SECTIONS)[number]["to"];
 
+// Jedna pozycja nawigacji ma dwa rozmiary, nie dwa kształty: `md` w szynie
+// (kolumna 13,5 rem), `lg` w pasku poziomym, gdzie pozycja jest jedynym
+// celem dotyku na ekranie i musi mieć wysokość przycisku.
 const ITEM =
-  "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium leading-none transition-colors";
+  "flex items-center gap-2.5 rounded-lg font-medium leading-none transition-colors";
+const ITEM_MD = "px-2.5 py-2.5 text-sm";
+const ITEM_LG = "px-3.5 py-3 text-sm sm:text-[0.9375rem]";
 const ITEM_QUIET = "text-muted-foreground hover:bg-muted/60 hover:text-foreground";
 const ITEM_ACTIVE = "bg-primary/10 text-primary";
 
@@ -63,6 +70,7 @@ function SectionLink({
   exact: boolean;
   compact: boolean;
 }) {
+  const size = compact ? ITEM_LG : ITEM_MD;
   return (
     <Link
       to={to}
@@ -73,18 +81,20 @@ function SectionLink({
       activeOptions={{ exact }}
       className={cn(
         ITEM,
+        size,
         ITEM_QUIET,
         compact && "shrink-0 border border-border/60 bg-card whitespace-nowrap",
       )}
       activeProps={{
         className: cn(
           ITEM,
+          size,
           ITEM_ACTIVE,
-          compact && "shrink-0 border border-primary/40 whitespace-nowrap",
+          compact && "shrink-0 border border-primary/40 bg-primary/10 whitespace-nowrap",
         ),
       }}
     >
-      <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+      <Icon className={cn("shrink-0", compact ? "h-[1.125rem] w-[1.125rem]" : "h-4 w-4")} aria-hidden="true" />
       <span className={compact ? "" : "truncate"}>{label}</span>
     </Link>
   );
@@ -106,7 +116,7 @@ export function ClubHubSectionBar({
     <nav
       aria-label={t("club.hub.sectionsLabel")}
       className={cn(
-        "-mx-3 flex gap-1.5 overflow-x-auto px-3 pb-1 [scrollbar-width:none]",
+        "-mx-3 flex gap-2 overflow-x-auto px-3 pb-1 [scrollbar-width:none]",
         className,
       )}
     >
@@ -243,7 +253,77 @@ export function ClubHubRail({
           <Link
             to="/club/$clubSlug/about"
             params={{ clubSlug }}
-            className={cn(ITEM, ITEM_QUIET, "w-full")}
+            className={cn(ITEM, ITEM_MD, ITEM_QUIET, "w-full")}
+          >
+            <ScrollText className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span className="truncate">{t("club.rules")}</span>
+          </Link>
+        </ClubRailPanel>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Szyna podstron przestrzeni roboczej (biblioteka, kalendarz, harmonogram,
+ * pomiar, skład).
+ *
+ * DLACZEGO TA SAMA, CO W HUBIE. Podstrony miały wcześniej wyłącznie poziomy
+ * pasek pigułek, więc ten sam zestaw sekcji miał dwa kształty zależnie od
+ * tego, gdzie użytkownik akurat stał. Tu stoi ta sama kolumna, bez filtra
+ * działów - dział zawęża STRUMIEŃ, a na bibliotece czy kalendarzu nie miałby
+ * czego odsiać.
+ */
+export function ClubWorkspaceRail({
+  club,
+  isPl,
+}: {
+  club: ClubViewRow;
+  isPl: boolean;
+}) {
+  const { t } = useTranslation();
+  const { topics } = useClubTopics();
+  const groupsQ = useClubGroups(club.id);
+  const groups = groupsQ.data ?? [];
+  const visible = SECTIONS.filter((s) => s.key !== "members" || club.can_see_members);
+  const hasRules = (isPl ? club.rules_pl : club.rules_en) !== null;
+
+  return (
+    <div className="space-y-3">
+      <ClubRailPanel className="p-2">
+        <nav aria-label={t("club.hub.sectionsLabel")} className="flex flex-col gap-0.5">
+          {visible.map((section) => (
+            <SectionLink
+              key={section.key}
+              to={section.to}
+              clubSlug={club.slug}
+              icon={section.icon}
+              label={t(`club.hub.sections.${section.key satisfies SectionKey}`)}
+              exact={section.exact}
+              compact={false}
+            />
+          ))}
+        </nav>
+      </ClubRailPanel>
+
+      <ClubRegimePanel
+        attributionMode={toClubAttributionMode(club.attribution_mode)}
+        groups={groups}
+        isPl={isPl}
+      />
+
+      {club.policy_area !== null && club.policy_area.trim() !== "" ? (
+        <ClubRailPanel title={t("club.topic.label")}>
+          <ClubTopicChip topic={club.policy_area} lang={isPl ? "pl" : "en"} catalog={topics} />
+        </ClubRailPanel>
+      ) : null}
+
+      {hasRules ? (
+        <ClubRailPanel>
+          <Link
+            to="/club/$clubSlug/about"
+            params={{ clubSlug: club.slug }}
+            className={cn(ITEM, ITEM_MD, ITEM_QUIET, "w-full")}
           >
             <ScrollText className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span className="truncate">{t("club.rules")}</span>
