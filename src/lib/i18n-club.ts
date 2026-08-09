@@ -138,6 +138,12 @@ export const clubPl = {
       people: {
         title: "Kto tu rozmawia",
       },
+      sources: {
+        title: "Wątki i ich źródła",
+        unassigned: "Poza działami",
+        unread: "Nieprzeczytany wątek",
+        filterHint: "Pokaż tylko ten dział",
+      },
 
       eyebrow: "Przestrzeń członkowska",
       clubsCount_one: "{{count}} klub",
@@ -1652,6 +1658,12 @@ export const clubEn = {
       },
       people: {
         title: "Who is talking here",
+      },
+      sources: {
+        title: "Threads by source",
+        unassigned: "Outside sections",
+        unread: "Unread thread",
+        filterHint: "Show this section only",
       },
 
       eyebrow: "Members' space",

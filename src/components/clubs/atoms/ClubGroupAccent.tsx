@@ -24,9 +24,23 @@ export function clubGroupAccentVars(accent: string | null): CSSProperties {
 export const CLUB_GROUP_TINT =
   "border-[color-mix(in_oklab,var(--club-accent)_40%,transparent)] bg-[color-mix(in_oklab,var(--club-accent)_8%,transparent)]";
 
-export const CLUB_GROUP_DOT = "bg-[color-mix(in_oklab,var(--club-accent)_75%,transparent)]";
+export const CLUB_GROUP_TEXT =
+  "text-[color-mix(in_oklab,var(--club-accent)_80%,var(--foreground))]";
 
-export const CLUB_GROUP_TEXT = "text-[color-mix(in_oklab,var(--club-accent)_80%,var(--foreground))]";
+/** Krecha wiążąca listę z jej działem - lewa krawędź listy wątków w panelu
+ *  źródeł. Mocniejsza niż tło (35 %), bo jest jedyną rzeczą, która mówi
+ *  "te tytuły należą do działu wyżej". */
+export const CLUB_GROUP_EDGE = "border-[color-mix(in_oklab,var(--club-accent)_35%,transparent)]";
+
+// Kwadrat z ikoną działu. TEN SAM znacznik w drzewie działów, w panelu źródeł
+// i w nagłówku wybranego działu - dopiero powtórzenie kształtu sprawia, że
+// użytkownik łączy pozycję w szynie z kartą w strumieniu. Rozmiar zostaje po
+// stronie wołającego, bo w szynie kwadrat ma 5, a w nagłówku 7 jednostek.
+export const CLUB_GROUP_CHIP =
+  "border-[color-mix(in_oklab,var(--club-accent)_30%,transparent)] bg-[color-mix(in_oklab,var(--club-accent)_12%,transparent)]";
+
+export const CLUB_GROUP_CHIP_ACTIVE =
+  "border-[color-mix(in_oklab,var(--club-accent)_45%,transparent)] bg-[color-mix(in_oklab,var(--club-accent)_18%,transparent)]";
 
 export function ClubGroupIcon({
   icon,

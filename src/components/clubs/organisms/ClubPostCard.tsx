@@ -32,6 +32,8 @@ import { cn } from "@/lib/utils";
 import { HUB_SURFACE } from "@/components/clubs/atoms/ClubHubPrimitives";
 import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
 import { ClubInlineTitle } from "@/components/clubs/atoms/ClubInlineTitle";
+import { ClubSourceChip } from "@/components/clubs/atoms/ClubSourceChip";
+import { clubSourceOf, type ClubSourceMark } from "@/lib/clubs/threadSources";
 import {
   isLinkAttachment,
   parseClubPostAttachments,
@@ -41,6 +43,10 @@ import {
   type ClubPostRow,
 } from "@/lib/clubs/postTypes";
 import { formatDateShort } from "@/lib/i18n/format";
+
+/** Stała pusta mapa - literał w domyślnej wartości propa tworzyłby NOWĄ mapę
+ *  przy każdym renderze i psuł memoizację kart. */
+const EMPTY_SOURCES: ReadonlyMap<string, ClubSourceMark> = new Map();
 
 function formatBytes(size: number): string {
   if (size <= 0) return "";
@@ -241,7 +247,10 @@ function MediaGrid({
                 {formatBytes(item.size)} · {t("club.post.openFile")}
               </span>
             </span>
-            <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <ExternalLink
+              className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+              aria-hidden="true"
+            />
           </a>
         );
       })}
@@ -254,6 +263,9 @@ export function ClubPostCard({
   clubSlug,
   isPl,
   mediaUrls,
+  sourceIndex = EMPTY_SOURCES,
+  activeGroupId = null,
+  onSourceSelect,
   onLike,
   onDelete,
   /** Ukrywa plakietkę wątku tam, gdzie wątek JEST kontekstem ekranu. */
@@ -264,6 +276,10 @@ export function ClubPostCard({
   clubSlug: string;
   isPl: boolean;
   mediaUrls: Record<string, string>;
+  /** Kolory i ikony działów - budowane RAZ nad listą, nie per karta. */
+  sourceIndex?: ReadonlyMap<string, ClubSourceMark>;
+  activeGroupId?: string | null;
+  onSourceSelect?: (groupId: string | null) => void;
   onLike?: (postId: string) => void;
   onDelete?: (postId: string) => void;
   hideThreadLink?: boolean;
@@ -279,7 +295,7 @@ export function ClubPostCard({
     (item): item is ClubPostMediaAttachment => !isLinkAttachment(item),
   );
   const authorName = post.author_name ?? t("club.deletedAuthor");
-  const groupName = isPl ? post.group_name_pl : post.group_name_en;
+  const source = clubSourceOf(post, sourceIndex, isPl);
 
   return (
     <article
@@ -307,11 +323,15 @@ export function ClubPostCard({
             ) : (
               <span className="font-medium text-foreground">{authorName}</span>
             )}
-            {groupName !== null && groupName !== "" ? (
-              <>
-                <span aria-hidden="true">·</span>
-                <span>{groupName}</span>
-              </>
+            {/* Ten sam znacznik źródła, co na karcie wątku - wpis ze ściany
+                należy do działu dokładnie tak samo jak wątek i nie ma powodu,
+                żeby jego pochodzenie wyglądało inaczej. */}
+            {source !== null ? (
+              <ClubSourceChip
+                source={source}
+                active={source.id !== null && source.id === activeGroupId}
+                onSelect={onSourceSelect}
+              />
             ) : null}
             <span aria-hidden="true">·</span>
             <time dateTime={post.created_at}>{formatDateShort(post.created_at, lang)}</time>
@@ -325,7 +345,10 @@ export function ClubPostCard({
               className="mt-1.5 inline-flex max-w-full items-center gap-1.5"
               data-testid="club-post-thread-link"
             >
-              <MessagesSquare className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <MessagesSquare
+                className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                aria-hidden="true"
+              />
               <ClubInlineTitle tone="thread" size="sm" interactive>
                 {post.thread_title ?? t("club.post.inThread")}
               </ClubInlineTitle>
@@ -377,7 +400,10 @@ export function ClubPostCard({
           type="button"
           variant="ghost"
           size="sm"
-          className={cn("h-8 gap-1.5 rounded-lg px-2.5 text-xs", post.liked_by_me && "text-primary")}
+          className={cn(
+            "h-8 gap-1.5 rounded-lg px-2.5 text-xs",
+            post.liked_by_me && "text-primary",
+          )}
           aria-pressed={post.liked_by_me}
           onClick={onLike === undefined ? undefined : () => onLike(post.id)}
           disabled={onLike === undefined}

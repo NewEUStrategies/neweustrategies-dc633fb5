@@ -6,6 +6,16 @@
 // Szyna pionowa stoi w kolumnie, która i tak jest pusta, czyta się jak spis
 // treści klubu i zostaje na ekranie przy przewijaniu (`sticky`).
 //
+// DLACZEGO KAFELKI, A NIE LISTA LINIJEK. Sześć linijek tekstu z ikoną 16 px
+// to sześć bytów o identycznej wadze - oko nie ma się o co zaczepić i trafia
+// w pozycję dopiero po przeczytaniu wszystkich. Kafelek daje każdej sekcji
+// własny cel dotyku, ikonę w rozmiarze, który widać kątem oka, i miejsce na
+// LICZBĘ: "Dokumenty 12" mówi o klubie coś, czego "Dokumenty" nie powie nigdy.
+//
+// Cena jest jawna: siatka 2x3 jest o ~50 px WYŻSZA niż sześć linijek. Płacimy
+// ją, bo w tej kolumnie pion jest tani (poniżej panelu działów i reżimu zostaje
+// puste miejsce na całą wysokość strumienia), a rozpoznawalność pozycji droga.
+//
 // Na telefonie ta sama lista wraca jako poziomy pasek - tam kolumna nie
 // istnieje, a spis treści musi zmieścić się w jednym rzędzie.
 import { Link } from "@tanstack/react-router";
@@ -45,32 +55,43 @@ type SectionKey = (typeof SECTIONS)[number]["key"];
 /** Unia LITERAŁÓW tras - `string` zamieniłby literówkę w martwy link. */
 type SectionTo = (typeof SECTIONS)[number]["to"];
 
-// Jedna pozycja nawigacji ma dwa rozmiary, nie dwa kształty: `md` w szynie
-// (kolumna 13,5 rem), `lg` w pasku poziomym, gdzie pozycja jest jedynym
-// celem dotyku na ekranie i musi mieć wysokość przycisku.
-const ITEM =
-  "flex items-center gap-2.5 rounded-lg font-medium leading-none transition-colors";
+/** Liczby przy kafelkach. Wszystkie są OPCJONALNE: sekcja bez liczby ma
+ *  wyglądać jak sekcja, a nie jak sekcja z zerem. */
+type SectionCounts = Partial<Record<SectionKey, number>>;
+
+// Wspólny kształt pozycji tekstowej - został przy pasku poziomym i przy
+// linku do zasad; szyna ma kafelki.
+const ITEM = "flex items-center gap-2.5 rounded-lg font-medium leading-none transition-colors";
 const ITEM_MD = "px-2.5 py-2.5 text-sm";
 const ITEM_LG = "px-3.5 py-3 text-sm sm:text-[0.9375rem]";
 const ITEM_QUIET = "text-muted-foreground hover:bg-muted/60 hover:text-foreground";
-const ITEM_ACTIVE = "bg-primary/10 text-primary";
 
-function SectionLink({
+// Stan aktywny jedzie przez `data-status`, które `Link` sam dokłada. Klasy
+// z `activeProps` są DOKLEJANE do bazowych, więc `text-muted-foreground`
+// i `text-primary` trafiłyby do jednego atrybutu i o zwycięzcy decydowałaby
+// kolejność reguł w arkuszu, a nie zapis w komponencie. Wariant `data-[...]`
+// rozstrzyga to po stronie Tailwinda i pozwala ubrać także IKONĘ w środku.
+const TILE =
+  "group/tile relative flex flex-col items-center gap-1.5 rounded-lg border border-border/60 bg-muted/30 px-1 py-2.5 text-center text-[11px] font-medium leading-tight text-muted-foreground transition-colors hover:border-primary/40 hover:bg-muted/60 hover:text-foreground data-[status=active]:border-primary/40 data-[status=active]:bg-primary/10 data-[status=active]:text-primary";
+
+const TILE_CHIP =
+  "flex h-8 w-8 items-center justify-center rounded-lg border border-border/60 bg-background text-muted-foreground transition-colors group-hover/tile:text-foreground group-data-[status=active]/tile:border-primary/30 group-data-[status=active]/tile:bg-primary/15 group-data-[status=active]/tile:text-primary";
+
+function SectionTile({
   to,
   clubSlug,
   icon: Icon,
   label,
   exact,
-  compact,
+  count,
 }: {
   to: SectionTo;
   clubSlug: string;
   icon: LucideIcon;
   label: string;
   exact: boolean;
-  compact: boolean;
+  count?: number;
 }) {
-  const size = compact ? ITEM_LG : ITEM_MD;
   return (
     <Link
       to={to}
@@ -79,24 +100,53 @@ function SectionLink({
       // pozostałej trasy klubu - bez dopasowania dokładnego świeciłaby się
       // na wszystkich sześciu ekranach naraz.
       activeOptions={{ exact }}
-      className={cn(
-        ITEM,
-        size,
-        ITEM_QUIET,
-        compact && "shrink-0 border border-border/60 bg-card whitespace-nowrap",
-      )}
-      activeProps={{
-        className: cn(
-          ITEM,
-          size,
-          ITEM_ACTIVE,
-          compact && "shrink-0 border border-primary/40 bg-primary/10 whitespace-nowrap",
-        ),
-      }}
+      className={TILE}
     >
-      <Icon className={cn("shrink-0", compact ? "h-[1.125rem] w-[1.125rem]" : "h-4 w-4")} aria-hidden="true" />
-      <span className={compact ? "" : "truncate"}>{label}</span>
+      <span className={TILE_CHIP}>
+        <Icon className="h-4 w-4" aria-hidden="true" />
+      </span>
+      <span className="line-clamp-2 w-full px-0.5">{label}</span>
+      {/* Liczba jest OZDOBĄ DLA OKA, nie treścią dla czytnika: nazwa sekcji
+          zostaje jedyną nazwą dostępną linku, bo "Dokumenty 12" czytane na
+          głos brzmi jak nazwa dokumentu numer dwanaście. */}
+      {count !== undefined && count > 0 ? (
+        <span
+          aria-hidden="true"
+          className="absolute right-1 top-1 rounded-md bg-muted px-1 text-[10px] font-semibold tabular-nums text-muted-foreground group-data-[status=active]/tile:bg-primary/15 group-data-[status=active]/tile:text-primary"
+        >
+          {count > 99 ? "99+" : count}
+        </span>
+      ) : null}
     </Link>
+  );
+}
+
+/** Siatka sekcji - ta sama w hubie i na podstronach przestrzeni roboczej. */
+function SectionTiles({
+  clubSlug,
+  canSeeMembers,
+  counts,
+}: {
+  clubSlug: string;
+  canSeeMembers: boolean;
+  counts?: SectionCounts;
+}) {
+  const { t } = useTranslation();
+  const visible = SECTIONS.filter((s) => s.key !== "members" || canSeeMembers);
+  return (
+    <nav aria-label={t("club.hub.sectionsLabel")} className="grid grid-cols-2 gap-1.5">
+      {visible.map((section) => (
+        <SectionTile
+          key={section.key}
+          to={section.to}
+          clubSlug={clubSlug}
+          icon={section.icon}
+          label={t(`club.hub.sections.${section.key satisfies SectionKey}`)}
+          exact={section.exact}
+          count={counts?.[section.key]}
+        />
+      ))}
+    </nav>
   );
 }
 
@@ -115,22 +165,29 @@ export function ClubHubSectionBar({
   return (
     <nav
       aria-label={t("club.hub.sectionsLabel")}
-      className={cn(
-        "-mx-3 flex gap-2 overflow-x-auto px-3 pb-1 [scrollbar-width:none]",
-        className,
-      )}
+      className={cn("-mx-3 flex gap-2 overflow-x-auto px-3 pb-1 [scrollbar-width:none]", className)}
     >
-      {visible.map((section) => (
-        <SectionLink
-          key={section.key}
-          to={section.to}
-          clubSlug={clubSlug}
-          icon={section.icon}
-          label={t(`club.hub.sections.${section.key satisfies SectionKey}`)}
-          exact={section.exact}
-          compact
-        />
-      ))}
+      {visible.map((section) => {
+        const Icon = section.icon;
+        return (
+          <Link
+            key={section.key}
+            to={section.to}
+            params={{ clubSlug }}
+            activeOptions={{ exact: section.exact }}
+            className={cn(
+              ITEM,
+              ITEM_LG,
+              ITEM_QUIET,
+              "shrink-0 whitespace-nowrap border border-border/60 bg-card",
+              "data-[status=active]:border-primary/40 data-[status=active]:bg-primary/10 data-[status=active]:text-primary",
+            )}
+          >
+            <Icon className="h-[1.125rem] w-[1.125rem] shrink-0" aria-hidden="true" />
+            <span>{t(`club.hub.sections.${section.key satisfies SectionKey}`)}</span>
+          </Link>
+        );
+      })}
     </nav>
   );
 }
@@ -191,6 +248,7 @@ export function ClubHubRail({
   attributionMode,
   activeGroupId,
   onGroupChange,
+  counts,
   hasRules,
   isPl,
 }: {
@@ -201,29 +259,17 @@ export function ClubHubRail({
   attributionMode: ClubAttributionMode;
   activeGroupId: string | null;
   onGroupChange: (groupId: string | null) => void;
+  counts?: SectionCounts;
   hasRules: boolean;
   isPl: boolean;
 }) {
   const { t } = useTranslation();
   const { topics } = useClubTopics();
-  const visible = SECTIONS.filter((s) => s.key !== "members" || canSeeMembers);
 
   return (
     <div className="space-y-3">
       <ClubRailPanel className="p-2">
-        <nav aria-label={t("club.hub.sectionsLabel")} className="flex flex-col gap-0.5">
-          {visible.map((section) => (
-            <SectionLink
-              key={section.key}
-              to={section.to}
-              clubSlug={clubSlug}
-              icon={section.icon}
-              label={t(`club.hub.sections.${section.key satisfies SectionKey}`)}
-              exact={section.exact}
-              compact={false}
-            />
-          ))}
-        </nav>
+        <SectionTiles clubSlug={clubSlug} canSeeMembers={canSeeMembers} counts={counts} />
       </ClubRailPanel>
 
       {/* Działy klubu są ZAWĘŻENIEM strumienia, nie osobną trasą - dlatego
@@ -238,7 +284,6 @@ export function ClubHubRail({
           />
         </ClubRailPanel>
       ) : null}
-
 
       <ClubRegimePanel attributionMode={attributionMode} groups={groups} isPl={isPl} />
 
@@ -274,36 +319,24 @@ export function ClubHubRail({
  * działów - dział zawęża STRUMIEŃ, a na bibliotece czy kalendarzu nie miałby
  * czego odsiać.
  */
-export function ClubWorkspaceRail({
-  club,
-  isPl,
-}: {
-  club: ClubViewRow;
-  isPl: boolean;
-}) {
+export function ClubWorkspaceRail({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
   const { t } = useTranslation();
   const { topics } = useClubTopics();
   const groupsQ = useClubGroups(club.id);
   const groups = groupsQ.data ?? [];
-  const visible = SECTIONS.filter((s) => s.key !== "members" || club.can_see_members);
   const hasRules = (isPl ? club.rules_pl : club.rules_en) !== null;
 
   return (
     <div className="space-y-3">
       <ClubRailPanel className="p-2">
-        <nav aria-label={t("club.hub.sectionsLabel")} className="flex flex-col gap-0.5">
-          {visible.map((section) => (
-            <SectionLink
-              key={section.key}
-              to={section.to}
-              clubSlug={club.slug}
-              icon={section.icon}
-              label={t(`club.hub.sections.${section.key satisfies SectionKey}`)}
-              exact={section.exact}
-              compact={false}
-            />
-          ))}
-        </nav>
+        {/* Podstrona zna tylko liczby, które i tak wiezie wiersz klubu -
+            biblioteka i kalendarz mają własne zapytania na SWOICH ekranach
+            i szyna nie będzie ich powtarzać po to, żeby narysować plakietkę. */}
+        <SectionTiles
+          clubSlug={club.slug}
+          canSeeMembers={club.can_see_members}
+          counts={{ threads: club.thread_count, members: club.member_count }}
+        />
       </ClubRailPanel>
 
       <ClubRegimePanel
