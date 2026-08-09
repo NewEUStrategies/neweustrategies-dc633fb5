@@ -392,6 +392,18 @@ export const clubPl = {
       stateHeading: "Stan",
       empty: "Żaden wątek nie pasuje do wybranych zawężeń.",
     },
+    iconPicker: {
+      label: "Ikona tematu",
+      hint: "Opcjonalna. Bez wyboru temat dostaje piktogram swojego rodzaju.",
+      none: "Bez ikony",
+      group: {
+        policy: "Polityka i prawo",
+        economy: "Gospodarka",
+        infrastructure: "Infrastruktura i energia",
+        discussion: "Dyskusja",
+        sources: "Materiały i terminy",
+      },
+    },
     composer: {
       draftFound: "Masz niedokończony tekst z {{when}}.",
       draftRestore: "Wróć do niego",
@@ -1920,6 +1932,18 @@ export const clubEn = {
       kindHeading: "Kind of contribution",
       stateHeading: "State",
       empty: "No thread matches the selected filters.",
+    },
+    iconPicker: {
+      label: "Topic icon",
+      hint: "Optional. Without a choice the topic uses the icon of its kind.",
+      none: "No icon",
+      group: {
+        policy: "Policy and law",
+        economy: "Economy",
+        infrastructure: "Infrastructure and energy",
+        discussion: "Discussion",
+        sources: "Materials and dates",
+      },
     },
     composer: {
       draftFound: "You have an unfinished text from {{when}}.",

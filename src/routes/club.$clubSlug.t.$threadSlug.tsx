@@ -46,6 +46,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { DynamicIcon } from "@/lib/icons/DynamicIcon";
+import { normalizeClubThreadIcon } from "@/lib/clubs/threadIcons";
 import { ClubTopicChip } from "@/components/clubs/atoms/ClubTopicChip";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import { Label } from "@/components/ui/label";
@@ -172,6 +174,9 @@ function ClubThreadView() {
   const club = clubQ.data ?? null;
   const threadQ = useClubThread({ clubId: club?.id, slug: threadSlug });
   const thread = threadQ.data ?? null;
+  // Nazwa spoza katalogu degraduje do braku ikony - patrz `threadIcons.ts`.
+  const threadIcon = normalizeClubThreadIcon(thread?.icon ?? null);
+
 
   const [replySort, setReplySort] = useState<ClubReplySort>("chronological");
   const repliesQ = useClubReplies({ threadId: thread?.id, sort: replySort });
@@ -384,7 +389,12 @@ function ClubThreadView() {
       <article className="rounded-xl border border-border/60 bg-card p-4 shadow-sm sm:p-5">
         <div className="flex flex-wrap items-center gap-2">
           {thread.pinned_at !== null ? <Pin className="h-4 w-4 text-primary" /> : null}
-          <Badge variant="outline">{t(`club.kind.${thread.kind}`)}</Badge>
+          <Badge variant="outline" className="gap-1">
+            {threadIcon !== null ? (
+              <DynamicIcon name={threadIcon} size={12} aria-hidden="true" />
+            ) : null}
+            {t(`club.kind.${thread.kind}`)}
+          </Badge>
           {thread.status === "resolved" ? (
             <Badge className="bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-300">
               {t("club.threadStatus.resolved")}

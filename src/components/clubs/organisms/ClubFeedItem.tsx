@@ -46,6 +46,8 @@ import {
   type ClubThreadListRow,
 } from "@/lib/clubs/types";
 import { ClubEngagementBar } from "@/components/clubs/molecules/ClubEngagementBar";
+import { DynamicIcon } from "@/lib/icons/DynamicIcon";
+import { normalizeClubThreadIcon } from "@/lib/clubs/threadIcons";
 
 import {
   documentHref,
@@ -129,6 +131,10 @@ function ThreadCard({
   const author = toAuthorLabel(thread, t("club.anonymousAuthor"), t("club.deletedAuthor"));
   const stamp = thread.last_reply_at ?? thread.created_at;
   const source = clubSourceOf(thread, sourceIndex, isPl);
+  // Normalizacja przy ODCZYCIE: wiersze sprzed katalogu ikon mogą nieść nazwę
+  // spoza zestawu kurowanego, a taka dociągałaby pełny rejestr lucide do
+  // chunku strumienia - degradujemy ją do braku ikony.
+  const threadIcon = normalizeClubThreadIcon(thread.icon);
 
   return (
     <article
@@ -174,7 +180,13 @@ function ThreadCard({
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Badge variant="secondary" className="rounded-lg text-[11px]">
+        {/* Ikona autorska stoi W znaczniku rodzaju, a nie obok tytułu: tytuł
+            ma jedną linię bazową i wcięcie ikony rozjeżdżałoby podkreślenie
+            przy zawijaniu na mobile. */}
+        <Badge variant="secondary" className="gap-1 rounded-lg text-[11px]">
+          {threadIcon !== null ? (
+            <DynamicIcon name={threadIcon} size={12} aria-hidden="true" />
+          ) : null}
           {t(`club.kind.${thread.kind}`)}
         </Badge>
         {thread.status === "resolved" ? (

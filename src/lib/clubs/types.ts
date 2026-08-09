@@ -665,8 +665,12 @@ export type ClubThreadListRow = NullableCols<
   | "pinned_at"
   | "last_reply_at"
   | "excerpt"
+  // Ikona tematu jest opcjonalna: starsze watki jej nie maja, a autor nie
+  // musi jej wybierac - lista renderuje wtedy ikone rodzaju watku.
+  | "icon"
 >;
-export type ClubThreadViewRow = RowOf<Fn["club_thread_view"]["Returns"]>;
+export type ClubThreadViewRow = NullableCols<RowOf<Fn["club_thread_view"]["Returns"]>, "icon">;
+
 export type ClubReplyRow = NullableCols<
   RowOf<Fn["club_replies_list"]["Returns"]>,
   | "parent_id"

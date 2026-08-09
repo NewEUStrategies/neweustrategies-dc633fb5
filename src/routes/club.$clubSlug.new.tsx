@@ -18,6 +18,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { ClubEnumSelect } from "@/components/admin/clubs/molecules/ClubEnumSelect";
+import { ClubIconPicker } from "@/components/clubs/molecules/ClubIconPicker";
+import { normalizeClubThreadIcon } from "@/lib/clubs/threadIcons";
 import { ClubTopicSelect } from "@/components/clubs/molecules/ClubTopicSelect";
 import { normalizeClubTopic } from "@/lib/clubs/policyAreas";
 import {
@@ -113,6 +115,9 @@ function ClubNewThread() {
   // Obszar tematyczny watku - domyslnie dziedziczony z klubu, ale autor moze
   // go zawezic albo wyczyscic; RPC waliduje wartosc slownikiem.
   const [topic, setTopic] = useState<string | null>(null);
+  // Ikona jest ozdobna i domyslnie pusta - brak wyboru rysuje piktogram
+  // rodzaju watku, wiec formularz niczego nie wymusza.
+  const [icon, setIcon] = useState<string | null>(null);
   const [topicTouched, setTopicTouched] = useState(false);
   // Kotwica jest krawędzią w grafie treści (V1 §1.4), a nie ozdobnym linkiem:
   // dossier pokazuje "3 wątki w klubach dyskutują ten plik", a zdarzenie
@@ -238,6 +243,7 @@ function ClubNewThread() {
         // dostałby odmowę za pole, którego nawet nie widział.
         lockReplies: canModerate ? lockReplies : false,
         topic,
+        icon: normalizeClubThreadIcon(icon),
       },
       {
         onSuccess: ({ slug, status }) => {
@@ -303,6 +309,17 @@ function ClubNewThread() {
               }}
               disabled={createM.isPending}
             />
+
+            <div className="space-y-1.5">
+              <Label htmlFor="thread-icon">{t("club.iconPicker.label")}</Label>
+              <ClubIconPicker
+                id="thread-icon"
+                value={icon}
+                onChange={setIcon}
+                disabled={createM.isPending}
+              />
+              <p className="text-xs text-muted-foreground">{t("club.iconPicker.hint")}</p>
+            </div>
 
             <ClubEnumSelect
               id="thread-kind"
