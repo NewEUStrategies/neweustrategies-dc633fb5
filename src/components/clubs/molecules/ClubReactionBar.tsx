@@ -86,24 +86,22 @@ export function ClubReactionBar({
                 total > 0 ? `${t(`club.reaction.${kind}`)} (${total})` : t(`club.reaction.${kind}`)
               }
               title={t(`club.reaction.${kind}`)}
-              className={cn(
-                "h-7 gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors",
-                active
-                  ? "border-primary/50 bg-primary/10 text-primary"
-                  : "border-border/60 text-muted-foreground hover:text-foreground",
-              )}
+              className={clubHoverActionClass({
+                active,
+                className: "gap-0 px-2 shadow-none",
+              })}
               onClick={() => onToggle(kind, active)}
             >
-              <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-              <span aria-hidden="true" className="hidden sm:inline">
-                {t(`club.reaction.${kind}`)}
-              </span>
-              {total > 0 ? (
-                <span aria-hidden="true" className="tabular-nums">
-                  {total}
-                </span>
-              ) : null}
+              {/* Etykieta rozwija się dopiero po najechaniu - w spoczynku
+                  liczy się piktogram i licznik, patrz `ClubHoverAction`. */}
+              <ClubHoverActionBody
+                icon={Icon}
+                label={t(`club.reaction.${kind}`)}
+                count={total}
+                expanded={variant === "full"}
+              />
             </Button>
+
           );
         })}
       </div>
