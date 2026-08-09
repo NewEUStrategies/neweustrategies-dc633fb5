@@ -474,24 +474,33 @@ function ClubThreadView() {
           <ClubProse className="mt-4" body={thread.body} />
         )}
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-3">
+        {/* Pasek akcji postu otwierającego jest tą samą molekułą wizualną, co
+            pod kartą w strumieniu: piktogram w spoczynku, słowo po najechaniu.
+            Inaczej ten sam gest wyglądałby inaczej na hubie i w wątku. */}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-border/60 pt-2.5">
           <ClubReactionBar
             tallies={threadReactionsQ.data?.get(thread.id) ?? []}
             disabled={!thread.can_reply || toggleThreadReaction.isPending}
             variant="full"
+            labels="hover"
             onToggle={(kind, active) =>
               toggleThreadReaction.mutate({ targetId: thread.id, kind, active })
             }
           />
-          <div className="flex flex-wrap gap-2">
+          <div className="ml-auto flex flex-wrap items-center gap-1.5">
             {canEditThread && editing !== "thread" ? (
-              <Button size="sm" variant="ghost" onClick={() => setEditing("thread")}>
-                <Pencil className="mr-1.5 h-3.5 w-3.5" />
-                {t("club.editor.edit")}
-              </Button>
+              <button
+                type="button"
+                onClick={() => setEditing("thread")}
+                aria-label={t("club.editor.edit")}
+                className={clubHoverActionClass()}
+              >
+                <ClubHoverActionBody icon={Pencil} label={t("club.editor.edit")} />
+              </button>
             ) : null}
             {canReportThread ? <ClubReportButton targetType="thread" targetId={thread.id} /> : null}
             <ClubFollowButton
+              compact
               state={subscriptionQ.data ?? null}
               pending={setSubscriptionM.isPending}
               disabled={subscriptionQ.isPending}
