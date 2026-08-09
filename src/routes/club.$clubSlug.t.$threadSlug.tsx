@@ -417,40 +417,54 @@ function ClubThreadView() {
         canGoAnonymous={canGoAnonymous}
       >
         {/* --- post otwierający --- */}
-        <article className="rounded-xl border border-border/60 bg-card p-4 shadow-sm sm:p-5">
-          <div className="flex flex-wrap items-center gap-2">
-            {thread.pinned_at !== null ? <Pin className="h-4 w-4 text-primary" /> : null}
-            <Badge variant="outline" className="gap-1">
-              {threadIcon !== null ? (
-                <DynamicIcon name={threadIcon} size={12} aria-hidden="true" />
-              ) : null}
+        {/* Post otwierający mówi tym samym językiem, co wiersz dossier w
+            strumieniu: grzbiet rodzaju po lewej, ikona rodzaju w kwadracie,
+            meta wersalikami nad tytułem. Inaczej ten sam wątek wyglądałby
+            inaczej na hubie i na własnej stronie. */}
+        <article
+          data-tone={threadTone}
+          className="relative overflow-hidden rounded-lg border border-border/60 bg-card py-3 pl-4 pr-4 shadow-sm sm:py-4 sm:pl-5 sm:pr-5"
+        >
+          <span
+            aria-hidden="true"
+            className={cn("absolute inset-y-0 left-0 w-[3px]", clubDossierSpineClass(threadTone))}
+          />
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+            <span
+              aria-hidden="true"
+              className={cn(
+                "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border",
+                clubDossierIconBoxClass(threadTone),
+              )}
+            >
+              <ClubThreadKindIcon kind={thread.kind} icon={threadIcon} />
+            </span>
+            {thread.pinned_at !== null ? <Pin className="h-3.5 w-3.5 text-primary" /> : null}
+            <span className="font-semibold uppercase tracking-[0.08em] text-foreground">
               {t(`club.kind.${thread.kind}`)}
-            </Badge>
+            </span>
             {thread.status === "resolved" ? (
-              <Badge className="bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-300">
+              <Badge className="bg-emerald-500/15 text-[11px] text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-300">
                 {t("club.threadStatus.resolved")}
               </Badge>
             ) : null}
             {thread.locked_at !== null ? (
-              <Badge variant="outline" className="gap-1">
+              <Badge variant="outline" className="gap-1 text-[11px]">
                 <Lock className="h-3 w-3" />
                 {t("club.threadStatus.locked")}
               </Badge>
             ) : null}
             {thread.attribution_mode === "chatham" ? (
-              <Badge variant="outline" className="gap-1">
+              <Badge variant="outline" className="gap-1 text-[11px]">
                 <ShieldQuestion className="h-3 w-3" />
                 {t("club.attribution.chatham")}
               </Badge>
             ) : null}
-            {/* Kotwica jest KRAWĘDZIĄ w grafie treści, więc pokazujemy ją tam,
-                gdzie czytelnik decyduje, czy wątek go dotyczy - w nagłówku, nie
-                na dole. */}
             {/* Obszar tematyczny wątku - ten sam chip co na hubie i w klubie,
                 żeby czytelnik rozpoznał tematykę bez czytania etykiety. */}
             <ClubTopicChip topic={thread.topic} lang={isPl ? "pl" : "en"} catalog={topicCatalog} />
             {thread.anchor_type !== null ? (
-              <Badge variant="secondary" className="gap-1">
+              <Badge variant="secondary" className="gap-1 text-[11px]">
                 <Link2 className="h-3 w-3" aria-hidden="true" />
                 {t(`club.anchorType.${thread.anchor_type}`)}
               </Badge>
