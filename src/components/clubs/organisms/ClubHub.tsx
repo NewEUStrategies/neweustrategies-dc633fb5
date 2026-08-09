@@ -66,7 +66,6 @@ import {
 import {
   CLUB_THREAD_SORTS,
   CLUB_THREAD_SORTS_REQUIRING_SESSION,
-  toClubAttributionMode,
   type ClubThreadKind,
   type ClubThreadSort,
   type ClubViewRow,
