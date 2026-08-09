@@ -20,7 +20,6 @@ import {
   ClubGroupIcon,
   clubGroupAccentVars,
 } from "@/components/clubs/atoms/ClubGroupAccent";
-import { ClubRegimeMark } from "@/components/clubs/atoms/ClubRegimeMark";
 import type { ClubGroupRow } from "@/lib/clubs/types";
 
 export function clubGroupName(group: ClubGroupRow, isPl: boolean): string {
@@ -296,7 +295,6 @@ export function ClubGroupBar({
           >
             <ClubGroupIcon icon={group.icon} className="h-3.5 w-3.5" />
             {clubGroupName(group, isPl)}
-            <ClubRegimeMark group={group} />
             <span className="tabular-nums opacity-70">{group.thread_count}</span>
           </button>
         );
