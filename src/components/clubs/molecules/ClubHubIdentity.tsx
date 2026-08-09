@@ -150,7 +150,9 @@ export function ClubHubIdentity({
             przycisków o równej wadze, czyli żaden nie był następnym krokiem. */}
         <div className="flex shrink-0 flex-wrap items-center gap-2 pb-0.5">
           {club.can_post_thread ? (
-            <Button asChild size="sm" className="rounded-lg">
+            {/* Jedyne miejsce w klubie, gdzie wraca marka - reszta modułu jest
+                neutralna, więc to CTA realnie prowadzi wzrok. */}
+            <Button asChild size="sm" className="club-accent rounded-lg">
               <Link to="/club/$clubSlug/new" params={{ clubSlug: club.slug }}>
                 <PenLine className="mr-1.5 h-4 w-4" aria-hidden="true" />
                 {t("club.newThread")}
