@@ -44,6 +44,7 @@ import {
 } from "@/components/clubs/atoms/ClubWorkspaceBadges";
 import {
   toAuthorLabel,
+  type ClubReactionActor,
   type ClubReactionKind,
   type ClubReactionTally,
   type ClubThreadListRow,
