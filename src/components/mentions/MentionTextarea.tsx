@@ -7,6 +7,7 @@ import { type MutableRefObject } from "react";
 import { FloatingTextarea } from "@/components/ui/floating-input";
 import { MentionSuggestionList } from "@/components/mentions/MentionSuggestionList";
 import { useMentionAutocomplete } from "@/lib/mentions/useMentionAutocomplete";
+import { applyListAutoformat } from "@/lib/text/listAutoformat";
 import { ensureI18n } from "@/lib/i18n-mentions";
 
 ensureI18n();
