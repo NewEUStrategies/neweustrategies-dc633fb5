@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { HUB_SURFACE } from "@/components/clubs/atoms/ClubHubPrimitives";
 import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
+import { ClubInlineTitle } from "@/components/clubs/atoms/ClubInlineTitle";
 import { ClubThreadHeat } from "@/components/clubs/atoms/ClubThreadHeat";
 import {
   ClubDocumentKindIcon,
@@ -138,13 +139,15 @@ function ThreadCard({
         ) : null}
       </div>
 
-      <h3 className="mt-1.5 text-base font-semibold leading-snug sm:text-lg">
+      <h3 className="mt-1.5">
         <Link
           to="/club/$clubSlug/t/$threadSlug"
           params={{ clubSlug, threadSlug: thread.slug }}
-          className="hover:text-primary"
+          className="group/title inline-block max-w-full"
         >
-          {thread.title}
+          <ClubInlineTitle tone="thread" size="md" interactive>
+            {thread.title}
+          </ClubInlineTitle>
         </Link>
       </h3>
 
@@ -187,8 +190,8 @@ function EventCard({ event, isPl }: { event: ClubEventRow; isPl: boolean }) {
         <ClubEventKindIcon kind={kind} className="h-3.5 w-3.5" />
       </ContextHeader>
 
-      <h3 className="mt-2 text-base font-semibold leading-snug">
-        {isPl ? event.title_pl : event.title_en}
+      <h3 className="mt-2">
+        <ClubInlineTitle tone="event">{isPl ? event.title_pl : event.title_en}</ClubInlineTitle>
       </h3>
 
       <p className="mt-1 inline-flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -247,8 +250,10 @@ function DocumentsCard({
                 className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
               />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium leading-snug">
-                  {isPl ? document.title_pl : document.title_en}
+                <p>
+                  <ClubInlineTitle tone="document" size="sm">
+                    {isPl ? document.title_pl : document.title_en}
+                  </ClubInlineTitle>
                 </p>
                 {single && summary !== null && summary.trim() !== "" ? (
                   <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">{summary}</p>
@@ -304,8 +309,10 @@ function MilestoneCard({
       </ContextHeader>
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <h3 className="text-base font-semibold leading-snug">
-          {isPl ? milestone.title_pl : milestone.title_en}
+        <h3>
+          <ClubInlineTitle tone="milestone">
+            {isPl ? milestone.title_pl : milestone.title_en}
+          </ClubInlineTitle>
         </h3>
         <ClubMilestoneStateChip state={state} />
       </div>

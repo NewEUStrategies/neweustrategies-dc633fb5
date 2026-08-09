@@ -12,6 +12,7 @@ import { Link } from "@tanstack/react-router";
 import { Clock, Lightbulb, Link2, Lock, MessageSquare, Pin, Users2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { ClubInlineTitle } from "@/components/clubs/atoms/ClubInlineTitle";
 import { toAuthorLabel, type ClubLayout, type ClubThreadListRow } from "@/lib/clubs/types";
 import { formatDateShort } from "@/lib/i18n/format";
 import { ClubThreadHeat } from "@/components/clubs/atoms/ClubThreadHeat";
@@ -124,7 +125,7 @@ function ThreadLink({
       to="/club/$clubSlug/t/$threadSlug"
       params={{ clubSlug, threadSlug: thread.slug }}
       className={cn(
-        "block rounded-lg border border-border/60 bg-card transition-colors hover:border-primary/40 hover:bg-accent/30",
+        "group/title block rounded-lg border border-border/60 bg-card transition-colors hover:border-primary/40 hover:bg-accent/30",
         className,
       )}
     >
@@ -156,7 +157,11 @@ export function ClubThreadList({
           <li key={thread.id}>
             <ThreadLink clubSlug={clubSlug} thread={thread} className="flex h-full flex-col p-3.5">
               <ThreadBadges thread={thread} isPl={isPl} />
-              <h3 className="mt-1.5 font-medium leading-snug">{thread.title}</h3>
+              <h3 className="mt-1.5">
+                <ClubInlineTitle tone="thread" size="sm" interactive>
+                  {thread.title}
+                </ClubInlineTitle>
+              </h3>
               {/* Fragment treści jest tym, co odróżnia karty od listy - bez
                   niego siatka jest tylko listą w dwóch kolumnach. */}
               <p className="mt-1.5 line-clamp-3 flex-1 text-sm text-muted-foreground">
@@ -179,7 +184,11 @@ export function ClubThreadList({
           className="border-primary/30 bg-primary/[0.03] p-4"
         >
           <ThreadBadges thread={featured} isPl={isPl} />
-          <h3 className="mt-2 text-xl font-semibold leading-snug">{featured.title}</h3>
+          <h3 className="mt-2">
+            <ClubInlineTitle tone="thread" size="lg" interactive>
+              {featured.title}
+            </ClubInlineTitle>
+          </h3>
           <p className="mt-2 line-clamp-3 text-sm text-muted-foreground">
             {featured.excerpt ?? ""}
           </p>
@@ -191,7 +200,11 @@ export function ClubThreadList({
             <li key={thread.id}>
               <ThreadLink clubSlug={clubSlug} thread={thread} className="p-4">
                 <ThreadBadges thread={thread} isPl={isPl} />
-                <h3 className="mt-1.5 font-medium leading-snug">{thread.title}</h3>
+                <h3 className="mt-1.5">
+                <ClubInlineTitle tone="thread" size="sm" interactive>
+                  {thread.title}
+                </ClubInlineTitle>
+              </h3>
                 <ThreadMeta thread={thread} isPl={isPl} />
               </ThreadLink>
             </li>
@@ -207,7 +220,11 @@ export function ClubThreadList({
         <li key={thread.id}>
           <ThreadLink clubSlug={clubSlug} thread={thread} className="p-4">
             <ThreadBadges thread={thread} isPl={isPl} />
-            <h3 className="mt-1.5 font-medium leading-snug">{thread.title}</h3>
+            <h3 className="mt-1.5">
+                <ClubInlineTitle tone="thread" size="sm" interactive>
+                  {thread.title}
+                </ClubInlineTitle>
+              </h3>
             <ThreadMeta thread={thread} isPl={isPl} />
           </ThreadLink>
         </li>
