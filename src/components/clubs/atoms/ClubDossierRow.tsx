@@ -20,11 +20,33 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-/** Ton grzbietu = rodzaj pozycji. Wyłącznie tokeny semantyczne (dark/light). */
-export type ClubDossierTone = "thread" | "post" | "event" | "document" | "milestone";
+// Ton grzbietu = RODZAJ pozycji, a dla wątków - rodzaj wątku (dyskusja,
+// pytanie, stanowisko, materiał, ogłoszenie, sondaż). Kolor jest jedyną
+// rzeczą, która odróżnia je bez czytania etykiety, dlatego każdy rodzaj ma
+// własny odcień. Nasycenie trzymamy nisko (60 % grzbiet, 10 % tło ikony),
+// żeby lista nie zamieniła się w paletę - w module klubów `--primary` jest
+// celowo neutralny i te akcenty są jedynym kolorem w wierszu.
+export type ClubDossierTone =
+  | "thread"
+  | "discussion"
+  | "question"
+  | "position"
+  | "resource"
+  | "announcement"
+  | "poll"
+  | "post"
+  | "event"
+  | "document"
+  | "milestone";
 
 const SPINE: Record<ClubDossierTone, string> = {
   thread: "bg-primary/60",
+  discussion: "bg-violet-500/60",
+  question: "bg-amber-500/70",
+  position: "bg-rose-500/60",
+  resource: "bg-teal-500/60",
+  announcement: "bg-orange-500/60",
+  poll: "bg-fuchsia-500/60",
   post: "bg-foreground/25",
   event: "bg-sky-500/60",
   document: "bg-muted-foreground/40",
@@ -33,11 +55,36 @@ const SPINE: Record<ClubDossierTone, string> = {
 
 const ICON_BOX: Record<ClubDossierTone, string> = {
   thread: "border-primary/30 bg-primary/10 text-foreground",
+  discussion: "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300",
+  question: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+  position: "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300",
+  resource: "border-teal-500/30 bg-teal-500/10 text-teal-700 dark:text-teal-300",
+  announcement: "border-orange-500/30 bg-orange-500/10 text-orange-700 dark:text-orange-300",
+  poll: "border-fuchsia-500/30 bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-300",
   post: "border-border/70 bg-muted/60 text-foreground",
   event: "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300",
   document: "border-border/70 bg-muted/60 text-muted-foreground",
   milestone: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
 };
+
+const THREAD_TONES: Record<string, ClubDossierTone> = {
+  discussion: "discussion",
+  question: "question",
+  position: "position",
+  resource: "resource",
+  announcement: "announcement",
+  poll: "poll",
+};
+
+/**
+ * Ton wiersza dla wątku. Nieznany rodzaj (starszy wiersz w bazie) degraduje
+ * się do neutralnego `thread`, zamiast wywracać kolorystykę listy.
+ */
+export function clubThreadTone(kind: string | null | undefined): ClubDossierTone {
+  if (typeof kind !== "string") return "thread";
+  return THREAD_TONES[kind] ?? "thread";
+}
+
 
 export interface ClubDossierMetric {
   readonly key: string;
