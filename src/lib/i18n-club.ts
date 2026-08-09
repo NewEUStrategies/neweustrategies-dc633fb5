@@ -600,6 +600,7 @@ export const clubPl = {
     topic: {
       label: "Obszar tematyczny",
       hint: "Ułatwia znalezienie rozmowy - obszar filtruje listę tematów i kluby na hubie.",
+      filterHint: "Pokaż tylko ten obszar",
       none: "Bez obszaru",
       all: "Wszystkie obszary",
       geopolitics: "Geopolityka i wojskowość",
@@ -2097,6 +2098,7 @@ export const clubEn = {
     topic: {
       label: "Policy area",
       hint: "Makes the conversation findable - the area filters both the thread list and the clubs on the hub.",
+      filterHint: "Show only this area",
       none: "No area",
       all: "All areas",
       geopolitics: "Geopolitics and defence",

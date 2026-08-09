@@ -5,7 +5,13 @@
 // wersalikami, a minisite jeszcze co innego; ten sam obszar wyglądał na trzy
 // sposoby i nie dawał się rozpoznać jako ten sam byt. Chip jest teraz
 // wspólny dla huba, strony klubu i wątku - łącznie ze skalą na mobile.
+//
+// CHIP JEST KLIKALNY, GDY MA DOKĄD PROWADZIĆ - ten sam wzorzec, co
+// `ClubSourceChip` dla działu. Statyczny chip na stronie wątku (obszar JEST
+// ustalony, nie ma czego przełączać) i klikalny chip na karcie strumienia
+// (obszar zawęża listę) to jeden komponent, nie dwa wyglądy tego samego bytu.
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { topicLabel, type ClubLang, type ClubTopicOption } from "@/lib/clubs/topicCatalog";
@@ -37,7 +43,13 @@ export function clubTopicChipClass(
   return cn(BASE, SIZES[size], TONES[tone]);
 }
 
-/** Statyczny chip - karta klubu, nagłówek klubu, nagłówek wątku. */
+/**
+ * Chip obszaru - statyczny bez `onSelect`, klikalny z nim.
+ *
+ * `active` wygrywa nad `tone`: obszar aktualnie wybrany jako filtr ma wyglądać
+ * TAK SAMO niezależnie od tego, czy świeci się na pasku filtrów, czy na karcie
+ * wątku, którego akurat czytamy - jeden stan, jeden wygląd, wszędzie.
+ */
 export function ClubTopicChip({
   topic,
   lang,
@@ -45,6 +57,8 @@ export function ClubTopicChip({
   size = "md",
   tone = "quiet",
   showIcon = true,
+  onSelect,
+  active = false,
   className,
 }: {
   topic: string | null | undefined;
@@ -53,17 +67,43 @@ export function ClubTopicChip({
   size?: ClubTopicChipSize;
   tone?: ClubTopicChipTone;
   showIcon?: boolean;
+  /** Gdy podane - chip zawęża strumień do tego obszaru (ponowne kliknięcie zdejmuje). */
+  onSelect?: (topic: string | null) => void;
+  active?: boolean;
   className?: string;
 }) {
+  const { t } = useTranslation();
   if (topic === null || topic === undefined || topic.trim() === "") return null;
   const label = topicLabel(topic, lang, catalog ?? []);
   if (label === "") return null;
+  const shape = cn(clubTopicChipClass(size, active ? "active" : tone), className);
 
-  return (
-    <span className={cn(clubTopicChipClass(size, tone), className)} data-club-topic={topic}>
+  const body = (
+    <>
       {showIcon ? <Tag className="h-3 w-3 shrink-0" aria-hidden="true" /> : null}
       <span className="truncate">{label}</span>
-    </span>
+    </>
+  );
+
+  if (onSelect === undefined) {
+    return (
+      <span className={shape} data-club-topic={topic}>
+        {body}
+      </span>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      title={t("club.topic.filterHint")}
+      onClick={() => onSelect(active ? null : topic)}
+      data-club-topic={topic}
+      className={cn(shape, "hover:border-primary/40")}
+    >
+      {body}
+    </button>
   );
 }
 
