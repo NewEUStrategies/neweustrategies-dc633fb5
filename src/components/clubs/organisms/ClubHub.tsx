@@ -57,6 +57,9 @@ import { ClubThreadListSkeleton } from "@/components/clubs/atoms/ClubSkeletons";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
 import { ClubHubIdentity } from "@/components/clubs/molecules/ClubHubIdentity";
 import { ClubHubRail, ClubHubSectionBar } from "@/components/clubs/molecules/ClubHubRail";
+import { ClubGroupBar } from "@/components/clubs/molecules/ClubGroupTree";
+import { ClubGroupPanel } from "@/components/clubs/molecules/ClubGroupPanel";
+import { buildClubGroupTree, clubGroupPath } from "@/lib/clubs/groupTree";
 import { ClubComposer } from "@/components/clubs/molecules/ClubComposer";
 import {
   ClubFreshDocsPanel,
@@ -100,7 +103,9 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
   const groupsQ = useClubGroups(club.id);
   const threadsQ = useClubThreads({ clubId: club.id, groupId, sort, kind: null });
   // Konteksty: krótkie limity, bo w hubie są kontekstem, a nie listą.
-  const documentsQ = useClubDocuments({ clubId: club.id, limit: 6 });
+  // Dokumenty idą tym samym zawężeniem, co strumień: panel działu ma pokazywać
+  // materiały TEGO działu, a nie całego klubu.
+  const documentsQ = useClubDocuments({ clubId: club.id, groupId, limit: 6 });
   const eventsQ = useClubEvents({ clubId: club.id, from: new Date().toISOString(), limit: 12 });
   const milestonesQ = useClubMilestones(club.id);
   const statsQ = useClubWorkspaceStats(club.id, 30);
@@ -132,6 +137,11 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
     () => buildClubFeed({ mode, threads, documents, events, milestones }),
     [mode, threads, documents, events, milestones],
   );
+
+  const groups = useMemo(() => groupsQ.data ?? [], [groupsQ.data]);
+  const groupTree = useMemo(() => buildClubGroupTree(groups), [groups]);
+  const groupPath = useMemo(() => clubGroupPath(groupTree, groupId), [groupTree, groupId]);
+  const activeGroupNode = groupPath.length > 0 ? groupPath[groupPath.length - 1] : null;
 
   const contributors = useMemo(
     () => (stats === null ? [] : parseContributors(stats.top_contributors)),
@@ -189,7 +199,7 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
           <ClubHubRail
             clubSlug={clubSlug}
             canSeeMembers={club.can_see_members}
-            groups={groupsQ.data ?? []}
+            groups={groups}
             policyArea={club.policy_area}
             activeGroupId={groupId}
             onGroupChange={setGroupId}
@@ -204,6 +214,25 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
             canSeeMembers={club.can_see_members}
             className="mb-3 lg:hidden"
           />
+
+          <ClubGroupBar
+            groups={groups}
+            activeGroupId={groupId}
+            onGroupChange={setGroupId}
+            isPl={isPl}
+            className="mb-3 lg:hidden"
+          />
+
+          {activeGroupNode !== null ? (
+            <ClubGroupPanel
+              node={activeGroupNode}
+              path={groupPath}
+              documentCount={documentsQ.data?.total ?? 0}
+              isPl={isPl}
+              onGroupChange={setGroupId}
+              className="mb-3"
+            />
+          ) : null}
 
           <ClubComposer
             clubSlug={clubSlug}

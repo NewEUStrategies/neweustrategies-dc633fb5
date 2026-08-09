@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { ClubRailPanel } from "@/components/clubs/atoms/ClubHubPrimitives";
 import { ClubTopicChip } from "@/components/clubs/atoms/ClubTopicChip";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
+import { ClubGroupTree } from "@/components/clubs/molecules/ClubGroupTree";
 import type { ClubGroupRow } from "@/lib/clubs/types";
 
 const SECTIONS = [
@@ -167,39 +168,15 @@ export function ClubHubRail({
           stoją w szynie jako filtr, a nie w nawigacji jako sekcja. */}
       {groups.length > 0 ? (
         <ClubRailPanel title={t("club.groups")} icon={Layers}>
-          <ul className="flex flex-col gap-0.5">
-            <li>
-              <button
-                type="button"
-                aria-pressed={activeGroupId === null}
-                onClick={() => onGroupChange(null)}
-                className={cn(
-                  "w-full text-left",
-                  ITEM,
-                  activeGroupId === null ? ITEM_ACTIVE : ITEM_QUIET,
-                )}
-              >
-                <span className="truncate">{t("club.allGroups")}</span>
-              </button>
-            </li>
-            {groups.map((group) => {
-              const active = activeGroupId === group.id;
-              return (
-                <li key={group.id}>
-                  <button
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => onGroupChange(active ? null : group.id)}
-                    className={cn("w-full text-left", ITEM, active ? ITEM_ACTIVE : ITEM_QUIET)}
-                  >
-                    <span className="truncate">{isPl ? group.name_pl : group.name_en}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+          <ClubGroupTree
+            groups={groups}
+            activeGroupId={activeGroupId}
+            onGroupChange={onGroupChange}
+            isPl={isPl}
+          />
         </ClubRailPanel>
       ) : null}
+
 
       {policyArea !== null && policyArea.trim() !== "" ? (
         <ClubRailPanel title={t("club.topic.label")}>
