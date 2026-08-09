@@ -67,6 +67,39 @@ const ICON_BOX: Record<ClubDossierTone, string> = {
   milestone: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
 };
 
+// Kolor rodzaju jako WARTOŚĆ, nie klasa. Poświata musi znać sam kolor, żeby
+// zbudować z niego gradient (`color-mix`) - klasa `bg-*` tego nie udostępnia.
+// Neutralne rodzaje sięgają po tokeny motywu, więc działają w obu trybach.
+const TONE_COLOR: Record<ClubDossierTone, string> = {
+  thread: "var(--primary)",
+  discussion: "oklch(0.606 0.25 292.717)",
+  question: "oklch(0.769 0.188 70.08)",
+  position: "oklch(0.645 0.246 16.439)",
+  resource: "oklch(0.704 0.14 182.503)",
+  announcement: "oklch(0.705 0.213 47.604)",
+  poll: "oklch(0.667 0.295 322.15)",
+  post: "var(--foreground)",
+  event: "oklch(0.685 0.169 237.323)",
+  document: "var(--muted-foreground)",
+  milestone: "oklch(0.696 0.17 162.48)",
+};
+
+/**
+ * Wariant poświaty przy najeździe. To ŚWIATŁO w kolorze rodzaju, nie cień:
+ * - `aura`  - miękki halo od strony grzbietu (domyślny),
+ * - `sweep` - poziomy gradient przechodzący przez cały wiersz,
+ * - `rim`   - tylko rozświetlona krawędź i grzbiet, tło bez zmian,
+ * - `none`  - bez efektu (np. gdy wiersz siedzi w innej powierzchni).
+ */
+export type ClubDossierGlow = "aura" | "sweep" | "rim" | "none";
+
+const GLOW_BACKGROUND: Record<Exclude<ClubDossierGlow, "none">, string> = {
+  aura: "radial-gradient(120% 160% at 0% 50%, color-mix(in oklab, var(--dossier-tone) 22%, transparent) 0%, color-mix(in oklab, var(--dossier-tone) 8%, transparent) 38%, transparent 72%)",
+  sweep:
+    "linear-gradient(90deg, color-mix(in oklab, var(--dossier-tone) 20%, transparent) 0%, color-mix(in oklab, var(--dossier-tone) 7%, transparent) 45%, transparent 100%)",
+  rim: "none",
+};
+
 const THREAD_TONES: Record<string, ClubDossierTone> = {
   discussion: "discussion",
   question: "question",
