@@ -191,27 +191,54 @@ export function ClubGroupTree({
       </li>
     ));
 
+  const totalThreads = tree.reduce((sum, node) => sum + node.totalThreads, 0);
+
   return (
     <ul className="flex flex-col gap-0.5">
       <li>
+        {/* "Wszystkie działy" dostaje ten sam kształt co dział - ikonę w
+            kwadracie i licznik - bo jest pozycją tej samej listy, a nie
+            nagłówkiem nad nią. */}
         <button
           type="button"
           aria-pressed={activeGroupId === null}
           onClick={() => onGroupChange(null)}
           className={cn(
             ROW,
-            "pl-2",
+            "pl-1.5",
             activeGroupId === null
-              ? "bg-primary/10 font-medium text-primary"
+              ? "bg-primary/10 font-medium text-primary shadow-[inset_2px_0_0_0_var(--primary)]"
               : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
           )}
         >
-          <span className="truncate">{t("club.allGroups")}</span>
+          <span
+            className={cn(
+              "grid h-6 w-6 shrink-0 place-items-center rounded-md border transition-colors",
+              activeGroupId === null
+                ? "border-primary/45 bg-primary/15"
+                : "border-border/60 bg-muted/50",
+            )}
+            aria-hidden="true"
+          >
+            <Layers className="h-3.5 w-3.5" aria-hidden="true" />
+          </span>
+          <span className="min-w-0 flex-1 truncate text-left">{t("club.allGroups")}</span>
+          <span
+            className={cn(
+              "shrink-0 rounded-md px-1.5 py-0.5 text-[11px] tabular-nums",
+              totalThreads > 0
+                ? "bg-muted text-muted-foreground"
+                : "text-muted-foreground/45",
+            )}
+          >
+            {totalThreads}
+          </span>
         </button>
       </li>
       {renderNodes(tree)}
     </ul>
   );
+
 }
 
 /** Wariant poziomy - na telefonie i tablecie, gdzie szyny nie ma wcale. */
