@@ -89,7 +89,6 @@ import { ClubStanceBar } from "@/components/clubs/molecules/ClubStanceBar";
 import { ClubNewRepliesBar } from "@/components/clubs/molecules/ClubNewRepliesBar";
 import { ClubReportButton } from "@/components/clubs/molecules/ClubReportButton";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
-import { ClubThreadPulse } from "@/components/clubs/molecules/ClubThreadPulse";
 import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
 import { ClubProse } from "@/components/clubs/atoms/ClubProse";
 
@@ -251,7 +250,7 @@ function ClubThreadView() {
   // nieistniejący slug kończy się wiecznym szkieletem zamiast 404.
   if (clubQ.isPending || (club !== null && threadQ.isPending)) {
     return (
-      <div className="mx-auto w-full max-w-[1280px] px-3 sm:px-5 lg:px-8 py-8" aria-busy="true">
+      <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-8" aria-busy="true">
         <Shimmer className="mb-4 h-8 w-48" />
         <div className="rounded-xl border border-border/60 bg-card p-5">
           <Shimmer className="h-4 w-24" />
@@ -384,7 +383,7 @@ function ClubThreadView() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1280px] px-3 sm:px-5 lg:px-8 py-8">
+    <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-8">
       <Button asChild variant="ghost" size="sm" className="-ml-2 mb-3 h-8 px-2">
         <Link to="/club/$clubSlug" params={{ clubSlug }}>
           <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
@@ -486,7 +485,7 @@ function ClubThreadView() {
               />
             </div>
           ) : (
-            <ClubProse className="mt-4" body={thread.body} />
+            <ClubProse className="mt-4 max-w-none" body={thread.body} />
           )}
 
           {/* Pasek akcji postu otwierającego jest tą samą molekułą wizualną, co
