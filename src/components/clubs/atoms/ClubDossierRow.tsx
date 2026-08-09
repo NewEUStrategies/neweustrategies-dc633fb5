@@ -17,7 +17,7 @@
 // lista ma pokazać maksimum pozycji, a rozwinięcie treści należy do wątku.
 // Akcje pojawiają się przy najeździe i przy fokusie klawiatury - „przy
 // fokusie" jest tu warunkiem dostępności, nie ozdobą.
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 // Ton grzbietu = RODZAJ pozycji, a dla wątków - rodzaj wątku (dyskusja,
@@ -138,6 +138,11 @@ export function clubDossierSpineClass(tone: ClubDossierTone): string {
   return SPINE[tone];
 }
 
+/** Kolor rodzaju jako wartość CSS - dla powierzchni budujących własną poświatę. */
+export function clubDossierToneColor(tone: ClubDossierTone): string {
+  return TONE_COLOR[tone];
+}
+
 /** Klasa kwadratu ikony rodzaju - patrz `clubDossierSpineClass`. */
 export function clubDossierIconBoxClass(tone: ClubDossierTone): string {
   return ICON_BOX[tone];
@@ -215,7 +220,7 @@ export function ClubDossierRow({
 }) {
   // Kolor rodzaju jedzie zmienną, więc krawędź, halo i grzbiet biorą go z
   // jednego źródła - bez powielania odcieni w klasach.
-  const toneStyle = { "--dossier-tone": TONE_COLOR[tone] } as React.CSSProperties;
+  const toneStyle = { "--dossier-tone": TONE_COLOR[tone] } as CSSProperties;
 
   return (
     <article
