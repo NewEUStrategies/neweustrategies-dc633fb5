@@ -27,11 +27,14 @@ import {
   MailCheck,
   MessagesSquare,
   ShieldCheck,
+  Sparkles,
   Users,
+  type LucideIcon,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { preAuthGuard } from "@/lib/auth/bruteforce.functions";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserBadges } from "@/lib/profile/badges";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { FieldBox } from "@/components/ui/field-box";
@@ -63,6 +66,12 @@ export function ClubAccessGate({ club, isPl }: { club: ClubViewRow; isPl: boolea
   const tagline = isPl ? club.tagline_pl : club.tagline_en;
   const signedIn = session !== null && !loading;
   const tierTooLow = club.reason === "tier_too_low" || !signedIn;
+  // Ekspert to JEDYNA ścieżka wejścia bez planu: odznaka `expert` na profilu
+  // jest nadawana redakcyjnie, więc prośba o dostęp ma wtedy sens. Wszyscy
+  // pozostali bez wymaganego planu widzą wyłącznie upgrade - zgłoszenie bez
+  // planu i tak nie mogłoby zostać zaakceptowane.
+  const badgesQ = useUserBadges(session?.user.id);
+  const isExpert = (badgesQ.data ?? []).includes("expert");
 
   return (
     <Card className="overflow-hidden rounded-xl border-border/70">
@@ -106,7 +115,7 @@ export function ClubAccessGate({ club, isPl }: { club: ClubViewRow; isPl: boolea
               <Benefit icon={CalendarDays} k="calendar" />
               <Benefit icon={Users} k="network" />
               <Benefit icon={ShieldCheck} k="chatham" />
-              <Benefit icon={Sparkle} k="briefs" />
+              <Benefit icon={Sparkles} k="briefs" />
             </ul>
           </div>
         </div>
@@ -149,12 +158,16 @@ function MemberActions({
   club,
   plan,
   tierTooLow,
+  isExpert,
 }: {
   club: ClubViewRow;
   plan: string;
   tierTooLow: boolean;
+  isExpert: boolean;
 }) {
   const { t } = useTranslation();
+  // Prośbę o dostęp widzi ten, komu plan już wystarcza, albo ekspert.
+  const canRequest = club.join_policy !== "invite" && (!tierTooLow || isExpert);
 
   return (
     <div className="space-y-3">
@@ -179,12 +192,24 @@ function MemberActions({
         </>
       ) : null}
 
-      {club.join_policy !== "invite" ? (
-        <Button asChild variant={tierTooLow ? "ghost" : "default"} className="w-full rounded-lg">
-          <Link to="/club/$clubSlug/about" params={{ clubSlug: club.slug }}>
-            {club.join_policy === "open" ? t("clubGate.joinCta") : t("clubGate.requestCta")}
-          </Link>
-        </Button>
+      {canRequest ? (
+        <>
+          {tierTooLow && isExpert ? (
+            <p className="rounded-md bg-primary/10 px-2.5 py-2 text-[11px] leading-snug text-foreground">
+              <span className="font-semibold">{t("clubGate.expertBadge")}</span> -{" "}
+              {t("clubGate.expertLead")}
+            </p>
+          ) : null}
+          <Button asChild variant={tierTooLow ? "ghost" : "default"} className="w-full rounded-lg">
+            <Link to="/club/$clubSlug/about" params={{ clubSlug: club.slug }}>
+              {club.join_policy === "open" ? t("clubGate.joinCta") : t("clubGate.requestCta")}
+            </Link>
+          </Button>
+        </>
+      ) : tierTooLow ? (
+        <p className="text-[11px] leading-snug text-muted-foreground">
+          {t("clubGate.upgradeOnlyNote", { plan })}
+        </p>
       ) : null}
 
       <p className="text-[11px] leading-snug text-muted-foreground">{t("clubGate.secure")}</p>
