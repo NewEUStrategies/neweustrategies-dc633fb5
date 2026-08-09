@@ -84,6 +84,7 @@ export const clubPl = {
           failed: "Nie udało się zapisać okładki",
           badType: "Dozwolone formaty: JPG, PNG, WebP, AVIF",
           tooLarge: "Plik jest za duży - maksymalnie {{max}} MB",
+          sizeHint: "Zalecane 1920 × 480 px (4:1), JPG lub WebP",
         },
       },
       composer: {
@@ -1796,6 +1797,7 @@ export const clubEn = {
           failed: "Could not save the cover",
           badType: "Allowed formats: JPG, PNG, WebP, AVIF",
           tooLarge: "File is too large - {{max}} MB maximum",
+          sizeHint: "Recommended 1920 × 480 px (4:1), JPG or WebP",
         },
       },
       composer: {

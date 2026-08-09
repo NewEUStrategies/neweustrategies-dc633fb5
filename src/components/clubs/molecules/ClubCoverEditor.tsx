@@ -106,6 +106,15 @@ export function ClubCoverEditor({
         )}
         {hasCover ? t("club.hub.identity.cover.change") : t("club.hub.identity.cover.add")}
       </Button>
+      {/* Rekomendowany rozmiar mówi się PRZED wyborem pliku, nie po odrzuceniu
+          go przez walidację. Na wąskich ekranach znika - tam liczy się sam
+          przycisk, a podpowiedź zostaje w atrybucie `title`. */}
+      <span
+        className="hidden rounded-lg bg-background/70 px-2 py-1 text-[11px] text-muted-foreground backdrop-blur lg:inline"
+        title={t("club.hub.identity.cover.sizeHint")}
+      >
+        {t("club.hub.identity.cover.sizeHint")}
+      </span>
       {hasCover ? (
         <Button
           type="button"
