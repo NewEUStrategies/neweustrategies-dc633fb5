@@ -34,7 +34,6 @@ import {
   ListChecks,
   MessagesSquare,
   ScrollText,
-  ShieldCheck,
   Users2,
   type LucideIcon,
 } from "lucide-react";
@@ -43,10 +42,8 @@ import { ClubRailPanel } from "@/components/clubs/atoms/ClubHubPrimitives";
 import { ClubTopicChip } from "@/components/clubs/atoms/ClubTopicChip";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import { useClubGroups } from "@/lib/clubs/useClubs";
-import { ClubGroupTree, clubGroupName } from "@/components/clubs/molecules/ClubGroupTree";
-import { ClubRegimeMark, hasOwnRegime } from "@/components/clubs/atoms/ClubRegimeMark";
-import { toClubAttributionMode } from "@/lib/clubs/types";
-import type { ClubAttributionMode, ClubGroupRow, ClubViewRow } from "@/lib/clubs/types";
+import { ClubGroupTree } from "@/components/clubs/molecules/ClubGroupTree";
+import type { ClubGroupRow, ClubViewRow } from "@/lib/clubs/types";
 
 const SECTIONS = [
   { key: "threads", to: "/club/$clubSlug", icon: MessagesSquare, exact: true },
@@ -198,60 +195,11 @@ export function ClubHubSectionBar({
   );
 }
 
-/**
- * Panel reżimu - czwarta oś klubu, do tej pory widoczna wyłącznie w panelu
- * administracyjnym.
- *
- * Zdanie o atrybucji KLUBU stoi zawsze, bo dotyczy każdej wypowiedzi. Lista
- * działów pojawia się tylko wtedy, gdy któryś reżim NADPISUJE - klub, w którym
- * wszystko dziedziczy, dostaje jedno zdanie zamiast listy powtarzającej to
- * samo przy każdej pozycji.
- */
-function ClubRegimePanel({
-  attributionMode,
-  groups,
-  isPl,
-}: {
-  attributionMode: ClubAttributionMode;
-  groups: readonly ClubGroupRow[];
-  isPl: boolean;
-}) {
-  const { t } = useTranslation();
-  const exceptions = groups.filter(hasOwnRegime);
-
-  return (
-    <ClubRailPanel title={t("club.regime.title")} icon={ShieldCheck}>
-      <p className="text-xs leading-snug text-muted-foreground">
-        <span className="font-medium text-foreground">
-          {t(`club.attribution.${attributionMode}`)}
-        </span>{" "}
-        {t(`club.attributionHint.${attributionMode}`)}
-      </p>
-      {exceptions.length > 0 ? (
-        <div className="mt-2.5 space-y-1 border-t border-border/60 pt-2.5">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            {t("club.regime.exceptions")}
-          </p>
-          <ul className="space-y-1">
-            {exceptions.map((group) => (
-              <li key={group.id} className="flex items-center gap-1.5 text-xs">
-                <ClubRegimeMark group={group} />
-                <span className="min-w-0 flex-1 truncate">{clubGroupName(group, isPl)}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-    </ClubRailPanel>
-  );
-}
-
 export function ClubHubRail({
   clubSlug,
   canSeeMembers,
   groups,
   policyArea,
-  attributionMode,
   activeGroupId,
   onGroupChange,
   counts,
@@ -262,7 +210,6 @@ export function ClubHubRail({
   canSeeMembers: boolean;
   groups: readonly ClubGroupRow[];
   policyArea: string | null;
-  attributionMode: ClubAttributionMode;
   activeGroupId: string | null;
   onGroupChange: (groupId: string | null) => void;
   counts?: SectionCounts;
@@ -290,8 +237,6 @@ export function ClubHubRail({
           />
         </ClubRailPanel>
       ) : null}
-
-      <ClubRegimePanel attributionMode={attributionMode} groups={groups} isPl={isPl} />
 
       {policyArea !== null && policyArea.trim() !== "" ? (
         <ClubRailPanel title={t("club.topic.label")}>
@@ -344,12 +289,6 @@ export function ClubWorkspaceRail({ club, isPl }: { club: ClubViewRow; isPl: boo
           counts={{ threads: club.thread_count, members: club.member_count }}
         />
       </ClubRailPanel>
-
-      <ClubRegimePanel
-        attributionMode={toClubAttributionMode(club.attribution_mode)}
-        groups={groups}
-        isPl={isPl}
-      />
 
       {club.policy_area !== null && club.policy_area.trim() !== "" ? (
         <ClubRailPanel title={t("club.topic.label")}>

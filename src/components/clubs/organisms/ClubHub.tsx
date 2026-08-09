@@ -364,7 +364,6 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
             canSeeMembers={club.can_see_members}
             groups={groups}
             policyArea={club.policy_area}
-            attributionMode={toClubAttributionMode(club.attribution_mode)}
             activeGroupId={groupId}
             onGroupChange={setGroupId}
             // Liczby przy kafelkach biorą się WYŁĄCZNIE z zapytań, które hub
