@@ -120,7 +120,7 @@ export function ClubSegmented<T extends string>({
             aria-checked={active}
             onClick={() => onChange(option.value)}
             className={cn(
-              "inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium leading-none transition-colors sm:text-sm",
+              "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium leading-none transition-colors",
               active
                 ? "border-primary bg-primary text-primary-foreground"
                 : "border-border/60 bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground",
