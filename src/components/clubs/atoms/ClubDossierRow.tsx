@@ -85,7 +85,6 @@ export function clubThreadTone(kind: string | null | undefined): ClubDossierTone
   return THREAD_TONES[kind] ?? "thread";
 }
 
-
 export interface ClubDossierMetric {
   readonly key: string;
   readonly icon: ReactNode;
