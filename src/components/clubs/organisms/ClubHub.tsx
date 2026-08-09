@@ -82,8 +82,7 @@ import { ClubGroupBar } from "@/components/clubs/molecules/ClubGroupTree";
 import { ClubGroupPanel } from "@/components/clubs/molecules/ClubGroupPanel";
 import { ClubStreamFilters } from "@/components/clubs/molecules/ClubStreamFilters";
 import { buildClubGroupTree, clubGroupPath } from "@/lib/clubs/groupTree";
-import { ClubComposer } from "@/components/clubs/molecules/ClubComposer";
-import { ClubPostComposer } from "@/components/clubs/molecules/ClubPostComposer";
+import { ClubCreatePanel } from "@/components/clubs/molecules/ClubCreatePanel";
 import {
   ClubFreshDocsPanel,
   ClubOutputPanel,
@@ -382,17 +381,16 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
             />
           ) : null}
 
-          <ClubPostComposer
+          <ClubCreatePanel
+            clubSlug={clubSlug}
             clubId={club.id}
             groupId={groupId}
+            groups={groups}
+            threads={sourceThreads}
             canPost={signedIn && club.can_reply}
-            className="mb-3"
-          />
-
-          <ClubComposer
-            clubSlug={clubSlug}
-            canPost={club.can_post_thread}
+            canPostThread={club.can_post_thread}
             whoCanPost={club.who_can_post}
+            isPl={isPl}
             className="mb-3"
           />
 

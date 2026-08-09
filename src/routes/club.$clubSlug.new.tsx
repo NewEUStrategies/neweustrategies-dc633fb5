@@ -50,11 +50,17 @@ export const Route = createFileRoute("/club/$clubSlug/new")({
   //
   // Wartość spoza słownika degraduje do domyślnej - adres jest wejściem
   // użytkownika i nie ma prawa wywrócić kompozytora.
-  validateSearch: (search: Record<string, unknown>): { kind?: ClubThreadKind } => {
+  validateSearch: (search: Record<string, unknown>): { kind?: ClubThreadKind; groupId?: string } => {
     const raw = search["kind"];
-    return typeof raw === "string" && (CLUB_THREAD_KINDS as readonly string[]).includes(raw)
-      ? { kind: raw as ClubThreadKind }
-      : {};
+    const rawGroup = search["groupId"];
+    const out: { kind?: ClubThreadKind; groupId?: string } = {};
+    if (typeof raw === "string" && (CLUB_THREAD_KINDS as readonly string[]).includes(raw)) {
+      out.kind = raw as ClubThreadKind;
+    }
+    // Dział przychodzi z kompozytora na hubie; wartość spoza listy działów
+    // formularz i tak zignoruje (wybór spada na pierwszy dozwolony dział).
+    if (typeof rawGroup === "string" && rawGroup !== "") out.groupId = rawGroup;
+    return out;
   },
   loader: async ({ context, params }) => {
     const club = await context.queryClient
@@ -95,7 +101,7 @@ function ClubNewThread() {
   const groupsQ = useClubGroups(club?.id);
   const createM = useCreateClubThread(club?.id ?? "");
 
-  const [groupId, setGroupId] = useState("");
+  const [groupId, setGroupId] = useState(search.groupId ?? "");
   // Rodzaj z adresu jest wartością POCZĄTKOWĄ, nie sterującą: po wejściu
   // droplista należy do użytkownika i przeładowanie propsa nie ma prawa
   // cofnąć jego wyboru.
@@ -127,7 +133,12 @@ function ClubNewThread() {
   const groups = groupsQ.data ?? [];
   const postable = groups.filter((g) => g.can_post_thread);
   useEffect(() => {
-    if (groupId === "" && postable.length > 0) setGroupId(postable[0].id);
+    if (postable.length === 0) return;
+    // Dział z adresu obowiązuje TYLKO gdy wolno w nim założyć temat - inaczej
+    // formularz startowałby z wyborem, którego zapis i tak by odrzucił.
+    if (groupId === "" || !postable.some((g) => g.id === groupId)) {
+      setGroupId(postable[0]!.id);
+    }
   }, [groupId, postable]);
 
   // Tryb atrybucji DZIEDZICZY dział: NULL w kolumnie znaczy "weź z klubu",
