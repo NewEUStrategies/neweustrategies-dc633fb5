@@ -87,10 +87,7 @@ export function ClubDirectorySkeleton({
   }
 
   return (
-    <div
-      className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-      aria-busy="true"
-    >
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-busy="true">
       {items.map((i) => (
         <CardSkeleton key={i} />
       ))}

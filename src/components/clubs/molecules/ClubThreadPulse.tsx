@@ -88,10 +88,7 @@ export function ClubThreadPulse({
   className?: string;
 }) {
   const { t } = useTranslation();
-  const dynamics = useMemo(
-    () => computeThreadDynamics(createdAt, replies),
-    [createdAt, replies],
-  );
+  const dynamics = useMemo(() => computeThreadDynamics(createdAt, replies), [createdAt, replies]);
 
   return (
     <section

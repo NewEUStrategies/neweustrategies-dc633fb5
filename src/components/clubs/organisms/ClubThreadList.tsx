@@ -201,10 +201,10 @@ export function ClubThreadList({
               <ThreadLink clubSlug={clubSlug} thread={thread} className="p-4">
                 <ThreadBadges thread={thread} isPl={isPl} />
                 <h3 className="mt-1.5">
-                <ClubInlineTitle tone="thread" size="sm" interactive>
-                  {thread.title}
-                </ClubInlineTitle>
-              </h3>
+                  <ClubInlineTitle tone="thread" size="sm" interactive>
+                    {thread.title}
+                  </ClubInlineTitle>
+                </h3>
                 <ThreadMeta thread={thread} isPl={isPl} />
               </ThreadLink>
             </li>
@@ -221,10 +221,10 @@ export function ClubThreadList({
           <ThreadLink clubSlug={clubSlug} thread={thread} className="p-4">
             <ThreadBadges thread={thread} isPl={isPl} />
             <h3 className="mt-1.5">
-                <ClubInlineTitle tone="thread" size="sm" interactive>
-                  {thread.title}
-                </ClubInlineTitle>
-              </h3>
+              <ClubInlineTitle tone="thread" size="sm" interactive>
+                {thread.title}
+              </ClubInlineTitle>
+            </h3>
             <ThreadMeta thread={thread} isPl={isPl} />
           </ThreadLink>
         </li>

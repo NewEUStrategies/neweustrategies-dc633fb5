@@ -182,7 +182,6 @@ function ClubThreadView() {
   // Nazwa spoza katalogu degraduje do braku ikony - patrz `threadIcons.ts`.
   const threadIcon = normalizeClubThreadIcon(thread?.icon ?? null);
 
-
   const [replySort, setReplySort] = useState<ClubReplySort>("chronological");
   const repliesQ = useClubReplies({ threadId: thread?.id, sort: replySort });
 
@@ -622,7 +621,6 @@ function ClubThreadView() {
               </span>
               <p className="text-sm text-muted-foreground">{t("club.noReplies")}</p>
             </div>
-
           ) : (
             <ul className="space-y-2.5">
               {tree.map((node) => (
@@ -909,7 +907,6 @@ function ReplyBranch(props: ReplyBranchProps) {
             </p>
           </div>
         </div>
-
 
         {editing === reply.id ? (
           <div className="mt-3">

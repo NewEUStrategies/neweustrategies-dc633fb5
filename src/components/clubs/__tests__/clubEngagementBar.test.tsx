@@ -38,7 +38,7 @@ describe("ClubEngagementBar", () => {
     expect(screen.queryByTestId("club-reaction-insightful")).not.toBeInTheDocument();
   });
 
-  it("kliknięcie \"Zareaguj\" rozwija pełny wybór i chowa sam przycisk", () => {
+  it('kliknięcie "Zareaguj" rozwija pełny wybór i chowa sam przycisk', () => {
     renderBar({ onToggle: () => {} });
     fireEvent.click(screen.getByTestId("club-add-reaction"));
     expect(screen.queryByTestId("club-add-reaction")).not.toBeInTheDocument();
