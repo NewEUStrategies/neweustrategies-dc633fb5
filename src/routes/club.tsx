@@ -75,5 +75,11 @@ function ClubModuleLayout() {
       </Suspense>
     );
   }
-  return <Outlet />;
+  // `data-club-typography` włącza skalę typografii z Admin → Opcje motywu →
+  // Rozmiary dla całego modułu (mapowanie utility → tokeny w styles.css).
+  return (
+    <div data-club-typography>
+      <Outlet />
+    </div>
+  );
 }
