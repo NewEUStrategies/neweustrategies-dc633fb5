@@ -17,7 +17,7 @@
 // fragmentów - ale gdyby baza odmówiła odczytu, nie widzi nawet tego.
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
-import { Clock, Lock, MessagesSquare, ShieldQuestion, Sparkles, Users2 } from "lucide-react";
+import { Clock, Lock, MessagesSquare, ShieldQuestion, KeyRound, Users2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -177,7 +177,7 @@ export function ClubMinisite({
             </Badge>
           ) : null}
           <Badge variant="secondary" className="gap-1">
-            <Sparkles className="h-3 w-3" aria-hidden="true" />
+            <KeyRound className="h-3 w-3" aria-hidden="true" />
             {t(`club.minisite.access.${access}`)}
           </Badge>
         </div>

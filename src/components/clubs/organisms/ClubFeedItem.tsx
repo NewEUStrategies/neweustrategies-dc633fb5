@@ -24,6 +24,7 @@ import {
   Pin,
   Users,
 } from "lucide-react";
+import { ClubThreadKindIcon } from "@/components/clubs/atoms/ClubThreadKindIcon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
@@ -122,13 +123,7 @@ function ThreadCard({
       tone={clubThreadTone(thread.kind)}
       unread={thread.is_unread}
       pinned={thread.pinned_at !== null}
-      icon={
-        threadIcon !== null ? (
-          <DynamicIcon name={threadIcon} size={14} aria-hidden="true" />
-        ) : (
-          <MessagesSquare className="h-3.5 w-3.5" aria-hidden="true" />
-        )
-      }
+      icon={<ClubThreadKindIcon kind={thread.kind} icon={threadIcon} />}
       meta={
         <>
           <Badge variant="secondary" className="rounded-lg px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wide">

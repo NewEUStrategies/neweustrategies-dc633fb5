@@ -9,6 +9,7 @@
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import { Clock, Lightbulb, Link2, Lock, MessageSquare, MessagesSquare, Pin, Users2 } from "lucide-react";
+import { ClubThreadKindIcon } from "@/components/clubs/atoms/ClubThreadKindIcon";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { ClubInlineTitle } from "@/components/clubs/atoms/ClubInlineTitle";
@@ -129,13 +130,7 @@ function ThreadRow({
       unread={thread.is_unread}
       pinned={thread.pinned_at !== null}
       className={cn("h-full", featured && "border-primary/40 bg-primary/[0.04]")}
-      icon={
-        icon !== null ? (
-          <DynamicIcon name={icon} size={14} aria-hidden="true" />
-        ) : (
-          <MessagesSquare className="h-3.5 w-3.5" aria-hidden="true" />
-        )
-      }
+      icon={<ClubThreadKindIcon kind={thread.kind} icon={icon} />}
       meta={<ThreadMeta thread={thread} isPl={isPl} />}
       title={
         <h3>
