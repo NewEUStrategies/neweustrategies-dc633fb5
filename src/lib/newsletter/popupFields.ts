@@ -140,6 +140,18 @@ export function isPopupFieldLocked(key: PopupFieldKey): boolean {
   return DEFAULTS[key].locked === true;
 }
 
+/**
+ * Wbudowane (fabryczne) etykiety pola w obu językach.
+ *
+ * Używane przy synchronizacji widgetów: jeżeli widget ma zapisany "override"
+ * będący po prostu kopią domyślnej etykiety, traktujemy go jak brak override'u
+ * i bierzemy aktualną etykietę z globalnej konfiguracji (Admin → Popupy).
+ */
+export function popupFieldDefaultLabels(key: PopupFieldKey): string[] {
+  return [DEFAULTS[key].label_pl, DEFAULTS[key].label_en];
+}
+
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
