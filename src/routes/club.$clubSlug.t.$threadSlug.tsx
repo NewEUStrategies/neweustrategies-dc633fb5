@@ -441,148 +441,144 @@ function ClubThreadView() {
             strumieniu: grzbiet rodzaju po lewej, ikona rodzaju w kwadracie,
             meta wersalikami nad tytułem. Inaczej ten sam wątek wyglądałby
             inaczej na hubie i na własnej stronie. */}
-        <article
-          data-tone={threadTone}
-          className="relative overflow-hidden rounded-lg border border-border/60 bg-card py-3 pl-4 pr-4 shadow-sm sm:py-4 sm:pl-5 sm:pr-5"
-        >
-          <span
-            aria-hidden="true"
-            className={cn("absolute inset-y-0 left-0 w-[3px]", clubDossierSpineClass(threadTone))}
-          />
-          <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-            <span
-              aria-hidden="true"
-              className={cn(
-                "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border",
-                clubDossierIconBoxClass(threadTone),
-              )}
-            >
-              <ClubThreadKindIcon kind={thread.kind} icon={threadIcon} />
-            </span>
-            {thread.pinned_at !== null ? <Pin className="h-3.5 w-3.5 text-primary" /> : null}
-            <span className="font-semibold uppercase tracking-[0.08em] text-foreground">
-              {t(`club.kind.${thread.kind}`)}
-            </span>
-            {thread.status === "resolved" ? (
-              <Badge className="bg-emerald-500/15 text-[11px] text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-300">
-                {t("club.threadStatus.resolved")}
+        <ClubDossierRow
+          testId="club-thread-lead"
+          tone={threadTone}
+          pinned={thread.pinned_at !== null}
+          titleStyle="headline"
+          icon={<ClubThreadKindIcon kind={thread.kind} icon={threadIcon} />}
+          meta={
+            <>
+              <Badge
+                variant="secondary"
+                className="rounded-lg px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wide"
+              >
+                {t(`club.kind.${thread.kind}`)}
               </Badge>
-            ) : null}
-            {thread.locked_at !== null ? (
-              <Badge variant="outline" className="gap-1 text-[11px]">
-                <Lock className="h-3 w-3" />
-                {t("club.threadStatus.locked")}
-              </Badge>
-            ) : null}
-            {thread.attribution_mode === "chatham" ? (
-              <Badge variant="outline" className="gap-1 text-[11px]">
-                <ShieldQuestion className="h-3 w-3" />
-                {t("club.attribution.chatham")}
-              </Badge>
-            ) : null}
-            {/* Obszar tematyczny wątku - ten sam chip co na hubie i w klubie,
-                żeby czytelnik rozpoznał tematykę bez czytania etykiety. */}
-            <ClubTopicChip topic={thread.topic} lang={isPl ? "pl" : "en"} catalog={topicCatalog} />
-            {thread.anchor_type !== null ? (
-              <Badge variant="secondary" className="gap-1 text-[11px]">
-                <Link2 className="h-3 w-3" aria-hidden="true" />
-                {t(`club.anchorType.${thread.anchor_type}`)}
-              </Badge>
-            ) : null}
-          </div>
-
-          <h1 className="mt-2 text-2xl font-semibold leading-snug">{thread.title}</h1>
-
-          <div className="mt-3 flex items-center gap-2.5">
-            <ClubAuthorAvatar
-              name={author.name}
-              avatarUrl={author.avatarUrl}
-              size="md"
-              muted={author.kind !== "named"}
-            />
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{author.name}</p>
-              <p className="truncate text-xs text-muted-foreground">
-                {formatDateTime(thread.created_at, lang)}
-                {thread.edited_at !== null ? ` \u00b7 ${t("club.edited")}` : ""}
-              </p>
-            </div>
-          </div>
-
-          {editing === "thread" ? (
-            <div className="mt-4">
-              <ClubInlineEditor
-                idPrefix="club-thread-edit"
-                initialTitle={thread.title}
-                initialBody={thread.body}
-                showReason={!isMyThread}
-                pending={editThreadM.isPending}
-                onCancel={() => setEditing(null)}
-                onSave={(patch) =>
-                  editThreadM.mutate(
-                    { threadId: thread.id, ...patch },
-                    {
-                      onSuccess: () => {
-                        setEditing(null);
-                        toast.success(t("club.editor.saved"));
-                      },
-                      onError: () => toast.error(t("adminClubs.saveFailed")),
-                    },
-                  )
+              {thread.status === "resolved" ? (
+                <Badge className="rounded-lg bg-emerald-600 px-1.5 py-0 text-[10px] hover:bg-emerald-600">
+                  {t("club.threadStatus.resolved")}
+                </Badge>
+              ) : null}
+              {thread.locked_at !== null ? (
+                <Badge variant="outline" className="gap-1 text-[10px]">
+                  <Lock className="h-3 w-3" aria-hidden="true" />
+                  {t("club.threadStatus.locked")}
+                </Badge>
+              ) : null}
+              {thread.attribution_mode === "chatham" ? (
+                <Badge variant="outline" className="gap-1 text-[10px]">
+                  <ShieldQuestion className="h-3 w-3" aria-hidden="true" />
+                  {t("club.attribution.chatham")}
+                </Badge>
+              ) : null}
+              {/* Obszar tematyczny wątku - ten sam chip co na hubie i w klubie. */}
+              <ClubTopicChip
+                topic={thread.topic}
+                lang={isPl ? "pl" : "en"}
+                catalog={topicCatalog}
+                size="sm"
+              />
+              {thread.anchor_type !== null ? (
+                <Badge variant="secondary" className="gap-1 text-[10px]">
+                  <Link2 className="h-3 w-3" aria-hidden="true" />
+                  {t(`club.anchorType.${thread.anchor_type}`)}
+                </Badge>
+              ) : null}
+              <span aria-hidden="true">·</span>
+              <ClubAuthorAvatar
+                name={author.name}
+                avatarUrl={author.avatarUrl}
+                size="sm"
+                muted={author.kind !== "named"}
+              />
+              <span className="truncate font-medium text-foreground">{author.name}</span>
+              <span aria-hidden="true">·</span>
+              <time dateTime={thread.created_at}>{formatDateTime(thread.created_at, lang)}</time>
+              {thread.edited_at !== null ? <span>{t("club.edited")}</span> : null}
+              {thread.pinned_at !== null ? (
+                <span className="inline-flex items-center gap-1 text-primary">
+                  <Pin className="h-3 w-3" aria-hidden="true" />
+                  {t("club.hub.feed.pinned")}
+                </span>
+              ) : null}
+            </>
+          }
+          title={<h1 className="[overflow-wrap:anywhere]">{thread.title}</h1>}
+          footer={
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-border/60 pt-2.5">
+              <ClubReactionBar
+                tallies={threadReactionsQ.data?.get(thread.id) ?? []}
+                disabled={!thread.can_reply || toggleThreadReaction.isPending}
+                variant="full"
+                labels="hover"
+                onToggle={(kind, active) =>
+                  toggleThreadReaction.mutate({ targetId: thread.id, kind, active })
                 }
               />
+              <ClubReactionAvatars
+                actors={threadActorsQ.data?.get(thread.id) ?? []}
+                total={(threadReactionsQ.data?.get(thread.id) ?? []).reduce(
+                  (sum, tally) => sum + tally.total,
+                  0,
+                )}
+                size="sm"
+              />
+              <div className="ml-auto flex flex-wrap items-center gap-1.5">
+                {canEditThread && editing !== "thread" ? (
+                  <button
+                    type="button"
+                    onClick={() => setEditing("thread")}
+                    aria-label={t("club.editor.edit")}
+                    className={clubHoverActionClass()}
+                  >
+                    <ClubHoverActionBody icon={Pencil} label={t("club.editor.edit")} />
+                  </button>
+                ) : null}
+                {canReportThread ? (
+                  <ClubReportButton targetType="thread" targetId={thread.id} />
+                ) : null}
+                <ClubFollowButton
+                  compact
+                  state={subscriptionQ.data ?? null}
+                  pending={setSubscriptionM.isPending}
+                  disabled={subscriptionQ.isPending}
+                  onChange={(next) =>
+                    setSubscriptionM.mutate(next, {
+                      onError: () => toast.error(t("adminClubs.saveFailed")),
+                    })
+                  }
+                />
+              </div>
             </div>
-          ) : (
-            <ClubProse className="mt-4 max-w-none" body={thread.body} />
-          )}
-
-          {/* Pasek akcji postu otwierającego jest tą samą molekułą wizualną, co
-              pod kartą w strumieniu: piktogram w spoczynku, słowo po najechaniu.
-              Inaczej ten sam gest wyglądałby inaczej na hubie i w wątku. */}
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-border/60 pt-2.5">
-            <ClubReactionBar
-              tallies={threadReactionsQ.data?.get(thread.id) ?? []}
-              disabled={!thread.can_reply || toggleThreadReaction.isPending}
-              variant="full"
-              labels="hover"
-              onToggle={(kind, active) =>
-                toggleThreadReaction.mutate({ targetId: thread.id, kind, active })
+          }
+        >
+          {editing === "thread" ? (
+            <ClubInlineEditor
+              idPrefix="club-thread-edit"
+              initialTitle={thread.title}
+              initialBody={thread.body}
+              showReason={!isMyThread}
+              pending={editThreadM.isPending}
+              onCancel={() => setEditing(null)}
+              onSave={(patch) =>
+                editThreadM.mutate(
+                  { threadId: thread.id, ...patch },
+                  {
+                    onSuccess: () => {
+                      setEditing(null);
+                      toast.success(t("club.editor.saved"));
+                    },
+                    onError: () => toast.error(t("adminClubs.saveFailed")),
+                  },
+                )
               }
             />
-            <ClubReactionAvatars
-              actors={threadActorsQ.data?.get(thread.id) ?? []}
-              total={(threadReactionsQ.data?.get(thread.id) ?? []).reduce(
-                (sum, tally) => sum + tally.total,
-                0,
-              )}
-              size="sm"
-            />
-            <div className="ml-auto flex flex-wrap items-center gap-1.5">
-              {canEditThread && editing !== "thread" ? (
-                <button
-                  type="button"
-                  onClick={() => setEditing("thread")}
-                  aria-label={t("club.editor.edit")}
-                  className={clubHoverActionClass()}
-                >
-                  <ClubHoverActionBody icon={Pencil} label={t("club.editor.edit")} />
-                </button>
-              ) : null}
-              {canReportThread ? <ClubReportButton targetType="thread" targetId={thread.id} /> : null}
-              <ClubFollowButton
-                compact
-                state={subscriptionQ.data ?? null}
-                pending={setSubscriptionM.isPending}
-                disabled={subscriptionQ.isPending}
-                onChange={(next) =>
-                  setSubscriptionM.mutate(next, {
-                    onError: () => toast.error(t("adminClubs.saveFailed")),
-                  })
-                }
-              />
-            </div>
-          </div>
-        </article>
+          ) : (
+            <ClubProse className="max-w-none" body={thread.body} />
+          )}
+        </ClubDossierRow>
+
 
 
         {/* --- sondaż (wyłącznie wątek typu "sondaż") ---
