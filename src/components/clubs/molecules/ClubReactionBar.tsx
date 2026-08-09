@@ -109,7 +109,7 @@ export function ClubReactionBar({
                 icon={Icon}
                 label={t(`club.reaction.${kind}`)}
                 count={total}
-                expanded={variant === "full"}
+                expanded={expandLabels}
               />
             </Button>
           );
