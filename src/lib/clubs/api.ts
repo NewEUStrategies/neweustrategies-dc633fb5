@@ -18,6 +18,7 @@ type RpcArgs<K extends keyof Database["public"]["Functions"]> =
   Database["public"]["Functions"][K]["Args"];
 import {
   groupReactions,
+  groupReactionActors,
   mergeClubSearchResults,
   toClubCapabilities,
   type AdminClubListFilters,
@@ -53,6 +54,7 @@ import {
   type ClubMembershipRow,
   type ClubMyInvitationRow,
   type ClubReactionKind,
+  type ClubReactionActor,
   type ClubReactionTally,
   type ClubReactionTarget,
   type ClubReplyRow,
@@ -767,6 +769,22 @@ export async function fetchClubReactions(params: {
   });
   if (error) throw error;
   return groupReactions(data ?? []);
+}
+
+/** Twarze pod wpisem - kto zareagował. Wsadowo dla całej widocznej partii. */
+export async function fetchClubReactionActors(params: {
+  targetType: ClubReactionTarget;
+  targetIds: string[];
+  limit?: number;
+}): Promise<Map<string, ClubReactionActor[]>> {
+  if (params.targetIds.length === 0) return new Map();
+  const { data, error } = await supabase.rpc("club_reaction_actors", {
+    p_target_type: params.targetType,
+    p_target_ids: params.targetIds,
+    p_limit: params.limit ?? 6,
+  });
+  if (error) throw error;
+  return groupReactionActors(data ?? []);
 }
 
 export async function reactToClubTarget(params: {

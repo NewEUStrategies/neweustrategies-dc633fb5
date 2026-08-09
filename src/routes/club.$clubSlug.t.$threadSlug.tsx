@@ -81,6 +81,7 @@ import { MentionTextarea } from "@/components/mentions/MentionTextarea";
 import {
   useClubBySlug,
   useClubReactions,
+  useClubReactionActors,
   useClubReplies,
   useClubStanceSummary,
   useClubThread,
@@ -99,6 +100,7 @@ import {
   clubHoverActionClass,
 } from "@/components/clubs/atoms/ClubHoverAction";
 import { ClubReactionBar } from "@/components/clubs/molecules/ClubReactionBar";
+import { ClubReactionAvatars } from "@/components/clubs/molecules/ClubReactionAvatars";
 import { ClubFollowButton } from "@/components/clubs/molecules/ClubFollowButton";
 import { ClubInlineEditor } from "@/components/clubs/molecules/ClubInlineEditor";
 import { ClubStanceBar } from "@/components/clubs/molecules/ClubStanceBar";
@@ -123,6 +125,7 @@ import {
   toAuthorLabel,
   CLUB_REPLY_SORTS,
   type ClubReactionKind,
+  type ClubReactionActor,
   type ClubReactionTally,
   type ClubReplyNode,
   type ClubReplySort,
@@ -246,6 +249,9 @@ function ClubThreadView() {
     targetIds: threadIds,
   });
   const toggleReplyReaction = useToggleClubReaction({ targetType: "reply", targetIds: replyIds });
+  // Twarze: jedno zapytanie wsadowe na partię, tak samo jak liczniki.
+  const threadActorsQ = useClubReactionActors({ targetType: "thread", targetIds: threadIds });
+  const replyActorsQ = useClubReactionActors({ targetType: "reply", targetIds: replyIds });
 
   // Hooki kompozytora muszą być wywołane PRZED stanami loading/error/404.
   // Pierwszy render kończy się zwykle na szkielecie, a następny pokazuje wątek;
@@ -537,6 +543,14 @@ function ClubThreadView() {
                 toggleThreadReaction.mutate({ targetId: thread.id, kind, active })
               }
             />
+            <ClubReactionAvatars
+              actors={threadActorsQ.data?.get(thread.id) ?? []}
+              total={(threadReactionsQ.data?.get(thread.id) ?? []).reduce(
+                (sum, tally) => sum + tally.total,
+                0,
+              )}
+              size="sm"
+            />
             <div className="ml-auto flex flex-wrap items-center gap-1.5">
               {canEditThread && editing !== "thread" ? (
                 <button
@@ -672,6 +686,7 @@ function ClubThreadView() {
                     )
                   }
                   reactions={replyReactionsQ.data ?? new Map()}
+                  reactionActors={replyActorsQ.data ?? new Map()}
                   onToggleReaction={(targetId, kind, active) =>
                     toggleReplyReaction.mutate({ targetId, kind, active })
                   }
@@ -852,6 +867,7 @@ interface ReplyBranchProps {
   onEdit: (target: string | null) => void;
   onSaveEdit: (replyId: string, patch: { body: string; reason: string | null }) => void;
   reactions: Map<string, ClubReactionTally[]>;
+  reactionActors: Map<string, ClubReactionActor[]>;
   onToggleReaction: (targetId: string, kind: ClubReactionKind, active: boolean) => void;
   onReply: (replyId: string) => void;
   onResolve: (replyId: string | null) => void;
@@ -873,6 +889,7 @@ function ReplyBranch(props: ReplyBranchProps) {
     onEdit,
     onSaveEdit,
     reactions,
+    reactionActors,
     onToggleReaction,
     onReply,
     onResolve,
@@ -961,12 +978,19 @@ function ReplyBranch(props: ReplyBranchProps) {
         {/* Pasek zwinięty: przy trzydziestu odpowiedziach sześć pustych
             przycisków pod każdą byłoby ścianą szumu. */}
         <div className="mt-2">
-          <ClubReactionBar
-            tallies={reactions.get(reply.id) ?? []}
-            disabled={!canReact}
-            variant="compact"
-            onToggle={(kind, active) => onToggleReaction(reply.id, kind, active)}
-          />
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <ClubReactionBar
+              tallies={reactions.get(reply.id) ?? []}
+              disabled={!canReact}
+              variant="compact"
+              onToggle={(kind, active) => onToggleReaction(reply.id, kind, active)}
+            />
+            <ClubReactionAvatars
+              actors={reactionActors.get(reply.id) ?? []}
+              total={(reactions.get(reply.id) ?? []).reduce((sum, tally) => sum + tally.total, 0)}
+              maxVisible={4}
+            />
+          </div>
         </div>
 
         {/* Akcje wyciszone do momentu najechania/fokusu: przy trzydziestu

@@ -43,6 +43,7 @@ import {
   fetchClubActivityFeed,
   fetchClubThreadsForAnchor,
   fetchClubMembers,
+  fetchClubReactionActors,
   fetchClubReactions,
   fetchClubAnchorSuggestions,
   fetchClubReplies,
@@ -127,6 +128,7 @@ import type {
   ClubMyInvitationRow,
   ClubNotifyLevel,
   ClubReactionKind,
+  ClubReactionActor,
   ClubReactionTally,
   ClubReactionTarget,
   ClubReplySort,
@@ -891,6 +893,26 @@ export function useClubReactions(params: {
   });
 }
 
+/**
+ * Twarze osób, które zareagowały. Osobne zapytanie od liczników, bo licznik
+ * odświeżamy optymistycznie po każdym kliknięciu, a lista twarzy jest cięższa
+ * i wystarczy jej odświeżenie po potwierdzeniu serwera.
+ */
+export function useClubReactionActors(params: {
+  targetType: ClubReactionTarget;
+  targetIds: string[];
+  limit?: number;
+  enabled?: boolean;
+}): UseQueryResult<Map<string, ClubReactionActor[]>, Error> {
+  const { targetType, targetIds, limit, enabled } = params;
+  return useQuery({
+    queryKey: clubKeys.reactionActors(targetType, targetIds),
+    queryFn: () => fetchClubReactionActors({ targetType, targetIds, limit }),
+    staleTime: 30_000,
+    enabled: targetIds.length > 0 && enabled !== false,
+  });
+}
+
 export interface ToggleReactionVars {
   targetId: string;
   kind: ClubReactionKind;
@@ -935,6 +957,11 @@ export function useToggleClubReaction(params: {
     },
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: key });
+      // Twarze muszą pójść za licznikiem, inaczej po własnej reakcji widać
+      // "+1" bez własnego awatara.
+      void qc.invalidateQueries({
+        queryKey: clubKeys.reactionActors(targetType, targetIds),
+      });
     },
   });
 }

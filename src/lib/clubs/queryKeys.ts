@@ -96,6 +96,10 @@ export const clubKeys = {
   reactions: (targetType: string, targetIds: readonly string[]) =>
     [...clubKeys.all, "reactions", targetType, [...targetIds].sort().join(",")] as const,
 
+  /** Twarze reakcji - ta sama zasada wsadowa co `reactions`. */
+  reactionActors: (targetType: string, targetIds: readonly string[]) =>
+    [...clubKeys.all, "reaction-actors", targetType, [...targetIds].sort().join(",")] as const,
+
   stances: (threadId: string) => [...clubKeys.all, "stances", threadId] as const,
 
   subscription: (threadId: string) => [...clubKeys.all, "subscription", threadId] as const,
