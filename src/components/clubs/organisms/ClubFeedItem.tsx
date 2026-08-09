@@ -88,6 +88,7 @@ function ThreadCard({
   activeTopic,
   onTopicSelect,
   reactions,
+  reactionActors,
   reactionsPending,
   canReact = true,
   onReact,
@@ -102,6 +103,7 @@ function ThreadCard({
   activeTopic: string | null;
   onTopicSelect?: (topic: string | null) => void;
   reactions?: readonly ClubReactionTally[];
+  reactionActors?: readonly ClubReactionActor[];
   reactionsPending?: boolean;
   /** Czy zalogowany użytkownik ma prawo reagować w tym klubie. */
   canReact?: boolean;
@@ -224,6 +226,7 @@ function ThreadCard({
           clubSlug={clubSlug}
           threadSlug={thread.slug}
           tallies={reactions ?? []}
+          actors={reactionActors}
           replyCount={thread.reply_count}
           canReact={canReact}
           pending={reactionsPending}
@@ -428,6 +431,7 @@ export function ClubFeedItem({
   onPostLike,
   onPostDelete,
   threadReactions,
+  threadReactionActors,
   reactionsPending,
   canReact = true,
   onThreadReact,
@@ -449,6 +453,8 @@ export function ClubFeedItem({
   onPostDelete?: (postId: string) => void;
   /** Reakcje CAŁEJ widocznej partii wątków - jedno zapytanie nad listą. */
   threadReactions?: ReadonlyMap<string, ClubReactionTally[]>;
+  /** Twarze reakcji CAŁEJ partii wątków - jedno zapytanie nad listą. */
+  threadReactionActors?: ReadonlyMap<string, ClubReactionActor[]>;
   reactionsPending?: boolean;
   canReact?: boolean;
   onThreadReact?: (threadId: string, kind: ClubReactionKind, active: boolean) => void;
@@ -466,6 +472,7 @@ export function ClubFeedItem({
         activeTopic={activeTopic}
         onTopicSelect={onTopicSelect}
         reactions={threadReactions?.get(entry.thread.id) ?? []}
+        reactionActors={threadReactionActors?.get(entry.thread.id)}
         reactionsPending={reactionsPending}
         canReact={canReact}
         onReact={onThreadReact}
