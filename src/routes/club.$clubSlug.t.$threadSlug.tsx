@@ -125,6 +125,7 @@ import {
   toAuthorLabel,
   CLUB_REPLY_SORTS,
   type ClubReactionKind,
+  type ClubReactionActor,
   type ClubReactionTally,
   type ClubReplyNode,
   type ClubReplySort,
