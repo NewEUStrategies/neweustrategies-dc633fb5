@@ -60,6 +60,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { normalizeClubThreadIcon } from "@/lib/clubs/threadIcons";
+import { cn } from "@/lib/utils";
+import {
+  clubDossierIconBoxClass,
+  clubDossierSpineClass,
+  clubThreadTone,
+} from "@/components/clubs/atoms/ClubDossierRow";
+import { ClubThreadKindIcon } from "@/components/clubs/atoms/ClubThreadKindIcon";
 import { ClubTopicChip } from "@/components/clubs/atoms/ClubTopicChip";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import { Label } from "@/components/ui/label";
@@ -191,6 +198,8 @@ function ClubThreadView() {
   const thread = threadQ.data ?? null;
   // Nazwa spoza katalogu degraduje do braku ikony - patrz `threadIcons.ts`.
   const threadIcon = normalizeClubThreadIcon(thread?.icon ?? null);
+  // Ton grzbietu = rodzaj wątku - ten sam, co w wierszu strumienia.
+  const threadTone = clubThreadTone(thread?.kind ?? null);
 
   const [replySort, setReplySort] = useState<ClubReplySort>("chronological");
   const repliesQ = useClubReplies({ threadId: thread?.id, sort: replySort });
