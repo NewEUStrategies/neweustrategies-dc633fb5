@@ -18,10 +18,7 @@ import { cn } from "@/lib/utils";
 import { HUB_SURFACE } from "@/components/clubs/atoms/ClubHubPrimitives";
 import { useCreateClubPost } from "@/lib/clubs/useClubPosts";
 import { removeClubPostMedia, uploadClubPostMedia } from "@/lib/clubs/postsApi";
-import {
-  CLUB_POST_ACCEPT_MIME,
-  type ClubPostMediaAttachment,
-} from "@/lib/clubs/postTypes";
+import { CLUB_POST_ACCEPT_MIME, type ClubPostMediaAttachment } from "@/lib/clubs/postTypes";
 
 export function ClubPostComposer({
   clubId,

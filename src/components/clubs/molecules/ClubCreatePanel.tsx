@@ -80,7 +80,9 @@ export function ClubCreatePanel({
   const selectedThread = target.startsWith(THREAD_PREFIX)
     ? (threads.find((thread) => thread.slug === target.slice(THREAD_PREFIX.length)) ?? null)
     : null;
-  const selectedGroupId = target.startsWith(GROUP_PREFIX) ? target.slice(GROUP_PREFIX.length) : null;
+  const selectedGroupId = target.startsWith(GROUP_PREFIX)
+    ? target.slice(GROUP_PREFIX.length)
+    : null;
 
   // Nikt tu nic nie napisze - jedna linia zamiast dwóch pustych zakładek.
   if (!canPost && !canPostThread) {

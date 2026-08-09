@@ -165,7 +165,11 @@ export function ClubMinisite({
             <MessagesSquare className="h-4 w-4" aria-hidden="true" />
             {t("club.threadsCount", { count: club.thread_count })}
           </span>
-          <ClubTopicChip topic={club.policy_area} lang={isPl ? "pl" : "en"} catalog={topicCatalog} />
+          <ClubTopicChip
+            topic={club.policy_area}
+            lang={isPl ? "pl" : "en"}
+            catalog={topicCatalog}
+          />
           {club.attribution_mode === "chatham" ? (
             <Badge variant="outline" className="gap-1">
               <ShieldQuestion className="h-3 w-3" aria-hidden="true" />

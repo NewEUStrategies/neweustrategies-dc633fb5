@@ -422,7 +422,13 @@ export function ClubPostCard({
             wątku, a nie martwy przycisk. */}
         {canComment && !hideThreadLink ? (
           post.thread_slug !== null ? (
-            <Button asChild type="button" variant="ghost" size="sm" className="h-8 gap-1.5 rounded-lg px-2.5 text-xs">
+            <Button
+              asChild
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 gap-1.5 rounded-lg px-2.5 text-xs"
+            >
               <Link
                 to="/club/$clubSlug/t/$threadSlug"
                 params={{ clubSlug, threadSlug: post.thread_slug }}
@@ -434,7 +440,13 @@ export function ClubPostCard({
               </Link>
             </Button>
           ) : (
-            <Button asChild type="button" variant="ghost" size="sm" className="h-8 gap-1.5 rounded-lg px-2.5 text-xs">
+            <Button
+              asChild
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 gap-1.5 rounded-lg px-2.5 text-xs"
+            >
               <Link
                 to="/club/$clubSlug/new"
                 params={{ clubSlug }}

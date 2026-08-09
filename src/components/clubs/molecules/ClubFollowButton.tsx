@@ -11,6 +11,10 @@
 import { useTranslation } from "react-i18next";
 import { Bell, BellOff, BellRing, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  ClubHoverActionBody,
+  clubHoverActionClass,
+} from "@/components/clubs/atoms/ClubHoverAction";
 import type { ClubSubscriptionState } from "@/lib/clubs/types";
 
 export function ClubFollowButton({
@@ -18,11 +22,14 @@ export function ClubFollowButton({
   pending,
   disabled,
   onChange,
+  /** Tryb minimalistyczny: ikona w spoczynku, etykieta po najechaniu. */
+  compact = false,
 }: {
   state: ClubSubscriptionState | null;
   pending: boolean;
   disabled: boolean;
   onChange: (next: ClubSubscriptionState) => void;
+  compact?: boolean;
 }) {
   const { t } = useTranslation();
 
@@ -31,6 +38,31 @@ export function ClubFollowButton({
   // stanu domyślnego i nie udajemy, że jest.
   const next: ClubSubscriptionState = state === "subscribed" ? "muted" : "subscribed";
   const Icon = state === "subscribed" ? BellRing : state === "muted" ? BellOff : Bell;
+  const label =
+    state === "subscribed"
+      ? t("club.subscription.subscribed")
+      : state === "muted"
+        ? t("club.subscription.muted")
+        : t("club.subscription.follow");
+
+  if (compact) {
+    return (
+      <button
+        type="button"
+        disabled={pending || disabled}
+        aria-pressed={state === "subscribed"}
+        aria-label={label}
+        title={state === null ? t("club.subscription.defaultHint") : label}
+        onClick={() => onChange(next)}
+        className={clubHoverActionClass({
+          active: state === "subscribed",
+          disabled: pending || disabled,
+        })}
+      >
+        <ClubHoverActionBody icon={pending ? Loader2 : Icon} label={label} />
+      </button>
+    );
+  }
 
   return (
     <Button
@@ -46,11 +78,7 @@ export function ClubFollowButton({
       ) : (
         <Icon className="mr-1.5 h-3.5 w-3.5" />
       )}
-      {state === "subscribed"
-        ? t("club.subscription.subscribed")
-        : state === "muted"
-          ? t("club.subscription.muted")
-          : t("club.subscription.follow")}
+      {label}
     </Button>
   );
 }

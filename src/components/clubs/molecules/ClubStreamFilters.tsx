@@ -65,9 +65,7 @@ export function ClubStreamFilters({
   const secondaryKinds = CLUB_THREAD_KINDS.filter((value) => !PRIMARY_KINDS.includes(value));
   const hiddenKindActive = kind !== null && !PRIMARY_KINDS.includes(kind);
   const hiddenCount =
-    (hiddenKindActive ? 1 : 0) +
-    (anchoredOnly ? 1 : 0) +
-    (canFilterUnread && unreadOnly ? 1 : 0);
+    (hiddenKindActive ? 1 : 0) + (anchoredOnly ? 1 : 0) + (canFilterUnread && unreadOnly ? 1 : 0);
   const dirty = kind !== null || anchoredOnly || (canFilterUnread && unreadOnly);
 
   return (
