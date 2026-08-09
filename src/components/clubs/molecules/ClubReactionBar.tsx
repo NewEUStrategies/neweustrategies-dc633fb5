@@ -39,6 +39,12 @@ interface ClubReactionBarProps {
   disabled?: boolean;
   /** `full` pokazuje wszystkie sześć; `compact` tylko postawione. */
   variant?: "full" | "compact";
+  /**
+   * Kiedy pokazać słowo obok piktogramu. `hover` daje ten sam minimalizm, co
+   * w strumieniu (ikona w spoczynku, etykieta po najechaniu) także wtedy, gdy
+   * widać komplet reakcji - post otwierający wątku nie ma być pasem tekstu.
+   */
+  labels?: "always" | "hover";
   onToggle: (kind: ClubReactionKind, active: boolean) => void;
 }
 
@@ -46,9 +52,11 @@ export function ClubReactionBar({
   tallies,
   disabled,
   variant = "full",
+  labels,
   onToggle,
 }: ClubReactionBarProps) {
   const { t } = useTranslation();
+  const expandLabels = (labels ?? (variant === "full" ? "always" : "hover")) === "always";
 
   const find = (kind: ClubReactionKind) => tallies.find((r) => r.kind === kind);
 
