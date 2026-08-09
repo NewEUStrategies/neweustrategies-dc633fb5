@@ -829,45 +829,52 @@ function ReplyBranch(props: ReplyBranchProps) {
     <li>
       <div
         className={
-          "group/reply rounded-xl border p-3 transition-colors sm:p-4 " +
+          "group/reply rounded-lg border p-3 transition-colors sm:p-4 " +
           (reply.is_resolution
             ? "border-emerald-500/40 bg-emerald-500/5"
             : "border-border/60 bg-card hover:border-primary/30")
         }
       >
-        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm">
+        {/* Nagłówek odpowiedzi: awatar w osi tekstu, autor i czas w DWÓCH
+            wierszach. Wcześniej wszystko leciało jednym `flex-wrap` i przy
+            wąskim ekranie data lądowała pod awatarem, oddzielona od nazwiska,
+            do którego się odnosi. */}
+        <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2.5 gap-y-1">
           <ClubAuthorAvatar
             name={author.name}
             avatarUrl={author.avatarUrl}
             muted={author.kind !== "named"}
           />
-          <span className="font-medium">{author.name}</span>
-          <span className="text-xs text-muted-foreground">
-            {formatDateTime(reply.created_at, lang)}
-          </span>
-          {reply.edited_at !== null ? (
-            <span className="text-xs text-muted-foreground">({t("club.edited")})</span>
-          ) : null}
-          {/* Stanowisko autora - jedyny sygnał, który zamienia listę odpowiedzi
-              w mapę sporu. Baza zwraca je wyłącznie w wątku `position` i
-              wyłącznie przy autorstwie jawnym. */}
-          {reply.author_stance !== null ? (
-            <Badge variant="outline" className="text-[11px]">
-              {t(`club.stance.${reply.author_stance}`)}
-            </Badge>
-          ) : null}
-          {reply.is_resolution ? (
-            <Badge className="gap-1 bg-emerald-500/15 text-[11px] text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-300">
-              <CheckCircle2 className="h-3 w-3" />
-              {t("club.resolution")}
-            </Badge>
-          ) : null}
-          {reply.status === "pending" ? (
-            <Badge variant="outline" className="text-[11px] text-amber-700 dark:text-amber-300">
-              {t("club.threadStatus.pending")}
-            </Badge>
-          ) : null}
+          <div className="min-w-0">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="truncate text-sm font-semibold leading-tight">{author.name}</span>
+              {/* Stanowisko autora - jedyny sygnał, który zamienia listę odpowiedzi
+                  w mapę sporu. Baza zwraca je wyłącznie w wątku `position` i
+                  wyłącznie przy autorstwie jawnym. */}
+              {reply.author_stance !== null ? (
+                <Badge variant="outline" className="text-[11px]">
+                  {t(`club.stance.${reply.author_stance}`)}
+                </Badge>
+              ) : null}
+              {reply.is_resolution ? (
+                <Badge className="gap-1 bg-emerald-500/15 text-[11px] text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-300">
+                  <CheckCircle2 className="h-3 w-3" />
+                  {t("club.resolution")}
+                </Badge>
+              ) : null}
+              {reply.status === "pending" ? (
+                <Badge variant="outline" className="text-[11px] text-amber-700 dark:text-amber-300">
+                  {t("club.threadStatus.pending")}
+                </Badge>
+              ) : null}
+            </div>
+            <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+              {formatDateTime(reply.created_at, lang)}
+              {reply.edited_at !== null ? ` \u00b7 ${t("club.edited")}` : ""}
+            </p>
+          </div>
         </div>
+
 
         {editing === reply.id ? (
           <div className="mt-3">
