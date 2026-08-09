@@ -15659,6 +15659,7 @@ export type Database = {
         Returns: string
       }
       club_invite_quota_ok: { Args: { _user_id: string }; Returns: boolean }
+      club_is_any_moderator: { Args: { _user_id: string }; Returns: boolean }
       club_join: { Args: { p_club_id: string }; Returns: string }
       club_leave: { Args: { p_club_id: string }; Returns: boolean }
       club_linked_item_label: {
@@ -15995,6 +15996,10 @@ export type Database = {
           thread_slug: string
           title: string
         }[]
+      }
+      club_set_cover: {
+        Args: { p_club_id: string; p_url: string }
+        Returns: string
       }
       club_set_notify_level: {
         Args: { p_club_id: string; p_level: string }
