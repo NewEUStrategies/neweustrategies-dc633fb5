@@ -7533,3 +7533,35 @@ html {
       var(--card) 100%
     );
 }
+
+/* ── Neutralny akcent modułu klubów ─────────────────────────────────────────
+   Panel klubów budowany był w całości na `--primary`, a ten token w tej
+   instalacji jest nadpisany marką (pomarańcz). Efekt: aktywne kafle, zakładki,
+   liczniki, monogram i chipy świeciły jednym, bardzo nasyconym kolorem.
+
+   Zamiast przepisywać ~150 klas w komponentach, moduł dostaje własny zakres:
+   `--primary` mapuje się tu na neutralny grafit (jasny motyw) / jasny popiel
+   (ciemny motyw), więc wszystkie `bg-primary/10`, `text-primary`,
+   `border-primary/40` automatycznie stają się spokojne i czytelne w obu
+   trybach. Marka wraca punktowo przez `club-accent` (główne CTA), żeby jedna
+   akcja nadal prowadziła wzrok. */
+[data-club-neutral] {
+  --club-ink: oklch(0.36 0.008 80);
+  --club-ink-foreground: oklch(1 0 0);
+  --primary: var(--club-ink);
+  --primary-foreground: var(--club-ink-foreground);
+  --ring: color-mix(in oklab, var(--club-ink) 70%, transparent);
+}
+
+.dark [data-club-neutral],
+[data-club-neutral].dark {
+  --club-ink: oklch(0.88 0.006 80);
+  --club-ink-foreground: #141414;
+}
+
+/* Punktowy powrót marki - nakładany na pojedyncze CTA wewnątrz klubów. */
+@utility club-accent {
+  --primary: var(--brand);
+  --primary-foreground: var(--brand-foreground);
+  --ring: color-mix(in oklab, var(--brand) 60%, transparent);
+}

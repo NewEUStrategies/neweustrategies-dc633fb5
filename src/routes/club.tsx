@@ -77,8 +77,10 @@ function ClubModuleLayout() {
   }
   // `data-club-typography` włącza skalę typografii z Admin → Opcje motywu →
   // Rozmiary dla całego modułu (mapowanie utility → tokeny w styles.css).
+  // `data-club-neutral` mapuje `--primary` na neutralny grafit/popiel, żeby
+  // moduł nie świecił pomarańczem marki w każdym kaflu (patrz styles.css).
   return (
-    <div data-club-typography>
+    <div data-club-typography data-club-neutral>
       <Outlet />
     </div>
   );
