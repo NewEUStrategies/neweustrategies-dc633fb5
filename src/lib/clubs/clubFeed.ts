@@ -132,16 +132,41 @@ export function buildClubFeed(input: ClubFeedInput): ClubFeedEntry[] {
     });
   }
 
+  // KRĘGOSŁUP TRYBU "WSZYSTKO" TO ŚCIANA: wpisy i wątki w jednym ciągu.
+  //
+  // Wpis wchodzi PRZED pierwszym wątkiem, który jest od niego starszy, a nie
+  // przez globalne posortowanie po dacie. Powód: lista wątków przychodzi
+  // w porządku "gorące", który datą nie jest - przesortowanie jej po czasie
+  // zniszczyłoby ranking, po który użytkownik przyszedł. Ta reguła zachowuje
+  // WZGLĘDNĄ kolejność wątków i mimo to stawia świeży wpis na górze.
+  const backbone: ClubFeedEntry[] = [];
+  let postIndex = 0;
+  const pushPostsNewerThan = (stamp: string | null): void => {
+    while (postIndex < posts.length) {
+      const post = posts[postIndex]!;
+      if (stamp !== null && post.created_at <= stamp) break;
+      backbone.push({ kind: "post", key: `p:${post.id}`, post });
+      postIndex += 1;
+    }
+  };
+
+  threads.forEach((thread) => {
+    pushPostsNewerThan(thread.last_reply_at ?? thread.created_at);
+    backbone.push({ kind: "thread", key: `t:${thread.id}`, thread });
+  });
+  pushPostsNewerThan(null);
+
   const out: ClubFeedEntry[] = [];
   let placed = 0;
-  threads.forEach((thread, index) => {
-    out.push({ kind: "thread", key: `t:${thread.id}`, thread });
+  backbone.forEach((entry, index) => {
+    out.push(entry);
     const position = index + 1;
     while (placed < pending.length && pending[placed]!.at === position) {
       out.push(pending[placed]!.entry);
       placed += 1;
     }
   });
+
 
   // Reszta kart kontekstowych, dla których zabrakło wątków - patrz doc.
   for (let i = placed; i < pending.length; i += 1) {
