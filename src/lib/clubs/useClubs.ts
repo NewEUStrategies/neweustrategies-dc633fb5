@@ -137,6 +137,7 @@ import type {
   ClubSubscriptionState,
   ClubThreadKind,
   ClubThreadSort,
+  ClubAttributionMode,
   ClubThreadStatus,
   ClubThreadViewRow,
   ClubUpsertInput,
