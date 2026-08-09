@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { applyListAutoformat } from "@/lib/text/listAutoformat";
 import { HUB_SURFACE } from "@/components/clubs/atoms/ClubHubPrimitives";
 import { useCreateClubPost } from "@/lib/clubs/useClubPosts";
 import { removeClubPostMedia, uploadClubPostMedia } from "@/lib/clubs/postsApi";
@@ -98,7 +99,22 @@ export function ClubPostComposer({
         aria-label={t("club.post.placeholder")}
         className="min-h-[72px] resize-none rounded-lg border-border/70 text-sm"
         onKeyDown={(event) => {
-          if ((event.metaKey || event.ctrlKey) && event.key === "Enter") submit();
+          if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+            submit();
+            return;
+          }
+          const target = event.currentTarget;
+          const result = applyListAutoformat(
+            target.value,
+            target.selectionStart ?? target.value.length,
+            target.selectionEnd ?? target.value.length,
+            event.key,
+          );
+          if (result !== null) {
+            event.preventDefault();
+            setBody(result.value);
+            requestAnimationFrame(() => target.setSelectionRange(result.cursor, result.cursor));
+          }
         }}
       />
 

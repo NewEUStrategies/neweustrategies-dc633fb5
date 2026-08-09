@@ -7,6 +7,7 @@ import { type MutableRefObject } from "react";
 import { FloatingTextarea } from "@/components/ui/floating-input";
 import { MentionSuggestionList } from "@/components/mentions/MentionSuggestionList";
 import { useMentionAutocomplete } from "@/lib/mentions/useMentionAutocomplete";
+import { applyListAutoformat } from "@/lib/text/listAutoformat";
 import { ensureI18n } from "@/lib/i18n-mentions";
 
 ensureI18n();
@@ -57,6 +58,28 @@ export function MentionTextarea({
         aria-invalid={invalid || undefined}
         aria-describedby={describedBy}
         {...mention.textareaProps}
+        onKeyDown={(event) => {
+          // Enter kontynuuje wyliczenie - ale nigdy wtedy, gdy otwarta jest
+          // lista podpowiedzi @wzmianek (tam Enter wybiera osobę).
+          if (!mention.open) {
+            const target = event.currentTarget;
+            const result = applyListAutoformat(
+              target.value,
+              target.selectionStart ?? target.value.length,
+              target.selectionEnd ?? target.value.length,
+              event.key,
+            );
+            if (result !== null) {
+              event.preventDefault();
+              onChange(result.value);
+              requestAnimationFrame(() => {
+                target.setSelectionRange(result.cursor, result.cursor);
+              });
+              return;
+            }
+          }
+          mention.textareaProps.onKeyDown(event);
+        }}
         onChange={(e) => {
           onChange(e.target.value);
           mention.handleValueChange(e.target);
