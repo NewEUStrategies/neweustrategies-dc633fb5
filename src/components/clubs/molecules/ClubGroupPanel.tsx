@@ -100,7 +100,7 @@ export function ClubGroupPanel({
           <button
             type="button"
             onClick={() => onGroupChange(null)}
-            aria-label={t("club.group.clear")}
+            aria-label={t("club.groupPanel.clear")}
             className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-background/60 hover:text-foreground"
           >
             <X className="h-4 w-4" aria-hidden="true" />
@@ -108,17 +108,17 @@ export function ClubGroupPanel({
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5">
-          <Metric icon={MessagesSquare} value={totalThreads} label={t("club.group.threads")} />
-          <Metric icon={FileText} value={documentCount} label={t("club.group.documents")} />
+          <Metric icon={MessagesSquare} value={totalThreads} label={t("club.groupPanel.threads")} />
+          <Metric icon={FileText} value={documentCount} label={t("club.groupPanel.documents")} />
           {children.length > 0 ? (
-            <Metric icon={Network} value={children.length} label={t("club.group.subgroups")} />
+            <Metric icon={Network} value={children.length} label={t("club.groupPanel.subgroups")} />
           ) : null}
         </div>
 
         {children.length > 0 ? (
           <div className="space-y-1.5">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              {t("club.group.subgroups")}
+              {t("club.groupPanel.subgroups")}
             </p>
             <div className="flex flex-wrap gap-1.5">
               {children.map((child) => (
