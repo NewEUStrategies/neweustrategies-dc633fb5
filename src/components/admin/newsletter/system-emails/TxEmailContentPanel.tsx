@@ -222,6 +222,7 @@ export function TxEmailContentPanel() {
           <iframe
             title="tx-email-preview"
             srcDoc={activePreview?.html ?? ""}
+            sandbox="allow-same-origin"
             className="w-full h-[620px] bg-white"
           />
         </Card>
