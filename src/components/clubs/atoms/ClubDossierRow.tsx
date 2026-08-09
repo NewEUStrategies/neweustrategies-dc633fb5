@@ -192,6 +192,7 @@ export function ClubDossierRow({
   meta,
   title,
   excerpt,
+  children,
   metrics,
   footer,
   unread = false,
@@ -201,6 +202,7 @@ export function ClubDossierRow({
   testId,
   className,
 }: {
+
   tone: ClubDossierTone;
   /** Ikona rodzaju - renderowana w kwadracie grzbietu. */
   icon: ReactNode;
