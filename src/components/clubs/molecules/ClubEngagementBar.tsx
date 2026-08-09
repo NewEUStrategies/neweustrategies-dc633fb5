@@ -53,7 +53,7 @@ export function ClubEngagementBar({
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-border/60 pt-2.5",
+        "flex flex-wrap items-center gap-x-2 gap-y-1.5 border-t border-border/60 pt-2",
         className,
       )}
       data-testid="club-engagement-bar"
@@ -72,11 +72,14 @@ export function ClubEngagementBar({
         <button
           type="button"
           onClick={() => setPicking(true)}
-          className="inline-flex h-7 items-center gap-1.5 rounded-full border border-border/60 px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label={placed ? t("club.hub.feed.addReactionShort") : t("club.hub.feed.addReaction")}
+          className={clubHoverActionClass()}
           data-testid="club-add-reaction"
         >
-          <SmilePlus className="h-3.5 w-3.5" aria-hidden="true" />
-          {placed ? t("club.hub.feed.addReactionShort") : t("club.hub.feed.addReaction")}
+          <ClubHoverActionBody
+            icon={SmilePlus}
+            label={placed ? t("club.hub.feed.addReactionShort") : t("club.hub.feed.addReaction")}
+          />
         </button>
       ) : null}
 
@@ -84,14 +87,21 @@ export function ClubEngagementBar({
         to="/club/$clubSlug/t/$threadSlug"
         params={{ clubSlug, threadSlug }}
         search={{ reply: true }}
-        className="ml-auto inline-flex h-7 items-center gap-1.5 rounded-full border border-border/60 px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        aria-label={
+          replyCount > 0
+            ? t("club.hub.feed.commentWithCount", { n: replyCount })
+            : t("club.hub.feed.comment")
+        }
+        className={clubHoverActionClass({ className: "ml-auto" })}
         data-testid="club-comment-link"
       >
-        <MessageSquarePlus className="h-3.5 w-3.5" aria-hidden="true" />
-        {replyCount > 0
-          ? t("club.hub.feed.commentWithCount", { n: replyCount })
-          : t("club.hub.feed.comment")}
+        <ClubHoverActionBody
+          icon={MessageSquarePlus}
+          label={t("club.hub.feed.comment")}
+          count={replyCount}
+        />
       </Link>
     </div>
   );
 }
+
