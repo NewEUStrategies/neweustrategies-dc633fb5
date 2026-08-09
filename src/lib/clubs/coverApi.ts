@@ -9,6 +9,9 @@
 // przechodzi jeszcze przez `club_set_cover`, które sprawdza uprawnienie do
 // TEGO klubu i akceptuje wyłącznie adresy z naszego magazynu.
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
+
+type SetCoverArgs = Database["public"]["Functions"]["club_set_cover"]["Args"];
 
 /** Typy przyjmowane jako okładka - bez SVG (publiczny bucket, stored XSS). */
 export const CLUB_COVER_MIME: readonly string[] = [
@@ -100,7 +103,9 @@ export async function setClubCover(args: {
 }): Promise<string> {
   const { data, error } = await supabase.rpc("club_set_cover", {
     p_club_id: args.clubId,
-    p_url: args.url,
+    // NULL jest tu POPRAWNA wartoscia (zdjecie okladki) - wygenerowany typ jej
+    // nie zna, wiec zawezamy jawnie zamiast klamac kompilatorowi `as string`.
+    p_url: args.url as SetCoverArgs["p_url"],
   });
   if (error) throw error;
   return typeof data === "string" ? data : "";
