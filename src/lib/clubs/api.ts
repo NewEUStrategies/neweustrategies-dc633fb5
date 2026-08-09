@@ -17,6 +17,7 @@ import type { Database, Json } from "@/integrations/supabase/types";
 type RpcArgs<K extends keyof Database["public"]["Functions"]> =
   Database["public"]["Functions"][K]["Args"];
 import {
+  type ClubAttributionMode,
   groupReactions,
   groupReactionActors,
   mergeClubSearchResults,
@@ -647,6 +648,13 @@ export async function createClubThread(params: {
    * kopii w CHECK-u znaczyloby migracje przy kazdej aktualizacji paczki.
    */
   icon?: string | null;
+  /**
+   * Anonimowosc UCZESTNIKOW tego watku. `null`/pominiete = dziedziczy dzial
+   * (a dzial dziedziczy klub). Baza pozwala wylacznie ZAOSTRZYC zasade
+   * dziedziczona; poluzowanie konczy sie odmowa bez `can_moderate`, wiec
+   * kompozytor pokazuje tylko te opcje, ktore RPC przyjmie.
+   */
+  attributionMode?: ClubAttributionMode | null;
 }): Promise<CreateThreadResult> {
   const { data, error } = await supabase.rpc("club_create_thread", {
     p_group_id: params.groupId,
@@ -660,6 +668,7 @@ export async function createClubThread(params: {
     p_lock_replies: params.lockReplies ?? false,
     p_topic: params.topic ?? undefined,
     p_icon: params.icon ?? undefined,
+    p_attribution_mode: params.attributionMode ?? undefined,
   });
   if (error) throw error;
   const row = data?.[0];

@@ -322,6 +322,15 @@ export function toClubAttributionMode(value: string | null): ClubAttributionMode
 }
 
 /**
+ * Wariant `toClubAttributionMode` dla miejsc, w ktorych BRAK wartosci znaczy
+ * "dziedzicz", a nie "domyslnie attributed" - podmiana pustki na tryb podpisany
+ * pokazywalaby autorowi zasade ostrzejsza, niz obowiazuje w dziale.
+ */
+export function isClubAttributionMode(value: string | null): value is ClubAttributionMode {
+  return value !== null && (CLUB_ATTRIBUTION_MODES as readonly string[]).includes(value);
+}
+
+/**
  * Ksztalt strukturalny wspolny dla obu projekcji grupy (produktowej
  * club_groups_list i administracyjnej admin_club_groups). Dzieki temu jedna
  * funkcja obsluguje oba wiersze bez rzutowania - roznia sie polami spoza

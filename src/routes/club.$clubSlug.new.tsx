@@ -41,7 +41,12 @@ import { clubKeys } from "@/lib/clubs/queryKeys";
 import { newIdempotencyKey } from "@/lib/http/idempotency";
 import { useThreadDraft } from "@/lib/clubs/useThreadDraft";
 import { formatDateTime } from "@/lib/i18n/format";
-import { CLUB_THREAD_KINDS, type ClubThreadKind } from "@/lib/clubs/types";
+import {
+  CLUB_ATTRIBUTION_MODES,
+  CLUB_THREAD_KINDS,
+  type ClubAttributionMode,
+  type ClubThreadKind,
+} from "@/lib/clubs/types";
 import { ensureClubI18n } from "@/lib/i18n-club";
 
 export const Route = createFileRoute("/club/$clubSlug/new")({
@@ -146,13 +151,46 @@ function ClubNewThread() {
     }
   }, [groupId, postable]);
 
+  // Rodzaje, których RPC i tak nie przepuści, nie mają prawa stać na dropliście.
+  // `announcement` wymaga moderacji (V1 §1.3), a lista karmiona pełnym
+  // słownikiem oferowała go każdemu - żeby po napisaniu tekstu odpowiedzieć
+  // "clubs: announcement requires moderator". Ten sam wzorzec, co przy
+  // anonimowości: wybór, którego nie da się zrealizować, jest błędem
+  // interfejsu, a nie ostrzeżeniem serwera.
+  const canModerate = club?.can_moderate === true;
+
   // Tryb atrybucji DZIEDZICZY dział: NULL w kolumnie znaczy "weź z klubu",
   // a `club_groups_list` zwraca już wartość EFEKTYWNĄ. Czytanie go z klubu
   // sprawiało, że dział prowadzony w regule Chatham House pokazywał ustawienia
   // klubu: przełącznik anonimowości pojawiał się tam, gdzie RPC go odrzuca,
   // i znikał tam, gdzie jest jedynym sposobem na zabranie głosu.
-  const effectiveAttribution =
+  const rawAttribution =
     groups.find((g) => g.id === groupId)?.attribution_mode ?? club?.attribution_mode ?? null;
+  const baseAttribution: ClubAttributionMode | null = isClubAttributionMode(rawAttribution)
+    ? rawAttribution
+    : null;
+
+  // Nadpisanie na poziomie WATKU: `null` = dziedzicz dział. Autor może zasadę
+  // wyłącznie ZAOSTRZYĆ (zwykle: zamknąć rozmowę w regule Chatham House),
+  // bo poluzowanie byłoby obejściem polityki klubu przez założenie wątku -
+  // dokładnie tak samo waliduje to RPC, więc droplista nie oferuje wyborów,
+  // które i tak skończyłyby się odmową po napisaniu całego tekstu.
+  const [attributionOverride, setAttributionOverride] = useState<ClubAttributionMode | null>(null);
+  const attributionChoices = useMemo<ClubAttributionMode[]>(() => {
+    if (canModerate) return [...CLUB_ATTRIBUTION_MODES];
+    if (baseAttribution === null || baseAttribution === "chatham") return [];
+    return ["chatham"];
+  }, [canModerate, baseAttribution]);
+
+  // Zmiana działu może unieważnić wybór (inna zasada bazowa) - wtedy wracamy
+  // do dziedziczenia zamiast wysyłać wartość, której RPC już nie przyjmie.
+  useEffect(() => {
+    if (attributionOverride !== null && !attributionChoices.includes(attributionOverride)) {
+      setAttributionOverride(null);
+    }
+  }, [attributionChoices, attributionOverride]);
+
+  const effectiveAttribution = attributionOverride ?? baseAttribution;
   const canGoAnonymous = effectiveAttribution === "anonymous_allowed";
 
   // Zmiana działu może odebrać prawo do anonimowości. Zostawiony włączony
@@ -162,13 +200,7 @@ function ClubNewThread() {
     if (!canGoAnonymous) setAnonymous(false);
   }, [canGoAnonymous]);
 
-  // Rodzaje, których RPC i tak nie przepuści, nie mają prawa stać na dropliście.
-  // `announcement` wymaga moderacji (V1 §1.3), a lista karmiona pełnym
-  // słownikiem oferowała go każdemu - żeby po napisaniu tekstu odpowiedzieć
-  // "clubs: announcement requires moderator". Ten sam wzorzec, co przy
-  // anonimowości: wybór, którego nie da się zrealizować, jest błędem
-  // interfejsu, a nie ostrzeżeniem serwera.
-  const canModerate = club?.can_moderate === true;
+
   const kinds = useMemo(
     () => (canModerate ? CLUB_THREAD_KINDS : CLUB_THREAD_KINDS.filter((k) => k !== "announcement")),
     [canModerate],

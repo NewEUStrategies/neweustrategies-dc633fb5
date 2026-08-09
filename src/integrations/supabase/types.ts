@@ -3130,6 +3130,7 @@ export type Database = {
         Row: {
           anchor_id: string | null
           anchor_type: string | null
+          attribution_mode: string | null
           author_id: string | null
           body: string
           club_id: string
@@ -3162,6 +3163,7 @@ export type Database = {
         Insert: {
           anchor_id?: string | null
           anchor_type?: string | null
+          attribution_mode?: string | null
           author_id?: string | null
           body: string
           club_id: string
@@ -3194,6 +3196,7 @@ export type Database = {
         Update: {
           anchor_id?: string | null
           anchor_type?: string | null
+          attribution_mode?: string | null
           author_id?: string | null
           body?: string
           club_id?: string
@@ -15475,6 +15478,7 @@ export type Database = {
           p_anchor_id?: string
           p_anchor_type?: string
           p_anonymous?: boolean
+          p_attribution_mode?: string
           p_body: string
           p_group_id: string
           p_icon?: string
