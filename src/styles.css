@@ -4045,6 +4045,113 @@ input.icon-input-with-action {
 }
 
 /* ============================================================
+   Mapa świata (widget buildera „world-map" - src/components/maps/WorldMap.tsx).
+
+   Warstwa kropek lądu to MASKA, nie obrazek: public/geo/world-dots.v1.svg
+   niesie same kształty (czarne kropki na przezroczystym tle), a kolor daje
+   `background`. Dzięki temu jeden plik (~143 KB, ~12 KB po gzipie, cache CDN)
+   obsługuje tryb jasny, ciemny i dowolny kolor wybrany w panelu widgetu -
+   bez requestu na wariant i bez tysięcy węzłów SVG w DOM-ie.
+
+   Klatki kluczowe łuków są generowane per instancja w komponencie (zależą od
+   liczby połączeń i czasu trwania), więc tutaj zostaje wyłącznie to, co stałe.
+   ============================================================ */
+.nes-world-map__dots {
+  position: absolute;
+  inset: 0;
+  /* Bez maski przeglądarka narysowałaby pełny prostokąt koloru kropek -
+     dlatego tło włącza się dopiero, gdy maska naprawdę działa (@supports). */
+  background: transparent;
+}
+
+@supports (mask-image: url("/geo/world-dots.v1.svg")) or
+  (-webkit-mask-image: url("/geo/world-dots.v1.svg")) {
+  .nes-world-map__dots {
+    background: var(--nes-wm-dot, color-mix(in oklab, var(--foreground) 25%, transparent));
+    -webkit-mask-image: url("/geo/world-dots.v1.svg");
+    mask-image: url("/geo/world-dots.v1.svg");
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+    -webkit-mask-position: center;
+    mask-position: center;
+  }
+}
+
+/* Łuk rysuje się „pociągnięciem": pathLength="1" po stronie SVG normalizuje
+   długość, więc dasharray/offset działa niezależnie od geometrii ścieżki. */
+.nes-world-map__arc {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+
+/* Pulsujący pierścień przy znaczniku. transform-box: fill-box sprawia, że
+   skalowanie odbywa się wokół środka kropki, a nie środka całego SVG. */
+.nes-world-map__pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: nes-wm-pulse 2s ease-out infinite;
+}
+
+@keyframes nes-wm-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(3.5);
+    opacity: 0;
+  }
+}
+
+/* Znacznik reaguje na kursor i klawiaturę tak samo (whileHover w pierwowzorze). */
+.nes-world-map__marker {
+  cursor: pointer;
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.nes-world-map__marker:hover,
+.nes-world-map__marker:focus-visible {
+  transform: scale(1.2);
+}
+.nes-world-map__marker:focus-visible {
+  outline: none;
+}
+.nes-world-map__marker:focus-visible circle:first-of-type {
+  stroke: var(--foreground);
+  stroke-width: 1;
+}
+
+/* Etykieta czytelna nad kropkami lądu i nad łukiem: cienka obwódka w kolorze
+   tła (paint-order odkłada ją POD glify, więc nie zjada kształtu liter).
+   Szerokość jest w jednostkach viewBoxu (800x400) - powyżej ~2 obwódka zlewa
+   się w plamę przy typowym rozmiarze etykiety. */
+.nes-world-map__label {
+  font-weight: 500;
+  paint-order: stroke fill;
+  stroke: var(--background);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-opacity: 0.85;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nes-world-map__arc {
+    animation: none !important;
+    stroke-dashoffset: 0 !important;
+  }
+  .nes-world-map__pulse {
+    animation: none;
+    opacity: 0;
+  }
+  .nes-world-map__marker {
+    transition: none;
+  }
+}
+
+/* ============================================================
    Forced-light scope (builder canvas "Jasny" under a dark admin).
    `.light` re-declares the light tokens (see the `:root, .light` block
    at the top), which fixes every `var(--token)`-driven color by

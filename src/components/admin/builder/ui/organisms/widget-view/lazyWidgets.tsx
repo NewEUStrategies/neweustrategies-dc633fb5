@@ -60,6 +60,7 @@ import type {
   ChartWidgetView as ChartWidgetViewImpl,
   DataMapWidgetView as DataMapWidgetViewImpl,
 } from "./DataVizWidgets";
+import type { WorldMapWidgetView as WorldMapWidgetViewImpl } from "./WorldMapWidget";
 import type {
   TimelineWidgetView as TimelineWidgetViewImpl,
   SankeyWidgetView as SankeyWidgetViewImpl,
@@ -258,6 +259,13 @@ const DataMapWidgetViewLazy = lazy(() =>
   import("./DataVizWidgets").then((m) => ({ default: m.DataMapWidgetView })),
 ) as ComponentType<ComponentProps<typeof DataMapWidgetViewImpl>>;
 export const DataMapWidgetView = withSuspense(DataMapWidgetViewLazy);
+
+// Mapa świata: własny chunk, bo ciągnie warstwę zapytań o publiczne profile
+// i komponent mapy - a strona bez tego widgetu nie ma powodu za to płacić.
+const WorldMapWidgetViewLazy = lazy(() =>
+  import("./WorldMapWidget").then((m) => ({ default: m.WorldMapWidgetView })),
+) as ComponentType<ComponentProps<typeof WorldMapWidgetViewImpl>>;
+export const WorldMapWidgetView = withSuspense(WorldMapWidgetViewLazy);
 
 // --- NES Digital Features (one shared "features" chunk) -------------------
 const TimelineWidgetViewLazy = lazy(() =>

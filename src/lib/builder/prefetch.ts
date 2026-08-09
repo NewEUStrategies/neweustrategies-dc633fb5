@@ -26,6 +26,7 @@ import {
   speakersQueryOptions,
   speakersSource,
 } from "@/lib/builder/speakersQuery";
+import { worldMapProfileIds } from "@/lib/builder/worldMapContent";
 import { collectProfileSpeakerIds, parseScheduleDays } from "@/lib/events/schedule";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
 
@@ -205,6 +206,12 @@ export function widgetQueryOptionsList(widget: WidgetNode, lang: Lang): BuilderS
     const ids = collectProfileSpeakerIds(parseScheduleDays(widget.content));
     if (ids.length > 0) out.push(speakersByIdsQueryOptions(ids));
   }
+  // Mapa świata w trybie eksperckim: bez rozgrzania serwer narysowałby łuki
+  // z zapasowymi etykietami, a żywe imiona wskoczyłyby dopiero po hydratacji.
+  if (widget.type === "world-map") {
+    const ids = worldMapProfileIds(widget.content);
+    if (ids.length > 0) out.push(speakersByIdsQueryOptions(ids));
+  }
   if (widget.type === "slider") {
     const items = contentItems(widget.content);
     if (sliderUsesPostsSource(widget.content)) {
@@ -349,6 +356,13 @@ export function widgetCacheTargets(widget: WidgetNode, lang: Lang): WidgetCacheT
   }
   if (widget.type === "event-schedule") {
     const ids = collectProfileSpeakerIds(parseScheduleDays(widget.content));
+    if (ids.length > 0) {
+      const opts = speakersByIdsQueryOptions(ids);
+      out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
+    }
+  }
+  if (widget.type === "world-map") {
+    const ids = worldMapProfileIds(widget.content);
     if (ids.length > 0) {
       const opts = speakersByIdsQueryOptions(ids);
       out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });

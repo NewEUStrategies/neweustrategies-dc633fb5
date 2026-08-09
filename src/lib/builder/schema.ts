@@ -45,6 +45,8 @@ export const WIDGET_TYPES = [
   // Data visualization (engine: src/components/charts)
   "chart",
   "data-map",
+  // Mapa świata z łukami połączeń (engine: src/components/maps)
+  "world-map",
   // NES Digital Features (engine: src/components/features)
   "feature-timeline",
   "feature-sankey",

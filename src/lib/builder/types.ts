@@ -362,6 +362,9 @@ export type WidgetType =
   // Data visualization (engine: src/components/charts)
   | "chart"
   | "data-map"
+  // Mapa świata z animowanymi łukami połączeń (engine: src/components/maps).
+  // Punkty mogą być podpięte pod publiczne profile platformy (eksperci).
+  | "world-map"
   // NES Digital Features (engine: src/components/features) - interaktywne
   // "digital features" w stylu think-tank: oś czasu, sankey, porównywarka państw,
   // macierz ryzyka, karta wskaźnika, sieć powiązań, mapa korytarzy, biblioteka

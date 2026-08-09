@@ -67,6 +67,18 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Mapa Google": "Google map",
   "Mapa danych": "Data map",
   "Mapa korytarzy": "Corridor map",
+  // ------------------------------------------------- widget „Mapa świata"
+  "Mapa świata (połączenia)": "World map (connections)",
+  "Etykiety przy punktach": "Labels next to points",
+  "Wyłączone: nazwa lokalizacji pojawia się dopiero po najechaniu na punkt.":
+    "Off: the location name appears only on hovering a point.",
+  "Rozmiar etykiet": "Label size",
+  "W jednostkach płótna mapy (800x400) - 10 odpowiada mniej więcej 12 px na typowej szerokości.":
+    "In map canvas units (800x400) - 10 is roughly 12 px at a typical width.",
+  "Animacja rysowania łuków": "Arc drawing animation",
+  "Czas rysowania łuku (s)": "Arc drawing time (s)",
+  "Powtarzaj w pętli": "Repeat in a loop",
+  "Wyłączone: łuki rysują się raz i zostają.": "Off: the arcs are drawn once and stay.",
   "Macierz ryzyka": "Risk matrix",
   "Nota metodologiczna": "Methodology note",
   Kategorie: "Categories",

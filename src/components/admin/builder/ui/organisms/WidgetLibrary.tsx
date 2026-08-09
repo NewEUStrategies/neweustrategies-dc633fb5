@@ -155,6 +155,7 @@ export function WidgetLibrary({
     tags: "taxonomy",
     chart: "dataViz",
     "data-map": "dataViz",
+    "world-map": "dataViz",
     "post-title": "singlePost",
     "post-meta": "singlePost",
     "post-tags-dyn": "singlePost",

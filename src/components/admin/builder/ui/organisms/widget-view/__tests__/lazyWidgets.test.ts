@@ -33,6 +33,8 @@ const SPLIT_WIDGETS = [
   "RichTextView",
   "ChartWidgetView",
   "DataMapWidgetView",
+  // Mapa świata z łukami połączeń (silnik src/components/maps)
+  "WorldMapWidgetView",
   "SliderRender",
   "AnimatedHeadingRender",
   // NES Digital Features

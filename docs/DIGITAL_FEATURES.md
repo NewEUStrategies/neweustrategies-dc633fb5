@@ -98,6 +98,31 @@ pomijana (fail-safe), a choropleta i tak się renderuje.
 Zmiana w generatorze jest **wstecznie zgodna**: geometria krajów (`countries`,
 `viewBox`, `license`) jest bajt-w-bajt identyczna; dochodzi tylko pole `proj`.
 
+## Mapa świata (`world-map`): kropki lądu i połączenia
+
+Widget `world-map` (silnik `src/components/maps/WorldMap.tsx`) rysuje mapę
+kropkowaną z animowanymi łukami między punktami - „nasza sieć" / „skąd są nasi
+eksperci". Trzy decyzje warte zapamiętania:
+
+- **Kropki lądu nie liczą się w przeglądarce.** Pierwowzór używa biblioteki
+  `dotted-map`; tutaj siatkę wylicza `scripts/generate-dotted-world.ts` z tego
+  samego zasobu `public/geo/world-110m.v1.json`, a wynik (`public/geo/world-dots.v1.svg`,
+  ~143 KB / ~12 KB gzip, 4790 kropek) jest **maską CSS**. Kolor daje
+  `background-color`, więc jeden plik obsługuje tryb jasny, ciemny i kolor
+  wybrany w panelu - bez tysięcy węzłów SVG w DOM-ie i bez zależności runtime.
+- **Animacja bez framer-motion.** `pathLength="1"` + `stroke-dashoffset`
+  odtwarzają `pathLength: 0 → 1`, a `times` z pierwowzoru stają się procentami
+  `@keyframes` (rachunek: `src/lib/maps/worldMapGeo.ts`, testy pilnują zgodności
+  ze wzorami: stagger 0,3 s, pauza 2 s).
+- **Połączenie z platformą jest tożsamościowe, nie lokalizacyjne.** W trybie
+  „Eksperci" koniec łuku podpina się pod publiczny profil (`get_public_speakers`
+  → `speakersByIdsQueryOptions`), więc etykieta i odsyłacz (`/author/<slug>`)
+  pochodzą z żywego profilu. **Współrzędne zostają redakcyjne**: `profiles_public`
+  celowo nie wystawia kolumny `location`, a wyprowadzanie pozycji osoby z danych
+  profilu poszerzyłoby publiczną powierzchnię danych osobowych. Panel daje
+  zamiast tego picker kraju, który wpisuje centroid do pól `lat`/`lng`
+  (`src/lib/maps/countryCentroids.ts` - generowane, używane wyłącznie w adminie).
+
 ## Najlepsze potencjalne produkty NES (kompozycje)
 
 Każdy to strona buildera łącząca kilka widgetów `feature-*`:
