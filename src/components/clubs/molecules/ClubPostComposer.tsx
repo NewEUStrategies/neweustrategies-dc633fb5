@@ -126,7 +126,7 @@ export function ClubPostComposer({
             ref={fileRef}
             type="file"
             multiple
-            accept={CLUB_POST_ACCEPT_MIME}
+            accept={CLUB_POST_ACCEPT_MIME.join(",")}
             className="sr-only"
             onChange={(event) => void handleFiles(event.target.files)}
           />
