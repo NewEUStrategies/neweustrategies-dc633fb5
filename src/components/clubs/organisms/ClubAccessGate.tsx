@@ -97,24 +97,16 @@ export function ClubAccessGate({ club, isPl }: { club: ClubViewRow; isPl: boolea
                 : t("clubGate.joinLead")}
           </p>
 
-          <div className="mt-5 rounded-lg border border-border/70 bg-muted/30 p-4">
-            <p className="text-sm font-medium">{t("clubGate.benefitsTitle", { plan })}</p>
-            <ul className="mt-2.5 grid gap-2 sm:grid-cols-2">
-              <Benefit icon={<MessagesSquare className="h-4 w-4" aria-hidden="true" />}>
-                {t("clubGate.benefits.threads")}
-              </Benefit>
-              <Benefit icon={<Library className="h-4 w-4" aria-hidden="true" />}>
-                {t("clubGate.benefits.library")}
-              </Benefit>
-              <Benefit icon={<CalendarDays className="h-4 w-4" aria-hidden="true" />}>
-                {t("clubGate.benefits.calendar")}
-              </Benefit>
-              <Benefit icon={<Users className="h-4 w-4" aria-hidden="true" />}>
-                {t("clubGate.benefits.network")}
-              </Benefit>
-              <Benefit icon={<ShieldCheck className="h-4 w-4" aria-hidden="true" />}>
-                {t("clubGate.benefits.chatham")}
-              </Benefit>
+          <div className="mt-5 rounded-lg border border-border/70 bg-muted/30 p-4 sm:p-5">
+            <p className="text-sm font-semibold">{t("clubGate.benefitsTitle", { plan })}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t("clubGate.benefitsLead")}</p>
+            <ul className="mt-3.5 grid gap-2.5 sm:grid-cols-2">
+              <Benefit icon={MessagesSquare} k="threads" />
+              <Benefit icon={Library} k="library" />
+              <Benefit icon={CalendarDays} k="calendar" />
+              <Benefit icon={Users} k="network" />
+              <Benefit icon={ShieldCheck} k="chatham" />
+              <Benefit icon={Sparkle} k="briefs" />
             </ul>
           </div>
         </div>
@@ -122,7 +114,7 @@ export function ClubAccessGate({ club, isPl }: { club: ClubViewRow; isPl: boolea
         {/* --- kolumna akcji --------------------------------------------- */}
         <aside className="min-w-0 rounded-lg border border-primary/25 bg-primary/[0.04] p-4 sm:p-5">
           {signedIn ? (
-            <MemberActions club={club} plan={plan} tierTooLow={tierTooLow} />
+            <MemberActions club={club} plan={plan} tierTooLow={tierTooLow} isExpert={isExpert} />
           ) : (
             <GateSignupForm plan={plan} />
           )}
@@ -132,14 +124,26 @@ export function ClubAccessGate({ club, isPl }: { club: ClubViewRow; isPl: boolea
   );
 }
 
-function Benefit({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
+/** Pojedynczy benefit: tytuł + jedno zdanie „co to znaczy w praktyce". */
+function Benefit({ icon: Icon, k }: { icon: LucideIcon; k: string }) {
+  const { t } = useTranslation();
   return (
-    <li className="flex items-start gap-2 text-sm text-muted-foreground">
-      <span className="mt-0.5 shrink-0 text-primary">{icon}</span>
-      <span className="min-w-0">{children}</span>
+    <li className="flex items-start gap-2.5 rounded-lg bg-background/60 p-2.5 ring-1 ring-border/50">
+      <span className="mt-0.5 shrink-0 rounded-md bg-primary/10 p-1.5 text-primary">
+        <Icon className="h-4 w-4" aria-hidden="true" />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-sm font-medium leading-snug">
+          {t(`clubGate.benefits.${k}.title`)}
+        </span>
+        <span className="mt-0.5 block text-xs leading-snug text-muted-foreground">
+          {t(`clubGate.benefits.${k}.desc`)}
+        </span>
+      </span>
     </li>
   );
 }
+
 
 function MemberActions({
   club,
