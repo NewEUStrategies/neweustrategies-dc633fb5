@@ -51,6 +51,7 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   useClubGroups,
   useClubReactions,
+  useClubReactionActors,
   useClubSearch,
   useClubThreads,
   useToggleClubReaction,
@@ -229,6 +230,10 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
     [feed],
   );
   const threadReactionsQ = useClubReactions({ targetType: "thread", targetIds: feedThreadIds });
+  const threadActorsQ = useClubReactionActors({
+    targetType: "thread",
+    targetIds: feedThreadIds,
+  });
   const toggleThreadReaction = useToggleClubReaction({
     targetType: "thread",
     targetIds: feedThreadIds,
@@ -548,6 +553,7 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
                   }}
                   onPostDelete={(postId) => deletePost.mutate(postId)}
                   threadReactions={threadReactionsQ.data}
+                  threadReactionActors={threadActorsQ.data}
                   reactionsPending={toggleThreadReaction.isPending}
                   canReact={signedIn && club.can_reply}
                   onThreadReact={(threadId, kind, active) =>

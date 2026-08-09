@@ -16,17 +16,24 @@ import { useTranslation } from "react-i18next";
 import { MessageSquarePlus, SmilePlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ClubReactionBar } from "@/components/clubs/molecules/ClubReactionBar";
+import { ClubReactionAvatars } from "@/components/clubs/molecules/ClubReactionAvatars";
 import {
   ClubHoverActionBody,
   clubHoverActionClass,
 } from "@/components/clubs/atoms/ClubHoverAction";
-import type { ClubReactionKind, ClubReactionTally } from "@/lib/clubs/types";
+import type {
+  ClubReactionActor,
+  ClubReactionKind,
+  ClubReactionTally,
+} from "@/lib/clubs/types";
 
 export interface ClubEngagementBarProps {
   clubSlug: string;
   /** Slug wątku, do którego prowadzi komentowanie. */
   threadSlug: string;
   tallies: readonly ClubReactionTally[];
+  /** Kto zareagował - twarze obok liczników, tooltip z imieniem i nazwiskiem. */
+  actors?: readonly ClubReactionActor[];
   replyCount: number;
   /** Brak uprawnienia do odpowiedzi wyłącza reakcje, ale NIE link do wątku:
    *  czytanie dyskusji jest szersze niż prawo do zabrania w niej głosu. */
@@ -40,6 +47,7 @@ export function ClubEngagementBar({
   clubSlug,
   threadSlug,
   tallies,
+  actors,
   replyCount,
   canReact = true,
   pending = false,
@@ -69,8 +77,22 @@ export function ClubEngagementBar({
         tallies={tallies}
         variant={picking ? "full" : "compact"}
         disabled={!interactive || pending}
-        onToggle={(kind, active) => onToggle?.(kind, active)}
+        onToggle={(kind, active) => {
+          // Wybór reakcji jest gestem jednorazowym: po kliknięciu paleta
+          // zwija się z powrotem do reakcji faktycznie postawionych, żeby
+          // karta nie została na stałe rozpięta na sześć przycisków.
+          setPicking(false);
+          onToggle?.(kind, active);
+        }}
       />
+
+      {actors !== undefined && actors.length > 0 ? (
+        <ClubReactionAvatars
+          actors={actors}
+          total={tallies.reduce((sum, r) => sum + r.total, 0)}
+          maxVisible={4}
+        />
+      ) : null}
 
       {interactive && !picking ? (
         <button
