@@ -7118,3 +7118,86 @@ html {
     transform: scale(0.985);
   }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   Kluby dyskusyjne: typografia z Admin → Opcje motywu → Rozmiary.
+   Moduł klubów budowaliśmy na skali utility Tailwinda (text-xs …
+   text-2xl), więc zmiana rozmiarów w panelu nie miała tam żadnego
+   skutku - jedyne, co je czytało, to treść wpisów. Zamiast ręcznie
+   przepisywać ~40 komponentów (i tracić rytm layoutu), mapujemy tę
+   skalę na tokeny motywu w JEDNYM miejscu, w zasięgu `/club/*`.
+   Podwojony selektor atrybutu podnosi specyficzność ponad utility,
+   niezależnie od kolejności warstw. */
+[data-club-typography][data-club-typography] {
+  --club-fs-xs: calc(var(--fs-small, 13px) - 2px);
+  --club-fs-sm: var(--fs-small, 13px);
+  --club-fs-base: var(--fs-body, 16px);
+  --club-fs-lg: var(--fs-lead, 18px);
+  --club-fs-xl: var(--fs-h5, 18px);
+  --club-fs-2xl: var(--fs-h4, 22px);
+  --club-fs-3xl: var(--fs-h3, 26px);
+  font-size: var(--club-fs-base);
+  line-height: var(--lh-body, 1.6);
+}
+[data-club-typography][data-club-typography] .text-\[10px\],
+[data-club-typography][data-club-typography] .text-\[11px\] {
+  font-size: var(--club-fs-xs);
+}
+[data-club-typography][data-club-typography] .text-xs {
+  font-size: var(--club-fs-xs);
+  line-height: var(--lh-small, 1.5);
+}
+[data-club-typography][data-club-typography] .text-sm {
+  font-size: var(--club-fs-sm);
+  line-height: var(--lh-small, 1.5);
+}
+[data-club-typography][data-club-typography] .text-base {
+  font-size: var(--club-fs-base);
+  line-height: var(--lh-body, 1.6);
+}
+[data-club-typography][data-club-typography] .text-lg {
+  font-size: var(--club-fs-lg);
+  line-height: var(--lh-lead, 1.55);
+}
+[data-club-typography][data-club-typography] .text-xl {
+  font-size: var(--club-fs-xl);
+  line-height: var(--lh-h5, 1.35);
+}
+[data-club-typography][data-club-typography] .text-2xl {
+  font-size: var(--club-fs-2xl);
+  line-height: var(--lh-h4, 1.3);
+}
+[data-club-typography][data-club-typography] .text-3xl {
+  font-size: var(--club-fs-3xl);
+  line-height: var(--lh-h3, 1.25);
+}
+/* Nagłówki bez klasy rozmiaru dziedziczą skalę H1-H6 z panelu. */
+[data-club-typography][data-club-typography]
+  :is(h1, h2, h3, h4, h5, h6):not([class*="text-"]) {
+  font-size: var(--club-heading-fs);
+  line-height: var(--club-heading-lh);
+}
+[data-club-typography][data-club-typography] h1:not([class*="text-"]) {
+  --club-heading-fs: var(--fs-h1, 44px);
+  --club-heading-lh: var(--lh-h1, 1.15);
+}
+[data-club-typography][data-club-typography] h2:not([class*="text-"]) {
+  --club-heading-fs: var(--fs-h2, 34px);
+  --club-heading-lh: var(--lh-h2, 1.2);
+}
+[data-club-typography][data-club-typography] h3:not([class*="text-"]) {
+  --club-heading-fs: var(--fs-h3, 26px);
+  --club-heading-lh: var(--lh-h3, 1.25);
+}
+[data-club-typography][data-club-typography] h4:not([class*="text-"]) {
+  --club-heading-fs: var(--fs-h4, 22px);
+  --club-heading-lh: var(--lh-h4, 1.3);
+}
+[data-club-typography][data-club-typography] h5:not([class*="text-"]) {
+  --club-heading-fs: var(--fs-h5, 18px);
+  --club-heading-lh: var(--lh-h5, 1.4);
+}
+[data-club-typography][data-club-typography] h6:not([class*="text-"]) {
+  --club-heading-fs: var(--fs-h6, 16px);
+  --club-heading-lh: var(--lh-h6, 1.45);
+}
