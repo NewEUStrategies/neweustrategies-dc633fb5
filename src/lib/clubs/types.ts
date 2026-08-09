@@ -839,7 +839,12 @@ export const CLUB_SUBSCRIPTION_STATES = ["subscribed", "muted"] as const;
 export type ClubSubscriptionState = (typeof CLUB_SUBSCRIPTION_STATES)[number];
 
 export type ClubReactionRow = RowOf<Fn["club_reactions_for"]["Returns"]>;
-export type ClubReactionActorRow = RowOf<Fn["club_reaction_actors"]["Returns"]>;
+// Tryb poufny zeruje tożsamość, więc te kolumny bywają puste - generator
+// typów tego nie widzi.
+export type ClubReactionActorRow = NullableCols<
+  RowOf<Fn["club_reaction_actors"]["Returns"]>,
+  "user_id" | "display_name" | "headline" | "avatar_url" | "slug"
+>;
 export type ClubStanceSummaryRow = RowOf<Fn["club_stance_summary"]["Returns"]>;
 
 /** Jedna twarz pod wpisem: kto zareagował i czym. */
