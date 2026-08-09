@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { ClubRailPanel } from "@/components/clubs/atoms/ClubHubPrimitives";
 import { ClubTopicChip } from "@/components/clubs/atoms/ClubTopicChip";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
+import { ClubGroupTree } from "@/components/clubs/molecules/ClubGroupTree";
 import type { ClubGroupRow } from "@/lib/clubs/types";
 
 const SECTIONS = [
