@@ -32,6 +32,7 @@ import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
 import { ClubInlineTitle } from "@/components/clubs/atoms/ClubInlineTitle";
 import { ClubSourceChip } from "@/components/clubs/atoms/ClubSourceChip";
 import { ClubThreadHeat } from "@/components/clubs/atoms/ClubThreadHeat";
+import { ClubTopicChip } from "@/components/clubs/atoms/ClubTopicChip";
 import {
   ClubDocumentKindIcon,
   ClubEventKindIcon,
@@ -52,11 +53,14 @@ import { registerClubDocumentDownload } from "@/lib/clubs/workspaceApi";
 import { ClubPostCard } from "@/components/clubs/organisms/ClubPostCard";
 import type { ClubFeedEntry } from "@/lib/clubs/clubFeed";
 import { clubSourceOf, type ClubSourceMark } from "@/lib/clubs/threadSources";
+import type { ClubTopicOption } from "@/lib/clubs/topicCatalog";
 import { formatDate, formatDateTime, formatDateShort } from "@/lib/i18n/format";
 
 /** Stała pusta mapa - literał w domyślnej wartości propa tworzyłby NOWĄ mapę
  *  przy każdym renderze i psuł memoizację kart. */
 const EMPTY_SOURCES: ReadonlyMap<string, ClubSourceMark> = new Map();
+/** Stała pusta lista - ten sam powód, co `EMPTY_SOURCES`. */
+const EMPTY_TOPICS: readonly ClubTopicOption[] = [];
 
 /** Nagłówek karty kontekstowej: ikona w kwadracie 6 px + etykieta rodzaju. */
 function ContextHeader({
@@ -89,6 +93,9 @@ function ThreadCard({
   sourceIndex,
   activeGroupId,
   onSourceSelect,
+  topicsCatalog,
+  activeTopic,
+  onTopicSelect,
 }: {
   thread: ClubThreadListRow;
   clubSlug: string;
@@ -96,6 +103,9 @@ function ThreadCard({
   sourceIndex: ReadonlyMap<string, ClubSourceMark>;
   activeGroupId: string | null;
   onSourceSelect?: (groupId: string | null) => void;
+  topicsCatalog: readonly ClubTopicOption[];
+  activeTopic: string | null;
+  onTopicSelect?: (topic: string | null) => void;
 }) {
   const { t } = useTranslation();
   const lang = isPl ? "pl" : "en";
@@ -160,6 +170,17 @@ function ThreadCard({
             <span className="truncate">{thread.anchor_label}</span>
           </Badge>
         ) : null}
+        {/* Obszar tematyczny - czwarta oś obok rodzaju/statusu/kotwicy. Do tej
+            pory ta kolumna istniała w bazie i nie pokazywała się nigdzie na
+            wierszu wątku - patrz nagłówek `ClubThreadTopicBar`. */}
+        <ClubTopicChip
+          topic={thread.topic}
+          lang={lang}
+          catalog={topicsCatalog}
+          size="sm"
+          active={thread.topic !== "" && thread.topic === activeTopic}
+          onSelect={onTopicSelect}
+        />
       </div>
 
       <h3 className="mt-1.5">
@@ -371,6 +392,9 @@ export function ClubFeedItem({
   sourceIndex = EMPTY_SOURCES,
   activeGroupId = null,
   onSourceSelect,
+  topicsCatalog = EMPTY_TOPICS,
+  activeTopic = null,
+  onTopicSelect,
   onPostLike,
   onPostDelete,
 }: {
@@ -383,6 +407,10 @@ export function ClubFeedItem({
   sourceIndex?: ReadonlyMap<string, ClubSourceMark>;
   activeGroupId?: string | null;
   onSourceSelect?: (groupId: string | null) => void;
+  /** Katalog obszarów tematycznych - pobrany RAZ nad listą, nie per karta. */
+  topicsCatalog?: readonly ClubTopicOption[];
+  activeTopic?: string | null;
+  onTopicSelect?: (topic: string | null) => void;
   onPostLike?: (postId: string) => void;
   onPostDelete?: (postId: string) => void;
 }) {
@@ -395,6 +423,9 @@ export function ClubFeedItem({
         sourceIndex={sourceIndex}
         activeGroupId={activeGroupId}
         onSourceSelect={onSourceSelect}
+        topicsCatalog={topicsCatalog}
+        activeTopic={activeTopic}
+        onTopicSelect={onTopicSelect}
       />
     );
   }

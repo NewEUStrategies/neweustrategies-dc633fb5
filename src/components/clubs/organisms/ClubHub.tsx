@@ -49,6 +49,7 @@ import { cn } from "@/lib/utils";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubGroups, useClubSearch, useClubThreads } from "@/lib/clubs/useClubs";
+import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import {
   useClubActivitySeries,
   useClubDocuments,
@@ -92,6 +93,7 @@ import {
   ClubUpNextPanel,
 } from "@/components/clubs/molecules/ClubHubContext";
 import { ClubThreadSourcesPanel } from "@/components/clubs/molecules/ClubThreadSources";
+import { ClubThreadTopicBar } from "@/components/clubs/molecules/ClubThreadTopicBar";
 import { ClubFeedItem } from "@/components/clubs/organisms/ClubFeedItem";
 import { ClubGlobalSearchResults } from "@/components/clubs/organisms/ClubGlobalSearch";
 import { buildClubSourceIndex } from "@/lib/clubs/threadSources";
@@ -129,8 +131,13 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
   const [kind, setKind] = useState<ClubThreadKind | null>(null);
   const [anchoredOnly, setAnchoredOnly] = useState(false);
   const [unreadOnly, setUnreadOnly] = useState(false);
+  // Obszar tematyczny - oś PROSTOPADŁA do działu (poziom "wybór tematu" między
+  // działem a wątkiem, patrz `ClubThreadTopicBar`). Wątek o cyberbezpieczeństwie
+  // może siedzieć w dowolnym dziale - ten filtr go znajdzie niezależnie od tego.
+  const [topic, setTopic] = useState<string | null>(null);
 
   const groupsQ = useClubGroups(club.id);
+  const { topics: topicsCatalog } = useClubTopics();
   const threadsQ = useClubThreads({
     clubId: club.id,
     groupId,
@@ -140,6 +147,7 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
     // kontrolka nie oferuje, więc wyłączony filtr musi być `null`.
     anchored: anchoredOnly ? true : null,
     unreadOnly: signedIn && unreadOnly,
+    topic,
   });
   // Konteksty: krótkie limity, bo w hubie są kontekstem, a nie listą.
   // Dokumenty idą tym samym zawężeniem, co strumień: panel działu ma pokazywać
@@ -462,6 +470,20 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
             />
           ) : null}
 
+          {/* Obszar tematyczny - poziom "wybór tematu" między działem
+              a wątkiem. Liczniki jadą z WSZYSTKICH wątków klubu (`sourceThreads`),
+              nie z bieżącego zawężenia - patrz nagłówek `ClubThreadTopicBar`. */}
+          {!searching && (mode === "all" || mode === "threads") ? (
+            <ClubThreadTopicBar
+              threads={sourceThreads}
+              catalog={topicsCatalog}
+              value={topic}
+              onChange={(next) => applyThreadFilter(() => setTopic(next), next !== null)}
+              isPl={isPl}
+              className="mb-3"
+            />
+          ) : null}
+
           {searching ? (
             <ClubGlobalSearchResults
               hits={searchQ.data ?? []}
@@ -481,7 +503,7 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
                   "nie ma jeszcze tematów" pod włączonym filtrem jest po
                   prostu nieprawdą i wypycha użytkownika z klubu, który ma
                   treść dwa kliknięcia dalej. */}
-              {kind !== null || anchoredOnly || (signedIn && unreadOnly)
+              {kind !== null || anchoredOnly || topic !== null || (signedIn && unreadOnly)
                 ? t("club.filters.empty")
                 : mode === "all"
                   ? t("club.noThreads")
@@ -499,6 +521,9 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
                   sourceIndex={sourceIndex}
                   activeGroupId={groupId}
                   onSourceSelect={setGroupId}
+                  topicsCatalog={topicsCatalog}
+                  activeTopic={topic}
+                  onTopicSelect={(next) => applyThreadFilter(() => setTopic(next), next !== null)}
                   onPostLike={(postId) => {
                     toggleLike.mutate(postId, {
                       onSuccess: () => void postsQ.refetch(),
