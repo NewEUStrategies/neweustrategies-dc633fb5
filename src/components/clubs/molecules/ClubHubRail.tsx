@@ -16,6 +16,12 @@
 // ją, bo w tej kolumnie pion jest tani (poniżej panelu działów i reżimu zostaje
 // puste miejsce na całą wysokość strumienia), a rozpoznawalność pozycji droga.
 //
+// DWIE KOLUMNY, NIE TRZY - sprawdzone, nie wybrane. Wzorzec, z którego to jest
+// wzięte, ma siatkę 3x2, ale jego etykiety są jednosylabowe ("Czat", "Biuro").
+// "Harmonogram" w kolumnie 15 rem / 3 nie mieści się ani w jednej linii, ani
+// w dwóch (to jedno słowo, nie ma gdzie go złamać) i zostaje ucięte w połowie.
+// Wierne przepisanie wzorca dałoby tu gorszy wynik niż odstępstwo od niego.
+//
 // Na telefonie ta sama lista wraca jako poziomy pasek - tam kolumna nie
 // istnieje, a spis treści musi zmieścić się w jednym rzędzie.
 import { Link } from "@tanstack/react-router";

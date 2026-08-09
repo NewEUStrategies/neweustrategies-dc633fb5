@@ -17,9 +17,10 @@
 // KAŻDA NAZWA DZIAŁU JEST PRZYCISKIEM zawężającym strumień. Panel orientacyjny,
 // z którego nie da się nigdzie przejść, zmusza do szukania tej samej pozycji
 // w lewej szynie - a to jest podatek od tego, że w ogóle spojrzało się w prawo.
+import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { MessagesSquare, Waypoints } from "lucide-react";
+import { ChevronDown, MessagesSquare, Waypoints } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ClubRailPanel } from "@/components/clubs/atoms/ClubHubPrimitives";
 import {
@@ -33,6 +34,15 @@ import { groupClubThreadsBySource } from "@/lib/clubs/threadSources";
 import type { ClubGroupRow, ClubThreadListRow } from "@/lib/clubs/types";
 import { formatDateShort } from "@/lib/i18n/format";
 
+/**
+ * Ile źródeł widać bez rozwijania.
+ *
+ * Cztery, bo tyle mieści się w kolumnie 20 rem obok dorobku, etapu i pulsu,
+ * zanim panel zacznie spychać resztę szyny pod krawędź ekranu. Reszta NIE
+ * znika po cichu - schodzi za przycisk, który mówi, ile jej jest.
+ */
+const SOURCES_COLLAPSED = 4;
+
 export function ClubThreadSourcesPanel({
   clubSlug,
   threads,
@@ -40,6 +50,7 @@ export function ClubThreadSourcesPanel({
   activeGroupId,
   onGroupChange,
   isPl,
+  className,
 }: {
   clubSlug: string;
   /** Wątki CAŁEGO klubu w porządku "najnowsze" - patrz nagłówek pliku. */
@@ -48,24 +59,35 @@ export function ClubThreadSourcesPanel({
   activeGroupId: string | null;
   onGroupChange: (groupId: string | null) => void;
   isPl: boolean;
+  className?: string;
 }) {
   const { t } = useTranslation();
   const lang = isPl ? "pl" : "en";
-  const sources = groupClubThreadsBySource({
+  const [expanded, setExpanded] = useState(false);
+  const all = groupClubThreadsBySource({
     threads,
     groups,
     isPl,
     unassignedLabel: t("club.hub.sources.unassigned"),
   });
+  const sources = expanded ? all : all.slice(0, SOURCES_COLLAPSED);
+  const hidden = all.length - sources.length;
 
   // Panel bez treści znika w całości - nagłówek "Wątki i ich źródła" nad pustką
   // opisuje brak danych, a nie klub.
-  if (sources.length === 0) return null;
+  if (all.length === 0) return null;
 
   return (
     <ClubRailPanel
       title={t("club.hub.sources.title")}
       icon={Waypoints}
+      // Ten panel jest 2-3 razy wyższy niż sąsiedzi (cztery działy po trzy
+      // wątki), więc w siatce dwukolumnowej pod strumieniem - a tak wygląda
+      // prawa kolumna poniżej `xl` - zostawiał obok siebie pół ekranu pustki.
+      // Bierze cały rząd i układa źródła w dwóch kolumnach. W szynie `xl`
+      // rodzic jest fleksem, gdzie `col-span` nie znaczy nic, więc ta sama
+      // klasa jest tam bezpieczna.
+      className={cn("sm:col-span-2 xl:col-span-1", className)}
       action={
         activeGroupId !== null ? (
           <button
@@ -78,7 +100,9 @@ export function ClubThreadSourcesPanel({
         ) : undefined
       }
     >
-      <ul className="flex flex-col gap-2.5">
+      {/* Pełny rząd na tablecie znaczy dwie kolumny źródeł; w szynie `xl`
+          kolumna jest jedna, bo tam panel ma 20 rem szerokości. */}
+      <ul className="flex flex-col gap-2.5 sm:grid sm:grid-cols-2 sm:gap-x-4 xl:flex xl:flex-col">
         {sources.map((source) => {
           const active = source.id !== null && source.id === activeGroupId;
           return (
@@ -154,6 +178,24 @@ export function ClubThreadSourcesPanel({
           );
         })}
       </ul>
+
+      {/* LIMIT MÓWI, ŻE JEST LIMITEM. Panel pokazujący cztery działy z ośmiu
+          bez słowa sprawia, że klub wygląda na klub z czterema działami -
+          a to jest gorsze niż brak panelu, bo brzmi jak pełna odpowiedź. */}
+      {all.length > SOURCES_COLLAPSED ? (
+        <button
+          type="button"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((open) => !open)}
+          className="mt-2.5 flex w-full items-center justify-center gap-1 rounded-lg border border-border/60 px-2 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+        >
+          {expanded ? t("club.hub.sources.less") : t("club.hub.sources.more", { count: hidden })}
+          <ChevronDown
+            className={cn("h-3 w-3 shrink-0 transition-transform", expanded && "rotate-180")}
+            aria-hidden="true"
+          />
+        </button>
+      ) : null}
     </ClubRailPanel>
   );
 }

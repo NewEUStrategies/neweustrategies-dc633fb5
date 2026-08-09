@@ -146,4 +146,27 @@ describe("ClubThreadSourcesPanel", () => {
     const { container } = renderPanel({ threads: [] });
     expect(container).toBeEmptyDOMElement();
   });
+
+  it("nie chowa działów po cichu - mówi, ile ich zostało, i pokazuje je na żądanie", () => {
+    const many = ["g1", "g2", "g3", "g4", "g5", "g6"].map((id, i) => group(id, `Dział ${i + 1}`));
+    // Malejące znaczniki czasu, żeby kolejność źródeł była przewidywalna.
+    const threads = many.map((g, i) =>
+      thread(`t${i}`, g.id, `Wątek ${i}`, `2026-08-0${9 - i}T10:00:00+00:00`),
+    );
+
+    renderPanel({ threads, groups: many });
+
+    // Cztery widoczne, dwa schowane - i to jest NAPISANE, a nie domyślne.
+    expect(screen.queryByText("Dział 5")).toBeNull();
+    const toggle = screen.getByRole("button", { name: /club.hub.sources.more/ });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(toggle);
+    expect(screen.getByText("Dział 5")).toBeInTheDocument();
+    expect(screen.getByText("Dział 6")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /club.hub.sources.less/ })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+  });
 });

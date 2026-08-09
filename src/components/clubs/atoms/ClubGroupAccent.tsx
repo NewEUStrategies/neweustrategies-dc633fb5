@@ -24,8 +24,18 @@ export function clubGroupAccentVars(accent: string | null): CSSProperties {
 export const CLUB_GROUP_TINT =
   "border-[color-mix(in_oklab,var(--club-accent)_40%,transparent)] bg-[color-mix(in_oklab,var(--club-accent)_8%,transparent)]";
 
+/**
+ * Tekst w kolorze działu. AKCENT JEST TU MNIEJSZOŚCIĄ (35 %) i to jest cała
+ * poprawka wobec pierwszej wersji: przy 80 % o jasności napisu decydował kolor
+ * wybrany przez redakcję, więc dział z ciemnym granatem (`#101a2e`) znikał
+ * w trybie ciemnym, a dział z jasną żółcią zniknie w jasnym. Kontrast musi
+ * wychodzić z `--foreground`, bo tylko on wie, jaki jest motyw; akcent ma
+ * nadawać ODCIEŃ, nie jasność.
+ *
+ * Ikona w chipie dziedziczy `currentColor`, więc ta sama reguła ratuje i ją.
+ */
 export const CLUB_GROUP_TEXT =
-  "text-[color-mix(in_oklab,var(--club-accent)_80%,var(--foreground))]";
+  "text-[color-mix(in_oklab,var(--club-accent)_35%,var(--foreground))]";
 
 /** Krecha wiążąca listę z jej działem - lewa krawędź listy wątków w panelu
  *  źródeł. Mocniejsza niż tło (35 %), bo jest jedyną rzeczą, która mówi

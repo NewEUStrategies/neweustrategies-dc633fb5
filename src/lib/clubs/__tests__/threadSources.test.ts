@@ -169,7 +169,9 @@ describe("groupClubThreadsBySource", () => {
     expect(sources[0]?.matched).toBe(2);
   });
 
-  it("przycina liczbę źródeł, zostawiając najświeższe", () => {
+  it("oddaje WSZYSTKIE źródła - przycinanie należy do widoku", () => {
+    // Limit zaszyty tutaj oddawał listę, po której nie dało się poznać, że coś
+    // jeszcze istnieje. Widok przycina i MÓWI, ile schował.
     const sources = groupClubThreadsBySource({
       threads: [
         thread("t1", "a", "2026-08-01T10:00:00+00:00"),
@@ -177,10 +179,9 @@ describe("groupClubThreadsBySource", () => {
         thread("t3", "c", "2026-08-03T10:00:00+00:00"),
       ],
       groups: [group("a"), group("b"), group("c")],
-      maxSources: 2,
       ...PL,
     });
-    expect(sources.map((s) => s.id)).toEqual(["c", "b"]);
+    expect(sources.map((s) => s.id)).toEqual(["c", "b", "a"]);
   });
 
   it("na pustym wejściu zwraca pustą listę, a nie kubełek-widmo", () => {
