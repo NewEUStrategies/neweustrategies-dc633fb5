@@ -43,8 +43,13 @@ type SectionKey = (typeof SECTIONS)[number]["key"];
 /** Unia LITERAŁÓW tras - `string` zamieniłby literówkę w martwy link. */
 type SectionTo = (typeof SECTIONS)[number]["to"];
 
+// Jedna pozycja nawigacji ma dwa rozmiary, nie dwa kształty: `md` w szynie
+// (kolumna 13,5 rem), `lg` w pasku poziomym, gdzie pozycja jest jedynym
+// celem dotyku na ekranie i musi mieć wysokość przycisku.
 const ITEM =
-  "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium leading-none transition-colors";
+  "flex items-center gap-2.5 rounded-lg font-medium leading-none transition-colors";
+const ITEM_MD = "px-2.5 py-2.5 text-sm";
+const ITEM_LG = "px-3.5 py-3 text-sm sm:text-[0.9375rem]";
 const ITEM_QUIET = "text-muted-foreground hover:bg-muted/60 hover:text-foreground";
 const ITEM_ACTIVE = "bg-primary/10 text-primary";
 
@@ -63,6 +68,7 @@ function SectionLink({
   exact: boolean;
   compact: boolean;
 }) {
+  const size = compact ? ITEM_LG : ITEM_MD;
   return (
     <Link
       to={to}
@@ -73,18 +79,20 @@ function SectionLink({
       activeOptions={{ exact }}
       className={cn(
         ITEM,
+        size,
         ITEM_QUIET,
         compact && "shrink-0 border border-border/60 bg-card whitespace-nowrap",
       )}
       activeProps={{
         className: cn(
           ITEM,
+          size,
           ITEM_ACTIVE,
-          compact && "shrink-0 border border-primary/40 whitespace-nowrap",
+          compact && "shrink-0 border border-primary/40 bg-primary/10 whitespace-nowrap",
         ),
       }}
     >
-      <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+      <Icon className={cn("shrink-0", compact ? "h-[1.125rem] w-[1.125rem]" : "h-4 w-4")} aria-hidden="true" />
       <span className={compact ? "" : "truncate"}>{label}</span>
     </Link>
   );
@@ -106,7 +114,7 @@ export function ClubHubSectionBar({
     <nav
       aria-label={t("club.hub.sectionsLabel")}
       className={cn(
-        "-mx-3 flex gap-1.5 overflow-x-auto px-3 pb-1 [scrollbar-width:none]",
+        "-mx-3 flex gap-2 overflow-x-auto px-3 pb-1 [scrollbar-width:none]",
         className,
       )}
     >
