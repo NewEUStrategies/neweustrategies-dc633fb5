@@ -329,6 +329,10 @@ export function ClubDossierRow({
           </div>
         ) : null}
 
+        {/* Pełna treść (np. post otwierający wątek) - bez przycinania, poniżej
+            zajawki. Dzięki temu strona wątku używa TEJ SAMEJ karty, co feed. */}
+        {children !== undefined ? <div className="mt-3 min-w-0">{children}</div> : null}
+
         {footer !== undefined ? (
           // Akcje trzymają wysokość wiersza stałą: są zawsze w DOM, a zmienia
           // się tylko ich widoczność - inaczej lista skakałaby przy najeździe.
@@ -336,6 +340,7 @@ export function ClubDossierRow({
             {footer}
           </div>
         ) : null}
+
       </div>
 
       {metrics !== undefined ? (
