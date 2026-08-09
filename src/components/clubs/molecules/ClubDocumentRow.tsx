@@ -44,42 +44,50 @@ export function ClubDocumentRow({
   const kind = toClubDocumentKind(row.kind);
   const size = formatBytes(row.byte_size, lang);
   const canAct = row.can_edit && (onEdit !== undefined || onRemove !== undefined);
+  const host = toHostLabel(row.url);
 
-  // Metadane w jednym pasku: pomijamy te, których nie ma, zamiast rysować
-  // puste separatory. Lista z dziurami wygląda na uszkodzoną.
+  // Metadane jako OSOBNE znaczniki, nie jeden string sklejony kropkami: przy
+  // czterech pozycjach ciąg "Dokument · Komisja Europejska · 12.03.2026 · 1,2 MB"
+  // czyta się jak zdanie, a to są cztery niezależne fakty o źródle.
   const meta = [
     t(`club.workspace.documentKind.${kind}`),
     row.source_label,
     row.published_on !== null ? formatDateShort(row.published_on, lang) : null,
     size,
+    host,
   ].filter((part): part is string => part !== null && part.length > 0);
 
   return (
-    <li className="group/doc rounded-xl border border-border/60 bg-card p-3 transition-colors hover:border-primary/30 sm:p-4">
-      <div className="flex items-start gap-3">
+    <li className="group/doc rounded-lg border border-border/60 bg-card transition-colors hover:border-primary/40">
+      <div className="flex items-start gap-3 p-3 sm:gap-3.5 sm:p-4">
+        {/* Kafel rodzaju: kwadrat 40px z delikatnym tłem. Wcześniej ikona stała
+            na 32px bez kontrastu i przy trzech pozycjach nie dawało się
+            odróżnić zbioru danych od notatki bez czytania etykiety. */}
         <span
           className={
-            "mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg " +
-            (row.is_primary ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground")
+            "grid h-10 w-10 shrink-0 place-items-center rounded-lg border " +
+            (row.is_primary
+              ? "border-primary/30 bg-primary/10 text-primary"
+              : "border-border/60 bg-muted/60 text-muted-foreground")
           }
         >
-          <ClubDocumentIcon kind={kind} />
+          <ClubDocumentIcon kind={kind} className="h-[18px] w-[18px]" />
         </span>
 
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
             {row.url !== null && row.url.length > 0 ? (
               <a
                 href={row.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-sm font-medium underline-offset-4 hover:underline"
+                className="inline-flex min-w-0 items-center gap-1.5 text-[15px] font-semibold leading-snug underline-offset-4 hover:underline"
               >
-                {row.title}
-                <ExternalLink className="h-3 w-3 shrink-0 opacity-60" aria-hidden="true" />
+                <span className="truncate">{row.title}</span>
+                <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden="true" />
               </a>
             ) : (
-              <span className="text-sm font-medium">{row.title}</span>
+              <span className="truncate text-[15px] font-semibold leading-snug">{row.title}</span>
             )}
             {row.is_primary ? (
               <span
@@ -93,11 +101,20 @@ export function ClubDocumentRow({
           </div>
 
           {meta.length > 0 ? (
-            <p className="mt-1 text-xs text-muted-foreground">{meta.join(" · ")}</p>
+            <ul className="mt-1.5 flex flex-wrap items-center gap-1">
+              {meta.map((part) => (
+                <li
+                  key={part}
+                  className="rounded-md border border-border/50 bg-muted/40 px-1.5 py-0.5 text-[11px] leading-none text-muted-foreground"
+                >
+                  {part}
+                </li>
+              ))}
+            </ul>
           ) : null}
 
           {row.description !== null && row.description.length > 0 ? (
-            <p className="mt-1.5 line-clamp-3 text-sm leading-relaxed text-muted-foreground">
+            <p className="mt-2 line-clamp-3 max-w-[70ch] text-sm leading-relaxed text-muted-foreground">
               {row.description}
             </p>
           ) : null}
@@ -112,7 +129,7 @@ export function ClubDocumentRow({
         </div>
 
         {canAct ? (
-          <div className="flex shrink-0 gap-0.5 opacity-70 transition-opacity focus-within:opacity-100 group-hover/doc:opacity-100">
+          <div className="flex shrink-0 gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/doc:opacity-100 sm:opacity-60">
             {onEdit !== undefined ? (
               <Button
                 size="sm"
@@ -140,4 +157,22 @@ export function ClubDocumentRow({
       </div>
     </li>
   );
+}
+
+/**
+ * Domena źródła - jedyna informacja, która na pierwszy rzut oka odróżnia
+ * dokument Komisji od wpisu na blogu. Adres bez `http(s)://` i bez `www.`,
+ * bo w tym pasku liczy się nazwa, nie protokół. Zwraca `null`, gdy adresu nie
+ * ma albo nie da się go sparsować - zgadywanie po `split("/")` produkowałoby
+ * śmieci w miejscu, które ma budować zaufanie.
+ */
+export function toHostLabel(url: string | null): string | null {
+  if (url === null || url.length === 0) return null;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+    return parsed.hostname.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
 }
