@@ -20,8 +20,11 @@ import {
   CLUB_EVENT_KINDS,
   CLUB_EVENT_STATUSES,
   CLUB_MILESTONE_STATES,
+  CLUB_PRODUCT_KINDS,
   CLUB_RSVP_STATES,
+  CLUB_SOURCE_KINDS,
   documentHref,
+  isClubProductKind,
   isEventFull,
   isEventLive,
   isMilestoneOverdue,
@@ -43,6 +46,20 @@ import {
 const MIGRATION = "supabase/migrations/20260808300000_discussion_clubs_a28_workspace.sql";
 
 /**
+ * Migracje redefiniujące CHECK-i z A28. Baza jest forward-only, więc definicja
+ * z `CREATE TABLE` przestaje być prawdą w chwili, gdy późniejsza migracja robi
+ * `DROP CONSTRAINT` + `ADD CONSTRAINT` - a wtedy test czytający wyłącznie A28
+ * porównuje słownik klienta z NIEAKTUALNYM kontraktem i albo świeci czerwono
+ * bez powodu, albo (gorzej) przepuszcza rozjazd w drugą stronę.
+ *
+ * Kolejność = kolejność stosowania; wygrywa OSTATNIA definicja, tak samo jak
+ * w `extractLatestDefinitions` dla funkcji.
+ */
+const OVERRIDES: readonly string[] = [
+  "supabase/migrations/20260809000000_discussion_clubs_a29_products_and_topic_sections.sql",
+];
+
+/**
  * Wartości z pierwszego `CHECK (<kolumna> IN (...))` dla podanej kolumny.
  * Świadomie bierzemy PIERWSZE wystąpienie: kolumna jest deklarowana raz,
  * a dalsze wzmianki tej samej nazwy (np. `kind` w innej tabeli) mają własne
@@ -61,6 +78,27 @@ function checkValues(sql: string, table: string, column: string): string[] {
   return [...(match?.[1] ?? "").matchAll(/'([a-z_]+)'/g)].map((m) => m[1] ?? "").sort();
 }
 
+/** Wartości z `ADD CONSTRAINT <tabela>_<kolumna>_check CHECK (<kolumna> IN (...))`. */
+function overriddenCheckValues(table: string, column: string): string[] | null {
+  for (const file of [...OVERRIDES].reverse()) {
+    const sql = readFileSync(file, "utf8");
+    const pattern = new RegExp(
+      `ADD CONSTRAINT\\s+${table}_${column}_check\\s+CHECK\\s*\\(\\s*${column}\\s+IN\\s*\\(([^)]*)\\)`,
+      "s",
+    );
+    const match = pattern.exec(sql);
+    if (match !== null) {
+      return [...(match[1] ?? "").matchAll(/'([a-z_]+)'/g)].map((m) => m[1] ?? "").sort();
+    }
+  }
+  return null;
+}
+
+/** Kontrakt OBOWIĄZUJĄCY: nadpisanie, a gdy go nie ma - deklaracja z A28. */
+function effectiveCheckValues(sql: string, table: string, column: string): string[] {
+  return overriddenCheckValues(table, column) ?? checkValues(sql, table, column);
+}
+
 describe("słowniki A28 odpowiadają CHECK-om w migracji", () => {
   const sql = readFileSync(MIGRATION, "utf8");
 
@@ -73,7 +111,23 @@ describe("słowniki A28 odpowiadają CHECK-om w migracji", () => {
     ["club_event_rsvps", "state", CLUB_RSVP_STATES],
     ["club_milestones", "state", CLUB_MILESTONE_STATES],
   ])("%s.%s", (table, column, dictionary) => {
-    expect([...dictionary].sort()).toEqual(checkValues(sql, table, column));
+    expect([...dictionary].sort()).toEqual(effectiveCheckValues(sql, table, column));
+  });
+
+  // Podział na wejście i wyjście jest kontraktem produktowym, nie tylko
+  // porządkiem w pliku: powierzchnia "Dorobek" pyta o PRODUKTY, więc obie
+  // listy muszą się sumować do słownika i nie zachodzić na siebie.
+  it("materiały i produkty rozkładają słownik dokumentów bez części wspólnej", () => {
+    expect([...CLUB_SOURCE_KINDS, ...CLUB_PRODUCT_KINDS].sort()).toEqual(
+      [...CLUB_DOCUMENT_KINDS].sort(),
+    );
+    const sources = new Set<string>(CLUB_SOURCE_KINDS);
+    expect(CLUB_PRODUCT_KINDS.filter((kind) => sources.has(kind))).toEqual([]);
+  });
+
+  it("rozpoznaje produkt po rodzaju", () => {
+    for (const kind of CLUB_PRODUCT_KINDS) expect(isClubProductKind(kind)).toBe(true);
+    for (const kind of CLUB_SOURCE_KINDS) expect(isClubProductKind(kind)).toBe(false);
   });
 });
 

@@ -197,6 +197,9 @@ export const clubKeys = {
     kind: string | null,
     search: string,
     offset: number,
+    /** Zakres rodzajow (A29): produkty vs materialy. Musi byc CZESCIA klucza -
+     *  bez tego "Dorobek" i "Materialy" czytalyby ten sam wpis cache. */
+    scope: string = "all",
   ) =>
     [
       ...clubKeys.club(clubId),
@@ -205,6 +208,7 @@ export const clubKeys = {
       kind ?? "all",
       search,
       offset,
+      scope,
     ] as const,
   /** Prefiks wszystkich wariantow biblioteki - mutacja nie zna filtrow,
    *  ktore czytelnik ma otwarte. */

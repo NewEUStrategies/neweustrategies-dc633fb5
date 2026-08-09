@@ -14,8 +14,12 @@ import type { Database, Json } from "@/integrations/supabase/types";
 // Slowniki
 // ---------------------------------------------------------------------------
 
-/** Rodzaj dokumentu. Odpowiada CHECK-owi `club_documents_kind`. */
-export const CLUB_DOCUMENT_KINDS = [
+/**
+ * MATERIALY - to, z czego klub pracuje. `brief` znaczy tu briefing
+ * PRZEDSESYJNY i nic wiecej; do A29 ta sama wartosc obslugiwala takze produkt
+ * powstajacy PO sesji, przez co nie dalo sie odroznic wejscia od wyjscia.
+ */
+export const CLUB_SOURCE_KINDS = [
   "brief",
   "analysis",
   "minutes",
@@ -25,7 +29,36 @@ export const CLUB_DOCUMENT_KINDS = [
   "presentation",
   "other",
 ] as const;
+
+/**
+ * PRODUKTY - to, co klub wytwarza, w kolejnosci cyklu pracy: od notatki po
+ * sesji do materialu przeznaczonego do publikacji.
+ *
+ * Ten podzial nie jest kosmetyka slownika. Klub bez widocznego dorobku czyta
+ * sie jak forum niezaleznie od tego, ile analiz naprawde wyprodukowal - a
+ * pytanie "co z tego wynika" jest jedynym, ktore odroznia think tank od
+ * miejsca, w ktorym ludzie rozmawiaja.
+ */
+export const CLUB_PRODUCT_KINDS = [
+  "discussion_note",
+  "policy_brief",
+  "scenario",
+  "memo",
+  "research_agenda",
+  "public_insight",
+  "decision_memo",
+] as const;
+
+/** Rodzaj dokumentu. Odpowiada CHECK-owi `club_documents_kind_check` (A29). */
+export const CLUB_DOCUMENT_KINDS = [...CLUB_SOURCE_KINDS, ...CLUB_PRODUCT_KINDS] as const;
+export type ClubSourceKind = (typeof CLUB_SOURCE_KINDS)[number];
+export type ClubProductKind = (typeof CLUB_PRODUCT_KINDS)[number];
 export type ClubDocumentKind = (typeof CLUB_DOCUMENT_KINDS)[number];
+
+/** Czy rodzaj dokumentu jest PRODUKTEM klubu, a nie materialem wejsciowym. */
+export function isClubProductKind(kind: string): kind is ClubProductKind {
+  return (CLUB_PRODUCT_KINDS as readonly string[]).includes(kind);
+}
 
 /**
  * Widocznosc dokumentu jest OSOBNA osia od widocznosci klubu - tak samo, jak

@@ -16,15 +16,21 @@ import {
   BookOpen,
   CalendarDays,
   CircleDot,
+  FileCheck2,
   FileSpreadsheet,
   FileText,
   Gavel,
+  GitBranch,
   Landmark,
+  ListChecks,
+  Megaphone,
   MessagesSquare,
   Mic,
   Newspaper,
+  NotebookPen,
   Presentation,
   Scale,
+  Stamp,
   Users,
   Vote,
   type LucideIcon,
@@ -44,7 +50,11 @@ const CHIP =
 // Dokumenty
 // ---------------------------------------------------------------------------
 
+// Mapa jest KOMPLETNA z typu: `Record<ClubDocumentKind, ...>` sprawia, że nowy
+// rodzaj w słowniku oblewa kompilację zamiast wypaść na ekranie jako brak
+// ikony. Dokładnie tak wyszła siódemka produktów z A29.
 const DOCUMENT_ICONS: Record<ClubDocumentKind, LucideIcon> = {
+  // Materiały - to, z czego klub pracuje.
   brief: FileText,
   analysis: BarChart3,
   minutes: BookOpen,
@@ -53,6 +63,15 @@ const DOCUMENT_ICONS: Record<ClubDocumentKind, LucideIcon> = {
   legal: Gavel,
   presentation: Presentation,
   other: FileText,
+  // Produkty - to, co klub wytworzył. Ikona ma odróżniać wyjście od wejścia,
+  // więc żaden produkt nie dostaje `FileText` używanego przez materiały.
+  discussion_note: NotebookPen,
+  policy_brief: FileCheck2,
+  scenario: GitBranch,
+  memo: Landmark,
+  research_agenda: ListChecks,
+  public_insight: Megaphone,
+  decision_memo: Stamp,
 };
 
 export function ClubDocumentKindIcon({

@@ -13,6 +13,7 @@ import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import {
   Activity,
+  Award,
   CalendarClock,
   FileText,
   ListChecks,
@@ -251,6 +252,87 @@ export function ClubStagePanel({
       <p className="mt-1.5 text-[11px] tabular-nums text-muted-foreground">
         {t("club.hub.stage.doneOf", { done, total: milestones.length })}
       </p>
+    </ClubRailPanel>
+  );
+}
+
+/**
+ * DOROBEK KLUBU - pierwszy panel prawej kolumny.
+ *
+ * PO CO STOI NAD PULSEM. Puls odpowiada na pytanie "czy tu się coś dzieje"
+ * i w młodym klubie otwiera się liczbą w rodzaju "3 odpowiedzi, 1 aktywny" -
+ * co czyta się jak martwe forum niezależnie od tego, ile analiz ten klub
+ * naprawdę wyprodukował. Dorobek odpowiada na pytanie "co z tego wynikło",
+ * czyli na to jedno, które odróżnia think tank od miejsca, gdzie się rozmawia.
+ *
+ * Panel NIE ZNIKA przy zerze - w odróżnieniu od "świeżych materiałów".
+ * Klub bez ani jednego produktu ma to zobaczyć, bo to jest informacja
+ * o klubie, a nie brak danych do ukrycia.
+ */
+export function ClubOutputPanel({
+  clubSlug,
+  products,
+  total,
+  isPl,
+}: {
+  clubSlug: string;
+  products: readonly ClubDocumentRow[];
+  total: number;
+  isPl: boolean;
+}) {
+  const { t } = useTranslation();
+  const take = products.slice(0, 3);
+
+  return (
+    <ClubRailPanel
+      title={t("club.hub.output.title")}
+      icon={Award}
+      action={
+        <MoreLink to="/club/$clubSlug/documents" clubSlug={clubSlug} label={t("club.hub.more")} />
+      }
+    >
+      {take.length === 0 ? (
+        <p className="text-xs leading-snug text-muted-foreground">
+          {t("club.docs.scope.emptyProducts")}
+        </p>
+      ) : (
+        <>
+          <p className="mb-2 text-sm font-semibold tabular-nums">
+            {t("club.hub.output.count", { count: total })}
+          </p>
+          <ul className="flex flex-col gap-1.5">
+            {take.map((document) => {
+              const href = documentHref(document);
+              const title = isPl ? document.title_pl : document.title_en;
+              const inner = (
+                <>
+                  <ClubDocumentKindIcon
+                    kind={toDocumentKind(document.kind)}
+                    className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                  />
+                  <span className="truncate">{title}</span>
+                </>
+              );
+              return (
+                <li key={document.id}>
+                  {href !== null ? (
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-2 rounded-lg px-1 py-0.5 text-sm hover:text-primary"
+                    >
+                      {inner}
+                    </a>
+                  ) : (
+                    <span className="flex items-center gap-2 px-1 py-0.5 text-sm">{inner}</span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
     </ClubRailPanel>
   );
 }

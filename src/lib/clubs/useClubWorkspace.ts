@@ -29,6 +29,7 @@ import {
   type ClubDocumentsPage,
 } from "./workspaceApi";
 import { clubKeys } from "./queryKeys";
+import { CLUB_PRODUCT_KINDS, CLUB_SOURCE_KINDS } from "./workspaceTypes";
 import type {
   ClubActivityPoint,
   ClubDocumentRow,
@@ -50,22 +51,45 @@ function invalidateWorkspace(qc: QueryClient, clubId: string): void {
 // Biblioteka
 // ---------------------------------------------------------------------------
 
+/**
+ * Zakres biblioteki: WSZYSTKO / to, co klub wytworzyl / to, z czego pracuje.
+ * Nazwa semantyczna, a nie tablica rodzajow, bo ten podzial jest decyzja
+ * produktowa (A29) i ma jedno zrodlo prawdy - `CLUB_PRODUCT_KINDS`.
+ */
+export type ClubDocumentScope = "all" | "products" | "sources";
+
+function scopeKinds(scope: ClubDocumentScope): readonly string[] | null {
+  if (scope === "products") return CLUB_PRODUCT_KINDS;
+  if (scope === "sources") return CLUB_SOURCE_KINDS;
+  return null;
+}
+
 export function useClubDocuments(params: {
   clubId: string | undefined;
   groupId?: string | null;
   kind?: string | null;
+  scope?: ClubDocumentScope;
   search?: string;
   offset?: number;
   limit?: number;
 }): UseQueryResult<ClubDocumentsPage, Error> {
-  const { clubId, groupId = null, kind = null, search = "", offset = 0, limit = 50 } = params;
+  const {
+    clubId,
+    groupId = null,
+    kind = null,
+    scope = "all",
+    search = "",
+    offset = 0,
+    limit = 50,
+  } = params;
   return useQuery({
-    queryKey: clubKeys.libraryDocuments(clubId ?? "none", groupId, kind, search, offset),
+    queryKey: clubKeys.libraryDocuments(clubId ?? "none", groupId, kind, search, offset, scope),
     queryFn: () =>
       fetchClubDocuments({
         clubId: clubId ?? "",
         groupId,
         kind,
+        kinds: scopeKinds(scope),
         // Fraza krotsza niz dwa znaki nie zaweza niczego sensownie, a kosztuje
         // pelne skanowanie ILIKE po obu jezykach.
         search: search.trim().length >= 2 ? search.trim() : null,
