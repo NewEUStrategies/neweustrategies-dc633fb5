@@ -12,7 +12,10 @@
 import { useTranslation } from "react-i18next";
 import { BookOpenCheck, Heart, HelpCircle, Lightbulb, ThumbsDown, ThumbsUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import {
+  ClubHoverActionBody,
+  clubHoverActionClass,
+} from "@/components/clubs/atoms/ClubHoverAction";
 import {
   CLUB_QUALITY_REACTIONS,
   CLUB_STANCE_REACTIONS,
