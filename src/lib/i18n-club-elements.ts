@@ -69,7 +69,7 @@ export const clubElementsPl = {
       whoCanPost: "Kto zakłada temat",
       moderation: "Tryb moderacji",
       status: "Status klubu",
-      groupStatus: "Status grupy",
+      groupStatus: "Status działu",
       role: "Rola w klubie",
       memberStatus: "Status członkostwa",
       notifyLevel: "Poziom powiadomień",
@@ -125,7 +125,7 @@ export const clubElementsPl = {
     matrix: {
       capability: "Zdolność",
       legendYes: "zawsze wolno",
-      legendCond: "zależy od ustawień klubu lub grupy",
+      legendCond: "zależy od ustawień klubu lub działu",
       legendNo: "nigdy",
     },
     reactions: {
@@ -208,7 +208,7 @@ export const clubElementsEn = {
       whoCanPost: "Who can start a topic",
       moderation: "Moderation mode",
       status: "Club status",
-      groupStatus: "Group status",
+      groupStatus: "Section status",
       role: "Club role",
       memberStatus: "Membership status",
       notifyLevel: "Notification level",
@@ -263,7 +263,7 @@ export const clubElementsEn = {
     matrix: {
       capability: "Capability",
       legendYes: "always allowed",
-      legendCond: "depends on club or group settings",
+      legendCond: "depends on club or section settings",
       legendNo: "never",
     },
     reactions: {

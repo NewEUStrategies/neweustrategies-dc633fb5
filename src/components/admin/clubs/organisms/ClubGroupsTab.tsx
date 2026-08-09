@@ -171,9 +171,9 @@ export function ClubGroupsTab({ clubId, isPl }: { clubId: string; isPl: boolean 
     createM.mutate(
       {
         club_id: clubId,
-        slug: `grupa-${stamp}`,
-        name_pl: isPl ? "Nowa grupa" : "New group",
-        name_en: "New group",
+        slug: `dzial-${stamp}`,
+        name_pl: isPl ? "Nowy dział" : "New section",
+        name_en: "New section",
         status: "draft",
       },
       {
