@@ -35,6 +35,16 @@ export interface DeferredReplies {
   pendingCount: number;
   /** Przyjmuje wszystko, co czeka. */
   reveal: () => void;
+  /**
+   * Przyjmuje WSKAZANE wpisy, nie wszystko.
+   *
+   * Po co osobno od `reveal`. Wlasna odpowiedz ma sie pokazac natychmiast, ale
+   * `reveal()` przyjmuje przy okazji KAZDY cudzy wpis, ktory w miedzyczasie
+   * wpadl do kolejki - czyli wstawia cudza tresc pod kursorem czytelnika
+   * dokladnie w chwili, gdy on sam cos wysyla. To jest ten sam blad, przed
+   * ktorym broni caly ten modul, tyle ze wywolany wlasnym dzialaniem.
+   */
+  accept: (ids: readonly string[]) => void;
 }
 
 /**
@@ -69,8 +79,20 @@ export function useDeferredReplies(
     setAcceptedIds(new Set(latest.map((row) => row.id)));
   }, [latest]);
 
+  const accept = useCallback((ids: readonly string[]) => {
+    if (ids.length === 0) return;
+    setAcceptedIds((prev) => {
+      // Bez nowego wpisu nie ma po co przerysowywac listy - `new Set(prev)`
+      // przy kazdym wywolaniu zmienialoby referencje stanu i wymuszal render.
+      if (ids.every((id) => prev.has(id))) return prev;
+      const next = new Set(prev);
+      for (const id of ids) next.add(id);
+      return next;
+    });
+  }, []);
+
   const rows = (latest ?? []).filter((row) => acceptedIds.has(row.id));
   const pendingCount = (latest ?? []).length - rows.length;
 
-  return { rows, pendingCount, reveal };
+  return { rows, pendingCount, reveal, accept };
 }

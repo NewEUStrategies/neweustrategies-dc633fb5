@@ -20,7 +20,7 @@
 // leniwie, panel po panelu. Trasa celowo NIE oddaje dyskusji do powłoki:
 // post, odpowiedzi i kompozytor mają się renderować bez czekania na cokolwiek
 // z A28, więc jadą jako `children`.
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -28,6 +28,7 @@ import {
   ArrowLeft,
   CheckCircle2,
   Link2,
+  Loader2,
   Lock,
   MessageSquare,
   Pencil,
@@ -159,6 +160,8 @@ function ClubThreadView() {
   const [body, setBody] = useState("");
   const [anonymous, setAnonymous] = useState(false);
   const [replyTo, setReplyTo] = useState<string | null>(null);
+  /** Ostatnia odpowiedź poszła do kolejki moderacji - patrz `submitReply`. */
+  const [queued, setQueued] = useState(false);
   // Redakcja: `"thread"` albo id odpowiedzi. Jeden stan, bo w danej chwili
   // otwarty jest najwyżej jeden edytor - dwa naraz to dwie wersje tej samej
   // dyskusji na ekranie.
@@ -282,21 +285,48 @@ function ClubThreadView() {
 
   const submitReply = () => {
     const trimmed = body.trim();
-    if (trimmed.length === 0) return;
+    if (trimmed.length === 0 || replyM.isPending) return;
+    setQueued(false);
     replyM.mutate(
       { threadId: thread.id, body: trimmed, parentId: replyTo, anonymous },
       {
-        onSuccess: () => {
+        onSuccess: (outcome) => {
           setBody("");
           setReplyTo(null);
-          // Własna odpowiedź nie czeka w kolejce "pokaż nowe": kazanie autorowi
-          // kliknąć, żeby zobaczyć to, co przed chwilą wysłał, byłoby absurdem.
-          deferred.reveal();
+          if (outcome.queued) {
+            // Wpis poszedł do kolejki moderacji: NIE wróci z listy odpowiedzi,
+            // więc obiecywanie publikacji byłoby nieprawdą, a autor zobaczyłby
+            // potwierdzenie i pustkę. Komunikat zostaje na ekranie, bo toast
+            // znika, a ta informacja musi przeżyć dłużej niż cztery sekundy.
+            setQueued(true);
+            toast.success(t("club.replyQueued"));
+            return;
+          }
+          // Własna odpowiedź nie czeka w kolejce "pokaż nowe" - ale przyjmujemy
+          // WYŁĄCZNIE ją. `reveal()` wpuściłby przy okazji każdy cudzy wpis,
+          // który dojechał w międzyczasie, czyli wstawił cudzą treść pod
+          // kursorem dokładnie w chwili, gdy autor sam coś wysyła.
+          deferred.accept([outcome.id]);
           toast.success(t("club.replyPosted"));
         },
         onError: () => toast.error(t("adminClubs.saveFailed")),
       },
     );
+  };
+
+  // Wysyłka z klawiatury. Enter zostaje znakiem nowej linii - to jest pole
+  // deliberacji, nie okno czatu, a wysłanie akapitu w połowie zdania jest tu
+  // kosztowniejsze niż jedno kliknięcie więcej.
+  const onComposerKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+      event.preventDefault();
+      submitReply();
+      return;
+    }
+    if (event.key === "Escape" && replyTo !== null) {
+      event.preventDefault();
+      setReplyTo(null);
+    }
   };
 
   return (
@@ -576,9 +606,46 @@ function ClubThreadView() {
           ) : null}
         </section>
 
+        {/* Wpis w drodze. Widać go od razu, zanim baza odpowie - bez tego
+            jedynym sygnałem jest wyszarzony przycisk, a przy wolnym łączu
+            wygląda to jak kliknięcie, które nic nie zrobiło. */}
+        {replyM.isPending && replyM.variables !== undefined ? (
+          <div
+            aria-live="polite"
+            className="mt-6 flex items-start gap-3 rounded-xl border border-dashed border-primary/40 bg-primary/5 p-4"
+          >
+            <Loader2
+              className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-primary"
+              aria-hidden="true"
+            />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-primary">{t("club.replySending")}</p>
+              <p className="mt-1 whitespace-pre-wrap break-words text-sm text-muted-foreground">
+                {replyM.variables.body}
+              </p>
+            </div>
+          </div>
+        ) : null}
+
+        {/* Kolejka moderacji - komunikat, który nie znika razem z toastem. */}
+        {queued ? (
+          <div className="mt-6 flex items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4">
+            <ShieldQuestion
+              className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400"
+              aria-hidden="true"
+            />
+            <p className="text-sm text-amber-900 dark:text-amber-200">
+              {t("club.replyQueuedHint")}
+            </p>
+          </div>
+        ) : null}
+
         {/* --- kompozytor --- */}
         {thread.can_reply ? (
-          <section className="mt-6 rounded-xl border border-border/60 bg-card p-4 shadow-sm">
+          <section
+            className="mt-6 rounded-xl border border-border/60 bg-card p-4 shadow-sm"
+            onKeyDown={onComposerKeyDown}
+          >
             {replyTo !== null ? (
               <div className="mb-2 flex items-center justify-between gap-2 rounded-md bg-muted/50 px-3 py-1.5 text-xs">
                 <span className="text-muted-foreground">{t("club.replyingTo")}</span>
@@ -600,7 +667,13 @@ function ClubThreadView() {
               id="club-reply-body"
               label={t("club.replyPlaceholder")}
               value={body}
-              onChange={setBody}
+              onChange={(next) => {
+                setBody(next);
+                // Pisanie nowej odpowiedzi zdejmuje komunikat o poprzedniej:
+                // "czeka na zatwierdzenie" nad świeżym tekstem sugerowałoby,
+                // że to TEN wpis czeka.
+                if (queued) setQueued(false);
+              }}
               lang={lang}
               rows={4}
               maxLength={BODY_MAX}
@@ -625,9 +698,22 @@ function ClubThreadView() {
                   {body.trim().length} / {BODY_MAX}
                 </span>
               </div>
-              <Button onClick={submitReply} disabled={replyM.isPending || body.trim().length === 0}>
-                {t("club.postReply")}
-              </Button>
+              <div className="flex items-center gap-3">
+                {/* Skrót jest widoczny, a nie ukryty w pamięci mięśniowej -
+                    inaczej istnieje wyłącznie dla tych, którzy zgadli. */}
+                <kbd className="hidden rounded border border-border/60 bg-muted/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground sm:inline">
+                  {t("club.sendShortcut")}
+                </kbd>
+                <Button
+                  onClick={submitReply}
+                  disabled={replyM.isPending || body.trim().length === 0}
+                >
+                  {replyM.isPending ? (
+                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : null}
+                  {t("club.postReply")}
+                </Button>
+              </div>
             </div>
           </section>
         ) : (

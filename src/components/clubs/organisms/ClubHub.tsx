@@ -21,7 +21,7 @@
 // stronie bazy. Cztery z nich (dokumenty, kalendarz, harmonogram, pomiar) są
 // LEKKIE i mają krótkie limity, bo w hubie służą za kontekst, a pełne listy
 // mają własne ekrany.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CalendarDays, FileText, LayoutList, MessagesSquare, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -182,6 +182,29 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
     change();
     if (becomesActive && mode === "all") setMode("threads");
   };
+
+  // DOŁADOWANIE PRZY DOJŚCIU DO KOŃCA. Przycisk zostaje - jest jawną kontrolką
+  // dla klawiatury i czytnika ekranu, i jedyną drogą, gdy obserwator nie ruszy.
+  // Obserwator go tylko UPRZEDZA: czytelnik, który doszedł do końca strony,
+  // już zadeklarował zamiar czytania dalej, więc kazanie mu celować w przycisk
+  // jest podatkiem od tej deklaracji.
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = threadsQ;
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (node === null || !hasNextPage || isFetchingNextPage) return;
+    if (typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) void fetchNextPage();
+      },
+      // Margines dolny: strona zaczyna się ładować, ZANIM czytelnik dobije do
+      // krawędzi, więc lista rzadko kiedy w ogóle się zatrzymuje.
+      { rootMargin: "600px 0px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const feedOptions = CLUB_FEED_MODES.map((value) => ({
     value,
@@ -386,16 +409,19 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
 
           {/* Doładowanie dotyczy WĄTKÓW - konteksty przyjechały w całości. */}
           {!searching && mode !== "documents" && mode !== "calendar" && threadsQ.hasNextPage ? (
-            <div className="mt-4 text-center">
-              <Button
-                variant="outline"
-                className="rounded-lg"
-                disabled={threadsQ.isFetchingNextPage}
-                onClick={() => void threadsQ.fetchNextPage()}
-              >
-                {threadsQ.isFetchingNextPage ? t("club.loadingMore") : t("club.loadMore")}
-              </Button>
-            </div>
+            <>
+              <div ref={sentinelRef} aria-hidden="true" className="h-px w-full" />
+              <div className="mt-4 text-center">
+                <Button
+                  variant="outline"
+                  className="rounded-lg"
+                  disabled={threadsQ.isFetchingNextPage}
+                  onClick={() => void threadsQ.fetchNextPage()}
+                >
+                  {threadsQ.isFetchingNextPage ? t("club.loadingMore") : t("club.loadMore")}
+                </Button>
+              </div>
+            </>
           ) : null}
 
           {/* Kontekst na telefonie i tablecie: POD strumieniem - patrz nagłówek. */}

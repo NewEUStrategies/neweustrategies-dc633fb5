@@ -66,6 +66,9 @@ COMMENT ON COLUMN public.club_documents.kind IS
 -- domyslna czyni wybor niejednoznacznym.
 -- ----------------------------------------------------------------------------
 DROP FUNCTION IF EXISTS public.club_documents_list(uuid, uuid, text, text, integer, integer);
+-- Patrz blizniak 20260809000000: bez DROP-a NOWEJ sygnatury odtworzenie bazy
+-- od zera pada z 42723, bo ten sam CREATE stoi w obu plikach.
+DROP FUNCTION IF EXISTS public.club_documents_list(uuid, uuid, text, text, integer, integer, text[]);
 
 CREATE FUNCTION public.club_documents_list(
   p_club_id  uuid,

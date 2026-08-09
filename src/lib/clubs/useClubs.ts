@@ -88,6 +88,7 @@ import {
   type ClubListPage,
   type ClubMembersPage,
   type ClubRepliesPage,
+  type ClubReplyOutcome,
   type ClubThreadsPage,
   type CreateThreadResult,
 } from "./api";
@@ -800,11 +801,11 @@ export interface ReplyVars {
 export function useReplyToThread(
   clubId: string,
   threadSlug: string,
-): UseMutationResult<string, Error, ReplyVars> {
+): UseMutationResult<ClubReplyOutcome, Error, ReplyVars> {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: replyToClubThread,
-    onSuccess: (_id, vars) => {
+    onSuccess: (_outcome, vars) => {
       // Prefiks BEZ sortu: wariantow jest trzy, a wyliczanie ich z reki
       // gwarantuje, ze czwarty zostanie kiedys pominiety - dokladnie tak
       // zniknal wczesniej sort 'stance'.
