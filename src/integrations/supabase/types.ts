@@ -13287,6 +13287,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           domain: string
+          grants_tier_key: string | null
           id: string
           note: string | null
           require_email_confirmed: boolean
@@ -13299,6 +13300,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           domain: string
+          grants_tier_key?: string | null
           id?: string
           note?: string | null
           require_email_confirmed?: boolean
@@ -13311,6 +13313,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           domain?: string
+          grants_tier_key?: string | null
           id?: string
           note?: string | null
           require_email_confirmed?: boolean
@@ -15027,6 +15030,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           domain: string
+          grants_tier_key: string | null
           id: string
           note: string | null
           require_email_confirmed: boolean
@@ -15141,16 +15145,28 @@ export type Database = {
         }
         Returns: Json
       }
-      admin_upsert_verification_domain: {
-        Args: {
-          p_active?: boolean
-          p_badge?: string
-          p_domain: string
-          p_note?: string
-          p_require_email_confirmed?: boolean
-        }
-        Returns: string
-      }
+      admin_upsert_verification_domain:
+        | {
+            Args: {
+              p_active?: boolean
+              p_badge?: string
+              p_domain: string
+              p_note?: string
+              p_require_email_confirmed?: boolean
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_active?: boolean
+              p_badge?: string
+              p_domain: string
+              p_grants_tier_key?: string
+              p_note?: string
+              p_require_email_confirmed?: boolean
+            }
+            Returns: string
+          }
       analytics_semantic_snapshot: {
         Args: { p_since: string; p_until: string }
         Returns: Json
@@ -18799,6 +18815,14 @@ export type Database = {
           p_tenant_id: string
         }
         Returns: string[]
+      }
+      verification_domain_tier: {
+        Args: {
+          p_email: string
+          p_email_confirmed: boolean
+          p_tenant_id: string
+        }
+        Returns: string
       }
       verify_content_password: {
         Args: {
