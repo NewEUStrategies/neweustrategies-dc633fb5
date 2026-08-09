@@ -293,20 +293,25 @@ function ClubThreadView() {
         onSuccess: (outcome) => {
           setBody("");
           setReplyTo(null);
-          if (outcome.queued) {
-            // Wpis poszedł do kolejki moderacji: NIE wróci z listy odpowiedzi,
-            // więc obiecywanie publikacji byłoby nieprawdą, a autor zobaczyłby
-            // potwierdzenie i pustkę. Komunikat zostaje na ekranie, bo toast
-            // znika, a ta informacja musi przeżyć dłużej niż cztery sekundy.
-            setQueued(true);
-            toast.success(t("club.replyQueued"));
-            return;
-          }
           // Własna odpowiedź nie czeka w kolejce "pokaż nowe" - ale przyjmujemy
           // WYŁĄCZNIE ją. `reveal()` wpuściłby przy okazji każdy cudzy wpis,
           // który dojechał w międzyczasie, czyli wstawił cudzą treść pod
           // kursorem dokładnie w chwili, gdy autor sam coś wysyła.
+          //
+          // Dotyczy to TAKŻE wpisu w kolejce: `club_replies_list` oddaje autorowi
+          // jego własną odpowiedź o statusie `pending`, więc ona się na liście
+          // pojawi - i bez przyjęcia jej tutaj wpadłaby do licznika "N nowych
+          // odpowiedzi" jako cudza treść.
           deferred.accept([outcome.id]);
+          if (outcome.queued) {
+            // Wpis jest widoczny dla autora, ale dla nikogo więcej - dopóki
+            // prowadzenie go nie zatwierdzi. Obiecywanie publikacji byłoby więc
+            // nieprawdą. Komunikat zostaje na ekranie, bo toast znika, a ta
+            // informacja musi przeżyć dłużej niż cztery sekundy.
+            setQueued(true);
+            toast.success(t("club.replyQueued"));
+            return;
+          }
           toast.success(t("club.replyPosted"));
         },
         onError: () => toast.error(t("adminClubs.saveFailed")),

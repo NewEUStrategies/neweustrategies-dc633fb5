@@ -422,7 +422,7 @@ export const clubPl = {
     replySending: "Wysyłanie...",
     replyQueued: "Odpowiedź czeka na zatwierdzenie",
     replyQueuedHint:
-      "Ten klub ma premoderację, więc Twoja odpowiedź trafiła do prowadzenia i pojawi się w wątku po sprawdzeniu. Nie musisz wysyłać jej ponownie.",
+      "Ten klub ma premoderację. Widzisz swoją odpowiedź w wątku, ale pozostali członkowie zobaczą ją dopiero po zatwierdzeniu przez prowadzenie. Nie musisz wysyłać jej ponownie.",
     sendShortcut: "Ctrl + Enter",
     replyPlaceholder: "Napisz odpowiedź...",
     replyingTo: "Odpowiadasz na wypowiedź powyżej",
@@ -1895,7 +1895,7 @@ export const clubEn = {
     replySending: "Sending...",
     replyQueued: "Reply awaiting approval",
     replyQueuedHint:
-      "This club pre-moderates posts, so your reply went to the leads and will appear in the thread once reviewed. There is no need to send it again.",
+      "This club pre-moderates posts. You can see your reply in the thread, but other members will only see it once the leads approve it. There is no need to send it again.",
     sendShortcut: "Ctrl + Enter",
     replyPlaceholder: "Write a reply...",
     replyingTo: "You are replying to the post above",

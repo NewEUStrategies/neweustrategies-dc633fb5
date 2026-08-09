@@ -9,9 +9,10 @@
 --
 -- W klubie z premoderacja (`moderation_mode = 'pre'`) oraz w klubie 'trusted'
 -- dla konta ponizej progu reputacji to zdanie jest NIEPRAWDA: wpis idzie do
--- kolejki, nie wraca z `club_replies_list` i autor go nie widzi. Z jego strony
--- wyglada to tak, jakby odpowiedz zniknela mimo potwierdzenia - czyli produkt
--- klamie w najgorszym momencie, tuz po tym, jak ktos cos napisal.
+-- kolejki i do czasu zatwierdzenia widzi go WYLACZNIE autor - `club_replies_list`
+-- przepuszcza `status = 'pending'` tylko dla `author_id = auth.uid()` oraz dla
+-- moderacji. Autor odchodzi wiec od ekranu przekonany, ze jego glos jest
+-- w dyskusji, podczas gdy pozostali czlonkowie go nie maja.
 --
 -- Zmiana typu zwracanego, wiec DROP + CREATE. Cialo jest przeniesione z A8
 -- bez zmian merytorycznych; rozni sie wylacznie ostatnia instrukcja.
