@@ -387,6 +387,7 @@ export const clubPl = {
     threadCreated: "Temat opublikowany",
     threadPending: "Temat czeka na zatwierdzenie przez moderatora",
     unreadThread: "Nowe od Twojej ostatniej wizyty",
+    pinnedThread: "Temat przypięty",
     searchSemanticHit: "Znalezione po znaczeniu, nie po dosłownym brzmieniu frazy.",
     filters: {
       title: "Filtry",
