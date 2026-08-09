@@ -75,6 +75,16 @@ export const clubPl = {
       identity: {
         members: "członków",
         threads: "tematów",
+        cover: {
+          add: "Dodaj okładkę",
+          change: "Zmień okładkę",
+          remove: "Usuń okładkę",
+          saved: "Okładka zapisana",
+          removed: "Okładka usunięta",
+          failed: "Nie udało się zapisać okładki",
+          badType: "Dozwolone formaty: JPG, PNG, WebP, AVIF",
+          tooLarge: "Plik jest za duży - maksymalnie {{max}} MB",
+        },
       },
       composer: {
         placeholder: "Rozpocznij dyskusję w tym klubie...",
@@ -1771,6 +1781,16 @@ export const clubEn = {
       identity: {
         members: "members",
         threads: "topics",
+        cover: {
+          add: "Add cover",
+          change: "Change cover",
+          remove: "Remove cover",
+          saved: "Cover saved",
+          removed: "Cover removed",
+          failed: "Could not save the cover",
+          badType: "Allowed formats: JPG, PNG, WebP, AVIF",
+          tooLarge: "File is too large - {{max}} MB maximum",
+        },
       },
       composer: {
         placeholder: "Start a discussion in this club...",
