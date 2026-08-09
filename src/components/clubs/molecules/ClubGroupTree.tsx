@@ -32,8 +32,10 @@ export function clubGroupDescription(group: ClubGroupRow, isPl: boolean): string
   return value === null ? "" : value.trim();
 }
 
+// Wspólny kształt wiersza. Wysokość jest MINIMALNA, nie stała - nazwa działu
+// bywa dwuwierszowa i wiersz ma się do niej dopasować, a nie ją przyciąć.
 const ROW =
-  "group flex w-full items-center gap-2 rounded-lg py-1.5 pr-2 text-left text-sm leading-none transition-colors";
+  "group/row relative flex w-full min-h-9 items-center gap-2 rounded-lg py-1.5 pl-1.5 pr-1.5 text-left text-sm transition-[background-color,color,box-shadow] duration-150";
 
 function GroupRow({
   node,
@@ -52,82 +54,96 @@ function GroupRow({
 }) {
   const { group, depth, children, totalThreads } = node;
   const locked = !group.can_read;
+  const name = clubGroupName(group, isPl);
   return (
-    <div className="flex items-center" style={clubGroupAccentVars(group.accent_color)}>
+    <div
+      className="relative flex items-center"
+      style={{ ...clubGroupAccentVars(group.accent_color), paddingLeft: depth * 14 }}
+    >
+      {/* Prowadnica poziomu: cienka pionowa kreska zamiast samego wcięcia.
+          Przy dwóch poziomach wcięcie 14 px czyta się jako przypadek; kreska
+          mówi wprost, że podgrupa NALEŻY do gałęzi wyżej. */}
+      {depth > 0 ? (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0.5 w-px bg-border/70"
+          style={{ left: depth * 14 - 7 }}
+        />
+      ) : null}
+
+      {/* Rozwijanie jest OSOBNYM przyciskiem od wyboru działu: kliknięcie w
+          nazwę ma filtrować strumień, a nie zwijać gałąź. Miejsce na strzałkę
+          rezerwujemy też dla liści, żeby nazwy stały w jednej kolumnie. */}
       {children.length > 0 ? (
         <button
           type="button"
           onClick={onToggle}
           aria-expanded={expanded}
-          aria-label={clubGroupName(group, isPl)}
-          className="shrink-0 rounded-lg p-1 text-muted-foreground hover:text-foreground"
-          style={{ marginLeft: depth * 10 }}
+          aria-label={name}
+          className="grid h-6 w-5 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
         >
           <ChevronRight
-            className={cn("h-3.5 w-3.5 transition-transform", expanded && "rotate-90")}
+            className={cn("h-3.5 w-3.5 transition-transform duration-200", expanded && "rotate-90")}
             aria-hidden="true"
           />
         </button>
       ) : (
-        <span
-          aria-hidden="true"
-          className="shrink-0"
-          style={{ marginLeft: depth * 10 + (depth > 0 ? 22 : 22) }}
-        />
+        <span aria-hidden="true" className="h-6 w-5 shrink-0" />
       )}
+
       <button
         type="button"
         aria-pressed={active}
+        title={name}
         onClick={onSelect}
         className={cn(
           ROW,
-          "min-w-0 flex-1 pl-1",
+          "min-w-0 flex-1",
           active
-            ? cn("border", CLUB_GROUP_TINT, "font-medium text-foreground")
-            : "border border-transparent text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+            ? cn(
+                CLUB_GROUP_TINT,
+                "font-medium text-foreground shadow-[inset_2px_0_0_0_color-mix(in_oklab,var(--club-accent)_70%,transparent)]",
+              )
+            : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
         )}
       >
-        {/* Ikona w kwadracie w kolorze działu, a nie kreska obok ikony: to ten
-            sam znacznik, którym dział podpisuje się w strumieniu i w panelu
-            źródeł, więc te trzy miejsca da się połączyć wzrokiem. */}
+        {/* Ikona w kwadracie w kolorze działu - ten sam znacznik stoi w
+            strumieniu i w panelu źródeł, więc te miejsca łączy się wzrokiem. */}
         <span
           className={cn(
-            "flex h-5 w-5 shrink-0 items-center justify-center rounded-md border",
-            active ? CLUB_GROUP_CHIP_ACTIVE : CLUB_GROUP_CHIP,
+            "grid h-6 w-6 shrink-0 place-items-center rounded-md border transition-colors",
+            active ? CLUB_GROUP_CHIP_ACTIVE : cn(CLUB_GROUP_CHIP, "opacity-90"),
           )}
           aria-hidden="true"
         >
-          <ClubGroupIcon
-            icon={group.icon}
-            depth={depth}
-            className={cn("h-3 w-3", active ? "" : "opacity-80")}
-          />
+          <ClubGroupIcon icon={group.icon} depth={depth} className="h-3.5 w-3.5" />
         </span>
-        {/* Nazwa ZAWIJA się do dwóch linii zamiast się urywać. Dział nazywa się
-            "Zdolności i przemysł obronny", a w kolumnie 15 rem obcięcie dawało
-            "Zdolności i przemy..." - czyli pozycję nawigacji, której nie da się
-            przeczytać bez klikania. Dwie linie kosztują 14 px raz na kilka
-            działów; wielokropek kosztuje sens. */}
-        <span className="line-clamp-2 min-w-0 flex-1 text-left leading-snug">
-          {clubGroupName(group, isPl)}
-        </span>
-        {/* Reżim stoi PRZED kłódką braku dostępu, bo dotyczy działu, a kłódka
-            dotyczy wołającego - to są dwa różne komunikaty i nie wolno ich
-            zlepić w jedną ikonę. */}
-        <ClubRegimeMark group={group} />
+
+        {/* Nazwa ZAWIJA się do dwóch linii zamiast się urywać - "Zdolności i
+            przemysł obronny" po obcięciu przestaje być pozycją nawigacji. */}
+        <span className="line-clamp-2 min-w-0 flex-1 text-left leading-snug">{name}</span>
+
         {locked ? (
-          <Lock className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
         ) : null}
-        {/* Licznik zostaje CICHY. Akcent działu wszedł już w kwadrat z ikoną;
-            drugi element w tym samym kolorze zamieniłby szynę w paletę farb -
-            a to jest dokładnie ten błąd, przed którym ostrzega `ClubGroupAccent`. */}
-        <span className="shrink-0 rounded-md bg-muted px-1 text-[11px] tabular-nums text-muted-foreground">
+
+        {/* Licznik zostaje CICHY, a przy zerze - prawie niewidoczny: pusty
+            dział nie ma prawa przyciągać wzroku mocniej niż dział z ruchem. */}
+        <span
+          className={cn(
+            "shrink-0 rounded-md px-1.5 py-0.5 text-[11px] tabular-nums transition-colors",
+            totalThreads > 0
+              ? "bg-muted text-muted-foreground group-hover/row:bg-muted/80"
+              : "text-muted-foreground/45",
+          )}
+        >
           {totalThreads}
         </span>
       </button>
     </div>
   );
 }
+
 
 export function ClubGroupTree({
   groups,
