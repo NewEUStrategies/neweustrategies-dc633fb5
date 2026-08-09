@@ -33,7 +33,7 @@ function renderBar(props: Partial<React.ComponentProps<typeof ClubEngagementBar>
 
 describe("ClubEngagementBar", () => {
   it("bez postawionych reakcji pokazuje jeden przycisk, nie całą paletę", () => {
-    renderBar();
+    renderBar({ onToggle: () => {} });
     expect(screen.getByTestId("club-add-reaction")).toBeInTheDocument();
     expect(screen.queryByTestId("club-reaction-insightful")).not.toBeInTheDocument();
   });
@@ -46,6 +46,11 @@ describe("ClubEngagementBar", () => {
 
   it("bez prawa głosu w klubie nie proponuje reakcji", () => {
     renderBar({ canReact: false, onToggle: () => {} });
+    expect(screen.queryByTestId("club-add-reaction")).not.toBeInTheDocument();
+  });
+
+  it("bez handlera reakcji karta nie udaje interaktywnej", () => {
+    renderBar();
     expect(screen.queryByTestId("club-add-reaction")).not.toBeInTheDocument();
   });
 
