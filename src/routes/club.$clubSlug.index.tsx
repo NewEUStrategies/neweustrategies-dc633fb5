@@ -21,7 +21,9 @@ import { Button } from "@/components/ui/button";
 import { ClubCover } from "@/components/clubs/atoms/ClubCover";
 import { ClubDetailSkeleton } from "@/components/clubs/atoms/ClubSkeletons";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
+import { ClubAccessGate } from "@/components/clubs/organisms/ClubAccessGate";
 import { ClubHub } from "@/components/clubs/organisms/ClubHub";
+
 import { useClubBySlug } from "@/lib/clubs/useClubs";
 import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
 import { fetchClubBySlug } from "@/lib/clubs/api";
