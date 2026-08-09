@@ -589,9 +589,13 @@ function ClubThreadView() {
           {repliesQ.isPending ? (
             <ClubThreadListSkeleton count={3} />
           ) : tree.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-border/60 p-6 text-center text-sm text-muted-foreground">
-              {t("club.noReplies")}
-            </p>
+            <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border/60 bg-muted/20 px-6 py-8 text-center">
+              <span className="grid h-9 w-9 place-items-center rounded-lg bg-muted text-muted-foreground">
+                <MessageSquare className="h-4 w-4" aria-hidden="true" />
+              </span>
+              <p className="text-sm text-muted-foreground">{t("club.noReplies")}</p>
+            </div>
+
           ) : (
             <ul className="space-y-2.5">
               {tree.map((node) => (
