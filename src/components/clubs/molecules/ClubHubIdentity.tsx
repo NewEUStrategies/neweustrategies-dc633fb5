@@ -1,30 +1,35 @@
 // Pasek tożsamości klubu - pierwsza rzecz, którą widać po wejściu.
 //
-// CO SIĘ ZMIENIŁO WOBEC POPRZEDNIEJ WERSJI. Nagłówek był banerem 6:1, tytułem
-// i rzędem SIEDMIU przycisków-odnóg. Rząd przycisków nie mówi, gdzie jesteś,
-// a baner na pół szerokości nie mówi nic w ogóle - to jest ozdoba zajmująca
-// najcenniejsze miejsce na stronie.
+// CO SIĘ ZMIENIŁO WOBEC POPRZEDNIEJ WERSJI. Okładka była TŁEM paska: zdjęcie
+// szło pod tekst, a nad nim leżały dwie warstwy przyciemnienia i rozmycia,
+// żeby napis dało się przeczytać. Efekt był taki, że okładki w praktyce nie
+// było widać wcale - płaciliśmy transferem za szarą teksturę. Teraz okładka
+// jest osobnym pasem NAD treścią: zdjęcie widać w całości, a tekst stoi na
+// czystej powierzchni karty i nie potrzebuje żadnego filtra.
 //
-// Teraz okładka jest TŁEM paska, a nie osobnym kafelkiem: identyfikuje klub
-// i nie zabiera pionu. Nad nią stoi warstwa z gradientem, żeby napis był
-// czytelny niezależnie od tego, co redakcja wgrała jako okładkę - łącznie
-// z jasnym zdjęciem, na którym biały tekst znikał.
+// Klub bez okładki nie dostaje pustego prostokąta, tylko delikatny pas w
+// kolorze akcentu klubu - brak zdjęcia to nie jest stan błędu. Monogram
+// wchodzi na pas od dołu, więc identyfikacja klubu działa w obu przypadkach.
 //
-// Klub BEZ okładki nie dostaje pustego prostokąta, tylko ten sam pasek na
-// powierzchni karty. Brak zdjęcia to nie jest stan błędu.
+// Edycja okładki stoi TUTAJ, a nie w panelu administracyjnym: zmienia ją
+// prowadzenie klubu, patrząc na to, co zmienia. Przycisk widzi wyłącznie ten,
+// kto ma `can_moderate` - baza i tak sprawdzi to po raz drugi.
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
 import { MessagesSquare, PenLine, ShieldQuestion, Users2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ClubStatPill } from "@/components/clubs/atoms/ClubHubPrimitives";
 import { ClubTopicChip } from "@/components/clubs/atoms/ClubTopicChip";
+import { ClubCoverEditor } from "@/components/clubs/molecules/ClubCoverEditor";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
+import { clubKeys } from "@/lib/clubs/queryKeys";
 import type { ClubViewRow } from "@/lib/clubs/types";
 import { formatNumber } from "@/lib/i18n/format";
 
-/** Monogram klubu - dwie litery nazwy. Używany, gdy nie ma okładki. */
+/** Monogram klubu - dwie litery nazwy. Stoi na okładce i bez niej. */
 function monogram(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
   const first = words[0]?.[0] ?? "K";
@@ -45,48 +50,66 @@ export function ClubHubIdentity({
 }) {
   const { t } = useTranslation();
   const { topics } = useClubTopics();
+  const queryClient = useQueryClient();
   const name = isPl ? club.name_pl : club.name_en;
   const tagline = isPl ? club.tagline_pl : club.tagline_en;
-  const cover = typeof club.cover_image_url === "string" && club.cover_image_url.trim() !== "";
+  const coverUrl =
+    typeof club.cover_image_url === "string" && club.cover_image_url.trim() !== ""
+      ? club.cover_image_url
+      : null;
+  const canEditCover = club.can_moderate === true;
 
   return (
     <header
-      className={cn("relative overflow-hidden rounded-lg border border-border/60", className)}
+      className={cn(
+        "overflow-hidden rounded-lg border border-border/60 bg-card shadow-sm",
+        className,
+      )}
     >
-      {cover ? (
-        <>
+      {/* PAS OKŁADKI. Wysokość rośnie z ekranem, ale nigdy nie zjada ekranu
+          w pionie - to nagłówek, nie hero. */}
+      <div className="relative h-24 w-full sm:h-32 lg:h-40">
+        {coverUrl !== null ? (
           <img
-            src={club.cover_image_url}
+            src={coverUrl}
             alt=""
             aria-hidden="true"
-            className="absolute inset-0 h-full w-full object-cover"
+            className="h-full w-full object-cover"
             loading="eager"
+            decoding="async"
           />
-          {/* Dwie warstwy, nie jedna: pionowy gradient robi czytelność napisu,
-              a płaskie przyciemnienie ratuje okładki bardzo jasne, na których
-              sam gradient jeszcze nie wystarcza. */}
+        ) : (
           <div
-            className="absolute inset-0 bg-background/70 backdrop-blur-[2px]"
+            className="h-full w-full bg-gradient-to-br from-primary/25 via-primary/10 to-transparent"
             aria-hidden="true"
           />
-          <div
-            className="absolute inset-0 bg-gradient-to-r from-background via-background/85 to-background/40"
-            aria-hidden="true"
-          />
-        </>
-      ) : (
-        <div className="absolute inset-0 bg-card" aria-hidden="true" />
-      )}
-
-      <div className="relative flex flex-wrap items-start gap-4 p-4 sm:p-5">
+        )}
+        {/* Cienki gradient tylko przy DOLNEJ krawędzi - domyka pas w kartę,
+            zamiast przyciemniać całe zdjęcie. */}
         <div
-          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-primary/10 text-lg font-semibold text-primary sm:h-16 sm:w-16"
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-card to-transparent"
+          aria-hidden="true"
+        />
+        {canEditCover ? (
+          <ClubCoverEditor
+            clubId={club.id}
+            hasCover={coverUrl !== null}
+            onChanged={() => void queryClient.invalidateQueries({ queryKey: clubKeys.all })}
+            className="absolute right-2 top-2 sm:right-3 sm:top-3"
+          />
+        ) : null}
+      </div>
+
+      <div className="relative flex flex-wrap items-end gap-3 px-4 pb-4 sm:gap-4 sm:px-5 sm:pb-5">
+        {/* Monogram wchodzi na okładkę - kotwiczy pas w treści. */}
+        <div
+          className="-mt-8 flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-card text-lg font-semibold text-primary shadow-sm sm:-mt-10 sm:h-20 sm:w-20 sm:text-xl"
           aria-hidden="true"
         >
           {monogram(name)}
         </div>
 
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 pt-2">
           <div className="flex flex-wrap items-center gap-2">
             <ClubTopicChip topic={club.policy_area} lang={isPl ? "pl" : "en"} catalog={topics} />
             {/* Chatham House to nie odznaka-ozdoba, tylko reguła, która zmienia
@@ -123,7 +146,7 @@ export function ClubHubIdentity({
 
         {/* JEDNA akcja pierwszoplanowa. Wcześniej w tym miejscu stało siedem
             przycisków o równej wadze, czyli żaden nie był następnym krokiem. */}
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 pb-0.5">
           {club.can_post_thread ? (
             <Button asChild size="sm" className="rounded-lg">
               <Link to="/club/$clubSlug/new" params={{ clubSlug: club.slug }}>
@@ -142,7 +165,7 @@ export function ClubHubIdentity({
 
       {/* Powód informacyjny mówi się PRZED napisaniem, nie po odrzuceniu wpisu. */}
       {club.reason === "pre_moderation" ? (
-        <p className="relative border-t border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-800 dark:text-amber-200 sm:px-5">
+        <p className="border-t border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-800 dark:text-amber-200 sm:px-5">
           {t("club.reason.pre_moderation")}
         </p>
       ) : null}
