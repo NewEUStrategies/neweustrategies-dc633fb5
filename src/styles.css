@@ -286,7 +286,10 @@ body {
 }
 
 .dark {
+  --dossier-glow-extent: 120%;
+  --dossier-glow-mid: 45%;
   --background: #141414;
+
   --foreground: oklch(0.98 0 0);
   --card: #0f0f0f;
   --card-foreground: oklch(0.98 0 0);
