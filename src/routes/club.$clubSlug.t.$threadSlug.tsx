@@ -174,6 +174,9 @@ function ClubThreadView() {
   const club = clubQ.data ?? null;
   const threadQ = useClubThread({ clubId: club?.id, slug: threadSlug });
   const thread = threadQ.data ?? null;
+  // Nazwa spoza katalogu degraduje do braku ikony - patrz `threadIcons.ts`.
+  const threadIcon = normalizeClubThreadIcon(thread?.icon ?? null);
+
 
   const [replySort, setReplySort] = useState<ClubReplySort>("chronological");
   const repliesQ = useClubReplies({ threadId: thread?.id, sort: replySort });
