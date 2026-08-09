@@ -311,6 +311,9 @@ function ClubThreadView() {
   // Autor pytania i moderacja mogą wskazać odpowiedź rozstrzygającą.
   const canResolve =
     thread.kind === "question" && (thread.can_moderate || thread.author_id === user?.id);
+  // Czy ktoras z ZALADOWANYCH odpowiedzi nosi juz flage rozstrzygniecia -
+  // decyduje o tym, czy akcja to "oznacz", czy "przenies".
+  const hasResolution = deferred.rows.some((row) => row.is_resolution);
   // Anonimowość wolno włączyć wyłącznie tam, gdzie tryb klubu na to pozwala.
   const canGoAnonymous = thread.attribution_mode === "anonymous_allowed";
   // Autor poprawia SWÓJ wpis; moderacja - każdy. W klubie pod regułą Chatham
@@ -640,11 +643,19 @@ function ClubThreadView() {
                     toggleReplyReaction.mutate({ targetId, kind, active })
                   }
                   onReply={setReplyTo}
+                  hasResolution={hasResolution}
                   onResolve={(replyId) =>
                     resolveM.mutate(
                       { threadId: thread.id, replyId },
                       {
-                        onSuccess: () => toast.success(t("club.resolvedToast")),
+                        onSuccess: () =>
+                          toast.success(
+                            replyId === null
+                              ? t("club.unresolvedToast")
+                              : hasResolution
+                                ? t("club.movedResolutionToast")
+                                : t("club.resolvedToast"),
+                          ),
                         onError: () => toast.error(t("adminClubs.saveFailed")),
                       },
                     )
@@ -810,7 +821,9 @@ interface ReplyBranchProps {
   reactions: Map<string, ClubReactionTally[]>;
   onToggleReaction: (targetId: string, kind: ClubReactionKind, active: boolean) => void;
   onReply: (replyId: string) => void;
-  onResolve: (replyId: string) => void;
+  onResolve: (replyId: string | null) => void;
+  /** Czy w watku JUZ jest odpowiedz rozstrzygajaca - zmienia etykiete akcji. */
+  hasResolution: boolean;
 }
 
 function ReplyBranch(props: ReplyBranchProps) {
@@ -830,6 +843,7 @@ function ReplyBranch(props: ReplyBranchProps) {
     onToggleReaction,
     onReply,
     onResolve,
+    hasResolution,
   } = props;
   const { t } = useTranslation();
   const { reply, children } = node;
@@ -938,6 +952,16 @@ function ReplyBranch(props: ReplyBranchProps) {
               {t("club.reply")}
             </Button>
           ) : null}
+          {canResolve && reply.is_resolution ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-xs"
+              onClick={() => onResolve(null)}
+            >
+              {t("club.unmarkResolution")}
+            </Button>
+          ) : null}
           {canResolve && !reply.is_resolution ? (
             <Button
               size="sm"
@@ -945,7 +969,7 @@ function ReplyBranch(props: ReplyBranchProps) {
               className="h-7 px-2 text-xs"
               onClick={() => onResolve(reply.id)}
             >
-              {t("club.markResolution")}
+              {hasResolution ? t("club.moveResolution") : t("club.markResolution")}
             </Button>
           ) : null}
           {canEdit && editing !== reply.id ? (
