@@ -200,7 +200,12 @@ body {
   --gc-input-placeholder: oklch(0.72 0 0);
   --gc-input-placeholder-dark: oklch(0.65 0 0);
 
+  /* Zasięg poświaty wierszy Dossier - light: krótko, do ikony rodzaju. */
+  --dossier-glow-extent: 84px;
+  --dossier-glow-mid: 44px;
+
   --background: oklch(0.99 0.003 80);
+
   --foreground: oklch(0.18 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.18 0 0);
@@ -281,7 +286,10 @@ body {
 }
 
 .dark {
+  --dossier-glow-extent: 120%;
+  --dossier-glow-mid: 45%;
   --background: #141414;
+
   --foreground: oklch(0.98 0 0);
   --card: #0f0f0f;
   --card-foreground: oklch(0.98 0 0);

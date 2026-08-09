@@ -93,12 +93,15 @@ const TONE_COLOR: Record<ClubDossierTone, string> = {
  */
 export type ClubDossierGlow = "aura" | "sweep" | "rim" | "none";
 
+// Zasięg poświaty jest tokenem (`--dossier-glow-*`) - w light mode gradient
+// kończy się tuż za ikoną rodzaju, w dark mode rozlewa się szerzej.
 const GLOW_BACKGROUND: Record<Exclude<ClubDossierGlow, "none">, string> = {
-  aura: "radial-gradient(120% 160% at 0% 50%, color-mix(in oklab, var(--dossier-tone) 22%, transparent) 0%, color-mix(in oklab, var(--dossier-tone) 8%, transparent) 38%, transparent 72%)",
+  aura: "radial-gradient(var(--dossier-glow-extent) 160% at 0% 50%, color-mix(in oklab, var(--dossier-tone) 22%, transparent) 0%, color-mix(in oklab, var(--dossier-tone) 8%, transparent) 45%, transparent 100%)",
   sweep:
-    "linear-gradient(90deg, color-mix(in oklab, var(--dossier-tone) 20%, transparent) 0%, color-mix(in oklab, var(--dossier-tone) 7%, transparent) 45%, transparent 100%)",
+    "linear-gradient(90deg, color-mix(in oklab, var(--dossier-tone) 20%, transparent) 0%, color-mix(in oklab, var(--dossier-tone) 7%, transparent) var(--dossier-glow-mid), transparent var(--dossier-glow-extent))",
   rim: "none",
 };
+
 
 const THREAD_TONES: Record<string, ClubDossierTone> = {
   discussion: "discussion",
