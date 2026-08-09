@@ -20,13 +20,17 @@
 // społecznościowy z treścią, która nie jest postem.
 import type { ClubThreadListRow } from "./types";
 import type { ClubDocumentRow, ClubEventRow, ClubMilestoneRow } from "./workspaceTypes";
+import type { ClubPostRow } from "./postTypes";
 
-/** Tryb strumienia. Jedna kontrolka nad feedem zamiast czterech zakładek. */
-export const CLUB_FEED_MODES = ["all", "threads", "documents", "calendar"] as const;
+/** Tryb strumienia. Jedna kontrolka nad feedem zamiast pięciu zakładek. */
+export const CLUB_FEED_MODES = ["all", "posts", "threads", "documents", "calendar"] as const;
 export type ClubFeedMode = (typeof CLUB_FEED_MODES)[number];
 
 export type ClubFeedEntry =
   | { kind: "thread"; key: string; thread: ClubThreadListRow }
+  /** Wpis "ścianowy" (A31): krótka forma z załącznikami, opcjonalnie
+   *  podpięta pod wątek. */
+  | { kind: "post"; key: string; post: ClubPostRow }
   | { kind: "event"; key: string; event: ClubEventRow }
   | { kind: "milestone"; key: string; milestone: ClubMilestoneRow }
   /** Dokumenty wchodzą PACZKĄ, nie pojedynczo: trzy karty plików pod rząd
@@ -40,7 +44,11 @@ export interface ClubFeedInput {
   documents: readonly ClubDocumentRow[];
   events: readonly ClubEventRow[];
   milestones: readonly ClubMilestoneRow[];
+  /** Opcjonalne, bo tryb "Wpisy" doszedł później niż sam strumień i wołający
+   *  bez ściany (np. mini-strona klubu) nie ma czego przekazać. */
+  posts?: readonly ClubPostRow[];
 }
+
 
 /**
  * Pozycje kart kontekstowych w strumieniu wątków. Liczone w WĄTKACH, nie
