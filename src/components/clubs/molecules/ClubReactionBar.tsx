@@ -104,7 +104,6 @@ export function ClubReactionBar({
                 expanded={variant === "full"}
               />
             </Button>
-
           );
         })}
       </div>

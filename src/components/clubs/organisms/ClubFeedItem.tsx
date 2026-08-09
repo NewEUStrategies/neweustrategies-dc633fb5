@@ -125,7 +125,6 @@ function ThreadCard({
   canReact?: boolean;
   onReact?: (targetId: string, kind: ClubReactionKind, active: boolean) => void;
 }) {
-
   const { t } = useTranslation();
   const lang = isPl ? "pl" : "en";
   const author = toAuthorLabel(thread, t("club.anonymousAuthor"), t("club.deletedAuthor"));
@@ -252,7 +251,6 @@ function ThreadCard({
         <ClubThreadHeat thread={thread} className="ml-auto" />
       </div>
 
-
       {/* Zaangażowanie: reakcja zostaje w strumieniu, komentarz wprowadza
           do wątku - patrz nagłówek `ClubEngagementBar`. */}
       <ClubEngagementBar
@@ -264,12 +262,9 @@ function ThreadCard({
         canReact={canReact}
         pending={reactionsPending}
         onToggle={
-          onReact === undefined
-            ? undefined
-            : (kind, active) => onReact(thread.id, kind, active)
+          onReact === undefined ? undefined : (kind, active) => onReact(thread.id, kind, active)
         }
       />
-
     </article>
   );
 }
