@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import { BadgeCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ensureI18n as ensureExpertsI18n } from "@/lib/i18n-experts";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export type VerifiedProfileBadgeSize = "sm" | "md";
 
@@ -27,7 +28,7 @@ export function VerifiedProfileBadge({
   });
 
   if (!withLabel) {
-    return (
+    const icon = (
       <BadgeCheck
         className={cn(
           "shrink-0 text-sky-600 dark:text-sky-300",
@@ -36,6 +37,17 @@ export function VerifiedProfileBadge({
         )}
         aria-label={label}
       />
+    );
+
+    return (
+      <TooltipProvider delayDuration={150}>
+        <Tooltip>
+          <TooltipTrigger asChild>{icon}</TooltipTrigger>
+          <TooltipContent side="top" sideOffset={4}>
+            {title}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     );
   }
 
