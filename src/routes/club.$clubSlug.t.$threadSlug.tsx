@@ -84,6 +84,8 @@ import { ClubReportButton } from "@/components/clubs/molecules/ClubReportButton"
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
 import { ClubThreadPulse } from "@/components/clubs/molecules/ClubThreadPulse";
 import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
+import { ClubProse } from "@/components/clubs/atoms/ClubProse";
+
 import { ClubThreadListSkeleton, Shimmer } from "@/components/clubs/atoms/ClubSkeletons";
 import { ClubThreadWorkspace } from "@/components/clubs/organisms/ClubThreadWorkspace";
 import { useClubThreadWorkspace } from "@/lib/clubs/useClubWorkspace";
