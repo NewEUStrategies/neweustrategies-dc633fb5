@@ -44,6 +44,34 @@ describe("ClubEngagementBar", () => {
     expect(screen.queryByTestId("club-add-reaction")).not.toBeInTheDocument();
   });
 
+  it("po wyborze reakcji paleta zwija się z powrotem", () => {
+    const onToggle = vi.fn();
+    renderBar({ onToggle });
+    fireEvent.click(screen.getByTestId("club-add-reaction"));
+    fireEvent.click(screen.getByRole("button", { name: "club.reaction.insightful" }));
+    expect(onToggle).toHaveBeenCalledWith("insightful", false);
+    expect(screen.getByTestId("club-add-reaction")).toBeInTheDocument();
+  });
+
+  it("pokazuje twarze osób, które zareagowały", () => {
+    renderBar({
+      onToggle: () => {},
+      tallies: [{ kind: "insightful", total: 1, mine: false }],
+      actors: [
+        {
+          userId: "u1",
+          name: "Anna Kowalska",
+          headline: "Analityczka",
+          avatarUrl: null,
+          slug: "anna",
+          isMe: false,
+          kinds: ["insightful"],
+        },
+      ],
+    });
+    expect(screen.getByText("Anna Kowalska")).toBeInTheDocument();
+  });
+
   it("bez prawa głosu w klubie nie proponuje reakcji", () => {
     renderBar({ canReact: false, onToggle: () => {} });
     expect(screen.queryByTestId("club-add-reaction")).not.toBeInTheDocument();
