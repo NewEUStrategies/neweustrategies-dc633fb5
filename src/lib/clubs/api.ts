@@ -638,6 +638,13 @@ export async function createClubThread(params: {
   lockReplies?: boolean;
   /** Obszar tematyczny watku; brak = dziedziczy obszar klubu w RPC. */
   topic?: string | null;
+  /**
+   * Ikona tematu - nazwa ze zbioru Lucide w kebab-case (np. `shield-check`).
+   * Baza sprawdza wylacznie KSZTALT nazwy, nie jej istnienie w katalogu: lista
+   * ikon zyje w aplikacji i rosnie z kazda wersja lucide, wiec trzymanie jej
+   * kopii w CHECK-u znaczyloby migracje przy kazdej aktualizacji paczki.
+   */
+  icon?: string | null;
 }): Promise<CreateThreadResult> {
   const { data, error } = await supabase.rpc("club_create_thread", {
     p_group_id: params.groupId,
@@ -650,6 +657,7 @@ export async function createClubThread(params: {
     p_idempotency_key: params.idempotencyKey ?? undefined,
     p_lock_replies: params.lockReplies ?? false,
     p_topic: params.topic ?? undefined,
+    p_icon: params.icon ?? undefined,
   });
   if (error) throw error;
   const row = data?.[0];
@@ -908,6 +916,7 @@ export async function adminCreateClubThread(params: {
     p_pinned: params.pinned ?? false,
     p_topic: params.topic ?? undefined,
   });
+
   if (error) throw error;
   const row = data?.[0];
   if (!row) throw new Error("clubs: thread not created");

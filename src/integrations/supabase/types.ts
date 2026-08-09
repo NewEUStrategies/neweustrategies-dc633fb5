@@ -3138,6 +3138,7 @@ export type Database = {
           edited_at: string | null
           group_id: string
           hotness: number
+          icon: string | null
           id: string
           is_anonymous: boolean
           kind: string
@@ -3169,6 +3170,7 @@ export type Database = {
           edited_at?: string | null
           group_id: string
           hotness?: number
+          icon?: string | null
           id?: string
           is_anonymous?: boolean
           kind?: string
@@ -3200,6 +3202,7 @@ export type Database = {
           edited_at?: string | null
           group_id?: string
           hotness?: number
+          icon?: string | null
           id?: string
           is_anonymous?: boolean
           kind?: string
@@ -15474,6 +15477,7 @@ export type Database = {
           p_anonymous?: boolean
           p_body: string
           p_group_id: string
+          p_icon?: string
           p_idempotency_key?: string
           p_kind?: string
           p_lock_replies?: boolean
@@ -16297,6 +16301,7 @@ export type Database = {
           created_at: string
           edited_at: string
           group_id: string
+          icon: string
           id: string
           is_anonymous: boolean
           kind: string
@@ -16377,6 +16382,7 @@ export type Database = {
           group_name_en: string
           group_name_pl: string
           hotness: number
+          icon: string
           id: string
           insightful_count: number
           is_anonymous: boolean

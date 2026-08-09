@@ -83,6 +83,8 @@ function sampleThread(overrides: Partial<ClubThreadListRow> & { id: string }): C
     hotness: 42,
     cursor_value: "",
     topic: "geopolitics",
+    icon: null,
+
     excerpt:
       "Fragment treści wątku, który odróżnia układ kart i magazynu od zwykłej listy - bez niego siatka jest tylko listą w dwóch kolumnach.",
     ...overrides,

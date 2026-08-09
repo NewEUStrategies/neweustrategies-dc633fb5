@@ -779,6 +779,9 @@ export interface CreateThreadVars {
   lockReplies?: boolean;
   /** Obszar tematyczny watku ze slownika CLUB_TOPICS; null = bez obszaru. */
   topic?: string | null;
+  /** Ikona tematu (nazwa Lucide w kebab-case); null = ikona rodzaju watku. */
+  icon?: string | null;
+
 }
 
 export function useCreateClubThread(

@@ -174,7 +174,13 @@ function ThreadCard({
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Badge variant="secondary" className="rounded-lg text-[11px]">
+        {/* Ikona autorska stoi W znaczniku rodzaju, a nie obok tytułu: tytuł
+            ma jedną linię bazową i wcięcie ikony rozjeżdżałoby podkreślenie
+            przy zawijaniu na mobile. */}
+        <Badge variant="secondary" className="gap-1 rounded-lg text-[11px]">
+          {threadIcon !== null ? (
+            <DynamicIcon name={threadIcon} size={12} aria-hidden="true" />
+          ) : null}
           {t(`club.kind.${thread.kind}`)}
         </Badge>
         {thread.status === "resolved" ? (
