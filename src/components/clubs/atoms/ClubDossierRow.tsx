@@ -210,6 +210,9 @@ export function ClubDossierRow({
   meta?: ReactNode;
   title: ReactNode;
   excerpt?: ReactNode;
+  /** Pełna treść pod zajawką - używa jej strona wątku (post otwierający). */
+  children?: ReactNode;
+
   /** Prawa kolumna - zwykle `<ClubDossierMetrics />`. */
   metrics?: ReactNode;
   /** Pas akcji pod treścią (reakcje, pobranie, przejście dalej). */
