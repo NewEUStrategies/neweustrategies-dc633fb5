@@ -323,12 +323,20 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
     // tranzycję i daje efekt "poklatkowy".
     const SHRINK_AT = 96;
     const EXPAND_AT = 56;
+    // Zwinięcie headera skraca dokument. Na krótkich stronach (wątek klubu bez
+    // odpowiedzi, wąskie archiwum) ten ubytek potrafi być większy niż cały
+    // zapas przewijania: przeglądarka przycina wtedy `scrollY` do zera, header
+    // się rozwija, strona znów staje się przewijalna - i całość wpada w pętlę
+    // widoczną jako drganie paska i podskakiwanie treści. Zwijamy więc wyłącznie
+    // wtedy, gdy po zwinięciu nadal zostaje realny zapas przewijania.
+    const MIN_SLACK = 240;
     let frame = 0;
     let current = false;
     const evaluate = () => {
       frame = 0;
       const y = window.scrollY;
-      const next = current ? y > EXPAND_AT : y > SHRINK_AT;
+      const slack = document.documentElement.scrollHeight - window.innerHeight;
+      const next = slack < MIN_SLACK ? false : current ? y > EXPAND_AT : y > SHRINK_AT;
       if (next === current) return;
       current = next;
       setScrolled(next);
@@ -339,11 +347,14 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
     };
     evaluate();
     window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll, { passive: true });
     return () => {
       if (frame) window.cancelAnimationFrame(frame);
       window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
     };
   }, [stickyShrink]);
+
 
   // Wymiary spoczynkowe headera potrzebne CSS-owi do zwijania (patrz styles.css):
   //   --hdr-nat   wysokość chrome'u w układzie (skala 1, ticker rozwinięty)
