@@ -89,7 +89,6 @@ import { ClubStanceBar } from "@/components/clubs/molecules/ClubStanceBar";
 import { ClubNewRepliesBar } from "@/components/clubs/molecules/ClubNewRepliesBar";
 import { ClubReportButton } from "@/components/clubs/molecules/ClubReportButton";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
-import { ClubThreadPulse } from "@/components/clubs/molecules/ClubThreadPulse";
 import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
 import { ClubProse } from "@/components/clubs/atoms/ClubProse";
 
@@ -251,7 +250,7 @@ function ClubThreadView() {
   // nieistniejący slug kończy się wiecznym szkieletem zamiast 404.
   if (clubQ.isPending || (club !== null && threadQ.isPending)) {
     return (
-      <div className="mx-auto w-full max-w-[1280px] px-3 sm:px-5 lg:px-8 py-8" aria-busy="true">
+      <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-8" aria-busy="true">
         <Shimmer className="mb-4 h-8 w-48" />
         <div className="rounded-xl border border-border/60 bg-card p-5">
           <Shimmer className="h-4 w-24" />
@@ -384,139 +383,13 @@ function ClubThreadView() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1280px] px-3 sm:px-5 lg:px-8 py-8">
+    <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-8">
       <Button asChild variant="ghost" size="sm" className="-ml-2 mb-3 h-8 px-2">
         <Link to="/club/$clubSlug" params={{ clubSlug }}>
           <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
           {isPl ? club.name_pl : club.name_en}
         </Link>
       </Button>
-
-      {/* --- post otwierający --- */}
-      <article className="rounded-xl border border-border/60 bg-card p-4 shadow-sm sm:p-5">
-        <div className="flex flex-wrap items-center gap-2">
-          {thread.pinned_at !== null ? <Pin className="h-4 w-4 text-primary" /> : null}
-          <Badge variant="outline" className="gap-1">
-            {threadIcon !== null ? (
-              <DynamicIcon name={threadIcon} size={12} aria-hidden="true" />
-            ) : null}
-            {t(`club.kind.${thread.kind}`)}
-          </Badge>
-          {thread.status === "resolved" ? (
-            <Badge className="bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-300">
-              {t("club.threadStatus.resolved")}
-            </Badge>
-          ) : null}
-          {thread.locked_at !== null ? (
-            <Badge variant="outline" className="gap-1">
-              <Lock className="h-3 w-3" />
-              {t("club.threadStatus.locked")}
-            </Badge>
-          ) : null}
-          {thread.attribution_mode === "chatham" ? (
-            <Badge variant="outline" className="gap-1">
-              <ShieldQuestion className="h-3 w-3" />
-              {t("club.attribution.chatham")}
-            </Badge>
-          ) : null}
-          {/* Kotwica jest KRAWĘDZIĄ w grafie treści, więc pokazujemy ją tam,
-              gdzie czytelnik decyduje, czy wątek go dotyczy - w nagłówku, nie
-              na dole. */}
-          {/* Obszar tematyczny wątku - ten sam chip co na hubie i w klubie,
-              żeby czytelnik rozpoznał tematykę bez czytania etykiety. */}
-          <ClubTopicChip topic={thread.topic} lang={isPl ? "pl" : "en"} catalog={topicCatalog} />
-          {thread.anchor_type !== null ? (
-            <Badge variant="secondary" className="gap-1">
-              <Link2 className="h-3 w-3" aria-hidden="true" />
-              {t(`club.anchorType.${thread.anchor_type}`)}
-            </Badge>
-          ) : null}
-        </div>
-
-        <h1 className="mt-2 text-2xl font-semibold leading-snug">{thread.title}</h1>
-
-        <div className="mt-3 flex items-center gap-2.5">
-          <ClubAuthorAvatar
-            name={author.name}
-            avatarUrl={author.avatarUrl}
-            size="md"
-            muted={author.kind !== "named"}
-          />
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{author.name}</p>
-            <p className="truncate text-xs text-muted-foreground">
-              {formatDateTime(thread.created_at, lang)}
-              {thread.edited_at !== null ? ` \u00b7 ${t("club.edited")}` : ""}
-            </p>
-          </div>
-        </div>
-
-        {editing === "thread" ? (
-          <div className="mt-4">
-            <ClubInlineEditor
-              idPrefix="club-thread-edit"
-              initialTitle={thread.title}
-              initialBody={thread.body}
-              showReason={!isMyThread}
-              pending={editThreadM.isPending}
-              onCancel={() => setEditing(null)}
-              onSave={(patch) =>
-                editThreadM.mutate(
-                  { threadId: thread.id, ...patch },
-                  {
-                    onSuccess: () => {
-                      setEditing(null);
-                      toast.success(t("club.editor.saved"));
-                    },
-                    onError: () => toast.error(t("adminClubs.saveFailed")),
-                  },
-                )
-              }
-            />
-          </div>
-        ) : (
-          <ClubProse className="mt-4" body={thread.body} />
-        )}
-
-        {/* Pasek akcji postu otwierającego jest tą samą molekułą wizualną, co
-            pod kartą w strumieniu: piktogram w spoczynku, słowo po najechaniu.
-            Inaczej ten sam gest wyglądałby inaczej na hubie i w wątku. */}
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-border/60 pt-2.5">
-          <ClubReactionBar
-            tallies={threadReactionsQ.data?.get(thread.id) ?? []}
-            disabled={!thread.can_reply || toggleThreadReaction.isPending}
-            variant="full"
-            labels="hover"
-            onToggle={(kind, active) =>
-              toggleThreadReaction.mutate({ targetId: thread.id, kind, active })
-            }
-          />
-          <div className="ml-auto flex flex-wrap items-center gap-1.5">
-            {canEditThread && editing !== "thread" ? (
-              <button
-                type="button"
-                onClick={() => setEditing("thread")}
-                aria-label={t("club.editor.edit")}
-                className={clubHoverActionClass()}
-              >
-                <ClubHoverActionBody icon={Pencil} label={t("club.editor.edit")} />
-              </button>
-            ) : null}
-            {canReportThread ? <ClubReportButton targetType="thread" targetId={thread.id} /> : null}
-            <ClubFollowButton
-              compact
-              state={subscriptionQ.data ?? null}
-              pending={setSubscriptionM.isPending}
-              disabled={subscriptionQ.isPending}
-              onChange={(next) =>
-                setSubscriptionM.mutate(next, {
-                  onError: () => toast.error(t("adminClubs.saveFailed")),
-                })
-              }
-            />
-          </div>
-        </div>
-      </article>
 
       {/* --- przestrzeń robocza ---
           Belka zakładek + panele A28. Dyskusja jedzie jako `children`, więc
@@ -529,18 +402,132 @@ function ClubThreadView() {
         summary={workspaceQ.data ?? EMPTY_WORKSPACE_SUMMARY}
         canGoAnonymous={canGoAnonymous}
       >
-        {/* --- puls dyskusji ---
-          Dynamika (kto, ile, jak szybko, kiedy ostatnio) stoi MIĘDZY postem
-          otwierającym a odpowiedziami: to jest moment, w którym czytelnik
-          decyduje, czy w ogóle wchodzi w wymianę. */}
-        {thread.reply_count > 0 ? (
-          <ClubThreadPulse
-            className="mt-4"
-            createdAt={thread.created_at}
-            replies={deferred.rows}
-            lang={lang}
-          />
-        ) : null}
+        {/* --- post otwierający --- */}
+        <article className="rounded-xl border border-border/60 bg-card p-4 shadow-sm sm:p-5">
+          <div className="flex flex-wrap items-center gap-2">
+            {thread.pinned_at !== null ? <Pin className="h-4 w-4 text-primary" /> : null}
+            <Badge variant="outline" className="gap-1">
+              {threadIcon !== null ? (
+                <DynamicIcon name={threadIcon} size={12} aria-hidden="true" />
+              ) : null}
+              {t(`club.kind.${thread.kind}`)}
+            </Badge>
+            {thread.status === "resolved" ? (
+              <Badge className="bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-300">
+                {t("club.threadStatus.resolved")}
+              </Badge>
+            ) : null}
+            {thread.locked_at !== null ? (
+              <Badge variant="outline" className="gap-1">
+                <Lock className="h-3 w-3" />
+                {t("club.threadStatus.locked")}
+              </Badge>
+            ) : null}
+            {thread.attribution_mode === "chatham" ? (
+              <Badge variant="outline" className="gap-1">
+                <ShieldQuestion className="h-3 w-3" />
+                {t("club.attribution.chatham")}
+              </Badge>
+            ) : null}
+            {/* Kotwica jest KRAWĘDZIĄ w grafie treści, więc pokazujemy ją tam,
+                gdzie czytelnik decyduje, czy wątek go dotyczy - w nagłówku, nie
+                na dole. */}
+            {/* Obszar tematyczny wątku - ten sam chip co na hubie i w klubie,
+                żeby czytelnik rozpoznał tematykę bez czytania etykiety. */}
+            <ClubTopicChip topic={thread.topic} lang={isPl ? "pl" : "en"} catalog={topicCatalog} />
+            {thread.anchor_type !== null ? (
+              <Badge variant="secondary" className="gap-1">
+                <Link2 className="h-3 w-3" aria-hidden="true" />
+                {t(`club.anchorType.${thread.anchor_type}`)}
+              </Badge>
+            ) : null}
+          </div>
+
+          <h1 className="mt-2 text-2xl font-semibold leading-snug">{thread.title}</h1>
+
+          <div className="mt-3 flex items-center gap-2.5">
+            <ClubAuthorAvatar
+              name={author.name}
+              avatarUrl={author.avatarUrl}
+              size="md"
+              muted={author.kind !== "named"}
+            />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{author.name}</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {formatDateTime(thread.created_at, lang)}
+                {thread.edited_at !== null ? ` \u00b7 ${t("club.edited")}` : ""}
+              </p>
+            </div>
+          </div>
+
+          {editing === "thread" ? (
+            <div className="mt-4">
+              <ClubInlineEditor
+                idPrefix="club-thread-edit"
+                initialTitle={thread.title}
+                initialBody={thread.body}
+                showReason={!isMyThread}
+                pending={editThreadM.isPending}
+                onCancel={() => setEditing(null)}
+                onSave={(patch) =>
+                  editThreadM.mutate(
+                    { threadId: thread.id, ...patch },
+                    {
+                      onSuccess: () => {
+                        setEditing(null);
+                        toast.success(t("club.editor.saved"));
+                      },
+                      onError: () => toast.error(t("adminClubs.saveFailed")),
+                    },
+                  )
+                }
+              />
+            </div>
+          ) : (
+            <ClubProse className="mt-4 max-w-none" body={thread.body} />
+          )}
+
+          {/* Pasek akcji postu otwierającego jest tą samą molekułą wizualną, co
+              pod kartą w strumieniu: piktogram w spoczynku, słowo po najechaniu.
+              Inaczej ten sam gest wyglądałby inaczej na hubie i w wątku. */}
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-border/60 pt-2.5">
+            <ClubReactionBar
+              tallies={threadReactionsQ.data?.get(thread.id) ?? []}
+              disabled={!thread.can_reply || toggleThreadReaction.isPending}
+              variant="full"
+              labels="hover"
+              onToggle={(kind, active) =>
+                toggleThreadReaction.mutate({ targetId: thread.id, kind, active })
+              }
+            />
+            <div className="ml-auto flex flex-wrap items-center gap-1.5">
+              {canEditThread && editing !== "thread" ? (
+                <button
+                  type="button"
+                  onClick={() => setEditing("thread")}
+                  aria-label={t("club.editor.edit")}
+                  className={clubHoverActionClass()}
+                >
+                  <ClubHoverActionBody icon={Pencil} label={t("club.editor.edit")} />
+                </button>
+              ) : null}
+              {canReportThread ? <ClubReportButton targetType="thread" targetId={thread.id} /> : null}
+              <ClubFollowButton
+                compact
+                state={subscriptionQ.data ?? null}
+                pending={setSubscriptionM.isPending}
+                disabled={subscriptionQ.isPending}
+                onChange={(next) =>
+                  setSubscriptionM.mutate(next, {
+                    onError: () => toast.error(t("adminClubs.saveFailed")),
+                  })
+                }
+              />
+            </div>
+          </div>
+        </article>
+
 
         {/* --- sondaż (wyłącznie wątek typu "sondaż") ---
           Rodzaj `poll` był do A20 samą etykietą: model dopuszczał go od A3,
