@@ -46,6 +46,8 @@ import {
   type ClubThreadListRow,
 } from "@/lib/clubs/types";
 import { ClubEngagementBar } from "@/components/clubs/molecules/ClubEngagementBar";
+import { DynamicIcon } from "@/lib/icons/DynamicIcon";
+import { normalizeClubThreadIcon } from "@/lib/clubs/threadIcons";
 
 import {
   documentHref,
@@ -129,6 +131,10 @@ function ThreadCard({
   const author = toAuthorLabel(thread, t("club.anonymousAuthor"), t("club.deletedAuthor"));
   const stamp = thread.last_reply_at ?? thread.created_at;
   const source = clubSourceOf(thread, sourceIndex, isPl);
+  // Normalizacja przy ODCZYCIE: wiersze sprzed katalogu ikon mogą nieść nazwę
+  // spoza zestawu kurowanego, a taka dociągałaby pełny rejestr lucide do
+  // chunku strumienia - degradujemy ją do braku ikony.
+  const threadIcon = normalizeClubThreadIcon(thread.icon);
 
   return (
     <article
