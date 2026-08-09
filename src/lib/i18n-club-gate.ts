@@ -18,18 +18,43 @@ export const clubGatePl = {
     anonLead:
       "Załóż konto i wybierz plan {{plan}}, aby czytać dyskusje, materiały i kalendarz tego klubu.",
     benefitsTitle: "Co dostajesz w planie {{plan}}",
+    benefitsLead: "Członkostwo to nie sam dostęp do treści - to udział w pracy klubu.",
     benefits: {
-      threads: "Pełny dostęp do wątków i wpisów klubu",
-      library: "Biblioteka materiałów, analiz i dokumentów roboczych",
-      calendar: "Kalendarz spotkań i harmonogram prac klubu",
-      network: "Kontakt z ekspertami i uczestnikami procesu",
-      chatham: "Rozmowy w regule Chatham House - bez cytowania osób",
+      threads: {
+        title: "Pełne wątki i stanowiska",
+        desc: "Czytasz i zabierasz głos w dyskusjach, pytaniach i głosowaniach klubu.",
+      },
+      library: {
+        title: "Biblioteka pracy klubu",
+        desc: "Analizy, dokumenty robocze i źródła zebrane przy każdym wątku.",
+      },
+      calendar: {
+        title: "Kalendarz i harmonogram",
+        desc: "Spotkania, terminy konsultacji i kolejne etapy prac w jednym miejscu.",
+      },
+      network: {
+        title: "Dostęp do ekspertów",
+        desc: "Bezpośredni kontakt z autorami analiz i uczestnikami procesu legislacyjnego.",
+      },
+      chatham: {
+        title: "Reguła Chatham House",
+        desc: "Rozmowa bez cytowania osób - dlatego mówi się tu wprost.",
+      },
+      briefs: {
+        title: "Podsumowania i wnioski",
+        desc: "Kluczowe wnioski z każdego wątku, gotowe do wykorzystania w Twojej pracy.",
+      },
     },
     statsMembers: "{{count}} uczestników",
     statsThreads: "{{count}} wątków",
     upgradeCta: "Podnieś plan do {{plan}}",
     plansCta: "Porównaj plany",
     requestCta: "Poproś o dostęp",
+    upgradeOnlyNote:
+      "Dostęp do tego klubu daje wyłącznie plan {{plan}} - zgłoszenia bez planu nie są rozpatrywane.",
+    expertLead:
+      "Jako ekspert możesz poprosić o dostęp do tego klubu bez zmiany planu - prowadzący potwierdzi zgłoszenie.",
+    expertBadge: "Ścieżka eksperta",
     joinCta: "Dołącz do klubu",
     signupTitle: "Załóż konto w minutę",
     signupLead: "Po rejestracji wybierzesz plan {{plan}} i od razu wejdziesz do klubu.",
@@ -64,18 +89,43 @@ export const clubGateEn = {
     anonLead:
       "Create an account and pick the {{plan}} plan to read this club's discussions, materials and calendar.",
     benefitsTitle: "What {{plan}} gives you",
+    benefitsLead: "Membership is not just access to content - it is a seat in the club's work.",
     benefits: {
-      threads: "Full access to club threads and posts",
-      library: "Library of materials, analyses and working documents",
-      calendar: "Meeting calendar and the club's work schedule",
-      network: "Direct contact with experts and process participants",
-      chatham: "Chatham House rule conversations - no attribution",
+      threads: {
+        title: "Full threads and positions",
+        desc: "Read and speak up in the club's discussions, questions and votes.",
+      },
+      library: {
+        title: "The club's working library",
+        desc: "Analyses, working documents and sources attached to every thread.",
+      },
+      calendar: {
+        title: "Calendar and schedule",
+        desc: "Meetings, consultation deadlines and the next stages of work in one place.",
+      },
+      network: {
+        title: "Access to experts",
+        desc: "Direct contact with the authors of analyses and participants of the process.",
+      },
+      chatham: {
+        title: "Chatham House rule",
+        desc: "No attribution - which is exactly why people speak plainly here.",
+      },
+      briefs: {
+        title: "Briefs and takeaways",
+        desc: "Key conclusions from every thread, ready to use in your own work.",
+      },
     },
     statsMembers: "{{count}} participants",
     statsThreads: "{{count}} threads",
     upgradeCta: "Upgrade to {{plan}}",
     plansCta: "Compare plans",
     requestCta: "Request access",
+    upgradeOnlyNote:
+      "Access to this club comes with the {{plan}} plan only - requests without a plan are not reviewed.",
+    expertLead:
+      "As an expert you can request access to this club without changing your plan - the host will confirm it.",
+    expertBadge: "Expert path",
     joinCta: "Join the club",
     signupTitle: "Create your account in a minute",
     signupLead: "After signing up you pick the {{plan}} plan and enter the club right away.",
