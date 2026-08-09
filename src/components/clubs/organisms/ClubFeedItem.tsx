@@ -125,7 +125,6 @@ function ThreadCard({
   canReact?: boolean;
   onReact?: (targetId: string, kind: ClubReactionKind, active: boolean) => void;
 }) {
-
   const { t } = useTranslation();
   const lang = isPl ? "pl" : "en";
   const author = toAuthorLabel(thread, t("club.anonymousAuthor"), t("club.deletedAuthor"));
@@ -230,19 +229,23 @@ function ThreadCard({
         </p>
       ) : null}
 
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+      <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1.5">
           <MessagesSquare className="h-3.5 w-3.5" aria-hidden="true" />
-          {t("club.repliesCount", { count: thread.reply_count })}
+          <span className="tabular-nums">{thread.reply_count}</span>
+          <span className="sr-only">{t("club.repliesCount", { count: thread.reply_count })}</span>
         </span>
         <span className="inline-flex items-center gap-1.5">
           <Users className="h-3.5 w-3.5" aria-hidden="true" />
-          {t("club.hub.feed.participantsCount", { count: thread.participant_count })}
+          <span className="tabular-nums">{thread.participant_count}</span>
+          <span className="sr-only">
+            {t("club.hub.feed.participantsCount", { count: thread.participant_count })}
+          </span>
         </span>
         {thread.insightful_count > 0 ? (
           <span className="inline-flex items-center gap-1.5">
             <Lightbulb className="h-3.5 w-3.5" aria-hidden="true" />
-            {thread.insightful_count}
+            <span className="tabular-nums">{thread.insightful_count}</span>
           </span>
         ) : null}
         <ClubThreadHeat thread={thread} className="ml-auto" />
@@ -259,12 +262,9 @@ function ThreadCard({
         canReact={canReact}
         pending={reactionsPending}
         onToggle={
-          onReact === undefined
-            ? undefined
-            : (kind, active) => onReact(thread.id, kind, active)
+          onReact === undefined ? undefined : (kind, active) => onReact(thread.id, kind, active)
         }
       />
-
     </article>
   );
 }
