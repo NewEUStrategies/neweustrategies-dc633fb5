@@ -98,6 +98,19 @@ export interface ClubDossierMetric {
  * Kolumna metryk. Na mobile leży pod treścią w jednej linii, od `sm` wchodzi
  * w prawą kolumnę siatki i wyrównuje się z sąsiednimi wierszami.
  */
+/**
+ * Klasa grzbietu rodzaju - dla powierzchni, które nie są wierszem listy
+ * (np. post otwierający wątek), ale mają mówić tym samym kolorem.
+ */
+export function clubDossierSpineClass(tone: ClubDossierTone): string {
+  return SPINE[tone];
+}
+
+/** Klasa kwadratu ikony rodzaju - patrz `clubDossierSpineClass`. */
+export function clubDossierIconBoxClass(tone: ClubDossierTone): string {
+  return ICON_BOX[tone];
+}
+
 export function ClubDossierMetrics({
   metrics,
   trailing,
