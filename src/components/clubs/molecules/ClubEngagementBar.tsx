@@ -10,9 +10,10 @@
 // tylko decyzja produktowa: pogłębiona dyskusja ma jedno miejsce - wątek - i nie
 // wolno jej rozsypywać po kartach huba. Dlatego "Komentuj" jest linkiem
 // routera z `?reply=1`, a widok wątku po wejściu ustawia kursor w kompozytorze.
+import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { MessageSquarePlus } from "lucide-react";
+import { MessageSquarePlus, SmilePlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ClubReactionBar } from "@/components/clubs/molecules/ClubReactionBar";
 import type { ClubReactionKind, ClubReactionTally } from "@/lib/clubs/types";
@@ -42,6 +43,12 @@ export function ClubEngagementBar({
   className,
 }: ClubEngagementBarProps) {
   const { t } = useTranslation();
+  // Rozwinięcie pełnej palety jest LOKALNE dla karty. Sześć przycisków pod
+  // każdą z kilkunastu kart to ściana szumu, więc domyślnie widać wyłącznie
+  // reakcje już postawione, a pełny wybór otwiera się na żądanie.
+  const [picking, setPicking] = useState(false);
+  const placed = tallies.some((r) => r.total > 0 || r.mine);
+  const interactive = canReact && onToggle !== undefined;
 
   return (
     <div
@@ -56,10 +63,22 @@ export function ClubEngagementBar({
           ściana szumu, przez którą nie widać treści. */}
       <ClubReactionBar
         tallies={tallies}
-        variant="compact"
-        disabled={!canReact || pending || onToggle === undefined}
+        variant={picking ? "full" : "compact"}
+        disabled={!interactive || pending}
         onToggle={(kind, active) => onToggle?.(kind, active)}
       />
+
+      {interactive && !picking ? (
+        <button
+          type="button"
+          onClick={() => setPicking(true)}
+          className="inline-flex h-7 items-center gap-1.5 rounded-full border border-border/60 px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          data-testid="club-add-reaction"
+        >
+          <SmilePlus className="h-3.5 w-3.5" aria-hidden="true" />
+          {placed ? t("club.hub.feed.addReactionShort") : t("club.hub.feed.addReaction")}
+        </button>
+      ) : null}
 
       <Link
         to="/club/$clubSlug/t/$threadSlug"

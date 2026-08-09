@@ -116,6 +116,8 @@ export const clubPl = {
         },
         pinned: "Przypięty",
         comment: "Komentuj",
+        addReaction: "Zareaguj",
+        addReactionShort: "Więcej",
         commentWithCount: "Komentuj · {{n}}",
 
         eventLabel: "W kalendarzu klubu",
@@ -1670,6 +1672,8 @@ export const clubEn = {
         },
         pinned: "Pinned",
         comment: "Comment",
+        addReaction: "React",
+        addReactionShort: "More",
         commentWithCount: "Comment · {{n}}",
 
         eventLabel: "In the club calendar",
