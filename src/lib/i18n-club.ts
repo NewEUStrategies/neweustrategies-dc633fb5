@@ -425,6 +425,12 @@ export const clubPl = {
       lockRepliesHint:
         "Wpis pojawi się jako komunikat, bez możliwości odpowiadania. Odpowiedzi można otworzyć później.",
       announcementPinned: "Ogłoszenie zostaje przypięte na górze listy tematów.",
+      participantAnonymity: "Anonimowość uczestników",
+      participantAnonymityInherit: "Jak w dziale: {{mode}}",
+      participantAnonymityHint:
+        "Zasada obejmuje wszystkie wypowiedzi w tym wątku, nie tylko Twoją. Można ją zaostrzyć względem działu - poluzowanie należy do prowadzenia klubu.",
+      participantAnonymityChatham:
+        "Wszyscy uczestnicy tego wątku wystąpią pod pseudonimem liczonym kryptograficznie z tajnego klucza organizacji. Pseudonim jest stały w wątku i inny w każdym kolejnym, więc nie da się z niego złożyć historii jednej osoby.",
     },
     cannotPost: "Nie możesz zakładać tematów w tym klubie.",
     cannotReply: "Nie możesz odpowiadać w tym wątku.",
@@ -2120,6 +2126,12 @@ export const clubEn = {
       lockRepliesHint:
         "The post appears as an announcement, with replies disabled. You can open replies later.",
       announcementPinned: "An announcement is pinned to the top of the topic list.",
+      participantAnonymity: "Participant anonymity",
+      participantAnonymityInherit: "Same as the section: {{mode}}",
+      participantAnonymityHint:
+        "The rule covers every post in this thread, not only yours. You may tighten it against the section - relaxing it belongs to the club leads.",
+      participantAnonymityChatham:
+        "Every participant in this thread appears under a pseudonym derived cryptographically from the organisation's secret key. It stays the same within the thread and differs in every other one, so it cannot be joined into one person's history.",
     },
     cannotPost: "You cannot start topics in this club.",
     cannotReply: "You cannot reply in this thread.",

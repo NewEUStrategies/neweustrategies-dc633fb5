@@ -137,6 +137,7 @@ import type {
   ClubSubscriptionState,
   ClubThreadKind,
   ClubThreadSort,
+  ClubAttributionMode,
   ClubThreadStatus,
   ClubThreadViewRow,
   ClubUpsertInput,
@@ -783,7 +784,8 @@ export interface CreateThreadVars {
   topic?: string | null;
   /** Ikona tematu (nazwa Lucide w kebab-case); null = ikona rodzaju watku. */
   icon?: string | null;
-
+  /** Anonimowosc UCZESTNIKOW watku; null = dziedzicz dzial (i klub). */
+  attributionMode?: ClubAttributionMode | null;
 }
 
 export function useCreateClubThread(
