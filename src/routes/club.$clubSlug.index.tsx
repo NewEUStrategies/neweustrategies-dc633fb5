@@ -110,6 +110,5 @@ function ClubHubRoute() {
     );
   }
 
-
   return <ClubHub club={club} isPl={isPl} />;
 }

@@ -176,11 +176,7 @@ function MemberActions({
       ) : null}
 
       {club.join_policy !== "invite" ? (
-        <Button
-          asChild
-          variant={tierTooLow ? "ghost" : "default"}
-          className="w-full rounded-lg"
-        >
+        <Button asChild variant={tierTooLow ? "ghost" : "default"} className="w-full rounded-lg">
           <Link to="/club/$clubSlug/about" params={{ clubSlug: club.slug }}>
             {club.join_policy === "open" ? t("clubGate.joinCta") : t("clubGate.requestCta")}
           </Link>
