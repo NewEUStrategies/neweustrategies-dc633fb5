@@ -26,9 +26,8 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { HUB_SURFACE } from "@/components/clubs/atoms/ClubHubPrimitives";
 import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
+import { ClubDossierMetrics, ClubDossierRow } from "@/components/clubs/atoms/ClubDossierRow";
 import { ClubInlineTitle } from "@/components/clubs/atoms/ClubInlineTitle";
 import { ClubSourceChip } from "@/components/clubs/atoms/ClubSourceChip";
 import { ClubThreadHeat } from "@/components/clubs/atoms/ClubThreadHeat";
@@ -37,7 +36,6 @@ import {
   ClubDocumentKindIcon,
   ClubEventKindIcon,
   ClubMilestoneStateChip,
-  clubEventToneClass,
 } from "@/components/clubs/atoms/ClubWorkspaceBadges";
 import {
   toAuthorLabel,
@@ -71,29 +69,8 @@ const EMPTY_SOURCES: ReadonlyMap<string, ClubSourceMark> = new Map();
 /** Stała pusta lista - ten sam powód, co `EMPTY_SOURCES`. */
 const EMPTY_TOPICS: readonly ClubTopicOption[] = [];
 
-/** Nagłówek karty kontekstowej: ikona w kwadracie 6 px + etykieta rodzaju. */
-function ContextHeader({
-  label,
-  tone,
-  children,
-}: {
-  label: string;
-  tone: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <span
-        className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border", tone)}
-      >
-        {children}
-      </span>
-      <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        {label}
-      </span>
-    </div>
-  );
-}
+
+
 
 function ThreadCard({
   thread,
@@ -136,138 +113,130 @@ function ThreadCard({
   const threadIcon = normalizeClubThreadIcon(thread.icon);
 
   return (
-    <article
-      className={cn(
-        HUB_SURFACE,
-        "p-3.5 transition-colors hover:border-primary/40 sm:p-4",
-        thread.pinned_at !== null && "border-primary/40",
-        // Nieprzeczytane dostaje lewą krawędź, a nie kolor tła: tło zmienia
-        // kontrast tekstu i psuje czytelność w trybie ciemnym.
-        thread.is_unread && "border-l-2 border-l-primary",
-      )}
-      data-testid="club-feed-thread"
-    >
-      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-        <ClubAuthorAvatar
-          name={author.name}
-          avatarUrl={thread.author_avatar}
-          size="sm"
-          // Autor anonimowy i konto usunięte nie dostają akcentu marki -
-          // awatar ma wtedy mówić "nie wiadomo kto", a nie "ktoś ważny".
-          muted={author.kind !== "named"}
-        />
-        <span className="font-medium text-foreground">{author.name}</span>
-        {/* ŹRÓDŁO, a nie kolejne słowo w szarym pasku. Nazwa działu stała tu
-            wcześniej między autorem a datą i wyglądała jak część podpisu -
-            czyli jedyna informacja o tym, gdzie w klubie jesteśmy, ginęła
-            w interpunkcji. Chip niesie kolor i ikonę działu i zawęża strumień. */}
-        {source !== null ? (
-          <ClubSourceChip
-            source={source}
-            active={source.id !== null && source.id === activeGroupId}
-            onSelect={onSourceSelect}
-          />
-        ) : null}
-        <span aria-hidden="true">·</span>
-        <time dateTime={stamp}>{formatDateShort(stamp, lang)}</time>
-        {thread.pinned_at !== null ? (
-          <Badge variant="outline" className="gap-1 rounded-lg text-[11px]">
-            <Pin className="h-3 w-3" aria-hidden="true" />
-            {t("club.hub.feed.pinned")}
-          </Badge>
-        ) : null}
-      </div>
-
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        {/* Ikona autorska stoi W znaczniku rodzaju, a nie obok tytułu: tytuł
-            ma jedną linię bazową i wcięcie ikony rozjeżdżałoby podkreślenie
-            przy zawijaniu na mobile. */}
-        <Badge variant="secondary" className="gap-1 rounded-lg text-[11px]">
-          {threadIcon !== null ? (
-            <DynamicIcon name={threadIcon} size={12} aria-hidden="true" />
-          ) : null}
-          {t(`club.kind.${thread.kind}`)}
-        </Badge>
-        {thread.status === "resolved" ? (
-          <Badge className="rounded-lg bg-emerald-600 text-[11px] hover:bg-emerald-600">
-            {t("club.threadStatus.resolved")}
-          </Badge>
-        ) : null}
-        {thread.anchor_label !== null && thread.anchor_label.trim() !== "" ? (
-          <Badge variant="outline" className="max-w-full rounded-lg text-[11px]">
-            <span className="truncate">{thread.anchor_label}</span>
-          </Badge>
-        ) : null}
-        {/* Obszar tematyczny - czwarta oś obok rodzaju/statusu/kotwicy. Do tej
-            pory ta kolumna istniała w bazie i nie pokazywała się nigdzie na
-            wierszu wątku - patrz nagłówek `ClubThreadTopicBar`. */}
-        <ClubTopicChip
-          topic={thread.topic}
-          lang={lang}
-          catalog={topicsCatalog}
-          size="sm"
-          active={thread.topic !== "" && thread.topic === activeTopic}
-          onSelect={onTopicSelect}
-        />
-      </div>
-
-      <h3 className="mt-1.5">
-        <Link
-          to="/club/$clubSlug/t/$threadSlug"
-          params={{ clubSlug, threadSlug: thread.slug }}
-          className="group/title inline-block max-w-full"
-        >
-          <ClubInlineTitle tone="thread" size="md" interactive>
-            {thread.title}
-          </ClubInlineTitle>
-        </Link>
-      </h3>
-
-      {thread.excerpt !== null && thread.excerpt.trim() !== "" ? (
-        <p className="mt-1.5 line-clamp-3 text-sm leading-relaxed text-muted-foreground">
-          {thread.excerpt}
-        </p>
-      ) : null}
-
-      <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-        <span className="inline-flex items-center gap-1.5">
+    <ClubDossierRow
+      testId="club-feed-thread"
+      tone="thread"
+      unread={thread.is_unread}
+      pinned={thread.pinned_at !== null}
+      icon={
+        threadIcon !== null ? (
+          <DynamicIcon name={threadIcon} size={14} aria-hidden="true" />
+        ) : (
           <MessagesSquare className="h-3.5 w-3.5" aria-hidden="true" />
-          <span className="tabular-nums">{thread.reply_count}</span>
-          <span className="sr-only">{t("club.repliesCount", { count: thread.reply_count })}</span>
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <Users className="h-3.5 w-3.5" aria-hidden="true" />
-          <span className="tabular-nums">{thread.participant_count}</span>
-          <span className="sr-only">
-            {t("club.hub.feed.participantsCount", { count: thread.participant_count })}
-          </span>
-        </span>
-        {thread.insightful_count > 0 ? (
-          <span className="inline-flex items-center gap-1.5">
-            <Lightbulb className="h-3.5 w-3.5" aria-hidden="true" />
-            <span className="tabular-nums">{thread.insightful_count}</span>
-          </span>
-        ) : null}
-        <ClubThreadHeat thread={thread} className="ml-auto" />
-      </div>
-
-      {/* Zaangażowanie: reakcja zostaje w strumieniu, komentarz wprowadza
-          do wątku - patrz nagłówek `ClubEngagementBar`. */}
-      <ClubEngagementBar
-        className="mt-2.5"
-        clubSlug={clubSlug}
-        threadSlug={thread.slug}
-        tallies={reactions ?? []}
-        replyCount={thread.reply_count}
-        canReact={canReact}
-        pending={reactionsPending}
-        onToggle={
-          onReact === undefined ? undefined : (kind, active) => onReact(thread.id, kind, active)
-        }
-      />
-    </article>
+        )
+      }
+      meta={
+        <>
+          <Badge variant="secondary" className="rounded-lg px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wide">
+            {t(`club.kind.${thread.kind}`)}
+          </Badge>
+          {thread.status === "resolved" ? (
+            <Badge className="rounded-lg bg-emerald-600 px-1.5 py-0 text-[10px] hover:bg-emerald-600">
+              {t("club.threadStatus.resolved")}
+            </Badge>
+          ) : null}
+          {/* ŹRÓDŁO, a nie kolejne słowo w szarym pasku - chip niesie kolor
+              i ikonę działu oraz zawęża strumień po kliknięciu. */}
+          {source !== null ? (
+            <ClubSourceChip
+              source={source}
+              active={source.id !== null && source.id === activeGroupId}
+              onSelect={onSourceSelect}
+            />
+          ) : null}
+          <ClubTopicChip
+            topic={thread.topic}
+            lang={lang}
+            catalog={topicsCatalog}
+            size="sm"
+            active={thread.topic !== "" && thread.topic === activeTopic}
+            onSelect={onTopicSelect}
+          />
+          {thread.anchor_label !== null && thread.anchor_label.trim() !== "" ? (
+            <span className="max-w-[12rem] truncate" title={thread.anchor_label}>
+              {thread.anchor_label}
+            </span>
+          ) : null}
+          <span aria-hidden="true">·</span>
+          <ClubAuthorAvatar
+            name={author.name}
+            avatarUrl={thread.author_avatar}
+            size="sm"
+            muted={author.kind !== "named"}
+          />
+          <span className="truncate font-medium text-foreground">{author.name}</span>
+          <span aria-hidden="true">·</span>
+          <time dateTime={stamp}>{formatDateShort(stamp, lang)}</time>
+          {thread.pinned_at !== null ? (
+            <span className="inline-flex items-center gap-1 text-primary">
+              <Pin className="h-3 w-3" aria-hidden="true" />
+              {t("club.hub.feed.pinned")}
+            </span>
+          ) : null}
+        </>
+      }
+      title={
+        <h3>
+          <Link
+            to="/club/$clubSlug/t/$threadSlug"
+            params={{ clubSlug, threadSlug: thread.slug }}
+            className="group/title inline-block max-w-full"
+          >
+            <ClubInlineTitle tone="thread" size="sm" interactive>
+              {thread.title}
+            </ClubInlineTitle>
+          </Link>
+        </h3>
+      }
+      excerpt={
+        thread.excerpt !== null && thread.excerpt.trim() !== "" ? thread.excerpt : undefined
+      }
+      metrics={
+        <ClubDossierMetrics
+          metrics={[
+            {
+              key: "replies",
+              icon: <MessagesSquare className="h-3.5 w-3.5" aria-hidden="true" />,
+              value: thread.reply_count,
+              label: t("club.repliesCount", { count: thread.reply_count }),
+            },
+            {
+              key: "participants",
+              icon: <Users className="h-3.5 w-3.5" aria-hidden="true" />,
+              value: thread.participant_count,
+              label: t("club.hub.feed.participantsCount", { count: thread.participant_count }),
+            },
+            ...(thread.insightful_count > 0
+              ? [
+                  {
+                    key: "insightful",
+                    icon: <Lightbulb className="h-3.5 w-3.5" aria-hidden="true" />,
+                    value: thread.insightful_count,
+                    label: t("club.reaction.insightful"),
+                  },
+                ]
+              : []),
+          ]}
+          trailing={<ClubThreadHeat thread={thread} />}
+        />
+      }
+      footer={
+        <ClubEngagementBar
+          clubSlug={clubSlug}
+          threadSlug={thread.slug}
+          tallies={reactions ?? []}
+          replyCount={thread.reply_count}
+          canReact={canReact}
+          pending={reactionsPending}
+          onToggle={
+            onReact === undefined ? undefined : (kind, active) => onReact(thread.id, kind, active)
+          }
+        />
+      }
+    />
   );
 }
+
 
 function EventCard({ event, isPl }: { event: ClubEventRow; isPl: boolean }) {
   const { t } = useTranslation();
@@ -276,33 +245,43 @@ function EventCard({ event, isPl }: { event: ClubEventRow; isPl: boolean }) {
   const description = isPl ? event.description_pl : event.description_en;
 
   return (
-    <article className={cn(HUB_SURFACE, "p-3.5 sm:p-4")} data-testid="club-feed-event">
-      <ContextHeader label={t("club.hub.feed.eventLabel")} tone={clubEventToneClass(kind)}>
-        <ClubEventKindIcon kind={kind} className="h-3.5 w-3.5" />
-      </ContextHeader>
-
-      <h3 className="mt-2">
-        <ClubInlineTitle tone="event">{isPl ? event.title_pl : event.title_en}</ClubInlineTitle>
-      </h3>
-
-      <p className="mt-1 inline-flex items-center gap-1.5 text-sm text-muted-foreground">
-        <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-        {event.all_day
-          ? formatDate(event.starts_at, lang, { day: "numeric", month: "long", year: "numeric" })
-          : formatDateTime(event.starts_at, lang)}
-      </p>
-
-      {description !== null && description.trim() !== "" ? (
-        <p className="mt-1.5 line-clamp-2 text-sm text-muted-foreground">{description}</p>
-      ) : null}
-
-      {event.location !== null && event.location.trim() !== "" ? (
-        <p className="mt-1.5 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-          <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          {event.location}
-        </p>
-      ) : null}
-    </article>
+    <ClubDossierRow
+      testId="club-feed-event"
+      tone="event"
+      icon={<ClubEventKindIcon kind={kind} className="h-3.5 w-3.5" />}
+      meta={
+        <>
+          <span className="font-semibold uppercase tracking-wide">
+            {t("club.hub.feed.eventLabel")}
+          </span>
+          <span aria-hidden="true">·</span>
+          <span className="inline-flex items-center gap-1">
+            <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
+            {event.all_day
+              ? formatDate(event.starts_at, lang, {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })
+              : formatDateTime(event.starts_at, lang)}
+          </span>
+          {event.location !== null && event.location.trim() !== "" ? (
+            <span className="inline-flex max-w-[14rem] items-center gap-1 truncate">
+              <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
+              {event.location}
+            </span>
+          ) : null}
+        </>
+      }
+      title={
+        <h3>
+          <ClubInlineTitle tone="event" size="sm">
+            {isPl ? event.title_pl : event.title_en}
+          </ClubInlineTitle>
+        </h3>
+      }
+      excerpt={description !== null && description.trim() !== "" ? description : undefined}
+    />
   );
 }
 
@@ -316,63 +295,67 @@ function DocumentsCard({
   single: boolean;
 }) {
   const { t } = useTranslation();
+  const first = documents[0];
+  const summary = first === undefined ? null : isPl ? first.summary_pl : first.summary_en;
 
   return (
-    <article className={cn(HUB_SURFACE, "p-3.5 sm:p-4")} data-testid="club-feed-documents">
-      <ContextHeader
-        label={single ? t("club.hub.feed.documentLabel") : t("club.hub.feed.documentsLabel")}
-        tone="border-border/60 bg-muted/40 text-muted-foreground"
-      >
+    <ClubDossierRow
+      testId="club-feed-documents"
+      tone="document"
+      icon={
         <ClubDocumentKindIcon
-          kind={toDocumentKind(documents[0]?.kind ?? "other")}
+          kind={toDocumentKind(first?.kind ?? "other")}
           className="h-3.5 w-3.5"
         />
-      </ContextHeader>
-
-      <ul className="mt-2 flex flex-col gap-2">
-        {documents.map((document) => {
-          const href = documentHref(document);
-          const isFile = document.file_url !== null && document.file_url.trim() !== "";
-          const summary = isPl ? document.summary_pl : document.summary_en;
-          return (
-            <li key={document.id} className="flex items-start gap-2.5">
-              <ClubDocumentKindIcon
-                kind={toDocumentKind(document.kind)}
-                className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
-              />
-              <div className="min-w-0 flex-1">
-                <p>
+      }
+      meta={
+        <span className="font-semibold uppercase tracking-wide">
+          {single ? t("club.hub.feed.documentLabel") : t("club.hub.feed.documentsLabel")}
+        </span>
+      }
+      title={
+        // Lista dokumentów zostaje listą także w układzie dossier: pojedynczy
+        // wiersz na plik, akcja pobrania po prawej stronie tego wiersza.
+        <ul className="flex flex-col gap-1.5">
+          {documents.map((document) => {
+            const href = documentHref(document);
+            const isFile = document.file_url !== null && document.file_url.trim() !== "";
+            return (
+              <li key={document.id} className="flex items-center gap-2">
+                <ClubDocumentKindIcon
+                  kind={toDocumentKind(document.kind)}
+                  className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                />
+                <span className="min-w-0 flex-1">
                   <ClubInlineTitle tone="document" size="sm">
                     {isPl ? document.title_pl : document.title_en}
                   </ClubInlineTitle>
-                </p>
-                {single && summary !== null && summary.trim() !== "" ? (
-                  <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">{summary}</p>
+                </span>
+                {href !== null ? (
+                  <Button asChild size="sm" variant="ghost" className="h-7 shrink-0 rounded-lg px-2">
+                    <a
+                      href={href}
+                      target={isFile ? undefined : "_blank"}
+                      rel={isFile ? undefined : "noreferrer"}
+                      download={isFile ? "" : undefined}
+                      onClick={() => void registerClubDocumentDownload(document.id)}
+                      aria-label={isFile ? t("club.docs.download") : t("club.docs.open")}
+                    >
+                      {isFile ? (
+                        <Download className="h-4 w-4" aria-hidden="true" />
+                      ) : (
+                        <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                      )}
+                    </a>
+                  </Button>
                 ) : null}
-              </div>
-              {href !== null ? (
-                <Button asChild size="sm" variant="ghost" className="h-7 shrink-0 rounded-lg px-2">
-                  <a
-                    href={href}
-                    target={isFile ? undefined : "_blank"}
-                    rel={isFile ? undefined : "noreferrer"}
-                    download={isFile ? "" : undefined}
-                    onClick={() => void registerClubDocumentDownload(document.id)}
-                    aria-label={isFile ? t("club.docs.download") : t("club.docs.open")}
-                  >
-                    {isFile ? (
-                      <Download className="h-4 w-4" aria-hidden="true" />
-                    ) : (
-                      <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                    )}
-                  </a>
-                </Button>
-              ) : null}
-            </li>
-          );
-        })}
-      </ul>
-    </article>
+              </li>
+            );
+          })}
+        </ul>
+      }
+      excerpt={single && summary !== null && summary.trim() !== "" ? summary : undefined}
+    />
   );
 }
 
@@ -391,45 +374,46 @@ function MilestoneCard({
   const description = isPl ? milestone.description_pl : milestone.description_en;
 
   return (
-    <article className={cn(HUB_SURFACE, "p-3.5 sm:p-4")} data-testid="club-feed-milestone">
-      <ContextHeader
-        label={t("club.hub.feed.stageLabel")}
-        tone="border-primary/40 bg-primary/10 text-primary"
-      >
-        <ListChecks className="h-3.5 w-3.5" aria-hidden="true" />
-      </ContextHeader>
-
-      <div className="mt-2 flex flex-wrap items-center gap-2">
+    <ClubDossierRow
+      testId="club-feed-milestone"
+      tone="milestone"
+      icon={<ListChecks className="h-3.5 w-3.5" aria-hidden="true" />}
+      meta={
+        <>
+          <span className="font-semibold uppercase tracking-wide">
+            {t("club.hub.feed.stageLabel")}
+          </span>
+          <ClubMilestoneStateChip state={state} />
+          {milestone.due_on !== null ? (
+            <span className="inline-flex items-center gap-1">
+              <CalendarClock className="h-3 w-3 shrink-0" aria-hidden="true" />
+              {t("club.hub.stage.due", {
+                date: formatDate(milestone.due_on, lang, { day: "numeric", month: "short" }),
+              })}
+            </span>
+          ) : null}
+        </>
+      }
+      title={
         <h3>
-          <ClubInlineTitle tone="milestone">
+          <ClubInlineTitle tone="milestone" size="sm">
             {isPl ? milestone.title_pl : milestone.title_en}
           </ClubInlineTitle>
         </h3>
-        <ClubMilestoneStateChip state={state} />
-      </div>
-
-      {description !== null && description.trim() !== "" ? (
-        <p className="mt-1.5 line-clamp-2 text-sm text-muted-foreground">{description}</p>
-      ) : null}
-
-      {milestone.due_on !== null ? (
-        <p className="mt-1.5 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-          <CalendarClock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          {t("club.hub.stage.due", {
-            date: formatDate(milestone.due_on, lang, { day: "numeric", month: "short" }),
-          })}
-        </p>
-      ) : null}
-
-      <Button asChild size="sm" variant="ghost" className="mt-2 h-7 rounded-lg px-2">
-        <Link to="/club/$clubSlug/schedule" params={{ clubSlug }}>
-          {t("club.hub.feed.toSchedule")}
-          <ArrowRight className="ml-1.5 h-3.5 w-3.5" aria-hidden="true" />
-        </Link>
-      </Button>
-    </article>
+      }
+      excerpt={description !== null && description.trim() !== "" ? description : undefined}
+      footer={
+        <Button asChild size="sm" variant="ghost" className="h-7 rounded-lg px-2">
+          <Link to="/club/$clubSlug/schedule" params={{ clubSlug }}>
+            {t("club.hub.feed.toSchedule")}
+            <ArrowRight className="ml-1.5 h-3.5 w-3.5" aria-hidden="true" />
+          </Link>
+        </Button>
+      }
+    />
   );
 }
+
 
 export function ClubFeedItem({
   entry,
