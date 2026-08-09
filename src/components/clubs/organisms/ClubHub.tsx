@@ -48,7 +48,13 @@ import {
 import { cn } from "@/lib/utils";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useAuth } from "@/hooks/useAuth";
-import { useClubGroups, useClubSearch, useClubThreads } from "@/lib/clubs/useClubs";
+import {
+  useClubGroups,
+  useClubReactions,
+  useClubSearch,
+  useClubThreads,
+  useToggleClubReaction,
+} from "@/lib/clubs/useClubs";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import {
   useClubActivitySeries,
@@ -215,6 +221,19 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
     () => buildClubFeed({ mode, threads, documents, events, milestones, posts }),
     [mode, threads, documents, events, milestones, posts],
   );
+
+  // Reakcje CAŁEJ widocznej partii wątków jednym zapytaniem - nigdy N+1.
+  // Klucz zapytania zawiera listę identyfikatorów, więc doładowanie kolejnej
+  // strony strumienia pobiera komplet od nowa zamiast sklejać dwie mapy.
+  const feedThreadIds = useMemo(
+    () => feed.flatMap((entry) => (entry.kind === "thread" ? [entry.thread.id] : [])),
+    [feed],
+  );
+  const threadReactionsQ = useClubReactions({ targetType: "thread", targetIds: feedThreadIds });
+  const toggleThreadReaction = useToggleClubReaction({
+    targetType: "thread",
+    targetIds: feedThreadIds,
+  });
 
   const groups = useMemo(() => groupsQ.data ?? [], [groupsQ.data]);
   const groupTree = useMemo(() => buildClubGroupTree(groups), [groups]);
@@ -530,6 +549,12 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
                     });
                   }}
                   onPostDelete={(postId) => deletePost.mutate(postId)}
+                  threadReactions={threadReactionsQ.data}
+                  reactionsPending={toggleThreadReaction.isPending}
+                  canReact={signedIn && club.can_reply}
+                  onThreadReact={(threadId, kind, active) =>
+                    toggleThreadReaction.mutate({ targetId: threadId, kind, active })
+                  }
                 />
               ))}
             </div>
