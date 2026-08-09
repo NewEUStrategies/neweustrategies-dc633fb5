@@ -1,0 +1,350 @@
+// Bramka dostępu do klubu dyskusyjnego - powierzchnia KONWERSJI, nie komunikat błędu.
+//
+// Poprzednia wersja pokazywała wyśrodkowane zdanie („Zaloguj się, aby zobaczyć
+// ten klub") i jeden przycisk. Osoba, która trafia tu z newslettera albo
+// wyszukiwarki, nie dowiadywała się ANI co jest w środku, ANI ile to kosztuje,
+// ANI jak wejść - a to jest jedyny moment, w którym jej intencja jest najwyższa.
+//
+// Bramka rozstrzyga trzy sytuacje jednym układem dwukolumnowym:
+//   * anonim              -> wartość klubu + formularz rejestracji inline,
+//   * zalogowany za nisko -> wartość klubu + upsell do wymaganego planu,
+//   * zalogowany, nie-członek -> prośba o dostęp (plan już wystarcza).
+import { useState, type FormEvent } from "react";
+import { Link } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
+import {
+  ArrowRight,
+  CalendarDays,
+  CheckCircle2,
+  Crown,
+  Eye,
+  EyeOff,
+  Library,
+  Loader2,
+  Lock,
+  MailCheck,
+  MessagesSquare,
+  ShieldCheck,
+  Users,
+} from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { preAuthGuard } from "@/lib/auth/bruteforce.functions";
+import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { FieldBox } from "@/components/ui/field-box";
+import { ClubCover } from "@/components/clubs/atoms/ClubCover";
+import { planTierFromRank } from "@/lib/clubs/planTiers";
+import type { ClubViewRow } from "@/lib/clubs/types";
+import "@/lib/i18n-club-gate";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+const PLAN_LABEL: Record<string, string> = {
+  free: "Free",
+  plus: "PLUS",
+  pro: "PRO",
+  vip: "VIP",
+};
+
+export function ClubAccessGate({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
+  const { t } = useTranslation();
+  const { session, loading } = useAuth();
+
+  const tier = planTierFromRank(club.min_tier_rank ?? 0);
+  // Bramka nigdy nie sprzedaje planu „free" - najniższy sensowny próg to PRO
+  // (domyślny próg klubu), inaczej CTA brzmi jak zaproszenie donikąd.
+  const sellTier = tier === "free" || tier === "plus" ? "pro" : tier;
+  const plan = PLAN_LABEL[sellTier] ?? "PRO";
+
+  const name = (isPl ? club.name_pl : club.name_en) || club.name_pl;
+  const tagline = isPl ? club.tagline_pl : club.tagline_en;
+  const signedIn = session !== null && !loading;
+  const tierTooLow = club.reason === "tier_too_low" || !signedIn;
+
+  return (
+    <Card className="overflow-hidden rounded-xl border-border/70">
+      <ClubCover url={club.cover_image_url} variant="banner" className="rounded-none border-0" />
+      <CardContent className="grid gap-6 p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-8">
+        {/* --- kolumna wartości ------------------------------------------ */}
+        <div className="min-w-0">
+          <span className="inline-flex items-center gap-1.5 rounded-lg bg-primary/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-primary">
+            <Crown className="h-3.5 w-3.5" aria-hidden="true" />
+            {t("clubGate.eyebrow", { plan })}
+          </span>
+
+          <h1 className="mt-3 text-2xl font-semibold leading-tight sm:text-3xl">{name}</h1>
+          {tagline ? <p className="mt-2 text-muted-foreground">{tagline}</p> : null}
+
+          <dl className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <dd className="inline-flex items-center gap-1.5 tabular-nums">
+              <Users className="h-3.5 w-3.5" aria-hidden="true" />
+              {t("clubGate.statsMembers", { count: club.member_count ?? 0 })}
+            </dd>
+            <dd className="inline-flex items-center gap-1.5 tabular-nums">
+              <MessagesSquare className="h-3.5 w-3.5" aria-hidden="true" />
+              {t("clubGate.statsThreads", { count: club.thread_count ?? 0 })}
+            </dd>
+          </dl>
+
+          <p className="mt-4 max-w-2xl text-sm">
+            {!signedIn
+              ? t("clubGate.anonLead", { plan })
+              : tierTooLow
+                ? t("clubGate.upgradeLead", { plan })
+                : t("clubGate.joinLead")}
+          </p>
+
+          <div className="mt-5 rounded-lg border border-border/70 bg-muted/30 p-4">
+            <p className="text-sm font-medium">{t("clubGate.benefitsTitle", { plan })}</p>
+            <ul className="mt-2.5 grid gap-2 sm:grid-cols-2">
+              <Benefit icon={<MessagesSquare className="h-4 w-4" aria-hidden="true" />}>
+                {t("clubGate.benefits.threads")}
+              </Benefit>
+              <Benefit icon={<Library className="h-4 w-4" aria-hidden="true" />}>
+                {t("clubGate.benefits.library")}
+              </Benefit>
+              <Benefit icon={<CalendarDays className="h-4 w-4" aria-hidden="true" />}>
+                {t("clubGate.benefits.calendar")}
+              </Benefit>
+              <Benefit icon={<Users className="h-4 w-4" aria-hidden="true" />}>
+                {t("clubGate.benefits.network")}
+              </Benefit>
+              <Benefit icon={<ShieldCheck className="h-4 w-4" aria-hidden="true" />}>
+                {t("clubGate.benefits.chatham")}
+              </Benefit>
+            </ul>
+          </div>
+        </div>
+
+        {/* --- kolumna akcji --------------------------------------------- */}
+        <aside className="min-w-0 rounded-lg border border-primary/25 bg-primary/[0.04] p-4 sm:p-5">
+          {signedIn ? (
+            <MemberActions club={club} plan={plan} tierTooLow={tierTooLow} />
+          ) : (
+            <GateSignupForm plan={plan} />
+          )}
+        </aside>
+      </CardContent>
+    </Card>
+  );
+}
+
+function Benefit({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <li className="flex items-start gap-2 text-sm text-muted-foreground">
+      <span className="mt-0.5 shrink-0 text-primary">{icon}</span>
+      <span className="min-w-0">{children}</span>
+    </li>
+  );
+}
+
+function MemberActions({
+  club,
+  plan,
+  tierTooLow,
+}: {
+  club: ClubViewRow;
+  plan: string;
+  tierTooLow: boolean;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <div className="space-y-3">
+      <p className="flex items-center gap-2 text-sm font-medium">
+        <Lock className="h-4 w-4 text-primary" aria-hidden="true" />
+        {t("clubGate.lockedTitle", { plan })}
+      </p>
+
+      {tierTooLow ? (
+        <>
+          <Button asChild className="w-full rounded-lg">
+            <Link to="/pricing">
+              {t("clubGate.upgradeCta", { plan })}
+              <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+            </Link>
+          </Button>
+          <Button asChild variant="outline" className="w-full rounded-lg">
+            <Link to="/pricing" hash="plans">
+              {t("clubGate.plansCta")}
+            </Link>
+          </Button>
+        </>
+      ) : null}
+
+      {club.join_policy !== "invite" ? (
+        <Button asChild variant={tierTooLow ? "ghost" : "default"} className="w-full rounded-lg">
+          <Link to="/club/$clubSlug/about" params={{ clubSlug: club.slug }}>
+            {club.join_policy === "open" ? t("clubGate.joinCta") : t("clubGate.requestCta")}
+          </Link>
+        </Button>
+      ) : null}
+
+      <p className="text-[11px] leading-snug text-muted-foreground">{t("clubGate.secure")}</p>
+    </div>
+  );
+}
+
+function GateSignupForm({ plan }: { plan: string }) {
+  const { t, i18n } = useTranslation();
+  const lang = (i18n.language ?? "pl").startsWith("pl") ? "pl" : "en";
+  const runPreAuthGuard = useServerFn(preAuthGuard);
+
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+    event.preventDefault();
+    const mail = email.trim().toLowerCase();
+    if (!EMAIL_RE.test(mail)) {
+      toast.error(t("clubGate.errors.email"));
+      return;
+    }
+    if (password.length < 8) {
+      toast.error(t("clubGate.errors.password"));
+      return;
+    }
+    setBusy(true);
+    try {
+      try {
+        await runPreAuthGuard({ data: { kind: "signup", email: mail } });
+      } catch (guardError) {
+        const message = guardError instanceof Error ? guardError.message : "";
+        if (message.includes("rate_limited")) {
+          toast.error(t("clubGate.errors.rate"));
+          return;
+        }
+        throw guardError;
+      }
+
+      const first = firstName.trim();
+      const last = lastName.trim();
+      const display = [first, last].filter(Boolean).join(" ") || mail.split("@")[0];
+
+      const { error } = await supabase.auth.signUp({
+        email: mail,
+        password,
+        options: {
+          // Po potwierdzeniu wracamy DOKŁADNIE na tę stronę klubu - intencja
+          // użytkownika nie może zginąć w podróży przez skrzynkę pocztową.
+          emailRedirectTo: `${window.location.origin}${window.location.pathname}`,
+          data: {
+            display_name: display,
+            first_name: first,
+            last_name: last,
+            full_name: display,
+            signup_type: "reader",
+            signup_source: "club_gate",
+            preferred_language: lang,
+            marketing_opt_in: false,
+          },
+        },
+      });
+      if (error) throw error;
+      setSent(true);
+    } catch {
+      toast.error(t("clubGate.errors.generic"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (sent) {
+    return (
+      <div className="space-y-3 text-center" aria-live="polite">
+        <MailCheck className="mx-auto h-8 w-8 text-primary" aria-hidden="true" />
+        <p className="text-sm font-medium">{t("clubGate.sentTitle")}</p>
+        <p className="text-sm text-muted-foreground">
+          {t("clubGate.sentBody", { email: email.trim().toLowerCase() })}
+        </p>
+        <Button asChild variant="outline" className="w-full rounded-lg">
+          <Link to="/pricing">{t("clubGate.plansCta")}</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <form className="space-y-3" onSubmit={(event) => void submit(event)}>
+      <p className="flex items-center gap-2 text-sm font-medium">
+        <Crown className="h-4 w-4 text-primary" aria-hidden="true" />
+        {t("clubGate.signupTitle")}
+      </p>
+      <p className="text-xs text-muted-foreground">{t("clubGate.signupLead", { plan })}</p>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <FieldBox
+          label={t("clubGate.firstName")}
+          value={firstName}
+          autoComplete="given-name"
+          onChange={(event) => setFirstName(event.target.value)}
+        />
+        <FieldBox
+          label={t("clubGate.lastName")}
+          value={lastName}
+          autoComplete="family-name"
+          onChange={(event) => setLastName(event.target.value)}
+        />
+      </div>
+      <FieldBox
+        label={t("clubGate.email")}
+        type="email"
+        required
+        value={email}
+        autoComplete="email"
+        onChange={(event) => setEmail(event.target.value)}
+      />
+      <FieldBox
+        label={t("clubGate.password")}
+        type={showPw ? "text" : "password"}
+        required
+        value={password}
+        autoComplete="new-password"
+        onChange={(event) => setPassword(event.target.value)}
+        trailing={
+          <button
+            type="button"
+            onClick={() => setShowPw((v) => !v)}
+            aria-label={t("clubGate.password")}
+            className="text-muted-foreground transition-colors hover:text-foreground"
+          >
+            {showPw ? (
+              <EyeOff className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <Eye className="h-4 w-4" aria-hidden="true" />
+            )}
+          </button>
+        }
+      />
+
+      <Button type="submit" className="w-full rounded-lg" disabled={busy}>
+        {busy ? (
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+        ) : (
+          <CheckCircle2 className="mr-2 h-4 w-4" aria-hidden="true" />
+        )}
+        {busy ? t("clubGate.signupBusy") : t("clubGate.signupSubmit", { plan })}
+      </Button>
+
+      <p className="text-center text-xs text-muted-foreground">
+        {t("clubGate.haveAccount")}{" "}
+        <Link
+          to="/login"
+          search={{ mode: "signin" }}
+          className="font-medium text-primary underline-offset-4 hover:underline"
+        >
+          {t("clubGate.signIn")}
+        </Link>
+      </p>
+      <p className="text-[11px] leading-snug text-muted-foreground">{t("clubGate.secure")}</p>
+    </form>
+  );
+}
