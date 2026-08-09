@@ -26,9 +26,11 @@ import { cn } from "@/lib/utils";
 import { ClubRailPanel } from "@/components/clubs/atoms/ClubHubPrimitives";
 import { ClubTopicChip } from "@/components/clubs/atoms/ClubTopicChip";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
+import { useClubGroups } from "@/lib/clubs/useClubs";
 import { ClubGroupTree, clubGroupName } from "@/components/clubs/molecules/ClubGroupTree";
 import { ClubRegimeMark, hasOwnRegime } from "@/components/clubs/atoms/ClubRegimeMark";
-import type { ClubAttributionMode, ClubGroupRow } from "@/lib/clubs/types";
+import { toClubAttributionMode } from "@/lib/clubs/types";
+import type { ClubAttributionMode, ClubGroupRow, ClubViewRow } from "@/lib/clubs/types";
 
 const SECTIONS = [
   { key: "threads", to: "/club/$clubSlug", icon: MessagesSquare, exact: true },
@@ -251,7 +253,77 @@ export function ClubHubRail({
           <Link
             to="/club/$clubSlug/about"
             params={{ clubSlug }}
-            className={cn(ITEM, ITEM_QUIET, "w-full")}
+            className={cn(ITEM, ITEM_MD, ITEM_QUIET, "w-full")}
+          >
+            <ScrollText className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span className="truncate">{t("club.rules")}</span>
+          </Link>
+        </ClubRailPanel>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Szyna podstron przestrzeni roboczej (biblioteka, kalendarz, harmonogram,
+ * pomiar, skład).
+ *
+ * DLACZEGO TA SAMA, CO W HUBIE. Podstrony miały wcześniej wyłącznie poziomy
+ * pasek pigułek, więc ten sam zestaw sekcji miał dwa kształty zależnie od
+ * tego, gdzie użytkownik akurat stał. Tu stoi ta sama kolumna, bez filtra
+ * działów - dział zawęża STRUMIEŃ, a na bibliotece czy kalendarzu nie miałby
+ * czego odsiać.
+ */
+export function ClubWorkspaceRail({
+  club,
+  isPl,
+}: {
+  club: ClubViewRow;
+  isPl: boolean;
+}) {
+  const { t } = useTranslation();
+  const { topics } = useClubTopics();
+  const groupsQ = useClubGroups(club.id);
+  const groups = groupsQ.data ?? [];
+  const visible = SECTIONS.filter((s) => s.key !== "members" || club.can_see_members);
+  const hasRules = (isPl ? club.rules_pl : club.rules_en) !== null;
+
+  return (
+    <div className="space-y-3">
+      <ClubRailPanel className="p-2">
+        <nav aria-label={t("club.hub.sectionsLabel")} className="flex flex-col gap-0.5">
+          {visible.map((section) => (
+            <SectionLink
+              key={section.key}
+              to={section.to}
+              clubSlug={club.slug}
+              icon={section.icon}
+              label={t(`club.hub.sections.${section.key satisfies SectionKey}`)}
+              exact={section.exact}
+              compact={false}
+            />
+          ))}
+        </nav>
+      </ClubRailPanel>
+
+      <ClubRegimePanel
+        attributionMode={toClubAttributionMode(club.attribution_mode)}
+        groups={groups}
+        isPl={isPl}
+      />
+
+      {club.policy_area !== null && club.policy_area.trim() !== "" ? (
+        <ClubRailPanel title={t("club.topic.label")}>
+          <ClubTopicChip topic={club.policy_area} lang={isPl ? "pl" : "en"} catalog={topics} />
+        </ClubRailPanel>
+      ) : null}
+
+      {hasRules ? (
+        <ClubRailPanel>
+          <Link
+            to="/club/$clubSlug/about"
+            params={{ clubSlug: club.slug }}
+            className={cn(ITEM, ITEM_MD, ITEM_QUIET, "w-full")}
           >
             <ScrollText className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span className="truncate">{t("club.rules")}</span>
