@@ -37,6 +37,7 @@ import {
 } from "@/lib/lucide-shim";
 import { AuthorByline } from "@/components/molecules/AuthorByline";
 import {
+import { buildAvatarSrc, buildAvatarSrcSet } from "@/lib/cropSizes";
   authorLabelText,
   defaultAuthorLabel,
   resolveAuthorDisplay,
