@@ -712,79 +712,87 @@ function ClubThreadView() {
           </div>
         ) : null}
 
-        {/* --- kompozytor --- */}
+        {/* --- kompozytor ---
+            Skrót Ctrl/Cmd + Enter DALEJ działa (patrz `onComposerKeyDown`), ale
+            znika z ekranu: plakietka klawiszy stała w miejscu, w którym oko
+            szuka przycisku wysyłki, i konkurowała z nim o uwagę. Licznik
+            znaków też przestał być stałym elementem - pokazuje się dopiero,
+            gdy limit robi się realny (od 70% długości). */}
         {thread.can_reply ? (
           <section
             ref={composerRef}
             id="club-reply-composer"
-            className="mt-6 rounded-xl border border-border/60 bg-card p-4 shadow-sm"
+            className="mt-6 overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm focus-within:border-primary/40"
             onKeyDown={onComposerKeyDown}
           >
-            {replyTo !== null ? (
-              <div className="mb-2 flex items-center justify-between gap-2 rounded-md bg-muted/50 px-3 py-1.5 text-xs">
-                <span className="text-muted-foreground">{t("club.replyingTo")}</span>
+            <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 bg-muted/25 px-4 py-2">
+              <span className="inline-flex items-center gap-2 text-xs font-semibold text-foreground">
+                <MessageSquare className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                {replyTo !== null ? t("club.replyingTo") : t("club.postReply")}
+              </span>
+              {replyTo !== null ? (
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="h-6 px-2"
+                  className="h-6 px-2 text-xs"
                   onClick={() => setReplyTo(null)}
                 >
                   {t("club.cancelReplyTo")}
                 </Button>
-              </div>
-            ) : null}
+              ) : null}
+            </header>
 
-            {/* Wzmianki: ten sam komponent i ten sam parser, co w komentarzach.
-              Backend obsługuje `club_reply` w `process_mentions` od A12, więc
-              bez podpowiedzi w polu jedyną drogą było wpisanie sluga z pamięci. */}
-            <MentionTextarea
-              id="club-reply-body"
-              label={t("club.replyPlaceholder")}
-              value={body}
-              onChange={(next) => {
-                setBody(next);
-                // Pisanie nowej odpowiedzi zdejmuje komunikat o poprzedniej:
-                // "czeka na zatwierdzenie" nad świeżym tekstem sugerowałoby,
-                // że to TEN wpis czeka.
-                if (queued) setQueued(false);
-              }}
-              lang={lang}
-              rows={4}
-              maxLength={BODY_MAX}
-            />
+            <div className="p-4">
+              {/* Wzmianki: ten sam komponent i ten sam parser, co w komentarzach.
+                Backend obsługuje `club_reply` w `process_mentions` od A12, więc
+                bez podpowiedzi w polu jedyną drogą było wpisanie sluga z pamięci. */}
+              <MentionTextarea
+                id="club-reply-body"
+                label={t("club.replyPlaceholder")}
+                value={body}
+                onChange={(next) => {
+                  setBody(next);
+                  // Pisanie nowej odpowiedzi zdejmuje komunikat o poprzedniej:
+                  // "czeka na zatwierdzenie" nad świeżym tekstem sugerowałoby,
+                  // że to TEN wpis czeka.
+                  if (queued) setQueued(false);
+                }}
+                lang={lang}
+                rows={4}
+                maxLength={BODY_MAX}
+              />
 
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-3">
-                {canGoAnonymous ? (
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      id="club-reply-anon"
-                      checked={anonymous}
-                      disabled={replyM.isPending}
-                      onCheckedChange={setAnonymous}
-                    />
-                    <Label htmlFor="club-reply-anon" className="text-sm">
-                      {t("club.postAnonymously")}
-                    </Label>
-                  </div>
-                ) : null}
-                <span className="text-xs text-muted-foreground">
-                  {body.trim().length} / {BODY_MAX}
-                </span>
-              </div>
-              <div className="flex items-center gap-3">
-                {/* Skrót jest widoczny, a nie ukryty w pamięci mięśniowej -
-                    inaczej istnieje wyłącznie dla tych, którzy zgadli. */}
-                <kbd className="hidden rounded border border-border/60 bg-muted/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground sm:inline">
-                  {t("club.sendShortcut")}
-                </kbd>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                <div className="flex flex-wrap items-center gap-3">
+                  {canGoAnonymous ? (
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="club-reply-anon"
+                        checked={anonymous}
+                        disabled={replyM.isPending}
+                        onCheckedChange={setAnonymous}
+                      />
+                      <Label htmlFor="club-reply-anon" className="text-xs">
+                        {t("club.postAnonymously")}
+                      </Label>
+                    </div>
+                  ) : null}
+                  {body.trim().length > BODY_MAX * 0.7 ? (
+                    <span className="text-xs tabular-nums text-muted-foreground">
+                      {body.trim().length} / {BODY_MAX}
+                    </span>
+                  ) : null}
+                </div>
                 <Button
+                  size="sm"
                   onClick={submitReply}
                   disabled={replyM.isPending || body.trim().length === 0}
                 >
                   {replyM.isPending ? (
                     <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />
-                  ) : null}
+                  ) : (
+                    <Send className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                  )}
                   {t("club.postReply")}
                 </Button>
               </div>
