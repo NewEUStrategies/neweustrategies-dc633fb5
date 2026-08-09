@@ -46,6 +46,13 @@ export interface ClubDocumentsQuery {
   clubId: string;
   groupId?: string | null;
   kind?: string | null;
+  /**
+   * Zawezenie po ZBIORZE rodzajow (A29) - "Dorobek" pyta o siedem naraz.
+   * Odsianie po stronie klienta rozjechaloby `total_count`, ktory liczy sie
+   * w oknie PRZED limitem: licznik i paginacja mowilyby o innym zbiorze niz
+   * lista pod nimi.
+   */
+  kinds?: readonly string[] | null;
   search?: string | null;
   limit?: number;
   offset?: number;
@@ -56,6 +63,7 @@ export async function fetchClubDocuments(params: ClubDocumentsQuery): Promise<Cl
     p_club_id: params.clubId,
     p_group_id: params.groupId ?? undefined,
     p_kind: params.kind ?? undefined,
+    p_kinds: params.kinds === null || params.kinds === undefined ? undefined : [...params.kinds],
     p_search: params.search ?? undefined,
     p_limit: params.limit ?? 50,
     p_offset: params.offset ?? 0,

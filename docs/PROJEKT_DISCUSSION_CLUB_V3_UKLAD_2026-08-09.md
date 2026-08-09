@@ -1,6 +1,6 @@
 # Discussion Club V3 — przeformatowanie układu pod standard think-tankowy
 
-Data: 2026-08-09 · Status: **propozycja do decyzji** (Etap 0 wdrożony, reszta czeka na akceptację)
+Data: 2026-08-09 · Status: **Etapy 0–2 wdrożone**, etapy 3–4 czekają na decyzję
 Kontekst: wytyczne „Pełnoprawny think-tankowy Discussion Club" + audyt obecnego układu huba klubu.
 Poprzednicy: `PROJEKT_MODUL_DISCUSSION_CLUB_2026-08-07.md` (V1), `PROJEKT_MODUL_DISCUSSION_CLUB_V2_ADMIN_2026-08-07.md` (V2).
 
@@ -356,23 +356,64 @@ cztery dotyczą tego samego: **klub nie pokazuje, co wyprodukował.**
 
 ## 11. Etapy
 
-| Etap | Zakres | Migracja | Efekt |
-| ---- | ------ | -------- | ----- |
-| **E0 — zrobione** | nazewnictwo: „Grupy" → „Działy tematyczne" (PL), „Groups" → „Topic sections" (EN), w hubie, panelu i katalogu elementów | nie | UI mówi to samo, co kod |
-| **E1** | rozdzielenie osi: chipy trybu pracy, filtr „zakotwiczone", chip tematu na wierszu wątku, znacznik reżimu, usunięcie dubletu „Biblioteka" | nie | jedna oś = jedna kontrolka |
-| **E2** | „Dorobek": nowa sekcja + rozdzielenie `brief` i siedem typów produktów | tak (CHECK + i18n) | widać, co klub wyprodukował |
-| **E3** | cykl kwartalny + standard spotkania (agenda, pytanie, moderator, synteza, briefing/produkt) | tak (`club_cycles`, kolumny `club_events`) | briefing → sesja → produkt jako pętla |
-| **E4** | klasy członkostwa, metryki jakości, test trzech pytań, tagowanie bazy wiedzy, czterostopniowa poufność | tak | standard think-tankowy w pełni |
+| Etap | Zakres | Migracja | Stan |
+| ---- | ------ | -------- | ---- |
+| **E0** | nazewnictwo: „Grupy" → „Działy tematyczne" (PL), „Groups" → „Topic sections" (EN), w hubie, panelu i katalogu elementów | nie | **wdrożone** |
+| **E1** | rozdzielenie osi: chipy trybu pracy, filtry kotwicy i nieprzeczytanych, znacznik reżimu, panel reżimu w szynie | nie | **wdrożone** |
+| **E2** | „Dorobek": rozdzielenie `brief`, siedem rodzajów produktu, zakres biblioteki, panel dorobku w prawej kolumnie | tak (A29) | **wdrożone** |
+| **E3** | cykl kwartalny + standard spotkania (agenda, pytanie przewodnie, moderator, synteza, briefing → produkt) | tak (`club_cycles`, kolumny `club_events`) | do decyzji |
+| **E4** | klasy członkostwa, metryki jakości, test trzech pytań, tagowanie bazy wiedzy, czterostopniowa poufność | tak | do decyzji |
 
-E1 jest najtańszy i daje największy skok czytelności — to jest praca wyłącznie w warstwie
-komponentów, na danych, które już są w projekcji RPC.
+### Co dokładnie weszło (E0–E2)
+
+**Warstwa danych — migracja `20260809000000_discussion_clubs_a29_*`:**
+
+* `club_documents.kind` rozszerzony o siedem rodzajów produktu (`discussion_note`,
+  `policy_brief`, `scenario`, `memo`, `research_agenda`, `public_insight`, `decision_memo`);
+  `brief` znaczy od teraz wyłącznie briefing przedsesyjny;
+* `club_documents_list` przyjmuje `p_kinds text[]` — zawężenie po ZBIORZE rodzajów. Bez tego
+  „Dorobek" musiałby odsiewać rodzaje po stronie klienta, a `total_count` liczy się w oknie
+  PRZED limitem: licznik i paginacja mówiłyby o innym zbiorze niż lista pod nimi;
+* pięć działów klubu referencyjnego przebudowanych na cztery tematyczne
+  (Architektura bezpieczeństwa → poddział Wschodnia flanka i NATO, Zdolności i przemysł obronny,
+  Technologia i cyber) plus Kuluary jako reżim. Wątki przeniesione **po slugu, nie hurtem**:
+  „Debata otwarta" trzymała i wątek o zdolnościach przemysłowych, i sondaż porządkowy klubu,
+  więc przeniesienie całego działu w jedno miejsce powtórzyłoby błąd, który ta migracja naprawia.
+
+Dwie rzeczy, które ta migracja robi **ostrożnie**. Po pierwsze, cała przebudowa działów stoi za
+bramką porównującą slug ORAZ obie nazwy z tym, co zasiał A20 — jeśli redakcja tknęła którykolwiek
+dział, blok kończy się `NOTICE` i nie zmienia niczego. Po drugie, opróżnione działy idą na
+`archived`, a nie do kosza: znikają z szyny członka, ale zarządzający widzi je dalej i może cofnąć
+decyzję. Licznik wątków jest przeliczany jawnie, bo trigger reaguje na `UPDATE OF status`,
+a nie na `group_id` — dokładnie z tego powodu robi to też `admin_club_thread_move`.
+
+**Warstwa interfejsu:**
+
+* `ClubStreamFilters` — chipy rodzaju wątku (6 wartości `club_threads.kind`) plus filtry
+  „tylko zakotwiczone" i „tylko nieprzeczytane". Wszystko idzie do RPC (`p_kind`, `p_anchored`,
+  `p_unread_only` istnieją od A26), nie do przeglądarki;
+* włączenie zawężenia wątkowego w trybie „Wszystko" przestawia strumień na „Wątki" — widocznie,
+  bo rusza się segmentowany przełącznik obok. Inaczej filtr rodzaju wyglądałby na zepsuty,
+  skoro dokumenty i terminy go nie dotyczą;
+* `ClubRegimeMark` — znacznik przy dziale, który NADPISUJE regułę klubu (Chatham House albo
+  zawężoną widoczność). Dział dziedziczący nie dostaje nic: znacznik przy każdej pozycji
+  nie znaczy nic;
+* panel „Reżim" w szynie: zdanie o atrybucji klubu plus lista działów z własnym reżimem;
+* biblioteka dostała przełącznik zakresu **Wszystko / Dorobek / Materiały**, a chipy rodzaju
+  idą za zakresem — rodzaj spoza zakresu zwróciłby pustkę;
+* panel „Dorobek klubu" otwiera prawą kolumnę, „Puls" schodzi na koniec. Panel **nie znika przy
+  zerze**: klub bez ani jednego produktu ma to zobaczyć, bo to jest informacja o klubie,
+  a nie brak danych do ukrycia.
 
 ---
 
 ## 12. Decyzje, których nie podejmę bez Was
 
-1. **Czy przebudowujemy pięć obecnych działów na tematyczne** (rekomendacja z §2.1, wymaga przeniesienia
-   istniejących wątków), czy zostawiamy je jako reżimy i dokładamy oś tematyczną obok?
+1. ~~Czy przebudowujemy pięć obecnych działów na tematyczne?~~ **Rozstrzygnięte: tak.** Działy
+   tematyczne są bytem klubowym (`club_groups`) i zostały przebudowane migracją A29. Otwarte
+   zostaje jedno: **czy nazwy czterech nowych działów są tymi, których chce redakcja** — dobrałem
+   je z domen wytycznych §2 pod profil klubu bezpieczeństwa, ale to jest decyzja redakcyjna
+   i zmiana nazwy nie wymaga migracji.
 2. **Czy „Dorobek" jest widoczny publicznie** dla klubów `public`? Wytyczne §8 rozróżniają produkty
    zamknięte i publiczne — to jest decyzja o tym, czy klub jest też lejkiem pozyskania.
 3. **Czy cykl jest kwartalny, czy dowiązany do procesu legislacyjnego?** Klub referencyjny deklaruje

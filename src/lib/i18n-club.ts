@@ -123,6 +123,13 @@ export const clubPl = {
         due: "termin: {{date}}",
         doneOf: "{{done}} z {{total}} etapów zamkniętych",
       },
+      output: {
+        title: "Dorobek klubu",
+        count_one: "{{count}} produkt",
+        count_few: "{{count}} produkty",
+        count_many: "{{count}} produktów",
+        count_other: "{{count}} produktów",
+      },
       freshDocs: {
         title: "Świeże materiały",
       },
@@ -346,6 +353,7 @@ export const clubPl = {
       anchorNone: "Bez kotwicy",
       unreadOnly: "Tylko nieprzeczytane",
       clear: "Wyczyść filtry",
+      empty: "Żaden wątek nie pasuje do wybranych zawężeń.",
     },
     composer: {
       draftFound: "Masz niedokończony tekst z {{when}}.",
@@ -367,6 +375,10 @@ export const clubPl = {
       threads: "tematy",
       documents: "dokumenty",
       clear: "Wyczyść wybór działu",
+    },
+    regime: {
+      title: "Reżim",
+      exceptions: "Działy z własnym reżimem",
     },
     allKinds: "Wszystkie rodzaje",
     noThreads: "W tym klubie nie ma jeszcze żadnego tematu.",
@@ -749,7 +761,7 @@ export const clubPl = {
       nextPage: "Następna",
       pageOf: "Strona {{page}} z {{pages}}",
       kind: {
-        brief: "Nota",
+        brief: "Briefing",
         analysis: "Analiza",
         minutes: "Protokół",
         dataset: "Dane",
@@ -757,6 +769,24 @@ export const clubPl = {
         legal: "Akt prawny",
         presentation: "Prezentacja",
         other: "Inne",
+        discussion_note: "Nota z dyskusji",
+        policy_brief: "Policy brief",
+        scenario: "Scenariusz",
+        memo: "Memo strategiczne",
+        research_agenda: "Agenda badawcza",
+        public_insight: "Materiał publiczny",
+        decision_memo: "Nota decyzyjna",
+      },
+      // Dwie osie dokumentu: WEJŚCIE (materiały, z których klub pracuje)
+      // i WYJŚCIE (produkty, które klub wytworzył).
+      scope: {
+        all: "Wszystko",
+        products: "Dorobek",
+        sources: "Materiały",
+        productsHint: "To, co klub wytworzył: noty, policy briefs, scenariusze, rekomendacje.",
+        sourcesHint: "To, z czego klub pracuje: briefingi, dane, akty prawne, prezentacje.",
+        emptyProducts: "Ten klub nie ma jeszcze żadnego produktu.",
+        emptySources: "Ten klub nie ma jeszcze materiałów źródłowych.",
       },
       visibility: {
         club: "Dla klubu",
@@ -1586,6 +1616,11 @@ export const clubEn = {
         due: "due: {{date}}",
         doneOf: "{{done}} of {{total}} stages closed",
       },
+      output: {
+        title: "Club output",
+        count_one: "{{count}} product",
+        count_other: "{{count}} products",
+      },
       freshDocs: {
         title: "Fresh materials",
       },
@@ -1788,6 +1823,7 @@ export const clubEn = {
       anchorNone: "Without an anchor",
       unreadOnly: "Unread only",
       clear: "Clear filters",
+      empty: "No thread matches the selected filters.",
     },
     composer: {
       draftFound: "You have an unfinished text from {{when}}.",
@@ -1809,6 +1845,10 @@ export const clubEn = {
       threads: "topics",
       documents: "documents",
       clear: "Clear section filter",
+    },
+    regime: {
+      title: "Regime",
+      exceptions: "Sections with their own regime",
     },
     allKinds: "All kinds",
     noThreads: "This club has no topics yet.",
@@ -2176,7 +2216,7 @@ export const clubEn = {
       nextPage: "Next",
       pageOf: "Page {{page}} of {{pages}}",
       kind: {
-        brief: "Brief",
+        brief: "Briefing",
         analysis: "Analysis",
         minutes: "Minutes",
         dataset: "Dataset",
@@ -2184,6 +2224,22 @@ export const clubEn = {
         legal: "Legal act",
         presentation: "Presentation",
         other: "Other",
+        discussion_note: "Discussion note",
+        policy_brief: "Policy brief",
+        scenario: "Scenario paper",
+        memo: "Strategic memo",
+        research_agenda: "Research agenda",
+        public_insight: "Public insight",
+        decision_memo: "Decision memo",
+      },
+      scope: {
+        all: "Everything",
+        products: "Output",
+        sources: "Materials",
+        productsHint: "What the club produced: notes, policy briefs, scenarios, recommendations.",
+        sourcesHint: "What the club works from: briefings, data, legal acts, presentations.",
+        emptyProducts: "This club has no output yet.",
+        emptySources: "This club has no source materials yet.",
       },
       visibility: {
         club: "Club-wide",

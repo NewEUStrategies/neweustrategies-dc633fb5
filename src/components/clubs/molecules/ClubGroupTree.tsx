@@ -23,6 +23,7 @@ import {
   ClubGroupIcon,
   clubGroupAccentVars,
 } from "@/components/clubs/atoms/ClubGroupAccent";
+import { ClubRegimeMark } from "@/components/clubs/atoms/ClubRegimeMark";
 import type { ClubGroupRow } from "@/lib/clubs/types";
 
 export function clubGroupName(group: ClubGroupRow, isPl: boolean): string {
@@ -96,6 +97,10 @@ function GroupRow({
           className={cn("h-3.5 w-3.5", active ? "" : "opacity-70")}
         />
         <span className="min-w-0 flex-1 truncate">{clubGroupName(group, isPl)}</span>
+        {/* Reżim stoi PRZED kłódką braku dostępu, bo dotyczy działu, a kłódka
+            dotyczy wołającego - to są dwa różne komunikaty i nie wolno ich
+            zlepić w jedną ikonę. */}
+        <ClubRegimeMark group={group} />
         {locked ? (
           <Lock className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
         ) : null}
@@ -228,6 +233,7 @@ export function ClubGroupBar({
           >
             <ClubGroupIcon icon={group.icon} className="h-3.5 w-3.5" />
             {clubGroupName(group, isPl)}
+            <ClubRegimeMark group={group} />
             <span className="tabular-nums opacity-70">{group.thread_count}</span>
           </button>
         );

@@ -15,23 +15,38 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { Download, ExternalLink, FileQuestion, Link2, Lock, Pin, Search, X } from "lucide-react";
+import {
+  Award,
+  BookOpen,
+  Download,
+  ExternalLink,
+  FileQuestion,
+  Library,
+  Link2,
+  Lock,
+  Pin,
+  Search,
+  X,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useClubDocuments } from "@/lib/clubs/useClubWorkspace";
+import { useClubDocuments, type ClubDocumentScope } from "@/lib/clubs/useClubWorkspace";
 import { registerClubDocumentDownload } from "@/lib/clubs/workspaceApi";
 import {
   CLUB_DOCUMENT_KINDS,
+  CLUB_PRODUCT_KINDS,
+  CLUB_SOURCE_KINDS,
   documentHref,
   toDocumentKind,
   toDocumentStatus,
   toDocumentVisibility,
   type ClubDocumentRow,
 } from "@/lib/clubs/workspaceTypes";
+import { ClubSegmented } from "@/components/clubs/atoms/ClubHubPrimitives";
 import {
   ClubDocumentKindChip,
   ClubDocumentKindIcon,
@@ -41,6 +56,14 @@ import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
 import { formatDateShort } from "@/lib/i18n/format";
 
 const PAGE = 30;
+
+/** Trzy zakresy biblioteki - patrz `ClubDocumentScope`. */
+const SCOPES: readonly ClubDocumentScope[] = ["all", "products", "sources"];
+const SCOPE_ICONS = {
+  all: Library,
+  products: Award,
+  sources: BookOpen,
+} as const satisfies Record<ClubDocumentScope, typeof Library>;
 
 /** Rozmiar pliku w jednostce, którą człowiek czyta bez liczenia zer. */
 function formatBytes(bytes: number | null, locale: string): string | null {
@@ -192,6 +215,7 @@ export function ClubDocumentLibrary({ clubId, clubSlug }: { clubId: string; club
   const isPl = (i18n.language ?? "pl").startsWith("pl");
   const locale = isPl ? "pl-PL" : "en-GB";
 
+  const [scope, setScope] = useState<ClubDocumentScope>("all");
   const [kind, setKind] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
@@ -200,6 +224,7 @@ export function ClubDocumentLibrary({ clubId, clubSlug }: { clubId: string; club
   const documentsQ = useClubDocuments({
     clubId,
     kind,
+    scope,
     search: debounced,
     offset: page * PAGE,
     limit: PAGE,
@@ -207,7 +232,17 @@ export function ClubDocumentLibrary({ clubId, clubSlug }: { clubId: string; club
 
   const rows = documentsQ.data?.rows ?? [];
   const total = documentsQ.data?.total ?? 0;
-  const filtered = kind !== null || debounced.trim().length >= 2;
+  const filtered = kind !== null || scope !== "all" || debounced.trim().length >= 2;
+
+  // Chipy rodzaju idą za zakresem: rodzaj spoza zakresu zwróciłby pustkę,
+  // więc pokazywanie go byłoby obietnicą bez pokrycia. Zmiana zakresu zeruje
+  // rodzaj z tego samego powodu.
+  const kindsInScope: readonly string[] =
+    scope === "products"
+      ? CLUB_PRODUCT_KINDS
+      : scope === "sources"
+        ? CLUB_SOURCE_KINDS
+        : CLUB_DOCUMENT_KINDS;
 
   return (
     <div className="space-y-4">
@@ -246,6 +281,33 @@ export function ClubDocumentLibrary({ clubId, clubSlug }: { clubId: string; club
         </p>
       </div>
 
+      {/* ZAKRES stoi NAD rodzajem, bo to jest inne pytanie: rodzaj zawęża
+          jeden zbiór, a zakres wybiera, o który zbiór w ogóle chodzi -
+          o to, co klub WYTWORZYŁ, czy o to, z czego PRACUJE. */}
+      <div className="space-y-2">
+        <ClubSegmented
+          value={scope}
+          options={SCOPES.map((value) => ({
+            value,
+            label: t(`club.docs.scope.${value}`),
+            icon: SCOPE_ICONS[value],
+          }))}
+          onChange={(next) => {
+            setScope(next);
+            setKind(null);
+            setPage(0);
+          }}
+          ariaLabel={t("club.docs.scope.all")}
+        />
+        {scope !== "all" ? (
+          <p className="text-xs text-muted-foreground">
+            {t(
+              scope === "products" ? "club.docs.scope.productsHint" : "club.docs.scope.sourcesHint",
+            )}
+          </p>
+        ) : null}
+      </div>
+
       {/* Pasek rodzajów - patrz nagłówek pliku. */}
       <div className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-0">
         <button
@@ -264,7 +326,7 @@ export function ClubDocumentLibrary({ clubId, clubSlug }: { clubId: string; club
         >
           {t("club.docs.kindAll")}
         </button>
-        {CLUB_DOCUMENT_KINDS.map((value) => (
+        {kindsInScope.map((value) => (
           <button
             key={value}
             type="button"
@@ -294,7 +356,18 @@ export function ClubDocumentLibrary({ clubId, clubSlug }: { clubId: string; club
           <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
             <FileQuestion className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
             <p className="text-sm text-muted-foreground">
-              {filtered ? t("club.docs.emptyFiltered") : t("club.docs.empty")}
+              {/* Pusty ZAKRES to inna informacja niż pusty filtr: klub bez
+                  produktów ma zobaczyć, że nic jeszcze nie wytworzył, a nie
+                  że "żaden dokument nie pasuje do zawężenia". */}
+              {scope !== "all" && kind === null && debounced.trim().length < 2
+                ? t(
+                    scope === "products"
+                      ? "club.docs.scope.emptyProducts"
+                      : "club.docs.scope.emptySources",
+                  )
+                : filtered
+                  ? t("club.docs.emptyFiltered")
+                  : t("club.docs.empty")}
             </p>
           </CardContent>
         </Card>

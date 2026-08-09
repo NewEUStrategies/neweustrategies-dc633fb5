@@ -47,6 +47,8 @@ import {
 import {
   CLUB_THREAD_SORTS,
   CLUB_THREAD_SORTS_REQUIRING_SESSION,
+  toClubAttributionMode,
+  type ClubThreadKind,
   type ClubThreadSort,
   type ClubViewRow,
 } from "@/lib/clubs/types";
@@ -59,10 +61,12 @@ import { ClubHubIdentity } from "@/components/clubs/molecules/ClubHubIdentity";
 import { ClubHubRail, ClubHubSectionBar } from "@/components/clubs/molecules/ClubHubRail";
 import { ClubGroupBar } from "@/components/clubs/molecules/ClubGroupTree";
 import { ClubGroupPanel } from "@/components/clubs/molecules/ClubGroupPanel";
+import { ClubStreamFilters } from "@/components/clubs/molecules/ClubStreamFilters";
 import { buildClubGroupTree, clubGroupPath } from "@/lib/clubs/groupTree";
 import { ClubComposer } from "@/components/clubs/molecules/ClubComposer";
 import {
   ClubFreshDocsPanel,
+  ClubOutputPanel,
   ClubPeoplePanel,
   ClubPulsePanel,
   ClubStagePanel,
@@ -99,13 +103,30 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
   const [groupId, setGroupId] = useState<string | null>(null);
   const [sort, setSort] = useState<ClubThreadSort>("hot");
   const [query, setQuery] = useState("");
+  // Trzy zawężenia, które NIE są działem - patrz `ClubStreamFilters`.
+  const [kind, setKind] = useState<ClubThreadKind | null>(null);
+  const [anchoredOnly, setAnchoredOnly] = useState(false);
+  const [unreadOnly, setUnreadOnly] = useState(false);
 
   const groupsQ = useClubGroups(club.id);
-  const threadsQ = useClubThreads({ clubId: club.id, groupId, sort, kind: null });
+  const threadsQ = useClubThreads({
+    clubId: club.id,
+    groupId,
+    sort,
+    kind,
+    // `false` znaczyłoby "tylko BEZ kotwicy" - to jest trzeci stan, którego ta
+    // kontrolka nie oferuje, więc wyłączony filtr musi być `null`.
+    anchored: anchoredOnly ? true : null,
+    unreadOnly: signedIn && unreadOnly,
+  });
   // Konteksty: krótkie limity, bo w hubie są kontekstem, a nie listą.
   // Dokumenty idą tym samym zawężeniem, co strumień: panel działu ma pokazywać
   // materiały TEGO działu, a nie całego klubu.
   const documentsQ = useClubDocuments({ clubId: club.id, groupId, limit: 6 });
+  // Dorobek jest zapytaniem OSOBNYM od strumienia materiałów i celowo NIE idzie
+  // zawężeniem działu: "co ten klub wytworzył" jest pytaniem o klub, a nie
+  // o wycinek, który akurat czytamy.
+  const productsQ = useClubDocuments({ clubId: club.id, scope: "products", limit: 4 });
   const eventsQ = useClubEvents({ clubId: club.id, from: new Date().toISOString(), limit: 12 });
   const milestonesQ = useClubMilestones(club.id);
   const statsQ = useClubWorkspaceStats(club.id, 30);
@@ -152,6 +173,16 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
     (value) => signedIn || !CLUB_THREAD_SORTS_REQUIRING_SESSION.includes(value),
   );
 
+  // Zawężenie wątkowe włączone w trybie "Wszystko" przestawia strumień na
+  // "Wątki". Bez tego użytkownik zawęża rodzaj wątku i dalej widzi dokumenty
+  // oraz terminy, których to zawężenie nie dotyczy - czyli filtr wygląda na
+  // zepsuty. Przestawienie jest WIDOCZNE, bo rusza się segmentowany
+  // przełącznik obok; cicha zmiana źródła byłaby gorsza niż niespójność.
+  const applyThreadFilter = (change: () => void, becomesActive: boolean): void => {
+    change();
+    if (becomesActive && mode === "all") setMode("threads");
+  };
+
   const feedOptions = CLUB_FEED_MODES.map((value) => ({
     value,
     label: t(`club.hub.feed.mode.${value}`),
@@ -164,13 +195,17 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
           : undefined,
   }));
 
+  // KOLEJNOŚĆ PRAWEJ KOLUMNY JEST TEZĄ. Dorobek otwiera, puls zamyka:
+  // pierwsze, co widać po wejściu, ma mówić, co ten klub wytworzył, a nie ile
+  // było wpisów w ostatniej dobie. Ruch jest kontekstem dla dorobku, nie
+  // odwrotnie - i to jest cała różnica między think tankiem a forum.
   const context = (
     <>
-      <ClubPulsePanel
+      <ClubOutputPanel
         clubSlug={clubSlug}
-        series={seriesQ.data ?? []}
-        stats={stats}
-        locale={locale}
+        products={productsQ.data?.rows ?? []}
+        total={productsQ.data?.total ?? 0}
+        isPl={isPl}
       />
       <ClubUpNextPanel clubSlug={clubSlug} events={events} isPl={isPl} />
       <ClubStagePanel
@@ -184,6 +219,12 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
         clubSlug={clubSlug}
         contributors={contributors}
         canSeeMembers={club.can_see_members}
+        locale={locale}
+      />
+      <ClubPulsePanel
+        clubSlug={clubSlug}
+        series={seriesQ.data ?? []}
+        stats={stats}
         locale={locale}
       />
     </>
@@ -201,6 +242,7 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
             canSeeMembers={club.can_see_members}
             groups={groups}
             policyArea={club.policy_area}
+            attributionMode={toClubAttributionMode(club.attribution_mode)}
             activeGroupId={groupId}
             onGroupChange={setGroupId}
             hasRules={(isPl ? club.rules_pl : club.rules_en) !== null}
@@ -294,6 +336,21 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
             />
           ) : null}
 
+          {/* Zawężenia dotyczą WĄTKÓW, więc nie stoją nad strumieniem
+              dokumentów ani terminów - tam nie miałyby czego odsiać. */}
+          {!searching && (mode === "all" || mode === "threads") ? (
+            <ClubStreamFilters
+              kind={kind}
+              onKindChange={(next) => applyThreadFilter(() => setKind(next), next !== null)}
+              anchoredOnly={anchoredOnly}
+              onAnchoredOnlyChange={(next) => applyThreadFilter(() => setAnchoredOnly(next), next)}
+              unreadOnly={unreadOnly}
+              onUnreadOnlyChange={(next) => applyThreadFilter(() => setUnreadOnly(next), next)}
+              canFilterUnread={signedIn}
+              className="mb-3"
+            />
+          ) : null}
+
           {searching ? (
             <ClubGlobalSearchResults
               hits={searchQ.data ?? []}
@@ -309,7 +366,15 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
             <ClubThreadListSkeleton />
           ) : feed.length === 0 ? (
             <p className={cn(HUB_SURFACE, "p-10 text-center text-sm text-muted-foreground")}>
-              {mode === "all" ? t("club.noThreads") : t(`club.hub.feed.empty.${mode}`)}
+              {/* Pustka Z ZAWĘŻENIEM to nie jest pusty klub. Komunikat
+                  "nie ma jeszcze tematów" pod włączonym filtrem jest po
+                  prostu nieprawdą i wypycha użytkownika z klubu, który ma
+                  treść dwa kliknięcia dalej. */}
+              {kind !== null || anchoredOnly || (signedIn && unreadOnly)
+                ? t("club.filters.empty")
+                : mode === "all"
+                  ? t("club.noThreads")
+                  : t(`club.hub.feed.empty.${mode}`)}
             </p>
           ) : (
             <div className="flex flex-col gap-3">

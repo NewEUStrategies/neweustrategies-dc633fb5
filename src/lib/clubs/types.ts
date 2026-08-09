@@ -312,6 +312,16 @@ function narrow<T extends string>(value: string | null, allowed: readonly T[], f
 }
 
 /**
+ * Zawezenie trybu atrybucji KLUBU. Generator Supabase typuje `attribution_mode`
+ * jako goly `string`, wiec bez tego kazdy konsument robilby wlasne rzutowanie -
+ * a rzutowanie nie ma galezi dla wartosci spoza slownika i cicho przepuszcza
+ * kod, ktorego i18n nie zna (efekt: goly klucz na ekranie).
+ */
+export function toClubAttributionMode(value: string | null): ClubAttributionMode {
+  return narrow(value, CLUB_ATTRIBUTION_MODES, "attributed");
+}
+
+/**
  * Ksztalt strukturalny wspolny dla obu projekcji grupy (produktowej
  * club_groups_list i administracyjnej admin_club_groups). Dzieki temu jedna
  * funkcja obsluguje oba wiersze bez rzutowania - roznia sie polami spoza
