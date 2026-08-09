@@ -12,6 +12,8 @@ export interface VerificationDomainRow {
   note: string | null;
   active: boolean;
   require_email_confirmed: boolean;
+  /** Warstwa członkostwa nadawana automatycznie kontom z tej domeny (np. "vip"). */
+  grants_tier_key: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -61,6 +63,7 @@ export async function upsertVerificationDomain(input: {
   note?: string;
   active?: boolean;
   requireEmailConfirmed?: boolean;
+  grantsTierKey?: string | null;
 }): Promise<string> {
   const domain = normalizeDomainInput(input.domain);
   if (!isValidVerificationDomain(domain)) {
@@ -75,6 +78,7 @@ export async function upsertVerificationDomain(input: {
     p_note: note || undefined,
     p_active: input.active ?? true,
     p_require_email_confirmed: input.requireEmailConfirmed ?? true,
+    p_grants_tier_key: input.grantsTierKey ?? undefined,
   });
   if (error) throw error;
   return data as string;
