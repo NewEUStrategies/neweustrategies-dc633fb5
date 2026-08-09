@@ -62,6 +62,13 @@ import {
 } from "@/lib/clubs/types";
 import { parseContributors } from "@/lib/clubs/workspaceTypes";
 import { buildClubFeed, CLUB_FEED_MODES, type ClubFeedMode } from "@/lib/clubs/clubFeed";
+import {
+  useClubMediaUrls,
+  useClubPosts,
+  useDeleteClubPost,
+  useToggleClubPostLike,
+} from "@/lib/clubs/useClubPosts";
+import { isMediaAttachment, parseClubPostAttachments } from "@/lib/clubs/postTypes";
 import { ClubSegmented, HUB_SURFACE } from "@/components/clubs/atoms/ClubHubPrimitives";
 import { ClubThreadListSkeleton } from "@/components/clubs/atoms/ClubSkeletons";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
@@ -72,6 +79,7 @@ import { ClubGroupPanel } from "@/components/clubs/molecules/ClubGroupPanel";
 import { ClubStreamFilters } from "@/components/clubs/molecules/ClubStreamFilters";
 import { buildClubGroupTree, clubGroupPath } from "@/lib/clubs/groupTree";
 import { ClubComposer } from "@/components/clubs/molecules/ClubComposer";
+import { ClubPostComposer } from "@/components/clubs/molecules/ClubPostComposer";
 import {
   ClubFreshDocsPanel,
   ClubOutputPanel,
@@ -139,6 +147,11 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
   const eventsQ = useClubEvents({ clubId: club.id, from: new Date().toISOString(), limit: 12 });
   const milestonesQ = useClubMilestones(club.id);
   const statsQ = useClubWorkspaceStats(club.id, 30);
+  // Ściana (A31). Wpisy idą tym samym zawężeniem działu, co strumień - inaczej
+  // wybrany dział pokazywałby wątki jednego działu i wpisy całego klubu.
+  const postsQ = useClubPosts({ clubId: club.id, groupId });
+  const deletePost = useDeleteClubPost(club.id);
+  const toggleLike = useToggleClubPostLike();
   const seriesQ = useClubActivitySeries(club.id, 30);
 
   // Wyszukiwanie ZASTĘPUJE strumień, nie stoi obok niego: dwie listy naraz na
@@ -162,10 +175,26 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
   const events = useMemo(() => eventsQ.data ?? [], [eventsQ.data]);
   const milestones = useMemo(() => milestonesQ.data ?? [], [milestonesQ.data]);
   const stats = statsQ.data ?? null;
+  const posts = useMemo(
+    () => (postsQ.data?.pages ?? []).flatMap((page) => page.rows),
+    [postsQ.data],
+  );
+  // Wszystkie ścieżki plików ze ściany podpisujemy JEDNYM żądaniem - podpis
+  // per karta znaczyłby tyle round-tripów, ile wpisów na ekranie.
+  const mediaPaths = useMemo(
+    () =>
+      posts.flatMap((post) =>
+        parseClubPostAttachments(post.attachments)
+          .filter(isMediaAttachment)
+          .map((item) => item.path),
+      ),
+    [posts],
+  );
+  const mediaUrls = useClubMediaUrls(mediaPaths);
 
   const feed = useMemo(
-    () => buildClubFeed({ mode, threads, documents, events, milestones }),
-    [mode, threads, documents, events, milestones],
+    () => buildClubFeed({ mode, threads, documents, events, milestones, posts }),
+    [mode, threads, documents, events, milestones, posts],
   );
 
   const groups = useMemo(() => groupsQ.data ?? [], [groupsQ.data]);
@@ -220,8 +249,10 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
     label: t(`club.hub.feed.mode.${value}`),
     icon: FEED_ICONS[value],
     count:
-      value === "documents"
-        ? (documentsQ.data?.total ?? 0)
+      value === "posts"
+        ? (postsQ.data?.pages[0]?.total ?? 0)
+        : value === "documents"
+          ? (documentsQ.data?.total ?? 0)
         : value === "calendar"
           ? events.length
           : undefined,
@@ -307,6 +338,13 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
               className="mb-3"
             />
           ) : null}
+
+          <ClubPostComposer
+            clubId={club.id}
+            groupId={groupId}
+            canPost={signedIn && club.can_reply}
+            className="mb-3"
+          />
 
           <ClubComposer
             clubSlug={clubSlug}
@@ -411,7 +449,19 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
           ) : (
             <div className="flex flex-col gap-3">
               {feed.map((entry) => (
-                <ClubFeedItem key={entry.key} entry={entry} clubSlug={clubSlug} isPl={isPl} />
+                <ClubFeedItem
+                  key={entry.key}
+                  entry={entry}
+                  clubSlug={clubSlug}
+                  isPl={isPl}
+                  mediaUrls={mediaUrls}
+                  onPostLike={(postId) => {
+                    toggleLike.mutate(postId, {
+                      onSuccess: () => void postsQ.refetch(),
+                    });
+                  }}
+                  onPostDelete={(postId) => deletePost.mutate(postId)}
+                />
               ))}
             </div>
           )}
