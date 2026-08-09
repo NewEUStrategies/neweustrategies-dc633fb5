@@ -8,6 +8,7 @@
 // wbudowany fallback PL/EN.
 import { useMemo } from "react";
 import { useRegistrationFields, type RegistrationLang } from "@/lib/auth/registrationFields";
+import { popupFieldDefaultLabels } from "@/lib/newsletter/popupFields";
 
 export type NewsletterFieldKey =
   | "firstName"
@@ -81,12 +82,28 @@ export function useNewsletterFieldLabels(lang: RegistrationLang): NewsletterFiel
   const registration = useRegistrationFields(lang);
   return useMemo<NewsletterFieldLabels>(() => {
     const label = (key: NewsletterFieldKey, override?: string | null) => {
-      const trimmed = typeof override === "string" ? override.trim() : "";
-      if (trimmed) return trimmed;
       const regKey = REGISTRATION_KEY[key];
       const global = regKey ? registration.label(regKey, "").trim() : "";
+      const trimmed = typeof override === "string" ? override.trim() : "";
+      // Override widgetu liczy się tylko wtedy, gdy operator naprawdę wpisał
+      // własne brzmienie. Zapisane kopie fabrycznych etykiet (tak powstawały
+      // configi widgetów) ustępują globalnej konfiguracji rejestracji, dzięki
+      // czemu "Dołącz do nas" ma te same etykiety co zapis do newslettera i
+      // zakładanie konta.
+      const isFactoryCopy =
+        trimmed !== "" &&
+        (Object.values(NEWSLETTER_FIELD_FALLBACKS[key]).some(
+          (v) => v.toLowerCase() === trimmed.toLowerCase(),
+        ) ||
+          (regKey
+            ? popupFieldDefaultLabels(regKey).some(
+                (v) => v.toLowerCase() === trimmed.toLowerCase(),
+              )
+            : false));
+      if (trimmed && !isFactoryCopy) return trimmed;
       return global || NEWSLETTER_FIELD_FALLBACKS[key][lang];
     };
+
     const topics = (key: keyof typeof NEWSLETTER_TOPIC_LABELS, override?: string | null) => {
       const trimmed = typeof override === "string" ? override.trim() : "";
       return trimmed || topicLabel(key, lang);

@@ -668,10 +668,11 @@ export function JoinUsForm({
   const chipStyle = labelSize
     ? ({ fontSize: `${labelSize}px` } satisfies CSSProperties)
     : undefined;
-  // Only annotate labels/placeholders with "*" inside the CMS builder canvas —
-  // public visitors never see which fields are required until they submit and
-  // the server/client validation reports what is missing.
-  const withMark = (label: string, _req: boolean) => label;
+  // Gwiazdka przy polach wymaganych - dokładnie jak w popupie rejestracji i w
+  // formularzu newslettera (FieldBox dokleja " *"), żeby wszystkie formularze
+  // platformy czytały się tak samo.
+  const withMark = (label: string, req: boolean) => (req ? `${label} *` : label);
+
 
   // Build the ordered list of "extra row" fields (email in split mode + optional contact fields).
   // Rendered into a single 2-col grid; when the count is odd, the last item spans both columns
