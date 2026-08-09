@@ -49,6 +49,7 @@ import {
   RichTextView,
   ChartWidgetView,
   DataMapWidgetView,
+  WorldMapWidgetView,
   TimelineWidgetView,
   SankeyWidgetView,
   CompareWidgetView,
@@ -858,6 +859,8 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       return wrap(<ChartWidgetView node={node} lang={lang} />);
     case "data-map":
       return wrap(<DataMapWidgetView node={node} lang={lang} />);
+    case "world-map":
+      return wrap(<WorldMapWidgetView c={c} lang={lang} />);
     case "feature-timeline":
       return wrap(<TimelineWidgetView node={node} lang={lang} />);
     case "feature-sankey":

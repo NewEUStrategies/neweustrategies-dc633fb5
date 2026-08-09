@@ -67,6 +67,20 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Mapa Google": "Google map",
   "Mapa danych": "Data map",
   "Mapa korytarzy": "Corridor map",
+  // ------------------------------------------------- widget „Mapa świata"
+  "Mapa świata (połączenia)": "World map (connections)",
+  "Etykiety przy punktach": "Labels next to points",
+  "Wyłączone: na mapie zostają same znaczniki, a nazwy niesie lista dostępności.":
+    "Off: only the markers stay on the map; the names are carried by the accessibility list.",
+  "Kadr mapy": "Map framing",
+  "dopasuj do połączeń": "fit to the connections",
+  "cały świat": "the whole world",
+  "Dopasowanie przybliża mapę do punktów, żeby łuki wypełniły kadr zamiast tonąć w oceanie.":
+    "Fitting zooms the map to the points so the arcs fill the frame instead of drowning in the ocean.",
+  "Animacja rysowania łuków": "Arc drawing animation",
+  "Czas rysowania łuku (s)": "Arc drawing time (s)",
+  "Powtarzaj w pętli": "Repeat in a loop",
+  "Wyłączone: łuki rysują się raz i zostają.": "Off: the arcs are drawn once and stay.",
   "Macierz ryzyka": "Risk matrix",
   "Nota metodologiczna": "Methodology note",
   Kategorie: "Categories",

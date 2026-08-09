@@ -49,6 +49,7 @@ export {
   ChartWidgetView,
   DataMapWidgetView,
 } from "@/components/admin/builder/ui/organisms/widget-view/DataVizWidgets";
+export { WorldMapWidgetView } from "@/components/admin/builder/ui/organisms/widget-view/WorldMapWidget";
 export {
   TimelineWidgetView,
   SankeyWidgetView,

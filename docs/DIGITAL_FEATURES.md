@@ -98,6 +98,43 @@ pomijana (fail-safe), a choropleta i tak się renderuje.
 Zmiana w generatorze jest **wstecznie zgodna**: geometria krajów (`countries`,
 `viewBox`, `license`) jest bajt-w-bajt identyczna; dochodzi tylko pole `proj`.
 
+## Mapa świata (`world-map`): kropki lądu i połączenia
+
+Widget `world-map` (silnik `src/components/maps/WorldMap.tsx`) rysuje mapę
+kropkowaną z animowanymi łukami między punktami - „nasza sieć" / „skąd są nasi
+eksperci". Trzy decyzje warte zapamiętania:
+
+- **Kropki lądu nie liczą się w przeglądarce.** Pierwowzór używa biblioteki
+  `dotted-map`; tutaj siatkę wylicza `scripts/generate-dotted-world.ts` z tego
+  samego zasobu `public/geo/world-110m.v1.json`, a wynik (`public/geo/world-dots.v1.svg`,
+  ~545 KB / ~40 KB gzip, 15 952 kropek na siatce 1°) jest **maską luminancji
+  wewnątrz SVG** (`<mask>` + `<image>` + prostokąt w kolorze kropek). Dzięki temu
+  jeden plik obsługuje tryb jasny, ciemny, kolor z panelu **oraz** dowolne
+  kadrowanie - viewBox przycina maskę razem z resztą rysunku, bez tysięcy węzłów
+  SVG w DOM-ie i bez zależności runtime. Siatka jest gęstsza niż `height: 100`
+  pierwowzoru, bo widget kadruje: przy zbliżeniu 1,8° rozjeżdża się w kule.
+- **Kadr (`fit`) jest tym, co odróżnia kompozycję od zrzutu ekranu.** Świat
+  z czterema stolicami Europy to w 85% pusty ocean. `fitViewBox` liczy ramkę
+  punktów, dokłada margines i rozciąga ją do proporcji płótna, a `opticalScale`
+  koryguje grubości linii i promienie znaczników, żeby zbliżenie nie pogrubiało
+  rysunku. Do wyboru: dopasowanie do połączeń (domyślne), Europa, cały świat.
+- **Animacja bez framer-motion.** `pathLength="1"` + `stroke-dashoffset`
+  odtwarzają `pathLength: 0 → 1`, a `times` z pierwowzoru stają się procentami
+  `@keyframes` (rachunek: `src/lib/maps/worldMapGeo.ts`, testy pilnują zgodności
+  ze wzorami: stagger 0,3 s, pauza 2 s). Sam odcinek rysowania dostaje krzywą
+  `cubic-bezier` w klatce startu (harmonogram zostaje `linear`), a wzdłuż trasy
+  biegnie krótka „iskra" - to ona niesie kierunek połączenia. Łuk jest rysowany
+  w dwóch warstwach (poświata + rdzeń); pojedyncza kreska 1 px czyta się jak
+  szkic, nie jak trasa.
+- **Połączenie z platformą jest tożsamościowe, nie lokalizacyjne.** W trybie
+  „Eksperci" koniec łuku podpina się pod publiczny profil (`get_public_speakers`
+  → `speakersByIdsQueryOptions`), więc etykieta i odsyłacz (`/author/<slug>`)
+  pochodzą z żywego profilu. **Współrzędne zostają redakcyjne**: `profiles_public`
+  celowo nie wystawia kolumny `location`, a wyprowadzanie pozycji osoby z danych
+  profilu poszerzyłoby publiczną powierzchnię danych osobowych. Panel daje
+  zamiast tego picker kraju, który wpisuje centroid do pól `lat`/`lng`
+  (`src/lib/maps/countryCentroids.ts` - generowane, używane wyłącznie w adminie).
+
 ## Najlepsze potencjalne produkty NES (kompozycje)
 
 Każdy to strona buildera łącząca kilka widgetów `feature-*`:

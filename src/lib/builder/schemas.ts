@@ -864,6 +864,47 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     },
     { key: "source", type: "i18nText", label: "Źródło danych" },
   ],
+  // Mapa świata: listę połączeń, kolory i podpięcie profili obsługuje własny
+  // edytor (`WorldMapEditor`); tutaj zostają ustawienia skalarne, które panel
+  // dorysowuje pod nim w sekcji „Pozostałe ustawienia".
+  "world-map": [
+    { key: "title", type: "i18nText", label: "Tytuł" },
+    { key: "subtitle", type: "i18nText", label: "Opis (podtytuł)" },
+    {
+      key: "fit",
+      type: "select",
+      label: "Kadr mapy",
+      options: [
+        { value: "auto", label: "dopasuj do połączeń" },
+        { value: "europe", label: "Europa" },
+        { value: "world", label: "cały świat" },
+      ],
+      hint: "Dopasowanie przybliża mapę do punktów, żeby łuki wypełniły kadr zamiast tonąć w oceanie.",
+    },
+    {
+      key: "showLabels",
+      type: "bool",
+      label: "Etykiety przy punktach",
+      hint: "Wyłączone: na mapie zostają same znaczniki, a nazwy niesie lista dostępności.",
+    },
+    { key: "animate", type: "bool", label: "Animacja rysowania łuków" },
+    {
+      key: "animationDuration",
+      type: "number",
+      label: "Czas rysowania łuku (s)",
+      min: 0.4,
+      max: 10,
+      step: 0.1,
+      visibleWhen: (c) => c.animate !== false,
+    },
+    {
+      key: "loop",
+      type: "bool",
+      label: "Powtarzaj w pętli",
+      hint: "Wyłączone: łuki rysują się raz i zostają.",
+      visibleWhen: (c) => c.animate !== false,
+    },
+  ],
   // ---- NES Digital Features ----
   "feature-timeline": [
     { key: "title", type: "i18nText", label: "Tytuł" },

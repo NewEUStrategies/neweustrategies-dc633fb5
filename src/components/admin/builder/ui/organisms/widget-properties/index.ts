@@ -26,6 +26,7 @@ export { EventPicker } from "./EventPicker";
 export { ProfilePicker } from "./ProfilePicker";
 export { MeetingBookingEditor } from "./MeetingBookingEditor";
 export { SponsorsEditor } from "./SponsorsEditor";
+export { WorldMapEditor, WORLD_MAP_EDITOR_HANDLED_KEYS } from "./WorldMapEditor";
 export {
   ProgressCarouselEditor,
   PROGRESS_CAROUSEL_EDITOR_HANDLED_KEYS,

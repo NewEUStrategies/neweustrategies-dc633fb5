@@ -105,9 +105,11 @@ import {
   EventCountdownCardEditor,
   MeetingBookingEditor,
   SponsorsEditor,
+  WorldMapEditor,
   IMAGE_EDITOR_HANDLED_KEYS,
   PROGRESS_CAROUSEL_EDITOR_HANDLED_KEYS,
   CIRCULAR_CAROUSEL_EDITOR_HANDLED_KEYS,
+  WORLD_MAP_EDITOR_HANDLED_KEYS,
 } from "./ui/organisms/widget-properties";
 
 interface Props {
@@ -1664,6 +1666,7 @@ const CUSTOM_EDITOR_HANDLED_KEYS: Partial<Record<WidgetType, ReadonlySet<string>
   image: IMAGE_EDITOR_HANDLED_KEYS,
   "progress-carousel": PROGRESS_CAROUSEL_EDITOR_HANDLED_KEYS,
   "circular-carousel": CIRCULAR_CAROUSEL_EDITOR_HANDLED_KEYS,
+  "world-map": WORLD_MAP_EDITOR_HANDLED_KEYS,
 };
 
 /**
@@ -1747,6 +1750,8 @@ function customContentEditor(
       return <MeetingBookingEditor c={c} lang={lang} setContent={setContent} />;
     case "event-sponsors":
       return <SponsorsEditor c={c} lang={lang} setContent={setContent} />;
+    case "world-map":
+      return <WorldMapEditor c={c} lang={lang} setContent={setContent} />;
   }
   return null;
 }
