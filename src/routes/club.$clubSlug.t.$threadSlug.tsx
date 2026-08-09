@@ -38,6 +38,7 @@ import {
   Loader2,
   Lock,
   MessageSquare,
+  Send,
   Pencil,
   Pin,
   ShieldQuestion,
