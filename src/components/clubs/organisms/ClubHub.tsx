@@ -533,7 +533,7 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
           <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:hidden">{context}</div>
         </main>
 
-        <aside className="hidden xl:sticky xl:top-20 xl:block">
+        <aside className="hidden xl:sticky xl:top-20 xl:block xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto xl:overscroll-contain xl:pl-1 [scrollbar-width:thin]">
           <div className="flex flex-col gap-3">{context}</div>
         </aside>
       </div>
