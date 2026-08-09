@@ -456,7 +456,7 @@ function ClubThreadView() {
             />
           </div>
         ) : (
-          <div className="mt-4 whitespace-pre-wrap text-[15px] leading-relaxed">{thread.body}</div>
+          <ClubProse className="mt-4" body={thread.body} />
         )}
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-3">
