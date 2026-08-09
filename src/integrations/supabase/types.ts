@@ -15748,7 +15748,10 @@ export type Database = {
           p_parent_id?: string
           p_thread_id: string
         }
-        Returns: string
+        Returns: {
+          reply_id: string
+          reply_status: string
+        }[]
       }
       club_report_content: {
         Args: {
