@@ -396,10 +396,15 @@ function PostAuthorCardWidget({ node, lang }: { node: WidgetNode; lang: Lang }) 
         >
           {a.avatarUrl ? (
             <img
-              src={safeImageUrl(a.avatarUrl)}
+              // Serwerowy resize do realnego boku (1x/2x/3x) - inaczej
+              // przeglądarka skaluje oryginał 1600 px i twarz robi się miękka.
+              src={buildAvatarSrc(safeImageUrl(a.avatarUrl), cardAvatarPx)}
+              srcSet={buildAvatarSrcSet(safeImageUrl(a.avatarUrl), cardAvatarPx) || undefined}
               alt={a.name}
               width={cardAvatarPx}
               height={cardAvatarPx}
+              loading="lazy"
+              decoding="async"
               className="w-full h-full object-cover"
             />
           ) : (
