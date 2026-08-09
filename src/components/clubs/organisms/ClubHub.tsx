@@ -332,7 +332,7 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
 
       <div className="grid items-start gap-4 lg:grid-cols-[15rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)_20rem]">
         {/* Lewa szyna: tylko od `lg`. Niżej jej nawigacja wraca paskiem. */}
-        <aside className="hidden lg:sticky lg:top-20 lg:block">
+        <aside className="hidden lg:sticky lg:top-20 lg:block lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:overscroll-contain lg:pr-1 [scrollbar-width:thin]">
           <ClubHubRail
             clubSlug={clubSlug}
             canSeeMembers={club.can_see_members}
