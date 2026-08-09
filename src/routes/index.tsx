@@ -339,7 +339,10 @@ function Index() {
   const footnotes = prepared?.footnotes ?? [];
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground">
+    <div
+      data-theme-typography
+      className="min-h-screen flex flex-col bg-background text-foreground"
+    >
       <div className="flex-1 w-full">
         {/* Screen-reader-only H1: strona główna MUSI eksponować opisowy nagłówek
             poziomu 1 - ale tylko wtedy, gdy dokument buildera sam żadnego nie

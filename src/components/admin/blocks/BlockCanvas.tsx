@@ -582,6 +582,7 @@ export function BlockCanvas({
           data-block-canvas
           tabIndex={-1}
           className="block-canvas space-y-0.5 outline-none"
+          data-theme-typography
           data-builder-renderer
           data-cms-content
         >

@@ -49,7 +49,7 @@ function Dashboard() {
   ];
 
   return (
-    <div>
+    <div data-theme-typography>
       <h1 className="font-display text-xl font-bold mb-1">{t("admin.dashboard.title")}</h1>
       <p className="text-xs text-muted-foreground mb-4">{t("admin.dashboard.subtitle")}</p>
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2.5">

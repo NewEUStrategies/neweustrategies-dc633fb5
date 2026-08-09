@@ -218,6 +218,7 @@ export function BuilderRenderer({
     <UsedPostIdsProvider>
       <div
         ref={rootRef}
+        data-theme-typography
         data-builder-renderer
         data-debug={debug ? "1" : "0"}
         data-device={effectiveDevice}
