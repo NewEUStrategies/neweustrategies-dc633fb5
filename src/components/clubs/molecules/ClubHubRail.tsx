@@ -41,7 +41,6 @@ import { cn } from "@/lib/utils";
 import { ClubRailPanel } from "@/components/clubs/atoms/ClubHubPrimitives";
 import { ClubTopicChip } from "@/components/clubs/atoms/ClubTopicChip";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
-import { useClubGroups } from "@/lib/clubs/useClubs";
 import { ClubGroupTree } from "@/components/clubs/molecules/ClubGroupTree";
 import type { ClubGroupRow, ClubViewRow } from "@/lib/clubs/types";
 
@@ -273,8 +272,6 @@ export function ClubHubRail({
 export function ClubWorkspaceRail({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
   const { t } = useTranslation();
   const { topics } = useClubTopics();
-  const groupsQ = useClubGroups(club.id);
-  const groups = groupsQ.data ?? [];
   const hasRules = (isPl ? club.rules_pl : club.rules_en) !== null;
 
   return (
