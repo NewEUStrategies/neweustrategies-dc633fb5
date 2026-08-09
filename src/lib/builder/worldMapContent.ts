@@ -6,7 +6,7 @@
 // a renderem (bramka wierności ustawień porównuje DOKŁADNE klucze magazynowe).
 import type { WidgetContent } from "./types";
 import { safeWidgetColor } from "./cssColor";
-import { coerceLat, coerceLng, type MapArc } from "@/lib/maps/worldMapGeo";
+import { coerceLat, coerceLng, type MapArc, type MapFit } from "@/lib/maps/worldMapGeo";
 
 export type WorldMapLang = "pl" | "en";
 
@@ -34,6 +34,10 @@ export interface WorldMapProfile {
   userId: string;
   displayName: string;
   slug: string;
+  /** Zdjęcie profilowe - etykieta punktu staje się wtedy kartą osoby. */
+  avatarUrl: string;
+  /** Rola: nagłówek prelegenta albo stanowisko z profilu autorskiego. */
+  role: string;
 }
 
 const strOf = (v: unknown): string => (typeof v === "string" ? v : "");
@@ -134,12 +138,16 @@ export function worldMapArcs(
         lng: startLng,
         label: pointLabel(conn.startLabel_pl, conn.startLabel_en, lang, startProfile),
         href: pointHref(conn.href, startProfile),
+        avatar: startProfile?.avatarUrl || undefined,
+        role: startProfile?.role || undefined,
       },
       end: {
         lat: endLat,
         lng: endLng,
         label: pointLabel(conn.endLabel_pl, conn.endLabel_en, lang, endProfile),
         href: pointHref(conn.href, endProfile),
+        avatar: endProfile?.avatarUrl || undefined,
+        role: endProfile?.role || undefined,
       },
     });
   }
@@ -150,12 +158,12 @@ export function worldMapArcs(
 export interface WorldMapView {
   title: string;
   subtitle: string;
+  fit: MapFit;
   lineColor: string;
   dotColor: string;
   pointColor: string;
   bgColor: string;
   showLabels: boolean;
-  labelSize: number;
   animate: boolean;
   animationDuration: number;
   loop: boolean;
@@ -168,10 +176,17 @@ function i18nStr(c: WidgetContent, base: string, lang: WorldMapLang): string {
   return strOf(c[`${base}_${lang}`]) || strOf(c[`${base}_pl`]) || strOf(c[`${base}_en`]);
 }
 
+/** Kadr rysunku; treść bez pola = dopasowanie do punktów. */
+export function worldMapFit(c: WidgetContent): MapFit {
+  const raw = strOf(c.fit);
+  return raw === "world" || raw === "europe" ? raw : "auto";
+}
+
 export function worldMapView(c: WidgetContent, lang: WorldMapLang): WorldMapView {
   return {
     title: i18nStr(c, "title", lang),
     subtitle: i18nStr(c, "subtitle", lang),
+    fit: worldMapFit(c),
     // Puste = kolor marki / motywu; `safeWidgetColor` odrzuca zapisy, których
     // nie wolno wstawić do atrybutu `style`.
     lineColor: safeWidgetColor(c.lineColor),
@@ -179,7 +194,6 @@ export function worldMapView(c: WidgetContent, lang: WorldMapLang): WorldMapView
     pointColor: safeWidgetColor(c.pointColor),
     bgColor: safeWidgetColor(c.bgColor),
     showLabels: c.showLabels !== false,
-    labelSize: clamp(Math.round(numOf(c.labelSize, 10)), 6, 24),
     animate: c.animate !== false,
     animationDuration: clamp(numOf(c.animationDuration, 2), 0.4, 10),
     loop: c.loop !== false,

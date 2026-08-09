@@ -12,12 +12,13 @@
 //
 // CO POWSTAJE
 //   public/geo/world-dots.v1.svg   - warstwa kropek (siatka „diagonal", jak
-//       `grid: "diagonal"` w pierwowzorze) w viewBoxie 0 0 800 400, czyli
-//       DOKŁADNIE w układzie, w którym komponent rzutuje lon/lat
-//       (`projectPoint`). Plik jest MASKĄ, nie obrazkiem: kropki są czarne, tło
-//       przezroczyste, a kolor nadaje CSS (`mask-image` + `background-color`),
-//       więc jedna kopia obsługuje tryb jasny, ciemny i dowolny kolor wybrany
-//       w panelu widgetu.
+//       `grid: "diagonal"` w pierwowzorze) w viewBoxie siatki (COLS x ROWS),
+//       o TEJ SAMEJ proporcji co płótno widgetu 800x400 - komórka siatki
+//       pokrywa się co do piksela z rzutem `projectPoint`. Plik jest MASKĄ
+//       LUMINANCJI, nie obrazkiem: kropki są BIAŁE na przezroczystym tle, więc
+//       `<mask>` w SVG widgetu przepuszcza w nich kolor prostokąta pod spodem.
+//       Jedna kopia obsługuje tryb jasny, ciemny, dowolny kolor z panelu ORAZ
+//       dowolne kadrowanie (viewBox widgetu przycina maskę razem z resztą).
 //   src/lib/maps/countryCentroids.ts - centroidy krajów (ISO-2 -> lat/lon) dla
 //       edytora: autor wybiera kraj, a panel wpisuje współrzędne punktu. Tabela
 //       jest importowana WYŁĄCZNIE przez panel admina, nigdy przez renderer.
@@ -37,21 +38,39 @@ const GEO_ASSET = join("public", "geo", "world-110m.v1.json");
 const OUT_SVG = join("public", "geo", "world-dots.v1.svg");
 const OUT_CENTROIDS = join("src", "lib", "maps", "countryCentroids.ts");
 
-/** Siatka kropek: 100 wierszy na 180° szerokości - gęstość jak `height: 100`. */
-const ROWS = 100;
-const COLS = 200;
-/** Układ współrzędnych warstwy = układ `projectPoint` w komponencie. */
-const VIEW_W = 800;
-const VIEW_H = 400;
-/** Promień kropki po przeskalowaniu `radius: 0.22` z siatki 200x100 na 800x400. */
-const DOT_R = 0.9;
+/**
+ * Siatka kropek: 180 wierszy na 180° szerokości, czyli 1° na komórkę.
+ *
+ * Pierwowzór stoi na `height: 100` biblioteki `dotted-map` (1,8° na komórkę),
+ * ale widget potrafi KADROWAĆ mapę do samych połączeń. Przy typowym zbliżeniu
+ * ~2x siatka 1,8° rozjeżdża się w wielkie kule i wybrzeża przestają być
+ * czytelne - Wielka Brytania robi się kleksem. 1° trzyma ten sam charakter
+ * „halftone" także w zbliżeniu; koszt to ~40 KB po gzipie na wersjonowanym,
+ * cache'owanym pliku, który i tak nie wchodzi do bundla JS.
+ */
+const ROWS = 180;
+const COLS = 360;
+/**
+ * Nadpróbkowanie testu „ląd czy woda" wewnątrz komórki. Pojedyncza próbka
+ * w środku komórki daje poszarpane wybrzeża (kropka albo jest, albo jej nie ma,
+ * o czym decyduje jeden punkt); 2x2 z progiem 50% pokrycia wygładza linię
+ * brzegową i usuwa samotne kropki na wodzie.
+ */
+const SUPERSAMPLE = 2;
+const COVERAGE_MIN = 0.5;
+/**
+ * Promień kropki w jednostkach SIATKI (komórka = 1). 0,24 daje średnicę ~48%
+ * odstępu - proporcja pierwowzoru (`radius: 0.22` przy odstępie 1), lekko
+ * odchudzona, bo przy gęstszej siatce pole kropek szybciej zlewa się w plamę.
+ */
+const DOT_R = 0.24;
 /**
  * Pas szerokości geograficznych, w którym stawiamy kropki. Bez odcięcia
  * Antarktyda i czapa arktyczna zjadają dolny/górny pas mapy, a pierwowzór ich
  * nie pokazuje (kadr jest „zamieszkany świat").
  */
 const LAT_MAX = 84;
-const LAT_MIN = -60;
+const LAT_MIN = -58;
 
 const RAD = Math.PI / 180;
 
@@ -261,12 +280,24 @@ function main(): void {
     return false;
   };
 
-  const cellW = VIEW_W / COLS;
-  const cellH = VIEW_H / ROWS;
   const latStep = 180 / ROWS;
   const lonStep = 360 / COLS;
-  const circles: string[] = [];
+  /** Pokrycie lądem komórki (0..1) z siatki nadpróbkowania SUPERSAMPLE^2. */
+  const coverage = (lat: number, lon: number): number => {
+    let hit = 0;
+    for (let sy = 0; sy < SUPERSAMPLE; sy++) {
+      for (let sx = 0; sx < SUPERSAMPLE; sx++) {
+        const la = lat + ((sy + 0.5) / SUPERSAMPLE - 0.5) * latStep;
+        let lo = lon + ((sx + 0.5) / SUPERSAMPLE - 0.5) * lonStep;
+        if (lo > 180) lo -= 360;
+        if (lo < -180) lo += 360;
+        if (isLand(...project(lo, la))) hit++;
+      }
+    }
+    return hit / (SUPERSAMPLE * SUPERSAMPLE);
+  };
 
+  const dots: string[] = [];
   for (let row = 0; row < ROWS; row++) {
     const lat = 90 - (row + 0.5) * latStep;
     if (lat > LAT_MAX || lat < LAT_MIN) continue;
@@ -276,23 +307,32 @@ function main(): void {
     for (let col = 0; col < COLS; col++) {
       let lon = -180 + (col + 0.5 + offset) * lonStep;
       if (lon > 180) lon -= 360;
-      const [px, py] = project(lon, lat);
-      if (!isLand(px, py)) continue;
-      let x = (col + 0.5 + offset) * cellW;
-      if (x > VIEW_W) x -= VIEW_W;
-      const y = (row + 0.5) * cellH;
-      // `r` MUSI stać na każdym <circle>. To własność GEOMETRII, nie
-      // dziedziczona - `r` na wspólnym <g> daje promień 0 i pusty plik
-      // (maska renderuje się jako nic, bez żadnego błędu). `fill`, przeciwnie,
-      // dziedziczy się normalnie, więc zostaje na grupie.
-      circles.push(`<circle r="${DOT_R}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}"/>`);
+      if (coverage(lat, lon) < COVERAGE_MIN) continue;
+      let x = col + 0.5 + offset;
+      if (x > COLS) x -= COLS;
+      dots.push(`<use href="#d" x="${x.toFixed(1)}" y="${(row + 0.5).toFixed(1)}"/>`);
     }
   }
 
+  // Układ współrzędnych PLIKU to sama siatka (COLS x ROWS), a nie płótno
+  // widgetu: pozycje kropek stają się wtedy krótkimi liczbami (~2x mniejszy
+  // plik), a proporcja jest ta sama co 800x400, więc `<image>` w masce dosiada
+  // się do płótna co do piksela.
+  //
+  // `r` stoi na jednym wzorcu w <defs>, bo to własność GEOMETRII i NIE jest
+  // dziedziczona - `r` na wspólnym <g> daje promień 0 i pusty plik (maska
+  // renderuje się jako nic, bez żadnego błędu). `<use>` klonuje wzorzec razem
+  // z promieniem i wypełnieniem.
+  //
+  // Kropki są BIAŁE: plik służy jako maska luminancji SVG (`<mask>`), w której
+  // biel znaczy „pokaż", a przezroczystość „ukryj". Kolor daje dopiero
+  // prostokąt pod maską, więc jeden plik obsługuje każdy motyw i każdy kolor
+  // wybrany w panelu.
   const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${VIEW_W} ${VIEW_H}" ` +
-    `width="${VIEW_W}" height="${VIEW_H}">` +
-    `<g fill="#000">${circles.join("")}</g>` +
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${COLS} ${ROWS}" ` +
+    `width="${COLS}" height="${ROWS}">` +
+    `<defs><circle id="d" r="${DOT_R}" fill="#fff"/></defs>` +
+    `<g>${dots.join("")}</g>` +
     `</svg>\n`;
   writeFileSync(OUT_SVG, svg, "utf8");
 
@@ -326,7 +366,7 @@ function main(): void {
   const kb = (Buffer.byteLength(svg) / 1024).toFixed(1);
   process.stdout.write(
     `Wygenerowano:\n` +
-      `  ${OUT_SVG}         ${kb} KB (${circles.length} kropek, siatka ${COLS}x${ROWS} diagonal)\n` +
+      `  ${OUT_SVG}         ${kb} KB (${dots.length} kropek, siatka ${COLS}x${ROWS} diagonal)\n` +
       `  ${OUT_CENTROIDS}   ${centroids.length} krajów\n`,
   );
 }

@@ -92,7 +92,7 @@ describe("worldMapArcs", () => {
       connections: [connection({ endUserId: "u-1", href: "/kontakt" })],
     });
     const [arc] = worldMapArcs(c, "pl", [
-      { userId: "u-1", displayName: "Anna Nowak", slug: "anna-nowak" },
+      { userId: "u-1", displayName: "Anna Nowak", slug: "anna-nowak", avatarUrl: "", role: "" },
     ]);
     expect(arc.end.label).toBe("Anna Nowak");
     expect(arc.end.href).toBe("/author/anna-nowak");
@@ -106,7 +106,9 @@ describe("worldMapArcs", () => {
       source: "experts",
       connections: [connection({ endUserId: "u-1", href: "/eksperci" })],
     });
-    const [arc] = worldMapArcs(c, "pl", [{ userId: "u-1", displayName: "Jan Test", slug: "" }]);
+    const [arc] = worldMapArcs(c, "pl", [
+      { userId: "u-1", displayName: "Jan Test", slug: "", avatarUrl: "", role: "" },
+    ]);
     expect(arc.end.label).toBe("Jan Test");
     expect(arc.end.href).toBe("/eksperci");
   });
@@ -134,11 +136,16 @@ describe("worldMapView", () => {
     expect(v.lineColor).toBe("var(--brand)");
   });
 
-  it("przycina rozmiar etykiet i czas animacji do bezpiecznego zakresu", () => {
-    expect(worldMapView(content({ labelSize: 999 }), "pl").labelSize).toBe(24);
-    expect(worldMapView(content({ labelSize: 0 }), "pl").labelSize).toBe(6);
+  it("przycina czas animacji do bezpiecznego zakresu", () => {
     expect(worldMapView(content({ animationDuration: 0 }), "pl").animationDuration).toBe(0.4);
     expect(worldMapView(content({ animationDuration: 99 }), "pl").animationDuration).toBe(10);
+  });
+
+  it("kadr domyślnie dopasowuje się do połączeń, a nieznana wartość nie psuje widoku", () => {
+    expect(worldMapView(content(), "pl").fit).toBe("auto");
+    expect(worldMapView(content({ fit: "europe" }), "pl").fit).toBe("europe");
+    expect(worldMapView(content({ fit: "world" }), "pl").fit).toBe("world");
+    expect(worldMapView(content({ fit: "księżyc" }), "pl").fit).toBe("auto");
   });
 
   it("przełączniki domyślnie włączone, wyłącza je dopiero jawne `false`", () => {

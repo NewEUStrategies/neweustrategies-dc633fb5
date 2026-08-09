@@ -107,13 +107,25 @@ eksperci". Trzy decyzje warte zapamiętania:
 - **Kropki lądu nie liczą się w przeglądarce.** Pierwowzór używa biblioteki
   `dotted-map`; tutaj siatkę wylicza `scripts/generate-dotted-world.ts` z tego
   samego zasobu `public/geo/world-110m.v1.json`, a wynik (`public/geo/world-dots.v1.svg`,
-  ~143 KB / ~12 KB gzip, 4790 kropek) jest **maską CSS**. Kolor daje
-  `background-color`, więc jeden plik obsługuje tryb jasny, ciemny i kolor
-  wybrany w panelu - bez tysięcy węzłów SVG w DOM-ie i bez zależności runtime.
+  ~545 KB / ~40 KB gzip, 15 952 kropek na siatce 1°) jest **maską luminancji
+  wewnątrz SVG** (`<mask>` + `<image>` + prostokąt w kolorze kropek). Dzięki temu
+  jeden plik obsługuje tryb jasny, ciemny, kolor z panelu **oraz** dowolne
+  kadrowanie - viewBox przycina maskę razem z resztą rysunku, bez tysięcy węzłów
+  SVG w DOM-ie i bez zależności runtime. Siatka jest gęstsza niż `height: 100`
+  pierwowzoru, bo widget kadruje: przy zbliżeniu 1,8° rozjeżdża się w kule.
+- **Kadr (`fit`) jest tym, co odróżnia kompozycję od zrzutu ekranu.** Świat
+  z czterema stolicami Europy to w 85% pusty ocean. `fitViewBox` liczy ramkę
+  punktów, dokłada margines i rozciąga ją do proporcji płótna, a `opticalScale`
+  koryguje grubości linii i promienie znaczników, żeby zbliżenie nie pogrubiało
+  rysunku. Do wyboru: dopasowanie do połączeń (domyślne), Europa, cały świat.
 - **Animacja bez framer-motion.** `pathLength="1"` + `stroke-dashoffset`
   odtwarzają `pathLength: 0 → 1`, a `times` z pierwowzoru stają się procentami
   `@keyframes` (rachunek: `src/lib/maps/worldMapGeo.ts`, testy pilnują zgodności
-  ze wzorami: stagger 0,3 s, pauza 2 s).
+  ze wzorami: stagger 0,3 s, pauza 2 s). Sam odcinek rysowania dostaje krzywą
+  `cubic-bezier` w klatce startu (harmonogram zostaje `linear`), a wzdłuż trasy
+  biegnie krótka „iskra" - to ona niesie kierunek połączenia. Łuk jest rysowany
+  w dwóch warstwach (poświata + rdzeń); pojedyncza kreska 1 px czyta się jak
+  szkic, nie jak trasa.
 - **Połączenie z platformą jest tożsamościowe, nie lokalizacyjne.** W trybie
   „Eksperci" koniec łuku podpina się pod publiczny profil (`get_public_speakers`
   → `speakersByIdsQueryOptions`), więc etykieta i odsyłacz (`/author/<slug>`)

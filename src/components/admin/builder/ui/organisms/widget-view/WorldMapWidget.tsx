@@ -41,6 +41,10 @@ export function WorldMapWidgetView({ c, lang }: { c: WidgetContent; lang: Lang }
     userId: row.user_id,
     displayName: row.display_name ?? "",
     slug: row.slug ?? "",
+    avatarUrl: row.avatar_url ?? "",
+    // Nagłówek prelegenta w języku strony, a gdy go nie ma - stanowisko
+    // z profilu autorskiego. Jedna linijka pod nazwiskiem, nie biogram.
+    role: (lang === "pl" ? row.headline_pl : row.headline_en) || row.job_title || "",
   }));
 
   const arcs = worldMapArcs(c, lang, profiles);
@@ -48,14 +52,14 @@ export function WorldMapWidgetView({ c, lang }: { c: WidgetContent; lang: Lang }
   return (
     <div className="nes-world-map-widget not-prose w-full">
       {(view.title || view.subtitle) && (
-        <div className="mb-4 text-center">
+        <div className="mb-5 text-center md:mb-7">
           {view.title && (
-            <p className="font-display text-2xl font-bold leading-tight text-foreground md:text-4xl">
+            <p className="font-display text-2xl font-bold leading-[1.15] tracking-[-0.01em] text-foreground md:text-4xl">
               {view.title}
             </p>
           )}
           {view.subtitle && (
-            <p className="mx-auto mt-2 max-w-2xl text-sm text-muted-foreground md:text-base">
+            <p className="mx-auto mt-2.5 max-w-2xl text-sm leading-relaxed text-muted-foreground md:text-base">
               {view.subtitle}
             </p>
           )}
@@ -64,12 +68,12 @@ export function WorldMapWidgetView({ c, lang }: { c: WidgetContent; lang: Lang }
       <WorldMap
         dots={arcs}
         lang={lang}
+        fit={view.fit}
         lineColor={view.lineColor || undefined}
         dotColor={view.dotColor}
         pointColor={view.pointColor}
         bgColor={view.bgColor}
         showLabels={view.showLabels}
-        labelSize={view.labelSize}
         animate={view.animate}
         animationDuration={view.animationDuration}
         loop={view.loop}

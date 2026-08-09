@@ -70,11 +70,13 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   // ------------------------------------------------- widget „Mapa świata"
   "Mapa świata (połączenia)": "World map (connections)",
   "Etykiety przy punktach": "Labels next to points",
-  "Wyłączone: nazwa lokalizacji pojawia się dopiero po najechaniu na punkt.":
-    "Off: the location name appears only on hovering a point.",
-  "Rozmiar etykiet": "Label size",
-  "W jednostkach płótna mapy (800x400) - 10 odpowiada mniej więcej 12 px na typowej szerokości.":
-    "In map canvas units (800x400) - 10 is roughly 12 px at a typical width.",
+  "Wyłączone: na mapie zostają same znaczniki, a nazwy niesie lista dostępności.":
+    "Off: only the markers stay on the map; the names are carried by the accessibility list.",
+  "Kadr mapy": "Map framing",
+  "dopasuj do połączeń": "fit to the connections",
+  "cały świat": "the whole world",
+  "Dopasowanie przybliża mapę do punktów, żeby łuki wypełniły kadr zamiast tonąć w oceanie.":
+    "Fitting zooms the map to the points so the arcs fill the frame instead of drowning in the ocean.",
   "Animacja rysowania łuków": "Arc drawing animation",
   "Czas rysowania łuku (s)": "Arc drawing time (s)",
   "Powtarzaj w pętli": "Repeat in a loop",

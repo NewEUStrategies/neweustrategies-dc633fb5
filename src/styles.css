@@ -4047,36 +4047,21 @@ input.icon-input-with-action {
 /* ============================================================
    Mapa świata (widget buildera „world-map" - src/components/maps/WorldMap.tsx).
 
-   Warstwa kropek lądu to MASKA, nie obrazek: public/geo/world-dots.v1.svg
-   niesie same kształty (czarne kropki na przezroczystym tle), a kolor daje
-   `background`. Dzięki temu jeden plik (~143 KB, ~12 KB po gzipie, cache CDN)
-   obsługuje tryb jasny, ciemny i dowolny kolor wybrany w panelu widgetu -
-   bez requestu na wariant i bez tysięcy węzłów SVG w DOM-ie.
+   Warstwa kropek lądu żyje WEWNĄTRZ SVG (`<mask>` + `<image>` na
+   public/geo/world-dots.v1.svg), więc kadrowanie przycina ją razem z resztą
+   rysunku, a kolor daje prostokąt pod maską. Tutaj zostaje wyłącznie to, co
+   stałe: klatki kluczowe łuków są generowane per instancja w komponencie
+   (zależą od liczby połączeń i czasu trwania).
 
-   Klatki kluczowe łuków są generowane per instancja w komponencie (zależą od
-   liczby połączeń i czasu trwania), więc tutaj zostaje wyłącznie to, co stałe.
+   Etykiety są HTML-em nad SVG - mają prawdziwą szerokość (żadnego zgadywania
+   metryk czcionki), stały rozmiar niezależny od zbliżenia i platformowe 6px.
    ============================================================ */
-.nes-world-map__dots {
-  position: absolute;
-  inset: 0;
-  /* Bez maski przeglądarka narysowałaby pełny prostokąt koloru kropek -
-     dlatego tło włącza się dopiero, gdy maska naprawdę działa (@supports). */
-  background: transparent;
-}
-
-@supports (mask-image: url("/geo/world-dots.v1.svg")) or
-  (-webkit-mask-image: url("/geo/world-dots.v1.svg")) {
-  .nes-world-map__dots {
-    background: var(--nes-wm-dot, color-mix(in oklab, var(--foreground) 25%, transparent));
-    -webkit-mask-image: url("/geo/world-dots.v1.svg");
-    mask-image: url("/geo/world-dots.v1.svg");
-    -webkit-mask-repeat: no-repeat;
-    mask-repeat: no-repeat;
-    -webkit-mask-size: 100% 100%;
-    mask-size: 100% 100%;
-    -webkit-mask-position: center;
-    mask-position: center;
-  }
+.nes-world-map {
+  --nes-wm-accent: var(--brand);
+  /* Wysokość jednego wiersza etykiet. MUSI zgadzać się z LABEL_ROW_PX
+     w lib/maps/worldMapGeo.ts - obie strony liczą ten sam układ. */
+  --nes-wm-row-h: 24px;
+  contain: paint;
 }
 
 /* Łuk rysuje się „pociągnięciem": pathLength="1" po stronie SVG normalizuje
@@ -4086,21 +4071,38 @@ input.icon-input-with-action {
   stroke-dashoffset: 0;
 }
 
+/* Poświata pod rdzeniem linii: to ona sprawia, że trasa „świeci", zamiast
+   wyglądać jak kreska ołówkiem. Rozmycie jest tanie (jeden filtr na łuk). */
+.nes-world-map__arc--glow {
+  opacity: 0.28;
+  filter: blur(1.5px);
+}
+
+/* Iskra biegnąca wzdłuż trasy - dasharray ustawiają klatki kluczowe, tu tylko
+   stan spoczynkowy, żeby przed startem animacji nic nie mignęło. */
+.nes-world-map__spark {
+  opacity: 0;
+  stroke-dasharray: 0.06 0.94;
+}
+
 /* Pulsujący pierścień przy znaczniku. transform-box: fill-box sprawia, że
    skalowanie odbywa się wokół środka kropki, a nie środka całego SVG. */
 .nes-world-map__pulse {
   transform-box: fill-box;
   transform-origin: center;
-  animation: nes-wm-pulse 2s ease-out infinite;
+  animation: nes-wm-pulse 2.8s cubic-bezier(0.16, 0.85, 0.35, 1) infinite;
 }
 
 @keyframes nes-wm-pulse {
   0% {
-    transform: scale(1);
-    opacity: 0.5;
+    transform: scale(0.7);
+    opacity: 0.55;
+  }
+  70% {
+    opacity: 0;
   }
   100% {
-    transform: scale(3.5);
+    transform: scale(3.2);
     opacity: 0;
   }
 }
@@ -4110,43 +4112,141 @@ input.icon-input-with-action {
   cursor: pointer;
   transform-box: fill-box;
   transform-origin: center;
-  transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .nes-world-map__marker:hover,
-.nes-world-map__marker:focus-visible {
-  transform: scale(1.2);
+.nes-world-map__marker:focus-visible,
+.nes-world-map__marker[data-active="true"] {
+  transform: scale(1.25);
 }
 .nes-world-map__marker:focus-visible {
   outline: none;
 }
-.nes-world-map__marker:focus-visible circle:first-of-type {
+.nes-world-map__marker:focus-visible .nes-world-map__core {
   stroke: var(--foreground);
-  stroke-width: 1;
+  stroke-width: 0.8;
 }
 
-/* Etykieta czytelna nad kropkami lądu i nad łukiem: cienka obwódka w kolorze
-   tła (paint-order odkłada ją POD glify, więc nie zjada kształtu liter).
-   Szerokość jest w jednostkach viewBoxu (800x400) - powyżej ~2 obwódka zlewa
-   się w plamę przy typowym rozmiarze etykiety. */
+/* --- Etykiety (warstwa HTML) --------------------------------------------- */
 .nes-world-map__label {
+  position: absolute;
+  /* Kropka jest punktem odniesienia; etykieta siada NAD nią, a numer wiersza
+     (--nes-wm-row) odsuwa ją o kolejne wysokości wiersza. */
+  transform: translate(-50%, calc(-100% - 10px - var(--nes-wm-row, 0) * var(--nes-wm-row-h)));
+  pointer-events: auto;
+  text-decoration: none;
+  white-space: nowrap;
+  z-index: 1;
+}
+.nes-world-map__label[data-active="true"] {
+  z-index: 3;
+}
+/* Kreska łącząca chip z jego kropką. Bez niej etykieta odsunięta o drugi lub
+   trzeci wiersz wygląda jak podpis niczyjego punktu. */
+.nes-world-map__label::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 1px;
+  height: calc(8px + var(--nes-wm-row, 0) * var(--nes-wm-row-h));
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklab, var(--foreground) 28%, transparent),
+    color-mix(in oklab, var(--foreground) 6%, transparent)
+  );
+  pointer-events: none;
+}
+.nes-world-map__label[data-active="true"]::after {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklab, var(--nes-wm-accent) 70%, transparent),
+    color-mix(in oklab, var(--nes-wm-accent) 15%, transparent)
+  );
+}
+
+.nes-world-map__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in oklab, var(--border) 85%, transparent);
+  background: color-mix(in oklab, var(--card) 88%, transparent);
+  color: var(--foreground);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: 0.005em;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+  backdrop-filter: blur(6px);
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.nes-world-map__chip--rich {
+  padding: 3px 9px 3px 3px;
+}
+.nes-world-map__chip img {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex: none;
+}
+.nes-world-map__chip-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.nes-world-map__chip-role {
+  font-size: 9.5px;
   font-weight: 500;
-  paint-order: stroke fill;
-  stroke: var(--background);
-  stroke-width: 2;
-  stroke-linejoin: round;
-  stroke-opacity: 0.85;
+  line-height: 1.2;
+  color: var(--muted-foreground);
+}
+.nes-world-map__label:hover .nes-world-map__chip,
+.nes-world-map__label:focus-visible .nes-world-map__chip,
+.nes-world-map__label[data-active="true"] .nes-world-map__chip {
+  border-color: color-mix(in oklab, var(--nes-wm-accent) 55%, transparent);
+  box-shadow:
+    0 2px 10px rgb(0 0 0 / 0.1),
+    0 0 0 3px color-mix(in oklab, var(--nes-wm-accent) 14%, transparent);
+  transform: translateY(-1px);
+}
+
+/* Na wąskim ekranie etykiet jest za dużo na zbyt małą mapę - zostają same
+   znaczniki, a nazwy niesie lista dostępności i dymki po dotknięciu. */
+@media (max-width: 640px) {
+  .nes-world-map__chip-role {
+    display: none;
+  }
+  .nes-world-map__chip {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+  .nes-world-map__chip img {
+    width: 16px;
+    height: 16px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .nes-world-map__arc {
     animation: none !important;
     stroke-dashoffset: 0 !important;
+    opacity: 1 !important;
+  }
+  .nes-world-map__spark {
+    display: none;
   }
   .nes-world-map__pulse {
     animation: none;
     opacity: 0;
   }
-  .nes-world-map__marker {
+  .nes-world-map__marker,
+  .nes-world-map__chip {
     transition: none;
   }
 }
@@ -7237,9 +7337,9 @@ html {
    `data-club-typography`). Podwojony selektor podnosi specyficzność
    ponad utility, niezależnie od kolejności warstw. */
 :is([data-theme-typography], [data-club-typography]):is(
-    [data-theme-typography],
-    [data-club-typography]
-  ) {
+  [data-theme-typography],
+  [data-club-typography]
+) {
   --tt-fs-xs: calc(var(--fs-small, 13px) - 2px);
   --tt-fs-sm: var(--fs-small, 13px);
   --tt-fs-base: var(--fs-body, 16px);

@@ -19,6 +19,11 @@ import {
   projectPoint,
   resolveArcs,
   resolveMarkers,
+  fitViewBox,
+  opticalScale,
+  pointPercent,
+  sparkKeyframes,
+  WORLD_VIEW_BOX,
 } from "../worldMapGeo";
 
 describe("projectPoint", () => {
@@ -88,11 +93,21 @@ describe("arcKeyframes", () => {
     const timing = arcTiming(2, 1);
     const css = arcKeyframes("kf", 1, timing, true);
     expect(css).toContain("@keyframes kf{");
-    expect(css).toContain("0%{stroke-dashoffset:1}");
-    expect(css).toContain("100%{stroke-dashoffset:1}");
-    expect(css).toContain(`${timing.startPct(1).toFixed(3)}%{stroke-dashoffset:1}`);
-    expect(css).toContain(`${timing.endPct(1).toFixed(3)}%{stroke-dashoffset:0}`);
-    expect(css).toContain(`${timing.resetPct.toFixed(3)}%{stroke-dashoffset:0}`);
+    expect(css).toContain("0%{stroke-dashoffset:1;opacity:1}");
+    expect(css).toContain(`${timing.startPct(1).toFixed(3)}%{stroke-dashoffset:1;opacity:1`);
+    expect(css).toContain(`${timing.endPct(1).toFixed(3)}%{stroke-dashoffset:0;opacity:1}`);
+    expect(css).toContain(`${timing.resetPct.toFixed(3)}%{stroke-dashoffset:0;opacity:1}`);
+    // Łuk gaśnie na końcu cyklu zamiast znikać skokiem.
+    expect(css).toContain("100%{stroke-dashoffset:0;opacity:0}");
+  });
+
+  it("samo rysowanie jest wyprowadzone krzywą, a harmonogram zostaje liniowy", () => {
+    const timing = arcTiming(2, 1);
+    const css = arcKeyframes("kf", 0, timing, true);
+    // Krzywa siedzi w klatce STARTU (dotyczy odcinka start -> end), nie w 0%.
+    const startFrame = css.slice(css.indexOf(`${timing.startPct(0).toFixed(3)}%`));
+    expect(startFrame.startsWith(`${timing.startPct(0).toFixed(3)}%{`)).toBe(true);
+    expect(startFrame).toContain("animation-timing-function:cubic-bezier");
   });
 
   it("bez pętli rysuje raz i zostaje narysowany", () => {
@@ -157,11 +172,12 @@ describe("resolveMarkers", () => {
         [52.52, 13.4, "Berlin"],
         [38.9, -77.04, "Waszyngton"],
       ]),
+      WORLD_VIEW_BOX,
     );
-    const crowded = markers.filter((m) => m.point.lng > 0).map((m) => m.labelDy);
+    const crowded = markers.filter((m) => m.point.lng > 0).map((m) => m.labelRow);
     expect(new Set(crowded).size).toBeGreaterThan(1);
     // Waszyngton nie ma z czym kolidować - zostaje w pierwszym wierszu.
-    expect(markers.find((m) => m.point.label === "Waszyngton")?.labelDy).toBe(-8);
+    expect(markers.find((m) => m.point.label === "Waszyngton")?.labelRow).toBe(0);
   });
 
   it("jest deterministyczne (SSR == klient)", () => {
@@ -172,7 +188,7 @@ describe("resolveMarkers", () => {
           [52.52, 13.4, "Berlin"],
           [50.45, 30.52, "Kijów"],
         ]),
-      ).map((m) => `${m.key}:${m.labelDy}`);
+      ).map((m) => `${m.key}:${m.labelRow}`);
     expect(build()).toEqual(build());
   });
 
@@ -180,7 +196,88 @@ describe("resolveMarkers", () => {
     const markers = resolveMarkers(
       resolveArcs([{ start: { lat: 50.85, lng: 4.35 }, end: { lat: 52.23, lng: 21.01 } }]),
     );
-    expect(markers.every((m) => m.labelDy === -8)).toBe(true);
+    expect(markers.every((m) => m.labelRow === 0)).toBe(true);
+  });
+});
+
+describe("fitViewBox", () => {
+  const brussels = projectPoint(50.85, 4.35);
+  const warsaw = projectPoint(52.23, 21.01);
+  const washington = projectPoint(38.9, -77.04);
+
+  it("tryb `world` zwraca całe płótno", () => {
+    expect(fitViewBox([brussels, warsaw], "world")).toEqual(WORLD_VIEW_BOX);
+  });
+
+  it("bez punktów degraduje do całego świata (nie do kadru zerowej wielkości)", () => {
+    expect(fitViewBox([], "auto")).toEqual(WORLD_VIEW_BOX);
+  });
+
+  it("`auto` przybliża do punktów, ale nie ciaśniej niż próg czytelności", () => {
+    const view = fitViewBox([brussels, warsaw], "auto");
+    expect(view.w).toBeLessThan(MAP_VIEW_W);
+    expect(view.w).toBeGreaterThanOrEqual(150);
+    // Oba punkty muszą zostać w kadrze, z zapasem na etykiety.
+    for (const p of [brussels, warsaw]) {
+      expect(p.x).toBeGreaterThan(view.x);
+      expect(p.x).toBeLessThan(view.x + view.w);
+      expect(p.y).toBeGreaterThan(view.y);
+      expect(p.y).toBeLessThan(view.y + view.h);
+    }
+  });
+
+  it("mieści łuk wznoszący się 50 jednostek nad wyższym końcem", () => {
+    const view = fitViewBox([brussels, warsaw], "auto");
+    expect(view.y).toBeLessThan(Math.min(brussels.y, warsaw.y) - 50);
+  });
+
+  it("trzyma proporcję płótna i nie wychodzi poza świat", () => {
+    for (const pts of [[brussels], [brussels, washington], [warsaw]]) {
+      const view = fitViewBox(pts, "auto");
+      expect(view.w / view.h).toBeCloseTo(MAP_VIEW_W / MAP_VIEW_H, 6);
+      expect(view.x).toBeGreaterThanOrEqual(0);
+      expect(view.y).toBeGreaterThanOrEqual(0);
+      expect(view.x + view.w).toBeLessThanOrEqual(MAP_VIEW_W + 1e-6);
+      expect(view.y + view.h).toBeLessThanOrEqual(MAP_VIEW_H + 1e-6);
+    }
+  });
+
+  it("kadr Europy obejmuje Brukselę i Warszawę, a nie Waszyngton", () => {
+    const view = fitViewBox([], "europe");
+    const inside = (p: { x: number; y: number }) =>
+      p.x >= view.x && p.x <= view.x + view.w && p.y >= view.y && p.y <= view.y + view.h;
+    expect(inside(brussels)).toBe(true);
+    expect(inside(warsaw)).toBe(true);
+    expect(inside(washington)).toBe(false);
+  });
+
+  it("skala optyczna maleje przy zbliżeniu (grubości linii nie puchną)", () => {
+    expect(opticalScale(WORLD_VIEW_BOX)).toBe(1);
+    expect(opticalScale(fitViewBox([brussels, warsaw], "auto"))).toBeLessThan(1);
+  });
+
+  it("pozycja procentowa punktu jest liczona względem kadru", () => {
+    const view = fitViewBox([brussels, warsaw], "auto");
+    const pct = pointPercent(view, brussels);
+    expect(pct.left).toBeGreaterThan(0);
+    expect(pct.left).toBeLessThan(100);
+    expect(pointPercent(WORLD_VIEW_BOX, { x: 400, y: 200 })).toEqual({ left: 50, top: 50 });
+  });
+});
+
+describe("sparkKeyframes", () => {
+  it("iskra biegnie w oknie rysowania łuku i poza nim jest wygaszona", () => {
+    const timing = arcTiming(2, 1);
+    const css = sparkKeyframes("sp", 1, timing, true);
+    expect(css).toContain("@keyframes sp{");
+    expect(css).toContain("0%{stroke-dasharray:0.060 0.940;stroke-dashoffset:0.060;opacity:0}");
+    expect(css).toContain(`${timing.endPct(1).toFixed(3)}%`);
+    expect(css.trimEnd().endsWith("opacity:0}}")).toBe(true);
+  });
+
+  it("bez pętli przebiega raz od startu do końca trasy", () => {
+    const css = sparkKeyframes("sp", 0, arcTiming(1, 1), false);
+    expect(css).toContain("stroke-dashoffset:-1");
   });
 });
 

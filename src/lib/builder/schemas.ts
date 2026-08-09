@@ -871,19 +871,21 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     { key: "title", type: "i18nText", label: "Tytuł" },
     { key: "subtitle", type: "i18nText", label: "Opis (podtytuł)" },
     {
+      key: "fit",
+      type: "select",
+      label: "Kadr mapy",
+      options: [
+        { value: "auto", label: "dopasuj do połączeń" },
+        { value: "europe", label: "Europa" },
+        { value: "world", label: "cały świat" },
+      ],
+      hint: "Dopasowanie przybliża mapę do punktów, żeby łuki wypełniły kadr zamiast tonąć w oceanie.",
+    },
+    {
       key: "showLabels",
       type: "bool",
       label: "Etykiety przy punktach",
-      hint: "Wyłączone: nazwa lokalizacji pojawia się dopiero po najechaniu na punkt.",
-    },
-    {
-      key: "labelSize",
-      type: "number",
-      label: "Rozmiar etykiet",
-      min: 6,
-      max: 24,
-      step: 1,
-      hint: "W jednostkach płótna mapy (800x400) - 10 odpowiada mniej więcej 12 px na typowej szerokości.",
+      hint: "Wyłączone: na mapie zostają same znaczniki, a nazwy niesie lista dostępności.",
     },
     { key: "animate", type: "bool", label: "Animacja rysowania łuków" },
     {
