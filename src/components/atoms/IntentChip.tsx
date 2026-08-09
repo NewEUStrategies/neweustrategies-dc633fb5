@@ -23,10 +23,11 @@ interface IntentChipProps {
 }
 
 const BASE =
-  "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium leading-none transition-colors";
+  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium leading-none transition-colors";
 
 export function IntentChip({
   label,
+
   ariaLabel,
   selected = false,
   readOnly = false,
@@ -67,7 +68,8 @@ export function IntentChip({
         className,
       )}
     >
-      {selected && <Check className="h-3 w-3 shrink-0" aria-hidden />}
+      {selected && <Check className="h-3.5 w-3.5 shrink-0" aria-hidden />}
+
       <span className="truncate">{label}</span>
     </button>
   );
