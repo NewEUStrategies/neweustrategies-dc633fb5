@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { applyListAutoformat } from "@/lib/text/listAutoformat";
 import { HUB_SURFACE } from "@/components/clubs/atoms/ClubHubPrimitives";
 import { useCreateClubPost } from "@/lib/clubs/useClubPosts";
 import { removeClubPostMedia, uploadClubPostMedia } from "@/lib/clubs/postsApi";
