@@ -57,29 +57,81 @@ export function ClubProse({
   /** `sm` dla odpowiedzi (gęstsza lista), `base` dla postu otwierającego. */
   size?: "sm" | "base";
 }) {
-  const paragraphs = splitParagraphs(body);
-  if (paragraphs.length === 0) return null;
+  const blocks = parseProseBlocks(body);
+  if (blocks.length === 0) return null;
+  const dense = size === "sm";
 
   return (
     <div
       className={cn(
         "club-prose max-w-[72ch] text-foreground/90",
-        size === "base" ? "space-y-3.5 text-[15px] leading-7" : "space-y-2.5 text-sm leading-6",
+        dense ? "space-y-2.5 text-sm leading-6" : "space-y-3.5 text-[15px] leading-7",
         className,
       )}
       data-testid="club-prose"
     >
-      {paragraphs.map((paragraph, index) => (
-        <p
-          key={index}
-          className={cn(
-            "whitespace-pre-wrap break-words [text-wrap:pretty]",
-            isLeadIn(paragraph) ? "font-medium text-foreground" : null,
-          )}
-        >
-          {paragraph}
-        </p>
-      ))}
+      {blocks.map((block, index) => {
+        if (block.kind === "paragraph") {
+          return (
+            <p
+              key={index}
+              className={cn(
+                "whitespace-pre-wrap break-words [text-wrap:pretty]",
+                isLeadIn(block.text) ? "font-medium text-foreground" : null,
+              )}
+            >
+              {block.text}
+            </p>
+          );
+        }
+
+        if (block.kind === "ordered") {
+          return (
+            <ol
+              key={index}
+              data-testid="club-prose-ordered"
+              className={cn("list-none", dense ? "space-y-1.5" : "space-y-2")}
+            >
+              {block.items.map((item, itemIndex) => (
+                <li key={itemIndex} className="flex gap-2.5 break-words [text-wrap:pretty]">
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "mt-0.5 inline-flex shrink-0 items-center justify-center rounded-md",
+                      "bg-primary/12 font-semibold tabular-nums text-primary",
+                      dense ? "h-[18px] min-w-[18px] px-1 text-[11px]" : "h-5 min-w-5 px-1 text-xs",
+                    )}
+                  >
+                    {block.start + itemIndex}
+                  </span>
+                  <span className="min-w-0 flex-1 whitespace-pre-wrap">{item}</span>
+                </li>
+              ))}
+            </ol>
+          );
+        }
+
+        return (
+          <ul
+            key={index}
+            data-testid="club-prose-bullet"
+            className={cn("list-none", dense ? "space-y-1.5" : "space-y-2")}
+          >
+            {block.items.map((item, itemIndex) => (
+              <li key={itemIndex} className="flex gap-2.5 break-words [text-wrap:pretty]">
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "shrink-0 rounded-full bg-primary/60",
+                    dense ? "mt-[9px] h-1.5 w-1.5" : "mt-[11px] h-1.5 w-1.5",
+                  )}
+                />
+                <span className="min-w-0 flex-1 whitespace-pre-wrap">{item}</span>
+              </li>
+            ))}
+          </ul>
+        );
+      })}
     </div>
   );
 }
