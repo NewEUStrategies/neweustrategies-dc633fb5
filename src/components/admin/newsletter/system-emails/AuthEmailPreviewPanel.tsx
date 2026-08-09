@@ -214,7 +214,7 @@ export function AuthEmailPreviewPanel() {
               <iframe
                 title={`email-preview-${active.type}-${active.lang}`}
                 srcDoc={active.html}
-                sandbox=""
+                sandbox="allow-same-origin"
                 className="bg-white rounded-md border border-border w-full"
                 style={{
                   maxWidth: device === "mobile" ? 390 : 720,

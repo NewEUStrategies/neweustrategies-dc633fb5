@@ -85,7 +85,6 @@ export function clubThreadTone(kind: string | null | undefined): ClubDossierTone
   return THREAD_TONES[kind] ?? "thread";
 }
 
-
 export interface ClubDossierMetric {
   readonly key: string;
   readonly icon: ReactNode;
@@ -156,6 +155,7 @@ export function ClubDossierRow({
   footer,
   unread = false,
   pinned = false,
+  titleStyle = "inline",
   testId,
   className,
 }: {
@@ -172,6 +172,8 @@ export function ClubDossierRow({
   footer?: ReactNode;
   unread?: boolean;
   pinned?: boolean;
+  /** `headline` = wyrazisty tytuł pod metą, `inline` = etykieta inline. */
+  titleStyle?: "inline" | "headline";
   testId?: string;
   className?: string;
 }) {
@@ -180,25 +182,35 @@ export function ClubDossierRow({
       data-testid={testId}
       data-tone={tone}
       className={cn(
-        "group/dossier relative grid gap-x-3 gap-y-1.5 overflow-hidden rounded-lg border border-border/60 bg-card",
-        "grid-cols-[auto_minmax(0,1fr)] py-2.5 pl-2.5 pr-3 transition-colors",
-        "hover:border-primary/40 focus-within:border-primary/40",
-        "sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-x-4 sm:py-3 sm:pr-4",
+        "group/dossier relative grid gap-x-3 gap-y-1.5 overflow-hidden rounded-xl border border-border/60 bg-card",
+        "grid-cols-[auto_minmax(0,1fr)] py-3 pl-3 pr-3 transition-all duration-300 ease-out",
+        "hover:border-primary/40 hover:shadow-lg focus-within:border-primary/40",
+        "sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-x-4 sm:py-4 sm:pr-5",
         pinned && "border-primary/40",
         unread && "bg-primary/[0.03]",
         className,
       )}
     >
-      {/* Grzbiet: pasek rodzaju przez całą wysokość + ikona. Pasek jest
-          absolutny, bo ma sięgać krawędzi wiersza, a nie wysokości ikony. */}
+      {/* Subtelny górny akcent - nadaje głębi i wyróżnia kartę od tła. */}
       <span
         aria-hidden="true"
-        className={cn("absolute inset-y-0 left-0 w-[3px]", SPINE[tone])}
+        className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-border/60 to-transparent"
+      />
+
+      {/* Grzbiet: pasek rodzaju przez całą wysokość + ikona. Pasek jest
+          absolutny, bo ma sięgać krawędzi wiersza, a nie wysokości ikony.
+          Zaokrąglone końce i delikatny cień po najechaniu. */}
+      <span
+        aria-hidden="true"
+        className={cn(
+          "absolute inset-y-1 left-1 w-[3px] rounded-full transition-all duration-300 group-hover/dossier:shadow-[2px_0_12px_currentColor]",
+          SPINE[tone],
+        )}
       />
       <span
         aria-hidden="true"
         className={cn(
-          "ml-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border",
+          "ml-1.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border",
           ICON_BOX[tone],
         )}
       >
@@ -215,10 +227,24 @@ export function ClubDossierRow({
           </div>
         ) : null}
 
-        <div className={cn("min-w-0", meta !== undefined && "mt-1")}>{title}</div>
+        <div
+          className={cn(
+            "min-w-0",
+            meta !== undefined && "mt-2",
+            titleStyle === "headline" && "mt-2",
+          )}
+        >
+          {titleStyle === "headline" ? (
+            <div className="text-xl font-bold leading-snug tracking-tight text-foreground transition-colors group-hover/dossier:text-foreground sm:text-2xl">
+              {title}
+            </div>
+          ) : (
+            title
+          )}
+        </div>
 
         {excerpt !== undefined ? (
-          <div className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+          <div className="mt-2 line-clamp-3 text-sm leading-relaxed text-muted-foreground">
             {excerpt}
           </div>
         ) : null}
@@ -226,7 +252,7 @@ export function ClubDossierRow({
         {footer !== undefined ? (
           // Akcje trzymają wysokość wiersza stałą: są zawsze w DOM, a zmienia
           // się tylko ich widoczność - inaczej lista skakałaby przy najeździe.
-          <div className="mt-1.5 opacity-70 transition-opacity group-hover/dossier:opacity-100 focus-within:opacity-100">
+          <div className="mt-3 opacity-70 transition-opacity group-hover/dossier:opacity-100 focus-within:opacity-100">
             {footer}
           </div>
         ) : null}

@@ -75,9 +75,6 @@ const EMPTY_SOURCES: ReadonlyMap<string, ClubSourceMark> = new Map();
 /** Stała pusta lista - ten sam powód, co `EMPTY_SOURCES`. */
 const EMPTY_TOPICS: readonly ClubTopicOption[] = [];
 
-
-
-
 function ThreadCard({
   thread,
   clubSlug,
@@ -126,10 +123,14 @@ function ThreadCard({
       tone={clubThreadTone(thread.kind)}
       unread={thread.is_unread}
       pinned={thread.pinned_at !== null}
+      titleStyle="headline"
       icon={<ClubThreadKindIcon kind={thread.kind} icon={threadIcon} />}
       meta={
         <>
-          <Badge variant="secondary" className="rounded-lg px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wide">
+          <Badge
+            variant="secondary"
+            className="rounded-lg px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wide"
+          >
             {t(`club.kind.${thread.kind}`)}
           </Badge>
           {thread.status === "resolved" ? (
@@ -182,17 +183,13 @@ function ThreadCard({
           <Link
             to="/club/$clubSlug/t/$threadSlug"
             params={{ clubSlug, threadSlug: thread.slug }}
-            className="group/title inline-block max-w-full"
+            className="group/title inline-block max-w-full focus:outline-none"
           >
-            <ClubInlineTitle tone="thread" size="sm" interactive>
-              {thread.title}
-            </ClubInlineTitle>
+            <span className="[overflow-wrap:anywhere]">{thread.title}</span>
           </Link>
         </h3>
       }
-      excerpt={
-        thread.excerpt !== null && thread.excerpt.trim() !== "" ? thread.excerpt : undefined
-      }
+      excerpt={thread.excerpt !== null && thread.excerpt.trim() !== "" ? thread.excerpt : undefined}
       metrics={
         <ClubDossierMetrics
           metrics={[
@@ -239,7 +236,6 @@ function ThreadCard({
     />
   );
 }
-
 
 function EventCard({ event, isPl }: { event: ClubEventRow; isPl: boolean }) {
   const { t } = useTranslation();
@@ -335,7 +331,12 @@ function DocumentsCard({
                   </ClubInlineTitle>
                 </span>
                 {href !== null ? (
-                  <Button asChild size="sm" variant="ghost" className="h-7 shrink-0 rounded-lg px-2">
+                  <Button
+                    asChild
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 shrink-0 rounded-lg px-2"
+                  >
                     <a
                       href={href}
                       target={isFile ? undefined : "_blank"}
@@ -416,7 +417,6 @@ function MilestoneCard({
     />
   );
 }
-
 
 export function ClubFeedItem({
   entry,

@@ -8,11 +8,19 @@
 // module i identyczna ze strumieniem huba.
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
-import { Clock, Lightbulb, Link2, Lock, MessageSquare, MessagesSquare, Pin, Users2 } from "lucide-react";
+import {
+  Clock,
+  Lightbulb,
+  Link2,
+  Lock,
+  MessageSquare,
+  MessagesSquare,
+  Pin,
+  Users2,
+} from "lucide-react";
 import { ClubThreadKindIcon } from "@/components/clubs/atoms/ClubThreadKindIcon";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { ClubInlineTitle } from "@/components/clubs/atoms/ClubInlineTitle";
 import {
   ClubDossierMetrics,
   ClubDossierRow,
@@ -37,7 +45,10 @@ function ThreadMeta({ thread, isPl }: { thread: ClubThreadListRow; isPl: boolean
         {t(`club.kind.${thread.kind}`)}
       </Badge>
       {thread.status === "locked" ? (
-        <Lock className="h-3 w-3 text-muted-foreground" aria-label={t("club.threadStatus.locked")} />
+        <Lock
+          className="h-3 w-3 text-muted-foreground"
+          aria-label={t("club.threadStatus.locked")}
+        />
       ) : null}
       {thread.status === "resolved" ? (
         <Badge className="rounded-lg bg-emerald-600 px-1.5 py-0 text-[10px] hover:bg-emerald-600">
@@ -129,6 +140,7 @@ function ThreadRow({
       tone={clubThreadTone(thread.kind)}
       unread={thread.is_unread}
       pinned={thread.pinned_at !== null}
+      titleStyle="headline"
       className={cn("h-full", featured && "border-primary/40 bg-primary/[0.04]")}
       icon={<ClubThreadKindIcon kind={thread.kind} icon={icon} />}
       meta={<ThreadMeta thread={thread} isPl={isPl} />}
@@ -137,11 +149,9 @@ function ThreadRow({
           <Link
             to="/club/$clubSlug/t/$threadSlug"
             params={{ clubSlug, threadSlug: thread.slug }}
-            className="group/title inline-block max-w-full"
+            className="group/title inline-block max-w-full focus:outline-none"
           >
-            <ClubInlineTitle tone="thread" size={featured ? "md" : "sm"} interactive>
-              {thread.title}
-            </ClubInlineTitle>
+            <span className="[overflow-wrap:anywhere]">{thread.title}</span>
           </Link>
         </h3>
       }
@@ -204,4 +214,3 @@ export function ClubThreadList({
     </ul>
   );
 }
-
