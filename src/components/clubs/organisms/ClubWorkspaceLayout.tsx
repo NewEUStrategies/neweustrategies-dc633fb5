@@ -25,7 +25,7 @@ import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
 // (pigułki na podstronach, szyna w hubie), więc ten sam zestaw sekcji miał
 // dwa kształty i dwa promienie - a użytkownik nie ma powodu domyślać się,
 // że to jest ta sama nawigacja.
-import { ClubHubSectionBar } from "@/components/clubs/molecules/ClubHubRail";
+import { ClubHubSectionBar, ClubWorkspaceRail } from "@/components/clubs/molecules/ClubHubRail";
 import { ClubDetailSkeleton } from "@/components/clubs/atoms/ClubSkeletons";
 import { useClubBySlug } from "@/lib/clubs/useClubs";
 import type { ClubViewRow } from "@/lib/clubs/types";
