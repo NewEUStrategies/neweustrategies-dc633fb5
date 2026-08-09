@@ -17,7 +17,7 @@
 // lista ma pokazać maksimum pozycji, a rozwinięcie treści należy do wątku.
 // Akcje pojawiają się przy najeździe i przy fokusie klawiatury - „przy
 // fokusie" jest tu warunkiem dostępności, nie ozdobą.
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 // Ton grzbietu = RODZAJ pozycji, a dla wątków - rodzaj wątku (dyskusja,
@@ -67,6 +67,39 @@ const ICON_BOX: Record<ClubDossierTone, string> = {
   milestone: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
 };
 
+// Kolor rodzaju jako WARTOŚĆ, nie klasa. Poświata musi znać sam kolor, żeby
+// zbudować z niego gradient (`color-mix`) - klasa `bg-*` tego nie udostępnia.
+// Neutralne rodzaje sięgają po tokeny motywu, więc działają w obu trybach.
+const TONE_COLOR: Record<ClubDossierTone, string> = {
+  thread: "var(--primary)",
+  discussion: "oklch(0.606 0.25 292.717)",
+  question: "oklch(0.769 0.188 70.08)",
+  position: "oklch(0.645 0.246 16.439)",
+  resource: "oklch(0.704 0.14 182.503)",
+  announcement: "oklch(0.705 0.213 47.604)",
+  poll: "oklch(0.667 0.295 322.15)",
+  post: "var(--foreground)",
+  event: "oklch(0.685 0.169 237.323)",
+  document: "var(--muted-foreground)",
+  milestone: "oklch(0.696 0.17 162.48)",
+};
+
+/**
+ * Wariant poświaty przy najeździe. To ŚWIATŁO w kolorze rodzaju, nie cień:
+ * - `aura`  - miękki halo od strony grzbietu (domyślny),
+ * - `sweep` - poziomy gradient przechodzący przez cały wiersz,
+ * - `rim`   - tylko rozświetlona krawędź i grzbiet, tło bez zmian,
+ * - `none`  - bez efektu (np. gdy wiersz siedzi w innej powierzchni).
+ */
+export type ClubDossierGlow = "aura" | "sweep" | "rim" | "none";
+
+const GLOW_BACKGROUND: Record<Exclude<ClubDossierGlow, "none">, string> = {
+  aura: "radial-gradient(120% 160% at 0% 50%, color-mix(in oklab, var(--dossier-tone) 22%, transparent) 0%, color-mix(in oklab, var(--dossier-tone) 8%, transparent) 38%, transparent 72%)",
+  sweep:
+    "linear-gradient(90deg, color-mix(in oklab, var(--dossier-tone) 20%, transparent) 0%, color-mix(in oklab, var(--dossier-tone) 7%, transparent) 45%, transparent 100%)",
+  rim: "none",
+};
+
 const THREAD_TONES: Record<string, ClubDossierTone> = {
   discussion: "discussion",
   question: "question",
@@ -103,6 +136,11 @@ export interface ClubDossierMetric {
  */
 export function clubDossierSpineClass(tone: ClubDossierTone): string {
   return SPINE[tone];
+}
+
+/** Kolor rodzaju jako wartość CSS - dla powierzchni budujących własną poświatę. */
+export function clubDossierToneColor(tone: ClubDossierTone): string {
+  return TONE_COLOR[tone];
 }
 
 /** Klasa kwadratu ikony rodzaju - patrz `clubDossierSpineClass`. */
@@ -156,6 +194,7 @@ export function ClubDossierRow({
   unread = false,
   pinned = false,
   titleStyle = "inline",
+  glow = "aura",
   testId,
   className,
 }: {
@@ -174,23 +213,51 @@ export function ClubDossierRow({
   pinned?: boolean;
   /** `headline` = wyrazisty tytuł pod metą, `inline` = etykieta inline. */
   titleStyle?: "inline" | "headline";
+  /** Poświata rodzaju przy najeździe - patrz `ClubDossierGlow`. */
+  glow?: ClubDossierGlow;
   testId?: string;
   className?: string;
 }) {
+  // Kolor rodzaju jedzie zmienną, więc krawędź, halo i grzbiet biorą go z
+  // jednego źródła - bez powielania odcieni w klasach.
+  const toneStyle = { "--dossier-tone": TONE_COLOR[tone] } as CSSProperties;
+
   return (
     <article
       data-testid={testId}
       data-tone={tone}
+      data-glow={glow}
+      style={toneStyle}
       className={cn(
-        "group/dossier relative grid gap-x-3 gap-y-1.5 overflow-hidden rounded-xl border border-border/60 bg-card",
-        "grid-cols-[auto_minmax(0,1fr)] py-3 pl-3 pr-3 transition-all duration-300 ease-out",
-        "hover:border-primary/40 hover:shadow-lg focus-within:border-primary/40",
+        "group/dossier relative isolate grid gap-x-3 gap-y-1.5 overflow-hidden rounded-xl border border-border/60 bg-card",
+        "grid-cols-[auto_minmax(0,1fr)] py-3 pl-3 pr-3",
+        // Animujemy WYŁĄCZNIE kolor krawędzi i przezroczystość warstw - bez
+        // `transition-all` i bez cienia, bo to one powodowały szarpanie i
+        // „brudną" szarość wokół wiersza przy najeździe.
+        "transition-colors duration-300 ease-out",
+        glow !== "none" &&
+          "hover:border-[color-mix(in_oklab,var(--dossier-tone)_45%,transparent)] focus-within:border-[color-mix(in_oklab,var(--dossier-tone)_45%,transparent)]",
         "sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-x-4 sm:py-4 sm:pr-5",
         pinned && "border-primary/40",
         unread && "bg-primary/[0.03]",
         className,
       )}
     >
+      {/* Poświata rodzaju. Osobna warstwa pod treścią (`-z-10`), animowana
+          tylko przez `opacity` - kompozytor GPU robi to bez repaintu całego
+          wiersza, więc animacja jest gładka nawet na długiej liście. */}
+      {glow !== "none" && glow !== "rim" ? (
+        <span
+          aria-hidden="true"
+          className={cn(
+            "pointer-events-none absolute inset-0 -z-10 opacity-0 transition-opacity duration-300 ease-out",
+            "transform-gpu will-change-[opacity] group-hover/dossier:opacity-100 group-focus-within/dossier:opacity-100",
+            "motion-reduce:transition-none",
+          )}
+          style={{ backgroundImage: GLOW_BACKGROUND[glow] }}
+        />
+      ) : null}
+
       {/* Subtelny górny akcent - nadaje głębi i wyróżnia kartę od tła. */}
       <span
         aria-hidden="true"
@@ -198,24 +265,34 @@ export function ClubDossierRow({
       />
 
       {/* Grzbiet: pasek rodzaju przez całą wysokość + ikona. Pasek jest
-          absolutny, bo ma sięgać krawędzi wiersza, a nie wysokości ikony.
-          Zaokrąglone końce i delikatny cień po najechaniu. */}
+          absolutny, bo ma sięgać krawędzi wiersza, a nie wysokości ikony. */}
       <span
         aria-hidden="true"
-        className={cn(
-          "absolute inset-y-1 left-1 w-[3px] rounded-full transition-all duration-300 group-hover/dossier:shadow-[2px_0_12px_currentColor]",
-          SPINE[tone],
-        )}
+        className={cn("absolute inset-y-1 left-1 w-[3px] rounded-full", SPINE[tone])}
       />
+      {/* Rozświetlenie grzbietu = rozmyta kopia paska, nie `box-shadow`.
+          Rozmycie liczy się raz, a animujemy samą przezroczystość. */}
+      {glow !== "none" ? (
+        <span
+          aria-hidden="true"
+          className={cn(
+            "pointer-events-none absolute inset-y-1 left-1 w-[3px] rounded-full blur-[6px]",
+            "opacity-0 transition-opacity duration-300 ease-out transform-gpu will-change-[opacity]",
+            "group-hover/dossier:opacity-80 group-focus-within/dossier:opacity-80 motion-reduce:transition-none",
+          )}
+          style={{ backgroundColor: "var(--dossier-tone)" }}
+        />
+      ) : null}
       <span
         aria-hidden="true"
         className={cn(
-          "ml-1.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border",
+          "ml-1.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors duration-300",
           ICON_BOX[tone],
         )}
       >
         {icon}
       </span>
+
 
       <div className="min-w-0">
         {meta !== undefined ? (
