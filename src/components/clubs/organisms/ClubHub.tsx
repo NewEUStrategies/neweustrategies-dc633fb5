@@ -23,7 +23,15 @@
 // mają własne ekrany.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { CalendarDays, FileText, LayoutList, MessagesSquare, Search, X } from "lucide-react";
+import {
+  CalendarDays,
+  FileText,
+  LayoutList,
+  MessagesSquare,
+  Newspaper,
+  Search,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -78,6 +86,7 @@ import { uiLocale } from "@/lib/i18n/format";
 
 const FEED_ICONS = {
   all: LayoutList,
+  posts: Newspaper,
   threads: MessagesSquare,
   documents: FileText,
   calendar: CalendarDays,

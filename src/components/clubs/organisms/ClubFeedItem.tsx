@@ -48,6 +48,7 @@ import {
   type ClubMilestoneRow,
 } from "@/lib/clubs/workspaceTypes";
 import { registerClubDocumentDownload } from "@/lib/clubs/workspaceApi";
+import { ClubPostCard } from "@/components/clubs/organisms/ClubPostCard";
 import type { ClubFeedEntry } from "@/lib/clubs/clubFeed";
 import { formatDate, formatDateTime, formatDateShort } from "@/lib/i18n/format";
 
