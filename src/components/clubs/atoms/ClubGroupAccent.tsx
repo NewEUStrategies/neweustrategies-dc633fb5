@@ -24,9 +24,33 @@ export function clubGroupAccentVars(accent: string | null): CSSProperties {
 export const CLUB_GROUP_TINT =
   "border-[color-mix(in_oklab,var(--club-accent)_40%,transparent)] bg-[color-mix(in_oklab,var(--club-accent)_8%,transparent)]";
 
-export const CLUB_GROUP_DOT = "bg-[color-mix(in_oklab,var(--club-accent)_75%,transparent)]";
+/**
+ * Tekst w kolorze działu. AKCENT JEST TU MNIEJSZOŚCIĄ (35 %) i to jest cała
+ * poprawka wobec pierwszej wersji: przy 80 % o jasności napisu decydował kolor
+ * wybrany przez redakcję, więc dział z ciemnym granatem (`#101a2e`) znikał
+ * w trybie ciemnym, a dział z jasną żółcią zniknie w jasnym. Kontrast musi
+ * wychodzić z `--foreground`, bo tylko on wie, jaki jest motyw; akcent ma
+ * nadawać ODCIEŃ, nie jasność.
+ *
+ * Ikona w chipie dziedziczy `currentColor`, więc ta sama reguła ratuje i ją.
+ */
+export const CLUB_GROUP_TEXT =
+  "text-[color-mix(in_oklab,var(--club-accent)_35%,var(--foreground))]";
 
-export const CLUB_GROUP_TEXT = "text-[color-mix(in_oklab,var(--club-accent)_80%,var(--foreground))]";
+/** Krecha wiążąca listę z jej działem - lewa krawędź listy wątków w panelu
+ *  źródeł. Mocniejsza niż tło (35 %), bo jest jedyną rzeczą, która mówi
+ *  "te tytuły należą do działu wyżej". */
+export const CLUB_GROUP_EDGE = "border-[color-mix(in_oklab,var(--club-accent)_35%,transparent)]";
+
+// Kwadrat z ikoną działu. TEN SAM znacznik w drzewie działów, w panelu źródeł
+// i w nagłówku wybranego działu - dopiero powtórzenie kształtu sprawia, że
+// użytkownik łączy pozycję w szynie z kartą w strumieniu. Rozmiar zostaje po
+// stronie wołającego, bo w szynie kwadrat ma 5, a w nagłówku 7 jednostek.
+export const CLUB_GROUP_CHIP =
+  "border-[color-mix(in_oklab,var(--club-accent)_30%,transparent)] bg-[color-mix(in_oklab,var(--club-accent)_12%,transparent)]";
+
+export const CLUB_GROUP_CHIP_ACTIVE =
+  "border-[color-mix(in_oklab,var(--club-accent)_45%,transparent)] bg-[color-mix(in_oklab,var(--club-accent)_18%,transparent)]";
 
 export function ClubGroupIcon({
   icon,

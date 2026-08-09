@@ -13,14 +13,12 @@ import { FileText, MessagesSquare, Network, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HUB_SURFACE } from "@/components/clubs/atoms/ClubHubPrimitives";
 import {
+  CLUB_GROUP_CHIP_ACTIVE,
   CLUB_GROUP_TINT,
   ClubGroupIcon,
   clubGroupAccentVars,
 } from "@/components/clubs/atoms/ClubGroupAccent";
-import {
-  clubGroupDescription,
-  clubGroupName,
-} from "@/components/clubs/molecules/ClubGroupTree";
+import { clubGroupDescription, clubGroupName } from "@/components/clubs/molecules/ClubGroupTree";
 import type { ClubGroupNode } from "@/lib/clubs/groupTree";
 
 function Metric({
@@ -70,7 +68,12 @@ export function ClubGroupPanel({
       <div className="h-0.5 w-full bg-[color-mix(in_oklab,var(--club-accent)_65%,transparent)]" />
       <div className={cn("space-y-2.5 p-3", CLUB_GROUP_TINT, "border-0")}>
         <div className="flex items-start gap-2.5">
-          <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-[color-mix(in_oklab,var(--club-accent)_35%,transparent)] bg-[color-mix(in_oklab,var(--club-accent)_14%,transparent)]">
+          <span
+            className={cn(
+              "mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border",
+              CLUB_GROUP_CHIP_ACTIVE,
+            )}
+          >
             <ClubGroupIcon icon={group.icon} depth={depth} />
           </span>
           <div className="min-w-0 flex-1">

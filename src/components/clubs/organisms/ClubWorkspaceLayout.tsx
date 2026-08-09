@@ -122,7 +122,7 @@ export function ClubWorkspaceLayout({
           miejscu na każdej powierzchni klubu, więc nawigacja nie „przeskakuje"
           między stroną klubu a jego podstroną. Poniżej `lg` szyna znika, a jej
           lista wraca jako pasek nad treścią. */}
-      <div className="grid items-start gap-4 lg:grid-cols-[13.5rem_minmax(0,1fr)]">
+      <div className="grid items-start gap-4 lg:grid-cols-[15rem_minmax(0,1fr)]">
         <aside className="hidden lg:sticky lg:top-20 lg:block">
           <ClubWorkspaceRail club={club} isPl={isPl} />
         </aside>

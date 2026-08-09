@@ -3,12 +3,16 @@
 // UKŁAD. Trzy kolumny to nie moda, tylko odpowiedź na trzy różne pytania,
 // które użytkownik zadaje w różnym rytmie:
 //   * LEWA (nawigacja, działy)  - "gdzie mogę pójść" - rzadko, ale musi być
-//     pod ręką, więc `sticky` i wąska,
+//     pod ręką, więc `sticky` i wąska; sekcje jako siatka kafelków z liczbami,
+//     pod nimi drzewo działów,
 //   * ŚRODEK (strumień)         - "co się dzieje" - to jest treść i dostaje
 //     całą pozostałą szerokość, ograniczoną do ~46 rem, bo linia dłuższa niż
 //     ~90 znaków przestaje się czytać,
-//   * PRAWA (kontekst)          - "co mnie czeka" - skanowana wzrokiem, nie
-//     czytana, więc może być gęsta i też jest `sticky`.
+//   * PRAWA (źródła i kontekst) - "skąd to jest i co mnie czeka" - otwiera ją
+//     panel wątków POGRUPOWANYCH według działu, z którego pochodzą, bo strumień
+//     w środku miesza sześć działów w jeden ciąg i sam z siebie nie powie, ile
+//     ich naprawdę żyje. Reszta kolumny jest skanowana wzrokiem, nie czytana,
+//     więc może być gęsta i też jest `sticky`.
 //
 // STOPNIOWANIE. Poniżej `lg` znika lewa kolumna (jej nawigacja wraca jako
 // poziomy pasek nad strumieniem), poniżej `xl` znika prawa (jej panele lądują
@@ -88,8 +92,10 @@ import {
   ClubStagePanel,
   ClubUpNextPanel,
 } from "@/components/clubs/molecules/ClubHubContext";
+import { ClubThreadSourcesPanel } from "@/components/clubs/molecules/ClubThreadSources";
 import { ClubFeedItem } from "@/components/clubs/organisms/ClubFeedItem";
 import { ClubGlobalSearchResults } from "@/components/clubs/organisms/ClubGlobalSearch";
+import { buildClubSourceIndex } from "@/lib/clubs/threadSources";
 import { uiLocale } from "@/lib/i18n/format";
 
 const FEED_ICONS = {
@@ -153,6 +159,12 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
   const deletePost = useDeleteClubPost(club.id);
   const toggleLike = useToggleClubPostLike();
   const seriesQ = useClubActivitySeries(club.id, 30);
+  // ŹRÓDŁA (prawa szyna) jadą OSOBNYM zapytaniem, bez zawężenia działem i bez
+  // porządku wybranego przez użytkownika. To jest cała wartość tego panelu:
+  // ma mówić o działach, których w tej chwili NIE widać w strumieniu. Gdyby
+  // czytał tę samą listę, po wybraniu działu pokazywałby jedno źródło - czyli
+  // dokładnie tę informację, którą użytkownik ma już na ekranie.
+  const sourceThreadsQ = useClubThreads({ clubId: club.id, sort: "new" });
 
   // Wyszukiwanie ZASTĘPUJE strumień, nie stoi obok niego: dwie listy naraz na
   // telefonie znaczą, że użytkownik nie wie, którą czyta.
@@ -201,6 +213,12 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
   const groupTree = useMemo(() => buildClubGroupTree(groups), [groups]);
   const groupPath = useMemo(() => clubGroupPath(groupTree, groupId), [groupTree, groupId]);
   const activeGroupNode = groupPath.length > 0 ? groupPath[groupPath.length - 1] : null;
+  // Kolor i ikona działu liczone RAZ na render listy, nie raz na kartę.
+  const sourceIndex = useMemo(() => buildClubSourceIndex(groups, isPl), [groups, isPl]);
+  const sourceThreads = useMemo(
+    () => (sourceThreadsQ.data?.pages ?? []).flatMap((page) => page.rows),
+    [sourceThreadsQ.data],
+  );
 
   const contributors = useMemo(
     () => (stats === null ? [] : parseContributors(stats.top_contributors)),
@@ -253,17 +271,32 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
         ? (postsQ.data?.pages[0]?.total ?? 0)
         : value === "documents"
           ? (documentsQ.data?.total ?? 0)
-        : value === "calendar"
-          ? events.length
-          : undefined,
+          : value === "calendar"
+            ? events.length
+            : undefined,
   }));
 
-  // KOLEJNOŚĆ PRAWEJ KOLUMNY JEST TEZĄ. Dorobek otwiera, puls zamyka:
-  // pierwsze, co widać po wejściu, ma mówić, co ten klub wytworzył, a nie ile
-  // było wpisów w ostatniej dobie. Ruch jest kontekstem dla dorobku, nie
-  // odwrotnie - i to jest cała różnica między think tankiem a forum.
+  // KOLEJNOŚĆ PRAWEJ KOLUMNY JEST TEZĄ. Źródła otwierają, puls zamyka.
+  //
+  // Panel źródeł stoi pierwszy, bo odpowiada na pytanie zadawane NAJWCZEŚNIEJ
+  // w klubie wielodziałowym: "co tu w ogóle jest i skąd pochodzi to, co widzę".
+  // Strumień w środku miesza wątki z sześciu działów w jeden ciąg - orientacja
+  // musi więc stać obok niego, a nie pod dorobkiem i pulsem.
+  //
+  // Dorobek zaraz za nim, puls na końcu: pierwsze, co widać po orientacji, ma
+  // mówić, co ten klub wytworzył, a nie ile było wpisów w ostatniej dobie. Ruch
+  // jest kontekstem dla dorobku, nie odwrotnie - i to jest cała różnica między
+  // think tankiem a forum.
   const context = (
     <>
+      <ClubThreadSourcesPanel
+        clubSlug={clubSlug}
+        threads={sourceThreads}
+        groups={groups}
+        activeGroupId={groupId}
+        onGroupChange={setGroupId}
+        isPl={isPl}
+      />
       <ClubOutputPanel
         clubSlug={clubSlug}
         products={productsQ.data?.rows ?? []}
@@ -297,7 +330,7 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
     <div className="mx-auto w-full max-w-[1600px] px-3 py-5 sm:px-5 lg:px-8">
       <ClubHubIdentity club={club} isPl={isPl} locale={locale} className="mb-4" />
 
-      <div className="grid items-start gap-4 lg:grid-cols-[13.5rem_minmax(0,1fr)] xl:grid-cols-[13.5rem_minmax(0,1fr)_20rem]">
+      <div className="grid items-start gap-4 lg:grid-cols-[15rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)_20rem]">
         {/* Lewa szyna: tylko od `lg`. Niżej jej nawigacja wraca paskiem. */}
         <aside className="hidden lg:sticky lg:top-20 lg:block">
           <ClubHubRail
@@ -308,6 +341,16 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
             attributionMode={toClubAttributionMode(club.attribution_mode)}
             activeGroupId={groupId}
             onGroupChange={setGroupId}
+            // Liczby przy kafelkach biorą się WYŁĄCZNIE z zapytań, które hub
+            // i tak wykonuje - szyna nie dokłada ani jednego round-tripu po to,
+            // żeby narysować plakietkę.
+            counts={{
+              threads: club.thread_count,
+              documents: documentsQ.data?.total,
+              calendar: events.length,
+              schedule: milestones.length,
+              members: club.member_count,
+            }}
             hasRules={(isPl ? club.rules_pl : club.rules_en) !== null}
             isPl={isPl}
           />
@@ -455,6 +498,9 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
                   clubSlug={clubSlug}
                   isPl={isPl}
                   mediaUrls={mediaUrls}
+                  sourceIndex={sourceIndex}
+                  activeGroupId={groupId}
+                  onSourceSelect={setGroupId}
                   onPostLike={(postId) => {
                     toggleLike.mutate(postId, {
                       onSuccess: () => void postsQ.refetch(),

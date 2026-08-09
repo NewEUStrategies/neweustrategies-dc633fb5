@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import { HUB_SURFACE } from "@/components/clubs/atoms/ClubHubPrimitives";
 import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
 import { ClubInlineTitle } from "@/components/clubs/atoms/ClubInlineTitle";
+import { ClubSourceChip } from "@/components/clubs/atoms/ClubSourceChip";
 import { ClubThreadHeat } from "@/components/clubs/atoms/ClubThreadHeat";
 import {
   ClubDocumentKindIcon,
@@ -50,7 +51,12 @@ import {
 import { registerClubDocumentDownload } from "@/lib/clubs/workspaceApi";
 import { ClubPostCard } from "@/components/clubs/organisms/ClubPostCard";
 import type { ClubFeedEntry } from "@/lib/clubs/clubFeed";
+import { clubSourceOf, type ClubSourceMark } from "@/lib/clubs/threadSources";
 import { formatDate, formatDateTime, formatDateShort } from "@/lib/i18n/format";
+
+/** Stała pusta mapa - literał w domyślnej wartości propa tworzyłby NOWĄ mapę
+ *  przy każdym renderze i psuł memoizację kart. */
+const EMPTY_SOURCES: ReadonlyMap<string, ClubSourceMark> = new Map();
 
 /** Nagłówek karty kontekstowej: ikona w kwadracie 6 px + etykieta rodzaju. */
 function ContextHeader({
@@ -80,15 +86,22 @@ function ThreadCard({
   thread,
   clubSlug,
   isPl,
+  sourceIndex,
+  activeGroupId,
+  onSourceSelect,
 }: {
   thread: ClubThreadListRow;
   clubSlug: string;
   isPl: boolean;
+  sourceIndex: ReadonlyMap<string, ClubSourceMark>;
+  activeGroupId: string | null;
+  onSourceSelect?: (groupId: string | null) => void;
 }) {
   const { t } = useTranslation();
   const lang = isPl ? "pl" : "en";
   const author = toAuthorLabel(thread, t("club.anonymousAuthor"), t("club.deletedAuthor"));
   const stamp = thread.last_reply_at ?? thread.created_at;
+  const source = clubSourceOf(thread, sourceIndex, isPl);
 
   return (
     <article
@@ -112,8 +125,17 @@ function ThreadCard({
           muted={author.kind !== "named"}
         />
         <span className="font-medium text-foreground">{author.name}</span>
-        <span aria-hidden="true">·</span>
-        <span>{isPl ? thread.group_name_pl : thread.group_name_en}</span>
+        {/* ŹRÓDŁO, a nie kolejne słowo w szarym pasku. Nazwa działu stała tu
+            wcześniej między autorem a datą i wyglądała jak część podpisu -
+            czyli jedyna informacja o tym, gdzie w klubie jesteśmy, ginęła
+            w interpunkcji. Chip niesie kolor i ikonę działu i zawęża strumień. */}
+        {source !== null ? (
+          <ClubSourceChip
+            source={source}
+            active={source.id !== null && source.id === activeGroupId}
+            onSelect={onSourceSelect}
+          />
+        ) : null}
         <span aria-hidden="true">·</span>
         <time dateTime={stamp}>{formatDateShort(stamp, lang)}</time>
         {thread.pinned_at !== null ? (
@@ -346,6 +368,9 @@ export function ClubFeedItem({
   clubSlug,
   isPl,
   mediaUrls = {},
+  sourceIndex = EMPTY_SOURCES,
+  activeGroupId = null,
+  onSourceSelect,
   onPostLike,
   onPostDelete,
 }: {
@@ -354,11 +379,24 @@ export function ClubFeedItem({
   isPl: boolean;
   /** Podpisane adresy plików wpisów - jedno zapytanie na cały strumień. */
   mediaUrls?: Record<string, string>;
+  /** Kolory i ikony działów - budowane RAZ nad listą, nie per karta. */
+  sourceIndex?: ReadonlyMap<string, ClubSourceMark>;
+  activeGroupId?: string | null;
+  onSourceSelect?: (groupId: string | null) => void;
   onPostLike?: (postId: string) => void;
   onPostDelete?: (postId: string) => void;
 }) {
   if (entry.kind === "thread") {
-    return <ThreadCard thread={entry.thread} clubSlug={clubSlug} isPl={isPl} />;
+    return (
+      <ThreadCard
+        thread={entry.thread}
+        clubSlug={clubSlug}
+        isPl={isPl}
+        sourceIndex={sourceIndex}
+        activeGroupId={activeGroupId}
+        onSourceSelect={onSourceSelect}
+      />
+    );
   }
   if (entry.kind === "post") {
     return (
@@ -367,6 +405,9 @@ export function ClubFeedItem({
         clubSlug={clubSlug}
         isPl={isPl}
         mediaUrls={mediaUrls}
+        sourceIndex={sourceIndex}
+        activeGroupId={activeGroupId}
+        onSourceSelect={onSourceSelect}
         onLike={onPostLike}
         onDelete={onPostDelete}
       />
@@ -382,4 +423,3 @@ export function ClubFeedItem({
     <DocumentsCard documents={entry.documents} isPl={isPl} single={entry.documents.length === 1} />
   );
 }
-

@@ -12,13 +12,10 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronRight, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { buildClubGroupTree, clubGroupPath, type ClubGroupNode } from "@/lib/clubs/groupTree";
 import {
-  buildClubGroupTree,
-  clubGroupPath,
-  type ClubGroupNode,
-} from "@/lib/clubs/groupTree";
-import {
-  CLUB_GROUP_DOT,
+  CLUB_GROUP_CHIP,
+  CLUB_GROUP_CHIP_ACTIVE,
   CLUB_GROUP_TINT,
   ClubGroupIcon,
   clubGroupAccentVars,
@@ -27,7 +24,7 @@ import { ClubRegimeMark } from "@/components/clubs/atoms/ClubRegimeMark";
 import type { ClubGroupRow } from "@/lib/clubs/types";
 
 export function clubGroupName(group: ClubGroupRow, isPl: boolean): string {
-  return isPl ? group.name_pl : (group.name_en || group.name_pl);
+  return isPl ? group.name_pl : group.name_en || group.name_pl;
 }
 
 export function clubGroupDescription(group: ClubGroupRow, isPl: boolean): string {
@@ -84,19 +81,36 @@ function GroupRow({
         onClick={onSelect}
         className={cn(
           ROW,
-          "min-w-0 flex-1 pl-1.5",
+          "min-w-0 flex-1 pl-1",
           active
             ? cn("border", CLUB_GROUP_TINT, "font-medium text-foreground")
             : "border border-transparent text-muted-foreground hover:bg-muted/50 hover:text-foreground",
         )}
       >
-        <span className={cn("h-4 w-1 shrink-0 rounded-full", CLUB_GROUP_DOT)} aria-hidden="true" />
-        <ClubGroupIcon
-          icon={group.icon}
-          depth={depth}
-          className={cn("h-3.5 w-3.5", active ? "" : "opacity-70")}
-        />
-        <span className="min-w-0 flex-1 truncate">{clubGroupName(group, isPl)}</span>
+        {/* Ikona w kwadracie w kolorze działu, a nie kreska obok ikony: to ten
+            sam znacznik, którym dział podpisuje się w strumieniu i w panelu
+            źródeł, więc te trzy miejsca da się połączyć wzrokiem. */}
+        <span
+          className={cn(
+            "flex h-5 w-5 shrink-0 items-center justify-center rounded-md border",
+            active ? CLUB_GROUP_CHIP_ACTIVE : CLUB_GROUP_CHIP,
+          )}
+          aria-hidden="true"
+        >
+          <ClubGroupIcon
+            icon={group.icon}
+            depth={depth}
+            className={cn("h-3 w-3", active ? "" : "opacity-80")}
+          />
+        </span>
+        {/* Nazwa ZAWIJA się do dwóch linii zamiast się urywać. Dział nazywa się
+            "Zdolności i przemysł obronny", a w kolumnie 15 rem obcięcie dawało
+            "Zdolności i przemy..." - czyli pozycję nawigacji, której nie da się
+            przeczytać bez klikania. Dwie linie kosztują 14 px raz na kilka
+            działów; wielokropek kosztuje sens. */}
+        <span className="line-clamp-2 min-w-0 flex-1 text-left leading-snug">
+          {clubGroupName(group, isPl)}
+        </span>
         {/* Reżim stoi PRZED kłódką braku dostępu, bo dotyczy działu, a kłódka
             dotyczy wołającego - to są dwa różne komunikaty i nie wolno ich
             zlepić w jedną ikonę. */}
@@ -104,7 +118,10 @@ function GroupRow({
         {locked ? (
           <Lock className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
         ) : null}
-        <span className="shrink-0 tabular-nums text-[11px] text-muted-foreground">
+        {/* Licznik zostaje CICHY. Akcent działu wszedł już w kwadrat z ikoną;
+            drugi element w tym samym kolorze zamieniłby szynę w paletę farb -
+            a to jest dokładnie ten błąd, przed którym ostrzega `ClubGroupAccent`. */}
+        <span className="shrink-0 rounded-md bg-muted px-1 text-[11px] tabular-nums text-muted-foreground">
           {totalThreads}
         </span>
       </button>
@@ -200,7 +217,10 @@ export function ClubGroupBar({
   return (
     <nav
       aria-label={t("club.groups")}
-      className={cn("-mx-3 flex gap-1.5 overflow-x-auto px-3 pb-1 [scrollbar-width:none]", className)}
+      className={cn(
+        "-mx-3 flex gap-1.5 overflow-x-auto px-3 pb-1 [scrollbar-width:none]",
+        className,
+      )}
     >
       <button
         type="button"
