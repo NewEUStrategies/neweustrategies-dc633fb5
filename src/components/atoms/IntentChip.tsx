@@ -68,7 +68,8 @@ export function IntentChip({
         className,
       )}
     >
-      {selected && <Check className="h-3 w-3 shrink-0" aria-hidden />}
+      {selected && <Check className="h-3.5 w-3.5 shrink-0" aria-hidden />}
+
       <span className="truncate">{label}</span>
     </button>
   );
