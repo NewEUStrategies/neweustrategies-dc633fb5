@@ -8,6 +8,7 @@
 // wbudowany fallback PL/EN.
 import { useMemo } from "react";
 import { useRegistrationFields, type RegistrationLang } from "@/lib/auth/registrationFields";
+import { popupFieldDefaultLabels } from "@/lib/newsletter/popupFields";
 
 export type NewsletterFieldKey =
   | "firstName"
