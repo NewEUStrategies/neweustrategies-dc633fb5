@@ -7,12 +7,7 @@ import { useTranslation } from "react-i18next";
 import { BadgeCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ensureI18n as ensureExpertsI18n } from "@/lib/i18n-experts";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export type VerifiedProfileBadgeSize = "sm" | "md";
 
