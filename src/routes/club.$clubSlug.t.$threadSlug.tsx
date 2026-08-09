@@ -336,6 +336,24 @@ function ClubThreadView() {
     );
   };
 
+  // Wejście z "Komentuj" w strumieniu: kursor ląduje w kompozytorze. Efekt
+  // czeka na `thread`, bo kompozytor renderuje się dopiero po odpowiedzi RPC -
+  // fokus ustawiany od razu po montażu trafiałby w pustkę. `scrollIntoView`
+  // z `block: "center"` zamiast `focus()` bez przewinięcia: samo ustawienie
+  // fokusu w polu poza ekranem daje wrażenie, że link nic nie zrobił.
+  const composerRef = useRef<HTMLElement | null>(null);
+  const focusedRef = useRef(false);
+  useEffect(() => {
+    if (replyIntent !== true || thread === null || focusedRef.current) return;
+    const node = composerRef.current;
+    if (node === null) return;
+    focusedRef.current = true;
+    node.scrollIntoView({ behavior: "smooth", block: "center" });
+    const field = document.getElementById("club-reply-body");
+    if (field instanceof HTMLTextAreaElement || field instanceof HTMLInputElement) field.focus();
+  }, [replyIntent, thread]);
+
+
   // Wysyłka z klawiatury. Enter zostaje znakiem nowej linii - to jest pole
   // deliberacji, nie okno czatu, a wysłanie akapitu w połowie zdania jest tu
   // kosztowniejsze niż jedno kliknięcie więcej.
