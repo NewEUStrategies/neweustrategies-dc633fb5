@@ -381,6 +381,10 @@ export const clubPl = {
       anchorNone: "Bez kotwicy",
       unreadOnly: "Tylko nieprzeczytane",
       clear: "Wyczyść filtry",
+      more: "Więcej",
+      moreLabel: "Pozostałe zawężenia",
+      kindHeading: "Rodzaj wypowiedzi",
+      stateHeading: "Stan",
       empty: "Żaden wątek nie pasuje do wybranych zawężeń.",
     },
     composer: {
@@ -1898,6 +1902,10 @@ export const clubEn = {
       anchorNone: "Without an anchor",
       unreadOnly: "Unread only",
       clear: "Clear filters",
+      more: "More",
+      moreLabel: "Remaining filters",
+      kindHeading: "Kind of contribution",
+      stateHeading: "State",
       empty: "No thread matches the selected filters.",
     },
     composer: {
