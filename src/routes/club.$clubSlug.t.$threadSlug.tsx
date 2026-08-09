@@ -76,6 +76,10 @@ import {
   useToggleClubReaction,
 } from "@/lib/clubs/useClubs";
 import { useDeferredReplies } from "@/lib/clubs/useDeferredReplies";
+import {
+  ClubHoverActionBody,
+  clubHoverActionClass,
+} from "@/components/clubs/atoms/ClubHoverAction";
 import { ClubReactionBar } from "@/components/clubs/molecules/ClubReactionBar";
 import { ClubFollowButton } from "@/components/clubs/molecules/ClubFollowButton";
 import { ClubInlineEditor } from "@/components/clubs/molecules/ClubInlineEditor";
