@@ -839,7 +839,61 @@ export const CLUB_SUBSCRIPTION_STATES = ["subscribed", "muted"] as const;
 export type ClubSubscriptionState = (typeof CLUB_SUBSCRIPTION_STATES)[number];
 
 export type ClubReactionRow = RowOf<Fn["club_reactions_for"]["Returns"]>;
+export type ClubReactionActorRow = RowOf<Fn["club_reaction_actors"]["Returns"]>;
 export type ClubStanceSummaryRow = RowOf<Fn["club_stance_summary"]["Returns"]>;
+
+/** Jedna twarz pod wpisem: kto zareagował i czym. */
+export interface ClubReactionActor {
+  /** `null` w trybie poufnym (Chatham House) - wtedy zostaje sam znacznik. */
+  userId: string | null;
+  name: string | null;
+  headline: string | null;
+  avatarUrl: string | null;
+  slug: string | null;
+  isMe: boolean;
+  /** Wszystkie reakcje TEJ osoby pod TYM celem - jedna twarz, nie pięć. */
+  kinds: ClubReactionKind[];
+}
+
+/**
+ * Scala wsadowy wynik `club_reaction_actors` po celu i po osobie. Jedna osoba,
+ * która postawiła trzy reakcje, ma pokazać się raz - inaczej pasek twarzy
+ * kłamie o liczbie ludzi w rozmowie.
+ */
+export function groupReactionActors(
+  rows: readonly ClubReactionActorRow[],
+): Map<string, ClubReactionActor[]> {
+  const out = new Map<string, ClubReactionActor[]>();
+  for (const row of rows) {
+    if (!(CLUB_REACTION_KINDS as readonly string[]).includes(row.kind)) continue;
+    const kind = row.kind as ClubReactionKind;
+    const list = out.get(row.target_id) ?? [];
+    // Anonim nie ma id, więc nie da się go scalić - każdy wiersz to osobna
+    // twarz, i tak neutralna.
+    const existing =
+      row.user_id === null ? undefined : list.find((a) => a.userId === row.user_id);
+    if (existing) {
+      if (!existing.kinds.includes(kind)) existing.kinds.push(kind);
+      continue;
+    }
+    list.push({
+      userId: row.user_id,
+      name: row.display_name,
+      headline: row.headline,
+      avatarUrl: row.avatar_url,
+      slug: row.slug,
+      isMe: row.is_me === true,
+      kinds: [kind],
+    });
+    out.set(row.target_id, list);
+  }
+  // Ja na początku: własna reakcja jest najczęściej sprawdzaną informacją.
+  for (const list of out.values()) {
+    list.sort((a, b) => Number(b.isMe) - Number(a.isMe));
+  }
+  return out;
+}
+
 
 /** Reakcje jednego celu w formie gotowej do renderu paska. */
 export interface ClubReactionTally {

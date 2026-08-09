@@ -669,6 +669,15 @@ export const clubPl = {
       digest: "Podsumowanie tygodniowe",
       none: "Wyłączone",
     },
+    reactionActors: {
+      label: "Zareagowali",
+      you: "Ty",
+      anonymous: "Uczestnik (tryb poufny)",
+      more_one: "i {{count}} inna osoba",
+      more_few: "i {{count}} inne osoby",
+      more_many: "i {{count}} innych osób",
+      more_other: "i {{count}} innych osób",
+    },
     reaction: {
       insightful: "Wnosi wiedzę",
       evidence: "Poparte źródłem",
@@ -2347,6 +2356,13 @@ export const clubEn = {
       mentions: "Mentions only",
       digest: "Weekly digest",
       none: "Off",
+    },
+    reactionActors: {
+      label: "Reacted",
+      you: "You",
+      anonymous: "Participant (confidential mode)",
+      more_one: "and {{count}} other person",
+      more_other: "and {{count}} others",
     },
     reaction: {
       insightful: "Insightful",

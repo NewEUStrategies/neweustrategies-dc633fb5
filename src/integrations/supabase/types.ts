@@ -15872,6 +15872,24 @@ export type Database = {
         Args: { p_kind: string; p_target_id: string; p_target_type: string }
         Returns: boolean
       }
+      club_reaction_actors: {
+        Args: {
+          p_limit?: number
+          p_target_ids: string[]
+          p_target_type: string
+        }
+        Returns: {
+          actor_rank: number
+          avatar_url: string
+          display_name: string
+          headline: string
+          is_me: boolean
+          kind: string
+          slug: string
+          target_id: string
+          user_id: string
+        }[]
+      }
       club_reactions_for: {
         Args: { p_target_ids: string[]; p_target_type: string }
         Returns: {
