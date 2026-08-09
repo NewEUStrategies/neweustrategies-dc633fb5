@@ -240,7 +240,9 @@ function ProfileInline() {
                 {fullName}
               </h1>
             )}
-            {data.verified_at ? <VerifiedProfileBadge /> : null}
+            {data.verified_at ? (
+              <VerifiedProfileBadge withLabel={false} className="self-start mt-1.5" />
+            ) : null}
           </div>
 
           {/* Company + Job */}
