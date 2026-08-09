@@ -37,7 +37,8 @@ export function ClubAuthorAvatar({
   /** Autor anonimowy/usunięty - stonowany, bez akcentu marki. */
   muted?: boolean;
 }) {
-  const cls = `${SIZES[size]} shrink-0 select-none overflow-hidden rounded-full ring-1 ring-border/60`;
+  // Promień 6 px (`rounded-lg` = `--radius`) - ten sam co karty i etykiety huba.
+  const cls = `${SIZES[size]} shrink-0 select-none overflow-hidden rounded-lg ring-1 ring-border/60`;
 
   if (avatarUrl !== null && avatarUrl !== undefined && avatarUrl !== "") {
     return (
