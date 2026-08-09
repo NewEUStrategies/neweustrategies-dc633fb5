@@ -22,6 +22,8 @@ import {
 } from "@/lib/newsletter/subscribeFeedback";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { NewsletterDocRenderer } from "@/components/newsletter/NewsletterDocRenderer";
+import { NewsletterSubscribedPanel } from "@/components/newsletter/NewsletterSubscribedPanel";
+import { useMyNewsletterStatus } from "@/hooks/useMyNewsletterStatus";
 import { SubscribeButton } from "@/components/ui/subscribe-button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FormSelect } from "@/components/atoms/FormSelect";
@@ -127,11 +129,27 @@ export function NewsletterForm({
       return next;
     });
 
+  // Zalogowany, już zapisany: zamiast prosić po raz drugi o dane kontaktowe
+  // pokazujemy stan subskrypcji (lewa kolumna) i sam wybór tematów (prawa).
+  const { data: myStatus } = useMyNewsletterStatus();
+  if (myStatus?.subscribed === true && !inBuilder) {
+    const shellCls =
+      variant === "card"
+        ? "border border-border rounded-lg p-6 lg:p-8 bg-transparent"
+        : "border-t border-b border-border py-8";
+    return (
+      <section className={shellCls} aria-label="Newsletter">
+        <NewsletterSubscribedPanel status={myStatus} lang={lang} />
+      </section>
+    );
+  }
+
   // Nowy builder: jesli tenant ma inline_doc i tryb pozwala na inline, uzywamy
   // NewsletterDocRenderer (Elementor-style). Legacy fallback nizej.
   if (s && s.enabled && s.inline_doc && s.mode !== "off" && s.mode !== "popup") {
     return <BuilderInlineWrapper settings={s} lang={lang} source={source} variant={variant} />;
   }
+
 
   // Per-widget visibility toggles for the extra fields.
   const showFirstName = boolCfg(cfg, "showFirstName", false);
