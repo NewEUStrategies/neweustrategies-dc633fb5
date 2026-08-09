@@ -344,13 +344,32 @@ export function ClubFeedItem({
   entry,
   clubSlug,
   isPl,
+  mediaUrls = {},
+  onPostLike,
+  onPostDelete,
 }: {
   entry: ClubFeedEntry;
   clubSlug: string;
   isPl: boolean;
+  /** Podpisane adresy plików wpisów - jedno zapytanie na cały strumień. */
+  mediaUrls?: Record<string, string>;
+  onPostLike?: (postId: string) => void;
+  onPostDelete?: (postId: string) => void;
 }) {
   if (entry.kind === "thread") {
     return <ThreadCard thread={entry.thread} clubSlug={clubSlug} isPl={isPl} />;
+  }
+  if (entry.kind === "post") {
+    return (
+      <ClubPostCard
+        post={entry.post}
+        clubSlug={clubSlug}
+        isPl={isPl}
+        mediaUrls={mediaUrls}
+        onLike={onPostLike}
+        onDelete={onPostDelete}
+      />
+    );
   }
   if (entry.kind === "event") {
     return <EventCard event={entry.event} isPl={isPl} />;
@@ -362,3 +381,4 @@ export function ClubFeedItem({
     <DocumentsCard documents={entry.documents} isPl={isPl} single={entry.documents.length === 1} />
   );
 }
+
