@@ -58,6 +58,9 @@ describe("ClubEngagementBar", () => {
     renderBar({ replyCount: 4 });
     const link = screen.getByTestId("club-comment-link");
     expect(link).toHaveAttribute("href", "/club/transport/t/korytarz-baltyk-adriatyk");
-    expect(link).toHaveTextContent("club.hub.feed.commentWithCount");
+    // Nazwa dostępna niesie licznik; widoczna etykieta rozwija się dopiero
+    // po najechaniu, a liczba stoi obok ikony.
+    expect(link).toHaveAttribute("aria-label", "club.hub.feed.commentWithCount");
+    expect(link).toHaveTextContent("4");
   });
 });
