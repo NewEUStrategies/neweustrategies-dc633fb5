@@ -27,7 +27,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
-import { ClubDossierMetrics, ClubDossierRow } from "@/components/clubs/atoms/ClubDossierRow";
+import {
+  ClubDossierMetrics,
+  ClubDossierRow,
+  clubThreadTone,
+} from "@/components/clubs/atoms/ClubDossierRow";
 import { ClubInlineTitle } from "@/components/clubs/atoms/ClubInlineTitle";
 import { ClubSourceChip } from "@/components/clubs/atoms/ClubSourceChip";
 import { ClubThreadHeat } from "@/components/clubs/atoms/ClubThreadHeat";
@@ -115,7 +119,7 @@ function ThreadCard({
   return (
     <ClubDossierRow
       testId="club-feed-thread"
-      tone="thread"
+      tone={clubThreadTone(thread.kind)}
       unread={thread.is_unread}
       pinned={thread.pinned_at !== null}
       icon={
