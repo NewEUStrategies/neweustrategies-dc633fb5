@@ -121,7 +121,7 @@ function ThreadRow({
   return (
     <ClubDossierRow
       testId="club-thread-row"
-      tone="thread"
+      tone={clubThreadTone(thread.kind)}
       unread={thread.is_unread}
       pinned={thread.pinned_at !== null}
       className={cn("h-full", featured && "border-primary/40 bg-primary/[0.04]")}
