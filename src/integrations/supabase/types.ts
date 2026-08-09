@@ -2278,6 +2278,109 @@ export type Database = {
           },
         ]
       }
+      club_post_likes: {
+        Row: {
+          created_at: string
+          post_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          post_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          post_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_post_likes_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "club_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      club_posts: {
+        Row: {
+          attachments: Json
+          author_id: string | null
+          body: string
+          club_id: string
+          created_at: string
+          edited_at: string | null
+          group_id: string | null
+          id: string
+          like_count: number
+          status: string
+          tenant_id: string
+          thread_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          attachments?: Json
+          author_id?: string | null
+          body?: string
+          club_id: string
+          created_at?: string
+          edited_at?: string | null
+          group_id?: string | null
+          id?: string
+          like_count?: number
+          status?: string
+          tenant_id: string
+          thread_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attachments?: Json
+          author_id?: string | null
+          body?: string
+          club_id?: string
+          created_at?: string
+          edited_at?: string | null
+          group_id?: string | null
+          id?: string
+          like_count?: number
+          status?: string
+          tenant_id?: string
+          thread_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_posts_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_posts_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "club_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_posts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_posts_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "club_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       club_reactions: {
         Row: {
           club_id: string
@@ -15691,6 +15794,57 @@ export type Database = {
           _user_id: string
         }
         Returns: undefined
+      }
+      club_post_create: {
+        Args: {
+          p_attachments?: Json
+          p_body?: string
+          p_club_id: string
+          p_group_id?: string
+          p_thread_id?: string
+        }
+        Returns: {
+          post_id: string
+        }[]
+      }
+      club_post_delete: { Args: { p_post_id: string }; Returns: boolean }
+      club_post_toggle_like: {
+        Args: { p_post_id: string }
+        Returns: {
+          like_count: number
+          liked: boolean
+        }[]
+      }
+      club_posts_list: {
+        Args: {
+          p_club_id: string
+          p_cursor?: string
+          p_group_id?: string
+          p_limit?: number
+          p_thread_id?: string
+        }
+        Returns: {
+          attachments: Json
+          author_avatar: string
+          author_id: string
+          author_name: string
+          author_slug: string
+          body: string
+          can_manage: boolean
+          club_id: string
+          created_at: string
+          edited_at: string
+          group_id: string
+          group_name_en: string
+          group_name_pl: string
+          id: string
+          like_count: number
+          liked_by_me: boolean
+          thread_id: string
+          thread_slug: string
+          thread_title: string
+          total_count: number
+        }[]
       }
       club_prune_thread_embeddings: { Args: never; Returns: number }
       club_react: {
