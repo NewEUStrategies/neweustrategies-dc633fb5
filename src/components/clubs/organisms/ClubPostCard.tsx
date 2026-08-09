@@ -1,0 +1,396 @@
+// Karta wpisu klubowego (A31) - jednostka "ściany".
+//
+// CZYM SIĘ RÓŻNI OD KARTY WĄTKU. Wątek sprzedaje TEMAT: tytuł jest największym
+// elementem, treść jest zajawką, a liczniki mówią, ile się dzieje. Wpis nie ma
+// tytułu, więc pierwszym elementem jest AUTOR, a treść i załącznik są całym
+// komunikatem. Dlatego ta karta jest cichsza typograficznie i szersza wizualnie:
+// zdjęcie i podgląd linku sięgają krawędzi treści, bo to one niosą informację.
+//
+// PODPIĘCIE POD WĄTEK jest pokazane ZAWSZE, gdy istnieje - to jedyna rzecz,
+// która łączy krótką formę ze strukturą klubu, i bez widocznego oznaczenia
+// użytkownik nie ma jak się dowiedzieć, że jego wpis wylądował też w rozmowie.
+//
+// ADRESY PLIKÓW SĄ WSTRZYKIWANE, nie pobierane tutaj. Kubełek jest prywatny,
+// więc każdy plik potrzebuje podpisu - a podpisywanie per karta znaczyłoby
+// tyle żądań, ile wpisów na ekranie. Mapa `mediaUrls` przychodzi z jednego
+// zbiorczego zapytania nad całym strumieniem.
+import { useState } from "react";
+import { Link } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
+import {
+  ExternalLink,
+  FileText,
+  MessagesSquare,
+  MoreHorizontal,
+  ThumbsUp,
+  Trash2,
+} from "lucide-react";
+import * as HoverCardPrimitive from "@radix-ui/react-hover-card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { HUB_SURFACE } from "@/components/clubs/atoms/ClubHubPrimitives";
+import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
+import { ClubInlineTitle } from "@/components/clubs/atoms/ClubInlineTitle";
+import {
+  isLinkAttachment,
+  parseClubPostAttachments,
+  type ClubPostAttachment,
+  type ClubPostLinkAttachment,
+  type ClubPostMediaAttachment,
+  type ClubPostRow,
+} from "@/lib/clubs/postTypes";
+import { formatDateShort } from "@/lib/i18n/format";
+
+function formatBytes(size: number): string {
+  if (size <= 0) return "";
+  const units = ["B", "kB", "MB", "GB"];
+  let value = size;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${value < 10 && unit > 0 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
+}
+
+/** Treść wpisu z klikalnymi adresami. Bez HTML-a: wpis jest tekstem, a
+ *  wstrzykiwanie znaczników z pola użytkownika to gotowy XSS. */
+function PostBody({ body }: { body: string }) {
+  const parts = body.split(/(\bhttps?:\/\/[^\s<>"')]+)/g);
+  return (
+    <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
+      {parts.map((part, index) =>
+        /^https?:\/\//i.test(part) ? (
+          <a
+            key={`${part}-${index}`}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer nofollow"
+            className="text-primary underline decoration-primary/40 underline-offset-4 hover:decoration-primary"
+          >
+            {part.replace(/^https?:\/\//, "")}
+          </a>
+        ) : (
+          <span key={`t-${index}`}>{part}</span>
+        ),
+      )}
+    </p>
+  );
+}
+
+/** Karta podglądu linku + popup po najechaniu (Radix HoverCard). */
+function LinkAttachmentCard({ attachment }: { attachment: ClubPostLinkAttachment }) {
+  const { t } = useTranslation();
+  let host = attachment.siteName;
+  try {
+    host = attachment.siteName ?? new URL(attachment.url).hostname;
+  } catch {
+    /* zostaje to, co przyszło z serwera */
+  }
+
+  const card = (
+    <a
+      href={attachment.url}
+      target="_blank"
+      rel="noopener noreferrer nofollow"
+      className="mt-3 block overflow-hidden rounded-lg border border-border/70 transition-colors hover:border-primary/40"
+      data-testid="club-post-link"
+    >
+      {attachment.image !== null ? (
+        <img
+          src={attachment.image}
+          alt=""
+          loading="lazy"
+          className="h-40 w-full object-cover sm:h-48"
+        />
+      ) : null}
+      <span className="block px-3 py-2">
+        <span className="block text-[11px] uppercase tracking-wide text-muted-foreground">
+          {host ?? t("club.post.link")}
+        </span>
+        <span className="mt-0.5 block truncate text-sm font-medium text-foreground">
+          {attachment.title ?? attachment.url}
+        </span>
+        {attachment.description !== null ? (
+          <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">
+            {attachment.description}
+          </span>
+        ) : null}
+      </span>
+    </a>
+  );
+
+  if (attachment.description === null && attachment.image === null) return card;
+
+  return (
+    <HoverCardPrimitive.Root openDelay={120} closeDelay={80}>
+      <HoverCardPrimitive.Trigger asChild>{card}</HoverCardPrimitive.Trigger>
+      <HoverCardPrimitive.Portal>
+        <HoverCardPrimitive.Content
+          side="top"
+          align="start"
+          sideOffset={8}
+          className="z-50 w-80 overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-lg"
+        >
+          {attachment.image !== null ? (
+            <img src={attachment.image} alt="" className="h-36 w-full object-cover" />
+          ) : null}
+          <div className="p-3">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              {host ?? t("club.post.link")}
+            </p>
+            <p className="mt-0.5 text-sm font-medium">{attachment.title ?? attachment.url}</p>
+            {attachment.description !== null ? (
+              <p className="mt-1 text-xs text-muted-foreground">{attachment.description}</p>
+            ) : null}
+          </div>
+        </HoverCardPrimitive.Content>
+      </HoverCardPrimitive.Portal>
+    </HoverCardPrimitive.Root>
+  );
+}
+
+function MediaGrid({
+  media,
+  mediaUrls,
+}: {
+  media: readonly ClubPostMediaAttachment[];
+  mediaUrls: Record<string, string>;
+}) {
+  const { t } = useTranslation();
+  const images = media.filter((item) => item.type === "image");
+  const videos = media.filter((item) => item.type === "video");
+  const files = media.filter((item) => item.type === "file");
+
+  return (
+    <>
+      {images.length > 0 ? (
+        <div
+          className={cn(
+            "mt-3 grid gap-1.5 overflow-hidden rounded-lg",
+            images.length === 1 ? "grid-cols-1" : "grid-cols-2",
+          )}
+          data-testid="club-post-images"
+        >
+          {images.map((item) => {
+            const url = mediaUrls[item.path];
+            return (
+              <a
+                key={item.path}
+                href={url ?? "#"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={cn(
+                  "block overflow-hidden rounded-lg bg-muted",
+                  images.length === 3 ? "first:col-span-2" : undefined,
+                )}
+                // Proporcja z metadanych: bez niej strumień skacze, gdy zdjęcia
+                // dojeżdżają po podpisaniu adresów.
+                style={
+                  item.width !== null && item.height !== null
+                    ? { aspectRatio: `${item.width} / ${item.height}` }
+                    : { aspectRatio: "16 / 9" }
+                }
+              >
+                {url === undefined ? (
+                  <span className="block h-full w-full animate-pulse bg-muted" />
+                ) : (
+                  <img
+                    src={url}
+                    alt={item.name}
+                    loading="lazy"
+                    decoding="async"
+                    className="h-full w-full object-cover"
+                  />
+                )}
+              </a>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {videos.map((item) => {
+        const url = mediaUrls[item.path];
+        return (
+          <div key={item.path} className="mt-3 overflow-hidden rounded-lg bg-black">
+            {url === undefined ? (
+              <div className="aspect-video w-full animate-pulse bg-muted" />
+            ) : (
+              // eslint-disable-next-line jsx-a11y/media-has-caption -- materiał członkowski, brak ścieżki napisów
+              <video src={url} controls preload="metadata" className="aspect-video w-full" />
+            )}
+          </div>
+        );
+      })}
+
+      {files.map((item) => {
+        const url = mediaUrls[item.path];
+        return (
+          <a
+            key={item.path}
+            href={url ?? "#"}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 flex items-center gap-2.5 rounded-lg border border-border/70 px-3 py-2.5 transition-colors hover:border-primary/40"
+          >
+            <FileText className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-medium">{item.name}</span>
+              <span className="block text-xs text-muted-foreground">
+                {formatBytes(item.size)} · {t("club.post.openFile")}
+              </span>
+            </span>
+            <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+          </a>
+        );
+      })}
+    </>
+  );
+}
+
+export function ClubPostCard({
+  post,
+  clubSlug,
+  isPl,
+  mediaUrls,
+  onLike,
+  onDelete,
+  /** Ukrywa plakietkę wątku tam, gdzie wątek JEST kontekstem ekranu. */
+  hideThreadLink = false,
+  className,
+}: {
+  post: ClubPostRow;
+  clubSlug: string;
+  isPl: boolean;
+  mediaUrls: Record<string, string>;
+  onLike?: (postId: string) => void;
+  onDelete?: (postId: string) => void;
+  hideThreadLink?: boolean;
+  className?: string;
+}) {
+  const { t } = useTranslation();
+  const lang = isPl ? "pl" : "en";
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const attachments: ClubPostAttachment[] = parseClubPostAttachments(post.attachments);
+  const links = attachments.filter(isLinkAttachment);
+  const media = attachments.filter(
+    (item): item is ClubPostMediaAttachment => !isLinkAttachment(item),
+  );
+  const authorName = post.author_name ?? t("club.deletedAuthor");
+  const groupName = isPl ? post.group_name_pl : post.group_name_en;
+
+  return (
+    <article
+      className={cn(HUB_SURFACE, "p-3.5 sm:p-4", className)}
+      data-testid="club-feed-post"
+      data-post-id={post.id}
+    >
+      <div className="flex items-start gap-2.5">
+        <ClubAuthorAvatar
+          name={authorName}
+          avatarUrl={post.author_avatar}
+          size="sm"
+          muted={post.author_id === null}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+            {post.author_slug !== null ? (
+              <Link
+                to="/author/$slug"
+                params={{ slug: post.author_slug }}
+                className="font-medium text-foreground hover:underline"
+              >
+                {authorName}
+              </Link>
+            ) : (
+              <span className="font-medium text-foreground">{authorName}</span>
+            )}
+            {groupName !== null && groupName !== "" ? (
+              <>
+                <span aria-hidden="true">·</span>
+                <span>{groupName}</span>
+              </>
+            ) : null}
+            <span aria-hidden="true">·</span>
+            <time dateTime={post.created_at}>{formatDateShort(post.created_at, lang)}</time>
+            {post.edited_at !== null ? <span>({t("club.post.edited")})</span> : null}
+          </div>
+
+          {!hideThreadLink && post.thread_slug !== null ? (
+            <Link
+              to="/club/$clubSlug/t/$threadSlug"
+              params={{ clubSlug, threadSlug: post.thread_slug }}
+              className="mt-1.5 inline-flex max-w-full items-center gap-1.5"
+              data-testid="club-post-thread-link"
+            >
+              <MessagesSquare className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <ClubInlineTitle tone="thread" size="sm" interactive>
+                {post.thread_title ?? t("club.post.inThread")}
+              </ClubInlineTitle>
+            </Link>
+          ) : null}
+        </div>
+
+        {post.can_manage && onDelete !== undefined ? (
+          <div className="relative">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-lg"
+              aria-label={t("club.post.menu")}
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((open) => !open)}
+            >
+              <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+            </Button>
+            {menuOpen ? (
+              <div className="absolute right-0 z-20 mt-1 w-44 overflow-hidden rounded-lg border border-border bg-popover p-1 shadow-lg">
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-destructive hover:bg-muted"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onDelete(post.id);
+                  }}
+                >
+                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                  {t("club.post.delete")}
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+
+      {post.body.trim() !== "" ? <PostBody body={post.body} /> : null}
+
+      <MediaGrid media={media} mediaUrls={mediaUrls} />
+      {links.map((link) => (
+        <LinkAttachmentCard key={link.url} attachment={link} />
+      ))}
+
+      <div className="mt-3 flex items-center gap-2 border-t border-border/60 pt-2.5">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className={cn("h-8 gap-1.5 rounded-lg px-2.5 text-xs", post.liked_by_me && "text-primary")}
+          aria-pressed={post.liked_by_me}
+          onClick={onLike === undefined ? undefined : () => onLike(post.id)}
+          disabled={onLike === undefined}
+        >
+          <ThumbsUp className="h-3.5 w-3.5" aria-hidden="true" />
+          {post.like_count > 0 ? post.like_count : t("club.post.like")}
+        </Button>
+        {media.length > 0 ? (
+          <Badge variant="outline" className="rounded-lg text-[11px]">
+            {t("club.post.attachmentsCount", { count: media.length })}
+          </Badge>
+        ) : null}
+      </div>
+    </article>
+  );
+}

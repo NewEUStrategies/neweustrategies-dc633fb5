@@ -214,6 +214,19 @@ export const clubKeys = {
    *  ktore czytelnik ma otwarte. */
   documentsAll: (clubId: string) => [...clubKeys.club(clubId), "documents"] as const,
 
+  /** Wpisy klubowe (A31). Zawezenie dzialu i watku jest CZESCIA klucza:
+   *  sciana klubu i sciana jednego watku to dwa rozne zbiory. */
+  posts: (clubId: string, groupId: string | null, threadId: string | null) =>
+    [...clubKeys.club(clubId), "posts", groupId ?? "all", threadId ?? "all"] as const,
+  /** Prefiks wszystkich wariantow sciany - mutacja nie zna otwartych filtrow. */
+  postsAll: (clubId: string) => [...clubKeys.club(clubId), "posts"] as const,
+
+  /** Podpisane adresy plikow wpisow. Poza galezia klubu, bo ten sam plik moze
+   *  byc czytany z kilku ekranow, a podpis jest wspolny. */
+  media: (pathsKey: string) => [...clubKeys.all, "media", pathsKey] as const,
+
+
+
   /** Kalendarz. Zakres jest czescia klucza, bo przejscie na kolejny miesiac
    *  to INNE zapytanie, a nie odswiezenie tego samego. */
   events: (clubId: string, from: string | null, to: string | null, kind: string | null) =>
