@@ -10,6 +10,8 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { confirmDialog } from "@/lib/appDialogs";
 import { ProfileBadge } from "@/components/atoms/ProfileBadge";
+import { FormSelect } from "@/components/atoms/FormSelect";
+import { fetchMembershipTiers, tierName } from "@/lib/billing/tiers";
 import type { BadgeLocale } from "@/lib/profile/badgeCatalog";
 import {
   deleteVerificationDomain,
@@ -31,6 +33,24 @@ export function VerificationDomainsCard({ language, tenantId }: Props) {
   const [domain, setDomain] = useState("");
   const [note, setNote] = useState("");
   const [requireConfirmed, setRequireConfirmed] = useState(true);
+  // Domyślnie VIP: zespół NES ma pełny dostęp do materiałów bez zakupu.
+  const [tierKey, setTierKey] = useState("vip");
+
+  const tiersQ = useQuery({
+    queryKey: ["admin-membership-tiers", tenantId ?? "none"],
+    queryFn: fetchMembershipTiers,
+    enabled: !!tenantId,
+    staleTime: 60_000,
+  });
+  const tierOptions = [
+    { value: "none", label: isPl ? "Bez nadania planu" : "No membership grant" },
+    ...(tiersQ.data ?? []).map((t) => ({ value: t.key, label: tierName(t, language) })),
+  ];
+  const tierLabel = (key: string | null): string | null => {
+    if (!key) return null;
+    const row = (tiersQ.data ?? []).find((t) => t.key === key);
+    return row ? tierName(row, language) : key.toUpperCase();
+  };
 
   const q = useQuery({
     queryKey: ["admin-verification-domains", tenantId ?? "none"],
@@ -52,6 +72,7 @@ export function VerificationDomainsCard({ language, tenantId }: Props) {
         badge: "verified",
         note: note || undefined,
         requireEmailConfirmed: requireConfirmed,
+        grantsTierKey: tierKey === "none" ? null : tierKey,
       }),
     onSuccess: () => {
       setDomain("");
@@ -63,12 +84,18 @@ export function VerificationDomainsCard({ language, tenantId }: Props) {
   });
 
   const toggleM = useMutation({
-    mutationFn: (input: { domain: string; active: boolean; requireEmailConfirmed: boolean }) =>
+    mutationFn: (input: {
+      domain: string;
+      active: boolean;
+      requireEmailConfirmed: boolean;
+      grantsTierKey: string | null;
+    }) =>
       upsertVerificationDomain({
         domain: input.domain,
         badge: "verified",
         active: input.active,
         requireEmailConfirmed: input.requireEmailConfirmed,
+        grantsTierKey: input.grantsTierKey,
       }),
     onSuccess: () => invalidate(),
     onError: () =>
@@ -111,8 +138,8 @@ export function VerificationDomainsCard({ language, tenantId }: Props) {
           </CardTitle>
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
             {isPl
-              ? "Konto z potwierdzonym adresem w zaufanej domenie automatycznie otrzymuje odznakę „Zweryfikowany”. Zmiana adresu cofa wyłącznie nadania automatyczne."
-              : "An account with a confirmed address in a trusted domain automatically receives the “Verified” badge. Changing the address only revokes automatic grants."}
+              ? "Konto z potwierdzonym adresem w zaufanej domenie automatycznie otrzymuje odznakę „Zweryfikowany” oraz - jeśli wskażesz plan - bezterminowe członkostwo (zespół NES: VIP, pełny dostęp do materiałów). Uprawnienia do panelu administracyjnego nadaje się osobno, przez role. Zmiana adresu cofa wyłącznie nadania automatyczne."
+              : "An account with a confirmed address in a trusted domain automatically receives the “Verified” badge and - if you pick a plan - a lifetime membership (NES team: VIP, full access to materials). Admin panel access is granted separately through roles. Changing the address only revokes automatic grants."}
           </p>
         </div>
         <Button
@@ -129,7 +156,7 @@ export function VerificationDomainsCard({ language, tenantId }: Props) {
         </Button>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           <Input
             value={domain}
             onChange={(e) => setDomain(e.target.value)}
@@ -142,6 +169,12 @@ export function VerificationDomainsCard({ language, tenantId }: Props) {
             maxLength={500}
             placeholder={isPl ? "Notatka (opcjonalnie)" : "Note (optional)"}
             aria-label={isPl ? "Notatka do domeny" : "Domain note"}
+          />
+          <FormSelect
+            value={tierKey}
+            onValueChange={setTierKey}
+            options={tierOptions}
+            aria-label={isPl ? "Nadawany plan członkostwa" : "Granted membership plan"}
           />
           <div className="flex items-center justify-between gap-3 rounded-[6px] border border-border px-3">
             <span className="text-xs text-muted-foreground">
@@ -171,6 +204,12 @@ export function VerificationDomainsCard({ language, tenantId }: Props) {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="truncate text-sm font-medium">{row.domain}</span>
                     <ProfileBadge badge={row.badge} language={language} />
+                    {row.grants_tier_key && (
+                      <Badge variant="secondary">
+                        {isPl ? "Plan: " : "Plan: "}
+                        {tierLabel(row.grants_tier_key)}
+                      </Badge>
+                    )}
                     {!row.require_email_confirmed && (
                       <Badge variant="outline">
                         {isPl ? "Bez potwierdzenia e-mail" : "No email confirmation"}
@@ -189,6 +228,7 @@ export function VerificationDomainsCard({ language, tenantId }: Props) {
                         domain: row.domain,
                         active,
                         requireEmailConfirmed: row.require_email_confirmed,
+                        grantsTierKey: row.grants_tier_key,
                       })
                     }
                     aria-label={
