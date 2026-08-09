@@ -44,6 +44,7 @@ import { formatDateTime } from "@/lib/i18n/format";
 import {
   CLUB_ATTRIBUTION_MODES,
   CLUB_THREAD_KINDS,
+  isClubAttributionMode,
   type ClubAttributionMode,
   type ClubThreadKind,
 } from "@/lib/clubs/types";
