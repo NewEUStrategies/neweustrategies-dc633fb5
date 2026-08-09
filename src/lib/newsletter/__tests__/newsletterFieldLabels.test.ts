@@ -8,6 +8,7 @@ import {
   topicLabel,
   topicsTriggerText,
 } from "@/lib/newsletter/newsletterFieldLabels";
+import { popupFieldDefaultLabels } from "@/lib/newsletter/popupFields";
 
 // Kopia logiki hooka bez Reacta - jedno źródło reguł precedencji.
 function label(
@@ -19,8 +20,13 @@ function label(
   const api = buildRegistrationFieldsApi(raw, lang);
   const map = { firstName: "first_name", email: "email", company: "company" } as const;
   const trimmed = override?.trim() ?? "";
-  if (trimmed) return trimmed;
-  return api.label(map[key], "").trim() || NEWSLETTER_FIELD_FALLBACKS[key][lang];
+  const global = api.label(map[key], "").trim();
+  const factory = [
+    ...Object.values(NEWSLETTER_FIELD_FALLBACKS[key]),
+    ...popupFieldDefaultLabels(map[key]),
+  ].map((v) => v.toLowerCase());
+  if (trimmed && !factory.includes(trimmed.toLowerCase())) return trimmed;
+  return global || NEWSLETTER_FIELD_FALLBACKS[key][lang];
 }
 
 describe("newsletter: wspólne etykiety pól", () => {
@@ -33,6 +39,11 @@ describe("newsletter: wspólne etykiety pól", () => {
   it("override widgetu ma pierwszeństwo, pusty override jest ignorowany", () => {
     expect(label(null, "pl", "company", "  Organizacja  ")).toBe("Organizacja");
     expect(label(null, "pl", "company", "   ")).not.toBe("");
+  });
+
+  it("override będący kopią fabrycznej etykiety ustępuje globalnej konfiguracji", () => {
+    const raw = [{ key: "email", label_pl: "Adres e-mail", label_en: "E-mail address" }];
+    expect(label(raw, "pl", "email", "Twój e-mail")).toBe("Adres e-mail");
   });
 
   it("ma sensowny fallback PL/EN", () => {
