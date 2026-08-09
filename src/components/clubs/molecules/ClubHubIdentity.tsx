@@ -67,8 +67,10 @@ export function ClubHubIdentity({
       )}
     >
       {/* PAS OKŁADKI. Wysokość rośnie z ekranem, ale nigdy nie zjada ekranu
-          w pionie - to nagłówek, nie hero. */}
-      <div className="relative h-24 w-full sm:h-32 lg:h-40">
+          w pionie - to nagłówek, nie hero. Proporcja 4:1 na mobile (mniej
+          pustego pasa przy wąskim zdjęciu) przechodzi w stałe wysokości od
+          `sm` w górę, żeby na desktopie nagłówek nie rósł bez końca. */}
+      <div className="relative aspect-[4/1] max-h-56 min-h-[7rem] w-full sm:aspect-auto sm:h-40 lg:h-52">
         {coverUrl !== null ? (
           <img
             src={coverUrl}
@@ -79,15 +81,12 @@ export function ClubHubIdentity({
             decoding="async"
           />
         ) : (
-          <div
-            className="h-full w-full bg-gradient-to-br from-primary/25 via-primary/10 to-transparent"
-            aria-hidden="true"
-          />
+          <div className="club-cover-placeholder h-full w-full" aria-hidden="true" />
         )}
-        {/* Cienki gradient tylko przy DOLNEJ krawędzi - domyka pas w kartę,
-            zamiast przyciemniać całe zdjęcie. */}
+        {/* Zejście do karty: wieloprzystankowa krzywa (`club-cover-fade`)
+            zamiast dwóch przystanków - tamta wersja rysowała widoczny próg. */}
         <div
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-card to-transparent"
+          className="club-cover-fade pointer-events-none absolute inset-x-0 bottom-0 h-24 sm:h-32"
           aria-hidden="true"
         />
         {canEditCover ? (
@@ -101,13 +100,16 @@ export function ClubHubIdentity({
       </div>
 
       <div className="relative flex flex-wrap items-end gap-3 px-4 pb-4 sm:gap-4 sm:px-5 sm:pb-5">
-        {/* Monogram wchodzi na okładkę - kotwiczy pas w treści. */}
+        {/* Monogram wchodzi na okładkę - kotwiczy pas w treści. Większy niż
+            wcześniej, także na mobile: to jedyny znak rozpoznawczy klubu. */}
         <div
-          className="-mt-8 flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-card text-lg font-semibold text-primary shadow-sm sm:-mt-10 sm:h-20 sm:w-20 sm:text-xl"
+          className="-mt-10 flex h-20 w-20 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-border/60 bg-card text-2xl font-semibold text-primary shadow-sm sm:-mt-12 sm:h-24 sm:w-24 sm:text-3xl lg:h-28 lg:w-28 lg:text-4xl"
           aria-hidden="true"
         >
           {monogram(name)}
+          <Landmark className="h-4 w-4 text-primary/50 sm:h-5 sm:w-5" aria-hidden="true" />
         </div>
+
 
         <div className="min-w-0 flex-1 pt-2">
           <div className="flex flex-wrap items-center gap-2">
