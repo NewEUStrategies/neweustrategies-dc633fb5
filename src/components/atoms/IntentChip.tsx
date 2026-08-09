@@ -25,8 +25,8 @@ interface IntentChipProps {
 const BASE =
   "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium leading-none transition-colors";
 
-
 export function IntentChip({
+
   label,
   ariaLabel,
   selected = false,
