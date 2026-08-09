@@ -46,6 +46,17 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { normalizeClubThreadIcon } from "@/lib/clubs/threadIcons";
@@ -846,6 +857,7 @@ function ReplyBranch(props: ReplyBranchProps) {
     hasResolution,
   } = props;
   const { t } = useTranslation();
+  const [unmarkOpen, setUnmarkOpen] = useState(false);
   const { reply, children } = node;
   const author = toAuthorLabel(reply, t("club.anonymousAuthor"), t("club.deletedAuthor"));
   // W klubie pod regułą Chatham House `author_id` nie wychodzi z RPC, więc
@@ -952,16 +964,35 @@ function ReplyBranch(props: ReplyBranchProps) {
               {t("club.reply")}
             </Button>
           ) : null}
+          {/* Cofnięcie oznaczenia idzie przez potwierdzenie, bo jest to
+              jedyna akcja w tym pasku, która KASUJE decyzję wątku, a stoi
+              piksele od "Odpowiedz". Nadanie i przeniesienie potwierdzenia nie
+              wymagają - one zostawiają rozstrzygnięcie na miejscu i cofa się
+              je jednym kliknięciem. */}
           {canResolve && reply.is_resolution ? (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 px-2 text-xs"
-              onClick={() => onResolve(null)}
-            >
-              {t("club.unmarkResolution")}
-            </Button>
+            <AlertDialog open={unmarkOpen} onOpenChange={setUnmarkOpen}>
+              <AlertDialogTrigger asChild>
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs">
+                  {t("club.unmarkResolution")}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>{t("club.unmarkResolutionConfirm.title")}</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {t("club.unmarkResolutionConfirm.body")}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>{t("club.unmarkResolutionConfirm.cancel")}</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => onResolve(null)}>
+                    {t("club.unmarkResolutionConfirm.confirm")}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           ) : null}
+
           {canResolve && !reply.is_resolution ? (
             <Button
               size="sm"
