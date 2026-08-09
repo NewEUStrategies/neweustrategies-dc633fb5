@@ -58,7 +58,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { normalizeClubThreadIcon } from "@/lib/clubs/threadIcons";
 import { cn } from "@/lib/utils";
 import {
