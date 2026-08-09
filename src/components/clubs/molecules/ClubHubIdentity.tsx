@@ -17,7 +17,7 @@
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { MessagesSquare, PenLine, ShieldQuestion, Users2 } from "lucide-react";
+import { Landmark, MessagesSquare, PenLine, ShieldQuestion, Users2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
