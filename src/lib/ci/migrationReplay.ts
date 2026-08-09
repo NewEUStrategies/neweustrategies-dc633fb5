@@ -105,6 +105,14 @@ const KNOWN_CONTENT_TWINS: readonly string[] = [
   "20260806160002_profile_verification_guard_insert_parity.sql|20260806190257_9386c9cc-9f1f-4ce8-8320-b3abad5ecc3f.sql",
   // Wdrożenie PR #191 ("Udostępnij pełny artykuł"): plik z gałęzi i bliźniak
   // wygenerowany przy zastosowaniu migracji na hostowanej bazie.
+  //
+  // Wdrożenie PR #209 (A29: dorobek klubu + działy tematyczne). Ten sam
+  // mechanizm: plik z gałęzi oraz bliźniak zapisany przez platformę w chwili
+  // zastosowania migracji na hostowanej bazie. Pliki różnią się WYŁĄCZNIE
+  // znakiem końca ostatniej linii. Obie wersje siedzą już w
+  // `schema_migrations`, więc skasowanie którejkolwiek rozjechałoby ledger
+  // z repo - a to jest zmiana operatorska, nie porządkowa.
+  "20260809000000_discussion_clubs_a29_products_and_topic_sections.sql|20260809075619_80bcd58c-c652-4f9d-8324-a89ab2b68202.sql",
 ];
 
 /**

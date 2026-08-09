@@ -66,6 +66,12 @@ COMMENT ON COLUMN public.club_documents.kind IS
 -- domyslna czyni wybor niejednoznacznym.
 -- ----------------------------------------------------------------------------
 DROP FUNCTION IF EXISTS public.club_documents_list(uuid, uuid, text, text, integer, integer);
+-- DROP takze NOWEJ sygnatury. Wyglada na zbedny (przed ta migracja nic takiego
+-- nie istnieje), ale bez niego odtworzenie bazy OD ZERA pada z 42723: platforma
+-- zapisuje przy wdrozeniu wlasna kopie tego pliku, wiec ten sam `CREATE`
+-- wykonuje sie w replayu dwa razy. `CREATE OR REPLACE` nie jest tu wyjsciem,
+-- bo pierwszy DROP powyzej zmienia liste argumentow.
+DROP FUNCTION IF EXISTS public.club_documents_list(uuid, uuid, text, text, integer, integer, text[]);
 
 CREATE FUNCTION public.club_documents_list(
   p_club_id  uuid,

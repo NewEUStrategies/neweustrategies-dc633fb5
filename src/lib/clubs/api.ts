@@ -657,12 +657,23 @@ export async function createClubThread(params: {
   return { id: row.id, slug: row.slug, status: row.status };
 }
 
+/**
+ * Wynik odpowiedzi. `queued` znaczy, ze wpis poszedl do kolejki moderacji i NIE
+ * wroci z `club_replies_list` - autor go nie zobaczy, dopoki prowadzenie go nie
+ * zatwierdzi. Do A30 ta roznica nie wychodzila z bazy i interfejs potwierdzal
+ * publikacje w obu przypadkach.
+ */
+export interface ClubReplyOutcome {
+  id: string;
+  queued: boolean;
+}
+
 export async function replyToClubThread(params: {
   threadId: string;
   body: string;
   parentId?: string | null;
   anonymous?: boolean;
-}): Promise<string> {
+}): Promise<ClubReplyOutcome> {
   const { data, error } = await supabase.rpc("club_reply", {
     p_thread_id: params.threadId,
     p_body: params.body,
@@ -670,7 +681,12 @@ export async function replyToClubThread(params: {
     p_anonymous: params.anonymous ?? false,
   });
   if (error) throw error;
-  return data;
+  // `RETURNS TABLE` wraca przez PostgREST jako tablica jednowierszowa. Pusta
+  // odpowiedz nie powinna sie zdarzyc, ale gdyby sie zdarzyla, brak wpisu
+  // w kolejce jest bezpieczniejszym domyslnym niz udawanie publikacji.
+  const row = (data ?? [])[0];
+  if (row === undefined) throw new Error("club_reply: brak wiersza wyniku");
+  return { id: row.reply_id, queued: row.reply_status === "pending" };
 }
 
 /**
