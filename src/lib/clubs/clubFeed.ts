@@ -84,10 +84,15 @@ function documentsEntry(documents: readonly ClubDocumentRow[]): ClubFeedEntry | 
  */
 export function buildClubFeed(input: ClubFeedInput): ClubFeedEntry[] {
   const { mode, threads, documents, events, milestones } = input;
+  const posts = input.posts ?? [];
 
   if (mode === "threads") {
     return threads.map((thread) => ({ kind: "thread", key: `t:${thread.id}`, thread }));
   }
+  if (mode === "posts") {
+    return posts.map((post) => ({ kind: "post", key: `p:${post.id}`, post }));
+  }
+
   if (mode === "documents") {
     // Tryb dedykowany pokazuje dokumenty POJEDYNCZO - tu paczka byłaby
     // ukrywaniem treści, po którą użytkownik świadomie przełączył widok.
