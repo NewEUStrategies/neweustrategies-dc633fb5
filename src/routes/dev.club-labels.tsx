@@ -8,6 +8,7 @@ import type { ClubGroupRow } from "@/lib/clubs/types";
 const MOCK_GROUPS = [
   {
     id: "general",
+    slug: "general",
     name_pl: "Strefa Ogólna",
     name_en: "General",
     icon: "home",
