@@ -21,6 +21,7 @@ const MOCK_GROUPS = [
   },
   {
     id: "main-disc",
+    slug: "general-main-disc",
     name_pl: "Dyskusje główne",
     name_en: "Main discussions",
     icon: null,
@@ -33,6 +34,7 @@ const MOCK_GROUPS = [
   },
   {
     id: "announcements",
+    slug: "general-announcements",
     name_pl: "Ogłoszenia",
     name_en: "Announcements",
     icon: null,
@@ -45,6 +47,7 @@ const MOCK_GROUPS = [
   },
   {
     id: "workshops",
+    slug: "workshops",
     name_pl: "Warsztaty",
     name_en: "Workshops",
     icon: "pen-tool",
@@ -57,6 +60,7 @@ const MOCK_GROUPS = [
   },
   {
     id: "ui-design",
+    slug: "workshops-ui-design",
     name_pl: "Projektowanie UI",
     name_en: "UI Design",
     icon: null,
@@ -64,11 +68,13 @@ const MOCK_GROUPS = [
     can_read: true,
     thread_count: 0,
     parent_id: "workshops",
+    slug: "workshops",
     description_pl: null,
     description_en: null,
   },
   {
     id: "css-code",
+    slug: "workshops-css-code",
     name_pl: "Kodowanie CSS",
     name_en: "CSS Coding",
     icon: null,
@@ -76,11 +82,13 @@ const MOCK_GROUPS = [
     can_read: true,
     thread_count: 3,
     parent_id: "workshops",
+    slug: "workshops",
     description_pl: null,
     description_en: null,
   },
   {
     id: "resources",
+    slug: "resources",
     name_pl: "Zasoby",
     name_en: "Resources",
     icon: "archive",
@@ -93,6 +101,7 @@ const MOCK_GROUPS = [
   },
   {
     id: "library",
+    slug: "resources-library",
     name_pl: "Biblioteka plików",
     name_en: "File library",
     icon: null,
@@ -100,6 +109,7 @@ const MOCK_GROUPS = [
     can_read: true,
     thread_count: 7,
     parent_id: "resources",
+    slug: "resources",
     description_pl: null,
     description_en: null,
   },
