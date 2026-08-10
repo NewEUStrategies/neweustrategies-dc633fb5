@@ -233,9 +233,9 @@ export function ClubGroupTree({
             isPl={isPl}
           />
           {node.children.length > 0 && expanded ? (
-            <div className="ml-9 mt-0.5 flex flex-col gap-0.5 border-l border-border/60 pl-3">
+            <ul className="ml-8 mt-0.5 flex list-none flex-col gap-0.5 border-l border-border/60 pl-3">
               {renderNodes(node.children)}
-            </div>
+            </ul>
           ) : null}
         </li>
       );
