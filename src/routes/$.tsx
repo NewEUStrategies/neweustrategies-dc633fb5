@@ -919,7 +919,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
         )}
         <GooglePreferredSourceBadge
           entityId={it.id}
-          className="shrink-0 grow-0 basis-auto [&>a]:h-full [&>a]:w-full [&>a]:justify-center"
+          className="!w-auto shrink-0 grow-0 basis-auto [&>a]:h-full [&>a]:w-full [&>a]:justify-center"
         />
       </div>
 
