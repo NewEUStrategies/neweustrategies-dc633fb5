@@ -903,8 +903,9 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
     // wykluczone na stale (sekret autora nie chodzi linkiem). W nagłówku
     // redakcyjnym przycisk stoi obok badge'a Google niezaleznie od paywalla -
     // sam komponent rozstrzyga faze (logowanie / plany / link).
-    const shareableArticle =
-      accessRule?.mode !== "password" && (editorialActions || isGatedMode(accessRule?.mode));
+    // Poza wpisami na haslo przycisk pokazujemy zawsze - takze w layoutach
+    // nieredakcyjnych i bez paywalla (mobile: obok badge'a Google).
+    const shareableArticle = accessRule?.mode !== "password";
     const giftButton = shareableArticle ? (
       <GiftArticleButton postId={it.id} title={title} url={citationUrl} lang={lang} />
     ) : null;
