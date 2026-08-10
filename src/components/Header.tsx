@@ -315,14 +315,15 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
   // wracają do pełnej rozdzielczości urządzenia i są idealnie ostre.
   const [settled, setSettled] = useState(true);
   useEffect(() => {
-    if (!stickyShrink) return;
+    if (!stickyShrink || forceCompact) return;
     setSettled(false);
     const HDR_DURATION_MS = 460;
     const timer = window.setTimeout(() => setSettled(true), HDR_DURATION_MS + 40);
     return () => window.clearTimeout(timer);
-  }, [scrolled, stickyShrink]);
+  }, [scrolled, stickyShrink, forceCompact]);
   useEffect(() => {
-    if (!stickyShrink) return;
+    if (!stickyShrink || forceCompact) return;
+
     // Histereza + koalescencja w rAF: bez tego stan przełącza się wielokrotnie
     // na granicy progu (i przy każdym zdarzeniu scroll), co przerywa trwającą
     // tranzycję i daje efekt "poklatkowy".
