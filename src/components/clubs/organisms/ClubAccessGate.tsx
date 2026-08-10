@@ -16,6 +16,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
   ArrowRight,
+  BookOpen,
   CalendarDays,
   CheckCircle2,
   Crown,
@@ -27,7 +28,6 @@ import {
   MailCheck,
   MessagesSquare,
   ShieldCheck,
-  Sparkles,
   Users,
   type LucideIcon,
 } from "lucide-react";
