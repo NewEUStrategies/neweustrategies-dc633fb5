@@ -148,7 +148,7 @@ export function ClubHubIdentity({
 
         {/* JEDNA akcja pierwszoplanowa. Wcześniej w tym miejscu stało siedem
             przycisków o równej wadze, czyli żaden nie był następnym krokiem. */}
-        <div className="grid w-full grid-cols-2 items-center gap-2 sm:flex sm:w-auto sm:shrink-0 sm:flex-wrap sm:pb-0.5">
+        <div className="flex w-full items-center gap-2 [&>*]:flex-1 sm:w-auto sm:shrink-0 sm:flex-wrap sm:pb-0.5 sm:[&>*]:flex-none">
           {club.can_post_thread ? (
             // Jedyne miejsce w klubie, gdzie wraca marka - reszta modułu jest
             // neutralna, więc to CTA realnie prowadzi wzrok.
