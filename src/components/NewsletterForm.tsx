@@ -431,6 +431,43 @@ export function NewsletterForm({
                     />
                   </FieldWrap>
                 )}
+                {showPosition && (
+                  <FieldWrap
+                    label={L.position}
+                    required={requirePosition}
+                    showMark={inBuilder}
+                    error={errors.position}
+                  >
+                    <input
+                      type="text"
+                      value={position}
+                      onChange={(e) => setPosition(e.target.value)}
+                      className={inputCls}
+                      maxLength={200}
+                      required={requirePosition}
+                      aria-required={requirePosition || undefined}
+                    />
+                  </FieldWrap>
+                )}
+                {showPhone && (
+                  <FieldWrap
+                    label={L.phone}
+                    required={requirePhone}
+                    showMark={inBuilder}
+                    error={errors.phone}
+                  >
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className={inputCls}
+                      maxLength={40}
+                      required={requirePhone}
+                      aria-required={requirePhone || undefined}
+                    />
+                  </FieldWrap>
+                )}
+
                 <FieldWrap
                   label={L.email}
                   required={requireEmail}
