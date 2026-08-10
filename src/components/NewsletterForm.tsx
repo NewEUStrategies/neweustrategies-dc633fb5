@@ -263,6 +263,9 @@ export function NewsletterForm({
 
       const meta: Record<string, string> = {};
       if (company.trim()) meta.company = company.trim();
+      if (position.trim()) meta.position = position.trim().slice(0, 500);
+      if (phone.trim()) meta.phone = phone.trim().slice(0, 500);
+
 
       const pickedItemIds = Array.from(picked);
       if (pickedItemIds.length > 0) {
