@@ -38,6 +38,11 @@ interface Props {
   coverImageUrl?: string | null;
   meta?: ReactNode; // data, autor, czas czytania
   categoryBadges?: ReactNode; // pigułki kategorii nad tytułem
+  /**
+   * Akcje artykułu (podaruj artykuł, badge Google) renderowane w nagłówku obok
+   * metadanych - tylko dla presetów z `headerActions` (Layout 13 - editorial).
+   */
+  headerActions?: ReactNode;
   content: ReactNode;
   sidebar?: ReactNode;
   footer?: ReactNode;
