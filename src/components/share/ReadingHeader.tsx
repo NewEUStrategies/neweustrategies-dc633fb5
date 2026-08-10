@@ -188,7 +188,7 @@ export function ReadingHeader({
       window.removeEventListener("scroll", onScroll);
       onScroll.cancel();
     };
-  }, [showAfter]);
+  }, [showAfter, pinned]);
 
   return (
     <div
