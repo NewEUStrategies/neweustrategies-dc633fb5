@@ -371,21 +371,46 @@ export function ReadingHeader({
           </div>
         </div>
 
-        {/* Reading: title */}
-        <div className="min-w-0 flex items-center gap-1.5 sm:gap-2">
-          <span
-            data-reading-label
-            className="hidden sm:inline text-[9px] sm:text-[10px] font-bold tracking-[0.18em] text-brand shrink-0"
-          >
-            {t.reading}:
-          </span>
-          <span
-            data-reading-title
-            className="truncate font-display text-[12px] sm:text-[13.5px] lg:text-[14.5px] font-semibold text-foreground"
-            title={title}
-          >
-            {title}
-          </span>
+        {/* Reading: title (or centered logo for single-screen landings) */}
+        <div className="min-w-0 flex items-center justify-center gap-1.5 sm:gap-2">
+          {centerLogo ? (
+            <Link
+              to="/"
+              aria-label="New European Strategies"
+              data-reading-title
+              className="inline-flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 rounded"
+            >
+              {horizontalLogo ? (
+                <img
+                  src={horizontalLogo}
+                  alt=""
+                  className="h-6 sm:h-7 lg:h-8 w-auto max-w-[160px] sm:max-w-[200px] lg:max-w-[240px] object-contain"
+                  loading="eager"
+                  decoding="async"
+                />
+              ) : (
+                <span className="font-display text-[13px] sm:text-[14px] lg:text-[15px] font-bold tracking-tight text-foreground">
+                  New European Strategies
+                </span>
+              )}
+            </Link>
+          ) : (
+            <>
+              <span
+                data-reading-label
+                className="hidden sm:inline text-[9px] sm:text-[10px] font-bold tracking-[0.18em] text-brand shrink-0"
+              >
+                {t.reading}:
+              </span>
+              <span
+                data-reading-title
+                className="truncate font-display text-[12px] sm:text-[13.5px] lg:text-[14.5px] font-semibold text-foreground"
+                title={title}
+              >
+                {title}
+              </span>
+            </>
+          )}
         </div>
 
         {/* Right cluster - akcje czytania.
