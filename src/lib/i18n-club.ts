@@ -1147,6 +1147,7 @@ export const clubPl = {
       // Najbliższe spotkanie + kto będzie.
       meeting: {
         title: "Najbliższe spotkanie",
+        emptyManage: "Brak nadchodzących terminów. Dodaj pierwsze spotkanie - lista potwierdzonych osób przyciąga mocniej niż sama data.",
         pageTitle: "Spotkanie",
         lead: "Kto potwierdził obecność. Sama data konwertuje słabo - lista nazwisk mocno, bo ludzie przychodzą do ludzi, nie do tematu.",
         whoTitle: "Kto będzie",
@@ -2989,6 +2990,7 @@ export const clubEn = {
 
       meeting: {
         title: "Next meeting",
+        emptyManage: "No upcoming dates. Add the first meeting - a list of confirmed people pulls harder than a date alone.",
         pageTitle: "Meeting",
         lead: "Who confirmed they are coming. A date alone converts poorly - a list of names converts well, because people come to people, not to a topic.",
         whoTitle: "Who is coming",
