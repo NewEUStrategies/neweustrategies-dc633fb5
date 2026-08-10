@@ -134,7 +134,7 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
   const clearTag = () => {
     setQuery("");
     if (activeTag !== "") {
-      void navigate({ to: "/club/$clubSlug", params: { clubSlug }, search: { tag: "" } });
+      void navigate({ to: "/club/$clubSlug", params: { clubSlug }, search: {} });
     }
   };
   // Trzy zawężenia, które NIE są działem - patrz `ClubStreamFilters`.

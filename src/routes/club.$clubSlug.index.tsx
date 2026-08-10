@@ -34,12 +34,12 @@ import { ensureClubI18n } from "@/lib/i18n-club";
 // wpisie zawęża strumień klubu do tej frazy. Trzymamy to w URL-u, bo taki
 // widok ma być linkowalny (i wracalny przyciskiem wstecz).
 interface ClubHubSearch {
-  tag: string;
+  tag?: string;
 }
 
 export const Route = createFileRoute("/club/$clubSlug/")({
   validateSearch: (raw: Record<string, unknown>): ClubHubSearch => ({
-    tag: typeof raw.tag === "string" ? raw.tag.slice(0, 50) : "",
+    ...(typeof raw.tag === "string" && raw.tag !== "" ? { tag: raw.tag.slice(0, 50) } : {}),
   }),
   // Indeksowalność liczy się z WIDOCZNOŚCI klubu, a head() jest synchroniczne -
   // stąd loader. Klub `public` jest jedyną powierzchnią modułu, która ma
