@@ -286,7 +286,7 @@ function QuizPage() {
         {/* Minimalny pasek NES - dokładnie ten sam, który przejmuje górną
             krawędź na wpisie po przewinięciu. Landing quizu jest jednoekranowy,
             więc pokazujemy go od razu (pinned) i rezerwujemy jego wysokość. */}
-        <ReadingHeader title={QUIZ_TITLE} entityType="page" pinned centerLogo />
+        <ReadingHeader title={QUIZ_TITLE} entityType="page" pinned centerLogo hideLeftLogo />
         <div aria-hidden className="h-10 shrink-0 sm:h-11 lg:h-12" />
 
 
