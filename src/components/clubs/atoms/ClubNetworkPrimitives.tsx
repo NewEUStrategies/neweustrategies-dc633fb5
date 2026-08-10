@@ -11,7 +11,7 @@
 // `ClubHubPrimitives`.
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { HandHelping, Search, Sparkles, type LucideIcon } from "lucide-react";
+import { GraduationCap, HandHelping, Search, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
@@ -280,7 +280,7 @@ export function ClubExpertiseChip({ label, className }: { label: string; classNa
         className,
       )}
     >
-      <Sparkles className="h-2.5 w-2.5 shrink-0 text-primary/70" aria-hidden="true" />
+      <GraduationCap className="h-2.5 w-2.5 shrink-0 text-primary/70" aria-hidden="true" />
       <span className="truncate">{label}</span>
     </span>
   );
