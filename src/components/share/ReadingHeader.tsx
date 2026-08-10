@@ -295,26 +295,28 @@ export function ReadingHeader({
               Branding → Logo → Mobile asset as the main header, so dark/light
               variants align automatically. */}
           <div className="hidden sm:flex items-center gap-2 lg:gap-3 min-w-0">
-            <Link
-              to="/"
-              aria-label="New European Strategies"
-              data-reading-icon
-              className="shrink-0 inline-flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 rounded"
-            >
-              {horizontalLogo ? (
-                <img
-                  src={horizontalLogo}
-                  alt=""
-                  className="h-6 lg:h-7 w-auto max-w-[140px] lg:max-w-[180px] object-contain"
-                  loading="eager"
-                  decoding="async"
-                />
-              ) : (
-                <span className="font-display text-[12px] lg:text-[13px] font-bold tracking-tight text-foreground">
-                  New European Strategies
-                </span>
-              )}
-            </Link>
+            {!hideLeftLogo && (
+              <Link
+                to="/"
+                aria-label="New European Strategies"
+                data-reading-icon
+                className="shrink-0 inline-flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 rounded"
+              >
+                {horizontalLogo ? (
+                  <img
+                    src={horizontalLogo}
+                    alt=""
+                    className="h-6 lg:h-7 w-auto max-w-[140px] lg:max-w-[180px] object-contain"
+                    loading="eager"
+                    decoding="async"
+                  />
+                ) : (
+                  <span className="font-display text-[12px] lg:text-[13px] font-bold tracking-tight text-foreground">
+                    New European Strategies
+                  </span>
+                )}
+              </Link>
+            )}
             <div className="relative z-50 min-w-0 overflow-visible w-[160px] md:w-[200px] lg:w-[240px]">
               <SearchButtonWidget
                 label={t.search}
