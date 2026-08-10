@@ -8,7 +8,6 @@
 // DEFINER, a nie w tym pliku.
 import { supabase } from "@/integrations/supabase/client";
 import {
-  parseOutputContributors,
   parseRosterFaces,
   type ClubBoardNoticeRow,
   type ClubEventAttendeeRow,
@@ -16,8 +15,6 @@ import {
   type ClubExpertiseArea,
   type ClubExpertRow,
   type ClubNoticeKind,
-  type ClubOutputContributor,
-  type ClubOutputRow,
   type ClubRosterSignal,
   type ClubSpotlightHistoryRow,
   type ClubSpotlightRow,
@@ -227,7 +224,7 @@ export async function fetchClubEvent(
  */
 export async function fetchClubRosterSignal(
   clubId: string,
-  limit = 12,
+  limit = 24,
 ): Promise<ClubRosterSignal | null> {
   const { data, error } = await supabase.rpc("club_roster_signal", {
     p_club_id: clubId,
@@ -241,7 +238,6 @@ export async function fetchClubRosterSignal(
     new7d: row.new_7d,
     active24h: row.active_24h,
     active7d: row.active_7d,
-    peopleSeries: Array.isArray(row.people_series) ? row.people_series : [],
     faces: parseRosterFaces(row.faces),
   };
 }
@@ -304,35 +300,5 @@ export async function deleteClubSpotlight(id: string): Promise<boolean> {
   return data === true;
 }
 
-// ---------------------------------------------------------------------------
-// Dorobek jako wynik wspolnych rozmow
-// ---------------------------------------------------------------------------
-
-/** Produkt razem z rozmowa, z ktorej wyrosl, i jej uczestnikami. */
-export interface ClubOutputEntry {
-  row: ClubOutputRow;
-  contributors: ClubOutputContributor[];
-}
-
-export interface ClubOutputPage {
-  entries: ClubOutputEntry[];
-  total: number;
-}
-
-export async function fetchClubOutput(
-  clubId: string,
-  limit = 4,
-  offset = 0,
-): Promise<ClubOutputPage> {
-  const { data, error } = await supabase.rpc("club_output_list", {
-    p_club_id: clubId,
-    p_limit: limit,
-    p_offset: offset,
-  });
-  if (error) throw error;
-  const rows = (data ?? []) as ClubOutputRow[];
-  return {
-    entries: rows.map((row) => ({ row, contributors: parseOutputContributors(row.contributors) })),
-    total: rows.length > 0 ? Number(rows[0].total_count) : 0,
-  };
-}
+// Modul "Dorobek klubu" zostal wycofany w A34 razem z RPC `club_output_list` -
+// nie ma tu odpowiednika, bo nie ma czego wolac.

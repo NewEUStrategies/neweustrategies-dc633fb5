@@ -30,7 +30,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ClubSparkline } from "@/components/clubs/atoms/ClubHubPrimitives";
 import {
   ClubPresenceAvatar,
   ClubSignalMetric,
@@ -41,7 +40,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { CLUB_MEMBER_ROLES, type ClubMemberRole } from "@/lib/clubs/types";
 import { useClubBySlug, useClubMembers, useSetClubMemberRole } from "@/lib/clubs/useClubs";
 import { useClubRosterSignal } from "@/lib/clubs/useClubNetwork";
-import { hasPeopleMovement } from "@/lib/clubs/networkTypes";
 import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
 import { fetchClubBySlug } from "@/lib/clubs/api";
 import { clubKeys } from "@/lib/clubs/queryKeys";
@@ -175,9 +173,11 @@ function ClubMembersRoute() {
         </p>
       </header>
 
-      {/* PULS SKŁADU. Iskra liczy RÓŻNE OSOBY dziennie, nie wpisy - jedna
-          osoba pisząca dziesięć razy i dziesięć osób po razie to dwa zupełnie
-          różne kluby, a licznik treści pokazałby je identycznie. */}
+      {/* SYGNAŁ SKŁADU: cztery liczby o LUDZIACH. Iskra aktywności stała tu do
+          A34 i wypadła razem z tą samą iskrą w szynie - wykres odpowiadał na
+          pytanie o wolumen ruchu, a ta strona jest o tym, kto należy i kto tu
+          bywa. Twarze niosą wiersze listy niżej, więc rząd awatarów byłby
+          tu powtórzeniem, a nie informacją. */}
       {canSee && signal !== null ? (
         <section className="mb-5 rounded-lg border border-border/60 bg-card p-4">
           <div className="flex flex-wrap items-start justify-between gap-4">

@@ -284,7 +284,7 @@ export const clubKeys = {
   myExpertise: (clubId: string) => [...clubKeys.club(clubId), "myExpertise"] as const,
 
   /** Sklad z sygnalem obecnosci. Limit twarzy jest czescia klucza - szyna
-   *  prosi o dwanascie, ekran skladu o czterdziesci. */
+   *  prosi o pule do rotacji, ekran skladu o pelna strone. */
   rosterSignal: (clubId: string, limit: number) =>
     [...clubKeys.club(clubId), "rosterSignal", limit] as const,
 
@@ -292,11 +292,6 @@ export const clubKeys = {
    *  o zmianie tygodnia decyduje `staleTime`, a nie klucz, ktory musialby
    *  wtedy tworzyc nowy wpis cache co siedem dni i nigdy nie sprzatac starych. */
   spotlight: (clubId: string) => [...clubKeys.club(clubId), "spotlight"] as const,
-
-  /** Dorobek jako wynik wspolnych rozmow. Osobna galaz od `libraryDocuments`:
-   *  to inne pytanie i inny zbior, mimo wspolnego zrodla w `club_documents`. */
-  output: (clubId: string, limit: number, offset = 0) =>
-    [...clubKeys.club(clubId), "output", limit, offset] as const,
 
   /** Katalog ekspertow KLUBU - inne pytanie niz `threadExperts`. */
   experts: (clubId: string, topic: string | null, search: string, offset: number) =>

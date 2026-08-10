@@ -9,7 +9,6 @@ import { describe, expect, it } from "vitest";
 import {
   expertContribution,
   firstSentences,
-  hasPeopleMovement,
   hasRosterContent,
   isNoticeBodyValid,
   isNoticeExpiringSoon,
@@ -17,11 +16,14 @@ import {
   noticeDaysLeft,
   noticeOutcome,
   normalizeNoticeBody,
-  parseOutputContributors,
   parseRosterFaces,
+  rosterRotationTick,
+  rotateRosterFaces,
   spotlightBlurb,
   toClubNoticeKind,
   toRsvpPresentState,
+  CLUB_ROSTER_ROTATION_MS,
+  type ClubRosterFace,
   type ClubRosterSignal,
   type ClubSpotlightRow,
 } from "@/lib/clubs/networkTypes";
@@ -163,7 +165,9 @@ describe("skład: odczyt jsonb", () => {
         name: "Igor",
         avatar_url: "https://e.org/a.png",
         slug: "igor",
+        headline: "Dyrektor - MSZ",
         role: "lead",
+        joined_at: "2026-01-05T10:00:00Z",
         is_new: true,
         is_active: true,
         topics: ["geopolitics", "energy"],
@@ -175,7 +179,9 @@ describe("skład: odczyt jsonb", () => {
         name: "Igor",
         avatarUrl: "https://e.org/a.png",
         slug: "igor",
+        headline: "Dyrektor - MSZ",
         role: "lead",
+        joinedAt: "2026-01-05T10:00:00Z",
         isNew: true,
         isActive: true,
         topics: ["geopolitics", "energy"],
@@ -195,20 +201,15 @@ describe("skład: odczyt jsonb", () => {
     expect(faces[0].userId).toBe("u2");
     expect(faces[0].topics).toEqual([]);
     expect(faces[0].isActive).toBe(false);
+    // Profil bez stanowiska ma dać `null`, a nie pusty napis - plakietka
+    // rysuje linijkę opisu WYŁĄCZNIE wtedy, gdy jest co w niej napisać.
+    expect(faces[0].headline).toBeNull();
+    expect(faces[0].joinedAt).toBeNull();
   });
 
   it("wartość, która nie jest tablicą, daje pustą listę zamiast wyjątku", () => {
     expect(parseRosterFaces(null)).toEqual([]);
     expect(parseRosterFaces({ faces: [] })).toEqual([]);
-  });
-
-  it("współautorzy dorobku czytają się tą samą zasadą", () => {
-    const people = parseOutputContributors([
-      { user_id: "u1", name: "A", avatar_url: null, slug: null },
-      { user_id: "u2" },
-    ]);
-    expect(people).toHaveLength(1);
-    expect(people[0]).toEqual({ userId: "u1", name: "A", avatarUrl: null, slug: null });
   });
 });
 
@@ -218,7 +219,6 @@ describe("skład: kiedy panel ma co pokazać", () => {
     new7d: 0,
     active24h: 0,
     active7d: 0,
-    peopleSeries: [],
     faces: [],
   };
 
@@ -232,11 +232,112 @@ describe("skład: kiedy panel ma co pokazać", () => {
     expect(hasRosterContent(empty)).toBe(false);
     expect(hasRosterContent(null)).toBe(false);
   });
+});
 
-  it("iskra z samych zer to plama, nie wykres", () => {
-    expect(hasPeopleMovement([0, 0, 0])).toBe(false);
-    expect(hasPeopleMovement([0, 0, 2])).toBe(true);
-    expect(hasPeopleMovement([])).toBe(false);
+describe("skład: rotacja sześciu twarzy", () => {
+  const face = (id: string, isActive = false): ClubRosterFace => ({
+    userId: id,
+    name: id,
+    avatarUrl: null,
+    slug: null,
+    headline: null,
+    role: "member",
+    joinedAt: null,
+    isNew: false,
+    isActive,
+    topics: [],
+  });
+
+  const ids = (faces: readonly ClubRosterFace[]): string[] => faces.map((f) => f.userId);
+
+  it("klub mniejszy niż panel nie rotuje - wszyscy stoją zawsze", () => {
+    // Rotacja w czteroosobowym klubie byłaby ruchem bez informacji: te same
+    // cztery osoby przestawione co sześć godzin wyglądają jak usterka.
+    const small = [face("a"), face("b"), face("c"), face("d")];
+    expect(ids(rotateRosterFaces(small, 6, 0))).toEqual(["a", "b", "c", "d"]);
+    expect(ids(rotateRosterFaces(small, 6, 77))).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("osoba aktywna w dobie NIE wypada z rotacji", () => {
+    // Kropka obecności jest jedynym sygnałem "tu ktoś jest" na całej stronie
+    // klubu. Gdyby zależała od numeru okna, znaczyłaby tyle, co rzut monetą.
+    const pool = [face("live", true), ...["b", "c", "d", "e", "f", "g", "h"].map((i) => face(i))];
+    for (const tick of [0, 1, 2, 3, 17, 100]) {
+      expect(ids(rotateRosterFaces(pool, 6, tick))).toContain("live");
+    }
+  });
+
+  it("kolejne okna pokazują KOGOŚ INNEGO z ogona", () => {
+    const pool = ["a", "b", "c", "d", "e", "f", "g", "h", "i"].map((i) => face(i));
+    const first = ids(rotateRosterFaces(pool, 6, 0));
+    const second = ids(rotateRosterFaces(pool, 6, 1));
+    expect(first).toHaveLength(6);
+    expect(second).toHaveLength(6);
+    expect(second).not.toEqual(first);
+  });
+
+  it("okno przesuwa się o SWOJĄ SZEROKOŚĆ, nie o jedną pozycję", () => {
+    // To jest różnica między rotacją a pełzaniem. Krok jednopozycyjny daje
+    // okna nachodzące na siebie w pięciu szóstych: 0-5, 1-6, 2-7 - i wtedy
+    // dwudziestoosobowy klub potrzebuje prawie czterech dni, żeby pokazać
+    // wszystkich, mimo czterech zmian dziennie.
+    const pool = Array.from({ length: 20 }, (_, i) => face(`p${i}`));
+    expect(ids(rotateRosterFaces(pool, 6, 0))).toEqual(["p0", "p1", "p2", "p3", "p4", "p5"]);
+    expect(ids(rotateRosterFaces(pool, 6, 1))).toEqual(["p6", "p7", "p8", "p9", "p10", "p11"]);
+    expect(ids(rotateRosterFaces(pool, 6, 2))).toEqual(["p12", "p13", "p14", "p15", "p16", "p17"]);
+  });
+
+  it("doba czterech okien pokazuje dwudziestoosobowy klub W KOMPLECIE", () => {
+    // Obietnica z komentarza przy `CLUB_ROSTER_ROTATION_MS` - tu jest jej
+    // egzekucja, żeby nie została samym zdaniem w dokumentacji.
+    const pool = Array.from({ length: 20 }, (_, i) => face(`p${i}`));
+    const seen = new Set<string>();
+    for (const tick of [0, 1, 2, 3]) {
+      ids(rotateRosterFaces(pool, 6, tick)).forEach((id) => seen.add(id));
+    }
+    expect(seen.size).toBe(20);
+  });
+
+  it("krok liczy się od WOLNYCH miejsc, a nie od wielkości panelu", () => {
+    // Dwie osoby aktywne zabierają dwa miejsca, więc oknem rotacji są cztery
+    // pozostałe - i o cztery, nie o sześć, ma się przesunąć.
+    const pool = [
+      face("live1", true),
+      face("live2", true),
+      ...Array.from({ length: 12 }, (_, i) => face(`p${i}`)),
+    ];
+    expect(ids(rotateRosterFaces(pool, 6, 0))).toEqual(["live1", "live2", "p0", "p1", "p2", "p3"]);
+    expect(ids(rotateRosterFaces(pool, 6, 1))).toEqual(["live1", "live2", "p4", "p5", "p6", "p7"]);
+  });
+
+  it("okno zawija się na końcu puli i nie gubi miejsca", () => {
+    // Ostatnie okno musi dobrać brakujące twarze z początku listy, a nie
+    // pokazać czterech osób w sześciu miejscach.
+    const pool = ["a", "b", "c", "d", "e", "f", "g"].map((i) => face(i));
+    expect(rotateRosterFaces(pool, 6, 5)).toHaveLength(6);
+    expect(rotateRosterFaces(pool, 6, 6)).toHaveLength(6);
+    expect(new Set(ids(rotateRosterFaces(pool, 6, 5))).size).toBe(6);
+  });
+
+  it("to samo okno daje ten sam skład - rotacja jest deterministyczna", () => {
+    const pool = ["a", "b", "c", "d", "e", "f", "g", "h"].map((i) => face(i));
+    expect(ids(rotateRosterFaces(pool, 6, 42))).toEqual(ids(rotateRosterFaces(pool, 6, 42)));
+  });
+
+  it("ujemny numer okna nie wpuszcza dziury w listę twarzy", () => {
+    // Data sprzed epoki daje ujemny `tick`; ujemny indeks tablicy dałby
+    // `undefined` w środku rzędu awatarów.
+    const pool = ["a", "b", "c", "d", "e", "f", "g"].map((i) => face(i));
+    const shown = rotateRosterFaces(pool, 6, -3);
+    expect(shown).toHaveLength(6);
+    expect(shown.every((f) => f !== undefined)).toBe(true);
+  });
+
+  it("okno rotacji ma sześć godzin, liczone od epoki", () => {
+    expect(rosterRotationTick(0)).toBe(0);
+    expect(rosterRotationTick(CLUB_ROSTER_ROTATION_MS - 1)).toBe(0);
+    expect(rosterRotationTick(CLUB_ROSTER_ROTATION_MS)).toBe(1);
+    expect(rosterRotationTick(CLUB_ROSTER_ROTATION_MS * 4)).toBe(4);
   });
 });
 

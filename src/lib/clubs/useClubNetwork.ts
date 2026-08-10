@@ -27,7 +27,6 @@ import {
   fetchClubEventAttendees,
   fetchClubExperts,
   fetchClubExpertiseAreas,
-  fetchClubOutput,
   fetchClubRosterSignal,
   fetchClubSpotlight,
   fetchClubSpotlightHistory,
@@ -39,7 +38,6 @@ import {
   type ClubBoardPage,
   type ClubExpertsPage,
   type ClubNoticeCreateInput,
-  type ClubOutputPage,
   type ClubSpotlightPinInput,
 } from "./networkApi";
 import { clubKeys } from "./queryKeys";
@@ -192,7 +190,10 @@ export function useClubRosterSignal(params: {
   clubId: string | undefined;
   limit?: number;
 }): UseQueryResult<ClubRosterSignal | null, Error> {
-  const { clubId, limit = 12 } = params;
+  // Domyslnie 24: panel pokazuje SZESC twarzy rotacyjnie i musi miec z czego
+  // rotowac (patrz `rotateRosterFaces`). Pula wieksza niz miejsca w panelu to
+  // warunek istnienia rotacji, a nie zapas na wszelki wypadek.
+  const { clubId, limit = 24 } = params;
   return useQuery({
     queryKey: clubKeys.rosterSignal(clubId ?? "none", limit),
     queryFn: () => fetchClubRosterSignal(clubId ?? "", limit),
@@ -217,24 +218,6 @@ export function useClubSpotlight(
     // Rotacja jest TYGODNIOWA - odpytywanie czesciej niz raz na kwadrans nie
     // ma prawa oddac innej osoby.
     staleTime: 15 * 60_000,
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Dorobek jako wynik wspolnych rozmow
-// ---------------------------------------------------------------------------
-
-export function useClubOutput(params: {
-  clubId: string | undefined;
-  limit?: number;
-  offset?: number;
-}): UseQueryResult<ClubOutputPage, Error> {
-  const { clubId, limit = 4, offset = 0 } = params;
-  return useQuery({
-    queryKey: clubKeys.output(clubId ?? "none", limit, offset),
-    queryFn: () => fetchClubOutput(clubId ?? "", limit, offset),
-    enabled: clubId !== undefined && clubId !== "",
-    staleTime: 60_000,
   });
 }
 

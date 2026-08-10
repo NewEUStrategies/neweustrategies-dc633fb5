@@ -1700,12 +1700,29 @@ SELECT pg_temp.assert(
   (SELECT (faces->0 ? 'topics') AND NOT (faces->0 ? 'sort')
      FROM public.club_roster_signal(:'net_club'::uuid, 12)),
   'A32: twarz niesie tagi kompetencji i nie wypuszcza klucza sortujacego');
+
+-- A34: iskra wychodzi ze skladu, twarz dostaje podpis.
+-- Stanowisko dostaje autor watku, bo to ON stoi na pierwszej pozycji puli
+-- (porzadek: kto tu wlasnie byl, potem kto wlasnie doszedl).
+UPDATE public.profiles
+   SET job_title = 'Dyrektor', current_company = 'MSZ'
+ WHERE id = 'a0000000-0000-0000-0000-000000000001';
 SELECT pg_temp.assert(
-  (SELECT cardinality(people_series) = 14 FROM public.club_roster_signal(:'net_club'::uuid, 12)),
-  'A32: iskra ma czternascie dni, takze te bez ruchu');
+  pg_get_function_result('public.club_roster_signal(uuid,integer)'::regprocedure)
+    NOT LIKE '%people_series%',
+  'A34: szereg czasowy znika z sygnatury razem z iskra aktywnosci');
 SELECT pg_temp.assert(
-  (SELECT people_series[14] = 1 FROM public.club_roster_signal(:'net_club'::uuid, 12)),
-  'A32: iskra liczy ROZNE OSOBY, nie wpisy - jeden autor dzisiaj to jeden');
+  (SELECT (faces->0 ? 'headline') AND (faces->0 ? 'joined_at')
+     FROM public.club_roster_signal(:'net_club'::uuid, 12)),
+  'A34: twarz niesie stanowisko i date dolaczenia - awatar bez podpisu jest ozdoba');
+SELECT pg_temp.assert(
+  (SELECT faces->0->>'headline' = 'Dyrektor - MSZ'
+     FROM public.club_roster_signal(:'net_club'::uuid, 12)),
+  'A34: stanowisko sklejone tak samo, jak w tablicy ogloszen i katalogu ekspertow');
+SELECT pg_temp.assert(
+  (SELECT jsonb_array_length(faces) = 3
+     FROM public.club_roster_signal(:'net_club'::uuid, 24)),
+  'A34: pula twarzy jest wieksza niz szesc miejsc w panelu - interfejs ma czym rotowac');
 
 \echo '== A32.5 Poznaj czlonka =='
 SELECT pg_temp.assert(
@@ -1743,7 +1760,7 @@ SELECT pg_temp.assert(
   (SELECT is_me AND state = 'going' FROM public.club_event_attendees(:'net_event'::uuid, 12)),
   'A32: wlasne potwierdzenie jest rozpoznane jako wlasne');
 
-\echo '== A32.7 Dorobek jako wynik wspolnych rozmow =='
+\echo '== A34.1 Modul dorobku wycofany w calosci =='
 -- Drugi glos w rozmowie - z tego samego powodu, co przy watku wyzej.
 INSERT INTO public.club_replies (tenant_id, club_id, thread_id, author_id, body)
 VALUES ('11111111-1111-1111-1111-111111111111', :'net_club'::uuid, :'net_thread'::uuid,
@@ -1757,20 +1774,15 @@ SELECT public.club_document_upsert(:'net_club'::uuid,
   '{"slug":"zrodlo","title_pl":"Zrodlo","title_en":"Source","kind":"analysis",
     "external_url":"https://e.org/s"}'::jsonb);
 
+-- Modul zniknal z produktu, wiec RPC znika z bazy. Asercja pilnuje OBU
+-- sygnatur: A32 miala dwa argumenty, A33 dolozyla przesuniecie - zdjecie
+-- tylko nowszej zostawiloby dzialajacy, nieodpytywany endpoint z nazwiskami.
 SELECT pg_temp.assert(
-  (SELECT count(*) FROM public.club_output_list(:'net_club'::uuid, 4)) = 1,
-  'A32: material zrodlowy nie jest dorobkiem');
-SELECT pg_temp.assert(
-  (SELECT contributor_count FROM public.club_output_list(:'net_club'::uuid, 4)) = 2,
-  'A32: wspolautorzy policzeni z rozmowy, z ktorej produkt wyrosl');
-SELECT pg_temp.assert(
-  (SELECT thread_title IS NOT NULL FROM public.club_output_list(:'net_club'::uuid, 4)),
-  'A32: produkt niesie tytul rozmowy, ktora go zrodzila');
+  to_regprocedure('public.club_output_list(uuid,integer)') IS NULL
+    AND to_regprocedure('public.club_output_list(uuid,integer,integer)') IS NULL,
+  'A34: RPC dorobku znika razem z modulem - obie sygnatury');
 
 UPDATE public.clubs SET attribution_mode = 'chatham' WHERE id = :'net_club'::uuid;
-SELECT pg_temp.assert(
-  (SELECT jsonb_array_length(contributors) FROM public.club_output_list(:'net_club'::uuid, 4)) = 0,
-  'A32: regula Chatham House kasuje twarze, produkt zostaje');
 SELECT pg_temp.assert(
   (SELECT count(*) FROM public.club_thread_experts(:'net_thread'::uuid, 6)) = 0
     OR (SELECT can_see_members FROM public.club_capabilities(:'net_club'::uuid, NULL,
@@ -1806,14 +1818,6 @@ SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000005';
 SELECT pg_temp.assert(
   (SELECT count(*) FROM public.club_board_notices_list(:'net_club'::uuid,NULL,NULL,50,0,true,true)) = 0,
   'A33: zakres "moje" nie pokazuje cudzych ogloszen');
-
-\echo '== A33.2 Dorobek: paginacja i licznik calosci =='
-SELECT pg_temp.assert(
-  (SELECT total_count FROM public.club_output_list(:'net_club'::uuid, 1, 0)) = 1,
-  'A33: licznik mowi o CALYM dorobku, nie o stronie');
-SELECT pg_temp.assert(
-  (SELECT count(*) FROM public.club_output_list(:'net_club'::uuid, 10, 1)) = 0,
-  'A33: przesuniecie poza zbior daje pusta strone, a nie powtorke pierwszej');
 
 \echo '== A33.3 Katalog ekspertow klubu =='
 SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000003';
@@ -2019,20 +2023,14 @@ SELECT pg_temp.assert(
 SELECT pg_temp.assert(
   (SELECT meeting_url IS NULL FROM public.club_event_view(:'net_club'::uuid, 'spotkanie')),
   'A33: anonim NIE dostaje adresu pokoju wideo');
+-- A34: skladu anonim nie dostaje NAWET w klubie publicznym. `can_see_members`
+-- to w bazie dokladnie `can_read`, wiec bramka nie moze stac na nim samym -
+-- stoi na braku GRANT-u dla `anon` i to jest tutaj przedmiotem asercji.
 SELECT pg_temp.assert(
-  (SELECT count(*) FROM public.club_output_list(:'net_club'::uuid, 10, 0)) = 1,
-  'A33: anonim czyta dorobek klubu publicznego (strona jest indeksowalna)');
-SELECT pg_temp.assert(
-  (SELECT jsonb_array_length(contributors) FROM public.club_output_list(:'net_club'::uuid, 10, 0)) = 0,
-  'A33: anonim NIE dostaje nazwisk wspolautorow');
-SELECT pg_temp.assert(
-  (SELECT contributor_count FROM public.club_output_list(:'net_club'::uuid, 10, 0)) = 2,
-  'A33: sama LICZBA wspolautorow zostaje - nikogo nie zdradza');
+  NOT has_function_privilege('anon', 'public.club_roster_signal(uuid,integer)', 'EXECUTE'),
+  'A34: anonim nie wywola skladu z twarzami w zadnym klubie');
 
 SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000003';
-SELECT pg_temp.assert(
-  (SELECT jsonb_array_length(contributors) FROM public.club_output_list(:'net_club'::uuid, 10, 0)) = 2,
-  'A33: zalogowany czlonek widzi wspolautorow');
 UPDATE public.clubs SET visibility = 'members' WHERE id = :'net_club'::uuid;
 
 \echo ''

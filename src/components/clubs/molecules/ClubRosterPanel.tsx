@@ -5,10 +5,12 @@
 // pytanie, na które klub musi odpowiedzieć na wejściu, brzmi: kto tu jest
 // i czy ktokolwiek tu ostatnio był.
 //
-// ISKRA LICZY LUDZI. Czternaście słupków, każdy to liczba RÓŻNYCH osób, które
-// odezwały się danego dnia. Jedna osoba pisząca dziesięć razy i dziesięć osób
-// po razie dawały wcześniej identyczny wykres, mimo że to są dwa zupełnie
-// różne kluby - i tylko drugi z nich jest klubem.
+// TWARZE ZAMIAST WYKRESU (A34). Panel niósł wcześniej iskrę: czternaście
+// słupków z liczbą różnych osób odzywających się danego dnia. To była poprawna
+// odpowiedź na pytanie, którego nikt tu nie zadaje - wchodząc na klub, którego
+// się nie zna, pyta się "kto tu jest", a nie "ilu ich było w środę". W tym
+// samym miejscu stoi teraz sześć twarzy dobieranych rotacyjnie, z plakietką
+// osoby pod kursorem; szczegóły doboru - patrz `ClubRosterFaces`.
 //
 // LICZBA BEZ TWARZY JEST POPRAWNYM STANEM. Klub, który ukrywa skład, oddaje
 // z bazy liczby i zero awatarów. Panel pokazuje wtedy same liczby, bo
@@ -25,12 +27,9 @@ import { toast } from "sonner";
 import { CalendarPlus, Check, Loader2, Radio, Settings2, Users2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { ClubRailPanel, ClubSparkline } from "@/components/clubs/atoms/ClubHubPrimitives";
-import {
-  ClubExpertiseChip,
-  ClubPresenceAvatar,
-  ClubSignalMetric,
-} from "@/components/clubs/atoms/ClubNetworkPrimitives";
+import { ClubRailPanel } from "@/components/clubs/atoms/ClubHubPrimitives";
+import { ClubSignalMetric } from "@/components/clubs/atoms/ClubNetworkPrimitives";
+import { ClubRosterFaces } from "@/components/clubs/molecules/ClubRosterFaces";
 import { MoreLink } from "@/components/clubs/molecules/ClubHubContext";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import {
@@ -38,7 +37,7 @@ import {
   useMyClubExpertise,
   useSetMyClubExpertise,
 } from "@/lib/clubs/useClubNetwork";
-import { hasPeopleMovement, hasRosterContent, CLUB_EXPERTISE_MAX } from "@/lib/clubs/networkTypes";
+import { hasRosterContent, CLUB_EXPERTISE_MAX } from "@/lib/clubs/networkTypes";
 import { sortTopics, topicLabel } from "@/lib/clubs/topicCatalog";
 import { formatNumber } from "@/lib/i18n/format";
 
@@ -212,16 +211,10 @@ export function ClubRosterPanel({
         <ClubExpertiseEditor clubId={clubId} isPl={isPl} onDone={() => setEditing(false)} />
       ) : null}
 
-      {/* Iskra ludzi. Klub bez ani jednego ruchu w dwa tygodnie nie dostaje
-          płaskiej linii na zerze - dostaje jej brak, bo płaska linia wygląda
-          jak zepsuty wykres, a nie jak cisza. */}
-      {hasPeopleMovement(signal.peopleSeries) ? (
-        <ClubSparkline
-          values={signal.peopleSeries}
-          label={t("club.network.roster.chartLabel")}
-          className="mb-3"
-        />
-      ) : null}
+      {/* Twarze STOJĄ NAD LICZBAMI, bo odpowiadają na pierwsze pytanie
+          ("kto tu jest"), a liczby na drugie ("ilu ich jest"). Odwrotna
+          kolejność robiła z modułu licznik z ilustracją. */}
+      <ClubRosterFaces faces={signal.faces} isPl={isPl} topicCatalog={topics} className="mb-3" />
 
       <div className="grid grid-cols-3 gap-2">
         <ClubSignalMetric
@@ -242,42 +235,6 @@ export function ClubRosterPanel({
           emphasis={signal.new7d > 0}
         />
       </div>
-
-      {signal.faces.length > 0 ? (
-        <ul className="mt-3 flex flex-col gap-2 border-t border-border/60 pt-2.5">
-          {signal.faces.slice(0, 6).map((face) => (
-            <li key={face.userId} className="flex items-center gap-2.5">
-              <ClubPresenceAvatar
-                name={face.name}
-                avatarUrl={face.avatarUrl}
-                active={face.isActive}
-              />
-              <div className="min-w-0 flex-1">
-                <p className="flex items-center gap-1.5">
-                  <span className="min-w-0 truncate text-sm">{face.name}</span>
-                  {face.isNew ? (
-                    <span className="shrink-0 rounded-lg bg-primary/10 px-1 text-[10px] font-semibold text-primary">
-                      {t("club.network.roster.newBadge")}
-                    </span>
-                  ) : null}
-                </p>
-                {/* Dwa tagi, nie wszystkie: kolumna ma 20 rem, a trzeci tag
-                    zawija wiersz i rozbija rytm listy. */}
-                {face.topics.length > 0 ? (
-                  <p className="mt-0.5 flex flex-wrap gap-1">
-                    {face.topics.slice(0, 2).map((topic) => (
-                      <ClubExpertiseChip
-                        key={topic}
-                        label={topicLabel(topic, isPl ? "pl" : "en", topics)}
-                      />
-                    ))}
-                  </p>
-                ) : null}
-              </div>
-            </li>
-          ))}
-        </ul>
-      ) : null}
 
       {canDeclare && !editing ? (
         <Button

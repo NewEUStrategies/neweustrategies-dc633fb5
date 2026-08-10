@@ -58,7 +58,6 @@ import {
 } from "@/lib/clubs/useClubs";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import { useClubDocuments, useClubEvents, useClubMilestones } from "@/lib/clubs/useClubWorkspace";
-import { useClubOutput } from "@/lib/clubs/useClubNetwork";
 import {
   CLUB_THREAD_SORTS,
   CLUB_THREAD_SORTS_REQUIRING_SESSION,
@@ -84,11 +83,7 @@ import { ClubGroupPanel } from "@/components/clubs/molecules/ClubGroupPanel";
 import { ClubStreamFilters } from "@/components/clubs/molecules/ClubStreamFilters";
 import { buildClubGroupTree, clubGroupPath } from "@/lib/clubs/groupTree";
 import { ClubCreatePanel } from "@/components/clubs/molecules/ClubCreatePanel";
-import {
-  ClubFreshDocsPanel,
-  ClubOutputPanel,
-  ClubStagePanel,
-} from "@/components/clubs/molecules/ClubHubContext";
+import { ClubFreshDocsPanel, ClubStagePanel } from "@/components/clubs/molecules/ClubHubContext";
 import { ClubBoardPanel } from "@/components/clubs/molecules/ClubBoardPanel";
 import { ClubMeetingPanel } from "@/components/clubs/molecules/ClubMeetingPanel";
 import { ClubRosterPanel } from "@/components/clubs/molecules/ClubRosterPanel";
@@ -153,12 +148,6 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
   // Dokumenty idą tym samym zawężeniem, co strumień: panel działu ma pokazywać
   // materiały TEGO działu, a nie całego klubu.
   const documentsQ = useClubDocuments({ clubId: club.id, groupId, limit: 6 });
-  // Dorobek jest zapytaniem OSOBNYM od strumienia materiałów i celowo NIE idzie
-  // zawężeniem działu: "co ten klub wytworzył" jest pytaniem o klub, a nie
-  // o wycinek, który akurat czytamy. Od A32 jedzie własnym RPC, bo pytanie
-  // zmieniło się z "co opublikowano" na "co powstało ze wspólnych rozmów" -
-  // a to drugie wymaga wątku źródłowego i jego uczestników.
-  const outputQ = useClubOutput({ clubId: club.id, limit: 4 });
   const eventsQ = useClubEvents({ clubId: club.id, from: new Date().toISOString(), limit: 12 });
   const milestonesQ = useClubMilestones(club.id);
   // Ściana (A31). Wpisy idą tym samym zawężeniem działu, co strumień - inaczej
@@ -306,13 +295,16 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
   //      działa także wtedy, gdy w klubie akurat nic się nie dzieje.
   //   2. NAJBLIŻSZE SPOTKANIE + KTO BĘDZIE - most do formatów offline.
   //      Lista potwierdzonych konwertuje, sama data nie.
-  //   3. SKŁAD Z SYGNAŁEM OBECNOŚCI - "czy ktokolwiek tu jest", z iskrą
-  //      liczącą ludzi, a nie wpisy.
+  //   3. SKŁAD Z SYGNAŁEM OBECNOŚCI - "czy ktokolwiek tu jest": sześć twarzy
+  //      dobieranych rotacyjnie i trzy liczby o ludziach.
   //   4. POZNAJ CZŁONKA - jedna twarz tygodniowo, żeby skład przestał być
   //      listą nazwisk.
-  //   5. DOROBEK - co z tych rozmów wyszło. Dowód, że to działa; stoi PO
-  //      mechanizmach, bo jest ich skutkiem, nie zaproszeniem do działania.
-  //   6. ETAP i 7. ŚWIEŻE MATERIAŁY - kontekst pracy, bez zmian.
+  //   5. ETAP i 6. ŚWIEŻE MATERIAŁY - kontekst pracy, bez zmian.
+  //
+  // Cztery pierwsze panele mówią WYŁĄCZNIE o ludziach i stoją bez przerwy -
+  // dlatego dorobek klubu wypadł stąd w A34 razem z całym modułem: lista
+  // materiałów w środku tego ciągu przerywała go pytaniem, na które i tak
+  // odpowiada biblioteka.
   //
   // Panel źródeł zniknął w całości: drzewo działów z licznikami stoi w LEWEJ
   // szynie, a każda karta strumienia niesie chip działu, którym można zawęzić
@@ -344,12 +336,6 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
         locale={locale}
       />
       <ClubSpotlightPanel clubSlug={clubSlug} clubId={club.id} isPl={isPl} />
-      <ClubOutputPanel
-        clubSlug={clubSlug}
-        entries={outputQ.data?.entries ?? []}
-        total={outputQ.data?.total ?? 0}
-        isPl={isPl}
-      />
       <ClubStagePanel
         clubSlug={clubSlug}
         milestones={milestones}
