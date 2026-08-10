@@ -144,12 +144,16 @@ export const clubGateEn = {
     sentTitle: "Check your inbox",
     sentBody:
       "We sent a confirmation link to {{email}}. Once confirmed you come back here and choose a plan.",
+    newsletterOptIn: "I want to receive the newsletter",
     errors: {
       email: "Enter a valid email address.",
       password: "Password must be at least 8 characters.",
+      passwordMismatch: "Passwords must match.",
+      required: "Please fill in: {{field}}.",
       generic: "We could not create the account. Please try again.",
       rate: "Too many attempts - please try again in a few minutes.",
     },
+
     secure: "No commitment - change or cancel the plan in your profile.",
   },
 } as const;
