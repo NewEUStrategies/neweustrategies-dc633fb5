@@ -106,6 +106,9 @@ export function NewsletterForm({
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [company, setCompany] = useState("");
+  const [position, setPosition] = useState("");
+  const [phone, setPhone] = useState("");
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [state, setState] = useState<"idle" | "loading" | "ok" | "err">("idle");
   const [okStatus, setOkStatus] = useState<SubscribeStatus>("pending");
@@ -152,16 +155,26 @@ export function NewsletterForm({
 
 
   // Per-widget visibility toggles for the extra fields.
-  const showFirstName = boolCfg(cfg, "showFirstName", false);
-  const showLastName = boolCfg(cfg, "showLastName", false);
-  const showCompany = boolCfg(cfg, "showCompany", false);
+  // Instancje spoza buildera (stopka wpisu, sidebar, archiwum, popup) nie mają
+  // własnej konfiguracji - dostają wtedy ten sam, pełny zestaw pól co widget
+  // "Dołącz do nas" na stronie głównej (imię, nazwisko, stanowisko, firma,
+  // telefon). Widgety z buildera nadal decydują same.
+  const hasCfg = Object.keys(cfg).length > 0;
+  const showFirstName = boolCfg(cfg, "showFirstName", !hasCfg);
+  const showLastName = boolCfg(cfg, "showLastName", !hasCfg);
+  const showCompany = boolCfg(cfg, "showCompany", !hasCfg);
+  const showPosition = boolCfg(cfg, "showPosition", !hasCfg);
+  const showPhone = boolCfg(cfg, "showPhone", !hasCfg);
   const requireFirstName = boolCfg(cfg, "requireFirstName", false);
   const requireLastName = boolCfg(cfg, "requireLastName", false);
   const requireCompany = boolCfg(cfg, "requireCompany", false);
+  const requirePosition = boolCfg(cfg, "requirePosition", false);
+  const requirePhone = boolCfg(cfg, "requirePhone", false);
   const requireEmail = boolCfg(cfg, "requireEmail", true);
 
   if (!s || !s.enabled) {
     if (!inBuilder) return null;
+
     return (
       <div
         role="status"
@@ -183,7 +196,10 @@ export function NewsletterForm({
     lastName: fieldLabels.label("lastName", readI18nOverride(cfg, "lastNameLabel", lang, "")),
     email: fieldLabels.label("email", readI18nOverride(cfg, "emailLabel", lang, "")),
     company: fieldLabels.label("company", readI18nOverride(cfg, "companyLabel", lang, "")),
+    position: fieldLabels.label("position", readI18nOverride(cfg, "positionLabel", lang, "")),
+    phone: fieldLabels.label("phone", readI18nOverride(cfg, "phoneLabel", lang, "")),
   };
+
   const showInterests = boolCfg(cfg, "showInterests", true) && allItems.length > 0;
   const P = {
     firstName: readI18nOverride(
@@ -227,6 +243,9 @@ export function NewsletterForm({
     if (showFirstName && requireFirstName && !firstName.trim()) errs.firstName = requiredText;
     if (showLastName && requireLastName && !lastName.trim()) errs.lastName = requiredText;
     if (showCompany && requireCompany && !company.trim()) errs.company = requiredText;
+    if (showPosition && requirePosition && !position.trim()) errs.position = requiredText;
+    if (showPhone && requirePhone && !phone.trim()) errs.phone = requiredText;
+
     Object.assign(errs, validateCustom(customFields, custom, requiredText));
 
     if (Object.keys(errs).length) {
@@ -244,6 +263,9 @@ export function NewsletterForm({
 
       const meta: Record<string, string> = {};
       if (company.trim()) meta.company = company.trim();
+      if (position.trim()) meta.position = position.trim().slice(0, 500);
+      if (phone.trim()) meta.phone = phone.trim().slice(0, 500);
+
 
       const pickedItemIds = Array.from(picked);
       if (pickedItemIds.length > 0) {
@@ -301,7 +323,14 @@ export function NewsletterForm({
 
   const inputCls = "px-3 py-2 rounded border border-input bg-background text-sm w-full";
   const hasExtras =
-    showFirstName || showLastName || showCompany || customFields.length > 0 || showInterests;
+    showFirstName ||
+    showLastName ||
+    showCompany ||
+    showPosition ||
+    showPhone ||
+    customFields.length > 0 ||
+    showInterests;
+
 
   return (
     <section className={containerCls} aria-labelledby="newsletter-heading">
@@ -402,6 +431,43 @@ export function NewsletterForm({
                     />
                   </FieldWrap>
                 )}
+                {showPosition && (
+                  <FieldWrap
+                    label={L.position}
+                    required={requirePosition}
+                    showMark={inBuilder}
+                    error={errors.position}
+                  >
+                    <input
+                      type="text"
+                      value={position}
+                      onChange={(e) => setPosition(e.target.value)}
+                      className={inputCls}
+                      maxLength={200}
+                      required={requirePosition}
+                      aria-required={requirePosition || undefined}
+                    />
+                  </FieldWrap>
+                )}
+                {showPhone && (
+                  <FieldWrap
+                    label={L.phone}
+                    required={requirePhone}
+                    showMark={inBuilder}
+                    error={errors.phone}
+                  >
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className={inputCls}
+                      maxLength={40}
+                      required={requirePhone}
+                      aria-required={requirePhone || undefined}
+                    />
+                  </FieldWrap>
+                )}
+
                 <FieldWrap
                   label={L.email}
                   required={requireEmail}
