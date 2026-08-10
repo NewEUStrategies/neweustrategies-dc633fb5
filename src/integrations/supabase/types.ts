@@ -15453,6 +15453,45 @@ export type Database = {
         }
         Returns: boolean
       }
+      club_board_notice_close: {
+        Args: { p_notice_id: string }
+        Returns: boolean
+      }
+      club_board_notice_create: {
+        Args: {
+          p_body: string
+          p_club_id: string
+          p_days?: number
+          p_kind: string
+          p_topic?: string
+        }
+        Returns: string
+      }
+      club_board_notices_list: {
+        Args: {
+          p_club_id: string
+          p_kind?: string
+          p_limit?: number
+          p_offset?: number
+          p_topic?: string
+        }
+        Returns: {
+          author_avatar: string
+          author_headline: string
+          author_id: string
+          author_name: string
+          author_slug: string
+          body: string
+          can_close: boolean
+          created_at: string
+          expires_at: string
+          id: string
+          is_mine: boolean
+          kind: string
+          topic: string
+          total_count: number
+        }[]
+      }
       club_bump_unread: {
         Args: { p_actor_id: string; p_club_id: string }
         Returns: undefined
@@ -15561,6 +15600,19 @@ export type Database = {
         Args: { _role: string; _role_expires_at: string }
         Returns: string
       }
+      club_event_attendees: {
+        Args: { p_event_id: string; p_limit?: number }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          headline: string
+          is_me: boolean
+          profile_slug: string
+          state: string
+          total_count: number
+          user_id: string
+        }[]
+      }
       club_event_delete: { Args: { p_event_id: string }; Returns: boolean }
       club_event_rsvp: {
         Args: { p_event_id: string; p_state: string }
@@ -15606,6 +15658,16 @@ export type Database = {
           title_en: string
           title_pl: string
         }[]
+      }
+      club_expertise_mine: {
+        Args: { p_club_id: string }
+        Returns: {
+          topic: string
+        }[]
+      }
+      club_expertise_set: {
+        Args: { p_club_id: string; p_topics: string[] }
+        Returns: number
       }
       club_export_my_data: { Args: { p_limit?: number }; Returns: Json }
       club_groups_list: {
@@ -15698,6 +15760,25 @@ export type Database = {
         }[]
       }
       club_mark_read: { Args: { p_club_id: string }; Returns: number }
+      club_member_spotlight_current: {
+        Args: { p_club_id: string }
+        Returns: {
+          avatar_url: string
+          bio_en: string
+          bio_pl: string
+          blurb_en: string
+          blurb_pl: string
+          club_role: string
+          curated: boolean
+          display_name: string
+          headline: string
+          joined_at: string
+          profile_slug: string
+          topics: string[]
+          user_id: string
+          week_start: string
+        }[]
+      }
       club_members_list: {
         Args: {
           p_club_id: string
@@ -15819,6 +15900,27 @@ export type Database = {
           _user_id: string
         }
         Returns: undefined
+      }
+      club_output_list: {
+        Args: { p_club_id: string; p_limit?: number }
+        Returns: {
+          contributor_count: number
+          contributors: Json
+          external_url: string
+          file_url: string
+          id: string
+          kind: string
+          published_at: string
+          slug: string
+          summary_en: string
+          summary_pl: string
+          thread_id: string
+          thread_slug: string
+          thread_title: string
+          title_en: string
+          title_pl: string
+          total_count: number
+        }[]
       }
       club_post_create: {
         Args: {
@@ -15968,6 +16070,17 @@ export type Database = {
         Args: { p_accept: boolean; p_invitation_id: string }
         Returns: string
       }
+      club_roster_signal: {
+        Args: { p_club_id: string; p_limit?: number }
+        Returns: {
+          active_7d: number
+          active_24h: number
+          faces: Json
+          members_total: number
+          new_7d: number
+          people_series: number[]
+        }[]
+      }
       club_scheduler_tick: { Args: never; Returns: Json }
       club_search: {
         Args: { p_club_id?: string; p_limit?: number; p_query: string }
@@ -16100,6 +16213,25 @@ export type Database = {
       club_thread_embedding_source: {
         Args: { p_thread_id: string }
         Returns: string
+      }
+      club_thread_expert_ping: {
+        Args: { p_thread_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      club_thread_experts: {
+        Args: { p_limit?: number; p_thread_id: string }
+        Returns: {
+          avatar_url: string
+          club_role: string
+          display_name: string
+          headline: string
+          in_thread: boolean
+          pinged_by_me: boolean
+          profile_slug: string
+          topic: string
+          topics: string[]
+          user_id: string
+        }[]
       }
       club_thread_hotness: {
         Args: {
