@@ -300,8 +300,13 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
   // kanoniczny adres wpisu to `<rodzic>/<slug>`, więc stary warunek
   // `pathname.startsWith("/post/")` nie łapał ŻADNEGO realnego wpisu.
   const headerMode = resolveHeaderMode({ pathname, contentKind });
+  // Landing quizu jest jednoekranowy (iframe wypełnia widok), więc nie ma czego
+  // przewijać - header startuje od razu w wersji minimalnej, dokładnie takiej,
+  // jaką strona wpisu pokazuje po przewinięciu.
+  const forceCompact = /^\/(en\/)?quiz\/?$/.test(pathname);
   const stickyShrink = headerMode === "sticky-shrink";
-  const [scrolled, setScrolled] = useState(false);
+  const [scrolled, setScrolled] = useState(forceCompact);
+
   const headerRef = useRef<HTMLElement | null>(null);
   // `transform: scale()` rasteryzuje tekst w skali warstwy, więc zwinięty header
   // trzymał rozmyte napisy tak długo, jak długo strona była przewinięta.
