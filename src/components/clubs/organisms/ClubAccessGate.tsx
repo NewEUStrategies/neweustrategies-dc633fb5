@@ -38,6 +38,13 @@ import { useUserBadges } from "@/lib/profile/badges";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { FieldBox } from "@/components/ui/field-box";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  buildSignupMetadata,
+  useRegistrationFields,
+  type RegistrationFieldKey,
+} from "@/lib/auth/registrationFields";
+
 import { ClubCover } from "@/components/clubs/atoms/ClubCover";
 import { planTierFromRank } from "@/lib/clubs/planTiers";
 import type { ClubViewRow } from "@/lib/clubs/types";
@@ -219,26 +226,62 @@ function MemberActions({
 
 function GateSignupForm({ plan }: { plan: string }) {
   const { t, i18n } = useTranslation();
-  const lang = (i18n.language ?? "pl").startsWith("pl") ? "pl" : "en";
+  const lang: "pl" | "en" = (i18n.language ?? "pl").startsWith("pl") ? "pl" : "en";
   const runPreAuthGuard = useServerFn(preAuthGuard);
+  // Te same pola, etykiety i wymagalność co popup rejestracji i /login -
+  // jedno źródło prawdy: newsletter_settings.popup_fields (Admin → Popupy).
+  const reg = useRegistrationFields(lang);
 
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [values, setValues] = useState<Record<RegistrationFieldKey, string>>({
+    first_name: "",
+    last_name: "",
+    job: "",
+    company: "",
+    linkedin: "",
+    email: "",
+    phone: "",
+    password: "",
+    password_confirm: "",
+    list: "",
+    newsletter_optin: "",
+  });
+  const [newsletterOptIn, setNewsletterOptIn] = useState(true);
   const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
 
+  const set = (key: RegistrationFieldKey, value: string) =>
+    setValues((prev) => ({ ...prev, [key]: value }));
+
+  const on = (key: RegistrationFieldKey) => reg.isEnabled(key);
+  const req = (key: RegistrationFieldKey) => reg.isRequired(key);
+  const labelOf = (key: RegistrationFieldKey, fallback: string) =>
+    `${reg.label(key, fallback)}${req(key) ? " *" : ""}`;
+
   const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
-    const mail = email.trim().toLowerCase();
+    const mail = values.email.trim().toLowerCase();
     if (!EMAIL_RE.test(mail)) {
       toast.error(t("clubGate.errors.email"));
       return;
     }
-    if (password.length < 8) {
+    if (values.password.length < 8) {
       toast.error(t("clubGate.errors.password"));
+      return;
+    }
+    if (on("password_confirm") && values.password_confirm !== values.password) {
+      toast.error(t("clubGate.errors.passwordMismatch"));
+      return;
+    }
+    const missing = reg.visible.find(
+      (field) =>
+        field.required &&
+        field.key !== "newsletter_optin" &&
+        field.key !== "list" &&
+        values[field.key].trim() === "",
+    );
+    if (missing) {
+      toast.error(t("clubGate.errors.required", { field: reg.label(missing.key, missing.key) }));
       return;
     }
     setBusy(true);
@@ -254,27 +297,26 @@ function GateSignupForm({ plan }: { plan: string }) {
         throw guardError;
       }
 
-      const first = firstName.trim();
-      const last = lastName.trim();
-      const display = [first, last].filter(Boolean).join(" ") || mail.split("@")[0];
-
       const { error } = await supabase.auth.signUp({
         email: mail,
-        password,
+        password: values.password,
         options: {
           // Po potwierdzeniu wracamy DOKŁADNIE na tę stronę klubu - intencja
           // użytkownika nie może zginąć w podróży przez skrzynkę pocztową.
           emailRedirectTo: `${window.location.origin}${window.location.pathname}`,
-          data: {
-            display_name: display,
-            first_name: first,
-            last_name: last,
-            full_name: display,
-            signup_type: "reader",
-            signup_source: "club_gate",
-            preferred_language: lang,
-            marketing_opt_in: false,
-          },
+          data: buildSignupMetadata(
+            {
+              firstName: values.first_name,
+              lastName: values.last_name,
+              job: values.job,
+              company: values.company,
+              linkedin: values.linkedin,
+              phone: values.phone,
+              email: mail,
+              newsletterOptIn: on("newsletter_optin") ? newsletterOptIn : false,
+            },
+            { lang, source: "club_gate" },
+          ),
         },
       });
       if (error) throw error;
@@ -292,7 +334,7 @@ function GateSignupForm({ plan }: { plan: string }) {
         <MailCheck className="mx-auto h-8 w-8 text-primary" aria-hidden="true" />
         <p className="text-sm font-medium">{t("clubGate.sentTitle")}</p>
         <p className="text-sm text-muted-foreground">
-          {t("clubGate.sentBody", { email: email.trim().toLowerCase() })}
+          {t("clubGate.sentBody", { email: values.email.trim().toLowerCase() })}
         </p>
         <Button asChild variant="outline" className="w-full rounded-lg">
           <Link to="/pricing">{t("clubGate.plansCta")}</Link>
@@ -309,50 +351,118 @@ function GateSignupForm({ plan }: { plan: string }) {
       </p>
       <p className="text-xs text-muted-foreground">{t("clubGate.signupLead", { plan })}</p>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      {on("first_name") || on("last_name") ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {on("first_name") ? (
+            <FieldBox
+              label={labelOf("first_name", t("clubGate.firstName"))}
+              value={values.first_name}
+              autoComplete="given-name"
+              onChange={(event) => set("first_name", event.target.value)}
+            />
+          ) : null}
+          {on("last_name") ? (
+            <FieldBox
+              label={labelOf("last_name", t("clubGate.lastName"))}
+              value={values.last_name}
+              autoComplete="family-name"
+              onChange={(event) => set("last_name", event.target.value)}
+            />
+          ) : null}
+        </div>
+      ) : null}
+
+      {on("job") ? (
         <FieldBox
-          label={t("clubGate.firstName")}
-          value={firstName}
-          autoComplete="given-name"
-          onChange={(event) => setFirstName(event.target.value)}
+          label={labelOf("job", "Stanowisko")}
+          value={values.job}
+          autoComplete="organization-title"
+          onChange={(event) => set("job", event.target.value)}
         />
+      ) : null}
+      {on("company") ? (
         <FieldBox
-          label={t("clubGate.lastName")}
-          value={lastName}
-          autoComplete="family-name"
-          onChange={(event) => setLastName(event.target.value)}
+          label={labelOf("company", "Firma / organizacja")}
+          value={values.company}
+          autoComplete="organization"
+          onChange={(event) => set("company", event.target.value)}
         />
+      ) : null}
+      {on("linkedin") ? (
+        <FieldBox
+          label={labelOf("linkedin", "LinkedIn")}
+          value={values.linkedin}
+          autoComplete="url"
+          onChange={(event) => set("linkedin", event.target.value)}
+        />
+      ) : null}
+
+      <div className={on("phone") ? "grid gap-3 sm:grid-cols-2" : undefined}>
+        <FieldBox
+          label={labelOf("email", t("clubGate.email"))}
+          type="email"
+          required
+          value={values.email}
+          autoComplete="email"
+          onChange={(event) => set("email", event.target.value)}
+        />
+        {on("phone") ? (
+          <FieldBox
+            label={labelOf("phone", "Numer telefonu")}
+            type="tel"
+            value={values.phone}
+            autoComplete="tel"
+            onChange={(event) => set("phone", event.target.value)}
+          />
+        ) : null}
       </div>
-      <FieldBox
-        label={t("clubGate.email")}
-        type="email"
-        required
-        value={email}
-        autoComplete="email"
-        onChange={(event) => setEmail(event.target.value)}
-      />
-      <FieldBox
-        label={t("clubGate.password")}
-        type={showPw ? "text" : "password"}
-        required
-        value={password}
-        autoComplete="new-password"
-        onChange={(event) => setPassword(event.target.value)}
-        trailing={
-          <button
-            type="button"
-            onClick={() => setShowPw((v) => !v)}
-            aria-label={t("clubGate.password")}
-            className="text-muted-foreground transition-colors hover:text-foreground"
-          >
-            {showPw ? (
-              <EyeOff className="h-4 w-4" aria-hidden="true" />
-            ) : (
-              <Eye className="h-4 w-4" aria-hidden="true" />
-            )}
-          </button>
-        }
-      />
+
+      <div className={on("password_confirm") ? "grid gap-3 sm:grid-cols-2" : undefined}>
+        <FieldBox
+          label={labelOf("password", t("clubGate.password"))}
+          type={showPw ? "text" : "password"}
+          required
+          value={values.password}
+          autoComplete="new-password"
+          onChange={(event) => set("password", event.target.value)}
+          trailing={
+            <button
+              type="button"
+              onClick={() => setShowPw((v) => !v)}
+              aria-label={t("clubGate.password")}
+              className="text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {showPw ? (
+                <EyeOff className="h-4 w-4" aria-hidden="true" />
+              ) : (
+                <Eye className="h-4 w-4" aria-hidden="true" />
+              )}
+            </button>
+          }
+        />
+        {on("password_confirm") ? (
+          <FieldBox
+            label={labelOf("password_confirm", "Powtórz hasło")}
+            type={showPw ? "text" : "password"}
+            required
+            value={values.password_confirm}
+            autoComplete="new-password"
+            onChange={(event) => set("password_confirm", event.target.value)}
+          />
+        ) : null}
+      </div>
+
+      {on("newsletter_optin") ? (
+        <label className="flex items-start gap-2 text-xs text-muted-foreground">
+          <Checkbox
+            checked={newsletterOptIn}
+            onCheckedChange={(checked) => setNewsletterOptIn(checked === true)}
+            className="mt-0.5"
+          />
+          <span>{reg.label("newsletter_optin", t("clubGate.newsletterOptIn"))}</span>
+        </label>
+      ) : null}
+
 
       <Button type="submit" className="w-full rounded-lg" disabled={busy}>
         {busy ? (
