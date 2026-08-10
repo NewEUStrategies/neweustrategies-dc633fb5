@@ -867,6 +867,11 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "11 - Wstęga ze spadem i linią (np. Najnowszy raport)":
     "11 - Ribbon with a bleed and a rule (e.g. Latest report)",
   "12 - Subtelne linie (np. Wywiady | Podcasty)": "12 - Subtle rules (e.g. Interviews | Podcasts)",
+  "13 - Editorial Index (numer + tytuł, styl FT Lex)":
+    "13 - Editorial Index (number + title, FT Lex style)",
+  "14 - Double-Deck Masthead (kategoria nad tytułem)":
+    "14 - Double-Deck Masthead (category above title)",
+
 
   // ------------------------------------------------------- sidebar styles
   "Style 1 - Solid Classic": "Style 1 - Solid Classic",

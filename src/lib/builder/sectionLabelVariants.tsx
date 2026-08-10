@@ -16,7 +16,9 @@ export type SectionLabelVariant =
   | "filled-bar"
   | "centered-underline"
   | "slanted-ribbon-rule"
-  | "double-rule-centered";
+  | "double-rule-centered"
+  | "editorial-index"
+  | "double-deck-masthead";
 
 export const SECTION_LABEL_VARIANTS: { value: SectionLabelVariant; label: string }[] = [
   { value: "left-bar", label: "01 - Pionowy pasek" },
@@ -36,7 +38,58 @@ export const SECTION_LABEL_VARIANTS: { value: SectionLabelVariant; label: string
   },
   { value: "slanted-ribbon-rule", label: "11 - Wstęga ze spadem i linią (np. Najnowszy raport)" },
   { value: "double-rule-centered", label: "12 - Subtelne linie (np. Wywiady | Podcasty)" },
+  { value: "editorial-index", label: "13 - Editorial Index (numer + tytuł, styl FT Lex)" },
+  { value: "double-deck-masthead", label: "14 - Double-Deck Masthead (kategoria nad tytułem)" },
 ];
+
+// ---- Typografia konfigurowalna (numer / kategoria / tytuł) ----
+export type SectionLabelFont = "inherit" | "display" | "serif" | "sans" | "mono";
+
+export const SECTION_LABEL_FONTS: { value: SectionLabelFont; label: string }[] = [
+  { value: "inherit", label: "Domyślna" },
+  { value: "display", label: "Display (Red Hat Display)" },
+  { value: "serif", label: "Serif (redakcyjna)" },
+  { value: "sans", label: "Sans" },
+  { value: "mono", label: "Mono" },
+];
+
+export function resolveFontFamily(font?: string): string | undefined {
+  switch (font) {
+    case "display":
+      return 'var(--font-display, "Red Hat Display", system-ui, sans-serif)';
+    case "serif":
+      return '"Iowan Old Style", "Palatino Linotype", Georgia, "Times New Roman", serif';
+    case "sans":
+      return "var(--font-sans, system-ui, -apple-system, sans-serif)";
+    case "mono":
+      return 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace';
+    default:
+      return undefined;
+  }
+}
+
+export type SectionLabelArrow = "arrow" | "chevron" | "long" | "none";
+
+export const SECTION_LABEL_ARROWS: { value: SectionLabelArrow; label: string }[] = [
+  { value: "arrow", label: "Strzałka →" },
+  { value: "chevron", label: "Chevron ›" },
+  { value: "long", label: "Długa strzałka ⟶" },
+  { value: "none", label: "Bez strzałki" },
+];
+
+export function arrowGlyph(kind?: string): string {
+  switch (kind) {
+    case "chevron":
+      return "›";
+    case "long":
+      return "⟶";
+    case "none":
+      return "";
+    default:
+      return "→";
+  }
+}
+
 
 // Resolve preset color names to CSS color values (also supports raw hex/oklch).
 export function resolveAccentColor(color?: string): string {
@@ -102,6 +155,16 @@ export interface SectionLabelContentProps {
   labelSize?: string;
   actionColor?: string;
   actionSize?: string;
+  // Warianty 13/14
+  indexNumber?: string;
+  category?: string;
+  showRule?: boolean;
+  numberFont?: string;
+  numberSize?: string;
+  categoryFont?: string;
+  categorySize?: string;
+  titleFont?: string;
+  arrow?: string;
 }
 
 export function readSectionLabelProps(
@@ -113,6 +176,10 @@ export function readSectionLabelProps(
     const v = c[k];
     return typeof v === "string" ? v : "";
   };
+  const bool = (k: string, dflt: boolean): boolean => {
+    const v = c[k];
+    return typeof v === "boolean" ? v : dflt;
+  };
   const label = str(`label_${lang}`) || str("label_pl") || opts.labelFallback || "Sekcja";
   const actionRaw = str(`action_${lang}`) || str("action_pl") || opts.actionFallback || "";
   const href = str("href");
@@ -122,9 +189,10 @@ export function readSectionLabelProps(
   const accent = resolveAccentColor(
     opts.theme === "dark" ? autoInvertColor(colorBase, "dark") : colorBase,
   );
+  const showAction = bool("showAction", true);
   return {
     label,
-    action: actionRaw || undefined,
+    action: showAction && actionRaw ? actionRaw : undefined,
     href: href || undefined,
     accent,
     variant,
@@ -132,6 +200,15 @@ export function readSectionLabelProps(
     labelSize: str("labelSize") || undefined,
     actionColor: str("actionColor") || undefined,
     actionSize: str("actionSize") || undefined,
+    indexNumber: str("indexNumber") || undefined,
+    category: str(`category_${lang}`) || str("category_pl") || undefined,
+    showRule: bool("showRule", true),
+    numberFont: str("numberFont") || undefined,
+    numberSize: str("numberSize") || undefined,
+    categoryFont: str("categoryFont") || undefined,
+    categorySize: str("categorySize") || undefined,
+    titleFont: str("titleFont") || undefined,
+    arrow: str("arrow") || undefined,
   };
 }
 
@@ -146,6 +223,15 @@ interface RenderProps {
   labelSize?: string; // override label font-size (e.g. "14px", "1rem")
   actionColor?: string; // override action ("więcej") color
   actionSize?: string; // override action font-size
+  indexNumber?: string;
+  category?: string;
+  showRule?: boolean;
+  numberFont?: string;
+  numberSize?: string;
+  categoryFont?: string;
+  categorySize?: string;
+  titleFont?: string;
+  arrow?: string;
 }
 
 export function SectionLabelRender({
@@ -159,6 +245,15 @@ export function SectionLabelRender({
   labelSize,
   actionColor,
   actionSize,
+  indexNumber,
+  category,
+  showRule = true,
+  numberFont,
+  numberSize,
+  categoryFont,
+  categorySize,
+  titleFont,
+  arrow,
 }: RenderProps) {
   const isSm = size === "sm";
   const textCls = isSm
@@ -172,9 +267,13 @@ export function SectionLabelRender({
   // would double the spacing on top of the column gap.
   const wrapperBase = isSm ? "mb-1" : "";
 
+  const glyph = arrowGlyph(arrow);
+  const titleFamily = resolveFontFamily(titleFont);
+
   const labelStyle: React.CSSProperties = {};
   if (labelColor) labelStyle.color = labelColor;
   if (labelSize && !isSm) labelStyle.fontSize = labelSize;
+  if (titleFamily) labelStyle.fontFamily = titleFamily;
 
   const actionStyle: React.CSSProperties = {};
   if (actionColor) actionStyle.color = actionColor;
@@ -188,14 +287,15 @@ export function SectionLabelRender({
         className={`${actionCls} shrink-0`}
         style={{ color: actionColor || accent, ...actionStyle }}
       >
-        {action} →
+        {glyph ? `${action} ${glyph}` : action}
       </AppLink>
     ) : (
       <span data-description-root className={`${actionCls} shrink-0`} style={actionStyle}>
-        {action} →
+        {glyph ? `${action} ${glyph}` : action}
       </span>
     )
   ) : null;
+
 
   const labelEl = (
     <span data-title-root className={`${textCls} min-w-0`} style={labelStyle}>
@@ -363,7 +463,7 @@ export function SectionLabelRender({
                   ...(actionSize && !isSm ? { fontSize: actionSize } : {}),
                 }}
               >
-                {action} →
+                {glyph ? `${action} ${glyph}` : action}
               </AppLink>
             ) : (
               <span
@@ -374,7 +474,7 @@ export function SectionLabelRender({
                   ...(actionSize && !isSm ? { fontSize: actionSize } : {}),
                 }}
               >
-                {action} →
+                {glyph ? `${action} ${glyph}` : action}
               </span>
             ))}
         </div>
@@ -499,8 +599,91 @@ export function SectionLabelRender({
         </div>
       );
     }
+
+    case "editorial-index": {
+      // FT Lex: duży, stonowany numer sekcji + tytuł w wybranej czcionce.
+      const num = indexNumber || "01";
+      const numStyle: React.CSSProperties = {
+        color: accent,
+        fontFamily: resolveFontFamily(numberFont) ?? undefined,
+        fontSize: !isSm && numberSize ? numberSize : undefined,
+        lineHeight: 1,
+      };
+      const titleCls = isSm
+        ? "text-[10px] font-semibold tracking-tight"
+        : "font-display text-lg sm:text-2xl font-semibold tracking-tight";
+      return (
+        <div className={`${wrapperBase} w-full min-w-0 ${padY}`}>
+          <div className="flex items-baseline gap-3 sm:gap-4 min-w-0">
+            <span
+              aria-hidden
+              className={`${isSm ? "text-[14px]" : "text-3xl sm:text-5xl"} font-bold tabular-nums shrink-0 opacity-90`}
+              style={numStyle}
+            >
+              {num}
+            </span>
+            <span data-title-root className={`${titleCls} min-w-0 break-words`} style={labelStyle}>
+              {label}
+            </span>
+            {ActionEl && <span className="ml-auto shrink-0">{ActionEl}</span>}
+          </div>
+          {showRule && (
+            <span
+              aria-hidden
+              className={`block w-full ${isSm ? "mt-1" : "mt-2 sm:mt-3"}`}
+              style={{ height: 1, background: "currentColor", opacity: 0.18 }}
+            />
+          )}
+        </div>
+      );
+    }
+
+    case "double-deck-masthead": {
+      // Mała kategoria (kicker) nad dużym tytułem sekcji, opcjonalna linia pod.
+      const kicker = category || "";
+      const catStyle: React.CSSProperties = {
+        color: accent,
+        fontFamily: resolveFontFamily(categoryFont) ?? undefined,
+        fontSize: !isSm && categorySize ? categorySize : undefined,
+      };
+      const titleCls = isSm
+        ? "text-[11px] font-semibold tracking-tight"
+        : "font-display text-lg sm:text-2xl font-semibold tracking-tight";
+      return (
+        <div className={`${wrapperBase} w-full min-w-0 ${padY}`}>
+          <div className="flex items-end justify-between gap-3 min-w-0">
+            <div className="min-w-0">
+              {kicker && (
+                <div
+                  className={`${isSm ? "text-[7px]" : "text-[10px] sm:text-[11px]"} font-bold uppercase tracking-[0.18em]`}
+                  style={catStyle}
+                >
+                  {kicker}
+                </div>
+              )}
+              <div
+                data-title-root
+                className={`${titleCls} ${isSm ? "mt-0.5" : "mt-1"} break-words`}
+                style={labelStyle}
+              >
+                {label}
+              </div>
+            </div>
+            {ActionEl && <span className="shrink-0">{ActionEl}</span>}
+          </div>
+          {showRule && (
+            <span
+              aria-hidden
+              className={`block w-full ${isSm ? "mt-1" : "mt-2 sm:mt-3"}`}
+              style={{ height: isSm ? 1 : 2, background: accent }}
+            />
+          )}
+        </div>
+      );
+    }
   }
 }
+
 
 function Corners({ accent, sm }: { accent: string; sm: boolean }) {
   const s = sm ? 4 : 8;

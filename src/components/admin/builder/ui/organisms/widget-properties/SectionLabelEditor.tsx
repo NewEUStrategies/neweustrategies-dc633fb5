@@ -68,10 +68,60 @@ function PxSizeInput({
 }
 import {
   SECTION_LABEL_VARIANTS,
+  SECTION_LABEL_FONTS,
+  SECTION_LABEL_ARROWS,
   SectionLabelRender,
   readSectionLabelProps,
   type SectionLabelVariant,
 } from "@/lib/builder/sectionLabelVariants";
+
+// Kompaktowy natywny select - spójny z resztą paneli właściwości.
+function MiniSelect({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="h-8 w-full rounded-[6px] border border-border bg-background px-2 text-xs"
+    >
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function MiniToggle({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+}) {
+  return (
+    <label className="flex items-center gap-2 text-xs text-foreground">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="h-3.5 w-3.5 rounded-[3px] border-border accent-[color:var(--brand,#FA9346)]"
+      />
+      {label}
+    </label>
+  );
+}
+
 
 const PRESET_COLORS: { value: string; label: string; hex: string }[] = [
   { value: "brand", label: "Brand", hex: "#FA9346" },
@@ -114,8 +164,21 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
   const labelSize = derived.labelSize ?? "";
   const actionColor = derived.actionColor ?? "";
   const actionSize = derived.actionSize ?? "";
+  const categoryKey = `category_${lang}`;
+  const category = (typeof c[categoryKey] === "string" ? c[categoryKey] : "") as string;
+  const indexNumber = derived.indexNumber ?? "";
+  const showRule = derived.showRule !== false;
+  const showAction = typeof c.showAction === "boolean" ? c.showAction : true;
+  const arrow = derived.arrow ?? "arrow";
+  const numberFont = derived.numberFont ?? "inherit";
+  const numberSize = derived.numberSize ?? "";
+  const categoryFont = derived.categoryFont ?? "inherit";
+  const categorySize = derived.categorySize ?? "";
+  const titleFont = derived.titleFont ?? "inherit";
+  const isEditorial = variant === "editorial-index" || variant === "double-deck-masthead";
 
   const previewLabel = derived.label;
+
 
   return (
     <div className="space-y-3">
@@ -209,7 +272,9 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
                   <div className="w-full min-w-0">
                     <SectionLabelRender
                       label={previewLabel}
-                      action={action || t("builder.sectionLabelEditor.more")}
+                      action={
+                        showAction ? action || t("builder.sectionLabelEditor.more") : undefined
+                      }
                       accent={accent}
                       variant={v.value}
                       size="sm"
@@ -217,7 +282,15 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
                       labelSize={labelSize || undefined}
                       actionColor={actionColor || undefined}
                       actionSize={actionSize || undefined}
+                      indexNumber={indexNumber || undefined}
+                      category={category || t("builder.sectionLabelEditor.categoryPh")}
+                      showRule={showRule}
+                      numberFont={numberFont}
+                      categoryFont={categoryFont}
+                      titleFont={titleFont}
+                      arrow={arrow}
                     />
+
                   </div>
                 </div>
                 <div className="mt-1 text-[9px] text-muted-foreground truncate">{bl(v.label)}</div>
@@ -226,6 +299,107 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
           })}
         </div>
       </div>
+
+      {isEditorial && (
+        <div className="space-y-2 pt-2 border-t border-border">
+          <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            {t("builder.sectionLabelEditor.editorialTitle")}
+          </div>
+
+          {variant === "editorial-index" && (
+            <div className="grid grid-cols-2 gap-2">
+              <PropField label={t("builder.sectionLabelEditor.indexNumber")}>
+                <Input
+                  value={indexNumber}
+                  onChange={(e) => setContent("indexNumber", e.target.value)}
+                  placeholder={t("builder.sectionLabelEditor.indexNumberPh")}
+                  className="h-8 text-xs"
+                />
+              </PropField>
+              <PropField label={t("builder.sectionLabelEditor.numberSize")}>
+                <PxSizeInput
+                  value={numberSize}
+                  onChange={(v) => setContent("numberSize", v)}
+                  placeholder="auto"
+                  max={160}
+                />
+              </PropField>
+              <PropField label={t("builder.sectionLabelEditor.numberFont")}>
+                <MiniSelect
+                  value={numberFont}
+                  onChange={(v) => setContent("numberFont", v)}
+                  options={SECTION_LABEL_FONTS}
+                />
+              </PropField>
+              <PropField label={t("builder.sectionLabelEditor.titleFont")}>
+                <MiniSelect
+                  value={titleFont}
+                  onChange={(v) => setContent("titleFont", v)}
+                  options={SECTION_LABEL_FONTS}
+                />
+              </PropField>
+            </div>
+          )}
+
+          {variant === "double-deck-masthead" && (
+            <div className="grid grid-cols-2 gap-2">
+              <PropField
+                label={t("builder.sectionLabelEditor.category", { lang: lang.toUpperCase() })}
+              >
+                <Input
+                  value={category}
+                  onChange={(e) => setContent(categoryKey, e.target.value)}
+                  placeholder={t("builder.sectionLabelEditor.categoryPh")}
+                  className="h-8 text-xs"
+                />
+              </PropField>
+              <PropField label={t("builder.sectionLabelEditor.categorySize")}>
+                <PxSizeInput
+                  value={categorySize}
+                  onChange={(v) => setContent("categorySize", v)}
+                  placeholder="auto"
+                />
+              </PropField>
+              <PropField label={t("builder.sectionLabelEditor.categoryFont")}>
+                <MiniSelect
+                  value={categoryFont}
+                  onChange={(v) => setContent("categoryFont", v)}
+                  options={SECTION_LABEL_FONTS}
+                />
+              </PropField>
+              <PropField label={t("builder.sectionLabelEditor.titleFont")}>
+                <MiniSelect
+                  value={titleFont}
+                  onChange={(v) => setContent("titleFont", v)}
+                  options={SECTION_LABEL_FONTS}
+                />
+              </PropField>
+            </div>
+          )}
+
+          <div className="flex items-center gap-4 pt-1">
+            <MiniToggle
+              checked={showRule}
+              onChange={(v) => setContent("showRule", v)}
+              label={t("builder.sectionLabelEditor.showRule")}
+            />
+            <MiniToggle
+              checked={showAction}
+              onChange={(v) => setContent("showAction", v)}
+              label={t("builder.sectionLabelEditor.showAction")}
+            />
+          </div>
+          <PropField label={t("builder.sectionLabelEditor.arrowType")}>
+            <MiniSelect
+              value={arrow}
+              onChange={(v) => setContent("arrow", v)}
+              options={SECTION_LABEL_ARROWS}
+            />
+          </PropField>
+        </div>
+      )}
+
+
 
       <PropField label={t("builder.sectionLabelEditor.linkText", { lang: lang.toUpperCase() })}>
         <Input
