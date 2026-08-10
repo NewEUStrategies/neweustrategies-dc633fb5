@@ -25,6 +25,7 @@ import { reportPlatformError } from "../lib/platform-error-reporting";
 import { syncI18nToRequest, getRenderI18n } from "../lib/i18n";
 import { supabasePublicConfigScript } from "../lib/supabasePublicConfig";
 import { currentLang } from "../lib/i18n/localeRuntime";
+import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 import { errorCopy } from "../lib/errorCopy";
 import { FriendlyErrorPage } from "../components/error/FriendlyErrorPage";
 import { ThemeProvider } from "../components/ThemeProvider";
@@ -106,14 +107,8 @@ function GlobalAudioBarGate() {
 }
 
 function NotFoundComponent() {
-  const copy = errorCopy();
-  return (
-    <FriendlyErrorPage
-      error={{ status: 404, message: "not found" }}
-      title={copy.notFoundTitle}
-      footer={copy.notFoundBody}
-    />
-  );
+  // Jedno źródło wyglądu 404 - ten sam ekran co w trasach dynamicznych.
+  return <PublicNotFound />;
 }
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
