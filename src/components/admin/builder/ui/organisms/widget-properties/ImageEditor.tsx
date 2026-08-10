@@ -195,6 +195,44 @@ export function ImageEditor({ c, lang, setContent }: Props) {
             className="h-8 text-xs"
           />
         </PropField>
+        <PropField
+          label={t("builder.imageEditor.height")}
+          hint={t("builder.imageEditor.heightHint")}
+        >
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min={0}
+                step={1}
+                value={heightPx || ""}
+                placeholder="auto"
+                onChange={(e) =>
+                  setContent(
+                    "heightPx",
+                    e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
+                  )
+                }
+                className="h-8 text-xs w-24"
+              />
+              <span className="text-[10px] text-muted-foreground tabular-nums">
+                {heightPx > 0 ? `${heightPx}px` : "auto"}
+              </span>
+            </div>
+            <Slider
+              min={0}
+              max={400}
+              step={2}
+              value={[heightPx || 0]}
+              onValueChange={(v) => setContent("heightPx", v[0] ?? 0)}
+              className="w-full"
+            />
+            <div className="flex justify-between text-[9px] text-muted-foreground">
+              <span>0 (auto)</span>
+              <span>400px</span>
+            </div>
+          </div>
+        </PropField>
         <PropField label={t("builder.imageEditor.align")}>
           <div className="inline-flex rounded-md border border-border overflow-hidden">
             {(["left", "center", "right"] as const).map((a) => (
