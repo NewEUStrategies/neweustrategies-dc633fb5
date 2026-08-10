@@ -58,6 +58,21 @@ function ProfileLayout() {
       /* jw. */
     }
   }, [collapsed]);
+  // Rozwinięta szuflada na mobile: Escape zamyka, tło nie przewija się pod spodem.
+  useEffect(() => {
+    if (collapsed) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setCollapsed(true);
+    };
+    window.addEventListener("keydown", onKey);
+    const mobile = window.matchMedia("(max-width: 767px)").matches;
+    const prev = document.body.style.overflow;
+    if (mobile) document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [collapsed]);
 
 
 
@@ -98,10 +113,10 @@ function ProfileLayout() {
               {!hideSidebar && (
                 <aside
                   className={cn(
-                    "shrink-0 border-border bg-muted/40 transition-[width] duration-200 md:border-b-0 md:border-r",
+                    "shrink-0 border-border transition-[width] duration-200 md:border-b-0 md:border-r",
                     collapsed
-                      ? "w-full border-b p-2 md:w-[68px]"
-                      : "fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] overflow-y-auto p-5 shadow-xl md:static md:z-auto md:w-72 md:max-w-none md:border-b-0 md:shadow-none",
+                      ? "w-full border-b bg-muted/40 p-2 md:w-[68px]"
+                      : "fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] overflow-y-auto bg-background p-4 shadow-2xl ring-1 ring-border md:static md:z-auto md:w-72 md:max-w-none md:border-b-0 md:bg-muted/40 md:p-5 md:shadow-none md:ring-0",
                   )}
                   data-collapsed={collapsed ? "true" : "false"}
                 >
@@ -113,44 +128,50 @@ function ProfileLayout() {
                         aria-expanded={false}
                         aria-label={t("profile.sidebar.expand", "Rozwiń ustawienia")}
                         title={t("profile.sidebar.expand", "Rozwiń ustawienia")}
-                        className="flex h-9 w-9 items-center justify-center rounded-[6px] border border-border/70 bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:mx-auto"
+                        className="flex h-9 items-center gap-2 rounded-[6px] border border-border/70 bg-background px-2.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:mx-auto md:w-9 md:justify-center md:px-0"
                       >
-                        <PanelLeftOpen className="h-4 w-4" />
+                        <PanelLeftOpen className="h-4 w-4 shrink-0" />
+                        <span className="md:hidden">
+                          {t("profile.sidebar.expand", "Rozwiń ustawienia")}
+                        </span>
                       </button>
                     ) : (
-                      <div className="relative overflow-hidden rounded-[6px] border border-border/70 bg-gradient-to-br from-primary/[0.08] via-background to-background px-3 py-3">
-                        <span
-                          aria-hidden
-                          className="pointer-events-none absolute inset-y-0 left-0 w-[3px] rounded-l-[6px] bg-gradient-to-b from-primary via-primary/70 to-primary/30"
-                        />
-                        <div className="flex items-center gap-2.5">
+                      <div className="sticky top-0 z-10 -mx-4 -mt-4 bg-background px-4 pb-2 pt-4 md:static md:mx-0 md:mt-0 md:bg-transparent md:p-0">
+                        <div className="relative overflow-hidden rounded-[6px] border border-border/70 bg-gradient-to-br from-primary/[0.08] via-background to-background px-3 py-3">
                           <span
                             aria-hidden
-                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] bg-primary/10 text-primary ring-1 ring-primary/15"
-                          >
-                            <UserCircle className="h-4 w-4" />
-                          </span>
-                          <div className="min-w-0">
-                            <h1 className="truncate text-[15px] font-extrabold tracking-tight text-foreground">
-                              {t("profile.title")}
-                            </h1>
-                            <p className="mt-0.5 truncate text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
-                              {t("profile.subtitle", { defaultValue: "Centrum zarządzania" })}
-                            </p>
+                            className="pointer-events-none absolute inset-y-0 left-0 w-[3px] rounded-l-[6px] bg-gradient-to-b from-primary via-primary/70 to-primary/30"
+                          />
+                          <div className="flex items-center gap-2.5">
+                            <span
+                              aria-hidden
+                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] bg-primary/10 text-primary ring-1 ring-primary/15"
+                            >
+                              <UserCircle className="h-4 w-4" />
+                            </span>
+                            <div className="min-w-0">
+                              <h1 className="truncate text-[15px] font-extrabold tracking-tight text-foreground">
+                                {t("profile.title")}
+                              </h1>
+                              <p className="mt-0.5 truncate text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                                {t("profile.subtitle", { defaultValue: "Centrum zarządzania" })}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setCollapsed(true)}
+                              aria-expanded
+                              aria-label={t("profile.sidebar.collapse", "Zwiń ustawienia")}
+                              title={t("profile.sidebar.collapse", "Zwiń ustawienia")}
+                              className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] border border-border/70 bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                            >
+                              <PanelLeftClose className="h-4 w-4" />
+                            </button>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => setCollapsed(true)}
-                            aria-expanded
-                            aria-label={t("profile.sidebar.collapse", "Zwiń ustawienia")}
-                            title={t("profile.sidebar.collapse", "Zwiń ustawienia")}
-                            className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] border border-border/70 bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                          >
-                            <PanelLeftClose className="h-4 w-4" />
-                          </button>
                         </div>
                       </div>
                     )}
+
 
                     {/* Zwinięty rail z ikonami tylko na desktopie - na mobile
                         zostaje sam przycisk, a profil widać od razu. */}
@@ -182,6 +203,18 @@ function ProfileLayout() {
                         </div>
                       </div>
                     )}
+
+                    {!collapsed && (
+                      <button
+                        type="button"
+                        onClick={() => setCollapsed(true)}
+                        className="mt-2 flex h-10 w-full items-center justify-center gap-2 rounded-[6px] border border-border bg-muted/60 text-xs font-semibold text-foreground transition-colors hover:bg-muted md:hidden"
+                      >
+                        <PanelLeftClose className="h-4 w-4" />
+                        {t("profile.sidebar.collapse", "Zwiń ustawienia")}
+                      </button>
+                    )}
+
                   </div>
                 </aside>
               )}
