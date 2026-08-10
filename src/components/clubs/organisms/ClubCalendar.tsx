@@ -280,7 +280,16 @@ function EventCard({
   );
 }
 
-export function ClubCalendar({ clubId, clubSlug }: { clubId: string; clubSlug: string }) {
+export function ClubCalendar({
+  clubId,
+  clubSlug,
+  canManage = false,
+}: {
+  clubId: string;
+  clubSlug: string;
+  /** Kurator klubu: tworzenie, redakcja i usuwanie terminów. */
+  canManage?: boolean;
+}) {
   const { t, i18n } = useTranslation();
   const isPl = (i18n.language ?? "pl").startsWith("pl");
   const lang = isPl ? "pl" : "en";
@@ -288,6 +297,9 @@ export function ClubCalendar({ clubId, clubSlug }: { clubId: string; clubSlug: s
 
   const [anchor, setAnchor] = useState(() => new Date());
   const [selected, setSelected] = useState<string | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<ClubEventRow | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<ClubEventRow | null>(null);
 
   const month = useMemo(() => buildMonth(anchor), [anchor]);
   const eventsQ = useClubEvents({
@@ -296,6 +308,9 @@ export function ClubCalendar({ clubId, clubSlug }: { clubId: string; clubSlug: s
     to: month.to.toISOString(),
   });
   const rsvp = useClubEventRsvp(clubId);
+  const upsert = useUpsertClubEvent(clubId);
+  const remove = useDeleteClubEvent(clubId);
+
 
   const rows = useMemo(() => eventsQ.data ?? [], [eventsQ.data]);
 
