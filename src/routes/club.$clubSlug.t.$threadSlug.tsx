@@ -580,7 +580,7 @@ function ClubThreadView() {
               }
             />
           ) : (
-            <ClubProse className="max-w-none" body={thread.body} />
+            <ClubProse className="max-w-none" body={thread.body} clubSlug={clubSlug} />
           )}
         </ClubDossierRow>
 
@@ -997,7 +997,7 @@ function ReplyBranch(props: ReplyBranchProps) {
             />
           </div>
         ) : (
-          <ClubProse className="mt-2" size="sm" body={reply.body} />
+          <ClubProse className="mt-2" size="sm" body={reply.body} clubSlug={clubSlug} />
         )}
 
         {/* Pasek zwinięty: przy trzydziestu odpowiedziach sześć pustych
