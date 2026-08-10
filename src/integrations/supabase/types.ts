@@ -16197,6 +16197,27 @@ export type Database = {
         }
         Returns: undefined
       }
+      club_output_list: {
+        Args: { p_club_id: string; p_limit?: number; p_offset?: number }
+        Returns: {
+          contributor_count: number
+          contributors: Json
+          external_url: string
+          file_url: string
+          id: string
+          kind: string
+          published_at: string
+          slug: string
+          summary_en: string
+          summary_pl: string
+          thread_id: string
+          thread_slug: string
+          thread_title: string
+          title_en: string
+          title_pl: string
+          total_count: number
+        }[]
+      }
       club_post_create: {
         Args: {
           p_attachments?: Json
@@ -16353,6 +16374,7 @@ export type Database = {
           faces: Json
           members_total: number
           new_7d: number
+          people_series: number[]
         }[]
       }
       club_scheduler_tick: { Args: never; Returns: Json }
