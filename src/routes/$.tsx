@@ -911,6 +911,9 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
         <GooglePreferredSourceBadge entityId={it.id} className="w-auto" />
       </div>
     );
+    // Layout redakcyjny (WSJ) przenosi akcje do nagłówka - wtedy nie
+    // powielamy ich w pasku quick-view ani w rzędzie mobilnym.
+    const editorialActions = findLayout(format, layoutId).headerActions === true;
     return (
       <div
         className="flex min-w-0 w-full max-w-full flex-col overflow-x-clip bg-background text-foreground"
