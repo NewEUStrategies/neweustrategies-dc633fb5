@@ -2,7 +2,10 @@
 //
 // Wydzielona z `MentionTextarea`, żeby komentarze i pola "wiadomość"
 // w widgetach formularzy renderowały DOKŁADNIE tę samą listę.
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { useMentionProfile } from "@/lib/mentions/useMentionProfile";
 import type { MentionSuggestion } from "@/lib/mentions/useMentionSuggestions";
 import { ensureI18n } from "@/lib/i18n-mentions";
 
@@ -17,6 +20,35 @@ export interface MentionSuggestionListProps {
   onChoose: (s: MentionSuggestion) => void;
 }
 
+/** Wizytówka osoby pod pozycją listy - podgląd PRZED wstawieniem wzmianki. */
+function SuggestionPreview({ slug, lang }: { slug: string; lang: "pl" | "en" }) {
+  const { data, isPending } = useMentionProfile(slug, lang, true);
+  if (isPending) return <p className="text-xs text-muted-foreground">...</p>;
+  if (!data) return <p className="text-xs text-muted-foreground">@{slug}</p>;
+  return (
+    <div className="space-y-2">
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-semibold text-muted-foreground">
+          {data.avatarUrl ? (
+            <img src={data.avatarUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            data.name.slice(0, 2).toLocaleUpperCase()
+          )}
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-foreground">{data.name}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            {[data.jobTitle, data.company].filter(Boolean).join(" - ") || `@${slug}`}
+          </p>
+        </div>
+      </div>
+      {data.bio ? (
+        <p className="line-clamp-3 text-xs leading-relaxed text-muted-foreground">{data.bio}</p>
+      ) : null}
+    </div>
+  );
+}
+
 export function MentionSuggestionList({
   listId,
   suggestions,
@@ -25,7 +57,9 @@ export function MentionSuggestionList({
   onHighlight,
   onChoose,
 }: MentionSuggestionListProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
+  const [previewSlug, setPreviewSlug] = useState<string | null>(null);
   return (
     <ul
       id={listId}
@@ -49,11 +83,18 @@ export function MentionSuggestionList({
               e.preventDefault();
               onChoose(s);
             }}
-            onMouseEnter={() => onHighlight(i)}
+            onMouseEnter={() => {
+              onHighlight(i);
+              setPreviewSlug(s.slug);
+            }}
+            onMouseLeave={() => setPreviewSlug((cur) => (cur === s.slug ? null : cur))}
             className={`flex cursor-pointer items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm ${
               i === highlight ? "bg-accent text-accent-foreground" : "hover:bg-muted"
             }`}
           >
+            <HoverCard open={previewSlug === s.slug} openDelay={250}>
+              <HoverCardTrigger asChild>
+                <span className="flex min-w-0 flex-1 items-center gap-2">
             <span
               aria-hidden
               className="flex h-6 w-6 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-[10px] font-medium text-muted-foreground"
@@ -71,6 +112,12 @@ export function MentionSuggestionList({
                 {s.subtitle ? ` - ${s.subtitle}` : ""}
               </span>
             </span>
+                </span>
+              </HoverCardTrigger>
+              <HoverCardContent side="right" align="start" className="w-72">
+                <SuggestionPreview slug={s.slug} lang={lang} />
+              </HoverCardContent>
+            </HoverCard>
           </li>
         ))
       )}
