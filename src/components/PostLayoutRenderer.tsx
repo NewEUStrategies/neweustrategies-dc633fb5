@@ -193,10 +193,25 @@ export function PostLayoutRenderer({
     return (
       <div className={`relative min-w-0 max-w-full ${bleed ? "sm:-mx-4 lg:-mx-8" : ""}`}>
         <div
-          className={`relative mb-8 ${preset.cover === "boxed" ? "mx-auto w-full" : "w-full"}`}
-          style={preset.cover === "boxed" ? { maxWidth: `${BOXED_COVER_MAX_WIDTH}px` } : undefined}
+          className="relative mb-8 mx-auto w-full"
+          style={
+            preset.cover === "boxed"
+              ? { maxWidth: `${BOXED_COVER_MAX_WIDTH}px` }
+              : // Okładka trzyma tę samą skrzynkę co nagłówek i treść, żeby
+                // kadr był wyśrodkowany względem kolumny tekstowej, a nie
+                // dosunięty do lewej krawędzi siatki.
+                bleed
+                ? undefined
+                : { maxWidth: `${contentMaxW}px` }
+          }
         >
-          <div className="relative overflow-hidden bg-neutral-900" style={frameStyle}>
+          {/* `mx-auto` na ramce: przy aspect-ratio + max-height przeglądarka
+              zwęża kadr, a bez wyśrodkowania zostawał przy lewej krawędzi. */}
+          <div
+            className="relative mx-auto overflow-hidden bg-neutral-900"
+            style={frameStyle}
+          >
+
             <OptimizedImage
               src={coverUrl}
               alt={title}
