@@ -311,12 +311,9 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
   // listę - trzeci byt mówiący to samo dodawał wysokości, nie informacji.
   const context = (
     <>
-      <ClubBoardPanel
-        clubSlug={clubSlug}
-        clubId={club.id}
-        canPost={signedIn && club.can_reply}
-        isPl={isPl}
-      />
+      {/* Najbliższe spotkanie stoi NAD giełdą "Szukam / Oferuję": most do
+          formatów offline konwertuje przez listę potwierdzonych osób, więc
+          musi trafiać w pierwsze spojrzenie na szynę. */}
       <ClubMeetingPanel
         clubSlug={clubSlug}
         clubId={club.id}
@@ -325,8 +322,16 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
         // w klubie `public`, a RPC z nazwiskami jest dla niego zamkniete.
         canSeeMembers={signedIn && club.can_see_members}
         canRsvp={signedIn && club.can_reply}
+        canManage={signedIn && club.can_manage}
         isPl={isPl}
       />
+      <ClubBoardPanel
+        clubSlug={clubSlug}
+        clubId={club.id}
+        canPost={signedIn && club.can_reply}
+        isPl={isPl}
+      />
+
       <ClubRosterPanel
         clubSlug={clubSlug}
         clubId={club.id}

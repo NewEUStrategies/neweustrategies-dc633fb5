@@ -1147,6 +1147,7 @@ export const clubPl = {
       // Najbliższe spotkanie + kto będzie.
       meeting: {
         title: "Najbliższe spotkanie",
+        emptyManage: "Brak nadchodzących terminów. Dodaj pierwsze spotkanie - lista potwierdzonych osób przyciąga mocniej niż sama data.",
         pageTitle: "Spotkanie",
         lead: "Kto potwierdził obecność. Sama data konwertuje słabo - lista nazwisk mocno, bo ludzie przychodzą do ludzi, nie do tematu.",
         whoTitle: "Kto będzie",
@@ -1224,6 +1225,36 @@ export const clubPl = {
       },
 
       // Dorobek jako wynik wspólnych rozmów.
+    },
+
+    // --- redakcja wydarzenia klubu (kurator) ---
+    eventForm: {
+      createTitle: "Nowe wydarzenie",
+      editTitle: "Redakcja wydarzenia",
+      lead: "Termin, miejsce i limit miejsc. Adres wydarzenia powstaje z tytułu i nie zmienia się przy redakcji, żeby rozesłane zaproszenia nadal działały.",
+      titlePl: "Tytuł (PL)",
+      titleEn: "Tytuł (EN)",
+      descriptionPl: "Opis (PL)",
+      descriptionEn: "Opis (EN)",
+      kind: "Rodzaj",
+      status: "Status",
+      allDay: "Całodniowe",
+      startsAt: "Początek",
+      endsAt: "Koniec",
+      location: "Miejsce",
+      meetingUrl: "Link do spotkania",
+      rsvpEnabled: "Zbieraj potwierdzenia obecności",
+      capacity: "Limit miejsc",
+      create: "Utwórz",
+      save: "Zapisz",
+      edit: "Edytuj",
+      cancel: "Anuluj",
+      delete: "Usuń",
+      deleteTitle: "Usunąć to wydarzenie?",
+      deleteLead: "Wydarzenie \u201e{{title}}\u201d zniknie z kalendarza razem z potwierdzeniami obecności. Tego nie da się cofnąć.",
+      deleted: "Wydarzenie usunięte.",
+      saved: "Wydarzenie zapisane.",
+      failed: "Nie udało się zapisać wydarzenia.",
     },
 
     // --- kalendarz klubu ---
@@ -2989,6 +3020,7 @@ export const clubEn = {
 
       meeting: {
         title: "Next meeting",
+        emptyManage: "No upcoming dates. Add the first meeting - a list of confirmed people pulls harder than a date alone.",
         pageTitle: "Meeting",
         lead: "Who confirmed they are coming. A date alone converts poorly - a list of names converts well, because people come to people, not to a topic.",
         whoTitle: "Who is coming",
@@ -3056,6 +3088,36 @@ export const clubEn = {
         unpin: "Remove the pin",
         unpinned: "Pin removed.",
       },
+    },
+
+    // --- club event editing (curator) ---
+    eventForm: {
+      createTitle: "New event",
+      editTitle: "Edit event",
+      lead: "Date, place and seat limit. The event address is derived from the title and stays fixed on edit, so invitations already sent keep working.",
+      titlePl: "Title (PL)",
+      titleEn: "Title (EN)",
+      descriptionPl: "Description (PL)",
+      descriptionEn: "Description (EN)",
+      kind: "Kind",
+      status: "Status",
+      allDay: "All day",
+      startsAt: "Starts",
+      endsAt: "Ends",
+      location: "Place",
+      meetingUrl: "Meeting link",
+      rsvpEnabled: "Collect attendance confirmations",
+      capacity: "Seat limit",
+      create: "Create",
+      save: "Save",
+      edit: "Edit",
+      cancel: "Cancel",
+      delete: "Delete",
+      deleteTitle: "Delete this event?",
+      deleteLead: "The event \u201c{{title}}\u201d disappears from the calendar together with its attendance confirmations. This cannot be undone.",
+      deleted: "Event deleted.",
+      saved: "Event saved.",
+      failed: "Could not save the event.",
     },
 
     // --- club calendar ---

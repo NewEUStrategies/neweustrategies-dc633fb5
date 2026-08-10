@@ -21,14 +21,36 @@ import {
   Clock,
   Link2,
   MapPin,
+  Pencil,
+  Plus,
+  Trash2,
   Users,
   Video,
+
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import { ClubEventForm } from "@/components/clubs/molecules/ClubEventForm";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { useClubEventRsvp, useClubEvents } from "@/lib/clubs/useClubWorkspace";
+import {
+  useClubEventRsvp,
+  useClubEvents,
+  useDeleteClubEvent,
+  useUpsertClubEvent,
+} from "@/lib/clubs/useClubWorkspace";
 import {
   CLUB_RSVP_STATES,
   isEventFull,
@@ -96,6 +118,8 @@ function EventCard({
   now,
   onRsvp,
   rsvpPending,
+  onEdit,
+  onDelete,
 }: {
   row: ClubEventRow;
   clubSlug: string;
@@ -103,7 +127,11 @@ function EventCard({
   now: number;
   onRsvp: (eventId: string, state: ClubRsvpState) => void;
   rsvpPending: boolean;
+  /** Podane tylko kuratorowi - brak funkcji chowa cały pasek redakcji. */
+  onEdit?: (row: ClubEventRow) => void;
+  onDelete?: (row: ClubEventRow) => void;
 }) {
+
   const { t } = useTranslation();
   const lang = isPl ? "pl" : "en";
   const kind = toEventKind(row.kind);
@@ -229,11 +257,44 @@ function EventCard({
           ) : null}
         </div>
       ) : null}
+
+      {onEdit !== undefined || onDelete !== undefined ? (
+        <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border/60 pt-2">
+          {onEdit !== undefined ? (
+            <Button type="button" size="sm" variant="ghost" onClick={() => onEdit(row)}>
+              <Pencil className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+              {t("club.eventForm.edit")}
+            </Button>
+          ) : null}
+          {onDelete !== undefined ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="text-muted-foreground hover:text-destructive"
+              onClick={() => onDelete(row)}
+            >
+              <Trash2 className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+              {t("club.eventForm.delete")}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
     </article>
+
   );
 }
 
-export function ClubCalendar({ clubId, clubSlug }: { clubId: string; clubSlug: string }) {
+export function ClubCalendar({
+  clubId,
+  clubSlug,
+  canManage = false,
+}: {
+  clubId: string;
+  clubSlug: string;
+  /** Kurator klubu: tworzenie, redakcja i usuwanie terminów. */
+  canManage?: boolean;
+}) {
   const { t, i18n } = useTranslation();
   const isPl = (i18n.language ?? "pl").startsWith("pl");
   const lang = isPl ? "pl" : "en";
@@ -241,6 +302,9 @@ export function ClubCalendar({ clubId, clubSlug }: { clubId: string; clubSlug: s
 
   const [anchor, setAnchor] = useState(() => new Date());
   const [selected, setSelected] = useState<string | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<ClubEventRow | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<ClubEventRow | null>(null);
 
   const month = useMemo(() => buildMonth(anchor), [anchor]);
   const eventsQ = useClubEvents({
@@ -249,6 +313,9 @@ export function ClubCalendar({ clubId, clubSlug }: { clubId: string; clubSlug: s
     to: month.to.toISOString(),
   });
   const rsvp = useClubEventRsvp(clubId);
+  const upsert = useUpsertClubEvent(clubId);
+  const remove = useDeleteClubEvent(clubId);
+
 
   const rows = useMemo(() => eventsQ.data ?? [], [eventsQ.data]);
 
@@ -299,6 +366,19 @@ export function ClubCalendar({ clubId, clubSlug }: { clubId: string; clubSlug: s
             {formatDate(anchor, lang, { month: "long", year: "numeric" })}
           </h2>
           <div className="flex gap-1">
+            {canManage ? (
+              <Button
+                size="sm"
+                onClick={() => {
+                  setEditing(null);
+                  setFormOpen(true);
+                }}
+              >
+                <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                {t("club.eventForm.createTitle")}
+              </Button>
+            ) : null}
+
             <Button
               variant="outline"
               size="icon"
@@ -445,10 +525,76 @@ export function ClubCalendar({ clubId, clubSlug }: { clubId: string; clubSlug: s
               now={now}
               rsvpPending={rsvp.isPending}
               onRsvp={(eventId, state) => rsvp.mutate({ eventId, state })}
+              {...(canManage
+                ? {
+                    onEdit: (event: ClubEventRow) => {
+                      setEditing(event);
+                      setFormOpen(true);
+                    },
+                    onDelete: (event: ClubEventRow) => setPendingDelete(event),
+                  }
+                : {})}
             />
           ))
         )}
       </section>
+
+      {canManage && formOpen ? (
+        <ClubEventForm
+          key={editing?.id ?? "new"}
+          open={formOpen}
+          initial={editing}
+          pending={upsert.isPending}
+          onOpenChange={setFormOpen}
+          onSubmit={(input) =>
+            upsert.mutate(input, {
+              onSuccess: () => {
+                setFormOpen(false);
+                toast.success(t("club.eventForm.saved"));
+              },
+              onError: () => toast.error(t("club.eventForm.failed")),
+            })
+          }
+        />
+      ) : null}
+
+      {canManage && pendingDelete !== null ? (
+        <AlertDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setPendingDelete(null);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t("club.eventForm.deleteTitle")}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t("club.eventForm.deleteLead", {
+                  title: isPl ? pendingDelete.title_pl : pendingDelete.title_en,
+                })}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t("club.eventForm.cancel")}</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={remove.isPending}
+                onClick={() =>
+                  remove.mutate(pendingDelete.id, {
+                    onSuccess: () => {
+                      setPendingDelete(null);
+                      toast.success(t("club.eventForm.deleted"));
+                    },
+                    onError: () => toast.error(t("club.eventForm.failed")),
+                  })
+                }
+              >
+                {t("club.eventForm.delete")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      ) : null}
     </div>
   );
 }
+
