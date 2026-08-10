@@ -164,8 +164,21 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
   const labelSize = derived.labelSize ?? "";
   const actionColor = derived.actionColor ?? "";
   const actionSize = derived.actionSize ?? "";
+  const categoryKey = `category_${lang}`;
+  const category = (typeof c[categoryKey] === "string" ? c[categoryKey] : "") as string;
+  const indexNumber = derived.indexNumber ?? "";
+  const showRule = derived.showRule !== false;
+  const showAction = typeof c.showAction === "boolean" ? c.showAction : true;
+  const arrow = derived.arrow ?? "arrow";
+  const numberFont = derived.numberFont ?? "inherit";
+  const numberSize = derived.numberSize ?? "";
+  const categoryFont = derived.categoryFont ?? "inherit";
+  const categorySize = derived.categorySize ?? "";
+  const titleFont = derived.titleFont ?? "inherit";
+  const isEditorial = variant === "editorial-index" || variant === "double-deck-masthead";
 
   const previewLabel = derived.label;
+
 
   return (
     <div className="space-y-3">
