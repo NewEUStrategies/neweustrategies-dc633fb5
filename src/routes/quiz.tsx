@@ -12,7 +12,7 @@ import {
   Share2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Header } from "@/components/Header";
+import { ReadingHeader } from "@/components/share/ReadingHeader";
 import { Footer } from "@/components/Footer";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
