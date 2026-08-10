@@ -953,7 +953,8 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                 lang={lang}
                 author={postAuthor}
                 publishedAt={it.published_at}
-                readMinutes={readMinutes}
+                readMinutes={editorialActions ? null : readMinutes}
+
                 hideReadTimeOnMobile
                 customMeta={
                   <CustomMetaList defs={customMetaDefs} values={post.custom_meta} lang={lang} />
