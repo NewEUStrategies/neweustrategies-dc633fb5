@@ -272,7 +272,9 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
                   <div className="w-full min-w-0">
                     <SectionLabelRender
                       label={previewLabel}
-                      action={action || t("builder.sectionLabelEditor.more")}
+                      action={
+                        showAction ? action || t("builder.sectionLabelEditor.more") : undefined
+                      }
                       accent={accent}
                       variant={v.value}
                       size="sm"
@@ -280,7 +282,15 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
                       labelSize={labelSize || undefined}
                       actionColor={actionColor || undefined}
                       actionSize={actionSize || undefined}
+                      indexNumber={indexNumber || undefined}
+                      category={category || t("builder.sectionLabelEditor.categoryPh")}
+                      showRule={showRule}
+                      numberFont={numberFont}
+                      categoryFont={categoryFont}
+                      titleFont={titleFont}
+                      arrow={arrow}
                     />
+
                   </div>
                 </div>
                 <div className="mt-1 text-[9px] text-muted-foreground truncate">{bl(v.label)}</div>
