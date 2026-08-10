@@ -111,7 +111,7 @@ export function ClubHubIdentity({
         </div>
 
 
-        <div className="min-w-0 flex-1 pt-2">
+        <div className="min-w-0 sm:flex-1 sm:pt-2">
           <div className="flex flex-wrap items-center gap-2">
             <ClubTopicChip topic={club.policy_area} lang={isPl ? "pl" : "en"} catalog={topics} />
             {/* Chatham House to nie odznaka-ozdoba, tylko reguła, która zmienia
