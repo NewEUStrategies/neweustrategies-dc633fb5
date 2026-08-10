@@ -36,7 +36,7 @@ import {
   Megaphone,
   MessagesSquare,
   ScrollText,
-  Sparkles,
+  GraduationCap,
   UserRoundSearch,
   Users2,
   type LucideIcon,
@@ -72,7 +72,7 @@ const SECTIONS = [
   },
 
   { key: "members", to: "/club/$clubSlug/members", icon: Users2, exact: false, group: "people" },
-  { key: "experts", to: "/club/$clubSlug/experts", icon: Sparkles, exact: false, group: "people" },
+  { key: "experts", to: "/club/$clubSlug/experts", icon: GraduationCap, exact: false, group: "people" },
   { key: "board", to: "/club/$clubSlug/board", icon: Megaphone, exact: false, group: "people" },
   {
     key: "spotlight",

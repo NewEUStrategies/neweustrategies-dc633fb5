@@ -27,7 +27,7 @@
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Link } from "@tanstack/react-router";
-import { Check, Loader2, MessageSquareQuote, Sparkles } from "lucide-react";
+import { Check, GraduationCap, Loader2, MessageSquareQuote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { HUB_SURFACE } from "@/components/clubs/atoms/ClubHubPrimitives";
@@ -68,7 +68,7 @@ export function ClubThreadExpertsPanel({
     <section className={cn(HUB_SURFACE, "p-3 sm:p-4", className)}>
       <header className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          <Sparkles className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <GraduationCap className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           {t("club.network.experts.title")}
         </h2>
         {area !== null ? (

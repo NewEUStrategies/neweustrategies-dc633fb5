@@ -18,7 +18,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { ArrowLeft, BadgeCheck, CalendarPlus, Radio, Sparkles, Users2 } from "lucide-react";
+import {
+  Activity,
+  ArrowLeft,
+  BadgeCheck,
+  CalendarClock,
+  CalendarPlus,
+  GraduationCap,
+  Users2,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -180,13 +188,13 @@ function ClubMembersRoute() {
                 label={t("club.network.roster.total")}
               />
               <ClubSignalMetric
-                icon={Radio}
+                icon={Activity}
                 value={formatNumber(signal.active24h, locale)}
                 label={t("club.network.roster.active24h")}
                 emphasis={signal.active24h > 0}
               />
               <ClubSignalMetric
-                icon={Radio}
+                icon={CalendarClock}
                 value={formatNumber(signal.active7d, locale)}
                 label={t("club.network.roster.active7d")}
               />
@@ -215,7 +223,7 @@ function ClubMembersRoute() {
               katalog na "kto się na czym zna". */}
           <Button asChild variant="outline" size="sm" className="mt-4 rounded-lg">
             <Link to="/club/$clubSlug/experts" params={{ clubSlug }}>
-              <Sparkles className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+              <GraduationCap className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
               {t("club.network.roster.toExperts")}
             </Link>
           </Button>
@@ -234,7 +242,7 @@ function ClubMembersRoute() {
       ) : membersQ.isError ? (
         <ClubErrorNotice onRetry={() => void membersQ.refetch()} />
       ) : membersQ.isPending ? (
-        <div className="grid gap-2 sm:grid-cols-2" aria-busy="true">
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4" aria-busy="true">
           {[0, 1, 2, 3].map((i) => (
             <div key={i} className="h-20 animate-pulse rounded-lg bg-muted/50" />
           ))}
@@ -253,7 +261,7 @@ function ClubMembersRoute() {
             </p>
           ) : null}
 
-          <ul className="grid gap-2 sm:grid-cols-2">
+          <ul className="grid grid-cols-2 gap-2 lg:grid-cols-4">
             {rows.map((row) => {
               const body = (
                 <>
