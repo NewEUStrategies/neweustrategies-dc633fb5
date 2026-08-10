@@ -1,0 +1,1 @@
+UPDATE public.post_layout_settings SET has_sidebar_max_width = 1180, no_sidebar_max_width = GREATEST(no_sidebar_max_width, 1280);
