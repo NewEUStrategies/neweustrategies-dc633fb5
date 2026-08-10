@@ -43,7 +43,10 @@ function ClubCalendarRoute() {
       title={t("club.calendar.title")}
       lead={t("club.calendar.lead")}
     >
-      {(club) => <ClubCalendar clubId={club.id} clubSlug={clubSlug} />}
+      {(club) => (
+        <ClubCalendar clubId={club.id} clubSlug={clubSlug} canManage={club.can_manage} />
+      )}
+
     </ClubWorkspaceLayout>
   );
 }
