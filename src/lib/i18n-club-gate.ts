@@ -69,12 +69,16 @@ export const clubGatePl = {
     sentTitle: "Sprawdź skrzynkę",
     sentBody:
       "Wysłaliśmy link potwierdzający na {{email}}. Po potwierdzeniu wrócisz tutaj i wybierzesz plan.",
+    newsletterOptIn: "Chcę otrzymywać newsletter",
     errors: {
       email: "Podaj poprawny adres e-mail.",
       password: "Hasło musi mieć co najmniej 8 znaków.",
+      passwordMismatch: "Hasła muszą być identyczne.",
+      required: "Uzupełnij pole: {{field}}.",
       generic: "Nie udało się założyć konta. Spróbuj ponownie.",
       rate: "Zbyt wiele prób - spróbuj ponownie za kilka minut.",
     },
+
     secure: "Bez zobowiązań - plan zmienisz lub anulujesz w profilu.",
   },
 } as const;
