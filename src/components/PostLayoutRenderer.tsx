@@ -38,6 +38,11 @@ interface Props {
   coverImageUrl?: string | null;
   meta?: ReactNode; // data, autor, czas czytania
   categoryBadges?: ReactNode; // pigułki kategorii nad tytułem
+  /**
+   * Akcje artykułu (podaruj artykuł, badge Google) renderowane w nagłówku obok
+   * metadanych - tylko dla presetów z `headerActions` (Layout 13 - editorial).
+   */
+  headerActions?: ReactNode;
   content: ReactNode;
   sidebar?: ReactNode;
   footer?: ReactNode;
@@ -75,6 +80,7 @@ export function PostLayoutRenderer({
   coverImageUrl,
   meta,
   categoryBadges,
+  headerActions,
   content,
   sidebar,
   footer,
@@ -101,6 +107,8 @@ export function PostLayoutRenderer({
   const showCover = rendersCover(preset) && !!coverImageUrl;
   const headerMode: LayoutHeaderMode = showCover ? preset.header : "no-cover";
   const showExcerpt = preset.showExcerpt !== false && !!excerpt;
+  // Akcje w nagłówku tylko dla presetów redakcyjnych (Layout 13).
+  const showHeaderActions = preset.headerActions === true;
 
   // Klasyczny nagłówek: kategorie -> tytuł -> zajawka -> meta.
   // `constrained` trzyma go w tej samej skrzynce co treść, więc przy
@@ -121,11 +129,20 @@ export function PostLayoutRenderer({
       {showExcerpt && (
         <p className="header-excerpt-typography text-muted-foreground mb-4">{excerpt}</p>
       )}
-      {meta && (
-        <div
-          className={`cms-meta cms-meta-info ${settings.center_entry_meta ? "justify-center" : ""} flex flex-wrap gap-3 ${center ? "justify-center" : ""}`}
-        >
-          {meta}
+      {/* Wiersz autora: na desktopie meta po lewej, akcje artykułu po prawej;
+          na mobile akcje schodzą pod metadane i zajmują pełną szerokość. */}
+      {(meta || (showHeaderActions && headerActions)) && (
+        <div className="grid gap-3 sm:flex sm:flex-wrap sm:items-center sm:justify-between">
+          {meta && (
+            <div
+              className={`cms-meta cms-meta-info min-w-0 ${settings.center_entry_meta ? "justify-center" : ""} flex flex-wrap gap-3 ${center ? "justify-center" : ""}`}
+            >
+              {meta}
+            </div>
+          )}
+          {showHeaderActions && headerActions && (
+            <div className="no-print min-w-0 shrink-0 [&>div]:flex-wrap">{headerActions}</div>
+          )}
         </div>
       )}
     </header>

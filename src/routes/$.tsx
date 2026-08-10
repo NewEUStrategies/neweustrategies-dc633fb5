@@ -911,6 +911,9 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
         <GooglePreferredSourceBadge entityId={it.id} className="w-auto" />
       </div>
     );
+    // Layout redakcyjny (WSJ) przenosi akcje do nagłówka - wtedy nie
+    // powielamy ich w pasku quick-view ani w rzędzie mobilnym.
+    const editorialActions = findLayout(format, layoutId).headerActions === true;
     return (
       <div
         className="flex min-w-0 w-full max-w-full flex-col overflow-x-clip bg-background text-foreground"
@@ -960,6 +963,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                 <CategoryBadges items={postCategories} lang={lang} />
               ) : null
             }
+            headerActions={editorialActions ? articleActions : undefined}
             content={
               <>
                 {/* Desktop: pasek quick-view (czas czytania + aktualizacja).
@@ -972,25 +976,28 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                       publishedAt={it.published_at}
                       updatedAt={it.updated_at}
                       primaryCategory={postCategories[0]}
-                      trailing={articleActions}
+                      trailing={editorialActions ? undefined : articleActions}
                     />
                   </div>
                 ) : null}
                 {/* Mobile: akcja "Udostepnij pelny artykul" + badge Google -
                     dwie rowne kolumny o tej samej szerokosci i wysokosci,
-                    tak jak para przyciskow na desktopie. */}
-                <div className="no-print mb-3 grid grid-cols-2 items-stretch gap-2 sm:hidden">
-                  {giftButton && (
-                    <span className="min-w-0 [&_button]:h-full [&_button]:w-full">
-                      {giftButton}
-                    </span>
-                  )}
-                  <GooglePreferredSourceBadge
-                    device="mobile"
-                    entityId={it.id}
-                    className="min-w-0 [&>a]:h-full [&>a]:w-full [&>a]:justify-center [&>a]:whitespace-normal"
-                  />
-                </div>
+                    tak jak para przyciskow na desktopie. W layoucie
+                    redakcyjnym akcje stoja juz w naglowku. */}
+                {!editorialActions && (
+                  <div className="no-print mb-3 grid grid-cols-2 items-stretch gap-2 sm:hidden">
+                    {giftButton && (
+                      <span className="min-w-0 [&_button]:h-full [&_button]:w-full">
+                        {giftButton}
+                      </span>
+                    )}
+                    <GooglePreferredSourceBadge
+                      device="mobile"
+                      entityId={it.id}
+                      className="min-w-0 [&>a]:h-full [&>a]:w-full [&>a]:justify-center [&>a]:whitespace-normal"
+                    />
+                  </div>
+                )}
 
                 {/* Mobile: odsluch (TTS) + pobranie artykulu w miejscu paska
                     czasu czytania / aktualizacji. Odsluch idzie przez globalny
@@ -1011,7 +1018,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                   />
                 )}
 
-                {!merged.quick_view_info && (
+                {!merged.quick_view_info && !editorialActions && (
                   <div className="no-print mb-4 hidden justify-end sm:flex">{articleActions}</div>
                 )}
                 {contentBlock}

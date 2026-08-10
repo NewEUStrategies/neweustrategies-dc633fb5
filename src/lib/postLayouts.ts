@@ -52,6 +52,11 @@ export interface LayoutPreset {
   /** Rekomendowany rozmiar grafiki wyróżniającej (px). */
   recommendedImage?: RecommendedImageSize;
   /**
+   * Czy akcje artykułu (podaruj artykuł / badge Google) mają stać w nagłówku,
+   * obok metadanych autora - zamiast w pasku quick-view i rzędzie mobilnym.
+   */
+  headerActions?: boolean;
+  /**
    * Czy nagłówek pokazuje excerpt (lead). Domyślnie tak; Layout 1(a) to
    * dokładnie ten sam układ co Layout 1, ale bez zajawki pod tytułem.
    */
@@ -177,6 +182,18 @@ export const STANDARD_LAYOUTS: LayoutPreset[] = [
     hasSidebar: true,
     centerHeaderDefault: true,
     recommendedImage: { width: 1920, height: 1080, ratio: "16:9" },
+  },
+  {
+    // Układ redakcyjny (WSJ): tytuł -> lead -> autor + akcje (gift / Google)
+    // -> okładka -> "Z tego materiału dowiesz się". Akcje wędrują do nagłówka,
+    // więc strona nie powtarza ich w pasku quick-view ani w rzędzie mobilnym.
+    id: "layout-13",
+    label: "Layout 13 - editorial (WSJ)",
+    header: "above-cover",
+    cover: "wide",
+    hasSidebar: false,
+    headerActions: true,
+    recommendedImage: { width: 1600, height: 900, ratio: "16:9" },
   },
 ];
 
