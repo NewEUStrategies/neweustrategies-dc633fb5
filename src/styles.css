@@ -2167,9 +2167,10 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
 [data-builder-renderer][data-device="mobile"] a,
 [data-builder-renderer][data-device="mobile"] button {
   white-space: normal !important;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   word-break: normal;
-  hyphens: auto;
+  hyphens: manual;
+  -webkit-hyphens: manual;
   overflow: visible !important;
   text-overflow: clip !important;
   max-width: 100% !important;
