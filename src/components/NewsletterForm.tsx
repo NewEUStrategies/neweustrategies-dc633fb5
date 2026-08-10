@@ -156,14 +156,24 @@ export function NewsletterForm({
 
   // Per-widget visibility toggles for the extra fields.
   const showFirstName = boolCfg(cfg, "showFirstName", false);
-  const showLastName = boolCfg(cfg, "showLastName", false);
-  const showCompany = boolCfg(cfg, "showCompany", false);
+  // Per-widget visibility toggles for the extra fields.
+  // Instancje spoza buildera (stopka wpisu, sidebar, archiwum, popup) nie mają
+  // własnej konfiguracji - dostają wtedy ten sam, pełny zestaw pól co widget
+  // "Dołącz do nas" na stronie głównej (imię, nazwisko, stanowisko, firma,
+  // telefon). Widgety z buildera nadal decydują same.
+  const hasCfg = Object.keys(cfg).length > 0;
+  const showFirstName = boolCfg(cfg, "showFirstName", !hasCfg);
+  const showLastName = boolCfg(cfg, "showLastName", !hasCfg);
+  const showCompany = boolCfg(cfg, "showCompany", !hasCfg);
+  const showPosition = boolCfg(cfg, "showPosition", !hasCfg);
+  const showPhone = boolCfg(cfg, "showPhone", !hasCfg);
   const requireFirstName = boolCfg(cfg, "requireFirstName", false);
   const requireLastName = boolCfg(cfg, "requireLastName", false);
   const requireCompany = boolCfg(cfg, "requireCompany", false);
+  const requirePosition = boolCfg(cfg, "requirePosition", false);
+  const requirePhone = boolCfg(cfg, "requirePhone", false);
   const requireEmail = boolCfg(cfg, "requireEmail", true);
 
-  if (!s || !s.enabled) {
     if (!inBuilder) return null;
     return (
       <div
