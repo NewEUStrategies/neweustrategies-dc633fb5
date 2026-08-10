@@ -37,6 +37,8 @@ type SiteLogoCfg = {
   };
 };
 type WidgetMediaFrameStyle = CSSProperties & { "--widget-media-fit"?: CSSProperties["objectFit"] };
+/** Styl obrazka + zmienna z ustawioną wysokością (czyta ją zwijanie headera). */
+type WidgetImageStyle = CSSProperties & { "--img-h"?: string };
 
 /** Czy redakcja w ogóle ustawiła to pole. Puste/`null` traktujemy jak brak,
  *  żeby "nie ustawiono" (globalny default) nie zlało się z "ustawiono na 0". */
