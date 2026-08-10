@@ -36,7 +36,49 @@ export const CLUB_POST_IMAGE_MIME = [
   "image/avif",
 ] as const;
 export const CLUB_POST_VIDEO_MIME = ["video/mp4", "video/webm"] as const;
-export const CLUB_POST_FILE_MIME = ["application/pdf"] as const;
+/** Dokumenty: PDF, pakiet Office (nowy i stary), OpenDocument, dane i tekst.
+ *  Wszystkie mają podgląd w platformie (popup), więc lista akceptacji i lista
+ *  obsługiwanych podglądów są celowo tą samą listą. */
+export const CLUB_POST_FILE_MIME = [
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/msword",
+  "application/vnd.ms-excel",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.oasis.opendocument.text",
+  "application/vnd.oasis.opendocument.spreadsheet",
+  "application/vnd.oasis.opendocument.presentation",
+  "application/rtf",
+  "text/plain",
+  "text/csv",
+  "text/markdown",
+  "application/json",
+  "application/zip",
+] as const;
+
+/** Rozszerzenia dla atrybutu `accept`: system operacyjny bywa, że oddaje pusty
+ *  MIME dla .csv czy .docx z dysku sieciowego - wtedy tylko rozszerzenie
+ *  pozwala użytkownikowi w ogóle wybrać plik. */
+export const CLUB_POST_FILE_EXT = [
+  ".pdf",
+  ".docx",
+  ".doc",
+  ".xlsx",
+  ".xls",
+  ".pptx",
+  ".ppt",
+  ".odt",
+  ".ods",
+  ".odp",
+  ".rtf",
+  ".txt",
+  ".csv",
+  ".md",
+  ".json",
+  ".zip",
+] as const;
 
 export const CLUB_POST_ACCEPT_MIME: readonly string[] = [
   ...CLUB_POST_IMAGE_MIME,
@@ -44,12 +86,29 @@ export const CLUB_POST_ACCEPT_MIME: readonly string[] = [
   ...CLUB_POST_FILE_MIME,
 ];
 
+/** Wartość dla `<input accept>` - MIME plus rozszerzenia (patrz wyżej). */
+export const CLUB_POST_ACCEPT_ATTR: string = [
+  ...CLUB_POST_ACCEPT_MIME,
+  ...CLUB_POST_FILE_EXT,
+].join(",");
+
 export type ClubPostMediaKind = "image" | "video" | "file";
 
-export function clubPostMediaKind(mime: string): ClubPostMediaKind | null {
+/**
+ * Rodzaj załącznika. MIME jest pierwszym źródłem prawdy, ale gdy przeglądarka
+ * odda pusty typ albo `application/octet-stream` (regularnie zdarza się to dla
+ * plików Office z dysków sieciowych), decyduje rozszerzenie nazwy - inaczej
+ * użytkownik dostawałby "nieobsługiwany format" dla zwykłego .docx.
+ */
+export function clubPostMediaKind(mime: string, name = ""): ClubPostMediaKind | null {
   if ((CLUB_POST_IMAGE_MIME as readonly string[]).includes(mime)) return "image";
   if ((CLUB_POST_VIDEO_MIME as readonly string[]).includes(mime)) return "video";
   if ((CLUB_POST_FILE_MIME as readonly string[]).includes(mime)) return "file";
+  const dot = name.lastIndexOf(".");
+  if (dot >= 0) {
+    const ext = name.slice(dot).toLowerCase();
+    if ((CLUB_POST_FILE_EXT as readonly string[]).includes(ext)) return "file";
+  }
   return null;
 }
 

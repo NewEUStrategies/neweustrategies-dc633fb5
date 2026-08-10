@@ -19,7 +19,7 @@ import { applyListAutoformat } from "@/lib/text/listAutoformat";
 import { HUB_SURFACE } from "@/components/clubs/atoms/ClubHubPrimitives";
 import { useCreateClubPost } from "@/lib/clubs/useClubPosts";
 import { removeClubPostMedia, uploadClubPostMedia } from "@/lib/clubs/postsApi";
-import { CLUB_POST_ACCEPT_MIME, type ClubPostMediaAttachment } from "@/lib/clubs/postTypes";
+import { CLUB_POST_ACCEPT_ATTR, type ClubPostMediaAttachment } from "@/lib/clubs/postTypes";
 
 export function ClubPostComposer({
   clubId,
@@ -145,7 +145,7 @@ export function ClubPostComposer({
             ref={fileRef}
             type="file"
             multiple
-            accept={CLUB_POST_ACCEPT_MIME.join(",")}
+            accept={CLUB_POST_ACCEPT_ATTR}
             className="sr-only"
             onChange={(event) => void handleFiles(event.target.files)}
           />

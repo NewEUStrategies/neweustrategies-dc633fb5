@@ -19,7 +19,8 @@ import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import {
   ExternalLink,
-  FileText,
+  Eye,
+  Maximize2,
   MessageSquarePlus,
   MessagesSquare,
   MoreHorizontal,
@@ -35,6 +36,9 @@ import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
 import { ClubInlineTitle } from "@/components/clubs/atoms/ClubInlineTitle";
 import { ClubSourceChip } from "@/components/clubs/atoms/ClubSourceChip";
 import { clubSourceOf, type ClubSourceMark } from "@/lib/clubs/threadSources";
+import { fileLabel, isPreviewable } from "@/lib/files/fileKinds";
+import { useDocumentViewer } from "@/components/files/useDocumentViewer";
+import type { DocumentViewerFile } from "@/components/files/DocumentViewerDialog";
 import {
   isLinkAttachment,
   parseClubPostAttachments,
@@ -161,14 +165,21 @@ function LinkAttachmentCard({ attachment }: { attachment: ClubPostLinkAttachment
 function MediaGrid({
   media,
   mediaUrls,
+  onPreview,
 }: {
   media: readonly ClubPostMediaAttachment[];
   mediaUrls: Record<string, string>;
+  onPreview: (file: DocumentViewerFile) => void;
 }) {
   const { t } = useTranslation();
   const images = media.filter((item) => item.type === "image");
   const videos = media.filter((item) => item.type === "video");
   const files = media.filter((item) => item.type === "file");
+
+  const open = (item: ClubPostMediaAttachment, url: string | undefined): void => {
+    if (url === undefined) return;
+    onPreview({ url, name: item.name, mime: item.mime, size: item.size });
+  };
 
   return (
     <>
@@ -183,13 +194,17 @@ function MediaGrid({
           {images.map((item) => {
             const url = mediaUrls[item.path];
             return (
-              <a
+              // Zdjęcie otwiera podgląd W PLATFORMIE, nie nową kartę: wyjście
+              // do surowego podpisanego adresu gubi kontekst wpisu i pokazuje
+              // użytkownikowi techniczny URL magazynu.
+              <button
                 key={item.path}
-                href={url ?? "#"}
-                target="_blank"
-                rel="noopener noreferrer"
+                type="button"
+                disabled={url === undefined}
+                onClick={() => open(item, url)}
+                aria-label={`${t("club.post.preview")}: ${item.name}`}
                 className={cn(
-                  "block overflow-hidden rounded-lg bg-muted",
+                  "group/img relative block overflow-hidden rounded-lg bg-muted",
                   images.length === 3 ? "first:col-span-2" : undefined,
                 )}
                 // Proporcja z metadanych: bez niej strumień skacze, gdy zdjęcia
@@ -203,15 +218,23 @@ function MediaGrid({
                 {url === undefined ? (
                   <span className="block h-full w-full animate-pulse bg-muted" />
                 ) : (
-                  <img
-                    src={url}
-                    alt={item.name}
-                    loading="lazy"
-                    decoding="async"
-                    className="h-full w-full object-cover"
-                  />
+                  <>
+                    <img
+                      src={url}
+                      alt={item.name}
+                      loading="lazy"
+                      decoding="async"
+                      className="h-full w-full object-cover transition-transform duration-500 group-hover/img:scale-[1.02]"
+                    />
+                    <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/0 opacity-0 transition-opacity duration-200 group-hover/img:bg-background/25 group-hover/img:opacity-100">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-background/90 px-3 py-1.5 text-xs font-medium shadow-sm">
+                        <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />
+                        {t("club.post.preview")}
+                      </span>
+                    </span>
+                  </>
                 )}
-              </a>
+              </button>
             );
           })}
         </div>
@@ -233,26 +256,45 @@ function MediaGrid({
 
       {files.map((item) => {
         const url = mediaUrls[item.path];
+        const previewable = isPreviewable(item.mime, item.name);
         return (
-          <a
+          <div
             key={item.path}
-            href={url ?? "#"}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-3 flex items-center gap-2.5 rounded-lg border border-border/70 px-3 py-2.5 transition-colors hover:border-primary/40"
+            className="group/file mt-3 flex items-center gap-3 rounded-lg border border-border/70 px-3 py-2.5 transition-colors hover:border-primary/40"
           >
-            <FileText className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-primary/10 text-[10px] font-bold uppercase tracking-wider text-primary">
+              {fileLabel(item.name, item.mime)}
+            </span>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-medium">{item.name}</span>
               <span className="block text-xs text-muted-foreground">
-                {formatBytes(item.size)} · {t("club.post.openFile")}
+                {formatBytes(item.size)}
+                {previewable ? ` · ${t("club.post.preview")}` : ""}
               </span>
             </span>
-            <ExternalLink
-              className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-              aria-hidden="true"
-            />
-          </a>
+            {previewable ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-8 shrink-0 gap-1.5 px-2.5 text-xs"
+                disabled={url === undefined}
+                onClick={() => open(item, url)}
+              >
+                <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+                {t("club.post.preview")}
+              </Button>
+            ) : null}
+            <a
+              href={url ?? "#"}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`${t("club.post.openFile")}: ${item.name}`}
+              className="shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+            </a>
+          </div>
         );
       })}
     </>
@@ -292,6 +334,7 @@ export function ClubPostCard({
   const { t } = useTranslation();
   const lang = isPl ? "pl" : "en";
   const [menuOpen, setMenuOpen] = useState(false);
+  const { openFile, viewer } = useDocumentViewer();
 
   const attachments: ClubPostAttachment[] = parseClubPostAttachments(post.attachments);
   const links = attachments.filter(isLinkAttachment);
@@ -394,7 +437,8 @@ export function ClubPostCard({
 
       {post.body.trim() !== "" ? <PostBody body={post.body} /> : null}
 
-      <MediaGrid media={media} mediaUrls={mediaUrls} />
+      <MediaGrid media={media} mediaUrls={mediaUrls} onPreview={openFile} />
+      {viewer}
       {links.map((link) => (
         <LinkAttachmentCard key={link.url} attachment={link} />
       ))}
