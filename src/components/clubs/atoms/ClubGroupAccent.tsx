@@ -18,7 +18,11 @@ import { cn } from "@/lib/utils";
 /** Zmienna CSS z akcentem działu. `--club-accent` czyta reszta klas poniżej. */
 export function clubGroupAccentVars(accent: string | null): CSSProperties {
   const value = accent === null ? "" : accent.trim();
-  return { ["--club-accent" as string]: value === "" ? "var(--primary)" : value } as CSSProperties;
+  const clubAccent = value === "" ? "var(--primary)" : value;
+  return {
+    ["--club-accent" as string]: clubAccent,
+    ["--club-glow" as string]: `color-mix(in oklab, ${clubAccent} 20%, transparent)`,
+  } as CSSProperties;
 }
 
 export const CLUB_GROUP_TINT =
