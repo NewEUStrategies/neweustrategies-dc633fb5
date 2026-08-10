@@ -53,6 +53,12 @@ interface Props {
    * pasek jest JEDYNYM chrome'em strony.
    */
   pinned?: boolean;
+  /**
+   * Wyświetl logo marki w środkowej kolumnie zamiast etykiety
+   * „aktualnie czytasz" + tytułu. Przydatne na landingach takich jak /quiz,
+   * gdzie środkowy tytuł jest zbędny, a logo ma być bardziej widoczne.
+   */
+  centerLogo?: boolean;
 }
 
 
