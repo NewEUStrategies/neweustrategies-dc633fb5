@@ -127,11 +127,20 @@ export function PostLayoutRenderer({
       {showExcerpt && (
         <p className="header-excerpt-typography text-muted-foreground mb-4">{excerpt}</p>
       )}
-      {meta && (
-        <div
-          className={`cms-meta cms-meta-info ${settings.center_entry_meta ? "justify-center" : ""} flex flex-wrap gap-3 ${center ? "justify-center" : ""}`}
-        >
-          {meta}
+      {/* Wiersz autora: na desktopie meta po lewej, akcje artykułu po prawej;
+          na mobile akcje schodzą pod metadane i zajmują pełną szerokość. */}
+      {(meta || (showHeaderActions && headerActions)) && (
+        <div className="grid gap-3 sm:flex sm:flex-wrap sm:items-center sm:justify-between">
+          {meta && (
+            <div
+              className={`cms-meta cms-meta-info min-w-0 ${settings.center_entry_meta ? "justify-center" : ""} flex flex-wrap gap-3 ${center ? "justify-center" : ""}`}
+            >
+              {meta}
+            </div>
+          )}
+          {showHeaderActions && headerActions && (
+            <div className="no-print min-w-0 shrink-0 [&>div]:flex-wrap">{headerActions}</div>
+          )}
         </div>
       )}
     </header>
