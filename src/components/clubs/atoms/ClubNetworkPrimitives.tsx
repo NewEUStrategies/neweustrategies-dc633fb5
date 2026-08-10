@@ -217,7 +217,7 @@ export function ClubPersonBadge({
         ) : null}
         {statusLabel !== null ? (
           <p className="mt-1.5 flex items-center gap-1 font-medium text-primary">
-            <Sparkles className="h-2.5 w-2.5 shrink-0" aria-hidden="true" />
+            <Activity className="h-2.5 w-2.5 shrink-0" aria-hidden="true" />
             {statusLabel}
           </p>
         ) : null}
