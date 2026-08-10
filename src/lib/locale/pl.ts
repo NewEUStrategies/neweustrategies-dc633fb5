@@ -493,6 +493,7 @@ export const pl = {
       newTitle: "Nowa ikona",
       add: "Dodaj",
       searchPlaceholder: "Szukaj ikony po nazwie…",
+      loadMore: "Wczytaj więcej",
       empty: "Brak ikon w tej kategorii. Dodaj pierwszą lub zaimportuj hurtem.",
       created: "Dodano ikonę",
       deleted: "Usunięto ikonę",

@@ -487,6 +487,7 @@ export const en = {
       newTitle: "New icon",
       add: "Add",
       searchPlaceholder: "Search icons by name…",
+      loadMore: "Load more",
       empty: "No icons in this category yet. Add one or bulk-import.",
       created: "Icon added",
       deleted: "Icon deleted",
