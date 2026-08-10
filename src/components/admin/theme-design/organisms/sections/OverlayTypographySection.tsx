@@ -1,7 +1,9 @@
 // Organism: editor for post overlay + classic-header typography sizes.
 // Owns the post_layout_settings draft slice.
 import { useTranslation } from "react-i18next";
-import type { PostLayoutSettings } from "@/lib/postLayouts";
+import { inheritsThemeTitleSizes, type PostLayoutSettings } from "@/lib/postLayouts";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { OverlaySizeRow } from "../../molecules";
 import "@/lib/i18n-admin-theme-design";
 
@@ -14,6 +16,7 @@ export function OverlayTypographySection({
 }) {
   const { t } = useTranslation();
   const patch = (p: Partial<PostLayoutSettings>) => onChange({ ...draft, ...p });
+  const inheritsTheme = inheritsThemeTitleSizes(draft);
 
   return (
     <section className="space-y-5 rounded-lg border border-border bg-card p-5">
@@ -26,7 +29,28 @@ export function OverlayTypographySection({
         </p>
       </div>
 
-      <div className="space-y-4">
+      <div className="flex items-start justify-between gap-4 rounded-md border border-border bg-muted/30 p-4">
+        <div className="space-y-1">
+          <Label htmlFor="title-size-source" className="text-sm font-semibold">
+            {t("adminThemeDesign.overlay.inheritTitle")}
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            {t("adminThemeDesign.overlay.inheritDesc")}
+          </p>
+        </div>
+        <Switch
+          id="title-size-source"
+          checked={inheritsTheme}
+          onCheckedChange={(v) => patch({ title_size_source: v ? "theme" : "layout" })}
+        />
+      </div>
+
+      <div
+        className={
+          inheritsTheme ? "space-y-4 opacity-50 pointer-events-none select-none" : "space-y-4"
+        }
+        aria-disabled={inheritsTheme}
+      >
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
           {t("adminThemeDesign.overlay.onCover")}
         </h3>
@@ -44,7 +68,14 @@ export function OverlayTypographySection({
         />
       </div>
 
-      <div className="space-y-4 pt-3 border-t border-border">
+      <div
+        className={
+          inheritsTheme
+            ? "space-y-4 pt-3 border-t border-border opacity-50 pointer-events-none select-none"
+            : "space-y-4 pt-3 border-t border-border"
+        }
+        aria-disabled={inheritsTheme}
+      >
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
           {t("adminThemeDesign.overlay.classicHeader")}
         </h3>
