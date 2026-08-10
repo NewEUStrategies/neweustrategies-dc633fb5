@@ -76,10 +76,14 @@ const ITEM_QUIET = "text-muted-foreground hover:bg-muted/60 hover:text-foregroun
 const TILE =
   "group/tile relative flex flex-col items-center gap-1.5 rounded-lg border border-border/60 bg-muted/30 px-1 py-2.5 text-center text-[11px] font-medium leading-tight text-muted-foreground transition-colors hover:border-primary/40 hover:bg-muted/60 hover:text-foreground data-[status=active]:border-primary data-[status=active]:bg-primary/10 data-[status=active]:font-semibold data-[status=active]:text-foreground";
 
-// Aktywna ikona jedzie na PEŁNYM primary z `primary-foreground`: przezroczysta
-// poświata primary/15 na jasnym tle dawała ikonę ledwo odróżnialną od nieaktywnych.
+// Aktywna ikona w JASNYM motywie jedzie na PEŁNYM primary z `primary-foreground`:
+// przezroczysta poświata primary/15 dawała ikonę ledwo odróżnialną od nieaktywnych.
+// W CIEMNYM motywie `--primary` to jasny popiel, więc ten sam kafel dawał niemal
+// biały kwadrat - ikony rysowane własnym kolorem (np. pomarańcz z pakietu ikon)
+// znikały na nim. Dlatego w dark mode aktywna ikona zostaje na ciemnej płycie
+// z wyraźną obwódką: kontrast robi ramka i tło kafla, a nie inwersja koloru.
 const TILE_CHIP =
-  "flex h-8 w-8 items-center justify-center rounded-lg border border-border/60 bg-background text-muted-foreground transition-colors group-hover/tile:text-foreground group-data-[status=active]/tile:border-primary group-data-[status=active]/tile:bg-primary group-data-[status=active]/tile:text-primary-foreground group-data-[status=active]/tile:shadow-sm";
+  "flex h-8 w-8 items-center justify-center rounded-lg border border-border/60 bg-background text-muted-foreground transition-colors group-hover/tile:text-foreground group-data-[status=active]/tile:border-primary group-data-[status=active]/tile:bg-primary group-data-[status=active]/tile:text-primary-foreground group-data-[status=active]/tile:shadow-sm dark:group-data-[status=active]/tile:bg-primary/15 dark:group-data-[status=active]/tile:text-foreground dark:group-data-[status=active]/tile:ring-1 dark:group-data-[status=active]/tile:ring-primary/50";
 
 function SectionTile({
   to,
@@ -185,6 +189,9 @@ export function ClubHubSectionBar({
               ITEM_QUIET,
               "shrink-0 whitespace-nowrap border border-border/60 bg-card",
               "data-[status=active]:border-primary data-[status=active]:bg-primary data-[status=active]:font-semibold data-[status=active]:text-primary-foreground",
+              // Dark: `--primary` to jasny popiel - pełne wypełnienie gasi ikony
+              // rysowane własnym kolorem. Kontrast bierzemy z ramki i tła.
+              "dark:data-[status=active]:bg-primary/15 dark:data-[status=active]:text-foreground",
             )}
           >
             <Icon className="h-[1.125rem] w-[1.125rem] shrink-0" aria-hidden="true" />
