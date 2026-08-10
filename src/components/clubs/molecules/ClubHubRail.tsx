@@ -74,10 +74,12 @@ const ITEM_QUIET = "text-muted-foreground hover:bg-muted/60 hover:text-foregroun
 // kolejność reguł w arkuszu, a nie zapis w komponencie. Wariant `data-[...]`
 // rozstrzyga to po stronie Tailwinda i pozwala ubrać także IKONĘ w środku.
 const TILE =
-  "group/tile relative flex flex-col items-center gap-1.5 rounded-lg border border-border/60 bg-muted/30 px-1 py-2.5 text-center text-[11px] font-medium leading-tight text-muted-foreground transition-colors hover:border-primary/40 hover:bg-muted/60 hover:text-foreground data-[status=active]:border-primary/40 data-[status=active]:bg-primary/10 data-[status=active]:text-primary";
+  "group/tile relative flex flex-col items-center gap-1.5 rounded-lg border border-border/60 bg-muted/30 px-1 py-2.5 text-center text-[11px] font-medium leading-tight text-muted-foreground transition-colors hover:border-primary/40 hover:bg-muted/60 hover:text-foreground data-[status=active]:border-primary data-[status=active]:bg-primary/10 data-[status=active]:font-semibold data-[status=active]:text-foreground";
 
+// Aktywna ikona jedzie na PEŁNYM primary z `primary-foreground`: przezroczysta
+// poświata primary/15 na jasnym tle dawała ikonę ledwo odróżnialną od nieaktywnych.
 const TILE_CHIP =
-  "flex h-8 w-8 items-center justify-center rounded-lg border border-border/60 bg-background text-muted-foreground transition-colors group-hover/tile:text-foreground group-data-[status=active]/tile:border-primary/30 group-data-[status=active]/tile:bg-primary/15 group-data-[status=active]/tile:text-primary";
+  "flex h-8 w-8 items-center justify-center rounded-lg border border-border/60 bg-background text-muted-foreground transition-colors group-hover/tile:text-foreground group-data-[status=active]/tile:border-primary group-data-[status=active]/tile:bg-primary group-data-[status=active]/tile:text-primary-foreground group-data-[status=active]/tile:shadow-sm";
 
 function SectionTile({
   to,
