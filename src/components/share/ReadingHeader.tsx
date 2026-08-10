@@ -59,6 +59,11 @@ interface Props {
    * gdzie środkowy tytuł jest zbędny, a logo ma być bardziej widoczne.
    */
   centerLogo?: boolean;
+  /**
+   * Ukryj logo w lewej kolumnie (nad search widgetem). Używane razem z
+   * `centerLogo`, żeby uniknąć podwójnego logo na stronach typu /quiz.
+   */
+  hideLeftLogo?: boolean;
 }
 
 
