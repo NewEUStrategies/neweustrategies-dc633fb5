@@ -50,14 +50,17 @@ import { formatNumber } from "@/lib/i18n/format";
  * dwóch operacji i zostawiałoby okno, w którym członek nie ma żadnej
  * deklaracji - a właśnie w tym oknie ktoś mógłby szukać eksperta.
  */
-function ExpertiseEditor({
+export function ClubExpertiseEditor({
   clubId,
   isPl,
   onDone,
+  variant = "rail",
 }: {
   clubId: string;
   isPl: boolean;
-  onDone: () => void;
+  /** Brak `onDone` znaczy "formularz jest częścią ekranu" - nie ma czego zamknąć. */
+  onDone?: () => void;
+  variant?: "rail" | "page";
 }) {
   const { t } = useTranslation();
   const { topics } = useClubTopics();
@@ -84,8 +87,21 @@ function ExpertiseEditor({
   };
 
   return (
-    <div className="mb-2.5 space-y-2 rounded-lg border border-border/60 bg-muted/30 p-2.5">
-      <p className="text-[11px] leading-snug text-muted-foreground">
+    <div
+      className={cn(
+        "space-y-2 rounded-lg border border-border/60",
+        variant === "page" ? "bg-card p-3 sm:p-4" : "mb-2.5 bg-muted/30 p-2.5",
+      )}
+    >
+      {variant === "page" ? (
+        <h2 className="text-sm font-semibold">{t("club.network.expertise.declare")}</h2>
+      ) : null}
+      <p
+        className={cn(
+          "leading-snug text-muted-foreground",
+          variant === "page" ? "text-xs" : "text-[11px]",
+        )}
+      >
         {t("club.network.expertise.hint")}
       </p>
       <div className="flex flex-wrap gap-1">
@@ -121,7 +137,7 @@ function ExpertiseEditor({
           onClick={() =>
             save.mutate(draft, {
               onSuccess: () => {
-                onDone();
+                onDone?.();
                 toast.success(t("club.network.expertise.saved"));
               },
               onError: () => toast.error(t("club.network.expertise.failed")),
@@ -133,16 +149,18 @@ function ExpertiseEditor({
           ) : null}
           {t("club.network.expertise.save")}
         </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          className="h-8 rounded-lg"
-          onClick={onDone}
-          disabled={save.isPending}
-        >
-          {t("club.network.board.cancel")}
-        </Button>
+        {onDone !== undefined ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-8 rounded-lg"
+            onClick={onDone}
+            disabled={save.isPending}
+          >
+            {t("club.network.board.cancel")}
+          </Button>
+        ) : null}
       </div>
     </div>
   );
@@ -191,7 +209,7 @@ export function ClubRosterPanel({
       }
     >
       {editing ? (
-        <ExpertiseEditor clubId={clubId} isPl={isPl} onDone={() => setEditing(false)} />
+        <ClubExpertiseEditor clubId={clubId} isPl={isPl} onDone={() => setEditing(false)} />
       ) : null}
 
       {/* Iskra ludzi. Klub bez ani jednego ruchu w dwa tygodnie nie dostaje

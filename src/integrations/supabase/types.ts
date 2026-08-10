@@ -15470,8 +15470,10 @@ export type Database = {
       club_board_notices_list: {
         Args: {
           p_club_id: string
+          p_include_closed?: boolean
           p_kind?: string
           p_limit?: number
+          p_mine?: boolean
           p_offset?: number
           p_topic?: string
         }
@@ -15483,11 +15485,14 @@ export type Database = {
           author_slug: string
           body: string
           can_close: boolean
+          closed_at: string
           created_at: string
           expires_at: string
           id: string
+          is_expired: boolean
           is_mine: boolean
           kind: string
+          status: string
           topic: string
           total_count: number
         }[]
@@ -15622,6 +15627,37 @@ export type Database = {
         Args: { p_club_id: string; p_payload: Json }
         Returns: string
       }
+      club_event_view: {
+        Args: { p_club_id: string; p_slug: string }
+        Returns: {
+          all_day: boolean
+          anchor_event_id: string
+          can_manage: boolean
+          capacity: number
+          club_id: string
+          created_at: string
+          description_en: string
+          description_pl: string
+          ends_at: string
+          going_count: number
+          group_id: string
+          group_name_en: string
+          group_name_pl: string
+          id: string
+          kind: string
+          location: string
+          meeting_url: string
+          my_rsvp: string
+          rsvp_enabled: boolean
+          slug: string
+          starts_at: string
+          status: string
+          thread_id: string
+          thread_slug: string
+          title_en: string
+          title_pl: string
+        }[]
+      }
       club_events_list: {
         Args: {
           p_club_id: string
@@ -15659,6 +15695,13 @@ export type Database = {
           title_pl: string
         }[]
       }
+      club_expertise_areas: {
+        Args: { p_club_id: string }
+        Returns: {
+          people: number
+          topic: string
+        }[]
+      }
       club_expertise_mine: {
         Args: { p_club_id: string }
         Returns: {
@@ -15668,6 +15711,29 @@ export type Database = {
       club_expertise_set: {
         Args: { p_club_id: string; p_topics: string[] }
         Returns: number
+      }
+      club_experts_list: {
+        Args: {
+          p_club_id: string
+          p_limit?: number
+          p_offset?: number
+          p_search?: string
+          p_topic?: string
+        }
+        Returns: {
+          avatar_url: string
+          club_role: string
+          display_name: string
+          headline: string
+          joined_at: string
+          last_active_at: string
+          profile_slug: string
+          reply_count: number
+          thread_count: number
+          topics: string[]
+          total_count: number
+          user_id: string
+        }[]
       }
       club_export_my_data: { Args: { p_limit?: number }; Returns: Json }
       club_groups_list: {
@@ -15778,6 +15844,37 @@ export type Database = {
           user_id: string
           week_start: string
         }[]
+      }
+      club_member_spotlight_delete: {
+        Args: { p_id: string }
+        Returns: boolean
+      }
+      club_member_spotlight_history: {
+        Args: { p_club_id: string; p_limit?: number }
+        Returns: {
+          avatar_url: string
+          blurb_en: string
+          blurb_pl: string
+          can_manage: boolean
+          display_name: string
+          headline: string
+          id: string
+          is_current: boolean
+          profile_slug: string
+          topics: string[]
+          user_id: string
+          week_start: string
+        }[]
+      }
+      club_member_spotlight_upsert: {
+        Args: {
+          p_blurb_en?: string
+          p_blurb_pl?: string
+          p_club_id: string
+          p_user_id: string
+          p_week_start?: string
+        }
+        Returns: string
       }
       club_members_list: {
         Args: {
@@ -15902,7 +15999,7 @@ export type Database = {
         Returns: undefined
       }
       club_output_list: {
-        Args: { p_club_id: string; p_limit?: number }
+        Args: { p_club_id: string; p_limit?: number; p_offset?: number }
         Returns: {
           contributor_count: number
           contributors: Json

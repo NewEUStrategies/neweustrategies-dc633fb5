@@ -250,9 +250,16 @@ export const clubKeys = {
   // patrz nizej.
 
   /** Tablica ogloszen. Zawezenia sa czescia klucza: "szukam" i "oferuje" to
-   *  dwie rozne listy, a nie odswiezenie tej samej. */
-  board: (clubId: string, kind: string | null, topic: string | null) =>
-    [...clubKeys.club(clubId), "board", kind ?? "all", topic ?? "all"] as const,
+   *  dwie rozne listy, a nie odswiezenie tej samej. Zakres ("otwarte" /
+   *  "moje" / "archiwum") tak samo - szyna i pelna strona czytaja ten sam
+   *  RPC z roznymi argumentami i nie moga dzielic wpisu cache. */
+  board: (
+    clubId: string,
+    kind: string | null,
+    topic: string | null,
+    scope: string = "open",
+    offset = 0,
+  ) => [...clubKeys.club(clubId), "board", kind ?? "all", topic ?? "all", scope, offset] as const,
   /** Prefiks wszystkich wariantow tablicy - mutacja nie zna otwartych filtrow. */
   boardAll: (clubId: string) => [...clubKeys.club(clubId), "board"] as const,
 
@@ -271,7 +278,23 @@ export const clubKeys = {
 
   /** Dorobek jako wynik wspolnych rozmow. Osobna galaz od `libraryDocuments`:
    *  to inne pytanie i inny zbior, mimo wspolnego zrodla w `club_documents`. */
-  output: (clubId: string, limit: number) => [...clubKeys.club(clubId), "output", limit] as const,
+  output: (clubId: string, limit: number, offset = 0) =>
+    [...clubKeys.club(clubId), "output", limit, offset] as const,
+
+  /** Katalog ekspertow KLUBU - inne pytanie niz `threadExperts`. */
+  experts: (clubId: string, topic: string | null, search: string, offset: number) =>
+    [...clubKeys.club(clubId), "experts", topic ?? "all", search, offset] as const,
+
+  /** Obszary z licznikiem osob - chipy filtra katalogu. */
+  expertiseAreas: (clubId: string) => [...clubKeys.club(clubId), "expertiseAreas"] as const,
+
+  /** Archiwum przedstawien (wylacznie przypiecia redakcyjne). */
+  spotlightHistory: (clubId: string) => [...clubKeys.club(clubId), "spotlightHistory"] as const,
+
+  /** Pojedyncze spotkanie po slugu. Slug moze sie zmienic, wiec galaz jest
+   *  osobna od `events()` - ale nadal pod klubem, zeby RSVP uniewaznilo
+   *  jednym wywolaniem takze kalendarz obok. */
+  event: (clubId: string, slug: string) => [...clubKeys.club(clubId), "event", slug] as const,
 
   /** Obecnosc na spotkaniu. Pod galezia KLUBU, bo wydarzenie do niego nalezy,
    *  a zmiana RSVP ma odswiezyc rowniez kalendarz obok. */

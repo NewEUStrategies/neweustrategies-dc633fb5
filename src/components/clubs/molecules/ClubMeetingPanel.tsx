@@ -17,6 +17,7 @@
 // stan, a nie awaria: "siedem osób potwierdziło" nadal jest powodem, żeby
 // przyjść.
 import { useTranslation } from "react-i18next";
+import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { CalendarClock, MapPin, Users2, Video } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -142,9 +143,18 @@ export function ClubMeetingPanel({
           <ClubEventKindIcon kind={kind} className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium leading-tight">
+          {/* Tytuł prowadzi na STRONĘ TEGO spotkania, a nie do kalendarza:
+              decyzja "idę / nie idę" zapada przy jednym wydarzeniu i potrzebuje
+              opisu oraz pełnej listy potwierdzonych, których wiersz kalendarza
+              nie ma. "Więcej" w rogu zostaje przy kalendarzu, bo to jest droga
+              do POZOSTAŁYCH terminów. */}
+          <Link
+            to="/club/$clubSlug/e/$eventSlug"
+            params={{ clubSlug, eventSlug: next.slug }}
+            className="text-sm font-medium leading-tight hover:text-primary"
+          >
             {isPl ? next.title_pl : next.title_en}
-          </p>
+          </Link>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
             {formatDate(next.starts_at, lang, {
               weekday: "short",
@@ -222,9 +232,13 @@ export function ClubMeetingPanel({
         <ul className="mt-2.5 space-y-1 border-t border-border/60 pt-2">
           {later.map((event) => (
             <li key={event.id} className="flex items-baseline justify-between gap-2 text-[11px]">
-              <span className="truncate text-muted-foreground">
+              <Link
+                to="/club/$clubSlug/e/$eventSlug"
+                params={{ clubSlug, eventSlug: event.slug }}
+                className="truncate text-muted-foreground hover:text-primary"
+              >
                 {isPl ? event.title_pl : event.title_en}
-              </span>
+              </Link>
               <span className="shrink-0 tabular-nums text-muted-foreground">
                 {formatDate(event.starts_at, lang, { day: "numeric", month: "short" })}
               </span>

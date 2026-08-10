@@ -64,13 +64,22 @@ export const clubPl = {
       // --- hub pojedynczego klubu (strumień + dwie szyny) ---
       sectionsLabel: "Sekcje klubu",
       more: "Więcej",
+      sectionGroups: {
+        club: "Klub",
+        people: "Ludzie",
+        work: "Praca",
+      },
       sections: {
         threads: "Feed",
+        output: "Dorobek",
         documents: "Dokumenty",
+        members: "Skład",
+        experts: "Eksperci",
+        board: "Tablica",
+        spotlight: "Poznaj",
         calendar: "Kalendarz",
         schedule: "Harmonogram",
         insights: "Dynamika",
-        members: "Skład",
       },
       identity: {
         members: "członków",
@@ -1039,9 +1048,35 @@ export const clubPl = {
     // kto będzie na spotkaniu, kto tu w ogóle jest, kogo warto poznać i co
     // z tych rozmów wyszło.
     network: {
+      // Wspólne dla pełnych ekranów modułów sieciujących.
+      pagination: "Nawigacja po stronach",
+      prev: "Poprzednia",
+      next: "Następna",
+      pageOf: "Strona {{page}} z {{pages}}",
+
       // Tablica "szukam / oferuję" - najsilniejszy mechanizm sieciujący.
       board: {
         title: "Szukam / Oferuję",
+        lead: "Krótkie ogłoszenia członków. Networking załamuje się nie z braku ludzi, tylko z braku pretekstu do odezwania się - to jest ten pretekst.",
+        composeTitle: "Powieś ogłoszenie",
+        composeLead:
+          "Jedna linia wystarczy. Odpowiedzi przychodzą w wiadomości prywatnej, nie pod ogłoszeniem.",
+        scopeLabel: "Zakres tablicy",
+        scope: {
+          open: "Otwarte",
+          mine: "Moje",
+          archive: "Archiwum",
+        },
+        outcome: {
+          resolved: "Załatwione",
+          expired: "Wygasło",
+          removed: "Zdjęte",
+        },
+        total_one: "{{count}} ogłoszenie",
+        total_few: "{{count}} ogłoszenia",
+        total_many: "{{count}} ogłoszeń",
+        total_other: "{{count}} ogłoszeń",
+        emptyMine: "Nie powiesiłeś jeszcze żadnego ogłoszenia.",
         add: "Dodaj",
         cancel: "Anuluj",
         publish: "Opublikuj",
@@ -1084,6 +1119,23 @@ export const clubPl = {
       // Eksperci tego wątku - jedyny moduł kontekstowy.
       experts: {
         title: "Eksperci tego wątku",
+        pageTitle: "Eksperci klubu",
+        lead: "Kto realnie pracował nad daną sprawą. To jest najcenniejsza asymetria informacyjna w klubie - i jedyna, której nie widać ze strumienia.",
+        allAreas: "Wszystkie obszary",
+        searchPlaceholder: "Szukaj po nazwisku, stanowisku lub instytucji",
+        total_one: "{{count}} osoba z deklaracją",
+        total_few: "{{count}} osoby z deklaracją",
+        total_many: "{{count}} osób z deklaracją",
+        total_other: "{{count}} osób z deklaracją",
+        empty:
+          "Nikt nie zadeklarował jeszcze swoich obszarów. Pierwsza deklaracja zwykle pociąga kolejne.",
+        emptyFiltered: "W tym zawężeniu nie ma nikogo.",
+        contribution_one: "{{value}} wpis w klubie",
+        contribution_few: "{{value}} wpisy w klubie",
+        contribution_many: "{{value}} wpisów w klubie",
+        contribution_other: "{{value}} wpisów w klubie",
+        lastActive: "ostatnio: {{date}}",
+        neverActive: "jeszcze się nie odezwał",
         inArea: "obszar: {{area}}",
         inThread: "już tu jest",
         ask: "Poproś o zdanie",
@@ -1096,6 +1148,20 @@ export const clubPl = {
       // Najbliższe spotkanie + kto będzie.
       meeting: {
         title: "Najbliższe spotkanie",
+        pageTitle: "Spotkanie",
+        lead: "Kto potwierdził obecność. Sama data konwertuje słabo - lista nazwisk mocno, bo ludzie przychodzą do ludzi, nie do tematu.",
+        whoTitle: "Kto będzie",
+        when: "Kiedy",
+        where: "Gdzie",
+        you: "to Ty",
+        capacity_one: "limit {{count}} miejsce",
+        capacity_few: "limit {{count}} miejsca",
+        capacity_many: "limit {{count}} miejsc",
+        capacity_other: "limit {{count}} miejsc",
+        namesHidden: "Ten klub nie udostępnia listy nazwisk.",
+        notFound: "Nie znaleziono takiego spotkania.",
+        toCalendar: "Wróć do kalendarza",
+        toThread: "Rozmowa o tym spotkaniu",
         join: "Dołącz online",
         nobodyYet: "Nikt jeszcze nie potwierdził. Twoje potwierdzenie zwykle pociąga kolejne.",
         goingCount_one: "{{count}} osoba potwierdziła",
@@ -1114,21 +1180,56 @@ export const clubPl = {
       roster: {
         title: "Skład klubu",
         chartLabel: "Liczba osób aktywnych dziennie przez ostatnie 14 dni",
+        chartCaption: "osoby aktywne / 14 dni",
         total: "Razem",
         active24h: "Aktywni / 24 h",
+        active7d: "Aktywni / 7 dni",
         new7d: "Nowi / 7 dni",
         newBadge: "nowy",
         activeDot: "Aktywny w ostatniej dobie",
+        toExperts: "Zobacz, kto się na czym zna",
       },
 
       // Poznaj członka - jedna osoba tygodniowo.
       spotlight: {
         title: "Poznaj członka",
+        lead: "Jedna osoba tygodniowo, trzy zdania i obszar ekspertyzy. W klubie, w którym ludzie się nie znają, lista nazwisk nie tworzy znajomości - a to tworzy.",
+        thisWeek: "W tym tygodniu",
+        sourceCurated: "wybór redakcji klubu",
+        sourceRotation: "rotacja po składzie",
+        openProfile: "Otwórz profil",
+        emptyClub:
+          "Nie ma jeszcze kogo przedstawić: moduł bierze osoby z opisem w profilu albo z zadeklarowaną kompetencją.",
+        archive: "Przedstawieni wcześniej",
+        archiveHint:
+          "Archiwum zawiera wyłącznie wybory redakcji - rotacja jest liczona na bieżąco i nie zostawia śladu.",
+        archiveEmpty: "Redakcja nie przypięła jeszcze nikogo.",
+        weekOf: "tydzień od {{date}}",
+        pinTitle: "Przypnij osobę na tydzień",
+        pinLead:
+          "Wybór redakcji wygrywa z rotacją. Bez wpisu moduł działa dalej - po prostu wraca na rotację.",
+        member: "Osoba",
+        memberPlaceholder: "Wybierz z listy członków",
+        week: "Tydzień",
+        blurbPl: "Trzy zdania (PL)",
+        blurbEn: "Trzy zdania (EN)",
+        blurbPlaceholder: "Kim jest, nad czym pracował, po co warto się do niego odezwać.",
+        blurbHint:
+          "Puste pole nie jest błędem - moduł weźmie wtedy opis z profilu tej osoby. Dowolny dzień tygodnia jest poprawny.",
+        pin: "Przypnij",
+        pinned: "Przypięto na wybrany tydzień.",
+        pinFailed: "Nie udało się zapisać przypięcia.",
+        unpin: "Zdejmij przypięcie",
+        unpinned: "Przypięcie zdjęte.",
       },
 
       // Dorobek jako wynik wspólnych rozmów.
       output: {
         title: "Dorobek klubu",
+        lead: "Nie lista plików, tylko to, co powstało ze wspólnych rozmów - razem z dyskusją, z której wyrosło, i osobami, które ją prowadziły.",
+        fromThread: "z rozmowy: {{title}}",
+        noThread: "Materiał bez podpiętej rozmowy.",
+        toLibrary: "Przejdź do biblioteki",
         empty:
           "Z rozmów w tym klubie nie powstał jeszcze wspólny materiał. To pierwsza rzecz, którą warto zmienić.",
         count_one: "{{count}} materiał ze wspólnych rozmów",
@@ -1902,13 +2003,22 @@ export const clubEn = {
       // --- single-club hub (stream + two rails) ---
       sectionsLabel: "Club sections",
       more: "More",
+      sectionGroups: {
+        club: "Club",
+        people: "People",
+        work: "Work",
+      },
       sections: {
         threads: "Feed",
+        output: "Output",
         documents: "Documents",
+        members: "Members",
+        experts: "Experts",
+        board: "Board",
+        spotlight: "Meet",
         calendar: "Calendar",
         schedule: "Schedule",
         insights: "Activity",
-        members: "Members",
       },
       identity: {
         members: "members",
@@ -2812,8 +2922,30 @@ export const clubEn = {
 
     // --- networking layer (A32): people, not content ---
     network: {
+      pagination: "Page navigation",
+      prev: "Previous",
+      next: "Next",
+      pageOf: "Page {{page}} of {{pages}}",
+
       board: {
         title: "Seeking / Offering",
+        lead: "Short notices from members. Networking fails for want of a pretext to reach out, not for want of people - this is the pretext.",
+        composeTitle: "Post a notice",
+        composeLead: "One line is enough. Replies arrive as direct messages, not under the notice.",
+        scopeLabel: "Board scope",
+        scope: {
+          open: "Open",
+          mine: "Mine",
+          archive: "Archive",
+        },
+        outcome: {
+          resolved: "Resolved",
+          expired: "Expired",
+          removed: "Taken down",
+        },
+        total_one: "{{count}} notice",
+        total_other: "{{count}} notices",
+        emptyMine: "You have not posted a notice yet.",
         add: "Add",
         cancel: "Cancel",
         publish: "Publish",
@@ -2852,6 +2984,18 @@ export const clubEn = {
 
       experts: {
         title: "Experts on this thread",
+        pageTitle: "Club experts",
+        lead: "Who has actually worked on a given matter. It is the most valuable information asymmetry in a club - and the one the stream never shows.",
+        allAreas: "All areas",
+        searchPlaceholder: "Search by name, role or institution",
+        total_one: "{{count}} person with a declaration",
+        total_other: "{{count}} people with a declaration",
+        empty: "Nobody has declared their areas yet. The first declaration usually pulls the rest.",
+        emptyFiltered: "Nobody matches this filter.",
+        contribution_one: "{{value}} entry in the club",
+        contribution_other: "{{value}} entries in the club",
+        lastActive: "last seen: {{date}}",
+        neverActive: "has not spoken yet",
         inArea: "area: {{area}}",
         inThread: "already here",
         ask: "Ask for their view",
@@ -2863,6 +3007,18 @@ export const clubEn = {
 
       meeting: {
         title: "Next meeting",
+        pageTitle: "Meeting",
+        lead: "Who confirmed they are coming. A date alone converts poorly - a list of names converts well, because people come to people, not to a topic.",
+        whoTitle: "Who is coming",
+        when: "When",
+        where: "Where",
+        you: "this is you",
+        capacity_one: "{{count}} seat limit",
+        capacity_other: "{{count}} seat limit",
+        namesHidden: "This club does not share the list of names.",
+        notFound: "No such meeting was found.",
+        toCalendar: "Back to the calendar",
+        toThread: "The conversation behind this meeting",
         join: "Join online",
         nobodyYet: "Nobody has confirmed yet. Your confirmation usually pulls the next ones.",
         goingCount_one: "{{count}} person confirmed",
@@ -2876,19 +3032,54 @@ export const clubEn = {
       roster: {
         title: "Club roster",
         chartLabel: "Number of people active per day over the last 14 days",
+        chartCaption: "people active / 14 days",
         total: "Total",
         active24h: "Active / 24h",
+        active7d: "Active / 7 days",
         new7d: "New / 7 days",
         newBadge: "new",
         activeDot: "Active in the last 24 hours",
+        toExperts: "See who knows what",
       },
 
       spotlight: {
         title: "Meet a member",
+        lead: "One person a week, three sentences and an area of expertise. In a club where people do not know each other, a list of names builds nothing - this does.",
+        thisWeek: "This week",
+        sourceCurated: "chosen by the club's editors",
+        sourceRotation: "rotation across the roster",
+        openProfile: "Open profile",
+        emptyClub:
+          "There is nobody to introduce yet: the module picks people with a profile description or a declared area.",
+        archive: "Introduced earlier",
+        archiveHint:
+          "The archive holds editorial picks only - the rotation is computed on the fly and leaves no trace.",
+        archiveEmpty: "The editors have not pinned anyone yet.",
+        weekOf: "week of {{date}}",
+        pinTitle: "Pin a member for a week",
+        pinLead:
+          "An editorial pick beats the rotation. Without an entry the module keeps working - it simply falls back to rotation.",
+        member: "Person",
+        memberPlaceholder: "Pick from the roster",
+        week: "Week",
+        blurbPl: "Three sentences (PL)",
+        blurbEn: "Three sentences (EN)",
+        blurbPlaceholder: "Who they are, what they worked on, why it is worth reaching out.",
+        blurbHint:
+          "An empty field is not an error - the module then uses the person's own profile description. Any day of the week works.",
+        pin: "Pin",
+        pinned: "Pinned for the chosen week.",
+        pinFailed: "Could not save the pin.",
+        unpin: "Remove the pin",
+        unpinned: "Pin removed.",
       },
 
       output: {
         title: "What the club produced",
+        lead: "Not a file list - what came out of shared conversations, together with the discussion it grew from and the people who held it.",
+        fromThread: "from the conversation: {{title}}",
+        noThread: "Material with no conversation attached.",
+        toLibrary: "Go to the library",
         empty:
           "No shared output has come out of the conversations here yet. That is the first thing worth changing.",
         count_one: "{{count}} piece born of shared conversations",

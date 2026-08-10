@@ -319,7 +319,12 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
   // listę - trzeci byt mówiący to samo dodawał wysokości, nie informacji.
   const context = (
     <>
-      <ClubBoardPanel clubId={club.id} canPost={signedIn && club.can_reply} isPl={isPl} />
+      <ClubBoardPanel
+        clubSlug={clubSlug}
+        clubId={club.id}
+        canPost={signedIn && club.can_reply}
+        isPl={isPl}
+      />
       <ClubMeetingPanel
         clubSlug={clubSlug}
         clubId={club.id}
@@ -336,7 +341,7 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
         isPl={isPl}
         locale={locale}
       />
-      <ClubSpotlightPanel clubId={club.id} isPl={isPl} />
+      <ClubSpotlightPanel clubSlug={clubSlug} clubId={club.id} isPl={isPl} />
       <ClubOutputPanel
         clubSlug={clubSlug}
         entries={outputQ.data?.entries ?? []}

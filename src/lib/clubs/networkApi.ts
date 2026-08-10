@@ -12,10 +12,14 @@ import {
   parseRosterFaces,
   type ClubBoardNoticeRow,
   type ClubEventAttendeeRow,
+  type ClubEventViewRow,
+  type ClubExpertiseArea,
+  type ClubExpertRow,
   type ClubNoticeKind,
   type ClubOutputContributor,
   type ClubOutputRow,
   type ClubRosterSignal,
+  type ClubSpotlightHistoryRow,
   type ClubSpotlightRow,
   type ClubThreadExpertRow,
 } from "./networkTypes";
@@ -35,6 +39,10 @@ export interface ClubBoardQuery {
   topic?: string | null;
   limit?: number;
   offset?: number;
+  /** Zawezenie do ogloszen wolajacego - zakladka "moje" na pelnej tablicy. */
+  mine?: boolean;
+  /** Archiwum: zalatwione, wygasle i (dla moderacji) zdjete. */
+  includeClosed?: boolean;
 }
 
 export async function fetchClubBoardNotices(params: ClubBoardQuery): Promise<ClubBoardPage> {
@@ -44,6 +52,8 @@ export async function fetchClubBoardNotices(params: ClubBoardQuery): Promise<Clu
     p_topic: params.topic ?? undefined,
     p_limit: params.limit ?? 8,
     p_offset: params.offset ?? 0,
+    p_mine: params.mine ?? undefined,
+    p_include_closed: params.includeClosed ?? undefined,
   });
   if (error) throw error;
   const rows = (data ?? []) as ClubBoardNoticeRow[];
@@ -103,6 +113,49 @@ export async function setMyClubExpertise(
   return data ?? 0;
 }
 
+// --- katalog ekspertow KLUBU (A33) ---
+//
+// Osobne od `fetchClubThreadExperts`: tam pytanie brzmi "kto zna sie na tym,
+// o czym mowa w tym watku" i wychodzi szesc osob, tutaj - "kto tu sie na czym
+// zna" i wychodzi lista z paginacja, filtrem obszaru i fraza.
+
+export interface ClubExpertsPage {
+  rows: ClubExpertRow[];
+  total: number;
+}
+
+export interface ClubExpertsQuery {
+  clubId: string;
+  topic?: string | null;
+  search?: string | null;
+  limit?: number;
+  offset?: number;
+}
+
+export async function fetchClubExperts(params: ClubExpertsQuery): Promise<ClubExpertsPage> {
+  const { data, error } = await supabase.rpc("club_experts_list", {
+    p_club_id: params.clubId,
+    p_topic: params.topic ?? undefined,
+    // Fraza krotsza niz dwa znaki nie zaweza niczego sensownie, a kosztuje
+    // pelne skanowanie ILIKE po trzech kolumnach profilu.
+    p_search:
+      params.search !== null && params.search !== undefined && params.search.trim().length >= 2
+        ? params.search.trim()
+        : undefined,
+    p_limit: params.limit ?? 24,
+    p_offset: params.offset ?? 0,
+  });
+  if (error) throw error;
+  const rows = (data ?? []) as ClubExpertRow[];
+  return { rows, total: rows.length > 0 ? Number(rows[0].total_count) : 0 };
+}
+
+export async function fetchClubExpertiseAreas(clubId: string): Promise<ClubExpertiseArea[]> {
+  const { data, error } = await supabase.rpc("club_expertise_areas", { p_club_id: clubId });
+  if (error) throw error;
+  return data ?? [];
+}
+
 export async function fetchClubThreadExperts(
   threadId: string,
   limit = 6,
@@ -143,6 +196,24 @@ export async function fetchClubEventAttendees(
   });
   if (error) throw error;
   return (data ?? []) as ClubEventAttendeeRow[];
+}
+
+/**
+ * Jedno spotkanie po slugu. `null` znaczy "nie ma czego pokazac" - klub
+ * nieczytelny i nieistniejacy slug daja ten sam wynik, bo klub `secret` nie
+ * ma prawa zdradzic, ze wydarzenie istnieje.
+ */
+export async function fetchClubEvent(
+  clubId: string,
+  slug: string,
+): Promise<ClubEventViewRow | null> {
+  const { data, error } = await supabase.rpc("club_event_view", {
+    p_club_id: clubId,
+    p_slug: slug,
+  });
+  if (error) throw error;
+  const rows = (data ?? []) as ClubEventViewRow[];
+  return rows[0] ?? null;
 }
 
 // ---------------------------------------------------------------------------
@@ -188,6 +259,51 @@ export async function fetchClubSpotlight(clubId: string): Promise<ClubSpotlightR
   return rows[0] ?? null;
 }
 
+/**
+ * Archiwum przedstawien. Zawiera WYLACZNIE przypiecia redakcyjne - rotacja
+ * jest liczona, a nie zapisywana, wiec nie zostawia sladu z definicji.
+ */
+export async function fetchClubSpotlightHistory(
+  clubId: string,
+  limit = 12,
+): Promise<ClubSpotlightHistoryRow[]> {
+  const { data, error } = await supabase.rpc("club_member_spotlight_history", {
+    p_club_id: clubId,
+    p_limit: limit,
+  });
+  if (error) throw error;
+  return (data ?? []) as ClubSpotlightHistoryRow[];
+}
+
+export interface ClubSpotlightPinInput {
+  userId: string;
+  /** `YYYY-MM-DD`; RPC i tak znormalizuje do poniedzialku tego tygodnia. */
+  weekStart?: string | null;
+  blurbPl?: string | null;
+  blurbEn?: string | null;
+}
+
+export async function pinClubSpotlight(
+  clubId: string,
+  input: ClubSpotlightPinInput,
+): Promise<string> {
+  const { data, error } = await supabase.rpc("club_member_spotlight_upsert", {
+    p_club_id: clubId,
+    p_user_id: input.userId,
+    p_week_start: input.weekStart ?? undefined,
+    p_blurb_pl: input.blurbPl ?? undefined,
+    p_blurb_en: input.blurbEn ?? undefined,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteClubSpotlight(id: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc("club_member_spotlight_delete", { p_id: id });
+  if (error) throw error;
+  return data === true;
+}
+
 // ---------------------------------------------------------------------------
 // Dorobek jako wynik wspolnych rozmow
 // ---------------------------------------------------------------------------
@@ -203,10 +319,15 @@ export interface ClubOutputPage {
   total: number;
 }
 
-export async function fetchClubOutput(clubId: string, limit = 4): Promise<ClubOutputPage> {
+export async function fetchClubOutput(
+  clubId: string,
+  limit = 4,
+  offset = 0,
+): Promise<ClubOutputPage> {
   const { data, error } = await supabase.rpc("club_output_list", {
     p_club_id: clubId,
     p_limit: limit,
+    p_offset: offset,
   });
   if (error) throw error;
   const rows = (data ?? []) as ClubOutputRow[];

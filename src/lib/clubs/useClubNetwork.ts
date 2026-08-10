@@ -21,24 +21,35 @@ import {
 import {
   closeClubBoardNotice,
   createClubBoardNotice,
+  deleteClubSpotlight,
   fetchClubBoardNotices,
+  fetchClubEvent,
   fetchClubEventAttendees,
+  fetchClubExperts,
+  fetchClubExpertiseAreas,
   fetchClubOutput,
   fetchClubRosterSignal,
   fetchClubSpotlight,
+  fetchClubSpotlightHistory,
   fetchClubThreadExperts,
   fetchMyClubExpertise,
+  pinClubSpotlight,
   pingClubThreadExpert,
   setMyClubExpertise,
   type ClubBoardPage,
+  type ClubExpertsPage,
   type ClubNoticeCreateInput,
   type ClubOutputPage,
+  type ClubSpotlightPinInput,
 } from "./networkApi";
 import { clubKeys } from "./queryKeys";
 import type {
   ClubEventAttendeeRow,
+  ClubEventViewRow,
+  ClubExpertiseArea,
   ClubNoticeKind,
   ClubRosterSignal,
+  ClubSpotlightHistoryRow,
   ClubSpotlightRow,
   ClubThreadExpertRow,
 } from "./networkTypes";
@@ -52,16 +63,34 @@ function invalidateClub(qc: QueryClient, clubId: string): void {
 // Ogloszenia "szukam / oferuje"
 // ---------------------------------------------------------------------------
 
+/**
+ * Zakres tablicy. Nazwa semantyczna, a nie para booleanów, bo to jest wybór
+ * ZAKŁADKI na ekranie, a nie dwa niezależne przełączniki: "moje archiwum"
+ * i "otwarte moje" to dwa różne widoki, a `mine + includeClosed` w dowolnej
+ * kombinacji dawałoby cztery, z czego dwa bez sensu produktowego.
+ */
+export type ClubBoardScope = "open" | "mine" | "archive";
+
+function scopeFlags(scope: ClubBoardScope): { mine: boolean; includeClosed: boolean } {
+  if (scope === "mine") return { mine: true, includeClosed: true };
+  if (scope === "archive") return { mine: false, includeClosed: true };
+  return { mine: false, includeClosed: false };
+}
+
 export function useClubBoardNotices(params: {
   clubId: string | undefined;
   kind?: ClubNoticeKind | null;
   topic?: string | null;
   limit?: number;
+  offset?: number;
+  scope?: ClubBoardScope;
 }): UseQueryResult<ClubBoardPage, Error> {
-  const { clubId, kind = null, topic = null, limit = 8 } = params;
+  const { clubId, kind = null, topic = null, limit = 8, offset = 0, scope = "open" } = params;
+  const flags = scopeFlags(scope);
   return useQuery({
-    queryKey: clubKeys.board(clubId ?? "none", kind, topic),
-    queryFn: () => fetchClubBoardNotices({ clubId: clubId ?? "", kind, topic, limit }),
+    queryKey: clubKeys.board(clubId ?? "none", kind, topic, scope, offset),
+    queryFn: () =>
+      fetchClubBoardNotices({ clubId: clubId ?? "", kind, topic, limit, offset, ...flags }),
     enabled: clubId !== undefined && clubId !== "",
     // Krotko, bo tablica ogloszen jest powierzchnia, na ktorej swiezosc JEST
     // trescia: ogloszenie sprzed godziny i sprzed tygodnia to dwie rozne
@@ -198,12 +227,96 @@ export function useClubSpotlight(
 export function useClubOutput(params: {
   clubId: string | undefined;
   limit?: number;
+  offset?: number;
 }): UseQueryResult<ClubOutputPage, Error> {
-  const { clubId, limit = 4 } = params;
+  const { clubId, limit = 4, offset = 0 } = params;
   return useQuery({
-    queryKey: clubKeys.output(clubId ?? "none", limit),
-    queryFn: () => fetchClubOutput(clubId ?? "", limit),
+    queryKey: clubKeys.output(clubId ?? "none", limit, offset),
+    queryFn: () => fetchClubOutput(clubId ?? "", limit, offset),
     enabled: clubId !== undefined && clubId !== "",
     staleTime: 60_000,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Katalog ekspertow klubu (A33)
+// ---------------------------------------------------------------------------
+
+export function useClubExperts(params: {
+  clubId: string | undefined;
+  topic?: string | null;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}): UseQueryResult<ClubExpertsPage, Error> {
+  const { clubId, topic = null, search = "", limit = 24, offset = 0 } = params;
+  return useQuery({
+    queryKey: clubKeys.experts(clubId ?? "none", topic, search.trim(), offset),
+    queryFn: () => fetchClubExperts({ clubId: clubId ?? "", topic, search, limit, offset }),
+    enabled: clubId !== undefined && clubId !== "",
+    staleTime: 60_000,
+  });
+}
+
+export function useClubExpertiseAreas(
+  clubId: string | undefined,
+): UseQueryResult<ClubExpertiseArea[], Error> {
+  return useQuery({
+    queryKey: clubKeys.expertiseAreas(clubId ?? "none"),
+    queryFn: () => fetchClubExpertiseAreas(clubId ?? ""),
+    enabled: clubId !== undefined && clubId !== "",
+    staleTime: 5 * 60_000,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Pojedyncze spotkanie (A33)
+// ---------------------------------------------------------------------------
+
+export function useClubEvent(params: {
+  clubId: string | undefined;
+  slug: string;
+}): UseQueryResult<ClubEventViewRow | null, Error> {
+  const { clubId, slug } = params;
+  return useQuery({
+    queryKey: clubKeys.event(clubId ?? "none", slug),
+    queryFn: () => fetchClubEvent(clubId ?? "", slug),
+    enabled: clubId !== undefined && clubId !== "" && slug !== "",
+    staleTime: 30_000,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Archiwum i redakcja przedstawien (A33)
+// ---------------------------------------------------------------------------
+
+export function useClubSpotlightHistory(params: {
+  clubId: string | undefined;
+  limit?: number;
+}): UseQueryResult<ClubSpotlightHistoryRow[], Error> {
+  const { clubId, limit = 12 } = params;
+  return useQuery({
+    queryKey: clubKeys.spotlightHistory(clubId ?? "none"),
+    queryFn: () => fetchClubSpotlightHistory(clubId ?? "", limit),
+    enabled: clubId !== undefined && clubId !== "",
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function usePinClubSpotlight(
+  clubId: string,
+): UseMutationResult<string, Error, ClubSpotlightPinInput> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ClubSpotlightPinInput) => pinClubSpotlight(clubId, input),
+    onSuccess: () => invalidateClub(qc, clubId),
+  });
+}
+
+export function useDeleteClubSpotlight(clubId: string): UseMutationResult<boolean, Error, string> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: deleteClubSpotlight,
+    onSuccess: () => invalidateClub(qc, clubId),
   });
 }

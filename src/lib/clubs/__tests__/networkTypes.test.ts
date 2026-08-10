@@ -7,12 +7,15 @@
 // niż obiecuje reszta systemu.
 import { describe, expect, it } from "vitest";
 import {
+  expertContribution,
   firstSentences,
   hasPeopleMovement,
   hasRosterContent,
   isNoticeBodyValid,
   isNoticeExpiringSoon,
+  mondayOf,
   noticeDaysLeft,
+  noticeOutcome,
   normalizeNoticeBody,
   parseOutputContributors,
   parseRosterFaces,
@@ -234,6 +237,55 @@ describe("skład: kiedy panel ma co pokazać", () => {
     expect(hasPeopleMovement([0, 0, 0])).toBe(false);
     expect(hasPeopleMovement([0, 0, 2])).toBe(true);
     expect(hasPeopleMovement([])).toBe(false);
+  });
+});
+
+describe("ogłoszenie: jak się skończyło", () => {
+  it("odróżnia trzy różne końce, a nie jeden 'zamknięte'", () => {
+    // "Załatwione" jest SUKCESEM mechanizmu, "wygasło" - porażką ciszy,
+    // "zdjęte" - decyzją moderacji. Jeden szary napis na wszystkie trzy
+    // odbiera autorowi jedyną informację zwrotną, jaką ten moduł produkuje.
+    expect(noticeOutcome({ status: "open", is_expired: false })).toBe("open");
+    expect(noticeOutcome({ status: "closed", is_expired: false })).toBe("resolved");
+    expect(noticeOutcome({ status: "removed", is_expired: false })).toBe("removed");
+    expect(noticeOutcome({ status: "open", is_expired: true })).toBe("expired");
+  });
+
+  it("zamknięte przez autora zostaje 'załatwione', nawet gdy termin minął", () => {
+    // Kolejność jest istotna: ogłoszenie zamknięte tydzień temu ma dziś
+    // przeterminowaną datę ważności, ale skończyło się SUKCESEM.
+    expect(noticeOutcome({ status: "closed", is_expired: true })).toBe("resolved");
+    expect(noticeOutcome({ status: "removed", is_expired: true })).toBe("removed");
+  });
+});
+
+describe("katalog ekspertów", () => {
+  it("wątek waży tyle samo co odpowiedź", () => {
+    // Założenie tematu i rozstrzygająca odpowiedź pod cudzym są w klubie
+    // deliberacyjnym wkładem tej samej klasy - ważenie ich różnie zamieniłoby
+    // katalog kompetencji w ranking autorów.
+    expect(expertContribution({ thread_count: 2, reply_count: 5 })).toBe(7);
+    expect(expertContribution({ thread_count: 0, reply_count: 0 })).toBe(0);
+  });
+});
+
+describe("poznaj członka: tydzień redakcyjny", () => {
+  it("dowolny dzień normalizuje do poniedziałku tego tygodnia", () => {
+    // Redakcja wybiera datę z kalendarza, nie numer tygodnia ISO. Środa
+    // odrzucona błędem zapisu byłaby podatkiem od tego, że kalendarz
+    // pokazuje dni.
+    expect(mondayOf(new Date(2026, 7, 12))).toBe("2026-08-10"); // środa
+    expect(mondayOf(new Date(2026, 7, 10))).toBe("2026-08-10"); // poniedziałek
+  });
+
+  it("niedziela należy do tygodnia, który się KOŃCZY, a nie zaczyna", () => {
+    // Tydzień ISO zaczyna się w poniedziałek - `getDay()` daje dla niedzieli
+    // zero i naiwne odjęcie cofnęłoby o cały tydzień za dużo.
+    expect(mondayOf(new Date(2026, 7, 16))).toBe("2026-08-10");
+  });
+
+  it("przekracza granicę miesiąca bez gubienia dnia", () => {
+    expect(mondayOf(new Date(2026, 8, 2))).toBe("2026-08-31");
   });
 });
 

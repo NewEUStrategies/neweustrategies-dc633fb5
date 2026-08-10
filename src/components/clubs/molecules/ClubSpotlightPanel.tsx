@@ -20,6 +20,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import { UserRoundSearch } from "lucide-react";
 import { ClubRailPanel } from "@/components/clubs/atoms/ClubHubPrimitives";
+import { MoreLink } from "@/components/clubs/molecules/ClubHubContext";
 import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
 import { ClubExpertiseChip } from "@/components/clubs/atoms/ClubNetworkPrimitives";
 import { DirectMessageButton } from "@/components/network/DirectMessageButton";
@@ -28,7 +29,15 @@ import { spotlightBlurb } from "@/lib/clubs/networkTypes";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import { topicLabel } from "@/lib/clubs/topicCatalog";
 
-export function ClubSpotlightPanel({ clubId, isPl }: { clubId: string; isPl: boolean }) {
+export function ClubSpotlightPanel({
+  clubSlug,
+  clubId,
+  isPl,
+}: {
+  clubSlug: string;
+  clubId: string;
+  isPl: boolean;
+}) {
   const { t } = useTranslation();
   const { topics } = useClubTopics();
   const query = useClubSpotlight(clubId);
@@ -44,7 +53,13 @@ export function ClubSpotlightPanel({ clubId, isPl }: { clubId: string; isPl: boo
   const name = row.display_name;
 
   return (
-    <ClubRailPanel title={t("club.network.spotlight.title")} icon={UserRoundSearch}>
+    <ClubRailPanel
+      title={t("club.network.spotlight.title")}
+      icon={UserRoundSearch}
+      action={
+        <MoreLink to="/club/$clubSlug/spotlight" clubSlug={clubSlug} label={t("club.hub.more")} />
+      }
+    >
       <div className="flex items-start gap-2.5">
         <ClubAuthorAvatar name={name} avatarUrl={row.avatar_url} size="md" />
         <div className="min-w-0 flex-1">

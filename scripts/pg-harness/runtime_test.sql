@@ -1778,6 +1778,190 @@ SELECT pg_temp.assert(
   'A32: panel ekspertow milczy tam, gdzie sklad jest ukryty');
 UPDATE public.clubs SET attribution_mode = 'attributed' WHERE id = :'net_club'::uuid;
 
+-- ===========================================================================
+-- A33: PELNE WIDOKI MODULOW SIECIUJACYCH
+--
+-- Szyna jest streszczeniem, strona - pelnym zbiorem. Te asercje pilnuja
+-- granicy miedzy nimi: to, czego szyna NIE pokazuje (archiwum, paginacja,
+-- katalog obszarow, historia przedstawien), ma byc osiagalne ze strony
+-- i wylacznie dla tego, kto ma do tego prawo.
+-- ===========================================================================
+\echo ''
+\echo '== A33.1 Ogloszenia: archiwum i zakres "moje" =='
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000003';
+
+-- Ogloszenie z A32 zostalo ZAMKNIETE przez autora, wiec domyslna lista milczy.
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_board_notices_list(:'net_club'::uuid,NULL,NULL,50,0,false,false)) = 0,
+  'A33: domyslna lista nadal pokazuje wylacznie otwarte');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_board_notices_list(:'net_club'::uuid,NULL,NULL,50,0,false,true)) = 1,
+  'A33: archiwum pokazuje zamkniete ogloszenie');
+SELECT pg_temp.assert(
+  (SELECT status = 'closed' AND NOT is_expired AND is_mine
+     FROM public.club_board_notices_list(:'net_club'::uuid,NULL,NULL,50,0,true,true)),
+  'A33: archiwum odroznia "zalatwione" od "wygaslo" i wie, ze to moje');
+
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000005';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_board_notices_list(:'net_club'::uuid,NULL,NULL,50,0,true,true)) = 0,
+  'A33: zakres "moje" nie pokazuje cudzych ogloszen');
+
+\echo '== A33.2 Dorobek: paginacja i licznik calosci =='
+SELECT pg_temp.assert(
+  (SELECT total_count FROM public.club_output_list(:'net_club'::uuid, 1, 0)) = 1,
+  'A33: licznik mowi o CALYM dorobku, nie o stronie');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_output_list(:'net_club'::uuid, 10, 1)) = 0,
+  'A33: przesuniecie poza zbior daje pusta strone, a nie powtorke pierwszej');
+
+\echo '== A33.3 Katalog ekspertow klubu =='
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000003';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_experts_list(:'net_club'::uuid, NULL, NULL, 24, 0)) = 1,
+  'A33: katalog oddaje osobe z deklaracja');
+SELECT pg_temp.assert(
+  (SELECT cardinality(topics) = 2 AND thread_count = 0 AND reply_count = 0
+     FROM public.club_experts_list(:'net_club'::uuid, NULL, NULL, 24, 0)),
+  'A33: katalog niesie deklaracje ORAZ dorobek w klubie');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_experts_list(:'net_club'::uuid, 'energy', NULL, 24, 0)) = 1,
+  'A33: zawezenie po obszarze nie gubi pozostalych deklaracji tej osoby');
+SELECT pg_temp.assert(
+  (SELECT cardinality(topics) FROM public.club_experts_list(:'net_club'::uuid, 'energy', NULL, 24, 0)) = 2,
+  'A33: po zawezeniu wychodzi CALY zbior deklaracji, nie jedna pasujaca');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_experts_list(:'net_club'::uuid, 'transport', NULL, 24, 0)) = 0,
+  'A33: obszar bez deklaracji daje pusty katalog');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_expertise_areas(:'net_club'::uuid)) = 2,
+  'A33: chipy filtra znaja dwa obszary');
+SELECT pg_temp.assert(
+  (SELECT people FROM public.club_expertise_areas(:'net_club'::uuid) LIMIT 1) = 1,
+  'A33: chip niesie licznik osob, nie deklaracji');
+
+\echo '== A33.4 Poznaj czlonka: archiwum i redakcja =='
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_member_spotlight_history(:'net_club'::uuid, 12)) = 1,
+  'A33: archiwum widzi przypiecie redakcyjne z A32');
+SELECT pg_temp.assert(
+  (SELECT is_current AND NOT can_manage
+     FROM public.club_member_spotlight_history(:'net_club'::uuid, 12)),
+  'A33: biezacy tydzien oznaczony, a czlonek nie dostaje narzedzi redakcji');
+
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000004';
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_member_spotlight_upsert('%s','a0000000-0000-0000-0000-000000000003',NULL,'Opis','Blurb') $q$,
+         :'net_club'),
+  'A33: obcy nie przypnie czlonka tygodnia');
+
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+-- Sroda podana przez redakcje ma sie znormalizowac do poniedzialku tego
+-- tygodnia, a nie zostac odrzucona bledem CHECK-a.
+SELECT public.club_member_spotlight_upsert(:'net_club'::uuid,
+  'a0000000-0000-0000-0000-000000000003',
+  (date_trunc('week', now()) + interval '2 days')::date,
+  'Trzy zdania o kims innym.','Three sentences about someone else.') AS spot_id \gset
+
+SELECT pg_temp.assert(
+  (SELECT week_start = (date_trunc('week', now()))::date
+     FROM public.club_member_spotlight WHERE id = :'spot_id'::uuid),
+  'A33: sroda znormalizowana do poniedzialku');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_member_spotlight WHERE club_id = :'net_club'::uuid) = 1,
+  'A33: przypiecie na ten sam tydzien PODMIENIA, a nie dokłada drugiego');
+SELECT pg_temp.assert(
+  (SELECT user_id FROM public.club_member_spotlight_current(:'net_club'::uuid))
+    = 'a0000000-0000-0000-0000-000000000003',
+  'A33: modul czyta nowe przypiecie natychmiast');
+
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_member_spotlight_upsert('%s','a0000000-0000-0000-0000-000000000004',NULL,NULL,NULL) $q$,
+         :'net_club'),
+  'A33: nie da sie przypiac kogos spoza skladu');
+
+SELECT pg_temp.assert(public.club_member_spotlight_delete(:'spot_id'::uuid),
+  'A33: moderacja zdejmuje przypiecie');
+SELECT pg_temp.assert(
+  (SELECT NOT curated FROM public.club_member_spotlight_current(:'net_club'::uuid)),
+  'A33: po zdjeciu przypiecia modul wraca na rotacje, a nie gasnie');
+
+\echo '== A33.5 Pojedyncze spotkanie po slugu =='
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000003';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_event_view(:'net_club'::uuid, 'spotkanie')) = 1,
+  'A33: spotkanie osiagalne po slugu, bez pobierania calego kalendarza');
+SELECT pg_temp.assert(
+  (SELECT my_rsvp = 'going' AND going_count >= 1
+     FROM public.club_event_view(:'net_club'::uuid, 'spotkanie')),
+  'A33: widok pojedynczego spotkania zna MOJE potwierdzenie');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_event_view(:'net_club'::uuid, 'nie-ma-takiego')) = 0,
+  'A33: nieistniejacy slug to zero wierszy, nie wyjatek');
+
+-- Klub `members` jest CZYTELNY dla kazdego zalogowanego - to jest sens tej
+-- widocznosci i nie ma tu czego ukrywac. Ukryte sa dwie rzeczy WEWNATRZ
+-- wydarzenia: adres pokoju wideo (wyciekly poza klub jest zaproszeniem dla
+-- kazdego, kto go dostanie dalej) i lista nazwisk uczestnikow.
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+UPDATE public.club_events SET meeting_url = 'https://meet.example.org/klub'
+ WHERE club_id = :'net_club'::uuid AND slug = 'spotkanie';
+
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000003';
+SELECT pg_temp.assert(
+  (SELECT meeting_url IS NOT NULL FROM public.club_event_view(:'net_club'::uuid, 'spotkanie')),
+  'A33: uczestnik dostaje adres pokoju');
+
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000004';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_event_view(:'net_club'::uuid, 'spotkanie')) = 1,
+  'A33: obcy widzi, ze spotkanie istnieje - klub members jest czytelny');
+SELECT pg_temp.assert(
+  (SELECT meeting_url IS NULL FROM public.club_event_view(:'net_club'::uuid, 'spotkanie')),
+  'A33: obcy NIE dostaje adresu pokoju wideo');
+
+-- Klub NIECZYTELNY milczy o wszystkim: `can_see_members` to w tym module
+-- dokladnie `can_read` (patrz club_capabilities), wiec granica przebiega na
+-- widocznosci klubu, a nie na czlonkostwie.
+UPDATE public.clubs SET visibility = 'private' WHERE id = :'net_club'::uuid;
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_event_view(:'net_club'::uuid, 'spotkanie')) = 0,
+  'A33: klub private milczy o spotkaniu wobec obcego');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_experts_list(:'net_club'::uuid, NULL, NULL, 24, 0)) = 0,
+  'A33: katalog ekspertow klubu private takze milczy');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_member_spotlight_history(:'net_club'::uuid, 12)) = 0,
+  'A33: archiwum przedstawien klubu private takze milczy');
+UPDATE public.clubs SET visibility = 'members' WHERE id = :'net_club'::uuid;
+
+\echo '== A33.6 Obecnosc respektuje widocznosc profilu =='
+-- Ten sam czlowiek nie moze byc NIEWIDOCZNY na liscie skladu i WYPISANY
+-- Z NAZWISKA na liscie uczestnikow - patrz naglowek sekcji 4a migracji A33.
+SELECT id AS net_event FROM public.club_events
+ WHERE club_id = :'net_club'::uuid AND slug = 'spotkanie' \gset
+
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000003';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_event_attendees(:'net_event'::uuid, 12)) = 1,
+  'A33: profil widoczny w katalogu jest wypisany na liscie obecnych');
+
+UPDATE public.profiles SET discoverable = false
+ WHERE id = 'a0000000-0000-0000-0000-000000000005';
+INSERT INTO public.club_event_rsvps (event_id, user_id, tenant_id, state)
+VALUES (:'net_event'::uuid, 'a0000000-0000-0000-0000-000000000005',
+        '11111111-1111-1111-1111-111111111111', 'going')
+ON CONFLICT (event_id, user_id) DO UPDATE SET state = 'going';
+
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_event_attendees(:'net_event'::uuid, 12)) = 1,
+  'A33: osoba ukryta w katalogu NIE trafia na liste nazwisk');
+SELECT pg_temp.assert(
+  (SELECT going_count FROM public.club_event_view(:'net_club'::uuid, 'spotkanie')) = 2,
+  'A33: licznik obecnosci zostaje pelny - liczba nikogo nie zdradza');
+UPDATE public.profiles SET discoverable = true
+ WHERE id = 'a0000000-0000-0000-0000-000000000005';
+
 \echo ''
 \echo '=========================================='
 \echo ' WSZYSTKIE ASERCJE PRZESZLY'

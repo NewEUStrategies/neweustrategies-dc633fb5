@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { ClubRailPanel } from "@/components/clubs/atoms/ClubHubPrimitives";
+import { MoreLink } from "@/components/clubs/molecules/ClubHubContext";
 import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
 import { ClubNoticeKindPill } from "@/components/clubs/atoms/ClubNetworkPrimitives";
 import { ClubTopicChip } from "@/components/clubs/atoms/ClubTopicChip";
@@ -52,8 +53,25 @@ import {
   type ClubNoticeKind,
 } from "@/lib/clubs/networkTypes";
 
-/** Kompozytor - jedna linia, wybór kierunku, opcjonalny obszar. */
-function BoardComposer({ clubId, onDone }: { clubId: string; onDone: () => void }) {
+/**
+ * Kompozytor - jedna linia, wybór kierunku, opcjonalny obszar.
+ *
+ * Ten sam formularz obsługuje szynę i pełną tablicę, bo to jest DOKŁADNIE ta
+ * sama czynność - różni się wyłącznie oprawą: w szynie stoi w szarym boksie
+ * pod przyciskiem "Dodaj", na stronie jest kartą z tytułem, bo tam jest jedną
+ * z dwóch rzeczy, po które przyszedł czytelnik.
+ *
+ * `onDone` jest opcjonalne: na stronie kompozytor nie ma się gdzie zamknąć.
+ */
+export function ClubBoardComposer({
+  clubId,
+  onDone,
+  variant = "rail",
+}: {
+  clubId: string;
+  onDone?: () => void;
+  variant?: "rail" | "page";
+}) {
   const { t } = useTranslation();
   const [kind, setKind] = useState<ClubNoticeKind>("seeking");
   const [body, setBody] = useState("");
@@ -74,7 +92,7 @@ function BoardComposer({ clubId, onDone }: { clubId: string; onDone: () => void 
         onSuccess: () => {
           setBody("");
           setTopic(null);
-          onDone();
+          onDone?.();
           toast.success(t("club.network.board.published"));
         },
         onError: (error) => {
@@ -90,7 +108,20 @@ function BoardComposer({ clubId, onDone }: { clubId: string; onDone: () => void 
   };
 
   return (
-    <div className="space-y-2.5 rounded-lg border border-border/60 bg-muted/30 p-2.5">
+    <div
+      className={cn(
+        "space-y-2.5 rounded-lg border border-border/60",
+        variant === "page" ? "bg-card p-3 sm:p-4" : "bg-muted/30 p-2.5",
+      )}
+    >
+      {variant === "page" ? (
+        <div>
+          <h2 className="text-sm font-semibold">{t("club.network.board.composeTitle")}</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {t("club.network.board.composeLead")}
+          </p>
+        </div>
+      ) : null}
       {/* Kierunek najpierw: przesądza o tym, jak czyta się resztę pola. */}
       <div role="radiogroup" aria-label={t("club.network.board.kindLabel")} className="flex gap-1">
         {CLUB_NOTICE_KINDS.map((value) => (
@@ -147,16 +178,20 @@ function BoardComposer({ clubId, onDone }: { clubId: string; onDone: () => void 
           ) : null}
           {t("club.network.board.publish")}
         </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          className="h-8 rounded-lg"
-          onClick={onDone}
-          disabled={create.isPending}
-        >
-          {t("club.network.board.cancel")}
-        </Button>
+        {/* Na stronie nie ma czego anulować - kompozytor jest częścią ekranu,
+            a nie warstwą nad nim. */}
+        {onDone !== undefined ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-8 rounded-lg"
+            onClick={onDone}
+            disabled={create.isPending}
+          >
+            {t("club.network.board.cancel")}
+          </Button>
+        ) : null}
       </div>
       <p className="text-[11px] leading-snug text-muted-foreground">
         {t("club.network.board.hint")}
@@ -166,11 +201,13 @@ function BoardComposer({ clubId, onDone }: { clubId: string; onDone: () => void 
 }
 
 export function ClubBoardPanel({
+  clubSlug,
   clubId,
   canPost,
   isPl,
   className,
 }: {
+  clubSlug: string;
   clubId: string;
   /** Ten sam próg, co przy odpowiedzi - ogłoszenie to głos, nie akt kuratorski. */
   canPost: boolean;
@@ -198,28 +235,31 @@ export function ClubBoardPanel({
       icon={Megaphone}
       className={className}
       action={
-        canPost ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-6 gap-1 rounded-lg px-1.5 text-[11px]"
-            onClick={() => setComposing((open) => !open)}
-            aria-expanded={composing}
-          >
-            {composing ? (
-              <X className="h-3 w-3" aria-hidden="true" />
-            ) : (
-              <Plus className="h-3 w-3" aria-hidden="true" />
-            )}
-            {composing ? t("club.network.board.cancel") : t("club.network.board.add")}
-          </Button>
-        ) : undefined
+        <span className="flex items-center gap-0.5">
+          {canPost ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-6 gap-1 rounded-lg px-1.5 text-[11px]"
+              onClick={() => setComposing((open) => !open)}
+              aria-expanded={composing}
+            >
+              {composing ? (
+                <X className="h-3 w-3" aria-hidden="true" />
+              ) : (
+                <Plus className="h-3 w-3" aria-hidden="true" />
+              )}
+              {composing ? t("club.network.board.cancel") : t("club.network.board.add")}
+            </Button>
+          ) : null}
+          <MoreLink to="/club/$clubSlug/board" clubSlug={clubSlug} label={t("club.hub.more")} />
+        </span>
       }
     >
       {composing ? (
         <div className="mb-2.5">
-          <BoardComposer clubId={clubId} onDone={() => setComposing(false)} />
+          <ClubBoardComposer clubId={clubId} onDone={() => setComposing(false)} />
         </div>
       ) : null}
 

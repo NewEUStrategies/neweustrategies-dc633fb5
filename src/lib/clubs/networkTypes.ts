@@ -46,8 +46,28 @@ export const CLUB_NOTICE_MAX_OPEN = 5;
 
 export type ClubBoardNoticeRow = NullableCols<
   RowOf<Fn["club_board_notices_list"]["Returns"]>,
-  "topic" | "author_avatar" | "author_slug" | "author_headline"
+  "topic" | "author_avatar" | "author_slug" | "author_headline" | "closed_at"
 >;
+
+/** Stan ogłoszenia w bazie. `removed` widzi autor i moderacja. */
+export const CLUB_NOTICE_STATUSES = ["open", "closed", "removed"] as const;
+export type ClubNoticeStatus = (typeof CLUB_NOTICE_STATUSES)[number];
+
+/**
+ * Jak ogłoszenie się skończyło - trzy różne fakty, nie jeden.
+ *
+ * "Załatwione" jest SUKCESEM (ktoś się odezwał i sprawa jest zamknięta),
+ * "wygasło" - porażką ciszy, "zdjęte" - decyzją moderacji. Interfejs, który
+ * pokazuje je jednym szarym napisem "zamknięte", odbiera autorowi jedyną
+ * informację zwrotną, jaką ten moduł produkuje.
+ */
+export type ClubNoticeOutcome = "open" | "resolved" | "expired" | "removed";
+
+export function noticeOutcome(row: { status: string; is_expired: boolean }): ClubNoticeOutcome {
+  if (row.status === "removed") return "removed";
+  if (row.status === "closed") return "resolved";
+  return row.is_expired ? "expired" : "open";
+}
 
 export function toClubNoticeKind(value: string): ClubNoticeKind {
   return (CLUB_NOTICE_KINDS as readonly string[]).includes(value)
@@ -102,6 +122,25 @@ export type ClubThreadExpertRow = NullableCols<
 /** Maksymalna liczba deklaracji kompetencji na osobę i klub (limit z RPC). */
 export const CLUB_EXPERTISE_MAX = 12;
 
+/** Wiersz katalogu ekspertów klubu - deklaracja PLUS dorobek w tym klubie. */
+export type ClubExpertRow = NullableCols<
+  RowOf<Fn["club_experts_list"]["Returns"]>,
+  "avatar_url" | "profile_slug" | "headline" | "last_active_at"
+>;
+
+/** Obszar z licznikiem osób - chipy filtra na ekranie ekspertów. */
+export type ClubExpertiseArea = RowOf<Fn["club_expertise_areas"]["Returns"]>;
+
+/**
+ * Dorobek osoby w klubie jako jedna liczba. Wątek waży tyle samo co
+ * odpowiedź - to jest świadome: założenie tematu i rozstrzygająca odpowiedź
+ * pod cudzym są w klubie deliberacyjnym wkładem tej samej klasy, a ważenie
+ * ich różnie zamieniłoby katalog w ranking autorów.
+ */
+export function expertContribution(row: { thread_count: number; reply_count: number }): number {
+  return row.thread_count + row.reply_count;
+}
+
 // ---------------------------------------------------------------------------
 // 3) Kto będzie na spotkaniu
 // ---------------------------------------------------------------------------
@@ -112,6 +151,24 @@ export type ClubRsvpPresentState = (typeof CLUB_RSVP_PRESENT_STATES)[number];
 export type ClubEventAttendeeRow = NullableCols<
   RowOf<Fn["club_event_attendees"]["Returns"]>,
   "avatar_url" | "profile_slug" | "headline"
+>;
+
+/** Pojedyncze spotkanie po slugu - ten sam kształt, co wiersz kalendarza. */
+export type ClubEventViewRow = NullableCols<
+  RowOf<Fn["club_event_view"]["Returns"]>,
+  | "group_id"
+  | "thread_id"
+  | "anchor_event_id"
+  | "description_pl"
+  | "description_en"
+  | "ends_at"
+  | "location"
+  | "meeting_url"
+  | "capacity"
+  | "my_rsvp"
+  | "thread_slug"
+  | "group_name_pl"
+  | "group_name_en"
 >;
 
 export function toRsvpPresentState(value: string): ClubRsvpPresentState {
@@ -166,8 +223,30 @@ export type ClubSpotlightRow = NullableCols<
   "avatar_url" | "profile_slug" | "headline" | "bio_pl" | "bio_en" | "blurb_pl" | "blurb_en"
 >;
 
+/** Wiersz archiwum przedstawień - wyłącznie przypięcia redakcyjne. */
+export type ClubSpotlightHistoryRow = NullableCols<
+  RowOf<Fn["club_member_spotlight_history"]["Returns"]>,
+  "avatar_url" | "profile_slug" | "headline" | "blurb_pl" | "blurb_en"
+>;
+
 /** Ile zdań pokazuje moduł. Trzy - tyle mieści się w szynie bez zwijania. */
 export const CLUB_SPOTLIGHT_SENTENCES = 3;
+
+/** Poniedziałek tygodnia zawierającego podaną datę - w czasie LOKALNYM.
+ *
+ *  Rotacja i przypięcie liczą tydzień w bazie (UTC), ale formularz redakcji
+ *  pokazuje datę czytelnikowi, więc musi mówić o JEGO tygodniu. RPC i tak
+ *  normalizuje wartość do poniedziałku, więc rozjazd o kilka godzin na
+ *  granicy stref nie ma prawa niczego zepsuć. */
+export function mondayOf(date: Date): string {
+  const local = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  // getDay(): 0 = niedziela. Poniedziałek jako początek tygodnia ISO.
+  const shift = (local.getDay() + 6) % 7;
+  local.setDate(local.getDate() - shift);
+  const month = `${local.getMonth() + 1}`.padStart(2, "0");
+  const day = `${local.getDate()}`.padStart(2, "0");
+  return `${local.getFullYear()}-${month}-${day}`;
+}
 
 /**
  * Skróty, po których kropka NIE kończy zdania.

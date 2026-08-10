@@ -48,12 +48,18 @@ export function MoreLink({
   clubSlug,
   label,
 }: {
+  // Unia LITERAŁÓW, nie `string`: literówka w adresie panelu szyny byłaby
+  // martwym linkiem, którego nie widać, dopóki ktoś w niego nie kliknie.
   to:
     | "/club/$clubSlug/documents"
     | "/club/$clubSlug/calendar"
     | "/club/$clubSlug/schedule"
     | "/club/$clubSlug/insights"
-    | "/club/$clubSlug/members";
+    | "/club/$clubSlug/members"
+    | "/club/$clubSlug/board"
+    | "/club/$clubSlug/experts"
+    | "/club/$clubSlug/output"
+    | "/club/$clubSlug/spotlight";
   clubSlug: string;
   label: string;
 }) {
@@ -170,7 +176,7 @@ export function ClubOutputPanel({
       title={t("club.network.output.title")}
       icon={Award}
       action={
-        <MoreLink to="/club/$clubSlug/documents" clubSlug={clubSlug} label={t("club.hub.more")} />
+        <MoreLink to="/club/$clubSlug/output" clubSlug={clubSlug} label={t("club.hub.more")} />
       }
     >
       {entries.length === 0 ? (
