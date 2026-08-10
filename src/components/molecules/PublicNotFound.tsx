@@ -5,11 +5,9 @@
 // Renders a plain container (NOT a <main>) - SiteChrome already provides the
 // page's <main id="main-content"> landmark.
 import { ArrowRight } from "lucide-react";
-import { Link } from "@tanstack/react-router";
 import { errorCopy } from "@/lib/errorCopy";
 import { currentLang } from "@/lib/i18n/localeRuntime";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
 /** Skróty prowadzą do realnych stron CMS; wersja EN żyje pod prefiksem /en. */
 function suggestionHrefs(lang: string) {
@@ -23,7 +21,7 @@ function suggestionHrefs(lang: string) {
   };
 }
 
-export function PublicNotFound({ className }: { className?: string }) {
+export function PublicNotFound() {
   const copy = errorCopy();
   const lang = currentLang();
   const href = suggestionHrefs(lang);
@@ -36,12 +34,7 @@ export function PublicNotFound({ className }: { className?: string }) {
   ];
 
   return (
-    <div
-      className={cn(
-        "flex flex-1 min-h-[70vh] items-center justify-center px-4 py-20",
-        className,
-      )}
-    >
+    <div className="flex flex-1 min-h-[70vh] items-center justify-center px-4 py-20">
       <div className="w-full max-w-xl text-center">
         <p className="font-display text-7xl font-bold leading-none tracking-tight text-brand sm:text-8xl">
           404
@@ -58,8 +51,8 @@ export function PublicNotFound({ className }: { className?: string }) {
           <ul className="mt-3 divide-y divide-border">
             {suggestions.map((s) => (
               <li key={s.label}>
-                <Link
-                  to={s.to}
+                <a
+                  href={s.to}
                   className="group flex items-center justify-between gap-3 py-2.5 text-sm text-foreground transition-colors hover:text-brand"
                 >
                   <span>{s.label}</span>
@@ -67,7 +60,7 @@ export function PublicNotFound({ className }: { className?: string }) {
                     aria-hidden
                     className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-brand"
                   />
-                </Link>
+                </a>
               </li>
             ))}
           </ul>
@@ -75,10 +68,10 @@ export function PublicNotFound({ className }: { className?: string }) {
 
         <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row">
           <Button asChild className="rounded-[6px]">
-            <Link to={href.home}>{copy.goHome}</Link>
+            <a href={href.home}>{copy.goHome}</a>
           </Button>
           <Button asChild variant="outline" className="rounded-[6px]">
-            <Link to={href.contact}>{copy.contactSupport}</Link>
+            <a href={href.contact}>{copy.contactSupport}</a>
           </Button>
         </div>
       </div>
