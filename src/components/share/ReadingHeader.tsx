@@ -47,7 +47,14 @@ interface Props {
   entityId?: string;
   /** Type of entity being saved (post or page). Defaults to post. */
   entityType?: BookmarkEntityType;
+  /**
+   * Pasek jest widoczny od pierwszej klatki i nie zależy od przewijania.
+   * Używane na jednoekranowych landingach (np. /quiz), gdzie ten minimalny
+   * pasek jest JEDYNYM chrome'em strony.
+   */
+  pinned?: boolean;
 }
+
 
 const COPY = {
   pl: {
@@ -78,7 +85,14 @@ const COPY = {
   },
 } as const;
 
-export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "post" }: Props) {
+export function ReadingHeader({
+  title,
+  showAfter = 320,
+  entityId,
+  entityType = "post",
+  pinned = false,
+}: Props) {
+
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
   const t = COPY[lang];
@@ -110,7 +124,7 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
     ? themeLogo.mobile_dark || themeLogo.mobile || themeLogo.main_dark || themeLogo.main || ""
     : themeLogo.mobile || themeLogo.mobile_dark || themeLogo.main || themeLogo.main_dark || "";
 
-  const [visible, setVisible] = useState(false);
+  const [visible, setVisible] = useState(pinned);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -148,8 +162,13 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
   // handlerze scrolla (INP/TBT strony artykułu). Próg pikselowy zostaje jako
   // zapas dla widoków bez paska serwisu (np. własne chrome trasy).
   useEffect(() => {
+    if (pinned) {
+      setVisible(true);
+      return;
+    }
     const siteHeader = document.querySelector<HTMLElement>("[data-site-header]");
     if (siteHeader) {
+
       const io = new IntersectionObserver(
         (entries) => {
           const entry = entries[entries.length - 1];
@@ -169,7 +188,7 @@ export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "
       window.removeEventListener("scroll", onScroll);
       onScroll.cancel();
     };
-  }, [showAfter]);
+  }, [showAfter, pinned]);
 
   return (
     <div
