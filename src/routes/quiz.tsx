@@ -283,8 +283,12 @@ function QuizPage() {
         {/* Responsive background: warianty light/dark + overlay w środku */}
         <QuizBackground />
 
-        {/* Globalny header New European Strategies */}
-        <Header adPageType="all" />
+        {/* Minimalny pasek NES - dokładnie ten sam, który przejmuje górną
+            krawędź na wpisie po przewinięciu. Landing quizu jest jednoekranowy,
+            więc pokazujemy go od razu (pinned) i rezerwujemy jego wysokość. */}
+        <ReadingHeader title={QUIZ_TITLE} entityType="page" pinned />
+        <div aria-hidden className="h-10 shrink-0 sm:h-11 lg:h-12" />
+
 
         {/* Główny obszar: iframe quizu + sidebar udostępniania */}
         <div className="flex flex-1">
