@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { billingKeys } from "@/lib/billing/keys";
 import { fetchActivePlans } from "@/lib/billing/queries";
 import { fetchMembershipTiers } from "@/lib/billing/tiers";
+import { pricingAudiencesQueryOptions } from "@/lib/pricing/queries";
 import { staticPageSeoQueryOptions, pickStaticSeo } from "@/lib/queries/staticPageSeo";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
@@ -32,6 +33,7 @@ export const Route = createFileRoute("/membership-join")({
     // jest chwilowo niedostępna (sekcja warstw pokazuje wtedy pusty stan).
     const [seo] = await Promise.all([
       qc.ensureQueryData(staticPageSeoQueryOptions("membership-join")).catch(() => null),
+      qc.ensureQueryData(pricingAudiencesQueryOptions()).catch(() => null),
       qc
         .ensureQueryData({ queryKey: billingKeys.membershipTiers(), queryFn: fetchMembershipTiers })
         .catch(() => null),
