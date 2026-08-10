@@ -246,7 +246,7 @@ export function ClubGroupTree({
       <h2 className="px-1 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
         {t("club.groups")}
       </h2>
-      <ul className="flex flex-col gap-1">
+      <ul className="flex flex-col gap-1 list-none">
         <li>
           <button
             type="button"
