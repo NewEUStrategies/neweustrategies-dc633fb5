@@ -38,6 +38,13 @@ import { useUserBadges } from "@/lib/profile/badges";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { FieldBox } from "@/components/ui/field-box";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  buildSignupMetadata,
+  useRegistrationFields,
+  type RegistrationFieldKey,
+} from "@/lib/auth/registrationFields";
+
 import { ClubCover } from "@/components/clubs/atoms/ClubCover";
 import { planTierFromRank } from "@/lib/clubs/planTiers";
 import type { ClubViewRow } from "@/lib/clubs/types";
