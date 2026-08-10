@@ -2328,9 +2328,10 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
   [data-builder-renderer] a,
   [data-builder-renderer] span,
   [data-builder-renderer] li {
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
     word-break: normal;
-    hyphens: auto;
+    hyphens: manual;
+    -webkit-hyphens: manual;
   }
   [data-builder-renderer] h1:not(.cms-post-title) {
     font-size: clamp(1.4rem, 7vw, 2rem) !important;
