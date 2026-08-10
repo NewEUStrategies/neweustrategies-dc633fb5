@@ -114,18 +114,19 @@ export function GooglePreferredSourceBadge({
         {!iconOnly && (
           <span className="flex min-w-0 flex-col text-[11.5px] leading-[1.25]">
             {/* Wariant kompaktowy mieści całe zdanie w jednej linii. */}
-            <span className="whitespace-normal font-medium text-muted-foreground">
+            <span className="whitespace-nowrap font-medium text-muted-foreground">
               {compact
                 ? `${t("googleSource.badgeTitle")} ${t("googleSource.badgeSub")}`
                 : t("googleSource.badgeTitle")}
             </span>
             {!compact && (
-              <span className="whitespace-normal font-semibold text-foreground">
+              <span className="whitespace-nowrap font-semibold text-foreground">
                 {t("googleSource.badgeSub")}
               </span>
             )}
           </span>
         )}
+
       </a>
     </span>
   );
