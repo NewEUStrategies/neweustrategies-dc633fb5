@@ -141,7 +141,7 @@ export function PostLayoutRenderer({
             </div>
           )}
           {showHeaderActions && headerActions && (
-            <div className="no-print min-w-0 shrink-0 [&>div]:flex-wrap">{headerActions}</div>
+            <div className="no-print min-w-0 shrink-0">{headerActions}</div>
           )}
         </div>
       )}
