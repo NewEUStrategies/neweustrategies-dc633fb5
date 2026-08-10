@@ -115,7 +115,7 @@ export function ClubAccessGate({ club, isPl }: { club: ClubViewRow; isPl: boolea
               <Benefit icon={CalendarDays} k="calendar" />
               <Benefit icon={Users} k="network" />
               <Benefit icon={ShieldCheck} k="chatham" />
-              <Benefit icon={Sparkles} k="briefs" />
+              <Benefit icon={BookOpen} k="briefs" />
             </ul>
           </div>
         </div>
