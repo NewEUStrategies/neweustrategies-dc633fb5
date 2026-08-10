@@ -243,6 +243,9 @@ export function NewsletterForm({
     if (showFirstName && requireFirstName && !firstName.trim()) errs.firstName = requiredText;
     if (showLastName && requireLastName && !lastName.trim()) errs.lastName = requiredText;
     if (showCompany && requireCompany && !company.trim()) errs.company = requiredText;
+    if (showPosition && requirePosition && !position.trim()) errs.position = requiredText;
+    if (showPhone && requirePhone && !phone.trim()) errs.phone = requiredText;
+
     Object.assign(errs, validateCustom(customFields, custom, requiredText));
 
     if (Object.keys(errs).length) {
