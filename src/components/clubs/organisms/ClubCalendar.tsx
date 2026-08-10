@@ -45,7 +45,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { useClubEventRsvp, useClubEvents } from "@/lib/clubs/useClubWorkspace";
+import {
+  useClubEventRsvp,
+  useClubEvents,
+  useDeleteClubEvent,
+  useUpsertClubEvent,
+} from "@/lib/clubs/useClubWorkspace";
 import {
   CLUB_RSVP_STATES,
   isEventFull,
