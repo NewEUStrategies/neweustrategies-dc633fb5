@@ -366,6 +366,19 @@ export function ClubCalendar({
             {formatDate(anchor, lang, { month: "long", year: "numeric" })}
           </h2>
           <div className="flex gap-1">
+            {canManage ? (
+              <Button
+                size="sm"
+                onClick={() => {
+                  setEditing(null);
+                  setFormOpen(true);
+                }}
+              >
+                <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                {t("club.eventForm.createTitle")}
+              </Button>
+            ) : null}
+
             <Button
               variant="outline"
               size="icon"
