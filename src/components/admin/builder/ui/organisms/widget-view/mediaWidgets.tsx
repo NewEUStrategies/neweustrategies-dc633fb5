@@ -156,7 +156,7 @@ export function ImageWidget({
   const isFramed = !!ratioCss;
   const imgCls = isFramed
     ? `absolute inset-0 block h-full w-full ${variantCls}`
-    : `block max-w-full h-auto ${variantCls}`;
+    : `block ${variantCls}${isLogo ? " site-logo-img" : ""}`;
   const hoverEffect: import("@/components/atoms/OptimizedImage").HoverEffect =
     isLogo || variant === "zoom-hover" ? "none" : "zoom";
   const applyLogoFallback = (event: SyntheticEvent<HTMLImageElement>) => {
