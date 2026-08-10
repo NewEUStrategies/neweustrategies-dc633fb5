@@ -11,7 +11,7 @@
 // `ClubHubPrimitives`.
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { GraduationCap, HandHelping, Search, type LucideIcon } from "lucide-react";
+import { Activity, GraduationCap, HandHelping, Search, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
