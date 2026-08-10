@@ -910,9 +910,16 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
     ) : null;
     // Obok akcji podarunkowej stoi badge „Preferowane zrodlo w Google".
     const articleActions = (
-      <div className="no-print flex items-stretch gap-2">
-        {giftButton}
-        <GooglePreferredSourceBadge entityId={it.id} className="w-auto" />
+      <div className="no-print flex w-full items-stretch gap-2 sm:w-auto">
+        {giftButton && (
+          <span className="min-w-0 flex-1 sm:flex-initial [&_button]:h-full [&_button]:w-full">
+            {giftButton}
+          </span>
+        )}
+        <GooglePreferredSourceBadge
+          entityId={it.id}
+          className="min-w-0 flex-1 sm:flex-initial [&>a]:h-full [&>a]:w-full [&>a]:justify-center [&>a]:whitespace-normal"
+        />
       </div>
     );
 
