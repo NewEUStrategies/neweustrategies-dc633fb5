@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
  * (BreadcrumbsView), aby preview i strona publiczna wyglądały identycznie.
  */
 export const CRUMB_PILL_CLASS =
-  "inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-[6px] border border-border bg-card/60 px-3 py-1 text-xs leading-5 text-muted-foreground";
+  "flex w-full min-w-0 flex-nowrap items-center gap-1.5 overflow-hidden rounded-[6px] border border-border bg-card/60 px-3 py-1 text-xs leading-5 text-muted-foreground sm:inline-flex sm:w-auto sm:max-w-full sm:flex-wrap sm:overflow-visible";
 export const CRUMB_LINK_CLASS =
   "inline-flex items-center gap-1.5 rounded-[6px] transition-colors hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
 
