@@ -313,7 +313,32 @@ export function ClubMeetingPanel({
         {canRsvp && next.rsvp_enabled ? (
           <RsvpControls clubId={clubId} eventId={next.id} current={next.my_rsvp} />
         ) : null}
+
+        {canManage ? (
+          <div className="mt-2 flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                setEditing(next);
+                setFormOpen(true);
+              }}
+              className="inline-flex h-6 items-center gap-1 rounded-md border border-border/60 px-1.5 text-[10px] font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+            >
+              <Pencil className="h-3 w-3" aria-hidden="true" />
+              {t("club.eventForm.edit")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(true)}
+              className="inline-flex h-6 items-center gap-1 rounded-md border border-border/60 px-1.5 text-[10px] font-medium text-muted-foreground transition-colors hover:border-destructive/50 hover:text-destructive"
+            >
+              <Trash2 className="h-3 w-3" aria-hidden="true" />
+              {t("club.eventForm.delete")}
+            </button>
+          </div>
+        ) : null}
       </div>
+
 
       {later.length > 0 ? (
         <ul className="mt-2.5 space-y-1 border-t border-border/60 pt-2">
