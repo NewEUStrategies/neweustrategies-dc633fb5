@@ -162,8 +162,13 @@ export function ReadingHeader({
   // handlerze scrolla (INP/TBT strony artykułu). Próg pikselowy zostaje jako
   // zapas dla widoków bez paska serwisu (np. własne chrome trasy).
   useEffect(() => {
+    if (pinned) {
+      setVisible(true);
+      return;
+    }
     const siteHeader = document.querySelector<HTMLElement>("[data-site-header]");
     if (siteHeader) {
+
       const io = new IntersectionObserver(
         (entries) => {
           const entry = entries[entries.length - 1];
