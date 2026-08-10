@@ -28,7 +28,7 @@ export function Breadcrumbs({ items, className }: { items: BreadcrumbItem[]; cla
   return (
     <nav aria-label="breadcrumb" className={cn("mb-4 min-w-0", className)}>
       <ol className={CRUMB_PILL_CLASS}>
-        <li className="inline-flex items-center gap-1.5">
+        <li className="inline-flex shrink-0 items-center gap-1.5">
           <Link to="/" className={CRUMB_LINK_CLASS} title={home}>
             <Home className="size-4 shrink-0" aria-hidden="true" />
             <span className="sr-only">{home}</span>
@@ -39,7 +39,10 @@ export function Breadcrumbs({ items, className }: { items: BreadcrumbItem[]; cla
           return (
             <li
               key={i}
-              className="inline-flex min-w-0 items-center gap-1.5"
+              className={cn(
+                "inline-flex min-w-0 items-center gap-1.5",
+                isLast ? "flex-1" : "shrink-0 sm:min-w-0",
+              )}
               {...(isLast ? { "aria-current": "page" as const } : {})}
             >
               <ChevronRight className={CRUMB_SEPARATOR_CLASS} aria-hidden="true" />
