@@ -16,10 +16,11 @@
 // w wierszu wydarzenia. Panel pokazuje wtedy samą liczbę i to jest poprawny
 // stan, a nie awaria: "siedem osób potwierdziło" nadal jest powodem, żeby
 // przyjść.
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { CalendarClock, MapPin, Users2, Video } from "lucide-react";
+import { CalendarClock, MapPin, Pencil, Plus, Trash2, Users2, Video } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ClubRailPanel } from "@/components/clubs/atoms/ClubHubPrimitives";
 import { ClubFaceStack } from "@/components/clubs/atoms/ClubNetworkPrimitives";
@@ -28,10 +29,26 @@ import {
   clubEventToneClass,
 } from "@/components/clubs/atoms/ClubWorkspaceBadges";
 import { useClubEventAttendees } from "@/lib/clubs/useClubNetwork";
-import { useClubEventRsvp } from "@/lib/clubs/useClubWorkspace";
+import {
+  useClubEventRsvp,
+  useDeleteClubEvent,
+  useUpsertClubEvent,
+} from "@/lib/clubs/useClubWorkspace";
 import { toEventKind, type ClubEventRow, type ClubRsvpState } from "@/lib/clubs/workspaceTypes";
 import { formatDate } from "@/lib/i18n/format";
 import { MoreLink } from "@/components/clubs/molecules/ClubHubContext";
+import { ClubEventForm } from "@/components/clubs/molecules/ClubEventForm";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
 
 /** Trzy stany potwierdzenia. "Może" jest prawdziwą odpowiedzią - patrz A28. */
 const RSVP_STATES: readonly ClubRsvpState[] = ["going", "maybe", "declined"];
@@ -94,6 +111,7 @@ export function ClubMeetingPanel({
   events,
   canSeeMembers,
   canRsvp,
+  canManage = false,
   isPl,
 }: {
   clubSlug: string;
@@ -101,12 +119,22 @@ export function ClubMeetingPanel({
   events: readonly ClubEventRow[];
   canSeeMembers: boolean;
   canRsvp: boolean;
+  /** Kurator klubu: tworzy, redaguje i usuwa terminy wprost z szyny. */
+  canManage?: boolean;
   isPl: boolean;
 }) {
   const { t } = useTranslation();
   const lang = isPl ? "pl" : "en";
   const next = events[0] ?? null;
   const later = events.slice(1, 3);
+
+  // Stan okien trzymamy PRZED wczesnym `return`, bo hooki nie mogą być
+  // warunkowe - a panel bez wydarzeń nadal musi umieć otworzyć formularz.
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<ClubEventRow | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const upsert = useUpsertClubEvent(clubId);
+  const remove = useDeleteClubEvent(clubId);
 
   const attendeesQ = useClubEventAttendees({
     clubId,
@@ -116,7 +144,52 @@ export function ClubMeetingPanel({
     enabled: canSeeMembers && next !== null,
   });
 
-  if (next === null) return null;
+  const openCreate = () => {
+    setEditing(null);
+    setFormOpen(true);
+  };
+
+  const form =
+    canManage && formOpen ? (
+      <ClubEventForm
+        // Klucz przestawia stan formularza przy zmianie trybu: bez niego
+        // "edytuj" po "dodaj" pokazałoby puste pola.
+        key={editing?.id ?? "new"}
+        open={formOpen}
+        initial={editing}
+        pending={upsert.isPending}
+        onOpenChange={setFormOpen}
+        onSubmit={(input) =>
+          upsert.mutate(input, {
+            onSuccess: () => {
+              setFormOpen(false);
+              toast.success(t("club.eventForm.saved"));
+            },
+            onError: () => toast.error(t("club.eventForm.failed")),
+          })
+        }
+      />
+    ) : null;
+
+  if (next === null) {
+    if (!canManage) return null;
+    return (
+      <ClubRailPanel title={t("club.network.meeting.title")} icon={CalendarClock}>
+        <p className="text-[11px] leading-snug text-muted-foreground">
+          {t("club.network.meeting.emptyManage")}
+        </p>
+        <button
+          type="button"
+          onClick={openCreate}
+          className="mt-2 inline-flex h-7 items-center gap-1 rounded-lg border border-border/60 px-2 text-[11px] font-medium transition-colors hover:border-primary/40 hover:text-primary"
+        >
+          <Plus className="h-3 w-3" aria-hidden="true" />
+          {t("club.eventForm.createTitle")}
+        </button>
+        {form}
+      </ClubRailPanel>
+    );
+  }
 
   const kind = toEventKind(next.kind);
   const attendees = attendeesQ.data ?? [];
@@ -130,8 +203,21 @@ export function ClubMeetingPanel({
       title={t("club.network.meeting.title")}
       icon={CalendarClock}
       action={
-        <MoreLink to="/club/$clubSlug/calendar" clubSlug={clubSlug} label={t("club.hub.more")} />
-      }
+        <div className="flex items-center gap-1.5">
+          {canManage ? (
+            <button
+              type="button"
+              aria-label={t("club.eventForm.createTitle")}
+              title={t("club.eventForm.createTitle")}
+              onClick={openCreate}
+              className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-border/60 text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+            >
+              <Plus className="h-3 w-3" aria-hidden="true" />
+            </button>
+          ) : null}
+          <MoreLink to="/club/$clubSlug/calendar" clubSlug={clubSlug} label={t("club.hub.more")} />
+        </div>
+
     >
       <div className="flex gap-2.5">
         <span
