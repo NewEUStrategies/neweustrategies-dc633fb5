@@ -235,7 +235,31 @@ function EventCard({
           ) : null}
         </div>
       ) : null}
+
+      {onEdit !== undefined || onDelete !== undefined ? (
+        <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border/60 pt-2">
+          {onEdit !== undefined ? (
+            <Button type="button" size="sm" variant="ghost" onClick={() => onEdit(row)}>
+              <Pencil className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+              {t("club.eventForm.edit")}
+            </Button>
+          ) : null}
+          {onDelete !== undefined ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="text-muted-foreground hover:text-destructive"
+              onClick={() => onDelete(row)}
+            >
+              <Trash2 className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+              {t("club.eventForm.delete")}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
     </article>
+
   );
 }
 
