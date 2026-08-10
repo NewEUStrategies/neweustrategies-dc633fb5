@@ -895,12 +895,16 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
     const format: PostFormat = (overrides?.format ?? post.post_format ?? "standard") as PostFormat;
     const layoutId = pickLayoutId(globalLayoutSettings, format, overrides?.layout);
     const merged = mergeOverrides(globalLayoutSettings, overrides);
+    // Layout redakcyjny (WSJ) przenosi akcje do nagłówka - wtedy nie
+    // powielamy ich w pasku quick-view ani w rzędzie mobilnym.
+    const editorialActions = findLayout(format, layoutId).headerActions === true;
     // "Udostepnij pelny artykul" - w wierszu quick-view nad trescia lub, gdy
-    // pasek jest wylaczony, jako samodzielny wiersz akcji. Funkcja dotyczy
-    // WYLACZNIE tresci za paywallem: dla wpisu publicznego link niczego nie
-    // odblokowuje (serwer i tak odmawia - gift_post_not_gated), a wpisy na
-    // haslo sa wykluczone na stale (sekret autora nie chodzi linkiem).
-    const shareableArticle = isGatedMode(accessRule?.mode) && accessRule?.mode !== "password";
+    // pasek jest wylaczony, jako samodzielny wiersz akcji. Wpisy na haslo sa
+    // wykluczone na stale (sekret autora nie chodzi linkiem). W nagłówku
+    // redakcyjnym przycisk stoi obok badge'a Google niezaleznie od paywalla -
+    // sam komponent rozstrzyga faze (logowanie / plany / link).
+    const shareableArticle =
+      accessRule?.mode !== "password" && (editorialActions || isGatedMode(accessRule?.mode));
     const giftButton = shareableArticle ? (
       <GiftArticleButton postId={it.id} title={title} url={citationUrl} lang={lang} />
     ) : null;
@@ -911,9 +915,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
         <GooglePreferredSourceBadge entityId={it.id} className="w-auto" />
       </div>
     );
-    // Layout redakcyjny (WSJ) przenosi akcje do nagłówka - wtedy nie
-    // powielamy ich w pasku quick-view ani w rzędzie mobilnym.
-    const editorialActions = findLayout(format, layoutId).headerActions === true;
+
     return (
       <div
         className="flex min-w-0 w-full max-w-full flex-col overflow-x-clip bg-background text-foreground"
@@ -951,7 +953,8 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                 lang={lang}
                 author={postAuthor}
                 publishedAt={it.published_at}
-                readMinutes={readMinutes}
+                readMinutes={editorialActions ? null : readMinutes}
+
                 hideReadTimeOnMobile
                 customMeta={
                   <CustomMetaList defs={customMetaDefs} values={post.custom_meta} lang={lang} />
