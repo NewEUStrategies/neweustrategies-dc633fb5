@@ -5966,6 +5966,28 @@ textarea::placeholder {
   }
 }
 
+/* Globalna mechanika pasków zakładek: na mobile przewijamy w poziomie, ale
+   bez "dryfowania" - snapping do krawędzi, brak łańcuchowania scrolla do
+   strony i ukryty pasek przewijania. Ostatni aktywny tab zawsze dokleja się
+   do lewej krawędzi zamiast zatrzymywać się w pół szerokości. */
+@utility tabs-scroller {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 0.5rem;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  & > * {
+    scroll-snap-align: start;
+    flex: none;
+  }
+}
+
 @utility bg-gradient-brand {
   background-image: var(--gradient-brand);
 }
