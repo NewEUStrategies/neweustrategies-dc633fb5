@@ -109,7 +109,9 @@
     "entities": "4.5.0",
     "i18n-iso-countries": "^7.14.0",
     "i18next": "^26.3.0",
+    "jszip": "^3.10.1",
     "lucide-react": "0.577.0",
+    "mammoth": "^1.12.1",
     "node-html-parser": "^9.0.0",
     "qrcode": "^1.5.4",
     "react": "^19.2.0",
@@ -125,6 +127,7 @@
     "tailwindcss": "^4.2.1",
     "tw-animate-css": "^1.3.4",
     "vite-tsconfig-paths": "^6.1.1",
+    "xlsx": "^0.18.5",
     "yet-another-react-lightbox": "^3.32.0",
     "zod": "^3.23.8"
   },

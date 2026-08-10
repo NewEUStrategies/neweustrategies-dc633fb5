@@ -12,7 +12,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import {
-  CLUB_POST_ACCEPT_MIME,
   CLUB_POST_MAX_FILE_BYTES,
   CLUB_POST_MEDIA_BUCKET,
   clubPostMediaKind,
@@ -116,9 +115,9 @@ function safeName(name: string): string {
  * proporcję i strumień nie skacze przy dociąganiu zdjęć.
  */
 export async function uploadClubPostMedia(file: File): Promise<ClubPostMediaAttachment> {
-  const kind = clubPostMediaKind(file.type);
-  if (kind === null || !CLUB_POST_ACCEPT_MIME.includes(file.type)) {
-    throw new ClubMediaError("type", `Unsupported file type: ${file.type}`);
+  const kind = clubPostMediaKind(file.type, file.name);
+  if (kind === null) {
+    throw new ClubMediaError("type", `Unsupported file type: ${file.type || file.name}`);
   }
   if (file.size > CLUB_POST_MAX_FILE_BYTES) {
     throw new ClubMediaError("size", `File too large: ${file.size}`);
