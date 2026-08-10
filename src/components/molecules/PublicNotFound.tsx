@@ -34,7 +34,7 @@ export function PublicNotFound() {
   ];
 
   return (
-    <div className="flex flex-1 min-h-[70vh] items-center justify-center px-4 py-20">
+    <div className="flex flex-1 min-h-[55vh] items-center justify-center px-4 py-10 sm:py-12">
       <div className="w-full max-w-xl text-center">
         <p className="font-display text-7xl font-bold leading-none tracking-tight text-brand sm:text-8xl">
           404
