@@ -127,13 +127,18 @@ export function ImageWidget({
     ...(ratioCss ? { aspectRatio: ratioCss } : null),
     ...(ratioCss ? { "--widget-media-fit": fit } : null),
   };
+  // Bez ramki (ratio=auto) obrazek rysuje się bezpośrednio - wcześniej dostawał
+  // twarde `width: 100%`, więc "Szerokość (px)"/"Maks. szerokość (px)" nie miały
+  // ŻADNEGO wpływu (logo w headerze rozlewało się na całą kolumnę). Teraz oba
+  // limity oraz nowa "Wysokość (px)" trafiają na element realnie.
   const imgStyle: CSSProperties = ratioCss
     ? { objectFit: fit, width: "100%", height: "100%" }
     : {
         objectFit: fit,
-        width: "100%",
-        maxWidth: "100%",
-        height: "auto",
+        width: heightPx > 0 && widthPx <= 0 ? "auto" : widthPx > 0 ? `${widthPx}px` : "100%",
+        maxWidth: effectiveMaxPx > 0 ? `min(100%, ${effectiveMaxPx}px)` : "100%",
+        height: heightPx > 0 ? `${heightPx}px` : "auto",
+        ...(heightPx > 0 ? { "--img-h": `${heightPx}px` } : null),
       };
   if (!src && !srcDark) {
     return (
