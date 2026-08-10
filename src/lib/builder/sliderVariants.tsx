@@ -404,6 +404,38 @@ const SHARED_STYLES = `
 .eh-slider:hover .eh-img { transform: none; }
 .eh-slider .eh-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .eh-slider .eh-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+/* Mobile: tytuł musi być widoczny w całości - blok rośnie zamiast ucinać,
+   wyrazy nie są dzielone myślnikiem. */
+@media (max-width: 767px) {
+  .eh-slider .eh-title-clamp > * {
+    height: auto !important;
+    min-height: calc(2 * 1.25em);
+    min-height: 2lh;
+    overflow: visible !important;
+  }
+  .eh-slider .cms-post-title {
+    display: block !important;
+    -webkit-line-clamp: unset !important;
+    overflow: visible !important;
+    overflow-wrap: break-word;
+    word-break: normal;
+    hyphens: manual;
+    -webkit-hyphens: manual;
+    text-wrap: pretty;
+  }
+}
+[data-device="mobile"] .eh-slider .eh-title-clamp > * {
+  height: auto !important;
+  overflow: visible !important;
+}
+[data-device="mobile"] .eh-slider .cms-post-title {
+  display: block !important;
+  -webkit-line-clamp: unset !important;
+  overflow: visible !important;
+  hyphens: manual;
+  -webkit-hyphens: manual;
+  text-wrap: pretty;
+}
 /* Cover image toggle: hide media on all variants, keep overlay text + author. */
 .eh-slider[data-hide-cover="true"] .eh-img,
 .eh-slider[data-hide-cover="true"] .eh-hover-zoom,

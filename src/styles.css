@@ -2167,9 +2167,10 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
 [data-builder-renderer][data-device="mobile"] a,
 [data-builder-renderer][data-device="mobile"] button {
   white-space: normal !important;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   word-break: normal;
-  hyphens: auto;
+  hyphens: manual;
+  -webkit-hyphens: manual;
   overflow: visible !important;
   text-overflow: clip !important;
   max-width: 100% !important;
@@ -2288,9 +2289,10 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
   [data-builder-renderer] a,
   [data-builder-renderer] button {
     white-space: normal !important;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
     word-break: normal;
-    hyphens: auto;
+    hyphens: manual;
+    -webkit-hyphens: manual;
     overflow: visible !important;
     text-overflow: clip !important;
     max-width: 100% !important;
@@ -2328,9 +2330,10 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
   [data-builder-renderer] a,
   [data-builder-renderer] span,
   [data-builder-renderer] li {
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
     word-break: normal;
-    hyphens: auto;
+    hyphens: manual;
+    -webkit-hyphens: manual;
   }
   [data-builder-renderer] h1:not(.cms-post-title) {
     font-size: clamp(1.4rem, 7vw, 2rem) !important;
@@ -2365,12 +2368,19 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
     -webkit-box-orient: vertical !important;
     overflow: hidden !important;
   }
+  /* Tytuły na mobile: pełna treść, bez ucinania i bez dzielenia wyrazów. */
   [data-builder-renderer] [data-debug-type="post-list"] .cms-post-title,
   [data-builder-renderer] [data-debug-type="rated-list"] .cms-post-title {
-    display: -webkit-box !important;
-    -webkit-line-clamp: 3 !important;
-    -webkit-box-orient: vertical !important;
-    overflow: hidden !important;
+    display: block !important;
+    -webkit-line-clamp: unset !important;
+    overflow: visible !important;
+  }
+  [data-builder-renderer] .cms-post-title {
+    overflow-wrap: break-word !important;
+    word-break: normal !important;
+    hyphens: manual !important;
+    -webkit-hyphens: manual !important;
+    text-wrap: pretty;
   }
   /* Remove any vertical fillers that push content-alignment on mobile. */
   [data-builder-renderer] [data-col-id] {
