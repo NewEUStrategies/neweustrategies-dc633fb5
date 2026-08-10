@@ -205,17 +205,8 @@ function ClubMembersRoute() {
                 emphasis={signal.new7d > 0}
               />
             </div>
-            {hasPeopleMovement(signal.peopleSeries) ? (
-              <div className="w-full sm:w-48">
-                <ClubSparkline
-                  values={signal.peopleSeries}
-                  label={t("club.network.roster.chartLabel")}
-                />
-                <p className="mt-1 text-right text-[10px] text-muted-foreground">
-                  {t("club.network.roster.chartCaption")}
-                </p>
-              </div>
-            ) : null}
+            {/* Szereg aktywności wycofany w A34 - skład mówi twarzami. */}
+
           </div>
 
           {/* Kompetencje mają własny ekran - tam są filtrem i wyszukiwarką,
