@@ -373,10 +373,10 @@ export function toRsvpState(value: string | null): ClubRsvpState | null {
  * uzytkownika w pusty adres.
  *
  * Parametr jest STRUKTURALNY, a nie `ClubDocumentRow`: ta funkcja czyta dwa
- * pola i nie ma powodu zadac dwudziestu pozostalych. Po A32 ten sam dokument
- * przychodzi z DWOCH roznych RPC (`club_documents_list` i `club_output_list`),
- * ktore oddaja rozny zestaw kolumn - a reguła "plik albo link" jest jedna
- * i nie moze sie rozdwoic tylko dlatego, ze zmienilo sie zrodlo wiersza.
+ * pola i nie ma powodu zadac dwudziestu pozostalych. Ksztalt strukturalny
+ * zostal, chociaz drugie zrodlo wierszy (`club_output_list`) zniknelo w A34:
+ * regula "plik albo link" jest jedna dla wszystkich powierzchni i nie ma
+ * powodu wiazac jej z akurat tym RPC, ktore dzisiaj oddaje wiersz.
  */
 export function documentHref(row: {
   file_url: string | null;

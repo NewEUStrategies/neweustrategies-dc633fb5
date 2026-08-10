@@ -1,17 +1,19 @@
-// Atomy warstwy sieciującej klubu (A32).
+// Atomy warstwy sieciującej klubu (A32, plakietka osoby A34).
 //
-// Cztery kształty, które powtarzają się w pięciu modułach mówiących o LUDZIACH:
-// kropka obecności, pigułka rodzaju ogłoszenia, stos twarzy i etykieta liczbowa.
-// Stoją tutaj z tego samego powodu, co `ClubTopicChip`: sygnał "ta osoba tu
-// właśnie była" ma wyglądać identycznie w składzie, na liście uczestników
-// spotkania i w panelu ekspertów - inaczej ten sam fakt czyta się jak trzy
-// różne byty.
+// Kształty, które powtarzają się w modułach mówiących o LUDZIACH: kropka
+// obecności, pigułka rodzaju ogłoszenia, stos twarzy, plakietka osoby
+// i etykieta liczbowa. Stoją tutaj z tego samego powodu, co `ClubTopicChip`:
+// sygnał "ta osoba tu właśnie była" ma wyglądać identycznie w składzie, na
+// liście uczestników spotkania i w panelu ekspertów - inaczej ten sam fakt
+// czyta się jak trzy różne byty.
 //
 // Wszystko trzyma promień `rounded-lg` (6 px) i skalę huba - patrz
 // `ClubHubPrimitives`.
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { HandHelping, Search, Sparkles, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
 import type { ClubNoticeKind } from "@/lib/clubs/networkTypes";
 
@@ -156,6 +158,71 @@ export function ClubFaceStack({
       </ul>
       <span className="sr-only">{faces.map((face) => face.name).join(", ")}</span>
     </div>
+  );
+}
+
+/**
+ * Plakietka osoby - to, co widać po najechaniu na awatar w składzie.
+ *
+ * PO CO ONA JEST. Rząd sześciu awatarów bez podpisu jest ozdobą: mówi "tu
+ * jest sześć osób" i na tym kończy. Networking zaczyna się dopiero od
+ * powodu - kto to jest, czym się zajmuje, na czym się zna. Plakietka niesie
+ * dokładnie te trzy rzeczy i nic ponadto: pełna karta osoby ma własny ekran.
+ *
+ * DLACZEGO TOOLTIP, A NIE POPOVER. Popover trzeba zamknąć, a to jest
+ * powierzchnia PRZEGLĄDANIA - przesuwa się po niej wzrokiem sześć razy pod
+ * rząd. Tooltip Radiksa otwiera się także z klawiatury (`focus`), więc
+ * informacja nie jest zarezerwowana dla myszy.
+ *
+ * Zawartość jest RÓWNIEŻ w warstwie dla czytnika ekranu przy samym awatarze
+ * (patrz `ClubRosterFaces`): tooltip bywa niedostępny przy dotyku, gdzie ten
+ * sam awatar jest linkiem i tapnięcie prowadzi wprost do profilu.
+ */
+export function ClubPersonBadge({
+  name,
+  headline,
+  roleLabel,
+  statusLabel,
+  topics,
+  children,
+}: {
+  name: string;
+  headline: string | null;
+  /** Rola w klubie; `member` to stan domyślny i tu nie trafia. */
+  roleLabel: string | null;
+  /** Jedna linijka o obecności: "aktywny dziś" albo "nowy w klubie". */
+  statusLabel: string | null;
+  topics: readonly string[];
+  children: ReactNode;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent side="bottom" className="max-w-[15rem] px-2.5 py-2">
+        <p className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs font-semibold text-popover-foreground">{name}</span>
+          {roleLabel !== null ? (
+            <span className="rounded-lg border border-border/60 px-1 text-[10px] font-medium">
+              {roleLabel}
+            </span>
+          ) : null}
+        </p>
+        {headline !== null ? <p className="mt-0.5 opacity-80">{headline}</p> : null}
+        {topics.length > 0 ? (
+          <p className="mt-1.5 flex flex-wrap gap-1">
+            {topics.slice(0, 3).map((topic) => (
+              <ClubExpertiseChip key={topic} label={topic} />
+            ))}
+          </p>
+        ) : null}
+        {statusLabel !== null ? (
+          <p className="mt-1.5 flex items-center gap-1 font-medium text-primary">
+            <Sparkles className="h-2.5 w-2.5 shrink-0" aria-hidden="true" />
+            {statusLabel}
+          </p>
+        ) : null}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 

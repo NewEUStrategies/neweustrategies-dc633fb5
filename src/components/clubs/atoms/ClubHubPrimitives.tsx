@@ -147,36 +147,10 @@ export function ClubSegmented<T extends string>({
   );
 }
 
-/**
- * Iskra aktywności - 14 słupków bez osi i bez podpisów.
- * Wykres w szynie ma odpowiadać na JEDNO pytanie ("czy tu się coś dzieje"),
- * a nie na pięć; oś i legenda w kolumnie 20 rem zjadłyby całą wysokość,
- * niczego nie wyjaśniając.
- */
-export function ClubSparkline({
-  values,
-  label,
-  className,
-}: {
-  values: readonly number[];
-  label: string;
-  className?: string;
-}) {
-  const peak = values.reduce((max, value) => Math.max(max, value), 0);
-  return (
-    <div className={cn("flex h-8 items-end gap-[3px]", className)} role="img" aria-label={label}>
-      {values.map((value, index) => (
-        <span
-          key={index}
-          className={cn(
-            "min-w-[3px] flex-1 rounded-sm",
-            value === 0 ? "bg-muted" : "bg-primary/70",
-          )}
-          style={{
-            height: peak === 0 ? "12%" : `${Math.max(12, Math.round((value / peak) * 100))}%`,
-          }}
-        />
-      ))}
-    </div>
-  );
-}
+// ISKRA AKTYWNOŚCI ZNIKŁA W A34. `ClubSparkline` rysował 14 słupków z liczbą
+// różnych osób odzywających się danego dnia i miał dwóch konsumentów: panel
+// składu w szynie i nagłówek strony składu. Oba odpowiadały na pytanie
+// o wolumen ruchu, a moduł ma odpowiadać na pytanie o LUDZI - w szynie stoi
+// teraz rząd twarzy (`ClubRosterFaces`), a strona składu ma pod liczbami
+// pełną listę nazwisk. Atom bez ani jednego wywołania zostałby kodem, który
+// nikt nie utrzymuje, a każdy widzi w podpowiedziach edytora.

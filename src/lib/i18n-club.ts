@@ -71,7 +71,6 @@ export const clubPl = {
       },
       sections: {
         threads: "Feed",
-        output: "Dorobek",
         documents: "Dokumenty",
         members: "Skład",
         experts: "Eksperci",
@@ -1179,14 +1178,15 @@ export const clubPl = {
       // Skład z sygnałem obecności - zastępuje "Najaktywniejszych" i puls.
       roster: {
         title: "Skład klubu",
-        chartLabel: "Liczba osób aktywnych dziennie przez ostatnie 14 dni",
-        chartCaption: "osoby aktywne / 14 dni",
+        facesLabel: "Członkowie klubu",
         total: "Razem",
         active24h: "Aktywni / 24 h",
         active7d: "Aktywni / 7 dni",
         new7d: "Nowi / 7 dni",
-        newBadge: "nowy",
         activeDot: "Aktywny w ostatniej dobie",
+        activeToday: "Odezwał się w ostatniej dobie",
+        newHere: "Nowy w klubie",
+        memberSince: "W klubie od {{date}}",
         toExperts: "Zobacz, kto się na czym zna",
       },
 
@@ -1224,23 +1224,6 @@ export const clubPl = {
       },
 
       // Dorobek jako wynik wspólnych rozmów.
-      output: {
-        title: "Dorobek klubu",
-        lead: "Nie lista plików, tylko to, co powstało ze wspólnych rozmów - razem z dyskusją, z której wyrosło, i osobami, które ją prowadziły.",
-        fromThread: "z rozmowy: {{title}}",
-        noThread: "Materiał bez podpiętej rozmowy.",
-        toLibrary: "Przejdź do biblioteki",
-        empty:
-          "Z rozmów w tym klubie nie powstał jeszcze wspólny materiał. To pierwsza rzecz, którą warto zmienić.",
-        count_one: "{{count}} materiał ze wspólnych rozmów",
-        count_few: "{{count}} materiały ze wspólnych rozmów",
-        count_many: "{{count}} materiałów ze wspólnych rozmów",
-        count_other: "{{count}} materiałów ze wspólnych rozmów",
-        contributors_one: "{{count}} współautor",
-        contributors_few: "{{count}} współautorów",
-        contributors_many: "{{count}} współautorów",
-        contributors_other: "{{count}} współautorów",
-      },
     },
 
     // --- kalendarz klubu ---
@@ -2010,7 +1993,6 @@ export const clubEn = {
       },
       sections: {
         threads: "Feed",
-        output: "Output",
         documents: "Documents",
         members: "Members",
         experts: "Experts",
@@ -3031,14 +3013,15 @@ export const clubEn = {
 
       roster: {
         title: "Club roster",
-        chartLabel: "Number of people active per day over the last 14 days",
-        chartCaption: "people active / 14 days",
+        facesLabel: "Club members",
         total: "Total",
         active24h: "Active / 24h",
         active7d: "Active / 7 days",
         new7d: "New / 7 days",
-        newBadge: "new",
         activeDot: "Active in the last 24 hours",
+        activeToday: "Posted in the last 24 hours",
+        newHere: "New to the club",
+        memberSince: "In the club since {{date}}",
         toExperts: "See who knows what",
       },
 
@@ -3072,20 +3055,6 @@ export const clubEn = {
         pinFailed: "Could not save the pin.",
         unpin: "Remove the pin",
         unpinned: "Pin removed.",
-      },
-
-      output: {
-        title: "What the club produced",
-        lead: "Not a file list - what came out of shared conversations, together with the discussion it grew from and the people who held it.",
-        fromThread: "from the conversation: {{title}}",
-        noThread: "Material with no conversation attached.",
-        toLibrary: "Go to the library",
-        empty:
-          "No shared output has come out of the conversations here yet. That is the first thing worth changing.",
-        count_one: "{{count}} piece born of shared conversations",
-        count_other: "{{count}} pieces born of shared conversations",
-        contributors_one: "{{count}} co-author",
-        contributors_other: "{{count}} co-authors",
       },
     },
 

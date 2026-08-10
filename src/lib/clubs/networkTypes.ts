@@ -185,7 +185,10 @@ export interface ClubRosterFace {
   name: string;
   avatarUrl: string | null;
   slug: string | null;
+  /** Stanowisko sklejone w bazie ("Dyrektor - MSZ") - może go nie być. */
+  headline: string | null;
   role: string;
+  joinedAt: string | null;
   /** Dołączył w ciągu ostatnich 7 dni. */
   isNew: boolean;
   /** Odezwał się w ciągu ostatnich 24 godzin. */
@@ -199,19 +202,71 @@ export interface ClubRosterSignal {
   active24h: number;
   active7d: number;
   /**
-   * Czternaście dni, od najstarszego. Słupek to liczba RÓŻNYCH OSÓB, które
-   * odezwały się danego dnia - nie liczba wpisów. To jest cała różnica między
-   * pulsem klubu a licznikiem treści: jedna osoba pisząca dziesięć razy i
-   * dziesięć osób po razie dają identyczny licznik wpisów i opisują dwa
-   * zupełnie różne kluby.
+   * PULA, nie lista do wyświetlenia. Baza oddaje do 60 osób uporządkowanych
+   * "kto tu właśnie był, potem kto właśnie doszedł"; panel pokazuje z niej
+   * sześć - patrz `rotateRosterFaces`.
    */
-  peopleSeries: number[];
   faces: ClubRosterFace[];
 }
 
-/** Czy szereg niesie jakikolwiek ruch - iskra z samych zer to plama, nie wykres. */
-export function hasPeopleMovement(series: readonly number[]): boolean {
-  return series.some((value) => value > 0);
+// --- rotacja twarzy -------------------------------------------------------
+//
+// PO CO ROTOWAĆ. Panel ma sześć miejsc, a klub bywa trzydziestoosobowy.
+// Stała szóstka zamienia "skład klubu" w "sześć osób, które piszą najczęściej"
+// - a wtedy moduł mówi to samo, co usunięty ranking najaktywniejszych, tylko
+// ładniej. Rotacja sprawia, że przez ten sam panel przewija się CAŁY skład.
+//
+// CO NIE ROTUJE. Osoby aktywne w ostatniej dobie stoją na stałe: to jest
+// jedyny sygnał "tu ktoś jest" na całej stronie klubu i wypadnięcie takiej
+// osoby z okna zamieniłoby sygnał w loterię. Rotuje wyłącznie ogon.
+
+/** Ile twarzy mieści się w szynie: sześć w jednym rzędzie kolumny 20 rem. */
+export const CLUB_ROSTER_FACE_SLOTS = 6;
+
+/**
+ * Okno rotacji - sześć godzin. Krócej: skład miga w trakcie jednej sesji
+ * czytania. Dłużej: ten sam człowiek przez tydzień widzi tę samą szóstkę
+ * i rotacja przestaje istnieć. Cztery zmiany dziennie to kompromis, który
+ * przy dwudziestoosobowym klubie pokazuje wszystkich w ciągu doby.
+ */
+export const CLUB_ROSTER_ROTATION_MS = 6 * 60 * 60 * 1000;
+
+/** Numer okna rotacji dla podanej chwili. Wydzielone, bo test nie ma zegara. */
+export function rosterRotationTick(nowMs: number): number {
+  return Math.floor(nowMs / CLUB_ROSTER_ROTATION_MS);
+}
+
+/**
+ * Sześć twarzy z puli: aktywni przypięci, reszta w oknie przesuwanym.
+ *
+ * Kolejność WEWNĄTRZ obu części zostaje taka, jaką dała baza - dzięki temu
+ * rotacja nie miesza porządku "kto tu był ostatnio", tylko wybiera, kogo
+ * z ogona pokazać w tym oknie.
+ */
+export function rotateRosterFaces(
+  faces: readonly ClubRosterFace[],
+  slots: number,
+  tick: number,
+): ClubRosterFace[] {
+  if (slots <= 0) return [];
+  if (faces.length <= slots) return [...faces];
+
+  const pinned = faces.filter((face) => face.isActive).slice(0, slots);
+  const pinnedIds = new Set(pinned.map((face) => face.userId));
+  const tail = faces.filter((face) => !pinnedIds.has(face.userId));
+
+  const free = slots - pinned.length;
+  if (free <= 0 || tail.length === 0) return pinned;
+
+  // Modulo dwustronne: `tick` bywa ujemny dla dat sprzed epoki, a ujemny
+  // indeks tablicy dałby `undefined` w środku listy twarzy.
+  const offset = ((tick % tail.length) + tail.length) % tail.length;
+  const window: ClubRosterFace[] = [];
+  for (let i = 0; i < free && i < tail.length; i += 1) {
+    const face = tail[(offset + i) % tail.length];
+    if (face !== undefined) window.push(face);
+  }
+  return [...pinned, ...window];
 }
 
 // ---------------------------------------------------------------------------
@@ -355,30 +410,6 @@ export function spotlightBlurb(row: ClubSpotlightRow, isPl: boolean): string {
 }
 
 // ---------------------------------------------------------------------------
-// 6) Dorobek jako wynik wspólnych rozmów
-// ---------------------------------------------------------------------------
-
-export type ClubOutputRow = NullableCols<
-  RowOf<Fn["club_output_list"]["Returns"]>,
-  | "summary_pl"
-  | "summary_en"
-  | "file_url"
-  | "external_url"
-  | "thread_id"
-  | "thread_slug"
-  | "thread_title"
-  | "published_at"
->;
-
-/** Współautor produktu - uczestnik rozmowy, z której produkt wyrósł. */
-export interface ClubOutputContributor {
-  userId: string;
-  name: string;
-  avatarUrl: string | null;
-  slug: string | null;
-}
-
-// ---------------------------------------------------------------------------
 // Odczyt jsonb
 //
 // Wspólny szkielet: przejdź tablicę, odrzuć wpisy, których nie da się
@@ -425,24 +456,12 @@ export function parseRosterFaces(value: Json): ClubRosterFace[] {
       name,
       avatarUrl: toText(entry["avatar_url"]),
       slug: toText(entry["slug"]),
+      headline: toText(entry["headline"]),
       role: toText(entry["role"]) ?? "member",
+      joinedAt: toText(entry["joined_at"]),
       isNew: toFlag(entry["is_new"]),
       isActive: toFlag(entry["is_active"]),
       topics: toStringArray(entry["topics"]),
-    };
-  });
-}
-
-export function parseOutputContributors(value: Json): ClubOutputContributor[] {
-  return mapJsonArray(value, (entry) => {
-    const userId = toText(entry["user_id"]);
-    const name = toText(entry["name"]);
-    if (userId === null || name === null) return null;
-    return {
-      userId,
-      name,
-      avatarUrl: toText(entry["avatar_url"]),
-      slug: toText(entry["slug"]),
     };
   });
 }

@@ -27,7 +27,6 @@
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import {
-  Award,
   BarChart3,
   CalendarDays,
   FileText,
@@ -49,20 +48,23 @@ import { ClubGroupTree } from "@/components/clubs/molecules/ClubGroupTree";
 import type { ClubGroupRow, ClubViewRow } from "@/lib/clubs/types";
 
 // DLACZEGO TRZY GRUPY, A NIE JEDNA SIATKA. Do A31 sekcji było sześć i płaska
-// siatka 2x3 czytała się jednym rzutem oka. Po A32/A33 jest ich dziesięć,
-// a dziesięć jednakowych kafelków to nie jest spis treści, tylko ściana -
+// siatka 2x3 czytała się jednym rzutem oka. Po A32/A33 jest ich dziewięć,
+// a dziewięć jednakowych kafelków to nie jest spis treści, tylko ściana -
 // żeby znaleźć „Tablicę", trzeba przeczytać wszystkie.
 //
 // Podział idzie po PYTANIU, które sekcja obsługuje, a nie po dacie dodania:
-//   * KLUB   - o czym tu mowa i co z tego wyszło,
+//   * KLUB   - o czym tu mowa i z czego się to bierze,
 //   * LUDZIE - kto tu jest i z kim się odezwać,
 //   * PRACA  - co i kiedy się dzieje.
+//
+// Sekcja „Dorobek" wypadła stąd w A34 razem z całym modułem - pytanie „co ten
+// klub wytworzył" ma już odpowiedź w bibliotece i drugi kafelek obok niej
+// mówił to samo innym słowem.
 //
 // Grupa „ludzie" jest w całości nowa i to jest teza tej przebudowy: klub
 // think tanku ma tyle samo powierzchni o ludziach, co o treści.
 const SECTIONS = [
   { key: "threads", to: "/club/$clubSlug", icon: MessagesSquare, exact: true, group: "club" },
-  { key: "output", to: "/club/$clubSlug/output", icon: Award, exact: false, group: "club" },
   {
     key: "documents",
     to: "/club/$clubSlug/documents",

@@ -2,36 +2,36 @@
 //
 // ZASADA DOBORU. W szynie stoi WYŁĄCZNIE to, co zmienia decyzję czytelnika
 // o tym, co zrobić w ciągu najbliższej minuty: z kim się odezwać, kto tu jest,
-// co go czeka, na jakim etapie są prace i co z tych rozmów wyszło. Wszystko
-// inne (pełna biblioteka, pełny kalendarz, pełny pomiar) ma własny ekran i tam
-// zostaje - szyna linkuje, a nie kopiuje.
+// co go czeka i na jakim etapie są prace. Wszystko inne (pełna biblioteka,
+// pełny kalendarz, pełny pomiar) ma własny ekran i tam zostaje - szyna
+// linkuje, a nie kopiuje.
 //
 // KAŻDY PANEL ZNIKA, gdy nie ma treści. Panel "Nadchodzące" z napisem "brak"
 // zajmuje tyle samo miejsca co panel z terminem i nie niesie nic - a pięć
-// takich pustych paneli zamienia szynę w listę wymówek. Wyjątkiem jest dorobek
-// (patrz niżej) i tablica ogłoszeń: tam pustka JEST informacją o klubie.
+// takich pustych paneli zamienia szynę w listę wymówek. Wyjątkiem jest tablica
+// ogłoszeń: tam pustka JEST informacją o klubie.
 //
-// CO STĄD ZNIKNĘŁO I DLACZEGO (A32):
+// CO STĄD ZNIKNĘŁO I DLACZEGO:
 //
-//   * "Wątki i ich źródła" - funkcja zdublowana. Drzewo działów z licznikami
-//     stoi w LEWEJ szynie, a każda karta strumienia niesie chip działu,
-//     którym można zawęzić listę. Trzeci byt mówiący to samo nie dodawał
-//     informacji, tylko wysokości.
+//   * "Wątki i ich źródła" (A32) - funkcja zdublowana. Drzewo działów
+//     z licznikami stoi w LEWEJ szynie, a każda karta strumienia niesie chip
+//     działu, którym można zawęzić listę. Trzeci byt mówiący to samo nie
+//     dodawał informacji, tylko wysokości.
 //
-//   * "Najaktywniejsi" i "Puls klubu" w starej postaci - obie powierzchnie
-//     liczyły TREŚĆ (odpowiedzi w oknie, wątki bez odpowiedzi, suma wpisów
-//     na iskrze). Zastąpił je jeden panel składu z sygnałem obecności, którego
-//     iskra liczy RÓŻNE OSOBY, a nie wpisy: jedna osoba pisząca dziesięć razy
-//     i dziesięć osób po razie dawały wcześniej identyczny wykres, mimo że to
-//     są dwa zupełnie różne kluby.
+//   * "Najaktywniejsi" i "Puls klubu" (A32) - obie powierzchnie liczyły TREŚĆ
+//     (odpowiedzi w oknie, wątki bez odpowiedzi, suma wpisów na iskrze).
+//     Zastąpił je jeden panel składu z sygnałem obecności.
+//
+//   * "Dorobek klubu" (A34) - panel mówił o MATERIAŁACH, a szyna po
+//     przebudowie mówi o ludziach: tablica, spotkanie, skład, poznaj członka.
+//     Lista plików między nimi rozbijała ten ciąg i powtarzała pytanie, na
+//     które odpowiada biblioteka. Zniknął cały moduł, razem z trasą i RPC.
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { Award, FileText, ListChecks, MessagesSquare } from "lucide-react";
+import { FileText, ListChecks } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ClubRailPanel } from "@/components/clubs/atoms/ClubHubPrimitives";
-import { ClubFaceStack } from "@/components/clubs/atoms/ClubNetworkPrimitives";
 import { ClubDocumentKindIcon } from "@/components/clubs/atoms/ClubWorkspaceBadges";
-import type { ClubOutputEntry } from "@/lib/clubs/networkApi";
 import {
   documentHref,
   isMilestoneOverdue,
@@ -58,7 +58,6 @@ export function MoreLink({
     | "/club/$clubSlug/members"
     | "/club/$clubSlug/board"
     | "/club/$clubSlug/experts"
-    | "/club/$clubSlug/output"
     | "/club/$clubSlug/spotlight";
   clubSlug: string;
   label: string;
@@ -136,122 +135,6 @@ export function ClubStagePanel({
       <p className="mt-1.5 text-[11px] tabular-nums text-muted-foreground">
         {t("club.hub.stage.doneOf", { done, total: milestones.length })}
       </p>
-    </ClubRailPanel>
-  );
-}
-
-/**
- * DOROBEK KLUBU - co powstało ze wspólnych rozmów.
- *
- * CO SIĘ ZMIENIŁO (A32). Panel pokazywał wcześniej listę PRODUKTÓW: tytuł,
- * ikona rodzaju, licznik. To jest opis biblioteki, a nie dorobku - a te dwie
- * rzeczy odpowiadają na różne pytania. "Co ten klub opublikował" ma własny
- * ekran. Tutaj pytanie brzmi: co powstało z tego, że CI LUDZIE ze sobą
- * rozmawiali - więc każdy produkt niesie ROZMOWĘ, z której wyrósł, i twarze
- * osób, które ją prowadziły. To jest jedyny dowód, że networking daje wynik.
- *
- * Współautorstwo nie ma własnej tabeli: źródłem prawdy jest dyskusja podpięta
- * pod dokument. Osobna lista autorów rozjechałaby się z wątkiem w pierwszym
- * miesiącu, a utrzymywałby ją ręcznie ten sam człowiek, który wgrywa plik.
- *
- * Panel NIE ZNIKA przy zerze - w odróżnieniu od "świeżych materiałów". Klub
- * bez ani jednego wspólnego wyniku ma to zobaczyć, bo to jest informacja
- * o klubie, a nie brak danych do ukrycia.
- */
-export function ClubOutputPanel({
-  clubSlug,
-  entries,
-  total,
-  isPl,
-}: {
-  clubSlug: string;
-  entries: readonly ClubOutputEntry[];
-  total: number;
-  isPl: boolean;
-}) {
-  const { t } = useTranslation();
-
-  return (
-    <ClubRailPanel
-      title={t("club.network.output.title")}
-      icon={Award}
-      action={
-        <MoreLink to="/club/$clubSlug/output" clubSlug={clubSlug} label={t("club.hub.more")} />
-      }
-    >
-      {entries.length === 0 ? (
-        <p className="text-xs leading-snug text-muted-foreground">
-          {t("club.network.output.empty")}
-        </p>
-      ) : (
-        <>
-          <p className="mb-2 text-[11px] leading-snug text-muted-foreground">
-            {t("club.network.output.count", { count: total })}
-          </p>
-          <ul className="flex flex-col gap-2.5">
-            {entries.map(({ row, contributors }) => {
-              const href = documentHref(row);
-              const title = isPl ? row.title_pl : row.title_en;
-              const inner = (
-                <>
-                  <ClubDocumentKindIcon
-                    kind={toDocumentKind(row.kind)}
-                    className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                  />
-                  <span className="line-clamp-2 leading-snug">{title}</span>
-                </>
-              );
-              return (
-                <li key={row.id}>
-                  {href !== null ? (
-                    <a
-                      href={href}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-start gap-2 text-sm font-medium hover:text-primary"
-                    >
-                      {inner}
-                    </a>
-                  ) : (
-                    <span className="flex items-start gap-2 text-sm font-medium">{inner}</span>
-                  )}
-
-                  {/* PROWENIENCJA. Bez niej to jest lista plików; z nią - dowód,
-                      że z rozmowy coś wyszło. Wątek jest linkiem, bo pierwsze
-                      pytanie po przeczytaniu tytułu brzmi "skąd to się wzięło". */}
-                  {row.thread_slug !== null && row.thread_title !== null ? (
-                    <Link
-                      to="/club/$clubSlug/t/$threadSlug"
-                      params={{ clubSlug, threadSlug: row.thread_slug }}
-                      className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary"
-                    >
-                      <MessagesSquare className="h-3 w-3 shrink-0" aria-hidden="true" />
-                      <span className="truncate">{row.thread_title}</span>
-                    </Link>
-                  ) : null}
-
-                  {contributors.length > 0 ? (
-                    <div className="mt-1 flex items-center gap-1.5">
-                      <ClubFaceStack
-                        faces={contributors.map((person) => ({
-                          userId: person.userId,
-                          name: person.name,
-                          avatarUrl: person.avatarUrl,
-                        }))}
-                        total={row.contributor_count}
-                        max={4}
-                      />
-                      <span className="text-[11px] text-muted-foreground">
-                        {t("club.network.output.contributors", { count: row.contributor_count })}
-                      </span>
-                    </div>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        </>
-      )}
     </ClubRailPanel>
   );
 }
