@@ -80,6 +80,7 @@ export function ImageWidget({
   const ratio = getStr(c, "ratio");
   const widthPx = typeof c.widthPx === "number" ? c.widthPx : Number(c.widthPx) || 0;
   const maxWidthPx = typeof c.maxWidthPx === "number" ? c.maxWidthPx : Number(c.maxWidthPx) || 0;
+  const heightPx = typeof c.heightPx === "number" ? c.heightPx : Number(c.heightPx) || 0;
   const align = (getStr(c, "align") || "center") as "left" | "center" | "right";
 
   // Fallback: use site logo from theme_options when no src is configured AND
