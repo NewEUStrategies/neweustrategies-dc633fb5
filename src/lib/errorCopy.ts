@@ -17,6 +17,11 @@ type ErrorScenario = {
 type ErrorCopy = {
   notFoundTitle: string;
   notFoundBody: string;
+  /** Nadlinia nad listą podpowiedzi na stronie 404. */
+  notFoundSuggestionsTitle: string;
+  /** Etykiety skrótów nawigacyjnych na stronie 404. */
+  notFoundLinks: { home: string; analyses: string; pricing: string; quiz: string; contact: string };
+  contactSupport: string;
   errorTitle: string;
   errorBody: string;
   tryAgain: string;
@@ -43,6 +48,15 @@ const COPY: Record<"pl" | "en", ErrorCopy> = {
   pl: {
     notFoundTitle: "Nie znaleziono strony",
     notFoundBody: "Strona, której szukasz, nie istnieje lub została przeniesiona.",
+    notFoundSuggestionsTitle: "Być może szukasz:",
+    notFoundLinks: {
+      home: "Strona główna",
+      analyses: "Analizy",
+      pricing: "Cennik",
+      quiz: "Quiz",
+      contact: "Kontakt",
+    },
+    contactSupport: "Napisz do nas",
     errorTitle: "Nie udało się załadować strony",
     errorBody: "Coś poszło nie tak po naszej stronie. Odśwież stronę lub wróć na stronę główną.",
     tryAgain: "Spróbuj ponownie",
@@ -112,6 +126,15 @@ const COPY: Record<"pl" | "en", ErrorCopy> = {
   en: {
     notFoundTitle: "Page not found",
     notFoundBody: "The page you're looking for doesn't exist or has been moved.",
+    notFoundSuggestionsTitle: "You might be looking for:",
+    notFoundLinks: {
+      home: "Home",
+      analyses: "Analyses",
+      pricing: "Pricing",
+      quiz: "Quiz",
+      contact: "Contact",
+    },
+    contactSupport: "Contact support",
     errorTitle: "This page didn't load",
     errorBody: "Something went wrong on our end. Try refreshing or head back home.",
     tryAgain: "Try again",
