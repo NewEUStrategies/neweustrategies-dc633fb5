@@ -189,6 +189,9 @@ export function ClubHubSectionBar({
               ITEM_QUIET,
               "shrink-0 whitespace-nowrap border border-border/60 bg-card",
               "data-[status=active]:border-primary data-[status=active]:bg-primary data-[status=active]:font-semibold data-[status=active]:text-primary-foreground",
+              // Dark: `--primary` to jasny popiel - pełne wypełnienie gasi ikony
+              // rysowane własnym kolorem. Kontrast bierzemy z ramki i tła.
+              "dark:data-[status=active]:bg-primary/15 dark:data-[status=active]:text-foreground",
             )}
           >
             <Icon className="h-[1.125rem] w-[1.125rem] shrink-0" aria-hidden="true" />
