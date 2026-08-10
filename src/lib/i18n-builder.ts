@@ -543,6 +543,8 @@ const pl = {
       maxWidth: "Maks. szerokość (px)",
       maxWidthHint: "Opcjonalny limit. 0 = brak limitu.",
       maxWidthPh: "brak",
+      height: "Wysokość (px)",
+      heightHint: "0 lub puste = automatyczna. Ustawiona wysokość wygrywa z szerokością.",
       align: "Wyrównanie",
       link: "Link (opcjonalnie)",
       activeLang: "Aktywny język edycji: {{lang}}",
