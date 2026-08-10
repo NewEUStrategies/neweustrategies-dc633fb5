@@ -324,6 +324,14 @@ export interface PostLayoutSettings {
   auto_load_next_post: boolean;
   /** Nadpisania włączenia sidebara per preset (id-layoutu -> boolean). */
   layout_sidebar_overrides: Record<string, boolean>;
+  /**
+   * Źródło prawdy rozmiaru tytułu i zajawki wpisu:
+   * - "theme" (domyślne): dziedziczy globalne rozmiary czcionek
+   *   (Admin -> Opcje motywu -> Rozmiary czcionek): tytuł = --fs-h1,
+   *   zajawka = --fs-lead (responsywność niesie sam token motywu).
+   * - "layout": używa wartości px per breakpoint z tego wiersza.
+   */
+  title_size_source: TitleSizeSource;
   /** Typografia overlay (Layout 4/5/12) - rozmiar tytułu w px per breakpoint. */
   overlay_title_size_base: number;
   overlay_title_size_md: number;
@@ -409,6 +417,7 @@ export function defaultPostLayoutSettings(): PostLayoutSettings {
     show_quote_share: true,
     auto_load_next_post: false,
     layout_sidebar_overrides: {},
+    title_size_source: "theme",
     overlay_title_size_base: 24,
     overlay_title_size_md: 30,
     overlay_title_size_lg: 36,
@@ -424,6 +433,24 @@ export function defaultPostLayoutSettings(): PostLayoutSettings {
   };
 }
 
+/** Skąd pochodzi rozmiar tytułu/zajawki wpisu. */
+export type TitleSizeSource = "theme" | "layout";
+
+/**
+ * Tokeny globalnych rozmiarów czcionek (Admin -> Opcje motywu -> Rozmiary
+ * czcionek). Fallbacki odpowiadają defaultom `FONT_SIZES_DEFAULTS`, żeby SSR
+ * bez wczytanego <ThemeFontSizesStyle/> nie skakał rozmiarem.
+ */
+const THEME_TITLE_VAR = "var(--fs-h1, 44px)";
+const THEME_EXCERPT_VAR = "var(--fs-lead, 18px)";
+
+/** True, gdy tytuł/zajawka dziedziczą globalne rozmiary czcionek motywu. */
+export function inheritsThemeTitleSizes(
+  s: Pick<PostLayoutSettings, "title_size_source"> | null | undefined,
+): boolean {
+  return (s?.title_size_source ?? "theme") === "theme";
+}
+
 /**
  * Zwraca CSS custom properties do inline-style, które napędzają responsywne
  * klasy `.overlay-title-typography`, `.overlay-excerpt-typography`,
@@ -434,6 +461,7 @@ export function defaultPostLayoutSettings(): PostLayoutSettings {
 export function overlayTypographyStyle(
   s: Pick<
     PostLayoutSettings,
+    | "title_size_source"
     | "overlay_title_size_base"
     | "overlay_title_size_md"
     | "overlay_title_size_lg"
@@ -442,6 +470,16 @@ export function overlayTypographyStyle(
     | "overlay_excerpt_size_lg"
   >,
 ): React.CSSProperties {
+  if (inheritsThemeTitleSizes(s)) {
+    return {
+      ["--overlay-title-base" as string]: THEME_TITLE_VAR,
+      ["--overlay-title-md" as string]: THEME_TITLE_VAR,
+      ["--overlay-title-lg" as string]: THEME_TITLE_VAR,
+      ["--overlay-excerpt-base" as string]: THEME_EXCERPT_VAR,
+      ["--overlay-excerpt-md" as string]: THEME_EXCERPT_VAR,
+      ["--overlay-excerpt-lg" as string]: THEME_EXCERPT_VAR,
+    };
+  }
   return {
     ["--overlay-title-base" as string]: `${s.overlay_title_size_base}px`,
     ["--overlay-title-md" as string]: `${s.overlay_title_size_md}px`,
@@ -455,6 +493,7 @@ export function overlayTypographyStyle(
 export function headerTypographyStyle(
   s: Pick<
     PostLayoutSettings,
+    | "title_size_source"
     | "header_title_size_base"
     | "header_title_size_md"
     | "header_title_size_lg"
@@ -463,6 +502,16 @@ export function headerTypographyStyle(
     | "header_excerpt_size_lg"
   >,
 ): React.CSSProperties {
+  if (inheritsThemeTitleSizes(s)) {
+    return {
+      ["--header-title-base" as string]: THEME_TITLE_VAR,
+      ["--header-title-md" as string]: THEME_TITLE_VAR,
+      ["--header-title-lg" as string]: THEME_TITLE_VAR,
+      ["--header-excerpt-base" as string]: THEME_EXCERPT_VAR,
+      ["--header-excerpt-md" as string]: THEME_EXCERPT_VAR,
+      ["--header-excerpt-lg" as string]: THEME_EXCERPT_VAR,
+    };
+  }
   return {
     ["--header-title-base" as string]: `${s.header_title_size_base}px`,
     ["--header-title-md" as string]: `${s.header_title_size_md}px`,

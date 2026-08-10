@@ -148,6 +148,9 @@ const pl = {
         "Rozmiary czcionek (px) dla tytułu, podtytułu i meta (autor / data / czas czytania) renderowanych na cover photo oraz w klasycznym nagłówku wpisu. Wartości są responsywne per breakpoint i synchronizowane z ustawieniami w",
       descPost:
         '. Zmiany są trzymane w wersji roboczej i zapisują się dopiero po kliknięciu „Zapisz wszystko".',
+      inheritTitle: "Dziedzicz rozmiary z Opcji motywu",
+      inheritDesc:
+        "Włączone (domyślnie): tytuł wpisu bierze rozmiar z globalnego H1, a zajawka z Lead (Admin -> Opcje motywu -> Rozmiary czcionek). Wyłącz, aby ustawić własne rozmiary px per breakpoint.",
       onCover: "Overlay (na cover photo)",
       classicHeader: "Nagłówek klasyczny (bez cover)",
       rowTitle: "Tytuł",
@@ -306,6 +309,9 @@ const en = {
       descPre:
         "Font sizes (px) for the title, subtitle and meta (author / date / reading time) rendered on the cover photo and in the classic post header. Values are responsive per breakpoint and synced with the settings in",
       descPost: '. Changes are kept as a draft and only saved after clicking "Save all".',
+      inheritTitle: "Inherit sizes from Theme options",
+      inheritDesc:
+        "On (default): the post title uses the global H1 size and the excerpt uses Lead (Admin -> Theme options -> Font sizes). Turn off to set custom px sizes per breakpoint.",
       onCover: "Overlay (on cover photo)",
       classicHeader: "Classic header (no cover)",
       rowTitle: "Title",
