@@ -459,6 +459,15 @@ export const clubPl = {
     noThreads: "W tym klubie nie ma jeszcze żadnego tematu.",
     searchPlaceholder: "Szukaj w tematach tego klubu...",
     searchClear: "Wyczyść wyszukiwanie",
+    inline: {
+      noPreview: "Brak podglądu dla tego adresu.",
+      noProfile: "Nie znaleziono takiego profilu.",
+      viewProfile: "Zobacz profil",
+      verified: "Profil zweryfikowany",
+      tagFilter: "Tag: #{{tag}}",
+      tagClear: "Wyczyść tag",
+    },
+
     searchEmpty: "Brak tematów pasujących do frazy „{{query}}”.",
     searchCount_one: "{{count}} wynik",
     searchCount_few: "{{count}} wyniki",
