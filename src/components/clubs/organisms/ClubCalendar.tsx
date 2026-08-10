@@ -96,6 +96,8 @@ function EventCard({
   now,
   onRsvp,
   rsvpPending,
+  onEdit,
+  onDelete,
 }: {
   row: ClubEventRow;
   clubSlug: string;
@@ -103,7 +105,11 @@ function EventCard({
   now: number;
   onRsvp: (eventId: string, state: ClubRsvpState) => void;
   rsvpPending: boolean;
+  /** Podane tylko kuratorowi - brak funkcji chowa cały pasek redakcji. */
+  onEdit?: (row: ClubEventRow) => void;
+  onDelete?: (row: ClubEventRow) => void;
 }) {
+
   const { t } = useTranslation();
   const lang = isPl ? "pl" : "en";
   const kind = toEventKind(row.kind);
