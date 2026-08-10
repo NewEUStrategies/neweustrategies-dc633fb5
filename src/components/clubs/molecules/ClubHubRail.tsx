@@ -184,7 +184,7 @@ export function ClubHubSectionBar({
               ITEM_LG,
               ITEM_QUIET,
               "shrink-0 whitespace-nowrap border border-border/60 bg-card",
-              "data-[status=active]:border-primary/40 data-[status=active]:bg-primary/10 data-[status=active]:text-primary",
+              "data-[status=active]:border-primary data-[status=active]:bg-primary data-[status=active]:font-semibold data-[status=active]:text-primary-foreground",
             )}
           >
             <Icon className="h-[1.125rem] w-[1.125rem] shrink-0" aria-hidden="true" />
