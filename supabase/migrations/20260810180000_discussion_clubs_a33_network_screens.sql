@@ -168,6 +168,13 @@ AS $$
     COALESCE(co.people, 0)::int,
     CASE
       WHEN club.attribution_mode = 'chatham' OR NOT cap.can_see_members THEN '[]'::jsonb
+      -- ANONIM NIE DOSTAJE NAZWISK. `can_see_members` to w tym module dokladnie
+      -- `can_read`, wiec w klubie `public` przepuscilby takze niezalogowanego -
+      -- a `club_members_list` jest tam swiadomie zamkniete dla `anon`. Bez tego
+      -- warunku otwarcie tej funkcji dla `anon` (potrzebne, bo strona dorobku
+      -- jest indeksowalna) wypusciloby liste wspolautorow do wyszukiwarki
+      -- tylnymi drzwiami. Produkt i proweniencja zostaja, twarze nie.
+      WHEN auth.uid() IS NULL THEN '[]'::jsonb
       ELSE COALESCE(co.faces, '[]'::jsonb)
     END,
     r.total_count
@@ -208,8 +215,19 @@ $$;
 COMMENT ON FUNCTION public.club_output_list(uuid, integer, integer) IS
   'Dorobek klubu jako wynik wspolnych rozmow: produkt + dyskusja, z ktorej wyrosl, + jej uczestnicy. Regula Chatham House kasuje twarze, produkt zostaje.';
 
-REVOKE EXECUTE ON FUNCTION public.club_output_list(uuid, integer, integer) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.club_output_list(uuid, integer, integer) TO authenticated, service_role;
+-- ANON MA PRAWO CZYTAC DOROBEK KLUBU PUBLICZNEGO. Cala plaszczyzna TRESCI
+-- modulu jest otwarta dla `anon` (`club_view`, `club_threads_list`,
+-- `club_thread_view`, `club_documents_list`, `club_events_list`) i polega na
+-- `club_capabilities`, ktore samo rozstrzyga przypadek niezalogowanego.
+-- Strona `/club/$slug/output` jest jedyna z piatki nowych tras BEZ `noindex`,
+-- bo mowi o materialach, a nie o ludziach - a funkcja zamknieta dla `anon`
+-- kazalaby jej renderowac blad dokladnie tam, gdzie miala dowozic ruch.
+--
+-- Nazwiska wspolautorow zostaja za logowaniem - patrz warunek `auth.uid()`
+-- w projekcji wyzej.
+REVOKE EXECUTE ON FUNCTION public.club_output_list(uuid, integer, integer) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.club_output_list(uuid, integer, integer)
+  TO anon, authenticated, service_role;
 
 -- ----------------------------------------------------------------------------
 -- 3) KATALOG EKSPERTOW KLUBU
@@ -404,6 +422,11 @@ AS $$
   WHERE s.club_id = p_club_id
     AND cap.can_read
     AND cap.can_see_members
+    -- Archiwum podlega tej samej regule, co biezace przedstawienie: wylaczenie
+    -- widocznosci w katalogu ma dzialac WSTECZ. Inaczej czlonek, ktory
+    -- wypisal sie z katalogu, zostaje na ekranie w archiwum na zawsze - a to
+    -- jest dokladnie ta decyzja, ktora chcial cofnac.
+    AND p.discoverable
   ORDER BY s.week_start DESC
   LIMIT LEAST(GREATEST(COALESCE(p_limit, 12), 1), 52)
 $$;
@@ -451,6 +474,17 @@ BEGIN
      WHERE m.club_id = p_club_id AND m.user_id = p_user_id AND m.status = 'active'
   ) THEN
     RAISE EXCEPTION 'club_member_spotlight_upsert: not a member' USING ERRCODE = '22023';
+  END IF;
+
+  -- Odmowa PRZY ZAPISIE, a nie ciche odsianie przy odczycie. Obie funkcje
+  -- czytajace i tak nie pokaza tej osoby, wiec przypiecie bez tego bledu
+  -- konczyloby sie modulem, ktory redakcji "nie dziala" bez podania powodu -
+  -- a powod jest dobry i redakcja ma go poznac.
+  IF NOT EXISTS (
+    SELECT 1 FROM public.profiles p WHERE p.id = p_user_id AND p.discoverable
+  ) THEN
+    RAISE EXCEPTION 'club_member_spotlight_upsert: profile not discoverable'
+      USING ERRCODE = '22023';
   END IF;
 
   INSERT INTO public.club_member_spotlight (club_id, user_id, tenant_id, week_start, blurb_pl, blurb_en, created_by)
@@ -620,5 +654,11 @@ $$;
 COMMENT ON FUNCTION public.club_event_view(uuid, text) IS
   'Jedno wydarzenie klubu po slugu. Projekcja identyczna z club_events_list - lacznie z zerowaniem meeting_url dla nieuczestnikow.';
 
-REVOKE EXECUTE ON FUNCTION public.club_event_view(uuid, text) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.club_event_view(uuid, text) TO authenticated, service_role;
+-- ANON tak samo jak przy `club_events_list`, z ktorego ta funkcja jest
+-- zblizeniem: kalendarz klubu publicznego renderuje sie niezalogowanemu, wiec
+-- klikniecie w termin nie moze konczyc sie bledem uprawnien. Adres pokoju
+-- wideo jest w projekcji zerowany kazdemu bez `can_reply`, a lista nazwisk
+-- uczestnikow jedzie osobnym RPC zamknietym dla `anon`.
+REVOKE EXECUTE ON FUNCTION public.club_event_view(uuid, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.club_event_view(uuid, text)
+  TO anon, authenticated, service_role;

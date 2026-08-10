@@ -88,7 +88,7 @@ export function useClubBoardNotices(params: {
   const { clubId, kind = null, topic = null, limit = 8, offset = 0, scope = "open" } = params;
   const flags = scopeFlags(scope);
   return useQuery({
-    queryKey: clubKeys.board(clubId ?? "none", kind, topic, scope, offset),
+    queryKey: clubKeys.board(clubId ?? "none", kind, topic, scope, offset, limit),
     queryFn: () =>
       fetchClubBoardNotices({ clubId: clubId ?? "", kind, topic, limit, offset, ...flags }),
     enabled: clubId !== undefined && clubId !== "",
@@ -177,7 +177,7 @@ export function useClubEventAttendees(params: {
 }): UseQueryResult<ClubEventAttendeeRow[], Error> {
   const { clubId, eventId, limit = 12, enabled = true } = params;
   return useQuery({
-    queryKey: clubKeys.eventAttendees(clubId ?? "none", eventId ?? "none"),
+    queryKey: clubKeys.eventAttendees(clubId ?? "none", eventId ?? "none", limit),
     queryFn: () => fetchClubEventAttendees(eventId ?? "", limit),
     enabled: enabled && clubId !== undefined && eventId !== undefined && eventId !== "",
     staleTime: 30_000,

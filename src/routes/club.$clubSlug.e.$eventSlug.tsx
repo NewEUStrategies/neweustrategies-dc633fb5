@@ -57,7 +57,12 @@ function ClubMeetingRoute() {
           clubSlug={clubSlug}
           eventSlug={eventSlug}
           canRsvp={session !== null && club.can_reply}
-          canSeeMembers={club.can_see_members}
+          // `can_see_members` to w bazie dokladnie `can_read`, wiec w klubie
+          // `public` przepuszcza takze NIEZALOGOWANEGO - a RPC z nazwiskami
+          // jest dla `anon` zamkniete. Bez tego warunku strona probowalaby
+          // pobrac liste, dostawala 42501 i pokazywala "nikt nie potwierdzil",
+          // czyli klamala o pustym spotkaniu.
+          canSeeMembers={session !== null && club.can_see_members}
           isPl={isPl}
         />
       )}

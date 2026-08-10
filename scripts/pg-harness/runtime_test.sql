@@ -1962,6 +1962,79 @@ SELECT pg_temp.assert(
 UPDATE public.profiles SET discoverable = true
  WHERE id = 'a0000000-0000-0000-0000-000000000005';
 
+\echo '== A33.7 Widocznosc profilu obowiazuje na KAZDEJ powierzchni o ludziach =='
+-- Deklaracja kompetencji nie jest zgoda na bycie wymienionym z nazwiska.
+-- Czlonek wypisany z katalogu ma zniknac ze WSZYSTKICH czterech powierzchni,
+-- nie z trzech - inaczej wystarczy otworzyc czwarta, zeby obejsc jego decyzje.
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000003';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_thread_experts(:'net_thread'::uuid, 6)) = 1,
+  'A33: ekspert widoczny w katalogu jest w panelu watku');
+
+UPDATE public.profiles SET discoverable = false
+ WHERE id = 'a0000000-0000-0000-0000-000000000005';
+
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_thread_experts(:'net_thread'::uuid, 6)) = 0,
+  'A33: panel ekspertow watku respektuje wypisanie z katalogu');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_experts_list(:'net_club'::uuid, NULL, NULL, 24, 0)) = 0,
+  'A33: katalog ekspertow tak samo');
+
+-- Przypiecie redakcyjne nie moze byc OBEJSCIEM tej decyzji.
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_member_spotlight_upsert('%s','a0000000-0000-0000-0000-000000000005',NULL,NULL,NULL) $q$,
+         :'net_club'),
+  'A33: nie da sie przypiac osoby wypisanej z katalogu');
+
+INSERT INTO public.club_member_spotlight (tenant_id, club_id, user_id, week_start, blurb_pl, blurb_en)
+VALUES ('11111111-1111-1111-1111-111111111111', :'net_club'::uuid,
+        'a0000000-0000-0000-0000-000000000005', (date_trunc('week', now()))::date,
+        'Wpis sprzed wypisania.','Entry from before the opt-out')
+ON CONFLICT (club_id, week_start) DO UPDATE
+  SET user_id = EXCLUDED.user_id, blurb_pl = EXCLUDED.blurb_pl;
+
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_member_spotlight_current(:'net_club'::uuid)
+    WHERE curated) = 0,
+  'A33: przypiecie sprzed wypisania przestaje byc pokazywane');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_member_spotlight_history(:'net_club'::uuid, 12)) = 0,
+  'A33: wypisanie z katalogu dziala WSTECZ takze na archiwum');
+
+DELETE FROM public.club_member_spotlight WHERE club_id = :'net_club'::uuid;
+UPDATE public.profiles SET discoverable = true
+ WHERE id = 'a0000000-0000-0000-0000-000000000005';
+
+\echo '== A33.8 Anonim: tresc tak, nazwiska nie =='
+-- Cala plaszczyzna TRESCI modulu jest otwarta dla `anon`. Dwie nowe funkcje
+-- czytajace musza sie w to wpisac, ale nazwiska zostaja za logowaniem.
+UPDATE public.clubs SET visibility = 'public' WHERE id = :'net_club'::uuid;
+SELECT set_config('request.jwt.claim.sub', '', false);
+
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_event_view(:'net_club'::uuid, 'spotkanie')) = 1,
+  'A33: anonim widzi spotkanie klubu publicznego');
+SELECT pg_temp.assert(
+  (SELECT meeting_url IS NULL FROM public.club_event_view(:'net_club'::uuid, 'spotkanie')),
+  'A33: anonim NIE dostaje adresu pokoju wideo');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_output_list(:'net_club'::uuid, 10, 0)) = 1,
+  'A33: anonim czyta dorobek klubu publicznego (strona jest indeksowalna)');
+SELECT pg_temp.assert(
+  (SELECT jsonb_array_length(contributors) FROM public.club_output_list(:'net_club'::uuid, 10, 0)) = 0,
+  'A33: anonim NIE dostaje nazwisk wspolautorow');
+SELECT pg_temp.assert(
+  (SELECT contributor_count FROM public.club_output_list(:'net_club'::uuid, 10, 0)) = 2,
+  'A33: sama LICZBA wspolautorow zostaje - nikogo nie zdradza');
+
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000003';
+SELECT pg_temp.assert(
+  (SELECT jsonb_array_length(contributors) FROM public.club_output_list(:'net_club'::uuid, 10, 0)) = 2,
+  'A33: zalogowany czlonek widzi wspolautorow');
+UPDATE public.clubs SET visibility = 'members' WHERE id = :'net_club'::uuid;
+
 \echo ''
 \echo '=========================================='
 \echo ' WSZYSTKIE ASERCJE PRZESZLY'

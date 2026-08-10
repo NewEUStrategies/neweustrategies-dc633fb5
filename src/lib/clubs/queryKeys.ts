@@ -259,7 +259,24 @@ export const clubKeys = {
     topic: string | null,
     scope: string = "open",
     offset = 0,
-  ) => [...clubKeys.club(clubId), "board", kind ?? "all", topic ?? "all", scope, offset] as const,
+    /** ROZMIAR STRONY JEST CZESCIA KLUCZA. Szyna prosi o osiem ogloszen, pelna
+     *  tablica o dwadziescia cztery - z tymi samymi pozostalymi argumentami.
+     *  Bez tego czlonu oba widoki czytaja JEDEN wpis cache: przejscie z huba
+     *  na tablice w oknie swiezosci oddaje osiem wierszy, a paginacja liczy
+     *  strony po dwadziescia cztery z `total` - czyli gubi po szesnascie
+     *  pozycji na stronie. Ten sam blad, co przy `libraryDocuments`, gdzie
+     *  rozmiar strony jest w kluczu od poczatku. */
+    limit = 8,
+  ) =>
+    [
+      ...clubKeys.club(clubId),
+      "board",
+      kind ?? "all",
+      topic ?? "all",
+      scope,
+      offset,
+      limit,
+    ] as const,
   /** Prefiks wszystkich wariantow tablicy - mutacja nie zna otwartych filtrow. */
   boardAll: (clubId: string) => [...clubKeys.club(clubId), "board"] as const,
 
@@ -298,8 +315,12 @@ export const clubKeys = {
 
   /** Obecnosc na spotkaniu. Pod galezia KLUBU, bo wydarzenie do niego nalezy,
    *  a zmiana RSVP ma odswiezyc rowniez kalendarz obok. */
-  eventAttendees: (clubId: string, eventId: string) =>
-    [...clubKeys.club(clubId), "eventAttendees", eventId] as const,
+  /** Limit w kluczu z tego samego powodu, co przy tablicy: panel spotkania
+   *  prosi o dwanascie twarzy, pelna strona o piecdziesiat. Wspolny wpis cache
+   *  gubil trzydziesci osiem potwierdzonych obecnosci na ekranie, ktory
+   *  istnieje wylacznie po to, zeby je pokazac. */
+  eventAttendees: (clubId: string, eventId: string, limit: number) =>
+    [...clubKeys.club(clubId), "eventAttendees", eventId, limit] as const,
 
   /** Eksperci WATKU - pod galezia przestrzeni roboczej watku, nie klubu:
    *  lista zmienia sie z otwartym watkiem, a prosba o zdanie ma uniewaznic

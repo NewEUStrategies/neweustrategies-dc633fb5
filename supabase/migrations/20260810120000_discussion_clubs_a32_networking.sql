@@ -679,6 +679,13 @@ AS $$
     ON g.thread_id = p_thread_id AND g.user_id = c.user_id AND g.requested_by = auth.uid()
   WHERE c.matches
     AND c.user_id <> COALESCE(auth.uid(), '00000000-0000-0000-0000-000000000000'::uuid)
+    -- Ta sama regula widocznosci profilu, co w `club_members_list`, sygnale
+    -- skladu i liscie obecnosci. Bez niej czlonek, ktory zadeklarowal obszar,
+    -- a pozniej wylaczyl widocznosc w katalogu, byl NIEWIDOCZNY na trzech
+    -- ekranach i WYPISANY Z NAZWISKA na czwartym - wystarczylo otworzyc watek
+    -- z pasujacym obszarem. Deklaracja kompetencji nie jest zgoda na bycie
+    -- wymienionym z nazwiska.
+    AND p.discoverable
   -- Nieobecni w watku pierwsi, potem szerzej zadeklarowani, na koncu alfabet.
   ORDER BY (s.author_id IS NOT NULL) ASC,
            cardinality(c.topics) DESC,
@@ -1040,10 +1047,16 @@ AS $$
       CROSS JOIN cap
       JOIN public.club_members m
         ON m.club_id = s.club_id AND m.user_id = s.user_id AND m.status = 'active'
+      JOIN public.profiles pp ON pp.id = s.user_id
      WHERE s.club_id = p_club_id
        AND s.week_start = wk.week_start
        AND cap.can_read
        AND cap.can_see_members
+       -- Rotacja odsiewa niewidocznych w katalogu, wiec przypiecie musi robic
+       -- to samo. Inaczej wybor redakcji jest OBEJSCIEM decyzji czlonka:
+       -- osoba, ktorej rotacja nigdy by nie pokazala, trafia na ekran razem
+       -- z nazwiskiem, awatarem i opisem, bo ktos ja recznie wskazal.
+       AND pp.discoverable
   ),
   winner AS (
     SELECT user_id, joined_at, club_role, topics, curated, blurb_pl, blurb_en FROM pinned

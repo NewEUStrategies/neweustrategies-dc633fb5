@@ -329,7 +329,9 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
         clubSlug={clubSlug}
         clubId={club.id}
         events={events}
-        canSeeMembers={club.can_see_members}
+        // Patrz trasa spotkania: `can_see_members` przepuszcza anonima
+        // w klubie `public`, a RPC z nazwiskami jest dla niego zamkniete.
+        canSeeMembers={signedIn && club.can_see_members}
         canRsvp={signedIn && club.can_reply}
         isPl={isPl}
       />
