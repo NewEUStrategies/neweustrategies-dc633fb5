@@ -68,10 +68,60 @@ function PxSizeInput({
 }
 import {
   SECTION_LABEL_VARIANTS,
+  SECTION_LABEL_FONTS,
+  SECTION_LABEL_ARROWS,
   SectionLabelRender,
   readSectionLabelProps,
   type SectionLabelVariant,
 } from "@/lib/builder/sectionLabelVariants";
+
+// Kompaktowy natywny select - spójny z resztą paneli właściwości.
+function MiniSelect({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="h-8 w-full rounded-[6px] border border-border bg-background px-2 text-xs"
+    >
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function MiniToggle({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+}) {
+  return (
+    <label className="flex items-center gap-2 text-xs text-foreground">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="h-3.5 w-3.5 rounded-[3px] border-border accent-[color:var(--brand,#FA9346)]"
+      />
+      {label}
+    </label>
+  );
+}
+
 
 const PRESET_COLORS: { value: string; label: string; hex: string }[] = [
   { value: "brand", label: "Brand", hex: "#FA9346" },
