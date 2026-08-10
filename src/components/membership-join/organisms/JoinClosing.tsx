@@ -42,7 +42,9 @@ export function JoinClosing({ isAuthenticated }: { isAuthenticated: boolean }) {
           </Button>
         )}
         <Button asChild size="lg" variant="ghost">
-          <Link to="/kontakt">{t("membershipJoin.closing.secondary")}</Link>
+          <Link to="/$" params={{ _splat: "kontakt" }}>
+            {t("membershipJoin.closing.secondary")}
+          </Link>
         </Button>
       </div>
     </section>
