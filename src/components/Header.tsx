@@ -300,8 +300,13 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
   // kanoniczny adres wpisu to `<rodzic>/<slug>`, więc stary warunek
   // `pathname.startsWith("/post/")` nie łapał ŻADNEGO realnego wpisu.
   const headerMode = resolveHeaderMode({ pathname, contentKind });
+  // Landing quizu jest jednoekranowy (iframe wypełnia widok), więc nie ma czego
+  // przewijać - header startuje od razu w wersji minimalnej, dokładnie takiej,
+  // jaką strona wpisu pokazuje po przewinięciu.
+  const forceCompact = /^\/(en\/)?quiz\/?$/.test(pathname);
   const stickyShrink = headerMode === "sticky-shrink";
-  const [scrolled, setScrolled] = useState(false);
+  const [scrolled, setScrolled] = useState(forceCompact);
+
   const headerRef = useRef<HTMLElement | null>(null);
   // `transform: scale()` rasteryzuje tekst w skali warstwy, więc zwinięty header
   // trzymał rozmyte napisy tak długo, jak długo strona była przewinięta.
@@ -310,14 +315,15 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
   // wracają do pełnej rozdzielczości urządzenia i są idealnie ostre.
   const [settled, setSettled] = useState(true);
   useEffect(() => {
-    if (!stickyShrink) return;
+    if (!stickyShrink || forceCompact) return;
     setSettled(false);
     const HDR_DURATION_MS = 460;
     const timer = window.setTimeout(() => setSettled(true), HDR_DURATION_MS + 40);
     return () => window.clearTimeout(timer);
-  }, [scrolled, stickyShrink]);
+  }, [scrolled, stickyShrink, forceCompact]);
   useEffect(() => {
-    if (!stickyShrink) return;
+    if (!stickyShrink || forceCompact) return;
+
     // Histereza + koalescencja w rAF: bez tego stan przełącza się wielokrotnie
     // na granicy progu (i przy każdym zdarzeniu scroll), co przerywa trwającą
     // tranzycję i daje efekt "poklatkowy".
@@ -353,7 +359,8 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
     };
-  }, [stickyShrink]);
+  }, [stickyShrink, forceCompact]);
+
 
 
   // Wymiary spoczynkowe headera potrzebne CSS-owi do zwijania (patrz styles.css):
