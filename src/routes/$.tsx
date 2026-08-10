@@ -758,12 +758,12 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   // JSON-LD is emitted in <head> via the route head() above, not in the body.
 
   // Outer article/page width honours /admin/content-area → wide_align_max_width
-  // (fallback 1200 px). Bez tego, mimo ustawień w kokpicie, treść zawsze
+  // (fallback 1400 px). Bez tego, mimo ustawień w kokpicie, treść zawsze
   // "wpadałaby" w wąski kontener i po bokach zostawałaby pusta przestrzeń.
   const outerMaxWidthPx =
     globalLayoutSettings?.wide_align_max_width && globalLayoutSettings.wide_align_max_width > 0
       ? globalLayoutSettings.wide_align_max_width
-      : 1200;
+      : 1400;
   const outerMaxStyle = { maxWidth: `${outerMaxWidthPx}px` } as const;
   const showPaywall = shouldShowPaywall(accessRule?.mode, body);
 
