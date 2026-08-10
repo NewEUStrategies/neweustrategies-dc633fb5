@@ -35,6 +35,12 @@ import { topicLabel, type ClubTopicOption } from "@/lib/clubs/topicCatalog";
 import { CLUB_MEMBER_ROLES, type ClubMemberRole } from "@/lib/clubs/types";
 import { formatDateShort } from "@/lib/i18n/format";
 
+// Jeden kształt wyzwalacza dla obu wariantów - link do profilu i przycisk
+// odsłaniający plakietkę mają wyglądać identycznie, bo to jest ten sam awatar
+// w tym samym rzędzie. Różnią się TYLKO tym, dokąd prowadzą.
+const TRIGGER =
+  "relative block rounded-lg ring-offset-background transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
+
 /** Rola z RPC zawężona do słownika klienta - nieznana wartość z nowszej
  *  migracji nie może wywrócić rzędu, więc degraduje do stanu domyślnego. */
 function asRole(value: string): ClubMemberRole {
@@ -86,7 +92,7 @@ export function ClubRosterFaces({
           // Awatar jest `aria-hidden`, więc nazwę dostępną niesie ta warstwa -
           // i ona, a nie plakietka, jest wersją dla czytnika ekranu. Tooltip
           // bywa nieosiągalny przy dotyku, opis nie ma prawa być.
-          const described = [face.name, face.headline, statusLabel]
+          const described = [face.name, roleLabel, face.headline, statusLabel]
             .filter((part): part is string => part !== null && part !== "")
             .join(" - ");
 
@@ -112,17 +118,23 @@ export function ClubRosterFaces({
                 topics={face.topics.map((topic) => topicLabel(topic, lang, topicCatalog))}
               >
                 {face.slug !== null ? (
-                  <Link
-                    to="/author/$slug"
-                    params={{ slug: face.slug }}
-                    className="relative block rounded-lg ring-offset-background transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  >
+                  <Link to="/author/$slug" params={{ slug: face.slug }} className={TRIGGER}>
                     {avatar}
                   </Link>
                 ) : (
-                  // Profil bez publicznej strony nie dostaje linku - katalog
+                  // Profil bez publicznej strony nie dostaje LINKU - katalog
                   // klubu nie może obchodzić ustawienia widoczności profilu.
-                  <span className="relative block">{avatar}</span>
+                  //
+                  // Ale nadal musi dać się DOSIĘGNĄĆ: plakietka niesie rolę,
+                  // kompetencje i stan obecności, a `<span>` bez `tabindex`
+                  // zamknąłby ją przed klawiaturą dokładnie tam, gdzie nie ma
+                  // dokąd kliknąć. Przycisk bez `onClick` jest tu poprawny:
+                  // jego rolą jest ODSŁONIĘCIE opisu, a nie nawigacja - i przy
+                  // dotyku to on sprawia, że tapnięcie w awatar pokazuje
+                  // plakietkę zamiast nie robić nic.
+                  <button type="button" className={TRIGGER}>
+                    {avatar}
+                  </button>
                 )}
               </ClubPersonBadge>
             </li>

@@ -226,8 +226,9 @@ export const CLUB_ROSTER_FACE_SLOTS = 6;
 /**
  * Okno rotacji - sześć godzin. Krócej: skład miga w trakcie jednej sesji
  * czytania. Dłużej: ten sam człowiek przez tydzień widzi tę samą szóstkę
- * i rotacja przestaje istnieć. Cztery zmiany dziennie to kompromis, który
- * przy dwudziestoosobowym klubie pokazuje wszystkich w ciągu doby.
+ * i rotacja przestaje istnieć. Cztery zmiany dziennie razem z krokiem
+ * o szerokość okna (patrz `rotateRosterFaces`) pokazują dwudziestoosobowy
+ * klub w komplecie w ciągu doby.
  */
 export const CLUB_ROSTER_ROTATION_MS = 6 * 60 * 60 * 1000;
 
@@ -242,6 +243,13 @@ export function rosterRotationTick(nowMs: number): number {
  * Kolejność WEWNĄTRZ obu części zostaje taka, jaką dała baza - dzięki temu
  * rotacja nie miesza porządku "kto tu był ostatnio", tylko wybiera, kogo
  * z ogona pokazać w tym oknie.
+ *
+ * OKNO PRZESUWA SIĘ O SWOJĄ SZEROKOŚĆ, nie o jedną pozycję. To jest różnica
+ * między rotacją a pełzaniem: przy dwudziestoosobowym ogonie i sześciu
+ * miejscach krok jednopozycyjny pokazuje w ciągu doby DZIEWIĘĆ osób (0-5,
+ * 1-6, 2-7, 3-8), bo kolejne okna nachodzą na siebie w pięciu szóstych.
+ * Krok o szerokość okna dzieli ogon na rozłączne kawałki i pokazuje w tym
+ * samym czasie wszystkich dwudziestu.
  */
 export function rotateRosterFaces(
   faces: readonly ClubRosterFace[],
@@ -260,7 +268,7 @@ export function rotateRosterFaces(
 
   // Modulo dwustronne: `tick` bywa ujemny dla dat sprzed epoki, a ujemny
   // indeks tablicy dałby `undefined` w środku listy twarzy.
-  const offset = ((tick % tail.length) + tail.length) % tail.length;
+  const offset = (((tick * free) % tail.length) + tail.length) % tail.length;
   const window: ClubRosterFace[] = [];
   for (let i = 0; i < free && i < tail.length; i += 1) {
     const face = tail[(offset + i) % tail.length];

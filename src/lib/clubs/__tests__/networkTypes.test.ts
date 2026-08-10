@@ -276,6 +276,40 @@ describe("skład: rotacja sześciu twarzy", () => {
     expect(second).not.toEqual(first);
   });
 
+  it("okno przesuwa się o SWOJĄ SZEROKOŚĆ, nie o jedną pozycję", () => {
+    // To jest różnica między rotacją a pełzaniem. Krok jednopozycyjny daje
+    // okna nachodzące na siebie w pięciu szóstych: 0-5, 1-6, 2-7 - i wtedy
+    // dwudziestoosobowy klub potrzebuje prawie czterech dni, żeby pokazać
+    // wszystkich, mimo czterech zmian dziennie.
+    const pool = Array.from({ length: 20 }, (_, i) => face(`p${i}`));
+    expect(ids(rotateRosterFaces(pool, 6, 0))).toEqual(["p0", "p1", "p2", "p3", "p4", "p5"]);
+    expect(ids(rotateRosterFaces(pool, 6, 1))).toEqual(["p6", "p7", "p8", "p9", "p10", "p11"]);
+    expect(ids(rotateRosterFaces(pool, 6, 2))).toEqual(["p12", "p13", "p14", "p15", "p16", "p17"]);
+  });
+
+  it("doba czterech okien pokazuje dwudziestoosobowy klub W KOMPLECIE", () => {
+    // Obietnica z komentarza przy `CLUB_ROSTER_ROTATION_MS` - tu jest jej
+    // egzekucja, żeby nie została samym zdaniem w dokumentacji.
+    const pool = Array.from({ length: 20 }, (_, i) => face(`p${i}`));
+    const seen = new Set<string>();
+    for (const tick of [0, 1, 2, 3]) {
+      ids(rotateRosterFaces(pool, 6, tick)).forEach((id) => seen.add(id));
+    }
+    expect(seen.size).toBe(20);
+  });
+
+  it("krok liczy się od WOLNYCH miejsc, a nie od wielkości panelu", () => {
+    // Dwie osoby aktywne zabierają dwa miejsca, więc oknem rotacji są cztery
+    // pozostałe - i o cztery, nie o sześć, ma się przesunąć.
+    const pool = [
+      face("live1", true),
+      face("live2", true),
+      ...Array.from({ length: 12 }, (_, i) => face(`p${i}`)),
+    ];
+    expect(ids(rotateRosterFaces(pool, 6, 0))).toEqual(["live1", "live2", "p0", "p1", "p2", "p3"]);
+    expect(ids(rotateRosterFaces(pool, 6, 1))).toEqual(["live1", "live2", "p4", "p5", "p6", "p7"]);
+  });
+
   it("okno zawija się na końcu puli i nie gubi miejsca", () => {
     // Ostatnie okno musi dobrać brakujące twarze z początku listy, a nie
     // pokazać czterech osób w sześciu miejscach.
