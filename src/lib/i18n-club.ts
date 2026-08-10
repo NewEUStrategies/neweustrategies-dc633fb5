@@ -65,7 +65,7 @@ export const clubPl = {
       sectionsLabel: "Sekcje klubu",
       more: "Więcej",
       sections: {
-        threads: "Strumień",
+        threads: "Feed",
         documents: "Dokumenty",
         calendar: "Kalendarz",
         schedule: "Harmonogram",
@@ -1794,7 +1794,7 @@ export const clubEn = {
       sectionsLabel: "Club sections",
       more: "More",
       sections: {
-        threads: "Stream",
+        threads: "Feed",
         documents: "Documents",
         calendar: "Calendar",
         schedule: "Schedule",
