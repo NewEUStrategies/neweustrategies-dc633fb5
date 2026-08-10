@@ -99,7 +99,7 @@ export function ClubHubIdentity({
         ) : null}
       </div>
 
-      <div className="relative flex flex-wrap items-end gap-3 px-4 pb-4 sm:gap-4 sm:px-5 sm:pb-5">
+      <div className="relative flex flex-col gap-3 px-4 pb-4 sm:flex-row sm:flex-wrap sm:items-end sm:gap-4 sm:px-5 sm:pb-5">
         {/* Monogram wchodzi na okładkę - kotwiczy pas w treści. Większy niż
             wcześniej, także na mobile: to jedyny znak rozpoznawczy klubu. */}
         <div
@@ -111,7 +111,7 @@ export function ClubHubIdentity({
         </div>
 
 
-        <div className="min-w-0 flex-1 pt-2">
+        <div className="min-w-0 sm:flex-1 sm:pt-2">
           <div className="flex flex-wrap items-center gap-2">
             <ClubTopicChip topic={club.policy_area} lang={isPl ? "pl" : "en"} catalog={topics} />
             {/* Chatham House to nie odznaka-ozdoba, tylko reguła, która zmienia
@@ -148,7 +148,7 @@ export function ClubHubIdentity({
 
         {/* JEDNA akcja pierwszoplanowa. Wcześniej w tym miejscu stało siedem
             przycisków o równej wadze, czyli żaden nie był następnym krokiem. */}
-        <div className="flex shrink-0 flex-wrap items-center gap-2 pb-0.5">
+        <div className="flex w-full items-center gap-2 [&>*]:flex-1 sm:w-auto sm:shrink-0 sm:flex-wrap sm:pb-0.5 sm:[&>*]:flex-none">
           {club.can_post_thread ? (
             // Jedyne miejsce w klubie, gdzie wraca marka - reszta modułu jest
             // neutralna, więc to CTA realnie prowadzi wzrok.
