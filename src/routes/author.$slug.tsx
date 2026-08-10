@@ -458,19 +458,6 @@ function ExpertHubPage() {
                 {t("expert.expertBadge")}
               </span>
             )}
-            {expert.verified_at && (
-              <span
-                className="inline-flex items-center gap-1 rounded-[6px] bg-sky-400/25 px-2 py-0.5 text-[11px] font-medium text-sky-900 dark:text-sky-50"
-                title={
-                  lang === "pl"
-                    ? "Profil zweryfikowany zawodowo"
-                    : "Professionally verified profile"
-                }
-              >
-                <BadgeCheck className="h-3.5 w-3.5" aria-hidden />
-                {t("expert.verifiedBadge")}
-              </span>
-            )}
             <ProfileBadges badges={extraBadges} size="md" />
           </div>
         </div>
