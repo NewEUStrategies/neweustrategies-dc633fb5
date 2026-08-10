@@ -933,7 +933,7 @@ export const clubPl = {
       participants: {
         author: "Autor wątku",
         distribution: "Rozkład wkładu",
-        lastActive: "ostatnio: {{value}}",
+        lastActive: "ostatnio: {{date}}",
         replies_one: "{{count}} wypowiedź",
         replies_few: "{{count}} wypowiedzi",
         replies_many: "{{count}} wypowiedzi",
@@ -2870,7 +2870,7 @@ export const clubEn = {
       participants: {
         author: "Thread author",
         distribution: "Contribution split",
-        lastActive: "last seen: {{value}}",
+        lastActive: "last seen: {{date}}",
         replies_one: "{{count}} reply",
         replies_other: "{{count}} replies",
         questions_one: "{{count}} question",
