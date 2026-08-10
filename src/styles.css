@@ -6663,9 +6663,25 @@ header[data-site-header].site-header-shrink {
 header[data-site-header][data-scrolled="true"].site-header-shrink {
   --hdr-p: 1;
   /* Bez skalowania: header nie robi "zoom in / zoom out" przy przewijaniu.
-     Zwija się wyłącznie ticker (--hdr-p), a chrome zachowuje skalę 1. */
+     Zwija się ticker (--hdr-p), a logo realnie zmniejsza wysokość
+     (--hdr-logo-shrink) - bez rozmycia, jakie dawał transform. */
   --hdr-scale: 1;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+}
+
+/* Logo w headerze zbudowanym w builderze. `--img-h` ustawia widget obrazka
+   (pole "Wysokość (px)"), więc panel administracyjny steruje rozmiarem 1:1 z
+   produkcją. Po przewinięciu logo płynnie maleje do 72% zadanej wysokości. */
+header[data-site-header].site-header-shrink .site-logo-img {
+  transition: height var(--hdr-duration, 460ms) var(--hdr-ease, ease-in-out);
+}
+header[data-site-header][data-scrolled="true"].site-header-shrink .site-logo-img {
+  height: calc(var(--img-h, 64px) * 0.72);
+}
+@media (prefers-reduced-motion: reduce) {
+  header[data-site-header].site-header-shrink .site-logo-img {
+    transition: none;
+  }
 }
 
 /* Jeden kontener na całe chrome headera (alert, ticker, baner, pasek mobilny,

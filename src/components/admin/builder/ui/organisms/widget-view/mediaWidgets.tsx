@@ -37,6 +37,8 @@ type SiteLogoCfg = {
   };
 };
 type WidgetMediaFrameStyle = CSSProperties & { "--widget-media-fit"?: CSSProperties["objectFit"] };
+/** Styl obrazka + zmienna z ustawioną wysokością (czyta ją zwijanie headera). */
+type WidgetImageStyle = CSSProperties & { "--img-h"?: string };
 
 /** Czy redakcja w ogóle ustawiła to pole. Puste/`null` traktujemy jak brak,
  *  żeby "nie ustawiono" (globalny default) nie zlało się z "ustawiono na 0". */
@@ -80,6 +82,7 @@ export function ImageWidget({
   const ratio = getStr(c, "ratio");
   const widthPx = typeof c.widthPx === "number" ? c.widthPx : Number(c.widthPx) || 0;
   const maxWidthPx = typeof c.maxWidthPx === "number" ? c.maxWidthPx : Number(c.maxWidthPx) || 0;
+  const heightPx = typeof c.heightPx === "number" ? c.heightPx : Number(c.heightPx) || 0;
   const align = (getStr(c, "align") || "center") as "left" | "center" | "right";
 
   // Fallback: use site logo from theme_options when no src is configured AND
@@ -126,13 +129,18 @@ export function ImageWidget({
     ...(ratioCss ? { aspectRatio: ratioCss } : null),
     ...(ratioCss ? { "--widget-media-fit": fit } : null),
   };
-  const imgStyle: CSSProperties = ratioCss
+  // Bez ramki (ratio=auto) obrazek rysuje się bezpośrednio - wcześniej dostawał
+  // twarde `width: 100%`, więc "Szerokość (px)"/"Maks. szerokość (px)" nie miały
+  // ŻADNEGO wpływu (logo w headerze rozlewało się na całą kolumnę). Teraz oba
+  // limity oraz nowa "Wysokość (px)" trafiają na element realnie.
+  const imgStyle: WidgetImageStyle = ratioCss
     ? { objectFit: fit, width: "100%", height: "100%" }
     : {
         objectFit: fit,
-        width: "100%",
-        maxWidth: "100%",
-        height: "auto",
+        width: heightPx > 0 && widthPx <= 0 ? "auto" : widthPx > 0 ? `${widthPx}px` : "100%",
+        maxWidth: effectiveMaxPx > 0 ? `min(100%, ${effectiveMaxPx}px)` : "100%",
+        height: heightPx > 0 ? `${heightPx}px` : "auto",
+        ...(heightPx > 0 ? { "--img-h": `${heightPx}px` } : null),
       };
   if (!src && !srcDark) {
     return (
@@ -150,7 +158,7 @@ export function ImageWidget({
   const isFramed = !!ratioCss;
   const imgCls = isFramed
     ? `absolute inset-0 block h-full w-full ${variantCls}`
-    : `block max-w-full h-auto ${variantCls}`;
+    : `block ${variantCls}${isLogo ? " site-logo-img" : ""}`;
   const hoverEffect: import("@/components/atoms/OptimizedImage").HoverEffect =
     isLogo || variant === "zoom-hover" ? "none" : "zoom";
   const applyLogoFallback = (event: SyntheticEvent<HTMLImageElement>) => {
@@ -159,7 +167,7 @@ export function ImageWidget({
     const fallback = img.classList.contains("gc-img-dark") ? srcDark || src : src || srcDark;
     if (fallback && img.src !== fallback) img.src = fallback;
   };
-  const fgImgStyle: CSSProperties = ratioCss ? { ...imgStyle, objectFit: fit } : imgStyle;
+  const fgImgStyle: WidgetImageStyle = ratioCss ? { ...imgStyle, objectFit: fit } : imgStyle;
   const imgEl = hasBoth ? (
     <>
       <OptimizedImage
