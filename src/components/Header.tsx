@@ -359,7 +359,8 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
     };
-  }, [stickyShrink]);
+  }, [stickyShrink, forceCompact]);
+
 
 
   // Wymiary spoczynkowe headera potrzebne CSS-owi do zwijania (patrz styles.css):
