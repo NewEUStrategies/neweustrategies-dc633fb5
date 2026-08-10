@@ -596,6 +596,7 @@ const en = {
       overrideLabel: "Layout (override)",
       useGlobal: "- Use global -",
       livePreview: "Live preview",
+      recommendedImage: "Recommended image",
       sourceOverride: "override",
       sourceGlobal: "from global",
       footerHint: "Override footer sections (empty = from global):",
