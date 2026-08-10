@@ -41,6 +41,7 @@ export function ContentAreaStyle() {
 .single-post-content figure.wide,
 .single-post-content figure.is-wide,
 .single-post-content img.wide { max-width: ${num(s.wide_align_max_width, "1600px")}; margin-left: auto; margin-right: auto; }
+.post-content img, .blocks-content img, .single-post-content img { max-width: 100%; height: auto; max-height: 70vh; }
 /* Tylko akapity - odstępy list i cytatów pochodzą z tokenów motywu
    (--sp-list / --sp-blockquote), żeby nie było dwóch źródeł prawdy. */
 .post-content p, .blocks-content p, .single-post-content p { margin-bottom: ${s.paragraph_spacing_rem || 1.5}rem; }
