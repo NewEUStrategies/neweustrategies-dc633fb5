@@ -270,6 +270,7 @@ const pl = {
       overrideLabel: "Layout (override)",
       useGlobal: "- Użyj globalnego -",
       livePreview: "Podgląd na żywo",
+      recommendedImage: "Rekomendowana grafika",
       sourceOverride: "override",
       sourceGlobal: "z globalnych",
       footerHint: "Nadpisz sekcje stopki (puste = z globalnych):",
