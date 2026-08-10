@@ -178,6 +178,18 @@ export const STANDARD_LAYOUTS: LayoutPreset[] = [
     centerHeaderDefault: true,
     recommendedImage: { width: 1920, height: 1080, ratio: "16:9" },
   },
+  {
+    // Układ redakcyjny (WSJ): tytuł -> lead -> autor + akcje (gift / Google)
+    // -> okładka -> "Z tego materiału dowiesz się". Akcje wędrują do nagłówka,
+    // więc strona nie powtarza ich w pasku quick-view ani w rzędzie mobilnym.
+    id: "layout-13",
+    label: "Layout 13 - editorial (WSJ)",
+    header: "above-cover",
+    cover: "wide",
+    hasSidebar: false,
+    headerActions: true,
+    recommendedImage: { width: 1600, height: 900, ratio: "16:9" },
+  },
 ];
 
 export const VIDEO_LAYOUTS: LayoutPreset[] = STANDARD_LAYOUTS.slice(0, 5).map((l) => ({
