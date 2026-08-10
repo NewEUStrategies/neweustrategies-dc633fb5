@@ -120,7 +120,7 @@ function DevClubLabelsPage() {
     <div className="min-h-screen bg-background p-6">
       <h1 className="mb-8 text-lg font-bold">Club labels preview</h1>
 
-      <div className="mb-8 max-w-xs rounded-xl border border-border bg-card p-4 shadow-sm">
+      <div className="mb-8 max-w-sm rounded-xl border border-border bg-card p-4 shadow-sm">
         <ClubGroupTree
           groups={MOCK_GROUPS}
           activeGroupId={activeGroupId}
