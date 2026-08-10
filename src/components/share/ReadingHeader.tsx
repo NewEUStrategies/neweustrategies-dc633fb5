@@ -124,7 +124,7 @@ export function ReadingHeader({
     ? themeLogo.mobile_dark || themeLogo.mobile || themeLogo.main_dark || themeLogo.main || ""
     : themeLogo.mobile || themeLogo.mobile_dark || themeLogo.main || themeLogo.main_dark || "";
 
-  const [visible, setVisible] = useState(false);
+  const [visible, setVisible] = useState(pinned);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
