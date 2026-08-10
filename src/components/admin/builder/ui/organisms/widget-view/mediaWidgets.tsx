@@ -133,7 +133,7 @@ export function ImageWidget({
   // twarde `width: 100%`, więc "Szerokość (px)"/"Maks. szerokość (px)" nie miały
   // ŻADNEGO wpływu (logo w headerze rozlewało się na całą kolumnę). Teraz oba
   // limity oraz nowa "Wysokość (px)" trafiają na element realnie.
-  const imgStyle: CSSProperties = ratioCss
+  const imgStyle: WidgetImageStyle = ratioCss
     ? { objectFit: fit, width: "100%", height: "100%" }
     : {
         objectFit: fit,
@@ -167,7 +167,7 @@ export function ImageWidget({
     const fallback = img.classList.contains("gc-img-dark") ? srcDark || src : src || srcDark;
     if (fallback && img.src !== fallback) img.src = fallback;
   };
-  const fgImgStyle: CSSProperties = ratioCss ? { ...imgStyle, objectFit: fit } : imgStyle;
+  const fgImgStyle: WidgetImageStyle = ratioCss ? { ...imgStyle, objectFit: fit } : imgStyle;
   const imgEl = hasBoth ? (
     <>
       <OptimizedImage
