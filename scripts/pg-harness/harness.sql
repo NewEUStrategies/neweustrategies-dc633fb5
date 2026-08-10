@@ -90,6 +90,13 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   current_company text,
   specialization  text,
   location        text,
+  -- Trzy opisy, nie jeden: `bio` jest kolumna zalozycielska (20260601055702),
+  -- `bio_pl`/`bio_en` dolozyla 20260624192716 i to ONE sa zrodlem dla
+  -- powierzchni dwujezycznych. Modul czyta wszystkie trzy z fallbackiem, wiec
+  -- atrapa bez nich przepuszczalaby funkcje, ktora na produkcji nie istnieje.
+  bio             text,
+  bio_pl          text,
+  bio_en          text,
   verified_at     timestamptz,
   open_to         text[] NOT NULL DEFAULT '{}'::text[],
   completeness_score smallint NOT NULL DEFAULT 0,

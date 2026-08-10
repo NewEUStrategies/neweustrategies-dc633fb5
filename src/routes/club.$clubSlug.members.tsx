@@ -18,20 +18,26 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { ArrowLeft, BadgeCheck, Users2 } from "lucide-react";
+import { ArrowLeft, BadgeCheck, CalendarPlus, Radio, Sparkles, Users2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ChatAvatar } from "@/components/chat/ChatAvatar";
+import { ClubSparkline } from "@/components/clubs/atoms/ClubHubPrimitives";
+import {
+  ClubPresenceAvatar,
+  ClubSignalMetric,
+} from "@/components/clubs/atoms/ClubNetworkPrimitives";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
 import { ClubEnumSelect } from "@/components/admin/clubs/molecules/ClubEnumSelect";
 import { useAuth } from "@/hooks/useAuth";
 import { CLUB_MEMBER_ROLES, type ClubMemberRole } from "@/lib/clubs/types";
 import { useClubBySlug, useClubMembers, useSetClubMemberRole } from "@/lib/clubs/useClubs";
+import { useClubRosterSignal } from "@/lib/clubs/useClubNetwork";
+import { hasPeopleMovement } from "@/lib/clubs/networkTypes";
 import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
 import { fetchClubBySlug } from "@/lib/clubs/api";
 import { clubKeys } from "@/lib/clubs/queryKeys";
-import { formatDateShort } from "@/lib/i18n/format";
+import { formatDateShort, formatNumber, uiLocale } from "@/lib/i18n/format";
 import { ensureClubI18n } from "@/lib/i18n-club";
 
 const PAGE_SIZE = 60;
@@ -68,6 +74,7 @@ function ClubMembersRoute() {
   const { t, i18n } = useTranslation();
   const isPl = (i18n.language ?? "pl").startsWith("pl");
   const lang = isPl ? "pl" : "en";
+  const locale = uiLocale(i18n.language);
   const { clubSlug } = Route.useParams();
 
   const { user, isAdmin } = useAuth();
@@ -77,6 +84,15 @@ function ClubMembersRoute() {
   const membersQ = useClubMembers({
     clubId: canSee ? club?.id : undefined,
     status: "active",
+    limit: PAGE_SIZE,
+  });
+  // SYGNAŁ OBECNOŚCI (A32). Lista nazwisk odpowiada na pytanie "kto należy",
+  // a nie na pytanie "czy ktokolwiek tu jest" - a to drugie jest pierwszym,
+  // które zadaje człowiek wchodzący na skład klubu, którego nie zna.
+  // Limit twarzy równy stronie listy, żeby kropka obecności nie znikała
+  // w połowie ekranu.
+  const signalQ = useClubRosterSignal({
+    clubId: canSee ? club?.id : undefined,
     limit: PAGE_SIZE,
   });
   const setRoleM = useSetClubMemberRole(club?.id ?? "");
@@ -124,6 +140,13 @@ function ClubMembersRoute() {
 
   const rows = membersQ.data?.rows ?? [];
   const total = membersQ.data?.total ?? 0;
+  const signal = signalQ.data ?? null;
+  // Twarze przychodzą tą samą regułą widoczności profilu, co lista członków
+  // (`discoverable OR can_manage OR ja`), więc mapa pokrywa dokładnie te
+  // wiersze, które są na ekranie - i nie ma osób z kropką bez wiersza.
+  const activeIds = new Set(
+    (signal?.faces ?? []).filter((face) => face.isActive).map((face) => face.userId),
+  );
 
   return (
     <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-8">
@@ -143,6 +166,61 @@ function ClubMembersRoute() {
           {t("club.membersCount", { count: club.member_count })}
         </p>
       </header>
+
+      {/* PULS SKŁADU. Iskra liczy RÓŻNE OSOBY dziennie, nie wpisy - jedna
+          osoba pisząca dziesięć razy i dziesięć osób po razie to dwa zupełnie
+          różne kluby, a licznik treści pokazałby je identycznie. */}
+      {canSee && signal !== null ? (
+        <section className="mb-5 rounded-lg border border-border/60 bg-card p-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="grid flex-1 grid-cols-2 gap-4 sm:grid-cols-4">
+              <ClubSignalMetric
+                icon={Users2}
+                value={formatNumber(signal.membersTotal, locale)}
+                label={t("club.network.roster.total")}
+              />
+              <ClubSignalMetric
+                icon={Radio}
+                value={formatNumber(signal.active24h, locale)}
+                label={t("club.network.roster.active24h")}
+                emphasis={signal.active24h > 0}
+              />
+              <ClubSignalMetric
+                icon={Radio}
+                value={formatNumber(signal.active7d, locale)}
+                label={t("club.network.roster.active7d")}
+              />
+              <ClubSignalMetric
+                icon={CalendarPlus}
+                value={formatNumber(signal.new7d, locale)}
+                label={t("club.network.roster.new7d")}
+                emphasis={signal.new7d > 0}
+              />
+            </div>
+            {hasPeopleMovement(signal.peopleSeries) ? (
+              <div className="w-full sm:w-48">
+                <ClubSparkline
+                  values={signal.peopleSeries}
+                  label={t("club.network.roster.chartLabel")}
+                />
+                <p className="mt-1 text-right text-[10px] text-muted-foreground">
+                  {t("club.network.roster.chartCaption")}
+                </p>
+              </div>
+            ) : null}
+          </div>
+
+          {/* Kompetencje mają własny ekran - tam są filtrem i wyszukiwarką,
+              a nie ozdobą przy nazwisku. Skład odpowiada na "kto należy",
+              katalog na "kto się na czym zna". */}
+          <Button asChild variant="outline" size="sm" className="mt-4 rounded-lg">
+            <Link to="/club/$clubSlug/experts" params={{ clubSlug }}>
+              <Sparkles className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+              {t("club.network.roster.toExperts")}
+            </Link>
+          </Button>
+        </section>
+      ) : null}
 
       {/* Brak uprawnienia nie jest błędem ani pustką: klub ma prawo nie
           pokazywać składu, a czytelnik ma prawo wiedzieć, że to decyzja
@@ -179,11 +257,11 @@ function ClubMembersRoute() {
             {rows.map((row) => {
               const body = (
                 <>
-                  <ChatAvatar
-                    avatarUrl={row.avatar_url}
+                  <ClubPresenceAvatar
                     name={row.display_name}
+                    avatarUrl={row.avatar_url}
+                    active={activeIds.has(row.user_id)}
                     size="md"
-                    className="shrink-0"
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5">

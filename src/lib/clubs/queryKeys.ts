@@ -229,8 +229,6 @@ export const clubKeys = {
    *  byc czytany z kilku ekranow, a podpis jest wspolny. */
   media: (pathsKey: string) => [...clubKeys.all, "media", pathsKey] as const,
 
-
-
   /** Kalendarz. Zakres jest czescia klucza, bo przejscie na kolejny miesiac
    *  to INNE zapytanie, a nie odswiezenie tego samego. */
   events: (clubId: string, from: string | null, to: string | null, kind: string | null) =>
@@ -239,12 +237,95 @@ export const clubKeys = {
 
   clubMilestones: (clubId: string) => [...clubKeys.club(clubId), "milestones"] as const,
 
-
   /** Pomiar. Okno jest czescia klucza - 30 i 90 dni to dwa rozne wykresy. */
   activitySeries: (clubId: string, days: number) =>
     [...clubKeys.club(clubId), "activitySeries", days] as const,
   workspaceStats: (clubId: string, days: number) =>
     [...clubKeys.club(clubId), "workspaceStats", days] as const,
+
+  // --- warstwa sieciujaca (A32) ---
+  //
+  // Wszystko wisi pod `club(clubId)`, wiec mutacja kuratorska czysci rowniez
+  // te galezie. Wyjatkiem sa EKSPERCI, ktorzy nalezą do WATKU, nie do klubu -
+  // patrz nizej.
+
+  /** Tablica ogloszen. Zawezenia sa czescia klucza: "szukam" i "oferuje" to
+   *  dwie rozne listy, a nie odswiezenie tej samej. Zakres ("otwarte" /
+   *  "moje" / "archiwum") tak samo - szyna i pelna strona czytaja ten sam
+   *  RPC z roznymi argumentami i nie moga dzielic wpisu cache. */
+  board: (
+    clubId: string,
+    kind: string | null,
+    topic: string | null,
+    scope: string = "open",
+    offset = 0,
+    /** ROZMIAR STRONY JEST CZESCIA KLUCZA. Szyna prosi o osiem ogloszen, pelna
+     *  tablica o dwadziescia cztery - z tymi samymi pozostalymi argumentami.
+     *  Bez tego czlonu oba widoki czytaja JEDEN wpis cache: przejscie z huba
+     *  na tablice w oknie swiezosci oddaje osiem wierszy, a paginacja liczy
+     *  strony po dwadziescia cztery z `total` - czyli gubi po szesnascie
+     *  pozycji na stronie. Ten sam blad, co przy `libraryDocuments`, gdzie
+     *  rozmiar strony jest w kluczu od poczatku. */
+    limit = 8,
+  ) =>
+    [
+      ...clubKeys.club(clubId),
+      "board",
+      kind ?? "all",
+      topic ?? "all",
+      scope,
+      offset,
+      limit,
+    ] as const,
+  /** Prefiks wszystkich wariantow tablicy - mutacja nie zna otwartych filtrow. */
+  boardAll: (clubId: string) => [...clubKeys.club(clubId), "board"] as const,
+
+  /** Moje deklaracje kompetencji w tym klubie. */
+  myExpertise: (clubId: string) => [...clubKeys.club(clubId), "myExpertise"] as const,
+
+  /** Sklad z sygnalem obecnosci. Limit twarzy jest czescia klucza - szyna
+   *  prosi o dwanascie, ekran skladu o czterdziesci. */
+  rosterSignal: (clubId: string, limit: number) =>
+    [...clubKeys.club(clubId), "rosterSignal", limit] as const,
+
+  /** Czlonek tygodnia. Rotacja liczy sie w bazie, wiec klucz nie niesie daty -
+   *  o zmianie tygodnia decyduje `staleTime`, a nie klucz, ktory musialby
+   *  wtedy tworzyc nowy wpis cache co siedem dni i nigdy nie sprzatac starych. */
+  spotlight: (clubId: string) => [...clubKeys.club(clubId), "spotlight"] as const,
+
+  /** Dorobek jako wynik wspolnych rozmow. Osobna galaz od `libraryDocuments`:
+   *  to inne pytanie i inny zbior, mimo wspolnego zrodla w `club_documents`. */
+  output: (clubId: string, limit: number, offset = 0) =>
+    [...clubKeys.club(clubId), "output", limit, offset] as const,
+
+  /** Katalog ekspertow KLUBU - inne pytanie niz `threadExperts`. */
+  experts: (clubId: string, topic: string | null, search: string, offset: number) =>
+    [...clubKeys.club(clubId), "experts", topic ?? "all", search, offset] as const,
+
+  /** Obszary z licznikiem osob - chipy filtra katalogu. */
+  expertiseAreas: (clubId: string) => [...clubKeys.club(clubId), "expertiseAreas"] as const,
+
+  /** Archiwum przedstawien (wylacznie przypiecia redakcyjne). */
+  spotlightHistory: (clubId: string) => [...clubKeys.club(clubId), "spotlightHistory"] as const,
+
+  /** Pojedyncze spotkanie po slugu. Slug moze sie zmienic, wiec galaz jest
+   *  osobna od `events()` - ale nadal pod klubem, zeby RSVP uniewaznilo
+   *  jednym wywolaniem takze kalendarz obok. */
+  event: (clubId: string, slug: string) => [...clubKeys.club(clubId), "event", slug] as const,
+
+  /** Obecnosc na spotkaniu. Pod galezia KLUBU, bo wydarzenie do niego nalezy,
+   *  a zmiana RSVP ma odswiezyc rowniez kalendarz obok. */
+  /** Limit w kluczu z tego samego powodu, co przy tablicy: panel spotkania
+   *  prosi o dwanascie twarzy, pelna strona o piecdziesiat. Wspolny wpis cache
+   *  gubil trzydziesci osiem potwierdzonych obecnosci na ekranie, ktory
+   *  istnieje wylacznie po to, zeby je pokazac. */
+  eventAttendees: (clubId: string, eventId: string, limit: number) =>
+    [...clubKeys.club(clubId), "eventAttendees", eventId, limit] as const,
+
+  /** Eksperci WATKU - pod galezia przestrzeni roboczej watku, nie klubu:
+   *  lista zmienia sie z otwartym watkiem, a prosba o zdanie ma uniewaznic
+   *  wylacznie ten watek, a nie kazdy panel klubu na ekranie. */
+  threadExperts: (threadId: string) => [...clubKeys.workspace(threadId), "experts"] as const,
 } as const;
 
 export const adminClubKeys = {

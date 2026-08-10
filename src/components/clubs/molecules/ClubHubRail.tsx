@@ -27,13 +27,17 @@
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import {
+  Award,
   BarChart3,
   CalendarDays,
   FileText,
   Layers,
   ListChecks,
+  Megaphone,
   MessagesSquare,
   ScrollText,
+  Sparkles,
+  UserRoundSearch,
   Users2,
   type LucideIcon,
 } from "lucide-react";
@@ -44,14 +48,63 @@ import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import { ClubGroupTree } from "@/components/clubs/molecules/ClubGroupTree";
 import type { ClubGroupRow, ClubViewRow } from "@/lib/clubs/types";
 
+// DLACZEGO TRZY GRUPY, A NIE JEDNA SIATKA. Do A31 sekcji było sześć i płaska
+// siatka 2x3 czytała się jednym rzutem oka. Po A32/A33 jest ich dziesięć,
+// a dziesięć jednakowych kafelków to nie jest spis treści, tylko ściana -
+// żeby znaleźć „Tablicę", trzeba przeczytać wszystkie.
+//
+// Podział idzie po PYTANIU, które sekcja obsługuje, a nie po dacie dodania:
+//   * KLUB   - o czym tu mowa i co z tego wyszło,
+//   * LUDZIE - kto tu jest i z kim się odezwać,
+//   * PRACA  - co i kiedy się dzieje.
+//
+// Grupa „ludzie" jest w całości nowa i to jest teza tej przebudowy: klub
+// think tanku ma tyle samo powierzchni o ludziach, co o treści.
 const SECTIONS = [
-  { key: "threads", to: "/club/$clubSlug", icon: MessagesSquare, exact: true },
-  { key: "documents", to: "/club/$clubSlug/documents", icon: FileText, exact: false },
-  { key: "calendar", to: "/club/$clubSlug/calendar", icon: CalendarDays, exact: false },
-  { key: "schedule", to: "/club/$clubSlug/schedule", icon: ListChecks, exact: false },
-  { key: "insights", to: "/club/$clubSlug/insights", icon: BarChart3, exact: false },
-  { key: "members", to: "/club/$clubSlug/members", icon: Users2, exact: false },
+  { key: "threads", to: "/club/$clubSlug", icon: MessagesSquare, exact: true, group: "club" },
+  { key: "output", to: "/club/$clubSlug/output", icon: Award, exact: false, group: "club" },
+  {
+    key: "documents",
+    to: "/club/$clubSlug/documents",
+    icon: FileText,
+    exact: false,
+    group: "club",
+  },
+
+  { key: "members", to: "/club/$clubSlug/members", icon: Users2, exact: false, group: "people" },
+  { key: "experts", to: "/club/$clubSlug/experts", icon: Sparkles, exact: false, group: "people" },
+  { key: "board", to: "/club/$clubSlug/board", icon: Megaphone, exact: false, group: "people" },
+  {
+    key: "spotlight",
+    to: "/club/$clubSlug/spotlight",
+    icon: UserRoundSearch,
+    exact: false,
+    group: "people",
+  },
+
+  {
+    key: "calendar",
+    to: "/club/$clubSlug/calendar",
+    icon: CalendarDays,
+    exact: false,
+    group: "work",
+  },
+  {
+    key: "schedule",
+    to: "/club/$clubSlug/schedule",
+    icon: ListChecks,
+    exact: false,
+    group: "work",
+  },
+  { key: "insights", to: "/club/$clubSlug/insights", icon: BarChart3, exact: false, group: "work" },
 ] as const;
+
+/** Kolejność grup jest kolejnością pytań - patrz komentarz wyżej. */
+const SECTION_GROUPS = ["club", "people", "work"] as const;
+type SectionGroup = (typeof SECTION_GROUPS)[number];
+
+/** Sekcje mówiące o LUDZIACH milkną tam, gdzie klub ukrywa skład. */
+const PEOPLE_SECTIONS: readonly string[] = ["members", "experts", "spotlight"];
 
 type SectionKey = (typeof SECTIONS)[number]["key"];
 /** Unia LITERAŁÓW tras - `string` zamieniłby literówkę w martwy link. */
@@ -129,6 +182,11 @@ function SectionTile({
   );
 }
 
+/** Sekcje widoczne dla tego czytelnika - jedna reguła dla obu nośników. */
+function visibleSections(canSeeMembers: boolean) {
+  return SECTIONS.filter((s) => canSeeMembers || !PEOPLE_SECTIONS.includes(s.key));
+}
+
 /** Siatka sekcji - ta sama w hubie i na podstronach przestrzeni roboczej. */
 function SectionTiles({
   clubSlug,
@@ -140,20 +198,36 @@ function SectionTiles({
   counts?: SectionCounts;
 }) {
   const { t } = useTranslation();
-  const visible = SECTIONS.filter((s) => s.key !== "members" || canSeeMembers);
+  const visible = visibleSections(canSeeMembers);
+
   return (
-    <nav aria-label={t("club.hub.sectionsLabel")} className="grid grid-cols-2 gap-1.5">
-      {visible.map((section) => (
-        <SectionTile
-          key={section.key}
-          to={section.to}
-          clubSlug={clubSlug}
-          icon={section.icon}
-          label={t(`club.hub.sections.${section.key satisfies SectionKey}`)}
-          exact={section.exact}
-          count={counts?.[section.key]}
-        />
-      ))}
+    <nav aria-label={t("club.hub.sectionsLabel")} className="space-y-2.5">
+      {SECTION_GROUPS.map((group) => {
+        const items = visible.filter((section) => section.group === group);
+        // Grupa, z której nic nie zostało (klub ukrywa skład), znika razem
+        // z nagłówkiem - pusty nagłówek jest gorszy niż jego brak.
+        if (items.length === 0) return null;
+        return (
+          <div key={group}>
+            <h3 className="mb-1.5 px-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {t(`club.hub.sectionGroups.${group satisfies SectionGroup}`)}
+            </h3>
+            <div className="grid grid-cols-2 gap-1.5">
+              {items.map((section) => (
+                <SectionTile
+                  key={section.key}
+                  to={section.to}
+                  clubSlug={clubSlug}
+                  icon={section.icon}
+                  label={t(`club.hub.sections.${section.key satisfies SectionKey}`)}
+                  exact={section.exact}
+                  count={counts?.[section.key]}
+                />
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </nav>
   );
 }
@@ -169,7 +243,10 @@ export function ClubHubSectionBar({
   className?: string;
 }) {
   const { t } = useTranslation();
-  const visible = SECTIONS.filter((s) => s.key !== "members" || canSeeMembers);
+  // Bez nagłówków grup: w poziomym scrollerze etykieta zjadałaby szerokość,
+  // której i tak brakuje. Kolejność zostaje pogrupowana, więc sąsiedztwo
+  // niesie tę samą informację, co nagłówek w kolumnie.
+  const visible = visibleSections(canSeeMembers);
   return (
     <nav
       aria-label={t("club.hub.sectionsLabel")}

@@ -371,8 +371,17 @@ export function toRsvpState(value: string | null): ClubRsvpState | null {
  * Dokument ma dokladnie jedno zrodlo tresci - plik ALBO link. CHECK w bazie
  * tego pilnuje, ale UI musi wiedziec, KTORY z nich otworzyc, zanim wysle
  * uzytkownika w pusty adres.
+ *
+ * Parametr jest STRUKTURALNY, a nie `ClubDocumentRow`: ta funkcja czyta dwa
+ * pola i nie ma powodu zadac dwudziestu pozostalych. Po A32 ten sam dokument
+ * przychodzi z DWOCH roznych RPC (`club_documents_list` i `club_output_list`),
+ * ktore oddaja rozny zestaw kolumn - a reguła "plik albo link" jest jedna
+ * i nie moze sie rozdwoic tylko dlatego, ze zmienilo sie zrodlo wiersza.
  */
-export function documentHref(row: ClubDocumentRow): string | null {
+export function documentHref(row: {
+  file_url: string | null;
+  external_url: string | null;
+}): string | null {
   const file = row.file_url !== null && row.file_url.trim() !== "" ? row.file_url : null;
   const external =
     row.external_url !== null && row.external_url.trim() !== "" ? row.external_url : null;

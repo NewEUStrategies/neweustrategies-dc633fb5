@@ -57,13 +57,8 @@ import {
   useToggleClubReaction,
 } from "@/lib/clubs/useClubs";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
-import {
-  useClubActivitySeries,
-  useClubDocuments,
-  useClubEvents,
-  useClubMilestones,
-  useClubWorkspaceStats,
-} from "@/lib/clubs/useClubWorkspace";
+import { useClubDocuments, useClubEvents, useClubMilestones } from "@/lib/clubs/useClubWorkspace";
+import { useClubOutput } from "@/lib/clubs/useClubNetwork";
 import {
   CLUB_THREAD_SORTS,
   CLUB_THREAD_SORTS_REQUIRING_SESSION,
@@ -71,7 +66,6 @@ import {
   type ClubThreadSort,
   type ClubViewRow,
 } from "@/lib/clubs/types";
-import { parseContributors } from "@/lib/clubs/workspaceTypes";
 import { buildClubFeed, CLUB_FEED_MODES, type ClubFeedMode } from "@/lib/clubs/clubFeed";
 import {
   useClubMediaUrls,
@@ -93,12 +87,12 @@ import { ClubCreatePanel } from "@/components/clubs/molecules/ClubCreatePanel";
 import {
   ClubFreshDocsPanel,
   ClubOutputPanel,
-  ClubPeoplePanel,
-  ClubPulsePanel,
   ClubStagePanel,
-  ClubUpNextPanel,
 } from "@/components/clubs/molecules/ClubHubContext";
-import { ClubThreadSourcesPanel } from "@/components/clubs/molecules/ClubThreadSources";
+import { ClubBoardPanel } from "@/components/clubs/molecules/ClubBoardPanel";
+import { ClubMeetingPanel } from "@/components/clubs/molecules/ClubMeetingPanel";
+import { ClubRosterPanel } from "@/components/clubs/molecules/ClubRosterPanel";
+import { ClubSpotlightPanel } from "@/components/clubs/molecules/ClubSpotlightPanel";
 import { ClubThreadTopicBar } from "@/components/clubs/molecules/ClubThreadTopicBar";
 import { ClubFeedItem } from "@/components/clubs/organisms/ClubFeedItem";
 import { ClubGlobalSearchResults } from "@/components/clubs/organisms/ClubGlobalSearch";
@@ -161,22 +155,21 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
   const documentsQ = useClubDocuments({ clubId: club.id, groupId, limit: 6 });
   // Dorobek jest zapytaniem OSOBNYM od strumienia materiałów i celowo NIE idzie
   // zawężeniem działu: "co ten klub wytworzył" jest pytaniem o klub, a nie
-  // o wycinek, który akurat czytamy.
-  const productsQ = useClubDocuments({ clubId: club.id, scope: "products", limit: 4 });
+  // o wycinek, który akurat czytamy. Od A32 jedzie własnym RPC, bo pytanie
+  // zmieniło się z "co opublikowano" na "co powstało ze wspólnych rozmów" -
+  // a to drugie wymaga wątku źródłowego i jego uczestników.
+  const outputQ = useClubOutput({ clubId: club.id, limit: 4 });
   const eventsQ = useClubEvents({ clubId: club.id, from: new Date().toISOString(), limit: 12 });
   const milestonesQ = useClubMilestones(club.id);
-  const statsQ = useClubWorkspaceStats(club.id, 30);
   // Ściana (A31). Wpisy idą tym samym zawężeniem działu, co strumień - inaczej
   // wybrany dział pokazywałby wątki jednego działu i wpisy całego klubu.
   const postsQ = useClubPosts({ clubId: club.id, groupId });
   const deletePost = useDeleteClubPost(club.id);
   const toggleLike = useToggleClubPostLike();
-  const seriesQ = useClubActivitySeries(club.id, 30);
-  // ŹRÓDŁA (prawa szyna) jadą OSOBNYM zapytaniem, bez zawężenia działem i bez
-  // porządku wybranego przez użytkownika. To jest cała wartość tego panelu:
-  // ma mówić o działach, których w tej chwili NIE widać w strumieniu. Gdyby
-  // czytał tę samą listę, po wybraniu działu pokazywałby jedno źródło - czyli
-  // dokładnie tę informację, którą użytkownik ma już na ekranie.
+  // PEŁNA lista wątków klubu, bez zawężenia działem i bez porządku wybranego
+  // przez użytkownika. Zasila kompozytor (wybór wątku, do którego wpina się
+  // wpis) i pasek obszarów tematycznych, którego liczniki mają mówić o CAŁYM
+  // klubie - inaczej po wybraniu działu pokazywałyby liczby tego działu.
   const sourceThreadsQ = useClubThreads({ clubId: club.id, sort: "new" });
 
   // Wyszukiwanie ZASTĘPUJE strumień, nie stoi obok niego: dwie listy naraz na
@@ -199,7 +192,6 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
   const documents = useMemo(() => documentsQ.data?.rows ?? [], [documentsQ.data]);
   const events = useMemo(() => eventsQ.data ?? [], [eventsQ.data]);
   const milestones = useMemo(() => milestonesQ.data ?? [], [milestonesQ.data]);
-  const stats = statsQ.data ?? null;
   const posts = useMemo(
     () => (postsQ.data?.pages ?? []).flatMap((page) => page.rows),
     [postsQ.data],
@@ -248,11 +240,6 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
   const sourceThreads = useMemo(
     () => (sourceThreadsQ.data?.pages ?? []).flatMap((page) => page.rows),
     [sourceThreadsQ.data],
-  );
-
-  const contributors = useMemo(
-    () => (stats === null ? [] : parseContributors(stats.top_contributors)),
-    [stats],
   );
 
   const availableSorts = CLUB_THREAD_SORTS.filter(
@@ -306,34 +293,63 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
             : undefined,
   }));
 
-  // KOLEJNOŚĆ PRAWEJ KOLUMNY JEST TEZĄ. Źródła otwierają, puls zamyka.
+  // KOLEJNOŚĆ PRAWEJ KOLUMNY JEST TEZĄ - i po A32 jest to teza o LUDZIACH.
   //
-  // Panel źródeł stoi pierwszy, bo odpowiada na pytanie zadawane NAJWCZEŚNIEJ
-  // w klubie wielodziałowym: "co tu w ogóle jest i skąd pochodzi to, co widzę".
-  // Strumień w środku miesza wątki z sześciu działów w jeden ciąg - orientacja
-  // musi więc stać obok niego, a nie pod dorobkiem i pulsem.
+  // Do A31 kolumnę otwierał panel źródeł ("skąd pochodzi to, co widzę"),
+  // a zamykał puls liczący wpisy. Oba mówiły o treści. Nowa kolejność
+  // odpowiada na pytania w takim porządku, w jakim realnie zapadają decyzje
+  // członka think tanku:
   //
-  // Dorobek zaraz za nim, puls na końcu: pierwsze, co widać po orientacji, ma
-  // mówić, co ten klub wytworzył, a nie ile było wpisów w ostatniej dobie. Ruch
-  // jest kontekstem dla dorobku, nie odwrotnie - i to jest cała różnica między
-  // think tankiem a forum.
+  //   1. TABLICA "SZUKAM / OFERUJĘ" - jedyna powierzchnia, która daje POWÓD,
+  //      żeby odezwać się do konkretnej osoby dziś. Stoi pierwsza, bo jest
+  //      najsilniejszym mechanizmem sieciującym z całej szyny i jako jedyna
+  //      działa także wtedy, gdy w klubie akurat nic się nie dzieje.
+  //   2. NAJBLIŻSZE SPOTKANIE + KTO BĘDZIE - most do formatów offline.
+  //      Lista potwierdzonych konwertuje, sama data nie.
+  //   3. SKŁAD Z SYGNAŁEM OBECNOŚCI - "czy ktokolwiek tu jest", z iskrą
+  //      liczącą ludzi, a nie wpisy.
+  //   4. POZNAJ CZŁONKA - jedna twarz tygodniowo, żeby skład przestał być
+  //      listą nazwisk.
+  //   5. DOROBEK - co z tych rozmów wyszło. Dowód, że to działa; stoi PO
+  //      mechanizmach, bo jest ich skutkiem, nie zaproszeniem do działania.
+  //   6. ETAP i 7. ŚWIEŻE MATERIAŁY - kontekst pracy, bez zmian.
+  //
+  // Panel źródeł zniknął w całości: drzewo działów z licznikami stoi w LEWEJ
+  // szynie, a każda karta strumienia niesie chip działu, którym można zawęzić
+  // listę - trzeci byt mówiący to samo dodawał wysokości, nie informacji.
   const context = (
     <>
-      <ClubThreadSourcesPanel
+      <ClubBoardPanel
         clubSlug={clubSlug}
-        threads={sourceThreads}
-        groups={groups}
-        activeGroupId={groupId}
-        onGroupChange={setGroupId}
+        clubId={club.id}
+        canPost={signedIn && club.can_reply}
         isPl={isPl}
       />
+      <ClubMeetingPanel
+        clubSlug={clubSlug}
+        clubId={club.id}
+        events={events}
+        // Patrz trasa spotkania: `can_see_members` przepuszcza anonima
+        // w klubie `public`, a RPC z nazwiskami jest dla niego zamkniete.
+        canSeeMembers={signedIn && club.can_see_members}
+        canRsvp={signedIn && club.can_reply}
+        isPl={isPl}
+      />
+      <ClubRosterPanel
+        clubSlug={clubSlug}
+        clubId={club.id}
+        canSeeMembers={club.can_see_members}
+        canDeclare={signedIn && club.can_reply}
+        isPl={isPl}
+        locale={locale}
+      />
+      <ClubSpotlightPanel clubSlug={clubSlug} clubId={club.id} isPl={isPl} />
       <ClubOutputPanel
         clubSlug={clubSlug}
-        products={productsQ.data?.rows ?? []}
-        total={productsQ.data?.total ?? 0}
+        entries={outputQ.data?.entries ?? []}
+        total={outputQ.data?.total ?? 0}
         isPl={isPl}
       />
-      <ClubUpNextPanel clubSlug={clubSlug} events={events} isPl={isPl} />
       <ClubStagePanel
         clubSlug={clubSlug}
         milestones={milestones}
@@ -341,18 +357,6 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
         today={localToday()}
       />
       <ClubFreshDocsPanel clubSlug={clubSlug} documents={documents} isPl={isPl} />
-      <ClubPeoplePanel
-        clubSlug={clubSlug}
-        contributors={contributors}
-        canSeeMembers={club.can_see_members}
-        locale={locale}
-      />
-      <ClubPulsePanel
-        clubSlug={clubSlug}
-        series={seriesQ.data ?? []}
-        stats={stats}
-        locale={locale}
-      />
     </>
   );
 

@@ -149,6 +149,15 @@ const ClubThreadPoll = lazy(() =>
   })),
 );
 
+// Eksperci wątku (A32) - leniwie, tą samą konwencją co sondaż i panele A28.
+// Panel milczy w klubie ukrywającym skład i w wątku bez obszaru tematycznego,
+// więc dla sporej części wątków jego kod nie ma prawa być pobrany w ogóle.
+const ClubThreadExpertsPanel = lazy(() =>
+  import("@/components/clubs/organisms/ClubThreadExpertsPanel").then((m) => ({
+    default: m.ClubThreadExpertsPanel,
+  })),
+);
+
 export const Route = createFileRoute("/club/$clubSlug/t/$threadSlug")({
   // `?reply=1` przychodzi z paska zaangażowania w strumieniu huba. Reakcja
   // zostaje na karcie, ale KOMENTARZ prowadzi tutaj - i musi wylądować w
@@ -270,7 +279,6 @@ function ClubThreadView() {
     if (field instanceof HTMLTextAreaElement || field instanceof HTMLInputElement)
       field.focus({ preventScroll: true });
   }, [replyIntent, thread]);
-
 
   // Zapytanie o wątek jest WYŁĄCZONE, dopóki nie znamy id klubu, a wyłączone
   // `useQuery` zostaje w stanie `isPending` na zawsze. Warunek musi więc pytać
@@ -576,8 +584,6 @@ function ClubThreadView() {
           )}
         </ClubDossierRow>
 
-
-
         {/* --- sondaż (wyłącznie wątek typu "sondaż") ---
           Rodzaj `poll` był do A20 samą etykietą: model dopuszczał go od A3,
           specyfikacja obiecywała reużycie `polls`, a krawędzi między wątkiem
@@ -614,6 +620,26 @@ function ClubThreadView() {
             />
           </div>
         ) : null}
+
+        {/* --- eksperci tego wątku ---
+          Stoi MIĘDZY postem otwierającym a dyskusją, bo dokładnie w tym
+          miejscu czytelnik zadaje pytanie, na które ten panel odpowiada:
+          "kto właściwie mógłby to rozstrzygnąć". Nad postem byłby przedwczesny
+          (nie wiadomo jeszcze, o co chodzi), pod odpowiedziami - spóźniony
+          (decyzja o zaproszeniu kogoś zapada przed przeczytaniem trzydziestu
+          wypowiedzi, nie po).
+
+          Bez `Suspense` z widocznym szkieletem: panel ma prawo nie istnieć,
+          więc placeholder w jego miejscu obiecywałby treść, której często nie
+          będzie, i rozpychałby dyskusję przy każdym wejściu w wątek. */}
+        <Suspense fallback={null}>
+          <ClubThreadExpertsPanel
+            threadId={thread.id}
+            isPl={isPl}
+            canAsk={thread.can_reply}
+            className="mt-4"
+          />
+        </Suspense>
 
         {/* --- odpowiedzi --- */}
         <section className="mt-6">
