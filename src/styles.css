@@ -2365,12 +2365,19 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
     -webkit-box-orient: vertical !important;
     overflow: hidden !important;
   }
+  /* Tytuły na mobile: pełna treść, bez ucinania i bez dzielenia wyrazów. */
   [data-builder-renderer] [data-debug-type="post-list"] .cms-post-title,
   [data-builder-renderer] [data-debug-type="rated-list"] .cms-post-title {
-    display: -webkit-box !important;
-    -webkit-line-clamp: 3 !important;
-    -webkit-box-orient: vertical !important;
-    overflow: hidden !important;
+    display: block !important;
+    -webkit-line-clamp: unset !important;
+    overflow: visible !important;
+  }
+  [data-builder-renderer] .cms-post-title {
+    overflow-wrap: break-word !important;
+    word-break: normal !important;
+    hyphens: manual !important;
+    -webkit-hyphens: manual !important;
+    text-wrap: pretty;
   }
   /* Remove any vertical fillers that push content-alignment on mobile. */
   [data-builder-renderer] [data-col-id] {
