@@ -61,7 +61,8 @@ function GroupRow({
     >
       {/* Rozwijanie jest OSOBNYM przyciskiem od wyboru działu: kliknięcie w
           nazwę ma filtrować strumień, a nie zwijać gałąź. Miejsce na strzałkę
-          rezerwujemy też dla liści, żeby nazwy stały w jednej kolumnie. */}
+          rezerwujemy dla liści pierwszego poziomu, żeby nazwy stały w jednej
+          kolumnie; podgrupy są zagnieżdżone i nie potrzebują tego wyrównania. */}
       {hasChildren ? (
         <button
           type="button"
@@ -75,9 +76,9 @@ function GroupRow({
             aria-hidden="true"
           />
         </button>
-      ) : (
+      ) : !isSub ? (
         <span aria-hidden="true" className="h-6 w-5 shrink-0" />
-      )}
+      ) : null}
 
       <button
         type="button"
