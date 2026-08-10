@@ -217,8 +217,9 @@ export function ClubMeetingPanel({
           ) : null}
           <MoreLink to="/club/$clubSlug/calendar" clubSlug={clubSlug} label={t("club.hub.more")} />
         </div>
-
+      }
     >
+
       <div className="flex gap-2.5">
         <span
           className={cn(
