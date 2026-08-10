@@ -1,8 +1,8 @@
 // Admin: Biblioteka ikon - własne ikony, flagi, logotypy brandów.
 // Per tenant; warianty light/dark; wybór domyślnego wariantu; hurtowy import.
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState, useMemo } from "react";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { memo, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -43,19 +43,51 @@ function IconsAdmin() {
   const [kind, setKind] = useState<IconKind>("custom");
   const [q, setQ] = useState("");
 
+  // Biblioteka bywa duża (1000+ ikon): trzymamy dane w cache między zakładkami
+  // (placeholderData), a wyszukiwarka filtruje na odroczonej wartości, więc
+  // wpisywanie nie blokuje wątku renderu.
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["icon-library", kind],
     queryFn: () => listIcons(kind),
+    staleTime: 5 * 60_000,
+    placeholderData: keepPreviousData,
   });
 
+  const deferredQ = useDeferredValue(q);
+
   const filtered = useMemo(() => {
-    const needle = q.trim().toLowerCase();
+    const needle = deferredQ.trim().toLowerCase();
     if (!needle) return rows;
     return rows.filter(
       (r) =>
         r.name.toLowerCase().includes(needle) || (r.label ?? "").toLowerCase().includes(needle),
     );
-  }, [rows, q]);
+  }, [rows, deferredQ]);
+
+  // Progresywne dorenderowywanie: 60 kart na paczkę zamiast 1000 naraz
+  // (1 karta = 3 obrazki, więc pełna siatka to tysiące żądań w jednym tiku).
+  const PAGE = 60;
+  const [visible, setVisible] = useState(PAGE);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    setVisible(PAGE);
+  }, [kind, deferredQ]);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || visible >= filtered.length) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setVisible((v) => Math.min(v + PAGE, filtered.length));
+        }
+      },
+      { rootMargin: "600px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [visible, filtered.length]);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["icon-library", kind] });
 
@@ -108,17 +140,37 @@ function IconsAdmin() {
         </div>
 
         {isLoading ? (
-          <div className="text-sm text-muted-foreground py-12 text-center">…</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3" aria-busy="true">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div
+                key={i}
+                className="h-52 rounded-lg border border-border bg-card animate-pulse"
+                aria-hidden="true"
+              />
+            ))}
+          </div>
         ) : filtered.length === 0 ? (
           <div className="text-sm text-muted-foreground py-12 text-center border border-dashed border-border rounded-md">
             {t("admin.icons.empty")}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-            {filtered.map((row) => (
-              <IconCard key={row.id} row={row} tenantId={tenantId} onChanged={refresh} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              {filtered.slice(0, visible).map((row) => (
+                <IconCard key={row.id} row={row} tenantId={tenantId} onChanged={refresh} />
+              ))}
+            </div>
+            {visible < filtered.length && (
+              <div ref={sentinelRef} className="py-6 flex justify-center">
+                <Button variant="outline" className="h-9" onClick={() => setVisible((v) => v + 60)}>
+                  {t("admin.icons.loadMore", {
+                    defaultValue: "Wczytaj więcej",
+                  })}{" "}
+                  ({filtered.length - visible})
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -334,7 +386,7 @@ function BulkUpload({
   );
 }
 
-function IconCard({
+const IconCard = memo(function IconCard({
   row,
   tenantId,
   onChanged,
@@ -468,7 +520,7 @@ function IconCard({
       </div>
     </div>
   );
-}
+});
 
 function VariantSlot({
   label,
@@ -514,7 +566,13 @@ function VariantSlot({
         title={value ? value : "Wgraj"}
       >
         {value ? (
-          <img src={value} alt={label} className="max-w-[80%] max-h-[80%] object-contain" />
+          <img
+            src={value}
+            alt={label}
+            loading="lazy"
+            decoding="async"
+            className="max-w-[80%] max-h-[80%] object-contain"
+          />
         ) : (
           <Upload className="w-4 h-4 text-muted-foreground" />
         )}
