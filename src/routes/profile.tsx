@@ -58,6 +58,21 @@ function ProfileLayout() {
       /* jw. */
     }
   }, [collapsed]);
+  // Rozwinięta szuflada na mobile: Escape zamyka, tło nie przewija się pod spodem.
+  useEffect(() => {
+    if (collapsed) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setCollapsed(true);
+    };
+    window.addEventListener("keydown", onKey);
+    const mobile = window.matchMedia("(max-width: 767px)").matches;
+    const prev = document.body.style.overflow;
+    if (mobile) document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [collapsed]);
 
 
 
