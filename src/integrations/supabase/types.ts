@@ -1527,6 +1527,76 @@ export type Database = {
           },
         ]
       }
+      club_board_notices: {
+        Row: {
+          author_id: string
+          body: string
+          closed_at: string | null
+          club_id: string
+          created_at: string
+          expires_at: string
+          group_id: string | null
+          id: string
+          kind: string
+          status: string
+          tenant_id: string
+          topic: string | null
+          updated_at: string
+        }
+        Insert: {
+          author_id: string
+          body: string
+          closed_at?: string | null
+          club_id: string
+          created_at?: string
+          expires_at?: string
+          group_id?: string | null
+          id?: string
+          kind: string
+          status?: string
+          tenant_id: string
+          topic?: string | null
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          closed_at?: string | null
+          club_id?: string
+          created_at?: string
+          expires_at?: string
+          group_id?: string | null
+          id?: string
+          kind?: string
+          status?: string
+          tenant_id?: string
+          topic?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_board_notices_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_board_notices_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "club_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_board_notices_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       club_documents: {
         Row: {
           club_id: string
@@ -1802,6 +1872,45 @@ export type Database = {
           },
         ]
       }
+      club_expert_pings: {
+        Row: {
+          created_at: string
+          requested_by: string
+          tenant_id: string
+          thread_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          requested_by: string
+          tenant_id: string
+          thread_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          requested_by?: string
+          tenant_id?: string
+          thread_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_expert_pings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_expert_pings_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "club_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       club_groups: {
         Row: {
           accent_color: string | null
@@ -2063,6 +2172,99 @@ export type Database = {
           },
           {
             foreignKeyName: "club_invite_links_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      club_member_expertise: {
+        Row: {
+          club_id: string
+          created_at: string
+          tenant_id: string
+          topic: string
+          user_id: string
+        }
+        Insert: {
+          club_id: string
+          created_at?: string
+          tenant_id: string
+          topic: string
+          user_id: string
+        }
+        Update: {
+          club_id?: string
+          created_at?: string
+          tenant_id?: string
+          topic?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_member_expertise_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_member_expertise_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      club_member_spotlight: {
+        Row: {
+          blurb_en: string | null
+          blurb_pl: string | null
+          club_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          tenant_id: string
+          updated_at: string
+          user_id: string
+          week_start: string
+        }
+        Insert: {
+          blurb_en?: string | null
+          blurb_pl?: string | null
+          club_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+          week_start: string
+        }
+        Update: {
+          blurb_en?: string | null
+          blurb_pl?: string | null
+          club_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+          week_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_member_spotlight_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_member_spotlight_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -15845,10 +16047,7 @@ export type Database = {
           week_start: string
         }[]
       }
-      club_member_spotlight_delete: {
-        Args: { p_id: string }
-        Returns: boolean
-      }
+      club_member_spotlight_delete: { Args: { p_id: string }; Returns: boolean }
       club_member_spotlight_history: {
         Args: { p_club_id: string; p_limit?: number }
         Returns: {
@@ -16170,8 +16369,8 @@ export type Database = {
       club_roster_signal: {
         Args: { p_club_id: string; p_limit?: number }
         Returns: {
-          active_7d: number
           active_24h: number
+          active_7d: number
           faces: Json
           members_total: number
           new_7d: number
