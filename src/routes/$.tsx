@@ -763,7 +763,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   const outerMaxWidthPx =
     globalLayoutSettings?.wide_align_max_width && globalLayoutSettings.wide_align_max_width > 0
       ? globalLayoutSettings.wide_align_max_width
-      : 1200;
+      : 1400;
   const outerMaxStyle = { maxWidth: `${outerMaxWidthPx}px` } as const;
   const showPaywall = shouldShowPaywall(accessRule?.mode, body);
 
