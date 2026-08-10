@@ -52,6 +52,11 @@ export interface LayoutPreset {
   /** Rekomendowany rozmiar grafiki wyróżniającej (px). */
   recommendedImage?: RecommendedImageSize;
   /**
+   * Czy akcje artykułu (podaruj artykuł / badge Google) mają stać w nagłówku,
+   * obok metadanych autora - zamiast w pasku quick-view i rzędzie mobilnym.
+   */
+  headerActions?: boolean;
+  /**
    * Czy nagłówek pokazuje excerpt (lead). Domyślnie tak; Layout 1(a) to
    * dokładnie ten sam układ co Layout 1, ale bez zajawki pod tytułem.
    */
