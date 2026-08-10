@@ -99,7 +99,7 @@ export function ClubHubIdentity({
         ) : null}
       </div>
 
-      <div className="relative flex flex-wrap items-end gap-3 px-4 pb-4 sm:gap-4 sm:px-5 sm:pb-5">
+      <div className="relative flex flex-col gap-3 px-4 pb-4 sm:flex-row sm:flex-wrap sm:items-end sm:gap-4 sm:px-5 sm:pb-5">
         {/* Monogram wchodzi na okładkę - kotwiczy pas w treści. Większy niż
             wcześniej, także na mobile: to jedyny znak rozpoznawczy klubu. */}
         <div
