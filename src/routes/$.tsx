@@ -963,6 +963,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                 <CategoryBadges items={postCategories} lang={lang} />
               ) : null
             }
+            headerActions={editorialActions ? articleActions : undefined}
             content={
               <>
                 {/* Desktop: pasek quick-view (czas czytania + aktualizacja).
@@ -975,25 +976,28 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                       publishedAt={it.published_at}
                       updatedAt={it.updated_at}
                       primaryCategory={postCategories[0]}
-                      trailing={articleActions}
+                      trailing={editorialActions ? undefined : articleActions}
                     />
                   </div>
                 ) : null}
                 {/* Mobile: akcja "Udostepnij pelny artykul" + badge Google -
                     dwie rowne kolumny o tej samej szerokosci i wysokosci,
-                    tak jak para przyciskow na desktopie. */}
-                <div className="no-print mb-3 grid grid-cols-2 items-stretch gap-2 sm:hidden">
-                  {giftButton && (
-                    <span className="min-w-0 [&_button]:h-full [&_button]:w-full">
-                      {giftButton}
-                    </span>
-                  )}
-                  <GooglePreferredSourceBadge
-                    device="mobile"
-                    entityId={it.id}
-                    className="min-w-0 [&>a]:h-full [&>a]:w-full [&>a]:justify-center [&>a]:whitespace-normal"
-                  />
-                </div>
+                    tak jak para przyciskow na desktopie. W layoucie
+                    redakcyjnym akcje stoja juz w naglowku. */}
+                {!editorialActions && (
+                  <div className="no-print mb-3 grid grid-cols-2 items-stretch gap-2 sm:hidden">
+                    {giftButton && (
+                      <span className="min-w-0 [&_button]:h-full [&_button]:w-full">
+                        {giftButton}
+                      </span>
+                    )}
+                    <GooglePreferredSourceBadge
+                      device="mobile"
+                      entityId={it.id}
+                      className="min-w-0 [&>a]:h-full [&>a]:w-full [&>a]:justify-center [&>a]:whitespace-normal"
+                    />
+                  </div>
+                )}
 
                 {/* Mobile: odsluch (TTS) + pobranie artykulu w miejscu paska
                     czasu czytania / aktualizacji. Odsluch idzie przez globalny
