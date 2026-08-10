@@ -9921,6 +9921,7 @@ export type Database = {
           show_via_bar: boolean
           standard_layout: string
           tenant_id: string
+          title_size_source: string
           underline_color: string | null
           underline_color_dark: string | null
           updated_at: string
@@ -9972,6 +9973,7 @@ export type Database = {
           show_via_bar?: boolean
           standard_layout?: string
           tenant_id?: string
+          title_size_source?: string
           underline_color?: string | null
           underline_color_dark?: string | null
           updated_at?: string
@@ -10023,6 +10025,7 @@ export type Database = {
           show_via_bar?: boolean
           standard_layout?: string
           tenant_id?: string
+          title_size_source?: string
           underline_color?: string | null
           underline_color_dark?: string | null
           updated_at?: string
