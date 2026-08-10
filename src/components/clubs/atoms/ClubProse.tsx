@@ -22,6 +22,7 @@
 //    HTML-a.
 import { cn } from "@/lib/utils";
 import { parseProseBlocks } from "@/lib/clubs/proseBlocks";
+import { ClubInlineText } from "@/components/clubs/atoms/ClubInlineText";
 
 /**
  * Rozbija surowy tekst wpisu na akapity. Pusta linia (lub kilka) rozdziela;
@@ -52,9 +53,12 @@ export function ClubProse({
   body,
   className,
   size = "base",
+  clubSlug = null,
 }: {
   body: string;
   className?: string;
+  /** Kontekst klubu - włącza #tagi jako filtr strumienia tego klubu. */
+  clubSlug?: string | null;
   /** `sm` dla odpowiedzi (gęstsza lista), `base` dla postu otwierającego. */
   size?: "sm" | "base";
 }) {
@@ -81,7 +85,7 @@ export function ClubProse({
                 isLeadIn(block.text) ? "font-medium text-foreground" : null,
               )}
             >
-              {block.text}
+              <ClubInlineText body={block.text} clubSlug={clubSlug} />
             </p>
           );
         }
@@ -105,7 +109,9 @@ export function ClubProse({
                   >
                     {block.start + itemIndex}
                   </span>
-                  <span className="min-w-0 flex-1 whitespace-pre-wrap">{item}</span>
+                  <span className="min-w-0 flex-1 whitespace-pre-wrap">
+                    <ClubInlineText body={item} clubSlug={clubSlug} />
+                  </span>
                 </li>
               ))}
             </ol>
@@ -127,7 +133,9 @@ export function ClubProse({
                     dense ? "mt-[9px] h-1.5 w-1.5" : "mt-[11px] h-1.5 w-1.5",
                   )}
                 />
-                <span className="min-w-0 flex-1 whitespace-pre-wrap">{item}</span>
+                <span className="min-w-0 flex-1 whitespace-pre-wrap">
+                    <ClubInlineText body={item} clubSlug={clubSlug} />
+                  </span>
               </li>
             ))}
           </ul>

@@ -580,7 +580,7 @@ function ClubThreadView() {
               }
             />
           ) : (
-            <ClubProse className="max-w-none" body={thread.body} />
+            <ClubProse className="max-w-none" body={thread.body} clubSlug={clubSlug} />
           )}
         </ClubDossierRow>
 
@@ -690,6 +690,7 @@ function ClubThreadView() {
                   key={node.reply.id}
                   node={node}
                   lang={lang}
+                  clubSlug={clubSlug}
                   canResolve={canResolve}
                   canReact={thread.can_reply}
                   canModerate={thread.can_moderate}
@@ -881,6 +882,8 @@ function ClubThreadView() {
 interface ReplyBranchProps {
   node: ClubReplyNode;
   lang: "pl" | "en";
+  /** Kontekst klubu - #tagi w odpowiedzi prowadzą do filtra tego klubu. */
+  clubSlug: string;
   canResolve: boolean;
   canReact: boolean;
   canModerate: boolean;
@@ -904,6 +907,7 @@ function ReplyBranch(props: ReplyBranchProps) {
   const {
     node,
     lang,
+    clubSlug,
     canResolve,
     canReact,
     canModerate,
@@ -997,7 +1001,7 @@ function ReplyBranch(props: ReplyBranchProps) {
             />
           </div>
         ) : (
-          <ClubProse className="mt-2" size="sm" body={reply.body} />
+          <ClubProse className="mt-2" size="sm" body={reply.body} clubSlug={clubSlug} />
         )}
 
         {/* Pasek zwinięty: przy trzydziestu odpowiedziach sześć pustych

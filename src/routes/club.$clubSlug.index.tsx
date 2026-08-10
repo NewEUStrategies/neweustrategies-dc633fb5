@@ -30,7 +30,17 @@ import { fetchClubBySlug } from "@/lib/clubs/api";
 import { clubKeys } from "@/lib/clubs/queryKeys";
 import { ensureClubI18n } from "@/lib/i18n-club";
 
+// `?tag=` to segmentacja wątków przez #tagi w treści: klik w tag w dowolnym
+// wpisie zawęża strumień klubu do tej frazy. Trzymamy to w URL-u, bo taki
+// widok ma być linkowalny (i wracalny przyciskiem wstecz).
+interface ClubHubSearch {
+  tag?: string;
+}
+
 export const Route = createFileRoute("/club/$clubSlug/")({
+  validateSearch: (raw: Record<string, unknown>): ClubHubSearch => ({
+    ...(typeof raw.tag === "string" && raw.tag !== "" ? { tag: raw.tag.slice(0, 50) } : {}),
+  }),
   // Indeksowalność liczy się z WIDOCZNOŚCI klubu, a head() jest synchroniczne -
   // stąd loader. Klub `public` jest jedyną powierzchnią modułu, która ma
   // dowozić ruch z wyszukiwarek (V1 §5.1).

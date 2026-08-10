@@ -26,6 +26,7 @@
 // LEKKIE i mają krótkie limity, bo w hubie służą za kontekst, a pełne listy
 // mają własne ekrany.
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import {
   CalendarDays,
@@ -122,6 +123,20 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
   const [groupId, setGroupId] = useState<string | null>(null);
   const [sort, setSort] = useState<ClubThreadSort>("hot");
   const [query, setQuery] = useState("");
+  // Segmentacja #tagami: tag z URL-a (klik w #tag w treści) zasiewa frazę
+  // wyszukiwania, więc strumień zawęża się do wątków i wpisów z tym tagiem.
+  const navigate = useNavigate();
+  const routeSearch = useSearch({ strict: false }) as { tag?: string };
+  const activeTag = typeof routeSearch.tag === "string" ? routeSearch.tag.trim() : "";
+  useEffect(() => {
+    if (activeTag !== "") setQuery(activeTag);
+  }, [activeTag]);
+  const clearTag = () => {
+    setQuery("");
+    if (activeTag !== "") {
+      void navigate({ to: "/club/$clubSlug", params: { clubSlug }, search: {} });
+    }
+  };
   // Trzy zawężenia, które NIE są działem - patrz `ClubStreamFilters`.
   const [kind, setKind] = useState<ClubThreadKind | null>(null);
   const [anchoredOnly, setAnchoredOnly] = useState(false);
@@ -421,6 +436,21 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
 
           {/* Pasek sterowania strumieniem: fraza + porządek. Filtr trybu stoi
               osobno pod spodem, bo zmienia ŹRÓDŁO, a nie kolejność. */}
+          {activeTag !== "" ? (
+            <div className="mb-2 flex items-center gap-2">
+              <span className="inline-flex items-center gap-1 rounded-[6px] bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+                {t("club.inline.tagFilter", { tag: activeTag })}
+              </span>
+              <button
+                type="button"
+                onClick={clearTag}
+                className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+              >
+                {t("club.inline.tagClear")}
+              </button>
+            </div>
+          ) : null}
+
           <div className="mb-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_11rem]">
             <div className="relative">
               <Search
@@ -437,7 +467,7 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
               {query !== "" ? (
                 <button
                   type="button"
-                  onClick={() => setQuery("")}
+                  onClick={clearTag}
                   aria-label={t("club.searchClear")}
                   className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted-foreground hover:text-foreground"
                 >
