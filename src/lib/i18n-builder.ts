@@ -1996,6 +1996,8 @@ const en: typeof pl = {
       maxWidth: "Max. width (px)",
       maxWidthHint: "Optional limit. 0 = no limit.",
       maxWidthPh: "none",
+      height: "Height (px)",
+      heightHint: "0 or empty = automatic. A set height wins over width.",
       align: "Alignment",
       link: "Link (optional)",
       activeLang: "Active editing language: {{lang}}",
