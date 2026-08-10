@@ -61,9 +61,10 @@ interface Props {
 /**
  * Portretowe ratio (np. Layout 6 - 150%) na szerokiej kolumnie dałoby hero
  * wyższe niż ekran. Ramka zostaje w proporcji, dopóki mieści się w kadrze;
- * powyżej - przycina się do 80% wysokości okna.
+ * powyżej - przycina się do 56% wysokości okna, żeby okładka nie dominowała
+ * nad treścią.
  */
-const RATIO_COVER_MAX_HEIGHT = "80vh";
+const RATIO_COVER_MAX_HEIGHT = "56vh";
 
 export function PostLayoutRenderer({
   format,
@@ -181,6 +182,9 @@ export function PostLayoutRenderer({
     const frameStyle: CSSProperties = {
       aspectRatio: coverAspectRatio(preset, ratioPct),
       borderRadius: "6px",
+      // Okładka nigdy nie powinna zabierać więcej niż połowy ekranu;
+      // overlay potrzebuje nieco więcej miejsca na nakładkę z tekstem.
+      maxHeight: overlay ? "min(64vh, 560px)" : "min(56vh, 400px)",
       ...(isRatio ? { maxHeight: RATIO_COVER_MAX_HEIGHT } : null),
       ...(coverViewTransitionId
         ? { viewTransitionName: `post-cover-${coverViewTransitionId}` }
@@ -243,6 +247,7 @@ export function PostLayoutRenderer({
             style={{
               aspectRatio: coverAspectRatio(preset, ratioPct),
               borderRadius: "6px",
+              maxHeight: "min(56vh, 400px)",
               ...(coverViewTransitionId
                 ? { viewTransitionName: `post-cover-${coverViewTransitionId}` }
                 : null),

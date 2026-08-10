@@ -55,7 +55,7 @@ export function PostContentStyle() {
       .dark .single-post-content a { ${darkLink} ${darkUl} }
       .single-post-content ul { list-style: ${listStyleVal}; padding-left: 1.5rem; }
       .single-post-content ol { padding-left: 1.5rem; }
-      .single-post-content figure img { max-width: 100%; height: auto; }
+      .single-post-content img { max-width: 100%; height: auto; max-height: 70vh; }
       .single-post-content figure.is-wide { max-width: ${s.wide_align_max_width}px; margin-left: auto; margin-right: auto; }
       ${s.image_caption_left_border ? ".single-post-content figcaption { border-left: 3px solid var(--border); padding-left: 0.75rem; }" : ""}
       .single-post-content .manual-toc { border: 1px solid var(--border); border-radius: 0.75rem; padding: 1rem 1.25rem; margin: 1.5rem 0; background: color-mix(in oklab, var(--muted) 40%, transparent); }
