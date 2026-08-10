@@ -47,7 +47,14 @@ interface Props {
   entityId?: string;
   /** Type of entity being saved (post or page). Defaults to post. */
   entityType?: BookmarkEntityType;
+  /**
+   * Pasek jest widoczny od pierwszej klatki i nie zależy od przewijania.
+   * Używane na jednoekranowych landingach (np. /quiz), gdzie ten minimalny
+   * pasek jest JEDYNYM chrome'em strony.
+   */
+  pinned?: boolean;
 }
+
 
 const COPY = {
   pl: {
