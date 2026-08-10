@@ -107,6 +107,8 @@ export function PostLayoutRenderer({
   const showCover = rendersCover(preset) && !!coverImageUrl;
   const headerMode: LayoutHeaderMode = showCover ? preset.header : "no-cover";
   const showExcerpt = preset.showExcerpt !== false && !!excerpt;
+  // Akcje w nagłówku tylko dla presetów redakcyjnych (Layout 13).
+  const showHeaderActions = preset.headerActions === true;
 
   // Klasyczny nagłówek: kategorie -> tytuł -> zajawka -> meta.
   // `constrained` trzyma go w tej samej skrzynce co treść, więc przy
