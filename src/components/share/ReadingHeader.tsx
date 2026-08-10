@@ -97,6 +97,7 @@ export function ReadingHeader({
   entityId,
   entityType = "post",
   pinned = false,
+  centerLogo = false,
 }: Props) {
 
   const { i18n } = useTranslation();
