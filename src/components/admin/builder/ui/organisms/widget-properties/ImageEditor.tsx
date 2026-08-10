@@ -43,6 +43,7 @@ export const IMAGE_EDITOR_HANDLED_KEYS: ReadonlySet<string> = new Set<string>([
   "alt",
   "widthPx",
   "maxWidthPx",
+  "heightPx",
   "align",
   "href",
   "useSiteLogo",
