@@ -188,19 +188,12 @@ export function ClubGroupTree({
           onClick={() => onGroupChange(null)}
           className={cn(
             ROW,
-            "pl-3",
             activeGroupId === null
               ? "bg-muted/50 border-border/50 text-foreground font-medium"
               : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
           )}
         >
-          <span
-            className={cn(
-              "h-2 w-2 shrink-0 rounded-full",
-              activeGroupId === null ? "bg-primary" : "bg-muted-foreground",
-            )}
-            aria-hidden="true"
-          />
+          <span aria-hidden="true" className="h-6 w-5 shrink-0" />
           <span className="min-w-0 flex-1 truncate text-left">{t("club.allGroups")}</span>
           <span
             className={cn(
