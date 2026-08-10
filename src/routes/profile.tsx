@@ -188,6 +188,18 @@ function ProfileLayout() {
                         </div>
                       </div>
                     )}
+
+                    {!collapsed && (
+                      <button
+                        type="button"
+                        onClick={() => setCollapsed(true)}
+                        className="mt-2 flex h-10 w-full items-center justify-center gap-2 rounded-[6px] border border-border bg-muted/60 text-xs font-semibold text-foreground transition-colors hover:bg-muted md:hidden"
+                      >
+                        <PanelLeftClose className="h-4 w-4" />
+                        {t("profile.sidebar.collapse", "Zwiń ustawienia")}
+                      </button>
+                    )}
+
                   </div>
                 </aside>
               )}
