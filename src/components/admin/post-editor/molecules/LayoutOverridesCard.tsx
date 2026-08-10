@@ -123,6 +123,17 @@ export function LayoutOverridesCard({
                   ? ` · ${t("adminPostPanes.layout.sourceOverride")}`
                   : ` · ${t("adminPostPanes.layout.sourceGlobal")}`}
               </p>
+              {/* Rekomendowany kadr okładki dla wybranego layoutu - czytelny
+                  już na etapie tworzenia wpisu, zanim redakcja wgra grafikę. */}
+              {preset.recommendedImage && (
+                <p className="text-[10px] text-muted-foreground">
+                  {t("adminPostPanes.layout.recommendedImage")}:{" "}
+                  <span className="font-medium text-foreground">
+                    {preset.recommendedImage.width}×{preset.recommendedImage.height} px
+                    {preset.recommendedImage.ratio ? ` (${preset.recommendedImage.ratio})` : ""}
+                  </span>
+                </p>
+              )}
             </div>
           );
         })()}
