@@ -11,8 +11,10 @@
 // CZAS: pola `datetime-local` / `date` niosą czas LOKALNY bez strefy, a do
 // bazy jedzie ISO ze strefą. Wydarzenie całodniowe kotwiczymy w POŁUDNIE, bo
 // północ po przeliczeniu na UTC wypada dzień wcześniej w całej Europie.
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { CalendarDays, Clock, Link as LinkIcon, MapPin, Type, Users } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
