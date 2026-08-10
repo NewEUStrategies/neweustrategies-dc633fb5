@@ -358,6 +358,41 @@ export function ClubMeetingPanel({
           ))}
         </ul>
       ) : null}
+
+      {form}
+
+      {canManage ? (
+        <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t("club.eventForm.deleteTitle")}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t("club.eventForm.deleteLead", {
+                  title: isPl ? next.title_pl : next.title_en,
+                })}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t("club.eventForm.cancel")}</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={remove.isPending}
+                onClick={() =>
+                  remove.mutate(next.id, {
+                    onSuccess: () => {
+                      setConfirmDelete(false);
+                      toast.success(t("club.eventForm.deleted"));
+                    },
+                    onError: () => toast.error(t("club.eventForm.failed")),
+                  })
+                }
+              >
+                {t("club.eventForm.delete")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      ) : null}
     </ClubRailPanel>
   );
+
 }
