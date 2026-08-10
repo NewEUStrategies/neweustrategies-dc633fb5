@@ -78,7 +78,14 @@ const COPY = {
   },
 } as const;
 
-export function ReadingHeader({ title, showAfter = 320, entityId, entityType = "post" }: Props) {
+export function ReadingHeader({
+  title,
+  showAfter = 320,
+  entityId,
+  entityType = "post",
+  pinned = false,
+}: Props) {
+
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
   const t = COPY[lang];
