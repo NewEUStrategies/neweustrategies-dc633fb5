@@ -10,16 +10,10 @@
 // następnym renderze.
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronRight, Layers, Lock } from "lucide-react";
+import { ChevronRight, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { buildClubGroupTree, clubGroupPath, type ClubGroupNode } from "@/lib/clubs/groupTree";
-import {
-  CLUB_GROUP_CHIP,
-  CLUB_GROUP_CHIP_ACTIVE,
-  CLUB_GROUP_TINT,
-  ClubGroupIcon,
-  clubGroupAccentVars,
-} from "@/components/clubs/atoms/ClubGroupAccent";
+import { CLUB_GROUP_TEXT, ClubGroupIcon, clubGroupAccentVars } from "@/components/clubs/atoms/ClubGroupAccent";
 import type { ClubGroupRow } from "@/lib/clubs/types";
 
 export function clubGroupName(group: ClubGroupRow, isPl: boolean): string {
@@ -34,7 +28,10 @@ export function clubGroupDescription(group: ClubGroupRow, isPl: boolean): string
 // Wspólny kształt wiersza. Wysokość jest MINIMALNA, nie stała - nazwa działu
 // bywa dwuwierszowa i wiersz ma się do niej dopasować, a nie ją przyciąć.
 const ROW =
-  "group/row relative flex w-full min-h-9 items-center gap-2 rounded-lg py-1.5 pl-1.5 pr-1.5 text-left text-sm transition-[background-color,color,box-shadow] duration-150";
+  "group/row relative flex w-full items-center justify-between gap-2 rounded-lg border border-transparent px-3 py-2 text-left text-sm transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+
+const COUNTER =
+  "shrink-0 rounded-[5px] px-1.5 py-0.5 text-[10px] font-bold tabular-nums transition-opacity";
 
 function GroupRow({
   node,
@@ -54,26 +51,18 @@ function GroupRow({
   const { group, depth, children, totalThreads } = node;
   const locked = !group.can_read;
   const name = clubGroupName(group, isPl);
+  const hasChildren = children.length > 0;
+  const isSub = depth > 0;
+
   return (
     <div
       className="relative flex items-center"
       style={{ ...clubGroupAccentVars(group.accent_color), paddingLeft: depth * 14 }}
     >
-      {/* Prowadnica poziomu: cienka pionowa kreska zamiast samego wcięcia.
-          Przy dwóch poziomach wcięcie 14 px czyta się jako przypadek; kreska
-          mówi wprost, że podgrupa NALEŻY do gałęzi wyżej. */}
-      {depth > 0 ? (
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0.5 w-px bg-border/70"
-          style={{ left: depth * 14 - 7 }}
-        />
-      ) : null}
-
       {/* Rozwijanie jest OSOBNYM przyciskiem od wyboru działu: kliknięcie w
           nazwę ma filtrować strumień, a nie zwijać gałąź. Miejsce na strzałkę
           rezerwujemy też dla liści, żeby nazwy stały w jednej kolumnie. */}
-      {children.length > 0 ? (
+      {hasChildren ? (
         <button
           type="button"
           onClick={onToggle}
@@ -98,29 +87,27 @@ function GroupRow({
         className={cn(
           ROW,
           "min-w-0 flex-1",
+          isSub && !hasChildren && "ml-2 border-l border-border/60 pl-3",
           active
             ? cn(
-                CLUB_GROUP_TINT,
-                "font-medium text-foreground shadow-[inset_2px_0_0_0_color-mix(in_oklab,var(--club-accent)_70%,transparent)]",
+                "bg-[color-mix(in_oklab,var(--club-accent)_8%,var(--muted))] border-[color-mix(in_oklab,var(--club-accent)_20%,transparent)] shadow-[0_0_15px_-5px_var(--club-glow)] font-medium",
+                CLUB_GROUP_TEXT,
               )
-            : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+            : cn(
+                "text-muted-foreground hover:bg-[color-mix(in_oklab,var(--club-accent)_5%,var(--muted))] hover:border-[color-mix(in_oklab,var(--club-accent)_10%,var(--border))] hover:text-[color-mix(in_oklab,var(--club-accent)_60%,var(--foreground))]",
+                isSub && "text-muted-foreground/80",
+              ),
         )}
       >
-        {/* Ikona w kwadracie w kolorze działu - ten sam znacznik stoi w
-            strumieniu i w panelu źródeł, więc te miejsca łączy się wzrokiem. */}
-        <span
-          className={cn(
-            "grid h-6 w-6 shrink-0 place-items-center rounded-md border transition-colors",
-            active ? CLUB_GROUP_CHIP_ACTIVE : cn(CLUB_GROUP_CHIP, "opacity-90"),
-          )}
-          aria-hidden="true"
-        >
-          <ClubGroupIcon icon={group.icon} depth={depth} className="h-3.5 w-3.5" />
-        </span>
+        {/* Ikona tylko na poziomie głównym - podgrupy czytają się jako
+            ciche rozszerzenie gałęzi, bez własnego znaczka. */}
+        {!isSub && (
+          <ClubGroupIcon icon={group.icon} depth={depth} className="h-4 w-4 shrink-0" aria-hidden="true" />
+        )}
 
         {/* Nazwa ZAWIJA się do dwóch linii zamiast się urywać - "Zdolności i
             przemysł obronny" po obcięciu przestaje być pozycją nawigacji. */}
-        <span className="line-clamp-2 min-w-0 flex-1 text-left leading-snug">{name}</span>
+        <span className={cn("line-clamp-2 min-w-0 flex-1 text-left leading-snug", isSub && "text-xs")}>{name}</span>
 
         {locked ? (
           <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -130,10 +117,10 @@ function GroupRow({
             dział nie ma prawa przyciągać wzroku mocniej niż dział z ruchem. */}
         <span
           className={cn(
-            "shrink-0 rounded-md px-1.5 py-0.5 text-[11px] tabular-nums transition-colors",
-            totalThreads > 0
-              ? "bg-muted text-muted-foreground group-hover/row:bg-muted/80"
-              : "text-muted-foreground/45",
+            COUNTER,
+            active
+              ? "bg-[color-mix(in_oklab,var(--club-accent)_85%,var(--foreground))] text-background"
+              : "bg-[color-mix(in_oklab,var(--club-accent)_10%,transparent)] text-[color-mix(in_oklab,var(--club-accent)_60%,var(--foreground))] opacity-0 group-hover/row:opacity-100",
           )}
         >
           {totalThreads}
@@ -142,7 +129,6 @@ function GroupRow({
     </div>
   );
 }
-
 
 export function ClubGroupTree({
   groups,
@@ -193,41 +179,34 @@ export function ClubGroupTree({
   const totalThreads = tree.reduce((sum, node) => sum + node.totalThreads, 0);
 
   return (
-    <ul className="flex flex-col gap-0.5">
+    <ul className="flex flex-col gap-1">
       <li>
-        {/* "Wszystkie działy" dostaje ten sam kształt co dział - ikonę w
-            kwadracie i licznik - bo jest pozycją tej samej listy, a nie
-            nagłówkiem nad nią. */}
         <button
           type="button"
           aria-pressed={activeGroupId === null}
           onClick={() => onGroupChange(null)}
           className={cn(
             ROW,
-            "pl-1.5",
+            "pl-3",
             activeGroupId === null
-              ? "bg-primary/10 font-medium text-primary shadow-[inset_2px_0_0_0_var(--primary)]"
+              ? "bg-muted/50 border-border/50 text-foreground font-medium"
               : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
           )}
         >
           <span
             className={cn(
-              "grid h-6 w-6 shrink-0 place-items-center rounded-md border transition-colors",
-              activeGroupId === null
-                ? "border-primary/45 bg-primary/15"
-                : "border-border/60 bg-muted/50",
+              "h-2 w-2 shrink-0 rounded-full",
+              activeGroupId === null ? "bg-primary" : "bg-muted-foreground",
             )}
             aria-hidden="true"
-          >
-            <Layers className="h-3.5 w-3.5" aria-hidden="true" />
-          </span>
+          />
           <span className="min-w-0 flex-1 truncate text-left">{t("club.allGroups")}</span>
           <span
             className={cn(
-              "shrink-0 rounded-md px-1.5 py-0.5 text-[11px] tabular-nums",
-              totalThreads > 0
-                ? "bg-muted text-muted-foreground"
-                : "text-muted-foreground/45",
+              COUNTER,
+              activeGroupId === null
+                ? "bg-muted text-foreground"
+                : "bg-muted/50 text-muted-foreground opacity-0 group-hover/row:opacity-100",
             )}
           >
             {totalThreads}
@@ -237,7 +216,6 @@ export function ClubGroupTree({
       {renderNodes(tree)}
     </ul>
   );
-
 }
 
 /** Wariant poziomy - na telefonie i tablecie, gdzie szyny nie ma wcale. */
@@ -269,10 +247,10 @@ export function ClubGroupBar({
         aria-pressed={activeGroupId === null}
         onClick={() => onGroupChange(null)}
         className={cn(
-          "shrink-0 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-xs font-medium",
+          "group shrink-0 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors",
           activeGroupId === null
             ? "border-primary/40 bg-primary/10 text-primary"
-            : "border-border/60 bg-card text-muted-foreground",
+            : "border-border/60 bg-card text-muted-foreground hover:bg-muted",
         )}
       >
         {t("club.allGroups")}
@@ -287,15 +265,22 @@ export function ClubGroupBar({
             onClick={() => onGroupChange(active ? null : group.id)}
             style={clubGroupAccentVars(group.accent_color)}
             className={cn(
-              "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-xs font-medium",
+              "group/chip inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors",
               active
-                ? cn(CLUB_GROUP_TINT, "text-foreground")
-                : "border-border/60 bg-card text-muted-foreground",
+                ? "border-[color-mix(in_oklab,var(--club-accent)_40%,transparent)] bg-[color-mix(in_oklab,var(--club-accent)_10%,var(--muted))] text-[color-mix(in_oklab,var(--club-accent)_40%,var(--foreground))]"
+                : "border-border/60 bg-card text-muted-foreground hover:bg-[color-mix(in_oklab,var(--club-accent)_5%,var(--muted))] hover:text-[color-mix(in_oklab,var(--club-accent)_60%,var(--foreground))]",
             )}
           >
             <ClubGroupIcon icon={group.icon} className="h-3.5 w-3.5" />
             {clubGroupName(group, isPl)}
-            <span className="tabular-nums opacity-70">{group.thread_count}</span>
+            <span
+              className={cn(
+                "tabular-nums transition-opacity",
+                active ? "opacity-100" : "opacity-0 group-hover/chip:opacity-100",
+              )}
+            >
+              {group.thread_count}
+            </span>
           </button>
         );
       })}
