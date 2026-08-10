@@ -16,6 +16,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
   ArrowRight,
+  BookOpen,
   CalendarDays,
   CheckCircle2,
   Crown,
@@ -27,7 +28,6 @@ import {
   MailCheck,
   MessagesSquare,
   ShieldCheck,
-  Sparkles,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -115,7 +115,7 @@ export function ClubAccessGate({ club, isPl }: { club: ClubViewRow; isPl: boolea
               <Benefit icon={CalendarDays} k="calendar" />
               <Benefit icon={Users} k="network" />
               <Benefit icon={ShieldCheck} k="chatham" />
-              <Benefit icon={Sparkles} k="briefs" />
+              <Benefit icon={BookOpen} k="briefs" />
             </ul>
           </div>
         </div>
