@@ -14,8 +14,6 @@
 // co warunkowy noindex na /author/$slug - klub prywatny nie może wypłynąć
 // przez wyszukiwarkę, nawet gdyby ktoś trafił na URL.
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { zodValidator, fallback } from "@tanstack/zod-adapter";
-import { z } from "zod";
 import { useTranslation } from "react-i18next";
 import { MessagesSquare } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,12 +33,14 @@ import { ensureClubI18n } from "@/lib/i18n-club";
 // `?tag=` to segmentacja wątków przez #tagi w treści: klik w tag w dowolnym
 // wpisie zawęża strumień klubu do tej frazy. Trzymamy to w URL-u, bo taki
 // widok ma być linkowalny (i wracalny przyciskiem wstecz).
-const searchSchema = z.object({
-  tag: fallback(z.string(), "").default(""),
-});
+interface ClubHubSearch {
+  tag: string;
+}
 
 export const Route = createFileRoute("/club/$clubSlug/")({
-  validateSearch: zodValidator(searchSchema),
+  validateSearch: (raw: Record<string, unknown>): ClubHubSearch => ({
+    tag: typeof raw.tag === "string" ? raw.tag.slice(0, 50) : "",
+  }),
   // Indeksowalność liczy się z WIDOCZNOŚCI klubu, a head() jest synchroniczne -
   // stąd loader. Klub `public` jest jedyną powierzchnią modułu, która ma
   // dowozić ruch z wyszukiwarek (V1 §5.1).
