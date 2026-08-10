@@ -29,6 +29,19 @@ import {
 
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import { ClubEventForm } from "@/components/clubs/molecules/ClubEventForm";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
