@@ -80,6 +80,7 @@ export function PostLayoutRenderer({
   coverImageUrl,
   meta,
   categoryBadges,
+  headerActions,
   content,
   sidebar,
   footer,
