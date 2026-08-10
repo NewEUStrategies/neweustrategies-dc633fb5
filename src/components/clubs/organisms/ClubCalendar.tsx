@@ -479,10 +479,76 @@ export function ClubCalendar({ clubId, clubSlug }: { clubId: string; clubSlug: s
               now={now}
               rsvpPending={rsvp.isPending}
               onRsvp={(eventId, state) => rsvp.mutate({ eventId, state })}
+              {...(canManage
+                ? {
+                    onEdit: (event: ClubEventRow) => {
+                      setEditing(event);
+                      setFormOpen(true);
+                    },
+                    onDelete: (event: ClubEventRow) => setPendingDelete(event),
+                  }
+                : {})}
             />
           ))
         )}
       </section>
+
+      {canManage && formOpen ? (
+        <ClubEventForm
+          key={editing?.id ?? "new"}
+          open={formOpen}
+          initial={editing}
+          pending={upsert.isPending}
+          onOpenChange={setFormOpen}
+          onSubmit={(input) =>
+            upsert.mutate(input, {
+              onSuccess: () => {
+                setFormOpen(false);
+                toast.success(t("club.eventForm.saved"));
+              },
+              onError: () => toast.error(t("club.eventForm.failed")),
+            })
+          }
+        />
+      ) : null}
+
+      {canManage && pendingDelete !== null ? (
+        <AlertDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setPendingDelete(null);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t("club.eventForm.deleteTitle")}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t("club.eventForm.deleteLead", {
+                  title: isPl ? pendingDelete.title_pl : pendingDelete.title_en,
+                })}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t("club.eventForm.cancel")}</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={remove.isPending}
+                onClick={() =>
+                  remove.mutate(pendingDelete.id, {
+                    onSuccess: () => {
+                      setPendingDelete(null);
+                      toast.success(t("club.eventForm.deleted"));
+                    },
+                    onError: () => toast.error(t("club.eventForm.failed")),
+                  })
+                }
+              >
+                {t("club.eventForm.delete")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      ) : null}
     </div>
   );
 }
+
