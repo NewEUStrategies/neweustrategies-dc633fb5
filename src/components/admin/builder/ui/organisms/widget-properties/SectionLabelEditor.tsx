@@ -300,6 +300,107 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
         </div>
       </div>
 
+      {isEditorial && (
+        <div className="space-y-2 pt-2 border-t border-border">
+          <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            {t("builder.sectionLabelEditor.editorialTitle")}
+          </div>
+
+          {variant === "editorial-index" && (
+            <div className="grid grid-cols-2 gap-2">
+              <PropField label={t("builder.sectionLabelEditor.indexNumber")}>
+                <Input
+                  value={indexNumber}
+                  onChange={(e) => setContent("indexNumber", e.target.value)}
+                  placeholder={t("builder.sectionLabelEditor.indexNumberPh")}
+                  className="h-8 text-xs"
+                />
+              </PropField>
+              <PropField label={t("builder.sectionLabelEditor.numberSize")}>
+                <PxSizeInput
+                  value={numberSize}
+                  onChange={(v) => setContent("numberSize", v)}
+                  placeholder="auto"
+                  max={160}
+                />
+              </PropField>
+              <PropField label={t("builder.sectionLabelEditor.numberFont")}>
+                <MiniSelect
+                  value={numberFont}
+                  onChange={(v) => setContent("numberFont", v)}
+                  options={SECTION_LABEL_FONTS}
+                />
+              </PropField>
+              <PropField label={t("builder.sectionLabelEditor.titleFont")}>
+                <MiniSelect
+                  value={titleFont}
+                  onChange={(v) => setContent("titleFont", v)}
+                  options={SECTION_LABEL_FONTS}
+                />
+              </PropField>
+            </div>
+          )}
+
+          {variant === "double-deck-masthead" && (
+            <div className="grid grid-cols-2 gap-2">
+              <PropField
+                label={t("builder.sectionLabelEditor.category", { lang: lang.toUpperCase() })}
+              >
+                <Input
+                  value={category}
+                  onChange={(e) => setContent(categoryKey, e.target.value)}
+                  placeholder={t("builder.sectionLabelEditor.categoryPh")}
+                  className="h-8 text-xs"
+                />
+              </PropField>
+              <PropField label={t("builder.sectionLabelEditor.categorySize")}>
+                <PxSizeInput
+                  value={categorySize}
+                  onChange={(v) => setContent("categorySize", v)}
+                  placeholder="auto"
+                />
+              </PropField>
+              <PropField label={t("builder.sectionLabelEditor.categoryFont")}>
+                <MiniSelect
+                  value={categoryFont}
+                  onChange={(v) => setContent("categoryFont", v)}
+                  options={SECTION_LABEL_FONTS}
+                />
+              </PropField>
+              <PropField label={t("builder.sectionLabelEditor.titleFont")}>
+                <MiniSelect
+                  value={titleFont}
+                  onChange={(v) => setContent("titleFont", v)}
+                  options={SECTION_LABEL_FONTS}
+                />
+              </PropField>
+            </div>
+          )}
+
+          <div className="flex items-center gap-4 pt-1">
+            <MiniToggle
+              checked={showRule}
+              onChange={(v) => setContent("showRule", v)}
+              label={t("builder.sectionLabelEditor.showRule")}
+            />
+            <MiniToggle
+              checked={showAction}
+              onChange={(v) => setContent("showAction", v)}
+              label={t("builder.sectionLabelEditor.showAction")}
+            />
+          </div>
+          <PropField label={t("builder.sectionLabelEditor.arrowType")}>
+            <MiniSelect
+              value={arrow}
+              onChange={(v) => setContent("arrow", v)}
+              options={SECTION_LABEL_ARROWS}
+            />
+          </PropField>
+        </div>
+      )}
+
+
+
       <PropField label={t("builder.sectionLabelEditor.linkText", { lang: lang.toUpperCase() })}>
         <Input
           value={action}
