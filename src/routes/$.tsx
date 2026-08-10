@@ -913,7 +913,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
     const articleActions = (
       <div className="no-print flex w-full flex-wrap items-stretch gap-2 sm:w-auto">
         {giftButton && (
-          <span className="min-w-0 flex-1 basis-[220px] [&_button]:h-full [&_button]:w-full">
+          <span className="min-w-0 flex-1 basis-[140px] [&_button]:h-full [&_button]:w-full">
             {giftButton}
           </span>
         )}
