@@ -155,8 +155,6 @@ export function NewsletterForm({
 
 
   // Per-widget visibility toggles for the extra fields.
-  const showFirstName = boolCfg(cfg, "showFirstName", false);
-  // Per-widget visibility toggles for the extra fields.
   // Instancje spoza buildera (stopka wpisu, sidebar, archiwum, popup) nie mają
   // własnej konfiguracji - dostają wtedy ten sam, pełny zestaw pól co widget
   // "Dołącz do nas" na stronie głównej (imię, nazwisko, stanowisko, firma,
@@ -174,7 +172,9 @@ export function NewsletterForm({
   const requirePhone = boolCfg(cfg, "requirePhone", false);
   const requireEmail = boolCfg(cfg, "requireEmail", true);
 
+  if (!s || !s.enabled) {
     if (!inBuilder) return null;
+
     return (
       <div
         role="status"
