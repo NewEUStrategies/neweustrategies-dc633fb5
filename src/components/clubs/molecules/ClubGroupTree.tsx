@@ -1,10 +1,10 @@
 // Molekuła: drzewo działów klubu (grupy + podgrupy).
 //
-// Wariant "Modern collapsible hierarchy": główne działy to rozwijane
-// sekcje z ikoną i dużą etykietą, poddziały są cicho wcięte pod spodem.
+// Wariant "Ghost Ember Sidebar": główne działy to rozwijane karty z ikoną
+// w półprzezroczystym kwadracie, poddziały są cicho wcięte z lewą linią.
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronRight, Lock } from "lucide-react";
+import { ChevronRight, LayoutGrid, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { buildClubGroupTree, clubGroupPath, type ClubGroupNode } from "@/lib/clubs/groupTree";
 import { ClubGroupIcon, clubGroupAccentVars } from "@/components/clubs/atoms/ClubGroupAccent";
@@ -19,17 +19,19 @@ export function clubGroupDescription(group: ClubGroupRow, isPl: boolean): string
   return value === null ? "" : value.trim();
 }
 
-const COUNTER =
-  "shrink-0 rounded-[5px] px-1.5 py-0.5 text-[10px] font-bold tabular-nums transition-opacity";
+const ACCENT_TEXT = "text-[color-mix(in_oklab,var(--club-accent)_75%,var(--foreground))]";
+const ACCENT_BG = "bg-[color-mix(in_oklab,var(--club-accent)_10%,var(--muted))]";
+const ACCENT_BG_HOVER = "group-hover:bg-[color-mix(in_oklab,var(--club-accent)_12%,var(--muted))]";
+const ACCENT_TEXT_HOVER = "group-hover:text-[color-mix(in_oklab,var(--club-accent)_75%,var(--foreground))]";
 
 function ThreadCounter({ count, active }: { count: number; active: boolean }) {
   return (
     <span
       className={cn(
-        COUNTER,
+        "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums transition-opacity",
         active
           ? "bg-[color-mix(in_oklab,var(--club-accent)_85%,var(--foreground))] text-background"
-          : "bg-[color-mix(in_oklab,var(--club-accent)_10%,transparent)] text-[color-mix(in_oklab,var(--club-accent)_60%,var(--foreground))] opacity-0 group-hover/row:opacity-100",
+          : "bg-muted text-muted-foreground opacity-0 group-hover/row:opacity-100",
       )}
     >
       {count}
@@ -58,48 +60,61 @@ function ParentRow({
   const hasChildren = children.length > 0;
 
   return (
-    <div
-      className="group/row flex items-center gap-1"
-      style={clubGroupAccentVars(group.accent_color)}
-    >
-      {hasChildren ? (
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-expanded={expanded}
-          aria-label={name}
-          className="grid h-6 w-5 shrink-0 place-items-center rounded-md text-muted-foreground/60 transition-colors hover:bg-muted/60 hover:text-foreground"
-        >
-          <ChevronRight
-            className={cn("h-3.5 w-3.5 transition-transform duration-200", expanded && "rotate-90")}
-            aria-hidden="true"
-          />
-        </button>
-      ) : (
-        <span aria-hidden="true" className="h-6 w-5 shrink-0" />
-      )}
-
+    <div className="group/row" style={clubGroupAccentVars(group.accent_color)}>
       <button
         type="button"
         aria-pressed={active}
+        aria-expanded={hasChildren ? expanded : undefined}
         title={name}
-        onClick={onSelect}
+        onClick={hasChildren ? onToggle : onSelect}
         className={cn(
-          "flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 py-2 text-left text-[11px] font-bold uppercase tracking-wider transition-colors",
-          active
-            ? "bg-muted/50 text-foreground"
-            : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+          "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors",
+          active ? "bg-muted/50" : "hover:bg-muted/50",
         )}
       >
-        <ClubGroupIcon
-          icon={group.icon}
-          className="h-4 w-4 shrink-0 text-muted-foreground group-hover/row:text-foreground"
-        />
-        <span className="line-clamp-2 min-w-0 flex-1 leading-snug">{name}</span>
+        <div
+          className={cn(
+            "grid h-8 w-8 shrink-0 place-items-center rounded-md transition-colors",
+            active ? ACCENT_BG : "bg-muted/50",
+            !active && ACCENT_BG_HOVER,
+          )}
+        >
+          <ClubGroupIcon
+            icon={group.icon}
+            className={cn(
+              "h-4 w-4 shrink-0 transition-colors",
+              active ? ACCENT_TEXT : "text-muted-foreground",
+              !active && ACCENT_TEXT_HOVER,
+            )}
+          />
+        </div>
+
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate text-sm font-semibold",
+            active ? "text-foreground" : "text-foreground/80",
+          )}
+        >
+          {name}
+        </span>
+
         {locked ? (
           <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
         ) : null}
-        <ThreadCounter count={totalThreads} active={active} />
+
+        {hasChildren ? (
+          <ChevronRight
+            className={cn(
+              "h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-300",
+              expanded && "rotate-90",
+            )}
+            aria-hidden="true"
+          />
+        ) : (
+          <span className="shrink-0">
+            <ThreadCounter count={totalThreads} active={active} />
+          </span>
+        )}
       </button>
     </div>
   );
@@ -119,20 +134,19 @@ function SubRow({
   const { group, totalThreads } = node;
   const locked = !group.can_read;
   const name = clubGroupName(group, isPl);
-  const indent = 14 + node.depth * 28;
 
   return (
-    <div className="group/row" style={{ ...clubGroupAccentVars(group.accent_color), marginLeft: indent }}>
+    <div className="group/row" style={clubGroupAccentVars(group.accent_color)}>
       <button
         type="button"
         aria-pressed={active}
         title={name}
         onClick={onSelect}
         className={cn(
-          "flex w-full items-center justify-between rounded-md px-3 py-1.5 text-left text-sm transition-colors",
+          "flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[13px] font-medium transition-colors",
           active
-            ? "bg-muted/50 font-medium text-foreground"
-            : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+            ? cn("bg-muted/50", ACCENT_TEXT)
+            : cn("text-muted-foreground", ACCENT_TEXT_HOVER),
         )}
       >
         <span className="line-clamp-2 min-w-0 flex-1 leading-snug">{name}</span>
@@ -203,51 +217,74 @@ export function ClubGroupTree({
     });
   };
 
-  const renderNodes = (nodes: readonly ClubGroupNode[]): React.ReactNode =>
-    nodes.map((node) => (
-      <li key={node.group.id} className="space-y-0.5">
-        <GroupRow
-          node={node}
-          active={activeGroupId === node.group.id}
-          expanded={isExpanded(node.group.id)}
-          onToggle={() => toggle(node.group.id)}
-          onSelect={() => onGroupChange(activeGroupId === node.group.id ? null : node.group.id)}
-          isPl={isPl}
-        />
-        {node.children.length > 0 && isExpanded(node.group.id) ? (
-          <ul className="space-y-0.5">{renderNodes(node.children)}</ul>
-        ) : null}
-      </li>
-    ));
-
   const totalThreads = tree.reduce((sum, node) => sum + node.totalThreads, 0);
+
+  const renderNodes = (nodes: readonly ClubGroupNode[]): React.ReactNode =>
+    nodes.map((node) => {
+      const expanded = isExpanded(node.group.id);
+      return (
+        <li key={node.group.id}>
+          <GroupRow
+            node={node}
+            active={activeGroupId === node.group.id}
+            expanded={expanded}
+            onToggle={() => toggle(node.group.id)}
+            onSelect={() => onGroupChange(activeGroupId === node.group.id ? null : node.group.id)}
+            isPl={isPl}
+          />
+          {node.children.length > 0 && expanded ? (
+            <ul className="ml-8 mt-0.5 flex list-none flex-col gap-0.5 border-l border-border/60 pl-3">
+              {renderNodes(node.children)}
+            </ul>
+          ) : null}
+        </li>
+      );
+    });
 
   return (
     <div className="flex flex-col gap-4">
       <h2 className="px-1 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
         {t("club.groups")}
       </h2>
-      <ul className="flex flex-col gap-1">
+      <ul className="flex flex-col gap-1 list-none">
         <li>
           <button
             type="button"
             aria-pressed={activeGroupId === null}
             onClick={() => onGroupChange(null)}
             className={cn(
-              "group/row flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left text-[11px] font-bold uppercase tracking-wider transition-colors",
-              activeGroupId === null
-                ? "bg-muted/50 text-foreground"
-                : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+              "group/row flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors",
+              activeGroupId === null ? "bg-muted/50" : "hover:bg-muted/50",
             )}
           >
-            <span aria-hidden="true" className="h-6 w-5 shrink-0" />
-            <span className="min-w-0 flex-1 truncate">{t("club.allGroups")}</span>
+            <div
+              className={cn(
+                "grid h-8 w-8 shrink-0 place-items-center rounded-md bg-muted/50 transition-colors",
+                activeGroupId === null ? "bg-muted" : "group-hover/row:bg-muted",
+              )}
+            >
+              <LayoutGrid
+                className={cn(
+                  "h-4 w-4 shrink-0 transition-colors",
+                  activeGroupId === null ? "text-foreground" : "text-muted-foreground group-hover/row:text-foreground",
+                )}
+                aria-hidden="true"
+              />
+            </div>
             <span
               className={cn(
-                COUNTER,
+                "min-w-0 flex-1 truncate text-sm font-semibold",
+                activeGroupId === null ? "text-foreground" : "text-foreground/80",
+              )}
+            >
+              {t("club.allGroups")}
+            </span>
+            <span
+              className={cn(
+                "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums",
                 activeGroupId === null
-                  ? "bg-muted text-foreground"
-                  : "bg-muted/50 text-muted-foreground opacity-0 group-hover/row:opacity-100",
+                  ? "bg-foreground text-background"
+                  : "bg-muted text-muted-foreground opacity-0 group-hover/row:opacity-100 transition-opacity",
               )}
             >
               {totalThreads}
@@ -280,7 +317,7 @@ export function ClubGroupBar({
     <nav
       aria-label={t("club.groups")}
       className={cn(
-        "-mx-3 flex gap-1.5 overflow-x-auto px-3 pb-1 [scrollbar-width:none]",
+        "-mx-3 flex gap-2 overflow-x-auto px-3 pb-1 [scrollbar-width:none]",
         className,
       )}
     >
@@ -289,12 +326,13 @@ export function ClubGroupBar({
         aria-pressed={activeGroupId === null}
         onClick={() => onGroupChange(null)}
         className={cn(
-          "group/chip shrink-0 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors",
+          "group/chip inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
           activeGroupId === null
             ? "border-foreground/20 bg-muted/50 text-foreground"
             : "border-border/60 bg-transparent text-muted-foreground hover:bg-muted/50",
         )}
       >
+        <LayoutGrid className="h-3.5 w-3.5" aria-hidden="true" />
         {t("club.allGroups")}
       </button>
       {groups.map((group) => {
@@ -307,7 +345,7 @@ export function ClubGroupBar({
             onClick={() => onGroupChange(active ? null : group.id)}
             style={clubGroupAccentVars(group.accent_color)}
             className={cn(
-              "group/chip inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors",
+              "group/chip inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
               active
                 ? "border-[color-mix(in_oklab,var(--club-accent)_40%,var(--border))] bg-[color-mix(in_oklab,var(--club-accent)_8%,var(--muted))] text-[color-mix(in_oklab,var(--club-accent)_40%,var(--foreground))]"
                 : "border-border/60 bg-transparent text-muted-foreground hover:bg-[color-mix(in_oklab,var(--club-accent)_5%,var(--muted))] hover:text-[color-mix(in_oklab,var(--club-accent)_60%,var(--foreground))]",
