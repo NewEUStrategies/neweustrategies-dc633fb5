@@ -128,9 +128,7 @@ function ThreadCard({
       icon={<ClubThreadKindIcon kind={thread.kind} icon={threadIcon} />}
       meta={
         <>
-          <ClubDossierKind className="text-[10px]">
-            {t(`club.kind.${thread.kind}`)}
-          </ClubDossierKind>
+          <ClubDossierKind className="text-[10px]">{t(`club.kind.${thread.kind}`)}</ClubDossierKind>
           {thread.status === "resolved" ? (
             <Badge className="rounded-lg bg-emerald-600 px-1.5 py-0 text-[10px] hover:bg-emerald-600">
               {t("club.threadStatus.resolved")}
@@ -248,9 +246,7 @@ function EventCard({ event, isPl }: { event: ClubEventRow; isPl: boolean }) {
       icon={<ClubEventKindIcon kind={kind} className="h-3.5 w-3.5" />}
       meta={
         <>
-          <ClubDossierKind>
-            {t("club.hub.feed.eventLabel")}
-          </ClubDossierKind>
+          <ClubDossierKind>{t("club.hub.feed.eventLabel")}</ClubDossierKind>
           <span aria-hidden="true">·</span>
           <span className="inline-flex items-center gap-1">
             <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
@@ -382,9 +378,7 @@ function MilestoneCard({
       icon={<ListChecks className="h-3.5 w-3.5" aria-hidden="true" />}
       meta={
         <>
-          <ClubDossierKind>
-            {t("club.hub.feed.stageLabel")}
-          </ClubDossierKind>
+          <ClubDossierKind>{t("club.hub.feed.stageLabel")}</ClubDossierKind>
           <ClubMilestoneStateChip state={state} />
           {milestone.due_on !== null ? (
             <span className="inline-flex items-center gap-1">

@@ -39,9 +39,7 @@ function ThreadMeta({ thread, isPl }: { thread: ClubThreadListRow; isPl: boolean
   const author = toAuthorLabel(thread, t("club.anonymousAuthor"), t("club.deletedAuthor"));
   return (
     <>
-      <ClubDossierKind className="text-[10px]">
-        {t(`club.kind.${thread.kind}`)}
-      </ClubDossierKind>
+      <ClubDossierKind className="text-[10px]">{t(`club.kind.${thread.kind}`)}</ClubDossierKind>
       {thread.status === "locked" ? (
         <Lock
           className="h-3 w-3 text-muted-foreground"

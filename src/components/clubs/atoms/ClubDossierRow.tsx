@@ -219,7 +219,6 @@ export function ClubDossierRow({
   testId,
   className,
 }: {
-
   tone: ClubDossierTone;
   /** Ikona rodzaju - renderowana w kwadracie grzbietu. */
   icon: ReactNode;
@@ -290,7 +289,6 @@ export function ClubDossierRow({
         {icon}
       </span>
 
-
       <div className="min-w-0">
         {meta !== undefined ? (
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
@@ -334,7 +332,6 @@ export function ClubDossierRow({
             {footer}
           </div>
         ) : null}
-
       </div>
 
       {metrics !== undefined ? (
