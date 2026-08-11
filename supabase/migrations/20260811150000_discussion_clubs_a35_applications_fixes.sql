@@ -1555,3 +1555,57 @@ COMMENT ON FUNCTION public.club_create_thread(uuid,text,text,text,boolean,text,t
 REVOKE EXECUTE ON FUNCTION public.club_create_thread(uuid,text,text,text,boolean,text,text,text,boolean,text,text,text) FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION public.club_create_thread(uuid,text,text,text,boolean,text,text,text,boolean,text,text,text) FROM anon;
 GRANT EXECUTE ON FUNCTION public.club_create_thread(uuid,text,text,text,boolean,text,text,text,boolean,text,text,text) TO authenticated, service_role;
+
+
+-- ============================================================================
+-- A10) Szew anonimizacji: funkcja z A7 dostaje wolajacego
+-- ============================================================================
+--
+-- Weryfikacja A35 wykazala, ze A7 domykala 6.2 POZORNIE: funkcja istniala,
+-- byla przetestowana i nikt jej nie wolal. Audyt mowil o braku SCIEZKI, nie
+-- o braku narzedzia - wiec dopoki nie ma wolajacego, znalezisko stoi.
+--
+-- SPRAWDZONA PRAWDA O TYM REPO (teza "wszystkie funkcje anonimizujace sa
+-- rownie martwe" jest NIEPRAWDZIWA). Sciezka usuniecia konta jest
+-- dwuwarstwowa i obie warstwy zbiegaja sie w JEDNEJ funkcji triggerowej:
+--   * kod serwerowy: DataRightsSection.tsx -> deleteMyAccount
+--     (src/lib/account.functions.ts:64) -> retainAccountingEvidence()
+--     -> accountingRetention.server.ts:82, PRZED auth.admin.deleteUser;
+--   * trigger bazodanowy: on_auth_user_deleted_retain_accounting
+--     BEFORE DELETE ON auth.users -> tg_auth_user_deleted_retain_accounting()
+--     (20260805114540_*.sql:120-134).
+-- `auth.admin.deleteUser` wystepuje w src/ dokladnie raz, nie ma edge
+-- functions ani panelowego kasowania kont.
+--
+-- DLACZEGO TRIGGER, A NIE anonymize_accounting_evidence_for_user. Tamta
+-- funkcja jest ksiegowa: zwraca jsonb o kształcie {orders, purchases,
+-- retained, discarded} i jej nazwa obiecuje dowody ksiegowe. Wpychanie tam
+-- zgloszen klubowych zabrudzilo by kontrakt. Trigger jest natomiast wprost
+-- "co zrobic, gdy konto znika", wiec to jego miejsce - i lapie KAZDA sciezke
+-- usuniecia, takze recznego DELETE w bazie, ktory server fn omija.
+--
+-- Kolejnosc: ksiegowosc pierwsza, bo byla tu pierwsza i jej wynik nie zalezy
+-- od klubow. Wyjatek z anonimizacji klubowej NIE MOZE wywrocic usuniecia
+-- konta - prawo do bycia zapomnianym nie moze zalezec od modulu spolecznego -
+-- wiec lapiemy go i zostawiamy wiersz do sprzatniecia, zamiast blokowac DELETE.
+
+CREATE OR REPLACE FUNCTION public.tg_auth_user_deleted_retain_accounting()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  PERFORM public.anonymize_accounting_evidence_for_user(OLD.id);
+  BEGIN
+    PERFORM public.anonymize_club_applications_for_user(OLD.id);
+  EXCEPTION WHEN OTHERS THEN
+    -- Swiadomie ciche: usuniecie konta ma sie udac nawet, gdy modul klubowy
+    -- jest w trakcie migracji albo tabela chwilowo nie istnieje.
+    NULL;
+  END;
+  RETURN OLD;
+END;
+$$;
+
+COMMENT ON FUNCTION public.tg_auth_user_deleted_retain_accounting() IS
+  'BEFORE DELETE ON auth.users: anonimizuje dowody ksiegowe ORAZ zgloszenia klubowe. Drugie w bloku EXCEPTION - prawo do usuniecia konta nie moze zalezec od modulu spolecznego.';
