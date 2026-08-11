@@ -301,6 +301,7 @@ import { Route as AdminNewsletterCampaignsIdRouteImport } from './routes/admin.n
 import { Route as AdminCommunityClubsTopicsRouteImport } from './routes/admin.community.clubs.topics'
 import { Route as AdminCommunityClubsSpecializationsRouteImport } from './routes/admin.community.clubs.specializations'
 import { Route as AdminCommunityClubsElementsRouteImport } from './routes/admin.community.clubs.elements'
+import { Route as AdminCommunityClubsApplicationsRouteImport } from './routes/admin.community.clubs.applications'
 import { Route as AdminCommunityClubsClubIdRouteImport } from './routes/admin.community.clubs.$clubId'
 
 const ZwrotyIReklamacjeRoute = ZwrotyIReklamacjeRouteImport.update({
@@ -1804,6 +1805,12 @@ const AdminCommunityClubsElementsRoute =
     path: '/clubs/elements',
     getParentRoute: () => AdminCommunityRoute,
   } as any)
+const AdminCommunityClubsApplicationsRoute =
+  AdminCommunityClubsApplicationsRouteImport.update({
+    id: '/clubs/applications',
+    path: '/clubs/applications',
+    getParentRoute: () => AdminCommunityRoute,
+  } as any)
 const AdminCommunityClubsClubIdRoute =
   AdminCommunityClubsClubIdRouteImport.update({
     id: '/clubs/$clubId',
@@ -2082,6 +2089,7 @@ export interface FileRoutesByFullPath {
   '/admin/users/': typeof AdminUsersIndexRoute
   '/club/$clubSlug/': typeof ClubClubSlugIndexRoute
   '/admin/community/clubs/$clubId': typeof AdminCommunityClubsClubIdRoute
+  '/admin/community/clubs/applications': typeof AdminCommunityClubsApplicationsRoute
   '/admin/community/clubs/elements': typeof AdminCommunityClubsElementsRoute
   '/admin/community/clubs/specializations': typeof AdminCommunityClubsSpecializationsRoute
   '/admin/community/clubs/topics': typeof AdminCommunityClubsTopicsRoute
@@ -2366,6 +2374,7 @@ export interface FileRoutesByTo {
   '/admin/users': typeof AdminUsersIndexRoute
   '/club/$clubSlug': typeof ClubClubSlugIndexRoute
   '/admin/community/clubs/$clubId': typeof AdminCommunityClubsClubIdRoute
+  '/admin/community/clubs/applications': typeof AdminCommunityClubsApplicationsRoute
   '/admin/community/clubs/elements': typeof AdminCommunityClubsElementsRoute
   '/admin/community/clubs/specializations': typeof AdminCommunityClubsSpecializationsRoute
   '/admin/community/clubs/topics': typeof AdminCommunityClubsTopicsRoute
@@ -2662,6 +2671,7 @@ export interface FileRoutesById {
   '/admin/users/': typeof AdminUsersIndexRoute
   '/club/$clubSlug/': typeof ClubClubSlugIndexRoute
   '/admin/community/clubs/$clubId': typeof AdminCommunityClubsClubIdRoute
+  '/admin/community/clubs/applications': typeof AdminCommunityClubsApplicationsRoute
   '/admin/community/clubs/elements': typeof AdminCommunityClubsElementsRoute
   '/admin/community/clubs/specializations': typeof AdminCommunityClubsSpecializationsRoute
   '/admin/community/clubs/topics': typeof AdminCommunityClubsTopicsRoute
@@ -2959,6 +2969,7 @@ export interface FileRouteTypes {
     | '/admin/users/'
     | '/club/$clubSlug/'
     | '/admin/community/clubs/$clubId'
+    | '/admin/community/clubs/applications'
     | '/admin/community/clubs/elements'
     | '/admin/community/clubs/specializations'
     | '/admin/community/clubs/topics'
@@ -3243,6 +3254,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/club/$clubSlug'
     | '/admin/community/clubs/$clubId'
+    | '/admin/community/clubs/applications'
     | '/admin/community/clubs/elements'
     | '/admin/community/clubs/specializations'
     | '/admin/community/clubs/topics'
@@ -3538,6 +3550,7 @@ export interface FileRouteTypes {
     | '/admin/users/'
     | '/club/$clubSlug/'
     | '/admin/community/clubs/$clubId'
+    | '/admin/community/clubs/applications'
     | '/admin/community/clubs/elements'
     | '/admin/community/clubs/specializations'
     | '/admin/community/clubs/topics'
@@ -5721,6 +5734,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCommunityClubsElementsRouteImport
       parentRoute: typeof AdminCommunityRoute
     }
+    '/admin/community/clubs/applications': {
+      id: '/admin/community/clubs/applications'
+      path: '/clubs/applications'
+      fullPath: '/admin/community/clubs/applications'
+      preLoaderRoute: typeof AdminCommunityClubsApplicationsRouteImport
+      parentRoute: typeof AdminCommunityRoute
+    }
     '/admin/community/clubs/$clubId': {
       id: '/admin/community/clubs/$clubId'
       path: '/clubs/$clubId'
@@ -5766,6 +5786,7 @@ interface AdminCommunityRouteChildren {
   AdminCommunityQaRoute: typeof AdminCommunityQaRoute
   AdminCommunityIndexRoute: typeof AdminCommunityIndexRoute
   AdminCommunityClubsClubIdRoute: typeof AdminCommunityClubsClubIdRoute
+  AdminCommunityClubsApplicationsRoute: typeof AdminCommunityClubsApplicationsRoute
   AdminCommunityClubsElementsRoute: typeof AdminCommunityClubsElementsRoute
   AdminCommunityClubsSpecializationsRoute: typeof AdminCommunityClubsSpecializationsRoute
   AdminCommunityClubsTopicsRoute: typeof AdminCommunityClubsTopicsRoute
@@ -5783,6 +5804,7 @@ const AdminCommunityRouteChildren: AdminCommunityRouteChildren = {
   AdminCommunityQaRoute: AdminCommunityQaRoute,
   AdminCommunityIndexRoute: AdminCommunityIndexRoute,
   AdminCommunityClubsClubIdRoute: AdminCommunityClubsClubIdRoute,
+  AdminCommunityClubsApplicationsRoute: AdminCommunityClubsApplicationsRoute,
   AdminCommunityClubsElementsRoute: AdminCommunityClubsElementsRoute,
   AdminCommunityClubsSpecializationsRoute:
     AdminCommunityClubsSpecializationsRoute,
