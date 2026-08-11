@@ -728,25 +728,35 @@ export function SectionLabelRender({
     }
 
     case "bracket-label": {
-      // Styl zero.pl: tytuł objęty kolorowymi nawiasami, cienka linia pod całą
-      // szerokością bloku. Nawiasy są dekoracją - nie trafiają do a11y.
-      const bracketCls = isSm ? "text-[12px]" : "text-lg sm:text-2xl";
-      const titleCls = isSm ? "text-[11px]" : "font-display text-base sm:text-xl";
+      // Redakcyjny "bracket": cienkie nawiasy w akcencie, optycznie
+      // wyrównane do linii bazowej tytułu, i dwutonowa hairline - krótki
+      // segment akcentowy prowadzi w neutralną kreskę na pełną szerokość.
+      const bracketCls = isSm ? "text-[13px]" : "text-xl sm:text-[28px]";
+      const titleCls = isSm
+        ? "text-[11px] tracking-[-0.01em]"
+        : "font-display text-base sm:text-xl tracking-[-0.015em]";
+      const bracketStyle: React.CSSProperties = {
+        color: accent,
+        fontWeight: 300,
+        lineHeight: 1,
+        transform: `translateY(${isSm ? "0.5px" : "1px"})`,
+      };
+      const bracketGap = isSm ? 3 : 6;
       return (
         <div className={`${wrapperBase} w-full min-w-0 ${padY}`}>
-          <div className="flex items-end justify-between min-w-0" style={{ gap: gapXPx }}>
-            <span className="inline-flex items-baseline min-w-0" style={{ gap: gapXPx }}>
-              <span aria-hidden className={`${bracketCls} leading-none`} style={{ color: accent }}>
+          <div className="flex items-baseline justify-between min-w-0" style={{ gap: gapXPx }}>
+            <span className="inline-flex items-baseline min-w-0" style={{ gap: bracketGap }}>
+              <span aria-hidden className={bracketCls} style={bracketStyle}>
                 [
               </span>
               <span
                 data-title-root
-                className={`${titleCls} font-semibold tracking-tight min-w-0 break-words`}
+                className={`${titleCls} font-semibold min-w-0 break-words`}
                 style={labelStyle}
               >
                 {label}
               </span>
-              <span aria-hidden className={`${bracketCls} leading-none`} style={{ color: accent }}>
+              <span aria-hidden className={bracketCls} style={bracketStyle}>
                 ]
               </span>
             </span>
@@ -755,39 +765,63 @@ export function SectionLabelRender({
           {showRule && (
             <span
               aria-hidden
-              className="block w-full bg-border"
+              className="flex w-full items-stretch overflow-hidden"
               style={{ height: 1, marginTop: gapYPx }}
-            />
+            >
+              <span style={{ width: isSm ? 18 : 44, background: accent, flex: "0 0 auto" }} />
+              <span
+                className="flex-1"
+                style={{ background: "currentColor", opacity: 0.16 }}
+              />
+            </span>
           )}
         </div>
       );
     }
 
     case "kicker-tag-rule": {
-      // Tag kategorii w akcencie, tytuł, a linia ciągnie się do akcji po prawej.
+      // Politico-style kicker: pełny tag w akcencie z ostrymi rogami, tytuł
+      // w kolorze tekstu i hairline, ktora wygasza sie w kierunku akcji.
       const tag = category || "";
       const tagStyle: React.CSSProperties = {
         background: accent,
         color: contrastOn(accent),
+        lineHeight: 1,
       };
       const tagFamily = resolveFontFamily(categoryFont);
       if (tagFamily) tagStyle.fontFamily = tagFamily;
       if (!isSm && categorySize) tagStyle.fontSize = categorySize;
+      const titleCls = isSm
+        ? "text-[10px] font-bold uppercase tracking-[0.1em]"
+        : "font-display text-[12px] sm:text-[13px] font-bold uppercase tracking-[0.13em]";
       return (
         <div className={`${wrapperBase} w-full min-w-0 ${padY}`}>
           <div className="flex items-center min-w-0" style={{ gap: gapXPx }}>
             {tag && (
               <span
-                className={`${isSm ? "px-1 py-[1px] text-[7px]" : "px-1.5 py-0.5 text-[10px]"} font-bold uppercase tracking-[0.16em] shrink-0`}
+                className={`${isSm ? "px-1 py-[2px] text-[7px]" : "px-2 py-[5px] text-[10px]"} font-bold uppercase tracking-[0.16em] shrink-0`}
                 style={tagStyle}
               >
                 {tag}
               </span>
             )}
-            <span data-title-root className={`${textCls} min-w-0 shrink`} style={labelStyle}>
+            <span
+              data-title-root
+              className={`${titleCls} min-w-0 shrink truncate`}
+              style={labelStyle}
+            >
               {label}
             </span>
-            {showRule && <span aria-hidden className="flex-1 h-px bg-border min-w-[12px]" />}
+            {showRule && (
+              <span
+                aria-hidden
+                className="flex-1 min-w-[16px]"
+                style={{
+                  height: 1,
+                  background: `linear-gradient(to right, color-mix(in oklab, ${accent} 55%, transparent), transparent)`,
+                }}
+              />
+            )}
             {ActionEl}
           </div>
         </div>
@@ -795,29 +829,40 @@ export function SectionLabelRender({
     }
 
     case "stacked-serif-lede": {
-      // Tytuł + jednolinijkowy dek (kategoria jako podtytuł). Zero ozdób.
+      // Dwupoziomowy blok redakcyjny: krótki znacznik akcentowy, tytuł
+      // i jednolinijkowy dek o kontrolowanej mierze (max ~64 znaki).
       const dek = category || "";
-      const dekStyle: React.CSSProperties = {};
+      const dekStyle: React.CSSProperties = { maxWidth: "64ch" };
       const dekFamily = resolveFontFamily(categoryFont);
       if (dekFamily) dekStyle.fontFamily = dekFamily;
       if (!isSm && categorySize) dekStyle.fontSize = categorySize;
       const titleCls = isSm
-        ? "text-[12px] tracking-tight"
-        : "text-xl sm:text-3xl tracking-tight leading-tight";
+        ? "text-[12px] tracking-[-0.015em] leading-tight"
+        : "text-xl sm:text-[32px] tracking-[-0.02em] leading-[1.08]";
       return (
         <div className={`${wrapperBase} w-full min-w-0 ${padY}`}>
+          <span
+            aria-hidden
+            className="block"
+            style={{
+              width: isSm ? 16 : 32,
+              height: isSm ? 2 : 3,
+              background: accent,
+              marginBottom: gapYPx,
+            }}
+          />
           <div className="flex items-end justify-between min-w-0" style={{ gap: gapXPx }}>
             <div className="min-w-0">
               <div
                 data-title-root
-                className={`${titleCls} font-semibold break-words`}
+                className={`${titleCls} font-semibold break-words text-balance`}
                 style={labelStyle}
               >
                 {label}
               </div>
               {dek && (
                 <div
-                  className={`${isSm ? "text-[8px]" : "text-xs sm:text-sm"} text-muted-foreground`}
+                  className={`${isSm ? "text-[8px]" : "text-xs sm:text-sm"} text-muted-foreground leading-snug`}
                   style={{ marginTop: gapYPx, ...dekStyle }}
                 >
                   {dek}
@@ -830,74 +875,108 @@ export function SectionLabelRender({
             <span
               aria-hidden
               className="block w-full"
-              style={{ height: 1, background: accent, opacity: 0.6, marginTop: gapYPx }}
+              style={{
+                height: 1,
+                background: "currentColor",
+                opacity: 0.16,
+                marginTop: gapYPx,
+              }}
             />
           )}
         </div>
       );
     }
 
-    case "dotted-leader":
+    case "dotted-leader": {
+      // Indeks spisu treści: tytuł, precyzyjne kropki (radial-gradient, nie
+      // border-dotted - równy raster) i akcja jak numer strony.
+      const dotSize = isSm ? 1.5 : 2;
+      const dotGap = isSm ? 4 : 6;
       return (
         <div className={`${wrapperBase} w-full min-w-0 ${padY}`}>
           <div className="flex items-baseline min-w-0" style={{ gap: gapXPx }}>
-            <span data-title-root className={`${textCls} min-w-0 shrink`} style={labelStyle}>
+            {indexNumber && (
+              <span
+                aria-hidden
+                className={`${isSm ? "text-[8px]" : "text-[11px]"} tabular-nums font-bold shrink-0`}
+                style={{ color: accent, ...(numberSize && !isSm ? { fontSize: numberSize } : {}) }}
+              >
+                {indexNumber}
+              </span>
+            )}
+            <span
+              data-title-root
+              className={`${textCls} min-w-0 shrink truncate`}
+              style={labelStyle}
+            >
               {label}
             </span>
             <span
               aria-hidden
-              className="flex-1 min-w-[12px] self-center"
+              className="flex-1 min-w-[16px] self-center"
               style={{
-                borderBottom: `1px dotted ${accent}`,
-                opacity: 0.7,
+                height: dotSize,
+                backgroundImage: `radial-gradient(circle, color-mix(in oklab, ${accent} 70%, transparent) ${dotSize / 2}px, transparent ${dotSize / 2}px)`,
+                backgroundSize: `${dotGap}px ${dotSize}px`,
+                backgroundRepeat: "repeat-x",
+                backgroundPosition: "left center",
               }}
             />
             {ActionEl}
           </div>
         </div>
       );
+    }
 
     case "numbered-rail": {
-      // Duża, wyblakła cyfra jako tło; tytuł stoi na wierzchu.
+      // Rail: pionowa kreska akcentowa, nad nią numer w wersalikach i tytuł.
+      // Zamiast wyblakłej cyfry w tle - czytelna, precyzyjna hierarchia.
       const num = indexNumber || "01";
-      const numStyle: React.CSSProperties = {
-        color: accent,
-        opacity: 0.14,
-        lineHeight: 0.8,
-      };
+      const numStyle: React.CSSProperties = { color: accent, lineHeight: 1 };
       const numFamily = resolveFontFamily(numberFont);
       if (numFamily) numStyle.fontFamily = numFamily;
       if (!isSm && numberSize) numStyle.fontSize = numberSize;
       const titleCls = isSm
-        ? "text-[11px] tracking-tight"
-        : "font-display text-lg sm:text-2xl tracking-tight leading-tight";
+        ? "text-[11px] tracking-[-0.01em]"
+        : "font-display text-lg sm:text-2xl tracking-[-0.015em] leading-tight";
       return (
-        <div className={`${wrapperBase} relative w-full min-w-0 ${padY}`}>
-          <span
-            aria-hidden
-            className={`${isSm ? "text-[26px]" : "text-5xl sm:text-7xl"} tabular-nums font-bold absolute left-0 top-1/2 -translate-y-1/2 select-none pointer-events-none`}
-            style={numStyle}
-          >
-            {num}
-          </span>
-          <div
-            className="relative flex items-center justify-between min-w-0"
-            style={{ gap: gapXPx, paddingLeft: isSm ? 14 : 28 }}
-          >
+        <div className={`${wrapperBase} w-full min-w-0 ${padY}`}>
+          <div className="flex items-stretch min-w-0" style={{ gap: gapXPx }}>
             <span
-              data-title-root
-              className={`${titleCls} font-semibold min-w-0 break-words`}
-              style={labelStyle}
-            >
-              {label}
-            </span>
-            {ActionEl}
+              aria-hidden
+              className="shrink-0 self-stretch"
+              style={{ width: isSm ? 2 : 3, background: accent }}
+            />
+            <div className="flex min-w-0 flex-1 items-center" style={{ gap: gapXPx }}>
+              <div className="min-w-0 flex-1">
+                <div
+                  aria-hidden
+                  className={`${isSm ? "text-[7px]" : "text-[10px]"} font-bold uppercase tracking-[0.22em] tabular-nums`}
+                  style={numStyle}
+                >
+                  {num}
+                </div>
+                <div
+                  data-title-root
+                  className={`${titleCls} font-semibold break-words`}
+                  style={{ marginTop: gapYPx, ...labelStyle }}
+                >
+                  {label}
+                </div>
+              </div>
+              {ActionEl}
+            </div>
           </div>
           {showRule && (
             <span
               aria-hidden
-              className="relative block w-full bg-border"
-              style={{ height: 1, marginTop: gapYPx }}
+              className="block w-full"
+              style={{
+                height: 1,
+                background: "currentColor",
+                opacity: 0.16,
+                marginTop: gapYPx,
+              }}
             />
           )}
         </div>
@@ -905,55 +984,84 @@ export function SectionLabelRender({
     }
 
     case "split-rule-duo": {
-      // Dwie etykiety obok siebie rozdzielone pionową kreską w akcencie.
+      // Dwie etykiety w jednym rzędzie: tytuł w pełnym kontraście, druga
+      // etykieta stonowana, rozdzielone pionową kreską w akcencie.
       const second = category || "";
-      const secondStyle: React.CSSProperties = {};
+      const secondStyle: React.CSSProperties = { opacity: 0.85 };
       const secondFamily = resolveFontFamily(categoryFont);
       if (secondFamily) secondStyle.fontFamily = secondFamily;
       if (!isSm && categorySize) secondStyle.fontSize = categorySize;
       return (
-        <div className={`${rowBase} ${showRule ? "border-b border-border" : ""}`}>
-          <span className="inline-flex items-center min-w-0 flex-1" style={{ gap: gapXPx }}>
-            <span data-title-root className={`${textCls} min-w-0`} style={labelStyle}>
-              {label}
+        <div className={`${wrapperBase} w-full min-w-0 ${padY}`}>
+          <div className="flex items-center min-w-0" style={{ gap: gapXPx }}>
+            <span className="inline-flex items-center min-w-0" style={{ gap: gapXPx }}>
+              <span
+                data-title-root
+                className={`${textCls} min-w-0 truncate`}
+                style={labelStyle}
+              >
+                {label}
+              </span>
+              {second && (
+                <>
+                  <span
+                    aria-hidden
+                    className={`${isSm ? "h-2.5" : "h-3.5"} shrink-0`}
+                    style={{ width: 2, background: accent }}
+                  />
+                  <span
+                    className={`${textCls} min-w-0 truncate text-muted-foreground`}
+                    style={secondStyle}
+                  >
+                    {second}
+                  </span>
+                </>
+              )}
             </span>
-            {second && (
-              <>
-                <span
-                  aria-hidden
-                  className={`${isSm ? "h-3" : "h-4"} shrink-0`}
-                  style={{ width: 2, background: accent }}
-                />
-                <span
-                  className={`${textCls} min-w-0 text-muted-foreground`}
-                  style={secondStyle}
-                >
-                  {second}
-                </span>
-              </>
+            {showRule && (
+              <span
+                aria-hidden
+                className="flex-1 min-w-[16px]"
+                style={{ height: 1, background: "currentColor", opacity: 0.16 }}
+              />
             )}
-          </span>
-          {ActionEl}
+            {ActionEl}
+          </div>
         </div>
       );
     }
 
     case "ticker-strip": {
-      const stripCls = isSm ? "px-1.5 py-1 gap-1.5" : "px-3 py-2 gap-2";
+      // Pasek "na żywo": lewa krawędź w akcencie, tło wygasające w prawo,
+      // pulsująca kropka z halo. Tekst monospace-owo rozstrzelony.
+      const stripCls = isSm ? "px-2 py-1 gap-1.5" : "px-3 py-2 gap-2";
+      const dot = isSm ? 5 : 7;
       return (
         <div
           className={`${wrapperBase} flex items-center justify-between w-full min-w-0 ${stripCls}`}
-          style={{ background: `color-mix(in oklab, ${accent} 12%, transparent)` }}
+          style={{
+            background: `linear-gradient(to right, color-mix(in oklab, ${accent} 16%, transparent), transparent)`,
+            borderLeft: `${isSm ? 2 : 3}px solid ${accent}`,
+          }}
         >
           <span className="inline-flex items-center min-w-0" style={{ gap: gapXPx }}>
             <span
               aria-hidden
-              className={`${isSm ? "w-1.5 h-1.5" : "w-2 h-2"} rounded-full shrink-0 nes-ticker-dot`}
-              style={{ background: accent }}
-            />
+              className="relative shrink-0 inline-flex items-center justify-center"
+              style={{ width: dot * 2, height: dot * 2 }}
+            >
+              <span
+                className="absolute inset-0 rounded-full nes-ticker-halo"
+                style={{ background: `color-mix(in oklab, ${accent} 35%, transparent)` }}
+              />
+              <span
+                className="relative rounded-full nes-ticker-dot"
+                style={{ width: dot, height: dot, background: accent }}
+              />
+            </span>
             <span
               data-title-root
-              className={`${isSm ? "text-[9px]" : "text-[11px] sm:text-xs"} font-bold uppercase tracking-[0.18em] min-w-0 truncate`}
+              className={`${isSm ? "text-[9px]" : "text-[11px] sm:text-xs"} font-bold uppercase tracking-[0.2em] min-w-0 truncate`}
               style={{ color: accent, ...labelStyle }}
             >
               {label}
@@ -965,9 +1073,11 @@ export function SectionLabelRender({
     }
 
     case "underline-sweep": {
+      // Podkreślenie 2px z gradientem, animowane od lewej; szerokość
+      // dopasowana do tekstu, nie do kolumny.
       const titleCls = isSm
-        ? "text-[11px] tracking-tight"
-        : "font-display text-base sm:text-xl tracking-tight";
+        ? "text-[11px] tracking-[-0.01em]"
+        : "font-display text-base sm:text-xl tracking-[-0.015em]";
       return (
         <div className={`${wrapperBase} w-full min-w-0 ${padY}`}>
           <div className="flex items-end justify-between min-w-0" style={{ gap: gapXPx }}>
@@ -982,7 +1092,11 @@ export function SectionLabelRender({
               <span
                 aria-hidden
                 className="block nes-underline-sweep"
-                style={{ height: 2, background: accent, marginTop: gapYPx }}
+                style={{
+                  height: 2,
+                  background: `linear-gradient(to right, ${accent}, color-mix(in oklab, ${accent} 20%, transparent))`,
+                  marginTop: gapYPx,
+                }}
               />
             </span>
             {ActionEl}
@@ -990,6 +1104,7 @@ export function SectionLabelRender({
         </div>
       );
     }
+
   }
 
 }
