@@ -23,6 +23,7 @@ import { ClubThreadKindIcon } from "@/components/clubs/atoms/ClubThreadKindIcon"
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
+  ClubDossierKind,
   ClubDossierMetrics,
   ClubDossierRow,
   clubThreadTone,

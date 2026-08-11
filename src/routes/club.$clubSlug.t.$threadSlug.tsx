@@ -60,7 +60,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { normalizeClubThreadIcon } from "@/lib/clubs/threadIcons";
 import { cn } from "@/lib/utils";
-import { ClubDossierRow, clubThreadTone } from "@/components/clubs/atoms/ClubDossierRow";
+import { ClubDossierKind, ClubDossierRow, clubThreadTone } from "@/components/clubs/atoms/ClubDossierRow";
 
 import { ClubThreadKindIcon } from "@/components/clubs/atoms/ClubThreadKindIcon";
 import { ClubTopicChip } from "@/components/clubs/atoms/ClubTopicChip";
@@ -454,12 +454,9 @@ function ClubThreadView() {
           icon={<ClubThreadKindIcon kind={thread.kind} icon={threadIcon} />}
           meta={
             <>
-              <Badge
-                variant="secondary"
-                className="rounded-lg px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wide"
-              >
+              <ClubDossierKind className="text-[10px]">
                 {t(`club.kind.${thread.kind}`)}
-              </Badge>
+              </ClubDossierKind>
               {thread.status === "resolved" ? (
                 <Badge className="rounded-lg bg-emerald-600 px-1.5 py-0 text-[10px] hover:bg-emerald-600">
                   {t("club.threadStatus.resolved")}
