@@ -9,8 +9,8 @@
 // Znaleziska przypięte tutaj:
 //  1. `gallery.lightbox` - komponent lightboxa istniał (PR #141) i miał testy,
 //     ale NIKT go nie renderował: przełącznik w panelu nie robił nic.
-//  2. `lang-switcher.showLabel` - panel obiecywał "Wyświetla etykietę obok
-//     przełącznika PL/EN", renderer używał etykiety tylko jako `aria-label`.
+//  2. `lang-switcher` - etykieta służy wyłącznie jako `aria-label`; na stronie
+//     widoczne są wyłącznie flagi PL/EN z animowanym kciukiem.
 //  3. Panel karuzeli - `PostListEditor` dostawał domyślny `widgetType`
 //     ("post-list"), więc sekcja z autoodtwarzaniem NIE MIAŁA JAK się pokazać
 //     dla widgetu `carousel`, choć renderer autoplay honorował.
@@ -114,30 +114,17 @@ describe("1. galeria: przełącznik lightboxa jest podłączony do renderera", (
   });
 });
 
-describe("2. przełącznik języka: `showLabel` naprawdę pokazuje etykietę", () => {
-  it("wyłączony - etykieta żyje tylko jako opis dla czytnika ekranu", () => {
-    const { container } = renderWidget("lang-switcher", { label_pl: "Język", showLabel: false });
+describe("2. przełącznik języka: etykieta jest tylko dla czytnika ekranu", () => {
+  it("zachowuje aria-label, ale nie wyświetla tekstu na stronie", () => {
+    const { container } = renderWidget("lang-switcher", { label_pl: "Język" });
     expect(container.querySelector("[role='group']")?.getAttribute("aria-label")).toBe("Język");
     expect(container.textContent).not.toContain("Język");
   });
 
-  it("włączony - etykieta jest widoczna na stronie", () => {
-    const { container } = renderWidget("lang-switcher", { label_pl: "Język", showLabel: true });
-    expect(container.textContent).toContain("Język");
-  });
-
-  it("nie dubluje etykiety czytnikowi ekranu", () => {
-    const { container } = renderWidget("lang-switcher", { label_pl: "Język", showLabel: true });
-    const visible = [...container.querySelectorAll("span")].find(
-      (el) => el.textContent === "Język",
-    );
-    expect(visible?.getAttribute("aria-hidden")).toBe("true");
-    expect(container.querySelector("[role='group']")?.getAttribute("aria-label")).toBe("Język");
-  });
-
-  it('respektuje historyczny zapis `"0"` jako wyłączone', () => {
-    const { container } = renderWidget("lang-switcher", { label_pl: "Język", showLabel: "0" });
-    expect(container.textContent).not.toContain("Język");
+  it("renderuje wyłącznie flagi PL/EN z animowanym kciukiem", () => {
+    const { container } = renderWidget("lang-switcher", { label_pl: "Język" });
+    expect(container.querySelectorAll("button")).toHaveLength(2);
+    expect(container.querySelector(".lang__thumb")).not.toBeNull();
   });
 });
 
