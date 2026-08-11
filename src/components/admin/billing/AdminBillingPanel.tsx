@@ -22,6 +22,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AdminTicketOrdersPanel } from "@/components/admin/billing/AdminTicketOrdersPanel";
+import { AdminPaymentOrdersPanel } from "@/components/admin/billing/AdminPaymentOrdersPanel";
+
 import { AdminWebhookLogPanel } from "@/components/admin/billing/AdminWebhookLogPanel";
 import { AdminPaymentsDiagnosticsPanel } from "@/components/admin/billing/AdminPaymentsDiagnosticsPanel";
 import { ResendPortalLinkButton } from "@/components/admin/billing/ResendPortalLinkButton";
@@ -302,7 +304,9 @@ export function AdminBillingPanel() {
         <div className="flex items-center justify-between gap-3">
           <TabsList>
             <TabsTrigger value="subscriptions">{L("Subskrypcje", "Subscriptions")}</TabsTrigger>
+            <TabsTrigger value="orders">{L("Płatności", "Payments")}</TabsTrigger>
             <TabsTrigger value="tickets">{L("Bilety", "Tickets")}</TabsTrigger>
+
             <TabsTrigger value="events">{L("Dziennik zdarzeń", "Event log")}</TabsTrigger>
             <TabsTrigger value="diagnostics">{L("Diagnostyka", "Diagnostics")}</TabsTrigger>
           </TabsList>
@@ -427,9 +431,14 @@ export function AdminBillingPanel() {
           <AdminPaymentsDiagnosticsPanel />
         </TabsContent>
 
+        <TabsContent value="orders" className="mt-4">
+          <AdminPaymentOrdersPanel />
+        </TabsContent>
+
         <TabsContent value="tickets" className="mt-4">
           <AdminTicketOrdersPanel />
         </TabsContent>
+
       </Tabs>
     </div>
   );
