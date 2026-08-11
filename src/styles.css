@@ -7854,3 +7854,26 @@ html.dark.club-navy body {
   --cp-panel: #101c31;
   --cp-line: oklch(0.85 0.04 260 / 18%);
 }
+
+/* Pola formularzy w module klubów: zamiast neutralnej szarości - granatowy
+   gradient spójny z tłem Hubu (czytelny kontrast, złoty focus). */
+.dark.club-navy .input-group > .input,
+.dark.club-navy input.input,
+.dark.club-navy textarea.input {
+  background-image: linear-gradient(
+    180deg,
+    oklch(0.28 0.04 262 / 0.55) 0%,
+    oklch(0.22 0.035 262 / 0.75) 100%
+  );
+  background-color: transparent;
+  border-color: oklch(0.85 0.04 260 / 18%);
+}
+
+.dark.club-navy .input-group > .input:hover:not(:disabled) {
+  border-color: color-mix(in oklab, #d9b26a 45%, transparent);
+}
+
+.dark.club-navy .input-group > .input:focus {
+  border-color: #d9b26a;
+  box-shadow: 0 0 0 3px color-mix(in oklab, #d9b26a 22%, transparent);
+}
