@@ -286,6 +286,16 @@ function CheckoutPage() {
             </Card>
           </aside>
         </div>
+
+        {/* Formularz operatora dostaje pełną szerokość kontenera - w kolumnie
+            360 px ramka Stripe zwijała się do jednokolumnowego widoku i pola
+            karty wychodziły poza kartę podsumowania. */}
+        {clientSecret && (
+          <div ref={frameRef} className="mt-10 space-y-3">
+            <PaymentTestModeBanner />
+            <EmbeddedCheckoutFrame clientSecret={clientSecret} />
+          </div>
+        )}
       </div>
     </GuestCheckoutGate>
   );
