@@ -525,6 +525,8 @@ const pl = {
       categoryFont: "Czcionka kategorii",
       categorySize: "Rozmiar kategorii",
       titleFont: "Czcionka tytułu",
+      gapX: "Odstęp poziomy",
+      gapY: "Odstęp pionowy",
     },
 
     imageSlot: {
@@ -1992,6 +1994,8 @@ const en: typeof pl = {
       categoryFont: "Category font",
       categorySize: "Category size",
       titleFont: "Title font",
+      gapX: "Horizontal spacing",
+      gapY: "Vertical spacing",
     },
 
     imageSlot: {
