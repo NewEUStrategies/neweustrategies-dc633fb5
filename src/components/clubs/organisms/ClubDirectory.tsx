@@ -234,16 +234,18 @@ function PrestigeCard({
     <Link
       to="/club/$clubSlug"
       params={{ clubSlug: club.slug }}
-      className={`group flex flex-col overflow-hidden rounded-md border transition-all duration-500 ${
-        featured
-          ? "border-primary/40 bg-foreground/[0.04] hover:border-primary hover:shadow-[0_20px_50px_rgba(0,0,0,0.25)]"
-          : "border-border/60 bg-foreground/[0.02] hover:border-primary/50 hover:shadow-[0_20px_40px_rgba(0,0,0,0.25)]"
-      }`}
+      className="club-prestige group flex flex-col overflow-hidden rounded-md border transition-all duration-500 hover:-translate-y-0.5"
+      style={{
+        background: "var(--cp-surface)",
+        borderColor: featured ? "var(--cp-gold)" : "var(--cp-line)",
+      }}
     >
-      <div className="relative h-48 overflow-hidden">
+      <div className="relative h-44 overflow-hidden md:h-48">
         <div
           className={`h-full w-full transition-all duration-700 ${
-            featured ? "opacity-100" : "opacity-50 grayscale group-hover:opacity-100 group-hover:grayscale-0"
+            featured
+              ? "opacity-100"
+              : "opacity-60 grayscale group-hover:opacity-100 group-hover:grayscale-0"
           }`}
         >
           <ClubCover
@@ -252,45 +254,73 @@ function PrestigeCard({
             className="h-full w-full rounded-none border-0 transition-transform duration-700 group-hover:scale-105"
           />
         </div>
-        <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{ background: "linear-gradient(to top, var(--cp-surface), transparent 70%)" }}
+        />
         <div className="absolute left-4 top-4">
           {featured ? (
-            <span className="bg-primary px-2 py-1 text-[8px] font-black uppercase tracking-widest text-primary-foreground rounded-[4px]">
+            <span
+              className="rounded-[3px] px-2 py-1 text-[8px] font-black uppercase tracking-[0.22em]"
+              style={{ background: "var(--cp-gold)", color: "var(--cp-gold-ink)" }}
+            >
               {t("club.hub.activeNow")}
             </span>
           ) : (
-            <span className="border-border/60 bg-background/80 px-2 py-1 text-[8px] font-black uppercase tracking-widest text-foreground backdrop-blur-md rounded-[4px] border">
+            <span
+              className="rounded-[3px] border px-2 py-1 text-[8px] font-black uppercase tracking-[0.22em] backdrop-blur-md"
+              style={{
+                borderColor: "var(--cp-line)",
+                background: "var(--cp-panel)",
+                color: "var(--cp-ink)",
+              }}
+            >
               {t(`club.visibility.${asVisibility(club.visibility)}`)}
             </span>
           )}
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col p-6 md:p-8">
-        <h3 className="text-lg font-bold leading-tight text-foreground group-hover:text-primary transition-colors md:text-xl">
+      <div className="flex flex-1 flex-col p-6 md:p-7">
+        <h3
+          className="font-display text-lg font-bold leading-snug md:text-xl"
+          style={{ color: "var(--cp-ink)" }}
+        >
           {clubName(club, isPl)}
         </h3>
         {excerpt !== null ? (
-          <p className="mt-4 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+          <p
+            className="mt-3 line-clamp-3 text-xs leading-relaxed"
+            style={{ color: "var(--cp-muted)" }}
+          >
             {excerpt}
           </p>
         ) : null}
 
-        <div className="mt-auto">
-          <div className="mb-6 flex items-center justify-between text-[10px] font-bold uppercase tracking-tighter text-muted-foreground">
-            <span className="text-foreground">{t("club.membersCount", { count: club.member_count })}</span>
-            <div className="h-4 w-px bg-border/60" />
-            <span className={featured ? "text-primary" : "text-muted-foreground/70"}>
+        <div className="mt-auto pt-6">
+          <div
+            className="flex items-center justify-between border-t pt-4 text-[9px] font-bold uppercase tracking-[0.18em]"
+            style={{ borderColor: "var(--cp-line)" }}
+          >
+            <span style={{ color: "var(--cp-ink)" }}>
+              {t("club.membersCount", { count: club.member_count })}
+            </span>
+            <span style={{ color: featured ? "var(--cp-gold)" : "var(--cp-muted)" }}>
               {t("club.threadsCount", { count: club.thread_count })}
             </span>
           </div>
 
           <span
-            className={`block w-full rounded-md py-4 text-center text-[9px] font-black uppercase tracking-[0.3em] transition-all duration-300 ${
+            className="mt-5 block w-full rounded-[3px] border py-3.5 text-center text-[9px] font-black uppercase tracking-[0.3em] transition-colors duration-300"
+            style={
               featured
-                ? "bg-primary text-primary-foreground hover:bg-primary-foreground hover:text-primary"
-                : "border border-border/60 text-foreground hover:border-primary hover:bg-primary hover:text-primary-foreground"
-            }`}
+                ? {
+                    background: "var(--cp-gold)",
+                    borderColor: "var(--cp-gold)",
+                    color: "var(--cp-gold-ink)",
+                  }
+                : { borderColor: "var(--cp-line)", color: "var(--cp-ink)" }
+            }
           >
             {label}
           </span>
