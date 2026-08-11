@@ -308,7 +308,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       });
       if (redeemErr || !redeemed) {
         // Ktoś przejął ostatnie użycie zanim doszliśmy tutaj - unieważniamy zamówienie.
-        await supabase.from("payment_orders").update({ status: "canceled" }).eq("id", order.id);
+        await supabase.rpc("payment_order_mark_session", { _order_id: order.id, _session_id: null, _status: "canceled" });
         return {
           ok: false as const,
           mode: "coupon" as const,
@@ -361,7 +361,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
           trialDays,
         });
         if (!createdSub.ok) {
-          await supabase.from("payment_orders").update({ status: "failed" }).eq("id", order.id);
+          await supabase.rpc("payment_order_mark_session", { _order_id: order.id, _session_id: null, _status: "failed" });
           if (couponId) {
             const { error: releaseErr } = await supabase.rpc("release_b2b_coupon", {
               _coupon_id: couponId,
@@ -378,10 +378,11 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
             orderId: order.id,
           };
         }
-        await supabase
-          .from("payment_orders")
-          .update({ provider_session_id: createdSub.sessionId, status: "processing" })
-          .eq("id", order.id);
+        await supabase.rpc("payment_order_mark_session", {
+          _order_id: order.id,
+          _session_id: createdSub.sessionId,
+          _status: "processing",
+        });
         return {
           ok: true as const,
           mode: "stripe" as const,
@@ -408,7 +409,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         settings,
       });
       if (!created.ok) {
-        await supabase.from("payment_orders").update({ status: "failed" }).eq("id", order.id);
+        await supabase.rpc("payment_order_mark_session", { _order_id: order.id, _session_id: null, _status: "failed" });
         // Kupon został zarezerwowany PRZED utworzeniem sesji. Skoro dostawca
         // odmówił, użycie musi wrócić do puli - inaczej limit przepadłby za
         // zamówienie, którego nikt nigdy nie opłaci.
@@ -429,10 +430,15 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         };
       }
 
-      await supabase
-        .from("payment_orders")
-        .update({ provider_session_id: created.sessionId, status: "processing" })
-        .eq("id", order.id);
+      await supabase.rpc("payment_order_mark_session", {
+
+        _order_id: order.id,
+
+        _session_id: created.sessionId,
+
+        _status: "processing",
+
+      });
       return {
         ok: true as const,
         mode: "stripe" as const,
