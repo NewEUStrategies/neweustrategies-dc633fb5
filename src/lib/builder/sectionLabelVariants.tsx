@@ -666,19 +666,14 @@ export function SectionLabelRender({
 
     case "double-deck-masthead": {
       // Masthead: cienka linia akcentowa NAD blokiem, mała kategoria (kicker)
-      // i duży szeryfowy tytuł. Kompaktowy rytm sterowany `gapY`.
+      // i tytuł w foncie widgetu (domyślnie Red Hat Display).
       const kicker = category || "";
-      const serif = '"Iowan Old Style", "Palatino Linotype", Georgia, "Times New Roman", serif';
-      const catStyle: React.CSSProperties = {
-        color: accent,
-        fontFamily: resolveFontFamily(categoryFont) ?? undefined,
-        fontSize: !isSm && categorySize ? categorySize : undefined,
-      };
-      const titleStyle: React.CSSProperties = {
-        fontFamily: resolveFontFamily(titleFont) ?? serif,
-        fontWeight: 400,
-        ...labelStyle,
-      };
+      const catStyle: React.CSSProperties = { color: accent };
+      const catFamily = resolveFontFamily(categoryFont);
+      if (catFamily) catStyle.fontFamily = catFamily;
+      if (!isSm && categorySize) catStyle.fontSize = categorySize;
+      const titleStyle: React.CSSProperties = { ...labelStyle };
+
       const titleCls = isSm
         ? "text-[12px] tracking-tight"
         : "text-xl sm:text-3xl tracking-tight leading-none";
