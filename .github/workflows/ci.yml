@@ -399,6 +399,61 @@ jobs:
       - name: Run pgTAP tests
         run: supabase test db
 
+  # pg-harness: WYKONANIE migracji modułu Discussion Club na czystym Postgresie
+  # 16, a potem wywołanie jego RPC. Uzupełnia dwie luki, których nie zamyka
+  # żadna z pozostałych bramek:
+  #
+  #  * `check:sql-*` czytają migracje jako TEKST, więc nie widzą błędów, które
+  #    ujawniają się dopiero przy wykonaniu (`column reference is ambiguous`
+  #    w ciele plpgsql, drugie przeciążenie funkcji po zmianie listy parametrów,
+  #    niezgodność liczby kolumn `RETURNS TABLE` z `SELECT`). Oba pierwsze
+  #    REALNIE wystąpiły w tym module i przeszły przez wszystkie bramki CI.
+  #  * `pgtap` stawia bazę przez `supabase db start`, ale nie woła ani jednego
+  #    RPC zgłoszeń klubowych.
+  #
+  # Audyt 2026-08-11 (rozdz. 8.1) znalazł, że skrypt istniał od dawna i NIE BYŁ
+  # wpięty w żaden workflow - uruchamiał go wyłącznie człowiek, jeśli pamiętał.
+  # Dlatego `source_type = 'club_application'` łamiące CHECK na `crm_leads`
+  # trafiło na produkcję: ścieżka zgłoszeń nie działała w żadnym przypadku,
+  # a wszystkie bramki świeciły na zielono.
+  pg-harness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # Bun tylko po to, by odczytać skrypt z package.json. `check:pg-harness`
+      # to czysty bash + psql - nie ma tu ani jednego importu z node_modules,
+      # więc job CELOWO pomija `bun install` i repointowanie bun.lock. To także
+      # jedyna bramka bazodanowa, która nie zależy od prywatnego rejestru npm.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2.23"
+
+      # Wersja SERWERA jest częścią przedmiotu testu: konfiguracja wyszukiwania
+      # `polish` nie istnieje w standardowym PostgreSQL i moduł buduje własną
+      # `nes_polish` w czasie migracji. Bierzemy 16 z repozytorium PGDG, żeby
+      # bramka nie zmieniała zachowania razem z obrazem runnera.
+      - name: Install PostgreSQL 16
+        run: |
+          set -euo pipefail
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] \
+            https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-16 postgresql-contrib-16
+          /usr/lib/postgresql/16/bin/initdb --version
+
+      # Skrypt stawia WŁASNĄ instancję na porcie 5433 (klaster systemowy z apt
+      # stoi na 5432 i jest nietykany), wykonuje harness.sql, potem migracje
+      # klubowe w kolejności Supabase CLI, potem runtime_test.sql. Kod wyjścia 1
+      # oznacza albo migrację, która się nie wykonuje, albo niespełnioną asercję.
+      - name: Run pg-harness (migracje + asercje runtime)
+        run: bun run check:pg-harness
+
   # Bramka PO WDROŻENIU: sprawdza, że wszystkie obiekty wynikające z migracji
   # (tabele, widoki, RPC schematu public) faktycznie istnieją w bazie, a na
   # koniec generuje raport zgodności wdrożenia (PR-y, liczba testów, status CI,

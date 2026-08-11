@@ -23,7 +23,10 @@ export interface ClubApplicationAdminRow {
   user_id: string;
   specialization_slug: string;
   club_id: string | null;
-  club_name: string | null;
+  // Dwie nazwy, nie jedna: panel admina renderuje w jezyku operatora, a
+  // wczesniej RPC podawalo tylko `c.name_pl` - admin w EN widzial polskie nazwy.
+  club_name_pl: string | null;
+  club_name_en: string | null;
   first_name: string;
   last_name: string;
   email: string;
@@ -73,26 +76,69 @@ export interface ClubApplicationCountRow {
   pending: number;
 }
 
+/**
+ * Wlasne zgloszenie widziane przez kandydata (`club_my_applications`).
+ *
+ * Swiadomie WEZSZY zestaw kolumn niz wiersz admina: `admin_note` to notatka
+ * komisji, nie dana dostarczona przez osobe - nie ma jej w tym RPC i nie wolno
+ * jej tu dopisywac.
+ */
+export interface ClubMyApplicationRow {
+  id: string;
+  created_at: string;
+  specialization_slug: string;
+  club_id: string | null;
+  club_name_pl: string | null;
+  club_name_en: string | null;
+  status: ClubApplicationStatus;
+  reviewed_at: string | null;
+}
+
 /** Bledy RPC mapujemy na klucze i18n - komunikat powstaje w widoku. */
 export type ClubApplySubmitError =
   | "auth_required"
   | "pro_required"
+  | "club_tier_too_low"
   | "consent_required"
   | "email_required"
   | "motivation_required"
   | "specialization_required"
+  | "years_invalid"
+  | "duplicate_open"
   | "unknown";
 
 export function clubApplyErrorCode(message: string): ClubApplySubmitError {
+  // Kolejnosc ma znaczenie, bo dopasowujemy przez `includes`: bardziej
+  // szczegolowe kody ida pierwsze, zeby ogolniejszy nigdy nie przechwycil
+  // komunikatu, ktory dotyczy progu konkretnego klubu.
   const known: ClubApplySubmitError[] = [
     "auth_required",
+    "club_tier_too_low",
     "pro_required",
     "consent_required",
     "email_required",
     "motivation_required",
     "specialization_required",
+    "years_invalid",
+    "duplicate_open",
   ];
   return known.find((code) => message.includes(code)) ?? "unknown";
+}
+
+/**
+ * Bledy `admin_club_application_set_status` mapowane na klucze i18n.
+ *
+ * `duplicate_open` przychodzi z bazy przy COFANIU decyzji: indeks czesciowy
+ * dopuszcza tylko jedno OTWARTE zgloszenie tej samej osoby w tej samej
+ * specjalizacji, wiec powrot z `accepted`/`rejected` do `pending`/`review`/
+ * `needs_info` moze naruszyc unikalnosc. RPC zamienia surowe 23505 na ten kod -
+ * panel musi go nazwac, inaczej operator widzi wylacznie ogolne "nie udalo sie
+ * zapisac statusu" i nie ma pojecia, ze przeszkoda jest drugie zgloszenie.
+ */
+export type ClubApplicationStatusError = "duplicate_open" | "unknown";
+
+export function clubApplicationStatusErrorCode(message: string): ClubApplicationStatusError {
+  return message.includes("duplicate_open") ? "duplicate_open" : "unknown";
 }
 
 export async function submitClubApplication(
@@ -129,6 +175,18 @@ export async function submitClubApplication(
   });
   if (error) throw new Error(error.message);
   return String(data);
+}
+
+/**
+ * Historia wlasnych zgloszen. RPC jest zakresowane po `auth.uid()`, wiec
+ * formularz moze pokazac status decyzji bez zadnego filtra po stronie klienta -
+ * inaczej kandydat po wyslaniu nigdy wiecej nie widzi swojego zgloszenia
+ * i po tygodniu ciszy sklada je drugi raz.
+ */
+export async function fetchMyClubApplications(): Promise<ClubMyApplicationRow[]> {
+  const { data, error } = await supabase.rpc("club_my_applications");
+  if (error) throw new Error(error.message);
+  return (data ?? []) as ClubMyApplicationRow[];
 }
 
 export async function fetchAdminClubApplications(filters: {

@@ -25,12 +25,27 @@ BEGIN
   RAISE EXCEPTION 'ASERCJA NIESPELNIONA: % - operacja PRZESZLA, a miala zostac odrzucona', _label;
 END $$;
 
+-- Zrodlo funkcji po SAMEJ NAZWIE. Asercje strukturalne (sekcja 41) wpisywaly
+-- wczesniej pelna liste typow w `::regprocedure`, wiec kazda migracja dokladajaca
+-- parametr przewracala je komunikatem "function does not exist" - o czyms, czego
+-- nie sprawdzaly. Jednoznacznosc nazwy pilnuje sekcja 0.
+CREATE OR REPLACE FUNCTION pg_temp.fndef(_name text) RETURNS text
+LANGUAGE sql STABLE AS $$
+  SELECT pg_get_functiondef(p.oid) FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+   WHERE n.nspname = 'public' AND p.proname = _name
+$$;
+
 -- ---------------------------------------------------------------------------
 -- Fixture: dwa tenanty, pieciu aktorow
 -- ---------------------------------------------------------------------------
+-- Tenant A zaklada JUZ harness.sql - migracje modulu seeduja dane wzgledem
+-- `public_tenant_id()`, wiec musi istniec przed nimi. Tutaj zostaje wylacznie
+-- domknieciem fixture'a (tenant B) i dlatego wstawka jest idempotentna.
 INSERT INTO public.tenants (id, name, slug) VALUES
   ('11111111-1111-1111-1111-111111111111','Tenant A','ta'),
-  ('22222222-2222-2222-2222-222222222222','Tenant B','tb');
+  ('22222222-2222-2222-2222-222222222222','Tenant B','tb')
+ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO auth.users (id, email) VALUES
   ('a0000000-0000-0000-0000-000000000001','admin-a@t'),
@@ -60,6 +75,37 @@ INSERT INTO public.user_roles (user_id, role) VALUES
   ('a0000000-0000-0000-0000-000000000001','admin'),
   ('a0000000-0000-0000-0000-000000000002','super_admin'),
   ('b0000000-0000-0000-0000-000000000001','admin');
+
+\echo '== 0. [8.1] Zadna funkcja modulu nie ma dwoch przeciazen =='
+-- Ta asercja stoi PIERWSZA, bo kolizja sygnatur przewraca kazde pozniejsze
+-- wywolanie komunikatem "function ... is not unique", ktory nie mowi, KTORA
+-- migracja zapomniala DROP-a. Lepiej dostac nazwe funkcji od razu.
+--
+-- Wzorzec jest ten sam, co w sekcji 54 (emit_domain_event po A12): migracja
+-- zmienia liste parametrow, robi `CREATE OR REPLACE`, a stary wariant zostaje
+-- obok nowego. Przy odtwarzaniu schematu od zera - czyli w CI i na nowym
+-- srodowisku - kazde wywolanie z krotsza lista argumentow staje sie
+-- niejednoznaczne (42725), mimo ze na dlugo zyjacej bazie developerskiej
+-- wszystko dzialalo.
+--
+-- Sprawdzamy CALY modul, a nie wybrane nazwy: lista funkcji rosnie z kazda
+-- migracja, wiec asercja wskazujaca palcem musialaby byc dopisywana rownolegle
+-- do kodu i wlasnie dlatego nigdy nie jest.
+SELECT pg_temp.assert(
+  NOT EXISTS (
+    SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public'
+       AND (p.proname LIKE 'club\_%' OR p.proname LIKE 'admin\_club\_%')
+     GROUP BY p.proname HAVING count(*) > 1
+  ),
+  format('8.1: kazda funkcja modulu ma jedno przeciazenie (kolizje: %s)',
+    COALESCE((SELECT string_agg(x.sigs, ' ;; ') FROM (
+      SELECT string_agg(p.oid::regprocedure::text, ' | ' ORDER BY p.pronargs) AS sigs
+        FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+       WHERE n.nspname = 'public'
+         AND (p.proname LIKE 'club\_%' OR p.proname LIKE 'admin\_club\_%')
+       GROUP BY p.proname HAVING count(*) > 1
+    ) x), 'brak')));
 
 \echo '== 1. Bramka administracyjna i inwariant super_admin >= admin =='
 SELECT pg_temp.assert(public.is_club_admin('a0000000-0000-0000-0000-000000000001'),
@@ -196,10 +242,14 @@ SELECT pg_temp.assert((SELECT slug FROM public.club_threads WHERE id=:'thread_id
 SELECT pg_temp.assert((SELECT thread_count FROM public.clubs WHERE slug='klub') = 1,
   'trigger policzyl temat');
 
-SELECT public.club_reply(:'thread_id'::uuid,'Poziom 0',NULL,false) AS r0 \gset
-SELECT public.club_reply(:'thread_id'::uuid,'Poziom 1',:'r0'::uuid,false) AS r1 \gset
-SELECT public.club_reply(:'thread_id'::uuid,'Poziom 2',:'r1'::uuid,false) AS r2 \gset
-SELECT public.club_reply(:'thread_id'::uuid,'Probowal 3',:'r2'::uuid,false) AS r3 \gset
+-- `club_reply` oddaje dzis PARE (reply_id, reply_status) - premoderacja musi
+-- powiedziec wolajacemu, czy glos jest juz widoczny. Wczesniej harness nie
+-- widzial migracji, ktora to zmienila (padala na braku `public.polls`), wiec
+-- wywolanie skalarne przechodzilo. Bierzemy kolumnę, nie caly rekord.
+SELECT reply_id AS r0 FROM public.club_reply(:'thread_id'::uuid,'Poziom 0',NULL,false) \gset
+SELECT reply_id AS r1 FROM public.club_reply(:'thread_id'::uuid,'Poziom 1',:'r0'::uuid,false) \gset
+SELECT reply_id AS r2 FROM public.club_reply(:'thread_id'::uuid,'Poziom 2',:'r1'::uuid,false) \gset
+SELECT reply_id AS r3 FROM public.club_reply(:'thread_id'::uuid,'Probowal 3',:'r2'::uuid,false) \gset
 
 SELECT pg_temp.assert((SELECT max(depth) FROM public.club_replies) = 2,
   'drzewo NIGDY nie przekracza glebokosci 2');
@@ -789,16 +839,13 @@ SELECT pg_temp.assert(
 -- pilnuje, ze blokada nie wyparuje z ciala funkcji przy kolejnym CREATE OR
 -- REPLACE - a to jest dokladnie ten sposob, w jaki znikaja takie poprawki.
 SELECT pg_temp.assert(
-  pg_get_functiondef('public.club_create_thread(uuid,text,text,text,boolean,text,text)'::regprocedure)
-    LIKE '%pg_advisory_xact_lock%',
+  pg_temp.fndef('club_create_thread') LIKE '%pg_advisory_xact_lock%',
   'club_create_thread bierze blokade przed liczeniem limitu');
 SELECT pg_temp.assert(
-  pg_get_functiondef('public.club_invite_by_email(uuid,text,text,uuid)'::regprocedure)
-    LIKE '%club_invite:%',
+  pg_temp.fndef('club_invite_by_email') LIKE '%club_invite:%',
   'club_invite_by_email bierze TEN SAM klucz blokady co club_invite');
 SELECT pg_temp.assert(
-  pg_get_functiondef('public.club_invite(uuid,uuid,text,text,uuid)'::regprocedure)
-    LIKE '%club_invite:%',
+  pg_temp.fndef('club_invite') LIKE '%club_invite:%',
   'club_invite nadal bierze ten klucz - obie sciezki dziela licznik');
 
 \echo '== 42. [A10] Kadencja przezywa zmiane roli, zmiana idzie do dziennika =='
@@ -1461,10 +1508,26 @@ SELECT pg_temp.assert_raises(
 -- ('public','members') => can_read). Nie-czlonek widzi wiec biblioteke
 -- publiczna tego klubu - i to jest poprawne. Cisza wobec obcego jest
 -- testowana nizej, na klubie `private`.
-SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000004';
+--
+-- Aktor jest zakladany TUTAJ, a nie brany z fixture'a. "Obcy A"
+-- (…0004) jest w tym klubie ZBANOWANY od sekcji 38, wiec liczyl nie
+-- nie-czlonka, tylko brak `can_read` po banie - i asercja mowila o czym innym,
+-- niz jej nazwa. Rozpoznanie kosztowalo tyle, ze warto zostawic slad.
+INSERT INTO auth.users (id, email)
+VALUES ('a0000000-0000-0000-0000-000000000006','gosc-a@t');
+INSERT INTO public.profiles (id, tenant_id, display_name, discoverable)
+VALUES ('a0000000-0000-0000-0000-000000000006',
+        '11111111-1111-1111-1111-111111111111','Gosc A',false);
+
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000006';
 SELECT pg_temp.assert(
   (SELECT count(*) FROM public.club_documents_list(:'club_id'::uuid,NULL,NULL,NULL,50,0)) = 1,
   'A28: nie-czlonek klubu "members" widzi wylacznie dokumenty jawne');
+
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000004';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_documents_list(:'club_id'::uuid,NULL,NULL,NULL,50,0)) = 0,
+  'A28: zbanowany nie dostaje NAWET biblioteki jawnej');
 
 -- Kalendarz + obecnosc.
 SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
@@ -1482,7 +1545,10 @@ SELECT pg_temp.assert(
 -- ADRES POKOJU SPOTKANIA to nie jest metadana wydarzenia, tylko klucz do
 -- niego. Nie-czlonek widzi, ZE spotkanie jest, i nie dostaje linku - inaczej
 -- kazdy zalogowany wchodzi na posiedzenie klubu, do ktorego nie nalezy.
-SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000004';
+-- "Gosc A" (…0006), nie "Obcy A" (…0004): ten drugi jest w tym klubie
+-- zbanowany od sekcji 38, wiec nie ma `can_read` i asercja o widocznosci
+-- terminu nie mialaby na czym stanac.
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000006';
 SELECT pg_temp.assert(
   (SELECT count(*) FROM public.club_events_list(:'club_id'::uuid,NULL,NULL,NULL,50)) = 1,
   'A28: nie-czlonek klubu "members" widzi termin posiedzenia');
@@ -2032,6 +2098,328 @@ SELECT pg_temp.assert(
 
 SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000003';
 UPDATE public.clubs SET visibility = 'members' WHERE id = :'net_club'::uuid;
+
+-- ===========================================================================
+-- A35: ZGLOSZENIA DO KLUBOW - CALA SCIEZKA, NIE TYLKO WALIDACJA
+--
+-- Audyt 2026-08-11 (rozdz. 1.1 i 8.1): `club_apply_submit` nie dzialalo w
+-- ZADNYM przypadku - `source_type = 'club_application'` lamalo CHECK na
+-- `crm_leads`, a oba zapisy siedza w jednej transakcji, wiec wyjatek z drugiego
+-- wycofywal pierwszy. Testy jednostkowe pokrywaly czysta walidacje i kopie SEO;
+-- ani jedna linia sciezki serwerowej nie byla wykonywana nigdzie.
+--
+-- Dlatego asercje ponizej patrza na SKUTEK w obu tabelach, nie na kod wyjscia
+-- funkcji. Ograniczenie `crm_leads_source_type_check` harness stawia
+-- w brzmieniu SPRZED modulu klubow, wiec te asercje przechodza WYLACZNIE
+-- dlatego, ze sekcja A1 migracji A35 je rozszerzyla.
+-- ===========================================================================
+\echo ''
+\echo '== A35.0 Plan czlonkowski: ranga daje sie w harnessie USTAWIC =='
+-- Prog `pro_required` to ranga 20, a domyslna ranga w harnessie jest zerowa.
+-- Bez planu w bazie kazda asercja ponizej konczylaby sie na pierwszej bramce -
+-- i wygladalaby jak poprawna odmowa.
+INSERT INTO public.membership_tiers (tenant_id, key, rank, name_pl, name_en, is_default) VALUES
+  ('11111111-1111-1111-1111-111111111111','free',0,'Bezpłatny','Free',true),
+  ('11111111-1111-1111-1111-111111111111','pro',20,'Pro','Pro',false),
+  ('11111111-1111-1111-1111-111111111111','vip',25,'VIP','VIP',false);
+
+-- `current_membership_tier()` liczy plan w tenancie PUBLICZNYM, wiec asercja
+-- pilnuje, ze to nadal tenant fixture'a. Gdyby harness kiedys zaczal stawiac
+-- wlasny tenant obok, granty ponizej trafialyby w pustke, a cala sekcja
+-- milczaco testowalaby odmowe.
+SELECT pg_temp.assert(
+  public.public_tenant_id() = '11111111-1111-1111-1111-111111111111',
+  'A35: tenant publiczny to tenant fixture''a');
+
+INSERT INTO public.membership_grants (tenant_id, user_id, tier_key)
+VALUES ('11111111-1111-1111-1111-111111111111',
+        'a0000000-0000-0000-0000-000000000004','pro');
+
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000004';
+SELECT pg_temp.assert(
+  (SELECT rank FROM public.current_membership_tier()) = 20,
+  'A35: grant planu podnosi rangę wolajacego do 20');
+
+\echo '== A35.1 [1.1] Zgloszenie zapisuje sie w OBU tabelach =='
+SELECT public.club_apply_submit($j${
+  "specialization_slug": "defence-geopolitics",
+  "first_name": "Obcy", "last_name": "Kandydat",
+  "email": "Kandydat@Example.ORG",
+  "phone": "+48 500 100 200",
+  "company": "Analizy Sp. z o.o.", "job_position": "Analityk",
+  "seniority": "senior", "industry": "defence",
+  "country": "Polska", "city": "Warszawa",
+  "linkedin_url": "https://linkedin.com/in/kandydat",
+  "years_experience": "12",
+  "expertise": "Budzety obronne", "languages": "pl, en",
+  "motivation": "Chce rozmawiac o architekturze bezpieczenstwa Europy z praktykami.",
+  "goals": "Wymiana doswiadczen", "contribution": "Analizy budzetowe",
+  "availability": "wieczory", "referral_source": "newsletter",
+  "consent": true, "marketing_consent": true, "lang": "pl"
+}$j$::jsonb) AS app_id \gset
+
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_applications
+    WHERE id = :'app_id'::uuid
+      AND user_id = 'a0000000-0000-0000-0000-000000000004'
+      AND tenant_id = '11111111-1111-1111-1111-111111111111'
+      AND specialization_slug = 'defence-geopolitics'
+      AND status = 'pending'
+      AND years_experience = 12
+      AND tier_rank = 20 AND tier_key = 'pro') = 1,
+  'A35: wiersz zgloszenia powstal z ranga i planem wolajacego');
+
+-- E-mail wchodzi z wielkimi literami CELOWO: `email_norm` jest kluczem
+-- deduplikacji leada, wiec asercja sprawdza takze, ze zostal znormalizowany.
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.crm_leads
+    WHERE tenant_id = '11111111-1111-1111-1111-111111111111'
+      AND email_norm = 'kandydat@example.org'
+      AND source_type = 'club_application') = 1,
+  'A35: lead CRM powstal ze zrodlem club_application');
+
+-- Krok 1 wejscia do CRM (`crm_upsert_from_form`) daje pola, ktore poprzedni
+-- surowy INSERT gubil, a krok 2 - zrodlo, zgode i licznik zgloszen. Asercja
+-- patrzy na OBA, bo pominiecie drugiego kroku nie zmienia liczby wierszy.
+SELECT pg_temp.assert(
+  (SELECT country = 'Polska' AND linkedin_url = 'https://linkedin.com/in/kandydat'
+          AND company_id IS NOT NULL
+          AND marketing_consent
+          AND club_application_count = 1
+          AND club_specializations = ARRAY['defence-geopolitics']
+          AND club_applied_at IS NOT NULL
+     FROM public.crm_leads
+    WHERE tenant_id = '11111111-1111-1111-1111-111111111111'
+      AND email_norm = 'kandydat@example.org'),
+  'A35: lead ma kraj, LinkedIn, firme, zgode i slad zgloszenia');
+
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.crm_companies
+    WHERE tenant_id = '11111111-1111-1111-1111-111111111111'
+      AND name_norm = 'analizy sp. z o.o.') = 1,
+  'A35: firma kandydata weszla do katalogu CRM przez kanoniczna funkcje');
+
+-- Ograniczenie MUSI byc zywe. Bez tej asercji poprzednie przechodzilyby takze
+-- na bazie, na ktorej ktos skasowal CHECK - a wtedy nie testowalyby niczego.
+SELECT pg_temp.assert(
+  (SELECT pg_get_constraintdef(oid) LIKE '%''club_application''%'
+     FROM pg_constraint WHERE conname = 'crm_leads_source_type_check'),
+  'A35: crm_leads_source_type_check istnieje i dopuszcza club_application');
+SELECT pg_temp.assert_raises(
+  $q$ UPDATE public.crm_leads SET source_type = 'klub'
+       WHERE email_norm = 'kandydat@example.org' $q$,
+  'A35: ograniczenie nadal odrzuca wartosc spoza zbioru');
+
+\echo '== A35.2 [8.2] Drugie otwarte zgloszenie tej samej specjalizacji odpada =='
+-- Zgloszenie jest IDENTYCZNE - to jest ten przypadek, ktory przed A2 po prostu
+-- sie udawal, bo kandydat bez widoku wlasnego zgloszenia nie mial innego
+-- sposobu zareagowania na cisze.
+SELECT pg_temp.assert_raises(
+  $q$ SELECT public.club_apply_submit($j${
+    "specialization_slug": "defence-geopolitics",
+    "first_name": "Obcy", "last_name": "Kandydat",
+    "email": "kandydat@example.org",
+    "motivation": "Chce rozmawiac o architekturze bezpieczenstwa Europy z praktykami.",
+    "consent": true
+  }$j$::jsonb) $q$,
+  'A35: duplicate_open - drugie otwarte zgloszenie tej samej specjalizacji');
+
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_applications
+    WHERE user_id = 'a0000000-0000-0000-0000-000000000004'
+      AND specialization_slug = 'defence-geopolitics') = 1,
+  'A35: odrzucony duplikat nie zostawil wiersza');
+
+-- Po decyzji komisji ta sama specjalizacja jest dozwolona ponownie - warunek
+-- indeksu obejmuje wylacznie statusy otwarte.
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT public.admin_club_application_set_status(:'app_id'::uuid, 'rejected', 'Za maly dorobek.');
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000004';
+SELECT public.club_apply_submit($j${
+  "specialization_slug": "defence-geopolitics",
+  "first_name": "Obcy", "last_name": "Kandydat",
+  "email": "kandydat@example.org",
+  "motivation": "Wracam z nowym dorobkiem i chce dokonczyc te rozmowe.",
+  "consent": true
+}$j$::jsonb) AS app_id2 \gset
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_applications
+    WHERE user_id = 'a0000000-0000-0000-0000-000000000004'
+      AND specialization_slug = 'defence-geopolitics') = 2,
+  'A35: po decyzji komisji ponowne zgloszenie przechodzi');
+
+-- Drugie zgloszenie NIE zaklada drugiego leada - dedup idzie po email_norm.
+SELECT pg_temp.assert(
+  (SELECT club_application_count = 2 FROM public.crm_leads
+    WHERE tenant_id = '11111111-1111-1111-1111-111111111111'
+      AND email_norm = 'kandydat@example.org'),
+  'A35: powracajacy kandydat podbija licznik, nie zaklada drugiego leada');
+
+\echo '== A35.3 Bramki: plan globalny, prog klubu, walidacja lat =='
+-- Ranga zerowa: `pro_required` PRZED czymkolwiek innym.
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000003';
+SELECT pg_temp.assert_raises(
+  $q$ SELECT public.club_apply_submit($j${
+    "specialization_slug": "finance-economy", "email": "czlonek@example.org",
+    "motivation": "Interesuje mnie polityka fiskalna i konkurencyjnosc.",
+    "consent": true
+  }$j$::jsonb) $q$,
+  'A35: pro_required - ranga ponizej progu nie sklada zgloszenia');
+
+-- Prog WLASNY klubu. Kandydat ma rangę 20, klub wymaga 25, wiec
+-- `club_capabilities` zwraca tier_too_low - i to ma zatrzymac zgloszenie,
+-- a nie dopiero pierwsze wejscie do klubu po przyjeciu.
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT public.admin_club_upsert('{"slug":"elitarny","name_pl":"Elitarny","name_en":"Elite",
+  "visibility":"members","status":"active"}'::jsonb) AS elite_id \gset
+UPDATE public.clubs SET min_tier_rank = 25 WHERE id = :'elite_id'::uuid;
+
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000004';
+SELECT pg_temp.assert(
+  (SELECT reason FROM public.club_capabilities(:'elite_id'::uuid, NULL,
+     'a0000000-0000-0000-0000-000000000004')) = 'tier_too_low',
+  'A35: klub ponad planem daje tier_too_low w club_capabilities');
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_apply_submit(jsonb_build_object(
+    'specialization_slug','finance-economy', 'club_id','%s',
+    'email','kandydat@example.org',
+    'motivation','Chcialbym wejsc do klubu, do ktorego moj plan nie siega.',
+    'consent', true)) $q$, :'elite_id'),
+  'A35: club_tier_too_low - zgloszenie do klubu ponad planem');
+
+-- `years_experience` przed A35 bylo rzutowane surowym `::integer`, wiec tekst
+-- dawal 22P02, ktorego klient nie umie zmapowac. Teraz odpada na regexie.
+SELECT pg_temp.assert_raises(
+  $q$ SELECT public.club_apply_submit($j${
+    "specialization_slug": "finance-economy", "email": "kandydat@example.org",
+    "motivation": "Motywacja wystarczajaco dluga, by przejsc bramke dlugosci.",
+    "consent": true, "years_experience": "dwadziescia"
+  }$j$::jsonb) $q$,
+  'A35: years_invalid - lata podane slowem');
+SELECT pg_temp.assert_raises(
+  $q$ SELECT public.club_apply_submit($j${
+    "specialization_slug": "finance-economy", "email": "kandydat@example.org",
+    "motivation": "Motywacja wystarczajaco dluga, by przejsc bramke dlugosci.",
+    "consent": true, "years_experience": "99"
+  }$j$::jsonb) $q$,
+  'A35: years_invalid - lata powyzej gornego progu');
+
+\echo '== A35.4 [2.2 / 6.1] Kandydat widzi swoje zgloszenie, komisja nie wychodzi =='
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_my_applications()) = 2,
+  'A35: club_my_applications oddaje oba zgloszenia wolajacego');
+SELECT pg_temp.assert(
+  NOT EXISTS (
+    SELECT 1 FROM information_schema.routines r
+      JOIN information_schema.parameters pa ON pa.specific_name = r.specific_name
+     WHERE r.routine_schema = 'public' AND r.routine_name = 'club_my_applications'
+       AND pa.parameter_name = 'admin_note'),
+  'A35: club_my_applications nie ma kolumny admin_note');
+SELECT pg_temp.assert(
+  (SELECT jsonb_array_length(public.club_export_my_data(2000) -> 'club_applications')) = 2,
+  'A35: zgloszenia wchodza do eksportu RODO');
+SELECT pg_temp.assert(
+  NOT ((public.club_export_my_data(2000) -> 'club_applications' -> 0) ? 'admin_note'),
+  'A35: eksport RODO nie niesie notatki komisji');
+
+\echo '== A35.5 [2.1 / 3.2] accepted ma konsekwencje i jest idempotentne =='
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+-- Zgloszenie ze WSKAZANYM klubem, zeby decyzja miala gdzie utworzyc czlonkostwo.
+UPDATE public.club_applications SET club_id = :'net_club'::uuid WHERE id = :'app_id2'::uuid;
+-- Profil kandydata z JEDNYM polem wypelnionym: back-fill ma dopisac puste
+-- i NIE ruszyc tego, co juz jest.
+UPDATE public.profiles SET job_title = 'Wlasny wpis', first_name = NULL, last_name = NULL
+ WHERE id = 'a0000000-0000-0000-0000-000000000004';
+UPDATE public.club_applications
+   SET first_name = 'Obcy', last_name = 'Kandydat', job_position = 'Analityk',
+       company = 'Analizy Sp. z o.o.', country = 'Polska'
+ WHERE id = :'app_id2'::uuid;
+
+SELECT public.admin_club_application_set_status(:'app_id2'::uuid, 'accepted', NULL);
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_members
+    WHERE club_id = :'net_club'::uuid
+      AND user_id = 'a0000000-0000-0000-0000-000000000004'
+      AND status = 'active' AND role = 'member' AND invite_source = 'auto') = 1,
+  'A35: accepted zaklada czlonkostwo ze zrodlem auto');
+SELECT pg_temp.assert(
+  (SELECT first_name = 'Obcy' AND current_company = 'Analizy Sp. z o.o.'
+          AND job_title = 'Wlasny wpis'
+     FROM public.profiles WHERE id = 'a0000000-0000-0000-0000-000000000004'),
+  'A35: back-fill dopisuje puste pola i nie nadpisuje wypelnionych');
+
+-- Powtorka decyzji: bez drugiego czlonkostwa i bez drugiego powiadomienia.
+SELECT count(*) AS notif_before FROM public.notifications
+ WHERE user_id = 'a0000000-0000-0000-0000-000000000004' \gset
+SELECT public.admin_club_application_set_status(:'app_id2'::uuid, 'accepted', NULL);
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_members
+    WHERE club_id = :'net_club'::uuid
+      AND user_id = 'a0000000-0000-0000-0000-000000000004') = 1,
+  'A35: powtorne accepted nie duplikuje czlonkostwa');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.notifications
+    WHERE user_id = 'a0000000-0000-0000-0000-000000000004') = :'notif_before'::bigint,
+  'A35: powtorne accepted nie wysyla drugiego powiadomienia');
+
+-- Ban zostaje banem. To powtorka bledu naprawionego w A19 - dlatego asercja
+-- jest tutaj, a nie w opisie migracji.
+UPDATE public.club_members SET status = 'banned'
+ WHERE club_id = :'net_club'::uuid AND user_id = 'a0000000-0000-0000-0000-000000000004';
+SELECT public.admin_club_application_set_status(:'app_id2'::uuid, 'pending', NULL);
+SELECT public.admin_club_application_set_status(:'app_id2'::uuid, 'accepted', NULL);
+SELECT pg_temp.assert(
+  (SELECT status FROM public.club_members
+    WHERE club_id = :'net_club'::uuid
+      AND user_id = 'a0000000-0000-0000-0000-000000000004') = 'banned',
+  'A35: accepted NIE zdejmuje bana');
+
+\echo '== A35.6 [7.1] Skrzynka admina oddaje nazwe klubu w obu jezykach =='
+SELECT pg_temp.assert(
+  to_regprocedure('public.admin_club_applications_list(text,uuid,text,text,integer)') IS NOT NULL,
+  'A35: skrzynka zgloszen ma dokladnie jedna sygnature');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM information_schema.parameters
+    WHERE specific_schema = 'public'
+      AND specific_name IN (
+        SELECT specific_name FROM information_schema.routines
+         WHERE routine_schema = 'public' AND routine_name = 'admin_club_applications_list')
+      AND parameter_name IN ('club_name_pl','club_name_en')) = 2
+    AND NOT EXISTS (
+      SELECT 1 FROM information_schema.parameters
+       WHERE specific_schema = 'public'
+         AND specific_name IN (
+           SELECT specific_name FROM information_schema.routines
+            WHERE routine_schema = 'public' AND routine_name = 'admin_club_applications_list')
+         AND parameter_name = 'club_name'),
+  'A35: club_name zastapione przez club_name_pl i club_name_en');
+SELECT pg_temp.assert(
+  (SELECT club_name_pl IS NOT NULL AND club_name_en IS NOT NULL
+     FROM public.admin_club_applications_list(NULL, :'net_club'::uuid, NULL, NULL, 50)),
+  'A35: skrzynka oddaje obie nazwy dla zgloszenia z klubem');
+
+\echo '== A35.7 [6.2] Anonimizacja zostawia wiersz statystyczny =='
+SELECT pg_temp.assert(
+  public.anonymize_club_applications_for_user('a0000000-0000-0000-0000-000000000004') = 2,
+  'A35: anonimizacja zwraca liczbe wierszy');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_applications
+    WHERE user_id = 'a0000000-0000-0000-0000-000000000004'
+      AND first_name = '' AND last_name = '' AND email = ''
+      AND phone = '' AND linkedin_url = '' AND city = ''
+      AND motivation = '' AND goals = '' AND contribution = ''
+      AND expertise = '' AND admin_note = '') = 2,
+  'A35: dane osobowe i notatka komisji wyczyszczone');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_applications
+    WHERE user_id = 'a0000000-0000-0000-0000-000000000004'
+      AND specialization_slug = 'defence-geopolitics'
+      AND tier_rank = 20) = 2,
+  'A35: wymiary zbiorcze zostaja - specjalizacja, plan, status');
+SELECT pg_temp.assert(
+  NOT has_function_privilege('authenticated',
+    'public.anonymize_club_applications_for_user(uuid)', 'EXECUTE'),
+  'A35: anonimizacji nie wywola zalogowany uzytkownik');
 
 \echo ''
 \echo '=========================================='

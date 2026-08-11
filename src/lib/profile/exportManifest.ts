@@ -83,13 +83,22 @@ export const EXPORT_SECTION_GROUPS = {
   /** Zapytania do ekspertów - obie skrzynki. */
   expert_requests: ["expert_requests_sent", "expert_requests_received"],
   /**
-   * Kluby dyskusyjne: członkostwa, własne wypowiedzi, stanowiska, reakcje.
-   * Cały moduł powstał PO wprowadzeniu rejestru i do 2026-08-08 nie był do
-   * niego dopięty - eksport milczał o nim także w manifeście, więc brak
+   * Kluby dyskusyjne: zgłoszenia, członkostwa, własne wypowiedzi, stanowiska,
+   * reakcje. Cały moduł powstał PO wprowadzeniu rejestru i do 2026-08-08 nie był
+   * do niego dopięty - eksport milczał o nim także w manifeście, więc brak
    * wyglądał jak „nie korzystam", a nie jak luka w zakresie.
+   *
+   * `club_applications` doszło 2026-08-11 i jest tu przypadkiem szczególnym:
+   * formularz zgłoszeniowy to najbogatszy zbiór danych osobowych w całym module
+   * i wzorcowy przykład danych DOSTARCZONYCH przez osobę (art. 20 RODO) - opisała
+   * w nim samą siebie. Warstwa serwerowa zwracała je już wcześniej, ale bez wpisu
+   * w rejestrze klient ich nie wyjmował: sekcja istniała w bazie i nie istniała
+   * w pliku. Notatka komisji (`admin_note`) NIE wchodzi - patrz
+   * `EXPORT_EXCLUSIONS.club_admin_notes`.
    */
   clubs: [
     "club_memberships",
+    "club_applications",
     "club_threads_authored",
     "club_replies_authored",
     "club_stances",
@@ -149,6 +158,13 @@ export const EXPORT_EXCLUSIONS: readonly ExportExclusion[] = [
       "Wypowiedzi innych uczestników w klubach dyskusyjnych, w tym wpisy anonimowe i objęte regułą Chatham House. Art. 15 ust. 4 RODO - prawo do kopii nie może naruszać praw i wolności innych osób, a w klubie ochrona autorstwa jest dodatkowo warunkiem samej rozmowy. Eksportujemy Twoje członkostwa oraz Twoje wypowiedzi - także te opublikowane anonimowo, bo pozostają Twoimi danymi.",
     reason_en:
       "Contributions written by other participants in discussion clubs, including anonymous and Chatham House posts. GDPR art. 15(4) - the right to a copy must not adversely affect the rights and freedoms of others, and in a club the protection of authorship is a precondition of the conversation itself. We export your memberships and your own contributions - including those published anonymously, since they remain your data.",
+  },
+  {
+    id: "club_admin_notes",
+    reason_pl:
+      "Notatki komisji naboru o kandydacie (pole admin_note w zgłoszeniu do klubu). To wewnętrzna ocena pisana przez członków komisji, a nie dana, którą dostarczyłeś o sobie; w automatycznym pliku jej nie ma, żeby eksport nie zamienił oceny w kanał komunikacji z kandydatem. Sama decyzja i jej data SĄ w eksporcie - bez nich plik nie mówiłby, co się ze zgłoszeniem stało. Notatkę udostępniamy na wniosek skierowany do inspektora ochrony danych.",
+    reason_en:
+      "Admissions committee notes about the candidate (the admin_note field of a club application). It is an internal assessment written by committee members rather than data you provided about yourself; keeping it out of the automated file stops the export from turning an internal assessment into a channel for talking to the candidate. The decision itself and its date ARE exported - without them the file would not say what happened to the application. The note is provided on request to the data protection officer.",
   },
   {
     id: "attachment_binaries",
