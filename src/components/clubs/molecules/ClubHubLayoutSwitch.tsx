@@ -40,7 +40,11 @@ export function useClubHubLayout(): [ClubLayout, (layout: ClubLayout) => void] {
       // Stary klucz sprzątamy, żeby nie wracał przy kolejnej zmianie domyślnej.
       window.localStorage.removeItem(LEGACY_STORAGE_KEY);
       const stored = window.localStorage.getItem(STORAGE_KEY);
-      if (stored !== null) setLayout(toClubLayout(stored));
+      // Nieznana wartość nie ma cofać czytelnika do listy - domyślną hubu jest
+      // układ edytorialny.
+      if (stored !== null && (CLUB_LAYOUTS as readonly string[]).includes(stored)) {
+        setLayout(toClubLayout(stored));
+      }
     } catch {
       /* brak dostępu do storage nie zmienia działania strony */
     }
