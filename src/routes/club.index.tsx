@@ -38,6 +38,7 @@ import { toClubSaveError } from "@/lib/clubs/types";
 import { ClubHubHero } from "@/components/clubs/organisms/ClubHubHero";
 import { ClubInvitationInbox } from "@/components/clubs/organisms/ClubInvitationInbox";
 import { ClubDirectory } from "@/components/clubs/organisms/ClubDirectory";
+import { MyClubsTabs } from "@/components/clubs/organisms/MyClubsTabs";
 import { ClubSpecializationGrid } from "@/components/clubs/organisms/ClubSpecializationGrid";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
 import {
@@ -220,16 +221,12 @@ function ClubHub() {
               </div>
 
               {mine.length > 0 ? (
-                <div id="club-mine" className="scroll-mt-28">
-                  <ClubDirectory
-                    title={t("club.myClubs")}
-                    empty={t("club.empty")}
-                    clubs={mine}
-                    isPl={isPl}
-                    loading={clubsQ.isPending}
-                    layout={hubLayout}
-                  />
-                </div>
+                <MyClubsTabs
+                  clubs={mine}
+                  isPl={isPl}
+                  loading={clubsQ.isPending}
+                  layout={hubLayout}
+                />
               ) : null}
 
               {/* Katalog nie stoi juz plasko na hubie: zalogowany wybiera
