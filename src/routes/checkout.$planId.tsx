@@ -51,6 +51,12 @@ function CheckoutPage() {
   const [busy, setBusy] = useState(false);
   const [coupon, setCoupon] = useState<{ code: string; discountCents: number } | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
+  // Po utworzeniu sesji przewijamy do ramki - inaczej na mobile formularz
+  // płatności ląduje poza ekranem i wygląda, jakby przycisk nic nie zrobił.
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (clientSecret) frameRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [clientSecret]);
   const { openPlanCheckout } = useCheckout();
 
   const plan = useQuery({
