@@ -887,3 +887,53 @@ COMMENT ON FUNCTION public.club_my_applications() IS
 
 REVOKE ALL ON FUNCTION public.club_my_applications() FROM public;
 GRANT EXECUTE ON FUNCTION public.club_my_applications() TO authenticated;
+
+
+-- ============================================================================
+-- A9) Wskrzeszone przeciazenia: trzy funkcje modulu mialy po dwa warianty
+-- ============================================================================
+--
+-- ZNALEZIONE PRZEZ NOWA ASERCJE Z A35 (runtime_test.sql, punkt 0), nie przez
+-- czlowieka - i to jest caly sens wpiecia harnessu do CI. Poza zakresem audytu
+-- zgloszen, ale zostawienie tego znaczyloby, ze nowa bramka jest czerwona
+-- od pierwszego dnia, czyli bezwartosciowa.
+--
+-- MECHANIZM. Zawsze ten sam: pozniejsza migracja odtworzyla KROTSZY wariant,
+-- ktory wczesniejsza celowo dropnela, zastepujac go dluzszym. `CREATE OR
+-- REPLACE` nie zastepuje funkcji o INNEJ liczbie argumentow - tworzy drugie
+-- przeciazenie. Historia:
+--
+--   admin_club_thread_create: 20260807163132 tworzy 6-arg; 20260808092623
+--     dropuje 6-arg i tworzy 7-arg (z p_topic); a7 (20260808100000) tworzy
+--     6-arg PONOWNIE. Stan koncowy: 6-arg + 7-arg.
+--   club_threads_list: 20260808092623 tworzy 10-arg (z p_topic); a26
+--     (20260808280000) tworzy 9-arg. Stan koncowy: 9-arg + 10-arg.
+--   club_create_thread: analogicznie 9-arg obok zywego 12-arg.
+--
+-- KTORY WARIANT JEST ZYWY - dowod z wywolan klienta (src/lib/clubs/api.ts):
+--   club_threads_list      -> 10 argumentow nazwanych, z p_topic   (linia ~545)
+--   club_create_thread     -> 12 argumentow, z p_icon i p_attribution_mode (~659)
+--   admin_club_thread_create -> 7 argumentow, z p_topic            (~937)
+-- Krotszy wariant w kazdej parze jest wiec pozostaloscia, nie kontraktem.
+--
+-- DLACZEGO TO GROZNE, a nie tylko brzydkie. supabase-js usuwa z ciala zapytania
+-- pola `undefined`, a klient przekazuje opcjonalne argumenty wlasnie jako
+-- `params.x ?? undefined`. Wywolanie bez tematu wysyla wiec KROTSZY zestaw nazw,
+-- ktory pasuje do OBU przeciazen - a to udokumentowana pulapka PostgREST
+-- (PGRST203, "could not choose the best candidate function"). Nie twierdze, ze
+-- awaria byla obserwowana na produkcji; twierdze, ze dwa przeciazenia z
+-- domyslnymi ogonami to dokladnie ten stan, ktory ja wywoluje.
+--
+-- BEZPIECZENSTWO DROPU. Kazde ocalale przeciazenie ma DEFAULT na argumentach,
+-- ktorych brakuje w wariancie usuwanym (p_topic DEFAULT NULL, p_icon DEFAULT
+-- NULL, p_attribution_mode DEFAULT NULL), wiec KAZDE dotychczasowe wywolanie -
+-- takze to z krotszym zestawem - nadal sie rozwiaze, tylko juz jednoznacznie.
+-- Nie usuwamy zadnej funkcjonalnosci, usuwamy niejednoznacznosc.
+
+DROP FUNCTION IF EXISTS public.admin_club_thread_create(uuid, text, text, uuid, text, boolean);
+
+DROP FUNCTION IF EXISTS public.club_threads_list(
+  uuid, uuid, text, text, text, integer, text, boolean, boolean);
+
+DROP FUNCTION IF EXISTS public.club_create_thread(
+  uuid, text, text, text, boolean, text, text, text, boolean);
