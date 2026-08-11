@@ -38,6 +38,7 @@ import { toClubSaveError } from "@/lib/clubs/types";
 import { ClubHubHero } from "@/components/clubs/organisms/ClubHubHero";
 import { ClubInvitationInbox } from "@/components/clubs/organisms/ClubInvitationInbox";
 import { ClubDirectory } from "@/components/clubs/organisms/ClubDirectory";
+import { ClubSpecializationGrid } from "@/components/clubs/organisms/ClubSpecializationGrid";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
 import {
   ClubGlobalSearchInput,
@@ -162,7 +163,11 @@ function ClubHub() {
         {signedIn ? (
           <ClubGlobalSearchInput value={query} onChange={setQuery} />
         ) : (
-          <Button asChild className="w-full sm:w-auto">
+          <Button
+            asChild
+            className="w-full border-0 sm:w-auto"
+            style={{ background: "var(--cp-gold)", color: "var(--cp-gold-ink)" }}
+          >
             <Link to="/membership-registration">
               <LogIn className="mr-1.5 h-4 w-4" aria-hidden="true" />
               {t("club.signIn")}
@@ -203,41 +208,49 @@ function ClubHub() {
         </>
       ) : (
         <>
-          {/* Pasek sterowania katalogiem: obszary polityki po lewej, układ po
-              prawej. Jeden wiersz zamiast dwóch osobnych bloków. */}
-          <div className="mb-4 flex items-center gap-3">
-            <div className="min-w-0 flex-1">
-              <ClubTopicNav clubs={clubs} value={topic} onChange={setTopic} isPl={isPl} />
-            </div>
-            <ClubHubLayoutSwitch value={hubLayout} onChange={setHubLayout} />
-          </div>
+          {signedIn ? (
+            <>
+              {/* Pasek sterowania katalogiem: obszary polityki po lewej, układ
+                  po prawej. Jeden wiersz zamiast dwóch osobnych bloków. */}
+              <div className="mb-4 flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <ClubTopicNav clubs={clubs} value={topic} onChange={setTopic} isPl={isPl} />
+                </div>
+                <ClubHubLayoutSwitch value={hubLayout} onChange={setHubLayout} />
+              </div>
 
-          {signedIn && mine.length > 0 ? (
-            <div id="club-mine" className="scroll-mt-28">
-            <ClubDirectory
-              title={t("club.myClubs")}
-              empty={t("club.empty")}
-              clubs={mine}
-              isPl={isPl}
-              loading={clubsQ.isPending}
-              layout={hubLayout}
-            />
-            </div>
-          ) : null}
+              {mine.length > 0 ? (
+                <div id="club-mine" className="scroll-mt-28">
+                  <ClubDirectory
+                    title={t("club.myClubs")}
+                    empty={t("club.empty")}
+                    clubs={mine}
+                    isPl={isPl}
+                    loading={clubsQ.isPending}
+                    layout={hubLayout}
+                  />
+                </div>
+              ) : null}
 
-          <div id="club-discover" className="scroll-mt-28">
-          <ClubDirectory
-            title={signedIn ? t("club.discover") : t("club.hub.publicCatalog")}
-            empty={topic === null ? t("club.emptyDiscover") : t("club.hub.emptyTopic")}
-            clubs={discover}
-            isPl={isPl}
-            loading={clubsQ.isPending}
-            layout={hubLayout}
-          />
-          </div>
+              <div id="club-discover" className="scroll-mt-28">
+                <ClubDirectory
+                  title={t("club.discover")}
+                  empty={topic === null ? t("club.emptyDiscover") : t("club.hub.emptyTopic")}
+                  clubs={discover}
+                  isPl={isPl}
+                  loading={clubsQ.isPending}
+                  layout={hubLayout}
+                />
+              </div>
+            </>
+          ) : (
+            /* Anonim nie dostaje pustego katalogu "Kluby otwarte", tylko mapę
+               ośmiu specjalizacji i drogę do formularza zgłoszenia. */
+            <ClubSpecializationGrid />
+          )}
 
           {/* Ucięcie katalogu mówi się WPROST i daje następny krok. */}
-          {clubsTotal > clubs.length ? (
+          {signedIn && clubsTotal > clubs.length ? (
             <div className="-mt-2 mb-8 text-center">
               <Button
                 variant="outline"
