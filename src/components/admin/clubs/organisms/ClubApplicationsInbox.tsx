@@ -399,7 +399,9 @@ export function ClubApplicationsInbox() {
                 key={row.id}
                 row={row}
                 busy={mutation.isPending}
+                retrying={crmRetry.isPending && crmRetry.variables === row.id}
                 onStatus={(id, next) => mutation.mutate({ id, next })}
+                onRetryCrm={(id) => crmRetry.mutate(id)}
               />
             ))}
           </ul>
