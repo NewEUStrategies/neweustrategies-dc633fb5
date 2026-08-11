@@ -217,8 +217,11 @@ export function ReadingHeader({
         // sticky - patrz lib/layout/headerMode) i pod overlayami, które mają go
         // przykrywać: drawer (9999) i SearchOverlay (10000). Przy z-30 dawał się
         // schować pod paskiem mobilnym - wtedy jego akcje były niedostępne.
-        "fixed inset-x-0 top-0 z-[9990]",
-        "border-b border-border/70 bg-background/95 backdrop-blur-xl",
+        "fixed top-0 z-[9990]",
+        pinned
+          ? "inset-x-0 border-b border-border/70"
+          : "left-2 right-2 sm:left-4 sm:right-4 lg:left-6 lg:right-6 rounded-b-xl sm:rounded-b-2xl border border-border/70",
+        "bg-background/95 backdrop-blur-xl",
         "shadow-[0_4px_20px_-12px_rgba(0,0,0,0.25)]",
         "transition-all duration-300 ease-out",
         visible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-full pointer-events-none",
@@ -284,7 +287,7 @@ export function ReadingHeader({
       `}</style>
       <div
         data-reading-row
-        className="mx-auto w-full max-w-[1400px] px-2.5 sm:px-4 lg:px-6 h-10 sm:h-11 lg:h-12 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3 lg:gap-5"
+        className="mx-auto w-full px-2.5 sm:px-4 lg:px-6 h-10 sm:h-11 lg:h-12 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3 lg:gap-5"
       >
         {/* Kolumna 1 - nawigacja. Oba klastry (desktop + mobile) siedzą w tym
             samym torze gridu; tylko jeden z nich jest w danej chwili widoczny
