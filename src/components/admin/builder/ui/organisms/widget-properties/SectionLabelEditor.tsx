@@ -327,7 +327,7 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
             {t("builder.sectionLabelEditor.editorialTitle")}
           </div>
 
-          {variant === "editorial-index" && (
+          {showNumberControls && (
             <div className="grid grid-cols-2 gap-2">
               <PropField label={t("builder.sectionLabelEditor.indexNumber")}>
                 <Input
