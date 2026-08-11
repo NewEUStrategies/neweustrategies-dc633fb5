@@ -264,15 +264,25 @@ export function ClubEventForm({
                   <span className="text-xs text-muted-foreground">
                     {t("club.eventForm.durationLabel")}
                   </span>
-                  {[30, 60, 90, 120].map((minutes) => (
-                    <Chip
-                      key={minutes}
-                      disabled={startsAt.length === 0}
-                      onClick={() => setDuration(minutes)}
-                    >
-                      {t(`club.eventForm.duration${minutes}`)}
-                    </Chip>
-                  ))}
+                  {[30, 60, 90, 120].map((minutes) => {
+                    const labelKey =
+                      minutes === 30
+                        ? "club.eventForm.duration30"
+                        : minutes === 60
+                          ? "club.eventForm.duration60"
+                          : minutes === 90
+                            ? "club.eventForm.duration90"
+                            : "club.eventForm.duration120";
+                    return (
+                      <Chip
+                        key={minutes}
+                        disabled={startsAt.length === 0}
+                        onClick={() => setDuration(minutes)}
+                      >
+                        {t(labelKey)}
+                      </Chip>
+                    );
+                  })}
                 </div>
               )}
             </Section>
