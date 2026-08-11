@@ -267,12 +267,6 @@ function CheckoutPage() {
                         </>
                       )}
                     </Button>
-                    {clientSecret && (
-                      <div className="space-y-2">
-                        <PaymentTestModeBanner />
-                        <EmbeddedCheckoutFrame clientSecret={clientSecret} />
-                      </div>
-                    )}
                     <p className="text-xs text-muted-foreground text-center">
                       {t("checkout.terms")}
                     </p>
