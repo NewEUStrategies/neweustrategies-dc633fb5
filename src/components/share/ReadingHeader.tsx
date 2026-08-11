@@ -286,7 +286,7 @@ export function ReadingHeader({
       `}</style>
       <div
         data-reading-row
-        className="mx-auto w-full max-w-[1400px] px-2.5 sm:px-4 lg:px-6 h-10 sm:h-11 lg:h-12 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3 lg:gap-5"
+        className="mx-auto w-full px-2.5 sm:px-4 lg:px-6 h-10 sm:h-11 lg:h-12 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3 lg:gap-5"
       >
         {/* Kolumna 1 - nawigacja. Oba klastry (desktop + mobile) siedzą w tym
             samym torze gridu; tylko jeden z nich jest w danej chwili widoczny
