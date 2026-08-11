@@ -25,7 +25,10 @@ export type TxEmailType =
   | "event_registered"
   | "donation_received"
   | "newsletter_confirmed"
-  | "customer_portal_link";
+  | "customer_portal_link"
+  | "club_application_accepted"
+  | "club_application_rejected"
+  | "club_application_more_info";
 
 export interface TxSubjectVars {
   /** Nazwa planu subskrypcji lub tytuł wydarzenia. */
