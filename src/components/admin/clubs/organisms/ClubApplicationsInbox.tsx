@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { FormSelect } from "@/components/atoms/FormSelect";
 import {
+  clubApplicationStatusErrorCode,
   fetchAdminClubApplicationCounts,
   fetchAdminClubApplications,
   retryClubApplicationCrmSync,
@@ -294,7 +295,18 @@ export function ClubApplicationsInbox() {
         ),
       );
     },
-    onError: () => toast.error(t("adminClubs.applications.statusError")),
+    // Kod z bazy zamiast jednego zdania na wszystko: cofniecie decyzji przy
+    // innym OTWARTYM zgloszeniu tej osoby konczy sie `duplicate_open`, a to nie
+    // jest awaria zapisu - operator ma zamknac tamto zgloszenie. Ogolny
+    // `statusError` zostaje fallbackiem dla bledow, ktorych nie umiemy nazwac.
+    onError: (error: unknown) => {
+      const code = clubApplicationStatusErrorCode(error instanceof Error ? error.message : "");
+      toast.error(
+        code === "duplicate_open"
+          ? t("adminClubs.applications.statusErrors.duplicate_open")
+          : t("adminClubs.applications.statusError"),
+      );
+    },
   });
 
   const crmRetry = useMutation({

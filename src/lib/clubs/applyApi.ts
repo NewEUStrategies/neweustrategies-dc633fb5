@@ -125,6 +125,22 @@ export function clubApplyErrorCode(message: string): ClubApplySubmitError {
   return known.find((code) => message.includes(code)) ?? "unknown";
 }
 
+/**
+ * Bledy `admin_club_application_set_status` mapowane na klucze i18n.
+ *
+ * `duplicate_open` przychodzi z bazy przy COFANIU decyzji: indeks czesciowy
+ * dopuszcza tylko jedno OTWARTE zgloszenie tej samej osoby w tej samej
+ * specjalizacji, wiec powrot z `accepted`/`rejected` do `pending`/`review`/
+ * `needs_info` moze naruszyc unikalnosc. RPC zamienia surowe 23505 na ten kod -
+ * panel musi go nazwac, inaczej operator widzi wylacznie ogolne "nie udalo sie
+ * zapisac statusu" i nie ma pojecia, ze przeszkoda jest drugie zgloszenie.
+ */
+export type ClubApplicationStatusError = "duplicate_open" | "unknown";
+
+export function clubApplicationStatusErrorCode(message: string): ClubApplicationStatusError {
+  return message.includes("duplicate_open") ? "duplicate_open" : "unknown";
+}
+
 export async function submitClubApplication(
   values: ClubApplyValues,
   lang: "pl" | "en",

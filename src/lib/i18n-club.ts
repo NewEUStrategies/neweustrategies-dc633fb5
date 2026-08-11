@@ -131,11 +131,15 @@ export const clubPl = {
           submittedAt: "Wysłano",
           reviewedAt: "Rozpatrzono",
           clubAny: "Bez wskazania klubu",
+          // Komplet statusów z `club_applications_status_chk`. `needs_info` jest
+          // statusem OTWARTYM (komisja czeka na uzupełnienie) - bez tego wpisu
+          // kandydat po prośbie o uzupełnienie widział surowy klucz.
           status: {
             pending: "Oczekuje",
             review: "W ocenie",
             accepted: "Zaakceptowane",
             rejected: "Odrzucone",
+            needs_info: "Do uzupełnienia",
           },
         },
         seniorityOptions: {
@@ -1686,7 +1690,19 @@ export const clubPl = {
       loading: "Wczytywanie zgłoszeń...",
       empty: "Brak zgłoszeń dla wybranych filtrów.",
       statusSaved: "Status zgłoszenia zapisany.",
+      // `statusError` to fallback dla błędu, którego nie umiemy nazwać.
+      // Nazwane kody idą do `statusErrors` - wzorem `club.spec.apply.submitErrors`
+      // po stronie kandydata.
       statusError: "Nie udało się zapisać statusu.",
+      statusErrors: {
+        // Indeks częściowy dopuszcza jedno OTWARTE zgłoszenie tej samej osoby
+        // w specjalizacji, więc COFNIĘCIE decyzji (accepted/rejected ->
+        // pending/review/needs_info) może naruszyć unikalność. RPC zamienia
+        // surowe 23505 na `duplicate_open`; operator musi wiedzieć, że to nie
+        // awaria zapisu, tylko drugie zgłoszenie tej osoby.
+        duplicate_open:
+          "Ta osoba ma już inne otwarte zgłoszenie w tej specjalizacji. Zamknij tamto zgłoszenie, zanim cofniesz tę decyzję.",
+      },
       crmNote:
         "Każde zgłoszenie aktualizuje kartę osoby w CRM (specjalizacja, warstwa członkostwa i data wniosku).",
       status: {
@@ -2486,11 +2502,15 @@ export const clubEn = {
           submittedAt: "Submitted",
           reviewedAt: "Reviewed",
           clubAny: "No club selected",
+          // The full set from `club_applications_status_chk`. `needs_info` is an
+          // OPEN status (the committee is waiting for details) - without this
+          // entry the candidate saw a raw key after being asked for details.
           status: {
             pending: "Pending",
             review: "In review",
             accepted: "Accepted",
             rejected: "Rejected",
+            needs_info: "Needs details",
           },
         },
         seniorityOptions: {
@@ -3943,7 +3963,19 @@ export const clubEn = {
       loading: "Loading applications...",
       empty: "No applications match the current filters.",
       statusSaved: "Application status saved.",
+      // `statusError` is the fallback for an error we cannot name. Named codes
+      // live in `statusErrors`, mirroring `club.spec.apply.submitErrors` on the
+      // candidate side.
       statusError: "Could not save the status.",
+      statusErrors: {
+        // The partial index allows a single OPEN application per person and
+        // specialisation, so REVERTING a decision (accepted/rejected ->
+        // pending/review/needs_info) can violate that uniqueness. The RPC turns
+        // the raw 23505 into `duplicate_open`; the operator has to know this is
+        // not a failed write but another application by the same person.
+        duplicate_open:
+          "This person already has another open application in this specialisation. Close that one before reverting this decision.",
+      },
       crmNote:
         "Every application updates the person's CRM record (specialisation, membership tier and application date).",
       status: {

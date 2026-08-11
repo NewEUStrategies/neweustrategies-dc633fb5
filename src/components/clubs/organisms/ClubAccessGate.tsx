@@ -46,28 +46,36 @@ import {
 } from "@/lib/auth/registrationFields";
 
 import { ClubCover } from "@/components/clubs/atoms/ClubCover";
-import { planTierFromRank } from "@/lib/clubs/planTiers";
+import {
+  DEFAULT_CLUB_PLAN_TIER,
+  planTierFromRank,
+  type ClubPlanTier,
+} from "@/lib/clubs/planTiers";
 import type { ClubViewRow } from "@/lib/clubs/types";
+import { ensureClubI18n } from "@/lib/i18n-club";
 import "@/lib/i18n-club-gate";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
-const PLAN_LABEL: Record<string, string> = {
-  free: "Free",
-  plus: "PLUS",
-  pro: "PRO",
-  vip: "VIP",
-};
-
 export function ClubAccessGate({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
+  // Etykiety progów mają JEDNO źródło prawdy: `club.planTier.*` w słowniku
+  // modułu. Bramka rejestruje ten słownik sama, bo etykieta planu jest tu
+  // treścią sprzedażową, a nie ozdobą - gdyby zabrakło bundla, w nagłówku
+  // stanąłby surowy klucz.
+  ensureClubI18n();
   const { t } = useTranslation();
   const { session, loading } = useAuth();
 
   const tier = planTierFromRank(club.min_tier_rank ?? 0);
-  // Bramka nigdy nie sprzedaje planu „free" - najniższy sensowny próg to PRO
-  // (domyślny próg klubu), inaczej CTA brzmi jak zaproszenie donikąd.
-  const sellTier = tier === "free" || tier === "plus" ? "pro" : tier;
-  const plan = PLAN_LABEL[sellTier] ?? "PRO";
+  // Bramka nigdy nie sprzedaje planu „free" - najniższy sensowny próg to
+  // domyślny próg klubu (PRO), inaczej CTA brzmi jak zaproszenie donikąd.
+  const sellTier: ClubPlanTier =
+    tier === "free" || tier === "plus" ? DEFAULT_CLUB_PLAN_TIER : tier;
+  // Etykieta bierze się ze słownika progów, a NIE z lokalnej mapy: lokalna
+  // mapa znała tylko free/plus/pro/vip, więc po rozszerzeniu katalogu (rangi
+  // 30-60: corporate, partner, partner_general, presidents_circle) klub
+  // o wyższym progu pokazywał w bramce „PRO" albo puste miejsce.
+  const plan = t(`club.planTier.${sellTier}`);
 
   const name = (isPl ? club.name_pl : club.name_en) || club.name_pl;
   const tagline = isPl ? club.tagline_pl : club.tagline_en;
