@@ -109,7 +109,7 @@ describe("font sizes -> public page sync", () => {
 describe("line-height stays owned by the theme", () => {
   it("exposes theme line-height vars for overlay and header titles/leads", () => {
     const custom = {
-      title_size_source: "custom" as const,
+      title_size_source: "layout" as const,
       overlay_title_size_base: 20,
       overlay_title_size_md: 24,
       overlay_title_size_lg: 28,
