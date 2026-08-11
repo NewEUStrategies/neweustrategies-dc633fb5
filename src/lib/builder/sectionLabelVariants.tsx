@@ -165,6 +165,8 @@ export interface SectionLabelContentProps {
   categorySize?: string;
   titleFont?: string;
   arrow?: string;
+  gapX?: string;
+  gapY?: string;
 }
 
 export function readSectionLabelProps(
@@ -209,6 +211,8 @@ export function readSectionLabelProps(
     categorySize: str("categorySize") || undefined,
     titleFont: str("titleFont") || undefined,
     arrow: str("arrow") || undefined,
+    gapX: str("gapX") || undefined,
+    gapY: str("gapY") || undefined,
   };
 }
 
@@ -232,6 +236,10 @@ interface RenderProps {
   categorySize?: string;
   titleFont?: string;
   arrow?: string;
+  /** Odstęp poziomy między elementami (numer/kreska/tytuł/akcja). */
+  gapX?: string;
+  /** Odstęp pionowy między linią a tekstem (rytm bloku). */
+  gapY?: string;
 }
 
 export function SectionLabelRender({
@@ -254,6 +262,8 @@ export function SectionLabelRender({
   categorySize,
   titleFont,
   arrow,
+  gapX,
+  gapY,
 }: RenderProps) {
   const isSm = size === "sm";
   const textCls = isSm
@@ -268,6 +278,9 @@ export function SectionLabelRender({
   const wrapperBase = isSm ? "mb-1" : "";
 
   const glyph = arrowGlyph(arrow);
+  // Odstępy konfigurowalne; wartości domyślne trzymają kompaktowy rytm.
+  const gapXPx = gapX || (isSm ? "6px" : "16px");
+  const gapYPx = gapY || (isSm ? "2px" : "6px");
   const titleFamily = resolveFontFamily(titleFont);
 
   const labelStyle: React.CSSProperties = {};
