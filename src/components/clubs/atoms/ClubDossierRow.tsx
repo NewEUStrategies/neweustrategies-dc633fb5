@@ -85,23 +85,14 @@ const TONE_COLOR: Record<ClubDossierTone, string> = {
 };
 
 /**
- * Wariant poświaty przy najeździe. To ŚWIATŁO w kolorze rodzaju, nie cień:
- * - `aura`  - miękki halo od strony grzbietu (domyślny),
- * - `sweep` - poziomy gradient przechodzący przez cały wiersz,
- * - `rim`   - tylko rozświetlona krawędź i grzbiet, tło bez zmian,
- * - `none`  - bez efektu (np. gdy wiersz siedzi w innej powierzchni).
+ * Sposób obecności koloru rodzaju przy najeździe. Po audycie 2026-08-11 NIE ma
+ * już świetlnej poświaty (halo/sweep/blur) - w dark i light mode robiła
+ * „brudną" plamę na karcie. Kolor zostaje w grzbiecie i ikonie, a najazd
+ * tylko podbija krawędź:
+ * - `aura` / `sweep` / `rim` - podbicie krawędzi w kolorze rodzaju,
+ * - `none` - bez reakcji na najazd (np. gdy karta siedzi w innej powierzchni).
  */
 export type ClubDossierGlow = "aura" | "sweep" | "rim" | "none";
-
-// Zasięg poświaty jest tokenem (`--dossier-glow-*`) - w light mode gradient
-// kończy się tuż za ikoną rodzaju, w dark mode rozlewa się szerzej.
-const GLOW_BACKGROUND: Record<Exclude<ClubDossierGlow, "none">, string> = {
-  aura: "radial-gradient(var(--dossier-glow-extent) 160% at 0% 50%, color-mix(in oklab, var(--dossier-tone) 22%, transparent) 0%, color-mix(in oklab, var(--dossier-tone) 8%, transparent) 45%, transparent 100%)",
-  sweep:
-    "linear-gradient(90deg, color-mix(in oklab, var(--dossier-tone) 20%, transparent) 0%, color-mix(in oklab, var(--dossier-tone) 7%, transparent) var(--dossier-glow-mid), transparent var(--dossier-glow-extent))",
-  rim: "none",
-};
-
 
 const THREAD_TONES: Record<string, ClubDossierTone> = {
   discussion: "discussion",
@@ -251,21 +242,6 @@ export function ClubDossierRow({
         className,
       )}
     >
-      {/* Poświata rodzaju. Osobna warstwa pod treścią (`-z-10`), animowana
-          tylko przez `opacity` - kompozytor GPU robi to bez repaintu całego
-          wiersza, więc animacja jest gładka nawet na długiej liście. */}
-      {glow !== "none" && glow !== "rim" ? (
-        <span
-          aria-hidden="true"
-          className={cn(
-            "pointer-events-none absolute inset-0 -z-10 opacity-0 transition-opacity duration-300 ease-out",
-            "transform-gpu will-change-[opacity] group-hover/dossier:opacity-100 group-focus-within/dossier:opacity-100",
-            "motion-reduce:transition-none",
-          )}
-          style={{ backgroundImage: GLOW_BACKGROUND[glow] }}
-        />
-      ) : null}
-
       {/* Subtelny górny akcent - nadaje głębi i wyróżnia kartę od tła. */}
       <span
         aria-hidden="true"
@@ -278,19 +254,6 @@ export function ClubDossierRow({
         aria-hidden="true"
         className={cn("absolute inset-y-1 left-1 w-[3px] rounded-full", SPINE[tone])}
       />
-      {/* Rozświetlenie grzbietu = rozmyta kopia paska, nie `box-shadow`.
-          Rozmycie liczy się raz, a animujemy samą przezroczystość. */}
-      {glow !== "none" ? (
-        <span
-          aria-hidden="true"
-          className={cn(
-            "pointer-events-none absolute inset-y-1 left-1 w-[3px] rounded-full blur-[6px]",
-            "opacity-0 transition-opacity duration-300 ease-out transform-gpu will-change-[opacity]",
-            "group-hover/dossier:opacity-80 group-focus-within/dossier:opacity-80 motion-reduce:transition-none",
-          )}
-          style={{ backgroundColor: "var(--dossier-tone)" }}
-        />
-      ) : null}
       <span
         aria-hidden="true"
         className={cn(
