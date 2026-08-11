@@ -177,7 +177,24 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
   const titleFont = derived.titleFont ?? "inherit";
   const gapX = derived.gapX ?? "";
   const gapY = derived.gapY ?? "";
-  const isEditorial = variant === "editorial-index" || variant === "double-deck-masthead";
+  // Warianty redakcyjne dzielą panel dodatkowy (numer / kategoria / odstępy).
+  const NUMBER_VARIANTS = ["editorial-index", "numbered-rail"];
+  const CATEGORY_VARIANTS = [
+    "double-deck-masthead",
+    "kicker-tag-rule",
+    "stacked-serif-lede",
+    "split-rule-duo",
+  ];
+  const EXTRA_VARIANTS = [
+    "bracket-label",
+    "dotted-leader",
+    "ticker-strip",
+    "underline-sweep",
+  ];
+  const showNumberControls = NUMBER_VARIANTS.includes(variant);
+  const showCategoryControls = CATEGORY_VARIANTS.includes(variant);
+  const isEditorial = showNumberControls || showCategoryControls || EXTRA_VARIANTS.includes(variant);
+
 
   const previewLabel = derived.label;
 
