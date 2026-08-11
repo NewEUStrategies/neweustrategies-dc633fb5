@@ -7810,8 +7810,43 @@ html {
   --input: oklch(0.85 0.04 260 / 16%);
 }
 
-.dark.club-navy body {
+html.dark.club-navy,
+html.dark.club-navy body {
   background-color: var(--background);
+  background-image: radial-gradient(
+      120% 80% at 12% -10%,
+      oklch(0.34 0.05 262 / 0.55) 0%,
+      transparent 60%
+    ),
+    radial-gradient(90% 70% at 100% 0%, oklch(0.42 0.06 85 / 0.14) 0%, transparent 55%),
+    linear-gradient(180deg, #0d1729 0%, #0b1424 55%, #090f1c 100%);
+  background-attachment: fixed;
+}
+
+/* Marka w module klubów: zamiast pomarańczu - złoto z palety prestige. */
+.dark.club-navy [data-club-neutral],
+.dark.club-navy {
+  --brand: #d9b26a;
+  --brand-foreground: #16203a;
+  --brand-ink: #e3c992;
+  --gradient-brand: linear-gradient(90deg, #e6c98c 0%, #b8873a 100%);
+  --gradient-brand-soft: linear-gradient(135deg, #f0dcb0 0%, #d9b26a 100%);
+  /* @theme nie jest `inline`, więc `--color-brand*` zostało już rozwinięte na
+     :root - samo nadpisanie `--brand` nie wystarcza i trzeba domknąć mapowanie. */
+  --color-brand: #d9b26a;
+  --color-brand-foreground: #16203a;
+  --color-brand-ink: #e3c992;
+}
+
+.dark.club-navy [data-club-neutral] {
+  --club-ink: #d9b26a;
+  --club-ink-foreground: #16203a;
+}
+
+.dark.club-navy .club-accent {
+  --primary: #d9b26a;
+  --primary-foreground: #16203a;
+  --ring: color-mix(in oklab, #d9b26a 60%, transparent);
 }
 
 .dark.club-navy .club-prestige {
