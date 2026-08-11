@@ -24,6 +24,7 @@ import { Suspense, lazy } from "react";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { useClubsModule } from "@/lib/clubs/useClubsModule";
+import { ClubNavyTheme } from "@/components/clubs/atoms/ClubNavyTheme";
 
 // Ekran "moduł wyłączony" jest LENIWY, i to nie z ostrożności. `CommunityDisabled`
 // importuje `@/lib/i18n-community` w module top-level, a ta trasa jest rodzicem
@@ -81,6 +82,8 @@ function ClubModuleLayout() {
   // moduł nie świecił pomarańczem marki w każdym kaflu (patrz styles.css).
   return (
     <div data-club-typography data-club-neutral>
+      {/* Cały moduł klubów w trybie ciemnym jedzie na granacie ze złotem. */}
+      <ClubNavyTheme />
       <Outlet />
     </div>
   );
