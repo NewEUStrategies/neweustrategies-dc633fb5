@@ -380,6 +380,48 @@ const PL: Dict = {
     labels: LABELS_PL,
     footerHelp: HELP_PL,
   },
+  club_application_accepted: {
+    subject: (v) =>
+      `✅ Zgłoszenie do klubu przyjęte${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-handshake",
+    preview: "Twoje zgłoszenie do klubu dyskusyjnego zostało przyjęte - oto kolejne kroki.",
+    eyebrow: "Kluby dyskusyjne",
+    heading: "Twoje zgłoszenie zostało przyjęte",
+    intro:
+      "Redakcja rozpatrzyła Twoje zgłoszenie i przyjęła je. Masz już dostęp do przestrzeni klubu: wątków członkowskich, dokumentów oraz kalendarza najbliższych spotkań.",
+    cta: "Przejdź do klubu",
+    note: "Jeśli masz pytania o formułę klubu lub harmonogram spotkań, po prostu odpisz na tę wiadomość.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  club_application_rejected: {
+    subject: (v) =>
+      `Zgłoszenie do klubu - decyzja${v.subject ? ` (${v.subject})` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "Zapadła decyzja w sprawie Twojego zgłoszenia do klubu dyskusyjnego.",
+    eyebrow: "Kluby dyskusyjne",
+    heading: "Decyzja w sprawie Twojego zgłoszenia",
+    intro:
+      "Dziękujemy za zainteresowanie naszymi klubami dyskusyjnymi. Tym razem nie możemy zaproponować Ci miejsca w wybranym klubie - liczba miejsc w każdej edycji jest ograniczona i dobierana pod jej bieżącą agendę.",
+    cta: "Zobacz inne specjalizacje",
+    note: "Możesz zaaplikować ponownie w dowolnym momencie, także do innej specjalizacji. Twój profil zawodowy pozostaje w naszej kartotece.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  club_application_more_info: {
+    subject: (v) =>
+      `Uzupełnij zgłoszenie do klubu${v.subject ? ` (${v.subject})` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "Potrzebujemy kilku dodatkowych informacji, aby ocenić Twoje zgłoszenie.",
+    eyebrow: "Kluby dyskusyjne",
+    heading: "Prosimy o uzupełnienie zgłoszenia",
+    intro:
+      "Zaczęliśmy ocenę Twojego zgłoszenia i potrzebujemy jeszcze kilku informacji o Twoim profilu zawodowym oraz oczekiwaniach wobec klubu, zanim panel podejmie decyzję.",
+    cta: "Uzupełnij zgłoszenie",
+    note: "Możesz odpisać na tę wiadomość z brakującymi danymi albo wypełnić formularz ponownie - powiążemy oba zapisy z tym samym zgłoszeniem.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
 };
 
 const EN: Dict = {
