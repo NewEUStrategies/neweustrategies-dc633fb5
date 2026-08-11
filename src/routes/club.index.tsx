@@ -216,6 +216,7 @@ function ClubHub() {
           </div>
 
           {signedIn && mine.length > 0 ? (
+            <div id="club-mine" className="scroll-mt-28">
             <ClubDirectory
               title={t("club.myClubs")}
               empty={t("club.empty")}
@@ -224,8 +225,10 @@ function ClubHub() {
               loading={clubsQ.isPending}
               layout={hubLayout}
             />
+            </div>
           ) : null}
 
+          <div id="club-discover" className="scroll-mt-28">
           <ClubDirectory
             title={signedIn ? t("club.discover") : t("club.hub.publicCatalog")}
             empty={topic === null ? t("club.emptyDiscover") : t("club.hub.emptyTopic")}
@@ -234,6 +237,7 @@ function ClubHub() {
             loading={clubsQ.isPending}
             layout={hubLayout}
           />
+          </div>
 
           {/* Ucięcie katalogu mówi się WPROST i daje następny krok. */}
           {clubsTotal > clubs.length ? (

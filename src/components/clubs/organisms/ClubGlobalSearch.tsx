@@ -45,7 +45,7 @@ export function ClubGlobalSearchInput({
         onChange={(e) => onChange(e.target.value)}
         placeholder={t(placeholderKey)}
         aria-label={t(placeholderKey)}
-        className="pl-9 pr-11"
+        className="pl-9 pr-11 bg-transparent dark:bg-transparent"
       />
       {value !== "" ? (
         // Prymityw `Button`, nie gołe `<button>`: to on dokłada
