@@ -429,7 +429,7 @@ zgłoszeniowa - do której te strony prowadzą - z niej nie korzysta.
 
 ## 8. Higiena, bramki i pozostałe
 
-### 8.1 Bramka `pg-harness` jest czerwona i nie widzi nowej migracji (WYSOKIE, proces)
+### 8.1 Bramka `pg-harness` jest czerwona, nie widzi nowej migracji i nie jest w CI (WYSOKIE, proces)
 
 Uruchomiono `bash scripts/pg-harness/run.sh`. Wynik: **kod wyjścia 1, 59 migracji
 OK, 18 FAIL**. Nowa migracja zgłoszeń przewraca się na pierwszej instrukcji:
@@ -451,10 +451,24 @@ walidację i kopię SEO (`clubApplyAndSpecSeo.test.ts`) - ani jednej linii ście
 serwerowej. Bramka `check:db-contract` sprawdza *istnienie* obiektów, nie
 zgodność wartości z ograniczeniami, więc `source_type` był poza jej zasięgiem.
 
-Rozszerzenie stubów o `crm_leads` (z ograniczeniem `source_type`!) plus jedna
-asercja wołająca `club_apply_submit` wyłapałyby 1.1 przed scaleniem. Bez tego
-rozszerzenia asercja przeszłaby na fikcji - czego README harnessu wprost
-zakazuje (*„inaczej test przechodziłby na fikcji"*).
+**I tu jest głębsza część problemu: `pg-harness` nie jest w ogóle wpięty w CI.**
+`check:pg-harness` nie występuje w ŻADNYM z workflowów w `.github/workflows/`
+(sprawdzone: zero trafień). Uruchamia go wyłącznie człowiek, ręcznie, jeśli
+pamięta. W CI z bramek bazodanowych stoją `check:sql-migration-replay`
+(odtworzenie schematu, bez wykonywania funkcji) i job `pgtap` na `supabase
+start` - żadna z nich nie woła `club_apply_submit`.
+
+Poprawka ma więc trzy elementy, nie jeden, i pominięcie któregokolwiek zostawia
+lukę otwartą:
+
+1. stub `crm_leads` w `harness.sql` **wraz z ograniczeniem
+   `crm_leads_source_type_check`** - bez samego ograniczenia asercja przeszłaby
+   na fikcji, czego README harnessu wprost zakazuje
+   (*„inaczej test przechodziłby na fikcji"*);
+2. asercja w `runtime_test.sql` wołająca `club_apply_submit` na komplecie
+   danych i sprawdzająca, że wiersz faktycznie powstał w obu tabelach;
+3. **wpięcie `check:pg-harness` do `ci.yml`** - inaczej 1 i 2 istnieją, ale nic
+   ich nie wykonuje przed scaleniem.
 
 Pozostałe 17 FAIL to w większości ta sama klasa: zbiór stubów nie dogonił
 rosnącej powierzchni zależności modułu. Dwa warto obejrzeć osobno, bo mogą nie
@@ -496,7 +510,7 @@ by nie wracać do tego przy przeglądzie.
 | # | Znalezisko | Waga | Koszt |
 |---|---|---|---|
 | 1.1 | `source_type` łamie CHECK - zgłoszenia nie działają wcale | **krytyczne** | 1 migracja |
-| 8.1 | Harness czerwony; brak stubu `crm_leads` i asercji dla nowego RPC | wysokie | stub + asercja |
+| 8.1 | Harness czerwony, bez stubu `crm_leads`, bez asercji dla nowego RPC i **niewpięty w CI** | wysokie | stub + asercja + job |
 | 2.1 | „Zaakceptowano" bez członkostwa i bez powiadomienia | wysokie | RPC + szew |
 | 3.2 | Brak back-fillu profilu (wzorzec gotowy) | wysokie | ~7 linii SQL |
 | 4.1 | Ominięcie `crm_upsert_from_form` - 6 utraconych efektów | wysokie | przepisanie zapisu |
