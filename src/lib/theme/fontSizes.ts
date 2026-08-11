@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { z } from "zod";
 import { deepMerge } from "@/lib/deepMerge";
-import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
+import { commitSiteSettingWrite, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 
 export const FONT_SIZES_KEY = "font_sizes";
 
@@ -165,14 +165,11 @@ export function useSaveFontSizes() {
       if (error) throw error;
       return validated;
     },
-    onSuccess: (next) => {
-      // Optymistyczna aktualizacja wspólnej mapy ustawień - tokeny motywu
-      // przeliczają się natychmiast, bez czekania na refetch.
-      qc.setQueryData(siteSettingsQueryOptions.queryKey, (prev: unknown) => ({
-        ...((prev as Record<string, unknown> | undefined) ?? {}),
-        [FONT_SIZES_KEY]: next,
-      }));
-      qc.invalidateQueries({ queryKey: siteSettingsQueryOptions.queryKey });
+    onSuccess: async (next) => {
+      // Zapis z kontrolą wersji: optymistyczna podmiana + refetch, przy czym
+      // niepotwierdzona wartość nadpisuje ewentualną starą odpowiedź serwera,
+      // więc podgląd i strona publiczna nigdy nie migają starymi tokenami.
+      await commitSiteSettingWrite(qc, FONT_SIZES_KEY, next);
       toast.success("Zapisano rozmiary czcionek");
     },
     onError: (e: Error) => toast.error(e.message || "Błąd zapisu"),

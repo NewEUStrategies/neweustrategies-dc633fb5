@@ -39,9 +39,72 @@ export async function fetchAllSiteSettings(): Promise<SettingsMap> {
   });
 }
 
+/**
+ * Kontrola wersji zapisów site_settings.
+ *
+ * Problem: po zapisie w panelu robimy optymistyczny `setQueryData`, ale
+ * równoległy refetch (inny komponent, focus okna, edge-cache 60 s) potrafi
+ * wrócić ze starą wartością i na moment cofnąć podgląd. Trzymamy więc mapę
+ * "pending writes" - dopóki serwer nie potwierdzi zapisanej wartości,
+ * każdy wynik fetcha jest nią nadpisywany. Wpis znika, gdy serwer zwróci
+ * dokładnie to, co zapisaliśmy (deep-equal) albo gdy nadejdzie nowszy zapis.
+ */
+type PendingWrite = { version: number; value: unknown };
+const pendingWrites = new Map<string, PendingWrite>();
+let writeVersion = 0;
+
+const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
+/** Nakłada niepotwierdzone zapisy na świeżo pobraną mapę ustawień. */
+export function applyPendingWrites(map: SettingsMap): SettingsMap {
+  if (pendingWrites.size === 0) return map;
+  const next: Record<string, unknown> = { ...map };
+  for (const [key, write] of pendingWrites) {
+    if (sameJson(map[key], write.value)) {
+      pendingWrites.delete(key);
+      continue;
+    }
+    next[key] = write.value;
+  }
+  return Object.freeze(next) as SettingsMap;
+}
+
+/** Test hook: czyści rejestr niepotwierdzonych zapisów. */
+export function resetPendingWrites(): void {
+  pendingWrites.clear();
+  writeVersion = 0;
+}
+
+/**
+ * Zapisz klucz w cache z kontrolą wersji i wymuś świeży odczyt.
+ * Zwraca numer wersji zapisu (rosnący), przydatny w testach.
+ */
+export async function commitSiteSettingWrite(
+  qc: {
+    cancelQueries: (f: { queryKey: readonly unknown[] }) => Promise<void>;
+    setQueryData: (k: readonly unknown[], u: (prev: unknown) => unknown) => unknown;
+    invalidateQueries: (f: {
+      queryKey: readonly unknown[];
+      refetchType?: "all" | "active" | "inactive" | "none";
+    }) => Promise<void>;
+  },
+  key: string,
+  value: unknown,
+): Promise<number> {
+  writeVersion += 1;
+  const version = writeVersion;
+  pendingWrites.set(key, { version, value });
+  await qc.cancelQueries({ queryKey: SETTINGS_QUERY_KEY });
+  qc.setQueryData(SETTINGS_QUERY_KEY, (prev: unknown) =>
+    Object.freeze({ ...((prev as Record<string, unknown> | undefined) ?? {}), [key]: value }),
+  );
+  await qc.invalidateQueries({ queryKey: SETTINGS_QUERY_KEY, refetchType: "all" });
+  return version;
+}
+
 export const siteSettingsQueryOptions = {
   queryKey: SETTINGS_QUERY_KEY,
-  queryFn: fetchAllSiteSettings,
+  queryFn: async (): Promise<SettingsMap> => applyPendingWrites(await fetchAllSiteSettings()),
   // Long staleTime: site_settings rarely change; this query also feeds the
   // header, footer, navigation and alert bar, so a single fetch covers every
   // layout chunk for the whole session.
