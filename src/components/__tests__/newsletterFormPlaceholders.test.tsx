@@ -23,16 +23,18 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 vi.mock("@/lib/i18n-public", () => ({}));
 vi.mock("@/integrations/supabase/auth-middleware", () => ({ requireSupabaseAuth: {} }));
-const makeChain = () => ({
-  middleware: () => makeChain(),
-  inputValidator: () => makeChain(),
-  handler: () => ({}),
+vi.mock("@tanstack/react-start", () => {
+  const chain = () => ({
+    middleware: () => chain(),
+    inputValidator: () => chain(),
+    handler: () => ({}),
+  });
+  return {
+    useServerFn: () => vi.fn(),
+    createMiddleware: () => () => vi.fn(),
+    createServerFn: () => chain(),
+  };
 });
-vi.mock("@tanstack/react-start", () => ({
-  useServerFn: () => vi.fn(),
-  createMiddleware: () => () => vi.fn(),
-  createServerFn: () => makeChain(),
-}));
 vi.mock("@/lib/newsletter.functions", () => ({ subscribeToNewsletter: {} }));
 vi.mock("@/lib/builder/modeContext", () => ({ useBuilderMode: () => null }));
 vi.mock("@/components/newsletter/NewsletterDocRenderer", () => ({
