@@ -9,11 +9,15 @@
 // PostgREST, brak `auth.uid()` w kontekście serwerowym, wyścig statusu) - domykamy
 // zapis rolą serwisową. To bezpieczne: wywołujący właśnie utworzył to zamówienie,
 // a zapis ogranicza się do sesji i stanów przejściowych, nigdy do `paid`.
-import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type MarkSessionStatus = "processing" | "failed" | "canceled";
 
-type AnySupabase = Pick<SupabaseClient, "rpc">;
+interface RpcCapable {
+  rpc(
+    fn: "payment_order_mark_session",
+    args: { _order_id: string; _session_id: string | null; _status: MarkSessionStatus },
+  ): PromiseLike<{ data: unknown; error: { message: string } | null }>;
+}
 
 export interface MarkOrderSessionInput {
   readonly orderId: string;
@@ -22,7 +26,7 @@ export interface MarkOrderSessionInput {
 }
 
 export async function markOrderSession(
-  supabase: AnySupabase,
+  supabase: RpcCapable,
   { orderId, sessionId = null, status }: MarkOrderSessionInput,
 ): Promise<boolean> {
   const { data, error } = await supabase.rpc("payment_order_mark_session", {
