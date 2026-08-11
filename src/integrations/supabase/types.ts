@@ -14738,8 +14738,7 @@ export type Database = {
           availability: string
           city: string
           club_id: string
-          club_name_en: string
-          club_name_pl: string
+          club_name: string
           company: string
           contribution: string
           country: string
