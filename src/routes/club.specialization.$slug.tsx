@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CLUB_SPECIALIZATIONS, findClubSpecialization } from "@/lib/clubs/specializations";
+import { buildSpecializationHead } from "@/lib/clubs/specializationHead";
 import { ensureClubI18n } from "@/lib/i18n-club";
 
 export const Route = createFileRoute("/club/specialization/$slug")({
@@ -17,26 +18,10 @@ export const Route = createFileRoute("/club/specialization/$slug")({
     if (spec === null) throw notFound();
     return { slug: spec.slug };
   },
-  head: ({ params }) => {
-    const spec = findClubSpecialization(params.slug);
-    const title =
-      spec === null
-        ? "Specjalizacja klubu | New European Strategies"
-        : `Klub dyskusyjny: ${params.slug} | New European Strategies`;
-    const description =
-      "Zamknięty klub dyskusyjny ekspertów, analityków i decydentów w wybranej specjalizacji polityki europejskiej.";
-    return {
-      meta: [
-        { title },
-        { name: "description", content: description },
-        { property: "og:title", content: title },
-        { property: "og:description", content: description },
-        { property: "og:type", content: "website" },
-        { name: "twitter:card", content: "summary_large_image" },
-        ...(spec === null ? [{ name: "robots", content: "noindex" }] : []),
-      ],
-    };
-  },
+  // Unikalny tytul/opis/OG per specjalizacja i per jezyk - patrz
+  // `lib/clubs/specializationHead.ts` (jezyk z adresu zadania, nie z singletona
+  // i18next, bo `head()` biegnie wspoldzielony miedzy rownolegle zadania SSR).
+  head: ({ params }) => buildSpecializationHead(params.slug),
   component: ClubSpecializationPage,
 });
 
