@@ -371,7 +371,7 @@ export function applySecurityHeaders(request: Request, response: Response): Resp
         "camera=()",
         "microphone=()",
         "geolocation=()",
-        'payment=(self "https://js.stripe.com" "https://checkout.stripe.com" "https://pay.google.com")',
+        'payment=(self "https://js.stripe.com" "https://checkout.stripe.com" "https://m.stripe.network" "https://b.stripecdn.com" "https://hooks.stripe.com" "https://pay.google.com")',
         "browsing-topics=()",
       ].join(", "),
     );
