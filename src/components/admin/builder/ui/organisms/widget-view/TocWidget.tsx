@@ -184,7 +184,7 @@ export function TocWidget({ content, lang }: Props) {
   const NumberBadge = ({ n, isActive }: { n: number; isActive: boolean }) => (
     <span
       className={cn(
-        "flex-none inline-flex items-center justify-center rounded-[4px] w-7 h-7 text-[11px] font-bold tabular-nums shrink-0 transition-colors",
+        "cms-toc-index flex-none inline-flex items-center justify-center rounded-[4px] w-7 h-7 font-bold tabular-nums shrink-0 transition-colors",
         isActive
           ? "bg-primary text-primary-foreground"
           : "bg-primary/5 text-primary group-hover:bg-primary group-hover:text-primary-foreground",
@@ -207,7 +207,7 @@ export function TocWidget({ content, lang }: Props) {
                 onClick={(e) => onClick(e, it.id)}
                 aria-current={isActive ? "location" : undefined}
                 className={cn(
-                  "group flex items-start gap-3 px-3 py-2.5 text-[13px] leading-snug rounded-[6px] transition-all border-l-2",
+                  "cms-toc-item group flex items-start gap-3 px-3 py-2.5 rounded-[6px] transition-all border-l-2",
                   it.level === 3 && "ml-6",
                   isActive
                     ? "bg-primary/5 text-primary border-primary font-semibold"
@@ -215,7 +215,7 @@ export function TocWidget({ content, lang }: Props) {
                 )}
               >
                 {showNumbers && it.level === 2 && (
-                  <span className="font-bold text-primary tabular-nums text-[12px] mt-0.5">
+                  <span className="cms-toc-index font-bold text-primary tabular-nums mt-0.5">
                     {String(i + 1).padStart(2, "0")}.
                   </span>
                 )}
@@ -251,9 +251,9 @@ export function TocWidget({ content, lang }: Props) {
             {showNumbers && <NumberBadge n={i + 1} isActive={isActive} />}
             <span
               className={cn(
-                "text-[14px] font-medium min-w-0 flex-1 group-hover:text-primary transition-colors",
+                "cms-toc-item font-medium min-w-0 flex-1 group-hover:text-primary transition-colors",
                 isActive && "text-primary font-semibold",
-                it.level === 3 && "text-muted-foreground text-[13px]",
+                it.level === 3 && "cms-toc-sub text-muted-foreground",
               )}
             >
               {it.text}
@@ -286,7 +286,7 @@ export function TocWidget({ content, lang }: Props) {
                 {showNumbers && it.level === 2 && (
                   <span
                     className={cn(
-                      "flex-none w-6 text-[11px] font-semibold tabular-nums",
+                      "cms-toc-index flex-none w-6 font-semibold tabular-nums",
                       isActive ? "text-primary" : "text-muted-foreground group-hover:text-primary",
                     )}
                   >
@@ -295,11 +295,11 @@ export function TocWidget({ content, lang }: Props) {
                 )}
                 <span
                   className={cn(
-                    "text-[13px] min-w-0 flex-1 transition-colors",
+                    "cms-toc-item min-w-0 flex-1 transition-colors",
                     isActive
                       ? "font-bold text-foreground"
                       : "font-medium text-foreground/80 group-hover:text-foreground",
-                    it.level === 3 && "text-[12px] text-muted-foreground",
+                    it.level === 3 && "cms-toc-sub text-muted-foreground",
                   )}
                 >
                   {it.text}
@@ -332,7 +332,7 @@ export function TocWidget({ content, lang }: Props) {
         aria-expanded={open}
         aria-controls="toc-body"
       >
-        <span className="flex items-center gap-2 text-sm font-semibold">
+        <span className="cms-toc-heading flex items-center gap-2 font-semibold">
           <MenuIcon className="w-4 h-4 text-primary" />
           {title}
           <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground bg-muted px-2 py-0.5 rounded-[4px] ml-1">
@@ -354,7 +354,7 @@ export function TocWidget({ content, lang }: Props) {
         <div className="hidden lg:flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-1.5 h-6 bg-primary rounded-full shrink-0" aria-hidden />
-            <h2 className="text-[15px] font-bold tracking-tight truncate">{title}</h2>
+            <h2 className="cms-toc-heading font-bold tracking-tight truncate">{title}</h2>
           </div>
           <span
             className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground bg-muted px-2 py-1 rounded-[4px] shrink-0"
