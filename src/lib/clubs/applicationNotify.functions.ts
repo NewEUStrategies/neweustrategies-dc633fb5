@@ -88,7 +88,7 @@ export const notifyClubApplicationStatus = createServerFn({ method: "POST" })
       p_id: data.applicationId,
       p_status: data.status,
       p_ok: ok,
-      p_error: ok ? null : (result.reason ?? result.error ?? "send_failed"),
+      p_error: ok ? undefined : (result.reason ?? result.error ?? "send_failed"),
     });
 
     if (!ok) return { ok: false, error: result.reason ?? result.error ?? "send_failed" };
