@@ -359,9 +359,21 @@ export function applySecurityHeaders(request: Request, response: Response): Resp
     // Permissions-Policy: deny powerful features by default and opt OUT of the
     // Topics API (browsing-topics=()) so the browser never derives/attaches
     // ad-topics for this origin - a privacy default, not just a feature gate.
+    //
+    // `payment` musi być delegowane do ramek operatora płatności: Embedded
+    // Checkout renderuje formularz w iframe z js.stripe.com, a Link / Apple Pay
+    // / Google Pay wołają Payment Request API WEWNĄTRZ tej ramki. Przy
+    // `payment=(self)` przeglądarka odrzucała je z "payment is not allowed in
+    // this document" i portfele znikały z checkoutu.
     headers.set(
       "Permissions-Policy",
-      "camera=(), microphone=(), geolocation=(), payment=(self), browsing-topics=()",
+      [
+        "camera=()",
+        "microphone=()",
+        "geolocation=()",
+        'payment=(self "https://js.stripe.com" "https://checkout.stripe.com" "https://pay.google.com")',
+        "browsing-topics=()",
+      ].join(", "),
     );
     // COOP severs window.opener from cross-origin openers (tabnabbing) and
     // closes the cross-window XS-Leak surface by isolating this document's
