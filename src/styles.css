@@ -7764,3 +7764,30 @@ html {
     transform: none;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Hub Klubów Dyskusyjnych - wariant ARCHITECTURAL PRESTIGE (v5).
+   Instytucjonalna paleta z akcentem złota; osobne wartości dla light/dark,
+   żeby wariant wyglądał 1:1 w obu trybach zamiast rozjaśnianego granatu.
+   -------------------------------------------------------------------------- */
+.club-prestige {
+  --cp-surface: oklch(0.985 0.004 95);
+  --cp-panel: oklch(0.965 0.006 95);
+  --cp-line: oklch(0.87 0.008 95);
+  --cp-ink: oklch(0.21 0.02 260);
+  --cp-muted: oklch(0.52 0.015 260);
+  --cp-gold: oklch(0.68 0.09 85);
+  --cp-gold-ink: oklch(0.22 0.03 85);
+  --cp-watermark: oklch(0.21 0.02 260 / 0.05);
+}
+
+.dark .club-prestige {
+  --cp-surface: oklch(0.19 0.022 265);
+  --cp-panel: oklch(0.23 0.024 265);
+  --cp-line: oklch(0.33 0.022 265);
+  --cp-ink: oklch(0.97 0.005 95);
+  --cp-muted: oklch(0.72 0.015 265);
+  --cp-gold: oklch(0.78 0.09 85);
+  --cp-gold-ink: oklch(0.2 0.03 85);
+  --cp-watermark: oklch(0.98 0.01 95 / 0.045);
+}
