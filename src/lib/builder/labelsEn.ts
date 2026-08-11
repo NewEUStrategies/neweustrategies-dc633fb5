@@ -1164,10 +1164,9 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Dopisuje znak © i bieżący rok przed nazwą marki.":
     "Prefixes the line with © and the current year, before the brand name.",
   "Zmień język": "Change language",
-  "Czyta ją czytnik ekranu. Widoczna na stronie tylko przy włączonym przełączniku poniżej.":
-    "Read out by screen readers. Visible on the page only when the switch below is on.",
-  "Pokaż etykietę tekstową": "Show the text label",
-  "Wyświetla etykietę obok przełącznika PL/EN.": "Shows the label next to the PL/EN switch.",
+  "Opis dla czytników ekranu (aria-label). Na stronie widoczne są wyłącznie flagi PL/EN.":
+    "Description for screen readers (aria-label). Only the PL/EN flags are visible on the page.",
+
   "Adres wyników wyszukiwania": "Search results URL",
   "Formularz wysyła metodą GET parametr q pod ten adres.":
     "The form submits the q parameter to this URL with GET.",
