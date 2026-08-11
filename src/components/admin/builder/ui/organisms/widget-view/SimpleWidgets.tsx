@@ -800,10 +800,9 @@ export function renderSimpleWidget(
         (lang === "pl" ? "Zmień język" : "Change language");
       return (
         <div className="inline-flex items-center text-xs leading-none" style={compactRowStyle}>
-          {/* Domyślnie widoczny jest sam switcher PL/EN (`showLabel` = false w
-              chromeDefaults), ale ustawienie z panelu realnie steruje etykietą.
-              Wyłączona etykieta zostaje jako aria-label dla czytników ekranu. */}
-          <LangSwitcherDropdown label={label} showLabel={getBool(c, "showLabel", false)} />
+          {/* Widoczne są wyłącznie flagi z animowanym kciukiem; etykieta
+              służy tylko jako aria-label dla czytników ekranu. */}
+          <LangSwitcherDropdown label={label} />
         </div>
       );
     }

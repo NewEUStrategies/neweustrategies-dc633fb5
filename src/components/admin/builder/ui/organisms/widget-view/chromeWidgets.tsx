@@ -38,18 +38,10 @@ function FlagSvg({ code }: { code: FlagCode }) {
  * Przełącznik języka PL/EN.
  *
  * `label` zawsze opisuje kontrolkę czytnikowi ekranu (`aria-label`).
- * `showLabel` dokłada tę samą treść WIDOCZNIE obok przełącznika - to
- * ustawienie panelu ("Pokaż etykietę tekstową"), które przez pewien czas nie
- * miało po stronie renderera żadnego odpowiednika: kontrolka istniała, klikało
- * się ją, a strona wyglądała identycznie.
+ * Widoczny pozostaje wyłącznie parę flag z animowanym kciukiem - bez
+ * tekstowej etykiety obok przełącznika.
  */
-export function LangSwitcherDropdown({
-  label,
-  showLabel = false,
-}: {
-  label: string;
-  showLabel?: boolean;
-}) {
+export function LangSwitcherDropdown({ label }: { label: string }) {
   const { i18n, t } = useTranslation();
   const router = useRouter({ warn: false });
   const routerPath = router?.state?.location?.pathname ?? "/";
@@ -89,7 +81,7 @@ export function LangSwitcherDropdown({
 
   const isLastActive = current === "en";
 
-  const control = (
+  return (
     <div
       className="lang relative inline-flex p-[2px] rounded-[6px] border border-black/10 bg-[#f4f4f2] dark:border-white/10 dark:bg-[#27272a]"
       role="group"
@@ -132,19 +124,6 @@ export function LangSwitcherDropdown({
         );
       })}
     </div>
-  );
-
-  if (!showLabel) return control;
-  // Etykieta widoczna: przestaje być tylko `aria-label`, więc nie powtarzamy jej
-  // czytnikowi ekranu dwa razy - grupa zachowuje `aria-label`, a tekst dostaje
-  // `aria-hidden`.
-  return (
-    <span className="inline-flex items-center gap-2 leading-none">
-      <span aria-hidden className="text-[11px] font-medium text-muted-foreground">
-        {label}
-      </span>
-      {control}
-    </span>
   );
 }
 

@@ -1959,14 +1959,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       type: "i18nText",
       label: "Etykieta",
       placeholder: "Zmień język",
-      hint: "Czyta ją czytnik ekranu. Widoczna na stronie tylko przy włączonym przełączniku poniżej.",
-    },
-    {
-      key: "showLabel",
-      type: "bool",
-      label: "Pokaż etykietę tekstową",
-      default: false,
-      hint: "Wyświetla etykietę obok przełącznika PL/EN.",
+      hint: "Opis dla czytników ekranu (aria-label). Na stronie widoczne są wyłącznie flagi PL/EN.",
     },
   ],
   "search-form": [

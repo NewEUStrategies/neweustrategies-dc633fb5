@@ -857,12 +857,9 @@ export const WIDGETS: WidgetDef[] = [
     label: "Język (PL/EN)",
     category: "navigation",
     icon: Globe,
-    // `showLabel` startuje WYŁĄCZONE: etykieta jest przede wszystkim opisem dla
-    // czytnika ekranu (aria-label), a widoczny napis obok flag to świadomy
-    // wybór redakcji. Domyślne `true` przy martwym ustawieniu było obietnicą
-    // bez pokrycia - po zaimplementowaniu przełącznika włączałoby napis
-    // wszystkim istniejącym nagłówkom naraz.
-    defaults: () => ({ showLabel: false, label_pl: "Zmień język", label_en: "Switch language" }),
+    // Etykieta jest opisem dla czytnika ekranu (aria-label); na stronie
+    // widoczne są wyłącznie flagi PL/EN z animowanym kciukiem.
+    defaults: () => ({ label_pl: "Zmień język", label_en: "Switch language" }),
   },
   {
     type: "theme-toggle",
