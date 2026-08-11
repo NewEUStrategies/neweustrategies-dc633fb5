@@ -1,18 +1,32 @@
-// Siatka specjalizacji klubów - powierzchnia dla NIEZALOGOWANYCH.
+// Siatka specjalizacji klubów - pierwsza powierzchnia nawigacyjna huba,
+// wspólna dla anonima i osoby zalogowanej.
 //
-// Zastępuje katalog "Kluby otwarte", który dla anonima był zwykle pusty:
-// zamiast komunikatu o braku klubów pokazujemy osiem obszarów, w których
-// program realnie działa, po trzy kafle w rzędzie. Kafel jest linkiem do
-// strony specjalizacji, a pod siatką stoi jedno CTA do formularza zgłoszenia.
+// Katalog klubów nie stoi już na hubie płaską listą: najpierw wybiera się
+// obszar, a kluby pokazuje strona specjalizacji. Dla anonima kafel prowadzi
+// do strony sprzedażowej obszaru, dla zalogowanego - do tej samej strony,
+// która pod opisem wypisuje realne kluby (licznik na kaflu mówi ile).
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { CLUB_SPECIALIZATIONS } from "@/lib/clubs/specializations";
+import {
+  buildSpecializationViews,
+  fallbackSpecializationSources,
+} from "@/lib/clubs/specializations";
+import { useClubSpecializations } from "@/lib/clubs/useClubSpecializations";
 import { CLUB_HUB_ANCHORS } from "@/components/clubs/organisms/ClubHubHero";
 
-export function ClubSpecializationGrid() {
-  const { t } = useTranslation();
+export function ClubSpecializationGrid({ signedIn = false }: { signedIn?: boolean }) {
+  const { t, i18n } = useTranslation();
+  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  const listQ = useClubSpecializations();
+
+  const rows = listQ.data ?? [];
+  const specs = buildSpecializationViews(
+    rows.length > 0 ? rows : fallbackSpecializationSources(),
+    isPl,
+    (key) => t(key),
+  );
 
   return (
     <section
@@ -33,12 +47,12 @@ export function ClubSpecializationGrid() {
           {t("club.spec.sectionTitle")}
         </h2>
         <p className="mt-3 text-sm leading-relaxed" style={{ color: "var(--cp-muted)" }}>
-          {t("club.spec.sectionLead")}
+          {signedIn ? t("club.spec.sectionLeadMember") : t("club.spec.sectionLead")}
         </p>
       </header>
 
       <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {CLUB_SPECIALIZATIONS.map((spec) => {
+        {specs.map((spec) => {
           const Icon = spec.icon;
           return (
             <li key={spec.slug}>
@@ -71,21 +85,31 @@ export function ClubSpecializationGrid() {
                     className="mt-4 font-display text-lg font-bold leading-snug"
                     style={{ color: "var(--cp-ink)" }}
                   >
-                    {t(`club.spec.items.${spec.key}.title`)}
+                    {spec.title}
                   </h3>
                   <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--cp-muted)" }}>
-                    {t(`club.spec.items.${spec.key}.lead`)}
+                    {spec.lead}
                   </p>
                 </div>
-                <span
-                  className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] transition-colors"
-                  style={{ color: "var(--cp-gold)" }}
-                >
-                  {t("club.spec.explore")}
-                  <ArrowRight
-                    className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1"
-                    aria-hidden="true"
-                  />
+                <span className="flex items-center justify-between gap-3">
+                  <span
+                    className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] transition-colors"
+                    style={{ color: "var(--cp-gold)" }}
+                  >
+                    {signedIn ? t("club.spec.browseClubs") : t("club.spec.explore")}
+                    <ArrowRight
+                      className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1"
+                      aria-hidden="true"
+                    />
+                  </span>
+                  {signedIn ? (
+                    <span
+                      className="text-[11px] font-semibold tabular-nums"
+                      style={{ color: "var(--cp-muted)" }}
+                    >
+                      {t("club.spec.clubCount", { count: spec.clubCount })}
+                    </span>
+                  ) : null}
                 </span>
               </Link>
             </li>
@@ -93,19 +117,21 @@ export function ClubSpecializationGrid() {
         })}
       </ul>
 
-      <div className="mt-7 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
-        <Button
-          asChild
-          size="lg"
-          className="border-0"
-          style={{ background: "var(--cp-gold)", color: "var(--cp-gold-ink)" }}
-        >
-          <Link to="/club/apply">{t("club.spec.applyCta")}</Link>
-        </Button>
-        <p className="text-sm" style={{ color: "var(--cp-muted)" }}>
-          {t("club.spec.applyLead")}
-        </p>
-      </div>
+      {signedIn ? null : (
+        <div className="mt-7 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+          <Button
+            asChild
+            size="lg"
+            className="border-0"
+            style={{ background: "var(--cp-gold)", color: "var(--cp-gold-ink)" }}
+          >
+            <Link to="/club/apply">{t("club.spec.applyCta")}</Link>
+          </Button>
+          <p className="text-sm" style={{ color: "var(--cp-muted)" }}>
+            {t("club.spec.applyLead")}
+          </p>
+        </div>
+      )}
     </section>
   );
 }

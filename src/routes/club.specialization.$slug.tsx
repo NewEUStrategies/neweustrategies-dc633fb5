@@ -10,6 +10,9 @@ import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CLUB_SPECIALIZATIONS, findClubSpecialization } from "@/lib/clubs/specializations";
 import { buildSpecializationHead } from "@/lib/clubs/specializationHead";
+import { ClubDirectory } from "@/components/clubs/organisms/ClubDirectory";
+import { useClubsBySpecialization } from "@/lib/clubs/useClubSpecializations";
+import { useAuth } from "@/hooks/useAuth";
 import { ensureClubI18n } from "@/lib/i18n-club";
 
 export const Route = createFileRoute("/club/specialization/$slug")({
@@ -35,7 +38,15 @@ function ClubSpecializationPage() {
   ensureClubI18n();
   const { t } = useTranslation();
   const { slug } = Route.useParams();
+  const { i18n } = useTranslation();
+  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  const { session } = useAuth();
+  const signedIn = Boolean(session);
   const spec = findClubSpecialization(slug);
+  // Kluby czyta RPC z tymi samymi zasadami widocznosci co hub: anonim
+  // dostanie wylacznie kluby publiczne, wiec sekcja nie wycieka nazw.
+  const clubsQ = useClubsBySpecialization(slug);
+  const clubs = clubsQ.data?.rows ?? [];
 
   if (spec === null) {
     return (
@@ -134,6 +145,17 @@ function ClubSpecializationPage() {
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="mt-10">
+        <ClubDirectory
+          title={t("club.spec.clubsTitle")}
+          empty={signedIn ? t("club.spec.clubsEmpty") : t("club.spec.clubsAnon")}
+          clubs={clubs}
+          isPl={isPl}
+          loading={clubsQ.isPending}
+          layout="editorial"
+        />
       </section>
 
       <section className="mt-10">

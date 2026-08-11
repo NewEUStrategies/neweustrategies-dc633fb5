@@ -514,6 +514,16 @@ function AdminShellInner({
         },
 
         {
+          // Specjalizacje sa najwyzszym poziomem taksonomii i maja wlasne
+          // strony publiczne, wiec stoja obok obszarow tematycznych.
+          to: "/admin/community/clubs/specializations",
+          icon: Shapes,
+          label: t("admin.nav.clubSpecializations", {
+            defaultValue: lang === "pl" ? "Klub - specjalizacje" : "Club specialisations",
+          }),
+        },
+
+        {
           to: "/admin/comments",
           icon: MessageCircle,
           label: t("admin.nav.comments", {

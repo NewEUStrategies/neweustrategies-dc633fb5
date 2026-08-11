@@ -28,6 +28,15 @@ export const clubPl = {
 
     // --- specjalizacje publiczne (powierzchnia dla niezalogowanych) ---
     spec: {
+      sectionLeadMember: "Wybierz obszar, w którym pracujesz - w środku znajdziesz kluby prowadzone przez praktyków tej dziedziny.",
+      browseClubs: "Zobacz kluby",
+      clubCount_one: "{{count}} klub",
+      clubCount_few: "{{count}} kluby",
+      clubCount_many: "{{count}} klubów",
+      clubCount_other: "{{count}} klubów",
+      clubsTitle: "Kluby w tej specjalizacji",
+      clubsEmpty: "W tej specjalizacji nie ma jeszcze klubu dostępnego dla Ciebie.",
+      clubsAnon: "Kluby w tej specjalizacji zobaczysz po zalogowaniu.",
       eyebrow: "Specjalizacje",
       sectionTitle: "Osiem specjalizacji, jeden standard debaty",
       sectionLead:
@@ -1531,6 +1540,52 @@ export const clubPl = {
 
   adminClubs: {
     // --- katalog obszarów tematycznych ---
+    specializations: {
+      title: "Specjalizacje klubów",
+      subtitle:
+        "Najwyższy poziom taksonomii. Każda specjalizacja ma własną stronę publiczną i to po niej wchodzi się do katalogu klubów.",
+      add: "Dodaj specjalizację",
+      none: "Bez specjalizacji",
+      fieldLabel: "Specjalizacja",
+      fieldHint: "Decyduje, na której stronie specjalizacji pojawi się ten klub.",
+      activeSummary: "Aktywne: {{active}} z {{total}}",
+      loading: "Wczytywanie katalogu…",
+      empty: "Katalog jest pusty.",
+      system: "Systemowa",
+      disabled: "Wyłączona",
+      usage: "kluby: {{clubs}}",
+      order: "Kolejność",
+      icon: "Ikona",
+      slug: "Adres (slug)",
+      slugHint:
+        "Adres jest częścią URL-a strony specjalizacji. Po zmianie kluby zostają przepięte automatycznie.",
+      labelPl: "Nazwa (PL)",
+      labelEn: "Nazwa (EN)",
+      leadPl: "Zajawka na kafel (PL)",
+      leadEn: "Zajawka na kafel (EN)",
+      descPl: "Opis na stronie (PL)",
+      descEn: "Opis na stronie (EN)",
+      activeLabel: "Widoczna publicznie",
+      preview: "Podgląd strony",
+      edit: "Edytuj",
+      delete: "Usuń",
+      cancel: "Anuluj",
+      save: "Zapisz",
+      saved: "Zapisano specjalizację.",
+      deleted: "Usunięto specjalizację.",
+      deleteTitle: "Usunąć specjalizację?",
+      deleteBody: "Tej operacji nie można cofnąć. Usunąć można tylko specjalizację bez klubów.",
+      dialogCreate: "Nowa specjalizacja",
+      dialogEdit: "Edycja specjalizacji",
+      dialogHint: "Teksty PL i EN trafiają wprost na stronę publiczną i do metadanych.",
+      toggleAria: "Przełącz widoczność specjalizacji {{name}}",
+      errors: {
+        labels: "Podaj nazwę w obu językach.",
+        slug: "Adres musi mieć co najmniej 3 znaki.",
+        duplicate: "Taki adres już istnieje.",
+        inUse: "Specjalizacja jest przypisana do klubów - najpierw je przepnij.",
+      },
+    },
     topics: {
       title: "Obszary tematyczne",
       subtitle:
@@ -2142,6 +2197,13 @@ export const clubEn = {
 
     // --- public specialisations (anonymous entry surface) ---
     spec: {
+      sectionLeadMember: "Pick the area you work in - inside you will find the clubs run by practitioners of that field.",
+      browseClubs: "Browse clubs",
+      clubCount_one: "{{count}} club",
+      clubCount_other: "{{count}} clubs",
+      clubsTitle: "Clubs in this specialisation",
+      clubsEmpty: "There is no club available to you in this specialisation yet.",
+      clubsAnon: "Sign in to see the clubs in this specialisation.",
       eyebrow: "Specialisations",
       sectionTitle: "Eight specialisations, one standard of debate",
       sectionLead:
@@ -3547,6 +3609,52 @@ export const clubEn = {
 
   adminClubs: {
     // --- policy area catalogue ---
+    specializations: {
+      title: "Club specialisations",
+      subtitle:
+        "The top level of the taxonomy. Each specialisation has its own public page and is the way into the club directory.",
+      add: "Add specialisation",
+      none: "No specialisation",
+      fieldLabel: "Specialisation",
+      fieldHint: "Decides which specialisation page lists this club.",
+      activeSummary: "Active: {{active}} of {{total}}",
+      loading: "Loading catalogue…",
+      empty: "The catalogue is empty.",
+      system: "System",
+      disabled: "Disabled",
+      usage: "clubs: {{clubs}}",
+      order: "Order",
+      icon: "Icon",
+      slug: "Slug",
+      slugHint:
+        "The slug is part of the specialisation page URL. Clubs are re-pointed automatically after a change.",
+      labelPl: "Name (PL)",
+      labelEn: "Name (EN)",
+      leadPl: "Card lead (PL)",
+      leadEn: "Card lead (EN)",
+      descPl: "Page description (PL)",
+      descEn: "Page description (EN)",
+      activeLabel: "Publicly visible",
+      preview: "Preview page",
+      edit: "Edit",
+      delete: "Delete",
+      cancel: "Cancel",
+      save: "Save",
+      saved: "Specialisation saved.",
+      deleted: "Specialisation deleted.",
+      deleteTitle: "Delete specialisation?",
+      deleteBody: "This cannot be undone. Only a specialisation with no clubs can be deleted.",
+      dialogCreate: "New specialisation",
+      dialogEdit: "Edit specialisation",
+      dialogHint: "PL and EN copy goes straight to the public page and its metadata.",
+      toggleAria: "Toggle visibility of specialisation {{name}}",
+      errors: {
+        labels: "Provide a name in both languages.",
+        slug: "The slug needs at least 3 characters.",
+        duplicate: "That slug already exists.",
+        inUse: "The specialisation is assigned to clubs - re-point them first.",
+      },
+    },
     topics: {
       title: "Policy areas",
       subtitle:
