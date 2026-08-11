@@ -42,8 +42,12 @@ export async function markOrderSession(
 
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const patch: Record<string, unknown> = { status, updated_at: new Date().toISOString() };
-    if (sessionId !== null && sessionId !== undefined) patch["provider_session_id"] = sessionId;
+    const patch: {
+      status: MarkSessionStatus;
+      updated_at: string;
+      provider_session_id?: string;
+    } = { status, updated_at: new Date().toISOString() };
+    if (typeof sessionId === "string" && sessionId !== "") patch.provider_session_id = sessionId;
 
     const { data: rows, error: adminErr } = await supabaseAdmin
       .from("payment_orders")
@@ -52,6 +56,7 @@ export async function markOrderSession(
       .is("paid_at", null)
       .in("status", ["pending", "processing"])
       .select("id");
+
 
     if (adminErr) {
       console.error("[checkout] mark_session admin failed", orderId, adminErr.message);
