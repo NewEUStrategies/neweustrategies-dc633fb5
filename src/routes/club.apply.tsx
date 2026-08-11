@@ -17,6 +17,12 @@ import { FormSelect } from "@/components/atoms/FormSelect";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SubscribeButton } from "@/components/ui/subscribe-button";
 import { CLUB_SPECIALIZATIONS, findClubSpecialization } from "@/lib/clubs/specializations";
+import {
+  clubApplyValid,
+  validateClubApply,
+  type ClubApplyErrors,
+  type ClubApplyField,
+} from "@/lib/clubs/applyValidation";
 import { ensureClubI18n } from "@/lib/i18n-club";
 
 interface ApplySearch {
@@ -46,8 +52,6 @@ export const Route = createFileRoute("/club/apply")({
   component: ClubApplyPage,
 });
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 function ClubApplyPage() {
   ensureClubI18n();
   const { t, i18n } = useTranslation();
@@ -67,6 +71,24 @@ function ClubApplyPage() {
   const [spec, setSpec] = useState<string>(search.spec ?? "");
   const [consent, setConsent] = useState(false);
   const [status, setStatus] = useState<"idle" | "sending" | "ok">("idle");
+  // Bledy pokazujemy DOPIERO po pierwszej probie wyslania (`submitted`), a potem
+  // przeliczamy na kazda zmiane - inaczej pole krzyczy "za krotkie" przy
+  // pierwszej wpisanej literze, co czyta sie jak awaria formularza.
+  const [submitted, setSubmitted] = useState(false);
+  const [errors, setErrors] = useState<ClubApplyErrors>({});
+
+  const values = { ...form, specialization: spec, consent };
+  const liveErrors = submitted ? validateClubApply(values) : errors;
+  const errorText = (field: ClubApplyField): string | null => {
+    const key = liveErrors[field];
+    return key === undefined ? null : t(key);
+  };
+  // Podsumowanie nad formularzem: czytnik ekranu dostaje komplet bledow w jednym
+  // miejscu, a osoba widzaca - liste odsyłaczy zamiast polowania na czerwone pola.
+  const errorList = (Object.keys(liveErrors) as ClubApplyField[]).map((field) => ({
+    field,
+    message: t(liveErrors[field] as string),
+  }));
 
   const options = CLUB_SPECIALIZATIONS.map((item) => ({
     value: item.slug,
@@ -75,21 +97,18 @@ function ClubApplyPage() {
 
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    setSubmitted(true);
+    const found = validateClubApply(values);
+    setErrors(found);
+    if (!clubApplyValid(found)) {
+      // Toast informuje, ze cos jest nie tak; SZCZEGOL zostaje przy polu.
+      toast.error(t("club.spec.apply.errorsTitle"));
+      return;
+    }
+
     const firstName = form.firstName.trim();
     const lastName = form.lastName.trim();
     const email = form.email.trim();
-    if (firstName === "" || email === "" || spec === "") {
-      toast.error(t("club.spec.apply.required"));
-      return;
-    }
-    if (!EMAIL_RE.test(email)) {
-      toast.error(t("club.spec.apply.invalidEmail"));
-      return;
-    }
-    if (!consent) {
-      toast.error(t("club.spec.apply.consentRequired"));
-      return;
-    }
 
     const selected = findClubSpecialization(spec);
     const specLabel = selected === null ? spec : t(`club.spec.items.${selected.key}.title`);
@@ -131,6 +150,8 @@ function ClubApplyPage() {
         motivation: "",
       });
       setConsent(false);
+      setSubmitted(false);
+      setErrors({});
       toast.success(t("club.spec.apply.ok"));
     } catch {
       setStatus("idle");
@@ -164,9 +185,25 @@ function ClubApplyPage() {
       </header>
 
       <form onSubmit={onSubmit} className="mt-6 space-y-4" noValidate>
+        {errorList.length > 0 ? (
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm"
+          >
+            <p className="font-semibold text-destructive">{t("club.spec.apply.errorsTitle")}</p>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-destructive">
+              {errorList.map((item) => (
+                <li key={item.field}>{item.message}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
         <div className="grid gap-4 md:grid-cols-3">
           <FloatingInput
             label={t("club.spec.apply.firstName")}
+            error={errorText("firstName")}
             required
             autoComplete="given-name"
             value={form.firstName}
@@ -174,12 +211,14 @@ function ClubApplyPage() {
           />
           <FloatingInput
             label={t("club.spec.apply.lastName")}
+            error={errorText("lastName")}
             autoComplete="family-name"
             value={form.lastName}
             onChange={(e) => setForm({ ...form, lastName: e.target.value })}
           />
           <FloatingInput
             label={t("club.spec.apply.email")}
+            error={errorText("email")}
             required
             type="email"
             autoComplete="email"
@@ -188,18 +227,21 @@ function ClubApplyPage() {
           />
           <FloatingInput
             label={t("club.spec.apply.company")}
+            error={errorText("company")}
             autoComplete="organization"
             value={form.company}
             onChange={(e) => setForm({ ...form, company: e.target.value })}
           />
           <FloatingInput
             label={t("club.spec.apply.role")}
+            error={errorText("role")}
             autoComplete="organization-title"
             value={form.role}
             onChange={(e) => setForm({ ...form, role: e.target.value })}
           />
           <FloatingInput
             label={t("club.spec.apply.phone")}
+            error={errorText("phone")}
             type="tel"
             autoComplete="tel"
             value={form.phone}
@@ -219,14 +261,23 @@ function ClubApplyPage() {
             placeholder={t("club.spec.apply.specializationPlaceholder")}
             aria-label={t("club.spec.apply.specialization")}
           />
+          {errorText("specialization") !== null ? (
+            <p className="mt-1.5 pl-1 text-xs text-destructive" role="alert">
+              {errorText("specialization")}
+            </p>
+          ) : null}
         </div>
 
         <FloatingTextarea
           rows={5}
           label={t("club.spec.apply.motivation")}
+          error={errorText("motivation")}
           value={form.motivation}
           onChange={(e) => setForm({ ...form, motivation: e.target.value })}
         />
+        <p className="-mt-2 pl-1 text-xs" style={{ color: "var(--cp-muted)" }}>
+          {t("club.spec.apply.motivationHint")}
+        </p>
 
         <label className="flex items-start gap-3 text-sm" style={{ color: "var(--cp-muted)" }}>
           <Checkbox
@@ -234,7 +285,14 @@ function ClubApplyPage() {
             onCheckedChange={(next) => setConsent(next === true)}
             aria-label={t("club.spec.apply.consent")}
           />
-          <span>{t("club.spec.apply.consent")}</span>
+          <span>
+            {t("club.spec.apply.consent")}
+            {errorText("consent") !== null ? (
+              <span className="mt-1 block text-xs text-destructive" role="alert">
+                {errorText("consent")}
+              </span>
+            ) : null}
+          </span>
         </label>
 
         <SubscribeButton
