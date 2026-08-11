@@ -174,7 +174,7 @@ export async function buildAdhocOrder(args: BuildAdhocOrderArgs): Promise<BuildA
   });
 
   if (!result.ok) {
-    await supabase.rpc("payment_order_mark_session", { _order_id: order.id, _session_id: null, _status: "failed" });
+    await supabase.rpc("payment_order_mark_session", { _order_id: order.id, _session_id: undefined, _status: "failed" });
     return { ok: false, error: result.error };
   }
 

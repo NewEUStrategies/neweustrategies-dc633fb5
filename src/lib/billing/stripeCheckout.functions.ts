@@ -101,7 +101,7 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
         _currency: plan.currency,
       });
       if (redeemErr || !redeemed) {
-        await supabase.rpc("payment_order_mark_session", { _order_id: order.id, _session_id: null, _status: "canceled" });
+        await supabase.rpc("payment_order_mark_session", { _order_id: order.id, _session_id: undefined, _status: "canceled" });
         return { ok: false as const, error: "limit_reached" };
       }
     }
@@ -130,7 +130,7 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
     });
 
     if (!result.ok) {
-      await supabase.rpc("payment_order_mark_session", { _order_id: order.id, _session_id: null, _status: "failed" });
+      await supabase.rpc("payment_order_mark_session", { _order_id: order.id, _session_id: undefined, _status: "failed" });
       if (couponId) {
         await supabase.rpc("release_b2b_coupon", { _coupon_id: couponId, _order_id: order.id });
       }

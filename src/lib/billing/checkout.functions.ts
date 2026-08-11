@@ -308,7 +308,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       });
       if (redeemErr || !redeemed) {
         // Ktoś przejął ostatnie użycie zanim doszliśmy tutaj - unieważniamy zamówienie.
-        await supabase.rpc("payment_order_mark_session", { _order_id: order.id, _session_id: null, _status: "canceled" });
+        await supabase.rpc("payment_order_mark_session", { _order_id: order.id, _session_id: undefined, _status: "canceled" });
         return {
           ok: false as const,
           mode: "coupon" as const,
@@ -361,7 +361,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
           trialDays,
         });
         if (!createdSub.ok) {
-          await supabase.rpc("payment_order_mark_session", { _order_id: order.id, _session_id: null, _status: "failed" });
+          await supabase.rpc("payment_order_mark_session", { _order_id: order.id, _session_id: undefined, _status: "failed" });
           if (couponId) {
             const { error: releaseErr } = await supabase.rpc("release_b2b_coupon", {
               _coupon_id: couponId,
@@ -409,7 +409,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         settings,
       });
       if (!created.ok) {
-        await supabase.rpc("payment_order_mark_session", { _order_id: order.id, _session_id: null, _status: "failed" });
+        await supabase.rpc("payment_order_mark_session", { _order_id: order.id, _session_id: undefined, _status: "failed" });
         // Kupon został zarezerwowany PRZED utworzeniem sesji. Skoro dostawca
         // odmówił, użycie musi wrócić do puli - inaczej limit przepadłby za
         // zamówienie, którego nikt nigdy nie opłaci.
