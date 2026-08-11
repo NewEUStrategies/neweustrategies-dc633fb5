@@ -5,14 +5,16 @@
 // zaproszeń i filtrowania. Karta klubu jest jedna - jeśli kiedyś dojdzie do
 // niej odznaka albo licznik nieprzeczytanych, dojdzie w jednym miejscu.
 //
-// UKŁADY. Trzy warianty z tego samego słownika, co układ strony klubu:
+// UKŁADY. Cztery warianty z tego samego słownika, co układ strony klubu:
 //
-//   `cards`    - siatka z okładką 16:9 i fragmentem opisu. Domyślny.
-//   `list`     - gęsty wiersz z miniaturą. Dla osób w wielu klubach naraz;
-//                mieści trzy razy więcej pozycji na ekranie.
-//   `magazine` - pierwszy klub jako duży kafel z pełną okładką i dłuższym
-//                fragmentem, reszta wierszami. Dla huba z jednym klubem,
-//                który realnie żyje.
+//   `cards`     - siatka z okładką 16:9 i fragmentem opisu. Domyślny.
+//   `list`      - gęsty wiersz z miniaturą. Dla osób w wielu klubach naraz;
+//                 mieści trzy razy więcej pozycji na ekranie.
+//   `magazine`  - pierwszy klub jako duży kafel z pełną okładką i dłuższym
+//                 fragmentem, reszta wierszami. Dla huba z jednym klubem,
+//                 który realnie żyje.
+//   `editorial` - duże, redakcyjne karty z akcentem na tytuł, dostęp i
+//                 ostatnią aktywność. Domyślny dla huba.
 //
 // Fragment (`tagline`) jest we WSZYSTKICH wariantach - różni się tylko
 // liczbą linii. Klub bez zdania wyjaśniającego, po co istnieje, jest w
@@ -24,7 +26,9 @@ import { Badge } from "@/components/ui/badge";
 import { ClubCover } from "@/components/clubs/atoms/ClubCover";
 import { ClubDirectorySkeleton } from "@/components/clubs/atoms/ClubSkeletons";
 import { ClubTopicChip } from "@/components/clubs/atoms/ClubTopicChip";
+import { ClubHubAccessBadge } from "@/components/clubs/atoms/ClubHubAccessBadge";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
+import { formatDateShort } from "@/lib/i18n/format";
 import { CLUB_VISIBILITIES, type ClubLayout, type ClubVisibility } from "@/lib/clubs/types";
 
 export interface ClubDirectoryCard {
@@ -40,6 +44,12 @@ export interface ClubDirectoryCard {
   member_count: number;
   thread_count: number;
   group_count: number;
+  /** Stan członkostwa wołającego użytkownika w tym klubie. */
+  my_status?: string | null;
+  /** Czy wołający może czytać treść klubu (publiczny / uprawniony plan). */
+  can_read?: boolean;
+  /** Data ostatniej aktywności w klubie. */
+  last_activity_at?: string | null;
 }
 
 function asVisibility(value: string): ClubVisibility {
@@ -55,6 +65,15 @@ function clubName(club: ClubDirectoryCard, isPl: boolean): string {
 function clubExcerpt(club: ClubDirectoryCard, isPl: boolean): string | null {
   const value = isPl ? club.tagline_pl : club.tagline_en;
   return value !== null && value.trim() !== "" ? value : null;
+}
+
+function clubAccess(
+  club: ClubDirectoryCard,
+): import("@/lib/clubs/hubAccess").ClubHubAccess | null {
+  if (club.my_status === "active") return "member";
+  if (club.my_status === "invited") return "invited";
+  if (club.can_read) return "entitled";
+  return "locked";
 }
 
 function ClubStats({ club, isPl }: { club: ClubDirectoryCard; isPl: boolean }) {
@@ -184,6 +203,61 @@ function MagazineLead({ club, isPl }: { club: ClubDirectoryCard; isPl: boolean }
   );
 }
 
+function EditorialCard({ club, isPl }: { club: ClubDirectoryCard; isPl: boolean }) {
+  const { t, i18n } = useTranslation();
+  const excerpt = clubExcerpt(club, isPl);
+  const access = clubAccess(club);
+  const lastActivity =
+    club.last_activity_at !== null && club.last_activity_at !== undefined
+      ? formatDateShort(club.last_activity_at, i18n.language)
+      : null;
+
+  return (
+    <Link
+      to="/club/$clubSlug"
+      params={{ clubSlug: club.slug }}
+      className="group flex flex-col overflow-hidden rounded-xl border border-border/60 bg-card transition-all hover:border-primary/40 hover:bg-muted/20"
+    >
+      <ClubCover url={club.cover_image_url} variant="card" className="rounded-t-xl" />
+      <div className="flex flex-1 flex-col p-4">
+        <div className="flex items-start justify-between gap-3">
+          <h3 className="min-w-0 flex-1 text-lg font-semibold leading-tight group-hover:text-primary sm:text-xl">
+            {clubName(club, isPl)}
+          </h3>
+          {access !== null ? (
+            <div className="shrink-0">
+              <ClubHubAccessBadge access={access} />
+            </div>
+          ) : (
+            <Badge variant="outline" className="shrink-0 text-[11px]">
+              {t(`club.visibility.${asVisibility(club.visibility)}`)}
+            </Badge>
+          )}
+        </div>
+
+        {excerpt !== null ? (
+          <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
+            {excerpt}
+          </p>
+        ) : null}
+
+        <div className="mt-auto pt-4">
+          <ClubStats club={club} isPl={isPl} />
+          {lastActivity !== null ? (
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              {t("club.lastActivity")}: {lastActivity}
+            </p>
+          ) : null}
+          <span className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-primary opacity-80 transition-opacity group-hover:opacity-100">
+            {t("club.hub.goToThreads")}
+            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+          </span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 export function ClubDirectory({
   title,
   empty,
@@ -230,6 +304,12 @@ export function ClubDirectory({
               ))}
             </div>
           ) : null}
+        </div>
+      ) : layout === "editorial" ? (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {clubs.map((club) => (
+            <EditorialCard key={club.id} club={club} isPl={isPl} />
+          ))}
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

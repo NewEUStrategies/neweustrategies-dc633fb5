@@ -69,7 +69,7 @@ export type ClubMemberStatus = (typeof CLUB_MEMBER_STATUSES)[number];
  * zmienia to, co czytelnik zobaczy PIERWSZE. Slownik musi odpowiadac CHECK-owi
  * clubs_layout_check z migracji 20260808160000.
  */
-export const CLUB_LAYOUTS = ["list", "cards", "magazine"] as const;
+export const CLUB_LAYOUTS = ["list", "cards", "magazine", "editorial"] as const;
 export type ClubLayout = (typeof CLUB_LAYOUTS)[number];
 
 export function toClubLayout(value: string | null | undefined): ClubLayout {

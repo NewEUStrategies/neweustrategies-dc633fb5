@@ -131,8 +131,9 @@ function ClubHub() {
       clubs: clubs.length,
       threads: clubs.reduce((sum, c) => sum + c.thread_count, 0),
       seats: clubs.reduce((sum, c) => sum + c.member_count, 0),
+      mine: mine.length,
     }),
-    [clubs],
+    [clubs, mine.length],
   );
 
   const respond = (invitationId: string, accept: boolean) =>

@@ -9,7 +9,7 @@
 // a przełącznik układu nie jest funkcją, dla której wolno wywrócić stronę.
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { LayoutGrid, LayoutList, Newspaper } from "lucide-react";
+import { LayoutGrid, LayoutList, LayoutTemplate, Newspaper } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CLUB_LAYOUTS, toClubLayout, type ClubLayout } from "@/lib/clubs/types";
 
@@ -19,6 +19,7 @@ const ICON: Record<ClubLayout, typeof LayoutList> = {
   list: LayoutList,
   cards: LayoutGrid,
   magazine: Newspaper,
+  editorial: LayoutTemplate,
 };
 
 /**
@@ -27,7 +28,7 @@ const ICON: Record<ClubLayout, typeof LayoutList> = {
  * wtedy, gdy jest osłonięty `typeof window`.
  */
 export function useClubHubLayout(): [ClubLayout, (layout: ClubLayout) => void] {
-  const [layout, setLayout] = useState<ClubLayout>("cards");
+  const [layout, setLayout] = useState<ClubLayout>("editorial");
 
   useEffect(() => {
     try {

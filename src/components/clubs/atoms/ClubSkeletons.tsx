@@ -86,6 +86,37 @@ export function ClubDirectorySkeleton({
     );
   }
 
+  if (layout === "editorial") {
+    return (
+      <div
+        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
+        aria-busy="true"
+      >
+        {items.map((i) => (
+          <div
+            key={i}
+            className="overflow-hidden rounded-xl border border-border/60 bg-card"
+          >
+            <Shimmer className="aspect-[16/9] rounded-none" />
+            <div className="space-y-2 p-4">
+              <div className="flex items-start justify-between gap-2">
+                <Shimmer className="h-5 w-2/3" />
+                <Shimmer className="h-5 w-16" />
+              </div>
+              <Shimmer className="h-3 w-full" />
+              <Shimmer className="h-3 w-5/6" />
+              <div className="flex gap-3 pt-2">
+                <Shimmer className="h-3 w-14" />
+                <Shimmer className="h-3 w-14" />
+                <Shimmer className="h-3 w-14" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-busy="true">
       {items.map((i) => (
