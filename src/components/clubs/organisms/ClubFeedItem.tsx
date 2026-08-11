@@ -29,6 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
 import {
+  ClubDossierKind,
   ClubDossierMetrics,
   ClubDossierRow,
   clubThreadTone,

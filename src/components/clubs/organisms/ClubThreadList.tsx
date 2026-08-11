@@ -9,6 +9,7 @@
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import {
+  ClubDossierKind,
   Clock,
   Lightbulb,
   Link2,
@@ -38,12 +39,9 @@ function ThreadMeta({ thread, isPl }: { thread: ClubThreadListRow; isPl: boolean
   const author = toAuthorLabel(thread, t("club.anonymousAuthor"), t("club.deletedAuthor"));
   return (
     <>
-      <Badge
-        variant="secondary"
-        className="rounded-lg px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wide"
-      >
+      <ClubDossierKind className="text-[10px]">
         {t(`club.kind.${thread.kind}`)}
-      </Badge>
+      </ClubDossierKind>
       {thread.status === "locked" ? (
         <Lock
           className="h-3 w-3 text-muted-foreground"
