@@ -7791,3 +7791,31 @@ html {
   --cp-gold-ink: oklch(0.2 0.03 85);
   --cp-watermark: oklch(0.98 0.01 95 / 0.045);
 }
+
+/* --------------------------------------------------------------------------
+   Hub Klubów Dyskusyjnych - w trybie ciemnym cała strona (łącznie z headerem
+   i stopką) przechodzi na instytucjonalny granat. Nadpisujemy tokeny na
+   <html.dark.club-navy>, więc `bg-background`, `bg-card` itd. same podążają.
+   Tryb jasny pozostaje bez zmian.
+   -------------------------------------------------------------------------- */
+.dark.club-navy {
+  --background: #0b1424;
+  --card: #101c31;
+  --popover: #101c31;
+  --secondary: #16233b;
+  --muted: #101c31;
+  --muted-foreground: oklch(0.74 0.02 260);
+  --accent: #16233b;
+  --border: oklch(0.85 0.04 260 / 14%);
+  --input: oklch(0.85 0.04 260 / 16%);
+}
+
+.dark.club-navy body {
+  background-color: var(--background);
+}
+
+.dark.club-navy .club-prestige {
+  --cp-surface: #0b1424;
+  --cp-panel: #101c31;
+  --cp-line: oklch(0.85 0.04 260 / 18%);
+}
