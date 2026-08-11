@@ -14,6 +14,12 @@ import { Button } from "@/components/ui/button";
 import { ClubHubAccessBadge } from "@/components/clubs/atoms/ClubHubAccessBadge";
 import type { ClubHubAccess } from "@/lib/clubs/hubAccess";
 
+/** Kotwice sekcji katalogu, do których skacze szyna statystyk. */
+export const CLUB_HUB_ANCHORS = {
+  mine: "#club-mine",
+  discover: "#club-discover",
+} as const;
+
 export interface ClubHubStats {
   clubs: number;
   threads: number;
@@ -55,7 +61,6 @@ export function ClubHubHero({
         <div className="relative overflow-hidden p-6 md:p-10 lg:p-14">
           <div className="relative z-10">
             <div className="mb-8 flex items-center gap-4">
-              <span className="h-px w-10" style={{ background: "var(--cp-gold)" }} />
               <span
                 className="text-[10px] font-semibold uppercase tracking-[0.42em]"
                 style={{ color: "var(--cp-muted)" }}
@@ -112,13 +117,31 @@ export function ClubHubHero({
 
         {/* Pionowa szyna statystyk */}
         <div className="grid grid-cols-3 gap-px lg:grid-cols-1">
-          <StatCard value={stats.clubs} label={t("club.hub.statClubs")} />
+          <StatCard
+            value={stats.clubs}
+            label={t("club.hub.statClubs")}
+            href={CLUB_HUB_ANCHORS.discover}
+          />
           {signedIn && stats.mine !== undefined ? (
-            <StatCard value={stats.mine} label={t("club.hub.statMineLabel")} highlight />
+            <StatCard
+              value={stats.mine}
+              label={t("club.hub.statMineLabel")}
+              highlight
+              href={stats.mine > 0 ? CLUB_HUB_ANCHORS.mine : CLUB_HUB_ANCHORS.discover}
+            />
           ) : (
-            <StatCard value={stats.seats} label={t("club.hub.statSeats")} highlight />
+            <StatCard
+              value={stats.seats}
+              label={t("club.hub.statSeats")}
+              highlight
+              href={CLUB_HUB_ANCHORS.discover}
+            />
           )}
-          <StatCard value={stats.threads} label={t("club.hub.statThreads")} />
+          <StatCard
+            value={stats.threads}
+            label={t("club.hub.statThreads")}
+            href={CLUB_HUB_ANCHORS.discover}
+          />
         </div>
       </div>
 
@@ -145,19 +168,16 @@ function StatCard({
   value,
   label,
   highlight = false,
+  href,
 }: {
   value: number;
   label: string;
   highlight?: boolean;
+  /** Kotwica w katalogu; gdy podana, panel jest realnym linkiem (a nie dekoracją). */
+  href?: string;
 }) {
-  return (
-    <div
-      className="flex flex-col justify-between gap-6 p-5 md:p-7"
-      style={{
-        background: highlight ? "var(--cp-gold)" : "var(--cp-panel)",
-        color: highlight ? "var(--cp-gold-ink)" : "var(--cp-ink)",
-      }}
-    >
+  const body = (
+    <>
       <span
         className="text-[9px] font-bold uppercase tracking-[0.28em]"
         style={{ color: highlight ? "var(--cp-gold-ink)" : "var(--cp-muted)" }}
@@ -167,6 +187,38 @@ function StatCard({
       <span className="font-display text-4xl font-black tabular-nums leading-none md:text-5xl">
         {value}
       </span>
-    </div>
+    </>
+  );
+
+  const surface = {
+    background: highlight ? "var(--cp-gold)" : "var(--cp-panel)",
+    color: highlight ? "var(--cp-gold-ink)" : "var(--cp-ink)",
+  };
+  const shell = "flex flex-col justify-between gap-6 p-5 md:p-7";
+
+  if (href === undefined) {
+    return (
+      <div className={shell} style={surface}>
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <a
+      href={href}
+      onClick={(event) => {
+        // Kotwica działa też bez zmiany URL-a: płynne przewinięcie do sekcji.
+        const target = document.querySelector(href);
+        if (target !== null) {
+          event.preventDefault();
+          target.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }}
+      className={`${shell} group cursor-pointer outline-none transition-[transform,box-shadow,filter] duration-200 hover:-translate-y-0.5 hover:brightness-[1.06] focus-visible:ring-2 focus-visible:ring-offset-2`}
+      style={surface}
+    >
+      {body}
+    </a>
   );
 }
