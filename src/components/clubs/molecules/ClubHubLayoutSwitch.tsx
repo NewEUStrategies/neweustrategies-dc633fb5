@@ -37,6 +37,8 @@ export function useClubHubLayout(): [ClubLayout, (layout: ClubLayout) => void] {
 
   useEffect(() => {
     try {
+      // Stary klucz sprzątamy, żeby nie wracał przy kolejnej zmianie domyślnej.
+      window.localStorage.removeItem(LEGACY_STORAGE_KEY);
       const stored = window.localStorage.getItem(STORAGE_KEY);
       if (stored !== null) setLayout(toClubLayout(stored));
     } catch {
