@@ -618,23 +618,21 @@ export function SectionLabelRender({
       // pionowa kreska rozdzielająca i szeryfowy tytuł. Kompaktowo - bez
       // dodatkowej linii pod spodem (opcjonalna przez `showRule`).
       const num = indexNumber || "01";
-      const serif = '"Iowan Old Style", "Palatino Linotype", Georgia, "Times New Roman", serif';
+      // Domyślny krój = Red Hat Display (font widgetu). Szeryf tylko wtedy,
+      // gdy użytkownik wybierze go w ustawieniach widgetu.
       const numStyle: React.CSSProperties = {
         color: accent,
         opacity: 0.35,
-        fontFamily: resolveFontFamily(numberFont) ?? serif,
-        fontSize: !isSm && numberSize ? numberSize : undefined,
         lineHeight: 0.9,
-        fontWeight: 400,
       };
-      const titleStyle: React.CSSProperties = {
-        fontFamily: resolveFontFamily(titleFont) ?? serif,
-        fontWeight: 400,
-        ...labelStyle,
-      };
+      const numFamily = resolveFontFamily(numberFont);
+      if (numFamily) numStyle.fontFamily = numFamily;
+      if (!isSm && numberSize) numStyle.fontSize = numberSize;
+      const titleStyle: React.CSSProperties = { ...labelStyle };
       const titleCls = isSm
         ? "text-[11px] tracking-tight"
         : "text-xl sm:text-3xl tracking-tight leading-none";
+
       return (
         <div className={`${wrapperBase} w-full min-w-0 ${padY}`}>
           <div className="flex items-center min-w-0" style={{ gap: gapXPx }}>
@@ -668,19 +666,14 @@ export function SectionLabelRender({
 
     case "double-deck-masthead": {
       // Masthead: cienka linia akcentowa NAD blokiem, mała kategoria (kicker)
-      // i duży szeryfowy tytuł. Kompaktowy rytm sterowany `gapY`.
+      // i tytuł w foncie widgetu (domyślnie Red Hat Display).
       const kicker = category || "";
-      const serif = '"Iowan Old Style", "Palatino Linotype", Georgia, "Times New Roman", serif';
-      const catStyle: React.CSSProperties = {
-        color: accent,
-        fontFamily: resolveFontFamily(categoryFont) ?? undefined,
-        fontSize: !isSm && categorySize ? categorySize : undefined,
-      };
-      const titleStyle: React.CSSProperties = {
-        fontFamily: resolveFontFamily(titleFont) ?? serif,
-        fontWeight: 400,
-        ...labelStyle,
-      };
+      const catStyle: React.CSSProperties = { color: accent };
+      const catFamily = resolveFontFamily(categoryFont);
+      if (catFamily) catStyle.fontFamily = catFamily;
+      if (!isSm && categorySize) catStyle.fontSize = categorySize;
+      const titleStyle: React.CSSProperties = { ...labelStyle };
+
       const titleCls = isSm
         ? "text-[12px] tracking-tight"
         : "text-xl sm:text-3xl tracking-tight leading-none";
