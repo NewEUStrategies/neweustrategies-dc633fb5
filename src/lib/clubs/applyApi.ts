@@ -7,7 +7,15 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { ClubApplyValues } from "@/lib/clubs/applyValidation";
 
-export type ClubApplicationStatus = "pending" | "review" | "accepted" | "rejected";
+export type ClubApplicationStatus =
+  | "pending"
+  | "review"
+  | "accepted"
+  | "rejected"
+  | "needs_info";
+
+/** Stan synchronizacji zgloszenia z kartoteka CRM. */
+export type ClubApplicationCrmStatus = "pending" | "ok" | "error";
 
 export interface ClubApplicationAdminRow {
   id: string;
@@ -45,6 +53,21 @@ export interface ClubApplicationAdminRow {
   admin_note: string;
   reviewed_at: string | null;
   lang: string;
+  crm_lead_id: string | null;
+  crm_sync_status: ClubApplicationCrmStatus;
+  crm_synced_at: string | null;
+  crm_last_attempt_at: string | null;
+  crm_error: string | null;
+  notified_status: ClubApplicationStatus | null;
+  notified_at: string | null;
+  notify_error: string | null;
+}
+
+export interface ClubApplicationCrmRetryResult {
+  crm_sync_status: ClubApplicationCrmStatus;
+  crm_error: string | null;
+  crm_synced_at: string | null;
+  crm_last_attempt_at: string | null;
 }
 
 export interface ClubApplicationCountRow {
@@ -188,4 +211,25 @@ export async function setClubApplicationStatus(
     p_note: note ?? undefined,
   });
   if (error) throw new Error(error.message);
+}
+
+/**
+ * Ponowienie synchronizacji z CRM dla jednego zgloszenia.
+ *
+ * Blad synchronizacji nie moze byc niewidzialny: RPC zapisuje jego tresc przy
+ * zgloszeniu i zwraca aktualny stan, zeby panel od razu pokazal wynik proby.
+ */
+export async function retryClubApplicationCrmSync(
+  id: string,
+): Promise<ClubApplicationCrmRetryResult> {
+  const { data, error } = await supabase.rpc("admin_club_application_crm_retry", { p_id: id });
+  if (error) throw new Error(error.message);
+  const row = Array.isArray(data) ? data[0] : null;
+  if (!row) throw new Error("not_found");
+  return {
+    crm_sync_status: row.crm_sync_status as ClubApplicationCrmStatus,
+    crm_error: row.crm_error,
+    crm_synced_at: row.crm_synced_at,
+    crm_last_attempt_at: row.crm_last_attempt_at,
+  };
 }

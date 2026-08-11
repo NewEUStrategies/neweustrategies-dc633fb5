@@ -127,6 +127,11 @@ export const TX_EMAIL_CATEGORY: Readonly<Record<TxEmailType, EmailCategory>> = {
   // odbiorcy chwilę wcześniej.
   customer_portal_link: "transactional",
   // Potwierdzenie zapisu na newsletter to sama esencja wysyłki za zgodą.
+  // Decyzja redakcji w sprawie zgłoszenia złożonego przez tę osobę - poczta 1:1
+  // wywołana jej własnym działaniem, nie wysyłka za zgodą marketingową.
+  club_application_accepted: "transactional",
+  club_application_rejected: "transactional",
+  club_application_more_info: "transactional",
   newsletter_confirmed: "bulk",
 };
 
