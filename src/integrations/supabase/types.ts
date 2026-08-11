@@ -2774,6 +2774,63 @@ export type Database = {
           },
         ]
       }
+      club_specializations: {
+        Row: {
+          created_at: string
+          desc_en: string | null
+          desc_pl: string | null
+          icon: string
+          id: string
+          is_active: boolean
+          is_system: boolean
+          key: string
+          label_en: string
+          label_pl: string
+          lead_en: string | null
+          lead_pl: string | null
+          slug: string
+          sort_order: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          desc_en?: string | null
+          desc_pl?: string | null
+          icon?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key: string
+          label_en: string
+          label_pl: string
+          lead_en?: string | null
+          lead_pl?: string | null
+          slug: string
+          sort_order?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          desc_en?: string | null
+          desc_pl?: string | null
+          icon?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key?: string
+          label_en?: string
+          label_pl?: string
+          lead_en?: string | null
+          lead_pl?: string | null
+          slug?: string
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       club_stances: {
         Row: {
           club_id: string
@@ -3529,6 +3586,7 @@ export type Database = {
           rules_en: string | null
           rules_pl: string | null
           slug: string
+          specialization_slug: string | null
           status: string
           tagline_en: string | null
           tagline_pl: string | null
@@ -3561,6 +3619,7 @@ export type Database = {
           rules_en?: string | null
           rules_pl?: string | null
           slug: string
+          specialization_slug?: string | null
           status?: string
           tagline_en?: string | null
           tagline_pl?: string | null
@@ -3593,6 +3652,7 @@ export type Database = {
           rules_en?: string | null
           rules_pl?: string | null
           slug?: string
+          specialization_slug?: string | null
           status?: string
           tagline_en?: string | null
           tagline_pl?: string | null
@@ -14774,6 +14834,37 @@ export type Database = {
         Args: { p_club_id?: string; p_slug: string }
         Returns: boolean
       }
+      admin_club_specialization_delete: {
+        Args: { _id: string }
+        Returns: boolean
+      }
+      admin_club_specialization_set_active: {
+        Args: { _id: string; _is_active: boolean }
+        Returns: boolean
+      }
+      admin_club_specialization_upsert: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
+      admin_club_specializations_list: {
+        Args: never
+        Returns: {
+          clubs_count: number
+          desc_en: string
+          desc_pl: string
+          icon: string
+          id: string
+          is_active: boolean
+          is_system: boolean
+          key: string
+          label_en: string
+          label_pl: string
+          lead_en: string
+          lead_pl: string
+          slug: string
+          sort_order: number
+        }[]
+      }
       admin_club_stats: {
         Args: { p_club_id: string }
         Returns: {
@@ -16030,6 +16121,34 @@ export type Database = {
           visibility: string
         }[]
       }
+      club_list_by_specialization: {
+        Args: { p_limit?: number; p_offset?: number; p_slug: string }
+        Returns: {
+          accent_color: string
+          can_read: boolean
+          cover_image_url: string
+          group_count: number
+          icon: string
+          id: string
+          join_policy: string
+          last_activity_at: string
+          member_count: number
+          min_tier_rank: number
+          my_role: string
+          my_status: string
+          name_en: string
+          name_pl: string
+          policy_area: string
+          slug: string
+          specialization_slug: string
+          status: string
+          tagline_en: string
+          tagline_pl: string
+          thread_count: number
+          total_count: number
+          visibility: string
+        }[]
+      }
       club_mark_read: { Args: { p_club_id: string }; Returns: number }
       club_member_spotlight_current: {
         Args: { p_club_id: string }
@@ -16429,6 +16548,22 @@ export type Database = {
       club_set_stance: {
         Args: { p_rationale?: string; p_stance: string; p_thread_id: string }
         Returns: boolean
+      }
+      club_specializations_public: {
+        Args: never
+        Returns: {
+          club_count: number
+          desc_en: string
+          desc_pl: string
+          icon: string
+          key: string
+          label_en: string
+          label_pl: string
+          lead_en: string
+          lead_pl: string
+          slug: string
+          sort_order: number
+        }[]
       }
       club_stance_summary: {
         Args: { p_thread_id: string }
