@@ -232,16 +232,22 @@ function ClubHub() {
                 </div>
               ) : null}
 
-              <div id="club-discover" className="scroll-mt-28">
-                <ClubDirectory
-                  title={t("club.discover")}
-                  empty={topic === null ? t("club.emptyDiscover") : t("club.hub.emptyTopic")}
-                  clubs={discover}
-                  isPl={isPl}
-                  loading={clubsQ.isPending}
-                  layout={hubLayout}
-                />
-              </div>
+              {/* Katalog nie stoi juz plasko na hubie: zalogowany wybiera
+                  najpierw specjalizacje, a kluby wypisuje jej strona. */}
+              <ClubSpecializationGrid signedIn />
+
+              {topic === null ? null : (
+                <div id="club-discover" className="scroll-mt-28">
+                  <ClubDirectory
+                    title={t("club.discover")}
+                    empty={t("club.hub.emptyTopic")}
+                    clubs={discover}
+                    isPl={isPl}
+                    loading={clubsQ.isPending}
+                    layout={hubLayout}
+                  />
+                </div>
+              )}
             </>
           ) : (
             /* Anonim nie dostaje pustego katalogu "Kluby otwarte", tylko mapę
