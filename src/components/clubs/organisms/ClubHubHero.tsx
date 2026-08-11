@@ -179,12 +179,12 @@ function StatCard({
   const body = (
     <>
       <span
-        className="text-[9px] font-bold uppercase tracking-[0.28em]"
+        className="relative z-10 text-[9px] font-bold uppercase tracking-[0.28em] transition-colors duration-300 group-hover:!text-[color:var(--cp-hover-ink)] group-focus-visible:!text-[color:var(--cp-hover-ink)]"
         style={{ color: highlight ? "var(--cp-gold-ink)" : "var(--cp-muted)" }}
       >
         {label}
       </span>
-      <span className="font-display text-4xl font-black tabular-nums leading-none md:text-5xl">
+      <span className="relative z-10 font-display text-4xl font-black tabular-nums leading-none transition-colors duration-300 group-hover:text-[color:var(--cp-hover-ink)] group-focus-visible:text-[color:var(--cp-hover-ink)] md:text-5xl">
         {value}
       </span>
     </>
@@ -193,8 +193,11 @@ function StatCard({
   const surface = {
     background: highlight ? "var(--cp-gold)" : "var(--cp-panel)",
     color: highlight ? "var(--cp-gold-ink)" : "var(--cp-ink)",
+    // Kolory warstwy hover: zwykły panel -> złoto, złoty panel -> atrament.
+    ["--cp-hover-fill" as string]: highlight ? "var(--cp-ink)" : "var(--cp-gold)",
+    ["--cp-hover-ink" as string]: highlight ? "var(--cp-gold)" : "var(--cp-gold-ink)",
   };
-  const shell = "flex flex-col justify-between gap-6 p-5 md:p-7";
+  const shell = "relative flex flex-col justify-between gap-6 overflow-hidden p-5 md:p-7";
 
   if (href === undefined) {
     return (
@@ -215,10 +218,17 @@ function StatCard({
           target.scrollIntoView({ behavior: "smooth", block: "start" });
         }
       }}
-      className={`${shell} group cursor-pointer outline-none transition-[transform,box-shadow,filter] duration-200 hover:-translate-y-0.5 hover:brightness-[1.06] focus-visible:ring-2 focus-visible:ring-offset-2`}
+      className={`${shell} group cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--cp-gold)]`}
       style={surface}
     >
+      {/* Przesuwająca się warstwa koloru - z lewej na mobile/desktop */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 origin-left scale-x-0 transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-x-100 group-focus-visible:scale-x-100"
+        style={{ background: "var(--cp-hover-fill)" }}
+      />
       {body}
     </a>
   );
 }
+
