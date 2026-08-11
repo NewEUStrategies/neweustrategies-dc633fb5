@@ -18,7 +18,15 @@ export type SectionLabelVariant =
   | "slanted-ribbon-rule"
   | "double-rule-centered"
   | "editorial-index"
-  | "double-deck-masthead";
+  | "double-deck-masthead"
+  | "bracket-label"
+  | "kicker-tag-rule"
+  | "stacked-serif-lede"
+  | "dotted-leader"
+  | "numbered-rail"
+  | "split-rule-duo"
+  | "ticker-strip"
+  | "underline-sweep";
 
 export const SECTION_LABEL_VARIANTS: { value: SectionLabelVariant; label: string }[] = [
   { value: "left-bar", label: "01 - Pionowy pasek" },
@@ -40,7 +48,16 @@ export const SECTION_LABEL_VARIANTS: { value: SectionLabelVariant; label: string
   { value: "double-rule-centered", label: "12 - Subtelne linie (np. Wywiady | Podcasty)" },
   { value: "editorial-index", label: "13 - Editorial Index (numer + tytuł, styl FT Lex)" },
   { value: "double-deck-masthead", label: "14 - Double-Deck Masthead (kategoria nad tytułem)" },
+  { value: "bracket-label", label: "15 - Bracket Label (tytuł w nawiasach + linia)" },
+  { value: "kicker-tag-rule", label: "16 - Kicker Tag (tag kategorii + linia do akcji)" },
+  { value: "stacked-serif-lede", label: "17 - Stacked Serif Lede (tytuł + podtytuł)" },
+  { value: "dotted-leader", label: "18 - Dotted Leader (kropkowana linia do akcji)" },
+  { value: "numbered-rail", label: "19 - Numbered Rail (duża cyfra w tle)" },
+  { value: "split-rule-duo", label: "20 - Split Rule Duo (dwie etykiety z kreską)" },
+  { value: "ticker-strip", label: "21 - Ticker Strip (pasek z pulsującą kropką)" },
+  { value: "underline-sweep", label: "22 - Underline Sweep (animowane podkreślenie 2px)" },
 ];
+
 
 // ---- Typografia konfigurowalna (numer / kategoria / tytuł) ----
 export type SectionLabelFont = "inherit" | "display" | "serif" | "sans" | "mono";
