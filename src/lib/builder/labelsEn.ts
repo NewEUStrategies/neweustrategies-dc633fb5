@@ -871,6 +871,19 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
     "13 - Editorial Index (number + title, FT Lex style)",
   "14 - Double-Deck Masthead (kategoria nad tytułem)":
     "14 - Double-Deck Masthead (category above title)",
+  "15 - Bracket Label (tytuł w nawiasach + linia)":
+    "15 - Bracket Label (title in brackets + rule)",
+  "16 - Kicker Tag (tag kategorii + linia do akcji)":
+    "16 - Kicker Tag (category tag + rule to the action)",
+  "17 - Stacked Serif Lede (tytuł + podtytuł)": "17 - Stacked Serif Lede (title + dek)",
+  "18 - Dotted Leader (kropkowana linia do akcji)":
+    "18 - Dotted Leader (dotted rule to the action)",
+  "19 - Numbered Rail (duża cyfra w tle)": "19 - Numbered Rail (large background numeral)",
+  "20 - Split Rule Duo (dwie etykiety z kreską)": "20 - Split Rule Duo (two labels with a divider)",
+  "21 - Ticker Strip (pasek z pulsującą kropką)": "21 - Ticker Strip (bar with a pulsing dot)",
+  "22 - Underline Sweep (animowane podkreślenie 2px)":
+    "22 - Underline Sweep (animated 2px underline)",
+
 
 
   // ------------------------------------------------------- sidebar styles
@@ -1164,10 +1177,9 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Dopisuje znak © i bieżący rok przed nazwą marki.":
     "Prefixes the line with © and the current year, before the brand name.",
   "Zmień język": "Change language",
-  "Czyta ją czytnik ekranu. Widoczna na stronie tylko przy włączonym przełączniku poniżej.":
-    "Read out by screen readers. Visible on the page only when the switch below is on.",
-  "Pokaż etykietę tekstową": "Show the text label",
-  "Wyświetla etykietę obok przełącznika PL/EN.": "Shows the label next to the PL/EN switch.",
+  "Opis dla czytników ekranu (aria-label). Na stronie widoczne są wyłącznie flagi PL/EN.":
+    "Description for screen readers (aria-label). Only the PL/EN flags are visible on the page.",
+
   "Adres wyników wyszukiwania": "Search results URL",
   "Formularz wysyła metodą GET parametr q pod ten adres.":
     "The form submits the q parameter to this URL with GET.",

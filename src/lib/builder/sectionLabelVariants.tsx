@@ -18,7 +18,15 @@ export type SectionLabelVariant =
   | "slanted-ribbon-rule"
   | "double-rule-centered"
   | "editorial-index"
-  | "double-deck-masthead";
+  | "double-deck-masthead"
+  | "bracket-label"
+  | "kicker-tag-rule"
+  | "stacked-serif-lede"
+  | "dotted-leader"
+  | "numbered-rail"
+  | "split-rule-duo"
+  | "ticker-strip"
+  | "underline-sweep";
 
 export const SECTION_LABEL_VARIANTS: { value: SectionLabelVariant; label: string }[] = [
   { value: "left-bar", label: "01 - Pionowy pasek" },
@@ -40,7 +48,16 @@ export const SECTION_LABEL_VARIANTS: { value: SectionLabelVariant; label: string
   { value: "double-rule-centered", label: "12 - Subtelne linie (np. Wywiady | Podcasty)" },
   { value: "editorial-index", label: "13 - Editorial Index (numer + tytuł, styl FT Lex)" },
   { value: "double-deck-masthead", label: "14 - Double-Deck Masthead (kategoria nad tytułem)" },
+  { value: "bracket-label", label: "15 - Bracket Label (tytuł w nawiasach + linia)" },
+  { value: "kicker-tag-rule", label: "16 - Kicker Tag (tag kategorii + linia do akcji)" },
+  { value: "stacked-serif-lede", label: "17 - Stacked Serif Lede (tytuł + podtytuł)" },
+  { value: "dotted-leader", label: "18 - Dotted Leader (kropkowana linia do akcji)" },
+  { value: "numbered-rail", label: "19 - Numbered Rail (duża cyfra w tle)" },
+  { value: "split-rule-duo", label: "20 - Split Rule Duo (dwie etykiety z kreską)" },
+  { value: "ticker-strip", label: "21 - Ticker Strip (pasek z pulsującą kropką)" },
+  { value: "underline-sweep", label: "22 - Underline Sweep (animowane podkreślenie 2px)" },
 ];
+
 
 // ---- Typografia konfigurowalna (numer / kategoria / tytuł) ----
 export type SectionLabelFont = "inherit" | "display" | "serif" | "sans" | "mono";
@@ -710,7 +727,271 @@ export function SectionLabelRender({
       );
     }
 
+    case "bracket-label": {
+      // Styl zero.pl: tytuł objęty kolorowymi nawiasami, cienka linia pod całą
+      // szerokością bloku. Nawiasy są dekoracją - nie trafiają do a11y.
+      const bracketCls = isSm ? "text-[12px]" : "text-lg sm:text-2xl";
+      const titleCls = isSm ? "text-[11px]" : "font-display text-base sm:text-xl";
+      return (
+        <div className={`${wrapperBase} w-full min-w-0 ${padY}`}>
+          <div className="flex items-end justify-between min-w-0" style={{ gap: gapXPx }}>
+            <span className="inline-flex items-baseline min-w-0" style={{ gap: gapXPx }}>
+              <span aria-hidden className={`${bracketCls} leading-none`} style={{ color: accent }}>
+                [
+              </span>
+              <span
+                data-title-root
+                className={`${titleCls} font-semibold tracking-tight min-w-0 break-words`}
+                style={labelStyle}
+              >
+                {label}
+              </span>
+              <span aria-hidden className={`${bracketCls} leading-none`} style={{ color: accent }}>
+                ]
+              </span>
+            </span>
+            {ActionEl}
+          </div>
+          {showRule && (
+            <span
+              aria-hidden
+              className="block w-full bg-border"
+              style={{ height: 1, marginTop: gapYPx }}
+            />
+          )}
+        </div>
+      );
+    }
+
+    case "kicker-tag-rule": {
+      // Tag kategorii w akcencie, tytuł, a linia ciągnie się do akcji po prawej.
+      const tag = category || "";
+      const tagStyle: React.CSSProperties = {
+        background: accent,
+        color: contrastOn(accent),
+      };
+      const tagFamily = resolveFontFamily(categoryFont);
+      if (tagFamily) tagStyle.fontFamily = tagFamily;
+      if (!isSm && categorySize) tagStyle.fontSize = categorySize;
+      return (
+        <div className={`${wrapperBase} w-full min-w-0 ${padY}`}>
+          <div className="flex items-center min-w-0" style={{ gap: gapXPx }}>
+            {tag && (
+              <span
+                className={`${isSm ? "px-1 py-[1px] text-[7px]" : "px-1.5 py-0.5 text-[10px]"} font-bold uppercase tracking-[0.16em] shrink-0`}
+                style={tagStyle}
+              >
+                {tag}
+              </span>
+            )}
+            <span data-title-root className={`${textCls} min-w-0 shrink`} style={labelStyle}>
+              {label}
+            </span>
+            {showRule && <span aria-hidden className="flex-1 h-px bg-border min-w-[12px]" />}
+            {ActionEl}
+          </div>
+        </div>
+      );
+    }
+
+    case "stacked-serif-lede": {
+      // Tytuł + jednolinijkowy dek (kategoria jako podtytuł). Zero ozdób.
+      const dek = category || "";
+      const dekStyle: React.CSSProperties = {};
+      const dekFamily = resolveFontFamily(categoryFont);
+      if (dekFamily) dekStyle.fontFamily = dekFamily;
+      if (!isSm && categorySize) dekStyle.fontSize = categorySize;
+      const titleCls = isSm
+        ? "text-[12px] tracking-tight"
+        : "text-xl sm:text-3xl tracking-tight leading-tight";
+      return (
+        <div className={`${wrapperBase} w-full min-w-0 ${padY}`}>
+          <div className="flex items-end justify-between min-w-0" style={{ gap: gapXPx }}>
+            <div className="min-w-0">
+              <div
+                data-title-root
+                className={`${titleCls} font-semibold break-words`}
+                style={labelStyle}
+              >
+                {label}
+              </div>
+              {dek && (
+                <div
+                  className={`${isSm ? "text-[8px]" : "text-xs sm:text-sm"} text-muted-foreground`}
+                  style={{ marginTop: gapYPx, ...dekStyle }}
+                >
+                  {dek}
+                </div>
+              )}
+            </div>
+            {ActionEl}
+          </div>
+          {showRule && (
+            <span
+              aria-hidden
+              className="block w-full"
+              style={{ height: 1, background: accent, opacity: 0.6, marginTop: gapYPx }}
+            />
+          )}
+        </div>
+      );
+    }
+
+    case "dotted-leader":
+      return (
+        <div className={`${wrapperBase} w-full min-w-0 ${padY}`}>
+          <div className="flex items-baseline min-w-0" style={{ gap: gapXPx }}>
+            <span data-title-root className={`${textCls} min-w-0 shrink`} style={labelStyle}>
+              {label}
+            </span>
+            <span
+              aria-hidden
+              className="flex-1 min-w-[12px] self-center"
+              style={{
+                borderBottom: `1px dotted ${accent}`,
+                opacity: 0.7,
+              }}
+            />
+            {ActionEl}
+          </div>
+        </div>
+      );
+
+    case "numbered-rail": {
+      // Duża, wyblakła cyfra jako tło; tytuł stoi na wierzchu.
+      const num = indexNumber || "01";
+      const numStyle: React.CSSProperties = {
+        color: accent,
+        opacity: 0.14,
+        lineHeight: 0.8,
+      };
+      const numFamily = resolveFontFamily(numberFont);
+      if (numFamily) numStyle.fontFamily = numFamily;
+      if (!isSm && numberSize) numStyle.fontSize = numberSize;
+      const titleCls = isSm
+        ? "text-[11px] tracking-tight"
+        : "font-display text-lg sm:text-2xl tracking-tight leading-tight";
+      return (
+        <div className={`${wrapperBase} relative w-full min-w-0 ${padY}`}>
+          <span
+            aria-hidden
+            className={`${isSm ? "text-[26px]" : "text-5xl sm:text-7xl"} tabular-nums font-bold absolute left-0 top-1/2 -translate-y-1/2 select-none pointer-events-none`}
+            style={numStyle}
+          >
+            {num}
+          </span>
+          <div
+            className="relative flex items-center justify-between min-w-0"
+            style={{ gap: gapXPx, paddingLeft: isSm ? 14 : 28 }}
+          >
+            <span
+              data-title-root
+              className={`${titleCls} font-semibold min-w-0 break-words`}
+              style={labelStyle}
+            >
+              {label}
+            </span>
+            {ActionEl}
+          </div>
+          {showRule && (
+            <span
+              aria-hidden
+              className="relative block w-full bg-border"
+              style={{ height: 1, marginTop: gapYPx }}
+            />
+          )}
+        </div>
+      );
+    }
+
+    case "split-rule-duo": {
+      // Dwie etykiety obok siebie rozdzielone pionową kreską w akcencie.
+      const second = category || "";
+      const secondStyle: React.CSSProperties = {};
+      const secondFamily = resolveFontFamily(categoryFont);
+      if (secondFamily) secondStyle.fontFamily = secondFamily;
+      if (!isSm && categorySize) secondStyle.fontSize = categorySize;
+      return (
+        <div className={`${rowBase} ${showRule ? "border-b border-border" : ""}`}>
+          <span className="inline-flex items-center min-w-0 flex-1" style={{ gap: gapXPx }}>
+            <span data-title-root className={`${textCls} min-w-0`} style={labelStyle}>
+              {label}
+            </span>
+            {second && (
+              <>
+                <span
+                  aria-hidden
+                  className={`${isSm ? "h-3" : "h-4"} shrink-0`}
+                  style={{ width: 2, background: accent }}
+                />
+                <span
+                  className={`${textCls} min-w-0 text-muted-foreground`}
+                  style={secondStyle}
+                >
+                  {second}
+                </span>
+              </>
+            )}
+          </span>
+          {ActionEl}
+        </div>
+      );
+    }
+
+    case "ticker-strip": {
+      const stripCls = isSm ? "px-1.5 py-1 gap-1.5" : "px-3 py-2 gap-2";
+      return (
+        <div
+          className={`${wrapperBase} flex items-center justify-between w-full min-w-0 ${stripCls}`}
+          style={{ background: `color-mix(in oklab, ${accent} 12%, transparent)` }}
+        >
+          <span className="inline-flex items-center min-w-0" style={{ gap: gapXPx }}>
+            <span
+              aria-hidden
+              className={`${isSm ? "w-1.5 h-1.5" : "w-2 h-2"} rounded-full shrink-0 nes-ticker-dot`}
+              style={{ background: accent }}
+            />
+            <span
+              data-title-root
+              className={`${isSm ? "text-[9px]" : "text-[11px] sm:text-xs"} font-bold uppercase tracking-[0.18em] min-w-0 truncate`}
+              style={{ color: accent, ...labelStyle }}
+            >
+              {label}
+            </span>
+          </span>
+          {ActionEl}
+        </div>
+      );
+    }
+
+    case "underline-sweep": {
+      const titleCls = isSm
+        ? "text-[11px] tracking-tight"
+        : "font-display text-base sm:text-xl tracking-tight";
+      return (
+        <div className={`${wrapperBase} w-full min-w-0 ${padY}`}>
+          <div className="flex items-end justify-between min-w-0" style={{ gap: gapXPx }}>
+            <span className="inline-block min-w-0">
+              <span
+                data-title-root
+                className={`${titleCls} font-semibold break-words`}
+                style={labelStyle}
+              >
+                {label}
+              </span>
+              <span
+                aria-hidden
+                className="block nes-underline-sweep"
+                style={{ height: 2, background: accent, marginTop: gapYPx }}
+              />
+            </span>
+            {ActionEl}
+          </div>
+        </div>
+      );
+    }
   }
+
 }
 
 

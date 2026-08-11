@@ -177,7 +177,24 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
   const titleFont = derived.titleFont ?? "inherit";
   const gapX = derived.gapX ?? "";
   const gapY = derived.gapY ?? "";
-  const isEditorial = variant === "editorial-index" || variant === "double-deck-masthead";
+  // Warianty redakcyjne dzielą panel dodatkowy (numer / kategoria / odstępy).
+  const NUMBER_VARIANTS = ["editorial-index", "numbered-rail"];
+  const CATEGORY_VARIANTS = [
+    "double-deck-masthead",
+    "kicker-tag-rule",
+    "stacked-serif-lede",
+    "split-rule-duo",
+  ];
+  const EXTRA_VARIANTS = [
+    "bracket-label",
+    "dotted-leader",
+    "ticker-strip",
+    "underline-sweep",
+  ];
+  const showNumberControls = NUMBER_VARIANTS.includes(variant);
+  const showCategoryControls = CATEGORY_VARIANTS.includes(variant);
+  const isEditorial = showNumberControls || showCategoryControls || EXTRA_VARIANTS.includes(variant);
+
 
   const previewLabel = derived.label;
 
@@ -310,7 +327,7 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
             {t("builder.sectionLabelEditor.editorialTitle")}
           </div>
 
-          {variant === "editorial-index" && (
+          {showNumberControls && (
             <div className="grid grid-cols-2 gap-2">
               <PropField label={t("builder.sectionLabelEditor.indexNumber")}>
                 <Input
@@ -345,7 +362,7 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
             </div>
           )}
 
-          {variant === "double-deck-masthead" && (
+          {showCategoryControls && (
             <div className="grid grid-cols-2 gap-2">
               <PropField
                 label={t("builder.sectionLabelEditor.category", { lang: lang.toUpperCase() })}
