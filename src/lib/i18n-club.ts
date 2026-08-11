@@ -1636,6 +1636,31 @@ export const clubPl = {
   },
 
   adminClubs: {
+    applications: {
+      title: "Zgłoszenia do klubów",
+      lead: "Wnioski z formularza /club/apply. Każde zgłoszenie ma potwierdzoną warstwę członkostwa i trafia do CRM.",
+      allTab: "Wszystkie",
+      allStatuses: "Wszystkie statusy",
+      searchPlaceholder: "Szukaj po nazwisku, e-mailu lub organizacji...",
+      loading: "Wczytywanie zgłoszeń...",
+      empty: "Brak zgłoszeń dla wybranych filtrów.",
+      statusSaved: "Status zgłoszenia zapisany.",
+      statusError: "Nie udało się zapisać statusu.",
+      crmNote:
+        "Każde zgłoszenie aktualizuje kartę osoby w CRM (specjalizacja, warstwa członkostwa i data wniosku).",
+      status: {
+        pending: "Nowe",
+        review: "W ocenie",
+        accepted: "Zaakceptowane",
+        rejected: "Odrzucone",
+      },
+      setStatus: {
+        pending: "Cofnij do nowych",
+        review: "Do oceny",
+        accepted: "Akceptuj",
+        rejected: "Odrzuć",
+      },
+    },
     // --- katalog obszarów tematycznych ---
     specializations: {
       title: "Specjalizacje klubów",
@@ -3802,6 +3827,31 @@ export const clubEn = {
   },
 
   adminClubs: {
+    applications: {
+      title: "Club applications",
+      lead: "Submissions from /club/apply. Each application carries a verified membership tier and lands in the CRM.",
+      allTab: "All",
+      allStatuses: "All statuses",
+      searchPlaceholder: "Search by name, email or organisation...",
+      loading: "Loading applications...",
+      empty: "No applications match the current filters.",
+      statusSaved: "Application status saved.",
+      statusError: "Could not save the status.",
+      crmNote:
+        "Every application updates the person's CRM record (specialisation, membership tier and application date).",
+      status: {
+        pending: "New",
+        review: "In review",
+        accepted: "Accepted",
+        rejected: "Rejected",
+      },
+      setStatus: {
+        pending: "Move back to new",
+        review: "Move to review",
+        accepted: "Accept",
+        rejected: "Reject",
+      },
+    },
     // --- policy area catalogue ---
     specializations: {
       title: "Club specialisations",
