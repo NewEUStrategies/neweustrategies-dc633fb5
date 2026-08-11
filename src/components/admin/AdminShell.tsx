@@ -512,6 +512,16 @@ function AdminShellInner({
             defaultValue: lang === "pl" ? "Klub - obszary tematyczne" : "Club policy areas",
           }),
         },
+        {
+          // Skrzynka zgloszen do klubow - decyzje zapadaja przekrojowo,
+          // dlatego stoi obok taksonomii, a nie w karcie pojedynczego klubu.
+          to: "/admin/community/clubs/applications",
+          icon: Inbox,
+          label: t("admin.nav.clubApplications", {
+            defaultValue: lang === "pl" ? "Klub - zgłoszenia" : "Club applications",
+          }),
+        },
+
 
         {
           // Specjalizacje sa najwyzszym poziomem taksonomii i maja wlasne

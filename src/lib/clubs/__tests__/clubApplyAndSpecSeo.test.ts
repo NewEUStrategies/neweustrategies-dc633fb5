@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import {
   validateClubApply,
   clubApplyValid,
+  EMPTY_CLUB_APPLY,
   type ClubApplyValues,
 } from "@/lib/clubs/applyValidation";
 import { CLUB_SPECIALIZATIONS } from "@/lib/clubs/specializations";
@@ -15,14 +16,21 @@ import { specializationSeoCopy, CLUB_SPECIALIZATION_SEO } from "@/lib/clubs/spec
 import { clubPl, clubEn } from "@/lib/i18n-club";
 
 const VALID: ClubApplyValues = {
+  ...EMPTY_CLUB_APPLY,
   firstName: "Anna",
   lastName: "Kowalska",
   email: "anna@example.com",
   phone: "+48 600 100 200",
   company: "Instytut",
-  role: "Analityk",
+  jobPosition: "Analityk",
+  seniority: "expert",
+  industry: "energy",
+  country: "Polska",
+  expertise: "Rynek gazu, kontrakty długoterminowe i regulacje UE.",
   specialization: "energy",
+  availability: "monthly",
   motivation: "Zajmuję się rynkiem gazu i chcę współtworzyć rekomendacje.",
+  goals: "Chcę wypracować stanowisko o cenach gazu.",
   consent: true,
 };
 
@@ -40,23 +48,23 @@ describe("walidacja /club/apply", () => {
     expect(clubApplyValid(validateClubApply(VALID))).toBe(true);
   });
 
-  it("wymaga imienia, e-maila, specjalizacji, uzasadnienia i zgody", () => {
-    const errors = validateClubApply({
-      firstName: "",
-      lastName: "",
-      email: "",
-      phone: "",
-      company: "",
-      role: "",
-      specialization: "",
-      motivation: "",
-      consent: false,
-    });
+  it("wymaga kompletu pól obowiązkowych", () => {
+    const errors = validateClubApply(EMPTY_CLUB_APPLY);
     expect(Object.keys(errors).sort()).toEqual([
+      "availability",
+      "company",
       "consent",
+      "country",
       "email",
+      "expertise",
       "firstName",
+      "goals",
+      "industry",
+      "jobPosition",
+      "lastName",
       "motivation",
+      "phone",
+      "seniority",
       "specialization",
     ]);
   });
@@ -68,7 +76,15 @@ describe("walidacja /club/apply", () => {
     expect(validateClubApply({ ...VALID, phone: "abc" }).phone).toBe(
       "club.spec.apply.errors.phoneInvalid",
     );
-    expect(validateClubApply({ ...VALID, phone: "" }).phone).toBeUndefined();
+    expect(validateClubApply({ ...VALID, phone: "" }).phone).toBe(
+      "club.spec.apply.errors.phoneRequired",
+    );
+    expect(validateClubApply({ ...VALID, linkedinUrl: "example.com" }).linkedinUrl).toBe(
+      "club.spec.apply.errors.linkedinInvalid",
+    );
+    expect(validateClubApply({ ...VALID, yearsExperience: "abc" }).yearsExperience).toBe(
+      "club.spec.apply.errors.yearsInvalid",
+    );
   });
 
   it("każdy klucz błędu istnieje w PL i EN", () => {
@@ -79,15 +95,23 @@ describe("walidacja /club/apply", () => {
       { ...VALID, email: "" },
       { ...VALID, email: "nope" },
       { ...VALID, phone: "abc" },
-      { ...VALID, company: "x".repeat(121) },
-      { ...VALID, role: "x".repeat(121) },
+      { ...VALID, company: "" },
+      { ...VALID, jobPosition: "x".repeat(121) },
+      { ...VALID, seniority: "" },
+      { ...VALID, industry: "" },
+      { ...VALID, country: "" },
+      { ...VALID, availability: "" },
+      { ...VALID, expertise: "krótko" },
+      { ...VALID, goals: "" },
+      { ...VALID, linkedinUrl: "nope" },
+      { ...VALID, yearsExperience: "abc" },
       { ...VALID, specialization: "" },
       { ...VALID, motivation: "krótko" },
       { ...VALID, motivation: "x".repeat(2001) },
       { ...VALID, consent: false },
     ];
     const keys = new Set(cases.flatMap((c) => Object.values(validateClubApply(c))));
-    expect(keys.size).toBeGreaterThanOrEqual(12);
+    expect(keys.size).toBeGreaterThanOrEqual(18);
     for (const key of keys) {
       expect(typeof readKey(clubPl, key), `PL: ${key}`).toBe("string");
       expect(typeof readKey(clubEn, key), `EN: ${key}`).toBe("string");
