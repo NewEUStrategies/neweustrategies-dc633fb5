@@ -36,6 +36,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { resolveClubHubAccess } from "@/lib/clubs/hubAccess";
 import { toClubSaveError } from "@/lib/clubs/types";
 import { ClubHubHero } from "@/components/clubs/organisms/ClubHubHero";
+import { ClubNavyTheme } from "@/components/clubs/atoms/ClubNavyTheme";
 import { ClubInvitationInbox } from "@/components/clubs/organisms/ClubInvitationInbox";
 import { ClubDirectory } from "@/components/clubs/organisms/ClubDirectory";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
@@ -151,6 +152,7 @@ function ClubHub() {
   if (clubsQ.isError) {
     return (
       <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-12">
+        <ClubNavyTheme />
         <ClubErrorNotice onRetry={() => void clubsQ.refetch()} />
       </div>
     );
@@ -158,6 +160,7 @@ function ClubHub() {
 
   return (
     <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-6">
+      <ClubNavyTheme />
       <ClubHubHero access={signedIn ? access : null} signedIn={signedIn} stats={stats}>
         {signedIn ? (
           <ClubGlobalSearchInput value={query} onChange={setQuery} />
