@@ -9,7 +9,6 @@
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import {
-  ClubDossierKind,
   Clock,
   Lightbulb,
   Link2,
