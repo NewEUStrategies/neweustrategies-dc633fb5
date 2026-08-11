@@ -1527,6 +1527,128 @@ export type Database = {
           },
         ]
       }
+      club_applications: {
+        Row: {
+          admin_note: string
+          availability: string
+          city: string
+          club_id: string | null
+          company: string
+          consent: boolean
+          contribution: string
+          country: string
+          created_at: string
+          email: string
+          expertise: string
+          first_name: string
+          goals: string
+          id: string
+          industry: string
+          job_position: string
+          lang: string
+          languages: string
+          last_name: string
+          linkedin_url: string
+          marketing_consent: boolean
+          motivation: string
+          phone: string
+          referral_source: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          seniority: string
+          specialization_slug: string
+          status: string
+          tenant_id: string
+          tier_key: string
+          tier_rank: number
+          updated_at: string
+          user_id: string
+          years_experience: number | null
+        }
+        Insert: {
+          admin_note?: string
+          availability?: string
+          city?: string
+          club_id?: string | null
+          company?: string
+          consent?: boolean
+          contribution?: string
+          country?: string
+          created_at?: string
+          email: string
+          expertise?: string
+          first_name: string
+          goals?: string
+          id?: string
+          industry?: string
+          job_position?: string
+          lang?: string
+          languages?: string
+          last_name?: string
+          linkedin_url?: string
+          marketing_consent?: boolean
+          motivation?: string
+          phone?: string
+          referral_source?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          seniority?: string
+          specialization_slug: string
+          status?: string
+          tenant_id: string
+          tier_key?: string
+          tier_rank?: number
+          updated_at?: string
+          user_id: string
+          years_experience?: number | null
+        }
+        Update: {
+          admin_note?: string
+          availability?: string
+          city?: string
+          club_id?: string | null
+          company?: string
+          consent?: boolean
+          contribution?: string
+          country?: string
+          created_at?: string
+          email?: string
+          expertise?: string
+          first_name?: string
+          goals?: string
+          id?: string
+          industry?: string
+          job_position?: string
+          lang?: string
+          languages?: string
+          last_name?: string
+          linkedin_url?: string
+          marketing_consent?: boolean
+          motivation?: string
+          phone?: string
+          referral_source?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          seniority?: string
+          specialization_slug?: string
+          status?: string
+          tenant_id?: string
+          tier_key?: string
+          tier_rank?: number
+          updated_at?: string
+          user_id?: string
+          years_experience?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_applications_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       club_board_notices: {
         Row: {
           author_id: string
@@ -4524,6 +4646,9 @@ export type Database = {
       crm_leads: {
         Row: {
           aliases: Json
+          club_application_count: number
+          club_applied_at: string | null
+          club_specializations: string[]
           company: string | null
           company_id: string | null
           country: string | null
@@ -4555,6 +4680,9 @@ export type Database = {
         }
         Insert: {
           aliases?: Json
+          club_application_count?: number
+          club_applied_at?: string | null
+          club_specializations?: string[]
           company?: string | null
           company_id?: string | null
           country?: string | null
@@ -4586,6 +4714,9 @@ export type Database = {
         }
         Update: {
           aliases?: Json
+          club_application_count?: number
+          club_applied_at?: string | null
+          club_specializations?: string[]
           company?: string | null
           company_id?: string | null
           country?: string | null
@@ -14528,6 +14659,61 @@ export type Database = {
         }
         Returns: undefined
       }
+      admin_club_application_set_status: {
+        Args: { p_id: string; p_note?: string; p_status: string }
+        Returns: undefined
+      }
+      admin_club_applications_counts: {
+        Args: never
+        Returns: {
+          pending: number
+          specialization_slug: string
+          total: number
+        }[]
+      }
+      admin_club_applications_list: {
+        Args: {
+          p_club_id?: string
+          p_limit?: number
+          p_search?: string
+          p_specialization?: string
+          p_status?: string
+        }
+        Returns: {
+          admin_note: string
+          availability: string
+          city: string
+          club_id: string
+          club_name: string
+          company: string
+          contribution: string
+          country: string
+          created_at: string
+          email: string
+          expertise: string
+          first_name: string
+          goals: string
+          id: string
+          industry: string
+          job_position: string
+          lang: string
+          languages: string
+          last_name: string
+          linkedin_url: string
+          marketing_consent: boolean
+          motivation: string
+          phone: string
+          referral_source: string
+          reviewed_at: string
+          seniority: string
+          specialization_slug: string
+          status: string
+          tier_key: string
+          tier_rank: number
+          user_id: string
+          years_experience: number
+        }[]
+      }
       admin_club_bulk_member_role: {
         Args: { p_club_id: string; p_role: string; p_user_ids: string[] }
         Returns: number
@@ -15736,6 +15922,7 @@ export type Database = {
         }[]
       }
       club_anonymity_salt: { Args: { _tenant_id: string }; Returns: string }
+      club_apply_submit: { Args: { p: Json }; Returns: string }
       club_author_alias: {
         Args: { _author_id: string; _thread_id: string }
         Returns: string
