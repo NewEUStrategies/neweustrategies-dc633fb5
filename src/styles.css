@@ -7667,6 +7667,23 @@ html {
   animation: nes-ticker-dot-kf 1.6s ease-in-out infinite;
 }
 
+/* Halo wokol kropki "na zywo" w wariancie Ticker Strip (21). */
+@keyframes nes-ticker-halo-kf {
+  0% {
+    opacity: 0.5;
+    transform: scale(0.5);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+.nes-ticker-halo {
+  animation: nes-ticker-halo-kf 1.6s ease-out infinite;
+}
+
 @keyframes nes-underline-sweep-kf {
   from {
     transform: scaleX(0);
@@ -7683,6 +7700,7 @@ html {
 
 @media (prefers-reduced-motion: reduce) {
   .nes-ticker-dot,
+  .nes-ticker-halo,
   .nes-underline-sweep {
     animation: none;
     transform: none;
