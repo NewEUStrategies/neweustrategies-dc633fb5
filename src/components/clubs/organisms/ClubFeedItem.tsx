@@ -127,12 +127,9 @@ function ThreadCard({
       icon={<ClubThreadKindIcon kind={thread.kind} icon={threadIcon} />}
       meta={
         <>
-          <Badge
-            variant="secondary"
-            className="rounded-lg px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wide"
-          >
+          <ClubDossierKind className="text-[10px]">
             {t(`club.kind.${thread.kind}`)}
-          </Badge>
+          </ClubDossierKind>
           {thread.status === "resolved" ? (
             <Badge className="rounded-lg bg-emerald-600 px-1.5 py-0 text-[10px] hover:bg-emerald-600">
               {t("club.threadStatus.resolved")}
@@ -250,9 +247,9 @@ function EventCard({ event, isPl }: { event: ClubEventRow; isPl: boolean }) {
       icon={<ClubEventKindIcon kind={kind} className="h-3.5 w-3.5" />}
       meta={
         <>
-          <span className="font-semibold uppercase tracking-wide">
+          <ClubDossierKind>
             {t("club.hub.feed.eventLabel")}
-          </span>
+          </ClubDossierKind>
           <span aria-hidden="true">·</span>
           <span className="inline-flex items-center gap-1">
             <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
@@ -308,9 +305,9 @@ function DocumentsCard({
         />
       }
       meta={
-        <span className="font-semibold uppercase tracking-wide">
+        <ClubDossierKind>
           {single ? t("club.hub.feed.documentLabel") : t("club.hub.feed.documentsLabel")}
-        </span>
+        </ClubDossierKind>
       }
       title={
         // Lista dokumentów zostaje listą także w układzie dossier: pojedynczy
@@ -384,9 +381,9 @@ function MilestoneCard({
       icon={<ListChecks className="h-3.5 w-3.5" aria-hidden="true" />}
       meta={
         <>
-          <span className="font-semibold uppercase tracking-wide">
+          <ClubDossierKind>
             {t("club.hub.feed.stageLabel")}
-          </span>
+          </ClubDossierKind>
           <ClubMilestoneStateChip state={state} />
           {milestone.due_on !== null ? (
             <span className="inline-flex items-center gap-1">

@@ -142,6 +142,32 @@ export function clubDossierIconBoxClass(tone: ClubDossierTone): string {
   return ICON_BOX[tone];
 }
 
+/**
+ * Etykieta rodzaju w pasku meta. Kolor rodzaju żyje tu jako TEKST (nie jako
+ * wypełniony chip i nie jako poświata) - razem z grzbietem i ikoną domyka
+ * wariant „grzbiet + kolorowa meta" wybrany w audycie 2026-08-11.
+ * Wymaga rodzica z ustawionym `--dossier-tone` (czyli `ClubDossierRow`).
+ */
+export function ClubDossierKind({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "font-semibold uppercase tracking-wide",
+        "text-[color-mix(in_oklab,var(--dossier-tone)_78%,var(--foreground))]",
+        className,
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
 export function ClubDossierMetrics({
   metrics,
   trailing,
