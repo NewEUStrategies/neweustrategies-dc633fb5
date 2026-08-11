@@ -443,6 +443,8 @@ export type TitleSizeSource = "theme" | "layout";
  */
 const THEME_TITLE_VAR = "var(--fs-h1, 44px)";
 const THEME_EXCERPT_VAR = "var(--fs-lead, 18px)";
+const THEME_TITLE_LH_VAR = "var(--lh-h1, 1.15)";
+const THEME_EXCERPT_LH_VAR = "var(--lh-lead, 1.6)";
 
 /** True, gdy tytuł/zajawka dziedziczą globalne rozmiary czcionek motywu. */
 export function inheritsThemeTitleSizes(
@@ -507,9 +509,11 @@ export function headerTypographyStyle(
       ["--header-title-base" as string]: THEME_TITLE_VAR,
       ["--header-title-md" as string]: THEME_TITLE_VAR,
       ["--header-title-lg" as string]: THEME_TITLE_VAR,
+      ["--header-title-lh" as string]: THEME_TITLE_LH_VAR,
       ["--header-excerpt-base" as string]: THEME_EXCERPT_VAR,
       ["--header-excerpt-md" as string]: THEME_EXCERPT_VAR,
       ["--header-excerpt-lg" as string]: THEME_EXCERPT_VAR,
+      ["--header-excerpt-lh" as string]: THEME_EXCERPT_LH_VAR,
     };
   }
   return {
@@ -520,6 +524,7 @@ export function headerTypographyStyle(
     ["--header-excerpt-md" as string]: `${s.header_excerpt_size_md}px`,
     ["--header-excerpt-lg" as string]: `${s.header_excerpt_size_lg}px`,
   };
+
 }
 
 /** Łączy globalne ustawienia z overridem konkretnego wpisu. */

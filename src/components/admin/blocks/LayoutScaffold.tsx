@@ -182,7 +182,7 @@ function Header({
             label={t("admin.layoutScaffold.overlay.category", { defaultValue: "Kategoria" })}
           />
         </div>
-        <h1 className="header-title-typography font-display font-bold leading-[1.1] mb-4 text-foreground/90">
+        <h1 className="header-title-typography font-display font-bold mb-4 text-foreground/90">
           {title || (
             <span className="text-muted-foreground/70">
               {t("admin.layoutScaffold.titlePlaceholder", { defaultValue: "Tytuł wpisu" })}
@@ -310,7 +310,7 @@ function SideBySide({
       </div>
       <div className={`relative ${ZONE} px-4 py-4 pt-6`}>
         <ZoneTag label={t("admin.layoutScaffold.header.label", { defaultValue: "Nagłówek" })} />
-        <p className="font-display header-title-typography font-bold leading-[1.1]">
+        <p className="font-display header-title-typography font-bold">
           {title || t("admin.layoutScaffold.titlePlaceholder", { defaultValue: "Tytuł wpisu" })}
         </p>
         {excerpt && (
