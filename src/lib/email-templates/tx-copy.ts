@@ -650,6 +650,48 @@ const EN: Dict = {
     labels: LABELS_EN,
     footerHelp: HELP_EN,
   },
+  club_application_accepted: {
+    subject: (v) =>
+      `✅ Club application accepted${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-handshake",
+    preview: "Your discussion club application has been accepted - here is what happens next.",
+    eyebrow: "Discussion clubs",
+    heading: "Your application has been accepted",
+    intro:
+      "Our editorial team has reviewed your application and accepted it. You now have access to the club workspace: member threads, documents and the calendar of upcoming sessions.",
+    cta: "Open the club",
+    note: "Should you have any questions about the club's format or the schedule of sessions, simply reply to this message.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  club_application_rejected: {
+    subject: (v) =>
+      `Club application - decision${v.subject ? ` (${v.subject})` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "A decision has been made on your discussion club application.",
+    eyebrow: "Discussion clubs",
+    heading: "Decision on your application",
+    intro:
+      "Thank you for your interest in our discussion clubs. This time we are unable to offer you a seat in the selected club - places in each cohort are limited and matched to its current agenda.",
+    cta: "See other specialisations",
+    note: "You may apply again at any time, also for a different specialisation. Your professional profile stays in our records.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  club_application_more_info: {
+    subject: (v) =>
+      `Please complete your club application${v.subject ? ` (${v.subject})` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "We need a few more details before we can review your application.",
+    eyebrow: "Discussion clubs",
+    heading: "Please complete your application",
+    intro:
+      "We have started reviewing your application and need a few more details about your professional profile and your expectations of the club before the panel can take a decision.",
+    cta: "Complete the application",
+    note: "You can simply reply to this message with the missing details, or resubmit the form - we will link both to the same record.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
 };
 
 const DICTS: Record<EmailLang, Dict> = { pl: PL, en: EN };
