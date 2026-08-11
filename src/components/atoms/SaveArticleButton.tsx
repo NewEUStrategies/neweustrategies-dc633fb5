@@ -102,7 +102,7 @@ export function SaveArticleButton({
               isSaved ? "text-brand" : "text-foreground hover:text-brand hover:bg-muted",
             )
           : cn(
-              "h-11 w-full gap-1.5 rounded-[5px] text-[12px] font-semibold tracking-tight",
+              "cms-widget-label h-11 w-full gap-1.5 rounded-[5px] font-semibold tracking-tight",
               isSaved
                 ? "border border-brand/40 bg-brand/10 text-brand"
                 : "border border-border bg-background text-foreground hover:bg-muted",

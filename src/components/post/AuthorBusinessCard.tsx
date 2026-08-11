@@ -151,7 +151,7 @@ export function AuthorBusinessCard({
         ) : (
           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[6px] bg-muted ring-2 ring-border/60 shadow-sm">
             {fallbackInitials ? (
-              <span className="font-display text-sm font-bold uppercase tracking-wide text-muted-foreground">
+              <span className="cms-widget-title font-display font-bold uppercase tracking-wide text-muted-foreground">
                 {fallbackInitials}
               </span>
             ) : (
@@ -161,7 +161,9 @@ export function AuthorBusinessCard({
         )}
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <h3 className="min-w-0 text-sm font-semibold leading-tight text-foreground">
+          {/* Rozmiar nazwy autora z tokenu motywu (--fs-small + 1px), patrz
+              .cms-widget-title w styles.css - zamiast twardego text-sm. */}
+          <h3 className="cms-widget-title min-w-0 font-semibold leading-tight text-foreground">
             {href ? (
               <AppLink href={href} className="hover:text-[color:var(--brand)] hover:underline">
                 {displayName}
@@ -171,14 +173,14 @@ export function AuthorBusinessCard({
             )}
           </h3>
           {hasMeta && (
-            <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+            <p className="cms-widget-label mt-0.5 line-clamp-2 text-muted-foreground">
               {[jobTitle, company].filter(Boolean).join(" · ")}
             </p>
           )}
           {href && (
             <AppLink
               href={href}
-              className="mt-1 inline-flex items-center gap-1 self-start text-[11px] font-medium text-[color:var(--brand)] hover:underline"
+              className="cms-widget-kicker mt-1 inline-flex items-center gap-1 self-start font-medium text-[color:var(--brand)] hover:underline"
             >
               {t.viewProfile}
               <span aria-hidden>→</span>
@@ -197,7 +199,7 @@ export function AuthorBusinessCard({
             title={t.followHint}
             disabled={toggleFollow.isPending}
             className={[
-              "group inline-flex w-full items-center justify-center gap-1.5 rounded-[6px] px-3 py-1.5 text-xs font-semibold transition-all duration-200",
+              "cms-widget-label group inline-flex w-full items-center justify-center gap-1.5 rounded-[6px] px-3 py-1.5 font-semibold transition-all duration-200",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand)]/40",
               isFollowing
                 ? "border border-[color:var(--brand)]/40 bg-[color:var(--brand)]/10 text-[color:var(--brand)] hover:bg-[color:var(--brand)]/15"

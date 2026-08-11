@@ -182,7 +182,7 @@ function Header({
             label={t("admin.layoutScaffold.overlay.category", { defaultValue: "Kategoria" })}
           />
         </div>
-        <h1 className="header-title-typography font-display font-bold mb-4 text-foreground/90">
+        <h1 className="header-title-typography font-display mb-4 text-foreground/90">
           {title || (
             <span className="text-muted-foreground/70">
               {t("admin.layoutScaffold.titlePlaceholder", { defaultValue: "Tytuł wpisu" })}
@@ -261,7 +261,7 @@ function OverlayCover({
             />
           </div>
 
-          <h1 className="overlay-meta-title overlay-title-typography font-display font-bold mb-2 text-white">
+          <h1 className="overlay-meta-title overlay-title-typography font-display mb-2 text-white">
             {title || t("admin.layoutScaffold.titlePlaceholder", { defaultValue: "Tytuł wpisu" })}
           </h1>
 
@@ -276,7 +276,7 @@ function OverlayCover({
           )}
 
           <div
-            className={`text-[10px] md:text-[11px] lg:text-xs flex flex-wrap items-center gap-x-4 gap-y-1 text-white/70 ${
+            className={`overlay-meta-typography flex flex-wrap items-center gap-x-4 gap-y-1 text-white/70 ${
               center ? "justify-center" : ""
             }`}
           >
@@ -310,7 +310,7 @@ function SideBySide({
       </div>
       <div className={`relative ${ZONE} px-4 py-4 pt-6`}>
         <ZoneTag label={t("admin.layoutScaffold.header.label", { defaultValue: "Nagłówek" })} />
-        <p className="font-display header-title-typography font-bold">
+        <p className="font-display header-title-typography">
           {title || t("admin.layoutScaffold.titlePlaceholder", { defaultValue: "Tytuł wpisu" })}
         </p>
         {excerpt && (

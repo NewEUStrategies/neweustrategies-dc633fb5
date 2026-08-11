@@ -95,7 +95,7 @@ export function ArticleListenButton({
       aria-busy={loading || undefined}
       className={
         className ??
-        "inline-flex h-8 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-[5px] border border-border bg-background px-3 text-[12px] font-semibold tracking-tight text-foreground transition-colors hover:bg-muted hover:text-brand active:scale-[0.98] disabled:opacity-60"
+        "cms-widget-label inline-flex h-8 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-[5px] border border-border bg-background px-3 font-semibold tracking-tight text-foreground transition-colors hover:bg-muted hover:text-brand active:scale-[0.98] disabled:opacity-60"
       }
     >
       {loading ? (

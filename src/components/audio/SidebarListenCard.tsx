@@ -217,7 +217,7 @@ export function SidebarListenCard({
     >
       {/* Section label */}
       <div className="flex items-center gap-2 mb-3">
-        <h3 className="text-[10px] font-semibold tracking-[0.2em] uppercase text-muted-foreground whitespace-nowrap">
+        <h3 className="cms-widget-note font-semibold tracking-[0.2em] uppercase text-muted-foreground whitespace-nowrap">
           {t.label}
         </h3>
         <div className="h-px flex-1 bg-border/60" />
@@ -273,10 +273,12 @@ export function SidebarListenCard({
 
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-2 mb-1.5">
-            <span className="text-xs font-medium tabular-nums text-foreground">
+            <span className="cms-widget-label font-medium tabular-nums text-foreground">
               {showProgress ? currentLabel : loading ? "…" : "00:00"}
             </span>
-            <span className="text-[10px] tabular-nums text-muted-foreground">/ {totalLabel}</span>
+            <span className="cms-widget-note tabular-nums text-muted-foreground">
+              / {totalLabel}
+            </span>
           </div>
 
           {/* Slider */}
@@ -337,7 +339,7 @@ export function SidebarListenCard({
           ) : (
             <Download className="h-3 w-3" aria-hidden />
           )}
-          <span className="text-[10px] font-semibold tracking-[0.15em] uppercase">
+          <span className="cms-widget-note font-semibold tracking-[0.15em] uppercase">
             {t.download}
           </span>
         </button>
@@ -346,7 +348,7 @@ export function SidebarListenCard({
           <button
             type="button"
             onClick={() => void player.loadAndPlay(meta)}
-            className={`text-[11px] font-semibold text-brand underline hover:no-underline rounded-[6px] ${FOCUS_RING}`}
+            className={`cms-widget-kicker font-semibold text-brand underline hover:no-underline rounded-[6px] ${FOCUS_RING}`}
           >
             {t.retry}
           </button>
@@ -356,7 +358,7 @@ export function SidebarListenCard({
               <span className="absolute inset-0 rounded-full bg-brand animate-ping opacity-75" />
               <span className="relative rounded-full bg-brand h-1.5 w-1.5" />
             </span>
-            <span className="text-[10px] font-medium text-muted-foreground tabular-nums">
+            <span className="cms-widget-note font-medium text-muted-foreground tabular-nums">
               {stageLabel}
               {stagePct !== null ? ` · ${stagePct}%` : null}
             </span>

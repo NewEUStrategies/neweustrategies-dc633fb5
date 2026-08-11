@@ -174,7 +174,7 @@ export function TocWidget({ content, lang }: Props) {
     return (
       <div
         data-widget-toc
-        className="rounded-[6px] border border-dashed border-border/60 p-6 text-center text-xs text-muted-foreground"
+        className="cms-widget-label rounded-[6px] border border-dashed border-border/60 p-6 text-center text-muted-foreground"
       >
         {lang === "en" ? "No headings detected on this page." : "Brak nagłówków na tej stronie."}
       </div>
@@ -335,7 +335,7 @@ export function TocWidget({ content, lang }: Props) {
         <span className="cms-toc-heading flex items-center gap-2 font-semibold">
           <MenuIcon className="w-4 h-4 text-primary" />
           {title}
-          <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground bg-muted px-2 py-0.5 rounded-[4px] ml-1">
+          <span className="cms-toc-index font-bold uppercase tracking-widest text-muted-foreground bg-muted px-2 py-0.5 rounded-[4px] ml-1">
             {items.length}
           </span>
         </span>
@@ -357,7 +357,7 @@ export function TocWidget({ content, lang }: Props) {
             <h2 className="cms-toc-heading font-bold tracking-tight truncate">{title}</h2>
           </div>
           <span
-            className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground bg-muted px-2 py-1 rounded-[4px] shrink-0"
+            className="cms-toc-index inline-flex items-center gap-1.5 font-bold uppercase tracking-widest text-muted-foreground bg-muted px-2 py-1 rounded-[4px] shrink-0"
             title={variant}
           >
             <VariantIcon className="w-3 h-3" />

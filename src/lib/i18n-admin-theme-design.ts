@@ -11,6 +11,8 @@ const pl = {
     editColorsForMode: "Edytujesz kolory dla trybu:",
     emptyInherit:
       "Puste pole = dziedziczenie z tokenów globalnych (Kolory linków / ikon / pól tekstowych).",
+    metaSizeInheritHint:
+      "13 px = dziedziczy rozmiar „Small / caption” z Opcji motywu → Rozmiary czcionek. Zmień wartość, aby przypiąć własny rozmiar meta.",
     saveAll: "Zapisz wszystko",
     restoreDefaults: "Przywróć domyślne",
     previewLabel: "Podgląd",
@@ -173,6 +175,8 @@ const en = {
       ") and override the default look of cards and widgets - including in the CMS builder canvases (Gutenberg + Elementor).",
     editColorsForMode: "You are editing colors for mode:",
     emptyInherit: "Empty field = inherit from global tokens (Link / icon / text-field colors).",
+    metaSizeInheritHint:
+      "13 px = inherits the “Small / caption” size from Theme options → Font sizes. Change the value to pin a custom meta size.",
     saveAll: "Save all",
     restoreDefaults: "Restore defaults",
     previewLabel: "Preview",
