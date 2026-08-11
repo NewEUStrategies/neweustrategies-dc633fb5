@@ -4342,9 +4342,12 @@ input.icon-input-with-action {
    podglądzie edytora. Fallbacki odzwierciedlają obecne defaulty. */
 .overlay-title-typography {
   font-size: var(--overlay-title-base, 24px);
+  /* Interlinia tytułu zawsze z motywu (Admin -> Opcje motywu -> Rozmiary czcionek). */
+  line-height: var(--overlay-title-lh, var(--lh-h1, 1.15));
 }
 .overlay-excerpt-typography {
   font-size: var(--overlay-excerpt-base, 12px);
+  line-height: var(--overlay-excerpt-lh, var(--lh-lead, 1.6));
 }
 .header-title-typography {
   font-size: var(--header-title-base, 30px);

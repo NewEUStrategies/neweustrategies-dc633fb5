@@ -161,7 +161,7 @@ export function PostLayoutRenderer({
             {categoryBadges}
           </div>
         )}
-        <h1 className="overlay-meta-title overlay-title-typography font-display font-bold leading-[1.15] mb-2 text-white line-clamp-3 sm:line-clamp-none [text-shadow:0_2px_12px_rgba(0,0,0,0.85)]">
+        <h1 className="overlay-meta-title overlay-title-typography font-display font-bold mb-2 text-white line-clamp-3 sm:line-clamp-none [text-shadow:0_2px_12px_rgba(0,0,0,0.85)]">
           {title}
         </h1>
         {showExcerpt && (

@@ -261,7 +261,7 @@ function OverlayCover({
             />
           </div>
 
-          <h1 className="overlay-meta-title overlay-title-typography font-display font-bold leading-[1.1] mb-2 text-white">
+          <h1 className="overlay-meta-title overlay-title-typography font-display font-bold mb-2 text-white">
             {title || t("admin.layoutScaffold.titlePlaceholder", { defaultValue: "Tytuł wpisu" })}
           </h1>
 
