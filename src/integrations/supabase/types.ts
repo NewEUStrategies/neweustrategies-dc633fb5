@@ -18335,6 +18335,7 @@ export type Database = {
       is_gated_recipient:
         | { Args: { _uid: string }; Returns: boolean }
         | { Args: { _tenant: string; _uid: string }; Returns: boolean }
+      is_nes_staff: { Args: { _user_id?: string }; Returns: boolean }
       is_org_owner: { Args: { p_org: string }; Returns: boolean }
       is_staff: { Args: never; Returns: boolean }
       is_super_admin: { Args: { _user_id?: string }; Returns: boolean }
