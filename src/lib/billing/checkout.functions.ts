@@ -4,7 +4,6 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { periodEndFor } from "@/lib/billing/entitlement";
 import { mockCheckoutAllowed } from "@/lib/billing/mockMode.server";
-import { markOrderSession } from "@/lib/billing/markOrderSession.server";
 
 // Zamówienie płatnicze (server-side, RLS jako użytkownik).
 // Kwota jest zawsze wyliczana serwerowo (plan / reguła dostępu / bilet /
@@ -309,7 +308,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       });
       if (redeemErr || !redeemed) {
         // Ktoś przejął ostatnie użycie zanim doszliśmy tutaj - unieważniamy zamówienie.
-        await markOrderSession(supabase, { orderId: order.id, sessionId: null, status: "canceled" });
+        await (await import("@/lib/billing/markOrderSession.server")).markOrderSession(supabase, { orderId: order.id, sessionId: null, status: "canceled" });
         return {
           ok: false as const,
           mode: "coupon" as const,
@@ -362,7 +361,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
           trialDays,
         });
         if (!createdSub.ok) {
-          await markOrderSession(supabase, { orderId: order.id, sessionId: null, status: "failed" });
+          await (await import("@/lib/billing/markOrderSession.server")).markOrderSession(supabase, { orderId: order.id, sessionId: null, status: "failed" });
           if (couponId) {
             const { error: releaseErr } = await supabase.rpc("release_b2b_coupon", {
               _coupon_id: couponId,
@@ -379,7 +378,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
             orderId: order.id,
           };
         }
-        await markOrderSession(supabase, { orderId: order.id, sessionId: createdSub.sessionId, status: "processing" });
+        await (await import("@/lib/billing/markOrderSession.server")).markOrderSession(supabase, { orderId: order.id, sessionId: createdSub.sessionId, status: "processing" });
         return {
           ok: true as const,
           mode: "stripe" as const,
@@ -406,7 +405,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         settings,
       });
       if (!created.ok) {
-        await markOrderSession(supabase, { orderId: order.id, sessionId: null, status: "failed" });
+        await (await import("@/lib/billing/markOrderSession.server")).markOrderSession(supabase, { orderId: order.id, sessionId: null, status: "failed" });
         // Kupon został zarezerwowany PRZED utworzeniem sesji. Skoro dostawca
         // odmówił, użycie musi wrócić do puli - inaczej limit przepadłby za
         // zamówienie, którego nikt nigdy nie opłaci.
@@ -427,7 +426,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         };
       }
 
-      await markOrderSession(supabase, { orderId: order.id, sessionId: created.sessionId, status: "processing" });
+      await (await import("@/lib/billing/markOrderSession.server")).markOrderSession(supabase, { orderId: order.id, sessionId: created.sessionId, status: "processing" });
       return {
         ok: true as const,
         mode: "stripe" as const,

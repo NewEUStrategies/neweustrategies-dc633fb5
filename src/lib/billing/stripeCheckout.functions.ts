@@ -4,7 +4,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { CHECKOUT_LOCALES } from "@/lib/billing/checkoutLocale";
-import { markOrderSession } from "@/lib/billing/markOrderSession.server";
 
 const envSchema = z.enum(["sandbox", "live"]);
 // Język ramki Stripe - musi trafić do sesji, bo checkout nie zna naszego i18n.
@@ -102,7 +101,7 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
         _currency: plan.currency,
       });
       if (redeemErr || !redeemed) {
-        await markOrderSession(supabase, { orderId: order.id, sessionId: null, status: "canceled" });
+        await (await import("@/lib/billing/markOrderSession.server")).markOrderSession(supabase, { orderId: order.id, sessionId: null, status: "canceled" });
         return { ok: false as const, error: "limit_reached" };
       }
     }
@@ -131,14 +130,14 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
     });
 
     if (!result.ok) {
-      await markOrderSession(supabase, { orderId: order.id, sessionId: null, status: "failed" });
+      await (await import("@/lib/billing/markOrderSession.server")).markOrderSession(supabase, { orderId: order.id, sessionId: null, status: "failed" });
       if (couponId) {
         await supabase.rpc("release_b2b_coupon", { _coupon_id: couponId, _order_id: order.id });
       }
       return { ok: false as const, error: result.error };
     }
 
-    await markOrderSession(supabase, { orderId: order.id, sessionId: result.sessionId, status: "processing" });
+    await (await import("@/lib/billing/markOrderSession.server")).markOrderSession(supabase, { orderId: order.id, sessionId: result.sessionId, status: "processing" });
 
     return { ok: true as const, clientSecret: result.clientSecret, orderId: order.id };
   });
