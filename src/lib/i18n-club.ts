@@ -195,6 +195,17 @@ export const clubPl = {
       clubsCount_many: "{{count}} klubów",
       clubsCount_other: "{{count}} klubów",
       lead: "Kluby dyskusyjne to zamknięte przestrzenie rozmowy wokół konkretnych obszarów polityki. Dostęp mają osoby z planem Pro i wyżej oraz zaproszeni.",
+      editorialSubtitle:
+        "Stałe przestrzenie debaty z własnymi zasadami, archiwum i wyselekcjonowanym składem.",
+      valueAccess: "Dostęp",
+      valueAccessDesc: "Wejdź do zamkniętych pokojów rozmów według planu lub zaproszenia.",
+      valueDebate: "Debatuj",
+      valueDebateDesc: "Prowadź wątki, odpowiadaj i reaguj pod regułą Chatham House.",
+      valueNetwork: "Sieć",
+      valueNetworkDesc: "Spotykaj ekspertów, analityków i decydentów z Twojej dziedziny.",
+      browseCatalog: "Przeglądaj katalog",
+      suggestNew: "Zaproponuj klub",
+      suggestNewDesc: "Masz pomysł na nową przestrzeń? Daj nam znać.",
       access: {
         member: "Masz dostęp",
         invited: "Masz zaproszenie",
@@ -1780,11 +1791,13 @@ export const clubPl = {
       list: "Lista",
       cards: "Karty",
       magazine: "Magazyn",
+      editorial: "Edytorialny",
     },
     layoutHint: {
       list: "Gęsta lista tematów. Najlepsza dla bieżącej debaty.",
       cards: "Siatka z fragmentem treści. Dla wątków rzadszych i dłuższych.",
       magazine: "Jeden temat wyróżniony u góry, reszta listą.",
+      editorial: "Duże karty edytorialne z akcentem na tytuł i dostęp.",
     },
 
     create: {
@@ -2171,6 +2184,17 @@ export const clubEn = {
       clubsCount_one: "{{count}} club",
       clubsCount_other: "{{count}} clubs",
       lead: "Discussion clubs are closed spaces for conversation around specific policy areas. Open to Pro plans and above, and to invited guests.",
+      editorialSubtitle:
+        "Permanent debate spaces with their own rules, archive and curated membership.",
+      valueAccess: "Access",
+      valueAccessDesc: "Enter closed conversation rooms by plan or invitation.",
+      valueDebate: "Debate",
+      valueDebateDesc: "Start threads, reply and react under the Chatham House rule.",
+      valueNetwork: "Network",
+      valueNetworkDesc: "Meet experts, analysts and decision-makers from your field.",
+      browseCatalog: "Browse catalog",
+      suggestNew: "Suggest a club",
+      suggestNewDesc: "Have an idea for a new space? Let us know.",
       access: {
         member: "You have access",
         invited: "You have an invitation",
@@ -3651,11 +3675,13 @@ export const clubEn = {
       list: "List",
       cards: "Cards",
       magazine: "Magazine",
+      editorial: "Editorial",
     },
     layoutHint: {
       list: "A dense list of topics. Best for a live debate.",
       cards: "A grid with an excerpt. For rarer, longer threads.",
       magazine: "One topic featured on top, the rest as a list.",
+      editorial: "Large editorial cards that foreground the title and access.",
     },
 
     create: {

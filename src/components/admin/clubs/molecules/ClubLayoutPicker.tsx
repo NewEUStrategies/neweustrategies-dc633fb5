@@ -69,12 +69,35 @@ function MagazinePreview() {
   );
 }
 
+function EditorialPreview() {
+  return (
+    <div className="flex flex-col gap-2 p-2.5">
+      {/* Wyróżniony nagłówek edytorialny z dużą czcionką i podkreśleniem. */}
+      <div className="flex flex-col gap-1 rounded border border-primary/40 bg-primary/5 p-1.5">
+        <div className="mb-0.5 h-5 rounded bg-foreground/15" />
+        <Bar w={96} strong />
+        <div className="mt-1 h-0.5 w-1/3 rounded bg-primary/60" />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {[88, 76].map((w, i) => (
+          <div key={i} className="flex flex-col gap-1 rounded border border-border/50 p-1.5">
+            <div className="mb-0.5 h-4 rounded bg-foreground/10" />
+            <Bar w={w} strong />
+            <Bar w={w * 0.55} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // `React.ComponentType`, nie globalny `JSX.Element`: przy nowej transformacji
 // JSX globalna przestrzeń nazw `JSX` nie istnieje i typ się nie rozwiązuje.
 const PREVIEW: Record<ClubLayout, React.ComponentType> = {
   list: ListPreview,
   cards: CardsPreview,
   magazine: MagazinePreview,
+  editorial: EditorialPreview,
 };
 
 export function ClubLayoutPicker({
@@ -92,7 +115,7 @@ export function ClubLayoutPicker({
     <div
       role="radiogroup"
       aria-label={t("adminClubs.layout.label")}
-      className="grid gap-3 sm:grid-cols-3"
+      className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
     >
       {CLUB_LAYOUTS.map((layout) => {
         const Preview = PREVIEW[layout];
