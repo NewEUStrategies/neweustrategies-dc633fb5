@@ -126,7 +126,7 @@ export function PostStatsView({ items, separator = "•", lang = "pl", cls }: Po
 
   return (
     <div
-      className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground ${cls ?? ""}`}
+      className={`cms-meta flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground ${cls ?? ""}`}
     >
       {parts.map((p, i) => (
         <span key={p.key} className="inline-flex items-center gap-2">
