@@ -46,11 +46,7 @@ import {
 } from "@/lib/auth/registrationFields";
 
 import { ClubCover } from "@/components/clubs/atoms/ClubCover";
-import {
-  DEFAULT_CLUB_PLAN_TIER,
-  planTierFromRank,
-  type ClubPlanTier,
-} from "@/lib/clubs/planTiers";
+import { DEFAULT_CLUB_PLAN_TIER, planTierFromRank, type ClubPlanTier } from "@/lib/clubs/planTiers";
 import type { ClubViewRow } from "@/lib/clubs/types";
 import { ensureClubI18n } from "@/lib/i18n-club";
 import "@/lib/i18n-club-gate";
@@ -69,8 +65,7 @@ export function ClubAccessGate({ club, isPl }: { club: ClubViewRow; isPl: boolea
   const tier = planTierFromRank(club.min_tier_rank ?? 0);
   // Bramka nigdy nie sprzedaje planu „free" - najniższy sensowny próg to
   // domyślny próg klubu (PRO), inaczej CTA brzmi jak zaproszenie donikąd.
-  const sellTier: ClubPlanTier =
-    tier === "free" || tier === "plus" ? DEFAULT_CLUB_PLAN_TIER : tier;
+  const sellTier: ClubPlanTier = tier === "free" || tier === "plus" ? DEFAULT_CLUB_PLAN_TIER : tier;
   // Etykieta bierze się ze słownika progów, a NIE z lokalnej mapy: lokalna
   // mapa znała tylko free/plus/pro/vip, więc po rozszerzeniu katalogu (rangi
   // 30-60: corporate, partner, partner_general, presidents_circle) klub
