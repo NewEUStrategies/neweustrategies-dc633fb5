@@ -72,7 +72,7 @@ export const clubApplySchema = z.object({
     .trim()
     .min(20, `${K}.motivationShort`)
     .max(2000, `${K}.motivationLong`),
-  consent: z.literal(true, { message: `${K}.consentRequired` }),
+  consent: z.boolean().refine((v) => v === true, `${K}.consentRequired`),
 });
 
 /**
