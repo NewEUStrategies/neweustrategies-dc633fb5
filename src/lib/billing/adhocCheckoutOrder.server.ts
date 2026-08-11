@@ -4,6 +4,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { StripeEnv } from "@/lib/stripe.server";
 import type { CheckoutLocale } from "@/lib/billing/checkoutLocale";
+import { markOrderSession } from "@/lib/billing/markOrderSession.server";
 
 export interface AdhocOrderInput {
   purpose: "content_unlock" | "event_ticket" | "donation";
@@ -174,19 +175,11 @@ export async function buildAdhocOrder(args: BuildAdhocOrderArgs): Promise<BuildA
   });
 
   if (!result.ok) {
-    await supabase.rpc("payment_order_mark_session", { _order_id: order.id, _session_id: undefined, _status: "failed" });
+    await markOrderSession(supabase, { orderId: order.id, sessionId: null, status: "failed" });
     return { ok: false, error: result.error };
   }
 
-  await supabase.rpc("payment_order_mark_session", {
-
-    _order_id: order.id,
-
-    _session_id: result.sessionId,
-
-    _status: "processing",
-
-  });
+  await markOrderSession(supabase, { orderId: order.id, sessionId: result.sessionId, status: "processing" });
 
   return { ok: true, clientSecret: result.clientSecret, orderId: order.id };
 }
