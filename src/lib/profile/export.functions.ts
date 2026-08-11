@@ -58,11 +58,11 @@ export const exportMyData = createServerFn({ method: "POST" })
     // `authenticated` (powierzchnia modułu jest RPC-only), więc `.from("club_*")`
     // zwróciłoby tu pustkę wyglądającą jak „nie korzystam" zamiast błędu grantu.
     // Cały moduł jedzie jednym SECURITY DEFINER RPC, rozbitym niżej na
-    // zadeklarowane sekcje - jedno wywołanie, siedem pozycji w manifeście.
+    // zadeklarowane sekcje - jedno wywołanie, osiem pozycji w manifeście.
     //
     // `Promise.resolve` jest tu istotne: builder PostgREST to *thenable*, które
-    // wykonuje żądanie przy KAŻDYM `.then()`. Bez opakowania siedem sekcji
-    // znaczyłoby siedem zapytań o ten sam payload.
+    // wykonuje żądanie przy KAŻDYM `.then()`. Bez opakowania osiem sekcji
+    // znaczyłoby osiem zapytań o ten sam payload.
     const clubExport = Promise.resolve(supabase.rpc("club_export_my_data", { p_limit: ROW_LIMIT }));
     const clubSection = (key: string): PromiseLike<SectionResult> =>
       clubExport.then((result) => {
@@ -303,6 +303,12 @@ export const exportMyData = createServerFn({ method: "POST" })
       // przy odczycie publicznym, a nie brak autorstwa. Cudze wypowiedzi -
       // patrz manifest.excluded.club_content_authored_by_others.
       club_memberships: clubSection("club_memberships"),
+      // Zgłoszenie do klubu: dane zawodowe, motywacja, cele i wkład, które osoba
+      // sama o sobie napisała - art. 20 RODO w najczystszej postaci. Klucz jedzie
+      // z tego samego payloadu co reszta modułu; bez tej linii RPC oddawał go, a
+      // eksport go NIE wyjmował, bo klient czyta wyłącznie zadeklarowane sekcje.
+      // Notatka komisji zostaje po stronie bazy (manifest.excluded.club_admin_notes).
+      club_applications: clubSection("club_applications"),
       club_threads_authored: clubSection("club_threads_authored"),
       club_replies_authored: clubSection("club_replies_authored"),
       club_stances: clubSection("club_stances"),
