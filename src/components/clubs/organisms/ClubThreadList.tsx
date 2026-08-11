@@ -22,6 +22,7 @@ import { ClubThreadKindIcon } from "@/components/clubs/atoms/ClubThreadKindIcon"
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
+  ClubDossierKind,
   ClubDossierMetrics,
   ClubDossierRow,
   clubThreadTone,
@@ -38,12 +39,7 @@ function ThreadMeta({ thread, isPl }: { thread: ClubThreadListRow; isPl: boolean
   const author = toAuthorLabel(thread, t("club.anonymousAuthor"), t("club.deletedAuthor"));
   return (
     <>
-      <Badge
-        variant="secondary"
-        className="rounded-lg px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wide"
-      >
-        {t(`club.kind.${thread.kind}`)}
-      </Badge>
+      <ClubDossierKind className="text-[10px]">{t(`club.kind.${thread.kind}`)}</ClubDossierKind>
       {thread.status === "locked" ? (
         <Lock
           className="h-3 w-3 text-muted-foreground"
