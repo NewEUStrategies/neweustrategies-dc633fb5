@@ -174,14 +174,19 @@ export async function buildAdhocOrder(args: BuildAdhocOrderArgs): Promise<BuildA
   });
 
   if (!result.ok) {
-    await supabase.from("payment_orders").update({ status: "failed" }).eq("id", order.id);
+    await supabase.rpc("payment_order_mark_session", { _order_id: order.id, _session_id: undefined, _status: "failed" });
     return { ok: false, error: result.error };
   }
 
-  await supabase
-    .from("payment_orders")
-    .update({ provider_session_id: result.sessionId, status: "processing" })
-    .eq("id", order.id);
+  await supabase.rpc("payment_order_mark_session", {
+
+    _order_id: order.id,
+
+    _session_id: result.sessionId,
+
+    _status: "processing",
+
+  });
 
   return { ok: true, clientSecret: result.clientSecret, orderId: order.id };
 }

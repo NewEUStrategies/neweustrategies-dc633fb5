@@ -18869,6 +18869,14 @@ export type Database = {
           page_id: string
         }[]
       }
+      payment_order_mark_session: {
+        Args: {
+          _order_id: string
+          _session_id?: string
+          _status?: Database["public"]["Enums"]["order_status"]
+        }
+        Returns: boolean
+      }
       people_filter_options: {
         Args: never
         Returns: {

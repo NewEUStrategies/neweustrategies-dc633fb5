@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchMyBillingProfile, fetchPlanById } from "@/lib/billing/queries";
@@ -51,6 +51,12 @@ function CheckoutPage() {
   const [busy, setBusy] = useState(false);
   const [coupon, setCoupon] = useState<{ code: string; discountCents: number } | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
+  // Po utworzeniu sesji przewijamy do ramki - inaczej na mobile formularz
+  // płatności ląduje poza ekranem i wygląda, jakby przycisk nic nie zrobił.
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (clientSecret) frameRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [clientSecret]);
   const { openPlanCheckout } = useCheckout();
 
   const plan = useQuery({
@@ -267,12 +273,6 @@ function CheckoutPage() {
                         </>
                       )}
                     </Button>
-                    {clientSecret && (
-                      <div className="space-y-2">
-                        <PaymentTestModeBanner />
-                        <EmbeddedCheckoutFrame clientSecret={clientSecret} />
-                      </div>
-                    )}
                     <p className="text-xs text-muted-foreground text-center">
                       {t("checkout.terms")}
                     </p>
@@ -292,6 +292,16 @@ function CheckoutPage() {
             </Card>
           </aside>
         </div>
+
+        {/* Formularz operatora dostaje pełną szerokość kontenera - w kolumnie
+            360 px ramka Stripe zwijała się do jednokolumnowego widoku i pola
+            karty wychodziły poza kartę podsumowania. */}
+        {clientSecret && (
+          <div ref={frameRef} className="mt-10 space-y-3">
+            <PaymentTestModeBanner />
+            <EmbeddedCheckoutFrame clientSecret={clientSecret} />
+          </div>
+        )}
       </div>
     </GuestCheckoutGate>
   );
