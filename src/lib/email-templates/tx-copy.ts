@@ -25,7 +25,10 @@ export type TxEmailType =
   | "event_registered"
   | "donation_received"
   | "newsletter_confirmed"
-  | "customer_portal_link";
+  | "customer_portal_link"
+  | "club_application_accepted"
+  | "club_application_rejected"
+  | "club_application_more_info";
 
 export interface TxSubjectVars {
   /** Nazwa planu subskrypcji lub tytuł wydarzenia. */
@@ -377,6 +380,48 @@ const PL: Dict = {
     labels: LABELS_PL,
     footerHelp: HELP_PL,
   },
+  club_application_accepted: {
+    subject: (v) =>
+      `✅ Zgłoszenie do klubu przyjęte${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-handshake",
+    preview: "Twoje zgłoszenie do klubu dyskusyjnego zostało przyjęte - oto kolejne kroki.",
+    eyebrow: "Kluby dyskusyjne",
+    heading: "Twoje zgłoszenie zostało przyjęte",
+    intro:
+      "Redakcja rozpatrzyła Twoje zgłoszenie i przyjęła je. Masz już dostęp do przestrzeni klubu: wątków członkowskich, dokumentów oraz kalendarza najbliższych spotkań.",
+    cta: "Przejdź do klubu",
+    note: "Jeśli masz pytania o formułę klubu lub harmonogram spotkań, po prostu odpisz na tę wiadomość.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  club_application_rejected: {
+    subject: (v) =>
+      `Zgłoszenie do klubu - decyzja${v.subject ? ` (${v.subject})` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "Zapadła decyzja w sprawie Twojego zgłoszenia do klubu dyskusyjnego.",
+    eyebrow: "Kluby dyskusyjne",
+    heading: "Decyzja w sprawie Twojego zgłoszenia",
+    intro:
+      "Dziękujemy za zainteresowanie naszymi klubami dyskusyjnymi. Tym razem nie możemy zaproponować Ci miejsca w wybranym klubie - liczba miejsc w każdej edycji jest ograniczona i dobierana pod jej bieżącą agendę.",
+    cta: "Zobacz inne specjalizacje",
+    note: "Możesz zaaplikować ponownie w dowolnym momencie, także do innej specjalizacji. Twój profil zawodowy pozostaje w naszej kartotece.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  club_application_more_info: {
+    subject: (v) =>
+      `Uzupełnij zgłoszenie do klubu${v.subject ? ` (${v.subject})` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "Potrzebujemy kilku dodatkowych informacji, aby ocenić Twoje zgłoszenie.",
+    eyebrow: "Kluby dyskusyjne",
+    heading: "Prosimy o uzupełnienie zgłoszenia",
+    intro:
+      "Zaczęliśmy ocenę Twojego zgłoszenia i potrzebujemy jeszcze kilku informacji o Twoim profilu zawodowym oraz oczekiwaniach wobec klubu, zanim panel podejmie decyzję.",
+    cta: "Uzupełnij zgłoszenie",
+    note: "Możesz odpisać na tę wiadomość z brakującymi danymi albo wypełnić formularz ponownie - powiążemy oba zapisy z tym samym zgłoszeniem.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
 };
 
 const EN: Dict = {
@@ -644,6 +689,48 @@ const EN: Dict = {
       "We confirm your subscription to the New European Strategies newsletter. You will receive our analysis, data and expert commentary directly in your inbox.",
     cta: "Read the latest analysis",
     note: "You can unsubscribe at any time in one click - the link is in the footer of every message.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  club_application_accepted: {
+    subject: (v) =>
+      `✅ Club application accepted${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-handshake",
+    preview: "Your discussion club application has been accepted - here is what happens next.",
+    eyebrow: "Discussion clubs",
+    heading: "Your application has been accepted",
+    intro:
+      "Our editorial team has reviewed your application and accepted it. You now have access to the club workspace: member threads, documents and the calendar of upcoming sessions.",
+    cta: "Open the club",
+    note: "Should you have any questions about the club's format or the schedule of sessions, simply reply to this message.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  club_application_rejected: {
+    subject: (v) =>
+      `Club application - decision${v.subject ? ` (${v.subject})` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "A decision has been made on your discussion club application.",
+    eyebrow: "Discussion clubs",
+    heading: "Decision on your application",
+    intro:
+      "Thank you for your interest in our discussion clubs. This time we are unable to offer you a seat in the selected club - places in each cohort are limited and matched to its current agenda.",
+    cta: "See other specialisations",
+    note: "You may apply again at any time, also for a different specialisation. Your professional profile stays in our records.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  club_application_more_info: {
+    subject: (v) =>
+      `Please complete your club application${v.subject ? ` (${v.subject})` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "We need a few more details before we can review your application.",
+    eyebrow: "Discussion clubs",
+    heading: "Please complete your application",
+    intro:
+      "We have started reviewing your application and need a few more details about your professional profile and your expectations of the club before the panel can take a decision.",
+    cta: "Complete the application",
+    note: "You can simply reply to this message with the missing details, or resubmit the form - we will link both to the same record.",
     labels: LABELS_EN,
     footerHelp: HELP_EN,
   },

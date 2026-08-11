@@ -8,7 +8,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { ChevronDown, Inbox, Search } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, Inbox, Mail, RefreshCw, Search } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,13 +17,25 @@ import { FormSelect } from "@/components/atoms/FormSelect";
 import {
   fetchAdminClubApplicationCounts,
   fetchAdminClubApplications,
+  retryClubApplicationCrmSync,
   setClubApplicationStatus,
   type ClubApplicationAdminRow,
   type ClubApplicationStatus,
 } from "@/lib/clubs/applyApi";
+import {
+  isNotifiableStatus,
+  notifyClubApplicationStatus,
+} from "@/lib/clubs/applicationNotify.functions";
+import { useServerFn } from "@tanstack/react-start";
 import { useClubSpecializations } from "@/lib/clubs/useClubSpecializations";
 
-const STATUSES: ClubApplicationStatus[] = ["pending", "review", "accepted", "rejected"];
+const STATUSES: ClubApplicationStatus[] = [
+  "pending",
+  "review",
+  "accepted",
+  "rejected",
+  "needs_info",
+];
 
 const applicationKeys = {
   all: ["admin", "club-applications"] as const,
@@ -35,14 +47,81 @@ const applicationKeys = {
 function statusTone(status: ClubApplicationStatus): string {
   if (status === "accepted") return "border-emerald-500/40 text-emerald-600 dark:text-emerald-400";
   if (status === "rejected") return "border-destructive/40 text-destructive";
-  if (status === "review") return "border-amber-500/40 text-amber-600 dark:text-amber-400";
+  if (status === "review" || status === "needs_info")
+    return "border-amber-500/40 text-amber-600 dark:text-amber-400";
   return "border-border text-muted-foreground";
+}
+
+/**
+ * Widoczny stan synchronizacji z CRM dla pojedynczego zgloszenia.
+ *
+ * Cicha porazka synchronizacji jest najgorszym mozliwym wynikiem: redakcja
+ * widzi zgloszenie w panelu i zaklada, ze kartoteka w CRM istnieje. Dlatego
+ * kazdy wiersz niesie status ostatniej proby, jej date i - przy bledzie -
+ * jego tresc oraz przycisk ponowienia.
+ */
+function CrmSyncChip(props: {
+  row: ClubApplicationAdminRow;
+  onRetry: (id: string) => void;
+  retrying: boolean;
+}) {
+  const { row } = props;
+  const { t, i18n } = useTranslation();
+  const locale = (i18n.language ?? "pl").startsWith("pl") ? "pl-PL" : "en-GB";
+  const fmt = (iso: string | null): string =>
+    iso === null
+      ? "-"
+      : new Date(iso).toLocaleString(locale, { dateStyle: "short", timeStyle: "short" });
+
+  const state = row.crm_sync_status;
+  const tone =
+    state === "ok"
+      ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
+      : state === "error"
+        ? "border-destructive/40 text-destructive"
+        : "border-border text-muted-foreground";
+  const Icon = state === "ok" ? CheckCircle2 : state === "error" ? AlertTriangle : RefreshCw;
+  const detail =
+    state === "ok"
+      ? t("adminClubs.applications.crm.syncedAt", { when: fmt(row.crm_synced_at) })
+      : row.crm_last_attempt_at === null
+        ? t("adminClubs.applications.crm.never")
+        : t("adminClubs.applications.crm.lastAttempt", { when: fmt(row.crm_last_attempt_at) });
+
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      <Badge variant="outline" className={tone} title={row.crm_error ?? detail}>
+        <Icon className="mr-1 h-3 w-3" aria-hidden="true" />
+        {t("adminClubs.applications.crm.label")}: {t(`adminClubs.applications.crm.${state}`)}
+      </Badge>
+      <span className="text-[11px] text-muted-foreground">{detail}</span>
+      {state === "ok" ? null : (
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 px-2 text-xs"
+          disabled={props.retrying}
+          onClick={() => props.onRetry(row.id)}
+        >
+          <RefreshCw
+            className={`mr-1 h-3 w-3 ${props.retrying ? "animate-spin" : ""}`}
+            aria-hidden="true"
+          />
+          {props.retrying
+            ? t("adminClubs.applications.crm.retrying")
+            : t("adminClubs.applications.crm.retry")}
+        </Button>
+      )}
+    </span>
+  );
 }
 
 function ApplicationRow(props: {
   row: ClubApplicationAdminRow;
   onStatus: (id: string, status: ClubApplicationStatus) => void;
+  onRetryCrm: (id: string) => void;
   busy: boolean;
+  retrying: boolean;
 }) {
   const { row } = props;
   const { t, i18n } = useTranslation();
@@ -87,9 +166,24 @@ function ApplicationRow(props: {
               {when} · {row.specialization_slug}
               {row.club_name === null ? "" : ` · ${row.club_name}`} · {row.tier_key}
             </span>
+            <span className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
+              <Mail className="h-3 w-3 shrink-0" aria-hidden="true" />
+              {row.notify_error !== null
+                ? t("adminClubs.applications.mail.error", { message: row.notify_error })
+                : row.notified_status === null || row.notified_at === null
+                  ? t("adminClubs.applications.mail.none")
+                  : t("adminClubs.applications.mail.sent", {
+                      status: t(`adminClubs.applications.status.${row.notified_status}`),
+                      when: new Date(row.notified_at).toLocaleString(locale, {
+                        dateStyle: "short",
+                        timeStyle: "short",
+                      }),
+                    })}
+            </span>
           </span>
         </button>
         <div className="flex flex-wrap items-center gap-2">
+          <CrmSyncChip row={row} onRetry={props.onRetryCrm} retrying={props.retrying} />
           <Badge variant="outline" className={statusTone(row.status)}>
             {t(`adminClubs.applications.status.${row.status}`)}
           </Badge>
@@ -163,14 +257,51 @@ export function ClubApplicationsInbox() {
     staleTime: 15_000,
   });
 
+  const notify = useServerFn(notifyClubApplicationStatus);
+
+  /**
+   * Zmiana statusu i - dla decyzji, ktore kandydat musi poznac - powiadomienie
+   * e-mail w jego jezyku. Blad wysylki NIE cofa decyzji: zapis statusu jest
+   * zrodlem prawdy, a nieudana wysylka zostaje przy zgloszeniu jako widoczny
+   * slad (`notify_error`) do ponowienia.
+   */
   const mutation = useMutation({
-    mutationFn: ({ id, next }: { id: string; next: ClubApplicationStatus }) =>
-      setClubApplicationStatus(id, next),
-    onSuccess: () => {
+    mutationFn: async ({ id, next }: { id: string; next: ClubApplicationStatus }) => {
+      await setClubApplicationStatus(id, next);
+      if (!isNotifiableStatus(next)) return { mailed: false as const };
+      const res = await notify({ data: { applicationId: id, status: next } });
+      return { mailed: true as const, res };
+    },
+    onSuccess: (result) => {
       void qc.invalidateQueries({ queryKey: applicationKeys.all });
       toast.success(t("adminClubs.applications.statusSaved"));
+      if (!result.mailed) return;
+      if (!result.res.ok) {
+        toast.error(t("adminClubs.applications.mail.failed"));
+        return;
+      }
+      toast.success(
+        t(
+          result.res.skipped === "duplicate"
+            ? "adminClubs.applications.mail.duplicate"
+            : "adminClubs.applications.mail.queued",
+        ),
+      );
     },
     onError: () => toast.error(t("adminClubs.applications.statusError")),
+  });
+
+  const crmRetry = useMutation({
+    mutationFn: (id: string) => retryClubApplicationCrmSync(id),
+    onSuccess: (result) => {
+      void qc.invalidateQueries({ queryKey: applicationKeys.all });
+      if (result.crm_sync_status === "ok") {
+        toast.success(t("adminClubs.applications.crm.retryOk"));
+      } else {
+        toast.error(t("adminClubs.applications.crm.retryFailed"));
+      }
+    },
+    onError: () => toast.error(t("adminClubs.applications.crm.retryFailed")),
   });
 
   const pendingBySpec = useMemo(() => {
@@ -268,7 +399,9 @@ export function ClubApplicationsInbox() {
                 key={row.id}
                 row={row}
                 busy={mutation.isPending}
+                retrying={crmRetry.isPending && crmRetry.variables === row.id}
                 onStatus={(id, next) => mutation.mutate({ id, next })}
+                onRetryCrm={(id) => crmRetry.mutate(id)}
               />
             ))}
           </ul>

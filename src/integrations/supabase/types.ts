@@ -1538,6 +1538,11 @@ export type Database = {
           contribution: string
           country: string
           created_at: string
+          crm_error: string | null
+          crm_last_attempt_at: string | null
+          crm_lead_id: string | null
+          crm_sync_status: string
+          crm_synced_at: string | null
           email: string
           expertise: string
           first_name: string
@@ -1551,6 +1556,9 @@ export type Database = {
           linkedin_url: string
           marketing_consent: boolean
           motivation: string
+          notified_at: string | null
+          notified_status: string | null
+          notify_error: string | null
           phone: string
           referral_source: string
           reviewed_at: string | null
@@ -1575,6 +1583,11 @@ export type Database = {
           contribution?: string
           country?: string
           created_at?: string
+          crm_error?: string | null
+          crm_last_attempt_at?: string | null
+          crm_lead_id?: string | null
+          crm_sync_status?: string
+          crm_synced_at?: string | null
           email: string
           expertise?: string
           first_name: string
@@ -1588,6 +1601,9 @@ export type Database = {
           linkedin_url?: string
           marketing_consent?: boolean
           motivation?: string
+          notified_at?: string | null
+          notified_status?: string | null
+          notify_error?: string | null
           phone?: string
           referral_source?: string
           reviewed_at?: string | null
@@ -1612,6 +1628,11 @@ export type Database = {
           contribution?: string
           country?: string
           created_at?: string
+          crm_error?: string | null
+          crm_last_attempt_at?: string | null
+          crm_lead_id?: string | null
+          crm_sync_status?: string
+          crm_synced_at?: string | null
           email?: string
           expertise?: string
           first_name?: string
@@ -1625,6 +1646,9 @@ export type Database = {
           linkedin_url?: string
           marketing_consent?: boolean
           motivation?: string
+          notified_at?: string | null
+          notified_status?: string | null
+          notify_error?: string | null
           phone?: string
           referral_source?: string
           reviewed_at?: string | null
@@ -14659,6 +14683,36 @@ export type Database = {
         }
         Returns: undefined
       }
+      admin_club_application_crm_retry: {
+        Args: { p_id: string }
+        Returns: {
+          crm_error: string
+          crm_last_attempt_at: string
+          crm_sync_status: string
+          crm_synced_at: string
+        }[]
+      }
+      admin_club_application_mark_notified: {
+        Args: {
+          p_error?: string
+          p_id: string
+          p_ok: boolean
+          p_status: string
+        }
+        Returns: undefined
+      }
+      admin_club_application_notify_payload: {
+        Args: { p_id: string }
+        Returns: {
+          email: string
+          first_name: string
+          lang: string
+          last_name: string
+          specialization_slug: string
+          status: string
+          tenant_id: string
+        }[]
+      }
       admin_club_application_set_status: {
         Args: { p_id: string; p_note?: string; p_status: string }
         Returns: undefined
@@ -14689,6 +14743,11 @@ export type Database = {
           contribution: string
           country: string
           created_at: string
+          crm_error: string
+          crm_last_attempt_at: string
+          crm_lead_id: string
+          crm_sync_status: string
+          crm_synced_at: string
           email: string
           expertise: string
           first_name: string
@@ -14702,6 +14761,9 @@ export type Database = {
           linkedin_url: string
           marketing_consent: boolean
           motivation: string
+          notified_at: string
+          notified_status: string
+          notify_error: string
           phone: string
           referral_source: string
           reviewed_at: string
@@ -15922,6 +15984,7 @@ export type Database = {
         }[]
       }
       club_anonymity_salt: { Args: { _tenant_id: string }; Returns: string }
+      club_application_crm_sync: { Args: { p_id: string }; Returns: string }
       club_apply_submit: { Args: { p: Json }; Returns: string }
       club_author_alias: {
         Args: { _author_id: string; _thread_id: string }
