@@ -362,7 +362,7 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
             </div>
           )}
 
-          {variant === "double-deck-masthead" && (
+          {showCategoryControls && (
             <div className="grid grid-cols-2 gap-2">
               <PropField
                 label={t("builder.sectionLabelEditor.category", { lang: lang.toUpperCase() })}
