@@ -6,8 +6,10 @@
 // Posiadanie subskrypcji NIE zastepuje formularza - komisja rozpatruje profil
 // zawodowy, a nie fakt platnosci. Twarda bramka jest w RPC `club_apply_submit`;
 // tutaj tylko czytelne UI, zeby uzytkownik nie trafial na blad po wypelnieniu.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ArrowLeft, Lock, ShieldCheck } from "lucide-react";
@@ -16,11 +18,24 @@ import { FormSelect } from "@/components/atoms/FormSelect";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { SubscribeButton } from "@/components/ui/subscribe-button";
+import { MARKETING_CONSENT_KEY } from "@/components/interests/JoinUsForm";
 import { useAuth } from "@/hooks/useAuth";
 import { useCurrentTier } from "@/lib/billing/tiers";
+import { setMyConsent } from "@/lib/consents.functions";
+import { getConsentDefinition } from "@/lib/notifications/consentCatalog";
+import { formatDate } from "@/lib/i18n/format";
+import { activeLang } from "@/lib/seo/head";
+import { getRequestUrl } from "@/lib/seo/request";
+import { buildContentHead } from "@/lib/seo/meta";
 import { findClubSpecialization } from "@/lib/clubs/specializations";
 import { useClubSpecializations, useClubsBySpecialization } from "@/lib/clubs/useClubSpecializations";
-import { clubApplyErrorCode, submitClubApplication } from "@/lib/clubs/applyApi";
+import {
+  clubApplyErrorCode,
+  fetchMyClubApplications,
+  submitClubApplication,
+  type ClubMyApplicationRow,
+} from "@/lib/clubs/applyApi";
+import { getClubApplyPrefill } from "@/lib/clubs/applyPrefill.functions";
 import {
   clubApplyValid,
   validateClubApply,
@@ -32,7 +47,7 @@ import {
   type ClubApplyField,
   type ClubApplyValues,
 } from "@/lib/clubs/applyValidation";
-import { ensureClubI18n } from "@/lib/i18n-club";
+import { clubEn, clubPl, ensureClubI18n } from "@/lib/i18n-club";
 
 interface ApplySearch {
   spec?: string;
@@ -41,24 +56,47 @@ interface ApplySearch {
 /** Od tej rangi zaczyna sie "PRO+" (PRO oraz kazda wyzsza warstwa). */
 const PRO_MIN_RANK = 20;
 
+/** Pola, ktore umiemy wziac z profilu - nazwy identyczne w obu strukturach. */
+const PREFILL_FIELDS = [
+  "firstName",
+  "lastName",
+  "email",
+  "phone",
+  "company",
+  "jobPosition",
+  "country",
+  "linkedinUrl",
+] as const;
+
+/** Klucz cache historii wlasnych zgloszen - uniewazniany po wyslaniu. */
+const MY_APPLICATIONS_KEY = ["club-applications", "mine"] as const;
+
+/**
+ * Meta trasy. Jezyk bierzemy z ADRESU zadania, a nie z singletona i18next:
+ * `head()` biegnie na serwerze wspoldzielony miedzy rownolegle zadania, wiec
+ * jego `language` potrafi nalezec do innego uzytkownika - dokladnie ten sam
+ * mechanizm co strony specjalizacji (`lib/clubs/specializationHead.ts`).
+ * Tresc czyta drzewa slownika wprost, zeby PL i EN mialy jedno zrodlo prawdy
+ * z reszta strony, a `buildContentHead` dodaje canonical, hreflang i og:locale.
+ */
+function buildApplyHead(): ReturnType<typeof buildContentHead> {
+  const url = getRequestUrl() || "/club/apply";
+  const lang = activeLang(url);
+  const copy = (lang === "en" ? clubEn : clubPl).club.spec.apply.meta;
+  return buildContentHead({
+    url,
+    lang,
+    type: "website",
+    title: copy.title,
+    description: copy.description,
+    robots: "index, follow",
+  });
+}
+
 export const Route = createFileRoute("/club/apply")({
   validateSearch: (raw: Record<string, unknown>): ApplySearch =>
     typeof raw.spec === "string" ? { spec: raw.spec } : {},
-  head: () => {
-    const title = "Zaaplikuj do klubu dyskusyjnego | New European Strategies";
-    const description =
-      "Zgłoś się do zamkniętego klubu dyskusyjnego ekspertów i decydentów. Wymagane konto i członkostwo PRO lub wyższe.";
-    return {
-      meta: [
-        { title },
-        { name: "description", content: description },
-        { property: "og:title", content: title },
-        { property: "og:description", content: description },
-        { property: "og:type", content: "website" },
-        { name: "twitter:card", content: "summary_large_image" },
-      ],
-    };
-  },
+  head: () => buildApplyHead(),
   component: ClubApplyPage,
 });
 
@@ -109,6 +147,50 @@ function ClubApplyPage() {
 
   const clubsQuery = useClubsBySpecialization(form.specialization, 60, form.specialization !== "");
 
+  const queryClient = useQueryClient();
+  const loadPrefill = useServerFn(getClubApplyPrefill);
+  const saveConsent = useServerFn(setMyConsent);
+
+  // Prefill z profilu (3.1). Osiem z czternastu pol obowiazkowych platforma juz
+  // zna, a formularz za dwiema bramkami zajmuje kilkanascie minut - kazde z nich
+  // przepisywane recznie to strata bez zadnej korzysci dla komisji.
+  const prefillQuery = useQuery({
+    queryKey: ["club-apply-prefill"],
+    queryFn: () => loadPrefill(),
+    enabled: user !== null,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Historia wlasnych zgloszen (2.2). Bez niej kandydat po wyslaniu nie widzi
+  // niczego wiecej i po tygodniu ciszy sklada zgloszenie drugi raz.
+  const mineQuery = useQuery({
+    queryKey: MY_APPLICATIONS_KEY,
+    queryFn: fetchMyClubApplications,
+    enabled: user !== null,
+    staleTime: 30_000,
+  });
+
+  const [prefilled, setPrefilled] = useState(false);
+  // Ref, a nie sam warunek "pole puste": efekt ma wypelnic formularz JEDEN raz
+  // po dojsciu danych. Bez tego swiadome wyczyszczenie pola przez uzytkownika
+  // bylo cofane przy kazdym kolejnym renderze.
+  const prefillApplied = useRef(false);
+  useEffect(() => {
+    const data = prefillQuery.data;
+    if (data === undefined || prefillApplied.current) return;
+    prefillApplied.current = true;
+    const fillable = PREFILL_FIELDS.filter((key) => form[key] === "" && data[key] !== "");
+    if (fillable.length === 0) return;
+    setForm((prev) => {
+      const next: ClubApplyValues = { ...prev };
+      // Pustke sprawdzamy jeszcze raz w updaterze: miedzy renderem a zapisem
+      // uzytkownik moze zaczac pisac, a jego tekst wygrywa z profilem.
+      for (const key of fillable) if (next[key] === "") next[key] = data[key];
+      return next;
+    });
+    setPrefilled(true);
+  }, [prefillQuery.data, form]);
+
   const set = <K extends keyof ClubApplyValues>(key: K, value: ClubApplyValues[K]): void => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
@@ -137,22 +219,54 @@ function ClubApplyPage() {
       : [{ value: fallback.slug, label: t(`club.spec.items.${fallback.key}.title`) }];
   }, [specsQuery.data, lang, form.specialization, t]);
 
+  const rank = tierQuery.data?.rank ?? 0;
+  const isPro = rank >= PRO_MIN_RANK;
+
+  // 5.1: klub o progu wyzszym niz ranga uzytkownika nie ma prawa byc do wyboru.
+  // Zgloszenie do niego przechodzi globalna bramke PRO+ i moze zostac przyjete,
+  // a potem `club_capabilities` odrzuca czlonka z `tier_too_low` - czyli komisja
+  // wpuszcza kogos do klubu, do ktorego nigdy nie wejdzie.
+  const clubsInReach = useMemo(() => {
+    const rows = clubsQuery.data?.rows ?? [];
+    const visible = rows.filter((row) => row.min_tier_rank <= rank);
+    return { visible, hidden: rows.length - visible.length };
+  }, [clubsQuery.data, rank]);
+
   const clubOptions = useMemo(
     () => [
       { value: "", label: t("club.spec.apply.clubAny") },
-      ...(clubsQuery.data?.rows ?? []).map((row) => ({
+      ...clubsInReach.visible.map((row) => ({
         value: row.id,
         label: lang === "en" ? row.name_en || row.name_pl : row.name_pl || row.name_en,
       })),
     ],
-    [clubsQuery.data, lang, t],
+    [clubsInReach, lang, t],
   );
 
   const optionList = (prefix: string, keys: readonly string[]) =>
     keys.map((key) => ({ value: key, label: t(`club.spec.apply.${prefix}.${key}`) }));
 
-  const rank = tierQuery.data?.rank ?? 0;
-  const isPro = rank >= PRO_MIN_RANK;
+  /** Etykieta specjalizacji z katalogu; fallback na slug, gdy katalog milczy. */
+  const specLabel = (slug: string): string => {
+    const row = (specsQuery.data ?? []).find((item) => item.slug === slug);
+    if (row !== undefined) {
+      return lang === "en" ? row.label_en || row.label_pl : row.label_pl || row.label_en;
+    }
+    const spec = findClubSpecialization(slug);
+    return spec === null ? slug : t(`club.spec.items.${spec.key}.title`);
+  };
+
+  /** Nazwa klubu ze zgloszenia; brak wskazania to swiadomy wybor kandydata. */
+  const mineClubLabel = (row: ClubMyApplicationRow): string => {
+    if (row.club_id === null) return t("club.spec.apply.mine.clubAny");
+    const name =
+      lang === "en"
+        ? row.club_name_en || row.club_name_pl
+        : row.club_name_pl || row.club_name_en;
+    return name === null || name === "" ? t("club.spec.apply.mine.clubAny") : name;
+  };
+
+  const mineRows = mineQuery.data ?? [];
 
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -166,10 +280,35 @@ function ClubApplyPage() {
     setStatus("sending");
     try {
       await submitClubApplication(form, lang);
+
+      // 3.3: zgoda marketingowa musi wyladowac w rejestrze `user_consents` -
+      // to jedno zrodlo prawdy widoczne w profilu i jedyne miejsce, w ktorym
+      // uzytkownik moze ja wycofac. Zapis jest NIEKRYTYCZNY: zgloszenie jest
+      // juz w bazie, wiec bledu rejestru nie wolno pokazac jako porazki wysylki.
+      if (form.marketingConsent) {
+        try {
+          await saveConsent({
+            data: {
+              key: MARKETING_CONSENT_KEY,
+              given: true,
+              version: getConsentDefinition(MARKETING_CONSENT_KEY)?.version ?? "1.0",
+              lang,
+              source: "club_apply",
+            },
+          });
+        } catch (consentErr) {
+          console.error("[club-apply] consent registry write failed", consentErr);
+        }
+      }
+
       setStatus("ok");
       setForm({ ...EMPTY_CLUB_APPLY, specialization: form.specialization });
       setSubmitted(false);
       setErrors({});
+      setPrefilled(false);
+      // Historia musi pokazac swieze zgloszenie od razu - inaczej kandydat widzi
+      // toast, a sekcja "Twoje zgloszenia" nadal go nie zna.
+      void queryClient.invalidateQueries({ queryKey: MY_APPLICATIONS_KEY });
       toast.success(t("club.spec.apply.ok"));
     } catch (err) {
       setStatus("idle");
@@ -206,6 +345,57 @@ function ClubApplyPage() {
         </p>
       </header>
 
+      {/* 2.2: wlasne zgloszenia NAD formularzem - status decyzji jest pierwsza
+          rzecza, ktorej kandydat tu szuka, i jedynym powodem, zeby nie wysylac
+          zgloszenia drugi raz. Sekcja stoi przed bramkami, bo historia jest
+          wazna takze wtedy, gdy warstwa czlonkostwa wygasla. */}
+      {user !== null && mineRows.length > 0 ? (
+        <section
+          className="mt-6 rounded-md border p-6 md:p-8"
+          style={{ background: "var(--cp-surface)", borderColor: "var(--cp-line)" }}
+          aria-labelledby="club-apply-mine"
+        >
+          <h2
+            id="club-apply-mine"
+            className="font-display text-lg font-bold"
+            style={{ color: "var(--cp-ink)" }}
+          >
+            {t("club.spec.apply.mine.title")}
+          </h2>
+          <ul className="mt-4 space-y-3">
+            {mineRows.map((row) => (
+              <li
+                key={row.id}
+                className="rounded-md border p-4"
+                style={{ borderColor: "var(--cp-line)", background: "var(--cp-panel)" }}
+              >
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <p className="text-sm font-semibold" style={{ color: "var(--cp-ink)" }}>
+                    {mineClubLabel(row)}
+                  </p>
+                  <span
+                    className="text-[10px] font-semibold uppercase tracking-[0.18em]"
+                    style={{ color: "var(--cp-accent)" }}
+                  >
+                    {t(`club.spec.apply.mine.status.${row.status}`)}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs" style={{ color: "var(--cp-muted)" }}>
+                  {specLabel(row.specialization_slug)}
+                </p>
+                <p className="mt-2 text-xs" style={{ color: "var(--cp-muted)" }}>
+                  {t("club.spec.apply.mine.submittedAt")}: {formatDate(row.created_at, lang)}
+                  {row.reviewed_at === null
+                    ? ""
+                    : ` - ${t("club.spec.apply.mine.reviewedAt")}: ` +
+                      formatDate(row.reviewed_at, lang)}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       {user === null ? (
         <GateCard
           icon="lock"
@@ -240,6 +430,15 @@ function ClubApplyPage() {
             })}
             action={null}
           />
+
+          {/* 3.1: informacja, ze czesc pol pochodzi z profilu. Bez niej dane
+              wygladaja jak wziete z powietrza, a kandydat nie wie, ze moze je
+              nadpisac - do zgloszenia idzie to, co jest w formularzu. */}
+          {prefilled ? (
+            <p role="status" className="mt-4 text-xs" style={{ color: "var(--cp-muted)" }}>
+              {t("club.spec.apply.prefillNote")}
+            </p>
+          ) : null}
 
           <form onSubmit={onSubmit} className="mt-6 space-y-6" noValidate>
             {errorList.length > 0 ? (
@@ -453,6 +652,11 @@ function ClubApplyPage() {
                     placeholder={t("club.spec.apply.clubPlaceholder")}
                     aria-label={t("club.spec.apply.club")}
                   />
+                  {clubsInReach.hidden > 0 ? (
+                    <p className="mt-1.5 pl-1 text-xs" style={{ color: "var(--cp-muted)" }}>
+                      {t("club.spec.apply.gate.tierFilteredNote")}
+                    </p>
+                  ) : null}
                 </div>
               </div>
               <div>

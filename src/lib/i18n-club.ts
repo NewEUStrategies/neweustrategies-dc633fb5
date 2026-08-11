@@ -101,6 +101,8 @@ export const clubPl = {
         errorsTitle: "Popraw poniższe pola, aby wysłać zgłoszenie:",
         optional: "opcjonalnie",
         motivationHint: "Minimum 20 znaków - napisz, czym się zajmujesz i co wnosisz do debaty.",
+        prefillNote:
+          "Część pól wypełniliśmy danymi z Twojego profilu. Możesz je zmienić - zgłoszenie zapisuje to, co jest w formularzu.",
         gate: {
           signInTitle: "Zaloguj się, aby wysłać zgłoszenie",
           signInLead:
@@ -113,6 +115,28 @@ export const clubPl = {
           okTitle: "Członkostwo potwierdzone",
           okLead:
             "Warstwa {{tier}} spełnia wymóg PRO+. Zgłoszenie i tak jest wymagane - komisja ocenia profil zawodowy, nie płatność.",
+          tierFilteredNote:
+            "Lista pokazuje tylko kluby w zasięgu Twojego obecnego planu. Kluby o wyższym progu zobaczysz po zmianie planu.",
+        },
+        // Meta strony /club/apply. Tekst mieszka w słowniku, bo `head()` musi
+        // podać wersję zgodną z językiem adresu, a nie zahardkodowaną polską.
+        meta: {
+          title: "Zaaplikuj do klubu dyskusyjnego | New European Strategies",
+          description:
+            "Zgłoś się do zamkniętego klubu dyskusyjnego ekspertów i decydentów. Wymagane konto i członkostwo PRO lub wyższe.",
+        },
+        mine: {
+          title: "Twoje zgłoszenia",
+          empty: "Nie masz jeszcze żadnego zgłoszenia.",
+          submittedAt: "Wysłano",
+          reviewedAt: "Rozpatrzono",
+          clubAny: "Bez wskazania klubu",
+          status: {
+            pending: "Oczekuje",
+            review: "W ocenie",
+            accepted: "Zaakceptowane",
+            rejected: "Odrzucone",
+          },
         },
         seniorityOptions: {
           board: "Zarząd / rada",
@@ -148,10 +172,17 @@ export const clubPl = {
         submitErrors: {
           auth_required: "Zaloguj się, aby wysłać zgłoszenie.",
           pro_required: "Zgłoszenie wymaga aktywnego członkostwa PRO lub wyższego.",
+          // Inny przypadek niż `pro_required`: plan wystarcza na zgłoszenie,
+          // ale nie na próg WYBRANEGO klubu - dlatego osobny komunikat.
+          club_tier_too_low:
+            "Wybrany klub wymaga wyższego planu niż Twój obecny. Wskaż inny klub albo zostaw wybór komisji.",
           consent_required: "Zaakceptuj zgodę na przetwarzanie danych.",
           email_required: "Podaj poprawny adres e-mail.",
           motivation_required: "Uzasadnienie musi mieć co najmniej 20 znaków.",
           specialization_required: "Wybierz specjalizację z listy.",
+          years_invalid: "Lata doświadczenia muszą być liczbą od 0 do 70.",
+          duplicate_open:
+            "Masz już otwarte zgłoszenie do tej specjalizacji. Poczekaj na decyzję komisji.",
           unknown: "Nie udało się wysłać zgłoszenia. Spróbuj ponownie.",
         },
         errors: {
@@ -539,17 +570,27 @@ export const clubPl = {
       private: "Karta widoczna dla zalogowanych, treść tylko dla członków.",
       secret: "Widoczny wyłącznie dla członków klubu.",
     },
+    // Nazwy handlowe progów są brane z katalogu cenowego (`membership_tiers`),
+    // żeby droplista w panelu mówiła tym samym językiem co strona z planami.
     planTier: {
       free: "Darmowy",
       plus: "Plus",
       pro: "Pro",
       vip: "VIP",
+      corporate: "Enterprise",
+      partner: "Strategic Partner",
+      partner_general: "Partner Generalny",
+      presidents_circle: "President's Circle",
     },
     planTierHint: {
       free: "Dostęp bez wymagań planu.",
       plus: "Wymaga planu Plus lub wyższego.",
       pro: "Wymaga planu Pro lub wyższego.",
       vip: "Wymaga planu VIP.",
+      corporate: "Wymaga planu Enterprise lub wyższego.",
+      partner: "Wymaga planu Strategic Partner lub wyższego.",
+      partner_general: "Wymaga planu Partner Generalny lub wyższego.",
+      presidents_circle: "Wymaga planu President's Circle.",
     },
     joinPolicy: {
       open: "Wejście otwarte",
@@ -2391,6 +2432,8 @@ export const clubEn = {
         errorsTitle: "Please correct the fields below to submit your application:",
         optional: "optional",
         motivationHint: "At least 20 characters - tell us what you do and what you bring to the debate.",
+        prefillNote:
+          "Some fields are pre-filled from your profile. You can change them - the application saves whatever is in the form.",
         gate: {
           signInTitle: "Sign in to submit your application",
           signInLead:
@@ -2403,6 +2446,28 @@ export const clubEn = {
           okTitle: "Membership confirmed",
           okLead:
             "The {{tier}} tier meets the PRO+ requirement. The application is still required - the committee reviews your professional profile, not your payment.",
+          tierFilteredNote:
+            "The list shows only clubs within reach of your current plan. Clubs with a higher threshold appear once you change plan.",
+        },
+        // Meta for /club/apply. Kept in the dictionary so `head()` can serve the
+        // language of the request instead of a hard-coded Polish string.
+        meta: {
+          title: "Apply to join a discussion club | New European Strategies",
+          description:
+            "Apply to a closed discussion club of experts and decision-makers. An account and a PRO or higher membership are required.",
+        },
+        mine: {
+          title: "Your applications",
+          empty: "You have no applications yet.",
+          submittedAt: "Submitted",
+          reviewedAt: "Reviewed",
+          clubAny: "No club selected",
+          status: {
+            pending: "Pending",
+            review: "In review",
+            accepted: "Accepted",
+            rejected: "Rejected",
+          },
         },
         seniorityOptions: {
           board: "Board",
@@ -2438,10 +2503,17 @@ export const clubEn = {
         submitErrors: {
           auth_required: "Please sign in to submit your application.",
           pro_required: "An active PRO or higher membership is required.",
+          // Not the same case as `pro_required`: the plan is enough to apply,
+          // but not for the threshold of the CHOSEN club - hence its own text.
+          club_tier_too_low:
+            "The selected club requires a higher plan than your current one. Pick another club or leave the choice to the committee.",
           consent_required: "Please accept the data-processing statement.",
           email_required: "Please enter a valid email address.",
           motivation_required: "Your motivation must be at least 20 characters.",
           specialization_required: "Please select a specialisation from the list.",
+          years_invalid: "Years of experience must be a number between 0 and 70.",
+          duplicate_open:
+            "You already have an open application for this specialisation. Please wait for the committee's decision.",
           unknown: "Could not send the application. Please try again.",
         },
         errors: {
@@ -2803,17 +2875,28 @@ export const clubEn = {
       private: "Card visible to signed-in users, content only to members.",
       secret: "Visible exclusively to club members.",
     },
+    // Commercial names of the thresholds come from the pricing catalogue
+    // (`membership_tiers`), so the admin dropdown speaks the same language as
+    // the public plans page.
     planTier: {
       free: "Free",
       plus: "Plus",
       pro: "Pro",
       vip: "VIP",
+      corporate: "Enterprise",
+      partner: "Strategic Partner",
+      partner_general: "General Partner",
+      presidents_circle: "President's Circle",
     },
     planTierHint: {
       free: "No plan requirement.",
       plus: "Requires the Plus plan or higher.",
       pro: "Requires the Pro plan or higher.",
       vip: "Requires the VIP plan.",
+      corporate: "Requires the Enterprise plan or higher.",
+      partner: "Requires the Strategic Partner plan or higher.",
+      partner_general: "Requires the General Partner plan or higher.",
+      presidents_circle: "Requires the President's Circle plan.",
     },
     joinPolicy: {
       open: "Open entry",

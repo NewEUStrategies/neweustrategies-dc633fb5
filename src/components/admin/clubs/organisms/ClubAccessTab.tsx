@@ -113,7 +113,16 @@ export function ClubAccessTab({ draft, onChange, disabled }: ClubAccessTabProps)
             options={CLUB_PLAN_TIERS}
             i18nPrefix="club.planTier"
             hintPrefix="club.planTierHint"
-            onChange={(tier) => onChange({ minTierRank: rankFromPlanTier(tier) })}
+            // Wyświetlana wartość powstaje z `planTierFromRank`, które rangę
+            // spoza słownika degraduje w dół. Wybór TEJ SAMEJ pozycji, która
+            // już się wyświetla, zapisałby wtedy próg NIŻSZY od istniejącego,
+            // wyglądając przy tym jak brak zmiany. Emitujemy więc tylko realną
+            // zmianę rangi - słownik pokrywa dziś cały katalog, ale ranga
+            // z ręcznego grantu (np. 35) nadal może w nim nie istnieć.
+            onChange={(tier) => {
+              const nextRank = rankFromPlanTier(tier);
+              if (nextRank !== draft.minTierRank) onChange({ minTierRank: nextRank });
+            }}
             disabled={disabled}
           />
 

@@ -14684,7 +14684,8 @@ export type Database = {
           availability: string
           city: string
           club_id: string
-          club_name: string
+          club_name_en: string
+          club_name_pl: string
           company: string
           contribution: string
           country: string
@@ -15663,6 +15664,10 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: Json
       }
+      anonymize_club_applications_for_user: {
+        Args: { _user_id: string }
+        Returns: number
+      }
       anonymize_payment_orders_for_user: {
         Args: { p_user_id: string }
         Returns: Json
@@ -16455,6 +16460,19 @@ export type Database = {
           author_id: string
           display_name: string
           profile_slug: string
+        }[]
+      }
+      club_my_applications: {
+        Args: never
+        Returns: {
+          club_id: string
+          club_name_en: string
+          club_name_pl: string
+          created_at: string
+          id: string
+          reviewed_at: string
+          specialization_slug: string
+          status: string
         }[]
       }
       club_my_invitations: {

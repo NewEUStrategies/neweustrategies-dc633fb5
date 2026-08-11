@@ -47,11 +47,17 @@ function ApplicationRow(props: {
   const { row } = props;
   const { t, i18n } = useTranslation();
   const [open, setOpen] = useState(false);
-  const locale = (i18n.language ?? "pl").startsWith("pl") ? "pl-PL" : "en-GB";
+  const lang = (i18n.language ?? "pl").startsWith("pl") ? "pl" : "en";
+  const locale = lang === "pl" ? "pl-PL" : "en-GB";
   const when = new Date(row.created_at).toLocaleString(locale, {
     dateStyle: "medium",
     timeStyle: "short",
   });
+  // RPC podaje obie nazwy klubu, bo redakcja pracuje w dwoch jezykach. Wybor
+  // z fallbackiem na druga wersje - klub moze miec wypelnione tylko jedno pole,
+  // a wtedy lepsza jest nazwa w "obcym" jezyku niz puste miejsce w wierszu.
+  const clubName =
+    lang === "en" ? row.club_name_en || row.club_name_pl : row.club_name_pl || row.club_name_en;
 
   const detail = (labelKey: string, value: string | number | null): React.ReactNode =>
     value === null || value === "" ? null : (
@@ -85,7 +91,7 @@ function ApplicationRow(props: {
             </span>
             <span className="mt-1 block text-xs text-muted-foreground">
               {when} · {row.specialization_slug}
-              {row.club_name === null ? "" : ` · ${row.club_name}`} · {row.tier_key}
+              {clubName === null || clubName === "" ? "" : ` · ${clubName}`} · {row.tier_key}
             </span>
           </span>
         </button>
