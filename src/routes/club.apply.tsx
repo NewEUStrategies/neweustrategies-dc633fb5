@@ -213,7 +213,7 @@ function ClubApplyPage() {
           lead={t("club.spec.apply.gate.signInLead")}
           action={
             <Button asChild>
-              <Link to="/auth">{t("club.spec.apply.gate.signIn")}</Link>
+              <Link to="/login">{t("club.spec.apply.gate.signIn")}</Link>
             </Button>
           }
         />
