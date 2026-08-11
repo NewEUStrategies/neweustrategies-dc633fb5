@@ -16,11 +16,19 @@ progami planu (`membership_tiers`, `current_membership_tier`), kanoniczną
 ścieżką CRM (`crm_upsert_from_form`) i kanonicznym back-fillem profilu
 (`join_us_link_and_backfill`).
 
-**Weryfikacja empiryczna.** Dwa znaleziska (1.1 i 4.1) nie są odczytem kodu -
-zostały odtworzone na realnym PostgreSQL 16 przez wykonanie dokładnie tych
-instrukcji, które wykonuje `club_apply_submit`, na schemacie odtworzonym
-z migracji. Wyjścia `psql` są wklejone niżej. Uruchomiono też bramkę
-`scripts/pg-harness/run.sh` (rozdział 8.1).
+**Weryfikacja empiryczna.** Znaleziska 1.1 i 4.1 nie są odczytem kodu - zostały
+odtworzone na realnym PostgreSQL 16 przez wykonanie dokładnie tych instrukcji,
+które wykonuje `club_apply_submit`, na schemacie odtworzonym z migracji. Wyjścia
+`psql` są wklejone niżej. Uruchomiono też bramkę `scripts/pg-harness/run.sh`
+(rozdział 8.1).
+
+**Granica tej metody - i moja pomyłka.** Odtworzony `crm_leads` miał kolumny
+i ograniczenia, ale **nie triggery**. Dla 1.1 to bez znaczenia (naruszenie CHECK
+jest niezależne od triggerów), ale w 4.1 puste pola w wyniku wziąłem za brak
+i dwa z sześciu pierwotnych zarzutów były błędne - `phone_norm` i scoring są
+obsługiwane przez triggery tabeli. Rozdział 4.1 jest poprawiony, a wnioski
+o brakach opierają się teraz na przeglądzie wszystkich siedmiu triggerów
+`crm_leads`, nie na pustych polach. Poprawki wskazała recenzja PR #217.
 
 **Czego nie uruchomiono:** zestawu `vitest` i bramek `check:*`. `bun install`
 nie przechodzi w tym środowisku - lockfile przypina tarbally do prywatnego
@@ -248,21 +256,29 @@ w CRM.
 
 ## 4. CRM - zapis obok kanonicznej ścieżki
 
-### 4.1 Ominięcie `crm_upsert_from_form` gubi sześć rzeczy (WYSOKIE)
+### 4.1 Ominięcie `crm_upsert_from_form` gubi cztery rzeczy (WYSOKIE)
+
+> **Korekta po recenzji (2026-08-11).** Pierwsza wersja tego rozdziału wymieniała
+> sześć braków. Dwa z nich - `phone_norm` i przeliczanie scoringu - były
+> **błędne** i zostały usunięte; szczegóły i przyczyna pomyłki w ramce
+> „Ograniczenie odtworzenia" niżej. Zmieniła się też rekomendacja poprawki:
+> samo przejście na `crm_upsert_from_form` **nie** domyka 4.2.
 
 Repozytorium ma kanoniczną funkcję wejścia leada z formularza:
-`crm_upsert_from_form` (`20260706201356…sql:78-160`). `club_apply_submit` jej nie
-woła - pisze surowy `INSERT … ON CONFLICT` na `crm_leads`. Po naprawie 1.1 zapis
-zacznie działać, ale będzie leadem uboższym niż lead z formularza kontaktowego.
+`crm_upsert_from_form` (ostatnia definicja:
+`20260706215313…sql:34-99`; `20260708120000_platform_bugfixes_rls.sql` zmienia
+już tylko GRANT-y). `club_apply_submit` jej nie woła - pisze surowy
+`INSERT … ON CONFLICT` na `crm_leads`. Po naprawie 1.1 zapis zacznie działać, ale
+będzie leadem uboższym niż lead z formularza kontaktowego.
 
 Odtworzenie na PostgreSQL 16 (ograniczenie tymczasowo rozszerzone, żeby
 instrukcja w ogóle doszła do arbitrażu; lead istniał wcześniej ze źródła
 `newsletter`, zgłoszenie z `marketing_consent = true`):
 
 ```
- email_norm   | source_type | club_application_count | club_specializations | marketing_consent | source_count | phone_norm | country | linkedin_url
---------------+-------------+------------------------+----------------------+-------------------+--------------+------------+---------+-------------
- x@example.eu | newsletter  |                      1 | {energy,defence}     | f                 |            1 |            |         |
+ email_norm   | source_type | club_application_count | club_specializations | marketing_consent | source_count | country | linkedin_url
+--------------+-------------+------------------------+----------------------+-------------------+--------------+---------+-------------
+ x@example.eu | newsletter  |                      1 | {energy,defence}     | f                 |            1 |         |
 ```
 
 Co działa poprawnie: `club_application_count` inkrementuje się, tablica
@@ -270,36 +286,71 @@ Co działa poprawnie: `club_application_count` inkrementuje się, tablica
 zgłoszeniami tej samej specjalizacji - zostaje jeden wpis), a odwołanie
 `public.crm_leads.<kolumna>` w `DO UPDATE` rozwiązuje się prawidłowo.
 
+> **Ograniczenie odtworzenia - warte zapamiętania przy następnym audycie.**
+> Powyższa tabela pochodzi z ręcznie odtworzonego `crm_leads`, w którym
+> odtworzyłem kolumny i ograniczenie `source_type`, ale **nie triggery**.
+> Dlatego puste pole w tym wyniku NIE jest dowodem braku - i na dwóch pozycjach
+> wprowadziło mnie w błąd. Realny `crm_leads` ma siedem triggerów, z których dwa
+> uzupełniają dane niezależnie od tego, co poda wołający:
+> `crm_leads_normalize_trg` (`crm_normalize_lead()`, BEFORE INSERT OR UPDATE, bez
+> zawężenia kolumnowego) oraz `crm_leads_sync_phone_norm_trg` (BEFORE INSERT OR
+> UPDATE OF phone). Oba wyliczają `phone_norm` z `NEW.phone`. Wnioski o brakach
+> poniżej opierają się już na przeglądzie wszystkich triggerów tabeli, nie na
+> pustych polach w odtworzeniu.
+
 Czego brakuje w porównaniu z kanoniczną ścieżką:
 
-1. **`phone_norm` nie jest ustawiany.** Kanoniczna funkcja normalizuje
-   (`regexp_replace(…, '[^0-9+]', '', 'g')`), bo dopasowanie leada po telefonie
-   działa na `phone_norm` (`20260630060254…sql:49`). Klubowy lead jest dla tego
-   dopasowania niewidoczny, mimo że formularz wymaga telefonu.
-2. **`country` i `linkedin_url` nie są zapisywane** - formularz je zbiera,
-   `crm_leads` ma te kolumny, kanoniczna funkcja je wypełnia. Dane giną
-   w `club_applications`.
-3. **`company_id` nie jest linkowany.** Kanoniczna ścieżka robi upsert
+1. **`country` i `linkedin_url` nie są zapisywane** - formularz je zbiera,
+   `crm_leads` ma te kolumny, kanoniczna funkcja je wypełnia, żaden trigger ich
+   nie wyprowadza. Dane giną w `club_applications`.
+2. **`company_id` nie jest linkowany.** Kanoniczna ścieżka robi upsert
    `crm_companies` i wiąże leada z firmą. Pracodawca kandydata nie pojawia się
    w widoku firm CRM.
-4. **`source_count` nie inkrementuje** (widać wyżej: zostaje 1). Raport
-   „ile punktów styku" zaniża klubowych kandydatów - a to najbardziej
-   zaangażowany segment, jaki ten produkt ma.
-5. **`aliases` nie jest dopisywany.** Kanoniczna ścieżka gromadzi historię
+3. **`source_count` nie inkrementuje** (widać wyżej: zostaje 1; żaden trigger go
+   nie podbija - `trg_crm_leads_counters` rusza wyłącznie licznik tenanta po
+   `stage`). Raport „ile punktów styku" zaniża klubowych kandydatów - a to
+   najbardziej zaangażowany segment, jaki ten produkt ma.
+4. **`aliases` nie jest dopisywany.** Kanoniczna ścieżka gromadzi historię
    (`emails`, `phones`, `companies`, `positions`, `linkedins`, `countries`,
    `sources`). Zmiana pracodawcy między zgłoszeniami przepada.
-6. **Scoring nie jest przeliczany.** `crm_leads` ma `score`, `score_band`,
-   `score_breakdown`; `recompute_crm_lead_score(uuid)` istnieje i nie jest
-   wołany. Lead po zgłoszeniu klubowym ma nieaktualny wynik.
 
 Nie ma też wpisu w `crm_lead_notes` ani żadnego śladu w timeline - motywacja
 i opis ekspertyzy, czyli materiał, po który handlowiec sięgnąłby najpierw,
 istnieją wyłącznie w skrzynce klubowej.
 
-**Poprawka.** Wołać `crm_upsert_from_form(…)` po `source = 'club_application'`,
-a `INSERT … ON CONFLICT` zredukować do `UPDATE` trzech kolumn klubowych
-(`club_applied_at`, `club_application_count`, `club_specializations`) po
-zwróconym `lead_id`. Znika wtedy również 4.2.
+**Czego NIE brakuje** (sprawdzone, wbrew pierwszej wersji tego audytu):
+
+- `phone_norm` **jest** wyliczany - dwa triggery wyżej. Klubowy lead jest
+  widoczny dla dopasowania po telefonie.
+- **Scoring JEST przeliczany.** `trg_score_on_lead_change` (ostatnia definicja
+  `20260719083815…sql:655-660`) odpala `compute_crm_lead_score(NEW.id)` po
+  `INSERT` oraz po `UPDATE OF email, email_norm, phone, company, position,
+  linkedin_url, marketing_consent`. Klubowy `DO UPDATE` rusza `phone`, `company`
+  i `position`, więc trafia w listę; ścieżka `INSERT` odpala się bezwarunkowo.
+  Jawne wołanie `recompute_crm_lead_score` jest zbędne.
+
+**Poprawka - i uwaga, sama podmiana funkcji nie wystarczy.** Kanoniczna
+`crm_upsert_from_form` też nie rusza zgody ani źródła: jej lista `SET` obejmuje
+`first_name`, `last_name`, `phone`, `phone_norm`, `company`, `position`,
+`linkedin_url`, `country`, `company_id`, `aliases`, `source_count` - bez
+`marketing_consent` i bez `source_type` - a na ścieżce `INSERT` wpisuje
+`marketing_consent` **na stałe `false`** i pomija `source_type`, więc nowy lead
+dostaje wartość domyślną kolumny, czyli `'manual'`.
+
+Przejście na nią bez dopełnienia byłoby więc regresem względem intencji z 1.1:
+nowy klubowy lead wylądowałby jako `'manual'`, a zgoda przepadałaby na obu
+ścieżkach, nie tylko na istniejącym leadzie. Poprawka musi mieć dwa kroki:
+
+1. wołać `crm_upsert_from_form(…)` z `_source = 'club_application'` - po
+   deduplikację (także po imieniu i nazwisku), `company_id`, `country`,
+   `linkedin_url`, `aliases` i `source_count`;
+2. na zwróconym `lead_id` wykonać jawny `UPDATE`, który ustawia trzy kolumny
+   klubowe (`club_applied_at`, `club_application_count`,
+   `club_specializations`), wpisuje `source_type = 'club_application'` oraz
+   **podnosi** `marketing_consent` (`marketing_consent OR _consent` - nigdy
+   w drugą stronę, żeby nie zdejmować wycofanej zgody).
+
+Dopiero krok 2 domyka 4.2; krok 1 sam jej nie rusza.
 
 ### 4.2 Zgoda i źródło nie aktualizują się na istniejącym leadzie (ŚREDNIE)
 
@@ -513,11 +564,11 @@ by nie wracać do tego przy przeglądzie.
 | 8.1 | Harness czerwony, bez stubu `crm_leads`, bez asercji dla nowego RPC i **niewpięty w CI** | wysokie | stub + asercja + job |
 | 2.1 | „Zaakceptowano" bez członkostwa i bez powiadomienia | wysokie | RPC + szew |
 | 3.2 | Brak back-fillu profilu (wzorzec gotowy) | wysokie | ~7 linii SQL |
-| 4.1 | Ominięcie `crm_upsert_from_form` - 6 utraconych efektów | wysokie | przepisanie zapisu |
+| 4.1 | Ominięcie `crm_upsert_from_form` - 4 utracone efekty | wysokie | przepisanie zapisu (2 kroki) |
 | 3.1 | Brak prefillu z profilu (8 z 14 pól) - **decyzja produktowa** | wysokie (UX) | server-fn + `useQuery` |
 | 8.2 | Brak deduplikacji zgłoszeń | średnie | indeks + `IF EXISTS` |
 | 5.1 | Bramka ignoruje `min_tier_rank` klubu | średnie | filtr + `club_capabilities` |
-| 4.2 | Zgoda i `source_type` nie aktualizują się | średnie | znika z 4.1 |
+| 4.2 | Zgoda i `source_type` nie aktualizują się | średnie | krok 2 poprawki z 4.1 |
 | 6.1 | `club_applications` poza eksportem RODO | średnie | 1 zbiór w RPC |
 | 6.2 | Brak anonimizacji przy usunięciu konta | średnie | funkcja |
 | 3.3 | Zgoda marketingowa poza `user_consents` | średnie | szew do rejestru |
@@ -530,5 +581,6 @@ by nie wracać do tego przy przeglądzie.
 
 Kolejność wykonania: **1.1 przed wszystkim** (bez tego reszta ścieżki nie ma
 jak zadziałać), potem 8.1 (żeby 1.1 nie mogło się powtórzyć), potem blok
-2.1 + 3.2 jako jedna zmiana w przejściu „accepted", potem 4.1, które wchłania
-4.2. Punkty 3.1 i 3.3 wymagają rozstrzygnięcia produktowego, nie technicznego.
+2.1 + 3.2 jako jedna zmiana w przejściu „accepted", potem 4.1 - pamiętając, że
+4.2 domyka dopiero jego DRUGI krok, a nie sama podmiana funkcji. Punkty 3.1 i 3.3
+wymagają rozstrzygnięcia produktowego, nie technicznego.
