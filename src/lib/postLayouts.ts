@@ -480,6 +480,9 @@ export function overlayTypographyStyle(
       ["--overlay-excerpt-base" as string]: THEME_EXCERPT_VAR,
       ["--overlay-excerpt-md" as string]: THEME_EXCERPT_VAR,
       ["--overlay-excerpt-lg" as string]: THEME_EXCERPT_VAR,
+      // Interlinia zawsze z motywu - żaden layout nie nadpisuje leading tytułu/leadu.
+      ["--overlay-title-lh" as string]: THEME_TITLE_LH_VAR,
+      ["--overlay-excerpt-lh" as string]: THEME_EXCERPT_LH_VAR,
     };
   }
   return {
@@ -489,6 +492,8 @@ export function overlayTypographyStyle(
     ["--overlay-excerpt-base" as string]: `${s.overlay_excerpt_size_base}px`,
     ["--overlay-excerpt-md" as string]: `${s.overlay_excerpt_size_md}px`,
     ["--overlay-excerpt-lg" as string]: `${s.overlay_excerpt_size_lg}px`,
+    ["--overlay-title-lh" as string]: THEME_TITLE_LH_VAR,
+    ["--overlay-excerpt-lh" as string]: THEME_EXCERPT_LH_VAR,
   };
 }
 
@@ -523,6 +528,8 @@ export function headerTypographyStyle(
     ["--header-excerpt-base" as string]: `${s.header_excerpt_size_base}px`,
     ["--header-excerpt-md" as string]: `${s.header_excerpt_size_md}px`,
     ["--header-excerpt-lg" as string]: `${s.header_excerpt_size_lg}px`,
+    ["--header-title-lh" as string]: THEME_TITLE_LH_VAR,
+    ["--header-excerpt-lh" as string]: THEME_EXCERPT_LH_VAR,
   };
 
 }
