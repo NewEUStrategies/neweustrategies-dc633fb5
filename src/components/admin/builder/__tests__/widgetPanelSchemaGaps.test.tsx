@@ -4,8 +4,8 @@
 // Regresje przypięte tutaj:
 //  1. `copyright` konsumował `text_pl|_en`, `brand` i `showYear`, a panel
 //     pokazywał "Brak edytowalnych pól dla tego widgetu.",
-//  2. `lang-switcher` miał etykiety tylko w defaultach palety, a `showLabel`
-//     był kluczem, którego nikt nie czytał ani nie ustawiał,
+//  2. `lang-switcher` miał etykiety tylko w defaultach palety; etykieta jest
+//     opisem dla czytnika ekranu, a na stronie widoczne są wyłącznie flagi,
 //  3. `search-form` w ogóle nie miał wpisu w `WIDGET_SCHEMAS`, mimo że
 //     SearchFormWidget czyta `action`, `placeholder_*` i `button_*`,
 //  4. edytor niestandardowy (image) zasłaniał cały blok schematu - mechanizm
@@ -121,22 +121,22 @@ describe("copyright ma edytowalne pola", () => {
   });
 });
 
-describe("lang-switcher ma edytowalną etykietę i realny przełącznik", () => {
-  it("exposes both settings in the panel", () => {
+describe("lang-switcher ma edytowalną etykietę (aria-label) i realny przełącznik", () => {
+  it("exposes the aria-label field in the panel", () => {
     renderPanel("lang-switcher", defaultsOf("lang-switcher"));
     expect(screen.queryByText(NO_FIELDS)).toBeNull();
     expect(screen.getByText("Etykieta (PL)")).toBeInTheDocument();
-    expect(screen.getByRole("switch", { name: "Pokaż etykietę tekstową" })).toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: "Pokaż etykietę tekstową" })).toBeNull();
   });
 
-  it("writes the label and a real boolean for showLabel", () => {
+  it("writes the label used by screen readers", () => {
     const state = renderPanel("lang-switcher", defaultsOf("lang-switcher"));
     fireEvent.change(controlFor("Etykieta (PL)"), { target: { value: "Język" } });
-    fireEvent.click(screen.getByRole("switch", { name: "Pokaż etykietę tekstową" }));
 
     expect(state.content.label_pl).toBe("Język");
-    expect(state.content.showLabel).toBe(true);
+    expect(state.content.showLabel).toBeUndefined();
   });
+
 
   it("keeps a fresh widget visually unchanged (label off by default)", () => {
     const defaults = defaultsOf("lang-switcher");
