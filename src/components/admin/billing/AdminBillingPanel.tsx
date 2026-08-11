@@ -302,7 +302,9 @@ export function AdminBillingPanel() {
         <div className="flex items-center justify-between gap-3">
           <TabsList>
             <TabsTrigger value="subscriptions">{L("Subskrypcje", "Subscriptions")}</TabsTrigger>
+            <TabsTrigger value="orders">{L("Płatności", "Payments")}</TabsTrigger>
             <TabsTrigger value="tickets">{L("Bilety", "Tickets")}</TabsTrigger>
+
             <TabsTrigger value="events">{L("Dziennik zdarzeń", "Event log")}</TabsTrigger>
             <TabsTrigger value="diagnostics">{L("Diagnostyka", "Diagnostics")}</TabsTrigger>
           </TabsList>
