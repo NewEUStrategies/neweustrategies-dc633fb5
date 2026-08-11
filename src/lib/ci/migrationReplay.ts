@@ -113,6 +113,15 @@ const KNOWN_CONTENT_TWINS: readonly string[] = [
   // `schema_migrations`, więc skasowanie którejkolwiek rozjechałoby ledger
   // z repo - a to jest zmiana operatorska, nie porządkowa.
   "20260809000000_discussion_clubs_a29_products_and_topic_sections.sql|20260809075619_80bcd58c-c652-4f9d-8324-a89ab2b68202.sql",
+  // Wdrożenia PR #210-#213 (A30 wynik odpowiedzi, A32 networking, A33 ekrany
+  // sieci, A34 twarze rosteru). Dokładnie ten sam mechanizm co wyżej: plik
+  // z gałęzi + bliźniak zapisany przez platformę przy zastosowaniu migracji na
+  // hostowanej bazie. Obie wersje są w `schema_migrations`, SQL idempotentny.
+  // Decyzja operatorska: zostawiamy oba pliki, kasowanie rozjechałoby ledger.
+  "20260809091046_7f9142c0-3b00-4cb9-afb4-3186e1a2c743.sql|20260809120000_discussion_clubs_a30_reply_outcome.sql",
+  "20260810105134_d5d870da-90ed-455b-b950-3764d7a62e17.sql|20260810120000_discussion_clubs_a32_networking.sql",
+  "20260810105510_20a7837a-44a0-43a4-92c9-74459d55cae0.sql|20260810180000_discussion_clubs_a33_network_screens.sql",
+  "20260810120817_e2ee8061-1872-49be-9b25-dbb68ba85f44.sql|20260810210000_discussion_clubs_a34_roster_faces.sql",
 ];
 
 /**
