@@ -13,8 +13,9 @@
 //   `magazine`  - pierwszy klub jako duży kafel z pełną okładką i dłuższym
 //                 fragmentem, reszta wierszami. Dla huba z jednym klubem,
 //                 który realnie żyje.
-//   `editorial` - duże, redakcyjne karty z akcentem na tytuł, dostęp i
-//                 ostatnią aktywność. Domyślny dla huba.
+//   `editorial` - wariant ARCHITECTURAL PRESTIGE: ostre, instytucjonalne
+//                 karty z okładką, subtelnymi obramowaniami i złotym akcentem.
+//                 Domyślny dla huba.
 //
 // Fragment (`tagline`) jest we WSZYSTKICH wariantach - różni się tylko
 // liczbą linii. Klub bez zdania wyjaśniającego, po co istnieje, jest w
@@ -26,9 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { ClubCover } from "@/components/clubs/atoms/ClubCover";
 import { ClubDirectorySkeleton } from "@/components/clubs/atoms/ClubSkeletons";
 import { ClubTopicChip } from "@/components/clubs/atoms/ClubTopicChip";
-import { ClubHubAccessBadge } from "@/components/clubs/atoms/ClubHubAccessBadge";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
-import { formatDateShort } from "@/lib/i18n/format";
 import { CLUB_VISIBILITIES, type ClubLayout, type ClubVisibility } from "@/lib/clubs/types";
 
 export interface ClubDirectoryCard {
@@ -74,6 +73,20 @@ function clubAccess(
   if (club.my_status === "invited") return "invited";
   if (club.can_read) return "entitled";
   return "locked";
+}
+
+function ctaLabel(access: import("@/lib/clubs/hubAccess").ClubHubAccess | null, t: (k: string) => string): string {
+  switch (access) {
+    case "member":
+      return t("club.hub.enterWorkspace");
+    case "invited":
+      return t("club.hub.requestAccess");
+    case "entitled":
+      return t("club.hub.enterPortal");
+    case "locked":
+    default:
+      return t("club.hub.requestAccess");
+  }
 }
 
 function ClubStats({ club, isPl }: { club: ClubDirectoryCard; isPl: boolean }) {
@@ -203,54 +216,83 @@ function MagazineLead({ club, isPl }: { club: ClubDirectoryCard; isPl: boolean }
   );
 }
 
-function EditorialCard({ club, isPl }: { club: ClubDirectoryCard; isPl: boolean }) {
-  const { t, i18n } = useTranslation();
+function PrestigeCard({
+  club,
+  isPl,
+  featured = false,
+}: {
+  club: ClubDirectoryCard;
+  isPl: boolean;
+  featured?: boolean;
+}) {
+  const { t } = useTranslation();
   const excerpt = clubExcerpt(club, isPl);
   const access = clubAccess(club);
-  const lastActivity =
-    club.last_activity_at !== null && club.last_activity_at !== undefined
-      ? formatDateShort(club.last_activity_at, i18n.language)
-      : null;
+  const label = ctaLabel(access, t);
 
   return (
     <Link
       to="/club/$clubSlug"
       params={{ clubSlug: club.slug }}
-      className="group flex flex-col overflow-hidden rounded-xl border border-border/60 bg-card transition-all hover:border-primary/40 hover:bg-muted/20"
+      className={`group flex flex-col overflow-hidden rounded-md border transition-all duration-500 ${
+        featured
+          ? "border-primary/40 bg-foreground/[0.04] hover:border-primary hover:shadow-[0_20px_50px_rgba(0,0,0,0.25)]"
+          : "border-border/60 bg-foreground/[0.02] hover:border-primary/50 hover:shadow-[0_20px_40px_rgba(0,0,0,0.25)]"
+      }`}
     >
-      <ClubCover url={club.cover_image_url} variant="card" className="rounded-t-xl" />
-      <div className="flex flex-1 flex-col p-4">
-        <div className="flex items-start justify-between gap-3">
-          <h3 className="min-w-0 flex-1 text-lg font-semibold leading-tight group-hover:text-primary sm:text-xl">
-            {clubName(club, isPl)}
-          </h3>
-          {access !== null ? (
-            <div className="shrink-0">
-              <ClubHubAccessBadge access={access} />
-            </div>
+      <div className="relative h-48 overflow-hidden">
+        <div
+          className={`h-full w-full transition-all duration-700 ${
+            featured ? "opacity-100" : "opacity-50 grayscale group-hover:opacity-100 group-hover:grayscale-0"
+          }`}
+        >
+          <ClubCover
+            url={club.cover_image_url}
+            variant="card"
+            className="h-full w-full rounded-none border-0 transition-transform duration-700 group-hover:scale-105"
+          />
+        </div>
+        <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
+        <div className="absolute left-4 top-4">
+          {featured ? (
+            <span className="bg-primary px-2 py-1 text-[8px] font-black uppercase tracking-widest text-primary-foreground rounded-[4px]">
+              {t("club.hub.activeNow")}
+            </span>
           ) : (
-            <Badge variant="outline" className="shrink-0 text-[11px]">
+            <span className="border-border/60 bg-background/80 px-2 py-1 text-[8px] font-black uppercase tracking-widest text-foreground backdrop-blur-md rounded-[4px] border">
               {t(`club.visibility.${asVisibility(club.visibility)}`)}
-            </Badge>
+            </span>
           )}
         </div>
+      </div>
 
+      <div className="flex flex-1 flex-col p-6 md:p-8">
+        <h3 className="text-lg font-bold leading-tight text-foreground group-hover:text-primary transition-colors md:text-xl">
+          {clubName(club, isPl)}
+        </h3>
         {excerpt !== null ? (
-          <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
+          <p className="mt-4 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
             {excerpt}
           </p>
         ) : null}
 
-        <div className="mt-auto pt-4">
-          <ClubStats club={club} isPl={isPl} />
-          {lastActivity !== null ? (
-            <p className="mt-2 text-[11px] text-muted-foreground">
-              {t("club.lastActivity")}: {lastActivity}
-            </p>
-          ) : null}
-          <span className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-primary opacity-80 transition-opacity group-hover:opacity-100">
-            {t("club.hub.goToThreads")}
-            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+        <div className="mt-auto">
+          <div className="mb-6 flex items-center justify-between text-[10px] font-bold uppercase tracking-tighter text-muted-foreground">
+            <span className="text-foreground">{t("club.membersCount", { count: club.member_count })}</span>
+            <div className="h-4 w-px bg-border/60" />
+            <span className={featured ? "text-primary" : "text-muted-foreground/70"}>
+              {t("club.threadsCount", { count: club.thread_count })}
+            </span>
+          </div>
+
+          <span
+            className={`block w-full rounded-md py-4 text-center text-[9px] font-black uppercase tracking-[0.3em] transition-all duration-300 ${
+              featured
+                ? "bg-primary text-primary-foreground hover:bg-primary-foreground hover:text-primary"
+                : "border border-border/60 text-foreground hover:border-primary hover:bg-primary hover:text-primary-foreground"
+            }`}
+          >
+            {label}
           </span>
         </div>
       </div>
@@ -306,9 +348,9 @@ export function ClubDirectory({
           ) : null}
         </div>
       ) : layout === "editorial" ? (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {clubs.map((club) => (
-            <EditorialCard key={club.id} club={club} isPl={isPl} />
+        <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+          {clubs.map((club, index) => (
+            <PrestigeCard key={club.id} club={club} isPl={isPl} featured={index === 0} />
           ))}
         </div>
       ) : (

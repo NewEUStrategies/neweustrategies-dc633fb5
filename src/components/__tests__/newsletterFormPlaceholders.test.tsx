@@ -22,7 +22,14 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 vi.mock("@/lib/i18n-public", () => ({}));
-vi.mock("@tanstack/react-start", () => ({ useServerFn: () => vi.fn() }));
+vi.mock("@/integrations/supabase/auth-middleware", () => ({ requireSupabaseAuth: {} }));
+vi.mock("@tanstack/react-start", () => ({
+  useServerFn: () => vi.fn(),
+  createMiddleware: () => () => vi.fn(),
+  createServerFn: () => ({
+    middleware: () => ({ handler: () => ({}) }),
+  }),
+}));
 vi.mock("@/lib/newsletter.functions", () => ({ subscribeToNewsletter: {} }));
 vi.mock("@/lib/builder/modeContext", () => ({ useBuilderMode: () => null }));
 vi.mock("@/components/newsletter/NewsletterDocRenderer", () => ({

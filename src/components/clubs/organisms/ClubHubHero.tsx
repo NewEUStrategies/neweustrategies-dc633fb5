@@ -1,13 +1,11 @@
-// Nagłówek strony głównej klubów - wersja EDYTORIALNA (v4).
+// Nagłówek strony głównej klubów - wersja ARCHITECTURAL PRESTIGE (v5).
 //
-// Rozszerzona, premium powierzchnia huba: duży tytuł, status dostępu,
-// liczniki w kartach po prawej oraz pas wartości (Dostęp / Debatuj / Sieć).
-// Układ oddziela katalog od opowieści o produkcie, ale robi to na tyle
-// kompaktowo, że pierwszy klub wciąż mieści się blisko góry ekranu.
+// Struktura jak rama instytucjonalna: blok tytułowy po lewej, pionowa
+// szyna statystyk po prawej, subtelne rozbłyski w tle. Duży kontrast,
+// ostra typografia, złote akcenty.
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
-import { KeyRound, MessagesSquare, Users2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ClubHubAccessBadge } from "@/components/clubs/atoms/ClubHubAccessBadge";
 import type { ClubHubAccess } from "@/lib/clubs/hubAccess";
@@ -30,91 +28,80 @@ export function ClubHubHero({
   access: ClubHubAccess | null;
   signedIn: boolean;
   stats: ClubHubStats;
-  /** Slot na prawą kolumnę: wyszukiwarka dla zalogowanego, CTA dla anonima. */
+  /** Slot na wyszukiwarkę / CTA w bloku tytułowym. */
   children?: ReactNode;
 }) {
   const { t } = useTranslation();
 
   return (
-    <header className="mb-6 overflow-hidden rounded-xl border border-border/60 bg-card">
-      <div className="bg-gradient-to-br from-primary/[0.05] via-transparent to-transparent p-4 md:p-6">
-        <div className="grid gap-6 lg:grid-cols-[1fr_22rem] lg:items-start">
-          {/* Lewa kolumna: tytuł i lead */}
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
-              {t("club.hub.eyebrow")}
-            </p>
-            <div className="mt-2 flex flex-wrap items-center gap-2.5">
-              <h1 className="font-display text-3xl font-bold leading-[1.05] tracking-tight sm:text-4xl">
-                {t("club.title")}
-              </h1>
-              {access !== null ? <ClubHubAccessBadge access={access} /> : null}
+    <header className="relative mb-6 overflow-hidden rounded-md border border-border/60 bg-card/50">
+      {/* Rozbłyski tła */}
+      <div className="pointer-events-none absolute -right-40 -top-40 h-[50rem] w-[50rem] rounded-full bg-primary/5 blur-[180px]" />
+      <div className="pointer-events-none absolute -bottom-40 -left-40 h-[40rem] w-[40rem] rounded-full bg-primary/[0.03] blur-[150px]" />
+
+      <div className="relative z-20 p-4 md:p-6 lg:p-8">
+        {/* Główna rama: tytuł + statystyki */}
+        <div className="flex flex-col gap-1 lg:flex-row lg:items-stretch">
+          {/* Blok tytułowy */}
+          <div className="flex-1 rounded-md border border-border/60 bg-foreground/[0.02] p-6 md:p-8 lg:p-10">
+            <div className="relative overflow-hidden">
+              <div className="relative z-10">
+                <div className="mb-6 flex items-center gap-3">
+                  <span className="h-px w-8 bg-primary" />
+                  <span className="text-[10px] font-black uppercase tracking-[0.5em] text-primary">
+                    {t("club.hub.eyebrow")}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <h1 className="font-display text-5xl font-black leading-[0.9] tracking-tighter text-foreground md:text-6xl lg:text-7xl">
+                    {t("club.title")}
+                  </h1>
+                  {access !== null ? <ClubHubAccessBadge access={access} /> : null}
+                </div>
+
+                <p className="mt-6 max-w-md text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  {signedIn ? t("club.hub.editorialSubtitle") : t("club.hub.anonLead")}
+                </p>
+
+                {children !== undefined ? (
+                  <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <div className="min-w-0 flex-1">{children}</div>
+                    {signedIn ? (
+                      <Button asChild variant="outline" size="sm">
+                        <a href="/kontakt">{t("club.hub.suggestNew")}</a>
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+
+              {/* Wielka litera w tle */}
+              <span
+                className="absolute -bottom-8 -right-4 select-none font-display text-[12rem] font-black leading-none text-foreground/[0.02] md:text-[16rem] lg:-right-8"
+                aria-hidden="true"
+              >
+                EU
+              </span>
             </div>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-[15px]">
-              {signedIn ? t("club.hub.editorialSubtitle") : t("club.hub.anonLead")}
-            </p>
           </div>
 
-          {/* Prawa kolumna: liczniki */}
-          <div className="grid grid-cols-3 gap-2 sm:gap-3">
-            <StatCard
-              value={stats.clubs}
-              label={t("club.hub.statClubs")}
-            />
+          {/* Pionowa szyna statystyk */}
+          <div className="grid grid-cols-3 gap-1 lg:w-72 lg:grid-cols-1">
+            <StatCard value={stats.clubs} label={t("club.hub.statClubs")} />
             {signedIn && stats.mine !== undefined ? (
-              <StatCard
-                value={stats.mine}
-                label={t("club.myClubs")}
-                highlight
-              />
+              <StatCard value={stats.mine} label={t("club.hub.statMineLabel")} highlight />
             ) : (
-              <StatCard
-                value={stats.seats}
-                label={t("club.hub.statSeats")}
-              />
+              <StatCard value={stats.seats} label={t("club.hub.statSeats")} />
             )}
-            <StatCard
-              value={stats.threads}
-              label={t("club.hub.statThreads")}
-            />
+            <StatCard value={stats.threads} label={t("club.hub.statThreads")} />
           </div>
         </div>
-
-        {/* Pas wartości */}
-        <div className="mt-6 grid gap-3 border-t border-border/60 pt-5 sm:grid-cols-3">
-          <ValueProp
-            icon={KeyRound}
-            title={t("club.hub.valueAccess")}
-            body={t("club.hub.valueAccessDesc")}
-          />
-          <ValueProp
-            icon={MessagesSquare}
-            title={t("club.hub.valueDebate")}
-            body={t("club.hub.valueDebateDesc")}
-          />
-          <ValueProp
-            icon={Users2}
-            title={t("club.hub.valueNetwork")}
-            body={t("club.hub.valueNetworkDesc")}
-          />
-        </div>
-
-        {/* Slot pod wartościami: wyszukiwarka / CTA */}
-        {children !== undefined ? (
-          <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="min-w-0 flex-1">{children}</div>
-            {signedIn ? (
-              <Button asChild variant="outline" size="sm">
-                <a href="/kontakt">{t("club.hub.suggestNew")}</a>
-              </Button>
-            ) : null}
-          </div>
-        ) : null}
       </div>
 
       {/* Zaproszenie do planu - pasek pod nagłówkiem */}
       {access === "locked" ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 bg-primary/[0.04] px-4 py-2.5 md:px-6">
+        <div className="relative z-20 flex flex-wrap items-center justify-between gap-2 border-t border-border/60 bg-primary/[0.04] px-4 py-2.5 md:px-6">
           <p className="min-w-0 text-sm">
             <span className="font-medium">{t("club.hub.upgradeTitle")}</span>{" "}
             <span className="text-muted-foreground">{t("club.hub.upgradeNote")}</span>
@@ -139,40 +126,26 @@ function StatCard({
 }) {
   return (
     <div
-      className={`rounded-lg border p-3 text-center sm:p-4 ${
+      className={`flex flex-col justify-between rounded-md border p-5 ${
         highlight
-          ? "border-primary/30 bg-primary/[0.06]"
-          : "border-border/60 bg-muted/30"
-      }`}
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-border/60 bg-foreground/[0.02] hover:bg-foreground/[0.04]"
+      } transition-colors`}
     >
-      <div className="font-display text-2xl font-bold tabular-nums leading-none sm:text-3xl">
-        {value}
-      </div>
-      <div className="mt-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+      <span
+        className={`text-[10px] font-black uppercase tracking-widest ${
+          highlight ? "text-primary-foreground/80" : "text-primary"
+        }`}
+      >
         {label}
-      </div>
-    </div>
-  );
-}
-
-function ValueProp({
-  icon: Icon,
-  title,
-  body,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  body: string;
-}) {
-  return (
-    <div className="flex items-start gap-3">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-muted/40">
-        <Icon className="h-4 w-4 text-primary" aria-hidden="true" />
-      </div>
-      <div className="min-w-0">
-        <h2 className="text-sm font-semibold leading-tight">{title}</h2>
-        <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground sm:text-sm">{body}</p>
-      </div>
+      </span>
+      <span
+        className={`mt-4 font-display text-4xl font-black tabular-nums leading-none ${
+          highlight ? "text-primary-foreground" : "text-foreground"
+        }`}
+      >
+        {value}
+      </span>
     </div>
   );
 }
