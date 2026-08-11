@@ -11,7 +11,7 @@ import { deepMerge } from "@/lib/deepMerge";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 
 export const FONT_SIZES_KEY = "font_sizes";
-const QUERY_KEY = ["site_setting", FONT_SIZES_KEY] as const;
+
 
 const clamp = (min: number, max: number) => z.coerce.number().min(min).max(max).step(1);
 
@@ -142,14 +142,15 @@ function loadFromMap(map: Record<string, unknown>): FontSizesSettings {
   return parsed.success ? parsed.data : FONT_SIZES_DEFAULTS;
 }
 
+/**
+ * Rozmiary czcionek motywu = projekcja wspólnego bulk-query `site_settings`.
+ * Jedno źródło prawdy: ten sam cache karmi header, footer i front, więc zapis
+ * w panelu natychmiast przelicza tokeny `--fs-*` na stronie publicznej.
+ */
 export function useFontSizes() {
   return useQuery({
-    queryKey: QUERY_KEY,
-    queryFn: async ({ client }): Promise<FontSizesSettings> => {
-      const settings = await client.ensureQueryData(siteSettingsQueryOptions);
-      return loadFromMap(settings as Record<string, unknown>);
-    },
-    staleTime: 5 * 60_000,
+    ...siteSettingsQueryOptions,
+    select: (map: unknown): FontSizesSettings => loadFromMap(map as Record<string, unknown>),
   });
 }
 
@@ -165,13 +166,19 @@ export function useSaveFontSizes() {
       return validated;
     },
     onSuccess: (next) => {
-      qc.setQueryData(QUERY_KEY, next);
-      qc.invalidateQueries({ queryKey: ["site_settings_public", "all"] });
+      // Optymistyczna aktualizacja wspólnej mapy ustawień - tokeny motywu
+      // przeliczają się natychmiast, bez czekania na refetch.
+      qc.setQueryData(siteSettingsQueryOptions.queryKey, (prev: unknown) => ({
+        ...((prev as Record<string, unknown> | undefined) ?? {}),
+        [FONT_SIZES_KEY]: next,
+      }));
+      qc.invalidateQueries({ queryKey: siteSettingsQueryOptions.queryKey });
       toast.success("Zapisano rozmiary czcionek");
     },
     onError: (e: Error) => toast.error(e.message || "Błąd zapisu"),
   });
 }
+
 
 /** Build :root CSS with responsive H1-H6 (media query at mobileBreakpoint). */
 export function fontSizesToCss(fs: FontSizesSettings): string {

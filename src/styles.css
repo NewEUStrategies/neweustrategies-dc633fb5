@@ -4348,9 +4348,11 @@ input.icon-input-with-action {
 }
 .header-title-typography {
   font-size: var(--header-title-base, 30px);
+  line-height: var(--header-title-lh, 1.1);
 }
 .header-excerpt-typography {
   font-size: var(--header-excerpt-base, 16px);
+  line-height: var(--header-excerpt-lh, 1.5);
 }
 @media (min-width: 768px) {
   .overlay-title-typography {

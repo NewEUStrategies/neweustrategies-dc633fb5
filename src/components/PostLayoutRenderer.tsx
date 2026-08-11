@@ -125,7 +125,7 @@ export function PostLayoutRenderer({
           {categoryBadges}
         </div>
       )}
-      <h1 className="header-title-typography font-display font-bold leading-[1.1] mb-4">{title}</h1>
+      <h1 className="header-title-typography font-display font-bold mb-4">{title}</h1>
       {showExcerpt && (
         <p className="header-excerpt-typography text-muted-foreground mb-4">{excerpt}</p>
       )}
