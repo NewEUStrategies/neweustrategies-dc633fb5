@@ -270,7 +270,7 @@ export function GlobalAudioBar() {
                 <a
                   href={track.postHref}
                   className={[
-                    "text-[13px] sm:text-sm font-semibold text-foreground truncate",
+                    "cms-widget-title font-semibold text-foreground truncate",
                     "hover:text-brand transition-colors rounded-sm",
                     FOCUS_RING,
                   ].join(" ")}
@@ -279,7 +279,7 @@ export function GlobalAudioBar() {
                   {track.title}
                 </a>
                 {track.author && (
-                  <span className="hidden md:inline text-xs text-muted-foreground truncate">
+                  <span className="cms-widget-label hidden md:inline text-muted-foreground truncate">
                     ·{" "}
                     {track.authorHref ? (
                       <a
@@ -306,7 +306,7 @@ export function GlobalAudioBar() {
                     <span className="absolute inset-0 rounded-full bg-brand animate-ping opacity-75" />
                     <span className="relative rounded-full bg-brand h-1.5 w-1.5" />
                   </span>
-                  <span className="min-w-0 truncate text-[11px] font-medium text-muted-foreground tabular-nums">
+                  <span className="cms-widget-kicker min-w-0 truncate font-medium text-muted-foreground tabular-nums">
                     {stageLabel}
                     {stagePct !== null ? ` · ${stagePct}%` : null}
                   </span>
@@ -314,7 +314,7 @@ export function GlobalAudioBar() {
               ) : (
                 <div className="mt-1.5 flex items-center gap-2">
                   <span
-                    className="text-[11px] tabular-nums text-muted-foreground shrink-0 w-9 text-right"
+                    className="cms-widget-kicker tabular-nums text-muted-foreground shrink-0 w-9 text-right"
                     aria-hidden
                   >
                     {formatAudioTime(displayTime)}
@@ -361,7 +361,7 @@ export function GlobalAudioBar() {
                   </div>
 
                   <span
-                    className="text-[11px] tabular-nums text-muted-foreground shrink-0 w-9"
+                    className="cms-widget-kicker tabular-nums text-muted-foreground shrink-0 w-9"
                     aria-hidden
                   >
                     {formatAudioTime(duration)}
@@ -380,7 +380,7 @@ export function GlobalAudioBar() {
                     aria-label={`${t.speed}: ${formatPlaybackRate(player.playbackRate)}`}
                     className={[
                       "inline-flex h-9 min-w-9 items-center justify-center rounded-[6px] px-1.5",
-                      "text-xs font-semibold tabular-nums",
+                      "cms-widget-label font-semibold tabular-nums",
                       "text-muted-foreground hover:text-brand hover:bg-muted transition",
                       FOCUS_RING,
                     ].join(" ")}

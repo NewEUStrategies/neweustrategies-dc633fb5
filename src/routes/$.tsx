@@ -922,7 +922,6 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
           className="!w-auto shrink-0 grow-0 basis-auto [&>a]:h-full [&>a]:w-full [&>a]:justify-center"
         />
       </div>
-
     );
 
     return (
@@ -963,7 +962,6 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                 author={postAuthor}
                 publishedAt={it.published_at}
                 readMinutes={editorialActions ? null : readMinutes}
-
                 hideReadTimeOnMobile
                 customMeta={
                   <CustomMetaList defs={customMetaDefs} values={post.custom_meta} lang={lang} />
@@ -1256,7 +1254,9 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
         className="mb-6"
         content={adContent}
       />
-      <h1 className="font-display text-4xl lg:text-5xl mb-4">{title}</h1>
+      {/* Tytuł strony z globalnych tokenów H1 (Admin -> Opcje motywu ->
+          Rozmiary czcionek) - zamiast twardych text-4xl/text-5xl. */}
+      <h1 className="page-title-typography font-display mb-4">{title}</h1>
       {contentBlock}
       {tpl.id === "archive_listing" && (
         <ArchiveListing parentPageId={it.id} lang={lang} parentPath={parentPath} />

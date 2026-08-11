@@ -402,11 +402,11 @@ export function FloatingShareBar({
           <span className="shrink-0 h-8 w-8 rounded-full bg-brand/10 grid place-items-center">
             <BookOpen className="w-4 h-4 text-brand" />
           </span>
-          <span className="text-[11px] font-extrabold tracking-[0.18em] text-foreground flex-1 truncate">
+          <span className="cms-widget-kicker font-extrabold tracking-[0.18em] text-foreground flex-1 truncate">
             {t.tocTitle}
           </span>
           {hasToc && (
-            <span className="text-[11px] font-semibold text-muted-foreground tabular-nums shrink-0">
+            <span className="cms-toc-index font-semibold text-muted-foreground tabular-nums shrink-0">
               {currentNum}/{items.length}
             </span>
           )}
@@ -450,7 +450,7 @@ export function FloatingShareBar({
                       )}
                       <span
                         className={[
-                          "block text-[12.5px] leading-[1.3] tracking-tight line-clamp-2",
+                          "cms-toc-item block tracking-tight line-clamp-2",
                           isActive ? "font-semibold" : "font-medium",
                         ].join(" ")}
                       >
@@ -466,7 +466,7 @@ export function FloatingShareBar({
 
         {/* Share + Actions card - visually distinct, premium */}
         <div className="rounded-[5px] border border-border/70 bg-gradient-to-b from-muted/40 to-muted/10 p-2.5 m-3 mt-2">
-          <span className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground inline-flex items-center gap-1.5 mb-2 px-0.5">
+          <span className="cms-widget-note font-bold tracking-widest uppercase text-muted-foreground inline-flex items-center gap-1.5 mb-2 px-0.5">
             <Share2 className="w-3 h-3" /> {t.share}
           </span>
 
@@ -518,7 +518,7 @@ export function FloatingShareBar({
               entityType={entityType}
               url={href || undefined}
               variant="labelled"
-              className="mb-1.5 h-9 text-[11px]"
+              className="cms-widget-kicker mb-1.5 h-9"
             />
           )}
           {(cfg.showPdf || cfg.showPrint) && (
@@ -528,7 +528,7 @@ export function FloatingShareBar({
                 onClick={onPrintPdf}
                 aria-label={t.printPdf}
                 title={t.printPdf}
-                className="inline-flex items-center justify-center gap-1.5 h-9 rounded-[5px] bg-brand text-brand-foreground text-[11px] font-semibold tracking-tight hover:opacity-90 active:scale-[0.98] transition shadow-sm"
+                className="cms-widget-kicker inline-flex items-center justify-center gap-1.5 h-9 rounded-[5px] bg-brand text-brand-foreground font-semibold tracking-tight hover:opacity-90 active:scale-[0.98] transition shadow-sm"
               >
                 <Printer
                   className="w-[14px] h-[14px] [&_*]:stroke-current"
@@ -636,11 +636,11 @@ export function FloatingShareBar({
             <span className="shrink-0 h-9 w-9 rounded-full bg-brand/10 grid place-items-center">
               <BookOpen className="w-[18px] h-[18px] text-brand" />
             </span>
-            <span className="text-[12px] font-extrabold tracking-[0.18em] text-foreground flex-1 truncate">
+            <span className="cms-widget-label font-extrabold tracking-[0.18em] text-foreground flex-1 truncate">
               {t.tocTitle}
             </span>
             {hasToc && (
-              <span className="text-[12px] font-semibold text-muted-foreground tabular-nums shrink-0">
+              <span className="cms-widget-label font-semibold text-muted-foreground tabular-nums shrink-0">
                 {currentNum}/{items.length}
               </span>
             )}
@@ -690,7 +690,7 @@ export function FloatingShareBar({
                         )}
                         <span
                           className={[
-                            "block text-[13.5px] leading-[1.3] tracking-tight line-clamp-2",
+                            "cms-widget-title block tracking-tight line-clamp-2",
                             isActive ? "font-semibold" : "font-medium",
                           ].join(" ")}
                         >
@@ -708,10 +708,10 @@ export function FloatingShareBar({
           {hasToc && (
             <div className="border-t border-border/60 px-4 py-2.5 bg-muted/30">
               <div className="flex items-baseline justify-between gap-2 mb-1.5">
-                <span className="text-[12px] font-semibold text-foreground tabular-nums shrink-0">
+                <span className="cms-widget-label font-semibold text-foreground tabular-nums shrink-0">
                   {pct}% <span className="text-muted-foreground font-normal">{t.read}</span>
                 </span>
-                <span className="text-[12px] text-muted-foreground truncate text-right min-w-0">
+                <span className="cms-widget-label text-muted-foreground truncate text-right min-w-0">
                   {currentTitle}
                 </span>
               </div>
@@ -726,7 +726,7 @@ export function FloatingShareBar({
 
           {/* Share + actions */}
           <div className="px-4 pt-3 border-t border-border/60">
-            <span className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground inline-flex items-center gap-1.5 mb-2">
+            <span className="cms-widget-note font-bold tracking-widest uppercase text-muted-foreground inline-flex items-center gap-1.5 mb-2">
               <Share2 className="w-3 h-3" /> {t.share}
             </span>
             <div className="grid grid-cols-5 gap-1.5">
@@ -782,7 +782,7 @@ export function FloatingShareBar({
                   onClick={onPrintPdf}
                   aria-label={t.printPdf}
                   title={t.printPdf}
-                  className="inline-flex items-center justify-center gap-1.5 h-11 rounded-[5px] bg-brand text-brand-foreground text-[12px] font-semibold tracking-tight active:scale-[0.98] transition shadow-sm"
+                  className="cms-widget-label inline-flex items-center justify-center gap-1.5 h-11 rounded-[5px] bg-brand text-brand-foreground font-semibold tracking-tight active:scale-[0.98] transition shadow-sm"
                 >
                   <Printer className="w-[15px] h-[15px]" />
                   {t.printPdf}

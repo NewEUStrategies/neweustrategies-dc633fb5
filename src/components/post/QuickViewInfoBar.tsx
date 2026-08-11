@@ -66,7 +66,7 @@ export function QuickViewInfoBar({
       {dateText && (
         <span className="inline-flex items-center gap-1.5 text-muted-foreground">
           {isUpdated && (
-            <span className="rounded-sm bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider">
+            <span className="cms-widget-note rounded-sm bg-muted px-1.5 py-0.5 font-semibold uppercase tracking-wider">
               {t("post.updated", { defaultValue: lang === "pl" ? "Aktualizacja" : "Updated" })}
             </span>
           )}

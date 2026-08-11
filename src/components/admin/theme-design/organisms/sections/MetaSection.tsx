@@ -21,6 +21,9 @@ export function MetaSection({ draft, set, setColor, previewMode }: SectionEditor
       <FieldGrid>
         <Field label={t("adminThemeDesign.f.sizePx")}>
           <PxStepper value={meta.fontSize} onChange={(v) => set("metaInfo", { fontSize: v })} />
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {t("adminThemeDesign.metaSizeInheritHint")}
+          </p>
         </Field>
         <Field label={t("adminThemeDesign.f.color")}>
           <ColorControl

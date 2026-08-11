@@ -125,7 +125,9 @@ export function PostLayoutRenderer({
           {categoryBadges}
         </div>
       )}
-      <h1 className="header-title-typography font-display font-bold mb-4">{title}</h1>
+      {/* Grubość/tracking/transform tytułu niesie .header-title-typography
+          (tokeny --fw-h1/--ls-h1/--tt-h1 z Opcji motywu) - bez font-bold. */}
+      <h1 className="header-title-typography font-display mb-4">{title}</h1>
       {showExcerpt && (
         <p className="header-excerpt-typography text-muted-foreground mb-4">{excerpt}</p>
       )}
@@ -161,7 +163,7 @@ export function PostLayoutRenderer({
             {categoryBadges}
           </div>
         )}
-        <h1 className="overlay-meta-title overlay-title-typography font-display font-bold mb-2 text-white line-clamp-3 sm:line-clamp-none [text-shadow:0_2px_12px_rgba(0,0,0,0.85)]">
+        <h1 className="overlay-meta-title overlay-title-typography font-display mb-2 text-white line-clamp-3 sm:line-clamp-none [text-shadow:0_2px_12px_rgba(0,0,0,0.85)]">
           {title}
         </h1>
         {showExcerpt && (
@@ -173,7 +175,7 @@ export function PostLayoutRenderer({
         )}
         {meta && (
           <div
-            className={`text-[10px] md:text-[11px] lg:text-xs flex flex-wrap items-center gap-x-3 gap-y-1 text-white/90 sm:text-white/70 [text-shadow:0_1px_6px_rgba(0,0,0,0.8)] ${center ? "justify-center" : ""}`}
+            className={`overlay-meta-typography flex flex-wrap items-center gap-x-3 gap-y-1 text-white/90 sm:text-white/70 [text-shadow:0_1px_6px_rgba(0,0,0,0.8)] ${center ? "justify-center" : ""}`}
           >
             {meta}
           </div>
@@ -224,11 +226,7 @@ export function PostLayoutRenderer({
         >
           {/* `mx-auto` na ramce: przy aspect-ratio + max-height przeglądarka
               zwęża kadr, a bez wyśrodkowania zostawał przy lewej krawędzi. */}
-          <div
-            className="relative mx-auto overflow-hidden bg-neutral-900"
-            style={frameStyle}
-          >
-
+          <div className="relative mx-auto overflow-hidden bg-neutral-900" style={frameStyle}>
             <OptimizedImage
               src={coverUrl}
               alt={title}

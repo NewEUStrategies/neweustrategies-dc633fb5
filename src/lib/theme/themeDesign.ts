@@ -559,7 +559,18 @@ export function themeDesignToCss(t: ThemeDesign): string {
   light.push(`--td-rm-py:${t.readMoreButton.paddingY};`);
   light.push(`--td-rm-weight:${t.readMoreButton.fontWeight};`);
   light.push(`--td-rm-transform:${t.readMoreButton.uppercase ? "uppercase" : "none"};`);
-  light.push(`--td-meta-size:${t.metaInfo.fontSize};`);
+  // Rozmiar meta równy domyślnemu schematu = "dziedzicz z Admin -> Opcje
+  // motywu -> Rozmiary czcionek": emitujemy referencję do tokenu --fs-small
+  // zamiast sztywnego px, żeby sam fakt posiadania wiersza theme_design nie
+  // odcinał globalnej typografii. Dopiero świadoma zmiana w Theme Design
+  // przypina wartość pikselową.
+  light.push(
+    `--td-meta-size:${
+      t.metaInfo.fontSize === THEME_DESIGN_DEFAULTS.metaInfo.fontSize
+        ? `var(--fs-small, ${THEME_DESIGN_DEFAULTS.metaInfo.fontSize})`
+        : t.metaInfo.fontSize
+    };`,
+  );
   light.push(`--td-meta-transform:${t.metaInfo.uppercase ? "uppercase" : "none"};`);
   light.push(`--td-meta-gap:${t.metaInfo.gap};`);
   light.push(

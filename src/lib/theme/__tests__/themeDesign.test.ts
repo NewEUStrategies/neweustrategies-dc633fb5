@@ -13,4 +13,21 @@ describe("themeDesignToCss", () => {
     expect(css).toContain("--td-rm-color");
     expect(css).toContain("--td-meta-size");
   });
+
+  it("defers meta size to the theme --fs-small token while at the schema default", () => {
+    // Regresja: sam fakt posiadania wiersza theme_design nie może odcinać
+    // globalnych rozmiarów czcionek (Admin -> Opcje motywu). Domyślne 13px
+    // = dziedziczenie tokenu --fs-small.
+    const css = themeDesignToCss(THEME_DESIGN_DEFAULTS);
+    expect(css).toContain("--td-meta-size:var(--fs-small, 13px);");
+    expect(css).not.toContain("--td-meta-size:13px;");
+  });
+
+  it("pins an explicitly customized meta size in px", () => {
+    const css = themeDesignToCss({
+      ...THEME_DESIGN_DEFAULTS,
+      metaInfo: { ...THEME_DESIGN_DEFAULTS.metaInfo, fontSize: "15px" },
+    });
+    expect(css).toContain("--td-meta-size:15px;");
+  });
 });

@@ -119,7 +119,7 @@ function WidgetView(props: { widget: SidebarWidget } & PostSidebarRendererProps)
           className="rounded-[5px] border border-border/70 bg-background/95 p-4"
           aria-label={lang === "pl" ? "Tagi" : "Tags"}
         >
-          <h3 className="text-[11px] font-extrabold tracking-[0.18em] mb-3">
+          <h3 className="cms-widget-kicker font-extrabold tracking-[0.18em] mb-3">
             {lang === "pl" ? "TAGI" : "TAGS"}
           </h3>
           <ul className="flex flex-wrap gap-1.5">
@@ -127,7 +127,7 @@ function WidgetView(props: { widget: SidebarWidget } & PostSidebarRendererProps)
               <li key={tag.slug}>
                 <a
                   href={`/tag/${tag.slug}`}
-                  className="inline-flex items-center px-2 py-1 rounded-[5px] border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition"
+                  className="cms-widget-label inline-flex items-center px-2 py-1 rounded-[5px] border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition"
                 >
                   #{tag.name}
                 </a>
@@ -139,7 +139,7 @@ function WidgetView(props: { widget: SidebarWidget } & PostSidebarRendererProps)
     }
     case "author-card": {
       return (
-        <aside className="rounded-[5px] border border-border/70 bg-background/95 p-4 text-sm text-muted-foreground">
+        <aside className="cms-widget-title rounded-[5px] border border-border/70 bg-background/95 p-4 text-muted-foreground">
           {lang === "pl" ? "Karta autora wkrótce." : "Author card coming soon."}
         </aside>
       );

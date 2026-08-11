@@ -1599,6 +1599,29 @@ a:has(.cms-title-underline):focus {
   font-size: calc(var(--fs-small, 13px) - 2px);
 }
 
+/* Widgety wpisu (sidebar: "Posłuchaj artykułu", karta autora, "Spis treści",
+   "Udostępnij", tagi + paski audio) - wspólna skala z tokenu "mały tekst"
+   (Admin -> Opcje motywu -> Rozmiary czcionek) zamiast twardych text-[10px]
+   / text-xs / text-sm. Klasy ustawiają tylko font-size/line-height; kolor,
+   uppercase i tracking pozostają przy komponencie. Podwojenie selektora
+   dla specyficzności (wygrywa z utility Tailwinda). */
+.cms-widget-title.cms-widget-title {
+  font-size: calc(var(--fs-small, 13px) + 1px);
+  line-height: var(--lh-small, 1.4);
+}
+.cms-widget-label.cms-widget-label {
+  font-size: calc(var(--fs-small, 13px) - 1px);
+  line-height: var(--lh-small, 1.4);
+}
+.cms-widget-kicker.cms-widget-kicker {
+  font-size: calc(var(--fs-small, 13px) - 2px);
+  line-height: var(--lh-small, 1.4);
+}
+.cms-widget-note.cms-widget-note {
+  font-size: calc(var(--fs-small, 13px) - 3px);
+  line-height: var(--lh-small, 1.4);
+}
+
 /* Widget headings (h2/h3) inside builder canvases and rendered widgets:
    przyjmujemy typografię z Theme Design (`--td-bh-*`), zamiast twardych px.
    Fallback zachowuje historyczne wartości 17/15 px na wypadek braku tokenów. */
@@ -4367,8 +4390,13 @@ input.icon-input-with-action {
    podglądzie edytora. Fallbacki odzwierciedlają obecne defaulty. */
 .overlay-title-typography {
   font-size: var(--overlay-title-base, 24px);
-  /* Interlinia tytułu zawsze z motywu (Admin -> Opcje motywu -> Rozmiary czcionek). */
+  /* Interlinia, grubość, odstęp znaków i wielkość liter tytułu zawsze z motywu
+     (Admin -> Opcje motywu -> Rozmiary czcionek, sekcja H1) - tryb "layout"
+     nadpisuje wyłącznie rozmiar px. */
   line-height: var(--overlay-title-lh, var(--lh-h1, 1.15));
+  font-weight: var(--fw-h1, 800);
+  letter-spacing: var(--ls-h1, -0.5px);
+  text-transform: var(--tt-h1, none);
 }
 .overlay-excerpt-typography {
   font-size: var(--overlay-excerpt-base, 12px);
@@ -4377,10 +4405,40 @@ input.icon-input-with-action {
 .header-title-typography {
   font-size: var(--header-title-base, 30px);
   line-height: var(--header-title-lh, 1.1);
+  font-weight: var(--fw-h1, 800);
+  letter-spacing: var(--ls-h1, -0.5px);
+  text-transform: var(--tt-h1, none);
 }
 .header-excerpt-typography {
   font-size: var(--header-excerpt-base, 16px);
   line-height: var(--header-excerpt-lh, 1.5);
+}
+/* Tytuł statycznej strony (page, nie post) - bezpośrednio tokeny H1 motywu
+   (responsywność desktop/mobile niesie sam token --fs-h1 przez media query
+   w <ThemeFontSizesStyle/>). */
+.page-title-typography {
+  font-size: var(--fs-h1, 44px);
+  line-height: var(--lh-h1, 1.15);
+  letter-spacing: var(--ls-h1, -0.5px);
+  font-weight: var(--fw-h1, 800);
+  text-transform: var(--tt-h1, none);
+}
+/* Meta na okładce (overlay - Layout 4/5/12): skala z tokenu "mały tekst"
+   motywu zamiast twardych text-[10px]/text-xs; overlay celowo schodzi
+   o 1-3 px poniżej --fs-small, żeby nie konkurować z tytułem na zdjęciu. */
+.overlay-meta-typography {
+  font-size: calc(var(--fs-small, 13px) - 3px);
+  line-height: var(--lh-small, 1.4);
+}
+@media (min-width: 768px) {
+  .overlay-meta-typography {
+    font-size: calc(var(--fs-small, 13px) - 2px);
+  }
+}
+@media (min-width: 1024px) {
+  .overlay-meta-typography {
+    font-size: calc(var(--fs-small, 13px) - 1px);
+  }
 }
 @media (min-width: 768px) {
   .overlay-title-typography {
