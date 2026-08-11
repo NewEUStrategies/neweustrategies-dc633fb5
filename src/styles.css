@@ -7618,3 +7618,43 @@ html {
   --primary-foreground: var(--brand-foreground);
   --ring: color-mix(in oklab, var(--brand) 60%, transparent);
 }
+
+/* Warianty widgetu "Etykieta sekcji" (21 Ticker Strip, 22 Underline Sweep).
+   Trzymane globalnie, bo renderer jest wspólny dla buildera i strony publicznej. */
+@keyframes nes-ticker-dot-kf {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.75);
+  }
+}
+
+.nes-ticker-dot {
+  animation: nes-ticker-dot-kf 1.6s ease-in-out infinite;
+}
+
+@keyframes nes-underline-sweep-kf {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.nes-underline-sweep {
+  transform-origin: left center;
+  animation: nes-underline-sweep-kf 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nes-ticker-dot,
+  .nes-underline-sweep {
+    animation: none;
+    transform: none;
+  }
+}
