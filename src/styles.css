@@ -1311,7 +1311,10 @@ span[data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge]
   align-items: center;
   flex-wrap: wrap;
   gap: var(--td-meta-gap, 12px);
-  font-size: var(--td-meta-size, 13px);
+  /* Fallback = globalny rozmiar "mały tekst" z Admin -> Opcje motywu ->
+     Rozmiary czcionek. Theme Design (--td-meta-*) nadal wygrywa, gdy ustawiony. */
+  font-size: var(--td-meta-size, var(--fs-small, 13px));
+  line-height: var(--td-meta-lh, var(--lh-small, 1.4));
   color: var(--td-meta-color, var(--muted-foreground));
   text-transform: var(--td-meta-transform, none);
 }
@@ -1569,9 +1572,31 @@ a:has(.cms-title-underline):focus {
    wykorzystywana przez widgety, żeby żaden nie musiał używać `text-xs`
    / `text-sm` na sztywno. Podwojenie selektora dla specyficzności. */
 .cms-meta.cms-meta {
-  font-size: var(--td-meta-size, 13px);
+  font-size: var(--td-meta-size, var(--fs-small, 13px));
   color: var(--td-meta-color, var(--muted-foreground));
-  line-height: 1.4;
+  line-height: var(--td-meta-lh, var(--lh-small, 1.4));
+}
+
+/* Spis treści (sidebar, blok i widget) - typografia z Admin -> Opcje motywu ->
+   Rozmiary czcionek (token "mały tekst"). Jedno źródło prawdy zamiast
+   twardych text-[13px]/text-sm rozsianych po wariantach. */
+.cms-toc-heading.cms-toc-heading {
+  font-size: calc(var(--fs-small, 13px) + 2px);
+  line-height: var(--lh-small, 1.4);
+}
+.cms-toc-kicker.cms-toc-kicker {
+  font-size: calc(var(--fs-small, 13px) - 3px);
+  line-height: var(--lh-small, 1.4);
+}
+.cms-toc-item.cms-toc-item {
+  font-size: var(--fs-small, 13px);
+  line-height: var(--lh-small, 1.45);
+}
+.cms-toc-sub.cms-toc-sub {
+  font-size: calc(var(--fs-small, 13px) - 1px);
+}
+.cms-toc-index.cms-toc-index {
+  font-size: calc(var(--fs-small, 13px) - 2px);
 }
 
 /* Widget headings (h2/h3) inside builder canvases and rendered widgets:

@@ -48,7 +48,7 @@ export function QuickViewInfoBar({
 
   return (
     <div
-      className="no-print cms-meta flex flex-wrap items-center gap-x-4 gap-y-2 mb-6 pb-3 border-b border-border/60 text-xs"
+      className="no-print cms-meta flex flex-wrap items-center gap-x-4 gap-y-2 mb-6 pb-3 border-b border-border/60"
       data-quick-view-info
     >
       {catLabel && (

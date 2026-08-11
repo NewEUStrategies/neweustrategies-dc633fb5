@@ -52,7 +52,7 @@ export function TocBlockView({
     .join(" ");
 
   const listCls = [
-    "m-0 pl-5 text-sm",
+    "cms-toc-item m-0 pl-5",
     ordered ? "list-decimal" : "list-disc",
     columns === "col-2" ? "sm:columns-2 sm:gap-8 [&>li]:break-inside-avoid space-y-1" : "space-y-1",
   ]
@@ -63,7 +63,7 @@ export function TocBlockView({
 
   return (
     <nav aria-label={title || L} className={wrapperCls}>
-      <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2 font-semibold">
+      <p className="cms-toc-kicker uppercase tracking-wider text-muted-foreground mb-2 font-semibold">
         {title || L}
       </p>
       <Tag className={listCls}>
