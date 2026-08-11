@@ -100,6 +100,7 @@ import { Route as LiveRssDotxmlRouteImport } from './routes/live_.rss[.]xml'
 import { Route as EventsSlugRouteImport } from './routes/events.$slug'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as ClubElementsRouteImport } from './routes/club.elements'
+import { Route as ClubApplyRouteImport } from './routes/club.apply'
 import { Route as CheckoutSuccessRouteImport } from './routes/checkout.success'
 import { Route as CheckoutCancelRouteImport } from './routes/checkout.cancel'
 import { Route as CheckoutPlanIdRouteImport } from './routes/checkout.$planId'
@@ -192,6 +193,7 @@ import { Route as PodcastsShowRssDotxmlRouteImport } from './routes/podcasts.$sh
 import { Route as PlatformEmailSuppressionRouteImport } from './routes/platform/email/suppression'
 import { Route as NetworkMutualUserIdRouteImport } from './routes/network.mutual.$userId'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
+import { Route as ClubSpecializationSlugRouteImport } from './routes/club.specialization.$slug'
 import { Route as ClubJoinTokenRouteImport } from './routes/club.join.$token'
 import { Route as ClubClubSlugSpotlightRouteImport } from './routes/club.$clubSlug.spotlight'
 import { Route as ClubClubSlugScheduleRouteImport } from './routes/club.$clubSlug.schedule'
@@ -755,6 +757,11 @@ const ClubElementsRoute = ClubElementsRouteImport.update({
   path: '/elements',
   getParentRoute: () => ClubRoute,
 } as any)
+const ClubApplyRoute = ClubApplyRouteImport.update({
+  id: '/apply',
+  path: '/apply',
+  getParentRoute: () => ClubRoute,
+} as any)
 const CheckoutSuccessRoute = CheckoutSuccessRouteImport.update({
   id: '/checkout/success',
   path: '/checkout/success',
@@ -1218,6 +1225,11 @@ const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
   id: '/lovable/email/suppression',
   path: '/lovable/email/suppression',
   getParentRoute: () => rootRouteImport,
+} as any)
+const ClubSpecializationSlugRoute = ClubSpecializationSlugRouteImport.update({
+  id: '/specialization/$slug',
+  path: '/specialization/$slug',
+  getParentRoute: () => ClubRoute,
 } as any)
 const ClubJoinTokenRoute = ClubJoinTokenRouteImport.update({
   id: '/join/$token',
@@ -1913,6 +1925,7 @@ export interface FileRoutesByFullPath {
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
+  '/club/apply': typeof ClubApplyRoute
   '/club/elements': typeof ClubElementsRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/events/$slug': typeof EventsSlugRoute
@@ -2045,6 +2058,7 @@ export interface FileRoutesByFullPath {
   '/club/$clubSlug/schedule': typeof ClubClubSlugScheduleRoute
   '/club/$clubSlug/spotlight': typeof ClubClubSlugSpotlightRoute
   '/club/join/$token': typeof ClubJoinTokenRoute
+  '/club/specialization/$slug': typeof ClubSpecializationSlugRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
   '/platform/email/suppression': typeof PlatformEmailSuppressionRoute
@@ -2195,6 +2209,7 @@ export interface FileRoutesByTo {
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
+  '/club/apply': typeof ClubApplyRoute
   '/club/elements': typeof ClubElementsRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/events/$slug': typeof EventsSlugRoute
@@ -2326,6 +2341,7 @@ export interface FileRoutesByTo {
   '/club/$clubSlug/schedule': typeof ClubClubSlugScheduleRoute
   '/club/$clubSlug/spotlight': typeof ClubClubSlugSpotlightRoute
   '/club/join/$token': typeof ClubJoinTokenRoute
+  '/club/specialization/$slug': typeof ClubSpecializationSlugRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
   '/platform/email/suppression': typeof PlatformEmailSuppressionRoute
@@ -2487,6 +2503,7 @@ export interface FileRoutesById {
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
+  '/club/apply': typeof ClubApplyRoute
   '/club/elements': typeof ClubElementsRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/events/$slug': typeof EventsSlugRoute
@@ -2619,6 +2636,7 @@ export interface FileRoutesById {
   '/club/$clubSlug/schedule': typeof ClubClubSlugScheduleRoute
   '/club/$clubSlug/spotlight': typeof ClubClubSlugSpotlightRoute
   '/club/join/$token': typeof ClubJoinTokenRoute
+  '/club/specialization/$slug': typeof ClubSpecializationSlugRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/network/mutual/$userId': typeof NetworkMutualUserIdRoute
   '/platform/email/suppression': typeof PlatformEmailSuppressionRoute
@@ -2781,6 +2799,7 @@ export interface FileRouteTypes {
     | '/checkout/$planId'
     | '/checkout/cancel'
     | '/checkout/success'
+    | '/club/apply'
     | '/club/elements'
     | '/email/unsubscribe'
     | '/events/$slug'
@@ -2913,6 +2932,7 @@ export interface FileRouteTypes {
     | '/club/$clubSlug/schedule'
     | '/club/$clubSlug/spotlight'
     | '/club/join/$token'
+    | '/club/specialization/$slug'
     | '/lovable/email/suppression'
     | '/network/mutual/$userId'
     | '/platform/email/suppression'
@@ -3063,6 +3083,7 @@ export interface FileRouteTypes {
     | '/checkout/$planId'
     | '/checkout/cancel'
     | '/checkout/success'
+    | '/club/apply'
     | '/club/elements'
     | '/email/unsubscribe'
     | '/events/$slug'
@@ -3194,6 +3215,7 @@ export interface FileRouteTypes {
     | '/club/$clubSlug/schedule'
     | '/club/$clubSlug/spotlight'
     | '/club/join/$token'
+    | '/club/specialization/$slug'
     | '/lovable/email/suppression'
     | '/network/mutual/$userId'
     | '/platform/email/suppression'
@@ -3354,6 +3376,7 @@ export interface FileRouteTypes {
     | '/checkout/$planId'
     | '/checkout/cancel'
     | '/checkout/success'
+    | '/club/apply'
     | '/club/elements'
     | '/email/unsubscribe'
     | '/events/$slug'
@@ -3486,6 +3509,7 @@ export interface FileRouteTypes {
     | '/club/$clubSlug/schedule'
     | '/club/$clubSlug/spotlight'
     | '/club/join/$token'
+    | '/club/specialization/$slug'
     | '/lovable/email/suppression'
     | '/network/mutual/$userId'
     | '/platform/email/suppression'
@@ -4277,6 +4301,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClubElementsRouteImport
       parentRoute: typeof ClubRoute
     }
+    '/club/apply': {
+      id: '/club/apply'
+      path: '/apply'
+      fullPath: '/club/apply'
+      preLoaderRoute: typeof ClubApplyRouteImport
+      parentRoute: typeof ClubRoute
+    }
     '/checkout/success': {
       id: '/checkout/success'
       path: '/checkout/success'
@@ -4920,6 +4951,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/lovable/email/suppression'
       preLoaderRoute: typeof LovableEmailSuppressionRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/club/specialization/$slug': {
+      id: '/club/specialization/$slug'
+      path: '/specialization/$slug'
+      fullPath: '/club/specialization/$slug'
+      preLoaderRoute: typeof ClubSpecializationSlugRouteImport
+      parentRoute: typeof ClubRoute
     }
     '/club/join/$token': {
       id: '/club/join/$token'
@@ -6097,6 +6135,7 @@ const AdminRouteChildren: AdminRouteChildren = {
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
 interface ClubRouteChildren {
+  ClubApplyRoute: typeof ClubApplyRoute
   ClubElementsRoute: typeof ClubElementsRoute
   ClubIndexRoute: typeof ClubIndexRoute
   ClubClubSlugAboutRoute: typeof ClubClubSlugAboutRoute
@@ -6111,12 +6150,14 @@ interface ClubRouteChildren {
   ClubClubSlugScheduleRoute: typeof ClubClubSlugScheduleRoute
   ClubClubSlugSpotlightRoute: typeof ClubClubSlugSpotlightRoute
   ClubJoinTokenRoute: typeof ClubJoinTokenRoute
+  ClubSpecializationSlugRoute: typeof ClubSpecializationSlugRoute
   ClubClubSlugIndexRoute: typeof ClubClubSlugIndexRoute
   ClubClubSlugEEventSlugRoute: typeof ClubClubSlugEEventSlugRoute
   ClubClubSlugTThreadSlugRoute: typeof ClubClubSlugTThreadSlugRoute
 }
 
 const ClubRouteChildren: ClubRouteChildren = {
+  ClubApplyRoute: ClubApplyRoute,
   ClubElementsRoute: ClubElementsRoute,
   ClubIndexRoute: ClubIndexRoute,
   ClubClubSlugAboutRoute: ClubClubSlugAboutRoute,
@@ -6131,6 +6172,7 @@ const ClubRouteChildren: ClubRouteChildren = {
   ClubClubSlugScheduleRoute: ClubClubSlugScheduleRoute,
   ClubClubSlugSpotlightRoute: ClubClubSlugSpotlightRoute,
   ClubJoinTokenRoute: ClubJoinTokenRoute,
+  ClubSpecializationSlugRoute: ClubSpecializationSlugRoute,
   ClubClubSlugIndexRoute: ClubClubSlugIndexRoute,
   ClubClubSlugEEventSlugRoute: ClubClubSlugEEventSlugRoute,
   ClubClubSlugTThreadSlugRoute: ClubClubSlugTThreadSlugRoute,

@@ -26,6 +26,93 @@ export const clubPl = {
     notFoundTitle: "Nie znaleziono takiego klubu.",
     backToHub: "Wróć do klubów",
 
+    // --- specjalizacje publiczne (powierzchnia dla niezalogowanych) ---
+    spec: {
+      eyebrow: "Specjalizacje",
+      sectionTitle: "Osiem specjalizacji, jeden standard debaty",
+      sectionLead:
+        "Każdy klub działa w ramach specjalizacji prowadzonej przez praktyków. Wybierz obszar, w którym zapadają Twoje decyzje - i zobacz, z kim usiądziesz przy stole.",
+      explore: "Poznaj specjalizację",
+      applyCta: "Zaaplikuj teraz",
+      applyLead: "Członkostwo przyznajemy po weryfikacji. Powiedz nam, gdzie leży Twoja ekspertyza.",
+      backToSpecs: "Wszystkie specjalizacje",
+      pillarsTitle: "Co daje członkostwo",
+      pillarAccess: "Debata za zamkniętymi drzwiami",
+      pillarAccessDesc:
+        "Reguła Chatham House, wyselekcjonowany skład i wątki, które kończą się konkluzją, a nie sekcją komentarzy.",
+      pillarIntel: "Wiedza gotowa do użycia",
+      pillarIntelDesc:
+        "Briefingi, stanowiska i głosowania z klubu trafiają wprost do naszych analiz i rekomendacji.",
+      pillarNetwork: "Sieć równych sobie",
+      pillarNetworkDesc:
+        "Eksperci, analitycy i decydenci z instytucji, biznesu i administracji - dobierani imiennie.",
+      groupsLabel: "grup",
+      expertsLabel: "ekspertów",
+      apply: {
+        title: "Zaaplikuj do klubu dyskusyjnego",
+        lead: "Dostęp do zamkniętej debaty, briefingów i wydarzeń klubowych.",
+        firstName: "Imię",
+        lastName: "Nazwisko",
+        email: "Adres e-mail",
+        phone: "Telefon",
+        company: "Organizacja",
+        role: "Stanowisko",
+        specialization: "Której specjalizacji dotyczy zgłoszenie?",
+        specializationPlaceholder: "Wybierz z listy",
+        motivation: "Co chcesz wnieść do klubu?",
+        consent: "Wyrażam zgodę na przetwarzanie moich danych w celu rozpatrzenia zgłoszenia.",
+        submit: "Wyślij zgłoszenie",
+        sending: "Wysyłanie...",
+        required: "Uzupełnij imię, e-mail i specjalizację.",
+        invalidEmail: "Podaj poprawny adres e-mail.",
+        consentRequired: "Zaakceptuj zgodę na przetwarzanie danych.",
+        ok: "Zgłoszenie wysłane. Odezwiemy się po weryfikacji.",
+        error: "Nie udało się wysłać zgłoszenia. Spróbuj ponownie.",
+      },
+      items: {
+        defence: {
+          title: "Wojskowość i Geopolityka",
+          lead: "Architektura bezpieczeństwa Europy, odstraszanie i układ sił.",
+          desc: "Klub dla osób, które zawodowo czytają budżety obronne, doktryny i rozmieszczenie sił: modernizacja armii, wschodnia flanka NATO, przemysł zbrojeniowy i geopolityka, która nimi steruje.",
+        },
+        finance: {
+          title: "Finanse i Gospodarka",
+          lead: "Kapitał, polityka fiskalna i konkurencyjność europejskich gospodarek.",
+          desc: "Decyzje monetarne i fiskalne, unia rynków kapitałowych, finanse publiczne, inwestycje i polityka przemysłowa - czytane przez ich skutki dla biznesu i państwa.",
+        },
+        transport: {
+          title: "Transport",
+          lead: "Korytarze, logistyka i infrastruktura europejskiej mobilności.",
+          desc: "Kolej, drogi, porty, lotnictwo i mobilność wojskowa: programy infrastrukturalne, modele finansowania i odporność łańcuchów dostaw.",
+        },
+        energy: {
+          title: "Energetyka",
+          lead: "Bezpieczeństwo dostaw, transformacja i cena energii.",
+          desc: "Wytwarzanie, atom, gaz i OZE, sieci i połączenia transgraniczne, dyplomacja energetyczna oraz ramy regulacyjne transformacji.",
+        },
+        technology: {
+          title: "Technologia i Cyberbezpieczeństwo",
+          lead: "Suwerenność cyfrowa, AI i odporność systemów krytycznych.",
+          desc: "Regulacja AI, zagrożenia cybernetyczne, ochrona infrastruktury krytycznej, dane i chmura, półprzewodniki oraz rywalizacja technologiczna mocarstw.",
+        },
+        diplomacy: {
+          title: "Dyplomacja i Stosunki międzynarodowe",
+          lead: "Sojusze, rozszerzenie i wpływ Europy w świecie.",
+          desc: "Rozszerzenie UE i NATO, relacje transatlantyckie, polityka sąsiedztwa, sankcje i dyplomacja wielostronna.",
+        },
+        legislation: {
+          title: "Legislacja",
+          lead: "Stanowienie prawa, compliance i praktyka regulacyjna.",
+          desc: "Proces legislacyjny krajowy i unijny, ocena skutków regulacji, wdrażanie dyrektyw i praktyczne konsekwencje przepisów dla organizacji.",
+        },
+        culture: {
+          title: "Polityka kulturalna i historyczna",
+          lead: "Narracja, pamięć i miękka siła państwa.",
+          desc: "Polityka historyczna, dyplomacja kulturalna, media i dezinformacja, instytucje dziedzictwa oraz wpływ narracji na decyzje polityczne.",
+        },
+      },
+    },
+
     // --- minisite klubu (osobny widok treści) ---
     minisite: {
       eyebrow: "Minisite klubu",
@@ -250,7 +337,13 @@ export const clubPl = {
       publicCatalog: "Kluby otwarte",
       showMore: "Pokaż więcej klubów ({{shown}} z {{total}})",
       anonLead:
-        "Kluby dyskusyjne to trwałe przestrzenie, w których członkowie prowadzą własne wątki - nie komentują cudzych. Wątek ma zamierzony wynik, a reakcje są danymi, nie ozdobą.",
+        "Zamknięte grono ekspertów, analityków i decydentów, którzy współtworzą politykę europejską. Osiem specjalizacji, imiennie dobrany skład i debata pod regułą Chatham House - z konkluzjami, które trafiają do naszych analiz.",
+      anonStatSpecializations: "Specjalizacje",
+      anonStatSpecializationsValue: "8",
+      anonStatGroups: "Grupy",
+      anonStatGroupsValue: "32",
+      anonStatExperts: "Eksperci",
+      anonStatExpertsValue: "100+",
       anonOpenCount_one: "{{count}} klub jest otwarty do przejrzenia bez konta.",
       anonOpenCount_few: "{{count}} kluby są otwarte do przejrzenia bez konta.",
       anonOpenCount_many: "{{count}} klubów jest otwartych do przejrzenia bez konta.",
@@ -2029,6 +2122,94 @@ export const clubEn = {
     notFoundTitle: "This club could not be found.",
     backToHub: "Back to clubs",
 
+    // --- public specialisations (anonymous entry surface) ---
+    spec: {
+      eyebrow: "Specialisations",
+      sectionTitle: "Eight specialisations, one standard of debate",
+      sectionLead:
+        "Every club sits within a specialisation led by practitioners. Choose the field where your decisions are made - and see who you will be sitting with.",
+      explore: "Explore the specialisation",
+      applyCta: "Apply now",
+      applyLead: "Membership is granted by review. Tell us where your expertise sits.",
+      backToSpecs: "All specialisations",
+      pillarsTitle: "What membership gives you",
+      pillarAccess: "Closed-door debate",
+      pillarAccessDesc:
+        "Chatham House rule, curated membership and threads that end with a conclusion, not a comment section.",
+      pillarIntel: "Actionable intelligence",
+      pillarIntelDesc:
+        "Briefings, positions and votes from the club feed straight into our analytical output.",
+      pillarNetwork: "Peer network",
+      pillarNetworkDesc:
+        "Experts, analysts and decision-makers from institutions, business and administration.",
+      groupsLabel: "groups",
+      expertsLabel: "experts",
+      apply: {
+        title: "Apply to join a discussion club",
+        lead: "Access to curated peer debate, closed briefings and club events.",
+        firstName: "First name",
+        lastName: "Last name",
+        email: "Email address",
+        phone: "Telephone",
+        company: "Organisation",
+        role: "Job title",
+        specialization: "Which specialisation is your application about?",
+        specializationPlaceholder: "Please select",
+        motivation: "What would you like to bring to the club?",
+        consent:
+          "I agree to the processing of my data for the purpose of reviewing this application.",
+        submit: "Submit application",
+        sending: "Sending...",
+        required: "Please fill in your name, email and specialisation.",
+        invalidEmail: "Please enter a valid email address.",
+        consentRequired: "Please accept the data-processing statement.",
+        ok: "Application sent. We will come back to you after review.",
+        error: "Could not send the application. Please try again.",
+      },
+      items: {
+        defence: {
+          title: "Defence and Geopolitics",
+          lead: "Security architecture of Europe, deterrence and the balance of power.",
+          desc: "A club for people who read defence budgets, doctrines and force posture for a living: armed-forces modernisation, NATO's eastern flank, defence industry and the geopolitics that drives them.",
+        },
+        finance: {
+          title: "Finance and Economy",
+          lead: "Capital, fiscal policy and the competitiveness of European economies.",
+          desc: "Monetary and fiscal decisions, capital markets union, public finance, investment and industrial policy - read through their consequences for business and the state.",
+        },
+        transport: {
+          title: "Transport",
+          lead: "Corridors, logistics and the infrastructure of European mobility.",
+          desc: "Rail, road, ports, aviation and military mobility: infrastructure programmes, funding models and the resilience of supply chains.",
+        },
+        energy: {
+          title: "Energy",
+          lead: "Security of supply, the transition and the price of electricity.",
+          desc: "Power generation, nuclear, gas and renewables, grids and interconnections, energy diplomacy and the regulatory framework of the transition.",
+        },
+        technology: {
+          title: "Technology and Cybersecurity",
+          lead: "Digital sovereignty, AI and the resilience of critical systems.",
+          desc: "AI regulation, cyber threats, critical infrastructure protection, data and cloud, semiconductors and the technological competition between powers.",
+        },
+        diplomacy: {
+          title: "Diplomacy and International Relations",
+          lead: "Alliances, enlargement and Europe's influence in the world.",
+          desc: "EU and NATO enlargement, transatlantic relations, the neighbourhood policy, sanctions and multilateral diplomacy.",
+        },
+        legislation: {
+          title: "Legislation",
+          lead: "Lawmaking, compliance and the practice of regulation.",
+          desc: "The legislative process at national and EU level, impact assessment, implementation of directives and the practical consequences of regulation for organisations.",
+        },
+        culture: {
+          title: "Cultural and Historical Policy",
+          lead: "Narrative, memory and soft power.",
+          desc: "Historical policy, cultural diplomacy, media and disinformation, heritage institutions and the influence of narrative on political decisions.",
+        },
+      },
+    },
+
     // --- club minisite (separate content view) ---
     minisite: {
       eyebrow: "Club minisite",
@@ -2238,7 +2419,13 @@ export const clubEn = {
       publicCatalog: "Open clubs",
       showMore: "Show more clubs ({{shown}} of {{total}})",
       anonLead:
-        "Discussion clubs are persistent spaces where members run their own threads rather than comment on someone else's. A thread has an intended outcome, and reactions are data, not decoration.",
+        "A closed circle of experts, analysts and decision-makers shaping European policy. Eight specialisations, curated membership and debate under the Chatham House rule - with conclusions that go on to inform our analysis.",
+      anonStatSpecializations: "Specialisations",
+      anonStatSpecializationsValue: "8",
+      anonStatGroups: "Groups",
+      anonStatGroupsValue: "32",
+      anonStatExperts: "Experts",
+      anonStatExpertsValue: "100+",
       anonOpenCount_one: "{{count}} club is open to browse without an account.",
       anonOpenCount_other: "{{count}} clubs are open to browse without an account.",
       anonNoPublic: "No club is publicly open right now. Sign in to see the rest.",

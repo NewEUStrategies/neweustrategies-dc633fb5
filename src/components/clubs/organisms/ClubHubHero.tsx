@@ -18,6 +18,7 @@ import type { ClubHubAccess } from "@/lib/clubs/hubAccess";
 export const CLUB_HUB_ANCHORS = {
   mine: "#club-mine",
   discover: "#club-discover",
+  specializations: "#club-specializations",
 } as const;
 
 export interface ClubHubStats {
@@ -117,31 +118,56 @@ export function ClubHubHero({
 
         {/* Pionowa szyna statystyk */}
         <div className="grid grid-cols-3 gap-px lg:grid-cols-1">
-          <StatCard
-            value={stats.clubs}
-            label={t("club.hub.statClubs")}
-            href={CLUB_HUB_ANCHORS.discover}
-          />
-          {signedIn && stats.mine !== undefined ? (
-            <StatCard
-              value={stats.mine}
-              label={t("club.hub.statMineLabel")}
-              highlight
-              href={stats.mine > 0 ? CLUB_HUB_ANCHORS.mine : CLUB_HUB_ANCHORS.discover}
-            />
+          {signedIn ? (
+            <>
+              <StatCard
+                value={stats.clubs}
+                label={t("club.hub.statClubs")}
+                href={CLUB_HUB_ANCHORS.discover}
+              />
+              {stats.mine !== undefined ? (
+                <StatCard
+                  value={stats.mine}
+                  label={t("club.hub.statMineLabel")}
+                  highlight
+                  href={stats.mine > 0 ? CLUB_HUB_ANCHORS.mine : CLUB_HUB_ANCHORS.discover}
+                />
+              ) : (
+                <StatCard
+                  value={stats.seats}
+                  label={t("club.hub.statSeats")}
+                  highlight
+                  href={CLUB_HUB_ANCHORS.discover}
+                />
+              )}
+              <StatCard
+                value={stats.threads}
+                label={t("club.hub.statThreads")}
+                href={CLUB_HUB_ANCHORS.discover}
+              />
+            </>
           ) : (
-            <StatCard
-              value={stats.seats}
-              label={t("club.hub.statSeats")}
-              highlight
-              href={CLUB_HUB_ANCHORS.discover}
-            />
+            /* Anonim nie widzi liczników bazy (dla niego to same zera), tylko
+               skalę programu: specjalizacje, grupy, eksperci. */
+            <>
+              <StatCard
+                value={t("club.hub.anonStatSpecializationsValue")}
+                label={t("club.hub.anonStatSpecializations")}
+                href={CLUB_HUB_ANCHORS.specializations}
+              />
+              <StatCard
+                value={t("club.hub.anonStatGroupsValue")}
+                label={t("club.hub.anonStatGroups")}
+                highlight
+                href={CLUB_HUB_ANCHORS.specializations}
+              />
+              <StatCard
+                value={t("club.hub.anonStatExpertsValue")}
+                label={t("club.hub.anonStatExperts")}
+                href={CLUB_HUB_ANCHORS.specializations}
+              />
+            </>
           )}
-          <StatCard
-            value={stats.threads}
-            label={t("club.hub.statThreads")}
-            href={CLUB_HUB_ANCHORS.discover}
-          />
         </div>
       </div>
 
@@ -170,7 +196,7 @@ function StatCard({
   highlight = false,
   href,
 }: {
-  value: number;
+  value: number | string;
   label: string;
   highlight?: boolean;
   /** Kotwica w katalogu; gdy podana, panel jest realnym linkiem (a nie dekoracją). */
