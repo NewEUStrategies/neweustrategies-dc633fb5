@@ -429,9 +429,14 @@ export function AdminBillingPanel() {
           <AdminPaymentsDiagnosticsPanel />
         </TabsContent>
 
+        <TabsContent value="orders" className="mt-4">
+          <AdminPaymentOrdersPanel />
+        </TabsContent>
+
         <TabsContent value="tickets" className="mt-4">
           <AdminTicketOrdersPanel />
         </TabsContent>
+
       </Tabs>
     </div>
   );
