@@ -13,7 +13,12 @@ import { LayoutGrid, LayoutList, LayoutTemplate, Newspaper } from "lucide-react"
 import { cn } from "@/lib/utils";
 import { CLUB_LAYOUTS, toClubLayout, type ClubLayout } from "@/lib/clubs/types";
 
-const STORAGE_KEY = "nes.club.hub.layout";
+// Klucz jest wersjonowany: domyślny układ hubu to teraz „Edytorialny", a stary
+// klucz (`nes.club.hub.layout`) trzymał wybory sprzed tej zmiany - bez bumpu
+// każdy, kto kiedykolwiek kliknął inny układ, nigdy nie zobaczyłby nowego
+// domyślnego widoku.
+const STORAGE_KEY = "nes.club.hub.layout.v2";
+const LEGACY_STORAGE_KEY = "nes.club.hub.layout";
 
 const ICON: Record<ClubLayout, typeof LayoutList> = {
   list: LayoutList,
