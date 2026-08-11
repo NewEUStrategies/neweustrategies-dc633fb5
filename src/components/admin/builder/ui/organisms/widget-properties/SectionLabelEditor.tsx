@@ -175,6 +175,8 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
   const categoryFont = derived.categoryFont ?? "inherit";
   const categorySize = derived.categorySize ?? "";
   const titleFont = derived.titleFont ?? "inherit";
+  const gapX = derived.gapX ?? "";
+  const gapY = derived.gapY ?? "";
   const isEditorial = variant === "editorial-index" || variant === "double-deck-masthead";
 
   const previewLabel = derived.label;
@@ -289,6 +291,8 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
                       categoryFont={categoryFont}
                       titleFont={titleFont}
                       arrow={arrow}
+                      gapX={gapX || undefined}
+                      gapY={gapY || undefined}
                     />
 
                   </div>
@@ -388,6 +392,24 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
               onChange={(v) => setContent("showAction", v)}
               label={t("builder.sectionLabelEditor.showAction")}
             />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <PropField label={t("builder.sectionLabelEditor.gapX")}>
+              <PxSizeInput
+                value={gapX}
+                onChange={(v) => setContent("gapX", v)}
+                placeholder="auto"
+                max={96}
+              />
+            </PropField>
+            <PropField label={t("builder.sectionLabelEditor.gapY")}>
+              <PxSizeInput
+                value={gapY}
+                onChange={(v) => setContent("gapY", v)}
+                placeholder="auto"
+                max={96}
+              />
+            </PropField>
           </div>
           <PropField label={t("builder.sectionLabelEditor.arrowType")}>
             <MiniSelect
