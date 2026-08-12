@@ -155,7 +155,8 @@ const joinEn = {
     },
     tiers: {
       title: "Membership levels",
-      subtitle: "Start free, extend when you need to. The full comparison lives in the pricing page.",
+      subtitle:
+        "Start free, extend when you need to. The full comparison lives in the pricing page.",
       allPlans: "See full pricing",
       empty: "Membership levels will appear here as soon as they are published.",
     },

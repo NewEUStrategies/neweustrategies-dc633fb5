@@ -318,9 +318,7 @@ export function ClubSpecializationsManager() {
             <div className="space-y-3">
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label htmlFor="spec-label-pl">
-                    {t("adminClubs.specializations.labelPl")}
-                  </Label>
+                  <Label htmlFor="spec-label-pl">{t("adminClubs.specializations.labelPl")}</Label>
                   <Input
                     id="spec-label-pl"
                     value={draft.labelPl}
@@ -335,9 +333,7 @@ export function ClubSpecializationsManager() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="spec-label-en">
-                    {t("adminClubs.specializations.labelEn")}
-                  </Label>
+                  <Label htmlFor="spec-label-en">{t("adminClubs.specializations.labelEn")}</Label>
                   <Input
                     id="spec-label-en"
                     value={draft.labelEn}
@@ -403,10 +399,7 @@ export function ClubSpecializationsManager() {
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="spec-icon">{t("adminClubs.specializations.icon")}</Label>
-                  <Select
-                    value={draft.icon}
-                    onValueChange={(icon) => setDraft({ ...draft, icon })}
-                  >
+                  <Select value={draft.icon} onValueChange={(icon) => setDraft({ ...draft, icon })}>
                     <SelectTrigger id="spec-icon">
                       <SelectValue />
                     </SelectTrigger>

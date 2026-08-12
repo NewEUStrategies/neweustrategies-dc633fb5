@@ -137,7 +137,6 @@ describe("lang-switcher ma edytowalną etykietę (aria-label) i realny przełąc
     expect(state.content.showLabel).toBeUndefined();
   });
 
-
   it("keeps a fresh widget visually unchanged (label only for screen readers)", () => {
     const defaults = defaultsOf("lang-switcher");
     expect(defaults.showLabel).toBeUndefined();

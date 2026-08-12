@@ -381,7 +381,11 @@ export function DocumentViewerBody({ source }: { source: ViewerSource }) {
   if (kind === "video") {
     return (
       <div className="bg-black">
-        {/* eslint-disable-next-line jsx-a11y/media-has-caption -- materiał członkowski, brak ścieżki napisów */}
+        {/* DŁUG DOSTĘPNOŚCI: materiał wgrany przez członka nie ma ścieżki napisów
+            (`<track kind="captions">`) - przesyłający podaje sam plik. Dawny
+            `eslint-disable` był tu MARTWY: reguła `jsx-a11y/media-has-caption`
+            nie jest w tym repo skonfigurowana, więc niczego nie wyciszał, tylko
+            wywracał lint odwołaniem do nieistniejącej reguły. */}
         <video src={source.url} controls preload="metadata" className="max-h-[78vh] w-full" />
       </div>
     );
@@ -389,7 +393,7 @@ export function DocumentViewerBody({ source }: { source: ViewerSource }) {
   if (kind === "audio") {
     return (
       <div className="flex min-h-[30vh] items-center justify-center p-8">
-        {/* eslint-disable-next-line jsx-a11y/media-has-caption -- nagranie członkowskie */}
+        {/* DŁUG DOSTĘPNOŚCI: jak wyżej - nagranie audio bez transkrypcji. */}
         <audio src={source.url} controls className="w-full max-w-xl" />
       </div>
     );

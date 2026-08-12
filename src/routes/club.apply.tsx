@@ -28,7 +28,10 @@ import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead } from "@/lib/seo/meta";
 import { findClubSpecialization } from "@/lib/clubs/specializations";
-import { useClubSpecializations, useClubsBySpecialization } from "@/lib/clubs/useClubSpecializations";
+import {
+  useClubSpecializations,
+  useClubsBySpecialization,
+} from "@/lib/clubs/useClubSpecializations";
 import {
   clubApplyErrorCode,
   fetchMyClubApplications,
@@ -113,7 +116,11 @@ function GateCard(props: {
       style={{ background: "var(--cp-surface)", borderColor: "var(--cp-line)" }}
     >
       <div className="flex items-start gap-4">
-        <Icon className="mt-0.5 h-5 w-5 shrink-0" style={{ color: "var(--cp-accent)" }} aria-hidden="true" />
+        <Icon
+          className="mt-0.5 h-5 w-5 shrink-0"
+          style={{ color: "var(--cp-accent)" }}
+          aria-hidden="true"
+        />
         <div className="min-w-0">
           <h2 className="font-display text-lg font-bold" style={{ color: "var(--cp-ink)" }}>
             {props.title}
@@ -260,9 +267,7 @@ function ClubApplyPage() {
   const mineClubLabel = (row: ClubMyApplicationRow): string => {
     if (row.club_id === null) return t("club.spec.apply.mine.clubAny");
     const name =
-      lang === "en"
-        ? row.club_name_en || row.club_name_pl
-        : row.club_name_pl || row.club_name_en;
+      lang === "en" ? row.club_name_en || row.club_name_pl : row.club_name_pl || row.club_name_en;
     return name === null || name === "" ? t("club.spec.apply.mine.clubAny") : name;
   };
 
@@ -340,7 +345,10 @@ function ClubApplyPage() {
         <p className="mt-3 text-sm" style={{ color: "var(--cp-muted)" }}>
           {t("club.spec.apply.lead")}
         </p>
-        <p className="mt-2 text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--cp-accent)" }}>
+        <p
+          className="mt-2 text-xs font-semibold uppercase tracking-[0.18em]"
+          style={{ color: "var(--cp-accent)" }}
+        >
           {t("club.spec.apply.requirement")}
         </p>
       </header>
@@ -426,7 +434,8 @@ function ClubApplyPage() {
             icon="shield"
             title={t("club.spec.apply.gate.okTitle")}
             lead={t("club.spec.apply.gate.okLead", {
-              tier: lang === "en" ? (tierQuery.data?.name_en ?? "") : (tierQuery.data?.name_pl ?? ""),
+              tier:
+                lang === "en" ? (tierQuery.data?.name_en ?? "") : (tierQuery.data?.name_pl ?? ""),
             })}
             action={null}
           />
@@ -710,7 +719,10 @@ function ClubApplyPage() {
             </section>
 
             <section className="space-y-3">
-              <label className="flex items-start gap-3 text-sm" style={{ color: "var(--cp-muted)" }}>
+              <label
+                className="flex items-start gap-3 text-sm"
+                style={{ color: "var(--cp-muted)" }}
+              >
                 <Checkbox
                   checked={form.consent}
                   onCheckedChange={(next) => set("consent", next === true)}
@@ -725,7 +737,10 @@ function ClubApplyPage() {
                   ) : null}
                 </span>
               </label>
-              <label className="flex items-start gap-3 text-sm" style={{ color: "var(--cp-muted)" }}>
+              <label
+                className="flex items-start gap-3 text-sm"
+                style={{ color: "var(--cp-muted)" }}
+              >
                 <Checkbox
                   checked={form.marketingConsent}
                   onCheckedChange={(next) => set("marketingConsent", next === true)}

@@ -21,15 +21,7 @@ const STATUS_TONE: Record<string, string> = {
   failed: "bg-destructive/10 text-destructive",
 };
 
-const FILTERS = [
-  "all",
-  "pending",
-  "processing",
-  "paid",
-  "failed",
-  "refunded",
-  "canceled",
-] as const;
+const FILTERS = ["all", "pending", "processing", "paid", "failed", "refunded", "canceled"] as const;
 type Filter = (typeof FILTERS)[number];
 
 function money(cents: number, currency: string, lang: "pl" | "en"): string {

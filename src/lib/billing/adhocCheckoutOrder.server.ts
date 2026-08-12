@@ -179,7 +179,11 @@ export async function buildAdhocOrder(args: BuildAdhocOrderArgs): Promise<BuildA
     return { ok: false, error: result.error };
   }
 
-  await markOrderSession(supabase, { orderId: order.id, sessionId: result.sessionId, status: "processing" });
+  await markOrderSession(supabase, {
+    orderId: order.id,
+    sessionId: result.sessionId,
+    status: "processing",
+  });
 
   return { ok: true, clientSecret: result.clientSecret, orderId: order.id };
 }

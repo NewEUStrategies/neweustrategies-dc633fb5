@@ -531,7 +531,6 @@ export function headerTypographyStyle(
     ["--header-title-lh" as string]: THEME_TITLE_LH_VAR,
     ["--header-excerpt-lh" as string]: THEME_EXCERPT_LH_VAR,
   };
-
 }
 
 /** Łączy globalne ustawienia z overridem konkretnego wpisu. */

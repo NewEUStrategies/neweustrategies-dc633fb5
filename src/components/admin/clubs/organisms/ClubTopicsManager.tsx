@@ -312,9 +312,7 @@ export function ClubTopicsManager() {
                     id="topic-order"
                     type="number"
                     value={String(draft.sortOrder)}
-                    onChange={(e) =>
-                      setDraft({ ...draft, sortOrder: Number(e.target.value) || 0 })
-                    }
+                    onChange={(e) => setDraft({ ...draft, sortOrder: Number(e.target.value) || 0 })}
                   />
                 </div>
               </div>

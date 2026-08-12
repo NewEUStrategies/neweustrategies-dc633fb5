@@ -884,8 +884,7 @@ export function groupReactionActors(
     const list = out.get(row.target_id) ?? [];
     // Anonim nie ma id, więc nie da się go scalić - każdy wiersz to osobna
     // twarz, i tak neutralna.
-    const existing =
-      row.user_id === null ? undefined : list.find((a) => a.userId === row.user_id);
+    const existing = row.user_id === null ? undefined : list.find((a) => a.userId === row.user_id);
     if (existing) {
       if (!existing.kinds.includes(kind)) existing.kinds.push(kind);
       continue;
@@ -907,7 +906,6 @@ export function groupReactionActors(
   }
   return out;
 }
-
 
 /** Reakcje jednego celu w formie gotowej do renderu paska. */
 export interface ClubReactionTally {

@@ -18,7 +18,6 @@ export type PageTopicKey =
   | "conferences"
   | "chatham"
   | "clubs"
-
   | "debates"
   | "interviews"
   | "podcasts"

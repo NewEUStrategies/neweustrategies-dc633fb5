@@ -28,7 +28,8 @@ export const clubPl = {
 
     // --- specjalizacje publiczne (powierzchnia dla niezalogowanych) ---
     spec: {
-      sectionLeadMember: "Wybierz obszar, w którym pracujesz - w środku znajdziesz kluby prowadzone przez praktyków tej dziedziny.",
+      sectionLeadMember:
+        "Wybierz obszar, w którym pracujesz - w środku znajdziesz kluby prowadzone przez praktyków tej dziedziny.",
       browseClubs: "Zobacz kluby",
       clubCount_one: "{{count}} klub",
       clubCount_few: "{{count}} kluby",
@@ -43,7 +44,8 @@ export const clubPl = {
         "Każdy klub działa w ramach specjalizacji prowadzonej przez praktyków. Wybierz obszar, w którym zapadają Twoje decyzje - i zobacz, z kim usiądziesz przy stole.",
       explore: "Poznaj specjalizację",
       applyCta: "Zaaplikuj teraz",
-      applyLead: "Członkostwo przyznajemy po weryfikacji. Powiedz nam, gdzie leży Twoja ekspertyza.",
+      applyLead:
+        "Członkostwo przyznajemy po weryfikacji. Powiedz nam, gdzie leży Twoja ekspertyza.",
       backToSpecs: "Wszystkie specjalizacje",
       pillarsTitle: "Co daje członkostwo",
       pillarAccess: "Debata za zamkniętymi drzwiami",
@@ -216,7 +218,8 @@ export const clubPl = {
           languagesLong: "Lista języków może mieć maksymalnie 200 znaków.",
           specializationRequired: "Wybierz specjalizację z listy.",
           clubInvalid: "Wybrany klub jest nieprawidłowy.",
-          motivationShort: "Napisz co najmniej 20 znaków - to jedyna część zgłoszenia, którą czyta komisja.",
+          motivationShort:
+            "Napisz co najmniej 20 znaków - to jedyna część zgłoszenia, którą czyta komisja.",
           motivationLong: "Opis może mieć maksymalnie 2000 znaków.",
           goalsShort: "Napisz co najmniej 10 znaków o swoich celach.",
           goalsLong: "Opis celów może mieć maksymalnie 1000 znaków.",
@@ -1437,7 +1440,8 @@ export const clubPl = {
       // Najbliższe spotkanie + kto będzie.
       meeting: {
         title: "Najbliższe spotkanie",
-        emptyManage: "Brak nadchodzących terminów. Dodaj pierwsze spotkanie - lista potwierdzonych osób przyciąga mocniej niż sama data.",
+        emptyManage:
+          "Brak nadchodzących terminów. Dodaj pierwsze spotkanie - lista potwierdzonych osób przyciąga mocniej niż sama data.",
         pageTitle: "Spotkanie",
         lead: "Kto potwierdził obecność. Sama data konwertuje słabo - lista nazwisk mocno, bo ludzie przychodzą do ludzi, nie do tematu.",
         whoTitle: "Kto będzie",
@@ -1563,7 +1567,8 @@ export const clubPl = {
       cancel: "Anuluj",
       delete: "Usuń",
       deleteTitle: "Usunąć to wydarzenie?",
-      deleteLead: "Wydarzenie \u201e{{title}}\u201d zniknie z kalendarza razem z potwierdzeniami obecności. Tego nie da się cofnąć.",
+      deleteLead:
+        "Wydarzenie \u201e{{title}}\u201d zniknie z kalendarza razem z potwierdzeniami obecności. Tego nie da się cofnąć.",
       deleted: "Wydarzenie usunięte.",
       saved: "Wydarzenie zapisane.",
       failed: "Nie udało się zapisać wydarzenia.",
@@ -2402,7 +2407,8 @@ export const clubEn = {
 
     // --- public specialisations (anonymous entry surface) ---
     spec: {
-      sectionLeadMember: "Pick the area you work in - inside you will find the clubs run by practitioners of that field.",
+      sectionLeadMember:
+        "Pick the area you work in - inside you will find the clubs run by practitioners of that field.",
       browseClubs: "Browse clubs",
       clubCount_one: "{{count}} club",
       clubCount_other: "{{count}} clubs",
@@ -2473,7 +2479,8 @@ export const clubEn = {
         consentRequired: "Please accept the data-processing statement.",
         errorsTitle: "Please correct the fields below to submit your application:",
         optional: "optional",
-        motivationHint: "At least 20 characters - tell us what you do and what you bring to the debate.",
+        motivationHint:
+          "At least 20 characters - tell us what you do and what you bring to the debate.",
         prefillNote:
           "Some fields are pre-filled from your profile. You can change them - the application saves whatever is in the form.",
         gate: {
@@ -2571,7 +2578,8 @@ export const clubEn = {
           emailInvalid: "Please enter a valid email address, e.g. name@company.com.",
           emailLong: "This email address is too long.",
           phoneRequired: "Please enter a phone number - the committee follows up by phone.",
-          phoneInvalid: "Please enter a valid phone number (6-24 characters, digits and separators only).",
+          phoneInvalid:
+            "Please enter a valid phone number (6-24 characters, digits and separators only).",
           companyRequired: "Please enter your organisation.",
           companyLong: "Organisation name can be at most 120 characters.",
           jobPositionRequired: "Please enter your job title.",
@@ -2581,7 +2589,8 @@ export const clubEn = {
           countryRequired: "Please enter your country.",
           countryLong: "Country name can be at most 80 characters.",
           cityLong: "City name can be at most 80 characters.",
-          linkedinInvalid: "Please enter a full LinkedIn profile URL (https://www.linkedin.com/in/...).",
+          linkedinInvalid:
+            "Please enter a full LinkedIn profile URL (https://www.linkedin.com/in/...).",
           linkedinLong: "This profile URL is too long.",
           yearsInvalid: "Please enter years of experience (0-70).",
           expertiseShort: "Describe your expertise in at least 10 characters.",
@@ -2589,7 +2598,8 @@ export const clubEn = {
           languagesLong: "Language list can be at most 200 characters.",
           specializationRequired: "Please select a specialisation from the list.",
           clubInvalid: "The selected club is invalid.",
-          motivationShort: "Please write at least 20 characters - this is the only part the committee reads.",
+          motivationShort:
+            "Please write at least 20 characters - this is the only part the committee reads.",
           motivationLong: "This text can be at most 2000 characters.",
           goalsShort: "Please write at least 10 characters about your goals.",
           goalsLong: "Goals description can be at most 1000 characters.",
@@ -3730,7 +3740,8 @@ export const clubEn = {
 
       meeting: {
         title: "Next meeting",
-        emptyManage: "No upcoming dates. Add the first meeting - a list of confirmed people pulls harder than a date alone.",
+        emptyManage:
+          "No upcoming dates. Add the first meeting - a list of confirmed people pulls harder than a date alone.",
         pageTitle: "Meeting",
         lead: "Who confirmed they are coming. A date alone converts poorly - a list of names converts well, because people come to people, not to a topic.",
         whoTitle: "Who is coming",
@@ -3846,7 +3857,8 @@ export const clubEn = {
       cancel: "Cancel",
       delete: "Delete",
       deleteTitle: "Delete this event?",
-      deleteLead: "The event \u201c{{title}}\u201d disappears from the calendar together with its attendance confirmations. This cannot be undone.",
+      deleteLead:
+        "The event \u201c{{title}}\u201d disappears from the calendar together with its attendance confirmations. This cannot be undone.",
       deleted: "Event deleted.",
       saved: "Event saved.",
       failed: "Could not save the event.",

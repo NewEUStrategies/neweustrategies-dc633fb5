@@ -21,11 +21,7 @@ import {
   ClubHoverActionBody,
   clubHoverActionClass,
 } from "@/components/clubs/atoms/ClubHoverAction";
-import type {
-  ClubReactionActor,
-  ClubReactionKind,
-  ClubReactionTally,
-} from "@/lib/clubs/types";
+import type { ClubReactionActor, ClubReactionKind, ClubReactionTally } from "@/lib/clubs/types";
 
 export interface ClubEngagementBarProps {
   clubSlug: string;

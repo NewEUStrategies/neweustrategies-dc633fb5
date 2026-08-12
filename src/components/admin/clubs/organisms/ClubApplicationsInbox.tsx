@@ -8,7 +8,15 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { AlertTriangle, CheckCircle2, ChevronDown, Inbox, Mail, RefreshCw, Search } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronDown,
+  Inbox,
+  Mail,
+  RefreshCw,
+  Search,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -407,7 +415,9 @@ export function ClubApplicationsInbox() {
         </div>
 
         {listQuery.isLoading ? (
-          <p className="py-6 text-sm text-muted-foreground">{t("adminClubs.applications.loading")}</p>
+          <p className="py-6 text-sm text-muted-foreground">
+            {t("adminClubs.applications.loading")}
+          </p>
         ) : rows.length === 0 ? (
           <p className="py-6 text-sm text-muted-foreground">{t("adminClubs.applications.empty")}</p>
         ) : (

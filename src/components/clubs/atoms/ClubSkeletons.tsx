@@ -88,15 +88,9 @@ export function ClubDirectorySkeleton({
 
   if (layout === "editorial") {
     return (
-      <div
-        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
-        aria-busy="true"
-      >
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-busy="true">
         {items.map((i) => (
-          <div
-            key={i}
-            className="overflow-hidden rounded-xl border border-border/60 bg-card"
-          >
+          <div key={i} className="overflow-hidden rounded-xl border border-border/60 bg-card">
             <Shimmer className="aspect-[16/9] rounded-none" />
             <div className="space-y-2 p-4">
               <div className="flex items-start justify-between gap-2">

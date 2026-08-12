@@ -175,7 +175,6 @@ const GROUPS: readonly {
   { id: "codes", icon: TriangleAlert, sections: ["reasons", "errors"] },
 ];
 
-
 /** Sekcje bez własnego słownika wartości - szukanie ich nie filtruje. */
 const UNFILTERABLE: ReadonlySet<SectionId> = new Set<SectionId>(["access", "gallery", "matrix"]);
 
@@ -856,4 +855,3 @@ export function ClubElementsCatalog() {
     </div>
   );
 }
-

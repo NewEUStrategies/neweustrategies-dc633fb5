@@ -26,7 +26,6 @@ import {
   Trash2,
   Users,
   Video,
-
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -131,7 +130,6 @@ function EventCard({
   onEdit?: (row: ClubEventRow) => void;
   onDelete?: (row: ClubEventRow) => void;
 }) {
-
   const { t } = useTranslation();
   const lang = isPl ? "pl" : "en";
   const kind = toEventKind(row.kind);
@@ -281,7 +279,6 @@ function EventCard({
         </div>
       ) : null}
     </article>
-
   );
 }
 
@@ -315,7 +312,6 @@ export function ClubCalendar({
   const rsvp = useClubEventRsvp(clubId);
   const upsert = useUpsertClubEvent(clubId);
   const remove = useDeleteClubEvent(clubId);
-
 
   const rows = useMemo(() => eventsQ.data ?? [], [eventsQ.data]);
 
@@ -597,4 +593,3 @@ export function ClubCalendar({
     </div>
   );
 }
-

@@ -63,9 +63,8 @@ export const CLUB_SPECIALIZATION_ICONS: Readonly<Record<string, LucideIcon>> = {
   MessagesSquare,
 };
 
-export const CLUB_SPECIALIZATION_ICON_NAMES: readonly string[] = Object.keys(
-  CLUB_SPECIALIZATION_ICONS,
-);
+export const CLUB_SPECIALIZATION_ICON_NAMES: readonly string[] =
+  Object.keys(CLUB_SPECIALIZATION_ICONS);
 
 export function resolveSpecializationIcon(name: string | null | undefined): LucideIcon {
   if (typeof name === "string" && name in CLUB_SPECIALIZATION_ICONS) {

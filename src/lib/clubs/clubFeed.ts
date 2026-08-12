@@ -49,7 +49,6 @@ export interface ClubFeedInput {
   posts?: readonly ClubPostRow[];
 }
 
-
 /**
  * Pozycje kart kontekstowych w strumieniu wątków. Liczone w WĄTKACH, nie
  * w elementach wyjścia - inaczej wstawienie jednej karty przesuwałoby każdą
@@ -166,7 +165,6 @@ export function buildClubFeed(input: ClubFeedInput): ClubFeedEntry[] {
       placed += 1;
     }
   });
-
 
   // Reszta kart kontekstowych, dla których zabrakło wątków - patrz doc.
   for (let i = placed; i < pending.length; i += 1) {

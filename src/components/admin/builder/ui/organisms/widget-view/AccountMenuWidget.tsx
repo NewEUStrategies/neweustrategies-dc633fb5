@@ -439,7 +439,6 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
     );
   };
 
-
   // Defaults when admin has not configured any menu items yet - sensible fallback so the
   // widget never looks empty even on a fresh install.
   const effectiveGuest = guestItems.length
@@ -680,11 +679,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
                         className="account-menu-section px-2.5 pb-1 pt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground"
                         style={{ ["--am-i" as string]: base } as CSSProperties}
                       >
-                        {isSuperAdmin
-                          ? "Super Admin"
-                          : lang === "pl"
-                            ? "Zespół"
-                            : "Staff"}
+                        {isSuperAdmin ? "Super Admin" : lang === "pl" ? "Zespół" : "Staff"}
                       </div>
                       <div className="flex flex-col gap-0.5">
                         {merged.map((entry, i) => renderItem(entry, base + i + 1))}
@@ -699,7 +694,6 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
             </div>
           )}
           <span className="sr-only">{t("nav.account", { defaultValue: "Account menu" })}</span>
-
         </PopoverContent>
       </Popover>
     </div>

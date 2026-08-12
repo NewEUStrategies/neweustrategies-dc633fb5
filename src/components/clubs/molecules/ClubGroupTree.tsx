@@ -22,7 +22,8 @@ export function clubGroupDescription(group: ClubGroupRow, isPl: boolean): string
 const ACCENT_TEXT = "text-[color-mix(in_oklab,var(--club-accent)_75%,var(--foreground))]";
 const ACCENT_BG = "bg-[color-mix(in_oklab,var(--club-accent)_10%,var(--muted))]";
 const ACCENT_BG_HOVER = "group-hover:bg-[color-mix(in_oklab,var(--club-accent)_12%,var(--muted))]";
-const ACCENT_TEXT_HOVER = "group-hover:text-[color-mix(in_oklab,var(--club-accent)_75%,var(--foreground))]";
+const ACCENT_TEXT_HOVER =
+  "group-hover:text-[color-mix(in_oklab,var(--club-accent)_75%,var(--foreground))]";
 
 function ThreadCounter({ count, active }: { count: number; active: boolean }) {
   return (
@@ -144,9 +145,7 @@ function SubRow({
         onClick={onSelect}
         className={cn(
           "flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[13px] font-medium transition-colors",
-          active
-            ? cn("bg-muted/50", ACCENT_TEXT)
-            : cn("text-muted-foreground", ACCENT_TEXT_HOVER),
+          active ? cn("bg-muted/50", ACCENT_TEXT) : cn("text-muted-foreground", ACCENT_TEXT_HOVER),
         )}
       >
         <span className="line-clamp-2 min-w-0 flex-1 leading-snug">{name}</span>
@@ -266,7 +265,9 @@ export function ClubGroupTree({
               <LayoutGrid
                 className={cn(
                   "h-4 w-4 shrink-0 transition-colors",
-                  activeGroupId === null ? "text-foreground" : "text-muted-foreground group-hover/row:text-foreground",
+                  activeGroupId === null
+                    ? "text-foreground"
+                    : "text-muted-foreground group-hover/row:text-foreground",
                 )}
                 aria-hidden="true"
               />
@@ -316,10 +317,7 @@ export function ClubGroupBar({
   return (
     <nav
       aria-label={t("club.groups")}
-      className={cn(
-        "-mx-3 flex gap-2 overflow-x-auto px-3 pb-1 [scrollbar-width:none]",
-        className,
-      )}
+      className={cn("-mx-3 flex gap-2 overflow-x-auto px-3 pb-1 [scrollbar-width:none]", className)}
     >
       <button
         type="button"

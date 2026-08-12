@@ -7,12 +7,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { ClubApplyValues } from "@/lib/clubs/applyValidation";
 
-export type ClubApplicationStatus =
-  | "pending"
-  | "review"
-  | "accepted"
-  | "rejected"
-  | "needs_info";
+export type ClubApplicationStatus = "pending" | "review" | "accepted" | "rejected" | "needs_info";
 
 /** Stan synchronizacji zgloszenia z kartoteka CRM. */
 export type ClubApplicationCrmStatus = "pending" | "ok" | "error";

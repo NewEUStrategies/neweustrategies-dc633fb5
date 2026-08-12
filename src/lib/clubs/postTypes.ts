@@ -87,10 +87,9 @@ export const CLUB_POST_ACCEPT_MIME: readonly string[] = [
 ];
 
 /** Wartość dla `<input accept>` - MIME plus rozszerzenia (patrz wyżej). */
-export const CLUB_POST_ACCEPT_ATTR: string = [
-  ...CLUB_POST_ACCEPT_MIME,
-  ...CLUB_POST_FILE_EXT,
-].join(",");
+export const CLUB_POST_ACCEPT_ATTR: string = [...CLUB_POST_ACCEPT_MIME, ...CLUB_POST_FILE_EXT].join(
+  ",",
+);
 
 export type ClubPostMediaKind = "image" | "video" | "file";
 

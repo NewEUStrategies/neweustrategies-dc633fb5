@@ -49,7 +49,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-
 /** Trzy stany potwierdzenia. "Może" jest prawdziwą odpowiedzią - patrz A28. */
 const RSVP_STATES: readonly ClubRsvpState[] = ["going", "maybe", "declined"];
 
@@ -219,7 +218,6 @@ export function ClubMeetingPanel({
         </div>
       }
     >
-
       <div className="flex gap-2.5">
         <span
           className={cn(
@@ -339,7 +337,6 @@ export function ClubMeetingPanel({
         ) : null}
       </div>
 
-
       {later.length > 0 ? (
         <ul className="mt-2.5 space-y-1 border-t border-border/60 pt-2">
           {later.map((event) => (
@@ -394,5 +391,4 @@ export function ClubMeetingPanel({
       ) : null}
     </ClubRailPanel>
   );
-
 }

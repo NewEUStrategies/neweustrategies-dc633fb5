@@ -95,23 +95,23 @@ export function MentionSuggestionList({
             <HoverCard open={previewSlug === s.slug} openDelay={250}>
               <HoverCardTrigger asChild>
                 <span className="flex min-w-0 flex-1 items-center gap-2">
-            <span
-              aria-hidden
-              className="flex h-6 w-6 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-[10px] font-medium text-muted-foreground"
-            >
-              {s.avatarUrl ? (
-                <img src={s.avatarUrl} alt="" className="h-full w-full object-cover" />
-              ) : (
-                s.name.slice(0, 2).toUpperCase()
-              )}
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate font-medium">{s.name}</span>
-              <span className="block truncate text-xs text-muted-foreground">
-                @{s.slug}
-                {s.subtitle ? ` - ${s.subtitle}` : ""}
-              </span>
-            </span>
+                  <span
+                    aria-hidden
+                    className="flex h-6 w-6 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-[10px] font-medium text-muted-foreground"
+                  >
+                    {s.avatarUrl ? (
+                      <img src={s.avatarUrl} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      s.name.slice(0, 2).toUpperCase()
+                    )}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{s.name}</span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      @{s.slug}
+                      {s.subtitle ? ` - ${s.subtitle}` : ""}
+                    </span>
+                  </span>
                 </span>
               </HoverCardTrigger>
               <HoverCardContent side="right" align="start" className="w-72">

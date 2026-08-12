@@ -58,7 +58,6 @@ export const SECTION_LABEL_VARIANTS: { value: SectionLabelVariant; label: string
   { value: "underline-sweep", label: "22 - Underline Sweep (animowane podkreślenie 2px)" },
 ];
 
-
 // ---- Typografia konfigurowalna (numer / kategoria / tytuł) ----
 export type SectionLabelFont = "inherit" | "display" | "serif" | "sans" | "mono";
 
@@ -106,7 +105,6 @@ export function arrowGlyph(kind?: string): string {
       return "→";
   }
 }
-
 
 // Resolve preset color names to CSS color values (also supports raw hex/oklch).
 export function resolveAccentColor(color?: string): string {
@@ -325,7 +323,6 @@ export function SectionLabelRender({
       </span>
     )
   ) : null;
-
 
   const labelEl = (
     <span data-title-root className={`${textCls} min-w-0`} style={labelStyle}>
@@ -769,10 +766,7 @@ export function SectionLabelRender({
               style={{ height: 1, marginTop: gapYPx }}
             >
               <span style={{ width: isSm ? 18 : 44, background: accent, flex: "0 0 auto" }} />
-              <span
-                className="flex-1"
-                style={{ background: "currentColor", opacity: 0.16 }}
-              />
+              <span className="flex-1" style={{ background: "currentColor", opacity: 0.16 }} />
             </span>
           )}
         </div>
@@ -995,11 +989,7 @@ export function SectionLabelRender({
         <div className={`${wrapperBase} w-full min-w-0 ${padY}`}>
           <div className="flex items-center min-w-0" style={{ gap: gapXPx }}>
             <span className="inline-flex items-center min-w-0" style={{ gap: gapXPx }}>
-              <span
-                data-title-root
-                className={`${textCls} min-w-0 truncate`}
-                style={labelStyle}
-              >
+              <span data-title-root className={`${textCls} min-w-0 truncate`} style={labelStyle}>
                 {label}
               </span>
               {second && (
@@ -1104,11 +1094,8 @@ export function SectionLabelRender({
         </div>
       );
     }
-
   }
-
 }
-
 
 function Corners({ accent, sm }: { accent: string; sm: boolean }) {
   const s = sm ? 4 : 8;

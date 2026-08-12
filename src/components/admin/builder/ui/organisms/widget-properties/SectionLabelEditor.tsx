@@ -122,7 +122,6 @@ function MiniToggle({
   );
 }
 
-
 const PRESET_COLORS: { value: string; label: string; hex: string }[] = [
   { value: "brand", label: "Brand", hex: "#FA9346" },
   { value: "amber", label: "Amber", hex: "#F8B632" },
@@ -185,19 +184,13 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
     "stacked-serif-lede",
     "split-rule-duo",
   ];
-  const EXTRA_VARIANTS = [
-    "bracket-label",
-    "dotted-leader",
-    "ticker-strip",
-    "underline-sweep",
-  ];
+  const EXTRA_VARIANTS = ["bracket-label", "dotted-leader", "ticker-strip", "underline-sweep"];
   const showNumberControls = NUMBER_VARIANTS.includes(variant);
   const showCategoryControls = CATEGORY_VARIANTS.includes(variant);
-  const isEditorial = showNumberControls || showCategoryControls || EXTRA_VARIANTS.includes(variant);
-
+  const isEditorial =
+    showNumberControls || showCategoryControls || EXTRA_VARIANTS.includes(variant);
 
   const previewLabel = derived.label;
-
 
   return (
     <div className="space-y-3">
@@ -311,7 +304,6 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
                       gapX={gapX || undefined}
                       gapY={gapY || undefined}
                     />
-
                   </div>
                 </div>
                 <div className="mt-1 text-[9px] text-muted-foreground truncate">{bl(v.label)}</div>
@@ -437,8 +429,6 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
           </PropField>
         </div>
       )}
-
-
 
       <PropField label={t("builder.sectionLabelEditor.linkText", { lang: lang.toUpperCase() })}>
         <Input

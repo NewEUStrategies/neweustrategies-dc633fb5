@@ -1409,7 +1409,12 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     }
     case "donations": {
       const variant = (getStr(c, "variant") || "hero") as
-        "hero" | "progress" | "stats-strip" | "compact-card" | "inline-bar" | "thermometer";
+        | "hero"
+        | "progress"
+        | "stats-strip"
+        | "compact-card"
+        | "inline-bar"
+        | "thermometer";
       const title = lang === "pl" ? getStr(c, "title_pl") : getStr(c, "title_en");
       const subtitle = lang === "pl" ? getStr(c, "subtitle_pl") : getStr(c, "subtitle_en");
       const cta = lang === "pl" ? getStr(c, "cta_pl") : getStr(c, "cta_en");

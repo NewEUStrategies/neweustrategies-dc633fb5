@@ -238,9 +238,7 @@ export function useCreateClubThreadPoll(
   });
 }
 
-export function useDetachClubThreadPoll(
-  threadId: string,
-): UseMutationResult<void, Error, string> {
+export function useDetachClubThreadPoll(threadId: string): UseMutationResult<void, Error, string> {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: detachClubThreadPoll,
