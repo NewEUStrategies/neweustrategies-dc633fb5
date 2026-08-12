@@ -51,6 +51,9 @@
     "test:pgtap-local": "bash scripts/pgtap-local/run.sh"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^4.0.36",
+    "@ai-sdk/openai-compatible": "^3.0.29",
+    "@ai-sdk/react": "^4.0.61",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
@@ -100,6 +103,7 @@
     "@tiptap/extension-underline": "^3",
     "@tiptap/react": "^3.24.0",
     "@tiptap/starter-kit": "^3.24.0",
+    "ai": "^7.0.58",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",

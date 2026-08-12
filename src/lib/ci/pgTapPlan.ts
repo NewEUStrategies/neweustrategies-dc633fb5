@@ -61,6 +61,12 @@ const ASSERTION_FUNCTIONS: readonly string[] = [
   "has_trigger",
   "has_view",
   "isnt_definer",
+  // `is_empty`/`isnt_empty` to pelnoprawne asercje pgTAP, ale maja `_` po `is`,
+  // wiec ani `is`, ani `isnt` w nie nie trafia - bez tych wpisow bramka liczyla
+  // 11 asercji mniej niz pgTAP i zglaszala falszywy rozjazd planu w trzech
+  // plikach modulu klubow (a3/a4/a5_a6).
+  "isnt_empty",
+  "is_empty",
   "is_definer",
   "throws_like",
   "throws_ilike",
