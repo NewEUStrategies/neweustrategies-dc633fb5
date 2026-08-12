@@ -21,7 +21,7 @@
 --   6. Odslony profilu: run_profile_view_alerts liczy ponad znakiem wodnym,
 --      stempluje profile_view_alert_state i NIE wysyla drugi raz w tej samej
 --      dobie (alert per odslona = wylaczony przelacznik po tygodniu).
---   7. Spotkania 1-1: rezerwacja i anulowanie w rodzaju 'meeting' (nie
+--   7. Spotkania 1-1: rezerwacja i anulowanie w rodzaju 'meeting_booking' (nie
 --      w ogolnym 'content'), host poznaje nazwe rezerwujacego i dowiaduje sie
 --      o zwolnionym slocie.
 --   8. ACL: profile_view_alert_state bez grantow klienckich,
@@ -56,7 +56,7 @@ INSERT INTO public.profiles (id, email, display_name, tenant_id, discoverable, s
 -- ---------------------------------------------------------------------------
 CREATE TEMP TABLE ad_new_kinds(kind text) ON COMMIT DROP;
 INSERT INTO ad_new_kinds VALUES
-  ('introduction'), ('recommendation'), ('endorsement'), ('profile_view'), ('meeting');
+  ('introduction'), ('recommendation'), ('endorsement'), ('profile_view'), ('meeting_booking');
 
 SELECT is(
   (SELECT count(*)::int
@@ -94,7 +94,7 @@ VALUES ('ad000000-0000-0000-0000-0000000000cc'::uuid,
 UPDATE public.notification_preferences
    SET enabled_introduction = false, enabled_recommendation = false,
        enabled_endorsement = false, enabled_profile_view = false,
-       enabled_meeting = false
+       enabled_meeting_booking = false
  WHERE user_id = 'ad000000-0000-0000-0000-0000000000cc'::uuid;
 
 SELECT is(
@@ -123,22 +123,22 @@ SELECT is(
 );
 SELECT is(
   public.enqueue_notification('ad000000-0000-0000-0000-0000000000cc'::uuid,
-    'meeting', 'x', 'x', NULL, NULL, '/probe/meet', NULL),
+    'meeting_booking', 'x', 'x', NULL, NULL, '/probe/meet', NULL),
   NULL::uuid,
-  'enabled_meeting=false tlumi rodzaj meeting'
+  'enabled_meeting_booking=false tlumi rodzaj meeting_booking'
 );
 
 -- Wlaczenie z powrotem: rodzaj musi dojsc - dowod, ze wyzej zadzialala FLAGA,
 -- a nie jakikolwiek inny warunek producenta.
 UPDATE public.notification_preferences
-   SET enabled_meeting = true
+   SET enabled_meeting_booking = true
  WHERE user_id = 'ad000000-0000-0000-0000-0000000000cc'::uuid;
 
 SELECT isnt(
   public.enqueue_notification('ad000000-0000-0000-0000-0000000000cc'::uuid,
-    'meeting', 'x', 'x', NULL, NULL, '/probe/meet-on', NULL),
+    'meeting_booking', 'x', 'x', NULL, NULL, '/probe/meet-on', NULL),
   NULL::uuid,
-  'enabled_meeting=true przepuszcza rodzaj meeting'
+  'enabled_meeting_booking=true przepuszcza rodzaj meeting_booking'
 );
 
 DELETE FROM public.notifications
@@ -387,7 +387,7 @@ SELECT is(
 );
 
 -- ---------------------------------------------------------------------------
--- Spotkania 1-1: rodzaj 'meeting' i DRUGA strona wymiany
+-- Spotkania 1-1: rodzaj 'meeting_booking' i DRUGA strona wymiany
 -- ---------------------------------------------------------------------------
 DELETE FROM public.notifications;
 
@@ -408,14 +408,14 @@ SELECT lives_ok(
 SELECT is(
   (SELECT n.kind FROM public.notifications n
     WHERE n.user_id = 'ad000000-0000-0000-0000-0000000000aa'::uuid LIMIT 1),
-  'meeting'::text,
-  'rezerwacja uzywa dedykowanego rodzaju meeting (nie ogolnego content)'
+  'meeting_booking'::text,
+  'rezerwacja uzywa dedykowanego rodzaju meeting_booking (nie ogolnego content)'
 );
 
 SELECT matches(
   (SELECT n.body_pl FROM public.notifications n
     WHERE n.user_id = 'ad000000-0000-0000-0000-0000000000aa'::uuid
-      AND n.kind = 'meeting' LIMIT 1),
+      AND n.kind = 'meeting_booking' LIMIT 1),
   'Bartek AD',
   'host wie, KTO zarezerwowal jego czas'
 );
@@ -430,7 +430,7 @@ SELECT lives_ok(
 SELECT is(
   (SELECT count(*)::int FROM public.notifications n
     WHERE n.user_id = 'ad000000-0000-0000-0000-0000000000aa'::uuid
-      AND n.kind = 'meeting'),
+      AND n.kind = 'meeting_booking'),
   1,
   'anulowanie powiadamia HOSTA o zwolnionym slocie'
 );

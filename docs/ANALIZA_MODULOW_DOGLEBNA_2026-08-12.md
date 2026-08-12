@@ -217,7 +217,7 @@ Pięć pozycji o największym wpływie z każdego modułu — pełne uzasadnieni
 1. Przywrócić osiągalność ustawień powiadomień: żadna trasa nie montuje NotificationsCenter mode=full/preferences — opt-in Web Push, digest i wyciszanie są produktowo martwe (12.10)
 2. Migracja naprawcza dryfu „meeting" vs „meeting_booking": migracja klubowa A4 cofnęła CHECK i enqueue_notification — powiadomienia o spotkaniach 1-1 giną w połkniętym wyjątku (12.12)
 3. Statystyki i czyszczenie w /admin/community/notifications przez RPC SECURITY DEFINER — RLS own-row sprawia, że panel liczy wiersze admina zamiast tenanta (12.18)
-4. Włączyć pgTAP i smoke montażu do CI — asercja parytetu w notification_preferences_gating_test.sql już wykrywa regres A4, ale nie jest uruchamiana
+4. ~~Włączyć pgTAP do CI~~ — **ustalenie wycofane (12.08):** job `pgtap` istnieje w `ci.yml:328-400` i woła `supabase test db` na wszystkich plikach, bez `continue-on-error`. Prawdą jest natomiast coś gorszego: suite **nie mógł** być zielony, bo `missing_event_notifications_test.sql` asercjonuje stan po naprawie, a `network_event_notifications_test.sql` stan przed nią — dwa testy wzajemnie się wykluczały. Zostaje realna pozycja: dodać smoke montażu centrum powiadomień i wyjaśnić, dlaczego czerwony job pgtap nie blokował merge'ów
 5. Domknąć cykl życia kanałów: handler pushsubscriptionchange w push-sw.js + re-sync subskrypcji przy starcie; podpiąć albo usunąć nieużywany useEventConfirmedMutation
 
 ### Moduł 13 — Monetyzacja: cennik, checkout, subskrypcje, billing, paywall · 8,2/10

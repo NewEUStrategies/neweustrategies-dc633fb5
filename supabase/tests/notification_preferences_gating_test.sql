@@ -11,9 +11,15 @@
 --      wstawia, wyłączony => pomija. Wcześniej test kończył się na 'system',
 --      więc gałęzie tracker/connection/saved_search/crm_task w CASE nie były
 --      niczym przykryte.
---   2. Parytet strukturalny katalog <-> preferencje: każdy rodzaj z
---      `notifications_kind_check` (poza 'security') ma kolumnę
---      `enabled_<rodzaj>` i odwrotnie - żadna kolumna-flaga nie wisi w próżni.
+--   2. Parytet strukturalny CZTERECH nóg kontraktu rodzaju: katalog
+--      (`notifications_kind_check`) <-> kolumny `enabled_<rodzaj>` <-> gałęzie
+--      `WHEN '<rodzaj>' THEN np.enabled_<rodzaj>` w źródle producenta <->
+--      rodzaje, które PRODUCENCI faktycznie emitują. Trzy pierwsze nogi żyły
+--      w osobnych migracjach i rozjechały się (dryf `meeting` vs
+--      `meeting_booking`, 20260807140000 -> 20260812091000); czwarta jest
+--      jedyną, która łapie regres U ŹRÓDŁA: producent emitujący rodzaj spoza
+--      katalogu łamie CHECK, a `EXCEPTION WHEN OTHERS` połyka błąd, więc
+--      powiadomienie ginie bez śladu w zachowaniu i w logu testów.
 --   3. Sweep behawioralny sterowany katalogiem: 11. rodzaj dodany do CHECK-a
 --      bez gałęzi w CASE (ELSE true => przeciek) albo bez kolumny wywala ten
 --      test SAM Z SIEBIE, bez dopisywania asercji.
@@ -34,7 +40,7 @@
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(40);
+SELECT plan(44);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -236,6 +242,76 @@ SELECT is(
          WHERE NOT (k = ANY (pg_temp.allowed_kinds())) ORDER BY k),
   ARRAY[]::text[],
   'żadna kolumna enabled_<x> nie wisi bez rodzaju w katalogu');
+
+-- ── 3b. Parytet ŹRÓDŁOWY: katalog <-> gałęzie CASE <-> producenci ───────────
+-- Sweep behawioralny niżej łapie rodzaj, który PRZECIEKA (gałąź w `ELSE true`),
+-- ale nie łapie rodzaju, którego producent emituje POZA katalogiem: taki nigdy
+-- nie dociera, więc "brak powiadomienia" wygląda jak wyłączony przełącznik.
+-- Dokładnie tak zniknęły spotkania 1-1: trigger tg_meeting_booking_notify
+-- kolejkował 'meeting_booking', katalog znał wyłącznie 'meeting', a CHECK padał
+-- wewnątrz `EXCEPTION WHEN OTHERS THEN RETURN NULL`.
+--
+-- Te asercje czytają ŹRÓDŁO funkcji z katalogu systemowego, nie plik migracji,
+-- więc kolejny "powrót do wcześniejszej wersji funkcji" (a tak powstał ten
+-- regres - leksykograficznie późniejsza migracja odtworzyła starsze ciało) jest
+-- czerwony niezależnie od tego, która migracja go wprowadzi.
+
+CREATE FUNCTION pg_temp.case_branches() RETURNS TABLE(kind text, col text)
+LANGUAGE sql STABLE AS $fn$
+  SELECT m[1], m[2]
+    FROM regexp_matches(
+           pg_get_functiondef(
+             'public.enqueue_notification(uuid,text,text,text,text,text,text,text)'::regprocedure),
+           'WHEN\s+''([a-z_]+)''\s+THEN\s+np\.enabled_([a-z_]+)', 'g') AS m;
+$fn$;
+
+-- Rodzaje wołane z ciał funkcji w `public` - drugi argument
+-- enqueue_notification podany LITERAŁEM. Wywołania przekazujące rodzaj zmienną
+-- (np. sweep w tym pliku) nie pasują do wzorca i są pomijane: asercja jest
+-- zachowawcza, ma nie mieć fałszywych trafień.
+CREATE FUNCTION pg_temp.emitted_kinds() RETURNS TABLE(fn text, kind text)
+LANGUAGE sql STABLE AS $fn$
+  SELECT p.proname::text, m[1]
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+   CROSS JOIN LATERAL regexp_matches(
+           p.prosrc, 'enqueue_notification\s*\(\s*[^,]+,\s*''([a-z_]+)''', 'g') AS m
+   WHERE n.nspname = 'public'
+     AND p.proname <> 'enqueue_notification';
+$fn$;
+
+SELECT is(
+  ARRAY(SELECT k FROM unnest(pg_temp.allowed_kinds()) AS k
+         WHERE k <> 'security'
+           AND NOT EXISTS (SELECT 1 FROM pg_temp.case_branches() b
+                            WHERE b.kind = k AND b.col = k)
+         ORDER BY k),
+  ARRAY[]::text[],
+  'każdy rodzaj z katalogu ma w bramce gałąź czytającą WŁASNĄ kolumnę enabled_<rodzaj>');
+
+SELECT is(
+  ARRAY(SELECT DISTINCT b.kind || ' -> enabled_' || b.col FROM pg_temp.case_branches() b
+         WHERE b.col <> b.kind OR NOT (b.kind = ANY (pg_temp.allowed_kinds()))
+         ORDER BY 1),
+  ARRAY[]::text[],
+  'żadna gałąź bramki nie czyta obcej kolumny ani rodzaju spoza katalogu');
+
+SELECT is(
+  ARRAY(SELECT DISTINCT e.fn || ' -> ' || e.kind FROM pg_temp.emitted_kinds() e
+         WHERE NOT (e.kind = ANY (pg_temp.allowed_kinds())) ORDER BY 1),
+  ARRAY[]::text[],
+  'żaden producent nie emituje rodzaju spoza katalogu (inaczej CHECK ginie w połkniętym wyjątku)');
+
+-- Alias porzucony przy ujednoliceniu (20260812091000). Klient nie zna rodzaju
+-- 'meeting' - nie ma dla niego ikony, etykiety i18n ani sekcji digestu - więc
+-- jego powrót do katalogu albo do kolumn odtwarza dryf, przechodząc wszystkie
+-- asercje wyżej (byłby rodzajem "poprawnym", tylko niewidocznym w UI).
+SELECT is(
+  ARRAY(SELECT x FROM unnest(ARRAY['meeting']) AS x
+         WHERE x = ANY (pg_temp.allowed_kinds()) OR x = ANY (pg_temp.flag_kinds())
+         ORDER BY x),
+  ARRAY[]::text[],
+  'porzucony alias rodzaju spotkań nie wraca ani do katalogu, ani do kolumn preferencji');
 
 -- ── 4. Sweep behawioralny sterowany katalogiem ──────────────────────────────
 -- Dla KAŻDEGO rodzaju z CHECK-a (poza security) ustawia flagę i sprawdza, czy
