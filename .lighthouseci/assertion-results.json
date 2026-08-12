@@ -2,9 +2,9 @@
   {
     "name": "minScore",
     "expected": 0.8,
-    "actual": 0.35,
+    "actual": 0.34,
     "values": [
-      0.35
+      0.34
     ],
     "operator": ">=",
     "passed": false,
@@ -30,9 +30,9 @@
   {
     "name": "maxNumericValue",
     "expected": 2500,
-    "actual": 31318.593300000037,
+    "actual": 31215.04040000001,
     "values": [
-      31318.593300000037
+      31215.04040000001
     ],
     "operator": "<=",
     "passed": false,
@@ -45,9 +45,9 @@
   {
     "name": "maxNumericValue",
     "expected": 300,
-    "actual": 1065.5404250000047,
+    "actual": 1985,
     "values": [
-      1065.5404250000047
+      1985
     ],
     "operator": "<=",
     "passed": false,
@@ -60,9 +60,9 @@
   {
     "name": "maxNumericValue",
     "expected": 3400,
-    "actual": 5451.21456351944,
+    "actual": 6103.98954908016,
     "values": [
-      5451.21456351944
+      6103.98954908016
     ],
     "operator": "<=",
     "passed": false,

@@ -120,6 +120,26 @@ jobs:
       # `collect.chromeFlags` - each leaving "Unable to connect to Chrome" with no
       # hint that the flags never arrived. Verified locally: the string form runs
       # to completion, the other two do not.
+      #
+      # With Chrome finally launching cleanly, the log stopped guessing and named
+      # the actual chain - and it was NOT the audit list I had been trimming:
+      #   * the dev server needed 53 s for the first load (17:46:06 -> 17:47:00);
+      #     Vite compiles several hundred modules on a 2-core runner
+      #     (benchmarkIndex 2434),
+      #   * the test URL "/" REDIRECTS to "/en", and Lighthouse says so itself in
+      #     a runWarning: "Try testing the second URL directly",
+      #   * the trace came back without a navigation start (NO_NAVSTART), which is
+      #     what every one of those ~15 gatherer warnings actually descends from,
+      #   * the timing-out gatherer was ResponseCompression
+      #     ("ResponseCompression:error PROTOCOL_TIMEOUT" immediately followed by
+      #     the burst of Network.getResponseBody errors) - i.e.
+      #     `uses-text-compression`, which was never on the skip list.
+      # So lighthouserc.json now audits /en directly, skips
+      # `uses-text-compression` (meaningless on an uncompressed dev server), and
+      # raises maxWaitForLoad to 120 s because 60 s was within seconds of that
+      # measured 53 s cold compile. If it STILL fails, the next step is to stop
+      # letting LHCI cold-start the server: start the dev server in its own step,
+      # curl /en once to force the compile, and point LHCI at the warm server.
       # Chrome PRZYPIĘTY do buildu Playwrighta, nie do tego, co runner ma
       # zainstalowane. Powód jest zmierzony: smoke padał serią ~15 ostrzeżeń
       # „Attempted to get a SyntheticEventsManager without initializing" i błędem

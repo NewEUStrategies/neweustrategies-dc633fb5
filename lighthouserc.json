@@ -4,7 +4,7 @@
       "startServerCommand": "bun run dev --host 127.0.0.1 --port 4173",
       "startServerReadyPattern": "Local:",
       "startServerReadyTimeout": 120000,
-      "url": ["http://127.0.0.1:4173/"],
+      "url": ["http://127.0.0.1:4173/en"],
       "numberOfRuns": 1,
       "settings": {
         "preset": "desktop",
@@ -20,9 +20,10 @@
           "legacy-javascript-insight",
           "modern-http-insight",
           "network-dependency-tree-insight",
-          "script-treemap-data"
+          "script-treemap-data",
+          "uses-text-compression"
         ],
-        "maxWaitForLoad": 60000,
+        "maxWaitForLoad": 120000,
         "chromeFlags": "--no-sandbox --disable-dev-shm-usage"
       }
     },
