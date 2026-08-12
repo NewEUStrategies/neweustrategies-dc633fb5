@@ -27,6 +27,7 @@
 //     Lista plików między nimi rozbijała ten ciąg i powtarzała pytanie, na
 //     które odpowiada biblioteka. Zniknął cały moduł, razem z trasą i RPC.
 import { Link } from "@tanstack/react-router";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { useTranslation } from "react-i18next";
 import { FileText, ListChecks } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -40,7 +41,7 @@ import {
   type ClubDocumentRow,
   type ClubMilestoneRow,
 } from "@/lib/clubs/workspaceTypes";
-import { formatDate } from "@/lib/i18n/format";
+import { formatDate, uiLang } from "@/lib/i18n/format";
 
 /** Skrót "do sekcji" w rogu panelu - jeden kształt dla wszystkich paneli szyny. */
 export function MoreLink({
@@ -77,16 +78,14 @@ export function MoreLink({
 export function ClubStagePanel({
   clubSlug,
   milestones,
-  isPl,
   today,
 }: {
   clubSlug: string;
   milestones: readonly ClubMilestoneRow[];
-  isPl: boolean;
   today: string;
 }) {
-  const { t } = useTranslation();
-  const lang = isPl ? "pl" : "en";
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const stage =
     milestones.find((m) => toMilestoneState(m.state) === "active") ??
     milestones.find((m) => toMilestoneState(m.state) === "planned") ??
@@ -104,7 +103,7 @@ export function ClubStagePanel({
         <MoreLink to="/club/$clubSlug/schedule" clubSlug={clubSlug} label={t("club.hub.more")} />
       }
     >
-      <p className="text-sm font-medium leading-tight">{isPl ? stage.title_pl : stage.title_en}</p>
+      <p className="text-sm font-medium leading-tight">{pickLocalized(stage, "title", lang)}</p>
       {stage.due_on !== null ? (
         <p
           className={cn(
@@ -143,13 +142,12 @@ export function ClubStagePanel({
 export function ClubFreshDocsPanel({
   clubSlug,
   documents,
-  isPl,
 }: {
   clubSlug: string;
   documents: readonly ClubDocumentRow[];
-  isPl: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const take = documents.slice(0, 3);
   if (take.length === 0) return null;
 
@@ -164,7 +162,7 @@ export function ClubFreshDocsPanel({
       <ul className="flex flex-col gap-1.5">
         {take.map((document) => {
           const href = documentHref(document);
-          const title = isPl ? document.title_pl : document.title_en;
+          const title = pickLocalized(document, "title", lang);
           const inner = (
             <>
               <ClubDocumentKindIcon

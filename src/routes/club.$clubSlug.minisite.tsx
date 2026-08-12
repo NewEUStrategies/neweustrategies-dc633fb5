@@ -42,8 +42,7 @@ export const Route = createFileRoute("/club/$clubSlug/minisite")({
 
 function ClubMinisiteRoute() {
   ensureClubI18n();
-  const { t, i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  const { t } = useTranslation();
   const { clubSlug } = Route.useParams();
   const { session, isStaff } = useAuth();
 
@@ -104,12 +103,6 @@ function ClubMinisiteRoute() {
   });
 
   return (
-    <ClubMinisite
-      club={club}
-      threads={threads}
-      loading={threadsQ.isPending}
-      access={access}
-      isPl={isPl}
-    />
+    <ClubMinisite club={club} threads={threads} loading={threadsQ.isPending} access={access} />
   );
 }

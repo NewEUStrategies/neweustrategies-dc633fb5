@@ -42,7 +42,7 @@ import {
   type ClubNoticeKind,
   type ClubNoticeOutcome,
 } from "@/lib/clubs/networkTypes";
-import { formatDateShort } from "@/lib/i18n/format";
+import { formatDateShort, uiLang } from "@/lib/i18n/format";
 
 const PAGE_SIZE = 24;
 
@@ -50,7 +50,7 @@ const SCOPES: readonly ClubBoardScope[] = ["open", "mine", "archive"];
 
 /** Wynik ogłoszenia - trzy różne fakty, trzy różne tony. */
 function OutcomeMark({ outcome }: { outcome: ClubNoticeOutcome }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   if (outcome === "open") return null;
 
   const shape =
@@ -84,18 +84,10 @@ function OutcomeMark({ outcome }: { outcome: ClubNoticeOutcome }) {
   );
 }
 
-export function ClubBoardScreen({
-  clubId,
-  canPost,
-  isPl,
-}: {
-  clubId: string;
-  canPost: boolean;
-  isPl: boolean;
-}) {
-  const { t } = useTranslation();
+export function ClubBoardScreen({ clubId, canPost }: { clubId: string; canPost: boolean }) {
+  const { t, i18n } = useTranslation();
   const { topics } = useClubTopics();
-  const lang = isPl ? "pl" : "en";
+  const lang = uiLang(i18n.language);
 
   const [scope, setScope] = useState<ClubBoardScope>("open");
   const [kind, setKind] = useState<ClubNoticeKind | null>(null);

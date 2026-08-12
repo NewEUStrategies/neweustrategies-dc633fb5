@@ -43,8 +43,9 @@ import { useClubRosterSignal } from "@/lib/clubs/useClubNetwork";
 import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
 import { fetchClubBySlug } from "@/lib/clubs/api";
 import { clubKeys } from "@/lib/clubs/queryKeys";
-import { formatDateShort, formatNumber, uiLocale } from "@/lib/i18n/format";
+import { formatDateShort, formatNumber, uiLang, uiLocale } from "@/lib/i18n/format";
 import { ensureClubI18n } from "@/lib/i18n-club";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 
 const PAGE_SIZE = 60;
 
@@ -78,8 +79,7 @@ export const Route = createFileRoute("/club/$clubSlug/members")({
 function ClubMembersRoute() {
   ensureClubI18n();
   const { t, i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
-  const lang = isPl ? "pl" : "en";
+  const lang = uiLang(i18n.language);
   const locale = uiLocale(i18n.language);
   const { clubSlug } = Route.useParams();
 
@@ -159,7 +159,7 @@ function ClubMembersRoute() {
       <Button asChild variant="ghost" size="sm" className="-ml-2 mb-3 h-8 px-2">
         <Link to="/club/$clubSlug" params={{ clubSlug }}>
           <ArrowLeft className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-          {isPl ? club.name_pl : club.name_en}
+          {pickLocalized(club, "name", lang)}
         </Link>
       </Button>
 

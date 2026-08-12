@@ -6,6 +6,7 @@
 // do strony sprzedażowej obszaru, dla zalogowanego - do tej samej strony,
 // która pod opisem wypisuje realne kluby (licznik na kaflu mówi ile).
 import { Link } from "@tanstack/react-router";
+import { uiLang } from "@/lib/i18n/format";
 import { useTranslation } from "react-i18next";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,13 +19,13 @@ import { CLUB_HUB_ANCHORS } from "@/components/clubs/organisms/ClubHubHero";
 
 export function ClubSpecializationGrid({ signedIn = false }: { signedIn?: boolean }) {
   const { t, i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  const lang = uiLang(i18n.language);
   const listQ = useClubSpecializations();
 
   const rows = listQ.data ?? [];
   const specs = buildSpecializationViews(
     rows.length > 0 ? rows : fallbackSpecializationSources(),
-    isPl,
+    lang,
     (key) => t(key),
   );
 

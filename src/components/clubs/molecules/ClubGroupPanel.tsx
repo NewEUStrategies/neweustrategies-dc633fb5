@@ -9,6 +9,7 @@
 // Akcent działu wchodzi delikatnie: cienki pasek u góry i 8-procentowa
 // podkładka nagłówka. Reszta karty zostaje w tokenach serwisu.
 import { useTranslation } from "react-i18next";
+import { uiLang } from "@/lib/i18n/format";
 import { FileText, MessagesSquare, Network, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HUB_SURFACE } from "@/components/clubs/atoms/ClubHubPrimitives";
@@ -43,27 +44,26 @@ export function ClubGroupPanel({
   node,
   path,
   documentCount,
-  isPl,
   onGroupChange,
   className,
 }: {
   node: ClubGroupNode;
   path: readonly ClubGroupNode[];
   documentCount: number;
-  isPl: boolean;
   onGroupChange: (groupId: string | null) => void;
   className?: string;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const { group, depth, children, totalThreads } = node;
-  const description = clubGroupDescription(group, isPl);
+  const description = clubGroupDescription(group, lang);
   const ancestors = path.slice(0, -1);
 
   return (
     <section
       style={clubGroupAccentVars(group.accent_color)}
       className={cn(HUB_SURFACE, "overflow-hidden", className)}
-      aria-label={clubGroupName(group, isPl)}
+      aria-label={clubGroupName(group, lang)}
     >
       <div className="h-0.5 w-full bg-[color-mix(in_oklab,var(--club-accent)_65%,transparent)]" />
       <div className={cn("space-y-2.5 p-3", CLUB_GROUP_TINT, "border-0")}>
@@ -86,13 +86,13 @@ export function ClubGroupPanel({
                     onClick={() => onGroupChange(parent.group.id)}
                     className="rounded-lg hover:text-foreground hover:underline"
                   >
-                    {clubGroupName(parent.group, isPl)}
+                    {clubGroupName(parent.group, lang)}
                   </button>
                 ))}
               </nav>
             ) : null}
             <h2 className="truncate text-base font-semibold leading-tight sm:text-lg">
-              {clubGroupName(group, isPl)}
+              {clubGroupName(group, lang)}
             </h2>
             {description !== "" ? (
               <p className="mt-1 line-clamp-2 text-xs text-muted-foreground sm:text-sm">
@@ -141,7 +141,7 @@ export function ClubGroupPanel({
                     depth={child.depth}
                     className="h-3.5 w-3.5"
                   />
-                  {clubGroupName(child.group, isPl)}
+                  {clubGroupName(child.group, lang)}
                   <span className="tabular-nums text-muted-foreground">{child.totalThreads}</span>
                 </button>
               ))}

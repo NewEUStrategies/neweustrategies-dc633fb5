@@ -11,7 +11,7 @@ import { useTranslation } from "react-i18next";
 import { ExternalLink, Pencil, Star, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ClubDocumentIcon } from "@/components/clubs/atoms/ClubEntryIcon";
-import { formatDateShort } from "@/lib/i18n/format";
+import { formatDateShort, formatNumber } from "@/lib/i18n/format";
 import { toClubDocumentKind, type ClubThreadDocumentRow } from "@/lib/clubs/workspaceTypes";
 
 /** Rozmiar pliku dla człowieka. Zwraca `null`, gdy baza go nie zna - "0 B"
@@ -26,7 +26,7 @@ export function formatBytes(bytes: number | null, lang: string): string | null {
     unit += 1;
   }
   const rounded = unit === 0 ? Math.round(value) : Math.round(value * 10) / 10;
-  return `${rounded.toLocaleString(lang === "pl" ? "pl-PL" : "en-GB")} ${units[unit]}`;
+  return `${formatNumber(rounded, lang)} ${units[unit]}`;
 }
 
 export function ClubDocumentRow({

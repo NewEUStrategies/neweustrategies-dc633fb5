@@ -68,7 +68,8 @@ import { ClubPostCard } from "@/components/clubs/organisms/ClubPostCard";
 import type { ClubFeedEntry } from "@/lib/clubs/clubFeed";
 import { clubSourceOf, type ClubSourceMark } from "@/lib/clubs/threadSources";
 import type { ClubTopicOption } from "@/lib/clubs/topicCatalog";
-import { formatDate, formatDateTime, formatDateShort } from "@/lib/i18n/format";
+import { formatDate, formatDateShort, formatDateTime, uiLang } from "@/lib/i18n/format";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 
 /** Stała pusta mapa - literał w domyślnej wartości propa tworzyłby NOWĄ mapę
  *  przy każdym renderze i psuł memoizację kart. */
@@ -79,7 +80,6 @@ const EMPTY_TOPICS: readonly ClubTopicOption[] = [];
 function ThreadCard({
   thread,
   clubSlug,
-  isPl,
   sourceIndex,
   activeGroupId,
   onSourceSelect,
@@ -94,7 +94,6 @@ function ThreadCard({
 }: {
   thread: ClubThreadListRow;
   clubSlug: string;
-  isPl: boolean;
   sourceIndex: ReadonlyMap<string, ClubSourceMark>;
   activeGroupId: string | null;
   onSourceSelect?: (groupId: string | null) => void;
@@ -108,11 +107,11 @@ function ThreadCard({
   canReact?: boolean;
   onReact?: (targetId: string, kind: ClubReactionKind, active: boolean) => void;
 }) {
-  const { t } = useTranslation();
-  const lang = isPl ? "pl" : "en";
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const author = toAuthorLabel(thread, t("club.anonymousAuthor"), t("club.deletedAuthor"));
   const stamp = thread.last_reply_at ?? thread.created_at;
-  const source = clubSourceOf(thread, sourceIndex, isPl);
+  const source = clubSourceOf(thread, sourceIndex, lang);
   // Normalizacja przy ODCZYCIE: wiersze sprzed katalogu ikon mogą nieść nazwę
   // spoza zestawu kurowanego, a taka dociągałaby pełny rejestr lucide do
   // chunku strumienia - degradujemy ją do braku ikony.
@@ -233,11 +232,11 @@ function ThreadCard({
   );
 }
 
-function EventCard({ event, isPl }: { event: ClubEventRow; isPl: boolean }) {
-  const { t } = useTranslation();
-  const lang = isPl ? "pl" : "en";
+function EventCard({ event }: { event: ClubEventRow }) {
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const kind = toEventKind(event.kind);
-  const description = isPl ? event.description_pl : event.description_en;
+  const description = pickLocalized(event, "description", lang);
 
   return (
     <ClubDossierRow
@@ -269,7 +268,7 @@ function EventCard({ event, isPl }: { event: ClubEventRow; isPl: boolean }) {
       title={
         <h3>
           <ClubInlineTitle tone="event" size="sm">
-            {isPl ? event.title_pl : event.title_en}
+            {pickLocalized(event, "title", lang)}
           </ClubInlineTitle>
         </h3>
       }
@@ -280,16 +279,15 @@ function EventCard({ event, isPl }: { event: ClubEventRow; isPl: boolean }) {
 
 function DocumentsCard({
   documents,
-  isPl,
   single,
 }: {
   documents: readonly ClubDocumentRow[];
-  isPl: boolean;
   single: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const first = documents[0];
-  const summary = first === undefined ? null : isPl ? first.summary_pl : first.summary_en;
+  const summary = first === undefined ? null : pickLocalized(first, "summary", lang);
 
   return (
     <ClubDossierRow
@@ -321,7 +319,7 @@ function DocumentsCard({
                 />
                 <span className="min-w-0 flex-1">
                   <ClubInlineTitle tone="document" size="sm">
-                    {isPl ? document.title_pl : document.title_en}
+                    {pickLocalized(document, "title", lang)}
                   </ClubInlineTitle>
                 </span>
                 {href !== null ? (
@@ -357,19 +355,11 @@ function DocumentsCard({
   );
 }
 
-function MilestoneCard({
-  milestone,
-  clubSlug,
-  isPl,
-}: {
-  milestone: ClubMilestoneRow;
-  clubSlug: string;
-  isPl: boolean;
-}) {
-  const { t } = useTranslation();
-  const lang = isPl ? "pl" : "en";
+function MilestoneCard({ milestone, clubSlug }: { milestone: ClubMilestoneRow; clubSlug: string }) {
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const state = toMilestoneState(milestone.state);
-  const description = isPl ? milestone.description_pl : milestone.description_en;
+  const description = pickLocalized(milestone, "description", lang);
 
   return (
     <ClubDossierRow
@@ -393,7 +383,7 @@ function MilestoneCard({
       title={
         <h3>
           <ClubInlineTitle tone="milestone" size="sm">
-            {isPl ? milestone.title_pl : milestone.title_en}
+            {pickLocalized(milestone, "title", lang)}
           </ClubInlineTitle>
         </h3>
       }
@@ -413,7 +403,6 @@ function MilestoneCard({
 export function ClubFeedItem({
   entry,
   clubSlug,
-  isPl,
   mediaUrls = {},
   sourceIndex = EMPTY_SOURCES,
   activeGroupId = null,
@@ -431,7 +420,6 @@ export function ClubFeedItem({
 }: {
   entry: ClubFeedEntry;
   clubSlug: string;
-  isPl: boolean;
   /** Podpisane adresy plików wpisów - jedno zapytanie na cały strumień. */
   mediaUrls?: Record<string, string>;
   /** Kolory i ikony działów - budowane RAZ nad listą, nie per karta. */
@@ -457,7 +445,6 @@ export function ClubFeedItem({
       <ThreadCard
         thread={entry.thread}
         clubSlug={clubSlug}
-        isPl={isPl}
         sourceIndex={sourceIndex}
         activeGroupId={activeGroupId}
         onSourceSelect={onSourceSelect}
@@ -477,7 +464,6 @@ export function ClubFeedItem({
       <ClubPostCard
         post={entry.post}
         clubSlug={clubSlug}
-        isPl={isPl}
         mediaUrls={mediaUrls}
         sourceIndex={sourceIndex}
         activeGroupId={activeGroupId}
@@ -489,12 +475,10 @@ export function ClubFeedItem({
     );
   }
   if (entry.kind === "event") {
-    return <EventCard event={entry.event} isPl={isPl} />;
+    return <EventCard event={entry.event} />;
   }
   if (entry.kind === "milestone") {
-    return <MilestoneCard milestone={entry.milestone} clubSlug={clubSlug} isPl={isPl} />;
+    return <MilestoneCard milestone={entry.milestone} clubSlug={clubSlug} />;
   }
-  return (
-    <DocumentsCard documents={entry.documents} isPl={isPl} single={entry.documents.length === 1} />
-  );
+  return <DocumentsCard documents={entry.documents} single={entry.documents.length === 1} />;
 }

@@ -13,6 +13,7 @@
 // obecności, w katalogu - „poproś o zdanie", a w składzie nic. Karta nie ma
 // powodu wiedzieć, która z tych rzeczy jest na ekranie.
 import type { ReactNode } from "react";
+import { uiLang } from "@/lib/i18n/format";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
@@ -40,7 +41,6 @@ export function ClubPersonCard({
   role,
   topics,
   topicCatalog,
-  isPl,
   active = false,
   meta,
   actions,
@@ -54,7 +54,6 @@ export function ClubPersonCard({
   role?: string | null;
   topics?: readonly string[];
   topicCatalog?: readonly ClubTopicOption[];
-  isPl: boolean;
   /** Odezwał się w ostatniej dobie - kropka przy awatarze. */
   active?: boolean;
   /** Linijka pod stanowiskiem: dorobek, data dołączenia, stan obecności. */
@@ -62,7 +61,8 @@ export function ClubPersonCard({
   actions?: ReactNode;
   className?: string;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const normalizedRole = role === null || role === undefined ? null : asRole(role);
 
   return (
@@ -101,10 +101,7 @@ export function ClubPersonCard({
         {topics !== undefined && topics.length > 0 ? (
           <div className="mt-1.5 flex flex-wrap gap-1">
             {topics.slice(0, 4).map((topic) => (
-              <ClubExpertiseChip
-                key={topic}
-                label={topicLabel(topic, isPl ? "pl" : "en", topicCatalog ?? [])}
-              />
+              <ClubExpertiseChip key={topic} label={topicLabel(topic, lang, topicCatalog ?? [])} />
             ))}
             {topics.length > 4 ? (
               <span className="text-[10px] tabular-nums text-muted-foreground">

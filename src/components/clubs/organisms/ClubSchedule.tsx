@@ -27,7 +27,8 @@ import {
 } from "@/components/clubs/atoms/ClubWorkspaceBadges";
 import { ClubScheduleSkeleton } from "@/components/clubs/atoms/ClubWorkspaceSkeletons";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
-import { formatDate } from "@/lib/i18n/format";
+import { formatDate, uiLang } from "@/lib/i18n/format";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 
 /** Dzisiaj jako `YYYY-MM-DD` w czasie LOKALNYM - `due_on` jest datą bez strefy,
  *  więc porównanie z `toISOString()` przesuwałoby granicę doby. */
@@ -41,22 +42,20 @@ function localToday(): string {
 function MilestoneItem({
   row,
   clubSlug,
-  isPl,
   today,
   last,
 }: {
   row: ClubMilestoneRow;
   clubSlug: string;
-  isPl: boolean;
   today: string;
   last: boolean;
 }) {
-  const { t } = useTranslation();
-  const lang = isPl ? "pl" : "en";
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const state = toMilestoneState(row.state);
   const overdue = isMilestoneOverdue(row, today);
-  const title = isPl ? row.title_pl : row.title_en;
-  const description = isPl ? row.description_pl : row.description_en;
+  const title = pickLocalized(row, "title", lang);
+  const description = pickLocalized(row, "description", lang);
 
   const range = (() => {
     const opts = { day: "numeric", month: "short", year: "numeric" } as const;
@@ -147,7 +146,7 @@ function MilestoneItem({
 
 export function ClubSchedule({ clubId, clubSlug }: { clubId: string; clubSlug: string }) {
   const { t, i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  const lang = uiLang(i18n.language);
   const milestonesQ = useClubMilestones(clubId);
   const rows = useMemo(() => milestonesQ.data ?? [], [milestonesQ.data]);
   const today = localToday();
@@ -192,7 +191,6 @@ export function ClubSchedule({ clubId, clubSlug }: { clubId: string; clubSlug: s
             key={row.id}
             row={row}
             clubSlug={clubSlug}
-            isPl={isPl}
             today={today}
             last={index === rows.length - 1}
           />

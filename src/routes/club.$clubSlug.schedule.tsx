@@ -32,14 +32,12 @@ export const Route = createFileRoute("/club/$clubSlug/schedule")({
 
 function ClubScheduleRoute() {
   ensureClubI18n();
-  const { t, i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  const { t } = useTranslation();
   const { clubSlug } = Route.useParams();
 
   return (
     <ClubWorkspaceLayout
       clubSlug={clubSlug}
-      isPl={isPl}
       title={t("club.schedule.title")}
       lead={t("club.schedule.lead")}
     >

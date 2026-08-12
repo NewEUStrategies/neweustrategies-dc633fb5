@@ -185,8 +185,11 @@ export interface ClubKindSlice {
 
 export interface ClubGroupSlice {
   id: string;
-  namePl: string;
-  nameEn: string;
+  // Blizniacze kolumny trzymaja nazwe `_pl`/`_en` (a nie `namePl`/`nameEn`),
+  // zeby dzialal na nich kanoniczny `pickLocalized` - inaczej ten jeden
+  // przekroj wymagalby wlasnego wyboru jezyka, czyli kolejnej kopii reguly.
+  name_pl: string;
+  name_en: string;
   count: number;
 }
 
@@ -235,8 +238,8 @@ export function parseGroupBreakdown(value: Json): ClubGroupSlice[] {
     if (id === null) return null;
     return {
       id,
-      namePl: toText(entry["name_pl"]) ?? "",
-      nameEn: toText(entry["name_en"]) ?? "",
+      name_pl: toText(entry["name_pl"]) ?? "",
+      name_en: toText(entry["name_en"]) ?? "",
       count: toCount(entry["count"]),
     };
   });

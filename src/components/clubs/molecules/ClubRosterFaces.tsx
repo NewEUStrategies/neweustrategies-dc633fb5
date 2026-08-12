@@ -33,7 +33,7 @@ import {
 } from "@/lib/clubs/networkTypes";
 import { topicLabel, type ClubTopicOption } from "@/lib/clubs/topicCatalog";
 import { CLUB_MEMBER_ROLES, type ClubMemberRole } from "@/lib/clubs/types";
-import { formatDateShort } from "@/lib/i18n/format";
+import { formatDateShort, uiLang } from "@/lib/i18n/format";
 
 // Jeden kształt wyzwalacza dla obu wariantów - link do profilu i przycisk
 // odsłaniający plakietkę mają wyglądać identycznie, bo to jest ten sam awatar
@@ -51,18 +51,16 @@ function asRole(value: string): ClubMemberRole {
 
 export function ClubRosterFaces({
   faces,
-  isPl,
   topicCatalog,
   className,
 }: {
   /** PULA z bazy, nie lista do pokazania - rotacja wybiera z niej sześć. */
   faces: readonly ClubRosterFace[];
-  isPl: boolean;
   topicCatalog: readonly ClubTopicOption[];
   className?: string;
 }) {
-  const { t } = useTranslation();
-  const lang = isPl ? "pl" : "en";
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const [tick] = useState(() => rosterRotationTick(Date.now()));
   const shown = rotateRosterFaces(faces, CLUB_ROSTER_FACE_SLOTS, tick);
   if (shown.length === 0) return null;

@@ -7,6 +7,7 @@
 // i etykiety - żeby chip w hubie, w klubie i w wątku mówił to samo.
 
 import { areaLabel } from "@/lib/tracker/stages";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 
 /** Wiersz katalogu widoczny publicznie (RPC `club_topics_active`). */
 export interface ClubTopicOption {
@@ -87,7 +88,9 @@ export function topicLabel(
   if (trimmed === "") return "";
   const hit =
     catalog.find((o) => o.key === trimmed) ?? CLUB_TOPIC_FALLBACK.find((o) => o.key === trimmed);
-  if (hit !== undefined) return lang === "pl" ? hit.label_pl : hit.label_en;
+  // `pickLocalized`, nie recznie: obszar dodany z panelu i opisany tylko
+  // po jednemu renderowal drugiemu jezykowi PUSTA plakietke obok tematu.
+  if (hit !== undefined) return pickLocalized(hit, "label", lang);
   return areaLabel(trimmed, lang);
 }
 

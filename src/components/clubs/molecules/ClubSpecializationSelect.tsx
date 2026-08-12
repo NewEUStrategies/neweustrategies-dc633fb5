@@ -5,6 +5,7 @@
 // "bez specjalizacji" zostaje, bo klub roboczy nie musi mieć jeszcze obszaru;
 // taki klub po prostu nie pojawi się na żadnej stronie specjalizacji.
 import { useTranslation } from "react-i18next";
+import { uiLang } from "@/lib/i18n/format";
 import {
   Select,
   SelectContent,
@@ -37,12 +38,12 @@ export function ClubSpecializationSelect({
   disabled?: boolean;
 }) {
   const { t, i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  const lang = uiLang(i18n.language);
   const listQ = useClubSpecializations();
   const rows = listQ.data ?? [];
   const options = buildSpecializationViews(
     rows.length > 0 ? rows : fallbackSpecializationSources(),
-    isPl,
+    lang,
     (key) => t(key),
   );
   const current = value !== null && value.trim().length > 0 ? value : NONE;

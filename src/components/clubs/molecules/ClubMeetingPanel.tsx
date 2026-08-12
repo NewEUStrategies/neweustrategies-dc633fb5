@@ -17,6 +17,7 @@
 // stan, a nie awaria: "siedem osób potwierdziło" nadal jest powodem, żeby
 // przyjść.
 import { useState } from "react";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
@@ -35,7 +36,7 @@ import {
   useUpsertClubEvent,
 } from "@/lib/clubs/useClubWorkspace";
 import { toEventKind, type ClubEventRow, type ClubRsvpState } from "@/lib/clubs/workspaceTypes";
-import { formatDate } from "@/lib/i18n/format";
+import { formatDate, uiLang } from "@/lib/i18n/format";
 import { MoreLink } from "@/components/clubs/molecules/ClubHubContext";
 import { ClubEventForm } from "@/components/clubs/molecules/ClubEventForm";
 import {
@@ -61,7 +62,7 @@ function RsvpControls({
   eventId: string;
   current: string | null;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const rsvp = useClubEventRsvp(clubId);
 
   return (
@@ -111,7 +112,6 @@ export function ClubMeetingPanel({
   canSeeMembers,
   canRsvp,
   canManage = false,
-  isPl,
 }: {
   clubSlug: string;
   clubId: string;
@@ -120,10 +120,9 @@ export function ClubMeetingPanel({
   canRsvp: boolean;
   /** Kurator klubu: tworzy, redaguje i usuwa terminy wprost z szyny. */
   canManage?: boolean;
-  isPl: boolean;
 }) {
-  const { t } = useTranslation();
-  const lang = isPl ? "pl" : "en";
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const next = events[0] ?? null;
   const later = events.slice(1, 3);
 
@@ -238,7 +237,7 @@ export function ClubMeetingPanel({
             params={{ clubSlug, eventSlug: next.slug }}
             className="text-sm font-medium leading-tight hover:text-primary"
           >
-            {isPl ? next.title_pl : next.title_en}
+            {pickLocalized(next, "title", lang)}
           </Link>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
             {formatDate(next.starts_at, lang, {
@@ -346,7 +345,7 @@ export function ClubMeetingPanel({
                 params={{ clubSlug, eventSlug: event.slug }}
                 className="truncate text-muted-foreground hover:text-primary"
               >
-                {isPl ? event.title_pl : event.title_en}
+                {pickLocalized(event, "title", lang)}
               </Link>
               <span className="shrink-0 tabular-nums text-muted-foreground">
                 {formatDate(event.starts_at, lang, { day: "numeric", month: "short" })}
@@ -365,7 +364,7 @@ export function ClubMeetingPanel({
               <AlertDialogTitle>{t("club.eventForm.deleteTitle")}</AlertDialogTitle>
               <AlertDialogDescription>
                 {t("club.eventForm.deleteLead", {
-                  title: isPl ? next.title_pl : next.title_en,
+                  title: pickLocalized(next, "title", lang),
                 })}
               </AlertDialogDescription>
             </AlertDialogHeader>

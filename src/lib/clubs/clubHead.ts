@@ -25,6 +25,7 @@
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead, type Lang } from "@/lib/seo/meta";
+import { pickPair } from "@/lib/i18n/pickLocalized";
 
 /** Minimum, ktorego head() potrzebuje z karty klubu. Swiadomie waskie: loader
  *  ma dowiezc cztery pola, a nie caly wiersz - im mniej, tym mniejsza szansa,
@@ -66,9 +67,15 @@ export function isClubIndexable(source: ClubHeadSource | null): boolean {
   return source?.visibility === "public";
 }
 
+/**
+ * Wybor jezyka dla naglowka SEO. Polityka pustki idzie przez kanoniczny
+ * `pickPair`, nie przez wlasne `??`: dawna wersja uznawala ciag SAMYCH SPACJI
+ * za obecny, wiec klub z nazwa "   " dawal w tytule strony pusty ciag,
+ * a stad `FALLBACK_TITLE` ("Klub dyskusyjny") zamiast nazwy w drugim jezyku.
+ * `trim` zostaje, bo tytul i opis strony nie moga miec brzegowych spacji.
+ */
 function pick(lang: Lang, pl: string | null, en: string | null): string {
-  const value = lang === "en" ? (en ?? pl) : (pl ?? en);
-  return (value ?? "").trim();
+  return (lang === "en" ? pickPair(en, pl) : pickPair(pl, en)).trim();
 }
 
 const FALLBACK_TITLE: Record<Lang, string> = {

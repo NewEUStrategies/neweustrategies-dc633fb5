@@ -20,6 +20,7 @@ import { useClubLinkPreview } from "@/lib/clubs/useClubLinkPreview";
 import { useMentionProfile } from "@/lib/mentions/useMentionProfile";
 import { ensureClubI18n } from "@/lib/i18n-club";
 import { cn } from "@/lib/utils";
+import { uiLang } from "@/lib/i18n/format";
 
 ensureClubI18n();
 
@@ -32,7 +33,7 @@ function hostOf(href: string): string {
 }
 
 function LinkSegment({ href, raw }: { href: string; raw: string }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [open, setOpen] = useState(false);
   const preview = useClubLinkPreview(href, open);
   const data = preview.data ?? null;
@@ -98,7 +99,7 @@ export function MentionSegment({
   className?: string;
 }) {
   const { t, i18n } = useTranslation();
-  const lang = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
+  const lang = uiLang(i18n.language);
   const [open, setOpen] = useState(false);
   const profile = useMentionProfile(slug, lang, open);
   const person = profile.data ?? null;

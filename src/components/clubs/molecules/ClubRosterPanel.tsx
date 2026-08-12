@@ -39,7 +39,7 @@ import {
 } from "@/lib/clubs/useClubNetwork";
 import { hasRosterContent, CLUB_EXPERTISE_MAX } from "@/lib/clubs/networkTypes";
 import { sortTopics, topicLabel } from "@/lib/clubs/topicCatalog";
-import { formatNumber } from "@/lib/i18n/format";
+import { formatNumber, uiLang } from "@/lib/i18n/format";
 
 /**
  * Deklaracja kompetencji - lista przełączników z katalogu obszarów klubu.
@@ -51,17 +51,16 @@ import { formatNumber } from "@/lib/i18n/format";
  */
 export function ClubExpertiseEditor({
   clubId,
-  isPl,
   onDone,
   variant = "rail",
 }: {
   clubId: string;
-  isPl: boolean;
   /** Brak `onDone` znaczy "formularz jest częścią ekranu" - nie ma czego zamknąć. */
   onDone?: () => void;
   variant?: "rail" | "page";
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const { topics } = useClubTopics();
   const mineQ = useMyClubExpertise(clubId);
   const save = useSetMyClubExpertise(clubId);
@@ -122,7 +121,7 @@ export function ClubExpertiseEditor({
               )}
             >
               {active ? <Check className="h-3 w-3 shrink-0" aria-hidden="true" /> : null}
-              {topicLabel(option.key, isPl ? "pl" : "en", options)}
+              {topicLabel(option.key, lang, options)}
             </button>
           );
         })}
@@ -170,7 +169,6 @@ export function ClubRosterPanel({
   clubId,
   canSeeMembers,
   canDeclare,
-  isPl,
   locale,
 }: {
   clubSlug: string;
@@ -178,10 +176,9 @@ export function ClubRosterPanel({
   canSeeMembers: boolean;
   /** Deklarować kompetencję może ten, kto w klubie jest - nie każdy widz. */
   canDeclare: boolean;
-  isPl: boolean;
   locale: string;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { topics } = useClubTopics();
   const [editing, setEditing] = useState(false);
   const query = useClubRosterSignal({ clubId });
@@ -207,14 +204,12 @@ export function ClubRosterPanel({
         ) : undefined
       }
     >
-      {editing ? (
-        <ClubExpertiseEditor clubId={clubId} isPl={isPl} onDone={() => setEditing(false)} />
-      ) : null}
+      {editing ? <ClubExpertiseEditor clubId={clubId} onDone={() => setEditing(false)} /> : null}
 
       {/* Twarze STOJĄ NAD LICZBAMI, bo odpowiadają na pierwsze pytanie
           ("kto tu jest"), a liczby na drugie ("ilu ich jest"). Odwrotna
           kolejność robiła z modułu licznik z ilustracją. */}
-      <ClubRosterFaces faces={signal.faces} isPl={isPl} topicCatalog={topics} className="mb-3" />
+      <ClubRosterFaces faces={signal.faces} topicCatalog={topics} className="mb-3" />
 
       <div className="grid grid-cols-3 gap-2">
         <ClubSignalMetric

@@ -22,21 +22,20 @@ import { groupMyClubs, shouldTabMyClubs } from "@/lib/clubs/myClubGroups";
 import { topicLabel } from "@/lib/clubs/topicCatalog";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import type { ClubLayout } from "@/lib/clubs/types";
+import { uiLang } from "@/lib/i18n/format";
 
 export function MyClubsTabs({
   clubs,
-  isPl,
   loading,
   layout,
 }: {
   clubs: readonly ClubDirectoryCard[];
-  isPl: boolean;
   loading: boolean;
   layout: ClubLayout;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { topics: catalog } = useClubTopics();
-  const lang = isPl ? "pl" : "en";
+  const lang = uiLang(i18n.language);
 
   const groups = useMemo(() => groupMyClubs(clubs), [clubs]);
   const tabbed = shouldTabMyClubs(groups);
@@ -96,7 +95,6 @@ export function MyClubsTabs({
         title={t("club.myClubs")}
         empty={t("club.empty")}
         clubs={visible}
-        isPl={isPl}
         loading={loading}
         layout={layout}
       />

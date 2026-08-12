@@ -37,22 +37,21 @@ import { DirectMessageButton } from "@/components/network/DirectMessageButton";
 import { useClubThreadExperts, usePingClubThreadExpert } from "@/lib/clubs/useClubNetwork";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import { topicLabel } from "@/lib/clubs/topicCatalog";
+import { uiLang } from "@/lib/i18n/format";
 
 export function ClubThreadExpertsPanel({
   threadId,
-  isPl,
   canAsk,
   className,
 }: {
   threadId: string;
-  isPl: boolean;
   /** Prosić o zdanie może ten, kto sam może się w tym wątku odezwać. */
   canAsk: boolean;
   className?: string;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { topics } = useClubTopics();
-  const lang = isPl ? "pl" : "en";
+  const lang = uiLang(i18n.language);
   const query = useClubThreadExperts({ threadId });
   const ping = usePingClubThreadExpert(threadId);
 

@@ -26,6 +26,8 @@ import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
 import { fetchClubBySlug } from "@/lib/clubs/api";
 import { clubKeys } from "@/lib/clubs/queryKeys";
 import { ensureClubI18n } from "@/lib/i18n-club";
+import { uiLang } from "@/lib/i18n/format";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 
 export const Route = createFileRoute("/club/$clubSlug/about")({
   loader: async ({ context, params }) => {
@@ -48,7 +50,7 @@ export const Route = createFileRoute("/club/$clubSlug/about")({
 function ClubAbout() {
   ensureClubI18n();
   const { t, i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  const lang = uiLang(i18n.language);
   const { clubSlug } = Route.useParams();
   const { session } = useAuth();
 
@@ -95,19 +97,19 @@ function ClubAbout() {
   }
 
   const isMember = club.my_status === "active";
-  const rules = isPl ? club.rules_pl : club.rules_en;
-  const description = isPl ? club.description_pl : club.description_en;
+  const rules = pickLocalized(club, "rules", lang);
+  const description = pickLocalized(club, "description", lang);
 
   return (
     <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-8">
       <Button asChild variant="ghost" size="sm" className="-ml-2 mb-3 h-8 px-2">
         <Link to="/club/$clubSlug" params={{ clubSlug }}>
           <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
-          {isPl ? club.name_pl : club.name_en}
+          {pickLocalized(club, "name", lang)}
         </Link>
       </Button>
 
-      <h1 className="text-3xl font-semibold">{isPl ? club.name_pl : club.name_en}</h1>
+      <h1 className="text-3xl font-semibold">{pickLocalized(club, "name", lang)}</h1>
 
       <div className="mt-3 flex flex-wrap gap-2">
         <Badge variant="outline">{t(`club.visibility.${club.visibility}`)}</Badge>

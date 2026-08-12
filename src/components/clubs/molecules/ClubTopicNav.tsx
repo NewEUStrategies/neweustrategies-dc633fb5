@@ -7,6 +7,7 @@
 // Wyglad chipa pochodzi z atomu `ClubTopicChip` - ten sam ksztalt, ta sama
 // skala i te same kolory co chipy w klubie i w watku.
 import { useMemo } from "react";
+import { uiLang } from "@/lib/i18n/format";
 import { useTranslation } from "react-i18next";
 import { topicLabel } from "@/lib/clubs/topicCatalog";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
@@ -17,14 +18,12 @@ export function ClubTopicNav({
   clubs,
   value,
   onChange,
-  isPl,
 }: {
   clubs: readonly { policy_area: string | null }[];
   value: string | null;
   onChange: (area: string | null) => void;
-  isPl: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { topics: catalog } = useClubTopics();
   const topics = useMemo(() => countClubTopics(clubs), [clubs]);
 
@@ -32,7 +31,7 @@ export function ClubTopicNav({
   // zabiera miejsce nad trescia.
   if (topics.length < 2) return null;
 
-  const lang = isPl ? "pl" : "en";
+  const lang = uiLang(i18n.language);
 
   return (
     <nav aria-label={t("club.hub.topicsLabel")} className="-mx-4 overflow-x-auto px-4 pb-1">

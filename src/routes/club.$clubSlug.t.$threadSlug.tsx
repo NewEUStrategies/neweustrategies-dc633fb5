@@ -29,6 +29,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
@@ -198,7 +199,6 @@ function ClubThreadView() {
   ensureClubI18n();
   const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = (i18n.language ?? "pl").startsWith("pl") ? "pl" : "en";
-  const isPl = lang === "pl";
   const { clubSlug, threadSlug } = Route.useParams();
   const { reply: replyIntent } = Route.useSearch();
   const { user } = useAuth();
@@ -335,7 +335,7 @@ function ClubThreadView() {
             <p className="text-sm text-muted-foreground">{t("club.reason.not_found")}</p>
             <Button asChild variant="outline" size="sm">
               <Link to="/club/$clubSlug" params={{ clubSlug }}>
-                {isPl ? (club?.name_pl ?? t("club.title")) : (club?.name_en ?? t("club.title"))}
+                {pickLocalized(club, "name", lang, t("club.title"))}
               </Link>
             </Button>
           </CardContent>
@@ -430,7 +430,7 @@ function ClubThreadView() {
       <Button asChild variant="ghost" size="sm" className="-ml-2 mb-3 h-8 px-2">
         <Link to="/club/$clubSlug" params={{ clubSlug }}>
           <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
-          {isPl ? club.name_pl : club.name_en}
+          {pickLocalized(club, "name", lang)}
         </Link>
       </Button>
 
@@ -479,12 +479,7 @@ function ClubThreadView() {
                 </Badge>
               ) : null}
               {/* Obszar tematyczny wątku - ten sam chip co na hubie i w klubie. */}
-              <ClubTopicChip
-                topic={thread.topic}
-                lang={isPl ? "pl" : "en"}
-                catalog={topicCatalog}
-                size="sm"
-              />
+              <ClubTopicChip topic={thread.topic} lang={lang} catalog={topicCatalog} size="sm" />
               {thread.anchor_type !== null ? (
                 <Badge variant="secondary" className="gap-1 text-[10px]">
                   <Link2 className="h-3 w-3" aria-hidden="true" />
@@ -634,12 +629,7 @@ function ClubThreadView() {
           więc placeholder w jego miejscu obiecywałby treść, której często nie
           będzie, i rozpychałby dyskusję przy każdym wejściu w wątek. */}
         <Suspense fallback={null}>
-          <ClubThreadExpertsPanel
-            threadId={thread.id}
-            isPl={isPl}
-            canAsk={thread.can_reply}
-            className="mt-4"
-          />
+          <ClubThreadExpertsPanel threadId={thread.id} canAsk={thread.can_reply} className="mt-4" />
         </Suspense>
 
         {/* --- odpowiedzi --- */}

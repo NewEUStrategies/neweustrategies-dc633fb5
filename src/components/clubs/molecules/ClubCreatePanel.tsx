@@ -12,12 +12,14 @@
 // Tutaj wskazuje się cel - istniejący wątek albo dział klubu - i rodzaj
 // wypowiedzi; reszta jedzie parametrami adresu.
 import { useMemo, useState } from "react";
+import { uiLang } from "@/lib/i18n/format";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { HelpCircle, MessageSquarePlus, PenLine, Scale, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HUB_SURFACE } from "@/components/clubs/atoms/ClubHubPrimitives";
 import { ClubPostComposer } from "@/components/clubs/molecules/ClubPostComposer";
+import { clubGroupName } from "@/components/clubs/molecules/ClubGroupTree";
 import {
   Select,
   SelectContent,
@@ -40,10 +42,6 @@ const THREAD_PREFIX = "t:";
 
 type CreateTab = "post" | "thread";
 
-function groupName(group: ClubGroupRow, isPl: boolean): string {
-  return isPl ? group.name_pl : group.name_en || group.name_pl;
-}
-
 export function ClubCreatePanel({
   clubSlug,
   clubId,
@@ -53,7 +51,6 @@ export function ClubCreatePanel({
   canPost,
   canPostThread,
   whoCanPost,
-  isPl,
   className,
 }: {
   clubSlug: string;
@@ -66,10 +63,10 @@ export function ClubCreatePanel({
   canPostThread: boolean;
   /** Z `clubs.who_can_post` - zdanie o tym, kto zakłada tematy w tym klubie. */
   whoCanPost: string;
-  isPl: boolean;
   className?: string;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const [tab, setTab] = useState<CreateTab>(canPost ? "post" : "thread");
   const [kind, setKind] = useState<ClubThreadKind>("discussion");
   const [target, setTarget] = useState<string>(
@@ -155,7 +152,7 @@ export function ClubCreatePanel({
                 ) : null}
                 {postableGroups.map((group) => (
                   <SelectItem key={group.id} value={`${GROUP_PREFIX}${group.id}`}>
-                    {groupName(group, isPl)}
+                    {clubGroupName(group, lang)}
                   </SelectItem>
                 ))}
                 {threads.length > 0 ? (

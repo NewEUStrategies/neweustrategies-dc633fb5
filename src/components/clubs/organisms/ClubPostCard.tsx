@@ -47,7 +47,7 @@ import {
   type ClubPostMediaAttachment,
   type ClubPostRow,
 } from "@/lib/clubs/postTypes";
-import { formatDateShort } from "@/lib/i18n/format";
+import { formatDateShort, uiLang } from "@/lib/i18n/format";
 
 /** Stała pusta mapa - literał w domyślnej wartości propa tworzyłby NOWĄ mapę
  *  przy każdym renderze i psuł memoizację kart. */
@@ -92,7 +92,7 @@ function PostBody({ body }: { body: string }) {
 
 /** Karta podglądu linku + popup po najechaniu (Radix HoverCard). */
 function LinkAttachmentCard({ attachment }: { attachment: ClubPostLinkAttachment }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   let host = attachment.siteName;
   try {
     host = attachment.siteName ?? new URL(attachment.url).hostname;
@@ -171,7 +171,7 @@ function MediaGrid({
   mediaUrls: Record<string, string>;
   onPreview: (file: DocumentViewerFile) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const images = media.filter((item) => item.type === "image");
   const videos = media.filter((item) => item.type === "video");
   const files = media.filter((item) => item.type === "file");
@@ -310,7 +310,6 @@ function MediaGrid({
 export function ClubPostCard({
   post,
   clubSlug,
-  isPl,
   mediaUrls,
   sourceIndex = EMPTY_SOURCES,
   activeGroupId = null,
@@ -324,7 +323,6 @@ export function ClubPostCard({
 }: {
   post: ClubPostRow;
   clubSlug: string;
-  isPl: boolean;
   mediaUrls: Record<string, string>;
   /** Kolory i ikony działów - budowane RAZ nad listą, nie per karta. */
   sourceIndex?: ReadonlyMap<string, ClubSourceMark>;
@@ -337,8 +335,8 @@ export function ClubPostCard({
   hideThreadLink?: boolean;
   className?: string;
 }) {
-  const { t } = useTranslation();
-  const lang = isPl ? "pl" : "en";
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const [menuOpen, setMenuOpen] = useState(false);
   const { openFile, viewer } = useDocumentViewer();
 
@@ -348,7 +346,7 @@ export function ClubPostCard({
     (item): item is ClubPostMediaAttachment => !isLinkAttachment(item),
   );
   const authorName = post.author_name ?? t("club.deletedAuthor");
-  const source = clubSourceOf(post, sourceIndex, isPl);
+  const source = clubSourceOf(post, sourceIndex, lang);
 
   return (
     <article
