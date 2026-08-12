@@ -106,7 +106,7 @@ export function RouteProgress() {
           to screen readers via a polite live region. Only route transitions
           (not every background query) are announced, to avoid chatter. */}
       <div role="status" aria-live="polite" className="sr-only">
-        {busy ? t("common.loading", { defaultValue: "Ładowanie…" }) : ""}
+        {mounted && busy ? t("common.loading", { defaultValue: "Ładowanie…" }) : ""}
       </div>
     </>
   );
