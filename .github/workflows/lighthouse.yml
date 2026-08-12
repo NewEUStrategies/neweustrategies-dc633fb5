@@ -105,13 +105,21 @@ jobs:
       # at "Generating results...", i.e. inside `script-treemap-data` - the report
       # gatherer that fetches every script body. Both are now on the list.
       #
-      # NOT FIXED, and named so nobody mistakes it for fixed: the same log shows
-      # ~15 audits warning "Attempted to get a SyntheticEventsManager without
-      # initializing". That is Lighthouse's trace parser failing against the
-      # runner's Chrome build - the same config and the same Lighthouse pass
-      # locally against a pinned Chromium. If this job keeps failing, the fix is
-      # to PIN Chrome for the smoke (or bump Lighthouse), not to grow the skip
-      # list further.
+      # The trace-parser failure that motivated the pin below is GONE once the
+      # pinned Chromium is used: no more "SyntheticEventsManager" warnings and no
+      # more `Network.getResponseBody` runtime error in the log. What surfaced
+      # next was the pinned browser CRASHING at launch ("Unable to connect to
+      # Chrome", stack trace from .cache/ms-playwright/chromium-*/chrome), which
+      # is the usual CI sandbox/shm problem - hence the `chromeFlags` in
+      # lighthouserc.json (`--no-sandbox --disable-dev-shm-usage`), the same two
+      # flags this smoke needs to run locally.
+      #
+      # That value MUST be a STRING under `collect.settings.chromeFlags`. Both
+      # other spellings were tried and both are silently ignored by this LHCI
+      # version - an ARRAY in the same place, and a string under
+      # `collect.chromeFlags` - each leaving "Unable to connect to Chrome" with no
+      # hint that the flags never arrived. Verified locally: the string form runs
+      # to completion, the other two do not.
       # Chrome PRZYPIĘTY do buildu Playwrighta, nie do tego, co runner ma
       # zainstalowane. Powód jest zmierzony: smoke padał serią ~15 ostrzeżeń
       # „Attempted to get a SyntheticEventsManager without initializing" i błędem

@@ -22,7 +22,8 @@
           "network-dependency-tree-insight",
           "script-treemap-data"
         ],
-        "maxWaitForLoad": 60000
+        "maxWaitForLoad": 60000,
+        "chromeFlags": "--no-sandbox --disable-dev-shm-usage"
       }
     },
     "assert": {

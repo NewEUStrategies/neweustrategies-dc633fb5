@@ -1,5 +1,6 @@
 // Panel katalogu zaufanych domen + ręczne uruchomienie przeglądu weryfikacji.
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { RefreshCw, ShieldCheck, Trash2, Plus } from "lucide-react";
@@ -9,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { confirmDialog } from "@/lib/appDialogs";
+import { ensureI18n as ensureAdminCommunityI18n } from "@/lib/i18n-admin-community";
 import { ProfileBadge } from "@/components/atoms/ProfileBadge";
 import { FormSelect } from "@/components/atoms/FormSelect";
 import { fetchMembershipTiers, tierName } from "@/lib/billing/tiers";
@@ -28,7 +30,8 @@ interface Props {
 }
 
 export function VerificationDomainsCard({ language, tenantId }: Props) {
-  const isPl = language === "pl";
+  ensureAdminCommunityI18n();
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const [domain, setDomain] = useState("");
   const [note, setNote] = useState("");
@@ -43,7 +46,7 @@ export function VerificationDomainsCard({ language, tenantId }: Props) {
     staleTime: 60_000,
   });
   const tierOptions = [
-    { value: "none", label: isPl ? "Bez nadania planu" : "No membership grant" },
+    { value: "none", label: t("adminCommunity.verificationDomains.noMembershipGrant") },
     ...(tiersQ.data ?? []).map((t) => ({ value: t.key, label: tierName(t, language) })),
   ];
   const tierLabel = (key: string | null): string | null => {
@@ -78,9 +81,9 @@ export function VerificationDomainsCard({ language, tenantId }: Props) {
       setDomain("");
       setNote("");
       invalidate();
-      toast.success(isPl ? "Domena zapisana" : "Domain saved");
+      toast.success(t("adminCommunity.verificationDomains.domainSaved"));
     },
-    onError: () => toast.error(isPl ? "Nie udało się zapisać domeny" : "Could not save the domain"),
+    onError: () => toast.error(t("adminCommunity.verificationDomains.couldNotSaveDomain")),
   });
 
   const toggleM = useMutation({
@@ -98,18 +101,16 @@ export function VerificationDomainsCard({ language, tenantId }: Props) {
         grantsTierKey: input.grantsTierKey,
       }),
     onSuccess: () => invalidate(),
-    onError: () =>
-      toast.error(isPl ? "Nie udało się zmienić domeny" : "Could not update the domain"),
+    onError: () => toast.error(t("adminCommunity.verificationDomains.couldNotUpdateDomain")),
   });
 
   const deleteM = useMutation({
     mutationFn: deleteVerificationDomain,
     onSuccess: () => {
       invalidate();
-      toast.success(isPl ? "Domena usunięta" : "Domain removed");
+      toast.success(t("adminCommunity.verificationDomains.domainRemoved"));
     },
-    onError: () =>
-      toast.error(isPl ? "Nie udało się usunąć domeny" : "Could not remove the domain"),
+    onError: () => toast.error(t("adminCommunity.verificationDomains.couldNotRemoveDomain")),
   });
 
   const sweepM = useMutation({
@@ -117,12 +118,14 @@ export function VerificationDomainsCard({ language, tenantId }: Props) {
     onSuccess: (result) => {
       invalidate();
       toast.success(
-        isPl
-          ? `Sprawdzono ${result.checked} profili - nadano ${result.granted}, cofnięto ${result.revoked}`
-          : `Checked ${result.checked} profiles - granted ${result.granted}, revoked ${result.revoked}`,
+        t("adminCommunity.verificationDomains.sweepDone", {
+          checked: result.checked,
+          granted: result.granted,
+          revoked: result.revoked,
+        }),
       );
     },
-    onError: () => toast.error(isPl ? "Przegląd nie powiódł się" : "The review failed"),
+    onError: () => toast.error(t("adminCommunity.verificationDomains.reviewFailed")),
   });
 
   const normalized = normalizeDomainInput(domain);
@@ -134,12 +137,10 @@ export function VerificationDomainsCard({ language, tenantId }: Props) {
         <div>
           <CardTitle className="flex items-center gap-2 text-base">
             <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-            {isPl ? "Weryfikacja domenowa" : "Domain verification"}
+            {t("adminCommunity.verificationDomains.domainVerification")}
           </CardTitle>
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            {isPl
-              ? "Konto z potwierdzonym adresem w zaufanej domenie automatycznie otrzymuje odznakę „Zweryfikowany” oraz - jeśli wskażesz plan - bezterminowe członkostwo (zespół NES: VIP, pełny dostęp do materiałów). Uprawnienia do panelu administracyjnego nadaje się osobno, przez role. Zmiana adresu cofa wyłącznie nadania automatyczne."
-              : "An account with a confirmed address in a trusted domain automatically receives the “Verified” badge and - if you pick a plan - a lifetime membership (NES team: VIP, full access to materials). Admin panel access is granted separately through roles. Changing the address only revokes automatic grants."}
+            {t("adminCommunity.verificationDomains.accountWithConfirmedAddress")}
           </p>
         </div>
         <Button
@@ -152,7 +153,7 @@ export function VerificationDomainsCard({ language, tenantId }: Props) {
             className={`mr-1 h-4 w-4 ${sweepM.isPending ? "animate-spin" : ""}`}
             aria-hidden="true"
           />
-          {isPl ? "Uruchom przegląd" : "Run review"}
+          {t("adminCommunity.verificationDomains.runReview")}
         </Button>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -160,41 +161,41 @@ export function VerificationDomainsCard({ language, tenantId }: Props) {
           <Input
             value={domain}
             onChange={(e) => setDomain(e.target.value)}
-            placeholder={isPl ? "domena.pl" : "domain.com"}
-            aria-label={isPl ? "Domena e-mail" : "Email domain"}
+            placeholder={t("adminCommunity.verificationDomains.domainCom")}
+            aria-label={t("adminCommunity.verificationDomains.emailDomain")}
           />
           <Input
             value={note}
             onChange={(e) => setNote(e.target.value)}
             maxLength={500}
-            placeholder={isPl ? "Notatka (opcjonalnie)" : "Note (optional)"}
-            aria-label={isPl ? "Notatka do domeny" : "Domain note"}
+            placeholder={t("adminCommunity.verificationDomains.noteOptional")}
+            aria-label={t("adminCommunity.verificationDomains.domainNote")}
           />
           <FormSelect
             value={tierKey}
             onValueChange={setTierKey}
             options={tierOptions}
-            aria-label={isPl ? "Nadawany plan członkostwa" : "Granted membership plan"}
+            aria-label={t("adminCommunity.verificationDomains.grantedMembershipPlan")}
           />
           <div className="flex items-center justify-between gap-3 rounded-[6px] border border-border px-3">
             <span className="text-xs text-muted-foreground">
-              {isPl ? "Wymagaj potwierdzenia e-mail" : "Require email confirmation"}
+              {t("adminCommunity.verificationDomains.requireEmailConfirmation")}
             </span>
             <Switch
               checked={requireConfirmed}
               onCheckedChange={setRequireConfirmed}
-              aria-label={isPl ? "Wymagaj potwierdzenia e-mail" : "Require email confirmation"}
+              aria-label={t("adminCommunity.verificationDomains.requireEmailConfirmation")}
             />
           </div>
         </div>
         <Button onClick={() => addM.mutate()} disabled={!canAdd}>
           <Plus className="mr-1 h-4 w-4" aria-hidden="true" />
-          {isPl ? "Dodaj domenę" : "Add domain"}
+          {t("adminCommunity.verificationDomains.addDomain")}
         </Button>
 
         {(q.data ?? []).length === 0 ? (
           <p className="py-4 text-center text-sm text-muted-foreground">
-            {isPl ? "Brak zaufanych domen" : "No trusted domains"}
+            {t("adminCommunity.verificationDomains.noTrustedDomains")}
           </p>
         ) : (
           <ul className="divide-y divide-border/60 rounded-[6px] border border-border">
@@ -206,13 +207,13 @@ export function VerificationDomainsCard({ language, tenantId }: Props) {
                     <ProfileBadge badge={row.badge} language={language} />
                     {row.grants_tier_key && (
                       <Badge variant="secondary">
-                        {isPl ? "Plan: " : "Plan: "}
+                        {t("adminCommunity.verificationDomains.plan")}
                         {tierLabel(row.grants_tier_key)}
                       </Badge>
                     )}
                     {!row.require_email_confirmed && (
                       <Badge variant="outline">
-                        {isPl ? "Bez potwierdzenia e-mail" : "No email confirmation"}
+                        {t("adminCommunity.verificationDomains.noEmailConfirmation")}
                       </Badge>
                     )}
                   </div>
@@ -231,21 +232,21 @@ export function VerificationDomainsCard({ language, tenantId }: Props) {
                         grantsTierKey: row.grants_tier_key,
                       })
                     }
-                    aria-label={
-                      isPl ? `Domena aktywna: ${row.domain}` : `Domain active: ${row.domain}`
-                    }
+                    aria-label={t("adminCommunity.verificationDomains.domainActive", {
+                      domain: row.domain,
+                    })}
                   />
                   <Button
                     size="sm"
                     variant="ghost"
-                    aria-label={isPl ? "Usuń domenę" : "Remove domain"}
+                    aria-label={t("adminCommunity.verificationDomains.removeDomain")}
                     onClick={async () => {
                       const ok = await confirmDialog({
-                        title: isPl ? "Usunąć domenę?" : "Remove domain?",
-                        description: isPl
-                          ? `${row.domain} - nowe konta nie będą już weryfikowane automatycznie.`
-                          : `${row.domain} - new accounts will no longer be verified automatically.`,
-                        confirmLabel: isPl ? "Usuń" : "Remove",
+                        title: t("adminCommunity.verificationDomains.removeConfirmTitle"),
+                        description: t("adminCommunity.verificationDomains.removeConfirmBody", {
+                          domain: row.domain,
+                        }),
+                        confirmLabel: t("adminCommunity.verificationDomains.remove"),
                         destructive: true,
                       });
                       if (ok) deleteM.mutate(row.id);
