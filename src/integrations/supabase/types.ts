@@ -18334,6 +18334,7 @@ export type Database = {
         | { Args: { _tenant: string; _uid: string }; Returns: boolean }
       is_nes_staff: { Args: { _user_id?: string }; Returns: boolean }
       is_org_owner: { Args: { p_org: string }; Returns: boolean }
+      is_service_role_caller: { Args: never; Returns: boolean }
       is_staff: { Args: never; Returns: boolean }
       is_super_admin: { Args: { _user_id?: string }; Returns: boolean }
       is_tenant_conversation_member: {
