@@ -19179,10 +19179,7 @@ export type Database = {
           valid: boolean
         }[]
       }
-      related_posts_signals: {
-        Args: { _since_days?: number }
-        Returns: Json
-      }
+      related_posts_signals: { Args: { _since_days?: number }; Returns: Json }
       release_b2b_coupon: {
         Args: { _coupon_id: string; _order_id: string }
         Returns: boolean
