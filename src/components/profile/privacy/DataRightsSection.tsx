@@ -2,6 +2,16 @@
 // eksport kopii (art. 15 i 20) oraz usunięcie konta (art. 17) wraz z notą
 // retencyjną mówiącą, co zostaje i dlaczego.
 //
+// i18n: ta sekcja czyta klucze `profile.security.*`, które mieszkają WYŁĄCZNIE
+// w leniwie rejestrowanym słowniku `i18n-profile.ts` - nie ma ich w rdzeniu
+// locale. Trasa /profile/privacy rejestrowała tylko słownik sieci kontaktów,
+// więc przy wejściu wprost na tę stronę (odświeżenie, link z zewnątrz) karta
+// usuwania konta renderowała SUROWE ścieżki kluczy zamiast tekstu, a karta
+// eksportu spadała na `defaultValue` - czyli na kopię podtytułu STARSZĄ niż
+// słownik (brakowało w niej klubów dyskusyjnych, które eksport już zawiera).
+// Dlatego sekcja rejestruje słownik sama i nie ma już ani jednego
+// `defaultValue`: jedno źródło prawdy, brak cichego rozjazdu.
+//
 // §10 audytu IA prywatności. Obie karty mieszkały dotąd na /profile/security -
 // między zmianą hasła a dwuskładnikowym logowaniem. To dwie różne sprawy:
 // „bezpieczeństwo konta" odpowiada na pytanie „czy ktoś się do mnie włamie",
@@ -30,12 +40,13 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { FieldLabel } from "@/components/profile/FieldLabel";
+import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 import { LegalRetentionNotice } from "@/components/molecules/LegalRetentionNotice";
 
 export function DataRightsSection() {
-  const { t, i18n } = useTranslation();
+  ensureProfileI18n();
+  const { t } = useTranslation();
   const navigate = useNavigate();
-  const isEn = i18n.language === "en";
 
   const [exportBusy, setExportBusy] = useState(false);
   const [delPw, setDelPw] = useState("");
@@ -95,41 +106,21 @@ export function DataRightsSection() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Download className="h-4 w-4 text-primary" aria-hidden />
-            {t("profile.security.export.title", {
-              defaultValue: isEn ? "Your data (GDPR)" : "Twoje dane (RODO)",
-            })}
+            {t("profile.security.export.title")}
           </CardTitle>
-          <CardDescription>
-            {t("profile.security.export.subtitle", {
-              defaultValue: isEn
-                ? "Download a copy of the personal data we store about you (Art. 15 and 20 GDPR) as a JSON file: profile and expert profile, CV sections and media mentions, network and recommendations, chat (your messages and conversation metadata), expert requests, comments, follows, orders, consents and preferences."
-                : "Pobierz kopię danych osobowych, które o Tobie przechowujemy (art. 15 i 20 RODO), jako plik JSON: profil i profil eksperta, sekcje CV oraz wzmianki medialne, sieć kontaktów i rekomendacje, czat (Twoje wiadomości i metadane rozmów), zapytania do ekspertów, komentarze, obserwacje, zamówienia, zgody i preferencje.",
-            })}
-          </CardDescription>
+          <CardDescription>{t("profile.security.export.subtitle")}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {/* Zakres eksportu jest deklarowany w samym pliku (manifest), więc
               użytkownik nie musi wierzyć podtytułowi na słowo. */}
-          <p className="text-xs text-muted-foreground">
-            {t("profile.security.export.scopeNote", {
-              defaultValue: isEn
-                ? "The file carries its own manifest: every section it contains, plus what is deliberately left out and why (for example messages written by other people - Art. 15(4) GDPR)."
-                : "Plik niesie własny manifest: spis wszystkich sekcji oraz to, czego świadomie nie zawiera i dlaczego (na przykład wiadomości napisanych przez inne osoby - art. 15 ust. 4 RODO).",
-            })}
-          </p>
+          <p className="text-xs text-muted-foreground">{t("profile.security.export.scopeNote")}</p>
           <Button
             variant="outline"
             className="self-start"
             onClick={() => void downloadMyData()}
             disabled={exportBusy}
           >
-            {exportBusy
-              ? t("profile.security.export.busy", {
-                  defaultValue: isEn ? "Preparing..." : "Przygotowywanie...",
-                })
-              : t("profile.security.export.download", {
-                  defaultValue: isEn ? "Download my data (JSON)" : "Pobierz moje dane (JSON)",
-                })}
+            {exportBusy ? t("profile.security.export.busy") : t("profile.security.export.download")}
           </Button>
         </CardContent>
       </Card>
