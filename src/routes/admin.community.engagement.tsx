@@ -7,6 +7,9 @@
 // (push/digest) oraz puls modułów społeczności z top wydarzeniami.
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { ensureI18n as ensureAdminCommunityI18n } from "@/lib/i18n-admin-community";
+import { dateLocaleFromLanguage } from "@/lib/i18n/dateLocale";
+import { pickLocalized, type LocaleCode } from "@/lib/i18n/pickLocalized";
 import { useQuery } from "@tanstack/react-query";
 import {
   BarChart3,
@@ -34,9 +37,10 @@ export const Route = createFileRoute("/admin/community/engagement")({
 });
 
 function EngagementAdmin() {
-  const { i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
-  const locale = isPl ? "pl-PL" : "en-GB";
+  ensureAdminCommunityI18n();
+  const { t, i18n } = useTranslation();
+  const lang: LocaleCode = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
+  const locale = dateLocaleFromLanguage(i18n.language);
 
   const q = useQuery({
     queryKey: ["admin-engagement-overview"],
@@ -55,30 +59,34 @@ function EngagementAdmin() {
       <div className="flex items-center gap-2">
         <BarChart3 className="w-4 h-4" />
         <h2 className="text-lg font-semibold">
-          {isPl ? "Zaangażowanie i konwersja" : "Engagement and conversion"}
+          {t("adminCommunity.engagement.engagementConversion")}
         </h2>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">{isPl ? "Członkowie" : "Members"}</CardTitle>
+          <CardTitle className="text-base">{t("adminCommunity.engagement.members")}</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Stat icon={Users} label={isPl ? "Wszyscy" : "Total"} value={s?.members_total} />
+          <Stat
+            icon={Users}
+            label={t("adminCommunity.engagement.total")}
+            value={s?.members_total}
+          />
           <Stat
             icon={UserPlus}
-            label={isPl ? "Nowi (30 dni)" : "New (30d)"}
+            label={t("adminCommunity.engagement.new30d")}
             value={s?.members_new_30d}
           />
           <Stat
             icon={UserCheck}
-            label={isPl ? "Aktywni (7 dni)" : "Active (7d)"}
+            label={t("adminCommunity.engagement.active7d")}
             value={s?.active_7d}
             suffix={pct(s?.active_7d, s?.members_total)}
           />
           <Stat
             icon={UserCheck}
-            label={isPl ? "Aktywni (30 dni)" : "Active (30d)"}
+            label={t("adminCommunity.engagement.active30d")}
             value={s?.active_30d}
             suffix={pct(s?.active_30d, s?.members_total)}
           />
@@ -89,20 +97,18 @@ function EngagementAdmin() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">
-              {isPl ? "Subskrypcje i warstwy" : "Subscriptions and tiers"}
+              {t("adminCommunity.engagement.subscriptionsTiers")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <Stat
               icon={Crown}
-              label={isPl ? "Aktywne subskrypcje" : "Active subscriptions"}
+              label={t("adminCommunity.engagement.activeSubscriptions")}
               value={s?.subscriptions_active}
             />
             <TierBars
               tiers={s?.tier_distribution ?? {}}
-              emptyLabel={
-                isPl ? "Brak aktywnych subskrypcji płatnych." : "No active paid subscriptions."
-              }
+              emptyLabel={t("adminCommunity.engagement.noActivePaidSubscriptions")}
             />
           </CardContent>
         </Card>
@@ -110,14 +116,18 @@ function EngagementAdmin() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">
-              {isPl ? "Kanały dotarcia (opt-in)" : "Reach channels (opt-in)"}
+              {t("adminCommunity.engagement.reachChannelsOpt")}
             </CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-3">
-            <Stat icon={Bell} label={isPl ? "Web push" : "Web push"} value={s?.push_optin} />
+            <Stat
+              icon={Bell}
+              label={t("adminCommunity.engagement.webPush")}
+              value={s?.push_optin}
+            />
             <Stat
               icon={Mail}
-              label={isPl ? "Digest e-mail" : "Email digest"}
+              label={t("adminCommunity.engagement.emailDigest")}
               value={s?.digest_optin}
             />
           </CardContent>
@@ -127,38 +137,38 @@ function EngagementAdmin() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">
-            {isPl ? "Puls modułów społeczności" : "Community modules pulse"}
+            {t("adminCommunity.engagement.communityModulesPulse")}
           </CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           <Stat
             icon={Calendar}
-            label={isPl ? "Nadch. wydarzenia" : "Upcoming events"}
+            label={t("adminCommunity.engagement.upcomingEvents")}
             value={s?.events_upcoming}
           />
           <Stat
             icon={MessagesSquare}
-            label={isPl ? "RSVP „będę”" : 'RSVPs "going"'}
+            label={t("adminCommunity.engagement.rsvpsGoing")}
             value={s?.rsvps_upcoming}
           />
           <Stat
             icon={HelpCircle}
-            label={isPl ? "Otwarte pytania Q&A" : "Open Q&A questions"}
+            label={t("adminCommunity.engagement.openQQuestions")}
             value={s?.qa_open_questions}
           />
           <Stat
             icon={Vote}
-            label={isPl ? "Głosy (30 dni)" : "Poll votes (30d)"}
+            label={t("adminCommunity.engagement.pollVotes30d")}
             value={s?.poll_votes_30d}
           />
           <Stat
             icon={FileEdit}
-            label={isPl ? "Zgł. czekające" : "Pending pitches"}
+            label={t("adminCommunity.engagement.pendingPitches")}
             value={s?.submissions_pending}
           />
           <Stat
             icon={Landmark}
-            label={isPl ? "Obserwacje trackera" : "Tracker follows"}
+            label={t("adminCommunity.engagement.trackerFollows")}
             value={s?.tracker_follows}
           />
         </CardContent>
@@ -166,21 +176,17 @@ function EngagementAdmin() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">
-            {isPl ? "Najbliższe wydarzenia" : "Next events"}
-          </CardTitle>
+          <CardTitle className="text-base">{t("adminCommunity.engagement.nextEvents")}</CardTitle>
         </CardHeader>
         <CardContent>
           {!s || s.top_upcoming_events.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              {isPl
-                ? "Brak opublikowanych nadchodzących wydarzeń."
-                : "No published upcoming events."}
+              {t("adminCommunity.engagement.noPublishedUpcomingEvents")}
             </p>
           ) : (
             <ul className="divide-y divide-border/60">
               {s.top_upcoming_events.map((event) => {
-                const title = (isPl ? event.title_pl : event.title_en) ?? event.slug;
+                const title = pickLocalized(event, "title", lang) || event.slug;
                 return (
                   <li key={event.slug} className="flex items-center gap-3 py-2">
                     <CalendarClock className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
@@ -200,7 +206,7 @@ function EngagementAdmin() {
                       </div>
                     </div>
                     <Badge variant="secondary" className="shrink-0 font-normal tabular-nums">
-                      {event.going} {isPl ? "będzie" : "going"}
+                      {event.going} {t("adminCommunity.engagement.going")}
                     </Badge>
                   </li>
                 );
@@ -212,12 +218,10 @@ function EngagementAdmin() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">{isPl ? "Informacje" : "Info"}</CardTitle>
+          <CardTitle className="text-base">{t("adminCommunity.engagement.info")}</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
-          {isPl
-            ? "Dane z get_engagement_overview(): jeden odczyt agreguje aktywność (wiadomości, komentarze, RSVP, głosy, Q&A, obserwacje), lejek subskrypcji i puls modułów. Dla pełnej analityki (kohorty, retencja, funnel) użyj paneli CRM i Analytics."
-            : "Data from get_engagement_overview(): a single read aggregates activity (messages, comments, RSVPs, votes, Q&A, follows), the subscription funnel and module pulse. For full analytics (cohorts, retention, funnel) use the CRM and Analytics panels."}
+          {t("adminCommunity.engagement.dataFromGetEngagement")}
         </CardContent>
       </Card>
     </div>

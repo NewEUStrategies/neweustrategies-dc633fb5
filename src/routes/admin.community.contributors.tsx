@@ -4,6 +4,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ensureI18n as ensureAdminCommunityI18n } from "@/lib/i18n-admin-community";
+import { dateLocaleFromLanguage } from "@/lib/i18n/dateLocale";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { UserPlus, Check, X, Clock } from "lucide-react";
@@ -38,8 +40,8 @@ const statusTone: Record<ContributorStatus, "default" | "outline" | "secondary" 
 };
 
 function ContributorsAdmin() {
-  const { i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  ensureAdminCommunityI18n();
+  const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const [status, setStatus] = useState<ContributorStatus | "all">("pending");
   const [language, setLanguage] = useState<LangFilter>("all");
@@ -57,22 +59,26 @@ function ContributorsAdmin() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-contributors"] });
       qc.invalidateQueries({ queryKey: ["admin-engagement-snapshot"] });
-      toast.success(isPl ? "Zapisano" : "Saved");
+      toast.success(t("adminCommunity.contributors.saved"));
     },
-    onError: () => toast.error(isPl ? "Błąd" : "Failed"),
+    onError: () => toast.error(t("adminCommunity.contributors.failed")),
   });
 
-  const statusLabel = (s: ContributorStatus) =>
-    isPl
-      ? { pending: "Oczekujące", approved: "Zaakceptowane", rejected: "Odrzucone" }[s]
-      : { pending: "Pending", approved: "Approved", rejected: "Rejected" }[s];
+  // Mapa WSKAZUJE KLUCZE, nie napisy: `Record<ContributorStatus, string>` wymusza
+  // pokrycie kazdego wariantu, a test slownika domyka druga polowe kontraktu.
+  const STATUS_LABEL_KEYS: Record<ContributorStatus, string> = {
+    pending: "adminCommunity.contributors.statusPending",
+    approved: "adminCommunity.contributors.statusApproved",
+    rejected: "adminCommunity.contributors.statusRejected",
+  };
+  const statusLabel = (s: ContributorStatus) => t(STATUS_LABEL_KEYS[s]);
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <UserPlus className="w-4 h-4" />
-          <h2 className="text-lg font-semibold">{isPl ? "Współtwórcy" : "Contributors"}</h2>
+          <h2 className="text-lg font-semibold">{t("adminCommunity.contributors.contributors")}</h2>
         </div>
         <div className="flex items-center gap-2">
           <Select value={language} onValueChange={(v) => setLanguage(v as LangFilter)}>
@@ -80,7 +86,7 @@ function ContributorsAdmin() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">{isPl ? "Wszystkie języki" : "All languages"}</SelectItem>
+              <SelectItem value="all">{t("adminCommunity.contributors.allLanguages")}</SelectItem>
               <SelectItem value="pl">PL</SelectItem>
               <SelectItem value="en">EN</SelectItem>
             </SelectContent>
@@ -90,7 +96,7 @@ function ContributorsAdmin() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">{isPl ? "Wszystkie" : "All"}</SelectItem>
+              <SelectItem value="all">{t("adminCommunity.contributors.all")}</SelectItem>
               <SelectItem value="pending">{statusLabel("pending")}</SelectItem>
               <SelectItem value="approved">{statusLabel("approved")}</SelectItem>
               <SelectItem value="rejected">{statusLabel("rejected")}</SelectItem>
@@ -103,11 +109,11 @@ function ContributorsAdmin() {
         <CardContent className="p-0">
           {q.isLoading ? (
             <div className="p-4 text-sm text-muted-foreground">
-              {isPl ? "Ładowanie..." : "Loading..."}
+              {t("adminCommunity.contributors.loading")}
             </div>
           ) : (q.data ?? []).length === 0 ? (
             <div className="p-6 text-sm text-muted-foreground text-center">
-              {isPl ? "Brak zgłoszeń" : "No submissions"}
+              {t("adminCommunity.contributors.noSubmissions")}
             </div>
           ) : (
             <ul className="divide-y divide-border/60">
@@ -130,21 +136,21 @@ function ContributorsAdmin() {
                   </div>
                   <p className="text-sm text-muted-foreground whitespace-pre-wrap">{s.pitch}</p>
                   <div className="text-xs text-muted-foreground">
-                    {new Date(s.created_at).toLocaleString(isPl ? "pl-PL" : "en-GB")}
+                    {new Date(s.created_at).toLocaleString(dateLocaleFromLanguage(i18n.language))}
                     {s.reviewed_at ? (
                       <>
                         {" · "}
-                        {isPl ? "Zrecenzowano: " : "Reviewed: "}
-                        {new Date(s.reviewed_at).toLocaleString(isPl ? "pl-PL" : "en-GB")}
+                        {t("adminCommunity.contributors.reviewed")}
+                        {new Date(s.reviewed_at).toLocaleString(
+                          dateLocaleFromLanguage(i18n.language),
+                        )}
                       </>
                     ) : null}
                   </div>
                   {s.status === "pending" && (
                     <div className="space-y-2 pt-2">
                       <Textarea
-                        placeholder={
-                          isPl ? "Notatka redaktora (opcjonalnie)" : "Editor note (optional)"
-                        }
+                        placeholder={t("adminCommunity.contributors.editorNoteOptional")}
                         value={notes[s.id] ?? ""}
                         onChange={(e) => setNotes({ ...notes, [s.id]: e.target.value })}
                         className="min-h-[60px]"
@@ -158,7 +164,7 @@ function ContributorsAdmin() {
                           }
                         >
                           <Check className="w-4 h-4 mr-1" />
-                          {isPl ? "Akceptuj" : "Approve"}
+                          {t("adminCommunity.contributors.approve")}
                         </Button>
                         <Button
                           size="sm"
@@ -169,14 +175,14 @@ function ContributorsAdmin() {
                           }
                         >
                           <X className="w-4 h-4 mr-1" />
-                          {isPl ? "Odrzuć" : "Reject"}
+                          {t("adminCommunity.contributors.reject")}
                         </Button>
                       </div>
                     </div>
                   )}
                   {s.editor_note && (
                     <div className="text-xs bg-muted/50 rounded p-2">
-                      <span className="font-medium">{isPl ? "Notatka: " : "Note: "}</span>
+                      <span className="font-medium">{t("adminCommunity.contributors.note")}</span>
                       {s.editor_note}
                     </div>
                   )}
