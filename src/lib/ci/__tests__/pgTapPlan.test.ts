@@ -44,6 +44,24 @@ describe("liczenie asercji", () => {
     expect(isPgTapFileBroken(finding)).toBe(false);
   });
 
+  it("liczy is_empty/isnt_empty - pgTAP je wykonuje, więc plan je obejmuje", () => {
+    // Regresja: `is_empty` nie było na liście funkcji asercyjnych, więc pliki,
+    // które go używają, raportowały rozjazd planu nieistniejący w rzeczywistym
+    // przebiegu (pięć plików modułu klubów naraz). Gorszy kierunek tej samej
+    // luki: plan(N) zawyżony dokładnie o liczbę `is_empty` przechodziłby cicho.
+    const finding = file(`
+      BEGIN;
+      SELECT plan(3);
+      SELECT is_empty('SELECT 1 WHERE false', 'nic nie wychodzi');
+      SELECT isnt_empty('SELECT 1', 'coś wychodzi');
+      SELECT ok(true, 'ok');
+      SELECT * FROM finish();
+      ROLLBACK;
+    `);
+    expect(finding.counted).toBe(3);
+    expect(isPgTapFileBroken(finding)).toBe(false);
+  });
+
   it("nie liczy nazw zagnieżdżonych ani funkcji aplikacji w argumentach", () => {
     // `isnt(` to JEDNA asercja (nie `is` + `isnt`), `is_definer(` też jedna,
     // a `is_super_admin(` w argumencie `ok(...)` to funkcja aplikacji - nie asercja.

@@ -55,8 +55,21 @@ CREATE TABLE IF NOT EXISTS auth.users (
   email text,
   raw_user_meta_data jsonb DEFAULT '{}'::jsonb,
   raw_app_meta_data jsonb DEFAULT '{}'::jsonb,
+  instance_id uuid DEFAULT '00000000-0000-0000-0000-000000000000'::uuid,
+  aud text DEFAULT 'authenticated',
+  role text DEFAULT 'authenticated',
   encrypted_password text,
   email_confirmed_at timestamptz,
+  invited_at timestamptz,
+  confirmation_sent_at timestamptz,
+  recovery_sent_at timestamptz,
+  email_change_token_new text,
+  email_change text,
+  email_change_sent_at timestamptz,
+  phone text,
+  phone_confirmed_at timestamptz,
+  is_super_admin boolean,
+  banned_until timestamptz,
   confirmation_token text,
   recovery_token text,
   last_sign_in_at timestamptz,
@@ -316,3 +329,29 @@ CREATE OR REPLACE FUNCTION pgmq.metrics(queue_name text)
    WHERE m.queue_name = metrics.queue_name
 $$;
 GRANT USAGE ON SCHEMA pgmq TO service_role;
+
+-- auth.identities: seed deweloperski tworzy tozsamosc e-mailowa dla kont
+-- testowych (GoTrue robi to samo przy rejestracji).
+CREATE TABLE IF NOT EXISTS auth.identities (
+  id uuid PRIMARY KEY DEFAULT extensions.gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  provider_id text NOT NULL,
+  provider text NOT NULL,
+  identity_data jsonb NOT NULL DEFAULT '{}'::jsonb,
+  email text,
+  last_sign_in_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (provider_id, provider)
+);
+GRANT SELECT ON auth.identities TO authenticated, service_role;
+
+-- auth.sessions / refresh_tokens: nie uzywane przez testy, ale seed i migracje
+-- bywaja pisane pod pelny schemat GoTrue.
+CREATE TABLE IF NOT EXISTS auth.sessions (
+  id uuid PRIMARY KEY DEFAULT extensions.gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  aal text
+);

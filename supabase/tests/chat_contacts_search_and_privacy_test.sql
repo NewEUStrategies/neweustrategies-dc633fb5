@@ -69,10 +69,21 @@ SELECT is(
   'fraza „100%” dopasowuje TYLKO firmę „100% Energia” - % jest tekstem, nie wzorcem'
 );
 
+-- Ta asercja oczekiwala wczesniej ZERA wierszy i byla sprzeczna z asercja
+-- powyzej: skoro `%` jest TEKSTEM, a fikstura celowo trzyma firme „100% Energia",
+-- to szukanie tekstu `%` MUSI trafic w ten profil. Zera nie da sie pogodzic
+-- z „100%" dopasowujacym ten sam wiersz - i nie da sie tego naprawic fikstura,
+-- bo profil musi istniec dla asercji poprzedniej.
+--
+-- Porownanie ZBIORU zamiast licznika zachowuje pelna wartosc regresyjna: bez
+-- escapowania `%` jest wzorcem „cokolwiek" i wracaja OBA widoczne kontakty,
+-- wiec asercja pada - tylko pada czysto, na roznicy zbiorow, a nie na
+-- niespelnialnym kontrakcie.
 SELECT is(
-  (SELECT count(*)::int FROM public.search_chat_contacts('%', 50)),
-  0,
-  'samo „%” nie zwraca nikogo - przed escapowaniem zwracało całą listę kontaktów'
+  (SELECT array_agg(display_name ORDER BY display_name)
+     FROM public.search_chat_contacts('%', 50)),
+  ARRAY['Bogdan Procent'],
+  'samo „%” nie enumeruje kontaktów - trafia wyłącznie w profil ze znakiem % w danych'
 );
 
 SELECT is(

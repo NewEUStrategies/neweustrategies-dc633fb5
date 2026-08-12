@@ -44,7 +44,10 @@ start_fresh() {
   sleep 1
   rm -rf "$PGDIR"; mkdir -p "$PGDIR/data" "$PGDIR/run" "$PGDIR/mig"
   [ "$(id -un)" = "root" ] && chown -R "$RUNAS" "$PGDIR"
-  run_as "initdb -D $PGDIR/data -U postgres --auth=trust -E UTF8 --locale=C" >/dev/null 2>&1
+  # locale: domyslnie C (szybkie i wszedzie dostepne), ale `lower()` zwija wtedy
+  # tylko ASCII, wiec asercje na frazach z diakrytykami zachowuja sie inaczej niz
+  # w CI (baza UTF-8). PGTAP_INITDB_LOCALE pozwala to wyrownac.
+  run_as "initdb -D $PGDIR/data -U postgres --auth=trust -E UTF8 --locale=${PGTAP_INITDB_LOCALE:-C}" >/dev/null 2>&1
   run_as "pg_ctl -D $PGDIR/data -o '-k $PGDIR/run -p $PGPORT -c listen_addresses=\"\"' -l $PGDIR/pg.log start" >/dev/null 2>&1
   for _ in $(seq 1 30); do psql -d postgres -c 'SELECT 1' >/dev/null 2>&1 && break; sleep 0.5; done
   assert_up
@@ -103,6 +106,20 @@ apply_migrations() {
     fi
   done
   echo "migracje: $n zaaplikowanych, $fail z bledem"
+
+  # supabase/seed.sql - `supabase db start` w CI aplikuje go po migracjach, wiec
+  # baza CI ma konta deweloperskie, wpisy i klub referencyjny. Bez tego runner
+  # klamie w druga strone niz atrapy: fikstura testu moze kolidowac z danymi
+  # seeda (unikalny slug, `LIMIT 1` trafiajacy w cudzy wiersz) i wtedy plik
+  # przechodzi lokalnie, a pada w CI.
+  if [ -f "$REPO/supabase/seed.sql" ]; then
+    if out="$(psql -q -d nes -v ON_ERROR_STOP=1 -f "$REPO/supabase/seed.sql" 2>&1)"; then
+      echo "seed.sql: OK"
+    else
+      echo "seed.sql: BLAD"
+      echo "$out" | grep -E "^psql:.*ERROR|^ERROR" | head -5 | sed 's/^/     /'
+    fi
+  fi
   [ "$fail" -gt 0 ] && { echo "--- pierwsze bledy:"; head -60 "$PGDIR/failures.txt"; }
   return 0
 }

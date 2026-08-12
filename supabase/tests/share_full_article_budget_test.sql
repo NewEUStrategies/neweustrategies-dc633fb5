@@ -17,12 +17,15 @@
 --   8. budzet jest ZAMROZONY na linku - zmiana ustawien tenanta nie rusza
 --      linkow juz udostepnionych;
 --   9. eligibility='subscribers' przywraca bramke subskrypcyjna;
---  10. rejestr odbiorcow jest niedostepny dla anonima i zwyklego konta (RLS).
+--  10. rejestr odbiorcow jest niedostepny dla anonima i zwyklego konta (RLS);
+--  11. sam KOD linku tez nie jest do wyczytania z bazy przez odbiorce - wiersz
+--      post_gift_links widzi wylacznie nadawca i redakcja, odbiorca dostaje kod
+--      w adresie URL (dlatego setup przenosi go z wyniku RPC nadawcy).
 --
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(25);
+SELECT plan(26);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -126,6 +129,16 @@ SELECT results_eq(
   $$ VALUES (1, 2, 0) $$,
   'limit miesieczny liczy ARTYKULY (1), budzet zamrozony na 2 klikniecia');
 
+-- Kod linku odbiorca dostaje OD NADAWCY (adres URL), nie z bazy: polityka
+-- "gift links owner read" pokazuje wiersz post_gift_links wylacznie tworcy i
+-- redakcji, wiec rola odbiorcy nie moze go odczytac (inaczej kazde konto
+-- wyliczyloby kody i minelo paywall). Setup przenosi kod tak jak produkt:
+-- z wyniku RPC nadawcy do wywolan odbiorcow.
+SELECT set_config(
+  'test.gift_code',
+  (SELECT code FROM public.create_gift_link('c0000000-0000-0000-0000-0000000000a1')),
+  true);
+
 -- ── 3) Tresc publiczna i na haslo ──────────────────────────────────────────
 SELECT throws_ok(
   $$ SELECT public.create_gift_link('c0000000-0000-0000-0000-0000000000a2') $$,
@@ -154,12 +167,16 @@ SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
   '{"sub":"c0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 
+SELECT is(
+  (SELECT count(*)::int FROM public.post_gift_links
+    WHERE post_id = 'c0000000-0000-0000-0000-0000000000a1'),
+  0, 'odbiorca nie widzi wiersza linku - kodu nie da sie wyczytac z bazy (RLS)');
+
 SELECT results_eq(
   $$ SELECT valid, reason, redemption_count, redemptions_remaining
        FROM public.redeem_gift_link(
          'c0000000-0000-0000-0000-0000000000a1',
-         (SELECT code FROM public.post_gift_links
-           WHERE post_id = 'c0000000-0000-0000-0000-0000000000a1' AND revoked_at IS NULL)) $$,
+         current_setting('test.gift_code')) $$,
   $$ VALUES (true, 'ok'::text, 1, 1) $$,
   'pierwszy odbiorca: body + slot 1/2');
 
@@ -168,8 +185,7 @@ SELECT results_eq(
   $$ SELECT valid, reason, redemption_count
        FROM public.redeem_gift_link(
          'c0000000-0000-0000-0000-0000000000a1',
-         (SELECT code FROM public.post_gift_links
-           WHERE post_id = 'c0000000-0000-0000-0000-0000000000a1' AND revoked_at IS NULL)) $$,
+         current_setting('test.gift_code')) $$,
   $$ VALUES (true, 'ok'::text, 1) $$,
   'powrot tego samego odbiorcy nie pali kolejnego klikniecia');
 
@@ -182,8 +198,7 @@ SELECT results_eq(
   $$ SELECT valid, reason, redemptions_remaining
        FROM public.redeem_gift_link(
          'c0000000-0000-0000-0000-0000000000a1',
-         (SELECT code FROM public.post_gift_links
-           WHERE post_id = 'c0000000-0000-0000-0000-0000000000a1' AND revoked_at IS NULL)) $$,
+         current_setting('test.gift_code')) $$,
   $$ VALUES (true, 'ok'::text, 0) $$,
   'drugi odbiorca: budzet dochodzi do zera');
 
@@ -196,16 +211,14 @@ SELECT results_eq(
   $$ SELECT valid, reason
        FROM public.redeem_gift_link(
          'c0000000-0000-0000-0000-0000000000a1',
-         (SELECT code FROM public.post_gift_links
-           WHERE post_id = 'c0000000-0000-0000-0000-0000000000a1' AND revoked_at IS NULL)) $$,
+         current_setting('test.gift_code')) $$,
   $$ VALUES (false, 'exhausted'::text) $$,
   'trzeci odbiorca odbija sie od wyczerpanego budzetu');
 SELECT is(
   (SELECT content_pl
      FROM public.redeem_gift_link(
        'c0000000-0000-0000-0000-0000000000a1',
-       (SELECT code FROM public.post_gift_links
-         WHERE post_id = 'c0000000-0000-0000-0000-0000000000a1' AND revoked_at IS NULL))),
+       current_setting('test.gift_code'))),
   NULL, 'po wyczerpaniu budzetu body nie wycieka');
 
 -- ── 6b) Czytelnik z wlasnym uprawnieniem nie potrzebuje slotu ──────────────
@@ -218,8 +231,7 @@ SELECT results_eq(
   $$ SELECT valid, reason
        FROM public.redeem_gift_link(
          'c0000000-0000-0000-0000-0000000000a1',
-         (SELECT code FROM public.post_gift_links
-           WHERE post_id = 'c0000000-0000-0000-0000-0000000000a1' AND revoked_at IS NULL)) $$,
+         current_setting('test.gift_code')) $$,
   $$ VALUES (true, 'entitled'::text) $$,
   'czytelnik z zakupem czyta bez zuzycia budzetu (mimo exhausted)');
 
@@ -262,8 +274,7 @@ SELECT results_eq(
   $$ SELECT valid, reason
        FROM public.redeem_gift_link(
          'c0000000-0000-0000-0000-0000000000a1',
-         (SELECT code FROM public.post_gift_links
-           WHERE post_id = 'c0000000-0000-0000-0000-0000000000a1')) $$,
+         current_setting('test.gift_code')) $$,
   $$ VALUES (false, 'revoked'::text) $$,
   'cofniety link zwraca reason=revoked');
 

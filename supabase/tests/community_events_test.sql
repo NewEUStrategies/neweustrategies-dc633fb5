@@ -1,8 +1,16 @@
 -- pgTAP: wydarzenia (events + event_rsvps) - bramki i limit miejsc.
 --
---   1. Publiczny odczyt: tylko opublikowane wydarzenia publicznego tenanta;
---      join_url/recording_url odciete grantem kolumnowym (jedyna sciezka:
---      RPC get_event_access).
+--   1. Publiczny odczyt (anon): opublikowane wydarzenia publicznego tenanta,
+--      ktore nie sa bramkowane w ZADNYM z dwoch wymiarow - ani przez
+--      visibility = 'members', ani przez prog min_tier_rank. Od 20260803191905
+--      anon nie widzi wydarzen z progiem rangi ("Publiczny (anon) odczyt tylko
+--      wydarzen niebramkowanych poziomem"), a od 20260812103500 rowniez
+--      wydarzen czlonkowskich z ranga domyslna 0 - bo taki wiersz produkuje
+--      panel redakcji i tak go traktuja rsvp_event/get_event_access
+--      (GREATEST(COALESCE(min_tier_rank, 0), 1)). Warstwa authenticated
+--      ("events member read") widzi je nadal, wiec bramka jest upsellem,
+--      nie 404. join_url/recording_url odciete grantem kolumnowym (jedyna
+--      sciezka: RPC get_event_access).
 --   2. rsvp_event: wyscig o ostatnie miejsce pod FOR UPDATE (komplet ->
 --      lista rezerwowa, patrz community_events_waitlist_test.sql),
 --      idempotentne ponowienie, zwolnienie miejsca przez 'cancelled',
@@ -54,7 +62,10 @@ INSERT INTO public.user_subscriptions (user_id, plan_id, tenant_id, status, curr
    (SELECT public.public_tenant_id()), 'active', now() + interval '30 days');
 
 -- Wydarzenia: e1 publiczne (capacity 2, z join_url), e2 members (webinar),
--- e3 members briefing (flaga pro_briefings), e4 draft, e5 obcy tenant.
+-- e3 members briefing (flaga pro_briefings), e4 draft, e5 obcy tenant,
+-- e6 members z ranga DOMYSLNA 0 - dokladnie taki wiersz zapisuje panel
+-- (admin.community.events.tsx ustawia visibility, min_tier_rank nie rusza),
+-- wiec to on demaskuje polityke anon patrzaca tylko na prog rangi.
 INSERT INTO public.events (id, tenant_id, slug, title_pl, title_en, kind, starts_at, visibility, min_tier_rank, capacity, status, join_url) VALUES
   ('d3333333-3333-3333-3333-333333333301', (SELECT public.public_tenant_id()),
    'ev-open', 'Otwarte', 'Open', 'webinar', now() + interval '7 days',
@@ -70,17 +81,25 @@ INSERT INTO public.events (id, tenant_id, slug, title_pl, title_en, kind, starts
    'public', 0, NULL, 'draft', NULL),
   ('d3333333-3333-3333-3333-333333333305', 'd1111111-1111-1111-1111-111111111111',
    'ev-foreign', 'Obcy', 'Foreign', 'webinar', now() + interval '7 days',
-   'public', 0, NULL, 'published', NULL);
+   'public', 0, NULL, 'published', NULL),
+  ('d3333333-3333-3333-3333-333333333306', (SELECT public.public_tenant_id()),
+   'ev-members-default', 'Dla czlonkow (ranga domyslna)', 'Members (default rank)',
+   'webinar', now() + interval '7 days',
+   'members', 0, NULL, 'published', NULL);
 
 -- -- 1. Publiczny odczyt + granty kolumnowe --------------------------------------
 SET LOCAL ROLE anon;
 SELECT set_config('request.jwt.claims', '{"role":"anon"}', true);
 
+-- Zbior, nie licznik: jedna asercja rozstrzyga naraz cztery wykluczenia
+-- (draft, obcy tenant, prog rangi, visibility = 'members' takze przy randze 0),
+-- a licznik spelnial dowolny zestaw wierszy tej samej licznosci.
 SELECT is(
-  (SELECT count(*)::int FROM public.events
-    WHERE slug IN ('ev-open', 'ev-members', 'ev-briefing', 'ev-draft', 'ev-foreign')),
-  3,
-  'anon widzi tylko opublikowane wydarzenia publicznego tenanta (bez draftu i obcych)'
+  (SELECT array_agg(e.slug ORDER BY e.slug) FROM public.events e
+    WHERE e.slug IN ('ev-open', 'ev-members', 'ev-members-default',
+                     'ev-briefing', 'ev-draft', 'ev-foreign')),
+  ARRAY['ev-open'],
+  'anon widzi WYLACZNIE opublikowane, niebramkowane wydarzenie publicznego tenanta (bez members - takze z ranga domyslna 0 - bez draftu i bez obcego tenanta)'
 );
 
 SELECT ok(

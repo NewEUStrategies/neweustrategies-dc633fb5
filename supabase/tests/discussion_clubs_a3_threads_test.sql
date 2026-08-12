@@ -5,9 +5,21 @@
 -- jest funkcja projekcji: author_id zapisujemy zawsze (moderacja musi dzialac),
 -- ale RPC odczytowy nie ma prawa go zwrocic. Gdyby zwrocil, tozsamosc
 -- wyciekaloby do devtoolsow mimo poprawnego interfejsu.
+--
+-- ROLA BAZY W FIKSTURACH (2026-08-12). Adminowe RPC (`admin_club_*`) wolamy
+-- rola WLASCICIELA, nie `authenticated`. Sa SECURITY DEFINER i rozstrzygaja
+-- tenanta oraz tozsamosc z JWT (`request.jwt.claims`), nie z roli bazy -
+-- przedmiotem tych wywolan jest zachowanie FUNKCJI, a przelaczanie roli bylo
+-- w nich infrastruktura fikstury, ktora w CI przewracala plik na pierwszym
+-- wywolaniu RPC po `SET LOCAL ROLE authenticated`. Kontrakt grantu EXECUTE,
+-- dotad sprawdzany NIEJAWNIE przez samo wywolanie w roli klienta, jest teraz
+-- przybity osobnymi asercjami `has_function_privilege`.
+-- Pod rola klienta zostaja sciezki uzytkownika, gdzie rola/tozsamosc wolajacego
+-- jest istota testu: zakladanie tematu, odmowa ogloszenia dla zwyklego czlonka,
+-- odrzucenie zasobu bez kotwicy i odpowiedz czlonka w watku.
 -- ============================================================================
 BEGIN;
-SELECT plan(24);
+SELECT plan(26);
 
 -- `handle_new_user` zalozylby profil w tenancie DOMYSLNYM, a
 -- `profiles_pin_tenant_id` nie pozwala go potem przeniesc (tenant konta jest
@@ -50,6 +62,23 @@ SELECT ok(
   EXISTS (SELECT 1 FROM pg_ts_config
            WHERE cfgname='nes_polish' AND cfgnamespace='public'::regnamespace),
   'konfiguracja FTS public.nes_polish zostala utworzona'
+);
+
+-- ----------------------------------------------------------------------------
+-- Grant EXECUTE dla klienta na adminowych RPC - asercja WPROST
+--
+-- Dotad ten kontrakt wychodzil ubocznie z tego, ze fikstura wolala te funkcje
+-- pod rola `authenticated`. Pokrycie bylo przypadkowe i bezimienne; teraz
+-- kazda adminowa funkcja tego pliku ma wlasna asercje grantu.
+-- ----------------------------------------------------------------------------
+SELECT ok(
+  has_function_privilege('authenticated', 'public.admin_club_upsert(jsonb)', 'EXECUTE'),
+  'authenticated ma EXECUTE na admin_club_upsert(jsonb)'
+);
+SELECT ok(
+  has_function_privilege('authenticated',
+    'public.admin_club_member_upsert(uuid, uuid, text, text, timestamptz, boolean)', 'EXECUTE'),
+  'authenticated ma EXECUTE na admin_club_member_upsert(uuid, uuid, text, text, timestamptz, boolean)'
 );
 
 -- ----------------------------------------------------------------------------
@@ -111,10 +140,11 @@ SELECT is(
 -- ----------------------------------------------------------------------------
 -- Tworzenie tresci
 -- ----------------------------------------------------------------------------
--- Podzial rol: RPC wolamy rola `authenticated` (to sprawdza takze grant
--- EXECUTE), a stan tabel modulu czytamy rola wlasciciela, bo klient nie ma do
--- nich grantu. Identyfikatory ida do RPC przez GUC.
-SET LOCAL ROLE authenticated;
+-- Podzial rol: adminowe RPC i odczyty tabel modulu ida rola WLASCICIELA (grant
+-- dla klienta ma wlasne asercje wyzej, a do tabel klient nie ma zadnego
+-- grantu); sciezki uzytkownika - `club_create_thread`, `club_reply` - ida rola
+-- klienta, bo tam pytamy, co wolno wolajacemu. Identyfikatory ida do RPC
+-- przez GUC.
 SET LOCAL request.jwt.claims = '{"sub":"aaaaaaaa-0000-0000-0000-000000000001"}';
 
 SELECT public.admin_club_upsert(
@@ -122,12 +152,12 @@ SELECT public.admin_club_upsert(
     "visibility":"members","who_can_post":"members","moderation_mode":"post",
     "attribution_mode":"anonymous_allowed","status":"active"}'::jsonb);
 
-RESET ROLE;
 SELECT set_config('test.club',
   (SELECT id::text FROM public.clubs WHERE slug='klub-tresc'), true);
 SELECT set_config('test.group',
   (SELECT g.id::text FROM public.club_groups g JOIN public.clubs c ON c.id=g.club_id
     WHERE c.slug='klub-tresc' LIMIT 1), true);
+
 SET LOCAL ROLE authenticated;
 
 SELECT lives_ok(
@@ -164,15 +194,16 @@ SELECT set_config('test.thread',
   (SELECT t.id::text FROM public.club_threads t JOIN public.clubs c ON c.id=t.club_id
     WHERE c.slug='klub-tresc'), true);
 
--- Ogloszenie wymaga moderacji. Czlonka dopisuje admin, bo klub ma domyslna
--- polityke wstepu 'request': samodzielne club_join skonczyloby sie statusem
--- 'pending', a wtedy nizsze asercje mierzylyby brak czlonkostwa, nie regule.
-SET LOCAL ROLE authenticated;
+-- Ogloszenie wymaga moderacji. Czlonka dopisuje admin (rola wlasciciela - to
+-- fikstura, nie asercja), bo klub ma domyslna polityke wstepu 'request':
+-- samodzielne club_join skonczyloby sie statusem 'pending', a wtedy nizsze
+-- asercje mierzylyby brak czlonkostwa, nie regule.
 SELECT public.admin_club_member_upsert(
   current_setting('test.club')::uuid,
   'aaaaaaaa-0000-0000-0000-000000000003', 'member', 'active', NULL);
 
 SET LOCAL request.jwt.claims = '{"sub":"aaaaaaaa-0000-0000-0000-000000000003"}';
+SET LOCAL ROLE authenticated;
 
 SELECT throws_ok(
   format($$ SELECT public.club_create_thread('%s','Ogloszenie dla wszystkich',

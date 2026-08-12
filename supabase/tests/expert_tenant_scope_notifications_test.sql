@@ -20,10 +20,18 @@
 -- (user, kind, href) zjadałby drugie zapytanie), stempel tenanta odbiorcy oraz
 -- honorowanie przełącznika `enabled_expert_request`.
 --
+-- NAZWA RELACJI. Fizyczna relacja nazywa się `public.expert_inmails` - to nazwa
+-- zastana w produkcji i w zrzucie typów (src/integrations/supabase/types.ts),
+-- do której 20260806160001 świadomie ZBIEGŁA oba światy po rozjeździe
+-- `expert_inmails` <-> `expert_requests` (20260723180000 robiło rename tylko na
+-- świeżej bazie). Nazwa domenowa („expert request") żyje w API i UI:
+-- send_expert_request / my_expert_request_quota / resolve_expert_request. Test
+-- przybija JEDNĄ relację pod tą nazwą i BRAK drugiej - żeby rozjazd nie wrócił.
+--
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(34);
+SELECT plan(35);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -205,10 +213,13 @@ SELECT ok(
   'katalog: producent ma gałąź CASE (bez niej ELSE true = przeciek)');
 
 -- ── 10) Doręczenia: pełny cykl życia zapytania ──────────────────────────────
-SELECT ok(to_regclass('public.expert_requests') IS NOT NULL,
-  'relacja zapytań istnieje pod kanoniczną nazwą');
+SELECT ok(to_regclass('public.expert_inmails') IS NOT NULL,
+  'relacja zapytań istnieje pod kanoniczną nazwą (expert_inmails)');
 
-INSERT INTO public.expert_requests
+SELECT ok(to_regclass('public.expert_requests') IS NULL,
+  'druga generacja nazwy nie istnieje - rozjazd expert_requests/expert_inmails zamknięty');
+
+INSERT INTO public.expert_inmails
   (id, tenant_id, sender_id, recipient_id, subject, reason)
 VALUES
   ('7f000000-0000-0000-0000-0000000000f1',
@@ -250,7 +261,7 @@ INSERT INTO public.conversations (id, tenant_id, kind, direct_key, created_by)
 VALUES ('7f000000-0000-0000-0000-0000000000c1', '7a000000-0000-0000-0000-0000000000a0',
         'direct', 'ets-direct-key', '7c000000-0000-0000-0000-000000000001');
 
-UPDATE public.expert_requests
+UPDATE public.expert_inmails
    SET status = 'approved',
        converted_conversation_id = '7f000000-0000-0000-0000-0000000000c1'
  WHERE id = '7f000000-0000-0000-0000-0000000000f1';
@@ -263,7 +274,7 @@ SELECT ok(
   'przyjęcie: nadawca dostaje link wprost do powstałej rozmowy');
 
 -- UPDATE bez zmiany statusu nie jest zdarzeniem dla użytkownika.
-UPDATE public.expert_requests
+UPDATE public.expert_inmails
    SET status = 'approved', admin_note = 'notatka'
  WHERE id = '7f000000-0000-0000-0000-0000000000f1';
 
@@ -274,7 +285,7 @@ SELECT is(
   1, 'zapis bez zmiany statusu nie produkuje drugiego powiadomienia');
 
 -- Odrzucenie z powodem trafia do treści.
-UPDATE public.expert_requests
+UPDATE public.expert_inmails
    SET status = 'declined', decline_reason = 'Brak czasu w tym kwartale'
  WHERE id = '7f000000-0000-0000-0000-0000000000f1';
 
@@ -286,7 +297,7 @@ SELECT ok(
   'odrzucenie: powód eksperta dociera do nadawcy');
 
 -- Wycofanie przez nadawcę: sygnał należy się ODBIORCY.
-UPDATE public.expert_requests SET status = 'cancelled'
+UPDATE public.expert_inmails SET status = 'cancelled'
  WHERE id = '7f000000-0000-0000-0000-0000000000f1';
 
 SELECT is(
@@ -300,7 +311,7 @@ INSERT INTO public.notification_preferences (user_id, tenant_id, enabled_expert_
 VALUES ('7c000000-0000-0000-0000-000000000001', '7a000000-0000-0000-0000-0000000000a0', false)
 ON CONFLICT (user_id) DO UPDATE SET enabled_expert_request = false;
 
-INSERT INTO public.expert_requests
+INSERT INTO public.expert_inmails
   (id, tenant_id, sender_id, recipient_id, subject, reason)
 VALUES
   ('7f000000-0000-0000-0000-0000000000f2',

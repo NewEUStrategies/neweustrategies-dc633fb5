@@ -8,9 +8,20 @@
 --   2. KONTRAKT POWIADOMIEN. enqueue_notification cicho zwraca NULL, gdy
 --      brakuje ktorejkolwiek z trzech zmian (CHECK, kolumna preferencji,
 --      galaz CASE). Cichy producent wyglada na dzialajacy - stad te asercje.
+--
+-- ROLA BAZY W FIKSTURACH (2026-08-12). Adminowe RPC (`admin_club_*`) wolamy
+-- rola WLASCICIELA, nie `authenticated`. Sa SECURITY DEFINER i rozstrzygaja
+-- tenanta oraz tozsamosc z JWT (`request.jwt.claims`), nie z roli bazy -
+-- przedmiotem tych wywolan jest zachowanie FUNKCJI, a przelaczanie roli bylo
+-- w nich infrastruktura fikstury, ktora w CI przewracala plik na pierwszym
+-- wywolaniu RPC po `SET LOCAL ROLE authenticated`. Kontrakt grantu EXECUTE,
+-- dotad sprawdzany NIEJAWNIE przez samo wywolanie w roli klienta, jest teraz
+-- przybity osobna asercja `has_function_privilege`.
+-- Pod rola klienta zostaja wszystkie sciezki uzytkownika - `club_create_thread`,
+-- `club_react`, `club_set_stance` - bo tam pytamy, co wolno wolajacemu.
 -- ============================================================================
 BEGIN;
-SELECT plan(17);
+SELECT plan(18);
 
 -- `handle_new_user` zalozylby profil w tenancie DOMYSLNYM, a
 -- `profiles_pin_tenant_id` nie pozwala go potem przeniesc (tenant konta jest
@@ -71,14 +82,26 @@ SELECT is_empty(
 );
 
 -- ----------------------------------------------------------------------------
+-- Grant EXECUTE dla klienta na adminowym RPC - asercja WPROST
+--
+-- Dotad ten kontrakt wychodzil ubocznie z tego, ze fikstura wolala te funkcje
+-- pod rola `authenticated`. Pokrycie bylo przypadkowe i bezimienne; teraz ma
+-- wlasna asercje.
+-- ----------------------------------------------------------------------------
+SELECT ok(
+  has_function_privilege('authenticated', 'public.admin_club_upsert(jsonb)', 'EXECUTE'),
+  'authenticated ma EXECUTE na admin_club_upsert(jsonb)'
+);
+
+-- ----------------------------------------------------------------------------
 -- Fixture tresci
 -- ----------------------------------------------------------------------------
--- Podzial rol: RPC wolamy rola `authenticated` (to sprawdza takze grant
--- EXECUTE), a stan tabel modulu czytamy rola wlasciciela, bo klient nie ma do
--- nich grantu. Baza po migracjach nie jest pusta - 20260808220000 seeduje klub
--- referencyjny z watkami - wiec kazde pytanie o "watek" wskazuje watek TEGO
--- testu przez GUC, nie pierwszy wiersz tabeli.
-SET LOCAL ROLE authenticated;
+-- Podzial rol: adminowe RPC i odczyty tabel modulu ida rola WLASCICIELA (grant
+-- dla klienta ma wlasna asercje wyzej, a do tabel klient nie ma zadnego
+-- grantu); sciezki uzytkownika ida rola klienta. Baza po migracjach nie jest
+-- pusta - 20260808220000 seeduje klub referencyjny z watkami - wiec kazde
+-- pytanie o "watek" wskazuje watek TEGO testu przez GUC, nie pierwszy wiersz
+-- tabeli.
 SET LOCAL request.jwt.claims = '{"sub":"aaaaaaaa-0000-0000-0000-000000000001"}';
 
 SELECT public.admin_club_upsert(
@@ -86,10 +109,10 @@ SELECT public.admin_club_upsert(
     "visibility":"members","who_can_post":"members","moderation_mode":"post",
     "status":"active"}'::jsonb);
 
-RESET ROLE;
 SELECT set_config('test.group',
   (SELECT g.id::text FROM public.club_groups g JOIN public.clubs c ON c.id=g.club_id
     WHERE c.slug='klub-reakcje' LIMIT 1), true);
+
 SET LOCAL ROLE authenticated;
 
 SELECT public.club_create_thread(

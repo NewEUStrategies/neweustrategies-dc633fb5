@@ -6,9 +6,21 @@
 -- Wpisanie tam roli KLUBOWEJ nadaloby komus uprawnienia redakcyjne calej
 -- platformy (V2 §3.2). Kontrakt musi pilnowac, ze club_invite_by_email
 -- ZAWSZE wpisuje 'user', niezaleznie od zadanej roli klubowej.
+--
+-- ROLA BAZY W FIKSTURACH (2026-08-12). Adminowe RPC (`admin_club_*`) wolamy
+-- rola WLASCICIELA, nie `authenticated`. Sa SECURITY DEFINER i rozstrzygaja
+-- tenanta oraz tozsamosc z JWT (`request.jwt.claims`), nie z roli bazy -
+-- przedmiotem tych wywolan jest zachowanie FUNKCJI, a przelaczanie roli bylo
+-- w nich infrastruktura fikstury, ktora w CI przewracala plik na pierwszym
+-- wywolaniu RPC po `SET LOCAL ROLE authenticated`. Kontrakt grantu EXECUTE,
+-- dotad sprawdzany NIEJAWNIE przez samo wywolanie w roli klienta, jest teraz
+-- przybity osobnymi asercjami `has_function_privilege`.
+-- Pod rola klienta zostaja wszystkie wywolania sciezek uzytkownika, w ktorych
+-- rola/tozsamosc wolajacego jest istota testu: `club_invite`,
+-- `club_invite_by_email`, `club_join`, `club_leave`.
 -- ============================================================================
 BEGIN;
-SELECT plan(21);
+SELECT plan(23);
 
 -- `handle_new_user` zalozylby profil w tenancie DOMYSLNYM, a
 -- `profiles_pin_tenant_id` nie pozwala go potem przeniesc (tenant konta jest
@@ -55,11 +67,33 @@ SELECT is_empty(
   'tabele zaproszen nie maja grantow dla klienta'
 );
 
--- Podzial rol wynika z asercji o grantach powyzej: RPC wolamy rola
--- `authenticated` (to sprawdza takze grant EXECUTE), a stan tabel czytamy rola
--- wlasciciela, bo klient nie ma do nich grantu. Identyfikatory klubow ida do
--- RPC przez GUC - podzapytanie po id siegneloby do tabeli rola klienta.
-SET LOCAL ROLE authenticated;
+-- ----------------------------------------------------------------------------
+-- Grant EXECUTE dla klienta na adminowych RPC - asercja WPROST
+--
+-- Dotad ten kontrakt wychodzil ubocznie z tego, ze fikstura wolala te funkcje
+-- pod rola `authenticated`. Pokrycie bylo przypadkowe i bezimienne; teraz
+-- kazda adminowa funkcja tego pliku ma wlasna asercje grantu.
+-- ----------------------------------------------------------------------------
+SELECT ok(
+  has_function_privilege('authenticated', 'public.admin_club_upsert(jsonb)', 'EXECUTE'),
+  'authenticated ma EXECUTE na admin_club_upsert(jsonb)'
+);
+SELECT ok(
+  has_function_privilege('authenticated',
+    'public.admin_club_invite_link_create(uuid, text, text, integer, timestamptz, boolean, uuid)',
+    'EXECUTE'),
+  'authenticated ma EXECUTE na admin_club_invite_link_create(uuid, text, text, integer, timestamptz, boolean, uuid)'
+);
+
+-- ----------------------------------------------------------------------------
+-- Fixture klubow
+--
+-- Podzial rol: adminowe RPC i odczyty tabel modulu ida rola WLASCICIELA (grant
+-- dla klienta ma wlasne asercje wyzej, a do tabel klient nie ma zadnego
+-- grantu), a sciezki uzytkownika - rola klienta. Identyfikatory klubow ida do
+-- RPC przez GUC: podzapytanie po id siegneloby do tabeli w blokach, ktore
+-- chodza rola klienta.
+-- ----------------------------------------------------------------------------
 SET LOCAL request.jwt.claims = '{"sub":"aaaaaaaa-0000-0000-0000-000000000001"}';
 
 SELECT public.admin_club_upsert(
@@ -69,16 +103,16 @@ SELECT public.admin_club_upsert(
   '{"slug":"klub-otwarty","name_pl":"Klub otwarty","name_en":"Open club",
     "visibility":"members","join_policy":"open","status":"active"}'::jsonb);
 
-RESET ROLE;
 SELECT set_config('test.club_invite',
   (SELECT id::text FROM public.clubs WHERE slug='klub-zapro'), true);
 SELECT set_config('test.club_open',
   (SELECT id::text FROM public.clubs WHERE slug='klub-otwarty'), true);
-SET LOCAL ROLE authenticated;
 
 -- ----------------------------------------------------------------------------
 -- Sciezka A: zaproszenie bezposrednie
 -- ----------------------------------------------------------------------------
+SET LOCAL ROLE authenticated;
+
 SELECT lives_ok(
   format($$ SELECT public.club_invite('%s','%s','member',NULL,NULL) $$,
     current_setting('test.club_invite'),
@@ -154,14 +188,16 @@ SELECT throws_ok(
 
 -- ----------------------------------------------------------------------------
 -- Sciezka C: linki
+--
+-- Tworzenie linku to pozytywna sciezka administracyjna - rola wlasciciela.
 -- ----------------------------------------------------------------------------
+RESET ROLE;
+
 SELECT lives_ok(
   format($$ SELECT public.admin_club_invite_link_create('%s','Konferencja','member',2,NULL,false,NULL) $$,
     current_setting('test.club_open')),
   'admin tworzy link zapraszajacy'
 );
-
-RESET ROLE;
 
 SELECT ok(
   (SELECT length(token) >= 40 FROM public.club_invite_links LIMIT 1),
@@ -173,12 +209,14 @@ SELECT isnt(
   NULL, 'token zostal wygenerowany'
 );
 
-SET LOCAL ROLE authenticated;
-
 -- ----------------------------------------------------------------------------
 -- Samoobsluga: polityka wstepu
+--
+-- Tu rola klienta zostaje - przedmiotem asercji jest to, co moze sam
+-- uzytkownik, a nie zachowanie funkcji adminowej.
 -- ----------------------------------------------------------------------------
 SET LOCAL request.jwt.claims = '{"sub":"aaaaaaaa-0000-0000-0000-000000000005"}';
+SET LOCAL ROLE authenticated;
 
 -- Klub 'invite' nie przyjmuje zgloszen samodzielnych.
 SELECT throws_ok(
