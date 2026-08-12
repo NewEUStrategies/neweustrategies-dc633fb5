@@ -112,6 +112,35 @@ jobs:
       # locally against a pinned Chromium. If this job keeps failing, the fix is
       # to PIN Chrome for the smoke (or bump Lighthouse), not to grow the skip
       # list further.
+      # Chrome PRZYPIĘTY do buildu Playwrighta, nie do tego, co runner ma
+      # zainstalowane. Powód jest zmierzony: smoke padał serią ~15 ostrzeżeń
+      # „Attempted to get a SyntheticEventsManager without initializing" i błędem
+      # wykonania na `Network.getResponseBody` - parser śladów Lighthouse'a nie
+      # radził sobie z buildem Chrome runnera. Ta sama konfiguracja i ten sam
+      # Lighthouse przechodzą na Chromium Playwrighta (sprawdzone lokalnie,
+      # exit 0). Playwright jest już zależnością tego repo i tak samo instaluje
+      # przeglądarkę w `e2e.yml`, więc nie dokładamy ani zależności, ani
+      # zewnętrznej akcji - używamy przeglądarki, którą repo i tak przypina.
+      - name: Install pinned Chromium for Lighthouse
+        if: ${{ vars.LHCI_URL == '' }}
+        run: bunx playwright install --with-deps chromium
+
+      # Ścieżka z katalogu, do którego `playwright install` rozpakowuje build.
+      # Brak trafienia NIE przewraca joba: Lighthouse spada wtedy na Chrome
+      # runnera, czyli na dotychczasowe zachowanie - a krok mówi o tym w logu,
+      # więc regres nie jest cichy.
+      - name: Resolve pinned Chromium path
+        if: ${{ vars.LHCI_URL == '' }}
+        run: |
+          root="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/.cache/ms-playwright}"
+          path="$(find "$root" -maxdepth 4 -type f -name chrome -path '*chrome-linux*' 2>/dev/null | sort | tail -1)"
+          if [ -n "$path" ] && [ -x "$path" ]; then
+            echo "CHROME_PATH=$path" >> "$GITHUB_ENV"
+            echo "Lighthouse uzyje przypietego Chromium: $path"
+          else
+            echo "UWAGA: nie znaleziono Chromium Playwrighta w $root - Lighthouse uzyje Chrome runnera."
+          fi
+
       - name: Lighthouse smoke on dev server (scores advisory; the run must succeed)
         if: ${{ vars.LHCI_URL == '' }}
         run: bunx @lhci/cli@0.15.x autorun --config=lighthouserc.json

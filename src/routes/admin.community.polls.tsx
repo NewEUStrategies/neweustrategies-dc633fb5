@@ -2,6 +2,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { pickLocalized, pickPair, type LocaleCode } from "@/lib/i18n/pickLocalized";
+import { ensureI18n as ensureAdminCommunityI18n } from "@/lib/i18n-admin-community";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Vote, Trash2, Play, Pause, BarChart2, Plus, X } from "lucide-react";
@@ -39,8 +41,9 @@ export const Route = createFileRoute("/admin/community/polls")({
 });
 
 function PollsAdmin() {
-  const { i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  ensureAdminCommunityI18n();
+  const { t, i18n } = useTranslation();
+  const lang: LocaleCode = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
   const qc = useQueryClient();
   const [status, setStatus] = useState<PollStatus | "all">("all");
   const [openResultsFor, setOpenResultsFor] = useState<string | null>(null);
@@ -61,18 +64,18 @@ function PollsAdmin() {
     mutationFn: ({ id, s }: { id: string; s: PollStatus }) => updatePollStatus(id, s),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-polls"] });
-      toast.success(isPl ? "Zapisano" : "Saved");
+      toast.success(t("adminCommunity.polls.saved"));
     },
-    onError: () => toast.error(isPl ? "Błąd" : "Failed"),
+    onError: () => toast.error(t("adminCommunity.polls.failed")),
   });
 
   const deleteM = useMutation({
     mutationFn: deletePoll,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-polls"] });
-      toast.success(isPl ? "Usunięto" : "Deleted");
+      toast.success(t("adminCommunity.polls.deleted"));
     },
-    onError: () => toast.error(isPl ? "Błąd" : "Failed"),
+    onError: () => toast.error(t("adminCommunity.polls.failed")),
   });
 
   return (
@@ -80,7 +83,7 @@ function PollsAdmin() {
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Vote className="w-4 h-4" />
-          <h2 className="text-lg font-semibold">{isPl ? "Ankiety" : "Polls"}</h2>
+          <h2 className="text-lg font-semibold">{t("adminCommunity.polls.polls")}</h2>
         </div>
         <div className="flex items-center gap-2">
           <Select value={status} onValueChange={(v) => setStatus(v as PollStatus | "all")}>
@@ -88,16 +91,13 @@ function PollsAdmin() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">{isPl ? "Wszystkie" : "All"}</SelectItem>
-              <SelectItem value="draft">{isPl ? "Szkic" : "Draft"}</SelectItem>
-              <SelectItem value="open">{isPl ? "Otwarte" : "Open"}</SelectItem>
-              <SelectItem value="closed">{isPl ? "Zamknięte" : "Closed"}</SelectItem>
+              <SelectItem value="all">{t("adminCommunity.polls.all")}</SelectItem>
+              <SelectItem value="draft">{t("adminCommunity.polls.draft")}</SelectItem>
+              <SelectItem value="open">{t("adminCommunity.polls.open")}</SelectItem>
+              <SelectItem value="closed">{t("adminCommunity.polls.closed")}</SelectItem>
             </SelectContent>
           </Select>
-          <CreatePollButton
-            isPl={isPl}
-            onCreated={() => qc.invalidateQueries({ queryKey: ["admin-polls"] })}
-          />
+          <CreatePollButton onCreated={() => qc.invalidateQueries({ queryKey: ["admin-polls"] })} />
         </div>
       </div>
 
@@ -105,11 +105,11 @@ function PollsAdmin() {
         <CardContent className="p-0">
           {q.isLoading ? (
             <div className="p-4 text-sm text-muted-foreground">
-              {isPl ? "Ładowanie..." : "Loading..."}
+              {t("adminCommunity.polls.loading")}
             </div>
           ) : (q.data ?? []).length === 0 ? (
             <div className="p-6 text-sm text-muted-foreground text-center">
-              {isPl ? "Brak ankiet" : "No polls"}
+              {t("adminCommunity.polls.noPolls")}
             </div>
           ) : (
             <ul className="divide-y divide-border/60">
@@ -117,19 +117,19 @@ function PollsAdmin() {
                 <li key={p.id} className="p-3 flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium truncate">
-                      {isPl ? p.question_pl : p.question_en}
+                      {pickLocalized(p, "question", lang)}
                     </div>
                     <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                       <Badge variant="outline">{p.status}</Badge>
                       {p.ends_at && (
                         <span>
-                          {isPl ? "koniec: " : "ends: "}
+                          {t("adminCommunity.polls.ends")}
                           {new Date(p.ends_at).toLocaleDateString()}
                         </span>
                       )}
                     </div>
                     {openResultsFor === p.id && (
-                      <PollResults data={resultsQ.data ?? {}} options={p.options} isPl={isPl} />
+                      <PollResults data={resultsQ.data ?? {}} options={p.options} lang={lang} />
                     )}
                   </div>
                   <div className="flex items-center gap-1">
@@ -162,7 +162,7 @@ function PollsAdmin() {
                       size="sm"
                       variant="ghost"
                       onClick={() => {
-                        if (confirm(isPl ? "Usunąć?" : "Delete?")) deleteM.mutate(p.id);
+                        if (confirm(t("adminCommunity.polls.delete"))) deleteM.mutate(p.id);
                       }}
                     >
                       <Trash2 className="w-4 h-4 text-destructive" />
@@ -181,12 +181,15 @@ function PollsAdmin() {
 function PollResults({
   data,
   options,
-  isPl,
+  lang,
 }: {
   data: Record<string, number>;
   options: unknown;
-  isPl: boolean;
+  // Tu `lang` NIE jest etykieta interfejsu - wybiera JEZYK TRESCI z blizniaczych
+  // pol opcji ankiety (`label_pl`/`label_en`), wiec zostaje jawnym parametrem.
+  lang: LocaleCode;
 }) {
+  const { t } = useTranslation();
   const optArr = Array.isArray(options) ? (options as Array<Record<string, unknown>>) : [];
   const total = Object.values(data).reduce((a, b) => a + b, 0);
   return (
@@ -194,7 +197,7 @@ function PollResults({
       {optArr.map((opt, idx) => {
         const count = data[String(idx)] ?? 0;
         const pct = total > 0 ? Math.round((count / total) * 100) : 0;
-        const label = (isPl ? opt.label_pl : opt.label_en) ?? opt.label ?? `#${idx + 1}`;
+        const label = pickPair(pickLocalized(opt, "label", lang), opt.label, `#${idx + 1}`);
         return (
           <div key={idx} className="text-xs">
             <div className="flex justify-between">
@@ -210,13 +213,15 @@ function PollResults({
         );
       })}
       {total === 0 && (
-        <div className="text-xs text-muted-foreground">{isPl ? "Brak głosów" : "No votes"}</div>
+        <div className="text-xs text-muted-foreground">{t("adminCommunity.polls.noVotes")}</div>
       )}
     </div>
   );
 }
 
-function CreatePollButton({ isPl, onCreated }: { isPl: boolean; onCreated: () => void }) {
+function CreatePollButton({ onCreated }: { onCreated: () => void }) {
+  ensureAdminCommunityI18n();
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [qPl, setQPl] = useState("");
   const [qEn, setQEn] = useState("");
@@ -248,12 +253,12 @@ function CreatePollButton({ isPl, onCreated }: { isPl: boolean; onCreated: () =>
         status,
       }),
     onSuccess: () => {
-      toast.success(isPl ? "Utworzono" : "Created");
+      toast.success(t("adminCommunity.polls.created"));
       onCreated();
       setOpen(false);
       reset();
     },
-    onError: (e: Error) => toast.error(e.message || (isPl ? "Błąd" : "Failed")),
+    onError: (e: Error) => toast.error(e.message || t("adminCommunity.polls.failed")),
   });
 
   const validOptCount = opts.filter((o) => o.label_pl.trim() && o.label_en.trim()).length;
@@ -263,26 +268,26 @@ function CreatePollButton({ isPl, onCreated }: { isPl: boolean; onCreated: () =>
     <>
       <Button size="sm" onClick={() => setOpen(true)}>
         <Plus className="w-4 h-4 mr-1" />
-        {isPl ? "Nowa ankieta" : "New poll"}
+        {t("adminCommunity.polls.newPoll")}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{isPl ? "Nowa ankieta" : "New poll"}</DialogTitle>
+            <DialogTitle>{t("adminCommunity.polls.newPoll")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>{isPl ? "Pytanie (PL)" : "Question (PL)"}</Label>
+                <Label>{t("adminCommunity.polls.questionPl")}</Label>
                 <Input value={qPl} onChange={(e) => setQPl(e.target.value)} />
               </div>
               <div className="space-y-1">
-                <Label>{isPl ? "Pytanie (EN)" : "Question (EN)"}</Label>
+                <Label>{t("adminCommunity.polls.questionEn")}</Label>
                 <Input value={qEn} onChange={(e) => setQEn(e.target.value)} />
               </div>
             </div>
             <div className="space-y-2">
-              <Label>{isPl ? "Opcje" : "Options"}</Label>
+              <Label>{t("adminCommunity.polls.options")}</Label>
               {opts.map((o, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <Input
@@ -321,12 +326,12 @@ function CreatePollButton({ isPl, onCreated }: { isPl: boolean; onCreated: () =>
                 disabled={opts.length >= 8}
               >
                 <Plus className="w-4 h-4 mr-1" />
-                {isPl ? "Dodaj opcję" : "Add option"}
+                {t("adminCommunity.polls.addOption")}
               </Button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>{isPl ? "Koniec (opcjonalny)" : "Ends at (optional)"}</Label>
+                <Label>{t("adminCommunity.polls.endsAtOptional")}</Label>
                 <Input
                   type="datetime-local"
                   value={endsAt}
@@ -334,14 +339,14 @@ function CreatePollButton({ isPl, onCreated }: { isPl: boolean; onCreated: () =>
                 />
               </div>
               <div className="space-y-1">
-                <Label>{isPl ? "Status" : "Status"}</Label>
+                <Label>{t("adminCommunity.polls.status")}</Label>
                 <Select value={status} onValueChange={(v) => setStatus(v as PollStatus)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="draft">{isPl ? "Szkic" : "Draft"}</SelectItem>
-                    <SelectItem value="open">{isPl ? "Otwarta" : "Open"}</SelectItem>
+                    <SelectItem value="draft">{t("adminCommunity.polls.draft")}</SelectItem>
+                    <SelectItem value="open">{t("adminCommunity.polls.statusOpen")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -349,10 +354,10 @@ function CreatePollButton({ isPl, onCreated }: { isPl: boolean; onCreated: () =>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>
-              {isPl ? "Anuluj" : "Cancel"}
+              {t("adminCommunity.polls.cancel")}
             </Button>
             <Button onClick={() => m.mutate()} disabled={!canSubmit || m.isPending}>
-              {isPl ? "Utwórz" : "Create"}
+              {t("adminCommunity.polls.create")}
             </Button>
           </DialogFooter>
         </DialogContent>
