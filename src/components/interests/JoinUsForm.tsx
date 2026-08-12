@@ -43,7 +43,9 @@ import { FloatingInput } from "@/components/ui/floating-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { buildJoinUsSizeCss } from "@/lib/interests/joinUsSizeCss";
 
-import "@/lib/i18n-interests";
+import { ensureI18n as ensureInterestsI18n } from "@/lib/i18n-interests";
+
+ensureInterestsI18n();
 
 /** Klucz zgody marketingowej w katalogu RODO - jedno źródło prawdy. */
 export const MARKETING_CONSENT_KEY = "marketing_email";
