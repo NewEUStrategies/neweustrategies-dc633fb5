@@ -8,7 +8,9 @@ import { Link } from "@tanstack/react-router";
 import { Loader2, Check, SlidersHorizontal, LogIn } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useInterestCatalog, useMyInterests, type InterestItem } from "@/hooks/useInterests";
-import "@/lib/i18n-interests";
+import { ensureI18n as ensureInterestsI18n } from "@/lib/i18n-interests";
+
+ensureInterestsI18n();
 
 interface Props {
   variant?: "full" | "compact";
