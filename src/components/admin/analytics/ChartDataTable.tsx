@@ -43,10 +43,26 @@ function isNumeric(value: unknown): boolean {
   return typeof value === "number" && Number.isFinite(value);
 }
 
+/**
+ * Czy z tych danych powstanie tabela.
+ *
+ * Regula pustosci MUSI byc jedna dla komponentu i dla wolajacego: karta wiaze
+ * region wykresu z tabela przez `aria-describedby`, wiec gdyby liczyla pustosc
+ * osobno, przy zerowym zbiorze (pulpit w trakcie ladowania albo raport, ktory
+ * legalnie nie ma wynikow) region wskazywalby na element, ktorego nie ma -
+ * czytnik obiecuje opis i nie dostarcza go. Dlatego predykat mieszka TUTAJ,
+ * obok warunku renderowania.
+ */
+export function hasChartTableData(
+  csv: { headers: readonly string[]; rows: readonly (readonly unknown[])[] } | undefined,
+): boolean {
+  return csv !== undefined && csv.headers.length > 0 && csv.rows.length > 0;
+}
+
 export function ChartDataTable({ title, headers, rows, id }: ChartDataTableProps) {
   const { t } = useTranslation();
 
-  if (headers.length === 0 || rows.length === 0) return null;
+  if (!hasChartTableData({ headers, rows })) return null;
 
   return (
     <details id={id} className="group border-t border-border/60 px-4 py-2">

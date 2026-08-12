@@ -80,6 +80,21 @@ describe("ChartCard - dostepnosc", () => {
     expect(screen.getByRole("img", { name: "Chart: Bez danych" })).toBeTruthy();
   });
 
+  it.each([
+    ["puste wiersze", { filename: "e.csv", headers: ["Dzien"], rows: [] }],
+    ["puste naglowki", { filename: "e.csv", headers: [], rows: [["x"]] }],
+  ])("nie zostawia wiszacego aria-describedby przy %s", (_label, csv) => {
+    // Zgloszone w recenzji PR #220: `csv` moze ISTNIEC i byc pusty - pulpit
+    // w trakcie ladowania albo raport, ktory legalnie nie ma wynikow. Tabela
+    // sie wtedy nie renderuje, wiec atrybut wskazywalby element, ktorego nie ma:
+    // czytnik obiecuje opis i go nie dostarcza.
+    render(<ChartCard title="Puste" option={{}} csv={csv as NonNullable<ChartCardProps["csv"]>} />);
+
+    expect(screen.queryByRole("table")).toBeNull();
+    const region = screen.getByRole("img", { name: "Chart: Puste" });
+    expect(region.getAttribute("aria-describedby")).toBeNull();
+  });
+
   it("dwie karty na jednej stronie maja ROZNE id tabel", () => {
     // slug(title) dawalby ten sam id dla dwoch kart o tym samym tytule w roznych
     // sekcjach pulpitu, a zduplikowany id rozjezdza aria-describedby.

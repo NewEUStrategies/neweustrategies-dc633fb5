@@ -21,7 +21,7 @@ import type { ECharts, EChartsCoreOption } from "echarts/core";
 import { EChart } from "./EChart";
 import { exportCsv, exportPng } from "./exportChart";
 import { ChartDrillDialog, type ChartClickParams, type ChartDrillDetail } from "./ChartDrillDialog";
-import { ChartDataTable } from "./ChartDataTable";
+import { ChartDataTable, hasChartTableData } from "./ChartDataTable";
 
 export interface ChartCardProps {
   title: string;
@@ -73,6 +73,10 @@ export function ChartCard({
   // moga miec ten sam tytul w roznych sekcjach - zduplikowany id rozjechalby
   // powiazanie aria-describedby.
   const tableId = `${useId()}-chart-data`;
+  // Jeden predykat dla atrybutu i dla renderu - inaczej przy zerowym zbiorze
+  // (pulpit w trakcie ladowania, raport bez wynikow) `aria-describedby`
+  // wskazywalby element, ktorego nie ma.
+  const showTable = hasChartTableData(csv);
   const instanceRef = useRef<ECharts | null>(null);
 
   const handleReady = useCallback((inst: ECharts) => {
@@ -169,7 +173,7 @@ export function ChartCard({
         className="flex-1 p-2 min-h-0"
         role="img"
         aria-label={t("adminAnalytics.chartCard.chartRegion", { title })}
-        aria-describedby={csv ? tableId : undefined}
+        aria-describedby={showTable ? tableId : undefined}
       >
         <EChart
           option={option}
@@ -179,7 +183,7 @@ export function ChartCard({
           themeVersion={themeVersion}
         />
       </div>
-      {csv ? (
+      {showTable && csv ? (
         <ChartDataTable id={tableId} title={title} headers={csv.headers} rows={csv.rows} />
       ) : null}
       {footer ? (
