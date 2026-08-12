@@ -44,7 +44,10 @@ start_fresh() {
   sleep 1
   rm -rf "$PGDIR"; mkdir -p "$PGDIR/data" "$PGDIR/run" "$PGDIR/mig"
   [ "$(id -un)" = "root" ] && chown -R "$RUNAS" "$PGDIR"
-  run_as "initdb -D $PGDIR/data -U postgres --auth=trust -E UTF8 --locale=C" >/dev/null 2>&1
+  # locale: domyslnie C (szybkie i wszedzie dostepne), ale `lower()` zwija wtedy
+  # tylko ASCII, wiec asercje na frazach z diakrytykami zachowuja sie inaczej niz
+  # w CI (baza UTF-8). PGTAP_INITDB_LOCALE pozwala to wyrownac.
+  run_as "initdb -D $PGDIR/data -U postgres --auth=trust -E UTF8 --locale=${PGTAP_INITDB_LOCALE:-C}" >/dev/null 2>&1
   run_as "pg_ctl -D $PGDIR/data -o '-k $PGDIR/run -p $PGPORT -c listen_addresses=\"\"' -l $PGDIR/pg.log start" >/dev/null 2>&1
   for _ in $(seq 1 30); do psql -d postgres -c 'SELECT 1' >/dev/null 2>&1 && break; sleep 0.5; done
   assert_up

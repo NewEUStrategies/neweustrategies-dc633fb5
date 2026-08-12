@@ -35,14 +35,22 @@ odtwarza ich **powierzchnię**, nie zachowanie:
 | `storage.objects`                       | tabela z RLS, bez warstwy Storage API                    | Polityk zależnych od metadanych, których Storage dokłada sam.                                                                                                                                                                                                                                     |
 | `auth.*`                                | `auth.uid()`/`role()` czytane z `request.jwt.claim.*`    | Przepływów GoTrue (logowanie, MFA, tokeny).                                                                                                                                                                                                                                                       |
 
-Skutek praktyczny: **kilka plików pada lokalnie z powodu atrapy, a w CI przechodzi.**
-Na `e7f3466`, z doinstalowanym pgvector, jest ich sześć: `community_cron_schedule`
+Skutek praktyczny: **kilka plików pada lokalnie z powodu środowiska, a w CI przechodzi.**
+Na `e7f3466`, z doinstalowanym pgvector, są to cztery pozycje: `community_cron_schedule`
 i `job_scheduler_heartbeat` (oba sprawdzają raportowanie braku `pg_net` — atrapa ma go
 „obecnym"), `tenant_isolation_billing_storage` i `chat_privacy_isolation` (polityki
-`storage.objects`), `chat_contacts_search_and_privacy` (`unaccent` w indeksie) oraz
-`community_events` (rozstrzyganie tenanta publicznego bez hosta). Zanim uznasz lokalną
-porażkę za defekt, sprawdź, czy nie jest w tej klasie — a jeśli masz wątpliwość,
-rozstrzyga CI.
+`storage.objects`) oraz jedna asercja w `chat_contacts_search_and_privacy`.
+
+Ta ostatnia pada z powodu **locale klastra, nie atrapy**: runner stawia bazę przez
+`initdb --locale=C`, więc `lower()` zwija tylko ASCII — `lower('ŻÓŁW')` daje `ŻÓŁw`,
+kolumna `discovery_search` zapisuje się z wielką literą, a `LIKE` jest wrażliwe na
+wielkość, więc fraza bez diakrytyków nie trafia. W CI baza ma locale UTF-8 i asercja
+przechodzi. Jeśli potrzebujesz wierności na tym wymiarze, postaw runner z
+`PGTAP_INITDB_LOCALE` ustawionym na locale UTF-8 dostępne w systemie
+(`locale -a | grep -i utf`) — kosztem dłuższego `initdb`.
+
+Zanim uznasz lokalną porażkę za defekt, sprawdź, czy nie jest w jednej z tych klas —
+a jeśli masz wątpliwość, rozstrzyga CI.
 
 **Ostrzeżenie z praktyki — atrapa wektora maskuje defekty.** Bez `pgvector` runner
 raportował `profile_intent_semantic` jako artefakt atrapy („modyfikator wymiaru

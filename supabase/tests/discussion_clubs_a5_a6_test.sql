@@ -5,9 +5,23 @@
 -- Regula Chatham House jest warta tyle, ile warta jest kontrola nad wyjatkiem
 -- od niej. Ujawnienie bez uzasadnienia to ujawnienie, ktorego nikt pozniej nie
 -- umie obronic - stad powod obowiazkowy i slad w dwoch miejscach.
+--
+-- ROLA BAZY W FIKSTURACH (2026-08-12). Adminowe RPC (`admin_club_*`) wolamy
+-- rola WLASCICIELA, nie `authenticated`. Sa SECURITY DEFINER i rozstrzygaja
+-- tenanta oraz tozsamosc z JWT (`request.jwt.claims`), nie z roli bazy -
+-- przedmiotem tych wywolan jest zachowanie FUNKCJI, a przelaczanie roli bylo
+-- w nich infrastruktura fikstury, ktora w CI przewracala plik na pierwszym
+-- wywolaniu RPC po `SET LOCAL ROLE authenticated`. Kontrakt grantu EXECUTE,
+-- dotad sprawdzany NIEJAWNIE przez samo wywolanie w roli klienta, jest teraz
+-- przybity osobnymi asercjami `has_function_privilege` - w obie strony: dla
+-- adminowych RPC grant MUSI byc, dla `club_scheduler_tick` i zapisu wektora
+-- MUSI go nie byc.
+-- Pod rola klienta zostaja sciezki, w ktorych rola/tozsamosc wolajacego jest
+-- istota testu: `club_create_thread`, `club_reply`, `club_moderate`,
+-- `club_moderator_reveal_author` (takze odmowa dla prowadzacego), `club_search`.
 -- ============================================================================
 BEGIN;
-SELECT plan(22);
+SELECT plan(24);
 
 -- `handle_new_user` zalozylby profil w tenancie DOMYSLNYM, a
 -- `profiles_pin_tenant_id` nie pozwala go potem przeniesc (tenant konta jest
@@ -68,14 +82,32 @@ SELECT is_empty(
 );
 
 -- ----------------------------------------------------------------------------
+-- Druga strona tego samego kontraktu: adminowe RPC klient wykonywac MUSI
+--
+-- Dotad wychodzilo to ubocznie z tego, ze fikstura wolala te funkcje pod rola
+-- `authenticated`. Pokrycie bylo przypadkowe i bezimienne; teraz kazda
+-- adminowa funkcja tego pliku ma wlasna asercje grantu, symetryczna do dwoch
+-- asercji zaprzeczajacych wyzej.
+-- ----------------------------------------------------------------------------
+SELECT ok(
+  has_function_privilege('authenticated', 'public.admin_club_upsert(jsonb)', 'EXECUTE'),
+  'authenticated ma EXECUTE na admin_club_upsert(jsonb)'
+);
+SELECT ok(
+  has_function_privilege('authenticated',
+    'public.admin_club_member_upsert(uuid, uuid, text, text, timestamptz, boolean)', 'EXECUTE'),
+  'authenticated ma EXECUTE na admin_club_member_upsert(uuid, uuid, text, text, timestamptz, boolean)'
+);
+
+-- ----------------------------------------------------------------------------
 -- Fixture
 -- ----------------------------------------------------------------------------
--- Podzial rol: RPC wolamy rola `authenticated` (to sprawdza takze grant
--- EXECUTE), a stan tabel modulu czytamy rola wlasciciela, bo klient nie ma do
--- nich grantu. Baza po migracjach nie jest pusta - 20260808220000 seeduje klub
--- referencyjny z watkami i odpowiedziami - wiec kazde pytanie o "watek" albo
--- "odpowiedz" wskazuje wiersz TEGO testu przez GUC, nie pierwszy wiersz tabeli.
-SET LOCAL ROLE authenticated;
+-- Podzial rol: adminowe RPC i odczyty tabel modulu ida rola WLASCICIELA (grant
+-- dla klienta ma wlasne asercje wyzej, a do tabel klient nie ma zadnego
+-- grantu); sciezki uzytkownika i moderatora ida rola klienta. Baza po
+-- migracjach nie jest pusta - 20260808220000 seeduje klub referencyjny
+-- z watkami i odpowiedziami - wiec kazde pytanie o "watek" albo "odpowiedz"
+-- wskazuje wiersz TEGO testu przez GUC, nie pierwszy wiersz tabeli.
 SET LOCAL request.jwt.claims = '{"sub":"aaaaaaaa-0000-0000-0000-000000000001"}';
 
 SELECT public.admin_club_upsert(
@@ -83,17 +115,17 @@ SELECT public.admin_club_upsert(
     "visibility":"members","who_can_post":"members","moderation_mode":"post",
     "attribution_mode":"chatham","status":"active"}'::jsonb);
 
-RESET ROLE;
 SELECT set_config('test.club',
   (SELECT id::text FROM public.clubs WHERE slug='klub-moderacja'), true);
 SELECT set_config('test.group',
   (SELECT g.id::text FROM public.club_groups g JOIN public.clubs c ON c.id=g.club_id
     WHERE c.slug='klub-moderacja' LIMIT 1), true);
-SET LOCAL ROLE authenticated;
 
 SELECT public.admin_club_member_upsert(
   current_setting('test.club')::uuid,
   'aaaaaaaa-0000-0000-0000-000000000005', 'lead', 'active', NULL);
+
+SET LOCAL ROLE authenticated;
 
 SELECT public.club_create_thread(
   current_setting('test.group')::uuid,

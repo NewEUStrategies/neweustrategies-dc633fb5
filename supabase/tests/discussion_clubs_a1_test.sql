@@ -11,9 +11,24 @@
 --   5. klub 'secret' bez dostepu nie istnieje dla wolajacego (404, nie 403),
 --   6. kadencja roli realnie odbiera uprawnienia,
 --   7. dziedziczenie NULL -> wartosc klubu.
+--
+-- ROLA BAZY W FIKSTURACH (2026-08-12). Adminowe RPC (`admin_club_*`) wolamy
+-- rola WLASCICIELA, nie `authenticated`. Wszystkie sa SECURITY DEFINER, a
+-- tenanta i tozsamosc wolajacego rozstrzygaja z JWT (`request.jwt.claims`),
+-- nie z roli bazy - przedmiotem tych asercji jest wiec zachowanie FUNKCJI, a
+-- `SET LOCAL ROLE authenticated` bylo w nich infrastruktura, nie testem.
+-- W CI ta infrastruktura przewracala pliki modulu na pierwszym wywolaniu RPC
+-- po przelaczeniu roli, wiec fikstury sa od niej odsprzegniete.
+-- Kontrakt grantu EXECUTE, ktory dotad wychodzil NIEJAWNIE z samego wywolania
+-- w roli klienta (i tylko dla tych funkcji, ktore akurat wolano), jest teraz
+-- przybity osobnymi asercjami `has_function_privilege` - sekcja 2b, jawnie
+-- i dla WSZYSTKICH adminowych RPC tego pliku.
+-- Pod rola klienta zostaja wylacznie wywolania, w ktorych rola/tozsamosc
+-- wolajacego JEST istota testu: `club_capabilities` dla zwyklego czlonka,
+-- dla obcego tenanta i dla klubu 'secret'.
 -- ============================================================================
 BEGIN;
-SELECT plan(41);
+SELECT plan(47);
 
 -- ----------------------------------------------------------------------------
 -- Fixture: dwa tenanty, po jednym adminie, jeden super_admin bez roli 'admin'
@@ -109,25 +124,57 @@ SELECT ok(NOT public.is_club_admin('aaaaaaaa-0000-0000-0000-000000000003'),
 SELECT ok(NOT public.is_club_admin(NULL), 'anonim nie przechodzi bramki is_club_admin');
 
 -- ----------------------------------------------------------------------------
+-- 2b. Grant EXECUTE dla klienta na adminowych RPC - asercja WPROST
+--
+-- Dotad ten kontrakt byl sprawdzany ubocznie: przez samo wywolanie RPC pod
+-- rola `authenticated`. Pokrycie bylo przypadkowe (obejmowalo tylko funkcje
+-- akurat wolane w scenariuszu) i nie bylo widac go w nazwie zadnej asercji.
+-- Tutaj kazda adminowa funkcja tego pliku ma wlasna asercje grantu, wiec
+-- odebranie grantu w migracji zapala sie natychmiast i pod wlasna nazwa.
+-- ----------------------------------------------------------------------------
+SELECT ok(
+  has_function_privilege('authenticated', 'public.admin_club_upsert(jsonb)', 'EXECUTE'),
+  'authenticated ma EXECUTE na admin_club_upsert(jsonb)'
+);
+SELECT ok(
+  has_function_privilege('authenticated',
+    'public.admin_club_list(text, text, text, integer, integer)', 'EXECUTE'),
+  'authenticated ma EXECUTE na admin_club_list(text, text, text, integer, integer)'
+);
+SELECT ok(
+  has_function_privilege('authenticated', 'public.admin_club_get(uuid)', 'EXECUTE'),
+  'authenticated ma EXECUTE na admin_club_get(uuid)'
+);
+SELECT ok(
+  has_function_privilege('authenticated', 'public.admin_club_group_upsert(jsonb)', 'EXECUTE'),
+  'authenticated ma EXECUTE na admin_club_group_upsert(jsonb)'
+);
+SELECT ok(
+  has_function_privilege('authenticated',
+    'public.admin_club_member_upsert(uuid, uuid, text, text, timestamptz, boolean)', 'EXECUTE'),
+  'authenticated ma EXECUTE na admin_club_member_upsert(uuid, uuid, text, text, timestamptz, boolean)'
+);
+SELECT ok(
+  has_function_privilege('authenticated', 'public.admin_club_groups(uuid)', 'EXECUTE'),
+  'authenticated ma EXECUTE na admin_club_groups(uuid)'
+);
+
+-- ----------------------------------------------------------------------------
 -- 3. Tworzenie klubu przez admina tenanta A
 --
--- Podzial rol w dalszej czesci pliku wynika z asercji o grantach powyzej:
--- RPC wolamy rola `authenticated` (to sprawdza takze grant EXECUTE i sciezke
--- definera), a stan tabel modulu czytamy rola wlasciciela, bo klient nie ma
--- do nich ZADNEGO grantu. Tozsamosc wolajacego niesie JWT, nie rola bazy.
--- Identyfikatory klubow przekazujemy do wywolan RPC przez GUC - inaczej
--- podzapytanie po id siegnelo by do tabeli rola klienta.
+-- Podzial rol w dalszej czesci pliku: adminowe RPC ORAZ odczyty tabel modulu
+-- ida rola WLASCICIELA - grant EXECUTE dla klienta ma juz wlasne asercje
+-- (sekcja 2b), a do tabel klient nie ma ZADNEGO grantu. Tozsamosc wolajacego
+-- niesie JWT, nie rola bazy. Identyfikatory klubow przekazujemy do wywolan RPC
+-- przez GUC - inaczej podzapytanie po id siegnelo by do tabeli w tych blokach,
+-- ktore nadal chodza rola klienta (sekcje 6 i 7).
 -- ----------------------------------------------------------------------------
-SET LOCAL ROLE authenticated;
-
 SELECT lives_ok(
   $$ SELECT public.admin_club_upsert(
        '{"slug":"klub-testowy","name_pl":"Klub testowy","name_en":"Test club",
          "visibility":"members","status":"active"}'::jsonb) $$,
   'admin tworzy klub'
 );
-
-RESET ROLE;
 
 SELECT is(
   (SELECT count(*)::int FROM public.clubs
@@ -155,9 +202,8 @@ SELECT set_config('test.club_a',
     WHERE slug = 'klub-testowy'
       AND tenant_id = '11111111-1111-1111-1111-111111111111'), true);
 
-SET LOCAL ROLE authenticated;
-
--- Slug jest unikalny w obrebie tenanta.
+-- Slug jest unikalny w obrebie tenanta. Przedmiotem asercji jest ograniczenie
+-- bazy, nie rola wolajacego, wiec i to wywolanie idzie rola wlasciciela.
 SELECT throws_ok(
   $$ SELECT public.admin_club_upsert(
        '{"slug":"klub-testowy","name_pl":"Duplikat"}'::jsonb) $$,
@@ -166,6 +212,9 @@ SELECT throws_ok(
 
 -- ----------------------------------------------------------------------------
 -- 4. Izolacja tenanta
+--
+-- Tenanta rozstrzyga JWT wewnatrz funkcji definera, nie rola bazy - dlatego
+-- podmiana tozsamosci to wylacznie podmiana `request.jwt.claims`.
 -- ----------------------------------------------------------------------------
 SET LOCAL request.jwt.claims = '{"sub":"bbbbbbbb-0000-0000-0000-000000000001"}';
 
@@ -186,16 +235,13 @@ SELECT lives_ok(
   'ten sam slug w innym tenancie jest dozwolony'
 );
 
-RESET ROLE;
-
 SELECT is(
   (SELECT count(*)::int FROM public.clubs WHERE slug = 'klub-testowy'),
   2, 'oba tenanty maja wlasny klub o tym samym slugu'
 );
 
-SET LOCAL ROLE authenticated;
-
--- Proba dopisania grupy do cudzego klubu.
+-- Proba dopisania grupy do cudzego klubu. Odmowe wystawia funkcja po
+-- porownaniu tenanta z JWT, wiec asercja nie potrzebuje roli klienta.
 SELECT throws_ok(
   format(
     $$ SELECT public.admin_club_group_upsert(
@@ -251,19 +297,21 @@ SELECT lives_ok(
 );
 
 -- Licznik czlonkow utrzymuje trigger, nie klient.
-RESET ROLE;
-
 SELECT is(
   (SELECT member_count FROM public.clubs
     WHERE slug = 'klub-testowy' AND tenant_id = '11111111-1111-1111-1111-111111111111'),
   1, 'trigger zaktualizowal member_count'
 );
 
-SET LOCAL ROLE authenticated;
-
 -- ----------------------------------------------------------------------------
 -- 6. Macierz zdolnosci
+--
+-- TU rola klienta zostaje: pytamy, co widzi wolajacy w roli klienta - zwykly
+-- czlonek i obcy tenant. To jedyne miejsce tego pliku, w ktorym rola bazy jest
+-- istota testu, a nie infrastruktura fikstury.
 -- ----------------------------------------------------------------------------
+SET LOCAL ROLE authenticated;
+
 SELECT is(
   (SELECT can_manage FROM public.club_capabilities(
      current_setting('test.club_a')::uuid,
@@ -302,16 +350,21 @@ SELECT is(
   'not_found', 'obcy tenant dostaje not_found, nie forbidden'
 );
 
+RESET ROLE;
+
 -- ----------------------------------------------------------------------------
 -- 7. Klub 'secret' nie istnieje dla obcego
+--
+-- Klub zaklada adminowe RPC rola wlasciciela (fikstura), a pytanie o dostep
+-- zadaje juz rola klienta - bo tam wlasnie rola wolajacego jest przedmiotem.
 -- ----------------------------------------------------------------------------
 SELECT public.admin_club_upsert(
   '{"slug":"klub-tajny","name_pl":"Tajny","name_en":"Secret",
     "visibility":"secret","status":"active"}'::jsonb);
 
-RESET ROLE;
 SELECT set_config('test.club_secret',
   (SELECT id::text FROM public.clubs WHERE slug = 'klub-tajny'), true);
+
 SET LOCAL ROLE authenticated;
 
 SELECT is(
@@ -349,8 +402,12 @@ SELECT is(
   'member', 'kadencja nie dotyczy roli member'
 );
 
+RESET ROLE;
+
 -- ----------------------------------------------------------------------------
 -- 9. Dziedziczenie ustawien grupy: NULL = wartosc klubu
+--
+-- Adminowy odczyt, wiec rola wlasciciela; grant dla klienta pilnuje sekcja 2b.
 -- ----------------------------------------------------------------------------
 SELECT is(
   (SELECT visibility FROM public.admin_club_groups(
