@@ -3,7 +3,7 @@ import { useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useHasMounted } from "@/hooks/useHasMounted";
 
-import { useHasMounted } from "@/hooks/useHasMounted";
+
 
 /**
  * Slim top-of-viewport progress bar that visualises route NAVIGATION only
