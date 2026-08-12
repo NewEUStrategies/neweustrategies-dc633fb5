@@ -47,7 +47,8 @@
     "check:widget-fidelity": "FIDELITY_REPORT=1 vitest run src/components/admin/builder/__tests__/settingsFidelity.gate.test.tsx src/components/admin/builder/__tests__/sampleDataLeak.gate.test.tsx src/lib/builder/__tests__/localizedQueryKeys.gate.test.ts",
     "report:deployment": "bun run scripts/deployment-report.ts",
     "cron:tick": "node scripts/scheduler-tick.mjs",
-    "check:pg-harness": "bash scripts/pg-harness/run.sh"
+    "check:pg-harness": "bash scripts/pg-harness/run.sh",
+    "test:pgtap-local": "bash scripts/pgtap-local/run.sh"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
