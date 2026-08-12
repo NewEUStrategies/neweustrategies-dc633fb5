@@ -190,6 +190,11 @@ export default defineConfig({
         "@supabase/supabase-js",
         "i18next",
         "react-i18next",
+        // lucide-react bez prebundlingu = ~1690 osobnych modułów ikon
+        // serwowanych po jednym na żądanie (dev, `noDiscovery: true`).
+        // Przeglądarka dławi się kolejką i strona nigdy nie kończy ładowania
+        // (podgląd zostaje pustym/statycznym HTML-em).
+        "lucide-react",
       ],
     },
 
