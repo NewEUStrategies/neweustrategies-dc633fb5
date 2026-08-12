@@ -103,6 +103,20 @@ apply_migrations() {
     fi
   done
   echo "migracje: $n zaaplikowanych, $fail z bledem"
+
+  # supabase/seed.sql - `supabase db start` w CI aplikuje go po migracjach, wiec
+  # baza CI ma konta deweloperskie, wpisy i klub referencyjny. Bez tego runner
+  # klamie w druga strone niz atrapy: fikstura testu moze kolidowac z danymi
+  # seeda (unikalny slug, `LIMIT 1` trafiajacy w cudzy wiersz) i wtedy plik
+  # przechodzi lokalnie, a pada w CI.
+  if [ -f "$REPO/supabase/seed.sql" ]; then
+    if out="$(psql -q -d nes -v ON_ERROR_STOP=1 -f "$REPO/supabase/seed.sql" 2>&1)"; then
+      echo "seed.sql: OK"
+    else
+      echo "seed.sql: BLAD"
+      echo "$out" | grep -E "^psql:.*ERROR|^ERROR" | head -5 | sed 's/^/     /'
+    fi
+  fi
   [ "$fail" -gt 0 ] && { echo "--- pierwsze bledy:"; head -60 "$PGDIR/failures.txt"; }
   return 0
 }
