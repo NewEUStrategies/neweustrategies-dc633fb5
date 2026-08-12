@@ -10,6 +10,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { OverviewPanel } from "@/components/admin/newsletter/OverviewPanel";
+import { ensureI18n as ensureNewsletterAdminI18n } from "@/lib/i18n-newsletter-admin";
 import { processDueCampaigns } from "@/lib/newsletter-campaigns.functions";
 
 export const Route = createFileRoute("/admin/newsletter/overview")({
@@ -17,8 +18,8 @@ export const Route = createFileRoute("/admin/newsletter/overview")({
 });
 
 function NewsletterOverview() {
-  const { i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  ensureNewsletterAdminI18n();
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const processDue = useServerFn(processDueCampaigns);
 
@@ -31,16 +32,14 @@ function NewsletterOverview() {
     processDue()
       .then((res) => {
         if (res.fired > 0) {
-          toast.success(
-            isPl
-              ? `Wysłano ${res.fired} zaplanowanych kampanii`
-              : `Sent ${res.fired} scheduled campaigns`,
-          );
+          // Ten sam komunikat co przycisk "Wyślij zaległe" na liście kampanii -
+          // jeden klucz, nie dwa niezależnie tłumaczone szablony napisu.
+          toast.success(t("adminNewsletter.campaigns.dueFired", { count: res.fired }));
           qc.invalidateQueries({ queryKey: ["admin", "newsletter-campaigns"] });
         }
       })
       .catch(() => undefined);
-  }, [processDue, qc, isPl]);
+  }, [processDue, qc, t]);
 
   return <OverviewPanel />;
 }

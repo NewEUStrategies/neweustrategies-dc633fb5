@@ -5,6 +5,7 @@
 // Opcjonalny `widgetConfig` pozwala nadpisywać etykiety / placeholdery per-pole,
 // wymuszać pokazanie dodatkowych pól (imię/nazwisko/firma) oraz renderować
 // custom fields zdefiniowane w builderze - całość leci do CRM przez server.
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import * as React from "react";
 import { useMemo, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
@@ -252,7 +253,7 @@ export function NewsletterForm({
 
     try {
       const consentText =
-        (lang === "en" ? s.policy_html_en : s.policy_html_pl) || t("newsletterForm.consentDefault");
+        pickLocalized(s, "policy_html", lang) || t("newsletterForm.consentDefault");
 
       const displayName =
         [firstName.trim(), lastName.trim()].filter(Boolean).join(" ") || name.trim() || undefined;
@@ -283,7 +284,7 @@ export function NewsletterForm({
           lastName: lastName.trim() || undefined,
           language: lang,
           source,
-          formName: (lang === "en" ? s.heading_en : s.heading_pl) || undefined,
+          formName: pickLocalized(s, "heading", lang) || undefined,
           consents: [{ key: "newsletter", text: consentText, given: true, lang }],
           meta: Object.keys(meta).length ? meta : undefined,
           custom: Object.keys(custom).length ? custom : undefined,
@@ -309,10 +310,10 @@ export function NewsletterForm({
     }
   };
 
-  const heading = lang === "en" ? s.heading_en : s.heading_pl;
-  const description = lang === "en" ? s.description_en : s.description_pl;
-  const policy = lang === "en" ? s.policy_html_en : s.policy_html_pl;
-  const success = lang === "en" ? s.success_message_en : s.success_message_pl;
+  const heading = pickLocalized(s, "heading", lang);
+  const description = pickLocalized(s, "description", lang);
+  const policy = pickLocalized(s, "policy_html", lang);
+  const success = pickLocalized(s, "success_message", lang);
 
   const containerCls =
     (variant === "card"
@@ -357,7 +358,7 @@ export function NewsletterForm({
                   }}
                   className="mt-2 text-xs font-medium text-brand underline-offset-2 hover:underline"
                 >
-                  {lang === "en" ? "Add another address" : "Zapisz kolejny adres"}
+                  {t("newsletterForm.addAnother")}
                 </button>
               </div>
             </div>

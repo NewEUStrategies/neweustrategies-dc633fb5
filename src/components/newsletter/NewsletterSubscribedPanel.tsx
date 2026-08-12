@@ -6,6 +6,7 @@
 // adresowych, bo adres jest już potwierdzony sesją.
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { uiLocale } from "@/lib/i18n/format";
 import { CheckCircle2, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { TopicsDroplist, useInterestGroups } from "@/components/interests/TopicsDroplist";
@@ -18,7 +19,7 @@ function formatDate(value: string | null, lang: "pl" | "en"): string | null {
   if (value === null) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleDateString(lang === "en" ? "en-GB" : "pl-PL", {
+  return date.toLocaleDateString(uiLocale(lang), {
     day: "2-digit",
     month: "long",
     year: "numeric",

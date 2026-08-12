@@ -10,6 +10,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
+import { uiLang, uiLocale } from "@/lib/i18n/format";
 import { AlertTriangle, MailWarning, RefreshCw, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Chart } from "@/components/charts/Chart";
@@ -31,8 +32,7 @@ type Range = (typeof RANGES)[number];
 
 export function DeliverabilityPanel() {
   const { t, i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
-  const locale = isPl ? "pl-PL" : "en-GB";
+  const locale = uiLocale(i18n.language);
   const [days, setDays] = useState<Range>(30);
 
   const metricsFn = useServerFn(getDeliverabilityMetrics);
@@ -214,7 +214,7 @@ export function DeliverabilityPanel() {
       <section className="bg-card border border-border rounded-xl p-5 space-y-3">
         <h3 className="font-display text-lg">{t("adminDeliverability.chart.title")}</h3>
         {chart ? (
-          <Chart config={chart} lang={isPl ? "pl" : "en"} />
+          <Chart config={chart} lang={uiLang(i18n.language)} />
         ) : (
           <p className="text-sm text-muted-foreground py-8 text-center">
             {t("adminDeliverability.chart.empty")}

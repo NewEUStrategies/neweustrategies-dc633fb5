@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { Download, MailX, RotateCcw, Search, Trash2, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { formatNumber } from "@/lib/i18n/format";
 import { ensureI18n as ensureNewsletterAdminI18n } from "@/lib/i18n-newsletter-admin";
 import { ImportCsvDialog } from "./subscribers/ImportCsvDialog";
 import { SubscriberDetailDialog } from "./subscribers/SubscriberDetailDialog";
@@ -178,9 +179,7 @@ export function SubscribersPanel() {
       {subs && subs.length >= SUBSCRIBER_FETCH_CAP && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
           {t("adminNewsletter.subscribers.capWarning", {
-            count: SUBSCRIBER_FETCH_CAP.toLocaleString(
-              i18n.language?.startsWith("en") ? "en-GB" : "pl-PL",
-            ),
+            count: formatNumber(SUBSCRIBER_FETCH_CAP, i18n.language),
           })}
         </div>
       )}

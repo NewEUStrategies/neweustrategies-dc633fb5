@@ -20,6 +20,7 @@ import {
   type AuthEmailEventRow,
   type AuthEventStatus,
 } from "@/lib/auth-email-events.functions";
+import { uiLocale } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 import "@/lib/i18n-auth-email-logs";
 
@@ -47,7 +48,7 @@ function statusTone(status: AuthEventStatus): string {
 
 export function AuthEmailLogsPanel() {
   const { t, i18n } = useTranslation();
-  const locale = (i18n.language ?? "pl").startsWith("pl") ? "pl-PL" : "en-GB";
+  const locale = uiLocale(i18n.language);
 
   const [days, setDays] = useState<Range>(7);
   const [emailType, setEmailType] = useState<string | null>(null);

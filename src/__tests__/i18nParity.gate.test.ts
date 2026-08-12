@@ -85,6 +85,15 @@ const IDENTICAL_ALLOWLIST: readonly string[] = [
   "profileIntent.openToShort.mentoring",
   // Czysty format liczbowy miernika kompletności - nie ma czego tłumaczyć.
   "profileCompleteness.score",
+  // Newsletter: nazwa modułu i nazwy własne dwóch builderów. "Newsletter",
+  // "Inline builder" i "Popup builder" to terminy produktowe, którymi zespół
+  // posługuje się tak samo po polsku - przekład ("Kreator wbudowany"?)
+  // rozjechałby zakładkę z tym, jak o niej mówią ludzie.
+  "adminNewsletter.nav.sectionTitle",
+  "adminNewsletter.nav.inline",
+  "adminNewsletter.nav.popup",
+  // Wykrywanie płci "z automatu" - to samo słowo w obu językach.
+  "adminNewsletter.emailPreview.genderAuto",
 ];
 
 function loadOverlays(): void {

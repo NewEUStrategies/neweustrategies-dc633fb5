@@ -1,7 +1,16 @@
 import i18n from "./i18n";
 
-// Overlay dla kampanii newslettera (/admin/newsletter/campaigns), akcji
-// statusu subskrybentów oraz publicznej strony wypisu (/newsletter/unsubscribe).
+// Overlay dla CALEGO panelu /admin/newsletter: kampanie, subskrybenci, sub-nav,
+// raport zdarzen popupu, edytor tresci maili i podglad szablonow.
+//
+// Slownik nie obsluguje publicznej strony wypisu. Byl tu blok
+// `newsletterUnsubscribe` (10 kluczy x 2 jezyki) - pelny, ale MARTWY duplikat
+// zywego `newsletter.unsubscribePage` z `lib/locale/{pl,en}.ts`. Nic go nie
+// renderowalo, wiec poprawka literówki mogla wpasc w niewidoczna kopie.
+// Razem z nim odpadlo 40 kluczy `campaigns.*` nigdy niewywolanych z zadnego
+// pliku (m.in. `title` obok zywego `listHeading`, `save` obok `saveChanges`).
+// Bramka `i18nNewsletterAdmin.test.ts` pilnuje teraz, zeby martwy klucz nie
+// wrocil - kazdy zadeklarowany musi byc wolany literalnie w `src/`.
 
 export const newsletterAdminPl = {
   adminNewsletter: {
@@ -66,17 +75,9 @@ export const newsletterAdminPl = {
       colCreated: "Utworzono",
       listEmpty: "Brak kampanii.",
       deleteHeading: "Usunąć kampanię?",
-      title: "Kampanie newslettera",
-      subtitle:
-        "Twórz i wysyłaj wydania newslettera do potwierdzonych subskrybentów. Wysyłka odbywa się partiami i jest odporna na ponowienia.",
       newCampaign: "Nowa kampania",
       colName: "Nazwa",
-      colSubject: "Temat",
-      colSegment: "Segment",
       colStatus: "Status",
-      colProgress: "Wysłane",
-      colUpdated: "Aktualizacja",
-      empty: "Brak kampanii. Utwórz pierwszą powyżej.",
       status: {
         // Klucze odwzorowuja wartosci enuma `campaigns.status` w bazie
         // (`cancelled`, nie `canceled`) - inaczej odczyt po statusie wiersza
@@ -89,48 +90,12 @@ export const newsletterAdminPl = {
         failed: "Błąd",
         cancelled: "Anulowana",
       },
-      segmentAll: "Wszyscy",
-      editTitle: "Edytuj kampanię",
-      createTitle: "Nowa kampania",
-      name: "Nazwa robocza",
-      namePlaceholder: "np. Briefing tygodnia 24",
       subjectPl: "Temat (PL)",
       subjectEn: "Temat (EN)",
-      introPl: "Wstęp (PL)",
-      introEn: "Wstęp (EN)",
-      segment: "Segment językowy",
-      segmentHint: "Subskrybenci z językiem EN dostaną wersję EN (fallback: PL).",
-      ctaLabelPl: "Etykieta CTA (PL)",
-      ctaLabelEn: "Etykieta CTA (EN)",
-      ctaUrl: "Adres CTA",
-      posts: "Posty w wydaniu",
-      postsHint: "Kolejność wyboru = kolejność w mailu.",
-      postsEmpty: "Brak opublikowanych postów do wyboru.",
-      save: "Zapisz kampanię",
-      saved: "Kampania zapisana",
-      saveError: "Nie udało się zapisać kampanii.",
-      subjectRequired: "Temat (PL) jest wymagany.",
       cancel: "Anuluj",
       delete: "Usuń",
-      deleteConfirm: "Usunąć tę kampanię? Tej operacji nie można cofnąć.",
-      deleted: "Kampania usunięta",
-      preview: "Podgląd",
-      previewPl: "Podgląd PL",
-      previewEn: "Podgląd EN",
       send: "Wyślij",
-      sendConfirmTitle: "Wysłać kampanię?",
-      sendConfirmBody:
-        "Wiadomość trafi do wszystkich potwierdzonych subskrybentów wybranego segmentu. Wysyłki nie można cofnąć.",
-      sendStart: "Rozpocznij wysyłkę",
-      sending: "Wysyłanie... {{sent}}/{{total}} (błędy: {{failed}})",
-      sendDone: "Wysyłka zakończona: {{sent}} dostarczonych, {{failed}} błędów.",
-      sendError: "Wysyłka przerwana. Możesz ją wznowić przyciskiem Wyślij.",
       resume: "Wznów wysyłkę",
-      emailNotConfigured:
-        "Wysyłka e-mail nie jest skonfigurowana (brak kluczy dostawcy poczty). Kampania pozostała w kolejce - skonfiguruj klucze i wznów wysyłkę.",
-      noRecipients:
-        "Brak odbiorców w wybranym segmencie - kampania pozostała szkicem. Sprawdź listę subskrybentów.",
-      results: "Wyniki",
       recipients: "Odbiorcy",
       // `recipients` to LICZBA odbiorcow, `audience` to naglowek karty segmentu -
       // po polsku obie brzmia "Odbiorcy", po angielsku to "Recipients" i "Audience".
@@ -164,6 +129,117 @@ export const newsletterAdminPl = {
       loading: "Ladowanie...",
       emptyFiltered: "Brak subskrybentow spelniajacych kryteria.",
       deleteAria: "Usun",
+    },
+
+    nav: {
+      sectionTitle: "Newsletter",
+      sectionsNavLabel: "Sekcje newslettera",
+      overview: "Podsumowanie",
+      inline: "Inline builder",
+      popup: "Popup builder",
+      campaigns: "Kampanie",
+      subscribers: "Subskrybenci",
+      deliverability: "Dostarczalność",
+      systemEmails: "Maile systemowe",
+      authLogs: "Logi auth",
+      emailContent: "Treści maili",
+      emailPreview: "Podgląd maili",
+    },
+
+    popupEvents: {
+      title: "Popup - zdarzenia",
+      subtitle: "Wyświetlenia, otwarcia, wysłania, sukcesy i błędy formularza popupu.",
+      // `{{days}}`, a NIE `{{count}}`: zakresy to trzy stale wartosci (7/30/90),
+      // ktore po polsku biora ten sam przypadek ("dni"), a po angielsku sa
+      // skrotem ("30d"). Dolozenie zakresu 1 albo 2 wymaga przejscia na `count`
+      // i rodzine mnoga - `days` nie odmienia sie samo.
+      rangeDays: "{{days}} dni",
+      loading: "Ładowanie...",
+      error: "Nie udało się pobrać danych.",
+      events: {
+        impression: "Wyświetlenia",
+        open: "Otwarcia",
+        submit: "Wysłania",
+        success: "Sukcesy",
+        error: "Błędy",
+      },
+      ratioSubmit: "Wysłania / wyświetlenia",
+      ratioSuccess: "Skuteczność zapisu",
+      ratioError: "Udział błędów",
+      colDay: "Dzień",
+      empty: "Brak zdarzeń w wybranym okresie.",
+    },
+
+    emailContent: {
+      title: "Treści maili - karencja i koniec dostępu",
+      subtitle:
+        "Puste pole = treść domyślna z szablonu. Zmiany działają natychmiast dla nowych wysyłek.",
+      resetDefaults: "Przywróć domyślne",
+      save: "Zapisz",
+      tokensLabel: "Dostępne znaczniki:",
+      savedPreview: "Podgląd zapisanej wersji",
+      fieldPlaceholder: "Domyślna treść szablonu",
+      // Te same trzy typy maili opisuje tez `emailPreview.types` - ale INNYMI
+      // slowami, bo tam sluza za spis szablonow, a tu za nazwy zakladek
+      // edytora. Scalenie w jeden klucz zmienialoby widoczny tekst na jednym
+      // z dwoch ekranow, wiec zostaja rozdzielone (jak `recipients`/`audience`).
+      types: {
+        team_seat_grace: "Karencja - start (miejsce zespołowe)",
+        team_seat_grace_reminder: "Karencja - przypomnienie (7/1 dzień)",
+        team_seat_access_ended: "Dostęp zespołowy zakończony",
+      },
+      fields: {
+        subject: "Temat wiadomości",
+        preview: "Preheader (podgląd w skrzynce)",
+        eyebrow: "Etykieta nad nagłówkiem",
+        heading: "Nagłówek",
+        intro: "Akapit wstępny",
+        extra: "Akapit dodatkowy",
+        cta: "Etykieta przycisku",
+        note: 'Ramka "co dalej"',
+      },
+    },
+
+    emailPreview: {
+      title: "Podgląd maili autoryzacyjnych",
+      subtitle:
+        "Dokładnie te szablony wychodzą do użytkowników - dane w podglądzie są przykładowe.",
+      firstName: "Imię odbiorcy",
+      scopeAuth: "Autoryzacyjne",
+      scopeApp: "Aplikacyjne",
+      genderAuto: "Auto",
+      genderMale: "Mężczyzna",
+      genderFemale: "Kobieta",
+      // Przelacznik szerokosci ramki ma same ikony - bez tych dwoch kluczy
+      // przycisk nie ma zadnej nazwy dostepnej dla czytnika ekranu.
+      deviceDesktop: "Podgląd na komputerze",
+      deviceMobile: "Podgląd na telefonie",
+      subject: "Temat",
+      copyHtml: "Kopiuj HTML",
+      copied: "Skopiowano HTML maila",
+      plainText: "Wersja tekstowa (plain text)",
+      // KLUCZE odwzorowuja wartosci `type` z serwera (stad `subscription_canceled`
+      // po amerykansku) - same tlumaczenia trzymaja pisownie brytyjska.
+      types: {
+        signup: "Rejestracja - potwierdzenie e-mail",
+        magiclink: "Logowanie bez hasła (magic link)",
+        recovery: "Reset hasła",
+        invite: "Zaproszenie do platformy",
+        email_change: "Zmiana adresu e-mail",
+        reauthentication: "Kod weryfikacyjny",
+        subscription_confirmed: "Subskrypcja - potwierdzenie",
+        subscription_renewed: "Subskrypcja - przedłużenie",
+        subscription_canceled: "Subskrypcja - anulowanie",
+        subscription_upgraded: "Subskrypcja - upgrade",
+        subscription_downgraded: "Subskrypcja - downgrade",
+        subscription_paused: "Subskrypcja - pauza",
+        subscription_resumed: "Subskrypcja - wznowienie",
+        team_seat_grace: "Karencja miejsca zespołowego",
+        team_seat_grace_reminder: "Karencja - przypomnienie",
+        team_seat_access_ended: "Koniec dostępu zespołowego",
+        event_registered: "Zapis na wydarzenie",
+        newsletter_confirmed: "Newsletter - potwierdzenie",
+      },
     },
 
     blocks: {
@@ -219,20 +295,6 @@ export const newsletterAdminPl = {
       selected: "Wybrane",
       noResults: "Brak wyników.",
     },
-  },
-  newsletterUnsubscribe: {
-    loading: "Przetwarzamy Twoje żądanie...",
-    okTitle: "Wypisano z newslettera",
-    okBody:
-      "Nie będziesz już otrzymywać od nas wiadomości. Możesz zapisać się ponownie w każdej chwili.",
-    alreadyTitle: "Ten adres jest już wypisany",
-    alreadyBody: "Nie wysyłamy już wiadomości na ten adres.",
-    invalidTitle: "Nieprawidłowy link",
-    invalidBody:
-      "Link wypisu jest niekompletny lub wygasł. Skorzystaj z linku z najnowszej wiadomości.",
-    rateLimitedTitle: "Zbyt wiele prób",
-    rateLimitedBody: "Spróbuj ponownie za kilka minut.",
-    backHome: "Wróć na stronę główną",
   },
 };
 
@@ -297,17 +359,9 @@ export const newsletterAdminEn: typeof newsletterAdminPl = {
       colCreated: "Created",
       listEmpty: "No campaigns yet.",
       deleteHeading: "Delete campaign?",
-      title: "Newsletter campaigns",
-      subtitle:
-        "Create and send newsletter issues to confirmed subscribers. Delivery runs in batches and is retry-safe.",
       newCampaign: "New campaign",
       colName: "Name",
-      colSubject: "Subject",
-      colSegment: "Segment",
       colStatus: "Status",
-      colProgress: "Sent",
-      colUpdated: "Updated",
-      empty: "No campaigns yet. Create the first one above.",
       status: {
         draft: "Draft",
         scheduled: "Scheduled",
@@ -316,48 +370,12 @@ export const newsletterAdminEn: typeof newsletterAdminPl = {
         failed: "Failed",
         cancelled: "Cancelled",
       },
-      segmentAll: "Everyone",
-      editTitle: "Edit campaign",
-      createTitle: "New campaign",
-      name: "Internal name",
-      namePlaceholder: "e.g. Weekly briefing 24",
       subjectPl: "Subject (PL)",
       subjectEn: "Subject (EN)",
-      introPl: "Intro (PL)",
-      introEn: "Intro (EN)",
-      segment: "Language segment",
-      segmentHint: "Subscribers with EN language get the EN version (fallback: PL).",
-      ctaLabelPl: "CTA label (PL)",
-      ctaLabelEn: "CTA label (EN)",
-      ctaUrl: "CTA URL",
-      posts: "Posts in this issue",
-      postsHint: "Selection order = order in the email.",
-      postsEmpty: "No published posts to choose from.",
-      save: "Save campaign",
-      saved: "Campaign saved",
-      saveError: "Could not save the campaign.",
-      subjectRequired: "Subject (PL) is required.",
       cancel: "Cancel",
       delete: "Delete",
-      deleteConfirm: "Delete this campaign? This cannot be undone.",
-      deleted: "Campaign deleted",
-      preview: "Preview",
-      previewPl: "PL preview",
-      previewEn: "EN preview",
       send: "Send",
-      sendConfirmTitle: "Send this campaign?",
-      sendConfirmBody:
-        "The message will reach every confirmed subscriber in the selected segment. Sending cannot be undone.",
-      sendStart: "Start sending",
-      sending: "Sending... {{sent}}/{{total}} (failed: {{failed}})",
-      sendDone: "Send complete: {{sent}} delivered, {{failed}} failed.",
-      sendError: "Sending interrupted. You can resume with the Send button.",
       resume: "Resume sending",
-      emailNotConfigured:
-        "Email delivery is not configured (mail provider keys missing). The campaign stays queued - configure the keys and resume.",
-      noRecipients:
-        "No recipients in the selected segment - the campaign stays a draft. Check the subscriber list.",
-      results: "Results",
       recipients: "Recipients",
       audience: "Audience",
     },
@@ -389,6 +407,104 @@ export const newsletterAdminEn: typeof newsletterAdminPl = {
       loading: "Loading...",
       emptyFiltered: "No subscribers match the criteria.",
       deleteAria: "Delete",
+    },
+
+    nav: {
+      sectionTitle: "Newsletter",
+      sectionsNavLabel: "Newsletter sections",
+      overview: "Overview",
+      inline: "Inline builder",
+      popup: "Popup builder",
+      campaigns: "Campaigns",
+      subscribers: "Subscribers",
+      deliverability: "Deliverability",
+      systemEmails: "System emails",
+      authLogs: "Auth logs",
+      emailContent: "Email content",
+      emailPreview: "Email preview",
+    },
+
+    popupEvents: {
+      title: "Popup - events",
+      subtitle: "Impressions, opens, submits, successes and errors of the popup form.",
+      rangeDays: "{{days}}d",
+      loading: "Loading...",
+      error: "Failed to load data.",
+      events: {
+        impression: "Impressions",
+        open: "Opens",
+        submit: "Submits",
+        success: "Successes",
+        error: "Errors",
+      },
+      ratioSubmit: "Submits / impressions",
+      ratioSuccess: "Signup success rate",
+      ratioError: "Error share",
+      colDay: "Day",
+      empty: "No events in the selected period.",
+    },
+
+    emailContent: {
+      title: "Email content - grace & access end",
+      subtitle:
+        "An empty field keeps the default template copy. Changes apply to new sends immediately.",
+      resetDefaults: "Reset to default",
+      save: "Save",
+      tokensLabel: "Available tokens:",
+      savedPreview: "Saved version preview",
+      fieldPlaceholder: "Default template copy",
+      types: {
+        team_seat_grace: "Grace period started (team seat)",
+        team_seat_grace_reminder: "Grace period reminder (7/1 day)",
+        team_seat_access_ended: "Team access ended",
+      },
+      fields: {
+        subject: "Subject line",
+        preview: "Preheader",
+        eyebrow: "Eyebrow label",
+        heading: "Heading",
+        intro: "Intro paragraph",
+        extra: "Additional paragraph",
+        cta: "Button label",
+        note: '"What next" box',
+      },
+    },
+
+    emailPreview: {
+      title: "Auth email preview",
+      subtitle: "These are the exact templates sent to users - preview data is illustrative.",
+      firstName: "Recipient first name",
+      scopeAuth: "Auth",
+      scopeApp: "App",
+      genderAuto: "Auto",
+      genderMale: "Male",
+      genderFemale: "Female",
+      deviceDesktop: "Desktop preview",
+      deviceMobile: "Mobile preview",
+      subject: "Subject",
+      copyHtml: "Copy HTML",
+      copied: "Email HTML copied",
+      plainText: "Plain text version",
+      types: {
+        signup: "Signup confirmation",
+        magiclink: "Magic link sign-in",
+        recovery: "Password reset",
+        invite: "Platform invitation",
+        email_change: "Email address change",
+        reauthentication: "Verification code",
+        subscription_confirmed: "Subscription confirmed",
+        subscription_renewed: "Subscription renewed",
+        subscription_canceled: "Subscription cancelled",
+        subscription_upgraded: "Subscription upgraded",
+        subscription_downgraded: "Subscription downgraded",
+        subscription_paused: "Subscription paused",
+        subscription_resumed: "Subscription resumed",
+        team_seat_grace: "Team seat grace period",
+        team_seat_grace_reminder: "Team seat grace reminder",
+        team_seat_access_ended: "Team access ended",
+        event_registered: "Event registration",
+        newsletter_confirmed: "Newsletter confirmed",
+      },
     },
 
     blocks: {
@@ -444,19 +560,6 @@ export const newsletterAdminEn: typeof newsletterAdminPl = {
       selected: "Selected",
       noResults: "No results.",
     },
-  },
-  newsletterUnsubscribe: {
-    loading: "Processing your request...",
-    okTitle: "You have been unsubscribed",
-    okBody: "You will no longer receive our messages. You can subscribe again at any time.",
-    alreadyTitle: "This address is already unsubscribed",
-    alreadyBody: "We no longer send messages to this address.",
-    invalidTitle: "Invalid link",
-    invalidBody:
-      "The unsubscribe link is incomplete or expired. Use the link from the latest message.",
-    rateLimitedTitle: "Too many attempts",
-    rateLimitedBody: "Please try again in a few minutes.",
-    backHome: "Back to the homepage",
   },
 };
 

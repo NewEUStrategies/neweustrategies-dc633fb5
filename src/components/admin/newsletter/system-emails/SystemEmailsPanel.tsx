@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
+import { uiLang, uiLocale } from "@/lib/i18n/format";
 import { AlertTriangle, MailCheck, RefreshCw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,8 +43,7 @@ function statusTone(status: SystemEmailStatus): string {
 
 export function SystemEmailsPanel() {
   const { t, i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
-  const locale = isPl ? "pl-PL" : "en-GB";
+  const locale = uiLocale(i18n.language);
 
   const [days, setDays] = useState<Range>(7);
   const [template, setTemplate] = useState<string | null>(null);
@@ -190,7 +190,7 @@ export function SystemEmailsPanel() {
 
       {chart ? (
         <div className="rounded-[6px] border border-border bg-card p-4">
-          <Chart config={chart} lang={isPl ? "pl" : "en"} />
+          <Chart config={chart} lang={uiLang(i18n.language)} />
         </div>
       ) : null}
 
