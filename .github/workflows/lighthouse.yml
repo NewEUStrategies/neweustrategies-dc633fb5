@@ -91,12 +91,27 @@ jobs:
       # whose entire diff was a CI script the browser never loads, so the change
       # could not have caused it, and the same config + the same Chrome passes
       # locally - i.e. it is a runner-side timeout, not a regression.
-      # `lighthouserc.json` therefore skips the byte-efficiency audits named by
-      # that error: they pull the BODY OF EVERY RESPONSE, and the Vite dev server
-      # serves several hundred separate ESM modules instead of a few bundles.
-      # Nothing of value is lost - on unminified, unbundled dev output those
-      # audits measure the dev server, not the product - and MODE A above keeps
-      # them in full against the real artifact. No assertion was weakened.
+      # `lighthouserc.json` therefore skips the audits that pull the BODY OF EVERY
+      # RESPONSE, because the Vite dev server serves several hundred separate ESM
+      # modules instead of a few bundles. Nothing of value is lost - on
+      # unminified, unbundled dev output those audits measure the dev server, not
+      # the product - and MODE A above keeps them in full against the real
+      # artifact. No assertion was weakened.
+      #
+      # The first attempt at this list FAILED and the reason is worth keeping:
+      # it named only the pre-12.x audit ids (`duplicated-javascript`,
+      # `legacy-javascript`), while Lighthouse 12 runs `-insight` VARIANTS of the
+      # same audits, which kept fetching bodies. The log also ends the failing run
+      # at "Generating results...", i.e. inside `script-treemap-data` - the report
+      # gatherer that fetches every script body. Both are now on the list.
+      #
+      # NOT FIXED, and named so nobody mistakes it for fixed: the same log shows
+      # ~15 audits warning "Attempted to get a SyntheticEventsManager without
+      # initializing". That is Lighthouse's trace parser failing against the
+      # runner's Chrome build - the same config and the same Lighthouse pass
+      # locally against a pinned Chromium. If this job keeps failing, the fix is
+      # to PIN Chrome for the smoke (or bump Lighthouse), not to grow the skip
+      # list further.
       - name: Lighthouse smoke on dev server (scores advisory; the run must succeed)
         if: ${{ vars.LHCI_URL == '' }}
         run: bunx @lhci/cli@0.15.x autorun --config=lighthouserc.json
