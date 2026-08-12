@@ -83,10 +83,24 @@ test.describe("user paths (seeded)", () => {
     await expect(page.getByText(POST.title_pl).first()).toBeVisible({ timeout: 30_000 });
   });
 
-  test("staff sign-in lands in the admin panel", async ({ page }) => {
+  // Ten test sprawdzal wczesniej, ze zalogowanie staffu PRZEKIEROWUJE do /admin,
+  // czego produkt swiadomie nie robi: AuthPortal kieruje po logowaniu kazdego
+  // uzytkownika na strone glowna i mowi to wprost w komentarzu decyzyjnym
+  // (src/components/auth/AuthPortal.tsx:68). Asercja byla wiec sprzeczna z
+  // zamierzonym zachowaniem i wisiala czerwona, nie chroniac niczego.
+  //
+  // Sens, ktory test mial chronic - "staff DOSTAJE sie do panelu" - jest tu
+  // zachowany, tylko sprawdzany wprost: /admin nie odbija staffu do /login
+  // (bramka `isStaff` w src/routes/admin.tsx:25 dziala w efekcie PO zaladowaniu
+  // sesji, wiec odbicie przyszloby z opoznieniem - stad asercja na widoczna
+  // nawigacje panelu, a nie na sam URL zaraz po wejsciu).
+  test("staff sign-in lands on the home page and reaches the admin panel", async ({ page }) => {
     await signIn(page, "admin@nes.local");
-    await page.waitForURL("**/admin**", { timeout: 15_000 });
-    expect(page.url()).toContain("/admin");
+    await page.waitForURL((url) => url.pathname === "/", { timeout: 15_000 });
+
+    await page.goto("/admin");
+    await expect(page.locator("main").first()).toBeVisible({ timeout: 15_000 });
+    expect(new URL(page.url()).pathname).toContain("/admin");
   });
 
   test("signed-in reader can open My Network with tabs and the people directory link", async ({
