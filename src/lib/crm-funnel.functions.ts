@@ -8,6 +8,7 @@
 // rolę pracownika po stronie serwera.
 import { createServerFn } from "@tanstack/react-start";
 import { requireCrmStaff } from "@/integrations/supabase/require-staff";
+import { funnelMarketingConsent } from "@/lib/crm/funnelConsent";
 import { z } from "zod";
 
 type AnyQuery = {
@@ -180,13 +181,15 @@ const ConvertInput = z.object({
 /**
  * Konwersja zaznaczonych subskrybentów do Kontaktów CRM. Idempotentne dzięki
  * unique (tenant_id, email_norm) - nie duplikuje istniejących kontaktów.
+ * Zgoda marketingowa i status newslettera są PRZEPISYWANE ze stanu
+ * subskrybenta (patrz lib/crm/funnelConsent.ts), nigdy ustawiane w ciemno.
  */
 export const convertFunnelToContacts = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => ConvertInput.parse(d))
   .handler(async ({ data, context }) => {
     const { data: subs, error } = await tbl(context, "newsletter_subscribers")
-      .select("id,tenant_id,email,first_name,last_name,language")
+      .select("id,tenant_id,email,first_name,last_name,language,status,confirmed_at,consents")
       .in("id", data.ids);
     if (error) throw new Error(error.message);
     type Sub = {
@@ -196,27 +199,62 @@ export const convertFunnelToContacts = createServerFn({ method: "POST" })
       first_name: string | null;
       last_name: string | null;
       language: string | null;
+      status: string | null;
+      confirmed_at: string | null;
+      consents: unknown;
     };
     const list = (subs as Sub[] | null) ?? [];
     if (list.length === 0) return { ok: true, count: 0 };
 
     const now = new Date().toISOString();
-    const payload = list.map((s) => ({
+    const base = (s: Sub) => ({
       tenant_id: s.tenant_id,
       email: s.email,
       email_norm: s.email.toLowerCase(),
       first_name: s.first_name,
       last_name: s.last_name,
       source_type: "newsletter" as const,
-      marketing_consent: true,
-      newsletter_status: "subscribed",
+      newsletter_status: s.status,
       last_activity_at: now,
-    }));
-
-    const { error: upErr } = await write(context, "crm_leads").upsert(payload, {
-      onConflict: "tenant_id,email_norm",
     });
-    if (upErr) throw new Error(upErr.message);
+
+    // Dwa upserty, bo PostgREST nadpisuje na konflikcie WSZYSTKIE kolumny z
+    // payloadu: dla subskrybenta bez dowodu zgody `marketing_consent` musi
+    // zostać poza payloadem, inaczej konwersja zdjęłaby zgodę udowodnioną z
+    // innego źródła (np. formularza kontaktowego).
+    const consented = list.filter((s) => funnelMarketingConsent(s));
+    const unproven = list.filter((s) => !funnelMarketingConsent(s));
+
+    if (consented.length > 0) {
+      const { error: upErr } = await write(context, "crm_leads").upsert(
+        consented.map((s) => ({ ...base(s), marketing_consent: true })),
+        { onConflict: "tenant_id,email_norm" },
+      );
+      if (upErr) throw new Error(upErr.message);
+    }
+    if (unproven.length > 0) {
+      const { error: upErr } = await write(context, "crm_leads").upsert(unproven.map(base), {
+        onConflict: "tenant_id,email_norm",
+      });
+      if (upErr) throw new Error(upErr.message);
+    }
+
+    try {
+      await write(context, "audit_log").insert({
+        actor_id: (context as { userId: string }).userId,
+        action: "crm.funnel.convert",
+        entity_type: "crm_lead",
+        entity_id: null,
+        metadata: {
+          count: list.length,
+          with_marketing_consent: consented.length,
+          without_marketing_consent: unproven.length,
+          subscriber_ids: list.map((s) => s.id),
+        },
+      });
+    } catch {
+      /* audyt best-effort */
+    }
     return { ok: true, count: list.length };
   });
 
@@ -229,10 +267,24 @@ export const updateFunnelStatus = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => TagInput.parse(d))
   .handler(async ({ data, context }) => {
+    // `confirmed_at` to stempel POTWIERDZENIA ZAPISU przez subskrybenta
+    // (double opt-in albo zapis bez DOI) - ręczna zmiana statusu przez staff go
+    // nie wytwarza, bo byłby to fałszywy dowód zgody.
     const patch: Record<string, unknown> = { status: data.status };
     if (data.status === "unsubscribed") patch.unsubscribed_at = new Date().toISOString();
-    if (data.status === "subscribed") patch.confirmed_at = new Date().toISOString();
     const { error } = await tbl(context, "newsletter_subscribers").update(patch).eq("id", data.id);
     if (error) throw new Error(error.message);
+
+    try {
+      await write(context, "audit_log").insert({
+        actor_id: (context as { userId: string }).userId,
+        action: "crm.funnel.status_change",
+        entity_type: "newsletter_subscriber",
+        entity_id: data.id,
+        metadata: { status: data.status },
+      });
+    } catch {
+      /* audyt best-effort */
+    }
     return { ok: true };
   });

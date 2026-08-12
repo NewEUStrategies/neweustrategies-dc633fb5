@@ -43,7 +43,11 @@ import { MIGRATIONS_DIR, stripSqlComments } from "./lib/sqlMigrations";
 /** Legalne permisywne polityki anon-insert (klucz `tabela::nazwa` -> uzasadnienie). */
 const ANON_INSERT_ALLOWLIST: Readonly<Record<string, string>> = {};
 
-/** Tabele intake: zapis WYLACZNIE przez funkcje serwerowa (service_role). */
+/**
+ * Tabele intake: zapis WYLACZNIE przez funkcje uprzywilejowana (service_role
+ * albo SECURITY DEFINER - obie omijaja RLS, wiec zadna nie potrzebuje polityki
+ * INSERT dla roli klienckiej).
+ */
 const PROTECTED_INTAKE_TABLES: ReadonlySet<string> = new Set([
   "contact_messages",
   "crm_consent_log",
@@ -51,6 +55,10 @@ const PROTECTED_INTAKE_TABLES: ReadonlySet<string> = new Set([
   "builder_experiment_events",
   "analytics_events",
   "web_vitals",
+  // Rejestr zgod RODO: stan i dziennik dowodu pisze wylacznie
+  // SECURITY DEFINER set_user_consent (sama ustala user_id/tenant_id/czas).
+  "user_consents",
+  "user_consent_events",
 ]);
 
 function render(policy: PolicyDef): string {

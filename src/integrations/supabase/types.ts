@@ -19183,7 +19183,7 @@ export type Database = {
         }[]
       }
       related_posts_signals: {
-        Args: { _since_days?: number; _tenant: string }
+        Args: { _since_days?: number }
         Returns: Json
       }
       release_b2b_coupon: {

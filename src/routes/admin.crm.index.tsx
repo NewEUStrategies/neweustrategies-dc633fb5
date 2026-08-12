@@ -37,6 +37,12 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useLeadNoteMutations, usePartnerPush } from "@/lib/crm/leadMutations";
+import type { ConsentLogRow } from "@/lib/crm/consentLog";
+import {
+  buildLeadTimelineHtml,
+  parseLeadTimelinePayload,
+  type LeadTimelineEvent,
+} from "@/lib/crm/leadTimeline";
 import { useModuleRealtime } from "@/lib/realtime/useModuleRealtime";
 import { LinkedItemsCard } from "@/components/molecules/LinkedItemsCard";
 import { PresenceIndicator } from "@/components/molecules/PresenceIndicator";
@@ -161,18 +167,7 @@ type Lead = {
   score_updated_at: string | null;
 };
 
-type ConsentRow = {
-  id: string;
-  email: string;
-  form_id: string | null;
-  form_name: string | null;
-  consent_key: string;
-  granted: boolean;
-  version: string | null;
-  text_excerpt: string | null;
-  created_at: string;
-  lang: string | null;
-};
+type ConsentRow = ConsentLogRow;
 type MsgRow = {
   id: string;
   form_type: string | null;
@@ -1393,10 +1388,7 @@ function LeadDrawer({
                     {detail.data!.consents.map((c) => (
                       <div key={c.id} className="rounded border p-2 space-y-1">
                         <div className="flex items-center gap-2 flex-wrap text-[12px]">
-                          <Badge
-                            variant={c.granted ? "default" : "outline"}
-                            className="text-[10px]"
-                          >
+                          <Badge variant={c.given ? "default" : "outline"} className="text-[10px]">
                             {c.consent_key}
                           </Badge>
                           {c.form_name && (
@@ -1404,19 +1396,19 @@ function LeadDrawer({
                               {L.detail.consentForm}: <b>{c.form_name}</b>
                             </span>
                           )}
-                          {c.version && (
+                          {c.consent_version && (
                             <span className="text-muted-foreground">
-                              {L.detail.consentVersion}: {c.version}
+                              {L.detail.consentVersion}: {c.consent_version}
                             </span>
                           )}
                           <span className="ml-auto text-[11px] text-muted-foreground">
                             {new Date(c.created_at).toLocaleString()}
                           </span>
                         </div>
-                        {c.text_excerpt && (
+                        {c.consent_text && (
                           <p className="text-[11px] text-muted-foreground leading-snug">
                             <span className="font-medium">{L.detail.consentText}:</span>{" "}
-                            {c.text_excerpt}
+                            {c.consent_text}
                           </p>
                         )}
                       </div>
@@ -1527,24 +1519,12 @@ function LeadDrawer({
   );
 }
 
-type TimelineEv = {
-  id: string;
-  type: "submit" | "consent" | "note" | "stage_change" | "webhook" | "newsletter";
-  at: string;
-  title: string;
-  detail: string | null;
-  meta: Record<string, unknown> | null;
-};
-
 function LeadTimeline({ leadId, L }: { leadId: string; L: typeof PL }) {
   const q = useQuery({
     queryKey: ["crm-lead-timeline", leadId],
     queryFn: async () => {
       const r = await getCrmLeadTimeline({ data: { id: leadId } });
-      return JSON.parse((r as { json: string }).json) as {
-        lead: { email: string; first_name: string | null; last_name: string | null };
-        events: TimelineEv[];
-      };
+      return parseLeadTimelinePayload((r as { json: string }).json);
     },
   });
 
@@ -1565,13 +1545,11 @@ function LeadTimeline({ leadId, L }: { leadId: string; L: typeof PL }) {
 
   const printPdf = () => {
     if (!q.data) return;
-    const { lead, events } = q.data;
-    const name = [lead.first_name, lead.last_name].filter(Boolean).join(" ") || lead.email;
-    const css = `body{font:13px/1.45 -apple-system,system-ui,Segoe UI,Roboto,sans-serif;color:#111;padding:24px;max-width:780px;margin:0 auto}h1{font-size:18px;margin:0 0 4px}h2{font-size:12px;color:#666;font-weight:500;margin:0 0 18px}.ev{border-left:2px solid #e5e7eb;padding:6px 0 14px 14px;margin-left:6px;position:relative}.ev:before{content:"";position:absolute;left:-5px;top:9px;width:8px;height:8px;border-radius:50%;background:#FA9346}.t{font-weight:600;font-size:13px}.tm{font-size:11px;color:#666;margin-bottom:4px}.tg{display:inline-block;font-size:10px;background:#f3f4f6;border-radius:3px;padding:1px 6px;margin-right:6px;text-transform:uppercase;letter-spacing:.03em}.d{white-space:pre-wrap;color:#333;margin-top:2px}.m{font-size:11px;color:#666;font-family:ui-monospace,Menlo,monospace;margin-top:2px}@media print{body{padding:0}}`;
-    const html = `<!doctype html><meta charset="utf-8"><title>${name} - timeline</title><style>${css}</style>
-<h1>${name}</h1><h2>${lead.email} - ${new Date().toLocaleString()}</h2>
-${events.map((e) => `<div class="ev"><div class="tm">${new Date(e.at).toLocaleString()}</div><div><span class="tg">${L.detail.tlTypes[e.type] ?? e.type}</span><span class="t">${escapeHtml(e.title)}</span></div>${e.detail ? `<div class="d">${escapeHtml(e.detail)}</div>` : ""}${e.meta ? `<div class="m">${escapeHtml(JSON.stringify(e.meta))}</div>` : ""}</div>`).join("")}
-<script>window.onload=()=>setTimeout(()=>window.print(),250);</script>`;
+    const html = buildLeadTimelineHtml({
+      lead: q.data.lead,
+      events: q.data.events,
+      typeLabels: L.detail.tlTypes,
+    });
     const w = window.open("", "_blank", "width=900,height=900");
     if (!w) {
       toast.error("Popup blocked");
@@ -1582,7 +1560,7 @@ ${events.map((e) => `<div class="ev"><div class="tm">${new Date(e.at).toLocaleSt
     w.document.close();
   };
 
-  const ICONS: Record<TimelineEv["type"], string> = {
+  const ICONS: Record<LeadTimelineEvent["type"], string> = {
     submit: "bg-blue-500/15 text-blue-600 dark:text-blue-300",
     consent: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300",
     note: "bg-amber-500/15 text-amber-600 dark:text-amber-300",
@@ -1648,13 +1626,6 @@ ${events.map((e) => `<div class="ev"><div class="tm">${new Date(e.at).toLocaleSt
         </ol>
       )}
     </div>
-  );
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(
-    /[&<>"']/g,
-    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c,
   );
 }
 
