@@ -7,7 +7,13 @@
 -- wyciekaloby do devtoolsow mimo poprawnego interfejsu.
 -- ============================================================================
 BEGIN;
-SELECT plan(23);
+SELECT plan(24);
+
+-- `handle_new_user` zalozylby profil w tenancie DOMYSLNYM, a
+-- `profiles_pin_tenant_id` nie pozwala go potem przeniesc (tenant konta jest
+-- niezmienny poza sciezka service_role). Profil musi wiec powstac od razu
+-- w docelowym tenancie - z wylaczonym triggerem signupu i wprost.
+ALTER TABLE auth.users DISABLE TRIGGER USER;
 
 INSERT INTO public.tenants (id, name, slug)
 VALUES ('11111111-1111-1111-1111-111111111111', 'Tenant A', 'tenant-a-thr-test')
@@ -20,12 +26,12 @@ ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.profiles (id, tenant_id, display_name, discoverable)
 VALUES ('aaaaaaaa-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'Admin', true),
-       ('aaaaaaaa-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111', 'Czlonek', true)
-ON CONFLICT (id) DO UPDATE SET tenant_id = EXCLUDED.tenant_id;
+       ('aaaaaaaa-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111', 'Czlonek', true);
 
-INSERT INTO public.user_roles (user_id, role)
-VALUES ('aaaaaaaa-0000-0000-0000-000000000001', 'admin')
-ON CONFLICT DO NOTHING;
+-- Rola jest wazna W TENANCIE (has_role porownuje tenant_id z tenantem
+-- wolajacego), wiec fixture musi podac tenanta wprost.
+INSERT INTO public.user_roles (user_id, role, tenant_id)
+VALUES ('aaaaaaaa-0000-0000-0000-000000000001', 'admin', '11111111-1111-1111-1111-111111111111');
 
 -- ----------------------------------------------------------------------------
 -- Struktura
@@ -105,7 +111,10 @@ SELECT is(
 -- ----------------------------------------------------------------------------
 -- Tworzenie tresci
 -- ----------------------------------------------------------------------------
-SET LOCAL role = authenticated;
+-- Podzial rol: RPC wolamy rola `authenticated` (to sprawdza takze grant
+-- EXECUTE), a stan tabel modulu czytamy rola wlasciciela, bo klient nie ma do
+-- nich grantu. Identyfikatory ida do RPC przez GUC.
+SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims = '{"sub":"aaaaaaaa-0000-0000-0000-000000000001"}';
 
 SELECT public.admin_club_upsert(
@@ -113,13 +122,22 @@ SELECT public.admin_club_upsert(
     "visibility":"members","who_can_post":"members","moderation_mode":"post",
     "attribution_mode":"anonymous_allowed","status":"active"}'::jsonb);
 
+RESET ROLE;
+SELECT set_config('test.club',
+  (SELECT id::text FROM public.clubs WHERE slug='klub-tresc'), true);
+SELECT set_config('test.group',
+  (SELECT g.id::text FROM public.club_groups g JOIN public.clubs c ON c.id=g.club_id
+    WHERE c.slug='klub-tresc' LIMIT 1), true);
+SET LOCAL ROLE authenticated;
+
 SELECT lives_ok(
   format($$ SELECT public.club_create_thread('%s','Pierwszy temat klubu',
              'Tresc pierwszego tematu, dluzsza niz dziesiec znakow.','discussion',false,NULL,NULL) $$,
-    (SELECT g.id FROM public.club_groups g JOIN public.clubs c ON c.id=g.club_id
-      WHERE c.slug='klub-tresc' LIMIT 1)),
+    current_setting('test.group')),
   'admin zaklada temat'
 );
+
+RESET ROLE;
 
 SELECT is(
   (SELECT count(*)::int FROM public.club_threads t
@@ -134,20 +152,32 @@ SELECT is(
 
 -- Slug powstaje z tytulu, bez polskich znakow i bez ciagu myslnikow.
 SELECT ok(
-  (SELECT slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$' FROM public.club_threads t
+  (SELECT t.slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$' FROM public.club_threads t
      JOIN public.clubs c ON c.id=t.club_id WHERE c.slug='klub-tresc'),
   'slug tematu ma poprawny format'
 );
 
--- Ogloszenie wymaga moderacji.
+-- Baza po migracjach nie jest pusta: 20260808220000 seeduje klub referencyjny
+-- z watkami i odpowiedziami, wiec kazde pytanie o "watek" musi wskazywac watek
+-- TEGO testu, nie pierwszy wiersz tabeli.
+SELECT set_config('test.thread',
+  (SELECT t.id::text FROM public.club_threads t JOIN public.clubs c ON c.id=t.club_id
+    WHERE c.slug='klub-tresc'), true);
+
+-- Ogloszenie wymaga moderacji. Czlonka dopisuje admin, bo klub ma domyslna
+-- polityke wstepu 'request': samodzielne club_join skonczyloby sie statusem
+-- 'pending', a wtedy nizsze asercje mierzylyby brak czlonkostwa, nie regule.
+SET LOCAL ROLE authenticated;
+SELECT public.admin_club_member_upsert(
+  current_setting('test.club')::uuid,
+  'aaaaaaaa-0000-0000-0000-000000000003', 'member', 'active', NULL);
+
 SET LOCAL request.jwt.claims = '{"sub":"aaaaaaaa-0000-0000-0000-000000000003"}';
-SELECT public.club_join((SELECT id FROM public.clubs WHERE slug='klub-tresc'));
 
 SELECT throws_ok(
   format($$ SELECT public.club_create_thread('%s','Ogloszenie dla wszystkich',
              'Tresc ogloszenia, dluzsza niz dziesiec znakow.','announcement',false,NULL,NULL) $$,
-    (SELECT g.id FROM public.club_groups g JOIN public.clubs c ON c.id=g.club_id
-      WHERE c.slug='klub-tresc' LIMIT 1)),
+    current_setting('test.group')),
   '42501', NULL, 'ogloszenie zaklada wylacznie moderacja'
 );
 
@@ -155,8 +185,7 @@ SELECT throws_ok(
 SELECT throws_ok(
   format($$ SELECT public.club_create_thread('%s','Material do przeczytania',
              'Tresc materialu, dluzsza niz dziesiec znakow.','resource',false,NULL,NULL) $$,
-    (SELECT g.id FROM public.club_groups g JOIN public.clubs c ON c.id=g.club_id
-      WHERE c.slug='klub-tresc' LIMIT 1)),
+    current_setting('test.group')),
   '22023', NULL, 'zasob bez kotwicy jest odrzucany'
 );
 
@@ -165,33 +194,44 @@ SELECT throws_ok(
 -- ----------------------------------------------------------------------------
 SELECT lives_ok(
   format($$ SELECT public.club_reply('%s','Pierwsza odpowiedz',NULL,false) $$,
-    (SELECT id FROM public.club_threads LIMIT 1)),
+    current_setting('test.thread')),
   'czlonek odpowiada w watku'
 );
 
+-- Dalej czytamy i budujemy drzewo rola wlasciciela: kontrakt autoryzacji
+-- rozstrzyga auth.uid() w ciele RPC, a tabel modulu klient nie czyta.
+RESET ROLE;
+
 SELECT is(
-  (SELECT depth FROM public.club_replies ORDER BY created_at LIMIT 1),
+  (SELECT depth FROM public.club_replies
+    WHERE thread_id = current_setting('test.thread')::uuid
+    ORDER BY created_at LIMIT 1),
   0::smallint, 'odpowiedz bez rodzica ma glebokosc 0'
 );
 
 SELECT is(
-  (SELECT reply_count FROM public.club_threads LIMIT 1),
+  (SELECT reply_count FROM public.club_threads
+    WHERE id = current_setting('test.thread')::uuid),
   1, 'trigger policzyl odpowiedz na watku'
 );
 
 -- Poziom 1, potem 2, potem SPLASZCZENIE zamiast trzeciego pietra.
 SELECT public.club_reply(
-  (SELECT id FROM public.club_threads LIMIT 1), 'Poziom 1',
-  (SELECT id FROM public.club_replies WHERE depth=0 LIMIT 1), false);
+  current_setting('test.thread')::uuid, 'Poziom 1',
+  (SELECT id FROM public.club_replies
+     WHERE thread_id = current_setting('test.thread')::uuid AND depth=0 LIMIT 1), false);
 SELECT public.club_reply(
-  (SELECT id FROM public.club_threads LIMIT 1), 'Poziom 2',
-  (SELECT id FROM public.club_replies WHERE depth=1 LIMIT 1), false);
+  current_setting('test.thread')::uuid, 'Poziom 2',
+  (SELECT id FROM public.club_replies
+     WHERE thread_id = current_setting('test.thread')::uuid AND depth=1 LIMIT 1), false);
 SELECT public.club_reply(
-  (SELECT id FROM public.club_threads LIMIT 1), 'Probowal poziom 3',
-  (SELECT id FROM public.club_replies WHERE depth=2 LIMIT 1), false);
+  current_setting('test.thread')::uuid, 'Probowal poziom 3',
+  (SELECT id FROM public.club_replies
+     WHERE thread_id = current_setting('test.thread')::uuid AND depth=2 LIMIT 1), false);
 
 SELECT is(
-  (SELECT max(depth)::int FROM public.club_replies),
+  (SELECT max(depth)::int FROM public.club_replies
+    WHERE thread_id = current_setting('test.thread')::uuid),
   2, 'drzewo NIGDY nie przekracza glebokosci 2'
 );
 
@@ -212,8 +252,9 @@ SELECT is(
 -- ----------------------------------------------------------------------------
 SELECT throws_ok(
   format($$ SELECT public.club_resolve_thread('%s','%s') $$,
-    (SELECT id FROM public.club_threads LIMIT 1),
-    (SELECT id FROM public.club_replies WHERE depth=0 LIMIT 1)),
+    current_setting('test.thread'),
+    (SELECT id FROM public.club_replies
+      WHERE thread_id = current_setting('test.thread')::uuid AND depth=0 LIMIT 1)),
   '22023', NULL, 'tylko pytanie mozna rozstrzygnac'
 );
 

@@ -275,9 +275,14 @@ SELECT throws_ok(
 );
 
 -- Dryf tenanta: profil nadawcy przepięty do B, jego wiersze zostają w A.
+-- `profiles_pin_tenant_id` (20260721052806) czyni tenanta konta niezmiennym dla
+-- właściciela wiersza - przepięcie jest wyłącznie operacją serwerową, więc idzie
+-- rolą `service_role`, tą samą ścieżką co provisioning w produkcie.
 RESET ROLE;
+SET LOCAL ROLE service_role;
 UPDATE public.profiles SET tenant_id = 'e5b22222-2222-2222-2222-2222222222b2'
  WHERE id = 'e5000000-0000-0000-0000-0000000000a1';
+RESET ROLE;
 SET LOCAL ROLE authenticated;
 
 SELECT is(
@@ -298,8 +303,10 @@ SELECT throws_ok(
 );
 
 RESET ROLE;
+SET LOCAL ROLE service_role;
 UPDATE public.profiles SET tenant_id = 'e5a11111-1111-1111-1111-1111111111a1'
  WHERE id = 'e5000000-0000-0000-0000-0000000000a1';
+RESET ROLE;
 -- Zapytanie tenanta B - moderacja tenanta A nie ma prawa go widzieć.
 INSERT INTO public.expert_inmails (tenant_id, sender_id, recipient_id, subject, reason) VALUES
   ('e5b22222-2222-2222-2222-2222222222b2',

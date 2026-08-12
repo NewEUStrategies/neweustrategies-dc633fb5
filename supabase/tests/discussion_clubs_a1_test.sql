@@ -13,11 +13,18 @@
 --   7. dziedziczenie NULL -> wartosc klubu.
 -- ============================================================================
 BEGIN;
-SELECT plan(38);
+SELECT plan(41);
 
 -- ----------------------------------------------------------------------------
 -- Fixture: dwa tenanty, po jednym adminie, jeden super_admin bez roli 'admin'
+--
+-- `handle_new_user` zalozylby profil w tenancie DOMYSLNYM, a
+-- `profiles_pin_tenant_id` nie pozwala go potem przeniesc (tenant konta jest
+-- niezmienny poza sciezka service_role). Profil musi wiec powstac od razu
+-- w docelowym tenancie - z wylaczonym triggerem signupu i wprost.
 -- ----------------------------------------------------------------------------
+ALTER TABLE auth.users DISABLE TRIGGER USER;
+
 INSERT INTO public.tenants (id, name, slug)
 VALUES ('11111111-1111-1111-1111-111111111111', 'Tenant A', 'tenant-a-club-test'),
        ('22222222-2222-2222-2222-222222222222', 'Tenant B', 'tenant-b-club-test')
@@ -36,16 +43,16 @@ VALUES ('aaaaaaaa-0000-0000-0000-000000000001', '11111111-1111-1111-1111-1111111
        ('aaaaaaaa-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', 'Super A', true),
        ('aaaaaaaa-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111', 'Member A', true),
        ('aaaaaaaa-0000-0000-0000-000000000004', '11111111-1111-1111-1111-111111111111', 'Outsider A', true),
-       ('bbbbbbbb-0000-0000-0000-000000000001', '22222222-2222-2222-2222-222222222222', 'Admin B', true)
-ON CONFLICT (id) DO UPDATE SET tenant_id = EXCLUDED.tenant_id;
+       ('bbbbbbbb-0000-0000-0000-000000000001', '22222222-2222-2222-2222-222222222222', 'Admin B', true);
 
 -- Super admin CELOWO bez osobnej roli 'admin' - to jest dokladnie ten uklad,
 -- w ktorym profiles_guard_verification przestal dzialac.
-INSERT INTO public.user_roles (user_id, role)
-VALUES ('aaaaaaaa-0000-0000-0000-000000000001', 'admin'),
-       ('aaaaaaaa-0000-0000-0000-000000000002', 'super_admin'),
-       ('bbbbbbbb-0000-0000-0000-000000000001', 'admin')
-ON CONFLICT DO NOTHING;
+-- Rola jest wazna W TENANCIE (has_role porownuje tenant_id z tenantem
+-- wolajacego), wiec fixture musi podac tenanta wprost.
+INSERT INTO public.user_roles (user_id, role, tenant_id)
+VALUES ('aaaaaaaa-0000-0000-0000-000000000001', 'admin', '11111111-1111-1111-1111-111111111111'),
+       ('aaaaaaaa-0000-0000-0000-000000000002', 'super_admin', '11111111-1111-1111-1111-111111111111'),
+       ('bbbbbbbb-0000-0000-0000-000000000001', 'admin', '22222222-2222-2222-2222-222222222222');
 
 -- ----------------------------------------------------------------------------
 -- 1. Tabele istnieja, maja RLS i ZERO grantow dla klienta
@@ -80,7 +87,14 @@ SELECT is_empty(
 
 -- ----------------------------------------------------------------------------
 -- 2. Bramka administracyjna i inwariant super_admin >= admin
+--
+-- `has_role` porownuje user_roles.tenant_id z tenantem WOLAJACEGO
+-- (current_tenant_id()), wiec o bramke trzeba pytac z wnetrza tenanta A -
+-- bez tozsamosci wolajacego kazda odpowiedz brzmi "nie".
 -- ----------------------------------------------------------------------------
+SELECT set_config('request.jwt.claims',
+  '{"sub":"aaaaaaaa-0000-0000-0000-000000000001"}', true);
+
 SELECT has_function('public', 'is_club_admin', ARRAY['uuid'], 'is_club_admin istnieje');
 SELECT has_function('public', 'club_capabilities', ARRAY['uuid', 'uuid', 'uuid'],
   'club_capabilities istnieje');
@@ -96,9 +110,15 @@ SELECT ok(NOT public.is_club_admin(NULL), 'anonim nie przechodzi bramki is_club_
 
 -- ----------------------------------------------------------------------------
 -- 3. Tworzenie klubu przez admina tenanta A
+--
+-- Podzial rol w dalszej czesci pliku wynika z asercji o grantach powyzej:
+-- RPC wolamy rola `authenticated` (to sprawdza takze grant EXECUTE i sciezke
+-- definera), a stan tabel modulu czytamy rola wlasciciela, bo klient nie ma
+-- do nich ZADNEGO grantu. Tozsamosc wolajacego niesie JWT, nie rola bazy.
+-- Identyfikatory klubow przekazujemy do wywolan RPC przez GUC - inaczej
+-- podzapytanie po id siegnelo by do tabeli rola klienta.
 -- ----------------------------------------------------------------------------
-SET LOCAL role = authenticated;
-SET LOCAL request.jwt.claims = '{"sub":"aaaaaaaa-0000-0000-0000-000000000001"}';
+SET LOCAL ROLE authenticated;
 
 SELECT lives_ok(
   $$ SELECT public.admin_club_upsert(
@@ -106,6 +126,8 @@ SELECT lives_ok(
          "visibility":"members","status":"active"}'::jsonb) $$,
   'admin tworzy klub'
 );
+
+RESET ROLE;
 
 SELECT is(
   (SELECT count(*)::int FROM public.clubs
@@ -122,11 +144,18 @@ SELECT is(
 );
 
 SELECT is(
-  (SELECT tenant_id FROM public.club_groups g
+  (SELECT g.tenant_id FROM public.club_groups g
      JOIN public.clubs c ON c.id = g.club_id WHERE c.slug = 'klub-testowy' LIMIT 1),
   '11111111-1111-1111-1111-111111111111'::uuid,
   'grupa dziedziczy tenanta z klubu, nie z parametru'
 );
+
+SELECT set_config('test.club_a',
+  (SELECT id::text FROM public.clubs
+    WHERE slug = 'klub-testowy'
+      AND tenant_id = '11111111-1111-1111-1111-111111111111'), true);
+
+SET LOCAL ROLE authenticated;
 
 -- Slug jest unikalny w obrebie tenanta.
 SELECT throws_ok(
@@ -146,8 +175,7 @@ SELECT is_empty(
 );
 
 SELECT is_empty(
-  $$ SELECT id FROM public.admin_club_get(
-       (SELECT id FROM public.clubs WHERE slug = 'klub-testowy')) $$,
+  $$ SELECT id FROM public.admin_club_get(current_setting('test.club_a')::uuid) $$,
   'admin tenanta B nie odczyta klubu tenanta A po id'
 );
 
@@ -158,19 +186,21 @@ SELECT lives_ok(
   'ten sam slug w innym tenancie jest dozwolony'
 );
 
+RESET ROLE;
+
 SELECT is(
   (SELECT count(*)::int FROM public.clubs WHERE slug = 'klub-testowy'),
   2, 'oba tenanty maja wlasny klub o tym samym slugu'
 );
+
+SET LOCAL ROLE authenticated;
 
 -- Proba dopisania grupy do cudzego klubu.
 SELECT throws_ok(
   format(
     $$ SELECT public.admin_club_group_upsert(
          '{"club_id":"%s","slug":"obca","name_pl":"Obca"}'::jsonb) $$,
-    (SELECT id FROM public.clubs
-      WHERE slug = 'klub-testowy'
-        AND tenant_id = '11111111-1111-1111-1111-111111111111')
+    current_setting('test.club_a')
   ),
   '42501', NULL, 'admin tenanta B nie dopisze grupy do klubu tenanta A'
 );
@@ -183,8 +213,7 @@ SET LOCAL request.jwt.claims = '{"sub":"aaaaaaaa-0000-0000-0000-000000000001"}';
 SELECT throws_ok(
   format(
     $$ SELECT public.admin_club_member_upsert('%s','%s','admin','active',NULL) $$,
-    (SELECT id FROM public.clubs
-      WHERE slug = 'klub-testowy' AND tenant_id = '11111111-1111-1111-1111-111111111111'),
+    current_setting('test.club_a'),
     'aaaaaaaa-0000-0000-0000-000000000003'
   ),
   '22023', NULL,
@@ -194,8 +223,7 @@ SELECT throws_ok(
 SELECT throws_ok(
   format(
     $$ SELECT public.admin_club_member_upsert('%s','%s','super_admin','active',NULL) $$,
-    (SELECT id FROM public.clubs
-      WHERE slug = 'klub-testowy' AND tenant_id = '11111111-1111-1111-1111-111111111111'),
+    current_setting('test.club_a'),
     'aaaaaaaa-0000-0000-0000-000000000003'
   ),
   '22023', NULL,
@@ -206,8 +234,7 @@ SELECT throws_ok(
 SELECT throws_ok(
   format(
     $$ SELECT public.admin_club_member_upsert('%s','%s','member','active',NULL) $$,
-    (SELECT id FROM public.clubs
-      WHERE slug = 'klub-testowy' AND tenant_id = '11111111-1111-1111-1111-111111111111'),
+    current_setting('test.club_a'),
     'bbbbbbbb-0000-0000-0000-000000000001'
   ),
   '42501', NULL,
@@ -217,27 +244,29 @@ SELECT throws_ok(
 SELECT lives_ok(
   format(
     $$ SELECT public.admin_club_member_upsert('%s','%s','member','active',NULL) $$,
-    (SELECT id FROM public.clubs
-      WHERE slug = 'klub-testowy' AND tenant_id = '11111111-1111-1111-1111-111111111111'),
+    current_setting('test.club_a'),
     'aaaaaaaa-0000-0000-0000-000000000003'
   ),
   'czlonek z tego samego tenanta zostaje dodany'
 );
 
 -- Licznik czlonkow utrzymuje trigger, nie klient.
+RESET ROLE;
+
 SELECT is(
   (SELECT member_count FROM public.clubs
     WHERE slug = 'klub-testowy' AND tenant_id = '11111111-1111-1111-1111-111111111111'),
   1, 'trigger zaktualizowal member_count'
 );
 
+SET LOCAL ROLE authenticated;
+
 -- ----------------------------------------------------------------------------
 -- 6. Macierz zdolnosci
 -- ----------------------------------------------------------------------------
 SELECT is(
   (SELECT can_manage FROM public.club_capabilities(
-     (SELECT id FROM public.clubs WHERE slug = 'klub-testowy'
-       AND tenant_id = '11111111-1111-1111-1111-111111111111'),
+     current_setting('test.club_a')::uuid,
      NULL, 'aaaaaaaa-0000-0000-0000-000000000001')),
   true, 'admin zarzadza struktura klubu'
 );
@@ -245,16 +274,14 @@ SELECT is(
 -- INWARIANT: super_admin bez roli 'admin' ma te sama zdolnosc.
 SELECT is(
   (SELECT can_manage FROM public.club_capabilities(
-     (SELECT id FROM public.clubs WHERE slug = 'klub-testowy'
-       AND tenant_id = '11111111-1111-1111-1111-111111111111'),
+     current_setting('test.club_a')::uuid,
      NULL, 'aaaaaaaa-0000-0000-0000-000000000002')),
   true, 'super_admin bez roli admin zarzadza struktura klubu'
 );
 
 SELECT is(
   (SELECT can_manage FROM public.club_capabilities(
-     (SELECT id FROM public.clubs WHERE slug = 'klub-testowy'
-       AND tenant_id = '11111111-1111-1111-1111-111111111111'),
+     current_setting('test.club_a')::uuid,
      NULL, 'aaaaaaaa-0000-0000-0000-000000000003')),
   false, 'zwykly czlonek nie zarzadza struktura'
 );
@@ -262,8 +289,7 @@ SELECT is(
 -- Czlonek nie ujawnia autora anonimowej wypowiedzi.
 SELECT is(
   (SELECT can_reveal_author FROM public.club_capabilities(
-     (SELECT id FROM public.clubs WHERE slug = 'klub-testowy'
-       AND tenant_id = '11111111-1111-1111-1111-111111111111'),
+     current_setting('test.club_a')::uuid,
      NULL, 'aaaaaaaa-0000-0000-0000-000000000003')),
   false, 'czlonek nie ujawnia autora anonimowej wypowiedzi'
 );
@@ -271,8 +297,7 @@ SELECT is(
 -- Obcy tenant: klub "nie istnieje", a nie "brak dostepu".
 SELECT is(
   (SELECT reason FROM public.club_capabilities(
-     (SELECT id FROM public.clubs WHERE slug = 'klub-testowy'
-       AND tenant_id = '11111111-1111-1111-1111-111111111111'),
+     current_setting('test.club_a')::uuid,
      NULL, 'bbbbbbbb-0000-0000-0000-000000000001')),
   'not_found', 'obcy tenant dostaje not_found, nie forbidden'
 );
@@ -284,16 +309,21 @@ SELECT public.admin_club_upsert(
   '{"slug":"klub-tajny","name_pl":"Tajny","name_en":"Secret",
     "visibility":"secret","status":"active"}'::jsonb);
 
+RESET ROLE;
+SELECT set_config('test.club_secret',
+  (SELECT id::text FROM public.clubs WHERE slug = 'klub-tajny'), true);
+SET LOCAL ROLE authenticated;
+
 SELECT is(
   (SELECT can_read FROM public.club_capabilities(
-     (SELECT id FROM public.clubs WHERE slug = 'klub-tajny'),
+     current_setting('test.club_secret')::uuid,
      NULL, 'aaaaaaaa-0000-0000-0000-000000000004')),
   false, 'nie-czlonek nie czyta klubu secret'
 );
 
 SELECT is(
   (SELECT reason FROM public.club_capabilities(
-     (SELECT id FROM public.clubs WHERE slug = 'klub-tajny'),
+     current_setting('test.club_secret')::uuid,
      NULL, 'aaaaaaaa-0000-0000-0000-000000000004')),
   'not_found', 'klub secret zwraca not_found - nie zdradza swojego istnienia'
 );
@@ -324,13 +354,13 @@ SELECT is(
 -- ----------------------------------------------------------------------------
 SELECT is(
   (SELECT visibility FROM public.admin_club_groups(
-     (SELECT id FROM public.clubs WHERE slug = 'klub-tajny')) LIMIT 1),
+     current_setting('test.club_secret')::uuid) LIMIT 1),
   'secret', 'grupa bez nadpisania dziedziczy widocznosc klubu'
 );
 
 SELECT is(
   (SELECT visibility_inherited FROM public.admin_club_groups(
-     (SELECT id FROM public.clubs WHERE slug = 'klub-tajny')) LIMIT 1),
+     current_setting('test.club_secret')::uuid) LIMIT 1),
   true, 'flaga dziedziczenia jest ustawiona, gdy kolumna grupy jest NULL'
 );
 
