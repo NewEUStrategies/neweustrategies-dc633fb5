@@ -169,30 +169,6 @@ SELECT ok(
 -- przez GUC - inaczej podzapytanie po id siegnelo by do tabeli w tych blokach,
 -- ktore nadal chodza rola klienta (sekcje 6 i 7).
 -- ----------------------------------------------------------------------------
--- SONDA DIAGNOSTYCZNA (do usuniecia po rozstrzygnieciu).
---
--- `lives_ok` mowi tylko „rzucilo", bez tresci bledu, a ten sam upsert
--- PRZECHODZI lokalnie na pelnym schemacie z seedem i PADA w CI - dwa razy pod
--- rzad, najpierw pod rola `authenticated`, potem pod rola wlasciciela, wiec
--- rola nie jest przyczyna. Wykluczone tez: brak seeda, brak grantu EXECUTE
--- (asercje 14-19 wyzej przechodza) i forma roszczenia JWT (73 zielone pliki
--- uzywaja tej samej). Bez tresci bledu z CI kolejna hipoteza bylaby zgadywaniem,
--- a `output` check-runu jest puste i log joba dociera obciety.
---
--- Sonda uzywa INNEGO sluga, wiec nie koliduje z asercja ponizej, i tylko
--- wypisuje SQLSTATE z komunikatem - nie zmienia ani jednej asercji.
-DO $$
-BEGIN
-  PERFORM public.admin_club_upsert(
-    '{"slug":"klub-sonda-diagnostyczna","name_pl":"Sonda","name_en":"Probe",
-      "visibility":"members","status":"active"}'::jsonb);
-  RAISE WARNING 'DIAG a1 admin_club_upsert: przeszlo (auth.uid=%, current_tenant_id=%)',
-    auth.uid(), public.current_tenant_id();
-EXCEPTION WHEN OTHERS THEN
-  RAISE WARNING 'DIAG a1 admin_club_upsert: % / % (auth.uid=%, current_tenant_id=%)',
-    SQLSTATE, SQLERRM, auth.uid(), public.current_tenant_id();
-END $$;
-
 SELECT lives_ok(
   $$ SELECT public.admin_club_upsert(
        '{"slug":"klub-testowy","name_pl":"Klub testowy","name_en":"Test club",
