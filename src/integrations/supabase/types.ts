@@ -19024,6 +19024,7 @@ export type Database = {
           tenant_id: string
         }[]
       }
+      profiles_tenant_pin_bypass: { Args: never; Returns: boolean }
       promote_event_waitlist: { Args: { p_event_id: string }; Returns: number }
       prune_command_idempotency: { Args: never; Returns: number }
       prune_domain_events: { Args: { p_keep?: string }; Returns: number }
