@@ -3,7 +3,7 @@
 // the catalogue of programs (series), each linking to its own program page,
 // followed by the newest episodes across the whole network. Links to the
 // built-in network RSS feed.
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, type ErrorComponentProps } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -27,6 +27,8 @@ import {
   type PodcastShow,
 } from "@/lib/podcast/types";
 import { anyDegraded, loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
+import { ensureI18n as ensurePodcastsI18n } from "@/lib/i18n-podcasts";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
@@ -88,17 +90,27 @@ export const Route = createFileRoute("/podcasts/")({
     };
   },
   component: PodcastsIndex,
-  errorComponent: (props) => (
-    <RouteErrorFallback {...props} title="Nie udało się załadować listy" />
-  ),
+  // Nagłówek błędu też idzie ze słownika: `errorComponent` renderuje się jak
+  // każdy inny komponent, więc `t()` jest tu dostępne - literał był jedynym
+  // miejscem na tej trasie, które mówiło po polsku do wszystkich.
+  errorComponent: (props) => <PodcastsIndexError {...props} />,
 });
+
+function PodcastsIndexError(props: ErrorComponentProps) {
+  ensurePodcastsI18n();
+  const { t } = useTranslation();
+  return <RouteErrorFallback {...props} title={t("podcastNetwork.loadFailedIndex")} />;
+}
 
 function PodcastsIndex() {
   const { data: episodes } = useSuspenseQuery(latestPodcastsQueryOptions(INDEX_LIMIT));
   const { data: shows } = useSuspenseQuery(publishedShowsQueryOptions);
   const { data: stats } = useSuspenseQuery(showEpisodeStatsQueryOptions);
   const { degraded } = Route.useLoaderData();
-  const { i18n } = useTranslation();
+  ensurePodcastsI18n();
+  const { t, i18n } = useTranslation();
+  // `lang` zostaje WYŁĄCZNIE do wyboru języka treści (bliźniacze kolumny),
+  // etykiety interfejsu idą przez `t()`.
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
 
   // Statystyki per program: liczba odcinków + łączny czas (dla kart katalogu).
@@ -131,9 +143,7 @@ function PodcastsIndex() {
           </div>
           <div>
             <h1 className="font-display text-3xl">Podcast</h1>
-            <p className="text-sm text-muted-foreground">
-              {lang === "en" ? "Programs & episodes" : "Programy i odcinki"}
-            </p>
+            <p className="text-sm text-muted-foreground">{t("podcastNetwork.subtitle")}</p>
           </div>
         </div>
         <a
@@ -149,14 +159,12 @@ function PodcastsIndex() {
           degradacji mówimy wprost, co się stało, zamiast sugerować, że sieci
           podcastów nie ma. */}
       {degraded ? (
-        <DegradedDataNotice
-          title={lang === "en" ? "Couldn't load podcasts" : "Nie udało się załadować podcastów"}
-        />
+        <DegradedDataNotice title={t("podcastNetwork.loadFailedPodcasts")} />
       ) : (
         <>
           {hasShows && (
             <section className="space-y-4">
-              <h2 className="font-display text-xl">{lang === "en" ? "Programs" : "Programy"}</h2>
+              <h2 className="font-display text-xl">{t("podcastNetwork.programsHeading")}</h2>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {shows.map((s) => {
                   const st = showStats.get(s.id);
@@ -192,7 +200,7 @@ function PodcastsIndex() {
                           </p>
                         )}
                         <div className="text-xs text-muted-foreground pt-1">
-                          {count} {lang === "en" ? (count === 1 ? "episode" : "episodes") : "odc."}
+                          {t("podcastNetwork.episodeCount", { count })}
                           {st && st.seconds > 0 ? ` · ${formatDuration(st.seconds)}` : ""}
                         </div>
                       </div>
@@ -204,19 +212,18 @@ function PodcastsIndex() {
           )}
 
           <section className="space-y-4">
-            <h2 className="font-display text-xl">
-              {lang === "en" ? "Latest episodes" : "Najnowsze odcinki"}
-            </h2>
+            <h2 className="font-display text-xl">{t("podcastNetwork.latestHeading")}</h2>
             {episodes.length === 0 ? (
               <p className="text-sm text-muted-foreground py-16 text-center">
-                {lang === "en" ? "No episodes published yet." : "Brak opublikowanych odcinków."}
+                {t("podcastNetwork.emptyEpisodes")}
               </p>
             ) : (
               <ul className="space-y-3">
                 {episodes.map((e) => {
                   const ep = podcastEpisodeLabel(e, lang);
-                  const excerpt =
-                    lang === "en" ? e.excerpt_en || e.excerpt_pl : e.excerpt_pl || e.excerpt_en;
+                  // `pickLocalized` zamiast `a_en || a_pl`: ciąg z samych spacji
+                  // liczy się jako pusty, więc nie renderuje pustego akapitu.
+                  const excerpt = pickLocalized(e, "excerpt", lang);
                   const showName = e.show_id ? showTitleById.get(e.show_id) : null;
                   return (
                     <li key={e.id}>

@@ -92,6 +92,7 @@ const pl = {
       payments: "Płatności i faktury",
       security: "Bezpieczeństwo konta",
       privacy: "Prywatność i dane",
+      notificationSettings: "Ustawienia powiadomień",
       expertRequests: "Zapytania do ekspertów",
     },
     navGroups: {
@@ -832,6 +833,7 @@ const en: typeof pl = {
       payments: "Payments & invoices",
       security: "Account security",
       privacy: "Privacy & data",
+      notificationSettings: "Notification settings",
       expertRequests: "Expert requests",
     },
     navGroups: {

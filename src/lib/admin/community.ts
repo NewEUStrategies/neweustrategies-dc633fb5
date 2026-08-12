@@ -174,6 +174,48 @@ export async function purgeExpiredMessages(): Promise<number> {
 export type EventRow = Database["public"]["Tables"]["events"]["Row"];
 export type EventStatus = "draft" | "published" | "cancelled";
 
+// Rodzaje wydarzen odwzorowuja CHECK z `20260713093000_events_module.sql`.
+// Kolumny `kind`/`status` sa w wygenerowanych typach zwyklym `string`, wiec
+// zawezenie musi zyc tutaj - inaczej mapa etykiet nie ma nad czym domykac
+// kompletnosci.
+export const EVENT_KINDS = [
+  "webinar",
+  "briefing",
+  "roundtable",
+  "ama",
+  "in_person",
+  "hybrid",
+] as const;
+export type EventKind = (typeof EVENT_KINDS)[number];
+
+export const EVENT_STATUSES = ["draft", "published", "cancelled"] as const;
+
+// Mapy WSKAZUJA KLUCZE i18n, nie napisy. Typ `Record<Enum, string>` wymusza
+// pokrycie kazdego wariantu, a test slownika domyka druga polowe kontraktu -
+// ze wskazany klucz naprawde istnieje w PL i EN.
+export const EVENT_KIND_LABEL_KEYS: Record<EventKind, string> = {
+  webinar: "adminCommunityEvents.kinds.webinar",
+  briefing: "adminCommunityEvents.kinds.briefing",
+  roundtable: "adminCommunityEvents.kinds.roundtable",
+  ama: "adminCommunityEvents.kinds.ama",
+  in_person: "adminCommunityEvents.kinds.in_person",
+  hybrid: "adminCommunityEvents.kinds.hybrid",
+};
+
+export const EVENT_STATUS_LABEL_KEYS: Record<EventStatus, string> = {
+  draft: "adminCommunityEvents.status.draft",
+  published: "adminCommunityEvents.status.published",
+  cancelled: "adminCommunityEvents.status.cancelled",
+};
+
+export function isEventKind(value: string): value is EventKind {
+  return (EVENT_KINDS as readonly string[]).includes(value);
+}
+
+export function isEventStatus(value: string): value is EventStatus {
+  return (EVENT_STATUSES as readonly string[]).includes(value);
+}
+
 // Pelne wiersze wydarzen (z join_url/recording_url) sa poza zasiegiem kolumnowych
 // grantow dla anon/authenticated - redakcja czyta je przez funkcje sprawdzajaca role.
 export async function fetchAdminEvents(params: {

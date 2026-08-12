@@ -134,8 +134,8 @@ export function ClubProse({
                   )}
                 />
                 <span className="min-w-0 flex-1 whitespace-pre-wrap">
-                    <ClubInlineText body={item} clubSlug={clubSlug} />
-                  </span>
+                  <ClubInlineText body={item} clubSlug={clubSlug} />
+                </span>
               </li>
             ))}
           </ul>

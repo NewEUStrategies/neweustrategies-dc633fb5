@@ -164,7 +164,9 @@ export function ReadingTimeView({ wpm, prefix = "", lang = "pl", cls }: ReadingT
   if (minutes == null) return null;
 
   return (
-    <span className={`cms-meta inline-flex items-center gap-1.5 text-muted-foreground ${cls ?? ""}`}>
+    <span
+      className={`cms-meta inline-flex items-center gap-1.5 text-muted-foreground ${cls ?? ""}`}
+    >
       <Clock className="w-3.5 h-3.5" aria-hidden />
       {prefix ? <span>{prefix}</span> : null}
       <span>{t.readingTime(minutes)}</span>
@@ -186,7 +188,9 @@ export function PostViewsView({ suffix, lang = "pl", cls }: PostViewsProps) {
   const count = typeof ctx?.viewCount === "number" ? ctx.viewCount : 0;
   const formatted = new Intl.NumberFormat(lang === "pl" ? "pl-PL" : "en-GB").format(count);
   return (
-    <span className={`cms-meta inline-flex items-center gap-1.5 text-muted-foreground ${cls ?? ""}`}>
+    <span
+      className={`cms-meta inline-flex items-center gap-1.5 text-muted-foreground ${cls ?? ""}`}
+    >
       <Eye className="w-3.5 h-3.5" aria-hidden />
       <span className="tabular-nums">{formatted}</span>
       <span>{suffix && suffix.trim() ? suffix : t.views}</span>

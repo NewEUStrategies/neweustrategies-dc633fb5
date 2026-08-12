@@ -61,7 +61,6 @@ export async function markOrderSession(
       .in("status", ["pending", "processing"])
       .select("id");
 
-
     if (adminErr) {
       console.error("[checkout] mark_session admin failed", orderId, adminErr.message);
       return false;

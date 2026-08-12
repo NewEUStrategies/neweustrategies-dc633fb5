@@ -22,11 +22,7 @@ describe("clubMatch", () => {
   });
 
   it("tnie zapytanie na tokeny", () => {
-    expect(tokenizeClubQuery("  bezp  europy-srodkowej ")).toEqual([
-      "bezp",
-      "europy",
-      "srodkowej",
-    ]);
+    expect(tokenizeClubQuery("  bezp  europy-srodkowej ")).toEqual(["bezp", "europy", "srodkowej"]);
   });
 
   it("dopasowuje po części nazwy bez diakrytyków", () => {

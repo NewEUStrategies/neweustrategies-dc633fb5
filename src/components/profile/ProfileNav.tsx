@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { useMyOrganization } from "@/lib/billing/membership";
 import {
+  BellRing,
   UserCircle,
   UserCog,
   Heart,
@@ -29,6 +30,7 @@ type NavKey =
   | "personality"
   | "bookmarks"
   | "notifications"
+  | "notificationSettings"
   | "follows"
   | "network"
   | "membership"
@@ -89,6 +91,12 @@ const FINANCE: NavItem[] = [
 // przełączniki widoczności mieszkały w formularzu edycji profilu.
 const PRIVACY: NavItem[] = [
   { to: "/profile/privacy", key: "privacy", icon: Lock },
+  // Ustawienia powiadomien stoja TUTAJ, a nie przy pozycji „Powiadomienia"
+  // (ktora prowadzi do skrzynki), bo uzytkownik szukajacy „jak wylaczyc te
+  // maile" idzie do ustawien konta, nie do listy powiadomien. Do 12.08 ta
+  // strona nie istniala i cala zakladka preferencji byla nieosiagalna -
+  // patrz nota w src/routes/profile.notifications.tsx.
+  { to: "/profile/notifications", key: "notificationSettings", icon: BellRing },
   { to: "/profile/security", key: "security", icon: Shield },
 ];
 
@@ -133,7 +141,6 @@ function NavGroup({ titleKey, icon: Icon, collapsed = false, children }: NavGrou
     </div>
   );
 }
-
 
 export function ProfileNav({ collapsed = false }: { collapsed?: boolean }) {
   const { t } = useTranslation();
@@ -206,6 +213,5 @@ export function ProfileNav({ collapsed = false }: { collapsed?: boolean }) {
         {PRIVACY.map(renderItem)}
       </NavGroup>
     </nav>
-
   );
 }

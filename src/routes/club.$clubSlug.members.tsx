@@ -206,7 +206,6 @@ function ClubMembersRoute() {
               />
             </div>
             {/* Szereg aktywności wycofany w A34 - skład mówi twarzami. */}
-
           </div>
 
           {/* Kompetencje mają własny ekran - tam są filtrem i wyszukiwarką,

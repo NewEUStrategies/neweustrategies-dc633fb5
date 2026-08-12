@@ -153,7 +153,6 @@ export function NewsletterForm({
     return <BuilderInlineWrapper settings={s} lang={lang} source={source} variant={variant} />;
   }
 
-
   // Per-widget visibility toggles for the extra fields.
   // Instancje spoza buildera (stopka wpisu, sidebar, archiwum, popup) nie mają
   // własnej konfiguracji - dostają wtedy ten sam, pełny zestaw pól co widget
@@ -189,10 +188,7 @@ export function NewsletterForm({
 
   // Labels / placeholders (widget override > sensible defaults).
   const L = {
-    firstName: fieldLabels.label(
-      "firstName",
-      readI18nOverride(cfg, "firstNameLabel", lang, ""),
-    ),
+    firstName: fieldLabels.label("firstName", readI18nOverride(cfg, "firstNameLabel", lang, "")),
     lastName: fieldLabels.label("lastName", readI18nOverride(cfg, "lastNameLabel", lang, "")),
     email: fieldLabels.label("email", readI18nOverride(cfg, "emailLabel", lang, "")),
     company: fieldLabels.label("company", readI18nOverride(cfg, "companyLabel", lang, "")),
@@ -266,13 +262,15 @@ export function NewsletterForm({
       if (position.trim()) meta.position = position.trim().slice(0, 500);
       if (phone.trim()) meta.phone = phone.trim().slice(0, 500);
 
-
       const pickedItemIds = Array.from(picked);
       if (pickedItemIds.length > 0) {
         const pickedItems = allItems.filter((it) => pickedItemIds.includes(it.id));
         const areas = pickedItems.filter((it) => it.type === "category").map((it) => it.label);
         const topics = pickedItems.filter((it) => it.type === "tag").map((it) => it.label);
-        custom.interests = pickedItems.map((it) => it.label).join(", ").slice(0, 500);
+        custom.interests = pickedItems
+          .map((it) => it.label)
+          .join(", ")
+          .slice(0, 500);
         if (areas.length) custom.interests_areas = areas.join(", ").slice(0, 500);
         if (topics.length) custom.interests_topics = topics.join(", ").slice(0, 500);
       }
@@ -330,7 +328,6 @@ export function NewsletterForm({
     showPhone ||
     customFields.length > 0 ||
     showInterests;
-
 
   return (
     <section className={containerCls} aria-labelledby="newsletter-heading">

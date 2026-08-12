@@ -43,7 +43,6 @@ function AdminClubElementsPage() {
           </p>
         </CardContent>
       </Card>
-
     );
   }
 

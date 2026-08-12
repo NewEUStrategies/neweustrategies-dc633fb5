@@ -675,7 +675,6 @@ export function JoinUsForm({
   // platformy czytały się tak samo.
   const withMark = (label: string, req: boolean) => (req ? `${label} *` : label);
 
-
   // Build the ordered list of "extra row" fields (email in split mode + optional contact fields).
   // Rendered into a single 2-col grid; when the count is odd, the last item spans both columns
   // so no empty cell remains.

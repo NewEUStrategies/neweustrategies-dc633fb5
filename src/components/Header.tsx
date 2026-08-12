@@ -361,8 +361,6 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
     };
   }, [stickyShrink, forceCompact]);
 
-
-
   // Wymiary spoczynkowe headera potrzebne CSS-owi do zwijania (patrz styles.css):
   //   --hdr-nat   wysokość chrome'u w układzie (skala 1, ticker rozwinięty)
   //   --hdr-tt    wysokość paska "na czasie" (zwija się do zera)

@@ -438,7 +438,6 @@ export function AdminBillingPanel() {
         <TabsContent value="tickets" className="mt-4">
           <AdminTicketOrdersPanel />
         </TabsContent>
-
       </Tabs>
     </div>
   );

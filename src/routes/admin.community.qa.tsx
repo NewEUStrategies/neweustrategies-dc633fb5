@@ -6,6 +6,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { pickLocalized, type LocaleCode } from "@/lib/i18n/pickLocalized";
+import { ensureI18n as ensureAdminCommunityI18n } from "@/lib/i18n-admin-community";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
@@ -76,9 +78,11 @@ const QUESTION_TONE: Record<QaQuestionStatus, string> = {
 };
 
 function AdminCommunityQa() {
-  const { i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
-  const locale = isPl ? plLocale : enGB;
+  ensureAdminCommunityI18n();
+  const { t, i18n } = useTranslation();
+  const lang: LocaleCode = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
+  // Obiekt locale date-fns (format daty), nie etykieta interfejsu.
+  const locale = (i18n.language ?? "pl").startsWith("pl") ? plLocale : enGB;
   const qc = useQueryClient();
   const [sessionStatus, setSessionStatus] = useState<QaSessionStatus | "all">("all");
   const [selected, setSelected] = useState<QaSessionRow | null>(null);
@@ -95,9 +99,9 @@ function AdminCommunityQa() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-qa-sessions"] });
       qc.invalidateQueries({ queryKey: ["admin-community-stats"] });
-      toast.success(isPl ? "Zaktualizowano" : "Updated");
+      toast.success(t("adminCommunity.qa.updated"));
     },
-    onError: () => toast.error(isPl ? "Błąd" : "Failed"),
+    onError: () => toast.error(t("adminCommunity.qa.failed")),
   });
 
   const rows = sessionsQ.data ?? [];
@@ -106,11 +110,9 @@ function AdminCommunityQa() {
     <div className="space-y-4">
       <header className="flex flex-wrap items-center gap-3 justify-between">
         <div>
-          <h2 className="text-xl font-semibold">{isPl ? "Sesje Q&A" : "Q&A sessions"}</h2>
+          <h2 className="text-xl font-semibold">{t("adminCommunity.qa.qSessions")}</h2>
           <p className="text-sm text-muted-foreground">
-            {isPl
-              ? "Sesje pytań i odpowiedzi. Kliknij, aby moderować pytania."
-              : "Q&A sessions. Click one to moderate its questions."}
+            {t("adminCommunity.qa.qSessionsClickOne")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -122,16 +124,15 @@ function AdminCommunityQa() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">{isPl ? "Wszystkie" : "All"}</SelectItem>
-              <SelectItem value="draft">{isPl ? "Robocze" : "Draft"}</SelectItem>
-              <SelectItem value="scheduled">{isPl ? "Zaplanowane" : "Scheduled"}</SelectItem>
-              <SelectItem value="open">{isPl ? "Otwarte" : "Open"}</SelectItem>
-              <SelectItem value="answering">{isPl ? "Odpowiadanie" : "Answering"}</SelectItem>
-              <SelectItem value="closed">{isPl ? "Zamknięte" : "Closed"}</SelectItem>
+              <SelectItem value="all">{t("adminCommunity.qa.all")}</SelectItem>
+              <SelectItem value="draft">{t("adminCommunity.qa.draft")}</SelectItem>
+              <SelectItem value="scheduled">{t("adminCommunity.qa.scheduled")}</SelectItem>
+              <SelectItem value="open">{t("adminCommunity.qa.open")}</SelectItem>
+              <SelectItem value="answering">{t("adminCommunity.qa.answering")}</SelectItem>
+              <SelectItem value="closed">{t("adminCommunity.qa.closed")}</SelectItem>
             </SelectContent>
           </Select>
           <CreateQaSessionButton
-            isPl={isPl}
             onCreated={() => qc.invalidateQueries({ queryKey: ["admin-qa-sessions"] })}
           />
         </div>
@@ -141,11 +142,11 @@ function AdminCommunityQa() {
         <CardContent className="p-0">
           {sessionsQ.isLoading ? (
             <div className="p-6 text-sm text-muted-foreground">
-              {isPl ? "Ładowanie…" : "Loading…"}
+              {t("adminCommunity.qa.loading")}
             </div>
           ) : rows.length === 0 ? (
             <div className="p-6 text-sm text-muted-foreground text-center">
-              {isPl ? "Brak sesji." : "No sessions."}
+              {t("adminCommunity.qa.noSessions")}
             </div>
           ) : (
             <ul className="divide-y divide-border">
@@ -158,7 +159,9 @@ function AdminCommunityQa() {
                   >
                     <div className="flex items-center gap-2 text-sm">
                       <HelpCircle className="w-3.5 h-3.5 text-muted-foreground" />
-                      <span className="font-medium truncate">{isPl ? s.title_pl : s.title_en}</span>
+                      <span className="font-medium truncate">
+                        {pickLocalized(s, "title", lang)}
+                      </span>
                       <Badge className={SESSION_TONE[s.status as QaSessionStatus]}>
                         {s.status}
                       </Badge>
@@ -173,7 +176,7 @@ function AdminCommunityQa() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        title={isPl ? "Zaplanuj" : "Schedule"}
+                        title={t("adminCommunity.qa.schedule")}
                         onClick={() => sessionStatusM.mutate({ id: s.id, status: "scheduled" })}
                       >
                         <Play className="w-4 h-4" />
@@ -183,7 +186,7 @@ function AdminCommunityQa() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        title={isPl ? "Otwórz" : "Open"}
+                        title={t("adminCommunity.qa.open2")}
                         onClick={() => sessionStatusM.mutate({ id: s.id, status: "open" })}
                       >
                         <Check className="w-4 h-4 text-emerald-600" />
@@ -193,7 +196,7 @@ function AdminCommunityQa() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        title={isPl ? "Zacznij odpowiadać" : "Start answering"}
+                        title={t("adminCommunity.qa.startAnswering")}
                         onClick={() => sessionStatusM.mutate({ id: s.id, status: "answering" })}
                       >
                         <MessageSquare className="w-4 h-4 text-amber-600" />
@@ -203,20 +206,20 @@ function AdminCommunityQa() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        title={isPl ? "Zamknij" : "Close"}
+                        title={t("adminCommunity.qa.close")}
                         onClick={() => sessionStatusM.mutate({ id: s.id, status: "closed" })}
                       >
                         <Archive className="w-4 h-4" />
                       </Button>
                     )}
                     {(s.status === "answering" || s.status === "closed") && (
-                      <SummaryButton isPl={isPl} session={s} />
+                      <SummaryButton session={s} />
                     )}
                     {s.status === "closed" && (
                       <Button
                         variant="ghost"
                         size="icon"
-                        title={isPl ? "Wznów jako draft" : "Reopen as draft"}
+                        title={t("adminCommunity.qa.reopenAsDraft")}
                         onClick={() => sessionStatusM.mutate({ id: s.id, status: "draft" })}
                       >
                         <Pause className="w-4 h-4" />
@@ -230,9 +233,7 @@ function AdminCommunityQa() {
         </CardContent>
       </Card>
 
-      {selected && (
-        <QuestionsDialog isPl={isPl} session={selected} onClose={() => setSelected(null)} />
-      )}
+      {selected && <QuestionsDialog session={selected} onClose={() => setSelected(null)} />}
     </div>
   );
 }
@@ -242,7 +243,9 @@ function AdminCommunityQa() {
  * odpowiedziane pytania (głosy > starszeństwo) w dwujęzyczny wpis. Szkic
  * trafia do redakcyjnej kolejki; publikacja powiadamia autorów pytań.
  */
-function SummaryButton({ isPl, session }: { isPl: boolean; session: QaSessionRow }) {
+function SummaryButton({ session }: { session: QaSessionRow }) {
+  ensureAdminCommunityI18n();
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -253,16 +256,15 @@ function SummaryButton({ isPl, session }: { isPl: boolean; session: QaSessionRow
       qc.invalidateQueries({ queryKey: ["admin-qa-sessions"] });
       setOpen(false);
       toast.success(
-        result.status === "published"
-          ? isPl
-            ? `Opublikowano podsumowanie (${result.questions} pyt.)`
-            : `Recap published (${result.questions} questions)`
-          : isPl
-            ? `Utworzono szkic podsumowania (${result.questions} pyt.)`
-            : `Recap draft created (${result.questions} questions)`,
+        t(
+          result.status === "published"
+            ? "adminCommunity.qa.recapPublished"
+            : "adminCommunity.qa.recapDraftCreated",
+          { count: result.questions },
+        ),
         {
           action: {
-            label: isPl ? "Otwórz w edytorze" : "Open in editor",
+            label: t("adminCommunity.qa.openEditor"),
             onClick: () =>
               void navigate({ to: "/admin/posts/$slug", params: { slug: result.slug } }),
           },
@@ -272,21 +274,13 @@ function SummaryButton({ isPl, session }: { isPl: boolean; session: QaSessionRow
     onError: (e: Error) => {
       const msg = e.message ?? "";
       if (msg.includes("no answered questions")) {
-        toast.error(
-          isPl
-            ? "Brak odpowiedzianych pytań - najpierw odpowiedz na pytania."
-            : "No answered questions yet - answer questions first.",
-        );
+        toast.error(t("adminCommunity.qa.noAnsweredQuestionsYet"));
       } else if (msg.includes("publish requires editorial role")) {
         // Workflow redakcyjny (can_publish_content): publikuje admin;
         // edytor/host może utworzyć szkic.
-        toast.error(
-          isPl
-            ? "Publikacja wymaga roli administratora - utwórz szkic."
-            : "Publishing requires an admin role - create a draft instead.",
-        );
+        toast.error(t("adminCommunity.qa.publishingRequiresAdminRole"));
       } else {
-        toast.error(isPl ? "Nie udało się utworzyć podsumowania." : "Could not build the recap.");
+        toast.error(t("adminCommunity.qa.couldNotBuildRecap"));
       }
     },
   });
@@ -296,7 +290,7 @@ function SummaryButton({ isPl, session }: { isPl: boolean; session: QaSessionRow
       <Button
         variant="ghost"
         size="icon"
-        title={isPl ? "Podsumowanie jako treść" : "Recap as content"}
+        title={t("adminCommunity.qa.recapAsContent")}
         onClick={() => setOpen(true)}
       >
         <BookOpenCheck className="w-4 h-4 text-primary" />
@@ -304,24 +298,20 @@ function SummaryButton({ isPl, session }: { isPl: boolean; session: QaSessionRow
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>
-              {isPl ? "Podsumowanie sesji jako treść" : "Session recap as content"}
-            </DialogTitle>
+            <DialogTitle>{t("adminCommunity.qa.sessionRecapAsContent")}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            {isPl
-              ? "Odpowiedziane pytania (w porządku głosów społeczności) trafią do dwujęzycznego wpisu spiętego z sesją. Ponowne uruchomienie odświeży istniejący wpis - bez duplikatów."
-              : "Answered questions (ordered by community votes) become a bilingual post linked to this session. Re-running refreshes the existing post - no duplicates."}
+            {t("adminCommunity.qa.answeredQuestionsOrderedBy")}
           </p>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="outline" onClick={() => setOpen(false)} disabled={m.isPending}>
-              {isPl ? "Anuluj" : "Cancel"}
+              {t("adminCommunity.qa.cancel")}
             </Button>
             <Button variant="secondary" onClick={() => m.mutate(false)} disabled={m.isPending}>
-              {isPl ? "Utwórz szkic" : "Create draft"}
+              {t("adminCommunity.qa.createDraft")}
             </Button>
             <Button onClick={() => m.mutate(true)} disabled={m.isPending}>
-              {isPl ? "Opublikuj od razu" : "Publish now"}
+              {t("adminCommunity.qa.publishNow")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -330,15 +320,11 @@ function SummaryButton({ isPl, session }: { isPl: boolean; session: QaSessionRow
   );
 }
 
-function QuestionsDialog({
-  isPl,
-  session,
-  onClose,
-}: {
-  isPl: boolean;
-  session: QaSessionRow;
-  onClose: () => void;
-}) {
+function QuestionsDialog({ session, onClose }: { session: QaSessionRow; onClose: () => void }) {
+  ensureAdminCommunityI18n();
+  const { t, i18n } = useTranslation();
+  // `lang` tylko do tytulu sesji z blizniaczych kolumn, nie do etykiet.
+  const lang: LocaleCode = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<QaQuestionStatus | "all">("all");
 
@@ -361,9 +347,9 @@ function QuestionsDialog({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-qa-questions"] });
       qc.invalidateQueries({ queryKey: ["admin-community-stats"] });
-      toast.success(isPl ? "Zapisano" : "Saved");
+      toast.success(t("adminCommunity.qa.saved"));
     },
-    onError: () => toast.error(isPl ? "Błąd" : "Failed"),
+    onError: () => toast.error(t("adminCommunity.qa.failed")),
   });
 
   const rows = questionsQ.data ?? [];
@@ -373,7 +359,7 @@ function QuestionsDialog({
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {isPl ? session.title_pl : session.title_en}{" "}
+            {pickLocalized(session, "title", lang)}{" "}
             <Badge variant="outline">{session.status}</Badge>
           </DialogTitle>
         </DialogHeader>
@@ -386,27 +372,26 @@ function QuestionsDialog({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">{isPl ? "Wszystkie" : "All"}</SelectItem>
-              <SelectItem value="pending">{isPl ? "Oczekujące" : "Pending"}</SelectItem>
-              <SelectItem value="approved">{isPl ? "Zatwierdzone" : "Approved"}</SelectItem>
-              <SelectItem value="rejected">{isPl ? "Odrzucone" : "Rejected"}</SelectItem>
-              <SelectItem value="answered">{isPl ? "Odpowiedziane" : "Answered"}</SelectItem>
+              <SelectItem value="all">{t("adminCommunity.qa.all")}</SelectItem>
+              <SelectItem value="pending">{t("adminCommunity.qa.pending")}</SelectItem>
+              <SelectItem value="approved">{t("adminCommunity.qa.approved")}</SelectItem>
+              <SelectItem value="rejected">{t("adminCommunity.qa.rejected")}</SelectItem>
+              <SelectItem value="answered">{t("adminCommunity.qa.answered")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div className="space-y-2">
           {questionsQ.isLoading ? (
-            <div className="text-sm text-muted-foreground">{isPl ? "Ładowanie…" : "Loading…"}</div>
+            <div className="text-sm text-muted-foreground">{t("adminCommunity.qa.loading")}</div>
           ) : rows.length === 0 ? (
             <div className="text-sm text-muted-foreground text-center py-4">
-              {isPl ? "Brak pytań." : "No questions."}
+              {t("adminCommunity.qa.noQuestions")}
             </div>
           ) : (
             rows.map((q) => (
               <QuestionCard
                 key={q.id}
                 q={q}
-                isPl={isPl}
                 onModerate={(status, answer) => moderateM.mutate({ id: q.id, status, answer })}
                 pending={moderateM.isPending}
               />
@@ -420,15 +405,15 @@ function QuestionsDialog({
 
 function QuestionCard({
   q,
-  isPl,
   onModerate,
   pending,
 }: {
   q: QaQuestionRow;
-  isPl: boolean;
   onModerate: (status: QaQuestionStatus, answer?: string) => void;
   pending: boolean;
 }) {
+  ensureAdminCommunityI18n();
+  const { t } = useTranslation();
   const [answer, setAnswer] = useState(q.answer_body ?? "");
   const [showAnswer, setShowAnswer] = useState(false);
 
@@ -440,16 +425,14 @@ function QuestionCard({
             <Badge className={QUESTION_TONE[q.status as QaQuestionStatus]}>{q.status}</Badge>
             <span>
               {q.is_anonymous
-                ? isPl
-                  ? "anonimowo"
-                  : "anonymous"
-                : (q.author_display ?? (isPl ? "uczestnik" : "participant"))}
+                ? t("adminCommunity.qa.anonymously")
+                : (q.author_display ?? t("adminCommunity.qa.participant"))}
             </span>
           </div>
           <p className="text-sm whitespace-pre-wrap">{q.body}</p>
           {q.answer_body && (
             <div className="mt-2 p-2 rounded-md bg-muted/40 text-xs">
-              <div className="font-medium mb-1">{isPl ? "Odpowiedź" : "Answer"}</div>
+              <div className="font-medium mb-1">{t("adminCommunity.qa.answer")}</div>
               <div className="whitespace-pre-wrap">{q.answer_body}</div>
             </div>
           )}
@@ -464,7 +447,7 @@ function QuestionCard({
             disabled={pending}
           >
             <Check className="w-3.5 h-3.5 mr-1" />
-            {isPl ? "Zatwierdź" : "Approve"}
+            {t("adminCommunity.qa.approve")}
           </Button>
         )}
         {q.status !== "rejected" && (
@@ -475,7 +458,7 @@ function QuestionCard({
             disabled={pending}
           >
             <X className="w-3.5 h-3.5 mr-1" />
-            {isPl ? "Odrzuć" : "Reject"}
+            {t("adminCommunity.qa.reject")}
           </Button>
         )}
         <Button
@@ -485,7 +468,7 @@ function QuestionCard({
           disabled={pending}
         >
           <MessageSquare className="w-3.5 h-3.5 mr-1" />
-          {isPl ? "Odpowiedz" : "Answer"}
+          {t("adminCommunity.qa.answer2")}
         </Button>
       </div>
       {showAnswer && (
@@ -494,7 +477,7 @@ function QuestionCard({
             rows={3}
             value={answer}
             onChange={(e) => setAnswer(e.target.value)}
-            placeholder={isPl ? "Treść odpowiedzi…" : "Answer body…"}
+            placeholder={t("adminCommunity.qa.answerBody")}
           />
           <Button
             size="sm"
@@ -502,7 +485,7 @@ function QuestionCard({
             disabled={pending || answer.trim().length === 0}
           >
             <Save className="w-3.5 h-3.5 mr-1" />
-            {isPl ? "Zapisz odpowiedź" : "Save answer"}
+            {t("adminCommunity.qa.saveAnswer")}
           </Button>
         </div>
       )}
@@ -510,7 +493,9 @@ function QuestionCard({
   );
 }
 
-function CreateQaSessionButton({ isPl, onCreated }: { isPl: boolean; onCreated: () => void }) {
+function CreateQaSessionButton({ onCreated }: { onCreated: () => void }) {
+  ensureAdminCommunityI18n();
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [slug, setSlug] = useState("");
   const [titlePl, setTitlePl] = useState("");
@@ -545,12 +530,12 @@ function CreateQaSessionButton({ isPl, onCreated }: { isPl: boolean; onCreated: 
         status,
       }),
     onSuccess: () => {
-      toast.success(isPl ? "Utworzono" : "Created");
+      toast.success(t("adminCommunity.qa.created"));
       onCreated();
       setOpen(false);
       reset();
     },
-    onError: (e: Error) => toast.error(e.message || (isPl ? "Błąd" : "Failed")),
+    onError: (e: Error) => toast.error(e.message || t("adminCommunity.qa.failed")),
   });
 
   const canSubmit =
@@ -560,12 +545,12 @@ function CreateQaSessionButton({ isPl, onCreated }: { isPl: boolean; onCreated: 
     <>
       <Button size="sm" onClick={() => setOpen(true)}>
         <Plus className="w-4 h-4 mr-1" />
-        {isPl ? "Nowa sesja" : "New session"}
+        {t("adminCommunity.qa.newSession")}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{isPl ? "Nowa sesja Q&A" : "New Q&A session"}</DialogTitle>
+            <DialogTitle>{t("adminCommunity.qa.newQSession")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1">
@@ -578,17 +563,17 @@ function CreateQaSessionButton({ isPl, onCreated }: { isPl: boolean; onCreated: 
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>{isPl ? "Tytuł (PL)" : "Title (PL)"}</Label>
+                <Label>{t("adminCommunity.qa.titlePl")}</Label>
                 <Input value={titlePl} onChange={(e) => setTitlePl(e.target.value)} />
               </div>
               <div className="space-y-1">
-                <Label>{isPl ? "Tytuł (EN)" : "Title (EN)"}</Label>
+                <Label>{t("adminCommunity.qa.titleEn")}</Label>
                 <Input value={titleEn} onChange={(e) => setTitleEn(e.target.value)} />
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>{isPl ? "Wstęp (PL)" : "Intro (PL)"}</Label>
+                <Label>{t("adminCommunity.qa.introPl")}</Label>
                 <Textarea
                   value={introPl}
                   onChange={(e) => setIntroPl(e.target.value)}
@@ -596,7 +581,7 @@ function CreateQaSessionButton({ isPl, onCreated }: { isPl: boolean; onCreated: 
                 />
               </div>
               <div className="space-y-1">
-                <Label>{isPl ? "Wstęp (EN)" : "Intro (EN)"}</Label>
+                <Label>{t("adminCommunity.qa.introEn")}</Label>
                 <Textarea
                   value={introEn}
                   onChange={(e) => setIntroEn(e.target.value)}
@@ -606,7 +591,7 @@ function CreateQaSessionButton({ isPl, onCreated }: { isPl: boolean; onCreated: 
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="space-y-1">
-                <Label>{isPl ? "Otwiera się" : "Opens at"}</Label>
+                <Label>{t("adminCommunity.qa.opensAt")}</Label>
                 <Input
                   type="datetime-local"
                   value={opensAt}
@@ -614,7 +599,7 @@ function CreateQaSessionButton({ isPl, onCreated }: { isPl: boolean; onCreated: 
                 />
               </div>
               <div className="space-y-1">
-                <Label>{isPl ? "Zamyka się" : "Closes at"}</Label>
+                <Label>{t("adminCommunity.qa.closesAt")}</Label>
                 <Input
                   type="datetime-local"
                   value={closesAt}
@@ -628,9 +613,9 @@ function CreateQaSessionButton({ isPl, onCreated }: { isPl: boolean; onCreated: 
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="draft">{isPl ? "Roboczy" : "Draft"}</SelectItem>
-                    <SelectItem value="scheduled">{isPl ? "Zaplanowany" : "Scheduled"}</SelectItem>
-                    <SelectItem value="open">{isPl ? "Otwarty" : "Open"}</SelectItem>
+                    <SelectItem value="draft">{t("adminCommunity.qa.draft2")}</SelectItem>
+                    <SelectItem value="scheduled">{t("adminCommunity.qa.scheduled2")}</SelectItem>
+                    <SelectItem value="open">{t("adminCommunity.qa.open3")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -638,10 +623,10 @@ function CreateQaSessionButton({ isPl, onCreated }: { isPl: boolean; onCreated: 
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>
-              {isPl ? "Anuluj" : "Cancel"}
+              {t("adminCommunity.qa.cancel")}
             </Button>
             <Button onClick={() => m.mutate()} disabled={!canSubmit || m.isPending}>
-              {isPl ? "Utwórz" : "Create"}
+              {t("adminCommunity.qa.create")}
             </Button>
           </DialogFooter>
         </DialogContent>

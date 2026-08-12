@@ -5,11 +5,7 @@ const club = (id: string, policy_area: string | null) => ({ id, policy_area });
 
 describe("groupMyClubs", () => {
   it("grupuje po obszarze, najliczniejsze pierwsze", () => {
-    const groups = groupMyClubs([
-      club("a", "energy"),
-      club("b", "finance"),
-      club("c", "energy"),
-    ]);
+    const groups = groupMyClubs([club("a", "energy"), club("b", "finance"), club("c", "energy")]);
     expect(groups.map((g) => g.area)).toEqual(["energy", "finance"]);
     expect(groups[0]?.clubs).toHaveLength(2);
   });

@@ -1,4 +1,11 @@
-// /admin/community/events — CRUD wydarzeń + zmiana statusu + akcja przypomnień.
+// /admin/community/events - CRUD wydarzeń + zmiana statusu + akcja przypomnień.
+//
+// i18n: cały panel szedł wcześniej przez ręczne `isPl ? "..." : "..."` (sto
+// wyrażeń warunkowych, `isPl` przekazywane w dół jako props). Teraz jedno
+// źródło prawdy w `i18n-admin-community-events.ts`; `isPl` zostało wyłącznie
+// tam, gdzie faktycznie wybiera JĘZYK TREŚCI z bliźniaczych kolumn
+// (`title_pl`/`title_en`) - i tam też przez kanoniczny `pickLocalized`, więc
+// puste tłumaczenie nie renderuje już pustego wiersza.
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -9,7 +16,6 @@ import { Calendar, Plus, Trash2, Users, Save, Ban, CheckCircle2 } from "lucide-r
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { FloatingInput, FloatingTextarea } from "@/components/ui/floating-input";
@@ -34,10 +40,17 @@ import {
   runEventReminders,
   updateEvent,
   updateEventStatus,
+  EVENT_KINDS,
+  EVENT_KIND_LABEL_KEYS,
+  EVENT_STATUS_LABEL_KEYS,
+  isEventKind,
+  isEventStatus,
   type EventRow,
   type EventStatus,
 } from "@/lib/admin/community";
 import { EventSpeakersManager } from "@/components/admin/community/EventSpeakersManager";
+import { pickLocalized, type LocaleCode } from "@/lib/i18n/pickLocalized";
+import { ensureI18n as ensureAdminCommunityEventsI18n } from "@/lib/i18n-admin-community-events";
 
 export const Route = createFileRoute("/admin/community/events")({
   head: () => ({ meta: [{ title: "Events · Community · Admin" }] }),
@@ -51,8 +64,10 @@ const STATUS_TONE: Record<EventStatus, string> = {
 };
 
 function AdminCommunityEvents() {
-  const { i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  ensureAdminCommunityEventsI18n();
+  const { t, i18n } = useTranslation();
+  // Tylko do wyboru języka TREŚCI (bliźniacze kolumny), nie do etykiet UI.
+  const lang: LocaleCode = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
   const qc = useQueryClient();
   const [status, setStatus] = useState<EventStatus | "all">("all");
   const [q, setQ] = useState("");
@@ -71,26 +86,25 @@ function AdminCommunityEvents() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-community-events"] });
       qc.invalidateQueries({ queryKey: ["admin-community-stats"] });
-      toast.success(isPl ? "Zaktualizowano" : "Updated");
+      toast.success(t("adminCommunityEvents.toasts.updated"));
     },
-    onError: () => toast.error(isPl ? "Błąd zapisu" : "Update failed"),
+    onError: () => toast.error(t("adminCommunityEvents.toasts.updateFailed")),
   });
 
   const deleteM = useMutation({
     mutationFn: (id: string) => deleteEvent(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-community-events"] });
-      toast.success(isPl ? "Usunięto" : "Deleted");
+      toast.success(t("adminCommunityEvents.toasts.deleted"));
       setConfirmDeleteId(null);
     },
-    onError: () => toast.error(isPl ? "Błąd" : "Failed"),
+    onError: () => toast.error(t("adminCommunityEvents.toasts.failed")),
   });
 
   const remindersM = useMutation({
     mutationFn: runEventReminders,
-    onSuccess: (count) =>
-      toast.success(isPl ? `Wysłano ${count} przypomnień` : `Sent ${count} reminders`),
-    onError: () => toast.error(isPl ? "Błąd" : "Failed"),
+    onSuccess: (count) => toast.success(t("adminCommunityEvents.toasts.remindersSent", { count })),
+    onError: () => toast.error(t("adminCommunityEvents.toasts.failed")),
   });
 
   const rows = eventsQ.data ?? [];
@@ -99,12 +113,8 @@ function AdminCommunityEvents() {
     <div className="space-y-4">
       <header className="flex flex-wrap items-center gap-3 justify-between">
         <div>
-          <h2 className="text-xl font-semibold">{isPl ? "Wydarzenia" : "Events"}</h2>
-          <p className="text-sm text-muted-foreground">
-            {isPl
-              ? "Zarządzaj webinarami, briefingami i innymi wydarzeniami."
-              : "Manage webinars, briefings and other events."}
-          </p>
+          <h2 className="text-xl font-semibold">{t("adminCommunityEvents.title")}</h2>
+          <p className="text-sm text-muted-foreground">{t("adminCommunityEvents.subtitle")}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Select value={status} onValueChange={(v) => setStatus(v as EventStatus | "all")}>
@@ -112,16 +122,18 @@ function AdminCommunityEvents() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">{isPl ? "Wszystkie" : "All"}</SelectItem>
-              <SelectItem value="draft">{isPl ? "Robocze" : "Drafts"}</SelectItem>
-              <SelectItem value="published">{isPl ? "Opublikowane" : "Published"}</SelectItem>
-              <SelectItem value="cancelled">{isPl ? "Anulowane" : "Cancelled"}</SelectItem>
+              <SelectItem value="all">{t("adminCommunityEvents.filterAll")}</SelectItem>
+              {Object.entries(EVENT_STATUS_LABEL_KEYS).map(([value, labelKey]) => (
+                <SelectItem key={value} value={value}>
+                  {t(labelKey)}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder={isPl ? "Szukaj…" : "Search…"}
+            placeholder={t("adminCommunityEvents.searchPlaceholder")}
             className="w-[200px]"
           />
           <Button
@@ -131,11 +143,11 @@ function AdminCommunityEvents() {
             disabled={remindersM.isPending}
           >
             <Calendar className="w-4 h-4 mr-2" />
-            {isPl ? "Przypomnienia" : "Reminders"}
+            {t("adminCommunityEvents.remindersAction")}
           </Button>
           <Button onClick={() => setCreating(true)} size="sm">
             <Plus className="w-4 h-4 mr-2" />
-            {isPl ? "Nowe" : "New"}
+            {t("adminCommunityEvents.newAction")}
           </Button>
         </div>
       </header>
@@ -144,11 +156,11 @@ function AdminCommunityEvents() {
         <CardContent className="p-0">
           {eventsQ.isLoading ? (
             <div className="p-6 text-sm text-muted-foreground">
-              {isPl ? "Ładowanie…" : "Loading…"}
+              {t("adminCommunityEvents.loading")}
             </div>
           ) : rows.length === 0 ? (
             <div className="p-6 text-sm text-muted-foreground text-center">
-              {isPl ? "Brak wydarzeń." : "No events."}
+              {t("adminCommunityEvents.empty")}
             </div>
           ) : (
             <ul className="divide-y divide-border">
@@ -161,16 +173,27 @@ function AdminCommunityEvents() {
                         onClick={() => setEditing(e)}
                         className="font-medium truncate hover:underline text-left"
                       >
-                        {isPl ? e.title_pl : e.title_en}
+                        {pickLocalized(e, "title", lang) || e.slug}
                       </button>
-                      <Badge className={STATUS_TONE[e.status as EventStatus]}>{e.status}</Badge>
+                      {/* Plakietki pokazywały surowe wartości kolumn (`draft`,
+                          `in_person`) w obu językach - teraz idą przez te same
+                          klucze co filtr i selekt rodzaju. Nieznana wartość
+                          (dopisany wariant w bazie) renderuje się dosłownie,
+                          zamiast zniknąć. */}
+                      <Badge
+                        className={
+                          isEventStatus(e.status) ? STATUS_TONE[e.status] : "bg-muted text-current"
+                        }
+                      >
+                        {isEventStatus(e.status) ? t(EVENT_STATUS_LABEL_KEYS[e.status]) : e.status}
+                      </Badge>
                       <Badge variant="outline" className="text-[10px]">
-                        {e.kind}
+                        {isEventKind(e.kind) ? t(EVENT_KIND_LABEL_KEYS[e.kind]) : e.kind}
                       </Badge>
                       {e.visibility === "members" && (
                         <Badge variant="outline" className="text-[10px]">
                           <Users className="w-3 h-3 mr-1" />
-                          {isPl ? "członkowie" : "members"}
+                          {t("adminCommunityEvents.membersOnlyBadge")}
                         </Badge>
                       )}
                     </div>
@@ -183,7 +206,7 @@ function AdminCommunityEvents() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        title={isPl ? "Opublikuj" : "Publish"}
+                        title={t("adminCommunityEvents.actions.publish")}
                         onClick={() => statusM.mutate({ id: e.id, next: "published" })}
                       >
                         <CheckCircle2 className="w-4 h-4 text-emerald-600" />
@@ -193,7 +216,7 @@ function AdminCommunityEvents() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        title={isPl ? "Anuluj" : "Cancel"}
+                        title={t("adminCommunityEvents.actions.cancelEvent")}
                         onClick={() => statusM.mutate({ id: e.id, next: "cancelled" })}
                       >
                         <Ban className="w-4 h-4 text-destructive" />
@@ -203,6 +226,7 @@ function AdminCommunityEvents() {
                       variant="ghost"
                       size="icon"
                       className="text-destructive"
+                      title={t("adminCommunityEvents.actions.deleteEvent")}
                       onClick={() => setConfirmDeleteId(e.id)}
                     >
                       <Trash2 className="w-4 h-4" />
@@ -217,7 +241,6 @@ function AdminCommunityEvents() {
 
       {creating && (
         <CreateEventDialog
-          isPl={isPl}
           onClose={() => setCreating(false)}
           onCreated={() => {
             qc.invalidateQueries({ queryKey: ["admin-community-events"] });
@@ -228,7 +251,6 @@ function AdminCommunityEvents() {
 
       {editing && (
         <EditEventDialog
-          isPl={isPl}
           event={editing}
           onClose={() => setEditing(null)}
           onSaved={() => {
@@ -241,18 +263,18 @@ function AdminCommunityEvents() {
       <Dialog open={!!confirmDeleteId} onOpenChange={(open) => !open && setConfirmDeleteId(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{isPl ? "Usunąć wydarzenie?" : "Delete event?"}</DialogTitle>
+            <DialogTitle>{t("adminCommunityEvents.deleteTitle")}</DialogTitle>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmDeleteId(null)}>
-              {isPl ? "Anuluj" : "Cancel"}
+              {t("adminCommunityEvents.common.cancel")}
             </Button>
             <Button
               variant="destructive"
               onClick={() => confirmDeleteId && deleteM.mutate(confirmDeleteId)}
               disabled={deleteM.isPending}
             >
-              {isPl ? "Usuń" : "Delete"}
+              {t("adminCommunityEvents.common.delete")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -261,20 +283,13 @@ function AdminCommunityEvents() {
   );
 }
 
-function CreateEventDialog({
-  isPl,
-  onClose,
-  onCreated,
-}: {
-  isPl: boolean;
-  onClose: () => void;
-  onCreated: () => void;
-}) {
+function CreateEventDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const { t } = useTranslation();
   const [slug, setSlug] = useState("");
   const [titlePl, setTitlePl] = useState("");
   const [titleEn, setTitleEn] = useState("");
   const [startsAt, setStartsAt] = useState("");
-  const [kind, setKind] = useState("webinar");
+  const [kind, setKind] = useState<string>("webinar");
   const [visibility, setVisibility] = useState<"public" | "members">("public");
 
   const createM = useMutation({
@@ -288,7 +303,7 @@ function CreateEventDialog({
         visibility,
       }),
     onSuccess: () => {
-      toast.success(isPl ? "Utworzono" : "Created");
+      toast.success(t("adminCommunityEvents.toasts.created"));
       onCreated();
     },
     onError: (e) => toast.error(String((e as Error).message)),
@@ -298,7 +313,7 @@ function CreateEventDialog({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{isPl ? "Nowe wydarzenie" : "New event"}</DialogTitle>
+          <DialogTitle>{t("adminCommunityEvents.createTitle")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <FloatingInput
@@ -306,55 +321,56 @@ function CreateEventDialog({
             value={slug}
             onChange={(e) => setSlug(e.target.value.toLowerCase())}
           />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <FloatingInput
-              label={isPl ? "Tytuł PL" : "Title PL"}
+              label={t("adminCommunityEvents.fields.titlePl")}
               value={titlePl}
               onChange={(e) => setTitlePl(e.target.value)}
             />
             <FloatingInput
-              label={isPl ? "Tytuł EN" : "Title EN"}
+              label={t("adminCommunityEvents.fields.titleEn")}
               value={titleEn}
               onChange={(e) => setTitleEn(e.target.value)}
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <FloatingInput
-              label={isPl ? "Start" : "Starts at"}
+              label={t("adminCommunityEvents.fields.startsAt")}
               type="datetime-local"
               value={startsAt}
               onChange={(e) => setStartsAt(e.target.value)}
             />
             <div className="grid gap-1.5">
-              <Label>{isPl ? "Rodzaj" : "Kind"}</Label>
+              <Label htmlFor="event-kind">{t("adminCommunityEvents.fields.kind")}</Label>
               <Select value={kind} onValueChange={setKind}>
-                <SelectTrigger>
+                <SelectTrigger id="event-kind">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="webinar">webinar</SelectItem>
-                  <SelectItem value="briefing">briefing</SelectItem>
-                  <SelectItem value="roundtable">roundtable</SelectItem>
-                  <SelectItem value="ama">ama</SelectItem>
-                  <SelectItem value="in_person">in_person</SelectItem>
-                  <SelectItem value="hybrid">hybrid</SelectItem>
+                  {EVENT_KINDS.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {t(EVENT_KIND_LABEL_KEYS[value])}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
           </div>
           <div className="grid gap-1.5">
-            <Label>{isPl ? "Widoczność" : "Visibility"}</Label>
+            <Label htmlFor="event-visibility">{t("adminCommunityEvents.fields.visibility")}</Label>
             <Select
               value={visibility}
               onValueChange={(v) => setVisibility(v as "public" | "members")}
             >
-              <SelectTrigger>
+              <SelectTrigger id="event-visibility">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="public">{isPl ? "Publiczne" : "Public"}</SelectItem>
+                <SelectItem value="public">
+                  {t("adminCommunityEvents.visibility.public")}
+                </SelectItem>
                 <SelectItem value="members">
-                  {isPl ? "Tylko członkowie" : "Members only"}
+                  {t("adminCommunityEvents.visibility.members")}
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -362,14 +378,14 @@ function CreateEventDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            {isPl ? "Anuluj" : "Cancel"}
+            {t("adminCommunityEvents.common.cancel")}
           </Button>
           <Button
             onClick={() => createM.mutate()}
             disabled={createM.isPending || !slug || !titlePl || !titleEn || !startsAt}
           >
             <Save className="w-4 h-4 mr-2" />
-            {isPl ? "Utwórz" : "Create"}
+            {t("adminCommunityEvents.createAction")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -378,16 +394,15 @@ function CreateEventDialog({
 }
 
 function EditEventDialog({
-  isPl,
   event,
   onClose,
   onSaved,
 }: {
-  isPl: boolean;
   event: EventRow;
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { t } = useTranslation();
   const [titlePl, setTitlePl] = useState(event.title_pl);
   const [titleEn, setTitleEn] = useState(event.title_en);
   const [descPl, setDescPl] = useState(event.description_pl ?? "");
@@ -428,7 +443,7 @@ function EditEventDialog({
         ticket_currency: ticketCurrency || "PLN",
       }),
     onSuccess: () => {
-      toast.success(isPl ? "Zapisano" : "Saved");
+      toast.success(t("adminCommunityEvents.toasts.saved"));
       onSaved();
     },
     onError: (e) => toast.error(String((e as Error).message)),
@@ -438,44 +453,44 @@ function EditEventDialog({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isPl ? "Edycja wydarzenia" : "Edit event"}</DialogTitle>
+          <DialogTitle>{t("adminCommunityEvents.editTitle")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <FloatingInput
-              label={isPl ? "Tytuł PL" : "Title PL"}
+              label={t("adminCommunityEvents.fields.titlePl")}
               value={titlePl}
               onChange={(e) => setTitlePl(e.target.value)}
             />
             <FloatingInput
-              label={isPl ? "Tytuł EN" : "Title EN"}
+              label={t("adminCommunityEvents.fields.titleEn")}
               value={titleEn}
               onChange={(e) => setTitleEn(e.target.value)}
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <FloatingTextarea
-              label={isPl ? "Opis PL" : "Description PL"}
+              label={t("adminCommunityEvents.fields.descriptionPl")}
               rows={4}
               value={descPl}
               onChange={(e) => setDescPl(e.target.value)}
             />
             <FloatingTextarea
-              label={isPl ? "Opis EN" : "Description EN"}
+              label={t("adminCommunityEvents.fields.descriptionEn")}
               rows={4}
               value={descEn}
               onChange={(e) => setDescEn(e.target.value)}
             />
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <FloatingInput
-              label={isPl ? "Start" : "Starts at"}
+              label={t("adminCommunityEvents.fields.startsAt")}
               type="datetime-local"
               value={startsAt}
               onChange={(e) => setStartsAt(e.target.value)}
             />
             <FloatingInput
-              label={isPl ? "Pojemność" : "Capacity"}
+              label={t("adminCommunityEvents.fields.capacity")}
               type="number"
               value={capacity}
               onChange={(e) => setCapacity(e.target.value)}
@@ -486,46 +501,38 @@ function EditEventDialog({
               onChange={(e) => setJoinUrl(e.target.value)}
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <FloatingInput
-                label={isPl ? "Otwarcie rejestracji" : "Registration opens"}
+                label={t("adminCommunityEvents.fields.rsvpOpensAt")}
                 type="datetime-local"
                 value={rsvpOpensAt}
                 onChange={(e) => setRsvpOpensAt(e.target.value)}
               />
               <p className="pl-1 text-[11px] text-muted-foreground">
-                {isPl
-                  ? "Pusto = rejestracja od publikacji."
-                  : "Empty = registration open from publish."}
+                {t("adminCommunityEvents.fields.rsvpOpensAtHint")}
               </p>
             </div>
             <div className="space-y-1.5">
               <FloatingInput
-                label={
-                  isPl
-                    ? "Ranga wcześniejszego dostępu (np. 10 = członek)"
-                    : "Early-access tier rank (e.g. 10 = member)"
-                }
+                label={t("adminCommunityEvents.fields.earlyRsvpRank")}
                 type="number"
                 min={0}
                 value={earlyRsvpRank}
                 onChange={(e) => setEarlyRsvpRank(e.target.value)}
               />
               <p className="pl-1 text-[11px] text-muted-foreground">
-                {isPl
-                  ? "Warstwy o tej randze i wyższej rejestrują się przed otwarciem."
-                  : "Tiers at this rank and above can register before opening."}
+                {t("adminCommunityEvents.fields.earlyRsvpRankHint")}
               </p>
             </div>
           </div>
 
           {/* Bilet płatny: kwota jest źródłem prawdy dla checkoutu (server
               wylicza ją z tego wiersza), więc pusta wartość = wstęp wolny. */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <FloatingInput
-                label={isPl ? "Cena biletu" : "Ticket price"}
+                label={t("adminCommunityEvents.fields.ticketPrice")}
                 type="number"
                 min={0}
                 step="0.01"
@@ -533,14 +540,12 @@ function EditEventDialog({
                 onChange={(e) => setTicketPrice(e.target.value)}
               />
               <p className="pl-1 text-[11px] text-muted-foreground">
-                {isPl
-                  ? "Pusto lub 0 = wydarzenie bezpłatne (samo RSVP)."
-                  : "Empty or 0 = free event (RSVP only)."}
+                {t("adminCommunityEvents.fields.ticketPriceHint")}
               </p>
             </div>
             <div className="space-y-1.5">
               <label className="block text-[11px] text-muted-foreground" htmlFor="ticket-currency">
-                {isPl ? "Waluta biletu" : "Ticket currency"}
+                {t("adminCommunityEvents.fields.ticketCurrency")}
               </label>
               <select
                 id="ticket-currency"
@@ -557,16 +562,16 @@ function EditEventDialog({
           {/* Prelegenci wydarzenia (event_speakers) + profil prelegenta
               (speaker_profiles z mostem do CRM). */}
           <div className="rounded-[6px] border border-border/60 bg-muted/20 p-3">
-            <EventSpeakersManager eventId={event.id} isPl={isPl} />
+            <EventSpeakersManager eventId={event.id} />
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            {isPl ? "Anuluj" : "Cancel"}
+            {t("adminCommunityEvents.common.cancel")}
           </Button>
           <Button onClick={() => saveM.mutate()} disabled={saveM.isPending}>
             <Save className="w-4 h-4 mr-2" />
-            {isPl ? "Zapisz" : "Save"}
+            {t("adminCommunityEvents.common.save")}
           </Button>
         </DialogFooter>
       </DialogContent>

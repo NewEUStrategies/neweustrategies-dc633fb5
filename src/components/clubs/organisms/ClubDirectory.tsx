@@ -66,16 +66,17 @@ function clubExcerpt(club: ClubDirectoryCard, isPl: boolean): string | null {
   return value !== null && value.trim() !== "" ? value : null;
 }
 
-function clubAccess(
-  club: ClubDirectoryCard,
-): import("@/lib/clubs/hubAccess").ClubHubAccess | null {
+function clubAccess(club: ClubDirectoryCard): import("@/lib/clubs/hubAccess").ClubHubAccess | null {
   if (club.my_status === "active") return "member";
   if (club.my_status === "invited") return "invited";
   if (club.can_read) return "entitled";
   return "locked";
 }
 
-function ctaLabel(access: import("@/lib/clubs/hubAccess").ClubHubAccess | null, t: (k: string) => string): string {
+function ctaLabel(
+  access: import("@/lib/clubs/hubAccess").ClubHubAccess | null,
+  t: (k: string) => string,
+): string {
   switch (access) {
     case "member":
       return t("club.hub.enterWorkspace");

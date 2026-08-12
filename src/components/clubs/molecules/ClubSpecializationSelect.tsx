@@ -67,9 +67,7 @@ export function ClubSpecializationSelect({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={NONE}>{t("adminClubs.specializations.none")}</SelectItem>
-          {!known && current !== NONE ? (
-            <SelectItem value={current}>{current}</SelectItem>
-          ) : null}
+          {!known && current !== NONE ? <SelectItem value={current}>{current}</SelectItem> : null}
           {options.map((option) => (
             <SelectItem key={option.slug} value={option.slug}>
               {option.title}

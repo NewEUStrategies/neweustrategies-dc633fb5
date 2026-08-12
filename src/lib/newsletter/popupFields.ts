@@ -151,7 +151,6 @@ export function popupFieldDefaultLabels(key: PopupFieldKey): string[] {
   return [DEFAULTS[key].label_pl, DEFAULTS[key].label_en];
 }
 
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }

@@ -4,6 +4,7 @@
 // Q&A / polls z poziomu UI produktu.
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { ensureI18n as ensureAdminCommunityI18n } from "@/lib/i18n-admin-community";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -43,16 +44,18 @@ export const Route = createFileRoute("/admin/community/")({
   component: CommunityOverview,
 });
 
-const TTL_OPTIONS: { value: string; labelPl: string; labelEn: string }[] = [
-  { value: "off", labelPl: "Bez limitu (domyślnie)", labelEn: "No limit (default)" },
-  { value: "86400", labelPl: "24 godziny", labelEn: "24 hours" },
-  { value: "604800", labelPl: "7 dni", labelEn: "7 days" },
-  { value: "7776000", labelPl: "90 dni", labelEn: "90 days" },
+// Opcje TTL WSKAZUJA KLUCZE, nie napisy: para `labelPl`/`labelEn` w tablicy
+// byla kolejnym rownoleglym slownikiem poza zasiegiem bramki parytetu.
+const TTL_OPTIONS: { value: string; labelKey: string }[] = [
+  { value: "off", labelKey: "adminCommunity.overview.ttlOff" },
+  { value: "86400", labelKey: "adminCommunity.overview.ttl24h" },
+  { value: "604800", labelKey: "adminCommunity.overview.ttl7d" },
+  { value: "7776000", labelKey: "adminCommunity.overview.ttl90d" },
 ];
 
 function CommunityOverview() {
-  const { i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  ensureAdminCommunityI18n();
+  const { t } = useTranslation();
   const qc = useQueryClient();
 
   const statsQ = useQuery({
@@ -73,23 +76,22 @@ function CommunityOverview() {
     onSuccess: (next) => {
       qc.setQueryData(["admin-community-modules"], next);
       qc.invalidateQueries({ queryKey: ["site_settings_public"] });
-      toast.success(isPl ? "Zapisano" : "Saved");
+      toast.success(t("adminCommunity.overview.saved"));
     },
-    onError: () => toast.error(isPl ? "Nie udało się zapisać" : "Failed to save"),
+    onError: () => toast.error(t("adminCommunity.overview.failedSave")),
   });
 
   const purgeM = useMutation({
     mutationFn: purgeExpiredMessages,
-    onSuccess: (count) =>
-      toast.success(isPl ? `Wyczyszczono ${count} wiadomości` : `Purged ${count} messages`),
-    onError: () => toast.error(isPl ? "Błąd purge" : "Purge failed"),
+    onSuccess: (count) => toast.success(t("adminCommunity.overview.purgedMessages", { count })),
+    onError: () => toast.error(t("adminCommunity.overview.purgeFailed")),
   });
 
   const remindersM = useMutation({
     mutationFn: runEventReminders,
     onSuccess: (count) =>
-      toast.success(isPl ? `Wysłano ${count} przypomnień` : `Dispatched ${count} reminders`),
-    onError: () => toast.error(isPl ? "Błąd przypomnień" : "Reminders failed"),
+      toast.success(t("adminCommunity.overview.remindersDispatched", { count })),
+    onError: () => toast.error(t("adminCommunity.overview.remindersFailed")),
   });
 
   const stats = statsQ.data;
@@ -100,13 +102,9 @@ function CommunityOverview() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold">
-          {isPl ? "Panel społeczności" : "Community panel"}
-        </h1>
+        <h1 className="text-2xl font-semibold">{t("adminCommunity.overview.communityPanel")}</h1>
         <p className="text-sm text-muted-foreground">
-          {isPl
-            ? "Moderacja i konfiguracja modułów Chat, Wydarzenia i Q&A."
-            : "Moderation and configuration of Chat, Events and Q&A modules."}
+          {t("adminCommunity.overview.moderationConfigurationChatEvents")}
         </p>
       </header>
 
@@ -114,32 +112,32 @@ function CommunityOverview() {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <StatCard
           icon={Users}
-          label={isPl ? "Konwersacje" : "Conversations"}
+          label={t("adminCommunity.overview.conversations")}
           value={stats?.conversations_total}
         />
         <StatCard
           icon={MessageCircle}
-          label={isPl ? "Wiad. / 24 h" : "Messages / 24h"}
+          label={t("adminCommunity.overview.messages24h")}
           value={stats?.messages_last_24h}
         />
         <StatCard
           icon={Calendar}
-          label={isPl ? "Nadchodzące" : "Upcoming"}
+          label={t("adminCommunity.overview.upcoming")}
           value={stats?.events_upcoming}
         />
         <StatCard
           icon={Calendar}
-          label={isPl ? "Wersje robocze" : "Drafts"}
+          label={t("adminCommunity.overview.drafts")}
           value={stats?.events_drafts}
         />
         <StatCard
           icon={HelpCircle}
-          label={isPl ? "Otwarte Q&A" : "Open Q&A"}
+          label={t("adminCommunity.overview.openQ")}
           value={stats?.qa_sessions_open}
         />
         <StatCard
           icon={Activity}
-          label={isPl ? "Pytania czek." : "Pending Qs"}
+          label={t("adminCommunity.overview.pendingQs")}
           value={stats?.qa_questions_pending}
         />
       </div>
@@ -148,94 +146,80 @@ function CommunityOverview() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">
-            {isPl ? "Dostępność modułów" : "Module availability"}
+            {t("adminCommunity.overview.moduleAvailability")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            {isPl
-              ? "Wyłączenie modułu ukrywa go w interfejsie użytkownika (nawigacja, przyciski akcji, mobilne skróty)."
-              : "Disabling a module hides it from the user UI (navigation, action buttons, mobile shortcuts)."}
+            {t("adminCommunity.overview.disablingModuleHidesFrom")}
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <ToggleRow
-              label={isPl ? "Chat" : "Chat"}
-              hint={isPl ? "Wiadomości między użytkownikami" : "User-to-user messages"}
+              label={t("adminCommunity.overview.chat")}
+              hint={t("adminCommunity.overview.userUserMessages")}
               checked={modules?.chat_enabled ?? true}
               disabled={saveModules.isPending || !modules}
               onChange={(v) => saveModules.mutate({ chat_enabled: v })}
             />
             <ToggleRow
-              label={isPl ? "Sieć kontaktów" : "Network"}
-              hint={
-                isPl
-                  ? "Zaproszenia i połączenia między członkami"
-                  : "Invitations and member-to-member connections"
-              }
+              label={t("adminCommunity.overview.network")}
+              hint={t("adminCommunity.overview.invitationsMemberMemberConnections")}
               checked={modules?.connections_enabled ?? true}
               disabled={saveModules.isPending || !modules}
               onChange={(v) => saveModules.mutate({ connections_enabled: v })}
             />
             <ToggleRow
-              label={isPl ? "Wydarzenia" : "Events"}
-              hint={isPl ? "Kalendarz i RSVP" : "Calendar and RSVP"}
+              label={t("adminCommunity.overview.events")}
+              hint={t("adminCommunity.overview.calendarRsvp")}
               checked={modules?.events_enabled ?? true}
               disabled={saveModules.isPending || !modules}
               onChange={(v) => saveModules.mutate({ events_enabled: v })}
             />
             <ToggleRow
               label="Q&A"
-              hint={isPl ? "Sesje pytań i odpowiedzi" : "Q&A sessions"}
+              hint={t("adminCommunity.overview.qSessions")}
               checked={modules?.qa_enabled ?? true}
               disabled={saveModules.isPending || !modules}
               onChange={(v) => saveModules.mutate({ qa_enabled: v })}
             />
             <ToggleRow
-              label={isPl ? "Ankiety" : "Polls"}
-              hint={isPl ? "Głosowania i sondaże" : "Polls and voting"}
+              label={t("adminCommunity.overview.polls")}
+              hint={t("adminCommunity.overview.pollsVoting")}
               checked={modules?.polls_enabled ?? true}
               disabled={saveModules.isPending || !modules}
               onChange={(v) => saveModules.mutate({ polls_enabled: v })}
             />
             <ToggleRow
-              label={isPl ? "Program współtwórców" : "Contributor program"}
-              hint={isPl ? "Zgłoszenia gościnne" : "Guest submissions"}
+              label={t("adminCommunity.overview.contributorProgram")}
+              hint={t("adminCommunity.overview.guestSubmissions")}
               checked={modules?.contributor_program_enabled ?? true}
               disabled={saveModules.isPending || !modules}
               onChange={(v) => saveModules.mutate({ contributor_program_enabled: v })}
             />
             <ToggleRow
-              label={isPl ? "Odznaki" : "Badges"}
-              hint={isPl ? "Odznaki profilowe" : "Profile badges"}
+              label={t("adminCommunity.overview.badges")}
+              hint={t("adminCommunity.overview.profileBadges")}
               checked={modules?.badges_enabled ?? true}
               disabled={saveModules.isPending || !modules}
               onChange={(v) => saveModules.mutate({ badges_enabled: v })}
             />
             <ToggleRow
-              label={isPl ? "Powiadomienia push" : "Push notifications"}
-              hint={isPl ? "Web Push i digesty" : "Web Push and digests"}
+              label={t("adminCommunity.overview.pushNotifications")}
+              hint={t("adminCommunity.overview.webPushDigests")}
               checked={modules?.push_enabled ?? true}
               disabled={saveModules.isPending || !modules}
               onChange={(v) => saveModules.mutate({ push_enabled: v })}
             />
             <ToggleRow
-              label={isPl ? "Kluby dyskusyjne" : "Discussion clubs"}
-              hint={
-                isPl
-                  ? "Trwałe przestrzenie dyskusji między członkami"
-                  : "Lasting member-to-member discussion spaces"
-              }
+              label={t("adminCommunity.overview.discussionClubs")}
+              hint={t("adminCommunity.overview.lastingMemberMemberDiscussion")}
               checked={modules?.clubs_enabled ?? false}
               disabled={saveModules.isPending || !modules}
               onChange={(v) => saveModules.mutate({ clubs_enabled: v })}
             />
             <ToggleRow
-              label={isPl ? "Zapytania do eksperta" : "Expert requests"}
-              hint={
-                isPl
-                  ? 'Przycisk "Zapytanie do eksperta" na profilach (globalnie)'
-                  : '"Ask the expert" button on profiles (global)'
-              }
+              label={t("adminCommunity.overview.expertRequests")}
+              hint={t("adminCommunity.overview.expertRequestsHint")}
               checked={modules?.expert_requests_enabled ?? true}
               disabled={saveModules.isPending || !modules}
               onChange={(v) => saveModules.mutate({ expert_requests_enabled: v })}
@@ -243,9 +227,7 @@ function CommunityOverview() {
           </div>
 
           <div className="pt-4 border-t border-border/60 space-y-2">
-            <Label className="text-sm">
-              {isPl ? "Domyślny czas życia wiadomości" : "Default message TTL"}
-            </Label>
+            <Label className="text-sm">{t("adminCommunity.overview.defaultMessageTtl")}</Label>
             <div className="flex items-center gap-2">
               <Select
                 value={ttlValue}
@@ -262,7 +244,7 @@ function CommunityOverview() {
                 <SelectContent>
                   {TTL_OPTIONS.map((o) => (
                     <SelectItem key={o.value} value={o.value}>
-                      {isPl ? o.labelPl : o.labelEn}
+                      {t(o.labelKey)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -270,9 +252,7 @@ function CommunityOverview() {
               <Timer className="w-4 h-4 text-muted-foreground" />
             </div>
             <p className="text-xs text-muted-foreground">
-              {isPl
-                ? "TTL określa, po jakim czasie wiadomości są automatycznie kasowane. Cron chat-purge-expired-messages działa co 15 minut."
-                : "TTL controls when messages are auto-purged. The chat-purge-expired-messages cron runs every 15 minutes."}
+              {t("adminCommunity.overview.ttlControlsWhenMessages")}
             </p>
           </div>
         </CardContent>
@@ -282,13 +262,13 @@ function CommunityOverview() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">
-            {isPl ? "Akcje serwisowe" : "Maintenance actions"}
+            {t("adminCommunity.overview.maintenanceActions")}
           </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
           <Button variant="outline" onClick={() => purgeM.mutate()} disabled={purgeM.isPending}>
             <RefreshCcw className="w-4 h-4 mr-2" />
-            {isPl ? "Wyczyść wygasłe wiadomości" : "Purge expired messages"}
+            {t("adminCommunity.overview.purgeExpiredMessages")}
           </Button>
           <Button
             variant="outline"
@@ -296,19 +276,21 @@ function CommunityOverview() {
             disabled={remindersM.isPending}
           >
             <Calendar className="w-4 h-4 mr-2" />
-            {isPl ? "Uruchom przypomnienia o wydarzeniach" : "Run event reminders"}
+            {t("adminCommunity.overview.runEventReminders")}
           </Button>
         </CardContent>
       </Card>
 
-      <NetworkPanel isPl={isPl} />
+      <NetworkPanel />
     </div>
   );
 }
 
 // Sieć kontaktów: metryki tenanta ("społeczność, nie audytorium") + kolejka
 // zgłoszeń użytkowników. RPC egzekwują is_staff() po stronie DB.
-function NetworkPanel({ isPl }: { isPl: boolean }) {
+function NetworkPanel() {
+  ensureAdminCommunityI18n();
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const statsQ = useQuery({
     queryKey: ["admin-network-stats"],
@@ -325,9 +307,9 @@ function NetworkPanel({ isPl }: { isPl: boolean }) {
       resolveUserReport(id, action),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-user-reports"] });
-      toast.success(isPl ? "Zgłoszenie rozstrzygnięte" : "Report resolved");
+      toast.success(t("adminCommunity.overview.reportResolved"));
     },
-    onError: () => toast.error(isPl ? "Nie udało się rozstrzygnąć" : "Failed to resolve"),
+    onError: () => toast.error(t("adminCommunity.overview.failedResolve")),
   });
 
   const stats = statsQ.data;
@@ -342,39 +324,39 @@ function NetworkPanel({ isPl }: { isPl: boolean }) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <UsersRound className="w-4 h-4" />
-          {isPl ? "Sieć kontaktów" : "Network"}
+          {t("adminCommunity.overview.network")}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           <StatCard
             icon={UsersRound}
-            label={isPl ? "Połączenia" : "Connections"}
+            label={t("adminCommunity.overview.connections")}
             value={stats ? Number(stats.connections_total) : undefined}
           />
           <StatCard
             icon={Activity}
-            label={isPl ? "Oczekujące" : "Pending"}
+            label={t("adminCommunity.overview.pending")}
             value={stats ? Number(stats.pending_total) : undefined}
           />
           <StatCard
             icon={Users}
-            label={isPl ? "Zaproszenia / 30 dni" : "Invites / 30d"}
+            label={t("adminCommunity.overview.invites30d")}
             value={stats ? Number(stats.invites_30d) : undefined}
           />
           <StatCard
             icon={Users}
-            label={isPl ? "Akceptacje / 30 dni" : "Accepted / 30d"}
+            label={t("adminCommunity.overview.accepted30d")}
             value={stats ? Number(stats.accepted_30d) : undefined}
           />
           <StatCard
             icon={Activity}
-            label={isPl ? "Skuteczność (%)" : "Acceptance (%)"}
+            label={t("adminCommunity.overview.acceptance")}
             value={rate ?? undefined}
           />
           <StatCard
             icon={Users}
-            label={isPl ? "Członkowie z siecią" : "Connected members"}
+            label={t("adminCommunity.overview.connectedMembers")}
             value={stats ? Number(stats.members_with_connection) : undefined}
           />
         </div>
@@ -382,7 +364,7 @@ function NetworkPanel({ isPl }: { isPl: boolean }) {
         <div>
           <h3 className="mb-2 flex items-center gap-2 text-sm font-medium">
             <Flag className="w-4 h-4" />
-            {isPl ? "Zgłoszenia użytkowników" : "User reports"}
+            {t("adminCommunity.overview.userReports")}
             {reports.length > 0 && (
               <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[11px] font-semibold text-destructive-foreground">
                 {reports.length}
@@ -391,7 +373,7 @@ function NetworkPanel({ isPl }: { isPl: boolean }) {
           </h3>
           {reports.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              {isPl ? "Brak otwartych zgłoszeń." : "No open reports."}
+              {t("adminCommunity.overview.noOpenReports")}
             </p>
           ) : (
             <ul className="space-y-2">
@@ -418,7 +400,7 @@ function NetworkPanel({ isPl }: { isPl: boolean }) {
                       disabled={resolveM.isPending}
                       onClick={() => resolveM.mutate({ id: r.id, action: "resolved" })}
                     >
-                      {isPl ? "Rozstrzygnij" : "Resolve"}
+                      {t("adminCommunity.overview.resolve")}
                     </Button>
                     <Button
                       size="sm"
@@ -426,7 +408,7 @@ function NetworkPanel({ isPl }: { isPl: boolean }) {
                       disabled={resolveM.isPending}
                       onClick={() => resolveM.mutate({ id: r.id, action: "dismissed" })}
                     >
-                      {isPl ? "Oddal" : "Dismiss"}
+                      {t("adminCommunity.overview.dismiss")}
                     </Button>
                   </div>
                 </li>

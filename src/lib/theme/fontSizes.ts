@@ -12,7 +12,6 @@ import { commitSiteSettingWrite, siteSettingsQueryOptions } from "@/lib/useSiteS
 
 export const FONT_SIZES_KEY = "font_sizes";
 
-
 const clamp = (min: number, max: number) => z.coerce.number().min(min).max(max).step(1);
 
 const HeadingSchema = z
@@ -175,7 +174,6 @@ export function useSaveFontSizes() {
     onError: (e: Error) => toast.error(e.message || "Błąd zapisu"),
   });
 }
-
 
 /** Build :root CSS with responsive H1-H6 (media query at mobileBreakpoint). */
 export function fontSizesToCss(fs: FontSizesSettings): string {

@@ -58,8 +58,7 @@ export function clubCoverObjectPath(args: {
   filename: string;
   uniqueSuffix?: string;
 }): string {
-  const unique =
-    args.uniqueSuffix ?? `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const unique = args.uniqueSuffix ?? `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   return `club-covers/${args.clubId}/${unique}.${extensionOf(args.filename)}`;
 }
 
@@ -68,10 +67,7 @@ export function clubCoverObjectPath(args: {
  * jest usuwany - inaczej w publicznym buckecie zostaje sierota, której nikt
  * już nie znajdzie.
  */
-export async function uploadClubCover(args: {
-  clubId: string;
-  file: File;
-}): Promise<string> {
+export async function uploadClubCover(args: { clubId: string; file: File }): Promise<string> {
   const path = clubCoverObjectPath({ clubId: args.clubId, filename: args.file.name });
 
   const { error: upErr } = await supabase.storage.from("media").upload(path, args.file, {
@@ -97,10 +93,7 @@ export async function uploadClubCover(args: {
 }
 
 /** Zapis adresu okładki (`null` = zdjęcie okładki). Zwraca zapisaną wartość. */
-export async function setClubCover(args: {
-  clubId: string;
-  url: string | null;
-}): Promise<string> {
+export async function setClubCover(args: { clubId: string; url: string | null }): Promise<string> {
   const { data, error } = await supabase.rpc("club_set_cover", {
     p_club_id: args.clubId,
     // NULL jest tu POPRAWNA wartoscia (zdjecie okladki) - wygenerowany typ jej

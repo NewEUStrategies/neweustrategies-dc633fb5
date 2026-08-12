@@ -101,7 +101,9 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
         _currency: plan.currency,
       });
       if (redeemErr || !redeemed) {
-        await (await import("@/lib/billing/markOrderSession.server")).markOrderSession(supabase, { orderId: order.id, sessionId: null, status: "canceled" });
+        await (
+          await import("@/lib/billing/markOrderSession.server")
+        ).markOrderSession(supabase, { orderId: order.id, sessionId: null, status: "canceled" });
         return { ok: false as const, error: "limit_reached" };
       }
     }
@@ -130,14 +132,22 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
     });
 
     if (!result.ok) {
-      await (await import("@/lib/billing/markOrderSession.server")).markOrderSession(supabase, { orderId: order.id, sessionId: null, status: "failed" });
+      await (
+        await import("@/lib/billing/markOrderSession.server")
+      ).markOrderSession(supabase, { orderId: order.id, sessionId: null, status: "failed" });
       if (couponId) {
         await supabase.rpc("release_b2b_coupon", { _coupon_id: couponId, _order_id: order.id });
       }
       return { ok: false as const, error: result.error };
     }
 
-    await (await import("@/lib/billing/markOrderSession.server")).markOrderSession(supabase, { orderId: order.id, sessionId: result.sessionId, status: "processing" });
+    await (
+      await import("@/lib/billing/markOrderSession.server")
+    ).markOrderSession(supabase, {
+      orderId: order.id,
+      sessionId: result.sessionId,
+      status: "processing",
+    });
 
     return { ok: true as const, clientSecret: result.clientSecret, orderId: order.id };
   });

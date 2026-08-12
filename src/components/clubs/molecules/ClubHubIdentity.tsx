@@ -110,7 +110,6 @@ export function ClubHubIdentity({
           <Landmark className="h-4 w-4 text-primary/50 sm:h-5 sm:w-5" aria-hidden="true" />
         </div>
 
-
         <div className="min-w-0 sm:flex-1 sm:pt-2">
           <div className="flex flex-wrap items-center gap-2">
             <ClubTopicChip topic={club.policy_area} lang={isPl ? "pl" : "en"} catalog={topics} />

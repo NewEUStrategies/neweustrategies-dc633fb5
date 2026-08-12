@@ -8,29 +8,44 @@ CREATE SCHEMA IF NOT EXISTS storage;
 CREATE SCHEMA IF NOT EXISTS graphql_public;
 CREATE SCHEMA IF NOT EXISTS realtime;
 
+-- Rozszerzenia, ktore obraz Supabase ma ZAINSTALOWANE ZANIM ruszy pierwsza
+-- migracja - i dokladnie w tym schemacie, w ktorym je tam widac. `pgcrypto`
+-- w `extensions` nie jest ozdoba: migracje sprzed 20260805090000 wolaja
+-- `gen_random_bytes` w domyslnych kolumn, wiec bez tego wpisu nie zaaplikuja sie
+-- wcale, a z nim odtwarzamy dokladnie rozstrzygniecie nazw z CI.
 CREATE EXTENSION IF NOT EXISTS pgcrypto  WITH SCHEMA extensions;
 CREATE EXTENSION IF NOT EXISTS pg_trgm   WITH SCHEMA extensions;
-CREATE EXTENSION IF NOT EXISTS unaccent  WITH SCHEMA extensions;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
+-- `unaccent` CELOWO NIE JEST TU TWORZONE. Migracja 20260628210000 robi
+-- `CREATE EXTENSION IF NOT EXISTS unaccent;` bez kwalifikatora, wiec ladnie
+-- w `public` - i to jest schemat, w ktorym rozszerzenie stoi w CI. Wczesniejsze
+-- utworzenie go w `extensions` czynilo runner INNYM niz CI: cztery migracje
+-- wolajace `public.unaccent(...)` w DDL padaly tutaj, a w CI przechodzily.
+-- Niech ta decyzja nalezy do migracji, nie do atrapy.
 CREATE EXTENSION IF NOT EXISTS btree_gin WITH SCHEMA extensions;
 CREATE EXTENSION IF NOT EXISTS pgtap;
 
--- Migracje wołają te funkcje bez kwalifikatora schematu, licząc na search_path
--- Supabase (public, extensions). Lustrzane wrappery w public zdejmują tę zależność.
-CREATE OR REPLACE FUNCTION public.gen_random_uuid() RETURNS uuid
-  LANGUAGE sql VOLATILE AS $$ SELECT extensions.gen_random_uuid() $$;
-CREATE OR REPLACE FUNCTION public.gen_random_bytes(integer) RETURNS bytea
-  LANGUAGE sql VOLATILE AS $$ SELECT extensions.gen_random_bytes($1) $$;
-CREATE OR REPLACE FUNCTION public.digest(text, text) RETURNS bytea
-  LANGUAGE sql IMMUTABLE AS $$ SELECT extensions.digest($1, $2) $$;
-CREATE OR REPLACE FUNCTION public.hmac(text, text, text) RETURNS bytea
-  LANGUAGE sql IMMUTABLE AS $$ SELECT extensions.hmac($1, $2, $3) $$;
-CREATE OR REPLACE FUNCTION public.crypt(text, text) RETURNS text
-  LANGUAGE sql IMMUTABLE AS $$ SELECT extensions.crypt($1, $2) $$;
-CREATE OR REPLACE FUNCTION public.gen_salt(text) RETURNS text
-  LANGUAGE sql VOLATILE AS $$ SELECT extensions.gen_salt($1) $$;
-CREATE OR REPLACE FUNCTION public.unaccent(text) RETURNS text
-  LANGUAGE sql IMMUTABLE AS $$ SELECT extensions.unaccent($1) $$;
+-- ATRAP TU NIE MA - I TO JEST DECYZJA, NIE PRZEOCZENIE.
+--
+-- Do 12.08 ten plik zakładał w `public` lustrzane wrappery na
+-- `gen_random_bytes`, `unaccent`, `digest`, `hmac`, `crypt`, `gen_salt`
+-- i `gen_random_uuid`, z uzasadnieniem „migracje wołają te funkcje bez
+-- kwalifikatora, licząc na search_path Supabase". Uzasadnienie było fałszywe
+-- i kosztowało pół sesji śledztwa: funkcja SECURITY DEFINER z PRZYPIĘTYM
+-- `SET search_path = public` nie widzi schematu `extensions` niezależnie od
+-- ścieżki wołającego, więc na prawdziwym Supabase takie wywołanie po prostu
+-- pada z 42883. Wrappery sprawiały, że runner lokalny był ŁATWIEJSZY niż
+-- produkcja: pięć plików klubów dawało tu 47/47, a w CI padało na pierwszym
+-- `admin_club_upsert`. Instrument ukrywał usterkę, której miał szukać.
+--
+-- Rozszerzenia stoją tam, gdzie stoją na Supabase (schemat `extensions`),
+-- a funkcje, które ich potrzebują, mają mieć `search_path = public, extensions`
+-- (wzorzec `arm_job_runner`, 20260731110000; klasa naprawiona hurtem
+-- w 20260812164000). Jeśli migracja pada tu na 42883 - to jest odpowiedź, nie
+-- problem runnera. NIE DOKLADAJ ATRAP.
+--
+-- Wyjątkiem zostaje `gen_random_uuid`: od PostgreSQL 13 jest w rdzeniu
+-- (pg_catalog), więc rozwiązuje się zawsze i nie wymaga niczego.
 
 -- pgvector bywa niedostępny w obrazie bez rozszerzenia; atrapa pozwala
 -- zaaplikować migracje semantyczne. Wyniki podobieństwa NIE są miarodajne.

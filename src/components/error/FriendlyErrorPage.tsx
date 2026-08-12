@@ -235,7 +235,10 @@ export function FriendlyErrorPage({
           {/* Pasek statusu - jak nagłówek raportu technicznego. */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border bg-muted/40 px-5 py-2.5 sm:px-8">
             <span className="inline-flex items-center gap-1.5 font-mono text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-brand">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand" aria-hidden="true" />
+              <span
+                className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand"
+                aria-hidden="true"
+              />
               {code}
             </span>
             <span className="h-1 w-1 rounded-full bg-muted-foreground/50" aria-hidden="true" />
@@ -303,4 +306,3 @@ export function FriendlyErrorPage({
     </div>
   );
 }
-

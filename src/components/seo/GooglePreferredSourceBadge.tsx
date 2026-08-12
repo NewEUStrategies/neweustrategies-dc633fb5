@@ -126,7 +126,6 @@ export function GooglePreferredSourceBadge({
             )}
           </span>
         )}
-
       </a>
     </span>
   );

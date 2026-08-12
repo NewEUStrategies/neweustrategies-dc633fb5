@@ -144,9 +144,7 @@ export function NewsletterSubscribedPanel({
         <p className="text-sm font-semibold text-foreground">
           {t("newsletterStatus.moreTopicsTitle")}
         </p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          {t("newsletterStatus.moreTopicsHint")}
-        </p>
+        <p className="mt-1 text-xs text-muted-foreground">{t("newsletterStatus.moreTopicsHint")}</p>
         <div className="mt-3">
           <TopicsDroplist
             lang={lang}

@@ -74,8 +74,6 @@ function ProfileLayout() {
     };
   }, [collapsed]);
 
-
-
   // Ta sama pamięć podręczna, którą karmi useHeaderProfile w headerze - dzięki
   // temu wejście na /profile nie powoduje drugiego round-tripu do PostgREST.
   const { data: profile } = useHeaderProfile(user?.id);
@@ -172,7 +170,6 @@ function ProfileLayout() {
                       </div>
                     )}
 
-
                     {/* Zwinięty rail z ikonami tylko na desktopie - na mobile
                         zostaje sam przycisk, a profil widać od razu. */}
                     <div className={cn(collapsed && "hidden md:block")}>
@@ -214,11 +211,9 @@ function ProfileLayout() {
                         {t("profile.sidebar.collapse", "Zwiń ustawienia")}
                       </button>
                     )}
-
                   </div>
                 </aside>
               )}
-
 
               {/* Main content */}
               <div className="min-w-0 flex-1 bg-card p-5 md:p-8">

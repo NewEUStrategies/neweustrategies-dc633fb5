@@ -14,11 +14,7 @@ import {
   detectAccessWarnings,
   type AccessSentenceInput,
 } from "@/lib/clubs/accessSentence";
-import {
-  CLUB_PLAN_TIERS,
-  planTierFromRank,
-  rankFromPlanTier,
-} from "@/lib/clubs/planTiers";
+import { CLUB_PLAN_TIERS, planTierFromRank, rankFromPlanTier } from "@/lib/clubs/planTiers";
 import {
   CLUB_ATTRIBUTION_MODES,
   CLUB_JOIN_POLICIES,

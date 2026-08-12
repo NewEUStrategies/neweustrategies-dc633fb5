@@ -76,11 +76,7 @@ describe("zasięg typografii w kluczowych widokach", () => {
       "src/components/admin/builder/ui/organisms/BuilderRenderer.tsx",
       "data-theme-typography",
     ],
-    [
-      "builder Gutenberg",
-      "src/components/admin/blocks/BlockCanvas.tsx",
-      "data-theme-typography",
-    ],
+    ["builder Gutenberg", "src/components/admin/blocks/BlockCanvas.tsx", "data-theme-typography"],
   ];
 
   it.each(surfaces)("%s deklaruje zasięg typografii", (_label, file, attr) => {

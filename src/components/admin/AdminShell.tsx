@@ -522,7 +522,6 @@ function AdminShellInner({
           }),
         },
 
-
         {
           // Specjalizacje sa najwyzszym poziomem taksonomii i maja wlasne
           // strony publiczne, wiec stoja obok obszarow tematycznych.

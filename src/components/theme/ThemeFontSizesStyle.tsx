@@ -10,7 +10,9 @@ export function ThemeFontSizesStyle() {
   return (
     <style
       data-theme-font-sizes
-      dangerouslySetInnerHTML={{ __html: hardenStyleCss(fontSizesToCss(data ?? FONT_SIZES_DEFAULTS)) }}
+      dangerouslySetInnerHTML={{
+        __html: hardenStyleCss(fontSizesToCss(data ?? FONT_SIZES_DEFAULTS)),
+      }}
     />
   );
 }

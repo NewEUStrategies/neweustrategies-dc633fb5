@@ -20,9 +20,9 @@ import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { toast } from "sonner";
 import { Plus, Trash2 as Trash } from "@/lib/lucide-shim";
 import {
-  AD_PAGE_TYPE_LABELS,
-  AD_POSITION_LABELS,
-  AD_SLOT_KIND_LABELS,
+  AD_PAGE_TYPE_LABEL_KEYS,
+  AD_POSITION_LABEL_KEYS,
+  AD_SLOT_KIND_LABEL_KEYS,
   adTargetingToJson,
   parseAdTargeting,
   type AdLanguage,
@@ -72,20 +72,19 @@ function emptyPlacement(): Partial<AdPlacement> {
 function AdsAdmin() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
   ensureAdsAdminI18n();
+  const { t } = useTranslation();
   return (
     <AdminShell hideSidebar>
       <div className="space-y-6">
         <header>
-          <h1 className="font-display text-2xl font-bold">Reklamy</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Sloty reklamowe (HTML/skrypt/grafika) i ich rozmieszczenie na stronach.
-          </p>
+          <h1 className="font-display text-2xl font-bold">{t("adsAdmin.title")}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{t("adsAdmin.subtitle")}</p>
         </header>
         <Tabs defaultValue="slots">
           <TabsList>
-            <TabsTrigger value="slots">Sloty</TabsTrigger>
-            <TabsTrigger value="placements">Rozmieszczenie</TabsTrigger>
-            <TabsTrigger value="stats">Statystyki</TabsTrigger>
+            <TabsTrigger value="slots">{t("adsAdmin.tabs.slots")}</TabsTrigger>
+            <TabsTrigger value="placements">{t("adsAdmin.tabs.placements")}</TabsTrigger>
+            <TabsTrigger value="stats">{t("adsAdmin.tabs.stats")}</TabsTrigger>
           </TabsList>
           <TabsContent value="slots" className="mt-4">
             <SlotsPanel />
@@ -228,6 +227,7 @@ function TargetingEditor({
 }
 
 function SlotsPanel() {
+  const { t } = useTranslation();
   const [slots, setSlots] = useState<AdSlot[]>([]);
   const [draft, setDraft] = useState<Partial<AdSlot>>(emptySlot());
   const [busy, setBusy] = useState(false);
@@ -246,7 +246,7 @@ function SlotsPanel() {
 
   const save = async () => {
     if (!draft.name?.trim()) {
-      toast.error("Nazwa jest wymagana");
+      toast.error(t("adsAdmin.slots.nameRequired"));
       return;
     }
     setBusy(true);
@@ -266,10 +266,10 @@ function SlotsPanel() {
   const remove = async (id: string) => {
     if (
       !(await confirmDialog({
-        title: "Usunąć slot?",
-        description: "Wszystkie powiązane pozycje również znikną.",
+        title: t("adsAdmin.slots.deleteTitle"),
+        description: t("adsAdmin.slots.deleteBody"),
         destructive: true,
-        confirmLabel: "Usuń",
+        confirmLabel: t("adsAdmin.deleteConfirm"),
       }))
     )
       return;
@@ -287,10 +287,10 @@ function SlotsPanel() {
         <table className="w-full text-sm">
           <thead className="text-xs text-muted-foreground border-b border-border">
             <tr>
-              <th className="text-left p-3">Nazwa</th>
-              <th className="text-left p-3">Typ</th>
-              <th className="text-left p-3">Status</th>
-              <th className="text-left p-3">Zgoda</th>
+              <th className="text-left p-3">{t("adsAdmin.slots.columnName")}</th>
+              <th className="text-left p-3">{t("adsAdmin.slots.columnKind")}</th>
+              <th className="text-left p-3">{t("adsAdmin.slots.columnStatus")}</th>
+              <th className="text-left p-3">{t("adsAdmin.slots.columnConsent")}</th>
               <th className="text-left p-3">
                 <TargetingHeader />
               </th>
@@ -301,9 +301,17 @@ function SlotsPanel() {
             {slots.map((s) => (
               <tr key={s.id} className="border-b border-border hover:bg-muted/40">
                 <td className="p-3 font-medium">{s.name}</td>
-                <td className="p-3">{AD_SLOT_KIND_LABELS[s.kind]}</td>
-                <td className="p-3">{s.status === "active" ? "Aktywny" : "Wstrzymany"}</td>
-                <td className="p-3">{s.requires_consent ? "Wymaga" : "Nie"}</td>
+                <td className="p-3">{t(AD_SLOT_KIND_LABEL_KEYS[s.kind])}</td>
+                <td className="p-3">
+                  {s.status === "active"
+                    ? t("adsAdmin.slots.statusActive")
+                    : t("adsAdmin.slots.statusPaused")}
+                </td>
+                <td className="p-3">
+                  {s.requires_consent
+                    ? t("adsAdmin.slots.consentRequired")
+                    : t("adsAdmin.slots.consentNotRequired")}
+                </td>
                 <td className="p-3">
                   <TargetingSummary slot={s} />
                 </td>
@@ -329,10 +337,12 @@ function SlotsPanel() {
       </section>
 
       <section className="border border-border rounded-lg bg-card p-5">
-        <h2 className="font-semibold mb-4">{draft.id ? "Edytuj slot" : "Nowy slot"}</h2>
+        <h2 className="font-semibold mb-4">
+          {draft.id ? t("adsAdmin.slots.editTitle") : t("adsAdmin.slots.addTitle")}
+        </h2>
         <div className="grid sm:grid-cols-2 gap-4">
           <FloatingInput
-            label="Nazwa"
+            label={t("adsAdmin.slots.fieldName")}
             value={draft.name ?? ""}
             onChange={(e) => setDraft({ ...draft, name: e.target.value })}
           />
@@ -346,9 +356,9 @@ function SlotsPanel() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {Object.entries(AD_SLOT_KIND_LABELS).map(([k, l]) => (
-                  <SelectItem key={k} value={k}>
-                    {l}
+                {Object.entries(AD_SLOT_KIND_LABEL_KEYS).map(([value, labelKey]) => (
+                  <SelectItem key={value} value={value}>
+                    {t(labelKey)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -358,7 +368,7 @@ function SlotsPanel() {
           {draft.kind === "html" && (
             <div className="sm:col-span-2 space-y-1.5">
               <FloatingTextarea
-                label="Kod HTML"
+                label={t("adsAdmin.slots.fieldHtml")}
                 rows={4}
                 value={draft.html ?? ""}
                 onChange={(e) => setDraft({ ...draft, html: e.target.value })}
@@ -394,12 +404,12 @@ function SlotsPanel() {
                 onChange={(e) => setDraft({ ...draft, image_url: e.target.value })}
               />
               <FloatingInput
-                label="Link kliknięcia"
+                label={t("adsAdmin.slots.fieldClickUrl")}
                 value={draft.image_link ?? ""}
                 onChange={(e) => setDraft({ ...draft, image_link: e.target.value })}
               />
               <FloatingInput
-                label="Alt (dla dostępności)"
+                label={t("adsAdmin.slots.fieldAlt")}
                 value={draft.image_alt ?? ""}
                 onChange={(e) => setDraft({ ...draft, image_alt: e.target.value })}
               />
@@ -407,7 +417,7 @@ function SlotsPanel() {
           )}
 
           <FloatingInput
-            label="Szerokość (px)"
+            label={t("adsAdmin.slots.fieldWidth")}
             type="number"
             value={draft.width ?? ""}
             onChange={(e) =>
@@ -415,7 +425,7 @@ function SlotsPanel() {
             }
           />
           <FloatingInput
-            label="Wysokość (px)"
+            label={t("adsAdmin.slots.fieldHeight")}
             type="number"
             value={draft.height ?? ""}
             onChange={(e) =>
@@ -445,7 +455,7 @@ function SlotsPanel() {
 
           <FloatingTextarea
             containerClassName="sm:col-span-2"
-            label="Notatki wewnętrzne"
+            label={t("adsAdmin.slots.fieldNotes")}
             rows={2}
             value={draft.notes ?? ""}
             onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
@@ -454,7 +464,7 @@ function SlotsPanel() {
         <div className="flex gap-2 mt-5">
           <Button onClick={save} disabled={busy}>
             <Plus className="w-4 h-4 mr-2" />
-            {draft.id ? "Zapisz" : "Dodaj slot"}
+            {draft.id ? t("adsAdmin.save") : t("adsAdmin.slots.addAction")}
           </Button>
           {draft.id && (
             <Button variant="outline" onClick={() => setDraft(emptySlot())}>
@@ -468,6 +478,7 @@ function SlotsPanel() {
 }
 
 function PlacementsPanel() {
+  const { t } = useTranslation();
   const [slots, setSlots] = useState<AdSlot[]>([]);
   const [placements, setPlacements] = useState<AdPlacement[]>([]);
   const [draft, setDraft] = useState<Partial<AdPlacement>>(emptyPlacement());
@@ -508,7 +519,11 @@ function PlacementsPanel() {
 
   const remove = async (id: string) => {
     if (
-      !(await confirmDialog({ title: "Usunąć pozycję?", destructive: true, confirmLabel: "Usuń" }))
+      !(await confirmDialog({
+        title: t("adsAdmin.placements.deleteTitle"),
+        destructive: true,
+        confirmLabel: t("adsAdmin.deleteConfirm"),
+      }))
     )
       return;
     const { error } = await supabase.from("ad_placements").delete().eq("id", id);
@@ -540,8 +555,8 @@ function PlacementsPanel() {
             {placements.map((p) => (
               <tr key={p.id} className="border-b border-border hover:bg-muted/40">
                 <td className="p-3 font-medium">{slotMap[p.slot_id]?.name ?? "-"}</td>
-                <td className="p-3">{AD_POSITION_LABELS[p.position]}</td>
-                <td className="p-3">{AD_PAGE_TYPE_LABELS[p.page_type]}</td>
+                <td className="p-3">{t(AD_POSITION_LABEL_KEYS[p.position])}</td>
+                <td className="p-3">{t(AD_PAGE_TYPE_LABEL_KEYS[p.page_type])}</td>
                 <td className="p-3">{p.active ? "✓" : "-"}</td>
                 <td className="p-3 text-right space-x-2">
                   <Button size="sm" variant="outline" onClick={() => setDraft(p)}>
@@ -565,7 +580,9 @@ function PlacementsPanel() {
       </section>
 
       <section className="border border-border rounded-lg bg-card p-5">
-        <h2 className="font-semibold mb-4">{draft.id ? "Edytuj pozycję" : "Nowa pozycja"}</h2>
+        <h2 className="font-semibold mb-4">
+          {draft.id ? t("adsAdmin.placements.editTitle") : t("adsAdmin.placements.addTitle")}
+        </h2>
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <Label>Slot</Label>
@@ -574,7 +591,7 @@ function PlacementsPanel() {
               onValueChange={(v) => setDraft({ ...draft, slot_id: v })}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Wybierz slot…" />
+                <SelectValue placeholder={t("adsAdmin.placements.selectSlotPlaceholder")} />
               </SelectTrigger>
               <SelectContent>
                 {slots.map((s) => (
@@ -595,9 +612,9 @@ function PlacementsPanel() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {Object.entries(AD_POSITION_LABELS).map(([k, l]) => (
-                  <SelectItem key={k} value={k}>
-                    {l}
+                {Object.entries(AD_POSITION_LABEL_KEYS).map(([value, labelKey]) => (
+                  <SelectItem key={value} value={value}>
+                    {t(labelKey)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -613,9 +630,9 @@ function PlacementsPanel() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {Object.entries(AD_PAGE_TYPE_LABELS).map(([k, l]) => (
-                  <SelectItem key={k} value={k}>
-                    {l}
+                {Object.entries(AD_PAGE_TYPE_LABEL_KEYS).map(([value, labelKey]) => (
+                  <SelectItem key={value} value={value}>
+                    {t(labelKey)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -630,7 +647,7 @@ function PlacementsPanel() {
 
           {draft.position === "mid_post" && (
             <FloatingInput
-              label="Po którym paragrafie"
+              label={t("adsAdmin.placements.fieldAfterParagraph")}
               type="number"
               min={1}
               value={(cfg.paragraph as number) ?? 4}
@@ -649,7 +666,7 @@ function PlacementsPanel() {
           {draft.position === "footer_slideup" && (
             <>
               <FloatingInput
-                label="Opóźnienie pojawienia się (ms)"
+                label={t("adsAdmin.placements.fieldDelayMs")}
                 type="number"
                 value={(cfg.delay_ms as number) ?? 3000}
                 onChange={(e) => setCfg("delay_ms", Number(e.target.value))}
@@ -659,7 +676,7 @@ function PlacementsPanel() {
                   checked={(cfg.dismissible as boolean) ?? true}
                   onCheckedChange={(v) => setCfg("dismissible", v)}
                 />
-                <Label className="m-0">Można zamknąć</Label>
+                <Label className="m-0">{t("adsAdmin.placements.fieldDismissible")}</Label>
               </div>
             </>
           )}
@@ -694,7 +711,7 @@ function PlacementsPanel() {
         <div className="flex gap-2 mt-5">
           <Button onClick={save} disabled={busy}>
             <Plus className="w-4 h-4 mr-2" />
-            {draft.id ? "Zapisz" : "Dodaj pozycję"}
+            {draft.id ? t("adsAdmin.save") : t("adsAdmin.placements.addAction")}
           </Button>
           {draft.id && (
             <Button variant="outline" onClick={() => setDraft(emptyPlacement())}>
@@ -711,8 +728,7 @@ function PlacementsPanel() {
 // (tenant-scoped); table not in generated types yet -> cast. A handful of slots,
 // so two head-count queries per slot is cheap.
 function StatsPanel() {
-  const { i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  const { t } = useTranslation();
   const [rows, setRows] = useState<{ slot: AdSlot; impressions: number; clicks: number }[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -756,8 +772,8 @@ function StatsPanel() {
         <thead className="text-xs text-muted-foreground border-b border-border">
           <tr>
             <th className="text-left p-3">Slot</th>
-            <th className="text-right p-3">{isPl ? "Wyświetlenia" : "Impressions"}</th>
-            <th className="text-right p-3">{isPl ? "Kliknięcia" : "Clicks"}</th>
+            <th className="text-right p-3">{t("adsAdmin.stats.impressions")}</th>
+            <th className="text-right p-3">{t("adsAdmin.stats.clicks")}</th>
             <th className="text-right p-3">CTR</th>
           </tr>
         </thead>
@@ -765,13 +781,13 @@ function StatsPanel() {
           {loading ? (
             <tr>
               <td colSpan={4} className="p-6 text-center text-muted-foreground">
-                {isPl ? "Wczytywanie…" : "Loading…"}
+                {t("adsAdmin.stats.loading")}
               </td>
             </tr>
           ) : rows.length === 0 ? (
             <tr>
               <td colSpan={4} className="p-6 text-center text-muted-foreground">
-                {isPl ? "Brak danych." : "No data yet."}
+                {t("adsAdmin.stats.empty")}
               </td>
             </tr>
           ) : (

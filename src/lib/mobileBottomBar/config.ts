@@ -249,7 +249,6 @@ export function visibleBottomBarItems(cfg: MobileBottomBarConfig): MobileBottomB
       href: CANONICAL_ITEM_HREFS[item.id] ?? safeUrl(item.href, "/"),
       badge: normalizeBadgeSource(item.badge),
     }));
-
 }
 
 /** Tłumacz etykiet - podzbiór `t` z i18next, żeby config został czysty i testowalny. */
@@ -325,6 +324,9 @@ export function activeBottomBarIndex(items: MobileBottomBarItem[], pathname: str
 export function bottomBarHref(item: MobileBottomBarItem, lang: string): string {
   const href = item.href || "/";
   if (!href.startsWith("/")) return href;
-  const [path, rest = ""] = [href.split(/(?=[?#])/)[0], href.slice(href.split(/(?=[?#])/)[0].length)];
+  const [path, rest = ""] = [
+    href.split(/(?=[?#])/)[0],
+    href.slice(href.split(/(?=[?#])/)[0].length),
+  ];
   return `${localizedPath(path, normalizeLang(lang) ?? DEFAULT_LANG)}${rest}`;
 }

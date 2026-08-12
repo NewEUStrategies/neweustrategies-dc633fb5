@@ -40,10 +40,20 @@ export type ClubLang = "pl" | "en";
  * przez ułamek sekundy.
  */
 export const CLUB_TOPIC_FALLBACK: readonly ClubTopicOption[] = [
-  { key: "geopolitics", label_pl: "Geopolityka i wojskowość", label_en: "Geopolitics and defence", sort_order: 10 },
+  {
+    key: "geopolitics",
+    label_pl: "Geopolityka i wojskowość",
+    label_en: "Geopolitics and defence",
+    sort_order: 10,
+  },
   { key: "transport", label_pl: "Transport", label_en: "Transport", sort_order: 20 },
   { key: "energy", label_pl: "Energetyka", label_en: "Energy", sort_order: 30 },
-  { key: "cybersecurity", label_pl: "Cyberbezpieczeństwo", label_en: "Cybersecurity", sort_order: 40 },
+  {
+    key: "cybersecurity",
+    label_pl: "Cyberbezpieczeństwo",
+    label_en: "Cybersecurity",
+    sort_order: 40,
+  },
   { key: "technology", label_pl: "Technologie", label_en: "Technology", sort_order: 50 },
   { key: "finance", label_pl: "Finanse", label_en: "Finance", sort_order: 60 },
   { key: "economy", label_pl: "Gospodarka", label_en: "Economy", sort_order: 70 },
@@ -109,7 +119,15 @@ export function optionsWithCurrent(
 /** Klucz techniczny z dowolnej nazwy - dla formularza dodawania obszaru. */
 export function slugifyTopicKey(input: string): string {
   const map: Record<string, string> = {
-    ą: "a", ć: "c", ę: "e", ł: "l", ń: "n", ó: "o", ś: "s", ź: "z", ż: "z",
+    ą: "a",
+    ć: "c",
+    ę: "e",
+    ł: "l",
+    ń: "n",
+    ó: "o",
+    ś: "s",
+    ź: "z",
+    ż: "z",
   };
   const base = input
     .toLowerCase()

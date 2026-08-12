@@ -2,6 +2,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ensureI18n as ensureAdminCommunityI18n } from "@/lib/i18n-admin-community";
+import { dateLocaleFromLanguage } from "@/lib/i18n/dateLocale";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Award, Trash2, Plus, Sparkles } from "lucide-react";
@@ -36,9 +38,9 @@ export const Route = createFileRoute("/admin/community/badges")({
 });
 
 function BadgesAdmin() {
-  const { i18n } = useTranslation();
+  ensureAdminCommunityI18n();
+  const { t, i18n } = useTranslation();
   const language = badgeLocale(i18n.language ?? "pl");
-  const isPl = language === "pl";
   const { tenantId } = useAuth();
   const qc = useQueryClient();
   const [userId, setUserId] = useState("");
@@ -63,9 +65,9 @@ function BadgesAdmin() {
       qc.invalidateQueries({ queryKey: ["profile-badges"] });
       setUserId("");
       setNote("");
-      toast.success(isPl ? "Przyznano" : "Granted");
+      toast.success(t("adminCommunity.badges.granted"));
     },
-    onError: (err: Error) => toast.error(err.message || (isPl ? "Błąd" : "Failed")),
+    onError: (err: Error) => toast.error(err.message || t("adminCommunity.badges.failed")),
   });
 
   const revokeM = useMutation({
@@ -73,31 +75,33 @@ function BadgesAdmin() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-badges"] });
       qc.invalidateQueries({ queryKey: ["profile-badges"] });
-      toast.success(isPl ? "Odebrano" : "Revoked");
+      toast.success(t("adminCommunity.badges.revoked"));
     },
-    onError: () => toast.error(isPl ? "Błąd" : "Failed"),
+    onError: () => toast.error(t("adminCommunity.badges.failed")),
   });
 
-  const sourceLabel = (source: BadgeGrantSource): string => {
-    const labels: Record<BadgeGrantSource, { pl: string; en: string }> = {
-      manual: { pl: "Ręcznie", en: "Manual" },
-      reputation: { pl: "Reputacja", en: "Reputation" },
-      contributor_submission: { pl: "Przyjęty materiał", en: "Accepted submission" },
-      system: { pl: "System", en: "System" },
-    };
-    return labels[source][language];
+  // Mapa WSKAZUJE KLUCZE, nie napisy: dotad trzymala pary `{ pl, en }` wprost
+  // w komponencie, czyli kolejny rownolegly slownik poza zasiegiem bramki
+  // parytetu. `Record<BadgeGrantSource, string>` nadal wymusza kompletnosc
+  // wariantow enuma, a test slownika sprawdza, ze wskazany klucz istnieje.
+  const SOURCE_LABEL_KEYS: Record<BadgeGrantSource, string> = {
+    manual: "adminCommunity.badges.sourceManual",
+    reputation: "adminCommunity.badges.sourceReputation",
+    contributor_submission: "adminCommunity.badges.sourceContributorSubmission",
+    system: "adminCommunity.badges.sourceSystem",
   };
+  const sourceLabel = (source: BadgeGrantSource): string => t(SOURCE_LABEL_KEYS[source]);
 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <Award className="w-4 h-4" />
-        <h2 className="text-lg font-semibold">{isPl ? "Odznaki" : "Badges"}</h2>
+        <h2 className="text-lg font-semibold">{t("adminCommunity.badges.badges")}</h2>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">{isPl ? "Przyznaj odznakę" : "Grant badge"}</CardTitle>
+          <CardTitle className="text-base">{t("adminCommunity.badges.grantBadge")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
@@ -120,7 +124,7 @@ function BadgesAdmin() {
                 {definition.grantMode === "hybrid" && (
                   <span className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-primary">
                     <Sparkles className="h-3 w-3" aria-hidden="true" />
-                    {isPl ? "Ręcznie lub automatycznie" : "Manual or automatic"}
+                    {t("adminCommunity.badges.manualAutomatic")}
                   </span>
                 )}
               </button>
@@ -131,12 +135,12 @@ function BadgesAdmin() {
               value={userId}
               onChange={setUserId}
               labels={{
-                placeholder: isPl ? "Wybierz członka…" : "Select a member…",
-                search: isPl ? "Szukaj po nazwisku…" : "Search by name…",
-                hint: isPl ? "Wpisz min. 2 znaki" : "Type at least 2 characters",
-                loading: isPl ? "Szukam…" : "Searching…",
-                empty: isPl ? "Brak wyników" : "No results",
-                clear: isPl ? "Wyczyść wybór" : "Clear selection",
+                placeholder: t("adminCommunity.badges.selectMember"),
+                search: t("adminCommunity.badges.searchByName"),
+                hint: t("adminCommunity.badges.typeAtLeast2"),
+                loading: t("adminCommunity.badges.searching"),
+                empty: t("adminCommunity.badges.noResults"),
+                clear: t("adminCommunity.badges.clearSelection"),
               }}
             />
             <Select
@@ -157,18 +161,16 @@ function BadgesAdmin() {
               </SelectContent>
             </Select>
             <Input
-              placeholder={isPl ? "Notatka (opcjonalnie)" : "Note (optional)"}
+              placeholder={t("adminCommunity.badges.noteOptional")}
               value={note}
               onChange={(e) => setNote(e.target.value)}
               maxLength={500}
-              aria-label={isPl ? "Notatka do odznaki" : "Badge note"}
+              aria-label={t("adminCommunity.badges.badgeNote")}
             />
           </div>
           {duplicate && (
             <p className="text-xs text-amber-700 dark:text-amber-400" role="status">
-              {isPl
-                ? "Wybrany użytkownik ma już tę odznakę."
-                : "The selected member already has this badge."}
+              {t("adminCommunity.badges.selectedMemberAlreadyHas")}
             </p>
           )}
           <Button
@@ -176,7 +178,7 @@ function BadgesAdmin() {
             disabled={!userId.trim() || duplicate || grantM.isPending}
           >
             <Plus className="w-4 h-4 mr-1" />
-            {isPl ? "Przyznaj" : "Grant"}
+            {t("adminCommunity.badges.grant")}
           </Button>
         </CardContent>
       </Card>
@@ -185,14 +187,12 @@ function BadgesAdmin() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">
-            {isPl ? "Ostatnio przyznane" : "Recently granted"}
-          </CardTitle>
+          <CardTitle className="text-base">{t("adminCommunity.badges.recentlyGranted")}</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {(q.data ?? []).length === 0 ? (
             <div className="p-6 text-sm text-muted-foreground text-center">
-              {isPl ? "Brak odznak" : "No badges"}
+              {t("adminCommunity.badges.noBadges")}
             </div>
           ) : (
             <ul className="divide-y divide-border/60">
@@ -211,20 +211,20 @@ function BadgesAdmin() {
                     )}
                     {b.note && <div className="text-xs text-muted-foreground mt-1">{b.note}</div>}
                     <div className="text-xs text-muted-foreground mt-0.5">
-                      {new Date(b.created_at).toLocaleString(isPl ? "pl-PL" : "en-GB")}
+                      {new Date(b.created_at).toLocaleString(dateLocaleFromLanguage(i18n.language))}
                     </div>
                   </div>
                   <Button
                     size="sm"
                     variant="ghost"
-                    aria-label={isPl ? "Odbierz odznakę" : "Revoke badge"}
+                    aria-label={t("adminCommunity.badges.revokeBadge")}
                     onClick={async () => {
                       const ok = await confirmDialog({
-                        title: isPl ? "Odebrać odznakę?" : "Revoke badge?",
-                        description: isPl
-                          ? `${badgeLabel(b.badge, language)} - tej operacji nie można cofnąć.`
-                          : `${badgeLabel(b.badge, language)} - this cannot be undone.`,
-                        confirmLabel: isPl ? "Odbierz" : "Revoke",
+                        title: t("adminCommunity.badges.revokeConfirmTitle"),
+                        description: t("adminCommunity.badges.revokeConfirmBody", {
+                          badge: badgeLabel(b.badge, language),
+                        }),
+                        confirmLabel: t("adminCommunity.badges.revoke"),
                         destructive: true,
                       });
                       if (ok) revokeM.mutate(b.id);

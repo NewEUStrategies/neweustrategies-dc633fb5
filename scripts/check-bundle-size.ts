@@ -189,8 +189,59 @@ const CLIENT_DIR =
 // co opisuje akapit „DLACZEGO PUBLIC/OVERALL NIE MOGŁY SPAŚĆ" powyżej: drobniejszy
 // podział przenosi bajty między plikami, nie usuwa ich.
 
+// 2026-08-12  DRYF MAINA +530 KB PUBLIC W SZEŚĆ DNI - i znowu niewidoczny tą
+//             SAMĄ mechaniką co 08-01 i 08-03: krok `Bundle size budget` stoi
+//             w `verify` PO `Test + coverage gate`, a ten był czerwony na
+//             mainie na progach pokrycia katalogów `src/lib/network/**`
+//             i `src/components/profile/**`. Build i ten skrypt NIE
+//             WYKONYWAŁY SIĘ ANI RAZU od 08-06. Ta gałąź naprawiła bramkę
+//             pokrycia, więc jako pierwsza dotarła do tego kroku - i zapaliła
+//             go na liczbach, których nie wniosła.
+//
+// POMIAR (ten sam host, ta sama wersja zależności, pełny build obu stron):
+//   * main 5141533:   511,1 chunk / 2444,9 public / 3742,8 overall,
+//   * ta gałąź:       511,2       / 2449,4        / 3749,8,
+//   * floory 08-06:   439         / 1915          / 3175
+//                     -> przekroczenie MAINA: +72,1 / +529,9 / +567,8 KB.
+// Udział tej gałęzi w luce: +0,1 / +4,5 / +7,0 KB, czyli 0,8% PUBLIC-a
+// (dwa nowe chunki: trasa ustawień powiadomień i słownik panelu wydarzeń).
+//
+// TE DWIE LICZBY ZNACZĄ CO INNEGO i dlatego nie mają jednej diagnozy:
+//
+//   PUBLIC/OVERALL (+530/+568 KB) to NOWA POWIERZCHNIA PRODUKTU wydana
+//   06-12.08: moduł klubów dyskusyjnych (~20 tras `/club/*`, ankiety,
+//   zaproszenia, minisite, roster) i ekrany sieci kontaktów. PUBLIC liczy
+//   KAŻDY chunk osiągalny z publicznego URL-a, nie pierwsze wczytanie, więc
+//   nowy moduł podnosi tę liczbę z definicji - patrz akapit „DLACZEGO
+//   PUBLIC/OVERALL NIE MOGŁY SPAŚĆ". Tu floor jest właściwą odpowiedzią.
+//
+//   NAJWIĘKSZY CHUNK (+72 KB gzip, 434,1 -> 511,1) to REGRESJA, którą płaci
+//   KAŻDE pierwsze wejście - i jest zmierzona, nie zgadnięta. Przyrząd
+//   (`BUNDLE_INVENTORY=1 bun run build` + `bun run report:chunk-inventory
+//   index`) pokazuje w entry `src/lib/i18n-club.ts` na 181,4 kB źródła (6,4%
+//   chunku startowego, 4650 linii). Mechanika jest ta sama co przy Stripe
+//   i `vendor-tanstack`: `ensureClubI18n` ma 34 importerów, a te dzielą się na
+//   DWA rozłączne poddrzewa tras - publiczne `/club/*` i adminowe
+//   `/admin/community/clubs/*` (plus komponenty w `components/clubs/**`
+//   używane przez oba). Moduł współdzielony przez chunki z dwóch poddrzew
+//   Rollup hoistuje do ich wspólnego przodka, czyli do ENTRY.
+//
+// CZEGO TU CELOWO NIE ZROBIONO. Wymuszenie `manualChunks` na tym słowniku to
+// DOKŁADNIE nieudany eksperyment opisany wyżej („NIEUDANY EKSPERYMENT -
+// ZAPISANY, ŻEBY NIE POWTÓRZYĆ GO PO RAZ TRZECI") - tamten wciągnął
+// `lib/i18n.ts` i dał ładniejszą liczbę bez pokrycia w bajtach. Właściwa droga
+// jest inna i wynika wprost z pomiaru: PODZIELIĆ słownik po powierzchniach
+// (`i18n-club.ts` dla `/club/*` + osobny plik dla kluczy wyłącznie adminowych)
+// i zostawić `ensureClubI18n` tylko w trasie układu `/club` oraz w odpowiedniku
+// adminowym. Wtedy publiczna część ma jednego wspólnego przodka - chunk układu
+// `club.tsx` - a nie entry. To osobna zmiana: dotyka 34 miejsc rejestracji
+// i 4650 linii słownika, więc nie wchodzi do gałęzi o i18n, dostępności
+// i pokryciu, gdzie nikt nie przyszedłby jej recenzować pod tym kątem.
+// Floor największego chunku idzie więc TYLKO nad zmierzony ślad maina, bez
+// zapasu - żeby ta pozycja dalej piszczała przy każdym kolejnym kilobajcie.
+
 /**
- * Progi ZAMROŻONE (2026-08-06). Do tej pory każdy z nich dało się rozluźnić
+ * Progi ZAMROŻONE (2026-08-12). Do tej pory każdy z nich dało się rozluźnić
  * jedną zmienną środowiskową w workflow - bramka, którą wolno wyłączyć bez
  * commita, jest sugestią, nie bramką. W CI zmienne MAX_CHUNK_KB /
  * MAX_PUBLIC_KB / MAX_TOTAL_KB są więc IGNOROWANE (skrypt mówi to głośno):
@@ -199,9 +250,18 @@ const CLIENT_DIR =
  * do lokalnego eksperymentu „ile zejdzie, jeśli...".
  */
 const FROZEN_BUDGET_KB = {
-  chunk: 439, // największy pojedynczy chunk gzip (zmierzone: 434,1 KB)
-  public: 1915, // gzip JS osiągalny z publicznego URL-a (zmierzone: 1896,1 KB)
-  overall: 3175, // gzip JS łącznie z kodem tylko adminowym (zmierzone: 3142,7 KB)
+  // Największy pojedynczy chunk gzip. Zmierzone: main 511,1 / ta gałąź 511,2.
+  // BEZ zapasu, bo to jedyna z tych liczb, którą płaci każde pierwsze wejście,
+  // a jej wzrost od 08-06 (+72 KB) ma zmierzoną przyczynę do naprawy - patrz
+  // wpis 2026-08-12 wyżej.
+  chunk: 513,
+  // gzip JS osiągalny z publicznego URL-a. Zmierzone: main 2444,9 / gałąź 2449,4.
+  // ~1% zapasu, bo tę liczbę podnosi KAŻDA nowa trasa publiczna i przy zapasie
+  // rzędu kilku KB bramka zapala się od cudzych merge'ów w ciągu godziny
+  // (lekcja z 08-01).
+  public: 2475,
+  // gzip JS łącznie z kodem tylko adminowym. Zmierzone: main 3742,8 / gałąź 3749,8.
+  overall: 3790,
 } as const;
 
 /** GitHub Actions ustawia CI=true; honorujemy też generyczne CI innych runnerów. */

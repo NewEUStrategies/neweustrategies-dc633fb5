@@ -19,7 +19,6 @@ describe("rejestr stron renderowanych z kodu", () => {
     }
   });
 
-
   it("ścieżka publiczna odpowiada slugowi", () => {
     for (const page of CODE_PAGES) {
       expect(page.path).toBe(`/${page.slug}`);

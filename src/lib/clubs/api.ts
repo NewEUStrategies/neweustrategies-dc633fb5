@@ -154,7 +154,9 @@ export async function fetchClubMembers(params: {
     // a wiersze 'invited' i 'pending' byly nieosiagalne z panelu. Rozroznienie
     // undefined/null musi tu przezyc: pominiecie klucza da serwerowy DEFAULT
     // 'active', a nie NULL.
-    p_status: (params.status === undefined ? "active" : params.status) as RpcArgs<"club_members_list">["p_status"],
+    p_status: (params.status === undefined
+      ? "active"
+      : params.status) as RpcArgs<"club_members_list">["p_status"],
     p_limit: params.limit ?? 50,
     p_offset: params.offset ?? 0,
   });

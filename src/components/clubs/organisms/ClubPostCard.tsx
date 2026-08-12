@@ -247,7 +247,13 @@ function MediaGrid({
             {url === undefined ? (
               <div className="aspect-video w-full animate-pulse bg-muted" />
             ) : (
-              // eslint-disable-next-line jsx-a11y/media-has-caption -- materiał członkowski, brak ścieżki napisów
+              // DŁUG DOSTĘPNOŚCI: nagranie wgrane przez członka nie ma ścieżki
+              // napisów (`<track kind="captions">`), bo nie ma jej skąd wziąć -
+              // przesyłający podaje sam plik. Do domknięcia razem z transkrypcją
+              // po stronie serwera. Directive `eslint-disable` w tym miejscu był
+              // MARTWY: reguła `jsx-a11y/media-has-caption` nie jest w tym repo
+              // skonfigurowana, więc niczego nie wyciszał, a sam odwołaniem do
+              // nieistniejącej reguły wywracał bramkę lintu.
               <video src={url} controls preload="metadata" className="aspect-video w-full" />
             )}
           </div>

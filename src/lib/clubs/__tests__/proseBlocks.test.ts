@@ -30,7 +30,9 @@ describe("applyListAutoformat", () => {
 
   it("kontynuuje punktor", () => {
     const value = "- Alfa";
-    expect(applyListAutoformat(value, value.length, value.length, "Enter")?.value).toBe("- Alfa\n- ");
+    expect(applyListAutoformat(value, value.length, value.length, "Enter")?.value).toBe(
+      "- Alfa\n- ",
+    );
   });
 
   it("pusty punktor kończy listę", () => {

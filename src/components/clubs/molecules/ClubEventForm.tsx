@@ -162,7 +162,10 @@ export function ClubEventForm({
           }}
         >
           <div className="grid min-w-0 gap-5">
-            <Section icon={<Type className="h-4 w-4" aria-hidden />} title={t("club.eventForm.sectionBasics")}>
+            <Section
+              icon={<Type className="h-4 w-4" aria-hidden />}
+              title={t("club.eventForm.sectionBasics")}
+            >
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field
                   htmlFor="club-event-title-pl"
@@ -215,7 +218,10 @@ export function ClubEventForm({
               </div>
             </Section>
 
-            <Section icon={<Clock className="h-4 w-4" aria-hidden />} title={t("club.eventForm.sectionWhen")}>
+            <Section
+              icon={<Clock className="h-4 w-4" aria-hidden />}
+              title={t("club.eventForm.sectionWhen")}
+            >
               <div className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 px-3 py-2">
                 <Label htmlFor="club-event-allday" className="text-sm font-normal">
                   {t("club.eventForm.allDay")}
@@ -287,7 +293,10 @@ export function ClubEventForm({
               )}
             </Section>
 
-            <Section icon={<MapPin className="h-4 w-4" aria-hidden />} title={t("club.eventForm.sectionWhere")}>
+            <Section
+              icon={<MapPin className="h-4 w-4" aria-hidden />}
+              title={t("club.eventForm.sectionWhere")}
+            >
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field
                   htmlFor="club-event-location"
@@ -333,7 +342,10 @@ export function ClubEventForm({
               </div>
             </Section>
 
-            <Section icon={<Users className="h-4 w-4" aria-hidden />} title={t("club.eventForm.sectionAccess")}>
+            <Section
+              icon={<Users className="h-4 w-4" aria-hidden />}
+              title={t("club.eventForm.sectionAccess")}
+            >
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 px-3 py-2">
                   <Label htmlFor="club-event-rsvp" className="text-sm font-normal">
@@ -511,4 +523,3 @@ function formatRange(start: string, end: string, allDay: boolean): string {
   if (end.length === 0) return allDay ? start : label(start);
   return `${allDay ? start : label(start)} - ${allDay ? end : label(end)}`;
 }
-

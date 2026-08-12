@@ -6,6 +6,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ensureI18n as ensureAdminCommunityI18n } from "@/lib/i18n-admin-community";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
@@ -37,9 +38,11 @@ export const Route = createFileRoute("/admin/community/chat")({
 });
 
 function AdminCommunityChat() {
-  const { i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
-  const locale = isPl ? plLocale : enGB;
+  ensureAdminCommunityI18n();
+  const { t, i18n } = useTranslation();
+  // Obiekt locale date-fns (format daty), nie etykieta interfejsu - dlatego
+  // zostaje wyborem na podstawie jezyka, a nie kluczem slownika.
+  const locale = (i18n.language ?? "pl").startsWith("pl") ? plLocale : enGB;
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<ConversationListItem | null>(null);
@@ -63,11 +66,11 @@ function AdminCommunityChat() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-community-conversations"] });
       qc.invalidateQueries({ queryKey: ["admin-community-stats"] });
-      toast.success(isPl ? "Usunięto konwersację" : "Conversation deleted");
+      toast.success(t("adminCommunity.chat.conversationDeleted"));
       setConfirmDeleteId(null);
       setSelected(null);
     },
-    onError: () => toast.error(isPl ? "Błąd usuwania" : "Delete failed"),
+    onError: () => toast.error(t("adminCommunity.chat.deleteFailed")),
   });
 
   const softDeleteM = useMutation({
@@ -75,18 +78,18 @@ function AdminCommunityChat() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-community-messages"] });
       qc.invalidateQueries({ queryKey: ["admin-community-conversations"] });
-      toast.success(isPl ? "Wiadomość ukryta" : "Message hidden");
+      toast.success(t("adminCommunity.chat.messageHidden"));
     },
-    onError: () => toast.error(isPl ? "Błąd" : "Failed"),
+    onError: () => toast.error(t("adminCommunity.chat.failed")),
   });
 
   const purgeM = useMutation({
     mutationFn: purgeExpiredMessages,
     onSuccess: (count) => {
       qc.invalidateQueries({ queryKey: ["admin-community-conversations"] });
-      toast.success(isPl ? `Wyczyszczono ${count}` : `Purged ${count}`);
+      toast.success(t("adminCommunity.chat.purged", { count }));
     },
-    onError: () => toast.error(isPl ? "Błąd" : "Failed"),
+    onError: () => toast.error(t("adminCommunity.chat.failed")),
   });
 
   const rows = conversationsQ.data ?? [];
@@ -95,18 +98,16 @@ function AdminCommunityChat() {
     <div className="space-y-4">
       <header className="flex flex-wrap items-center gap-3 justify-between">
         <div>
-          <h2 className="text-xl font-semibold">{isPl ? "Moderacja czatu" : "Chat moderation"}</h2>
+          <h2 className="text-xl font-semibold">{t("adminCommunity.chat.chatModeration")}</h2>
           <p className="text-sm text-muted-foreground">
-            {isPl
-              ? "Widok wszystkich konwersacji w bazie z możliwością usuwania i ukrywania wiadomości."
-              : "All conversations in the database with the ability to delete or hide messages."}
+            {t("adminCommunity.chat.allConversationsDatabaseWith")}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder={isPl ? "Szukaj w treści…" : "Search preview…"}
+            placeholder={t("adminCommunity.chat.searchPreview")}
             className="w-[240px]"
           />
           <Button
@@ -116,7 +117,7 @@ function AdminCommunityChat() {
             disabled={purgeM.isPending}
           >
             <RefreshCcw className="w-4 h-4 mr-2" />
-            {isPl ? "Purge" : "Purge"}
+            {t("adminCommunity.chat.purge")}
           </Button>
         </div>
       </header>
@@ -125,11 +126,11 @@ function AdminCommunityChat() {
         <CardContent className="p-0">
           {conversationsQ.isLoading ? (
             <div className="p-6 text-sm text-muted-foreground">
-              {isPl ? "Ładowanie…" : "Loading…"}
+              {t("adminCommunity.chat.loading")}
             </div>
           ) : rows.length === 0 ? (
             <div className="p-6 text-sm text-muted-foreground text-center">
-              {isPl ? "Brak konwersacji." : "No conversations."}
+              {t("adminCommunity.chat.noConversations")}
             </div>
           ) : (
             <ul className="divide-y divide-border">
@@ -144,7 +145,7 @@ function AdminCommunityChat() {
                       <div className="flex items-center gap-2 text-sm">
                         <MessageCircle className="w-3.5 h-3.5 text-muted-foreground" />
                         <span className="font-medium truncate">
-                          {c.title ?? (isPl ? "Konwersacja 1:1" : "Direct chat")}
+                          {c.title ?? t("adminCommunity.chat.directChat")}
                         </span>
                         <Badge variant="secondary" className="text-[10px]">
                           {c.kind}
@@ -156,14 +157,14 @@ function AdminCommunityChat() {
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground truncate">
-                        {c.last_message_preview ?? (isPl ? "(brak treści)" : "(no content)")}
+                        {c.last_message_preview ?? t("adminCommunity.chat.noContent")}
                       </div>
                       <div className="text-[11px] text-muted-foreground flex items-center gap-3">
                         <span>
-                          {isPl ? "Uczestn." : "Participants"}: {c.participants_count}
+                          {t("adminCommunity.chat.participants")}: {c.participants_count}
                         </span>
                         <span>
-                          {isPl ? "Wiad." : "Msgs"}: {c.messages_count}
+                          {t("adminCommunity.chat.msgs")}: {c.messages_count}
                         </span>
                         {c.last_message_at && (
                           <span>
@@ -195,16 +196,16 @@ function AdminCommunityChat() {
       <Dialog open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{selected?.title ?? (isPl ? "Konwersacja" : "Conversation")}</DialogTitle>
+            <DialogTitle>{selected?.title ?? t("adminCommunity.chat.conversation")}</DialogTitle>
           </DialogHeader>
           <div className="max-h-[60vh] overflow-y-auto space-y-2">
             {messagesQ.isLoading ? (
               <div className="text-sm text-muted-foreground">
-                {isPl ? "Ładowanie…" : "Loading…"}
+                {t("adminCommunity.chat.loading")}
               </div>
             ) : (messagesQ.data ?? []).length === 0 ? (
               <div className="text-sm text-muted-foreground">
-                {isPl ? "Brak wiadomości." : "No messages."}
+                {t("adminCommunity.chat.noMessages")}
               </div>
             ) : (
               (messagesQ.data ?? []).map((m) => (
@@ -236,7 +237,7 @@ function AdminCommunityChat() {
                         size="icon"
                         className="h-6 w-6"
                         onClick={() => softDeleteM.mutate(m.id)}
-                        title={isPl ? "Ukryj wiadomość" : "Hide message"}
+                        title={t("adminCommunity.chat.hideMessage")}
                       >
                         <EyeOff className="w-3 h-3" />
                       </Button>
@@ -245,7 +246,7 @@ function AdminCommunityChat() {
                   <div className="whitespace-pre-wrap break-words">
                     {m.deleted_at ? (
                       <span className="italic text-muted-foreground">
-                        {isPl ? "[wiadomość ukryta]" : "[hidden]"}
+                        {t("adminCommunity.chat.hidden")}
                       </span>
                     ) : (
                       (m.body ?? (m.attachment_name ? `📎 ${m.attachment_name}` : "-"))
@@ -258,12 +259,12 @@ function AdminCommunityChat() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setSelected(null)}>
               <X className="w-4 h-4 mr-2" />
-              {isPl ? "Zamknij" : "Close"}
+              {t("adminCommunity.chat.close")}
             </Button>
             {selected && (
               <Button variant="destructive" onClick={() => setConfirmDeleteId(selected.id)}>
                 <Trash2 className="w-4 h-4 mr-2" />
-                {isPl ? "Usuń konwersację" : "Delete conversation"}
+                {t("adminCommunity.chat.deleteConversation")}
               </Button>
             )}
           </DialogFooter>
@@ -274,23 +275,21 @@ function AdminCommunityChat() {
       <Dialog open={!!confirmDeleteId} onOpenChange={(open) => !open && setConfirmDeleteId(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{isPl ? "Usunąć konwersację?" : "Delete conversation?"}</DialogTitle>
+            <DialogTitle>{t("adminCommunity.chat.deleteConfirmTitle")}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            {isPl
-              ? "Ta akcja usunie konwersację wraz ze wszystkimi wiadomościami i uczestnikami. Operacja jest nieodwracalna."
-              : "This will remove the conversation with every message and participant. Irreversible."}
+            {t("adminCommunity.chat.willRemoveConversationWith")}
           </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmDeleteId(null)}>
-              {isPl ? "Anuluj" : "Cancel"}
+              {t("adminCommunity.chat.cancel")}
             </Button>
             <Button
               variant="destructive"
               onClick={() => confirmDeleteId && deleteM.mutate(confirmDeleteId)}
               disabled={deleteM.isPending}
             >
-              {isPl ? "Usuń" : "Delete"}
+              {t("adminCommunity.chat.delete")}
             </Button>
           </DialogFooter>
         </DialogContent>

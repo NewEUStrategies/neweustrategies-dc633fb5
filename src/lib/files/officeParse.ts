@@ -133,11 +133,7 @@ async function slideNotes(
   return text === "" ? null : text;
 }
 
-async function slideImages(
-  zip: JSZipType,
-  slidePath: string,
-  doc: Document,
-): Promise<string[]> {
+async function slideImages(zip: JSZipType, slidePath: string, doc: Document): Promise<string[]> {
   const relsPath = slidePath.replace(/slides\/(slide\d+)\.xml$/, "slides/_rels/$1.xml.rels");
   const relsFile = zip.file(relsPath);
   if (relsFile === null) return [];

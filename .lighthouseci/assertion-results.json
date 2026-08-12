@@ -1,0 +1,75 @@
+[
+  {
+    "name": "minScore",
+    "expected": 0.8,
+    "actual": 0.34,
+    "values": [
+      0.34
+    ],
+    "operator": ">=",
+    "passed": false,
+    "auditProperty": "performance",
+    "auditId": "categories",
+    "level": "warn",
+    "url": "http://127.0.0.1:4173/en"
+  },
+  {
+    "name": "minScore",
+    "expected": 0.9,
+    "actual": 0.58,
+    "values": [
+      0.58
+    ],
+    "operator": ">=",
+    "passed": false,
+    "auditProperty": "seo",
+    "auditId": "categories",
+    "level": "warn",
+    "url": "http://127.0.0.1:4173/en"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 2500,
+    "actual": 31215.04040000001,
+    "values": [
+      31215.04040000001
+    ],
+    "operator": "<=",
+    "passed": false,
+    "auditId": "largest-contentful-paint",
+    "level": "warn",
+    "url": "http://127.0.0.1:4173/en",
+    "auditTitle": "Largest Contentful Paint",
+    "auditDocumentationLink": "https://developer.chrome.com/docs/lighthouse/performance/lighthouse-largest-contentful-paint/"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 300,
+    "actual": 1985,
+    "values": [
+      1985
+    ],
+    "operator": "<=",
+    "passed": false,
+    "auditId": "total-blocking-time",
+    "level": "warn",
+    "url": "http://127.0.0.1:4173/en",
+    "auditTitle": "Total Blocking Time",
+    "auditDocumentationLink": "https://developer.chrome.com/docs/lighthouse/performance/lighthouse-total-blocking-time/"
+  },
+  {
+    "name": "maxNumericValue",
+    "expected": 3400,
+    "actual": 6103.98954908016,
+    "values": [
+      6103.98954908016
+    ],
+    "operator": "<=",
+    "passed": false,
+    "auditId": "speed-index",
+    "level": "warn",
+    "url": "http://127.0.0.1:4173/en",
+    "auditTitle": "Speed Index",
+    "auditDocumentationLink": "https://developer.chrome.com/docs/lighthouse/performance/speed-index/"
+  }
+]

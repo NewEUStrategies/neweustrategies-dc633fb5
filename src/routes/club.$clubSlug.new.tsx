@@ -58,7 +58,9 @@ export const Route = createFileRoute("/club/$clubSlug/new")({
   //
   // Wartość spoza słownika degraduje do domyślnej - adres jest wejściem
   // użytkownika i nie ma prawa wywrócić kompozytora.
-  validateSearch: (search: Record<string, unknown>): { kind?: ClubThreadKind; groupId?: string } => {
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { kind?: ClubThreadKind; groupId?: string } => {
     const raw = search["kind"];
     const rawGroup = search["groupId"];
     const out: { kind?: ClubThreadKind; groupId?: string } = {};
@@ -200,7 +202,6 @@ function ClubNewThread() {
   useEffect(() => {
     if (!canGoAnonymous) setAnonymous(false);
   }, [canGoAnonymous]);
-
 
   const kinds = useMemo(
     () => (canModerate ? CLUB_THREAD_KINDS : CLUB_THREAD_KINDS.filter((k) => k !== "announcement")),

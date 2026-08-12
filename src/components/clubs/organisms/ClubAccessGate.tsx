@@ -163,7 +163,6 @@ function Benefit({ icon: Icon, k }: { icon: LucideIcon; k: string }) {
   );
 }
 
-
 function MemberActions({
   club,
   plan,
@@ -465,7 +464,6 @@ function GateSignupForm({ plan }: { plan: string }) {
           <span>{reg.label("newsletter_optin", t("clubGate.newsletterOptIn"))}</span>
         </label>
       ) : null}
-
 
       <Button type="submit" className="w-full rounded-lg" disabled={busy}>
         {busy ? (

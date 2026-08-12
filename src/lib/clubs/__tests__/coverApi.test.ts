@@ -21,17 +21,17 @@ describe("okładka klubu - walidacja pliku", () => {
 
   it("odrzuca plik powyżej limitu, ale przepuszcza dokładnie limit", () => {
     expect(checkClubCoverFile({ type: "image/png", size: CLUB_COVER_MAX_BYTES })).toBeNull();
-    expect(
-      checkClubCoverFile({ type: "image/png", size: CLUB_COVER_MAX_BYTES + 1 }),
-    ).toMatchObject({ kind: "size" });
+    expect(checkClubCoverFile({ type: "image/png", size: CLUB_COVER_MAX_BYTES + 1 })).toMatchObject(
+      { kind: "size" },
+    );
   });
 });
 
 describe("okładka klubu - klucz obiektu", () => {
   it("trzyma plik w prefiksie klubu, którego pilnuje polityka storage", () => {
-    expect(
-      clubCoverObjectPath({ clubId: "abc", filename: "baner.PNG", uniqueSuffix: "u1" }),
-    ).toBe("club-covers/abc/u1.png");
+    expect(clubCoverObjectPath({ clubId: "abc", filename: "baner.PNG", uniqueSuffix: "u1" })).toBe(
+      "club-covers/abc/u1.png",
+    );
   });
 
   it("czyści rozszerzenie z przemytu ścieżki i podwójnego rozszerzenia", () => {

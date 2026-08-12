@@ -7,6 +7,7 @@
 // wysłania. Statystyki poniżej mówią „ile", panel mówi „czy w ogóle biegnie".
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { ensureI18n as ensureAdminCommunityI18n } from "@/lib/i18n-admin-community";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Bell, Trash2, Mail, Smartphone, AlertTriangle } from "lucide-react";
@@ -21,8 +22,8 @@ export const Route = createFileRoute("/admin/community/notifications")({
 });
 
 function NotificationsAdmin() {
-  const { i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  ensureAdminCommunityI18n();
+  const { t } = useTranslation();
   const qc = useQueryClient();
 
   const q = useQuery({
@@ -35,11 +36,9 @@ function NotificationsAdmin() {
     mutationFn: cleanupFailedPushSubscriptions,
     onSuccess: (n) => {
       qc.invalidateQueries({ queryKey: ["admin-notification-stats"] });
-      toast.success(
-        isPl ? `Usunięto ${n} nieudanych subskrypcji` : `Removed ${n} failed subscriptions`,
-      );
+      toast.success(t("adminCommunity.notifications.removedFailedSubscriptions", { count: n }));
     },
-    onError: () => toast.error(isPl ? "Błąd" : "Failed"),
+    onError: () => toast.error(t("adminCommunity.notifications.failed")),
   });
 
   const s = q.data;
@@ -48,7 +47,7 @@ function NotificationsAdmin() {
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <Bell className="w-4 h-4" />
-        <h2 className="text-lg font-semibold">{isPl ? "Powiadomienia" : "Notifications"}</h2>
+        <h2 className="text-lg font-semibold">{t("adminCommunity.notifications.notifications")}</h2>
       </div>
 
       <SchedulerHealthPanel />
@@ -56,65 +55,59 @@ function NotificationsAdmin() {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <Stat
           icon={Smartphone}
-          label={isPl ? "Push aktywne" : "Push active"}
+          label={t("adminCommunity.notifications.pushActive")}
           value={s?.push_subscriptions_active}
         />
         <Stat
           icon={AlertTriangle}
-          label={isPl ? "Push nieudane" : "Push failed"}
+          label={t("adminCommunity.notifications.pushFailed")}
           value={s?.push_subscriptions_failed}
           tone="warn"
         />
         <Stat
           icon={Bell}
-          label={isPl ? "Wysł. / 24h" : "Sent / 24h"}
+          label={t("adminCommunity.notifications.sent24h")}
           value={s?.notifications_last_24h}
         />
-        <Stat icon={Bell} label={isPl ? "Nieprzecz." : "Unread"} value={s?.notifications_unread} />
+        <Stat
+          icon={Bell}
+          label={t("adminCommunity.notifications.unread")}
+          value={s?.notifications_unread}
+        />
         <Stat
           icon={Mail}
-          label={isPl ? "Dig. dzienny" : "Daily digest"}
+          label={t("adminCommunity.notifications.dailyDigest")}
           value={s?.digest_daily_users}
         />
         <Stat
           icon={Mail}
-          label={isPl ? "Dig. tygod." : "Weekly digest"}
+          label={t("adminCommunity.notifications.weeklyDigest")}
           value={s?.digest_weekly_users}
         />
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">{isPl ? "Akcje serwisowe" : "Maintenance"}</CardTitle>
+          <CardTitle className="text-base">
+            {t("adminCommunity.notifications.maintenance")}
+          </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
           <Button variant="outline" onClick={() => cleanupM.mutate()} disabled={cleanupM.isPending}>
             <Trash2 className="w-4 h-4 mr-2" />
-            {isPl ? "Wyczyść nieudane subskrypcje push" : "Purge failed push subscriptions"}
+            {t("adminCommunity.notifications.purgeFailedPushSubscriptions")}
           </Button>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">{isPl ? "Informacje" : "Info"}</CardTitle>
+          <CardTitle className="text-base">{t("adminCommunity.notifications.info")}</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground space-y-2">
-          <p>
-            {isPl
-              ? "Preferencje powiadomień per użytkownik zarządzają: kanałami (email/push), grupowaniem, digestami (off/daily/weekly) i widocznością statusu online."
-              : "Per-user preferences manage: channels (email/push), grouping, digests (off/daily/weekly) and online status visibility."}
-          </p>
-          <p>
-            {isPl
-              ? "Kolejkę push (notification_push_queue) drenują trzy równoważne ścieżki: pg_cron + pg_net co minutę (POST /api/public/jobs-tick), scheduler repo co 5 minut (POST /api/public/community-cron) i przycisk „Uruchom tick teraz”. Claimy są atomowe (SKIP LOCKED), więc równoległe przebiegi niczego nie dublują; nieudane subskrypcje mają wypełnione failed_at."
-              : "The push queue (notification_push_queue) is drained by three equivalent paths: pg_cron + pg_net every minute (POST /api/public/jobs-tick), the repo scheduler every 5 minutes (POST /api/public/community-cron) and the 'Run tick now' button. Claims are atomic (SKIP LOCKED), so parallel runs never duplicate work; failed subscriptions have failed_at set."}
-          </p>
-          <p>
-            {isPl
-              ? "Stan każdej ścieżki i log ostatnich przebiegów są w panelu zdrowia harmonogramu powyżej. Szczegóły operacyjne: docs/RUNBOOK_COMMUNITY.md."
-              : "The state of each path and the recent-run log live in the scheduler health panel above. Operational detail: docs/RUNBOOK_COMMUNITY.md."}
-          </p>
+          <p>{t("adminCommunity.notifications.perUserPreferencesManage")}</p>
+          <p>{t("adminCommunity.notifications.pushQueueNotificationPush")}</p>
+          <p>{t("adminCommunity.notifications.stateEachPathRecent")}</p>
         </CardContent>
       </Card>
     </div>

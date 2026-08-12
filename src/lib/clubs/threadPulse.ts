@@ -88,8 +88,7 @@ export function computeThreadPulse(
     state: STATES[level] ?? "dormant",
     repliesPerDay: perDay,
     hoursSinceActivity,
-    repliesPerParticipant:
-      participants === 0 ? 0 : Math.round((replies / participants) * 10) / 10,
+    repliesPerParticipant: participants === 0 ? 0 : Math.round((replies / participants) * 10) / 10,
     isConversation: participants >= 3 && replies / Math.max(1, participants) < 6,
   };
 }

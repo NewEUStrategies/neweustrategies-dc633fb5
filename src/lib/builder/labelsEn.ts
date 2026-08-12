@@ -871,8 +871,7 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
     "13 - Editorial Index (number + title, FT Lex style)",
   "14 - Double-Deck Masthead (kategoria nad tytułem)":
     "14 - Double-Deck Masthead (category above title)",
-  "15 - Bracket Label (tytuł w nawiasach + linia)":
-    "15 - Bracket Label (title in brackets + rule)",
+  "15 - Bracket Label (tytuł w nawiasach + linia)": "15 - Bracket Label (title in brackets + rule)",
   "16 - Kicker Tag (tag kategorii + linia do akcji)":
     "16 - Kicker Tag (category tag + rule to the action)",
   "17 - Stacked Serif Lede (tytuł + podtytuł)": "17 - Stacked Serif Lede (title + dek)",
@@ -883,8 +882,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "21 - Ticker Strip (pasek z pulsującą kropką)": "21 - Ticker Strip (bar with a pulsing dot)",
   "22 - Underline Sweep (animowane podkreślenie 2px)":
     "22 - Underline Sweep (animated 2px underline)",
-
-
 
   // ------------------------------------------------------- sidebar styles
   "Style 1 - Solid Classic": "Style 1 - Solid Classic",

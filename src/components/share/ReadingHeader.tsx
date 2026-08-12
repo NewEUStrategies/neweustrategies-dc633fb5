@@ -66,7 +66,6 @@ interface Props {
   hideLeftLogo?: boolean;
 }
 
-
 const COPY = {
   pl: {
     reading: "aktualnie czytasz",
@@ -105,7 +104,6 @@ export function ReadingHeader({
   centerLogo = false,
   hideLeftLogo = false,
 }: Props) {
-
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
   const t = COPY[lang];
@@ -181,7 +179,6 @@ export function ReadingHeader({
     }
     const siteHeader = document.querySelector<HTMLElement>("[data-site-header]");
     if (siteHeader) {
-
       const io = new IntersectionObserver(
         (entries) => {
           const entry = entries[entries.length - 1];

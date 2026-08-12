@@ -93,9 +93,7 @@ export function AvatarGroup({
                 "pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 w-max max-w-[16rem]",
                 "-translate-x-1/2 rounded-lg border border-border bg-popover px-2.5 py-1.5",
                 "text-left shadow-md transition-all duration-150",
-                open
-                  ? "translate-y-0 scale-100 opacity-100"
-                  : "translate-y-1 scale-95 opacity-0",
+                open ? "translate-y-0 scale-100 opacity-100" : "translate-y-1 scale-95 opacity-0",
               )}
             >
               <span className="block text-xs font-semibold leading-tight text-popover-foreground">

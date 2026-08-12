@@ -20,12 +20,15 @@ export function VerifiedProfileBadge({
   withLabel?: boolean;
   className?: string;
 }) {
+  // Słownik rejestrowany tutaj, nie w trasie: odznaka wisi na trzech
+  // niezależnych powierzchniach i żadna nie musi o tym pamiętać.
   ensureExpertsI18n();
   const { t } = useTranslation();
-  const label = t("expert.verifiedBadge", { defaultValue: "Zweryfikowany" });
-  const title = t("expert.verifiedBadgeTitle", {
-    defaultValue: "Profil zweryfikowany zawodowo",
-  });
+  // Bez `defaultValue`: oba klucze istnieją w PL i EN, a polska wartość
+  // zapasowa oznaczała tylko tyle, że anglojęzyczny użytkownik zobaczyłby
+  // „Zweryfikowany" po cichu, gdyby rejestracja słownika kiedyś wypadła.
+  const label = t("expert.verifiedBadge");
+  const title = t("expert.verifiedBadgeTitle");
 
   if (!withLabel) {
     const icon = (

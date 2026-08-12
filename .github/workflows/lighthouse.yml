@@ -84,6 +84,91 @@ jobs:
       # VISIBLY instead of silently passing. Real a11y enforcement lives in the
       # axe unit tests (ci.yml, blocking); the deployed-URL mode above is the
       # representative blocking gate for perf/a11y/SEO.
+      #
+      # 2026-08-12: this smoke started failing on a Chrome DevTools RUNTIME error,
+      # not on an assertion: "Waiting for DevTools protocol response has exceeded
+      # the allotted time. (Method: Network.getResponseBody)". It fired on a commit
+      # whose entire diff was a CI script the browser never loads, so the change
+      # could not have caused it, and the same config + the same Chrome passes
+      # locally - i.e. it is a runner-side timeout, not a regression.
+      # `lighthouserc.json` therefore skips the audits that pull the BODY OF EVERY
+      # RESPONSE, because the Vite dev server serves several hundred separate ESM
+      # modules instead of a few bundles. Nothing of value is lost - on
+      # unminified, unbundled dev output those audits measure the dev server, not
+      # the product - and MODE A above keeps them in full against the real
+      # artifact. No assertion was weakened.
+      #
+      # The first attempt at this list FAILED and the reason is worth keeping:
+      # it named only the pre-12.x audit ids (`duplicated-javascript`,
+      # `legacy-javascript`), while Lighthouse 12 runs `-insight` VARIANTS of the
+      # same audits, which kept fetching bodies. The log also ends the failing run
+      # at "Generating results...", i.e. inside `script-treemap-data` - the report
+      # gatherer that fetches every script body. Both are now on the list.
+      #
+      # The trace-parser failure that motivated the pin below is GONE once the
+      # pinned Chromium is used: no more "SyntheticEventsManager" warnings and no
+      # more `Network.getResponseBody` runtime error in the log. What surfaced
+      # next was the pinned browser CRASHING at launch ("Unable to connect to
+      # Chrome", stack trace from .cache/ms-playwright/chromium-*/chrome), which
+      # is the usual CI sandbox/shm problem - hence the `chromeFlags` in
+      # lighthouserc.json (`--no-sandbox --disable-dev-shm-usage`), the same two
+      # flags this smoke needs to run locally.
+      #
+      # That value MUST be a STRING under `collect.settings.chromeFlags`. Both
+      # other spellings were tried and both are silently ignored by this LHCI
+      # version - an ARRAY in the same place, and a string under
+      # `collect.chromeFlags` - each leaving "Unable to connect to Chrome" with no
+      # hint that the flags never arrived. Verified locally: the string form runs
+      # to completion, the other two do not.
+      #
+      # With Chrome finally launching cleanly, the log stopped guessing and named
+      # the actual chain - and it was NOT the audit list I had been trimming:
+      #   * the dev server needed 53 s for the first load (17:46:06 -> 17:47:00);
+      #     Vite compiles several hundred modules on a 2-core runner
+      #     (benchmarkIndex 2434),
+      #   * the test URL "/" REDIRECTS to "/en", and Lighthouse says so itself in
+      #     a runWarning: "Try testing the second URL directly",
+      #   * the trace came back without a navigation start (NO_NAVSTART), which is
+      #     what every one of those ~15 gatherer warnings actually descends from,
+      #   * the timing-out gatherer was ResponseCompression
+      #     ("ResponseCompression:error PROTOCOL_TIMEOUT" immediately followed by
+      #     the burst of Network.getResponseBody errors) - i.e.
+      #     `uses-text-compression`, which was never on the skip list.
+      # So lighthouserc.json now audits /en directly, skips
+      # `uses-text-compression` (meaningless on an uncompressed dev server), and
+      # raises maxWaitForLoad to 120 s because 60 s was within seconds of that
+      # measured 53 s cold compile. If it STILL fails, the next step is to stop
+      # letting LHCI cold-start the server: start the dev server in its own step,
+      # curl /en once to force the compile, and point LHCI at the warm server.
+      # Chrome PRZYPIĘTY do buildu Playwrighta, nie do tego, co runner ma
+      # zainstalowane. Powód jest zmierzony: smoke padał serią ~15 ostrzeżeń
+      # „Attempted to get a SyntheticEventsManager without initializing" i błędem
+      # wykonania na `Network.getResponseBody` - parser śladów Lighthouse'a nie
+      # radził sobie z buildem Chrome runnera. Ta sama konfiguracja i ten sam
+      # Lighthouse przechodzą na Chromium Playwrighta (sprawdzone lokalnie,
+      # exit 0). Playwright jest już zależnością tego repo i tak samo instaluje
+      # przeglądarkę w `e2e.yml`, więc nie dokładamy ani zależności, ani
+      # zewnętrznej akcji - używamy przeglądarki, którą repo i tak przypina.
+      - name: Install pinned Chromium for Lighthouse
+        if: ${{ vars.LHCI_URL == '' }}
+        run: bunx playwright install --with-deps chromium
+
+      # Ścieżka z katalogu, do którego `playwright install` rozpakowuje build.
+      # Brak trafienia NIE przewraca joba: Lighthouse spada wtedy na Chrome
+      # runnera, czyli na dotychczasowe zachowanie - a krok mówi o tym w logu,
+      # więc regres nie jest cichy.
+      - name: Resolve pinned Chromium path
+        if: ${{ vars.LHCI_URL == '' }}
+        run: |
+          root="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/.cache/ms-playwright}"
+          path="$(find "$root" -maxdepth 4 -type f -name chrome -path '*chrome-linux*' 2>/dev/null | sort | tail -1)"
+          if [ -n "$path" ] && [ -x "$path" ]; then
+            echo "CHROME_PATH=$path" >> "$GITHUB_ENV"
+            echo "Lighthouse uzyje przypietego Chromium: $path"
+          else
+            echo "UWAGA: nie znaleziono Chromium Playwrighta w $root - Lighthouse uzyje Chrome runnera."
+          fi
+
       - name: Lighthouse smoke on dev server (scores advisory; the run must succeed)
         if: ${{ vars.LHCI_URL == '' }}
         run: bunx @lhci/cli@0.15.x autorun --config=lighthouserc.json

@@ -17,9 +17,7 @@ describe("ClubDossierRow", () => {
         excerpt="Streszczenie wątku"
         metrics={
           <ClubDossierMetrics
-            metrics={[
-              { key: "replies", icon: <span>r</span>, value: 12, label: "12 odpowiedzi" },
-            ]}
+            metrics={[{ key: "replies", icon: <span>r</span>, value: 12, label: "12 odpowiedzi" }]}
           />
         }
         footer={<button type="button">Reaguj</button>}

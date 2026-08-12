@@ -289,7 +289,6 @@ function QuizPage() {
         <ReadingHeader title={QUIZ_TITLE} entityType="page" pinned centerLogo hideLeftLogo />
         <div aria-hidden className="h-10 shrink-0 sm:h-11 lg:h-12" />
 
-
         {/* Główny obszar: iframe quizu + sidebar udostępniania */}
         <div className="flex flex-1">
           {/* Obszar quizu: znacznie wyższy iframe, strona może scrollować */}

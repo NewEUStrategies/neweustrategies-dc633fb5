@@ -155,10 +155,7 @@ export type ClubThreadInsightRow = RowOf<Fn["club_thread_insights"]["Returns"]>;
 
 /** Sekcja jest zawezana od razu przy odczycie - widok mapuje ja na ikone. */
 export type ClubWorkspaceSearchRow = Omit<
-  NullableCols<
-    RowOf<Fn["club_thread_search"]["Returns"]>,
-    "author_label" | "snippet" | "title"
-  >,
+  NullableCols<RowOf<Fn["club_thread_search"]["Returns"]>, "author_label" | "snippet" | "title">,
   "section"
 > & { section: ClubWorkspaceSection };
 
@@ -285,7 +282,10 @@ export function toWorkspaceSummary(row: ClubWorkspaceRow | null): ClubWorkspaceS
 /** Odznaka na zakladce. Zero nie ma odznaki - "0" to szum, nie informacja.
  *  Dyskusja, dane i szukanie nie licza niczego: pierwsza jest zawsze pelna,
  *  dwie pozostale nie maja zbioru do policzenia. */
-export function panelBadge(panel: ClubWorkspacePanel, summary: ClubWorkspaceSummary): number | null {
+export function panelBadge(
+  panel: ClubWorkspacePanel,
+  summary: ClubWorkspaceSummary,
+): number | null {
   const value =
     panel === "participants"
       ? summary.participants
@@ -346,10 +346,7 @@ function timeOf(value: string | null): number | null {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
-export function groupSchedule(
-  rows: readonly ClubThreadMilestoneRow[],
-  now: Date,
-): ScheduleGroup[] {
+export function groupSchedule(rows: readonly ClubThreadMilestoneRow[], now: Date): ScheduleGroup[] {
   const today = toLocalIsoDate(now);
   const stamp = now.getTime();
   const buckets: Record<ScheduleGroupKey, ClubThreadMilestoneRow[]> = {

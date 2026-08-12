@@ -10,7 +10,7 @@
  * plus optional export data. That contract lets the same shell wrap any
  * ECharts option (bar, line, treemap, radar, ...) without knowing the shape.
  */
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import { useCallback, useId, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-analytics";
 import { Card } from "@/components/ui/card";
@@ -21,6 +21,7 @@ import type { ECharts, EChartsCoreOption } from "echarts/core";
 import { EChart } from "./EChart";
 import { exportCsv, exportPng } from "./exportChart";
 import { ChartDrillDialog, type ChartClickParams, type ChartDrillDetail } from "./ChartDrillDialog";
+import { ChartDataTable, hasChartTableData } from "./ChartDataTable";
 
 export interface ChartCardProps {
   title: string;
@@ -68,6 +69,14 @@ export function ChartCard({
   const { t } = useTranslation();
   const [full, setFull] = useState(false);
   const [drill, setDrill] = useState<ChartDrillDetail | null>(null);
+  // useId, nie slug(title): na /admin/analytics stoi kilkanascie kart, a dwie
+  // moga miec ten sam tytul w roznych sekcjach - zduplikowany id rozjechalby
+  // powiazanie aria-describedby.
+  const tableId = `${useId()}-chart-data`;
+  // Jeden predykat dla atrybutu i dla renderu - inaczej przy zerowym zbiorze
+  // (pulpit w trakcie ladowania, raport bez wynikow) `aria-describedby`
+  // wskazywalby element, ktorego nie ma.
+  const showTable = hasChartTableData(csv);
   const instanceRef = useRef<ECharts | null>(null);
 
   const handleReady = useCallback((inst: ECharts) => {
@@ -156,7 +165,16 @@ export function ChartCard({
           </Button>
         </div>
       </div>
-      <div className="flex-1 p-2 min-h-0">
+      {/* Region wykresu jest OPISANY, bo ECharts renderuje do kanwy - dla
+          czytnika ekranu to pusty prostokat. `role="img"` + nazwa z tytulu daje
+          minimum („tu jest wykres X"), a `aria-describedby` prowadzi do tabeli
+          z tymi samymi danymi, jesli karta je dostala. */}
+      <div
+        className="flex-1 p-2 min-h-0"
+        role="img"
+        aria-label={t("adminAnalytics.chartCard.chartRegion", { title })}
+        aria-describedby={showTable ? tableId : undefined}
+      >
         <EChart
           option={option}
           height={full ? "calc(100vh - 120px)" : height}
@@ -165,6 +183,9 @@ export function ChartCard({
           themeVersion={themeVersion}
         />
       </div>
+      {showTable && csv ? (
+        <ChartDataTable id={tableId} title={title} headers={csv.headers} rows={csv.rows} />
+      ) : null}
       {footer ? (
         <div className="px-4 py-2 border-t border-border/60 text-xs text-muted-foreground">
           {footer}
