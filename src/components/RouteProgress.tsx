@@ -3,6 +3,8 @@ import { useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useHasMounted } from "@/hooks/useHasMounted";
 
+import { useHasMounted } from "@/hooks/useHasMounted";
+
 /**
  * Slim top-of-viewport progress bar that visualises route NAVIGATION only
  * (TanStack Router loaders / transitions).
@@ -104,7 +106,14 @@ export function RouteProgress() {
       </div>
       {/* The bar itself is decorative (aria-hidden); announce route navigation
           to screen readers via a polite live region. Only route transitions
-          (not every background query) are announced, to avoid chatter. */}
+          (not every background query) are announced, to avoid chatter.
+
+          Tresc jest bramkowana `mounted`, bo w SSR router ma status "pending"
+          (dokument wlasnie sie sklada), wiec serwer wypisywal tu "Ladowanie…",
+          a klient po hydratacji juz nie - i kazde wejscie na strone konczylo sie
+          bledem hydratacji CALEGO drzewa, bo ten komponent siedzi w layoucie
+          korzenia. Sam region zostaje w DOM od pierwszego renderu; zmienia sie
+          wylacznie jego tresc, wiec czytnik ekranu ma stabilny punkt zaczepienia. */}
       <div role="status" aria-live="polite" className="sr-only">
         {mounted && busy ? t("common.loading", { defaultValue: "Ładowanie…" }) : ""}
       </div>

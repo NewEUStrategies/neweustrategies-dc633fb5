@@ -92,14 +92,10 @@ export const getRelatedInsights = createServerFn({ method: "POST" })
     if (roleErr) throw new Error(roleErr.message);
     if (!isAdmin) throw new Error("Forbidden: admin role required");
 
-    // Tenant z helpera (spójne z całym modułem analytics).
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { resolveUserTenantId } = await import("@/lib/server/userTenant.server");
-    const tenantId = await resolveUserTenantId(supabaseAdmin, context.userId);
-
     try {
+      // Najemca NIE jest parametrem: RPC bierze go z assert_admin_tenant()
+      // (profil wołającego), więc podmiana uuid w żądaniu nic nie daje.
       const { data: rpcData, error } = await context.supabase.rpc("related_posts_signals", {
-        _tenant: tenantId,
         _since_days: data.days,
       });
       if (error) throw new Error(error.message);

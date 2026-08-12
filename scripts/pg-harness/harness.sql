@@ -368,7 +368,16 @@ CREATE TABLE IF NOT EXISTS public.notification_preferences (
   enabled_meeting        boolean NOT NULL DEFAULT true
 );
 
--- Kopia 1:1 z 20260807140000_network_event_notifications.sql.
+-- Kopia 1:1 z 20260807140000_network_event_notifications.sql - i CELOWO nie ze
+-- stanu koncowego migracji. Harness aplikuje wylacznie podzbior klubowy, w tym
+-- A4 (20260808094000), ktora redefiniuje te funkcje u siebie w tym samym,
+-- zdryfowanym ksztalcie; stub musi wiec pasowac do tego, czego oczekuja
+-- migracje TU aplikowane. Naprawa parytetu rodzajow
+-- (20260812091000_notification_meeting_type_parity) NIE wchodzi do harnessu,
+-- bo redefiniuje `book_meeting_slot`/`cancel_my_meeting_booking` i wymaga
+-- `meeting_slots`/`meeting_bookings` - tabel spoza powierzchni styku modulu.
+-- Rodzaj `meeting_booking` sprawdza pgTAP (notification_preferences_gating_test),
+-- nie ten harness.
 CREATE OR REPLACE FUNCTION public.enqueue_notification(
   p_user_id uuid, p_kind text, p_title_pl text, p_title_en text,
   p_body_pl text DEFAULT NULL::text, p_body_en text DEFAULT NULL::text,

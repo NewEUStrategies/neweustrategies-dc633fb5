@@ -6,6 +6,7 @@ import { SEO_FIELDS_SELECT } from "@/lib/seo/fields";
 import type { PageTreeRow } from "@/lib/seo/pageTree";
 import { fetchPageBreadcrumbs, type BreadcrumbRow } from "@/lib/breadcrumbs";
 import { EMPTY_BODY, type BodyParts } from "@/lib/access/gating";
+import { GUEST_ACCESS_CONTEXT, stripInaccessibleNodes } from "@/lib/builder/accessControl";
 import type { ContentAccessRule } from "@/hooks/useContentAccess";
 import type { LayoutOverrides, PostFormat } from "@/lib/postLayouts";
 import { edgeTtlCache } from "@/lib/ssrCache";
@@ -64,6 +65,29 @@ async function fetchAccessRule(
 }
 
 /**
+ * Enforces builder `advanced.access` gates (widget/column/section visibility)
+ * on the SERVER, before the document leaves for the client.
+ *
+ * The renderer evaluates the same rules, but doing it only there left the gated
+ * markup in the page source of every guest - the rule decided what was painted,
+ * not what was shipped.
+ *
+ * The projection is ALWAYS the guest one, and that is not a simplification: the
+ * public Supabase client keeps its session in localStorage, so a server render
+ * has no identity to strip against (this is the same invariant that makes
+ * `get_entity_content` return a null body to anonymous SSR). It is also the only
+ * safe projection - the result lands in `edgeTtlCache` and in a shared CDN entry
+ * (see `contentCacheControl` on the public routes), both keyed without identity,
+ * so an identity-dependent strip would serve one visitor's nodes to the next.
+ * In the browser the same fetcher runs with the visitor's real session, so the
+ * body is left intact and the renderer gates it against the real context.
+ */
+function stripBuilderAccessForAnonymousRender(builderData: unknown): unknown {
+  if (typeof window !== "undefined") return builderData;
+  return stripInaccessibleNodes(builderData, GUEST_ACCESS_CONTEXT);
+}
+
+/**
  * Fetches the gated body (content_pl/en, builder_data, blocks_data) of a
  * post/page through the SECURITY DEFINER `get_entity_content` RPC. The server
  * returns the body only when the current caller satisfies `has_content_access`;
@@ -85,7 +109,7 @@ export async function fetchGatedBody(
   return {
     content_pl: row.content_pl,
     content_en: row.content_en,
-    builder_data: row.builder_data,
+    builder_data: stripBuilderAccessForAnonymousRender(row.builder_data),
     blocks_data: row.blocks_data,
   };
 }

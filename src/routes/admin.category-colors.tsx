@@ -1,7 +1,9 @@
 // Admin: kolorystyka pigułek (badge) głównych obszarów tematycznych.
 // - Renderuje 12 rekomendowanych obszarów + wszystkie inne kategorie tenanta.
 // - Edycja koloru HEX (color input + tekst), podgląd live, i18n PL/EN.
-// - Zapis przez server fn `upsertCategory` (RLS + tenant izolacja).
+// - Zapis przez server fn `updateCategoryColor` (RLS + tenant izolacja): wąska
+//   ścieżka pisząca WYŁĄCZNIE kolumnę `color`, bo ten ekran nie wczytuje opisów
+//   ani logo kategorii.
 // - Brakujące obszary można dodać jednym klikiem (batch insert).
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
@@ -11,7 +13,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useRequiredTenant } from "@/hooks/useAuth";
-import { upsertCategory } from "@/lib/content.functions";
+import { updateCategoryColor } from "@/lib/content.functions";
 import { Button } from "@/components/ui/button";
 import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import { CORE_CATEGORY_AREAS, type CoreCategoryArea } from "@/lib/categoryAreas";
@@ -35,7 +37,7 @@ function CategoryColorsPage() {
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const tenantId = useRequiredTenant();
   const qc = useQueryClient();
-  const upsert$ = useServerFn(upsertCategory);
+  const saveColor$ = useServerFn(updateCategoryColor);
   const [draft, setDraft] = useState<Draft>({});
   const [busy, setBusy] = useState(false);
 
@@ -87,19 +89,7 @@ function CategoryColorsPage() {
     setBusy(true);
     try {
       for (const r of changed) {
-        await upsert$({
-          data: {
-            id: r.id,
-            fields: {
-              name_pl: r.name_pl,
-              name_en: r.name_en,
-              slug: r.slug,
-              description_pl: null,
-              description_en: null,
-              color: draft[r.slug],
-            },
-          },
-        });
+        await saveColor$({ data: { id: r.id, color: draft[r.slug] } });
       }
       toast.success(t("admin.categoryColors.saved"));
       setDraft({});

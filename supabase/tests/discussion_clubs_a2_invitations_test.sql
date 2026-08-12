@@ -8,7 +8,13 @@
 -- ZAWSZE wpisuje 'user', niezaleznie od zadanej roli klubowej.
 -- ============================================================================
 BEGIN;
-SELECT plan(20);
+SELECT plan(21);
+
+-- `handle_new_user` zalozylby profil w tenancie DOMYSLNYM, a
+-- `profiles_pin_tenant_id` nie pozwala go potem przeniesc (tenant konta jest
+-- niezmienny poza sciezka service_role). Profil musi wiec powstac od razu
+-- w docelowym tenancie - z wylaczonym triggerem signupu i wprost.
+ALTER TABLE auth.users DISABLE TRIGGER USER;
 
 INSERT INTO public.tenants (id, name, slug)
 VALUES ('11111111-1111-1111-1111-111111111111', 'Tenant A', 'tenant-a-inv-test'),
@@ -26,12 +32,12 @@ INSERT INTO public.profiles (id, tenant_id, display_name, discoverable)
 VALUES ('aaaaaaaa-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'Admin A', true),
        ('aaaaaaaa-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111', 'Member A', true),
        ('aaaaaaaa-0000-0000-0000-000000000005', '11111111-1111-1111-1111-111111111111', 'Lead A', true),
-       ('bbbbbbbb-0000-0000-0000-000000000001', '22222222-2222-2222-2222-222222222222', 'User B', true)
-ON CONFLICT (id) DO UPDATE SET tenant_id = EXCLUDED.tenant_id;
+       ('bbbbbbbb-0000-0000-0000-000000000001', '22222222-2222-2222-2222-222222222222', 'User B', true);
 
-INSERT INTO public.user_roles (user_id, role)
-VALUES ('aaaaaaaa-0000-0000-0000-000000000001', 'admin')
-ON CONFLICT DO NOTHING;
+-- Rola jest wazna W TENANCIE (has_role porownuje tenant_id z tenantem
+-- wolajacego), wiec fixture musi podac tenanta wprost.
+INSERT INTO public.user_roles (user_id, role, tenant_id)
+VALUES ('aaaaaaaa-0000-0000-0000-000000000001', 'admin', '11111111-1111-1111-1111-111111111111');
 
 -- ----------------------------------------------------------------------------
 -- Struktura
@@ -49,7 +55,11 @@ SELECT is_empty(
   'tabele zaproszen nie maja grantow dla klienta'
 );
 
-SET LOCAL role = authenticated;
+-- Podzial rol wynika z asercji o grantach powyzej: RPC wolamy rola
+-- `authenticated` (to sprawdza takze grant EXECUTE), a stan tabel czytamy rola
+-- wlasciciela, bo klient nie ma do nich grantu. Identyfikatory klubow ida do
+-- RPC przez GUC - podzapytanie po id siegneloby do tabeli rola klienta.
+SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims = '{"sub":"aaaaaaaa-0000-0000-0000-000000000001"}';
 
 SELECT public.admin_club_upsert(
@@ -59,27 +69,36 @@ SELECT public.admin_club_upsert(
   '{"slug":"klub-otwarty","name_pl":"Klub otwarty","name_en":"Open club",
     "visibility":"members","join_policy":"open","status":"active"}'::jsonb);
 
+RESET ROLE;
+SELECT set_config('test.club_invite',
+  (SELECT id::text FROM public.clubs WHERE slug='klub-zapro'), true);
+SELECT set_config('test.club_open',
+  (SELECT id::text FROM public.clubs WHERE slug='klub-otwarty'), true);
+SET LOCAL ROLE authenticated;
+
 -- ----------------------------------------------------------------------------
 -- Sciezka A: zaproszenie bezposrednie
 -- ----------------------------------------------------------------------------
 SELECT lives_ok(
   format($$ SELECT public.club_invite('%s','%s','member',NULL,NULL) $$,
-    (SELECT id FROM public.clubs WHERE slug='klub-zapro'),
+    current_setting('test.club_invite'),
     'aaaaaaaa-0000-0000-0000-000000000003'),
   'admin zaprasza czlonka z tego samego tenanta'
 );
 
+RESET ROLE;
 SELECT is(
   (SELECT count(*)::int FROM public.club_invitations i
      JOIN public.clubs c ON c.id = i.club_id
     WHERE c.slug='klub-zapro' AND i.status='pending'),
   1, 'zaproszenie zapisane jako pending'
 );
+SET LOCAL ROLE authenticated;
 
 -- Osoba z obcego tenanta.
 SELECT throws_ok(
   format($$ SELECT public.club_invite('%s','%s','member',NULL,NULL) $$,
-    (SELECT id FROM public.clubs WHERE slug='klub-zapro'),
+    current_setting('test.club_invite'),
     'bbbbbbbb-0000-0000-0000-000000000001'),
   '42501', NULL, 'nie da sie zaprosic osoby z obcego tenanta'
 );
@@ -89,9 +108,11 @@ SELECT throws_ok(
 -- ----------------------------------------------------------------------------
 SELECT lives_ok(
   format($$ SELECT public.club_invite_by_email('%s','ktos@zewnatrz.eu','moderator',NULL) $$,
-    (SELECT id FROM public.clubs WHERE slug='klub-zapro')),
+    current_setting('test.club_invite')),
   'admin wysyla zaproszenie e-mailowe z rola klubowa moderator'
 );
+
+RESET ROLE;
 
 -- TO JEST NAJWAZNIEJSZA ASERCJA CALEGO MODULU.
 SELECT is(
@@ -111,13 +132,15 @@ SELECT is(
 SELECT is(
   (SELECT (metadata->>'club_id')::uuid FROM public.user_invitations
     WHERE email='ktos@zewnatrz.eu' AND source='club'),
-  (SELECT id FROM public.clubs WHERE slug='klub-zapro'),
+  current_setting('test.club_invite')::uuid,
   'metadata niesie club_id, wiec trigger wie, gdzie zapisac czlonkostwo'
 );
 
+SET LOCAL ROLE authenticated;
+
 SELECT throws_ok(
   format($$ SELECT public.club_invite_by_email('%s','zly-adres','member',NULL) $$,
-    (SELECT id FROM public.clubs WHERE slug='klub-zapro')),
+    current_setting('test.club_invite')),
   '22023', NULL, 'niepoprawny adres e-mail jest odrzucany w bazie'
 );
 
@@ -125,7 +148,7 @@ SELECT throws_ok(
 -- parametru) - prowadzacego nadaje sie imiennie.
 SELECT throws_ok(
   format($$ SELECT public.club_invite_by_email('%s','ktos2@zewnatrz.eu','lead',NULL) $$,
-    (SELECT id FROM public.clubs WHERE slug='klub-zapro')),
+    current_setting('test.club_invite')),
   '22023', NULL, 'rola lead nie przechodzi sciezka e-mailowa'
 );
 
@@ -134,9 +157,11 @@ SELECT throws_ok(
 -- ----------------------------------------------------------------------------
 SELECT lives_ok(
   format($$ SELECT public.admin_club_invite_link_create('%s','Konferencja','member',2,NULL,false,NULL) $$,
-    (SELECT id FROM public.clubs WHERE slug='klub-otwarty')),
+    current_setting('test.club_open')),
   'admin tworzy link zapraszajacy'
 );
+
+RESET ROLE;
 
 SELECT ok(
   (SELECT length(token) >= 40 FROM public.club_invite_links LIMIT 1),
@@ -148,6 +173,8 @@ SELECT isnt(
   NULL, 'token zostal wygenerowany'
 );
 
+SET LOCAL ROLE authenticated;
+
 -- ----------------------------------------------------------------------------
 -- Samoobsluga: polityka wstepu
 -- ----------------------------------------------------------------------------
@@ -156,29 +183,33 @@ SET LOCAL request.jwt.claims = '{"sub":"aaaaaaaa-0000-0000-0000-000000000005"}';
 -- Klub 'invite' nie przyjmuje zgloszen samodzielnych.
 SELECT throws_ok(
   format($$ SELECT public.club_join('%s') $$,
-    (SELECT id FROM public.clubs WHERE slug='klub-zapro')),
+    current_setting('test.club_invite')),
   '42501', NULL, 'klub na zaproszenie odrzuca samodzielne dolaczenie'
 );
 
 -- Klub 'open' wpuszcza od razu jako active.
 SELECT is(
-  (SELECT public.club_join((SELECT id FROM public.clubs WHERE slug='klub-otwarty'))),
+  public.club_join(current_setting('test.club_open')::uuid),
   'active', 'klub otwarty wpuszcza od razu jako active'
 );
 
+RESET ROLE;
 SELECT is(
   (SELECT member_count FROM public.clubs WHERE slug='klub-otwarty'),
   1, 'trigger policzyl nowego czlonka'
 );
+SET LOCAL ROLE authenticated;
 
 -- Wyjscie ustawia 'left', nie kasuje wiersza - historia zostaje.
 SELECT ok(
-  (SELECT public.club_leave((SELECT id FROM public.clubs WHERE slug='klub-otwarty'))),
+  public.club_leave(current_setting('test.club_open')::uuid),
   'czlonek wychodzi z klubu'
 );
 
+RESET ROLE;
+
 SELECT is(
-  (SELECT status FROM public.club_members m
+  (SELECT m.status FROM public.club_members m
      JOIN public.clubs c ON c.id = m.club_id
     WHERE c.slug='klub-otwarty' AND m.user_id='aaaaaaaa-0000-0000-0000-000000000005'),
   'left', 'wyjscie ustawia status left, nie kasuje czlonkostwa'

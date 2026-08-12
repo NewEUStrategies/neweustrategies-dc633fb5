@@ -133,7 +133,10 @@
     "club.filters.status",
     "club.hub.sections.threads",
     "club.insights.hours",
+    "club.planTier.corporate",
+    "club.planTier.partner",
     "club.planTier.plus",
+    "club.planTier.presidents_circle",
     "club.post.link",
     "club.spec.apply.industryOptions.media",
     "club.spec.items.transport.title",
@@ -143,6 +146,6 @@
   "repoWide": {
     "missingEn": 0,
     "missingPl": 0,
-    "untranslated": 415
+    "untranslated": 418
   }
 }

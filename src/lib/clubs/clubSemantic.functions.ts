@@ -21,11 +21,19 @@
 // nie ma w nim niczyich danych, więc oddanie go klientowi nie ujawnia nic ponad
 // to, co użytkownik sam napisał.
 //
+// KTO MOŻE WOŁAĆ. Tylko zalogowany i tylko w limicie: każde wywołanie bez
+// trafienia w cache to płatne zapytanie do bramki AI, więc anonimowy dostęp
+// oznaczał, że dowolny gość drenuje kwotę embeddingów. Wyszukiwarka klubów jest
+// zresztą włączana dla zalogowanego (`club.index`), a gość na publicznym klubie
+// dostaje `embedding: null` i wynik z samego FTS.
+//
 // Degradacja: `embedding: null` = brak bramki, brak klucza albo błąd. Wołający
 // pomija semantykę i wyszukiwarka działa na samym FTS - dokładnie jak przed tą
 // zmianą.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 /** Krótsze frazy nie mają sensu semantycznego (i tak wygra pełnotekstowy). */
 export const CLUB_SEMANTIC_MIN_CHARS = 4;
@@ -44,12 +52,34 @@ export interface ClubQueryEmbedding {
 const queryCache = new Map<string, number[]>();
 const QUERY_CACHE_MAX = 300;
 
+/** Wyszukiwarka woła to z debouncem 250 ms, a wektor frazy żyje w cache godzinę -
+ *  minuta pisania mieści się w progu, seria automatu już nie. */
+const EMBEDDINGS_PER_MINUTE = 30;
+
 export const embedClubQuery = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
   .validator((data: z.input<typeof InputSchema>) => InputSchema.parse(data))
-  .handler(async ({ data }): Promise<ClubQueryEmbedding> => {
+  .handler(async ({ data, context }): Promise<ClubQueryEmbedding> => {
     const norm = data.q.trim().toLowerCase();
     const cached = queryCache.get(norm);
     if (cached) return { embedding: cached };
+
+    // Limit dopiero za cache'em: trafienie w cache nic nie kosztuje, a licznik
+    // to round-trip do bazy. FAIL-CLOSED, bo za tym progiem jest PŁATNA bramka
+    // AI - awaria licznika ma odmawiać, nie otwierać budżet.
+    const { rateLimit } = await import("@/lib/server/rate-limit.server");
+    const allowed = await rateLimit({
+      // Myślnik nie jest ozdobą: bramka clubI18nKeys traktuje każdy literał
+      // `club.<segment>` w tym katalogu jako referencję do klucza słownika
+      // (KEY_SHAPE w lib/ci/i18nKeyUsage.ts nie dopuszcza myślników), więc
+      // `club.semantic` wyglądałby dla niej jak brakujące tłumaczenie. Ta sama
+      // konwencja co w bliźniaczym zakresie `club.link-preview`.
+      scope: "club.semantic-query",
+      subjectId: context.userId,
+      max: EMBEDDINGS_PER_MINUTE,
+      failClosed: true,
+    });
+    if (!allowed) return { embedding: null };
 
     const { embedTexts } = await import("@/lib/server/embeddings.server");
     let vectors: number[][] | null;

@@ -661,8 +661,14 @@ const RenderInner = memo(function RenderInner({
   lang: "pl" | "en";
   device: Device;
 }) {
+  const accessCtx = useAccessContext();
+  // Ten poziom był jedynym, który pomijał advanced.access - sekcje (318),
+  // kolumny najwyższego poziomu (494) i widgety (733) bramkują od dawna, więc
+  // reguła na kolumnie WEWNĄTRZ sekcji zagnieżdżonej nie działała po nawigacji
+  // SPA. Serwerowy strip w lib/queries/public.ts zdejmuje ten węzeł już przy
+  // SSR; to domyka tę samą regułę na ścieżce klienckiej.
   const columns = (Array.isArray(inner.columns) ? inner.columns : []).filter(
-    (c): c is ColumnNode => !!c,
+    (c): c is ColumnNode => !!c && evaluateAccess(c.advanced?.access, accessCtx),
   );
   const colsSum = columns.reduce((a, c) => a + resolveSpan(c.span, device, 6), 0) || 12;
   return (

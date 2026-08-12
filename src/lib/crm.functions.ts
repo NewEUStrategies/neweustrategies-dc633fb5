@@ -5,6 +5,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireCrmStaff } from "@/integrations/supabase/require-staff";
 import { withCommandIdempotency, type RpcClient } from "@/lib/http/idempotency";
 import { DEFAULT_SCORING_WEIGHTS } from "@/lib/crm/scoring";
+import {
+  CONSENT_LOG_TIMELINE_SELECT,
+  consentExcerpt,
+  type ConsentLogTimelineRow,
+} from "@/lib/crm/consentLog";
 import { z } from "zod";
 
 const STAGE_ENUM = z.enum(["new", "contacted", "qualified", "proposal", "won", "lost", "archived"]);
@@ -771,19 +776,9 @@ async function buildLeadTimeline(
         .order("created_at", { ascending: false })
         .limit(50) as unknown as Promise<{ data: unknown }>,
     ),
-    fetchAll<
-      Array<{
-        id: string;
-        consent_key: string;
-        granted: boolean;
-        version: string | null;
-        form_name: string | null;
-        text_excerpt: string | null;
-        created_at: string;
-      }>
-    >(
+    fetchAll<ConsentLogTimelineRow[]>(
       tbl(context, "crm_consent_log")
-        .select("id, consent_key, granted, version, form_name, text_excerpt, created_at")
+        .select(CONSENT_LOG_TIMELINE_SELECT)
         .ilike("email", L.email)
         .eq("tenant_id", L.tenant_id)
         .order("created_at", { ascending: false })
@@ -847,9 +842,9 @@ async function buildLeadTimeline(
       id: `cns:${c.id}`,
       type: "consent",
       at: c.created_at,
-      title: `${c.consent_key}: ${c.granted ? "granted" : "revoked"}`,
-      detail: c.text_excerpt ?? null,
-      meta: { form: c.form_name, version: c.version, granted: c.granted },
+      title: `${c.consent_key}: ${c.given ? "granted" : "revoked"}`,
+      detail: consentExcerpt(c.consent_text),
+      meta: { form: c.form_name, version: c.consent_version, given: c.given },
     });
   for (const n of notes)
     ev.push({

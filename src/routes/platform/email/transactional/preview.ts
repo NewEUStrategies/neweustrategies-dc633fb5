@@ -15,10 +15,12 @@ export const Route = createFileRoute("/platform/email/transactional/preview")({
           return Response.json({ error: "Server configuration error" }, { status: 500 });
         }
 
-        // Verify the caller is authorized with LOVABLE_API_KEY
+        // Verify the caller is authorized with LOVABLE_API_KEY.
+        // Porównanie w stałym czasie - ten sam standard co /api/public/jobs-tick.
+        const { secretsEqual } = await import("@/lib/server/jobsTick.server");
         const authHeader = request.headers.get("Authorization");
-        const token = authHeader?.replace(/^Bearer\s+/i, "");
-        if (token !== apiKey) {
+        const token = authHeader?.replace(/^Bearer\s+/i, "") ?? "";
+        if (!(await secretsEqual(token, apiKey))) {
           return Response.json({ error: "Unauthorized" }, { status: 401 });
         }
 

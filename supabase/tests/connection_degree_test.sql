@@ -65,26 +65,43 @@ INSERT INTO public.profiles (id, email, display_name, tenant_id, discoverable) V
 -- Lancuch: A-B (1°), B-C (C = 2°), C-D (D = 3°), D-E (E = 4° -> poza zasiegiem).
 -- Osobno: A-H (most ukryty), H-I (I = 2° z mostem, ktorego nie nazwiemy).
 -- Filip zostaje bez zadnej krawedzi - kontrola „brak drogi".
+-- Guard `tg_user_connections_guard` dopuszcza wylacznie INSERT w stanie
+-- 'pending' i przejscie pending->accepted, wiec fikstura idzie ta sama droga,
+-- co aplikacja. `responded_at` zostaje jawne: kolejnosc mostow sortuje sie po
+-- „od kiedy sie znamy" (`sp.via_since`), wiec now() zrobiloby remis.
 INSERT INTO public.user_connections
-  (tenant_id, requester_id, addressee_id, status, responded_at) VALUES
+  (tenant_id, requester_id, addressee_id) VALUES
   ('cd111111-1111-1111-1111-111111111111',
-   'cd000000-0000-0000-0000-0000000000aa', 'cd000000-0000-0000-0000-0000000000bb',
-   'accepted', '2026-01-01T10:00:00Z'),
+   'cd000000-0000-0000-0000-0000000000aa', 'cd000000-0000-0000-0000-0000000000bb'),
   ('cd111111-1111-1111-1111-111111111111',
-   'cd000000-0000-0000-0000-0000000000bb', 'cd000000-0000-0000-0000-0000000000cc',
-   'accepted', '2026-01-02T10:00:00Z'),
+   'cd000000-0000-0000-0000-0000000000bb', 'cd000000-0000-0000-0000-0000000000cc'),
   ('cd111111-1111-1111-1111-111111111111',
-   'cd000000-0000-0000-0000-0000000000cc', 'cd000000-0000-0000-0000-0000000000dd',
-   'accepted', '2026-01-03T10:00:00Z'),
+   'cd000000-0000-0000-0000-0000000000cc', 'cd000000-0000-0000-0000-0000000000dd'),
   ('cd111111-1111-1111-1111-111111111111',
-   'cd000000-0000-0000-0000-0000000000dd', 'cd000000-0000-0000-0000-0000000000ee',
-   'accepted', '2026-01-04T10:00:00Z'),
+   'cd000000-0000-0000-0000-0000000000dd', 'cd000000-0000-0000-0000-0000000000ee'),
   ('cd111111-1111-1111-1111-111111111111',
-   'cd000000-0000-0000-0000-0000000000aa', 'cd000000-0000-0000-0000-000000000099',
-   'accepted', '2026-01-05T10:00:00Z'),
+   'cd000000-0000-0000-0000-0000000000aa', 'cd000000-0000-0000-0000-000000000099'),
   ('cd111111-1111-1111-1111-111111111111',
-   'cd000000-0000-0000-0000-000000000099', 'cd000000-0000-0000-0000-000000000088',
-   'accepted', '2026-01-06T10:00:00Z');
+   'cd000000-0000-0000-0000-000000000099', 'cd000000-0000-0000-0000-000000000088');
+
+UPDATE public.user_connections c
+   SET status = 'accepted', responded_at = v.responded_at
+  FROM (VALUES
+    ('cd000000-0000-0000-0000-0000000000aa'::uuid,
+     'cd000000-0000-0000-0000-0000000000bb'::uuid, '2026-01-01T10:00:00Z'::timestamptz),
+    ('cd000000-0000-0000-0000-0000000000bb'::uuid,
+     'cd000000-0000-0000-0000-0000000000cc'::uuid, '2026-01-02T10:00:00Z'::timestamptz),
+    ('cd000000-0000-0000-0000-0000000000cc'::uuid,
+     'cd000000-0000-0000-0000-0000000000dd'::uuid, '2026-01-03T10:00:00Z'::timestamptz),
+    ('cd000000-0000-0000-0000-0000000000dd'::uuid,
+     'cd000000-0000-0000-0000-0000000000ee'::uuid, '2026-01-04T10:00:00Z'::timestamptz),
+    ('cd000000-0000-0000-0000-0000000000aa'::uuid,
+     'cd000000-0000-0000-0000-000000000099'::uuid, '2026-01-05T10:00:00Z'::timestamptz),
+    ('cd000000-0000-0000-0000-000000000099'::uuid,
+     'cd000000-0000-0000-0000-000000000088'::uuid, '2026-01-06T10:00:00Z'::timestamptz)
+  ) AS v(requester_id, addressee_id, responded_at)
+ WHERE c.requester_id = v.requester_id
+   AND c.addressee_id = v.addressee_id;
 
 SELECT set_config('request.jwt.claims',
   '{"sub":"cd000000-0000-0000-0000-0000000000aa","role":"authenticated"}', true);

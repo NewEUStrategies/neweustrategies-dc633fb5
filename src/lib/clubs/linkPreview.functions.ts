@@ -8,8 +8,17 @@
 //
 // SSRF. To jest funkcja, która na życzenie użytkownika wchodzi pod DOWOLNY
 // adres, czyli klasyczna dziura na sieć wewnętrzną. Dlatego:
-//   * tylko http/https,
-//   * odrzucamy hosty lokalne i adresy z zakresów prywatnych,
+//   * woła ją wyłącznie ZALOGOWANY (bez tego serwer jest otwartym proxy
+//     wyjścia na sieć dla każdego anonima) i tylko w limicie żądań,
+//   * adres przechodzi przez wspólną bramkę egress `assertPublicHttpUrl`,
+//     która ROZWIĄZUJE nazwę i odrzuca każdą odpowiedź DNS w zakresie
+//     prywatnym/loopback/link-local/metadata. Lista zakazanych nazw, którą ta
+//     funkcja miała wcześniej, była do obejścia jedną domeną wskazującą na
+//     127.0.0.1,
+//   * bramka wymusza https, więc podgląd nie powstanie dla `http://`. To jest
+//     cena świadoma: ta funkcja ODDAJE fragmenty obcej odpowiedzi czytelnikowi,
+//     a przy przewiązaniu DNS po kontroli (rebinding) TLS jest jedyną warstwą,
+//     która nie wpuści nas do usługi wewnętrznej. Sam link w treści działa dalej,
 //   * przekierowania są WYŁĄCZONE (`redirect: "manual"`) - inaczej publiczny
 //     adres mógłby przekierować na 169.254.169.254,
 //   * odpowiedź jest cięta do 256 kB i ma twardy limit czasu.
@@ -18,6 +27,8 @@
 // nie ma prawa zablokować opublikowania wpisu.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const InputSchema = z.object({
   url: z.string().trim().url().max(2048),
@@ -33,26 +44,20 @@ export interface ClubLinkPreview {
 
 const MAX_BYTES = 256 * 1024;
 const TIMEOUT_MS = 6000;
+/** Podgląd jest leniwy (dopiero po najechaniu) i trzymany 10 minut na adres po
+ *  stronie klienta, więc czytanie wątku nie zbliża się do tego progu. */
+const PREVIEWS_PER_MINUTE = 30;
 
-const BLOCKED_HOSTS = new Set([
-  "localhost",
-  "127.0.0.1",
-  "0.0.0.0",
-  "::1",
-  "metadata.google.internal",
-]);
-
-function isBlockedHost(hostname: string): boolean {
-  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
-  if (BLOCKED_HOSTS.has(host)) return true;
-  if (host.endsWith(".local") || host.endsWith(".internal")) return true;
-  if (/^10\./.test(host)) return true;
-  if (/^192\.168\./.test(host)) return true;
-  if (/^169\.254\./.test(host)) return true;
-  if (/^127\./.test(host)) return true;
-  if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return true;
-  if (host.startsWith("fc") || host.startsWith("fd") || host.startsWith("fe80")) return true;
-  return false;
+/** Cel podglądu albo `null`, gdy adres nie przechodzi bramki egress. */
+export async function resolveClubPreviewTarget(raw: string): Promise<URL | null> {
+  // Dynamiczny import: bramka stoi na `node:dns`, a ten moduł jest w grafie
+  // klienta (useClubLinkPreview).
+  const { assertPublicHttpUrl } = await import("@/lib/http/egressGuard.server");
+  try {
+    return await assertPublicHttpUrl(raw);
+  } catch {
+    return null;
+  }
 }
 
 function decodeEntities(value: string): string {
@@ -105,16 +110,22 @@ function absolute(candidate: string | null, base: URL): string | null {
 }
 
 export const fetchClubLinkPreview = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => InputSchema.parse(data))
-  .handler(async ({ data }): Promise<ClubLinkPreview | null> => {
-    let target: URL;
-    try {
-      target = new URL(data.url);
-    } catch {
-      return null;
-    }
-    if (target.protocol !== "http:" && target.protocol !== "https:") return null;
-    if (isBlockedHost(target.hostname)) return null;
+  .handler(async ({ data, context }): Promise<ClubLinkPreview | null> => {
+    const { rateLimit } = await import("@/lib/server/rate-limit.server");
+    // FAIL-CLOSED, bo to bramka WYJŚCIA NA SIEĆ: awaria licznika nie może
+    // otwierać serwera jako proxy - patrz rate-limit.server.ts.
+    const allowed = await rateLimit({
+      scope: "club.link-preview",
+      subjectId: context.userId,
+      max: PREVIEWS_PER_MINUTE,
+      failClosed: true,
+    });
+    if (!allowed) return null;
+
+    const target = await resolveClubPreviewTarget(data.url);
+    if (target === null) return null;
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);

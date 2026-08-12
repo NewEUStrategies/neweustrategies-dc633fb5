@@ -8457,7 +8457,6 @@ export type Database = {
           enabled_expert_request: boolean
           enabled_follow: boolean
           enabled_introduction: boolean
-          enabled_meeting: boolean
           enabled_meeting_booking: boolean
           enabled_message: boolean
           enabled_profile_view: boolean
@@ -8493,7 +8492,6 @@ export type Database = {
           enabled_expert_request?: boolean
           enabled_follow?: boolean
           enabled_introduction?: boolean
-          enabled_meeting?: boolean
           enabled_meeting_booking?: boolean
           enabled_message?: boolean
           enabled_profile_view?: boolean
@@ -8529,7 +8527,6 @@ export type Database = {
           enabled_expert_request?: boolean
           enabled_follow?: boolean
           enabled_introduction?: boolean
-          enabled_meeting?: boolean
           enabled_meeting_booking?: boolean
           enabled_message?: boolean
           enabled_profile_view?: boolean
@@ -19183,7 +19180,7 @@ export type Database = {
         }[]
       }
       related_posts_signals: {
-        Args: { _since_days?: number; _tenant: string }
+        Args: { _since_days?: number }
         Returns: Json
       }
       release_b2b_coupon: {

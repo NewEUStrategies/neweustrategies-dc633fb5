@@ -32,6 +32,8 @@ import {
 
 import { getCrmLead, updateCrmLead, getCrmLeadTimeline } from "@/lib/crm.functions";
 import { useLeadNoteMutations, usePartnerPush } from "@/lib/crm/leadMutations";
+import type { ConsentLogRow } from "@/lib/crm/consentLog";
+import { parseLeadTimelinePayload } from "@/lib/crm/leadTimeline";
 import { LeadScoreBadge } from "@/components/admin/crm/LeadScoreBadge";
 import { ScoreBreakdownCard } from "@/components/admin/crm/ScoreBreakdownCard";
 import { LeadTasksPanel } from "@/components/admin/crm/LeadTasksPanel";
@@ -101,15 +103,7 @@ type SubRow = {
   confirmed_at: string | null;
   created_at: string;
 };
-type ConsentRow = {
-  id: string;
-  form_id: string | null;
-  form_name: string | null;
-  consent_key: string;
-  granted: boolean;
-  version: string | null;
-  created_at: string;
-};
+type ConsentRow = ConsentLogRow;
 type LeadDetail = {
   lead: Lead;
   messages: MsgRow[];
@@ -169,14 +163,8 @@ function AdminCrmDetailPage() {
   const timelineQ = useQuery({
     queryKey: ["crm-lead-timeline", id],
     queryFn: async () => {
-      const r = await getCrmLeadTimeline({ data: { id, limit: 200 } });
-      return JSON.parse((r as { json: string }).json) as Array<{
-        kind: string;
-        at: string;
-        title?: string;
-        body?: string;
-        meta?: Record<string, unknown>;
-      }>;
+      const r = await getCrmLeadTimeline({ data: { id } });
+      return parseLeadTimelinePayload((r as { json: string }).json);
     },
   });
 
@@ -208,7 +196,7 @@ function AdminCrmDetailPage() {
   const [tab, setTab] = useState<"overview" | "activity" | "analytics">("overview");
 
   const lead = detail.data?.lead;
-  const activity = timelineQ.data ?? [];
+  const activity = timelineQ.data?.events ?? [];
 
   const displayName = useMemo(() => {
     if (!lead) return "";
@@ -631,19 +619,19 @@ function AdminCrmDetailPage() {
                 </div>
               ) : (
                 <ol className="space-y-2">
-                  {activity.map((e, i) => (
-                    <li key={i} className="flex gap-2 rounded border p-2">
+                  {activity.map((e) => (
+                    <li key={e.id} className="flex gap-2 rounded border p-2">
                       <span className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-primary/60" />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-[12px] font-medium">{e.title ?? e.kind}</span>
+                          <span className="text-[12px] font-medium">{e.title || e.type}</span>
                           <span className="text-[10px] text-muted-foreground">
                             {new Date(e.at).toLocaleString()}
                           </span>
                         </div>
-                        {e.body && (
+                        {e.detail && (
                           <p className="mt-0.5 whitespace-pre-wrap text-[11px] text-muted-foreground">
-                            {e.body}
+                            {e.detail}
                           </p>
                         )}
                       </div>

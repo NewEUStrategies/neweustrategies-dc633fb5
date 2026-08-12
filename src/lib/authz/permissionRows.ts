@@ -77,7 +77,7 @@ export const ROLE_PERMISSION_ROWS: readonly RolePermissionRow[] = [
   { id: "comments_moderate", group: "content", gateRef: "fn:comments_guard_update/0" },
   { id: "comments_owner_edit", group: "content", gateRef: "fn:tg_comments_owner_edit/0" },
   { id: "legal_publish", group: "content", gateRef: "fn:publish_legal_version/1" },
-  { id: "related_signals", group: "content", gateRef: "fn:related_posts_signals/2" },
+  { id: "related_signals", group: "content", gateRef: "fn:related_posts_signals/1" },
 
   // --- Wydarzenia i społeczność -------------------------------------------
   { id: "event_access", group: "community", gateRef: "fn:get_event_access/1" },
