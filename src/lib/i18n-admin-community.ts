@@ -13,7 +13,7 @@
 //
 // PRZY OKAZJI, w każdej konwertowanej sekcji:
 //   * znaczniki BCP-47 do formatowania dat (`isPl ? "pl-PL" : "en-GB"`) idą
-//     przez kanoniczny `lib/i18n/dateLocale`, nie przez kopię w komponencie -
+//     przez kanoniczny `lib/i18n/format` (`uiLocale`), nie przez kopię w komponencie -
 //     to jedyne miejsce, gdzie język interfejsu zamienia się w region formatu;
 //   * treść z bliźniaczych kolumn (`title_pl`/`title_en`) idzie przez
 //     kanoniczny `pickLocalized`, więc puste tłumaczenie nie renderuje pustki;

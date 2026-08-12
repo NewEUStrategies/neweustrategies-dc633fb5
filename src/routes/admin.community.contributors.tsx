@@ -5,7 +5,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ensureI18n as ensureAdminCommunityI18n } from "@/lib/i18n-admin-community";
-import { dateLocaleFromLanguage } from "@/lib/i18n/dateLocale";
+import { uiLocale } from "@/lib/i18n/format";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { UserPlus, Check, X, Clock } from "lucide-react";
@@ -136,14 +136,12 @@ function ContributorsAdmin() {
                   </div>
                   <p className="text-sm text-muted-foreground whitespace-pre-wrap">{s.pitch}</p>
                   <div className="text-xs text-muted-foreground">
-                    {new Date(s.created_at).toLocaleString(dateLocaleFromLanguage(i18n.language))}
+                    {new Date(s.created_at).toLocaleString(uiLocale(i18n.language))}
                     {s.reviewed_at ? (
                       <>
                         {" · "}
                         {t("adminCommunity.contributors.reviewed")}
-                        {new Date(s.reviewed_at).toLocaleString(
-                          dateLocaleFromLanguage(i18n.language),
-                        )}
+                        {new Date(s.reviewed_at).toLocaleString(uiLocale(i18n.language))}
                       </>
                     ) : null}
                   </div>
