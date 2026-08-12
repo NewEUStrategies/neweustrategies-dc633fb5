@@ -22,6 +22,10 @@ export function RouteProgress() {
     select: (s) => s.isLoading || s.status === "pending",
   });
   const { t } = useTranslation();
+  // Router bywa `pending` w trakcie SSR, a po hydracji juz nie - komunikat
+  // live region rozjezdzalby sie miedzy serwerem a klientem (React #418).
+  // Anonsujemy dopiero po zamontowaniu; SSR zawsze renderuje pusty region.
+  const mounted = useHasMounted();
 
   const [progress, setProgress] = useState(0);
   const [visible, setVisible] = useState(false);
