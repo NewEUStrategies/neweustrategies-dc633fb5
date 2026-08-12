@@ -69,7 +69,12 @@ export const embedClubQuery = createServerFn({ method: "GET" })
     // AI - awaria licznika ma odmawiać, nie otwierać budżet.
     const { rateLimit } = await import("@/lib/server/rate-limit.server");
     const allowed = await rateLimit({
-      scope: "club.semantic",
+      // Myślnik nie jest ozdobą: bramka clubI18nKeys traktuje każdy literał
+      // `club.<segment>` w tym katalogu jako referencję do klucza słownika
+      // (KEY_SHAPE w lib/ci/i18nKeyUsage.ts nie dopuszcza myślników), więc
+      // `club.semantic` wyglądałby dla niej jak brakujące tłumaczenie. Ta sama
+      // konwencja co w bliźniaczym zakresie `club.link-preview`.
+      scope: "club.semantic-query",
       subjectId: context.userId,
       max: EMBEDDINGS_PER_MINUTE,
       failClosed: true,

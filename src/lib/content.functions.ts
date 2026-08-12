@@ -1351,17 +1351,18 @@ const NonEmptyTrimmed = (field: "PL" | "EN") =>
       message: `Nazwa ${field} przekracza 200 znaków`,
     });
 
+const CategoryColor = z
+  .string()
+  .regex(/^#[0-9a-fA-F]{6}$/, "color must be #rrggbb")
+  .nullable();
+
 const CategoryCore = z.object({
   name_pl: NonEmptyTrimmed("PL"),
   name_en: NonEmptyTrimmed("EN"),
   slug: SlugInput,
   description_pl: NullableStr(2000),
   description_en: NullableStr(2000),
-  color: z
-    .string()
-    .regex(/^#[0-9a-fA-F]{6}$/, "color must be #rrggbb")
-    .nullable()
-    .optional(),
+  color: CategoryColor.optional(),
   logo_url: z
     .string()
     .nullable()
@@ -1443,6 +1444,31 @@ export const upsertCategory = createServerFn({ method: "POST" })
       if (error) throw new Error(error.message);
       await audit(supabase, tenantId, "category.create", "category", row.id, { slug });
       return { id: row.id as string, slug };
+    });
+  });
+
+/**
+ * Wąska ścieżka zapisu SAMEGO koloru pigułki (ekran /admin/category-colors).
+ * `upsertCategory` robi UPDATE całego wiersza z przesłanego payloadu, a ekran
+ * kolorów nie zna opisów PL/EN ani logo - przepuszczony przez tamtą ścieżkę
+ * kasowałby je NULL-ami (opisy idą m.in. do meta description archiwów).
+ */
+export const updateCategoryColor = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .validator((i: unknown) => z.object({ id: UUID, color: CategoryColor }).parse(i))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    return guard("category.color", userId, 120, async () => {
+      const tenantId = await resolveTenant(supabase, userId);
+      const { error } = await supabase
+        .from("categories")
+        .update({ color: data.color })
+        .eq("id", data.id);
+      if (error) throw new Error(error.message);
+      await audit(supabase, tenantId, "category.update", "category", data.id, {
+        color: data.color,
+      });
+      return { id: data.id, color: data.color };
     });
   });
 
