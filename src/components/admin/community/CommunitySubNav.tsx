@@ -7,6 +7,7 @@
 // w konkretny klub i nie otworzył zakładki moderacji.
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { ensureI18n as ensureAdminCommunityI18n } from "@/lib/i18n-admin-community";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubPendingCounts } from "@/lib/clubs/useClubs";
 import {
@@ -28,87 +29,77 @@ const tabs = [
     to: "/admin/community" as const,
     key: "overview",
     icon: LayoutDashboard,
-    labelPl: "Podsumowanie",
-    labelEn: "Overview",
+    labelKey: "adminCommunity.nav.overview",
     exact: true,
   },
   {
     to: "/admin/community/chat" as const,
     key: "chat",
     icon: MessageCircle,
-    labelPl: "Chat",
-    labelEn: "Chat",
+    labelKey: "adminCommunity.nav.chat",
     exact: false,
   },
   {
     to: "/admin/community/clubs" as const,
     key: "clubs",
     icon: MessagesSquare,
-    labelPl: "Kluby dyskusyjne",
-    labelEn: "Discussion clubs",
+    labelKey: "adminCommunity.nav.clubs",
     exact: false,
   },
   {
     to: "/admin/community/events" as const,
     key: "events",
     icon: Calendar,
-    labelPl: "Wydarzenia",
-    labelEn: "Events",
+    labelKey: "adminCommunity.nav.events",
     exact: false,
   },
   {
     to: "/admin/community/qa" as const,
     key: "qa",
     icon: HelpCircle,
-    labelPl: "Q&A",
-    labelEn: "Q&A",
+    labelKey: "adminCommunity.nav.qa",
     exact: false,
   },
   {
     to: "/admin/community/polls" as const,
     key: "polls",
     icon: Vote,
-    labelPl: "Ankiety",
-    labelEn: "Polls",
+    labelKey: "adminCommunity.nav.polls",
     exact: false,
   },
   {
     to: "/admin/community/contributors" as const,
     key: "contributors",
     icon: UserPlus,
-    labelPl: "Współtwórcy",
-    labelEn: "Contributors",
+    labelKey: "adminCommunity.nav.contributors",
     exact: false,
   },
   {
     to: "/admin/community/badges" as const,
     key: "badges",
     icon: Award,
-    labelPl: "Odznaki",
-    labelEn: "Badges",
+    labelKey: "adminCommunity.nav.badges",
     exact: false,
   },
   {
     to: "/admin/community/notifications" as const,
     key: "notifications",
     icon: Bell,
-    labelPl: "Powiadomienia",
-    labelEn: "Notifications",
+    labelKey: "adminCommunity.nav.notifications",
     exact: false,
   },
   {
     to: "/admin/community/engagement" as const,
     key: "engagement",
     icon: BarChart3,
-    labelPl: "Zaangażowanie",
-    labelEn: "Engagement",
+    labelKey: "adminCommunity.nav.engagement",
     exact: false,
   },
 ];
 
 export function CommunitySubNav() {
-  const { i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  ensureAdminCommunityI18n();
+  const { t } = useTranslation();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { isAdmin } = useAuth();
   const clubCounts = useClubPendingCounts(isAdmin);
@@ -123,12 +114,12 @@ export function CommunitySubNav() {
             <Users2 className="w-4 h-4 text-primary" />
           </div>
           <h1 className="font-display text-base sm:text-lg leading-none">
-            {isPl ? "Społeczność" : "Community"}
+            {t("adminCommunity.nav.sectionTitle")}
           </h1>
         </div>
         <nav
           className="flex items-center gap-1 p-1 rounded-lg bg-muted/60 border border-border/60"
-          aria-label={isPl ? "Sekcje społeczności" : "Community sections"}
+          aria-label={t("adminCommunity.nav.sectionsNavLabel")}
         >
           {tabs.map((tab) => {
             const active = tab.exact ? pathname === tab.to : pathname.startsWith(tab.to);
@@ -145,11 +136,11 @@ export function CommunitySubNav() {
                 }
               >
                 <Icon className="w-3.5 h-3.5" />
-                {isPl ? tab.labelPl : tab.labelEn}
+                {t(tab.labelKey)}
                 {tab.key === "clubs" && clubPending > 0 ? (
                   <span
                     className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500/20 px-1 text-[10px] font-semibold tabular-nums text-amber-700 dark:text-amber-300"
-                    aria-label={isPl ? "Oczekujące w klubach" : "Pending in clubs"}
+                    aria-label={t("adminCommunity.nav.clubsPendingLabel")}
                   >
                     {clubPending > 99 ? "99+" : clubPending}
                   </span>

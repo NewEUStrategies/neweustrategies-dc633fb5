@@ -34,6 +34,8 @@ const CONVERTED = [
   "src/components/admin/community/VerificationDomainsCard.tsx",
   "src/routes/admin.community.index.tsx",
   "src/routes/admin.community.qa.tsx",
+  "src/routes/admin.community.notifications.tsx",
+  "src/components/admin/community/CommunitySubNav.tsx",
 ] as const;
 
 const SOURCES = CONVERTED.map((path) => ({ path, src: readFileSync(path, "utf8") }));
