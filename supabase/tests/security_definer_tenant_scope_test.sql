@@ -1,12 +1,26 @@
 -- pgTAP: bramka izolacji tenantow dla SECURITY DEFINER (migracja 20260724091000).
 --
--- Scenariusz ataku (dokladnie z opisu zadania): admin tenanta A wola RPC z
--- PODROBIONYM naglowkiem x-tenant-host wskazujacym domene tenanta B. Naglowek
--- jest kontrolowany przez klienta (tenant-host-fetch.ts + brak trusted-proxy),
--- wiec public_tenant_id() rozwiazuje sie do B - atak jest REALNY na warstwie
--- naglowka. Poprawka wymusza, by funkcje uprzywilejowane skalowaly dane po
--- current_tenant_id() (tenant DOMOWY z profiles = A), a nie po naglowku. Oczekujemy
--- wiec ZAWSZE danych tenanta A albo bledu autoryzacji - nigdy danych tenanta B.
+-- Scenariusz: admin tenanta A wola RPC, a rozstrzygniety tenant PRZEGLADANY
+-- wskazuje tenanta B. Poprawka wymusza, by funkcje uprzywilejowane skalowaly
+-- dane po current_tenant_id() (tenant DOMOWY z profiles = A), a nie po tencie
+-- z naglowka. Oczekujemy wiec ZAWSZE danych tenanta A albo bledu autoryzacji -
+-- nigdy danych tenanta B.
+--
+-- DWA SZCZEBLE ZAUFANIA HOSTA (20260805090000 - po tej migracji sam naglowek
+-- `x-tenant-host` nie jest juz dowodem niczego):
+--
+--   ASSERTED - goly `x-tenant-host`. Od 20260805090000 deklaracja wskazujaca
+--     tenanta INNEGO niz domowy jest dla ZALOGOWANEGO wolajacego ODRZUCANA,
+--     wiec public_tenant_id() zwraca tenanta A. Ten szczebel sprawdzamy jako
+--     pierwszy: naglowek nadal jest w pelni kontrolowany przez klienta
+--     (tenant-host-fetch.ts + brak trusted-proxy), ale nie przenosi juz sesji
+--     do obcego obszaru roboczego.
+--   VERIFIED - `x-tenant-assert` podpisany sekretem krawedzi. Tu tenant
+--     przegladany REALNIE staje sie B (legalny ruch cross-tenantowy: czlonek
+--     tenanta A czyta publiczna tresc tenanta B). Dopiero ten szczebel
+--     rozdziela `public_tenant_id()` od `current_tenant_id()`, wiec WLASNIE na
+--     nim testujemy funkcje uprzywilejowane - inaczej asercje przechodzilyby
+--     trywialnie, bo oba rozstrzygniecia daja tego samego tenanta.
 --
 -- Pokrycie:
 --   (A) pelny swap public_tenant_id()->current_tenant_id():
@@ -14,13 +28,13 @@
 --       get_user_monthly_metering_count, bulk_generate_coupons_for_campaign;
 --   (B) kandydat org_add_seat (galaz admina zwiazana z current_tenant_id());
 --   (C) sciezka czlonkowska z obejsciem stafowym zwiazanym z tenantem wiersza:
---       get_poll_results (staff tenanta A na domenie B traktowany jak gosc, ale
---       na WLASNEJ domenie podglad stafowy nadal dziala).
+--       get_poll_results (staff tenanta A na poswiadczonej domenie B traktowany
+--       jak gosc, ale na WLASNEJ domenie podglad stafowy nadal dziala).
 --
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(15);
+SELECT plan(17);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -107,19 +121,66 @@ INSERT INTO public.polls (id, tenant_id, question_pl, question_en, options, stat
   ('e0b00000-0000-0000-0000-00000000000b', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
    'Pytanie B', 'Question B', '["Tak","Nie"]'::jsonb, 'open');
 
--- ── Admin A z PODROBIONYM naglowkiem = domena tenanta B ─────────────────────
+-- ── Poswiadczenie krawedzi: sekret + koder (jak w tenant_host_assertion_test) ─
+-- Rejestrujemy przez oficjalne API migracji, zeby test szedl ta sama sciezka co
+-- krawedz (env TENANT_HOST_ASSERTION_KEY).
+SELECT public.set_tenant_host_assertion_key(
+  'sdts1', 'pgtap-sdts-assertion-secret-0123456789'
+);
+
+CREATE FUNCTION pg_temp.mint(p_host text, p_exp bigint, p_kid text DEFAULT 'sdts1')
+RETURNS text LANGUAGE sql SET search_path = public, extensions AS $$
+  SELECT 'v1.' || p_kid || '.'
+      || public.b64url_encode(convert_to(p_host, 'utf8')) || '.'
+      || p_exp::text || '.'
+      || public.b64url_encode(
+           hmac(
+             'v1:' || p_kid || ':' || p_host || ':' || p_exp::text,
+             'pgtap-sdts-assertion-secret-0123456789',
+             'sha256'
+           )
+         )
+$$;
+
+-- Naglowki obu szczebli sklejamy JESZCZE JAKO WLASCICIEL - podpisywanie jest
+-- rola krawedzi, nie wolajacego, a dalej caly test chodzi jako `authenticated`.
+SELECT set_config('app.sdts_asserted_b', '{"x-tenant-host":"b.example"}', true);
+SELECT set_config('app.sdts_asserted_a', '{"x-tenant-host":"a.example"}', true);
+SELECT set_config('app.sdts_verified_b',
+  json_build_object(
+    'x-tenant-host', 'b.example',
+    'x-tenant-assert', pg_temp.mint('b.example', extract(epoch FROM now())::bigint + 3600)
+  )::text, true);
+
+-- ── Admin A z PODROBIONYM (nieposwiadczonym) naglowkiem = domena tenanta B ───
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
   '{"sub":"d1d1d1d1-0000-0000-0000-000000000001","role":"authenticated"}', true);
-SELECT set_config('request.headers', '{"x-tenant-host":"b.example"}', true);
+SELECT set_config('request.headers', current_setting('app.sdts_asserted_b'), true);
 
--- 0) Atak jest realny na warstwie naglowka, ale tozsamosc trzyma tenant domowy.
-SELECT is(public.public_tenant_id(), 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::uuid,
-  'podrobiony x-tenant-host rozwiazuje sie do tenanta B (wektor ataku realny)');
+-- 0) Naglowek jest nadal w pelni kontrolowany przez klienta i nadal wskazuje
+-- domene tenanta B - wektor ataku na warstwie naglowka istnieje...
+SELECT is(
+  public.tenant_id_for_public_host(public.request_asserted_host()),
+  'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::uuid,
+  'podrobiony x-tenant-host nadal wskazuje domene tenanta B (wektor realny)');
+-- ...ale sama deklaracja nie przenosi ZALOGOWANEGO do obcego tenanta.
+SELECT is(public.public_tenant_id(), 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid,
+  'nieposwiadczona deklaracja NIE pivotuje zalogowanego na tenanta B');
 SELECT is(public.current_tenant_id(), 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid,
   'current_tenant_id() pozostaje tenantem domowym A (z sesji)');
 
+-- ── Szczebel VERIFIED: tenant PRZEGLADANY to realnie B ──────────────────────
+-- Od tego miejsca public_tenant_id() <> current_tenant_id(), wiec kazda funkcja
+-- ponizej jest sprawdzana na ROZJECHANYCH rozstrzygnieciach - funkcja skalujaca
+-- dane naglowkiem zwrocilaby tu dane tenanta B.
+SELECT set_config('request.headers', current_setting('app.sdts_verified_b'), true);
+
+SELECT is(public.public_tenant_id(), 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::uuid,
+  'poswiadczony host B rozstrzyga tenanta przegladanego na B (dyskryminator zywy)');
+
 -- 1) monetization_dashboard: przychod tenanta A (1234), NIGDY tenanta B (5000).
+--    Naglowek jest tu POSWIADCZONY, a mimo to nie ma wplywu na zakres danych.
 SELECT is(
   (public.monetization_dashboard() -> 'orders' ->> 'revenue_cents')::bigint,
   1234::bigint,
@@ -146,8 +207,9 @@ SELECT is(
   (SELECT monthly_limit FROM public.get_user_monthly_metering_count('d1d1d1d1-0000-0000-0000-000000000001')),
   3, 'get_user_monthly_metering_count.monthly_limit = limit tenanta A (3), nie B (7)');
 
--- 7) get_poll_results (sciezka C): staff A na domenie B jest zwyklym gosciem -
--- nie ma podgladu wynikow ankiety tenanta B przed glosowaniem/zamknieciem.
+-- 7) get_poll_results (sciezka C): ankieta tenanta B jest widoczna dla funkcji
+-- (host poswiadczony, wiec plaszczyzna tresci to B), ale staff A jest tu
+-- zwyklym gosciem - podgladu wynikow przed glosowaniem/zamknieciem nie ma.
 SELECT is(
   (public.get_poll_results('e0b00000-0000-0000-0000-00000000000b') ->> 'visible')::boolean,
   false, 'get_poll_results: obejscie stafowe NIE dziala na cudzym tenancie (B)');
@@ -182,7 +244,7 @@ SELECT is(
   2, 'bulk_generate: kampania wlasnego tenanta A generuje 2 kody mimo naglowka B');
 
 -- ── Kontrola pozytywna: admin A na WLASNEJ domenie A ────────────────────────
-SELECT set_config('request.headers', '{"x-tenant-host":"a.example"}', true);
+SELECT set_config('request.headers', current_setting('app.sdts_asserted_a'), true);
 
 -- 12) get_poll_results: podglad stafowy DZIALA na wlasnym tenancie (widoczny mimo braku glosu).
 SELECT is(

@@ -260,7 +260,12 @@ INSERT INTO public.profile_embeddings (profile_id, tenant_id, content_hash, embe
 SELECT 'be000000-0000-0000-0000-0000000000bb'::uuid,
        'be111111-1111-1111-1111-111111111111'::uuid,
        'hash-x',
-       array_fill(0.01::real, ARRAY[768])::text::extensions.vector(768);
+       -- pgvector przyjmuje literal w NAWIASACH KWADRATOWYCH ('[0.01,...]').
+       -- `array_fill(...)::text` daje literal tablicy Postgresa ('{0.01,...}'),
+       -- ktorego rzutowanie na vector konczy sie bledem "malformed vector
+       -- literal" - transakcja abortowala i 16 z 36 asercji tego pliku nie
+       -- startowalo ani razu.
+       ('[' || array_to_string(array_fill(0.01::real, ARRAY[768]), ',') || ']')::extensions.vector(768);
 
 UPDATE public.profiles SET discoverable = false
  WHERE id = 'be000000-0000-0000-0000-0000000000bb'::uuid;
@@ -323,11 +328,18 @@ SELECT is(
   'connection_statuses: wspolny kontakt to 2. stopien'
 );
 
+-- Profil `cc` nie ma ANI JEDNEJ krawedzi, wiec nie jest "3. stopniem" - jest
+-- POZA ZASIEGIEM, co funkcja raportuje jako 0. Ta asercja oczekiwala wczesniej
+-- 3 i utrwalala regresje z 20260807143000, w ktorej KAZDA osoba bez wspolnego
+-- kontaktu wracala jako degree=3, a interfejs pisal o niej "dwa kroki od Twojej
+-- sieci" (naprawione w 20260812100500). Sprzecznosc byla niewidoczna, bo plik
+-- przerywal na 20. tescie i ta asercja nigdy sie nie uruchomila.
+-- Kontrakt 0/1/2/3 jest przybity niezaleznie w connection_degree_test.sql:187.
 SELECT is(
   (SELECT cs.degree FROM public.connection_statuses(
      ARRAY['be000000-0000-0000-0000-0000000000cc'::uuid]) cs),
-  3::smallint,
-  'connection_statuses: brak sciezki to 3. stopien'
+  0::smallint,
+  'connection_statuses: brak sciezki to poza zasiegiem (0), a nie 3. stopien'
 );
 
 SELECT is(

@@ -42,9 +42,14 @@ SELECT plan(37);
 -- możliwy (skasowany profil przy żywym koncie `auth.users`, nieudany provisioning).
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
-INSERT INTO public.tenants (id, slug, name) VALUES
-  ('c9111111-1111-1111-1111-111111111111', 'tenant-vg-a', 'Tenant VG A'),
-  ('c9222222-2222-2222-2222-222222222222', 'tenant-vg-b', 'Tenant VG B');
+-- Domena tenanta A jest potrzebna w sekcji F: polityka "Users insert own profile"
+-- dopuszcza `tenant_id = COALESCE(current_tenant_id(), public_tenant_id())`,
+-- a dla konta BEZ profilu pierwszy członek COALESCE jest NULL - tenanta wskazuje
+-- wtedy wyłącznie host żądania. Bez domeny w katalogu żądanie nie ma jak
+-- powiedzieć „jestem na witrynie tenanta A".
+INSERT INTO public.tenants (id, slug, name, domain) VALUES
+  ('c9111111-1111-1111-1111-111111111111', 'tenant-vg-a', 'Tenant VG A', 'vg-a.example'),
+  ('c9222222-2222-2222-2222-222222222222', 'tenant-vg-b', 'Tenant VG B', 'vg-b.example');
 
 INSERT INTO auth.users (id, email) VALUES
   ('c9000000-0000-0000-0000-0000000000aa', 'admin-vg@vg.test'),
@@ -332,9 +337,17 @@ RESET ROLE;
 -- Konto `ff` ma żywy wiersz w `auth.users`, ale NIE ma profilu - w tym oknie
 -- polityka "Users insert own profile" pozwala wstawić własny wiersz, a bramka na
 -- samym UPDATE nie miała czego pilnować.
+--
+-- Żądanie MUSI nieść host tenanta A. Dla konta bez profilu `current_tenant_id()`
+-- jest NULL, więc jedynym źródłem tenanta w polityce INSERT jest
+-- `public_tenant_id()`; bez nagłówka spada ono na tenanta DOMYŚLNEGO i RLS
+-- odrzuca wiersz (42501) jeszcze zanim którakolwiek bramka kolumnowa zdąży się
+-- wypowiedzieć - mierzylibyśmy wtedy politykę, nie bramkę. To jest ta sama
+-- ścieżka, którą idzie prawdziwe zakładanie profilu na witrynie tenanta.
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
   '{"sub":"c9000000-0000-0000-0000-0000000000ff","role":"authenticated"}', true);
+SELECT set_config('request.headers', '{"x-tenant-host":"vg-a.example"}', true);
 
 SELECT throws_ok(
   $$ INSERT INTO public.profiles (id, email, display_name, tenant_id, verified_at)
@@ -369,6 +382,10 @@ SELECT is(
   NULL::uuid,
   'wiersz nie rodzi się ze wskazaniem firmy z obcego obszaru roboczego'
 );
+
+-- Dalsze sekcje rozstrzygają tenanta z profilu (current_tenant_id()), więc host
+-- żądania zdejmujemy - żeby nagłówek nie brał udziału w niczym poza sekcją F.
+SELECT set_config('request.headers', '', true);
 
 -- ── G. current_company_id: właściciel ma prawo do SWOJEJ firmy (31-34) ───────
 -- Przed 20260806150000 bramka cofała tę kolumnę KAŻDEMU nie-stafowi, w tym

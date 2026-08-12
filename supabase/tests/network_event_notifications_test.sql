@@ -13,7 +13,9 @@
 --   2. Bramka CASE w enqueue_notification realnie tlumi kazdy z pieciu
 --      rodzajow - rodzaj bez galezi trafia w `ELSE true` i przecieka.
 --   3. Wprowadzenia: INSERT -> most, 'forwarded' -> cel ORAZ proszacy,
---      'withdrawn' -> CISZA (prywatnosc wlasnej rezygnacji).
+--      'withdrawn' -> WYLACZNIE most (nie rozstrzyga prosby, ktorej juz nie
+--      ma; proszacy i cel milcza). 'declined' nie ma producenta wcale -
+--      gwarancja network.introductions.bridgeHint.
 --   4. Rekomendacje: 'pending' -> odbiorca (moderacja), 'published' -> autor,
 --      'hidden' -> CISZA.
 --   5. Endorsementy: INSERT -> odbiorca, href niesie skill_id, wiec dedup
@@ -219,10 +221,15 @@ DELETE FROM public.notifications WHERE kind = 'introduction';
 UPDATE public.introduction_requests SET status = 'withdrawn'
  WHERE id = 'ad999999-0000-0000-0000-000000000002'::uuid;
 
+-- Adresat wycofania to MOST (tu: aa) - inaczej rozstrzyga prosbe, ktorej
+-- proszacy juz nie chce. Cisza obowiazuje po stronie proszacego i celu, wiec
+-- asercja bierze CALY zbior adresatow, a nie tylko licznik: pojedyncze
+-- "count = 1" przepuscilo by sygnal doreczony niewlasciwej osobie.
 SELECT is(
-  (SELECT count(*)::int FROM public.notifications n WHERE n.kind = 'introduction'),
-  0,
-  'wycofanie prosby przez proszacego jest CISZA'
+  ARRAY(SELECT n.user_id::text FROM public.notifications n
+         WHERE n.kind = 'introduction' ORDER BY n.user_id::text),
+  ARRAY['ad000000-0000-0000-0000-0000000000aa'],
+  'wycofanie prosby dociera WYLACZNIE do mostu (proszacy i cel milcza)'
 );
 
 -- ---------------------------------------------------------------------------
@@ -337,7 +344,6 @@ SELECT is(
 -- skanem GLOBALNYM - jego zwrotka musi byc deterministyczna, zeby asercja
 -- "drugi przebieg nie wysyla nic" cokolwiek dowodzila.
 -- ---------------------------------------------------------------------------
-DELETE FROM public.notifications;
 DELETE FROM public.profile_view_alert_state;
 DELETE FROM public.profile_view_events;
 
@@ -351,6 +357,16 @@ VALUES
   ((SELECT public.public_tenant_id()),
    'ad000000-0000-0000-0000-0000000000aa'::uuid,
    NULL, 'anonymous', NULL, now() - interval '1 hour');
+
+-- Odslony maja DWOCH producentow i to nie jest to samo doreczenie: trigger
+-- tg_profile_view_notify wysyla sygnal natychmiastowy per wejscie (jego
+-- kontrakt, wraz z prywatnoscia trybu anonimowego, pilnuje
+-- missing_event_notifications_test.sql), a run_profile_view_alerts doklada raz
+-- na dobe sygnal ZBIORCZY z liczba odslon. Ta sekcja mierzy wylacznie skan
+-- zbiorczy, wiec skrzynke czyscimy PO zasianiu odslon - inaczej licznik
+-- ponizej zliczylby oba producentow i "brak duplikatu" nie dowodzilby niczego
+-- o skanie.
+DELETE FROM public.notifications;
 
 SELECT is(
   public.run_profile_view_alerts(),

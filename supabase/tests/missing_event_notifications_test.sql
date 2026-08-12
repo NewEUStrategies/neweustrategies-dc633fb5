@@ -72,6 +72,13 @@ INSERT INTO public.notification_preferences (user_id, tenant_id) VALUES
   ('e0000000-0000-0000-0000-0000000000a3', 'e1111111-1111-1111-1111-1111111100aa'),
   ('e0000000-0000-0000-0000-0000000000a4', 'e1111111-1111-1111-1111-1111111100aa');
 
+-- `notify_profile_welcome` (20260711212733) wita KAŻDY nowy profil wpisem
+-- rodzaju 'system'. Asercje ciszy poniżej są celowo bez filtra po rodzaju -
+-- „u4 nie ma ANI JEDNEGO powiadomienia" wyłapuje wyciek doręczony pod
+-- dowolnym rodzajem, także nowym. Żeby ta forma mierzyła producentów z tego
+-- pliku, a nie onboardingu, sygnał powitalny znika z seeda.
+DELETE FROM public.notifications WHERE kind = 'system';
+
 -- ── 1. Katalog rodzajów ─────────────────────────────────────────────────────
 
 CREATE FUNCTION pg_temp.new_kinds() RETURNS text[]

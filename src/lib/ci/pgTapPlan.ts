@@ -77,6 +77,14 @@ const ASSERTION_FUNCTIONS: readonly string[] = [
   "doesnt_match",
   "unalike",
   "alike",
+  // `is_empty` / `isnt_empty` MUSZĄ stać przed `isnt`/`is`, żeby zachować
+  // konwencję "najdłuższy wariant pierwszy" z resztą tej listy. Ich brak był
+  // martwą strefą tej bramki: pliki używające `is_empty` raportowały rozjazd
+  // planu, którego w rzeczywistym przebiegu nie ma (pgTAP liczy je normalnie),
+  // a rozjazd w drugą stronę - plan(N) zawyżony dokładnie o liczbę `is_empty` -
+  // przechodziłby niezauważony.
+  "isnt_empty",
+  "is_empty",
   "isnt",
   "is",
   "ok",
