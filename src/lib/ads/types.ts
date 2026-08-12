@@ -68,31 +68,39 @@ export interface AdPlacementWithSlot extends AdPlacement {
   slot: AdSlot;
 }
 
-export const AD_POSITION_LABELS: Record<AdPosition, string> = {
-  header_banner: "Baner w nagłówku",
-  top_of_post: "Nad treścią wpisu",
-  mid_post: "W środku wpisu (po N paragrafie)",
-  bottom_of_post: "Pod treścią wpisu",
-  sidebar: "Sidebar",
-  in_feed: "W feedzie (co N kart)",
-  footer_slideup: "Slide-up w stopce",
+// KLUCZE i18n, nie gotowe napisy.
+//
+// Do 12.08 te trzy mapy trzymały polskie etykiety wprost, więc panel reklam był
+// jednojęzyczny bez względu na wybrany język interfejsu - a `Record<Enum, string>`
+// pilnował tylko tego, że każdy wariant enuma MA etykietę, nie że da się ją
+// przetłumaczyć. Teraz mapy wskazują klucze słownika `i18n-ads-admin`, a typ
+// nadal wymusza kompletność: nowy wariant `AdPosition` bez klucza nie skompiluje
+// się, a brak wpisu w słowniku zapali test pokrycia kluczy.
+export const AD_POSITION_LABEL_KEYS: Record<AdPosition, string> = {
+  header_banner: "adsAdmin.positions.headerBanner",
+  top_of_post: "adsAdmin.positions.topOfPost",
+  mid_post: "adsAdmin.positions.midPost",
+  bottom_of_post: "adsAdmin.positions.bottomOfPost",
+  sidebar: "adsAdmin.positions.sidebar",
+  in_feed: "adsAdmin.positions.inFeed",
+  footer_slideup: "adsAdmin.positions.footerSlideup",
 };
 
-export const AD_PAGE_TYPE_LABELS: Record<AdPageType, string> = {
-  all: "Wszystkie strony",
-  home: "Strona główna",
-  post: "Wpisy",
-  page: "Strony statyczne",
-  category: "Kategorie",
-  tag: "Tagi",
-  archive: "Archiwa",
-  search: "Wyniki wyszukiwania",
+export const AD_PAGE_TYPE_LABEL_KEYS: Record<AdPageType, string> = {
+  all: "adsAdmin.pageTypes.all",
+  home: "adsAdmin.pageTypes.home",
+  post: "adsAdmin.pageTypes.post",
+  page: "adsAdmin.pageTypes.page",
+  category: "adsAdmin.pageTypes.category",
+  tag: "adsAdmin.pageTypes.tag",
+  archive: "adsAdmin.pageTypes.archive",
+  search: "adsAdmin.pageTypes.search",
 };
 
-export const AD_SLOT_KIND_LABELS: Record<AdSlotKind, string> = {
-  html: "HTML (banner kodowy)",
-  script: "Skrypt (np. AdSense)",
-  image: "Grafika z linkiem",
+export const AD_SLOT_KIND_LABEL_KEYS: Record<AdSlotKind, string> = {
+  html: "adsAdmin.kinds.html",
+  script: "adsAdmin.kinds.script",
+  image: "adsAdmin.kinds.image",
 };
 
 // ---------------------------------------------------------------------------

@@ -83,6 +83,38 @@ describe("ProfileNav", () => {
     expect(hrefs).toContain("/messages");
   });
 
+  it("prowadzi do ustawień powiadomień, osobno od skrzynki", () => {
+    // Do 12.08 nawigacja miała TYLKO wejście do skrzynki (/messages), a zakładka
+    // preferencji w NotificationsCenter była nieosiągalna, bo montowały ją
+    // wyłącznie tryby, które ją ukrywają. Te dwie pozycje muszą istnieć obok
+    // siebie i prowadzić w RÓŻNE miejsca - inaczej wracamy do stanu, w którym
+    // opt-in Web Push i digest są zaimplementowane i niedostępne.
+    render(<ProfileNav />);
+    const hrefs = linkHrefs();
+    expect(hrefs).toContain("/profile/notifications");
+    expect(hrefs).toContain("/messages");
+    expect(hrefs.indexOf("/profile/notifications")).not.toBe(hrefs.indexOf("/messages"));
+  });
+
+  it("ustawienia powiadomień stoją w grupie prywatności, nie w treściach", () => {
+    // Miejsce w IA jest decyzją, nie przypadkiem: użytkownik szukający „jak
+    // wyłączyć te maile" idzie do ustawień konta. Pozycja musi więc stać po
+    // ostatniej pozycji finansowej (czyli w grupie prywatności), obok /profile/privacy.
+    render(<ProfileNav />);
+    const hrefs = linkHrefs();
+    expect(hrefs.indexOf("/profile/notifications")).toBeGreaterThan(
+      hrefs.indexOf("/profile/billing"),
+    );
+    expect(hrefs.indexOf("/profile/notifications")).toBeGreaterThan(
+      hrefs.indexOf("/profile/privacy"),
+    );
+  });
+
+  it("etykieta ustawień powiadomień idzie ze słownika, nie z literału", () => {
+    render(<ProfileNav />);
+    expect(screen.getByText("profile.nav.notificationSettings")).toBeInTheDocument();
+  });
+
   it('„Organizacja" jest ukryta bez miejsca w organizacji', () => {
     render(<ProfileNav />);
     expect(linkHrefs()).not.toContain("/profile/organization");
