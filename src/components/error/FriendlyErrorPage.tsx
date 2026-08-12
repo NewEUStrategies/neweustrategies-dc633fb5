@@ -7,6 +7,7 @@ import { Link, useRouter } from "@tanstack/react-router";
 import {
   AlertCircle,
   ArrowLeft,
+  ArrowRight,
   Clock,
   CloudOff,
   HelpCircle,
@@ -20,7 +21,6 @@ import {
 import { currentLang } from "@/lib/i18n/localeRuntime";
 import { errorCopy, classifyError, type ErrorKind } from "@/lib/errorCopy";
 import { reportPlatformError } from "@/lib/platform-error-reporting";
-import { cn } from "@/lib/utils";
 
 interface FriendlyErrorPageProps {
   /** The raw error from TanStack Router / server function / fetch. */

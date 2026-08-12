@@ -15,7 +15,7 @@ export type MarkSessionStatus = "processing" | "failed" | "canceled";
 interface RpcCapable {
   rpc(
     fn: "payment_order_mark_session",
-    args: { _order_id: string; _session_id: string | null; _status: MarkSessionStatus },
+    args: { _order_id: string; _session_id?: string; _status?: MarkSessionStatus },
   ): PromiseLike<{ data: unknown; error: { message: string } | null }>;
 }
 
@@ -31,7 +31,7 @@ export async function markOrderSession(
 ): Promise<boolean> {
   const { data, error } = await supabase.rpc("payment_order_mark_session", {
     _order_id: orderId,
-    _session_id: sessionId,
+    ...(typeof sessionId === "string" && sessionId !== "" ? { _session_id: sessionId } : {}),
     _status: status,
   });
 
