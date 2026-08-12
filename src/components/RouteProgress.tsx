@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { useHasMounted } from "@/hooks/useHasMounted";
 
 import { useHasMounted } from "@/hooks/useHasMounted";
 
@@ -23,6 +24,9 @@ export function RouteProgress() {
     select: (s) => s.isLoading || s.status === "pending",
   });
   const { t } = useTranslation();
+  // Router bywa `pending` w trakcie SSR, a po hydracji juz nie - komunikat
+  // live region rozjezdzalby sie miedzy serwerem a klientem (React #418).
+  // Anonsujemy dopiero po zamontowaniu; SSR zawsze renderuje pusty region.
   const mounted = useHasMounted();
 
   const [progress, setProgress] = useState(0);
