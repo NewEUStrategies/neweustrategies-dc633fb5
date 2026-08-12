@@ -75,11 +75,22 @@ albo niszczy dane).
 | K11 | **Czerwona bramka CI** | `check:authz-snapshot` kończy się kodem 1 na HEAD (snapshot zna 744 migracje, w repo jest 748) — bramka jest w `ci.yml`, więc `main` jest czerwony | `src/lib/authz/authzSnapshot.generated.ts` | 19 |
 | K12 | **Ciche gubienie powiadomień** | Migracja klubowa A4 cofnęła `CHECK` i `enqueue_notification` dla typu `meeting` vs `meeting_booking` — powiadomienia o spotkaniach 1-1 giną w połkniętym wyjątku, a przełącznik UI pisze do kolumny, której nikt nie czyta | migracja `20260808094000`, `enqueue_notification` | 12 |
 
-**Dodatkowo dwie funkcje martwe mimo kompletnej implementacji** (nie krytyczne, ale marnują gotową pracę):
-`club_scheduler_tick` ma grant `service_role`, lecz **nikt jej nie woła** w całym repo — kadencje ról,
-uśpione wątki i wygasanie ogłoszeń klubowych nigdy się nie wykonują (M21); a `NotificationsCenter`
-w trybie `full`/`preferences` **nie jest montowany przez żadną trasę**, więc opt-in Web Push, digest
-i wyciszanie rodzajów powiadomień są produktowo nieosiągalne (M12).
+**Dodatkowo funkcja nieosiągalna mimo kompletnej implementacji** (nie krytyczna, ale marnuje gotową pracę):
+ustawienia powiadomień w `NotificationsCenter` są renderowane wyłącznie w zakładce „settings", a ta
+pokazuje się tylko gdy `showSettingsTab` jest prawdziwe — czyli w trybach `full`/`preferences`.
+Tymczasem jedyne dwa montowania komponentu (`src/routes/messages.tsx:307,330`) używają trybów `inbox`
+i `consents`, dla których `showSettingsTab` jest **fałszywe** (`NotificationsCenter.tsx:353`). Skutek:
+opt-in Web Push, digest e-mailowy i wyciszanie rodzajów powiadomień (`NotificationKindToggle`
+w liniach 768/786, digest w 911) są produktowo nieosiągalne dla użytkownika (M12).
+
+> **Sprostowanie (12.08, po recenzji PR #218).** Pierwotna wersja tego akapitu wymieniała jako drugą
+> martwą funkcję `club_scheduler_tick` („nikt jej nie woła w całym repo") — **to było nieprawdziwe**
+> i zostało wycofane: tick jest wołany co 5 minut z `jobsTick.server.ts:229-247`. Pierwotna wersja
+> twierdziła też, że `NotificationsCenter` „nie jest montowany przez żadną trasę"; komponent jest
+> montowany dwukrotnie, tylko w trybach nieodsłaniających zakładki ustawień — powyższy akapit podaje
+> już zmierzony stan. Oba błędy pochodzą z tej samej luki metodycznej: **faza weryfikacji
+> adwersarialnej nie została ukończona** (patrz nota metodyczna na początku dokumentu), więc żadne
+> twierdzenie nie zostało kontr-sprawdzone przed publikacją.
 
 
 ## Ranking modułów
@@ -277,7 +288,7 @@ Pięć pozycji o największym wpływie z każdego modułu — pełne uzasadnieni
 
 1. Domknąć autoryzację server fn: requireSupabaseAuth + rate limit na fetchClubLinkPreview (linkPreview.functions.ts:107) i embedClubQuery (clubSemantic.functions.ts:47); blokada SSRF po rozwiązanym IP, nie po literalnym hostname
 2. pgTAP dla A7–A35 — testy bazodanowe kończą się na A6 (114 asercji), więc ~80% z 209 funkcji klubowych (workspace wątku, sieciowanie, wpisy, zgłoszenia/CRM, moderacja, ujawnianie autora) nie ma ANI JEDNEJ asercji
-3. Wpiąć club_scheduler_tick w harmonogram (community-cron / pg_cron) — funkcja istnieje z grantem service_role, ale nie ma wołającego w repo, więc kadencje ról, uśpione wątki i wygasanie ogłoszeń nie mają dowodu wykonania
+3. ~~Wpiąć club_scheduler_tick w harmonogram~~ — **rekomendacja wycofana (sprostowanie 12.08):** tick jest wołany co 5 minut z jobsTick.server.ts:229-247. Zostaje węższa pozycja: dodać test listy kroków runJobsTick, żeby wypadnięcie kroku clubScheduler dawało czerwone CI
 4. Podpiąć gotowy podgląd dokumentów (useDocumentViewer, 505 linii) w ClubDocumentLibrary i ClubThreadDocumentsPanel oraz dodać wgrywanie plików — dziś podgląd działa tylko w ClubPostCard, a biblioteka przyjmuje wyłącznie URL
 5. Testy renderu największych organizmów: ClubHub (619), ClubCalendar (600), ClubPostCard (514), ClubAccessGate (492), club.apply.tsx (754) i 21 komponentów panelu; priorytet — mapowanie draftu edytora na admin_club_upsert oraz brakujący eksport .ics
 
@@ -5577,7 +5588,7 @@ Uwaga zakresowa: `src/components/maps/WorldMap.tsx` + `src/lib/maps/*` **nie nal
 - **Co robi:** Tablica ogłoszeń kompetencyjnych klubu: 2 rodzaje (szukam/oferuję), obszar tematyczny, termin ważności, 3 zakładki (otwarte/moje/archiwum), wynik ogłoszenia („załatwione"/„wygasło"/„zdjęte") i paginacja; streszczenie w szynie huba.
 - **Relacje:** Moduł 9 (Czat) — `DirectMessageButton` z `@/components/network` jako droga do rozmowy; Moduł 10 (Sieć/eksperci) — wspólny język kompetencji; Moduł 16 — moderacja ogłoszeń (`ShieldX`).
 - **✅ Mocne:** `networkApi.ts:3-9` dokumentuje, że tabele A32 nie mają grantów dla klienta i cała autoryzacja żyje w SECURITY DEFINER — `supabase.from()` zwróciłby pusto nawet prowadzącemu; wynik ogłoszenia jest rozróżniony, a nie sprowadzony do „zamknięte" (`ClubBoardScreen.tsx:17-21`); 39 testów typów sieciujących (parsowanie wierszy RPC).
-- **⚠️ Słabe:** Brak testu renderu 338-linijkowego ekranu; zero pgTAP dla A32 (czy `club_board_notice_create` respektuje `can_reply`, czy autor może zamknąć cudze ogłoszenie, czy archiwum nie wycieka `removed` nie-moderatorom); wygaszanie ogłoszeń zależy od `club_scheduler_tick`, którego nikt nie woła z aplikacji (patrz 21.25).
+- **⚠️ Słabe:** Brak testu renderu 338-linijkowego ekranu; zero pgTAP dla A32 (czy `club_board_notice_create` respektuje `can_reply`, czy autor może zamknąć cudze ogłoszenie, czy archiwum nie wycieka `removed` nie-moderatorom); wygaszanie ogłoszeń zależy od `club_scheduler_tick`, który jest wołany co 5 minut z `jobsTick.server.ts:229-247`, ale samo to wpięcie nie ma testu (patrz 21.25).
 - **🔧 Rekomendacje:**
   1. pgTAP dla A32: zapis pod `can_reply`, zamknięcie tylko przez autora/moderatora, `includeClosed` niedostępne dla zwykłego członka w części `removed`.
   2. Test renderu trzech zakładek + paginacji.
@@ -5691,9 +5702,9 @@ Uwaga zakresowa: `src/components/maps/WorldMap.tsx` + `src/lib/maps/*` **nie nal
 - **Co robi:** Trasa układu `/club` z bramką `community_modules.clubs_enabled`, granicami błędu i ładowania dla całej rodziny 20 tras, motywem modułu (granat/złoto, skala typografii); jednolita warstwa `head()` z warunkową indeksowalnością; dwa słowniki PL/EN z bramkami CI; klucze cache i wpięcie w szynę zdarzeń domenowych.
 - **Relacje:** Moduł 16 (Społeczność-admin) — `clubs_enabled` zapisywany w panelu społeczności; Moduł 20 (Platforma/SSR) — `siteSettingsQueryOptions` rozgrzane loaderem trasy głównej; Moduł 12 (Realtime) — 7 typów zdarzeń klubowych w `domainEvents.ts` i mapa inwalidacji; Moduł 8 (SEO) — `buildContentHead`; Moduł 5 (Chrome) — `RouteErrorFallback`; Moduł 19 (RODO) — `club_export_my_data` w `src/lib/profile/export.functions.ts:66` z testem manifestu.
 - **✅ Mocne:** Bramka w trasie UKŁADU, nie w siedmiu trasach, z uzasadnieniem, że niezrenderowany `<Outlet />` to zero zapytań, a nie tylko zero pikseli (`club.tsx:9-13`); `CommunityDisabled` leniwy, bo statyczny import dokładałby ~5,5 kB gzip słownika do ścieżki krytycznej każdego wejścia (`:28-32`); `clubHead.ts:14-24` opisuje doktrynę indeksowalności z bezpiecznym domyślnym `noindex` przy awarii backendu; **bramka `clubI18nKeys.gate.test.ts` patrzy od strony KODU i traktuje `defaultValue` jako obciążenie** — została napisana po wykryciu czterech rozjazdów (`club.memberRole.*`, `adminClubs.invites.*`, …), których parytet PL/EN nie mógł zobaczyć; `i18nDictionaries.test.ts` łączy słowniki `types.ts` z bundlem, żeby nowy kod odmowy w migracji bez tłumaczenia dawał czerwone CI; szyna zdarzeń niesie `club_id`/`thread_id`, a mapa tłumaczy je na klucze cache (`eventInvalidationMap.ts:239-262`).
-- **⚠️ Słabe:** `club_scheduler_tick` (wygaszanie kadencji, oznaczanie wątków jako uśpione, wygasanie ogłoszeń) jest zdefiniowany i nadany `service_role`, ale **nie ma wołającego w repo** — grep po `club_scheduler_tick` daje wyłącznie migracje i komentarz w `ClubMembersTab.tsx:14`; `src/routes/api/public/community-cron.ts` nie zawiera ani jednego odwołania do klubów. Jeśli tick nie jest wpięty w `pg_cron` po stronie infrastruktury (czego z repo nie da się potwierdzić), kadencje i wygasanie ogłoszeń nie działają.
+- **⚠️ Słabe:** ~~`club_scheduler_tick` nie ma wołającego w repo~~ — **USTALENIE WYCOFANE (sprostowanie 12.08, po recenzji PR #218).** Tick **jest** wołany: `src/lib/server/jobsTick.server.ts:229-247` wywołuje `admin.rpc("club_scheduler_tick")` w `runJobsTick` co 5 minut (`everyNthMinute(5)`), a `runJobsTick` jest wpięty w `/api/public/jobs-tick` uruchamiany co minutę (`scripts/scheduler-tick.mjs`, `.github/workflows/scheduler.yml`). Mój grep szukał wołań w `community-cron.ts` i pominął `jobsTick.server.ts` — to był błąd pomiaru, nie defekt platformy. Faktyczna słabość, która zostaje: **brak testu na samo wpięcie** — gdyby krok `clubScheduler` wypadł z `runJobsTick`, nic by tego nie wykryło (`jobsTick.server.ts` nie ma testu pokrywającego listę kroków).
 - **🔧 Rekomendacje:**
-  1. Wpiąć `club_scheduler_tick` do istniejącego harmonogramu (`api/public/community-cron.ts` albo `pg_cron` z migracją) i dopisać pgTAP wzorem `community_cron_schedule_test.sql` — dziś kluczowy proces czasowy modułu nie ma dowodu wykonania.
+  1. Dodać test listy kroków `runJobsTick` (asercja, że `club_scheduler_tick` jest wołany przy `everyNthMinute(5)`) — wpięcie istnieje, ale jest bezbronne wobec regresu, a przy nim wiszą kadencje ról, uśpione wątki i wygasanie ogłoszeń.
   2. Dodać do bramki i18n skanowanie `src/components/files` i `src/lib/files` (dziś `SCANNED_DIRS` obejmuje tylko `clubs`), bo `i18n-file-viewer` należy do powierzchni klubowej.
 
 ### 21.26. Zasady klubu, dołączenie/wyjście i poziom powiadomień — **7/10**
@@ -5731,6 +5742,6 @@ Uwaga zakresowa: `src/components/maps/WorldMap.tsx` + `src/lib/maps/*` **nie nal
 **5 najpilniejszych rekomendacji:**
 1. **Domknąć autoryzację server fn (21.13, 21.21):** `.middleware([requireSupabaseAuth])` + limit tempa na `fetchClubLinkPreview` (`src/lib/clubs/linkPreview.functions.ts:107`) i `embedClubQuery` (`src/lib/clubs/clubSemantic.functions.ts:47`), a w `isBlockedHost` sprawdzać ROZWIĄZANE IP, nie literalny hostname — dziś anonim ma darmowe proxy HTTP i darmową bramkę AI.
 2. **pgTAP dla A7–A35 (21.1, 21.8, 21.14, 21.19, 21.22):** testy bazodanowe kończą się na A6 (114 asercji), więc ~80% z 209 funkcji klubowych — workspace wątku, sieciowanie, wpisy, zgłoszenia z CRM, moderacja hurtowa, ujawnianie autora — nie ma ANI JEDNEJ asercji; zacząć od `club_thread_workspace`, `club_apply_submit`, `club_moderator_reveal_author`, `club_segment_recipients`.
-3. **Wpiąć `club_scheduler_tick` (21.25):** funkcja istnieje, ma grant dla `service_role` i nie ma wołającego w repo — kadencje ról, uśpione wątki i wygasanie ogłoszeń tablicy nie mają dowodu wykonania; dodać do `src/routes/api/public/community-cron.ts` lub `pg_cron` + test harmonogramu.
+3. **Zabezpieczyć wpięcie `club_scheduler_tick` testem (21.25):** *sprostowanie 12.08 — pierwotna wersja twierdziła, że funkcja nie ma wołającego; ma go (`jobsTick.server.ts:229-247`, co 5 minut).* Zostaje realna luka: `runJobsTick` nie ma testu na listę kroków, więc ciche wypadnięcie kroku `clubScheduler` nie dałoby żadnego sygnału.
 4. **Podpiąć gotowy podgląd dokumentów i wgrywanie plików do biblioteki (21.9):** `useDocumentViewer` jest zaimplementowany (505 linii w `src/components/files/`) i użyty tylko w `ClubPostCard.tsx:337`, choć `fileKinds.ts:3-6` deklaruje trzy powierzchnie; `ClubDocumentLibrary` i `ClubThreadDocumentsPanel` dają wyłącznie `download`, a formularz przyjmuje tylko URL.
 5. **Testy renderu dla największych organizmów i formularzy (21.4, 21.10, 21.23, 21.19):** `ClubHub` (619), `ClubCalendar` (600), `ClubPostCard` (514), `ClubAccessGate` (492), `club.apply.tsx` (754) i 21 komponentów panelu nie mają żadnego testu; priorytet: mapowanie draftu edytora klubu na `admin_club_upsert` (ścieżka, na której już raz cicho obniżył się próg planu — `planTiers.ts:9-17`) oraz eksport `.ics` w kalendarzu, którego w module nie ma wcale.
