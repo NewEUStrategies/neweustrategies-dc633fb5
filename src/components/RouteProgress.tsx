@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { useHasMounted } from "@/hooks/useHasMounted";
 
 /**
  * Slim top-of-viewport progress bar that visualises route NAVIGATION only
@@ -21,6 +22,10 @@ export function RouteProgress() {
     select: (s) => s.isLoading || s.status === "pending",
   });
   const { t } = useTranslation();
+  // Router bywa `pending` w trakcie SSR, a po hydracji juz nie - komunikat
+  // live region rozjezdzalby sie miedzy serwerem a klientem (React #418).
+  // Anonsujemy dopiero po zamontowaniu; SSR zawsze renderuje pusty region.
+  const mounted = useHasMounted();
 
   const [progress, setProgress] = useState(0);
   const [visible, setVisible] = useState(false);
@@ -101,7 +106,7 @@ export function RouteProgress() {
           to screen readers via a polite live region. Only route transitions
           (not every background query) are announced, to avoid chatter. */}
       <div role="status" aria-live="polite" className="sr-only">
-        {busy ? t("common.loading", { defaultValue: "Ładowanie…" }) : ""}
+        {mounted && busy ? t("common.loading", { defaultValue: "Ładowanie…" }) : ""}
       </div>
     </>
   );
