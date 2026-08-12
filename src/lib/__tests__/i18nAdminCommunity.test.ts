@@ -30,6 +30,7 @@ const CONVERTED = [
   "src/routes/admin.community.badges.tsx",
   "src/routes/admin.community.engagement.tsx",
   "src/routes/admin.community.polls.tsx",
+  "src/routes/admin.community.chat.tsx",
 ] as const;
 
 const SOURCES = CONVERTED.map((path) => ({ path, src: readFileSync(path, "utf8") }));
