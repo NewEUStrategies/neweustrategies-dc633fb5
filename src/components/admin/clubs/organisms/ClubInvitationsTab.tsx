@@ -50,8 +50,8 @@ type InvitableRole = (typeof INVITABLE_ROLES)[number];
 
 type SendMode = "person" | "email";
 
-export function ClubInvitationsTab({ clubId, isPl }: { clubId: string; isPl: boolean }) {
-  const { t } = useTranslation();
+export function ClubInvitationsTab({ clubId }: { clubId: string }) {
+  const { t, i18n } = useTranslation();
   const [mode, setMode] = useState<SendMode>("person");
   const [userId, setUserId] = useState("");
   const [email, setEmail] = useState("");
@@ -243,7 +243,7 @@ export function ClubInvitationsTab({ clubId, isPl }: { clubId: string; isPl: boo
       </Card>
 
       {/* --- Panel 2: kampania segmentowa (ścieżka D) --- */}
-      <ClubSegmentCampaign clubId={clubId} isPl={isPl} />
+      <ClubSegmentCampaign clubId={clubId} />
 
       {/* --- Panel 3: linki --- */}
       <Card>
@@ -333,9 +333,7 @@ export function ClubInvitationsTab({ clubId, isPl }: { clubId: string; isPl: boo
                           {link.max_uses !== null ? ` / ${link.max_uses}` : ""}
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                          {link.expires_at
-                            ? formatDateShort(link.expires_at, isPl ? "pl" : "en")
-                            : "-"}
+                          {link.expires_at ? formatDateShort(link.expires_at, i18n.language) : "-"}
                         </TableCell>
                         <TableCell>
                           <Badge variant={revoked ? "outline" : "secondary"}>
@@ -433,7 +431,7 @@ export function ClubInvitationsTab({ clubId, isPl }: { clubId: string; isPl: boo
                         {row.inviter_name}
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                        {formatDateShort(row.created_at, isPl ? "pl" : "en")}
+                        {formatDateShort(row.created_at, i18n.language)}
                       </TableCell>
                     </TableRow>
                   ))}

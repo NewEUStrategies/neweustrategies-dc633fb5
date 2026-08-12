@@ -8,6 +8,7 @@
 // inne wyłącza się przełącznikiem.
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { uiLang } from "@/lib/i18n/format";
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -78,7 +79,7 @@ function toDraft(row: ClubTopicAdminRow): DraftState {
 
 export function ClubTopicsManager() {
   const { t, i18n } = useTranslation();
-  const lang = (i18n.language ?? "pl").startsWith("pl") ? "pl" : "en";
+  const lang = uiLang(i18n.language);
   const listQ = useAdminClubTopics();
   const upsert = useUpsertClubTopic();
   const setActive = useSetClubTopicActive();

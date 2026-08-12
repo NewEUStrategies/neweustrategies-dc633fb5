@@ -17,6 +17,8 @@
 // przycisk zapisu jest gorszy niż scroll.
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { uiLang } from "@/lib/i18n/format";
+import { pickLocalized, type LocaleCode } from "@/lib/i18n/pickLocalized";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -134,17 +136,16 @@ export function ClubGroupEditorDialog({
   clubId,
   group,
   siblings,
-  isPl,
   onOpenChange,
 }: {
   clubId: string;
   group: AdminClubGroupRow | null;
   /** Pozostałe grupy klubu - cel przeniesienia wątków przy kasowaniu. */
   siblings: readonly AdminClubGroupRow[];
-  isPl: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const saveM = useUpsertClubGroup(clubId);
   const deleteM = useDeleteClubGroup(clubId);
 
@@ -458,7 +459,7 @@ export function ClubGroupEditorDialog({
                   <SelectContent>
                     {others.map((g) => (
                       <SelectItem key={g.id} value={g.id}>
-                        {isPl ? g.name_pl : g.name_en}
+                        {pickLocalized(g, "name", lang)}
                       </SelectItem>
                     ))}
                   </SelectContent>

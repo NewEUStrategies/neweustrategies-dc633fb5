@@ -7,6 +7,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { uiLang, uiLocale } from "@/lib/i18n/format";
 import { toast } from "sonner";
 import {
   AlertTriangle,
@@ -76,7 +77,7 @@ function CrmSyncChip(props: {
 }) {
   const { row } = props;
   const { t, i18n } = useTranslation();
-  const locale = (i18n.language ?? "pl").startsWith("pl") ? "pl-PL" : "en-GB";
+  const locale = uiLocale(i18n.language);
   const fmt = (iso: string | null): string =>
     iso === null
       ? "-"
@@ -135,8 +136,8 @@ function ApplicationRow(props: {
   const { row } = props;
   const { t, i18n } = useTranslation();
   const [open, setOpen] = useState(false);
-  const lang = (i18n.language ?? "pl").startsWith("pl") ? "pl" : "en";
-  const locale = lang === "pl" ? "pl-PL" : "en-GB";
+  const lang = uiLang(i18n.language);
+  const locale = uiLocale(i18n.language);
   const when = new Date(row.created_at).toLocaleString(locale, {
     dateStyle: "medium",
     timeStyle: "short",
@@ -248,7 +249,7 @@ function ApplicationRow(props: {
 
 export function ClubApplicationsInbox() {
   const { t, i18n } = useTranslation();
-  const lang = (i18n.language ?? "pl").startsWith("pl") ? "pl" : "en";
+  const lang = uiLang(i18n.language);
   const qc = useQueryClient();
   const specsQuery = useClubSpecializations();
   const [spec, setSpec] = useState("");

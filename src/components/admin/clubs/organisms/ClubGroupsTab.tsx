@@ -6,6 +6,8 @@
 // czyta się jak zepsute.
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { uiLang } from "@/lib/i18n/format";
+import { pickLocalized, type LocaleCode } from "@/lib/i18n/pickLocalized";
 import { toast } from "sonner";
 import {
   DndContext,
@@ -51,16 +53,9 @@ function asVisibility(value: string): ClubVisibility {
     : "members";
 }
 
-function SortableGroupRow({
-  group,
-  isPl,
-  onEdit,
-}: {
-  group: AdminClubGroupRow;
-  isPl: boolean;
-  onEdit: () => void;
-}) {
-  const { t } = useTranslation();
+function SortableGroupRow({ group, onEdit }: { group: AdminClubGroupRow; onEdit: () => void }) {
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: group.id,
   });
@@ -93,7 +88,7 @@ function SortableGroupRow({
           onClick={onEdit}
           className="block w-full truncate text-left font-medium hover:text-primary"
         >
-          {isPl ? group.name_pl : group.name_en}
+          {pickLocalized(group, "name", lang)}
         </button>
         <div className="text-xs text-muted-foreground">/{group.slug}</div>
       </div>
@@ -124,7 +119,7 @@ function SortableGroupRow({
   );
 }
 
-export function ClubGroupsTab({ clubId, isPl }: { clubId: string; isPl: boolean }) {
+export function ClubGroupsTab({ clubId }: { clubId: string }) {
   const { t } = useTranslation();
   const groupsQ = useAdminClubGroups(clubId);
   const reorderM = useReorderClubGroups(clubId);
@@ -172,7 +167,11 @@ export function ClubGroupsTab({ clubId, isPl }: { clubId: string; isPl: boolean 
       {
         club_id: clubId,
         slug: `dzial-${stamp}`,
-        name_pl: isPl ? "Nowy dział" : "New section",
+        // Wartosci startowe nowego dzialu NIE zaleza od jezyka panelu: przy
+        // angielskim interfejsie do kolumny POLSKIEJ wpisywalo sie
+        // "New section", wiec polski odwiedzajacy widzial angielska nazwe.
+        // Kolumna trzyma jezyk, ktory zapowiada jej nazwa - kropka.
+        name_pl: "Nowy dział",
         name_en: "New section",
         status: "draft",
       },
@@ -234,7 +233,6 @@ export function ClubGroupsTab({ clubId, isPl }: { clubId: string; isPl: boolean 
                     <SortableGroupRow
                       key={group.id}
                       group={group}
-                      isPl={isPl}
                       onEdit={() => setEditing(group)}
                     />
                   ))}
@@ -249,7 +247,6 @@ export function ClubGroupsTab({ clubId, isPl }: { clubId: string; isPl: boolean 
         clubId={clubId}
         group={editing}
         siblings={order}
-        isPl={isPl}
         onOpenChange={(open) => !open && setEditing(null)}
       />
     </Card>

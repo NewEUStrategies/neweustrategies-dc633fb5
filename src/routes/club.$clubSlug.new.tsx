@@ -432,12 +432,7 @@ function ClubNewThread() {
             </p>
           </div>
 
-          <ClubAnchorPicker
-            value={anchor}
-            onChange={setAnchor}
-            isPl={isPl}
-            disabled={createM.isPending}
-          />
+          <ClubAnchorPicker value={anchor} onChange={setAnchor} disabled={createM.isPending} />
 
           {/* Reguła autorstwa MUSI być widoczna przed publikacją, a nie dopiero
               na wątku: w dziale prowadzonym w regule Chatham House wypowiedź

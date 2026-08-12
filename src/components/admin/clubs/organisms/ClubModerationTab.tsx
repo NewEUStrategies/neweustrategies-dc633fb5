@@ -108,8 +108,8 @@ interface RevealTarget {
   title: string;
 }
 
-export function ClubModerationTab({ clubId, isPl }: { clubId: string; isPl: boolean }) {
-  const { t } = useTranslation();
+export function ClubModerationTab({ clubId }: { clubId: string }) {
+  const { t, i18n } = useTranslation();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [reveal, setReveal] = useState<RevealTarget | null>(null);
@@ -293,7 +293,7 @@ export function ClubModerationTab({ clubId, isPl }: { clubId: string; isPl: bool
                         ) : (
                           <span className="font-medium text-foreground">{item.author_name}</span>
                         )}
-                        <span>{formatDateTime(item.created_at, isPl ? "pl" : "en")}</span>
+                        <span>{formatDateTime(item.created_at, i18n.language)}</span>
                       </div>
                       <p className="mt-1 truncate text-sm font-medium">{item.title}</p>
                       {/* line-clamp, nie truncate: moderator musi zobaczyć,
@@ -377,8 +377,8 @@ export function ClubModerationTab({ clubId, isPl }: { clubId: string; isPl: bool
         </CardContent>
       </Card>
 
-      <BannedMembersCard clubId={clubId} isPl={isPl} />
-      <ModerationLogCard clubId={clubId} isPl={isPl} />
+      <BannedMembersCard clubId={clubId} />
+      <ModerationLogCard clubId={clubId} />
 
       <ModeratorEditDialog
         clubId={clubId}
@@ -394,8 +394,8 @@ export function ClubModerationTab({ clubId, isPl }: { clubId: string; isPl: bool
 // ---------------------------------------------------------------------------
 // Blokady członków
 // ---------------------------------------------------------------------------
-function BannedMembersCard({ clubId, isPl }: { clubId: string; isPl: boolean }) {
-  const { t } = useTranslation();
+function BannedMembersCard({ clubId }: { clubId: string }) {
+  const { t, i18n } = useTranslation();
   const bannedQ = useClubMembers({ clubId, status: "banned", limit: 100 });
   const banM = useBanClubMember(clubId);
 
@@ -510,7 +510,7 @@ function BannedMembersCard({ clubId, isPl }: { clubId: string; isPl: boolean }) 
                       ? m.job_title
                       : t(`club.role.${m.role}`)}
                     {" · "}
-                    {formatDateShort(m.joined_at, isPl ? "pl" : "en")}
+                    {formatDateShort(m.joined_at, i18n.language)}
                   </p>
                 </div>
                 <Button
@@ -544,8 +544,8 @@ const LOG_PERIODS: readonly { key: string; days: number | null }[] = [
   { key: "all", days: null },
 ];
 
-function ModerationLogCard({ clubId, isPl }: { clubId: string; isPl: boolean }) {
-  const { t } = useTranslation();
+function ModerationLogCard({ clubId }: { clubId: string }) {
+  const { t, i18n } = useTranslation();
   const logQ = useClubModerationLog(clubId);
   const [action, setAction] = useState<string | null>(null);
   const [target, setTarget] = useState<string | null>(null);
@@ -707,7 +707,7 @@ function ModerationLogCard({ clubId, isPl }: { clubId: string; isPl: boolean }) 
                   {rows.map((r) => (
                     <TableRow key={r.id}>
                       <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                        {formatDateTime(r.created_at, isPl ? "pl" : "en")}
+                        {formatDateTime(r.created_at, i18n.language)}
                       </TableCell>
                       <TableCell className="text-sm">{r.moderator_name}</TableCell>
                       <TableCell>
@@ -750,7 +750,7 @@ function ModerationLogCard({ clubId, isPl }: { clubId: string; isPl: boolean }) 
                     </Badge>
                     <span className="text-sm font-medium">{r.moderator_name}</span>
                     <span className="ml-auto text-xs text-muted-foreground">
-                      {formatDateTime(r.created_at, isPl ? "pl" : "en")}
+                      {formatDateTime(r.created_at, i18n.language)}
                     </span>
                   </div>
                   {r.reason !== null && r.reason !== "" ? (

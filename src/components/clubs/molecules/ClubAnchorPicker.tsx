@@ -13,6 +13,8 @@
 // cala ta mechanika nie ma na czym pracowac.
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { uiLang } from "@/lib/i18n/format";
+import { pickLocalized, type LocaleCode } from "@/lib/i18n/pickLocalized";
 import { Link2, Loader2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,14 +34,12 @@ export interface ClubAnchorValue {
 export function ClubAnchorPicker({
   value,
   onChange,
-  isPl,
   disabled,
   anchorType = null,
   fieldLabel,
 }: {
   value: ClubAnchorValue | null;
   onChange: (value: ClubAnchorValue | null) => void;
-  isPl: boolean;
   disabled?: boolean;
   /**
    * Zawężenie do JEDNEGO typu encji. Kompozytor wątku go nie podaje (czytelnik
@@ -53,7 +53,9 @@ export function ClubAnchorPicker({
   fieldLabel?: string;
 }) {
   ensureClubI18n();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  // Jezyk TRESCI podpowiedzi (blizniacze kolumny), nie etykiet interfejsu.
+  const lang = uiLang(i18n.language);
   const [query, setQuery] = useState("");
   const debounced = useDebouncedValue(query, 250);
 
@@ -67,8 +69,10 @@ export function ClubAnchorPicker({
     enabled: !disabled && value === null,
   });
 
-  const label = (row: ClubAnchorSuggestion): string =>
-    (isPl ? row.label_pl : row.label_en) || row.label_pl || row.label_en;
+  // `pickLocalized` zamiast `a_en || a_pl || a_en`: ciag z samych spacji liczy
+  // sie jako pusty, wiec podpowiedz z "pusta" etykieta siega po drugi jezyk,
+  // a nie renderuje bialej plamy na liscie wyboru.
+  const label = (row: ClubAnchorSuggestion): string => pickLocalized(row, "label", lang);
 
   if (value !== null) {
     return (

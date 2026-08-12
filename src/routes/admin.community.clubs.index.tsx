@@ -43,7 +43,6 @@ const ANY = "__any__";
 function AdminClubsList() {
   ensureClubI18n();
   const { t, i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
 
@@ -189,7 +188,7 @@ function AdminClubsList() {
               pasek stronicowania dostaje swoją zamiast zagnieżdżać się w cudzej.
               Pokazujemy go dopiero, gdy jest co stronicować - "1-3 z 3" przy
               trzech klubach to szum, a nie informacja. */}
-          <ClubsTable rows={rows} isPl={isPl} />
+          <ClubsTable rows={rows} />
           {total > pageSize ? (
             <div className="overflow-hidden rounded-lg border border-border/60">
               <AdminPagination

@@ -17,6 +17,7 @@
 // konfigurowanie wszystkiego naraz.
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { uiLang } from "@/lib/i18n/format";
 import {
   CLUB_PLAN_TIERS,
   DEFAULT_CLUB_PLAN_TIER,
@@ -65,7 +66,9 @@ export function ClubCreateDialog({
   onCreated: (clubId: string) => void;
 }) {
   const { t, i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  // Nazwa mowi, co ta flaga naprawde robi: wybiera KOLUMNE zapisu tagline'u,
+  // a nie etykiete interfejsu.
+  const writesPolish = uiLang(i18n.language) === "pl";
   const createM = useUpsertClub();
 
   const [namePl, setNamePl] = useState("");
@@ -135,8 +138,13 @@ export function ClubCreateDialog({
         slug: effectiveSlug,
         name_pl: namePl.trim(),
         name_en: nameEn.trim() !== "" ? nameEn.trim() : namePl.trim(),
-        tagline_pl: isPl ? tagline.trim() || null : null,
-        tagline_en: isPl ? null : tagline.trim() || null,
+        // Jedno pole tagline'u trafia do kolumny jezyka, w ktorym redaktor
+        // pracuje; druga zostaje pusta CELOWO. Czytelnicy sciagaja te wartosc
+        // przez `pickLocalized`, ktory przy pustej kolumnie siega po drugi
+        // jezyk - wiec zapisanie tu tego samego tekstu w obu kolumnach
+        // udawaloby tlumaczenie, ktorego nie ma.
+        tagline_pl: writesPolish ? tagline.trim() || null : null,
+        tagline_en: writesPolish ? null : tagline.trim() || null,
         visibility,
         join_policy: joinPolicy,
         attribution_mode: attribution,

@@ -22,6 +22,8 @@
 // panelach zakładki, żeby trzy karty pod sobą nie miały trzech różnych rytmów.
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { uiLang } from "@/lib/i18n/format";
+import { pickLocalized, type LocaleCode } from "@/lib/i18n/pickLocalized";
 import { toast } from "sonner";
 import { Send, Users2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -56,8 +58,9 @@ import { PROFILE_BADGE_CATALOG, PROFILE_BADGE_KINDS } from "@/lib/profile/badgeC
 const CAMPAIGN_ROLES = ["moderator", "member", "observer"] as const;
 type CampaignRole = (typeof CAMPAIGN_ROLES)[number];
 
-export function ClubSegmentCampaign({ clubId, isPl }: { clubId: string; isPl: boolean }) {
-  const { t } = useTranslation();
+export function ClubSegmentCampaign({ clubId }: { clubId: string }) {
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const [kind, setKind] = useState<ClubSegmentKind>("badge");
   const [badge, setBadge] = useState<string>(PROFILE_BADGE_KINDS[0]);
   const [specialization, setSpecialization] = useState("");
@@ -147,7 +150,7 @@ export function ClubSegmentCampaign({ clubId, isPl }: { clubId: string; isPl: bo
                 <SelectContent>
                   {PROFILE_BADGE_KINDS.map((key) => (
                     <SelectItem key={key} value={key}>
-                      {PROFILE_BADGE_CATALOG[key].label[isPl ? "pl" : "en"]}
+                      {PROFILE_BADGE_CATALOG[key].label[lang]}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -182,7 +185,7 @@ export function ClubSegmentCampaign({ clubId, isPl }: { clubId: string; isPl: bo
                 <SelectContent>
                   {otherClubs.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
-                      {isPl ? c.name_pl : c.name_en}
+                      {pickLocalized(c, "name", lang)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -194,7 +197,6 @@ export function ClubSegmentCampaign({ clubId, isPl }: { clubId: string; isPl: bo
             <ClubAnchorPicker
               value={anchor}
               onChange={setAnchor}
-              isPl={isPl}
               disabled={sendM.isPending}
               anchorType={kind === "policy_follow" ? "eu_policy_item" : "event"}
               fieldLabel={

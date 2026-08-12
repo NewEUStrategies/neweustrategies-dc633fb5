@@ -11,6 +11,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { uiLang } from "@/lib/i18n/format";
+import { pickLocalized, type LocaleCode } from "@/lib/i18n/pickLocalized";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2, Save, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -123,7 +125,8 @@ function toAccessDraft(club: AdminClubDetailRow): ClubAccessDraft {
 function ClubEditor() {
   ensureClubI18n();
   const { t, i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  // Jezyk TRESCI (nazwa klubu z blizniaczych kolumn); etykiety ida przez `t()`.
+  const lang = uiLang(i18n.language);
   const { isAdmin } = useAuth();
   const { clubId } = Route.useParams();
   const { tab } = useSearch({ from: "/admin/community/clubs/$clubId" });
@@ -234,9 +237,7 @@ function ClubEditor() {
             </Link>
           </Button>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="truncate text-2xl font-semibold">
-              {isPl ? club.name_pl : club.name_en}
-            </h1>
+            <h1 className="truncate text-2xl font-semibold">{pickLocalized(club, "name", lang)}</h1>
             <ClubStatusBadge status={narrow<ClubStatus>(club.status, CLUB_STATUSES, "draft")} />
           </div>
           <p className="text-sm text-muted-foreground">/{club.slug}</p>
@@ -292,26 +293,26 @@ function ClubEditor() {
         </TabsContent>
 
         <TabsContent value="groups" className="mt-5">
-          <ClubGroupsTab clubId={club.id} isPl={isPl} />
+          <ClubGroupsTab clubId={club.id} />
         </TabsContent>
 
         {/* Zakładki treściowe montują się dopiero po wybraniu (`forceMount`
             domyślnie wyłączony w Radiksie): kolejka moderacji i lista tematów
             to trzy zapytania każda, a edytor otwiera się na "Ogólnych". */}
         <TabsContent value="threads" className="mt-5">
-          <ClubThreadsTab clubId={club.id} isPl={isPl} />
+          <ClubThreadsTab clubId={club.id} />
         </TabsContent>
 
         <TabsContent value="moderation" className="mt-5">
-          <ClubModerationTab clubId={club.id} isPl={isPl} />
+          <ClubModerationTab clubId={club.id} />
         </TabsContent>
 
         <TabsContent value="members" className="mt-5">
-          <ClubMembersTab clubId={club.id} isPl={isPl} />
+          <ClubMembersTab clubId={club.id} />
         </TabsContent>
 
         <TabsContent value="invitations" className="mt-5">
-          <ClubInvitationsTab clubId={club.id} isPl={isPl} />
+          <ClubInvitationsTab clubId={club.id} />
         </TabsContent>
 
         <TabsContent value="permissions" className="mt-5">
