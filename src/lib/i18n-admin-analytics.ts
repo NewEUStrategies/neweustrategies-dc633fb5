@@ -17,6 +17,12 @@ const pl = {
       exportCsv: "Eksport CSV",
       fullscreen: "Pełny ekran",
       exitFullscreen: "Zamknij pełny ekran",
+      // Kanwa ECharts jest dla czytnika ekranu nieprzezroczysta - te trzy klucze
+      // opisują alternatywę tekstową, nie ozdobę.
+      chartRegion: "Wykres: {{title}}",
+      dataTable: "Dane wykresu (tabela)",
+      dataTableHint: "Ta sama treść co wykres, w postaci tabeli.",
+      dataTableMissing: "Dla tego wykresu nie udostępniono jeszcze tabeli danych.",
     },
     drillDialog: {
       hint: "Kliknij element wykresu, aby zobaczyć szczegóły",
@@ -728,6 +734,10 @@ const en = {
       exportCsv: "Export CSV",
       fullscreen: "Full screen",
       exitFullscreen: "Exit full screen",
+      chartRegion: "Chart: {{title}}",
+      dataTable: "Chart data (table)",
+      dataTableHint: "The same content as the chart, as a table.",
+      dataTableMissing: "A data table for this chart is not available yet.",
     },
     drillDialog: {
       hint: "Click a chart element to see details",
