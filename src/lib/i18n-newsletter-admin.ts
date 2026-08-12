@@ -3,9 +3,69 @@ import i18n from "./i18n";
 // Overlay dla kampanii newslettera (/admin/newsletter/campaigns), akcji
 // statusu subskrybentów oraz publicznej strony wypisu (/newsletter/unsubscribe).
 
-const pl = {
+export const newsletterAdminPl = {
   adminNewsletter: {
     campaigns: {
+      detailSaved: "Zapisano",
+      testSent: "Wysłano test",
+      testResult: "Wysłano: {{sent}}, błędy: {{failed}}",
+      detailLoading: "Wczytywanie…",
+      notFound: "Nie znaleziono.",
+      back: "Wróć",
+      detailEyebrow: "Kampania",
+      sentLabel: "Wysłano",
+      saveChanges: "Zapisz",
+      sendNow: "Wyślij teraz",
+      sendConfirmHeading: "Rozpocząć wysyłkę?",
+      sendConfirmCount:
+        "Kampania zostanie wysłana do {{count}} odbiorców. Ta operacja jest nieodwracalna.",
+      sendingPaused: "Wysyłka wstrzymana",
+      riskIntro:
+        "Wskaźniki dostarczalności przekroczyły próg bezpieczeństwa. Kolejna masowa wysyłka pogłębi problem z reputacją domeny.",
+      riskComplaints: "Wskaźnik skarg osiągnął twardy limit Google (0,30%).",
+      riskBounces: "Wskaźnik twardych odbić osiągnął poziom krytyczny (5%).",
+      riskWhereToLook: "Szczegóły i lista wykluczeń: Newsletter -> Dostarczalność.",
+      sendDespiteRisk: "Rozumiem ryzyko - wyślij",
+      settingsHeading: "Ustawienia",
+      internalName: "Nazwa (wewnętrzna)",
+      scheduleSend: "Zaplanuj wysyłkę",
+      clearSchedule: "Usuń plan",
+      scheduleHint:
+        "Po zapisaniu kampania przejdzie w status „Zaplanowana” i wyśle się automatycznie o wskazanym czasie.",
+      fromName: "Nadawca (nazwa)",
+      fromEmail: "Nadawca (e-mail)",
+      contentHeading: "Treść",
+      builderTab: "Kreator",
+      variablesHint:
+        "Zmienne: {{firstName}}, {{lastName}}, {{email}}. Stopka „Wypisz się” jest doklejana automatycznie.",
+      languagesLabel: "Języki",
+      emptyMeansAll: "Puste = wszystkie",
+      sourceOptional: "Źródło (opcjonalne)",
+      membershipLevel: "Poziom członkostwa",
+      allSubscribers: "Wszyscy subskrybenci",
+      tierFrom: "Od",
+      membershipHint: "Zawęża do subskrybentów będących kontami o co najmniej tym poziomie.",
+      matchingSubscribers: "aktywnych subskrybentów spełnia filtr",
+      engagementHeading: "Zaangażowanie",
+      opens: "Otwarcia",
+      clicks: "Kliknięcia",
+      engagementHint:
+        "Otwarcia liczone pikselem, kliknięcia przez przekierowanie. Wartości przybliżone (% z dostarczonych).",
+      testSendHeading: "Wysyłka testowa",
+      testEmail: "Adres testowy",
+      sendTest: "Wyślij test",
+      noDueCampaigns: "Brak zaległych kampanii",
+      dueFired: "Wysłano {{count}} zaplanowanych kampanii",
+      dueSummary: "Uruchomiono: {{fired}} zaplanowanych, wznowiono: {{continued}}",
+      resumeResult: "Wznowiono wysyłkę - wysłano {{sent}}, błędy: {{failed}}",
+      deleteBody: "„{{name}}” zostanie trwale usunięta.",
+      listHeading: "Kampanie newsletterowe",
+      listSubtitle: "Twórz i wysyłaj mailingi do wybranych segmentów subskrybentów.",
+      processDue: "Wyślij zaległe",
+      scheduledFor: "Zaplanowana na",
+      colCreated: "Utworzono",
+      listEmpty: "Brak kampanii.",
+      deleteHeading: "Usunąć kampanię?",
       title: "Kampanie newslettera",
       subtitle:
         "Twórz i wysyłaj wydania newslettera do potwierdzonych subskrybentów. Wysyłka odbywa się partiami i jest odporna na ponowienia.",
@@ -18,10 +78,16 @@ const pl = {
       colUpdated: "Aktualizacja",
       empty: "Brak kampanii. Utwórz pierwszą powyżej.",
       status: {
+        // Klucze odwzorowuja wartosci enuma `campaigns.status` w bazie
+        // (`cancelled`, nie `canceled`) - inaczej odczyt po statusie wiersza
+        // nie trafia w slownik. Pisownia EN jest brytyjska, jak cala wersja
+        // angielska serwisu (patrz konwencja w `lib/i18n/format.ts`).
         draft: "Szkic",
+        scheduled: "Zaplanowana",
         sending: "Wysyłanie",
         sent: "Wysłana",
-        canceled: "Anulowana",
+        failed: "Błąd",
+        cancelled: "Anulowana",
       },
       segmentAll: "Wszyscy",
       editTitle: "Edytuj kampanię",
@@ -44,7 +110,7 @@ const pl = {
       saved: "Kampania zapisana",
       saveError: "Nie udało się zapisać kampanii.",
       subjectRequired: "Temat (PL) jest wymagany.",
-      cancelEdit: "Anuluj",
+      cancel: "Anuluj",
       delete: "Usuń",
       deleteConfirm: "Usunąć tę kampanię? Tej operacji nie można cofnąć.",
       deleted: "Kampania usunięta",
@@ -66,6 +132,9 @@ const pl = {
         "Brak odbiorców w wybranym segmencie - kampania pozostała szkicem. Sprawdź listę subskrybentów.",
       results: "Wyniki",
       recipients: "Odbiorcy",
+      // `recipients` to LICZBA odbiorcow, `audience` to naglowek karty segmentu -
+      // po polsku obie brzmia "Odbiorcy", po angielsku to "Recipients" i "Audience".
+      audience: "Odbiorcy",
     },
     subscribers: {
       unsubscribeAction: "Wypisz",
@@ -96,6 +165,60 @@ const pl = {
       emptyFiltered: "Brak subskrybentow spelniajacych kryteria.",
       deleteAria: "Usun",
     },
+
+    blocks: {
+      heading: "Nagłówek",
+      paragraph: "Tekst",
+      image: "Obraz",
+      button: "Przycisk",
+      postList: "Najnowsze wpisy",
+      quote: "Cytat",
+      divider: "Linia",
+      spacer: "Odstęp",
+      footerNote: "Nota stopki",
+      emptyDocument: "Pusty dokument. Dodaj pierwszy blok z palety powyżej.",
+      properties: "Właściwości",
+      preview: "Podgląd",
+      previewFrameTitle: "Podgląd wiadomości",
+      noContentInLang: "Brak treści w tym języku. Uzupełnij bloki dla PL/EN.",
+      drag: "Przeciągnij",
+      duplicate: "Duplikuj",
+      remove: "Usuń",
+    },
+
+    blockProps: {
+      text: "Tekst",
+      level: "Poziom",
+      richContent: "Treść (dozwolone b, i, a, br)",
+      label: "Etykieta",
+      quote: "Cytat",
+      attribution: "Autor",
+      heightPx: "Wysokość (px)",
+      dividerHint: "Pozioma linia oddzielająca sekcje.",
+      footerNote: "Nota (drobny tekst na dole)",
+      alignment: "Wyrównanie",
+      alignLeft: "Do lewej",
+      alignCenter: "Wyśrodkuj",
+      image: "Obraz",
+      change: "Zmień",
+      choose: "Wybierz",
+      remove: "Usuń",
+      altText: "Tekst alternatywny",
+      linkOptional: "Link (opcjonalnie)",
+      sectionHeading: "Nagłówek sekcji",
+      source: "Źródło",
+      sourceLatest: "Najnowsze",
+      sourceManual: "Ręcznie wybrane",
+      layout: "Układ",
+      layoutList: "Lista",
+      layoutCards: "Karty (z obrazem)",
+      postCount: "Liczba wpisów",
+      categorySlug: "Slug kategorii (opcj.)",
+      showExcerpts: "Pokaż zajawki",
+      searchPost: "Szukaj wpisu…",
+      selected: "Wybrane",
+      noResults: "Brak wyników.",
+    },
   },
   newsletterUnsubscribe: {
     loading: "Przetwarzamy Twoje żądanie...",
@@ -113,9 +236,67 @@ const pl = {
   },
 };
 
-const en: typeof pl = {
+export const newsletterAdminEn: typeof newsletterAdminPl = {
   adminNewsletter: {
     campaigns: {
+      detailSaved: "Saved",
+      testSent: "Test sent",
+      testResult: "Sent: {{sent}}, failed: {{failed}}",
+      detailLoading: "Loading…",
+      notFound: "Not found.",
+      back: "Back",
+      detailEyebrow: "Campaign",
+      sentLabel: "Sent",
+      saveChanges: "Save",
+      sendNow: "Send now",
+      sendConfirmHeading: "Start sending?",
+      sendConfirmCount: "The campaign will be sent to {{count}} recipients. This cannot be undone.",
+      sendingPaused: "Sending paused",
+      riskIntro:
+        "Deliverability rates crossed the safety threshold. Another bulk send will deepen the domain reputation problem.",
+      riskComplaints: "Complaint rate reached Google's hard limit (0.30%).",
+      riskBounces: "Hard bounce rate reached the critical level (5%).",
+      riskWhereToLook: "Details and suppression list: Newsletter -> Deliverability.",
+      sendDespiteRisk: "I understand the risk - send",
+      settingsHeading: "Settings",
+      internalName: "Name (internal)",
+      scheduleSend: "Schedule send",
+      clearSchedule: "Clear",
+      scheduleHint:
+        "After saving, the campaign becomes “Scheduled” and sends automatically at the chosen time.",
+      fromName: "From name",
+      fromEmail: "From email",
+      contentHeading: "Content",
+      builderTab: "Builder",
+      variablesHint:
+        "Variables: {{firstName}}, {{lastName}}, {{email}}. Unsubscribe footer is appended automatically.",
+      languagesLabel: "Languages",
+      emptyMeansAll: "Empty = all",
+      sourceOptional: "Source (optional)",
+      membershipLevel: "Membership level",
+      allSubscribers: "All subscribers",
+      tierFrom: "From",
+      membershipHint: "Restricts to subscribers who are accounts of at least this level.",
+      matchingSubscribers: "active subscribers match the filter",
+      engagementHeading: "Engagement",
+      opens: "Opens",
+      clicks: "Clicks",
+      engagementHint: "Opens tracked via pixel, clicks via redirect. Approximate (% of delivered).",
+      testSendHeading: "Test send",
+      testEmail: "Test email",
+      sendTest: "Send test",
+      noDueCampaigns: "No due campaigns",
+      dueFired: "Sent {{count}} scheduled campaigns",
+      dueSummary: "Fired: {{fired}} scheduled, resumed: {{continued}}",
+      resumeResult: "Send resumed - sent {{sent}}, failed: {{failed}}",
+      deleteBody: "“{{name}}” will be permanently deleted.",
+      listHeading: "Newsletter campaigns",
+      listSubtitle: "Compose and send mailings to selected subscriber segments.",
+      processDue: "Process due",
+      scheduledFor: "Scheduled for",
+      colCreated: "Created",
+      listEmpty: "No campaigns yet.",
+      deleteHeading: "Delete campaign?",
       title: "Newsletter campaigns",
       subtitle:
         "Create and send newsletter issues to confirmed subscribers. Delivery runs in batches and is retry-safe.",
@@ -129,9 +310,11 @@ const en: typeof pl = {
       empty: "No campaigns yet. Create the first one above.",
       status: {
         draft: "Draft",
+        scheduled: "Scheduled",
         sending: "Sending",
         sent: "Sent",
-        canceled: "Canceled",
+        failed: "Failed",
+        cancelled: "Cancelled",
       },
       segmentAll: "Everyone",
       editTitle: "Edit campaign",
@@ -154,7 +337,7 @@ const en: typeof pl = {
       saved: "Campaign saved",
       saveError: "Could not save the campaign.",
       subjectRequired: "Subject (PL) is required.",
-      cancelEdit: "Cancel",
+      cancel: "Cancel",
       delete: "Delete",
       deleteConfirm: "Delete this campaign? This cannot be undone.",
       deleted: "Campaign deleted",
@@ -176,6 +359,7 @@ const en: typeof pl = {
         "No recipients in the selected segment - the campaign stays a draft. Check the subscriber list.",
       results: "Results",
       recipients: "Recipients",
+      audience: "Audience",
     },
     subscribers: {
       unsubscribeAction: "Unsubscribe",
@@ -206,6 +390,60 @@ const en: typeof pl = {
       emptyFiltered: "No subscribers match the criteria.",
       deleteAria: "Delete",
     },
+
+    blocks: {
+      heading: "Heading",
+      paragraph: "Text",
+      image: "Image",
+      button: "Button",
+      postList: "Latest posts",
+      quote: "Quote",
+      divider: "Divider",
+      spacer: "Spacer",
+      footerNote: "Footer note",
+      emptyDocument: "Empty document. Add your first block from the palette above.",
+      properties: "Properties",
+      preview: "Preview",
+      previewFrameTitle: "Email preview",
+      noContentInLang: "No content in this language. Fill blocks for PL/EN.",
+      drag: "Drag",
+      duplicate: "Duplicate",
+      remove: "Remove",
+    },
+
+    blockProps: {
+      text: "Text",
+      level: "Level",
+      richContent: "Content (b, i, a, br allowed)",
+      label: "Label",
+      quote: "Quote",
+      attribution: "Attribution",
+      heightPx: "Height (px)",
+      dividerHint: "Horizontal rule separating sections.",
+      footerNote: "Note (small text at the bottom)",
+      alignment: "Alignment",
+      alignLeft: "Left",
+      alignCenter: "Center",
+      image: "Image",
+      change: "Change",
+      choose: "Choose",
+      remove: "Remove",
+      altText: "Alt text",
+      linkOptional: "Link (optional)",
+      sectionHeading: "Section heading",
+      source: "Source",
+      sourceLatest: "Latest",
+      sourceManual: "Hand-picked",
+      layout: "Layout",
+      layoutList: "List",
+      layoutCards: "Cards (with image)",
+      postCount: "Post count",
+      categorySlug: "Category slug (opt.)",
+      showExcerpts: "Show excerpts",
+      searchPost: "Search a post…",
+      selected: "Selected",
+      noResults: "No results.",
+    },
   },
   newsletterUnsubscribe: {
     loading: "Processing your request...",
@@ -222,7 +460,15 @@ const en: typeof pl = {
   },
 };
 
-i18n.addResourceBundle("pl", "translation", pl, true, true);
-i18n.addResourceBundle("en", "translation", en, true, true);
+i18n.addResourceBundle("pl", "translation", newsletterAdminPl, true, true);
+i18n.addResourceBundle("en", "translation", newsletterAdminEn, true, true);
 
 export {};
+
+/**
+ * No-op wolany w komponencie trasy zamiast side-effectowego importu modulu.
+ * Nazwane wiazanie pozwala splitterowi TanStacka przeniesc bundle tlumaczen do
+ * chunka trasy - `import "@/lib/i18n-newsletter-admin"` (tak bylo w
+ * SubscribersPanel) lada w eager-owym grafie wejsciowym kazdej strony.
+ */
+export function ensureI18n(): void {}

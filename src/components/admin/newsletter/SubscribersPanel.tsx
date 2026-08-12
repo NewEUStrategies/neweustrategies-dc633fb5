@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { Download, MailX, RotateCcw, Search, Trash2, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import "@/lib/i18n-newsletter-admin";
+import { ensureI18n as ensureNewsletterAdminI18n } from "@/lib/i18n-newsletter-admin";
 import { ImportCsvDialog } from "./subscribers/ImportCsvDialog";
 import { SubscriberDetailDialog } from "./subscribers/SubscriberDetailDialog";
 
@@ -41,6 +41,7 @@ const SUBSCRIBER_FETCH_CAP = 5000;
 export function SubscribersPanel() {
   const qc = useQueryClient();
   const [q, setQ] = useState("");
+  ensureNewsletterAdminI18n();
   const { t, i18n } = useTranslation();
   const [status, setStatus] = useState<StatusFilter>("all");
   const [lang, setLang] = useState<"all" | "pl" | "en">("all");

@@ -4,6 +4,8 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
+import { uiLang } from "@/lib/i18n/format";
+import { ensureI18n as ensureNewsletterAdminI18n } from "@/lib/i18n-newsletter-admin";
 import { toast } from "sonner";
 import { AlertTriangle, ArrowLeft, Save, Send, Mail, Users } from "lucide-react";
 import {
@@ -86,8 +88,8 @@ function localInputToIso(v: string): string | null {
 
 function CampaignEditor() {
   const { id } = Route.useParams();
-  const { i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  ensureNewsletterAdminI18n();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const qc = useQueryClient();
 
@@ -167,7 +169,7 @@ function CampaignEditor() {
         },
       }),
     onSuccess: () => {
-      toast.success(isPl ? "Zapisano" : "Saved");
+      toast.success(t("adminNewsletter.campaigns.detailSaved"));
       qc.invalidateQueries({ queryKey: ["admin", "newsletter-campaigns"] });
     },
     onError: (err: Error) => toast.error(err.message),
@@ -175,7 +177,7 @@ function CampaignEditor() {
 
   const testMut = useMutation({
     mutationFn: () => test({ data: { id, toEmail: testEmail, language: testLang } }),
-    onSuccess: () => toast.success(isPl ? "Wysłano test" : "Test sent"),
+    onSuccess: () => toast.success(t("adminNewsletter.campaigns.testSent")),
     onError: (err: Error) => toast.error(err.message),
   });
 
@@ -199,9 +201,7 @@ function CampaignEditor() {
     onSuccess: (res) => {
       setGateReasons([]);
       toast.success(
-        isPl
-          ? `Wysłano: ${res.sent}, błędy: ${res.failed}`
-          : `Sent: ${res.sent}, failed: ${res.failed}`,
+        t("adminNewsletter.campaigns.testResult", { sent: res.sent, failed: res.failed }),
       );
       qc.invalidateQueries({ queryKey: ["admin", "newsletter-campaigns"] });
     },
@@ -218,11 +218,15 @@ function CampaignEditor() {
   });
 
   if (isLoading || !form) {
-    return <div className="p-6 text-muted-foreground">{isPl ? "Wczytywanie…" : "Loading…"}</div>;
+    return (
+      <div className="p-6 text-muted-foreground">
+        {t("adminNewsletter.campaigns.detailLoading")}
+      </div>
+    );
   }
   if (!campaign) {
     return (
-      <div className="p-6 text-muted-foreground">{isPl ? "Nie znaleziono." : "Not found."}</div>
+      <div className="p-6 text-muted-foreground">{t("adminNewsletter.campaigns.notFound")}</div>
     );
   }
 
@@ -246,19 +250,20 @@ function CampaignEditor() {
             variant="ghost"
             size="icon"
             onClick={() => navigate({ to: "/admin/newsletter/campaigns" })}
-            aria-label={isPl ? "Wróć" : "Back"}
+            aria-label={t("adminNewsletter.campaigns.back")}
           >
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <div>
             <h2 className="text-xl font-semibold">
-              {form.name || (isPl ? "Kampania" : "Campaign")}
+              {form.name || t("adminNewsletter.campaigns.detailEyebrow")}
             </h2>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Badge variant="outline">{campaign.status}</Badge>
               {campaign.sent_count > 0 && (
                 <span>
-                  {isPl ? "Wysłano" : "Sent"}: {campaign.sent_count} / {campaign.recipient_count}
+                  {t("adminNewsletter.campaigns.sentLabel")}: {campaign.sent_count} /{" "}
+                  {campaign.recipient_count}
                 </span>
               )}
             </div>
@@ -271,36 +276,36 @@ function CampaignEditor() {
             disabled={saveMut.isPending || readonly}
           >
             <Save className="w-4 h-4 mr-2" />
-            {isPl ? "Zapisz" : "Save"}
+            {t("adminNewsletter.campaigns.saveChanges")}
           </Button>
           {canResume && (
             <Button variant="outline" onClick={() => sendMut.mutate(false)}>
               <Send className="w-4 h-4 mr-2" />
-              {isPl ? "Wznów wysyłkę" : "Resume sending"}
+              {t("adminNewsletter.campaigns.resume")}
             </Button>
           )}
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button disabled={readonly || sendMut.isPending}>
                 <Send className="w-4 h-4 mr-2" />
-                {isPl ? "Wyślij teraz" : "Send now"}
+                {t("adminNewsletter.campaigns.sendNow")}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>
-                  {isPl ? "Rozpocząć wysyłkę?" : "Start sending?"}
+                  {t("adminNewsletter.campaigns.sendConfirmHeading")}
                 </AlertDialogTitle>
                 <AlertDialogDescription>
-                  {isPl
-                    ? `Kampania zostanie wysłana do ${audience?.count ?? 0} odbiorców. Ta operacja jest nieodwracalna.`
-                    : `The campaign will be sent to ${audience?.count ?? 0} recipients. This cannot be undone.`}
+                  {t("adminNewsletter.campaigns.sendConfirmCount", {
+                    count: audience?.count ?? 0,
+                  })}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>{isPl ? "Anuluj" : "Cancel"}</AlertDialogCancel>
+                <AlertDialogCancel>{t("adminNewsletter.campaigns.cancel")}</AlertDialogCancel>
                 <AlertDialogAction onClick={() => sendMut.mutate(false)}>
-                  {isPl ? "Wyślij" : "Send"}
+                  {t("adminNewsletter.campaigns.send")}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -317,39 +322,31 @@ function CampaignEditor() {
               <AlertDialogHeader>
                 <AlertDialogTitle className="flex items-center gap-2 text-destructive">
                   <AlertTriangle className="w-4 h-4" />
-                  {isPl ? "Wysyłka wstrzymana" : "Sending paused"}
+                  {t("adminNewsletter.campaigns.sendingPaused")}
                 </AlertDialogTitle>
                 <AlertDialogDescription>
-                  {isPl
-                    ? "Wskaźniki dostarczalności przekroczyły próg bezpieczeństwa. Kolejna masowa wysyłka pogłębi problem z reputacją domeny."
-                    : "Deliverability rates crossed the safety threshold. Another bulk send will deepen the domain reputation problem."}
+                  {t("adminNewsletter.campaigns.riskIntro")}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <ul className="list-disc pl-5 text-sm text-destructive/90 space-y-1">
                 {gateReasons.map((code) => (
                   <li key={code}>
                     {code === "complaint_rate"
-                      ? isPl
-                        ? "Wskaźnik skarg osiągnął twardy limit Google (0,30%)."
-                        : "Complaint rate reached Google's hard limit (0.30%)."
-                      : isPl
-                        ? "Wskaźnik twardych odbić osiągnął poziom krytyczny (5%)."
-                        : "Hard bounce rate reached the critical level (5%)."}
+                      ? t("adminNewsletter.campaigns.riskComplaints")
+                      : t("adminNewsletter.campaigns.riskBounces")}
                   </li>
                 ))}
               </ul>
               <p className="text-xs text-muted-foreground">
-                {isPl
-                  ? "Szczegóły i lista wykluczeń: Newsletter → Dostarczalność."
-                  : "Details and suppression list: Newsletter → Deliverability."}
+                {t("adminNewsletter.campaigns.riskWhereToLook")}
               </p>
               <AlertDialogFooter>
-                <AlertDialogCancel>{isPl ? "Anuluj" : "Cancel"}</AlertDialogCancel>
+                <AlertDialogCancel>{t("adminNewsletter.campaigns.cancel")}</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={() => sendMut.mutate(true)}
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 >
-                  {isPl ? "Rozumiem ryzyko - wyślij" : "I understand the risk - send"}
+                  {t("adminNewsletter.campaigns.sendDespiteRisk")}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -361,11 +358,13 @@ function CampaignEditor() {
         <div className="lg:col-span-2 space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{isPl ? "Ustawienia" : "Settings"}</CardTitle>
+              <CardTitle className="text-base">
+                {t("adminNewsletter.campaigns.settingsHeading")}
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <FloatingInput
-                label={isPl ? "Nazwa (wewnętrzna)" : "Name (internal)"}
+                label={t("adminNewsletter.campaigns.internalName")}
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 disabled={readonly}
@@ -374,7 +373,7 @@ function CampaignEditor() {
                 <div className="flex items-center gap-2">
                   <div className="flex-1 max-w-[280px]">
                     <FloatingInput
-                      label={isPl ? "Zaplanuj wysyłkę" : "Schedule send"}
+                      label={t("adminNewsletter.campaigns.scheduleSend")}
                       type="datetime-local"
                       value={form.scheduled_at_local}
                       onChange={(e) => setForm({ ...form, scheduled_at_local: e.target.value })}
@@ -389,25 +388,23 @@ function CampaignEditor() {
                       disabled={readonly}
                       onClick={() => setForm({ ...form, scheduled_at_local: "" })}
                     >
-                      {isPl ? "Usuń plan" : "Clear"}
+                      {t("adminNewsletter.campaigns.clearSchedule")}
                     </Button>
                   )}
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {isPl
-                    ? "Po zapisaniu kampania przejdzie w status „Zaplanowana” i wyśle się automatycznie o wskazanym czasie."
-                    : "After saving, the campaign becomes “Scheduled” and sends automatically at the chosen time."}
+                  {t("adminNewsletter.campaigns.scheduleHint")}
                 </p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <FloatingInput
-                  label={isPl ? "Nadawca (nazwa)" : "From name"}
+                  label={t("adminNewsletter.campaigns.fromName")}
                   value={form.from_name}
                   onChange={(e) => setForm({ ...form, from_name: e.target.value })}
                   disabled={readonly}
                 />
                 <FloatingInput
-                  label={isPl ? "Nadawca (e-mail)" : "From email"}
+                  label={t("adminNewsletter.campaigns.fromEmail")}
                   type="email"
                   value={form.from_email}
                   onChange={(e) => setForm({ ...form, from_email: e.target.value })}
@@ -428,7 +425,7 @@ function CampaignEditor() {
             <CardHeader className="flex-row items-center justify-between space-y-0">
               <CardTitle className="text-base">
                 <Mail className="w-4 h-4 inline mr-2" />
-                {isPl ? "Treść" : "Content"}
+                {t("adminNewsletter.campaigns.contentHeading")}
               </CardTitle>
               <div className="flex items-center gap-1">
                 <Button
@@ -439,7 +436,7 @@ function CampaignEditor() {
                   disabled={readonly}
                   onClick={() => setForm({ ...form, editor: "doc" })}
                 >
-                  {isPl ? "Kreator" : "Builder"}
+                  {t("adminNewsletter.campaigns.builderTab")}
                 </Button>
                 <Button
                   type="button"
@@ -457,13 +454,13 @@ function CampaignEditor() {
               {/* Temat jest wspólny dla obu silników. */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <FloatingInput
-                  label={`${isPl ? "Temat" : "Subject"} (PL)`}
+                  label={t("adminNewsletter.campaigns.subjectPl")}
                   value={form.subject_pl}
                   onChange={(e) => setForm({ ...form, subject_pl: e.target.value })}
                   disabled={readonly}
                 />
                 <FloatingInput
-                  label={`${isPl ? "Temat" : "Subject"} (EN)`}
+                  label={t("adminNewsletter.campaigns.subjectEn")}
                   value={form.subject_en}
                   onChange={(e) => setForm({ ...form, subject_en: e.target.value })}
                   disabled={readonly}
@@ -476,7 +473,6 @@ function CampaignEditor() {
                   onChange={(content_doc) => setForm({ ...form, content_doc })}
                   previewLang={previewLang}
                   onPreviewLangChange={setPreviewLang}
-                  isPl={isPl}
                 />
               ) : (
                 <Tabs defaultValue="pl">
@@ -513,9 +509,9 @@ function CampaignEditor() {
                 </Tabs>
               )}
               <p className="text-xs text-muted-foreground mt-2">
-                {isPl
-                  ? 'Zmienne: {{firstName}}, {{lastName}}, {{email}}. Stopka „Wypisz się" jest doklejana automatycznie.'
-                  : "Variables: {{firstName}}, {{lastName}}, {{email}}. Unsubscribe footer is appended automatically."}
+                {t("adminNewsletter.campaigns.variablesHint", {
+                  interpolation: { skipOnVariables: true },
+                })}
               </p>
             </CardContent>
           </Card>
@@ -526,13 +522,13 @@ function CampaignEditor() {
             <CardHeader>
               <CardTitle className="text-base">
                 <Users className="w-4 h-4 inline mr-2" />
-                {isPl ? "Odbiorcy" : "Audience"}
+                {t("adminNewsletter.campaigns.audience")}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div>
                 <Label className="text-xs uppercase text-muted-foreground">
-                  {isPl ? "Języki" : "Languages"}
+                  {t("adminNewsletter.campaigns.languagesLabel")}
                 </Label>
                 <div className="flex items-center gap-4 mt-2">
                   <label className="flex items-center gap-2 text-sm">
@@ -553,11 +549,11 @@ function CampaignEditor() {
                   </label>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {isPl ? "Puste = wszystkie" : "Empty = all"}
+                  {t("adminNewsletter.campaigns.emptyMeansAll")}
                 </p>
               </div>
               <FloatingInput
-                label={isPl ? "Źródło (opcjonalne)" : "Source (optional)"}
+                label={t("adminNewsletter.campaigns.sourceOptional")}
                 value={form.audience_filter.source ?? ""}
                 onChange={(e) =>
                   setForm({
@@ -573,7 +569,7 @@ function CampaignEditor() {
 
               <div>
                 <Label className="text-xs uppercase text-muted-foreground">
-                  {isPl ? "Poziom członkostwa" : "Membership level"}
+                  {t("adminNewsletter.campaigns.membershipLevel")}
                 </Label>
                 <Select
                   value={String(form.audience_filter.min_tier_rank ?? 0)}
@@ -593,30 +589,27 @@ function CampaignEditor() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="0">
-                      {isPl ? "Wszyscy subskrybenci" : "All subscribers"}
+                      {t("adminNewsletter.campaigns.allSubscribers")}
                     </SelectItem>
                     {[...(tiersQ.data ?? [])]
                       .filter((tier) => tier.rank > 0)
                       .sort((a, b) => a.rank - b.rank)
                       .map((tier) => (
                         <SelectItem key={tier.key} value={String(tier.rank)}>
-                          {isPl ? "Od" : "From"} {tierName(tier, isPl ? "pl" : "en")}
+                          {t("adminNewsletter.campaigns.tierFrom")}{" "}
+                          {tierName(tier, uiLang(i18n.language))}
                         </SelectItem>
                       ))}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {isPl
-                    ? "Zawęża do subskrybentów będących kontami o co najmniej tym poziomie."
-                    : "Restricts to subscribers who are accounts of at least this level."}
+                  {t("adminNewsletter.campaigns.membershipHint")}
                 </p>
               </div>
               <div className="pt-2 border-t border-border">
                 <div className="text-2xl font-semibold tabular-nums">{audience?.count ?? "—"}</div>
                 <div className="text-xs text-muted-foreground">
-                  {isPl
-                    ? "aktywnych subskrybentów spełnia filtr"
-                    : "active subscribers match the filter"}
+                  {t("adminNewsletter.campaigns.matchingSubscribers")}
                 </div>
               </div>
             </CardContent>
@@ -624,7 +617,9 @@ function CampaignEditor() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{isPl ? "Zaangażowanie" : "Engagement"}</CardTitle>
+              <CardTitle className="text-base">
+                {t("adminNewsletter.campaigns.engagementHeading")}
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               {(() => {
@@ -637,33 +632,33 @@ function CampaignEditor() {
                     <div>
                       <div className="text-2xl font-semibold tabular-nums">{opens}</div>
                       <div className="text-xs text-muted-foreground">
-                        {isPl ? "Otwarcia" : "Opens"} · {pct(opens)}
+                        {t("adminNewsletter.campaigns.opens")} · {pct(opens)}
                       </div>
                     </div>
                     <div>
                       <div className="text-2xl font-semibold tabular-nums">{clicks}</div>
                       <div className="text-xs text-muted-foreground">
-                        {isPl ? "Kliknięcia" : "Clicks"} · {pct(clicks)}
+                        {t("adminNewsletter.campaigns.clicks")} · {pct(clicks)}
                       </div>
                     </div>
                   </div>
                 );
               })()}
               <p className="text-xs text-muted-foreground">
-                {isPl
-                  ? "Otwarcia liczone pikselem, kliknięcia przez przekierowanie. Wartości przybliżone (% z dostarczonych)."
-                  : "Opens tracked via pixel, clicks via redirect. Approximate (% of delivered)."}
+                {t("adminNewsletter.campaigns.engagementHint")}
               </p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{isPl ? "Wysyłka testowa" : "Test send"}</CardTitle>
+              <CardTitle className="text-base">
+                {t("adminNewsletter.campaigns.testSendHeading")}
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <FloatingInput
-                label={isPl ? "Adres testowy" : "Test email"}
+                label={t("adminNewsletter.campaigns.testEmail")}
                 type="email"
                 value={testEmail}
                 onChange={(e) => setTestEmail(e.target.value)}
@@ -694,7 +689,7 @@ function CampaignEditor() {
                   onClick={() => testMut.mutate()}
                 >
                   <Send className="w-3.5 h-3.5 mr-1" />
-                  {isPl ? "Wyślij test" : "Send test"}
+                  {t("adminNewsletter.campaigns.sendTest")}
                 </Button>
               </div>
             </CardContent>
