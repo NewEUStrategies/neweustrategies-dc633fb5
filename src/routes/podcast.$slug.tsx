@@ -30,6 +30,8 @@ import { activeLang } from "@/lib/seo/head";
 import { SITE_CANONICAL_ORIGIN, feedAlternateLink, splitUrl } from "@/lib/seo/meta";
 import { getRequestUrl } from "@/lib/seo/request";
 import { sanitizeHtml } from "@/lib/sanitize";
+import { pickLocalized, pickPair } from "@/lib/i18n/pickLocalized";
+import { ensureI18n as ensurePodcastsI18n } from "@/lib/i18n-podcasts";
 
 export const Route = createFileRoute("/podcast/$slug")({
   loader: async ({ context, params }) => {
@@ -82,16 +84,11 @@ export const Route = createFileRoute("/podcast/$slug")({
       scripts: [{ type: "application/ld+json", children: safeJsonLd(jsonLd) }],
     };
   },
-  errorComponent: () => (
-    <div className="container mx-auto p-8 text-sm text-muted-foreground">
-      Nie udało się wczytać odcinka. Spróbuj ponownie później.
-    </div>
-  ),
-  notFoundComponent: () => (
-    <div className="container mx-auto p-8 text-sm text-muted-foreground">
-      Nie znaleziono odcinka.
-    </div>
-  ),
+  // Oba komunikaty ze słownika: renderują się jak każdy inny komponent, więc
+  // `t()` jest dostępne - literały były jedynymi miejscami na tej trasie, które
+  // mówiły po polsku do wszystkich.
+  errorComponent: () => <PodcastNotice messageKey="podcastNetwork.episodeLoadFailed" />,
+  notFoundComponent: () => <PodcastNotice messageKey="podcastNetwork.episodeNotFound" />,
   component: PodcastSinglePage,
 });
 
@@ -120,9 +117,21 @@ function showByIdQueryOptions(showId: string | null) {
   };
 }
 
+/**
+ * Wspólny komunikat na całą stronę dla `errorComponent`/`notFoundComponent`.
+ * Osobny komponent, bo tylko wewnątrz komponentu wolno wołać `useTranslation`,
+ * a oba te wejścia renderują się przed komponentem trasy.
+ */
+function PodcastNotice({ messageKey }: { messageKey: string }) {
+  ensurePodcastsI18n();
+  const { t } = useTranslation();
+  return <div className="container mx-auto p-8 text-sm text-muted-foreground">{t(messageKey)}</div>;
+}
+
 function PodcastSinglePage() {
   const { slug } = Route.useParams();
-  const { i18n } = useTranslation();
+  ensurePodcastsI18n();
+  const { t, i18n } = useTranslation();
   const isPl = (i18n.language ?? "pl").startsWith("pl");
   const lang: "pl" | "en" = isPl ? "pl" : "en";
 
@@ -135,7 +144,7 @@ function PodcastSinglePage() {
     enabled: !!p?.show_id,
   });
 
-  // Seek udostępniony przez odtwarzacz — rozdziały przeskakują do znacznika.
+  // Seek udostępniony przez odtwarzacz - rozdziały przeskakują do znacznika.
   const seekRef = useRef<((seconds: number) => void) | null>(null);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
 
@@ -153,23 +162,23 @@ function PodcastSinglePage() {
 
   const title = podcastTitle(p, lang);
   const ep = podcastEpisodeLabel(p, lang);
-  const notes =
-    lang === "en" ? p.show_notes_en || p.show_notes_pl : p.show_notes_pl || p.show_notes_en;
-  const transcript =
-    lang === "en" ? p.transcript_en || p.transcript_pl : p.transcript_pl || p.transcript_en;
-  const excerpt = lang === "en" ? p.excerpt_en || p.excerpt_pl : p.excerpt_pl || p.excerpt_en;
+  // `pickLocalized` zamiast `a_en || a_pl`: ciąg z samych spacji liczy się jako
+  // pusty, więc nie renderuje pustej sekcji notatek ani transkrypcji.
+  const notes = pickLocalized(p, "show_notes", lang);
+  const transcript = pickLocalized(p, "transcript", lang);
+  const excerpt = pickLocalized(p, "excerpt", lang);
 
   const sources = resources.filter((r) => r.kind === "source");
   const related = resources.filter((r) => r.kind === "related");
 
   const copyQuote = async (text: string, attribution: string, idx: number) => {
-    const body = attribution ? `„${text}" — ${attribution}` : `„${text}"`;
+    const body = attribution ? `„${text}" - ${attribution}` : `„${text}"`;
     try {
       await navigator.clipboard.writeText(`${body}\n\n${title}`);
       setCopiedIdx(idx);
       window.setTimeout(() => setCopiedIdx((v) => (v === idx ? null : v)), 2000);
     } catch {
-      /* schowek niedostępny (np. brak HTTPS) — po cichu pomijamy */
+      /* schowek niedostępny (np. brak HTTPS) - po cichu pomijamy */
     }
   };
 
@@ -273,7 +282,7 @@ function PodcastSinglePage() {
 
       {(hosts.length > 0 || guests.length > 0) && (
         <section className="space-y-3">
-          <h2 className="font-display text-xl">{lang === "en" ? "People" : "Osoby"}</h2>
+          <h2 className="font-display text-xl">{t("podcastNetwork.peopleHeading")}</h2>
           <div className="flex flex-wrap gap-3">
             {[...hosts, ...guests].map((person) => {
               const inner = (
@@ -338,10 +347,10 @@ function PodcastSinglePage() {
 
       {chapters.length > 0 && (
         <section className="space-y-3">
-          <h2 className="font-display text-xl">{lang === "en" ? "Chapters" : "Rozdziały"}</h2>
+          <h2 className="font-display text-xl">{t("podcastNetwork.chaptersHeading")}</h2>
           <ol className="divide-y divide-border border border-border rounded-lg overflow-hidden">
             {chapters.map((c, i) => {
-              const label = lang === "en" ? c.title_en || c.title_pl : c.title_pl || c.title_en;
+              const label = pickLocalized(c, "title", lang);
               return (
                 <li key={i}>
                   <button
@@ -363,12 +372,10 @@ function PodcastSinglePage() {
 
       {quotes.length > 0 && (
         <section className="space-y-3">
-          <h2 className="font-display text-xl">
-            {lang === "en" ? "Quotes to share" : "Cytaty do udostępnienia"}
-          </h2>
+          <h2 className="font-display text-xl">{t("podcastNetwork.quotesHeading")}</h2>
           <div className="grid gap-3 sm:grid-cols-2">
             {quotes.map((q, i) => {
-              const text = lang === "en" ? q.text_en || q.text_pl : q.text_pl || q.text_en;
+              const text = pickLocalized(q, "text", lang);
               if (!text) return null;
               return (
                 <figure
@@ -379,13 +386,13 @@ function PodcastSinglePage() {
                   <blockquote className="text-sm leading-relaxed">{text}</blockquote>
                   {q.attribution && (
                     <figcaption className="text-xs text-muted-foreground">
-                      — {q.attribution}
+                      - {q.attribution}
                     </figcaption>
                   )}
                   <button
                     type="button"
                     onClick={() => copyQuote(text, q.attribution, i)}
-                    aria-label={lang === "en" ? "Copy quote" : "Kopiuj cytat"}
+                    aria-label={t("podcastNetwork.copyQuote")}
                     className="absolute top-3 right-3 h-8 w-8 rounded-md border border-border bg-background flex items-center justify-center hover:bg-muted"
                   >
                     {copiedIdx === i ? (
@@ -403,7 +410,7 @@ function PodcastSinglePage() {
 
       {notes && (
         <section className="prose prose-sm max-w-none">
-          <h2 className="font-display text-xl">{lang === "en" ? "Show notes" : "Notatki"}</h2>
+          <h2 className="font-display text-xl">{t("podcastNetwork.showNotesHeading")}</h2>
           <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(notes) }} />
         </section>
       )}
@@ -412,11 +419,10 @@ function PodcastSinglePage() {
         <section className="grid gap-6 sm:grid-cols-2">
           {sources.length > 0 && (
             <div className="space-y-2">
-              <h2 className="font-display text-lg">{lang === "en" ? "Sources" : "Źródła"}</h2>
+              <h2 className="font-display text-lg">{t("podcastNetwork.sourcesHeading")}</h2>
               <ul className="space-y-1.5">
                 {sources.map((r, i) => {
-                  const label =
-                    (lang === "en" ? r.label_en || r.label_pl : r.label_pl || r.label_en) || r.url;
+                  const label = pickPair(pickLocalized(r, "label", lang), r.url);
                   return (
                     <li key={i}>
                       <a
@@ -436,13 +442,10 @@ function PodcastSinglePage() {
           )}
           {related.length > 0 && (
             <div className="space-y-2">
-              <h2 className="font-display text-lg">
-                {lang === "en" ? "Related materials" : "Materiały dodatkowe"}
-              </h2>
+              <h2 className="font-display text-lg">{t("podcastNetwork.relatedHeading")}</h2>
               <ul className="space-y-1.5">
                 {related.map((r, i) => {
-                  const label =
-                    (lang === "en" ? r.label_en || r.label_pl : r.label_pl || r.label_en) || r.url;
+                  const label = pickPair(pickLocalized(r, "label", lang), r.url);
                   return (
                     <li key={i}>
                       <a
@@ -466,7 +469,7 @@ function PodcastSinglePage() {
       {transcript && (
         <details className="border border-border rounded-lg p-4">
           <summary className="cursor-pointer font-medium">
-            {lang === "en" ? "Transcript" : "Transkrypcja"}
+            {t("podcastNetwork.transcriptHeading")}
           </summary>
           <div
             className="mt-3 prose prose-sm max-w-none whitespace-pre-wrap"
@@ -477,9 +480,7 @@ function PodcastSinglePage() {
 
       {recommendations.length > 0 && (
         <section className="space-y-3 border-t border-border pt-8">
-          <h2 className="font-display text-xl">
-            {lang === "en" ? "More from this program" : "Więcej z tego programu"}
-          </h2>
+          <h2 className="font-display text-xl">{t("podcastNetwork.moreFromShowHeading")}</h2>
           <ul className="grid gap-3 sm:grid-cols-2">
             {recommendations.map((e) => {
               const rEp = podcastEpisodeLabel(e, lang);

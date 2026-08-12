@@ -18,6 +18,8 @@ import {
   episodesPeopleQueryOptions,
 } from "@/lib/queries/podcasts";
 import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
+import { ensureI18n as ensurePodcastsI18n } from "@/lib/i18n-podcasts";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import {
   podcastTitle,
@@ -86,7 +88,7 @@ export const Route = createFileRoute("/podcasts/$show")({
     const title = showTitle(s, lang);
     const rawDesc = showDescription(s, lang).slice(0, 300);
     const description =
-      rawDesc || (lang === "en" ? `${title} — podcast program.` : `Program podcastowy: ${title}.`);
+      rawDesc || (lang === "en" ? `${title} - podcast program.` : `Program podcastowy: ${title}.`);
     const base = buildContentHead({
       url,
       lang,
@@ -172,7 +174,8 @@ function bySeasons(episodes: Podcast[]): Array<{ season: number | null; episodes
 function ShowPage() {
   const { show: slug } = Route.useParams();
   const { degraded } = Route.useLoaderData();
-  const { i18n } = useTranslation();
+  ensurePodcastsI18n();
+  const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
 
   const { data: show } = useSuspenseQuery(showBySlugQueryOptions(slug));
@@ -185,11 +188,7 @@ function ShowPage() {
   if (degraded) {
     return (
       <div className="container mx-auto px-4 py-10 max-w-4xl">
-        <DegradedDataNotice
-          title={
-            lang === "en" ? "Couldn't load this programme" : "Nie udało się załadować programu"
-          }
-        />
+        <DegradedDataNotice title={t("podcastNetwork.loadFailedShow")} />
       </div>
     );
   }
@@ -227,12 +226,12 @@ function ShowPage() {
         </div>
         <div className="space-y-3 min-w-0">
           <div className="text-xs uppercase tracking-wider text-muted-foreground">
-            {lang === "en" ? "Program" : "Program"}
+            {t("podcastNetwork.programEyebrow")}
           </div>
           <h1 className="font-display text-3xl lg:text-4xl">{title}</h1>
           {description && <p className="text-muted-foreground">{description}</p>}
           <div className="text-xs text-muted-foreground">
-            {episodes.length} {lang === "en" ? "episodes" : "odcinków"}
+            {t("podcastNetwork.episodeCount", { count: episodes.length })}
           </div>
 
           <nav className="flex flex-wrap gap-2 text-xs pt-1">
@@ -260,7 +259,7 @@ function ShowPage() {
 
       {hosts.length > 0 && (
         <section className="space-y-3">
-          <h2 className="font-display text-lg">{lang === "en" ? "Hosts" : "Prowadzący"}</h2>
+          <h2 className="font-display text-lg">{t("podcastNetwork.hostsHeading")}</h2>
           <ul className="flex flex-wrap gap-3">
             {hosts.map((h) => {
               const inner = (
@@ -303,7 +302,7 @@ function ShowPage() {
 
       {episodes.length === 0 ? (
         <p className="text-sm text-muted-foreground py-16 text-center">
-          {lang === "en" ? "No episodes published yet." : "Brak opublikowanych odcinków."}
+          {t("podcastNetwork.emptyEpisodes")}
         </p>
       ) : (
         <div className="space-y-8">
@@ -311,14 +310,13 @@ function ShowPage() {
             <section key={group.season ?? "none"} className="space-y-3">
               {group.season != null && (
                 <h2 className="font-display text-lg">
-                  {lang === "en" ? `Season ${group.season}` : `Sezon ${group.season}`}
+                  {t("podcastNetwork.seasonHeading", { season: group.season })}
                 </h2>
               )}
               <ul className="space-y-3">
                 {group.episodes.map((e) => {
                   const ep = podcastEpisodeLabel(e, lang);
-                  const excerpt =
-                    lang === "en" ? e.excerpt_en || e.excerpt_pl : e.excerpt_pl || e.excerpt_en;
+                  const excerpt = pickLocalized(e, "excerpt", lang);
                   return (
                     <li key={e.id}>
                       <Link

@@ -78,9 +78,7 @@ function AdsAdmin() {
       <div className="space-y-6">
         <header>
           <h1 className="font-display text-2xl font-bold">{t("adsAdmin.title")}</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {t("adsAdmin.subtitle")}
-          </p>
+          <p className="text-sm text-muted-foreground mt-1">{t("adsAdmin.subtitle")}</p>
         </header>
         <Tabs defaultValue="slots">
           <TabsList>
@@ -339,7 +337,9 @@ function SlotsPanel() {
       </section>
 
       <section className="border border-border rounded-lg bg-card p-5">
-        <h2 className="font-semibold mb-4">{draft.id ? t("adsAdmin.slots.editTitle") : t("adsAdmin.slots.addTitle")}</h2>
+        <h2 className="font-semibold mb-4">
+          {draft.id ? t("adsAdmin.slots.editTitle") : t("adsAdmin.slots.addTitle")}
+        </h2>
         <div className="grid sm:grid-cols-2 gap-4">
           <FloatingInput
             label={t("adsAdmin.slots.fieldName")}
@@ -580,7 +580,9 @@ function PlacementsPanel() {
       </section>
 
       <section className="border border-border rounded-lg bg-card p-5">
-        <h2 className="font-semibold mb-4">{draft.id ? t("adsAdmin.placements.editTitle") : t("adsAdmin.placements.addTitle")}</h2>
+        <h2 className="font-semibold mb-4">
+          {draft.id ? t("adsAdmin.placements.editTitle") : t("adsAdmin.placements.addTitle")}
+        </h2>
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <Label>Slot</Label>
