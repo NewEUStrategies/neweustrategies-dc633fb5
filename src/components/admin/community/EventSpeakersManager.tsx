@@ -4,6 +4,7 @@
 // przez RPC admin_upsert_speaker_profile tworzy/aktualizuje lead (tag
 // 'speaker', source_type 'speaker') i podpina crm_lead_id.
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ChevronDown, ChevronUp, ContactRound, Trash2 } from "lucide-react";
@@ -39,7 +40,8 @@ const csvToList = (raw: string): string[] =>
     .map((s) => s.trim())
     .filter(Boolean);
 
-export function EventSpeakersManager({ eventId, isPl }: { eventId: string; isPl: boolean }) {
+export function EventSpeakersManager({ eventId }: { eventId: string }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const [pickerValue, setPickerValue] = useState("");
   const [profileOf, setProfileOf] = useState<EventSpeakerEntry | null>(null);
@@ -64,13 +66,13 @@ export function EventSpeakersManager({ eventId, isPl }: { eventId: string; isPl:
       invalidate();
       setPickerValue("");
     },
-    onError: () => toast.error(isPl ? "Nie udało się dodać prelegenta" : "Failed to add speaker"),
+    onError: () => toast.error(t("adminCommunityEvents.speakers.toasts.addFailed")),
   });
 
   const removeM = useMutation({
     mutationFn: (userId: string) => removeEventSpeaker(eventId, userId),
     onSuccess: invalidate,
-    onError: () => toast.error(isPl ? "Błąd usuwania" : "Remove failed"),
+    onError: () => toast.error(t("adminCommunityEvents.speakers.toasts.removeFailed")),
   });
 
   const moveM = useMutation({
@@ -88,12 +90,12 @@ export function EventSpeakersManager({ eventId, isPl }: { eventId: string; isPl:
       }
     },
     onSuccess: invalidate,
-    onError: () => toast.error(isPl ? "Błąd zmiany kolejności" : "Reorder failed"),
+    onError: () => toast.error(t("adminCommunityEvents.speakers.toasts.reorderFailed")),
   });
 
   return (
     <div className="space-y-2">
-      <Label>{isPl ? "Prelegenci" : "Speakers"}</Label>
+      <Label>{t("adminCommunityEvents.speakers.label")}</Label>
       <MemberPicker
         value={pickerValue}
         onChange={(userId) => {
@@ -103,20 +105,16 @@ export function EventSpeakersManager({ eventId, isPl }: { eventId: string; isPl:
           }
         }}
         labels={{
-          placeholder: isPl ? "Dodaj prelegenta…" : "Add a speaker…",
-          search: isPl ? "Szukaj po nazwie lub wklej UUID" : "Search by name or paste a UUID",
-          hint: isPl ? "Wpisz min. 2 znaki." : "Type at least 2 characters.",
-          loading: isPl ? "Szukanie…" : "Searching…",
-          empty: isPl ? "Brak wyników." : "No results.",
-          clear: isPl ? "Wyczyść" : "Clear",
+          placeholder: t("adminCommunityEvents.speakers.picker.placeholder"),
+          search: t("adminCommunityEvents.speakers.picker.search"),
+          hint: t("adminCommunityEvents.speakers.picker.hint"),
+          loading: t("adminCommunityEvents.speakers.picker.loading"),
+          empty: t("adminCommunityEvents.speakers.picker.empty"),
+          clear: t("adminCommunityEvents.speakers.picker.clear"),
         }}
       />
       {speakers.length === 0 ? (
-        <p className="text-xs text-muted-foreground">
-          {isPl
-            ? "Brak prelegentów. Dodani prelegenci pojawią się na stronie wydarzenia i w widgetach."
-            : "No speakers yet. Added speakers appear on the event page and in widgets."}
-        </p>
+        <p className="text-xs text-muted-foreground">{t("adminCommunityEvents.speakers.empty")}</p>
       ) : (
         <ul className="space-y-1">
           {speakers.map((speaker, i) => (
@@ -136,7 +134,7 @@ export function EventSpeakersManager({ eventId, isPl }: { eventId: string; isPl:
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7"
-                title={isPl ? "Wyżej" : "Move up"}
+                title={t("adminCommunityEvents.speakers.moveUp")}
                 disabled={i === 0 || moveM.isPending}
                 onClick={() => moveM.mutate({ index: i, dir: -1 })}
               >
@@ -146,7 +144,7 @@ export function EventSpeakersManager({ eventId, isPl }: { eventId: string; isPl:
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7"
-                title={isPl ? "Niżej" : "Move down"}
+                title={t("adminCommunityEvents.speakers.moveDown")}
                 disabled={i === speakers.length - 1 || moveM.isPending}
                 onClick={() => moveM.mutate({ index: i, dir: 1 })}
               >
@@ -159,13 +157,13 @@ export function EventSpeakersManager({ eventId, isPl }: { eventId: string; isPl:
                 onClick={() => setProfileOf(speaker)}
               >
                 <ContactRound className="mr-1 h-3.5 w-3.5" />
-                {isPl ? "Profil prelegenta" : "Speaker profile"}
+                {t("adminCommunityEvents.speakers.openProfile")}
               </Button>
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7 text-destructive"
-                title={isPl ? "Usuń z wydarzenia" : "Remove from event"}
+                title={t("adminCommunityEvents.speakers.removeFromEvent")}
                 onClick={() => removeM.mutate(speaker.user_id)}
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -176,11 +174,7 @@ export function EventSpeakersManager({ eventId, isPl }: { eventId: string; isPl:
       )}
 
       {profileOf && (
-        <SpeakerProfileAdminDialog
-          speaker={profileOf}
-          isPl={isPl}
-          onClose={() => setProfileOf(null)}
-        />
+        <SpeakerProfileAdminDialog speaker={profileOf} onClose={() => setProfileOf(null)} />
       )}
     </div>
   );
@@ -188,13 +182,12 @@ export function EventSpeakersManager({ eventId, isPl }: { eventId: string; isPl:
 
 function SpeakerProfileAdminDialog({
   speaker,
-  isPl,
   onClose,
 }: {
   speaker: EventSpeakerEntry;
-  isPl: boolean;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const profileQ = useQuery({
     queryKey: ["admin-speaker-profile", speaker.user_id] as const,
@@ -259,13 +252,11 @@ function SpeakerProfileAdminDialog({
       setCrmLeadId(result.crm_lead_id);
       qc.invalidateQueries({ queryKey: ["admin-speaker-profile", speaker.user_id] });
       toast.success(
-        isPl
-          ? result.crm_lead_id
-            ? "Zapisano profil i zsynchronizowano z CRM"
-            : "Zapisano profil prelegenta"
-          : result.crm_lead_id
-            ? "Profile saved and synced to CRM"
-            : "Speaker profile saved",
+        t(
+          result.crm_lead_id
+            ? "adminCommunityEvents.speakers.profile.savedWithCrm"
+            : "adminCommunityEvents.speakers.profile.saved",
+        ),
       );
     },
     onError: (e) => toast.error(String((e as Error).message)),
@@ -275,7 +266,7 @@ function SpeakerProfileAdminDialog({
     mutationFn: () => deleteAdminSpeakerProfile(speaker.user_id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-speaker-profile", speaker.user_id] });
-      toast.success(isPl ? "Usunięto profil prelegenta" : "Speaker profile deleted");
+      toast.success(t("adminCommunityEvents.speakers.profile.deleted"));
       onClose();
     },
     onError: (e) => toast.error(String((e as Error).message)),
@@ -286,48 +277,51 @@ function SpeakerProfileAdminDialog({
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-[6px]">
         <DialogHeader>
           <DialogTitle>
-            {(isPl ? "Profil prelegenta: " : "Speaker profile: ") +
-              (speaker.display_name || speaker.user_id)}
+            {t("adminCommunityEvents.speakers.profile.title", {
+              name: speaker.display_name || speaker.user_id,
+            })}
           </DialogTitle>
         </DialogHeader>
 
         {profileQ.isLoading && !seeded ? (
-          <p className="text-sm text-muted-foreground">{isPl ? "Ładowanie…" : "Loading…"}</p>
+          <p className="text-sm text-muted-foreground">
+            {t("adminCommunityEvents.speakers.profile.loading")}
+          </p>
         ) : (
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
-                <Label>{isPl ? "Rola sceniczna PL" : "Stage headline PL"}</Label>
+                <Label>{t("adminCommunityEvents.speakers.profile.headlinePl")}</Label>
                 <Input value={headlinePl} onChange={(e) => setHeadlinePl(e.target.value)} />
               </div>
               <div className="grid gap-1.5">
-                <Label>{isPl ? "Rola sceniczna EN" : "Stage headline EN"}</Label>
+                <Label>{t("adminCommunityEvents.speakers.profile.headlineEn")}</Label>
                 <Input value={headlineEn} onChange={(e) => setHeadlineEn(e.target.value)} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
-                <Label>{isPl ? "Bio prelegenta PL" : "Speaker bio PL"}</Label>
+                <Label>{t("adminCommunityEvents.speakers.profile.bioPl")}</Label>
                 <Textarea rows={3} value={bioPl} onChange={(e) => setBioPl(e.target.value)} />
               </div>
               <div className="grid gap-1.5">
-                <Label>{isPl ? "Bio prelegenta EN" : "Speaker bio EN"}</Label>
+                <Label>{t("adminCommunityEvents.speakers.profile.bioEn")}</Label>
                 <Textarea rows={3} value={bioEn} onChange={(e) => setBioEn(e.target.value)} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
-                <Label>{isPl ? "Tematy PL (po przecinku)" : "Topics PL (comma separated)"}</Label>
+                <Label>{t("adminCommunityEvents.speakers.profile.topicsPl")}</Label>
                 <Input value={topicsPl} onChange={(e) => setTopicsPl(e.target.value)} />
               </div>
               <div className="grid gap-1.5">
-                <Label>{isPl ? "Tematy EN (po przecinku)" : "Topics EN (comma separated)"}</Label>
+                <Label>{t("adminCommunityEvents.speakers.profile.topicsEn")}</Label>
                 <Input value={topicsEn} onChange={(e) => setTopicsEn(e.target.value)} />
               </div>
             </div>
             <div className="grid grid-cols-4 gap-3">
               <div className="grid gap-1.5">
-                <Label>{isPl ? "Języki" : "Languages"}</Label>
+                <Label>{t("adminCommunityEvents.speakers.profile.languages")}</Label>
                 <Input
                   value={languages}
                   onChange={(e) => setLanguages(e.target.value)}
@@ -335,7 +329,7 @@ function SpeakerProfileAdminDialog({
                 />
               </div>
               <div className="grid gap-1.5">
-                <Label>{isPl ? "Wystąpienia" : "Talks"}</Label>
+                <Label>{t("adminCommunityEvents.speakers.profile.talks")}</Label>
                 <Input
                   type="number"
                   min={0}
@@ -344,7 +338,7 @@ function SpeakerProfileAdminDialog({
                 />
               </div>
               <div className="grid gap-1.5">
-                <Label>{isPl ? "Ocena (0-5)" : "Rating (0-5)"}</Label>
+                <Label>{t("adminCommunityEvents.speakers.profile.rating")}</Label>
                 <Input
                   type="number"
                   min={0}
@@ -355,7 +349,7 @@ function SpeakerProfileAdminDialog({
                 />
               </div>
               <div className="grid gap-1.5">
-                <Label>{isPl ? "Opinie" : "Reviews"}</Label>
+                <Label>{t("adminCommunityEvents.speakers.profile.reviews")}</Label>
                 <Input
                   type="number"
                   min={0}
@@ -367,16 +361,16 @@ function SpeakerProfileAdminDialog({
             <div className="flex flex-wrap items-center gap-6">
               <label className="flex items-center gap-2 text-sm">
                 <Switch checked={isPublic} onCheckedChange={setIsPublic} />
-                {isPl ? "Profil publiczny" : "Public profile"}
+                {t("adminCommunityEvents.speakers.profile.isPublic")}
               </label>
               <label className="flex items-center gap-2 text-sm">
                 <Switch checked={syncCrm} onCheckedChange={setSyncCrm} />
-                {isPl ? "Synchronizuj z CRM (lead 'speaker')" : "Sync to CRM ('speaker' lead)"}
+                {t("adminCommunityEvents.speakers.profile.syncCrm")}
               </label>
             </div>
             {crmLeadId && (
               <p className="text-xs text-muted-foreground">
-                {isPl ? "Powiązany lead CRM: " : "Linked CRM lead: "}
+                {t("adminCommunityEvents.speakers.profile.crmLead")}{" "}
                 <Link
                   to="/admin/crm/$id"
                   params={{ id: crmLeadId }}
@@ -396,25 +390,19 @@ function SpeakerProfileAdminDialog({
               className="mr-auto"
               disabled={deleteM.isPending}
               onClick={() => {
-                if (
-                  window.confirm(
-                    isPl
-                      ? "Usunąć profil prelegenta? Wpisy event_speakers i lead CRM pozostaną."
-                      : "Delete the speaker profile? event_speakers rows and the CRM lead remain.",
-                  )
-                ) {
+                if (window.confirm(t("adminCommunityEvents.speakers.profile.deleteConfirm"))) {
                   deleteM.mutate();
                 }
               }}
             >
-              {isPl ? "Usuń profil" : "Delete profile"}
+              {t("adminCommunityEvents.speakers.profile.deleteAction")}
             </Button>
           )}
           <Button variant="outline" onClick={onClose}>
-            {isPl ? "Zamknij" : "Close"}
+            {t("adminCommunityEvents.common.close")}
           </Button>
           <Button onClick={() => saveM.mutate()} disabled={saveM.isPending || profileQ.isLoading}>
-            {isPl ? "Zapisz profil" : "Save profile"}
+            {t("adminCommunityEvents.speakers.profile.saveAction")}
           </Button>
         </DialogFooter>
       </DialogContent>
