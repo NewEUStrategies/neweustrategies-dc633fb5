@@ -65,21 +65,21 @@ const careersPl = {
       title: "Co oferujemy",
       subtitle: "Konkrety, nie owocowe czwartki.",
       items: {
-        contract: {
-          title: "Jawne widełki",
-          body: "Poznajesz je na pierwszej rozmowie. Forma współpracy do wyboru: umowa o pracę, B2B albo zlecenie.",
+        flexible: {
+          title: "Elastyczna współpraca",
+          body: "Wybór formy: umowa o pracę, B2B, zlecenie lub staż. Dopasowujemy wymiar i tryb do Twojej sytuacji.",
         },
         remote: {
           title: "Zdalnie lub hybrydowo",
           body: "Każdą rolę można pełnić zdalnie albo hybrydowo. Godziny ustalasz z zespołem, nie z regulaminem.",
         },
-        offices: {
-          title: "Biura w Warszawie i Brukseli",
-          body: "Dwa adresy blisko instytucji, o których piszemy. Korzystasz z nich wtedy, kiedy chcesz.",
+        warsaw: {
+          title: "Biuro w Warszawie",
+          body: "Przestrzeń do spotkań i głębokiej pracy w centrum Warszawy, kiedy chcesz z niej skorzystać.",
         },
-        budget: {
-          title: "Budżet rozwojowy",
-          body: "Roczny budżet na szkolenia i konferencje. O tym, na co idzie, decydujesz Ty.",
+        impact: {
+          title: "Realny wpływ na temat",
+          body: "Prowadzisz własne dossier od pomysłu do publikacji. Twoje nazwisko pod każdym tekstem.",
         },
         byline: {
           title: "Publikacje pod nazwiskiem",
