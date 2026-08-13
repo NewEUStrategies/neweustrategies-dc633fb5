@@ -51,11 +51,12 @@ export function CareersRoles({
               id="careers-roles"
               className="text-balance text-4xl font-black leading-[1.05] tracking-tight text-foreground md:text-5xl"
             >
-              {t("careers.roles.title")}
+              {section.title ?? t("careers.roles.title")}
             </h2>
             <p className="mt-5 text-base font-medium leading-relaxed text-muted-foreground md:text-lg">
-              {t("careers.roles.subtitle")}
+              {section.subtitle ?? t("careers.roles.subtitle")}
             </p>
+
           </div>
           <div className="flex flex-col md:items-end">
             <span className="mb-2 text-[10px] font-extrabold uppercase tracking-[0.2em] text-muted-foreground">
