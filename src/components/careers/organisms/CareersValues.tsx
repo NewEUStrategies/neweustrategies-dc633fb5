@@ -8,15 +8,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  Banknote,
   Building2,
   Compass,
   Crown,
   Gauge,
   Globe2,
-  GraduationCap,
+  Handshake,
   Laptop,
   PenLine,
+  Target,
   Users,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
