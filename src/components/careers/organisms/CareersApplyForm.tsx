@@ -144,7 +144,7 @@ export function CareersApplyForm({
           lang,
           formName: "careers-application",
           formId: "careers",
-          source: typeof window !== "undefined" ? window.location.pathname : "/careers",
+          source: typeof window !== "undefined" ? window.location.pathname : "/zatrudniamy",
           pageUrl: typeof window !== "undefined" ? window.location.href : undefined,
           custom: {
             department: form.department || "",
