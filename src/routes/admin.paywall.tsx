@@ -133,23 +133,23 @@ function PaywallAdmin() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <KpiTile
               icon={Layers}
-              label={t("admin.paywall.kpiPlans", { defaultValue: "Plany" })}
+              label={t("admin.paywall.kpiPlans")}
               value={String(plans.length)}
             />
             <KpiTile
               icon={Activity}
-              label={t("admin.paywall.kpiActive", { defaultValue: "Aktywne" })}
+              label={t("admin.paywall.kpiActive")}
               value={String(activePlans)}
             />
             <KpiTile
               icon={CreditCard}
-              label={t("admin.paywall.kpiCurrencies", { defaultValue: "Waluty" })}
+              label={t("admin.paywall.kpiCurrencies")}
               value={currencies.join(" / ") || "-"}
             />
             <KpiTile
               icon={Gauge}
-              label={t("admin.paywall.kpiMetering", { defaultValue: "Metering" })}
-              value={t("admin.paywall.kpiConfigured", { defaultValue: "Skonfigurowane" })}
+              label={t("admin.paywall.kpiMetering")}
+              value={t("admin.paywall.kpiConfigured")}
             />
           </div>
         </header>
@@ -162,9 +162,7 @@ function PaywallAdmin() {
               className="h-10 gap-2 whitespace-nowrap rounded-[6px] px-3 text-xs font-medium text-muted-foreground transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm hover:bg-muted/60 hover:text-foreground sm:h-8"
             >
               <Layers className="h-4 w-4 shrink-0" aria-hidden />
-              <span className="truncate">
-                {t("admin.paywall.tabPlans", { defaultValue: "Plany" })}
-              </span>
+              <span className="truncate">{t("admin.paywall.tabPlans")}</span>
               <span className="ml-0.5 rounded-[4px] bg-muted px-1.5 py-0 text-[10px] font-semibold tabular-nums data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
                 {plans.length}
               </span>
@@ -174,27 +172,21 @@ function PaywallAdmin() {
               className="h-10 gap-2 whitespace-nowrap rounded-[6px] px-3 text-xs font-medium text-muted-foreground transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm hover:bg-muted/60 hover:text-foreground sm:h-8"
             >
               <Gauge className="h-4 w-4 shrink-0" aria-hidden />
-              <span className="truncate">
-                {t("admin.paywall.tabMetering", { defaultValue: "Metering" })}
-              </span>
+              <span className="truncate">{t("admin.paywall.tabMetering")}</span>
             </TabsTrigger>
             <TabsTrigger
               value="overrides"
               className="h-10 gap-2 whitespace-nowrap rounded-[6px] px-3 text-xs font-medium text-muted-foreground transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm hover:bg-muted/60 hover:text-foreground sm:h-8"
             >
               <SlidersHorizontal className="h-4 w-4 shrink-0" aria-hidden />
-              <span className="truncate">
-                {t("admin.paywall.tabOverrides", { defaultValue: "Wyjątki" })}
-              </span>
+              <span className="truncate">{t("admin.paywall.tabOverrides")}</span>
             </TabsTrigger>
             <TabsTrigger
               value="checkout"
               className="h-10 gap-2 whitespace-nowrap rounded-[6px] px-3 text-xs font-medium text-muted-foreground transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm hover:bg-muted/60 hover:text-foreground sm:h-8"
             >
               <CreditCard className="h-4 w-4 shrink-0" aria-hidden />
-              <span className="truncate">
-                {t("admin.paywall.tabCheckout", { defaultValue: "Checkout" })}
-              </span>
+              <span className="truncate">{t("admin.paywall.tabCheckout")}</span>
             </TabsTrigger>
           </TabsList>
 
@@ -202,11 +194,8 @@ function PaywallAdmin() {
           <TabsContent value="plans" className="mt-4 space-y-6">
             <SectionCard
               icon={Layers}
-              title={t("admin.paywall.plansListTitle", { defaultValue: "Katalog planów" })}
-              description={t("admin.paywall.plansListDesc", {
-                defaultValue:
-                  "Kolejność, ceny i status widoczności planów subskrypcyjnych. Edytuj wiersz, aby zmienić szczegóły.",
-              })}
+              title={t("admin.paywall.plansListTitle")}
+              description={t("admin.paywall.plansListDesc")}
               padded={false}
             >
               <table className="w-full text-sm">
@@ -288,13 +277,10 @@ function PaywallAdmin() {
             <SectionCard
               icon={Plus}
               title={draft.id ? t("admin.paywall.editPlan") : t("admin.paywall.newPlan")}
-              description={t("admin.paywall.newPlanDesc", {
-                defaultValue:
-                  "Uzupełnij treści dwujęzycznie (PL/EN). Cenę podajesz w najmniejszej jednostce - groszach lub centach.",
-              })}
+              description={t("admin.paywall.newPlanDesc")}
             >
               {/* Grupa: Nazewnictwo */}
-              <FieldGroup label={t("admin.paywall.groupNaming", { defaultValue: "Nazewnictwo" })}>
+              <FieldGroup label={t("admin.paywall.groupNaming")}>
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
                     <Label>{t("admin.paywall.namePl")}</Label>
@@ -330,9 +316,7 @@ function PaywallAdmin() {
               </FieldGroup>
 
               {/* Grupa: Cennik i rozliczenie */}
-              <FieldGroup
-                label={t("admin.paywall.groupPricing", { defaultValue: "Cennik i rozliczenie" })}
-              >
+              <FieldGroup label={t("admin.paywall.groupPricing")}>
                 <div className="grid sm:grid-cols-3 gap-4">
                   <div>
                     <Label>{t("admin.paywall.priceCents")}</Label>
@@ -386,9 +370,7 @@ function PaywallAdmin() {
               </FieldGroup>
 
               {/* Grupa: Widoczność i akcenty */}
-              <FieldGroup
-                label={t("admin.paywall.groupVisibility", { defaultValue: "Widoczność i akcenty" })}
-              >
+              <FieldGroup label={t("admin.paywall.groupVisibility")}>
                 <div className="grid sm:grid-cols-2 gap-4">
                   <label className="flex items-center gap-2 text-sm">
                     <Switch
@@ -435,9 +417,7 @@ function PaywallAdmin() {
               </FieldGroup>
 
               {/* Grupa: Lista funkcji */}
-              <FieldGroup
-                label={t("admin.paywall.groupFeatures", { defaultValue: "Lista funkcji" })}
-              >
+              <FieldGroup label={t("admin.paywall.groupFeatures")}>
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
                     <Label>{t("admin.paywall.featuresPl", "Funkcje (PL, jedna na linię)")}</Label>

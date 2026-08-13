@@ -65,35 +65,15 @@ function SocialPreviewTab() {
 
   return (
     <div>
-      <h2 className="text-lg font-semibold mb-1">
-        {t("admin.socialPreview.title", {
-          defaultValue: lang === "pl" ? "Podgląd linków (og:image)" : "Link preview (og:image)",
-        })}
-      </h2>
-      <p className="text-xs text-muted-foreground mb-4">
-        {t("admin.socialPreview.subtitle", {
-          defaultValue:
-            lang === "pl"
-              ? "Obrazek, który widzą odbiorcy po wklejeniu linku w Messengerze, WhatsAppie, LinkedIn, X czy Slacku. Zalecany format: 1200x630 px, JPG/PNG, poniżej 1 MB."
-              : "The image people see when your link is pasted into Messenger, WhatsApp, LinkedIn, X or Slack. Recommended: 1200x630 px, JPG/PNG, under 1 MB.",
-        })}
-      </p>
+      <h2 className="text-lg font-semibold mb-1">{t("admin.socialPreview.title")}</h2>
+      <p className="text-xs text-muted-foreground mb-4">{t("admin.socialPreview.subtitle")}</p>
 
       <Field
-        label={t("admin.socialPreview.defaultImage", {
-          defaultValue: lang === "pl" ? "Domyślna karta" : "Default card",
-        })}
-        hint={t("admin.socialPreview.defaultImageHint", {
-          defaultValue:
-            lang === "pl"
-              ? `Puste pole = wbudowany plik marki (${SITE_DEFAULT_OG_IMAGE}). Po zmianie odśwież podgląd w narzędziu dostawcy - platformy cache'ują karty nawet kilka dni.`
-              : `Empty = the built-in brand file (${SITE_DEFAULT_OG_IMAGE}). After a change, re-scrape the link - platforms cache cards for days.`,
-        })}
+        label={t("admin.socialPreview.defaultImage")}
+        hint={t("admin.socialPreview.defaultImageHint", { file: SITE_DEFAULT_OG_IMAGE })}
       >
         <ImageSlot
-          label={t("admin.socialPreview.defaultImage", {
-            defaultValue: lang === "pl" ? "Domyślna karta" : "Default card",
-          })}
+          label={t("admin.socialPreview.defaultImage")}
           value={draft.default_og_image_url}
           onChange={(v) => set("default_og_image_url", v)}
           folder="social"
@@ -102,17 +82,7 @@ function SocialPreviewTab() {
         />
       </Field>
 
-      <Field
-        label={t("admin.socialPreview.alt", {
-          defaultValue: lang === "pl" ? "Opis alternatywny (alt)" : "Alternative text (alt)",
-        })}
-        hint={t("admin.socialPreview.altHint", {
-          defaultValue:
-            lang === "pl"
-              ? "Czytany przez czytniki ekranu i część scraperów jako og:image:alt."
-              : "Read by screen readers and some scrapers as og:image:alt.",
-        })}
-      >
+      <Field label={t("admin.socialPreview.alt")} hint={t("admin.socialPreview.altHint")}>
         <Text
           value={draft.default_og_image_alt}
           onChange={(e) => set("default_og_image_alt", e.target.value)}
@@ -120,19 +90,12 @@ function SocialPreviewTab() {
         />
       </Field>
 
-      <h3 className="text-sm font-semibold mt-6 mb-2">
-        {t("admin.socialPreview.previewTitle", {
-          defaultValue: lang === "pl" ? "Podgląd karty" : "Card preview",
-        })}
-      </h3>
+      <h3 className="text-sm font-semibold mt-6 mb-2">{t("admin.socialPreview.previewTitle")}</h3>
       <div className="max-w-md overflow-hidden rounded-lg border border-border bg-muted/40">
         <div className="aspect-[1200/630] w-full bg-muted">
           <img
             src={effectiveImage}
-            alt={
-              draft.default_og_image_alt ||
-              t("admin.socialPreview.previewAlt", { defaultValue: "Podgląd karty" })
-            }
+            alt={draft.default_og_image_alt || t("admin.socialPreview.previewAlt")}
             className="h-full w-full object-cover"
             loading="lazy"
           />
@@ -148,14 +111,7 @@ function SocialPreviewTab() {
         </div>
       </div>
 
-      <h3 className="text-sm font-semibold mt-8 mb-2">
-        {t("admin.socialPreview.sourcesTitle", {
-          defaultValue:
-            lang === "pl"
-              ? "Skąd bierze się obrazek każdej strony"
-              : "Where each page's image comes from",
-        })}
-      </h3>
+      <h3 className="text-sm font-semibold mt-8 mb-2">{t("admin.socialPreview.sourcesTitle")}</h3>
       <div className="overflow-hidden rounded-lg border border-border">
         <table className="w-full text-sm">
           <tbody>
@@ -166,9 +122,7 @@ function SocialPreviewTab() {
                 <td className="w-24 px-3 py-2 text-right align-top">
                   {row.to ? (
                     <Link to={row.to} className="text-brand hover:underline">
-                      {t("admin.socialPreview.open", {
-                        defaultValue: lang === "pl" ? "Otwórz" : "Open",
-                      })}
+                      {t("admin.socialPreview.open")}
                     </Link>
                   ) : null}
                 </td>

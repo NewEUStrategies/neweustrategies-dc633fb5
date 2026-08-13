@@ -24,11 +24,15 @@ export const supportPl = {
       "Link otwiera zbiórkę w nowej karcie. Wpłaty obsługuje operator zbiórki - nie przechowujemy danych płatniczych.",
     closed: "Zbiórka jest chwilowo wyłączona. Zajrzyj do nas ponownie wkrótce.",
     whyTitle: "Na co idą środki",
-    whyItems: [
-      "Analizy polityki europejskiej i procesów decyzyjnych UE",
-      "Raporty i analizy dostępne bez paywalla tam, gdzie to możliwe",
-      "Debaty, briefingi i sesje Q&A ze społecznością",
-    ],
+    // Punkty jako nazwane liście, nie tablica pod `returnObjects`: bramka
+    // rozjazdu kod <-> słownik uznaje za wpis wyłącznie liść tekstowy, więc
+    // tablica pod kluczem uchodziła za klucz nieistniejący w obu językach
+    // (ten sam wzorzec co nagłówki CSV w GscBiDashboard).
+    whyItems: {
+      policy: "Analizy polityki europejskiej i procesów decyzyjnych UE",
+      openAccess: "Raporty i analizy dostępne bez paywalla tam, gdzie to możliwe",
+      community: "Debaty, briefingi i sesje Q&A ze społecznością",
+    },
   },
 };
 
@@ -51,11 +55,11 @@ export const supportEn = {
       "The link opens the fundraiser in a new tab. Payments are handled by the fundraiser platform - we never store payment details.",
     closed: "Donations are temporarily closed. Please check back soon.",
     whyTitle: "Where the money goes",
-    whyItems: [
-      "Analysis of European policy and EU decision-making processes",
-      "Reports and analyses kept outside the paywall where possible",
-      "Debates, briefings and community Q&A sessions",
-    ],
+    whyItems: {
+      policy: "Analysis of European policy and EU decision-making processes",
+      openAccess: "Reports and analyses kept outside the paywall where possible",
+      community: "Debates, briefings and community Q&A sessions",
+    },
   },
 };
 

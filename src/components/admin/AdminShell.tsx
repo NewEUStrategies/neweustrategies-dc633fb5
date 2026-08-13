@@ -361,16 +361,12 @@ function AdminShellInner({
         {
           to: "/admin/billing",
           icon: CreditCard,
-          label: t("admin.nav.billing", {
-            defaultValue: lang === "pl" ? "Rozliczenia" : "Billing",
-          }),
+          label: t("admin.nav.billing"),
         },
         {
           to: "/admin/billing-reconcile",
           icon: CreditCard,
-          label: t("admin.nav.billingReconcile", {
-            defaultValue: lang === "pl" ? "Uzgadnianie płatności" : "Payment reconciliation",
-          }),
+          label: t("admin.nav.billingReconcile"),
         },
         {
           to: "/admin/donations",
@@ -394,30 +390,22 @@ function AdminShellInner({
         {
           to: "/admin/settings/social-preview",
           icon: ImageIcon,
-          label: t("admin.nav.socialPreview", {
-            defaultValue: lang === "pl" ? "Podgląd linków (OG)" : "Link preview (OG)",
-          }),
+          label: t("admin.nav.socialPreview"),
         },
         {
           to: "/admin/settings/cookie-banner",
           icon: ShieldCheck,
-          label: t("admin.nav.cookieBanner", {
-            defaultValue: lang === "pl" ? "Cookie banner" : "Cookie banner",
-          }),
+          label: t("admin.nav.cookieBanner"),
         },
         {
           to: "/admin/versions",
           icon: HistoryIcon,
-          label: t("admin.nav.versions", {
-            defaultValue: lang === "pl" ? "Wersje i polityki" : "Versions & policies",
-          }),
+          label: t("admin.nav.versions"),
         },
         {
           to: "/admin/i18n",
           icon: Globe2,
-          label: t("admin.nav.i18nAudit", {
-            defaultValue: lang === "pl" ? "Tłumaczenia widgetów" : "Widget translations",
-          }),
+          label: t("admin.nav.i18nAudit"),
         },
         {
           to: "/admin/experiments",
@@ -488,9 +476,7 @@ function AdminShellInner({
           // było przejść przez /admin/community i dopiero tam wybrać zakładkę.
           to: "/admin/community/clubs",
           icon: MessagesSquare,
-          label: t("admin.nav.clubs", {
-            defaultValue: lang === "pl" ? "Kluby dyskusyjne" : "Discussion clubs",
-          }),
+          label: t("admin.nav.clubs"),
           badge: clubPending,
         },
         {
@@ -499,27 +485,21 @@ function AdminShellInner({
           // panelu trasa jest administracyjna; /club/elements przekierowuje.
           to: "/admin/community/clubs/elements",
           icon: Shapes,
-          label: t("admin.nav.clubElements", {
-            defaultValue: lang === "pl" ? "Klub - elementy" : "Club elements",
-          }),
+          label: t("admin.nav.clubElements"),
         },
         {
           // Taksonomia obszarów tematycznych jest wspólna dla całej
           // organizacji, więc mieszka obok klubów, nie w konkretnym klubie.
           to: "/admin/community/clubs/topics",
           icon: Shapes,
-          label: t("admin.nav.clubTopics", {
-            defaultValue: lang === "pl" ? "Klub - obszary tematyczne" : "Club policy areas",
-          }),
+          label: t("admin.nav.clubTopics"),
         },
         {
           // Skrzynka zgloszen do klubow - decyzje zapadaja przekrojowo,
           // dlatego stoi obok taksonomii, a nie w karcie pojedynczego klubu.
           to: "/admin/community/clubs/applications",
           icon: Inbox,
-          label: t("admin.nav.clubApplications", {
-            defaultValue: lang === "pl" ? "Klub - zgłoszenia" : "Club applications",
-          }),
+          label: t("admin.nav.clubApplications"),
         },
 
         {
@@ -527,9 +507,7 @@ function AdminShellInner({
           // strony publiczne, wiec stoja obok obszarow tematycznych.
           to: "/admin/community/clubs/specializations",
           icon: Shapes,
-          label: t("admin.nav.clubSpecializations", {
-            defaultValue: lang === "pl" ? "Klub - specjalizacje" : "Club specialisations",
-          }),
+          label: t("admin.nav.clubSpecializations"),
         },
 
         {
@@ -542,9 +520,7 @@ function AdminShellInner({
         {
           to: "/admin/expert-requests",
           icon: Inbox,
-          label: t("admin.nav.expertRequests", {
-            defaultValue: lang === "pl" ? "Zapytania do ekspertów" : "Expert requests",
-          }),
+          label: t("admin.nav.expertRequests"),
         },
         {
           to: "/admin/tracker",
@@ -601,9 +577,7 @@ function AdminShellInner({
         {
           to: "/admin/settings/mobile-bottom-bar",
           icon: Smartphone,
-          label: t("admin.nav.mobileBottomBar", {
-            defaultValue: lang === "pl" ? "Pasek mobilny" : "Mobile bottom bar",
-          }),
+          label: t("admin.nav.mobileBottomBar"),
         },
         { to: "/admin/post-layouts", icon: LayoutGrid, label: t("admin.nav.postLayouts") },
         { to: "/admin/expert-layouts", icon: Users, label: t("admin.nav.expertLayouts") },
@@ -870,10 +844,7 @@ function AdminShellInner({
                             {typeof item.badge === "number" && item.badge > 0 && !compact ? (
                               <span
                                 className="ml-auto inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500/20 px-1 text-[10px] font-semibold tabular-nums text-amber-700 dark:text-amber-300"
-                                aria-label={t("admin.nav.pendingItems", {
-                                  defaultValue:
-                                    lang === "pl" ? "Elementy oczekujące" : "Pending items",
-                                })}
+                                aria-label={t("admin.nav.pendingItems")}
                               >
                                 {item.badge > 99 ? "99+" : item.badge}
                               </span>

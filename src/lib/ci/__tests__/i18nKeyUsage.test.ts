@@ -44,6 +44,7 @@ describe("scanTranslationCalls", () => {
         line: 2,
         defaultValue: null,
         plural: false,
+        returnsObjects: false,
       },
     ]);
   });
@@ -56,6 +57,22 @@ describe("scanTranslationCalls", () => {
     expect(usage.key).toBe("network.mutualLinkAria");
   });
 
+  it("czyta POZYCYJNY defaultValue - `t(\"k\", \"tekst\")` i z opcjami w trzecim", () => {
+    // Ta forma była dla skanera niewidzialna, a to ona siedziała w dialogu
+    // historii ustawień: dziewięć kluczy nieobecnych w słowniku, polski tekst
+    // w kodzie, angielski interfejs renderujący polszczyznę.
+    const [a] = scanTranslationCalls("a.tsx", 't("network.ghost", "Nieznany autor")');
+    expect(a.defaultValue).toBe("Nieznany autor");
+    const [b] = scanTranslationCalls("a.tsx", 't("network.ghost", "Autor", { count: 2 })');
+    expect(b.defaultValue).toBe("Autor");
+    expect(b.plural).toBe(true);
+  });
+
+  it("obiekt opcji w drugim argumencie NIE jest brany za defaultValue", () => {
+    const [usage] = scanTranslationCalls("a.tsx", 't("network.connect", { count: 2 })');
+    expect(usage.defaultValue).toBeNull();
+  });
+
   it("template literal z interpolacją daje prefiks gałęzi", () => {
     const src = "const x = t(`network.reportReasons.${reason}`);";
     expect(scanTranslationCalls("a.tsx", src)).toEqual([
@@ -66,6 +83,7 @@ describe("scanTranslationCalls", () => {
         line: 1,
         defaultValue: null,
         plural: false,
+        returnsObjects: false,
       },
     ]);
   });
@@ -234,5 +252,28 @@ describe("auditKeyUsage", () => {
       ignoreKeys: ["network.ghost"],
     });
     expect(keyUsageFailed(audit)).toBe(false);
+  });
+
+  it("klucz wołany z returnObjects jest zaspokojony TABLICĄ", () => {
+    // `pricing.faq` i `pricing.comparisonMatrix.rows` leżą w słowniku jako
+    // tablice - bez tego oba wyglądały na brak, choć są w obu językach.
+    const tree: ResourceTree = { network: { faq: [{ q: "P", a: "O" }] } as never };
+    const audit = auditKeyUsage(
+      scanKeyUsage("a.tsx", 't("network.faq", { returnObjects: true })'),
+      { pl: tree, en: tree },
+    );
+    expect(keyUsageFailed(audit)).toBe(false);
+  });
+
+  it("ten sam klucz BEZ returnObjects nadal oblewa - kod oczekuje napisu", () => {
+    // Druga strona tego samego rozróżnienia: `t("network.faq")` bez opcji
+    // dostaje tablicę, którą React wypisze jako tekst. Gdyby bramka przyjmowała
+    // tablicę zawsze, ten defekt przechodziłby na zielono.
+    const tree: ResourceTree = { network: { faq: [{ q: "P", a: "O" }] } as never };
+    const audit = auditKeyUsage(scanKeyUsage("a.tsx", 't("network.faq")'), {
+      pl: tree,
+      en: tree,
+    });
+    expect(audit.missing.map((f) => f.reason)).toEqual(["missing_both"]);
   });
 });

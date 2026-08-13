@@ -10,6 +10,29 @@ import i18n from "./i18n";
 
 export const adminExtrasPl = {
   admin: {
+    // Podgląd przypisów w edytorze bloków. Formy mnogie zamiast dawnych
+    // "problem(y)" / "przypis(y)" - liczebnik przychodzi z opcji `count`,
+    // więc skrót w nawiasie nie miał jak się odmienić.
+    autoFootnotes: {
+      badge: "auto z [fn]…[/fn]",
+      blockLabel: "Blok #{{n}} ({{type}})",
+      count_one: "{{count}} przypis",
+      count_few: "{{count}} przypisy",
+      count_many: "{{count}} przypisów",
+      count_other: "{{count}} przypisów",
+      editLabel: "Treść przypisu nr {{n}}",
+      editableHint: "Kliknij ikonę ołówka, aby edytować - zmiany trafiają do treści.",
+      hint: "Zbierane automatycznie z [fn]…[/fn] w treści.",
+      hotkey: "⌘/Ctrl+Enter zapisuje",
+      jumpAria: "Przejdź do przypisu nr {{n}} w treści",
+      jumpHint: "Przejdź do miejsca [fn] w kanwie",
+      jumpToBlock: "Przejdź do bloku w kanwie",
+      removeLabel: "Usuń przypis nr {{n}}",
+      warningsTitle_one: "Wykryto {{count}} problem z markerami [fn]…[/fn]",
+      warningsTitle_few: "Wykryto {{count}} problemy z markerami [fn]…[/fn]",
+      warningsTitle_many: "Wykryto {{count}} problemów z markerami [fn]…[/fn]",
+      warningsTitle_other: "Wykryto {{count}} problemu z markerami [fn]…[/fn]",
+    },
     autosave: {
       dirty: "Niezapisane zmiany",
       discard: "Anuluj zmiany",
@@ -33,6 +56,11 @@ export const adminExtrasPl = {
       today: "Dziś",
     },
     cancelHint: "Odrzuć niezapisane zmiany i przywróć wersję z serwera",
+    contentArea: {
+      spacingMovedHint:
+        "- tam ustawiasz odstępy akapitów, nagłówków, list i cytatów (jedno źródło prawdy dla frontu i Gutenberga).",
+      spacingMovedLink: "Opcje motywu → Rozmiary czcionek",
+    },
     discussion: {
       moderateHint:
         "Nowe komentarze trafiają do kolejki (status oczekujący) i publikują się po zatwierdzeniu w Komentarzach; autor widzi swój wpis z plakietką moderacji.",
@@ -128,6 +156,8 @@ export const adminExtrasPl = {
         col: "Tłumaczenia",
         complete: "PL + EN",
         enOnly: "Tylko EN",
+        hasEn: "Angielski (EN)",
+        hasPl: "Polski (PL)",
         help: "Pokrycie tłumaczeniami: PL = wypełniona nazwa polska, EN = wypełniona nazwa angielska",
         missingAny: "Brak tłumaczenia",
         missingEn: "Brak wersji EN",
@@ -263,33 +293,49 @@ export const adminExtrasPl = {
       analytics: "Analityka (GA4 / GSC)",
       audience: "Audytorium / retencja",
       authors: "Autorzy",
+      billing: "Rozliczenia",
+      billingReconcile: "Uzgadnianie płatności",
+      clubApplications: "Klub - zgłoszenia",
+      clubElements: "Klub - elementy",
+      clubSpecializations: "Klub - specjalizacje",
+      clubTopics: "Klub - obszary tematyczne",
+      clubs: "Kluby dyskusyjne",
       comments: "Komentarze",
       community: "Społeczność",
       companies: "Firmy CRM",
       contact: "Centrum kontaktu",
+      // Zapożyczenie, którym zespół posługuje się tak samo po polsku - ten sam
+      // tekst stoi już w `admin.settingsNav.cookieBanner` w obu słownikach.
+      cookieBanner: "Cookie banner",
       coupons: "Kupony B2B",
       crm: "Kontakty CRM",
       crmFunnel: "CRM - Lejek marketingowy",
       donations: "Darowizny",
+      expertRequests: "Zapytania do ekspertów",
       externalNewTab: "Otwiera się w nowej karcie",
       gifting: "Podaruj artykuł",
       glossary: "Słowniczek",
+      i18nAudit: "Tłumaczenia widgetów",
       integrations: "Integracje",
       keyTakeaways: "Sekcja „Dowiesz się…”",
       library: "Biblioteka",
       liveBlog: "Live blog",
       loginSettings: "Strona logowania",
       membership: "Członkostwo",
+      mobileBottomBar: "Pasek mobilny",
       mobileDrawer: "Mobilne menu",
       monetization: "Dashboard monetyzacji",
       organizations: "Organizacje",
+      pendingItems: "Elementy oczekujące",
       permissions: "Uprawnienia (role)",
       pricing: "Cennik i segmenty",
       readingTime: "Czas czytania",
       regions: "Regiony",
       researchPrograms: "Programy - landing",
+      socialPreview: "Podgląd linków (OG)",
       toc: "Spis treści (ToC)",
       tracker: "Tracker UE",
+      versions: "Wersje i polityki",
       workflows: "Automatyzacje",
     },
     pages: {
@@ -310,6 +356,7 @@ export const adminExtrasPl = {
         content: "Treść",
         details: "Szczegóły",
       },
+      topic: "Temat",
     },
     pagination: {
       first: "Pierwsza",
@@ -325,7 +372,28 @@ export const adminExtrasPl = {
       badgePl: "Plakietka (PL)",
       featuresEn: "Features (EN, one per line)",
       featuresPl: "Funkcje (PL, jedna na linię)",
+      groupFeatures: "Lista funkcji",
+      groupNaming: "Nazewnictwo",
+      groupPricing: "Cennik i rozliczenie",
+      groupVisibility: "Widoczność i akcenty",
       highlighted: "Wyróżniony",
+      kpiActive: "Aktywne",
+      kpiConfigured: "Skonfigurowane",
+      kpiCurrencies: "Waluty",
+      // "Metering" i "Checkout" to terminy, którymi zespół posługuje się tak
+      // samo po polsku - stoją już w `admin.paywall.meteringTitle` i
+      // `checkoutTitle` w obu słownikach, więc przekład rozjechałby zakładki.
+      kpiMetering: "Metering",
+      kpiPlans: "Plany",
+      newPlanDesc:
+        "Uzupełnij treści dwujęzycznie (PL/EN). Cenę podajesz w najmniejszej jednostce - groszach lub centach.",
+      plansListDesc:
+        "Kolejność, ceny i status widoczności planów subskrypcyjnych. Edytuj wiersz, aby zmienić szczegóły.",
+      plansListTitle: "Katalog planów",
+      tabCheckout: "Checkout",
+      tabMetering: "Metering",
+      tabOverrides: "Wyjątki",
+      tabPlans: "Plany",
       trialDays: "Dni okresu próbnego",
     },
     popups: {
@@ -432,15 +500,25 @@ export const adminExtrasPl = {
       },
       validation: {
         blockToast: "Zapis wstrzymany: pola SEO przekraczają twardy limit znaków.",
+        duplicateHeading: "Powtórzony nagłówek{{pos}}{{snip}} - użyj unikalnych tytułów sekcji.",
         emptyHeading: "Pusty nagłówek w treści - usuń lub uzupełnij.",
         errorHeading: "Zapis zablokowany - przekroczono twardy limit.",
         errorLine: "{{chars}} / {{limit}} znaków (twardy limit)",
+        extraH1:
+          "Tytuł strony jest już renderowany jako H1 - usuń nagłówek H1 z treści{{pos}}{{snip}}.",
         headingLabel: "Struktura nagłówków",
         missingH1: "Brakuje H1 w treści - dodaj główny nagłówek.",
         multipleH1: "Znaleziono {{count}} nagłówków H1 - powinien być tylko jeden.",
         ok: "Wszystkie pola mieszczą się w limitach Google.",
+        shoutyHeading: "Nagłówek pisany WERSALIKAMI{{pos}}{{snip}} - użyj zwykłej wielkości liter.",
         skippedLevel:
           "Przeskoczony poziom nagłówka: H{{from}} → H{{to}}. Zachowaj hierarchię H2 → H3 → H4.",
+        // Liczba znaków przychodzi opcją `count`, więc klucz musi mieć formy
+        // mnogie - inaczej "72 znaków" zamiast "72 znaki".
+        tooLongHeading_one: "Nagłówek za długi{{pos}} ({{count}} znak) - skróć do ~70{{snip}}.",
+        tooLongHeading_few: "Nagłówek za długi{{pos}} ({{count}} znaki) - skróć do ~70{{snip}}.",
+        tooLongHeading_many: "Nagłówek za długi{{pos}} ({{count}} znaków) - skróć do ~70{{snip}}.",
+        tooLongHeading_other: "Nagłówek za długi{{pos}} ({{count}} znaku) - skróć do ~70{{snip}}.",
         warnHeading: "Ostrzeżenia SEO - warto poprawić przed publikacją.",
         warnLine: "{{chars}} znaków, {{px}}px / {{pxLimit}}px budżetu Google",
         warnToast: "Zapisano, ale {{count}} pól SEO zostanie uciętych w Google.",
@@ -448,7 +526,47 @@ export const adminExtrasPl = {
     },
     settingsNav: {
       analytics: "Analityka",
+      googleSource: "Preferowane źródło Google",
       marketing: "Marketing",
+      mobileBottomBar: "Pasek mobilny",
+      siteIdentity: "Tytuł i opis serwisu",
+      socialPreview: "Podgląd linków (OG)",
+    },
+    socialPreview: {
+      alt: "Opis alternatywny (alt)",
+      altHint: "Czytany przez czytniki ekranu i część scraperów jako og:image:alt.",
+      defaultImage: "Domyślna karta",
+      // `{{file}}` zastąpiło wstawkę `${SITE_DEFAULT_OG_IMAGE}` z kodu - ścieżka
+      // pliku marki jest stałą aplikacji, nie tekstem do tłumaczenia.
+      defaultImageHint:
+        "Puste pole = wbudowany plik marki ({{file}}). Po zmianie odśwież podgląd w narzędziu dostawcy - platformy cache'ują karty nawet kilka dni.",
+      open: "Otwórz",
+      previewAlt: "Podgląd karty",
+      previewTitle: "Podgląd karty",
+      sourcesTitle: "Skąd bierze się obrazek każdej strony",
+      subtitle:
+        "Obrazek, który widzą odbiorcy po wklejeniu linku w Messengerze, WhatsAppie, LinkedIn, X czy Slacku. Zalecany format: 1200x630 px, JPG/PNG, poniżej 1 MB.",
+      title: "Podgląd linków (og:image)",
+    },
+    themeOptions: {
+      // Dialog historii zmian ustawień. Dziewięć kluczy niżej stało wcześniej
+      // w kodzie jako pozycyjny `defaultValue` po polsku - czyli angielski
+      // interfejs renderował polszczyznę, a bramka parytetu tego nie widziała
+      // (klucza nie było w ŻADNYM słowniku, więc nie było czego porównać).
+      history: {
+        button: "Historia",
+        currentVersion: "Aktualna wersja",
+        description:
+          "Podgląd poprzednich wersji przed nadpisaniem. Przywrócenie utworzy nowy wpis w historii.",
+        empty: "Brak historii - jeszcze nic nie zapisano.",
+        previewSelected: "Podgląd wybranej wersji",
+        previousVersion: "Wybrana wersja",
+        restore: "Przywróć tę wersję",
+        restoring: "Przywracam...",
+        selectRevision: "Wybierz wersję z listy",
+        title: "Historia zmian",
+        unknownAuthor: "Nieznany autor",
+      },
     },
     title: "Panel",
     toc: {
@@ -494,6 +612,9 @@ export const adminExtrasPl = {
   common: {
     creating: "Tworze…",
     deleting: "Usuwam…",
+    // `common` ma już add/remove/delete/save/cancel w rdzeniu, brakowało tylko
+    // "edit" - stąd uzupełnienie tutaj, nie przeniesienie wołania na admin.edit.
+    edit: "Edytuj",
     reset: "Przywróć domyślne",
   },
   company: {
@@ -545,6 +666,22 @@ export const adminExtrasPl = {
 
 export const adminExtrasEn = {
   admin: {
+    autoFootnotes: {
+      badge: "auto from [fn]…[/fn]",
+      blockLabel: "Block #{{n}} ({{type}})",
+      count_one: "{{count}} footnote",
+      count_other: "{{count}} footnotes",
+      editLabel: "Text of footnote no. {{n}}",
+      editableHint: "Click the pencil icon to edit - the change goes straight into the content.",
+      hint: "Collected automatically from [fn]…[/fn] markers in the content.",
+      hotkey: "⌘/Ctrl+Enter saves",
+      jumpAria: "Jump to footnote no. {{n}} in the content",
+      jumpHint: "Jump to the [fn] marker on the canvas",
+      jumpToBlock: "Jump to the block on the canvas",
+      removeLabel: "Delete footnote no. {{n}}",
+      warningsTitle_one: "Found {{count}} problem with the [fn]…[/fn] markers",
+      warningsTitle_other: "Found {{count}} problems with the [fn]…[/fn] markers",
+    },
     autosave: {
       dirty: "Unsaved changes",
       discard: "Discard changes",
@@ -568,6 +705,11 @@ export const adminExtrasEn = {
       today: "Today",
     },
     cancelHint: "Discard unsaved changes and restore the version from the server",
+    contentArea: {
+      spacingMovedHint:
+        "- that is where you set the spacing of paragraphs, headings, lists and quotes (a single source of truth for the public site and for Gutenberg).",
+      spacingMovedLink: "Theme options → Font sizes",
+    },
     discussion: {
       moderateHint:
         "New comments go into the queue (pending status) and are published after approval in Comments; the author sees their own comment with a moderation badge.",
@@ -662,6 +804,8 @@ export const adminExtrasEn = {
         col: "Translations",
         complete: "PL + EN",
         enOnly: "EN only",
+        hasEn: "English (EN)",
+        hasPl: "Polish (PL)",
         help: "Translation coverage: PL = Polish name filled in, EN = English name filled in",
         missingAny: "No translation",
         missingEn: "No EN version",
@@ -797,33 +941,47 @@ export const adminExtrasEn = {
       analytics: "Analytics (GA4 / GSC)",
       audience: "Audience / retention",
       authors: "Authors",
+      billing: "Billing",
+      billingReconcile: "Payment reconciliation",
+      clubApplications: "Club applications",
+      clubElements: "Club elements",
+      clubSpecializations: "Club specialisations",
+      clubTopics: "Club policy areas",
+      clubs: "Discussion clubs",
       comments: "Comments",
       community: "Community",
       companies: "CRM companies",
       contact: "Contact center",
+      cookieBanner: "Cookie banner",
       coupons: "B2B coupons",
       crm: "CRM Contacts",
       crmFunnel: "CRM - Marketing funnel",
       donations: "Donations",
+      expertRequests: "Expert requests",
       externalNewTab: "Opens in a new tab",
       gifting: "Gift articles",
       glossary: "Glossary",
+      i18nAudit: "Widget translations",
       integrations: "Integrations",
       keyTakeaways: "Key takeaways",
       library: "Library",
       liveBlog: "Live blog",
       loginSettings: "Login page",
       membership: "Membership",
+      mobileBottomBar: "Mobile bottom bar",
       mobileDrawer: "Mobile menu",
       monetization: "Monetization",
       organizations: "Organisations",
+      pendingItems: "Pending items",
       permissions: "Permissions (roles)",
       pricing: "Pricing & segments",
       readingTime: "Reading time",
       regions: "Regions",
       researchPrograms: "Program landings",
+      socialPreview: "Link preview (OG)",
       toc: "Table of contents",
       tracker: "EU tracker",
+      versions: "Versions & policies",
       workflows: "Automations",
     },
     pages: {
@@ -844,6 +1002,7 @@ export const adminExtrasEn = {
         content: "Content",
         details: "Details",
       },
+      topic: "Topic",
     },
     pagination: {
       first: "First",
@@ -859,7 +1018,25 @@ export const adminExtrasEn = {
       badgePl: "Badge (PL)",
       featuresEn: "Features (EN, one per line)",
       featuresPl: "Features (PL, one per line)",
+      groupFeatures: "Feature list",
+      groupNaming: "Naming",
+      groupPricing: "Pricing and billing",
+      groupVisibility: "Visibility and accents",
       highlighted: "Highlighted",
+      kpiActive: "Active",
+      kpiConfigured: "Configured",
+      kpiCurrencies: "Currencies",
+      kpiMetering: "Metering",
+      kpiPlans: "Plans",
+      newPlanDesc:
+        "Fill in the copy in both languages (PL/EN). The price goes in the smallest unit - grosz or cents.",
+      plansListDesc:
+        "Order, prices and visibility of the subscription plans. Edit a row to change its details.",
+      plansListTitle: "Plan catalogue",
+      tabCheckout: "Checkout",
+      tabMetering: "Metering",
+      tabOverrides: "Exceptions",
+      tabPlans: "Plans",
       trialDays: "Trial days",
     },
     popups: {
@@ -965,15 +1142,23 @@ export const adminExtrasEn = {
       },
       validation: {
         blockToast: "Save paused: SEO fields exceed the hard character limit.",
+        duplicateHeading: "Repeated heading{{pos}}{{snip}} - use unique section titles.",
         emptyHeading: "Empty heading in content - delete or fill it in.",
         errorHeading: "Save blocked - hard limit exceeded.",
         errorLine: "{{chars}} / {{limit}} characters (hard limit)",
+        extraH1:
+          "The page title already renders as the H1 - remove the H1 heading from the content{{pos}}{{snip}}.",
         headingLabel: "Heading structure",
         missingH1: "Missing H1 in the content - add a main heading.",
         multipleH1: "Found {{count}} H1 headings - there should be only one.",
         ok: "All fields are within Google's limits.",
+        shoutyHeading: "Heading set in ALL CAPS{{pos}}{{snip}} - use normal capitalisation.",
         skippedLevel:
           "Skipped heading level: H{{from}} → H{{to}}. Keep the hierarchy H2 → H3 → H4.",
+        tooLongHeading_one:
+          "Heading too long{{pos}} ({{count}} character) - shorten it to about 70{{snip}}.",
+        tooLongHeading_other:
+          "Heading too long{{pos}} ({{count}} characters) - shorten it to about 70{{snip}}.",
         warnHeading: "SEO warnings - worth fixing before publishing.",
         warnLine: "{{chars}} characters, {{px}}px / {{pxLimit}}px of Google's budget",
         warnToast: "Saved, but {{count}} SEO fields will be truncated in Google.",
@@ -981,7 +1166,41 @@ export const adminExtrasEn = {
     },
     settingsNav: {
       analytics: "Analytics",
+      googleSource: "Preferred Google source",
       marketing: "Marketing",
+      mobileBottomBar: "Mobile bottom bar",
+      siteIdentity: "Site title and description",
+      socialPreview: "Link preview (OG)",
+    },
+    socialPreview: {
+      alt: "Alternative text (alt)",
+      altHint: "Read by screen readers and by some scrapers as og:image:alt.",
+      defaultImage: "Default card",
+      defaultImageHint:
+        "Empty = the built-in brand file ({{file}}). After a change, re-scrape the link in the platform's own tool - cards stay cached for days.",
+      open: "Open",
+      previewAlt: "Card preview",
+      previewTitle: "Card preview",
+      sourcesTitle: "Where each page's image comes from",
+      subtitle:
+        "The image people see when your link is pasted into Messenger, WhatsApp, LinkedIn, X or Slack. Recommended: 1200x630 px, JPG/PNG, under 1 MB.",
+      title: "Link preview (og:image)",
+    },
+    themeOptions: {
+      history: {
+        button: "History",
+        currentVersion: "Current version",
+        description:
+          "Review earlier versions before overwriting. Restoring creates a new entry in the history.",
+        empty: "No history yet - nothing has been saved.",
+        previewSelected: "Preview of the selected version",
+        previousVersion: "Selected version",
+        restore: "Restore this version",
+        restoring: "Restoring...",
+        selectRevision: "Pick a version from the list",
+        title: "Change history",
+        unknownAuthor: "Unknown author",
+      },
     },
     title: "Panel",
     toc: {
@@ -1027,6 +1246,7 @@ export const adminExtrasEn = {
   common: {
     creating: "Creating…",
     deleting: "Deleting…",
+    edit: "Edit",
     reset: "Restore defaults",
   },
   company: {

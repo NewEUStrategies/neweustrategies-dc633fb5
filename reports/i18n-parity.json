@@ -77,6 +77,7 @@
     "blocks.settings.posterPh",
     "blocks.settings.sepGradient",
     "blocks.settings.urlPh",
+    "blocks.toolbar.link",
     "blocks.types.alert-banner",
     "blocks.types.audio",
     "blocks.types.banner-image",
@@ -146,6 +147,6 @@
   "repoWide": {
     "missingEn": 0,
     "missingPl": 0,
-    "untranslated": 429
+    "untranslated": 434
   }
 }

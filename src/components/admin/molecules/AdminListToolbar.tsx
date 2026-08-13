@@ -131,12 +131,8 @@ export function AdminListToolbar({
             <SelectItem value="all">
               {t("admin.list.lang.all", { defaultValue: "Wszystkie języki" })}
             </SelectItem>
-            <SelectItem value="has_pl">
-              {t("admin.list.lang.hasPl", { defaultValue: "Polski (PL)" })}
-            </SelectItem>
-            <SelectItem value="has_en">
-              {t("admin.list.lang.hasEn", { defaultValue: "Angielski (EN)" })}
-            </SelectItem>
+            <SelectItem value="has_pl">{t("admin.list.lang.hasPl")}</SelectItem>
+            <SelectItem value="has_en">{t("admin.list.lang.hasEn")}</SelectItem>
             <SelectItem value="complete">
               {t("admin.list.lang.complete", { defaultValue: "PL i EN" })}
             </SelectItem>

@@ -142,21 +142,9 @@ export function ConfluenceReconciliationCard({ lang }: { lang: "pl" | "en" }) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <BookMarked className="h-4 w-4 text-primary" aria-hidden="true" />
-          {t("adminMembership.confluence.title", {
-            defaultValue: L(
-              "Uzgodnienie z modelem Confluence (referencja)",
-              "Reconciliation with the Confluence model (reference)",
-            ),
-          })}
+          {t("adminMembership.confluence.title")}
         </CardTitle>
-        <p className="text-sm text-muted-foreground">
-          {t("adminMembership.confluence.hint", {
-            defaultValue: L(
-              "Warstwa analityczna, widoczna tylko dla zespołu. Świadczenia z modelu subskrypcji w Confluence a stan na platformie i rekomendowany próg docelowy.",
-              "An analytical layer, visible to staff only. Confluence subscription-model benefits vs the live platform and the recommended target tier.",
-            ),
-          })}
-        </p>
+        <p className="text-sm text-muted-foreground">{t("adminMembership.confluence.hint")}</p>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">

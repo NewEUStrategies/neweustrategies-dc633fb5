@@ -347,12 +347,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
             {t("searchOverlay.startTyping")}
           </p>
           <p className="mx-auto mt-1.5 max-w-xs text-[11px] leading-relaxed text-muted-foreground sm:hidden">
-            {
-              t("searchOverlay.hint", {
-                defaultValue:
-                  'Wpisz frazę - użyj cudzysłowów dla dokładnej frazy lub „-" aby wykluczyć słowo.',
-              }) as string
-            }
+            {t("searchOverlay.hint")}
           </p>
         </div>
       )}

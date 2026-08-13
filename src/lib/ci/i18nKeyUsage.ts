@@ -45,6 +45,14 @@ export interface KeyUsage {
   readonly defaultValue: string | null;
   /** Czy wywołanie przekazuje `count` (klucz rozwija się na formy mnogie). */
   readonly plural: boolean;
+  /**
+   * Czy wywołanie przekazuje `returnObjects: true` - wtedy wartością klucza ma
+   * być TABLICA albo obiekt, nie napis (`pricing.faq`, `pricing.comparisonMatrix.rows`).
+   * Bez tego rozróżnienia bramka ma dwie dziury naraz: zgłasza istniejące
+   * tablice jako brak, a przemilcza wywołanie, które oczekuje napisu tam, gdzie
+   * słownik trzyma tablicę - i to drugie renderuje użytkownikowi „[object Object]".
+   */
+  readonly returnsObjects: boolean;
 }
 
 export type KeyUsageReason =
@@ -277,14 +285,53 @@ function templateHead(raw: string): { head: string; kind: "prefix" | "partial" }
   return head.includes(".") ? { head, kind: "partial" } : null;
 }
 
-function readDefaultValue(options: string | undefined): string | null {
-  if (options === undefined) return null;
-  const match = /defaultValue\s*:\s*(["'`])((?:[^\\]|\\.)*?)\1/.exec(options);
+/**
+ * `defaultValue` w OBU formach, jakie przyjmuje i18next:
+ *
+ *   t("k", { defaultValue: "..." })              - opcja w obiekcie
+ *   t("k", "...")   /   t("k", "...", { ... })   - drugi argument POZYCYJNY
+ *
+ * Forma pozycyjna była dla tego skanera niewidzialna i to ona siedziała
+ * w `SiteSettingsHistoryDialog.tsx`: dziesięć kluczy nieobecnych w słowniku,
+ * z polskim tekstem wpisanym w kod, czyli angielski interfejs renderował
+ * polszczyznę. Sam brak klucza skaner zgłaszał - ale jako `missing_both`,
+ * więc licznik `masked` pokazywał ZERO przy realnym długu tej klasy.
+ * Klasyfikacja nie jest kosmetyką: `missing` widać w przeglądarce od razu
+ * (goły klucz), `masked` wygląda poprawnie w jednym języku i wychodzi tylko
+ * po przełączeniu na drugi.
+ */
+function readDefaultValue(second: string | undefined): string | null {
+  if (second === undefined) return null;
+  // Drugi argument będący literałem to `defaultValue` - obiekt opcji nie
+  // przechodzi przez `unquote`, więc rozgałęzienie jest bezpieczne.
+  const positional = unquote(second);
+  if (positional !== null) return positional;
+  const match = /defaultValue\s*:\s*(["'`])((?:[^\\]|\\.)*?)\1/.exec(second);
   return match ? match[2] : null;
 }
 
-function hasCount(options: string | undefined): boolean {
-  return options !== undefined && /(^|[^A-Za-z0-9_$])count\s*[:,}]/.test(options);
+/**
+ * Argumenty `t()`, które mogą być OBIEKTEM OPCJI: wszystko po kluczu, poza
+ * pozycyjnym `defaultValue` (ten jest literałem napisowym).
+ *
+ * i18next przyjmuje `t(k, opts)` ORAZ `t(k, default, opts)`, więc opcje stoją
+ * raz na drugiej, raz na trzeciej pozycji. Pytanie tylko o drugi argument dawało
+ * dziurę bliźniaczą do tej z `defaultValue`: przy pozycyjnym domyślniku ginął
+ * `count`, czyli klucz z formami mnogimi wyglądał na klucz pojedynczy.
+ */
+function optionArgs(args: readonly (string | undefined)[]): string[] {
+  return args
+    .slice(1)
+    .filter((arg): arg is string => arg !== undefined)
+    .filter((arg) => unquote(arg) === null);
+}
+
+function hasCount(args: readonly (string | undefined)[]): boolean {
+  return optionArgs(args).some((arg) => /(^|[^A-Za-z0-9_$])count\s*[:,}]/.test(arg));
+}
+
+function hasReturnObjects(args: readonly (string | undefined)[]): boolean {
+  return optionArgs(args).some((arg) => /returnObjects\s*:\s*true/.test(arg));
 }
 
 /**
@@ -355,7 +402,8 @@ export function scanTranslationCalls(file: string, rawSource: string): KeyUsage[
 
     const line = lineOf(source, i);
     const defaultValue = readDefaultValue(second);
-    const plural = hasCount(second);
+    const plural = hasCount(call.args);
+    const returnsObjects = hasReturnObjects(call.args);
     // `i18n.t(...)` / `i18next.t(...)` omija hak, wiec NIE dostaje `keyPrefix`.
     // `t(...)` z destrukturyzacji haka - dostaje prefiks obowiazujacy w tym miejscu.
     const viaHook = before !== ".";
@@ -364,7 +412,15 @@ export function scanTranslationCalls(file: string, rawSource: string): KeyUsage[
 
     const literal = unquote(first);
     if (literal !== null && KEY_SHAPE.test(literal)) {
-      out.push({ key: withScope(literal), kind: "literal", file, line, defaultValue, plural });
+      out.push({
+        key: withScope(literal),
+        kind: "literal",
+        file,
+        line,
+        defaultValue,
+        plural,
+        returnsObjects,
+      });
       continue;
     }
     const template = templateHead(first);
@@ -383,6 +439,7 @@ export function scanTranslationCalls(file: string, rawSource: string): KeyUsage[
         line,
         defaultValue,
         plural,
+        returnsObjects,
       });
     }
   }
@@ -415,6 +472,7 @@ export function scanKeyReferences(
         line: lineOf(source, match.index),
         defaultValue: null,
         plural: false,
+        returnsObjects: false,
       });
     }
     match = literals.exec(source);
@@ -448,6 +506,22 @@ function isTree(value: unknown): value is ResourceTree {
 function hasLeaf(tree: ResourceTree, key: string): boolean {
   if (typeof readKey(tree, key) === "string") return true;
   return PLURAL_SUFFIXES.some((suffix) => typeof readKey(tree, `${key}${suffix}`) === "string");
+}
+
+/**
+ * Klucz wołany z `returnObjects: true` jest zaspokojony przez TABLICĘ albo
+ * obiekt - takie są `pricing.faq` i `pricing.comparisonMatrix.rows`, i taki
+ * kształt zwraca i18next. Bez tego oba wyglądały na brak w słowniku, choć
+ * leżą w nim w obu językach.
+ *
+ * Ale tylko dla wywołań, które o obiekt POPROSIŁY: `t("pricing.faq")` bez
+ * `returnObjects` dostaje od i18next tablicę, którą React wyrenderuje jako
+ * napis - i to jest defekt, którego bramka nie ma prawa przemilczeć.
+ */
+function hasEntry(tree: ResourceTree, key: string, wantsObject: boolean): boolean {
+  if (!wantsObject) return hasLeaf(tree, key);
+  const node = readKey(tree, key);
+  return Array.isArray(node) || (node !== null && typeof node === "object");
 }
 
 /** Podklucze gałęzi bez wariantów mnogich (PL ma `few`/`many`, EN nie). */
@@ -525,8 +599,8 @@ export function auditKeyUsage(
       continue;
     }
 
-    const inPl = hasLeaf(trees.pl, usage.key);
-    const inEn = hasLeaf(trees.en, usage.key);
+    const inPl = hasEntry(trees.pl, usage.key, usage.returnsObjects);
+    const inEn = hasEntry(trees.en, usage.key, usage.returnsObjects);
     if (inPl && inEn) continue;
 
     const reason: KeyUsageReason =

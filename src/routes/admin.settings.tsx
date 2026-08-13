@@ -22,16 +22,16 @@ function SettingsLayout() {
     { to: "/admin/settings/seo", label: t("admin.settingsNav.seo", { defaultValue: "SEO" }) },
     {
       to: "/admin/settings/site-identity",
-      label: t("admin.settingsNav.siteIdentity", { defaultValue: "Tytuł i opis serwisu" }),
+      label: t("admin.settingsNav.siteIdentity"),
     },
     {
       to: "/admin/settings/social-preview",
-      label: t("admin.settingsNav.socialPreview", { defaultValue: "Podgląd linków (OG)" }),
+      label: t("admin.settingsNav.socialPreview"),
     },
     { to: "/admin/settings/privacy", label: t("admin.settingsNav.privacy") },
     {
       to: "/admin/settings/google-source",
-      label: t("admin.settingsNav.googleSource", { defaultValue: "Preferowane źródło Google" }),
+      label: t("admin.settingsNav.googleSource"),
     },
     {
       to: "/admin/settings/cookie-banner",
@@ -39,7 +39,7 @@ function SettingsLayout() {
     },
     {
       to: "/admin/settings/mobile-bottom-bar",
-      label: t("admin.settingsNav.mobileBottomBar", { defaultValue: "Pasek mobilny" }),
+      label: t("admin.settingsNav.mobileBottomBar"),
     },
     {
       to: "/admin/settings/analytics",

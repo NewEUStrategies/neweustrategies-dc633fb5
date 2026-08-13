@@ -57,15 +57,11 @@ export function ImageBlock({ block, isActive, onChange }: Props) {
         className="w-full bg-transparent text-sm text-muted-foreground text-center italic border-none outline-none focus:ring-0 p-0"
       />
       <div className="flex items-center gap-2 justify-center text-[11px] text-muted-foreground">
-        <span className="uppercase tracking-wider">
-          {bt.t("blocks.toolbar.source", { defaultValue: "Źródło" })}:
-        </span>
+        <span className="uppercase tracking-wider">{bt.t("blocks.toolbar.source")}:</span>
         <input
           type="text"
           value={source}
-          placeholder={bt.t("blocks.toolbar.sourceLabel", {
-            defaultValue: "Nazwa źródła (np. autor, agencja)",
-          })}
+          placeholder={bt.t("blocks.toolbar.sourceLabel")}
           onChange={(e) => onChange({ ...block, data: { ...block.data, source: e.target.value } })}
           className="flex-1 bg-transparent border-none outline-none focus:ring-0 p-0"
         />

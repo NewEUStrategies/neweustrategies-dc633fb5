@@ -8,6 +8,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-blocks";
 import {
   ChevronUp,
   ChevronDown,
@@ -206,8 +207,8 @@ export function SortableBlockItem(props: Props) {
               e.stopPropagation();
               props.onSelect();
             }}
-            title={t("blocks.actions.drag", { defaultValue: "Przeciągnij" })}
-            aria-label={t("blocks.actions.drag", { defaultValue: "Przeciągnij" })}
+            title={t("blocks.actions.drag")}
+            aria-label={t("blocks.actions.drag")}
             className="absolute left-1 top-1/2 -translate-y-1/2 p-1 rounded text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-accent cursor-grab active:cursor-grabbing"
           >
             <GripVertical className="w-3.5 h-3.5" />
@@ -269,7 +270,7 @@ export function SortableBlockItem(props: Props) {
                 <div
                   className="flex items-center gap-0.5"
                   role="group"
-                  aria-label={t("blocks.actions.variant", { defaultValue: "Wariant" })}
+                  aria-label={t("blocks.actions.variant")}
                 >
                   {props.variants.map((v) => {
                     const isCurrent = v.key === props.currentVariant;
@@ -304,8 +305,8 @@ export function SortableBlockItem(props: Props) {
                 e.stopPropagation();
                 props.onMove(-1);
               }}
-              title={t("blocks.actions.up", { defaultValue: "W górę" })}
-              aria-label={t("blocks.actions.up", { defaultValue: "W górę" })}
+              title={t("blocks.actions.up")}
+              aria-label={t("blocks.actions.up")}
             >
               <ChevronUp className="w-3 h-3" />
             </IconButton>
@@ -315,8 +316,8 @@ export function SortableBlockItem(props: Props) {
                 e.stopPropagation();
                 props.onMove(1);
               }}
-              title={t("blocks.actions.down", { defaultValue: "W dół" })}
-              aria-label={t("blocks.actions.down", { defaultValue: "W dół" })}
+              title={t("blocks.actions.down")}
+              aria-label={t("blocks.actions.down")}
             >
               <ChevronDown className="w-3 h-3" />
             </IconButton>
@@ -325,8 +326,8 @@ export function SortableBlockItem(props: Props) {
                 e.stopPropagation();
                 props.onDuplicate();
               }}
-              title={t("blocks.actions.duplicate", { defaultValue: "Duplikuj" })}
-              aria-label={t("blocks.actions.duplicate", { defaultValue: "Duplikuj" })}
+              title={t("blocks.actions.duplicate")}
+              aria-label={t("blocks.actions.duplicate")}
             >
               <Copy className="w-3 h-3" />
             </IconButton>
@@ -336,8 +337,8 @@ export function SortableBlockItem(props: Props) {
                 e.stopPropagation();
                 props.onRemove();
               }}
-              title={t("blocks.actions.remove", { defaultValue: "Usuń" })}
-              aria-label={t("blocks.actions.remove", { defaultValue: "Usuń" })}
+              title={t("blocks.actions.remove")}
+              aria-label={t("blocks.actions.remove")}
             >
               <Trash2 className="w-3 h-3" />
             </IconButton>
@@ -349,7 +350,7 @@ export function SortableBlockItem(props: Props) {
 
       <ContextMenuContent className="w-60">
         <ContextMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
-          {props.typeLabel || t("blocks.actions.block", { defaultValue: "Blok" })}
+          {props.typeLabel || t("blocks.actions.block")}
           {size.w && size.h ? ` · ${size.w}×${size.h}px` : ""}
         </ContextMenuLabel>
         <ContextMenuSeparator />
@@ -357,9 +358,7 @@ export function SortableBlockItem(props: Props) {
         {props.variants && props.variants.length > 1 && props.onVariantChange && (
           <>
             <ContextMenuSub>
-              <ContextMenuSubTrigger>
-                {t("blocks.actions.variant", { defaultValue: "Wariant" })}
-              </ContextMenuSubTrigger>
+              <ContextMenuSubTrigger>{t("blocks.actions.variant")}</ContextMenuSubTrigger>
               <ContextMenuSubContent>
                 <ContextMenuRadioGroup
                   value={props.currentVariant ?? ""}
@@ -404,18 +403,18 @@ export function SortableBlockItem(props: Props) {
 
         <ContextMenuItem disabled={props.index === 0} onSelect={() => props.onMove(-1)}>
           <ChevronUp className="w-3.5 h-3.5 mr-2" />
-          {t("blocks.actions.up", { defaultValue: "Przenieś w górę" })}
+          {t("blocks.actions.up")}
         </ContextMenuItem>
         <ContextMenuItem
           disabled={props.index === props.total - 1}
           onSelect={() => props.onMove(1)}
         >
           <ChevronDown className="w-3.5 h-3.5 mr-2" />
-          {t("blocks.actions.down", { defaultValue: "Przenieś w dół" })}
+          {t("blocks.actions.down")}
         </ContextMenuItem>
         <ContextMenuItem onSelect={() => props.onDuplicate()}>
           <Copy className="w-3.5 h-3.5 mr-2" />
-          {t("blocks.actions.duplicate", { defaultValue: "Duplikuj" })}
+          {t("blocks.actions.duplicate")}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={() => void copyId()}>
@@ -424,7 +423,7 @@ export function SortableBlockItem(props: Props) {
           ) : (
             <LinkIcon className="w-3.5 h-3.5 mr-2" />
           )}
-          {t("blocks.actions.copyId", { defaultValue: "Kopiuj ID bloku" })}
+          {t("blocks.actions.copyId")}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem
@@ -432,7 +431,7 @@ export function SortableBlockItem(props: Props) {
           onSelect={() => props.onRemove()}
         >
           <Trash2 className="w-3.5 h-3.5 mr-2" />
-          {t("blocks.actions.remove", { defaultValue: "Usuń blok" })}
+          {t("blocks.actions.remove")}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

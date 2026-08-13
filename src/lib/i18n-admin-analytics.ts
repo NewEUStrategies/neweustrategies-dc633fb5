@@ -376,8 +376,17 @@ const pl = {
       notConfiguredPre: "Search Console nie jest jeszcze podłączony. Wróć do zakładki ",
       notConfiguredTab: "Przegląd",
       notConfiguredPost: ' i użyj przycisku „Połącz Search Console".',
-      csvTrendHeaders: ["data", "kliknięcia", "wyświetlenia", "ctr", "pozycja"],
-      csvQueriesHeaders: ["zapytanie", "kliknięcia", "wyświetlenia", "ctr", "pozycja"],
+      // Nagłówki eksportu CSV per kolumna, nie tablicą pod jednym kluczem:
+      // bramka rozjazdu kod <-> słownik uznaje za wpis wyłącznie liść tekstowy,
+      // więc tablica przechodziła jako klucz nieistniejący w obu językach.
+      csvHeaders: {
+        date: "data",
+        query: "zapytanie",
+        clicks: "kliknięcia",
+        impressions: "wyświetlenia",
+        ctr: "ctr",
+        position: "pozycja",
+      },
       charts: {
         trendTitle: "Trend widoczności",
         trendSubtitle: "Kliknięcia i wyświetlenia w czasie + CTR (linia przerywana)",
@@ -1092,8 +1101,14 @@ const en = {
       notConfiguredPre: "Search Console isn't connected yet. Go back to the ",
       notConfiguredTab: "Overview",
       notConfiguredPost: ' tab and use the "Connect Search Console" button.',
-      csvTrendHeaders: ["date", "clicks", "impressions", "ctr", "position"],
-      csvQueriesHeaders: ["query", "clicks", "impressions", "ctr", "position"],
+      csvHeaders: {
+        date: "date",
+        query: "query",
+        clicks: "clicks",
+        impressions: "impressions",
+        ctr: "ctr",
+        position: "position",
+      },
       charts: {
         trendTitle: "Visibility trend",
         trendSubtitle: "Clicks and impressions over time + CTR (dashed line)",

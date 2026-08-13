@@ -420,14 +420,15 @@ function LatestPostsHome({ lang }: { lang: "pl" | "en" }) {
 
   return (
     <div className="max-w-[1200px] w-full mx-auto px-4 lg:px-8 py-10">
+      {/* Pusty stan bierzemy z `blog.empty`: korzeń `home` nie istnieje w
+          słowniku, a strona główna w trybie „najnowsze wpisy” renderuje tę samą
+          siatkę co /blog - jeden klucz zamiast dwóch kopii tego samego zdania. */}
       <PaginatedPostGrid
         posts={posts}
         page={page}
         totalPages={totalPages}
         lang={lang}
-        emptyText={t("home.latestEmpty", {
-          defaultValue: lang === "en" ? "No published posts yet." : "Brak opublikowanych wpisów.",
-        })}
+        emptyText={t("blog.empty")}
         isPending={isPending}
         onPageChange={onPageChange}
         hrefFor={hrefFor}

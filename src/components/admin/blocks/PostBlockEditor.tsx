@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-blocks";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import type { Block, LocalizedBlocks } from "@/lib/blocks/types";
@@ -131,10 +132,10 @@ export function PostBlockEditor({ value, onChange, documentPane, canvasWrap, pre
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-                  title={t("blocks.actions.preview", { defaultValue: "Zobacz preview" })}
+                  title={t("blocks.actions.preview")}
                 >
                   <Eye className="w-3.5 h-3.5" />
-                  <span>{t("blocks.actions.preview", { defaultValue: "Zobacz preview" })}</span>
+                  <span>{t("blocks.actions.preview")}</span>
                 </a>
               ) : null}
               <button

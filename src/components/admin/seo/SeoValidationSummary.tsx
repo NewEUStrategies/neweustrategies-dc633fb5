@@ -62,12 +62,7 @@ export function SeoValidationSummary({ issues, headingIssues = [] }: SeoValidati
         snip,
       });
     } else if (h.kind === "extra_h1") {
-      text = t("admin.seo.validation.extraH1", {
-        defaultValue:
-          "Tytuł strony jest już renderowany jako H1 - usuń nagłówek H1 z treści{{pos}}{{snip}}.",
-        pos,
-        snip,
-      });
+      text = t("admin.seo.validation.extraH1", { pos, snip });
     } else if (h.kind === "skipped_level") {
       text = t("admin.seo.validation.skippedLevel", {
         defaultValue:
@@ -84,24 +79,11 @@ export function SeoValidationSummary({ issues, headingIssues = [] }: SeoValidati
         extra: h.count && h.count > 1 ? ` (łącznie ${h.count})` : "",
       });
     } else if (h.kind === "duplicate_heading") {
-      text = t("admin.seo.validation.duplicateHeading", {
-        defaultValue: "Powtórzony nagłówek{{pos}}{{snip}} - użyj unikalnych tytułów sekcji.",
-        pos,
-        snip,
-      });
+      text = t("admin.seo.validation.duplicateHeading", { pos, snip });
     } else if (h.kind === "too_long_heading") {
-      text = t("admin.seo.validation.tooLongHeading", {
-        defaultValue: "Nagłówek za długi{{pos}} ({{count}} znaków) - skróć do ~70{{snip}}.",
-        pos,
-        count: h.count,
-        snip,
-      });
+      text = t("admin.seo.validation.tooLongHeading", { pos, count: h.count, snip });
     } else if (h.kind === "shouty_heading") {
-      text = t("admin.seo.validation.shoutyHeading", {
-        defaultValue: "Nagłówek pisany WERSALIKAMI{{pos}}{{snip}} - użyj zwykłej wielkości liter.",
-        pos,
-        snip,
-      });
+      text = t("admin.seo.validation.shoutyHeading", { pos, snip });
     }
     all.push({
       key: `h-${h.lang}-${h.kind}-${h.position ?? 0}`,

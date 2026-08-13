@@ -80,6 +80,11 @@ export const chatPl = {
     minimize: "Zminimalizuj",
     close: "Zamknij",
     back: "Wstecz",
+    // Powrót z /messages na własny profil. Nie sięgamy po `network.backToProfile`
+    // (ten sam tekst), bo powierzchnia wiadomości nie rejestruje nakładki
+    // `i18n-network` - klucz z tamtego korzenia renderowałby się tu jako goła
+    // ścieżka.
+    backToProfile: "Wróć do profilu",
     copyMessage: "Kopiuj wiadomość",
     attachmentCaptionPlaceholder: "Dodaj opis (opcjonalnie)...",
     unread_one: "{{count}} nieprzeczytana wiadomość",
@@ -571,6 +576,7 @@ export const chatEn = {
     minimize: "Minimize",
     close: "Close",
     back: "Back",
+    backToProfile: "Back to profile",
     copyMessage: "Copy message",
     attachmentCaptionPlaceholder: "Add a caption (optional)...",
     unread_one: "{{count}} unread message",

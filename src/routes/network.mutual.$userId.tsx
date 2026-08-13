@@ -103,13 +103,8 @@ function MutualConnectionsPage() {
             >
               <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
               {targetName
-                ? t("network.backToProfileOf", {
-                    name: targetName,
-                    defaultValue: "Wróć do profilu {{name}}",
-                  })
-                : t("network.backToProfile", {
-                    defaultValue: "Wróć do profilu",
-                  })}
+                ? t("network.backToProfileOf", { name: targetName })
+                : t("network.backToProfile")}
             </Link>
           ) : null}
           <div className="flex items-start gap-3">
@@ -125,19 +120,12 @@ function MutualConnectionsPage() {
             <div className="min-w-0 flex-1">
               <h1 className="flex items-center gap-2 text-lg font-semibold leading-tight">
                 <UsersRound className="h-4 w-4 text-[var(--brand)]" aria-hidden />
-                {t("network.mutualPageTitle", {
-                  defaultValue: "Wspólne kontakty",
-                })}
+                {t("network.mutualPageTitle")}
               </h1>
               <p className="text-xs text-muted-foreground">
                 {targetName
-                  ? t("network.mutualPageSubtitle", {
-                      name: targetName,
-                      defaultValue: "Osoby, które znasz Ty i {{name}}.",
-                    })
-                  : t("network.mutualPageSubtitleGeneric", {
-                      defaultValue: "Osoby, które znacie oboje.",
-                    })}
+                  ? t("network.mutualPageSubtitle", { name: targetName })
+                  : t("network.mutualPageSubtitleGeneric")}
               </p>
               {/* Podsumowanie drogi nad pełną listą mostów: jeden stopień,
                   jedna ścieżka, potem dopiero wszystkie warianty niżej. */}
@@ -164,18 +152,14 @@ function MutualConnectionsPage() {
           </ul>
         ) : mutualQ.isError ? (
           <div className="rounded-[6px] border border-destructive/40 bg-destructive/5 p-6 text-sm text-destructive">
-            {t("network.loadError", {
-              defaultValue: "Nie udało się załadować listy. Spróbuj ponownie.",
-            })}
+            {/* Klucz istniał w słowniku - `defaultValue` tylko przesłaniał go
+                własnym wariantem tekstu, rozjeżdżając PL z EN. */}
+            {t("network.loadError")}
           </div>
         ) : rows.length === 0 ? (
           <div className="flex flex-col items-center gap-3 rounded-[6px] border border-dashed border-border/70 p-10 text-center">
             <Users className="h-6 w-6 text-muted-foreground/50" aria-hidden />
-            <p className="text-sm text-muted-foreground">
-              {t("network.mutualEmpty", {
-                defaultValue: "Nie macie jeszcze wspólnych kontaktów.",
-              })}
-            </p>
+            <p className="text-sm text-muted-foreground">{t("network.mutualEmpty")}</p>
           </div>
         ) : (
           <>

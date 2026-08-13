@@ -333,14 +333,9 @@ function Page() {
           <div className="grid gap-4 sm:grid-cols-2">
             <p className="text-xs text-muted-foreground sm:col-span-2">
               <Link to="/admin/theme-options" className="underline underline-offset-2">
-                {t("admin.contentArea.spacingMovedLink", {
-                  defaultValue: "Opcje motywu → Rozmiary czcionek",
-                })}
+                {t("admin.contentArea.spacingMovedLink")}
               </Link>{" "}
-              {t("admin.contentArea.spacingMovedHint", {
-                defaultValue:
-                  "- tam ustawiasz odstępy akapitów, nagłówków, list i cytatów (jedno źródło prawdy dla frontu i Gutenberga).",
-              })}
+              {t("admin.contentArea.spacingMovedHint")}
             </p>
             <FieldShell label={t("admin.contentArea.listStyle")}>
               <SelectField

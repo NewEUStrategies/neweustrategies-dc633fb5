@@ -7,6 +7,14 @@ const pl = {
   profile: {
     title: "Mój profil",
     subtitle: "Centrum zarządzania",
+    // Etykiety szuflady ustawień trafiają tu, a nie do i18n-profile-extras2
+    // (gdzie żyje reszta `profile.sidebar.*`), bo to chrom powłoki trasy
+    // /profile - rejestruje ją ten sam moduł, który powłoka już ładuje.
+    // Deep merge addResourceBundle scala oba fragmenty w jedną gałąź.
+    sidebar: {
+      expand: "Rozwiń ustawienia",
+      collapse: "Zwiń ustawienia",
+    },
     privacy: {
       title: "Prywatność i dane",
       hint: "Jedno miejsce na wszystko, co dotyczy Twojej prywatności: kto Cię widzi i kto może się z Tobą skontaktować, na co się zgadzasz oraz jak pobrać albo usunąć swoje dane. Wybory zapisują się natychmiast, są egzekwowane po stronie serwera i audytowane.",
@@ -749,6 +757,10 @@ const en: typeof pl = {
   profile: {
     title: "My profile",
     subtitle: "Management centre",
+    sidebar: {
+      expand: "Expand settings",
+      collapse: "Collapse settings",
+    },
     privacy: {
       title: "Privacy & data",
       hint: "One place for everything about your privacy: who can see you and who can contact you, what you consent to, and how to download or delete your data. Choices save instantly, are enforced server-side and audited.",
