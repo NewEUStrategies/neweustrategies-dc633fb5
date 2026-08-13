@@ -26,6 +26,55 @@ vi.mock("@/lib/contact.functions", () => ({
   submitContactMessage: vi.fn(),
 }));
 
+// Radix Select nie działa w jsdom bez pełnego pointer API - w teście
+// zamieniamy atom na natywny <select>, reguły walidacji pilnuje schemat.
+vi.mock("@/components/atoms/FormSelect", () => ({
+  FormSelect: ({
+    value,
+    onValueChange,
+    options,
+    error,
+    "aria-label": ariaLabel,
+  }: {
+    value: string;
+    onValueChange: (value: string) => void;
+    options: readonly { value: string; label: React.ReactNode }[];
+    error?: string | null;
+    "aria-label"?: string;
+  }) => (
+    <>
+      <select
+        aria-label={ariaLabel}
+        aria-invalid={error ? true : undefined}
+        value={value}
+        onChange={(event) => onValueChange(event.target.value)}
+      >
+        <option value="" />
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {String(option.label)}
+          </option>
+        ))}
+      </select>
+      {error ? <p role="alert">{error}</p> : null}
+    </>
+  ),
+}));
+
+// Oferty pochodzą z katalogu i18n (fallback) - bez react-query w teście.
+vi.mock("@/lib/careers/useCareerContent", async () => {
+  const catalog = await vi.importActual<typeof import("@/lib/careers/catalog")>(
+    "@/lib/careers/catalog",
+  );
+  return {
+    useCareerOffers: () => ({
+      offers: catalog.fallbackOffers(((key: string) => key) as never),
+      isLoading: false,
+    }),
+    useCareerSection: () => ({ visible: true }),
+  };
+});
+
 vi.mock("sonner", () => ({
   toast: {
     error: (...args: unknown[]) => toastError(...args),
@@ -58,7 +107,33 @@ function fillAbout() {
   fireEvent.change(screen.getByLabelText(/careers\.form\.email/), {
     target: { value: "jan.kowalski@example.com" },
   });
+  fillContact();
 }
+
+function fillContact() {
+  fireEvent.change(screen.getByLabelText(/careers\.form\.phone/), {
+    target: { value: "+48 600 100 200" },
+  });
+  fireEvent.change(screen.getByLabelText(/careers\.form\.linkedin/), {
+    target: { value: "linkedin.com/in/jan-kowalski" },
+  });
+}
+
+function fillFit(role = "analyst_economy") {
+  fireEvent.change(screen.getByLabelText(/careers\.form\.department/), {
+    target: { value: "analysis" },
+  });
+  fireEvent.change(screen.getByLabelText(/careers\.form\.role$/), { target: { value: role } });
+  fireEvent.change(screen.getByLabelText(/careers\.form\.seniority/), {
+    target: { value: "mid" },
+  });
+  fireEvent.change(screen.getByLabelText(/careers\.form\.start/), {
+    target: { value: "month" },
+  });
+}
+
+const LONG_MESSAGE =
+  "Chcę prowadzić linię gospodarczą i rozwijać analizy regulacyjne dla naszych klientów.";
 
 function nextStep() {
   fireEvent.click(screen.getByRole("button", { name: /careers\.form\.next/ }));
@@ -73,7 +148,9 @@ describe("CareersApplyForm: kreator 3 kroków", () => {
   it("blokuje krok 1 bez danych kontaktowych i bez poprawnego e-maila", () => {
     renderForm();
     nextStep();
-    expect(toastError).toHaveBeenCalledWith("careers.form.requiredAbout");
+    expect(toastError).toHaveBeenCalledWith("careers.form.errors.summary");
+    expect(screen.getByText("careers.form.errors.firstNameRequired")).toBeInTheDocument();
+    expect(screen.getByText("careers.form.errors.phoneRequired")).toBeInTheDocument();
     expect(screen.getByLabelText(/careers\.form\.firstName/)).toBeInTheDocument();
 
     fillAbout();
@@ -81,7 +158,17 @@ describe("CareersApplyForm: kreator 3 kroków", () => {
       target: { value: "to-nie-email" },
     });
     nextStep();
-    expect(toastError).toHaveBeenCalledWith("careers.form.invalidEmail");
+    expect(screen.getByText("careers.form.errors.emailInvalid")).toBeInTheDocument();
+  });
+
+  it("wymaga kompletu danych dopasowania (krok 2) - bez nich CRM traci kontekst", () => {
+    renderForm();
+    fillAbout();
+    nextStep();
+    nextStep();
+    expect(screen.getByText("careers.form.errors.departmentRequired")).toBeInTheDocument();
+    expect(screen.getByText("careers.form.errors.seniorityRequired")).toBeInTheDocument();
+    expect(screen.getByText("careers.form.fitOptional")).toBeInTheDocument();
   });
 
   it("przechodzi kroki, wymaga wiadomości i zgody, wysyła komplet danych rekrutacyjnych", async () => {
@@ -93,17 +180,24 @@ describe("CareersApplyForm: kreator 3 kroków", () => {
     fillAbout();
     nextStep(); // -> Dopasowanie
     expect(screen.getByText("careers.form.fitOptional")).toBeInTheDocument();
-    nextStep(); // -> Wiadomość (pola dopasowania są opcjonalne)
+    fillFit();
+    nextStep(); // -> Wiadomość
 
     const submitButton = screen.getByRole("button", { name: /careers\.form\.submit/ });
     fireEvent.click(submitButton);
-    expect(toastError).toHaveBeenCalledWith("careers.form.requiredMessage");
+    expect(screen.getByText("careers.form.errors.messageRequired")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(/careers\.form\.message/), {
-      target: { value: "Chcę prowadzić linię gospodarczą." },
+      target: { value: "Za krótko." },
     });
     fireEvent.click(submitButton);
-    expect(toastError).toHaveBeenCalledWith("careers.form.consentRequired");
+    expect(screen.getByText("careers.form.errors.messageShort")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/careers\.form\.message/), {
+      target: { value: LONG_MESSAGE },
+    });
+    fireEvent.click(submitButton);
+    expect(screen.getByText("careers.form.errors.consentRequired")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(submitButton);
@@ -113,12 +207,15 @@ describe("CareersApplyForm: kreator 3 kroków", () => {
       .data;
     expect(payload.name).toBe("Jan Kowalski");
     expect(payload.email).toBe("jan.kowalski@example.com");
+    expect(payload.phone).toBe("+48 600 100 200");
     expect(payload.formName).toBe("careers-application");
     expect(payload.lang).toBe("pl");
     expect(payload.custom).toMatchObject({
       department: "analysis",
       role: "analyst_economy",
       seniority: "mid",
+      start: "month",
+      linkedin: "linkedin.com/in/jan-kowalski",
     });
     expect(payload.consents).toEqual([
       { key: "recruitment", text: "careers.form.consent", lang: "pl" },
@@ -157,7 +254,7 @@ describe("CareersApplyForm: kreator 3 kroków", () => {
 
     // Skok w przód do odwiedzonego kroku jest zablokowany walidacją.
     fireEvent.click(screen.getByRole("button", { name: /careers\.form\.steps\.fit/ }));
-    expect(toastError).toHaveBeenCalledWith("careers.form.requiredAbout");
+    expect(toastError).toHaveBeenCalledWith("careers.form.errors.summary");
     expect(screen.getByLabelText(/careers\.form\.firstName/)).toBeInTheDocument();
 
     // Po uzupełnieniu skok przechodzi.
@@ -182,9 +279,10 @@ describe("CareersApplyForm: kreator 3 kroków", () => {
 
     fillAbout();
     nextStep();
+    fillFit("open");
     nextStep();
     fireEvent.change(screen.getByLabelText(/careers\.form\.message/), {
-      target: { value: "Zgłoszenie spontaniczne." },
+      target: { value: LONG_MESSAGE },
     });
     fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(screen.getByRole("button", { name: /careers\.form\.submit/ }));

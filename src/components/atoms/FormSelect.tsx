@@ -33,6 +33,9 @@ export interface FormSelectProps {
   required?: boolean;
   disabled?: boolean;
   name?: string;
+  /** Komunikat błędu (już przetłumaczony) - wiąże aria-invalid/aria-describedby. */
+  error?: string | null;
+  id?: string;
   className?: string;
   style?: React.CSSProperties;
   "aria-label"?: string;
@@ -47,6 +50,8 @@ export function FormSelect({
   required,
   disabled,
   name,
+  error,
+  id,
   className,
   style,
   "aria-label": ariaLabel,
@@ -55,14 +60,20 @@ export function FormSelect({
   // Radix nie akceptuje pustego stringa jako wartości itemu - pusty stan
   // odwzorowujemy przez `undefined` (trigger pokaże placeholder).
   const current = value === "" ? undefined : value;
+  const reactId = React.useId();
+  const triggerId = id ?? reactId;
+  const errorId = error ? `${triggerId}-err` : undefined;
 
   return (
     <>
       <Select value={current} onValueChange={onValueChange} disabled={disabled}>
         <SelectTrigger
+          id={triggerId}
           aria-label={ariaLabel}
           aria-required={required || undefined}
-          className={cn("w-full", className)}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={errorId}
+          className={cn("w-full", error && "border-destructive", className)}
           style={style}
           data-edit-target={editTarget}
         >
@@ -76,6 +87,11 @@ export function FormSelect({
           ))}
         </SelectContent>
       </Select>
+      {error ? (
+        <p id={errorId} className="mt-1.5 pl-1 text-xs text-destructive" role="alert">
+          {error}
+        </p>
+      ) : null}
       {/* Wartość dla formularzy wysyłanych natywnie (FormData). */}
       {name ? <input type="hidden" name={name} value={value} /> : null}
     </>
