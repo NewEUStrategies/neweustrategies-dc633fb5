@@ -4,7 +4,15 @@
 // kontaktowych (platformowa etykieta pływająca), więc nie ma tu wyboru stylu.
 import { useTranslation } from "react-i18next";
 import { Type, SlidersHorizontal, LogIn } from "lucide-react";
-import { BilingualRow, NumberRow, SectionCard, SegmentedRow, TextRow, ToggleRow } from "./controls";
+import {
+  BilingualRow,
+  IconRow,
+  NumberRow,
+  SectionCard,
+  SegmentedRow,
+  TextRow,
+  ToggleRow,
+} from "./controls";
 import type { SignupPopupTabProps } from "./types";
 
 export function FormTab({ value, design, onChange, patchForm }: SignupPopupTabProps) {
@@ -58,6 +66,14 @@ export function FormTab({ value, design, onChange, patchForm }: SignupPopupTabPr
           onEn={(popup_cta_en) => onChange({ popup_cta_en })}
           placeholderPl="Załóż konto"
           placeholderEn="Create account"
+        />
+        <IconRow
+          label={t("adminPopupSignup.form.ctaIcon")}
+          hint={t("adminPopupSignup.form.ctaIconHint")}
+          clearLabel={t("adminPopupSignup.form.ctaIconClear")}
+          previewLabel={t("adminPopupSignup.form.ctaIconPreview")}
+          value={f.ctaIcon}
+          onChange={(ctaIcon) => patchForm({ ctaIcon })}
         />
         <BilingualRow
           label={t("adminPopupSignup.form.note")}

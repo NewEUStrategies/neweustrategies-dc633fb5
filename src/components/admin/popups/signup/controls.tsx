@@ -5,6 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
+import { DynamicIcon } from "@/lib/icons/DynamicIcon";
+import { LucideIconPicker } from "@/components/admin/builder/ui/molecules/LucideIconPicker";
 import { colorLuminance } from "@/lib/newsletter/popupDesign";
 
 export function SectionCard({
