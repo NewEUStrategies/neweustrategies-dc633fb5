@@ -254,3 +254,19 @@ describe("kolory kontrolek (checkboxy + CTA)", () => {
     expect(d.controls.light.buttonBg).toBe("");
   });
 });
+
+describe("ikona CTA", () => {
+  it("domyślnie user-plus", () => {
+    expect(defaultPopupDesign().form.ctaIcon).toBe("user-plus");
+  });
+
+  it("pusty zapis zostaje pusty (świadome „bez ikony”)", () => {
+    expect(resolvePopupDesign({ form: { ctaIcon: "" } }).form.ctaIcon).toBe("");
+  });
+
+  it("przepuszcza tylko kebab-case", () => {
+    expect(resolvePopupDesign({ form: { ctaIcon: "Arrow Right" } }).form.ctaIcon).toBe("");
+    expect(resolvePopupDesign({ form: { ctaIcon: "arrow-right" } }).form.ctaIcon).toBe("arrow-right");
+    expect(resolvePopupDesign({ form: { ctaIcon: 12 } }).form.ctaIcon).toBe("user-plus");
+  });
+});
