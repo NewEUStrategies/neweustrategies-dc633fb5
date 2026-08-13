@@ -369,14 +369,31 @@ function stableChunkName(file: string): string {
 // ani jednego publicznego importera). Odwolanie w `index-*.js` to wpis w MANIFESCIE
 // zasobow trasy (tablica stringow do preloadu), nie import statyczny.
 //
-// NIEDOSZACOWANIE, KTORE TU ZOSTAJE. Ta lista zna tylko dwa slowniki adminowe
-// (`i18n-admin-semantic`, `i18n-admin-tts`), a adminowych jest kilkanascie -
-// `i18n-builder` (29,6 KB), `i18n-profile` (19,4), `i18n-admin-analytics` (18,1),
-// `i18n-admin-extras` (13,7), `i18n-chat` (12,2) i inne licza sie do budzetu
-// PUBLIC, choc zaden czytelnik ich nie sciaga. Poprawienie tego uwolnilo by
-// ~100 KB budzetu PUBLIC jednym commitem - czyli rozluznilo bramke bez zmiany
-// kodu produkcyjnego. To decyzja wlasciciela, nie efekt uboczny tej zmiany,
-// dlatego zostaje ZMIERZONA i ZAPISANA, a nie wykonana po cichu.
+// NIEDOSZACOWANIE, KTORE TU ZOSTAJE - I KOREKTA WCZESNIEJSZEJ WERSJI TEJ NOTKI.
+// Ta lista zna trzy slowniki adminowe (`i18n-admin-semantic`, `i18n-admin-tts`,
+// `i18n-clubs-admin`), a slownikow jest 27. Poprzednia wersja tego akapitu
+// twierdzila, ze `i18n-builder`, `i18n-profile`, `i18n-admin-extras` i `i18n-chat`
+// licza sie do PUBLIC, „choc zaden czytelnik ich nie sciaga", i szacowala zysk
+// na ~100 KB. POMIAR PO IMPORTERACH W ZBUDOWANYM WYJSCIU TO ZDEMENTOWAL - dwa
+// z tych czterech sa realnie publiczne:
+//   * `i18n-chat` (12,3 KB) - wchodzi przez `ChatBell`, `ChatDock` ORAZ trase
+//     publicznego watku klubu `club._clubSlug.t._threadSlug`;
+//   * `i18n-admin-extras` (14,0 KB) - obok chunkow `admin-*` odwoluje sie do
+//     niego `profile.index`, czyli powierzchnia profilu.
+// Przeklasyfikowanie ktoregokolwiek z nich byloby dokladnie tym bledem, ktory
+// opisuje wycofany eksperyment wyzej: ladniejsza liczba bez pokrycia w bajtach.
+//
+// KANDYDACI, KTORZY ZOSTAJA (i nadal WYMAGAJA dowodu, nie nazwy):
+//   * `i18n-builder` (29,6 KB) - odwoluja sie do niego wylacznie widgety
+//     edytora (`StructurePicker`, `LucideIconPicker`, `ImageSlot`, `NumberInput`,
+//     `EmptyContainerPickerBox`), ktore nie maja prefiksu z ADMIN_ONLY;
+//   * `i18n-admin-analytics` (18,2 KB) - dashboardy `Ga4BiDashboard`,
+//     `GscBiDashboard`, `KpiTile`, `AudienceSegmentsDashboard`.
+// Realny zysk to wiec ~48 KB, nie ~100 - i dopiero po domknieciu importow tak,
+// jak zrobiono to dla `i18n-clubs-admin` (akapit wyzej: zero publicznych
+// importerow w zbudowanym wyjsciu, a wpis w `index-*.js` to MANIFEST preloadu,
+// nie import). To decyzja wlasciciela, nie efekt uboczny - dlatego zostaje
+// ZMIERZONA i ZAPISANA, a nie wykonana po cichu.
 const ADMIN_ONLY =
   /^(admin\.|Builder-|PostBlockEditor|ThemeOptionsPane|AdminShell|sidebar|vendor-dnd-|EChartClient|SemanticReconciliationPanel|MetricDictionary|WindowProvenance|i18n-admin-semantic|i18n-admin-tts|i18n-clubs-admin|TtsVoiceSelect)/;
 function isAdminOnly(file: string): boolean {
