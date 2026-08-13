@@ -6,6 +6,7 @@
 // z hasha na sesję; tu tylko czekamy na tę sesję, przyjmujemy nowe hasło
 // i wylogowujemy pozostałe sesje użytkownika.
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { uiLang } from "@/lib/i18n/format";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
@@ -245,7 +246,7 @@ function ResetPasswordPage() {
                       {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-                  <PasswordStrengthMeter password={password} lang={isPl ? "pl" : "en"} />
+                  <PasswordStrengthMeter password={password} lang={uiLang(i18n.language)} />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">

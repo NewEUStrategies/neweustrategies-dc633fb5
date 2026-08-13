@@ -7,6 +7,7 @@
 // konto", tam na „co o mnie wiecie i jak to zabrać". Link na dole strony
 // prowadzi tam wprost, bo granica nie jest oczywista z samej nazwy pozycji.
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { uiLang } from "@/lib/i18n/format";
 import { useTranslation } from "react-i18next";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -270,7 +271,7 @@ function SecurityPage() {
                   required
                   autoComplete="new-password"
                 />
-                <PasswordStrengthMeter password={pw} lang={isPl ? "pl" : "en"} />
+                <PasswordStrengthMeter password={pw} lang={uiLang(i18n.language)} />
               </div>
               <div className="grid gap-2">
                 <FieldLabel htmlFor="pw2" tip={t("profile.security.tip.confirmPassword")}>

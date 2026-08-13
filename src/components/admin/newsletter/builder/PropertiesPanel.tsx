@@ -404,7 +404,7 @@ function SectionProps({
         />
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <Label>{lang === "pl" ? "Padding X (px)" : "Padding X (px)"}</Label>
+            <Label>{"Padding X (px)"}</Label>
             <Input
               type="number"
               min={0}
@@ -414,7 +414,7 @@ function SectionProps({
             />
           </div>
           <div>
-            <Label>{lang === "pl" ? "Padding Y (px)" : "Padding Y (px)"}</Label>
+            <Label>{"Padding Y (px)"}</Label>
             <Input
               type="number"
               min={0}

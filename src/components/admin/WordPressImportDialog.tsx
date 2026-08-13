@@ -393,7 +393,7 @@ export function WordPressImportDialog({ trigger }: { trigger: React.ReactNode })
                               {lang === "pl" ? "Nadpisz stronę" : "Overwrite"}
                             </th>
                             <th className="px-2 py-2 text-left">
-                              {lang === "pl" ? "Slug" : "Slug"}
+                              {"Slug"}
                             </th>
                             <th className="w-16 px-2 py-2"></th>
                           </tr>

@@ -5,6 +5,7 @@
 // admin_member_activity_series / admin_member_retention (SECURITY DEFINER,
 // guard admina tenanta w funkcji - patrz migracja 20260713190000).
 import { createFileRoute } from "@tanstack/react-router";
+import { uiLang } from "@/lib/i18n/format";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -288,7 +289,7 @@ function AudienceDashboard() {
             {L("Brak danych aktywności w tym oknie.", "No activity data in this window.")}
           </p>
         ) : (
-          <Chart config={activityChart} lang={isPl ? "pl" : "en"} />
+          <Chart config={activityChart} lang={uiLang(i18n.language)} />
         )}
       </section>
 

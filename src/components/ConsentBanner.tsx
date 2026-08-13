@@ -7,6 +7,7 @@
 // profiles.prefs.consent - refresh is automatic because useConsent() re-reads
 // on the consent-change event.
 import { useEffect, useMemo, useRef, useState } from "react";
+import { uiLang } from "@/lib/i18n/format";
 import { useTranslation } from "react-i18next";
 import { Cookie, ChevronDown, ChevronUp, Check, X, Settings2 } from "lucide-react";
 import { GpcCategoryBadgeSlot, GpcNoticeSlot } from "@/components/consent/GpcSurfaceSlots";
@@ -243,7 +244,10 @@ export interface ConsentBannerProps {
 
 export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerProps = {}) {
   const { i18n, t: tr } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  // Kod języka bierzemy z kanonicznego `uiLang` - ta sama normalizacja co
+// w `formatDate`/`uiLocale`, zamiast własnego `startsWith` w komponencie.
+  const uiLanguage = uiLang(i18n.language);
+  const isPl = uiLanguage === "pl";
   const privacy = useSiteSetting<PrivacyConfig>("privacy", PRIVACY_DEFAULTS);
   const saved = useCookieBannerConfig();
   const banner = configOverride ?? saved;
@@ -263,9 +267,9 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
   );
 
   const privacyHref = privacy.privacy_page_slug
-    ? localizedPath(`/${privacy.privacy_page_slug.replace(/^\/+/, "")}`, isPl ? "pl" : "en")
+    ? localizedPath(`/${privacy.privacy_page_slug.replace(/^\/+/, "")}`, uiLanguage)
     : null;
-  const dataProcessingHref = localizedPath("/privacy", isPl ? "pl" : "en");
+  const dataProcessingHref = localizedPath("/privacy", uiLanguage);
 
   const { state, decided, mounted, save, acceptAll, rejectAll } = useConsent();
   // Sygnał GPC: `gpcActive` steruje widocznością noty (użytkownik musi wiedzieć,
@@ -393,7 +397,7 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
     setExpandedVendors((v) => ({ ...v, [cat]: !v[cat] }));
 
   const setLang = (l: "pl" | "en") => {
-    if (l !== (isPl ? "pl" : "en")) void i18n.changeLanguage(l);
+    if (l !== (uiLanguage)) void i18n.changeLanguage(l);
   };
 
   const resetDraft = () =>
@@ -442,7 +446,7 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
       )}
     >
       {(["pl", "en"] as const).map((l) => {
-        const active = (isPl ? "pl" : "en") === l;
+        const active = (uiLanguage) === l;
         return (
           <button
             key={l}
@@ -779,7 +783,7 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
                                 {v.name}
                                 {v.auto && (
                                   <span className="ml-1 rounded bg-[color:var(--cb-accent,var(--primary))]/12 px-1 py-0.5 font-sans text-[9px] uppercase">
-                                    {isPl ? "auto" : "auto"}
+                                    {"auto"}
                                   </span>
                                 )}
                               </td>

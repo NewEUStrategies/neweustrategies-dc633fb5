@@ -476,11 +476,11 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
     ? (doc.sections.flatMap((s) => s.widgets).find((w) => w.id === draggingWidgetId) ?? null)
     : null;
 
+  // Nazwy urządzeń są takie same w obu językach - ternary po języku był
+  // martwym warunkiem, nie tłumaczeniem.
   const deviceLabel =
     device === "desktop"
-      ? lang === "pl"
-        ? "Desktop"
-        : "Desktop"
+      ? "Desktop"
       : device === "tablet"
         ? "Tablet"
         : "Mobile";
@@ -572,9 +572,7 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
                 }
               >
                 {selectedWidget
-                  ? lang === "pl"
-                    ? "Widget"
-                    : "Widget"
+                  ? "Widget"
                   : selectedSection
                     ? lang === "pl"
                       ? "Sekcja"

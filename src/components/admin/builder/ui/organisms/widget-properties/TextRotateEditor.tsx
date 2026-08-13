@@ -211,7 +211,7 @@ export function TextRotateEditor({ c, lang, setContent }: Props) {
             className="h-8 text-xs"
           />
         </PropField>
-        <PropField label={isPl ? "Stagger (ms)" : "Stagger (ms)"}>
+        <PropField label="Stagger (ms)">
           <Input
             type="number"
             min={0}

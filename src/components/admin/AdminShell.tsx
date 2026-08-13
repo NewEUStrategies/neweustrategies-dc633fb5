@@ -548,7 +548,7 @@ function AdminShellInner({
           to: "/admin/live-blog",
           icon: Radio,
           label: t("admin.nav.liveBlog", {
-            defaultValue: lang === "pl" ? "Live blog" : "Live blog",
+            defaultValue: "Live blog",
           }),
         },
         { to: "/admin/web-stories", icon: Film, label: t("admin.nav.webStories") },

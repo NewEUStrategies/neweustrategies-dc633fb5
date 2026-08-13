@@ -2,6 +2,7 @@
 // Poziom trasy pod `/admin/*`, więc AdminShell + gate `useAuth` już działa;
 // tu dokładamy dodatkowy client-side redirect dla nie-super-adminów.
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { uiLang } from "@/lib/i18n/format";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
@@ -79,7 +80,8 @@ function MobileDrawerEditor() {
   const navigate = useNavigate();
   const { isSuperAdmin, loading } = useAuth();
   const { i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  const uiLanguage = uiLang(i18n.language);
+  const isPl = uiLanguage === "pl";
   const t = (pl: string, en: string) => (isPl ? pl : en);
 
   useEffect(() => {
@@ -206,8 +208,8 @@ function MobileDrawerEditor() {
                 <SortableSectionRow
                   key={section}
                   section={section}
-                  label={SECTION_LABELS[section][isPl ? "pl" : "en"]}
-                  desc={SECTION_LABELS[section].desc[isPl ? "pl" : "en"]}
+                  label={SECTION_LABELS[section][uiLanguage]}
+                  desc={SECTION_LABELS[section].desc[uiLanguage]}
                 />
               ))}
             </ul>
@@ -225,7 +227,7 @@ function MobileDrawerEditor() {
                 }
                 className="ml-2 underline"
               >
-                + {SECTION_LABELS[s][isPl ? "pl" : "en"]}
+                + {SECTION_LABELS[s][uiLanguage]}
               </button>
             ))}
           </div>

@@ -58,10 +58,10 @@ export function LinkPicker({ value, onChange, lang }: Props) {
   const clear = () => onChange(undefined);
 
   const labels: Record<Tab, string> = {
-    external: lang === "pl" ? "URL" : "URL",
+    external: "URL",
     post: lang === "pl" ? "Wpis" : "Post",
     page: lang === "pl" ? "Strona" : "Page",
-    media: lang === "pl" ? "Media" : "Media",
+    media: "Media",
   };
 
   return (
