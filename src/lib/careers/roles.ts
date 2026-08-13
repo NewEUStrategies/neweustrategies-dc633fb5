@@ -165,5 +165,8 @@ export function roleSummaryKey(id: string): string {
   return `careers.roles.${id}.summary`;
 }
 export function roleBulletKeys(role: CareerRole): string[] {
-  return Array.from({ length: role.bullets }, (_, i) => `careers.roles.${role.id}.bullets.b${i + 1}`);
+  return Array.from(
+    { length: role.bullets },
+    (_, i) => `careers.roles.${role.id}.bullets.b${i + 1}`,
+  );
 }

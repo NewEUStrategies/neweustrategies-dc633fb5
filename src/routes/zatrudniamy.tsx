@@ -62,7 +62,9 @@ export const Route = createFileRoute("/zatrudniamy")({
 
 function CareersPage() {
   ensureCareersI18n();
-  const lang = activeLang(typeof window === "undefined" ? getRequestUrl() || "/zatrudniamy" : window.location.pathname);
+  const lang = activeLang(
+    typeof window === "undefined" ? getRequestUrl() || "/zatrudniamy" : window.location.pathname,
+  );
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
 
   const scrollTo = useCallback((id: string) => {

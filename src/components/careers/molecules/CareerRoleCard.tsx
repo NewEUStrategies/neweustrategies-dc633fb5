@@ -7,12 +7,7 @@ import { ChevronDown, MapPin, Clock3, ArrowRight } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import {
-  roleBulletKeys,
-  roleSummaryKey,
-  roleTitleKey,
-  type CareerRole,
-} from "@/lib/careers/roles";
+import { roleBulletKeys, roleSummaryKey, roleTitleKey, type CareerRole } from "@/lib/careers/roles";
 
 export function CareerRoleCard({
   role,
