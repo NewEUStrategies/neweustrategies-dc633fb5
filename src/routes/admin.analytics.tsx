@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   BarChart3,
@@ -22,13 +22,6 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { toast } from "sonner";
 import { adminToast } from "@/lib/adminToasts";
 import { getAnalyticsStatus, type AnalyticsStatus } from "@/lib/analytics/status.functions";
@@ -94,15 +87,6 @@ export const Route = createFileRoute("/admin/analytics")({
   }),
   component: AnalyticsPage,
 });
-
-function daysAgoISO(days: number): string {
-  const d = new Date(Date.now() - days * 86_400_000);
-  return d.toISOString().slice(0, 10);
-}
-
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 // --------- Status pills ---------
 
@@ -582,15 +566,6 @@ function OverviewPanel({ status }: { status: AnalyticsStatus }) {
 }
 
 // --------- KPI card ---------
-
-function KpiCard({ label, value }: { label: string; value: string }) {
-  return (
-    <Card className="p-3">
-      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="text-xl font-semibold tabular-nums mt-1">{value}</div>
-    </Card>
-  );
-}
 
 // --------- Root ---------
 

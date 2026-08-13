@@ -262,10 +262,10 @@ function MessagesInner() {
         <Link
           to="/profile"
           className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-[var(--brand)]/10 hover:text-[var(--brand)]"
-          aria-label={t("chat.backToProfile", { defaultValue: "Wróć do profilu" })}
+          aria-label={t("chat.backToProfile")}
         >
           <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
-          {t("chat.backToProfile", { defaultValue: "Wróć do profilu" })}
+          {t("chat.backToProfile")}
         </Link>
       </div>
       {/* Segmentowane taby widoków: pigułka z aktywnym tłem i licznikami. */}

@@ -190,7 +190,6 @@ export function WordPressImportDialog({ trigger }: { trigger: React.ReactNode })
       let plId = id;
       let enId: number | undefined;
       if (row.pairedWith && selected.has(row.pairedWith)) {
-        const partner = rows[row.pairedWith];
         if (row.lang === "pl") {
           plId = id;
           enId = row.pairedWith;
@@ -394,7 +393,7 @@ export function WordPressImportDialog({ trigger }: { trigger: React.ReactNode })
                               {lang === "pl" ? "Nadpisz stronę" : "Overwrite"}
                             </th>
                             <th className="px-2 py-2 text-left">
-                              {lang === "pl" ? "Slug" : "Slug"}
+                              {"Slug"}
                             </th>
                             <th className="w-16 px-2 py-2"></th>
                           </tr>

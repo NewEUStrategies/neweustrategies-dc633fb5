@@ -108,7 +108,7 @@ export function WordPressPreviewDialog({ open, onOpenChange, siteDomain, wpId, w
                 {lang === "pl" ? "Razem" : "Total"}: {data.coverage.total}
               </span>
               <span className="text-muted-foreground">
-                {lang === "pl" ? "Media" : "Media"}: {data.original.mediaUrls.length}
+                {"Media"}: {data.original.mediaUrls.length}
               </span>
               <div className="ml-auto flex items-center gap-1">
                 <Button

@@ -2169,6 +2169,8 @@ export const en = {
     submitted: "Comment submitted - awaiting moderation.",
     reply: "Reply",
     delete: "Delete",
+    deleteConfirmTitle: "Delete comment?",
+    deleteConfirmBody: "This action cannot be undone.",
     deleted: "Comment deleted",
     deletedPlaceholder: "[comment deleted]",
     pendingBadge: "Pending",

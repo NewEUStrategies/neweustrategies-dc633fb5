@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import { ClubApplicationsInbox } from "@/components/admin/clubs/organisms/ClubApplicationsInbox";
 import { ensureClubI18n } from "@/lib/i18n-club";
+import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 
 export const Route = createFileRoute("/admin/community/clubs/applications")({
   head: () => ({
@@ -33,6 +34,7 @@ export const Route = createFileRoute("/admin/community/clubs/applications")({
 });
 
 function AdminClubApplicationsPage() {
+  ensureAdminClubsI18n();
   ensureClubI18n();
   const { t } = useTranslation();
   const { isAdmin } = useAuth();

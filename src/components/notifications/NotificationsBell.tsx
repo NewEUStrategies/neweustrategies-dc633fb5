@@ -12,7 +12,6 @@ import { useQuery } from "@tanstack/react-query";
 // lookupem wciągał CAŁĄ bibliotekę ikon (~640 KB raw) do bundla wejściowego.
 import {
   AlarmClock,
-  BadgeCheck,
   Bell,
   BellOff,
   BellRing,

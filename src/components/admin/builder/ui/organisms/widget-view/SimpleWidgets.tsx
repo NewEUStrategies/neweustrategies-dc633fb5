@@ -21,7 +21,6 @@ import { TextRotate } from "@/components/ui/text-rotate";
 import {
   COMPACT_ICON_BOX_SIZE,
   COMPACT_WIDGET_MIN_HEIGHT,
-  getBool,
   getStr,
   getNum,
   getStrArr,
@@ -30,7 +29,7 @@ import {
 import { asBool, asNumInRange, asOneOf, asStr, pickI18n } from "@/lib/builder/contentValue";
 import { GalleryLightboxZone } from "./GalleryLightbox";
 import { safeWidgetColor } from "@/lib/builder/cssColor";
-import { SOCIAL_OFFICIAL_COLOR, socialBrandGradient } from "@/lib/builder/socialBrand";
+import { SOCIAL_OFFICIAL_COLOR } from "@/lib/builder/socialBrand";
 import { localizedPath } from "@/lib/i18n/localePath";
 import { autoInvertColor } from "@/lib/builder/autoInvertColor";
 import { DynamicTagWidget } from "./DynamicTagWidgets";
@@ -524,8 +523,6 @@ export function renderSimpleWidget(
       const chipStyle = (k: string, active: boolean): CSSProperties => {
         const bg = resolveBg(k, active);
         const onContrast = bgMode === "official" && active;
-        const official =
-          perPlatformColor(k) ?? (colorMode === "official" ? OFFICIAL[k] : undefined);
         return {
           ...linkStyle,
           // Na kontrastowym tle marki ikona musi być biała, żeby nie zniknęła.

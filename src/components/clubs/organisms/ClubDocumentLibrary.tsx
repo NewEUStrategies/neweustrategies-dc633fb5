@@ -212,7 +212,6 @@ function DocumentRow({
 
 export function ClubDocumentLibrary({ clubId, clubSlug }: { clubId: string; clubSlug: string }) {
   const { t, i18n } = useTranslation();
-  const lang = uiLang(i18n.language);
   const locale = uiLocale(i18n.language);
 
   const [scope, setScope] = useState<ClubDocumentScope>("all");

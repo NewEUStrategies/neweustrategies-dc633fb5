@@ -18,7 +18,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { uiLang } from "@/lib/i18n/format";
-import { pickLocalized, type LocaleCode } from "@/lib/i18n/pickLocalized";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -44,6 +44,7 @@ import { ConfirmDialog, type ConfirmState } from "@/components/admin/ConfirmDial
 import { InheritedField } from "../atoms/InheritedField";
 import { ClubEnumSelect } from "../molecules/ClubEnumSelect";
 import { useDeleteClubGroup, useUpsertClubGroup } from "@/lib/clubs/useClubs";
+import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 import {
   CLUB_ATTRIBUTION_MODES,
   CLUB_GROUP_STATUSES,
@@ -144,6 +145,7 @@ export function ClubGroupEditorDialog({
   siblings: readonly AdminClubGroupRow[];
   onOpenChange: (open: boolean) => void;
 }) {
+  ensureAdminClubsI18n();
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
   const saveM = useUpsertClubGroup(clubId);

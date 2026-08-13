@@ -81,6 +81,13 @@ const adminMembershipPl = {
       hint: "Członkostwo korporacyjne i partnerskie (wiele kont / miejsc) prowadzisz w osobnym panelu.",
       open: "Otwórz organizacje",
     },
+    // Karta uzgodnienia trzyma dwujęzyczne wiersze tabeli inline (nota
+    // redakcyjna), ale nagłówek i lead są zwykłym interfejsem panelu i muszą
+    // żyć w słowniku - inaczej jeden język dostaje tekst z kodu.
+    confluence: {
+      title: "Uzgodnienie z modelem Confluence (referencja)",
+      hint: "Warstwa analityczna, widoczna tylko dla zespołu. Świadczenia z modelu subskrypcji w Confluence a stan na platformie i rekomendowany próg docelowy.",
+    },
     grants: {
       heading: "Nadania warstwy (poza planem)",
       newHeading: "Nowe nadanie",
@@ -201,6 +208,10 @@ const adminMembershipEn = {
       heading: "Organisation membership",
       hint: "Corporate and partner membership (multiple accounts / seats) is managed in a separate panel.",
       open: "Open organisations",
+    },
+    confluence: {
+      title: "Reconciliation with the Confluence model (reference)",
+      hint: "An analytical layer, visible to staff only. Confluence subscription-model benefits against the live platform and the recommended target tier.",
     },
     grants: {
       heading: "Membership grants (off-plan)",

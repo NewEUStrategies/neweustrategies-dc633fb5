@@ -398,7 +398,7 @@ function ConnectionsTab({ highlightId }: { highlightId?: string }) {
           </ul>
           {(totalPages > 1 || connectionsQ.hasNextPage) && (
             <nav
-              aria-label={t("network.pagination", { defaultValue: "Paginacja" })}
+              aria-label={t("network.pagination")}
               className="flex items-center justify-center gap-2 pt-2"
             >
               <Button
@@ -408,7 +408,7 @@ function ConnectionsTab({ highlightId }: { highlightId?: string }) {
                 className="h-8 w-8"
                 disabled={currentPage <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
-                aria-label={t("network.prevPage", { defaultValue: "Poprzednia strona" })}
+                aria-label={t("network.prevPage")}
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden />
               </Button>
@@ -433,7 +433,7 @@ function ConnectionsTab({ highlightId }: { highlightId?: string }) {
                     void connectionsQ.fetchNextPage().then(() => setPage((p) => p + 1));
                   }
                 }}
-                aria-label={t("network.nextPage", { defaultValue: "Następna strona" })}
+                aria-label={t("network.nextPage")}
               >
                 <ChevronRight className="h-4 w-4" aria-hidden />
               </Button>
@@ -744,7 +744,8 @@ function NetworkInner() {
         >
           <Link to="/profile">
             <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
-            {t("network.backToProfile", { defaultValue: "Wróć do mojego profilu" })}
+            {/* Własny profil, nie cudzy - patrz `backToProfile*` w słowniku. */}
+            {t("network.backToMyProfile")}
           </Link>
         </Button>
       </div>

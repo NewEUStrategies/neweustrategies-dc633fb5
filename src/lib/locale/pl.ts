@@ -2204,6 +2204,8 @@ export const pl = {
     submitted: "Komentarz dodany - czeka na moderację.",
     reply: "Odpowiedz",
     delete: "Usuń",
+    deleteConfirmTitle: "Usunąć komentarz?",
+    deleteConfirmBody: "Tej operacji nie można cofnąć.",
     deleted: "Komentarz usunięty",
     deletedPlaceholder: "[komentarz usunięty]",
     pendingBadge: "Oczekuje",

@@ -403,10 +403,10 @@ export function ThemeOptionsPane() {
                   size="sm"
                   variant="outline"
                   onClick={() => setHistoryOpen(true)}
-                  title={t("themeOptions.history.title", { defaultValue: "Historia zmian" })}
+                  title={t("themeOptions.history.title")}
                 >
                   <Clock className="w-4 h-4 mr-2" />
-                  {t("themeOptions.history.button", { defaultValue: "Historia" })}
+                  {t("themeOptions.history.button")}
                 </Button>
                 <Button size="sm" onClick={() => save.mutate(draft)} disabled={save.isPending}>
                   <Save className="w-4 h-4 mr-2" />{" "}
@@ -1362,7 +1362,10 @@ export function ThemeOptionsPane() {
 }
 
 function ButtonPreview({ opts }: { opts: ThemeOptions["buttons"] }) {
-  const { t } = useTranslation();
+  // `keyPrefix: "admin"` jak w pozostalych piu komponentach tego pliku - bez niego
+  // `t("themeOptions.buttons.preview")` renderowalo GOLY KLUCZ (klucze zyja pod
+  // `admin.themeOptions.*`).
+  const { t } = useTranslation(undefined, { keyPrefix: "admin" });
   const radius = opts.default_variant === "pill" ? 999 : opts.radius;
   const base: React.CSSProperties = {
     borderRadius: radius,
@@ -1415,7 +1418,8 @@ function ButtonPreview({ opts }: { opts: ThemeOptions["buttons"] }) {
 }
 
 function InputPreview({ opts }: { opts: ThemeOptions["text_fields"] }) {
-  const { t } = useTranslation();
+  // Jak w `ButtonPreview` wyzej: bez prefiksu dwa napisy podgladu byly golymi kluczami.
+  const { t } = useTranslation(undefined, { keyPrefix: "admin" });
   const isUnderline = opts.style === "underline";
   const isFilled = opts.style === "filled";
   const style: React.CSSProperties = {

@@ -200,7 +200,15 @@ function SupportPage() {
           {t("support.whyTitle")}
         </h2>
         <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-          {(t("support.whyItems", { returnObjects: true }) as unknown as string[]).map((item) => (
+          {/* Punkty czytane per klucz, nie jedną tablicą przez `returnObjects`:
+              bramka rozjazdu kod <-> słownik widzi jako wpis tylko liść
+              tekstowy, więc tablica pod kluczem uchodziła za klucz
+              nieistniejący w obu językach. */}
+          {[
+            t("support.whyItems.policy"),
+            t("support.whyItems.openAccess"),
+            t("support.whyItems.community"),
+          ].map((item) => (
             <li key={item} className="flex items-start gap-2">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
               {item}

@@ -144,7 +144,6 @@ export function MessageList(props: MessageListProps) {
     senderNicknames,
     typingNames,
     typingAvatarUrl,
-    myAvatarUrl,
     peerLastReadAt,
     peerLastDeliveredAt,
     peerTyping,

@@ -14,6 +14,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ClubElementsCatalog } from "@/components/admin/clubs/organisms/ClubElementsCatalog";
 import { ensureClubI18n } from "@/lib/i18n-club";
+import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 import { ensureClubElementsI18n } from "@/lib/i18n-club-elements";
 
 export const Route = createFileRoute("/admin/community/clubs/elements")({
@@ -27,6 +28,7 @@ export const Route = createFileRoute("/admin/community/clubs/elements")({
 });
 
 function AdminClubElementsPage() {
+  ensureAdminClubsI18n();
   ensureClubI18n();
   ensureClubElementsI18n();
   const { t } = useTranslation();

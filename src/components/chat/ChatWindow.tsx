@@ -678,27 +678,6 @@ export function ChatWindow(props: ChatWindowProps) {
     </Tooltip>
   );
 
-  const blockToggle = peerId ? (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          onClick={() => setBlockDialogOpen(true)}
-          className={cn(
-            "flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-            peerBlocked && "text-destructive hover:text-destructive",
-          )}
-          aria-label={peerBlocked ? t("chat.block.unblock") : t("chat.block.block")}
-          aria-haspopup="dialog"
-        >
-          <Ban className="h-4 w-4" aria-hidden />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="bottom">
-        {peerBlocked ? t("chat.block.unblock") : t("chat.block.block")}
-      </TooltipContent>
-    </Tooltip>
-  ) : null;
 
   const menuItemClass =
     "flex w-full items-center gap-2 rounded-[6px] px-2 py-1.5 text-left text-[12px] transition-colors hover:bg-muted";

@@ -2,6 +2,7 @@
 // Jeden komponent zasila trasę /login oraz stronę z kodu
 // /membership-registration, dzięki czemu obie są zawsze zsynchronizowane 1:1.
 import { useNavigate, Link } from "@tanstack/react-router";
+import { uiLang } from "@/lib/i18n/format";
 import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { preAuthGuard } from "@/lib/auth/bruteforce.functions";
@@ -33,7 +34,8 @@ export type Mode = "signin" | "signup" | "reset";
 
 export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
   const { i18n } = useTranslation();
-  const isPl = i18n.language?.startsWith("pl");
+  const uiLanguage = uiLang(i18n.language);
+  const isPl = uiLanguage === "pl";
   const navigate = useNavigate();
   const { session, loading } = useAuth();
   const settings = useAuthSettings();
@@ -51,7 +53,7 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
   // Holds the auto-redirect while an aal1 session waits for its TOTP step-up.
   const [mfaPending, setMfaPending] = useState(false);
 
-  const reg = useRegistrationFields(isPl ? "pl" : "en");
+  const reg = useRegistrationFields(uiLanguage);
   const val = (key: RegistrationFieldKey) => extra[key] ?? "";
   const setVal = (key: RegistrationFieldKey, v: string) =>
     setExtra((prev) => ({ ...prev, [key]: v }));
@@ -197,7 +199,7 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
             linkedin: val("linkedin"),
             phone: val("phone"),
           },
-          { lang: isPl ? "pl" : "en", source: "auth_page" },
+          { lang: uiLanguage, source: "auth_page" },
         );
         const { error } = await supabase.auth.signUp({
           email,

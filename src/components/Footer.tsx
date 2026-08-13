@@ -28,7 +28,6 @@ export const Footer = memo(function Footer({ compact }: FooterProps) {
   // URL-seeded language: SSR-safe first render + synchronous re-render on
   // language switch, without the i18n.language hydration-flicker window.
   const lang = useLang();
-  const isPl = lang === "pl";
 
   const { data: settingsMap, isLoading } = useQuery(siteSettingsQueryOptions);
   const cfg = resolveSetting<FooterSettings>(settingsMap, "footer", {});
@@ -85,7 +84,7 @@ export const Footer = memo(function Footer({ compact }: FooterProps) {
   if (compact) {
     return (
       <footer className="shrink-0 border-t border-border bg-card">
-        <CopyrightBar chrome={chromeCfg} lang={isPl ? "pl" : "en"} />
+        <CopyrightBar chrome={chromeCfg} lang={lang} />
       </footer>
     );
   }
@@ -108,8 +107,8 @@ export const Footer = memo(function Footer({ compact }: FooterProps) {
         className="cv-auto"
         style={{ viewTransitionName: "site-footer" }}
       >
-        <BuilderRenderer doc={doc} lang={isPl ? "pl" : "en"} />
-        <CopyrightBar chrome={chromeCfg} lang={isPl ? "pl" : "en"} />
+        <BuilderRenderer doc={doc} lang={lang} />
+        <CopyrightBar chrome={chromeCfg} lang={lang} />
       </footer>
       {chromeCfg.back_to_top ? (
         <BackToTop thresholdPx={chromeCfg.back_to_top_threshold_px} />

@@ -224,7 +224,7 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
 
         {/* Full builder-authored header - visible from lg up. */}
         <div className={cn("hidden lg:block", isHome && "home-header-grow")}>
-          <BuilderRenderer doc={cfg.builder_data} lang={isPl ? "pl" : "en"} />
+          <BuilderRenderer doc={cfg.builder_data} lang={lang} />
         </div>
       </div>
 
@@ -281,7 +281,7 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
         heading={t("common.search")}
         liveResults
         limit={8}
-        lang={isPl ? "pl" : "en"}
+        lang={lang}
       />
     </>
   );

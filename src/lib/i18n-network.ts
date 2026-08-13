@@ -35,6 +35,12 @@ export const networkPl = {
     retry: "Spróbuj ponownie",
     showMore: "Pokaż więcej",
     loadingMore: "Wczytywanie...",
+    // Stronicowanie listy połączeń: przyciski mają same strzałki, więc te trzy
+    // napisy są WYŁĄCZNIE dla czytnika ekranu - stąd osobne klucze zamiast
+    // podpisów. Gałąź `club.network` ma własną parę - to nie ta sama skala.
+    pagination: "Paginacja",
+    prevPage: "Poprzednia strona",
+    nextPage: "Następna strona",
     connect: "Dodaj do sieci",
     connectShort: "Dodaj",
     inviteNoteLabel: "Notka do zaproszenia (opcjonalnie)",
@@ -76,6 +82,14 @@ export const networkPl = {
     mutualLinkAria_few: "Zobacz {{count}} wspólne kontakty",
     mutualLinkAria_many: "Zobacz {{count}} wspólnych kontaktów",
     mutualLinkAria_other: "Zobacz {{count}} wspólnych kontaktów",
+    // Pełna strona /network/mutual/$userId ma własny nagłówek: mówi o RELACJI
+    // z konkretną osobą, a nie o całej mojej sieci (tam `title`/`subtitle`).
+    // Wariant `Generic` jest potrzebny, bo nazwa celu wczytuje się osobnym
+    // zapytaniem i bywa jeszcze pusta przy pierwszym renderze.
+    mutualPageTitle: "Wspólne kontakty",
+    mutualPageSubtitle: "Osoby, które znasz Ty i {{name}}.",
+    mutualPageSubtitleGeneric: "Osoby, które znacie oboje.",
+    mutualEmpty: "Nie macie jeszcze wspólnych kontaktów.",
     // Stopień oddalenia (1°/2°/3°). Gałęzie `short` i `description` muszą mieć
     // IDENTYCZNY zbiór podkluczy w PL i EN - komponenty czytają je przez
     // template literal, a bramka rozjazdu kodu pilnuje parytetu gałęzi.
@@ -101,6 +115,13 @@ export const networkPl = {
     connectedAt: "W sieci od {{date}}",
     viewProfile: "Zobacz profil",
     networkLink: "Moja sieć",
+    // Trzy różne powroty, bo celują w różne profile: „Moja sieć" wraca na
+    // WŁASNY profil, a strona wspólnych kontaktów - na profil oglądanej osoby
+    // (z nazwą, gdy już wczytana). Jeden klucz na wszystkie dawał sprzeczne
+    // teksty w tym samym słowniku.
+    backToMyProfile: "Wróć do mojego profilu",
+    backToProfile: "Wróć do profilu",
+    backToProfileOf: "Wróć do profilu {{name}}",
     pendingBadge_one: "{{count}} oczekujące zaproszenie",
     pendingBadge_few: "{{count}} oczekujące zaproszenia",
     pendingBadge_many: "{{count}} oczekujących zaproszeń",
@@ -319,6 +340,9 @@ export const networkEn = {
     retry: "Try again",
     showMore: "Show more",
     loadingMore: "Loading...",
+    pagination: "Pagination",
+    prevPage: "Previous page",
+    nextPage: "Next page",
     connect: "Connect",
     connectShort: "Connect",
     inviteNoteLabel: "Invitation note (optional)",
@@ -353,6 +377,10 @@ export const networkEn = {
     mutual_other: "{{count}} mutual connections",
     mutualLinkAria_one: "View {{count}} mutual connection",
     mutualLinkAria_other: "View {{count}} mutual connections",
+    mutualPageTitle: "Mutual connections",
+    mutualPageSubtitle: "People both you and {{name}} know.",
+    mutualPageSubtitleGeneric: "People you both know.",
+    mutualEmpty: "You have no mutual connections yet.",
     degree: {
       short: {
         first: "1°",
@@ -375,6 +403,9 @@ export const networkEn = {
     connectedAt: "Connected since {{date}}",
     viewProfile: "View profile",
     networkLink: "My network",
+    backToMyProfile: "Back to my profile",
+    backToProfile: "Back to profile",
+    backToProfileOf: "Back to {{name}}'s profile",
     pendingBadge_one: "{{count}} pending invitation",
     pendingBadge_other: "{{count}} pending invitations",
     startError: "Could not start the conversation.",

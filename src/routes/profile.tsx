@@ -87,7 +87,7 @@ function ProfileLayout() {
     user?.email ||
     null;
   const initials = initialsFrom(user?.email, displayName);
-  const memberLabel = t("profile.overview.memberLabel", "Członek");
+  const memberLabel = t("profile.overview.memberLabel");
 
   return (
     <AuthGate>
@@ -124,14 +124,12 @@ function ProfileLayout() {
                         type="button"
                         onClick={() => setCollapsed(false)}
                         aria-expanded={false}
-                        aria-label={t("profile.sidebar.expand", "Rozwiń ustawienia")}
-                        title={t("profile.sidebar.expand", "Rozwiń ustawienia")}
+                        aria-label={t("profile.sidebar.expand")}
+                        title={t("profile.sidebar.expand")}
                         className="flex h-9 items-center gap-2 rounded-[6px] border border-border/70 bg-background px-2.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:mx-auto md:w-9 md:justify-center md:px-0"
                       >
                         <PanelLeftOpen className="h-4 w-4 shrink-0" />
-                        <span className="md:hidden">
-                          {t("profile.sidebar.expand", "Rozwiń ustawienia")}
-                        </span>
+                        <span className="md:hidden">{t("profile.sidebar.expand")}</span>
                       </button>
                     ) : (
                       <div className="sticky top-0 z-10 -mx-4 -mt-4 bg-background px-4 pb-2 pt-4 md:static md:mx-0 md:mt-0 md:bg-transparent md:p-0">
@@ -152,15 +150,15 @@ function ProfileLayout() {
                                 {t("profile.title")}
                               </h1>
                               <p className="mt-0.5 truncate text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
-                                {t("profile.subtitle", { defaultValue: "Centrum zarządzania" })}
+                                {t("profile.subtitle")}
                               </p>
                             </div>
                             <button
                               type="button"
                               onClick={() => setCollapsed(true)}
                               aria-expanded
-                              aria-label={t("profile.sidebar.collapse", "Zwiń ustawienia")}
-                              title={t("profile.sidebar.collapse", "Zwiń ustawienia")}
+                              aria-label={t("profile.sidebar.collapse")}
+                              title={t("profile.sidebar.collapse")}
                               className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] border border-border/70 bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                             >
                               <PanelLeftClose className="h-4 w-4" />
@@ -182,7 +180,7 @@ function ProfileLayout() {
                           <Avatar className="h-8 w-8 shrink-0 rounded-[6px]">
                             <AvatarImage
                               src={profile?.avatar_url ?? undefined}
-                              alt={displayName ?? t("profile.account.unnamed", "Użytkownik")}
+                              alt={displayName ?? t("profile.account.unnamed")}
                               className="rounded-[6px] object-cover"
                             />
                             <AvatarFallback className="rounded-[6px] bg-foreground text-[11px] font-bold text-background">
@@ -191,7 +189,7 @@ function ProfileLayout() {
                           </Avatar>
                           <div className="min-w-0">
                             <p className="truncate text-xs font-bold text-foreground">
-                              {displayName ?? t("profile.account.unnamed", "Użytkownik")}
+                              {displayName ?? t("profile.account.unnamed")}
                             </p>
                             <p className="truncate text-[10px] uppercase tracking-wide text-muted-foreground">
                               {memberLabel}
@@ -208,7 +206,7 @@ function ProfileLayout() {
                         className="mt-2 flex h-10 w-full items-center justify-center gap-2 rounded-[6px] border border-border bg-muted/60 text-xs font-semibold text-foreground transition-colors hover:bg-muted md:hidden"
                       >
                         <PanelLeftClose className="h-4 w-4" />
-                        {t("profile.sidebar.collapse", "Zwiń ustawienia")}
+                        {t("profile.sidebar.collapse")}
                       </button>
                     )}
                   </div>

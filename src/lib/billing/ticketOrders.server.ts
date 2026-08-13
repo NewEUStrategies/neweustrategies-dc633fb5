@@ -5,6 +5,7 @@
 // dopiero dla `has_role(auth.uid(),'admin')`. Świadomie NIE używamy tu klienta
 // serwisowego - panel nie może widzieć więcej niż baza przyzna adminowi.
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Json, Tables } from "@/integrations/supabase/types";
 
 /** Zamówienie biletu = one_time z `metadata.event_id`. */
 export interface TicketOrderRow {
@@ -44,27 +45,49 @@ export interface TicketOrderHistoryEntry {
   environment: string | null;
 }
 
-interface OrderRecord {
-  id: string;
-  user_id: string | null;
-  anonymized_at: string | null;
-  status: string;
-  provider: string;
-  provider_intent_id: string | null;
-  amount_cents: number;
-  currency: string;
-  paid_at: string | null;
-  created_at: string;
-  metadata: Record<string, unknown> | null;
+/**
+ * Kolumny WYPROWADZONE z wygenerowanych typów - patrz bliźniaczy komentarz
+ * w `paymentOrders.server.ts`. Ręczna kopia deklarowała `status: string`
+ * przy kolumnie ENUM i `metadata: Record<string, unknown> | null` przy `Json`
+ * NOT NULL, a `as unknown as` kasowało obie różnice.
+ */
+type OrderRecord = Pick<
+  Tables<"payment_orders">,
+  | "id"
+  | "user_id"
+  | "anonymized_at"
+  | "status"
+  | "provider"
+  | "provider_intent_id"
+  | "amount_cents"
+  | "currency"
+  | "paid_at"
+  | "created_at"
+  | "metadata"
+>;
+
+/**
+ * `metadata` jest w bazie kolumną `jsonb`, więc jej typem jest `Json` - a `Json`
+ * to także tablica, liczba i napis, nie tylko obiekt. Poprzedni kształt
+ * (`Record<string, unknown> | null`) był wygodnym kłamstwem, które trzymało się
+ * wyłącznie dzięki `as unknown as`: odczyt `source?.[key]` na tablicy albo
+ * liczbie nie wybucha, tylko po cichu daje `undefined`, więc zamówienie
+ * z nietypowym ładunkiem gubiło `event_id` i wypadało z listy bez śladu.
+ * Zawężamy JAWNIE, w jednym miejscu.
+ */
+function asObject(source: Json): Record<string, unknown> | null {
+  return typeof source === "object" && source !== null && !Array.isArray(source)
+    ? (source as Record<string, unknown>)
+    : null;
 }
 
-function str(source: Record<string, unknown> | null, key: string): string | null {
-  const value = source?.[key];
+function str(source: Json, key: string): string | null {
+  const value = asObject(source)?.[key];
   return typeof value === "string" && value.trim() ? value : null;
 }
 
-function positiveInt(source: Record<string, unknown> | null, key: string): number {
-  const value = source?.[key];
+function positiveInt(source: Json, key: string): number {
+  const value = asObject(source)?.[key];
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 1;
 }
@@ -90,7 +113,7 @@ export async function loadTicketOrders(
     .limit(limit);
   if (error) throw new Error(error.message);
 
-  const orders = (data ?? []) as unknown as OrderRecord[];
+  const orders = (data ?? []) as OrderRecord[];
   if (orders.length === 0) return [];
 
   const eventIds = [

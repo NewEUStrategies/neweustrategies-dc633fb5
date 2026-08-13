@@ -41,8 +41,6 @@ const EmojiPicker = lazy(() => import("./EmojiPicker").then((m) => ({ default: m
 
 const TYPING_THROTTLE_MS = 2500;
 const MAX_BODY_LENGTH = 8000;
-// Prestige reaction bar - curated emotional palette shown inside the popover.
-const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏", "🔥", "🎉"] as const;
 
 export interface ChatComposerProps {
   conversationId: string;
@@ -90,7 +88,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     if (uid && !editing) setDraft(uid, conversationId, next);
   };
   const [emojiOpen, setEmojiOpen] = useState(false);
-  const [reactionsOpen, setReactionsOpen] = useState(false);
   const [uploading, setUploading] = useState<{ name: string; percent: number } | null>(null);
   // A picked attachment waits here so the user can add a caption before it is
   // uploaded+sent (WhatsApp flow). previewUrl is an object URL for images.
@@ -267,7 +264,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       replyToId: replyTo?.id ?? null,
     });
     onClearReply();
-    setReactionsOpen(false);
     requestAnimationFrame(() => textareaRef.current?.focus({ preventScroll: true }));
   };
 
@@ -541,6 +537,31 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   title={`${t("chat.attach")} (max ${formatBytes(30 * 1024 * 1024, lang)})`}
                 >
                   <Paperclip className="h-4 w-4" aria-hidden />
+                </button>
+              )}
+
+              {/*
+                Szybka emotka jednym dotknięciem. Warunek widoczności jest DOKŁADNIE
+                tym, co obiecuje dialog wyglądu ("gdy pole tekstu jest puste"):
+                pusty tekst, brak załącznika, nie tryb edycji.
+
+                Ten przycisk był jedynym brakującym ogniwem gotowej funkcji -
+                użytkownik mógł wybrać emotkę w `ChatAppearanceDialog`, wartość
+                zapisywała się w kolumnie `quick_emoji`, `ChatWindow` podawał ją
+                w propsie, a `sendQuickEmoji` czekało bez wywołania. Nie widziała
+                tego żadna bramka: kod się kompilował, testy przechodziły, a w UI
+                po prostu nie było czym wysłać.
+              */}
+              {!editing && !text.trim() && !staged && (
+                <button
+                  type="button"
+                  onClick={() => sendQuickEmoji()}
+                  disabled={!!uploading}
+                  className="flex h-8 w-8 items-center justify-center rounded-[6px] text-base leading-none transition-colors hover:bg-muted disabled:opacity-40"
+                  aria-label={t("chat.quickEmojiSend", { emoji: quickEmoji })}
+                  title={t("chat.quickEmojiSend", { emoji: quickEmoji })}
+                >
+                  <span aria-hidden>{quickEmoji}</span>
                 </button>
               )}
             </div>

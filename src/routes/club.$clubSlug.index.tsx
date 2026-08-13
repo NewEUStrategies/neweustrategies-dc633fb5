@@ -18,7 +18,6 @@ import { useTranslation } from "react-i18next";
 import { MessagesSquare } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ClubCover } from "@/components/clubs/atoms/ClubCover";
 import { ClubDetailSkeleton } from "@/components/clubs/atoms/ClubSkeletons";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
 import { ClubAccessGate } from "@/components/clubs/organisms/ClubAccessGate";

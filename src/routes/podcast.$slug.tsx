@@ -1,11 +1,11 @@
 import { createFileRoute, notFound, Link } from "@tanstack/react-router";
+import { uiLang } from "@/lib/i18n/format";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   podcastBySlugQueryOptions,
   podcastSettingsQueryOptions,
-  showBySlugQueryOptions,
   showEpisodesQueryOptions,
   episodePeopleQueryOptions,
 } from "@/lib/queries/podcasts";
@@ -132,8 +132,7 @@ function PodcastSinglePage() {
   const { slug } = Route.useParams();
   ensurePodcastsI18n();
   const { t, i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
-  const lang: "pl" | "en" = isPl ? "pl" : "en";
+  const lang: "pl" | "en" = uiLang(i18n.language);
 
   const { data: p } = useQuery(podcastBySlugQueryOptions(slug));
   const { data: settings } = useQuery(podcastSettingsQueryOptions);

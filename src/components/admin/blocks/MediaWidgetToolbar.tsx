@@ -90,7 +90,7 @@ export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
       title,
       label,
       defaultValue: String(d[field] ?? defaultValue),
-      confirmLabel: i18n.t("blocks.toolbar.apply", { defaultValue: "Zastosuj" }),
+      confirmLabel: i18n.t("blocks.toolbar.apply"),
     });
     if (v === null) return;
     set({ [field]: v });
@@ -109,14 +109,8 @@ export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
     >
       {/* --- Common: replace URL --- */}
       <TBtn
-        title={i18n.t("blocks.toolbar.replaceUrl", { defaultValue: "Podmień URL" })}
-        onClick={() =>
-          promptFor(
-            "url",
-            i18n.t("blocks.toolbar.replaceUrl", { defaultValue: "Podmień URL" }),
-            "URL",
-          )
-        }
+        title={i18n.t("blocks.toolbar.replaceUrl")}
+        onClick={() => promptFor("url", i18n.t("blocks.toolbar.replaceUrl"), "URL")}
       >
         <Replace className="h-3.5 w-3.5" />
       </TBtn>
@@ -126,32 +120,21 @@ export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
         <>
           <Divider />
           <TBtn
-            title={i18n.t("blocks.toolbar.altText", { defaultValue: "Tekst alternatywny" })}
+            title={i18n.t("blocks.toolbar.altText")}
             active={Boolean(d.alt)}
-            onClick={() =>
-              promptFor(
-                "alt",
-                i18n.t("blocks.toolbar.altText", { defaultValue: "Tekst alternatywny" }),
-                "alt",
-              )
-            }
+            onClick={() => promptFor("alt", i18n.t("blocks.toolbar.altText"), "alt")}
           >
             <Type className="h-3.5 w-3.5" />
           </TBtn>
           <TBtn
-            title={i18n.t("blocks.toolbar.link", { defaultValue: "Link" })}
+            title={i18n.t("blocks.toolbar.link")}
             active={Boolean(d.href)}
-            onClick={() =>
-              promptFor("href", i18n.t("blocks.toolbar.link", { defaultValue: "Link" }), "URL")
-            }
+            onClick={() => promptFor("href", i18n.t("blocks.toolbar.link"), "URL")}
           >
             <LinkIcon className="h-3.5 w-3.5" />
           </TBtn>
           {Boolean(d.href) && (
-            <TBtn
-              title={i18n.t("blocks.toolbar.unlink", { defaultValue: "Usuń link" })}
-              onClick={() => set({ href: "" })}
-            >
+            <TBtn title={i18n.t("blocks.toolbar.unlink")} onClick={() => set({ href: "" })}>
               <Link2Off className="h-3.5 w-3.5" />
             </TBtn>
           )}
@@ -159,21 +142,21 @@ export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
           <Divider />
           {/* Wyrównanie */}
           <TBtn
-            title={i18n.t("blocks.toolbar.alignLeft", { defaultValue: "Do lewej" })}
+            title={i18n.t("blocks.toolbar.alignLeft")}
             active={align === "left"}
             onClick={() => set({ align: "left" })}
           >
             <AlignLeft className="h-3.5 w-3.5" />
           </TBtn>
           <TBtn
-            title={i18n.t("blocks.toolbar.alignCenter", { defaultValue: "Wyśrodkuj" })}
+            title={i18n.t("blocks.toolbar.alignCenter")}
             active={align === "center"}
             onClick={() => set({ align: "center" })}
           >
             <AlignCenter className="h-3.5 w-3.5" />
           </TBtn>
           <TBtn
-            title={i18n.t("blocks.toolbar.alignRight", { defaultValue: "Do prawej" })}
+            title={i18n.t("blocks.toolbar.alignRight")}
             active={align === "right"}
             onClick={() => set({ align: "right" })}
           >
@@ -183,21 +166,21 @@ export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
           <Divider />
           {/* Rozmiar */}
           <TBtn
-            title={i18n.t("blocks.toolbar.sizeSmall", { defaultValue: "Mały" })}
+            title={i18n.t("blocks.toolbar.sizeSmall")}
             active={size === "small"}
             onClick={() => set({ size: "small" })}
           >
             <Minimize2 className="h-3.5 w-3.5" />
           </TBtn>
           <TBtn
-            title={i18n.t("blocks.toolbar.sizeMedium", { defaultValue: "Średni" })}
+            title={i18n.t("blocks.toolbar.sizeMedium")}
             active={size === "medium"}
             onClick={() => set({ size: "medium" })}
           >
             <Square className="h-3.5 w-3.5" />
           </TBtn>
           <TBtn
-            title={i18n.t("blocks.toolbar.sizeFull", { defaultValue: "Pełna szerokość" })}
+            title={i18n.t("blocks.toolbar.sizeFull")}
             active={size === "full"}
             onClick={() => set({ size: "full" })}
           >
@@ -206,14 +189,14 @@ export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
 
           <Divider />
           <TBtn
-            title={i18n.t("blocks.toolbar.rounded", { defaultValue: "Zaokrąglenie" })}
+            title={i18n.t("blocks.toolbar.rounded")}
             active={Boolean(d.rounded)}
             onClick={() => toggle("rounded")}
           >
             <RectangleHorizontal className="h-3.5 w-3.5" />
           </TBtn>
           <TBtn
-            title={i18n.t("blocks.toolbar.shadow", { defaultValue: "Cień" })}
+            title={i18n.t("blocks.toolbar.shadow")}
             active={Boolean(d.shadow)}
             onClick={() => toggle("shadow")}
           >
@@ -227,28 +210,16 @@ export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
         <>
           <Divider />
           <TBtn
-            title={i18n.t("blocks.toolbar.poster", { defaultValue: "Miniatura (poster)" })}
+            title={i18n.t("blocks.toolbar.poster")}
             active={Boolean(d.poster)}
-            onClick={() =>
-              promptFor(
-                "poster",
-                i18n.t("blocks.toolbar.poster", { defaultValue: "Miniatura (poster)" }),
-                "URL",
-              )
-            }
+            onClick={() => promptFor("poster", i18n.t("blocks.toolbar.poster"), "URL")}
           >
             <ImageIcon className="h-3.5 w-3.5" />
           </TBtn>
           <TBtn
-            title={i18n.t("blocks.toolbar.captions", { defaultValue: "Napisy (VTT)" })}
+            title={i18n.t("blocks.toolbar.captions")}
             active={Boolean(d.captionsUrl)}
-            onClick={() =>
-              promptFor(
-                "captionsUrl",
-                i18n.t("blocks.toolbar.captions", { defaultValue: "Napisy (VTT)" }),
-                "URL .vtt",
-              )
-            }
+            onClick={() => promptFor("captionsUrl", i18n.t("blocks.toolbar.captions"), "URL .vtt")}
           >
             <Captions className="h-3.5 w-3.5" />
           </TBtn>
@@ -258,7 +229,7 @@ export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
           {(["16:9", "4:3", "1:1", "9:16"] as const).map((r) => (
             <TBtn
               key={r}
-              title={`${i18n.t("blocks.toolbar.aspect", { defaultValue: "Proporcje" })} ${r}`}
+              title={`${i18n.t("blocks.toolbar.aspect")} ${r}`}
               active={aspect === r}
               onClick={() => set({ aspect: r })}
             >
@@ -273,16 +244,14 @@ export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
         <>
           <Divider />
           <TBtn
-            title={i18n.t("blocks.toolbar.cover", { defaultValue: "Okładka" })}
+            title={i18n.t("blocks.toolbar.cover")}
             active={Boolean(d.cover)}
-            onClick={() =>
-              promptFor("cover", i18n.t("blocks.toolbar.cover", { defaultValue: "Okładka" }), "URL")
-            }
+            onClick={() => promptFor("cover", i18n.t("blocks.toolbar.cover"), "URL")}
           >
             <Disc className="h-3.5 w-3.5" />
           </TBtn>
           <TBtn
-            title={i18n.t("blocks.toolbar.download", { defaultValue: "Pobieranie" })}
+            title={i18n.t("blocks.toolbar.download")}
             active={Boolean(d.download)}
             onClick={() => toggle("download")}
           >
@@ -315,25 +284,21 @@ export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
 
       {/* --- Common: source attribution --- */}
       <TBtn
-        title={i18n.t("blocks.toolbar.source", { defaultValue: "Źródło" })}
+        title={i18n.t("blocks.toolbar.source")}
         active={Boolean(d.source) || Boolean(d.sourceUrl)}
         onClick={async () => {
           const label = await promptDialog({
-            title: i18n.t("blocks.toolbar.source", { defaultValue: "Źródło" }),
-            label: i18n.t("blocks.toolbar.sourceLabel", {
-              defaultValue: "Nazwa źródła (np. autor, agencja)",
-            }),
+            title: i18n.t("blocks.toolbar.source"),
+            label: i18n.t("blocks.toolbar.sourceLabel"),
             defaultValue: String(d.source ?? ""),
-            confirmLabel: i18n.t("blocks.toolbar.next", { defaultValue: "Dalej" }),
+            confirmLabel: i18n.t("blocks.toolbar.next"),
           });
           if (label === null) return;
           const url = await promptDialog({
-            title: i18n.t("blocks.toolbar.source", { defaultValue: "Źródło" }),
-            label: i18n.t("blocks.toolbar.sourceUrl", {
-              defaultValue: "URL źródła (opcjonalny)",
-            }),
+            title: i18n.t("blocks.toolbar.source"),
+            label: i18n.t("blocks.toolbar.sourceUrl"),
             defaultValue: String(d.sourceUrl ?? ""),
-            confirmLabel: i18n.t("blocks.toolbar.apply", { defaultValue: "Zastosuj" }),
+            confirmLabel: i18n.t("blocks.toolbar.apply"),
           });
           if (url === null) {
             set({ source: label });
@@ -347,10 +312,7 @@ export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
 
       <Divider />
 
-      <TBtn
-        title={i18n.t("blocks.toolbar.clearUrl", { defaultValue: "Wyczyść URL" })}
-        onClick={() => set({ url: "" })}
-      >
+      <TBtn title={i18n.t("blocks.toolbar.clearUrl")} onClick={() => set({ url: "" })}>
         <Trash2 className="h-3.5 w-3.5" />
       </TBtn>
     </div>

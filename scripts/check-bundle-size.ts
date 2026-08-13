@@ -39,7 +39,7 @@
  *
  * Usage: bun run scripts/check-bundle-size.ts   (run after `bun run build`)
  */
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
 // The client build dir differs by adapter (Nitro/TanStack Start -> .output/public,
@@ -290,6 +290,49 @@ const MAX_CHUNK_KB = budget("chunk", "MAX_CHUNK_KB");
 const MAX_PUBLIC_KB = budget("public", "MAX_PUBLIC_KB");
 const MAX_TOTAL_KB = budget("overall", "MAX_TOTAL_KB");
 
+/**
+ * ODSETEK ZAPASU, PONIŻEJ KTÓREGO BRAMKA KRZYCZY, CHOĆ JESZCZE PRZECHODZI.
+ *
+ * PO CO. Kronika wyżej to trzy wpisy (08-01, 08-03, 08-12) o tej samej awarii:
+ * bramka zapala się na przypadkowym commicie, autor nie zna przyczyny, więc
+ * podnosi próg - i od tej chwili nie łapie już nic. Wspólny mechanizm nie jest
+ * po stronie progu, jest po stronie MOMENTU: nikt nie widzi, że zapas skończył
+ * się dwa tygodnie wcześniej. 2026-08-13 największy chunk miał 1,7 KB luzu
+ * (0,33%) i żaden przebieg CI o tym nie powiedział, bo bramka była zielona.
+ *
+ * Ostrzeżenie nie blokuje merge'a. Ma jedną rolę: sprawić, żeby wyczerpanie
+ * zapasu było widoczne u AUTORA WZROSTU, a nie u kolejnej osoby.
+ */
+const HEADROOM_WARN_PCT = 2;
+
+/**
+ * Baseline rozmiarów per chunk (`reports/bundle-baseline.json`).
+ *
+ * Bramka bez niego mówi ILE, nigdy PRZEZ CO - i właśnie dlatego kolejne
+ * re-floory szły bez diagnozy. Z baseline'em skrypt sam nazywa chunki, które
+ * urosły najbardziej, więc pierwsza informacja po czerwonej bramce to nie
+ * „514 > 513", a „index +14,2 KB, Builder +3,1 KB".
+ *
+ * KLUCZEM JEST NAZWA BEZ HASHA. `index-HSMM7HnQ.js` i `index-CVfAOQee.js` to ten
+ * sam chunk w dwóch buildach; porównanie po pełnej nazwie nie dałoby ani jednej
+ * pary. Baseline aktualizuje się JAWNIE (`--update-baseline`) i jedzie w commicie,
+ * dokładnie jak progi: żeby zmiana przeszła przez review razem z przyczyną.
+ */
+const BASELINE_PATH = "reports/bundle-baseline.json";
+
+interface BaselineFile {
+  readonly measuredAt: string;
+  readonly commit: string;
+  readonly totals: { readonly public: number; readonly overall: number; readonly chunk: number };
+  readonly chunks: Readonly<Record<string, number>>;
+}
+
+/** `assets/index-HSMM7HnQ.js` -> `index`; `_libs/echarts.js` -> `echarts`. */
+function stableChunkName(file: string): string {
+  const base = file.split("/").pop() ?? file;
+  return base.replace(/\.js$/, "").replace(/-[A-Za-z0-9_-]{8,}$/, "");
+}
+
 // Chunks reachable ONLY from the auth-gated /admin (CMS) routes - never from a
 // public URL, so they never count against the public-perf budget. Matched on the
 // emitted chunk basename: route chunks are named by route ("admin.*"); the
@@ -318,8 +361,41 @@ const MAX_TOTAL_KB = budget("overall", "MAX_TOTAL_KB");
 // pobiera. Ciągi są celowo w nakładce i18n-admin-* zamiast w rdzennych
 // `locale/{pl,en}.ts`: tamte chunki pobiera KAŻDY czytelnik (ten sam powód, co
 // przy `i18n-admin-semantic`).
+// 2026-08-13: dochodzi `i18n-clubs-admin` - 35 z 41 sekcji `adminClubs` wyszlo
+// z `i18n-club.ts`, zeby nie jechaly w chunku WEJSCIOWYM. Chunk jest adminowy
+// z dowodu, nie z nazwy: w zbudowanym wyjsciu importuja go WYLACZNIE chunki tras
+// `admin.community.clubs.*` oraz `ClubLayoutPicker` (osiagalny tylko z panelu -
+// przez `ClubElementsGallery`, ktory lezy pod `src/components/clubs/`, ale nie ma
+// ani jednego publicznego importera). Odwolanie w `index-*.js` to wpis w MANIFESCIE
+// zasobow trasy (tablica stringow do preloadu), nie import statyczny.
+//
+// NIEDOSZACOWANIE, KTORE TU ZOSTAJE - I KOREKTA WCZESNIEJSZEJ WERSJI TEJ NOTKI.
+// Ta lista zna trzy slowniki adminowe (`i18n-admin-semantic`, `i18n-admin-tts`,
+// `i18n-clubs-admin`), a slownikow jest 27. Poprzednia wersja tego akapitu
+// twierdzila, ze `i18n-builder`, `i18n-profile`, `i18n-admin-extras` i `i18n-chat`
+// licza sie do PUBLIC, „choc zaden czytelnik ich nie sciaga", i szacowala zysk
+// na ~100 KB. POMIAR PO IMPORTERACH W ZBUDOWANYM WYJSCIU TO ZDEMENTOWAL - dwa
+// z tych czterech sa realnie publiczne:
+//   * `i18n-chat` (12,3 KB) - wchodzi przez `ChatBell`, `ChatDock` ORAZ trase
+//     publicznego watku klubu `club._clubSlug.t._threadSlug`;
+//   * `i18n-admin-extras` (14,0 KB) - obok chunkow `admin-*` odwoluje sie do
+//     niego `profile.index`, czyli powierzchnia profilu.
+// Przeklasyfikowanie ktoregokolwiek z nich byloby dokladnie tym bledem, ktory
+// opisuje wycofany eksperyment wyzej: ladniejsza liczba bez pokrycia w bajtach.
+//
+// KANDYDACI, KTORZY ZOSTAJA (i nadal WYMAGAJA dowodu, nie nazwy):
+//   * `i18n-builder` (29,6 KB) - odwoluja sie do niego wylacznie widgety
+//     edytora (`StructurePicker`, `LucideIconPicker`, `ImageSlot`, `NumberInput`,
+//     `EmptyContainerPickerBox`), ktore nie maja prefiksu z ADMIN_ONLY;
+//   * `i18n-admin-analytics` (18,2 KB) - dashboardy `Ga4BiDashboard`,
+//     `GscBiDashboard`, `KpiTile`, `AudienceSegmentsDashboard`.
+// Realny zysk to wiec ~48 KB, nie ~100 - i dopiero po domknieciu importow tak,
+// jak zrobiono to dla `i18n-clubs-admin` (akapit wyzej: zero publicznych
+// importerow w zbudowanym wyjsciu, a wpis w `index-*.js` to MANIFEST preloadu,
+// nie import). To decyzja wlasciciela, nie efekt uboczny - dlatego zostaje
+// ZMIERZONA i ZAPISANA, a nie wykonana po cichu.
 const ADMIN_ONLY =
-  /^(admin\.|Builder-|PostBlockEditor|ThemeOptionsPane|AdminShell|sidebar|vendor-dnd-|EChartClient|SemanticReconciliationPanel|MetricDictionary|WindowProvenance|i18n-admin-semantic|i18n-admin-tts|TtsVoiceSelect)/;
+  /^(admin\.|Builder-|PostBlockEditor|ThemeOptionsPane|AdminShell|sidebar|vendor-dnd-|EChartClient|SemanticReconciliationPanel|MetricDictionary|WindowProvenance|i18n-admin-semantic|i18n-admin-tts|i18n-clubs-admin|TtsVoiceSelect)/;
 function isAdminOnly(file: string): boolean {
   return ADMIN_ONLY.test(basename(file));
 }
@@ -354,10 +430,13 @@ let total = 0;
 let publicTotal = 0;
 let max = 0;
 let maxFile = "";
+const perChunk = new Map<string, number>();
 for (const f of files) {
   const kb = gzipKb(f);
   total += kb;
   if (!isAdminOnly(f)) publicTotal += kb;
+  const name = stableChunkName(f);
+  perChunk.set(name, (perChunk.get(name) ?? 0) + kb);
   if (kb > max) {
     max = kb;
     maxFile = f;
@@ -371,6 +450,73 @@ console.log(`  admin-only:  ${adminTotal.toFixed(1)} KB  (billed to OVERALL only
 console.log(`  overall:     ${total.toFixed(1)} KB  (budget ≤ ${MAX_TOTAL_KB} KB)`);
 console.log(`Largest chunk: ${max.toFixed(1)} KB gzip (${maxFile})  (budget ≤ ${MAX_CHUNK_KB} KB)`);
 
+// ── Baseline: jawna aktualizacja ─────────────────────────────────────────────
+if (process.argv.includes("--update-baseline")) {
+  const commit = Bun.spawnSync(["git", "rev-parse", "--short", "HEAD"]).stdout.toString().trim();
+  const snapshot: BaselineFile = {
+    measuredAt: new Date().toISOString(),
+    commit,
+    totals: {
+      public: Number(publicTotal.toFixed(1)),
+      overall: Number(total.toFixed(1)),
+      chunk: Number(max.toFixed(1)),
+    },
+    chunks: Object.fromEntries(
+      [...perChunk.entries()]
+        .filter(([, kb]) => kb >= 1)
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, kb]) => [name, Number(kb.toFixed(1))]),
+    ),
+  };
+  mkdirSync("reports", { recursive: true });
+  writeFileSync(BASELINE_PATH, `${JSON.stringify(snapshot, null, 2)}\n`);
+  console.log(`✓ Baseline zapisany: ${BASELINE_PATH} (${Object.keys(snapshot.chunks).length} chunków, commit ${commit}).`);
+  process.exit(0);
+}
+
+// ── Baseline: diagnoza „PRZEZ CO", nie tylko „ILE" ───────────────────────────
+/**
+ * Zwraca gotowe linie raportu ruchów względem baseline'u. Puste, gdy baseline'u
+ * nie ma - brak pliku nie może wywrócić bramki, bo bramka pilnuje progów, a nie
+ * istnienia raportu.
+ */
+function movers(): string[] {
+  if (!existsSync(BASELINE_PATH)) {
+    return [
+      `Brak ${BASELINE_PATH} - bramka nie umie nazwać, co urosło.`,
+      `Zapisz baseline na zielonym buildzie: bun run scripts/check-bundle-size.ts --update-baseline`,
+    ];
+  }
+  let base: BaselineFile;
+  try {
+    base = JSON.parse(readFileSync(BASELINE_PATH, "utf8")) as BaselineFile;
+  } catch {
+    return [`${BASELINE_PATH} jest nieczytelny - pomijam diagnozę ruchów.`];
+  }
+  const deltas: Array<{ name: string; delta: number; now: number; was: number }> = [];
+  for (const [name, kb] of perChunk) {
+    const was = base.chunks[name];
+    if (was === undefined) {
+      if (kb >= 5) deltas.push({ name: `${name} (NOWY)`, delta: kb, now: kb, was: 0 });
+      continue;
+    }
+    const delta = kb - was;
+    if (Math.abs(delta) >= 1) deltas.push({ name, delta, now: kb, was });
+  }
+  const gone = Object.keys(base.chunks).filter((n) => !perChunk.has(n) && base.chunks[n] >= 5);
+  if (deltas.length === 0 && gone.length === 0) return [];
+
+  const lines = [`Ruchy względem baseline'u (${base.commit}, ${base.measuredAt.slice(0, 10)}):`];
+  for (const d of deltas.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 12)) {
+    const sign = d.delta > 0 ? "+" : "";
+    lines.push(
+      `  ${sign}${d.delta.toFixed(1).padStart(7)} KB  ${d.name}  (${d.was.toFixed(1)} -> ${d.now.toFixed(1)})`,
+    );
+  }
+  for (const name of gone.slice(0, 5)) lines.push(`  ${"znikł".padStart(10)}  ${name}`);
+  return lines;
+}
+
 const errors: string[] = [];
 if (max > MAX_CHUNK_KB) errors.push(`largest chunk ${max.toFixed(1)} KB > ${MAX_CHUNK_KB} KB`);
 if (publicTotal > MAX_PUBLIC_KB)
@@ -379,6 +525,43 @@ if (total > MAX_TOTAL_KB) errors.push(`overall total ${total.toFixed(1)} KB > ${
 
 if (errors.length) {
   console.error(`✗ Bundle budget exceeded: ${errors.join("; ")}`);
+  for (const line of movers()) console.error(line);
+  console.error(
+    `  Skład chunku z dokładnością do modułu: BUNDLE_INVENTORY=1 bun run build && bun run report:chunk-inventory ${stableChunkName(maxFile)}`,
+  );
+  console.error(
+    `  PODNIESIENIE PROGU JEST OSTATECZNOŚCIĄ: najpierw zmierz przyczynę powyżej i dopisz ją do kroniki w tym pliku.`,
+  );
   process.exit(1);
 }
+
+// ── Zapas: ostrzeżenie ZANIM bramka zapali się u kogoś innego ────────────────
+const headroom = [
+  { name: "largest chunk", now: max, limit: MAX_CHUNK_KB },
+  { name: "public total", now: publicTotal, limit: MAX_PUBLIC_KB },
+  { name: "overall total", now: total, limit: MAX_TOTAL_KB },
+].map((b) => ({ ...b, left: b.limit - b.now, pct: ((b.limit - b.now) / b.limit) * 100 }));
+
+const tight = headroom.filter((b) => b.pct < HEADROOM_WARN_PCT);
+if (tight.length > 0) {
+  console.warn("");
+  console.warn(`! ZAPAS BUDŻETU PONIŻEJ ${HEADROOM_WARN_PCT}% - następny wzrost zapali bramkę:`);
+  for (const b of tight) {
+    console.warn(
+      `!   ${b.name}: zostało ${b.left.toFixed(1)} KB z ${b.limit} KB (${b.pct.toFixed(2)}%)`,
+    );
+  }
+  const report = movers();
+  if (report.length > 0) {
+    console.warn("!");
+    for (const line of report) console.warn(`! ${line}`);
+  }
+  console.warn(
+    `! To NIE jest powód, żeby podnieść próg - to powód, żeby zmierzyć skład chunku:`,
+  );
+  console.warn(
+    `!   BUNDLE_INVENTORY=1 bun run build && bun run report:chunk-inventory ${stableChunkName(maxFile)}`,
+  );
+}
+
 console.log("✓ Bundle within budget.");

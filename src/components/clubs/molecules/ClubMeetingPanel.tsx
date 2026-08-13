@@ -62,7 +62,7 @@ function RsvpControls({
   eventId: string;
   current: string | null;
 }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const rsvp = useClubEventRsvp(clubId);
 
   return (

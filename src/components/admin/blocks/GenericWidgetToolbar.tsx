@@ -83,21 +83,21 @@ export function GenericWidgetToolbar({ block, onChange }: Props) {
     >
       {/* Wyrównanie */}
       <TBtn
-        title={i18n.t("blocks.toolbar.alignLeft", { defaultValue: "Do lewej" })}
+        title={i18n.t("blocks.toolbar.alignLeft")}
         active={align === "left"}
         onClick={() => set({ align: "left" })}
       >
         <AlignLeft className="h-3.5 w-3.5" />
       </TBtn>
       <TBtn
-        title={i18n.t("blocks.toolbar.alignCenter", { defaultValue: "Wyśrodkuj" })}
+        title={i18n.t("blocks.toolbar.alignCenter")}
         active={align === "center"}
         onClick={() => set({ align: "center" })}
       >
         <AlignCenter className="h-3.5 w-3.5" />
       </TBtn>
       <TBtn
-        title={i18n.t("blocks.toolbar.alignRight", { defaultValue: "Do prawej" })}
+        title={i18n.t("blocks.toolbar.alignRight")}
         active={align === "right"}
         onClick={() => set({ align: "right" })}
       >
@@ -108,21 +108,21 @@ export function GenericWidgetToolbar({ block, onChange }: Props) {
 
       {/* Szerokość */}
       <TBtn
-        title={i18n.t("blocks.toolbar.widthNarrow", { defaultValue: "Wąski" })}
+        title={i18n.t("blocks.toolbar.widthNarrow")}
         active={width === "narrow"}
         onClick={() => set({ width: "narrow" })}
       >
         <Minimize2 className="h-3.5 w-3.5" />
       </TBtn>
       <TBtn
-        title={i18n.t("blocks.toolbar.widthWide", { defaultValue: "Szeroki" })}
+        title={i18n.t("blocks.toolbar.widthWide")}
         active={width === "wide"}
         onClick={() => set({ width: "wide" })}
       >
         <StretchHorizontal className="h-3.5 w-3.5" />
       </TBtn>
       <TBtn
-        title={i18n.t("blocks.toolbar.widthFull", { defaultValue: "Pełna szerokość" })}
+        title={i18n.t("blocks.toolbar.widthFull")}
         active={width === "full"}
         onClick={() => set({ width: "full" })}
       >
@@ -135,9 +135,7 @@ export function GenericWidgetToolbar({ block, onChange }: Props) {
       {(["sm", "md", "lg"] as const).map((s) => (
         <TBtn
           key={s}
-          title={i18n.t(`blocks.toolbar.padY_${s}`, {
-            defaultValue: `Odstęp ${s.toUpperCase()}`,
-          })}
+          title={i18n.t(`blocks.toolbar.padY_${s}`)}
           active={padY === s}
           onClick={() => set({ padY: s })}
         >
@@ -150,7 +148,7 @@ export function GenericWidgetToolbar({ block, onChange }: Props) {
       {/* Kolor tła */}
       <div className="relative">
         <TBtn
-          title={i18n.t("blocks.toolbar.bg", { defaultValue: "Kolor tła" })}
+          title={i18n.t("blocks.toolbar.bg")}
           active={Boolean(bg)}
           onClick={() => setBgOpen((v) => !v)}
         >
@@ -163,7 +161,7 @@ export function GenericWidgetToolbar({ block, onChange }: Props) {
               value={bg || "#ffffff"}
               onChange={(e) => set({ bg: e.target.value })}
               className="h-7 w-8 cursor-pointer rounded border border-border bg-transparent"
-              aria-label={i18n.t("blocks.toolbar.bg", { defaultValue: "Kolor tła" })}
+              aria-label={i18n.t("blocks.toolbar.bg")}
             />
             <button
               type="button"
@@ -173,7 +171,7 @@ export function GenericWidgetToolbar({ block, onChange }: Props) {
               }}
               className="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground"
             >
-              {i18n.t("blocks.toolbar.clear", { defaultValue: "Wyczyść" })}
+              {i18n.t("blocks.toolbar.clear")}
             </button>
           </div>
         )}
@@ -224,14 +222,14 @@ export function GenericWidgetToolbar({ block, onChange }: Props) {
 
       {/* Anchor / ID */}
       <TBtn
-        title={i18n.t("blocks.toolbar.anchor", { defaultValue: "Kotwica (ID)" })}
+        title={i18n.t("blocks.toolbar.anchor")}
         active={Boolean(d.anchor)}
         onClick={async () => {
           const v = await promptDialog({
-            title: i18n.t("blocks.toolbar.anchor", { defaultValue: "Kotwica (ID)" }),
+            title: i18n.t("blocks.toolbar.anchor"),
             label: "id-bloku",
             defaultValue: String(d.anchor ?? ""),
-            confirmLabel: i18n.t("blocks.toolbar.apply", { defaultValue: "Zastosuj" }),
+            confirmLabel: i18n.t("blocks.toolbar.apply"),
           });
           if (v === null) return;
           set({ anchor: v.trim().replace(/\s+/g, "-").toLowerCase() });

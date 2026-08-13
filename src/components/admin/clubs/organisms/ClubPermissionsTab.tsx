@@ -26,6 +26,7 @@ import {
   type CapabilityValue,
 } from "@/lib/clubs/capabilityMatrix";
 import { useClubCapabilitiesPreview } from "@/lib/clubs/useClubs";
+import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 
 function CapabilityCell({ value }: { value: CapabilityValue }) {
   const { t } = useTranslation();
@@ -63,6 +64,7 @@ function CapabilityCell({ value }: { value: CapabilityValue }) {
 }
 
 export function ClubPermissionsTab({ clubId }: { clubId: string }) {
+  ensureAdminClubsI18n();
   const { t } = useTranslation();
   const [previewUserId, setPreviewUserId] = useState("");
 

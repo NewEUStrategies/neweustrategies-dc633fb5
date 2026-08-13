@@ -20,8 +20,6 @@ import {
   ExternalLink,
   Globe,
   MapPin,
-  Phone,
-  Users,
   UserCircle2,
   Target,
   Activity,

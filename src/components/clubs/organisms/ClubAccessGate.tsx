@@ -148,7 +148,7 @@ export function ClubAccessGate({ club }: { club: ClubViewRow }) {
 
 /** Pojedynczy benefit: tytuł + jedno zdanie „co to znaczy w praktyce". */
 function Benefit({ icon: Icon, k }: { icon: LucideIcon; k: string }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   return (
     <li className="flex items-start gap-2.5 rounded-lg bg-background/60 p-2.5 ring-1 ring-border/50">
       <span className="mt-0.5 shrink-0 rounded-md bg-primary/10 p-1.5 text-primary">
@@ -177,7 +177,7 @@ function MemberActions({
   tierTooLow: boolean;
   isExpert: boolean;
 }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   // Prośbę o dostęp widzi ten, komu plan już wystarcza, albo ekspert.
   const canRequest = club.join_policy !== "invite" && (!tierTooLow || isExpert);
 

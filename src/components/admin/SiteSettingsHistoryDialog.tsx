@@ -47,7 +47,13 @@ export function SiteSettingsHistoryDialog({
   onRestore,
   title,
 }: Props) {
-  const { t, i18n } = useTranslation();
+  // `keyPrefix: "admin"` jak w ThemeOptionsPane (jedyny konsument tego dialogu):
+  // klucze `themeOptions.*` zyja pod `admin.`, wiec bez prefiksu `t()` nie trafialo
+  // do slownika i renderowal sie tekst zapisany w kodzie - ten sam w PL i EN.
+  // Uwaga na zasieg: `common.loading` / `common.cancel` zyja w KORZENIU slownika,
+  // nie pod `admin.`, dlatego pod prefiksem wolamy ich odpowiedniki `loading`
+  // i `cancel` (`admin.loading` / `admin.cancel`, identyczne teksty PL i EN).
+  const { t, i18n } = useTranslation(undefined, { keyPrefix: "admin" });
   const revisions = useSiteSettingsRevisions(settingsKey);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
@@ -80,13 +86,10 @@ export function SiteSettingsHistoryDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Clock className="w-4 h-4" />
-            {title ?? t("themeOptions.history.title", "Historia zmian")}
+            {title ?? t("themeOptions.history.title")}
           </DialogTitle>
           <DialogDescription>
-            {t(
-              "themeOptions.history.description",
-              "Podgląd poprzednich wersji przed nadpisaniem. Przywrócenie utworzy nowy wpis w historii.",
-            )}
+            {t("themeOptions.history.description")}
           </DialogDescription>
         </DialogHeader>
 
@@ -94,12 +97,10 @@ export function SiteSettingsHistoryDialog({
           <div className="border rounded-md overflow-hidden">
             <ScrollArea className="h-[440px]">
               {revisions.isLoading ? (
-                <div className="p-3 text-xs text-muted-foreground">
-                  {t("common.loading", "Ładowanie...")}
-                </div>
+                <div className="p-3 text-xs text-muted-foreground">{t("loading")}</div>
               ) : (revisions.data?.length ?? 0) === 0 ? (
                 <div className="p-3 text-xs text-muted-foreground">
-                  {t("themeOptions.history.empty", "Brak historii - jeszcze nic nie zapisano.")}
+                  {t("themeOptions.history.empty")}
                 </div>
               ) : (
                 <ul className="divide-y">
@@ -129,7 +130,7 @@ export function SiteSettingsHistoryDialog({
                             )}
                             <span className="font-medium truncate">
                               {r.author_name ??
-                                t("themeOptions.history.unknownAuthor", "Nieznany autor")}
+                                t("themeOptions.history.unknownAuthor")}
                             </span>
                           </div>
                           <div className="mt-1 text-[11px] text-muted-foreground">
@@ -151,13 +152,13 @@ export function SiteSettingsHistoryDialog({
             <div className="flex items-center gap-2 px-3 py-2 border-b text-xs text-muted-foreground">
               <Eye className="w-3.5 h-3.5" />
               {selected
-                ? t("themeOptions.history.previewSelected", "Podgląd wybranej wersji")
-                : t("themeOptions.history.selectRevision", "Wybierz wersję z listy")}
+                ? t("themeOptions.history.previewSelected")
+                : t("themeOptions.history.selectRevision")}
             </div>
             <div className="grid grid-cols-2 gap-0 flex-1 min-h-0">
               <div className="border-r p-2 flex flex-col min-h-0">
                 <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
-                  {t("themeOptions.history.currentVersion", "Aktualna wersja")}
+                  {t("themeOptions.history.currentVersion")}
                 </div>
                 <Textarea
                   readOnly
@@ -167,12 +168,12 @@ export function SiteSettingsHistoryDialog({
               </div>
               <div className="p-2 flex flex-col min-h-0">
                 <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
-                  {t("themeOptions.history.previousVersion", "Wybrana wersja")}
+                  {t("themeOptions.history.previousVersion")}
                 </div>
                 <Textarea
                   readOnly
                   value={previewText}
-                  placeholder={t("themeOptions.history.selectRevision", "Wybierz wersję z listy")}
+                  placeholder={t("themeOptions.history.selectRevision")}
                   className="flex-1 font-mono text-[11px] resize-none"
                 />
               </div>
@@ -182,7 +183,7 @@ export function SiteSettingsHistoryDialog({
 
         <DialogFooter className="gap-2">
           <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
-            {t("common.cancel", "Anuluj")}
+            {t("cancel")}
           </Button>
           <Button
             size="sm"
@@ -192,8 +193,8 @@ export function SiteSettingsHistoryDialog({
           >
             <RotateCcw className="w-4 h-4" />
             {restoring
-              ? t("themeOptions.history.restoring", "Przywracam...")
-              : t("themeOptions.history.restore", "Przywróć tę wersję")}
+              ? t("themeOptions.history.restoring")
+              : t("themeOptions.history.restore")}
           </Button>
         </DialogFooter>
       </DialogContent>

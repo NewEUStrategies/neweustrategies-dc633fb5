@@ -19,7 +19,8 @@ import { ClubStatusBadge, ClubVisibilityBadge } from "../atoms/ClubBadges";
 import type { AdminClubRow, ClubStatus, ClubVisibility } from "@/lib/clubs/types";
 import { CLUB_STATUSES, CLUB_VISIBILITIES } from "@/lib/clubs/types";
 import { formatDate, uiLang } from "@/lib/i18n/format";
-import { pickLocalized, type LocaleCode } from "@/lib/i18n/pickLocalized";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
+import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 
 interface ClubsTableProps {
   rows: AdminClubRow[];
@@ -53,6 +54,7 @@ function formatLastActivity(value: string | null, lang: string | undefined): str
 }
 
 export function ClubsTable({ rows }: ClubsTableProps) {
+  ensureAdminClubsI18n();
   const { t, i18n } = useTranslation();
   // Jezyk TRESCI (blizniacze kolumny nazw klubow), nie etykiet - te ida przez
   // `t()`. Komponent wyprowadza go sam, zamiast dostawac `isPl` propsem.

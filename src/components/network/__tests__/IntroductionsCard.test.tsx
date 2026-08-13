@@ -8,7 +8,6 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { fireEvent, screen } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import {
-  NETWORK_IDS,
   PEER_NAME,
   failingMutation,
   idleMutation,

@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-blocks";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import type { Block, LocalizedBlocks } from "@/lib/blocks/types";
@@ -15,7 +16,7 @@ import { BlockSidebar } from "./BlockSidebar";
 import { CodeViewDialog } from "./molecules/CodeViewDialog";
 import { useLocalizedBlocksHistory } from "./hooks/useLocalizedBlocksHistory";
 import { IconButton } from "./atoms/IconButton";
-import { Undo, Redo, PanelLeft, Eye } from "@/lib/lucide-shim";
+import { Undo, Redo, Eye } from "@/lib/lucide-shim";
 import { FileCode2 } from "lucide-react";
 import { useOnboardingTour } from "@/lib/onboarding/useOnboardingTour";
 import { CoachmarkTour } from "@/components/admin/onboarding/CoachmarkTour";
@@ -131,10 +132,10 @@ export function PostBlockEditor({ value, onChange, documentPane, canvasWrap, pre
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-                  title={t("blocks.actions.preview", { defaultValue: "Zobacz preview" })}
+                  title={t("blocks.actions.preview")}
                 >
                   <Eye className="w-3.5 h-3.5" />
-                  <span>{t("blocks.actions.preview", { defaultValue: "Zobacz preview" })}</span>
+                  <span>{t("blocks.actions.preview")}</span>
                 </a>
               ) : null}
               <button
@@ -173,7 +174,12 @@ export function PostBlockEditor({ value, onChange, documentPane, canvasWrap, pre
           </div>
 
           <Tabs value={lang}>
-            <TabsContent value={lang} className="mt-0">
+            {/*
+              `data-tour="blocks-canvas"` to kotwica drugiego kroku przewodnika
+              (`BLOCK_TOUR_STEPS`). Była jedyną z czterech, której nie było
+              w drzewie - krok celował w selektor, którego nikt nie renderował.
+            */}
+            <TabsContent value={lang} className="mt-0" data-tour="blocks-canvas">
               {(() => {
                 const canvas = (
                   <BlockCanvas
@@ -224,6 +230,14 @@ export function PostBlockEditor({ value, onChange, documentPane, canvasWrap, pre
         open={codeViewOpen}
         onOpenChange={setCodeViewOpen}
       />
+      {/*
+        Przewodnik po edytorze bloków. Był zbudowany w CAŁOŚCI - cztery kroki
+        z tekstami PL i EN (`admin.onboarding.blocks.*`), definicje w
+        `BLOCK_TOUR_STEPS`, wywołany hak `useOnboardingTour` i trzy kotwiki
+        `data-tour` w drzewie - brakowało wyłącznie TEGO renderu, więc nowy
+        redaktor nie widział przewodnika ani razu. Wzorzec jak w `Builder.tsx`.
+      */}
+      <CoachmarkTour controller={tour} />
     </BlockEditorProvider>
   );
 }

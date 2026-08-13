@@ -1,7 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
 import {
   Outlet,
-  Link,
   createRootRouteWithContext,
   useRouter,
   HeadContent,
@@ -26,7 +25,6 @@ import { syncI18nToRequest, getRenderI18n } from "../lib/i18n";
 import { supabasePublicConfigScript } from "../lib/supabasePublicConfig";
 import { currentLang } from "../lib/i18n/localeRuntime";
 import { PublicNotFound } from "@/components/molecules/PublicNotFound";
-import { errorCopy } from "../lib/errorCopy";
 import { FriendlyErrorPage } from "../components/error/FriendlyErrorPage";
 import { ThemeProvider } from "../components/ThemeProvider";
 import { AuthProvider } from "../hooks/useAuth";

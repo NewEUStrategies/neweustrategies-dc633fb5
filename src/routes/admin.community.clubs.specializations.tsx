@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import { ClubSpecializationsManager } from "@/components/admin/clubs/organisms/ClubSpecializationsManager";
 import { ensureClubI18n } from "@/lib/i18n-club";
+import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 
 export const Route = createFileRoute("/admin/community/clubs/specializations")({
   head: () => ({
@@ -25,6 +26,7 @@ export const Route = createFileRoute("/admin/community/clubs/specializations")({
 });
 
 function AdminClubSpecializationsPage() {
+  ensureAdminClubsI18n();
   ensureClubI18n();
   const { t } = useTranslation();
   const { isAdmin } = useAuth();

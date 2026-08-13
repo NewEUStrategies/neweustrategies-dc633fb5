@@ -92,7 +92,7 @@ function PostBody({ body }: { body: string }) {
 
 /** Karta podglądu linku + popup po najechaniu (Radix HoverCard). */
 function LinkAttachmentCard({ attachment }: { attachment: ClubPostLinkAttachment }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   let host = attachment.siteName;
   try {
     host = attachment.siteName ?? new URL(attachment.url).hostname;
@@ -171,7 +171,7 @@ function MediaGrid({
   mediaUrls: Record<string, string>;
   onPreview: (file: DocumentViewerFile) => void;
 }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const images = media.filter((item) => item.type === "image");
   const videos = media.filter((item) => item.type === "video");
   const files = media.filter((item) => item.type === "file");

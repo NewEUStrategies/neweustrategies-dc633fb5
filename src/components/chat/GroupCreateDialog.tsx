@@ -68,9 +68,12 @@ export function GroupCreateDialog({
           // Czat grupowy (kręgi) też wymaga progu Plus - Essential dostaje
           // upsell do /pricing zamiast nagiego błędu (spójnie z DM).
           if (msg.includes("chat: tier disabled")) {
-            toast.error(t("inmail.chatGate.tierDisabledToast"), {
+            // Korzeń `expertRequest`, nie `inmail`: bramka progu czatu ma jeden
+            // słownik dla wszystkich wejść (DirectMessageButton, ConnectButton,
+            // NewChatSearch) i tylko ten korzeń istnieje.
+            toast.error(t("expertRequest.chatGate.tierDisabledToast"), {
               action: {
-                label: t("inmail.chatGate.openPricing"),
+                label: t("expertRequest.chatGate.openPricing"),
                 onClick: () => {
                   window.location.href = "/pricing";
                 },

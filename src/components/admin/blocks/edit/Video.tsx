@@ -46,23 +46,21 @@ export function VideoBlock({ block, isActive, onChange }: Props) {
         loop={Boolean(block.data.loop)}
         muted={Boolean(block.data.muted)}
       />
+      {/* Placeholder wołał `blocks.editor.image.caption` - taki korzeń nie istnieje.
+          Podpisy mediów żyją pod `blocks.editors.image.*`, tak jak w edit/Image.tsx. */}
       <input
         type="text"
         value={caption}
-        placeholder={i18n.t("blocks.editor.image.caption", { defaultValue: "Podpis…" })}
+        placeholder={i18n.editor("image", "caption")}
         onChange={(e) => onChange({ ...block, data: { ...block.data, caption: e.target.value } })}
         className="w-full bg-transparent text-sm text-muted-foreground text-center italic border-none outline-none focus:ring-0 p-0"
       />
       <div className="flex items-center gap-2 justify-center text-[11px] text-muted-foreground">
-        <span className="uppercase tracking-wider">
-          {i18n.t("blocks.toolbar.source", { defaultValue: "Źródło" })}:
-        </span>
+        <span className="uppercase tracking-wider">{i18n.t("blocks.toolbar.source")}:</span>
         <input
           type="text"
           value={source}
-          placeholder={i18n.t("blocks.toolbar.sourceLabel", {
-            defaultValue: "Nazwa źródła (np. autor, agencja)",
-          })}
+          placeholder={i18n.t("blocks.toolbar.sourceLabel")}
           onChange={(e) => onChange({ ...block, data: { ...block.data, source: e.target.value } })}
           className="flex-1 bg-transparent border-none outline-none focus:ring-0 p-0"
         />

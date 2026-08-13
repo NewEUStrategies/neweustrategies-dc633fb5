@@ -28,7 +28,6 @@ import {
   GripVertical,
   Trash2,
   Copy,
-  Plus,
   Heading,
   Type,
   Image as ImageIcon,
@@ -40,7 +39,6 @@ import {
   Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import {
   createEmailBlock,
   type EmailBlock,

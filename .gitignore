@@ -43,5 +43,15 @@ test-results/
 *.sw?
 
 # Raporty bramek CI (kontrakt bazy, parytet i18n, raport wdrożenia)
-reports/
+# Uwaga na wzorzec: `reports/` (z ukośnikiem) wyklucza KATALOG, a wtedy `!plik`
+# w środku nie ma prawa go odzyskać - git nie wchodzi do wykluczonego katalogu.
+# Dlatego wykluczamy ZAWARTOŚĆ (`reports/*`).
+reports/*
+# ...ale DWA raporty są kontraktem, nie artefaktem lokalnym, więc idą do repo:
+# `i18n-parity.json` (stan parytetu słowników) oraz `bundle-baseline.json`
+# (rozmiary chunków, wobec których bramka rozmiaru nazywa CO urosło). Baseline
+# w katalogu ignorowanym jest per-developer, czyli w CI go nigdy nie ma - a bez
+# niego bramka umie powiedzieć tylko „urosło o 12 KB", nie „urosło TO".
+!reports/i18n-parity.json
+!reports/bundle-baseline.json
 .audit-findings.json

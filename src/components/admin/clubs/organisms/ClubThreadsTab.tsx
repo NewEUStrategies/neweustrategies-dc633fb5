@@ -8,7 +8,7 @@
 // dokładnie wtedy, gdy jest potrzebna. Karta trzyma akcje przy treści.
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { pickLocalized, type LocaleCode } from "@/lib/i18n/pickLocalized";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { toast } from "sonner";
 import {
   ChevronDown,
@@ -24,7 +24,7 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -77,10 +77,12 @@ import {
   type ClubThreadKind,
 } from "@/lib/clubs/types";
 import { formatDateTime, uiLang } from "@/lib/i18n/format";
+import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 
 const ANY = "__any__";
 
 export function ClubThreadsTab({ clubId }: { clubId: string }) {
+  ensureAdminClubsI18n();
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
   const [search, setSearch] = useState("");

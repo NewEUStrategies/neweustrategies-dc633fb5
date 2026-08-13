@@ -39,7 +39,6 @@ import { escapeLike } from "@/lib/admin/listFilters";
 import { toastError } from "@/lib/toastError";
 import { isCodePage } from "@/lib/admin/codePages";
 import {
-  TOPICS,
   topicOrFilter,
   otherNotPatterns,
   topicForSlug,
@@ -572,7 +571,7 @@ function PagesList() {
                   </th>
                   <th className="text-left p-2">{t("admin.posts.titleCol")}</th>
                   <th className="text-left p-2 w-[140px] hidden lg:table-cell">
-                    {t("admin.pages.topic", { defaultValue: "Temat" })}
+                    {t("admin.pages.topic")}
                   </th>
                   <th className="text-left p-2 w-[110px]">
                     {t("admin.list.lang.col", { defaultValue: "Języki" })}

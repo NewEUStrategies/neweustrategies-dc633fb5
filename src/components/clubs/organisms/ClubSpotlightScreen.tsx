@@ -48,7 +48,7 @@ import { pickLocalized } from "@/lib/i18n/pickLocalized";
 
 /** Formularz przypięcia - widoczny wyłącznie dla prowadzenia klubu. */
 function PinForm({ clubId }: { clubId: string }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const membersQ = useClubMembers({ clubId, status: "active", limit: 100 });
   const pin = usePinClubSpotlight(clubId);
 

@@ -3,6 +3,7 @@
 // Świadomie przez `context.supabase` (RLS admina), nie przez rolę serwisową:
 // panel nie może zobaczyć więcej, niż baza przyzna zalogowanemu adminowi.
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Tables } from "@/integrations/supabase/types";
 
 export type PaymentOrderStatusFilter =
   | "all"
@@ -39,21 +40,36 @@ export interface PaymentOrdersSummary {
   failed: number;
 }
 
-interface OrderRecord {
-  id: string;
-  created_at: string;
-  paid_at: string | null;
-  status: string;
-  kind: string;
-  provider: string | null;
-  environment: string | null;
-  provider_session_id: string | null;
-  amount_cents: number;
-  currency: string;
-  plan_id: string | null;
-  user_id: string | null;
-  receipt_email: string | null;
-}
+/**
+ * Wiersz zamówienia - kolumny WYPROWADZONE z wygenerowanych typów, nie
+ * przepisane ręcznie.
+ *
+ * Ręczna kopia rozjechała się z bazą w dwie strony naraz:
+ *  - `provider` i `environment` deklarowała jako `| null` przy kolumnach NOT NULL,
+ *    więc kod nosił martwe gałęzie „a jeśli null";
+ *  - `status` i `kind` jako `string`, choć w bazie są ENUMAMI - porównanie
+ *    z literałem, którego w enumie nie ma (`"canceled"` vs `"cancelled"`),
+ *    kompilowało się i po cichu nie trafiało nigdy.
+ * `as unknown as OrderRecord[]` kasowało obie różnice. Przy 760 migracjach
+ * forward-only to jest jedyna rzecz, która stoi między zmianą kolumny
+ * a cichym `undefined` w rozliczeniach.
+ */
+type OrderRecord = Pick<
+  Tables<"payment_orders">,
+  | "id"
+  | "created_at"
+  | "paid_at"
+  | "status"
+  | "kind"
+  | "provider"
+  | "environment"
+  | "provider_session_id"
+  | "amount_cents"
+  | "currency"
+  | "plan_id"
+  | "user_id"
+  | "receipt_email"
+>;
 
 const SELECT =
   "id, created_at, paid_at, status, kind, provider, environment, provider_session_id, amount_cents, currency, plan_id, user_id, receipt_email";
@@ -71,7 +87,7 @@ export async function loadPaymentOrders(
 
   const { data, error } = await query;
   if (error) throw error;
-  const records = (data ?? []) as unknown as OrderRecord[];
+  const records = (data ?? []) as OrderRecord[];
 
   const planIds = [...new Set(records.map((r) => r.plan_id).filter((v): v is string => !!v))];
   const planNames = new Map<string, string>();

@@ -52,12 +52,6 @@ const LATEST_TRIGGERS = extractLatestTriggerDefinitions();
 // nadal nie potrafi uciszyć tej bramki (patrz akapit wyżej).
 const DERIVED = deriveAuthzSnapshot(readAuthzSource());
 
-function effectiveRoles(ref: string): string[] {
-  const gate = DERIVED.roleGates.find((entry) => entry.ref === ref);
-  expect(gate, `brak bramki ${ref} w snapshocie odtworzonym z migracji`).toBeDefined();
-  return gateEffectiveRoles(gate!);
-}
-
 function latest(name: string, arity = 0): FnDef {
   const def = LATEST.get(`public.${name}/${arity}`);
   expect(def, `brak funkcji public.${name}/${arity} w migracjach`).toBeDefined();
@@ -76,30 +70,56 @@ function checksRole(body: string, role: string): boolean {
 }
 
 /**
- * Bramka wolno delegować decyzję do jednego źródła prawdy
- * (`can_manage_profile_verification`) - wtedy wymagany zbiór ról sprawdzamy
- * w TEJ funkcji. Inwariant pozostaje ten sam: obie role personelu przechodzą.
+ * EFEKTYWNY zbiór ról bramki, po rozwinięciu aliasów i delegacji.
+ *
+ * `deriveAuthzSnapshot` sam wchodzi w `can_manage_profile_verification`, więc
+ * pytanie „kto przejdzie" ma jedną odpowiedź niezależnie od tego, na ile
+ * funkcji rozłożono decyzję.
  */
-function effectiveGuardBody(): string {
-  const guard = latest("profiles_guard_verification").body;
-  if (!/can_manage_profile_verification/i.test(guard)) return guard;
-  return `${guard}\n${latest("can_manage_profile_verification", 1).body}`;
+function effectiveRoles(ref: string): string[] {
+  const gate = DERIVED.roleGates.find((entry) => entry.ref === ref);
+  expect(gate, `brak bramki ${ref} w snapshocie odtworzonym z migracji`).toBeDefined();
+  return gateEffectiveRoles(gate!);
 }
 
-describe("profiles_guard_verification: stan końcowy migracji", () => {
-  it("przepuszcza rolę admin", () => {
-    expect(checksRole(effectiveGuardBody(), "admin")).toBe(true);
-  });
+const GUARD_REF = "fn:profiles_guard_verification/0";
+/** Personel uprawniony do nadawania i zdejmowania weryfikacji - obie role. */
+const STAFF_ROLES = ["admin", "super_admin"] as const;
 
-  it("przepuszcza rolę super_admin (regresja z 20260806094104)", () => {
+describe("profiles_guard_verification: stan końcowy migracji", () => {
+  it("przepuszcza DOKŁADNIE role personelu - ani mniej, ani więcej", () => {
+    // Dlaczego równość zbiorów, a nie `checksRole` regexem po ciele funkcji:
+    // regex odpowiada na „czy w tekście stoi has_role(..., 'super_admin')",
+    // czyli przechodzi na zielono także wtedy, gdy warunek obok ZAWĘŻA krąg
+    // uprawnionych (dodatkowy `AND`, wcześniejszy `RETURN false`, zmiana
+    // predykatu pomocniczego). Snapshot rozwija aliasy i delegację, więc
+    // porównanie zbiorów łapie oba kierunki: utratę roli i po cichu dodaną.
+    // Zestaw ról personelu to decyzja do review, nie szczegół implementacji -
+    // dlatego jej zmiana MA tu zaświecić na czerwono.
     const def = latest("profiles_guard_verification");
     expect(
-      checksRole(effectiveGuardBody(), "super_admin"),
-      `Ostatnia definicja profiles_guard_verification (${def.file}) nie sprawdza roli 'super_admin' ` +
-        "ani bezpośrednio, ani przez can_manage_profile_verification. " +
-        "has_role() dopasowuje rolę DOKŁADNIE - bez tej gałęzi super_admin nie może " +
-        "nadać ani zdjąć weryfikacji i dostaje wyjątek zamiast przejść bramkę.",
-    ).toBe(true);
+      effectiveRoles(GUARD_REF),
+      `Efektywny zbiór ról bramki weryfikacji (ostatnia definicja: ${def.file}) różni się od ` +
+        `[${STAFF_ROLES.join(", ")}]. has_role() dopasowuje rolę DOKŁADNIE: brak gałęzi ` +
+        "super_admin odbiera tej roli możliwość nadania i zdjęcia weryfikacji (dostaje wyjątek " +
+        "zamiast przejść bramkę), a rola dopisana poszerza krąg uprawnionych bez decyzji.",
+    ).toEqual([...STAFF_ROLES]);
+  });
+
+  it("`has_role` stoi w ciele bramki albo w jej źródle prawdy", () => {
+    // Asercja na KSZTAŁCIE, uzupełniająca tę wyżej: snapshot potrafi rozwinąć
+    // tylko to, co przechodzi przez `has_role`. Gdyby bramka zaczęła czytać
+    // rolę inaczej (własny SELECT po `user_roles`, porównanie stringów),
+    // zbiór ról wyżej mógłby wyjść pusty albo mylący - a to musi być widać.
+    const guard = latest("profiles_guard_verification").body;
+    const body = /can_manage_profile_verification/i.test(guard)
+      ? `${guard}\n${latest("can_manage_profile_verification", 1).body}`
+      : guard;
+    for (const role of STAFF_ROLES) {
+      expect(checksRole(body, role), `brak has_role(..., '${role}') w ścieżce decyzyjnej`).toBe(
+        true,
+      );
+    }
   });
 
   it("nadal odrzuca zmianę wyjątkiem, a nie cichym revertem", () => {

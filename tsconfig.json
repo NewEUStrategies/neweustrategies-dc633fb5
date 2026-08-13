@@ -22,8 +22,19 @@
     /* Linting */
     "skipLibCheck": true,
     "strict": true,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
+    /*
+      Martwy kod oblewa `tsc`, a nie tylko brudzi przegląd.
+      Dług wyzerowany w PR „siedem pozycji z audytu": 171 -> 0 deklaracji.
+      Po drodze pod tymi deklaracjami znalazły się CZTERY zerwane ścieżki
+      funkcji, których nie widziała żadna bramka (szybka emotka w czacie,
+      przewodnik po edytorze bloków, pole `emailGatewayConfigured` w panelu
+      zdrowia, inwariant ról bramki weryfikacji) - dlatego to nie jest
+      kosmetyka, a wykrywacz niedokończonych zmian.
+      Konwencja dla świadomie nieużywanego parametru: prefiks `_`
+      (`_event`, `_input`) - `tsc` go przepuszcza, a czytelnik widzi intencję.
+    */
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
     "paths": {

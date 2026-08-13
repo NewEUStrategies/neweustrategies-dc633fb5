@@ -77,7 +77,7 @@ vi.mock("@/lib/network/useRecommendations", async (importOriginal) => {
   };
 });
 vi.mock("@/lib/i18n/format", () => ({
-  formatDate: (date: Date, lang: string) => `data(${lang})`,
+  formatDate: (_date: Date, lang: string) => `data(${lang})`,
 }));
 vi.mock("@/lib/appDialogs", () => ({
   confirmDialog: (opts: Record<string, unknown>) => {

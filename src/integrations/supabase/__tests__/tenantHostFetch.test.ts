@@ -156,7 +156,7 @@ describe("fetchWithTenantHost - deadline SSR", () => {
     process.env.SSR_DB_DEADLINE_MS = "30";
     vi.stubGlobal(
       "fetch",
-      (input: RequestInfo | URL, init?: RequestInit) =>
+      (_input: RequestInfo | URL, init?: RequestInit) =>
         new Promise<Response>((_resolve, reject) => {
           init?.signal?.addEventListener("abort", () => reject(init.signal?.reason), {
             once: true,
@@ -172,7 +172,7 @@ describe("fetchWithTenantHost - deadline SSR", () => {
     const controller = new AbortController();
     vi.stubGlobal(
       "fetch",
-      (input: RequestInfo | URL, init?: RequestInit) =>
+      (_input: RequestInfo | URL, init?: RequestInit) =>
         new Promise<Response>((_resolve, reject) => {
           // Abort może wyprzedzić rejestrację listenera (fetch woła się po
           // asynchronicznej rezolucji hosta) - honoruj stan `aborted`.

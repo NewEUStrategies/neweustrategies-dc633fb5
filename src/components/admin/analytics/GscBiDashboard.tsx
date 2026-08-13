@@ -534,9 +534,18 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
     );
   }
 
+  // Nagłówki CSV czytane per kolumna, nie jedną tablicą przez `returnObjects`:
+  // bramka rozjazdu kod <-> słownik widzi jako wpis tylko liść tekstowy, więc
+  // tablica pod kluczem uchodziła za klucz nieistniejący w obu językach.
+  const metricHeaders = [
+    t("adminAnalytics.gsc.csvHeaders.clicks"),
+    t("adminAnalytics.gsc.csvHeaders.impressions"),
+    t("adminAnalytics.gsc.csvHeaders.ctr"),
+    t("adminAnalytics.gsc.csvHeaders.position"),
+  ];
   const trendCsv = {
     filename: "gsc-trend",
-    headers: t("adminAnalytics.gsc.csvTrendHeaders", { returnObjects: true }) as string[],
+    headers: [t("adminAnalytics.gsc.csvHeaders.date"), ...metricHeaders],
     rows: dateRows.map((r) => [
       r.keys[0] ?? "",
       r.clicks,
@@ -547,7 +556,7 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
   };
   const queriesCsv = {
     filename: "gsc-queries",
-    headers: t("adminAnalytics.gsc.csvQueriesHeaders", { returnObjects: true }) as string[],
+    headers: [t("adminAnalytics.gsc.csvHeaders.query"), ...metricHeaders],
     rows: queryRows.map((r) => [
       r.keys[0] ?? "",
       r.clicks,

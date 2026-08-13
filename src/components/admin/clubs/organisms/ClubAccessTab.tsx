@@ -15,6 +15,7 @@ import {
   type AccessSentenceInput,
 } from "@/lib/clubs/accessSentence";
 import { CLUB_PLAN_TIERS, planTierFromRank, rankFromPlanTier } from "@/lib/clubs/planTiers";
+import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 import {
   CLUB_ATTRIBUTION_MODES,
   CLUB_JOIN_POLICIES,
@@ -44,6 +45,7 @@ interface ClubAccessTabProps {
 }
 
 export function ClubAccessTab({ draft, onChange, disabled }: ClubAccessTabProps) {
+  ensureAdminClubsI18n();
   const { t } = useTranslation();
 
   // Etykiety zdania biorą się z tych samych kluczy, co droplisty - jedno

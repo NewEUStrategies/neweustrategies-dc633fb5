@@ -2,43 +2,22 @@
 // Publiczne odczyty przechodzą przez RLS (tylko status = 'published'),
 // obserwowanie jest owner-only - insert wymaga jawnego tenant_id dossier.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { Tables } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
-
-export interface PolicyItem {
-  id: string;
-  tenant_id: string;
-  slug: string;
-  title_pl: string;
-  title_en: string;
-  summary_pl: string | null;
-  summary_en: string | null;
-  policy_area: string;
-  stage: string;
-  importance: number;
-  reference: string | null;
-  source_url: string | null;
-  rapporteur: string | null;
-  committee: string | null;
-  lead_dg: string | null;
-  next_milestone_pl: string | null;
-  next_milestone_en: string | null;
-  next_milestone_at: string | null;
-  status: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface PolicyUpdate {
-  id: string;
-  item_id: string;
-  note_pl: string;
-  note_en: string;
-  stage_from: string | null;
-  stage_to: string | null;
-  source_url: string | null;
-  happened_on: string;
-  created_at: string;
-}
+/**
+ * Kolumny czytane przez ten kod - WYPROWADZONE z wygenerowanych typów.
+ * Ręcznie przepisany kształt wiersza rozjeżdża się z bazą bez żadnego sygnału,
+ * bo `as unknown as` kasuje różnicę; `Pick` po `Tables<>` zamienia zmianę
+ * kolumny w migracji na błąd kompilacji dokładnie tutaj.
+ */
+export type PolicyItem = Pick<Tables<"eu_policy_items">, "id" | "tenant_id" | "slug" | "title_pl" | "title_en" | "summary_pl" | "summary_en" | "policy_area" | "stage" | "importance" | "reference" | "source_url" | "rapporteur" | "committee" | "lead_dg" | "next_milestone_pl" | "next_milestone_en" | "next_milestone_at" | "status" | "created_at" | "updated_at">;
+/**
+ * Kolumny czytane przez ten kod - WYPROWADZONE z wygenerowanych typów.
+ * Ręcznie przepisany kształt wiersza rozjeżdża się z bazą bez żadnego sygnału,
+ * bo `as unknown as` kasuje różnicę; `Pick` po `Tables<>` zamienia zmianę
+ * kolumny w migracji na błąd kompilacji dokładnie tutaj.
+ */
+export type PolicyUpdate = Pick<Tables<"eu_policy_updates">, "id" | "item_id" | "note_pl" | "note_en" | "stage_from" | "stage_to" | "source_url" | "happened_on" | "created_at">;
 
 export interface PolicyItemFilters {
   area?: string;
@@ -48,11 +27,12 @@ export interface PolicyItemFilters {
 /** Rozmiar okna listy; "pokaż więcej" rośnie o tę wartość (wzorzec bloga). */
 export const TRACKER_PAGE_SIZE = 24;
 
+// JEDEN literał, nie konkatenacja. Sklejanie (`"a," + "b"`) rozszerza typ do
+// `string`, a wtedy typowany klient nie potrafi zweryfikować listy kolumn
+// i zwraca `GenericStringError[]` - co w praktyce wymusza `as unknown as`.
+// Literał pozwala klientowi sprawdzić KAŻDĄ kolumnę wobec wygenerowanych typów.
 const ITEM_FIELDS =
-  "id,tenant_id,slug,title_pl,title_en,summary_pl,summary_en,policy_area,stage,importance," +
-  "reference,source_url,rapporteur,committee,lead_dg," +
-  "next_milestone_pl,next_milestone_en,next_milestone_at,status," +
-  "created_at,updated_at";
+  "id,tenant_id,slug,title_pl,title_en,summary_pl,summary_en,policy_area,stage,importance,reference,source_url,rapporteur,committee,lead_dg,next_milestone_pl,next_milestone_en,next_milestone_at,status,created_at,updated_at";
 
 const UPDATE_FIELDS =
   "id,item_id,note_pl,note_en,stage_from,stage_to,source_url,happened_on,created_at";
@@ -73,7 +53,7 @@ export async function fetchPublishedItems(
   if (filters.stage) query = query.eq("stage", filters.stage);
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []) as unknown as PolicyItem[];
+  return (data ?? []) as PolicyItem[];
 }
 
 /** Pojedyncze opublikowane dossier po slugu (null gdy brak/nieopublikowane). */
@@ -85,7 +65,7 @@ export async function fetchItemBySlug(slug: string): Promise<PolicyItem | null> 
     .eq("status", "published")
     .maybeSingle();
   if (error) throw error;
-  return (data ?? null) as unknown as PolicyItem | null;
+  return (data ?? null) as PolicyItem | null;
 }
 
 /** Oś czasu dossier - najnowsze wydarzenia na górze. */
@@ -98,7 +78,7 @@ export async function fetchUpdates(itemId: string): Promise<PolicyUpdate[]> {
     .order("created_at", { ascending: false })
     .limit(100);
   if (error) throw error;
-  return (data ?? []) as unknown as PolicyUpdate[];
+  return (data ?? []) as PolicyUpdate[];
 }
 
 /** Publiczne liczniki obserwujących (RPC omija owner-only RLS follows). */
@@ -233,15 +213,13 @@ export function useMyFollows(userId: string | undefined) {
 // ---------------------------------------------------------------------------
 // Stanowiska państw członkowskich (explorer)
 // ---------------------------------------------------------------------------
-
-export interface PolicyPosition {
-  item_id: string;
-  country_code: string;
-  stance: string;
-  note_pl: string | null;
-  note_en: string | null;
-  updated_at: string;
-}
+/**
+ * Kolumny czytane przez ten kod - WYPROWADZONE z wygenerowanych typów.
+ * Ręcznie przepisany kształt wiersza rozjeżdża się z bazą bez żadnego sygnału,
+ * bo `as unknown as` kasuje różnicę; `Pick` po `Tables<>` zamienia zmianę
+ * kolumny w migracji na błąd kompilacji dokładnie tutaj.
+ */
+export type PolicyPosition = Pick<Tables<"eu_policy_positions">, "item_id" | "country_code" | "stance" | "note_pl" | "note_en" | "updated_at">;
 
 const POSITION_FIELDS = "item_id,country_code,stance,note_pl,note_en,updated_at";
 
@@ -253,7 +231,7 @@ export async function fetchPositions(itemId: string): Promise<PolicyPosition[]> 
     .eq("item_id", itemId)
     .order("country_code", { ascending: true });
   if (error) throw error;
-  return (data ?? []) as unknown as PolicyPosition[];
+  return (data ?? []) as PolicyPosition[];
 }
 
 export function useItemPositions(itemId: string | undefined) {
@@ -273,7 +251,7 @@ export async function fetchPositionsForItems(itemIds: string[]): Promise<PolicyP
     .select(POSITION_FIELDS)
     .in("item_id", itemIds);
   if (error) throw error;
-  return (data ?? []) as unknown as PolicyPosition[];
+  return (data ?? []) as PolicyPosition[];
 }
 
 export function usePositionsForItems(itemIds: string[]) {

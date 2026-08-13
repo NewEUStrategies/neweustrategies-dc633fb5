@@ -178,7 +178,7 @@ async function revokeOrder(event: RefundEvent): Promise<RefundOutcome> {
 }
 
 /** Zwrot darowizny - bez uprawnień, ale status musi się zgadzać z księgami. */
-async function revokeDonation(event: RefundEvent, txnId: string): Promise<RefundOutcome> {
+async function revokeDonation(_event: RefundEvent, txnId: string): Promise<RefundOutcome> {
   const supabase = await admin();
   const { data, error } = await supabase
     .from("donations")

@@ -33,7 +33,7 @@ function hostOf(href: string): string {
 }
 
 function LinkSegment({ href, raw }: { href: string; raw: string }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const preview = useClubLinkPreview(href, open);
   const data = preview.data ?? null;

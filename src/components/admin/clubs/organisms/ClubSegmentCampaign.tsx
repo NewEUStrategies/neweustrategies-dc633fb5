@@ -23,7 +23,7 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { uiLang } from "@/lib/i18n/format";
-import { pickLocalized, type LocaleCode } from "@/lib/i18n/pickLocalized";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { toast } from "sonner";
 import { Send, Users2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,6 +52,7 @@ import {
   type ClubSegmentRule,
 } from "@/lib/clubs/types";
 import { PROFILE_BADGE_CATALOG, PROFILE_BADGE_KINDS } from "@/lib/profile/badgeCatalog";
+import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 
 /** Role możliwe do nadania kampanią. `lead` celowo poza listą - prowadzącego
  *  wyznacza się imiennie, nie masowo. */
@@ -59,6 +60,7 @@ const CAMPAIGN_ROLES = ["moderator", "member", "observer"] as const;
 type CampaignRole = (typeof CAMPAIGN_ROLES)[number];
 
 export function ClubSegmentCampaign({ clubId }: { clubId: string }) {
+  ensureAdminClubsI18n();
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
   const [kind, setKind] = useState<ClubSegmentKind>("badge");

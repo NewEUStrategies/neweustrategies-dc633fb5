@@ -31,6 +31,7 @@ import {
   type ClubVisibility,
 } from "@/lib/clubs/types";
 import { ensureClubI18n } from "@/lib/i18n-club";
+import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
 export const Route = createFileRoute("/admin/community/clubs/")({
@@ -41,8 +42,9 @@ export const Route = createFileRoute("/admin/community/clubs/")({
 const ANY = "__any__";
 
 function AdminClubsList() {
+  ensureAdminClubsI18n();
   ensureClubI18n();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
 

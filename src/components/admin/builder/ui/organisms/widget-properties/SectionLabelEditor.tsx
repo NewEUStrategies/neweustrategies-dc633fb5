@@ -1,5 +1,5 @@
 // Organism: section-label widget visual editor (variant + accent color + link).
-import { ChevronDown, ChevronUp, X } from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
 import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
@@ -72,7 +72,6 @@ import {
   SECTION_LABEL_ARROWS,
   SectionLabelRender,
   readSectionLabelProps,
-  type SectionLabelVariant,
 } from "@/lib/builder/sectionLabelVariants";
 
 // Kompaktowy natywny select - spójny z resztą paneli właściwości.

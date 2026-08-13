@@ -251,6 +251,43 @@ jobs:
       - name: No stale `as never` casts on the Supabase boundary
         run: bun run check:stale-never-casts
 
+      # Blocking gate on the CAUSE of those casts: generated types going stale.
+      # `src/integrations/supabase/types.ts` is generated from the database, and
+      # the migrations are forward-only. Add a column by migration without
+      # regenerating, and code reading that column no longer compiles - at which
+      # point the cheapest way out is `as unknown as SomeRow` with a hand-written
+      # shape, which from then on erases EVERY difference from the database,
+      # including next year's. Stale types PRODUCE casts; casts hide the next
+      # drift. Measured on 2026-08-13: 28 columns across 11 tables exist in the
+      # migrations and not in the types - four of them `tenant_id`, the column
+      # tenant isolation stands on. That debt is frozen in an explicit baseline
+      # the gate can only shrink; a NEW column without regeneration fails here.
+      - name: Generated Supabase types are not stale vs migrations
+        run: bun run check:types-freshness
+
+      # Blocking gate on the SYMPTOM: a query result cast onto a row shape typed
+      # by hand next to it. Three of the first three files audited had already
+      # drifted - `retry_count: number | null` against a NOT NULL column,
+      # `status`/`kind` as `string` against ENUMs (so a comparison with a literal
+      # outside the enum compiled and never matched), `metadata` as an object
+      # against a `jsonb` column whose type is `Json`. Derive the shape from
+      # `Tables<...>` instead and a renamed column becomes a compile error in the
+      # file that reads it. Exceptions live in the script WITH a reason.
+      - name: No hand-written row shapes behind Supabase casts
+        run: bun run check:db-row-casts
+
+      # Blocking ratchet on user-facing text that branches on language in code
+      # (`isPl ? "Zapisz" : "Save"`, `l("Zapisz", "Save")`). Every such form
+      # bypasses the PL/EN parity gate - the string exists only in code, so
+      # there is nothing to compare - and closes the door on a third language.
+      # Measured on 2026-08-13: 1 641 occurrences in 166 files. The debt is
+      # frozen PER FILE: a count may only shrink, and a file absent from the
+      # baseline must be zero, so new code cannot start out in debt. A single
+      # global counter would be compensable - trimming twenty occurrences in one
+      # file would "pay for" adding twenty in another.
+      - name: No new hardcoded PL/EN text in code
+        run: bun run check:i18n-hardcoded
+
       # Blocking wiring gate: every env var a workflow exports must have a
       # reader. Workflow and script are separately valid when the names drift
       # apart, and both sides tolerate a missing value, so the combination

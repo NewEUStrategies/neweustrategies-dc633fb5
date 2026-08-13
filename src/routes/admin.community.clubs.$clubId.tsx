@@ -12,7 +12,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { uiLang } from "@/lib/i18n/format";
-import { pickLocalized, type LocaleCode } from "@/lib/i18n/pickLocalized";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2, Save, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -54,6 +54,7 @@ import {
   type ClubVisibility,
 } from "@/lib/clubs/types";
 import { ensureClubI18n } from "@/lib/i18n-club";
+import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 
 const TAB_KEYS = [
   "general",
@@ -86,6 +87,7 @@ function narrow<T extends string>(value: string | null, allowed: readonly T[], f
 }
 
 function toGeneralDraft(club: AdminClubDetailRow): ClubGeneralDraft {
+  ensureAdminClubsI18n();
   return {
     slug: club.slug,
     namePl: club.name_pl,

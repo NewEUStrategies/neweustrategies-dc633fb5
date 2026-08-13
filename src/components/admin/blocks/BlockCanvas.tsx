@@ -13,7 +13,7 @@
 //     akapitu), Shift+Home/End, pisanie po zaznaczeniu wielu bloków,
 //   - schowek Ctrl+C/X/V przez `useBlockClipboard` (interop z WordPressem).
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
   DndContext,
@@ -48,111 +48,6 @@ import { BlockAppender } from "./molecules/BlockAppender";
 import { SortableBlockItem, type BlockTransformOption } from "./molecules/SortableBlockItem";
 import { getBlockVariants } from "@/lib/blocks/variants";
 import { BLOCK_SPECS } from "@/lib/blocks/registry";
-import { ParagraphBlock } from "./edit/Paragraph";
-import { HeadingBlock } from "./edit/Heading";
-import { ImageBlock } from "./edit/Image";
-import { ListBlockEdit } from "./edit/ListBlock";
-import { QuoteBlock } from "./edit/Quote";
-import { CodeBlock } from "./edit/Code";
-import { EmbedBlock } from "./edit/Embed";
-import { VideoBlock } from "./edit/Video";
-import { GalleryBlock } from "./edit/Gallery";
-import { SeparatorBlock } from "./edit/Separator";
-import { CalloutBlock } from "./edit/Callout";
-import { TableBlockEdit } from "./edit/Table";
-import { ButtonBlock } from "./edit/Button";
-import { ColumnsBlock } from "./edit/Columns";
-import { HtmlBlock } from "./edit/Html";
-import { ReviewBlock } from "./edit/Review";
-import { ProsConsBlock } from "./edit/ProsCons";
-import { SpoilerBlock } from "./edit/Spoiler";
-import { FaqBlock } from "./edit/Faq";
-import { TocBlock } from "./edit/Toc";
-import { NewsletterBlock } from "./edit/Newsletter";
-import { AffiliateBlock } from "./edit/Affiliate";
-import { XQuoteBlock } from "./edit/XQuote";
-import { CompareBlock } from "./edit/Compare";
-import { LinkPreviewBlock } from "./edit/LinkPreviewBlock";
-import { LoginFormBlock } from "./edit/LoginForm";
-import { RegisterFormBlock } from "./edit/RegisterForm";
-import { LostPasswordFormBlock } from "./edit/LostPasswordForm";
-import { ResetPasswordFormBlock } from "./edit/ResetPasswordForm";
-import { AudioBlock } from "./edit/Audio";
-import { CoverBlock } from "./edit/Cover";
-import { FileBlock } from "./edit/File";
-import { MediaTextBlock } from "./edit/MediaText";
-import { GroupBlock } from "./edit/Group";
-import { SpacerBlock } from "./edit/Spacer";
-import { PageBreakBlock } from "./edit/PageBreak";
-import { ReadMoreBlock } from "./edit/ReadMore";
-import { LiveBlogBlock } from "./edit/LiveBlog";
-import { PullquoteBlock } from "./edit/Pullquote";
-import { PreformattedBlock } from "./edit/Preformatted";
-import { VerseBlock } from "./edit/Verse";
-import { DetailsBlock } from "./edit/Details";
-import { ButtonsBlock } from "./edit/Buttons";
-import { SocialIconsBlock } from "./edit/SocialIcons";
-import { SearchBlock } from "./edit/Search";
-import { LatestPostsBlock } from "./edit/LatestPosts";
-import { TagCloudBlock } from "./edit/TagCloud";
-import { CategoriesListBlock } from "./edit/CategoriesList";
-import { ArchivesBlock } from "./edit/Archives";
-import { CalendarBlock } from "./edit/Calendar";
-import {
-  PostTitleBlock,
-  PostDateBlock,
-  PostAuthorBlock,
-  PostExcerptBlock,
-  PostFeaturedImageBlock,
-  PostTermsBlock,
-  SiteTitleBlock,
-  SiteTaglineBlock,
-  SiteLogoBlock,
-} from "./edit/ContextBlocks";
-import { NavigationBlock, PostNavigationLinkBlock, QueryLoopBlock } from "./edit/NavLoopBlocks";
-import {
-  BreadcrumbsBlock,
-  ReadingTimeBlock,
-  ShareButtonsBlock,
-  PostViewsBlock,
-} from "./edit/PostUtilityBlocks";
-import { AuthorBioBlock, RelatedPostsBlock } from "./edit/PostContextBlocks";
-import {
-  PostStatsBlock,
-  PostRatingBlock,
-  LoginOutBlock,
-  MorePostsBlock,
-} from "./edit/FoxizExtraBlocks";
-import { AccordionBlock, TabsBlock, CountdownBlock, ProgressBlock } from "./edit/InteractiveBlocks";
-import { PollBlockEdit } from "./edit/Poll";
-import {
-  IconBoxBlock,
-  StatsCounterBlock,
-  TestimonialsBlock,
-  PricingTableBlock,
-  TimelineBlock,
-} from "./edit/PresentationBlocks";
-import {
-  HeroBlock,
-  CtaSectionBlock,
-  ImageCarouselBlock,
-  ContactFormBlock,
-  MapBlock,
-} from "./edit/MarketingBlocks";
-import {
-  TeamGridBlock,
-  LogoGridBlock,
-  FeatureGridBlock,
-  AlertBannerBlock,
-  DividerTextBlock,
-} from "./edit/DataSocialBlocks";
-import {
-  StepListBlock,
-  ComparisonTableBlock,
-  BannerImageBlock,
-  VideoHeroBlock,
-} from "./edit/ConversionBlocks";
-import { ChartBlock, DataMapBlock } from "./edit/DataVizBlocks";
 
 interface Props {
   doc: BlocksDoc;

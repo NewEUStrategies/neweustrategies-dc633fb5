@@ -10,6 +10,7 @@
 // Reszta CRUD idzie klientem pod RLS: policy „integration_endpoints_staff_all"
 // wymusza tenant + rolę staff, a triggery bazy pinują tenant_id/created_by.
 import { useMemo, useState } from "react";
+import type { Tables } from "@/integrations/supabase/types";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -37,7 +38,6 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -70,18 +70,13 @@ export const Route = createFileRoute("/admin/integrations")({
   }),
   component: AdminIntegrationsPage,
 });
-
-interface EndpointRow {
-  id: string;
-  name: string;
-  integration: string;
-  url: string;
-  event_types: string[];
-  enabled: boolean;
-  secret_id: string | null;
-  created_at: string;
-  updated_at: string;
-}
+/**
+ * Kolumny czytane przez ten kod - WYPROWADZONE z wygenerowanych typów.
+ * Ręcznie przepisany kształt wiersza rozjeżdża się z bazą bez żadnego sygnału,
+ * bo `as unknown as` kasuje różnicę; `Pick` po `Tables<>` zamienia zmianę
+ * kolumny w migracji na błąd kompilacji dokładnie tutaj.
+ */
+type EndpointRow = Pick<Tables<"integration_endpoints">, "id" | "name" | "integration" | "url" | "event_types" | "enabled" | "secret_id" | "created_at" | "updated_at">;
 
 interface DraftEndpoint {
   id: string | null;
@@ -189,7 +184,7 @@ function AdminIntegrationsPage() {
         .select("id,name,integration,url,event_types,enabled,secret_id,created_at,updated_at")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as unknown as EndpointRow[];
+      return (data ?? []) as EndpointRow[];
     },
   });
 

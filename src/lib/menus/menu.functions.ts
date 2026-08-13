@@ -168,9 +168,14 @@ export const saveMenu = createServerFn({ method: "POST" })
     const queue: (string | null)[] = [null];
     while (queue.length) {
       const parent = queue.shift() ?? null;
-      const batch = (byParent.get(parent) ?? []).filter(
-        (r) => parent === null || inserted.has(parent),
-      );
+      // Bez filtru: `parent` trafia do kolejki DOPIERO po swoim wstawieniu
+      // (patrz `inserted.add` + `queue.push` niżej), więc warunek
+      // `parent === null || inserted.has(parent)` był tożsamościowo prawdziwy
+      // dla całej partii - stąd nieużywany argument predykatu.
+      // Uwaga na zachowanie, którego ta zmiana NIE rusza: wpis wskazujący
+      // rodzica nieobecnego w payloadzie nigdy nie zostanie wstawiony, bo jego
+      // rodzic nie wejdzie do kolejki. Tak było i tak zostaje.
+      const batch = byParent.get(parent) ?? [];
       if (batch.length === 0) continue;
       const { error: insErr } = await supabase.from("menu_items").insert(batch);
       if (insErr) throw new Error(`insert items: ${insErr.message}`);

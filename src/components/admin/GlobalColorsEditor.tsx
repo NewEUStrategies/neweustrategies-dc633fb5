@@ -587,7 +587,6 @@ function ColorRow({
   recentColors: string[];
 }) {
   const { t } = useTranslation();
-  const effective = value || defaultValue || "#ffffff";
   const handlePick = (v: string) => {
     onChange(v);
     onCommit(v);

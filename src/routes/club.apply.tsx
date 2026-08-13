@@ -24,9 +24,6 @@ import { useCurrentTier } from "@/lib/billing/tiers";
 import { setMyConsent } from "@/lib/consents.functions";
 import { getConsentDefinition } from "@/lib/notifications/consentCatalog";
 import { formatDate } from "@/lib/i18n/format";
-import { activeLang } from "@/lib/seo/head";
-import { getRequestUrl } from "@/lib/seo/request";
-import { buildContentHead } from "@/lib/seo/meta";
 import { findClubSpecialization } from "@/lib/clubs/specializations";
 import {
   useClubSpecializations,
@@ -50,7 +47,8 @@ import {
   type ClubApplyField,
   type ClubApplyValues,
 } from "@/lib/clubs/applyValidation";
-import { clubEn, clubPl, ensureClubI18n } from "@/lib/i18n-club";
+import { ensureClubI18n } from "@/lib/i18n-club";
+import { buildClubApplyHead } from "@/lib/clubs/applyHead";
 
 interface ApplySearch {
   spec?: string;
@@ -74,32 +72,10 @@ const PREFILL_FIELDS = [
 /** Klucz cache historii wlasnych zgloszen - uniewazniany po wyslaniu. */
 const MY_APPLICATIONS_KEY = ["club-applications", "mine"] as const;
 
-/**
- * Meta trasy. Jezyk bierzemy z ADRESU zadania, a nie z singletona i18next:
- * `head()` biegnie na serwerze wspoldzielony miedzy rownolegle zadania, wiec
- * jego `language` potrafi nalezec do innego uzytkownika - dokladnie ten sam
- * mechanizm co strony specjalizacji (`lib/clubs/specializationHead.ts`).
- * Tresc czyta drzewa slownika wprost, zeby PL i EN mialy jedno zrodlo prawdy
- * z reszta strony, a `buildContentHead` dodaje canonical, hreflang i og:locale.
- */
-function buildApplyHead(): ReturnType<typeof buildContentHead> {
-  const url = getRequestUrl() || "/club/apply";
-  const lang = activeLang(url);
-  const copy = (lang === "en" ? clubEn : clubPl).club.spec.apply.meta;
-  return buildContentHead({
-    url,
-    lang,
-    type: "website",
-    title: copy.title,
-    description: copy.description,
-    robots: "index, follow",
-  });
-}
-
 export const Route = createFileRoute("/club/apply")({
   validateSearch: (raw: Record<string, unknown>): ApplySearch =>
     typeof raw.spec === "string" ? { spec: raw.spec } : {},
-  head: () => buildApplyHead(),
+  head: buildClubApplyHead,
   component: ClubApplyPage,
 });
 

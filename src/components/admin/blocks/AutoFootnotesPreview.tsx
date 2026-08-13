@@ -109,23 +109,16 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
         </h3>
         <span
           className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground/80 bg-muted/60 px-1.5 py-0.5 rounded"
-          title={t("admin.autoFootnotes.hint", {
-            defaultValue: "Zbierane automatycznie z [fn]…[/fn] w treści.",
-          })}
+          title={t("admin.autoFootnotes.hint")}
         >
-          {t("admin.autoFootnotes.badge", { defaultValue: "auto z [fn]…[/fn]" })}
+          {t("admin.autoFootnotes.badge")}
         </span>
         <span className="text-[11px] text-muted-foreground">
-          {t("admin.autoFootnotes.count", {
-            defaultValue: "{{count}} przypis(y)",
-            count: entries.length,
-          })}
+          {t("admin.autoFootnotes.count", { count: entries.length })}
         </span>
         {canEdit ? (
           <span className="ml-auto text-[10px] text-muted-foreground/80">
-            {t("admin.autoFootnotes.editableHint", {
-              defaultValue: "Kliknij ikonę ołówka, aby edytować - zmiany trafiają do treści.",
-            })}
+            {t("admin.autoFootnotes.editableHint")}
           </span>
         ) : null}
       </div>
@@ -136,10 +129,7 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
         >
           <div className="flex items-center gap-1.5 font-semibold mb-1">
             <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
-            {t("admin.autoFootnotes.warningsTitle", {
-              defaultValue: "Wykryto problem(y) z markerami [fn]…[/fn]: {{count}}",
-              count: issues.length,
-            })}
+            {t("admin.autoFootnotes.warningsTitle", { count: issues.length })}
           </div>
           <ul className="space-y-1 pl-5 list-disc">
             {issues.map((iss, idx) => (
@@ -148,12 +138,9 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
                   type="button"
                   onClick={() => scrollToOrigin(iss.path)}
                   className="font-medium underline decoration-dotted underline-offset-2 hover:text-amber-950 dark:hover:text-amber-50"
-                  title={t("admin.autoFootnotes.jumpToBlock", {
-                    defaultValue: "Przejdź do bloku w kanwie",
-                  })}
+                  title={t("admin.autoFootnotes.jumpToBlock")}
                 >
                   {t("admin.autoFootnotes.blockLabel", {
-                    defaultValue: "Blok #{{n}} ({{type}})",
                     n: iss.blockIndex + 1,
                     type: iss.blockType,
                   })}
@@ -196,10 +183,7 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
                       autoFocus
                       rows={2}
                       className="text-sm"
-                      aria-label={t("admin.autoFootnotes.editLabel", {
-                        defaultValue: "Treść przypisu nr {{n}}",
-                        n: e.id,
-                      })}
+                      aria-label={t("admin.autoFootnotes.editLabel", { n: e.id })}
                     />
                     <div className="flex items-center gap-1.5">
                       <button
@@ -219,7 +203,7 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
                         {t("common.cancel", { defaultValue: "Anuluj" })}
                       </button>
                       <span className="text-[10px] text-muted-foreground/70 ml-auto">
-                        {t("admin.autoFootnotes.hotkey", { defaultValue: "⌘/Ctrl+Enter zapisuje" })}
+                        {t("admin.autoFootnotes.hotkey")}
                       </span>
                     </div>
                   </div>
@@ -229,13 +213,8 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
                       type="button"
                       onClick={() => scrollToOrigin(e.origin.path)}
                       className="flex-1 text-left rounded hover:bg-muted/50 focus:bg-muted/50 focus:outline-none focus:ring-1 focus:ring-primary/40 px-1 -mx-1"
-                      title={t("admin.autoFootnotes.jumpHint", {
-                        defaultValue: "Przejdź do miejsca [fn] w kanwie",
-                      })}
-                      aria-label={t("admin.autoFootnotes.jumpAria", {
-                        defaultValue: "Przejdź do przypisu nr {{n}} w treści",
-                        n: e.id,
-                      })}
+                      title={t("admin.autoFootnotes.jumpHint")}
+                      aria-label={t("admin.autoFootnotes.jumpAria", { n: e.id })}
                     >
                       <span dangerouslySetInnerHTML={{ __html: renderFootnoteHtml(e.html) }} />
                     </button>
@@ -244,11 +223,8 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
                         <button
                           type="button"
                           onClick={() => startEdit(e)}
-                          title={t("common.edit", { defaultValue: "Edytuj" })}
-                          aria-label={t("admin.autoFootnotes.editLabel", {
-                            defaultValue: "Treść przypisu nr {{n}}",
-                            n: e.id,
-                          })}
+                          title={t("common.edit")}
+                          aria-label={t("admin.autoFootnotes.editLabel", { n: e.id })}
                           className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
                         >
                           <Pencil className="h-3 w-3" />
@@ -257,10 +233,7 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
                           type="button"
                           onClick={() => removeEntry(e)}
                           title={t("common.delete", { defaultValue: "Usuń" })}
-                          aria-label={t("admin.autoFootnotes.removeLabel", {
-                            defaultValue: "Usuń przypis nr {{n}}",
-                            n: e.id,
-                          })}
+                          aria-label={t("admin.autoFootnotes.removeLabel", { n: e.id })}
                           className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
                         >
                           <Trash2 className="h-3 w-3" />

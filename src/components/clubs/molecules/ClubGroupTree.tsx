@@ -200,7 +200,7 @@ export function ClubGroupTree({
   activeGroupId: string | null;
   onGroupChange: (groupId: string | null) => void;
 }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const tree = useMemo(() => buildClubGroupTree(groups), [groups]);
   const openPath = useMemo(
     () => clubGroupPath(tree, activeGroupId).map((node) => node.group.id),

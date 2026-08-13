@@ -48,7 +48,6 @@ export function DirectMessageButton({
   displayName,
   displayAvatar,
   compact,
-  iconOnly,
   className,
 }: DirectMessageButtonProps) {
   const { t } = useTranslation();

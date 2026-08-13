@@ -38,7 +38,7 @@ describe("SearchParams", () => {
 });
 
 // Facet count aggregation (pure helper inlined for test).
-function aggregateCounts<T extends { id: string }>(rows: Array<{ key: string }>) {
+function aggregateCounts(rows: Array<{ key: string }>) {
   const map = new Map<string, number>();
   rows.forEach((r) => map.set(r.key, (map.get(r.key) ?? 0) + 1));
   return Array.from(map.entries())

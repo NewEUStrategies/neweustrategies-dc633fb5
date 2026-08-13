@@ -207,7 +207,7 @@ function SectionTiles({
   canSeeMembers: boolean;
   counts?: SectionCounts;
 }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const visible = visibleSections(canSeeMembers);
 
   return (
@@ -252,7 +252,7 @@ export function ClubHubSectionBar({
   canSeeMembers: boolean;
   className?: string;
 }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   // Bez nagłówków grup: w poziomym scrollerze etykieta zjadałaby szerokość,
   // której i tak brakuje. Kolejność zostaje pogrupowana, więc sąsiedztwo
   // niesie tę samą informację, co nagłówek w kolumnie.

@@ -230,7 +230,7 @@ function ColumnEditor({
               <div key={i} className="rounded-md border border-border p-2 space-y-1">
                 <div className="grid grid-cols-2 gap-1">
                   <Input
-                    placeholder={lang === "pl" ? "Etykieta PL" : "Etykieta PL"}
+                    placeholder="Etykieta PL"
                     value={str(l[`label_${lang}`])}
                     onChange={(e) =>
                       updateLinks(

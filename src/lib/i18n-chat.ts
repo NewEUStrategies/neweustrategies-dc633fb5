@@ -31,6 +31,9 @@ export const chatPl = {
     send: "Wyślij",
     attach: "Dodaj załącznik",
     emoji: "Wstaw emoji",
+    // Etykieta przycisku jednego dotknięcia. Sama emotka jest w `{{emoji}}`,
+    // bo wybiera ją użytkownik per rozmowa (`chat.appearance.quickEmojiSection`).
+    quickEmojiSend: "Wyślij {{emoji}}",
     emojiSearch: "Szukaj emoji...",
     emojiNoResults: "Brak emoji dla tej frazy",
     typing: "pisze...",
@@ -80,6 +83,11 @@ export const chatPl = {
     minimize: "Zminimalizuj",
     close: "Zamknij",
     back: "Wstecz",
+    // Powrót z /messages na własny profil. Nie sięgamy po `network.backToProfile`
+    // (ten sam tekst), bo powierzchnia wiadomości nie rejestruje nakładki
+    // `i18n-network` - klucz z tamtego korzenia renderowałby się tu jako goła
+    // ścieżka.
+    backToProfile: "Wróć do profilu",
     copyMessage: "Kopiuj wiadomość",
     attachmentCaptionPlaceholder: "Dodaj opis (opcjonalnie)...",
     unread_one: "{{count}} nieprzeczytana wiadomość",
@@ -524,6 +532,7 @@ export const chatEn = {
     send: "Send",
     attach: "Add attachment",
     emoji: "Insert emoji",
+    quickEmojiSend: "Send {{emoji}}",
     emojiSearch: "Search emoji...",
     emojiNoResults: "No emoji match this search",
     typing: "is typing...",
@@ -571,6 +580,7 @@ export const chatEn = {
     minimize: "Minimize",
     close: "Close",
     back: "Back",
+    backToProfile: "Back to profile",
     copyMessage: "Copy message",
     attachmentCaptionPlaceholder: "Add a caption (optional)...",
     unread_one: "{{count}} unread message",

@@ -29,7 +29,7 @@ function createAppEmailTemplate(
       type,
       lang,
       siteUrl: SITE_URL,
-      firstName: readString(data, "firstName") ?? (lang === "pl" ? "Anna" : "Anna"),
+      firstName: readString(data, "firstName") ?? "Anna",
       vocativePl: lang === "pl" ? (readString(data, "vocativePl") ?? "Anno") : undefined,
       ctaUrl: readString(data, "ctaUrl") ?? SITE_URL,
       details: Array.isArray(data.details)

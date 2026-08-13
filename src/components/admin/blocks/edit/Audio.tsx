@@ -52,15 +52,11 @@ export function AudioBlock({ block, isActive, onChange }: Props) {
             className="w-full bg-transparent text-sm text-muted-foreground text-center italic border-none outline-none focus:ring-0 p-0"
           />
           <div className="flex items-center gap-2 justify-center text-[11px] text-muted-foreground">
-            <span className="uppercase tracking-wider">
-              {i18n.t("blocks.toolbar.source", { defaultValue: "Źródło" })}:
-            </span>
+            <span className="uppercase tracking-wider">{i18n.t("blocks.toolbar.source")}:</span>
             <input
               type="text"
               value={source}
-              placeholder={i18n.t("blocks.toolbar.sourceLabel", {
-                defaultValue: "Nazwa źródła (np. autor, agencja)",
-              })}
+              placeholder={i18n.t("blocks.toolbar.sourceLabel")}
               onChange={(e) =>
                 onChange({ ...block, data: { ...block.data, source: e.target.value } })
               }

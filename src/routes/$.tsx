@@ -17,7 +17,6 @@ import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 import { type CurrentPostCtx } from "@/lib/builder/currentPostContext";
 import { preferCanonicalBio } from "@/lib/profile/canonicalBio";
 import { ContentRenderer } from "@/components/content/ContentRenderer";
-import { resolveContentEngine } from "@/lib/content/contentEngine";
 import { prepareContentForRender } from "@/lib/content/prepareContent";
 import type { BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
 import { parseBuilderDoc } from "@/lib/builder/parse";
@@ -673,7 +672,6 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   });
   const doc = prepared.builderDoc;
   const processedHtml = prepared.html;
-  const engine = prepared.engine;
   const notes = prepared.footnotes;
   const articleRef = useRef<HTMLDivElement>(null);
 

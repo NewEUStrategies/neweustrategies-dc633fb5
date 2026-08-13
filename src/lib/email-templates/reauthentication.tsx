@@ -1,5 +1,3 @@
-import * as React from "react";
-
 import { Section, Text } from "@react-email/components";
 
 import { authCopy } from "./copy";
@@ -8,7 +6,6 @@ import {
   codeStyle,
   greeting,
   NesEmailLayout,
-  infoText,
   SecurityNote,
   smallPrint,
   text,
