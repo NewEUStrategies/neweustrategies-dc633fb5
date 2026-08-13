@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { ChevronDown, ChevronRight, RefreshCcw, RotateCw, Webhook } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 import { retryWebhookEvent } from "@/lib/billing/webhookRetry.functions";
 import { billingKeys } from "@/lib/billing/keys";
 import { Badge } from "@/components/ui/badge";
@@ -26,24 +27,38 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-interface WebhookLogRow {
-  id: string;
-  event_id: string;
-  event_type: string;
-  status: string;
-  environment: string;
-  error: string | null;
-  subscription_id: string | null;
-  customer_id: string | null;
-  user_id: string | null;
-  occurred_at: string | null;
-  created_at: string;
-  processed_at: string | null;
-  duration_ms: number | null;
-  retry_count: number | null;
-  last_retried_at: string | null;
-  payload: unknown;
-}
+/**
+ * Kolumny czytane przez ten panel - WYPROWADZONE z wygenerowanych typów, nie
+ * przepisane ręcznie.
+ *
+ * Ręczna kopia tego kształtu już się rozjechała z bazą: deklarowała
+ * `retry_count: number | null` przy kolumnie NOT NULL i `payload: unknown`
+ * zamiast `Json`. Rozjazd był niewidzialny, bo `as unknown as WebhookLogRow`
+ * kasuje dowolną różnicę - przy 760 migracjach forward-only zmiana nazwy
+ * kolumny nie oblewa `tsc`, tylko renderuje `undefined` w kolumnie tabeli.
+ *
+ * `Pick` po `Tables<>` wiąże listę z `select(...)` niżej: skreślenie kolumny
+ * w migracji jest teraz błędem KOMPILACJI w tym pliku.
+ */
+type WebhookLogRow = Pick<
+  Tables<"payment_webhook_events">,
+  | "id"
+  | "event_id"
+  | "event_type"
+  | "status"
+  | "environment"
+  | "error"
+  | "subscription_id"
+  | "customer_id"
+  | "user_id"
+  | "occurred_at"
+  | "created_at"
+  | "processed_at"
+  | "duration_ms"
+  | "retry_count"
+  | "last_retried_at"
+  | "payload"
+>;
 
 const STATUS_TONE: Record<string, string> = {
   processed: "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300",
@@ -101,7 +116,7 @@ export function AdminWebhookLogPanel() {
         .order("created_at", { ascending: false })
         .limit(300);
       if (error) throw error;
-      return (data ?? []) as unknown as WebhookLogRow[];
+      return (data ?? []) satisfies WebhookLogRow[];
     },
     staleTime: 15_000,
   });

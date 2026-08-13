@@ -3,6 +3,7 @@
 // z newsletter_subscribers wraz z consents i meta (JSONB) w czytelnym
 // atomowym layoucie. Read-only w Turze 3; edycja statusow w kolejnej.
 import { useQuery } from "@tanstack/react-query";
+import type { Json, Tables } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
@@ -14,6 +15,16 @@ import {
 import { Loader2 } from "lucide-react";
 import { sanitizeHtml } from "@/lib/sanitize";
 
+/**
+ * Wpis zgody, jak go czyta ten dialog. Kolumna `consents` jest w bazie `jsonb`,
+ * więc jej typem jest `Json` - czyli także napis, liczba i tablica napisów.
+ * Wcześniejszy `as unknown as FullSubRow` obiecywał tablicę obiektów i kod
+ * czytał `c.key` wprost; przy nietypowym ładunku (a to DANE OSOBOWE, wpisywane
+ * przez integracje) dawało to `undefined` w kolumnie „zgoda" - czyli pytanie
+ * „czy ta osoba zgodziła się na marketing" odpowiadane po cichu na nie.
+ * Zawężamy jawnie: element, który nie jest obiektem, jest POMIJANY, a nie
+ * renderowany jako puste pole.
+ */
 interface Consent {
   key?: string;
   text?: string;
@@ -22,24 +33,41 @@ interface Consent {
   at?: string;
 }
 
-interface FullSubRow {
-  id: string;
-  email: string;
-  display_name: string | null;
-  first_name: string | null;
-  last_name: string | null;
-  language: string;
-  status: string;
-  source: string | null;
-  source_form_name: string | null;
-  created_at: string;
-  confirmed_at: string | null;
-  unsubscribed_at: string | null;
-  updated_at: string;
-  meta: Record<string, unknown> | null;
-  consents: Consent[] | Record<string, unknown> | null;
-  user_agent: string | null;
+/** Napis albo `undefined` - bez rzutowania, bo `Json` bywa liczbą i tablicą. */
+function jsonStr(value: Json | undefined): string | undefined {
+  return typeof value === "string" ? value : undefined;
 }
+
+function readConsents(raw: Json): Consent[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((entry) => {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return [];
+    // Pola czytamy po jednym i sprawdzamy typ każdego - to jedyny sposób,
+    // żeby przejść z `Json` na kształt widoku BEZ rzutowania.
+    return [
+      {
+        key: jsonStr(entry["key"]),
+        text: jsonStr(entry["text"]),
+        given: entry["given"] === true,
+        lang: jsonStr(entry["lang"]),
+        at: jsonStr(entry["at"]),
+      },
+    ];
+  });
+}
+
+/** Pary `klucz -> wartość` z kolumny `meta` (też `jsonb`, więc też nie obiekt z definicji). */
+function readMeta(raw: Json): [string, string][] {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return [];
+  return Object.entries(raw).map(([key, value]) => [key, value === undefined ? "" : String(value)]);
+}
+/**
+ * Kolumny czytane przez ten kod - WYPROWADZONE z wygenerowanych typów.
+ * Ręcznie przepisany kształt wiersza rozjeżdża się z bazą bez żadnego sygnału,
+ * bo `as unknown as` kasuje różnicę; `Pick` po `Tables<>` zamienia zmianę
+ * kolumny w migracji na błąd kompilacji dokładnie tutaj.
+ */
+type FullSubRow = Pick<Tables<"newsletter_subscribers">, "id" | "email" | "display_name" | "first_name" | "last_name" | "language" | "status" | "source" | "source_form_name" | "created_at" | "confirmed_at" | "unsubscribed_at" | "updated_at" | "meta" | "consents" | "user_agent">;
 
 export function SubscriberDetailDialog({
   subscriberId,
@@ -62,7 +90,7 @@ export function SubscriberDetailDialog({
         .eq("id", subscriberId)
         .maybeSingle();
       if (error) throw error;
-      return (data as unknown as FullSubRow) ?? null;
+      return (data as FullSubRow) ?? null;
     },
   });
 
@@ -104,9 +132,9 @@ export function SubscriberDetailDialog({
             </Section>
 
             <Section title="Zgody">
-              {Array.isArray(data.consents) && data.consents.length ? (
+              {readConsents(data.consents).length ? (
                 <ul className="space-y-2">
-                  {data.consents.map((c, i) => (
+                  {readConsents(data.consents).map((c, i) => (
                     <li
                       key={i}
                       className="p-3 rounded-md bg-muted/40 border border-border/60 text-xs space-y-1"
@@ -144,12 +172,12 @@ export function SubscriberDetailDialog({
             </Section>
 
             <Section title="Metadane">
-              {data.meta && Object.keys(data.meta).length ? (
+              {readMeta(data.meta).length ? (
                 <dl className="grid grid-cols-[140px_1fr] gap-x-3 gap-y-1 text-xs">
-                  {Object.entries(data.meta).map(([k, v]) => (
+                  {readMeta(data.meta).map(([k, v]) => (
                     <div key={k} className="contents">
                       <dt className="text-muted-foreground font-mono">{k}</dt>
-                      <dd className="break-words">{String(v)}</dd>
+                      <dd className="break-words">{v}</dd>
                     </div>
                   ))}
                 </dl>

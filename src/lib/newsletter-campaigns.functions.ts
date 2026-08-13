@@ -38,7 +38,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireStaff } from "@/integrations/supabase/require-staff";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/integrations/supabase/types";
+import type { Database, Tables } from "@/integrations/supabase/types";
 import { rewriteTrackingLinks, trackingPixelImg } from "@/lib/newsletter/tracking";
 import { signTrackingToken, signTrackingLink } from "@/lib/newsletter/trackingToken.server";
 import { parseEmailDoc, type EmailDoc } from "@/lib/newsletter/emailDoc";
@@ -101,6 +101,18 @@ const AudienceFilter = z.object({
 });
 export type AudienceFilter = z.infer<typeof AudienceFilter>;
 
+/**
+ * Filtr odbiorców odczytany z kolumny `jsonb`. Jedno miejsce dla serwera
+ * i dla panelu - wcześniej każde z nich rzutowało kolumnę na własną rękę
+ * (`as unknown as`), więc uszkodzony ładunek dawał w jednym miejscu wyjątek,
+ * a w drugim ciche `undefined` w warunku zapytania. Nieparsowalny filtr
+ * degraduje się do pustego (czyli: status `subscribed`, bez zawężeń).
+ */
+export function readAudienceFilter(raw: unknown): AudienceFilter {
+  const parsed = AudienceFilter.safeParse(raw ?? {});
+  return parsed.success ? parsed.data : {};
+}
+
 const CampaignUpsert = z.object({
   id: z.string().uuid().optional(),
   name: z.string().trim().min(1).max(200),
@@ -119,36 +131,13 @@ const CampaignUpsert = z.object({
   audience_filter: AudienceFilter.default({}),
   scheduled_at: z.string().datetime().nullable().optional(),
 });
-
-export interface CampaignRow {
-  id: string;
-  tenant_id: string;
-  name: string;
-  subject_pl: string;
-  subject_en: string;
-  html_pl: string;
-  html_en: string;
-  editor: "html" | "doc";
-  // Struktura dokumentu kreatora (EmailDoc v1) - serializowalna przez
-  // TanStack Start. Surowy jsonb z bazy walidujemy parseEmailDoc na kliencie.
-  content_doc: EmailDoc | null;
-  from_name: string | null;
-  from_email: string | null;
-  reply_to: string | null;
-  audience_filter: AudienceFilter;
-  status: "draft" | "scheduled" | "sending" | "sent" | "failed" | "cancelled";
-  scheduled_at: string | null;
-  /** Dzierżawa aktywnego procesora (NULL/przeszłość = wznawialna). */
-  lease_until: string | null;
-  started_at: string | null;
-  finished_at: string | null;
-  recipient_count: number;
-  sent_count: number;
-  failed_count: number;
-  last_error: string | null;
-  created_at: string;
-  updated_at: string;
-}
+/**
+ * Kolumny czytane przez ten kod - WYPROWADZONE z wygenerowanych typów.
+ * Ręcznie przepisany kształt wiersza rozjeżdża się z bazą bez żadnego sygnału,
+ * bo `as unknown as` kasuje różnicę; `Pick` po `Tables<>` zamienia zmianę
+ * kolumny w migracji na błąd kompilacji dokładnie tutaj.
+ */
+export type CampaignRow = Pick<Tables<"newsletter_campaigns">, "id" | "tenant_id" | "name" | "subject_pl" | "subject_en" | "html_pl" | "html_en" | "editor" | "content_doc" | "from_name" | "from_email" | "reply_to" | "audience_filter" | "status" | "scheduled_at" | "lease_until" | "started_at" | "finished_at" | "recipient_count" | "sent_count" | "failed_count" | "last_error" | "created_at" | "updated_at">;
 
 function esc(v: string): string {
   return v.replace(
@@ -197,7 +186,7 @@ export const listCampaigns = createServerFn({ method: "GET" })
       .order("created_at", { ascending: false })
       .limit(200);
     if (error) throw new Error(error.message);
-    return (data ?? []) as unknown as CampaignRow[];
+    return (data ?? []) as CampaignRow[];
   });
 
 // ----------------------------------------------------------------------------
@@ -213,7 +202,7 @@ export const getCampaign = createServerFn({ method: "GET" })
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw new Error(error.message);
-    return (row ?? null) as unknown as CampaignRow | null;
+    return (row ?? null) as CampaignRow | null;
   });
 
 // ----------------------------------------------------------------------------
@@ -373,7 +362,7 @@ export const sendCampaignTest = createServerFn({ method: "POST" })
       .eq("tenant_id", tenantId)
       .maybeSingle();
     if (!c) throw new Error("not_found");
-    const camp = c as unknown as CampaignRow;
+    const camp = c as CampaignRow;
     const subject = data.language === "pl" ? camp.subject_pl : camp.subject_en;
     let rawHtml = data.language === "pl" ? camp.html_pl : camp.html_en;
     if (camp.editor === "doc") {
@@ -620,7 +609,7 @@ async function claimCampaign(
   }
   const { data: claimed, error } = await q.select("*").maybeSingle();
   if (error) throw new Error(error.message);
-  return (claimed ?? null) as unknown as CampaignRow | null;
+  return (claimed ?? null) as CampaignRow | null;
 }
 
 interface AudienceSubscriber {
@@ -659,7 +648,15 @@ async function runCampaignSend(
   const maxEmails = Math.max(1, opts.maxEmails ?? MAX_EMAILS_PER_INVOCATION);
   try {
     // Fetch audience.
-    const filter = camp.audience_filter ?? {};
+    //
+    // `audience_filter` jest kolumną `jsonb`, więc jej typem jest `Json` - także
+    // napis i tablica. Poprzednia wersja czytała `filter.statuses` wprost, co
+    // trzymało się wyłącznie dzięki `as unknown as CampaignRow`. Zamiast
+    // rzutować, PARSUJEMY tym samym schematem, który waliduje wejście z panelu
+    // (`AudienceFilter`) - ładunek uszkodzony przez ręczną edycję w bazie daje
+    // wtedy filtr pusty (wysyłka do statusu `subscribed`), a nie wyjątek
+    // w połowie kampanii ani ciche `undefined` w warunku `in()`.
+    const filter = readAudienceFilter(camp.audience_filter);
     const statuses = filter.statuses?.length ? filter.statuses : ["subscribed"];
     let q = admin
       .from("newsletter_subscribers")

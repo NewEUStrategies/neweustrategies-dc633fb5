@@ -15,6 +15,7 @@ import {
   countCampaignAudience,
   sendCampaignTest,
   sendCampaign,
+  readAudienceFilter,
   type AudienceFilter,
 } from "@/lib/newsletter-campaigns.functions";
 import { Button } from "@/components/ui/button";
@@ -128,7 +129,7 @@ function CampaignEditor() {
         from_name: campaign.from_name ?? "",
         from_email: campaign.from_email ?? "",
         reply_to: campaign.reply_to ?? "",
-        audience_filter: campaign.audience_filter ?? {},
+        audience_filter: readAudienceFilter(campaign.audience_filter),
         scheduled_at_local: isoToLocalInput(campaign.scheduled_at),
       });
     }

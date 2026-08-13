@@ -4,6 +4,7 @@
 // Funkcje: import/eksport CSV (dedupe po `key` z uzupełnianiem brakujących pól),
 // nasłuch zmian w czasie rzeczywistym, filtry (gender, origin, search).
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { Tables } from "@/integrations/supabase/types";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
@@ -45,31 +46,21 @@ import { normalize, type Gender } from "@/lib/greetings/greetings";
 export const Route = createFileRoute("/admin/names")({
   component: AdminNamesPage,
 });
-
-interface NameRow {
-  id: string;
-  name: string;
-  name_normalized: string;
-  key: string | null;
-  display_name: string | null;
-  gender: Gender;
-  origin_country: string | null;
-  origin: string | null;
-  vocative_pl: string | null;
-  instrumental_pl: string | null;
-  genitive_pl: string | null;
-  dative_pl: string | null;
-  vocative_en: string | null;
-  english_form: string | null;
-  is_compound: boolean;
-  notes: string | null;
-}
+/**
+ * Kolumny czytane przez ten kod - WYPROWADZONE z wygenerowanych typów.
+ * Ręcznie przepisany kształt wiersza rozjeżdża się z bazą bez żadnego sygnału,
+ * bo `as unknown as` kasuje różnicę; `Pick` po `Tables<>` zamienia zmianę
+ * kolumny w migracji na błąd kompilacji dokładnie tutaj.
+ */
+type NameRow = Pick<Tables<"name_dictionary">, "id" | "name" | "name_normalized" | "key" | "display_name" | "gender" | "origin_country" | "origin" | "vocative_pl" | "instrumental_pl" | "genitive_pl" | "dative_pl" | "vocative_en" | "english_form" | "is_compound" | "notes">;
 
 type RowPatch = Partial<Omit<NameRow, "id">>;
 
+// Jeden literał zamiast konkatenacji - patrz komentarz przy `ITEM_FIELDS`
+// w `lib/tracker/queries.ts`: sklejony napis traci typ literalny, a z nim
+// weryfikację kolumn przez typowany klient.
 const SELECT_COLS =
-  "id, name, name_normalized, key, display_name, gender, origin_country, origin," +
-  " vocative_pl, instrumental_pl, genitive_pl, dative_pl, vocative_en, english_form, is_compound, notes";
+  "id, name, name_normalized, key, display_name, gender, origin_country, origin, vocative_pl, instrumental_pl, genitive_pl, dative_pl, vocative_en, english_form, is_compound, notes";
 
 const COUNTRIES: { code: string; pl: string; en: string; aliases?: string[] }[] = [
   {
@@ -581,7 +572,7 @@ function AdminNamesPage() {
         toast.error(error.message);
         return;
       }
-      const chunk = (data ?? []) as unknown as NameRow[];
+      const chunk = (data ?? []) as NameRow[];
       all.push(...chunk);
       if (chunk.length < pageSize) break;
     }
