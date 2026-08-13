@@ -13,7 +13,8 @@
 import { useRef, useState, type FormEvent } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { sanitizeHtml } from "@/lib/sanitize";
-import { Eye, Zap } from "@/lib/lucide-shim";
+import { Eye } from "@/lib/lucide-shim";
+import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { EyeOff } from "lucide-react";
 import type { NewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { supabase } from "@/integrations/supabase/client";
@@ -633,7 +634,9 @@ export function PopupSignupForm({
           aria-label={cta}
           className="w-full"
         >
-          <Zap className="h-4 w-4 shrink-0" aria-hidden />
+          {form.ctaIcon && (
+            <DynamicIcon name={form.ctaIcon} className="h-4 w-4 shrink-0" aria-hidden />
+          )}
           {cta}
         </SubscribeButton>
 
