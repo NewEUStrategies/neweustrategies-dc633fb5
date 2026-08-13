@@ -88,9 +88,7 @@ export function SiteSettingsHistoryDialog({
             <Clock className="w-4 h-4" />
             {title ?? t("themeOptions.history.title")}
           </DialogTitle>
-          <DialogDescription>
-            {t("themeOptions.history.description")}
-          </DialogDescription>
+          <DialogDescription>{t("themeOptions.history.description")}</DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 md:grid-cols-[280px_1fr]" style={{ minHeight: 420 }}>
@@ -129,8 +127,7 @@ export function SiteSettingsHistoryDialog({
                               </div>
                             )}
                             <span className="font-medium truncate">
-                              {r.author_name ??
-                                t("themeOptions.history.unknownAuthor")}
+                              {r.author_name ?? t("themeOptions.history.unknownAuthor")}
                             </span>
                           </div>
                           <div className="mt-1 text-[11px] text-muted-foreground">
@@ -192,9 +189,7 @@ export function SiteSettingsHistoryDialog({
             className="gap-2"
           >
             <RotateCcw className="w-4 h-4" />
-            {restoring
-              ? t("themeOptions.history.restoring")
-              : t("themeOptions.history.restore")}
+            {restoring ? t("themeOptions.history.restoring") : t("themeOptions.history.restore")}
           </Button>
         </DialogFooter>
       </DialogContent>

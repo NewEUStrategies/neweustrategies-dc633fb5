@@ -152,7 +152,6 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
     en: [...new Set(speakers.map((s) => strOf(s.category_en).trim()).filter(Boolean))],
   };
 
-
   return (
     <div className="space-y-3">
       <PropField label={l("Nagłówek", "Heading") + ` (${lang.toUpperCase()})`}>

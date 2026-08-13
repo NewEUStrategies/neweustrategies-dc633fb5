@@ -470,7 +470,9 @@ if (process.argv.includes("--update-baseline")) {
   };
   mkdirSync("reports", { recursive: true });
   writeFileSync(BASELINE_PATH, `${JSON.stringify(snapshot, null, 2)}\n`);
-  console.log(`✓ Baseline zapisany: ${BASELINE_PATH} (${Object.keys(snapshot.chunks).length} chunków, commit ${commit}).`);
+  console.log(
+    `✓ Baseline zapisany: ${BASELINE_PATH} (${Object.keys(snapshot.chunks).length} chunków, commit ${commit}).`,
+  );
   process.exit(0);
 }
 
@@ -556,9 +558,7 @@ if (tight.length > 0) {
     console.warn("!");
     for (const line of report) console.warn(`! ${line}`);
   }
-  console.warn(
-    `! To NIE jest powód, żeby podnieść próg - to powód, żeby zmierzyć skład chunku:`,
-  );
+  console.warn(`! To NIE jest powód, żeby podnieść próg - to powód, żeby zmierzyć skład chunku:`);
   console.warn(
     `!   BUNDLE_INVENTORY=1 bun run build && bun run report:chunk-inventory ${stableChunkName(maxFile)}`,
   );

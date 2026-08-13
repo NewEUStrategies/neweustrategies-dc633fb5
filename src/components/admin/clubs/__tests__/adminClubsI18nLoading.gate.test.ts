@@ -31,7 +31,13 @@ const ADMIN_DICT = "src/lib/i18n-clubs-admin.ts";
  * (nie położeniem w katalogu - `ClubElementsGallery` leży pod
  * `src/components/clubs/`, a jest osiągalny wyłącznie z panelu).
  */
-const PUBLIC_SECTIONS = ["saved", "saveFailed", "specializations", "invitations", "layout"] as const;
+const PUBLIC_SECTIONS = [
+  "saved",
+  "saveFailed",
+  "specializations",
+  "invitations",
+  "layout",
+] as const;
 
 /** Sekcje przeniesione do słownika panelu - wołający MUSI zawołać `ensure`. */
 const ADMIN_SECTIONS = [

@@ -3,14 +3,7 @@
 // side-by-side, keeping edits in local state and serialising back to the
 // widget's CSV textarea format ("; Series A; Series B\nRow; 12; 8") only on save.
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Plus,
-  Trash2,
-  Sheet as SheetIcon,
-  Undo2,
-  Check,
-  Loader2,
-} from "lucide-react";
+import { Plus, Trash2, Sheet as SheetIcon, Undo2, Check, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,

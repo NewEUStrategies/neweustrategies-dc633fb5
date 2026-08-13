@@ -69,9 +69,10 @@ describe("dbRowCasts - rzutowanie wyniku zapytania", () => {
   });
 
   it("NIE zgłasza pliku bez zapytania - bez zapytania nie ma granicy bazy", () => {
-    const source = ["interface Shape { id: string }", "const rows = data as unknown as Shape[];"].join(
-      "\n",
-    );
+    const source = [
+      "interface Shape { id: string }",
+      "const rows = data as unknown as Shape[];",
+    ].join("\n");
     expect(scanHandWrittenRowCasts([{ file: "a.ts", source }], [])).toEqual([]);
   });
 
