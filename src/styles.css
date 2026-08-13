@@ -6150,11 +6150,15 @@ textarea::placeholder {
     cursor: not-allowed;
   }
 
+  /* Bąbelki: kafle są PIKSELOWE (kwadratowe), nie procentowe. Procenty liczą
+     się od pudełka przycisku (szeroki i niski), więc `10% 10%` dawało kafel
+     ~27x4 px - koło degenerowało się do prostokątnej smugi. Stały kafel px
+     gwarantuje okrąg niezależnie od szerokości CTA. */
   &::before,
   &::after {
     position: absolute;
     content: "";
-    width: 150%;
+    width: 140%;
     left: 50%;
     height: 100%;
     transform: translateX(-50%);
@@ -6164,52 +6168,53 @@ textarea::placeholder {
   }
 
   &:hover:not(:disabled)::before {
-    top: -70%;
+    top: -75%;
     background-image:
-      radial-gradient(circle, var(--brand) 20%, transparent 20%),
-      radial-gradient(circle, transparent 20%, var(--brand) 20%, transparent 30%),
-      radial-gradient(circle, var(--brand) 20%, transparent 20%),
-      radial-gradient(circle, var(--brand) 20%, transparent 20%),
-      radial-gradient(circle, transparent 10%, var(--brand) 15%, transparent 20%),
-      radial-gradient(circle, var(--brand) 20%, transparent 20%),
-      radial-gradient(circle, var(--brand) 20%, transparent 20%),
-      radial-gradient(circle, var(--brand) 20%, transparent 20%),
-      radial-gradient(circle, var(--brand) 20%, transparent 20%);
+      radial-gradient(circle closest-side, var(--brand) 99%, transparent 100%),
+      radial-gradient(circle closest-side, var(--brand) 99%, transparent 100%),
+      radial-gradient(circle closest-side, var(--brand) 99%, transparent 100%),
+      radial-gradient(circle closest-side, var(--brand) 99%, transparent 100%),
+      radial-gradient(circle closest-side, var(--brand) 99%, transparent 100%),
+      radial-gradient(circle closest-side, var(--brand) 99%, transparent 100%),
+      radial-gradient(circle closest-side, var(--brand) 99%, transparent 100%),
+      radial-gradient(circle closest-side, var(--brand) 99%, transparent 100%),
+      radial-gradient(circle closest-side, var(--brand) 99%, transparent 100%);
     background-size:
-      10% 10%,
-      20% 20%,
-      15% 15%,
-      20% 20%,
-      18% 18%,
-      10% 10%,
-      15% 15%,
-      10% 10%,
-      18% 18%;
+      5px 5px,
+      9px 9px,
+      7px 7px,
+      10px 10px,
+      6px 6px,
+      4px 4px,
+      8px 8px,
+      5px 5px,
+      7px 7px;
     background-position: 50% 120%;
-    animation: btn-bubbly-top 0.6s ease;
+    animation: btn-bubbly-top 0.7s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
   }
 
   &:hover:not(:disabled)::after {
-    bottom: -70%;
+    bottom: -75%;
     background-image:
-      radial-gradient(circle, var(--brand) 20%, transparent 20%),
-      radial-gradient(circle, var(--brand) 20%, transparent 20%),
-      radial-gradient(circle, transparent 10%, var(--brand) 15%, transparent 20%),
-      radial-gradient(circle, var(--brand) 20%, transparent 20%),
-      radial-gradient(circle, var(--brand) 20%, transparent 20%),
-      radial-gradient(circle, var(--brand) 20%, transparent 20%),
-      radial-gradient(circle, var(--brand) 20%, transparent 20%);
+      radial-gradient(circle closest-side, var(--brand) 99%, transparent 100%),
+      radial-gradient(circle closest-side, var(--brand) 99%, transparent 100%),
+      radial-gradient(circle closest-side, var(--brand) 99%, transparent 100%),
+      radial-gradient(circle closest-side, var(--brand) 99%, transparent 100%),
+      radial-gradient(circle closest-side, var(--brand) 99%, transparent 100%),
+      radial-gradient(circle closest-side, var(--brand) 99%, transparent 100%),
+      radial-gradient(circle closest-side, var(--brand) 99%, transparent 100%);
     background-size:
-      15% 15%,
-      20% 20%,
-      18% 18%,
-      20% 20%,
-      15% 15%,
-      20% 20%,
-      18% 18%;
+      7px 7px,
+      10px 10px,
+      5px 5px,
+      9px 9px,
+      6px 6px,
+      8px 8px,
+      4px 4px;
     background-position: 50% 0%;
-    animation: btn-bubbly-bottom 0.6s ease;
+    animation: btn-bubbly-bottom 0.7s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
   }
+
 }
 
 @keyframes btn-bubbly-top {
