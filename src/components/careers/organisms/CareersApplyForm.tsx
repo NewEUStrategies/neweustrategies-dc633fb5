@@ -384,6 +384,22 @@ export function CareersApplyForm({
               {t(`careers.form.steps.${stepKey}.title`)}
             </legend>
 
+            {errorCount > 0 ? (
+              <div
+                role="alert"
+                aria-live="assertive"
+                className="mb-4 flex items-start gap-2 rounded-[6px] border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+              >
+                <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                <span>
+                  {t("careers.form.errors.summary", {
+                    count: errorCount,
+                    defaultValue: "careers.form.errors.summary",
+                  })}
+                </span>
+              </div>
+            ) : null}
+
             {step === 0 ? (
               <div className="space-y-3">
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -391,37 +407,54 @@ export function CareersApplyForm({
                     label={t("careers.form.firstName")}
                     autoComplete="given-name"
                     required
+                    data-field="firstName"
+                    error={msg(errors.firstName)}
                     value={form.firstName}
-                    onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+                    onChange={(e) => setField("firstName", e.target.value)}
+                    onBlur={() => blurField("firstName")}
                   />
                   <FloatingInput
                     label={t("careers.form.lastName")}
                     autoComplete="family-name"
                     required
+                    data-field="lastName"
+                    error={msg(errors.lastName)}
                     value={form.lastName}
-                    onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+                    onChange={(e) => setField("lastName", e.target.value)}
+                    onBlur={() => blurField("lastName")}
                   />
                   <FloatingInput
                     label={t("careers.form.email")}
                     type="email"
                     autoComplete="email"
                     required
+                    data-field="email"
+                    error={msg(errors.email)}
                     value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    onChange={(e) => setField("email", e.target.value)}
+                    onBlur={() => blurField("email")}
                   />
                   <FloatingInput
                     label={t("careers.form.phone")}
                     type="tel"
                     autoComplete="tel"
+                    required
+                    data-field="phone"
+                    error={msg(errors.phone)}
                     value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    onChange={(e) => setField("phone", e.target.value)}
+                    onBlur={() => blurField("phone")}
                   />
                 </div>
                 <FloatingInput
                   label={t("careers.form.linkedin")}
                   inputMode="url"
+                  required
+                  data-field="linkedin"
+                  error={msg(errors.linkedin)}
                   value={form.linkedin}
-                  onChange={(e) => setForm({ ...form, linkedin: e.target.value })}
+                  onChange={(e) => setField("linkedin", e.target.value)}
+                  onBlur={() => blurField("linkedin")}
                 />
               </div>
             ) : null}
@@ -436,6 +469,8 @@ export function CareersApplyForm({
                     aria-label={t("careers.form.department")}
                     placeholder={t("careers.form.department")}
                     value={form.department}
+                    required
+                    error={msg(errors.department)}
                     options={departmentOptions}
                     onValueChange={(value) => {
                       const department = value as CareerDepartmentId;
@@ -444,15 +479,19 @@ export function CareersApplyForm({
                         department,
                         role: findOffer(offers, prev.role)?.department === department ? prev.role : "",
                       }));
+                      clearError("department");
                     }}
                   />
                   <FormSelect
                     aria-label={t("careers.form.role")}
                     placeholder={t("careers.form.role")}
                     value={form.role}
+                    required
+                    error={msg(errors.role)}
                     options={roleOptions}
                     onValueChange={(value) => {
                       setForm((prev) => ({ ...prev, role: value }));
+                      clearError("role");
                       onRoleChange(value === "open" ? null : value);
                     }}
                   />
@@ -460,15 +499,19 @@ export function CareersApplyForm({
                     aria-label={t("careers.form.seniority")}
                     placeholder={t("careers.form.seniority")}
                     value={form.seniority}
+                    required
+                    error={msg(errors.seniority)}
                     options={seniorityOptions}
-                    onValueChange={(value) => setForm({ ...form, seniority: value })}
+                    onValueChange={(value) => setField("seniority", value)}
                   />
                   <FormSelect
                     aria-label={t("careers.form.start")}
                     placeholder={t("careers.form.start")}
                     value={form.start}
+                    required
+                    error={msg(errors.start)}
                     options={startOptions}
-                    onValueChange={(value) => setForm({ ...form, start: value })}
+                    onValueChange={(value) => setField("start", value)}
                   />
                 </div>
               </div>
@@ -481,10 +524,19 @@ export function CareersApplyForm({
                   placeholder={t("careers.form.messagePlaceholder")}
                   rows={6}
                   required
-                  maxLength={4000}
+                  maxLength={MESSAGE_MAX}
+                  data-field="message"
+                  error={msg(errors.message)}
                   value={form.message}
-                  onChange={(e) => setForm({ ...form, message: e.target.value })}
+                  onChange={(e) => setField("message", e.target.value)}
+                  onBlur={() => blurField("message")}
                 />
+                <p className="pl-1 text-[11px] text-muted-foreground" aria-live="polite">
+                  {t("careers.form.charsLeft", {
+                    count: Math.max(0, MESSAGE_MAX - form.message.trim().length),
+                    defaultValue: "careers.form.charsLeft",
+                  })}
+                </p>
                 <label
                   htmlFor={consentId}
                   className="flex cursor-pointer items-start gap-2 text-xs leading-relaxed text-muted-foreground"
@@ -493,11 +545,22 @@ export function CareersApplyForm({
                     id={consentId}
                     type="checkbox"
                     className="lov-check mt-0.5"
+                    data-field="consent"
+                    aria-invalid={errors.consent ? true : undefined}
+                    aria-describedby={errors.consent ? `${consentId}-err` : undefined}
                     checked={consent}
-                    onChange={(e) => setConsent(e.target.checked)}
+                    onChange={(e) => {
+                      setConsent(e.target.checked);
+                      clearError("consent");
+                    }}
                   />
                   <span>{t("careers.form.consent")}</span>
                 </label>
+                {errors.consent ? (
+                  <p id={`${consentId}-err`} role="alert" className="pl-6 text-xs text-destructive">
+                    {msg(errors.consent)}
+                  </p>
+                ) : null}
               </div>
             ) : null}
           </fieldset>
@@ -508,6 +571,7 @@ export function CareersApplyForm({
                 type="button"
                 variant="ghost"
                 className="gap-2"
+                disabled={sending}
                 onClick={() => setStep(step - 1)}
               >
                 <ArrowLeft className="h-4 w-4" aria-hidden />
@@ -529,6 +593,11 @@ export function CareersApplyForm({
                 {t("careers.form.submit")}
               </SubscribeButton>
             )}
+            <p aria-live="polite" className="sr-only">
+              {sending
+                ? t("careers.form.sendingStatus", { defaultValue: "careers.form.sendingStatus" })
+                : ""}
+            </p>
           </div>
         </form>
       )}
