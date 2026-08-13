@@ -26,6 +26,55 @@ vi.mock("@/lib/contact.functions", () => ({
   submitContactMessage: vi.fn(),
 }));
 
+// Radix Select nie działa w jsdom bez pełnego pointer API - w teście
+// zamieniamy atom na natywny <select>, reguły walidacji pilnuje schemat.
+vi.mock("@/components/atoms/FormSelect", () => ({
+  FormSelect: ({
+    value,
+    onValueChange,
+    options,
+    error,
+    "aria-label": ariaLabel,
+  }: {
+    value: string;
+    onValueChange: (value: string) => void;
+    options: readonly { value: string; label: React.ReactNode }[];
+    error?: string | null;
+    "aria-label"?: string;
+  }) => (
+    <>
+      <select
+        aria-label={ariaLabel}
+        aria-invalid={error ? true : undefined}
+        value={value}
+        onChange={(event) => onValueChange(event.target.value)}
+      >
+        <option value="" />
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {String(option.label)}
+          </option>
+        ))}
+      </select>
+      {error ? <p role="alert">{error}</p> : null}
+    </>
+  ),
+}));
+
+// Oferty pochodzą z katalogu i18n (fallback) - bez react-query w teście.
+vi.mock("@/lib/careers/useCareerContent", async () => {
+  const catalog = await vi.importActual<typeof import("@/lib/careers/catalog")>(
+    "@/lib/careers/catalog",
+  );
+  return {
+    useCareerOffers: () => ({
+      offers: catalog.fallbackOffers(((key: string) => key) as never),
+      isLoading: false,
+    }),
+    useCareerSection: () => ({ visible: true }),
+  };
+});
+
 vi.mock("sonner", () => ({
   toast: {
     error: (...args: unknown[]) => toastError(...args),
@@ -59,6 +108,31 @@ function fillAbout() {
     target: { value: "jan.kowalski@example.com" },
   });
 }
+
+function fillAbout2() {
+  fireEvent.change(screen.getByLabelText(/careers\.form\.phone/), {
+    target: { value: "+48 600 100 200" },
+  });
+  fireEvent.change(screen.getByLabelText(/careers\.form\.linkedin/), {
+    target: { value: "linkedin.com/in/jan-kowalski" },
+  });
+}
+
+function fillFit(role = "analyst_economy") {
+  fireEvent.change(screen.getByLabelText(/careers\.form\.department/), {
+    target: { value: "analysis" },
+  });
+  fireEvent.change(screen.getByLabelText(/careers\.form\.role$/), { target: { value: role } });
+  fireEvent.change(screen.getByLabelText(/careers\.form\.seniority/), {
+    target: { value: "mid" },
+  });
+  fireEvent.change(screen.getByLabelText(/careers\.form\.start/), {
+    target: { value: "month" },
+  });
+}
+
+const LONG_MESSAGE =
+  "Chcę prowadzić linię gospodarczą i rozwijać analizy regulacyjne dla naszych klientów.";
 
 function nextStep() {
   fireEvent.click(screen.getByRole("button", { name: /careers\.form\.next/ }));
