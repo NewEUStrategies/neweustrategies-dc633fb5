@@ -1,6 +1,7 @@
 // Molekuła: editorialny wiersz otwartej roli (wariant "Prestige list").
-// Trzy kolumny: metadane działu, treść oferty, kolumna akcji. Pełna oferta
-// (opis, zakres obowiązków, wymagania) otwiera się w popupie.
+// Wygląd i animacje spójne z etykietą "W praktyce": delikatne tło brand,
+// pionowa belka 2px z gradientem przesuwającym się w hoverze + rozmyta poświata.
+
 import { useTranslation } from "react-i18next";
 import { MapPin, Clock3, ArrowRight, FileText } from "lucide-react";
 
