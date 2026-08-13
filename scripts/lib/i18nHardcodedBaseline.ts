@@ -18,7 +18,6 @@ export const HARDCODED_LANGUAGE_BASELINE: readonly (readonly [string, number])[]
   ["src/components/admin/billing/AdminPaymentsDiagnosticsPanel.tsx", 25],
   ["src/components/admin/billing/AdminTicketOrdersPanel.tsx", 22],
   ["src/components/admin/billing/AdminWebhookLogPanel.tsx", 36],
-  ["src/components/admin/builder/ui/molecules/LinkPicker.tsx", 12],
   ["src/components/admin/builder/ui/organisms/builder/VisualCanvas.tsx", 1],
   ["src/components/admin/builder/ui/organisms/widget-properties/AuthorProfileCardEditor.tsx", 2],
   ["src/components/admin/builder/ui/organisms/widget-properties/DisplayLivePreview.tsx", 3],
