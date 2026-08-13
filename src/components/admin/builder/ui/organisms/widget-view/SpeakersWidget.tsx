@@ -12,7 +12,6 @@ import { useQuery } from "@tanstack/react-query";
 import type { WidgetNode, WidgetContent } from "@/lib/builder/types";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
 import {
-  Star,
   User as UserIcon,
   Search as SearchIcon,
   Bookmark as BookmarkIcon,
@@ -57,26 +56,6 @@ function loc(item: SpeakerItem, base: string, lang: Lang): string {
 function numOf(v: unknown, fallback = 0): number {
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : fallback;
-}
-
-// Ułamkowe gwiazdki: szara podstawa + nakładka przycięta do % oceny,
-// dzięki czemu 4.5 renderuje się jako 4 i pół gwiazdki zamiast zaokrąglenia.
-function StarRow({ rating }: { rating: number }) {
-  const pct = (Math.max(0, Math.min(5, rating)) / 5) * 100;
-  const stars = (cls: string) =>
-    [0, 1, 2, 3, 4].map((i) => <Star key={i} className={`h-3 w-3 shrink-0 ${cls}`} />);
-  return (
-    <span aria-hidden className="relative inline-flex items-center">
-      <span className="inline-flex items-center gap-[2px]">
-        {stars("text-muted-foreground/25")}
-      </span>
-      <span className="absolute inset-y-0 left-0 overflow-hidden" style={{ width: `${pct}%` }}>
-        <span className="inline-flex items-center gap-[2px] whitespace-nowrap">
-          {stars("fill-[color:var(--speakers-accent)] text-[color:var(--speakers-accent)]")}
-        </span>
-      </span>
-    </span>
-  );
 }
 
 // Podświetla pierwsze trafienie zapytania w tekście (case-insensitive).

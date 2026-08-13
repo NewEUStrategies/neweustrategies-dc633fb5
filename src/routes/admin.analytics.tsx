@@ -88,15 +88,6 @@ export const Route = createFileRoute("/admin/analytics")({
   component: AnalyticsPage,
 });
 
-function daysAgoISO(days: number): string {
-  const d = new Date(Date.now() - days * 86_400_000);
-  return d.toISOString().slice(0, 10);
-}
-
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 // --------- Status pills ---------
 
 interface PillProps {
@@ -575,15 +566,6 @@ function OverviewPanel({ status }: { status: AnalyticsStatus }) {
 }
 
 // --------- KPI card ---------
-
-function KpiCard({ label, value }: { label: string; value: string }) {
-  return (
-    <Card className="p-3">
-      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="text-xl font-semibold tabular-nums mt-1">{value}</div>
-    </Card>
-  );
-}
 
 // --------- Root ---------
 

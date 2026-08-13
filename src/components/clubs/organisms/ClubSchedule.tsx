@@ -145,7 +145,7 @@ function MilestoneItem({
 }
 
 export function ClubSchedule({ clubId, clubSlug }: { clubId: string; clubSlug: string }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const milestonesQ = useClubMilestones(clubId);
   const rows = useMemo(() => milestonesQ.data ?? [], [milestonesQ.data]);
   const today = localToday();

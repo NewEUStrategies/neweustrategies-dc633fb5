@@ -9,7 +9,6 @@ import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { toast } from "sonner";
 import {
   Select,
   SelectContent,
@@ -153,67 +152,6 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
     en: [...new Set(speakers.map((s) => strOf(s.category_en).trim()).filter(Boolean))],
   };
 
-
-  const doExport = () => {
-    const payload = JSON.stringify({ version: 1, speakers }, null, 2);
-    const blob = new Blob([payload], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `speakers-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success(l("Wyeksportowano listę prelegentów", "Speakers exported"));
-  };
-
-  const doImport = async (file: File, mode: "replace" | "merge") => {
-    try {
-      const text = await file.text();
-      const parsed: unknown = JSON.parse(text);
-      const raw = Array.isArray(parsed)
-        ? parsed
-        : Array.isArray((parsed as { speakers?: unknown }).speakers)
-          ? (parsed as { speakers: unknown[] }).speakers
-          : null;
-      if (!raw)
-        throw new Error(
-          l(
-            "Oczekiwano tablicy `speakers` lub payloadu { speakers: [...] }",
-            "Expected a `speakers` array or a { speakers: [...] } payload",
-          ),
-        );
-      const normalized: Item[] = raw
-        .filter(
-          (x): x is Record<string, unknown> =>
-            typeof x === "object" && x !== null && !Array.isArray(x),
-        )
-        .map((x) => ({
-          id: strOf(x.id) || `sp-${Math.random().toString(36).slice(2, 10)}`,
-          photo: strOf(x.photo),
-          name: strOf(x.name),
-          role_pl: strOf(x.role_pl),
-          role_en: strOf(x.role_en),
-          category_pl: strOf(x.category_pl),
-          category_en: strOf(x.category_en),
-          gigs: Math.max(0, numOf(x.gigs)),
-          rating: Math.min(5, Math.max(0, numOf(x.rating))),
-          reviews: Math.max(0, numOf(x.reviews)),
-          description_pl: strOf(x.description_pl),
-          description_en: strOf(x.description_en),
-          href: strOf(x.href),
-        }));
-      commit(mode === "replace" ? normalized : [...speakers, ...normalized]);
-      toast.success(
-        l(
-          `Zaimportowano ${normalized.length} prelegentów`,
-          `Imported ${normalized.length} speakers`,
-        ),
-      );
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast.error(l("Błąd importu: ", "Import error: ") + msg);
-    }
-  };
 
   return (
     <div className="space-y-3">

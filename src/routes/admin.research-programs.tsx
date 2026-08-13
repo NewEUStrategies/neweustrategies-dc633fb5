@@ -946,7 +946,7 @@ function ProjectsTab({ programId, lang }: { programId: string; lang: "pl" | "en"
 
 /* ----- Partners ----- */
 
-function PartnersTab({ programId, lang }: { programId: string; lang: "pl" | "en" }) {
+function PartnersTab({ programId }: { programId: string; lang: "pl" | "en" }) {
   const { t } = useTranslation();
   const tp = (k: string) => t(`adminPrograms.${k}`);
   const qc = useQueryClient();
@@ -1039,7 +1039,7 @@ function PartnersTab({ programId, lang }: { programId: string; lang: "pl" | "en"
 
 /* ----- Curated items (flagship posts / podcasts / events) ----- */
 
-function ItemsTab({ programId, lang }: { programId: string; lang: "pl" | "en" }) {
+function ItemsTab({ programId }: { programId: string; lang: "pl" | "en" }) {
   const { t } = useTranslation();
   const tp = (k: string) => t(`adminPrograms.${k}`);
   const qc = useQueryClient();

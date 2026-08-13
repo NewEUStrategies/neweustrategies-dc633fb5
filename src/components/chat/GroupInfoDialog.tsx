@@ -22,7 +22,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useAuth } from "@/hooks/useAuth";
 import { useOnlineUsers } from "@/lib/chat/presence";
 import { usePeerProfiles, useSetGroupDescription } from "@/lib/chat/useConversations";
 import { useAddGroupMembers, useLeaveGroup, useRenameGroup } from "@/lib/chat/useGroups";
@@ -44,7 +43,6 @@ export function GroupInfoDialog({
   onLeft?: () => void;
 }) {
   const { t } = useTranslation();
-  const { user } = useAuth();
   const online = useOnlineUsers();
 
   const conversationId = view.conversation.id;

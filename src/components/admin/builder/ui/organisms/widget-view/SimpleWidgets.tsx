@@ -523,8 +523,6 @@ export function renderSimpleWidget(
       const chipStyle = (k: string, active: boolean): CSSProperties => {
         const bg = resolveBg(k, active);
         const onContrast = bgMode === "official" && active;
-        const official =
-          perPlatformColor(k) ?? (colorMode === "official" ? OFFICIAL[k] : undefined);
         return {
           ...linkStyle,
           // Na kontrastowym tle marki ikona musi być biała, żeby nie zniknęła.

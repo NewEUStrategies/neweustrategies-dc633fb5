@@ -2,7 +2,6 @@
 // odbiorcy w nagłówku (dla PL - wołacz). Dla niezalogowanych używa etykiety
 // generic ("Dla ciebie" / "For you"), więc widget nie znika z układu.
 import { useMemo } from "react";
-import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { AppLink } from "@/components/atoms/AppLink";
 import { WidgetMediaImage } from "@/components/atoms/WidgetMediaImage";
@@ -136,7 +135,6 @@ function useAuthorsMap(authorIds: string[]) {
 }
 
 export function TailoredMustReadsView({ c, lang }: { c: WidgetContent; lang: Lang }) {
-  const { t } = useTranslation();
   const firstName = useCurrentUserFirstName();
   const { user, loading: authLoading } = useAuth();
 

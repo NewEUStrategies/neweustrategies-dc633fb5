@@ -24,9 +24,6 @@ import { useCurrentTier } from "@/lib/billing/tiers";
 import { setMyConsent } from "@/lib/consents.functions";
 import { getConsentDefinition } from "@/lib/notifications/consentCatalog";
 import { formatDate } from "@/lib/i18n/format";
-import { activeLang } from "@/lib/seo/head";
-import { getRequestUrl } from "@/lib/seo/request";
-import { buildContentHead } from "@/lib/seo/meta";
 import { findClubSpecialization } from "@/lib/clubs/specializations";
 import {
   useClubSpecializations,

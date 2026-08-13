@@ -35,6 +35,33 @@ import {
 import type { PopupColorSource } from "@/lib/newsletter/popupDesign";
 
 const CSS = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
+
+/**
+ * Treść każdego bloku `@layer utilities { … }`, wycięta liczeniem nawiasów.
+ * Regex tego nie zrobi: w środku są reguły z własnymi `{}`, więc `[^}]*`
+ * kończy się na pierwszej z nich.
+ */
+function utilitiesLayers(): string[] {
+  const out: string[] = [];
+  const opener = /@layer utilities\s*\{/g;
+  let match = opener.exec(CSS);
+  while (match !== null) {
+    let depth = 0;
+    let i = match.index + match[0].length - 1;
+    const start = i + 1;
+    while (i < CSS.length) {
+      if (CSS[i] === "{") depth += 1;
+      else if (CSS[i] === "}") {
+        depth -= 1;
+        if (depth === 0) break;
+      }
+      i += 1;
+    }
+    out.push(CSS.slice(start, i));
+    match = opener.exec(CSS);
+  }
+  return out;
+}
 const PANEL = readFileSync(
   resolve(process.cwd(), "src/components/popups/SignupPopupPanel.tsx"),
   "utf8",
@@ -132,15 +159,24 @@ describe("src/styles.css - zakres `.nlp`", () => {
   });
 
   it("trzyma dekoracje CTA w obrysie przycisku (źródło poziomego overflow)", () => {
-    const rule = CSS.match(
-      /@layer utilities \{\s*\.nlp \.btn-bubbly::before,\s*\.nlp \.btn-bubbly::after \{([^}]*)\}/,
-    );
     // Warstwa `utilities` jest obowiązkowa: `btn-bubbly` to `@utility`, więc
     // reguła z `components` przegrałaby z nim niezależnie od specyficzności.
-    expect(rule, "reguła musi siedzieć w @layer utilities").not.toBeNull();
-    expect(rule?.[1]).toContain("width: 100%");
-    expect(rule?.[1]).toContain("left: 0");
-    expect(rule?.[1]).toContain("transform: none");
+    //
+    // Szukamy reguły W ŚRODKU bloku `@layer utilities`, nie NA JEGO POCZĄTKU.
+    // Poprzedni wzorzec wymagał, żeby stała bezpośrednio po `@layer utilities {`,
+    // i oblał, gdy przed nią wpisano `.nlp .btn-bubbly { background-color… }` -
+    // przy nienaruszonej regule i nienaruszonej warstwie. Sąsiedztwo w pliku to
+    // formatowanie, a inwariantem jest przynależność do warstwy.
+    const body = utilitiesLayers()
+      .map((layer) =>
+        layer.match(/\.nlp \.btn-bubbly::before,\s*\.nlp \.btn-bubbly::after \{([^}]*)\}/),
+      )
+      .find((match) => match !== null)?.[1];
+    expect(body, "reguła `.nlp .btn-bubbly::before/::after` musi siedzieć w @layer utilities")
+      .toBeDefined();
+    expect(body).toContain("width: 100%");
+    expect(body).toContain("left: 0");
+    expect(body).toContain("transform: none");
   });
 });
 

@@ -39,7 +39,6 @@ import { escapeLike } from "@/lib/admin/listFilters";
 import { toastError } from "@/lib/toastError";
 import { isCodePage } from "@/lib/admin/codePages";
 import {
-  TOPICS,
   topicOrFilter,
   otherNotPatterns,
   topicForSlug,

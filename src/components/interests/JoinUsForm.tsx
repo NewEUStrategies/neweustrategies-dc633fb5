@@ -660,12 +660,10 @@ export function JoinUsForm({
   const inputStyle = placeholderSize
     ? ({ fontSize: `${placeholderSize}px` } satisfies CSSProperties)
     : ({ fontSize: "14px" } satisfies CSSProperties);
-  const droplistButtonStyle = placeholderSize
-    ? ({ fontSize: `${placeholderSize}px` } satisfies CSSProperties)
-    : undefined;
-  const chipStyle = labelSize
-    ? ({ fontSize: `${labelSize}px` } satisfies CSSProperties)
-    : undefined;
+  // Bez lokalnych `droplistButtonStyle` / `chipStyle`: `TopicsDroplist` dostaje
+  // `labelSize` i `placeholderSize` w propsach i liczy te same style u siebie
+  // (patrz `chipStyle` i `triggerStyle` w tym komponencie). Tutejsze kopie były
+  // martwym duplikatem po przeniesieniu odpowiedzialności do dziecka.
   // Gwiazdka przy polach wymaganych - dokładnie jak w popupie rejestracji i w
   // formularzu newslettera (FieldBox dokleja " *"), żeby wszystkie formularze
   // platformy czytały się tak samo.

@@ -44,15 +44,6 @@ const A = (
   displayName: display,
 });
 
-/** Wyciąga segmenty (rozdzielone ", ") pomijając URL, żeby sprawdzić że
- *  wewnątrz nie ma kropki-separatora. */
-function segmentsWithoutUrl(s: string): string[] {
-  return s
-    .replace(/,\s*$/, "")
-    .split(", ")
-    .filter((seg) => !/^https?:\/\//.test(seg));
-}
-
 function assertInvariants(html: string, plain: string) {
   // I1 - dokładnie jedna para <em>...</em>.
   const emOpen = (html.match(/<em>/g) ?? []).length;

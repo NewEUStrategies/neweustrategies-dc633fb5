@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 // jakichkolwiek importów rejestru lucide-react, które materializowałyby
 // pełny zestaw ikon w bundlu entry (patrz lib/icons/DynamicIconFull).
 import { LUCIDE_ICON_NODES } from "@/lib/icons/lucideIconNodes.generated";
-import { Search, X, HelpCircle, type LucideProps } from "lucide-react";
+import { Search, X, HelpCircle } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -14,8 +14,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-builder";
-
-type IconComponent = React.ComponentType<LucideProps>;
 
 // Lucide ships ~1500+ icon exports. Enumerating them (Object.keys + a regex per
 // name) MUST NOT run at module-initialization time: this file is pulled into the

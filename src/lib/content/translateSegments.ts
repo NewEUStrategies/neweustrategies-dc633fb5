@@ -156,7 +156,7 @@ export function buildSegments(input: TranslateInput): SegmentedTranslation {
 
   if (isNonEmpty(input.title_pl)) col.push(input.title_pl, (tr) => (out.title_en = tr));
   if (isNonEmpty(input.excerpt_pl)) col.push(input.excerpt_pl, (tr) => (out.excerpt_en = tr));
-  input.takeaways_pl.forEach((takeaway, i) => {
+  input.takeaways_pl.forEach((takeaway) => {
     if (isNonEmpty(takeaway)) {
       out.takeaways_en.push("");
       const slotIndex = out.takeaways_en.length - 1;

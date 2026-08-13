@@ -1,5 +1,3 @@
-import * as React from "react";
-
 import { Button, Section, Text } from "@react-email/components";
 
 import { authCopy } from "./copy";

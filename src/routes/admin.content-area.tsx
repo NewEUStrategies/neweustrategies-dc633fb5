@@ -75,40 +75,6 @@ function NumberField({
   );
 }
 
-function SliderField({
-  value,
-  onChange,
-  min,
-  max,
-  step,
-  unit,
-}: {
-  value: number;
-  onChange: (n: number) => void;
-  min: number;
-  max: number;
-  step: number;
-  unit?: string;
-}) {
-  return (
-    <div className="flex items-center gap-3">
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="flex-1 accent-[color:var(--brand,var(--primary))]"
-      />
-      <div className="min-w-[64px] rounded-md border border-input bg-background px-2 py-1 text-right text-xs tabular-nums">
-        {value.toFixed(step < 1 ? 2 : 0)}
-        {unit ? <span className="ml-1 text-muted-foreground">{unit}</span> : null}
-      </div>
-    </div>
-  );
-}
-
 function SelectField({
   value,
   onChange,

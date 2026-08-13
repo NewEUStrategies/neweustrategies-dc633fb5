@@ -1261,8 +1261,6 @@ function LeadDrawer({
               <>
                 <div className="flex items-start gap-3">
                   {(() => {
-                    const name =
-                      [lead.first_name, lead.last_name].filter(Boolean).join(" ") || lead.email;
                     const inits =
                       (lead.first_name?.[0] ?? "") + (lead.last_name?.[0] ?? "") ||
                       (lead.email?.[0] ?? "?").toUpperCase();

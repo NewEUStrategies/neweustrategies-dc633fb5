@@ -16,7 +16,7 @@ import { BlockSidebar } from "./BlockSidebar";
 import { CodeViewDialog } from "./molecules/CodeViewDialog";
 import { useLocalizedBlocksHistory } from "./hooks/useLocalizedBlocksHistory";
 import { IconButton } from "./atoms/IconButton";
-import { Undo, Redo, PanelLeft, Eye } from "@/lib/lucide-shim";
+import { Undo, Redo, Eye } from "@/lib/lucide-shim";
 import { FileCode2 } from "lucide-react";
 import { useOnboardingTour } from "@/lib/onboarding/useOnboardingTour";
 import { CoachmarkTour } from "@/components/admin/onboarding/CoachmarkTour";
@@ -174,7 +174,12 @@ export function PostBlockEditor({ value, onChange, documentPane, canvasWrap, pre
           </div>
 
           <Tabs value={lang}>
-            <TabsContent value={lang} className="mt-0">
+            {/*
+              `data-tour="blocks-canvas"` to kotwica drugiego kroku przewodnika
+              (`BLOCK_TOUR_STEPS`). Była jedyną z czterech, której nie było
+              w drzewie - krok celował w selektor, którego nikt nie renderował.
+            */}
+            <TabsContent value={lang} className="mt-0" data-tour="blocks-canvas">
               {(() => {
                 const canvas = (
                   <BlockCanvas
@@ -225,6 +230,14 @@ export function PostBlockEditor({ value, onChange, documentPane, canvasWrap, pre
         open={codeViewOpen}
         onOpenChange={setCodeViewOpen}
       />
+      {/*
+        Przewodnik po edytorze bloków. Był zbudowany w CAŁOŚCI - cztery kroki
+        z tekstami PL i EN (`admin.onboarding.blocks.*`), definicje w
+        `BLOCK_TOUR_STEPS`, wywołany hak `useOnboardingTour` i trzy kotwiki
+        `data-tour` w drzewie - brakowało wyłącznie TEGO renderu, więc nowy
+        redaktor nie widział przewodnika ani razu. Wzorzec jak w `Builder.tsx`.
+      */}
+      <CoachmarkTour controller={tour} />
     </BlockEditorProvider>
   );
 }

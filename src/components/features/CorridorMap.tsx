@@ -12,7 +12,7 @@ import type { CorridorMapConfig, FeatureLang } from "@/lib/features/types";
 import { pickBi } from "@/lib/features/types";
 import type { MapRegion } from "@/lib/charts/types";
 import { geoAssetQueryOptions } from "@/lib/charts/geoQuery";
-import { makeGeoProjector, corridorPath, type Point2D } from "@/lib/features/geoProject";
+import { makeGeoProjector, corridorPath } from "@/lib/features/geoProject";
 import { useContainerWidth } from "@/hooks/useContainerWidth";
 import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { ChartTooltip } from "@/components/charts/ChartTooltip";
@@ -83,13 +83,6 @@ export function CorridorMap({ config, lang, className }: Props) {
   const aspect = REGION_ASPECT[config.region];
   const mapHeight = Math.round(width * aspect);
   const viewW = geo.data ? Number(geo.data.viewBox.split(" ")[2]) || 960 : 960;
-
-  const projectToScreen = (lat: number, lon: number): Point2D | null => {
-    if (!projector) return null;
-    const p = projector(lon, lat);
-    const s = width / viewW;
-    return { x: p.x * s, y: p.y * s };
-  };
 
   const onMarkerMove = (e: PointerEvent<SVGCircleElement>, label: string) => {
     const host = e.currentTarget.ownerSVGElement?.parentElement;

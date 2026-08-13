@@ -31,6 +31,9 @@ export const chatPl = {
     send: "Wyślij",
     attach: "Dodaj załącznik",
     emoji: "Wstaw emoji",
+    // Etykieta przycisku jednego dotknięcia. Sama emotka jest w `{{emoji}}`,
+    // bo wybiera ją użytkownik per rozmowa (`chat.appearance.quickEmojiSection`).
+    quickEmojiSend: "Wyślij {{emoji}}",
     emojiSearch: "Szukaj emoji...",
     emojiNoResults: "Brak emoji dla tej frazy",
     typing: "pisze...",
@@ -529,6 +532,7 @@ export const chatEn = {
     send: "Send",
     attach: "Add attachment",
     emoji: "Insert emoji",
+    quickEmojiSend: "Send {{emoji}}",
     emojiSearch: "Search emoji...",
     emojiNoResults: "No emoji match this search",
     typing: "is typing...",

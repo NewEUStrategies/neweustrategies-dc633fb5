@@ -101,12 +101,6 @@ export const Route = createFileRoute("/quiz")({
   component: QuizPage,
 });
 
-const SHARE_BUTTONS = [
-  { key: "linkedin", icon: Linkedin, color: "hover:text-[#0A66C2]" },
-  { key: "facebook", icon: Facebook, color: "hover:text-[#1877F3]" },
-  { key: "messenger", icon: MessageCircle, color: "hover:text-[#00B2FF]" },
-] as const;
-
 function useShareUrl() {
   const { t } = useTranslation();
   const lang = useLang();

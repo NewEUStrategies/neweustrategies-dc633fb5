@@ -254,7 +254,15 @@ export const getSchedulerHealth = createServerFn({ method: "GET" })
       },
       env: {
         vapidConfigured: Boolean(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY),
-        emailGatewayConfigured: Boolean(process.env.RESEND_API_KEY || process.env.LOVABLE_API_KEY),
+        // Pytamy DOSTAWCĘ, nie zmienne środowiskowe. Poprzednia wersja liczyła
+        // to na miejscu jako `RESEND_API_KEY || LOVABLE_API_KEY` i rozjeżdżała
+        // się z jedynym miejscem, które naprawdę decyduje o wysyłce:
+        // `emailProviderConfigured()` to `(LOVABLE && RESEND) || LOVABLE`, czyli
+        // sam RESEND_API_KEY NIE wystarcza. Panel zdrowia świecił więc zielono
+        // przy konfiguracji, w której poczta nie wyszłaby ani razu. Import
+        // `emailProviderConfigured` leżał w tym pliku bez użycia - ta linia jest
+        // dokończeniem zaczętej poprawki, nie nową decyzją.
+        emailGatewayConfigured: emailProviderConfigured(),
         communityCronSecretSet: Boolean(process.env.COMMUNITY_CRON_SECRET),
         siteUrl:
           process.env.PUBLIC_SITE_URL || process.env.SITE_URL || process.env.URL || origin || "",
