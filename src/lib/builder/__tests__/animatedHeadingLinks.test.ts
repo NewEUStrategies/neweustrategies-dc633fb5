@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { toAnimatedHeadingLink, toWidgetLink } from "../animatedHeadingLinks";
+import {
+  ANIMATED_HEADING_LINK_KEYS,
+  toAnimatedHeadingLink,
+  toWidgetLink,
+} from "../animatedHeadingLinks";
 
 describe("animated heading links", () => {
   it("ignores empty and unsafe urls", () => {
@@ -32,5 +36,11 @@ describe("animated heading links", () => {
         ariaLabel: undefined,
       },
     );
+  });
+});
+
+describe("whole heading link", () => {
+  it("jest pierwszym kluczem linków widgetu", () => {
+    expect(ANIMATED_HEADING_LINK_KEYS[0]).toBe("linkWhole");
   });
 });
