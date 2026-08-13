@@ -34,10 +34,10 @@ const VALUES: ReadonlyArray<{ key: string; icon: LucideIcon }> = [
 ];
 
 const BENEFITS: ReadonlyArray<{ key: string; icon: LucideIcon }> = [
-  { key: "contract", icon: Banknote },
+  { key: "flexible", icon: Handshake },
   { key: "remote", icon: Laptop },
-  { key: "offices", icon: Building2 },
-  { key: "budget", icon: GraduationCap },
+  { key: "warsaw", icon: Building2 },
+  { key: "impact", icon: Target },
   { key: "byline", icon: PenLine },
   { key: "network", icon: Users },
 ];
