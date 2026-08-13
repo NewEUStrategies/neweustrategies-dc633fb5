@@ -19,16 +19,16 @@ import { CareersClosing } from "@/components/careers/organisms/CareersClosing";
 const ROLES_ID = "careers-open-roles";
 const FORM_ID = "careers-application";
 
-export const Route = createFileRoute("/careers")({
+export const Route = createFileRoute("/zatrudniamy")({
   component: CareersPage,
   loader: async ({ context }) => {
     const seo = await context.queryClient
-      .ensureQueryData(staticPageSeoQueryOptions("careers"))
+      .ensureQueryData(staticPageSeoQueryOptions("zatrudniamy"))
       .catch(() => null);
     return { seo };
   },
   head: ({ loaderData }) => {
-    const lang = activeLang(getRequestUrl() || "/careers");
+    const lang = activeLang(getRequestUrl() || "/zatrudniamy");
     const isEn = lang === "en";
     const seo = pickStaticSeo(loaderData?.seo ?? null, lang, {
       title: isEn
@@ -62,7 +62,7 @@ export const Route = createFileRoute("/careers")({
 
 function CareersPage() {
   ensureCareersI18n();
-  const lang = activeLang(typeof window === "undefined" ? getRequestUrl() || "/careers" : window.location.pathname);
+  const lang = activeLang(typeof window === "undefined" ? getRequestUrl() || "/zatrudniamy" : window.location.pathname);
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
 
   const scrollTo = useCallback((id: string) => {

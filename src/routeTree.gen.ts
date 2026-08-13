@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ZwrotyIReklamacjeRouteImport } from './routes/zwroty-i-reklamacje'
+import { Route as ZatrudniamyRouteImport } from './routes/zatrudniamy'
 import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
 import { Route as SupportRouteImport } from './routes/support'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
@@ -49,7 +50,6 @@ import { Route as CookiesRouteImport } from './routes/cookies'
 import { Route as ContributorsRouteImport } from './routes/contributors'
 import { Route as ContributeRouteImport } from './routes/contribute'
 import { Route as ClubRouteImport } from './routes/club'
-import { Route as CareersRouteImport } from './routes/careers'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as IndexRouteImport } from './routes/index'
@@ -311,6 +311,11 @@ const ZwrotyIReklamacjeRoute = ZwrotyIReklamacjeRouteImport.update({
   path: '/zwroty-i-reklamacje',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ZatrudniamyRoute = ZatrudniamyRouteImport.update({
+  id: '/zatrudniamy',
+  path: '/zatrudniamy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const UnsubscribeRoute = UnsubscribeRouteImport.update({
   id: '/unsubscribe',
   path: '/unsubscribe',
@@ -504,11 +509,6 @@ const ContributeRoute = ContributeRouteImport.update({
 const ClubRoute = ClubRouteImport.update({
   id: '/club',
   path: '/club',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CareersRoute = CareersRouteImport.update({
-  id: '/careers',
-  path: '/careers',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -1834,7 +1834,6 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/admin': typeof AdminRouteWithChildren
-  '/careers': typeof CareersRoute
   '/club': typeof ClubRouteWithChildren
   '/contribute': typeof ContributeRoute
   '/contributors': typeof ContributorsRoute
@@ -1874,6 +1873,7 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/support': typeof SupportRoute
   '/unsubscribe': typeof UnsubscribeRoute
+  '/zatrudniamy': typeof ZatrudniamyRoute
   '/zwroty-i-reklamacje': typeof ZwrotyIReklamacjeRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/gpc.json': typeof Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute
@@ -2131,7 +2131,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
-  '/careers': typeof CareersRoute
   '/contribute': typeof ContributeRoute
   '/contributors': typeof ContributorsRoute
   '/cookies': typeof CookiesRoute
@@ -2169,6 +2168,7 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/support': typeof SupportRoute
   '/unsubscribe': typeof UnsubscribeRoute
+  '/zatrudniamy': typeof ZatrudniamyRoute
   '/zwroty-i-reklamacje': typeof ZwrotyIReklamacjeRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/gpc.json': typeof Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute
@@ -2420,7 +2420,6 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/admin': typeof AdminRouteWithChildren
-  '/careers': typeof CareersRoute
   '/club': typeof ClubRouteWithChildren
   '/contribute': typeof ContributeRoute
   '/contributors': typeof ContributorsRoute
@@ -2460,6 +2459,7 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/support': typeof SupportRoute
   '/unsubscribe': typeof UnsubscribeRoute
+  '/zatrudniamy': typeof ZatrudniamyRoute
   '/zwroty-i-reklamacje': typeof ZwrotyIReklamacjeRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/gpc.json': typeof Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute
@@ -2720,7 +2720,6 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/admin'
-    | '/careers'
     | '/club'
     | '/contribute'
     | '/contributors'
@@ -2760,6 +2759,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/support'
     | '/unsubscribe'
+    | '/zatrudniamy'
     | '/zwroty-i-reklamacje'
     | '/.mcp/list-tools'
     | '/.well-known/gpc.json'
@@ -3017,7 +3017,6 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/$'
-    | '/careers'
     | '/contribute'
     | '/contributors'
     | '/cookies'
@@ -3055,6 +3054,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/support'
     | '/unsubscribe'
+    | '/zatrudniamy'
     | '/zwroty-i-reklamacje'
     | '/.mcp/list-tools'
     | '/.well-known/gpc.json'
@@ -3305,7 +3305,6 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/admin'
-    | '/careers'
     | '/club'
     | '/contribute'
     | '/contributors'
@@ -3345,6 +3344,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/support'
     | '/unsubscribe'
+    | '/zatrudniamy'
     | '/zwroty-i-reklamacje'
     | '/.mcp/list-tools'
     | '/.well-known/gpc.json'
@@ -3604,7 +3604,6 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SplatRoute: typeof SplatRoute
   AdminRoute: typeof AdminRouteWithChildren
-  CareersRoute: typeof CareersRoute
   ClubRoute: typeof ClubRouteWithChildren
   ContributeRoute: typeof ContributeRoute
   ContributorsRoute: typeof ContributorsRoute
@@ -3644,6 +3643,7 @@ export interface RootRouteChildren {
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   SupportRoute: typeof SupportRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
+  ZatrudniamyRoute: typeof ZatrudniamyRoute
   ZwrotyIReklamacjeRoute: typeof ZwrotyIReklamacjeRoute
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
   Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute: typeof Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute
@@ -3720,6 +3720,13 @@ declare module '@tanstack/react-router' {
       path: '/zwroty-i-reklamacje'
       fullPath: '/zwroty-i-reklamacje'
       preLoaderRoute: typeof ZwrotyIReklamacjeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/zatrudniamy': {
+      id: '/zatrudniamy'
+      path: '/zatrudniamy'
+      fullPath: '/zatrudniamy'
+      preLoaderRoute: typeof ZatrudniamyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/unsubscribe': {
@@ -3993,13 +4000,6 @@ declare module '@tanstack/react-router' {
       path: '/club'
       fullPath: '/club'
       preLoaderRoute: typeof ClubRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/careers': {
-      id: '/careers'
-      path: '/careers'
-      fullPath: '/careers'
-      preLoaderRoute: typeof CareersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -6408,7 +6408,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
   AdminRoute: AdminRouteWithChildren,
-  CareersRoute: CareersRoute,
   ClubRoute: ClubRouteWithChildren,
   ContributeRoute: ContributeRoute,
   ContributorsRoute: ContributorsRoute,
@@ -6448,6 +6447,7 @@ const rootRouteChildren: RootRouteChildren = {
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   SupportRoute: SupportRoute,
   UnsubscribeRoute: UnsubscribeRoute,
+  ZatrudniamyRoute: ZatrudniamyRoute,
   ZwrotyIReklamacjeRoute: ZwrotyIReklamacjeRoute,
   Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
   Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute:
