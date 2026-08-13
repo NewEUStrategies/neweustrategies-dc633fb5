@@ -25,22 +25,40 @@ export function CareerRoleCard({
   return (
     <article
       className={cn(
-        "group relative overflow-hidden rounded-[6px] border px-5 py-7 sm:px-8 sm:py-9",
-        "transition-[background-color,border-color,box-shadow,transform] duration-300 ease-out",
-        "hover:bg-muted/40 hover:shadow-[0_24px_50px_-34px_color-mix(in_oklab,var(--foreground)_45%,transparent)]",
-        selected
-          ? "border-primary/50 bg-primary/[0.04]"
-          : "border-transparent hover:border-border/70",
+        "group relative isolate rounded-[6px] transition-transform duration-300 ease-out hover:-translate-y-0.5",
+        selected && "-translate-y-0.5",
       )}
       aria-current={selected ? "true" : undefined}
     >
       <span
         aria-hidden
         className={cn(
-          "pointer-events-none absolute inset-y-0 left-0 bg-primary transition-all duration-300 ease-out",
-          selected ? "w-1.5" : "w-0 group-hover:w-1.5",
+          "pointer-events-none absolute inset-0 rounded-[6px] border transition-colors duration-300",
+          selected ? "border-brand/50 bg-brand/[0.08]" : "border-border/60 bg-brand/[0.04]",
         )}
       />
+      <span
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute inset-y-0 left-0 z-10 w-[2px] rounded-l-[6px]",
+          "bg-[linear-gradient(to_bottom,transparent,var(--brand),var(--brand),transparent)]",
+          "bg-[length:100%_400%] bg-[position:0%_0%] transition-[background-position] duration-1000 ease-in-out",
+          selected ? "bg-[position:0%_100%]" : "group-hover:bg-[position:0%_100%]",
+        )}
+      />
+      <span
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute inset-y-0 left-0 w-[3px] blur-[6px]",
+          "bg-[linear-gradient(to_bottom,transparent,var(--brand),transparent)]",
+          "bg-[length:100%_400%] bg-[position:0%_0%] opacity-0",
+          "transition-all duration-1000 ease-in-out",
+          selected
+            ? "bg-[position:0%_100%] opacity-50"
+            : "group-hover:bg-[position:0%_100%] group-hover:opacity-50",
+        )}
+      />
+
 
       <div className="grid items-center gap-6 md:grid-cols-12 md:gap-8">
         <div className="flex flex-col gap-1 md:col-span-3">
