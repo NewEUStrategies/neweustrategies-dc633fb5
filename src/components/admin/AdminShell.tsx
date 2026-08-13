@@ -469,7 +469,9 @@ function AdminShellInner({
           // CRM), z własną skrzynką zamiast mieszania ich z kontaktem ogólnym.
           to: "/admin/careers",
           icon: Briefcase,
-          label: t("admin.nav.careers"),
+          label: t("admin.nav.careers", {
+            defaultValue: lang === "pl" ? "Rekrutacja" : "Careers",
+          }),
         },
         {
           to: "/admin/community",
