@@ -1,26 +1,24 @@
-// Molekuła: karta otwartej roli. Rozwijany zakres obowiązków (bez zewnętrznej
-// biblioteki - `hidden` + aria-expanded) oraz CTA, które przekazuje id roli
-// do formularza aplikacyjnego.
-import { useId, useState } from "react";
+// Molekuła: karta otwartej roli. Pełna oferta (opis, zakres obowiązków,
+// wymagania) otwiera się w popupie; CTA przekazuje id roli do formularza.
 import { useTranslation } from "react-i18next";
-import { ChevronDown, MapPin, Clock3, ArrowRight } from "lucide-react";
+import { MapPin, Clock3, ArrowRight, FileText } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { roleBulletKeys, roleSummaryKey, roleTitleKey, type CareerRole } from "@/lib/careers/roles";
+import { roleSummaryKey, roleTitleKey, type CareerRole } from "@/lib/careers/roles";
 
 export function CareerRoleCard({
   role,
   selected,
   onApply,
+  onDetails,
 }: {
   role: CareerRole;
   selected: boolean;
   onApply: (roleId: string) => void;
+  onDetails: (roleId: string) => void;
 }) {
   const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-  const detailsId = useId();
 
   return (
     <article
@@ -79,27 +77,11 @@ export function CareerRoleCard({
           size="sm"
           variant="outline"
           className="h-9 gap-1.5 rounded-[6px] border-border/70 px-3 text-xs font-medium hover:border-primary/50 hover:bg-primary/5"
-          aria-expanded={open}
-          aria-controls={detailsId}
-          onClick={() => setOpen((v) => !v)}
+          onClick={() => onDetails(role.id)}
         >
+          <FileText className="h-4 w-4" aria-hidden />
           {t("careers.roles.details")}
-          <ChevronDown
-            className={cn("h-4 w-4 transition-transform duration-200", open && "rotate-180")}
-            aria-hidden
-          />
         </Button>
-      </div>
-
-      <div id={detailsId} hidden={!open} className="mt-4 border-t border-border/60 pt-3">
-        <ul className="space-y-2 text-sm leading-relaxed text-muted-foreground">
-          {roleBulletKeys(role).map((key) => (
-            <li key={key} className="flex gap-2">
-              <span aria-hidden className="mt-2 h-1 w-1 shrink-0 rounded-full bg-primary" />
-              <span>{t(key)}</span>
-            </li>
-          ))}
-        </ul>
       </div>
     </article>
   );

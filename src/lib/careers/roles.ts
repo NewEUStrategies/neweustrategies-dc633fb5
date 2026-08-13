@@ -29,6 +29,8 @@ export interface CareerRole {
   readonly location: "remote" | "hybrid" | "warsaw" | "brussels";
   /** Liczba punktów zakresu obowiązków w słowniku (`bullets.b1..bN`). */
   readonly bullets: 3 | 4;
+  /** Liczba wymagań w słowniku (`requirements.q1..qN`). */
+  readonly requirements: 3 | 4;
 }
 
 export const CAREER_DEPARTMENTS = [
@@ -55,6 +57,7 @@ export const CAREER_ROLES: readonly CareerRole[] = [
     seniority: "senior",
     location: "hybrid",
     bullets: 4,
+    requirements: 4,
   },
   {
     id: "analyst_economy",
@@ -63,6 +66,7 @@ export const CAREER_ROLES: readonly CareerRole[] = [
     seniority: "mid",
     location: "hybrid",
     bullets: 3,
+    requirements: 3,
   },
   {
     id: "data_analyst",
@@ -71,6 +75,7 @@ export const CAREER_ROLES: readonly CareerRole[] = [
     seniority: "mid",
     location: "remote",
     bullets: 3,
+    requirements: 3,
   },
   {
     id: "eu_policy_officer",
@@ -79,6 +84,7 @@ export const CAREER_ROLES: readonly CareerRole[] = [
     seniority: "mid",
     location: "brussels",
     bullets: 4,
+    requirements: 4,
   },
   {
     id: "policy_intern",
@@ -87,6 +93,7 @@ export const CAREER_ROLES: readonly CareerRole[] = [
     seniority: "junior",
     location: "warsaw",
     bullets: 3,
+    requirements: 3,
   },
   {
     id: "growth_marketing_lead",
@@ -95,6 +102,7 @@ export const CAREER_ROLES: readonly CareerRole[] = [
     seniority: "lead",
     location: "hybrid",
     bullets: 4,
+    requirements: 4,
   },
   {
     id: "content_marketing_specialist",
@@ -103,6 +111,7 @@ export const CAREER_ROLES: readonly CareerRole[] = [
     seniority: "mid",
     location: "remote",
     bullets: 3,
+    requirements: 3,
   },
   {
     id: "strategic_advisor",
@@ -111,6 +120,7 @@ export const CAREER_ROLES: readonly CareerRole[] = [
     seniority: "lead",
     location: "remote",
     bullets: 3,
+    requirements: 3,
   },
   {
     id: "managing_editor",
@@ -119,6 +129,7 @@ export const CAREER_ROLES: readonly CareerRole[] = [
     seniority: "senior",
     location: "warsaw",
     bullets: 4,
+    requirements: 4,
   },
   {
     id: "events_coordinator",
@@ -127,6 +138,7 @@ export const CAREER_ROLES: readonly CareerRole[] = [
     seniority: "mid",
     location: "warsaw",
     bullets: 3,
+    requirements: 3,
   },
 ] as const;
 
@@ -168,5 +180,11 @@ export function roleBulletKeys(role: CareerRole): string[] {
   return Array.from(
     { length: role.bullets },
     (_, i) => `careers.roles.${role.id}.bullets.b${i + 1}`,
+  );
+}
+export function roleRequirementKeys(role: CareerRole): string[] {
+  return Array.from(
+    { length: role.requirements },
+    (_, i) => `careers.roles.${role.id}.requirements.q${i + 1}`,
   );
 }

@@ -2,7 +2,7 @@
 // Filtr jest kontrolowany przez trasę (panel działów w hero ustawia go z góry),
 // wybór roli wędruje w górę (formularz preselekcjonuje dział i stanowisko).
 // Licznik wyników ma aria-live, a zmiana filtra odtwarza wejście kart.
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -10,10 +10,12 @@ import {
   CAREER_ROLES,
   countRolesByDepartment,
   filterRolesByDepartment,
+  findRole,
   type CareerDepartmentId,
 } from "@/lib/careers/roles";
 import { CareerFilterChip } from "../atoms/CareerFilterChip";
 import { CareerRoleCard } from "../molecules/CareerRoleCard";
+import { CareerRoleDialog } from "./CareerRoleDialog";
 
 export function CareersRoles({
   id,
@@ -32,6 +34,8 @@ export function CareersRoles({
 
   const counts = useMemo(() => countRolesByDepartment(CAREER_ROLES), []);
   const roles = useMemo(() => filterRolesByDepartment(CAREER_ROLES, department), [department]);
+  const [detailsRoleId, setDetailsRoleId] = useState<string | null>(null);
+  const detailsRole = useMemo(() => findRole(detailsRoleId), [detailsRoleId]);
 
   return (
     <section id={id} aria-labelledby="careers-roles" className="mt-14 scroll-mt-28">
@@ -86,11 +90,24 @@ export function CareersRoles({
               className="crs-pop"
               style={{ animationDelay: `${Math.min(index, 7) * 55}ms` }}
             >
-              <CareerRoleCard role={role} selected={role.id === selectedRoleId} onApply={onApply} />
+              <CareerRoleCard
+                role={role}
+                selected={role.id === selectedRoleId}
+                onApply={onApply}
+                onDetails={setDetailsRoleId}
+              />
             </div>
           ))}
         </div>
       )}
+      <CareerRoleDialog
+        role={detailsRole}
+        open={detailsRole !== null}
+        onOpenChange={(next) => {
+          if (!next) setDetailsRoleId(null);
+        }}
+        onApply={onApply}
+      />
     </section>
   );
 }
