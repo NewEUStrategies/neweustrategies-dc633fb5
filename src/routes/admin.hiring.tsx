@@ -17,7 +17,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import {
   CAREER_DEPARTMENTS,
-  CAREER_ENGAGEMENTS,
   CAREER_SENIORITIES,
   type CareerDepartmentId,
   type CareerEngagement,
@@ -39,6 +38,13 @@ export const Route = createFileRoute("/admin/hiring")({
   }),
   component: AdminHiringPage,
 });
+
+const ENGAGEMENTS = [
+  "full_time",
+  "part_time",
+  "contract",
+  "internship",
+] as const satisfies readonly CareerEngagement[];
 
 const LOCATIONS = ["remote", "hybrid", "warsaw", "brussels"] as const satisfies readonly CareerLocation[];
 
@@ -524,7 +530,7 @@ function AdminHiringPage() {
                   <Field label={L.engagement}>
                     <Select<CareerEngagement>
                       value={draft.engagement}
-                      options={CAREER_ENGAGEMENTS}
+                      options={ENGAGEMENTS}
                       onChange={(value) => setDraft({ ...draft, engagement: value })}
                       labelFor={(value) => t(`careers.engagement.${value}`)}
                     />
