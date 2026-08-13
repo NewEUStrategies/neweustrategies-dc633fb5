@@ -6,6 +6,10 @@
 //
 // Wynik zapisywany do `WidgetNode.advanced.link` i renderowany przez
 // BuilderRenderer jako niewidoczna warstwa <a> nad widgetem.
+//
+// i18n: teksty interfejsu idą przez `t()` (język panelu). Prop `lang` to język
+// EDYTOWANEJ TREŚCI - służy wyłącznie do wyboru kolumny danych
+// (`title_pl`/`title_en`, `name_pl`/`name_en`), nigdy do tekstu UI.
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,6 +31,7 @@ import {
 } from "lucide-react";
 import type { WidgetLink, WidgetLinkKind } from "@/lib/builder/types";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-builder";
 
 interface Props {
   value: WidgetLink | undefined;
@@ -62,12 +67,12 @@ export function LinkPicker({ value, onChange, lang }: Props) {
   const clear = () => onChange(undefined);
 
   const labels: Record<Tab, string> = {
-    external: "URL",
-    post: lang === "pl" ? "Wpis" : "Post",
-    page: lang === "pl" ? "Strona" : "Page",
-    category: lang === "pl" ? "Kategoria" : "Category",
-    tag: lang === "pl" ? "Tag" : "Tag",
-    media: "Media",
+    external: t("linkPicker.tabs.external"),
+    post: t("linkPicker.tabs.post"),
+    page: t("linkPicker.tabs.page"),
+    category: t("linkPicker.tabs.category"),
+    tag: t("linkPicker.tabs.tag"),
+    media: t("linkPicker.tabs.media"),
   };
 
   return (
@@ -145,7 +150,7 @@ export function LinkPicker({ value, onChange, lang }: Props) {
         <div className="space-y-2 pt-2 border-t border-border">
           <div className="flex items-center justify-between gap-2">
             <Label htmlFor="link-newtab" className="text-[11px]">
-              {t("linkPicker.newTab", lang === "pl" ? "Otwórz w nowej karcie" : "Open in new tab")}
+              {t("linkPicker.newTab")}
             </Label>
             <Switch
               id="link-newtab"
@@ -155,7 +160,7 @@ export function LinkPicker({ value, onChange, lang }: Props) {
           </div>
           <div className="flex items-center justify-between gap-2">
             <Label htmlFor="link-nofollow" className="text-[11px]">
-              {t("linkPicker.nofollow", "rel=nofollow")}
+              {t("linkPicker.nofollow")}
             </Label>
             <Switch
               id="link-nofollow"
@@ -163,10 +168,10 @@ export function LinkPicker({ value, onChange, lang }: Props) {
               onCheckedChange={(on) => update({ nofollow: on })}
             />
           </div>
-          <PropField label={lang === "pl" ? "Etykieta ARIA" : "ARIA label"}>
+          <PropField label={t("linkPicker.ariaLabel")}>
             <Input
               value={value.ariaLabel ?? ""}
-              placeholder={lang === "pl" ? "opcjonalna" : "optional"}
+              placeholder={t("linkPicker.ariaOptional")}
               onChange={(e) => update({ ariaLabel: e.target.value || undefined })}
               className="h-8 text-xs"
             />
@@ -179,7 +184,7 @@ export function LinkPicker({ value, onChange, lang }: Props) {
             className="w-full h-7 text-[11px] text-destructive hover:text-destructive"
           >
             <X className="w-3 h-3 mr-1" />
-            {lang === "pl" ? "Usuń link" : "Remove link"}
+            {t("linkPicker.removeLink")}
           </Button>
         </div>
       )}
@@ -194,13 +199,12 @@ function ExternalUrlEditor({
   value: WidgetLink | undefined;
   onChange: (v: WidgetLink | undefined) => void;
 }) {
-  const { i18n } = useTranslation();
-  const isEn = (i18n.language ?? "").startsWith("en");
+  const { t } = useTranslation();
   return (
-    <PropField label="URL">
+    <PropField label={t("linkPicker.tabs.external")}>
       <Input
         value={value?.url ?? ""}
-        placeholder={isEn ? "https://example.com or /about" : "https://example.com lub /o-nas"}
+        placeholder={t("linkPicker.urlPlaceholder")}
         onChange={(e) => {
           const v = e.target.value;
           if (!v) onChange(undefined);
@@ -232,6 +236,7 @@ function EntityPicker({
   onPick: (url: string, id: string, label: string) => void;
   onClear: () => void;
 }) {
+  const { t } = useTranslation();
   const [q, setQ] = useState("");
   const table = kind === "post" ? "posts" : "pages";
   const prefix = kind === "post" ? "/post" : "";
@@ -267,7 +272,7 @@ function EntityPicker({
             type="button"
             onClick={onClear}
             className="text-muted-foreground hover:text-destructive"
-            aria-label={lang === "pl" ? "Usuń" : "Remove"}
+            aria-label={t("linkPicker.remove")}
           >
             <X className="w-3 h-3" />
           </button>
@@ -278,15 +283,7 @@ function EntityPicker({
         <Input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder={
-            kind === "post"
-              ? lang === "pl"
-                ? "Szukaj wpisów..."
-                : "Search posts..."
-              : lang === "pl"
-                ? "Szukaj stron..."
-                : "Search pages..."
-          }
+          placeholder={kind === "post" ? t("linkPicker.searchPosts") : t("linkPicker.searchPages")}
           className="h-8 pl-8 text-xs"
         />
       </div>
@@ -294,7 +291,7 @@ function EntityPicker({
         <div className="max-h-64 overflow-y-auto overscroll-contain rounded border border-border bg-popover">
           {isFetching && (
             <div className="px-2 py-1.5 text-[10px] text-muted-foreground">
-              {lang === "pl" ? "Wczytywanie..." : "Loading..."}
+              {t("linkPicker.loading")}
             </div>
           )}
           {!isFetching &&
@@ -315,15 +312,13 @@ function EntityPicker({
             })}
           {!isFetching && !hits.length && (
             <div className="px-2 py-1.5 text-[10px] text-muted-foreground">
-              {lang === "pl" ? "Brak wyników" : "No results"}
+              {t("linkPicker.noResults")}
             </div>
           )}
         </div>
       )}
       {q.trim().length < 2 && !value?.url && (
-        <div className="text-[10px] text-muted-foreground">
-          {lang === "pl" ? "Wpisz min. 2 znaki, aby szukać" : "Type at least 2 characters"}
-        </div>
+        <div className="text-[10px] text-muted-foreground">{t("linkPicker.typeMin")}</div>
       )}
     </div>
   );
@@ -353,6 +348,7 @@ function TaxonomyPicker({
   onPick: (url: string, id: string, label: string) => void;
   onClear: () => void;
 }) {
+  const { t } = useTranslation();
   const [q, setQ] = useState("");
 
   const { data: hits = [], isFetching } = useQuery({
@@ -362,7 +358,8 @@ function TaxonomyPicker({
       const term = q.trim();
       if (kind === "category") {
         let query = supabase.from("categories").select("id, slug, name_pl, name_en").limit(50);
-        if (term) query = query.or(`name_pl.ilike.%${term}%,name_en.ilike.%${term}%,slug.ilike.%${term}%`);
+        if (term)
+          query = query.or(`name_pl.ilike.%${term}%,name_en.ilike.%${term}%,slug.ilike.%${term}%`);
         const { data } = await query;
         return (data ?? []).map((r) => ({
           id: r.id,
@@ -386,7 +383,7 @@ function TaxonomyPicker({
             type="button"
             onClick={onClear}
             className="text-muted-foreground hover:text-destructive"
-            aria-label={lang === "pl" ? "Usuń" : "Remove"}
+            aria-label={t("linkPicker.remove")}
           >
             <X className="w-3 h-3" />
           </button>
@@ -398,13 +395,7 @@ function TaxonomyPicker({
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder={
-            kind === "category"
-              ? lang === "pl"
-                ? "Szukaj kategorii..."
-                : "Search categories..."
-              : lang === "pl"
-                ? "Szukaj tagów..."
-                : "Search tags..."
+            kind === "category" ? t("linkPicker.searchCategories") : t("linkPicker.searchTags")
           }
           className="h-8 pl-8 text-xs"
         />
@@ -412,7 +403,7 @@ function TaxonomyPicker({
       <div className="max-h-64 overflow-y-auto overscroll-contain rounded border border-border bg-popover">
         {isFetching && (
           <div className="px-2 py-1.5 text-[10px] text-muted-foreground">
-            {lang === "pl" ? "Wczytywanie..." : "Loading..."}
+            {t("linkPicker.loading")}
           </div>
         )}
         {!isFetching &&
@@ -420,7 +411,13 @@ function TaxonomyPicker({
             <button
               key={row.id}
               type="button"
-              onClick={() => onPick(`/${kind === "category" ? "category" : "tag"}/${row.slug}`, row.id, row.label)}
+              onClick={() =>
+                onPick(
+                  `/${kind === "category" ? "category" : "tag"}/${row.slug}`,
+                  row.id,
+                  row.label,
+                )
+              }
               className="w-full text-left px-2 py-1.5 text-[11px] hover:bg-muted truncate"
             >
               {row.label}
@@ -429,7 +426,7 @@ function TaxonomyPicker({
           ))}
         {!isFetching && !hits.length && (
           <div className="px-2 py-1.5 text-[10px] text-muted-foreground">
-            {lang === "pl" ? "Brak wyników" : "No results"}
+            {t("linkPicker.noResults")}
           </div>
         )}
       </div>
@@ -446,8 +443,7 @@ function MediaLinkPicker({
   onPick: (url: string, label: string) => void;
   onClear: () => void;
 }) {
-  const { i18n } = useTranslation();
-  const isEn = (i18n.language ?? "").startsWith("en");
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   return (
     <div className="space-y-1.5">
@@ -458,7 +454,7 @@ function MediaLinkPicker({
             type="button"
             onClick={onClear}
             className="text-muted-foreground hover:text-destructive"
-            aria-label={isEn ? "Remove" : "Usuń"}
+            aria-label={t("linkPicker.remove")}
           >
             <X className="w-3 h-3" />
           </button>
@@ -472,13 +468,7 @@ function MediaLinkPicker({
         className="w-full h-8 text-xs"
       >
         <ImageIcon className="w-3 h-3 mr-1" />
-        {value?.url
-          ? isEn
-            ? "Change file"
-            : "Zmień plik"
-          : isEn
-            ? "Choose from Media Library"
-            : "Wybierz z Biblioteki mediów"}
+        {value?.url ? t("linkPicker.changeFile") : t("linkPicker.chooseFromLibrary")}
       </Button>
       <MediaPickerDialog
         open={open}

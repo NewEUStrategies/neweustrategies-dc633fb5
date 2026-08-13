@@ -9,6 +9,7 @@ import { staticPageSeoQueryOptions, pickStaticSeo } from "@/lib/queries/staticPa
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { ensureI18n as ensureCareersI18n } from "@/lib/i18n-careers";
+import type { CareerDepartmentId } from "@/lib/careers/roles";
 import { CareersHero } from "@/components/careers/organisms/CareersHero";
 import { CareersValues } from "@/components/careers/organisms/CareersValues";
 import { CareersRoles } from "@/components/careers/organisms/CareersRoles";
@@ -66,6 +67,12 @@ function CareersPage() {
     typeof window === "undefined" ? getRequestUrl() || "/zatrudniamy" : window.location.pathname,
   );
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
+  // Filtr działu żyje w trasie: ustawiają go chipsy nad listą ról.
+  const [department, setDepartment] = useState<CareerDepartmentId | "all">("all");
+  // Licznik intencji aplikowania - rośnie przy KAŻDYM CTA prowadzącym do
+  // formularza, żeby kreator wrócił po panelu potwierdzenia również wtedy,
+  // gdy wybrana rola się nie zmienia (patrz CareersApplyForm.applySignal).
+  const [applySignal, setApplySignal] = useState(0);
 
   const scrollTo = useCallback((id: string) => {
     if (typeof document === "undefined") return;
@@ -75,6 +82,7 @@ function CareersPage() {
   const handleApply = useCallback(
     (roleId: string) => {
       setSelectedRoleId(roleId);
+      setApplySignal((s) => s + 1);
       scrollTo(FORM_ID);
     },
     [scrollTo],
@@ -82,6 +90,7 @@ function CareersPage() {
 
   const openApplication = useCallback(() => {
     setSelectedRoleId(null);
+    setApplySignal((s) => s + 1);
     scrollTo(FORM_ID);
   }, [scrollTo]);
 
@@ -89,13 +98,20 @@ function CareersPage() {
     <div className="container mx-auto max-w-6xl px-4 py-10 md:py-14 xl:max-w-[88rem]">
       <CareersHero onSeeRoles={() => scrollTo(ROLES_ID)} onOpenApplication={openApplication} />
       <CareersValues />
-      <CareersRoles id={ROLES_ID} selectedRoleId={selectedRoleId} onApply={handleApply} />
+      <CareersRoles
+        id={ROLES_ID}
+        department={department}
+        onDepartmentChange={setDepartment}
+        selectedRoleId={selectedRoleId}
+        onApply={handleApply}
+      />
       <CareersProcess />
       <CareersApplyForm
         id={FORM_ID}
         lang={lang === "en" ? "en" : "pl"}
         selectedRoleId={selectedRoleId}
         onRoleChange={setSelectedRoleId}
+        applySignal={applySignal}
       />
       <CareersClosing onOpenApplication={openApplication} />
     </div>

@@ -7917,3 +7917,180 @@ html.dark.club-navy body {
 .nlp .btn-bubbly:hover:not(:disabled) {
   background-color: var(--nl-btn-hover-bg, var(--nl-btn-bg, var(--nl-accent)));
 }
+
+/* =========================================================================
+   Strona kariery (/zatrudniamy) - warstwa ruchu `crs-*`
+   -------------------------------------------------------------------------
+   Zasada dostępności: ŻADNA z tych klas nie może ukryć treści czytelnikowi
+   bez JS ani osobie z `prefers-reduced-motion`. Stany "przed animacją"
+   istnieją wyłącznie pod `@media (scripting: enabled)` + bez reduced-motion;
+   wszędzie indziej sekcje renderują się od razu w stanie końcowym (to samo
+   widzi crawler i test SSR).
+   ========================================================================= */
+
+/* Aurora hero - dwa/trzy rozmyte bloby dryfujące w tle nagłówka. */
+.crs-aurora {
+  overflow: hidden;
+}
+.crs-aurora > span {
+  position: absolute;
+  width: 42%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  filter: blur(64px);
+  opacity: 0.4;
+  background: color-mix(in oklab, var(--brand, var(--primary)) 55%, transparent);
+}
+.crs-aurora > span:nth-child(1) {
+  top: -22%;
+  left: -8%;
+}
+.crs-aurora > span:nth-child(2) {
+  bottom: -30%;
+  right: -6%;
+  opacity: 0.28;
+}
+.crs-aurora > span:nth-child(3) {
+  top: 20%;
+  left: 46%;
+  width: 30%;
+  opacity: 0.18;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .crs-aurora > span {
+    animation: crs-aurora-drift 16s ease-in-out infinite;
+  }
+  .crs-aurora > span:nth-child(2) {
+    animation-delay: -5s;
+  }
+  .crs-aurora > span:nth-child(3) {
+    animation-delay: -11s;
+  }
+}
+@keyframes crs-aurora-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(7%, -5%, 0) scale(1.12);
+  }
+}
+
+/* Pulsująca kropka "rekrutujemy" w badge'u hero. */
+.crs-pulse-dot {
+  position: relative;
+  display: inline-flex;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--brand, var(--primary));
+}
+@media (prefers-reduced-motion: no-preference) {
+  .crs-pulse-dot::after {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    background: color-mix(in oklab, var(--brand, var(--primary)) 45%, transparent);
+    animation: crs-pulse 2.2s ease-out infinite;
+  }
+}
+@keyframes crs-pulse {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.9;
+  }
+  70%,
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+
+/* Wejście sekcji przy scrollu - ukrycie tylko przy działającym JS. */
+@media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
+  .crs-reveal {
+    opacity: 0;
+    transform: translateY(14px);
+    transition:
+      opacity 0.55s ease-out,
+      transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: var(--crs-delay, 0ms);
+  }
+  .crs-reveal--in {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Pop-in kart ról po zmianie filtra i panelu zasad po przełączeniu. */
+@media (prefers-reduced-motion: no-preference) {
+  .crs-pop {
+    animation: crs-pop-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .crs-value-panel[data-state="active"] {
+    animation: crs-pop-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .crs-step {
+    animation: crs-step-in 0.3s ease-out backwards;
+  }
+}
+@keyframes crs-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes crs-step-in {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Pasek postępu kreatora aplikacji. */
+.crs-progress {
+  background: var(--brand, var(--primary));
+  transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Panel potwierdzenia wysłanej aplikacji. */
+.crs-success__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 6px;
+  border: 1px solid color-mix(in oklab, var(--brand, var(--primary)) 45%, transparent);
+  background: color-mix(in oklab, var(--brand, var(--primary)) 14%, transparent);
+  color: var(--brand-ink, var(--primary));
+}
+@media (prefers-reduced-motion: no-preference) {
+  .crs-success {
+    animation: crs-pop-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .crs-success__badge {
+    animation: crs-success-badge 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+    animation-delay: 0.12s;
+  }
+}
+@keyframes crs-success-badge {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}

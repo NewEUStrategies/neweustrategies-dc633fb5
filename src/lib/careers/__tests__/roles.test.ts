@@ -63,3 +63,74 @@ describe("careers: słownik PL/EN", () => {
     });
   }
 });
+
+describe("careers: słownik sekcji interaktywnych (hero / wartości / benefity / kreator)", () => {
+  // Kontrakt gałęzi używanych dynamicznie w komponentach - literówka w kluczu
+  // renderowałaby użytkownikowi goły klucz zamiast tekstu.
+  const ROTATING = ["research", "policy", "marketing", "advisory", "editorial"];
+  const VALUE_ITEMS = ["evidence", "ownership", "craft", "europe"];
+  const BENEFIT_ITEMS = ["contract", "remote", "offices", "budget", "byline", "network"];
+  const PROCESS_ITEMS = ["apply", "screening", "task", "decision"];
+  const FORM_STEPS = ["about", "fit", "message"];
+  const SUCCESS_POINTS = ["review", "reply", "call"];
+
+  const LEAVES = [
+    "careers.hero.badge",
+    "careers.hero.titleTop",
+    "careers.hero.titleAccent",
+    "careers.hero.rotatePrefix",
+    ...ROTATING.map((k) => `careers.hero.rotating.${k}`),
+    "careers.values.hint",
+    "careers.values.proofLabel",
+    ...VALUE_ITEMS.flatMap((k) => [
+      `careers.values.items.${k}.title`,
+      `careers.values.items.${k}.body`,
+      `careers.values.items.${k}.proof`,
+    ]),
+    "careers.benefits.subtitle",
+    ...BENEFIT_ITEMS.flatMap((k) => [
+      `careers.benefits.items.${k}.title`,
+      `careers.benefits.items.${k}.body`,
+    ]),
+    ...PROCESS_ITEMS.map((k) => `careers.process.items.${k}.duration`),
+    "careers.roles.showing",
+    ...FORM_STEPS.flatMap((k) => [`careers.form.steps.${k}.title`, `careers.form.steps.${k}.hint`]),
+    "careers.form.stepLabel",
+    "careers.form.back",
+    "careers.form.next",
+    "careers.form.fitOptional",
+    "careers.form.requiredAbout",
+    "careers.form.requiredMessage",
+    "careers.form.success.title",
+    "careers.form.success.body",
+    ...SUCCESS_POINTS.map((k) => `careers.form.success.points.${k}`),
+    "careers.form.success.again",
+  ];
+
+  for (const lang of ["pl", "en"] as const) {
+    it(`ma komplet tekstów (${lang})`, () => {
+      const dict = careersResources[lang] as unknown as Dict;
+      for (const key of LEAVES) {
+        expect(get(dict, key), key).toBeTruthy();
+      }
+    });
+  }
+
+  it("interpolacje trzymają te same zmienne w PL i EN", () => {
+    const INTERPOLATED = [
+      ["careers.hero.badge", ["value"]],
+      ["careers.roles.showing", ["value", "total"]],
+      ["careers.form.stepLabel", ["current", "total"]],
+      ["careers.form.success.body", ["email"]],
+    ] as const;
+    for (const lang of ["pl", "en"] as const) {
+      const dict = careersResources[lang] as unknown as Dict;
+      for (const [key, vars] of INTERPOLATED) {
+        const text = String(get(dict, key));
+        for (const v of vars) {
+          expect(text, `${lang}:${key}`).toContain(`{{${v}}}`);
+        }
+      }
+    }
+  });
+});
