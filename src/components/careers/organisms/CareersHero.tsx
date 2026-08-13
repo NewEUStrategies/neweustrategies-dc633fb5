@@ -37,6 +37,8 @@ export function CareersHero({
   onOpenApplication: () => void;
 }) {
   const { t } = useTranslation();
+  const { offers } = useCareerOffers();
+
   const themeLogo = useSiteSetting<ThemeLogoCfg>("theme_options", THEME_DEFAULTS).logo ?? {};
   const logoLight = themeLogo.main || themeLogo.main_dark || "";
   const logoDark = themeLogo.main_dark || themeLogo.main || "";
