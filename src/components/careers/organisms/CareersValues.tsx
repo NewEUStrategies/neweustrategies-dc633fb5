@@ -137,12 +137,29 @@ export function CareersValues() {
                 <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
                   {t(`careers.values.items.${item.key}.body`)}
                 </p>
-                <p className="mt-4 max-w-2xl rounded-[6px] border-l-2 border-brand bg-brand/5 px-4 py-3 text-sm leading-relaxed text-foreground">
-                  <span className="font-semibold text-brand-ink">
-                    {t("careers.values.proofLabel")}:
-                  </span>{" "}
-                  {t(`careers.values.items.${item.key}.proof`)}
-                </p>
+                <div className="group relative mt-5 max-w-2xl transition-transform duration-300 hover:-translate-y-0.5">
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 rounded-[6px] border border-border/60 bg-brand/[0.04]"
+                  />
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-y-0 left-0 z-10 w-[2px] rounded-l-[6px] bg-[linear-gradient(to_bottom,transparent,var(--brand),var(--brand),transparent)] bg-[length:100%_400%] bg-[position:0%_0%] transition-[background-position] duration-1000 ease-in-out group-hover:bg-[position:0%_100%]"
+                  />
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-y-0 left-0 w-[3px] bg-[linear-gradient(to_bottom,transparent,var(--brand),transparent)] bg-[length:100%_400%] bg-[position:0%_0%] opacity-0 blur-[6px] transition-all duration-1000 ease-in-out group-hover:bg-[position:0%_100%] group-hover:opacity-50"
+                  />
+                  <div className="relative flex flex-col items-start gap-2.5 py-5 pl-7 pr-5">
+                    <span className="text-[10px] font-black uppercase tracking-[0.25em] text-brand sm:text-xs">
+                      {t("careers.values.proofLabel")}
+                    </span>
+                    <p className="text-sm leading-relaxed text-foreground/90 sm:text-base">
+                      {t(`careers.values.items.${item.key}.proof`)}
+                    </p>
+                  </div>
+                </div>
+
               </TabsContent>
             ))}
           </div>
