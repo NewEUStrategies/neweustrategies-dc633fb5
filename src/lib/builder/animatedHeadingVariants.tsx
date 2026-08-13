@@ -235,6 +235,8 @@ export interface AnimatedHeadingConfig {
   align?: "left" | "center" | "right";
   // Hiperłącza per segment nagłówka (własny URL lub encja platformy:
   // wpis, strona, kategoria, tag, plik mediów).
+  /** Link obejmujący cały nagłówek - wyklucza linki per segment. */
+  linkWhole?: AnimatedHeadingLink;
   linkBefore?: AnimatedHeadingLink;
   linkHighlight?: AnimatedHeadingLink;
   linkAfter?: AnimatedHeadingLink;
