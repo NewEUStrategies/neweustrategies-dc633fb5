@@ -66,11 +66,19 @@ export function CareersApplyForm({
   lang,
   selectedRoleId,
   onRoleChange,
+  applySignal = 0,
 }: {
   id: string;
   lang: "pl" | "en";
   selectedRoleId: string | null;
   onRoleChange: (roleId: string | null) => void;
+  /**
+   * Licznik intencji aplikowania z trasy (CTA hero / domknięcia / karty ról).
+   * Rośnie przy każdym kliknięciu, więc przywraca formularz po panelu
+   * potwierdzenia także wtedy, gdy `selectedRoleId` się nie zmienia
+   * (zgłoszenie spontaniczne po zgłoszeniu spontanicznym).
+   */
+  applySignal?: number;
 }) {
   const { t } = useTranslation();
   const submit = useServerFn(submitContactMessage);
@@ -86,12 +94,10 @@ export function CareersApplyForm({
   const formId = useId();
   const consentId = `${formId}-consent`;
 
-  // Preselekcja z kart ról - wybór roli ustawia też jej dział i poziom oraz
-  // przywraca formularz, jeśli ktoś wraca z panelu potwierdzenia.
+  // Preselekcja z kart ról - wybór roli ustawia też jej dział i poziom.
   useEffect(() => {
     const role = findRole(selectedRoleId);
     if (!role) return;
-    setSubmitted(false);
     setForm((prev) => ({
       ...prev,
       role: role.id,
@@ -99,6 +105,12 @@ export function CareersApplyForm({
       seniority: prev.seniority || role.seniority,
     }));
   }, [selectedRoleId]);
+
+  // Każda intencja aplikowania (CTA / karta roli) przywraca formularz po
+  // panelu potwierdzenia - niezależnie od tego, czy zmieniła się rola.
+  useEffect(() => {
+    if (applySignal > 0) setSubmitted(false);
+  }, [applySignal]);
 
   // Fokus na legendzie aktywnego kroku - dopiero od pierwszej ZMIANY kroku,
   // żeby nie kraść fokusa przy wejściu na stronę.
@@ -207,6 +219,14 @@ export function CareersApplyForm({
     }
   };
 
+  // Powrót stepperem jest wolny, ale ruch W PRZÓD przechodzi walidację kroku
+  // "O Tobie" - po cofnięciu można wyczyścić wymagane pola i bez tej bramki
+  // skok do odwiedzonej "Wiadomości" ominąłby walidację.
+  const handleStepSelect = (index: number) => {
+    if (index > step && !validateAbout()) return;
+    setStep(index);
+  };
+
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (step === 0) {
@@ -215,6 +235,12 @@ export function CareersApplyForm({
     }
     if (step < LAST_STEP) {
       goToStep(step + 1);
+      return;
+    }
+    // Pas bezpieczeństwa: dane kroku 1 mogły zostać wyczyszczone po powrocie -
+    // finalna wysyłka waliduje je ponownie i wraca do kroku z brakami.
+    if (!validateAbout()) {
+      setStep(0);
       return;
     }
     if (!form.message.trim()) {
@@ -256,7 +282,11 @@ export function CareersApplyForm({
         <CareerFormSuccess email={submittedEmail} onReset={() => setSubmitted(false)} />
       ) : (
         <form onSubmit={onSubmit} className="mt-6" noValidate>
-          <CareerFormStepper current={step} maxVisited={maxVisited} onStepSelect={setStep} />
+          <CareerFormStepper
+            current={step}
+            maxVisited={maxVisited}
+            onStepSelect={handleStepSelect}
+          />
 
           <fieldset key={stepKey} className="crs-step mt-6 min-w-0 border-0 p-0">
             <legend

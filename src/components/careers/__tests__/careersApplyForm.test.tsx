@@ -146,6 +146,65 @@ describe("CareersApplyForm: kreator 3 kroków", () => {
     expect(screen.getByLabelText(/careers\.form\.firstName/)).toHaveValue("Jan");
   });
 
+  it("skok stepperem W PRZÓD ponownie waliduje krok 'O Tobie'", () => {
+    renderForm();
+    fillAbout();
+    nextStep(); // odwiedzamy "Dopasowanie"
+
+    // Powrót i wyczyszczenie wymaganego pola po drodze.
+    fireEvent.click(screen.getByRole("button", { name: /careers\.form\.steps\.about/ }));
+    fireEvent.change(screen.getByLabelText(/careers\.form\.email/), { target: { value: "" } });
+
+    // Skok w przód do odwiedzonego kroku jest zablokowany walidacją.
+    fireEvent.click(screen.getByRole("button", { name: /careers\.form\.steps\.fit/ }));
+    expect(toastError).toHaveBeenCalledWith("careers.form.requiredAbout");
+    expect(screen.getByLabelText(/careers\.form\.firstName/)).toBeInTheDocument();
+
+    // Po uzupełnieniu skok przechodzi.
+    fireEvent.change(screen.getByLabelText(/careers\.form\.email/), {
+      target: { value: "jan.kowalski@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /careers\.form\.steps\.fit/ }));
+    expect(screen.getByText("careers.form.fitOptional")).toBeInTheDocument();
+  });
+
+  it("nowa intencja aplikowania (applySignal) przywraca formularz po sukcesie", async () => {
+    const onRoleChange = vi.fn();
+    const { rerender } = render(
+      <CareersApplyForm
+        id="careers-application"
+        lang="pl"
+        selectedRoleId={null}
+        onRoleChange={onRoleChange}
+        applySignal={0}
+      />,
+    );
+
+    fillAbout();
+    nextStep();
+    nextStep();
+    fireEvent.change(screen.getByLabelText(/careers\.form\.message/), {
+      target: { value: "Zgłoszenie spontaniczne." },
+    });
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: /careers\.form\.submit/ }));
+    expect(await screen.findByText("careers.form.success.title")).toBeInTheDocument();
+
+    // CTA "Aplikuj spontanicznie" nie zmienia roli (null -> null) - formularz
+    // wraca wyłącznie dzięki rosnącemu licznikowi intencji.
+    rerender(
+      <CareersApplyForm
+        id="careers-application"
+        lang="pl"
+        selectedRoleId={null}
+        onRoleChange={onRoleChange}
+        applySignal={1}
+      />,
+    );
+    expect(screen.queryByText("careers.form.success.title")).toBeNull();
+    expect(screen.getByLabelText(/careers\.form\.firstName/)).toHaveValue("");
+  });
+
   it("nie ma naruszeń axe (krok 1)", async () => {
     const { container } = renderForm();
     const violations = await axeViolations(container);

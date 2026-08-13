@@ -60,6 +60,24 @@ export interface TextRotateRef {
   reset: () => void;
 }
 
+/**
+ * `prefers-reduced-motion` na żywo (nasłuch zmiany preferencji). SSR i pierwszy
+ * render klienta zwracają `false` - to bezpieczny kierunek, bo do hydratacji
+ * i tak nie ma timerów, a po niej stan dociąga się z matchMedia.
+ */
+function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReduced(query.matches);
+    update();
+    query.addEventListener?.("change", update);
+    return () => query.removeEventListener?.("change", update);
+  }, []);
+  return reduced;
+}
+
 /** Podział tekstu na segmenty zgodnie z `splitBy`. */
 function splitText(text: string, mode: TextRotateSplitBy): string[] {
   if (mode === "lines") return text.split(/\r?\n/);
@@ -102,6 +120,7 @@ export const TextRotate = forwardRef<TextRotateRef, TextRotateProps>(function Te
   const safeTexts = texts.length > 0 ? texts : [""];
   const [index, setIndex] = useState(0);
   const [entered, setEntered] = useState(false);
+  const reducedMotion = usePrefersReducedMotion();
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearTimer = useCallback(() => {
@@ -153,13 +172,15 @@ export const TextRotate = forwardRef<TextRotateRef, TextRotateProps>(function Te
     return () => cancelAnimationFrame(raf);
   }, [index]);
 
-  // Auto-rotacja.
+  // Auto-rotacja. Przy prefers-reduced-motion nie startuje wcale - rotujący
+  // tekst to ruch w rozumieniu preferencji, klasa motion-reduce nie wyłączy
+  // timera ani stylów inline.
   useEffect(() => {
-    if (!auto || safeTexts.length <= 1) return;
+    if (!auto || reducedMotion || safeTexts.length <= 1) return;
     clearTimer();
     timerRef.current = setTimeout(() => advance(1), rotationInterval);
     return clearTimer;
-  }, [auto, advance, clearTimer, index, rotationInterval, safeTexts.length]);
+  }, [auto, advance, clearTimer, index, reducedMotion, rotationInterval, safeTexts.length]);
 
   const current = safeTexts[index] ?? "";
   const segments = useMemo(() => splitText(current, splitBy), [current, splitBy]);
@@ -174,15 +195,19 @@ export const TextRotate = forwardRef<TextRotateRef, TextRotateProps>(function Te
       <span aria-hidden="true" className="inline-flex flex-wrap justify-inherit">
         {segments.map((seg, i) => {
           const delay = staggerDelay(i, segments.length, staggerDurationMs, staggerFrom);
-          const style: CSSProperties = {
-            transitionProperty: "opacity, transform",
-            transitionDuration: `${transitionMs}ms`,
-            transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)",
-            transitionDelay: `${delay}ms`,
-            opacity: entered ? 1 : 0,
-            transform: entered ? "translateY(0)" : "translateY(0.4em)",
-            willChange: "transform, opacity",
-          };
+          // Style inline wygrywają z klasą motion-reduce:transition-none, więc
+          // przy reduced-motion nie emitujemy przejść wcale (zmiana skokowa).
+          const style: CSSProperties = reducedMotion
+            ? { opacity: 1, transform: "none" }
+            : {
+                transitionProperty: "opacity, transform",
+                transitionDuration: `${transitionMs}ms`,
+                transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)",
+                transitionDelay: `${delay}ms`,
+                opacity: entered ? 1 : 0,
+                transform: entered ? "translateY(0)" : "translateY(0.4em)",
+                willChange: "transform, opacity",
+              };
           if (splitBy === "lines") {
             return (
               <span

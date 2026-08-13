@@ -67,9 +67,12 @@ function CareersPage() {
     typeof window === "undefined" ? getRequestUrl() || "/zatrudniamy" : window.location.pathname,
   );
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
-  // Filtr działu żyje w trasie: ustawia go zarówno panel działów w hero,
-  // jak i chipsy nad listą ról.
+  // Filtr działu żyje w trasie: ustawiają go chipsy nad listą ról.
   const [department, setDepartment] = useState<CareerDepartmentId | "all">("all");
+  // Licznik intencji aplikowania - rośnie przy KAŻDYM CTA prowadzącym do
+  // formularza, żeby kreator wrócił po panelu potwierdzenia również wtedy,
+  // gdy wybrana rola się nie zmienia (patrz CareersApplyForm.applySignal).
+  const [applySignal, setApplySignal] = useState(0);
 
   const scrollTo = useCallback((id: string) => {
     if (typeof document === "undefined") return;
@@ -79,6 +82,7 @@ function CareersPage() {
   const handleApply = useCallback(
     (roleId: string) => {
       setSelectedRoleId(roleId);
+      setApplySignal((s) => s + 1);
       scrollTo(FORM_ID);
     },
     [scrollTo],
@@ -86,6 +90,7 @@ function CareersPage() {
 
   const openApplication = useCallback(() => {
     setSelectedRoleId(null);
+    setApplySignal((s) => s + 1);
     scrollTo(FORM_ID);
   }, [scrollTo]);
 
@@ -106,6 +111,7 @@ function CareersPage() {
         lang={lang === "en" ? "en" : "pl"}
         selectedRoleId={selectedRoleId}
         onRoleChange={setSelectedRoleId}
+        applySignal={applySignal}
       />
       <CareersClosing onOpenApplication={openApplication} />
     </div>
