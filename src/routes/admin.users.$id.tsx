@@ -182,7 +182,19 @@ function UserDetail() {
             </div>
           </div>
           <div className="md:self-center">
-            {data.id === user?.id ? (
+            {/*
+              Droplista zmiany roli należy do ADMINA, nie do całego personelu.
+              `/admin` przepuszcza każdego `isStaff` (admin, editor, author), więc
+              redaktor otwierający `/admin/users/<id>` widział pełną listę ról -
+              a każde jej użycie kończyło się `not_authorized` z RPC
+              `change_user_role` (autorytet po stronie bazy jest szczelny: wymaga
+              `admin` albo `super_admin`, zabrania zmiany własnej roli, pilnuje
+              najemcy i pisze wpis audytowy). Panel oferował więc akcję, która
+              nigdy nie mogła się udać - i wyglądał, jakby redaktor nadawał role.
+              Uprawnienie do NADANIA `super_admin` zostaje ostrzejsze (`isSuperAdmin`),
+              zgodnie z tym samym RPC.
+            */}
+            {data.id === user?.id || !(isAdmin || isSuperAdmin) ? (
               <Badge>{data.roles[0] ?? "-"}</Badge>
             ) : (
               <Select value={data.roles[0] ?? ""} onValueChange={(v) => changeRole(v as Role)}>
