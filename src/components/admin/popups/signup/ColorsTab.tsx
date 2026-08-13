@@ -3,16 +3,35 @@
 // wstecz), jasna żyje w `popup_design.light`. Kontrast tekstu do tła jest
 // sprawdzany na bieżąco - WCAG AA wymaga 4.5:1.
 import { useTranslation } from "react-i18next";
-import { Palette, SunMoon } from "lucide-react";
+import { CheckSquare, Palette, SunMoon } from "lucide-react";
 import { ColorRow, ContrastNote, SectionCard, SegmentedRow, TextRow } from "./controls";
 import type { SignupPopupTabProps } from "./types";
-import { defaultPopupDesign, type PopupColorScheme } from "@/lib/newsletter/popupDesign";
+import {
+  defaultPopupDesign,
+  emptyPopupControlColors,
+  type PopupColorScheme,
+  type PopupControlColors,
+} from "@/lib/newsletter/popupDesign";
+
+/** Pola sekcji kontrolek - jedna lista dla obu palet (DRY, brak rozjazdu). */
+const CONTROL_FIELDS = [
+  { key: "checkboxBorder", label: "cbBorder" },
+  { key: "checkboxHover", label: "cbHover" },
+  { key: "checkboxChecked", label: "cbChecked" },
+  { key: "checkboxLabel", label: "cbLabel" },
+  { key: "checkboxLink", label: "cbLink" },
+  { key: "buttonBg", label: "btnBg" },
+  { key: "buttonFg", label: "btnFg" },
+  { key: "buttonBorder", label: "btnBorder" },
+  { key: "buttonHoverBg", label: "btnHoverBg" },
+] as const satisfies ReadonlyArray<{ key: keyof PopupControlColors; label: string }>;
 
 export function ColorsTab({
   value,
   design,
   onChange,
   patchLight,
+  patchControls,
   setColorScheme,
 }: SignupPopupTabProps) {
   const { t } = useTranslation();
@@ -145,6 +164,37 @@ export function ColorsTab({
           message={(ratio) => t("adminPopupSignup.colors.contrastWarn", { ratio })}
         />
       </SectionCard>
+    
+      {(["dark", "light"] as const).map((mode) => (
+        <SectionCard
+          key={mode}
+          title={t(
+            mode === "dark"
+              ? "adminPopupSignup.colors.controlsDarkHeading"
+              : "adminPopupSignup.colors.controlsLightHeading",
+          )}
+          hint={t("adminPopupSignup.colors.controlsHint")}
+          icon={<CheckSquare className="h-3.5 w-3.5" />}
+        >
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {CONTROL_FIELDS.map((field) => (
+              <ColorRow
+                key={field.key}
+                label={t(`adminPopupSignup.colors.${field.label}`)}
+                value={design.controls[mode][field.key]}
+                onChange={(next) => patchControls(mode, { [field.key]: next })}
+              />
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => patchControls(mode, emptyPopupControlColors())}
+            className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+          >
+            {t("adminPopupSignup.colors.reset")}
+          </button>
+        </SectionCard>
+      ))}
     </div>
   );
 }

@@ -4,6 +4,7 @@
 import type { NewsletterSettings } from "@/hooks/useNewsletterSettings";
 import type {
   PopupColorScheme,
+  PopupControlColors,
   PopupDesign,
   PopupFormDesign,
   PopupGalleryDesign,
@@ -19,5 +20,7 @@ export interface SignupPopupTabProps {
   patchGallery: (patch: Partial<PopupGalleryDesign>) => void;
   patchForm: (patch: Partial<PopupFormDesign>) => void;
   patchLight: (patch: Partial<PopupThemeColors>) => void;
+  /** Nadpisania kolorów checkboxów i przycisku CTA - osobno dla obu palet. */
+  patchControls: (mode: "dark" | "light", patch: Partial<PopupControlColors>) => void;
   setColorScheme: (scheme: PopupColorScheme) => void;
 }
