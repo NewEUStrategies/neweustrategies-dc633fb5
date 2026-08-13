@@ -6,7 +6,12 @@ import type { AnimatedHeadingLink } from "./animatedHeadingVariants";
 import type { WidgetLink } from "./types";
 
 /** Klucze treści widgetu, pod którymi zapisujemy linki segmentów. */
-export const ANIMATED_HEADING_LINK_KEYS = ["linkBefore", "linkHighlight", "linkAfter"] as const;
+export const ANIMATED_HEADING_LINK_KEYS = [
+  "linkWhole",
+  "linkBefore",
+  "linkHighlight",
+  "linkAfter",
+] as const;
 export type AnimatedHeadingLinkKey = (typeof ANIMATED_HEADING_LINK_KEYS)[number];
 
 function isRecord(value: unknown): value is Record<string, unknown> {

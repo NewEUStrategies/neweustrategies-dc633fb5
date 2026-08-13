@@ -628,9 +628,12 @@ const pl = {
       alignCenter: "do środka",
       alignRight: "do prawej",
       livePreview: "Podgląd na żywo",
-      links: "Hiperłącza segmentów",
+      links: "Hiperłącza",
       linksHint:
-        "Każdy fragment nagłówka może prowadzić do własnego URL albo do wpisu, strony, kategorii, tagu lub pliku z biblioteki mediów.",
+        "Cały nagłówek może być jednym linkiem albo każdy fragment może prowadzić do własnego URL: wpisu, strony, kategorii, tagu lub pliku z biblioteki mediów.",
+      linkWhole: "Link - cały nagłówek",
+      linkWholeHint:
+        "Gdy ustawisz link całego nagłówka, linki poszczególnych fragmentów są pomijane.",
       linkBefore: "Link - tekst przed",
       linkHighlight: "Link - tekst animowany",
       linkAfter: "Link - tekst po",
@@ -2103,9 +2106,12 @@ const en: typeof pl = {
       alignCenter: "center",
       alignRight: "right",
       livePreview: "Live preview",
-      links: "Segment hyperlinks",
+      links: "Hyperlinks",
       linksHint:
-        "Each heading fragment can point to a custom URL or to a post, page, category, tag or media library file.",
+        "The whole heading can be a single link, or each fragment can point to its own URL: post, page, category, tag or media library file.",
+      linkWhole: "Link - whole heading",
+      linkWholeHint:
+        "When the whole-heading link is set, individual fragment links are ignored.",
       linkBefore: "Link - text before",
       linkHighlight: "Link - animated text",
       linkAfter: "Link - text after",

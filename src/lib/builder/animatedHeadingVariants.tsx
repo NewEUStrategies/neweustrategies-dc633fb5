@@ -235,6 +235,8 @@ export interface AnimatedHeadingConfig {
   align?: "left" | "center" | "right";
   // Hiperłącza per segment nagłówka (własny URL lub encja platformy:
   // wpis, strona, kategoria, tag, plik mediów).
+  /** Link obejmujący cały nagłówek - wyklucza linki per segment. */
+  linkWhole?: AnimatedHeadingLink;
   linkBefore?: AnimatedHeadingLink;
   linkHighlight?: AnimatedHeadingLink;
   linkAfter?: AnimatedHeadingLink;
@@ -704,22 +706,14 @@ export function AnimatedHeadingRender({
     }
   }, [isHoverLine, isHoverAllsides]);
 
-  return (
-    <Tag
-      data-title-root
-      data-typography-role="title"
-      className="font-display text-3xl md:text-4xl leading-tight"
-      style={{
-        color,
-        textAlign: align,
-        margin: 0,
-        paddingBottom: isUnderlineLike ? "0.45em" : needsFrame ? "0.25em" : undefined,
-        paddingTop: needsFrame ? "0.15em" : undefined,
-      }}
-    >
+  const whole = config.linkWhole;
+  const segment = (link: AnimatedHeadingLink | undefined) => (whole?.href ? undefined : link);
+
+  const body = (
+    <>
       {config.textBefore ? (
         <span>
-          <SegmentLink link={config.linkBefore} preview={preview}>
+          <SegmentLink link={segment(config.linkBefore)} preview={preview}>
             {config.textBefore}
           </SegmentLink>
           {config.textBefore.endsWith(" ") ? "" : " "}
@@ -736,7 +730,7 @@ export function AnimatedHeadingRender({
         }}
       >
         <span style={{ position: "relative", zIndex: 1 }}>
-          <SegmentLink link={config.linkHighlight} preview={preview}>
+          <SegmentLink link={segment(config.linkHighlight)} preview={preview}>
             {animatedText || (preview ? "wyróżnione" : "")}
           </SegmentLink>
         </span>
@@ -752,11 +746,30 @@ export function AnimatedHeadingRender({
       {config.textAfter ? (
         <span>
           {config.textAfter.startsWith(" ") ? "" : " "}
-          <SegmentLink link={config.linkAfter} preview={preview}>
+          <SegmentLink link={segment(config.linkAfter)} preview={preview}>
             {config.textAfter}
           </SegmentLink>
         </span>
       ) : null}
+    </>
+  );
+
+  return (
+    <Tag
+      data-title-root
+      data-typography-role="title"
+      className="font-display text-3xl md:text-4xl leading-tight"
+      style={{
+        color,
+        textAlign: align,
+        margin: 0,
+        paddingBottom: isUnderlineLike ? "0.45em" : needsFrame ? "0.25em" : undefined,
+        paddingTop: needsFrame ? "0.15em" : undefined,
+      }}
+    >
+      <SegmentLink link={whole} preview={preview}>
+        {body}
+      </SegmentLink>
     </Tag>
   );
 }
