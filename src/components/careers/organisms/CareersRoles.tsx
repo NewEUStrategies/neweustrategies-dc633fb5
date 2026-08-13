@@ -38,28 +38,42 @@ export function CareersRoles({
   const detailsRole = useMemo(() => findRole(detailsRoleId), [detailsRoleId]);
 
   return (
-    <section id={id} aria-labelledby="careers-roles" className="mt-14 scroll-mt-28">
-      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
-        <div>
-          <h2
-            id="careers-roles"
-            className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl"
-          >
-            {t("careers.roles.title")}
-          </h2>
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-            {t("careers.roles.subtitle")}
-          </p>
+    <section id={id} aria-labelledby="careers-roles" className="mt-16 scroll-mt-28">
+      <header className="border-b border-border/60 pb-10">
+        <div className="flex flex-col justify-between gap-8 md:flex-row md:items-end">
+          <div className="max-w-2xl">
+            <h2
+              id="careers-roles"
+              className="text-balance text-4xl font-black leading-[1.05] tracking-tight text-foreground md:text-5xl"
+            >
+              {t("careers.roles.title")}
+            </h2>
+            <p className="mt-5 text-base font-medium leading-relaxed text-muted-foreground md:text-lg">
+              {t("careers.roles.subtitle")}
+            </p>
+          </div>
+          <div className="flex flex-col md:items-end">
+            <span className="mb-2 text-[10px] font-extrabold uppercase tracking-[0.2em] text-muted-foreground">
+              {t("careers.roles.statusLabel")}
+            </span>
+            <p
+              aria-live="polite"
+              className="text-2xl font-normal tabular-nums text-foreground md:text-3xl"
+            >
+              <span className="font-extrabold text-primary">{roles.length}</span>
+              <span aria-hidden className="mx-1.5 text-border">
+                /
+              </span>
+              {t("careers.roles.showingShort", { total: CAREER_ROLES.length })}
+            </p>
+          </div>
         </div>
-        <p aria-live="polite" className="text-xs font-medium tabular-nums text-muted-foreground">
-          {t("careers.roles.showing", { value: roles.length, total: CAREER_ROLES.length })}
-        </p>
-      </div>
+      </header>
 
       <div
         role="group"
         aria-label={t("careers.departments.all")}
-        className="tabs-scroller mt-5 flex gap-2 overflow-x-auto pb-1"
+        className="tabs-scroller mt-8 flex gap-2 overflow-x-auto pb-1"
       >
         <CareerFilterChip
           label={t("careers.roles.all")}
@@ -79,11 +93,12 @@ export function CareersRoles({
       </div>
 
       {roles.length === 0 ? (
-        <p className="mt-6 rounded-[6px] border border-dashed border-border/70 bg-card/40 p-6 text-sm text-muted-foreground">
+        <p className="mt-8 rounded-[6px] border border-dashed border-border/70 bg-card/40 p-6 text-sm text-muted-foreground">
           {t("careers.roles.empty")}
         </p>
       ) : (
-        <div key={department} className="mt-6 grid gap-4 lg:grid-cols-2">
+        <div key={department} className="mt-8 flex flex-col gap-3">
+
           {roles.map((role, index) => (
             <div
               key={role.id}
