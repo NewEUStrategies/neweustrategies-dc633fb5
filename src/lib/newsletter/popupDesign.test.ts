@@ -216,3 +216,41 @@ describe("colorLuminance / isDarkSurface", () => {
     expect(isDarkSurface("#ffffff")).toBe(false);
   });
 });
+
+describe("kolory kontrolek (checkboxy + CTA)", () => {
+  it("bez nadpisań tokeny płyną z palety", () => {
+    const vars = popupPaletteVars(resolvePopupPalette(source(), "dark"), 6);
+    expect(vars["--nl-cb-checked"]).toBe("#fa9346");
+    expect(vars["--nl-cb-label"]).toBe("#a8a8b3");
+    expect(vars["--nl-btn-bg"]).toBe("#fa9346");
+    expect(vars["--nl-btn-fg"]).toBe(resolvePopupPalette(source(), "dark").accentFg);
+  });
+
+  it("nadpisania z panelu wygrywają dla właściwej palety", () => {
+    const design = defaultPopupDesign();
+    design.controls.dark = {
+      ...design.controls.dark,
+      checkboxChecked: "#22c55e",
+      buttonBg: "#123456",
+      buttonHoverBg: "#0f2a44",
+    };
+    const s = source({ popup_design: design });
+    const dark = popupPaletteVars(resolvePopupPalette(s, "dark"), 6);
+    expect(dark["--nl-cb-checked"]).toBe("#22c55e");
+    expect(dark["--nl-cb-hover"]).toBe("#22c55e");
+    expect(dark["--nl-btn-bg"]).toBe("#123456");
+    expect(dark["--nl-btn-hover-bg"]).toBe("#0f2a44");
+
+    const light = popupPaletteVars(resolvePopupPalette(s, "light"), 6);
+    expect(light["--nl-btn-bg"]).toBe(design.light.accent);
+  });
+
+  it("resolvePopupDesign przepuszcza tylko stringi w controls", () => {
+    const d = resolvePopupDesign({
+      controls: { dark: { buttonBg: 7, checkboxLink: "  #fff  " }, light: null },
+    });
+    expect(d.controls.dark.buttonBg).toBe("");
+    expect(d.controls.dark.checkboxLink).toBe("#fff");
+    expect(d.controls.light.buttonBg).toBe("");
+  });
+});

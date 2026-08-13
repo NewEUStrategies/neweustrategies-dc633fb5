@@ -12,6 +12,7 @@ import {
   effectivePopupMode,
   resolvePopupDesign,
   type PopupColorScheme,
+  type PopupControlColors,
   type PopupFormDesign,
   type PopupGalleryDesign,
   type PopupPanelDesign,
@@ -60,6 +61,13 @@ export function SignupPopupEditor({ value, onChange }: Props) {
     onChange({ popup_design: { ...design, form: { ...design.form, ...patch } } });
   const patchLight = (patch: Partial<PopupThemeColors>) =>
     onChange({ popup_design: { ...design, light: { ...design.light, ...patch } } });
+  const patchControls = (mode: "dark" | "light", patch: Partial<PopupControlColors>) =>
+    onChange({
+      popup_design: {
+        ...design,
+        controls: { ...design.controls, [mode]: { ...design.controls[mode], ...patch } },
+      },
+    });
   const setColorScheme = (colorScheme: PopupColorScheme) =>
     onChange({ popup_design: { ...design, colorScheme } });
 
@@ -71,6 +79,7 @@ export function SignupPopupEditor({ value, onChange }: Props) {
     patchGallery,
     patchForm,
     patchLight,
+    patchControls,
     setColorScheme,
   };
 

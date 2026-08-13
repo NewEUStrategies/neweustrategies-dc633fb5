@@ -7879,3 +7879,41 @@ html.dark.club-navy body {
   border-color: #d9b26a;
   box-shadow: 0 0 0 3px color-mix(in oklab, #d9b26a 22%, transparent);
 }
+
+/* =========================================================================
+   Popup rejestracji - kolory KONTROLEK (Admin → Popupy → Kolory)
+   -------------------------------------------------------------------------
+   Reguły celowo BEZWARSTWOWE: bazowy wygląd checkboxa (`.lov-check`) też żyje
+   poza warstwami, a `btn-bubbly` to `@utility` (warstwa `utilities`) - każda
+   reguła z `@layer components` przegrałaby z nimi kaskadę niezależnie od
+   specyficzności. Wszystkie wartości to tokeny z popupPaletteVars() z
+   fallbackiem do palety, więc brak nadpisań = wygląd sprzed wdrożenia.
+   ========================================================================= */
+.nlp .lov-check__svg {
+  stroke: var(--nl-cb-border, color-mix(in srgb, var(--nl-fg) 45%, transparent));
+}
+.nlp .lov-check:hover .lov-check__svg,
+.nlp .lov-check:focus-visible .lov-check__svg {
+  stroke: var(--nl-cb-hover, var(--nl-accent));
+}
+.nlp .lov-check[data-state="checked"] .lov-check__svg,
+.nlp .lov-check[data-state="indeterminate"] .lov-check__svg {
+  stroke: var(--nl-cb-checked, var(--nl-accent));
+}
+.nlp label:has(.lov-check) {
+  color: var(--nl-cb-label, var(--nl-muted));
+}
+.nlp .nl-consent a {
+  color: var(--nl-cb-link, inherit);
+}
+.nlp .nl-consent a:hover {
+  color: var(--nl-cb-link, var(--nl-accent));
+}
+.nlp .btn-bubbly {
+  background-color: var(--nl-btn-bg, var(--nl-accent));
+  color: var(--nl-btn-fg, var(--nl-accent-fg));
+  border-color: var(--nl-btn-border, color-mix(in oklab, var(--nl-accent) 55%, transparent));
+}
+.nlp .btn-bubbly:hover:not(:disabled) {
+  background-color: var(--nl-btn-hover-bg, var(--nl-btn-bg, var(--nl-accent)));
+}

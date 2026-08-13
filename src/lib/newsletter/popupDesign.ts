@@ -91,13 +91,63 @@ export interface PopupPanelDesign {
   shadow: number;
 }
 
+/**
+ * Kolory KONTROLEK popupu: checkboxów zgód i przycisku CTA. Każde pole jest
+ * NADPISANIEM - pusty string znaczy „użyj koloru wyliczonego z palety", dzięki
+ * czemu tenanty, które nigdy nie dotknęły tej sekcji, renderują się identycznie
+ * jak przed wdrożeniem, a redakcja może zmienić sam przycisk bez ruszania
+ * całej palety.
+ */
+export interface PopupControlColors {
+  /** Kreska nieaktywnego checkboxa. */
+  checkboxBorder: string;
+  /** Kreska po najechaniu / focusie. */
+  checkboxHover: string;
+  /** Kreska i „ptaszek" zaznaczonego checkboxa. */
+  checkboxChecked: string;
+  /** Tekst etykiety obok checkboxa (zgody, newsletter). */
+  checkboxLabel: string;
+  /** Linki wewnątrz treści zgód. */
+  checkboxLink: string;
+  /** Tło przycisku CTA. */
+  buttonBg: string;
+  /** Atrament przycisku CTA. */
+  buttonFg: string;
+  /** Ramka przycisku CTA. */
+  buttonBorder: string;
+  /** Tło przycisku CTA po najechaniu. */
+  buttonHoverBg: string;
+}
+
+export interface PopupControlsDesign {
+  dark: PopupControlColors;
+  light: PopupControlColors;
+}
+
 export interface PopupDesign {
   colorScheme: PopupColorScheme;
   light: PopupThemeColors;
   panel: PopupPanelDesign;
   gallery: PopupGalleryDesign;
   form: PopupFormDesign;
+  controls: PopupControlsDesign;
 }
+
+/** Puste nadpisania = kolory kontrolek płyną z palety. */
+export function emptyPopupControlColors(): PopupControlColors {
+  return {
+    checkboxBorder: "",
+    checkboxHover: "",
+    checkboxChecked: "",
+    checkboxLabel: "",
+    checkboxLink: "",
+    buttonBg: "",
+    buttonFg: "",
+    buttonBorder: "",
+    buttonHoverBg: "",
+  };
+}
+
 
 /** Rozdzielczości rekomendowane dla kafli galerii (kolejność = slot w siatce). */
 export const GALLERY_SLOT_DIMENSIONS = [
@@ -132,7 +182,9 @@ export function defaultPopupDesign(): PopupDesign {
   return {
     colorScheme: "dark",
     light: defaultPopupLightTheme(),
+    controls: { dark: emptyPopupControlColors(), light: emptyPopupControlColors() },
     panel: { maxWidthPx: 1040, split: "half", showBorder: true, shadow: 60 },
+
     gallery: {
       grid: "reference",
       gradientAngle: 160,
@@ -229,6 +281,25 @@ function resolveLightTheme(raw: unknown): PopupThemeColors {
   };
 }
 
+/** Nadpisania kontrolek: przepuszczamy wyłącznie stringi, reszta = brak zmian. */
+function resolveControlColors(raw: unknown): PopupControlColors {
+  const d = emptyPopupControlColors();
+  if (!isRecord(raw)) return d;
+  const pick = (key: keyof PopupControlColors) =>
+    typeof raw[key] === "string" ? (raw[key] as string).trim() : "";
+  return {
+    checkboxBorder: pick("checkboxBorder"),
+    checkboxHover: pick("checkboxHover"),
+    checkboxChecked: pick("checkboxChecked"),
+    checkboxLabel: pick("checkboxLabel"),
+    checkboxLink: pick("checkboxLink"),
+    buttonBg: pick("buttonBg"),
+    buttonFg: pick("buttonFg"),
+    buttonBorder: pick("buttonBorder"),
+    buttonHoverBg: pick("buttonHoverBg"),
+  };
+}
+
 /** Scala zapisany JSON z defaultami - zawsze zwraca komplet ustawień. */
 export function resolvePopupDesign(raw: unknown): PopupDesign {
   const d = defaultPopupDesign();
@@ -237,11 +308,17 @@ export function resolvePopupDesign(raw: unknown): PopupDesign {
   const panel = isRecord(raw.panel) ? raw.panel : {};
   const gallery = isRecord(raw.gallery) ? raw.gallery : {};
   const form = isRecord(raw.form) ? raw.form : {};
+  const controls = isRecord(raw.controls) ? raw.controls : {};
 
   return {
     colorScheme: oneOf(raw.colorScheme, ["dark", "light", "auto"] as const, d.colorScheme),
     light: resolveLightTheme(raw.light),
+    controls: {
+      dark: resolveControlColors(controls.dark),
+      light: resolveControlColors(controls.light),
+    },
     panel: {
+
       maxWidthPx: int(panel.maxWidthPx, d.panel.maxWidthPx, 480, 1600),
       split: oneOf(panel.split, ["half", "gallery-wide", "form-wide"] as const, d.panel.split),
       showBorder: bool(panel.showBorder, d.panel.showBorder),
@@ -289,6 +366,8 @@ export interface PopupPalette extends PopupThemeColors {
   /** true = powierzchnia ciemna (pola formularza w wariancie on-dark). */
   onDark: boolean;
   mode: "dark" | "light";
+  /** Nadpisania kolorów checkboxów i przycisku CTA dla tego trybu. */
+  controls: PopupControlColors;
 }
 
 /** Minimalny kontrakt kolorów, jaki musi spełniać wiersz `newsletter_settings`. */
@@ -400,6 +479,7 @@ export function resolvePopupPalette(
       accentFg: accentInk(l.accent, l.accentFg),
       mode: "light",
       onDark: isDarkSurface(l.bg),
+      controls: source.popup_design.controls.light,
     };
   }
   const bg = source.popup_bg_color || "#0b0b0f";
@@ -418,6 +498,7 @@ export function resolvePopupPalette(
     gradTo: source.popup_showcase_grad_to || `color-mix(in srgb, ${accent} 14%, ${bg})`,
     mode: "dark",
     onDark: isDarkSurface(bg),
+    controls: source.popup_design.controls.dark,
   };
 }
 
@@ -433,7 +514,21 @@ export function resolvePopupPalette(
  */
 export function popupPaletteVars(palette: PopupPalette, radiusPx: number): Record<string, string> {
   const border = `color-mix(in srgb, ${palette.fg} 18%, transparent)`;
+  // Kontrolki: nadpisanie z panelu admina wygrywa, w przeciwnym razie wartość
+  // wyliczona z palety - dokładnie taka, jaka obowiązywała przed wdrożeniem
+  // sekcji „Checkboxy i przyciski".
+  const c = palette.controls;
+  const btnBg = c.buttonBg || palette.accent;
   return {
+    "--nl-cb-border": c.checkboxBorder || `color-mix(in srgb, ${palette.fg} 45%, transparent)`,
+    "--nl-cb-hover": c.checkboxHover || c.checkboxChecked || palette.accent,
+    "--nl-cb-checked": c.checkboxChecked || palette.accent,
+    "--nl-cb-label": c.checkboxLabel || palette.muted,
+    "--nl-cb-link": c.checkboxLink || palette.accent,
+    "--nl-btn-bg": btnBg,
+    "--nl-btn-fg": c.buttonFg || palette.accentFg,
+    "--nl-btn-border": c.buttonBorder || `color-mix(in oklab, ${btnBg} 55%, transparent)`,
+    "--nl-btn-hover-bg": c.buttonHoverBg || btnBg,
     "--nl-bg": palette.bg,
     "--nl-fg": palette.fg,
     "--nl-muted": palette.muted,
