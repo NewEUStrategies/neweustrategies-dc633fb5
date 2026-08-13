@@ -5829,6 +5829,14 @@ textarea::placeholder {
    reguły siedzą w `utilities` i wygrałyby z każdą regułą z `components`
    niezależnie od specyficzności. */
 @layer utilities {
+  .nlp .btn-bubbly {
+    /* W popupie chcemy brandowy pomarańcz, ale nie tak mocny jak pełny #fa9346.
+       Delikatne wymieszanie z tłem panelu zmniejsza intensywność, a hover
+       wraca do pełnego brandu przez oryginalną regułę @utility. */
+    background-color: color-mix(in oklab, var(--brand) 88%, var(--nl-bg) 12%);
+    border-color: color-mix(in oklab, var(--brand) 55%, var(--nl-bg) 45%);
+  }
+
   .nlp .btn-bubbly::before,
   .nlp .btn-bubbly::after {
     width: 100%;
