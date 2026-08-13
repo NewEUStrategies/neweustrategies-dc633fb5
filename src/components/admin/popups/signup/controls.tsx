@@ -5,6 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
+import { DynamicIcon } from "@/lib/icons/DynamicIcon";
+import { LucideIconPicker } from "@/components/admin/builder/ui/molecules/LucideIconPicker";
 import { colorLuminance } from "@/lib/newsletter/popupDesign";
 
 export function SectionCard({
@@ -56,6 +59,57 @@ export function TextRow({
         placeholder={placeholder}
         maxLength={maxLength}
       />
+      {hint && <p className="mt-1 text-[11px] text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+/**
+ * Wybór ikony z biblioteki platformy (ten sam picker co w builderze, więc
+ * katalog i konwencja nazw są wspólne). Pusta wartość = przycisk bez ikony,
+ * dlatego obok pickera stoi jawny „Bez ikony" - inaczej nie dałoby się cofnąć
+ * wyboru po jednorazowym kliknięciu.
+ */
+export function IconRow({
+  label,
+  value,
+  onChange,
+  hint,
+  clearLabel,
+  previewLabel,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  hint?: string;
+  clearLabel: string;
+  previewLabel: string;
+}) {
+  return (
+    <div className="min-w-0">
+      <Label>{label}</Label>
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="min-w-0 flex-1 basis-56">
+          <LucideIconPicker value={value || undefined} onChange={(v) => onChange(v ?? "")} />
+        </div>
+        <span className="inline-flex items-center gap-2 rounded-md border border-border/60 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+          {previewLabel}
+          {value ? (
+            <DynamicIcon name={value} className="h-4 w-4" aria-hidden />
+          ) : (
+            <span aria-hidden>-</span>
+          )}
+        </span>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={!value}
+          onClick={() => onChange("")}
+        >
+          {clearLabel}
+        </Button>
+      </div>
       {hint && <p className="mt-1 text-[11px] text-muted-foreground">{hint}</p>}
     </div>
   );
