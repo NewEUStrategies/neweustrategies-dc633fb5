@@ -133,6 +133,7 @@ import {
   RefreshCw as LRefreshCw,
   CheckCircle2 as LCheckCircle2,
   XCircle as LXCircle,
+  Zap as LZap,
   type LucideIcon as LucideIconImpl,
 } from "lucide-react";
 import { useIconPack } from "@/lib/iconPack";
@@ -335,3 +336,4 @@ export const TrendingUp = makeIcon("TrendingUp", LTrendingUp);
 export const RefreshCw = makeIcon("RefreshCw", LRefreshCw);
 export const CheckCircle2 = makeIcon("CheckCircle2", LCheckCircle2);
 export const XCircle = makeIcon("XCircle", LXCircle);
+export const Zap = makeIcon("Zap", LZap);
