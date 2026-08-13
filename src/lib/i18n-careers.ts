@@ -110,6 +110,12 @@ const careersPl = {
           b3: "Reprezentowanie think tanku w mediach i na panelach.",
           b4: "Współprowadzenie klubu dyskusyjnego w swojej specjalizacji.",
         },
+        requirements: {
+          q1: "5+ lat doświadczenia w analizie bezpieczeństwa, obronności lub stosunków międzynarodowych.",
+          q2: "Udokumentowany dorobek publikacyjny (analizy, policy papers, komentarze).",
+          q3: "Biegły polski i angielski - w mowie i piśmie, także przed kamerą.",
+          q4: "Znajomość instytucji NATO/UE i realiów przemysłu zbrojeniowego.",
+        },
       },
       analyst_economy: {
         title: "Analityk - gospodarka i energetyka",
@@ -120,6 +126,11 @@ const careersPl = {
           b2: "Praca z danymi Eurostatu, ENTSO-E i źródeł krajowych.",
           b3: "Współpraca z redakcją przy wizualizacjach i wykresach.",
         },
+        requirements: {
+          q1: "3+ lata pracy analitycznej w gospodarce, energetyce lub regulacji UE.",
+          q2: "Swoboda w pracy z danymi ilościowymi (Excel/Python/R) i źródłami statystycznymi.",
+          q3: "Umiejętność pisania zwięzłych rekomendacji dla decydentów.",
+        },
       },
       data_analyst: {
         title: "Analityk danych (współpraca projektowa)",
@@ -129,6 +140,11 @@ const careersPl = {
           b1: "Przygotowanie i kontrola jakości zbiorów danych do raportów.",
           b2: "Automatyzacja aktualizacji wskaźników i wykresów.",
           b3: "Dokumentacja metodologii dla czytelników i recenzentów.",
+        },
+        requirements: {
+          q1: "Praktyczna znajomość Pythona lub R oraz SQL.",
+          q2: "Doświadczenie w budowie powtarzalnych pipeline'ów i kontroli jakości danych.",
+          q3: "Dbałość o dokumentację metodologii i powtarzalność wyników.",
         },
       },
       eu_policy_officer: {
@@ -141,6 +157,12 @@ const careersPl = {
           b3: "Kontakty z instytucjami, stowarzyszeniami i partnerami.",
           b4: "Wsparcie zespołu analitycznego w interpretacji przepisów.",
         },
+        requirements: {
+          q1: "Doświadczenie w pracy z procesem legislacyjnym UE (instytucje, izby, kancelarie).",
+          q2: "Umiejętność szybkiego streszczania dokumentów prawnych w język decyzji.",
+          q3: "Angielski na poziomie roboczym C1, mile widziany francuski.",
+          q4: "Gotowość do pracy w Brukseli i udziału w spotkaniach instytucjonalnych.",
+        },
       },
       policy_intern: {
         title: "Staż - polityka publiczna",
@@ -150,6 +172,11 @@ const careersPl = {
           b1: "Research desk-owy i przeglądy literatury.",
           b2: "Notatki z posiedzeń i wydarzeń branżowych.",
           b3: "Wsparcie przy redakcji i korekcie materiałów.",
+        },
+        requirements: {
+          q1: "Student ostatnich lat lub absolwent kierunków społecznych, prawnych albo ekonomicznych.",
+          q2: "Rzetelność w researchu i umiejętność pracy ze źródłami pierwotnymi.",
+          q3: "Angielski umożliwiający swobodną lekturę dokumentów UE.",
         },
       },
       growth_marketing_lead: {
@@ -162,6 +189,12 @@ const careersPl = {
           b3: "Zarządzanie budżetem i współpraca z podwykonawcami.",
           b4: "Rozwój marki think tanku w PL i EN.",
         },
+        requirements: {
+          q1: "4+ lata w marketingu wzrostowym, najlepiej w mediach lub subskrypcjach.",
+          q2: "Twarde doświadczenie z analityką: kohorty, retencja, atrybucja kampanii.",
+          q3: "Praktyka w prowadzeniu newslettera i lejka subskrypcyjnego.",
+          q4: "Umiejętność zarządzania budżetem i podwykonawcami.",
+        },
       },
       content_marketing_specialist: {
         title: "Specjalista ds. treści (część etatu)",
@@ -172,6 +205,11 @@ const careersPl = {
           b2: "Redakcja newslettera i zapowiedzi raportów.",
           b3: "Współpraca z autorami przy dystrybucji publikacji.",
         },
+        requirements: {
+          q1: "2+ lata w prowadzeniu kanałów społecznościowych marki eksperckiej.",
+          q2: "Lekkie pióro w PL i EN oraz wyczucie tematów publicznych.",
+          q3: "Podstawy pracy z grafiką i wideo w formatach społecznościowych.",
+        },
       },
       strategic_advisor: {
         title: "Doradca strategiczny (współpraca ekspercka)",
@@ -181,6 +219,11 @@ const careersPl = {
           b1: "Warsztaty scenariuszowe i doradztwo dla zarządów.",
           b2: "Recenzja merytoryczna raportów i stanowisk.",
           b3: "Udział w projektach doradczych w formule projektowej.",
+        },
+        requirements: {
+          q1: "Doświadczenie doradcze na poziomie zarządów lub administracji centralnej.",
+          q2: "Ekspercka specjalizacja w regulacji, ryzyku lub geopolityce.",
+          q3: "Umiejętność prowadzenia warsztatów scenariuszowych.",
         },
       },
       managing_editor: {
@@ -193,6 +236,12 @@ const careersPl = {
           b3: "Standardy cytowania, przypisów i weryfikacji faktów.",
           b4: "Współpraca z zespołem wizualnym przy layoutach raportów.",
         },
+        requirements: {
+          q1: "5+ lat w redakcji tekstów analitycznych lub dziennikarskich.",
+          q2: "Wzorowa polszczyzna i angielski na poziomie redakcyjnym.",
+          q3: "Znajomość standardów cytowania, przypisów i weryfikacji faktów.",
+          q4: "Umiejętność egzekwowania kalendarza wydawniczego bez konfliktów.",
+        },
       },
       events_coordinator: {
         title: "Koordynator wydarzeń i klubów",
@@ -202,6 +251,11 @@ const careersPl = {
           b1: "Organizacja spotkań offline i online (do 300 osób).",
           b2: "Kontakt z prelegentami, partnerami i lokalizacjami.",
           b3: "Podsumowania i raportowanie efektów wydarzeń.",
+        },
+        requirements: {
+          q1: "2+ lata w organizacji wydarzeń (konferencje, debaty, spotkania zamknięte).",
+          q2: "Sprawna koordynacja prelegentów, partnerów i dostawców.",
+          q3: "Angielski w kontakcie z gośćmi zagranicznymi.",
         },
       },
     },
@@ -432,6 +486,12 @@ const careersEn = {
           b3: "Representing the think tank in the media and on panels.",
           b4: "Co-hosting a discussion club in your specialisation.",
         },
+        requirements: {
+          q1: "5+ years in security, defence or international relations analysis.",
+          q2: "A documented publication record (analyses, policy papers, commentary).",
+          q3: "Fluent Polish and English - written, spoken and on camera.",
+          q4: "Familiarity with NATO/EU institutions and the defence industry.",
+        },
       },
       analyst_economy: {
         title: "Analyst - economy and energy",
@@ -442,6 +502,11 @@ const careersEn = {
           b2: "Working with Eurostat, ENTSO-E and national data sources.",
           b3: "Cooperating with the newsroom on charts and visualisations.",
         },
+        requirements: {
+          q1: "3+ years of analytical work in economy, energy or EU regulation.",
+          q2: "Comfort with quantitative data (Excel/Python/R) and statistical sources.",
+          q3: "Ability to write concise recommendations for decision-makers.",
+        },
       },
       data_analyst: {
         title: "Data analyst (project engagement)",
@@ -451,6 +516,11 @@ const careersEn = {
           b1: "Preparing and quality-checking datasets for reports.",
           b2: "Automating indicator and chart updates.",
           b3: "Documenting methodology for readers and reviewers.",
+        },
+        requirements: {
+          q1: "Working knowledge of Python or R plus SQL.",
+          q2: "Experience building repeatable pipelines and running data quality checks.",
+          q3: "Discipline around methodology documentation and reproducibility.",
         },
       },
       eu_policy_officer: {
@@ -463,6 +533,12 @@ const careersEn = {
           b3: "Maintaining contact with institutions, associations and partners.",
           b4: "Supporting the research team with legal interpretation.",
         },
+        requirements: {
+          q1: "Experience with the EU legislative process (institutions, chambers, law firms).",
+          q2: "Ability to summarise legal documents into decision-ready language.",
+          q3: "English at C1 working level; French is a plus.",
+          q4: "Readiness to work in Brussels and attend institutional meetings.",
+        },
       },
       policy_intern: {
         title: "Internship - public policy",
@@ -472,6 +548,11 @@ const careersEn = {
           b1: "Desk research and literature reviews.",
           b2: "Notes from sittings and industry events.",
           b3: "Support with editing and proofreading materials.",
+        },
+        requirements: {
+          q1: "Final-year student or graduate in social sciences, law or economics.",
+          q2: "Rigorous research skills and comfort with primary sources.",
+          q3: "English sufficient to read EU documentation fluently.",
         },
       },
       growth_marketing_lead: {
@@ -484,6 +565,12 @@ const careersEn = {
           b3: "Managing budget and external contractors.",
           b4: "Growing the think tank brand in Polish and English.",
         },
+        requirements: {
+          q1: "4+ years in growth marketing, ideally in media or subscriptions.",
+          q2: "Hands-on analytics experience: cohorts, retention, campaign attribution.",
+          q3: "Practical newsletter and subscription funnel ownership.",
+          q4: "Ability to manage budget and external contractors.",
+        },
       },
       content_marketing_specialist: {
         title: "Content specialist (part-time)",
@@ -494,6 +581,11 @@ const careersEn = {
           b2: "Editing the newsletter and report announcements.",
           b3: "Working with authors on publication distribution.",
         },
+        requirements: {
+          q1: "2+ years running social channels for an expert brand.",
+          q2: "A light touch in Polish and English plus a feel for public affairs.",
+          q3: "Basic graphic and video skills for social formats.",
+        },
       },
       strategic_advisor: {
         title: "Strategic advisor (expert engagement)",
@@ -503,6 +595,11 @@ const careersEn = {
           b1: "Scenario workshops and board-level advisory.",
           b2: "Substantive review of reports and positions.",
           b3: "Taking part in advisory projects on a project basis.",
+        },
+        requirements: {
+          q1: "Advisory experience at board or central administration level.",
+          q2: "Expert specialisation in regulation, risk or geopolitics.",
+          q3: "Ability to run scenario workshops.",
         },
       },
       managing_editor: {
@@ -515,6 +612,12 @@ const careersEn = {
           b3: "Citation, footnote and fact-checking standards.",
           b4: "Working with the design team on report layouts.",
         },
+        requirements: {
+          q1: "5+ years editing analytical or journalistic texts.",
+          q2: "Impeccable Polish and editorial-level English.",
+          q3: "Knowledge of citation, footnote and fact-checking standards.",
+          q4: "Ability to enforce the publishing calendar without friction.",
+        },
       },
       events_coordinator: {
         title: "Events and clubs coordinator",
@@ -524,6 +627,11 @@ const careersEn = {
           b1: "Organising offline and online events for up to 300 people.",
           b2: "Managing speakers, partners and venues.",
           b3: "Reporting on event outcomes.",
+        },
+        requirements: {
+          q1: "2+ years organising events (conferences, debates, closed-door meetings).",
+          q2: "Smooth coordination of speakers, partners and vendors.",
+          q3: "English for working with international guests.",
         },
       },
     },
