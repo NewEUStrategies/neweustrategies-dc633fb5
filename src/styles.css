@@ -8008,18 +8008,6 @@ html.dark.club-navy body {
   }
 }
 
-/* Akcent tytułu hero - gradient na nazwie organizacji. */
-.crs-title-accent {
-  background: linear-gradient(
-    92deg,
-    var(--brand-ink, var(--primary)),
-    color-mix(in oklab, var(--brand-ink, var(--primary)) 35%, var(--foreground))
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
 /* Wejście sekcji przy scrollu - ukrycie tylko przy działającym JS. */
 @media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
   .crs-reveal {
@@ -8082,7 +8070,7 @@ html.dark.club-navy body {
   justify-content: center;
   width: 3rem;
   height: 3rem;
-  border-radius: 50%;
+  border-radius: 6px;
   border: 1px solid color-mix(in oklab, var(--brand, var(--primary)) 45%, transparent);
   background: color-mix(in oklab, var(--brand, var(--primary)) 14%, transparent);
   color: var(--brand-ink, var(--primary));

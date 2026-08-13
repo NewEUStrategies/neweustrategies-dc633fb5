@@ -43,7 +43,7 @@ export function CareerFormStepper({
                 >
                   <span
                     className={cn(
-                      "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-bold tabular-nums transition-colors duration-300",
+                      "flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px] border text-xs font-bold tabular-nums transition-colors duration-300",
                       done && "border-primary bg-primary text-primary-foreground",
                       isCurrent && "border-primary bg-primary/10 text-primary",
                       !done && !isCurrent && "border-border/80 text-muted-foreground",
@@ -74,9 +74,9 @@ export function CareerFormStepper({
           {t("careers.form.stepLabel", { current: current + 1, total })}
         </p>
       </div>
-      <div className="mt-3 h-1 overflow-hidden rounded-full bg-border/60" aria-hidden>
+      <div className="mt-3 h-1 overflow-hidden rounded-[6px] bg-border/60" aria-hidden>
         <div
-          className="crs-progress h-full rounded-full"
+          className="crs-progress h-full rounded-[6px]"
           style={{ width: `${((current + 1) / total) * 100}%` }}
         />
       </div>

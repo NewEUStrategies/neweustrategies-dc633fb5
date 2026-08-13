@@ -57,7 +57,7 @@ export function CareersProcess() {
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   {t(`careers.process.items.${step.key}.body`)}
                 </p>
-                <p className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-background/60 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+                <p className="mt-3 inline-flex items-center gap-1.5 rounded-[6px] border border-border/70 bg-background/60 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                   <Clock3 className="h-3 w-3 text-primary" aria-hidden />
                   {t(`careers.process.items.${step.key}.duration`)}
                 </p>

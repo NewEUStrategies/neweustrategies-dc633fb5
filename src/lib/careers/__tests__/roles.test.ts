@@ -79,8 +79,6 @@ describe("careers: słownik sekcji interaktywnych (hero / wartości / benefity /
     "careers.hero.titleTop",
     "careers.hero.titleAccent",
     "careers.hero.rotatePrefix",
-    "careers.hero.deptTitle",
-    "careers.hero.deptHint",
     ...ROTATING.map((k) => `careers.hero.rotating.${k}`),
     "careers.values.hint",
     "careers.values.proofLabel",

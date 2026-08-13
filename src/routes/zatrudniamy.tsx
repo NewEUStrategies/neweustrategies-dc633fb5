@@ -89,21 +89,9 @@ function CareersPage() {
     scrollTo(FORM_ID);
   }, [scrollTo]);
 
-  const handleSelectDepartment = useCallback(
-    (dept: CareerDepartmentId) => {
-      setDepartment(dept);
-      scrollTo(ROLES_ID);
-    },
-    [scrollTo],
-  );
-
   return (
     <div className="container mx-auto max-w-6xl px-4 py-10 md:py-14 xl:max-w-[88rem]">
-      <CareersHero
-        onSeeRoles={() => scrollTo(ROLES_ID)}
-        onOpenApplication={openApplication}
-        onSelectDepartment={handleSelectDepartment}
-      />
+      <CareersHero onSeeRoles={() => scrollTo(ROLES_ID)} onOpenApplication={openApplication} />
       <CareersValues />
       <CareersRoles
         id={ROLES_ID}

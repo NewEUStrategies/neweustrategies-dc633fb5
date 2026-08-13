@@ -22,8 +22,6 @@ const careersPl = {
         advisory: "doradców strategicznych zarządów",
         editorial: "redaktorów pracujących w PL i EN",
       },
-      deptTitle: "Gdzie możesz dołączyć",
-      deptHint: "Wybierz dział, żeby zobaczyć jego otwarte role.",
     },
     stats: {
       people: { value: "45", label: "osób w zespole" },
@@ -346,8 +344,6 @@ const careersEn = {
         advisory: "board-level strategic advisors",
         editorial: "editors working in Polish and English",
       },
-      deptTitle: "Where you can join",
-      deptHint: "Pick a department to see its open roles.",
     },
     stats: {
       people: { value: "45", label: "people on the team" },
