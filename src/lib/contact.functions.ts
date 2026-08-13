@@ -319,6 +319,7 @@ export const submitContactMessage = createServerFn({ method: "POST" })
         ip: clientIp,
         user_agent: userAgent,
         consents: data.consents ?? [],
+        custom: data.custom && Object.keys(data.custom).length ? data.custom : {},
         status: "new",
       })
       .select("id, tenant_id")

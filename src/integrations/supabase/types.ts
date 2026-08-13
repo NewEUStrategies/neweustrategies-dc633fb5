@@ -4026,6 +4026,7 @@ export type Database = {
           consent: boolean
           consents: Json
           created_at: string
+          custom: Json
           email: string
           first_name: string | null
           form_id: string | null
@@ -4059,6 +4060,7 @@ export type Database = {
           consent?: boolean
           consents?: Json
           created_at?: string
+          custom?: Json
           email: string
           first_name?: string | null
           form_id?: string | null
@@ -4092,6 +4094,7 @@ export type Database = {
           consent?: boolean
           consents?: Json
           created_at?: string
+          custom?: Json
           email?: string
           first_name?: string | null
           form_id?: string | null

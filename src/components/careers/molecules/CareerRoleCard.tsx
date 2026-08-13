@@ -64,14 +64,21 @@ export function CareerRoleCard({
       </ul>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        <Button size="sm" className="gap-2" onClick={() => onApply(role.id)}>
+        <Button
+          size="sm"
+          onClick={() => onApply(role.id)}
+          className="group/cta h-9 gap-2 rounded-[6px] px-4 text-xs font-semibold shadow-[0_12px_26px_-18px_color-mix(in_oklab,var(--primary)_85%,transparent)] transition-transform duration-200 hover:-translate-y-0.5"
+        >
           {t("careers.roles.apply")}
-          <ArrowRight className="h-4 w-4" aria-hidden />
+          <ArrowRight
+            className="h-4 w-4 transition-transform duration-200 group-hover/cta:translate-x-0.5"
+            aria-hidden
+          />
         </Button>
         <Button
           size="sm"
-          variant="ghost"
-          className="gap-1.5"
+          variant="outline"
+          className="h-9 gap-1.5 rounded-[6px] border-border/70 px-3 text-xs font-medium hover:border-primary/50 hover:bg-primary/5"
           aria-expanded={open}
           aria-controls={detailsId}
           onClick={() => setOpen((v) => !v)}

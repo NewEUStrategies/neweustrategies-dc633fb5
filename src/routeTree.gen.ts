@@ -170,6 +170,7 @@ import { Route as AdminCommunityRouteImport } from './routes/admin.community'
 import { Route as AdminCommentsRouteImport } from './routes/admin.comments'
 import { Route as AdminCategoryColorsRouteImport } from './routes/admin.category-colors'
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
+import { Route as AdminCareersRouteImport } from './routes/admin.careers'
 import { Route as AdminBillingReconcileRouteImport } from './routes/admin.billing-reconcile'
 import { Route as AdminBillingRouteImport } from './routes/admin.billing'
 import { Route as AdminAuthorsRouteImport } from './routes/admin.authors'
@@ -1111,6 +1112,11 @@ const AdminCategoriesRoute = AdminCategoriesRouteImport.update({
   path: '/categories',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminCareersRoute = AdminCareersRouteImport.update({
+  id: '/careers',
+  path: '/careers',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminBillingReconcileRoute = AdminBillingReconcileRouteImport.update({
   id: '/billing-reconcile',
   path: '/billing-reconcile',
@@ -1885,6 +1891,7 @@ export interface FileRoutesByFullPath {
   '/admin/authors': typeof AdminAuthorsRoute
   '/admin/billing': typeof AdminBillingRoute
   '/admin/billing-reconcile': typeof AdminBillingReconcileRoute
+  '/admin/careers': typeof AdminCareersRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-colors': typeof AdminCategoryColorsRoute
   '/admin/comments': typeof AdminCommentsRoute
@@ -2180,6 +2187,7 @@ export interface FileRoutesByTo {
   '/admin/authors': typeof AdminAuthorsRoute
   '/admin/billing': typeof AdminBillingRoute
   '/admin/billing-reconcile': typeof AdminBillingReconcileRoute
+  '/admin/careers': typeof AdminCareersRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-colors': typeof AdminCategoryColorsRoute
   '/admin/comments': typeof AdminCommentsRoute
@@ -2471,6 +2479,7 @@ export interface FileRoutesById {
   '/admin/authors': typeof AdminAuthorsRoute
   '/admin/billing': typeof AdminBillingRoute
   '/admin/billing-reconcile': typeof AdminBillingReconcileRoute
+  '/admin/careers': typeof AdminCareersRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-colors': typeof AdminCategoryColorsRoute
   '/admin/comments': typeof AdminCommentsRoute
@@ -2771,6 +2780,7 @@ export interface FileRouteTypes {
     | '/admin/authors'
     | '/admin/billing'
     | '/admin/billing-reconcile'
+    | '/admin/careers'
     | '/admin/categories'
     | '/admin/category-colors'
     | '/admin/comments'
@@ -3066,6 +3076,7 @@ export interface FileRouteTypes {
     | '/admin/authors'
     | '/admin/billing'
     | '/admin/billing-reconcile'
+    | '/admin/careers'
     | '/admin/categories'
     | '/admin/category-colors'
     | '/admin/comments'
@@ -3356,6 +3367,7 @@ export interface FileRouteTypes {
     | '/admin/authors'
     | '/admin/billing'
     | '/admin/billing-reconcile'
+    | '/admin/careers'
     | '/admin/categories'
     | '/admin/category-colors'
     | '/admin/comments'
@@ -4842,6 +4854,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCategoriesRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/careers': {
+      id: '/admin/careers'
+      path: '/careers'
+      fullPath: '/admin/careers'
+      preLoaderRoute: typeof AdminCareersRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/billing-reconcile': {
       id: '/admin/billing-reconcile'
       path: '/billing-reconcile'
@@ -6080,6 +6099,7 @@ interface AdminRouteChildren {
   AdminAuthorsRoute: typeof AdminAuthorsRoute
   AdminBillingRoute: typeof AdminBillingRoute
   AdminBillingReconcileRoute: typeof AdminBillingReconcileRoute
+  AdminCareersRoute: typeof AdminCareersRoute
   AdminCategoriesRoute: typeof AdminCategoriesRoute
   AdminCategoryColorsRoute: typeof AdminCategoryColorsRoute
   AdminCommentsRoute: typeof AdminCommentsRoute
@@ -6152,6 +6172,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminAuthorsRoute: AdminAuthorsRoute,
   AdminBillingRoute: AdminBillingRoute,
   AdminBillingReconcileRoute: AdminBillingReconcileRoute,
+  AdminCareersRoute: AdminCareersRoute,
   AdminCategoriesRoute: AdminCategoriesRoute,
   AdminCategoryColorsRoute: AdminCategoryColorsRoute,
   AdminCommentsRoute: AdminCommentsRoute,
