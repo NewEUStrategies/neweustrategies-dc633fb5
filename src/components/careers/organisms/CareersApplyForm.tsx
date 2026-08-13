@@ -12,7 +12,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowRight, Send } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, Send } from "lucide-react";
 
 import { submitContactMessage } from "@/lib/contact.functions";
 import { Button } from "@/components/ui/button";
@@ -26,11 +26,21 @@ import {
 } from "@/lib/careers/roles";
 import { filterOffersByDepartment, findOffer } from "@/lib/careers/catalog";
 import { useCareerOffers } from "@/lib/careers/useCareerContent";
+import {
+  CAREER_START_OPTIONS,
+  CAREER_FIELD_STEP,
+  MESSAGE_MAX,
+  MESSAGE_MIN,
+  hasErrors,
+  validateApplication,
+  validateStep,
+  type CareerFieldErrors,
+  type CareerFieldName,
+} from "@/lib/careers/applicationSchema";
 import { CAREER_FORM_STEPS, CareerFormStepper } from "../molecules/CareerFormStepper";
 import { CareerFormSuccess } from "../molecules/CareerFormSuccess";
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const START_OPTIONS = ["immediately", "month", "quarter", "later"] as const;
+const START_OPTIONS = CAREER_START_OPTIONS;
 const LAST_STEP = CAREER_FORM_STEPS.length - 1;
 
 interface FormState {
@@ -88,6 +98,7 @@ export function CareersApplyForm({
   const [submitted, setSubmitted] = useState(false);
   const [submittedEmail, setSubmittedEmail] = useState("");
   const [step, setStep] = useState(0);
+  const [errors, setErrors] = useState<CareerFieldErrors>({});
   const [maxVisited, setMaxVisited] = useState(0);
   const legendRef = useRef<HTMLLegendElement>(null);
   const skipFocusRef = useRef(true);
@@ -127,6 +138,54 @@ export function CareersApplyForm({
     setMaxVisited((prev) => Math.max(prev, next));
   }, []);
 
+  // Klucze i18n z schematu tłumaczymy dopiero tutaj - schemat pozostaje
+  // niezależny od języka i testowalny bez i18n.
+  const msg = useCallback(
+    (key: string | undefined) =>
+      key ? t(key, { min: MESSAGE_MIN, max: MESSAGE_MAX, defaultValue: key }) : undefined,
+    [t],
+  );
+
+  const payload = useMemo(
+    () => ({ ...form, consent }),
+    [form, consent],
+  );
+
+  const clearError = useCallback((field: CareerFieldName) => {
+    setErrors((prev) => (prev[field] ? { ...prev, [field]: undefined } : prev));
+  }, []);
+
+  const setField = useCallback(
+    <K extends keyof FormState>(field: K, value: FormState[K]) => {
+      setForm((prev) => ({ ...prev, [field]: value }));
+      clearError(field as CareerFieldName);
+    },
+    [clearError],
+  );
+
+  const blurField = useCallback(
+    (field: CareerFieldName) => {
+      const stepErrors = validateStep(CAREER_FIELD_STEP[field], payload);
+      setErrors((prev) => ({ ...prev, [field]: stepErrors[field] }));
+    },
+    [payload],
+  );
+
+  // Fokus i przewinięcie do pierwszego błędnego pola - bez tego na mobile
+  // komunikat potrafi zostać poza ekranem.
+  const focusFirstError = useCallback((current: CareerFieldErrors) => {
+    if (typeof document === "undefined") return;
+    const field = (Object.keys(current) as CareerFieldName[]).find((key) => current[key]);
+    if (!field) return;
+    window.requestAnimationFrame(() => {
+      const node = document.querySelector<HTMLElement>(`[data-field="${field}"]`);
+      node?.scrollIntoView({ block: "center", behavior: "smooth" });
+      node?.focus?.();
+    });
+  }, []);
+
+  const errorCount = Object.values(errors).filter(Boolean).length;
+
   const departmentOptions = useMemo<FormSelectOption[]>(
     () => CAREER_DEPARTMENTS.map((d) => ({ value: d, label: t(`careers.departments.${d}`) })),
     [t],
@@ -150,17 +209,31 @@ export function CareersApplyForm({
     [t],
   );
 
-  const validateAbout = () => {
-    if (!form.firstName.trim() || !form.lastName.trim() || !form.email.trim()) {
-      toast.error(t("careers.form.requiredAbout"));
-      return false;
-    }
-    if (!EMAIL_RE.test(form.email.trim())) {
-      toast.error(t("careers.form.invalidEmail"));
-      return false;
-    }
-    return true;
-  };
+  /** Waliduje wskazany krok, ustawia błędy pól i zwraca wynik. */
+  const checkStep = useCallback(
+    (index: number) => {
+      const stepErrors = validateStep(index as 0 | 1 | 2, payload);
+      setErrors((prev) => {
+        const next: CareerFieldErrors = { ...prev };
+        for (const field of Object.keys(CAREER_FIELD_STEP) as CareerFieldName[]) {
+          if (CAREER_FIELD_STEP[field] === index) next[field] = stepErrors[field];
+        }
+        return next;
+      });
+      if (hasErrors(stepErrors)) {
+        toast.error(
+          t("careers.form.errors.summary", {
+            count: Object.values(stepErrors).filter(Boolean).length,
+            defaultValue: "careers.form.errors.summary",
+          }),
+        );
+        focusFirstError(stepErrors);
+        return false;
+      }
+      return true;
+    },
+    [focusFirstError, payload, t],
+  );
 
   const send = async () => {
     const firstName = form.firstName.trim();
@@ -180,7 +253,7 @@ export function CareersApplyForm({
           firstName,
           lastName,
           email,
-          phone: form.phone.trim() || undefined,
+          phone: form.phone.trim(),
           subject: `${t("careers.eyebrow")}: ${roleLabel}`,
           message,
           consent: true,
@@ -209,6 +282,7 @@ export function CareersApplyForm({
       setSubmittedEmail(email);
       setForm(EMPTY);
       setConsent(false);
+      setErrors({});
       onRoleChange(null);
       setStep(0);
       setMaxVisited(0);
@@ -225,32 +299,36 @@ export function CareersApplyForm({
   // "O Tobie" - po cofnięciu można wyczyścić wymagane pola i bez tej bramki
   // skok do odwiedzonej "Wiadomości" ominąłby walidację.
   const handleStepSelect = (index: number) => {
-    if (index > step && !validateAbout()) return;
+    if (index > step) {
+      for (let i = step; i < index; i += 1) {
+        if (!checkStep(i)) {
+          setStep(i);
+          return;
+        }
+      }
+    }
     setStep(index);
   };
 
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (step === 0) {
-      if (validateAbout()) goToStep(1);
-      return;
-    }
     if (step < LAST_STEP) {
-      goToStep(step + 1);
+      if (checkStep(step)) goToStep(step + 1);
       return;
     }
-    // Pas bezpieczeństwa: dane kroku 1 mogły zostać wyczyszczone po powrocie -
-    // finalna wysyłka waliduje je ponownie i wraca do kroku z brakami.
-    if (!validateAbout()) {
-      setStep(0);
-      return;
-    }
-    if (!form.message.trim()) {
-      toast.error(t("careers.form.requiredMessage"));
-      return;
-    }
-    if (!consent) {
-      toast.error(t("careers.form.consentRequired"));
+    // Finalna walidacja całości: po cofnięciu można było wyczyścić pola
+    // wcześniejszych kroków, a CRM nie może dostać zgłoszenia z brakami.
+    const result = validateApplication(payload);
+    if (!result.ok) {
+      setErrors(result.errors);
+      toast.error(
+        t("careers.form.errors.summary", {
+          count: Object.values(result.errors).filter(Boolean).length,
+          defaultValue: "careers.form.errors.summary",
+        }),
+      );
+      setStep(result.firstStep);
+      focusFirstError(result.errors);
       return;
     }
     await send();
