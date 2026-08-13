@@ -59,12 +59,12 @@ export function CareerRoleCard({
         )}
       />
 
-
-      <div className="grid items-center gap-6 md:grid-cols-12 md:gap-8">
+      <div className="relative grid items-center gap-6 py-6 pl-7 pr-5 sm:py-8 sm:pl-9 sm:pr-7 md:grid-cols-12 md:gap-8">
         <div className="flex flex-col gap-1 md:col-span-3">
-          <span className="text-[11px] font-extrabold uppercase tracking-[0.15em] text-primary transition-transform duration-300 group-hover:translate-x-1">
+          <span className="text-[10px] font-black uppercase tracking-[0.25em] text-brand sm:text-xs">
             {t(`careers.departments.${role.department}`)}
           </span>
+
           <span className="text-sm font-medium text-muted-foreground">
             {t(`careers.seniority.${role.seniority}`)}
           </span>
