@@ -81,6 +81,11 @@ export interface PopupFormDesign {
   loginLinkPl: string;
   loginLinkEn: string;
   loginLinkHref: string;
+  /**
+   * Ikona przycisku CTA - nazwa z biblioteki Lucide w kebab-case (ta sama
+   * konwencja co picker w builderze). Pusty string = przycisk bez ikony.
+   */
+  ctaIcon: string;
 }
 
 export interface PopupPanelDesign {
@@ -217,11 +222,21 @@ export function defaultPopupDesign(): PopupDesign {
       loginLinkPl: "Masz już konto? Zaloguj się",
       loginLinkEn: "Already have an account? Sign in",
       loginLinkHref: "/login",
+      ctaIcon: "user-plus",
     },
   };
 }
 
 // ---------- koercja ----------
+
+/**
+ * Ikona trafia do resolvera `DynamicIcon` po nazwie - przepuszczamy wyłącznie
+ * kebab-case, żeby zapis z bazy nie mógł wskazać niczego spoza katalogu.
+ */
+function sanitizeIconName(value: string): string {
+  const v = value.trim().toLowerCase();
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(v) ? v : "";
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -356,6 +371,9 @@ export function resolvePopupDesign(raw: unknown): PopupDesign {
       loginLinkPl: filled(form.loginLinkPl, d.form.loginLinkPl),
       loginLinkEn: filled(form.loginLinkEn, d.form.loginLinkEn),
       loginLinkHref: filled(form.loginLinkHref, d.form.loginLinkHref),
+      // `str` (nie `filled`): pusty zapis to świadomy wybór „bez ikony",
+      // więc nie może cofać się do domyślnej ikony przy każdym odczycie.
+      ctaIcon: sanitizeIconName(str(form.ctaIcon, d.form.ctaIcon)),
     },
   };
 }
