@@ -107,9 +107,10 @@ function fillAbout() {
   fireEvent.change(screen.getByLabelText(/careers\.form\.email/), {
     target: { value: "jan.kowalski@example.com" },
   });
+  fillContact();
 }
 
-function fillAbout2() {
+function fillContact() {
   fireEvent.change(screen.getByLabelText(/careers\.form\.phone/), {
     target: { value: "+48 600 100 200" },
   });
@@ -147,7 +148,9 @@ describe("CareersApplyForm: kreator 3 kroków", () => {
   it("blokuje krok 1 bez danych kontaktowych i bez poprawnego e-maila", () => {
     renderForm();
     nextStep();
-    expect(toastError).toHaveBeenCalledWith("careers.form.requiredAbout");
+    expect(toastError).toHaveBeenCalledWith("careers.form.errors.summary");
+    expect(screen.getByText("careers.form.errors.firstNameRequired")).toBeInTheDocument();
+    expect(screen.getByText("careers.form.errors.phoneRequired")).toBeInTheDocument();
     expect(screen.getByLabelText(/careers\.form\.firstName/)).toBeInTheDocument();
 
     fillAbout();
@@ -155,7 +158,17 @@ describe("CareersApplyForm: kreator 3 kroków", () => {
       target: { value: "to-nie-email" },
     });
     nextStep();
-    expect(toastError).toHaveBeenCalledWith("careers.form.invalidEmail");
+    expect(screen.getByText("careers.form.errors.emailInvalid")).toBeInTheDocument();
+  });
+
+  it("wymaga kompletu danych dopasowania (krok 2) - bez nich CRM traci kontekst", () => {
+    renderForm();
+    fillAbout();
+    nextStep();
+    nextStep();
+    expect(screen.getByText("careers.form.errors.departmentRequired")).toBeInTheDocument();
+    expect(screen.getByText("careers.form.errors.seniorityRequired")).toBeInTheDocument();
+    expect(screen.getByText("careers.form.fitOptional")).toBeInTheDocument();
   });
 
   it("przechodzi kroki, wymaga wiadomości i zgody, wysyła komplet danych rekrutacyjnych", async () => {
@@ -167,17 +180,24 @@ describe("CareersApplyForm: kreator 3 kroków", () => {
     fillAbout();
     nextStep(); // -> Dopasowanie
     expect(screen.getByText("careers.form.fitOptional")).toBeInTheDocument();
-    nextStep(); // -> Wiadomość (pola dopasowania są opcjonalne)
+    fillFit();
+    nextStep(); // -> Wiadomość
 
     const submitButton = screen.getByRole("button", { name: /careers\.form\.submit/ });
     fireEvent.click(submitButton);
-    expect(toastError).toHaveBeenCalledWith("careers.form.requiredMessage");
+    expect(screen.getByText("careers.form.errors.messageRequired")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(/careers\.form\.message/), {
-      target: { value: "Chcę prowadzić linię gospodarczą." },
+      target: { value: "Za krótko." },
     });
     fireEvent.click(submitButton);
-    expect(toastError).toHaveBeenCalledWith("careers.form.consentRequired");
+    expect(screen.getByText("careers.form.errors.messageShort")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/careers\.form\.message/), {
+      target: { value: LONG_MESSAGE },
+    });
+    fireEvent.click(submitButton);
+    expect(screen.getByText("careers.form.errors.consentRequired")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(submitButton);
@@ -187,12 +207,15 @@ describe("CareersApplyForm: kreator 3 kroków", () => {
       .data;
     expect(payload.name).toBe("Jan Kowalski");
     expect(payload.email).toBe("jan.kowalski@example.com");
+    expect(payload.phone).toBe("+48 600 100 200");
     expect(payload.formName).toBe("careers-application");
     expect(payload.lang).toBe("pl");
     expect(payload.custom).toMatchObject({
       department: "analysis",
       role: "analyst_economy",
       seniority: "mid",
+      start: "month",
+      linkedin: "linkedin.com/in/jan-kowalski",
     });
     expect(payload.consents).toEqual([
       { key: "recruitment", text: "careers.form.consent", lang: "pl" },
@@ -231,7 +254,7 @@ describe("CareersApplyForm: kreator 3 kroków", () => {
 
     // Skok w przód do odwiedzonego kroku jest zablokowany walidacją.
     fireEvent.click(screen.getByRole("button", { name: /careers\.form\.steps\.fit/ }));
-    expect(toastError).toHaveBeenCalledWith("careers.form.requiredAbout");
+    expect(toastError).toHaveBeenCalledWith("careers.form.errors.summary");
     expect(screen.getByLabelText(/careers\.form\.firstName/)).toBeInTheDocument();
 
     // Po uzupełnieniu skok przechodzi.
@@ -256,9 +279,10 @@ describe("CareersApplyForm: kreator 3 kroków", () => {
 
     fillAbout();
     nextStep();
+    fillFit("open");
     nextStep();
     fireEvent.change(screen.getByLabelText(/careers\.form\.message/), {
-      target: { value: "Zgłoszenie spontaniczne." },
+      target: { value: LONG_MESSAGE },
     });
     fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(screen.getByRole("button", { name: /careers\.form\.submit/ }));
