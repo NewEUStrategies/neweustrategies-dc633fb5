@@ -1241,6 +1241,7 @@ export function renderSimpleWidget(
         delayMs: getNum(c, "delayMs", 200),
         loop: c.loop !== false,
         linkBefore: toAnimatedHeadingLink(c.linkBefore),
+        linkWhole: toAnimatedHeadingLink(c.linkWhole),
         linkHighlight: toAnimatedHeadingLink(c.linkHighlight),
         linkAfter: toAnimatedHeadingLink(c.linkAfter),
       };

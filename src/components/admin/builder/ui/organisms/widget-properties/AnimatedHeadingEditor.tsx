@@ -113,6 +113,7 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
     highlight: resolveDynamicText(highlight, PLACEHOLDER_POST_CTX, lang),
     rotateWords: resolveDynamicList(rotateWords, PLACEHOLDER_POST_CTX, lang),
     linkBefore: toAnimatedHeadingLink(c.linkBefore),
+    linkWhole: toAnimatedHeadingLink(c.linkWhole),
     linkHighlight: toAnimatedHeadingLink(c.linkHighlight),
     linkAfter: toAnimatedHeadingLink(c.linkAfter),
     color: color || undefined,
@@ -265,6 +266,7 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
         </p>
         {(
           [
+            ["linkWhole", t("builder.animatedHeadingEditor.linkWhole")],
             ["linkBefore", t("builder.animatedHeadingEditor.linkBefore")],
             ["linkHighlight", t("builder.animatedHeadingEditor.linkHighlight")],
             ["linkAfter", t("builder.animatedHeadingEditor.linkAfter")],
@@ -272,6 +274,11 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
         ).map(([key, label]) => (
           <div key={key} className="space-y-1.5">
             <div className="text-[11px] font-medium text-foreground">{label}</div>
+            {key === "linkWhole" ? (
+              <p className="text-[10px] text-muted-foreground">
+                {t("builder.animatedHeadingEditor.linkWholeHint")}
+              </p>
+            ) : null}
             <LinkPicker
               value={toWidgetLink(c[key])}
               lang={lang}
