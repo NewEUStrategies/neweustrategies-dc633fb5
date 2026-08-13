@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ZwrotyIReklamacjeRouteImport } from './routes/zwroty-i-reklamacje'
+import { Route as ZatrudniamyRouteImport } from './routes/zatrudniamy'
 import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
 import { Route as SupportRouteImport } from './routes/support'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
@@ -308,6 +309,11 @@ import { Route as AdminCommunityClubsClubIdRouteImport } from './routes/admin.co
 const ZwrotyIReklamacjeRoute = ZwrotyIReklamacjeRouteImport.update({
   id: '/zwroty-i-reklamacje',
   path: '/zwroty-i-reklamacje',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ZatrudniamyRoute = ZatrudniamyRouteImport.update({
+  id: '/zatrudniamy',
+  path: '/zatrudniamy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const UnsubscribeRoute = UnsubscribeRouteImport.update({
@@ -1867,6 +1873,7 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/support': typeof SupportRoute
   '/unsubscribe': typeof UnsubscribeRoute
+  '/zatrudniamy': typeof ZatrudniamyRoute
   '/zwroty-i-reklamacje': typeof ZwrotyIReklamacjeRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/gpc.json': typeof Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute
@@ -2161,6 +2168,7 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/support': typeof SupportRoute
   '/unsubscribe': typeof UnsubscribeRoute
+  '/zatrudniamy': typeof ZatrudniamyRoute
   '/zwroty-i-reklamacje': typeof ZwrotyIReklamacjeRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/gpc.json': typeof Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute
@@ -2451,6 +2459,7 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/support': typeof SupportRoute
   '/unsubscribe': typeof UnsubscribeRoute
+  '/zatrudniamy': typeof ZatrudniamyRoute
   '/zwroty-i-reklamacje': typeof ZwrotyIReklamacjeRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/gpc.json': typeof Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute
@@ -2750,6 +2759,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/support'
     | '/unsubscribe'
+    | '/zatrudniamy'
     | '/zwroty-i-reklamacje'
     | '/.mcp/list-tools'
     | '/.well-known/gpc.json'
@@ -3044,6 +3054,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/support'
     | '/unsubscribe'
+    | '/zatrudniamy'
     | '/zwroty-i-reklamacje'
     | '/.mcp/list-tools'
     | '/.well-known/gpc.json'
@@ -3333,6 +3344,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/support'
     | '/unsubscribe'
+    | '/zatrudniamy'
     | '/zwroty-i-reklamacje'
     | '/.mcp/list-tools'
     | '/.well-known/gpc.json'
@@ -3631,6 +3643,7 @@ export interface RootRouteChildren {
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   SupportRoute: typeof SupportRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
+  ZatrudniamyRoute: typeof ZatrudniamyRoute
   ZwrotyIReklamacjeRoute: typeof ZwrotyIReklamacjeRoute
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
   Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute: typeof Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute
@@ -3707,6 +3720,13 @@ declare module '@tanstack/react-router' {
       path: '/zwroty-i-reklamacje'
       fullPath: '/zwroty-i-reklamacje'
       preLoaderRoute: typeof ZwrotyIReklamacjeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/zatrudniamy': {
+      id: '/zatrudniamy'
+      path: '/zatrudniamy'
+      fullPath: '/zatrudniamy'
+      preLoaderRoute: typeof ZatrudniamyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/unsubscribe': {
@@ -6427,6 +6447,7 @@ const rootRouteChildren: RootRouteChildren = {
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   SupportRoute: SupportRoute,
   UnsubscribeRoute: UnsubscribeRoute,
+  ZatrudniamyRoute: ZatrudniamyRoute,
   ZwrotyIReklamacjeRoute: ZwrotyIReklamacjeRoute,
   Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
   Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute:
