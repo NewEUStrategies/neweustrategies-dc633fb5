@@ -8,7 +8,7 @@
 // Tło: wyłącznie miękka poświata marki (crs-aurora), gasnąca przy
 // prefers-reduced-motion.
 import { useTranslation } from "react-i18next";
-import { ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { TextRotate } from "@/components/ui/text-rotate";
@@ -44,91 +44,44 @@ export function CareersHero({
   const rotating = ROTATING_KEYS.map((key) => t(`careers.hero.rotating.${key}`));
 
   return (
-    <header className="relative isolate overflow-hidden rounded-[6px] border border-border/70 bg-card/50 px-5 py-12 sm:px-10 sm:py-16">
-      <span aria-hidden className="crs-aurora pointer-events-none absolute inset-0 -z-10">
-        <span />
-        <span />
-        <span />
-      </span>
+    <header className="relative isolate overflow-hidden rounded-[6px] border border-border/70 bg-card/50 px-5 py-10 sm:px-8 sm:py-14">
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(120%_120%_at_10%_-10%,color-mix(in_oklab,var(--primary)_18%,transparent),transparent_60%)]"
+      />
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+        {t("careers.eyebrow")}
+      </p>
+      <h1 className="mt-3 max-w-3xl text-balance text-3xl font-black leading-[1.1] tracking-tight text-foreground sm:text-4xl lg:text-5xl">
+        {t("careers.title")}
+      </h1>
+      <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+        {t("careers.lead")}
+      </p>
 
-      <div className="max-w-3xl">
-        <button
-          type="button"
+      <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <Button
+          size="lg"
           onClick={onSeeRoles}
-          className="group inline-flex items-center gap-2 rounded-[6px] border border-brand/40 bg-brand/10 px-3 py-1.5 text-xs font-semibold text-foreground transition-colors duration-200 hover:border-brand/70 hover:bg-brand/15"
+          className="group h-12 gap-2 rounded-[6px] px-6 text-sm font-semibold shadow-[0_14px_30px_-18px_color-mix(in_oklab,var(--primary)_85%,transparent)] transition-transform duration-200 hover:-translate-y-0.5"
         >
-          <span aria-hidden className="crs-pulse-dot" />
-          {t("careers.hero.badge", { value: CAREER_ROLES.length })}
+          {t("careers.ctaPrimary")}
           <ArrowRight
-            className="h-3.5 w-3.5 text-brand-ink transition-transform duration-200 group-hover:translate-x-0.5"
+            className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5"
             aria-hidden
           />
-        </button>
-
-        <h1 className="mt-5 text-balance text-3xl font-black leading-[1.08] tracking-tight text-foreground sm:text-4xl lg:text-5xl">
-          <span className="block">{t("careers.hero.titleTop")}</span>
-          {logoLight ? (
-            logoLight === logoDark ? (
-              <img
-                src={logoLight}
-                alt={logoAlt}
-                className="mt-4 block h-9 w-auto max-w-full sm:h-11 lg:h-12"
-                loading="eager"
-                decoding="async"
-              />
-            ) : (
-              <>
-                <img
-                  src={logoLight}
-                  alt={logoAlt}
-                  className="mt-4 block h-9 w-auto max-w-full sm:h-11 lg:h-12 dark:hidden"
-                  loading="eager"
-                  decoding="async"
-                />
-                <img
-                  src={logoDark}
-                  alt={logoAlt}
-                  className="mt-4 hidden h-9 w-auto max-w-full sm:h-11 lg:h-12 dark:block"
-                  loading="eager"
-                  decoding="async"
-                />
-              </>
-            )
-          ) : (
-            <span className="block text-brand-ink">{logoAlt}</span>
-          )}
-        </h1>
-
-        <p className="mt-5 min-h-12 text-base font-medium text-foreground sm:min-h-7 sm:text-lg">
-          {t("careers.hero.rotatePrefix")}{" "}
-          <TextRotate
-            texts={rotating}
-            splitBy="words"
-            rotationInterval={2900}
-            staggerDurationMs={45}
-            mainClassName="font-semibold text-brand-ink"
-          />
-        </p>
-
-        <p className="mt-3 text-base leading-relaxed text-muted-foreground sm:text-lg">
-          {t("careers.lead")}
-        </p>
-
-        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-          <Button size="lg" className="gap-2" onClick={onSeeRoles}>
-            {t("careers.ctaPrimary")}
-            <ArrowRight className="h-4 w-4" aria-hidden />
-          </Button>
-          <Button size="lg" variant="outline" onClick={onOpenApplication}>
-            {t("careers.ctaSecondary")}
-          </Button>
-        </div>
-
-        <p className="mt-3 inline-flex items-center gap-2 text-xs text-muted-foreground">
-          <Sparkles className="h-4 w-4 shrink-0 text-primary" aria-hidden />
-          {t("careers.trust")}
-        </p>
+        </Button>
+        <Button
+          size="lg"
+          variant="outline"
+          onClick={onOpenApplication}
+          className="h-12 rounded-[6px] border-primary/45 px-6 text-sm font-semibold text-foreground transition-colors duration-200 hover:border-primary hover:bg-primary/10"
+        >
+          {t("careers.ctaSecondary")}
+        </Button>
       </div>
+
+      <p className="mt-3 text-xs text-muted-foreground">{t("careers.trust")}</p>
 
       <dl className="mt-10 grid grid-cols-2 gap-5 border-t border-border/60 pt-6 sm:grid-cols-4">
         {STAT_KEYS.map((key) => (
