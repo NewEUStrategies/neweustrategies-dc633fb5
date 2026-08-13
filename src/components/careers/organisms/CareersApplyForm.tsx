@@ -79,6 +79,8 @@ export function CareersApplyForm({
   applySignal?: number;
 }) {
   const { t } = useTranslation();
+  const { offers } = useCareerOffers();
+
   const submit = useServerFn(submitContactMessage);
   const [form, setForm] = useState<FormState>(EMPTY);
   const [consent, setConsent] = useState(false);
