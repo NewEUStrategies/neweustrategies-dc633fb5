@@ -233,6 +233,18 @@ export interface AnimatedHeadingConfig {
   loop?: boolean; // for shape: replay; for rotate: cycle infinitely
   tag?: "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
   align?: "left" | "center" | "right";
+  // Hiperłącza per segment nagłówka (własny URL lub encja platformy:
+  // wpis, strona, kategoria, tag, plik mediów).
+  linkBefore?: AnimatedHeadingLink;
+  linkHighlight?: AnimatedHeadingLink;
+  linkAfter?: AnimatedHeadingLink;
+}
+
+export interface AnimatedHeadingLink {
+  href: string;
+  target?: "_self" | "_blank";
+  rel?: string;
+  ariaLabel?: string;
 }
 
 const shapeStroke: Record<AnimatedHeadingShape, number> = {
@@ -593,6 +605,37 @@ function ShapeSvg({
   );
 }
 
+/**
+ * Owija segment nagłówka w link, gdy autor ustawił hiperłącze. Link
+ * dziedziczy kolor i dekoracje segmentu (żeby animacje kształtu i duo-tone
+ * pozostały nietknięte), a `rel` jest uzupełniany dla `target="_blank"`.
+ */
+function SegmentLink({
+  link,
+  preview,
+  children,
+}: {
+  link: AnimatedHeadingLink | undefined;
+  preview?: boolean;
+  children: React.ReactNode;
+}) {
+  if (!link?.href) return <>{children}</>;
+  if (preview) return <>{children}</>;
+  const target = link.target === "_blank" ? "_blank" : undefined;
+  const rel = [link.rel, target ? "noopener noreferrer" : ""].filter(Boolean).join(" ").trim();
+  return (
+    <a
+      href={link.href}
+      target={target}
+      rel={rel || undefined}
+      aria-label={link.ariaLabel || undefined}
+      style={{ color: "inherit", textDecoration: "inherit" }}
+    >
+      {children}
+    </a>
+  );
+}
+
 export function AnimatedHeadingRender({
   config,
   preview = false,
@@ -676,7 +719,9 @@ export function AnimatedHeadingRender({
     >
       {config.textBefore ? (
         <span>
-          {config.textBefore}
+          <SegmentLink link={config.linkBefore} preview={preview}>
+            {config.textBefore}
+          </SegmentLink>
           {config.textBefore.endsWith(" ") ? "" : " "}
         </span>
       ) : null}
@@ -691,7 +736,9 @@ export function AnimatedHeadingRender({
         }}
       >
         <span style={{ position: "relative", zIndex: 1 }}>
-          {animatedText || (preview ? "wyróżnione" : "")}
+          <SegmentLink link={config.linkHighlight} preview={preview}>
+            {animatedText || (preview ? "wyróżnione" : "")}
+          </SegmentLink>
         </span>
         <ShapeSvg
           shape={shape}
@@ -705,7 +752,9 @@ export function AnimatedHeadingRender({
       {config.textAfter ? (
         <span>
           {config.textAfter.startsWith(" ") ? "" : " "}
-          {config.textAfter}
+          <SegmentLink link={config.linkAfter} preview={preview}>
+            {config.textAfter}
+          </SegmentLink>
         </span>
       ) : null}
     </Tag>

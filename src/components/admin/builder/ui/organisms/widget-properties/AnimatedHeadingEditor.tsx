@@ -20,6 +20,12 @@ import {
   type AnimatedHeadingMode,
   type AnimatedHeadingShape,
 } from "@/lib/builder/animatedHeadingVariants";
+import { LinkPicker } from "../../molecules/LinkPicker";
+import {
+  toAnimatedHeadingLink,
+  toWidgetLink,
+  type AnimatedHeadingLinkKey,
+} from "@/lib/builder/animatedHeadingLinks";
 import { resolveDynamicText, resolveDynamicList } from "@/lib/builder/dynamicText";
 import { useBuilderLabel } from "@/lib/builder/labelsEn";
 import { PLACEHOLDER_POST_CTX } from "@/lib/builder/currentPostContext";
@@ -106,6 +112,9 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
     textAfter: resolveDynamicText(textAfter, PLACEHOLDER_POST_CTX, lang),
     highlight: resolveDynamicText(highlight, PLACEHOLDER_POST_CTX, lang),
     rotateWords: resolveDynamicList(rotateWords, PLACEHOLDER_POST_CTX, lang),
+    linkBefore: toAnimatedHeadingLink(c.linkBefore),
+    linkHighlight: toAnimatedHeadingLink(c.linkHighlight),
+    linkAfter: toAnimatedHeadingLink(c.linkAfter),
     color: color || undefined,
     accentColor,
     durationMs,
@@ -242,6 +251,34 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
             placeholder={t("builder.animatedHeadingEditor.defaultPh")}
           />
         </PropField>
+      </section>
+
+      <section className="rounded-md border border-border bg-muted/20 p-3 space-y-3">
+        <div className="flex items-center gap-2">
+          <span className="inline-block h-4 w-1 rounded bg-muted-foreground/50" />
+          <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {t("builder.animatedHeadingEditor.links")}
+          </h4>
+        </div>
+        <p className="text-[10px] text-muted-foreground">
+          {t("builder.animatedHeadingEditor.linksHint")}
+        </p>
+        {(
+          [
+            ["linkBefore", t("builder.animatedHeadingEditor.linkBefore")],
+            ["linkHighlight", t("builder.animatedHeadingEditor.linkHighlight")],
+            ["linkAfter", t("builder.animatedHeadingEditor.linkAfter")],
+          ] as ReadonlyArray<[AnimatedHeadingLinkKey, string]>
+        ).map(([key, label]) => (
+          <div key={key} className="space-y-1.5">
+            <div className="text-[11px] font-medium text-foreground">{label}</div>
+            <LinkPicker
+              value={toWidgetLink(c[key])}
+              lang={lang}
+              onChange={(link) => setContent(key, link ? toJson(link) : null)}
+            />
+          </div>
+        ))}
       </section>
 
       <section className="rounded-md border border-brand/40 bg-brand/5 p-3 space-y-2">
