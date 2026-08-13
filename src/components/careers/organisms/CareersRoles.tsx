@@ -5,14 +5,13 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { CAREER_DEPARTMENTS, type CareerDepartmentId } from "@/lib/careers/roles";
 import {
-  CAREER_DEPARTMENTS,
-  CAREER_ROLES,
-  countRolesByDepartment,
-  filterRolesByDepartment,
-  findRole,
-  type CareerDepartmentId,
-} from "@/lib/careers/roles";
+  countOffersByDepartment,
+  filterOffersByDepartment,
+  findOffer,
+} from "@/lib/careers/catalog";
+import { useCareerOffers, useCareerSection } from "@/lib/careers/useCareerContent";
 import { CareerFilterChip } from "../atoms/CareerFilterChip";
 import { CareerRoleCard } from "../molecules/CareerRoleCard";
 import { CareerRoleDialog } from "./CareerRoleDialog";
@@ -31,11 +30,17 @@ export function CareersRoles({
   onApply: (roleId: string) => void;
 }) {
   const { t } = useTranslation();
+  const { offers } = useCareerOffers();
+  const section = useCareerSection("roles");
 
-  const counts = useMemo(() => countRolesByDepartment(CAREER_ROLES), []);
-  const roles = useMemo(() => filterRolesByDepartment(CAREER_ROLES, department), [department]);
+  const counts = useMemo(() => countOffersByDepartment(offers), [offers]);
+  const roles = useMemo(
+    () => filterOffersByDepartment(offers, department),
+    [offers, department],
+  );
   const [detailsRoleId, setDetailsRoleId] = useState<string | null>(null);
-  const detailsRole = useMemo(() => findRole(detailsRoleId), [detailsRoleId]);
+  const detailsRole = useMemo(() => findOffer(offers, detailsRoleId), [offers, detailsRoleId]);
+
 
   return (
     <section id={id} aria-labelledby="careers-roles" className="mt-16 scroll-mt-28">
