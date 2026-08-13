@@ -711,16 +711,6 @@ export function AnimatedHeadingRender({
 
   const body = (
     <>
-      data-typography-role="title"
-      className="font-display text-3xl md:text-4xl leading-tight"
-      style={{
-        color,
-        textAlign: align,
-        margin: 0,
-        paddingBottom: isUnderlineLike ? "0.45em" : needsFrame ? "0.25em" : undefined,
-        paddingTop: needsFrame ? "0.15em" : undefined,
-      }}
-    >
       {config.textBefore ? (
         <span>
           <SegmentLink link={segment(config.linkBefore)} preview={preview}>
