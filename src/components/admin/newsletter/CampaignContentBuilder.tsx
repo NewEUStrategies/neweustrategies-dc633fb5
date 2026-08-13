@@ -3,6 +3,8 @@
 // wysyłka (blok "najnowsze wpisy" rozwiązywany serwerowo), więc redaktor widzi
 // to, co dostanie odbiorca.
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { ensureI18n as ensureNewsletterAdminI18n } from "@/lib/i18n-newsletter-admin";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -51,21 +53,23 @@ import { postRefsForLang, type EmailPostRow } from "@/lib/newsletter/emailDocRes
 import { resolveCampaignDocPosts } from "@/lib/newsletter-campaigns.functions";
 import { CampaignBlockProperties } from "./CampaignBlockProperties";
 
-const PALETTE: { type: EmailBlockType; icon: typeof Heading; pl: string; en: string }[] = [
-  { type: "heading", icon: Heading, pl: "Nagłówek", en: "Heading" },
-  { type: "paragraph", icon: Type, pl: "Tekst", en: "Text" },
-  { type: "image", icon: ImageIcon, pl: "Obraz", en: "Image" },
-  { type: "button", icon: MousePointerClick, pl: "Przycisk", en: "Button" },
-  { type: "post-list", icon: Newspaper, pl: "Najnowsze wpisy", en: "Latest posts" },
-  { type: "quote", icon: Quote, pl: "Cytat", en: "Quote" },
-  { type: "divider", icon: Minus, pl: "Linia", en: "Divider" },
-  { type: "spacer", icon: MoveVertical, pl: "Odstęp", en: "Spacer" },
-  { type: "footer-note", icon: Info, pl: "Nota stopki", en: "Footer note" },
+// Paleta WSKAZUJE KLUCZE, nie napisy: pary `{ pl, en }` w tablicy byly kolejnym
+// rownoleglym slownikiem poza zasiegiem bramki parytetu.
+const PALETTE: { type: EmailBlockType; icon: typeof Heading; labelKey: string }[] = [
+  { type: "heading", icon: Heading, labelKey: "adminNewsletter.blocks.heading" },
+  { type: "paragraph", icon: Type, labelKey: "adminNewsletter.blocks.paragraph" },
+  { type: "image", icon: ImageIcon, labelKey: "adminNewsletter.blocks.image" },
+  { type: "button", icon: MousePointerClick, labelKey: "adminNewsletter.blocks.button" },
+  { type: "post-list", icon: Newspaper, labelKey: "adminNewsletter.blocks.postList" },
+  { type: "quote", icon: Quote, labelKey: "adminNewsletter.blocks.quote" },
+  { type: "divider", icon: Minus, labelKey: "adminNewsletter.blocks.divider" },
+  { type: "spacer", icon: MoveVertical, labelKey: "adminNewsletter.blocks.spacer" },
+  { type: "footer-note", icon: Info, labelKey: "adminNewsletter.blocks.footerNote" },
 ];
 
-function blockLabel(type: EmailBlockType, isPl: boolean): string {
-  const item = PALETTE.find((p) => p.type === type);
-  return item ? (isPl ? item.pl : item.en) : type;
+/** Klucz etykiety bloku; nieznany typ degraduje sie do wlasnej nazwy. */
+function blockLabelKey(type: EmailBlockType): string | null {
+  return PALETTE.find((p) => p.type === type)?.labelKey ?? null;
 }
 
 /** Zwraca wartość opóźnioną o `delay` ms - stabilizuje kosztowny podgląd. */
@@ -83,14 +87,19 @@ export function CampaignContentBuilder({
   onChange,
   previewLang,
   onPreviewLangChange,
-  isPl,
 }: {
   doc: EmailDoc;
   onChange: (doc: EmailDoc) => void;
   previewLang: "pl" | "en";
   onPreviewLangChange: (lang: "pl" | "en") => void;
-  isPl: boolean;
 }) {
+  ensureNewsletterAdminI18n();
+  const { t } = useTranslation();
+  /** Etykieta bloku ze slownika; nieznany typ degraduje sie do wlasnej nazwy. */
+  const blockLabelFor = (type: EmailBlockType): string => {
+    const key = blockLabelKey(type);
+    return key === null ? type : t(key);
+  };
   const [selectedId, setSelectedId] = useState<string | null>(doc.blocks[0]?.id ?? null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -155,7 +164,7 @@ export function CampaignContentBuilder({
               onClick={() => addBlock(p.type)}
             >
               <p.icon className="w-3.5 h-3.5 mr-1" />
-              {isPl ? p.pl : p.en}
+              {t(p.labelKey)}
             </Button>
           ))}
         </div>
@@ -163,9 +172,7 @@ export function CampaignContentBuilder({
         {/* Lista bloków (sortowalna) */}
         {doc.blocks.length === 0 ? (
           <div className="rounded-md border border-dashed p-8 text-center text-[13px] text-muted-foreground">
-            {isPl
-              ? "Pusty dokument. Dodaj pierwszy blok z palety powyżej."
-              : "Empty document. Add your first block from the palette above."}
+            {t("adminNewsletter.blocks.emptyDocument")}
           </div>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
@@ -179,11 +186,10 @@ export function CampaignContentBuilder({
                     key={block.id}
                     block={block}
                     selected={block.id === selectedId}
-                    label={blockLabel(block.type, isPl)}
+                    label={blockLabelFor(block.type)}
                     onSelect={() => setSelectedId(block.id)}
                     onRemove={() => removeBlock(block.id)}
                     onDuplicate={() => duplicateBlock(block.id)}
-                    isPl={isPl}
                   />
                 ))}
               </div>
@@ -195,9 +201,9 @@ export function CampaignContentBuilder({
         {selected && (
           <div className="rounded-md border p-3">
             <div className="text-[12px] font-medium mb-2">
-              {isPl ? "Właściwości" : "Properties"}: {blockLabel(selected.type, isPl)}
+              {t("adminNewsletter.blocks.properties")}: {blockLabelFor(selected.type)}
             </div>
-            <CampaignBlockProperties block={selected} onChange={updateBlock} isPl={isPl} />
+            <CampaignBlockProperties block={selected} onChange={updateBlock} />
           </div>
         )}
       </div>
@@ -205,7 +211,7 @@ export function CampaignContentBuilder({
       {/* Podgląd na żywo */}
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <span className="text-[12px] font-medium">{isPl ? "Podgląd" : "Preview"}</span>
+          <span className="text-[12px] font-medium">{t("adminNewsletter.blocks.preview")}</span>
           <div className="ml-auto flex items-center gap-1">
             <Button
               type="button"
@@ -227,7 +233,7 @@ export function CampaignContentBuilder({
             </Button>
           </div>
         </div>
-        <CampaignPreview doc={doc} lang={previewLang} isPl={isPl} />
+        <CampaignPreview doc={doc} lang={previewLang} />
       </div>
     </div>
   );
@@ -240,7 +246,6 @@ function SortableBlockRow({
   onSelect,
   onRemove,
   onDuplicate,
-  isPl,
 }: {
   block: EmailBlock;
   selected: boolean;
@@ -248,8 +253,9 @@ function SortableBlockRow({
   onSelect: () => void;
   onRemove: () => void;
   onDuplicate: () => void;
-  isPl: boolean;
 }) {
+  ensureNewsletterAdminI18n();
+  const { t } = useTranslation();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: block.id,
   });
@@ -265,7 +271,7 @@ function SortableBlockRow({
       <button
         type="button"
         className="cursor-grab touch-none text-muted-foreground hover:text-foreground"
-        aria-label={isPl ? "Przeciągnij" : "Drag"}
+        aria-label={t("adminNewsletter.blocks.drag")}
         {...attributes}
         {...listeners}
       >
@@ -280,7 +286,7 @@ function SortableBlockRow({
         size="icon"
         className="h-7 w-7"
         onClick={onDuplicate}
-        aria-label={isPl ? "Duplikuj" : "Duplicate"}
+        aria-label={t("adminNewsletter.blocks.duplicate")}
       >
         <Copy className="w-3.5 h-3.5" />
       </Button>
@@ -290,7 +296,7 @@ function SortableBlockRow({
         size="icon"
         className="h-7 w-7 text-destructive"
         onClick={onRemove}
-        aria-label={isPl ? "Usuń" : "Remove"}
+        aria-label={t("adminNewsletter.blocks.remove")}
       >
         <Trash2 className="w-3.5 h-3.5" />
       </Button>
@@ -298,7 +304,9 @@ function SortableBlockRow({
   );
 }
 
-function CampaignPreview({ doc, lang, isPl }: { doc: EmailDoc; lang: "pl" | "en"; isPl: boolean }) {
+function CampaignPreview({ doc, lang }: { doc: EmailDoc; lang: "pl" | "en" }) {
+  ensureNewsletterAdminI18n();
+  const { t } = useTranslation();
   const resolve = useServerFn(resolveCampaignDocPosts);
   const [origin, setOrigin] = useState("");
   useEffect(() => {
@@ -351,16 +359,14 @@ function CampaignPreview({ doc, lang, isPl }: { doc: EmailDoc; lang: "pl" | "en"
     <div className="rounded-md border bg-[#f3f4f6] p-3 overflow-x-auto">
       {html ? (
         <iframe
-          title={isPl ? "Podgląd wiadomości" : "Email preview"}
+          title={t("adminNewsletter.blocks.previewFrameTitle")}
           srcDoc={`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head><body style="margin:0">${html}</body></html>`}
           className="w-full h-[600px] border-0 bg-white rounded"
           sandbox=""
         />
       ) : (
         <p className="text-[12px] text-muted-foreground py-8 text-center">
-          {isPl
-            ? "Brak treści w tym języku. Uzupełnij bloki dla PL/EN."
-            : "No content in this language. Fill blocks for PL/EN."}
+          {t("adminNewsletter.blocks.noContentInLang")}
         </p>
       )}
     </div>

@@ -65,8 +65,7 @@ const SHELL = "mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8";
 
 function ClubHubRoute() {
   ensureClubI18n();
-  const { t, i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  const { t } = useTranslation();
   const { clubSlug } = Route.useParams();
 
   const clubQ = useClubBySlug(clubSlug);
@@ -115,10 +114,10 @@ function ClubHubRoute() {
   if (!club.can_read) {
     return (
       <div className={`${SHELL} py-8`}>
-        <ClubAccessGate club={club} isPl={isPl} />
+        <ClubAccessGate club={club} />
       </div>
     );
   }
 
-  return <ClubHub club={club} isPl={isPl} />;
+  return <ClubHub club={club} />;
 }

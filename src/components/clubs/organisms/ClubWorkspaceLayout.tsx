@@ -29,27 +29,28 @@ import { ClubHubSectionBar, ClubWorkspaceRail } from "@/components/clubs/molecul
 import { ClubDetailSkeleton } from "@/components/clubs/atoms/ClubSkeletons";
 import { useClubBySlug } from "@/lib/clubs/useClubs";
 import type { ClubViewRow } from "@/lib/clubs/types";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
+import { uiLang } from "@/lib/i18n/format";
 
 /** Jedna szerokość i jeden rytm marginesów dla całego modułu klubów. */
 const SHELL = "mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-6";
 
 export function ClubWorkspaceLayout({
   clubSlug,
-  isPl,
   title,
   lead,
   actions,
   children,
 }: {
   clubSlug: string;
-  isPl: boolean;
   /** Tytuł POWIERZCHNI (np. "Biblioteka"), nie klubu - nazwa klubu stoi wyżej. */
   title: string;
   lead?: string;
   actions?: ReactNode;
   children: (club: ClubViewRow) => ReactNode;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const clubQ = useClubBySlug(clubSlug);
   const club = clubQ.data ?? null;
 
@@ -85,7 +86,7 @@ export function ClubWorkspaceLayout({
     );
   }
 
-  const name = isPl ? club.name_pl : club.name_en;
+  const name = pickLocalized(club, "name", lang);
 
   // Karta klubu zamkniętego jest widoczna, treść nie - to jest sens tej
   // widoczności. Powód i akcja zamiast pustej biblioteki.
@@ -124,7 +125,7 @@ export function ClubWorkspaceLayout({
           lista wraca jako pasek nad treścią. */}
       <div className="grid items-start gap-4 lg:grid-cols-[15rem_minmax(0,1fr)]">
         <aside className="hidden lg:sticky lg:top-20 lg:block lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:overscroll-contain lg:pr-1 [scrollbar-width:thin]">
-          <ClubWorkspaceRail club={club} isPl={isPl} />
+          <ClubWorkspaceRail club={club} />
         </aside>
 
         <main className="min-w-0">

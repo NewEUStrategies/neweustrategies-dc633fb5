@@ -32,24 +32,16 @@ export const Route = createFileRoute("/club/$clubSlug/spotlight")({
 
 function ClubSpotlightRoute() {
   ensureClubI18n();
-  const { t, i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  const { t } = useTranslation();
   const { clubSlug } = Route.useParams();
 
   return (
     <ClubWorkspaceLayout
       clubSlug={clubSlug}
-      isPl={isPl}
       title={t("club.network.spotlight.title")}
       lead={t("club.network.spotlight.lead")}
     >
-      {(club) => (
-        <ClubSpotlightScreen
-          clubId={club.id}
-          canModerate={club.can_moderate === true}
-          isPl={isPl}
-        />
-      )}
+      {(club) => <ClubSpotlightScreen clubId={club.id} canModerate={club.can_moderate === true} />}
     </ClubWorkspaceLayout>
   );
 }

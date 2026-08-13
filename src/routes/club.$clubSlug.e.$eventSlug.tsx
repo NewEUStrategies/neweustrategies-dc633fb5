@@ -39,15 +39,13 @@ export const Route = createFileRoute("/club/$clubSlug/e/$eventSlug")({
 
 function ClubMeetingRoute() {
   ensureClubI18n();
-  const { t, i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  const { t } = useTranslation();
   const { clubSlug, eventSlug } = Route.useParams();
   const { session } = useAuth();
 
   return (
     <ClubWorkspaceLayout
       clubSlug={clubSlug}
-      isPl={isPl}
       title={t("club.network.meeting.pageTitle")}
       lead={t("club.network.meeting.lead")}
     >
@@ -63,7 +61,6 @@ function ClubMeetingRoute() {
           // pobrac liste, dostawala 42501 i pokazywala "nikt nie potwierdzil",
           // czyli klamala o pustym spotkaniu.
           canSeeMembers={session !== null && club.can_see_members}
-          isPl={isPl}
         />
       )}
     </ClubWorkspaceLayout>

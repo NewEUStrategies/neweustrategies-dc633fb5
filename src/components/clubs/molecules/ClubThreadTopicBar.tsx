@@ -24,6 +24,7 @@
 // JEDEN OBSZAR TO NIE JEST WYBÓR - pasek z jednym przyciskiem tylko zabiera
 // miejsce nad treścią, dokładnie jak w `ClubTopicNav` na katalogu klubów.
 import { useMemo } from "react";
+import { uiLang } from "@/lib/i18n/format";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { ClubTopicFilterChip } from "@/components/clubs/atoms/ClubTopicChip";
@@ -40,7 +41,6 @@ export function ClubThreadTopicBar({
   catalog,
   value,
   onChange,
-  isPl,
   className,
 }: {
   /** Wątki CAŁEGO klubu - patrz nagłówek pliku (liczniki, nie bieżące zawężenie). */
@@ -48,11 +48,10 @@ export function ClubThreadTopicBar({
   catalog: readonly ClubTopicOption[];
   value: string | null;
   onChange: (topic: string | null) => void;
-  isPl: boolean;
   className?: string;
 }) {
-  const { t } = useTranslation();
-  const lang = isPl ? "pl" : "en";
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const topics = useMemo(() => countThreadTopics(threads), [threads]);
 
   if (topics.length < 2) return null;

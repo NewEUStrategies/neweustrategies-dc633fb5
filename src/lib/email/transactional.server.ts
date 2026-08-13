@@ -7,6 +7,11 @@ import type { Database } from "@/integrations/supabase/types";
 import { TxEmail, type TxDetail } from "@/lib/email-templates/transactional";
 import { txCopy, txSubject, type TxEmailType } from "@/lib/email-templates/tx-copy";
 import type { EmailLang } from "@/lib/email-templates/nes-layout";
+// `uiLocale` to jedyne miejsce, w ktorym jezyk zamienia sie na znacznik BCP-47.
+// Maile mialy wlasna kopie tej decyzji - ta sama para "pl-PL"/"en-GB", ale
+// osobna, wiec zmiana konwencji (np. na en-IE) rozjechalaby maile ze stroną.
+// Modul `lib/i18n/format` jest czysty (samo `Intl`), wiec wolno go uzyc na serwerze.
+import { uiLocale } from "@/lib/i18n/format";
 import { resolveRecipientName } from "@/lib/email/recipient-name.server";
 import { txBody, type TxBodyVars } from "@/lib/email-templates/tx-body";
 import { loadTxOverrides } from "@/lib/email/txOverrides.server";
@@ -165,7 +170,7 @@ async function alreadyHandled(
 
 /** Kwota w groszach/centach -> czytelny zapis w języku odbiorcy. */
 export function formatMoney(amountCents: number, currency: string, lang: EmailLang): string {
-  return new Intl.NumberFormat(lang === "pl" ? "pl-PL" : "en-GB", {
+  return new Intl.NumberFormat(uiLocale(lang), {
     style: "currency",
     currency: currency.toUpperCase(),
     maximumFractionDigits: 2,
@@ -176,7 +181,7 @@ export function formatMoney(amountCents: number, currency: string, lang: EmailLa
 export function formatDate(iso: string, lang: EmailLang, withTime = false): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return new Intl.DateTimeFormat(lang === "pl" ? "pl-PL" : "en-GB", {
+  return new Intl.DateTimeFormat(uiLocale(lang), {
     day: "2-digit",
     month: "long",
     year: "numeric",

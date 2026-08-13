@@ -134,26 +134,26 @@ describe("poznaj członka: kolejność źródeł opisu", () => {
 
   it("blurb redakcyjny wygrywa z opisem profilu", () => {
     const row = { ...base, blurb_pl: "Redakcja o tej osobie.", bio_pl: "Własny opis." };
-    expect(spotlightBlurb(row, true)).toBe("Redakcja o tej osobie.");
+    expect(spotlightBlurb(row, "pl")).toBe("Redakcja o tej osobie.");
   });
 
   it("bez blurba schodzi na opis profilu w JĘZYKU INTERFEJSU", () => {
     const row = { ...base, bio_pl: "Opis polski.", bio_en: "English bio." };
-    expect(spotlightBlurb(row, true)).toBe("Opis polski.");
-    expect(spotlightBlurb(row, false)).toBe("English bio.");
+    expect(spotlightBlurb(row, "pl")).toBe("Opis polski.");
+    expect(spotlightBlurb(row, "en")).toBe("English bio.");
   });
 
   it("opis w drugim języku jest lepszy niż pusty moduł", () => {
     const row = { ...base, bio_en: "Only English." };
-    expect(spotlightBlurb(row, true)).toBe("Only English.");
+    expect(spotlightBlurb(row, "pl")).toBe("Only English.");
   });
 
   it("ostatnią deską jest stanowisko - nadal zdanie o człowieku", () => {
-    expect(spotlightBlurb(base, true)).toBe("Analityk - NES");
+    expect(spotlightBlurb(base, "pl")).toBe("Analityk - NES");
   });
 
   it("brak wszystkiego zwraca pusty tekst, a nie 'undefined'", () => {
-    expect(spotlightBlurb({ ...base, headline: null }, true)).toBe("");
+    expect(spotlightBlurb({ ...base, headline: null }, "pl")).toBe("");
   });
 });
 

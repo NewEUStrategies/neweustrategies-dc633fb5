@@ -32,7 +32,8 @@ import { DirectMessageButton } from "@/components/network/DirectMessageButton";
 import { useClubEvent, useClubEventAttendees } from "@/lib/clubs/useClubNetwork";
 import { useClubEventRsvp } from "@/lib/clubs/useClubWorkspace";
 import { toEventKind, type ClubRsvpState } from "@/lib/clubs/workspaceTypes";
-import { formatDate } from "@/lib/i18n/format";
+import { formatDate, uiLang } from "@/lib/i18n/format";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 
 const RSVP_STATES: readonly ClubRsvpState[] = ["going", "maybe", "declined"];
 
@@ -42,17 +43,15 @@ export function ClubMeetingScreen({
   eventSlug,
   canRsvp,
   canSeeMembers,
-  isPl,
 }: {
   clubId: string;
   clubSlug: string;
   eventSlug: string;
   canRsvp: boolean;
   canSeeMembers: boolean;
-  isPl: boolean;
 }) {
-  const { t } = useTranslation();
-  const lang = isPl ? "pl" : "en";
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
 
   const eventQ = useClubEvent({ clubId, slug: eventSlug });
   const event = eventQ.data ?? null;
@@ -88,7 +87,7 @@ export function ClubMeetingScreen({
   const attendees = attendeesQ.data ?? [];
   const going = attendees.filter((row) => row.state === "going");
   const maybe = attendees.filter((row) => row.state === "maybe");
-  const description = isPl ? event.description_pl : event.description_en;
+  const description = pickLocalized(event, "description", lang);
   const cancelled = event.status === "cancelled";
 
   return (
@@ -123,7 +122,7 @@ export function ClubMeetingScreen({
               ) : null}
             </div>
             <h2 className="mt-1.5 text-xl font-semibold leading-tight sm:text-2xl">
-              {isPl ? event.title_pl : event.title_en}
+              {pickLocalized(event, "title", lang)}
             </h2>
 
             <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
@@ -282,7 +281,6 @@ export function ClubMeetingScreen({
                         avatarUrl={row.avatar_url}
                         profileSlug={row.profile_slug}
                         headline={row.headline}
-                        isPl={isPl}
                         meta={row.is_me ? t("club.network.meeting.you") : undefined}
                         actions={
                           row.is_me ? undefined : (
@@ -314,7 +312,6 @@ export function ClubMeetingScreen({
                         avatarUrl={row.avatar_url}
                         profileSlug={row.profile_slug}
                         headline={row.headline}
-                        isPl={isPl}
                         className="opacity-80"
                       />
                     </li>

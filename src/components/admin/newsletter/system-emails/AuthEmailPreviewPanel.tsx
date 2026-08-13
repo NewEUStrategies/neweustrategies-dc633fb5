@@ -7,11 +7,12 @@ import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { Copy, Loader2, Mail, Monitor, Smartphone } from "lucide-react";
 
-import { NewsletterSubNav } from "@/components/admin/newsletter/NewsletterSubNav";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { toast } from "sonner";
+import { uiLang } from "@/lib/i18n/format";
+import { ensureI18n as ensureNewsletterAdminI18n } from "@/lib/i18n-newsletter-admin";
 import { getAuthEmailPreviews } from "@/lib/auth-email-preview.functions";
 import { getTxEmailPreviews } from "@/lib/tx-email-preview.functions";
 
@@ -20,35 +21,39 @@ type Gender = "male" | "female" | "unknown";
 type Device = "desktop" | "mobile";
 type Scope = "auth" | "app";
 
-const TYPE_LABELS: Record<string, { pl: string; en: string }> = {
-  signup: { pl: "Rejestracja - potwierdzenie e-mail", en: "Signup confirmation" },
-  magiclink: { pl: "Logowanie bez hasła (magic link)", en: "Magic link sign-in" },
-  recovery: { pl: "Reset hasła", en: "Password reset" },
-  invite: { pl: "Zaproszenie do platformy", en: "Platform invitation" },
-  email_change: { pl: "Zmiana adresu e-mail", en: "Email address change" },
-  reauthentication: { pl: "Kod weryfikacyjny", en: "Verification code" },
-  subscription_confirmed: { pl: "Subskrypcja - potwierdzenie", en: "Subscription confirmed" },
-  subscription_renewed: { pl: "Subskrypcja - przedłużenie", en: "Subscription renewed" },
-  subscription_canceled: { pl: "Subskrypcja - anulowanie", en: "Subscription canceled" },
-  subscription_upgraded: { pl: "Subskrypcja - upgrade", en: "Subscription upgraded" },
-  subscription_downgraded: { pl: "Subskrypcja - downgrade", en: "Subscription downgraded" },
-  subscription_paused: { pl: "Subskrypcja - pauza", en: "Subscription paused" },
-  subscription_resumed: { pl: "Subskrypcja - wznowienie", en: "Subscription resumed" },
-  team_seat_grace: { pl: "Karencja miejsca zespołowego", en: "Team seat grace period" },
-  team_seat_grace_reminder: {
-    pl: "Karencja - przypomnienie",
-    en: "Team seat grace reminder",
-  },
-  team_seat_access_ended: { pl: "Koniec dostępu zespołowego", en: "Team access ended" },
-  event_registered: { pl: "Zapis na wydarzenie", en: "Event registration" },
-  newsletter_confirmed: { pl: "Newsletter - potwierdzenie", en: "Newsletter confirmed" },
+/**
+ * `type` przychodzi z serwera jako zwykly string, wiec mapa zostaje mapa -
+ * tylko z KLUCZEM tlumaczenia zamiast pary `{ pl, en }`. Klucze wypisane
+ * literalnie (nie skladane szablonem), zeby bramka pokrycia je widziala,
+ * a nieznany typ nadal ma czym sie awaryjnie wyrenderowac.
+ */
+const TYPE_LABEL_KEYS: Record<string, string> = {
+  signup: "adminNewsletter.emailPreview.types.signup",
+  magiclink: "adminNewsletter.emailPreview.types.magiclink",
+  recovery: "adminNewsletter.emailPreview.types.recovery",
+  invite: "adminNewsletter.emailPreview.types.invite",
+  email_change: "adminNewsletter.emailPreview.types.email_change",
+  reauthentication: "adminNewsletter.emailPreview.types.reauthentication",
+  subscription_confirmed: "adminNewsletter.emailPreview.types.subscription_confirmed",
+  subscription_renewed: "adminNewsletter.emailPreview.types.subscription_renewed",
+  subscription_canceled: "adminNewsletter.emailPreview.types.subscription_canceled",
+  subscription_upgraded: "adminNewsletter.emailPreview.types.subscription_upgraded",
+  subscription_downgraded: "adminNewsletter.emailPreview.types.subscription_downgraded",
+  subscription_paused: "adminNewsletter.emailPreview.types.subscription_paused",
+  subscription_resumed: "adminNewsletter.emailPreview.types.subscription_resumed",
+  team_seat_grace: "adminNewsletter.emailPreview.types.team_seat_grace",
+  team_seat_grace_reminder: "adminNewsletter.emailPreview.types.team_seat_grace_reminder",
+  team_seat_access_ended: "adminNewsletter.emailPreview.types.team_seat_access_ended",
+  event_registered: "adminNewsletter.emailPreview.types.event_registered",
+  newsletter_confirmed: "adminNewsletter.emailPreview.types.newsletter_confirmed",
 };
 
 export function AuthEmailPreviewPanel() {
-  const { i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  ensureNewsletterAdminI18n();
+  const { t, i18n } = useTranslation();
 
-  const [lang, setLang] = useState<Lang>(isPl ? "pl" : "en");
+  // Jezyk PODGLADANEGO szablonu - startuje od jezyka panelu, dalej niezalezny.
+  const [lang, setLang] = useState<Lang>(uiLang(i18n.language));
   const [firstName, setFirstName] = useState("Marek");
   const [gender, setGender] = useState<Gender>("unknown");
   const [device, setDevice] = useState<Device>("desktop");
@@ -83,13 +88,11 @@ export function AuthEmailPreviewPanel() {
   const copyHtml = async () => {
     if (!active) return;
     await navigator.clipboard.writeText(active.html);
-    toast.success(isPl ? "Skopiowano HTML maila" : "Email HTML copied");
+    toast.success(t("adminNewsletter.emailPreview.copied"));
   };
 
   return (
     <div className="space-y-4">
-      <NewsletterSubNav />
-
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex items-center gap-2 mr-auto">
           <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center">
@@ -97,12 +100,10 @@ export function AuthEmailPreviewPanel() {
           </div>
           <div>
             <h2 className="font-display text-base leading-tight">
-              {isPl ? "Podgląd maili autoryzacyjnych" : "Auth email preview"}
+              {t("adminNewsletter.emailPreview.title")}
             </h2>
             <p className="text-xs text-muted-foreground">
-              {isPl
-                ? "Dokładnie te szablony wychodzą do użytkowników - dane w podglądzie są przykładowe."
-                : "These are the exact templates sent to users - preview data is illustrative."}
+              {t("adminNewsletter.emailPreview.subtitle")}
             </p>
           </div>
         </div>
@@ -110,7 +111,7 @@ export function AuthEmailPreviewPanel() {
         <div className="w-44">
           <FloatingInput
             id="preview-first-name"
-            label={isPl ? "Imię odbiorcy" : "Recipient first name"}
+            label={t("adminNewsletter.emailPreview.firstName")}
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
           />
@@ -123,8 +124,8 @@ export function AuthEmailPreviewPanel() {
             setActiveType(v === "auth" ? "signup" : "subscription_confirmed");
           }}
           options={[
-            { value: "auth", label: isPl ? "Autoryzacyjne" : "Auth" },
-            { value: "app", label: isPl ? "Aplikacyjne" : "App" },
+            { value: "auth", label: t("adminNewsletter.emailPreview.scopeAuth") },
+            { value: "app", label: t("adminNewsletter.emailPreview.scopeApp") },
           ]}
         />
 
@@ -132,9 +133,9 @@ export function AuthEmailPreviewPanel() {
           value={gender}
           onChange={(v) => setGender(v as Gender)}
           options={[
-            { value: "unknown", label: isPl ? "Auto" : "Auto" },
-            { value: "male", label: isPl ? "Mężczyzna" : "Male" },
-            { value: "female", label: isPl ? "Kobieta" : "Female" },
+            { value: "unknown", label: t("adminNewsletter.emailPreview.genderAuto") },
+            { value: "male", label: t("adminNewsletter.emailPreview.genderMale") },
+            { value: "female", label: t("adminNewsletter.emailPreview.genderFemale") },
           ]}
         />
 
@@ -151,8 +152,16 @@ export function AuthEmailPreviewPanel() {
           value={device}
           onChange={(v) => setDevice(v as Device)}
           options={[
-            { value: "desktop", label: <Monitor className="w-3.5 h-3.5" /> },
-            { value: "mobile", label: <Smartphone className="w-3.5 h-3.5" /> },
+            {
+              value: "desktop",
+              label: <Monitor className="w-3.5 h-3.5" />,
+              ariaLabel: t("adminNewsletter.emailPreview.deviceDesktop"),
+            },
+            {
+              value: "mobile",
+              label: <Smartphone className="w-3.5 h-3.5" />,
+              ariaLabel: t("adminNewsletter.emailPreview.deviceMobile"),
+            },
           ]}
         />
       </div>
@@ -161,7 +170,7 @@ export function AuthEmailPreviewPanel() {
         <Card className="p-2 h-fit">
           <nav className="flex flex-col gap-1">
             {(data ?? []).map((p) => {
-              const label = TYPE_LABELS[p.type];
+              const labelKey = TYPE_LABEL_KEYS[p.type];
               const isActive = active?.type === p.type;
               return (
                 <button
@@ -175,7 +184,7 @@ export function AuthEmailPreviewPanel() {
                       : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")
                   }
                 >
-                  <span className="block">{label ? (isPl ? label.pl : label.en) : p.type}</span>
+                  <span className="block">{labelKey ? t(labelKey) : p.type}</span>
                   <span className="block text-[0.6875rem] text-muted-foreground/80 truncate">
                     {p.subject}
                   </span>
@@ -196,7 +205,7 @@ export function AuthEmailPreviewPanel() {
           <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-muted/40">
             <div className="min-w-0">
               <p className="text-[0.6875rem] uppercase tracking-wide text-muted-foreground">
-                {isPl ? "Temat" : "Subject"}
+                {t("adminNewsletter.emailPreview.subject")}
               </p>
               <p className="text-[0.8125rem] font-medium truncate">{active?.subject ?? "-"}</p>
             </div>
@@ -204,7 +213,7 @@ export function AuthEmailPreviewPanel() {
               {isFetching && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
               <Button variant="outline" size="sm" onClick={copyHtml} disabled={!active}>
                 <Copy className="w-3.5 h-3.5 mr-1.5" />
-                {isPl ? "Kopiuj HTML" : "Copy HTML"}
+                {t("adminNewsletter.emailPreview.copyHtml")}
               </Button>
             </div>
           </div>
@@ -229,7 +238,7 @@ export function AuthEmailPreviewPanel() {
           {active && (
             <details className="border-t border-border">
               <summary className="cursor-pointer px-4 py-3 text-[0.8125rem] text-muted-foreground">
-                {isPl ? "Wersja tekstowa (plain text)" : "Plain text version"}
+                {t("adminNewsletter.emailPreview.plainText")}
               </summary>
               <pre className="px-4 pb-4 text-[0.75rem] whitespace-pre-wrap text-muted-foreground">
                 {active.text}
@@ -245,7 +254,12 @@ export function AuthEmailPreviewPanel() {
 interface SegmentedProps {
   value: string;
   onChange: (value: string) => void;
-  options: Array<{ value: string; label: React.ReactNode }>;
+  /**
+   * `ariaLabel` jest wymagane tylko dla opcji z sama IKONA - taki przycisk nie
+   * ma inaczej ZADNEJ nazwy dostepnej dla czytnika ekranu (przelacznik
+   * szerokosci ramki: monitor / telefon).
+   */
+  options: Array<{ value: string; label: React.ReactNode; ariaLabel?: string }>;
 }
 
 function Segmented({ value, onChange, options }: SegmentedProps) {
@@ -256,6 +270,8 @@ function Segmented({ value, onChange, options }: SegmentedProps) {
           key={o.value}
           type="button"
           onClick={() => onChange(o.value)}
+          aria-label={o.ariaLabel}
+          aria-pressed={value === o.value}
           className={
             "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors " +
             (value === o.value

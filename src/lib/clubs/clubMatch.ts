@@ -15,6 +15,8 @@
 //   - trafność: prefiks nazwy > początek słowa w nazwie > fragment nazwy >
 //     slug > fragment opisu/obszaru. Punkty sumują się po tokenach, więc klub
 //     trafiony dwoma tokenami stoi nad trafionym jednym.
+import { uiLocale } from "@/lib/i18n/format";
+import { pickLocalized, type LocaleCode } from "@/lib/i18n/pickLocalized";
 
 export interface ClubMatchInput {
   slug: string;
@@ -114,11 +116,11 @@ export function scoreClubMatch(
 export function rankClubs<T extends ClubMatchInput>(
   clubs: readonly T[],
   query: string,
-  options?: { isPl?: boolean; topicLabel?: (club: T) => string | null },
+  options?: { lang?: LocaleCode; topicLabel?: (club: T) => string | null },
 ): T[] {
   const tokens = tokenizeClubQuery(query);
   if (tokens.length === 0) return [...clubs];
-  const isPl = options?.isPl ?? true;
+  const lang = options?.lang ?? "pl";
 
   return clubs
     .map((club) => ({
@@ -128,9 +130,13 @@ export function rankClubs<T extends ClubMatchInput>(
     .filter((entry) => entry.score > 0)
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
-      const an = normalizeClubText(isPl ? a.club.name_pl : a.club.name_en);
-      const bn = normalizeClubText(isPl ? b.club.name_pl : b.club.name_en);
-      return an.localeCompare(bn);
+      // `pickLocalized`, nie `lang === "pl" ? name_pl : name_en`: klub nazwany
+      // tylko w jednym języku dawał przy remisie klucz PUSTY, a pusty ciąg
+      // sortuje się PRZED każdą nazwą - taki klub wskakiwał na czoło listy
+      // trafień, nie mając w nazwie ani jednego szukanego słowa.
+      const an = normalizeClubText(pickLocalized(a.club, "name", lang));
+      const bn = normalizeClubText(pickLocalized(b.club, "name", lang));
+      return an.localeCompare(bn, uiLocale(lang));
     })
     .map((entry) => entry.club);
 }

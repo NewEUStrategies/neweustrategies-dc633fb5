@@ -21,6 +21,7 @@
 // liczbą linii. Klub bez zdania wyjaśniającego, po co istnieje, jest w
 // katalogu nie do odróżnienia od sąsiada.
 import { useTranslation } from "react-i18next";
+import { uiLang } from "@/lib/i18n/format";
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, Layers, MessagesSquare, Users2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +30,7 @@ import { ClubDirectorySkeleton } from "@/components/clubs/atoms/ClubSkeletons";
 import { ClubTopicChip } from "@/components/clubs/atoms/ClubTopicChip";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import { CLUB_VISIBILITIES, type ClubLayout, type ClubVisibility } from "@/lib/clubs/types";
+import { pickLocalized, type LocaleCode } from "@/lib/i18n/pickLocalized";
 
 export interface ClubDirectoryCard {
   id: string;
@@ -57,13 +59,15 @@ function asVisibility(value: string): ClubVisibility {
     : "members";
 }
 
-function clubName(club: ClubDirectoryCard, isPl: boolean): string {
-  return isPl ? club.name_pl : club.name_en;
+function clubName(club: ClubDirectoryCard, lang: LocaleCode): string {
+  return pickLocalized(club, "name", lang);
 }
 
-function clubExcerpt(club: ClubDirectoryCard, isPl: boolean): string | null {
-  const value = isPl ? club.tagline_pl : club.tagline_en;
-  return value !== null && value.trim() !== "" ? value : null;
+function clubExcerpt(club: ClubDirectoryCard, lang: LocaleCode): string | null {
+  // `pickLocalized` juz odrzucilo bialoznakowe warianty w OBU jezykach,
+  // wiec zostaje jedno pytanie: czy cokolwiek zostalo.
+  const value = pickLocalized(club, "tagline", lang);
+  return value === "" ? null : value;
 }
 
 function clubAccess(club: ClubDirectoryCard): import("@/lib/clubs/hubAccess").ClubHubAccess | null {
@@ -90,8 +94,9 @@ function ctaLabel(
   }
 }
 
-function ClubStats({ club, isPl }: { club: ClubDirectoryCard; isPl: boolean }) {
-  const { t } = useTranslation();
+function ClubStats({ club }: { club: ClubDirectoryCard }) {
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const { topics } = useClubTopics();
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
@@ -107,19 +112,15 @@ function ClubStats({ club, isPl }: { club: ClubDirectoryCard; isPl: boolean }) {
         <Layers className="h-3.5 w-3.5" aria-hidden="true" />
         {t("club.groupsCount", { count: club.group_count })}
       </span>
-      <ClubTopicChip
-        topic={club.policy_area}
-        lang={isPl ? "pl" : "en"}
-        catalog={topics}
-        size="sm"
-      />
+      <ClubTopicChip topic={club.policy_area} lang={lang} catalog={topics} size="sm" />
     </div>
   );
 }
 
-function CardTile({ club, isPl }: { club: ClubDirectoryCard; isPl: boolean }) {
-  const { t } = useTranslation();
-  const excerpt = clubExcerpt(club, isPl);
+function CardTile({ club }: { club: ClubDirectoryCard }) {
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
+  const excerpt = clubExcerpt(club, lang);
   return (
     <Link
       to="/club/$clubSlug"
@@ -130,7 +131,7 @@ function CardTile({ club, isPl }: { club: ClubDirectoryCard; isPl: boolean }) {
       <div className="flex flex-1 flex-col p-3">
         <div className="flex items-start justify-between gap-2">
           <h3 className="text-sm font-medium leading-tight group-hover:text-primary">
-            {clubName(club, isPl)}
+            {clubName(club, lang)}
           </h3>
           <Badge variant="outline" className="shrink-0 text-[11px]">
             {t(`club.visibility.${asVisibility(club.visibility)}`)}
@@ -140,7 +141,7 @@ function CardTile({ club, isPl }: { club: ClubDirectoryCard; isPl: boolean }) {
           <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{excerpt}</p>
         ) : null}
         <div className="mt-auto pt-2.5">
-          <ClubStats club={club} isPl={isPl} />
+          <ClubStats club={club} />
           <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary opacity-80 transition-opacity group-hover:opacity-100">
             {t("club.hub.goToThreads")}
             <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
@@ -151,9 +152,10 @@ function CardTile({ club, isPl }: { club: ClubDirectoryCard; isPl: boolean }) {
   );
 }
 
-function ListRow({ club, isPl }: { club: ClubDirectoryCard; isPl: boolean }) {
-  const { t } = useTranslation();
-  const excerpt = clubExcerpt(club, isPl);
+function ListRow({ club }: { club: ClubDirectoryCard }) {
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
+  const excerpt = clubExcerpt(club, lang);
   return (
     <Link
       to="/club/$clubSlug"
@@ -168,7 +170,7 @@ function ListRow({ club, isPl }: { club: ClubDirectoryCard; isPl: boolean }) {
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
           <h3 className="truncate text-sm font-medium leading-tight group-hover:text-primary">
-            {clubName(club, isPl)}
+            {clubName(club, lang)}
           </h3>
           <Badge variant="outline" className="shrink-0 text-[11px]">
             {t(`club.visibility.${asVisibility(club.visibility)}`)}
@@ -180,16 +182,17 @@ function ListRow({ club, isPl }: { club: ClubDirectoryCard; isPl: boolean }) {
           </p>
         ) : null}
         <div className="mt-2">
-          <ClubStats club={club} isPl={isPl} />
+          <ClubStats club={club} />
         </div>
       </div>
     </Link>
   );
 }
 
-function MagazineLead({ club, isPl }: { club: ClubDirectoryCard; isPl: boolean }) {
-  const { t } = useTranslation();
-  const excerpt = clubExcerpt(club, isPl);
+function MagazineLead({ club }: { club: ClubDirectoryCard }) {
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
+  const excerpt = clubExcerpt(club, lang);
   return (
     <Link
       to="/club/$clubSlug"
@@ -200,7 +203,7 @@ function MagazineLead({ club, isPl }: { club: ClubDirectoryCard; isPl: boolean }
       <div className="flex flex-col gap-2 p-4">
         <div className="flex items-start justify-between gap-2">
           <h3 className="text-lg font-semibold leading-tight group-hover:text-primary">
-            {clubName(club, isPl)}
+            {clubName(club, lang)}
           </h3>
           <Badge variant="outline" className="shrink-0 text-[11px]">
             {t(`club.visibility.${asVisibility(club.visibility)}`)}
@@ -210,24 +213,17 @@ function MagazineLead({ club, isPl }: { club: ClubDirectoryCard; isPl: boolean }
           <p className="line-clamp-3 text-sm text-muted-foreground">{excerpt}</p>
         ) : null}
         <div className="mt-auto pt-2">
-          <ClubStats club={club} isPl={isPl} />
+          <ClubStats club={club} />
         </div>
       </div>
     </Link>
   );
 }
 
-function PrestigeCard({
-  club,
-  isPl,
-  featured = false,
-}: {
-  club: ClubDirectoryCard;
-  isPl: boolean;
-  featured?: boolean;
-}) {
-  const { t } = useTranslation();
-  const excerpt = clubExcerpt(club, isPl);
+function PrestigeCard({ club, featured = false }: { club: ClubDirectoryCard; featured?: boolean }) {
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
+  const excerpt = clubExcerpt(club, lang);
   const access = clubAccess(club);
   const label = ctaLabel(access, t);
 
@@ -287,7 +283,7 @@ function PrestigeCard({
           className="font-display text-lg font-bold leading-snug md:text-xl"
           style={{ color: "var(--cp-ink)" }}
         >
-          {clubName(club, isPl)}
+          {clubName(club, lang)}
         </h3>
         {excerpt !== null ? (
           <p
@@ -335,7 +331,6 @@ export function ClubDirectory({
   title,
   empty,
   clubs,
-  isPl,
   loading,
   layout = "cards",
   action,
@@ -343,7 +338,6 @@ export function ClubDirectory({
   title: string;
   empty: string;
   clubs: readonly ClubDirectoryCard[];
-  isPl: boolean;
   loading: boolean;
   layout?: ClubLayout;
   action?: React.ReactNode;
@@ -364,16 +358,16 @@ export function ClubDirectory({
       ) : layout === "list" ? (
         <div className="flex flex-col gap-2">
           {clubs.map((club) => (
-            <ListRow key={club.id} club={club} isPl={isPl} />
+            <ListRow key={club.id} club={club} />
           ))}
         </div>
       ) : layout === "magazine" ? (
         <div className="space-y-3">
-          <MagazineLead club={clubs[0]} isPl={isPl} />
+          <MagazineLead club={clubs[0]} />
           {clubs.length > 1 ? (
             <div className="flex flex-col gap-2">
               {clubs.slice(1).map((club) => (
-                <ListRow key={club.id} club={club} isPl={isPl} />
+                <ListRow key={club.id} club={club} />
               ))}
             </div>
           ) : null}
@@ -381,13 +375,13 @@ export function ClubDirectory({
       ) : layout === "editorial" ? (
         <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
           {clubs.map((club, index) => (
-            <PrestigeCard key={club.id} club={club} isPl={isPl} featured={index === 0} />
+            <PrestigeCard key={club.id} club={club} featured={index === 0} />
           ))}
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {clubs.map((club) => (
-            <CardTile key={club.id} club={club} isPl={isPl} />
+            <CardTile key={club.id} club={club} />
           ))}
         </div>
       )}

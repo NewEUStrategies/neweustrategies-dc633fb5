@@ -53,7 +53,8 @@ import {
 } from "@/components/clubs/atoms/ClubWorkspaceBadges";
 import { ClubDocumentsSkeleton } from "@/components/clubs/atoms/ClubWorkspaceSkeletons";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
-import { formatDateShort } from "@/lib/i18n/format";
+import { formatDateShort, uiLang, uiLocale } from "@/lib/i18n/format";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 
 const PAGE = 30;
 
@@ -82,21 +83,20 @@ function formatBytes(bytes: number | null, locale: string): string | null {
 function DocumentRow({
   row,
   clubSlug,
-  isPl,
   locale,
 }: {
   row: ClubDocumentRow;
   clubSlug: string;
-  isPl: boolean;
   locale: string;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const kind = toDocumentKind(row.kind);
   const visibility = toDocumentVisibility(row.visibility);
   const status = toDocumentStatus(row.status);
   const href = documentHref(row);
-  const title = isPl ? row.title_pl : row.title_en;
-  const summary = isPl ? row.summary_pl : row.summary_en;
+  const title = pickLocalized(row, "title", lang);
+  const summary = pickLocalized(row, "summary", lang);
   const size = formatBytes(row.file_size, locale);
   // Plik pobieramy, link otwieramy. To nie jest kosmetyka: `download` na
   // adresie z innej domeny i tak zostanie zignorowany przez przeglądarkę,
@@ -162,7 +162,7 @@ function DocumentRow({
         ) : null}
 
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          <span>{formatDateShort(row.published_at ?? row.created_at, isPl ? "pl" : "en")}</span>
+          <span>{formatDateShort(row.published_at ?? row.created_at, lang)}</span>
           {row.version !== null && row.version.trim() !== "" ? (
             <span>{t("club.docs.version", { value: row.version })}</span>
           ) : null}
@@ -212,8 +212,8 @@ function DocumentRow({
 
 export function ClubDocumentLibrary({ clubId, clubSlug }: { clubId: string; clubSlug: string }) {
   const { t, i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
-  const locale = isPl ? "pl-PL" : "en-GB";
+  const lang = uiLang(i18n.language);
+  const locale = uiLocale(i18n.language);
 
   const [scope, setScope] = useState<ClubDocumentScope>("all");
   const [kind, setKind] = useState<string | null>(null);
@@ -374,7 +374,7 @@ export function ClubDocumentLibrary({ clubId, clubSlug }: { clubId: string; club
       ) : (
         <div className="space-y-2">
           {rows.map((row) => (
-            <DocumentRow key={row.id} row={row} clubSlug={clubSlug} isPl={isPl} locale={locale} />
+            <DocumentRow key={row.id} row={row} clubSlug={clubSlug} locale={locale} />
           ))}
         </div>
       )}

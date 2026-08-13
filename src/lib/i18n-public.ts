@@ -74,6 +74,7 @@ const pl = {
     suppressed:
       "Nie możemy wysyłać wiadomości na ten adres - został wcześniej trwale zablokowany (odbicie lub zgłoszenie spamu). Napisz do nas, jeśli to pomyłka.",
     subscribe: "Zapisz się",
+    addAnother: "Zapisz kolejny adres",
     selectPlaceholder: "Wybierz...",
   },
   newsletterStatus: {
@@ -204,6 +205,7 @@ const en: typeof pl = {
     suppressed:
       "We cannot email this address - it was permanently blocked earlier (bounce or spam report). Contact us if this is a mistake.",
     subscribe: "Subscribe",
+    addAnother: "Add another address",
     selectPlaceholder: "Select...",
   },
   newsletterStatus: {

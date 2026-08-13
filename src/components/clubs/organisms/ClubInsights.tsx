@@ -16,6 +16,7 @@
 // nie odda, a ten komponent nawet nie rysuje sekcji - lista dziesięciu nazwisk
 // deanonimizuje rozmowę skuteczniej niż podpis pod pojedynczym wpisem.
 import { useMemo, useState } from "react";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { useTranslation } from "react-i18next";
 import {
   BarChart3,
@@ -41,7 +42,7 @@ import {
 } from "@/lib/clubs/workspaceTypes";
 import { ClubInsightsSkeleton } from "@/components/clubs/atoms/ClubWorkspaceSkeletons";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
-import { formatDate, formatNumber, uiLocale } from "@/lib/i18n/format";
+import { formatDate, formatNumber, uiLocale, uiLang } from "@/lib/i18n/format";
 
 const RANGES = [30, 90, 180] as const;
 type Range = (typeof RANGES)[number];
@@ -103,8 +104,7 @@ function ChartPanel({
 
 export function ClubInsights({ clubId }: { clubId: string }) {
   const { t, i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
-  const lang = isPl ? "pl" : "en";
+  const lang = uiLang(i18n.language);
   const locale = uiLocale(i18n.language);
 
   const [range, setRange] = useState<Range>(90);
@@ -211,13 +211,13 @@ export function ClubInsights({ clubId }: { clubId: string }) {
           itemStyle: { borderRadius: 4, borderWidth: 2 },
           label: { show: false },
           data: groups.map((slice) => ({
-            name: isPl ? slice.namePl : slice.nameEn,
+            name: pickLocalized(slice, "name", lang),
             value: slice.count,
           })),
         },
       ],
     }),
-    [groups, isPl],
+    [groups, lang],
   );
 
   if (seriesQ.isError || statsQ.isError) {

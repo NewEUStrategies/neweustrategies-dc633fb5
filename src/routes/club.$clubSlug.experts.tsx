@@ -37,7 +37,6 @@ export const Route = createFileRoute("/club/$clubSlug/experts")({
 function ClubExpertsRoute() {
   ensureClubI18n();
   const { t, i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
   const locale = uiLocale(i18n.language);
   const { clubSlug } = Route.useParams();
   const { session } = useAuth();
@@ -45,7 +44,6 @@ function ClubExpertsRoute() {
   return (
     <ClubWorkspaceLayout
       clubSlug={clubSlug}
-      isPl={isPl}
       title={t("club.network.experts.pageTitle")}
       lead={t("club.network.experts.lead")}
     >
@@ -53,7 +51,6 @@ function ClubExpertsRoute() {
         <ClubExpertsScreen
           clubId={club.id}
           canDeclare={session !== null && club.can_reply}
-          isPl={isPl}
           locale={locale}
         />
       )}

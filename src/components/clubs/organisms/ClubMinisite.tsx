@@ -27,12 +27,13 @@ import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import type { ClubMinisiteAccess } from "@/lib/clubs/minisiteAccess";
 import { showsClubMinisiteContent } from "@/lib/clubs/minisiteAccess";
 import { toAuthorLabel, type ClubThreadListRow, type ClubViewRow } from "@/lib/clubs/types";
-import { formatDate } from "@/lib/i18n/format";
+import { formatDate, uiLang } from "@/lib/i18n/format";
+import { pickLocalized, type LocaleCode } from "@/lib/i18n/pickLocalized";
 
-function fmtDate(value: string | null, isPl: boolean): string | null {
+function fmtDate(value: string | null, lang: LocaleCode): string | null {
   if (value === null || value === "") return null;
   return (
-    formatDate(value, isPl ? "pl" : "en", {
+    formatDate(value, lang, {
       day: "numeric",
       month: "short",
       year: "numeric",
@@ -43,16 +44,15 @@ function fmtDate(value: string | null, isPl: boolean): string | null {
 function ThreadTeaser({
   thread,
   clubSlug,
-  isPl,
   featured,
 }: {
   thread: ClubThreadListRow;
   clubSlug: string;
-  isPl: boolean;
   featured: boolean;
 }) {
-  const { t } = useTranslation();
-  const date = fmtDate(thread.last_reply_at ?? thread.created_at, isPl);
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
+  const date = fmtDate(thread.last_reply_at ?? thread.created_at, lang);
   const author = toAuthorLabel(thread, t("club.anonymousAuthor"), t("club.deletedAuthor"));
 
   return (
@@ -69,7 +69,7 @@ function ThreadTeaser({
         <Badge variant="outline" className="text-[11px]">
           {t(`club.kind.${thread.kind}`)}
         </Badge>
-        <span>{isPl ? thread.group_name_pl : thread.group_name_en}</span>
+        <span>{pickLocalized(thread, "group_name", lang)}</span>
       </div>
       <h3
         className={
@@ -118,20 +118,19 @@ export function ClubMinisite({
   threads,
   loading,
   access,
-  isPl,
 }: {
   club: ClubViewRow;
   threads: readonly ClubThreadListRow[];
   loading: boolean;
   access: ClubMinisiteAccess;
-  isPl: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const { topics: topicCatalog } = useClubTopics();
-  const name = isPl ? club.name_pl : club.name_en;
-  const tagline = isPl ? club.tagline_pl : club.tagline_en;
-  const description = isPl ? club.description_pl : club.description_en;
-  const rules = isPl ? club.rules_pl : club.rules_en;
+  const name = pickLocalized(club, "name", lang);
+  const tagline = pickLocalized(club, "tagline", lang);
+  const description = pickLocalized(club, "description", lang);
+  const rules = pickLocalized(club, "rules", lang);
   const showContent = showsClubMinisiteContent(access);
   const [lead, ...rest] = threads;
 
@@ -165,11 +164,7 @@ export function ClubMinisite({
             <MessagesSquare className="h-4 w-4" aria-hidden="true" />
             {t("club.threadsCount", { count: club.thread_count })}
           </span>
-          <ClubTopicChip
-            topic={club.policy_area}
-            lang={isPl ? "pl" : "en"}
-            catalog={topicCatalog}
-          />
+          <ClubTopicChip topic={club.policy_area} lang={lang} catalog={topicCatalog} />
           {club.attribution_mode === "chatham" ? (
             <Badge variant="outline" className="gap-1">
               <ShieldQuestion className="h-3 w-3" aria-hidden="true" />
@@ -226,7 +221,7 @@ export function ClubMinisite({
             </p>
           ) : (
             <div className="space-y-3">
-              <ThreadTeaser thread={lead} clubSlug={club.slug} isPl={isPl} featured />
+              <ThreadTeaser thread={lead} clubSlug={club.slug} featured />
               {rest.length > 0 ? (
                 <div className="grid gap-3 sm:grid-cols-2">
                   {rest.map((thread) => (
@@ -234,7 +229,6 @@ export function ClubMinisite({
                       key={thread.id}
                       thread={thread}
                       clubSlug={club.slug}
-                      isPl={isPl}
                       featured={false}
                     />
                   ))}

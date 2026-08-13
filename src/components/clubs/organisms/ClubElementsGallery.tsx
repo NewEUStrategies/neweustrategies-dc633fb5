@@ -100,8 +100,7 @@ const SAMPLE_STANCES: ClubStanceSummaryRow[] = [
 const HUB_ACCESS_STATES: readonly ClubHubAccess[] = ["member", "invited", "entitled", "locked"];
 
 export function ClubElementsGallery() {
-  const { t, i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  const { t } = useTranslation();
 
   const [layout, setLayout] = useState<ClubLayout>("cards");
   const [stances, setStances] = useState<ClubStanceSummaryRow[]>(SAMPLE_STANCES);
@@ -164,7 +163,7 @@ export function ClubElementsGallery() {
           <ClubLayoutPicker value={layout} onChange={setLayout} />
           <Card>
             <CardContent className="p-4">
-              <ClubThreadList clubSlug="przyklad" threads={threads} layout={layout} isPl={isPl} />
+              <ClubThreadList clubSlug="przyklad" threads={threads} layout={layout} />
             </CardContent>
           </Card>
           <p className="text-xs text-muted-foreground">

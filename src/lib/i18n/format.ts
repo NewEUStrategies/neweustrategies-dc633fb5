@@ -9,7 +9,21 @@ export type UiLang = "pl" | "en";
 const LOCALE: Record<UiLang, string> = { pl: "pl-PL", en: "en-GB" };
 
 export function uiLocale(lang: string | undefined): string {
-  return LOCALE[(lang ?? "pl").startsWith("en") ? "en" : "pl"];
+  return LOCALE[uiLang(lang)];
+}
+
+/**
+ * Surowe `i18n.language` (moze byc `undefined`, `"en-US"`, `"pl"`) zawezone do
+ * dwoch jezykow interfejsu. Potrzebne wszedzie, gdzie wybieramy TRESC
+ * z blizniaczych kolumn (`pickLocalized`) albo klucz w mapie `Record<UiLang, …>`.
+ *
+ * Istnieje, bo bez niego ta sama linia
+ * `(i18n.language ?? "pl").startsWith("en") ? "en" : "pl"` powtarza sie
+ * w kazdym komponencie - a to jest ta sama decyzja, ktora `uiLocale` juz raz
+ * podejmuje. Jedno miejsce, jedna regula normalizacji.
+ */
+export function uiLang(lang: string | undefined): UiLang {
+  return (lang ?? "pl").startsWith("en") ? "en" : "pl";
 }
 
 /** Data artykułu/listingu: "12 lipca 2026" / "12 July 2026". */

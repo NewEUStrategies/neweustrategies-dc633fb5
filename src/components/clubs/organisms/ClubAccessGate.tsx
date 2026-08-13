@@ -50,16 +50,19 @@ import { DEFAULT_CLUB_PLAN_TIER, planTierFromRank, type ClubPlanTier } from "@/l
 import type { ClubViewRow } from "@/lib/clubs/types";
 import { ensureClubI18n } from "@/lib/i18n-club";
 import "@/lib/i18n-club-gate";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
+import { uiLang } from "@/lib/i18n/format";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
-export function ClubAccessGate({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
+export function ClubAccessGate({ club }: { club: ClubViewRow }) {
   // Etykiety progów mają JEDNO źródło prawdy: `club.planTier.*` w słowniku
   // modułu. Bramka rejestruje ten słownik sama, bo etykieta planu jest tu
   // treścią sprzedażową, a nie ozdobą - gdyby zabrakło bundla, w nagłówku
   // stanąłby surowy klucz.
   ensureClubI18n();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const { session, loading } = useAuth();
 
   const tier = planTierFromRank(club.min_tier_rank ?? 0);
@@ -72,8 +75,8 @@ export function ClubAccessGate({ club, isPl }: { club: ClubViewRow; isPl: boolea
   // o wyższym progu pokazywał w bramce „PRO" albo puste miejsce.
   const plan = t(`club.planTier.${sellTier}`);
 
-  const name = (isPl ? club.name_pl : club.name_en) || club.name_pl;
-  const tagline = isPl ? club.tagline_pl : club.tagline_en;
+  const name = pickLocalized(club, "name", lang) || club.name_pl;
+  const tagline = pickLocalized(club, "tagline", lang);
   const signedIn = session !== null && !loading;
   const tierTooLow = club.reason === "tier_too_low" || !signedIn;
   // Ekspert to JEDYNA ścieżka wejścia bez planu: odznaka `expert` na profilu
@@ -145,7 +148,7 @@ export function ClubAccessGate({ club, isPl }: { club: ClubViewRow; isPl: boolea
 
 /** Pojedynczy benefit: tytuł + jedno zdanie „co to znaczy w praktyce". */
 function Benefit({ icon: Icon, k }: { icon: LucideIcon; k: string }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   return (
     <li className="flex items-start gap-2.5 rounded-lg bg-background/60 p-2.5 ring-1 ring-border/50">
       <span className="mt-0.5 shrink-0 rounded-md bg-primary/10 p-1.5 text-primary">
@@ -174,7 +177,7 @@ function MemberActions({
   tierTooLow: boolean;
   isExpert: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   // Prośbę o dostęp widzi ten, komu plan już wystarcza, albo ekspert.
   const canRequest = club.join_policy !== "invite" && (!tierTooLow || isExpert);
 
@@ -228,7 +231,7 @@ function MemberActions({
 
 function GateSignupForm({ plan }: { plan: string }) {
   const { t, i18n } = useTranslation();
-  const lang: "pl" | "en" = (i18n.language ?? "pl").startsWith("pl") ? "pl" : "en";
+  const lang = uiLang(i18n.language);
   const runPreAuthGuard = useServerFn(preAuthGuard);
   // Te same pola, etykiety i wymagalność co popup rejestracji i /login -
   // jedno źródło prawdy: newsletter_settings.popup_fields (Admin → Popupy).

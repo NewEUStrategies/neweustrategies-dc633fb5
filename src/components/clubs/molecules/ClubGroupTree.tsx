@@ -8,15 +8,22 @@ import { ChevronRight, LayoutGrid, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { buildClubGroupTree, clubGroupPath, type ClubGroupNode } from "@/lib/clubs/groupTree";
 import { ClubGroupIcon, clubGroupAccentVars } from "@/components/clubs/atoms/ClubGroupAccent";
+import { uiLang } from "@/lib/i18n/format";
+import { pickLocalized, type LocaleCode } from "@/lib/i18n/pickLocalized";
 import type { ClubGroupRow } from "@/lib/clubs/types";
 
-export function clubGroupName(group: ClubGroupRow, isPl: boolean): string {
-  return isPl ? group.name_pl : group.name_en || group.name_pl;
+/**
+ * Nazwa działu w języku interfejsu. `pickLocalized` sięga po drugi język, gdy
+ * wybrany jest pusty - stąd brak dawnego `|| group.name_pl` na końcu: ten
+ * fallback był i tak nieosiągalny, bo pusty wynik znaczy, że OBIE kolumny
+ * są puste.
+ */
+export function clubGroupName(group: ClubGroupRow, lang: LocaleCode): string {
+  return pickLocalized(group, "name", lang);
 }
 
-export function clubGroupDescription(group: ClubGroupRow, isPl: boolean): string {
-  const value = isPl ? group.description_pl : group.description_en;
-  return value === null ? "" : value.trim();
+export function clubGroupDescription(group: ClubGroupRow, lang: LocaleCode): string {
+  return pickLocalized(group, "description", lang).trim();
 }
 
 const ACCENT_TEXT = "text-[color-mix(in_oklab,var(--club-accent)_75%,var(--foreground))]";
@@ -46,18 +53,18 @@ function ParentRow({
   expanded,
   onToggle,
   onSelect,
-  isPl,
 }: {
   node: ClubGroupNode;
   active: boolean;
   expanded: boolean;
   onToggle: () => void;
   onSelect: () => void;
-  isPl: boolean;
 }) {
+  const { i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const { group, children, totalThreads } = node;
   const locked = !group.can_read;
-  const name = clubGroupName(group, isPl);
+  const name = clubGroupName(group, lang);
   const hasChildren = children.length > 0;
 
   return (
@@ -125,16 +132,16 @@ function SubRow({
   node,
   active,
   onSelect,
-  isPl,
 }: {
   node: ClubGroupNode;
   active: boolean;
   onSelect: () => void;
-  isPl: boolean;
 }) {
+  const { i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const { group, totalThreads } = node;
   const locked = !group.can_read;
-  const name = clubGroupName(group, isPl);
+  const name = clubGroupName(group, lang);
 
   return (
     <div className="group/row" style={clubGroupAccentVars(group.accent_color)}>
@@ -164,14 +171,12 @@ function GroupRow({
   expanded,
   onToggle,
   onSelect,
-  isPl,
 }: {
   node: ClubGroupNode;
   active: boolean;
   expanded: boolean;
   onToggle: () => void;
   onSelect: () => void;
-  isPl: boolean;
 }) {
   return node.depth === 0 ? (
     <ParentRow
@@ -180,10 +185,9 @@ function GroupRow({
       expanded={expanded}
       onToggle={onToggle}
       onSelect={onSelect}
-      isPl={isPl}
     />
   ) : (
-    <SubRow node={node} active={active} onSelect={onSelect} isPl={isPl} />
+    <SubRow node={node} active={active} onSelect={onSelect} />
   );
 }
 
@@ -191,14 +195,12 @@ export function ClubGroupTree({
   groups,
   activeGroupId,
   onGroupChange,
-  isPl,
 }: {
   groups: readonly ClubGroupRow[];
   activeGroupId: string | null;
   onGroupChange: (groupId: string | null) => void;
-  isPl: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const tree = useMemo(() => buildClubGroupTree(groups), [groups]);
   const openPath = useMemo(
     () => clubGroupPath(tree, activeGroupId).map((node) => node.group.id),
@@ -229,7 +231,6 @@ export function ClubGroupTree({
             expanded={expanded}
             onToggle={() => toggle(node.group.id)}
             onSelect={() => onGroupChange(activeGroupId === node.group.id ? null : node.group.id)}
-            isPl={isPl}
           />
           {node.children.length > 0 && expanded ? (
             <ul className="ml-8 mt-0.5 flex list-none flex-col gap-0.5 border-l border-border/60 pl-3">
@@ -303,16 +304,15 @@ export function ClubGroupBar({
   groups,
   activeGroupId,
   onGroupChange,
-  isPl,
   className,
 }: {
   groups: readonly ClubGroupRow[];
   activeGroupId: string | null;
   onGroupChange: (groupId: string | null) => void;
-  isPl: boolean;
   className?: string;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   if (groups.length === 0) return null;
   return (
     <nav
@@ -350,7 +350,7 @@ export function ClubGroupBar({
             )}
           >
             <ClubGroupIcon icon={group.icon} className="h-3.5 w-3.5" />
-            {clubGroupName(group, isPl)}
+            {clubGroupName(group, lang)}
             <span
               className={cn(
                 "tabular-nums transition-opacity",

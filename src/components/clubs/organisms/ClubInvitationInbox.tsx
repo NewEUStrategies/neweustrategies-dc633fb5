@@ -22,16 +22,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import type { ClubMyInvitationRow } from "@/lib/clubs/types";
-import { formatDateShort } from "@/lib/i18n/format";
+import { formatDateShort, uiLang } from "@/lib/i18n/format";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 
 export function ClubInvitationInbox({
   invitations,
-  isPl,
   pendingId,
   onRespond,
 }: {
   invitations: readonly ClubMyInvitationRow[];
-  isPl: boolean;
   /** Id zaproszenia, na ktorym trwa operacja - NIE flaga calej listy.
    *  Wspolna flaga zapalala spinner i blokowala przyciski we WSZYSTKICH
    *  wierszach, wiec przy trzech zaproszeniach klikniecie jednego wygladalo
@@ -39,7 +38,8 @@ export function ClubInvitationInbox({
   pendingId: string | null;
   onRespond: (invitationId: string, accept: boolean) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const [declining, setDeclining] = useState<ClubMyInvitationRow | null>(null);
 
   if (invitations.length === 0) return null;
@@ -62,7 +62,7 @@ export function ClubInvitationInbox({
             className="flex flex-wrap items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 p-4"
           >
             <div className="min-w-0 flex-1">
-              <p className="font-medium">{isPl ? inv.club_name_pl : inv.club_name_en}</p>
+              <p className="font-medium">{pickLocalized(inv, "club_name", lang)}</p>
               <p className="text-sm text-muted-foreground">
                 {t("club.invitedBy", { name: inv.inviter_name })}
                 {inv.message !== null && inv.message.trim() !== "" ? ` - ${inv.message}` : ""}
@@ -70,7 +70,7 @@ export function ClubInvitationInbox({
               {inv.expires_at !== null ? (
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {t("club.hub.inviteExpires", {
-                    date: formatDateShort(inv.expires_at, isPl ? "pl" : "en"),
+                    date: formatDateShort(inv.expires_at, lang),
                   })}
                 </p>
               ) : null}
@@ -105,8 +105,7 @@ export function ClubInvitationInbox({
             <AlertDialogTitle>{t("club.hub.declineTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
               {t("club.hub.declineBody", {
-                club:
-                  declining === null ? "" : isPl ? declining.club_name_pl : declining.club_name_en,
+                club: declining === null ? "" : pickLocalized(declining, "club_name", lang),
               })}
             </AlertDialogDescription>
           </AlertDialogHeader>

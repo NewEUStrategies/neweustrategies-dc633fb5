@@ -18,11 +18,11 @@ import {
 import { ClubStatusBadge, ClubVisibilityBadge } from "../atoms/ClubBadges";
 import type { AdminClubRow, ClubStatus, ClubVisibility } from "@/lib/clubs/types";
 import { CLUB_STATUSES, CLUB_VISIBILITIES } from "@/lib/clubs/types";
-import { formatDate } from "@/lib/i18n/format";
+import { formatDate, uiLang } from "@/lib/i18n/format";
+import { pickLocalized, type LocaleCode } from "@/lib/i18n/pickLocalized";
 
 interface ClubsTableProps {
   rows: AdminClubRow[];
-  isPl: boolean;
 }
 
 /** RPC zwraca `status`/`visibility` jako `string` - zawężamy po słowniku,
@@ -38,10 +38,13 @@ function asVisibility(value: string): ClubVisibility {
     : "members";
 }
 
-function formatLastActivity(value: string | null, isPl: boolean): string {
+// `formatDate` normalizuje jezyk sam (`uiLocale`), wiec przyjmujemy surowe
+// `i18n.language` zamiast tlumaczyc je najpierw na "pl"/"en" - o jedno miejsce
+// mniej, w ktorym ta decyzja moze sie rozjechac.
+function formatLastActivity(value: string | null, lang: string | undefined): string {
   if (!value) return "-";
   return (
-    formatDate(value, isPl ? "pl" : "en", {
+    formatDate(value, lang, {
       day: "2-digit",
       month: "short",
       year: "numeric",
@@ -49,8 +52,11 @@ function formatLastActivity(value: string | null, isPl: boolean): string {
   );
 }
 
-export function ClubsTable({ rows, isPl }: ClubsTableProps) {
-  const { t } = useTranslation();
+export function ClubsTable({ rows }: ClubsTableProps) {
+  const { t, i18n } = useTranslation();
+  // Jezyk TRESCI (blizniacze kolumny nazw klubow), nie etykiet - te ida przez
+  // `t()`. Komponent wyprowadza go sam, zamiast dostawac `isPl` propsem.
+  const lang = uiLang(i18n.language);
 
   return (
     <>
@@ -81,7 +87,7 @@ export function ClubsTable({ rows, isPl }: ClubsTableProps) {
                     search={{ tab: "general" }}
                     className="font-medium hover:text-primary transition-colors"
                   >
-                    {isPl ? row.name_pl : row.name_en}
+                    {pickLocalized(row, "name", lang)}
                   </Link>
                   <div className="text-xs text-muted-foreground">/{row.slug}</div>
                 </TableCell>
@@ -104,7 +110,7 @@ export function ClubsTable({ rows, isPl }: ClubsTableProps) {
                   {row.lead_names.length > 0 ? row.lead_names.join(", ") : "-"}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                  {formatLastActivity(row.last_activity_at, isPl)}
+                  {formatLastActivity(row.last_activity_at, i18n.language)}
                 </TableCell>
                 <TableCell>
                   <ClubStatusBadge status={asStatus(row.status)} />
@@ -155,7 +161,7 @@ export function ClubsTable({ rows, isPl }: ClubsTableProps) {
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="truncate font-medium">{isPl ? row.name_pl : row.name_en}</div>
+                <div className="truncate font-medium">{pickLocalized(row, "name", lang)}</div>
                 <div className="text-xs text-muted-foreground">/{row.slug}</div>
               </div>
               <ClubStatusBadge status={asStatus(row.status)} />
@@ -176,7 +182,7 @@ export function ClubsTable({ rows, isPl }: ClubsTableProps) {
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <Clock className="h-3.5 w-3.5" />
-                {formatLastActivity(row.last_activity_at, isPl)}
+                {formatLastActivity(row.last_activity_at, i18n.language)}
               </span>
             </div>
 

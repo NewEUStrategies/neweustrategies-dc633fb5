@@ -18,6 +18,8 @@ import { Badge } from "@/components/ui/badge";
 import { useClubThreadsForAnchor } from "@/lib/clubs/useClubs";
 import type { ClubAnchorType } from "@/lib/clubs/types";
 import { ensureClubI18n } from "@/lib/i18n-club";
+import { uiLang } from "@/lib/i18n/format";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 
 export type { ClubAnchorType };
 
@@ -34,7 +36,7 @@ export function ClubAnchorThreads({
 }) {
   ensureClubI18n();
   const { t, i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  const lang = uiLang(i18n.language);
   const threadsQ = useClubThreadsForAnchor({ anchorType, anchorId, limit });
 
   const rows = threadsQ.data ?? [];
@@ -61,7 +63,7 @@ export function ClubAnchorThreads({
             >
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs font-medium text-primary">
-                  {isPl ? row.club_name_pl : row.club_name_en}
+                  {pickLocalized(row, "club_name", lang)}
                 </span>
                 <Badge variant="outline" className="text-[11px]">
                   {t(`club.kind.${row.kind}`)}

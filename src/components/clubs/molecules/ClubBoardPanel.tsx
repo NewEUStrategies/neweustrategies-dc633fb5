@@ -23,6 +23,7 @@
 // 3) DATA WAŻNOŚCI. Tablica bez wygaszania to tablica z zeszłego roku.
 //    Ogłoszenie znika samo, a na trzy dni przed końcem mówi o tym wprost.
 import { useState } from "react";
+import { uiLang } from "@/lib/i18n/format";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Loader2, Megaphone, Plus, X } from "lucide-react";
@@ -72,7 +73,7 @@ export function ClubBoardComposer({
   onDone?: () => void;
   variant?: "rail" | "page";
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [kind, setKind] = useState<ClubNoticeKind>("seeking");
   const [body, setBody] = useState("");
   const [topic, setTopic] = useState<string | null>(null);
@@ -204,17 +205,16 @@ export function ClubBoardPanel({
   clubSlug,
   clubId,
   canPost,
-  isPl,
   className,
 }: {
   clubSlug: string;
   clubId: string;
   /** Ten sam próg, co przy odpowiedzi - ogłoszenie to głos, nie akt kuratorski. */
   canPost: boolean;
-  isPl: boolean;
   className?: string;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const { topics } = useClubTopics();
   const [composing, setComposing] = useState(false);
   const [kindFilter, setKindFilter] = useState<ClubNoticeKind | null>(null);
@@ -330,12 +330,7 @@ export function ClubBoardPanel({
                       </p>
                     ) : null}
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                      <ClubTopicChip
-                        topic={row.topic}
-                        lang={isPl ? "pl" : "en"}
-                        catalog={topics}
-                        size="sm"
-                      />
+                      <ClubTopicChip topic={row.topic} lang={lang} catalog={topics} size="sm" />
                       {isNoticeExpiringSoon(row.expires_at) ? (
                         <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
                           {t("club.network.board.expiresIn", { count: daysLeft })}

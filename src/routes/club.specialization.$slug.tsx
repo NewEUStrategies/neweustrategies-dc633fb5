@@ -38,8 +38,6 @@ function ClubSpecializationPage() {
   ensureClubI18n();
   const { t } = useTranslation();
   const { slug } = Route.useParams();
-  const { i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
   const { session } = useAuth();
   const signedIn = Boolean(session);
   const spec = findClubSpecialization(slug);
@@ -152,7 +150,6 @@ function ClubSpecializationPage() {
           title={t("club.spec.clubsTitle")}
           empty={signedIn ? t("club.spec.clubsEmpty") : t("club.spec.clubsAnon")}
           clubs={clubs}
-          isPl={isPl}
           loading={clubsQ.isPending}
           layout="editorial"
         />

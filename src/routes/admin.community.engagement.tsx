@@ -8,7 +8,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ensureI18n as ensureAdminCommunityI18n } from "@/lib/i18n-admin-community";
-import { dateLocaleFromLanguage } from "@/lib/i18n/dateLocale";
+import { uiLocale } from "@/lib/i18n/format";
 import { pickLocalized, type LocaleCode } from "@/lib/i18n/pickLocalized";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -40,7 +40,7 @@ function EngagementAdmin() {
   ensureAdminCommunityI18n();
   const { t, i18n } = useTranslation();
   const lang: LocaleCode = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
-  const locale = dateLocaleFromLanguage(i18n.language);
+  const locale = uiLocale(i18n.language);
 
   const q = useQuery({
     queryKey: ["admin-engagement-overview"],

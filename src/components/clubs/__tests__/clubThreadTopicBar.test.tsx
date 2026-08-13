@@ -25,7 +25,7 @@ const CATALOG = [
 describe("ClubThreadTopicBar", () => {
   it("znika, gdy w klubie żyje najwyżej jeden obszar", () => {
     const { container, rerender } = render(
-      <ClubThreadTopicBar threads={[]} catalog={CATALOG} value={null} onChange={() => {}} isPl />,
+      <ClubThreadTopicBar threads={[]} catalog={CATALOG} value={null} onChange={() => {}} />,
     );
     expect(container).toBeEmptyDOMElement();
 
@@ -35,7 +35,6 @@ describe("ClubThreadTopicBar", () => {
         catalog={CATALOG}
         value={null}
         onChange={() => {}}
-        isPl
       />,
     );
     expect(container).toBeEmptyDOMElement();
@@ -48,7 +47,6 @@ describe("ClubThreadTopicBar", () => {
         catalog={CATALOG}
         value={null}
         onChange={() => {}}
-        isPl
       />,
     );
     expect(screen.getByText("Energetyka")).toBeInTheDocument();
@@ -65,7 +63,6 @@ describe("ClubThreadTopicBar", () => {
         catalog={CATALOG}
         value={null}
         onChange={onChange}
-        isPl
       />,
     );
     fireEvent.click(screen.getByText("Energetyka"));
@@ -79,7 +76,6 @@ describe("ClubThreadTopicBar", () => {
         catalog={CATALOG}
         value="energy"
         onChange={() => {}}
-        isPl
       />,
     );
     expect(screen.getByRole("button", { name: /Energetyka/ })).toHaveAttribute(

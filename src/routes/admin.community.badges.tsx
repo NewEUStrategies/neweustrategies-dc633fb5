@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ensureI18n as ensureAdminCommunityI18n } from "@/lib/i18n-admin-community";
-import { dateLocaleFromLanguage } from "@/lib/i18n/dateLocale";
+import { uiLocale } from "@/lib/i18n/format";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Award, Trash2, Plus, Sparkles } from "lucide-react";
@@ -211,7 +211,7 @@ function BadgesAdmin() {
                     )}
                     {b.note && <div className="text-xs text-muted-foreground mt-1">{b.note}</div>}
                     <div className="text-xs text-muted-foreground mt-0.5">
-                      {new Date(b.created_at).toLocaleString(dateLocaleFromLanguage(i18n.language))}
+                      {new Date(b.created_at).toLocaleString(uiLocale(i18n.language))}
                     </div>
                   </div>
                   <Button

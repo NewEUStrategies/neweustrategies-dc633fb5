@@ -7,6 +7,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
+import { uiLocale } from "@/lib/i18n/format";
+import { ensureI18n as ensureNewsletterAdminI18n } from "@/lib/i18n-newsletter-admin";
 import { toast } from "sonner";
 import {
   Plus,
@@ -55,45 +57,41 @@ export const Route = createFileRoute("/admin/newsletter/campaigns/")({
   component: CampaignsList,
 });
 
+// Mapa WSKAZUJE KLUCZE, nie napisy: pary `{ labelPl, labelEn }` byly kolejnym
+// rownoleglym slownikiem, ktorego bramka parytetu nie widziala.
 const STATUS_META: Record<
   CampaignRow["status"],
-  { icon: typeof Send; className: string; labelPl: string; labelEn: string }
+  { icon: typeof Send; className: string; labelKey: string }
 > = {
   draft: {
     icon: FileText,
     className: "bg-muted text-muted-foreground",
-    labelPl: "Szkic",
-    labelEn: "Draft",
+    labelKey: "adminNewsletter.campaigns.status.draft",
   },
   scheduled: {
     icon: Clock,
     className: "bg-blue-100 text-blue-800",
-    labelPl: "Zaplanowana",
-    labelEn: "Scheduled",
+    labelKey: "adminNewsletter.campaigns.status.scheduled",
   },
   sending: {
     icon: Send,
     className: "bg-amber-100 text-amber-800",
-    labelPl: "Wysyłanie",
-    labelEn: "Sending",
+    labelKey: "adminNewsletter.campaigns.status.sending",
   },
   sent: {
     icon: CheckCircle2,
     className: "bg-emerald-100 text-emerald-800",
-    labelPl: "Wysłana",
-    labelEn: "Sent",
+    labelKey: "adminNewsletter.campaigns.status.sent",
   },
   failed: {
     icon: XCircle,
     className: "bg-red-100 text-red-800",
-    labelPl: "Błąd",
-    labelEn: "Failed",
+    labelKey: "adminNewsletter.campaigns.status.failed",
   },
   cancelled: {
     icon: XCircle,
     className: "bg-muted text-muted-foreground",
-    labelPl: "Anulowana",
-    labelEn: "Cancelled",
+    labelKey: "adminNewsletter.campaigns.status.cancelled",
   },
 };
 
@@ -109,7 +107,6 @@ function isResumableSending(c: CampaignRow): boolean {
 
 function CampaignsList() {
   const { i18n, t } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
   const navigate = useNavigate();
   const qc = useQueryClient();
 
@@ -136,11 +133,7 @@ function CampaignsList() {
         .then((res) => {
           if (res.fired > 0 || res.continued > 0) {
             if (res.fired > 0) {
-              toast.success(
-                isPl
-                  ? `Wysłano ${res.fired} zaplanowanych kampanii`
-                  : `Sent ${res.fired} scheduled campaigns`,
-              );
+              toast.success(t("adminNewsletter.campaigns.dueFired", { count: res.fired }));
             }
             qc.invalidateQueries({ queryKey: ["admin", "newsletter-campaigns"] });
           }
@@ -153,19 +146,20 @@ function CampaignsList() {
     if (!anySending) return;
     const handle = setInterval(tick, 12_000);
     return () => clearInterval(handle);
-  }, [processDue, qc, isPl, anySending]);
+  }, [processDue, qc, t, anySending]);
 
   const processDueMut = useMutation({
     mutationFn: () => processDue(),
     onSuccess: (res) => {
       if (res.fired > 0 || res.continued > 0) {
         toast.success(
-          isPl
-            ? `Uruchomiono: ${res.fired} zaplanowanych, wznowiono: ${res.continued}`
-            : `Fired: ${res.fired} scheduled, resumed: ${res.continued}`,
+          t("adminNewsletter.campaigns.dueSummary", {
+            fired: res.fired,
+            continued: res.continued,
+          }),
         );
       } else {
-        toast.info(isPl ? "Brak zaległych kampanii" : "No due campaigns");
+        toast.info(t("adminNewsletter.campaigns.noDueCampaigns"));
       }
       qc.invalidateQueries({ queryKey: ["admin", "newsletter-campaigns"] });
     },
@@ -176,9 +170,7 @@ function CampaignsList() {
     mutationFn: (id: string) => send({ data: { id } }),
     onSuccess: (res) => {
       toast.success(
-        isPl
-          ? `Wznowiono wysyłkę - wysłano ${res.sent}, błędy: ${res.failed}`
-          : `Send resumed - sent ${res.sent}, failed: ${res.failed}`,
+        t("adminNewsletter.campaigns.resumeResult", { sent: res.sent, failed: res.failed }),
       );
       qc.invalidateQueries({ queryKey: ["admin", "newsletter-campaigns"] });
     },
@@ -192,7 +184,7 @@ function CampaignsList() {
     mutationFn: () =>
       create({
         data: {
-          name: isPl ? "Nowa kampania" : "New campaign",
+          name: t("adminNewsletter.campaigns.newCampaign"),
           subject_pl: "",
           subject_en: "",
           html_pl: "",
@@ -223,13 +215,9 @@ function CampaignsList() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold">
-            {isPl ? "Kampanie newsletterowe" : "Newsletter campaigns"}
-          </h2>
+          <h2 className="text-xl font-semibold">{t("adminNewsletter.campaigns.listHeading")}</h2>
           <p className="text-sm text-muted-foreground">
-            {isPl
-              ? "Twórz i wysyłaj mailingi do wybranych segmentów subskrybentów."
-              : "Compose and send mailings to selected subscriber segments."}
+            {t("adminNewsletter.campaigns.listSubtitle")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -239,11 +227,11 @@ function CampaignsList() {
             disabled={processDueMut.isPending}
           >
             <Clock className={`w-4 h-4 mr-2 ${processDueMut.isPending ? "animate-pulse" : ""}`} />
-            {isPl ? "Wyślij zaległe" : "Process due"}
+            {t("adminNewsletter.campaigns.processDue")}
           </Button>
           <Button onClick={() => createMut.mutate()} disabled={createMut.isPending}>
             <Plus className="w-4 h-4 mr-2" />
-            {isPl ? "Nowa kampania" : "New campaign"}
+            {t("adminNewsletter.campaigns.newCampaign")}
           </Button>
         </div>
       </div>
@@ -252,12 +240,16 @@ function CampaignsList() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>{isPl ? "Nazwa" : "Name"}</TableHead>
-              <TableHead>{isPl ? "Status" : "Status"}</TableHead>
-              <TableHead>{isPl ? "Zaplanowana na" : "Scheduled for"}</TableHead>
-              <TableHead className="text-right">{isPl ? "Odbiorcy" : "Recipients"}</TableHead>
-              <TableHead className="text-right">{isPl ? "Wysłano" : "Sent"}</TableHead>
-              <TableHead>{isPl ? "Utworzono" : "Created"}</TableHead>
+              <TableHead>{t("adminNewsletter.campaigns.colName")}</TableHead>
+              <TableHead>{t("adminNewsletter.campaigns.colStatus")}</TableHead>
+              <TableHead>{t("adminNewsletter.campaigns.scheduledFor")}</TableHead>
+              <TableHead className="text-right">
+                {t("adminNewsletter.campaigns.recipients")}
+              </TableHead>
+              <TableHead className="text-right">
+                {t("adminNewsletter.campaigns.sentLabel")}
+              </TableHead>
+              <TableHead>{t("adminNewsletter.campaigns.colCreated")}</TableHead>
               <TableHead className="w-16" />
             </TableRow>
           </TableHeader>
@@ -265,13 +257,13 @@ function CampaignsList() {
             {isLoading ? (
               <TableRow>
                 <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                  {isPl ? "Wczytywanie…" : "Loading…"}
+                  {t("adminNewsletter.campaigns.detailLoading")}
                 </TableCell>
               </TableRow>
             ) : campaigns.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                  {isPl ? "Brak kampanii." : "No campaigns yet."}
+                  {t("adminNewsletter.campaigns.listEmpty")}
                 </TableCell>
               </TableRow>
             ) : (
@@ -296,7 +288,7 @@ function CampaignsList() {
                       <div className="flex flex-col items-start gap-1">
                         <Badge className={meta.className}>
                           <Icon className="w-3 h-3 mr-1" />
-                          {isPl ? meta.labelPl : meta.labelEn}
+                          {t(meta.labelKey)}
                         </Badge>
                         {stuck && (
                           <Button
@@ -309,14 +301,14 @@ function CampaignsList() {
                             <RefreshCw
                               className={`w-3 h-3 mr-1 ${resuming ? "animate-spin" : ""}`}
                             />
-                            {isPl ? "Wznów wysyłkę" : "Resume sending"}
+                            {t("adminNewsletter.campaigns.resume")}
                           </Button>
                         )}
                       </div>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {c.scheduled_at
-                        ? new Date(c.scheduled_at).toLocaleString(isPl ? "pl-PL" : "en-GB")
+                        ? new Date(c.scheduled_at).toLocaleString(uiLocale(i18n.language))
                         : "-"}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{c.recipient_count}</TableCell>
@@ -327,7 +319,7 @@ function CampaignsList() {
                       )}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {new Date(c.created_at).toLocaleString(isPl ? "pl-PL" : "en-GB")}
+                      {new Date(c.created_at).toLocaleString(uiLocale(i18n.language))}
                     </TableCell>
                     <TableCell>
                       {canDelete && (
@@ -340,21 +332,21 @@ function CampaignsList() {
                           <AlertDialogContent>
                             <AlertDialogHeader>
                               <AlertDialogTitle>
-                                {isPl ? "Usunąć kampanię?" : "Delete campaign?"}
+                                {t("adminNewsletter.campaigns.deleteHeading")}
                               </AlertDialogTitle>
                               <AlertDialogDescription>
-                                {isPl
-                                  ? `„${c.name}" zostanie trwale usunięta.`
-                                  : `"${c.name}" will be permanently deleted.`}
+                                {t("adminNewsletter.campaigns.deleteBody", { name: c.name })}
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                              <AlertDialogCancel>{isPl ? "Anuluj" : "Cancel"}</AlertDialogCancel>
+                              <AlertDialogCancel>
+                                {t("adminNewsletter.campaigns.cancel")}
+                              </AlertDialogCancel>
                               <AlertDialogAction
                                 onClick={() => removeMut.mutate(c.id)}
                                 className="bg-red-600 hover:bg-red-700"
                               >
-                                {isPl ? "Usuń" : "Delete"}
+                                {t("adminNewsletter.campaigns.delete")}
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>

@@ -9,6 +9,8 @@
 // reguły, które muszą być identyczne w panelu, w szynie i w widoku wątku
 // (co znaczy "świeży", jak skrócić opis do trzech zdań, jak posortować
 // ekspertów), mają JEDNO miejsce i własny test jednostkowy.
+import { pickLocalized, type LocaleCode } from "@/lib/i18n/pickLocalized";
+
 import type { Database, Json } from "@/integrations/supabase/types";
 
 type Fn = Database["public"]["Functions"];
@@ -404,15 +406,18 @@ export function firstSentences(input: string, count = CLUB_SPOTLIGHT_SENTENCES):
  * 3. opis z profilu w drugim języku - lepszy niż pusty moduł,
  * 4. stanowisko i firma - ostatnia deska, ale nadal zdanie o człowieku.
  */
-export function spotlightBlurb(row: ClubSpotlightRow, isPl: boolean): string {
-  const curated = isPl ? row.blurb_pl : row.blurb_en;
+export function spotlightBlurb(row: ClubSpotlightRow, lang: LocaleCode): string {
+  // Blurb redakcyjny BEZ fallbacku na drugi język - i to jest decyzja, nie
+  // przeoczenie: trzy zdania napisane po polsku pokazane angielskiemu
+  // czytelnikowi są gorsze niż jego własne bio w jego języku, a to jest
+  // dokładnie punkt 2 poniżej.
+  const curated = row[`blurb_${lang}`];
   if (curated !== null && curated.trim() !== "") return firstSentences(curated);
 
-  const own = isPl ? row.bio_pl : row.bio_en;
-  if (own !== null && own.trim() !== "") return firstSentences(own);
-
-  const other = isPl ? row.bio_en : row.bio_pl;
-  if (other !== null && other.trim() !== "") return firstSentences(other);
+  // Punkty 2 i 3 to dosłownie polityka `pickLocalized`: język interfejsu,
+  // potem drugi język, przy czym ciąg samych spacji liczy się jako brak.
+  const bio = pickLocalized(row, "bio", lang);
+  if (bio !== "") return firstSentences(bio);
 
   return row.headline ?? "";
 }

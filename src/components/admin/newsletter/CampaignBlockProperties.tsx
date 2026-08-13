@@ -1,6 +1,10 @@
 // Panel właściwości pojedynczego bloku EmailDoc. Wszystkie teksty są
 // dwujęzyczne (PL/EN edytowane obok siebie), więc jeden dokument wysyła się
 // w obu językach zależnie od subskrybenta.
+import { useTranslation } from "react-i18next";
+import { uiLang } from "@/lib/i18n/format";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
+import { ensureI18n as ensureNewsletterAdminI18n } from "@/lib/i18n-newsletter-admin";
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
@@ -26,25 +30,24 @@ type PostOption = { id: string; slug: string; title_pl: string | null; title_en:
 export function CampaignBlockProperties({
   block,
   onChange,
-  isPl,
 }: {
   block: EmailBlock;
   onChange: (b: EmailBlock) => void;
-  isPl: boolean;
 }) {
+  ensureNewsletterAdminI18n();
+  const { t } = useTranslation();
   switch (block.type) {
     case "heading":
       return (
         <div className="space-y-2">
           <I18nField
-            label={isPl ? "Tekst" : "Text"}
+            label={t("adminNewsletter.blockProps.text")}
             value={block.text}
             onChange={(text) => onChange({ ...block, text })}
-            isPl={isPl}
           />
           <div className="grid grid-cols-2 gap-2">
             <SelectField
-              label={isPl ? "Poziom" : "Level"}
+              label={t("adminNewsletter.blockProps.level")}
               value={String(block.level)}
               options={[
                 { value: "1", label: "H1" },
@@ -52,11 +55,7 @@ export function CampaignBlockProperties({
               ]}
               onChange={(v) => onChange({ ...block, level: v === "1" ? 1 : 2 })}
             />
-            <AlignField
-              value={block.align}
-              onChange={(align) => onChange({ ...block, align })}
-              isPl={isPl}
-            />
+            <AlignField value={block.align} onChange={(align) => onChange({ ...block, align })} />
           </div>
         </div>
       );
@@ -64,29 +63,23 @@ export function CampaignBlockProperties({
       return (
         <div className="space-y-2">
           <I18nField
-            label={isPl ? "Treść (dozwolone b, i, a, br)" : "Content (b, i, a, br allowed)"}
+            label={t("adminNewsletter.blockProps.richContent")}
             value={block.html}
             onChange={(html) => onChange({ ...block, html })}
             multiline
-            isPl={isPl}
           />
-          <AlignField
-            value={block.align}
-            onChange={(align) => onChange({ ...block, align })}
-            isPl={isPl}
-          />
+          <AlignField value={block.align} onChange={(align) => onChange({ ...block, align })} />
         </div>
       );
     case "image":
-      return <ImageProps block={block} onChange={onChange} isPl={isPl} />;
+      return <ImageProps block={block} onChange={onChange} />;
     case "button":
       return (
         <div className="space-y-2">
           <I18nField
-            label={isPl ? "Etykieta" : "Label"}
+            label={t("adminNewsletter.blockProps.label")}
             value={block.label}
             onChange={(label) => onChange({ ...block, label })}
-            isPl={isPl}
           />
           <TextField
             label="URL"
@@ -94,35 +87,29 @@ export function CampaignBlockProperties({
             placeholder="https://…"
             onChange={(url) => onChange({ ...block, url })}
           />
-          <AlignField
-            value={block.align}
-            onChange={(align) => onChange({ ...block, align })}
-            isPl={isPl}
-          />
+          <AlignField value={block.align} onChange={(align) => onChange({ ...block, align })} />
         </div>
       );
     case "quote":
       return (
         <div className="space-y-2">
           <I18nField
-            label={isPl ? "Cytat" : "Quote"}
+            label={t("adminNewsletter.blockProps.quote")}
             value={block.text}
             onChange={(text) => onChange({ ...block, text })}
             multiline
-            isPl={isPl}
           />
           <I18nField
-            label={isPl ? "Autor" : "Attribution"}
+            label={t("adminNewsletter.blockProps.attribution")}
             value={block.attribution}
             onChange={(attribution) => onChange({ ...block, attribution })}
-            isPl={isPl}
           />
         </div>
       );
     case "spacer":
       return (
         <div>
-          <Label className="text-[12px]">{isPl ? "Wysokość (px)" : "Height (px)"}</Label>
+          <Label className="text-[12px]">{t("adminNewsletter.blockProps.heightPx")}</Label>
           <Input
             type="number"
             min={4}
@@ -136,21 +123,20 @@ export function CampaignBlockProperties({
     case "divider":
       return (
         <p className="text-[12px] text-muted-foreground">
-          {isPl ? "Pozioma linia oddzielająca sekcje." : "Horizontal rule separating sections."}
+          {t("adminNewsletter.blockProps.dividerHint")}
         </p>
       );
     case "footer-note":
       return (
         <I18nField
-          label={isPl ? "Nota (drobny tekst na dole)" : "Note (small text at the bottom)"}
+          label={t("adminNewsletter.blockProps.footerNote")}
           value={block.html}
           onChange={(html) => onChange({ ...block, html })}
           multiline
-          isPl={isPl}
         />
       );
     case "post-list":
-      return <PostListProps block={block} onChange={onChange} isPl={isPl} />;
+      return <PostListProps block={block} onChange={onChange} />;
   }
 }
 
@@ -159,13 +145,11 @@ function I18nField({
   value,
   onChange,
   multiline,
-  isPl,
 }: {
   label: string;
   value: EmailI18n;
   onChange: (v: EmailI18n) => void;
   multiline?: boolean;
-  isPl: boolean;
 }) {
   const Field = multiline ? Textarea : Input;
   return (
@@ -250,19 +234,19 @@ function SelectField({
 function AlignField({
   value,
   onChange,
-  isPl,
 }: {
   value: "left" | "center";
   onChange: (v: "left" | "center") => void;
-  isPl: boolean;
 }) {
+  ensureNewsletterAdminI18n();
+  const { t } = useTranslation();
   return (
     <SelectField
-      label={isPl ? "Wyrównanie" : "Alignment"}
+      label={t("adminNewsletter.blockProps.alignment")}
       value={value}
       options={[
-        { value: "left", label: isPl ? "Do lewej" : "Left" },
-        { value: "center", label: isPl ? "Wyśrodkuj" : "Center" },
+        { value: "left", label: t("adminNewsletter.blockProps.alignLeft") },
+        { value: "center", label: t("adminNewsletter.blockProps.alignCenter") },
       ]}
       onChange={(v) => onChange(v === "center" ? "center" : "left")}
     />
@@ -272,23 +256,25 @@ function AlignField({
 function ImageProps({
   block,
   onChange,
-  isPl,
 }: {
   block: Extract<EmailBlock, { type: "image" }>;
   onChange: (b: EmailBlock) => void;
-  isPl: boolean;
 }) {
+  ensureNewsletterAdminI18n();
+  const { t } = useTranslation();
   const [pickerOpen, setPickerOpen] = useState(false);
   return (
     <div className="space-y-2">
       <div>
-        <Label className="text-[12px]">{isPl ? "Obraz" : "Image"}</Label>
+        <Label className="text-[12px]">{t("adminNewsletter.blockProps.image")}</Label>
         <div className="flex items-center gap-2 mt-1">
           {block.url && (
             <img src={block.url} alt="" className="h-10 w-16 object-cover rounded border" />
           )}
           <Button type="button" variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
-            {block.url ? (isPl ? "Zmień" : "Change") : isPl ? "Wybierz" : "Choose"}
+            {block.url
+              ? t("adminNewsletter.blockProps.change")
+              : t("adminNewsletter.blockProps.choose")}
           </Button>
           {block.url && (
             <Button
@@ -297,18 +283,18 @@ function ImageProps({
               size="sm"
               onClick={() => onChange({ ...block, url: null })}
             >
-              {isPl ? "Usuń" : "Remove"}
+              {t("adminNewsletter.blockProps.remove")}
             </Button>
           )}
         </div>
       </div>
       <TextField
-        label={isPl ? "Tekst alternatywny" : "Alt text"}
+        label={t("adminNewsletter.blockProps.altText")}
         value={block.alt}
         onChange={(alt) => onChange({ ...block, alt })}
       />
       <TextField
-        label={isPl ? "Link (opcjonalnie)" : "Link (optional)"}
+        label={t("adminNewsletter.blockProps.linkOptional")}
         value={block.href ?? ""}
         placeholder="https://…"
         onChange={(href) => onChange({ ...block, href: href || null })}
@@ -329,36 +315,35 @@ function ImageProps({
 function PostListProps({
   block,
   onChange,
-  isPl,
 }: {
   block: EmailPostListBlock;
   onChange: (b: EmailBlock) => void;
-  isPl: boolean;
 }) {
+  ensureNewsletterAdminI18n();
+  const { t } = useTranslation();
   return (
     <div className="space-y-2">
       <I18nField
-        label={isPl ? "Nagłówek sekcji" : "Section heading"}
+        label={t("adminNewsletter.blockProps.sectionHeading")}
         value={block.heading}
         onChange={(heading) => onChange({ ...block, heading })}
-        isPl={isPl}
       />
       <div className="grid grid-cols-2 gap-2">
         <SelectField
-          label={isPl ? "Źródło" : "Source"}
+          label={t("adminNewsletter.blockProps.source")}
           value={block.mode}
           options={[
-            { value: "latest", label: isPl ? "Najnowsze" : "Latest" },
-            { value: "manual", label: isPl ? "Ręcznie wybrane" : "Hand-picked" },
+            { value: "latest", label: t("adminNewsletter.blockProps.sourceLatest") },
+            { value: "manual", label: t("adminNewsletter.blockProps.sourceManual") },
           ]}
           onChange={(v) => onChange({ ...block, mode: v === "manual" ? "manual" : "latest" })}
         />
         <SelectField
-          label={isPl ? "Układ" : "Layout"}
+          label={t("adminNewsletter.blockProps.layout")}
           value={block.layout}
           options={[
-            { value: "list", label: isPl ? "Lista" : "List" },
-            { value: "cards", label: isPl ? "Karty (z obrazem)" : "Cards (with image)" },
+            { value: "list", label: t("adminNewsletter.blockProps.layoutList") },
+            { value: "cards", label: t("adminNewsletter.blockProps.layoutCards") },
           ]}
           onChange={(v) => onChange({ ...block, layout: v === "cards" ? "cards" : "list" })}
         />
@@ -366,7 +351,7 @@ function PostListProps({
       {block.mode === "latest" ? (
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <Label className="text-[12px]">{isPl ? "Liczba wpisów" : "Post count"}</Label>
+            <Label className="text-[12px]">{t("adminNewsletter.blockProps.postCount")}</Label>
             <Input
               type="number"
               min={1}
@@ -382,20 +367,20 @@ function PostListProps({
             />
           </div>
           <TextField
-            label={isPl ? "Slug kategorii (opcj.)" : "Category slug (opt.)"}
+            label={t("adminNewsletter.blockProps.categorySlug")}
             value={block.categorySlug ?? ""}
             onChange={(v) => onChange({ ...block, categorySlug: v || null })}
           />
         </div>
       ) : (
-        <ManualPostPicker block={block} onChange={onChange} isPl={isPl} />
+        <ManualPostPicker block={block} onChange={onChange} />
       )}
       <label className="flex items-center gap-2 text-[12px]">
         <Switch
           checked={block.showExcerpt}
           onCheckedChange={(v) => onChange({ ...block, showExcerpt: Boolean(v) })}
         />
-        {isPl ? "Pokaż zajawki" : "Show excerpts"}
+        {t("adminNewsletter.blockProps.showExcerpts")}
       </label>
     </div>
   );
@@ -404,12 +389,13 @@ function PostListProps({
 function ManualPostPicker({
   block,
   onChange,
-  isPl,
 }: {
   block: EmailPostListBlock;
   onChange: (b: EmailBlock) => void;
-  isPl: boolean;
 }) {
+  ensureNewsletterAdminI18n();
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const [search, setSearch] = useState("");
   const searchFn = useServerFn(searchCampaignPosts);
   const resultsQ = useQuery({
@@ -419,7 +405,7 @@ function ManualPostPicker({
       return JSON.parse((r as { json: string }).json) as PostOption[];
     },
   });
-  const titleOf = (p: PostOption) => (isPl ? p.title_pl : p.title_en) || p.title_pl || p.slug;
+  const titleOf = (p: PostOption) => pickLocalized(p, "title", lang) || p.title_pl || p.slug;
   const selected = block.postIds;
 
   const toggle = (id: string) => {
@@ -436,12 +422,12 @@ function ManualPostPicker({
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder={isPl ? "Szukaj wpisu…" : "Search a post…"}
+          placeholder={t("adminNewsletter.blockProps.searchPost")}
           className="pl-8 h-8 text-[12px]"
         />
       </div>
       <p className="text-[11px] text-muted-foreground">
-        {isPl ? "Wybrane" : "Selected"}: {selected.length}/10
+        {t("adminNewsletter.blockProps.selected")}: {selected.length}/10
       </p>
       <div className="max-h-48 overflow-y-auto rounded border divide-y">
         {(resultsQ.data ?? []).map((p) => (
@@ -460,7 +446,7 @@ function ManualPostPicker({
         ))}
         {(resultsQ.data ?? []).length === 0 && (
           <p className="p-2 text-[12px] text-muted-foreground">
-            {isPl ? "Brak wyników." : "No results."}
+            {t("adminNewsletter.blockProps.noResults")}
           </p>
         )}
       </div>

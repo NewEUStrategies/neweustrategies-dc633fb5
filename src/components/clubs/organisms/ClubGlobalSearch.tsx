@@ -20,7 +20,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
 import type { ClubSearchResult } from "@/lib/clubs/types";
-import { formatDateShort } from "@/lib/i18n/format";
+import { formatDateShort, uiLang } from "@/lib/i18n/format";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 
 export function ClubGlobalSearchInput({
   value,
@@ -33,7 +34,7 @@ export function ClubGlobalSearchInput({
    *  kontrolka jest identyczna, więc różni je jeden klucz, a nie kopia. */
   placeholderKey?: string;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   return (
     <div className="relative">
       <Search
@@ -71,7 +72,6 @@ export function ClubGlobalSearchResults({
   pending,
   failed,
   query,
-  isPl,
   onRetry,
 }: {
   hits: readonly ClubSearchResult[];
@@ -80,10 +80,10 @@ export function ClubGlobalSearchResults({
    *  identycznie, a to są dwie zupełnie różne informacje dla czytelnika. */
   failed?: boolean;
   query: string;
-  isPl: boolean;
   onRetry?: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
 
   if (failed === true) {
     return <ClubErrorNotice compact onRetry={onRetry} />;
@@ -128,7 +128,7 @@ export function ClubGlobalSearchResults({
                 {/* Nazwa klubu PRZED tytułem: przy szukaniu ponad klubami to
                     ona mówi czytelnikowi, gdzie właściwie trafił. */}
                 <span className="text-xs font-medium text-primary">
-                  {isPl ? hit.club_name_pl : hit.club_name_en}
+                  {pickLocalized(hit, "club_name", lang)}
                 </span>
                 <Badge variant="outline" className="text-[11px]">
                   {t(`club.kind.${hit.kind}`)}
@@ -159,7 +159,7 @@ export function ClubGlobalSearchResults({
                 {hit.last_reply_at !== null ? (
                   <span className="inline-flex items-center gap-1">
                     <Clock className="h-3 w-3" />
-                    {formatDateShort(hit.last_reply_at, isPl ? "pl" : "en")}
+                    {formatDateShort(hit.last_reply_at, lang)}
                   </span>
                 ) : null}
               </div>

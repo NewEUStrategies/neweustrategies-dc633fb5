@@ -8,6 +8,8 @@
 // Mountowany globalnie w __root.tsx.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { uiLang } from "@/lib/i18n/format";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { useLocation } from "@tanstack/react-router";
 import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { NewsletterForm } from "@/components/NewsletterForm";
@@ -63,7 +65,10 @@ export function NewsletterPopup() {
   const releaseSlotRef = useRef<(() => void) | null>(null);
   useFocusTrap(panelRef, open);
 
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  // Jeden jezyk dla calego popupu: kod dla dzieci i serwera oraz wybor tresci
+  // z blizniaczych kolumn. Dotad ta sama derywacja powtarzala sie w siedmiu
+  // miejscach jako `lang`.
+  const lang = uiLang(i18n.language);
 
   useEffect(() => {
     // Popup rejestracji jest niezależny od trybu newslettera (`mode`) - ten
@@ -79,7 +84,7 @@ export function NewsletterPopup() {
     // (wszystkie bramki przeszły); "open" = faktycznie się pojawił.
     trackNewsletterPopupEvent({
       event: "impression",
-      lang: isPl ? "pl" : "en",
+      lang: lang,
       layout: s.popup_layout,
       source: "popup",
     });
@@ -103,7 +108,7 @@ export function NewsletterPopup() {
           setOpen(true);
           trackNewsletterPopupEvent({
             event: "open",
-            lang: isPl ? "pl" : "en",
+            lang: lang,
             layout: s.popup_layout,
             source: "popup",
           });
@@ -142,10 +147,12 @@ export function NewsletterPopup() {
       if (onScroll) window.removeEventListener("scroll", onScroll);
       if (onMouseLeave) document.removeEventListener("mouseleave", onMouseLeave);
     };
-  }, [s, loc.pathname, isPl]);
+  }, [s, loc.pathname, lang]);
 
-  const title = isPl ? s?.popup_title_pl : s?.popup_title_en;
-  const desc = isPl ? s?.popup_description_pl : s?.popup_description_en;
+  // `pickLocalized` zamiast recznego warunku: puste tlumaczenie (albo ciag
+  // z samych spacji) siega po drugi jezyk, zamiast pokazac popup bez tytulu.
+  const title = pickLocalized(s, "popup_title", lang);
+  const desc = pickLocalized(s, "popup_description", lang);
   const close = useCallback(() => {
     markDismissed();
     setOpen(false);
@@ -171,7 +178,7 @@ export function NewsletterPopup() {
 
   const showcase = s.popup_layout === "showcase";
   const split = s.popup_layout === "split";
-  const eyebrow = isPl ? s.popup_eyebrow_pl || "Newsletter" : s.popup_eyebrow_en || "Newsletter";
+  const eyebrow = pickLocalized(s, "popup_eyebrow", lang) || "Newsletter";
 
   // Paleta: kolumny = wariant ciemny, popup_design.light = jasny, "auto"
   // podąża za motywem strony. Jedna funkcja obsługuje wszystkie układy.
@@ -209,7 +216,7 @@ export function NewsletterPopup() {
         >
           <SignupPopupPanel
             settings={s}
-            lang={isPl ? "pl" : "en"}
+            lang={lang}
             mode={mode}
             onClose={close}
             onSuccess={onSuccess}
@@ -239,12 +246,7 @@ export function NewsletterPopup() {
 
           {s.popup_doc ? (
             <div className="p-6 lg:p-8 space-y-3 md:max-h-[92vh] md:overflow-y-auto">
-              <NewsletterDocRenderer
-                doc={s.popup_doc}
-                settings={s}
-                lang={isPl ? "pl" : "en"}
-                source="popup"
-              />
+              <NewsletterDocRenderer doc={s.popup_doc} settings={s} lang={lang} source="popup" />
             </div>
           ) : split ? (
             <>
@@ -294,7 +296,7 @@ export function NewsletterPopup() {
                     {desc}
                   </p>
                 )}
-                <PopupSignupForm settings={s} lang={isPl ? "pl" : "en"} onSuccess={onSuccess} />
+                <PopupSignupForm settings={s} lang={lang} onSuccess={onSuccess} />
               </div>
             </>
           ) : (
@@ -319,9 +321,9 @@ export function NewsletterPopup() {
                 {s.popup_extended_fields ||
                 s.popup_mailing_lists.length > 0 ||
                 s.popup_require_terms ? (
-                  <PopupSignupForm settings={s} lang={isPl ? "pl" : "en"} onSuccess={onSuccess} />
+                  <PopupSignupForm settings={s} lang={lang} onSuccess={onSuccess} />
                 ) : (
-                  <NewsletterForm lang={isPl ? "pl" : "en"} source="popup" variant="inline" />
+                  <NewsletterForm lang={lang} source="popup" variant="inline" />
                 )}
               </div>
             </>

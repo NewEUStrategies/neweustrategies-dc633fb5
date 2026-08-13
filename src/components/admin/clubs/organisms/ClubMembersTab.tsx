@@ -85,8 +85,8 @@ function isExpired(value: string | null): boolean {
   return value !== null && new Date(value).getTime() <= Date.now();
 }
 
-export function ClubMembersTab({ clubId, isPl }: { clubId: string; isPl: boolean }) {
-  const { t } = useTranslation();
+export function ClubMembersTab({ clubId }: { clubId: string }) {
+  const { t, i18n } = useTranslation();
   const [statusFilter, setStatusFilter] = useState<ClubMemberStatus | null>(null);
   const [newMemberId, setNewMemberId] = useState("");
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
@@ -434,10 +434,10 @@ export function ClubMembersTab({ clubId, isPl }: { clubId: string; isPl: boolean
                           <ClubMemberStatusBadge status={asStatus(row.status)} />
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                          {formatDateShort(row.joined_at, isPl ? "pl" : "en")}
+                          {formatDateShort(row.joined_at, i18n.language)}
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-sm">
-                          <TenureCell row={row} isPl={isPl} onEdit={() => setTenure(row)} />
+                          <TenureCell row={row} onEdit={() => setTenure(row)} />
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-1">
@@ -505,7 +505,7 @@ export function ClubMembersTab({ clubId, isPl }: { clubId: string; isPl: boolean
                         onChange={(v) => changeRole(row, v)}
                       />
                       <div className="flex items-center text-sm">
-                        <TenureCell row={row} isPl={isPl} onEdit={() => setTenure(row)} />
+                        <TenureCell row={row} onEdit={() => setTenure(row)} />
                       </div>
                     </div>
 
@@ -543,7 +543,6 @@ export function ClubMembersTab({ clubId, isPl }: { clubId: string; isPl: boolean
       <TenureDialog
         clubId={clubId}
         member={tenure}
-        isPl={isPl}
         onOpenChange={(open) => !open && setTenure(null)}
       />
       <ConfirmDialog state={confirm} onOpenChange={(open) => !open && setConfirm(null)} />
@@ -579,16 +578,8 @@ function RoleSelect({
 
 /** Kadencja jako przycisk, nie tekst: bez tego kolumna była martwym odczytem,
  *  a `club_scheduler_tick` nie miał czego wygaszać. */
-function TenureCell({
-  row,
-  isPl,
-  onEdit,
-}: {
-  row: ClubMemberRow;
-  isPl: boolean;
-  onEdit: () => void;
-}) {
-  const { t } = useTranslation();
+function TenureCell({ row, onEdit }: { row: ClubMemberRow; onEdit: () => void }) {
+  const { t, i18n } = useTranslation();
   const expired = isExpired(row.role_expires_at);
 
   return (
@@ -607,7 +598,7 @@ function TenureCell({
         </span>
       ) : (
         <span className="text-muted-foreground">
-          {formatDateShort(row.role_expires_at, isPl ? "pl" : "en")}
+          {formatDateShort(row.role_expires_at, i18n.language)}
         </span>
       )}
     </Button>
@@ -617,15 +608,13 @@ function TenureCell({
 function TenureDialog({
   clubId,
   member,
-  isPl,
   onOpenChange,
 }: {
   clubId: string;
   member: ClubMemberRow | null;
-  isPl: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const upsertM = useUpsertClubMember(clubId);
   const [value, setValue] = useState("");
 
@@ -672,7 +661,7 @@ function TenureDialog({
             {" · "}
             {current === null
               ? t("adminClubs.members.tenureNone")
-              : formatDateTime(current, isPl ? "pl" : "en")}
+              : formatDateTime(current, i18n.language)}
           </p>
           <div className="space-y-1.5">
             <Label htmlFor="club-tenure-date">{t("adminClubs.members.tenureUntil")}</Label>

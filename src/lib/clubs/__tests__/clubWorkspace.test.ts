@@ -164,7 +164,7 @@ describe("przekroje jsonb", () => {
     ]);
     expect(
       parseGroupBreakdown([{ id: "g1", name_pl: "Obronność", name_en: "Defence", count: 2 }]),
-    ).toEqual([{ id: "g1", namePl: "Obronność", nameEn: "Defence", count: 2 }]);
+    ).toEqual([{ id: "g1", name_pl: "Obronność", name_en: "Defence", count: 2 }]);
     expect(parseContributors([{ name: "Anna", slug: "anna", avatar_url: null, count: 5 }])).toEqual(
       [{ name: "Anna", slug: "anna", avatarUrl: null, count: 5 }],
     );

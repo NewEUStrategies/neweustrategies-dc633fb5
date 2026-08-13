@@ -93,7 +93,8 @@ import { ClubThreadTopicBar } from "@/components/clubs/molecules/ClubThreadTopic
 import { ClubFeedItem } from "@/components/clubs/organisms/ClubFeedItem";
 import { ClubGlobalSearchResults } from "@/components/clubs/organisms/ClubGlobalSearch";
 import { buildClubSourceIndex } from "@/lib/clubs/threadSources";
-import { uiLocale } from "@/lib/i18n/format";
+import { uiLang, uiLocale } from "@/lib/i18n/format";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 
 const FEED_ICONS = {
   all: LayoutList,
@@ -111,8 +112,9 @@ function localToday(): string {
   return `${now.getFullYear()}-${month}-${day}`;
 }
 
-export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
+export function ClubHub({ club }: { club: ClubViewRow }) {
   const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const locale = uiLocale(i18n.language);
   const clubSlug = club.slug;
 
@@ -240,7 +242,7 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
   const groupPath = useMemo(() => clubGroupPath(groupTree, groupId), [groupTree, groupId]);
   const activeGroupNode = groupPath.length > 0 ? groupPath[groupPath.length - 1] : null;
   // Kolor i ikona działu liczone RAZ na render listy, nie raz na kartę.
-  const sourceIndex = useMemo(() => buildClubSourceIndex(groups, isPl), [groups, isPl]);
+  const sourceIndex = useMemo(() => buildClubSourceIndex(groups, lang), [groups, lang]);
   const sourceThreads = useMemo(
     () => (sourceThreadsQ.data?.pages ?? []).flatMap((page) => page.rows),
     [sourceThreadsQ.data],
@@ -338,37 +340,25 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
         canSeeMembers={signedIn && club.can_see_members}
         canRsvp={signedIn && club.can_reply}
         canManage={signedIn && club.can_manage}
-        isPl={isPl}
       />
-      <ClubBoardPanel
-        clubSlug={clubSlug}
-        clubId={club.id}
-        canPost={signedIn && club.can_reply}
-        isPl={isPl}
-      />
+      <ClubBoardPanel clubSlug={clubSlug} clubId={club.id} canPost={signedIn && club.can_reply} />
 
       <ClubRosterPanel
         clubSlug={clubSlug}
         clubId={club.id}
         canSeeMembers={club.can_see_members}
         canDeclare={signedIn && club.can_reply}
-        isPl={isPl}
         locale={locale}
       />
-      <ClubSpotlightPanel clubSlug={clubSlug} clubId={club.id} isPl={isPl} />
-      <ClubStagePanel
-        clubSlug={clubSlug}
-        milestones={milestones}
-        isPl={isPl}
-        today={localToday()}
-      />
-      <ClubFreshDocsPanel clubSlug={clubSlug} documents={documents} isPl={isPl} />
+      <ClubSpotlightPanel clubSlug={clubSlug} clubId={club.id} />
+      <ClubStagePanel clubSlug={clubSlug} milestones={milestones} today={localToday()} />
+      <ClubFreshDocsPanel clubSlug={clubSlug} documents={documents} />
     </>
   );
 
   return (
     <div className="mx-auto w-full max-w-[1600px] px-3 py-5 sm:px-5 lg:px-8">
-      <ClubHubIdentity club={club} isPl={isPl} locale={locale} className="mb-4" />
+      <ClubHubIdentity club={club} locale={locale} className="mb-4" />
 
       <div className="grid items-start gap-4 lg:grid-cols-[15rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)_20rem]">
         {/* Lewa szyna: tylko od `lg`. Niżej jej nawigacja wraca paskiem. */}
@@ -390,8 +380,7 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
               schedule: milestones.length,
               members: club.member_count,
             }}
-            hasRules={(isPl ? club.rules_pl : club.rules_en) !== null}
-            isPl={isPl}
+            hasRules={pickLocalized(club, "rules", lang) !== ""}
           />
         </aside>
 
@@ -406,7 +395,6 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
             groups={groups}
             activeGroupId={groupId}
             onGroupChange={setGroupId}
-            isPl={isPl}
             className="mb-3 lg:hidden"
           />
 
@@ -415,7 +403,6 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
               node={activeGroupNode}
               path={groupPath}
               documentCount={documentsQ.data?.total ?? 0}
-              isPl={isPl}
               onGroupChange={setGroupId}
               className="mb-3"
             />
@@ -430,7 +417,6 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
             canPost={signedIn && club.can_reply}
             canPostThread={club.can_post_thread}
             whoCanPost={club.who_can_post}
-            isPl={isPl}
             className="mb-3"
           />
 
@@ -526,7 +512,6 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
               catalog={topicsCatalog}
               value={topic}
               onChange={(next) => applyThreadFilter(() => setTopic(next), next !== null)}
-              isPl={isPl}
               className="mb-3"
             />
           ) : null}
@@ -537,7 +522,6 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
               pending={searchQ.isPending}
               failed={searchQ.isError}
               query={debouncedQuery}
-              isPl={isPl}
               onRetry={() => void searchQ.refetch()}
             />
           ) : threadsQ.isError ? (
@@ -563,7 +547,6 @@ export function ClubHub({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
                   key={entry.key}
                   entry={entry}
                   clubSlug={clubSlug}
-                  isPl={isPl}
                   mediaUrls={mediaUrls}
                   sourceIndex={sourceIndex}
                   activeGroupId={groupId}

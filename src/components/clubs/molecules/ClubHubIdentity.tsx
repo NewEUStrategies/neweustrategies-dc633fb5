@@ -15,6 +15,7 @@
 // prowadzenie klubu, patrząc na to, co zmienia. Przycisk widzi wyłącznie ten,
 // kto ma `can_moderate` - baza i tak sprawdzi to po raz drugi.
 import { Link } from "@tanstack/react-router";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { Landmark, MessagesSquare, PenLine, ShieldQuestion, Users2 } from "lucide-react";
@@ -27,7 +28,7 @@ import { ClubCoverEditor } from "@/components/clubs/molecules/ClubCoverEditor";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import { clubKeys } from "@/lib/clubs/queryKeys";
 import type { ClubViewRow } from "@/lib/clubs/types";
-import { formatNumber } from "@/lib/i18n/format";
+import { formatNumber, uiLang } from "@/lib/i18n/format";
 
 /** Monogram klubu - dwie litery nazwy. Stoi na okładce i bez niej. */
 function monogram(name: string): string {
@@ -39,20 +40,19 @@ function monogram(name: string): string {
 
 export function ClubHubIdentity({
   club,
-  isPl,
   locale,
   className,
 }: {
   club: ClubViewRow;
-  isPl: boolean;
   locale: string;
   className?: string;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const { topics } = useClubTopics();
   const queryClient = useQueryClient();
-  const name = isPl ? club.name_pl : club.name_en;
-  const tagline = isPl ? club.tagline_pl : club.tagline_en;
+  const name = pickLocalized(club, "name", lang);
+  const tagline = pickLocalized(club, "tagline", lang);
   const coverUrl =
     typeof club.cover_image_url === "string" && club.cover_image_url.trim() !== ""
       ? club.cover_image_url
@@ -112,7 +112,7 @@ export function ClubHubIdentity({
 
         <div className="min-w-0 sm:flex-1 sm:pt-2">
           <div className="flex flex-wrap items-center gap-2">
-            <ClubTopicChip topic={club.policy_area} lang={isPl ? "pl" : "en"} catalog={topics} />
+            <ClubTopicChip topic={club.policy_area} lang={lang} catalog={topics} />
             {/* Chatham House to nie odznaka-ozdoba, tylko reguła, która zmienia
                 sposób pisania - dlatego stoi przy nazwie, a nie w stopce. */}
             {club.attribution_mode === "chatham" ? (

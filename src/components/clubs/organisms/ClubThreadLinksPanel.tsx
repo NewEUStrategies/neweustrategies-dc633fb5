@@ -21,6 +21,7 @@ import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
 import { useClubThreadLinks, useRemoveClubThreadLink } from "@/lib/clubs/useClubWorkspace";
 import { formatDateShort } from "@/lib/i18n/format";
 import { toClubThreadRelation, toClubWorkspaceError } from "@/lib/clubs/workspaceTypes";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 
 export function ClubThreadLinksPanel({ threadId, lang }: { threadId: string; lang: "pl" | "en" }) {
   const { t } = useTranslation();
@@ -82,7 +83,7 @@ export function ClubThreadLinksPanel({ threadId, lang }: { threadId: string; lan
                 </Link>
 
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {lang === "pl" ? row.club_name_pl : row.club_name_en}
+                  {pickLocalized(row, "club_name", lang)}
                   {" · "}
                   {t("club.repliesCount", { count: row.reply_count })}
                   {row.last_reply_at !== null

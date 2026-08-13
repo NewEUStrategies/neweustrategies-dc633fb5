@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { Activity, MousePointerClick, Send, CheckCircle2, AlertTriangle } from "lucide-react";
+import { ensureI18n as ensureNewsletterAdminI18n } from "@/lib/i18n-newsletter-admin";
 import {
   getNewsletterPopupEventStats,
   type NewsletterPopupEventName,
@@ -14,22 +15,24 @@ import {
 
 const RANGES = [7, 30, 90] as const;
 
-const EVENT_META: Record<
-  NewsletterPopupEventName,
-  { icon: typeof Activity; pl: string; en: string }
-> = {
-  impression: { icon: Activity, pl: "Wyświetlenia", en: "Impressions" },
-  open: { icon: MousePointerClick, pl: "Otwarcia", en: "Opens" },
-  submit: { icon: Send, pl: "Wysłania", en: "Submits" },
-  success: { icon: CheckCircle2, pl: "Sukcesy", en: "Successes" },
-  error: { icon: AlertTriangle, pl: "Błędy", en: "Errors" },
+/**
+ * Ikona + KLUCZ etykiety. Poprzednio siedzialy tu pary `{ pl, en }`, czyli
+ * drugi slownik obok pliku i18n - niewidoczny dla bramki parytetu, wiec brak
+ * jednego tlumaczenia nie mial jak sie ujawnic.
+ */
+const EVENT_META: Record<NewsletterPopupEventName, { icon: typeof Activity; labelKey: string }> = {
+  impression: { icon: Activity, labelKey: "adminNewsletter.popupEvents.events.impression" },
+  open: { icon: MousePointerClick, labelKey: "adminNewsletter.popupEvents.events.open" },
+  submit: { icon: Send, labelKey: "adminNewsletter.popupEvents.events.submit" },
+  success: { icon: CheckCircle2, labelKey: "adminNewsletter.popupEvents.events.success" },
+  error: { icon: AlertTriangle, labelKey: "adminNewsletter.popupEvents.events.error" },
 };
 
 const ORDER: NewsletterPopupEventName[] = ["impression", "open", "submit", "success", "error"];
 
 export function PopupEventsPanel() {
-  const { i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  ensureNewsletterAdminI18n();
+  const { t } = useTranslation();
   const [days, setDays] = useState<number>(30);
   const fetchStats = useServerFn(getNewsletterPopupEventStats);
 
@@ -45,12 +48,10 @@ export function PopupEventsPanel() {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="font-semibold text-foreground">
-            {isPl ? "Popup - zdarzenia" : "Popup - events"}
+            {t("adminNewsletter.popupEvents.title")}
           </h2>
           <p className="text-sm text-muted-foreground">
-            {isPl
-              ? "Wyświetlenia, otwarcia, wysłania, sukcesy i błędy formularza popupu."
-              : "Impressions, opens, submits, successes and errors of the popup form."}
+            {t("adminNewsletter.popupEvents.subtitle")}
           </p>
         </div>
         <div className="flex items-center gap-1 rounded-[6px] border border-border p-1">
@@ -65,20 +66,17 @@ export function PopupEventsPanel() {
                   : "text-muted-foreground hover:bg-muted"
               }`}
             >
-              {r}
-              {isPl ? " dni" : "d"}
+              {t("adminNewsletter.popupEvents.rangeDays", { days: r })}
             </button>
           ))}
         </div>
       </header>
 
       {isLoading && (
-        <p className="text-sm text-muted-foreground">{isPl ? "Ładowanie..." : "Loading..."}</p>
+        <p className="text-sm text-muted-foreground">{t("adminNewsletter.popupEvents.loading")}</p>
       )}
       {isError && (
-        <p className="text-sm text-destructive">
-          {isPl ? "Nie udało się pobrać danych." : "Failed to load data."}
-        </p>
+        <p className="text-sm text-destructive">{t("adminNewsletter.popupEvents.error")}</p>
       )}
 
       {data && (
@@ -91,7 +89,7 @@ export function PopupEventsPanel() {
                 <div key={key} className="rounded-[6px] border border-border bg-background p-3">
                   <div className="flex items-center gap-2 text-muted-foreground text-xs">
                     <Icon className="w-3.5 h-3.5" aria-hidden="true" />
-                    {isPl ? meta.pl : meta.en}
+                    {t(meta.labelKey)}
                   </div>
                   <div className="mt-1 text-2xl font-semibold text-foreground tabular-nums">
                     {data.totals[key]}
@@ -103,14 +101,17 @@ export function PopupEventsPanel() {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
             <Ratio
-              label={isPl ? "Wysłania / wyświetlenia" : "Submits / impressions"}
+              label={t("adminNewsletter.popupEvents.ratioSubmit")}
               value={pct(data.submitRate)}
             />
             <Ratio
-              label={isPl ? "Skuteczność zapisu" : "Signup success rate"}
+              label={t("adminNewsletter.popupEvents.ratioSuccess")}
               value={pct(data.successRate)}
             />
-            <Ratio label={isPl ? "Udział błędów" : "Error share"} value={pct(data.errorRate)} />
+            <Ratio
+              label={t("adminNewsletter.popupEvents.ratioError")}
+              value={pct(data.errorRate)}
+            />
           </div>
 
           {data.days.length > 0 && (
@@ -118,10 +119,12 @@ export function PopupEventsPanel() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-muted-foreground">
-                    <th className="py-2 pr-3 font-medium">{isPl ? "Dzień" : "Day"}</th>
+                    <th className="py-2 pr-3 font-medium">
+                      {t("adminNewsletter.popupEvents.colDay")}
+                    </th>
                     {ORDER.map((key) => (
                       <th key={key} className="py-2 px-3 font-medium text-right">
-                        {isPl ? EVENT_META[key].pl : EVENT_META[key].en}
+                        {t(EVENT_META[key].labelKey)}
                       </th>
                     ))}
                   </tr>
@@ -143,7 +146,7 @@ export function PopupEventsPanel() {
           )}
           {data.days.length === 0 && (
             <p className="text-sm text-muted-foreground">
-              {isPl ? "Brak zdarzeń w wybranym okresie." : "No events in the selected period."}
+              {t("adminNewsletter.popupEvents.empty")}
             </p>
           )}
         </>

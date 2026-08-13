@@ -8,6 +8,8 @@
 //     a nie ile z nich zmieściło się w panelu,
 //   * wątek z działu, którego nie ma w liście działów, ma się pokazać bez
 //     koloru - a nie zniknąć.
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 import { buildClubSourceIndex, clubSourceOf, groupClubThreadsBySource } from "../threadSources";
 import type { ClubGroupRow, ClubThreadListRow } from "../types";
@@ -46,13 +48,13 @@ function thread(
   } as unknown as ClubThreadListRow;
 }
 
-const PL = { isPl: true, unassignedLabel: "Poza działami" };
+const PL = { lang: "pl" as const, unassignedLabel: "Poza działami" };
 
 describe("buildClubSourceIndex", () => {
   it("bierze nazwę z języka interfejsu i normalizuje puste akcenty", () => {
     const index = buildClubSourceIndex(
       [group("a", { accent_color: "  ", icon: "" }), group("b")],
-      false,
+      "en",
     );
     expect(index.get("a")?.name).toBe("a EN");
     expect(index.get("a")?.accent).toBeNull();
@@ -61,16 +63,32 @@ describe("buildClubSourceIndex", () => {
   });
 
   it("spada na nazwę PL, gdy dział nie ma tłumaczenia EN", () => {
-    const index = buildClubSourceIndex([group("a", { name_en: "" })], false);
+    const index = buildClubSourceIndex([group("a", { name_en: "" })], "en");
     expect(index.get("a")?.name).toBe("a PL");
+  });
+
+  it("spada na nazwę EN, gdy dział nie ma nazwy PL", () => {
+    // DEFEKT, NIE SYMETRIA NA WYROST. Fallback był napisany ręcznie i tylko
+    // w jedną stronę: czytelnik angielski dostawał polską nazwę, polski
+    // angielskiej NIE. Dział opisany wyłącznie po angielsku renderował więc
+    // Polakowi `name: ""` - kolorową kropkę bez etykiety.
+    const index = buildClubSourceIndex([group("a", { name_pl: "" })], "pl");
+    expect(index.get("a")?.name).toBe("a EN");
+  });
+
+  it("traktuje nazwę z samych spacji jako brak, w obie strony", () => {
+    expect(buildClubSourceIndex([group("a", { name_pl: "   " })], "pl").get("a")?.name).toBe(
+      "a EN",
+    );
+    expect(buildClubSourceIndex([group("a", { name_en: "\t" })], "en").get("a")?.name).toBe("a PL");
   });
 });
 
 describe("clubSourceOf", () => {
-  const index = buildClubSourceIndex([group("a")], true);
+  const index = buildClubSourceIndex([group("a")], "pl");
 
   it("woli nazwę z listy działów niż nazwę przywiezioną przez wiersz", () => {
-    const mark = clubSourceOf(thread("t1", "a", "2026-08-01T10:00:00+00:00"), index, true);
+    const mark = clubSourceOf(thread("t1", "a", "2026-08-01T10:00:00+00:00"), index, "pl");
     expect(mark?.name).toBe("a PL");
     expect(mark?.accent).toBe("#ff0000");
   });
@@ -78,14 +96,14 @@ describe("clubSourceOf", () => {
   it("pokazuje dział spoza listy po nazwie z wiersza, bez akcentu", () => {
     // Dział prywatny albo taki, którego wołający nie może czytać: nazwa
     // przyjechała z wątkiem, koloru nie ma i nie wolno go zmyślać.
-    const mark = clubSourceOf(thread("t1", "obcy", "2026-08-01T10:00:00+00:00"), index, true);
+    const mark = clubSourceOf(thread("t1", "obcy", "2026-08-01T10:00:00+00:00"), index, "pl");
     expect(mark?.name).toBe("obcy z wiersza");
     expect(mark?.id).toBe("obcy");
     expect(mark?.accent).toBeNull();
   });
 
   it("zwraca null, gdy wiersz nie niesie ani działu, ani jego nazwy", () => {
-    expect(clubSourceOf(thread("t1", null, "2026-08-01T10:00:00+00:00"), index, true)).toBeNull();
+    expect(clubSourceOf(thread("t1", null, "2026-08-01T10:00:00+00:00"), index, "pl")).toBeNull();
   });
 });
 
@@ -186,5 +204,18 @@ describe("groupClubThreadsBySource", () => {
 
   it("na pustym wejściu zwraca pustą listę, a nie kubełek-widmo", () => {
     expect(groupClubThreadsBySource({ threads: [], groups: [group("a")], ...PL })).toEqual([]);
+  });
+});
+
+describe("plik modułu", () => {
+  it("nie zawiera surowego bajtu NUL - sentinel idzie sekwencją ucieczki", () => {
+    // Bajt 0x00 wpisany wprost w literał sprawiał, że `grep`, `ripgrep`
+    // i `git diff` uznawały CAŁY moduł za plik binarny: nie pokazywały z niego
+    // ani jednej linii i nie liczyły go w żadnym audycie po treści. Moduł
+    // z `isPl` i asymetrycznym fallbackiem był więc niewidoczny dla dokładnie
+    // tych narzędzi, którymi ten dług się mierzy.
+    const raw = readFileSync("src/lib/clubs/threadSources.ts", "utf8");
+    expect(raw).not.toContain("\u0000");
+    expect(raw).toContain('const UNASSIGNED = "\\0unassigned";');
   });
 });

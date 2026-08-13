@@ -17,6 +17,7 @@ import {
 } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { formatNumber } from "@/lib/i18n/format";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { supabase } from "@/integrations/supabase/client";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
@@ -601,10 +602,7 @@ function RuntimeWidget({
       return null; // rendered po sukcesie
     case "social-proof": {
       const count = liveCount ?? w.fallbackCount ?? 0;
-      const text = pickI(w.text, lang).replace(
-        "{count}",
-        count.toLocaleString(lang === "pl" ? "pl-PL" : "en-GB"),
-      );
+      const text = pickI(w.text, lang).replace("{count}", formatNumber(count, lang));
       return (
         <div
           className="text-xs font-medium text-muted-foreground"

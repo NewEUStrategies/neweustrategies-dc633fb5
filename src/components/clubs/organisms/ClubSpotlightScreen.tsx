@@ -43,11 +43,12 @@ import {
 } from "@/lib/clubs/useClubNetwork";
 import { mondayOf, spotlightBlurb } from "@/lib/clubs/networkTypes";
 import { topicLabel } from "@/lib/clubs/topicCatalog";
-import { formatDate } from "@/lib/i18n/format";
+import { formatDate, uiLang } from "@/lib/i18n/format";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 
 /** Formularz przypięcia - widoczny wyłącznie dla prowadzenia klubu. */
-function PinForm({ clubId, isPl }: { clubId: string; isPl: boolean }) {
-  const { t } = useTranslation();
+function PinForm({ clubId }: { clubId: string }) {
+  const { t, i18n } = useTranslation();
   const membersQ = useClubMembers({ clubId, status: "active", limit: 100 });
   const pin = usePinClubSpotlight(clubId);
 
@@ -172,15 +173,13 @@ function PinForm({ clubId, isPl }: { clubId: string; isPl: boolean }) {
 export function ClubSpotlightScreen({
   clubId,
   canModerate,
-  isPl,
 }: {
   clubId: string;
   canModerate: boolean;
-  isPl: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { topics } = useClubTopics();
-  const lang = isPl ? "pl" : "en";
+  const lang = uiLang(i18n.language);
 
   const currentQ = useClubSpotlight(clubId);
   const historyQ = useClubSpotlightHistory({ clubId });
@@ -245,7 +244,7 @@ export function ClubSpotlightScreen({
               ) : null}
 
               <p className="mt-3 max-w-2xl text-sm leading-relaxed">
-                {spotlightBlurb(current, isPl)}
+                {spotlightBlurb(current, lang)}
               </p>
 
               {current.topics.length > 0 ? (
@@ -275,7 +274,7 @@ export function ClubSpotlightScreen({
         </section>
       )}
 
-      {canModerate ? <PinForm clubId={clubId} isPl={isPl} /> : null}
+      {canModerate ? <PinForm clubId={clubId} /> : null}
 
       <section>
         <h2 className="text-sm font-semibold">{t("club.network.spotlight.archive")}</h2>
@@ -323,9 +322,9 @@ export function ClubSpotlightScreen({
                   {row.headline !== null ? (
                     <p className="truncate text-xs text-muted-foreground">{row.headline}</p>
                   ) : null}
-                  {(isPl ? row.blurb_pl : row.blurb_en) !== null ? (
+                  {pickLocalized(row, "blurb", lang) !== "" ? (
                     <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                      {isPl ? row.blurb_pl : row.blurb_en}
+                      {pickLocalized(row, "blurb", lang)}
                     </p>
                   ) : null}
                 </div>

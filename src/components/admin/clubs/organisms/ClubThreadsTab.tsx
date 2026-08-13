@@ -8,6 +8,7 @@
 // dokładnie wtedy, gdy jest potrzebna. Karta trzyma akcje przy treści.
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { pickLocalized, type LocaleCode } from "@/lib/i18n/pickLocalized";
 import { toast } from "sonner";
 import {
   ChevronDown,
@@ -75,12 +76,13 @@ import {
   type AdminClubThreadRow,
   type ClubThreadKind,
 } from "@/lib/clubs/types";
-import { formatDateTime } from "@/lib/i18n/format";
+import { formatDateTime, uiLang } from "@/lib/i18n/format";
 
 const ANY = "__any__";
 
-export function ClubThreadsTab({ clubId, isPl }: { clubId: string; isPl: boolean }) {
-  const { t } = useTranslation();
+export function ClubThreadsTab({ clubId }: { clubId: string }) {
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const [search, setSearch] = useState("");
   const [groupId, setGroupId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -177,7 +179,7 @@ export function ClubThreadsTab({ clubId, isPl }: { clubId: string; isPl: boolean
             <SelectItem value={ANY}>{t("club.allGroups")}</SelectItem>
             {groups.map((g) => (
               <SelectItem key={g.id} value={g.id}>
-                {isPl ? g.name_pl : g.name_en}
+                {pickLocalized(g, "name", lang)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -335,7 +337,7 @@ export function ClubThreadsTab({ clubId, isPl }: { clubId: string; isPl: boolean
                       <ThreadAuthorLine row={row} />
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {isPl ? row.group_name_pl : row.group_name_en}
+                      {pickLocalized(row, "group_name", lang)}
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="text-[11px]">
@@ -388,7 +390,7 @@ export function ClubThreadsTab({ clubId, isPl }: { clubId: string; isPl: boolean
                         {t(`club.threadStatus.${row.status}`)}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
-                        {isPl ? row.group_name_pl : row.group_name_en}
+                        {pickLocalized(row, "group_name", lang)}
                       </span>
                       <span className="text-xs tabular-nums text-muted-foreground">
                         {row.reply_count} / {row.participant_count}
@@ -405,16 +407,10 @@ export function ClubThreadsTab({ clubId, isPl }: { clubId: string; isPl: boolean
         </>
       )}
 
-      <ThreadComposerDialog
-        clubId={clubId}
-        isPl={isPl}
-        open={composerOpen}
-        onOpenChange={setComposerOpen}
-      />
+      <ThreadComposerDialog clubId={clubId} open={composerOpen} onOpenChange={setComposerOpen} />
 
       <ThreadDetailDialog
         clubId={clubId}
-        isPl={isPl}
         thread={openThread}
         onOpenChange={(open) => !open && setOpenThread(null)}
         onMove={(groupId2) => {
@@ -525,16 +521,15 @@ function ThreadActions({
 // ---------------------------------------------------------------------------
 function ThreadComposerDialog({
   clubId,
-  isPl,
   open,
   onOpenChange,
 }: {
   clubId: string;
-  isPl: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const groupsQ = useAdminClubGroups(clubId);
   const createM = useAdminCreateThread(clubId);
 
@@ -594,7 +589,7 @@ function ThreadComposerDialog({
                 <SelectContent>
                   {groups.map((g) => (
                     <SelectItem key={g.id} value={g.id}>
-                      {isPl ? g.name_pl : g.name_en}
+                      {pickLocalized(g, "name", lang)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -685,18 +680,17 @@ function ThreadComposerDialog({
 // ---------------------------------------------------------------------------
 function ThreadDetailDialog({
   clubId,
-  isPl,
   thread,
   onOpenChange,
   onMove,
 }: {
   clubId: string;
-  isPl: boolean;
   thread: AdminClubThreadRow | null;
   onOpenChange: (open: boolean) => void;
   onMove: (groupId: string) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const repliesQ = useAdminClubReplies(thread?.id);
   const groupsQ = useAdminClubGroups(clubId);
   const moderateM = useModerateClubTarget(clubId);
@@ -733,7 +727,7 @@ function ThreadDetailDialog({
           <DialogTitle className="pr-6 text-left">{thread?.title}</DialogTitle>
           <DialogDescription className="text-left">
             {thread !== null
-              ? `${isPl ? thread.group_name_pl : thread.group_name_en} · ${t(`club.kind.${thread.kind}`)}`
+              ? `${pickLocalized(thread, "group_name", lang)} · ${t(`club.kind.${thread.kind}`)}`
               : ""}
           </DialogDescription>
         </DialogHeader>
@@ -766,7 +760,7 @@ function ThreadDetailDialog({
                   <SelectContent>
                     {groups.map((g) => (
                       <SelectItem key={g.id} value={g.id}>
-                        {isPl ? g.name_pl : g.name_en}
+                        {pickLocalized(g, "name", lang)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -809,7 +803,7 @@ function ThreadDetailDialog({
                       <span className="font-medium text-foreground">
                         {r.is_anonymous ? t("adminClubs.threads.protectedIdentity") : r.author_name}
                       </span>
-                      <span>{formatDateTime(r.created_at, isPl ? "pl" : "en")}</span>
+                      <span>{formatDateTime(r.created_at, i18n.language)}</span>
                       {note !== null ? <span className="italic">{note}</span> : null}
                       {removed ? (
                         <Badge variant="outline" className="text-[11px] text-destructive">

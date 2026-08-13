@@ -40,7 +40,7 @@ import { fetchClubBySlug } from "@/lib/clubs/api";
 import { clubKeys } from "@/lib/clubs/queryKeys";
 import { newIdempotencyKey } from "@/lib/http/idempotency";
 import { useThreadDraft } from "@/lib/clubs/useThreadDraft";
-import { formatDateTime } from "@/lib/i18n/format";
+import { formatDateTime, uiLang } from "@/lib/i18n/format";
 import {
   CLUB_ATTRIBUTION_MODES,
   CLUB_THREAD_KINDS,
@@ -49,6 +49,7 @@ import {
   type ClubThreadKind,
 } from "@/lib/clubs/types";
 import { ensureClubI18n } from "@/lib/i18n-club";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 
 export const Route = createFileRoute("/club/$clubSlug/new")({
   // Rodzaj wątku przychodzi z kompozytora na hubie ("Zadaj pytanie",
@@ -101,7 +102,7 @@ const BODY_MAX = 20000;
 function ClubNewThread() {
   ensureClubI18n();
   const { t, i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  const lang = uiLang(i18n.language);
   const { clubSlug } = Route.useParams();
   const search = Route.useSearch();
   const navigate = useNavigate();
@@ -311,7 +312,7 @@ function ClubNewThread() {
       <Button asChild variant="ghost" size="sm" className="-ml-2 mb-3 h-8 px-2">
         <Link to="/club/$clubSlug" params={{ clubSlug }}>
           <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
-          {isPl ? club.name_pl : club.name_en}
+          {pickLocalized(club, "name", lang)}
         </Link>
       </Button>
 
@@ -329,7 +330,7 @@ function ClubNewThread() {
                 <SelectContent>
                   {postable.map((g) => (
                     <SelectItem key={g.id} value={g.id}>
-                      {isPl ? g.name_pl : g.name_en}
+                      {pickLocalized(g, "name", lang)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -423,7 +424,7 @@ function ClubNewThread() {
               label={t("club.threadBody")}
               value={body}
               onChange={setBody}
-              lang={isPl ? "pl" : "en"}
+              lang={lang}
               rows={12}
               maxLength={BODY_MAX}
             />
@@ -432,12 +433,7 @@ function ClubNewThread() {
             </p>
           </div>
 
-          <ClubAnchorPicker
-            value={anchor}
-            onChange={setAnchor}
-            isPl={isPl}
-            disabled={createM.isPending}
-          />
+          <ClubAnchorPicker value={anchor} onChange={setAnchor} disabled={createM.isPending} />
 
           {/* Reguła autorstwa MUSI być widoczna przed publikacją, a nie dopiero
               na wątku: w dziale prowadzonym w regule Chatham House wypowiedź

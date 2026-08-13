@@ -30,24 +30,22 @@ import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import { useClubExperts, useClubExpertiseAreas } from "@/lib/clubs/useClubNetwork";
 import { expertContribution } from "@/lib/clubs/networkTypes";
 import { topicLabel } from "@/lib/clubs/topicCatalog";
-import { formatDateShort, formatNumber } from "@/lib/i18n/format";
+import { formatDateShort, formatNumber, uiLang } from "@/lib/i18n/format";
 
 const PAGE_SIZE = 24;
 
 export function ClubExpertsScreen({
   clubId,
   canDeclare,
-  isPl,
   locale,
 }: {
   clubId: string;
   canDeclare: boolean;
-  isPl: boolean;
   locale: string;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { topics } = useClubTopics();
-  const lang = isPl ? "pl" : "en";
+  const lang = uiLang(i18n.language);
 
   const [topic, setTopic] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -75,7 +73,7 @@ export function ClubExpertsScreen({
 
   return (
     <div className="space-y-4">
-      {canDeclare ? <ClubExpertiseEditor clubId={clubId} isPl={isPl} variant="page" /> : null}
+      {canDeclare ? <ClubExpertiseEditor clubId={clubId} variant="page" /> : null}
 
       {/* Obszary z licznikami. Chip bez ani jednej osoby nie istnieje -
           filtr obiecujący pustkę jest gorszy niż brak filtra. */}
@@ -157,7 +155,6 @@ export function ClubExpertsScreen({
                     role={row.club_role}
                     topics={row.topics}
                     topicCatalog={topics}
-                    isPl={isPl}
                     active={
                       row.last_active_at !== null &&
                       Date.now() - Date.parse(row.last_active_at) < 86_400_000

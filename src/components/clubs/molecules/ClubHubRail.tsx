@@ -25,6 +25,8 @@
 // Na telefonie ta sama lista wraca jako poziomy pasek - tam kolumna nie
 // istnieje, a spis treści musi zmieścić się w jednym rzędzie.
 import { Link } from "@tanstack/react-router";
+import { uiLang } from "@/lib/i18n/format";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { useTranslation } from "react-i18next";
 import {
   BarChart3,
@@ -205,7 +207,7 @@ function SectionTiles({
   canSeeMembers: boolean;
   counts?: SectionCounts;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const visible = visibleSections(canSeeMembers);
 
   return (
@@ -250,7 +252,7 @@ export function ClubHubSectionBar({
   canSeeMembers: boolean;
   className?: string;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   // Bez nagłówków grup: w poziomym scrollerze etykieta zjadałaby szerokość,
   // której i tak brakuje. Kolejność zostaje pogrupowana, więc sąsiedztwo
   // niesie tę samą informację, co nagłówek w kolumnie.
@@ -297,7 +299,6 @@ export function ClubHubRail({
   onGroupChange,
   counts,
   hasRules,
-  isPl,
 }: {
   clubSlug: string;
   canSeeMembers: boolean;
@@ -307,9 +308,9 @@ export function ClubHubRail({
   onGroupChange: (groupId: string | null) => void;
   counts?: SectionCounts;
   hasRules: boolean;
-  isPl: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const { topics } = useClubTopics();
 
   return (
@@ -326,14 +327,13 @@ export function ClubHubRail({
             groups={groups}
             activeGroupId={activeGroupId}
             onGroupChange={onGroupChange}
-            isPl={isPl}
           />
         </ClubRailPanel>
       ) : null}
 
       {policyArea !== null && policyArea.trim() !== "" ? (
         <ClubRailPanel title={t("club.topic.label")}>
-          <ClubTopicChip topic={policyArea} lang={isPl ? "pl" : "en"} catalog={topics} />
+          <ClubTopicChip topic={policyArea} lang={lang} catalog={topics} />
         </ClubRailPanel>
       ) : null}
 
@@ -363,10 +363,14 @@ export function ClubHubRail({
  * działów - dział zawęża STRUMIEŃ, a na bibliotece czy kalendarzu nie miałby
  * czego odsiać.
  */
-export function ClubWorkspaceRail({ club, isPl }: { club: ClubViewRow; isPl: boolean }) {
-  const { t } = useTranslation();
+export function ClubWorkspaceRail({ club }: { club: ClubViewRow }) {
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const { topics } = useClubTopics();
-  const hasRules = (isPl ? club.rules_pl : club.rules_en) !== null;
+  // `pickLocalized` zwraca "" (nie null), a puste albo bialoznakowe zasady
+  // to brak zasad - dawne `!== null` pokazywalo zakladke "Zasady" dla klubu,
+  // ktory mial w kolumnie pusty ciag.
+  const hasRules = pickLocalized(club, "rules", lang) !== "";
 
   return (
     <div className="space-y-3">
@@ -383,7 +387,7 @@ export function ClubWorkspaceRail({ club, isPl }: { club: ClubViewRow; isPl: boo
 
       {club.policy_area !== null && club.policy_area.trim() !== "" ? (
         <ClubRailPanel title={t("club.topic.label")}>
-          <ClubTopicChip topic={club.policy_area} lang={isPl ? "pl" : "en"} catalog={topics} />
+          <ClubTopicChip topic={club.policy_area} lang={lang} catalog={topics} />
         </ClubRailPanel>
       ) : null}
 

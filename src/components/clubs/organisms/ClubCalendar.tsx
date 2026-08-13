@@ -67,7 +67,8 @@ import {
 } from "@/components/clubs/atoms/ClubWorkspaceBadges";
 import { ClubCalendarSkeleton } from "@/components/clubs/atoms/ClubWorkspaceSkeletons";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
-import { formatDate, formatDateTime, uiLocale } from "@/lib/i18n/format";
+import { formatDate, formatDateTime, uiLang, uiLocale } from "@/lib/i18n/format";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 
 const DAY_MS = 86_400_000;
 
@@ -113,7 +114,6 @@ function buildMonth(anchor: Date): MonthModel {
 function EventCard({
   row,
   clubSlug,
-  isPl,
   now,
   onRsvp,
   rsvpPending,
@@ -122,7 +122,6 @@ function EventCard({
 }: {
   row: ClubEventRow;
   clubSlug: string;
-  isPl: boolean;
   now: number;
   onRsvp: (eventId: string, state: ClubRsvpState) => void;
   rsvpPending: boolean;
@@ -130,15 +129,15 @@ function EventCard({
   onEdit?: (row: ClubEventRow) => void;
   onDelete?: (row: ClubEventRow) => void;
 }) {
-  const { t } = useTranslation();
-  const lang = isPl ? "pl" : "en";
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const kind = toEventKind(row.kind);
   const status = toEventStatus(row.status);
   const mine = toRsvpState(row.my_rsvp);
   const live = isEventLive(row, now);
   const full = isEventFull(row);
-  const title = isPl ? row.title_pl : row.title_en;
-  const description = isPl ? row.description_pl : row.description_en;
+  const title = pickLocalized(row, "title", lang);
+  const description = pickLocalized(row, "description", lang);
 
   return (
     <article
@@ -293,8 +292,7 @@ export function ClubCalendar({
   canManage?: boolean;
 }) {
   const { t, i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
-  const lang = isPl ? "pl" : "en";
+  const lang = uiLang(i18n.language);
   const locale = uiLocale(i18n.language);
 
   const [anchor, setAnchor] = useState(() => new Date());
@@ -456,7 +454,7 @@ export function ClubCalendar({
                       <ClubEventDot
                         key={row.id}
                         kind={toEventKind(row.kind)}
-                        label={isPl ? row.title_pl : row.title_en}
+                        label={pickLocalized(row, "title", lang)}
                       />
                     ))}
                     {dayEvents.length > 3 ? (
@@ -517,7 +515,6 @@ export function ClubCalendar({
               key={row.id}
               row={row}
               clubSlug={clubSlug}
-              isPl={isPl}
               now={now}
               rsvpPending={rsvp.isPending}
               onRsvp={(eventId, state) => rsvp.mutate({ eventId, state })}
@@ -566,7 +563,7 @@ export function ClubCalendar({
               <AlertDialogTitle>{t("club.eventForm.deleteTitle")}</AlertDialogTitle>
               <AlertDialogDescription>
                 {t("club.eventForm.deleteLead", {
-                  title: isPl ? pendingDelete.title_pl : pendingDelete.title_en,
+                  title: pickLocalized(pendingDelete, "title", lang),
                 })}
               </AlertDialogDescription>
             </AlertDialogHeader>

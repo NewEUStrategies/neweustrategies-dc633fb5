@@ -20,6 +20,7 @@ import {
   topicLabel,
 } from "@/lib/clubs/topicCatalog";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
+import { uiLang } from "@/lib/i18n/format";
 
 export function ClubTopicSelect({
   id,
@@ -37,7 +38,7 @@ export function ClubTopicSelect({
   disabled?: boolean;
 }) {
   const { t, i18n } = useTranslation();
-  const lang = (i18n.language ?? "pl").startsWith("pl") ? "pl" : "en";
+  const lang = uiLang(i18n.language);
   const { topics } = useClubTopics();
   const current = normalizeTopicValue(value);
   const options = optionsWithCurrent(topics, current, lang);

@@ -55,6 +55,7 @@ import { topicLabel } from "@/lib/clubs/topicCatalog";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import { buildClubHead } from "@/lib/clubs/clubHead";
 import { ensureClubI18n } from "@/lib/i18n-club";
+import { uiLang } from "@/lib/i18n/format";
 
 /** Rozmiar porcji katalogu klubów na hubie. */
 const CATALOG_PAGE = 100;
@@ -67,7 +68,7 @@ export const Route = createFileRoute("/club/")({
 function ClubHub() {
   ensureClubI18n();
   const { t, i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  const lang = uiLang(i18n.language);
   const { session, isStaff } = useAuth();
   const signedIn = Boolean(session);
 
@@ -106,14 +107,11 @@ function ClubHub() {
     () =>
       searching
         ? rankClubs(clubs, debouncedQuery, {
-            isPl,
             topicLabel: (club) =>
-              club.policy_area === null
-                ? null
-                : topicLabel(club.policy_area, isPl ? "pl" : "en", topicCatalog),
+              club.policy_area === null ? null : topicLabel(club.policy_area, lang, topicCatalog),
           })
         : [],
-    [searching, clubs, debouncedQuery, isPl, topicCatalog],
+    [searching, clubs, debouncedQuery, lang, topicCatalog],
   );
 
   const access = resolveClubHubAccess({
@@ -180,7 +178,6 @@ function ClubHub() {
       {signedIn && invitations.length > 0 ? (
         <ClubInvitationInbox
           invitations={invitations}
-          isPl={isPl}
           pendingId={respondM.isPending ? (respondM.variables?.invitationId ?? null) : null}
           onRespond={respond}
         />
@@ -193,7 +190,6 @@ function ClubHub() {
               title={t("club.hub.clubMatches")}
               empty={t("club.emptyDiscover")}
               clubs={clubHits}
-              isPl={isPl}
               loading={false}
               layout={hubLayout}
             />
@@ -203,7 +199,6 @@ function ClubHub() {
             pending={searchQ.isPending}
             failed={searchQ.isError}
             query={debouncedQuery}
-            isPl={isPl}
             onRetry={() => void searchQ.refetch()}
           />
         </>
@@ -215,18 +210,13 @@ function ClubHub() {
                   po prawej. Jeden wiersz zamiast dwóch osobnych bloków. */}
               <div className="mb-4 flex items-center gap-3">
                 <div className="min-w-0 flex-1">
-                  <ClubTopicNav clubs={clubs} value={topic} onChange={setTopic} isPl={isPl} />
+                  <ClubTopicNav clubs={clubs} value={topic} onChange={setTopic} />
                 </div>
                 <ClubHubLayoutSwitch value={hubLayout} onChange={setHubLayout} />
               </div>
 
               {mine.length > 0 ? (
-                <MyClubsTabs
-                  clubs={mine}
-                  isPl={isPl}
-                  loading={clubsQ.isPending}
-                  layout={hubLayout}
-                />
+                <MyClubsTabs clubs={mine} loading={clubsQ.isPending} layout={hubLayout} />
               ) : null}
 
               {/* Katalog nie stoi juz plasko na hubie: zalogowany wybiera
@@ -239,7 +229,6 @@ function ClubHub() {
                     title={t("club.discover")}
                     empty={t("club.hub.emptyTopic")}
                     clubs={discover}
-                    isPl={isPl}
                     loading={clubsQ.isPending}
                     layout={hubLayout}
                   />

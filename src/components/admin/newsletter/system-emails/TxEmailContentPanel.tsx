@@ -9,12 +9,13 @@ import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { Loader2, Mail, RotateCcw, Save } from "lucide-react";
 
-import { NewsletterSubNav } from "@/components/admin/newsletter/NewsletterSubNav";
+import { ensureI18n as ensureNewsletterAdminI18n } from "@/lib/i18n-newsletter-admin";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { uiLang } from "@/lib/i18n/format";
 import { getTxEmailPreviews } from "@/lib/tx-email-preview.functions";
 import {
   EDITABLE_TX_TYPES,
@@ -29,47 +30,45 @@ import {
 
 type Lang = "pl" | "en";
 
-const TYPE_LABELS: Record<EditableTxType, { pl: string; en: string }> = {
-  team_seat_grace: {
-    pl: "Karencja - start (miejsce zespołowe)",
-    en: "Grace period started (team seat)",
-  },
-  team_seat_grace_reminder: {
-    pl: "Karencja - przypomnienie (7/1 dzień)",
-    en: "Grace period reminder (7/1 day)",
-  },
-  team_seat_access_ended: {
-    pl: "Dostęp zespołowy zakończony",
-    en: "Team access ended",
-  },
+/**
+ * Nazwy zakladek edytora. Klucze, nie napisy - inaczej powstaje drugi slownik
+ * poza zasiegiem bramki parytetu. Wypisane literalnie (a nie skladane z
+ * `EditableTxType`), zeby bramka pokrycia kluczy widziala kazdy z nich.
+ */
+const TYPE_LABEL_KEYS: Record<EditableTxType, string> = {
+  team_seat_grace: "adminNewsletter.emailContent.types.team_seat_grace",
+  team_seat_grace_reminder: "adminNewsletter.emailContent.types.team_seat_grace_reminder",
+  team_seat_access_ended: "adminNewsletter.emailContent.types.team_seat_access_ended",
 };
 
 const FIELDS: Array<{
   key: keyof TxCopyOverride;
-  pl: string;
-  en: string;
+  labelKey: string;
   multiline?: boolean;
 }> = [
-  { key: "subject", pl: "Temat wiadomości", en: "Subject line" },
-  { key: "preview", pl: "Preheader (podgląd w skrzynce)", en: "Preheader" },
-  { key: "eyebrow", pl: "Etykieta nad nagłówkiem", en: "Eyebrow label" },
-  { key: "heading", pl: "Nagłówek", en: "Heading" },
-  { key: "intro", pl: "Akapit wstępny", en: "Intro paragraph", multiline: true },
-  { key: "extra", pl: "Akapit dodatkowy", en: "Additional paragraph", multiline: true },
-  { key: "cta", pl: "Etykieta przycisku", en: "Button label" },
-  { key: "note", pl: 'Ramka "co dalej"', en: '"What next" box', multiline: true },
+  { key: "subject", labelKey: "adminNewsletter.emailContent.fields.subject" },
+  { key: "preview", labelKey: "adminNewsletter.emailContent.fields.preview" },
+  { key: "eyebrow", labelKey: "adminNewsletter.emailContent.fields.eyebrow" },
+  { key: "heading", labelKey: "adminNewsletter.emailContent.fields.heading" },
+  { key: "intro", labelKey: "adminNewsletter.emailContent.fields.intro", multiline: true },
+  { key: "extra", labelKey: "adminNewsletter.emailContent.fields.extra", multiline: true },
+  { key: "cta", labelKey: "adminNewsletter.emailContent.fields.cta" },
+  { key: "note", labelKey: "adminNewsletter.emailContent.fields.note", multiline: true },
 ];
 
 export function TxEmailContentPanel() {
-  const { i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  ensureNewsletterAdminI18n();
+  const { t, i18n } = useTranslation();
 
   const saved = useTxOverrides();
   const save = useSaveTxOverrides();
 
   const [draft, setDraft] = useState<TxOverrides>(saved);
   const [type, setType] = useState<EditableTxType>("team_seat_grace");
-  const [lang, setLang] = useState<Lang>(isPl ? "pl" : "en");
+  // Jezyk EDYTOWANEJ tresci startuje od jezyka panelu, ale dalej jest niezalezny -
+  // stad `uiLang` (jedno miejsce, w ktorym `i18n.language` staje sie kodem), a nie
+  // kolejna kopia warunku.
+  const [lang, setLang] = useState<Lang>(uiLang(i18n.language));
 
   // Kolejny odczyt z bazy (np. po zapisie z innego urządzenia) nadpisuje
   // szkic tylko wtedy, gdy nic nie jest w trakcie zapisu.
@@ -109,8 +108,6 @@ export function TxEmailContentPanel() {
 
   return (
     <div className="space-y-4">
-      <NewsletterSubNav />
-
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2 mr-auto">
           <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center">
@@ -118,14 +115,10 @@ export function TxEmailContentPanel() {
           </div>
           <div>
             <h2 className="font-display text-base leading-tight">
-              {isPl
-                ? "Treści maili - karencja i koniec dostępu"
-                : "Email content - grace & access end"}
+              {t("adminNewsletter.emailContent.title")}
             </h2>
             <p className="text-xs text-muted-foreground">
-              {isPl
-                ? "Puste pole = treść domyślna z szablonu. Zmiany działają natychmiast dla nowych wysyłek."
-                : "An empty field keeps the default template copy. Changes apply to new sends immediately."}
+              {t("adminNewsletter.emailContent.subtitle")}
             </p>
           </div>
         </div>
@@ -141,7 +134,7 @@ export function TxEmailContentPanel() {
 
         <Button variant="outline" size="sm" onClick={resetLang} disabled={save.isPending}>
           <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
-          {isPl ? "Przywróć domyślne" : "Reset to default"}
+          {t("adminNewsletter.emailContent.resetDefaults")}
         </Button>
         <Button size="sm" onClick={() => save.mutate(draft)} disabled={!dirty || save.isPending}>
           {save.isPending ? (
@@ -149,32 +142,32 @@ export function TxEmailContentPanel() {
           ) : (
             <Save className="w-3.5 h-3.5 mr-1.5" />
           )}
-          {isPl ? "Zapisz" : "Save"}
+          {t("adminNewsletter.emailContent.save")}
         </Button>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[240px_minmax(0,1fr)_minmax(0,1fr)] gap-4">
         <Card className="p-2 h-fit">
           <nav className="flex flex-col gap-1">
-            {EDITABLE_TX_TYPES.map((t) => (
+            {EDITABLE_TX_TYPES.map((txType) => (
               <button
-                key={t}
+                key={txType}
                 type="button"
-                onClick={() => setType(t)}
+                onClick={() => setType(txType)}
                 className={
                   "text-left px-3 py-2 rounded-md text-[0.8125rem] transition-colors " +
-                  (t === type
+                  (txType === type
                     ? "bg-primary/10 text-foreground font-medium"
                     : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")
                 }
               >
-                {isPl ? TYPE_LABELS[t].pl : TYPE_LABELS[t].en}
+                {t(TYPE_LABEL_KEYS[txType])}
               </button>
             ))}
           </nav>
           <p className="mt-3 px-2 pb-1 text-[0.6875rem] leading-relaxed text-muted-foreground">
-            {isPl ? "Dostępne znaczniki:" : "Available tokens:"}{" "}
-            {TX_OVERRIDE_TOKENS.map((t) => `{${t}}`).join(", ")}
+            {t("adminNewsletter.emailContent.tokensLabel")}{" "}
+            {TX_OVERRIDE_TOKENS.map((token) => `{${token}}`).join(", ")}
           </p>
         </Card>
 
@@ -183,21 +176,21 @@ export function TxEmailContentPanel() {
             f.multiline ? (
               <div key={f.key} className="space-y-1.5">
                 <Label htmlFor={`tx-${f.key}`} className="text-[0.75rem] text-muted-foreground">
-                  {isPl ? f.pl : f.en}
+                  {t(f.labelKey)}
                 </Label>
                 <Textarea
                   id={`tx-${f.key}`}
                   rows={3}
                   value={current[f.key]}
                   onChange={(e) => setField(f.key, e.target.value)}
-                  placeholder={isPl ? "Domyślna treść szablonu" : "Default template copy"}
+                  placeholder={t("adminNewsletter.emailContent.fieldPlaceholder")}
                 />
               </div>
             ) : (
               <FloatingInput
                 key={f.key}
                 id={`tx-${f.key}`}
-                label={isPl ? f.pl : f.en}
+                label={t(f.labelKey)}
                 value={current[f.key]}
                 onChange={(e) => setField(f.key, e.target.value)}
               />
@@ -209,7 +202,7 @@ export function TxEmailContentPanel() {
           <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-muted/40">
             <div className="min-w-0">
               <p className="text-[0.6875rem] uppercase tracking-wide text-muted-foreground">
-                {isPl ? "Podgląd zapisanej wersji" : "Saved version preview"}
+                {t("adminNewsletter.emailContent.savedPreview")}
               </p>
               <p className="text-[0.8125rem] font-medium truncate">
                 {activePreview?.subject ?? "-"}
@@ -245,6 +238,7 @@ function Segmented({ value, onChange, options }: SegmentedProps) {
           key={o.value}
           type="button"
           onClick={() => onChange(o.value)}
+          aria-pressed={o.value === value}
           className={
             "px-3 py-1.5 rounded-md text-xs font-medium transition-colors " +
             (o.value === value

@@ -17,6 +17,7 @@
 // się jak awaria, a nie jak skrót. Logika stoi w `firstSentences` i ma własny
 // test - to jest reguła produktowa, nie formatowanie.
 import { useTranslation } from "react-i18next";
+import { uiLang } from "@/lib/i18n/format";
 import { Link } from "@tanstack/react-router";
 import { UserRoundSearch } from "lucide-react";
 import { ClubRailPanel } from "@/components/clubs/atoms/ClubHubPrimitives";
@@ -29,16 +30,9 @@ import { spotlightBlurb } from "@/lib/clubs/networkTypes";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import { topicLabel } from "@/lib/clubs/topicCatalog";
 
-export function ClubSpotlightPanel({
-  clubSlug,
-  clubId,
-  isPl,
-}: {
-  clubSlug: string;
-  clubId: string;
-  isPl: boolean;
-}) {
-  const { t } = useTranslation();
+export function ClubSpotlightPanel({ clubSlug, clubId }: { clubSlug: string; clubId: string }) {
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const { topics } = useClubTopics();
   const query = useClubSpotlight(clubId);
   const row = query.data ?? null;
@@ -49,7 +43,7 @@ export function ClubSpotlightPanel({
   // brak.
   if (row === null) return null;
 
-  const blurb = spotlightBlurb(row, isPl);
+  const blurb = spotlightBlurb(row, lang);
   const name = row.display_name;
 
   return (
@@ -95,7 +89,7 @@ export function ClubSpotlightPanel({
       {row.topics.length > 0 ? (
         <div className="mt-2 flex flex-wrap gap-1">
           {row.topics.slice(0, 3).map((topic) => (
-            <ClubExpertiseChip key={topic} label={topicLabel(topic, isPl ? "pl" : "en", topics)} />
+            <ClubExpertiseChip key={topic} label={topicLabel(topic, lang, topics)} />
           ))}
         </div>
       ) : null}

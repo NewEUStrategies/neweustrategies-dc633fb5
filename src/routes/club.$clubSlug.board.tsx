@@ -37,25 +37,17 @@ export const Route = createFileRoute("/club/$clubSlug/board")({
 
 function ClubBoardRoute() {
   ensureClubI18n();
-  const { t, i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  const { t } = useTranslation();
   const { clubSlug } = Route.useParams();
   const { session } = useAuth();
 
   return (
     <ClubWorkspaceLayout
       clubSlug={clubSlug}
-      isPl={isPl}
       title={t("club.network.board.title")}
       lead={t("club.network.board.lead")}
     >
-      {(club) => (
-        <ClubBoardScreen
-          clubId={club.id}
-          canPost={session !== null && club.can_reply}
-          isPl={isPl}
-        />
-      )}
+      {(club) => <ClubBoardScreen clubId={club.id} canPost={session !== null && club.can_reply} />}
     </ClubWorkspaceLayout>
   );
 }

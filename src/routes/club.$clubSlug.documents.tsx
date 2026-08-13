@@ -34,14 +34,12 @@ export const Route = createFileRoute("/club/$clubSlug/documents")({
 
 function ClubDocumentsRoute() {
   ensureClubI18n();
-  const { t, i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  const { t } = useTranslation();
   const { clubSlug } = Route.useParams();
 
   return (
     <ClubWorkspaceLayout
       clubSlug={clubSlug}
-      isPl={isPl}
       title={t("club.docs.title")}
       lead={t("club.docs.lead")}
     >

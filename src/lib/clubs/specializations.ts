@@ -22,6 +22,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import type { LocaleCode } from "@/lib/i18n/pickLocalized";
+
 export interface ClubSpecialization {
   /** Segment URL - niezmienny kontrakt publiczny. */
   slug: string;
@@ -105,6 +107,29 @@ function pick(primary: string | null | undefined, fallback: string): string {
 }
 
 /**
+ * Tekst specjalizacji - KOLEJNOŚĆ ŹRÓDEŁ jest tu tezą, nie szczegółem:
+ *   1. wartość z bazy w JĘZYKU INTERFEJSU - administrator wpisał ją świadomie,
+ *   2. tłumaczenie z i18n - dla ośmiu specjalizacji systemowych jest poprawne
+ *      JĘZYKOWO, więc bije wartość z bazy w drugim języku,
+ *   3. wartość z bazy w drugim języku - ostatnia deska dla specjalizacji
+ *      WŁASNEJ, której nie ma w i18n i którą administrator opisał po jednemu.
+ *
+ * Punkt 3 nie istniał. Specjalizacja dodana z panelu i opisana wyłącznie po
+ * polsku renderowała angielskiemu czytelnikowi kafel z numerem i ikoną,
+ * ale bez tytułu i bez opisu - `tr()` nie zna jej klucza, więc zwracał "".
+ * Dlatego to NIE jest zwykłe `pickLocalized`: ono postawiłoby drugi język
+ * PRZED tłumaczeniem, czyli pokazałoby polski tytuł tam, gdzie i18n ma
+ * poprawny angielski.
+ */
+function pickSpecText(
+  own: string | null | undefined,
+  translated: string,
+  other: string | null | undefined,
+): string {
+  return pick(own, pick(translated, pick(other, "")));
+}
+
+/**
  * Buduje listę do wyświetlenia. Baza jest źródłem prawdy, a `translate`
  * (klucze `club.spec.items.*`) domyka teksty, których administrator nie
  * wypełnił - dzięki temu ośmiu systemowych specjalizacji nie trzeba
@@ -112,9 +137,10 @@ function pick(primary: string | null | undefined, fallback: string): string {
  */
 export function buildSpecializationViews(
   rows: readonly SpecializationSource[],
-  isPl: boolean,
+  lang: LocaleCode,
   translate: (key: string) => string,
 ): ClubSpecializationView[] {
+  const other: LocaleCode = lang === "pl" ? "en" : "pl";
   return rows.map((row, i) => {
     const known = findClubSpecialization(row.slug);
     const i18nKey = known?.key ?? row.key;
@@ -129,9 +155,9 @@ export function buildSpecializationViews(
       key: i18nKey,
       icon: known?.icon ?? resolveSpecializationIcon(row.icon),
       index: String(i + 1).padStart(2, "0"),
-      title: pick(isPl ? row.label_pl : row.label_en, tr("title")),
-      lead: pick(isPl ? row.lead_pl : row.lead_en, tr("lead")),
-      desc: pick(isPl ? row.desc_pl : row.desc_en, tr("desc")),
+      title: pickSpecText(row[`label_${lang}`], tr("title"), row[`label_${other}`]),
+      lead: pickSpecText(row[`lead_${lang}`], tr("lead"), row[`lead_${other}`]),
+      desc: pickSpecText(row[`desc_${lang}`], tr("desc"), row[`desc_${other}`]),
       clubCount: Number(row.club_count ?? 0),
     };
   });
