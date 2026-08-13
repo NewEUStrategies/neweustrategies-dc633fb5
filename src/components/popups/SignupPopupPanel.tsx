@@ -57,7 +57,9 @@ export function SignupPopupPanel({
   const { t } = useTranslation();
   const design = resolvePopupDesign(settings.popup_design);
   const palette: PopupPalette = resolvePopupPalette(settings, mode);
-  const themeLogo = useBrandLogoUrl(palette.onDark ? "dark" : "light", "horizontal");
+  // Popup zawsze stoi na ciemnym kadrze galerii, wiec w obu motywach uzywamy
+  // wariantu z jasnymi napisami (surface="dark").
+  const themeLogo = useBrandLogoUrl("dark", "horizontal");
   const isPl = lang === "pl";
 
   const radiusPx = Math.max(0, settings.popup_border_radius_px ?? 6);
