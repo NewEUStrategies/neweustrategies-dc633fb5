@@ -387,21 +387,21 @@ const careersEn = {
       title: "What we offer",
       subtitle: "Specifics, not perks-page filler.",
       items: {
-        contract: {
-          title: "Transparent ranges",
-          body: "You hear them on the first call. Pick the contract that fits: employment, B2B or freelance.",
+        flexible: {
+          title: "Flexible collaboration",
+          body: "Choose the contract: employment, B2B, freelance or internship. We adapt the workload and mode to your situation.",
         },
         remote: {
           title: "Remote or hybrid",
           body: "Every role can be done remotely or hybrid. You set your hours with the team, not with a rulebook.",
         },
-        offices: {
-          title: "Offices in Warsaw and Brussels",
-          body: "Two addresses close to the institutions we cover. Use them whenever you like.",
+        warsaw: {
+          title: "Warsaw office",
+          body: "A space for meetings and deep work in central Warsaw, available when you need it.",
         },
-        budget: {
-          title: "Development budget",
-          body: "An annual budget for training and conferences. You decide where it goes.",
+        impact: {
+          title: "Real impact on your topic",
+          body: "You own your dossier from idea to publication. Your name is on every piece.",
         },
         byline: {
           title: "Your name on your work",
