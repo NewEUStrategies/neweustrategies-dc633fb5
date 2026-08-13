@@ -21,13 +21,11 @@ import { FormSelect, type FormSelectOption } from "@/components/atoms/FormSelect
 import { SubscribeButton } from "@/components/ui/subscribe-button";
 import {
   CAREER_DEPARTMENTS,
-  CAREER_ROLES,
   CAREER_SENIORITIES,
-  filterRolesByDepartment,
-  findRole,
-  roleTitleKey,
   type CareerDepartmentId,
 } from "@/lib/careers/roles";
+import { filterOffersByDepartment, findOffer } from "@/lib/careers/catalog";
+import { useCareerOffers } from "@/lib/careers/useCareerContent";
 import { CAREER_FORM_STEPS, CareerFormStepper } from "../molecules/CareerFormStepper";
 import { CareerFormSuccess } from "../molecules/CareerFormSuccess";
 
@@ -81,6 +79,8 @@ export function CareersApplyForm({
   applySignal?: number;
 }) {
   const { t } = useTranslation();
+  const { offers } = useCareerOffers();
+
   const submit = useServerFn(submitContactMessage);
   const [form, setForm] = useState<FormState>(EMPTY);
   const [consent, setConsent] = useState(false);
@@ -96,7 +96,7 @@ export function CareersApplyForm({
 
   // Preselekcja z kart ról - wybór roli ustawia też jej dział i poziom.
   useEffect(() => {
-    const role = findRole(selectedRoleId);
+    const role = findOffer(offers, selectedRoleId);
     if (!role) return;
     setForm((prev) => ({
       ...prev,
@@ -133,12 +133,12 @@ export function CareersApplyForm({
   );
 
   const roleOptions = useMemo<FormSelectOption[]>(() => {
-    const pool = filterRolesByDepartment(CAREER_ROLES, form.department || "all");
+    const pool = filterOffersByDepartment(offers, form.department || "all");
     return [
       { value: "open", label: t("careers.form.roleOpen") },
-      ...pool.map((role) => ({ value: role.id, label: t(roleTitleKey(role.id)) })),
+      ...pool.map((role) => ({ value: role.id, label: role.title })),
     ];
-  }, [form.department, t]);
+  }, [form.department, offers, t]);
 
   const seniorityOptions = useMemo<FormSelectOption[]>(
     () => CAREER_SENIORITIES.map((s) => ({ value: s, label: t(`careers.seniority.${s}`) })),
@@ -168,7 +168,9 @@ export function CareersApplyForm({
     const email = form.email.trim();
     const message = form.message.trim();
     const roleLabel =
-      form.role && form.role !== "open" ? t(roleTitleKey(form.role)) : t("careers.form.roleOpen");
+      form.role && form.role !== "open"
+        ? (findOffer(offers, form.role)?.title ?? form.role)
+        : t("careers.form.roleOpen");
 
     setSending(true);
     try {
@@ -254,7 +256,7 @@ export function CareersApplyForm({
     await send();
   };
 
-  const selectedRole = findRole(selectedRoleId);
+  const selectedRole = findOffer(offers, selectedRoleId);
   const stepKey = CAREER_FORM_STEPS[step];
 
   return (
@@ -274,7 +276,7 @@ export function CareersApplyForm({
       </p>
       {!submitted && selectedRole ? (
         <p className="mt-3 inline-flex items-center gap-2 rounded-[6px] border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-medium text-foreground">
-          {t("careers.roles.selected")}: {t(roleTitleKey(selectedRole.id))}
+          {t("careers.roles.selected")}: {selectedRole.title}
         </p>
       ) : null}
 
@@ -362,7 +364,7 @@ export function CareersApplyForm({
                       setForm((prev) => ({
                         ...prev,
                         department,
-                        role: findRole(prev.role)?.department === department ? prev.role : "",
+                        role: findOffer(offers, prev.role)?.department === department ? prev.role : "",
                       }));
                     }}
                   />

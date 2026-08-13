@@ -5,14 +5,13 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { CAREER_DEPARTMENTS, type CareerDepartmentId } from "@/lib/careers/roles";
 import {
-  CAREER_DEPARTMENTS,
-  CAREER_ROLES,
-  countRolesByDepartment,
-  filterRolesByDepartment,
-  findRole,
-  type CareerDepartmentId,
-} from "@/lib/careers/roles";
+  countOffersByDepartment,
+  filterOffersByDepartment,
+  findOffer,
+} from "@/lib/careers/catalog";
+import { useCareerOffers, useCareerSection } from "@/lib/careers/useCareerContent";
 import { CareerFilterChip } from "../atoms/CareerFilterChip";
 import { CareerRoleCard } from "../molecules/CareerRoleCard";
 import { CareerRoleDialog } from "./CareerRoleDialog";
@@ -31,11 +30,17 @@ export function CareersRoles({
   onApply: (roleId: string) => void;
 }) {
   const { t } = useTranslation();
+  const { offers } = useCareerOffers();
+  const section = useCareerSection("roles");
 
-  const counts = useMemo(() => countRolesByDepartment(CAREER_ROLES), []);
-  const roles = useMemo(() => filterRolesByDepartment(CAREER_ROLES, department), [department]);
+  const counts = useMemo(() => countOffersByDepartment(offers), [offers]);
+  const roles = useMemo(
+    () => filterOffersByDepartment(offers, department),
+    [offers, department],
+  );
   const [detailsRoleId, setDetailsRoleId] = useState<string | null>(null);
-  const detailsRole = useMemo(() => findRole(detailsRoleId), [detailsRoleId]);
+  const detailsRole = useMemo(() => findOffer(offers, detailsRoleId), [offers, detailsRoleId]);
+
 
   return (
     <section id={id} aria-labelledby="careers-roles" className="mt-16 scroll-mt-28">
@@ -46,11 +51,12 @@ export function CareersRoles({
               id="careers-roles"
               className="text-balance text-4xl font-black leading-[1.05] tracking-tight text-foreground md:text-5xl"
             >
-              {t("careers.roles.title")}
+              {section.title ?? t("careers.roles.title")}
             </h2>
             <p className="mt-5 text-base font-medium leading-relaxed text-muted-foreground md:text-lg">
-              {t("careers.roles.subtitle")}
+              {section.subtitle ?? t("careers.roles.subtitle")}
             </p>
+
           </div>
           <div className="flex flex-col md:items-end">
             <span className="mb-2 text-[10px] font-extrabold uppercase tracking-[0.2em] text-muted-foreground">
@@ -64,7 +70,7 @@ export function CareersRoles({
               <span aria-hidden className="mx-1.5 text-border">
                 /
               </span>
-              {t("careers.roles.showingShort", { total: CAREER_ROLES.length })}
+              {t("careers.roles.showingShort", { total: offers.length })}
             </p>
           </div>
         </div>
@@ -77,7 +83,7 @@ export function CareersRoles({
       >
         <CareerFilterChip
           label={t("careers.roles.all")}
-          count={CAREER_ROLES.length}
+          count={offers.length}
           active={department === "all"}
           onClick={() => onDepartmentChange("all")}
         />

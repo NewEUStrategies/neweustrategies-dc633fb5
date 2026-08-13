@@ -1,6 +1,5 @@
 // Organizm: popup z pełną ofertą pracy - opis roli, zakres obowiązków i wymagania.
-// Dane pochodzą wyłącznie ze słownika i18n (`careers.roles.<id>.*`), więc popup
-// jest dwujęzyczny bez dodatkowej logiki. CTA przekazuje id roli do formularza.
+// Dane pochodzą z oferty (baza `career_roles` lub fallback i18n) w aktywnym języku. CTA przekazuje id roli do formularza.
 import { useTranslation } from "react-i18next";
 import { ArrowRight, Briefcase, Clock3, MapPin, Layers } from "lucide-react";
 
@@ -13,13 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  roleBulletKeys,
-  roleRequirementKeys,
-  roleSummaryKey,
-  roleTitleKey,
-  type CareerRole,
-} from "@/lib/careers/roles";
+import type { CareerOffer } from "@/lib/careers/catalog";
 
 function MetaChip({ icon: Icon, label }: { icon: typeof MapPin; label: string }) {
   return (
@@ -30,18 +23,17 @@ function MetaChip({ icon: Icon, label }: { icon: typeof MapPin; label: string })
   );
 }
 
-function OfferList({ title, keys }: { title: string; keys: readonly string[] }) {
-  const { t } = useTranslation();
+function OfferList({ title, items }: { title: string; items: readonly string[] }) {
   return (
     <section>
       <h3 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
         {title}
       </h3>
       <ul className="mt-2.5 space-y-2 text-sm leading-relaxed text-muted-foreground">
-        {keys.map((key) => (
-          <li key={key} className="flex gap-2.5">
+        {items.map((item) => (
+          <li key={item} className="flex gap-2.5">
             <span aria-hidden className="mt-[0.55rem] h-1 w-1 shrink-0 rounded-full bg-primary" />
-            <span>{t(key)}</span>
+            <span>{item}</span>
           </li>
         ))}
       </ul>
@@ -55,7 +47,7 @@ export function CareerRoleDialog({
   onOpenChange,
   onApply,
 }: {
-  role: CareerRole | null;
+  role: CareerOffer | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onApply: (roleId: string) => void;
@@ -71,7 +63,7 @@ export function CareerRoleDialog({
             {t(`careers.departments.${role.department}`)}
           </p>
           <DialogTitle className="text-xl font-bold leading-snug text-foreground sm:text-2xl">
-            {t(roleTitleKey(role.id))}
+            {role.title}
           </DialogTitle>
           <DialogDescription className="sr-only">{t("careers.roles.dialog.meta")}</DialogDescription>
           <div className="flex flex-wrap gap-1.5 pt-1">
@@ -89,16 +81,16 @@ export function CareerRoleDialog({
                 {t("careers.roles.dialog.overview")}
               </h3>
               <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">
-                {t(roleSummaryKey(role.id))}
+                {role.summary}
               </p>
             </section>
             <OfferList
               title={t("careers.roles.dialog.responsibilities")}
-              keys={roleBulletKeys(role)}
+              items={role.responsibilities}
             />
             <OfferList
               title={t("careers.roles.dialog.requirements")}
-              keys={roleRequirementKeys(role)}
+              items={role.requirements}
             />
           </div>
         </ScrollArea>
