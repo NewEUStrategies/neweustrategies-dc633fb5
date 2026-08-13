@@ -108,17 +108,19 @@ export const GALLERY_SLOT_DIMENSIONS = [
 ] as const;
 
 /**
- * Paleta jasna spójna z tokenami marki: akcent na --brand-ink (#b85410), bo
- * jasny pomarańcz nie przechodzi WCAG AA jako tło tekstu. Galeria zostaje
- * ciemna (jak w projekcie referencyjnym) - zdjęcia mają na czym oddychać,
- * a gradient to głęboka grafitowa baza z delikatną poświatą marki na końcu.
+ * Paleta jasna spójna z tokenami marki: akcent na brandzie NES (#fa9346),
+ * żeby przycisk CTA był rozpoznawalny jak reszta platformy. Tekst na akcencie
+ * wybierany jest przez accentInk() - na jasnym tle zostanie ciemny atrament.
+ * Galeria zostaje ciemna (jak w projekcie referencyjnym) - zdjęcia mają na
+ * czym oddychać, a gradient to głęboka grafitowa baza z delikatną poświatą
+ * marki na końcu.
  */
 export function defaultPopupLightTheme(): PopupThemeColors {
   return {
     bg: "#ffffff",
     fg: "#0b0b0f",
     muted: "#55555f",
-    accent: "#b85410",
+    accent: "#fa9346",
     accentFg: "#ffffff",
     overlay: "rgba(10,10,15,0.55)",
     gradFrom: "#101014",
