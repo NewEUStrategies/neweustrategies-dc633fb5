@@ -6,11 +6,25 @@ import i18n from "@/lib/i18n";
 const careersPl = {
   careers: {
     eyebrow: "Kariera",
-    title: "Dołącz do zespołu New European Strategies",
     lead: "Budujemy think tank, w którym analiza kończy się rekomendacją, a rekomendacja - decyzją. Szukamy analityków, ekspertów polityki publicznej, marketerów, doradców i redaktorów, którzy chcą pracować na europejskiej agendzie.",
     ctaPrimary: "Zobacz otwarte role",
     ctaSecondary: "Aplikuj spontanicznie",
     trust: "Aplikacja zajmuje 3 minuty. Odpowiadamy na każde zgłoszenie w ciągu 10 dni roboczych.",
+    hero: {
+      badge: "Otwarte role: {{value}}",
+      titleTop: "Dołącz do zespołu",
+      titleAccent: "New European Strategies",
+      rotatePrefix: "Szukamy teraz:",
+      rotating: {
+        research: "analityków bezpieczeństwa i gospodarki",
+        policy: "specjalistów od legislacji UE",
+        marketing: "marketerów wzrostu i treści",
+        advisory: "doradców strategicznych zarządów",
+        editorial: "redaktorów pracujących w PL i EN",
+      },
+      deptTitle: "Gdzie możesz dołączyć",
+      deptHint: "Wybierz dział, żeby zobaczyć jego otwarte role.",
+    },
     stats: {
       people: { value: "45", label: "osób w zespole" },
       countries: { value: "9", label: "krajów, z których pracujemy" },
@@ -20,38 +34,70 @@ const careersPl = {
     values: {
       title: "Jak pracujemy",
       subtitle: "Cztery zasady, które realnie widać w kalendarzu, a nie tylko w deklaracjach.",
+      hint: "Wybierz zasadę, żeby zobaczyć, jak wygląda na co dzień.",
+      proofLabel: "W praktyce",
       items: {
         evidence: {
           title: "Dowody przed opinią",
           body: "Każda teza ma dane, źródło i autora. Nie publikujemy tekstów, których nie umiemy obronić.",
+          proof:
+            "Każda analiza przechodzi recenzję drugiego analityka i redakcję, zanim trafi do czytelników.",
         },
         ownership: {
           title: "Własność tematu",
           body: "Prowadzisz swój obszar od pomysłu do publikacji i rozmowy z decydentem - bez łańcucha akceptacji.",
+          proof:
+            "Publikujesz pod własnym nazwiskiem i sam odpowiadasz na pytania mediów o swój temat.",
         },
         craft: {
           title: "Rzemiosło i tempo",
           body: "Krótkie cykle, wysoka jakość redakcyjna, realne deadline'y i szacunek do czasu po pracy.",
+          proof:
+            "Zadanie rekrutacyjne jest płatne i ograniczone do 4 godzin - tak samo traktujemy czas w pracy.",
         },
         europe: {
           title: "Perspektywa europejska",
           body: "Pracujemy w PL i EN, z partnerami w Brukseli, Berlinie i Kijowie. Twoja praca ma zasięg kontynentalny.",
+          proof:
+            "Na co dzień pracujesz w dwóch językach, a wyniki trafiają do instytucji w kilku stolicach.",
         },
       },
     },
     benefits: {
       title: "Co oferujemy",
+      subtitle: "Konkrety, nie owocowe czwartki.",
       items: {
-        b1: "Umowa dopasowana do formy współpracy (UoP, B2B, zlecenie) i jawne widełki na etapie rozmowy.",
-        b2: "Praca zdalna lub hybrydowa, elastyczne godziny, biura w Warszawie i Brukseli.",
-        b3: "Budżet szkoleniowy i konferencyjny oraz publikacje pod własnym nazwiskiem.",
-        b4: "Dostęp do sieci ekspertów, klubów dyskusyjnych i wydarzeń zamkniętych.",
+        contract: {
+          title: "Jawne widełki",
+          body: "Poznajesz je na pierwszej rozmowie. Forma współpracy do wyboru: umowa o pracę, B2B albo zlecenie.",
+        },
+        remote: {
+          title: "Zdalnie lub hybrydowo",
+          body: "Każdą rolę można pełnić zdalnie albo hybrydowo. Godziny ustalasz z zespołem, nie z regulaminem.",
+        },
+        offices: {
+          title: "Biura w Warszawie i Brukseli",
+          body: "Dwa adresy blisko instytucji, o których piszemy. Korzystasz z nich wtedy, kiedy chcesz.",
+        },
+        budget: {
+          title: "Budżet rozwojowy",
+          body: "Roczny budżet na szkolenia i konferencje. O tym, na co idzie, decydujesz Ty.",
+        },
+        byline: {
+          title: "Publikacje pod nazwiskiem",
+          body: "Podpisujemy autorów, nie „zespół”. Twoje analizy budują Twoje nazwisko.",
+        },
+        network: {
+          title: "Sieć i wydarzenia",
+          body: "Dostęp do sieci ekspertów, klubów dyskusyjnych i wydarzeń zamkniętych - od pierwszego dnia.",
+        },
       },
     },
     roles: {
       title: "Otwarte role",
       subtitle: "Filtruj po dziale. Nie widzisz swojej roli? Wyślij zgłoszenie spontaniczne.",
       all: "Wszystkie",
+      showing: "Pokazujemy {{value}} z {{total}} ról",
       empty: "W tym dziale nie prowadzimy teraz rekrutacji - napisz do nas mimo to.",
       apply: "Aplikuj na tę rolę",
       details: "Zakres obowiązków",
@@ -195,24 +241,38 @@ const careersPl = {
         apply: {
           title: "Aplikacja",
           body: "Formularz poniżej. Zamiast CV wystarczy profil i kilka zdań o tym, co chcesz robić.",
+          duration: "3 minuty",
         },
         screening: {
           title: "Rozmowa wstępna",
           body: "30 minut o Twoim doświadczeniu, oczekiwaniach i widełkach - bez zagadek.",
+          duration: "30 minut",
         },
         task: {
           title: "Zadanie próbne",
           body: "Krótkie, płatne zadanie z realnego backlogu. Maksymalnie 4 godziny pracy.",
+          duration: "do 4 godzin, płatne",
         },
         decision: {
           title: "Decyzja i oferta",
           body: "Rozmowa z zespołem, referencje i oferta z jasnymi warunkami współpracy.",
+          duration: "do 3 tygodni od zgłoszenia",
         },
       },
     },
     form: {
       title: "Formularz aplikacyjny",
-      subtitle: "Wypełnij poniższe pola - odpowiemy w ciągu 10 dni roboczych.",
+      subtitle: "Trzy krótkie kroki - całość zajmuje około 3 minut.",
+      steps: {
+        about: { title: "O Tobie", hint: "Kontakt i profil" },
+        fit: { title: "Dopasowanie", hint: "Dział, rola, dostępność" },
+        message: { title: "Wiadomość", hint: "Kilka zdań zamiast CV" },
+      },
+      stepLabel: "Krok {{current}} z {{total}}",
+      back: "Wstecz",
+      next: "Dalej",
+      fitOptional:
+        "Wszystkie pola w tym kroku są opcjonalne - pomagają nam skierować zgłoszenie do właściwej osoby.",
       firstName: "Imię",
       lastName: "Nazwisko",
       email: "Adres e-mail",
@@ -236,12 +296,22 @@ const careersPl = {
         "Zgadzam się na przetwarzanie moich danych w celu prowadzenia rekrutacji przez New European Strategies.",
       submit: "Wyślij zgłoszenie",
       sending: "Wysyłanie...",
-      required: "Uzupełnij imię, nazwisko, e-mail i wiadomość.",
+      requiredAbout: "Uzupełnij imię, nazwisko i adres e-mail.",
+      requiredMessage: "Napisz kilka zdań o sobie - to pole zastępuje CV.",
       invalidEmail: "Podaj poprawny adres e-mail.",
       consentRequired: "Bez zgody na przetwarzanie danych nie możemy rozpatrzyć zgłoszenia.",
-      ok: "Dziękujemy - zgłoszenie dotarło. Odezwiemy się mailem.",
       error: "Nie udało się wysłać zgłoszenia. Spróbuj ponownie za chwilę.",
       selectPlaceholder: "Wybierz…",
+      success: {
+        title: "Zgłoszenie dotarło",
+        body: "Potwierdzenie i dalsze kroki wyślemy na {{email}}.",
+        points: {
+          review: "Każde zgłoszenie czyta człowiek - nie filtrujemy automatem.",
+          reply: "Odpowiadamy w ciągu 10 dni roboczych, również gdy odpowiedź brzmi „jeszcze nie”.",
+          call: "Jeśli jest dopasowanie, zaprosimy Cię na 30-minutową rozmowę wstępną.",
+        },
+        again: "Wyślij kolejne zgłoszenie",
+      },
     },
     closing: {
       title: "Nie widzisz swojej roli?",
@@ -260,11 +330,25 @@ const careersPl = {
 const careersEn = {
   careers: {
     eyebrow: "Careers",
-    title: "Join the New European Strategies team",
     lead: "We build a think tank where analysis ends in a recommendation and a recommendation ends in a decision. We are hiring analysts, policy specialists, marketers, advisors and editors who want to work on the European agenda.",
     ctaPrimary: "See open roles",
     ctaSecondary: "Send an open application",
     trust: "Applying takes 3 minutes. We answer every application within 10 working days.",
+    hero: {
+      badge: "Open roles: {{value}}",
+      titleTop: "Join the team at",
+      titleAccent: "New European Strategies",
+      rotatePrefix: "Right now we are hiring:",
+      rotating: {
+        research: "security and economy analysts",
+        policy: "EU legislation specialists",
+        marketing: "growth and content marketers",
+        advisory: "board-level strategic advisors",
+        editorial: "editors working in Polish and English",
+      },
+      deptTitle: "Where you can join",
+      deptHint: "Pick a department to see its open roles.",
+    },
     stats: {
       people: { value: "45", label: "people on the team" },
       countries: { value: "9", label: "countries we work from" },
@@ -274,38 +358,70 @@ const careersEn = {
     values: {
       title: "How we work",
       subtitle: "Four principles you can actually see in the calendar, not only in a manifesto.",
+      hint: "Pick a principle to see what it looks like day to day.",
+      proofLabel: "In practice",
       items: {
         evidence: {
           title: "Evidence before opinion",
           body: "Every claim has data, a source and an author. We do not publish what we cannot defend.",
+          proof:
+            "Every analysis is reviewed by a second analyst and edited before it reaches readers.",
         },
         ownership: {
           title: "Own your topic",
           body: "You run your area from idea to publication and to the conversation with a decision maker.",
+          proof:
+            "You publish under your own name and answer media questions about your topic yourself.",
         },
         craft: {
           title: "Craft and pace",
           body: "Short cycles, high editorial quality, realistic deadlines and respect for time off.",
+          proof:
+            "The recruitment task is paid and capped at 4 hours - we treat working time the same way.",
         },
         europe: {
           title: "A European perspective",
           body: "We work in Polish and English with partners in Brussels, Berlin and Kyiv. Your work travels.",
+          proof:
+            "You work in two languages daily, and the results land with institutions in several capitals.",
         },
       },
     },
     benefits: {
       title: "What we offer",
+      subtitle: "Specifics, not perks-page filler.",
       items: {
-        b1: "A contract that fits the engagement (employment, B2B, freelance) with transparent ranges from the first call.",
-        b2: "Remote or hybrid work, flexible hours, offices in Warsaw and Brussels.",
-        b3: "Training and conference budget, plus publications under your own name.",
-        b4: "Access to our expert network, discussion clubs and closed-door events.",
+        contract: {
+          title: "Transparent ranges",
+          body: "You hear them on the first call. Pick the contract that fits: employment, B2B or freelance.",
+        },
+        remote: {
+          title: "Remote or hybrid",
+          body: "Every role can be done remotely or hybrid. You set your hours with the team, not with a rulebook.",
+        },
+        offices: {
+          title: "Offices in Warsaw and Brussels",
+          body: "Two addresses close to the institutions we cover. Use them whenever you like.",
+        },
+        budget: {
+          title: "Development budget",
+          body: "An annual budget for training and conferences. You decide where it goes.",
+        },
+        byline: {
+          title: "Your name on your work",
+          body: "We credit authors, not “the team”. Your analyses build your byline.",
+        },
+        network: {
+          title: "Network and events",
+          body: "Access to our expert network, discussion clubs and closed-door events - from day one.",
+        },
       },
     },
     roles: {
       title: "Open roles",
       subtitle: "Filter by department. Cannot find your role? Send an open application.",
       all: "All",
+      showing: "Showing {{value}} of {{total}} roles",
       empty: "We are not hiring in this department right now - write to us anyway.",
       apply: "Apply for this role",
       details: "Scope of work",
@@ -449,24 +565,38 @@ const careersEn = {
         apply: {
           title: "Application",
           body: "The form below. Instead of a CV, a profile and a few sentences are enough.",
+          duration: "3 minutes",
         },
         screening: {
           title: "Intro call",
           body: "30 minutes on your experience, expectations and salary range - no guessing games.",
+          duration: "30 minutes",
         },
         task: {
           title: "Paid trial task",
           body: "A short, paid task from the real backlog. Four hours of work at most.",
+          duration: "up to 4 hours, paid",
         },
         decision: {
           title: "Decision and offer",
           body: "A conversation with the team, references and an offer with clear terms.",
+          duration: "within 3 weeks of applying",
         },
       },
     },
     form: {
       title: "Application form",
-      subtitle: "Fill in the fields below - we reply within 10 working days.",
+      subtitle: "Three short steps - about 3 minutes in total.",
+      steps: {
+        about: { title: "About you", hint: "Contact and profile" },
+        fit: { title: "Your fit", hint: "Department, role, availability" },
+        message: { title: "Your message", hint: "A few sentences instead of a CV" },
+      },
+      stepLabel: "Step {{current}} of {{total}}",
+      back: "Back",
+      next: "Next",
+      fitOptional:
+        "Every field in this step is optional - it helps us route your application to the right person.",
       firstName: "First name",
       lastName: "Last name",
       email: "Email address",
@@ -490,12 +620,22 @@ const careersEn = {
         "I agree to the processing of my data for the purposes of recruitment by New European Strategies.",
       submit: "Send application",
       sending: "Sending...",
-      required: "Please fill in first name, last name, email and message.",
+      requiredAbout: "Please fill in your first name, last name and email.",
+      requiredMessage: "Write a few sentences about yourself - this field replaces a CV.",
       invalidEmail: "Please enter a valid email address.",
       consentRequired: "Without consent to data processing we cannot review your application.",
-      ok: "Thank you - your application is in. We will get back to you by email.",
       error: "Could not send the application. Please try again in a moment.",
       selectPlaceholder: "Select…",
+      success: {
+        title: "Application received",
+        body: "We will send confirmation and next steps to {{email}}.",
+        points: {
+          review: "A human reads every application - no automated screening.",
+          reply: "We reply within 10 working days - also when the answer is “not yet”.",
+          call: "If there is a fit, we will invite you to a 30-minute intro call.",
+        },
+        again: "Send another application",
+      },
     },
     closing: {
       title: "Cannot find your role?",

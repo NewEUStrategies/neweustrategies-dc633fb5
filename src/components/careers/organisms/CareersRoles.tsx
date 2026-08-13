@@ -1,7 +1,8 @@
 // Organizm: interaktywna lista otwartych ról z filtrem działów.
-// Stan filtra jest lokalny, natomiast wybór roli wędruje w górę (formularz
-// aplikacyjny preselekcjonuje dział i stanowisko).
-import { useMemo, useState } from "react";
+// Filtr jest kontrolowany przez trasę (panel działów w hero ustawia go z góry),
+// wybór roli wędruje w górę (formularz preselekcjonuje dział i stanowisko).
+// Licznik wyników ma aria-live, a zmiana filtra odtwarza wejście kart.
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -16,30 +17,40 @@ import { CareerRoleCard } from "../molecules/CareerRoleCard";
 
 export function CareersRoles({
   id,
+  department,
+  onDepartmentChange,
   selectedRoleId,
   onApply,
 }: {
   id: string;
+  department: CareerDepartmentId | "all";
+  onDepartmentChange: (department: CareerDepartmentId | "all") => void;
   selectedRoleId: string | null;
   onApply: (roleId: string) => void;
 }) {
   const { t } = useTranslation();
-  const [department, setDepartment] = useState<CareerDepartmentId | "all">("all");
 
   const counts = useMemo(() => countRolesByDepartment(CAREER_ROLES), []);
   const roles = useMemo(() => filterRolesByDepartment(CAREER_ROLES, department), [department]);
 
   return (
     <section id={id} aria-labelledby="careers-roles" className="mt-14 scroll-mt-28">
-      <h2
-        id="careers-roles"
-        className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl"
-      >
-        {t("careers.roles.title")}
-      </h2>
-      <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-        {t("careers.roles.subtitle")}
-      </p>
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
+        <div>
+          <h2
+            id="careers-roles"
+            className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl"
+          >
+            {t("careers.roles.title")}
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
+            {t("careers.roles.subtitle")}
+          </p>
+        </div>
+        <p aria-live="polite" className="text-xs font-medium tabular-nums text-muted-foreground">
+          {t("careers.roles.showing", { value: roles.length, total: CAREER_ROLES.length })}
+        </p>
+      </div>
 
       <div
         role="group"
@@ -50,7 +61,7 @@ export function CareersRoles({
           label={t("careers.roles.all")}
           count={CAREER_ROLES.length}
           active={department === "all"}
-          onClick={() => setDepartment("all")}
+          onClick={() => onDepartmentChange("all")}
         />
         {CAREER_DEPARTMENTS.map((dept) => (
           <CareerFilterChip
@@ -58,7 +69,7 @@ export function CareersRoles({
             label={t(`careers.departments.${dept}`)}
             count={counts[dept]}
             active={department === dept}
-            onClick={() => setDepartment(dept)}
+            onClick={() => onDepartmentChange(dept)}
           />
         ))}
       </div>
@@ -68,14 +79,15 @@ export function CareersRoles({
           {t("careers.roles.empty")}
         </p>
       ) : (
-        <div className="mt-6 grid gap-4 lg:grid-cols-2">
-          {roles.map((role) => (
-            <CareerRoleCard
+        <div key={department} className="mt-6 grid gap-4 lg:grid-cols-2">
+          {roles.map((role, index) => (
+            <div
               key={role.id}
-              role={role}
-              selected={role.id === selectedRoleId}
-              onApply={onApply}
-            />
+              className="crs-pop"
+              style={{ animationDelay: `${Math.min(index, 7) * 55}ms` }}
+            >
+              <CareerRoleCard role={role} selected={role.id === selectedRoleId} onApply={onApply} />
+            </div>
           ))}
         </div>
       )}

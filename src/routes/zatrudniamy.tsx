@@ -9,6 +9,7 @@ import { staticPageSeoQueryOptions, pickStaticSeo } from "@/lib/queries/staticPa
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { ensureI18n as ensureCareersI18n } from "@/lib/i18n-careers";
+import type { CareerDepartmentId } from "@/lib/careers/roles";
 import { CareersHero } from "@/components/careers/organisms/CareersHero";
 import { CareersValues } from "@/components/careers/organisms/CareersValues";
 import { CareersRoles } from "@/components/careers/organisms/CareersRoles";
@@ -66,6 +67,9 @@ function CareersPage() {
     typeof window === "undefined" ? getRequestUrl() || "/zatrudniamy" : window.location.pathname,
   );
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
+  // Filtr działu żyje w trasie: ustawia go zarówno panel działów w hero,
+  // jak i chipsy nad listą ról.
+  const [department, setDepartment] = useState<CareerDepartmentId | "all">("all");
 
   const scrollTo = useCallback((id: string) => {
     if (typeof document === "undefined") return;
@@ -85,11 +89,29 @@ function CareersPage() {
     scrollTo(FORM_ID);
   }, [scrollTo]);
 
+  const handleSelectDepartment = useCallback(
+    (dept: CareerDepartmentId) => {
+      setDepartment(dept);
+      scrollTo(ROLES_ID);
+    },
+    [scrollTo],
+  );
+
   return (
     <div className="container mx-auto max-w-6xl px-4 py-10 md:py-14 xl:max-w-[88rem]">
-      <CareersHero onSeeRoles={() => scrollTo(ROLES_ID)} onOpenApplication={openApplication} />
+      <CareersHero
+        onSeeRoles={() => scrollTo(ROLES_ID)}
+        onOpenApplication={openApplication}
+        onSelectDepartment={handleSelectDepartment}
+      />
       <CareersValues />
-      <CareersRoles id={ROLES_ID} selectedRoleId={selectedRoleId} onApply={handleApply} />
+      <CareersRoles
+        id={ROLES_ID}
+        department={department}
+        onDepartmentChange={setDepartment}
+        selectedRoleId={selectedRoleId}
+        onApply={handleApply}
+      />
       <CareersProcess />
       <CareersApplyForm
         id={FORM_ID}
