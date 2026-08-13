@@ -13,7 +13,7 @@ import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TextRotate } from "@/components/ui/text-rotate";
 import { useSiteSetting } from "@/lib/useSiteSetting";
-import { CAREER_ROLES } from "@/lib/careers/roles";
+import { useCareerOffers } from "@/lib/careers/useCareerContent";
 import { CareerStat } from "../atoms/CareerStat";
 
 const STAT_KEYS = ["people", "countries", "remote", "growth"] as const;
@@ -58,7 +58,7 @@ export function CareersHero({
           className="group inline-flex items-center gap-2 rounded-[6px] border border-brand/40 bg-brand/10 px-3 py-1.5 text-xs font-semibold text-foreground transition-colors duration-200 hover:border-brand/70 hover:bg-brand/15"
         >
           <span aria-hidden className="crs-pulse-dot" />
-          {t("careers.hero.badge", { value: CAREER_ROLES.length })}
+          {t("careers.hero.badge", { value: offers.length })}
           <ArrowRight
             className="h-3.5 w-3.5 text-brand-ink transition-transform duration-200 group-hover:translate-x-0.5"
             aria-hidden
