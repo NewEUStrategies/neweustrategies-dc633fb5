@@ -7,6 +7,7 @@ import {
   filterRolesByDepartment,
   findRole,
   roleBulletKeys,
+  roleRequirementKeys,
 } from "@/lib/careers/roles";
 import { careersResources } from "@/lib/i18n-careers";
 
@@ -56,6 +57,9 @@ describe("careers: słownik PL/EN", () => {
         for (const key of roleBulletKeys(role)) {
           expect(get(dict, key), key).toBeTruthy();
         }
+        for (const key of roleRequirementKeys(role)) {
+          expect(get(dict, key), key).toBeTruthy();
+        }
       }
       for (const dept of CAREER_DEPARTMENTS) {
         expect(get(dict, `careers.departments.${dept}`), dept).toBeTruthy();
@@ -94,6 +98,12 @@ describe("careers: słownik sekcji interaktywnych (hero / wartości / benefity /
     ]),
     ...PROCESS_ITEMS.map((k) => `careers.process.items.${k}.duration`),
     "careers.roles.showing",
+    "careers.roles.details",
+    "careers.roles.dialog.overview",
+    "careers.roles.dialog.responsibilities",
+    "careers.roles.dialog.requirements",
+    "careers.roles.dialog.close",
+    "careers.roles.dialog.meta",
     ...FORM_STEPS.flatMap((k) => [`careers.form.steps.${k}.title`, `careers.form.steps.${k}.hint`]),
     "careers.form.stepLabel",
     "careers.form.back",
