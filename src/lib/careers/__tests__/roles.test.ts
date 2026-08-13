@@ -69,7 +69,7 @@ describe("careers: słownik sekcji interaktywnych (hero / wartości / benefity /
   // renderowałaby użytkownikowi goły klucz zamiast tekstu.
   const ROTATING = ["research", "policy", "marketing", "advisory", "editorial"];
   const VALUE_ITEMS = ["evidence", "ownership", "craft", "europe"];
-  const BENEFIT_ITEMS = ["contract", "remote", "offices", "budget", "byline", "network"];
+  const BENEFIT_ITEMS = ["flexible", "remote", "warsaw", "impact", "byline", "network"];
   const PROCESS_ITEMS = ["apply", "screening", "task", "decision"];
   const FORM_STEPS = ["about", "fit", "message"];
   const SUCCESS_POINTS = ["review", "reply", "call"];
