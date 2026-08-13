@@ -65,21 +65,21 @@ const careersPl = {
       title: "Co oferujemy",
       subtitle: "Konkrety, nie owocowe czwartki.",
       items: {
-        contract: {
-          title: "Jawne widełki",
-          body: "Poznajesz je na pierwszej rozmowie. Forma współpracy do wyboru: umowa o pracę, B2B albo zlecenie.",
+        flexible: {
+          title: "Elastyczna współpraca",
+          body: "Wybór formy: umowa o pracę, B2B, zlecenie lub staż. Dopasowujemy wymiar i tryb do Twojej sytuacji.",
         },
         remote: {
           title: "Zdalnie lub hybrydowo",
           body: "Każdą rolę można pełnić zdalnie albo hybrydowo. Godziny ustalasz z zespołem, nie z regulaminem.",
         },
-        offices: {
-          title: "Biura w Warszawie i Brukseli",
-          body: "Dwa adresy blisko instytucji, o których piszemy. Korzystasz z nich wtedy, kiedy chcesz.",
+        warsaw: {
+          title: "Biuro w Warszawie",
+          body: "Przestrzeń do spotkań i głębokiej pracy w centrum Warszawy, kiedy chcesz z niej skorzystać.",
         },
-        budget: {
-          title: "Budżet rozwojowy",
-          body: "Roczny budżet na szkolenia i konferencje. O tym, na co idzie, decydujesz Ty.",
+        impact: {
+          title: "Realny wpływ na temat",
+          body: "Prowadzisz własne dossier od pomysłu do publikacji. Twoje nazwisko pod każdym tekstem.",
         },
         byline: {
           title: "Publikacje pod nazwiskiem",
@@ -387,21 +387,21 @@ const careersEn = {
       title: "What we offer",
       subtitle: "Specifics, not perks-page filler.",
       items: {
-        contract: {
-          title: "Transparent ranges",
-          body: "You hear them on the first call. Pick the contract that fits: employment, B2B or freelance.",
+        flexible: {
+          title: "Flexible collaboration",
+          body: "Choose the contract: employment, B2B, freelance or internship. We adapt the workload and mode to your situation.",
         },
         remote: {
           title: "Remote or hybrid",
           body: "Every role can be done remotely or hybrid. You set your hours with the team, not with a rulebook.",
         },
-        offices: {
-          title: "Offices in Warsaw and Brussels",
-          body: "Two addresses close to the institutions we cover. Use them whenever you like.",
+        warsaw: {
+          title: "Warsaw office",
+          body: "A space for meetings and deep work in central Warsaw, available when you need it.",
         },
-        budget: {
-          title: "Development budget",
-          body: "An annual budget for training and conferences. You decide where it goes.",
+        impact: {
+          title: "Real impact on your topic",
+          body: "You own your dossier from idea to publication. Your name is on every piece.",
         },
         byline: {
           title: "Your name on your work",
