@@ -22,7 +22,32 @@ export const Route = createFileRoute("/admin/careers")({
   component: AdminCareersPage,
 });
 
-const PL = {
+interface CareersDict {
+  title: string;
+  subtitle: string;
+  filter: { open: string; all: string; archived: string };
+  search: string;
+  empty: string;
+  pickOne: string;
+  role: string;
+  department: string;
+  seniority: string;
+  start: string;
+  linkedin: string;
+  message: string;
+  crm: string;
+  crmSynced: string;
+  crmMissing: string;
+  crmOpen: string;
+  reply: string;
+  markRead: string;
+  archive: string;
+  unarchive: string;
+  archived: string;
+  none: string;
+}
+
+const PL: CareersDict = {
   title: "Rekrutacja",
   subtitle: "Zgłoszenia ze strony „Dołącz do zespołu” (/zatrudniamy).",
   filter: { open: "Nowe", all: "Wszystkie", archived: "Archiwum" },
@@ -45,9 +70,9 @@ const PL = {
   unarchive: "Przywróć",
   archived: "Zarchiwizowano",
   none: "-",
-} as const;
+};
 
-const EN: typeof PL = {
+const EN: CareersDict = {
   title: "Recruitment",
   subtitle: "Applications from the “Join the team” page (/zatrudniamy).",
   filter: { open: "New", all: "All", archived: "Archive" },
