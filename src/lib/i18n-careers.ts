@@ -98,8 +98,15 @@ const careersPl = {
       showing: "Pokazujemy {{value}} z {{total}} ról",
       empty: "W tym dziale nie prowadzimy teraz rekrutacji - napisz do nas mimo to.",
       apply: "Aplikuj na tę rolę",
-      details: "Zakres obowiązków",
+      details: "Pełna oferta",
       selected: "Wybrana rola",
+      dialog: {
+        overview: "O roli",
+        responsibilities: "Zakres obowiązków",
+        requirements: "Wymagania",
+        close: "Zamknij",
+        meta: "Szczegóły oferty",
+      },
       senior_analyst_security: {
         title: "Starszy analityk - bezpieczeństwo i obronność",
         summary:
@@ -474,8 +481,15 @@ const careersEn = {
       showing: "Showing {{value}} of {{total}} roles",
       empty: "We are not hiring in this department right now - write to us anyway.",
       apply: "Apply for this role",
-      details: "Scope of work",
+      details: "Full job offer",
       selected: "Selected role",
+      dialog: {
+        overview: "About the role",
+        responsibilities: "Scope of work",
+        requirements: "Requirements",
+        close: "Close",
+        meta: "Offer details",
+      },
       senior_analyst_security: {
         title: "Senior analyst - security and defence",
         summary:
