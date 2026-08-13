@@ -77,10 +77,12 @@ import {
   type ClubThreadKind,
 } from "@/lib/clubs/types";
 import { formatDateTime, uiLang } from "@/lib/i18n/format";
+import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 
 const ANY = "__any__";
 
 export function ClubThreadsTab({ clubId }: { clubId: string }) {
+  ensureAdminClubsI18n();
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
   const [search, setSearch] = useState("");

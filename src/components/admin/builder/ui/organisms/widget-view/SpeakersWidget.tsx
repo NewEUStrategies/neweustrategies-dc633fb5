@@ -305,7 +305,6 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
     return () => io.disconnect();
   }, [pageMode, canLoadMore, pageSize, filtered.length]);
 
-  const dbLoading = source !== "manual" && dbQ.isLoading;
 
   const onOpenProfile = (item: SpeakerItem) => {
     if (!openProfile) return;
@@ -592,7 +591,6 @@ function SpeakerCard({
   const rawHref = getStr(item as WidgetContent, "href");
   const href = rawHref ? safeUrl(rawHref, "") : "";
   const isExpert = item.isExpert === true;
-  const interactive = !!onOpenProfile || !!href;
 
   // Kaskadowe wejście kart: opóźnienie rośnie z indeksem (z sufitem, żeby
   // dalsze strony paginacji nie czekały sekundami na animację).

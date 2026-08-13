@@ -19,7 +19,6 @@ import type { VitalMetricSummary, VitalPathRow } from "@/lib/observability/aggre
 import {
   VITAL_THRESHOLDS,
   type VitalName,
-  type VitalRating,
 } from "@/lib/observability/vitalsThresholds";
 
 type Severity = "poor" | "needs-improvement" | "good";

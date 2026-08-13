@@ -13,6 +13,7 @@ import { ClubTopicSelect } from "@/components/clubs/molecules/ClubTopicSelect";
 import { ClubEnumSelect } from "../molecules/ClubEnumSelect";
 import { ClubLayoutPicker } from "../molecules/ClubLayoutPicker";
 import { CLUB_STATUSES, type ClubLayout, type ClubStatus } from "@/lib/clubs/types";
+import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 
 export interface ClubGeneralDraft {
   slug: string;
@@ -39,6 +40,7 @@ interface ClubGeneralTabProps {
 }
 
 export function ClubGeneralTab({ draft, persistedSlug, onChange, disabled }: ClubGeneralTabProps) {
+  ensureAdminClubsI18n();
   const { t } = useTranslation();
   const slugChanged = draft.slug !== persistedSlug && persistedSlug.length > 0;
 

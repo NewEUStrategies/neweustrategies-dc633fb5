@@ -54,6 +54,7 @@ import {
   type ClubVisibility,
 } from "@/lib/clubs/types";
 import { ensureClubI18n } from "@/lib/i18n-club";
+import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 
 const TAB_KEYS = [
   "general",
@@ -86,6 +87,7 @@ function narrow<T extends string>(value: string | null, allowed: readonly T[], f
 }
 
 function toGeneralDraft(club: AdminClubDetailRow): ClubGeneralDraft {
+  ensureAdminClubsI18n();
   return {
     slug: club.slug,
     namePl: club.name_pl,

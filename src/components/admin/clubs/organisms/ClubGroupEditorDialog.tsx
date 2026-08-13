@@ -44,6 +44,7 @@ import { ConfirmDialog, type ConfirmState } from "@/components/admin/ConfirmDial
 import { InheritedField } from "../atoms/InheritedField";
 import { ClubEnumSelect } from "../molecules/ClubEnumSelect";
 import { useDeleteClubGroup, useUpsertClubGroup } from "@/lib/clubs/useClubs";
+import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 import {
   CLUB_ATTRIBUTION_MODES,
   CLUB_GROUP_STATUSES,
@@ -144,6 +145,7 @@ export function ClubGroupEditorDialog({
   siblings: readonly AdminClubGroupRow[];
   onOpenChange: (open: boolean) => void;
 }) {
+  ensureAdminClubsI18n();
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
   const saveM = useUpsertClubGroup(clubId);

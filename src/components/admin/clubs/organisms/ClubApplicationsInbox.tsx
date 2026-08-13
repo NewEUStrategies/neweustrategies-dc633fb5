@@ -38,6 +38,7 @@ import {
 } from "@/lib/clubs/applicationNotify.functions";
 import { useServerFn } from "@tanstack/react-start";
 import { useClubSpecializations } from "@/lib/clubs/useClubSpecializations";
+import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 
 const STATUSES: ClubApplicationStatus[] = [
   "pending",
@@ -248,6 +249,7 @@ function ApplicationRow(props: {
 }
 
 export function ClubApplicationsInbox() {
+  ensureAdminClubsI18n();
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
   const qc = useQueryClient();

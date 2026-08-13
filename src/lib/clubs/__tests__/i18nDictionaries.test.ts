@@ -22,6 +22,7 @@ vi.mock("@/lib/i18n", () => ({
 }));
 
 import { clubEn, clubPl } from "@/lib/i18n-club";
+import { adminClubsEn, adminClubsPl } from "@/lib/i18n-clubs-admin";
 import {
   CLUB_ACCESS_REASONS,
   CLUB_LOG_ACTIONS,
@@ -85,14 +86,36 @@ const DICTIONARIES: ReadonlyArray<{
   },
 ];
 
+/**
+ * `adminClubs.*` pochodzi z DWOCH plikow: publiczne szesc sekcji zostalo
+ * w `i18n-club.ts`, a 35 adminowych wyszlo do `i18n-clubs-admin.ts`, zeby nie
+ * jechaly w chunku wejsciowym. i18next scala je gleboko w czasie dzialania,
+ * wiec test - ktory czyta SUROWE drzewa, nie zarejestrowany bundle - musi
+ * zrobic to samo. Bez tego sekcje panelu wygladaja jak brakujace.
+ */
+function mergeTrees(base: Tree, overlay: Tree): Tree {
+  const out: Tree = { ...base };
+  for (const [key, value] of Object.entries(overlay)) {
+    const existing = out[key];
+    out[key] =
+      typeof value === "object" && value !== null && typeof existing === "object" && existing !== null
+        ? mergeTrees(existing as Tree, value as Tree)
+        : value;
+  }
+  return out;
+}
+
+const dictPl = mergeTrees(clubPl as Tree, adminClubsPl as unknown as Tree);
+const dictEn = mergeTrees(clubEn as Tree, adminClubsEn as unknown as Tree);
+
 describe("słowniki Discussion Club mają komplet tłumaczeń", () => {
   for (const { label, prefix, codes } of DICTIONARIES) {
     it(`${label}: każdy kod ma tekst PL`, () => {
-      expect(missing(clubPl as Tree, prefix, codes)).toEqual([]);
+      expect(missing(dictPl, prefix, codes)).toEqual([]);
     });
 
     it(`${label}: każdy kod ma tekst EN`, () => {
-      expect(missing(clubEn as Tree, prefix, codes)).toEqual([]);
+      expect(missing(dictEn, prefix, codes)).toEqual([]);
     });
   }
 

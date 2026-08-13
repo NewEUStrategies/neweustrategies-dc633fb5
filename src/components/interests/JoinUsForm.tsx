@@ -10,17 +10,13 @@
 import {
   useEffect,
   useId,
-  useLayoutEffect,
-  useMemo,
-  useRef,
   useState,
   type CSSProperties,
   type ReactNode,
 } from "react";
-import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { useServerFn } from "@tanstack/react-start";
-import { Check, ChevronDown, UserPlus, X } from "lucide-react";
+import { Check, UserPlus } from "lucide-react";
 import { SubscribeButton } from "@/components/ui/subscribe-button";
 
 import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";

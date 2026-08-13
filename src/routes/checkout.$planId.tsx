@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -47,7 +47,6 @@ function CheckoutPage() {
   const { planId } = Route.useParams();
   const { t, i18n } = useTranslation();
   const { session } = useAuth();
-  const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [coupon, setCoupon] = useState<{ code: string; discountCents: number } | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);

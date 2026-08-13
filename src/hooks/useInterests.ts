@@ -1,7 +1,7 @@
 // Client-side interests management. Uses RLS-backed `user_follows` for
 // signed-in users, falls back to localStorage for anonymous visitors so the
 // recommendation engine can be primed before sign-in.
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";

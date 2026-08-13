@@ -18,7 +18,6 @@ export {
   type CommunityModulesSettings,
 } from "@/lib/community/modulesSettings";
 import {
-  COMMUNITY_MODULES_DEFAULTS,
   COMMUNITY_MODULES_KEY,
   type CommunityModulesSettings,
 } from "@/lib/community/modulesSettings";

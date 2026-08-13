@@ -20,7 +20,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
@@ -34,7 +33,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Plus, Trash2, Pencil, Users, Layers, Handshake, Star } from "lucide-react";
 import { toast } from "sonner";
 import { confirmDialog } from "@/lib/appDialogs";
-import { PROGRAM_ICONS, DEFAULT_PROGRAM_ICON } from "@/lib/programs/icons";
+import { PROGRAM_ICONS } from "@/lib/programs/icons";
 import { ProgramIcon } from "@/components/programs/ProgramIcon";
 import { ensureI18n as ensureProgramsI18n } from "@/lib/i18n-programs";
 export const Route = createFileRoute("/admin/research-programs")({
@@ -520,7 +519,6 @@ function AdminResearchPrograms() {
 function ResearchQuestionsEditor({
   value,
   onChange,
-  lang,
 }: {
   value: { pl: string; en: string }[];
   onChange: (next: { pl: string; en: string }[]) => void;

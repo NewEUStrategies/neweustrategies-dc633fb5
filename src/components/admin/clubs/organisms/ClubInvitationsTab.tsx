@@ -43,6 +43,7 @@ import {
 } from "@/lib/clubs/useClubs";
 import { toClubInviteError, type ClubMemberRole } from "@/lib/clubs/types";
 import { formatDateShort } from "@/lib/i18n/format";
+import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 
 /** Role możliwe do nadania zaproszeniem masowym. `lead` celowo poza listą. */
 const INVITABLE_ROLES = ["moderator", "member", "observer"] as const;
@@ -51,6 +52,7 @@ type InvitableRole = (typeof INVITABLE_ROLES)[number];
 type SendMode = "person" | "email";
 
 export function ClubInvitationsTab({ clubId }: { clubId: string }) {
+  ensureAdminClubsI18n();
   const { t, i18n } = useTranslation();
   const [mode, setMode] = useState<SendMode>("person");
   const [userId, setUserId] = useState("");

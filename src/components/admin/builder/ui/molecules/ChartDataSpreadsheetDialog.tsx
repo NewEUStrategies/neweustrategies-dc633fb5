@@ -10,7 +10,6 @@ import {
   Undo2,
   Check,
   Loader2,
-  AlertTriangle,
 } from "lucide-react";
 import {
   Dialog,
@@ -151,7 +150,6 @@ export function ChartDataSpreadsheetDialog({
   }, [open, value]);
 
   const chartKind: ChartKind = parseChartKind(kind);
-  const isPie = chartKind === "pie" || chartKind === "donut";
 
   const previewConfig: ChartConfig = useMemo(() => {
     const csv = gridToCsv(grid);
@@ -182,7 +180,6 @@ export function ChartDataSpreadsheetDialog({
 
   // Wykres kołowy rysuje WYŁĄCZNIE pierwszą serię (jedna tarcza = jeden
   // podział całości). Bez tego ostrzeżenia kolejne kolumny znikały po cichu.
-  const droppedSeries = isPie ? Math.max(0, grid.seriesNames.length - 1) : 0;
 
   // Live sync: propaguj CSV do parenta natychmiast po edycji, żeby wpisy
   // trafiały do widget-config bez czekania na przycisk "Zapisz". Krótki

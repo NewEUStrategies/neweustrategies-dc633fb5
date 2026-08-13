@@ -11,7 +11,6 @@ import {
   useInfiniteQuery,
   useMutation,
   useQueryClient,
-  type InfiniteData,
   type UseInfiniteQueryResult,
   type UseQueryResult,
   useQuery,

@@ -34,7 +34,6 @@ export const Route = createFileRoute("/error")({
 
 function ErrorPage() {
   const { kind, title, footer } = Route.useSearch();
-  const copy = errorCopy();
 
   // Build a synthetic error object that FriendlyErrorPage can classify.
   const syntheticError = useSyntheticError(kind);

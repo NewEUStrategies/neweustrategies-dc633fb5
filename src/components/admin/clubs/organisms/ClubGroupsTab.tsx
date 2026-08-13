@@ -32,6 +32,7 @@ import { Button } from "@/components/ui/button";
 import { ClubGroupStatusBadge, ClubVisibilityBadge } from "../atoms/ClubBadges";
 import { ClubGroupEditorDialog } from "./ClubGroupEditorDialog";
 import { useAdminClubGroups, useReorderClubGroups, useUpsertClubGroup } from "@/lib/clubs/useClubs";
+import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 import {
   CLUB_GROUP_STATUSES,
   CLUB_VISIBILITIES,
@@ -120,6 +121,7 @@ function SortableGroupRow({ group, onEdit }: { group: AdminClubGroupRow; onEdit:
 }
 
 export function ClubGroupsTab({ clubId }: { clubId: string }) {
+  ensureAdminClubsI18n();
   const { t } = useTranslation();
   const groupsQ = useAdminClubGroups(clubId);
   const reorderM = useReorderClubGroups(clubId);

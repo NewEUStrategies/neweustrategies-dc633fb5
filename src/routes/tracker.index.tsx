@@ -45,7 +45,7 @@ import {
 } from "@/lib/tracker/stages";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
-import { SITE_CANONICAL_ORIGIN, buildContentHead, feedAlternateLink } from "@/lib/seo/meta";
+import { buildContentHead } from "@/lib/seo/meta";
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { ensureI18n as ensureTrackerI18n } from "@/lib/i18n-tracker";
 

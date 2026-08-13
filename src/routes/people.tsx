@@ -81,7 +81,7 @@ import {
 import { useBadgesForUsers, type ProfileBadgeKind } from "@/lib/profile/badges";
 import { ProfileBadges } from "@/components/profile/ProfileBadges";
 import { IntentChip } from "@/components/atoms/IntentChip";
-import { SavedSearchesPanel, type SavedSearchParams } from "@/components/search/SavedSearchesPanel";
+import { SavedSearchesPanel } from "@/components/search/SavedSearchesPanel";
 import { currentLang } from "@/lib/i18n/localeRuntime";
 import { cn } from "@/lib/utils";
 import { ensureI18n as ensureChatI18n } from "@/lib/i18n-chat";

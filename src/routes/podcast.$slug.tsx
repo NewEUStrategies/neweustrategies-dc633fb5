@@ -5,7 +5,6 @@ import { useTranslation } from "react-i18next";
 import {
   podcastBySlugQueryOptions,
   podcastSettingsQueryOptions,
-  showBySlugQueryOptions,
   showEpisodesQueryOptions,
   episodePeopleQueryOptions,
 } from "@/lib/queries/podcasts";

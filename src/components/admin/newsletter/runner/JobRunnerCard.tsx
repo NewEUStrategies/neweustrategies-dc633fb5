@@ -25,7 +25,6 @@ import { resolveRunnerState, type RunnerState } from "@/lib/email/runnerHealth";
 import {
   getJobRunnerSettings,
   updateJobRunnerSettings,
-  type JobRunnerSettings,
 } from "@/lib/newsletter-admin.functions";
 import "@/lib/i18n-newsletter-runner";
 

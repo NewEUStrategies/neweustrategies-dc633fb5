@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   BarChart3,
@@ -22,13 +22,6 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { toast } from "sonner";
 import { adminToast } from "@/lib/adminToasts";
 import { getAnalyticsStatus, type AnalyticsStatus } from "@/lib/analytics/status.functions";

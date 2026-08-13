@@ -1,7 +1,7 @@
 // Panel trackera legislacyjnego: CRUD dossier + dodawanie aktualizacji do osi
 // czasu. Aktualizacja z ustawionym etapem przestawia etap dossier (trigger DB)
 // i wysyła alert obserwującym - stąd wyraźny komunikat po zapisie.
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";

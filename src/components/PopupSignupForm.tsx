@@ -13,7 +13,7 @@
 import { useRef, useState, type FormEvent } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { sanitizeHtml } from "@/lib/sanitize";
-import { Check, Mail, Eye } from "@/lib/lucide-shim";
+import { Eye } from "@/lib/lucide-shim";
 import { EyeOff } from "lucide-react";
 import type { NewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { supabase } from "@/integrations/supabase/client";

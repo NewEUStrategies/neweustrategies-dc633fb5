@@ -8,7 +8,6 @@ import {
   codeStyle,
   greeting,
   NesEmailLayout,
-  infoText,
   SecurityNote,
   smallPrint,
   text,

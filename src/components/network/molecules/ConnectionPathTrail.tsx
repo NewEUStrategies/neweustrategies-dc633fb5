@@ -56,7 +56,6 @@ export function ConnectionPathTrail({
   bridge,
   targetName,
   targetAvatarUrl,
-  targetSlug,
   density = "compact",
   interactive = true,
   className,

@@ -4,12 +4,10 @@
 // każdego speakera - nie trzymamy osobnej listy, żeby edycja była jednym
 // źródłem prawdy. Zawiera walidację (URL zdjęcia, ocena 0-5), przełączniki
 // wyszukiwarki/sortowania/paginacji oraz eksport/import JSON.
-import { useRef } from "react";
 import { toJson } from "@/lib/builder/types";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import {
@@ -19,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Download, Upload, GripVertical, Copy } from "@/lib/lucide-shim";
+import { GripVertical, Copy } from "@/lib/lucide-shim";
 import {
   DndContext,
   PointerSensor,
@@ -155,7 +153,6 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
     en: [...new Set(speakers.map((s) => strOf(s.category_en).trim()).filter(Boolean))],
   };
 
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const doExport = () => {
     const payload = JSON.stringify({ version: 1, speakers }, null, 2);

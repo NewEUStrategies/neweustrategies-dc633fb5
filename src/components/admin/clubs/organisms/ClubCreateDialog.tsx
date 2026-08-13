@@ -44,6 +44,7 @@ import { ClubEnumSelect } from "../molecules/ClubEnumSelect";
 import { ClubTopicSelect } from "@/components/clubs/molecules/ClubTopicSelect";
 import { ClubLayoutPicker } from "../molecules/ClubLayoutPicker";
 import { useClubSlugAvailable, useUpsertClub } from "@/lib/clubs/useClubs";
+import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 import {
   CLUB_ATTRIBUTION_MODES,
   CLUB_JOIN_POLICIES,
@@ -65,6 +66,7 @@ export function ClubCreateDialog({
   onOpenChange: (open: boolean) => void;
   onCreated: (clubId: string) => void;
 }) {
+  ensureAdminClubsI18n();
   const { t, i18n } = useTranslation();
   // Nazwa mowi, co ta flaga naprawde robi: wybiera KOLUMNE zapisu tagline'u,
   // a nie etykiete interfejsu.

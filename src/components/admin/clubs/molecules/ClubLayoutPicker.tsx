@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CLUB_LAYOUTS, type ClubLayout } from "@/lib/clubs/types";
+import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 
 /** Pasek udający wiersz tekstu. `w` to szerokość w procentach. */
 function Bar({ w, strong = false }: { w: number; strong?: boolean }) {
@@ -109,6 +110,7 @@ export function ClubLayoutPicker({
   onChange: (layout: ClubLayout) => void;
   disabled?: boolean;
 }) {
+  ensureAdminClubsI18n();
   const { t } = useTranslation();
 
   return (

@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAdminClubStats } from "@/lib/clubs/useClubs";
+import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 
 type IconType = typeof Users2;
 
@@ -82,6 +83,7 @@ function StatCard({
 }
 
 export function ClubStatsTab({ clubId }: { clubId: string }) {
+  ensureAdminClubsI18n();
   const { t } = useTranslation();
   const statsQ = useAdminClubStats(clubId);
   const s = statsQ.data;

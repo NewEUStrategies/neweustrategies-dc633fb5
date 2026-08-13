@@ -190,7 +190,6 @@ export function WordPressImportDialog({ trigger }: { trigger: React.ReactNode })
       let plId = id;
       let enId: number | undefined;
       if (row.pairedWith && selected.has(row.pairedWith)) {
-        const partner = rows[row.pairedWith];
         if (row.lang === "pl") {
           plId = id;
           enId = row.pairedWith;

@@ -52,6 +52,60 @@ const FORBIDDEN_SDKS: readonly ForbiddenSdk[] = [
   },
 ];
 
+/**
+ * Ciężki słownik i18n + literał, po którym go poznajemy w zminifikowanym chunku.
+ *
+ * PO CO DRUGA KLASA REGUŁ. 2026-08-13: chunk wejściowy miał 511,4 KB przy progu
+ * 513 - 1,7 KB zapasu (0,33%). Przyczyną było CZTERY STRINGI: `club.apply.tsx`
+ * importowało surowe obiekty `clubPl`/`clubEn` i czytało z nich `head()`, a
+ * TanStack Start trzyma `head:` EAGER w drzewie tras, czyli w chunku wejściowym
+ * (`component:` jest leniwy, `head:` nie jest). Jedna statyczna krawędź po meta
+ * SEO wciągała cały słownik klubów: zmierzone 47,4 KB gzip, 9,3% chunku.
+ *
+ * DLACZEGO NIE WYSTARCZY BUDŻET W KILOBAJTACH. Budżet mierzy SKUTEK i z dużym
+ * opóźnieniem: da się go skompensować ścięciem czegoś innego w tym samym PR,
+ * a wtedy regresja architektoniczna przechodzi z zieloną bramką. Kronika
+ * w `check-bundle-size.ts` opisuje ten tryb trzy razy (08-01, 08-03, 08-12).
+ * Ta reguła pilnuje PRZYCZYNY: słownik nie ma prawa być statycznie osiągalny
+ * ze ścieżki bootowania, niezależnie od tego, ile aktualnie waży.
+ *
+ * MARKER MUSI BYĆ WARTOŚCIĄ, NIE ŚCIEŻKĄ KLUCZA. Ścieżka `club.role.moderator`
+ * nie istnieje dosłownie w pliku o strukturze zagnieżdżonej (`role: { moderator:
+ * … }`), więc sonda na klucz daje fałszywy negatyw - to pomyłka, którą audyt
+ * z 2026-08-13 popełnił i skorygował (§5.1). Wartość przeżywa minifikację.
+ */
+interface HeavyDictionary {
+  readonly label: string;
+  readonly markers: readonly string[];
+  readonly remedy: string;
+}
+
+const HEAVY_DICTIONARIES: readonly HeavyDictionary[] = [
+  {
+    label: "i18n-club (słownik klubów dyskusyjnych, ~47 KB gzip)",
+    markers: ["Kluby dyskusyjne są dostępne po zalogowaniu"],
+    remedy:
+      "`head()` trasy NIE MOŻE czytać drzewa słownika - trzymaj meta SEO w stałej mapie " +
+      "PL/EN obok trasy (wzorzec: `lib/clubs/applyHead.ts`, `lib/clubs/specializationHead.ts`), " +
+      "a w komponencie wołaj `t()` po `ensureClubI18n()`",
+  },
+  {
+    label: "i18n-builder (słownik page buildera)",
+    markers: ["Ustawienia widgetu"],
+    remedy: "słownik panelu ma zostać poza drzewem tras publicznych - patrz wyżej",
+  },
+  {
+    label: "i18n-profile (słownik profilu)",
+    markers: ["Twoje zainteresowania"],
+    remedy: "jak wyżej",
+  },
+  {
+    label: "i18n-clubs-admin (słownik panelu klubów)",
+    markers: ["Zgłoszenia do klubów"],
+    remedy: "jak wyżej - panel ma własny chunk, wołany przez `ensureAdminClubsI18n()`",
+  },
+];
+
 const CLIENT_DIR =
   process.env["CLIENT_DIR"] ??
   [".output/public/assets", "dist/client/assets"].find((d) => listJs(d).length > 0) ??
@@ -166,13 +220,30 @@ function main(): void {
     }
   }
 
+  for (const dict of HEAVY_DICTIONARIES) {
+    const hits: string[] = [];
+    for (const chunk of bootGraph) {
+      const src = readFileSync(join(CLIENT_DIR, chunk), "utf8");
+      if (dict.markers.some((marker) => src.includes(marker))) hits.push(chunk);
+    }
+    if (hits.length > 0) {
+      violations.push(
+        `  • ${dict.label}\n` +
+          hits.map((h) => `      w chunku startowym: ${h}`).join("\n") +
+          `\n      naprawa: ${dict.remedy}`,
+      );
+    }
+  }
+
   console.log(
     `Sciezka bootowania: ${boot.join(", ")} -> ${bootGraph.size} chunkow statycznie osiagalnych ` +
       `(z ${files.length}).`,
   );
 
   if (violations.length > 0) {
-    console.error(`\n✗ SDK operatora na sciezce bootowania czytelnika:\n${violations.join("\n")}`);
+    console.error(
+      `\n✗ Na sciezce bootowania czytelnika sa rzeczy, ktorych tam byc nie moze:\n${violations.join("\n")}`,
+    );
     console.error(
       "\n  Kazdy anonimowy czytelnik pobiera i parsuje ten kod, zanim zobaczy tresc -\n" +
         "  a niemal nikt z nich nie wchodzi w checkout. SDK ma sie ladowac przez\n" +
@@ -182,7 +253,9 @@ function main(): void {
   }
 
   console.log(
-    `✓ Sciezka bootowania czysta (sprawdzono: ${FORBIDDEN_SDKS.map((s) => s.label).join(", ")}).`,
+    "✓ Sciezka bootowania czysta.\n" +
+      `  SDK operatora:     ${FORBIDDEN_SDKS.map((s) => s.label).join(", ")}\n` +
+      `  ciezkie slowniki:  ${HEAVY_DICTIONARIES.map((d) => d.label.split(" ")[0]).join(", ")}`,
   );
 }
 

@@ -66,6 +66,7 @@ import {
   type ClubMemberStatus,
 } from "@/lib/clubs/types";
 import { formatDateShort, formatDateTime } from "@/lib/i18n/format";
+import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 
 const ANY = "__any__";
 
@@ -86,6 +87,7 @@ function isExpired(value: string | null): boolean {
 }
 
 export function ClubMembersTab({ clubId }: { clubId: string }) {
+  ensureAdminClubsI18n();
   const { t, i18n } = useTranslation();
   const [statusFilter, setStatusFilter] = useState<ClubMemberStatus | null>(null);
   const [newMemberId, setNewMemberId] = useState("");

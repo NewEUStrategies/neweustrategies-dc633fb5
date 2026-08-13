@@ -97,6 +97,7 @@ import {
   type ClubReactionTally,
 } from "@/lib/clubs/types";
 import { ensureClubI18n } from "@/lib/i18n-club";
+import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 import { ensureClubElementsI18n } from "@/lib/i18n-club-elements";
 
 /** Bez akcentów i wielkości liter - "widocznosc" ma znaleźć "Widoczność". */
@@ -333,6 +334,7 @@ const INITIAL_TALLIES: ClubReactionTally[] = [
 ];
 
 export function ClubElementsCatalog() {
+  ensureAdminClubsI18n();
   ensureClubI18n();
   ensureClubElementsI18n();
   const { t } = useTranslation();

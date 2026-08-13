@@ -25,7 +25,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { FieldLabel } from "@/components/profile/FieldLabel";
 import { PasswordStrengthMeter } from "@/components/molecules/PasswordStrengthMeter";

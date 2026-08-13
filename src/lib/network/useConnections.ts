@@ -22,7 +22,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { pendingCounterKeys } from "@/lib/counters/keys";
 import { subscribeToTable } from "@/lib/realtime/tableChannelHub";
-import { toNetworkDegree, type NetworkDegree } from "@/lib/network/degree";
 import type { Database } from "@/integrations/supabase/types";
 import { networkKeys } from "./keys";
 import { readDegree, type ConnectionBridge, type ConnectionDegree } from "./degree";

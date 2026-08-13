@@ -28,7 +28,6 @@ import {
 import type { PublicEvent } from "@/lib/community/publicQueries";
 import type { Podcast } from "@/lib/podcast/types";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
-import { formatDateShort } from "@/lib/i18n/format";
 import { safeAccent, accentRgba, readableTextColor } from "@/lib/programs/visual";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";

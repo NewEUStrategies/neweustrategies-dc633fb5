@@ -24,6 +24,14 @@ export type KeyUsageKind =
   | "literal"
   /** `t(`network.reportReasons.${r}`)` - znany jest tylko prefiks gałęzi. */
   | "prefix"
+  /**
+   * `t(`blocks.toolbar.padY_${size}`)` - interpolacja domyka NAZWĘ LIŚCIA, nie
+   * wybiera go z gałęzi. Rozróżnienie ma znaczenie: `prefix` sprawdza się przez
+   * porównanie ZBIORÓW podkluczy, a tutaj żadna gałąź `padY_` nie istnieje -
+   * istnieją liście `padY_sm`, `padY_md`. Traktowanie tego jak `prefix` dawało
+   * 8 fałszywych `branch_missing` przy skanie całego `src`.
+   */
+  | "partial"
   /** Ścieżka klucza w stałej / mapie / propsie, oddana do `t()` gdzie indziej. */
   | "reference";
 
@@ -46,7 +54,15 @@ export type KeyUsageReason =
   /** Gałąź dynamiczna istnieje, ale zbiory podkluczy PL i EN się różnią. */
   | "branch_mismatch"
   /** Prefiks dynamiczny nie prowadzi do gałęzi w słowniku. */
-  | "branch_missing";
+  | "branch_missing"
+  /** Rodzic liścia domykanego interpolacją (`padY_${x}`) nie istnieje. */
+  | "partial_parent_missing"
+  /**
+   * Rodzic istnieje, ale zbiory liści o tym początku różnią się między PL i EN -
+   * czyli jedna wartość słownika kodu renderuje się w jednym języku, a w drugim
+   * zostawia goły klucz. Dokładnie ten defekt co `club.sort.subscribed`.
+   */
+  | "partial_mismatch";
 
 export interface KeyUsageFinding {
   readonly usage: KeyUsage;
@@ -236,15 +252,29 @@ function unquote(raw: string): string | null {
   return inner;
 }
 
-/** Statyczny prefiks template literala: `network.a.${x}` -> `network.a`. */
-function templatePrefix(raw: string): string | null {
+/**
+ * Statyczna głowa template literala z informacją, CO domyka interpolacja:
+ *   `network.a.${x}`        -> { head: "network.a",            kind: "prefix"  }
+ *   `blocks.pad_${size}`    -> { head: "blocks.pad_",          kind: "partial" }
+ *
+ * Kropka na końcu głowy znaczy „wybierz podklucz z tej gałęzi"; jej brak znaczy
+ * „dolep resztę do nazwy liścia". To dwa różne sprawdzenia i pomylenie ich daje
+ * fałszywe `branch_missing` (gałąź `pad_` nie istnieje, bo istnieją `pad_sm`,
+ * `pad_md`).
+ */
+function templateHead(raw: string): { head: string; kind: "prefix" | "partial" } | null {
   const text = raw.trim();
   if (!text.startsWith("`")) return null;
   const hole = text.indexOf("${");
   if (hole === -1) return null;
   const head = text.slice(1, hole);
-  const trimmed = head.replace(/\.+$/, "");
-  return trimmed.length > 0 ? trimmed : null;
+  if (head.endsWith(".")) {
+    const trimmed = head.replace(/\.+$/, "");
+    return trimmed.length > 0 ? { head: trimmed, kind: "prefix" } : null;
+  }
+  // Głowa bez kropki musi mieć co najmniej jeden segment rodzica, inaczej nie ma
+  // czego sprawdzać (`${x}.foo` albo `foo${x}` bez ścieżki).
+  return head.includes(".") ? { head, kind: "partial" } : null;
 }
 
 function readDefaultValue(options: string | undefined): string | null {
@@ -258,12 +288,60 @@ function hasCount(options: string | undefined): boolean {
 }
 
 /**
+ * Zasięgi `keyPrefix` w pliku - `useTranslation(ns, { keyPrefix: "admin" })`
+ * skleja prefiks z KAŻDYM kluczem wołanym przez `t()` z tego haka.
+ *
+ * PO CO TO ISTNIEJE. Bez tego skaner raportuje `t("themeOptions.loading")`
+ * jako klucz nieistniejący, choć hak dokleja `admin.` i panel renderuje się
+ * poprawnie. Na `ThemeOptionsPane.tsx` dawało to 182 fałszywe alarmy naraz -
+ * czyli tyle, że bramka rozszerzona na całe `src` byłaby nie do włączenia.
+ *
+ * ZASIĘG LICZONY POZYCJĄ, nie parsowaniem AST: `useTranslation()` stoi na
+ * początku ciała komponentu, a `t()` niżej, więc dla każdego wywołania `t()`
+ * obowiązuje NAJBLIŻSZY POPRZEDZAJĄCY hak. Ten sam plik może mieszać haki
+ * z prefiksem i bez (`ThemeOptionsPane` ma 5 z i 2 bez) i ta reguła to
+ * rozstrzyga poprawnie. Heurystyka, nie dowód - dlatego bramka ma kanarek
+ * (`scanKeyUsage` musi znaleźć znane klucze), który wyłapie jej rozjazd.
+ */
+interface PrefixScope {
+  readonly at: number;
+  readonly keyPrefix: string | null;
+}
+
+function readKeyPrefixScopes(source: string): PrefixScope[] {
+  const scopes: PrefixScope[] = [];
+  for (const match of source.matchAll(/\buseTranslation\s*\(/g)) {
+    const open = match.index + match[0].length - 1;
+    const call = parseCallArgs(source, open);
+    if (call === null) {
+      scopes.push({ at: match.index, keyPrefix: null });
+      continue;
+    }
+    const options = call.args[1];
+    const prefix =
+      options === undefined ? null : /keyPrefix\s*:\s*(["'`])([^"'`]*)\1/.exec(options);
+    scopes.push({ at: match.index, keyPrefix: prefix === null ? null : prefix[2] });
+  }
+  return scopes;
+}
+
+function prefixAt(scopes: readonly PrefixScope[], index: number): string | null {
+  let active: string | null = null;
+  for (const scope of scopes) {
+    if (scope.at > index) break;
+    active = scope.keyPrefix;
+  }
+  return active;
+}
+
+/**
  * Klucze przekazane do `t()` w jednym pliku. Wywołanie rozpoznajemy po
  * `t(` niepoprzedzonym znakiem identyfikatora, więc łapiemy zarówno `t(...)`,
  * jak i `i18n.t(...)`, a `split(`/`filter(`/`at(` zostają poza skanem.
  */
 export function scanTranslationCalls(file: string, rawSource: string): KeyUsage[] {
   const source = maskComments(rawSource);
+  const scopes = readKeyPrefixScopes(source);
   const out: KeyUsage[] = [];
   for (let i = 0; i < source.length - 1; i += 1) {
     if (source[i] !== "t" || source[i + 1] !== "(") continue;
@@ -278,15 +356,34 @@ export function scanTranslationCalls(file: string, rawSource: string): KeyUsage[
     const line = lineOf(source, i);
     const defaultValue = readDefaultValue(second);
     const plural = hasCount(second);
+    // `i18n.t(...)` / `i18next.t(...)` omija hak, wiec NIE dostaje `keyPrefix`.
+    // `t(...)` z destrukturyzacji haka - dostaje prefiks obowiazujacy w tym miejscu.
+    const viaHook = before !== ".";
+    const scoped = viaHook ? prefixAt(scopes, i) : null;
+    const withScope = (key: string): string => (scoped === null ? key : `${scoped}.${key}`);
 
     const literal = unquote(first);
     if (literal !== null && KEY_SHAPE.test(literal)) {
-      out.push({ key: literal, kind: "literal", file, line, defaultValue, plural });
+      out.push({ key: withScope(literal), kind: "literal", file, line, defaultValue, plural });
       continue;
     }
-    const prefix = templatePrefix(first);
-    if (prefix !== null && KEY_SHAPE.test(prefix)) {
-      out.push({ key: prefix, kind: "prefix", file, line, defaultValue, plural });
+    const template = templateHead(first);
+    if (template === null) continue;
+    // `partial` ma w kluczu końcówkę nazwy liścia (`padY_`), więc nie przechodzi
+    // przez `KEY_SHAPE` - ten wzorzec opisuje pełną ścieżkę. Walidujemy rodzica.
+    const shapeOk =
+      template.kind === "prefix"
+        ? KEY_SHAPE.test(template.head)
+        : KEY_SHAPE.test(template.head.slice(0, template.head.lastIndexOf(".")));
+    if (shapeOk) {
+      out.push({
+        key: withScope(template.head),
+        kind: template.kind,
+        file,
+        line,
+        defaultValue,
+        plural,
+      });
     }
   }
   return out;
@@ -379,6 +476,33 @@ export function auditKeyUsage(
 
   for (const usage of usages) {
     if (ignore.has(usage.key)) continue;
+
+    if (usage.kind === "partial") {
+      // `blocks.toolbar.padY_${x}` -> rodzic `blocks.toolbar`, początek `padY_`.
+      const cut = usage.key.lastIndexOf(".");
+      const parent = usage.key.slice(0, cut);
+      const stem = usage.key.slice(cut + 1);
+      const plNode = readKey(trees.pl, parent);
+      const enNode = readKey(trees.en, parent);
+      if (!isTree(plNode) || !isTree(enNode)) {
+        branches.push({ usage, reason: "partial_parent_missing" });
+        continue;
+      }
+      const withStem = (node: ResourceTree): Set<string> =>
+        new Set([...branchMembers(node)].filter((m) => m.startsWith(stem)));
+      const plLeaves = withStem(plNode);
+      const enLeaves = withStem(enNode);
+      const onlyPl = [...plLeaves].filter((m) => !enLeaves.has(m));
+      const onlyEn = [...enLeaves].filter((m) => !plLeaves.has(m));
+      if (onlyPl.length > 0 || onlyEn.length > 0) {
+        branches.push({
+          usage,
+          reason: "partial_mismatch",
+          detail: `tylko PL: [${onlyPl.join(", ")}] / tylko EN: [${onlyEn.join(", ")}]`,
+        });
+      }
+      continue;
+    }
 
     if (usage.kind === "prefix") {
       const plNode = readKey(trees.pl, usage.key);

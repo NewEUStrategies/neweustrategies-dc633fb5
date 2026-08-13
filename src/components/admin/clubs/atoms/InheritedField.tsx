@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Link2, Link2Off } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 
 interface InheritedFieldProps {
   label: string;
@@ -29,6 +30,7 @@ export function InheritedField({
   hint,
   children,
 }: InheritedFieldProps) {
+  ensureAdminClubsI18n();
   const { t } = useTranslation();
 
   return (

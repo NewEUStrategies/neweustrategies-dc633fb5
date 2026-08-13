@@ -86,7 +86,6 @@ export function AuthorBusinessCard({
   facebookUrl,
   instagramUrl,
   websiteUrl,
-  spotifyUrl,
   customSocials,
 }: AuthorBusinessCardProps) {
   const t = L[lang];

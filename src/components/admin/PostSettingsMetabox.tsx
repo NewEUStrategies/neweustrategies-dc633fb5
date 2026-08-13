@@ -38,7 +38,6 @@ import {
 import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
 import {
   TOC_LAYOUTS,
-  TOC_COLUMNS,
   useTocDefaults,
   countPostHeadings,
   type TocLayout,

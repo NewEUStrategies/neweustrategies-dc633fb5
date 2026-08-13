@@ -38,7 +38,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Settings2, Upload, Image as ImageIcon, X as XIcon, RefreshCw } from "lucide-react";
 import { useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";

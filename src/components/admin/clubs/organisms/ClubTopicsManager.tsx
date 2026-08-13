@@ -44,6 +44,7 @@ import {
 import type { ClubTopicAdminRow } from "@/lib/clubs/topicCatalog";
 import { isValidTopicKey, slugifyTopicKey } from "@/lib/clubs/topicCatalog";
 import { ClubTopicChip } from "@/components/clubs/atoms/ClubTopicChip";
+import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 
 interface DraftState {
   id: string | null;
@@ -78,6 +79,7 @@ function toDraft(row: ClubTopicAdminRow): DraftState {
 }
 
 export function ClubTopicsManager() {
+  ensureAdminClubsI18n();
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
   const listQ = useAdminClubTopics();

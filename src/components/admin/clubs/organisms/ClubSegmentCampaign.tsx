@@ -52,6 +52,7 @@ import {
   type ClubSegmentRule,
 } from "@/lib/clubs/types";
 import { PROFILE_BADGE_CATALOG, PROFILE_BADGE_KINDS } from "@/lib/profile/badgeCatalog";
+import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 
 /** Role możliwe do nadania kampanią. `lead` celowo poza listą - prowadzącego
  *  wyznacza się imiennie, nie masowo. */
@@ -59,6 +60,7 @@ const CAMPAIGN_ROLES = ["moderator", "member", "observer"] as const;
 type CampaignRole = (typeof CAMPAIGN_ROLES)[number];
 
 export function ClubSegmentCampaign({ clubId }: { clubId: string }) {
+  ensureAdminClubsI18n();
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
   const [kind, setKind] = useState<ClubSegmentKind>("badge");

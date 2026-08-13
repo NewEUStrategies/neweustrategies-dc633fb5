@@ -75,6 +75,7 @@ import {
   useRevealClubAuthor,
 } from "@/lib/clubs/useClubs";
 import { formatDateShort, formatDateTime } from "@/lib/i18n/format";
+import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 import {
   CLUB_LOG_ACTIONS,
   CLUB_LOG_TARGETS,
@@ -109,6 +110,7 @@ interface RevealTarget {
 }
 
 export function ClubModerationTab({ clubId }: { clubId: string }) {
+  ensureAdminClubsI18n();
   const { t, i18n } = useTranslation();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
