@@ -1,13 +1,13 @@
 // Molekuła: editorialny wiersz otwartej roli (wariant "Prestige list").
 // Wygląd i animacje spójne z etykietą "W praktyce": delikatne tło brand,
 // pionowa belka 2px z gradientem przesuwającym się w hoverze + rozmyta poświata.
-
+// Treść pochodzi z oferty (baza lub fallback i18n), nie z kluczy tłumaczeń.
 import { useTranslation } from "react-i18next";
 import { MapPin, Clock3, ArrowRight, FileText } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { roleSummaryKey, roleTitleKey, type CareerRole } from "@/lib/careers/roles";
+import type { CareerOffer } from "@/lib/careers/catalog";
 
 export function CareerRoleCard({
   role,
@@ -15,7 +15,7 @@ export function CareerRoleCard({
   onApply,
   onDetails,
 }: {
-  role: CareerRole;
+  role: CareerOffer;
   selected: boolean;
   onApply: (roleId: string) => void;
   onDetails: (roleId: string) => void;
@@ -64,7 +64,6 @@ export function CareerRoleCard({
           <span className="text-[10px] font-black uppercase tracking-[0.25em] text-brand sm:text-xs">
             {t(`careers.departments.${role.department}`)}
           </span>
-
           <span className="text-sm font-medium text-muted-foreground">
             {t(`careers.seniority.${role.seniority}`)}
           </span>
@@ -72,10 +71,10 @@ export function CareerRoleCard({
 
         <div className="md:col-span-6">
           <h3 className="text-2xl font-extrabold leading-tight tracking-tight text-foreground transition-colors duration-300 group-hover:text-primary md:text-[1.7rem]">
-            {t(roleTitleKey(role.id))}
+            {role.title}
           </h3>
           <p className="mt-3 max-w-lg text-sm font-medium leading-relaxed text-muted-foreground">
-            {t(roleSummaryKey(role.id))}
+            {role.summary}
           </p>
           <ul className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-[13px] font-semibold text-muted-foreground">
             <li className="inline-flex items-center gap-2">
