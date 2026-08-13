@@ -474,6 +474,14 @@ function AdminShellInner({
           }),
         },
         {
+          // Zarządzanie treścią strony /zatrudniamy: oferty pracy i sekcje.
+          to: "/admin/hiring",
+          icon: Briefcase,
+          label: t("admin.nav.hiring", {
+            defaultValue: lang === "pl" ? "Oferty pracy" : "Job offers",
+          }),
+        },
+        {
           to: "/admin/community",
           icon: Users,
           label: t("admin.nav.community", {
