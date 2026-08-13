@@ -632,10 +632,10 @@ export function PopupSignupForm({
           loadingLabel={t("Tworzę konto…", "Creating account…")}
           aria-label={cta}
           className="w-full"
-          style={{ minHeight: 46, fontSize: "0.9375rem", borderRadius: 6 }}
         >
           {cta}
         </SubscribeButton>
+
       </div>
 
       {state === "err" && err && (
