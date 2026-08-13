@@ -465,6 +465,15 @@ function AdminShellInner({
           }),
         },
         {
+          // Zgłoszenia rekrutacyjne ze strony /zatrudniamy (Contact Center +
+          // CRM), z własną skrzynką zamiast mieszania ich z kontaktem ogólnym.
+          to: "/admin/careers",
+          icon: Briefcase,
+          label: t("admin.nav.careers", {
+            defaultValue: lang === "pl" ? "Rekrutacja" : "Recruitment",
+          }),
+        },
+        {
           to: "/admin/community",
           icon: Users,
           label: t("admin.nav.community", {

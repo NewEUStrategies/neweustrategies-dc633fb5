@@ -1,6 +1,6 @@
 // Organizm: nagłówek strony kariery. Zawiera jedyny H1 strony.
 import { useTranslation } from "react-i18next";
-import { ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { JoinStat } from "@/components/membership-join/atoms/JoinStat";
@@ -33,19 +33,28 @@ export function CareersHero({
       </p>
 
       <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-        <Button size="lg" className="gap-2" onClick={onSeeRoles}>
+        <Button
+          size="lg"
+          onClick={onSeeRoles}
+          className="group h-12 gap-2 rounded-[6px] px-6 text-sm font-semibold shadow-[0_14px_30px_-18px_color-mix(in_oklab,var(--primary)_85%,transparent)] transition-transform duration-200 hover:-translate-y-0.5"
+        >
           {t("careers.ctaPrimary")}
-          <ArrowRight className="h-4 w-4" aria-hidden />
+          <ArrowRight
+            className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5"
+            aria-hidden
+          />
         </Button>
-        <Button size="lg" variant="outline" onClick={onOpenApplication}>
+        <Button
+          size="lg"
+          variant="outline"
+          onClick={onOpenApplication}
+          className="h-12 rounded-[6px] border-primary/45 px-6 text-sm font-semibold text-foreground transition-colors duration-200 hover:border-primary hover:bg-primary/10"
+        >
           {t("careers.ctaSecondary")}
         </Button>
       </div>
 
-      <p className="mt-3 inline-flex items-center gap-2 text-xs text-muted-foreground">
-        <Sparkles className="h-4 w-4 shrink-0 text-primary" aria-hidden />
-        {t("careers.trust")}
-      </p>
+      <p className="mt-3 text-xs text-muted-foreground">{t("careers.trust")}</p>
 
       <dl className="mt-9 grid grid-cols-2 gap-5 border-t border-border/60 pt-6 sm:grid-cols-4">
         {STAT_KEYS.map((key) => (
