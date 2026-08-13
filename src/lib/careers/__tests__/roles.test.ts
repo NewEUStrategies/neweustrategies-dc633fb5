@@ -98,6 +98,8 @@ describe("careers: słownik sekcji interaktywnych (hero / wartości / benefity /
     ]),
     ...PROCESS_ITEMS.map((k) => `careers.process.items.${k}.duration`),
     "careers.roles.showing",
+    "careers.roles.showingShort",
+    "careers.roles.statusLabel",
     "careers.roles.details",
     "careers.roles.dialog.overview",
     "careers.roles.dialog.responsibilities",
