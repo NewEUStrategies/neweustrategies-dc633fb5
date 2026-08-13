@@ -1349,6 +1349,102 @@ export type Database = {
         }
         Relationships: []
       }
+      career_page_sections: {
+        Row: {
+          is_visible: boolean
+          key: string
+          sort_order: number
+          subtitle_en: string | null
+          subtitle_pl: string | null
+          title_en: string | null
+          title_pl: string | null
+          updated_at: string
+        }
+        Insert: {
+          is_visible?: boolean
+          key: string
+          sort_order?: number
+          subtitle_en?: string | null
+          subtitle_pl?: string | null
+          title_en?: string | null
+          title_pl?: string | null
+          updated_at?: string
+        }
+        Update: {
+          is_visible?: boolean
+          key?: string
+          sort_order?: number
+          subtitle_en?: string | null
+          subtitle_pl?: string | null
+          title_en?: string | null
+          title_pl?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      career_roles: {
+        Row: {
+          created_at: string
+          department: string
+          engagement: string
+          id: string
+          is_published: boolean
+          location: string
+          requirements_en: string[]
+          requirements_pl: string[]
+          responsibilities_en: string[]
+          responsibilities_pl: string[]
+          seniority: string
+          slug: string
+          sort_order: number
+          summary_en: string
+          summary_pl: string
+          title_en: string
+          title_pl: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          department: string
+          engagement: string
+          id?: string
+          is_published?: boolean
+          location: string
+          requirements_en?: string[]
+          requirements_pl?: string[]
+          responsibilities_en?: string[]
+          responsibilities_pl?: string[]
+          seniority: string
+          slug: string
+          sort_order?: number
+          summary_en?: string
+          summary_pl?: string
+          title_en: string
+          title_pl: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          department?: string
+          engagement?: string
+          id?: string
+          is_published?: boolean
+          location?: string
+          requirements_en?: string[]
+          requirements_pl?: string[]
+          responsibilities_en?: string[]
+          responsibilities_pl?: string[]
+          seniority?: string
+          slug?: string
+          sort_order?: number
+          summary_en?: string
+          summary_pl?: string
+          title_en?: string
+          title_pl?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       categories: {
         Row: {
           color: string | null
