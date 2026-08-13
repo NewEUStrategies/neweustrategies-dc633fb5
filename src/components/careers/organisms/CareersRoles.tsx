@@ -70,7 +70,7 @@ export function CareersRoles({
               <span aria-hidden className="mx-1.5 text-border">
                 /
               </span>
-              {t("careers.roles.showingShort", { total: CAREER_ROLES.length })}
+              {t("careers.roles.showingShort", { total: offers.length })}
             </p>
           </div>
         </div>
@@ -83,7 +83,7 @@ export function CareersRoles({
       >
         <CareerFilterChip
           label={t("careers.roles.all")}
-          count={CAREER_ROLES.length}
+          count={offers.length}
           active={department === "all"}
           onClick={() => onDepartmentChange("all")}
         />
