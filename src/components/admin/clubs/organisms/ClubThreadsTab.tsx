@@ -8,7 +8,7 @@
 // dokładnie wtedy, gdy jest potrzebna. Karta trzyma akcje przy treści.
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { pickLocalized, type LocaleCode } from "@/lib/i18n/pickLocalized";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { toast } from "sonner";
 import {
   ChevronDown,
@@ -24,7 +24,7 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

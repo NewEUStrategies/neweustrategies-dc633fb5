@@ -2,13 +2,12 @@
 // Przy montowaniu odpala opportunistic tick (`processDueCampaigns`), który
 // wysyła zaległe kampanie zaplanowane - fallback zamiast pg_cron, bo wysyłka
 // wymaga env HTTP (RESEND_API_KEY). Patrz docs/ARCHITECTURE.md §2.6.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { uiLocale } from "@/lib/i18n/format";
-import { ensureI18n as ensureNewsletterAdminI18n } from "@/lib/i18n-newsletter-admin";
 import { toast } from "sonner";
 import {
   Plus,

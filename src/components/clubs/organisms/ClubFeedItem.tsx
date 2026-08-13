@@ -51,7 +51,6 @@ import {
   type ClubThreadListRow,
 } from "@/lib/clubs/types";
 import { ClubEngagementBar } from "@/components/clubs/molecules/ClubEngagementBar";
-import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { normalizeClubThreadIcon } from "@/lib/clubs/threadIcons";
 
 import {

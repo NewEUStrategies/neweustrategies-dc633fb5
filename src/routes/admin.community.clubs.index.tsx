@@ -42,7 +42,7 @@ const ANY = "__any__";
 
 function AdminClubsList() {
   ensureClubI18n();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
 

@@ -50,7 +50,7 @@ const SCOPES: readonly ClubBoardScope[] = ["open", "mine", "archive"];
 
 /** Wynik ogłoszenia - trzy różne fakty, trzy różne tony. */
 function OutcomeMark({ outcome }: { outcome: ClubNoticeOutcome }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   if (outcome === "open") return null;
 
   const shape =

@@ -34,7 +34,7 @@ export function ClubGlobalSearchInput({
    *  kontrolka jest identyczna, więc różni je jeden klucz, a nie kopia. */
   placeholderKey?: string;
 }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   return (
     <div className="relative">
       <Search

@@ -178,7 +178,7 @@ export function ClubRosterPanel({
   canDeclare: boolean;
   locale: string;
 }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { topics } = useClubTopics();
   const [editing, setEditing] = useState(false);
   const query = useClubRosterSignal({ clubId });

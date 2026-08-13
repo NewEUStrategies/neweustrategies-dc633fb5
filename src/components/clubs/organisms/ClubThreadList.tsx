@@ -8,16 +8,7 @@
 // module i identyczna ze strumieniem huba.
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
-import {
-  Clock,
-  Lightbulb,
-  Link2,
-  Lock,
-  MessageSquare,
-  MessagesSquare,
-  Pin,
-  Users2,
-} from "lucide-react";
+import { Lightbulb, Link2, Lock, MessageSquare, Pin, Users2 } from "lucide-react";
 import { ClubThreadKindIcon } from "@/components/clubs/atoms/ClubThreadKindIcon";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -30,7 +21,6 @@ import {
 import { toAuthorLabel, type ClubLayout, type ClubThreadListRow } from "@/lib/clubs/types";
 import { formatDateShort, uiLang } from "@/lib/i18n/format";
 import { ClubThreadHeat } from "@/components/clubs/atoms/ClubThreadHeat";
-import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { normalizeClubThreadIcon } from "@/lib/clubs/threadIcons";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 
@@ -85,7 +75,7 @@ function ThreadMeta({ thread }: { thread: ClubThreadListRow }) {
 
 /** Prawa kolumna wiersza - te same trzy liczby w tej samej kolejności. */
 function ThreadMetrics({ thread }: { thread: ClubThreadListRow }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   return (
     <ClubDossierMetrics
       metrics={[

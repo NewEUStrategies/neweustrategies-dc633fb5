@@ -73,7 +73,7 @@ export function ClubBoardComposer({
   onDone?: () => void;
   variant?: "rail" | "page";
 }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const [kind, setKind] = useState<ClubNoticeKind>("seeking");
   const [body, setBody] = useState("");
   const [topic, setTopic] = useState<string | null>(null);

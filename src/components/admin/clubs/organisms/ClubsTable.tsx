@@ -19,7 +19,7 @@ import { ClubStatusBadge, ClubVisibilityBadge } from "../atoms/ClubBadges";
 import type { AdminClubRow, ClubStatus, ClubVisibility } from "@/lib/clubs/types";
 import { CLUB_STATUSES, CLUB_VISIBILITIES } from "@/lib/clubs/types";
 import { formatDate, uiLang } from "@/lib/i18n/format";
-import { pickLocalized, type LocaleCode } from "@/lib/i18n/pickLocalized";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 
 interface ClubsTableProps {
   rows: AdminClubRow[];
