@@ -20,6 +20,8 @@ import {
   FileText,
   File as FileIcon,
   Image as ImageIcon,
+  Folder,
+  Hash,
   X,
   Search,
 } from "lucide-react";
@@ -32,12 +34,14 @@ interface Props {
   lang: "pl" | "en";
 }
 
-type Tab = "external" | "post" | "page" | "media";
+type Tab = "external" | "post" | "page" | "category" | "tag" | "media";
 
 const TAB_META: Record<Tab, { icon: typeof ExternalLink; kind: WidgetLinkKind }> = {
   external: { icon: ExternalLink, kind: "external" },
   post: { icon: FileText, kind: "post" },
   page: { icon: FileIcon, kind: "page" },
+  category: { icon: Folder, kind: "category" },
+  tag: { icon: Hash, kind: "tag" },
   media: { icon: ImageIcon, kind: "media" },
 };
 
@@ -61,12 +65,14 @@ export function LinkPicker({ value, onChange, lang }: Props) {
     external: "URL",
     post: lang === "pl" ? "Wpis" : "Post",
     page: lang === "pl" ? "Strona" : "Page",
+    category: lang === "pl" ? "Kategoria" : "Category",
+    tag: lang === "pl" ? "Tag" : "Tag",
     media: "Media",
   };
 
   return (
     <div className="space-y-2">
-      <div className="grid grid-cols-4 gap-1 p-0.5 rounded-md border border-border bg-muted/40">
+      <div className="grid grid-cols-3 gap-1 p-0.5 rounded-md border border-border bg-muted/40">
         {(Object.keys(TAB_META) as Tab[]).map((k) => {
           const Icon = TAB_META[k].icon;
           const active = tab === k;
@@ -113,6 +119,16 @@ export function LinkPicker({ value, onChange, lang }: Props) {
           lang={lang}
           value={value?.kind === "page" ? value : undefined}
           onPick={(url, id, label) => update({ url, kind: "page", refId: id, refLabel: label })}
+          onClear={clear}
+        />
+      )}
+
+      {(tab === "category" || tab === "tag") && (
+        <TaxonomyPicker
+          kind={tab}
+          lang={lang}
+          value={value?.kind === tab ? value : undefined}
+          onPick={(url, id, label) => update({ url, kind: tab, refId: id, refLabel: label })}
           onClear={clear}
         />
       )}
@@ -309,6 +325,114 @@ function EntityPicker({
           {lang === "pl" ? "Wpisz min. 2 znaki, aby szukać" : "Type at least 2 characters"}
         </div>
       )}
+    </div>
+  );
+}
+
+interface TaxonomyRow {
+  id: string;
+  slug: string;
+  label: string;
+}
+
+/**
+ * Wybór taksonomii (kategoria / tag) jako celu linku. Kategorie mają nazwy
+ * dwujęzyczne (`name_pl` / `name_en`), tagi jedną nazwę - dlatego etykieta
+ * jest normalizowana już w zapytaniu.
+ */
+function TaxonomyPicker({
+  kind,
+  lang,
+  value,
+  onPick,
+  onClear,
+}: {
+  kind: "category" | "tag";
+  lang: "pl" | "en";
+  value: WidgetLink | undefined;
+  onPick: (url: string, id: string, label: string) => void;
+  onClear: () => void;
+}) {
+  const [q, setQ] = useState("");
+
+  const { data: hits = [], isFetching } = useQuery({
+    queryKey: ["link-picker-taxonomy", kind, q, lang],
+    staleTime: 60_000,
+    queryFn: async (): Promise<TaxonomyRow[]> => {
+      const term = q.trim();
+      if (kind === "category") {
+        let query = supabase.from("categories").select("id, slug, name_pl, name_en").limit(50);
+        if (term) query = query.or(`name_pl.ilike.%${term}%,name_en.ilike.%${term}%,slug.ilike.%${term}%`);
+        const { data } = await query;
+        return (data ?? []).map((r) => ({
+          id: r.id,
+          slug: r.slug,
+          label: (lang === "en" ? r.name_en : r.name_pl) || r.slug,
+        }));
+      }
+      let query = supabase.from("tags").select("id, slug, name").limit(50);
+      if (term) query = query.or(`name.ilike.%${term}%,slug.ilike.%${term}%`);
+      const { data } = await query;
+      return (data ?? []).map((r) => ({ id: r.id, slug: r.slug, label: r.name || r.slug }));
+    },
+  });
+
+  return (
+    <div className="space-y-1.5">
+      {value?.url && (
+        <div className="flex items-center gap-1 px-2 py-1.5 rounded border border-brand/40 bg-brand/5 text-[11px]">
+          <span className="flex-1 truncate">{value.refLabel ?? value.url}</span>
+          <button
+            type="button"
+            onClick={onClear}
+            className="text-muted-foreground hover:text-destructive"
+            aria-label={lang === "pl" ? "Usuń" : "Remove"}
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      )}
+      <div className="relative">
+        <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
+        <Input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder={
+            kind === "category"
+              ? lang === "pl"
+                ? "Szukaj kategorii..."
+                : "Search categories..."
+              : lang === "pl"
+                ? "Szukaj tagów..."
+                : "Search tags..."
+          }
+          className="h-8 pl-8 text-xs"
+        />
+      </div>
+      <div className="max-h-64 overflow-y-auto overscroll-contain rounded border border-border bg-popover">
+        {isFetching && (
+          <div className="px-2 py-1.5 text-[10px] text-muted-foreground">
+            {lang === "pl" ? "Wczytywanie..." : "Loading..."}
+          </div>
+        )}
+        {!isFetching &&
+          hits.map((row) => (
+            <button
+              key={row.id}
+              type="button"
+              onClick={() => onPick(`/${kind === "category" ? "category" : "tag"}/${row.slug}`, row.id, row.label)}
+              className="w-full text-left px-2 py-1.5 text-[11px] hover:bg-muted truncate"
+            >
+              {row.label}
+              <span className="ml-1 text-muted-foreground">/{row.slug}</span>
+            </button>
+          ))}
+        {!isFetching && !hits.length && (
+          <div className="px-2 py-1.5 text-[10px] text-muted-foreground">
+            {lang === "pl" ? "Brak wyników" : "No results"}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

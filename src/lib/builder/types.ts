@@ -183,14 +183,14 @@ export interface AdvancedSettings {
   link?: WidgetLink;
 }
 
-export type WidgetLinkKind = "external" | "post" | "page" | "media";
+export type WidgetLinkKind = "external" | "post" | "page" | "media" | "category" | "tag";
 
 export interface WidgetLink {
   /** Finalny URL - relatywny (np. `/o-nas`) lub absolutny (https://...). */
   url?: string;
   /** Typ powiązania - używany przez edytor do przywracania stanu. */
   kind?: WidgetLinkKind;
-  /** ID powiązanej encji (post/page/media) - do zachowania relacji. */
+  /** ID powiązanej encji (post/page/media/category/tag) - do zachowania relacji. */
   refId?: string;
   /** Tekstowa etykieta pokazywana w panelu (np. tytuł wpisu). */
   refLabel?: string;

@@ -628,6 +628,12 @@ const pl = {
       alignCenter: "do środka",
       alignRight: "do prawej",
       livePreview: "Podgląd na żywo",
+      links: "Hiperłącza segmentów",
+      linksHint:
+        "Każdy fragment nagłówka może prowadzić do własnego URL albo do wpisu, strony, kategorii, tagu lub pliku z biblioteki mediów.",
+      linkBefore: "Link - tekst przed",
+      linkHighlight: "Link - tekst animowany",
+      linkAfter: "Link - tekst po",
     },
     interactiveCircleEditor: {
       layout: "Układ",
@@ -2097,6 +2103,12 @@ const en: typeof pl = {
       alignCenter: "center",
       alignRight: "right",
       livePreview: "Live preview",
+      links: "Segment hyperlinks",
+      linksHint:
+        "Each heading fragment can point to a custom URL or to a post, page, category, tag or media library file.",
+      linkBefore: "Link - text before",
+      linkHighlight: "Link - animated text",
+      linkAfter: "Link - text after",
     },
     interactiveCircleEditor: {
       layout: "Layout",

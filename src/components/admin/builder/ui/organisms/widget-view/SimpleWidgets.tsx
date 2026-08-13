@@ -16,6 +16,7 @@ import type {
   AnimatedHeadingMode,
   AnimatedHeadingShape,
 } from "@/lib/builder/animatedHeadingVariants";
+import { toAnimatedHeadingLink } from "@/lib/builder/animatedHeadingLinks";
 import { SliderRender, AnimatedHeadingRender } from "./lazyWidgets";
 import { TextRotate } from "@/components/ui/text-rotate";
 import {
@@ -1239,6 +1240,9 @@ export function renderSimpleWidget(
         durationMs: getNum(c, "durationMs", 1600),
         delayMs: getNum(c, "delayMs", 200),
         loop: c.loop !== false,
+        linkBefore: toAnimatedHeadingLink(c.linkBefore),
+        linkHighlight: toAnimatedHeadingLink(c.linkHighlight),
+        linkAfter: toAnimatedHeadingLink(c.linkAfter),
       };
       return <AnimatedHeadingWithDynamicText config={ahCfg} lang={lang} />;
     }
