@@ -79,15 +79,24 @@ export const careerApplicationSchema = z.object({
     .refine((value) => value.length > 0, { message: E("linkedinRequired") })
     .refine((value) => value.length <= 300, { message: E("linkedinLong") })
     .refine((value) => LINKEDIN_RE.test(value), { message: E("linkedinInvalid") }),
-  department: z.enum(CAREER_DEPARTMENTS, { message: E("departmentRequired") }),
+  department: trimmed.refine(
+    (value) => (CAREER_DEPARTMENTS as readonly string[]).includes(value),
+    { message: E("departmentRequired") },
+  ),
   role: trimmed.refine((value) => value.length > 0, { message: E("roleRequired") }),
-  seniority: z.enum(CAREER_SENIORITIES, { message: E("seniorityRequired") }),
-  start: z.enum(CAREER_START_OPTIONS, { message: E("startRequired") }),
+  seniority: trimmed.refine(
+    (value) => (CAREER_SENIORITIES as readonly string[]).includes(value),
+    { message: E("seniorityRequired") },
+  ),
+  start: trimmed.refine(
+    (value) => (CAREER_START_OPTIONS as readonly string[]).includes(value),
+    { message: E("startRequired") },
+  ),
   message: trimmed
     .refine((value) => value.length > 0, { message: E("messageRequired") })
     .refine((value) => value.length >= MESSAGE_MIN, { message: E("messageShort") })
     .refine((value) => value.length <= MESSAGE_MAX, { message: E("messageLong") }),
-  consent: z.literal(true, { message: E("consentRequired") }),
+  consent: z.boolean().refine((value) => value === true, { message: E("consentRequired") }),
 });
 
 export type CareerApplicationInput = z.input<typeof careerApplicationSchema>;
@@ -99,7 +108,7 @@ export type CareerValidationResult =
   | { ok: true; value: CareerApplicationValue }
   | { ok: false; errors: CareerFieldErrors; firstStep: 0 | 1 | 2; firstField: CareerFieldName };
 
-function collectErrors(issues: readonly z.core.$ZodIssue[]): CareerFieldErrors {
+function collectErrors(issues: readonly z.ZodIssue[]): CareerFieldErrors {
   const errors: CareerFieldErrors = {};
   for (const issue of issues) {
     const field = issue.path[0];
