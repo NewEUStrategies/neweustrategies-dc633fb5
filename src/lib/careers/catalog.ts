@@ -169,10 +169,7 @@ export function fallbackOffers(t: TFunction): CareerOffer[] {
 }
 
 /** Wbudowany katalog jako wiersze bazy - do jednorazowego importu w adminie. */
-export function fallbackRoleRows(
-  t: TFunction,
-  tEn: TFunction,
-): Array<Omit<CareerRoleRow, "id">> {
+export function fallbackRoleRows(t: TFunction, tEn: TFunction): Array<Omit<CareerRoleRow, "id">> {
   return CAREER_ROLES.map((role, index) => ({
     slug: role.id,
     department: role.department,

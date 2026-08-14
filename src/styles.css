@@ -5870,8 +5870,6 @@ textarea::placeholder {
    reguły siedzą w `utilities` i wygrałyby z każdą regułą z `components`
    niezależnie od specyficzności. */
 @layer utilities {
-
-
   .nlp .btn-bubbly::before,
   .nlp .btn-bubbly::after {
     width: 100%;
@@ -7856,11 +7854,8 @@ html {
 html.dark.club-navy,
 html.dark.club-navy body {
   background-color: var(--background);
-  background-image: radial-gradient(
-      120% 80% at 12% -10%,
-      oklch(0.34 0.05 262 / 0.55) 0%,
-      transparent 60%
-    ),
+  background-image:
+    radial-gradient(120% 80% at 12% -10%, oklch(0.34 0.05 262 / 0.55) 0%, transparent 60%),
     radial-gradient(90% 70% at 100% 0%, oklch(0.42 0.06 85 / 0.14) 0%, transparent 55%),
     linear-gradient(180deg, #0d1729 0%, #0b1424 55%, #090f1c 100%);
   background-attachment: fixed;

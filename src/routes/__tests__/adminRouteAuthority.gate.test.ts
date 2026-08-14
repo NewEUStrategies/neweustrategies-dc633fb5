@@ -68,7 +68,9 @@ describe("panel admina - warstwa dostępu", () => {
     // Dla każdej trasy, której wpis nawigacji jest zawężony `isSuperAdmin`,
     // wymagamy własnego sprawdzenia w pliku trasy.
     const shell = read(SHELL);
-    const gated = [...shell.matchAll(/isSuperAdmin\s*\?\s*\[\{[^]]*?to:\s*"\/admin\/([a-z0-9-]+)"/g)]
+    const gated = [
+      ...shell.matchAll(/isSuperAdmin\s*\?\s*\[\{[^]]*?to:\s*"\/admin\/([a-z0-9-]+)"/g),
+    ]
       .map((match) => match[1])
       .filter((slug, index, all) => all.indexOf(slug) === index);
     // Kanarek: gdyby wzorzec przestał pasować, bramka zrobiłaby się pusta.

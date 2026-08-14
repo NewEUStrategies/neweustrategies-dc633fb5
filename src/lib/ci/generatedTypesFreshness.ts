@@ -29,6 +29,34 @@
 //   * typów kolumn (`text` vs `uuid`) - do tego trzeba pełnego parsera DDL,
 //     a pytanie „czy kolumna w ogóle jest" łapie tę klasę błędu najtaniej;
 //   * widoków i RPC - istnienie obiektów pilnuje `check:db-contract`.
+//
+// ── DLACZEGO SKANER ZNA `RENAME` (korekta 2026-08-14) ──────────────────────
+// Pierwsza wersja czytała wyłącznie `ADD COLUMN` i `DROP COLUMN`, więc zbiór
+// „kolumn żywych po migracjach" rozjeżdżał się ze stanem końcowym w obie strony
+// - i oba kierunki realnie wystąpiły w tym repo:
+//
+//   * FAŁSZYWY DŁUG. `member_organizations.paddle_subscription_id` wjechało
+//     `ADD COLUMN` (20260729204314) i zostało PRZEMIANOWANE na
+//     `provider_subscription_id` (20260805134721, migracja na Stripe). Kolumny
+//     o starej nazwie nie ma w bazie od dziesięciu dni, a bramka nadal jej
+//     wymagała - wpis siedział w zamrożonym długu i BLOKOWAŁ CI z całkiem
+//     innego miejsca: `check:legacy-payment-refs` widział w nim jedyną żywą
+//     referencję do poprzedniego operatora płatności w całym repo. Dwie dobre
+//     bramki stały sobie w gardle, bo jedna liczyła fantom.
+//
+//   * FAŁSZYWY SPOKÓJ - klasa groźniejsza. Nazwa PO przemianowaniu nie była
+//     mierzona wcale: `subscriptions.provider_subscription_id` powstało właśnie
+//     z `RENAME COLUMN`, nie z `ADD COLUMN` (pierwotnie było w `CREATE TABLE`).
+//     Gdyby typy nie zdążyły za tą migracją, kod czytający nową nazwę nie
+//     kompilowałby się, a bramka postawiona dokładnie po to milczałaby.
+//     Zwolnienie dla `CREATE TABLE` nie ma tu zastosowania: tabela istnieje
+//     w typach od dawna, więc nic się samo nie wywali.
+//
+// Dlatego `RENAME COLUMN` ustawia nową nazwę jako żywą NAWET wtedy, gdy starej
+// nie było w zbiorze - to jedyny sposób, by objąć kolumny z `CREATE TABLE`,
+// które przeszły przez rename. `RENAME TO` (tabela) tylko PRZENOSI wpisy już
+// zebrane; nie dokłada nowych, bo świeża nazwa tabeli nadal podlega zwolnieniu
+// z akapitu wyżej.
 
 /** Migracja poddana skanowi (nazwa pliku + treść). */
 export interface ScannedMigration {
@@ -74,17 +102,46 @@ function stripLineComments(sql: string): string {
   return sql.replace(/--[^\n]*/g, "");
 }
 
-interface ColumnEvent {
-  readonly table: string;
-  readonly column: string;
-  readonly file: string;
-  readonly dropped: boolean;
-}
+/**
+ * Zdarzenie DDL istotne dla zbioru żywych kolumn. Unia dyskryminowana, żeby
+ * dopisanie kolejnego rodzaju nie dało się przeoczyć w odtwarzaniu (`switch`
+ * bez gałęzi przestaje się kompilować).
+ */
+export type ColumnEvent =
+  | { readonly kind: "add"; readonly table: string; readonly column: string; readonly file: string }
+  | {
+      readonly kind: "drop";
+      readonly table: string;
+      readonly column: string;
+      readonly file: string;
+    }
+  | {
+      readonly kind: "rename-column";
+      readonly table: string;
+      readonly from: string;
+      readonly to: string;
+      readonly file: string;
+    }
+  | {
+      readonly kind: "rename-table";
+      readonly from: string;
+      readonly to: string;
+      readonly file: string;
+    };
+
+/** `ALTER TABLE … RENAME TO nowa` - przemianowanie TABELI, nie kolumny. */
+const RENAME_TABLE_RE = /\bRENAME\s+TO\s+"?([a-z0-9_]+)"?/i;
+/** `ALTER TABLE … RENAME [COLUMN] stara TO nowa`. Słowo COLUMN jest w PG opcjonalne. */
+const RENAME_COLUMN_RE = /\bRENAME\s+(?:COLUMN\s+)?"?([a-z0-9_]+)"?\s+TO\s+"?([a-z0-9_]+)"?/i;
 
 /**
- * `ADD COLUMN` i `DROP COLUMN` ze wszystkich `ALTER TABLE`, w kolejności
- * migracji. Kolejność ma znaczenie: kolumna dodana i później skreślona nie
- * jest długiem typów.
+ * Zdarzenia kolumnowe ze wszystkich `ALTER TABLE`, w kolejności migracji.
+ * Kolejność ma znaczenie: kolumna dodana i później skreślona nie jest długiem
+ * typów, a kolumna przemianowana jest długiem pod NOWĄ nazwą.
+ *
+ * `ALTER INDEX … RENAME TO` (a takich w repo jest kilkanaście przy okazji
+ * przemianowań tabel) nie wchodzi tu w ogóle - wzorzec zaczyna się od
+ * `ALTER TABLE`.
  */
 export function scanColumnEvents(migrations: readonly ScannedMigration[]): ColumnEvent[] {
   const out: ColumnEvent[] = [];
@@ -95,11 +152,30 @@ export function scanColumnEvents(migrations: readonly ScannedMigration[]): Colum
     );
     for (const alter of alters) {
       const table = alter[1];
-      for (const add of alter[2].matchAll(/ADD COLUMN\s+(?:IF NOT EXISTS\s+)?"?([a-z0-9_]+)"?/gi)) {
-        out.push({ table, column: add[1], file, dropped: false });
+      const body = alter[2];
+      for (const add of body.matchAll(/ADD COLUMN\s+(?:IF NOT EXISTS\s+)?"?([a-z0-9_]+)"?/gi)) {
+        out.push({ kind: "add", table, column: add[1], file });
       }
-      for (const drop of alter[2].matchAll(/DROP COLUMN\s+(?:IF EXISTS\s+)?"?([a-z0-9_]+)"?/gi)) {
-        out.push({ table, column: drop[1], file, dropped: true });
+      for (const drop of body.matchAll(/DROP COLUMN\s+(?:IF EXISTS\s+)?"?([a-z0-9_]+)"?/gi)) {
+        out.push({ kind: "drop", table, column: drop[1], file });
+      }
+      // Kolejność testów jest istotna: `RENAME TO x` pasuje TYLKO do tabeli,
+      // a wzorzec kolumnowy sprawdzamy dopiero, gdy tabelowy nie trafił -
+      // inaczej `RENAME CONSTRAINT`/`RENAME TO` mogłyby dać zdarzenie widmo.
+      const renamedTable = RENAME_TABLE_RE.exec(body);
+      if (renamedTable !== null) {
+        out.push({ kind: "rename-table", from: table, to: renamedTable[1], file });
+        continue;
+      }
+      const renamedColumn = RENAME_COLUMN_RE.exec(body);
+      if (renamedColumn !== null) {
+        out.push({
+          kind: "rename-column",
+          table,
+          from: renamedColumn[1],
+          to: renamedColumn[2],
+          file,
+        });
       }
     }
   }
@@ -119,9 +195,29 @@ export function findStaleColumns(
 ): StaleColumn[] {
   const live = new Map<string, string>();
   for (const event of scanColumnEvents(migrations)) {
-    const key = `${event.table}.${event.column}`;
-    if (event.dropped) live.delete(key);
-    else live.set(key, event.file);
+    switch (event.kind) {
+      case "add":
+        live.set(`${event.table}.${event.column}`, event.file);
+        break;
+      case "drop":
+        live.delete(`${event.table}.${event.column}`);
+        break;
+      case "rename-column":
+        // Nowa nazwa jest żywa BEZWARUNKOWO - patrz akapit o fałszywym spokoju
+        // w nagłówku modułu. Prowenancją zostaje migracja przemianowania, bo to
+        // ona wprowadziła kolumnę pod nazwą, której szuka kod.
+        live.delete(`${event.table}.${event.from}`);
+        live.set(`${event.table}.${event.to}`, event.file);
+        break;
+      case "rename-table":
+        for (const [key, file] of [...live]) {
+          const cut = key.indexOf(".");
+          if (key.slice(0, cut) !== event.from) continue;
+          live.delete(key);
+          live.set(`${event.to}.${key.slice(cut + 1)}`, file);
+        }
+        break;
+    }
   }
   const out: StaleColumn[] = [];
   for (const [key, file] of live) {

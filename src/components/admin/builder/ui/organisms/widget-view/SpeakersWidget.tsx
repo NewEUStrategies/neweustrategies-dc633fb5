@@ -284,7 +284,6 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
     return () => io.disconnect();
   }, [pageMode, canLoadMore, pageSize, filtered.length]);
 
-
   const onOpenProfile = (item: SpeakerItem) => {
     if (!openProfile) return;
     const userId = getStr(item as WidgetContent, "user_id");
