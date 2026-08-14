@@ -1,7 +1,16 @@
 # Tabele modułów — funkcja po funkcji: ocena, argumenty, rekomendacje + pozycja vs konkurencja (2026-08-14)
 
 **Data:** 2026-08-14 · **HEAD:** `0fd4108` · **Gałąź:** `claude/audyt-modulow-funkcji-xfsq1o`
-**Poprzednie wydanie:** `OCENA_FUNKCJI_TABELE_2026-08-06_R2.md` na `22b711a` · **Delta:** 157 commitów, 347 plików, +20 056 / −2 711
+**Poprzednie wydanie ocen:** `OCENA_FUNKCJI_TABELE_2026-08-06_R2.md` (HEAD `22b711a`, **nieosiągalny w tym klonie**)
+**Baza pomiaru:** `94eb31a` — HEAD audytu z 13.08 · **Delta `94eb31a..0fd4108`:** 157 commitów, 347 plików, +20 056 / −2 711
+
+> **Uwaga o dwóch różnych bazach — ważna przy czytaniu kolumny „06.08 r2".** Delta wyżej jest
+> mierzona od `94eb31a` (13.08), **nie** od `22b711a` (06.08), bo `22b711a` nie istnieje w tym
+> klonie (`git cat-file -t 22b711a` → `Not a valid object name`) — historia była spłaszczana, co
+> samo wydanie 06.08 r2 odnotowuje jako defekt śladu audytowego. Praktyczny skutek: **zmian z okna
+> 06.08 → 13.08 nie zmierzyłem** i nie mogę twierdzić, że wiersze przeniesione z 06.08 r2 są w tym
+> oknie nietknięte. Wiersze, przy których stoi jawna adnotacja „zweryfikowane / zmierzone", są
+> sprawdzone na `0fd4108`; pozostałe są **przeniesione**, a nie potwierdzone.
 
 Dokument rozbija platformę na **21 modułów × pojedyncze funkcje** (nowy moduł 21: rekrutacja).
 Każda funkcja ma: ocenę 0–10, argument **✅ dobry**, argument **⚠️ słaby** i **🔧 rekomendację**.
@@ -20,7 +29,9 @@ Ocena modułu = kompozyt jego funkcji (kompletność + inżynieria + dopracowani
 > `check:*`, własny parser migracji (ostatnia definicja + `ALTER`) i pomiar gęstości testów per moduł.
 > Wiersze, których delta nie dotknęła i których nie wymieniam jako zmienione, **przenoszę z wydania
 > 06.08 r2 bez ponownego pomiaru** — przy 21 modułach udawanie, że przeliczyłem wszystko od zera,
-> byłoby fikcją. Pełne liczby: `docs/AUDYT_PLATFORMY_MODULY_FUNKCJE_2026-08-14.md`.
+> byłoby fikcją. **Zastrzeżenie z nagłówka obowiązuje:** bazą pomiaru jest `94eb31a` (13.08), więc
+> okno 06.08 → 13.08 pozostaje niezmierzone; przeniesione wiersze są przeniesione, nie potwierdzone.
+> Pełne liczby: `docs/AUDYT_PLATFORMY_MODULY_FUNKCJE_2026-08-14.md`.
 
 ---
 

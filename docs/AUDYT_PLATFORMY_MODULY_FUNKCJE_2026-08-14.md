@@ -2,7 +2,7 @@
 
 **HEAD:** `0fd4108` (gałąź `claude/audyt-modulow-funkcji-xfsq1o`)
 **Poprzedni audyt:** `docs/AUDYT_PLATFORMY_MODULY_FUNKCJE_2026-08-13.md` na `94eb31a`
-**Delta od tamtego:** 157 commitów, 347 plików, +20 056 / −2 711 linii
+**Delta `94eb31a..0fd4108`:** 157 commitów, 347 plików, +20 056 / −2 711 linii
 
 Ten audyt jest **pomiarem, nie przeglądem**. Każda liczba niżej pochodzi z komendy
 uruchomionej na tym HEAD w tej sesji — łącznie z pełnym `bun install` (przepięcie
@@ -269,10 +269,36 @@ przepuszczenia przez bramki, które istnieją**.
 scripts/check-generated-types-freshness.ts:41  "member_organizations.paddle_subscription_id",
 ```
 
-To wpis na liście baseline'u innej bramki. Naprawa jest jednolinijkowa (przeniesienie
-wzmianki do komentarza albo do listy wyjątków), ale dopóki stoi, `check:legacy-payment-refs`
-jest czerwona — a to bramka, której jedynym zadaniem jest pilnowanie, że migracja
-z Paddle na Stripe nie ma żywych ogonów.
+To wpis na liście `BASELINE` **innej** bramki (`check:types-freshness`). Dopóki stoi,
+`check:legacy-payment-refs` jest czerwona — a to bramka, której jedynym zadaniem jest
+pilnowanie, że migracja z Paddle na Stripe nie ma żywych ogonów.
+
+**Ta naprawa NIE jest jednolinijkowa i wygląda na pułapkę.** Dwie bramki trzymają ten
+sam string w przeciwnych kierunkach:
+
+1. `member_organizations.paddle_subscription_id` został dodany
+   (`20260729204314`), a potem **przemianowany** na `provider_subscription_id`
+   (`20260805134721_f2e69df5…`) — nigdy nie `DROP`-nięty.
+2. `scanColumnEvents()` w `src/lib/ci/generatedTypesFreshness.ts:89` czyta
+   **wyłącznie `ADD COLUMN` i `DROP COLUMN`** — `RENAME COLUMN` nie występuje
+   w tym pliku w ogóle. Stara nazwa zostaje więc na liście kolumn „żywych".
+3. W `src/integrations/supabase/types.ts` starej nazwy nie ma (jest za to
+   `provider_subscription_id`, 12 wystąpień), więc `findStaleColumns()` raportuje
+   ją jako dług typów.
+4. `compareWithBaseline()` wymaga **dokładnej** zgodności: `freshnessFailed()` jest
+   prawdziwe zarówno gdy `fresh.length > 0` (nowa nieznana kolumna), jak i gdy
+   `resolved.length > 0` (wpis w baseline, który przestał być długiem).
+
+Skutek: **usunięcie albo zakomentowanie tego wpisu zamienia jedną czerwoną bramkę
+na drugą.** `check:legacy-payment-refs` zzielenieje, a `check:types-freshness`
+zapali się na `fresh`. Bramka `check:legacy-payment-refs` nie ma też listy wyjątków —
+ma wyłącznie `SKIP_DIRS` do pomijania katalogów przy skanie.
+
+Poprawna naprawa jest dwuczęściowa i musi wejść razem: **nauczyć `scanColumnEvents()`
+składni `RENAME COLUMN`** (stara nazwa znika z „żywych", nowa wchodzi), a następnie
+**usunąć zdezaktualizowany wpis z `BASELINE`**. Wtedy obie bramki są zielone
+z właściwego powodu, a nie przez przesunięcie stringa. `provider_subscription_id`
+jest już w wygenerowanych typach, więc nie pojawi się jako nowy dług.
 
 ### 3.2. `check:entry-purity` — czego NIE dało się zmierzyć i co zmierzyłem zamiast tego
 
@@ -580,8 +606,13 @@ Cztery blokujące kroki, trzy przyczyny, wszystkie z dzisiaj (§3.1):
    i suitę).
 2. **`bunx prettier --write`** na 29 plikach z §3.1. 115 błędów, wszystkie
    automatycznie naprawialne.
-3. **Przenieść `paddle_subscription_id`** w `scripts/check-generated-types-freshness.ts:41`
-   do komentarza albo na listę wyjątków bramki.
+3. **Nauczyć `scanColumnEvents()` składni `RENAME COLUMN`**
+   (`src/lib/ci/generatedTypesFreshness.ts:89`) **i dopiero wtedy usunąć wpis**
+   `"member_organizations.paddle_subscription_id"` z `BASELINE`
+   (`scripts/check-generated-types-freshness.ts:41`). Oba kroki muszą wejść razem —
+   samo usunięcie wpisu zapala `check:types-freshness`, bo skaner nadal uważa starą
+   nazwę za żywą (szczegóły w §3.1). To jedyny punkt R1, który wymaga zmiany w kodzie
+   bramki, a nie w danych.
 
 To jest pierwsza pozycja, bo dopóki CI jest czerwone, **żadna inna bramka nikogo nie
 ostrzega** — czerwień staje się tłem i następny realny defekt wjedzie niezauważony.
