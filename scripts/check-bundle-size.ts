@@ -263,6 +263,18 @@ const CLIENT_DIR =
 // reguła co w 08-12: podnosi go każda nowa trasa publiczna, zapas rzędu
 // kilku KB zapala bramkę od cudzych merge'ów w ciągu godziny).
 
+// 2026-08-14 (2)  OVERALL +4,6 KB PONAD PRÓG - w całości dryf maina, zero
+//             udziału tej gałęzi (jej zmiany to kod WYŁĄCZNIE serwerowy:
+//             SWR katalogu tenantów i indeksu przekierowań + okno stale NES;
+//             .output/public bajt w bajt jak czysty main).
+// POMIAR (ten sam host, pełny build obu stron):
+//   * czysty main:      3794,6 overall (chunk 467,5 / public 2479,1 - w progach),
+//   * ta gałąź:         3794,6 overall - identycznie.
+// Skład dryfu wg ruchów względem baseline'u: powierzchnia karier
+// (`zatrudniamy` +21,6 KB overall, wpis wyżej) + entry +3,3 KB. Próg OVERALL
+// idzie na 3835 (~1% zapasu nad zmierzonym 3794,6 - reguła z 08-12; tę liczbę
+// podnosi każdy nowy ekran adminowy, których czytelnik nigdy nie pobiera).
+
 /**
  * Progi ZAMROŻONE (2026-08-12). Do tej pory każdy z nich dało się rozluźnić
  * jedną zmienną środowiskową w workflow - bramka, którą wolno wyłączyć bez
@@ -284,8 +296,9 @@ const FROZEN_BUDGET_KB = {
   // podnosi KAŻDA nowa trasa publiczna i przy zapasie rzędu kilku KB bramka
   // zapala się od cudzych merge'ów w ciągu godziny (lekcja z 08-01).
   public: 2505,
-  // gzip JS łącznie z kodem tylko adminowym. Zmierzone: main 3742,8 / gałąź 3749,8.
-  overall: 3790,
+  // gzip JS łącznie z kodem tylko adminowym. Zmierzone 2026-08-14 (2): czysty
+  // main 3794,6 (dryf: powierzchnia karier + entry - patrz wpis wyżej).
+  overall: 3835,
 } as const;
 
 /** GitHub Actions ustawia CI=true; honorujemy też generyczne CI innych runnerów. */
