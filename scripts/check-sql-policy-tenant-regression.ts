@@ -45,7 +45,6 @@ import { MIGRATIONS_DIR, stripSqlComments } from "./lib/sqlMigrations";
  */
 const KNOWN_OPEN_GAPS: PolicyTenantGaps = {};
 
-
 function readMigrations(): MigrationFile[] {
   return readdirSync(MIGRATIONS_DIR)
     .filter((file) => file.endsWith(".sql"))
