@@ -8,12 +8,21 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Archive, BriefcaseBusiness, Check, ExternalLink, Mail, RefreshCw } from "lucide-react";
+import {
+  Archive,
+  BriefcaseBusiness,
+  Check,
+  ExternalLink,
+  FileText,
+  Mail,
+  RefreshCw,
+} from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { signCvUrl } from "@/lib/careers/cvUpload";
 
 export const Route = createFileRoute("/admin/careers")({
   head: () => ({
@@ -45,6 +54,10 @@ interface CareersDict {
   unarchive: string;
   archived: string;
   none: string;
+  cv: string;
+  cvOpen: string;
+  cvMissing: string;
+  cvError: string;
 }
 
 const PL: CareersDict = {
@@ -94,6 +107,10 @@ const EN: CareersDict = {
   archive: "Archive",
   unarchive: "Restore",
   archived: "Archived",
+  cv: "CV",
+  cvOpen: "Open CV",
+  cvMissing: "No CV",
+  cvError: "Could not generate the CV link.",
   none: "-",
 };
 
@@ -118,6 +135,63 @@ function asCustom(value: unknown): Record<string, string> {
     if (typeof v === "string") out[k] = v;
   }
   return out;
+}
+
+/**
+ * CV kandydata: plik z prywatnego bucketu `career-cv` (podpisany link ważny
+ * 5 minut) albo zewnętrzny link podany w formularzu.
+ */
+function CvAccess({
+  custom,
+  labels,
+}: {
+  custom: Record<string, string>;
+  labels: Pick<CareersDict, "cv" | "cvOpen" | "cvMissing" | "cvError">;
+}) {
+  const [busy, setBusy] = useState(false);
+  const path = custom.cv_path ?? "";
+  const url = custom.cv_url ?? "";
+  const fileName = custom.cv_file_name ?? "";
+
+  if (!path && !url) {
+    return (
+      <span className="text-xs text-muted-foreground">
+        {labels.cv}: {labels.cvMissing}
+      </span>
+    );
+  }
+
+  if (path) {
+    return (
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          const signed = await signCvUrl(path);
+          setBusy(false);
+          if (!signed) {
+            toast.error(labels.cvError);
+            return;
+          }
+          window.open(signed, "_blank", "noopener,noreferrer");
+        }}
+      >
+        <FileText className="mr-1.5 h-3.5 w-3.5" />
+        {fileName || labels.cvOpen}
+      </Button>
+    );
+  }
+
+  return (
+    <Button size="sm" variant="outline" asChild>
+      <a href={url} target="_blank" rel="noopener noreferrer">
+        <FileText className="mr-1.5 h-3.5 w-3.5" />
+        {labels.cvOpen}
+      </a>
+    </Button>
+  );
 }
 
 function AdminCareersPage() {
@@ -312,6 +386,7 @@ function AdminCareersPage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-1">
+                  <CvAccess custom={current.custom} labels={L} />
                   <Button size="sm" variant="outline" asChild>
                     <a
                       href={`mailto:${current.email}?subject=${encodeURIComponent(current.subject ?? L.title)}`}
