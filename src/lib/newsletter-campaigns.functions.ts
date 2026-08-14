@@ -71,7 +71,7 @@ async function minTierEmailSet(
     p_min: minRank,
   });
   if (error) throw new Error(error.message);
-  return new Set((data ?? []).map((r) => (r.email ?? "").toLowerCase()).filter(Boolean));
+  return new Set((data ?? []).map((r) => normalizeEmail(r.email)).filter(Boolean));
 }
 
 const BATCH_SIZE = 20;
@@ -417,7 +417,7 @@ export const countCampaignAudience = createServerFn({ method: "POST" })
       const { data: subs, error } = await q;
       if (error) throw new Error(error.message);
       const tierSet = await minTierEmailSet(supabaseAdmin, tenantId, data.min_tier_rank);
-      const count = (subs ?? []).filter((s) => tierSet.has((s.email ?? "").toLowerCase())).length;
+      const count = (subs ?? []).filter((s) => tierSet.has(normalizeEmail(s.email))).length;
       return { count };
     }
 
@@ -768,7 +768,7 @@ async function runCampaignSend(
     // konta o randze warstwy >= min_tier_rank (personalizacja komunikacji).
     if (filter.min_tier_rank && filter.min_tier_rank > 0) {
       const tierSet = await minTierEmailSet(admin, tenantId, filter.min_tier_rank);
-      audience = audience.filter((sub) => tierSet.has((sub.email ?? "").toLowerCase()));
+      audience = audience.filter((sub) => tierSet.has(normalizeEmail(sub.email)));
     }
 
     // Resume-idempotency: skip recipients already logged as "sent" by a
