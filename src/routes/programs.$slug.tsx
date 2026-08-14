@@ -31,7 +31,14 @@ import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { safeAccent, accentRgba, readableTextColor } from "@/lib/programs/visual";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
-import { buildContentHead } from "@/lib/seo/meta";
+import {
+  buildContentHead,
+  imagePreloadLink,
+  imagePreloadLinkHeaderValue,
+  type ImagePreloadInput,
+} from "@/lib/seo/meta";
+import { buildImageSrcSet } from "@/lib/cropSizes";
+import { appendLinkHeader } from "@/lib/http/responseHeaders";
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { ensureI18n as ensureProgramsI18n } from "@/lib/i18n-programs";
 export const Route = createFileRoute("/programs/$slug")({
@@ -40,12 +47,25 @@ export const Route = createFileRoute("/programs/$slug")({
       .ensureQueryData(programBySlugQueryOptions(params.slug))
       .catch(() => null); // crawler surfaces degrade, never 500
     if (!landing) throw notFound();
-    return { landing };
+    // Preload LCP hero programu - deskryptor odzwierciedla 1:1 render
+    // OptimizedImage `responsive` (buildImageSrcSet + domyślne sizes "100vw"),
+    // więc przeglądarka nigdy nie pobiera drugiego wariantu. Ta sama wartość
+    // idzie też jako nagłówek HTTP `Link` (droga do 103 Early Hints).
+    const hero = landing.program.hero_image_url;
+    const heroPreload: ImagePreloadInput | null = hero
+      ? { href: hero, imageSrcSet: buildImageSrcSet(hero), imageSizes: "100vw" }
+      : null;
+    if (heroPreload) appendLinkHeader(imagePreloadLinkHeaderValue(heroPreload));
+    return { landing, heroPreload };
   },
   head: ({ loaderData, params }) => {
     const url = getRequestUrl() || `/programs/${params.slug}`;
     const lang = activeLang(url);
-    const landing = (loaderData as { landing: ProgramLanding } | undefined)?.landing ?? null;
+    const data = loaderData as
+      | { landing: ProgramLanding; heroPreload: ImagePreloadInput | null }
+      | undefined;
+    const landing = data?.landing ?? null;
+    const heroPreload = data?.heroPreload ?? null;
     const program = landing?.program ?? null;
     if (!program) {
       return buildContentHead({
@@ -86,6 +106,8 @@ export const Route = createFileRoute("/programs/$slug")({
     );
     return {
       ...head,
+      // Preload hero z <head> - fetch startuje przed sparsowaniem <img> w body.
+      links: heroPreload ? [...head.links, imagePreloadLink(heroPreload)] : head.links,
       scripts: [{ type: "application/ld+json", children: safeJsonLd(breadcrumbs) }],
     };
   },
@@ -307,11 +329,14 @@ function ProgramDetail() {
       <header className="relative overflow-hidden border-b border-border">
         {program.hero_image_url && (
           <div className="absolute inset-0" aria-hidden="true">
+            {/* priority: hero nad zgięciem to kandydat LCP - eager + wysoki
+                priorytet sieciowy, spójnie z preloadem z loadera. */}
             <OptimizedImage
               src={program.hero_image_url}
               alt=""
               className="w-full h-full object-cover"
               responsive
+              priority
             />
             <div
               className="absolute inset-0"

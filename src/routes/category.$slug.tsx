@@ -11,10 +11,17 @@ import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { localizedPath } from "@/lib/i18n/localePath";
-import { buildContentHead, splitUrl, SITE_CANONICAL_ORIGIN } from "@/lib/seo/meta";
+import {
+  buildContentHead,
+  imagePreloadLink,
+  imagePreloadLinkHeaderValue,
+  splitUrl,
+  SITE_CANONICAL_ORIGIN,
+} from "@/lib/seo/meta";
 import { archiveLayoutQueryOptions } from "@/lib/archive-layout-settings";
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
-import { setCacheControlHeader } from "@/lib/http/responseHeaders";
+import { archiveFirstCardPreload } from "@/lib/seo/archivePreload";
+import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { contentCacheControl } from "@/lib/http/cachePolicy";
 
 const NO_STORE = contentCacheControl({ preview: true });
@@ -55,7 +62,12 @@ export const Route = createFileRoute("/category/$slug")({
       throw notFound();
     }
     setCacheControlHeader(contentCacheControl());
-    return data;
+    // Preload LCP pierwszej okładki (karta wyróżniona albo pierwsza karta
+    // siatki) - deskryptor dla head() + nagłówek HTTP `Link` (utrwalany przez
+    // NES Edge Cache na HIT/STALE; droga do 103 Early Hints).
+    const coverPreload = archiveFirstCardPreload(data.posts, settings.show_featured_top);
+    if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
+    return { ...data, coverPreload };
   },
   head: ({ loaderData, params }) => {
     const tax = loaderData?.taxonomy;
@@ -130,6 +142,7 @@ export const Route = createFileRoute("/category/$slug")({
     // kanal kategorii/tagu bez znajomosci konwencji URL.
     const feedLinks = [
       ...head.links,
+      ...(loaderData?.coverPreload ? [imagePreloadLink(loaderData.coverPreload)] : []),
       {
         rel: "alternate",
         type: "application/rss+xml",

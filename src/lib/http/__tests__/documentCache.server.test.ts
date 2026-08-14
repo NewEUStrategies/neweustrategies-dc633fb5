@@ -108,6 +108,51 @@ describe("handleDocumentRequest", () => {
     expect(snapshot.entries).toBe(1);
   });
 
+  it("utrwala nagłówek Link scalony na GRANICY handlera i wiek wpisu na replay HIT", async () => {
+    // ŚCIEŻKA PRODUKCYJNA: loadery ustawiają Link przez setResponseHeader na
+    // nagłówkach ZDARZENIA h3, więc wewnątrz łańcucha middleware odpowiedź
+    // renderu nagłówka NIE MA - h3 scala go na Response dopiero w toResponse()
+    // na granicy requestHandlera. Odroczony zapis musi więc czytać nagłówek
+    // z odpowiedzi PO granicy (applyDeferredDocumentStore w src/server.ts),
+    // nie z tej widzianej w middleware. Bez tego wpisy trzymały link=null
+    // i HIT/STALE (dominująca ścieżka czytelników, jedyna zdatna na 103 Early
+    // Hints) wychodziły bez preloadów.
+    const LINK_VALUE =
+      '<https://cdn/cover.jpg>; rel="preload"; as="image"; fetchpriority=high, ' +
+      '</assets/font.woff2>; rel="preload"; as="font"; type="font/woff2"; crossorigin';
+    // Render BEZ nagłówka Link - tak wygląda odpowiedź wewnątrz łańcucha.
+    const next = vi.fn(async () => htmlResponse("<html>hero</html>"));
+
+    const inChain = (await handleDocumentRequest(docRequest("/z-preloadem"), next)) as Response;
+    expect(inChain.headers.get("link")).toBeNull();
+    // Granica handlera (h3 toResponse): scalone nagłówki zdarzenia lądują na
+    // odpowiedzi. Tożsamość strumienia body pozostaje nienaruszona - to ona
+    // jest kluczem WeakMap odroczonego zapisu.
+    const mergedHeaders = new Headers(inChain.headers);
+    mergedHeaders.set("link", LINK_VALUE);
+    const boundary = new Response(inChain.body, { status: inChain.status, headers: mergedHeaders });
+    const first = applyDeferredDocumentStore(boundary);
+    expect(first.headers.get(NES_CACHE_HEADER)).toBe("MISS");
+    await first.text();
+    await settle();
+
+    const second = await renderThroughEdge("/z-preloadem", next);
+    expect(second.headers.get(NES_CACHE_HEADER)).toBe("HIT");
+    expect(second.headers.get("link")).toBe(LINK_VALUE);
+    // Wiek wpisu w Server-Timing (`nes-age;dur=<ms>`) - korelacja RUM.
+    expect(second.headers.get("server-timing")).toMatch(/nes-age;dur=\d+/);
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it("render bez nagłówka Link daje replay bez nagłówka Link (zero wymyślania)", async () => {
+    const next = vi.fn(async () => htmlResponse("<html>plain</html>"));
+    await (await renderThroughEdge("/bez-preloadu", next)).text();
+    await settle();
+    const hit = await renderThroughEdge("/bez-preloadu", next);
+    expect(hit.headers.get(NES_CACHE_HEADER)).toBe("HIT");
+    expect(hit.headers.get("link")).toBeNull();
+  });
+
   it("MISS zachowuje tożsamość strumienia body w łańcuchu middleware (regresja ~61 s)", async () => {
     // Egzekutor middleware TanStack Start porównuje tożsamość `response.body`
     // finalnej odpowiedzi z ciałem koperty SSR; rozbieżność uruchamia

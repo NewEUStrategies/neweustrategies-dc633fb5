@@ -4,7 +4,7 @@
       "startServerCommand": "bun run dev --host 127.0.0.1 --port 4173",
       "startServerReadyPattern": "Local:",
       "startServerReadyTimeout": 120000,
-      "url": ["http://127.0.0.1:4173/en"],
+      "url": ["http://127.0.0.1:4173/en", "http://127.0.0.1:4173/", "http://127.0.0.1:4173/blog"],
       "numberOfRuns": 1,
       "settings": {
         "preset": "desktop",

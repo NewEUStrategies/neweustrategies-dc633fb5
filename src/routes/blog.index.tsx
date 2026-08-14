@@ -20,9 +20,16 @@ import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { withBudget } from "@/lib/asyncBudget";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
-import { buildContentHead, splitUrl, SITE_CANONICAL_ORIGIN } from "@/lib/seo/meta";
+import {
+  buildContentHead,
+  imagePreloadLink,
+  imagePreloadLinkHeaderValue,
+  splitUrl,
+  SITE_CANONICAL_ORIGIN,
+} from "@/lib/seo/meta";
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
-import { setCacheControlHeader } from "@/lib/http/responseHeaders";
+import { archiveFirstCardPreload } from "@/lib/seo/archivePreload";
+import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { contentCacheControl } from "@/lib/http/cachePolicy";
 
 const BLOG_LOADER_BUDGET_MS = 4_000;
@@ -70,10 +77,15 @@ export const Route = createFileRoute("/blog/")({
         { updatedAt: 0 },
       );
       setCacheControlHeader(NO_STORE);
-      return { page: deps.page, total: 0 };
+      return { page: deps.page, total: 0, coverPreload: null };
     }
     setCacheControlHeader(contentCacheControl());
-    return { page: data.page, total: data.total };
+    // Preload LCP pierwszej karty siatki (PaginatedPostGrid oznacza ją
+    // priority) - deskryptor dla head() + nagłówek HTTP `Link` utrwalany
+    // przez NES Edge Cache na HIT/STALE.
+    const coverPreload = archiveFirstCardPreload(data.posts, false);
+    if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
+    return { page: data.page, total: data.total, coverPreload };
   },
 
   head: ({ loaderData }) => {
@@ -126,6 +138,9 @@ export const Route = createFileRoute("/blog/")({
     };
     return {
       ...head,
+      links: loaderData?.coverPreload
+        ? [...head.links, imagePreloadLink(loaderData.coverPreload)]
+        : head.links,
       scripts: [
         {
           type: "application/ld+json",

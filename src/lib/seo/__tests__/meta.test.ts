@@ -9,6 +9,7 @@ import {
   feedAlternateLink,
   feedDiscoveryLinks,
   imagePreloadLink,
+  imagePreloadLinkHeaderValue,
   SITE_NAME,
   SITE_DEFAULT_TITLE,
   SITE_DEFAULT_DESCRIPTION,
@@ -250,6 +251,63 @@ describe("imagePreloadLink", () => {
   it("defaults imageSizes to 100vw when a srcSet is given without explicit sizes", () => {
     const link = imagePreloadLink({ href: "x", imageSrcSet: "x 320w" });
     expect(link.imageSizes).toBe("100vw");
+  });
+});
+
+describe("imagePreloadLinkHeaderValue", () => {
+  it("buduje wartość nagłówka Link z imagesrcset/imagesizes w cudzysłowach", () => {
+    const value = imagePreloadLinkHeaderValue({
+      href: "https://cdn/img.jpg",
+      imageSrcSet: "https://cdn/img.jpg?width=320 320w, https://cdn/img.jpg?width=640 640w",
+      imageSizes: "(max-width: 768px) 100vw, 672px",
+    });
+    expect(value).toBe(
+      '<https://cdn/img.jpg>; rel="preload"; as="image"; fetchpriority=high; ' +
+        'imagesrcset="https://cdn/img.jpg?width=320 320w, https://cdn/img.jpg?width=640 640w"; ' +
+        'imagesizes="(max-width: 768px) 100vw, 672px"',
+    );
+  });
+
+  it("bez srcSet emituje sam preload href (parytet z plain <img src>)", () => {
+    expect(imagePreloadLinkHeaderValue({ href: "https://cdn/img.jpg", imageSrcSet: "" })).toBe(
+      '<https://cdn/img.jpg>; rel="preload"; as="image"; fetchpriority=high',
+    );
+  });
+
+  it("nie pozwala wartościom rozerwać nagłówka (CR/LF, cudzysłowy, nawiasy)", () => {
+    const value = imagePreloadLinkHeaderValue({
+      href: "https://cdn/img.jpg?x=1\r\nSet-Cookie: pwned <a>",
+      imageSrcSet: 'srcset "z cudzysłowem"\r\n 320w',
+      imageSizes: "100vw",
+    });
+    expect(value).not.toMatch(/[\r\n]/);
+    // href: znaki sterujące, spacje i nawiasy kątowe twardo usunięte.
+    expect(value.startsWith("<https://cdn/img.jpg?x=1Set-Cookie:pwneda>;")).toBe(true);
+    // Parametry: cudzysłowy escapowane, żadnego przedwczesnego zamknięcia;
+    // nie-ASCII ("ł") zakodowane procentowo - patrz test ByteString niżej.
+    expect(value).toContain('imagesrcset="srcset \\"z cudzys%C5%82owem\\" 320w"');
+  });
+
+  it("koduje nie-ASCII procentowo - wartość jest zawsze bezpiecznym ByteStringiem", () => {
+    // Redakcyjny URL "okładka.jpg": bez kodowania Headers.set rzuca TypeError
+    // na Node (ByteString), a workerd emituje zniekształcone surowe UTF-8 -
+    // jedna taka wartość zatruwała cały akumulator Link żądania.
+    const value = imagePreloadLinkHeaderValue({ href: "https://ext.example/okładka.jpg" });
+    expect(value).toContain("<https://ext.example/ok%C5%82adka.jpg>");
+    // Cała wartość mieści się w ASCII 0x20-0x7E - nic nie wysadzi Headers.set.
+    expect(
+      [...value].every((ch) => {
+        const c = ch.charCodeAt(0);
+        return c >= 0x20 && c <= 0x7e;
+      }),
+    ).toBe(true);
+    // new Headers() to najsurowszy (spec-zgodny) walidator - nie może rzucić.
+    expect(() => new Headers({ link: value })).not.toThrow();
+  });
+
+  it("nie re-enkoduje istniejących %-sekwencji w href", () => {
+    const value = imagePreloadLinkHeaderValue({ href: "https://cdn/a%20b.jpg" });
+    expect(value).toContain("<https://cdn/a%20b.jpg>");
   });
 });
 

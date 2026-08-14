@@ -20,7 +20,9 @@ import { asBool, asNum, asNumInRange, asOneOf, asStr } from "@/lib/builder/conte
 import { resolveAuthorDisplay } from "@/lib/builder/authorDisplay";
 import { SliderRender } from "./lazyWidgets";
 import { sliderPostsQueryOptions } from "@/lib/builder/sliderPostsQuery";
-import { supabase } from "@/integrations/supabase/client";
+import { sliderAuthorIds, sliderAuthorsQueryOptions } from "@/lib/builder/sliderAuthorsQuery";
+import { useAboveFold } from "@/lib/builder/aboveFold";
+import { WIDGET_MEDIA_SPLIT_SIZES } from "@/lib/builder/widgetImageSizes";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { AppLink } from "@/components/atoms/AppLink";
 import { ResizableImageWrap } from "./resizeWrappers";
@@ -75,6 +77,10 @@ export function ImageWidget({
 }) {
   const rawSrc = safeImageUrl(getStr(c, "src"));
   const rawSrcDark = safeImageUrl(getStr(c, "srcDark"));
+  // Kandydat LCP: obraz w sekcji nad zgięciem ładuje się eager z wysokim
+  // priorytetem. Wyłącznie wariant jednoźródłowy - przy parze light/dark oba
+  // obrazy są w DOM (jeden schowany CSS-em), więc eager podwajałby transfer.
+  const aboveFold = useAboveFold();
   const alt = getStr(c, `alt_${lang}`) || getStr(c, "alt_pl");
   const caption = getStr(c, `caption_${lang}`) || getStr(c, "caption_pl");
   const variant = getStr(c, "variant") || "default";
@@ -174,7 +180,7 @@ export function ImageWidget({
         src={lightSrc}
         alt={alt}
         responsive
-        sizes="(max-width: 767px) 100vw, 50vw"
+        sizes={WIDGET_MEDIA_SPLIT_SIZES}
         className={`${imgCls} ${isFramed ? "widget-media-fg" : ""} gc-img-light`}
         style={fgImgStyle}
         onError={applyLogoFallback}
@@ -185,7 +191,7 @@ export function ImageWidget({
         src={darkSrc}
         alt={alt}
         responsive
-        sizes="(max-width: 767px) 100vw, 50vw"
+        sizes={WIDGET_MEDIA_SPLIT_SIZES}
         className={`${imgCls} ${isFramed ? "widget-media-fg" : ""} gc-img-dark`}
         style={fgImgStyle}
         onError={applyLogoFallback}
@@ -198,7 +204,8 @@ export function ImageWidget({
       src={theme === "dark" ? darkSrc : lightSrc}
       alt={alt}
       responsive
-      sizes="(max-width: 767px) 100vw, 50vw"
+      sizes={WIDGET_MEDIA_SPLIT_SIZES}
+      priority={aboveFold}
       className={`${imgCls} widget-media-fg`}
       style={fgImgStyle}
       onError={applyLogoFallback}
@@ -210,7 +217,8 @@ export function ImageWidget({
       src={theme === "dark" ? darkSrc : lightSrc}
       alt={alt}
       responsive
-      sizes="(max-width: 767px) 100vw, 50vw"
+      sizes={WIDGET_MEDIA_SPLIT_SIZES}
+      priority={aboveFold}
       className={imgCls}
       style={imgStyle}
       onError={applyLogoFallback}
@@ -296,48 +304,15 @@ export function PostsSliderWidget({
   const { data: items = [], isPending } = useQuery(sliderPostsQueryOptions(c, lang));
 
   // Batch-fetch author profiles for the resolved slider posts so name+avatar
-  // propagate live to the byline without one query per slide.
-  //
-  // IZOLACJA NAJEMCY: czytamy `profiles_public`, nie tabelę `profiles`. Widok
-  // jest zawężony do `public_tenant_id()` i wystawia wyłącznie kolumny
-  // publiczne, więc slider jednej firmy nie ma jak pokazać (ani pobrać) profilu
-  // z obszaru roboczego innej - nawet gdyby `author_id` wpisu wskazywał poza
-  // najemcę. Ten sam widok czyta post-lista (`attachAuthorNames`) i widget
-  // rekomendacji, więc kontrakt danych autora jest jeden.
-  const authorIds = Array.from(
-    new Set(items.map((p) => p.author_id).filter((x): x is string => Boolean(x))),
-  );
-  const { data: authorMap = new Map<string, { name: string; avatar: string; slug: string }>() } =
-    useQuery({
-      queryKey: ["builder-slider-authors", authorIds] as const,
-      enabled: authorIds.length > 0,
-      staleTime: 60_000,
-      gcTime: 5 * 60_000,
-      queryFn: async () => {
-        const { data } = await supabase
-          .from("profiles_public")
-          .select("id, display_name, first_name, last_name, avatar_url, slug")
-          .in("id", authorIds);
-        const map = new Map<string, { name: string; avatar: string; slug: string }>();
-        (data ?? []).forEach((row) => {
-          const r = row as {
-            id: string;
-            display_name: string | null;
-            first_name: string | null;
-            last_name: string | null;
-            avatar_url: string | null;
-            slug: string | null;
-          };
-          const composed = [r.first_name, r.last_name].filter(Boolean).join(" ").trim();
-          map.set(r.id, {
-            name: r.display_name?.trim() || composed || "",
-            avatar: r.avatar_url ?? "",
-            slug: r.slug ?? "",
-          });
-        });
-        return map;
-      },
-    });
+  // propagate live to the byline without one query per slide. Opcje zapytania
+  // (klucz + queryFn + izolacja najemcy przez `profiles_public`) mieszkają we
+  // współdzielonym `sliderAuthorsQuery`, tym samym, który rozgrzewa prefetch
+  // SSR - hero wychodzi z serwera Z byline zamiast doklejać ją po hydratacji.
+  const authorIds = sliderAuthorIds(items);
+  const { data: authorMap = {} } = useQuery({
+    ...sliderAuthorsQueryOptions(authorIds),
+    enabled: authorIds.length > 0,
+  });
 
   const columns = Math.round(asNumInRange(c.columns, 3, 1, 4)) as 1 | 2 | 3 | 4;
 
@@ -403,7 +378,7 @@ export function PostsSliderWidget({
     // "Pokaż cover" (lub post bez okładki) trwale usuwałoby slajd z karuzeli
     // i nie dałoby się go przywrócić bez ponownego dodania okładki do wpisu.
     items: items.map((p) => {
-      const author = p.author_id ? authorMap.get(p.author_id) : undefined;
+      const author = p.author_id ? authorMap[p.author_id] : undefined;
       return {
         image: p.cover_image_url ?? "",
         title_pl: p.title_pl ?? "",

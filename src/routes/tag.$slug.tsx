@@ -8,9 +8,17 @@ import { taxonomyArchiveQueryOptions, type ArchiveSort } from "@/lib/queries/arc
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { localizedPath } from "@/lib/i18n/localePath";
-import { buildContentHead, splitUrl, SITE_CANONICAL_ORIGIN } from "@/lib/seo/meta";
+import {
+  buildContentHead,
+  imagePreloadLink,
+  imagePreloadLinkHeaderValue,
+  splitUrl,
+  SITE_CANONICAL_ORIGIN,
+} from "@/lib/seo/meta";
 import { archiveLayoutQueryOptions } from "@/lib/archive-layout-settings";
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
+import { archiveFirstCardPreload } from "@/lib/seo/archivePreload";
+import { appendLinkHeader } from "@/lib/http/responseHeaders";
 import { TaxonomyPage } from "@/components/archive/TaxonomyPage";
 const VALID_SORT: ReadonlyArray<ArchiveSort> = ["newest", "oldest", "popular"];
 
@@ -41,7 +49,11 @@ export const Route = createFileRoute("/tag/$slug")({
       }),
     );
     if (!data) throw notFound();
-    return data;
+    // Preload LCP pierwszej okładki (jak w category.$slug): deskryptor dla
+    // head() + nagłówek HTTP `Link` utrwalany przez NES Edge Cache.
+    const coverPreload = archiveFirstCardPreload(data.posts, settings.show_featured_top);
+    if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
+    return { ...data, coverPreload };
   },
   head: ({ loaderData, params }) => {
     const tax = loaderData?.taxonomy;
@@ -101,6 +113,7 @@ export const Route = createFileRoute("/tag/$slug")({
     // kanal kategorii/tagu bez znajomosci konwencji URL.
     const feedLinks = [
       ...head.links,
+      ...(loaderData?.coverPreload ? [imagePreloadLink(loaderData.coverPreload)] : []),
       {
         rel: "alternate",
         type: "application/rss+xml",

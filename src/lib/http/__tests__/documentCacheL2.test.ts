@@ -60,6 +60,7 @@ const ENTRY = {
   contentType: "text/html; charset=utf-8",
   cacheControl: "public, max-age=60, s-maxage=900, stale-while-revalidate=86400",
   contentLanguage: "pl",
+  link: null,
   freshMs: 180_000,
   swrMs: 3_600_000,
 };
@@ -83,6 +84,21 @@ describe("documentCacheL2 (Cache API per-colo)", () => {
     expect(new TextDecoder().decode(hit!.body)).toBe("<html>colo</html>");
     expect(hit!.freshMs).toBe(ENTRY.freshMs);
     expect(hit!.contentLanguage).toBe("pl");
+    expect(hit!.link).toBeNull();
+  });
+
+  it("utrwala nagłówek Link wpisu (preload LCP) w metadanych L2", async () => {
+    const body = new TextEncoder().encode("<html>hero</html>");
+    const link = '<https://cdn/cover.jpg>; rel="preload"; as="image"; fetchpriority=high';
+    await l2Put("tenant-a.eu", "tenant-a.eu::/hero", {
+      ...ENTRY,
+      link,
+      body,
+      storedAt: Date.now(),
+    });
+    const hit = await l2Match("tenant-a.eu", "tenant-a.eu::/hero");
+    expect(hit).not.toBeNull();
+    expect(hit!.link).toBe(link);
   });
 
   it("bump wersji hosta unieważnia wpisy hosta, nie ruszając innych tenantów", async () => {

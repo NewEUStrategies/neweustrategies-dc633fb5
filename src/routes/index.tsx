@@ -25,7 +25,18 @@ import {
 import { parsePageSearch } from "@/lib/routing/pageSearch";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
-import { buildContentHead, splitUrl, siteTitle, siteDescription } from "@/lib/seo/meta";
+import {
+  buildContentHead,
+  imagePreloadLink,
+  imagePreloadLinkHeaderValue,
+  splitUrl,
+  siteTitle,
+  siteDescription,
+  type ImagePreloadInput,
+} from "@/lib/seo/meta";
+import { builderHeroPreload } from "@/lib/builder/heroImage";
+import { buildImageSrcSet } from "@/lib/cropSizes";
+import { CARD_IMAGE_SIZES } from "@/lib/cardImageSizes";
 import {
   organizationJsonLd,
   safeJsonLd,
@@ -42,7 +53,7 @@ import {
 import { metaDescription } from "@/lib/routing/publicSegments";
 import { parseSeoSettings } from "@/lib/seo/settings";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
-import { setCacheControlHeader } from "@/lib/http/responseHeaders";
+import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { cacheControlHeader, contentCacheControl } from "@/lib/http/cachePolicy";
 import { errorCopy } from "@/lib/errorCopy";
 
@@ -157,6 +168,13 @@ export const Route = createFileRoute("/")({
     // (dawny płaski limit czynił je nieosiągalnymi). Rozmiar strony honoruje
     // posts_per_page z ustawień czytania; klucz zapytania musi być zgodny
     // z komponentem, także w ścieżce degradacji.
+    // Preload obrazu LCP: deskryptor liczony w loaderze (head() jest
+    // synchroniczny), osobno dla każdego trybu strony głównej. Wpisy mają ten
+    // kontrakt od dawna ($.tsx); strona główna - najczęściej odwiedzana trasa
+    // serwisu - emitowała dotąd zero hintów i przeglądarka odkrywała hero
+    // dopiero po sparsowaniu body.
+    let coverPreload: ImagePreloadInput | null = null;
+
     if (homeMode === "latest_posts") {
       let pageSize = BLOG_PAGE_SIZE;
       try {
@@ -174,6 +192,17 @@ export const Route = createFileRoute("/")({
           { posts: [], total: 0, page: deps.page, pageSize } satisfies BlogArchiveResult,
           { updatedAt: 0 },
         );
+      }
+      // Pierwsza karta siatki jest priority (PaginatedPostGrid) - preload jej
+      // okładki z IDENTYCZNĄ parą srcSet/sizes co PostListCard.
+      const list = queryClient.getQueryData<BlogArchiveResult>(listOptions.queryKey);
+      const firstCover = list?.posts?.[0]?.cover_image_url;
+      if (firstCover) {
+        coverPreload = {
+          href: firstCover,
+          imageSrcSet: buildImageSrcSet(firstCover),
+          imageSizes: CARD_IMAGE_SIZES,
+        };
       }
     }
     // Settle every data-bound widget query BEFORE the router dehydrates - the
@@ -196,6 +225,10 @@ export const Route = createFileRoute("/")({
       if (doc.sections.length > 0) {
         const lang = activeLang(getRequestUrl() || "/") === "en" ? "en" : "pl";
         await prefetchCachedRouteQueries(queryClient, doc, lang);
+        // Zapytania widgetów są już rozgrzane, więc pierwszy malowany obraz
+        // sekcji nad zgięciem (slider / post-lista / obraz) jest w pełni
+        // wyznaczalny - head() wyemituje go jako <link rel="preload">.
+        coverPreload = builderHeroPreload(doc, queryClient, lang);
       }
     }
     // SEO settings (Organization sameAs / logo) for the homepage JSON-LD; the
@@ -226,7 +259,11 @@ export const Route = createFileRoute("/")({
     setCacheControlHeader(
       degraded ? cacheControlHeader({ cacheable: false }) : contentCacheControl(),
     );
-    return { seoSettings, homePage, page: deps.page };
+    // Ten sam preload także jako nagłówek HTTP `Link`: przeglądarka startuje
+    // pobieranie hero z nagłówków odpowiedzi (przed pierwszym bajtem HTML),
+    // a NES Edge Cache utrwala go na HIT/STALE (droga do 103 Early Hints).
+    if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
+    return { seoSettings, homePage, page: deps.page, coverPreload };
   },
 
   head: ({ loaderData }) => {
@@ -255,7 +292,7 @@ export const Route = createFileRoute("/")({
       ? resolveSeoText(homePage, lang, siteTitle(lang, url), fallbackDescription)
       : { title: siteTitle(lang, url), description: fallbackDescription };
     const image = homePage ? resolveSocialImage(homePage, homePage.cover_image_url) : null;
-    const head = buildContentHead({
+    const builtHead = buildContentHead({
       url,
       lang,
       type: "website",
@@ -268,6 +305,12 @@ export const Route = createFileRoute("/")({
       robots: page > 1 ? "noindex, follow" : homePage ? resolveRobotsMeta(homePage) : null,
       canonicalOverride: homePage ? seoCanonicalOverride(homePage) : null,
     });
+    // Preload obrazu LCP (hero buildera / pierwsza karta trybu "najnowsze
+    // wpisy") - deskryptor policzony w loaderze, bajtowo zgodny z malowanym
+    // <img> (wspólne moduły sizes + buildImageSrcSet).
+    const head = loaderData?.coverPreload
+      ? { ...builtHead, links: [...builtHead.links, imagePreloadLink(loaderData.coverPreload)] }
+      : builtHead;
     const { origin } = splitUrl(url);
     if (!origin) return head;
     // Entity layer (GEO/AEO): Organization + WebSite with SearchAction. Per

@@ -27,7 +27,17 @@ import {
 } from "@/lib/podcast/types";
 import { safeJsonLd } from "@/lib/seo/jsonld";
 import { activeLang } from "@/lib/seo/head";
-import { SITE_CANONICAL_ORIGIN, feedAlternateLink, splitUrl } from "@/lib/seo/meta";
+import {
+  SITE_CANONICAL_ORIGIN,
+  buildContentHead,
+  feedAlternateLink,
+  imagePreloadLink,
+  imagePreloadLinkHeaderValue,
+  siteDescription,
+  splitUrl,
+  type ImagePreloadInput,
+} from "@/lib/seo/meta";
+import { appendLinkHeader } from "@/lib/http/responseHeaders";
 import { getRequestUrl } from "@/lib/seo/request";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { pickLocalized, pickPair } from "@/lib/i18n/pickLocalized";
@@ -37,19 +47,49 @@ export const Route = createFileRoute("/podcast/$slug")({
   loader: async ({ context, params }) => {
     const data = await context.queryClient.ensureQueryData(podcastBySlugQueryOptions(params.slug));
     if (!data) throw notFound();
-    return { podcast: data };
+    // Preload LCP okładki odcinka - render to zwykłe <img src> bez srcSet,
+    // więc deskryptor niesie sam `href` (para srcset/sizes wskazywałaby inny
+    // wariant niż malowany i podwoiłaby pobranie). Wartość idzie też jako
+    // nagłówek HTTP `Link` (fetch przed parsowaniem HTML, 103 Early Hints).
+    const coverPreload: ImagePreloadInput | null = data.cover_image_url
+      ? { href: data.cover_image_url }
+      : null;
+    if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
+    return { podcast: data, coverPreload };
   },
   head: ({ loaderData }) => {
     const p = loaderData?.podcast;
     if (!p) return { meta: [{ title: "Podcast" }] };
     const title = p.title_pl || p.title_en || "Podcast";
-    const description = (p.excerpt_pl || p.excerpt_en || "").slice(0, 300) || undefined;
+    const url = getRequestUrl() || `/podcast/${p.slug}`;
+    const lang = activeLang(url);
+    const origin = splitUrl(url).origin || SITE_CANONICAL_ORIGIN;
+    // Odcinek bez zajawki: opis marki zamiast pustego <meta name="description">
+    // (stary ręczny head w ogóle pomijał wtedy ten tag - fallback jest lepszy
+    // dla SERP niż brak i niż pusty content).
+    const excerpt = (p.excerpt_pl || p.excerpt_en || "").slice(0, 300);
+    const description = excerpt || siteDescription(lang, origin);
+    // Pełny kontrakt <head> przez buildContentHead (canonical, hreflang,
+    // twitter:card, og:url, og:image z fallbackiem marki) - ręczne meta go nie
+    // niosły. Tytuł i opis bez zmian: documentTitle z sufiksem "· Podcast",
+    // czysty tytuł w og:title/twitter:title.
+    const base = buildContentHead({
+      url,
+      lang,
+      type: "article",
+      title,
+      documentTitle: `${title} · Podcast`,
+      description,
+      image: p.cover_image_url,
+      publishedAt: p.published_at,
+    });
     // JSON-LD PodcastEpisode: pozwala wyszukiwarkom rozpoznać odcinek podcastu.
     const jsonLd = {
       "@context": "https://schema.org",
       "@type": "PodcastEpisode",
       name: title,
-      ...(description ? { description } : {}),
+      // JSON-LD opisuje ODCINEK - opis marki tu nie należy (tylko realna zajawka).
+      ...(excerpt ? { description: excerpt } : {}),
       ...(p.episode_number != null ? { episodeNumber: p.episode_number } : {}),
       ...(p.published_at ? { datePublished: p.published_at } : {}),
       associatedMedia: {
@@ -60,20 +100,13 @@ export const Route = createFileRoute("/podcast/$slug")({
     // Autodiscovery kanału podcastu wprost ze strony odcinka - to najczęstszy
     // punkt wejścia z social mediów, a czytnik/Apple szuka <link rel="alternate">.
     // Strona odcinka zna show_id, nie slug programu, więc wskazujemy kanał
-    // sieciowy (zawiera ten odcinek), a nie per-program.
-    const url = getRequestUrl() || `/podcast/${p.slug}`;
-    const lang = activeLang(url);
-    const origin = splitUrl(url).origin || SITE_CANONICAL_ORIGIN;
+    // sieciowy (zawiera ten odcinek), a nie per-program. Do tego preload
+    // okładki (LCP) - fetch rusza z <head>, zanim parser dojdzie do <img>.
     return {
-      meta: [
-        { title: `${title} · Podcast` },
-        ...(description ? [{ name: "description", content: description }] : []),
-        { property: "og:title", content: title },
-        { property: "og:type", content: "article" },
-        ...(description ? [{ property: "og:description", content: description }] : []),
-        ...(p.cover_image_url ? [{ property: "og:image", content: p.cover_image_url }] : []),
-      ],
+      ...base,
       links: [
+        ...base.links,
+        ...(loaderData?.coverPreload ? [imagePreloadLink(loaderData.coverPreload)] : []),
         feedAlternateLink({
           origin,
           feedPath: "/podcast/rss.xml",

@@ -12,8 +12,9 @@ import { AppLink } from "@/components/atoms/AppLink";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { formatDateShort } from "@/lib/i18n/format";
 
-// Karty renderują się w siatce 1/2/3 kolumny w kontenerze max 1200px.
-const CARD_IMAGE_SIZES = "(min-width: 1024px) 360px, (min-width: 768px) 45vw, 92vw";
+// `sizes` okładek mieszka w lib/cardImageSizes (wspólne z preloadem LCP w
+// head() tras archiwów - parytet preload<->render jest strukturalny).
+import { CARD_IMAGE_SIZES } from "@/lib/cardImageSizes";
 
 // Minimalny, dwujęzyczny kształt danych karty. `BlogListItem` jest z nim
 // strukturalnie zgodny, więc można przekazać go wprost.
@@ -35,6 +36,8 @@ interface PostListCardProps {
   titleClassName?: string;
   /** Oznacz cover jako LCP (eager + wysoki priorytet) - tylko pierwsza karta. */
   priority?: boolean;
+  /** `sizes` okładki - karta wyróżniona przekazuje FEATURED_CARD_IMAGE_SIZES. */
+  imageSizes?: string;
   /** Wariant linku opakowującego kartę. */
   link?: "router" | "app";
   /** Subtelny zoom okładki na hover (jak w archiwach). */
@@ -55,6 +58,7 @@ export function PostListCard({
   lang,
   titleClassName = "text-xl",
   priority = false,
+  imageSizes = CARD_IMAGE_SIZES,
   link = "router",
   imageZoom = true,
   viewTransitionId,
@@ -77,7 +81,7 @@ export function PostListCard({
           alt={title}
           className={imageClassName}
           responsive
-          sizes={CARD_IMAGE_SIZES}
+          sizes={imageSizes}
           priority={priority}
           style={
             viewTransitionId ? { viewTransitionName: `post-cover-${viewTransitionId}` } : undefined

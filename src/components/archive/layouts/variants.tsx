@@ -3,6 +3,7 @@
 import { ArchiveHeader } from "./ArchiveHeader";
 import { ArchiveBody } from "./ArchiveBody";
 import { PostListCard } from "@/components/molecules/PostListCard";
+import { FEATURED_CARD_IMAGE_SIZES } from "@/lib/cardImageSizes";
 import type { ArchiveLayoutProps } from "./types";
 
 function name(props: ArchiveLayoutProps) {
@@ -77,10 +78,14 @@ export function LayoutMagazine(props: ArchiveLayoutProps) {
         {showFeatured && (
           <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr] mb-10">
             <div className="rounded-2xl overflow-hidden border border-border bg-card">
+              {/* Lead magazynowy = kandydat LCP: eager + high priority i sizes
+                  szerokiej karty (patrz FEATURED_CARD_IMAGE_SIZES). */}
               <PostListCard
                 post={featured}
                 href={featured.href}
                 lang={props.lang}
+                priority
+                imageSizes={FEATURED_CARD_IMAGE_SIZES}
                 viewTransitionId={featured.id}
               />
             </div>

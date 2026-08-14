@@ -69,9 +69,15 @@ function escapeAttr(value: string): string {
     .replace(/>/g, "&gt;");
 }
 
-function enhanceImgTag(tag: string): string {
+function enhanceImgTag(tag: string, eager: boolean): string {
   let extra = "";
-  if (!/\sloading\s*=/i.test(tag)) extra += ' loading="lazy"';
+  // Pierwszy obraz treści przy układzie BEZ okładki jest zwykle elementem LCP
+  // - `loading="lazy"` opóźniało jego start o pełny parse dokumentu. Eager +
+  // fetchpriority=high tylko na jawne żądanie wołającego (patrz
+  // enhanceContentImages), wyłącznie gdy autor nie ustawił własnego loading.
+  if (!/\sloading\s*=/i.test(tag)) {
+    extra += eager ? ' loading="eager" fetchpriority="high"' : ' loading="lazy"';
+  }
   if (!/\sdecoding\s*=/i.test(tag)) extra += ' decoding="async"';
 
   const srcMatch = SRC_RE.exec(tag);
@@ -100,11 +106,29 @@ function enhanceImgTag(tag: string): string {
   return tag.slice(0, insertAt) + extra + (selfClosing ? "/>" : ">");
 }
 
+export interface EnhanceContentImagesOptions {
+  /**
+   * Pierwszy `<img>` treści jako kandydat LCP (eager + fetchpriority=high
+   * zamiast lazy). Włączać WYŁĄCZNIE, gdy strona nie renderuje okładki nad
+   * treścią (layout `cover: "none"` / wpis bez okładki) - wtedy pierwszy
+   * obraz artykułu bywa elementem LCP, a lazy odwlekało jego start o pełny
+   * parse dokumentu. Przy widocznej okładce zostaje lazy: nie wolno mu
+   * konkurować o pasmo z prawdziwym kandydatem LCP.
+   */
+  eagerFirstImage?: boolean;
+}
+
 /**
  * Upgrade `<img>` tags inside sanitized article HTML with lazy loading and
  * responsive srcset. Pure string transform, SSR-safe (no DOM), idempotent.
  */
-export function enhanceContentImages(sanitizedHtml: string): string {
+export function enhanceContentImages(
+  sanitizedHtml: string,
+  options: EnhanceContentImagesOptions = {},
+): string {
   if (!sanitizedHtml || !sanitizedHtml.includes("<img")) return sanitizedHtml;
-  return sanitizedHtml.replace(IMG_TAG_RE, enhanceImgTag);
+  let imgIndex = 0;
+  return sanitizedHtml.replace(IMG_TAG_RE, (tag) =>
+    enhanceImgTag(tag, options.eagerFirstImage === true && imgIndex++ === 0),
+  );
 }

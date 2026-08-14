@@ -132,8 +132,12 @@ export function buildScaledImageUrl(src: string, width: number, quality = IMAGE_
   }
 }
 
-/** Default responsive breakpoints (device-ish widths) for cover/card imagery. */
-export const RESPONSIVE_WIDTHS = [320, 480, 640, 768, 1024, 1280, 1536, 1920, 2560] as const;
+/** Default responsive breakpoints (device-ish widths) for cover/card imagery.
+ *  Górny wariant 2400, nie 2560: transformacje Supabase przycinają width do
+ *  2500 px, więc kandydat "2560w" kłamał przeglądarce o swojej szerokości
+ *  (dostawała 2500 px pod etykietą 2560w) - na ekranach 2560+ wybierany był
+ *  wariant realnie mniejszy niż deklarowany. */
+export const RESPONSIVE_WIDTHS = [320, 480, 640, 768, 1024, 1280, 1536, 1920, 2400] as const;
 
 /**
  * Build a `srcSet` of width-scaled candidates for a Supabase storage image.
