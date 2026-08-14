@@ -208,26 +208,78 @@ export const getCampaign = createServerFn({ method: "GET" })
 // ----------------------------------------------------------------------------
 // ENGAGEMENT (open/click counts for the admin editor)
 // ----------------------------------------------------------------------------
+/**
+ * Zaangażowanie kampanii: sumy zdarzeń ORAZ zasięg unikalny.
+ *
+ * Dwie liczby zamiast jednej, bo mierzą co innego. `opens` to LICZBA ZDARZEŃ -
+ * po migracji 20260814150000 jeden odbiorca może wnieść najwyżej jedno na dobę,
+ * więc kampania czytana przez trzy dni daje trzy. `uniqueOpens` to LICZBA OSÓB,
+ * i tylko ona jest uczciwym licznikiem wskaźnika otwarć: podzielona przez
+ * dostarczone nie przekroczy 100%, a to właśnie „ponad 100%" unieważniało
+ * dotąd cały kafelek.
+ *
+ * `COUNT(DISTINCT ...)` nie istnieje w Data API, więc odczyt schodzi do RPC -
+ * ono też trzyma bramkę roli i tenanta (SECURITY DEFINER, `current_tenant_id()`).
+ */
+export interface CampaignEngagement {
+  opens: number;
+  clicks: number;
+  uniqueOpens: number;
+  uniqueClicks: number;
+}
+
+const EMPTY_ENGAGEMENT: CampaignEngagement = {
+  opens: 0,
+  clicks: 0,
+  uniqueOpens: 0,
+  uniqueClicks: 0,
+};
+
+/**
+ * Rzutowanie na granicy niewygenerowanych typów - RPC jest nowsze niż
+ * `types.ts` (precedens: `rpcClient` w src/lib/email/suppression.server.ts).
+ */
+type EngagementRpcCallable = {
+  rpc: (
+    fn: string,
+    args: Record<string, unknown>,
+  ) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
+};
+
+/** Liczniki wracają z Postgresa jako `bigint`, czyli w JSON-ie bywają napisem. */
+function toCount(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) return Math.max(0, value);
+  if (typeof value === "string") {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+  }
+  return 0;
+}
+
+function readEngagement(data: unknown): CampaignEngagement {
+  const row = Array.isArray(data) ? data[0] : data;
+  if (typeof row !== "object" || row === null) return EMPTY_ENGAGEMENT;
+  const fields: Record<string, unknown> = { ...row };
+  return {
+    opens: toCount(fields.opens),
+    clicks: toCount(fields.clicks),
+    uniqueOpens: toCount(fields.unique_openers),
+    uniqueClicks: toCount(fields.unique_clickers),
+  };
+}
+
 export const getCampaignEngagement = createServerFn({ method: "GET" })
   .middleware([requireStaff])
   .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
-  .handler(async ({ data, context }): Promise<{ opens: number; clicks: number }> => {
-    const tenantId = await getTenantId(context);
-    // `newsletter_campaign_events` has staff-read RLS (tenant-scoped), so the
-    // caller's own user-scoped client can count it. Table not in generated
-    // types yet -> cast (precedent: web_vitals).
-    const countKind = async (kind: "open" | "click"): Promise<number> => {
-      const { count, error } = await context.supabase
-        .from("newsletter_campaign_events")
-        .select("*", { count: "exact", head: true })
-        .eq("tenant_id", tenantId)
-        .eq("campaign_id", data.id)
-        .eq("kind", kind);
-      if (error) return 0;
-      return count ?? 0;
-    };
-    const [opens, clicks] = await Promise.all([countKind("open"), countKind("click")]);
-    return { opens, clicks };
+  .handler(async ({ data, context }): Promise<CampaignEngagement> => {
+    const client = context.supabase as unknown as EngagementRpcCallable;
+    const { data: rows, error } = await client.rpc("newsletter_campaign_engagement", {
+      p_campaign: data.id,
+    });
+    // Kafelek zaangażowania nie może wywrócić edytora kampanii - brak liczb
+    // czyta się jako zero, a nie jako błąd całego ekranu.
+    if (error) return EMPTY_ENGAGEMENT;
+    return readEngagement(rows);
   });
 
 // ----------------------------------------------------------------------------

@@ -130,6 +130,7 @@ export const semanticAnalyticsPl = {
       dedupe: {
         none: "brak",
         window: "okno {{minutes}} min",
+        utc_day: "doba UTC (indeks unikalny)",
         upsert_last_wins: "UPSERT (stan)",
         vendor_sessionized: "sesjonizacja dostawcy",
       },
@@ -316,6 +317,7 @@ export const semanticAnalyticsEn = {
       dedupe: {
         none: "none",
         window: "{{minutes}} min window",
+        utc_day: "UTC day (unique index)",
         upsert_last_wins: "UPSERT (state)",
         vendor_sessionized: "vendor sessionization",
       },

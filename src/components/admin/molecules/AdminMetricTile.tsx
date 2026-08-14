@@ -1,9 +1,14 @@
-// Molekuła: kafelek metryki harmonogramu (ikona + etykieta + liczba + podpowiedź).
+// Molekuła: kafelek metryki panelu (ikona + etykieta + liczba + podpowiedź).
 //
 // Ten sam kształt co kafelki statystyk na /admin/community/notifications, więc
-// panel zdrowia nie wprowadza drugiego języka wizualnego. Ton 'warn'/'danger'
+// kolejny panel nie wprowadza drugiego języka wizualnego. Ton 'warn'/'danger'
 // jest DODATKIEM do treści, nie jej zamiennikiem: wartość i etykieta czytają
 // się identycznie bez koloru.
+//
+// Do 08.2026 molekuła nazywała się `SchedulerMetricTile` i miała jednego
+// konsumenta, choć nic w niej nie było „harmonogramowe". Nazwa zawężająca
+// blokuje ponowne użycie skuteczniej niż brak komponentu - drugi panel woli
+// napisać własny kafelek, niż zaimportować cudzy. Stąd nazwa domenowo pusta.
 import type { ComponentType, SVGProps } from "react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,7 +29,7 @@ const VALUE_TONE: Record<MetricTone, string> = {
   danger: "text-destructive",
 };
 
-interface SchedulerMetricTileProps {
+interface AdminMetricTileProps {
   icon: ComponentType<SVGProps<SVGSVGElement>>;
   label: string;
   /** Sformatowana wartość; `null`/`undefined` renderuje "-" (brak danych). */
@@ -34,14 +39,14 @@ interface SchedulerMetricTileProps {
   className?: string;
 }
 
-export function SchedulerMetricTile({
+export function AdminMetricTile({
   icon: Icon,
   label,
   value,
   hint,
   tone = "neutral",
   className,
-}: SchedulerMetricTileProps) {
+}: AdminMetricTileProps) {
   return (
     <Card className={className}>
       <CardContent className="p-3 space-y-1">

@@ -441,9 +441,9 @@ const METRIC_LIST: readonly MetricDefinition[] = [
     unit: "count",
     aggregation: "sum",
     definitionPl:
-      "Wczytania pikselu otwarcia. Metryka NAJMNIEJ wiarygodna z całego zestawu: proxy prywatności pobierają piksel bez udziału człowieka, a klienci blokujący obrazy nie pobierają go nigdy.",
+      "Wczytania pikselu otwarcia, ZDEDUPLIKOWANE do jednego na odbiorcę i dobę UTC. Metryka NAJMNIEJ wiarygodna z całego zestawu: proxy prywatności pobierają piksel bez udziału człowieka, a klienci blokujący obrazy nie pobierają go nigdy.",
     definitionEn:
-      "Open-pixel loads. The least trustworthy metric in the set: privacy proxies fetch the pixel with no human involved, while image-blocking clients never fetch it at all.",
+      "Open-pixel loads, DEDUPLICATED to one per recipient per UTC day. The least trustworthy metric in the set: privacy proxies fetch the pixel with no human involved, while image-blocking clients never fetch it at all.",
     bindings: [
       {
         streamId: "newsletter",
@@ -456,7 +456,7 @@ const METRIC_LIST: readonly MetricDefinition[] = [
     driftTolerance: 0,
     guards: [
       "Do not present as 'people who read the email'; quote clicks when the claim matters.",
-      "Rows are raw events - one recipient opening five times counts five times.",
+      "A row is one recipient-DAY, not one interaction: five opens today count once, and tomorrow counts again. Quote COUNT(DISTINCT subscriber_id) whenever the claim is about PEOPLE - it is also the only numerator that cannot exceed the delivered count.",
     ],
   },
   {
@@ -505,6 +505,7 @@ const METRIC_LIST: readonly MetricDefinition[] = [
     driftTolerance: 0,
     guards: [
       "Privacy-proxy pre-fetches inflate the denominator, so CTOR trends down for reasons unrelated to your content.",
+      "Numerator and denominator are both deduplicated per recipient-day, so the ratio is well defined - before that dedup a second producer could push it, and the open rate, above 100 %.",
     ],
   },
   {

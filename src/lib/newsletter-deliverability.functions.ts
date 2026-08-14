@@ -308,6 +308,13 @@ export const getDeliverabilitySetup = createServerFn({ method: "GET" })
     return {
       webhookConfigured: Boolean(process.env.RESEND_WEBHOOK_SECRET),
       webhookUrl: `${origin}/api/public/webhooks/resend`,
+      // `email.opened` i `email.clicked` NIE są tu wymienione świadomie.
+      // Dostawca mierzy je tym samym mechanizmem, co my (piksel obrazka,
+      // przepisany link - w dodatku przepisuje NASZ `nl-click` jeszcze raz na
+      // swój), więc włączenie ich w panelu dostawcy dokłada drugi pomiar tego
+      // samego zdarzenia. Zaangażowanie ma dokładnie jedno źródło prawdy
+      // (`NEWSLETTER_ENGAGEMENT_SOURCE`, patrz docs/ARCHITECTURE.md §11.6);
+      // ten webhook odpowiada za dostarczalność, nie za zaangażowanie.
       events: [
         "email.sent",
         "email.delivered",

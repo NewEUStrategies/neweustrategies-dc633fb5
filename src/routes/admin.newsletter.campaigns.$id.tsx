@@ -24,6 +24,7 @@ import { Label } from "@/components/ui/label";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { Textarea } from "@/components/ui/textarea";
 import { CampaignContentBuilder } from "@/components/admin/newsletter/CampaignContentBuilder";
+import { CampaignEngagementCard } from "@/components/admin/newsletter/molecules/CampaignEngagementCard";
 import { parseEmailDoc, createDefaultEmailDoc, type EmailDoc } from "@/lib/newsletter/emailDoc";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -616,40 +617,10 @@ function CampaignEditor() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">
-                {t("adminNewsletter.campaigns.engagementHeading")}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {(() => {
-                const opens = engagementStats?.opens ?? 0;
-                const clicks = engagementStats?.clicks ?? 0;
-                const base = campaign.sent_count || 0;
-                const pct = (n: number) => (base > 0 ? `${Math.round((n / base) * 100)}%` : "—");
-                return (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <div className="text-2xl font-semibold tabular-nums">{opens}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {t("adminNewsletter.campaigns.opens")} · {pct(opens)}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-2xl font-semibold tabular-nums">{clicks}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {t("adminNewsletter.campaigns.clicks")} · {pct(clicks)}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-              <p className="text-xs text-muted-foreground">
-                {t("adminNewsletter.campaigns.engagementHint")}
-              </p>
-            </CardContent>
-          </Card>
+          <CampaignEngagementCard
+            engagement={engagementStats}
+            delivered={campaign.sent_count || 0}
+          />
 
           <Card>
             <CardHeader>
