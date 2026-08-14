@@ -224,6 +224,18 @@ export interface CompanyRowShape {
   leads_count: number;
   contacts_count: number;
   last_lead_activity_at: string | null;
+  /**
+   * Kolumny obecne w wierszu z serwera, ale NIEOBOWIĄZKOWE w tym kształcie.
+   *
+   * `phone` i `website` są w katalogu kolumn (operator może je włączyć w
+   * eksporcie), ale nie napędzają ani filtrów, ani sortowania - dlatego nie są
+   * wymagane. Zadeklarowane WPROST, żeby eksport nie musiał ich czytać
+   * rzutowaniem `as unknown as {...}`: takie rzutowanie OBIECYWAŁO
+   * `string | null` przy wierszu, który tych pól nie ma, i `undefined`
+   * przechodziło do pliku jako słowo „undefined".
+   */
+  phone?: string | null;
+  website?: string | null;
 }
 
 const RANGE_DAYS: Record<string, number> = { "7d": 7, "30d": 30, "90d": 90, "365d": 365 };
@@ -312,8 +324,16 @@ export function rowsToCsv<T extends CompanyRowShape>(
   );
 }
 
-/** Surowa wartość komórki - ucieczkę i neutralizację robi `csvCell`. */
-function cellValue<T extends CompanyRowShape>(row: T, key: CompanyColumnKey): CsvCellValue {
+/**
+ * Surowa wartość komórki - ucieczkę i neutralizację robi `csvCell`.
+ *
+ * Gałąź `default` jest nieosiągalna przy pełnym `switch`, ale `CsvCellValue`
+ * to `unknown`, więc kompilator nie wymusi tu wyczerpania po dołożeniu nowej
+ * kolumny do katalogu. Pilnuje tego warunek „każda kolumna katalogu daje się
+ * wyeksportować" w `__tests__/companyViews.test.ts` - bez niego nowa kolumna
+ * wychodziłaby do pliku jako pusta komórka bez żadnego sygnału.
+ */
+function cellValue(row: CompanyRowShape, key: CompanyColumnKey): CsvCellValue {
   switch (key) {
     case "name":
       return row.name;
@@ -330,9 +350,9 @@ function cellValue<T extends CompanyRowShape>(row: T, key: CompanyColumnKey): Cs
     case "leads":
       return row.leads_count;
     case "phone":
-      return optionalText(row, "phone");
+      return row.phone ?? null;
     case "website":
-      return optionalText(row, "website");
+      return row.website ?? null;
     case "lastActivity":
       return row.last_lead_activity_at ?? row.updated_at;
     case "created":
@@ -340,18 +360,4 @@ function cellValue<T extends CompanyRowShape>(row: T, key: CompanyColumnKey): Cs
     default:
       return "";
   }
-}
-
-/**
- * Kolumna obecna w wierszu z serwera, ale nie w `CompanyRowShape`.
- *
- * `phone` i `website` są w katalogu kolumn (operator może je włączyć), ale nie
- * w minimalnym kształcie wiersza, na którym stoją filtry i sortowanie. Odczyt
- * przez indeks na `Record<string, unknown>` zamiast `as unknown as {...}`:
- * pierwotne rzutowanie OBIECYWAŁO pole, którego typ nie gwarantuje, więc
- * `undefined` przechodziło jako `string | null` i wychodziło dopiero w pliku.
- */
-function optionalText(row: CompanyRowShape, key: "phone" | "website"): string | null {
-  const value = (row as unknown as Record<string, unknown>)[key];
-  return typeof value === "string" ? value : null;
 }

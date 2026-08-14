@@ -477,7 +477,8 @@ describe("rowsToCsv - sklejenie eksportu", () => {
   });
 
   it("kolumny poza minimalnym kształtem wiersza dają pustkę, nie `undefined`", () => {
-    // `phone` i `website` są w katalogu kolumn, ale nie w `CompanyRowShape`.
+    // `phone` i `website` są w katalogu kolumn, ale NIEOBOWIĄZKOWE w kształcie
+    // wiersza - operator może włączyć kolumnę dla listy, która ich nie ma.
     // Poprzednia wersja czytała je rzutowaniem `as unknown as {...}`, które
     // OBIECYWAŁO `string | null` - a przy wierszu bez tych pól do pliku szło
     // słowo `undefined`.
