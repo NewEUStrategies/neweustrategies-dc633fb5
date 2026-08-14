@@ -153,7 +153,6 @@ export function emptyPopupControlColors(): PopupControlColors {
   };
 }
 
-
 /** Rozdzielczości rekomendowane dla kafli galerii (kolejność = slot w siatce). */
 export const GALLERY_SLOT_DIMENSIONS = [
   { w: 1200, h: 1200, ratio: "1:1" },
@@ -333,7 +332,6 @@ export function resolvePopupDesign(raw: unknown): PopupDesign {
       light: resolveControlColors(controls.light),
     },
     panel: {
-
       maxWidthPx: int(panel.maxWidthPx, d.panel.maxWidthPx, 480, 1600),
       split: oneOf(panel.split, ["half", "gallery-wide", "form-wide"] as const, d.panel.split),
       showBorder: bool(panel.showBorder, d.panel.showBorder),

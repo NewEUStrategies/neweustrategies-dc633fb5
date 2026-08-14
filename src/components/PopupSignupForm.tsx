@@ -639,7 +639,6 @@ export function PopupSignupForm({
           )}
           {cta}
         </SubscribeButton>
-
       </div>
 
       {state === "err" && err && (

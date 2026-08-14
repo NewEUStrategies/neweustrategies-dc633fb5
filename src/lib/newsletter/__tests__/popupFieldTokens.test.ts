@@ -172,8 +172,10 @@ describe("src/styles.css - zakres `.nlp`", () => {
         layer.match(/\.nlp \.btn-bubbly::before,\s*\.nlp \.btn-bubbly::after \{([^}]*)\}/),
       )
       .find((match) => match !== null)?.[1];
-    expect(body, "reguła `.nlp .btn-bubbly::before/::after` musi siedzieć w @layer utilities")
-      .toBeDefined();
+    expect(
+      body,
+      "reguła `.nlp .btn-bubbly::before/::after` musi siedzieć w @layer utilities",
+    ).toBeDefined();
     expect(body).toContain("width: 100%");
     expect(body).toContain("left: 0");
     expect(body).toContain("transform: none");

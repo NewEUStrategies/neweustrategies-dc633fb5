@@ -22,10 +22,7 @@ import { Switch } from "@/components/ui/switch";
 import { QueueDepthStat } from "@/components/atoms/QueueDepthStat";
 import { RunnerStateBadge } from "@/components/atoms/RunnerStateBadge";
 import { resolveRunnerState, type RunnerState } from "@/lib/email/runnerHealth";
-import {
-  getJobRunnerSettings,
-  updateJobRunnerSettings,
-} from "@/lib/newsletter-admin.functions";
+import { getJobRunnerSettings, updateJobRunnerSettings } from "@/lib/newsletter-admin.functions";
 import "@/lib/i18n-newsletter-runner";
 
 /** Zaległość, od której kolejka przestaje być „chwilowa" i wymaga uwagi. */

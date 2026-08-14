@@ -478,12 +478,7 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
 
   // Nazwy urządzeń są takie same w obu językach - ternary po języku był
   // martwym warunkiem, nie tłumaczeniem.
-  const deviceLabel =
-    device === "desktop"
-      ? "Desktop"
-      : device === "tablet"
-        ? "Tablet"
-        : "Mobile";
+  const deviceLabel = device === "desktop" ? "Desktop" : device === "tablet" ? "Tablet" : "Mobile";
   const canvasPxLabel =
     typeof canvasWidth === "number"
       ? `${canvasWidth}px`

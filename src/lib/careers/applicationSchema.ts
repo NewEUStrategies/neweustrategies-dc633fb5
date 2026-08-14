@@ -72,53 +72,53 @@ const requiredName = (field: "firstName" | "lastName") =>
     .refine((value) => value.length <= 60, { message: E(`${field}Long`) })
     .refine((value) => NAME_RE.test(value), { message: E(`${field}Invalid`) });
 
-export const careerApplicationSchema = z.object({
-  firstName: requiredName("firstName"),
-  lastName: requiredName("lastName"),
-  email: trimmed
-    .refine((value) => value.length > 0, { message: E("emailRequired") })
-    .refine((value) => value.length <= 255, { message: E("emailLong") })
-    .refine((value) => z.string().email().safeParse(value).success, {
-      message: E("emailInvalid"),
+export const careerApplicationSchema = z
+  .object({
+    firstName: requiredName("firstName"),
+    lastName: requiredName("lastName"),
+    email: trimmed
+      .refine((value) => value.length > 0, { message: E("emailRequired") })
+      .refine((value) => value.length <= 255, { message: E("emailLong") })
+      .refine((value) => z.string().email().safeParse(value).success, {
+        message: E("emailInvalid"),
+      }),
+    // Telefon jest wymagany po stronie CRM (kontakt zwrotny do kandydata).
+    phone: trimmed
+      .refine((value) => value.length > 0, { message: E("phoneRequired") })
+      .refine((value) => PHONE_RE.test(value), { message: E("phoneInvalid") })
+      .refine((value) => value.replace(/\D/g, "").length >= 7, { message: E("phoneInvalid") }),
+    // LinkedIn jest opcjonalny - CV (plik albo link) jest twardym wymogiem.
+    linkedin: trimmed
+      .refine((value) => value.length <= 300, { message: E("linkedinLong") })
+      .refine((value) => value.length === 0 || LINKEDIN_RE.test(value), {
+        message: E("linkedinInvalid"),
+      }),
+    /** Nazwa wgranego pliku CV (pusta, gdy kandydat podaje sam link). */
+    cvFileName: trimmed.optional().default(""),
+    /** Publiczny link do CV (pusty, gdy kandydat wgrywa plik). */
+    cvUrl: trimmed
+      .optional()
+      .default("")
+      .refine((value) => value.length <= 500, { message: E("cvUrlLong") }),
+    department: trimmed.refine(
+      (value) => (CAREER_DEPARTMENTS as readonly string[]).includes(value),
+      { message: E("departmentRequired") },
+    ),
+    role: trimmed.refine((value) => value.length > 0, { message: E("roleRequired") }),
+    seniority: trimmed.refine(
+      (value) => (CAREER_SENIORITIES as readonly string[]).includes(value),
+      { message: E("seniorityRequired") },
+    ),
+    start: trimmed.refine((value) => (CAREER_START_OPTIONS as readonly string[]).includes(value), {
+      message: E("startRequired"),
     }),
-  // Telefon jest wymagany po stronie CRM (kontakt zwrotny do kandydata).
-  phone: trimmed
-    .refine((value) => value.length > 0, { message: E("phoneRequired") })
-    .refine((value) => PHONE_RE.test(value), { message: E("phoneInvalid") })
-    .refine((value) => value.replace(/\D/g, "").length >= 7, { message: E("phoneInvalid") }),
-  // LinkedIn jest opcjonalny - CV (plik albo link) jest twardym wymogiem.
-  linkedin: trimmed
-    .refine((value) => value.length <= 300, { message: E("linkedinLong") })
-    .refine((value) => value.length === 0 || LINKEDIN_RE.test(value), {
-      message: E("linkedinInvalid"),
-    }),
-  /** Nazwa wgranego pliku CV (pusta, gdy kandydat podaje sam link). */
-  cvFileName: trimmed.optional().default(""),
-  /** Publiczny link do CV (pusty, gdy kandydat wgrywa plik). */
-  cvUrl: trimmed
-    .optional()
-    .default("")
-    .refine((value) => value.length <= 500, { message: E("cvUrlLong") }),
-  department: trimmed.refine(
-    (value) => (CAREER_DEPARTMENTS as readonly string[]).includes(value),
-    { message: E("departmentRequired") },
-  ),
-  role: trimmed.refine((value) => value.length > 0, { message: E("roleRequired") }),
-  seniority: trimmed.refine(
-    (value) => (CAREER_SENIORITIES as readonly string[]).includes(value),
-    { message: E("seniorityRequired") },
-  ),
-  start: trimmed.refine(
-    (value) => (CAREER_START_OPTIONS as readonly string[]).includes(value),
-    { message: E("startRequired") },
-  ),
-  // "Dlaczego Ty" jest nieobowiązkowe - rolę CV przejął załącznik/link.
-  message: trimmed
-    .optional()
-    .default("")
-    .refine((value) => value.length <= MESSAGE_MAX, { message: E("messageLong") }),
-  consent: z.boolean().refine((value) => value === true, { message: E("consentRequired") }),
-})
+    // "Dlaczego Ty" jest nieobowiązkowe - rolę CV przejął załącznik/link.
+    message: trimmed
+      .optional()
+      .default("")
+      .refine((value) => value.length <= MESSAGE_MAX, { message: E("messageLong") }),
+    consent: z.boolean().refine((value) => value === true, { message: E("consentRequired") }),
+  })
   // CV wymagane: plik ALBO link. Błąd raportujemy na wirtualnym polu `cv`,
   // które w kreatorze odpowiada całej sekcji załącznika.
   .superRefine((value, ctx) => {
@@ -155,8 +155,7 @@ function collectErrors(issues: readonly z.ZodIssue[]): CareerFieldErrors {
 }
 
 function fail(errors: CareerFieldErrors): CareerValidationResult {
-  const firstField =
-    CAREER_FORM_FIELDS.find((field) => errors[field]) ?? CAREER_FORM_FIELDS[0];
+  const firstField = CAREER_FORM_FIELDS.find((field) => errors[field]) ?? CAREER_FORM_FIELDS[0];
   return { ok: false, errors, firstStep: CAREER_FIELD_STEP[firstField], firstField };
 }
 
@@ -168,10 +167,7 @@ export function validateApplication(input: CareerApplicationInput): CareerValida
 }
 
 /** Walidacja pojedynczego kroku kreatora - reguły identyczne jak w całości. */
-export function validateStep(
-  step: 0 | 1 | 2,
-  input: CareerApplicationInput,
-): CareerFieldErrors {
+export function validateStep(step: 0 | 1 | 2, input: CareerApplicationInput): CareerFieldErrors {
   const parsed = careerApplicationSchema.safeParse(input);
   if (parsed.success) return {};
   const all = collectErrors(parsed.error.issues);
