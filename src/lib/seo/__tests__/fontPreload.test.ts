@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fontPreloadLinks } from "@/lib/seo/fontPreload";
+import { fontPreloadLinkHeaderValues, fontPreloadLinks } from "@/lib/seo/fontPreload";
 
 const URLS = { latin: "/assets/latin.abc.woff2", latinExt: "/assets/latin-ext.def.woff2" };
 
@@ -28,6 +28,23 @@ describe("fontPreloadLinks", () => {
         expect(link.crossOrigin).toBe("anonymous");
         expect(link.as).toBe("font");
       }
+    }
+  });
+});
+
+describe("fontPreloadLinkHeaderValues", () => {
+  it("EN: jeden wpis Link (latin), PL: dwa (latin + latin-ext)", () => {
+    expect(fontPreloadLinkHeaderValues("en", URLS)).toHaveLength(1);
+    expect(fontPreloadLinkHeaderValues("pl", URLS)).toHaveLength(2);
+  });
+
+  it("kazdy wpis niesie as=font, type i crossorigin (inaczej podwojny fetch)", () => {
+    for (const value of fontPreloadLinkHeaderValues("pl", URLS)) {
+      expect(value).toContain('rel="preload"');
+      expect(value).toContain('as="font"');
+      expect(value).toContain('type="font/woff2"');
+      expect(value).toContain("crossorigin");
+      expect(value.startsWith("<")).toBe(true);
     }
   });
 });

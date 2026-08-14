@@ -39,6 +39,8 @@ export interface L2DocumentEntry {
   contentType: string;
   cacheControl: string;
   contentLanguage: string | null;
+  /** Nagłówek `Link` renderu (preload LCP/fontów) - patrz DocumentCacheEntry. */
+  link: string | null;
   storedAt: number;
   freshMs: number;
   swrMs: number;
@@ -67,6 +69,7 @@ const H_SWR_MS = "x-nes-l2-swr-ms";
 const H_CONTENT_TYPE = "x-nes-l2-content-type";
 const H_CACHE_CONTROL = "x-nes-l2-cache-control";
 const H_CONTENT_LANGUAGE = "x-nes-l2-content-language";
+const H_LINK = "x-nes-l2-link";
 
 let injectedCache: ColoCache | null | undefined;
 
@@ -186,6 +189,7 @@ export async function l2Match(
       contentType: hit.headers.get(H_CONTENT_TYPE) ?? "text/html; charset=utf-8",
       cacheControl: hit.headers.get(H_CACHE_CONTROL) ?? "",
       contentLanguage: hit.headers.get(H_CONTENT_LANGUAGE),
+      link: hit.headers.get(H_LINK),
       storedAt,
       freshMs,
       swrMs,
@@ -224,6 +228,7 @@ export async function l2Put(
           [H_CONTENT_TYPE]: entry.contentType,
           [H_CACHE_CONTROL]: entry.cacheControl,
           ...(entry.contentLanguage ? { [H_CONTENT_LANGUAGE]: entry.contentLanguage } : {}),
+          ...(entry.link ? { [H_LINK]: entry.link } : {}),
         },
       }),
     );

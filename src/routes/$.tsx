@@ -69,10 +69,12 @@ import {
   buildContentHead,
   buildArticleJsonLd,
   imagePreloadLink,
+  imagePreloadLinkHeaderValue,
   splitUrl,
   absoluteUrl,
   SITE_NAME,
 } from "@/lib/seo/meta";
+import { builderHeroPreload } from "@/lib/builder/heroImage";
 import { citationMetaTags } from "@/lib/seo/citations";
 import type { CitationAuthor } from "@/lib/citations/format";
 import { CitationBox } from "@/components/post/CitationBox";
@@ -137,7 +139,7 @@ import type { AdPageType } from "@/lib/ads/types";
 import { prefetchAboveFoldQueries } from "@/lib/builder/prefetch";
 import { prefetchBlockQueries } from "@/lib/queries/blocks";
 import { postLayoutSettingsQueryOptions } from "@/hooks/usePostLayoutSettings";
-import { setCacheControlHeader } from "@/lib/http/responseHeaders";
+import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { contentCacheControl } from "@/lib/http/cachePolicy";
 import { splatToSegments, metaDescription } from "@/lib/routing/publicSegments";
 import { resolveLegacyPostPath } from "@/lib/routing/legacyPostPath";
@@ -315,14 +317,23 @@ export const Route = createFileRoute("/$")({
     // Posts: attach the LCP cover preload so head() can emit it. The layout
     // settings were just warmed above, so this reads from cache (no extra
     // round-trip) and falls back to defaults if that prefetch was rejected.
-    if (data.kind === "post") {
-      const settings =
-        context.queryClient.getQueryData<PostLayoutSettings>(
-          postLayoutSettingsQueryOptions().queryKey,
-        ) ?? defaultPostLayoutSettings();
-      return { ...data, seoSettings, coverPreload: buildCoverPreload(data.item, settings) };
-    }
-    return { ...data, seoSettings };
+    // Pages: hero żyje w dokumencie buildera - po rozgrzaniu zapytań sekcji
+    // nad zgięciem (wyżej) pierwszy malowany obraz wyznacza builderHeroPreload
+    // z tych samych modułów sizes/srcSet co renderery widgetów.
+    const coverPreload =
+      data.kind === "post"
+        ? buildCoverPreload(
+            data.item,
+            context.queryClient.getQueryData<PostLayoutSettings>(
+              postLayoutSettingsQueryOptions().queryKey,
+            ) ?? defaultPostLayoutSettings(),
+          )
+        : builderHeroPreload(doc, context.queryClient, lang);
+    // Preload także jako nagłówek HTTP `Link` - przeglądarka startuje fetch
+    // hero z nagłówków (przed parsowaniem HTML), a NES Edge Cache odtwarza go
+    // na HIT/STALE (droga do 103 Early Hints na Cloudflare).
+    if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
+    return { ...data, seoSettings, coverPreload };
   },
   head: ({ loaderData, params }) => {
     const it = loaderData?.item;
@@ -419,13 +430,13 @@ export const Route = createFileRoute("/$")({
       origin,
       lang,
     );
-    // Preload the LCP cover image (posts only) so its fetch starts from <head>,
-    // before the <img> is parsed in the body. The descriptor matches the
-    // rendered <img> srcSet/sizes 1:1, so no candidate is fetched twice.
-    const links =
-      loaderData.kind === "post" && loaderData.coverPreload
-        ? [...head.links, imagePreloadLink(loaderData.coverPreload)]
-        : head.links;
+    // Preload the LCP image (post cover / builder-page hero) so its fetch
+    // starts from <head>, before the <img> is parsed in the body. The
+    // descriptor matches the rendered <img> srcSet/sizes 1:1, so no candidate
+    // is fetched twice.
+    const links = loaderData.coverPreload
+      ? [...head.links, imagePreloadLink(loaderData.coverPreload)]
+      : head.links;
     // Tagi Highwire (citation_*) dla wpisów - Google Scholar/Zotero czytają je
     // z <head>. Lista autorów przychodzi z loadera (author_id + post_authors),
     // URL to kanoniczny adres z uwzględnieniem override'u SEO.
@@ -820,6 +831,22 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   const giftMattered = isPost && !!giftCode && shouldShowPaywall(accessRule?.mode, bodyBeforeGift);
   const bannerVariant = giftMattered && gifted.reason ? giftBannerVariant(gifted.reason) : null;
 
+  // Układ bez okładki nad treścią (cover: "none" / wpis bez okładki): pierwszy
+  // obraz artykułu bywa elementem LCP, więc silnik legacy-HTML nie może go
+  // lazy-loadować (enhanceContentImages). Ta sama reguła co buildCoverPreload
+  // w loaderze - preload i eager dotyczą dokładnie tego samego przypadku.
+  const coverAboveBody = (() => {
+    if (!isPost || !post || !globalLayoutSettings) return false;
+    const fmt: PostFormat = (post.layout_overrides?.format ??
+      post.post_format ??
+      "standard") as PostFormat;
+    const preset = findLayout(
+      fmt,
+      pickLayoutId(globalLayoutSettings, fmt, post.layout_overrides?.layout),
+    );
+    return rendersCover(preset) && !!post.cover_image_url;
+  })();
+
   const contentBlock = (
     <div ref={articleRef} className="article-body">
       {bannerVariant && <GiftBanner variant={bannerVariant} />}
@@ -878,6 +905,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
             postId={isPost ? it.id : undefined}
             currentPostCtx={currentPostCtx}
             stream
+            eagerFirstImage={isPost && !coverAboveBody}
           />
           <FootnotesList notes={notes} lang={lang} />
         </>

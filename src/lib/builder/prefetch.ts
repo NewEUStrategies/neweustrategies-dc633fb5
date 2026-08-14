@@ -18,7 +18,9 @@ import {
   sliderPostsLimit,
   sliderPostsQueryOptions,
   sliderUsesPostsSource,
+  type SliderPostRow,
 } from "@/lib/builder/sliderPostsQuery";
+import { sliderAuthorIds, sliderAuthorsQueryOptions } from "@/lib/builder/sliderAuthorsQuery";
 import { eventByIdQueryOptions, eventsListQueryOptions } from "@/lib/builder/eventsQuery";
 import { clubCardQueryOptions, clubThreadsQueryOptions } from "@/lib/builder/clubsQuery";
 import {
@@ -289,6 +291,30 @@ async function prefetchWidgets(
         );
       } catch {
         /* swallow - a broken single widget must never fail the whole prefetch */
+      }
+    }
+    // Byline slidera (autorzy slajdów) ZALEŻY od wyniku zapytania o wpisy -
+    // rejestr statyczny nie może jej wyrazić, więc rozgrzewamy ją łańcuchem:
+    // po rozstrzygnięciu wpisów wyprowadzamy identyczną listę id co widget
+    // (sliderAuthorIds - kolejność jest częścią klucza) i grzejemy dokładnie
+    // ten wpis cache, który odczyta PostsSliderWidget. Bez tego hero wychodził
+    // z SSR bez nazwiska i awatara autora, a byline doskakiwała po hydratacji
+    // wewnątrz obszaru LCP.
+    if (widget.type === "slider" && sliderUsesPostsSource(widget.content)) {
+      try {
+        const postsOptions = sliderPostsQueryOptions(widget.content, lang);
+        tasks.push(
+          Promise.resolve(prefetchBuilderSectionQuery(queryClient, postsOptions))
+            .then(() => {
+              const rows = queryClient.getQueryData<SliderPostRow[]>(postsOptions.queryKey);
+              const ids = sliderAuthorIds(rows);
+              if (ids.length === 0) return undefined;
+              return queryClient.prefetchQuery(sliderAuthorsQueryOptions(ids));
+            })
+            .catch(() => undefined),
+        );
+      } catch {
+        /* jw. - best-effort */
       }
     }
   }

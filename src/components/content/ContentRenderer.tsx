@@ -44,6 +44,12 @@ interface Props {
    * already a single streamed subtree. Defaults off.
    */
   stream?: boolean;
+  /**
+   * Pierwszy obraz treści jako kandydat LCP (tylko silnik legacy-HTML, patrz
+   * enhanceContentImages). Trasa włącza to, gdy układ nie renderuje okładki
+   * nad treścią - wtedy pierwszy obraz artykułu bywa elementem LCP.
+   */
+  eagerFirstImage?: boolean;
 }
 
 export function ContentRenderer({
@@ -55,6 +61,7 @@ export function ContentRenderer({
   postId,
   currentPostCtx,
   stream = false,
+  eagerFirstImage = false,
 }: Props) {
   const engine = resolveContentEngine({ editor, builderDoc, blocksDoc });
 
@@ -82,7 +89,9 @@ export function ContentRenderer({
       // enhanceContentImages runs AFTER the sanitizer (never instead of it):
       // it only adds loading/decoding/srcset to <img> tags, closing the
       // lazy-loading + responsive-candidates gap in imported WordPress bodies.
-      dangerouslySetInnerHTML={{ __html: enhanceContentImages(sanitizeMarkdownHtml(html)) }}
+      dangerouslySetInnerHTML={{
+        __html: enhanceContentImages(sanitizeMarkdownHtml(html), { eagerFirstImage }),
+      }}
     />
   );
 }

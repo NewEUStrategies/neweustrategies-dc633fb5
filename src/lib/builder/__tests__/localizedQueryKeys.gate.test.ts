@@ -137,6 +137,10 @@ describe("rejestr fabryk nie ma dziur", () => {
     "eventRsvpCountsQueryOptions",
     "meetingSlotsQueryOptions",
     "postViewCountQueryOptions",
+    // Byline slidera: nazwisko/awatar/slug autora są identyczne w PL i EN
+    // (profiles_public nie ma kolumn per język) - klucz z językiem trzymałby
+    // dwa identyczne wpisy cache i psuł parytet prefetch SSR <-> widget.
+    "sliderAuthorsQueryOptions",
     "sliderFallbackImagesQueryOptions",
     "speakersByIdsQueryOptions",
     "speakerProfileQueryOptions",

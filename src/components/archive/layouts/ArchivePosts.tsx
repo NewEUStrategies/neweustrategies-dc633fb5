@@ -18,6 +18,7 @@ export function ArchivePosts({
   settings,
   emptyText,
   renderAfterCard,
+  firstCardPriority = false,
 }: {
   posts: readonly BlogListItem[];
   lang: "pl" | "en";
@@ -25,6 +26,8 @@ export function ArchivePosts({
   emptyText: string;
   /** In-feed insert po karcie o danym indeksie (reklamy "co N kart"). */
   renderAfterCard?: (index: number) => React.ReactNode;
+  /** Pierwsza karta jako kandydat LCP (archiwum bez karty wyróżnionej). */
+  firstCardPriority?: boolean;
 }) {
   if (posts.length === 0) {
     return (
@@ -42,7 +45,13 @@ export function ArchivePosts({
           return (
             <Fragment key={p.id}>
               <li className="p-4 hover:bg-muted/30 transition">
-                <PostListCard post={p} href={p.href} lang={lang} viewTransitionId={p.id} />
+                <PostListCard
+                  post={p}
+                  href={p.href}
+                  lang={lang}
+                  priority={firstCardPriority && idx === 0}
+                  viewTransitionId={p.id}
+                />
               </li>
               {after && <li className="p-4 flex justify-center bg-muted/10">{after}</li>}
             </Fragment>
@@ -59,7 +68,13 @@ export function ArchivePosts({
           return (
             <Fragment key={p.id}>
               <div className="break-inside-avoid mb-6">
-                <PostListCard post={p} href={p.href} lang={lang} viewTransitionId={p.id} />
+                <PostListCard
+                  post={p}
+                  href={p.href}
+                  lang={lang}
+                  priority={firstCardPriority && idx === 0}
+                  viewTransitionId={p.id}
+                />
               </div>
               {after && <div className="break-inside-avoid mb-6 flex justify-center">{after}</div>}
             </Fragment>
@@ -74,7 +89,13 @@ export function ArchivePosts({
         const after = renderAfterCard?.(idx);
         return (
           <Fragment key={p.id}>
-            <PostListCard post={p} href={p.href} lang={lang} viewTransitionId={p.id} />
+            <PostListCard
+              post={p}
+              href={p.href}
+              lang={lang}
+              priority={firstCardPriority && idx === 0}
+              viewTransitionId={p.id}
+            />
             {after && <div className="col-span-full flex justify-center py-2">{after}</div>}
           </Fragment>
         );

@@ -20,7 +20,7 @@ import {
 import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { ensureI18n as ensurePodcastsI18n } from "@/lib/i18n-podcasts";
-import { setCacheControlHeader } from "@/lib/http/responseHeaders";
+import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHeaders";
 import {
   podcastTitle,
   podcastEpisodeLabel,
@@ -37,7 +37,10 @@ import {
   SITE_CANONICAL_ORIGIN,
   buildContentHead,
   feedAlternateLink,
+  imagePreloadLink,
+  imagePreloadLinkHeaderValue,
   splitUrl,
+  type ImagePreloadInput,
 } from "@/lib/seo/meta";
 import { safeJsonLd } from "@/lib/seo/jsonld";
 
@@ -67,7 +70,7 @@ export const Route = createFileRoute("/podcasts/$show")({
     );
     if (identity.degraded) {
       setCacheControlHeader(resilientCacheControl(true));
-      return { show: null, degraded: true };
+      return { show: null, degraded: true, coverPreload: null };
     }
     const show = identity.data;
     if (!show) throw notFound();
@@ -78,7 +81,15 @@ export const Route = createFileRoute("/podcasts/$show")({
       NO_EPISODES,
     );
     setCacheControlHeader(resilientCacheControl(episodes.degraded));
-    return { show, degraded: episodes.degraded };
+    // Preload LCP okładki programu - render to zwykłe <img src> bez srcSet,
+    // więc deskryptor niesie sam `href` (para srcset/sizes wskazywałaby inny
+    // wariant niż malowany i podwoiłaby pobranie). Wartość idzie też jako
+    // nagłówek HTTP `Link` (fetch przed parsowaniem HTML, 103 Early Hints).
+    const coverPreload: ImagePreloadInput | null = show.cover_image_url
+      ? { href: show.cover_image_url }
+      : null;
+    if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
+    return { show, degraded: episodes.degraded, coverPreload };
   },
   head: ({ loaderData, params }) => {
     const s = loaderData?.show;
@@ -114,6 +125,9 @@ export const Route = createFileRoute("/podcasts/$show")({
       ...base,
       links: [
         ...base.links,
+        // Preload okładki (LCP) - fetch rusza z <head>, zanim parser dojdzie
+        // do <img> w body.
+        ...(loaderData?.coverPreload ? [imagePreloadLink(loaderData.coverPreload)] : []),
         feedAlternateLink({
           origin,
           feedPath: `/podcasts/${s.slug}/rss.xml`,

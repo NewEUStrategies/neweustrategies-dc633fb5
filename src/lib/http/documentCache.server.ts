@@ -89,6 +89,10 @@ interface DocumentCacheEntry {
   contentType: string;
   cacheControl: string;
   contentLanguage: string | null;
+  /** Nagłówek `Link` renderu (preload LCP/fontów) - bez utrwalenia go tutaj
+   *  hinty preload znikałyby na HIT/STALE, czyli dokładnie na ścieżce, którą
+   *  dostaje większość czytelników. */
+  link: string | null;
   storedAt: number;
   freshMs: number;
   swrMs: number;
@@ -321,9 +325,12 @@ function replay(
     "cache-control": entry.cacheControl,
     [NES_CACHE_HEADER]: status,
     [NES_CACHE_AGE_HEADER]: String(Math.max(0, Math.round((now - entry.storedAt) / 1000))),
-    "server-timing": buildServerTimingValue(status),
+    "server-timing": buildServerTimingValue(status, undefined, undefined, now - entry.storedAt),
   });
   if (entry.contentLanguage) headers.set("content-language", entry.contentLanguage);
+  // Hinty preload (obraz LCP, fonty) wracają na odpowiedź także z cache'a -
+  // HIT/STALE to główna ścieżka czytelników i główny beneficjent Early Hints.
+  if (entry.link) headers.set("link", entry.link);
   // Kopia bufora: Response może zostać skonsumowane/transferowane przez runtime,
   // a wpis musi pozostać nienaruszony dla kolejnych trafień.
   return new Response(entry.body.slice(), { status: 200, headers });
@@ -337,6 +344,7 @@ function entryFromL2(l2Entry: L2DocumentEntry): DocumentCacheEntry {
     contentType: l2Entry.contentType,
     cacheControl: l2Entry.cacheControl,
     contentLanguage: l2Entry.contentLanguage,
+    link: l2Entry.link,
     storedAt: l2Entry.storedAt,
     freshMs: l2Entry.freshMs,
     swrMs: l2Entry.swrMs,
@@ -412,6 +420,7 @@ interface DeferredDocumentStore {
   contentType: string;
   cacheControl: string;
   contentLanguage: string | null;
+  link: string | null;
   storedAt: number;
   freshMs: number;
   swrMs: number;
@@ -463,6 +472,7 @@ function decorateMissAndDeferStore(
       contentType: response.headers.get("content-type") ?? "text/html; charset=utf-8",
       cacheControl: response.headers.get("cache-control") ?? "",
       contentLanguage: response.headers.get("content-language"),
+      link: response.headers.get("link"),
       storedAt: now,
       freshMs: policy.freshMs,
       swrMs: policy.swrMs,
@@ -495,6 +505,16 @@ export function applyDeferredDocumentStore(
   if (!record) return response;
   deferredStores.delete(response.body);
 
+  // Nagłówek `Link` czytamy TUTAJ, nie w middleware: loadery ustawiają go przez
+  // setResponseHeader na nagłówkach ZDARZENIA h3, a te scalają się z odpowiedzią
+  // dopiero w toResponse() na granicy requestHandlera - czyli ZA całym łańcuchem
+  // middleware. Wewnątrz decorateMissAndDeferStore `headers.get("link")` jest
+  // więc zawsze null (cache-control przeżywa tylko dlatego, że
+  // defaultCacheControlMiddleware dopisuje go wprost na Response w środku
+  // łańcucha). Ta funkcja działa w src/server.ts NA ZEWNĄTRZ handlera, gdzie
+  // scalone nagłówki już są; `record.link` zostaje fallbackiem dla wywołań,
+  // które dostały nagłówek bezpośrednio na odpowiedzi renderu.
+  const link = response.headers.get("link") ?? record.link;
   const [toClient, toCache] = response.body.tee();
   const work = collectStream(toCache, DOCUMENT_CACHE_MAX_ENTRY_BYTES).then(async (body) => {
     if (!body) return false;
@@ -504,6 +524,7 @@ export function applyDeferredDocumentStore(
       contentType: record.contentType,
       cacheControl: record.cacheControl,
       contentLanguage: record.contentLanguage,
+      link,
       storedAt: record.storedAt,
       freshMs: record.freshMs,
       swrMs: record.swrMs,
