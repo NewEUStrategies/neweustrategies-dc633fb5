@@ -19,7 +19,7 @@ describe("hardcodedLanguage - klasyfikacja", () => {
     expect(one('const s = l("Zapisz", "Save");')[0].kind).toBe("twin-helper");
   });
 
-  it("`isPl ? \"pl\" : \"en\"` to KOD JĘZYKA, nie tekst - osobna klasa", () => {
+  it('`isPl ? "pl" : "en"` to KOD JĘZYKA, nie tekst - osobna klasa', () => {
     // Ta różnica decyduje o naprawie: tu nie ma czego przenieść do słownika,
     // trzeba użyć `uiLang(i18n.language)`.
     const hits = one('<X lang={isPl ? "pl" : "en"} />');
@@ -46,7 +46,7 @@ describe("hardcodedLanguage - klasyfikacja", () => {
   });
 
   it("numer linii wskazuje realną linię pliku", () => {
-    const hits = one(['const a = 1;', 'const b = 2;', 'const s = isPl ? "A" : "B";'].join("\n"));
+    const hits = one(["const a = 1;", "const b = 2;", 'const s = isPl ? "A" : "B";'].join("\n"));
     expect(hits[0].line).toBe(3);
   });
 

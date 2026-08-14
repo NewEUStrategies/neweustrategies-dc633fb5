@@ -77,7 +77,7 @@ describe("szybka emotka w czacie - ostatnie ogniwo", () => {
     // Gdyby ktoś usunął sekcję wyboru emotki, przycisk zostałby bez sensu -
     // a ta bramka ma wtedy kazać przeczytać, po co on tam jest.
     const dict = read("src/lib/i18n-chat.ts");
-    expect(dict).toContain("quickEmojiSend: \"Wyślij {{emoji}}\"");
+    expect(dict).toContain('quickEmojiSend: "Wyślij {{emoji}}"');
     expect(dict).toContain('quickEmojiSend: "Send {{emoji}}"');
     expect(dict).toMatch(/quickEmojiHint/);
   });

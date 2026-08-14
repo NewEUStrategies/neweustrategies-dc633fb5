@@ -67,7 +67,25 @@ function readMeta(raw: Json): [string, string][] {
  * bo `as unknown as` kasuje różnicę; `Pick` po `Tables<>` zamienia zmianę
  * kolumny w migracji na błąd kompilacji dokładnie tutaj.
  */
-type FullSubRow = Pick<Tables<"newsletter_subscribers">, "id" | "email" | "display_name" | "first_name" | "last_name" | "language" | "status" | "source" | "source_form_name" | "created_at" | "confirmed_at" | "unsubscribed_at" | "updated_at" | "meta" | "consents" | "user_agent">;
+type FullSubRow = Pick<
+  Tables<"newsletter_subscribers">,
+  | "id"
+  | "email"
+  | "display_name"
+  | "first_name"
+  | "last_name"
+  | "language"
+  | "status"
+  | "source"
+  | "source_form_name"
+  | "created_at"
+  | "confirmed_at"
+  | "unsubscribed_at"
+  | "updated_at"
+  | "meta"
+  | "consents"
+  | "user_agent"
+>;
 
 export function SubscriberDetailDialog({
   subscriberId,

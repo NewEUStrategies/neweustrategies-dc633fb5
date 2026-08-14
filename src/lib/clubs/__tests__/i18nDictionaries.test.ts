@@ -98,7 +98,10 @@ function mergeTrees(base: Tree, overlay: Tree): Tree {
   for (const [key, value] of Object.entries(overlay)) {
     const existing = out[key];
     out[key] =
-      typeof value === "object" && value !== null && typeof existing === "object" && existing !== null
+      typeof value === "object" &&
+      value !== null &&
+      typeof existing === "object" &&
+      existing !== null
         ? mergeTrees(existing as Tree, value as Tree)
         : value;
   }

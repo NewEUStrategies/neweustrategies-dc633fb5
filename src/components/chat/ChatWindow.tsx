@@ -678,7 +678,6 @@ export function ChatWindow(props: ChatWindowProps) {
     </Tooltip>
   );
 
-
   const menuItemClass =
     "flex w-full items-center gap-2 rounded-[6px] px-2 py-1.5 text-left text-[12px] transition-colors hover:bg-muted";
   const menuHeadingClass =

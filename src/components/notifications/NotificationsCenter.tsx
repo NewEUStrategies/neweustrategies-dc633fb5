@@ -953,4 +953,3 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
     </Card>
   );
 }
-
