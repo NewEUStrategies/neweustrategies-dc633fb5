@@ -8,6 +8,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   CAREERS_FORM_ID,
+  CAREER_STAGES,
+  CAREER_STAGE_STYLE,
   aliasCustomValues,
   asCustomRecord,
   buildRecruitmentLayer,
@@ -16,7 +18,9 @@ import {
   isCareerCvPath,
   normalizeCvUrl,
   parseRecruitmentApplications,
+  parseRecruitmentPipeline,
   seniorityLabel,
+  stageLabel,
   startLabel,
 } from "../recruitmentLayer";
 
@@ -227,5 +231,104 @@ describe("fallbackApplicationMessage", () => {
       start: "",
     });
     expect(text.trim().length).toBeGreaterThan(0);
+  });
+});
+
+describe("isCareerCvPath: konwencja z tenantem i legacy", () => {
+  it("przyjmuje sciezke z tenantem (konwencja obowiazujaca)", () => {
+    expect(
+      isCareerCvPath(
+        "11111111-1111-1111-1111-111111111111/uploads/2026-08-14/aaaaaaaa-1111-2222-3333-444444444444.pdf",
+      ),
+    ).toBe(true);
+  });
+
+  it("nadal przyjmuje sciezke legacy bez tenanta", () => {
+    // Plikow sprzed zmiany konwencji NIE przenosimy (UPDATE storage.objects.name
+    // rozjechalby wiersz z plikiem), wiec musza dalej przechodzic walidacje.
+    expect(isCareerCvPath("uploads/2026-08-14/aaaaaaaa-1111-2222-3333-444444444444.pdf")).toBe(true);
+  });
+
+  it("odrzuca obcy prefiks udajacy tenanta", () => {
+    expect(isCareerCvPath("../../etc/uploads/2026-08-14/aaaaaaaa-1111-2222-3333-4444.pdf")).toBe(
+      false,
+    );
+    expect(
+      isCareerCvPath("nie-uuid/uploads/2026-08-14/aaaaaaaa-1111-2222-3333-444444444444.pdf"),
+    ).toBe(false);
+  });
+});
+
+describe("warstwa procesu (pipeline)", () => {
+  const PIPELINE = {
+    id: "app-1",
+    stage: "interview",
+    stage_changed_at: "2026-08-14T12:00:00.000Z",
+    stage_note: "Po rozmowie wstepnej.",
+    rating: 4,
+    rejection_reason: "",
+    next_step_at: null,
+    owner_id: null,
+  };
+
+  it("znosi kształt obiektu i jednoelementowej tablicy", () => {
+    // PostgREST zwraca osadzona relacje raz tak, raz tak - zaleznie od tego, jak
+    // wykryje kardynalnosc.
+    expect(parseRecruitmentPipeline(PIPELINE)?.stage).toBe("interview");
+    expect(parseRecruitmentPipeline([PIPELINE])?.stage).toBe("interview");
+    expect(parseRecruitmentPipeline(null)).toBeNull();
+    expect(parseRecruitmentPipeline(undefined)).toBeNull();
+    expect(parseRecruitmentPipeline([])).toBeNull();
+  });
+
+  it("rozpoznaje etapy domkniete - od nich liczy sie retencja CV", () => {
+    expect(parseRecruitmentPipeline({ ...PIPELINE, stage: "rejected" })?.closed).toBe(true);
+    expect(parseRecruitmentPipeline({ ...PIPELINE, stage: "hired" })?.closed).toBe(true);
+    expect(parseRecruitmentPipeline({ ...PIPELINE, stage: "withdrawn" })?.closed).toBe(true);
+    expect(parseRecruitmentPipeline({ ...PIPELINE, stage: "interview" })?.closed).toBe(false);
+    expect(parseRecruitmentPipeline({ ...PIPELINE, stage: "new" })?.closed).toBe(false);
+  });
+
+  it("nieznany etap degraduje do new, zamiast wywracac panel", () => {
+    expect(parseRecruitmentPipeline({ ...PIPELINE, stage: "kosmos" })?.stage).toBe("new");
+    expect(parseRecruitmentPipeline({ ...PIPELINE, stage: null })?.stage).toBe("new");
+  });
+
+  it("doklada etap do zgloszenia w warstwie", () => {
+    const parsed = parseRecruitmentApplications([
+      { ...application(), career_applications: PIPELINE },
+    ]);
+    expect(parsed[0].pipeline?.stage).toBe("interview");
+    expect(parsed[0].pipeline?.rating).toBe(4);
+  });
+
+  it("zgloszenie bez joina ma pipeline null, a nie blad", () => {
+    expect(parseRecruitmentApplications([application()])[0].pipeline).toBeNull();
+  });
+
+  it("tlumaczy etykiety etapow w obu jezykach", () => {
+    expect(stageLabel("screening", "pl")).toBe("Wstępna selekcja");
+    expect(stageLabel("screening", "en")).toBe("Screening");
+    expect(stageLabel("", "pl")).toBe("");
+  });
+
+  it("kazdy etap ma etykiete i kolor - lista enuma nie moze sie rozjechac z UI", () => {
+    for (const stage of CAREER_STAGES) {
+      expect(stageLabel(stage, "pl")).not.toBe(stage);
+      expect(stageLabel(stage, "en")).not.toBe(stage);
+      expect(CAREER_STAGE_STYLE[stage]).toBeTruthy();
+    }
+  });
+});
+
+describe("cv_purged_at", () => {
+  it("przenosi znacznik usuniecia przez retencje", () => {
+    // Retencja zdejmuje cv_path i zostawia ten znacznik - panel musi odroznic
+    // "kandydat nie dal CV" od "CV skasowalismy zgodnie z polityka".
+    const parsed = parseRecruitmentApplications([
+      application({ custom: { cv_purged_at: "2026-08-14" } }),
+    ]);
+    expect(parsed[0].cvPath).toBe("");
+    expect(parsed[0].cvPurgedAt).toBe("2026-08-14");
   });
 });

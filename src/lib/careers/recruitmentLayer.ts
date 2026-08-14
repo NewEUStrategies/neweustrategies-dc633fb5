@@ -18,18 +18,69 @@ export const CAREERS_FORM_ID = "careers";
 
 /**
  * Ścieżka CV w prywatnym buckecie `career-cv`, dokładnie taka, jaką generuje
- * `uploadCv` (`uploads/<YYYY-MM-DD>/<uuid>.<ext>`).
+ * `uploadCv`.
+ *
+ * DWA KSZTAŁTY, oba dozwolone:
+ *   * `<tenant_id>/uploads/<YYYY-MM-DD>/<uuid>.<ext>` - konwencja obowiązująca,
+ *     w której ścieżka niesie tenanta, więc polityka bucketu potrafi zawęzić
+ *     odczyt do personelu TEGO najemcy;
+ *   * `uploads/<YYYY-MM-DD>/<uuid>.<ext>` - pliki sprzed zmiany konwencji.
+ *     Nie przenosimy ich (UPDATE `storage.objects.name` rozjechałby wiersz
+ *     z plikiem w magazynie), więc muszą dalej przechodzić walidację - prawo do
+ *     nich pilnuje polityka, sprawdzając referencję ze zgłoszenia najemcy.
  *
  * BEZPIECZEŃSTWO: `custom.cv_path` przychodzi z publicznego formularza, a panel
  * admina podpisuje ją bez pytania (`signCvUrl`). Bez tej bramki wystarczyłoby
  * podmienić pole w żądaniu, żeby wymusić podpisany link do DOWOLNEGO obiektu
  * w buckecie - czyli do CV innego kandydata.
  */
-const CV_PATH_RE = /^uploads\/\d{4}-\d{2}-\d{2}\/[0-9a-fA-F-]{8,64}\.(?:pdf|doc|docx)$/;
+const CV_PATH_RE =
+  /^(?:[0-9a-fA-F-]{36}\/)?uploads\/\d{4}-\d{2}-\d{2}\/[0-9a-fA-F-]{8,64}\.(?:pdf|doc|docx)$/;
 
 export function isCareerCvPath(value: string | null | undefined): boolean {
   return typeof value === "string" && CV_PATH_RE.test(value);
 }
+
+/** Etapy procesu rekrutacyjnego - 1:1 z enumem `public.career_stage`. */
+export const CAREER_STAGES = [
+  "new",
+  "screening",
+  "interview",
+  "offer",
+  "hired",
+  "rejected",
+  "withdrawn",
+] as const;
+
+export type CareerStage = (typeof CAREER_STAGES)[number];
+
+/** Etapy domknięte - dopiero po nich biegnie okres retencji pliku CV. */
+export const CAREER_CLOSED_STAGES: readonly CareerStage[] = ["hired", "rejected", "withdrawn"];
+
+export function isCareerStage(value: unknown): value is CareerStage {
+  return typeof value === "string" && (CAREER_STAGES as readonly string[]).includes(value);
+}
+
+const STAGE_LABELS: Record<CareerStage, [string, string]> = {
+  new: ["Nowe", "New"],
+  screening: ["Wstępna selekcja", "Screening"],
+  interview: ["Rozmowa", "Interview"],
+  offer: ["Oferta", "Offer"],
+  hired: ["Zatrudniony", "Hired"],
+  rejected: ["Odrzucony", "Rejected"],
+  withdrawn: ["Wycofane", "Withdrawn"],
+};
+
+/** Kolor etapu w panelu - te same tokeny, co etapy leada na karcie CRM. */
+export const CAREER_STAGE_STYLE: Record<CareerStage, string> = {
+  new: "bg-blue-500/15 text-blue-700 dark:text-blue-300",
+  screening: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+  interview: "bg-violet-500/15 text-violet-700 dark:text-violet-300",
+  offer: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300",
+  hired: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+  rejected: "bg-rose-500/15 text-rose-700 dark:text-rose-300",
+  withdrawn: "bg-muted text-muted-foreground",
+};
 
 /**
  * Link do CV podany ręcznie. Formularz przyjmuje adres bez schematu
@@ -112,6 +163,8 @@ export const engagementLabel = (slug: string | null | undefined, lang: CareerAdm
   label(ENGAGEMENT_LABELS, slug, lang);
 export const locationLabel = (slug: string | null | undefined, lang: CareerAdminLang) =>
   label(LOCATION_LABELS, slug, lang);
+export const stageLabel = (slug: string | null | undefined, lang: CareerAdminLang) =>
+  label(STAGE_LABELS, slug, lang);
 
 /**
  * Treść wiadomości dla zgłoszenia bez „Dlaczego Ty".
@@ -159,6 +212,38 @@ export interface RecruitmentMessageRow {
   lang?: string | null;
   created_at: string;
   custom?: unknown;
+  /**
+   * Warstwa procesu z `career_applications` (dołączana relacją w zapytaniu).
+   * Opcjonalna: karta kontaktu CRM czyta zgłoszenia bez joina, a wtedy pipeline
+   * po prostu nie jest pokazywany, zamiast wywracać parsowanie.
+   */
+  career_applications?: RecruitmentPipelineRow | RecruitmentPipelineRow[] | null;
+}
+
+/** Wiersz `career_applications` w zakresie potrzebnym warstwie. */
+export interface RecruitmentPipelineRow {
+  id?: string;
+  stage?: string | null;
+  stage_changed_at?: string | null;
+  stage_note?: string | null;
+  rating?: number | null;
+  rejection_reason?: string | null;
+  next_step_at?: string | null;
+  owner_id?: string | null;
+}
+
+/** Warstwa procesu jednego zgłoszenia. */
+export interface RecruitmentPipeline {
+  id: string;
+  stage: CareerStage;
+  stageChangedAt: string | null;
+  stageNote: string;
+  rating: number | null;
+  rejectionReason: string;
+  nextStepAt: string | null;
+  ownerId: string | null;
+  /** Czy proces jest domknięty - od tego momentu liczy się retencja CV. */
+  closed: boolean;
 }
 
 /** Jedno zgłoszenie kandydata, gotowe do wyświetlenia. */
@@ -180,7 +265,15 @@ export interface RecruitmentApplication {
   cvFileName: string;
   /** Znormalizowany link zewnętrzny (ze schematem) albo pusty. */
   cvUrl: string;
+  /**
+   * Data usunięcia pliku CV przez retencję (`custom.cv_purged_at`). Panel musi
+   * odróżnić „kandydat nie dał CV" od „CV skasowaliśmy zgodnie z polityką" -
+   * bez tego operator widziałby „Brak CV" i szukałby błędu.
+   */
+  cvPurgedAt: string;
   message: string;
+  /** Etap procesu - `null`, gdy zapytanie nie dołączyło `career_applications`. */
+  pipeline: RecruitmentPipeline | null;
 }
 
 /** Zebrana warstwa rekrutacyjna kontaktu. */
@@ -235,6 +328,30 @@ export function aliasCustomValues(aliases: unknown, field: string): string[] {
   return out;
 }
 
+/**
+ * Warstwa procesu z dołączonej relacji. PostgREST zwraca zagnieżdżenie raz jako
+ * obiekt, raz jako jednoelementową tablicę (zależnie od tego, jak wykryje
+ * kardynalność relacji), więc znosimy oba kształty.
+ */
+export function parseRecruitmentPipeline(
+  raw: RecruitmentMessageRow["career_applications"],
+): RecruitmentPipeline | null {
+  const row = Array.isArray(raw) ? raw[0] : raw;
+  if (!row || typeof row !== "object") return null;
+  const stage = isCareerStage(row.stage) ? row.stage : "new";
+  return {
+    id: str(row.id),
+    stage,
+    stageChangedAt: str(row.stage_changed_at) || null,
+    stageNote: str(row.stage_note),
+    rating: typeof row.rating === "number" ? row.rating : null,
+    rejectionReason: str(row.rejection_reason),
+    nextStepAt: str(row.next_step_at) || null,
+    ownerId: str(row.owner_id) || null,
+    closed: CAREER_CLOSED_STAGES.includes(stage),
+  };
+}
+
 /** Zgłoszenia rekrutacyjne z listy wiadomości kontaktu (najnowsze pierwsze). */
 export function parseRecruitmentApplications(
   rows: readonly RecruitmentMessageRow[] | null | undefined,
@@ -257,7 +374,9 @@ export function parseRecruitmentApplications(
         cvPath: isCareerCvPath(cvPath) ? cvPath : "",
         cvFileName: str(custom.cv_file_name),
         cvUrl: normalizeCvUrl(custom.cv_url) ?? "",
+        cvPurgedAt: str(custom.cv_purged_at),
         message: str(row.message),
+        pipeline: parseRecruitmentPipeline(row.career_applications),
       } satisfies RecruitmentApplication;
     })
     .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));

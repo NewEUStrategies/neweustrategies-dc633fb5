@@ -491,6 +491,16 @@ jobs:
       - name: Run pg-harness (migracje + asercje runtime)
         run: bun run check:pg-harness
 
+      # Ten sam klaster, drugi modul. Rekrutacja ma wlasna powierzchnie styku
+      # (contact_messages, bucket career-cv, pipeline zgloszen), wiec wlasny
+      # harness - patrz scripts/careers-harness/README.md. Cztery bledy, ktore
+      # ta bramka zlapala, przeszly przez `tsc`, `eslint` i WSZYSTKIE bramki
+      # `check:sql-*`: brak GET DIAGNOSTICS, kolizja parametru OUT z kolumna,
+      # polityka bucketu przepuszczajaca obcego najemce i fixture mierzacy
+      # fikcje, bo trigger nadpisywal znacznik czasu.
+      - name: Run careers-harness (migracje + asercje runtime)
+        run: bun run check:careers-harness
+
   # Bramka PO WDROŻENIU: sprawdza, że wszystkie obiekty wynikające z migracji
   # (tabele, widoki, RPC schematu public) faktycznie istnieją w bazie, a na
   # koniec generuje raport zgodności wdrożenia (PR-y, liczba testów, status CI,

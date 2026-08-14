@@ -29,9 +29,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { signCvUrl } from "@/lib/careers/cvUpload";
 import {
+  CAREER_STAGE_STYLE,
   buildRecruitmentLayer,
   departmentLabel,
   seniorityLabel,
+  stageLabel,
   startLabel,
   type CareerAdminLang,
   type RecruitmentApplication,
@@ -53,6 +55,7 @@ interface Dict {
   cvOpen: string;
   cvLink: string;
   cvMissing: string;
+  cvPurged: string;
   cvError: string;
   note: string;
   openInbox: string;
@@ -76,6 +79,7 @@ const PL: Dict = {
   cvOpen: "Otwórz CV",
   cvLink: "CV (link zewnętrzny)",
   cvMissing: "Brak CV",
+  cvPurged: "CV usunięte (retencja)",
   cvError: "Nie udało się wygenerować linku do CV.",
   note: "Uzasadnienie kandydata",
   openInbox: "Otwórz w skrzynce rekrutacyjnej",
@@ -99,6 +103,7 @@ const EN: Dict = {
   cvOpen: "Open CV",
   cvLink: "CV (external link)",
   cvMissing: "No CV",
+  cvPurged: "CV deleted (retention)",
   cvError: "Could not generate the CV link.",
   note: "Candidate's note",
   openInbox: "Open in the recruitment inbox",
@@ -149,7 +154,13 @@ function CvButton({ app, L }: { app: RecruitmentApplication; L: Dict }) {
     );
   }
 
-  return <span className="text-[11px] text-muted-foreground">{L.cvMissing}</span>;
+  // Retencja zdejmuje `cv_path` i zostawia `cv_purged_at` - bez tego
+  // rozróżnienia operator widziałby „Brak CV" i szukałby błędu w formularzu.
+  return (
+    <span className="text-[11px] text-muted-foreground">
+      {app.cvPurgedAt ? `${L.cvPurged} · ${app.cvPurgedAt}` : L.cvMissing}
+    </span>
+  );
 }
 
 export function LeadRecruitmentPanel({
@@ -236,8 +247,19 @@ export function LeadRecruitmentPanel({
                         <div className="text-[12px] font-medium">
                           {app.roleLabel || (app.role === "open" ? L.spontaneous : app.role)}
                         </div>
-                        <div className="text-[10px] text-muted-foreground">
-                          {new Date(app.createdAt).toLocaleString()} · {app.lang.toUpperCase()}
+                        <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                          {app.pipeline && (
+                            <span
+                              className={`inline-flex h-4 items-center rounded px-1.5 text-[10px] font-medium ${
+                                CAREER_STAGE_STYLE[app.pipeline.stage]
+                              }`}
+                            >
+                              {stageLabel(app.pipeline.stage, lang)}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-muted-foreground">
+                            {new Date(app.createdAt).toLocaleString()} · {app.lang.toUpperCase()}
+                          </span>
                         </div>
                       </div>
                       <CvButton app={app} L={L} />

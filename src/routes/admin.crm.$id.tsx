@@ -43,6 +43,7 @@ import { FaceAwareAvatar } from "@/components/admin/crm/FaceAwareAvatar";
 import { LeadMembershipCard } from "@/components/admin/crm/LeadMembershipCard";
 import { MeteringUsageCard } from "@/components/admin/crm/MeteringUsageCard";
 import { LeadRecruitmentPanel } from "@/components/admin/crm/LeadRecruitmentPanel";
+import type { RecruitmentMessageRow } from "@/lib/careers/recruitmentLayer";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -105,6 +106,8 @@ type MsgRow = {
   page_url: string | null;
   /** Pola hybrydowe formularza (jsonb) - warstwa rekrutacyjna czyta je wprost. */
   custom: unknown;
+  /** Etap procesu rekrutacyjnego (osadzone `career_applications`). */
+  career_applications: RecruitmentMessageRow["career_applications"];
   created_at: string;
 };
 type SubRow = {

@@ -16,6 +16,7 @@ import {
   FileText,
   Mail,
   RefreshCw,
+  Trash2,
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -25,13 +26,20 @@ import { Input } from "@/components/ui/input";
 import { signCvUrl } from "@/lib/careers/cvUpload";
 import {
   CAREERS_FORM_ID,
+  CAREER_STAGES,
+  CAREER_STAGE_STYLE,
   asCustomRecord,
   departmentLabel,
   isCareerCvPath,
   normalizeCvUrl,
+  parseRecruitmentPipeline,
   seniorityLabel,
+  stageLabel,
   startLabel,
   type CareerAdminLang,
+  type CareerStage,
+  type RecruitmentMessageRow,
+  type RecruitmentPipeline,
 } from "@/lib/careers/recruitmentLayer";
 
 export const Route = createFileRoute("/admin/careers")({
@@ -68,6 +76,24 @@ interface CareersDict {
   cvOpen: string;
   cvMissing: string;
   cvError: string;
+  cvPurged: string;
+  stage: string;
+  stageSaved: string;
+  stageNote: string;
+  stageNotePh: string;
+  rating: string;
+  ratingClear: string;
+  rejectionReason: string;
+  nextStep: string;
+  history: string;
+  historyEmpty: string;
+  noPipeline: string;
+  remove: string;
+  removeConfirm: string;
+  removed: string;
+  stageFilterAll: string;
+  stageFilterOpen: string;
+  stageFilterClosed: string;
 }
 
 const PL: CareersDict = {
@@ -96,6 +122,24 @@ const PL: CareersDict = {
   cvOpen: "Otwórz CV",
   cvMissing: "Brak CV",
   cvError: "Nie udało się wygenerować linku do CV.",
+  cvPurged: "CV usunięte (retencja)",
+  stage: "Etap procesu",
+  stageSaved: "Etap zmieniony.",
+  stageNote: "Notatka do zmiany etapu",
+  stageNotePh: "Dlaczego ta decyzja? Trafi do dziennika…",
+  rating: "Ocena",
+  ratingClear: "Bez oceny",
+  rejectionReason: "Powód odrzucenia",
+  nextStep: "Następny krok",
+  history: "Dziennik decyzji",
+  historyEmpty: "Brak zmian etapu.",
+  noPipeline: "Brak wiersza procesu dla tego zgłoszenia.",
+  remove: "Usuń zgłoszenie",
+  removeConfirm: "Usunąć zgłoszenie wraz z CV i historią procesu? Tego nie da się cofnąć.",
+  removed: "Zgłoszenie usunięte. Plik CV trafił do kolejki usunięć.",
+  stageFilterAll: "Wszystkie etapy",
+  stageFilterOpen: "W toku",
+  stageFilterClosed: "Domknięte",
   none: "-",
 };
 
@@ -125,6 +169,25 @@ const EN: CareersDict = {
   cvOpen: "Open CV",
   cvMissing: "No CV",
   cvError: "Could not generate the CV link.",
+  cvPurged: "CV deleted (retention)",
+  stage: "Pipeline stage",
+  stageSaved: "Stage changed.",
+  stageNote: "Note for this stage change",
+  stageNotePh: "Why this decision? Goes into the log…",
+  rating: "Rating",
+  ratingClear: "No rating",
+  rejectionReason: "Rejection reason",
+  nextStep: "Next step",
+  history: "Decision log",
+  historyEmpty: "No stage changes yet.",
+  noPipeline: "No pipeline row for this application.",
+  remove: "Delete application",
+  removeConfirm:
+    "Delete the application together with its CV and pipeline history? This cannot be undone.",
+  removed: "Application deleted. Its CV was queued for removal.",
+  stageFilterAll: "All stages",
+  stageFilterOpen: "In progress",
+  stageFilterClosed: "Closed",
   none: "-",
 };
 
@@ -140,6 +203,17 @@ interface CareerApplication {
   read_at: string | null;
   archived_at: string | null;
   custom: Record<string, string>;
+  /** Warstwa procesu z `career_applications` (trigger zakłada ją przy wpływie). */
+  pipeline: RecruitmentPipeline | null;
+}
+
+/** Wpis z dziennika decyzji (`career_application_events`). */
+interface StageEvent {
+  id: string;
+  from_stage: string | null;
+  to_stage: string;
+  note: string;
+  created_at: string;
 }
 
 /**
@@ -151,7 +225,7 @@ function CvAccess({
   labels,
 }: {
   custom: Record<string, string>;
-  labels: Pick<CareersDict, "cv" | "cvOpen" | "cvMissing" | "cvError">;
+  labels: Pick<CareersDict, "cv" | "cvOpen" | "cvMissing" | "cvError" | "cvPurged">;
 }) {
   const [busy, setBusy] = useState(false);
   // Ścieżka pliku jest sanityzowana już przy zapisie, ale zgłoszenia sprzed tej
@@ -163,9 +237,13 @@ function CvAccess({
   const fileName = custom.cv_file_name ?? "";
 
   if (!path && !url) {
+    // Retencja zdejmuje `cv_path` i zostawia `cv_purged_at`. Bez tego
+    // rozróżnienia operator widziałby "Brak CV" i szukałby błędu w formularzu,
+    // a plik został skasowany zgodnie z polityką.
+    const purged = (custom.cv_purged_at ?? "").trim();
     return (
       <span className="text-xs text-muted-foreground">
-        {labels.cv}: {labels.cvMissing}
+        {labels.cv}: {purged ? `${labels.cvPurged} · ${purged}` : labels.cvMissing}
       </span>
     );
   }
@@ -209,8 +287,10 @@ function AdminCareersPage() {
   const L = adminLang === "en" ? EN : PL;
   const qc = useQueryClient();
   const [filter, setFilter] = useState<"open" | "all" | "archived">("open");
+  const [stageFilter, setStageFilter] = useState<"all" | "open" | "closed" | CareerStage>("all");
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
+  const [noteDraft, setNoteDraft] = useState("");
 
   const {
     data: rows = [],
@@ -219,10 +299,15 @@ function AdminCareersPage() {
   } = useQuery({
     queryKey: ["admin-career-applications", filter],
     queryFn: async () => {
+      // Join na `career_applications` daje etap procesu w jednym zapytaniu -
+      // wiersz zaklada trigger przy wplywie zgloszenia, wiec relacja jest 1:1.
       let qb = supabase
         .from("contact_messages")
+        // Lista kolumn MUSI byc jednym literalem - supabase-js parsuje ja na
+        // poziomie typow, a konkatenacja daje `string` i cofa wynik do
+        // GenericStringError (embed przestaje sie typowac).
         .select(
-          "id,name,email,phone,subject,message,lang,created_at,read_at,archived_at,custom",
+          "id,name,email,phone,subject,message,lang,created_at,read_at,archived_at,custom,career_applications(id,stage,stage_changed_at,stage_note,rating,rejection_reason,next_step_at,owner_id)",
         )
         .eq("form_id", CAREERS_FORM_ID)
         .order("created_at", { ascending: false })
@@ -231,17 +316,30 @@ function AdminCareersPage() {
       else if (filter === "archived") qb = qb.not("archived_at", "is", null);
       const { data, error } = await qb;
       if (error) throw error;
-      return (data ?? []).map((row) => ({
-        ...row,
-        custom: asCustomRecord((row as { custom: unknown }).custom),
-      })) as CareerApplication[];
+      return (data ?? []).map((row) => {
+        const raw = row as { custom: unknown; career_applications?: unknown };
+        return {
+          ...row,
+          custom: asCustomRecord(raw.custom),
+          pipeline: parseRecruitmentPipeline(
+            raw.career_applications as RecruitmentMessageRow["career_applications"],
+          ),
+        };
+      }) as CareerApplication[];
     },
   });
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    if (!needle) return rows;
-    return rows.filter((r) =>
+    const byStage = rows.filter((r) => {
+      const stage = r.pipeline?.stage;
+      if (stageFilter === "all") return true;
+      if (stageFilter === "open") return !r.pipeline || !r.pipeline.closed;
+      if (stageFilter === "closed") return Boolean(r.pipeline?.closed);
+      return stage === stageFilter;
+    });
+    if (!needle) return byStage;
+    return byStage.filter((r) =>
       [
         r.name,
         r.email,
@@ -254,7 +352,7 @@ function AdminCareersPage() {
         r.custom.cv_file_name ?? "",
       ].some((v) => v.toLowerCase().includes(needle)),
     );
-  }, [rows, q]);
+  }, [rows, q, stageFilter]);
 
   const current = filtered.find((r) => r.id === selected) ?? null;
 
@@ -309,6 +407,74 @@ function AdminCareersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.id]);
 
+  // Notatka jest szkicem PER ZGLOSZENIE - bez resetu opis decyzji o jednym
+  // kandydacie wjechalby do dziennika nastepnego.
+  useEffect(() => {
+    setNoteDraft("");
+  }, [current?.id]);
+
+  /** Dziennik decyzji - tabela jest read-only dla klienta, wpisy robi trigger. */
+  const { data: events = [] } = useQuery({
+    queryKey: ["admin-career-events", current?.pipeline?.id ?? ""],
+    enabled: Boolean(current?.pipeline?.id),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("career_application_events")
+        .select("id,from_stage,to_stage,note,created_at")
+        .eq("application_id", current?.pipeline?.id ?? "")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return (data ?? []) as StageEvent[];
+    },
+  });
+
+  /**
+   * Zapis warstwy procesu. `stage_note` jedzie w TYM SAMYM UPDATE co `stage` -
+   * trigger `career_application_log_stage` przepisuje ja do dziennika, wiec
+   * audyt powstaje bez osobnego RPC i bez drugiej rundy do bazy.
+   */
+  const savePipeline = useMutation({
+    mutationFn: async (values: {
+      stage?: CareerStage;
+      stage_note?: string;
+      rating?: number | null;
+      rejection_reason?: string;
+      next_step_at?: string | null;
+    }) => {
+      const id = current?.pipeline?.id;
+      if (!id) throw new Error("no_pipeline_row");
+      const { error } = await supabase.from("career_applications").update(values).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_data, values) => {
+      if (values.stage) toast.success(L.stageSaved);
+      setNoteDraft("");
+      qc.invalidateQueries({ queryKey: ["admin-career-applications"] });
+      qc.invalidateQueries({ queryKey: ["admin-career-events"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  /**
+   * Usuniecie zgloszenia. Kaskada zabiera wiersz procesu i dziennik, a trigger
+   * `career_cv_enqueue_on_message_delete` kolejkuje plik CV do usuniecia z
+   * magazynu - inaczej kasowanie zgloszenia zostawialoby osierocone dane osobowe.
+   */
+  const removeApplication = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("contact_messages").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success(L.removed);
+      setSelected(null);
+      qc.invalidateQueries({ queryKey: ["admin-career-applications"] });
+      qc.invalidateQueries({ queryKey: ["admin-contact-messages"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   // Kandydat wybiera slug ("analysis", "mid", "immediately") - operator musi
   // zobaczyć tekst, a nie kod enuma. Słowniki żyją w `recruitmentLayer`, wspólne
   // z modułem „Rekrutacja" na karcie kontaktu CRM.
@@ -354,13 +520,30 @@ function AdminCareersPage() {
               <RefreshCw className="h-3.5 w-3.5" />
             </button>
           </div>
-          <div className="border-b border-border p-2">
+          <div className="space-y-2 border-b border-border p-2">
             <Input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder={L.search}
               className="h-8 text-xs"
             />
+            <select
+              aria-label={L.stage}
+              value={stageFilter}
+              onChange={(e) =>
+                setStageFilter(e.target.value as "all" | "open" | "closed" | CareerStage)
+              }
+              className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
+            >
+              <option value="all">{L.stageFilterAll}</option>
+              <option value="open">{L.stageFilterOpen}</option>
+              <option value="closed">{L.stageFilterClosed}</option>
+              {CAREER_STAGES.map((st) => (
+                <option key={st} value={st}>
+                  {stageLabel(st, adminLang)}
+                </option>
+              ))}
+            </select>
           </div>
           <ul className="max-h-[70vh] flex-1 divide-y divide-border overflow-y-auto">
             {isLoading && <li className="p-3 text-xs text-muted-foreground">…</li>}
@@ -386,6 +569,15 @@ function AdminCareersPage() {
                   <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
                     {m.custom.role_label || m.subject || m.email}
                   </p>
+                  {m.pipeline && (
+                    <span
+                      className={`mt-1 inline-flex h-4 items-center rounded px-1.5 text-[10px] font-medium ${
+                        CAREER_STAGE_STYLE[m.pipeline.stage]
+                      }`}
+                    >
+                      {stageLabel(m.pipeline.stage, adminLang)}
+                    </span>
+                  )}
                 </button>
               </li>
             ))}
@@ -414,6 +606,15 @@ function AdminCareersPage() {
                       <Badge variant="secondary" className="text-[10px]">
                         {L.crmMissing}
                       </Badge>
+                    )}
+                    {current.pipeline && (
+                      <span
+                        className={`inline-flex h-5 items-center rounded px-1.5 text-[10px] font-medium ${
+                          CAREER_STAGE_STYLE[current.pipeline.stage]
+                        }`}
+                      >
+                        {stageLabel(current.pipeline.stage, adminLang)}
+                      </span>
                     )}
                     {current.archived_at && (
                       <Badge variant="outline" className="text-[10px]">
@@ -462,6 +663,19 @@ function AdminCareersPage() {
                     )}
                     {current.archived_at ? L.unarchive : L.archive}
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-destructive hover:text-destructive"
+                    disabled={removeApplication.isPending}
+                    onClick={() => {
+                      if (!window.confirm(L.removeConfirm)) return;
+                      removeApplication.mutate(current.id);
+                    }}
+                  >
+                    <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                    {L.remove}
+                  </Button>
                 </div>
               </header>
 
@@ -475,6 +689,113 @@ function AdminCareersPage() {
                   </div>
                 ))}
               </dl>
+
+              {/* Warstwa procesu. Wiersz zaklada trigger przy wplywie zgloszenia,
+                  wiec brak wiersza to sygnal awarii, a nie normalny stan. */}
+              {current.pipeline ? (
+                <section className="space-y-3 rounded-md border border-border/70 p-3">
+                  <div className="flex flex-wrap items-end gap-2">
+                    <div className="min-w-[180px] flex-1">
+                      <label
+                        htmlFor="career-stage"
+                        className="mb-1 block text-[10px] uppercase tracking-wider text-muted-foreground"
+                      >
+                        {L.stage}
+                      </label>
+                      <select
+                        id="career-stage"
+                        value={current.pipeline.stage}
+                        disabled={savePipeline.isPending}
+                        onChange={(e) =>
+                          savePipeline.mutate({
+                            stage: e.target.value as CareerStage,
+                            stage_note: noteDraft.trim(),
+                          })
+                        }
+                        className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
+                      >
+                        {CAREER_STAGES.map((st) => (
+                          <option key={st} value={st}>
+                            {stageLabel(st, adminLang)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="w-28">
+                      <label
+                        htmlFor="career-rating"
+                        className="mb-1 block text-[10px] uppercase tracking-wider text-muted-foreground"
+                      >
+                        {L.rating}
+                      </label>
+                      <select
+                        id="career-rating"
+                        value={current.pipeline.rating ?? ""}
+                        disabled={savePipeline.isPending}
+                        onChange={(e) =>
+                          savePipeline.mutate({
+                            rating: e.target.value === "" ? null : Number(e.target.value),
+                          })
+                        }
+                        className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
+                      >
+                        <option value="">{L.ratingClear}</option>
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <option key={n} value={n}>
+                            {"★".repeat(n)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Notatka jedzie tym samym UPDATE-em co etap - trigger
+                      przepisuje ja do dziennika, wiec audyt nie wymaga RPC. */}
+                  <div>
+                    <label
+                      htmlFor="career-note"
+                      className="mb-1 block text-[10px] uppercase tracking-wider text-muted-foreground"
+                    >
+                      {L.stageNote}
+                    </label>
+                    <Input
+                      id="career-note"
+                      value={noteDraft}
+                      onChange={(e) => setNoteDraft(e.target.value)}
+                      placeholder={L.stageNotePh}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      {L.history}
+                    </h3>
+                    {events.length === 0 ? (
+                      <p className="mt-1 text-[11px] italic text-muted-foreground">
+                        {L.historyEmpty}
+                      </p>
+                    ) : (
+                      <ol className="mt-1 space-y-1">
+                        {events.map((ev) => (
+                          <li key={ev.id} className="text-[11px] text-muted-foreground">
+                            <span className="text-foreground">
+                              {stageLabel(ev.from_stage, adminLang) || L.none} →{" "}
+                              {stageLabel(ev.to_stage, adminLang)}
+                            </span>{" "}
+                            · {new Date(ev.created_at).toLocaleString()}
+                            {ev.note ? ` · ${ev.note}` : ""}
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                  </div>
+                </section>
+              ) : (
+                <p className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-[11px] text-destructive">
+                  {L.noPipeline}
+                </p>
+              )}
 
               <div>
                 <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">

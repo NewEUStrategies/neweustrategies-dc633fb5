@@ -191,9 +191,10 @@ export const getCrmLead = createServerFn({ method: "POST" })
         tbl(context, "contact_messages")
           .select(
             // `form_id` + `custom` niosą warstwę rekrutacyjną (rola, dział,
-            // poziom, termin, LinkedIn, CV) - bez nich moduł „Rekrutacja" na
-            // karcie kontaktu nie ma z czego się zrenderować.
-            "id, form_type, form_id, form_name, subject, message, lang, source, page_url, referer, ip, consents, newsletter_opt_in, consent, custom, created_at",
+            // poziom, termin, LinkedIn, CV), a osadzone `career_applications`
+            // dokłada etap procesu - bez nich moduł „Rekrutacja" na karcie
+            // kontaktu nie ma z czego się zrenderować.
+            "id, form_type, form_id, form_name, subject, message, lang, source, page_url, referer, ip, consents, newsletter_opt_in, consent, custom, created_at, career_applications(id, stage, stage_changed_at, stage_note, rating, rejection_reason, next_step_at, owner_id)",
           )
           .ilike("email", L.email)
           .eq("tenant_id", L.tenant_id)

@@ -70,5 +70,5 @@ export const AUTHZ_SNAPSHOT: AuthzSnapshotModule = {
     {"capability":"recordings","ref":"fn:get_event_access/1","kind":"function","object":"get_event_access","file":"20260724100000_fix_definer_header_tenant_scope.sql","bypassRoles":["admin","editor"],"tenantRef":"caller"},
     {"capability":"regulatory_monitoring","ref":"policy:eu_policy_follows/policy follows owner all","kind":"policy","object":"eu_policy_follows","file":"20260723090000_tier_content_gating_tracker.sql","bypassRoles":[],"tenantRef":"row"},
   ],
-  stats: {"migrations":764,"functions":827,"policies":534},
+  stats: {"migrations":766,"functions":835,"policies":543},
 };

@@ -137,6 +137,46 @@ describe("LeadRecruitmentPanel", () => {
     expect(screen.getByText("Redaktor prowadzący")).toBeInTheDocument();
   });
 
+  it("pokazuje etap procesu przy zgłoszeniu", () => {
+    render(
+      <LeadRecruitmentPanel
+        aliases={{}}
+        lang="pl"
+        messages={[
+          {
+            ...APPLICATION,
+            career_applications: {
+              id: "app-1",
+              stage: "interview",
+              stage_changed_at: "2026-08-14T12:00:00.000Z",
+              rating: 4,
+            },
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText("Rozmowa")).toBeInTheDocument();
+  });
+
+  it("odróżnia CV usunięte przez retencję od braku CV", () => {
+    // Bez tego rozróżnienia operator widziałby „Brak CV" i szukałby błędu
+    // w formularzu, a plik skasowała polityka retencji.
+    render(
+      <LeadRecruitmentPanel
+        aliases={{}}
+        lang="pl"
+        messages={[
+          {
+            ...APPLICATION,
+            custom: { ...APPLICATION.custom, cv_path: "", cv_purged_at: "2026-08-14" },
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText(/CV usunięte \(retencja\) · 2026-08-14/)).toBeInTheDocument();
+    expect(screen.queryByText("Brak CV")).not.toBeInTheDocument();
+  });
+
   it("mówi po angielsku, gdy panel jest w EN", () => {
     render(<LeadRecruitmentPanel aliases={{}} messages={[APPLICATION]} lang="en" />);
     expect(screen.getByRole("button", { name: /Recruitment/ })).toBeInTheDocument();

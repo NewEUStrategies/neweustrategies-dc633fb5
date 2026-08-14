@@ -1349,6 +1349,133 @@ export type Database = {
         }
         Relationships: []
       }
+      career_application_events: {
+        Row: {
+          actor_id: string | null
+          application_id: string
+          created_at: string
+          from_stage: Database["public"]["Enums"]["career_stage"] | null
+          id: string
+          note: string
+          tenant_id: string
+          to_stage: Database["public"]["Enums"]["career_stage"]
+        }
+        Insert: {
+          actor_id?: string | null
+          application_id: string
+          created_at?: string
+          from_stage?: Database["public"]["Enums"]["career_stage"] | null
+          id?: string
+          note?: string
+          tenant_id: string
+          to_stage: Database["public"]["Enums"]["career_stage"]
+        }
+        Update: {
+          actor_id?: string | null
+          application_id?: string
+          created_at?: string
+          from_stage?: Database["public"]["Enums"]["career_stage"] | null
+          id?: string
+          note?: string
+          tenant_id?: string
+          to_stage?: Database["public"]["Enums"]["career_stage"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "career_application_events_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "career_applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      career_applications: {
+        Row: {
+          created_at: string
+          id: string
+          message_id: string
+          next_step_at: string | null
+          owner_id: string | null
+          rating: number | null
+          rejection_reason: string
+          stage: Database["public"]["Enums"]["career_stage"]
+          stage_changed_at: string
+          stage_note: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message_id: string
+          next_step_at?: string | null
+          owner_id?: string | null
+          rating?: number | null
+          rejection_reason?: string
+          stage?: Database["public"]["Enums"]["career_stage"]
+          stage_changed_at?: string
+          stage_note?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message_id?: string
+          next_step_at?: string | null
+          owner_id?: string | null
+          rating?: number | null
+          rejection_reason?: string
+          stage?: Database["public"]["Enums"]["career_stage"]
+          stage_changed_at?: string
+          stage_note?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "career_applications_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: true
+            referencedRelation: "contact_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      career_cv_gc_queue: {
+        Row: {
+          attempts: number
+          claimed_at: string | null
+          enqueued_at: string
+          id: string
+          last_error: string | null
+          path: string
+          reason: string
+          tenant_id: string | null
+        }
+        Insert: {
+          attempts?: number
+          claimed_at?: string | null
+          enqueued_at?: string
+          id?: string
+          last_error?: string | null
+          path: string
+          reason: string
+          tenant_id?: string | null
+        }
+        Update: {
+          attempts?: number
+          claimed_at?: string | null
+          enqueued_at?: string
+          id?: string
+          last_error?: string | null
+          path?: string
+          reason?: string
+          tenant_id?: string | null
+        }
+        Relationships: []
+      }
       career_page_sections: {
         Row: {
           is_visible: boolean
@@ -1356,6 +1483,7 @@ export type Database = {
           sort_order: number
           subtitle_en: string | null
           subtitle_pl: string | null
+          tenant_id: string
           title_en: string | null
           title_pl: string | null
           updated_at: string
@@ -1366,6 +1494,7 @@ export type Database = {
           sort_order?: number
           subtitle_en?: string | null
           subtitle_pl?: string | null
+          tenant_id?: string
           title_en?: string | null
           title_pl?: string | null
           updated_at?: string
@@ -1376,6 +1505,7 @@ export type Database = {
           sort_order?: number
           subtitle_en?: string | null
           subtitle_pl?: string | null
+          tenant_id?: string
           title_en?: string | null
           title_pl?: string | null
           updated_at?: string
@@ -1399,6 +1529,7 @@ export type Database = {
           sort_order: number
           summary_en: string
           summary_pl: string
+          tenant_id: string
           title_en: string
           title_pl: string
           updated_at: string
@@ -1419,6 +1550,7 @@ export type Database = {
           sort_order?: number
           summary_en?: string
           summary_pl?: string
+          tenant_id?: string
           title_en: string
           title_pl: string
           updated_at?: string
@@ -1439,8 +1571,30 @@ export type Database = {
           sort_order?: number
           summary_en?: string
           summary_pl?: string
+          tenant_id?: string
           title_en?: string
           title_pl?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      career_settings: {
+        Row: {
+          cv_retention_days: number
+          orphan_grace_hours: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          cv_retention_days?: number
+          orphan_grace_hours?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          cv_retention_days?: number
+          orphan_grace_hours?: number
+          tenant_id?: string
           updated_at?: string
         }
         Relationships: []
@@ -15913,6 +16067,10 @@ export type Database = {
         Args: { p_slot_id: string }
         Returns: boolean
       }
+      career_cv_gc_claim: { Args: { _limit?: number }; Returns: Json }
+      career_cv_gc_done: { Args: { _paths: string[] }; Returns: number }
+      career_cv_gc_fail: { Args: { _error: string; _path: string }; Returns: undefined }
+      career_cv_gc_scan: { Args: { _limit?: number }; Returns: Json }
       change_user_role: {
         Args: {
           _new_role: Database["public"]["Enums"]["app_role"]
@@ -19843,6 +20001,14 @@ export type Database = {
       builder_experiment_event: "exposure" | "conversion"
       builder_experiment_status: "running" | "paused" | "completed"
       builder_popup_status: "draft" | "active" | "archived"
+      career_stage:
+        | "new"
+        | "screening"
+        | "interview"
+        | "offer"
+        | "hired"
+        | "rejected"
+        | "withdrawn"
       crm_source_type:
         | "contact_form"
         | "newsletter"
