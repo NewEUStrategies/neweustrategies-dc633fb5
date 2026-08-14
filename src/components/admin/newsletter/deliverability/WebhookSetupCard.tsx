@@ -124,6 +124,15 @@ export function WebhookSetupCard({ setup, locale }: WebhookSetupCardProps) {
             </code>
           ))}
         </div>
+        {/* Lista powyżej zależy od tego, kto jest źródłem prawdy dla otwarć
+            i kliknięć. Bez tego zdania operator dopisuje `email.opened` „na
+            wszelki wypadek" i wraca podwójne zliczanie - usterka, którą zamyka
+            migracja 20260814150000. */}
+        <p className="mt-2 text-[11px] leading-snug text-muted-foreground">
+          {setup.engagementSource === "provider"
+            ? t("adminDeliverability.setup.engagementProvider")
+            : t("adminDeliverability.setup.engagementFirstParty")}
+        </p>
       </div>
     </section>
   );

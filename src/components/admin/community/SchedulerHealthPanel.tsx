@@ -42,10 +42,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { HeartbeatDot } from "@/components/admin/atoms/HeartbeatDot";
-import {
-  SchedulerMetricTile,
-  type MetricTone,
-} from "@/components/admin/molecules/SchedulerMetricTile";
+import { AdminMetricTile, type MetricTone } from "@/components/admin/molecules/AdminMetricTile";
 import { useAuth } from "@/hooks/useAuth";
 import { getSchedulerHealth, runSchedulerTickNow } from "@/lib/admin/scheduler.functions";
 import { countTickFailures } from "@/lib/jobs/scheduler";
@@ -236,49 +233,49 @@ export function SchedulerHealthPanel() {
       </Card>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-8">
-        <SchedulerMetricTile
+        <AdminMetricTile
           icon={Clock}
           label={t("adminScheduler.metrics.pushPending")}
           value={queue?.pushPending}
           hint={t("adminScheduler.metrics.pendingHint")}
           tone={pendingTone}
         />
-        <SchedulerMetricTile
+        <AdminMetricTile
           icon={Send}
           label={t("adminScheduler.metrics.pushDueNow")}
           value={queue?.pushDueNow}
           tone={pendingTone}
         />
-        <SchedulerMetricTile
+        <AdminMetricTile
           icon={CheckCircle2}
           label={t("adminScheduler.metrics.pushSent24h")}
           value={queue?.pushSent24h}
           tone="ok"
         />
-        <SchedulerMetricTile
+        <AdminMetricTile
           icon={XCircle}
           label={t("adminScheduler.metrics.pushDead")}
           value={queue?.pushDead}
           tone={(queue?.pushDead ?? 0) > 0 ? "danger" : "neutral"}
         />
-        <SchedulerMetricTile
+        <AdminMetricTile
           icon={CalendarClock}
           label={t("adminScheduler.metrics.oldestPending")}
           value={queue ? secondsLabel(queue.pushOldestPendingSeconds, lang) : undefined}
           hint={t("adminScheduler.metrics.oldestPendingHint")}
           tone={backlogAlarming ? "warn" : "neutral"}
         />
-        <SchedulerMetricTile
+        <AdminMetricTile
           icon={Smartphone}
           label={t("adminScheduler.metrics.subscriptions")}
           value={queue?.pushSubscriptionsActive}
         />
-        <SchedulerMetricTile
+        <AdminMetricTile
           icon={Mail}
           label={t("adminScheduler.metrics.digestDaily")}
           value={queue?.digestDueDaily}
         />
-        <SchedulerMetricTile
+        <AdminMetricTile
           icon={Mail}
           label={t("adminScheduler.metrics.digestWeekly")}
           value={queue?.digestDueWeekly}

@@ -42,7 +42,15 @@ export const Route = createFileRoute("/api/public/nl-click")({
             target &&
             limiter.check(clientIpFromHeaders(request.headers), Date.now())
           ) {
-            await recordCampaignEvent(campaignId, subscriberId, "click", target);
+            // `first_party` = nasze przekierowanie. Patrz nl-open: pisze
+            // wyłącznie źródło prawdy, żeby jedno kliknięcie było jednym wierszem.
+            await recordCampaignEvent({
+              campaignId,
+              subscriberId,
+              kind: "click",
+              url: target,
+              source: "first_party",
+            });
           }
         } catch {
           // Tracking is best-effort - always redirect.
