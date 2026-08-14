@@ -5542,12 +5542,27 @@ textarea::placeholder {
      każdą warstwową, niezależnie od specyficzności), więc `h-8`, `px-1`,
      `text-xs` czy `pr-6` podane w miejscu użycia nie robiły nic.
      ------------------------------------------------------------------------- */
+  /* Grid o jednej kolumnie: kontrolka zajmuje wiersz 1, komunikat o błędzie
+     (i każdy inny statyczny sibling) trafia do kolejnych wierszy. Dzięki temu
+     pływająca etykieta - pozycjonowana absolutnie, ale z jawnym `grid-row: 1`
+     - ma jako blok zawierający OBSZAR KONTROLKI, a nie cały wrapper. Bez tego
+     `top: 50%` liczyło się względem wrappera powiększonego o tekst błędu i
+     etykieta/placeholder zjeżdżały w dół w stanie błędu. */
   .input-group {
     position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
     width: 100%;
     height: fit-content;
     align-self: start;
   }
+  .input-group > .input,
+  .input-group > .user-label {
+    grid-row: 1;
+    grid-column: 1;
+  }
+
   .input-group > .input {
     display: block;
     width: 100%;
