@@ -67,7 +67,7 @@ const careersPl = {
       items: {
         flexible: {
           title: "Elastyczna współpraca",
-          body: "Wybór formy: umowa o pracę, B2B, zlecenie lub staż. Dopasowujemy wymiar i tryb do Twojej sytuacji.",
+          body: "Dopasowujemy wymiar i tryb współpracy do Twojej sytuacji. Bez sztywnych ram.",
         },
         remote: {
           title: "Zdalnie lub hybrydowo",
@@ -491,7 +491,7 @@ const careersEn = {
       items: {
         flexible: {
           title: "Flexible collaboration",
-          body: "Choose the contract: employment, B2B, freelance or internship. We adapt the workload and mode to your situation.",
+          body: "We adapt the workload and mode of collaboration to your situation. No rigid frameworks.",
         },
         remote: {
           title: "Remote or hybrid",
