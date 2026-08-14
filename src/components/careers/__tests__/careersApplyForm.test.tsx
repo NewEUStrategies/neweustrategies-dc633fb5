@@ -117,6 +117,10 @@ function fillContact() {
   fireEvent.change(screen.getByLabelText(/careers\.form\.linkedin/), {
     target: { value: "linkedin.com/in/jan-kowalski" },
   });
+  // CV jest obowiązkowe - w teście podajemy link zamiast wgrywać plik.
+  fireEvent.change(screen.getByLabelText(/careers\.form\.cvUrl/), {
+    target: { value: "drive.google.com/file/cv-jan" },
+  });
 }
 
 function fillFit(role = "analyst_economy") {
@@ -216,6 +220,7 @@ describe("CareersApplyForm: kreator 3 kroków", () => {
       seniority: "mid",
       start: "month",
       linkedin: "linkedin.com/in/jan-kowalski",
+      cv_url: "drive.google.com/file/cv-jan",
     });
     expect(payload.consents).toEqual([
       { key: "recruitment", text: "careers.form.consent", lang: "pl" },

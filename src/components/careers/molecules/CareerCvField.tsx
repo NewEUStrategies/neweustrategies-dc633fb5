@@ -68,6 +68,7 @@ export function CareerCvField({
           ref={inputRef}
           type="file"
           className="sr-only"
+          aria-label={t("careers.form.cvUpload")}
           accept={CV_ACCEPT_ATTR}
           onChange={(event) => {
             void pickFile(event.target.files?.[0]);
