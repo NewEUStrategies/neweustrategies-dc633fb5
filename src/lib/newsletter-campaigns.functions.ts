@@ -137,7 +137,33 @@ const CampaignUpsert = z.object({
  * bo `as unknown as` kasuje różnicę; `Pick` po `Tables<>` zamienia zmianę
  * kolumny w migracji na błąd kompilacji dokładnie tutaj.
  */
-export type CampaignRow = Pick<Tables<"newsletter_campaigns">, "id" | "tenant_id" | "name" | "subject_pl" | "subject_en" | "html_pl" | "html_en" | "editor" | "content_doc" | "from_name" | "from_email" | "reply_to" | "audience_filter" | "status" | "scheduled_at" | "lease_until" | "started_at" | "finished_at" | "recipient_count" | "sent_count" | "failed_count" | "last_error" | "created_at" | "updated_at">;
+export type CampaignRow = Pick<
+  Tables<"newsletter_campaigns">,
+  | "id"
+  | "tenant_id"
+  | "name"
+  | "subject_pl"
+  | "subject_en"
+  | "html_pl"
+  | "html_en"
+  | "editor"
+  | "content_doc"
+  | "from_name"
+  | "from_email"
+  | "reply_to"
+  | "audience_filter"
+  | "status"
+  | "scheduled_at"
+  | "lease_until"
+  | "started_at"
+  | "finished_at"
+  | "recipient_count"
+  | "sent_count"
+  | "failed_count"
+  | "last_error"
+  | "created_at"
+  | "updated_at"
+>;
 
 function esc(v: string): string {
   return v.replace(

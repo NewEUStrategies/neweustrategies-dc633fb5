@@ -10,14 +10,48 @@ import { supabase } from "@/integrations/supabase/client";
  * bo `as unknown as` kasuje różnicę; `Pick` po `Tables<>` zamienia zmianę
  * kolumny w migracji na błąd kompilacji dokładnie tutaj.
  */
-export type PolicyItem = Pick<Tables<"eu_policy_items">, "id" | "tenant_id" | "slug" | "title_pl" | "title_en" | "summary_pl" | "summary_en" | "policy_area" | "stage" | "importance" | "reference" | "source_url" | "rapporteur" | "committee" | "lead_dg" | "next_milestone_pl" | "next_milestone_en" | "next_milestone_at" | "status" | "created_at" | "updated_at">;
+export type PolicyItem = Pick<
+  Tables<"eu_policy_items">,
+  | "id"
+  | "tenant_id"
+  | "slug"
+  | "title_pl"
+  | "title_en"
+  | "summary_pl"
+  | "summary_en"
+  | "policy_area"
+  | "stage"
+  | "importance"
+  | "reference"
+  | "source_url"
+  | "rapporteur"
+  | "committee"
+  | "lead_dg"
+  | "next_milestone_pl"
+  | "next_milestone_en"
+  | "next_milestone_at"
+  | "status"
+  | "created_at"
+  | "updated_at"
+>;
 /**
  * Kolumny czytane przez ten kod - WYPROWADZONE z wygenerowanych typów.
  * Ręcznie przepisany kształt wiersza rozjeżdża się z bazą bez żadnego sygnału,
  * bo `as unknown as` kasuje różnicę; `Pick` po `Tables<>` zamienia zmianę
  * kolumny w migracji na błąd kompilacji dokładnie tutaj.
  */
-export type PolicyUpdate = Pick<Tables<"eu_policy_updates">, "id" | "item_id" | "note_pl" | "note_en" | "stage_from" | "stage_to" | "source_url" | "happened_on" | "created_at">;
+export type PolicyUpdate = Pick<
+  Tables<"eu_policy_updates">,
+  | "id"
+  | "item_id"
+  | "note_pl"
+  | "note_en"
+  | "stage_from"
+  | "stage_to"
+  | "source_url"
+  | "happened_on"
+  | "created_at"
+>;
 
 export interface PolicyItemFilters {
   area?: string;
@@ -219,7 +253,10 @@ export function useMyFollows(userId: string | undefined) {
  * bo `as unknown as` kasuje różnicę; `Pick` po `Tables<>` zamienia zmianę
  * kolumny w migracji na błąd kompilacji dokładnie tutaj.
  */
-export type PolicyPosition = Pick<Tables<"eu_policy_positions">, "item_id" | "country_code" | "stance" | "note_pl" | "note_en" | "updated_at">;
+export type PolicyPosition = Pick<
+  Tables<"eu_policy_positions">,
+  "item_id" | "country_code" | "stance" | "note_pl" | "note_en" | "updated_at"
+>;
 
 const POSITION_FIELDS = "item_id,country_code,stance,note_pl,note_en,updated_at";
 

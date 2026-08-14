@@ -3,9 +3,7 @@
 // crm.functions.ts. Wszystkie fetche jadą przez `requireCrmStaff`, więc RLS
 // (tenant_id = current_tenant_id()) obowiązuje automatycznie.
 import { createServerFn } from "@tanstack/react-start";
-import {
-  requireCrmStaff,
-} from "@/integrations/supabase/require-staff";
+import { requireCrmStaff } from "@/integrations/supabase/require-staff";
 import { z } from "zod";
 
 type AnyQuery = {

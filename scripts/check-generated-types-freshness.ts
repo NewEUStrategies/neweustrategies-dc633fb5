@@ -26,7 +26,7 @@ const TYPES_FILE = "src/integrations/supabase/types.ts";
 
 /**
  * ZAMROŻONY DŁUG: kolumny, które istnieją w migracjach i nie ma ich
- * w wygenerowanych typach. Stan na 2026-08-13, zmierzony - nie przepisany.
+ * w wygenerowanych typach. Stan na 2026-08-14, zmierzony - nie przepisany.
  *
  * Lista ma TYLKO MALEĆ i zniknie w całości przy najbliższej regeneracji
  * `types.ts` (`supabase gen types typescript --linked`). Regeneracja to osobna
@@ -36,9 +36,16 @@ const TYPES_FILE = "src/integrations/supabase/types.ts";
  * Cztery wpisy `research_program_*.tenant_id` są tu najważniejsze: to kolumna,
  * na której stoi izolacja najemców, i dopóki nie ma jej w typach, kod nie umie
  * jej ustawić w sposób typowany.
+ *
+ * 2026-08-14: 28 -> 27 wpisów. `member_organizations.paddle_subscription_id`
+ * NIE ISTNIEJE od 20260805134721 (`RENAME COLUMN … TO provider_subscription_id`,
+ * migracja na Stripe) - skaner nie znał wtedy `RENAME`, więc liczył fantom.
+ * Wpis kosztował dwa razy: raz jako zgoda na brak kolumny, której nie ma, i raz
+ * jako JEDYNA żywa referencja do poprzedniego operatora płatności w repo, którą
+ * `check:legacy-payment-refs` słusznie oblewał. Nazwa nowej kolumny jest
+ * w typach, więc dług nie przenosi się pod nią.
  */
 const BASELINE: readonly string[] = [
-  "member_organizations.paddle_subscription_id",
   "membership_grants.source_coupon_id",
   "notifications.meta",
   "podcast_settings.itunes_author",

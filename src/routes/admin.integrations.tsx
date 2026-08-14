@@ -34,13 +34,7 @@ import {
 } from "@/lib/integrations/formats";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -76,7 +70,18 @@ export const Route = createFileRoute("/admin/integrations")({
  * bo `as unknown as` kasuje różnicę; `Pick` po `Tables<>` zamienia zmianę
  * kolumny w migracji na błąd kompilacji dokładnie tutaj.
  */
-type EndpointRow = Pick<Tables<"integration_endpoints">, "id" | "name" | "integration" | "url" | "event_types" | "enabled" | "secret_id" | "created_at" | "updated_at">;
+type EndpointRow = Pick<
+  Tables<"integration_endpoints">,
+  | "id"
+  | "name"
+  | "integration"
+  | "url"
+  | "event_types"
+  | "enabled"
+  | "secret_id"
+  | "created_at"
+  | "updated_at"
+>;
 
 interface DraftEndpoint {
   id: string | null;

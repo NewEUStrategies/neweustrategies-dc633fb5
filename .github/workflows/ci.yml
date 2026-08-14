@@ -19,6 +19,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # KOLEJNOŚĆ KROKÓW JEST CZĘŚCIĄ BRAMKI, nie kosmetyką.
+  #
+  # Job rósł krokami dopisywanymi po kolejnych awariach, więc najtańsze
+  # sprawdzenia wylądowały na końcu - za buildem i za suitą z coverage. Skutek
+  # zmierzony na wydaniu 2026-08-14: trzy z czterech czerwonych kroków
+  # (formatowanie, duplikat migracji, martwa referencja operatora płatności)
+  # kosztują RAZEM poniżej minuty, a informacja o nich przychodziła po ~8
+  # minutach instalacji, typów i testów. Od teraz kolejność idzie po koszcie:
+  # najpierw wszystko, co czyta wyłącznie pliki repo, potem typy i lint, potem
+  # testy, na końcu build i bramki artefaktu.
+  #
+  # Ten sam zestaw tanich bramek puszcza lokalnie JEDNA komenda
+  # `bun run verify:static` (lista wyprowadzana z package.json, więc nie
+  # rozjeżdża się z tym plikiem) - a `bun run verify:blocking` dokłada typy,
+  # lint i testy. Bramki w tym repo są dobre; trzy wydania z rzędu przeszły
+  # z czerwonym CI dlatego, że przed wypchnięciem nikt ich nie uruchomił.
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -43,49 +59,194 @@ jobs:
         env:
           npm_config_registry: https://registry.npmjs.org
 
-      - name: Typecheck
-        run: bunx tsc --noEmit
+      # ── NAJTAŃSZE SYGNAŁY (sekundy) ─────────────────────────────────────────
 
-      # Tests run WITH the coverage gate so the per-file thresholds in
-      # vitest.config.ts actually block merges (previously CI ran plain
-      # `vitest run`, so the gate was local-only and could silently rot).
-      - name: Test + coverage gate
-        run: bun run test:coverage
+      # Blokująca bramka formatu, PIERWSZA w całym jobie. `bun run lint` mierzy
+      # dokładnie ten sam inwariant przez eslint-plugin-prettier, ale liczy go
+      # minutami razem z regułami typowanymi - a wydanie 2026-08-14 zatrzymało
+      # się na 115 błędach `prettier/prettier` i ani jednym błędzie logiki.
+      # Osobny krok zamienia tę klasę z „ośmiu minut do informacji" na
+      # „czterdzieści sekund" i mówi wprost, że lekarstwem jest `bun run format`.
+      - name: Format (prettier)
+        run: bun run format:check
 
-      # Blokująca bramka snapshotu autoryzacji: `authzSnapshot.generated.ts` MUSI
-      # zgadzać się z bramkami odtworzonymi z supabase/migrations. Skrypt istniał
-      # od wprowadzenia macierzy uprawnień, ale NIE BYŁ wpięty w CI - i dokładnie
-      # dlatego zmiana kręgu uprawnionych w `profiles_guard_verification()`
-      # (migracja 20260806094104 zawężająca weryfikację do samego `admin`)
-      # przeszła bez sygnału, a suita na `main` stała czerwona czwartą dobę.
-      # Krok stoi TU, przed buildem i lintem: rozjazd autoryzacji ma być widoczny
-      # od razu, a nie po dwudziestu minutach kompilacji.
-      - name: Authz snapshot vs migrations
-        run: bun run check:authz-snapshot
+      # Bramka meta: każda bramka `check:*` z package.json JEST wpięta w workflow
+      # i nie jedzie w jednym jobie dwa razy. Repo ma udokumentowaną historię
+      # bramek, które istniały i NIE BYŁY uruchamiane - `check:authz-snapshot`
+      # (przez co zawężenie uprawnień w profiles_guard_verification przeszło bez
+      # sygnału i suita na main stała czerwona czwartą dobę), `check:pg-harness`
+      # oraz `check:careers-harness` (przez co martwa ścieżka zgłoszeń klubowych
+      # trafiła na produkcję przy zielonym CI). Bramka niewpięta wygląda w repo
+      # identycznie jak wpięta; różnicę widać tylko w tym pliku, więc mierzy ją
+      # skrypt. Ten sam skan złapał trzy przebiegi `check:authz-snapshot` i dwa
+      # `check:permissions-parity` w tym jobie - usunięte w tej zmianie.
+      - name: Gate coverage (każda bramka wpięta, żadna dwa razy)
+        run: bun run check:gate-coverage
 
-      # Ten sam kontrakt od strony strony /admin/permissions: wiersze macierzy,
-      # role zawężone i rejestr capabilities kontra realne bramki SQL.
-      - name: Permissions matrix parity
-        run: bun run check:permissions-parity
+      # Blokujący inwariant odtwarzalności bazy: czy `supabase db start` (świeża
+      # baza, migracje od zera) dobiegnie do końca. Trzy klasy, wszystkie
+      # niewidoczne dla przyrostowego `db push` i wszystkie zabijające joby
+      # `pgtap` oraz `e2e` ZANIM cokolwiek się uruchomi:
+      #   1. zduplikowane prefiksy wersji (`schema_migrations.version` to KLUCZ
+      #      GŁÓWNY) - rekomendowane przez audyt trzy wydania jako ryzyko,
+      #      zmaterializowało się trzykrotnie na 20260803090000;
+      #   2. wykonywane zapisy do `storage.objects` bez sankcjonowanej furtki
+      #      `storage.allow_delete_query` - storage-api >= 0055 rzuca 42501;
+      #   3. ta sama migracja pod dwiema nazwami (plik z PR-a + plik wygenerowany
+      #      przez platformę przy zastosowaniu na hostowanej bazie). Baza to
+      #      przeżyje, ale historia migracji przestaje mówić prawdę o tym, kiedy
+      #      zmiana weszła - przy spłaszczonej historii commitów to jedyne
+      #      narzędzie datowania regresji, jakie zostaje audytowi.
+      - name: SQL migration replay safety
+        run: bun run check:sql-migration-replay
 
-      # Blokujący kontrakt SEO: og:image / og:title / viewport / lang, kanoniki
-      # i klaster hreflang PL/EN oraz markup schema.org Q&A. Uruchamiany osobno,
-      # żeby regresja SEO była widoczna jako własny, nazwany krok w CI (te same
-      # findingi wracały wcześniej z audytów zewnętrznych).
-      #
-      # W tym samym kroku jedzie bramka precedencji assetów: plik statyczny z
-      # `public/` nie może przesłaniać trasy serwerowej. Tak umarła cała logika
-      # /robots.txt - zacommitowany `public/robots.txt` wygrywał z workerem, więc
-      # aliasy hostingu były zaproszone do indeksowania, a news sitemap nie była
-      # ogłoszona nigdzie. Testy jednostkowe trasy przechodziły, bo testowały kod,
-      # którego nikt nie wykonywał.
-      - name: SEO head + schema contract
-        run: |
-          bunx vitest run \
-            src/lib/seo/__tests__ \
-            src/routes/-sitemap.xml.test.ts \
-            src/lib/ci/__tests__/staticAssetShadowing.test.ts \
-            src/lib/server/__tests__/robotsPolicy.test.ts
+      # Blocking tenant-isolation gate: fails if any SECURITY DEFINER function
+      # scopes data by public_tenant_id() (client-forgeable x-tenant-host header)
+      # while authorizing by has_role()/is_staff() (home tenant). That mismatch
+      # let an admin of tenant A forge the header to read/write tenant B's data
+      # (monetization_dashboard revenue leak). Repeatable root cause -> static gate.
+      - name: SQL tenant-scope invariant
+        run: bun run check:sql-tenant-scope
+
+      # Blokująca bramka izolacji najemców na POLITYKACH: polityka, która raz
+      # związała wiersz z najemcą, nie może tego wiązania stracić przy
+      # późniejszym odtworzeniu. Regresja 2026-08-14: `20260814100000` zawęziło
+      # trzy polityki bucketu `career-cv` do najemcy (bez tego redaktor najemcy A
+      # czytał KAŻDE CV każdego najemcy - `is_staff()` bada wyłącznie rolę),
+      # a wygenerowany `20260814122512` odtworzył je w kształcie sprzed
+      # zawężenia. Stan końcowy uratowała WYŁĄCZNIE kolejność sortowania nazw
+      # plików. Nie widziała tego żadna istniejąca bramka: tenant-scope patrzy na
+      # funkcje, owner-tenant-scope szuka ASYMETRII (a cofnęły się wszystkie
+      # trzy polityki razem), replay porównuje TREŚĆ plików (a ten nie był
+      # bliźniakiem niczego), pgTAP stawia bazę ze stanu końcowego.
+      - name: SQL policy tenant-binding regression
+        run: bun run check:sql-policy-tenant-regression
+
+      # Blocking tenant-isolation gate: fails if an owner-scoped RLS clause
+      # (`auth.uid() = <column>`) drops the tenant binding while a sibling
+      # clause on the SAME table keeps it. That asymmetry made author_profiles
+      # rows writable only in the home tenant yet readable AND deletable from
+      # any tenant context (fixed by 20260803140000). Self-calibrating - the
+      # schema declares the intent, so there is no hand-maintained table list.
+      # KNOWN_OPEN_GAPS carries the debt that predates the gate: it is printed
+      # on every run, any NEW gap fails immediately, and a closed gap fails
+      # until its entry is removed, so the list can only shrink.
+      - name: SQL owner tenant-scope invariant
+        run: bun run check:sql-owner-tenant-scope
+
+      # Blocking security gate: fails if any table accepts a PERMISSIVE anonymous
+      # INSERT (anon/public role + WITH CHECK true), or if an intake table
+      # (contact_messages, crm_consent_log, related_post_clicks,
+      # builder_experiment_events, analytics_events, web_vitals) accepts a direct
+      # client INSERT at all. Regression guard for the ~30-day anon-insert holes
+      # closed by 20260730130000 / 20260730140000 (spam, RODO-consent forgery,
+      # fabricated A/B results) - that class returns silently in migration churn
+      # without a static gate.
+      - name: SQL anon-insert invariant
+        run: bun run check:sql-anon-insert
+
+      # Blocking correctness gate: fails if any has_role() call passes a literal
+      # that is not an app_role enum value. `has_role(uuid, app_role)` casts the
+      # literal at RUNTIME (plpgsql bodies are not parsed at CREATE FUNCTION), so
+      # a typo raises 22P02 (500) instead of a clean 42501 - and only for callers
+      # that fell through the earlier OR branches, i.e. never for an admin doing
+      # a smoke test. That is how 'tenant_admin' survived unnoticed.
+      - name: SQL app_role literal invariant
+        run: bun run check:sql-app-role
+
+      # Blocking: the SIXTH positional argument of emit_domain_event is the
+      # actor (uuid), never a flag. A12 added a second overload with a boolean
+      # there; A16 collapsed the overload but kept the boolean sixth, and the 25
+      # call sites in billing, monetization and badges stopped binding. Every
+      # emitter swallows its own exception so the fan-out cannot abort business
+      # transactions - which turned a hard 42883 into silence and an empty event
+      # bus. Judged on the FINAL migration state: migrations are forward-only,
+      # so a later file recreating the function is the fix, not an edit.
+      - name: Domain event actor is the sixth argument
+        run: bun run check:sql-emit-actor
+
+      # Blocking contract gate between the client and the migration chain, in
+      # both directions: (1) every name the client passes to `supabase.rpc(...)`
+      # must still exist in the final state of migrations - otherwise the browser
+      # gets PGRST202; (2) no surviving function body may name a relation that a
+      # later migration renamed or dropped - otherwise the call raises 42P01.
+      # Neither is visible to the compiler, to `CREATE FUNCTION` (plpgsql/sql
+      # bodies resolve relations at CALL time) or to an incremental `db push`,
+      # so both hide until a fresh database is created. That is exactly how the
+      # five expert-request RPCs the client calls ended up dead on every new
+      # environment while production kept working (20260806160000).
+      - name: RPC contract (client calls ⇄ migrations)
+        run: bun run check:rpc-contract
+
+      # Blocking gate after the Paddle -> Stripe migration: any live reference to
+      # the old provider outside comments (import, identifier, string literal,
+      # env var, gateway URL) means a code path that talks to a payment operator
+      # this project no longer has - it would fail only at runtime, mid-checkout.
+      # Scope now includes .github/ and the root manifests: the most expensive
+      # instance of this defect was a dead PADDLE_* secret in a workflow, which
+      # the src/-and-scripts-only predecessor could never see.
+      - name: No live legacy payment-provider references
+        run: bun run check:legacy-payment-refs
+
+      # Blocking gate on the Supabase type boundary: `as never` is the repo's
+      # sanctioned escape hatch for the window between a migration and the next
+      # regeneration of src/integrations/supabase/types.ts - and nothing ever
+      # closed that window. A cast on a name the generated types already know
+      # erases both the row type (forcing a hand-written `as unknown as X` that
+      # then drifts from the database in silence) and the RPC argument type
+      # (a misspelled parameter compiles and fails as a PostgREST 400 in the
+      # browser). On 2026-08-06 the repo carried 25 such casts, some behind a
+      # "remove after regenerating types.ts" comment several releases old.
+      - name: No stale `as never` casts on the Supabase boundary
+        run: bun run check:stale-never-casts
+
+      # Blocking gate on the CAUSE of those casts: generated types going stale.
+      # `src/integrations/supabase/types.ts` is generated from the database, and
+      # the migrations are forward-only. Add a column by migration without
+      # regenerating, and code reading that column no longer compiles - at which
+      # point the cheapest way out is `as unknown as SomeRow` with a hand-written
+      # shape, which from then on erases EVERY difference from the database,
+      # including next year's. Stale types PRODUCE casts; casts hide the next
+      # drift. The debt is frozen in an explicit baseline the gate can only
+      # shrink; a NEW column without regeneration fails here. The scanner replays
+      # `RENAME COLUMN` / `RENAME TO` as well (correction 2026-08-14): without
+      # that it demanded a column renamed away ten days earlier - and that
+      # phantom entry was the repo's only live legacy payment-provider reference,
+      # so two good gates were blocking each other.
+      - name: Generated Supabase types are not stale vs migrations
+        run: bun run check:types-freshness
+
+      # Blocking gate on the SYMPTOM: a query result cast onto a row shape typed
+      # by hand next to it. Three of the first three files audited had already
+      # drifted - `retry_count: number | null` against a NOT NULL column,
+      # `status`/`kind` as `string` against ENUMs (so a comparison with a literal
+      # outside the enum compiled and never matched), `metadata` as an object
+      # against a `jsonb` column whose type is `Json`. Derive the shape from
+      # `Tables<...>` instead and a renamed column becomes a compile error in the
+      # file that reads it. Exceptions live in the script WITH a reason.
+      - name: No hand-written row shapes behind Supabase casts
+        run: bun run check:db-row-casts
+
+      # Blocking ratchet on user-facing text that branches on language in code
+      # (`isPl ? "Zapisz" : "Save"`, `l("Zapisz", "Save")`). Every such form
+      # bypasses the PL/EN parity gate - the string exists only in code, so
+      # there is nothing to compare - and closes the door on a third language.
+      # Measured on 2026-08-13: 1 641 occurrences in 166 files. The debt is
+      # frozen PER FILE: a count may only shrink, and a file absent from the
+      # baseline must be zero, so new code cannot start out in debt. A single
+      # global counter would be compensable - trimming twenty occurrences in one
+      # file would "pay for" adding twenty in another.
+      - name: No new hardcoded PL/EN text in code
+        run: bun run check:i18n-hardcoded
+
+      # Blocking wiring gate: every env var a workflow exports must have a
+      # reader. Workflow and script are separately valid when the names drift
+      # apart, and both sides tolerate a missing value, so the combination
+      # yields a run that checks nothing and stays green - which is exactly how
+      # the nightly billing probe slept 40 minutes a night against a secret no
+      # script ever read.
+      - name: Workflow env contract (no dead exports)
+        run: bun run check:workflow-env-contract
 
       # Blokująca bramka wdrożeniowa: żaden plik z `public/` nie może przesłonić
       # trasy. Wrangler wiąże `.output/public/` jako `assets`, a warstwa assetów
@@ -96,6 +257,69 @@ jobs:
       # dev-server serwuje trasę normalnie (audyt 2026-08-06, MODUŁ 8).
       - name: public/ nie przesłania tras
         run: bun run check:public-assets
+
+      # Blokująca bramka snapshotu autoryzacji, JEDEN krok na trzy dawne.
+      # `authzSnapshot.generated.ts` MUSI zgadzać się z bramkami odtworzonymi
+      # z supabase/migrations, i to BAJT W BAJT: test parytetu w Vitest porównuje
+      # snapshot SEMANTYCZNIE (bramka -> role), więc zostaje zielony, gdy plik
+      # rozjedzie się w prowenancji (`file`) i statystykach skanu. Dokładnie to
+      # się stało, gdy 20260806094104 zawęziło `profiles_guard_verification()`
+      # do samego `admin` poza PR-em - zacommitowany snapshot został 10 migracji
+      # z tyłu. Skrypt istniał od wprowadzenia macierzy uprawnień i NIE BYŁ
+      # wpięty w CI; suita na `main` stała wtedy czerwona czwartą dobę.
+      # Migracja, która przenosi albo przepisuje udokumentowaną bramkę, musi
+      # przywieźć zregenerowany artefakt (`bun run generate:authz-snapshot`)
+      # w tym samym commicie.
+      #
+      # Wcześniej ten sam skrypt jechał w tym jobie TRZY RAZY (kroki „Authz
+      # snapshot vs migrations", „Authorization snapshot parity", „Authorization
+      # snapshot freshness") - trzy nazwy, jedna komenda, zero dodatkowego
+      # pokrycia. Pilnuje tego teraz `check:gate-coverage`.
+      - name: Authorization snapshot vs migrations (byte-for-byte)
+        run: bun run check:authz-snapshot
+
+      # Blocking gate BEFORE the build, because it does not need one: it only
+      # reads two config files. `vite.smoke.config.ts` exists so a PRODUCTION
+      # artifact can be booted in a real browser (the 2026-07-20 dead-hydration
+      # incident was invisible to dev and unit tests) - and that verification is
+      # worth exactly as much as its chunk split matching production. Until now
+      # only a comment asked for it. A silently wrong chunk rule survives for
+      # weeks: `vendor-tanstack` never materialised at all because the rule
+      # assigned the client ENTRY module to it, and Rollup answers that by
+      # collapsing the whole named chunk back into the entry - no warning.
+      - name: Chunk-split config parity (prod vs smoke)
+        run: bun run check:chunk-parity
+
+      # ── TYPY I LINT (minuty) ────────────────────────────────────────────────
+
+      # `vite build` does NOT typecheck (esbuild strips types), so this is the
+      # real type gate.
+      - name: Typecheck
+        run: bun run typecheck
+
+      # Blocking: the Prettier backlog was cleared (repo-wide format commit) and
+      # all remaining ESLint errors were fixed, so lint gates merges like
+      # typecheck and tests. Formatowanie samo w sobie jedzie wyżej, w kroku
+      # „Format (prettier)" - tutaj zostaje warstwa reguł typowanych.
+      - name: Lint
+        run: bun run lint
+
+      # ── TESTY (najdroższy krok) ─────────────────────────────────────────────
+
+      # Tests run WITH the coverage gate so the per-file thresholds in
+      # vitest.config.ts actually block merges (previously CI ran plain
+      # `vitest run`, so the gate was local-only and could silently rot).
+      - name: Test + coverage gate
+        run: bun run test:coverage
+
+      # Kontrakt macierzy uprawnień od strony /admin/permissions: wiersze
+      # macierzy, role zawężone i rejestr capabilities kontra realne bramki SQL -
+      # zbiory ról, wiszące referencje, nowe wartości enuma i flaga
+      # enforced/decorative każdej capability. Dopełnia bramkę snapshotu wyżej
+      # (dane kontra renderer). Wcześniej ten sam skrypt jechał w tym jobie
+      # dwa razy pod dwiema nazwami.
+      - name: Permissions matrix parity
+        run: bun run check:permissions-parity
 
       # Blokująca bramka i18n: każdy klucz bramkowanych powierzchni (bloki
       # Gutenberga, widgety buildera, raport porównawczy) musi mieć wersję PL
@@ -133,17 +357,26 @@ jobs:
           path: reports/widget-fidelity.txt
           if-no-files-found: ignore
 
-      # Blocking gate BEFORE the build, because it does not need one: it only
-      # reads two config files. `vite.smoke.config.ts` exists so a PRODUCTION
-      # artifact can be booted in a real browser (the 2026-07-20 dead-hydration
-      # incident was invisible to dev and unit tests) - and that verification is
-      # worth exactly as much as its chunk split matching production. Until now
-      # only a comment asked for it. A silently wrong chunk rule survives for
-      # weeks: `vendor-tanstack` never materialised at all because the rule
-      # assigned the client ENTRY module to it, and Rollup answers that by
-      # collapsing the whole named chunk back into the entry - no warning.
-      - name: Chunk-split config parity (prod vs smoke)
-        run: bun run check:chunk-parity
+      # Blokujący kontrakt SEO: og:image / og:title / viewport / lang, kanoniki
+      # i klaster hreflang PL/EN oraz markup schema.org Q&A. Uruchamiany osobno,
+      # żeby regresja SEO była widoczna jako własny, nazwany krok w CI (te same
+      # findingi wracały wcześniej z audytów zewnętrznych).
+      #
+      # W tym samym kroku jedzie bramka precedencji assetów: plik statyczny z
+      # `public/` nie może przesłaniać trasy serwerowej. Tak umarła cała logika
+      # /robots.txt - zacommitowany `public/robots.txt` wygrywał z workerem, więc
+      # aliasy hostingu były zaproszone do indeksowania, a news sitemap nie była
+      # ogłoszona nigdzie. Testy jednostkowe trasy przechodziły, bo testowały kod,
+      # którego nikt nie wykonywał.
+      - name: SEO head + schema contract
+        run: |
+          bunx vitest run \
+            src/lib/seo/__tests__ \
+            src/routes/-sitemap.xml.test.ts \
+            src/lib/ci/__tests__/staticAssetShadowing.test.ts \
+            src/lib/server/__tests__/robotsPolicy.test.ts
+
+      # ── BUILD I BRAMKI ARTEFAKTU (na końcu - tylko one go potrzebują) ───────
 
       - name: Build
         run: bun run build
@@ -178,186 +411,6 @@ jobs:
       # bramki płatniczej (marker js.stripe.com w chunku entry).
       - name: Client boot path free of payment SDKs
         run: bun run check:entry-purity
-
-      # Blocking: the Prettier backlog was cleared (repo-wide format commit) and
-      # all remaining ESLint errors were fixed, so lint now gates merges like
-      # typecheck and tests.
-      - name: Lint
-        run: bun run lint
-
-      # Blocking tenant-isolation gate: fails if any SECURITY DEFINER function
-      # scopes data by public_tenant_id() (client-forgeable x-tenant-host header)
-      # while authorizing by has_role()/is_staff() (home tenant). That mismatch
-      # let an admin of tenant A forge the header to read/write tenant B's data
-      # (monetization_dashboard revenue leak). Repeatable root cause -> static gate.
-      - name: SQL tenant-scope invariant
-        run: bun run check:sql-tenant-scope
-
-      # Blocking correctness gate: fails if any has_role() call passes a literal
-      # that is not an app_role enum value. `has_role(uuid, app_role)` casts the
-      # literal at RUNTIME (plpgsql bodies are not parsed at CREATE FUNCTION), so
-      # a typo raises 22P02 (500) instead of a clean 42501 - and only for callers
-      # that fell through the earlier OR branches, i.e. never for an admin doing
-      # a smoke test. That is how 'tenant_admin' survived unnoticed.
-      - name: SQL app_role literal invariant
-        run: bun run check:sql-app-role
-
-      # Blocking parity gate: the /admin/permissions matrix is GENERATED from the
-      # authorization gates found in migrations, so a stale snapshot makes the page
-      # lie again - exactly what the hand-written table did before. The script was
-      # in package.json but never wired here, and the snapshot drifted within days:
-      # 20260806094104 silently dropped 'super_admin' from profiles_guard_verification
-      # (has_role matches the role EXACTLY - no hierarchy), and only the unit test
-      # caught it, turning `main` red. Gate it where it belongs.
-      - name: Authorization snapshot parity
-        run: bun run check:authz-snapshot
-
-      # Blocking parity gate for the consumer side of that snapshot: role sets,
-      # dangling references, new enum values and the enforced/decorative flag of
-      # every capability. Complements the snapshot check above (data vs. renderer).
-      - name: Permissions matrix parity
-        run: bun run check:permissions-parity
-
-      # Blocking security gate: fails if any table accepts a PERMISSIVE anonymous
-      # INSERT (anon/public role + WITH CHECK true), or if an intake table
-      # (contact_messages, crm_consent_log, related_post_clicks,
-      # builder_experiment_events, analytics_events, web_vitals) accepts a direct
-      # client INSERT at all. Regression guard for the ~30-day anon-insert holes
-      # closed by 20260730130000 / 20260730140000 (spam, RODO-consent forgery,
-      # fabricated A/B results) - that class returns silently in migration churn
-      # without a static gate.
-      - name: SQL anon-insert invariant
-        run: bun run check:sql-anon-insert
-
-      # Blocking gate after the Paddle -> Stripe migration: any live reference to
-      # the old provider outside comments (import, identifier, string literal,
-      # env var, gateway URL) means a code path that talks to a payment operator
-      # this project no longer has - it would fail only at runtime, mid-checkout.
-      # Scope now includes .github/ and the root manifests: the most expensive
-      # instance of this defect was a dead PADDLE_* secret in a workflow, which
-      # the src/-and-scripts-only predecessor could never see.
-      - name: No live legacy payment-provider references
-        run: bun run check:legacy-payment-refs
-
-      # Blocking gate on the Supabase type boundary: `as never` is the repo's
-      # sanctioned escape hatch for the window between a migration and the next
-      # regeneration of src/integrations/supabase/types.ts - and nothing ever
-      # closed that window. A cast on a name the generated types already know
-      # erases both the row type (forcing a hand-written `as unknown as X` that
-      # then drifts from the database in silence) and the RPC argument type
-      # (a misspelled parameter compiles and fails as a PostgREST 400 in the
-      # browser). On 2026-08-06 the repo carried 25 such casts, some behind a
-      # "remove after regenerating types.ts" comment several releases old.
-      - name: No stale `as never` casts on the Supabase boundary
-        run: bun run check:stale-never-casts
-
-      # Blocking gate on the CAUSE of those casts: generated types going stale.
-      # `src/integrations/supabase/types.ts` is generated from the database, and
-      # the migrations are forward-only. Add a column by migration without
-      # regenerating, and code reading that column no longer compiles - at which
-      # point the cheapest way out is `as unknown as SomeRow` with a hand-written
-      # shape, which from then on erases EVERY difference from the database,
-      # including next year's. Stale types PRODUCE casts; casts hide the next
-      # drift. Measured on 2026-08-13: 28 columns across 11 tables exist in the
-      # migrations and not in the types - four of them `tenant_id`, the column
-      # tenant isolation stands on. That debt is frozen in an explicit baseline
-      # the gate can only shrink; a NEW column without regeneration fails here.
-      - name: Generated Supabase types are not stale vs migrations
-        run: bun run check:types-freshness
-
-      # Blocking gate on the SYMPTOM: a query result cast onto a row shape typed
-      # by hand next to it. Three of the first three files audited had already
-      # drifted - `retry_count: number | null` against a NOT NULL column,
-      # `status`/`kind` as `string` against ENUMs (so a comparison with a literal
-      # outside the enum compiled and never matched), `metadata` as an object
-      # against a `jsonb` column whose type is `Json`. Derive the shape from
-      # `Tables<...>` instead and a renamed column becomes a compile error in the
-      # file that reads it. Exceptions live in the script WITH a reason.
-      - name: No hand-written row shapes behind Supabase casts
-        run: bun run check:db-row-casts
-
-      # Blocking ratchet on user-facing text that branches on language in code
-      # (`isPl ? "Zapisz" : "Save"`, `l("Zapisz", "Save")`). Every such form
-      # bypasses the PL/EN parity gate - the string exists only in code, so
-      # there is nothing to compare - and closes the door on a third language.
-      # Measured on 2026-08-13: 1 641 occurrences in 166 files. The debt is
-      # frozen PER FILE: a count may only shrink, and a file absent from the
-      # baseline must be zero, so new code cannot start out in debt. A single
-      # global counter would be compensable - trimming twenty occurrences in one
-      # file would "pay for" adding twenty in another.
-      - name: No new hardcoded PL/EN text in code
-        run: bun run check:i18n-hardcoded
-
-      # Blocking wiring gate: every env var a workflow exports must have a
-      # reader. Workflow and script are separately valid when the names drift
-      # apart, and both sides tolerate a missing value, so the combination
-      # yields a run that checks nothing and stays green - which is exactly how
-      # the nightly billing probe slept 40 minutes a night against a secret no
-      # script ever read.
-      - name: Workflow env contract (no dead exports)
-        run: bun run check:workflow-env-contract
-
-      # Blocking reproducibility gate: can the database still be recreated from
-      # migrations? Two classes, both invisible to an incremental `db push` and
-      # both fatal to `supabase db start` - which takes down pgtap AND both e2e
-      # jobs, and silently stops validating every migration after the failure:
-      #   1. duplicate version prefixes (schema_migrations.version is the PRIMARY
-      #      KEY) - the audit recommended this gate for three releases as a risk;
-      #      on 2026-08-03 it materialised three times over on 20260803090000;
-      #   2. executed writes to storage.objects without the sanctioned
-      #      `storage.allow_delete_query` hatch - storage-api >= 0055 raises
-      #      42501. Two migrations regressed this on the same day, the second one
-      #      hidden behind the first.
-      - name: SQL migration replay safety
-        run: bun run check:sql-migration-replay
-
-      # Blocking contract gate between the client and the migration chain, in
-      # both directions: (1) every name the client passes to `supabase.rpc(...)`
-      # must still exist in the final state of migrations - otherwise the browser
-      # gets PGRST202; (2) no surviving function body may name a relation that a
-      # later migration renamed or dropped - otherwise the call raises 42P01.
-      # Neither is visible to the compiler, to `CREATE FUNCTION` (plpgsql/sql
-      # bodies resolve relations at CALL time) or to an incremental `db push`,
-      # so both hide until a fresh database is created. That is exactly how the
-      # five expert-request RPCs the client calls ended up dead on every new
-      # environment while production kept working (20260806160000).
-      - name: RPC contract (client calls ⇄ migrations)
-        run: bun run check:rpc-contract
-
-      # Blocking gate: the SIXTH positional argument of emit_domain_event is the
-      # actor (uuid), never a flag. A12 added a second overload with a boolean
-      # there; A16 collapsed the overload but kept the boolean sixth, and the 25
-      # call sites in billing, monetization and badges stopped binding. Every
-      # emitter swallows its own exception so the fan-out cannot abort business
-      # transactions - which turned a hard 42883 into silence and an empty event
-      # bus. Judged on the FINAL migration state: migrations are forward-only,
-      # so a later file recreating the function is the fix, not an edit.
-      - name: Domain event actor is the sixth argument
-        run: bun run check:sql-emit-actor
-
-      # Blocking tenant-isolation gate: fails if an owner-scoped RLS clause
-      # (`auth.uid() = <column>`) drops the tenant binding while a sibling
-      # clause on the SAME table keeps it. That asymmetry made author_profiles
-      # rows writable only in the home tenant yet readable AND deletable from
-      # any tenant context (fixed by 20260803140000). Self-calibrating - the
-      # schema declares the intent, so there is no hand-maintained table list.
-      # KNOWN_OPEN_GAPS carries the debt that predates the gate: it is printed
-      # on every run, any NEW gap fails immediately, and a closed gap fails
-      # until its entry is removed, so the list can only shrink.
-      - name: SQL owner tenant-scope invariant
-        run: bun run check:sql-owner-tenant-scope
-
-      # Blocking freshness gate for the authorization snapshot that feeds the
-      # permission matrix (/admin/permissions). The Vitest parity test compares
-      # the snapshot SEMANTICALLY (gate -> roles), so it stays green while the
-      # generated file drifts in provenance (`file`) and scan `stats` - exactly
-      # what happened when 20260806094104 narrowed profiles_guard_verification
-      # to `admin` outside a PR: the committed snapshot lagged 10 migrations
-      # behind. This step regenerates and diffs byte-for-byte, so any migration
-      # that moves or rewrites a documented gate must ship the regenerated
-      # artifact (`bun run generate:authz-snapshot`) in the same commit.
-      - name: Authorization snapshot freshness
-        run: bun run check:authz-snapshot
 
   # pgTAP: RLS tenant isolation, role management and full-text search run
   # against a real local Postgres (supabase db start applies migrations +
