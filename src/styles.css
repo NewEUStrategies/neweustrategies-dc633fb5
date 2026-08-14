@@ -5554,7 +5554,17 @@ textarea::placeholder {
     border: 1.5px solid var(--border);
     border-radius: 6px !important;
     background: transparent;
-    padding: 1rem 0.9rem;
+    /* Wysokość kontrolki wynika z `min-height`, a NIE z pionowego paddingu.
+       Globalna reguła `:where(input) { height: var(--form-input-height) }`
+       ustawia sztywną wysokość, więc duży padding-block dawał zdegenerowany
+       content-box (padding > wysokość) i tekst/placeholder wypadał optycznie
+       za wysoko. Przy `padding-block: 0` przeglądarka centruje wartość i
+       placeholder dokładnie w osi kontrolki - niezależnie od tego, czy
+       konsument nadpisze wysokość (h-9, h-11, admin-compact itd.). */
+    height: auto;
+    min-height: var(--input-group-height, 3rem);
+    padding-block: 0;
+    padding-inline: 0.9rem;
     font-size: 0.95rem;
     line-height: 1.25rem;
     color: var(--foreground);
@@ -5567,10 +5577,23 @@ textarea::placeholder {
   .input-group > .input:hover:not(:disabled) {
     border-color: color-mix(in oklab, var(--border) 60%, var(--foreground) 20%);
   }
+  /* Textarea nie ma osi pionowej do centrowania - tekst startuje od pierwszej
+     linii, więc etykieta w spoczynku musi siedzieć na tej samej linii. */
   .input-group > textarea.input {
     min-height: 6.5rem;
+    padding-block: var(--input-group-textarea-pad, 0.85rem);
     resize: vertical;
   }
+  .input-group > textarea.input ~ .user-label {
+    top: calc(var(--input-group-textarea-pad, 0.85rem) + 0.625rem);
+    transform: translateY(-50%);
+  }
+  .input-group > textarea.input:focus ~ .user-label,
+  .input-group > textarea.input:not(:placeholder-shown) ~ .user-label {
+    top: 0;
+    transform: translateY(-50%) scale(0.8);
+  }
+
   /* Material floating label + a REAL placeholder.
      Idle state: the author's placeholder is painted transparent so it never
      collides with the label parked inside the field. Focus state: the label has
