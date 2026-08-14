@@ -23,6 +23,7 @@ import { Lock, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 import { catalogPriceForPlan } from "@/lib/billing/catalog";
+import { isForeignTenantResource } from "@/lib/tenant";
 import { useCheckout } from "@/hooks/useCheckout";
 // Ramka operatora wchodzi przez granicę `React.lazy` (patrz nagłówek
 // EmbeddedCheckoutFrame) - trasa checkoutu nie może być drugim statycznym
@@ -46,7 +47,7 @@ function CheckoutPage() {
   ensureProfileI18n();
   const { planId } = Route.useParams();
   const { t, i18n } = useTranslation();
-  const { session } = useAuth();
+  const { session, tenantId } = useAuth();
   const [busy, setBusy] = useState(false);
   const [coupon, setCoupon] = useState<{ code: string; discountCents: number } | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
@@ -71,22 +72,30 @@ function CheckoutPage() {
 
   const { data: checkoutSettings } = useCheckoutSettings();
 
+  // IZOLACJA OBSZARÓW ROBOCZYCH (druga kłódka po RLS). `access_plans` czytamy po
+  // samym `id` - autorytetem szczelności jest polityka bazy, ale plan z CUDZEGO
+  // tenanta nie może zostać nawet wyrenderowany jako oferta na tej domenie:
+  // kupujący zobaczyłby nazwę i cenę z obszaru roboczego innej firmy, a serwer
+  // odrzuciłby płatność dopiero po kliknięciu. Znany rozjazd = plan nie istnieje.
+  const fetchedPlan = plan.data ?? null;
+  const planData = isForeignTenantResource(fetchedPlan?.tenant_id, tenantId) ? null : fetchedPlan;
+
   useEffect(() => {
-    if (plan.isSuccess && !plan.data) {
+    if (plan.isSuccess && !planData) {
       toast.error(t("checkout.notFound"));
     }
-  }, [plan.isSuccess, plan.data, t]);
+  }, [plan.isSuccess, planData, t]);
 
   const hasBilling = !!billing.data?.address_line1 && !!billing.data?.city;
   // Tryb sesji u operatora wynika z cyklu planu - plan jednorazowy jedzie jako
   // `payment`, każdy cykliczny jako `subscription` (patrz `catalog.ts`).
   const checkoutMode: "payment" | "subscription" =
-    plan.data?.interval === "one_time" ? "payment" : "subscription";
+    planData?.interval === "one_time" ? "payment" : "subscription";
   const displayCurrency = displayCurrencyForLang(i18n.language);
-  const planCurrency = plan.data?.currency ?? "PLN";
+  const planCurrency = planData?.currency ?? "PLN";
   // Kwoty do wyświetlenia po konwersji (parytet z /pricing i /support).
   const originalDisplay = convertToDisplayCurrency(
-    plan.data?.price_cents ?? 0,
+    planData?.price_cents ?? 0,
     planCurrency,
     displayCurrency,
   );
@@ -98,17 +107,17 @@ function CheckoutPage() {
   const finalCentsDisplay = Math.max(originalDisplay.cents - discountDisplay.cents, 0);
 
   const submit = async () => {
-    if (!plan.data || !hasBilling) return;
+    if (!planData || !hasBilling) return;
     setBusy(true);
     try {
-      const price = catalogPriceForPlan(plan.data);
+      const price = catalogPriceForPlan(planData);
       if (!price) {
         toast.error(t("checkout.paymentsNotConfigured"));
         setBusy(false);
         return;
       }
       const result = await openPlanCheckout({
-        planId: plan.data.id,
+        planId: planData.id,
         priceId: price.priceId,
         couponCode: coupon?.code,
         returnUrl: `${window.location.origin}/checkout/success`,
@@ -191,28 +200,28 @@ function CheckoutPage() {
                 <CardTitle>{t("checkout.summary")}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {plan.data ? (
+                {planData ? (
                   <>
                     <div>
                       <div className="text-xs uppercase text-muted-foreground">
                         {t("checkout.item")}
                       </div>
-                      <div className="font-semibold">{planName(plan.data, i18n.language)}</div>
-                      {planDescription(plan.data, i18n.language) && (
+                      <div className="font-semibold">{planName(planData, i18n.language)}</div>
+                      {planDescription(planData, i18n.language) && (
                         <p className="text-sm text-muted-foreground">
-                          {planDescription(plan.data, i18n.language)}
+                          {planDescription(planData, i18n.language)}
                         </p>
                       )}
                     </div>
-                    {plan.data.trial_days > 0 && plan.data.interval !== "one_time" && (
+                    {planData.trial_days > 0 && planData.interval !== "one_time" && (
                       <p className="rounded-md bg-primary/10 px-3 py-2 text-xs font-medium text-primary">
-                        {t("checkout.trialLine", { days: plan.data.trial_days })}
+                        {t("checkout.trialLine", { days: planData.trial_days })}
                       </p>
                     )}
                     <CouponInput
-                      planId={plan.data.id}
-                      amountCents={plan.data.price_cents}
-                      currency={plan.data.currency}
+                      planId={planData.id}
+                      amountCents={planData.price_cents}
+                      currency={planData.currency}
                       onChange={(payload) =>
                         setCoupon(
                           payload
@@ -230,7 +239,7 @@ function CheckoutPage() {
                         <div className="flex items-center justify-between text-xs text-muted-foreground">
                           <span>{t("checkout.subtotal")}</span>
                           <span className="line-through">
-                            {formatDisplayMoney(plan.data.price_cents, planCurrency, i18n.language)}
+                            {formatDisplayMoney(planData.price_cents, planCurrency, i18n.language)}
                           </span>
                         </div>
                       )}
