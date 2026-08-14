@@ -55,32 +55,16 @@ const JUSTIFIED: OwnerScopeAnnotations = {
  * Dlug zastany (bramka wprowadzona 2026-08-03). Wpis MUSI mowic, jaki predykat
  * jest poprawny dla tej plaszczyzny danych - inaczej nie da sie go zamknac.
  * Lista moze tylko malec: zamknieta luka bez usunietego wpisu wywala bramke.
+ *
+ * STAN: PUSTA. Ostatnie 12 pozycji domknieto migracja
+ * 20260814221343 (billing_profiles, eu_policy_follows, message_stars,
+ * notification_preferences, payment_orders, qa_question_votes, qa_questions) -
+ * plaszczyzna konta dostala `tenant_id = current_tenant_id()` / tenant domowy
+ * z profilu, plaszczyzna tresci wiazanie tenanta wiersza z tenantem RODZICA
+ * (dossier, pytanie, sesja Q&A) w tym samym EXISTS co odpowiadajacy WITH CHECK.
  */
-const KNOWN_OPEN_GAPS: OwnerScopeAnnotations = {
-  "billing_profiles::billing owner delete":
-    "plaszczyzna konta - poprawny predykat: user_id = auth.uid() AND tenant_id = current_tenant_id() (jak w 'billing owner update')",
-  "billing_profiles::billing owner read":
-    "jw. - galaz wlasciciela w OR czyta profil rozliczeniowy z dowolnego tenanta",
-  "eu_policy_follows::policy follows owner all":
-    "plaszczyzna TRESCI - tenantem obserwacji jest tenant dossier; WITH CHECK wiaze ja z i.tenant_id, USING nie wiaze nic (poprawne wiazanie: to samo EXISTS po stronie USING)",
-  "message_stars::message_stars_own_delete":
-    "plaszczyzna konta - poprawny predykat: user_id = (select auth.uid()) AND tenant_id = (select current_tenant_id()) (jak w 'message_stars_own_select')",
-  "notification_preferences::own prefs delete":
-    "plaszczyzna konta - poprawny predykat: user_id = auth.uid() AND tenant_id = current_tenant_id() (jak w 'own prefs insert')",
-  "notification_preferences::own prefs select":
-    "jw. - preferencje sa przypiete do tenanta domowego triggerem, polityka tego nie odwzorowuje",
-  "notification_preferences::own prefs update":
-    "jw. - USING bez tenanta pozwala ruszyc wiersz obcego tenanta, WITH CHECK wymusza tylko przepisanie go do siebie",
-  "payment_orders::orders owner read":
-    "plaszczyzna konta - poprawny predykat: user_id = auth.uid() AND tenant_id = current_tenant_id() (jak w 'orders owner insert')",
-  "qa_question_votes::qa votes own delete":
-    "plaszczyzna TRESCI - tenantem wiersza jest tenant pytania (uzytkownik tenanta A glosuje na publicznej stronie tenanta publicznego), wiec current_tenant_id() jest tu ZLYM predykatem; poprawne wiazanie: tenant glosu = tenant pytania, jak w 'qa votes own insert'",
-  "qa_question_votes::qa votes own read": "jw. - wiazanie przez tenanta pytania, nie tenant domowy",
-  "qa_questions::qa questions host read":
-    "plaszczyzna TRESCI - host czyta pytania SWOJEJ sesji; poprawne wiazanie: tenant pytania = tenant sesji w EXISTS, nie current_tenant_id()",
-  "qa_questions::qa questions moderate":
-    "jw. - galaz stafowa wiaze tenanta, galaz hosta (EXISTS po qa_sessions.host_user_id) nie wiaze nic; poprawne wiazanie: q.tenant_id = s.tenant_id w tym samym EXISTS",
-};
+const KNOWN_OPEN_GAPS: OwnerScopeAnnotations = {};
+
 
 function renderGap(gap: OwnerScopeGap, note?: string): string[] {
   const lines = [
