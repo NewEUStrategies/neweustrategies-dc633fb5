@@ -133,6 +133,18 @@ describe("kontrakt CSS pływającej etykiety (src/styles.css)", () => {
     expect(CSS).toContain(".input-group > .input:not(:placeholder-shown) ~ .user-label");
   });
 
+  it("etykieta jest centrowana względem kontrolki, a nie wrappera z błędem", () => {
+    // `.input-group` musi być jednokolumnową siatką, a etykieta i kontrolka
+    // muszą jawnie zajmować wiersz 1 - dopiero wtedy `top: 50%` etykiety liczy
+    // się względem obszaru pola, a komunikat o błędzie (wiersz 2) nie zsuwa
+    // placeholdera w dół.
+    const group = CSS.slice(CSS.indexOf(".input-group {"));
+    expect(group.slice(0, group.indexOf("}"))).toMatch(/display:\s*grid/);
+    expect(CSS).toMatch(
+      /\.input-group > \.input,\s*\.input-group > \.user-label \{[^}]*grid-row:\s*1 \/ 2[^}]*grid-column:\s*1 \/ 2[^}]*\}/,
+    );
+  });
+
   it("respektuje prefers-reduced-motion", () => {
     const idx = CSS.indexOf(".input-group > .user-label {");
     expect(idx).toBeGreaterThan(-1);
