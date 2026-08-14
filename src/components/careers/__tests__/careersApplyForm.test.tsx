@@ -188,14 +188,9 @@ describe("CareersApplyForm: kreator 3 kroków", () => {
     nextStep(); // -> Wiadomość
 
     const submitButton = screen.getByRole("button", { name: /careers\.form\.submit/ });
+    // Wiadomość jest opcjonalna - blokuje wyłącznie brak zgody.
     fireEvent.click(submitButton);
-    expect(screen.getByText("careers.form.errors.messageRequired")).toBeInTheDocument();
-
-    fireEvent.change(screen.getByLabelText(/careers\.form\.message/), {
-      target: { value: "Za krótko." },
-    });
-    fireEvent.click(submitButton);
-    expect(screen.getByText("careers.form.errors.messageShort")).toBeInTheDocument();
+    expect(screen.getByText("careers.form.errors.consentRequired")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(/careers\.form\.message/), {
       target: { value: LONG_MESSAGE },
