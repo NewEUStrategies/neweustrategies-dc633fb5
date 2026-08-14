@@ -38,3 +38,19 @@ export function fontPreloadLinks(lang: Lang, urls: FontPreloadUrls): Array<Recor
   if (lang === "pl") links.push(preload(urls.latinExt));
   return links;
 }
+
+/**
+ * Te same preloady fontów jako wartości nagłówka HTTP `Link` (RFC 8288).
+ * Emitowane obok `<link>` w dokumencie: przeglądarka startuje pobieranie
+ * z nagłówków odpowiedzi (przed pierwszym bajtem HTML), a Cloudflare może
+ * powtórzyć je jako 103 Early Hints. `crossorigin` jest obowiązkowe tak samo
+ * jak w wariancie znacznikowym - bez niego przeglądarka pobrałaby font drugi
+ * raz (żądanie z CSS jest zawsze anonimowe-CORS). Czysta funkcja.
+ */
+export function fontPreloadLinkHeaderValues(lang: Lang, urls: FontPreloadUrls): string[] {
+  const value = (href: string) =>
+    `<${href}>; rel="preload"; as="font"; type="font/woff2"; crossorigin`;
+  const values = [value(urls.latin)];
+  if (lang === "pl") values.push(value(urls.latinExt));
+  return values;
+}

@@ -45,8 +45,16 @@ export type NesCacheStatus = "HIT" | "STALE" | "MISS" | "BYPASS";
  * widocznych w minuty, nie kwadranse.
  */
 export const DOCUMENT_CACHE_MAX_FRESH_MS = 180_000;
-/** Górny pułap okna serwowania stale (rewalidacja w tle single-flight). */
-export const DOCUMENT_CACHE_MAX_SWR_MS = 6 * 60 * 60 * 1000;
+/**
+ * Górny pułap okna serwowania stale (rewalidacja w tle single-flight).
+ * 24 h (pełne okno `stale-while-revalidate` z contentCacheControl), nie 6 h:
+ * przy niskim ruchu pierwszy czytelnik kolonii po dłuższej ciszy płacił pełny
+ * render (sekundy TTFB), choć L2 wciąż trzymał poprawny dokument. Serwowanie
+ * stale jest bezpieczne z konstrukcji: publikacja robi purge (bump wersji L2 -
+ * wpis natychmiast nieosiągalny w całej kolonii), a rewalidacja i tak biegnie
+ * ZA odpowiedzią przy pierwszym trafieniu w okno stale.
+ */
+export const DOCUMENT_CACHE_MAX_SWR_MS = 24 * 60 * 60 * 1000;
 
 /** Limit rozmiaru pojedynczego dokumentu (większe nie wchodzą do cache). */
 export const DOCUMENT_CACHE_MAX_ENTRY_BYTES = 1024 * 1024;

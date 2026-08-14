@@ -53,6 +53,7 @@ import { evaluateAccess, useAccessContext } from "@/lib/builder/accessControl";
 import { useInlineWidgetEdit } from "@/components/admin/builder/inlineEditContext";
 
 import { useSectionPreload } from "@/lib/builder/useSectionPreload";
+import { AboveFoldProvider } from "@/lib/builder/aboveFold";
 import { useBuilderDebug, toggleBuilderDebug } from "@/lib/builder/builderDebug";
 import { safeParseBuilderDoc, isKnownWidgetType } from "@/lib/builder/schema";
 import { ABOVE_FOLD_SECTION_COUNT } from "@/lib/builder/prefetch";
@@ -328,22 +329,26 @@ const SectionsList = memo(function SectionsList({
           </RenderErrorBoundary>
         );
         return (
-          <StreamingSection
-            key={s.id}
-            section={s}
-            lang={lang}
-            index={index}
-            aboveFoldCount={aboveFoldCount}
-            enabled={stream}
-          >
-            {abTag && !editorPreview && assignments ? (
-              <ExperimentSection experimentId={abTag.experimentId} variant={abTag.variant}>
-                {rendered}
-              </ExperimentSection>
-            ) : (
-              rendered
-            )}
-          </StreamingSection>
+          // Sekcje czołowe (index < aboveFoldCount - ten sam próg co prefetch
+          // SSR) oznaczają swoje widgety jako kandydatów LCP: pierwszy obraz
+          // widgetu dostaje eager + fetchpriority=high zamiast lazy.
+          <AboveFoldProvider key={s.id} aboveFold={index < aboveFoldCount}>
+            <StreamingSection
+              section={s}
+              lang={lang}
+              index={index}
+              aboveFoldCount={aboveFoldCount}
+              enabled={stream}
+            >
+              {abTag && !editorPreview && assignments ? (
+                <ExperimentSection experimentId={abTag.experimentId} variant={abTag.variant}>
+                  {rendered}
+                </ExperimentSection>
+              ) : (
+                rendered
+              )}
+            </StreamingSection>
+          </AboveFoldProvider>
         );
       })}
     </>

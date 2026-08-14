@@ -240,6 +240,41 @@ const CLIENT_DIR =
 // Floor największego chunku idzie więc TYLKO nad zmierzony ślad maina, bez
 // zapasu - żeby ta pozycja dalej piszczała przy każdym kolejnym kilobajcie.
 
+// 2026-08-14  PUBLIC +4,2 KB PONAD PRÓG - dwie zmierzone przyczyny, żadna nie
+//             jest regresją chunku startowego (chunk: 467,4 przy progu 513).
+//
+// POMIAR (ten sam host, pełny build obu stron):
+//   * gałąź BEZ tych zmian:  465,7 chunk / 2477,1 public  <- próg 2475 JUŻ
+//     przekroczony: commit "Stylizowano karte stanowiska" dodał publiczną
+//     trasę karier (chunk `zatrudniamy`, +19,3 KB) bez wpisu tutaj. To nowa
+//     powierzchnia produktu - PUBLIC liczy każdy chunk osiągalny z publicznego
+//     URL-a, więc floor jest właściwą odpowiedzią (ten sam werdykt co przy
+//     klubach w 08-12).
+//   * gałąź Z tymi zmianami: 467,4 chunk / 2479,1 public (+2,0 KB) -
+//     infrastruktura preloadu LCP: `heroImage` (deskryptor preloadu hero
+//     buildera; współdzielony przez trasy `/` i `/$`, więc hoistowany do
+//     entry), wspólne moduły `sizes` (sliderSizes/widgetImageSizes/
+//     cardImageSizes - parytet preload<->render), kontekst above-fold
+//     i akumulator nagłówka `Link`. Koszt jednorazowy; w zamian preload
+//     obrazu LCP na stronie głównej, stronach buildera, archiwach i trasach
+//     szczegółowych + nagłówki Link utrwalane w NES Edge Cache
+//     (docs/WDROZENIE_SSR_LCP_2026-08-13.md).
+// Próg PUBLIC idzie na 2505 (~1% zapasu nad zmierzonym 2479,1 - ta sama
+// reguła co w 08-12: podnosi go każda nowa trasa publiczna, zapas rzędu
+// kilku KB zapala bramkę od cudzych merge'ów w ciągu godziny).
+
+// 2026-08-14 (2)  OVERALL +4,6 KB PONAD PRÓG - w całości dryf maina, zero
+//             udziału tej gałęzi (jej zmiany to kod WYŁĄCZNIE serwerowy:
+//             SWR katalogu tenantów i indeksu przekierowań + okno stale NES;
+//             .output/public bajt w bajt jak czysty main).
+// POMIAR (ten sam host, pełny build obu stron):
+//   * czysty main:      3794,6 overall (chunk 467,5 / public 2479,1 - w progach),
+//   * ta gałąź:         3794,6 overall - identycznie.
+// Skład dryfu wg ruchów względem baseline'u: powierzchnia karier
+// (`zatrudniamy` +21,6 KB overall, wpis wyżej) + entry +3,3 KB. Próg OVERALL
+// idzie na 3835 (~1% zapasu nad zmierzonym 3794,6 - reguła z 08-12; tę liczbę
+// podnosi każdy nowy ekran adminowy, których czytelnik nigdy nie pobiera).
+
 /**
  * Progi ZAMROŻONE (2026-08-12). Do tej pory każdy z nich dało się rozluźnić
  * jedną zmienną środowiskową w workflow - bramka, którą wolno wyłączyć bez
@@ -255,13 +290,15 @@ const FROZEN_BUDGET_KB = {
   // a jej wzrost od 08-06 (+72 KB) ma zmierzoną przyczynę do naprawy - patrz
   // wpis 2026-08-12 wyżej.
   chunk: 513,
-  // gzip JS osiągalny z publicznego URL-a. Zmierzone: main 2444,9 / gałąź 2449,4.
-  // ~1% zapasu, bo tę liczbę podnosi KAŻDA nowa trasa publiczna i przy zapasie
-  // rzędu kilku KB bramka zapala się od cudzych merge'ów w ciągu godziny
-  // (lekcja z 08-01).
-  public: 2475,
-  // gzip JS łącznie z kodem tylko adminowym. Zmierzone: main 3742,8 / gałąź 3749,8.
-  overall: 3790,
+  // gzip JS osiągalny z publicznego URL-a. Zmierzone 2026-08-14: 2479,1
+  // (trasa karier +19,3 KB z wcześniejszego commita + infrastruktura preloadu
+  // LCP +2,0 KB - patrz wpis 2026-08-14 wyżej). ~1% zapasu, bo tę liczbę
+  // podnosi KAŻDA nowa trasa publiczna i przy zapasie rzędu kilku KB bramka
+  // zapala się od cudzych merge'ów w ciągu godziny (lekcja z 08-01).
+  public: 2505,
+  // gzip JS łącznie z kodem tylko adminowym. Zmierzone 2026-08-14 (2): czysty
+  // main 3794,6 (dryf: powierzchnia karier + entry - patrz wpis wyżej).
+  overall: 3835,
 } as const;
 
 /** GitHub Actions ustawia CI=true; honorujemy też generyczne CI innych runnerów. */
@@ -470,7 +507,9 @@ if (process.argv.includes("--update-baseline")) {
   };
   mkdirSync("reports", { recursive: true });
   writeFileSync(BASELINE_PATH, `${JSON.stringify(snapshot, null, 2)}\n`);
-  console.log(`✓ Baseline zapisany: ${BASELINE_PATH} (${Object.keys(snapshot.chunks).length} chunków, commit ${commit}).`);
+  console.log(
+    `✓ Baseline zapisany: ${BASELINE_PATH} (${Object.keys(snapshot.chunks).length} chunków, commit ${commit}).`,
+  );
   process.exit(0);
 }
 
@@ -556,9 +595,7 @@ if (tight.length > 0) {
     console.warn("!");
     for (const line of report) console.warn(`! ${line}`);
   }
-  console.warn(
-    `! To NIE jest powód, żeby podnieść próg - to powód, żeby zmierzyć skład chunku:`,
-  );
+  console.warn(`! To NIE jest powód, żeby podnieść próg - to powód, żeby zmierzyć skład chunku:`);
   console.warn(
     `!   BUNDLE_INVENTORY=1 bun run build && bun run report:chunk-inventory ${stableChunkName(maxFile)}`,
   );

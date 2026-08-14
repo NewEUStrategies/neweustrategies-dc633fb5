@@ -15,13 +15,17 @@ export interface SsrDbTiming {
 
 /**
  * Zbuduj wartość nagłówka Server-Timing dla dokumentu SSR: status NES Edge
- * Cache + czas renderu + (jeśli zmierzono) koszt bazy. Czysta funkcja -
- * testowalna bez Response.
+ * Cache + czas renderu + (jeśli zmierzono) koszt bazy + (na HIT/STALE) wiek
+ * serwowanego wpisu. Czysta funkcja - testowalna bez Response.
  */
 export function buildServerTimingValue(
   status: string,
   renderMs?: number,
   db?: SsrDbTiming | null,
+  /** Wiek wpisu cache w ms (HIT/STALE) - `nes-age;dur=` dla korelacji RUM:
+   *  bez niego nie da się odróżnić świeżego trafienia od dokumentu z końca
+   *  okna SWR przy analizie regresji LCP. */
+  cacheAgeMs?: number,
 ): string {
   const parts = [`nes-edge;desc="${status}"`];
   if (typeof renderMs === "number" && Number.isFinite(renderMs)) {
@@ -29,6 +33,9 @@ export function buildServerTimingValue(
   }
   if (db && db.count > 0) {
     parts.push(`db;dur=${db.totalMs.toFixed(1)};desc="n=${db.count}"`);
+  }
+  if (typeof cacheAgeMs === "number" && Number.isFinite(cacheAgeMs) && cacheAgeMs >= 0) {
+    parts.push(`nes-age;dur=${Math.round(cacheAgeMs)}`);
   }
   return parts.join(", ");
 }

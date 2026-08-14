@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight } from "@/lib/lucide-shim";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
 import { buildImageSrcSet } from "@/lib/cropSizes";
+import { SLIDER_FULL_BLEED_SIZES, SLIDER_SPLIT_SIZES, sliderMultiCardSizes } from "./sliderSizes";
 import { useResolvedPostRefs } from "./contentRefs";
 import { sliderFallbackImagesQueryOptions } from "@/lib/builder/sliderFallbackQuery";
 import { CAROUSEL_DEFAULTS, useCarouselDefaults } from "@/lib/theme/carouselDefaults";
@@ -294,6 +295,10 @@ interface ResilientSliderImageProps {
   active: boolean;
   onBrokenSource: (src: string) => void;
   priority?: boolean;
+  /** `sizes` responsywnych kandydatów - wariant przekazuje wartość ze
+   *  wspólnego modułu sliderSizes, tego samego, z którego budowany jest
+   *  preload LCP (bajtowa zgodność `<img sizes>` z `imagesizes` preloadu). */
+  sizes?: string;
   /** Override layout className (default: absolute fill cover). */
   className?: string;
   /** Optional inline style overrides merged after fade transition. */
@@ -309,6 +314,7 @@ function ResilientSliderImage({
   active,
   onBrokenSource,
   priority = false,
+  sizes = SLIDER_FULL_BLEED_SIZES,
   className,
   style,
   alwaysVisible = false,
@@ -343,7 +349,7 @@ function ResilientSliderImage({
       ref={imgRef}
       src={displaySrc}
       srcSet={srcSet || undefined}
-      sizes={srcSet ? "100vw" : undefined}
+      sizes={srcSet ? sizes : undefined}
       alt=""
       draggable={false}
       data-fill-image
@@ -1286,6 +1292,11 @@ function MultiCardVariant(p: VariantProps) {
                         placeholderSrc={SLIDER_IMAGE_PLACEHOLDER}
                         active
                         alwaysVisible
+                        // Pierwsza karta jest kandydatem LCP tego wariantu -
+                        // bez priority ładowała się leniwie mimo pozycji
+                        // above-the-fold (jedyny wariant slidera bez eager).
+                        priority={i === 0}
+                        sizes={sliderMultiCardSizes(p.columns)}
                         onBrokenSource={p.markImageFailed}
                         className="eh-hover-zoom absolute inset-0 w-full h-full object-cover"
                       />
@@ -1566,6 +1577,7 @@ function SplitFeatureVariant(p: VariantProps) {
               placeholderSrc={SLIDER_IMAGE_PLACEHOLDER}
               active={i === p.safeIdx}
               priority={i === 0}
+              sizes={SLIDER_SPLIT_SIZES}
               onBrokenSource={p.markImageFailed}
             />
           ))}

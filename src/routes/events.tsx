@@ -310,7 +310,7 @@ function EventCard({ event, lang }: { event: PublicEvent; lang: "pl" | "en" }) {
         </h3>
         {desc && <p className="mt-2 line-clamp-3 text-sm text-muted-foreground">{desc}</p>}
         <span className="mt-4 inline-block text-sm font-medium text-primary">
-          {t("community.events.readMore")} -&gt;
+          {t("community.events.readMoreAbout", { title })} -&gt;
         </span>
       </div>
     </li>

@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { PostListCard } from "@/components/molecules/PostListCard";
+import { FEATURED_CARD_IMAGE_SIZES } from "@/lib/cardImageSizes";
 import { FooterSlideup } from "@/components/ads/FooterSlideup";
 import { useInFeedAds } from "@/components/ads/useInFeedAds";
 import { ArchivePosts } from "./ArchivePosts";
@@ -51,10 +52,15 @@ export function ArchiveBody(props: ArchiveLayoutProps) {
     <div className="min-w-0 flex-1">
       {showGenericFeatured && (
         <div className="mb-8 rounded-2xl overflow-hidden border border-border bg-card">
+          {/* Karta wyróżniona to kandydat LCP archiwum: eager + high priority
+              oraz `sizes` odpowiadające realnej (~800 px) szerokości renderu -
+              dziedziczone 360 px dawało rozmytą, upscalowaną okładkę. */}
           <PostListCard
             post={featured}
             href={featured.href}
             lang={lang}
+            priority
+            imageSizes={FEATURED_CARD_IMAGE_SIZES}
             viewTransitionId={featured.id}
           />
         </div>
@@ -75,6 +81,9 @@ export function ArchiveBody(props: ArchiveLayoutProps) {
         settings={settings}
         emptyText={emptyText}
         renderAfterCard={renderAfterCard}
+        // Bez karty wyróżnionej (tu ani w wariancie Magazine) kandydatem LCP
+        // jest pierwsza karta siatki - wtedy to ona dostaje eager + high.
+        firstCardPriority={!showGenericFeatured && !hasCustomFeaturedTop}
       />
       {totalPages > 1 && (
         <div className="pt-8">

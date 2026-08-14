@@ -9,6 +9,7 @@ import { ChevronLeft, ChevronRight, Pause, Play } from "lucide-react";
 import type { WidgetContent } from "@/lib/builder/types";
 import { getBool, getNum, getStr } from "./frame";
 import { useUsedPostIds } from "@/lib/builder/usedPostIds";
+import { useAboveFold } from "@/lib/builder/aboveFold";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { WidgetMediaImage } from "@/components/atoms/WidgetMediaImage";
 import { AppLink } from "@/components/atoms/AppLink";
@@ -26,10 +27,18 @@ import {
   carouselAutoplayIntervalMs,
 } from "@/lib/builder/postListCarousel";
 import { normalizeTypographyGapPx } from "@/lib/builder/typographyCss";
+import {
+  POST_LIST_CLASSIC_COVER_SIZES,
+  POST_LIST_FLEX_LEAD_SIZES,
+  POST_LIST_GRID_COVER_SIZES,
+} from "@/lib/builder/widgetImageSizes";
 
 // Cover renders across a 1-4 column responsive grid. Images are always painted
 // into a stable frame so mobile CSS cannot stretch/squash their crop.
-const GRID_COVER_SIZES = "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw";
+// `sizes` przychodzi ze wspólnego widgetImageSizes - z tego samego modułu
+// korzysta budowniczy preloadu LCP (heroImage), więc preload i render nie mogą
+// się rozjechać.
+const GRID_COVER_SIZES = POST_LIST_GRID_COVER_SIZES;
 const COVER_IMG_CLASS = "absolute inset-0 block h-full w-full object-cover";
 
 export type ImageAspect = "4/3" | "3/4" | "1/1" | "16/9";
@@ -128,6 +137,11 @@ export function PostListView({
   const mobileHScroll = getBool(c, "mobileHorizontalScroll", false);
 
   const used = useUsedPostIds();
+  // Widget w sekcji nad zgięciem: WYŁĄCZNIE obraz wiodący (pierwsza karta /
+  // lead) dostaje eager + fetchpriority=high - to on bywa elementem LCP, gdy
+  // strona otwiera się post-listą zamiast sliderem. Miniatury list zostają
+  // leniwe: nie konkurują o pasmo z prawdziwym kandydatem LCP.
+  const aboveFold = useAboveFold();
   // Stable, snapshot-independent query: the server prefetch / stream gate and the
   // client resolve the SAME cache entry, so a streamed uniqueOnPage widget reuses
   // the dehydrated rows instead of refetching under a divergent key (no skeleton
@@ -241,7 +255,7 @@ export function PostListView({
         intervalMs={carouselAutoplayIntervalMs(c)}
         lang={lang}
       >
-        {rows.map((p) => (
+        {rows.map((p, i) => (
           <PostCard
             key={p.id}
             p={p}
@@ -252,6 +266,7 @@ export function PostListView({
             excerpt={excerpt(p)}
             titleStyle={tStyle}
             excerptStyle={eStyle}
+            priority={aboveFold && i === 0}
             authorNode={<AuthorMeta p={p} />}
             authorOverlayNode={<AuthorMeta p={p} tone="onDark" />}
           />
@@ -481,14 +496,15 @@ export function PostListView({
     // Single-column lead layout - big cover, headline + excerpt below. Stacks N items.
     return (
       <div className="w-full flex flex-col gap-8">
-        {rows.map((p) => (
+        {rows.map((p, i) => (
           <AppLink key={p.id} href={`/post/${p.slug}`} className="block group">
             {p.cover_image_url && (
               <WidgetMediaImage
                 src={p.cover_image_url}
                 alt=""
                 frameClassName={`${tileFrame(aspect)} rounded-md mb-4`}
-                sizes="(max-width: 1024px) 100vw, 900px"
+                sizes={POST_LIST_CLASSIC_COVER_SIZES}
+                priority={aboveFold && i === 0}
                 foregroundClassName={COVER_IMG_CLASS}
                 hoverEffect="zoom"
               />
@@ -522,7 +538,8 @@ export function PostListView({
                 src={lead.cover_image_url}
                 alt=""
                 frameClassName={`relative block aspect-[16/9] md:aspect-[16/10] w-full shrink-0 overflow-hidden bg-muted`}
-                sizes="(max-width: 768px) 100vw, 58vw"
+                sizes={POST_LIST_FLEX_LEAD_SIZES}
+                priority={aboveFold}
                 foregroundClassName={`${COVER_IMG_CLASS} transition-transform duration-500 group-hover:scale-[1.03]`}
               />
             </div>
@@ -631,7 +648,7 @@ export function PostListView({
       className={`w-full grid gap-4 ${mobileHScroll ? "cms-mobile-hscroll" : ""}`}
       style={{ gridTemplateColumns: `repeat(${effectiveCols}, minmax(0, 1fr))` }}
     >
-      {rows.map((p) => (
+      {rows.map((p, i) => (
         <PostCard
           key={p.id}
           p={p}
@@ -641,6 +658,7 @@ export function PostListView({
           excerpt={excerpt(p)}
           titleStyle={tStyle}
           excerptStyle={eStyle}
+          priority={aboveFold && i === 0}
           authorNode={<AuthorMeta p={p} />}
           authorOverlayNode={<AuthorMeta p={p} tone="onDark" />}
         />
@@ -809,6 +827,7 @@ function PostCard({
   excerpt,
   titleStyle,
   excerptStyle,
+  priority = false,
   authorNode,
   authorOverlayNode,
 }: {
@@ -820,6 +839,8 @@ function PostCard({
   excerpt: string;
   titleStyle?: React.CSSProperties;
   excerptStyle?: React.CSSProperties;
+  /** Karta wiodąca widgetu nad zgięciem - okładka jako kandydat LCP. */
+  priority?: boolean;
   authorNode?: React.ReactNode;
   authorOverlayNode?: React.ReactNode;
 }) {
@@ -837,6 +858,7 @@ function PostCard({
           alt=""
           frameClassName={overlayFrame(aspect)}
           sizes={GRID_COVER_SIZES}
+          priority={priority}
           foregroundClassName={`${COVER_IMG_CLASS} transition-transform duration-700 group-hover:scale-[1.06]`}
         />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/5 sm:from-black/90 sm:via-black/45" />
@@ -868,6 +890,7 @@ function PostCard({
             alt=""
             frameClassName={`${tileFrame(aspect)} rounded-sm mb-3`}
             sizes={GRID_COVER_SIZES}
+            priority={priority}
             foregroundClassName={COVER_IMG_CLASS}
             hoverEffect="zoom"
           />
@@ -896,6 +919,7 @@ function PostCard({
           alt=""
           frameClassName={tileFrame(aspect)}
           sizes={GRID_COVER_SIZES}
+          priority={priority}
           foregroundClassName={COVER_IMG_CLASS}
           hoverEffect="zoom"
         />

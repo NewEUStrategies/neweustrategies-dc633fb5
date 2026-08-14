@@ -23,6 +23,7 @@
 // isolate with a short TTL (same pattern as the redirect rules cache) and
 // resolution never adds a per-request round-trip in steady state.
 import { isPreviewHost, normalizeHost, wwwToggledHost } from "@/lib/http/host";
+import { runAfterResponse } from "@/lib/http/waitUntil.server";
 
 export interface TenantDirectoryEntry {
   id: string;
@@ -86,7 +87,18 @@ async function loadDirectory(): Promise<TenantDirectory> {
   }
 }
 
-/** Cached tenant directory; concurrent cold requests share one round-trip. */
+/**
+ * Cached tenant directory; concurrent cold requests share one round-trip.
+ *
+ * Stale-while-revalidate: po TTL nieświeży katalog serwuje NATYCHMIAST,
+ * a odświeżenie biegnie w tle pod `waitUntil` (single-flight). Katalog stoi
+ * na ścieżce KAŻDEGO dokumentu (klucz NES Edge Cache, redirecty, asercja
+ * tenanta) ZANIM cache dokumentów może odpowiedzieć - blokujące odświeżanie
+ * dokładało pełny round-trip do TTFB pierwszego żądania każdej minuty na
+ * każdym izolacie. Zmiana domeny tenanta to zdarzenie administracyjne;
+ * widoczność opóźniona o sekundy jest bez znaczenia. Zimny izolat (brak
+ * wpisu) nadal blokuje jednorazowo - poprawność ponad szybkość.
+ */
 export async function getTenantDirectory(): Promise<TenantDirectory> {
   const now = Date.now();
   if (cache && now - cache.at < CACHE_TTL_MS) return cache.directory;
@@ -96,7 +108,13 @@ export async function getTenantDirectory(): Promise<TenantDirectory> {
       inflight = null;
       return directory;
     });
+    // Żądanie może się domknąć zanim odświeżenie wróci z bazy - bez waitUntil
+    // runtime Workers uciąłby fetch w tle i wpis tkwiłby nieświeży do
+    // następnej (znów ucinanej) próby. loadDirectory nigdy nie rzuca.
+    runAfterResponse(inflight.then(() => undefined));
   }
+  // Nieświeży wpis: serwuj od ręki - odświeżenie już biegnie w tle.
+  if (cache) return cache.directory;
   return inflight;
 }
 

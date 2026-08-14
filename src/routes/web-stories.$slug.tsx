@@ -7,12 +7,35 @@ import { StoryViewer } from "@/components/web-stories/StoryViewer";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { storyTitle, storyDescription } from "@/lib/web-stories/types";
 import { safeJsonLd } from "@/lib/seo/jsonld";
+import {
+  imagePreloadLink,
+  imagePreloadLinkHeaderValue,
+  type ImagePreloadInput,
+} from "@/lib/seo/meta";
+import { buildImageSrcSet } from "@/lib/cropSizes";
+import { appendLinkHeader } from "@/lib/http/responseHeaders";
+
+// `sizes` okładki - JEDNA stała dla renderowanego <img> i preloadu LCP, żeby
+// przeglądarka preładowała dokładnie ten wariant responsywny, który maluje
+// (rozjazd = podwójne pobranie).
+const COVER_IMAGE_SIZES = "(max-width: 896px) 100vw, 896px";
 
 export const Route = createFileRoute("/web-stories/$slug")({
   loader: async ({ context, params }) => {
     const data = await context.queryClient.ensureQueryData(webStoryBySlugQueryOptions(params.slug));
     if (!data) throw notFound();
-    return { story: data };
+    // Preload LCP okładki - te same kandydaty (buildImageSrcSet) i sizes co
+    // renderowany OptimizedImage `responsive`. Wartość idzie też jako nagłówek
+    // HTTP `Link`, więc fetch startuje przed parsowaniem HTML.
+    const coverPreload: ImagePreloadInput | null = data.cover_url
+      ? {
+          href: data.cover_url,
+          imageSrcSet: buildImageSrcSet(data.cover_url),
+          imageSizes: COVER_IMAGE_SIZES,
+        }
+      : null;
+    if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
+    return { story: data, coverPreload };
   },
   head: ({ loaderData }) => {
     const s = loaderData?.story;
@@ -40,7 +63,12 @@ export const Route = createFileRoute("/web-stories/$slug")({
       ],
       // Równoległy dokument <amp-story> (kwalifikacja do prezentacji Web
       // Stories w Google); URL względny rozwiązuje się do bieżącego hosta.
-      links: s.cover_url ? [{ rel: "amphtml", href: `/web-stories/${s.slug}/amp` }] : [],
+      // Do tego preload okładki (LCP) - fetch rusza z <head>, zanim parser
+      // dojdzie do <img> w body.
+      links: [
+        ...(s.cover_url ? [{ rel: "amphtml", href: `/web-stories/${s.slug}/amp` }] : []),
+        ...(loaderData?.coverPreload ? [imagePreloadLink(loaderData.coverPreload)] : []),
+      ],
       scripts: [{ type: "application/ld+json", children: safeJsonLd(jsonLd) }],
     };
   },
@@ -85,7 +113,7 @@ function WebStorySinglePage() {
             alt={title}
             priority
             responsive
-            sizes="(max-width: 896px) 100vw, 896px"
+            sizes={COVER_IMAGE_SIZES}
             className="absolute inset-0 w-full h-full object-cover"
           />
         )}

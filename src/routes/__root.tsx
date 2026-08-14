@@ -14,7 +14,8 @@ import appCss from "../styles.css?url";
 // references, so the preload is reused (not a second download). See styles.css.
 import redHatDisplayLatin from "../assets/fonts/red-hat-display-latin.woff2?url";
 import redHatDisplayLatinExt from "../assets/fonts/red-hat-display-latin-ext.woff2?url";
-import { fontPreloadLinks } from "../lib/seo/fontPreload";
+import { fontPreloadLinks, fontPreloadLinkHeaderValues } from "../lib/seo/fontPreload";
+import { appendLinkHeader } from "../lib/http/responseHeaders";
 import { buildRootHead, feedDiscoveryLinks } from "../lib/seo/meta";
 import { speculationRulesJson } from "../lib/seo/speculationRules";
 import { afterPrerendering } from "../lib/prerender";
@@ -214,6 +215,19 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // localhost are excluded so the builder iframe keeps working.
     enforceCanonicalHost();
     await syncI18nToRequest().catch(() => undefined);
+    // Krytyczne zasoby także jako nagłówek HTTP `Link` (obok <link> w <head>):
+    // przeglądarka startuje pobieranie CSS i fontów z nagłówków odpowiedzi,
+    // zanim sparsuje pierwszy bajt HTML, a NES Edge Cache utrwala nagłówek na
+    // HIT/STALE - to fundament pod 103 Early Hints na Cloudflare. Zestaw jest
+    // per-język (latin-ext tylko dla PL), a dokumenty są keyowane ścieżką
+    // z prefiksem języka, więc wpis cache nigdy nie niesie cudzych hintów.
+    appendLinkHeader(`<${appCss}>; rel="preload"; as="style"`);
+    for (const value of fontPreloadLinkHeaderValues(currentLang(), {
+      latin: redHatDisplayLatin,
+      latinExt: redHatDisplayLatinExt,
+    })) {
+      appendLinkHeader(value);
+    }
     // Warm site_settings + design tokens / global colors / post-layout so
     // <DesignTokensStyle />, <ContentAreaStyle /> and friends render their
     // `<style>` server-side. Without this the first paint uses raw styles.css

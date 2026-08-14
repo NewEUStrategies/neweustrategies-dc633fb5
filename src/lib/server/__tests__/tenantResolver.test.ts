@@ -108,3 +108,37 @@ describe("crawler plane (resolveCrawlerTenantForHost) - fail closed", () => {
     await expect(resolveCrawlerTenantForHost("b.example")).resolves.toBeNull();
   });
 });
+
+describe("getTenantDirectory - stale-while-revalidate", () => {
+  it("po TTL serwuje nieświeży katalog NATYCHMIAST, a odświeżenie biegnie w tle", async () => {
+    vi.useFakeTimers();
+    try {
+      state.rows = [NES];
+      const fresh = await getTenantDirectory();
+      expect(fresh.byDomain.get("nes.example")?.id).toBe("t-nes");
+
+      // Nowy tenant w bazie + wyjście poza TTL (60 s).
+      state.rows = [NES, TENANT_B];
+      vi.advanceTimersByTime(61_000);
+
+      // SWR: odpowiedź od ręki ze STAREGO snapshotu - katalog stoi na ścieżce
+      // każdego dokumentu przed NES Edge Cache i nie wolno mu blokować TTFB.
+      const stale = await getTenantDirectory();
+      expect(stale.byDomain.has("b.example")).toBe(false);
+
+      // Odświeżenie w tle domyka się w mikrotaskach zamockowanej bazy -
+      // kolejny odczyt widzi już nowy katalog bez dodatkowego round-tripu.
+      await vi.advanceTimersByTimeAsync(0);
+      const refreshed = await getTenantDirectory();
+      expect(refreshed.byDomain.get("b.example")?.id).toBe("t-b");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("zimny izolat (brak wpisu) nadal blokuje jednorazowo na pełnym odczycie", async () => {
+    state.rows = [NES, TENANT_B];
+    const directory = await getTenantDirectory();
+    expect(directory.byDomain.get("b.example")?.id).toBe("t-b");
+  });
+});

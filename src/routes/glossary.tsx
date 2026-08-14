@@ -84,7 +84,7 @@ function GlossaryPage() {
           <dl className="space-y-8">
             {groups.map(([letter, items]) => (
               <section key={letter} aria-label={letter}>
-                <p className="font-display text-lg text-brand mb-3">{letter}</p>
+                <h2 className="font-display text-lg text-brand mb-3">{letter}</h2>
                 <div className="space-y-4">
                   {(items ?? []).map((term) => (
                     <div key={term.id} id={term.slug}>

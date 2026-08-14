@@ -337,6 +337,50 @@ export function imagePreloadLink(input: ImagePreloadInput): Record<string, strin
   return link;
 }
 
+/**
+ * The same LCP preload expressed as an HTTP `Link` response header value
+ * (RFC 8288). Emitted alongside the in-document `<link rel="preload">` so the
+ * browser can start the image fetch from the RESPONSE HEADERS - before the
+ * first HTML byte is parsed - and so Cloudflare can surface it as a 103 Early
+ * Hint on repeat visits. `imagesrcset` may contain commas; RFC 8288 allows
+ * them inside quoted parameter values, and quotes/backslashes are escaped so
+ * editor-controlled URLs can never break out of the parameter context. Pure -
+ * no framework deps, unit-testable.
+ */
+export function imagePreloadLinkHeaderValue(input: ImagePreloadInput): string {
+  const quote = (value: string) => `"${sanitizeHeaderText(value).replace(/[\\"]/g, "\\$&")}"`;
+  // URI-Reference w nawiasach kątowych: bez re-enkodowania istniejących
+  // %-sekwencji (URL-e wariantów Supabase już je niosą), jedynie twarde
+  // odsianie znaków rozrywających składnię nagłówka (nawiasy kątowe, CR/LF,
+  // spacje) i procentowe zakodowanie nie-ASCII (patrz sanitizeHeaderText).
+  const href = sanitizeHeaderText(input.href).replace(/[<>\s]/g, "");
+  const parts = [`<${href}>`, 'rel="preload"', 'as="image"', "fetchpriority=high"];
+  if (input.imageSrcSet) {
+    parts.push(`imagesrcset=${quote(input.imageSrcSet)}`);
+    parts.push(`imagesizes=${quote(input.imageSizes ?? "100vw")}`);
+  }
+  return parts.join("; ");
+}
+
+/**
+ * Wartość nagłówka HTTP musi być bezpiecznym ByteStringiem:
+ *   - znaki sterujące (w tym CR/LF) są usuwane - wartość nigdy nie może
+ *     rozciąć się na kolejne nagłówki odpowiedzi (header injection),
+ *   - znaki spoza ASCII są procentowo kodowane - redakcyjny URL w rodzaju
+ *     "okładka.jpg" wysadzałby Headers.set (ByteString) na Node, a na workerd
+ *     wychodziłby jako zniekształcone surowe UTF-8. Regex z flagą `u` łapie
+ *     pełne code pointy, więc pary zastępcze kodują się poprawnie.
+ */
+function sanitizeHeaderText(value: string): string {
+  let out = "";
+  for (const ch of value) {
+    const code = ch.codePointAt(0) ?? 0;
+    if (code === 0x7f || code < 0x20) continue;
+    out += ch;
+  }
+  return out.replace(/[^\x20-\x7e]/gu, (ch) => encodeURIComponent(ch));
+}
+
 export interface ArticleJsonLdInput {
   url: string;
   lang: Lang;

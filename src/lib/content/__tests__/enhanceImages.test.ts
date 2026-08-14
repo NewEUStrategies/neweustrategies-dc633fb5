@@ -105,6 +105,32 @@ describe("enhanceContentImages", () => {
     const once = enhanceContentImages('<img src="https://wp.example.com/photo-1024x768.jpg">');
     expect(enhanceContentImages(once)).toBe(once);
   });
+
+  it("eagerFirstImage: pierwszy obraz eager+high, kolejne pozostaja lazy", () => {
+    const html = '<p>x</p><img src="/a.jpg"><img src="/b.jpg">';
+    const out = enhanceContentImages(html, { eagerFirstImage: true });
+    const tags = out.match(/<img[^>]*>/g) ?? [];
+    expect(tags[0]).toContain('loading="eager"');
+    expect(tags[0]).toContain('fetchpriority="high"');
+    expect(tags[1]).toContain('loading="lazy"');
+    expect(tags[1]).not.toContain("fetchpriority");
+  });
+
+  it("eagerFirstImage nie nadpisuje jawnego loading autora", () => {
+    const html = '<img loading="lazy" src="/a.jpg"><img src="/b.jpg">';
+    const out = enhanceContentImages(html, { eagerFirstImage: true });
+    const tags = out.match(/<img[^>]*>/g) ?? [];
+    // Autor ustawil lazy - szanujemy; flaga dotyczy PIERWSZEGO <img> w tresci,
+    // wiec drugi (bez jawnego loading) zostaje przy domyslnym lazy.
+    expect(tags[0]).not.toContain("eager");
+    expect(tags[1]).toContain('loading="lazy"');
+  });
+
+  it("domyslnie (bez opcji) wszystkie obrazy dostaja lazy - bez regresji", () => {
+    const out = enhanceContentImages('<img src="/a.jpg">');
+    expect(out).toContain('loading="lazy"');
+    expect(out).not.toContain("eager");
+  });
 });
 
 describe("imageDimsFromUrl", () => {

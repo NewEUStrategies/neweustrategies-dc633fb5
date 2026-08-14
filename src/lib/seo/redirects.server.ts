@@ -22,6 +22,7 @@
 //     asset (favicon.ico, robots.txt, sitemap.xml). `?` query is preserved
 //     on the stored path so WP shortlinks (`/?p=123`) show up individually.
 import { resolveTenantForHost } from "@/lib/server/tenant.server";
+import { runAfterResponse } from "@/lib/http/waitUntil.server";
 import {
   buildRedirectIndex,
   isProtectedPath,
@@ -75,23 +76,38 @@ async function loadIndexForTenant(tenantId: string): Promise<RedirectIndex> {
   }
 }
 
+/**
+ * Stale-while-revalidate: po TTL nieświeży indeks serwuje NATYCHMIAST,
+ * a odświeżenie biegnie w tle pod `waitUntil` (single-flight per tenant).
+ * Middleware przekierowań stoi PRZED cache dokumentów, więc blokujące
+ * odświeżanie dokładało pełny round-trip do TTFB pierwszego żądania każdych
+ * 30 s na każdym izolacie - zanim NES Edge Cache mógł w ogóle odpowiedzieć.
+ * Nowa reguła przekierowania może obowiązywać o sekundy później; zimny
+ * izolat (brak wpisu) nadal blokuje jednorazowo - 301-ki pozostają poprawne.
+ */
 async function getIndexForTenant(tenantId: string): Promise<RedirectIndex> {
   const now = Date.now();
   const cached = cache.get(tenantId);
   if (cached && now - cached.at < REDIRECT_CACHE_TTL_MS) return cached.index;
-  const pending = inflight.get(tenantId);
-  if (pending) return pending;
-  const p = loadIndexForTenant(tenantId).then((index) => {
-    cache.set(tenantId, {
-      at: Date.now(),
-      index,
-      count: index.exact.size + index.wildcards.length,
+  let pending = inflight.get(tenantId);
+  if (!pending) {
+    pending = loadIndexForTenant(tenantId).then((index) => {
+      cache.set(tenantId, {
+        at: Date.now(),
+        index,
+        count: index.exact.size + index.wildcards.length,
+      });
+      inflight.delete(tenantId);
+      return index;
     });
-    inflight.delete(tenantId);
-    return index;
-  });
-  inflight.set(tenantId, p);
-  return p;
+    inflight.set(tenantId, pending);
+    // Bez waitUntil runtime Workers ucinałby odświeżenie w tle razem
+    // z domknięciem żądania. loadIndexForTenant nigdy nie rzuca.
+    runAfterResponse(pending.then(() => undefined));
+  }
+  // Nieświeży wpis: serwuj od ręki - odświeżenie już biegnie w tle.
+  if (cached) return cached.index;
+  return pending;
 }
 
 /**

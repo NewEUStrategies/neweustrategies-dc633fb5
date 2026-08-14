@@ -24,6 +24,8 @@ import {
   resolveWidgetTypography,
 } from "@/lib/builder/typographyCss";
 import { resolveColorForMode } from "@/lib/builder/autoInvertColor";
+import { useAboveFold } from "@/lib/builder/aboveFold";
+import { WIDGET_MEDIA_SPLIT_SIZES } from "@/lib/builder/widgetImageSizes";
 import { resolveGlobalWidgetInstance, useGlobalWidgetNode } from "@/lib/builder/globalWidgets";
 import { processWidgetFootnotes } from "@/lib/footnotes";
 import { useTheme } from "@/components/ThemeProvider";
@@ -191,6 +193,9 @@ export const WidgetView = memo(function WidgetView({
   const { theme } = useTheme();
   const builderMode = useBuilderMode();
   const effectiveMode = builderMode ?? theme;
+  // Sekcja nad zgięciem: pierwszy obraz widgetu jest kandydatem LCP
+  // (eager + fetchpriority=high) - czytane w gałęziach z obrazami niżej.
+  const aboveFold = useAboveFold();
   const [liveTypography, setLiveTypography] = useState<WidgetTypography | undefined>(undefined);
   const baseStyle = styleToCSS(node.style, device, effectiveMode);
   const cls = sanitizeCssClass(node.advanced?.cssClass) ?? "";
@@ -1384,7 +1389,8 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
                 src={img}
                 alt=""
                 responsive
-                sizes="(max-width: 767px) 100vw, 50vw"
+                sizes={WIDGET_MEDIA_SPLIT_SIZES}
+                priority={aboveFold}
                 className={`absolute block h-full w-full object-contain ${imgAnimCls}`}
               />
             </div>
