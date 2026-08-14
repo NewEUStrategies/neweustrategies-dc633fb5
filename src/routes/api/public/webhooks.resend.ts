@@ -115,21 +115,33 @@ async function applyEvent(
     payload: rawPayload,
   });
 
-  // Otwarcia i kliknięcia z webhooka uzupełniają własny tracking (piksel +
-  // przekierowanie): klient pocztowy blokujący obrazki nadal zostawia ślad
-  // zaangażowania, a to ono odróżnia listę żywą od listy do wyczyszczenia.
+  // Otwarcia i kliknięcia dostawcy NIE są niezależnym pomiarem: dostawca liczy
+  // je tym samym mechanizmem, co my (piksel obrazka, przepisany link - w dodatku
+  // przepisuje NASZ link `nl-click` jeszcze raz na swój). Dopóki obie ścieżki
+  // pisały, jedno otwarcie dawało dwa wiersze i wskaźnik otwarć przekraczał
+  // 100%. Dlatego zapis idzie przez tę samą bramkę źródła, co piksel: wiersz
+  // powstanie WYŁĄCZNIE wtedy, gdy operator uczynił dostawcę źródłem prawdy
+  // (NEWSLETTER_ENGAGEMENT_SOURCE=provider). Domyślnie ta gałąź jest cicha,
+  // a `email_delivery_events` - dziennik dostarczalności, po który ten webhook
+  // naprawdę istnieje - zapisuje się niezależnie, powyżej.
   if (
     (event.kind === "opened" || event.kind === "clicked") &&
     applied.campaignId &&
     !applied.duplicate
   ) {
     const { recordCampaignEvent } = await import("@/lib/newsletter/trackingEvents.server");
-    await recordCampaignEvent(
-      applied.campaignId,
-      applied.subscriberId,
-      event.kind === "opened" ? "open" : "click",
-      event.url,
-    );
+    await recordCampaignEvent({
+      campaignId: applied.campaignId,
+      subscriberId: applied.subscriberId,
+      kind: event.kind === "opened" ? "open" : "click",
+      url: event.url,
+      source: "provider",
+      // Czas WYSTĄPIENIA, nie dostarczenia webhooka. Kubełkiem deduplikacji
+      // jest doba UTC, a webhook potrafi dotrzeć z opóźnieniem albo poza
+      // kolejnością - bucketowanie po chwili odbioru rozjeżdżałoby doby
+      // w obie strony wokół północy.
+      occurredAt: event.occurredAt,
+    });
   }
 
   return {

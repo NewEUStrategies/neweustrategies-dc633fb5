@@ -48,7 +48,12 @@ const ENGAGEMENTS = [
   "internship",
 ] as const satisfies readonly CareerEngagement[];
 
-const LOCATIONS = ["remote", "hybrid", "warsaw", "brussels"] as const satisfies readonly CareerLocation[];
+const LOCATIONS = [
+  "remote",
+  "hybrid",
+  "warsaw",
+  "brussels",
+] as const satisfies readonly CareerLocation[];
 
 interface HiringDict {
   title: string;
@@ -525,9 +530,7 @@ function AdminHiringPage() {
                     <label className="flex items-center gap-2 text-xs font-medium">
                       <Switch
                         checked={draft.is_published}
-                        onCheckedChange={(checked) =>
-                          setDraft({ ...draft, is_published: checked })
-                        }
+                        onCheckedChange={(checked) => setDraft({ ...draft, is_published: checked })}
                       />
                       {draft.is_published ? L.published : L.draft}
                     </label>
@@ -547,7 +550,12 @@ function AdminHiringPage() {
                         {L.remove}
                       </Button>
                     ) : null}
-                    <Button type="submit" size="sm" className="gap-1.5" disabled={saveRole.isPending}>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      className="gap-1.5"
+                      disabled={saveRole.isPending}
+                    >
                       <Save className="h-4 w-4" />
                       {L.save}
                     </Button>

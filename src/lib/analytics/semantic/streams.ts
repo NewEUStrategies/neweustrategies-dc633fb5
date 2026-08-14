@@ -77,6 +77,13 @@ export type DedupeMode =
   | "none"
   /** Okno deduplikacji per (encja, tożsamość) - patrz `dedupeWindowMinutes`. */
   | "window"
+  /**
+   * Jeden wiersz na (encja, tożsamość, DOBA UTC) - egzekwowane indeksem
+   * unikalnym w bazie, nie oknem czasowym. Różnica wobec `window` jest
+   * merytoryczna: granica biegnie po kalendarzu, więc dwa zdarzenia oddalone
+   * o minutę mogą trafić do RÓŻNYCH kubełków, jeśli dzieli je północ UTC.
+   */
+  | "utc_day"
   /** UPSERT na (użytkownik, encja) - wiersz jest STANEM, nie zdarzeniem. */
   | "upsert_last_wins"
   /** Sesjonizacja dostawcy (GA4 scala odsłony w sesje po swojej stronie). */
@@ -208,12 +215,13 @@ const STREAM_LIST: readonly StreamDescriptor[] = [
     consentGate: "email_optin",
     identityGrain: "email_recipient",
     timeBasis: "utc_timestamp",
-    dedupe: "none",
+    dedupe: "utc_day",
     latencyHours: 0,
     caps: [],
     caveats: [
       "Opens depend on remote image loading: privacy proxies pre-fetch the pixel (inflating opens) while image-blocking clients never fire it (deflating opens). Clicks are the reliable signal.",
-      "Events are raw rows, so a recipient who opens a campaign five times counts five times unless the metric explicitly counts distinct subscriber_id.",
+      "Exactly ONE producer writes this stream (the first-party pixel and redirect). The mail provider's own open/click webhook measures the same thing by the same mechanism, so it is disabled by default - enabling both double-counted every open and pushed the open rate above 100 %.",
+      "A row is one recipient-day, not one interaction: a recipient who opens the same campaign five times today counts once, and counts again tomorrow. Row counts therefore measure DAILY REACH, and only COUNT(DISTINCT subscriber_id) measures people.",
       "The audience is the mailing list, not site traffic - newsletter rates share no denominator with on-site metrics.",
     ],
   },

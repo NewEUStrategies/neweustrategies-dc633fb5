@@ -246,7 +246,9 @@ describe("isCareerCvPath: konwencja z tenantem i legacy", () => {
   it("nadal przyjmuje sciezke legacy bez tenanta", () => {
     // Plikow sprzed zmiany konwencji NIE przenosimy (UPDATE storage.objects.name
     // rozjechalby wiersz z plikiem), wiec musza dalej przechodzic walidacje.
-    expect(isCareerCvPath("uploads/2026-08-14/aaaaaaaa-1111-2222-3333-444444444444.pdf")).toBe(true);
+    expect(isCareerCvPath("uploads/2026-08-14/aaaaaaaa-1111-2222-3333-444444444444.pdf")).toBe(
+      true,
+    );
   });
 
   it("odrzuca obcy prefiks udajacy tenanta", () => {

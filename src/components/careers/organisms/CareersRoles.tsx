@@ -34,13 +34,9 @@ export function CareersRoles({
   const section = useCareerSection("roles");
 
   const counts = useMemo(() => countOffersByDepartment(offers), [offers]);
-  const roles = useMemo(
-    () => filterOffersByDepartment(offers, department),
-    [offers, department],
-  );
+  const roles = useMemo(() => filterOffersByDepartment(offers, department), [offers, department]);
   const [detailsRoleId, setDetailsRoleId] = useState<string | null>(null);
   const detailsRole = useMemo(() => findOffer(offers, detailsRoleId), [offers, detailsRoleId]);
-
 
   return (
     <section id={id} aria-labelledby="careers-roles" className="mt-16 scroll-mt-28">
@@ -56,7 +52,6 @@ export function CareersRoles({
             <p className="mt-5 text-base font-medium leading-relaxed text-muted-foreground md:text-lg">
               {section.subtitle ?? t("careers.roles.subtitle")}
             </p>
-
           </div>
           <div className="flex flex-col md:items-end">
             <span className="mb-2 text-[10px] font-extrabold uppercase tracking-[0.2em] text-muted-foreground">
@@ -104,7 +99,6 @@ export function CareersRoles({
         </p>
       ) : (
         <div key={department} className="mt-8 flex flex-col gap-3">
-
           {roles.map((role, index) => (
             <div
               key={role.id}

@@ -42,7 +42,16 @@ export const Route = createFileRoute("/api/public/nl-open")({
             const s = url.searchParams.get("s");
             const subscriberId = c ? verifyTrackingToken(c, s) : null;
             if (c && subscriberId) {
-              await recordCampaignEvent(c, subscriberId, "open", null);
+              // `first_party` = piksel z NASZEJ domeny. Zapis przechodzi tylko,
+              // gdy to źródło jest w tej instalacji źródłem prawdy - inaczej
+              // liczylibyśmy to samo otwarcie razem z webhookiem dostawcy.
+              await recordCampaignEvent({
+                campaignId: c,
+                subscriberId,
+                kind: "open",
+                url: null,
+                source: "first_party",
+              });
             }
           }
         } catch {

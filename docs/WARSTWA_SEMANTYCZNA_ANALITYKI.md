@@ -53,6 +53,16 @@ która jest właściwa. Najostrzejsze przykłady, potwierdzone w kodzie:
   twierdził, że jedno „mirrors" drugie. Nie mirrorowało: dla próbek
   1000/2000/3000/4000 interpolacja daje 3250 (wartość, której nikt nie zmierzył),
   a nearest rank 3000.
+- **Otwarcia newslettera z DWÓCH producentów naraz.** `newsletter_campaign_events`
+  nie miała żadnego indeksu unikalnego, a pisały do niej i własny piksel, i
+  webhook dostawcy poczty - oba mierzące to samo tym samym mechanizmem. Otwarcie
+  liczyło się dwa razy, więc wskaźnik otwarć potrafił przekroczyć **100%**.
+  Domknięte 2026-08-14 (migracja `20260814150000`): strumień ma dziś
+  `dedupe: "utc_day"` - jeden wiersz na `(kampania, subskrybent, rodzaj, doba
+  UTC)` egzekwowany indeksem unikalnym - i dokładnie jednego producenta
+  (`NEWSLETTER_ENGAGEMENT_SOURCE`). Konsekwencja dla czytania liczb: wiersz to
+  **dobo-odbiorca**, nie interakcja, więc o LUDZIACH mówi wyłącznie
+  `COUNT(DISTINCT subscriber_id)`. Szczegóły: `docs/ARCHITECTURE.md` §11.6.
 
 ## 2. Architektura rozwiązania
 

@@ -9,6 +9,7 @@ import {
   staleExceptions,
 } from "@/lib/ci/dbRowCasts";
 import {
+  columnKey,
   compareWithBaseline,
   findStaleColumns,
   freshnessFailed,
@@ -69,9 +70,10 @@ describe("dbRowCasts - rzutowanie wyniku zapytania", () => {
   });
 
   it("NIE zgłasza pliku bez zapytania - bez zapytania nie ma granicy bazy", () => {
-    const source = ["interface Shape { id: string }", "const rows = data as unknown as Shape[];"].join(
-      "\n",
-    );
+    const source = [
+      "interface Shape { id: string }",
+      "const rows = data as unknown as Shape[];",
+    ].join("\n");
     expect(scanHandWrittenRowCasts([{ file: "a.ts", source }], [])).toEqual([]);
   });
 
@@ -152,6 +154,61 @@ describe("generatedTypesFreshness - typy vs migracje", () => {
   it("zakomentowany ADD COLUMN się nie liczy", () => {
     const events = scanColumnEvents([
       { file: "001.sql", sql: "-- ALTER TABLE public.profiles ADD COLUMN nowa text;\n" },
+    ]);
+    expect(events).toEqual([]);
+  });
+
+  // ── RENAME: regresja 2026-08-14 ────────────────────────────────────────────
+  // Bez tych czterech przypadków bramka liczyła kolumny, których nie ma
+  // (blokując CI z zupełnie innego miejsca - `check:legacy-payment-refs`),
+  // a nazw powstałych z przemianowania nie liczyła wcale.
+
+  it("kolumna przemianowana NIE jest długiem pod starą nazwą", () => {
+    const stale = findStaleColumns(
+      [
+        { file: "001.sql", sql: "ALTER TABLE public.profiles ADD COLUMN stara text;" },
+        { file: "002.sql", sql: "ALTER TABLE public.profiles RENAME COLUMN stara TO email;" },
+      ],
+      readGeneratedColumns(TYPES),
+    );
+    expect(stale).toEqual([]);
+  });
+
+  it("kolumna przemianowana JEST długiem pod nową nazwą, nawet gdy stara szła z CREATE TABLE", () => {
+    const stale = findStaleColumns(
+      // Zbioru „przed" nie ma: `email` istnieje w typach, ale skaner nigdy nie
+      // widział jej `ADD COLUMN`. Dokładnie ten kształt miało
+      // `subscriptions.paddle_subscription_id -> provider_subscription_id`.
+      [{ file: "001.sql", sql: "ALTER TABLE public.profiles RENAME COLUMN email TO kontakt;" }],
+      readGeneratedColumns(TYPES),
+    );
+    expect(stale.map(columnKey)).toEqual(["profiles.kontakt"]);
+    expect(stale[0].file).toBe("001.sql");
+  });
+
+  it("przemianowanie TABELI przenosi zebrane kolumny, ale nie dokłada nowych", () => {
+    const events = scanColumnEvents([
+      { file: "001.sql", sql: "ALTER TABLE IF EXISTS public.stara_nazwa RENAME TO profiles;" },
+    ]);
+    expect(events).toEqual([
+      { kind: "rename-table", from: "stara_nazwa", to: "profiles", file: "001.sql" },
+    ]);
+
+    const stale = findStaleColumns(
+      [
+        { file: "001.sql", sql: "ALTER TABLE public.stara_nazwa ADD COLUMN nowa text;" },
+        { file: "002.sql", sql: "ALTER TABLE IF EXISTS public.stara_nazwa RENAME TO profiles;" },
+      ],
+      readGeneratedColumns(TYPES),
+    );
+    // Przed przeniesieniem `stara_nazwa` była nieznana typom, więc dług był
+    // niewidoczny; po przeniesieniu liczy się pod tabelą, która w typach jest.
+    expect(stale.map(columnKey)).toEqual(["profiles.nowa"]);
+  });
+
+  it("RENAME CONSTRAINT nie jest zdarzeniem kolumnowym", () => {
+    const events = scanColumnEvents([
+      { file: "001.sql", sql: "ALTER TABLE public.profiles RENAME CONSTRAINT stary TO nowy;" },
     ]);
     expect(events).toEqual([]);
   });

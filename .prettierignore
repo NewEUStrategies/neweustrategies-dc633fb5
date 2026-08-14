@@ -22,3 +22,17 @@ src/routes/mcp.ts
 src/routes/**/list-tools.ts
 src/routes/**/invoke-tool/*.ts
 src/routes/**/oauth-protected-resource.ts
+# Typy generowane z bazy (`supabase gen types typescript`). ESLint pomija ten
+# plik od zawsze, Prettier NIE - i przez tę asymetrię `prettier --check .` nie
+# dawał się wpiąć w CI jako bramka. Formatowanie 20 tysięcy generowanych linii
+# i tak przepada przy najbliższej regeneracji, więc byłby to szum wracający
+# w każdym wydaniu. Ta sama zasada, co dla plików wyżej.
+src/integrations/supabase/types.ts
+# Artefakty Lighthouse CI (`lhr-*.json/html`, `assertion-results.json`) - wynik
+# przebiegu narzędzia, nie kod źródłowy. Zacommitowane jako materiał dowodowy
+# pomiaru, przepisywane przy każdym uruchomieniu.
+.lighthouseci
+# Raporty bramek: `reports/*` jest w .gitignore poza dwoma plikami odniesienia,
+# które generują skrypty CI (`check:bundle`, `check:i18n-parity`). Formatowanie
+# ich rozjechałoby porównanie z artefaktem świeżo wyprodukowanym w przebiegu.
+reports

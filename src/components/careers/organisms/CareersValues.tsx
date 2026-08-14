@@ -159,7 +159,6 @@ export function CareersValues() {
                     </p>
                   </div>
                 </div>
-
               </TabsContent>
             ))}
           </div>

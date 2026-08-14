@@ -52,7 +52,25 @@ export const Route = createFileRoute("/admin/names")({
  * bo `as unknown as` kasuje różnicę; `Pick` po `Tables<>` zamienia zmianę
  * kolumny w migracji na błąd kompilacji dokładnie tutaj.
  */
-type NameRow = Pick<Tables<"name_dictionary">, "id" | "name" | "name_normalized" | "key" | "display_name" | "gender" | "origin_country" | "origin" | "vocative_pl" | "instrumental_pl" | "genitive_pl" | "dative_pl" | "vocative_en" | "english_form" | "is_compound" | "notes">;
+type NameRow = Pick<
+  Tables<"name_dictionary">,
+  | "id"
+  | "name"
+  | "name_normalized"
+  | "key"
+  | "display_name"
+  | "gender"
+  | "origin_country"
+  | "origin"
+  | "vocative_pl"
+  | "instrumental_pl"
+  | "genitive_pl"
+  | "dative_pl"
+  | "vocative_en"
+  | "english_form"
+  | "is_compound"
+  | "notes"
+>;
 
 type RowPatch = Partial<Omit<NameRow, "id">>;
 

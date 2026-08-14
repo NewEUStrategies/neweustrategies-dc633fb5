@@ -492,9 +492,7 @@ export function CareersApplyForm({
                   value={form.cv}
                   error={msg(errors.cv)}
                   onChange={(next) => setField("cv", next)}
-                  onErrorMessage={(key) =>
-                    setErrors((prev) => ({ ...prev, cv: key }))
-                  }
+                  onErrorMessage={(key) => setErrors((prev) => ({ ...prev, cv: key }))}
                 />
               </div>
             ) : null}
@@ -517,7 +515,8 @@ export function CareersApplyForm({
                       setForm((prev) => ({
                         ...prev,
                         department,
-                        role: findOffer(offers, prev.role)?.department === department ? prev.role : "",
+                        role:
+                          findOffer(offers, prev.role)?.department === department ? prev.role : "",
                       }));
                       clearError("department");
                     }}

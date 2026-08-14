@@ -24,18 +24,18 @@ describe("animated heading links", () => {
   });
 
   it("restores picker state for taxonomy links", () => {
-    expect(toWidgetLink({ url: "/category/analizy", kind: "category", refLabel: "Analizy" })).toEqual(
-      {
-        url: "/category/analizy",
-        kind: "category",
-        refId: undefined,
-        refLabel: "Analizy",
-        target: "_self",
-        rel: undefined,
-        nofollow: false,
-        ariaLabel: undefined,
-      },
-    );
+    expect(
+      toWidgetLink({ url: "/category/analizy", kind: "category", refLabel: "Analizy" }),
+    ).toEqual({
+      url: "/category/analizy",
+      kind: "category",
+      refId: undefined,
+      refLabel: "Analizy",
+      target: "_self",
+      rel: undefined,
+      nofollow: false,
+      ariaLabel: undefined,
+    });
   });
 });
 
