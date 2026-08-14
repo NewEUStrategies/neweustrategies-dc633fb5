@@ -136,6 +136,11 @@ async function applyEvent(
       kind: event.kind === "opened" ? "open" : "click",
       url: event.url,
       source: "provider",
+      // Czas WYSTĄPIENIA, nie dostarczenia webhooka. Kubełkiem deduplikacji
+      // jest doba UTC, a webhook potrafi dotrzeć z opóźnieniem albo poza
+      // kolejnością - bucketowanie po chwili odbioru rozjeżdżałoby doby
+      // w obie strony wokół północy.
+      occurredAt: event.occurredAt,
     });
   }
 

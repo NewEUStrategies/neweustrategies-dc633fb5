@@ -914,10 +914,40 @@ były to trzy rundy do bazy z oknem TOCTOU. Odczyt panelu przez
 zdarzenia **i** zasięg unikalny - i to zasięg jest licznikiem wskaźnika, bo
 tylko on jest współmierny z liczbą dostarczonych.
 
-Testy: pgTAP `supabase/tests/newsletter_campaign_events_dedup_test.sql`
-(22 asercje: kształt indeksu, granica doby UTC, granica obszaru roboczego,
-ACL obu RPC), Vitest `src/lib/newsletter/__tests__/engagementSource.test.ts`,
-`trackingEvents.test.ts`, `engagementRate.test.ts` oraz
+Dwie konsekwencje tego, że kubełkiem jest DOBA, a nie chwila:
+
+- **Czas wystąpienia, nie czas zapisu.** RPC przyjmuje `p_occurred_at`, bo
+  producent nie zawsze pisze w chwili zdarzenia: webhook dostawcy potrafi
+  dotrzeć z opóźnieniem albo poza kolejnością. Bucketowanie po chwili ODBIORU
+  rozjeżdżałoby doby w obie strony wokół północy - dwa otwarcia z tej samej doby
+  dostarczone po dwóch stronach północy policzyłyby się dwa razy, a dwa z
+  różnych dób dostarczone razem zlałyby się w jedno. Piksel podaje `NULL`
+  (zdarzenie jest „teraz"), webhook - zweryfikowany czas wystąpienia; wartość
+  z przyszłości SQL ścina do `now()`.
+- **Zmaterializowany scoring trzeba przeliczyć RĘCZNIE.**
+  `trg_score_on_campaign_event` jest AFTER INSERT, więc backfill kasujący
+  duplikaty go nie odpala, a `crm_leads.score`/`score_band`/`score_breakdown` są
+  kolumnami, nie widokiem. Migracja zbiera dotkniętych subskrybentów z
+  `RETURNING`, mapuje ich na leady tym samym wiązaniem co trigger
+  (`tenant_id` + `email_norm`) i woła `compute_crm_lead_score` dla każdego.
+  Bez tego lead nieaktywny - a więc taki, który sam nie wygeneruje kolejnego
+  sygnału - tkwiłby w zawyżonym paśmie bez końca.
+
+Panel dostarczalności (`getDeliverabilitySetup` → `WebhookSetupCard`) podaje
+listę zdarzeń webhooka ZALEŻNĄ od źródła: w trybie `first_party` bez
+`email.opened`/`email.clicked` (dostawca mierzyłby to samo drugi raz), w trybie
+`provider` z nimi (bez nich zaangażowanie nie zapisałoby się wcale). Obok listy
+stoi zdanie mówiące, dlaczego - inaczej operator dopisuje brakujące zdarzenia
+„na wszelki wypadek" i podwójne zliczanie wraca.
+
+Testy: pgTAP `newsletter_campaign_events_dedup_test.sql` (28 asercji: kształt
+indeksu, granica doby UTC, czas wystąpienia vs czas zapisu, brak przeciążenia
+RPC, granica obszaru roboczego, ACL obu RPC) oraz
+`newsletter_campaign_events_backfill_test.sql` (7 asercji: odtworzenie stanu
+sprzed migracji przy zdjętym indeksie, dowód realnego zawyżenia scoringu,
+wykonanie backfillu i przeliczenie zmaterializowanego wyniku leada). Vitest:
+`src/lib/newsletter/__tests__/engagementSource.test.ts`, `trackingEvents.test.ts`,
+`engagementRate.test.ts` oraz
 `src/components/admin/newsletter/__tests__/CampaignEngagementCard.test.tsx`.
 
 ## 12. Harmonogram doręczeń: trzy ścieżki, jeden dyspozytor, jeden log

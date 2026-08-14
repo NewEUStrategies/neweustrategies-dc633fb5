@@ -70,6 +70,8 @@ describe("recordCampaignEvent", () => {
       p_subscriber: SUBSCRIBER,
       p_kind: "open",
       p_url: null,
+      // Piksel pisze w chwili zdarzenia, wiec czas wystapienia zostawia bazie.
+      p_occurred_at: null,
     });
   });
 
@@ -122,6 +124,26 @@ describe("recordCampaignEvent", () => {
 
     rpcResult = { data: { recorded: false, reason: "unknown_campaign" }, error: null };
     expect(await record({})).toEqual({ recorded: false, outcome: "unknown_campaign" });
+  });
+
+  it("przekazuje czas WYSTĄPIENIA, gdy producent go zna (webhook)", async () => {
+    // Kubełkiem deduplikacji jest doba, a webhook dostawcy potrafi dotrzeć
+    // z opóźnieniem albo poza kolejnością. Bez tego pola dwa otwarcia z tej
+    // samej doby dostarczone po dwóch stronach północy policzyłyby się dwa razy.
+    process.env.NEWSLETTER_ENGAGEMENT_SOURCE = "provider";
+    await record({ source: "provider", occurredAt: "2026-08-10T23:59:00.000Z" });
+    expect(calls[0].args.p_occurred_at).toBe("2026-08-10T23:59:00.000Z");
+  });
+
+  it("normalizuje czas wystąpienia i odrzuca śmieć zamiast wysyłać NaN", async () => {
+    process.env.NEWSLETTER_ENGAGEMENT_SOURCE = "provider";
+    await record({ source: "provider", occurredAt: "2026-08-10 23:59:00+00" });
+    expect(calls[0].args.p_occurred_at).toBe("2026-08-10T23:59:00.000Z");
+
+    calls.length = 0;
+    await record({ source: "provider", occurredAt: "nie-data" });
+    // `null` => baza podstawi now(); lepsze niż kubełek policzony z NaN-a.
+    expect(calls[0].args.p_occurred_at).toBeNull();
   });
 
   it("przycina adres kliknięcia do 2048 znaków", async () => {

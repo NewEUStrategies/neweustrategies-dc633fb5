@@ -47,6 +47,16 @@ export interface RecordCampaignEventInput {
   kind: "open" | "click";
   url: string | null;
   source: EngagementSource;
+  /**
+   * Czas WYSTĄPIENIA zdarzenia (ISO). Pomiń dla producenta, który pisze w tej
+   * samej chwili (piksel, przekierowanie) - baza podstawi `now()`.
+   *
+   * Webhook dostawcy MUSI go podać: kubełkiem deduplikacji jest doba, a
+   * webhook potrafi dotrzeć z opóźnieniem albo poza kolejnością. Bez tego dwa
+   * otwarcia z tej samej doby dostarczone po dwóch stronach północy policzyłyby
+   * się dwa razy, a dwa z różnych dób dostarczone razem - zlały w jedno.
+   */
+  occurredAt?: string | null;
 }
 
 export interface RecordCampaignEventResult {
@@ -100,6 +110,17 @@ function readOutcome(data: unknown): RecordCampaignEventResult {
 }
 
 /**
+ * Znacznik czasu wystąpienia albo `null`. Śmieć nie leci do bazy jako „dzisiaj":
+ * nieparsowalna data z webhooka cofa nas do `now()` po stronie SQL, a nie do
+ * kubełka wyliczonego z NaN-a.
+ */
+function isoOrNull(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const ts = Date.parse(raw);
+  return Number.isFinite(ts) ? new Date(ts).toISOString() : null;
+}
+
+/**
  * Zapisuje zdarzenie open/click. Zwraca rozstrzygnięcie zamiast `void`, żeby
  * wywołujący (i testy) widzieli RÓŻNICĘ między „policzone", „już policzone
  * dzisiaj" a „to źródło nie pisze" - trzy różne prawdy, dotąd nieodróżnialne.
@@ -131,6 +152,7 @@ export async function recordCampaignEvent(
       p_subscriber: input.subscriberId,
       p_kind: input.kind,
       p_url: input.url ? input.url.slice(0, 2048) : null,
+      p_occurred_at: isoOrNull(input.occurredAt),
     });
     if (error) return { recorded: false, outcome: "write_failed" };
     return readOutcome(data);

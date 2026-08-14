@@ -52,23 +52,60 @@
 -- ---------------------------------------------------------------------------
 -- Zostawiamy NAJWCZEŚNIEJSZE zdarzenie w każdej dobie: to ono jest pierwszym
 -- realnym śladem odbiorcy, a duplikaty po nim to echo pikseli i webhooka.
--- Kasujemy wprost (bez triggera - `trg_score_on_campaign_event` jest AFTER
--- INSERT), a scoring leada wyrówna się przy najbliższym zdarzeniu, bo
--- `compute_crm_lead_score` liczy od zera z aktualnego stanu tabeli.
-WITH ranked AS (
-  SELECT
-    id,
-    row_number() OVER (
-      PARTITION BY campaign_id, subscriber_id, kind, (created_at AT TIME ZONE 'UTC')::date
-      ORDER BY created_at, id
-    ) AS rn
-  FROM public.newsletter_campaign_events
-  WHERE subscriber_id IS NOT NULL
-)
-DELETE FROM public.newsletter_campaign_events e
-USING ranked r
-WHERE e.id = r.id
-  AND r.rn > 1;
+--
+-- SCORING LEADA PRZELICZAMY TU, NIE „KIEDYŚ". `trg_score_on_campaign_event`
+-- jest AFTER INSERT, więc kasowanie duplikatów go NIE odpala, a
+-- `crm_leads.score`, `score_band` i `score_breakdown` są ZMATERIALIZOWANE.
+-- Zostawione samym sobie zostałyby zawyżone aż do następnego sygnału tego
+-- leada - a lead nieaktywny nie wygeneruje go nigdy i tkwiłby w błędnym
+-- pasmie („hot" zamiast „cool") bez końca, czyli dokładnie tam, gdzie
+-- sprzedaż podejmuje decyzje. Dlatego zbieramy dotkniętych subskrybentów
+-- z `RETURNING` i przeliczamy ICH leady od zera.
+--
+-- Idempotentnie: przy powtórnym przebiegu nie ma czego kasować, zbiór jest
+-- pusty i nie przeliczamy niczego.
+DO $$
+DECLARE
+  v_leads uuid[] := '{}';
+  v_lead  uuid;
+BEGIN
+  WITH ranked AS (
+    SELECT
+      id,
+      row_number() OVER (
+        PARTITION BY campaign_id, subscriber_id, kind, (created_at AT TIME ZONE 'UTC')::date
+        ORDER BY created_at, id
+      ) AS rn
+    FROM public.newsletter_campaign_events
+    WHERE subscriber_id IS NOT NULL
+  ),
+  deleted AS (
+    DELETE FROM public.newsletter_campaign_events e
+    USING ranked r
+    WHERE e.id = r.id
+      AND r.rn > 1
+    RETURNING e.subscriber_id
+  )
+  -- To samo wiązanie subskrybent -> lead, co w triggerze scoringu: tenant
+  -- subskrybenta ORAZ znormalizowany e-mail. Bez tenanta w JOIN-ie ten sam
+  -- adres w dwóch obszarach roboczych przeliczyłby cudzy wiersz.
+  SELECT COALESCE(array_agg(DISTINCT cl.id), '{}'::uuid[])
+    INTO v_leads
+    FROM deleted d
+    JOIN public.newsletter_subscribers ns ON ns.id = d.subscriber_id
+    JOIN public.crm_leads cl
+      ON cl.tenant_id = ns.tenant_id
+     AND cl.email_norm = lower(ns.email);
+
+  FOREACH v_lead IN ARRAY v_leads LOOP
+    PERFORM public.compute_crm_lead_score(v_lead);
+  END LOOP;
+
+  IF array_length(v_leads, 1) IS NOT NULL THEN
+    RAISE NOTICE 'newsletter_campaign_events: po deduplikacji przeliczono scoring % leadow',
+      array_length(v_leads, 1);
+  END IF;
+END $$;
 
 -- ---------------------------------------------------------------------------
 -- 2) Inwariant
@@ -98,11 +135,30 @@ COMMENT ON TABLE public.newsletter_campaign_events IS
 -- tenanta - inaczej zdarzenie jednego obszaru roboczego dałoby się przypisać
 -- do subskrybenta innej firmy - a kolizja z inwariantem jest cichym „już
 -- policzone", nie błędem.
+--
+-- `p_occurred_at` istnieje, bo kubełkiem jest DOBA, a producent nie zawsze pisze
+-- w chwili zdarzenia. Webhook dostawcy potrafi dotrzeć z opóźnieniem albo poza
+-- kolejnością: dwa otwarcia z tej samej doby dostarczone po dwóch stronach
+-- północy policzyłyby się DWA razy, a dwa z różnych dób dostarczone razem -
+-- zlały w jedno. Piksel własny podaje NULL (zdarzenie jest „teraz"), webhook
+-- podaje zweryfikowany czas wystąpienia. Wartość z przyszłości ścinamy do
+-- `now()` - żaden dostawca nie wie o zdarzeniu wcześniej, niż ono nastąpiło,
+-- a przesunięty zegar po tamtej stronie nie ma prawa zakładać kubełków w
+-- przyszłych dobach.
+
+-- Wariant 4-argumentowy (bez czasu wystąpienia) NIE MOŻE zostać w bazie obok
+-- nowego. `CREATE OR REPLACE` z dodatkowym argumentem tworzy PRZECIĄŻENIE, nie
+-- zamiennik, a dwa przeciążenia oznaczają albo `PGRST203` z Data API, albo -
+-- gorzej - ciche wywołanie wariantu, który ignoruje czas wystąpienia. DROP jest
+-- bezpieczny w obie strony: na świeżej bazie nie ma czego kasować.
+DROP FUNCTION IF EXISTS public.newsletter_record_campaign_event(uuid, uuid, text, text);
+
 CREATE OR REPLACE FUNCTION public.newsletter_record_campaign_event(
   p_campaign uuid,
   p_subscriber uuid,
   p_kind text,
-  p_url text DEFAULT NULL
+  p_url text DEFAULT NULL,
+  p_occurred_at timestamptz DEFAULT NULL
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -113,6 +169,7 @@ DECLARE
   v_tenant uuid;
   v_subscriber uuid;
   v_id uuid;
+  v_at timestamptz := LEAST(COALESCE(p_occurred_at, now()), now());
 BEGIN
   IF p_campaign IS NULL OR p_kind IS NULL THEN
     RETURN jsonb_build_object('recorded', false, 'duplicate', false, 'reason', 'invalid_input');
@@ -143,8 +200,9 @@ BEGIN
     RETURN jsonb_build_object('recorded', false, 'duplicate', false, 'reason', 'unknown_subscriber');
   END IF;
 
-  INSERT INTO public.newsletter_campaign_events (tenant_id, campaign_id, subscriber_id, kind, url)
-  VALUES (v_tenant, p_campaign, v_subscriber, p_kind, left(p_url, 2048))
+  INSERT INTO public.newsletter_campaign_events
+    (tenant_id, campaign_id, subscriber_id, kind, url, created_at)
+  VALUES (v_tenant, p_campaign, v_subscriber, p_kind, left(p_url, 2048), v_at)
   ON CONFLICT (campaign_id, subscriber_id, kind, ((created_at AT TIME ZONE 'UTC')::date))
     WHERE subscriber_id IS NOT NULL
   DO NOTHING
@@ -155,17 +213,18 @@ BEGIN
     'duplicate', v_id IS NULL,
     'reason',    CASE WHEN v_id IS NULL THEN 'duplicate_in_day' ELSE 'recorded' END,
     'event_id',  v_id,
-    'tenant_id', v_tenant
+    'tenant_id', v_tenant,
+    'event_day', (v_at AT TIME ZONE 'UTC')::date
   );
 END;
 $$;
 
-COMMENT ON FUNCTION public.newsletter_record_campaign_event(uuid, uuid, text, text) IS
-  'Jedyna sciezka zapisu zdarzen open/click. Tenant z kampanii (nigdy z zadania), subskrybent walidowany w tym samym tenancie, wstawienie idempotentne w dobie UTC (ON CONFLICT DO NOTHING na nl_campaign_events_subscriber_day_uq). Zwraca {recorded, duplicate, reason, event_id, tenant_id} - duplikat to normalny wynik, nie blad.';
+COMMENT ON FUNCTION public.newsletter_record_campaign_event(uuid, uuid, text, text, timestamptz) IS
+  'Jedyna sciezka zapisu zdarzen open/click. Tenant z kampanii (nigdy z zadania), subskrybent walidowany w tym samym tenancie, wstawienie idempotentne w dobie UTC (ON CONFLICT DO NOTHING na nl_campaign_events_subscriber_day_uq). p_occurred_at = czas WYSTAPIENIA (webhook moze dotrzec z opoznieniem lub poza kolejnoscia); NULL = teraz, wartosc z przyszlosci scinana do now(). Zwraca {recorded, duplicate, reason, event_id, tenant_id, event_day} - duplikat to normalny wynik, nie blad.';
 
-REVOKE ALL ON FUNCTION public.newsletter_record_campaign_event(uuid, uuid, text, text)
+REVOKE ALL ON FUNCTION public.newsletter_record_campaign_event(uuid, uuid, text, text, timestamptz)
   FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.newsletter_record_campaign_event(uuid, uuid, text, text)
+GRANT EXECUTE ON FUNCTION public.newsletter_record_campaign_event(uuid, uuid, text, text, timestamptz)
   TO service_role;
 
 -- ---------------------------------------------------------------------------

@@ -20,6 +20,11 @@ import {
   type ReputationSummary,
 } from "@/lib/email/reputation";
 import type { SuppressionReason, SuppressionScope } from "@/lib/email/suppressionPolicy";
+import {
+  resolveEngagementSource,
+  ENGAGEMENT_SOURCE_ENV,
+  type EngagementSource,
+} from "@/lib/newsletter/engagementSource";
 
 export interface DeliverabilityDayPoint {
   day: string;
@@ -284,9 +289,29 @@ export interface DeliverabilitySetup {
   webhookUrl: string;
   /** Zdarzenia, na które endpoint powinien nasłuchiwać. */
   events: readonly string[];
+  /**
+   * Kto w tej instalacji jest źródłem prawdy dla otwarć i kliknięć. Steruje
+   * listą powyżej, więc panel nie może o nim milczeć: operator, który dopisze
+   * `email.opened` „na wszelki wypadek" w trybie `first_party`, dostanie
+   * podwójne zliczanie - dokładnie usterkę, którą zamyka migracja 20260814150000.
+   */
+  engagementSource: EngagementSource;
   /** Czy dotarło już jakiekolwiek zdarzenie (dowód, że pętla działa). */
   lastEventAt: string | null;
 }
+
+/** Zdarzenia dostarczalności - potrzebne ZAWSZE, niezależnie od źródła zaangażowania. */
+const DELIVERY_EVENTS: readonly string[] = [
+  "email.sent",
+  "email.delivered",
+  "email.delivery_delayed",
+  "email.bounced",
+  "email.complained",
+  "email.failed",
+];
+
+/** Zdarzenia zaangażowania - subskrybowane WYŁĄCZNIE, gdy dostawca jest źródłem prawdy. */
+const ENGAGEMENT_EVENTS: readonly string[] = ["email.opened", "email.clicked"];
 
 export const getDeliverabilitySetup = createServerFn({ method: "GET" })
   .middleware([requireAdminEditor])
@@ -298,6 +323,8 @@ export const getDeliverabilitySetup = createServerFn({ method: "GET" })
       ""
     ).replace(/\/+$/, "");
 
+    const engagementSource = resolveEngagementSource(process.env[ENGAGEMENT_SOURCE_ENV]);
+
     const { data: rows } = await context.supabase
       .from("email_delivery_events")
       .select("occurred_at")
@@ -308,21 +335,22 @@ export const getDeliverabilitySetup = createServerFn({ method: "GET" })
     return {
       webhookConfigured: Boolean(process.env.RESEND_WEBHOOK_SECRET),
       webhookUrl: `${origin}/api/public/webhooks/resend`,
-      // `email.opened` i `email.clicked` NIE są tu wymienione świadomie.
-      // Dostawca mierzy je tym samym mechanizmem, co my (piksel obrazka,
-      // przepisany link - w dodatku przepisuje NASZ `nl-click` jeszcze raz na
-      // swój), więc włączenie ich w panelu dostawcy dokłada drugi pomiar tego
-      // samego zdarzenia. Zaangażowanie ma dokładnie jedno źródło prawdy
-      // (`NEWSLETTER_ENGAGEMENT_SOURCE`, patrz docs/ARCHITECTURE.md §11.6);
-      // ten webhook odpowiada za dostarczalność, nie za zaangażowanie.
-      events: [
-        "email.sent",
-        "email.delivered",
-        "email.delivery_delayed",
-        "email.bounced",
-        "email.complained",
-        "email.failed",
-      ],
+      // Lista MUSI iść za skonfigurowanym źródłem prawdy, bo to ona jest
+      // instrukcją, którą operator przepisuje do panelu dostawcy.
+      //   * `first_party` (domyślnie): dostawca mierzy otwarcia i kliknięcia
+      //     tym samym mechanizmem, co my (piksel obrazka, przepisany link - w
+      //     dodatku przepisuje NASZ `nl-click` jeszcze raz na swój), więc
+      //     subskrypcja `email.opened`/`email.clicked` dokłada drugi pomiar
+      //     tego samego zdarzenia. Dlatego ich tu nie ma.
+      //   * `provider`: zaangażowanie może przyjść WYŁĄCZNIE tymi dwoma
+      //     zdarzeniami. Ich pominięcie dałoby konfigurację martwą - własny
+      //     zapis wyłączony, a webhook bez czego zapisać.
+      // Patrz docs/ARCHITECTURE.md §11.6.
+      events:
+        engagementSource === "provider"
+          ? [...DELIVERY_EVENTS, ...ENGAGEMENT_EVENTS]
+          : DELIVERY_EVENTS,
+      engagementSource,
       lastEventAt: last ? str(last, "occurred_at") : null,
     };
   });

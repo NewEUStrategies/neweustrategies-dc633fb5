@@ -54,6 +54,10 @@ const pl = {
         "Ustaw sekret webhooka dostarczalności w sekretach projektu i dodaj poniższy adres u dostawcy poczty. Bez tego odbicia i skargi nie trafiają do naszych logów, a lista wykluczeń nie rośnie.",
       urlLabel: "Adres endpointu",
       eventsLabel: "Zdarzenia",
+      engagementFirstParty:
+        "Otwarcia i kliknięcia liczy nasz piksel i przekierowanie, dlatego NIE subskrybuj `email.opened` ani `email.clicked` - dostawca mierzy to samo tym samym sposobem, a dwa pomiary tego samego zdarzenia dają wskaźnik otwarć powyżej 100%.",
+      engagementProvider:
+        "Źródłem otwarć i kliknięć jest dostawca, więc `email.opened` i `email.clicked` MUSZĄ być zasubskrybowane - bez nich zaangażowanie nie zapisze się wcale (własny piksel jest w tym trybie wyłączony).",
       copy: "Kopiuj",
       copied: "Skopiowano",
       lastEvent: "Ostatnie zdarzenie: {{when}}",
@@ -187,6 +191,10 @@ const en: typeof pl = {
         "Set the deliverability webhook secret in the project secrets and add the URL below at your mail provider. Without it bounces and complaints never reach our logs and the suppression list stays empty.",
       urlLabel: "Endpoint URL",
       eventsLabel: "Events",
+      engagementFirstParty:
+        "Opens and clicks are counted by our own pixel and redirect, so do NOT subscribe to `email.opened` or `email.clicked` - the provider measures the same thing the same way, and two measurements of one event push the open rate above 100%.",
+      engagementProvider:
+        "The provider is the source of truth for opens and clicks, so `email.opened` and `email.clicked` MUST be subscribed - without them engagement is never recorded (the first-party pixel is disabled in this mode).",
       copy: "Copy",
       copied: "Copied",
       lastEvent: "Last event: {{when}}",
