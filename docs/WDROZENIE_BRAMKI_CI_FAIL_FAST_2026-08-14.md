@@ -93,7 +93,8 @@ PÓŹNIEJSZY plik, nie edycja zastosowanego.
 ### 3. Nowa bramka: `check:sql-policy-tenant-regression`
 
 Polityka, która raz związała wiersz z najemcą, nie może tego wiązania stracić
-przy późniejszym odtworzeniu. Porównuje HISTORIĘ definicji ze STANEM KOŃCOWYM:
+przy późniejszym odtworzeniu. Porównuje HISTORIĘ definicji ze STANEM KOŃCOWYM,
+**osobno dla każdej strony polityki** (korekta po recenzji, patrz niżej):
 
 - **blokuje**, gdy definicja obowiązująca zgubiła wiązanie nadane wcześniej;
 - **raportuje** cofnięcia zaleczone później (dokładnie kategoria `20260814122512`
@@ -165,6 +166,61 @@ Każda z trzech bramek oblewa też na **pustym skanie** (zero polityk, zero
 bramek, zero definicji). Bramka, która po zmianie parsera przestaje cokolwiek
 widzieć, wygląda w logu identycznie jak bramka przechodząca - i to jest jedyny
 tryb awarii, którego nie zgłosi nikt inny.
+
+## Korekta po recenzji PR #228
+
+Automatyczna recenzja zgłosiła dwa P1 - oba trafione, oba dotyczyły PRECYZJI
+nowych bramek, nie ich kształtu. Poprawione razem z testami regresyjnymi.
+
+### R1: wiązanie najemcy liczone per klauzula, nie jednym napisem
+
+Pierwsza wersja `bindsTenant()` skanowała `USING` i `WITH CHECK` zlane w jeden
+tekst (`policyPredicate()`), więc token najemcy GDZIEKOLWIEK w predykacie
+liczył się jako wiązanie całej polityki. To przepuszczało cofnięcie CZĘŚCIOWE,
+w pełni wystarczające do przejęcia wiersza obcego najemcy:
+
+    -- przed
+    FOR UPDATE USING (tenant_id = current_tenant_id())
+           WITH CHECK (tenant_id = current_tenant_id())
+    -- po - stara wersja nadal widziała „wiązanie", bo `tenant_id` gdzieś jest
+    FOR UPDATE USING (true)
+           WITH CHECK (tenant_id = current_tenant_id())
+
+`USING (true)` pozwala WZIĄĆ NA CEL dowolny wiersz dowolnego najemcy, a
+`WITH CHECK` wymaga tylko, by wiersz PO zapisie należał do piszącego - czyli
+przepisuje cudzy wiersz do siebie. Teraz każda strona ma własną historię
+i własne cofnięcie, a raport mówi, KTÓRA strona wiązanie straciła.
+
+Które strony istnieją, zależy od komendy - i to nie jest szczegół, bo strona
+nieistniejąca nie ma jak zgubić wiązania:
+
+| Komenda  | `selection` (USING)     | `result` (kształt wiersza po zapisie) |
+| -------- | ----------------------- | ------------------------------------- |
+| `SELECT` | USING                   | brak - nic nie zapisuje               |
+| `DELETE` | USING                   | brak - nie powstaje żaden wiersz      |
+| `INSERT` | brak - USING zabronione | WITH CHECK                            |
+| `UPDATE` | USING                   | WITH CHECK, a bez niej USING          |
+| `ALL`    | USING                   | WITH CHECK, a bez niej USING          |
+
+Pomiar po korekcie jest identyczny (556 polityk, 8 luk zastanych, 3 cofnięcia
+zaleczone), czyli w 770 migracjach nie ma dziś cofnięcia częściowego - ale od
+teraz jest mierzone.
+
+### R2: meta-bramka czyta wyłącznie treść wykonywaną
+
+`scanGateInvocations()` skanowało KAŻDĄ linię pliku workflow, więc krok
+skomentowany „na chwilę" przy debugowaniu CI (`# run: bun run check:foo`)
+liczył się jako wpięty. To przewracało całą gwarancję tej bramki: raportowałaby
+pokrycie, którego GitHub Actions nigdy nie wykona. Ten sam błąd zaliczał
+wzmianki z komentarzy dokumentacyjnych (a w `ci.yml` jest ich kilkanaście, np.
+„napraw przez `bun run format`") oraz nazwy kroków.
+
+Teraz liczy się wyłącznie wartość klucza `run:` - jednolinijkowa albo blok
+`run: |` - z pominięciem komentarzy YAML i shellowych. Heurystyka odcinania
+komentarza końcowego zostawia `#` bez poprzedzającej spacji, bo tak wygląda
+separator w jedynym nietrywialnym poleceniu repo (`sed -E -i 's#https://…#…#g'`).
+Jej tryb awarii to zgubione wywołanie, czyli bramka zgłoszona jako NIEWPIĘTA -
+błąd głośny, nie cichy fałszywy spokój.
 
 ## Dług do zamknięcia (osobna zmiana)
 

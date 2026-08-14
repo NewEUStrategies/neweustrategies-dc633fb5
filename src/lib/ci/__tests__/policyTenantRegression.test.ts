@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import {
   analyzePolicyTenantRegressions,
   bindsTenant,
+  policySideBindings,
   policyTenantRegressionFailed,
   regressionKey,
   renderPolicyTenantRegressionReport,
@@ -94,6 +95,114 @@ describe("policyTenantRegression - wiązanie najemcy w politykach", () => {
     expect(report.open).toEqual([]);
     expect(report.healed.map(regressionKey)).toEqual(["objects::career_cv_staff_read"]);
     expect(report.healed[0].weakenedIn).toBe("122512_generated.sql");
+    expect(policyTenantRegressionFailed(report)).toBe(false);
+  });
+
+  // ── Cofnięcie CZĘŚCIOWE: recenzja PR #228 ─────────────────────────────────
+  // Pierwsza wersja skanowała USING i WITH CHECK zlane w jeden napis, więc
+  // token najemcy w JEDNEJ z klauzul wystarczał, by uznać całą politykę za
+  // wiążącą. To przepuszczało kształt w pełni wystarczający do przejęcia
+  // wiersza obcego najemcy.
+
+  it("BLOKUJE utratę wiązania w samym USING, gdy WITH CHECK je zachowuje", () => {
+    const hardened = [
+      'DROP POLICY IF EXISTS "t_update" ON public.t;',
+      'CREATE POLICY "t_update" ON public.t FOR UPDATE TO authenticated',
+      "USING (tenant_id = current_tenant_id())",
+      "WITH CHECK (tenant_id = current_tenant_id());",
+    ].join("\n");
+    // USING (true) = wolno WZIĄĆ NA CEL wiersz dowolnego najemcy; WITH CHECK
+    // wymaga tylko, by wiersz PO zapisie należał do piszącego - czyli pozwala
+    // przepisać cudzy wiersz do siebie.
+    const hijack = [
+      'DROP POLICY IF EXISTS "t_update" ON public.t;',
+      'CREATE POLICY "t_update" ON public.t FOR UPDATE TO authenticated',
+      "USING (true)",
+      "WITH CHECK (tenant_id = current_tenant_id());",
+    ].join("\n");
+
+    const report = analyze([
+      { file: "001.sql", sql: hardened },
+      { file: "002.sql", sql: hijack },
+    ]);
+    expect(report.open.map(regressionKey)).toEqual(["t::t_update"]);
+    expect(report.open[0].sides).toEqual(["selection"]);
+    expect(report.open[0].weakenedIn).toBe("002.sql");
+    expect(policyTenantRegressionFailed(report)).toBe(true);
+  });
+
+  it("BLOKUJE utratę wiązania w samym WITH CHECK, gdy USING je zachowuje", () => {
+    const hardened = [
+      'CREATE POLICY "t_all" ON public.t FOR ALL TO authenticated',
+      "USING (tenant_id = current_tenant_id())",
+      "WITH CHECK (tenant_id = current_tenant_id());",
+    ].join("\n");
+    // WITH CHECK (true) = wolno wstawić / przenieść wiersz do OBCEGO najemcy.
+    const escape = [
+      'DROP POLICY IF EXISTS "t_all" ON public.t;',
+      'CREATE POLICY "t_all" ON public.t FOR ALL TO authenticated',
+      "USING (tenant_id = current_tenant_id())",
+      "WITH CHECK (true);",
+    ].join("\n");
+
+    const report = analyze([
+      { file: "001.sql", sql: hardened },
+      { file: "002.sql", sql: escape },
+    ]);
+    expect(report.open[0].sides).toEqual(["result"]);
+    expect(policyTenantRegressionFailed(report)).toBe(true);
+  });
+
+  it("brak WITH CHECK znaczy USING - dla UPDATE i ALL tak liczy PostgreSQL", () => {
+    const policies = extractLatestPolicies([
+      {
+        file: "001.sql",
+        sql: 'CREATE POLICY "t_all" ON public.t FOR ALL USING (tenant_id = current_tenant_id());',
+      },
+    ]);
+    expect(policySideBindings(policies.get("t::t_all")!)).toEqual({
+      selection: true,
+      result: true,
+    });
+  });
+
+  it("strona NIEISTNIEJĄCA nie jest ani nadaniem, ani utratą wiązania", () => {
+    // FOR SELECT nie ma WITH CHECK, a FOR INSERT nie ma USING - `null` na
+    // brakującej stronie, bo brak klauzuli to brak uprawnienia, nie luka.
+    const policies = extractLatestPolicies([
+      {
+        file: "001.sql",
+        sql: [
+          'CREATE POLICY "r" ON public.t FOR SELECT USING (tenant_id = current_tenant_id());',
+          'CREATE POLICY "w" ON public.t FOR INSERT WITH CHECK (tenant_id = current_tenant_id());',
+        ].join("\n"),
+      },
+    ]);
+    expect(policySideBindings(policies.get("t::r")!)).toEqual({ selection: true, result: null });
+    expect(policySideBindings(policies.get("t::w")!)).toEqual({ selection: null, result: true });
+  });
+
+  it("zwężenie polityki do FOR SELECT nie jest utratą wiązania po stronie zapisu", () => {
+    const report = analyze([
+      {
+        file: "001.sql",
+        sql: [
+          'CREATE POLICY "t_all" ON public.t FOR ALL',
+          "USING (tenant_id = current_tenant_id())",
+          "WITH CHECK (tenant_id = current_tenant_id());",
+        ].join("\n"),
+      },
+      {
+        file: "002.sql",
+        sql: [
+          'DROP POLICY IF EXISTS "t_all" ON public.t;',
+          'CREATE POLICY "t_all" ON public.t FOR SELECT',
+          "USING (tenant_id = current_tenant_id());",
+        ].join("\n"),
+      },
+    ]);
+    expect(report.open).toEqual([]);
+    expect(report.healed).toEqual([]);
     expect(policyTenantRegressionFailed(report)).toBe(false);
   });
 

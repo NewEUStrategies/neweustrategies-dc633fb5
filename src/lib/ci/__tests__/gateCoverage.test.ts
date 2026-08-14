@@ -101,6 +101,78 @@ describe("gateCoverage - bramka, która istnieje, musi się uruchamiać", () => 
     expect(gateCoverageFailed(report)).toBe(false);
   });
 
+  // ── Treść NIEWYKONYWANA: recenzja PR #228 ─────────────────────────────────
+  // Pierwsza wersja skanowała każdą linię pliku, więc krok skomentowany „na
+  // chwilę" przy debugowaniu CI liczył się jako wpięty - a to przewraca całą
+  // gwarancję tej bramki: raportuje pokrycie, którego Actions nigdy nie wykona.
+
+  it("zakomentowany krok NIE liczy się jako wpięty", () => {
+    const yaml = [
+      "jobs:",
+      "  verify:",
+      "    steps:",
+      "      # - name: Migracje",
+      "      #   run: bun run check:sql-migration-replay",
+      "      - name: Harness",
+      "        run: bun run check:pg-harness",
+    ].join("\n");
+    const report = analyzeGateCoverage(
+      ["check:sql-migration-replay", "check:pg-harness"],
+      scanGateInvocations([{ file: "ci.yml", yaml }]),
+    );
+    expect(report.unwired).toEqual(["check:sql-migration-replay"]);
+    expect(gateCoverageFailed(report)).toBe(true);
+  });
+
+  it("wzmianka w komentarzu dokumentacyjnym ani w nazwie kroku nie jest wywołaniem", () => {
+    // W `ci.yml` jest kilkanaście komentarzy cytujących komendy naprawcze
+    // (`bun run format`, `bun run generate:authz-snapshot`) - żadna nie jedzie.
+    const yaml = [
+      "jobs:",
+      "  verify:",
+      "    steps:",
+      "      # Napraw regeneracją: bun run check:authz-snapshot",
+      "      - name: krok o bun run check:authz-snapshot",
+      "        run: bun run check:pg-harness",
+    ].join("\n");
+    const invocations = scanGateInvocations([{ file: "ci.yml", yaml }]);
+    expect(invocations.map((entry) => entry.script)).toEqual(["check:pg-harness"]);
+  });
+
+  it("czyta blok `run: |`, ale pomija w nim komentarze shellowe", () => {
+    const yaml = [
+      "jobs:",
+      "  verify:",
+      "    steps:",
+      "      - run: |",
+      "          # bun run check:sql-app-role",
+      "          bun run check:sql-anon-insert",
+      "",
+      "          bun run check:sql-tenant-scope",
+      "      - run: bun run check:pg-harness",
+    ].join("\n");
+    const invocations = scanGateInvocations([{ file: "ci.yml", yaml }]);
+    expect(invocations.map((entry) => entry.script)).toEqual([
+      "check:sql-anon-insert",
+      "check:sql-tenant-scope",
+      "check:pg-harness",
+    ]);
+  });
+
+  it("odcina komentarz na końcu linii, ale nie separator `#` bez spacji", () => {
+    const yaml = [
+      "jobs:",
+      "  verify:",
+      "    steps:",
+      "      - run: bun run check:pg-harness # bun run check:bundle",
+      "      - run: |",
+      "          sed -E -i 's#https://a#https://b#g' bun.lock",
+      "          bun run check:chunks",
+    ].join("\n");
+    const invocations = scanGateInvocations([{ file: "ci.yml", yaml }]);
+    expect(invocations.map((entry) => entry.script)).toEqual(["check:pg-harness", "check:chunks"]);
+  });
+
   it("zgłasza krok wołający skrypt, którego nie ma w package.json", () => {
     const yaml = ["jobs:", "  verify:", "    steps:", "      - run: bun run check:literowka"].join(
       "\n",

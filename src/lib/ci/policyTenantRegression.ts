@@ -29,10 +29,18 @@
 //
 // ── CO MIERZY BRAMKA ────────────────────────────────────────────────────────
 // Dla każdej polityki (tabela + nazwa) porównuje jej HISTORIĘ ze STANEM
-// KOŃCOWYM. Zapala się, gdy jakakolwiek definicja w łańcuchu wiązała najemcę,
-// a definicja OBOWIĄZUJĄCA już nie wiąże. To jedyny kształt, który realnie
-// otwiera dane - i jednocześnie jedyny, którego nie da się zamieść pod dywan
-// dopisaniem kolejnej migracji: wystarczy odtworzyć politykę poprawnie.
+// KOŃCOWYM, OSOBNO DLA KAŻDEJ STRONY: `USING` (które istniejące wiersze
+// polityka wystawia) i `WITH CHECK` (jak ma wyglądać wiersz po zapisie; gdy
+// klauzuli nie ma, PostgreSQL bierze `USING`). Zapala się, gdy któraś strona
+// była kiedyś wiązana, a w definicji OBOWIĄZUJĄCEJ już nie jest. To jedyny
+// kształt, który realnie otwiera dane - i jednocześnie jedyny, którego nie da
+// się zamieść pod dywan dopisaniem kolejnej migracji: wystarczy odtworzyć
+// politykę poprawnie.
+//
+// Rozdzielenie stron jest KONIECZNE, nie kosmetyczne - patrz komentarz przy
+// `policySideBindings`: `USING (true)` przy zachowanym tenantowym `WITH CHECK`
+// pozwala wziąć na cel wiersz obcego najemcy i przepisać go do siebie, a przy
+// zlanych klauzulach token najemcy „gdzieś w predykacie" wyglądał jak wiązanie.
 //
 // Cofnięcia ZALECZONE (wiązanie wróciło w późniejszej migracji) raportujemy
 // GŁOŚNO, ale bez blokowania - to właśnie kategoria z 20260814122512 i audyt
@@ -62,7 +70,76 @@ const TENANT_SIGNALS: readonly RegExp[] = [
   /\btenant_id\b/i,
 ];
 
-/** Czy predykat polityki (USING + WITH CHECK) w ogóle wiąże najemcę. */
+/** Czy pojedyncze wyrażenie wiąże najemcę. `null` = klauzuli nie ma. */
+function exprBindsTenant(expr: string | null): boolean | null {
+  if (expr === null) return null;
+  return TENANT_SIGNALS.some((signal) => signal.test(expr));
+}
+
+/**
+ * Strona polityki. Nazwy są semantyczne, nie składniowe, bo o wyciek decyduje
+ * semantyka PostgreSQL, a nie to, która klauzula jest zapisana:
+ *
+ *   * `selection` = `USING` - KTÓRE ISTNIEJĄCE WIERSZE polityka wystawia
+ *     (SELECT je zwraca, UPDATE i DELETE mogą je wziąć na cel);
+ *   * `result`    = JAK MA WYGLĄDAĆ WIERSZ PO ZAPISIE.
+ *
+ * Która strona ISTNIEJE, zależy od komendy - i to nie jest szczegół, bo strona
+ * nieistniejąca nie ma jak zgubić wiązania:
+ *
+ *   | komenda  | selection            | result                              |
+ *   | -------- | -------------------- | ----------------------------------- |
+ *   | SELECT   | USING                | brak (nic nie zapisuje)             |
+ *   | DELETE   | USING                | brak (nie powstaje żaden wiersz)    |
+ *   | INSERT   | brak (USING zabronione) | WITH CHECK                       |
+ *   | UPDATE   | USING                | WITH CHECK, a bez niej USING        |
+ *   | ALL      | USING                | WITH CHECK, a bez niej USING        |
+ */
+export type PolicySide = "selection" | "result";
+
+/** Wiązanie najemcy OSOBNO dla każdej strony; `null` = strona nie istnieje. */
+export type PolicySideBindings = Readonly<Record<PolicySide, boolean | null>>;
+
+/**
+ * DLACZEGO OSOBNO, A NIE JEDNYM NAPISEM (korekta po recenzji PR #228).
+ *
+ * Pierwsza wersja skanowała `policyPredicate()`, czyli `USING` i `WITH CHECK`
+ * zlane w jeden tekst, i uznawała politykę za wiążącą, gdy token najemcy
+ * wystąpił GDZIEKOLWIEK. To przepuszczało cofnięcie CZĘŚCIOWE, a takie jest
+ * w pełni wystarczające do przejęcia wiersza obcego najemcy:
+ *
+ *     -- przed
+ *     FOR UPDATE USING (tenant_id = current_tenant_id())
+ *            WITH CHECK (tenant_id = current_tenant_id())
+ *     -- po - dla starej wersji nadal „wiąże", bo `tenant_id` gdzieś jest
+ *     FOR UPDATE USING (true)
+ *            WITH CHECK (tenant_id = current_tenant_id())
+ *
+ * Po tej zmianie `USING (true)` pozwala WZIĄĆ NA CEL dowolny wiersz dowolnego
+ * najemcy, a `WITH CHECK` wymaga tylko, by wiersz PO zapisie należał do
+ * najemcy piszącego - czyli dokładnie przepisuje cudzy wiersz do siebie.
+ * Dlatego każda strona ma własną historię i własne cofnięcie.
+ */
+export function policySideBindings(policy: PolicyDef): PolicySideBindings {
+  const writesRow = policy.command === "update" || policy.command === "all";
+  const resultExpr =
+    policy.command === "insert"
+      ? policy.withCheck
+      : writesRow
+        ? (policy.withCheck ?? policy.using)
+        : null;
+  return {
+    selection: policy.command === "insert" ? null : exprBindsTenant(policy.using),
+    result: exprBindsTenant(resultExpr),
+  };
+}
+
+/**
+ * Czy polityka wiąże najemcę NA KTÓREJKOLWIEK stronie.
+ *
+ * Wyłącznie do licznika w raporcie („ile polityk w ogóle zna najemcę").
+ * Do wykrywania cofnięć NIE WOLNO tego używać - patrz `policySideBindings`.
+ */
 export function bindsTenant(policy: PolicyDef): boolean {
   const predicate = policyPredicate(policy);
   return TENANT_SIGNALS.some((signal) => signal.test(predicate));
@@ -73,7 +150,9 @@ export interface TenantBindingRegression {
   /** Tabela bez schematu - jak w kluczach `rlsPolicies`. */
   readonly table: string;
   readonly policy: string;
-  /** Migracja, która wiązanie NADAŁA (pierwsza taka w łańcuchu). */
+  /** Strony, które wiązanie STRACIŁY - `selection` (USING) i/lub `result` (WITH CHECK). */
+  readonly sides: readonly PolicySide[];
+  /** Migracja, która wiązanie NADAŁA (najwcześniejsza dla cofniętych stron). */
   readonly hardenedIn: string;
   /** Migracja, której definicja wiązanie ZDJĘŁA. */
   readonly weakenedIn: string;
@@ -132,30 +211,63 @@ export function analyzePolicyTenantRegressions(
   const knownHits: TenantBindingRegression[] = [];
   const matchedKnown = new Set<string>();
 
+  const SIDES: readonly PolicySide[] = ["selection", "result"];
+
   for (const [key, defs] of history) {
-    const firstBoundIdx = defs.findIndex(bindsTenant);
-    if (firstBoundIdx === -1) continue;
+    // Krok 1: dla KAŻDEJ strony osobno - pierwsza definicja, która ją wiązała,
+    // i ostatnia późniejsza, która wiązanie zdjęła.
+    const hardened = new Map<PolicySide, PolicyDef>();
+    const weakened = new Map<PolicySide, PolicyDef>();
+    for (const def of defs) {
+      const bindings = policySideBindings(def);
+      for (const side of SIDES) {
+        const bound = bindings[side];
+        // Strona nieistniejąca (np. brak WITH CHECK przy FOR SELECT) nie jest
+        // ani nadaniem, ani zdjęciem wiązania - polityka nic tam nie wpuszcza.
+        if (bound === null) continue;
+        if (bound) {
+          if (!hardened.has(side)) hardened.set(side, def);
+          continue;
+        }
+        if (hardened.has(side)) weakened.set(side, def);
+      }
+    }
+    if (weakened.size === 0) continue;
 
-    const after = defs.slice(firstBoundIdx + 1);
-    const weakened = after.filter((def) => !bindsTenant(def));
-    if (weakened.length === 0) continue;
-
-    // Polityka SKASOWANA na końcu łańcucha nie jest cofnięciem wiązania:
-    // bez polityki RLS nie wpuszcza nikogo. Zniknięciem zajmują się bramki
-    // kontraktu, nie ta.
+    // Krok 2: polityka SKASOWANA na końcu łańcucha nie jest cofnięciem
+    // wiązania - bez polityki RLS nie wpuszcza nikogo. Zniknięciem zajmują się
+    // bramki kontraktu, nie ta.
     const current = latest.get(key);
     if (current === undefined) continue;
 
+    // Krok 3: o stanie OTWARTYM decyduje wyłącznie definicja OBOWIĄZUJĄCA.
+    // Strona, która w niej nie istnieje, też jest w porządku: brak klauzuli to
+    // brak uprawnienia, a nie utrata wiązania.
+    const currentBindings = policySideBindings(current);
+    const openSides = SIDES.filter((side) => hardened.has(side) && currentBindings[side] === false);
+    const sides = openSides.length > 0 ? openSides : [...weakened.keys()];
+    const firstHardened = sides
+      .map((side) => hardened.get(side))
+      .filter((def): def is PolicyDef => def !== undefined)
+      .reduce((earliest, def) => (def.file < earliest.file ? def : earliest));
+
     const entry: TenantBindingRegression = {
-      table: defs[firstBoundIdx].table,
-      policy: defs[firstBoundIdx].name,
-      hardenedIn: defs[firstBoundIdx].file,
+      table: firstHardened.table,
+      policy: firstHardened.name,
+      sides,
+      hardenedIn: firstHardened.file,
       // Stan otwarty datujemy definicją OBOWIĄZUJĄCĄ, zaleczony - ostatnią,
       // która wiązanie zdjęła. W obu razach to plik, który trzeba przeczytać.
-      weakenedIn: bindsTenant(current) ? weakened[weakened.length - 1].file : current.file,
+      weakenedIn:
+        openSides.length > 0
+          ? current.file
+          : sides
+              .map((side) => weakened.get(side))
+              .filter((def): def is PolicyDef => def !== undefined)
+              .reduce((latestWeak, def) => (def.file > latestWeak.file ? def : latestWeak)).file,
     };
 
-    if (bindsTenant(current)) {
+    if (openSides.length === 0) {
       healed.push(entry);
       continue;
     }
@@ -199,6 +311,16 @@ export function policyTenantRegressionFailed(report: PolicyTenantRegressionRepor
   return report.open.length > 0 || report.staleKnown.length > 0 || report.scannedDefinitions === 0;
 }
 
+/** Opis strony do raportu - klauzula plus to, o co w niej idzie. */
+const SIDE_LABEL: Readonly<Record<PolicySide, string>> = {
+  selection: "USING (które wiersze polityka wystawia)",
+  result: "WITH CHECK (jak ma wyglądać wiersz po zapisie)",
+};
+
+function sidesLabel(entry: TenantBindingRegression): string {
+  return entry.sides.map((side) => SIDE_LABEL[side]).join(" + ");
+}
+
 export function renderPolicyTenantRegressionReport(
   report: PolicyTenantRegressionReport,
   known: PolicyTenantGaps = {},
@@ -218,6 +340,7 @@ export function renderPolicyTenantRegressionReport(
       ...report.open.map(
         (entry) =>
           `    ${regressionKey(entry)}\n` +
+          `      strona bez wiązania: ${sidesLabel(entry)}\n` +
           `      wiązanie nadane w: ${entry.hardenedIn}\n` +
           `      obowiązująca definicja BEZ wiązania: ${entry.weakenedIn}`,
       ),
@@ -253,6 +376,7 @@ export function renderPolicyTenantRegressionReport(
       ...report.known.map(
         (entry) =>
           `    ${regressionKey(entry)}  [${entry.hardenedIn} -> ${entry.weakenedIn}]\n` +
+          `      strona: ${sidesLabel(entry)}\n` +
           `      ${known[regressionKey(entry)]}`,
       ),
     );
@@ -263,7 +387,7 @@ export function renderPolicyTenantRegressionReport(
       `  ${report.healed.length} cofnięć ZALECZONYCH później (raport, nie blokada):`,
       ...report.healed.map(
         (entry) =>
-          `    ${regressionKey(entry)}: ${entry.hardenedIn} nadała, ${entry.weakenedIn} zdjęła, późniejsza migracja przywróciła`,
+          `    ${regressionKey(entry)} [${sidesLabel(entry)}]: ${entry.hardenedIn} nadała, ${entry.weakenedIn} zdjęła, późniejsza migracja przywróciła`,
       ),
     );
   }

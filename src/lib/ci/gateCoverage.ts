@@ -57,6 +57,25 @@ export interface GateInvocation {
 const RUN_RE = /\bbun(?:x)?\s+run\s+([A-Za-z0-9:_-]+)/g;
 /** Klucz joba: dokładnie dwie spacje wcięcia pod `jobs:`. */
 const JOB_RE = /^ {2}([A-Za-z0-9_-]+):\s*$/;
+/** Linia będąca w całości komentarzem YAML (albo shellowym w bloku `run: |`). */
+const COMMENT_LINE_RE = /^\s*#/;
+/** `run: komenda` w jednej linii (także jako pierwszy klucz elementu listy). */
+const RUN_INLINE_RE = /^\s*(?:-\s+)?run:\s*(.*)$/;
+/** `run: |` / `run: >` - komenda jest w kolejnych, głębiej wciętych liniach. */
+const RUN_BLOCK_RE = /^(\s*)(?:-\s+)?run:\s*[|>][-+]?\s*$/;
+
+/**
+ * Odcina komentarz na końcu linii: w skalarze YAML `#` po białym znaku zaczyna
+ * komentarz, a w bloku `run: |` - komentarz shellowy. Oba są nieuruchamiane.
+ *
+ * `#` BEZ poprzedzającej spacji zostaje, bo tak wygląda separator w jedynym
+ * nietrywialnym poleceniu w repo: `sed -E -i 's#https://…#…#g' bun.lock`.
+ * Tryb awarii tej heurystyki to zgubione wywołanie, czyli bramka zgłoszona jako
+ * NIEWPIĘTA - błąd głośny i natychmiast widoczny, nie cichy fałszywy spokój.
+ */
+function stripTrailingComment(text: string): string {
+  return text.replace(/\s+#.*$/, "");
+}
 
 /**
  * Wywołania skryptów w workflowach, z przypisaniem do joba.
@@ -64,15 +83,49 @@ const JOB_RE = /^ {2}([A-Za-z0-9_-]+):\s*$/;
  * Parsowanie liniowe, bez biblioteki YAML - tak samo jak
  * `workflowEnvContract.ts`, żeby bramki workflowów nie różniły się tym, jak
  * czytają ten sam plik.
+ *
+ * LICZY SIĘ WYŁĄCZNIE TREŚĆ WYKONYWANA, czyli wartość klucza `run:` (w formie
+ * jednolinijkowej albo bloku `run: |`). Wcześniejsza wersja skanowała KAŻDĄ
+ * linię pliku, więc `# run: bun run check:foo` - krok skomentowany „na chwilę"
+ * przy debugowaniu CI - liczył się jako wpięty. To przewracało całą gwarancję
+ * tej bramki: raportowała pokrycie, którego GitHub Actions nigdy nie wykona.
+ * Ten sam błąd zaliczał wzmianki z komentarzy dokumentacyjnych (a tych jest
+ * w `ci.yml` kilkanaście) i nazwy kroków (`name: …`).
  */
 export function scanGateInvocations(workflows: readonly WorkflowSource[]): GateInvocation[] {
   const out: GateInvocation[] = [];
   for (const { file, yaml } of workflows) {
     let job = "<root>";
     let insideJobs = false;
+    /** Wcięcie klucza `run:`, gdy jesteśmy w jego bloku; inaczej `null`. */
+    let blockIndent: number | null = null;
     const lines = yaml.split("\n");
+
+    const collect = (text: string, lineNo: number): void => {
+      RUN_RE.lastIndex = 0;
+      let match: RegExpExecArray | null;
+      while ((match = RUN_RE.exec(text)) !== null) {
+        out.push({ file, job, script: match[1], line: lineNo });
+      }
+    };
+
     for (let i = 0; i < lines.length; i += 1) {
       const line = lines[i];
+      const indent = line.search(/\S/);
+
+      if (blockIndent !== null) {
+        // Puste linie nie kończą bloku skalarnego; wyjście z niego to dopiero
+        // powrót na wcięcie klucza `run:` albo mniejsze.
+        if (indent === -1) continue;
+        if (indent > blockIndent) {
+          if (!COMMENT_LINE_RE.test(line)) collect(stripTrailingComment(line), i + 1);
+          continue;
+        }
+        blockIndent = null;
+      }
+
+      if (COMMENT_LINE_RE.test(line)) continue;
+
       if (/^jobs:\s*$/.test(line)) {
         insideJobs = true;
         continue;
@@ -81,11 +134,15 @@ export function scanGateInvocations(workflows: readonly WorkflowSource[]): GateI
         const jobMatch = JOB_RE.exec(line);
         if (jobMatch !== null) job = jobMatch[1];
       }
-      RUN_RE.lastIndex = 0;
-      let match: RegExpExecArray | null;
-      while ((match = RUN_RE.exec(line)) !== null) {
-        out.push({ file, job, script: match[1], line: i + 1 });
+
+      const block = RUN_BLOCK_RE.exec(line);
+      if (block !== null) {
+        blockIndent = block[1].length;
+        continue;
       }
+
+      const inline = RUN_INLINE_RE.exec(line);
+      if (inline !== null) collect(stripTrailingComment(inline[1]), i + 1);
     }
   }
   return out;
