@@ -19103,6 +19103,15 @@ export type Database = {
         Args: { _match?: string; _q: string }
         Returns: unknown
       }
+      newsletter_campaign_engagement: {
+        Args: { p_campaign: string }
+        Returns: {
+          clicks: number
+          opens: number
+          unique_clickers: number
+          unique_openers: number
+        }[]
+      }
       newsletter_deliverability_metrics: {
         Args: { p_days?: number }
         Returns: Json
@@ -19120,6 +19129,16 @@ export type Database = {
           day: string
           event: string
         }[]
+      }
+      newsletter_record_campaign_event: {
+        Args: {
+          p_campaign: string
+          p_kind: string
+          p_occurred_at?: string
+          p_subscriber: string
+          p_url?: string
+        }
+        Returns: Json
       }
       normalize_public_host: { Args: { p_raw: string }; Returns: string }
       notification_actor_name: { Args: { p_user_id: string }; Returns: string }
