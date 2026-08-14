@@ -82,6 +82,10 @@ const PL: CareersDict = {
   archive: "Archiwizuj",
   unarchive: "Przywróć",
   archived: "Zarchiwizowano",
+  cv: "CV",
+  cvOpen: "Otwórz CV",
+  cvMissing: "Brak CV",
+  cvError: "Nie udało się wygenerować linku do CV.",
   none: "-",
 };
 
