@@ -3,6 +3,8 @@
 // walidacja (Zod) i domyślne wartości. Wszystko client-safe, bez side effects.
 import { z } from "zod";
 
+import { csvDocument, type CsvCellValue } from "./csv";
+
 /* ---------- Filtry ---------- */
 
 export const CompanyFilterSchema = z.object({
@@ -222,6 +224,18 @@ export interface CompanyRowShape {
   leads_count: number;
   contacts_count: number;
   last_lead_activity_at: string | null;
+  /**
+   * Kolumny obecne w wierszu z serwera, ale NIEOBOWIĄZKOWE w tym kształcie.
+   *
+   * `phone` i `website` są w katalogu kolumn (operator może je włączyć w
+   * eksporcie), ale nie napędzają ani filtrów, ani sortowania - dlatego nie są
+   * wymagane. Zadeklarowane WPROST, żeby eksport nie musiał ich czytać
+   * rzutowaniem `as unknown as {...}`: takie rzutowanie OBIECYWAŁO
+   * `string | null` przy wierszu, który tych pól nie ma, i `undefined`
+   * przechodziło do pliku jako słowo „undefined".
+   */
+  phone?: string | null;
+  website?: string | null;
 }
 
 const RANGE_DAYS: Record<string, number> = { "7d": 7, "30d": 30, "90d": 90, "365d": 365 };
@@ -285,49 +299,65 @@ export function applyCompanySort<T extends CompanyRowShape>(rows: T[], sort: Com
 
 /* ---------- Export CSV ---------- */
 
+/**
+ * Lista firm jako CSV.
+ *
+ * Serializacja komórki idzie przez `csvCell` z `lib/crm/csv` - wspólną
+ * z eksportem leadów i kroniki leada. Poprzednia, lokalna wersja escapera
+ * cytowała komórkę, ale NIE neutralizowała wstrzyknięcia formuły: nazwa firmy
+ * `=HYPERLINK(...)` (a nazwy firm biorą się z importu CSV i z formularzy)
+ * wykonywała się w arkuszu operatora, który otworzył eksport. Dwa pozostałe
+ * eksporty CRM miały tę osłonę od początku - ten jej nie miał.
+ */
 export function rowsToCsv<T extends CompanyRowShape>(
   rows: T[],
   columns: CompanyColumnKey[],
   lang: "pl" | "en",
 ): string {
-  const escape = (v: string | number | null | undefined): string => {
-    if (v === null || v === undefined) return "";
-    const s = String(v).replace(/"/g, '""');
-    return /[",\n;]/.test(s) ? `"${s}"` : s;
-  };
-  const cols = columns.map((k) => COMPANY_COLUMN_BY_KEY[k]);
-  const header = cols.map((c) => (lang === "pl" ? c.labelPl : c.labelEn)).join(",");
-  const body = rows.map((r) =>
-    columns
-      .map((k) => {
-        switch (k) {
-          case "name":
-            return escape(r.name);
-          case "domain":
-            return escape(r.domain);
-          case "branch":
-            return escape(r.branch);
-          case "location":
-            return escape([r.city, r.country].filter(Boolean).join(", "));
-          case "country":
-            return escape(r.country);
-          case "contacts":
-            return escape(r.contacts_count);
-          case "leads":
-            return escape(r.leads_count);
-          case "phone":
-            return escape((r as unknown as { phone: string | null }).phone ?? null);
-          case "website":
-            return escape((r as unknown as { website: string | null }).website ?? null);
-          case "lastActivity":
-            return escape(r.last_lead_activity_at ?? r.updated_at);
-          case "created":
-            return escape(r.created_at);
-          default:
-            return "";
-        }
-      })
-      .join(","),
+  const header = columns.map((k) => {
+    const col = COMPANY_COLUMN_BY_KEY[k];
+    return lang === "pl" ? col.labelPl : col.labelEn;
+  });
+  return csvDocument(
+    header,
+    rows.map((r) => columns.map((k) => cellValue(r, k))),
   );
-  return [header, ...body].join("\n");
+}
+
+/**
+ * Surowa wartość komórki - ucieczkę i neutralizację robi `csvCell`.
+ *
+ * Gałąź `default` jest nieosiągalna przy pełnym `switch`, ale `CsvCellValue`
+ * to `unknown`, więc kompilator nie wymusi tu wyczerpania po dołożeniu nowej
+ * kolumny do katalogu. Pilnuje tego warunek „każda kolumna katalogu daje się
+ * wyeksportować" w `__tests__/companyViews.test.ts` - bez niego nowa kolumna
+ * wychodziłaby do pliku jako pusta komórka bez żadnego sygnału.
+ */
+function cellValue(row: CompanyRowShape, key: CompanyColumnKey): CsvCellValue {
+  switch (key) {
+    case "name":
+      return row.name;
+    case "domain":
+      return row.domain;
+    case "branch":
+      return row.branch;
+    case "location":
+      return [row.city, row.country].filter(Boolean).join(", ");
+    case "country":
+      return row.country;
+    case "contacts":
+      return row.contacts_count;
+    case "leads":
+      return row.leads_count;
+    case "phone":
+      return row.phone ?? null;
+    case "website":
+      return row.website ?? null;
+    case "lastActivity":
+      return row.last_lead_activity_at ?? row.updated_at;
+    case "created":
+      return row.created_at;
+    default:
+      return "";
+  }
 }

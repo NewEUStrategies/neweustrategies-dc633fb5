@@ -71,7 +71,7 @@ async function minTierEmailSet(
     p_min: minRank,
   });
   if (error) throw new Error(error.message);
-  return new Set((data ?? []).map((r) => (r.email ?? "").toLowerCase()).filter(Boolean));
+  return new Set((data ?? []).map((r) => normalizeEmail(r.email)).filter(Boolean));
 }
 
 const BATCH_SIZE = 20;
@@ -111,6 +111,23 @@ export type AudienceFilter = z.infer<typeof AudienceFilter>;
 export function readAudienceFilter(raw: unknown): AudienceFilter {
   const parsed = AudienceFilter.safeParse(raw ?? {});
   return parsed.success ? parsed.data : {};
+}
+
+/**
+ * Adres do PORÓWNANIA (nie do wysyłki).
+ *
+ * Część lokalna adresu jest formalnie wrażliwa na wielkość litery, ale żaden
+ * używany dostawca poczty tego nie stosuje, a lista subskrybentów przyjmuje
+ * adresy z trzech dróg (formularz publiczny, import CSV, profil konta), z
+ * których nie wszystkie normalizują wielkość. Porównanie po surowym napisie
+ * powodowało DWA rozjazdy naraz: pominięcie sprawdzenia „już wysłano" przy
+ * wznowieniu kampanii i podwójne liczenie tej samej osoby w mianowniku postępu.
+ *
+ * Jedno miejsce, bo każde porównanie adresu w tym module musi używać tej samej
+ * normalizacji - rozjazd między dwoma miejscami to dokładnie ten defekt.
+ */
+function normalizeEmail(email: string | null | undefined): string {
+  return (email ?? "").trim().toLowerCase();
 }
 
 const CampaignUpsert = z.object({
@@ -400,7 +417,7 @@ export const countCampaignAudience = createServerFn({ method: "POST" })
       const { data: subs, error } = await q;
       if (error) throw new Error(error.message);
       const tierSet = await minTierEmailSet(supabaseAdmin, tenantId, data.min_tier_rank);
-      const count = (subs ?? []).filter((s) => tierSet.has((s.email ?? "").toLowerCase())).length;
+      const count = (subs ?? []).filter((s) => tierSet.has(normalizeEmail(s.email))).length;
       return { count };
     }
 
@@ -590,7 +607,7 @@ export async function tickNewsletterCampaigns(
     // statusem `failed` i czytelnym powodem. Admin widzi to na liście i może
     // wznowić ręcznie, potwierdzając ryzyko (albo najpierw wyczyścić listę).
     if (!(await tenantMaySend(row.tenant_id))) {
-      await markFailed(admin, row.id, "reputation_blocked");
+      await markFailed(admin, row.id, row.tenant_id, "reputation_blocked");
       continue;
     }
     // Atomowy claim gwarantuje, że równoległy tick (druga karta admina,
@@ -751,7 +768,7 @@ async function runCampaignSend(
     // konta o randze warstwy >= min_tier_rank (personalizacja komunikacji).
     if (filter.min_tier_rank && filter.min_tier_rank > 0) {
       const tierSet = await minTierEmailSet(admin, tenantId, filter.min_tier_rank);
-      audience = audience.filter((sub) => tierSet.has((sub.email ?? "").toLowerCase()));
+      audience = audience.filter((sub) => tierSet.has(normalizeEmail(sub.email)));
     }
 
     // Resume-idempotency: skip recipients already logged as "sent" by a
@@ -762,10 +779,21 @@ async function runCampaignSend(
       .eq("tenant_id", tenantId)
       .eq("campaign_id", camp.id);
     if (loggedErr) throw new Error(loggedErr.message);
+    // Porównanie po adresie ZNORMALIZOWANYM do małych liter.
+    //
+    // Adres wchodzi na listę trzema drogami (formularz publiczny, import CSV,
+    // profil konta) i tylko część z nich normalizuje wielkość litery. Log
+    // odbiorców zapisuje adres taki, jaki był w momencie wysyłki. Poprzednia
+    // wersja czytała `alreadySent` po surowym `r.email`, a `suppressed` już
+    // po `.toLowerCase()` - więc gdy wiersz subskrybenta i jego wiersz w logu
+    // różniły się wielkością choćby jednej litery, sprawdzenie „już wysłano"
+    // NIE trafiało: wznowiona kampania (a wznawia ją każdy tick, który zabrakło
+    // budżetu) wysyłała tej osobie drugą wiadomość. Ta strona porównania jest
+    // dokładnie tą, po której idzie sygnał skargi na spam.
     const alreadySent = new Set(
-      (logged ?? []).filter((r) => r.status === "sent").map((r) => r.email),
+      (logged ?? []).filter((r) => r.status === "sent").map((r) => normalizeEmail(r.email)),
     );
-    const notYetSent = audience.filter((sub) => !alreadySent.has(sub.email));
+    const notYetSent = audience.filter((sub) => !alreadySent.has(normalizeEmail(sub.email)));
 
     // HIGIENA LISTY: adresy z aktywną blokadą (twarde odbicie, skarga na spam,
     // blokada ręczna) wypadają z audiencji ZANIM powstanie choćby jeden request
@@ -779,21 +807,23 @@ async function runCampaignSend(
       tenantId,
       notYetSent.map((sub) => sub.email),
     );
-    const allPending = notYetSent.filter((sub) => !suppressed.has(sub.email.toLowerCase()));
+    const allPending = notYetSent.filter((sub) => !suppressed.has(normalizeEmail(sub.email)));
 
     // Log pominięcia piszemy RAZ na odbiorcę: kampania na dużej liście robi
     // wiele wywołań po MAX_EMAILS_PER_INVOCATION, a upsert tych samych wierszy
     // przy każdej porcji byłby czystym marnotrawstwem zapisów.
     const alreadyLoggedSuppressed = new Set(
-      (logged ?? []).filter((r) => r.status === "suppressed").map((r) => r.email),
+      (logged ?? []).filter((r) => r.status === "suppressed").map((r) => normalizeEmail(r.email)),
     );
     const blocked = notYetSent.filter(
-      (sub) => suppressed.has(sub.email.toLowerCase()) && !alreadyLoggedSuppressed.has(sub.email),
+      (sub) =>
+        suppressed.has(normalizeEmail(sub.email)) &&
+        !alreadyLoggedSuppressed.has(normalizeEmail(sub.email)),
     );
     if (blocked.length > 0) {
       await Promise.all(
         blocked.map((sub) => {
-          const hit = suppressed.get(sub.email.toLowerCase());
+          const hit = suppressed.get(normalizeEmail(sub.email));
           return logRecipient(admin, {
             tenantId,
             campaignId: camp.id,
@@ -811,15 +841,31 @@ async function runCampaignSend(
     const pending = allPending.slice(0, maxEmails);
     // Mianownik postępu ("wysłano X z Y") liczy tylko adresy, na które WOLNO
     // wysłać - inaczej kampania z blokadami nigdy nie dobiłaby do 100%.
-    const recipientCount = new Set([...allPending.map((sub) => sub.email), ...alreadySent]).size;
+    // Mianownik liczony po adresach ZNORMALIZOWANYCH: `alreadySent` trzyma już
+    // małe litery, więc surowy adres z `allPending` policzyłby tę samą osobę
+    // dwa razy i postęp „wysłano X z Y" nigdy nie dobiłby do końca.
+    const recipientCount = new Set([
+      ...allPending.map((sub) => normalizeEmail(sub.email)),
+      ...alreadySent,
+    ]).size;
 
     let sent = alreadySent.size;
     let failed = 0;
 
+    // KAŻDY zapis stanu kampanii w tej funkcji jest przypięty PARĄ
+    // (id, tenant_id) - ten i trzy kolejne (odnowienie dzierżawy, oddanie
+    // dzierżawy, status końcowy). Klient jest `service_role`, czyli RLS tu nie
+    // obowiązuje, a `runCampaignSend` jest wołane również ze ścieżki
+    // cross-tenant (`tickNewsletterCampaigns` z `/api/public/jobs-tick`).
+    // Dopóki `camp` pochodzi z `claimCampaign` (przypiętego do tenanta), sam
+    // `id` wystarcza - ale przypięcie zamienia ten warunek z własności
+    // WOŁAJĄCEGO we własność TEGO zapytania, więc przyszła zmiana źródła
+    // identyfikatora nie otwiera cichej drogi do cudzego wiersza.
     await admin
       .from("newsletter_campaigns")
       .update({ recipient_count: recipientCount, sent_count: sent, failed_count: 0 })
-      .eq("id", camp.id);
+      .eq("id", camp.id)
+      .eq("tenant_id", tenantId);
 
     const from = buildFrom(camp);
     const origin = await originFromRequest();
@@ -933,7 +979,8 @@ async function runCampaignSend(
           failed_count: failed,
           lease_until: new Date(Date.now() + LEASE_MS).toISOString(),
         } as never)
-        .eq("id", camp.id);
+        .eq("id", camp.id)
+        .eq("tenant_id", tenantId);
       if (i + BATCH_SIZE < pending.length) {
         await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
       }
@@ -946,7 +993,8 @@ async function runCampaignSend(
       await admin
         .from("newsletter_campaigns")
         .update({ sent_count: sent, failed_count: failed, lease_until: null } as never)
-        .eq("id", camp.id);
+        .eq("id", camp.id)
+        .eq("tenant_id", tenantId);
       return { sent, failed, done: false, remaining, processed: pending.length };
     }
 
@@ -960,12 +1008,13 @@ async function runCampaignSend(
         finished_at: new Date().toISOString(),
         lease_until: null,
       } as never)
-      .eq("id", camp.id);
+      .eq("id", camp.id)
+      .eq("tenant_id", tenantId);
 
     return { sent, failed, done: true, remaining: 0, processed: pending.length };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    await markFailed(admin, camp.id, message);
+    await markFailed(admin, camp.id, tenantId, message);
     throw err instanceof Error ? err : new Error(message);
   }
 }
@@ -1027,7 +1076,25 @@ function renderCampaignHtml(
   return `<div style="font-family:Arial,sans-serif;line-height:1.55;color:#111;max-width:640px;margin:0 auto">${content}${footer}${pixel}</div>`;
 }
 
-async function markFailed(admin: DbClient, id: string, message: string): Promise<void> {
+/**
+ * Oznaczenie kampanii jako nieudanej.
+ *
+ * `tenantId` jest w sygnaturze OBOWIĄZKOWY, mimo że sam `id` jest unikalny.
+ * Powód: ten zapis idzie klientem `service_role`, czyli Z POMINIĘCIEM RLS,
+ * i jest wołany ze ścieżki CROSS-TENANT (`tickNewsletterCampaigns` z
+ * `/api/public/jobs-tick`, gdzie `opts.tenantId` jest pusty i pętla przechodzi
+ * po kampaniach różnych najemców). Dopóki identyfikator pochodzi z zapytania
+ * przypiętego do tenanta, sam `id` wystarcza - ale nic w SYGNATURZE tego nie
+ * wymuszało, więc pierwszy przyszły wołający z identyfikatorem z innego źródła
+ * pisałby po cudzym wierszu bez żadnego sygnału. Tenant w argumencie zamienia
+ * ten warunek z konwencji w wymóg kompilatora.
+ */
+async function markFailed(
+  admin: DbClient,
+  id: string,
+  tenantId: string,
+  message: string,
+): Promise<void> {
   await admin
     .from("newsletter_campaigns")
     .update({
@@ -1036,7 +1103,8 @@ async function markFailed(admin: DbClient, id: string, message: string): Promise
       finished_at: new Date().toISOString(),
       lease_until: null,
     } as never)
-    .eq("id", id);
+    .eq("id", id)
+    .eq("tenant_id", tenantId);
 }
 
 async function logRecipient(
