@@ -350,37 +350,43 @@ describe("trasa /checkout/$planId - podsumowanie zamówienia", () => {
 });
 
 describe("trasa /checkout/$planId - izolacja obszarów roboczych", () => {
-  it("nie prezentuje planu należącego do innego tenanta", async () => {
+  // Autorytetem jest polityka `plans public read`: odczyt idzie przez
+  // `public_tenant_id()`, czyli tenanta PRZEGLĄDANEJ domeny. Trasa nie ma więc
+  // własnego porównania tenantów - te dwa testy pilnują OBU stron tej reguły.
+
+  it("plan spoza przeglądanego obszaru roboczego w ogóle nie wraca z odczytu", async () => {
+    // Tak wygląda ten przypadek w rzeczywistości: RLS nie wypuszcza wiersza,
+    // `fetchPlanById` zwraca null. Trasa ma wtedy pokazać komunikat i NIE dać
+    // się opłacić - żadna nazwa ani cena z cudzego obszaru nie trafia na ekran.
     signedInBuyer();
-    h.plan = plan({ tenant_id: OTHER_TENANT, name_pl: "Plan cudzej firmy" });
+    h.plan = null;
     await mount();
 
     expect(await screen.findByText("Nie znaleziono planu.")).toBeInTheDocument();
-    expect(screen.queryByText("Plan cudzej firmy")).not.toBeInTheDocument();
-    // Ani nazwa, ani cena z cudzego obszaru roboczego nie mogą trafić na ekran.
     expect(document.body.textContent).not.toContain("99,00");
     expect(screen.queryByRole("button", { name: /Zapłać/ })).not.toBeInTheDocument();
-  });
 
-  it("plan obcego tenanta nie może zostać opłacony", async () => {
-    signedInBuyer();
-    h.plan = plan({ tenant_id: OTHER_TENANT });
-    await mount();
-
-    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+    fireEvent.click(screen.getByText("Nie znaleziono planu."));
     expect(h.planCheckout).not.toHaveBeenCalled();
   });
 
-  it("nie blokuje zakupu, gdy tenant oglądającego jest jeszcze nieznany", async () => {
-    // Fail-open przy niewiedzy: szczelności pilnuje RLS, a klient nie może
-    // wywracać legalnego zakupu tylko dlatego, że kontekst się nie dowiózł.
+  it("kupujący z innym tenantem domowym kupuje plan przeglądanej domeny", async () => {
+    // REGRESJA (recenzja PR #229): na zweryfikowanym hoście tenanta B czytelnik
+    // z tenantem domowym A legalnie kupuje plan B - `public_tenant_id()` przy
+    // poświadczeniu krawędzi rozstrzyga tenanta HOSTA, nie profilu. Klient, który
+    // porównałby `plan.tenant_id` z `useAuth().tenantId`, zamieniłby ten zakup
+    // w „nie znaleziono planu". Ta asercja trzyma tę drogę otwartą.
     h.session = { user: { id: "u-1" } };
-    h.tenantId = null;
+    h.tenantId = OTHER_TENANT;
     h.billing = billingProfile();
+    h.plan = plan({ tenant_id: TENANT });
     await mount();
 
     expect(await screen.findByText("Plan Pro")).toBeInTheDocument();
     expect(payButton()).toBeEnabled();
+
+    fireEvent.click(payButton());
+    await waitFor(() => expect(h.planCheckout).toHaveBeenCalledTimes(1));
   });
 });
 

@@ -48,20 +48,33 @@
 // SKALA (pomiar 2026-08-06, pierwszy w historii repo): **34 pary**, najstarsza
 // z 30 czerwca. Audyt 05.08 naliczył sześć - bo szukał ręcznie, wśród migracji
 // z ostatnich dni. Zjawisko jest systemowe i ciągnie się od początku projektu;
-// dopiero bramka pokazała jego rozmiar.
+// dopiero bramka pokazała jego rozmiar. Stan bieżący: **43 pary** - bramka łapie
+// każde kolejne wdrożenie przez dashboard platformy (patrz wpisy z 09-10.08
+// i 14.08 na końcu listy).
 //
 // Dlaczego lista długu zamiast twardej odmowy: te pary są już ZASTOSOWANE (ich
 // wersje siedzą w `schema_migrations` na produkcji). Skasowanie pliku
 // zastosowanej migracji rozjeżdża ledger z repo i wymaga świadomej decyzji
-// operatora, nie commita audytowego. Ratchet działa w jedną stronę: lista może
-// tylko maleć, a KAŻDA nowa para wywala CI.
+// operatora, nie commita audytowego.
+//
+// KAŻDA nowa para wywala CI i ma dokładnie dwie drogi wyjścia (patrz komunikat
+// bramki w `renderMigrationReplayReport`):
+//   1. para jeszcze NIE wdrożona -> usuń wygenerowany duplikat, zostaw plik z PR-a;
+//   2. obie wersje już zastosowane (platforma nałożyła je w chwili generowania)
+//      -> wpis tutaj wraz z decyzją operatora i DOWODEM zastosowania.
+// Ratchet dotyczy naprawialności: wpis wolno usunąć wyłącznie po uporządkowaniu
+// ledgera, nigdy po to, żeby uciszyć bramkę.
 
 /** `20260803090000_opis.sql` -> wersja + opis. */
 const FILE_RE = /^(\d{14})_(.+)\.sql$/;
 
 /**
- * Bliźniaki treści zastane 2026-08-06. Klucz: nazwy plików pary, posortowane
- * i połączone `|`. Wpis wolno WYŁĄCZNIE usunąć (po uporządkowaniu ledgera).
+ * Bliźniaki treści już ZASTOSOWANE na hostowanej bazie - zastane 2026-08-06
+ * plus kolejne wdrożenia przez dashboard platformy, każde z datą i decyzją
+ * operatora w komentarzu. Klucz: nazwy plików pary, posortowane i połączone `|`.
+ * Wpis wolno usunąć po uporządkowaniu ledgera; dopisać - wyłącznie parę, dla
+ * której udokumentowano zastosowanie obu wersji (inaczej właściwą naprawą jest
+ * usunięcie wygenerowanego duplikatu).
  */
 const KNOWN_CONTENT_TWINS: readonly string[] = [
   "20260630095255_8eed6a02-fe17-4a5d-b379-e149b5617099.sql|20260630130000_web_vitals_daily_p75.sql",
@@ -122,6 +135,18 @@ const KNOWN_CONTENT_TWINS: readonly string[] = [
   "20260810105134_d5d870da-90ed-455b-b950-3764d7a62e17.sql|20260810120000_discussion_clubs_a32_networking.sql",
   "20260810105510_20a7837a-44a0-43a4-92c9-74459d55cae0.sql|20260810180000_discussion_clubs_a33_network_screens.sql",
   "20260810120817_e2ee8061-1872-49be-9b25-dbb68ba85f44.sql|20260810210000_discussion_clubs_a34_roster_faces.sql",
+  // Wdrożenie PR #226 (rekrutacja: izolacja najemców, pipeline zgłoszeń,
+  // retencja CV) - 14.08.2026. Ten sam mechanizm co wyżej, z twardym dowodem
+  // zastosowania: bliźniaki przyjechały commitem `5d08f50` autorstwa
+  // `gpt-engineer-app[bot]`, który W TYM SAMYM commicie zregenerował
+  // `src/integrations/supabase/types.ts` - platforma odczytała schemat PO
+  // nałożeniu tych migracji na hostowaną bazę. Pliki z gałęzi i bliźniaki mają
+  // identyczny SQL i różnią się WYŁĄCZNIE komentarzami (wersja platformy jest
+  // ich pozbawiona), więc grupowanie po znormalizowanym SQL-u jest trafne.
+  // Decyzja operatorska: zostawiamy oba pliki - skasowanie zastosowanej
+  // migracji rozjeżdża `schema_migrations` z repo.
+  "20260814100000_careers_tenant_scope.sql|20260814122639_37dcf7c4-65f3-4b41-a1a8-d5e5cf3cab5c.sql",
+  "20260814110000_careers_pipeline_and_cv_retention.sql|20260814123014_97f305de-e08e-4e76-b1d0-e5d17f909f1d.sql",
 ];
 
 /**

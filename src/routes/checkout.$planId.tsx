@@ -23,7 +23,6 @@ import { Lock, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 import { catalogPriceForPlan } from "@/lib/billing/catalog";
-import { isForeignTenantResource } from "@/lib/tenant";
 import { useCheckout } from "@/hooks/useCheckout";
 // Ramka operatora wchodzi przez granicę `React.lazy` (patrz nagłówek
 // EmbeddedCheckoutFrame) - trasa checkoutu nie może być drugim statycznym
@@ -47,7 +46,7 @@ function CheckoutPage() {
   ensureProfileI18n();
   const { planId } = Route.useParams();
   const { t, i18n } = useTranslation();
-  const { session, tenantId } = useAuth();
+  const { session } = useAuth();
   const [busy, setBusy] = useState(false);
   const [coupon, setCoupon] = useState<{ code: string; discountCents: number } | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
@@ -72,13 +71,19 @@ function CheckoutPage() {
 
   const { data: checkoutSettings } = useCheckoutSettings();
 
-  // IZOLACJA OBSZARÓW ROBOCZYCH (druga kłódka po RLS). `access_plans` czytamy po
-  // samym `id` - autorytetem szczelności jest polityka bazy, ale plan z CUDZEGO
-  // tenanta nie może zostać nawet wyrenderowany jako oferta na tej domenie:
-  // kupujący zobaczyłby nazwę i cenę z obszaru roboczego innej firmy, a serwer
-  // odrzuciłby płatność dopiero po kliknięciu. Znany rozjazd = plan nie istnieje.
-  const fetchedPlan = plan.data ?? null;
-  const planData = isForeignTenantResource(fetchedPlan?.tenant_id, tenantId) ? null : fetchedPlan;
+  // IZOLACJA OBSZARÓW ROBOCZYCH. Autorytetem jest RLS i NIE WOLNO go tu dublować
+  // porównaniem z tenantem z profilu (`useAuth().tenantId`). `access_plans` czyta
+  // polityka `plans public read` przez `public_tenant_id()`, czyli tenanta
+  // PRZEGLĄDANEJ domeny, a ta funkcja rozstrzyga go szczeblem zaufania hosta:
+  //   * poświadczenie krawędzi (host zweryfikowany) -> DOWOLNY tenant, więc
+  //     czytelnik z tenantem domowym A legalnie kupuje plan tenanta B na domenie B;
+  //   * sama deklaracja `x-tenant-host` u ZALOGOWANEGO -> tenant domowy, jeśli host
+  //     mówi coś innego (host nie jest dowodem tożsamości obszaru roboczego).
+  // Klient porównujący `plan.tenant_id` z tenantem z profilu byłby więc albo
+  // no-opem (drugi przypadek: te wartości są wtedy równe z konstrukcji), albo
+  // BLOKADĄ legalnego zakupu (pierwszy przypadek) - patrz test „kupujący z innym
+  // tenantem domowym...". Brak planu z odczytu = brak oferty; to cała reguła.
+  const planData = plan.data ?? null;
 
   useEffect(() => {
     if (plan.isSuccess && !planData) {
