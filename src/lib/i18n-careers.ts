@@ -301,7 +301,7 @@ const careersPl = {
       items: {
         apply: {
           title: "Aplikacja",
-          body: "Formularz poniżej. Zamiast CV wystarczy profil i kilka zdań o tym, co chcesz robić.",
+          body: "Formularz poniżej. Dołącz CV i napisz kilka zdań o tym, co chcesz robić.",
           duration: "3 minuty",
         },
         screening: {
@@ -327,7 +327,7 @@ const careersPl = {
       steps: {
         about: { title: "O Tobie", hint: "Kontakt i profil" },
         fit: { title: "Dopasowanie", hint: "Dział, rola, dostępność" },
-        message: { title: "Wiadomość", hint: "Kilka zdań zamiast CV" },
+        message: { title: "Podsumowanie", hint: "Krótkie wprowadzenie do Twojego CV" },
       },
       stepLabel: "Krok {{current}} z {{total}}",
       back: "Wstecz",
@@ -397,7 +397,7 @@ const careersPl = {
       charsLeft: "Pozostało {{count}} znaków",
       sendingStatus: "Wysyłamy zgłoszenie - nie zamykaj strony.",
       requiredAbout: "Uzupełnij imię, nazwisko i adres e-mail.",
-      requiredMessage: "Napisz kilka zdań o sobie - to pole zastępuje CV.",
+      requiredMessage: "Napisz kilka zdań o sobie - uzupełnia Twoje CV.",
       invalidEmail: "Podaj poprawny adres e-mail.",
       consentRequired: "Bez zgody na przetwarzanie danych nie możemy rozpatrzyć zgłoszenia.",
       error: "Nie udało się wysłać zgłoszenia. Spróbuj ponownie za chwilę.",
@@ -725,7 +725,7 @@ const careersEn = {
       items: {
         apply: {
           title: "Application",
-          body: "The form below. Instead of a CV, a profile and a few sentences are enough.",
+          body: "The form below. Attach your CV and add a few sentences about what you want to work on.",
           duration: "3 minutes",
         },
         screening: {
@@ -751,7 +751,7 @@ const careersEn = {
       steps: {
         about: { title: "About you", hint: "Contact and profile" },
         fit: { title: "Your fit", hint: "Department, role, availability" },
-        message: { title: "Your message", hint: "A few sentences instead of a CV" },
+        message: { title: "Summary", hint: "A short introduction to your CV" },
       },
       stepLabel: "Step {{current}} of {{total}}",
       back: "Back",
