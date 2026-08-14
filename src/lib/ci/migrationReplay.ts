@@ -122,6 +122,28 @@ const KNOWN_CONTENT_TWINS: readonly string[] = [
   "20260810105134_d5d870da-90ed-455b-b950-3764d7a62e17.sql|20260810120000_discussion_clubs_a32_networking.sql",
   "20260810105510_20a7837a-44a0-43a4-92c9-74459d55cae0.sql|20260810180000_discussion_clubs_a33_network_screens.sql",
   "20260810120817_e2ee8061-1872-49be-9b25-dbb68ba85f44.sql|20260810210000_discussion_clubs_a34_roster_faces.sql",
+  // Wdrożenie PR #226 (rekrutacja /zatrudniamy: izolacja najemców + pipeline
+  // zgłoszeń i retencja CV). Trzeci raz z rzędu ten sam mechanizm: plik z gałęzi
+  // oraz bliźniak zapisany przez platformę w chwili zastosowania migracji na
+  // hostowanej bazie. Bliźniaki różnią się WYŁĄCZNIE odjętymi komentarzami
+  // i brakiem znaku końca ostatniej linii.
+  //
+  // DECYZJA OPERATORSKA: zostawiamy oba pliki. Wersje bliźniaków są już
+  // w `schema_migrations` (to samo zastosowanie, które je wygenerowało),
+  // więc skasowanie pliku wymagałoby `supabase migration repair` na każdym
+  // środowisku - to zmiana operatorska, nie porządkowa. Oba SQL-e są
+  // idempotentne (`ADD COLUMN IF NOT EXISTS`, `DROP POLICY IF EXISTS`,
+  // `CREATE OR REPLACE`), więc odtwarzanie bazy od zera przechodzi.
+  //
+  // KOSZT, KTÓRY TA SERIA UJAWNIŁA - i który NIE jest już kwestią historii:
+  // trzeci wygenerowany plik tej samej serii (`20260814122512`, bliźniak
+  // `20260814090000`, czyli stanu PRZED zawężeniem do najemcy) odtworzył
+  // polityki bucketu `career-cv` bez wiązania najemcy i tylko kolejność
+  // sortowania nazw sprawiła, że `20260814122639` przywrócił hardening zaraz
+  // po nim. Stan końcowy domyka jawnie `20260814194500`, a klasę defektu
+  // pilnuje od teraz `check:sql-policy-tenant-regression`.
+  "20260814100000_careers_tenant_scope.sql|20260814122639_37dcf7c4-65f3-4b41-a1a8-d5e5cf3cab5c.sql",
+  "20260814110000_careers_pipeline_and_cv_retention.sql|20260814123014_97f305de-e08e-4e76-b1d0-e5d17f909f1d.sql",
 ];
 
 /**

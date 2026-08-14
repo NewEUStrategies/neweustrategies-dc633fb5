@@ -16,10 +16,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { VitalsSummaryResult } from "@/lib/observability/vitals.functions";
 import type { VitalMetricSummary, VitalPathRow } from "@/lib/observability/aggregate";
-import {
-  VITAL_THRESHOLDS,
-  type VitalName,
-} from "@/lib/observability/vitalsThresholds";
+import { VITAL_THRESHOLDS, type VitalName } from "@/lib/observability/vitalsThresholds";
 
 type Severity = "poor" | "needs-improvement" | "good";
 

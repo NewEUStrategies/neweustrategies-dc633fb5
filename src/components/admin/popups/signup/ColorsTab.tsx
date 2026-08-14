@@ -164,7 +164,7 @@ export function ColorsTab({
           message={(ratio) => t("adminPopupSignup.colors.contrastWarn", { ratio })}
         />
       </SectionCard>
-    
+
       {(["dark", "light"] as const).map((mode) => (
         <SectionCard
           key={mode}

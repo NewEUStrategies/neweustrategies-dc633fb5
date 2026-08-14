@@ -57,7 +57,7 @@ describe("scanTranslationCalls", () => {
     expect(usage.key).toBe("network.mutualLinkAria");
   });
 
-  it("czyta POZYCYJNY defaultValue - `t(\"k\", \"tekst\")` i z opcjami w trzecim", () => {
+  it('czyta POZYCYJNY defaultValue - `t("k", "tekst")` i z opcjami w trzecim', () => {
     // Ta forma była dla skanera niewidzialna, a to ona siedziała w dialogu
     // historii ustawień: dziewięć kluczy nieobecnych w słowniku, polski tekst
     // w kodzie, angielski interfejs renderujący polszczyznę.

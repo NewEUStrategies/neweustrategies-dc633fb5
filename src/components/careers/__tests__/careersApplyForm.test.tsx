@@ -63,9 +63,8 @@ vi.mock("@/components/atoms/FormSelect", () => ({
 
 // Oferty pochodzą z katalogu i18n (fallback) - bez react-query w teście.
 vi.mock("@/lib/careers/useCareerContent", async () => {
-  const catalog = await vi.importActual<typeof import("@/lib/careers/catalog")>(
-    "@/lib/careers/catalog",
-  );
+  const catalog =
+    await vi.importActual<typeof import("@/lib/careers/catalog")>("@/lib/careers/catalog");
   return {
     useCareerOffers: () => ({
       offers: catalog.fallbackOffers(((key: string) => key) as never),

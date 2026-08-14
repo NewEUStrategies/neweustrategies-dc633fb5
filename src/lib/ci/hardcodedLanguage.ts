@@ -193,7 +193,7 @@ export function renderRatchetReport(report: RatchetReport, baselineFiles: number
       ...report.fresh.map((entry) => `  - ${entry.file}  (${entry.count})`),
       "",
       "Tekst dla użytkownika idzie do słownika (`i18n-*.ts` / `locale/*.ts`) i jest",
-      "wołany przez `t(\"klucz\")`. Ternary po języku omija bramkę parytetu PL/EN,",
+      'wołany przez `t("klucz")`. Ternary po języku omija bramkę parytetu PL/EN,',
       "bramkę rozjazdu kod<->słownik i zamyka drogę do trzeciego języka.",
     );
   }

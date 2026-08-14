@@ -245,7 +245,7 @@ export interface ConsentBannerProps {
 export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerProps = {}) {
   const { i18n, t: tr } = useTranslation();
   // Kod języka bierzemy z kanonicznego `uiLang` - ta sama normalizacja co
-// w `formatDate`/`uiLocale`, zamiast własnego `startsWith` w komponencie.
+  // w `formatDate`/`uiLocale`, zamiast własnego `startsWith` w komponencie.
   const uiLanguage = uiLang(i18n.language);
   const isPl = uiLanguage === "pl";
   const privacy = useSiteSetting<PrivacyConfig>("privacy", PRIVACY_DEFAULTS);
@@ -397,7 +397,7 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
     setExpandedVendors((v) => ({ ...v, [cat]: !v[cat] }));
 
   const setLang = (l: "pl" | "en") => {
-    if (l !== (uiLanguage)) void i18n.changeLanguage(l);
+    if (l !== uiLanguage) void i18n.changeLanguage(l);
   };
 
   const resetDraft = () =>
@@ -446,7 +446,7 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
       )}
     >
       {(["pl", "en"] as const).map((l) => {
-        const active = (uiLanguage) === l;
+        const active = uiLanguage === l;
         return (
           <button
             key={l}

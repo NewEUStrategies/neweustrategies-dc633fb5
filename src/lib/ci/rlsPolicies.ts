@@ -191,6 +191,33 @@ export function extractLatestPolicies(files: readonly MigrationFile[]): Map<stri
   return policies;
 }
 
+/**
+ * HISTORIA definicji każdej polityki: wszystkie `CREATE POLICY` w kolejności
+ * migracji, a w obrębie pliku - w kolejności wystąpienia.
+ *
+ * Uzupełnia `extractLatestPolicies` o wymiar, którego stan końcowy nie zna:
+ * CZY POLITYKA KIEDYŚ COŚ UMIAŁA, a potem to straciła. `DROP POLICY` nie
+ * wchodzi do historii celowo - idiom repo to „DROP IF EXISTS + CREATE" w jednym
+ * pliku, więc kasowanie liczyłoby przepisania jako zniknięcia. O tym, czy
+ * polityka nadal istnieje, rozstrzyga `extractLatestPolicies`.
+ *
+ * @param files migracje POSORTOWANE chronologicznie, z SQL bez komentarzy.
+ */
+export function extractPolicyHistory(
+  files: readonly MigrationFile[],
+): ReadonlyMap<string, readonly PolicyDef[]> {
+  const history = new Map<string, PolicyDef[]>();
+  for (const { file, sql } of files) {
+    for (const event of collectEvents(file, sql)) {
+      if (event.kind !== "create" || event.def === undefined) continue;
+      const defs = history.get(event.key);
+      if (defs === undefined) history.set(event.key, [event.def]);
+      else defs.push(event.def);
+    }
+  }
+  return history;
+}
+
 /** Czy polityka bramkuje INSERT (`FOR INSERT` albo `FOR ALL`). */
 export function isInsertCapable(policy: PolicyDef): boolean {
   return policy.command === "all" || policy.command === "insert";

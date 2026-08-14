@@ -266,7 +266,9 @@ describe("ikona CTA", () => {
 
   it("przepuszcza tylko kebab-case", () => {
     expect(resolvePopupDesign({ form: { ctaIcon: "Arrow Right" } }).form.ctaIcon).toBe("");
-    expect(resolvePopupDesign({ form: { ctaIcon: "arrow-right" } }).form.ctaIcon).toBe("arrow-right");
+    expect(resolvePopupDesign({ form: { ctaIcon: "arrow-right" } }).form.ctaIcon).toBe(
+      "arrow-right",
+    );
     expect(resolvePopupDesign({ form: { ctaIcon: 12 } }).form.ctaIcon).toBe("user-plus");
   });
 });

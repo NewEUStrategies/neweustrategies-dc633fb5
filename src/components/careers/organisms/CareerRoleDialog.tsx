@@ -65,7 +65,9 @@ export function CareerRoleDialog({
           <DialogTitle className="text-xl font-bold leading-snug text-foreground sm:text-2xl">
             {role.title}
           </DialogTitle>
-          <DialogDescription className="sr-only">{t("careers.roles.dialog.meta")}</DialogDescription>
+          <DialogDescription className="sr-only">
+            {t("careers.roles.dialog.meta")}
+          </DialogDescription>
           <div className="flex flex-wrap gap-1.5 pt-1">
             <MetaChip icon={MapPin} label={t(`careers.location.${role.location}`)} />
             <MetaChip icon={Clock3} label={t(`careers.engagement.${role.engagement}`)} />
@@ -80,18 +82,13 @@ export function CareerRoleDialog({
               <h3 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
                 {t("careers.roles.dialog.overview")}
               </h3>
-              <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">
-                {role.summary}
-              </p>
+              <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">{role.summary}</p>
             </section>
             <OfferList
               title={t("careers.roles.dialog.responsibilities")}
               items={role.responsibilities}
             />
-            <OfferList
-              title={t("careers.roles.dialog.requirements")}
-              items={role.requirements}
-            />
+            <OfferList title={t("careers.roles.dialog.requirements")} items={role.requirements} />
           </div>
         </ScrollArea>
 
