@@ -5,6 +5,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireCrmStaff } from "@/integrations/supabase/require-staff";
 import { withCommandIdempotency, type RpcClient } from "@/lib/http/idempotency";
 import { DEFAULT_SCORING_WEIGHTS } from "@/lib/crm/scoring";
+import { csvDocument } from "@/lib/crm/csv";
 import {
   CONSENT_LOG_TIMELINE_SELECT,
   consentExcerpt,
@@ -658,18 +659,17 @@ export const exportCrmLeadsCsv = createServerFn({ method: "POST" })
       "last_activity_at",
       "created_at",
     ];
-    const esc = (v: unknown): string => {
-      if (v == null) return "";
-      const raw = Array.isArray(v) ? v.join("|") : String(v);
-      // Neutralize spreadsheet formula injection: a leading = + - @ (or tab/CR)
-      // makes Excel/Sheets execute attacker-supplied cell content when the admin
-      // opens the export. Prefix a single quote so the value renders literally.
-      const s = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    // Ucieczka i neutralizacja formuł: `lib/crm/csv`. Escaper stał tu wklejony
+    // (i drugi raz w eksporcie kroniki niżej), a trzeci eksport CRM - lista firm
+    // - miał własną wersję BEZ neutralizacji. Jedna reguła bezpieczeństwa
+    // w trzech kopiach o trzech różnych poziomach ochrony; teraz jedna, testowana.
+    return {
+      csv: csvDocument(
+        cols,
+        (rows ?? []).map((r) => cols.map((c) => r[c])),
+      ),
+      count: rows?.length ?? 0,
     };
-    const lines = [cols.join(",")];
-    for (const r of rows ?? []) lines.push(cols.map((c) => esc(r[c])).join(","));
-    return { csv: lines.join("\n"), count: rows?.length ?? 0 };
   });
 
 // ============ Integrations: partnerzy CRM (multi-endpoint) ============
@@ -887,20 +887,13 @@ export const exportCrmLeadTimelineCsv = createServerFn({ method: "POST" })
   .validator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
     const { lead, events } = await buildLeadTimeline(context, data.id);
-    const esc = (v: unknown): string => {
-      if (v == null) return "";
-      const raw = typeof v === "object" ? JSON.stringify(v) : String(v);
-      // Neutralize spreadsheet formula injection (leading = + - @ / tab / CR).
-      const s = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
+    // Ta sama wspólna serializacja, co w eksporcie listy leadów wyżej.
     const cols = ["at", "type", "title", "detail", "meta"];
-    const lines = [cols.join(",")];
-    for (const e of events) {
-      lines.push([e.at, e.type, e.title, e.detail ?? "", e.meta ?? ""].map(esc).join(","));
-    }
     return {
-      csv: lines.join("\n"),
+      csv: csvDocument(
+        cols,
+        events.map((e) => [e.at, e.type, e.title, e.detail ?? "", e.meta ?? ""]),
+      ),
       email: (lead as { email: string }).email,
       count: events.length,
     };
