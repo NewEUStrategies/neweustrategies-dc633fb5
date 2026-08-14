@@ -117,6 +117,10 @@ function fillContact() {
   fireEvent.change(screen.getByLabelText(/careers\.form\.linkedin/), {
     target: { value: "linkedin.com/in/jan-kowalski" },
   });
+  // CV jest obowiązkowe - w teście podajemy link zamiast wgrywać plik.
+  fireEvent.change(screen.getByLabelText(/careers\.form\.cvUrl/), {
+    target: { value: "drive.google.com/file/cv-jan" },
+  });
 }
 
 function fillFit(role = "analyst_economy") {
@@ -184,14 +188,9 @@ describe("CareersApplyForm: kreator 3 kroków", () => {
     nextStep(); // -> Wiadomość
 
     const submitButton = screen.getByRole("button", { name: /careers\.form\.submit/ });
+    // Wiadomość jest opcjonalna - blokuje wyłącznie brak zgody.
     fireEvent.click(submitButton);
-    expect(screen.getByText("careers.form.errors.messageRequired")).toBeInTheDocument();
-
-    fireEvent.change(screen.getByLabelText(/careers\.form\.message/), {
-      target: { value: "Za krótko." },
-    });
-    fireEvent.click(submitButton);
-    expect(screen.getByText("careers.form.errors.messageShort")).toBeInTheDocument();
+    expect(screen.getByText("careers.form.errors.consentRequired")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(/careers\.form\.message/), {
       target: { value: LONG_MESSAGE },
@@ -216,6 +215,7 @@ describe("CareersApplyForm: kreator 3 kroków", () => {
       seniority: "mid",
       start: "month",
       linkedin: "linkedin.com/in/jan-kowalski",
+      cv_url: "drive.google.com/file/cv-jan",
     });
     expect(payload.consents).toEqual([
       { key: "recruitment", text: "careers.form.consent", lang: "pl" },

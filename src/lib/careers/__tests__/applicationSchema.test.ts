@@ -22,6 +22,8 @@ const VALID: CareerApplicationInput = {
   seniority: "mid",
   start: "month",
   message: "x".repeat(MESSAGE_MIN),
+  cvFileName: "cv.pdf",
+  cvUrl: "",
   consent: true,
 };
 
@@ -44,6 +46,8 @@ describe("careerApplicationSchema", () => {
       seniority: "",
       start: "",
       message: "",
+      cvFileName: "",
+      cvUrl: "",
       consent: false,
     });
     expect(result.ok).toBe(false);
@@ -51,12 +55,11 @@ describe("careerApplicationSchema", () => {
     expect(Object.keys(result.errors).sort()).toEqual(
       [
         "consent",
+        "cv",
         "department",
         "email",
         "firstName",
         "lastName",
-        "linkedin",
-        "message",
         "phone",
         "role",
         "seniority",
@@ -81,10 +84,29 @@ describe("careerApplicationSchema", () => {
     expect(bad.errors.linkedin).toBe("careers.form.errors.linkedinInvalid");
   });
 
-  it("wymaga treści wiadomości zastępującej CV", () => {
-    const short = validateApplication({ ...VALID, message: "Za krótko." });
-    expect(short.ok).toBe(false);
-    if (!short.ok) expect(short.errors.message).toBe("careers.form.errors.messageShort");
+  it("traktuje wiadomość i LinkedIn jako opcjonalne", () => {
+    const result = validateApplication({ ...VALID, message: "", linkedin: "" });
+    expect(result.ok).toBe(true);
+  });
+
+  it("wymaga CV: pliku albo linku", () => {
+    const missing = validateApplication({ ...VALID, cvFileName: "", cvUrl: "" });
+    expect(missing.ok).toBe(false);
+    if (!missing.ok) {
+      expect(missing.errors.cv).toBe("careers.form.errors.cvRequired");
+      expect(missing.firstStep).toBe(CAREER_FIELD_STEP.cv);
+    }
+
+    const link = validateApplication({
+      ...VALID,
+      cvFileName: "",
+      cvUrl: "drive.google.com/file/abc",
+    });
+    expect(link.ok).toBe(true);
+
+    const bad = validateApplication({ ...VALID, cvFileName: "", cvUrl: "nie link" });
+    expect(bad.ok).toBe(false);
+    if (!bad.ok) expect(bad.errors.cv).toBe("careers.form.errors.cvUrlInvalid");
   });
 
   it("wskazuje krok pierwszego błędu", () => {
