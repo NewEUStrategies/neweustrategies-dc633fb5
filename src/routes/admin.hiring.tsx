@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { BriefcaseBusiness, Download, Eye, EyeOff, Inbox, Plus, Save, Trash2 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
+import { ensureI18n as ensureCareersI18n } from "@/lib/i18n-careers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -244,6 +245,11 @@ function Select<T extends string>({
 }
 
 function AdminHiringPage() {
+  // Słownik `careers.*` rejestruje się przy ewaluacji modułu i mieszka w chunku
+  // trasy publicznej - w chunku admina go NIE MA. Bez tego `getFixedT` zwracał
+  // surowe klucze, a "Importuj wbudowane oferty" zapisywał do bazy tytuły w
+  // postaci "careers.roles.<id>.title", które trafiały na stronę /zatrudniamy.
+  ensureCareersI18n();
   const { t, i18n } = useTranslation();
   const L = i18n.language.startsWith("en") ? EN : PL;
   const qc = useQueryClient();

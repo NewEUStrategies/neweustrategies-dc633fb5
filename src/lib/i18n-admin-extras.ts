@@ -316,6 +316,9 @@ export const adminExtrasPl = {
       externalNewTab: "Otwiera się w nowej karcie",
       gifting: "Podaruj artykuł",
       glossary: "Słowniczek",
+      // Treść strony /zatrudniamy (oferty + sekcje). Zgłoszenia kandydatów
+      // mają osobny wpis `careers`.
+      hiring: "Oferty pracy",
       i18nAudit: "Tłumaczenia widgetów",
       integrations: "Integracje",
       keyTakeaways: "Sekcja „Dowiesz się…”",
@@ -963,6 +966,7 @@ export const adminExtrasEn = {
       externalNewTab: "Opens in a new tab",
       gifting: "Gift articles",
       glossary: "Glossary",
+      hiring: "Job offers",
       i18nAudit: "Widget translations",
       integrations: "Integrations",
       keyTakeaways: "Key takeaways",

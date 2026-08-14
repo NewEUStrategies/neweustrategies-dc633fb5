@@ -23,6 +23,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { signCvUrl } from "@/lib/careers/cvUpload";
+import {
+  CAREERS_FORM_ID,
+  asCustomRecord,
+  departmentLabel,
+  isCareerCvPath,
+  normalizeCvUrl,
+  seniorityLabel,
+  startLabel,
+  type CareerAdminLang,
+} from "@/lib/careers/recruitmentLayer";
 
 export const Route = createFileRoute("/admin/careers")({
   head: () => ({
@@ -132,15 +142,6 @@ interface CareerApplication {
   custom: Record<string, string>;
 }
 
-function asCustom(value: unknown): Record<string, string> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return {};
-  const out: Record<string, string> = {};
-  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-    if (typeof v === "string") out[k] = v;
-  }
-  return out;
-}
-
 /**
  * CV kandydata: plik z prywatnego bucketu `career-cv` (podpisany link ważny
  * 5 minut) albo zewnętrzny link podany w formularzu.
@@ -153,8 +154,12 @@ function CvAccess({
   labels: Pick<CareersDict, "cv" | "cvOpen" | "cvMissing" | "cvError">;
 }) {
   const [busy, setBusy] = useState(false);
-  const path = custom.cv_path ?? "";
-  const url = custom.cv_url ?? "";
+  // Ścieżka pliku jest sanityzowana już przy zapisie, ale zgłoszenia sprzed tej
+  // zmiany mogą mieć w bazie dowolny string - podpisujemy tylko znany kształt.
+  const path = isCareerCvPath(custom.cv_path) ? custom.cv_path : "";
+  // Link bez schematu ("linkedin.com/in/x") w <a href> jest URL-em RELATYWNYM
+  // i prowadziłby wewnątrz panelu admina.
+  const url = normalizeCvUrl(custom.cv_url) ?? "";
   const fileName = custom.cv_file_name ?? "";
 
   if (!path && !url) {
@@ -200,7 +205,8 @@ function CvAccess({
 
 function AdminCareersPage() {
   const { i18n } = useTranslation();
-  const L = i18n.language === "en" ? EN : PL;
+  const adminLang: CareerAdminLang = i18n.language === "en" ? "en" : "pl";
+  const L = adminLang === "en" ? EN : PL;
   const qc = useQueryClient();
   const [filter, setFilter] = useState<"open" | "all" | "archived">("open");
   const [q, setQ] = useState("");
@@ -218,7 +224,7 @@ function AdminCareersPage() {
         .select(
           "id,name,email,phone,subject,message,lang,created_at,read_at,archived_at,custom",
         )
-        .eq("form_id", "careers")
+        .eq("form_id", CAREERS_FORM_ID)
         .order("created_at", { ascending: false })
         .limit(500);
       if (filter === "open") qb = qb.is("archived_at", null);
@@ -227,7 +233,7 @@ function AdminCareersPage() {
       if (error) throw error;
       return (data ?? []).map((row) => ({
         ...row,
-        custom: asCustom((row as { custom: unknown }).custom),
+        custom: asCustomRecord((row as { custom: unknown }).custom),
       })) as CareerApplication[];
     },
   });
@@ -236,9 +242,17 @@ function AdminCareersPage() {
     const needle = q.trim().toLowerCase();
     if (!needle) return rows;
     return rows.filter((r) =>
-      [r.name, r.email, r.subject ?? "", r.message, r.custom.role_label ?? ""].some((v) =>
-        v.toLowerCase().includes(needle),
-      ),
+      [
+        r.name,
+        r.email,
+        r.subject ?? "",
+        r.message,
+        r.custom.role_label ?? "",
+        r.custom.department ?? "",
+        r.custom.seniority ?? "",
+        r.custom.linkedin ?? "",
+        r.custom.cv_file_name ?? "",
+      ].some((v) => v.toLowerCase().includes(needle)),
     );
   }, [rows, q]);
 
@@ -248,13 +262,23 @@ function AdminCareersPage() {
     queryKey: ["admin-career-lead", current?.email ?? ""],
     enabled: Boolean(current?.email),
     queryFn: async () => {
+      // Dopasowanie MUSI iść po `email_norm`: `crm_leads.email` przechowuje
+      // adres tak, jak go wpisał kandydat, więc porównanie zlowercase'owanego
+      // wejścia z tą kolumną nie trafiało w nikogo, kto użył wielkiej litery -
+      // panel pokazywał „Brak leada w CRM" i ukrywał przycisk „Otwórz w CRM"
+      // mimo poprawnie zsynchronizowanego kontaktu.
+      //
+      // `limit(1)` zamiast `maybeSingle()`: super admin widzi leady wielu
+      // tenantów, a ten sam adres może istnieć w każdym z nich - `maybeSingle`
+      // rzucało wtedy błędem zamiast pokazać kartę.
       const { data, error } = await supabase
         .from("crm_leads")
         .select("id,stage,updated_at")
-        .eq("email", (current?.email ?? "").toLowerCase())
-        .maybeSingle();
+        .eq("email_norm", (current?.email ?? "").trim().toLowerCase())
+        .order("updated_at", { ascending: false })
+        .limit(1);
       if (error) throw error;
-      return data;
+      return data?.[0] ?? null;
     },
   });
 
@@ -266,7 +290,13 @@ function AdminCareersPage() {
         .eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-career-applications"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-career-applications"] });
+      // Zgłoszenia rekrutacyjne widać także w Contact Center (ta sama tabela,
+      // bez filtra po `form_id`). Bez tej inwalidacji „przeczytane"/„archiwum"
+      // rozjeżdżało się między dwiema skrzynkami do końca sesji.
+      qc.invalidateQueries({ queryKey: ["admin-contact-messages"] });
+    },
   });
 
   useEffect(() => {
@@ -279,11 +309,14 @@ function AdminCareersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.id]);
 
+  // Kandydat wybiera slug ("analysis", "mid", "immediately") - operator musi
+  // zobaczyć tekst, a nie kod enuma. Słowniki żyją w `recruitmentLayer`, wspólne
+  // z modułem „Rekrutacja" na karcie kontaktu CRM.
   const rowsFor = (app: CareerApplication): ReadonlyArray<[string, string]> => [
     [L.role, app.custom.role_label || app.custom.role || L.none],
-    [L.department, app.custom.department || L.none],
-    [L.seniority, app.custom.seniority || L.none],
-    [L.start, app.custom.start || L.none],
+    [L.department, departmentLabel(app.custom.department, adminLang) || L.none],
+    [L.seniority, seniorityLabel(app.custom.seniority, adminLang) || L.none],
+    [L.start, startLabel(app.custom.start, adminLang) || L.none],
     [L.linkedin, app.custom.linkedin || L.none],
   ];
 

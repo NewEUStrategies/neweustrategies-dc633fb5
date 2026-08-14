@@ -25,6 +25,7 @@ import {
   Send,
   Copy,
   Calendar,
+  ChevronDown,
   ChevronRight,
   ShieldCheck,
   Tag,
@@ -41,6 +42,7 @@ import { ProfileSyncCard } from "@/components/admin/crm/ProfileSyncCard";
 import { FaceAwareAvatar } from "@/components/admin/crm/FaceAwareAvatar";
 import { LeadMembershipCard } from "@/components/admin/crm/LeadMembershipCard";
 import { MeteringUsageCard } from "@/components/admin/crm/MeteringUsageCard";
+import { LeadRecruitmentPanel } from "@/components/admin/crm/LeadRecruitmentPanel";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,6 +64,13 @@ type Lead = {
   id: string;
   tenant_id: string;
   email: string;
+  /**
+   * Historia append-only z `crm_upsert_from_form` (e-maile, telefony, źródła
+   * i `custom.<pole>` z formularzy hybrydowych - m.in. warstwa rekrutacyjna).
+   * Handler zwraca `select("*")`, więc kolumna jest w payloadzie od zawsze;
+   * brakowało wyłącznie typu i czytelnika.
+   */
+  aliases: unknown;
   first_name: string | null;
   last_name: string | null;
   phone: string | null;
@@ -87,11 +96,15 @@ type NoteRow = { id: string; body: string; author_id: string | null; created_at:
 type MsgRow = {
   id: string;
   form_type: string | null;
+  /** Identyfikator formularza - "careers" oznacza zgłoszenie rekrutacyjne. */
+  form_id: string | null;
   form_name: string | null;
   subject: string | null;
   message: string;
   lang: string;
   page_url: string | null;
+  /** Pola hybrydowe formularza (jsonb) - warstwa rekrutacyjna czyta je wprost. */
+  custom: unknown;
   created_at: string;
 };
 type SubRow = {
@@ -527,6 +540,15 @@ function AdminCrmDetailPage() {
 
           {tab === "overview" && (
             <div className="space-y-3">
+              {/* Warstwa rekrutacyjna: zgłoszenia z /zatrudniamy wraz z CV.
+                  Rozwinięta, gdy kontakt aplikował; złożona do jednego paska,
+                  gdy nie ma historii - moduł zostaje odnajdywalny bez szumu. */}
+              <LeadRecruitmentPanel
+                aliases={lead.aliases}
+                messages={detail.data?.messages ?? []}
+                lang={lang}
+              />
+
               {/* Quick note */}
               <section className="rounded-md border bg-card p-3 space-y-2">
                 <div className="flex items-center gap-1.5 text-[12px] font-medium">
@@ -786,22 +808,41 @@ function Stat({ label, value }: { label: string; value: number }) {
   );
 }
 
+/**
+ * Karta sekcji w prawym sidebarze - rozwijalna (jak „dane podstawowe").
+ * Karta zwinięta nie renderuje dzieci, więc panele z własnymi zapytaniami
+ * (zadania, follow-upy) nie strzelają do bazy, dopóki operator ich nie otworzy.
+ */
 function SidebarCard({
   title,
   icon,
   children,
+  defaultOpen = true,
 }: {
   title: string;
   icon: React.ReactNode;
   children: React.ReactNode;
+  defaultOpen?: boolean;
 }) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
     <section className="rounded-md border bg-card">
-      <div className="flex items-center gap-1.5 border-b px-3 py-2 text-[12px] font-medium">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-1.5 border-b px-3 py-2 text-left text-[12px] font-medium hover:bg-muted/40"
+      >
         {icon}
         {title}
-      </div>
-      <div className="p-3">{children}</div>
+        <ChevronDown
+          className={`ml-auto h-3.5 w-3.5 text-muted-foreground transition-transform ${
+            open ? "rotate-180" : ""
+          }`}
+          aria-hidden
+        />
+      </button>
+      {open && <div className="p-3">{children}</div>}
     </section>
   );
 }

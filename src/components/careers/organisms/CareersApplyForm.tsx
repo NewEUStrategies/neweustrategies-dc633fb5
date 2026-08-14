@@ -37,6 +37,7 @@ import {
   type CareerFieldErrors,
   type CareerFieldName,
 } from "@/lib/careers/applicationSchema";
+import { CAREERS_FORM_ID, fallbackApplicationMessage } from "@/lib/careers/recruitmentLayer";
 import { CareerCvField, EMPTY_CV, type CvValue } from "../molecules/CareerCvField";
 import { CAREER_FORM_STEPS, CareerFormStepper } from "../molecules/CareerFormStepper";
 import { CareerFormSuccess } from "../molecules/CareerFormSuccess";
@@ -257,11 +258,22 @@ export function CareersApplyForm({
     const firstName = form.firstName.trim();
     const lastName = form.lastName.trim();
     const email = form.email.trim();
-    const message = form.message.trim();
     const roleLabel =
       form.role && form.role !== "open"
         ? (findOffer(offers, form.role)?.title ?? form.role)
         : t("careers.form.roleOpen");
+    // "Dlaczego Ty" jest nieobowiązkowe, ale `message` jest wymagane w zod
+    // server-fn, w polityce pól tenanta i w kolumnie - puste pole wywracało
+    // całą wysyłkę. Zamiast tego wysyłamy streszczenie dopasowania.
+    const message =
+      form.message.trim() ||
+      fallbackApplicationMessage({
+        lang,
+        roleLabel,
+        department: form.department,
+        seniority: form.seniority,
+        start: form.start,
+      });
 
     setSending(true);
     try {
@@ -277,7 +289,7 @@ export function CareersApplyForm({
           consent: true,
           lang,
           formName: "careers-application",
-          formId: "careers",
+          formId: CAREERS_FORM_ID,
           source: typeof window !== "undefined" ? window.location.pathname : "/zatrudniamy",
           pageUrl: typeof window !== "undefined" ? window.location.href : undefined,
           custom: {
