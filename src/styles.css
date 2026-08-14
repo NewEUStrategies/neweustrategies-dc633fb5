@@ -5689,11 +5689,12 @@ textarea::placeholder {
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
-    min-height: 3.25rem;
-    padding-top: 1.1rem;
-    padding-bottom: 0.5rem;
+    min-height: var(--input-group-height, 3rem);
+    /* Flexbox centruje treść triggera; asymetryczny padding tylko psuł oś. */
+    padding-block: 0;
     font-size: 0.95rem;
   }
+
   .input-group > button.input ~ .user-label {
     top: 0;
     height: auto;
