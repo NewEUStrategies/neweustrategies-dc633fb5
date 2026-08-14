@@ -15,6 +15,15 @@ export type CareerStartOption = (typeof CAREER_START_OPTIONS)[number];
 export const MESSAGE_MIN = 40;
 export const MESSAGE_MAX = 4000;
 
+/** Twardy limit pliku CV: 5 MB (zgodny z polityką bucketu `career-cv`). */
+export const CV_MAX_BYTES = 5 * 1024 * 1024;
+export const CV_ACCEPTED_MIME = [
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+] as const;
+export const CV_ACCEPT_ATTR = ".pdf,.doc,.docx";
+
 const E = (key: string) => `careers.form.errors.${key}`;
 
 const NAME_RE = /^[\p{L}][\p{L}\p{M}'’\- .]{1,59}$/u;
@@ -28,6 +37,7 @@ export const CAREER_FORM_FIELDS = [
   "email",
   "phone",
   "linkedin",
+  "cv",
   "department",
   "role",
   "seniority",
@@ -45,6 +55,7 @@ export const CAREER_FIELD_STEP: Record<CareerFieldName, 0 | 1 | 2> = {
   email: 0,
   phone: 0,
   linkedin: 0,
+  cv: 0,
   department: 1,
   role: 1,
   seniority: 1,
@@ -75,10 +86,19 @@ export const careerApplicationSchema = z.object({
     .refine((value) => value.length > 0, { message: E("phoneRequired") })
     .refine((value) => PHONE_RE.test(value), { message: E("phoneInvalid") })
     .refine((value) => value.replace(/\D/g, "").length >= 7, { message: E("phoneInvalid") }),
+  // LinkedIn jest opcjonalny - CV (plik albo link) jest twardym wymogiem.
   linkedin: trimmed
-    .refine((value) => value.length > 0, { message: E("linkedinRequired") })
     .refine((value) => value.length <= 300, { message: E("linkedinLong") })
-    .refine((value) => LINKEDIN_RE.test(value), { message: E("linkedinInvalid") }),
+    .refine((value) => value.length === 0 || LINKEDIN_RE.test(value), {
+      message: E("linkedinInvalid"),
+    }),
+  /** Nazwa wgranego pliku CV (pusta, gdy kandydat podaje sam link). */
+  cvFileName: trimmed.optional().default(""),
+  /** Publiczny link do CV (pusty, gdy kandydat wgrywa plik). */
+  cvUrl: trimmed
+    .optional()
+    .default("")
+    .refine((value) => value.length <= 500, { message: E("cvUrlLong") }),
   department: trimmed.refine(
     (value) => (CAREER_DEPARTMENTS as readonly string[]).includes(value),
     { message: E("departmentRequired") },
@@ -92,12 +112,26 @@ export const careerApplicationSchema = z.object({
     (value) => (CAREER_START_OPTIONS as readonly string[]).includes(value),
     { message: E("startRequired") },
   ),
+  // "Dlaczego Ty" jest nieobowiązkowe - rolę CV przejął załącznik/link.
   message: trimmed
-    .refine((value) => value.length > 0, { message: E("messageRequired") })
-    .refine((value) => value.length >= MESSAGE_MIN, { message: E("messageShort") })
+    .optional()
+    .default("")
     .refine((value) => value.length <= MESSAGE_MAX, { message: E("messageLong") }),
   consent: z.boolean().refine((value) => value === true, { message: E("consentRequired") }),
-});
+})
+  // CV wymagane: plik ALBO link. Błąd raportujemy na wirtualnym polu `cv`,
+  // które w kreatorze odpowiada całej sekcji załącznika.
+  .superRefine((value, ctx) => {
+    const hasFile = (value.cvFileName ?? "").length > 0;
+    const hasLink = (value.cvUrl ?? "").length > 0;
+    if (!hasFile && !hasLink) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["cv"], message: E("cvRequired") });
+      return;
+    }
+    if (!hasFile && hasLink && !LINKEDIN_RE.test(value.cvUrl ?? "")) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["cv"], message: E("cvUrlInvalid") });
+    }
+  });
 
 export type CareerApplicationInput = z.input<typeof careerApplicationSchema>;
 export type CareerApplicationValue = z.output<typeof careerApplicationSchema>;

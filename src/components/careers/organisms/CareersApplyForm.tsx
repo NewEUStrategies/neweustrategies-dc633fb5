@@ -37,6 +37,7 @@ import {
   type CareerFieldErrors,
   type CareerFieldName,
 } from "@/lib/careers/applicationSchema";
+import { CareerCvField, EMPTY_CV, type CvValue } from "../molecules/CareerCvField";
 import { CAREER_FORM_STEPS, CareerFormStepper } from "../molecules/CareerFormStepper";
 import { CareerFormSuccess } from "../molecules/CareerFormSuccess";
 
@@ -54,6 +55,7 @@ interface FormState {
   seniority: string;
   start: string;
   message: string;
+  cv: CvValue;
 }
 
 const EMPTY: FormState = {
@@ -67,6 +69,7 @@ const EMPTY: FormState = {
   seniority: "",
   start: "",
   message: "",
+  cv: { ...EMPTY_CV },
 };
 
 export function CareersApplyForm({
@@ -147,7 +150,22 @@ export function CareersApplyForm({
   );
 
   const payload = useMemo(
-    () => ({ ...form, consent }),
+    () => ({
+      firstName: form.firstName,
+      lastName: form.lastName,
+      email: form.email,
+      phone: form.phone,
+      linkedin: form.linkedin,
+      department: form.department,
+      role: form.role,
+      seniority: form.seniority,
+      start: form.start,
+      message: form.message,
+      // CV: plik w prywatnym buckecie ALBO link - schemat wymaga jednego z nich.
+      cvFileName: form.cv.fileName,
+      cvUrl: form.cv.url,
+      consent,
+    }),
     [form, consent],
   );
 
@@ -269,6 +287,9 @@ export function CareersApplyForm({
             seniority: form.seniority || "",
             start: form.start || "",
             linkedin: form.linkedin.trim(),
+            cv_path: form.cv.path,
+            cv_file_name: form.cv.fileName,
+            cv_url: form.cv.url.trim(),
           },
           consents: [
             {
@@ -449,12 +470,19 @@ export function CareersApplyForm({
                 <FloatingInput
                   label={t("careers.form.linkedin")}
                   inputMode="url"
-                  required
                   data-field="linkedin"
                   error={msg(errors.linkedin)}
                   value={form.linkedin}
                   onChange={(e) => setField("linkedin", e.target.value)}
                   onBlur={() => blurField("linkedin")}
+                />
+                <CareerCvField
+                  value={form.cv}
+                  error={msg(errors.cv)}
+                  onChange={(next) => setField("cv", next)}
+                  onErrorMessage={(key) =>
+                    setErrors((prev) => ({ ...prev, cv: key }))
+                  }
                 />
               </div>
             ) : null}
@@ -523,7 +551,6 @@ export function CareersApplyForm({
                   label={t("careers.form.message")}
                   placeholder={t("careers.form.messagePlaceholder")}
                   rows={6}
-                  required
                   maxLength={MESSAGE_MAX}
                   data-field="message"
                   error={msg(errors.message)}
