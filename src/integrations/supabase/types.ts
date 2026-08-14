@@ -1388,6 +1388,13 @@ export type Database = {
             referencedRelation: "career_applications"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "career_application_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
         ]
       }
       career_applications: {
@@ -1441,6 +1448,13 @@ export type Database = {
             referencedRelation: "contact_messages"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "career_applications_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
         ]
       }
       career_cv_gc_queue: {
@@ -1474,7 +1488,15 @@ export type Database = {
           reason?: string
           tenant_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "career_cv_gc_queue_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       career_page_sections: {
         Row: {
@@ -1510,7 +1532,15 @@ export type Database = {
           title_pl?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "career_page_sections_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       career_roles: {
         Row: {
@@ -1576,7 +1606,15 @@ export type Database = {
           title_pl?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "career_roles_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       career_settings: {
         Row: {
@@ -1597,7 +1635,15 @@ export type Database = {
           tenant_id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "career_settings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       categories: {
         Row: {
@@ -16069,7 +16115,10 @@ export type Database = {
       }
       career_cv_gc_claim: { Args: { _limit?: number }; Returns: Json }
       career_cv_gc_done: { Args: { _paths: string[] }; Returns: number }
-      career_cv_gc_fail: { Args: { _error: string; _path: string }; Returns: undefined }
+      career_cv_gc_fail: {
+        Args: { _error: string; _path: string }
+        Returns: undefined
+      }
       career_cv_gc_scan: { Args: { _limit?: number }; Returns: Json }
       change_user_role: {
         Args: {
@@ -20200,6 +20249,15 @@ export const Constants = {
       builder_experiment_event: ["exposure", "conversion"],
       builder_experiment_status: ["running", "paused", "completed"],
       builder_popup_status: ["draft", "active", "archived"],
+      career_stage: [
+        "new",
+        "screening",
+        "interview",
+        "offer",
+        "hired",
+        "rejected",
+        "withdrawn",
+      ],
       crm_source_type: [
         "contact_form",
         "newsletter",
