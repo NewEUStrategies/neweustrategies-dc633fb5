@@ -71,22 +71,36 @@ function CheckoutPage() {
 
   const { data: checkoutSettings } = useCheckoutSettings();
 
+  // IZOLACJA OBSZARÓW ROBOCZYCH. Autorytetem jest RLS i NIE WOLNO go tu dublować
+  // porównaniem z tenantem z profilu (`useAuth().tenantId`). `access_plans` czyta
+  // polityka `plans public read` przez `public_tenant_id()`, czyli tenanta
+  // PRZEGLĄDANEJ domeny, a ta funkcja rozstrzyga go szczeblem zaufania hosta:
+  //   * poświadczenie krawędzi (host zweryfikowany) -> DOWOLNY tenant, więc
+  //     czytelnik z tenantem domowym A legalnie kupuje plan tenanta B na domenie B;
+  //   * sama deklaracja `x-tenant-host` u ZALOGOWANEGO -> tenant domowy, jeśli host
+  //     mówi coś innego (host nie jest dowodem tożsamości obszaru roboczego).
+  // Klient porównujący `plan.tenant_id` z tenantem z profilu byłby więc albo
+  // no-opem (drugi przypadek: te wartości są wtedy równe z konstrukcji), albo
+  // BLOKADĄ legalnego zakupu (pierwszy przypadek) - patrz test „kupujący z innym
+  // tenantem domowym...". Brak planu z odczytu = brak oferty; to cała reguła.
+  const planData = plan.data ?? null;
+
   useEffect(() => {
-    if (plan.isSuccess && !plan.data) {
+    if (plan.isSuccess && !planData) {
       toast.error(t("checkout.notFound"));
     }
-  }, [plan.isSuccess, plan.data, t]);
+  }, [plan.isSuccess, planData, t]);
 
   const hasBilling = !!billing.data?.address_line1 && !!billing.data?.city;
   // Tryb sesji u operatora wynika z cyklu planu - plan jednorazowy jedzie jako
   // `payment`, każdy cykliczny jako `subscription` (patrz `catalog.ts`).
   const checkoutMode: "payment" | "subscription" =
-    plan.data?.interval === "one_time" ? "payment" : "subscription";
+    planData?.interval === "one_time" ? "payment" : "subscription";
   const displayCurrency = displayCurrencyForLang(i18n.language);
-  const planCurrency = plan.data?.currency ?? "PLN";
+  const planCurrency = planData?.currency ?? "PLN";
   // Kwoty do wyświetlenia po konwersji (parytet z /pricing i /support).
   const originalDisplay = convertToDisplayCurrency(
-    plan.data?.price_cents ?? 0,
+    planData?.price_cents ?? 0,
     planCurrency,
     displayCurrency,
   );
@@ -98,17 +112,17 @@ function CheckoutPage() {
   const finalCentsDisplay = Math.max(originalDisplay.cents - discountDisplay.cents, 0);
 
   const submit = async () => {
-    if (!plan.data || !hasBilling) return;
+    if (!planData || !hasBilling) return;
     setBusy(true);
     try {
-      const price = catalogPriceForPlan(plan.data);
+      const price = catalogPriceForPlan(planData);
       if (!price) {
         toast.error(t("checkout.paymentsNotConfigured"));
         setBusy(false);
         return;
       }
       const result = await openPlanCheckout({
-        planId: plan.data.id,
+        planId: planData.id,
         priceId: price.priceId,
         couponCode: coupon?.code,
         returnUrl: `${window.location.origin}/checkout/success`,
@@ -191,28 +205,28 @@ function CheckoutPage() {
                 <CardTitle>{t("checkout.summary")}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {plan.data ? (
+                {planData ? (
                   <>
                     <div>
                       <div className="text-xs uppercase text-muted-foreground">
                         {t("checkout.item")}
                       </div>
-                      <div className="font-semibold">{planName(plan.data, i18n.language)}</div>
-                      {planDescription(plan.data, i18n.language) && (
+                      <div className="font-semibold">{planName(planData, i18n.language)}</div>
+                      {planDescription(planData, i18n.language) && (
                         <p className="text-sm text-muted-foreground">
-                          {planDescription(plan.data, i18n.language)}
+                          {planDescription(planData, i18n.language)}
                         </p>
                       )}
                     </div>
-                    {plan.data.trial_days > 0 && plan.data.interval !== "one_time" && (
+                    {planData.trial_days > 0 && planData.interval !== "one_time" && (
                       <p className="rounded-md bg-primary/10 px-3 py-2 text-xs font-medium text-primary">
-                        {t("checkout.trialLine", { days: plan.data.trial_days })}
+                        {t("checkout.trialLine", { days: planData.trial_days })}
                       </p>
                     )}
                     <CouponInput
-                      planId={plan.data.id}
-                      amountCents={plan.data.price_cents}
-                      currency={plan.data.currency}
+                      planId={planData.id}
+                      amountCents={planData.price_cents}
+                      currency={planData.currency}
                       onChange={(payload) =>
                         setCoupon(
                           payload
@@ -230,7 +244,7 @@ function CheckoutPage() {
                         <div className="flex items-center justify-between text-xs text-muted-foreground">
                           <span>{t("checkout.subtotal")}</span>
                           <span className="line-through">
-                            {formatDisplayMoney(plan.data.price_cents, planCurrency, i18n.language)}
+                            {formatDisplayMoney(planData.price_cents, planCurrency, i18n.language)}
                           </span>
                         </div>
                       )}

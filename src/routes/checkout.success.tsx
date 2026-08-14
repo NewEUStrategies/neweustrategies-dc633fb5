@@ -13,6 +13,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { billingKeys } from "@/lib/billing/keys";
 import { finalizeCheckout } from "@/lib/billing/checkout.functions";
+import { safeReturnPath } from "@/lib/billing/returnPath";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 import { PurchaseConfirmationView } from "@/components/admin/builder/ui/organisms/widget-view/PurchaseConfirmationView";
 import { resolvedContentQueryOptions, type PageData } from "@/lib/queries/public";
@@ -112,14 +113,27 @@ function SuccessPage() {
   // Where the buyer was before checkout (e.g. the paywalled article they were
   // reading), captured by the Paywall so we can send them back to it instead of
   // dead-ending on the profile.
+  //
+  // BEZPIECZEŃSTWO: wartość pochodzi z `sessionStorage`, czyli z powierzchni,
+  // którą kontroluje przeglądarka - nie serwer. Sam warunek "zaczyna się od /"
+  // przepuszczał `//host` oraz `/\host`, a to adresy PROTOCOL-RELATIVE: <AppLink>
+  // renderuje je jako surowy `href`, `toClientHref` odmawia przejęcia kliknięcia
+  // i przeglądarka wyprowadza kupującego na obcą domenę - dokładnie w momencie,
+  // w którym właśnie zapłacił i ufa stronie. Sanityzacja idzie więc przez ten sam
+  // `safeReturnPath`, którym filtrujemy adresy powrotu wysyłane do operatora
+  // (schematy, CR/LF, przekroczona długość, protocol-relative).
   const [returnTo, setReturnTo] = useState<string | null>(null);
   useEffect(() => {
     try {
-      const v = sessionStorage.getItem(RETURN_KEY);
-      if (v && v.startsWith("/") && !v.startsWith("/checkout") && !v.startsWith("/profile")) {
-        setReturnTo(v);
-      }
+      const stored = sessionStorage.getItem(RETURN_KEY);
+      // Klucz jest jednorazowy - czyścimy go niezależnie od wyniku walidacji.
       sessionStorage.removeItem(RETURN_KEY);
+      const safe = safeReturnPath(stored, "");
+      // `/checkout` i `/profile` odpadają jako cel powrotu: pierwszy zapętla
+      // lejek, drugi jest już dostępny z samego widoku potwierdzenia.
+      if (safe && !safe.startsWith("/checkout") && !safe.startsWith("/profile")) {
+        setReturnTo(safe);
+      }
     } catch {
       /* ignore */
     }
