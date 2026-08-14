@@ -150,3 +150,21 @@ jobs:
             *'"ok":false'*)
               echo "::warning title=Harmonogram zgłasza zastój::Sonda GET /api/public/community-cron zwróciła ok=false - sprawdź panel /admin/community/notifications." ;;
           esac
+
+      # Warmer NES Edge Cache: kluczowe dokumenty publiczne (/, /en, /blog,
+      # /en/blog) są odpytywane w rytmie ticków, więc okno świeżości (180 s)
+      # praktycznie nie wygasa i realny czytelnik nie płaci pełnego renderu SSR
+      # (MISS = sekundy TTFB na zimnej kolonii). Best-effort: skrypt zawsze
+      # kończy się kodem 0 - grzanie nigdy nie zapala crona doręczeń. Wymaga
+      # tylko APP_BASE_URL (bez sekretu - to anonimowe GET-y dokumentów).
+      - name: Warm NES Edge Cache
+        if: github.event.schedule != '25 5 * * *'
+        continue-on-error: true
+        env:
+          WARM_BASE_URL: ${{ vars.APP_BASE_URL }}
+          # 2 ticki co 2 min: krok mieści się w budżecie joba (timeout 8 min
+          # po ticku doręczeń ~4 min), a STALE i tak serwuje natychmiast -
+          # celem warmera jest wyłącznie eliminacja pełnych MISS-ów.
+          WARM_TICKS: "2"
+          WARM_INTERVAL_MS: "120000"
+        run: node scripts/warm-edge-cache.mjs
