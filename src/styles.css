@@ -5665,9 +5665,11 @@ textarea::placeholder {
   /* Selects have no reliable :placeholder-shown state. Keep their labels on the
      border while preserving the same floating-label geometry and 6px control. */
   .input-group > select.input {
-    padding-top: 0.8rem;
-    padding-bottom: 0.2rem;
+    /* Etykieta selecta zawsze leży na ramce, więc wartość ma być wyśrodkowana
+       w osi kontrolki - bez asymetrycznego paddingu ciągnącego tekst w dół. */
+    padding-block: 0;
   }
+
   .input-group > select.input ~ .user-label {
     top: 0;
     height: auto;
