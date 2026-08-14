@@ -68,7 +68,7 @@ export const AUTHZ_SNAPSHOT: AuthzSnapshotModule = {
     {"capability":"pro_briefings","ref":"fn:rsvp_event/2","kind":"function","object":"rsvp_event","file":"20260721150000_events_waitlist_recordings_gate.sql","bypassRoles":[],"tenantRef":"row"},
     {"capability":"qa_priority","ref":"fn:list_qa_questions/1","kind":"function","object":"list_qa_questions","file":"20260724090700_qa_list_my_vote.sql","bypassRoles":[],"tenantRef":"row"},
     {"capability":"recordings","ref":"fn:get_event_access/1","kind":"function","object":"get_event_access","file":"20260724100000_fix_definer_header_tenant_scope.sql","bypassRoles":["admin","editor"],"tenantRef":"caller"},
-    {"capability":"regulatory_monitoring","ref":"policy:eu_policy_follows/policy follows owner all","kind":"policy","object":"eu_policy_follows","file":"20260723090000_tier_content_gating_tracker.sql","bypassRoles":[],"tenantRef":"row"},
+    {"capability":"regulatory_monitoring","ref":"policy:eu_policy_follows/policy follows owner all","kind":"policy","object":"eu_policy_follows","file":"20260814221337_7032c52d-ad30-4821-a2e9-4ae1fa855a8f.sql","bypassRoles":[],"tenantRef":"row"},
   ],
-  stats: {"migrations":773,"functions":837,"policies":543},
+  stats: {"migrations":774,"functions":837,"policies":543},
 };
