@@ -7,6 +7,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 
+import { CAREERS_FORM_ID, isCareerCvPath, normalizeCvUrl } from "@/lib/careers/recruitmentLayer";
+
 // SECURITY: `recipient` is intentionally NOT part of the public input.
 // The admin notification address must come from the trusted server-side
 // contact_form_settings.default_recipient - never from user input - otherwise
@@ -254,6 +256,33 @@ export const submitContactMessage = createServerFn({ method: "POST" })
       throw new Error(`policy_violation:${Array.from(new Set(violations)).join(",")}`);
     }
 
+    // ---- Custom (hybrid) fields --------------------------------------------
+    // Sanitised once and reused for the contact_messages row and the CRM upsert,
+    // so the inbox and the CRM never disagree about what the candidate sent.
+    const isCareersForm = data.formId === CAREERS_FORM_ID;
+    const customFields: Record<string, string> = { ...(data.custom ?? {}) };
+    if (customFields.cv_path !== undefined) {
+      // SECURITY: `cv_path` is caller-supplied and the admin panel signs it
+      // blindly (`signCvUrl`). Anything but the exact shape produced by
+      // `uploadCv` is dropped - otherwise a crafted submission could mint a
+      // signed URL for ANY object in the private `career-cv` bucket, i.e. for
+      // another candidate's CV.
+      if (!isCareerCvPath(customFields.cv_path.trim())) {
+        console.warn("[contact] rejected cv_path shape");
+        delete customFields.cv_path;
+        delete customFields.cv_file_name;
+      } else {
+        customFields.cv_path = customFields.cv_path.trim();
+      }
+    }
+    if (customFields.cv_url !== undefined) {
+      // Schemeless input ("linkedin.com/in/x") passes the form's URL check but
+      // renders as a RELATIVE href in the panel. Store it normalised.
+      const normalized = normalizeCvUrl(customFields.cv_url);
+      if (normalized) customFields.cv_url = normalized;
+      else delete customFields.cv_url;
+    }
+
     // Extract client IP + UA from request headers (defensive: proxy chains vary)
     let clientIp: string | null = null;
     let userAgent: string | null = null;
@@ -319,7 +348,7 @@ export const submitContactMessage = createServerFn({ method: "POST" })
         ip: clientIp,
         user_agent: userAgent,
         consents: data.consents ?? [],
-        custom: data.custom && Object.keys(data.custom).length ? data.custom : {},
+        custom: Object.keys(customFields).length ? customFields : {},
         status: "new",
       })
       .select("id, tenant_id")
@@ -328,20 +357,42 @@ export const submitContactMessage = createServerFn({ method: "POST" })
 
     // Push contact into CRM (append-only aliases so history is preserved).
     try {
-      const { error: crmErr } = await supabaseAdmin.rpc("crm_upsert_from_form", {
+      // Hybrid "custom" fields are the only place widgets can declare a
+      // LinkedIn / position / country (the recruitment form on /zatrudniamy
+      // sends `custom.linkedin`). Forward them into the matching first-class
+      // lead columns - previously they were hard-coded to "" here, so the CRM
+      // contact card showed no LinkedIn even though the candidate gave one and
+      // the value sat in aliases.custom, unread by any screen.
+      const pickCustom = (key: string): string => (customFields[key] ?? "").trim();
+
+      const { data: leadId, error: crmErr } = await supabaseAdmin.rpc("crm_upsert_from_form", {
         _tenant: inserted.tenant_id,
         _email: data.email,
         _first_name: data.firstName?.trim() ?? "",
         _last_name: data.lastName?.trim() ?? "",
         _phone: data.phone?.trim() ?? "",
         _company: data.company?.trim() ?? "",
-        _position: "",
-        _linkedin: "",
-        _country: "",
+        _position: pickCustom("position"),
+        _linkedin: pickCustom("linkedin"),
+        _country: pickCustom("country"),
         _source: `contact-form${data.source ? `:${data.source}` : ""}`,
-        _custom: data.custom && Object.keys(data.custom).length ? data.custom : {},
+        _custom: Object.keys(customFields).length ? customFields : {},
       });
       if (crmErr) console.error("[contact] crm sync failed", crmErr);
+
+      // Mark job applicants so they are distinguishable in the CRM (the RPC
+      // leaves source_type at its 'manual' default, which reads as "typed in by
+      // hand"). Guarded by `.in(...)`: a paying subscriber or club member who
+      // applies for a job keeps the stronger classification, and the whole
+      // decision is one atomic UPDATE rather than a read-then-write race.
+      if (isCareersForm && typeof leadId === "string") {
+        const { error: stampErr } = await supabaseAdmin
+          .from("crm_leads")
+          .update({ source_type: "careers" })
+          .eq("id", leadId)
+          .in("source_type", ["manual", "contact_form", "newsletter"]);
+        if (stampErr) console.error("[contact] careers source_type stamp failed", stampErr);
+      }
     } catch (e) {
       console.error("[contact] crm sync threw", e);
     }

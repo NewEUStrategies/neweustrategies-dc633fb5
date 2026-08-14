@@ -11,6 +11,8 @@ import { toast } from "sonner";
 import { BriefcaseBusiness, Download, Eye, EyeOff, Inbox, Plus, Save, Trash2 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
+import { ensureI18n as ensureCareersI18n } from "@/lib/i18n-careers";
+import { useCurrentTenantId } from "@/lib/tenant";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -51,7 +53,7 @@ const LOCATIONS = ["remote", "hybrid", "warsaw", "brussels"] as const satisfies 
 interface HiringDict {
   title: string;
   subtitle: string;
-  tabs: { roles: string; sections: string };
+  tabs: { roles: string; sections: string; retention: string };
   inbox: string;
   add: string;
   importI18n: string;
@@ -85,12 +87,20 @@ interface HiringDict {
   sectionSubtitle: string;
   sectionHint: string;
   newRole: string;
+  retentionHint: string;
+  retentionDays: string;
+  retentionDaysHint: string;
+  graceHours: string;
+  graceHoursHint: string;
+  queueTitle: string;
+  queueEmpty: string;
+  queuePending: string;
 }
 
 const PL: HiringDict = {
   title: "Oferty pracy",
   subtitle: "Treść strony „Dołącz do zespołu” (/zatrudniamy): oferty i sekcje.",
-  tabs: { roles: "Oferty", sections: "Sekcje strony" },
+  tabs: { roles: "Oferty", sections: "Sekcje strony", retention: "Retencja CV" },
   inbox: "Zgłoszenia kandydatów",
   add: "Nowa oferta",
   importI18n: "Importuj wbudowane oferty",
@@ -124,12 +134,22 @@ const PL: HiringDict = {
   sectionSubtitle: "Podtytuł (PL / EN)",
   sectionHint: "Puste pole = tekst domyślny ze słownika.",
   newRole: "Nowa oferta",
+  retentionHint:
+    "Pliki CV to dane osobowe kandydatów. Job „career-cv-retention” usuwa je z prywatnego bucketu w dwóch sytuacjach: gdy plik nie ma zgłoszenia (porzucony kreator) i gdy proces jest domknięty dłużej niż poniższy okres. Otwarty proces nie traci CV bez względu na wiek.",
+  retentionDays: "Retencja CV po domknięciu procesu (dni)",
+  retentionDaysHint: "Liczone od zmiany etapu na zatrudniony / odrzucony / wycofane. 1-3650.",
+  graceHours: "Okno łaski dla pliku bez zgłoszenia (godziny)",
+  graceHoursHint:
+    "Plik ląduje w buckecie przy wyborze, przed wysyłką formularza - to okno chroni kandydata, który wypełnia kreator dłużej. 1-720.",
+  queueTitle: "Kolejka usunięć",
+  queueEmpty: "Kolejka pusta.",
+  queuePending: "Pozycje czekające na usunięcie z magazynu:",
 };
 
 const EN: HiringDict = {
   title: "Job offers",
   subtitle: "Content of the “Join the team” page (/zatrudniamy): offers and sections.",
-  tabs: { roles: "Offers", sections: "Page sections" },
+  tabs: { roles: "Offers", sections: "Page sections", retention: "CV retention" },
   inbox: "Applications",
   add: "New offer",
   importI18n: "Import built-in offers",
@@ -163,6 +183,16 @@ const EN: HiringDict = {
   sectionSubtitle: "Subtitle (PL / EN)",
   sectionHint: "Empty field = default dictionary copy.",
   newRole: "New offer",
+  retentionHint:
+    'CV files are candidate personal data. The "career-cv-retention" job removes them from the private bucket in two cases: a file with no application (abandoned form) and a process closed for longer than the window below. An open process never loses its CV, however old.',
+  retentionDays: "CV retention after the process closes (days)",
+  retentionDaysHint: "Counted from the move to hired / rejected / withdrawn. 1-3650.",
+  graceHours: "Grace window for a file with no application (hours)",
+  graceHoursHint:
+    "The file lands in the bucket on pick, before the form is submitted - this window protects a candidate who fills the form slowly. 1-720.",
+  queueTitle: "Deletion queue",
+  queueEmpty: "Queue is empty.",
+  queuePending: "Entries awaiting removal from storage:",
 };
 
 type RoleDraft = Omit<CareerRoleRow, "id"> & { id: string | null };
@@ -244,10 +274,20 @@ function Select<T extends string>({
 }
 
 function AdminHiringPage() {
+  // Słownik `careers.*` rejestruje się przy ewaluacji modułu i mieszka w chunku
+  // trasy publicznej - w chunku admina go NIE MA. Bez tego `getFixedT` zwracał
+  // surowe klucze, a "Importuj wbudowane oferty" zapisywał do bazy tytuły w
+  // postaci "careers.roles.<id>.title", które trafiały na stronę /zatrudniamy.
+  ensureCareersI18n();
   const { t, i18n } = useTranslation();
   const L = i18n.language.startsWith("en") ? EN : PL;
   const qc = useQueryClient();
-  const [tab, setTab] = useState<"roles" | "sections">("roles");
+  // `career_roles` / `career_page_sections` są od migracji 20260814100000
+  // scope'owane po najemcy. Kolumna ma DEFAULT `public_tenant_id()`, ale ON
+  // CONFLICT (tenant_id, slug) wymaga wartości JAWNIE w payloadzie, a jawny
+  // tenant to też druga bramka obok RLS (defense in depth, jak w lib/tenant).
+  const tenantId = useCurrentTenantId();
+  const [tab, setTab] = useState<"roles" | "sections" | "retention">("roles");
   const [selected, setSelected] = useState<string | null>(null);
   const [draft, setDraft] = useState<RoleDraft | null>(null);
 
@@ -292,9 +332,10 @@ function AdminHiringPage() {
         if (error) throw new Error(error.message);
         return value.id;
       }
+      if (!tenantId) throw new Error("tenant_unresolved");
       const { data, error } = await supabase
         .from("career_roles")
-        .insert(payload)
+        .insert({ ...payload, tenant_id: tenantId })
         .select("id")
         .single();
       if (error) throw new Error(error.message);
@@ -324,12 +365,16 @@ function AdminHiringPage() {
 
   const importBuiltIn = useMutation({
     mutationFn: async () => {
+      if (!tenantId) throw new Error("tenant_unresolved");
       const tEn = i18n.getFixedT("en");
       const tPl = i18n.getFixedT("pl");
-      const payload = fallbackRoleRows(tPl, tEn);
+      // Unikalność slugu jest teraz PARĄ (tenant_id, slug) - `onConflict: "slug"`
+      // celowałby w indeks, którego już nie ma, i import wywracałby się na
+      // każdym powtórnym uruchomieniu.
+      const payload = fallbackRoleRows(tPl, tEn).map((row) => ({ ...row, tenant_id: tenantId }));
       const { error } = await supabase
         .from("career_roles")
-        .upsert(payload, { onConflict: "slug" });
+        .upsert(payload, { onConflict: "tenant_id,slug" });
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
@@ -341,16 +386,23 @@ function AdminHiringPage() {
 
   const saveSection = useMutation({
     mutationFn: async (row: CareerSectionRow) => {
-      const { error } = await supabase
-        .from("career_page_sections")
-        .update({
+      if (!tenantId) throw new Error("tenant_unresolved");
+      // UPSERT, nie UPDATE: seed sekcji dostał tylko najemca domyślny, więc u
+      // każdego innego `update().eq("key")` nie trafiał w żaden wiersz i zapis
+      // cicho nic nie robił. Klucz główny to teraz (tenant_id, key).
+      const { error } = await supabase.from("career_page_sections").upsert(
+        {
+          tenant_id: tenantId,
+          key: row.key,
           is_visible: row.is_visible,
+          sort_order: row.sort_order,
           title_pl: row.title_pl,
           title_en: row.title_en,
           subtitle_pl: row.subtitle_pl,
           subtitle_en: row.subtitle_en,
-        })
-        .eq("key", row.key);
+        },
+        { onConflict: "tenant_id,key" },
+      );
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
@@ -379,7 +431,7 @@ function AdminHiringPage() {
       </header>
 
       <div className="flex gap-1 border-b border-border">
-        {(["roles", "sections"] as const).map((key) => (
+        {(["roles", "sections", "retention"] as const).map((key) => (
           <button
             key={key}
             type="button"
@@ -625,14 +677,131 @@ function AdminHiringPage() {
             )}
           </section>
         </div>
-      ) : (
+      ) : tab === "sections" ? (
         <SectionsTab
           L={L}
           rows={sectionsQuery.data ?? []}
           onSave={(row) => saveSection.mutate(row)}
           saving={saveSection.isPending}
         />
+      ) : (
+        <RetentionTab L={L} tenantId={tenantId} />
       )}
+    </div>
+  );
+}
+
+/**
+ * Ustawienia retencji plików CV.
+ *
+ * Okres retencji jest decyzją RODO, nie techniczną - dlatego siedzi w tabeli
+ * `career_settings` per najemca, a nie w stałej w kodzie. Domyślne wartości
+ * (365 dni / 24 h) obowiązują, dopóki nikt ich nie nadpisze, więc job działa
+ * także bez wejścia na tę zakładkę.
+ */
+function RetentionTab({ L, tenantId }: { L: HiringDict; tenantId: string | null }) {
+  const qc = useQueryClient();
+  const [days, setDays] = useState("");
+  const [hours, setHours] = useState("");
+
+  const settings = useQuery({
+    queryKey: ["admin-career-settings"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("career_settings")
+        .select("tenant_id,cv_retention_days,orphan_grace_hours")
+        .limit(1)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      return data;
+    },
+  });
+
+  const queue = useQuery({
+    queryKey: ["admin-career-cv-queue"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("career_cv_gc_queue")
+        .select("id", { count: "exact", head: true });
+      if (error) throw new Error(error.message);
+      return count ?? 0;
+    },
+  });
+
+  useEffect(() => {
+    setDays(String(settings.data?.cv_retention_days ?? 365));
+    setHours(String(settings.data?.orphan_grace_hours ?? 24));
+  }, [settings.data]);
+
+  const save = useMutation({
+    mutationFn: async () => {
+      if (!tenantId) throw new Error("tenant_unresolved");
+      // UPSERT obsługuje oba przypadki: najemca, który nigdy nie ruszał
+      // retencji, nie ma jeszcze wiersza i jedzie na wartościach domyślnych
+      // z CHECK-ów tabeli.
+      const { error } = await supabase.from("career_settings").upsert(
+        {
+          tenant_id: tenantId,
+          cv_retention_days: Number(days),
+          orphan_grace_hours: Number(hours),
+        },
+        { onConflict: "tenant_id" },
+      );
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      toast.success(L.saved);
+      qc.invalidateQueries({ queryKey: ["admin-career-settings"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  return (
+    <div className="space-y-4">
+      <p className="max-w-3xl text-xs leading-relaxed text-muted-foreground">{L.retentionHint}</p>
+
+      <section className="space-y-3 rounded-md border border-border bg-card p-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label={L.retentionDays}>
+            <Input
+              type="number"
+              min={1}
+              max={3650}
+              value={days}
+              onChange={(event) => setDays(event.target.value)}
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground">{L.retentionDaysHint}</p>
+          </Field>
+          <Field label={L.graceHours}>
+            <Input
+              type="number"
+              min={1}
+              max={720}
+              value={hours}
+              onChange={(event) => setHours(event.target.value)}
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground">{L.graceHoursHint}</p>
+          </Field>
+        </div>
+        <div className="flex justify-end">
+          <Button
+            size="sm"
+            className="gap-1.5"
+            disabled={save.isPending}
+            onClick={() => save.mutate()}
+          >
+            <Save className="h-4 w-4" />
+            {L.save}
+          </Button>
+        </div>
+      </section>
+
+      <section className="rounded-md border border-border bg-card p-4">
+        <h2 className="text-sm font-semibold">{L.queueTitle}</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {queue.data ? `${L.queuePending} ${queue.data}` : L.queueEmpty}
+        </p>
+      </section>
     </div>
   );
 }

@@ -231,6 +231,30 @@ describe("CareersApplyForm: kreator 3 kroków", () => {
     expect(screen.getByLabelText(/careers\.form\.firstName/)).toHaveValue("");
   });
 
+  it("wysyła zgłoszenie bez 'Dlaczego Ty' - z streszczeniem dopasowania w treści", async () => {
+    // REGRESJA: `message` jest wymagane w zod server-fn, w polityce pól tenanta
+    // (contact_form.message required) i w kolumnie. Pole „Dlaczego Ty" jest
+    // jednak w kreatorze OPCJONALNE, więc puste zgłoszenie wywracało wysyłkę i
+    // kandydat widział wyłącznie „nie udało się wysłać" - nic się nie zapisywało.
+    renderForm("analyst_economy");
+    fillAbout();
+    nextStep();
+    fillFit();
+    nextStep();
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: /careers\.form\.submit/ }));
+
+    await waitFor(() => expect(submitSpy).toHaveBeenCalledTimes(1));
+    const payload = (submitSpy.mock.calls[0] as unknown as [{ data: Record<string, unknown> }])[0]
+      .data;
+    const message = String(payload.message);
+    expect(message.trim().length).toBeGreaterThan(0);
+    expect(message).toContain("Analizy");
+    expect(message).toContain("Specjalista");
+    expect(message).toContain("W ciągu miesiąca");
+    expect(await screen.findByText("careers.form.success.title")).toBeInTheDocument();
+  });
+
   it("pozwala wrócić stepperem tylko do kroków odwiedzonych", () => {
     renderForm();
     fillAbout();

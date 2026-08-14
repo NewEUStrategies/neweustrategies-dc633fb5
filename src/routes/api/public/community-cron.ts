@@ -168,6 +168,15 @@ async function runJobs(job: SchedulerJob): Promise<{ result: JobOutcome; errors:
   if (job === "all" || job === "crm-task-reminders") {
     await step("crmTaskReminders", () => runCrmTaskReminders());
   }
+  if (job === "all" || job === "career-cv-retention") {
+    // Dane osobowe kandydatów: plik CV ląduje w buckecie przy WYBORZE, przed
+    // wysyłką formularza, więc bez tego kroku porzucony kreator zostawiał CV na
+    // zawsze. Krok jest tani (skan + jedna partia), więc jedzie w "all".
+    await step("careerCvRetention", async () => {
+      const { runCareerCvRetention } = await import("@/lib/server/careerCvRetention.server");
+      return runCareerCvRetention();
+    });
+  }
   if (job === "all") {
     await step("reputationBadges", async () => {
       const { reconcileReputationBadges } = await import("@/lib/community/reputationBadges.server");

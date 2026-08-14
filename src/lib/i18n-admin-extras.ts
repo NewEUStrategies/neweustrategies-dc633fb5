@@ -300,7 +300,6 @@ export const adminExtrasPl = {
       clubSpecializations: "Klub - specjalizacje",
       clubTopics: "Klub - obszary tematyczne",
       careers: "Rekrutacja",
-      hiring: "Oferty pracy",
       clubs: "Kluby dyskusyjne",
       comments: "Komentarze",
       community: "Społeczność",
@@ -317,6 +316,9 @@ export const adminExtrasPl = {
       externalNewTab: "Otwiera się w nowej karcie",
       gifting: "Podaruj artykuł",
       glossary: "Słowniczek",
+      // Treść strony /zatrudniamy (oferty + sekcje). Zgłoszenia kandydatów
+      // mają osobny wpis `careers`.
+      hiring: "Oferty pracy",
       i18nAudit: "Tłumaczenia widgetów",
       integrations: "Integracje",
       keyTakeaways: "Sekcja „Dowiesz się…”",
@@ -950,7 +952,6 @@ export const adminExtrasEn = {
       clubSpecializations: "Club specialisations",
       clubTopics: "Club policy areas",
       careers: "Recruitment",
-      hiring: "Job offers",
       clubs: "Discussion clubs",
       comments: "Comments",
       community: "Community",
@@ -965,6 +966,7 @@ export const adminExtrasEn = {
       externalNewTab: "Opens in a new tab",
       gifting: "Gift articles",
       glossary: "Glossary",
+      hiring: "Job offers",
       i18nAudit: "Widget translations",
       integrations: "Integrations",
       keyTakeaways: "Key takeaways",

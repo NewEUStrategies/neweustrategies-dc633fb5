@@ -469,17 +469,17 @@ function AdminShellInner({
           // CRM), z własną skrzynką zamiast mieszania ich z kontaktem ogólnym.
           to: "/admin/careers",
           icon: Briefcase,
-          label: t("admin.nav.careers", {
-            defaultValue: lang === "pl" ? "Rekrutacja" : "Careers",
-          }),
+          // Bez `defaultValue`: oba klucze stoją w słowniku PL i EN
+          // (i18n-admin-extras), a bundel rejestruje trasa `/admin` przed
+          // renderem powłoki. Zaszyty tekst zastępczy tylko maskowałby brak
+          // wpisu - dokładnie tak `admin.nav.hiring` przeżył bez tłumaczenia.
+          label: t("admin.nav.careers"),
         },
         {
           // Zarządzanie treścią strony /zatrudniamy: oferty pracy i sekcje.
           to: "/admin/hiring",
           icon: Briefcase,
-          label: t("admin.nav.hiring", {
-            defaultValue: lang === "pl" ? "Oferty pracy" : "Job offers",
-          }),
+          label: t("admin.nav.hiring"),
         },
         {
           to: "/admin/community",
