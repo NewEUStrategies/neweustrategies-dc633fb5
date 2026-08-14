@@ -65,7 +65,6 @@ const JUSTIFIED: OwnerScopeAnnotations = {
  */
 const KNOWN_OPEN_GAPS: OwnerScopeAnnotations = {};
 
-
 function renderGap(gap: OwnerScopeGap, note?: string): string[] {
   const lines = [
     `  • ${gap.table} :: "${gap.name}"  [FOR ${gap.command.toUpperCase()}] ` +
