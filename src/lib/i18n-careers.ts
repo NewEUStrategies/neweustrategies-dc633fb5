@@ -55,9 +55,9 @@ const careersPl = {
         },
         europe: {
           title: "Perspektywa europejska",
-          body: "Pracujemy w PL i EN, z partnerami w Brukseli, Berlinie i Kijowie. Twoja praca ma zasięg kontynentalny.",
+          body: "Nie czekamy na decyzje z Brukseli - wyprzedzamy je. Pracujemy w PL i EN, budując własną agendę z partnerami w Berlinie, Kijowie i innych stolicach.",
           proof:
-            "Na co dzień pracujesz w dwóch językach, a wyniki trafiają do instytucji w kilku stolicach.",
+            "Tworzysz analizy i rekomendacje, które trafiają na biurka decydentów, zanim temat stanie się mainstreamem.",
         },
       },
     },
@@ -479,9 +479,9 @@ const careersEn = {
         },
         europe: {
           title: "A European perspective",
-          body: "We work in Polish and English with partners in Brussels, Berlin and Kyiv. Your work travels.",
+          body: "We don't wait for decisions from Brussels - we get ahead of them. Working in Polish and English, we build our own agenda with partners across European capitals.",
           proof:
-            "You work in two languages daily, and the results land with institutions in several capitals.",
+            "You produce analysis and recommendations that reach decision-makers before the issue becomes mainstream.",
         },
       },
     },
