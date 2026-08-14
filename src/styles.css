@@ -5559,8 +5559,8 @@ textarea::placeholder {
   }
   .input-group > .input,
   .input-group > .user-label {
-    grid-row: 1;
-    grid-column: 1;
+    grid-row: 1 / 2;
+    grid-column: 1 / 2;
   }
 
   .input-group > .input {
