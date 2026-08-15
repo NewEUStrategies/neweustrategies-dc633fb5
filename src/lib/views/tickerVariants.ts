@@ -12,7 +12,7 @@ export type IconAnimation = "none" | "pulse" | "flicker" | "spin" | "wave";
 export type MixedFill = "trending" | "latest";
 /** Visual layout of the bar. `classic` = flame + text label. `badge` = solid
  *  colored block on the left with a horizontal marquee and dot separators. */
-export type LayoutStyle = "classic" | "badge";
+export type LayoutStyle = "classic" | "badge" | "editorial";
 
 export interface TickerColors {
   bg: string;
@@ -113,7 +113,7 @@ const SOURCES: readonly TickerSource[] = ["trending", "latest", "pinned", "selec
 const MODES: readonly TickerMode[] = ["scroll", "rotate", "fade", "slide", "flip", "typewriter"];
 const ICON_ANIMS: readonly IconAnimation[] = ["none", "pulse", "flicker", "spin", "wave"];
 const MIX_FILLS: readonly MixedFill[] = ["trending", "latest"];
-const LAYOUTS: readonly LayoutStyle[] = ["classic", "badge"];
+const LAYOUTS: readonly LayoutStyle[] = ["classic", "badge", "editorial"];
 
 function safeEnum<T extends string>(v: unknown, allowed: readonly T[], fb: T): T {
   return typeof v === "string" && (allowed as readonly string[]).includes(v) ? (v as T) : fb;

@@ -113,6 +113,7 @@ const COPY = {
     layoutStyle: "Styl paska",
     layout_classic: "Klasyczny (ikona + tekst)",
     layout_badge: "Badge marquee (kolorowy blok)",
+    layout_editorial: "Editorial (slajd pionowy + autor)",
     resetColors: "Przywróć domyślne",
     cannotDeleteLast: "Musi zostać przynajmniej jeden wariant.",
     undo: "Cofnij",
@@ -190,6 +191,7 @@ const COPY = {
     layoutStyle: "Bar style",
     layout_classic: "Classic (icon + text)",
     layout_badge: "Badge marquee (solid block)",
+    layout_editorial: "Editorial (vertical slide + author)",
     resetColors: "Reset to defaults",
     cannotDeleteLast: "At least one variant must remain.",
     undo: "Undo",
@@ -598,8 +600,8 @@ export function TrendingTickerPane() {
         {/* Layout style */}
         <div className="space-y-1.5">
           <Label>{t.layoutStyle}</Label>
-          <div className="grid grid-cols-2 gap-2">
-            {(["classic", "badge"] as const).map((s) => {
+          <div className="grid grid-cols-3 gap-2">
+            {(["classic", "badge", "editorial"] as const).map((s) => {
               const active = (cfg.layoutStyle ?? "classic") === s;
               return (
                 <button
