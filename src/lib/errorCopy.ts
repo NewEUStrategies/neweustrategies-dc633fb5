@@ -46,6 +46,11 @@ type ErrorCopy = {
   contactLink: string;
   goBack: string;
   keepGoing: string;
+  /**
+   * Etykieta kodu na pasku statusu dla błędu ogólnego. Techniczne „ERR" nic
+   * czytelnikowi nie mówi - ludzki okrzyk mówi więcej, więc żyje w słowniku.
+   */
+  genericCode: string;
   generic: ErrorScenario;
 };
 
