@@ -102,6 +102,47 @@ export default defineConfig({
         // tests rather than trimming the measurement).
         "src/lib/seo/meta.ts": { statements: 84, functions: 72, lines: 90, branches: 66 },
         "src/lib/access/gating.ts": { statements: 95, functions: 100, lines: 100, branches: 95 },
+        // Lejek monetyzacji czytelnika (paywall). Do 2026-08-15 gating.ts był
+        // jedynym plikiem tej powierzchni z bramką, a komponent ściany, licznik
+        // meteringu i hooki konsumpcji stały na zerze (ocena 14.08: „48 plików
+        // produkcyjnych paywall na 8 testowych - najsłabszy stosunek w
+        // monetyzacji"). Progi floorowane tuż pod osiągniętym pokryciem.
+        // Niedobite gałęzie Paywall/metering to obronne ramiona nieosiągalne
+        // z UI: guardy sesji/typu bytu w startOneTime (przycisk renderowany
+        // wyłącznie, gdy warunki już spełnione), fallbacki `?? 0` opisów
+        // licznika i wiersz konsumpcji bez rekordu.
+        "src/components/Paywall.tsx": {
+          statements: 95,
+          functions: 100,
+          lines: 98,
+          branches: 88,
+        },
+        "src/components/molecules/MeterBanner.tsx": {
+          statements: 98,
+          functions: 100,
+          lines: 98,
+          branches: 95,
+        },
+        "src/components/atoms/QuotaMeter.tsx": {
+          statements: 92,
+          functions: 100,
+          lines: 98,
+          branches: 90,
+        },
+        "src/lib/access/metering.ts": {
+          statements: 96,
+          functions: 100,
+          lines: 98,
+          branches: 92,
+        },
+        // Rozgrzewka kasy na intencję: czysty moduł, trzymany pod 100 jak
+        // pozostałe czyste moduły ścieżki płatność -> dostęp.
+        "src/components/checkout/checkoutIntent.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
         // publicSegments: two pure helpers, fully exercised.
         "src/lib/routing/publicSegments.ts": {
           statements: 100,
