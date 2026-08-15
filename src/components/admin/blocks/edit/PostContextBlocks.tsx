@@ -19,7 +19,7 @@ import {
 import { ExpertPicker } from "@/components/admin/experts/ExpertPicker";
 import { readProfileCardStyle } from "@/lib/content-model/profileCardStyle";
 import { PROFILE_CARD_DEFAULTS } from "@/components/ui/profile-card";
-import { toJson } from "@/lib/builder/types";
+import { toJson } from "@/lib/content-model/json";
 
 interface Props {
   block: Block;

@@ -4,7 +4,7 @@
 // bez żadnej migracji. Czyste funkcje - testowalne bez DOM.
 
 import type { Block, Json } from "./types";
-import { toJson } from "@/lib/builder/types";
+import { toJson } from "@/lib/content-model/json";
 
 /** Bezpieczny odczyt tablicy bloków z pola data kontenera. */
 export function readChildBlocks(data: Record<string, Json>, key: string): Block[] {

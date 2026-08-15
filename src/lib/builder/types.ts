@@ -11,7 +11,7 @@
 import type { Json } from "@/lib/content-model/json";
 
 export type { Json } from "@/lib/content-model/json";
-export { toJson, newId } from "@/lib/content-model/json";
+export { toJson, toJsonArray, newId } from "@/lib/content-model/json";
 export type { Mode } from "@/lib/content-model/editorCanvas";
 
 export type Device = "desktop" | "tablet" | "mobile";

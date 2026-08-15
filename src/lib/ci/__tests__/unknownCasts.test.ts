@@ -22,6 +22,15 @@ describe("skan", () => {
     expect(scan("x as unknown as { id: string }")[0].target).toBe("{");
   });
 
+  it("łapie TYP FUNKCYJNY - ta postać wypadała z ratchetu", () => {
+    // `supabase.rpc as unknown as (fn: string, args: …) => PromiseLike<…>`
+    // realnie występuje w `lib/experts/materials.ts`; bez tego przypadku
+    // dokładanie takich rzutowań nie podnosiło progu (review PR #235).
+    const [hit] = scan("const r = supabase.rpc as unknown as (fn: string) => Promise<void>;");
+    expect(hit).toBeDefined();
+    expect(hit.target).toBe("(");
+  });
+
   it("znosi dowolne białe znaki między słowami kluczowymi", () => {
     expect(scan("x as\n  unknown as\n  Widget")).toHaveLength(1);
   });

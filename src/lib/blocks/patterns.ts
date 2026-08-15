@@ -10,7 +10,7 @@
 import type { Block, BlockType, Json } from "./types";
 import { BLOCK_SPECS } from "./registry";
 import { regenerateBlockIds } from "./clipboard";
-import { toJson } from "@/lib/builder/types";
+import { toJson } from "@/lib/content-model/json";
 
 export type PatternLang = "pl" | "en";
 

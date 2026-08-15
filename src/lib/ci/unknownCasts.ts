@@ -47,8 +47,19 @@ export interface UnknownCastHit {
 /**
  * `as unknown as T`. Komentarze są maskowane PRZED skanem, żeby bramka nie
  * liczyła własnej dokumentacji ani komentarzy typu „tu było `as unknown as`".
+ *
+ * TRZY POSTACIE CELU, bo wszystkie trzy występują w repo:
+ *   `as unknown as Widget`                nazwa (z opcjonalnym generykiem),
+ *   `as unknown as { id: string }`        literał typu obiektowego,
+ *   `as unknown as (fn: string) => void`  TYP FUNKCYJNY.
+ *
+ * Trzecia postać była pominięta w pierwszej wersji i to była dziura w ratchecie:
+ * `supabase.rpc as unknown as (fn: string, args: …) => PromiseLike<…>`
+ * (`src/lib/experts/materials.ts`) nie wchodziło do licznika, więc dołożenie
+ * kolejnych rzutowań na typ funkcyjny NIE podnosiło progu i bramka zostawała
+ * zielona wbrew inwariantowi, którego pilnuje. Zgłoszone w review PR-a #235.
  */
-const CAST = /\bas\s+unknown\s+as\s+([A-Za-z_$][\w$.]*(?:<[^<>]*>)?|\{)/g;
+const CAST = /\bas\s+unknown\s+as\s+([A-Za-z_$][\w$.]*(?:<[^<>]*>)?|\{|\()/g;
 
 export function isScannable(file: string): boolean {
   if (!/\.tsx?$/.test(file)) return false;

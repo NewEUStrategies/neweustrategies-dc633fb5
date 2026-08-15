@@ -15,6 +15,7 @@ import { countdownParts, isStartingSoon, pad2, parseCountdownTarget } from "@/li
 import { useBuilderMode } from "@/lib/content-model/editorCanvas";
 import { getBool, getNum, getStr, type Lang } from "./frame";
 import { asOneOf } from "@/lib/content-model/contentValue";
+import { uiLocale } from "@/lib/i18n/format";
 
 function locStr(c: WidgetContent, base: string, lang: Lang): string {
   return getStr(c, `${base}_${lang}`) || getStr(c, `${base}_pl`) || getStr(c, `${base}_en`);

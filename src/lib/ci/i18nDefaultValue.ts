@@ -318,6 +318,17 @@ interface RawSite {
  * Skutek: najbardziej mylący wariant długu językowego był jedynym niepilnowanym.
  * Ten skaner go nazywa i oddaje do `check:i18n-hardcoded` (klasa `twin-helper`),
  * zamiast liczyć jego argumenty jako `defaultValue`.
+ *
+ * CO TA FUNKCJA WYŁĄCZA, A CZEGO NIE. Wyłącza WYŁĄCZNIE wywołania NIEKWALIFIKOWANE
+ * (`t(...)`), bo tylko one mogą trafić na lokalne przesłonięcie. Wywołanie
+ * `i18n.t(...)` sięga po instancję wprost i żadna lokalna zmienna go nie dotyczy,
+ * więc jest skanowane zawsze.
+ *
+ * Pierwsza wersja pomijała CAŁY PLIK i to była dziura: `SearchAutosuggest.tsx`
+ * deklaruje lokalne `t` w linii 98, a w linii 167 woła
+ * `i18n.t("search.title", { defaultValue: "Szukaj" })` - prawdziwy zapas przy
+ * prawdziwym i18next, którego bramka z progiem zero nie widziała i raportowała
+ * zero. Zgłoszone w review PR-a #235.
  */
 export function declaresLocalT(source: string): boolean {
   return /\b(?:const|let|var)\s+t\s*=|\bfunction\s+t\s*\(/.test(maskComments(source));
@@ -329,7 +340,9 @@ export function declaresLocalT(source: string): boolean {
  * zachowuje długość pliku - offsety pasują więc do oryginału bez przeliczania.
  */
 function scanFile(file: string, rawSource: string): RawSite[] {
-  if (declaresLocalT(rawSource)) return [];
+  // Lokalne `t` przesłania WYŁĄCZNIE wywołania niekwalifikowane - `i18n.t(...)`
+  // sięga po instancję wprost i jest skanowane zawsze (patrz `declaresLocalT`).
+  const shadowed = declaresLocalT(rawSource);
   const source = maskComments(rawSource);
   const scopes = readKeyPrefixScopes(source);
   const out: RawSite[] = [];
@@ -338,6 +351,7 @@ function scanFile(file: string, rawSource: string): RawSite[] {
     if (source[i] !== "t" || source[i + 1] !== "(") continue;
     const before = i > 0 ? source[i - 1] : "";
     if (before !== "" && IDENT_BEFORE_T.test(before)) continue;
+    if (shadowed && before !== ".") continue;
 
     const call = parseCallArgs(source, i + 1);
     if (call === null) continue;

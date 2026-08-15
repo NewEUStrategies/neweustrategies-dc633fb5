@@ -1,8 +1,15 @@
 // ZAMROŻONY DŁUG: rzutowania `as unknown as`, per plik.
 //
 // Stan po wdrożeniu wspólnego buildera zapytań Supabase (`lib/supabase/looseQuery.ts`)
-// i przekierowaniu rzutowań na jsonb do istniejącego `toJson()` - ZMIERZONY, nie
-// przepisany (`bun run check:unknown-casts --print-baseline`).
+// i przekierowaniu rzutowań na jsonb do `toJson()` / `toJsonArray()` - ZMIERZONY,
+// nie przepisany (`bun run check:unknown-casts --print-baseline`).
+//
+// KOREKTA PO REVIEW PR-a #235. Pierwsza wersja skanera nie rozpoznawała celu
+// będącego TYPEM FUNKCYJNYM (`as unknown as (fn: string, …) => …`), więc dziesięć
+// takich rzutowań - m.in. cała rodzina wywołań RPC spoza wygenerowanych typów
+// (`experts/materials.ts`, `builder/postListQuery.ts`, …) - było dla ratchetu
+// niewidzialnych. To NIE jest nowy dług: te miejsca istniały wcześniej, tylko nie
+// wchodziły do licznika. Baseline zapisuje więc liczbę PRAWDZIWĄ, a nie ładniejszą.
 //
 // Lista jest RATCHETEM: liczba w pliku może tylko maleć, a plik nieobecny na
 // liście musi mieć ZERO. Uzasadnienie inwariantu (i trzy najczęstsze przyczyny
@@ -23,7 +30,6 @@ export const UNKNOWN_CAST_BASELINE: readonly (readonly [string, number])[] = [
   ["src/components/admin/builder/ui/organisms/widget-properties/WorldMapEditor.tsx", 1],
   ["src/components/admin/builder/ui/organisms/widget-view/AuthorProfileCardWidget.tsx", 1],
   ["src/components/admin/builder/ui/organisms/widget-view/InteractiveCircleWidget.tsx", 1],
-  ["src/components/admin/builder/ui/organisms/widget-view/RenderErrorBoundary.tsx", 1],
   ["src/components/admin/builder/ui/organisms/widget-view/SimpleWidgets.tsx", 1],
   ["src/components/admin/builder/ui/organisms/widget-view/SpeakersWidget.tsx", 1],
   ["src/components/admin/builder/ui/organisms/widget-view/TeamMemberWidget.tsx", 1],
@@ -44,6 +50,7 @@ export const UNKNOWN_CAST_BASELINE: readonly (readonly [string, number])[] = [
   ["src/components/AlertBar.tsx", 1],
   ["src/components/blocks/renderer/data.ts", 1],
   ["src/components/blocks/renderer/organisms.tsx", 1],
+  ["src/components/error/RenderErrorBoundary.tsx", 1],
   ["src/components/header/TrendingTicker.tsx", 2],
   ["src/components/megaMenu/MegaMenuShowcase.tsx", 3],
   ["src/components/newsletter/NewsletterDocRenderer.tsx", 1],
@@ -73,22 +80,29 @@ export const UNKNOWN_CAST_BASELINE: readonly (readonly [string, number])[] = [
   ["src/lib/blocks/nested.ts", 1],
   ["src/lib/blocks/patterns.ts", 1],
   ["src/lib/blocks/persistImages.ts", 2],
+  ["src/lib/builder/contentRefs.ts", 1],
   ["src/lib/builder/designTokens.ts", 3],
   ["src/lib/builder/meetingsQuery.ts", 1],
+  ["src/lib/builder/postListQuery.ts", 1],
+  ["src/lib/builder/postViewCountQuery.ts", 1],
   ["src/lib/builder/prefetch.ts", 1],
-  ["src/lib/builder/types.ts", 2],
+  ["src/lib/builder/speakersQuery.ts", 1],
   ["src/lib/chat/stars.ts", 1],
   ["src/lib/chat/useExpertRequests.ts", 2],
   ["src/lib/ci/generatedTypesFreshness.ts", 1],
   ["src/lib/ci/unknownCasts.ts", 1],
   ["src/lib/consent/gpcClient.ts", 1],
+  ["src/lib/content-model/json.ts", 2],
   ["src/lib/countries.ts", 2],
   ["src/lib/crm-tasks.functions.ts", 1],
   ["src/lib/crm.functions.ts", 1],
   ["src/lib/email/queueDrain.server.ts", 2],
   ["src/lib/email/reputationGate.server.ts", 1],
   ["src/lib/email/suppression.server.ts", 1],
+  ["src/lib/experts/adminAuthorProfileRpc.ts", 1],
   ["src/lib/experts/internalBase.ts", 3],
+  ["src/lib/experts/materials.ts", 1],
+  ["src/lib/experts/rpcHub.ts", 1],
   ["src/lib/http/middlewareResult.ts", 2],
   ["src/lib/icons/lucideIconNodes.generated.ts", 1],
   ["src/lib/lucide-shim.tsx", 1],
@@ -103,6 +117,8 @@ export const UNKNOWN_CAST_BASELINE: readonly (readonly [string, number])[] = [
   ["src/lib/observability/vitals.functions.ts", 2],
   ["src/lib/patterns/i18n.ts", 1],
   ["src/lib/platform-error-reporting.ts", 1],
+  ["src/lib/profile/usePublicExposure.ts", 1],
+  ["src/lib/queries/archives.ts", 1],
   ["src/lib/queries/podcasts.ts", 7],
   ["src/lib/queries/programs.ts", 8],
   ["src/lib/queries/public.ts", 2],
@@ -115,7 +131,7 @@ export const UNKNOWN_CAST_BASELINE: readonly (readonly [string, number])[] = [
   ["src/lib/social/globalSocialLinks.ts", 1],
   ["src/lib/tracker/queries.ts", 2],
   ["src/lib/webVitals.ts", 1],
-  ["src/lib/wordpress-import.functions.ts", 2],
+  ["src/lib/wordpress-import.functions.ts", 1],
   ["src/routes/$.tsx", 1],
   ["src/routes/admin.audience.tsx", 3],
   ["src/routes/admin.coupons.redemptions.tsx", 1],
@@ -131,4 +147,5 @@ export const UNKNOWN_CAST_BASELINE: readonly (readonly [string, number])[] = [
   ["src/routes/author.$slug.tsx", 1],
   ["src/routes/network.mutual.$userId.tsx", 1],
   ["src/server.ts", 1],
+  ["src/test/routeHarness.tsx", 1],
 ];

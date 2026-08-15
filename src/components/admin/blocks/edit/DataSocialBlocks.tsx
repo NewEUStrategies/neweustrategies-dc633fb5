@@ -6,7 +6,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import { AdminSelect } from "../AdminSelect";
-import { toJsonArray } from "@/lib/builder/types";
+import { toJsonArray } from "@/lib/content-model/json";
 
 interface Props {
   block: Block;

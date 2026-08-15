@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Link2, Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
-import { toJson } from "@/lib/builder/types";
+import { toJson } from "@/lib/content-model/json";
 
 interface Props {
   block: Block;
