@@ -6,6 +6,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import { AdminSelect } from "../AdminSelect";
+import { toJsonArray } from "@/lib/builder/types";
 
 interface Props {
   block: Block;
@@ -47,7 +48,7 @@ export function StepListBlock({ block, onChange }: Props) {
     };
   });
   const update = (next: StepItem[]) => {
-    onChange({ ...block, data: { ...block.data, items: next as unknown as Json[] } });
+    onChange({ ...block, data: { ...block.data, items: toJsonArray(next) } });
   };
 
   return (
@@ -163,13 +164,13 @@ export function ComparisonTableBlock({ block, onChange }: Props) {
       ...block,
       data: {
         ...block.data,
-        columns: next as unknown as Json[],
-        rows: adjustedRows as unknown as Json[],
+        columns: toJsonArray(next),
+        rows: toJsonArray(adjustedRows),
       },
     });
   };
   const setRows = (next: CompRow[]) => {
-    onChange({ ...block, data: { ...block.data, rows: next as unknown as Json[] } });
+    onChange({ ...block, data: { ...block.data, rows: toJsonArray(next) } });
   };
 
   const featuredIdx = Number(block.data.featuredIndex ?? -1);

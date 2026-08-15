@@ -5,11 +5,11 @@
 Audyt z 14.08 wskazał trzy pozycje długu, które **urosły** między pomiarami,
 mimo że reszta malała:
 
-| Miara                                | 13.08 | 14.08 | 15.08 (przed) |
-| ------------------------------------ | ----: | ----: | ------------: |
-| Ternaria `isPl ?`                    |   155 |   135 |           135 |
-| `defaultValue:` w wywołaniach `t()`  | 1 568 | 1 398 |         1 398 |
-| `as unknown as` (produkcja)          |   350 |   359 |           362 |
+| Miara                               | 13.08 | 14.08 | 15.08 (przed) |
+| ----------------------------------- | ----: | ----: | ------------: |
+| Ternaria `isPl ?`                   |   155 |   135 |           135 |
+| `defaultValue:` w wywołaniach `t()` | 1 568 | 1 398 |         1 398 |
+| `as unknown as` (produkcja)         |   350 |   359 |           362 |
 
 Wszystkie trzy zostały zamknięte albo sprowadzone do przyczyny źródłowej.
 Każda liczba niżej pochodzi z komendy uruchomionej na tej gałęzi, nie
@@ -20,7 +20,7 @@ w 362 mieściły się też wzmianki w komentarzach (np. „`as unknown as`: kolu
 z migracji …"). Bramka `check:unknown-casts` maskuje komentarze przed skanem, bo
 inaczej liczyłaby własną dokumentację. Żeby porównanie było uczciwe, tabela
 końcowa podaje **obie strony zmierzone tą samą bramką**: 309 na commicie
-bazowym, 212 po zmianie. Liczby `grep`-a (362 → 273) opisują ten sam kierunek
+bazowym, 193 po zmianie. Liczby `grep`-a opisują ten sam kierunek
 i tę samą pracę, tylko z szumem komentarzy w obu końcach.
 
 ---
@@ -46,30 +46,30 @@ Szkoda nie polegała na zajmowaniu miejsca:
 
 ### Dlaczego poprzednia decyzja („nie kasujemy hurtem") przestała obowiązywać
 
-Komentarz w bramce rozjazdu argumentował: *„1 263 zmiany bez zmiany zachowania
+Komentarz w bramce rozjazdu argumentował: _„1 263 zmiany bez zmiany zachowania
 to diff, którego nikt nie przeczyta, a ryzyko zdejmuje bramka, nie usuwanie
-linii"*. Argument jest słuszny wobec zmiany **ręcznej** i przestaje być słuszny
+linii"_. Argument jest słuszny wobec zmiany **ręcznej** i przestaje być słuszny
 wobec zmiany **generowanej z warunku sprawdzalnego per wystąpienie**: czytelnik
 nie musi czytać 1 342 miejsc, musi przeczytać warunek i sprawdzić, że bramka go
 egzekwuje. Dług tymczasem nie malał sam - między 13.08 a 15.08 urósł.
 
 ### Co powstało
 
-| Plik                                   | Rola |
-| -------------------------------------- | ---- |
-| `src/lib/ci/i18nDefaultValue.ts`        | czysta logika: skan, werdykt per wystąpienie, dokładny wycinek do usunięcia; 30 testów |
+| Plik                                    | Rola                                                                                              |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `src/lib/ci/i18nDefaultValue.ts`        | czysta logika: skan, werdykt per wystąpienie, dokładny wycinek do usunięcia; 30 testów            |
 | `scripts/lib/i18nDictionaries.ts`       | scalone drzewa PL/EN (rdzeń + 87 nakładek) dla skryptów pod `bun`, z kanarkiem wartości dowodowej |
-| `scripts/check-i18n-default-value.ts`   | bramka, próg **zero** |
-| `scripts/codemod-i18n-default-value.ts` | naprawa mechaniczna |
+| `scripts/check-i18n-default-value.ts`   | bramka, próg **zero**                                                                             |
+| `scripts/codemod-i18n-default-value.ts` | naprawa mechaniczna                                                                               |
 
 Cztery klasy werdyktu, bo każda ma inną naprawę:
 
-| Werdykt               | Warunek                                   | Liczba | Naprawa |
-| --------------------- | ----------------------------------------- | -----: | ------- |
-| `redundant`           | klucz ma liść tekstowy w PL **i** EN      |  1 342 | codemod |
-| `load-bearing`        | klucza brakuje po którejś stronie         |      0 | dopisać klucz do słownika |
-| `dynamic`             | klucz składany w locie, zapas to literał  |     10 | rozpisać gałąź |
-| `runtime-passthrough` | zapas to wyrażenie albo `""`              |     51 | świadomie dozwolone |
+| Werdykt               | Warunek                                  | Liczba | Naprawa                   |
+| --------------------- | ---------------------------------------- | -----: | ------------------------- |
+| `redundant`           | klucz ma liść tekstowy w PL **i** EN     |  1 342 | codemod                   |
+| `load-bearing`        | klucza brakuje po którejś stronie        |      0 | dopisać klucz do słownika |
+| `dynamic`             | klucz składany w locie, zapas to literał |     10 | rozpisać gałąź            |
+| `runtime-passthrough` | zapas to wyrażenie albo `""`             |     51 | świadomie dozwolone       |
 
 Zero `load-bearing` jest samo w sobie wynikiem: potwierdza bramkę rozjazdu
 z drugiej strony.
@@ -150,7 +150,7 @@ wykluczać te pliki i zobaczył `t("PL", "EN")` jako klucz z zapasem pozycyjnym.
 
 ---
 
-## 3. `as unknown as`: 309 → 212, z przyczyną źródłową nazwaną
+## 3. `as unknown as`: 309 → 193, z przyczyną źródłową nazwaną
 
 ### Przyczyna źródłowa była literówką w typie, nie granicą bazy
 
@@ -176,13 +176,13 @@ kształtów klienta (`context.supabase as unknown as { from: ... }`) obok nich.
 `src/lib/supabase/looseQuery.ts` zastępuje cztery kopie jednym typem, który
 **rozszerza** `PromiseLike` - i rzutowania znikają razem z powodem:
 
-| Moduł                          | Przed | Po |
-| ------------------------------ | ----: | -: |
-| `crm.functions.ts`             |    34 |  1 |
-| `crm-companies.functions.ts`   |    20 |  0 |
-| `crm-tasks.functions.ts`       |     6 |  1 |
-| `crm-funnel.functions.ts`      |     1 |  0 |
-| `crm-saved-views.functions.ts` |     3 |  0 |
+| Moduł                          | Przed |  Po |
+| ------------------------------ | ----: | --: |
+| `crm.functions.ts`             |    34 |   1 |
+| `crm-companies.functions.ts`   |    20 |   0 |
+| `crm-tasks.functions.ts`       |     6 |   1 |
+| `crm-funnel.functions.ts`      |     1 |   0 |
+| `crm-saved-views.functions.ts` |     3 |   0 |
 
 Zero linii logiki zmienionych.
 
@@ -198,16 +198,34 @@ Zero linii logiki zmienionych.
 3. **`LooseError.code` istnieje, bo kod aplikacji na nim polega**: `23505`
    odróżnia „firma o tej nazwie już jest" od realnej awarii zapisu.
 
-### 35 ręcznych powtórzeń istniejącego pomocnika
+### 49 ręcznych powtórzeń istniejącego pomocnika
 
 `toJson()` w `lib/builder/types.ts` powstał dokładnie po to, żeby rzutowanie na
 `Json` miało **jedno audytowane miejsce** - i mówi to w swoim docstringu. Mimo to
-35 wywołań w 13 plikach robiło ten sam podwójny cast ręcznie.
+35 wywołań w 13 plikach robiło ten sam podwójny cast ręcznie, a kolejne 14
+(pola typowane `Json[]`: `items`, `plans`, `columns`, `rows`) nie miało dokąd
+pójść, bo wariantu tablicowego po prostu nie było - stąd `toJsonArray()`.
+
+Bramka od razu to pokazała: `lib/builder/types.ts` urósł o jedno rzutowanie
+(wnętrze nowego pomocnika) i **oblała ratchet**, dopóki baseline nie zapisał tej
+wymiany świadomie. Jedno audytowane rzutowanie za czternaście rozsypanych to
+dobry interes - ale bramka słusznie kazała go nazwać.
+
+### Komentarz, którego sygnatura nie pozwalała spełnić
+
+`replaceDataUrlImages` deklarowało w docstringu, że zachowuje typ dokumentu
+wołającego „**bez rzutowań po jego stronie**". Ograniczenie `T extends Json`
+czyniło to niemożliwym: `BuilderDocument` i `LocalizedBlocks` to **interfejsy**,
+a TypeScript nie nadaje interfejsom domyślnej sygnatury indeksu - więc żaden nie
+jest przypisywalny do `Json`, choćby był w stu procentach serializowalny. Każdy
+wołający obchodził to parą rzutowań w obie strony; w samym haku edytora wpisu
+było ich dziewięć. Jedno udokumentowane `as Json` wewnątrz funkcji zastąpiło
+dziewięć nienazwanych na zewnątrz.
 
 ### Bramka: ratchet, nie próg zero
 
 `check:unknown-casts` (`src/lib/ci/unknownCasts.ts`, 14 testów) zamraża
-**212 znanych rzutowań w 124 plikach**, per plik.
+**193 znane rzutowania w 120 plikach**, per plik.
 
 Dlaczego nie zero: część rzutowań stoi na realnej granicy, gdzie kolumna istnieje
 w bazie, a nie ma jej jeszcze w wygenerowanych typach (`explicit`,
@@ -227,14 +245,14 @@ liczbę: builder spoza wygenerowanych typów → `looseQuery`, wartość do json
 
 ## Stan końcowy
 
-| Miara                               | 14.08 |    Po | Zmiana |
-| ----------------------------------- | ----: | ----: | -----: |
-| `defaultValue:` przy `t()`          | 1 398 |     0 | −1 398 |
-| Ternaria `isPl ?`                   |   135 |     0 |   −135 |
-| Twarde znaczniki BCP-47             |   297 |   177 |   −120 |
-| `check:i18n-hardcoded` (ratchet)    | 1 593 | 1 362 |   −231 |
-| `as unknown as` (produkcja, miara bramki) | 309 | 212 | −97 |
-| Nowe bramki CI                      |     — |     2 |     +2 |
+| Miara                                     | 14.08 |    Po | Zmiana |
+| ----------------------------------------- | ----: | ----: | -----: |
+| `defaultValue:` przy `t()`                | 1 398 |     0 | −1 398 |
+| Ternaria `isPl ?`                         |   135 |     0 |   −135 |
+| Twarde znaczniki BCP-47                   |   297 |   177 |   −120 |
+| `check:i18n-hardcoded` (ratchet)          | 1 593 | 1 362 |   −231 |
+| `as unknown as` (produkcja, miara bramki) |   309 |   193 |   −116 |
+| Nowe bramki CI                            |     — |     2 |     +2 |
 
 Zielone: `typecheck`, `lint`, pełna suita testów, wszystkie bramki `check:*`.
 

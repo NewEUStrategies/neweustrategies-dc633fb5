@@ -7,6 +7,7 @@ import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import { AdminSelect } from "../AdminSelect";
 import { AdminDateTimePicker } from "../AdminDatePicker";
+import { toJsonArray } from "@/lib/builder/types";
 
 interface Props {
   block: Block;
@@ -41,7 +42,7 @@ export function AccordionBlock({ block, onChange }: Props) {
   const allowMultiple = block.data.allowMultiple === true;
 
   const update = (next: AccordionItem[]) => {
-    onChange({ ...block, data: { ...block.data, items: next as unknown as Json[] } });
+    onChange({ ...block, data: { ...block.data, items: toJsonArray(next) } });
   };
 
   return (
@@ -120,7 +121,7 @@ export function TabsBlock({ block, onChange }: Props) {
   const orientation = String(block.data.orientation ?? "horizontal");
 
   const update = (next: TabItem[]) => {
-    onChange({ ...block, data: { ...block.data, items: next as unknown as Json[] } });
+    onChange({ ...block, data: { ...block.data, items: toJsonArray(next) } });
   };
 
   return (

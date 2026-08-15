@@ -488,6 +488,17 @@ export type WidgetContent = { [key: string]: Json };
  */
 export const toJson = <T>(value: T): Json => value as unknown as Json;
 
+/**
+ * Array counterpart of {@link toJson}, for block fields typed `Json[]`
+ * (`items`, `plans`, `columns`, `rows`). Exists because `toJson()` returns the
+ * `Json` union and assigning it to a `Json[]` field still needs a narrowing
+ * step - so every such call site was hand-rolling `next as unknown as Json[]`
+ * instead, putting the escape hatch back outside the one audited place this
+ * module exists to provide. Same contract as `toJson`: the caller asserts the
+ * items are JSON-serializable.
+ */
+export const toJsonArray = <T>(values: readonly T[]): Json[] => values as unknown as Json[];
+
 export interface WidgetNode {
   id: string;
   kind: "widget";
