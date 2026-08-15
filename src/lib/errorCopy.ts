@@ -207,6 +207,7 @@ const COPY: Record<"pl" | "en", ErrorCopy> = {
     contactLink: "Contact support",
     goBack: "Go back",
     keepGoing: "Keep going",
+    genericCode: "OOPS...",
     generic: {
       title: "This page didn't load",
       body: "Something went wrong on our end. We're sorry for the inconvenience.",
