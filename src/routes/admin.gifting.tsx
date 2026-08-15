@@ -36,6 +36,7 @@ import {
   type GiftAdminSettingsDraft,
 } from "@/lib/gifting/admin-model";
 import "@/lib/i18n-gifting-admin";
+import { uiLocale } from "@/lib/i18n/format";
 
 export const Route = createFileRoute("/admin/gifting")({
   component: GiftingAdmin,
@@ -47,7 +48,7 @@ function GiftingAdmin() {
   const { t, i18n } = useTranslation();
   const [tab, setTab] = useState<Tab>("settings");
   const lang = i18n.language === "en" ? "en" : "pl";
-  const dateLocale = lang === "pl" ? "pl-PL" : "en-GB";
+  const dateLocale = uiLocale(lang);
 
   const tabs: Array<{ id: Tab; label: string }> = [
     { id: "settings", label: t("giftingAdmin.tabs.settings") },

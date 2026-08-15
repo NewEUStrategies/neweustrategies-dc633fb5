@@ -46,6 +46,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { uiLocale } from "@/lib/i18n/format";
 
 type Company = {
   id: string;
@@ -227,14 +228,14 @@ function AdminCompanyDetailPage() {
 
   const fmt = useMemo(
     () =>
-      new Intl.DateTimeFormat(lang === "pl" ? "pl-PL" : "en-GB", {
+      new Intl.DateTimeFormat(uiLocale(lang), {
         dateStyle: "medium",
         timeStyle: "short",
       }),
     [lang],
   );
   const fmtDate = useMemo(
-    () => new Intl.DateTimeFormat(lang === "pl" ? "pl-PL" : "en-GB", { dateStyle: "medium" }),
+    () => new Intl.DateTimeFormat(uiLocale(lang), { dateStyle: "medium" }),
     [lang],
   );
 

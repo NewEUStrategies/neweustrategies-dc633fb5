@@ -23,6 +23,7 @@ import {
 } from "@/lib/builder/speakersQuery";
 import { SpeakerAvatar } from "./SpeakerAvatar";
 import { SpeakerStars } from "./SpeakerStars";
+import { uiLocale } from "@/lib/i18n/format";
 
 type Lang = "pl" | "en";
 
@@ -50,7 +51,7 @@ function loc(pl: string | null, en: string | null, lang: Lang): string {
 function formatEngagementDate(iso: string, lang: Lang): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString(lang === "pl" ? "pl-PL" : "en-GB", {
+  return date.toLocaleString(uiLocale(lang), {
     dateStyle: "long",
     timeStyle: "short",
   });

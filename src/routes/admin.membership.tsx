@@ -69,6 +69,7 @@ import {
   type AdminGrantRow,
 } from "@/lib/admin/membership-admin";
 import type { Json } from "@/integrations/supabase/types";
+import { uiLocale } from "@/lib/i18n/format";
 
 export const Route = createFileRoute("/admin/membership")({
   component: AdminMembershipPage,
@@ -605,7 +606,7 @@ function GrantsSection({
 
   const canGrant = /.+@.+\..+/.test(email.trim()) && tierKey !== "";
   const fmtDate = (iso: string | null) =>
-    iso ? new Date(iso).toLocaleDateString(lang === "pl" ? "pl-PL" : "en-GB") : "—";
+    iso ? new Date(iso).toLocaleDateString(uiLocale(lang)) : "—";
   const sourceLabel = (s: string) =>
     s === "donation"
       ? tm("grants.sourceDonation")

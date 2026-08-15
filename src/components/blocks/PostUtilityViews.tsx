@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { cn } from "@/lib/utils";
+import { uiLocale } from "@/lib/i18n/format";
 import {
   CRUMB_PILL_CLASS,
   CRUMB_LINK_CLASS,
@@ -186,7 +187,7 @@ export function PostViewsView({ suffix, lang = "pl", cls }: PostViewsProps) {
   const ctx = useCurrentPostCtx();
   const t = L[lang];
   const count = typeof ctx?.viewCount === "number" ? ctx.viewCount : 0;
-  const formatted = new Intl.NumberFormat(lang === "pl" ? "pl-PL" : "en-GB").format(count);
+  const formatted = new Intl.NumberFormat(uiLocale(lang)).format(count);
   return (
     <span
       className={`cms-meta inline-flex items-center gap-1.5 text-muted-foreground ${cls ?? ""}`}

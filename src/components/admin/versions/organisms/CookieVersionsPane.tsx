@@ -12,6 +12,7 @@ import type { Json } from "@/integrations/supabase/types";
 import { PreviewFrame } from "../atoms/PreviewFrame";
 import { VersionRow } from "../molecules/VersionRow";
 import { useSiteSettingsRevisions } from "@/lib/admin/useSiteSettingsRevisions";
+import { uiLocale } from "@/lib/i18n/format";
 import {
   COOKIE_BANNER_DEFAULTS,
   COOKIE_BANNER_SETTINGS_KEY,
@@ -39,7 +40,7 @@ function asConfig(value: unknown): CookieBannerConfig {
 
 function formatDate(iso: string, lang: "pl" | "en") {
   try {
-    return new Intl.DateTimeFormat(lang === "pl" ? "pl-PL" : "en-GB", {
+    return new Intl.DateTimeFormat(uiLocale(lang), {
       dateStyle: "medium",
       timeStyle: "short",
     }).format(new Date(iso));

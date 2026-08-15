@@ -3,6 +3,8 @@
 // pokazuje adres docelowy i pozwala ponownie wysłać wiadomość aktywacyjną.
 // Kolory pochodzą z tokenów popupu (--nl-fg / --nl-muted) lub motywu strony.
 import { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-signup-popup";
 import { Check, Mail } from "@/lib/lucide-shim";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -18,8 +20,11 @@ interface Props {
 type ResendState = "idle" | "sending" | "sent" | "error";
 
 export function SignupSuccessPanel({ email, lang, redirectTo, previewOnly = false }: Props) {
-  const isPl = lang === "pl";
-  const t = (pl: string, en: string) => (isPl ? pl : en);
+  // `lang` to język popupu (podgląd w adminie renderuje obie wersje obok
+  // siebie), więc tłumacz jest przypięty do niego jawnie - `lng` zamiast
+  // aktywnego języka interfejsu.
+  const { t } = useTranslation();
+  const tr = (key: string) => t(`signupPopup.success.${key}`, { lng: lang });
   const [resend, setResend] = useState<ResendState>("idle");
 
   const onResend = useCallback(async () => {
@@ -54,16 +59,13 @@ export function SignupSuccessPanel({ email, lang, redirectTo, previewOnly = fals
 
       <div className="signup-success__body space-y-2">
         <h3 className="font-display text-lg" style={{ color: "var(--nl-fg, var(--foreground))" }}>
-          {t("Dane zostały wysłane!", "Your details were sent!")}
+          {tr("title")}
         </h3>
         <p
           className="text-sm leading-relaxed"
           style={{ color: "var(--nl-muted, var(--muted-foreground))" }}
         >
-          {t(
-            "Teraz potwierdź rejestrację konta w wiadomości e-mail - kliknij link aktywacyjny, który wysłaliśmy na adres:",
-            "Now confirm your registration by e-mail - click the activation link we sent to:",
-          )}
+          {tr("body")}
         </p>
         {email ? (
           <p
@@ -77,10 +79,7 @@ export function SignupSuccessPanel({ email, lang, redirectTo, previewOnly = fals
           className="text-[11px] opacity-80"
           style={{ color: "var(--nl-muted, var(--muted-foreground))" }}
         >
-          {t(
-            "Nie widzisz wiadomości? Sprawdź folder Spam lub Oferty.",
-            "Can't find the message? Check your Spam or Promotions folder.",
-          )}
+          {tr("spamHint")}
         </p>
       </div>
 
@@ -93,10 +92,10 @@ export function SignupSuccessPanel({ email, lang, redirectTo, previewOnly = fals
           style={{ color: "var(--nl-fg, var(--foreground))" }}
         >
           {resend === "sending"
-            ? t("Wysyłanie...", "Sending...")
+            ? tr("resendSending")
             : resend === "sent"
-              ? t("Wysłano ponownie", "Sent again")
-              : t("Wyślij link ponownie", "Resend the link")}
+              ? tr("resendSent")
+              : tr("resend")}
         </button>
         {resend === "error" ? (
           <p className="text-[11px] text-destructive">

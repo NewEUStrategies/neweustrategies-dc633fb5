@@ -48,6 +48,7 @@ import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { ensureI18n as ensureTrackerI18n } from "@/lib/i18n-tracker";
+import { uiLocale } from "@/lib/i18n/format";
 
 /** Budżet ścieżki krytycznej loadera (pierwsza strona dossier) - wzorzec /blog. */
 const TRACKER_LOADER_BUDGET_MS = 4_000;
@@ -198,7 +199,7 @@ function formatDate(iso: string | null, lang: Lang): string | null {
   if (!iso) return null;
   const date = new Date(`${iso}T00:00:00`);
   if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleDateString(lang === "pl" ? "pl-PL" : "en-GB", {
+  return date.toLocaleDateString(uiLocale(lang), {
     day: "numeric",
     month: "long",
     year: "numeric",

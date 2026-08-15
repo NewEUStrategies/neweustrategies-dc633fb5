@@ -43,6 +43,7 @@ import { InviteUserDialog } from "@/components/admin/users/InviteUserDialog";
 import { TeamImportDialog } from "@/components/admin/users/TeamImportDialog";
 import { resendInvitationsForEmails } from "@/lib/admin/invitations.functions";
 import { adminUsersQueryOptions, type AdminUserRow } from "@/lib/admin/users-query";
+import { uiLocale } from "@/lib/i18n/format";
 
 export const Route = createFileRoute("/admin/users/")({
   component: Users,
@@ -486,7 +487,7 @@ function Users() {
     }
   };
 
-  const locale = i18n.language === "pl" ? "pl-PL" : "en-GB";
+  const locale = uiLocale(i18n.language);
 
   const clearFilters = () => {
     setSearch("");

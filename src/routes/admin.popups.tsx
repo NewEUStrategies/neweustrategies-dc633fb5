@@ -35,6 +35,7 @@ import { Copy, Pencil, Plus, Trash2 } from "@/lib/lucide-shim";
 import { usePopupsAdmin, type BuilderPopup, type PopupSettings } from "@/lib/builder/popups";
 import { SignupPopupContentSection } from "@/components/admin/popups/SignupPopupContentSection";
 import { useNewsletterSettings, useSaveNewsletterSettings } from "@/hooks/useNewsletterSettings";
+import { uiLocale } from "@/lib/i18n/format";
 
 export const Route = createFileRoute("/admin/popups")({
   component: PopupsLayout,
@@ -66,8 +67,7 @@ function triggerSummary(s: PopupSettings, t: TFunction): string {
 // Wbudowany popup rejestracji (newsletter_settings) - nie jest wpisem w
 // builder_popups, ale ma być wybieralny z tej samej listy co pozostałe.
 function SignupPopupRow() {
-  const { t, i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  const { t } = useTranslation();
   const { data } = useNewsletterSettings();
   const save = useSaveNewsletterSettings();
 
@@ -91,10 +91,10 @@ function SignupPopupRow() {
     <tr className="border-t border-border bg-muted/10 hover:bg-muted/20">
       <td className="px-4 py-2.5">
         <button type="button" onClick={goToEditor} className="font-medium hover:text-brand">
-          {isPl ? "Popup rejestracji" : "Registration popup"}
+          {t("admin.popups.builtInName")}
         </button>
         <span className="ml-2 text-[10px] uppercase tracking-wide text-muted-foreground">
-          {isPl ? "wbudowany" : "built-in"}
+          {t("admin.popups.builtInTag")}
         </span>
       </td>
       <td className="px-4 py-2.5 text-muted-foreground">{summary}</td>
@@ -137,7 +137,6 @@ function PopupsList() {
   const [creating, setCreating] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<BuilderPopup | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
 
   // Per-popup view/conversion counts from popup_events (staff-read RLS,
   // tenant-scoped). Table not in generated types yet -> cast.
@@ -205,7 +204,7 @@ function PopupsList() {
     }
   };
 
-  const dateLocale = (i18n.language ?? "pl").startsWith("pl") ? "pl-PL" : "en-GB";
+  const dateLocale = uiLocale(i18n.language ?? "pl");
 
   return (
     <div className="space-y-6">
@@ -238,11 +237,9 @@ function PopupsList() {
                 <th className="text-left px-4 py-2.5 font-medium">
                   {t("admin.popups.list.updated")}
                 </th>
+                <th className="text-right px-4 py-2.5 font-medium">{t("admin.popups.colViews")}</th>
                 <th className="text-right px-4 py-2.5 font-medium">
-                  {isPl ? "Wyświetlenia" : "Views"}
-                </th>
-                <th className="text-right px-4 py-2.5 font-medium">
-                  {isPl ? "Konwersje" : "Conversions"}
+                  {t("admin.popups.colConversions")}
                 </th>
                 <th className="text-left px-4 py-2.5 font-medium">
                   {t("admin.popups.list.active")}

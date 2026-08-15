@@ -20,12 +20,13 @@ import {
   type BuilderEntityType,
 } from "@/lib/builder/revisions";
 import { newId, type BuilderDocument, type SectionNode } from "@/lib/builder/types";
+import { uiLocale } from "@/lib/i18n/format";
 
 type Tab = BuilderEntityType | "template";
 
 function formatDate(iso: string, lang: "pl" | "en") {
   try {
-    return new Intl.DateTimeFormat(lang === "pl" ? "pl-PL" : "en-GB", {
+    return new Intl.DateTimeFormat(uiLocale(lang), {
       dateStyle: "medium",
       timeStyle: "short",
     }).format(new Date(iso));

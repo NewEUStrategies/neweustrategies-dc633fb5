@@ -22,6 +22,7 @@ import {
 import { daysUntil } from "@/lib/events/countdown";
 import { eventKindLabel } from "@/lib/events/kinds";
 import { getBool, getStr, type Lang } from "./frame";
+import { uiLocale } from "@/lib/i18n/format";
 
 const CARD_IMAGE_SIZES = "(min-width: 1024px) 360px, (min-width: 768px) 45vw, 92vw";
 const DEFAULT_EVENT_TZ = "Europe/Warsaw";
@@ -58,12 +59,12 @@ function formatEventDate(row: EventListRow, lang: Lang): string {
   if (Number.isNaN(date.getTime())) return "";
   const options: Intl.DateTimeFormatOptions = { dateStyle: "long", timeStyle: "short" };
   try {
-    return date.toLocaleString(lang === "pl" ? "pl-PL" : "en-GB", {
+    return date.toLocaleString(uiLocale(lang), {
       ...options,
       timeZone: eventTimeZone(row),
     });
   } catch {
-    return date.toLocaleString(lang === "pl" ? "pl-PL" : "en-GB", options);
+    return date.toLocaleString(uiLocale(lang), options);
   }
 }
 
@@ -71,7 +72,7 @@ function formatEventDate(row: EventListRow, lang: Lang): string {
 function dateBlockParts(row: EventListRow, lang: Lang): { day: string; month: string } | null {
   const date = new Date(row.starts_at);
   if (Number.isNaN(date.getTime())) return null;
-  const locale = lang === "pl" ? "pl-PL" : "en-GB";
+  const locale = uiLocale(lang);
   try {
     const timeZone = eventTimeZone(row);
     return {

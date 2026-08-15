@@ -97,7 +97,6 @@ export function FriendlyErrorPage({
   const primaryAction = primaryIsLogin ? () => void router.navigate({ to: "/login" }) : handleRetry;
 
   const eyebrow = kind === "degraded" ? copy.degradedEyebrow : copy.errorTitle;
-  const isPl = lang === "pl";
   const contactHref = lang === "en" ? "/en/kontakt" : "/kontakt";
 
   // Skróty ratunkowe - te same trasy, co na 404, żeby „ślepy zaułek" zawsze
@@ -163,11 +162,11 @@ export function FriendlyErrorPage({
   const helpLine = (
     <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
       <HelpCircle size={14} />
-      <span>{isPl ? "Potrzebujesz pomocy?" : "Need help?"}</span>
+      <span>{copy.needHelp}</span>
       {/* Strona kontaktu jest treścią CMS (trasa catch-all), więc zwykły
           anchor - Link nie zna tej ścieżki w typach routera. */}
       <a href={contactHref} className="font-medium text-brand hover:underline">
-        {isPl ? "Skontaktuj się z nami" : "Contact support"}
+        {copy.contactLink}
       </a>
     </div>
   );
@@ -228,7 +227,7 @@ export function FriendlyErrorPage({
           className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
           <ArrowLeft size={16} />
-          {isPl ? "Wróć" : "Go back"}
+          {copy.goBack}
         </button>
 
         <div className="overflow-hidden rounded-[6px] border border-border bg-card/80 shadow-sm backdrop-blur-sm">
@@ -280,7 +279,7 @@ export function FriendlyErrorPage({
 
               <div className="rounded-[6px] border border-border p-5">
                 <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                  {isPl ? "Przejdź dalej" : "Keep going"}
+                  {copy.keepGoing}
                 </p>
                 <ul className="mt-2 divide-y divide-border">
                   {shortcuts.map((s) => (

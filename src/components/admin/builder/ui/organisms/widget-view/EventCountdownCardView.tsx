@@ -15,6 +15,7 @@ import { countdownParts, isStartingSoon, pad2, parseCountdownTarget } from "@/li
 import { useBuilderMode } from "@/lib/builder/modeContext";
 import { getBool, getNum, getStr, type Lang } from "./frame";
 import { asOneOf } from "@/lib/builder/contentValue";
+import { uiLocale } from "@/lib/i18n/format";
 
 function locStr(c: WidgetContent, base: string, lang: Lang): string {
   return getStr(c, `${base}_${lang}`) || getStr(c, `${base}_pl`) || getStr(c, `${base}_en`);
@@ -137,7 +138,7 @@ export function EventCountdownCardView({ c, lang }: { c: WidgetContent; lang: La
   const parts = nowMs !== null ? countdownParts(targetMs, nowMs) : null;
   const soon = nowMs !== null && isStartingSoon(targetMs, nowMs);
   const done = parts?.done ?? false;
-  const dateLabel = new Date(targetMs).toLocaleDateString(lang === "pl" ? "pl-PL" : "en-GB", {
+  const dateLabel = new Date(targetMs).toLocaleDateString(uiLocale(lang), {
     day: "2-digit",
     month: "short",
     year: "numeric",

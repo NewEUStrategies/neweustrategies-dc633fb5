@@ -13,6 +13,7 @@ import {
   type ScoreSignalKey,
 } from "@/lib/crm/scoring";
 import { LeadScoreBadge } from "./LeadScoreBadge";
+import { uiLocale } from "@/lib/i18n/format";
 
 const COPY = {
   pl: {
@@ -90,7 +91,7 @@ export function ScoreBreakdownCard({
                 </span>
               )}
               <span className="ml-auto tabular-nums font-medium">
-                +{e.points.toLocaleString(lang === "pl" ? "pl-PL" : "en-GB")}
+                +{e.points.toLocaleString(uiLocale(lang))}
               </span>
             </li>
           ))}

@@ -401,6 +401,10 @@ export const adminExtrasPl = {
       trialDays: "Dni okresu próbnego",
     },
     popups: {
+      builtInName: "Popup rejestracji",
+      builtInTag: "wbudowany",
+      colViews: "Wyświetlenia",
+      colConversions: "Konwersje",
       deleteDialog: {
         desc: "Popup",
         title: "Usunąć popup?",
@@ -1046,6 +1050,10 @@ export const adminExtrasEn = {
       trialDays: "Trial days",
     },
     popups: {
+      builtInName: "Registration popup",
+      builtInTag: "built-in",
+      colViews: "Views",
+      colConversions: "Conversions",
       deleteDialog: {
         desc: "Popup",
         title: "Delete popup?",

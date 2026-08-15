@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { morePostsBlockQueryOptions } from "@/lib/queries/blocks";
 import { Clock, Eye, User, Calendar, FolderOpen, Star, LogIn, LogOut } from "lucide-react";
-import { formatDate } from "@/lib/i18n/format";
+import { formatDate, uiLocale } from "@/lib/i18n/format";
 
 type Lang = "pl" | "en";
 
@@ -109,7 +109,7 @@ export function PostStatsView({ items, separator = "•", lang = "pl", cls }: Po
       });
     } else if (it === "views") {
       const n = typeof ctx?.viewCount === "number" ? ctx.viewCount : 0;
-      const f = new Intl.NumberFormat(lang === "pl" ? "pl-PL" : "en-GB").format(n);
+      const f = new Intl.NumberFormat(uiLocale(lang)).format(n);
       parts.push({
         key: "views",
         node: (

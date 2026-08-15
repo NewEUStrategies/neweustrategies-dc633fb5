@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { uiLocale } from "@/lib/i18n/format";
 import {
   Select,
   SelectContent,
@@ -142,8 +143,7 @@ export function AdminWebhookLogPanel() {
     };
   }, [q.data]);
 
-  const fmt = (iso: string | null) =>
-    iso ? new Date(iso).toLocaleString(lang === "pl" ? "pl-PL" : "en-GB") : "-";
+  const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString(uiLocale(lang)) : "-");
 
   return (
     <Card>

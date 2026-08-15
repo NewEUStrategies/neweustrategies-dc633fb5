@@ -11,6 +11,8 @@
 // ciemny, żeby kontrast nie zależał od motywu.
 import { safeUrl } from "@/lib/sanitize";
 import { DEFAULT_LANG, localizedPath, normalizeLang, stripLangPrefix } from "@/lib/i18n/localePath";
+import { uiLang } from "@/lib/i18n/format";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 
 export const MOBILE_BOTTOM_BAR_SETTINGS_KEY = "mobile_bottom_bar";
 
@@ -267,11 +269,10 @@ export function bottomBarLabel(
   lang: string,
   translate?: BottomBarTranslate,
 ): string {
-  const pl = (item.label_pl ?? "").trim();
-  const en = (item.label_en ?? "").trim();
-  const isPl = lang.startsWith("pl");
-  const own = isPl ? pl : en;
-  if (own) return own;
+  const own = pickLocalized(item, "label", uiLang(lang));
+  const wanted =
+    uiLang(lang) === "pl" ? (item.label_pl ?? "").trim() : (item.label_en ?? "").trim();
+  if (wanted) return wanted;
 
   const key = (item.label_key ?? "").trim();
   if (key && translate) {
@@ -280,7 +281,8 @@ export function bottomBarLabel(
     if (translated && translated !== key) return translated;
   }
 
-  return isPl ? en : pl;
+  // Ostatnia deska: druga wersja językowa (`pickLocalized` już ją wybrał).
+  return own;
 }
 
 /** Kanoniczna ścieżka bez prefiksu języka i bez query/hash oraz slasha na końcu. */

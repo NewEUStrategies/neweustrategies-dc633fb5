@@ -40,6 +40,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 
 import { confirmDialog } from "@/lib/appDialogs";
+import { uiLocale } from "@/lib/i18n/format";
 export const Route = createFileRoute("/admin/paywall")({ component: PaywallAdmin });
 
 function emptyPlan(): Partial<AccessPlan> {
@@ -714,8 +715,8 @@ function MeteringImpactPreview({
     staleTime: 30_000,
   });
 
-  const fmt = new Intl.NumberFormat(lang === "pl" ? "pl-PL" : "en-US");
-  const monthLabel = new Intl.DateTimeFormat(lang === "pl" ? "pl-PL" : "en-US", {
+  const fmt = new Intl.NumberFormat(uiLocale(lang));
+  const monthLabel = new Intl.DateTimeFormat(uiLocale(lang), {
     month: "long",
     year: "numeric",
   }).format(new Date());

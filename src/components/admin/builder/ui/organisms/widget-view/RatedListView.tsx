@@ -19,6 +19,7 @@ import { AppLink } from "@/components/atoms/AppLink";
 import { hardenStyleCss } from "@/lib/sanitize";
 import { AuthorByline } from "@/components/molecules/AuthorByline";
 import { resolveAuthorDisplay } from "@/lib/builder/authorDisplay";
+import { uiLocale } from "@/lib/i18n/format";
 
 // Auto-derive a dark-mode color from the light value when the user hasn't
 // explicitly set one. Empty string === inherit/default.
@@ -657,9 +658,7 @@ export function RatedListView({
                       </span>
                     )}
                     {showDate && it.date && (
-                      <span>
-                        {new Date(it.date).toLocaleDateString(lang === "pl" ? "pl-PL" : "en-GB")}
-                      </span>
+                      <span>{new Date(it.date).toLocaleDateString(uiLocale(lang))}</span>
                     )}
                   </p>
                 ) : null}

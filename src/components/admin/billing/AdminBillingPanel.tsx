@@ -27,6 +27,7 @@ import { AdminPaymentOrdersPanel } from "@/components/admin/billing/AdminPayment
 import { AdminWebhookLogPanel } from "@/components/admin/billing/AdminWebhookLogPanel";
 import { AdminPaymentsDiagnosticsPanel } from "@/components/admin/billing/AdminPaymentsDiagnosticsPanel";
 import { ResendPortalLinkButton } from "@/components/admin/billing/ResendPortalLinkButton";
+import { uiLocale } from "@/lib/i18n/format";
 
 interface SubscriptionRow {
   id: string;
@@ -167,7 +168,7 @@ export function AdminBillingPanel() {
   }, [rows]);
 
   const fmtDate = (iso: string | null) =>
-    iso ? new Date(iso).toLocaleString(lang === "pl" ? "pl-PL" : "en-GB") : "-";
+    iso ? new Date(iso).toLocaleString(uiLocale(lang)) : "-";
 
   const planLabel = (priceId: string) => {
     const entry = catalogEntryByPriceId(priceId);
@@ -284,7 +285,7 @@ export function AdminBillingPanel() {
                 {catalogStateQ.data.lastSyncedAt
                   ? `${L("Ostatnia synchronizacja", "Last sync")}: ${new Date(
                       catalogStateQ.data.lastSyncedAt,
-                    ).toLocaleString(lang === "pl" ? "pl-PL" : "en-GB")}`
+                    ).toLocaleString(uiLocale(lang))}`
                   : L("Jeszcze nie synchronizowano", "Not synced yet")}
               </span>
               {catalogStateQ.data.lastStatus ? (

@@ -11,6 +11,7 @@ import { getTicketOrderHistory, listTicketOrders } from "@/lib/billing/ticketOrd
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { uiLocale } from "@/lib/i18n/format";
 
 const STATUS_TONE: Record<string, string> = {
   paid: "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300",
@@ -79,7 +80,7 @@ function OrderHistory({ orderId, lang }: { orderId: string; lang: "pl" | "en" })
       {entries.map((entry) => (
         <li key={entry.id} className="flex flex-wrap items-center gap-2 text-[0.8125rem]">
           <span className="tabular-nums text-muted-foreground">
-            {new Date(entry.at).toLocaleString(lang === "pl" ? "pl-PL" : "en-GB")}
+            {new Date(entry.at).toLocaleString(uiLocale(lang))}
           </span>
           <span className="font-medium">{labelFor(entry.kind, entry.label)}</span>
           {entry.status && <StatusBadge value={entry.status} />}
@@ -122,7 +123,7 @@ export function AdminTicketOrdersPanel() {
   }, [rows]);
 
   const money = (cents: number, currency: string) =>
-    new Intl.NumberFormat(lang === "pl" ? "pl-PL" : "en-GB", {
+    new Intl.NumberFormat(uiLocale(lang), {
       style: "currency",
       currency,
     }).format(cents / 100);
@@ -205,9 +206,7 @@ export function AdminTicketOrdersPanel() {
                           <span className="font-medium">{title}</span>
                           {row.eventStartsAt && (
                             <span className="block text-xs text-muted-foreground">
-                              {new Date(row.eventStartsAt).toLocaleString(
-                                lang === "pl" ? "pl-PL" : "en-GB",
-                              )}
+                              {new Date(row.eventStartsAt).toLocaleString(uiLocale(lang))}
                             </span>
                           )}
                         </td>
@@ -247,9 +246,7 @@ export function AdminTicketOrdersPanel() {
                           )}
                         </td>
                         <td className="px-3 py-2 tabular-nums text-muted-foreground">
-                          {new Date(row.paidAt ?? row.createdAt).toLocaleString(
-                            lang === "pl" ? "pl-PL" : "en-GB",
-                          )}
+                          {new Date(row.paidAt ?? row.createdAt).toLocaleString(uiLocale(lang))}
                         </td>
                       </tr>
                       {open && (

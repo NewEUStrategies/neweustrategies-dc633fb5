@@ -118,6 +118,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { FaceAwareAvatar } from "@/components/admin/crm/FaceAwareAvatar";
+import { uiLocale } from "@/lib/i18n/format";
 
 interface CrmSearch {
   /** Deep-link z notyfikacji/powiązań: /admin/crm?lead=<id>&task=<id>. */
@@ -1162,15 +1163,13 @@ function LeadCell({
     case "created":
       return (
         <td className="p-2 text-right text-[11px] text-muted-foreground">
-          {new Date(lead.created_at).toLocaleDateString(lang === "pl" ? "pl-PL" : "en-GB")}
+          {new Date(lead.created_at).toLocaleDateString(uiLocale(lang))}
         </td>
       );
     case "followUp":
       return (
         <td className="p-2 text-right text-[11px] text-muted-foreground">
-          {lead.follow_up_at
-            ? new Date(lead.follow_up_at).toLocaleDateString(lang === "pl" ? "pl-PL" : "en-GB")
-            : "-"}
+          {lead.follow_up_at ? new Date(lead.follow_up_at).toLocaleDateString(uiLocale(lang)) : "-"}
         </td>
       );
     default:

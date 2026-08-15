@@ -31,6 +31,7 @@ import {
 } from "@/lib/comments/api";
 import { createGuestComment } from "@/lib/comments/guest.functions";
 import { buildCommentTree, canReplyToComment, type CommentTreeNode } from "@/lib/comments/tree";
+import { uiLocale } from "@/lib/i18n/format";
 
 interface Props {
   postId: string;
@@ -580,7 +581,7 @@ function CommentItem({
   const isGuest = !c.user_id;
   const name = c.author?.display_name?.trim() || c.author_name?.trim() || t("comments.anonymous");
   const initials = name.slice(0, 2).toUpperCase();
-  const when = new Date(c.created_at).toLocaleString(lang === "pl" ? "pl-PL" : "en-GB");
+  const when = new Date(c.created_at).toLocaleString(uiLocale(lang));
 
   return (
     <div className="flex gap-3">

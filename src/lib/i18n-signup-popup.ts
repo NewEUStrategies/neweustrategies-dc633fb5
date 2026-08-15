@@ -25,6 +25,14 @@ const pl = {
     showPassword: "Pokaż hasło",
     chooseList: "Wybierz listę",
     creatingAccount: "Tworzę konto…",
+    success: {
+      title: "Dane zostały wysłane!",
+      body: "Teraz potwierdź rejestrację konta w wiadomości e-mail - kliknij link aktywacyjny, który wysłaliśmy na adres:",
+      spamHint: "Nie widzisz wiadomości? Sprawdź folder Spam lub Oferty.",
+      resendSending: "Wysyłanie...",
+      resendSent: "Wysłano ponownie",
+      resend: "Wyślij link ponownie",
+    },
     // Treść zgody trafia do rejestru zgód RODO razem ze znacznikiem języka,
     // w którym została pokazana - dlatego jest kluczem, a nie ternarem.
     newsletterConsent:
@@ -49,6 +57,14 @@ const en = {
     showPassword: "Show password",
     chooseList: "Choose a list",
     creatingAccount: "Creating account…",
+    success: {
+      title: "Your details were sent!",
+      body: "Now confirm your registration by e-mail - click the activation link we sent to:",
+      spamHint: "Can't find the message? Check your Spam or Promotions folder.",
+      resendSending: "Sending...",
+      resendSent: "Sent again",
+      resend: "Resend the link",
+    },
     newsletterConsent: "I subscribe to the newsletter and accept receiving marketing messages.",
   },
 };

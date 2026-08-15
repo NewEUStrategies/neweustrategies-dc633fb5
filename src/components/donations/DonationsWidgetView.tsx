@@ -14,6 +14,7 @@ import { HandHeart, Heart, Target, TrendingUp, Users } from "@/lib/lucide-shim";
 import { DonationCta, type DonationCtaMode } from "./DonationCta";
 import { getDonationsPublicStats } from "@/lib/billing/donations.functions";
 import "@/lib/i18n-donations-widget";
+import { uiLocale } from "@/lib/i18n/format";
 
 export type DonationsVariant =
   | "hero"
@@ -62,7 +63,7 @@ const FALLBACK: StatsShape = {
 
 function fmtMoney(cents: number, currency: string, lang: "pl" | "en"): string {
   try {
-    return new Intl.NumberFormat(lang === "pl" ? "pl-PL" : "en-GB", {
+    return new Intl.NumberFormat(uiLocale(lang), {
       style: "currency",
       currency,
       maximumFractionDigits: cents % 100 === 0 ? 0 : 2,

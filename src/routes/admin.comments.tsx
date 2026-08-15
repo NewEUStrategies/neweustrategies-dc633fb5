@@ -39,6 +39,7 @@ import {
   toggleSelected,
 } from "@/lib/comments/selection";
 import { ensureI18n } from "@/lib/i18n-admin-comments";
+import { uiLocale } from "@/lib/i18n/format";
 
 ensureI18n();
 
@@ -244,7 +245,7 @@ function Row({
   busy: boolean;
 }) {
   const { t } = useTranslation();
-  const when = new Date(r.created_at).toLocaleString(lang === "pl" ? "pl-PL" : "en-GB");
+  const when = new Date(r.created_at).toLocaleString(uiLocale(lang));
   const title = (lang === "pl" ? r.post?.title_pl : r.post?.title_en) ?? r.post?.slug ?? "-";
   const variant: Record<CommentStatus, "default" | "secondary" | "destructive" | "outline"> = {
     pending: "outline",
