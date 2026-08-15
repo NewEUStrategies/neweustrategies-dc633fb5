@@ -8,6 +8,7 @@ import { Fragment, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-billing";
 import { toast } from "sonner";
 import { ChevronDown, ChevronRight, RefreshCcw, RotateCw, Webhook } from "lucide-react";
 
@@ -69,9 +70,8 @@ const STATUS_TONE: Record<string, string> = {
 };
 
 export function AdminWebhookLogPanel() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
-  const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
 
   const [status, setStatus] = useState("all");
   const [env, setEnv] = useState("all");
@@ -86,21 +86,21 @@ export function AdminWebhookLogPanel() {
     mutationFn: (id: string) => retryFn({ data: { id } }),
     onSuccess: (result) => {
       if (result.status === "failed") {
-        toast.error(L("Ponowienie nie powiodło się", "Retry failed"), {
+        toast.error(t("adminBilling.retryFailed"), {
           description: result.error ?? undefined,
         });
       } else {
         toast.success(
           result.status === "processed"
-            ? L("Zdarzenie przetworzone ponownie", "Event reprocessed")
-            : L("Zdarzenie pominięte (typ poza integracją)", "Event skipped (type not handled)"),
+            ? t("adminBilling.eventReprocessed")
+            : t("adminBilling.eventSkippedTypeHandled"),
           { description: `${result.eventType} · ${result.durationMs} ms` },
         );
       }
       void queryClient.invalidateQueries({ queryKey: billingKeys.admin.paymentWebhookEvents() });
     },
     onError: (err: unknown) => {
-      toast.error(L("Nie udało się ponowić zdarzenia", "Could not retry the event"), {
+      toast.error(t("adminBilling.couldRetryEvent"), {
         description: err instanceof Error ? err.message : undefined,
       });
     },
@@ -150,22 +150,23 @@ export function AdminWebhookLogPanel() {
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-[0.8125rem] font-medium text-muted-foreground">
           <Webhook className="h-4 w-4" aria-hidden="true" />
-          {L("Dziennik zdarzeń płatności", "Payment event log")}
+          {t("adminBilling.paymentEventLog")}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-[0.8125rem] text-muted-foreground">
-          {L(
-            `Przetworzone: ${stats.processed} · błędy: ${stats.failed} · w toku: ${stats.stuck}`,
-            `Processed: ${stats.processed} · errors: ${stats.failed} · in progress: ${stats.stuck}`,
-          )}
+          {t("adminBilling.webhookStats", {
+            processed: stats.processed,
+            failed: stats.failed,
+            stuck: stats.stuck,
+          })}
         </p>
 
         <div className="flex flex-wrap items-center gap-2">
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={L("Szukaj: typ, ID, użytkownik...", "Search: type, ID, user...")}
+            placeholder={t("adminBilling.searchTypeIdUser")}
             className="h-9 max-w-xs rounded-[6px] text-[0.8125rem]"
           />
           <Select value={status} onValueChange={setStatus}>
@@ -173,11 +174,11 @@ export function AdminWebhookLogPanel() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">{L("Każdy status", "Any status")}</SelectItem>
-              <SelectItem value="processed">{L("Przetworzone", "Processed")}</SelectItem>
-              <SelectItem value="skipped">{L("Pominięte", "Skipped")}</SelectItem>
-              <SelectItem value="failed">{L("Błędy", "Errors")}</SelectItem>
-              <SelectItem value="received">{L("W toku", "In progress")}</SelectItem>
+              <SelectItem value="all">{t("adminBilling.anyStatus")}</SelectItem>
+              <SelectItem value="processed">{t("adminBilling.processed")}</SelectItem>
+              <SelectItem value="skipped">{t("adminBilling.skipped")}</SelectItem>
+              <SelectItem value="failed">{t("adminBilling.errors")}</SelectItem>
+              <SelectItem value="received">{t("adminBilling.progress")}</SelectItem>
             </SelectContent>
           </Select>
           <Select value={env} onValueChange={setEnv}>
@@ -185,9 +186,9 @@ export function AdminWebhookLogPanel() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">{L("Oba środowiska", "Both environments")}</SelectItem>
-              <SelectItem value="sandbox">{L("Testowe", "Test")}</SelectItem>
-              <SelectItem value="live">{L("Produkcyjne", "Live")}</SelectItem>
+              <SelectItem value="all">{t("adminBilling.bothEnvironments")}</SelectItem>
+              <SelectItem value="sandbox">{t("adminBilling.test")}</SelectItem>
+              <SelectItem value="live">{t("adminBilling.live")}</SelectItem>
             </SelectContent>
           </Select>
           <Button
@@ -198,16 +199,16 @@ export function AdminWebhookLogPanel() {
             onClick={() => void q.refetch()}
           >
             <RefreshCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-            {L("Odśwież", "Refresh")}
+            {t("adminBilling.refresh")}
           </Button>
         </div>
 
         {q.isLoading && (
-          <p className="text-[0.8125rem] text-muted-foreground">{L("Wczytuję...", "Loading...")}</p>
+          <p className="text-[0.8125rem] text-muted-foreground">{t("adminBilling.loading")}</p>
         )}
         {!q.isLoading && rows.length === 0 && (
           <p className="text-[0.8125rem] text-muted-foreground">
-            {L("Brak zdarzeń dla tych filtrów.", "No events for these filters.")}
+            {t("adminBilling.eventsTheseFilters")}
           </p>
         )}
 
@@ -216,13 +217,13 @@ export function AdminWebhookLogPanel() {
             <table className="w-full text-left text-[0.8125rem]">
               <thead className="bg-muted/40 text-muted-foreground">
                 <tr>
-                  <th className="w-8 px-2 py-2" aria-label={L("Szczegóły", "Details")} />
-                  <th className="px-3 py-2 font-medium">{L("Zdarzenie", "Event")}</th>
-                  <th className="px-3 py-2 font-medium">{L("Status", "Status")}</th>
-                  <th className="px-3 py-2 font-medium">{L("Środowisko", "Environment")}</th>
-                  <th className="px-3 py-2 font-medium">{L("Czas obsługi", "Handling time")}</th>
-                  <th className="px-3 py-2 font-medium">{L("Odebrano", "Received")}</th>
-                  <th className="px-3 py-2 text-right font-medium">{L("Ponowienie", "Retry")}</th>
+                  <th className="w-8 px-2 py-2" aria-label={t("adminBilling.details")} />
+                  <th className="px-3 py-2 font-medium">{t("adminBilling.event2")}</th>
+                  <th className="px-3 py-2 font-medium">{t("adminBilling.status")}</th>
+                  <th className="px-3 py-2 font-medium">{t("adminBilling.environment")}</th>
+                  <th className="px-3 py-2 font-medium">{t("adminBilling.handlingTime")}</th>
+                  <th className="px-3 py-2 font-medium">{t("adminBilling.received")}</th>
+                  <th className="px-3 py-2 text-right font-medium">{t("adminBilling.retry")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -238,7 +239,7 @@ export function AdminWebhookLogPanel() {
                             size="icon"
                             className="h-7 w-7"
                             aria-expanded={open}
-                            aria-label={L("Pokaż ładunek", "Show payload")}
+                            aria-label={t("adminBilling.showPayload")}
                             onClick={() => setOpenId(open ? null : row.id)}
                           >
                             {open ? (
@@ -269,8 +270,8 @@ export function AdminWebhookLogPanel() {
                         </td>
                         <td className="px-3 py-2 text-muted-foreground">
                           {row.environment === "sandbox"
-                            ? L("testowe", "test")
-                            : L("produkcja", "live")}
+                            ? t("adminBilling.test2")
+                            : t("adminBilling.live2")}
                         </td>
                         <td className="px-3 py-2 tabular-nums text-muted-foreground">
                           {row.duration_ms === null ? "-" : `${row.duration_ms} ms`}
@@ -293,11 +294,11 @@ export function AdminWebhookLogPanel() {
                               }`}
                               aria-hidden="true"
                             />
-                            {L("Ponów", "Retry")}
+                            {t("adminBilling.retry2")}
                           </Button>
                           {(row.retry_count ?? 0) > 0 && (
                             <span className="mt-1 block text-[0.7rem] text-muted-foreground">
-                              {L("prób", "attempts")}: {row.retry_count} ·{" "}
+                              {t("adminBilling.attempts")}: {row.retry_count} ·{" "}
                               {fmt(row.last_retried_at)}
                             </span>
                           )}
@@ -309,32 +310,29 @@ export function AdminWebhookLogPanel() {
                             <dl className="mb-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-3">
                               <div>
                                 <dt className="inline font-medium">
-                                  {L("Identyfikator", "Event id")}:{" "}
+                                  {t("adminBilling.eventId")}:{" "}
                                 </dt>
                                 <dd className="inline font-mono">{row.event_id}</dd>
                               </div>
                               <div>
-                                <dt className="inline font-medium">{L("Użytkownik", "User")}: </dt>
+                                <dt className="inline font-medium">{t("adminBilling.user")}: </dt>
                                 <dd className="inline font-mono">{row.user_id ?? "-"}</dd>
                               </div>
                               <div>
                                 <dt className="inline font-medium">
-                                  {L("Domknięto", "Finished")}:{" "}
+                                  {t("adminBilling.finished")}:{" "}
                                 </dt>
                                 <dd className="inline">{fmt(row.processed_at)}</dd>
                               </div>
                               <div>
                                 <dt className="inline font-medium">
-                                  {L("Idempotencja", "Idempotency")}:{" "}
+                                  {t("adminBilling.idempotency")}:{" "}
                                 </dt>
                                 <dd className="inline">
-                                  {L("klucz", "key")} {row.event_id.slice(0, 12)}… ·{" "}
+                                  {t("adminBilling.key")} {row.event_id.slice(0, 12)}… ·{" "}
                                   {(row.retry_count ?? 0) === 0
-                                    ? L("brak ponowień", "no retries")
-                                    : L(
-                                        `ponowienia: ${row.retry_count}`,
-                                        `retries: ${row.retry_count}`,
-                                      )}
+                                    ? t("adminBilling.retries")
+                                    : t("adminBilling.retriesCount", { count: row.retry_count })}
                                 </dd>
                               </div>
                             </dl>

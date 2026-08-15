@@ -14,6 +14,8 @@ import type { Tables } from "@/integrations/supabase/types";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
+import "@/lib/i18n-admin-integrations";
 import { toast } from "sonner";
 import {
   Cable,
@@ -117,47 +119,33 @@ function parseEventTypes(csv: string): string[] {
     .filter((s) => s.length > 0);
 }
 
-type Localize = (pl: string, en: string) => string;
-
-function kindLabel(kind: IntegrationKind, L: Localize): string {
+function kindLabel(kind: IntegrationKind, t: TFunction): string {
   switch (kind) {
     case "webhook":
-      return L("Webhook (generyczny JSON + HMAC)", "Webhook (generic JSON + HMAC)");
+      return t("adminIntegrations.webhookGenericJsonHmac");
     case "slack":
       return "Slack (Block Kit)";
     case "hubspot":
       return "HubSpot (CRM v3, kontakty)";
     case "gcal":
-      return L("Google Calendar (generyczny JSON)", "Google Calendar (generic JSON)");
+      return t("adminIntegrations.googleCalendarGenericJson");
     case "confluence":
-      return L("Confluence (generyczny JSON)", "Confluence (generic JSON)");
+      return t("adminIntegrations.confluenceGenericJson");
     case "crm_partner":
-      return L("Partner CRM (leady + zgody)", "CRM partner (leads + consents)");
+      return t("adminIntegrations.crmPartnerLeadsConsents");
   }
 }
 
-function kindHint(raw: string, L: Localize): string {
+function kindHint(raw: string, t: TFunction): string {
   switch (normalizeIntegrationKind(raw)) {
     case "slack":
-      return L(
-        "Wklej URL Slack Incoming Webhook (https://hooks.slack.com/services/…). Zdarzenia są renderowane jako wiadomości Block Kit - podpis HMAC nie jest wysyłany.",
-        "Paste a Slack Incoming Webhook URL (https://hooks.slack.com/services/…). Events are rendered as Block Kit messages - no HMAC signature is sent.",
-      );
+      return t("adminIntegrations.pasteSlackIncomingWebhookUrl");
     case "hubspot":
-      return L(
-        "URL to baza API (zwykle https://api.hubapi.com). Zdarzenia leadów i newslettera trafiają jako upsert kontaktu po e-mailu; pozostałe zdarzenia są pomijane. W polu sekretu ustaw token prywatnej aplikacji HubSpot (Bearer).",
-        "URL is the API base (usually https://api.hubapi.com). Lead and newsletter events are upserted as contacts by e-mail; other events are skipped. Set the HubSpot private app token (Bearer) in the secret field.",
-      );
+      return t("adminIntegrations.urlApiBaseUsuallyHttps");
     case "crm_partner":
-      return L(
-        "Endpoint partnera CRM: zdarzenia leadów są wysyłane jako snapshot leada ze zmapowanymi zgodami. Etapy, mapowanie zgód i tryb uwierzytelnienia konfigurujesz w CRM → Integracje.",
-        "CRM partner endpoint: lead events are delivered as a lead snapshot with mapped consents. Stages, consent mapping and auth mode are configured in CRM → Integrations.",
-      );
+      return t("adminIntegrations.crmPartnerEndpointLeadEvents");
     default:
-      return L(
-        "Odbiorca dostaje pełną kopertę zdarzenia jako JSON POST; przy ustawionym sekrecie payload jest podpisany HMAC-SHA256 (x-nes-signature).",
-        "The receiver gets the full event envelope as a JSON POST; with a secret set the payload is signed with HMAC-SHA256 (x-nes-signature).",
-      );
+      return t("adminIntegrations.receiverGetsFullEventEnvelope");
   }
 }
 
@@ -173,9 +161,7 @@ function kindUrlPlaceholder(raw: string): string {
 }
 
 function AdminIntegrationsPage() {
-  const { i18n } = useTranslation();
-  const lang = i18n.language === "en" ? "en" : "pl";
-  const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const dispatchNow = useServerFn(dispatchIntegrationDeliveries);
 
@@ -248,13 +234,13 @@ function AdminIntegrationsPage() {
       return endpointId as string;
     },
     onSuccess: () => {
-      toast.success(L("Zapisano", "Saved"));
+      toast.success(t("adminIntegrations.saved"));
       setDraft(null);
       void qc.invalidateQueries({ queryKey: ["admin", "integration-endpoints"] });
     },
     onError: (e) => {
       const msg = e instanceof Error ? e.message : String(e);
-      toast.error(L(`Błąd: ${msg}`, `Error: ${msg}`));
+      toast.error(t("adminIntegrations.error", { message: msg }));
     },
   });
 
@@ -264,12 +250,12 @@ function AdminIntegrationsPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success(L("Usunięto endpoint", "Endpoint removed"));
+      toast.success(t("adminIntegrations.endpointRemoved"));
       void qc.invalidateQueries({ queryKey: ["admin", "integration-endpoints"] });
     },
     onError: (e) => {
       const msg = e instanceof Error ? e.message : String(e);
-      toast.error(L(`Błąd: ${msg}`, `Error: ${msg}`));
+      toast.error(t("adminIntegrations.error", { message: msg }));
     },
   });
 
@@ -290,16 +276,17 @@ function AdminIntegrationsPage() {
     mutationFn: async () => dispatchNow({ data: { limit: 50 } }),
     onSuccess: (summary) => {
       toast.success(
-        L(
-          `Wysłano: ${summary.delivered}, błędy: ${summary.failed}, przejęto: ${summary.claimed}`,
-          `Delivered: ${summary.delivered}, failed: ${summary.failed}, claimed: ${summary.claimed}`,
-        ),
+        t("adminIntegrations.dispatchSummary", {
+          delivered: summary.delivered,
+          failed: summary.failed,
+          claimed: summary.claimed,
+        }),
       );
       void qc.invalidateQueries({ queryKey: ["admin", "integration-deliveries-summary"] });
     },
     onError: (e) => {
       const msg = e instanceof Error ? e.message : String(e);
-      toast.error(L(`Błąd dispatchera: ${msg}`, `Dispatcher error: ${msg}`));
+      toast.error(t("adminIntegrations.dispatcherError", { message: msg }));
     },
   });
 
@@ -330,13 +317,10 @@ function AdminIntegrationsPage() {
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-semibold">
             <Cable className="h-6 w-6" aria-hidden />
-            {L("Integracje wychodzące", "Outgoing integrations")}
+            {t("adminIntegrations.outgoingIntegrations")}
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            {L(
-              "Endpointy webhook, do których platforma wysyła zdarzenia domenowe (publikacja wpisu, kampania newsletter, formularz kontaktowy itp.). Podpis HMAC-SHA256 w nagłówku x-nes-signature, sekret w Supabase Vault - nigdy nie jest zwracany do przeglądarki.",
-              "Webhook endpoints receiving domain events (post published, newsletter campaign, contact form, etc.). Payload signed with HMAC-SHA256 in header x-nes-signature; secret lives in Supabase Vault and is never returned to the browser.",
-            )}
+            {t("adminIntegrations.webhookEndpointsReceivingDomainEvents")}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -350,44 +334,36 @@ function AdminIntegrationsPage() {
             ) : (
               <PlayCircle className="mr-2 h-4 w-4" aria-hidden />
             )}
-            {L("Uruchom dispatcher", "Run dispatcher")}
+            {t("adminIntegrations.runDispatcher")}
           </Button>
           <Button onClick={openNew}>
             <Plus className="mr-2 h-4 w-4" aria-hidden />
-            {L("Nowy endpoint", "New endpoint")}
+            {t("adminIntegrations.newEndpoint")}
           </Button>
         </div>
       </header>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label={L("Dostarczone", "Delivered")} value={delivered} tone="ok" />
-        <StatCard label={L("W kolejce", "Pending")} value={pending} tone="wait" />
-        <StatCard label={L("Nieudane", "Failed")} value={failed} tone="warn" />
-        <StatCard label={L("Martwe", "Dead")} value={dead} tone="err" />
+        <StatCard label={t("adminIntegrations.delivered")} value={delivered} tone="ok" />
+        <StatCard label={t("adminIntegrations.pending")} value={pending} tone="wait" />
+        <StatCard label={t("adminIntegrations.failed")} value={failed} tone="warn" />
+        <StatCard label={t("adminIntegrations.dead")} value={dead} tone="err" />
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>{L("Endpointy", "Endpoints")}</CardTitle>
-          <CardDescription>
-            {L(
-              'Wpis wyłączony jest pomijany przy dispatchu (delivery kończy się z powodem "endpoint disabled" - nie ma retry).',
-              'A disabled endpoint is skipped by the dispatcher (delivery finishes with reason "endpoint disabled", no retry).',
-            )}
-          </CardDescription>
+          <CardTitle>{t("adminIntegrations.endpoints")}</CardTitle>
+          <CardDescription>{t("adminIntegrations.disabledEndpointSkipped")}</CardDescription>
         </CardHeader>
         <CardContent>
           {endpointsQ.isLoading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-              {L("Ładowanie…", "Loading…")}
+              {t("adminIntegrations.loading")}
             </div>
           ) : rows.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              {L(
-                "Brak endpointów. Dodaj pierwszy, żeby zacząć wysyłać webhooki.",
-                "No endpoints yet. Add one to start delivering webhooks.",
-              )}
+              {t("adminIntegrations.endpointsYetAddOneStart")}
             </p>
           ) : (
             <ul className="divide-y">
@@ -401,12 +377,12 @@ function AdminIntegrationsPage() {
                       {r.secret_id ? (
                         <Badge variant="secondary" className="gap-1">
                           <KeyRound className="h-3 w-3" aria-hidden />
-                          {L("Sekret ustawiony", "Secret set")}
+                          {t("adminIntegrations.secretSet")}
                         </Badge>
                       ) : (
                         <Badge variant="destructive" className="gap-1">
                           <KeyRound className="h-3 w-3" aria-hidden />
-                          {L("Brak sekretu", "No secret")}
+                          {t("adminIntegrations.secret")}
                         </Badge>
                       )}
                     </div>
@@ -414,7 +390,7 @@ function AdminIntegrationsPage() {
                     <div className="mt-1 flex flex-wrap gap-1">
                       {r.event_types.length === 0 ? (
                         <span className="text-xs italic text-muted-foreground">
-                          {L("wszystkie zdarzenia", "all events")}
+                          {t("adminIntegrations.allEvents")}
                         </span>
                       ) : (
                         r.event_types.map((e) => (
@@ -430,14 +406,16 @@ function AdminIntegrationsPage() {
                       <Switch
                         checked={r.enabled}
                         onCheckedChange={(v) => toggleEnabled.mutate({ id: r.id, enabled: v })}
-                        aria-label={L("Aktywny", "Enabled")}
+                        aria-label={t("adminIntegrations.enabled")}
                       />
                       <span className="text-muted-foreground">
-                        {r.enabled ? L("Aktywny", "Enabled") : L("Wyłączony", "Disabled")}
+                        {r.enabled
+                          ? t("adminIntegrations.enabled")
+                          : t("adminIntegrations.disabled")}
                       </span>
                     </label>
                     <Button variant="outline" size="sm" onClick={() => openEdit(r)}>
-                      {L("Edytuj", "Edit")}
+                      {t("adminIntegrations.edit")}
                     </Button>
                     <Button
                       variant="ghost"
@@ -445,16 +423,13 @@ function AdminIntegrationsPage() {
                       onClick={() => {
                         if (
                           window.confirm(
-                            L(
-                              `Usunąć endpoint „${r.name}"? Dostawy tego endpointu przestaną być tworzone.`,
-                              `Delete endpoint "${r.name}"? New deliveries for this endpoint will stop.`,
-                            ),
+                            t("adminIntegrations.confirmDeleteEndpoint", { name: r.name }),
                           )
                         ) {
                           remove.mutate(r.id);
                         }
                       }}
-                      aria-label={L("Usuń", "Delete")}
+                      aria-label={t("adminIntegrations.delete")}
                     >
                       <Trash2 className="h-4 w-4 text-destructive" aria-hidden />
                     </Button>
@@ -471,7 +446,6 @@ function AdminIntegrationsPage() {
         setDraft={setDraft}
         onSave={(d) => upsert.mutate(d)}
         saving={upsert.isPending}
-        L={L}
       />
     </div>
   );
@@ -513,14 +487,13 @@ function EndpointDialog({
   setDraft,
   onSave,
   saving,
-  L,
 }: {
   draft: DraftEndpoint | null;
   setDraft: (d: DraftEndpoint | null) => void;
   onSave: (d: DraftEndpoint) => void;
   saving: boolean;
-  L: (pl: string, en: string) => string;
 }) {
+  const { t } = useTranslation();
   if (!draft) return null;
   const set = (patch: Partial<DraftEndpoint>) => setDraft({ ...draft, ...patch });
   const canSave = draft.name.trim().length >= 2 && /^https:\/\//i.test(draft.url.trim()) && !saving;
@@ -530,30 +503,25 @@ function EndpointDialog({
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>
-            {draft.id ? L("Edytuj endpoint", "Edit endpoint") : L("Nowy endpoint", "New endpoint")}
+            {draft.id ? t("adminIntegrations.editEndpoint") : t("adminIntegrations.newEndpoint")}
           </DialogTitle>
-          <DialogDescription>
-            {L(
-              "Adres URL musi używać HTTPS. Guard SSRF odrzuca adresy prywatne (127.0.0.1, 10.x, metadata cloud itp.).",
-              "URL must use HTTPS. The SSRF guard rejects private targets (127.0.0.1, 10.x, cloud metadata, etc.).",
-            )}
-          </DialogDescription>
+          <DialogDescription>{t("adminIntegrations.urlMustUseHttpsSsrf")}</DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4">
           <div className="grid gap-2">
-            <Label htmlFor="int-name">{L("Nazwa", "Name")}</Label>
+            <Label htmlFor="int-name">{t("adminIntegrations.name")}</Label>
             <Input
               id="int-name"
               value={draft.name}
               onChange={(e) => set({ name: e.target.value })}
-              placeholder={L("np. Zapier - nowe kampanie", "e.g. Zapier - new campaigns")}
+              placeholder={t("adminIntegrations.eGZapierNewCampaigns")}
             />
           </div>
 
           <div className="grid gap-2 md:grid-cols-2">
             <div className="grid gap-2">
-              <Label htmlFor="int-type">{L("Format / adapter", "Format / adapter")}</Label>
+              <Label htmlFor="int-type">{t("adminIntegrations.formatAdapter")}</Label>
               <Select
                 value={normalizeIntegrationKind(draft.integration)}
                 onValueChange={(v) => set({ integration: v as IntegrationKind })}
@@ -564,7 +532,7 @@ function EndpointDialog({
                 <SelectContent>
                   {INTEGRATION_KINDS.map((k) => (
                     <SelectItem key={k} value={k}>
-                      {kindLabel(k, L)}
+                      {kindLabel(k, t)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -577,12 +545,12 @@ function EndpointDialog({
                 id="int-enabled"
               />
               <Label htmlFor="int-enabled" className="text-sm text-muted-foreground">
-                {L("Aktywny", "Enabled")}
+                {t("adminIntegrations.enabled")}
               </Label>
             </div>
           </div>
 
-          <p className="text-xs text-muted-foreground">{kindHint(draft.integration, L)}</p>
+          <p className="text-xs text-muted-foreground">{kindHint(draft.integration, t)}</p>
 
           <div className="grid gap-2">
             <Label htmlFor="int-url">URL</Label>
@@ -596,12 +564,7 @@ function EndpointDialog({
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="int-events">
-              {L(
-                "Zdarzenia (oddzielone przecinkiem lub spacją)",
-                "Events (comma or space separated)",
-              )}
-            </Label>
+            <Label htmlFor="int-events">{t("adminIntegrations.eventsCommaSpaceSeparated")}</Label>
             <Textarea
               id="int-events"
               rows={3}
@@ -610,10 +573,7 @@ function EndpointDialog({
               placeholder="post.published.v1, crm_lead.created.v1, crm_task.due.v1, newsletter_subscriber.confirmed.v1"
             />
             <p className="text-xs text-muted-foreground">
-              {L(
-                "Puste = wszystkie zdarzenia tego tenanta.",
-                "Empty = every event of this tenant.",
-              )}
+              {t("adminIntegrations.emptyEveryEventTenant")}
             </p>
           </div>
 
@@ -621,19 +581,13 @@ function EndpointDialog({
             <div className="flex items-center gap-2 text-sm font-medium">
               <KeyRound className="h-4 w-4" aria-hidden />
               {normalizeIntegrationKind(draft.integration) === "hubspot"
-                ? L("Token dostępu (Bearer)", "Access token (Bearer)")
-                : L("Sekret podpisu HMAC", "HMAC signing secret")}
+                ? t("adminIntegrations.accessTokenBearer")
+                : t("adminIntegrations.hmacSigningSecret")}
             </div>
             <p className="text-xs text-muted-foreground">
               {normalizeIntegrationKind(draft.integration) === "hubspot"
-                ? L(
-                    "Token prywatnej aplikacji HubSpot trzymamy w Vault - nigdy nie wraca do przeglądarki. Bez tokenu dostawy do HubSpota kończą się błędem konfiguracji.",
-                    "The HubSpot private app token lives in Vault - it is never returned to the browser. Without it, HubSpot deliveries fail as a configuration error.",
-                  )
-                : L(
-                    'Sekret trzymamy w Vault - platforma go nigdy nie zwraca do przeglądarki. Wpisz nową wartość, żeby ustawić lub zrotować; zaznacz "wyczyść", żeby usunąć podpisywanie.',
-                    'Secret lives in Vault - the platform never returns it to the browser. Type a new value to set or rotate it; tick "clear" to remove signing.',
-                  )}
+                ? t("adminIntegrations.hubspotPrivateAppTokenLives")
+                : t("adminIntegrations.secretLivesInVault")}
             </p>
             <Input
               type="password"
@@ -643,7 +597,7 @@ function EndpointDialog({
               placeholder={
                 normalizeIntegrationKind(draft.integration) === "hubspot"
                   ? "pat-eu1-…"
-                  : L("Nowy sekret (min. 16 znaków)", "New secret (16+ chars)")
+                  : t("adminIntegrations.newSecret16Chars")
               }
               disabled={draft.clear_secret}
             />
@@ -654,17 +608,14 @@ function EndpointDialog({
                 checked={draft.clear_secret}
                 onChange={(e) => set({ clear_secret: e.target.checked, new_secret: "" })}
               />
-              {L(
-                "Wyczyść sekret (webhook wysyła bez podpisu; HubSpot przestaje dostarczać)",
-                "Clear secret (webhook sends unsigned; HubSpot stops delivering)",
-              )}
+              {t("adminIntegrations.clearSecretWebhookSendsUnsigned")}
             </label>
           </div>
         </div>
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => setDraft(null)} disabled={saving}>
-            {L("Anuluj", "Cancel")}
+            {t("adminIntegrations.cancel")}
           </Button>
           <Button
             onClick={() =>
@@ -673,7 +624,7 @@ function EndpointDialog({
             disabled={!canSave}
           >
             {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> : null}
-            {L("Zapisz", "Save")}
+            {t("adminIntegrations.save")}
           </Button>
         </DialogFooter>
       </DialogContent>

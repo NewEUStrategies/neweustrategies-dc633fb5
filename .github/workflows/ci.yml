@@ -292,6 +292,24 @@ jobs:
       - name: No fallback strings on t()
         run: bun run check:i18n-default-value
 
+      # Blocking ratchet: a file calling a key from an i18n overlay must import
+      # that overlay directly. Overlays (`src/lib/i18n-*.ts`) register through
+      # an import SIDE EFFECT, and i18next does not throw on a missing key - it
+      # returns the key. So the failure renders a working-looking screen showing
+      # `adminUsers.inviteUser` instead of text, and every other gate stays
+      # green over it: types check, parity compares dictionary CONTENT, the
+      # hardcoded ratchet counts literals in code. Only a human reading the diff
+      # caught it - twice in one conversion session, both times because the
+      # keys are written by a codemod and the import line by hand. Matching at
+      # FULL KEY, not namespace: overlays extend core namespaces (`admin`), so
+      # namespace granularity drowned the gate in false positives. Frozen PER
+      # FILE at 80: those work today through an indirect import, and making each
+      # one direct moves a dictionary into that file's chunk - a call to make
+      # with bundle impact in hand (three places omit it deliberately and say
+      # so with an in-file directive).
+      - name: Overlay keys are called only where the overlay is imported
+        run: bun run check:i18n-overlay-imports
+
       # Blocking wiring gate: every env var a workflow exports must have a
       # reader. Workflow and script are separately valid when the names drift
       # apart, and both sides tolerate a missing value, so the combination

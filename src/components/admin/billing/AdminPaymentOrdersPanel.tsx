@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-billing";
 import { AlertTriangle, Loader2, Receipt, RefreshCcw } from "lucide-react";
 
 import { listPaymentOrders } from "@/lib/billing/paymentOrders.functions";
@@ -33,9 +34,8 @@ function money(cents: number, currency: string, lang: "pl" | "en"): string {
 }
 
 export function AdminPaymentOrdersPanel() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
-  const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
 
   const [status, setStatus] = useState<Filter>("all");
   const load = useServerFn(listPaymentOrders);
@@ -50,25 +50,25 @@ export function AdminPaymentOrdersPanel() {
 
   const filterLabel = (value: Filter): string =>
     value === "all"
-      ? L("Wszystkie", "All")
+      ? t("adminBilling.all")
       : value === "pending"
-        ? L("Oczekujące", "Pending")
+        ? t("adminBilling.pending")
         : value === "processing"
-          ? L("W trakcie", "Processing")
+          ? t("adminBilling.processing")
           : value === "paid"
-            ? L("Opłacone", "Paid")
+            ? t("adminBilling.paid")
             : value === "failed"
-              ? L("Nieudane", "Failed")
+              ? t("adminBilling.failed")
               : value === "refunded"
-                ? L("Zwrócone", "Refunded")
-                : L("Anulowane", "Canceled");
+                ? t("adminBilling.refunded")
+                : t("adminBilling.canceled");
 
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
         <CardTitle className="flex items-center gap-2 text-base">
           <Receipt className="h-4 w-4" aria-hidden="true" />
-          {L("Zamówienia płatnicze", "Payment orders")}
+          {t("adminBilling.paymentOrders")}
         </CardTitle>
         <Button
           type="button"
@@ -81,11 +81,11 @@ export function AdminPaymentOrdersPanel() {
             className={`mr-2 h-3.5 w-3.5 ${q.isFetching ? "animate-spin" : ""}`}
             aria-hidden="true"
           />
-          {L("Odśwież", "Refresh")}
+          {t("adminBilling.refresh")}
         </Button>
       </CardHeader>
       <CardContent className="space-y-4">
-        <nav className="tabs-scroller -mx-1 px-1" aria-label={L("Filtr statusu", "Status filter")}>
+        <nav className="tabs-scroller -mx-1 px-1" aria-label={t("adminBilling.statusFilter")}>
           <ul className="flex w-max min-w-full gap-2">
             {FILTERS.map((value) => (
               <li key={value}>
@@ -109,37 +109,30 @@ export function AdminPaymentOrdersPanel() {
         {summary && summary.stuck > 0 ? (
           <p className="flex items-start gap-2 rounded-[6px] bg-amber-500/10 px-3 py-2 text-[0.8125rem] text-amber-700 dark:text-amber-300">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-            {L(
-              `Zamówienia bez powiązanej sesji operatora: ${summary.stuck}. Oznacza to przerwane otwarcie checkoutu - sprawdź logi serwera.`,
-              `Orders without a provider session: ${summary.stuck}. The checkout session was never linked - check the server logs.`,
-            )}
+            {t("adminBilling.ordersWithoutSession", { count: summary.stuck })}
           </p>
         ) : null}
 
         {q.isLoading ? (
           <p className="flex items-center gap-2 text-[0.8125rem] text-muted-foreground">
             <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-            {L("Wczytuję zamówienia...", "Loading orders...")}
+            {t("adminBilling.loadingOrders")}
           </p>
         ) : q.isError ? (
-          <p className="text-[0.8125rem] text-destructive">
-            {L("Nie udało się wczytać zamówień.", "Could not load the orders.")}
-          </p>
+          <p className="text-[0.8125rem] text-destructive">{t("adminBilling.couldLoadOrders")}</p>
         ) : rows.length === 0 ? (
-          <p className="text-[0.8125rem] text-muted-foreground">
-            {L("Brak zamówień w tym filtrze.", "No orders for this filter.")}
-          </p>
+          <p className="text-[0.8125rem] text-muted-foreground">{t("adminBilling.ordersFilter")}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] text-left text-[0.8125rem]">
               <thead className="text-muted-foreground">
                 <tr className="border-b border-border">
-                  <th className="py-2 pr-3 font-medium">{L("Data", "Date")}</th>
-                  <th className="py-2 pr-3 font-medium">{L("Pozycja", "Item")}</th>
-                  <th className="py-2 pr-3 font-medium">{L("Kupujący", "Buyer")}</th>
-                  <th className="py-2 pr-3 font-medium">{L("Kwota", "Amount")}</th>
-                  <th className="py-2 pr-3 font-medium">{L("Status", "Status")}</th>
-                  <th className="py-2 pr-3 font-medium">{L("Sesja", "Session")}</th>
+                  <th className="py-2 pr-3 font-medium">{t("adminBilling.date")}</th>
+                  <th className="py-2 pr-3 font-medium">{t("adminBilling.item")}</th>
+                  <th className="py-2 pr-3 font-medium">{t("adminBilling.buyer")}</th>
+                  <th className="py-2 pr-3 font-medium">{t("adminBilling.amount")}</th>
+                  <th className="py-2 pr-3 font-medium">{t("adminBilling.status")}</th>
+                  <th className="py-2 pr-3 font-medium">{t("adminBilling.session")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -152,8 +145,8 @@ export function AdminPaymentOrdersPanel() {
                       <span className="block">
                         {row.planName ??
                           (row.kind === "subscription"
-                            ? L("Subskrypcja", "Subscription")
-                            : L("Płatność jednorazowa", "One-time payment"))}
+                            ? t("adminBilling.subscription")
+                            : t("adminBilling.oneTimePayment"))}
                       </span>
                       <span className="text-[0.75rem] text-muted-foreground">
                         {row.provider}
@@ -161,7 +154,7 @@ export function AdminPaymentOrdersPanel() {
                       </span>
                     </td>
                     <td className="py-2 pr-3 break-all">
-                      {row.buyerEmail ?? L("(brak adresu)", "(no email)")}
+                      {row.buyerEmail ?? t("adminBilling.email")}
                     </td>
                     <td className="py-2 pr-3 whitespace-nowrap">
                       {money(row.amountCents, row.currency, lang)}
@@ -179,7 +172,7 @@ export function AdminPaymentOrdersPanel() {
                     <td className="py-2 pr-3 break-all text-muted-foreground">
                       {row.sessionId ?? (
                         <span className="text-amber-600 dark:text-amber-400">
-                          {L("brak", "missing")}
+                          {t("adminBilling.missing")}
                         </span>
                       )}
                     </td>

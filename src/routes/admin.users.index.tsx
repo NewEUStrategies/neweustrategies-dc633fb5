@@ -1,5 +1,11 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
+import "@/lib/i18n-admin-users";
+import { useLang } from "@/lib/i18n/useLang";
+import { roleLabel } from "@/lib/authz/roleLabels";
+import type { AppRole } from "@/lib/authz/roles";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState, Fragment, useCallback } from "react";
 import { useServerFn } from "@tanstack/react-start";
@@ -49,7 +55,7 @@ export const Route = createFileRoute("/admin/users/")({
   component: Users,
 });
 
-type Role = "super_admin" | "admin" | "editor" | "author" | "user";
+type Role = AppRole;
 
 interface UserRow {
   id: string;
@@ -89,22 +95,28 @@ type RoleFilter = Role | "all" | "none";
 type SubStatus = "pending" | "active" | "refunded" | "canceled";
 type StatusFilter = SubStatus | "all" | "none";
 
+/** Wiersz `user_subscriptions` z osadzoną relacją do-jednego `access_plans`. */
+interface SubscriptionQueryRow {
+  user_id: string;
+  status: SubStatus;
+  current_period_end: string | null;
+  canceled_at: string | null;
+  access_plans: { name_pl: string | null; name_en: string | null } | null;
+}
+
 const SUB_STATUSES: readonly SubStatus[] = ["active", "pending", "refunded", "canceled"];
 
-function statusLabel(lang: string, s: SubStatus): string {
-  const pl: Record<SubStatus, string> = {
-    active: "Aktywna",
-    pending: "Oczekująca",
-    refunded: "Zwrócona",
-    canceled: "Anulowana",
-  };
-  const en: Record<SubStatus, string> = {
-    active: "Active",
-    pending: "Pending",
-    refunded: "Refunded",
-    canceled: "Canceled",
-  };
-  return (lang === "pl" ? pl : en)[s];
+// Etykieta statusu subskrypcji. Klucze trzymamy jawnie zamiast sklejać je ze
+// statusem: statyczny klucz widzi bramka parytetu, sklejony nie.
+const SUB_STATUS_LABEL_KEYS: Readonly<Record<SubStatus, string>> = {
+  active: "adminUsers.subStatusActive",
+  pending: "adminUsers.subStatusPending",
+  refunded: "adminUsers.subStatusRefunded",
+  canceled: "adminUsers.subStatusCanceled",
+};
+
+function statusLabel(t: TFunction, s: SubStatus): string {
+  return t(SUB_STATUS_LABEL_KEYS[s]);
 }
 
 function statusVariant(s: SubStatus): "default" | "secondary" | "outline" | "destructive" {
@@ -114,12 +126,6 @@ function statusVariant(s: SubStatus): "default" | "secondary" | "outline" | "des
   return "destructive";
 }
 
-function roleLabel(t: (k: string, o?: Record<string, unknown>) => string, r: Role): string {
-  return t(`admin.users.roles.${r}`, {
-    defaultValue: r === "super_admin" ? "Super admin" : r.charAt(0).toUpperCase() + r.slice(1),
-  });
-}
-
 function primaryRole(roles: Role[]): Role {
   for (const r of ROLE_ORDER) if (roles.includes(r)) return r;
   return "user";
@@ -127,6 +133,7 @@ function primaryRole(roles: Role[]): Role {
 
 function Users() {
   const { t, i18n } = useTranslation();
+  const lang = useLang();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { user, isSuperAdmin } = useAuth();
@@ -152,7 +159,10 @@ function Users() {
   // Subskrypcje: użyte do filtrowania i grupowania po poziomie dostępu.
   // RLS na user_subscriptions dopuszcza admina tenanta.
   const { data: subs } = useQuery({
-    queryKey: [...billingKeys.admin.allUserSubscriptions(), tenantId],
+    // Język wchodzi do klucza, bo `plan_name` jest już ZLOKALIZOWANY w wyniku.
+    // Bez tego przełączenie języka zostawiało w cache polskie nazwy planów aż
+    // do najbliższego unieważnienia - dane wyglądały na świeże i były błędne.
+    queryKey: [...billingKeys.admin.allUserSubscriptions(), tenantId, lang],
     queryFn: async (): Promise<SubscriptionInfo[]> => {
       const { data: rows, error } = await supabase
         .from("user_subscriptions")
@@ -160,25 +170,21 @@ function Users() {
           "user_id, status, current_period_end, canceled_at, access_plans!inner(name_pl, name_en)",
         )
         .eq("tenant_id", tenantId)
-        .order("started_at", { ascending: false });
+        .order("started_at", { ascending: false })
+        // Kształt osadzonej relacji deklarujemy RAZ przez `.returns<>()` zamiast
+        // rzutować każdy wiersz - `access_plans!inner` jest relacją do-jednego,
+        // a wygenerowane typy nie niosą tej wiedzy.
+        .returns<SubscriptionQueryRow[]>();
       if (error) {
         // Brak dostępu do widoku nie powinien blokować listy użytkowników.
         console.warn("[admin/users] subscriptions read failed", error.message);
         return [];
       }
-      const lang = i18n.language === "pl" ? "pl" : "en";
-      return (rows ?? []).map((r) => {
-        const plan = (
-          r as unknown as {
-            access_plans: { name_pl: string; name_en: string } | null;
-          }
-        ).access_plans;
-        return {
-          user_id: r.user_id,
-          status: r.status as SubStatus,
-          plan_name: (lang === "pl" ? plan?.name_pl : plan?.name_en) ?? plan?.name_en ?? "-",
-        };
-      });
+      return (rows ?? []).map((r) => ({
+        user_id: r.user_id,
+        status: r.status,
+        plan_name: pickLocalized(r.access_plans, "name", lang, "-"),
+      }));
     },
   });
 
@@ -297,8 +303,7 @@ function Users() {
       });
       return keys.map((k) => ({
         key: `plan:${k}`,
-        label:
-          k === "__none__" ? (i18n.language === "pl" ? "Bez subskrypcji" : "No subscription") : k,
+        label: k === "__none__" ? t("adminUsers.subscription") : k,
         rows: buckets.get(k) ?? [],
       }));
     }
@@ -316,15 +321,10 @@ function Users() {
       .filter((k) => buckets.has(k))
       .map((k) => ({
         key: `status:${k}`,
-        label:
-          k === "__none__"
-            ? i18n.language === "pl"
-              ? "Bez subskrypcji"
-              : "No subscription"
-            : statusLabel(i18n.language, k as SubStatus),
+        label: k === "__none__" ? t("adminUsers.subscription") : statusLabel(t, k as SubStatus),
         rows: buckets.get(k) ?? [],
       }));
-  }, [sorted, groupBy, subMap, t, i18n.language]);
+  }, [sorted, groupBy, subMap, t]);
 
   const toggleSort = (k: SortKey) => {
     if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -449,8 +449,8 @@ function Users() {
       }
     }
     setBulkBusy(false);
-    if (ok > 0) toast.success(`${ok} ${i18n.language === "pl" ? "zmienione" : "updated"}`);
-    if (fail > 0) toast.error(`${fail} ${i18n.language === "pl" ? "błędów" : "failed"}`);
+    if (ok > 0) toast.success(t("adminUsers.bulkRoleUpdated", { count: ok }));
+    if (fail > 0) toast.error(t("adminUsers.bulkRoleFailed", { count: fail }));
     setBulkRole("");
     clearSelection();
     qc.invalidateQueries({ queryKey: ["admin", "all-users"] });
@@ -462,7 +462,7 @@ function Users() {
       .filter((u) => selected.has(u.id) && !!u.email)
       .map((u) => u.email as string);
     if (emails.length === 0) {
-      toast.error(i18n.language === "pl" ? "Brak adresów e-mail" : "No emails");
+      toast.error(t("adminUsers.emails"));
       return;
     }
     setBulkBusy(true);
@@ -470,15 +470,10 @@ function Users() {
       const res = await resendBulkFn({ data: { emails } });
       const okCount = res.results.filter((r) => r.ok).length;
       const failCount = res.results.length - okCount;
-      if (okCount > 0) toast.success(`${okCount} ${i18n.language === "pl" ? "wysłane" : "sent"}`);
-      if (failCount > 0)
-        toast.error(`${failCount} ${i18n.language === "pl" ? "błędów" : "failed"}`);
+      if (okCount > 0) toast.success(t("adminUsers.invitesSent", { count: okCount }));
+      if (failCount > 0) toast.error(t("adminUsers.invitesFailed", { count: failCount }));
       if (res.missing.length > 0)
-        toast.info(
-          `${res.missing.length} ${
-            i18n.language === "pl" ? "bez zaproszenia" : "without invitation"
-          }`,
-        );
+        toast.info(t("adminUsers.withoutInvitation", { count: res.missing.length }));
       qc.invalidateQueries({ queryKey: ["user-invitations"] });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Error");
@@ -508,16 +503,16 @@ function Users() {
           <Button variant="outline" size="sm" asChild>
             <Link to="/admin/users/invitations">
               <Mail className="w-4 h-4 mr-1" />
-              {i18n.language === "pl" ? "Zaproszenia" : "Invitations"}
+              {t("adminUsers.invitations")}
             </Link>
           </Button>
           <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
             <UsersIcon className="w-4 h-4 mr-1" />
-            {i18n.language === "pl" ? "Import zespołu z /o-nas" : "Import team from /o-nas"}
+            {t("adminUsers.importTeamONas")}
           </Button>
           <Button size="sm" onClick={() => setInviteOpen(true)}>
             <Mail className="w-4 h-4 mr-1" />
-            {i18n.language === "pl" ? "Zaproś użytkownika" : "Invite user"}
+            {t("adminUsers.inviteUser")}
           </Button>
         </div>
       </div>
@@ -541,11 +536,7 @@ function Users() {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={
-              i18n.language === "pl"
-                ? "Szukaj po nazwie, e-mailu, slug…"
-                : "Search name, email, slug…"
-            }
+            placeholder={t("adminUsers.searchNameEmailSlug")}
             className="pl-8 h-8 text-xs"
           />
         </div>
@@ -555,15 +546,13 @@ function Users() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">
-              {i18n.language === "pl" ? "Wszystkie role" : "All roles"}
-            </SelectItem>
+            <SelectItem value="all">{t("adminUsers.allRoles")}</SelectItem>
             {ROLE_ORDER.map((r) => (
               <SelectItem key={r} value={r}>
                 {roleLabel(t, r)}
               </SelectItem>
             ))}
-            <SelectItem value="none">{i18n.language === "pl" ? "Bez roli" : "No role"}</SelectItem>
+            <SelectItem value="none">{t("adminUsers.role")}</SelectItem>
           </SelectContent>
         </Select>
 
@@ -572,12 +561,8 @@ function Users() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">
-              {i18n.language === "pl" ? "Wszystkie subskrypcje" : "All subscriptions"}
-            </SelectItem>
-            <SelectItem value="none">
-              {i18n.language === "pl" ? "Bez subskrypcji" : "No subscription"}
-            </SelectItem>
+            <SelectItem value="all">{t("adminUsers.allSubscriptions")}</SelectItem>
+            <SelectItem value="none">{t("adminUsers.subscription")}</SelectItem>
             {planOptions.map((p) => (
               <SelectItem key={p} value={p}>
                 {p}
@@ -591,17 +576,13 @@ function Users() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">
-              {i18n.language === "pl" ? "Wszystkie statusy" : "All statuses"}
-            </SelectItem>
+            <SelectItem value="all">{t("adminUsers.allStatuses")}</SelectItem>
             {SUB_STATUSES.map((s) => (
               <SelectItem key={s} value={s}>
-                {statusLabel(i18n.language, s)}
+                {statusLabel(t, s)}
               </SelectItem>
             ))}
-            <SelectItem value="none">
-              {i18n.language === "pl" ? "Bez subskrypcji" : "No subscription"}
-            </SelectItem>
+            <SelectItem value="none">{t("adminUsers.subscription")}</SelectItem>
           </SelectContent>
         </Select>
 
@@ -610,27 +591,17 @@ function Users() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="none">
-              {i18n.language === "pl" ? "Bez grupowania" : "No grouping"}
-            </SelectItem>
-            <SelectItem value="role">
-              {i18n.language === "pl" ? "Grupuj wg roli" : "Group by role"}
-            </SelectItem>
-            <SelectItem value="sub_plan">
-              {i18n.language === "pl" ? "Grupuj wg planu" : "Group by plan"}
-            </SelectItem>
-            <SelectItem value="sub_status">
-              {i18n.language === "pl"
-                ? "Grupuj wg statusu subskrypcji"
-                : "Group by subscription status"}
-            </SelectItem>
+            <SelectItem value="none">{t("adminUsers.grouping")}</SelectItem>
+            <SelectItem value="role">{t("adminUsers.groupRole")}</SelectItem>
+            <SelectItem value="sub_plan">{t("adminUsers.groupPlan")}</SelectItem>
+            <SelectItem value="sub_status">{t("adminUsers.groupSubscriptionStatus")}</SelectItem>
           </SelectContent>
         </Select>
 
         {filtersActive && (
           <Button variant="ghost" size="sm" onClick={clearFilters} className="h-8 text-xs">
             <X className="w-3.5 h-3.5 mr-1" />
-            {i18n.language === "pl" ? "Wyczyść" : "Clear"}
+            {t("adminUsers.clear")}
           </Button>
         )}
 
@@ -642,13 +613,13 @@ function Users() {
       {selected.size > 0 && (
         <div className="flex flex-wrap items-center gap-2 mb-3 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2 text-xs">
           <span className="font-medium tabular-nums">
-            {selected.size} {i18n.language === "pl" ? "zaznaczonych" : "selected"}
+            {selected.size} {t("adminUsers.selected")}
           </span>
           <span className="mx-1 h-4 w-px bg-border" />
 
           <Select value={bulkRole} onValueChange={(v) => setBulkRole(v as Role)}>
             <SelectTrigger className="h-8 w-[160px] text-xs">
-              <SelectValue placeholder={i18n.language === "pl" ? "Zmień rolę…" : "Change role…"} />
+              <SelectValue placeholder={t("adminUsers.bulkChangeRole")} />
             </SelectTrigger>
             <SelectContent>
               {isSuperAdmin && (
@@ -668,7 +639,7 @@ function Users() {
             onClick={openBulkRoleConfirm}
           >
             <UserCog className="w-3.5 h-3.5 mr-1" />
-            {i18n.language === "pl" ? "Zastosuj rolę" : "Apply role"}
+            {t("adminUsers.applyRole")}
           </Button>
 
           <Button
@@ -679,7 +650,7 @@ function Users() {
             onClick={bulkResendInvites}
           >
             <Send className="w-3.5 h-3.5 mr-1" />
-            {i18n.language === "pl" ? "Wyślij ponownie zaproszenia" : "Resend invitations"}
+            {t("adminUsers.resendInvitations")}
           </Button>
 
           <Button
@@ -690,7 +661,7 @@ function Users() {
             disabled={bulkBusy}
           >
             <X className="w-3.5 h-3.5 mr-1" />
-            {i18n.language === "pl" ? "Wyczyść zaznaczenie" : "Clear selection"}
+            {t("adminUsers.clearSelection")}
           </Button>
         </div>
       )}
@@ -698,13 +669,12 @@ function Users() {
       <Dialog open={roleConfirmOpen} onOpenChange={setRoleConfirmOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {i18n.language === "pl" ? "Potwierdź zmianę roli" : "Confirm role change"}
-            </DialogTitle>
+            <DialogTitle>{t("adminUsers.confirmRoleChange")}</DialogTitle>
             <DialogDescription>
-              {i18n.language === "pl"
-                ? `Wybranych użytkowników: ${selected.size}. Rola, którą otrzymają: ${bulkRole ? roleLabel(t, bulkRole) : "-"}.`
-                : `Selected users: ${selected.size}. Role they will receive: ${bulkRole ? roleLabel(t, bulkRole) : "-"}.`}
+              {t("adminUsers.bulkRoleSummary", {
+                count: selected.size,
+                role: bulkRole ? roleLabel(t, bulkRole) : "-",
+              })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -714,10 +684,10 @@ function Users() {
               onClick={() => setRoleConfirmOpen(false)}
               disabled={bulkBusy}
             >
-              {i18n.language === "pl" ? "Anuluj" : "Cancel"}
+              {t("adminUsers.cancel")}
             </Button>
             <Button size="sm" onClick={applyBulkRole} disabled={bulkBusy}>
-              {i18n.language === "pl" ? "Tak, zmień rolę" : "Yes, change role"}
+              {t("adminUsers.yesChangeRole")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -733,7 +703,7 @@ function Users() {
                     allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false
                   }
                   onCheckedChange={toggleAllVisible}
-                  aria-label={i18n.language === "pl" ? "Zaznacz wszystkie" : "Select all"}
+                  aria-label={t("adminUsers.selectAll")}
                 />
               </th>
               <th
@@ -757,9 +727,7 @@ function Users() {
                 {t("admin.users.role")}
                 <SortIcon k="role" />
               </th>
-              <th className="text-left p-3">
-                {i18n.language === "pl" ? "Subskrypcja" : "Subscription"}
-              </th>
+              <th className="text-left p-3">{t("adminUsers.subscription2")}</th>
               <th
                 className="text-left p-3 cursor-pointer select-none"
                 onClick={() => toggleSort("created_at")}
@@ -870,7 +838,7 @@ function Users() {
                               variant={statusVariant(sub.status as SubStatus)}
                               className="text-[10px]"
                             >
-                              {statusLabel(i18n.language, sub.status as SubStatus)}
+                              {statusLabel(t, sub.status as SubStatus)}
                             </Badge>
                           </div>
                         ) : (
@@ -888,19 +856,11 @@ function Users() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            title={
-                              i18n.language === "pl"
-                                ? "Zaloguj jako tego użytkownika"
-                                : "Sign in as this user"
-                            }
+                            title={t("adminUsers.signUser")}
                             onClick={async () => {
                               try {
                                 await impersonateUser(u.id, u.display_name ?? u.email ?? u.id);
-                                toast.success(
-                                  i18n.language === "pl"
-                                    ? "Tryb podglądu aktywny"
-                                    : "Impersonation active",
-                                );
+                                toast.success(t("adminUsers.impersonationActive"));
                                 window.location.assign("/profile");
                               } catch (e) {
                                 toast.error(e instanceof Error ? e.message : "Error");
@@ -926,7 +886,7 @@ function Users() {
             {sorted.length === 0 && (
               <tr>
                 <td colSpan={7} className="p-6 text-center text-sm text-muted-foreground">
-                  {i18n.language === "pl" ? "Brak wyników" : "No results"}
+                  {t("adminUsers.results")}
                 </td>
               </tr>
             )}

@@ -4,6 +4,9 @@ import { BrandIcon } from "@/components/icons/BrandIcon";
 
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-users";
+import { ROLE_LABEL_KEYS } from "@/lib/authz/roleLabels";
+import type { AppRole } from "@/lib/authz/roles";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 
@@ -52,7 +55,7 @@ export const Route = createFileRoute("/admin/users/$id")({
   component: UserDetail,
 });
 
-type Role = "super_admin" | "admin" | "editor" | "author" | "user";
+type Role = AppRole;
 const ASSIGNABLE_ROLES: readonly Role[] = ["admin", "editor", "author", "user"];
 
 function UserDetail() {
@@ -62,8 +65,6 @@ function UserDetail() {
   const navigate = useNavigate();
   const { user, isAdmin, isSuperAdmin, tenantId } = useAuth();
   const locale = uiLocale(i18n.language);
-  const isPL = i18n.language === "pl";
-  const L = (pl: string, en: string) => (isPL ? pl : en);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["admin-user", id],
@@ -97,9 +98,9 @@ function UserDetail() {
   if (error || !data) {
     return (
       <div className="max-w-2xl">
-        <BackLink label={L("Wróć do listy", "Back to list")} />
+        <BackLink label={t("adminUsers.backList")} />
         <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground mt-4">
-          {L("Nie znaleziono użytkownika.", "User not found.")}
+          {t("adminUsers.userFound")}
         </div>
       </div>
     );
@@ -111,7 +112,7 @@ function UserDetail() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
-        <BackLink label={L("Wróć do listy", "Back to list")} />
+        <BackLink label={t("adminUsers.backList")} />
         <div className="flex items-center gap-2">
           {isSuperAdmin && data.id !== user?.id && (
             <Button
@@ -120,7 +121,7 @@ function UserDetail() {
               onClick={async () => {
                 try {
                   await impersonateUser(data.id, data.display_name ?? data.email ?? data.id);
-                  toast.success(L("Tryb podglądu aktywny", "Impersonation active"));
+                  toast.success(t("adminUsers.impersonationActive"));
                   window.location.assign("/profile");
                 } catch (e) {
                   toast.error(e instanceof Error ? e.message : "Error");
@@ -128,7 +129,7 @@ function UserDetail() {
               }}
             >
               <UserCog className="w-4 h-4 mr-2" />
-              {L("Zaloguj jako", "Sign in as")}
+              {t("adminUsers.sign")}
             </Button>
           )}
           {data.slug && (
@@ -138,7 +139,7 @@ function UserDetail() {
               rel="noreferrer"
               className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
             >
-              {L("Profil publiczny", "Public profile")}
+              {t("adminUsers.publicProfile")}
               <ExternalLink className="w-3.5 h-3.5" />
             </a>
           )}
@@ -159,7 +160,7 @@ function UserDetail() {
             avatarUrl={data.avatar_url}
             canEdit={isSuperAdmin}
             onUpdated={() => qc.invalidateQueries({ queryKey: ["admin-user", id] })}
-            label={L("Zmień zdjęcie", "Change photo")}
+            label={t("adminUsers.changePhoto")}
           />
 
           <div className="flex-1 min-w-0">
@@ -197,15 +198,17 @@ function UserDetail() {
             ) : (
               <Select value={data.roles[0] ?? ""} onValueChange={(v) => changeRole(v as Role)}>
                 <SelectTrigger className="w-44">
-                  <SelectValue placeholder={L("Zmień rolę", "Change role")} />
+                  <SelectValue placeholder={t("adminUsers.changeRole")} />
                 </SelectTrigger>
                 <SelectContent>
-                  {isSuperAdmin && <SelectItem value="super_admin">Super admin</SelectItem>}
+                  {isSuperAdmin && (
+                    <SelectItem value="super_admin">
+                      {t("admin.users.roles.super_admin")}
+                    </SelectItem>
+                  )}
                   {ASSIGNABLE_ROLES.map((r) => (
                     <SelectItem key={r} value={r}>
-                      {t(`admin.users.roles.${r}`, {
-                        defaultValue: r.charAt(0).toUpperCase() + r.slice(1),
-                      })}
+                      {t(ROLE_LABEL_KEYS[r])}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -218,50 +221,50 @@ function UserDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left: about */}
         <section className="lg:col-span-2 space-y-6">
-          <Card title={L("Informacje", "Details")}>
+          <Card title={t("adminUsers.details")}>
             <InfoRow
               icon={<Briefcase className="w-4 h-4" />}
-              label={L("Stanowisko", "Job title")}
+              label={t("adminUsers.jobTitle")}
               value={data.job_title}
             />
             <InfoRow
               icon={<Briefcase className="w-4 h-4" />}
-              label={L("Firma", "Company")}
+              label={t("adminUsers.company")}
               value={data.current_company}
             />
             <InfoRow
               icon={<Briefcase className="w-4 h-4" />}
-              label={L("Specjalizacja", "Specialization")}
+              label={t("adminUsers.specialization")}
               value={data.specialization}
             />
             <InfoRow
               icon={<MapPin className="w-4 h-4" />}
-              label={L("Lokalizacja", "Location")}
+              label={t("adminUsers.location")}
               value={data.location}
             />
             <InfoRow icon={<Mail className="w-4 h-4" />} label="Email" value={data.email} isEmail />
             <InfoRow
               icon={<Mail className="w-4 h-4" />}
-              label={L("Email kontaktowy", "Contact email")}
+              label={t("adminUsers.contactEmail")}
               value={data.contact_email}
               isEmail
             />
             <InfoRow
               icon={<Phone className="w-4 h-4" />}
-              label={L("Telefon", "Phone")}
+              label={t("adminUsers.phone")}
               value={data.phone}
             />
           </Card>
 
           {(data.bio || data.bio_pl || data.bio_en) && (
-            <Card title={L("Biogram", "Bio")}>
-              {data.bio && <Field label={L("Krótki opis", "Summary")} value={data.bio} multiline />}
+            <Card title={t("adminUsers.bio")}>
+              {data.bio && <Field label={t("adminUsers.summary")} value={data.bio} multiline />}
               {data.bio_pl && <Field label="Bio (PL)" value={data.bio_pl} multiline />}
               {data.bio_en && <Field label="Bio (EN)" value={data.bio_en} multiline />}
             </Card>
           )}
 
-          <Card title={L("Media społecznościowe", "Social media")}>
+          <Card title={t("adminUsers.socialMedia")}>
             <SocialRow
               icon={<BrandIcon name="website" fallback={<Globe className="w-4 h-4" />} />}
               label="Website"
@@ -297,7 +300,7 @@ function UserDetail() {
 
         {/* Right: meta */}
         <aside className="space-y-6">
-          <Card title={L("Metadane", "Metadata")}>
+          <Card title={t("adminUsers.metadata")}>
             <Field label="ID" value={data.id} mono />
             <Field label="Slug" value={data.slug} />
             <Field
@@ -306,37 +309,37 @@ function UserDetail() {
             />
             {data.updated_at && (
               <Field
-                label={L("Aktualizacja", "Updated")}
+                label={t("adminUsers.updated")}
                 value={new Date(data.updated_at).toLocaleString(locale)}
               />
             )}
-            {data.gender && <Field label={L("Płeć", "Gender")} value={String(data.gender)} />}
+            {data.gender && <Field label={t("adminUsers.gender")} value={String(data.gender)} />}
           </Card>
 
-          <Card title={L("Weryfikacja zawodowa", "Professional verification")}>
-            <VerificationAdminToggle userId={data.id} isPL={isPL} canEdit={isAdmin} />
+          <Card title={t("adminUsers.professionalVerification")}>
+            <VerificationAdminToggle userId={data.id} canEdit={isAdmin} />
           </Card>
 
-          <Card title={L("Odznaki", "Badges")}>
+          <Card title={t("adminUsers.badges")}>
             <BadgesEditor userId={data.id} />
           </Card>
 
-          <Card title={L("Zgody prywatności", "Privacy consent")}>
-            <UserConsentPanel userId={data.id} isPL={isPL} />
+          <Card title={t("adminUsers.privacyConsent")}>
+            <UserConsentPanel userId={data.id} />
           </Card>
 
-          <Card title={L("Zapytania do eksperta", "Expert requests")}>
-            <ExpertRequestsAdminToggle userId={data.id} isPL={isPL} />
+          <Card title={t("adminUsers.expertRequests")}>
+            <ExpertRequestsAdminToggle userId={data.id} />
           </Card>
 
-          <Card title={L("Akcje", "Actions")}>
+          <Card title={t("adminUsers.actions")}>
             <div className="flex flex-col gap-2">
               <Link to="/admin/users" className="text-sm text-primary hover:underline">
-                {L("Wszyscy użytkownicy", "All users")}
+                {t("adminUsers.allUsers")}
               </Link>
               <Button variant="outline" size="sm" onClick={() => navigate({ to: "/admin/users" })}>
                 <ArrowLeft className="w-4 h-4 mr-2" />
-                {L("Wróć", "Back")}
+                {t("adminUsers.back")}
               </Button>
             </div>
           </Card>
@@ -347,7 +350,7 @@ function UserDetail() {
           RLS pozwala adminowi na zapis do author_profiles + profiles w tenancie. */}
       <div className="rounded-xl border border-border bg-card p-5">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-4 m-0">
-          {L("Profil eksperta (edycja)", "Expert profile (edit)")}
+          {t("adminUsers.expertProfileEdit")}
         </h2>
         <AuthorProfileEditor userId={data.id} tenantId={tenantId ?? null} mode="admin" />
       </div>
@@ -589,7 +592,7 @@ function AvatarEditor({
 // Nadawanie/odbieranie odznak profilowych (verified/expert/contributor/staff).
 // Nadanie triggeruje w DB powiadomienie do użytkownika.
 function BadgesEditor({ userId }: { userId: string }) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
   const qc = useQueryClient();
   const badgesQ = useUserBadges(userId);
@@ -604,7 +607,7 @@ function BadgesEditor({ userId }: { userId: string }) {
       }
       await qc.invalidateQueries({ queryKey: ["profile-badges"] });
     } catch {
-      toast.error(lang === "pl" ? "Nie udało się zmienić odznaki" : "Could not update the badge");
+      toast.error(t("adminUsers.couldUpdateBadge"));
     }
   };
 
@@ -643,16 +646,8 @@ function BadgesEditor({ userId }: { userId: string }) {
 // 20260806130000). `canEdit` to klientowe odbicie TEGO SAMEGO zbioru rol:
 // /admin jest otwarty dla is_staff (także editor/author), więc bez tego
 // przełącznik odpowiadałby edytorowi surowym 42501.
-function VerificationAdminToggle({
-  userId,
-  isPL,
-  canEdit,
-}: {
-  userId: string;
-  isPL: boolean;
-  canEdit: boolean;
-}) {
-  const L = (pl: string, en: string) => (isPL ? pl : en);
+function VerificationAdminToggle({ userId, canEdit }: { userId: string; canEdit: boolean }) {
+  const { t } = useTranslation();
   const locale = uiLocale(useLang());
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
@@ -683,7 +678,7 @@ function VerificationAdminToggle({
       toast.error(error.message);
       return;
     }
-    toast.success(L("Zapisano", "Saved"));
+    toast.success(t("adminUsers.saved"));
     qc.invalidateQueries({ queryKey: ["admin-user-verification", userId] });
   };
 
@@ -695,37 +690,27 @@ function VerificationAdminToggle({
             <BadgeCheck
               className={`w-4 h-4 shrink-0 ${verifiedAt ? "text-primary" : "text-muted-foreground"}`}
             />
-            {L("Profil zweryfikowany", "Profile verified")}
+            {t("adminUsers.profileVerified")}
           </p>
           <p className="text-xs text-muted-foreground">
             {verifiedAt
-              ? L(
-                  `Zweryfikowany ${new Date(verifiedAt).toLocaleString(locale)}`,
-                  `Verified on ${new Date(verifiedAt).toLocaleString(locale)}`,
-                )
-              : L(
-                  "Steruje odznaką w katalogu osób i filtrem „tylko zweryfikowani”.",
-                  'Drives the directory badge and the "verified only" filter.',
-                )}
+              ? t("adminUsers.verifiedAt", {
+                  at: new Date(verifiedAt).toLocaleString(locale),
+                })
+              : t("adminUsers.verificationDrivesBadge")}
           </p>
         </div>
         <Switch
           checked={verifiedAt !== null}
           disabled={!canEdit || q.isLoading || busy}
           onCheckedChange={(v) => void setVerified(v)}
-          aria-label={L("Weryfikacja zawodowa", "Professional verification")}
+          aria-label={t("adminUsers.professionalVerification")}
         />
       </div>
       <p className="text-xs text-muted-foreground m-0">
         {canEdit
-          ? L(
-              "Nadanie ręczne jest niezależne od weryfikacji po domenie e-mail - przegląd zbiorczy nie cofa decyzji administratora.",
-              "A manual grant is independent of e-mail domain verification - the bulk review does not undo an administrator's decision.",
-            )
-          : L(
-              "Zmiana wymaga roli admin lub super admin.",
-              "Changing this requires the admin or super admin role.",
-            )}
+          ? t("adminUsers.manualGrantIndependentEMail")
+          : t("adminUsers.changingRequiresAdminSuperAdmin")}
       </p>
     </div>
   );
@@ -735,8 +720,8 @@ function VerificationAdminToggle({
 // tego użytkownika. Odczyt wprost z profiles (admin=staff, RLS pozwala), zapis
 // przez SECURITY DEFINER admin_set_expert_requests_enabled (profiles UPDATE jest
 // own-row only). Uzupełnia globalny przełącznik w /admin/community.
-function ExpertRequestsAdminToggle({ userId, isPL }: { userId: string; isPL: boolean }) {
-  const L = (pl: string, en: string) => (isPL ? pl : en);
+function ExpertRequestsAdminToggle({ userId }: { userId: string }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
   const q = useQuery({
@@ -766,28 +751,21 @@ function ExpertRequestsAdminToggle({ userId, isPL }: { userId: string; isPL: boo
       toast.error(error.message);
       return;
     }
-    toast.success(L("Zapisano", "Saved"));
+    toast.success(t("adminUsers.saved"));
     qc.invalidateQueries({ queryKey: ["admin-user-expert-requests", userId] });
   };
 
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
-        <p className="text-sm font-medium">
-          {L("Pokazuj przycisk zapytania", "Show request button")}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          {L(
-            'Przycisk "Zapytanie do eksperta" na profilu tego użytkownika.',
-            'The "Ask the expert" button on this user\'s profile.',
-          )}
-        </p>
+        <p className="text-sm font-medium">{t("adminUsers.showRequestButton")}</p>
+        <p className="text-xs text-muted-foreground">{t("adminUsers.askExpertButtonOnProfile")}</p>
       </div>
       <Switch
         checked={on}
         disabled={q.isLoading || busy}
         onCheckedChange={(v) => void setEnabled(v)}
-        aria-label={L("Zapytania do eksperta", "Expert requests")}
+        aria-label={t("adminUsers.expertRequests")}
       />
     </div>
   );
@@ -802,20 +780,20 @@ type UserConsentResult = {
   version?: string | null;
 } | null;
 
-function UserConsentPanel({ userId, isPL }: { userId: string; isPL: boolean }) {
-  const L = (pl: string, en: string) => (isPL ? pl : en);
-  const locale = uiLocale(useLang());
-  const CATS: {
-    key: "necessary" | "functional" | "analytics" | "marketing";
-    pl: string;
-    en: string;
-  }[] = [
-    { key: "necessary", pl: "Niezbędne", en: "Necessary" },
-    { key: "functional", pl: "Funkcjonalne", en: "Functional" },
-    { key: "analytics", pl: "Analityczne", en: "Analytics" },
-    { key: "marketing", pl: "Marketingowe", en: "Marketing" },
-  ];
+// Kategorie zgód w kolejności, w jakiej pokazuje je banner cookies
+// (`necessary` zawsze pierwsza). Klucze etykiet trzymamy jawnie zamiast sklejać
+// je z `key`: statyczny klucz widzi bramka dryfu `check:i18n-parity`, sklejony
+// nie - a brak tłumaczenia wyszedłby dopiero na produkcji.
+const CONSENT_CATEGORIES = [
+  { key: "necessary", labelKey: "adminUsers.consentNecessary" },
+  { key: "functional", labelKey: "adminUsers.consentFunctional" },
+  { key: "analytics", labelKey: "adminUsers.consentAnalytics" },
+  { key: "marketing", labelKey: "adminUsers.consentMarketing" },
+] as const;
 
+function UserConsentPanel({ userId }: { userId: string }) {
+  const { t } = useTranslation();
+  const locale = uiLocale(useLang());
   const { data, isLoading, error } = useQuery({
     queryKey: ["admin-user-consent", userId],
     queryFn: async (): Promise<UserConsentResult> => {
@@ -828,7 +806,7 @@ function UserConsentPanel({ userId, isPL }: { userId: string; isPL: boolean }) {
   });
 
   if (isLoading) {
-    return <div className="text-sm text-muted-foreground">{L("Ładowanie...", "Loading...")}</div>;
+    return <div className="text-sm text-muted-foreground">{t("adminUsers.loading")}</div>;
   }
   if (error) {
     return (
@@ -841,29 +819,27 @@ function UserConsentPanel({ userId, isPL }: { userId: string; isPL: boolean }) {
   const hasAny = data && (data.updated_at || Object.keys(cats).length > 0);
   if (!hasAny) {
     return (
-      <div className="text-sm text-muted-foreground">
-        {L("Użytkownik nie zapisał jeszcze zgód.", "User has not saved consent yet.")}
-      </div>
+      <div className="text-sm text-muted-foreground">{t("adminUsers.userHasSavedConsentYet")}</div>
     );
   }
 
   return (
     <div className="space-y-3">
       <ul className="space-y-1.5">
-        {CATS.map((c) => {
+        {CONSENT_CATEGORIES.map((c) => {
           const on = !!cats[c.key];
           return (
             <li
               key={c.key}
               className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2 text-sm"
             >
-              <span>{isPL ? c.pl : c.en}</span>
+              <span>{t(c.labelKey)}</span>
               <span
                 className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
                   on ? "bg-emerald-500/15 text-emerald-700" : "bg-muted text-muted-foreground"
                 }`}
               >
-                {on ? L("Zgoda", "Granted") : L("Brak", "Denied")}
+                {on ? t("adminUsers.granted") : t("adminUsers.denied")}
               </span>
             </li>
           );
@@ -872,12 +848,12 @@ function UserConsentPanel({ userId, isPL }: { userId: string; isPL: boolean }) {
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
         {data?.updated_at && (
           <span>
-            {L("Aktualizacja:", "Updated:")} {new Date(data.updated_at).toLocaleString(locale)}
+            {t("adminUsers.updated2")} {new Date(data.updated_at).toLocaleString(locale)}
           </span>
         )}
         {data?.version && (
           <span>
-            {L("Wersja:", "Version:")} {data.version}
+            {t("adminUsers.version")} {data.version}
           </span>
         )}
       </div>

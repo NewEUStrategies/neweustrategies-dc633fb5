@@ -11,6 +11,7 @@
  *    obserwowalności obok RUM.
  * Aktywna zakładka żyje w search params (?tab=errors), więc jest linkowalna.
  */
+// i18n-overlay-imports: pomijamy @/lib/i18n-admin-analytics (waga chunka - powód niżej)
 // UWAGA: bez side-effect importu "@/lib/i18n-admin-analytics" na poziomie
 // trasy - config trasy (validateSearch/head) siedzi w EAGER grafie routera,
 // więc taki import wciągnąłby cały słownik analityki do chunka wejściowego.

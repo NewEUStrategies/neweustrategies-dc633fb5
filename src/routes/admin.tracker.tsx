@@ -4,6 +4,8 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-tracker";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -80,9 +82,8 @@ function nullifyEmpty(value: string): string | null {
 }
 
 function AdminTrackerPage() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
-  const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
   const qc = useQueryClient();
 
   const itemsQ = useQuery({
@@ -107,9 +108,7 @@ function AdminTrackerPage() {
     mutationFn: () => runTick(),
     onSuccess: (res) => {
       const pushSent = typeof res.push === "object" && "sent" in res.push ? res.push.sent : 0;
-      toast.success(
-        L(`Tick uruchomiony. Wysłano push: ${pushSent}`, `Tick complete. Push sent: ${pushSent}`),
-      );
+      toast.success(t("adminTracker.tickComplete", { count: pushSent }));
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -156,7 +155,7 @@ function AdminTrackerPage() {
       }
     },
     onSuccess: () => {
-      toast.success(L("Zapisano dossier", "Dossier saved"));
+      toast.success(t("adminTracker.dossierSaved"));
       setEditingId(null);
       void qc.invalidateQueries({ queryKey: ["admin", "tracker-items"] });
       void qc.invalidateQueries({ queryKey: ["tracker"] });
@@ -170,20 +169,17 @@ function AdminTrackerPage() {
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold">
             <Landmark className="h-6 w-6" aria-hidden="true" />
-            {L("Tracker legislacyjny UE", "EU legislative tracker")}
+            {t("adminTracker.euLegislativeTracker")}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {L(
-              "Dossier, ich etapy i oś czasu aktualizacji. Aktualizacja z etapem powiadamia obserwujących.",
-              "Dossiers, their stages and update timeline. A staged update notifies followers.",
-            )}
+            {t("adminTracker.dossiersTheirStagesUpdateTimeline")}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" asChild>
             <Link to="/admin/tracker-guide">
               <BookOpen className="mr-1.5 h-4 w-4" aria-hidden="true" />
-              {L("Jak to działa?", "How it works?")}
+              {t("adminTracker.howWorks")}
             </Link>
           </Button>
           <Button
@@ -195,11 +191,11 @@ function AdminTrackerPage() {
               className={`mr-1.5 h-4 w-4 ${runTickMut.isPending ? "animate-spin" : ""}`}
               aria-hidden="true"
             />
-            {L("Uruchom tick teraz", "Run tick now")}
+            {t("adminTracker.runTickNow")}
           </Button>
           <Button onClick={startNew}>
             <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
-            {L("Nowe dossier", "New dossier")}
+            {t("adminTracker.newDossier")}
           </Button>
         </div>
       </header>
@@ -208,9 +204,7 @@ function AdminTrackerPage() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">
-              {editingId === "new"
-                ? L("Nowe dossier", "New dossier")
-                : L("Edycja dossier", "Edit dossier")}
+              {editingId === "new" ? t("adminTracker.newDossier") : t("adminTracker.editDossier")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -222,7 +216,7 @@ function AdminTrackerPage() {
                   placeholder="ai-act"
                 />
               </Field>
-              <Field label={L("Referencja", "Reference")}>
+              <Field label={t("adminTracker.reference")}>
                 <Input
                   value={draft.reference}
                   onChange={(e) => set({ reference: e.target.value })}
@@ -251,7 +245,7 @@ function AdminTrackerPage() {
               </Field>
             </div>
             <div className="grid gap-3 md:grid-cols-4">
-              <Field label={L("Obszar", "Area")}>
+              <Field label={t("adminTracker.area")}>
                 <Select value={draft.policy_area} onValueChange={(v) => set({ policy_area: v })}>
                   <SelectTrigger>
                     <SelectValue />
@@ -265,7 +259,7 @@ function AdminTrackerPage() {
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label={L("Etap", "Stage")}>
+              <Field label={t("adminTracker.stage")}>
                 <Select value={draft.stage} onValueChange={(v) => set({ stage: v })}>
                   <SelectTrigger>
                     <SelectValue />
@@ -279,7 +273,7 @@ function AdminTrackerPage() {
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label={L("Waga", "Importance")}>
+              <Field label={t("adminTracker.importance")}>
                 <Select
                   value={String(draft.importance)}
                   onValueChange={(v) => set({ importance: Number(v) })}
@@ -288,9 +282,9 @@ function AdminTrackerPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1">1 — {L("niska", "low")}</SelectItem>
-                    <SelectItem value="2">2 — {L("średnia", "medium")}</SelectItem>
-                    <SelectItem value="3">3 — {L("kluczowa", "key")}</SelectItem>
+                    <SelectItem value="1">1 — {t("adminTracker.low")}</SelectItem>
+                    <SelectItem value="2">2 — {t("adminTracker.medium")}</SelectItem>
+                    <SelectItem value="3">3 — {t("adminTracker.key")}</SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
@@ -308,21 +302,21 @@ function AdminTrackerPage() {
               </Field>
             </div>
             <div className="grid gap-3 md:grid-cols-3">
-              <Field label={L("Sprawozdawca", "Rapporteur")}>
+              <Field label={t("adminTracker.rapporteur")}>
                 <Input
                   value={draft.rapporteur}
                   onChange={(e) => set({ rapporteur: e.target.value })}
                   placeholder="Jan Kowalski (EPP)"
                 />
               </Field>
-              <Field label={L("Komisja wiodąca", "Lead committee")}>
+              <Field label={t("adminTracker.leadCommittee")}>
                 <Input
                   value={draft.committee}
                   onChange={(e) => set({ committee: e.target.value })}
                   placeholder="LIBE"
                 />
               </Field>
-              <Field label={L("DG Komisji", "Commission DG")}>
+              <Field label={t("adminTracker.commissionDg")}>
                 <Input
                   value={draft.lead_dg}
                   onChange={(e) => set({ lead_dg: e.target.value })}
@@ -331,28 +325,28 @@ function AdminTrackerPage() {
               </Field>
             </div>
             <div className="grid gap-3 md:grid-cols-3">
-              <Field label={L("Nast. kamień PL", "Next milestone PL")}>
+              <Field label={t("adminTracker.nextMilestonePl")}>
                 <Input
                   value={draft.next_milestone_pl}
                   onChange={(e) => set({ next_milestone_pl: e.target.value })}
                 />
               </Field>
-              <Field label={L("Nast. kamień EN", "Next milestone EN")}>
+              <Field label={t("adminTracker.nextMilestoneEn")}>
                 <Input
                   value={draft.next_milestone_en}
                   onChange={(e) => set({ next_milestone_en: e.target.value })}
                 />
               </Field>
-              <Field label={L("Data kamienia", "Milestone date")}>
+              <Field label={t("adminTracker.milestoneDate")}>
                 <AdminDatePicker
                   value={draft.next_milestone_at || null}
                   onChange={(v) => set({ next_milestone_at: v ?? "" })}
                   lang={lang}
-                  aria-label={L("Data kamienia", "Milestone date")}
+                  aria-label={t("adminTracker.milestoneDate")}
                 />
               </Field>
             </div>
-            <Field label={L("Źródło (URL)", "Source (URL)")}>
+            <Field label={t("adminTracker.sourceUrl")}>
               <Input
                 value={draft.source_url}
                 onChange={(e) => set({ source_url: e.target.value })}
@@ -361,10 +355,10 @@ function AdminTrackerPage() {
             <div className="flex gap-2">
               <Button disabled={saveItem.isPending} onClick={() => saveItem.mutate()}>
                 <Save className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                {L("Zapisz", "Save")}
+                {t("adminTracker.save")}
               </Button>
               <Button variant="ghost" onClick={() => setEditingId(null)}>
-                {L("Anuluj", "Cancel")}
+                {t("adminTracker.cancel")}
               </Button>
             </div>
           </CardContent>
@@ -380,7 +374,7 @@ function AdminTrackerPage() {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span className="truncate text-sm font-medium">
-                  {lang === "pl" ? it.title_pl : it.title_en}
+                  {pickLocalized(it, "title", lang)}
                 </span>
                 <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px]">
                   {it.status}
@@ -392,15 +386,15 @@ function AdminTrackerPage() {
             </div>
             <div className="flex shrink-0 gap-2">
               <Button variant="outline" size="sm" onClick={() => startEdit(it)}>
-                {L("Edytuj", "Edit")}
+                {t("adminTracker.edit")}
               </Button>
-              <PositionsButton itemId={it.id} label={L("Stanowiska", "Positions")} />
+              <PositionsButton itemId={it.id} label={t("adminTracker.positions")} />
               <LinksButton
                 itemId={it.id}
                 allItems={itemsQ.data ?? []}
-                label={L("Powiązania", "Links")}
+                label={t("adminTracker.links")}
               />
-              <AddUpdateButton itemId={it.id} label={L("Aktualizacja", "Update")} />
+              <AddUpdateButton itemId={it.id} label={t("adminTracker.update")} />
             </div>
           </div>
         ))}
@@ -422,9 +416,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 // stanowiska nie jest zapisywany; wyczyszczenie istniejącego = DELETE.
 // tenant_id/updated_by przypina trigger eu_policy_position_pin w bazie.
 function PositionsButton({ itemId, label }: { itemId: string; label: string }) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
-  const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
 
@@ -509,7 +502,7 @@ function PositionsButton({ itemId, label }: { itemId: string; label: string }) {
       }
     },
     onSuccess: () => {
-      toast.success(L("Zapisano stanowiska", "Positions saved"));
+      toast.success(t("adminTracker.positionsSaved"));
       setOpen(false);
       void qc.invalidateQueries({ queryKey: ["admin", "tracker-positions", itemId] });
       void qc.invalidateQueries({ queryKey: ["tracker", "positions", itemId] });
@@ -529,23 +522,18 @@ function PositionsButton({ itemId, label }: { itemId: string; label: string }) {
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       role="dialog"
-      aria-label={L("Stanowiska państw członkowskich", "Member state positions")}
+      aria-label={t("adminTracker.memberStatePositions")}
     >
       <div className="flex max-h-[85vh] w-full max-w-3xl flex-col rounded-lg bg-background shadow-lg">
         <div className="border-b border-border/60 px-5 py-4">
-          <h3 className="text-base font-semibold">
-            {L("Stanowiska państw członkowskich", "Member state positions")}
-          </h3>
+          <h3 className="text-base font-semibold">{t("adminTracker.memberStatePositions")}</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {L(
-              "Wiersz bez stanowiska nie jest publikowany. Nota jest opcjonalna (max 500 znaków).",
-              "A row without a stance is not published. The note is optional (max 500 chars).",
-            )}
+            {t("adminTracker.rowWithoutStancePublishedNote")}
           </p>
         </div>
         <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-5 py-4">
           {existingQ.isLoading ? (
-            <p className="text-sm text-muted-foreground">{L("Wczytywanie...", "Loading...")}</p>
+            <p className="text-sm text-muted-foreground">{t("adminTracker.loading")}</p>
           ) : (
             EU_COUNTRIES.map((c) => {
               const row = rowFor(c.code);
@@ -556,11 +544,11 @@ function PositionsButton({ itemId, label }: { itemId: string; label: string }) {
                 >
                   <span className="text-sm font-medium">{lang === "en" ? c.en : c.pl}</span>
                   <Select value={row.stance} onValueChange={(v) => setRow(c.code, { stance: v })}>
-                    <SelectTrigger aria-label={`${c.code} — ${L("stanowisko", "stance")}`}>
+                    <SelectTrigger aria-label={`${c.code} — ${t("adminTracker.stance")}`}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">{L("— brak —", "— none —")}</SelectItem>
+                      <SelectItem value="none">{t("adminTracker.none")}</SelectItem>
                       {STANCE_META.map((s) => (
                         <SelectItem key={s.key} value={s.key}>
                           {lang === "en" ? s.en : s.pl}
@@ -571,7 +559,7 @@ function PositionsButton({ itemId, label }: { itemId: string; label: string }) {
                   <Input
                     value={row.note_pl}
                     maxLength={500}
-                    placeholder={L("Nota PL", "Note PL")}
+                    placeholder={t("adminTracker.notePl")}
                     aria-label={`${c.code} — nota PL`}
                     onChange={(e) => setRow(c.code, { note_pl: e.target.value })}
                   />
@@ -590,10 +578,10 @@ function PositionsButton({ itemId, label }: { itemId: string; label: string }) {
         <div className="flex gap-2 border-t border-border/60 px-5 py-4">
           <Button disabled={save.isPending || existingQ.isLoading} onClick={() => save.mutate()}>
             <Save className="mr-1.5 h-4 w-4" aria-hidden="true" />
-            {L("Zapisz stanowiska", "Save positions")}
+            {t("adminTracker.savePositions")}
           </Button>
           <Button variant="ghost" onClick={() => setOpen(false)}>
-            {L("Anuluj", "Cancel")}
+            {t("adminTracker.cancel")}
           </Button>
         </div>
       </div>
@@ -612,9 +600,8 @@ function LinksButton({
   allItems: PolicyItem[];
   label: string;
 }) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
-  const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [targetId, setTargetId] = useState("");
@@ -636,7 +623,7 @@ function LinksButton({
   const titleOf = (id: string) => {
     const it = allItems.find((i) => i.id === id);
     if (!it) return id;
-    return lang === "en" ? it.title_en || it.title_pl : it.title_pl || it.title_en;
+    return pickLocalized(it, "title", lang);
   };
 
   const addLink = useMutation({
@@ -695,11 +682,11 @@ function LinksButton({
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       role="dialog"
-      aria-label={L("Powiązane akty", "Related files")}
+      aria-label={t("adminTracker.relatedFiles")}
     >
       <div className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-lg bg-background shadow-lg">
         <div className="border-b border-border/60 px-5 py-4">
-          <h3 className="text-base font-semibold">{L("Powiązane akty", "Related files")}</h3>
+          <h3 className="text-base font-semibold">{t("adminTracker.relatedFiles")}</h3>
         </div>
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4">
           {(linksQ.data ?? []).map((l) => (
@@ -715,28 +702,28 @@ function LinksButton({
                 className="ml-auto shrink-0 text-destructive"
                 onClick={() => removeLink.mutate(l.related_item_id)}
               >
-                {L("Usuń", "Remove")}
+                {t("adminTracker.remove")}
               </Button>
             </div>
           ))}
           {(linksQ.data?.length ?? 0) === 0 && !linksQ.isLoading && (
-            <p className="text-sm text-muted-foreground">{L("Brak powiązań.", "No links yet.")}</p>
+            <p className="text-sm text-muted-foreground">{t("adminTracker.linksYet")}</p>
           )}
           <div className="grid gap-2 border-t border-border/60 pt-3 md:grid-cols-[1fr_10rem]">
             <Select value={targetId} onValueChange={setTargetId}>
-              <SelectTrigger aria-label={L("Dossier", "Dossier")}>
-                <SelectValue placeholder={L("Wybierz dossier", "Choose a dossier")} />
+              <SelectTrigger aria-label={t("adminTracker.dossier")}>
+                <SelectValue placeholder={t("adminTracker.chooseDossier")} />
               </SelectTrigger>
               <SelectContent>
                 {candidates.map((i) => (
                   <SelectItem key={i.id} value={i.id}>
-                    {lang === "en" ? i.title_en || i.title_pl : i.title_pl || i.title_en}
+                    {pickLocalized(i, "title", lang)}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <Select value={relation} onValueChange={setRelation}>
-              <SelectTrigger aria-label={L("Relacja", "Relation")}>
+              <SelectTrigger aria-label={t("adminTracker.relation")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -752,10 +739,10 @@ function LinksButton({
         <div className="flex gap-2 border-t border-border/60 px-5 py-4">
           <Button disabled={!targetId || addLink.isPending} onClick={() => addLink.mutate()}>
             <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
-            {L("Dodaj powiązanie", "Add link")}
+            {t("adminTracker.addLink")}
           </Button>
           <Button variant="ghost" onClick={() => setOpen(false)}>
-            {L("Zamknij", "Close")}
+            {t("adminTracker.close")}
           </Button>
         </div>
       </div>
@@ -765,9 +752,8 @@ function LinksButton({
 
 // Rozwijany formularz dodania wpisu do osi czasu dossier.
 function AddUpdateButton({ itemId, label }: { itemId: string; label: string }) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
-  const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [notePl, setNotePl] = useState("");
@@ -790,12 +776,7 @@ function AddUpdateButton({ itemId, label }: { itemId: string; label: string }) {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success(
-        L(
-          "Aktualizacja opublikowana — obserwujący dostali powiadomienie",
-          "Update published — followers were notified",
-        ),
-      );
+      toast.success(t("adminTracker.updatePublishedFollowersWereNotified"));
       setNotePl("");
       setNoteEn("");
       setStageTo("none");
@@ -822,22 +803,20 @@ function AddUpdateButton({ itemId, label }: { itemId: string; label: string }) {
       role="dialog"
     >
       <div className="w-full max-w-lg space-y-3 rounded-lg bg-background p-5 shadow-lg">
-        <h3 className="text-base font-semibold">{L("Dodaj aktualizację", "Add update")}</h3>
+        <h3 className="text-base font-semibold">{t("adminTracker.addUpdate")}</h3>
         <Field label="Notatka PL">
           <Textarea rows={2} value={notePl} onChange={(e) => setNotePl(e.target.value)} />
         </Field>
         <Field label="Note EN">
           <Textarea rows={2} value={noteEn} onChange={(e) => setNoteEn(e.target.value)} />
         </Field>
-        <Field label={L("Zmiana etapu (opcjonalnie)", "Stage change (optional)")}>
+        <Field label={t("adminTracker.stageChangeOptional")}>
           <Select value={stageTo} onValueChange={setStageTo}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">
-                {L("— bez zmiany etapu —", "— no stage change —")}
-              </SelectItem>
+              <SelectItem value="none">{t("adminTracker.stageChange")}</SelectItem>
               {STAGE_LABELS.map((s) => (
                 <SelectItem key={s.key} value={s.key}>
                   {lang === "pl" ? s.pl : s.en}
@@ -846,7 +825,7 @@ function AddUpdateButton({ itemId, label }: { itemId: string; label: string }) {
             </SelectContent>
           </Select>
         </Field>
-        <Field label={L("Źródło (URL)", "Source (URL)")}>
+        <Field label={t("adminTracker.sourceUrl")}>
           <Input value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} />
         </Field>
         <div className="flex gap-2">
@@ -854,10 +833,10 @@ function AddUpdateButton({ itemId, label }: { itemId: string; label: string }) {
             disabled={save.isPending || notePl.trim().length < 3 || noteEn.trim().length < 3}
             onClick={() => save.mutate()}
           >
-            {L("Opublikuj", "Publish")}
+            {t("adminTracker.publish")}
           </Button>
           <Button variant="ghost" onClick={() => setOpen(false)}>
-            {L("Anuluj", "Cancel")}
+            {t("adminTracker.cancel")}
           </Button>
         </div>
       </div>

@@ -245,14 +245,14 @@ liczbę: builder spoza wygenerowanych typów → `looseQuery`, wartość do json
 
 ## Stan końcowy
 
-| Miara                                     | 14.08 |    Po | Zmiana |
-| ----------------------------------------- | ----: | ----: | -----: |
-| `defaultValue:` przy `t()`                | 1 398 |     0 | −1 398 |
-| Ternaria `isPl ?`                         |   135 |     0 |   −135 |
-| Twarde znaczniki BCP-47                   |   297 |   177 |   −120 |
-| `check:i18n-hardcoded` (ratchet)          | 1 593 | 1 362 |   −231 |
-| `as unknown as` (produkcja, miara bramki) |   309 |   193 |   −116 |
-| Nowe bramki CI                            |     — |     2 |     +2 |
+| Miara                                     | 14.08 |  Po | Zmiana |
+| ----------------------------------------- | ----: | --: | -----: |
+| `defaultValue:` przy `t()`                | 1 398 |   0 | −1 398 |
+| Ternaria `isPl ?`                         |   135 |   0 |   −135 |
+| Twarde znaczniki BCP-47                   |   297 | 177 |   −120 |
+| `check:i18n-hardcoded` (ratchet)          | 1 593 | 931 |   −662 |
+| `as unknown as` (produkcja, miara bramki) |   309 | 201 |   −108 |
+| Nowe bramki CI                            |     - |   3 |     +3 |
 
 Zielone: `typecheck`, `lint`, pełna suita testów, wszystkie bramki `check:*`.
 
@@ -268,3 +268,89 @@ Zielone: `typecheck`, `lint`, pełna suita testów, wszystkie bramki `check:*`.
   raporty wypisują konkretne narzędzie dla każdej klasy.
 - **Zielony test na atrapie nie jest dowodem.** 47 testów przechodziło, bo
   atrapa `t` zwracała tekst, który sama dostała w argumencie.
+
+---
+
+## Runda druga - moduły administracyjne i trzecia bramka
+
+Po pierwszym wdrożeniu ratchet `check:i18n-hardcoded` stał na 1 362. Druga runda
+zdjęła cztery moduły w całości - każdy do zera:
+
+| Moduł                                               | Było |  Po |
+| --------------------------------------------------- | ---: | --: |
+| Rozliczenia (5 paneli, `i18n-admin-billing`)        |  134 |   0 |
+| Kupony (2 ekrany, `i18n-admin-coupons`)             |   84 |   0 |
+| Użytkownicy (2 ekrany, `i18n-admin-users`)          |   80 |   0 |
+| Organizacje (wcześniej, `i18n-admin-organizations`) |  133 |   0 |
+
+Poza samą konwersją wyszły z tego cztery defekty, których nie widziała ŻADNA
+bramka:
+
+**1. Napisy sklejane z liczbą.** `` `${ok} ${t("adminUsers.updated")}` `` renderuje
+po polsku „5 zmienione" i „1 błędów" - liczba wchodzi do zdania przed
+tłumaczeniem, więc formy gramatycznej nie da się poprawić w słowniku. Sześć
+takich miejsc przepisano na klucze z `count` i pełnym zestawem form
+(`_one/_few/_many/_other`).
+
+**2. Klucz, którego nie było.** `t(\`admin.users.roles.${r}\`)`z ratunkowym`defaultValue: r.charAt(0).toUpperCase() + r.slice(1)`. Klucza
+`admin.users.roles.\*`nie było w ŻADNYM słowniku, więc realnie renderował się
+zawsze`defaultValue`- angielski identyfikator z wielkiej litery („Editor",
+„Author") pokazywany również po polsku. Klucz sklejany jest przy tym niewidoczny
+dla bramki parytetu, więc ten brak nie miał jak się ujawnić. Etykiety ról stoją
+teraz w`src/lib/authz/roleLabels.ts`, obok kanonicznej listy `APP_ROLES`, a mapa
+jest domknięta po `AppRole` - dołożenie roli bez etykiety jest błędem kompilacji.
+
+**3. Język poza kluczem zapytania.** `plan_name` schodził z serwera już
+ZLOKALIZOWANY, a `queryKey` nie zawierał języka - po przełączeniu na angielski
+cache oddawał polskie nazwy planów aż do najbliższego unieważnienia. Dane
+wyglądały na świeże i były błędne.
+
+**4. Wywołanie klucza bez importu nakładki** - opisane niżej, bo doczekało się
+własnej bramki.
+
+### Bramka trzecia: `check:i18n-overlay-imports`
+
+Nakładki `src/lib/i18n-*.ts` rejestrują klucze EFEKTEM UBOCZNYM importu, a
+i18next na brak klucza nie rzuca wyjątkiem - zwraca sam klucz. Plik, który woła
+`t("adminUsers.inviteUser")` bez `import "@/lib/i18n-admin-users"`, renderuje
+działający na oko ekran pokazujący `adminUsers.inviteUser` zamiast tekstu.
+
+Nie widzi tego nic z dotychczasowej warstwy kontrolnej: `tsc` (bo `t()` bierze
+i zwraca `string`), `check:i18n-parity` (bo porównuje ZAWARTOŚĆ słowników, a
+klucz jest tam w obu językach), `check:i18n-hardcoded` (bo po konwersji napisów
+w kodzie nie ma), `check:i18n-default-value` (bo tekstu zapasowego też nie ma).
+Wszystkie świecą na zielono nad zepsutym ekranem. W tej sesji defekt złapał
+człowiek czytający diff - dwa razy, i za każdym razem z tego samego powodu:
+klucze wstawia codemod, a linijkę importu dopisuje się ręcznie.
+
+Dwie decyzje projektowe warte zapisania:
+
+- **Dopasowanie po PEŁNYM KLUCZU, nie po przestrzeni nazw.** Pierwsza wersja
+  pytała o pierwszy człon klucza i była nie do użycia: nakładki DOPISUJĄ gałęzie
+  do przestrzeni rdzennych (`i18n-admin-users` wnosi `admin.users.roles.*` do
+  przestrzeni `admin`, której właścicielem jest `src/lib/locale/pl.ts`), więc
+  kilkadziesiąt ekranów wołających zwykłe `t("admin.…")` wychodziło na wadliwe.
+- **Ratchet, nie próg zero.** Pierwszy pomiar dał 82 pliki - wszystkie DZIAŁAJĄ,
+  bo klucz dociera do nich importem pośrednim. Dopisanie tam importu wprost nie
+  jest darmowe: przesuwa słownik do chunka, w którym stoi plik. Repo ma trzy
+  miejsca, gdzie import pominięto ŚWIADOMIE właśnie z tego powodu (słownik
+  buildera to ~101 KB źródła, a moduły leżą w eager-owej ścieżce publicznego
+  chrome). Te trzy noszą teraz dyrektywę `// i18n-overlay-imports: pomijamy …`
+  stojącą przy powodzie, a nie w odległym pliku baseline'u. Zostało 80 pozycji,
+  które mogą tylko maleć; plik spoza listy musi mieć import wprost - a to
+  właśnie nowe pliki spod codemodu ten defekt produkowały.
+
+### Lekcja metodyczna: codemod, który cicho psuł
+
+Konwerter bliźniaków `L(pl, en)` rozszerzono o postać ternariusza
+(`i18n.language === "pl" ? "PL" : "EN"`). Na `admin.users.index.tsx` wziął
+`const lang = i18n.language === "pl" ? "pl" : "en"` za parę tłumaczeń i wstawił
+`t("adminUsers.en")` - ze słownikiem, w którym PL to `"pl"`, a EN to `"en"`.
+Kod działał przez przypadek i przechodził typecheck.
+
+Znalazł to nie test, tylko **audyt wyjścia konwertera**: przegląd wpisów, gdzie
+wartość PL równa się EN albo wygląda technicznie (krótka, sam małe litery). Na
+81 skonwertowanych par ten jeden był jedynym błędem - ale bez audytu wszedłby
+do repo. Wniosek do następnego codemodu: raport z konwersji trzeba przeglądać
+tak samo uważnie jak diff, bo klasa „para, która nie była tłumaczeniem" jest
+poza zasięgiem typów i testów.

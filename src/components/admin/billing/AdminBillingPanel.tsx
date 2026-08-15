@@ -5,6 +5,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-billing";
 import { AlertTriangle, BellRing, CreditCard, RefreshCcw, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
@@ -80,9 +81,8 @@ function StatusBadge({ value }: { value: string }) {
 }
 
 export function AdminBillingPanel() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
-  const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
   const [tab, setTab] = useState("subscriptions");
 
   const subsQ = useQuery({
@@ -127,10 +127,7 @@ export function AdminBillingPanel() {
     mutationFn: () => runReminders({ data: {} }),
     onSuccess: (r) =>
       toast.success(
-        L(
-          `Przypomnienia: ${r.renewal} odnowień, ${r.expiring} wygaśnięć`,
-          `Reminders: ${r.renewal} renewals, ${r.expiring} expirations`,
-        ),
+        t("adminBilling.remindersQueued", { renewal: r.renewal, expiring: r.expiring }),
       ),
     onError: (e: Error) => toast.error(e.message),
   });
@@ -149,10 +146,12 @@ export function AdminBillingPanel() {
     mutationFn: () => syncCatalog({ data: {} }),
     onSuccess: (r) =>
       toast.success(
-        L(
-          `Katalog zsynchronizowany: ${r.created} nowych, ${r.updated} zaktualizowanych, ${r.archived?.length ?? 0} zarchiwizowanych, ${r.failed} błędów`,
-          `Catalog synced: ${r.created} created, ${r.updated} updated, ${r.archived?.length ?? 0} archived, ${r.failed} failed`,
-        ),
+        t("adminBilling.catalogSynced", {
+          created: r.created,
+          updated: r.updated,
+          archived: r.archived?.length ?? 0,
+          failed: r.failed,
+        }),
       ),
 
     onError: (e: Error) => toast.error(e.message),
@@ -175,12 +174,12 @@ export function AdminBillingPanel() {
     if (!entry) return priceId;
     return `${entry.tierKey} · ${
       entry.interval === "year"
-        ? L("rocznie", "yearly")
+        ? t("adminBilling.yearly")
         : entry.interval === "quarter"
-          ? L("kwartalnie", "quarterly")
+          ? t("adminBilling.quarterly")
           : entry.interval === "two_weeks"
-            ? L("co 2 tygodnie", "every 2 weeks")
-            : L("miesięcznie", "monthly")
+            ? t("adminBilling.every2Weeks")
+            : t("adminBilling.monthly")
     }`;
   };
 
@@ -190,7 +189,7 @@ export function AdminBillingPanel() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-[0.8125rem] font-medium text-muted-foreground">
-              <Users className="h-4 w-4" /> {L("Aktywne subskrypcje", "Active subscriptions")}
+              <Users className="h-4 w-4" /> {t("adminBilling.activeSubscriptions")}
             </CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-semibold">{stats.active}</CardContent>
@@ -198,7 +197,7 @@ export function AdminBillingPanel() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-[0.8125rem] font-medium text-muted-foreground">
-              <AlertTriangle className="h-4 w-4" /> {L("Nieudane płatności", "Failed payments")}
+              <AlertTriangle className="h-4 w-4" /> {t("adminBilling.failedPayments")}
             </CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-semibold">{stats.dunning}</CardContent>
@@ -206,8 +205,7 @@ export function AdminBillingPanel() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-[0.8125rem] font-medium text-muted-foreground">
-              <CreditCard className="h-4 w-4" />{" "}
-              {L("Zaplanowane anulowania", "Scheduled cancellations")}
+              <CreditCard className="h-4 w-4" /> {t("adminBilling.scheduledCancellations")}
             </CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-semibold">{stats.canceling}</CardContent>
@@ -218,27 +216,21 @@ export function AdminBillingPanel() {
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-[0.8125rem] font-medium text-muted-foreground">
             <BellRing className="h-4 w-4" />
-            {L("Automatyczne przypomnienia", "Automated reminders")}
+            {t("adminBilling.automatedReminders")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-1 text-[0.8125rem]">
           <p className="text-muted-foreground">
-            {L(
-              "Harmonogram bazy uruchamia przypomnienia o odnowieniu i wygaśnięciu dostępu codziennie o 7:10 (3 dni wyprzedzenia).",
-              "The database scheduler sends renewal and access-expiry reminders daily at 07:10 (3-day lead time).",
-            )}
+            {t("adminBilling.databaseSchedulerSendsRenewalAccess")}
           </p>
           {runnerQ.data ? (
             runnerQ.data.enabled && runnerQ.data.base_url ? (
               <p className="text-emerald-700 dark:text-emerald-300">
-                {L("Harmonogram aktywny:", "Scheduler active:")} {runnerQ.data.base_url}
+                {t("adminBilling.schedulerActive")} {runnerQ.data.base_url}
               </p>
             ) : (
               <p className="text-amber-700 dark:text-amber-300">
-                {L(
-                  "Harmonogram nieaktywny - włącz „Job runner” (adres i sekret) w",
-                  "Scheduler inactive - enable the job runner (URL and secret) in",
-                )}{" "}
+                {t("adminBilling.schedulerInactiveEnableJobRunner")}{" "}
                 <Link to="/admin/newsletter/campaigns" className="underline">
                   /admin/newsletter/campaigns
                 </Link>
@@ -252,16 +244,11 @@ export function AdminBillingPanel() {
       <Card className="rounded-[6px]">
         <CardHeader className="pb-2">
           <CardTitle className="text-[0.9375rem]">
-            {L("Katalog produktów i cen", "Product and price catalog")}
+            {t("adminBilling.productPriceCatalog")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-1 pt-0 text-[0.8125rem] text-muted-foreground">
-          <p>
-            {L(
-              "Katalog odtwarza się automatycznie po restarcie integracji operatora oraz po wdrożeniu zmian w cenniku - przy pierwszym zdarzeniu webhooka lub przed pierwszym zakupem.",
-              "The catalog is rebuilt automatically after the payment integration restarts and after a pricing deployment - on the first webhook event or before the first purchase.",
-            )}
-          </p>
+          <p>{t("adminBilling.catalogRebuiltAutomaticallyAfterPayment")}</p>
           {catalogStateQ.data ? (
             <div className="flex flex-wrap items-center gap-2">
               <Badge
@@ -269,28 +256,28 @@ export function AdminBillingPanel() {
                 className="rounded-[6px]"
               >
                 {catalogStateQ.data.fingerprintCurrent
-                  ? L("Integracja zsynchronizowana", "Integration in sync")
-                  : L("Wykryto restart integracji", "Integration restart detected")}
+                  ? t("adminBilling.integrationSync")
+                  : t("adminBilling.integrationRestartDetected")}
               </Badge>
               <Badge
                 variant={catalogStateQ.data.catalogCurrent ? "secondary" : "outline"}
                 className="rounded-[6px]"
               >
                 {catalogStateQ.data.catalogCurrent
-                  ? L("Cennik aktualny", "Pricing up to date")
-                  : L("Zmiana cennika - sync w kolejce", "Pricing changed - sync queued")}
+                  ? t("adminBilling.pricingUpDate")
+                  : t("adminBilling.pricingChangedSyncQueued")}
               </Badge>
 
               <span>
                 {catalogStateQ.data.lastSyncedAt
-                  ? `${L("Ostatnia synchronizacja", "Last sync")}: ${new Date(
+                  ? `${t("adminBilling.lastSync")}: ${new Date(
                       catalogStateQ.data.lastSyncedAt,
                     ).toLocaleString(uiLocale(lang))}`
-                  : L("Jeszcze nie synchronizowano", "Not synced yet")}
+                  : t("adminBilling.syncedYet")}
               </span>
               {catalogStateQ.data.lastStatus ? (
                 <span>
-                  {L("Status", "Status")}: {catalogStateQ.data.lastStatus}
+                  {t("adminBilling.status")}: {catalogStateQ.data.lastStatus}
                 </span>
               ) : null}
               {catalogStateQ.data.lastError ? (
@@ -304,12 +291,12 @@ export function AdminBillingPanel() {
       <Tabs value={tab} onValueChange={setTab}>
         <div className="flex items-center justify-between gap-3">
           <TabsList>
-            <TabsTrigger value="subscriptions">{L("Subskrypcje", "Subscriptions")}</TabsTrigger>
-            <TabsTrigger value="orders">{L("Płatności", "Payments")}</TabsTrigger>
-            <TabsTrigger value="tickets">{L("Bilety", "Tickets")}</TabsTrigger>
+            <TabsTrigger value="subscriptions">{t("adminBilling.subscriptions")}</TabsTrigger>
+            <TabsTrigger value="orders">{t("adminBilling.payments")}</TabsTrigger>
+            <TabsTrigger value="tickets">{t("adminBilling.tickets")}</TabsTrigger>
 
-            <TabsTrigger value="events">{L("Dziennik zdarzeń", "Event log")}</TabsTrigger>
-            <TabsTrigger value="diagnostics">{L("Diagnostyka", "Diagnostics")}</TabsTrigger>
+            <TabsTrigger value="events">{t("adminBilling.eventLog")}</TabsTrigger>
+            <TabsTrigger value="diagnostics">{t("adminBilling.diagnostics")}</TabsTrigger>
           </TabsList>
           <div className="flex items-center gap-2">
             <Button
@@ -320,7 +307,7 @@ export function AdminBillingPanel() {
               onClick={() => remindersM.mutate()}
             >
               <BellRing className="mr-2 h-4 w-4" />
-              {L("Wyślij przypomnienia", "Send reminders")}
+              {t("adminBilling.sendReminders")}
             </Button>
             <Button
               variant="outline"
@@ -330,7 +317,7 @@ export function AdminBillingPanel() {
               onClick={() => catalogM.mutate()}
             >
               <RefreshCcw className="mr-2 h-4 w-4" />
-              {L("Synchronizuj katalog", "Sync catalog")}
+              {t("adminBilling.syncCatalog")}
             </Button>
             <Button
               variant="outline"
@@ -341,7 +328,7 @@ export function AdminBillingPanel() {
                 void eventsQ.refetch();
               }}
             >
-              <RefreshCcw className="mr-2 h-4 w-4" /> {L("Odśwież", "Refresh")}
+              <RefreshCcw className="mr-2 h-4 w-4" /> {t("adminBilling.refresh")}
             </Button>
           </div>
         </div>
@@ -356,23 +343,23 @@ export function AdminBillingPanel() {
                 </div>
               ) : rows.length === 0 ? (
                 <p className="p-6 text-[0.8125rem] text-muted-foreground">
-                  {L("Brak subskrypcji.", "No subscriptions yet.")}
+                  {t("adminBilling.subscriptionsYet")}
                 </p>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-[0.8125rem]">
                     <thead className="border-b bg-muted/40 text-left text-muted-foreground">
                       <tr>
-                        <th className="px-4 py-2 font-medium">{L("Plan", "Plan")}</th>
-                        <th className="px-4 py-2 font-medium">{L("Status", "Status")}</th>
-                        <th className="px-4 py-2 font-medium">{L("Okres do", "Period ends")}</th>
+                        <th className="px-4 py-2 font-medium">{t("adminBilling.plan")}</th>
+                        <th className="px-4 py-2 font-medium">{t("adminBilling.status")}</th>
+                        <th className="px-4 py-2 font-medium">{t("adminBilling.periodEnds")}</th>
                         <th className="px-4 py-2 font-medium">
-                          {L("Nieudane próby", "Failed attempts")}
+                          {t("adminBilling.failedAttempts")}
                         </th>
-                        <th className="px-4 py-2 font-medium">{L("Środowisko", "Environment")}</th>
+                        <th className="px-4 py-2 font-medium">{t("adminBilling.environment")}</th>
                         <th className="px-4 py-2 font-medium">ID</th>
                         <th className="px-4 py-2 font-medium text-right">
-                          {L("Portal klienta", "Customer portal")}
+                          {t("adminBilling.customerPortal")}
                         </th>
                       </tr>
                     </thead>
@@ -388,7 +375,7 @@ export function AdminBillingPanel() {
                               <StatusBadge value={r.status} />
                               {r.cancel_at_period_end ? (
                                 <span className="text-[0.75rem] text-muted-foreground">
-                                  {L("anulowanie", "canceling")}
+                                  {t("adminBilling.canceling")}
                                 </span>
                               ) : null}
                             </div>
@@ -411,7 +398,7 @@ export function AdminBillingPanel() {
                             <ResendPortalLinkButton
                               userId={r.user_id}
                               environment={r.environment === "live" ? "live" : "sandbox"}
-                              label={L("Wyślij link", "Send link")}
+                              label={t("adminBilling.sendLink")}
                             />
                           </td>
                         </tr>
