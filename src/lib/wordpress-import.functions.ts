@@ -728,7 +728,7 @@ export const runWpImportJob = createServerFn({ method: "POST" })
           const { data: existing } = await supabase
             .from("posts")
             .select(
-              "id, cover_image_url, title_pl, title_en, excerpt_pl, excerpt_en, blocks_data, builder_data",
+              "id, cover_image_url, editor, title_pl, title_en, excerpt_pl, excerpt_en, blocks_data, builder_data",
             )
             .eq("tenant_id", tenantId)
             .eq("slug", desiredSlug)
@@ -764,7 +764,7 @@ export const runWpImportJob = createServerFn({ method: "POST" })
               preserved_counterparts += 1;
               await logger.push(
                 "info",
-                `Kept existing ${merged.counterpart.toUpperCase()} version (title/excerpt/content): ${desiredSlug}`,
+                `Kept existing ${merged.counterpart.toUpperCase()} version from ${merged.counterpartSource}: ${desiredSlug}`,
                 wp.ID,
               );
             }
@@ -797,6 +797,7 @@ export const runWpImportJob = createServerFn({ method: "POST" })
                 cover_changed: prevCover !== coverUrl,
                 language: data.language,
                 counterpart_preserved: merged.counterpartPreserved,
+                counterpart_source: merged.counterpartSource,
               },
             });
           } else {

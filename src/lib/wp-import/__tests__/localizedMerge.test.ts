@@ -6,7 +6,7 @@ import {
   emptyBlocksDoc,
   hasBlocks,
   mergeLocalizedImport,
-  readLocalizedBlocks,
+  resolveLocalizedBlocks,
   serializeLocalizedBlocks,
   type ExistingLocalized,
 } from "@/lib/wp-import/localizedMerge";
@@ -18,6 +18,7 @@ const doc = (text: string): BlocksDoc => ({
 
 /** Wiersz, jaki import zastaje: PL i EN wypełnione ręcznie przez redakcję. */
 const bilingualRow: ExistingLocalized = {
+  editor: "blocks",
   title_pl: "Strategia UE",
   title_en: "EU strategy",
   excerpt_pl: "Zapowiedź PL",
@@ -109,24 +110,32 @@ describe("mergeLocalizedImport - przypadki brzegowe", () => {
   });
 });
 
-describe("readLocalizedBlocks", () => {
-  it("czyta kanoniczne blocks_data", () => {
-    expect(readLocalizedBlocks(bilingualRow).en).toEqual(doc("ręczne-en"));
+describe("resolveLocalizedBlocks - żywe źródło, nie kopia zapasowa", () => {
+  it("tryb blocks: kanoniczne jest blocks_data", () => {
+    expect(resolveLocalizedBlocks({ ...bilingualRow, editor: "blocks" })).toEqual({
+      blocks: { pl: doc("stare-pl"), en: doc("ręczne-en") },
+      source: "blocks_data",
+    });
   });
 
   it("sięga do builder_data, gdy blocks_data jest puste (wpisy zmigrowane do buildera)", () => {
     const row: ExistingLocalized = {
+      editor: "blocks",
       blocks_data: null,
       builder_data: toJson(
         localizedBlocksToBuilderDoc({ pl: doc("builder-pl"), en: doc("builder-en") }),
       ),
     };
 
-    expect(readLocalizedBlocks(row)).toEqual({ pl: doc("builder-pl"), en: doc("builder-en") });
+    expect(resolveLocalizedBlocks(row)).toEqual({
+      blocks: { pl: doc("builder-pl"), en: doc("builder-en") },
+      source: "builder_data",
+    });
   });
 
   it("import PL nie gubi EN schowanego wyłącznie w builder_data", () => {
     const row: ExistingLocalized = {
+      editor: "builder",
       title_pl: "Strategia UE",
       title_en: "EU strategy",
       blocks_data: null,
@@ -144,14 +153,79 @@ describe("readLocalizedBlocks", () => {
   it("zwraca pustą parę dla śmieci w kolumnach", () => {
     const row: ExistingLocalized = { blocks_data: toJson("nie-dokument"), builder_data: toJson(7) };
 
-    expect(readLocalizedBlocks(row)).toEqual({ pl: emptyBlocksDoc(), en: emptyBlocksDoc() });
+    expect(resolveLocalizedBlocks(row)).toEqual({
+      blocks: { pl: emptyBlocksDoc(), en: emptyBlocksDoc() },
+      source: "none",
+    });
   });
 
   it("puste dokumenty nie są współdzieloną, mutowalną stałą", () => {
-    const first = readLocalizedBlocks(null);
-    first.pl.blocks.push({ id: "x", type: "paragraph", data: {} } as BlocksDoc["blocks"][number]);
+    const first = resolveLocalizedBlocks(null);
+    first.blocks.pl.blocks.push({
+      id: "x",
+      type: "paragraph",
+      data: {},
+    } as BlocksDoc["blocks"][number]);
 
-    expect(readLocalizedBlocks(null).pl.blocks).toHaveLength(0);
+    expect(resolveLocalizedBlocks(null).blocks.pl.blocks).toHaveLength(0);
+  });
+});
+
+// Regresja z recenzji PR #234: `blocks_data` przeżywa migrację blocks->builder
+// jako kopia zapasowa i NIE jest aktualizowana przy edycji w builderze
+// (PostContentEditor -> BuilderPane pisze tylko builder_data). Ślepe
+// preferowanie tej kopii przywracało wersję EN sprzed migracji.
+describe("wpis prowadzony przez builder - kopia blocks_data jest NIEAKTUALNA", () => {
+  const migratedThenEdited: ExistingLocalized = {
+    editor: "builder",
+    title_pl: "Strategia UE",
+    title_en: "EU strategy",
+    // Zamrożone przy migracji - EN sprzed wszystkich późniejszych poprawek.
+    blocks_data: toJson({ pl: doc("przed-migracja-pl"), en: doc("przed-migracja-en") }),
+    // Żywa treść: redaktor poprawił EN już w builderze.
+    builder_data: toJson(localizedBlocksToBuilderDoc({ pl: doc("zywe-pl"), en: doc("zywe-en") })),
+  };
+
+  it("czyta wersję żywą, nie zamrożoną kopię", () => {
+    expect(resolveLocalizedBlocks(migratedThenEdited)).toEqual({
+      blocks: { pl: doc("zywe-pl"), en: doc("zywe-en") },
+      source: "builder_data",
+    });
+  });
+
+  it("import PL zachowuje ŻYWE EN i nie wskrzesza wersji sprzed migracji", () => {
+    const merged = mergeLocalizedImport({ ...plImport, doc: doc("nowe-pl") }, migratedThenEdited);
+
+    expect(merged.blocks.en).toEqual(doc("zywe-en"));
+    expect(merged.blocks.en).not.toEqual(doc("przed-migracja-en"));
+    expect(merged.counterpartSource).toBe("builder_data");
+  });
+
+  it("EN skasowane w builderze zostaje skasowane - kopia go nie wskrzesza", () => {
+    const enDeletedInBuilder: ExistingLocalized = {
+      editor: "builder",
+      title_pl: "Strategia UE",
+      title_en: "",
+      blocks_data: toJson({ pl: doc("przed-migracja-pl"), en: doc("przed-migracja-en") }),
+      builder_data: toJson(
+        localizedBlocksToBuilderDoc({ pl: doc("zywe-pl"), en: emptyBlocksDoc() }),
+      ),
+    };
+
+    const merged = mergeLocalizedImport({ ...plImport, doc: doc("nowe-pl") }, enDeletedInBuilder);
+
+    expect(merged.blocks.en).toEqual(emptyBlocksDoc());
+    expect(merged.counterpartPreserved).toBe(false);
+  });
+
+  it("builder bez osadzonej pary { pl, en } spada awaryjnie na blocks_data", () => {
+    const handBuilt: ExistingLocalized = {
+      editor: "builder",
+      blocks_data: toJson({ pl: doc("kopia-pl"), en: doc("kopia-en") }),
+      builder_data: toJson({ version: 1, sections: [] }),
+    };
+
+    expect(resolveLocalizedBlocks(handBuilt).source).toBe("blocks_data");
   });
 });
 
@@ -161,8 +235,12 @@ describe("serializeLocalizedBlocks", () => {
     const { blocks_data, builder_data } = serializeLocalizedBlocks(blocks);
 
     expect(blocks_data).toEqual(blocks);
-    // Ta sama para językowa musi dać się odczytać z układu buildera.
-    expect(readLocalizedBlocks({ blocks_data: null, builder_data })).toEqual(blocks);
+    // Ta sama para językowa musi dać się odczytać z układu buildera - import
+    // zostawia wpis w trybie `builder`, więc to ta kolumna będzie żywa.
+    expect(resolveLocalizedBlocks({ editor: "builder", blocks_data, builder_data })).toEqual({
+      blocks,
+      source: "builder_data",
+    });
   });
 });
 

@@ -15,6 +15,13 @@
 // ZASADA: język importowany WYGRYWA, język przeciwny jest ZACHOWYWANY.
 // Import nie ma prawa skasować wersji, której nie przywiózł.
 //
+// DRUGA ZASADA, równie ważna: „zachowany" znaczy ŻYWY, a nie „jakikolwiek".
+// Wpis prowadzony przez builder zapisuje wyłącznie `builder_data`, a migracja
+// blocks->builder zostawia `blocks_data` jako odwracalną kopię zapasową. Ślepe
+// preferowanie `blocks_data` odtwarzałoby wersję EN sprzed migracji i kasowało
+// wszystkie późniejsze edycje - ten sam defekt, tylko okrężną drogą. Kolejność
+// źródeł rozstrzyga kolumna `editor` (patrz resolveLocalizedBlocks).
+//
 // Moduł jest czysty (bez I/O) - izolacja tenantów zostaje po stronie zapytań
 // wywołującego (`.eq("tenant_id", tenantId)` na SELECT i UPDATE).
 import type { BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
@@ -36,12 +43,27 @@ export const emptyBlocksDoc = (): BlocksDoc => ({ version: 1, blocks: [] });
 
 /** Kolumny, które import musi ZOBACZYĆ, zanim cokolwiek nadpisze. */
 export interface ExistingLocalized {
+  /**
+   * Który magazyn treści jest ŻYWY. Wpis prowadzony przez builder zapisuje
+   * wyłącznie `builder_data` (PostContentEditor -> BuilderPane), a migracja
+   * blocks->builder ŚWIADOMIE zostawia `blocks_data` jako odwracalną kopię
+   * zapasową. Bez tej kolumny nie da się odróżnić kopii od bieżącej treści.
+   */
+  editor?: string | null;
   title_pl?: string | null;
   title_en?: string | null;
   excerpt_pl?: string | null;
   excerpt_en?: string | null;
   blocks_data?: Json | null;
   builder_data?: Json | null;
+}
+
+/** Skąd pochodzi para językowa, którą import zastał. */
+export type LocalizedBlocksSource = "blocks_data" | "builder_data" | "none";
+
+export interface ResolvedLocalizedBlocks {
+  blocks: LocalizedBlocks;
+  source: LocalizedBlocksSource;
 }
 
 /** Jedna wersja językowa przywieziona z WordPressa. */
@@ -62,6 +84,8 @@ export interface MergedLocalized {
   counterpart: ImportLang;
   /** true, gdy w drugim języku faktycznie było co zachować (do logu importu). */
   counterpartPreserved: boolean;
+  /** Z której kolumny wzięto zachowaną treść - prowenienecja idzie do logu. */
+  counterpartSource: LocalizedBlocksSource;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -110,16 +134,44 @@ function findLocalizedBlocks(value: unknown, depth = 0): LocalizedBlocks | null 
 }
 
 /**
- * Odczyt pary językowej z istniejącego wiersza. Kanoniczne jest `blocks_data`,
- * ale wpisy zmigrowane do buildera trzymają ten sam dokument `{ pl, en }`
- * wewnątrz widgetu `rich-text` (`localizedBlocksToBuilderDoc`) - gdy
- * `blocks_data` jest puste, treść drugiego języka nadal tam jest i też nie może
- * przepaść.
+ * Odczyt pary językowej z istniejącego wiersza - ZAWSZE od źródła ŻYWEGO.
+ *
+ * Nie ma tu jednego „kanonicznego" magazynu; rozstrzyga kolumna `editor`:
+ *  - `editor === "builder"`: treść żyje w `builder_data`. `blocks_data` jest
+ *    wtedy kopią sprzed migracji (`migrate-blocks-to-builder` zostawia ją
+ *    świadomie, dla odwracalności) i BYWA NIEAKTUALNA o wszystkie edycje zrobione
+ *    później w builderze. Sięgnięcie po nią najpierw kasowałoby dokładnie tę
+ *    wersję EN, której ten moduł ma bronić - tyle że okrężną drogą.
+ *  - w pozostałych trybach (`blocks` i starsze): żywe jest `blocks_data`.
+ * Drugie źródło zostaje wyłącznie jako awaryjne, gdy w pierwszym nie ma pary
+ * `{ pl, en }` w ogóle.
+ *
+ * Pusta wersja językowa w źródle żywym to WYNIK, nie brak danych: redaktor mógł
+ * skasować EN w builderze i kopia zapasowa nie ma prawa go wskrzesić.
  */
-export function readLocalizedBlocks(row: ExistingLocalized | null | undefined): LocalizedBlocks {
-  if (!row) return { pl: emptyBlocksDoc(), en: emptyBlocksDoc() };
-  if (isLocalizedBlocks(row.blocks_data)) return row.blocks_data;
-  return findLocalizedBlocks(row.builder_data) ?? { pl: emptyBlocksDoc(), en: emptyBlocksDoc() };
+export function resolveLocalizedBlocks(
+  row: ExistingLocalized | null | undefined,
+): ResolvedLocalizedBlocks {
+  const empty = (): LocalizedBlocks => ({ pl: emptyBlocksDoc(), en: emptyBlocksDoc() });
+  if (!row) return { blocks: empty(), source: "none" };
+
+  const fromBlocks = isLocalizedBlocks(row.blocks_data) ? row.blocks_data : null;
+  const fromBuilder = findLocalizedBlocks(row.builder_data);
+  const ordered: ReadonlyArray<readonly [LocalizedBlocks | null, LocalizedBlocksSource]> =
+    row.editor === "builder"
+      ? [
+          [fromBuilder, "builder_data"],
+          [fromBlocks, "blocks_data"],
+        ]
+      : [
+          [fromBlocks, "blocks_data"],
+          [fromBuilder, "builder_data"],
+        ];
+
+  for (const [blocks, source] of ordered) {
+    if (blocks) return { blocks, source };
+  }
+  return { blocks: empty(), source: "none" };
 }
 
 /**
@@ -133,8 +185,8 @@ export function mergeLocalizedImport(
   const isPl = incoming.language === "pl";
   const counterpart = COUNTERPART_LANG[incoming.language];
 
-  const currentBlocks = readLocalizedBlocks(current);
-  const keptDoc = currentBlocks[counterpart];
+  const currentBlocks = resolveLocalizedBlocks(current);
+  const keptDoc = currentBlocks.blocks[counterpart];
   const keptTitle = (counterpart === "pl" ? current?.title_pl : current?.title_en) ?? "";
   const keptExcerpt = (counterpart === "pl" ? current?.excerpt_pl : current?.excerpt_en) ?? null;
 
@@ -153,13 +205,15 @@ export function mergeLocalizedImport(
     blocks: isPl ? { pl: incoming.doc, en: keptDoc } : { pl: keptDoc, en: incoming.doc },
     counterpart,
     counterpartPreserved: keptTitle.trim() !== "" || keptExcerpt !== null || hasBlocks(keptDoc),
+    counterpartSource: currentBlocks.source,
   };
 }
 
 /**
- * Spójna para kolumn treści: `blocks_data` (kanoniczne źródło per język) i
- * `builder_data` (układ hostujący ten sam dokument). Zawsze budowane razem -
- * rozjazd między nimi to kolejny sposób na zgubienie wersji językowej.
+ * Spójna para kolumn treści: `blocks_data` i `builder_data` (układ hostujący ten
+ * sam dokument). Zawsze budowane razem - rozjazd między nimi to kolejny sposób na
+ * zgubienie wersji językowej. Import zostawia wpis w trybie `builder`, więc po
+ * zapisie żywym źródłem znów jest `builder_data`, a `blocks_data` jego wierną kopią.
  */
 export function serializeLocalizedBlocks(blocks: LocalizedBlocks): {
   blocks_data: Json;
