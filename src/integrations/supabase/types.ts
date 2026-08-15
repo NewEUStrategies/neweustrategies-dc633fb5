@@ -19138,6 +19138,7 @@ export type Database = {
         Returns: unknown
       }
       nes_pl_light_stem: { Args: { _term: string }; Returns: string }
+      nes_polish_tsquery: { Args: { _q: string }; Returns: unknown }
       nes_post_embedding_source: {
         Args: {
           p_excerpt_en: string
