@@ -81,10 +81,13 @@ async function attachAuthors(
   }
   const authorIds = Array.from(new Set(authorByPost.values()));
   if (!authorIds.length) return posts;
+  // profiles is RLS-closed for anon; the public byline projection lives in
+  // profiles_public (same shape, only publicly safe columns).
   const { data: profiles } = await sb
-    .from("profiles")
+    .from("profiles_public")
     .select("id,display_name,avatar_url")
     .in("id", authorIds);
+
   const profileById = new Map(
     (profiles ?? []).map((p) => [p.id, { name: p.display_name ?? "", avatar: p.avatar_url }]),
   );
