@@ -119,7 +119,7 @@ A/B client-side | ❌ **otwarta** | `assignVariant` nadal czystą funkcją w `li
 
 ---
 
-# MODUŁ 3 — Silniki treści: bloki + page builder · **9,0 → 9,2/10** ↑
+# MODUŁ 3 — Silniki treści: bloki + page builder · **9,0 → 9,1/10** ↑
 
 | Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
 | ------- | :---: | ------- | -------- | -------------- |
@@ -132,6 +132,7 @@ A/B client-side | ❌ **otwarta** | `assignVariant` nadal czystą funkcją w `li
 | Import z Gutenberga / markdown | **8** | Realne parsery, osobne stosy undo per język | — | Utrzymać |
 | Świeżość danych widgetów | **9** | Lokalizowane klucze zapytań, bramka | — | Utrzymać |
 | Odporność renderu | **8** | Error boundaries per widget | — | Utrzymać |
+| **Koszt renderera w chunku wejściowym (nowa)** | **6** | Renderer jest publiczny z założenia i **musi** być na ścieżce bootowania: `BuilderRenderer` importują `Header`, `Footer`, `ContentRenderer`, `TaxonomyPage`, `PopupHost` i `MobileDrawerBody` — nagłówek i stopka są budowane builderem | **Wciąga KOMPLET 44 widgetów zamiast użytych.** Zmierzone inwentarzem: `src/components/admin` (czyli `widget-view/*`) to **442,1 kB, 16,3% chunku wejściowego**, `src/lib/builder` kolejne 223,0 kB — razem 24,5%. Strona używająca pięciu typów widgetów pobiera wszystkie 44. To jedyna przyczyna czerwonej bramki `check:bundle` | Rozdzielić widgety po typie przez `React.lazy`; katalog przenieść spod `admin/` (fałszuje diagnostykę bundla) |
 
 ---
 
@@ -221,7 +222,7 @@ schematu; korekta jest opisana w STANIE OGÓLNYM pkt 3.
 | OG images | **8** | HMAC-gated webhook refresh, 501 bez sekretu | — | Utrzymać |
 | RSS / feedy treści | **9** | Kategoria/tag/program RSS realne | — | Utrzymać |
 | Monitor linków / `llms.txt` / meta viewport | **8** | Realne | — | Utrzymać |
-| **Waga w chunku wejściowym (nowa)** | **6** | — | `trasy publiczne → seo` to **215 krawędzi importu** — trzecia najsilniejsza zależność w grafie i **najsilniejsza, która nie prowadzi do design systemu**; nowy chunk `SeoPanel` (17,5 KB gzip) wszedł w oknie, w którym bramka bundla się zapaliła | Sprawdzić w inwentarzu chunku, czy SEO nie ciąży wejścia |
+| **Waga w chunku wejściowym (nowa)** | **8** | **Zmierzone inwentarzem chunku: `src/lib/seo` to 29,9 kB, czyli 1,1% chunku wejściowego** — SEO go NIE obciąża, mimo że `trasy publiczne → seo` to 215 krawędzi importu (trzecia najsilniejsza zależność w grafie i najsilniejsza, która nie prowadzi do design systemu). Nowy chunk `SeoPanel` (17,5 KB gzip) jest osobnym plikiem, poza wejściem | — | Utrzymać |
 
 ---
 
@@ -358,7 +359,7 @@ schematu; korekta jest opisana w STANIE OGÓLNYM pkt 3.
 
 ---
 
-# MODUŁ 17 — Analityka i BI · **7,8 → 7,7/10** ↓
+# MODUŁ 17 — Analityka i BI · **7,8 → 7,9/10** ↑
 
 | Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
 | ------- | :---: | ------- | -------- | -------------- |
@@ -370,7 +371,7 @@ schematu; korekta jest opisana w STANIE OGÓLNYM pkt 3.
 | RUM (web vitals) | **8** | Pełny łańcuch beacon→tabela→dashboard | — | Utrzymać |
 | Obserwowalność edge cache | **8** | Realna, z sekcją zwłok incydentu | — | Utrzymać |
 | **Eksperymenty A/B** | **6** | Przydział FNV-1a deterministyczny, ekspozycje z blokadą cross-tenant | **Bez zmian: nadal client-side.** `assignVariant(experimentId, visitorId)` to czysta funkcja w `lib/builder/experiments.ts`; SSR zawsze A, flash B; brak korekty na peeking | Przydział server-side w loaderze + bramka istotności |
-| **Obserwowalność bundla** | **7 → 6** ↓ | Bramka raportuje ruchy per-chunk względem **nazwanego baseline'u** (`d255605, 2026-08-15`), sama ostrzega przy zapasie <2% i podaje narzędzie diagnostyczne; **progi zaciśnięto za śladem pomiaru** (chunk 513 → 471) | **Bramka jest CZERWONA:** największy chunk **482,0 KB gzip przy progu 471**. Diagnoza per-chunk działa, ale **skład chunku wejściowego pozostaje niezmierzony** — do tego trzeba drugiego builda z `BUNDLE_INVENTORY=1` | Uruchomić `report:chunk-inventory index`, **nie podnosić progu** |
+| **Obserwowalność bundla** | **7 → 8** ↑ | Bramka raportuje ruchy per-chunk wobec nazwanego baseline'u (`d255605`), ostrzega przy zapasie <2%, a **`report:chunk-inventory` realnie działa i wskazuje winnego z dokładnością do pliku** — uruchomiony w tej sesji: chunk wejściowy 2 718,2 kB przed minifikacją, 443 pozycje wagowe, top: `src/components/admin` 16,3%, `src/lib/builder` 8,2%, `node-html-parser` 7,4%. Progi **zaciśnięto za śladem pomiaru** (chunk 513 → 471) | Bramka jest **CZERWONA**: 482,0 KB przy progu 471. Diagnoza pokazuje jednak, że to nie wyciek panelu admina, tylko **komplet 44 widgetów renderera wciągany zamiast użytych** | Leniwe ładowanie widgetów per typ; **nie podnosić progu** |
 | **Gęstość testów** | **4** | — | **T/P 0,110 — bez ruchu**, przy 12 822 liniach i 8 plikach serwerowych | Podnieść pokrycie funkcji serwerowych |
 
 ---
@@ -457,25 +458,26 @@ najlepszy stosunek w repo.
 | - | ----- | :------: | :---: | :-------: | - | ----- | :------: | :---: | :-------: |
 | 1 | Wpisy — czytelnik | 8,7 | 8,7 | **8,7** | 12 | Realtime / push | 8,3 | 8,3 | **8,3** |
 | 2 | Edytor + workflow | 8,6 | 8,6 | **8,7** ↑ | 13 | Monetyzacja — checkout | 8,2 | 8,5 | **8,7** ↑ |
-| 3 | Bloki + builder | 9,0 | 9,0 | **9,2** ↑ | 14 | Monetyzacja — kupony/reklamy | 8,0 | 8,0 | **7,8** ↓ |
+| 3 | Bloki + builder | 9,0 | 9,0 | **9,1** ↑ | 14 | Monetyzacja — kupony/reklamy | 8,0 | 8,0 | **7,8** ↓ |
 | 4 | Strony / media / import | 6,8 | 6,8 | **8,0** ↑↑ | 15 | Profil i konto | 8,5 | 8,5 | **8,5** |
 | 5 | Strona główna / archiwa | 8,3 | 8,4 | **8,4** | 16 | Społeczność / kluby | 8,1 | 8,1 | **8,3** ↑ |
-| 6 | Wyszukiwarka | 8,3 | 8,4 | **8,4** | 17 | Analityka i BI | 7,6 | 7,8 | **7,7** ↓ |
+| 6 | Wyszukiwarka | 8,3 | 8,4 | **8,4** | 17 | Analityka i BI | 7,6 | 7,8 | **7,9** ↑ |
 | 7 | Typy specjalne | 7,9 | 7,9 | **8,1** ↑ | 18 | CRM | 8,4 | 8,4 | **8,6** ↑ |
 | 8 | SEO / feedy | 8,4 | 8,8 | **8,8** | 19 | Ustawienia / multi-tenant | 8,7 | 8,9 | **9,0** ↑ |
 | 9 | Czat | 8,3 | 8,3 | **8,6** ↑ | 20 | Platforma / backend / SSR | 7,3 | 7,9 | **8,4** ↑↑ |
 | 10 | Sieć | 8,1 | 8,4 | **8,4** | 21 | Rekrutacja / kariera | — | 7,2 | **7,8** ↑ |
 | 11 | Newsletter | 7,5 | 7,3 | **7,9** ↑↑ | | | | | |
 
-**Średnia platformy: ~8,4/10** (14.08: ~8,2 · 06.08 r2: ~8,1). Osiemnaście modułów w górę lub bez
-zmian, dwa w dół (kupony, analityka).
+**Średnia platformy: ~8,4/10** (14.08: ~8,2 · 06.08 r2: ~8,1). Dwadzieścia modułów w górę lub bez
+zmian, **jeden w dół** (kupony — jedyna ścieżka pieniężna, która w tym oknie straciła pokrycie).
 
 **Werdykt kompozytu: 8,3/10** (14.08: 7,9 · 06.08 r2: 7,7) — nadal niżej niż średnia arytmetyczna,
 bo ważę w dół:
 
 - **CI nadal czerwone — ale na jednym kroku zamiast czterech, i nie jest to brud w kodzie.**
-  `check:bundle` to realna regresja wydajności złapana przez **świeżo zaciśnięty** próg — czyli
-  bramka robiąca dokładnie to, po co ją zaciśnięto.
+  `check:bundle` to realna regresja wydajności złapana przez **świeżo zaciśnięty** próg (513 → 471),
+  czyli bramka robiąca dokładnie to, po co ją zaciśnięto. Przyczyna jest **zmierzona, nie zgadywana**:
+  renderer widgetów wciąga komplet 44 komponentów zamiast użytych — 24,5% chunku wejściowego.
 - **Największa dziura pokrycia stoi.** 123 z 244 tras (**50,4%**) nie pada w żadnym teście; globalne
   pokrycie linii 34,59%. Ruch o dwie trasy przy +27 plikach testowych znaczy, że testy tego okna
   poszły w głębokość, nie w szerokość — słusznie, ale dziura została.

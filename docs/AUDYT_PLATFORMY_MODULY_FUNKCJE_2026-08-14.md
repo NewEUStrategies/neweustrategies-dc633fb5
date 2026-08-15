@@ -29,6 +29,9 @@ schematu**, i wymagał korekty mojego własnego ustalenia — patrz §0.4. Zapis
 w nagłówku, bo pierwsza wersja tego dokumentu twierdziła coś przeciwnego
 i twierdziła to jako „najpoważniejsze pojedyncze ustalenie".
 
+Skład chunku wejściowego — jedyna rzecz, którą pierwsza wersja tego audytu zostawiła
+jako **niezmierzoną** — został zmierzony drugim, instrumentowanym buildem (§5.2).
+
 ---
 
 ## 0. Korekta do wcześniejszych ustaleń
@@ -571,12 +574,63 @@ z poprzednich wydań:
   ładowane osobno.
 - **Nie `SeoPanel`.** Jest osobnym plikiem (59 667 B surowo), nie siedzi w wejściu.
 
-**Czego nie zmierzyłem:** składu chunku wejściowego z dokładnością do modułu. Bramka
-podaje dokładne narzędzie (`BUNDLE_INVENTORY=1 bun run build && bun run
-report:chunk-inventory index`) — wymaga drugiego pełnego builda i nie zmieściłem go
-w tej sesji. Zapisuję to jako **niezmierzone**, bo wskazanie winnego bez inwentarza
-byłoby zgadywaniem; trzy hipotezy powyżej są **wykluczone pomiarem**, co zawęża
-pole, ale nie zamyka sprawy.
+**Skład chunku wejściowego — ZMIERZONY** (`BUNDLE_INVENTORY=1 bun run build`
++ `report:chunk-inventory index`, drugi pełny build w tej sesji). Chunk wejściowy:
+**2 718,2 kB przed minifikacją, 6 importów statycznych, 343 dynamiczne**, 443 pozycje
+wagowe. Top 10:
+
+| Waga | Udział | Pakiet / katalog |
+|---:|---:|---|
+442,1 kB | **16,3%** | `src/components/admin` |
+223,0 kB | 8,2% | `src/lib/builder` |
+201,7 kB | 7,4% | `node-html-parser` |
+132,0 kB | 4,9% | `zod` |
+97,1 kB | 3,6% | `tailwind-merge` |
+82,1 kB | 3,0% | `dompurify` |
+62,7 kB | 2,3% | `sonner` |
+61,5 kB | 2,3% | `src/lib/queries` |
+57,2 kB | 2,1% | `src/lib/clubs` |
+46,1 kB | 1,7% | `src/components/ui` |
+
+**Największa pozycja NIE jest panelem admina — mimo nazwy katalogu.** Rozbicie
+`src/components/admin` na moduły pokazuje wyłącznie renderer widgetów:
+
+```
+60,6 kB  components/admin/builder/ui/organisms/widget-view/SimpleWidgets.tsx
+47,0 kB  components/admin/builder/WidgetView.tsx
+41,4 kB  lib/builder/globalColors.ts
+39,2 kB  lib/builder/sectionLabelVariants.tsx
+38,0 kB  …/widget-view/SearchButtonWidget.tsx
+30,1 kB  …/widget-view/PostListView.tsx
+23,7 kB  …/widget-view/SpeakersWidget.tsx
+20,9 kB  …/organisms/BuilderRenderer.tsx
+```
+
+To jest kod **publicznego renderu**, nie panelu: `BuilderRenderer` importują
+`Header.tsx`, `Footer.tsx`, `ContentRenderer.tsx`, `TaxonomyPage.tsx`,
+`PopupHost.tsx` i `MobileDrawerBody.tsx`. Nagłówek i stopka są budowane builderem,
+więc renderer **musi** być na ścieżce bootowania. Potwierdza to `check:entry-purity`,
+która widzi tę ścieżkę jako czystą — bo ona jest czysta: nie ma tu panelu admina.
+
+**Realny defekt jest inny i węższy: renderer wciąga KOMPLET widgetów zamiast
+użytych.** W `widget-view/` leżą **44 komponenty**, a w chunku wejściowym siedzi
+kilkanaście z nich naraz — łącznie z `SpeakersWidget`, `PostListView`,
+`OnboardingFormView` czy `AccountMenuWidget`. Strona, która używa pięciu typów
+widgetów, pobiera wszystkie. Repo umie ładować leniwie (343 dynamiczne importy
+w tym samym chunku), więc wzorzec jest już na miejscu — brakuje go akurat tam,
+gdzie waży najwięcej.
+
+**Druga pozycja warta decyzji: `node-html-parser` (201,7 kB, 7,4%)** — parser HTML
+na publicznej ścieżce bootowania, plus `dompurify` (82,1 kB). Razem 283,8 kB przed
+minifikacją, czyli więcej niż całe `src/lib/builder`.
+
+**Wniosek nazewniczy — drugi raz w tym audycie nazwa zmyliła pomiar.** Po
+`research_programs`, które wygląda na tabelę, a jest widokiem (§0.4), mamy
+`components/admin/builder/ui/organisms/widget-view/`, które wygląda na kod panelu,
+a jest publicznym rendererem. Każde narzędzie tnące bundle po prefiksie ścieżki
+(i każdy człowiek czytający raport) policzy to jako „admin w publicznym wejściu".
+**Ten katalog należy przenieść** — nie dla estetyki, tylko dlatego, że dziś
+systematycznie fałszuje diagnostykę własnego zespołu.
 
 ### 5.3. Zapas na dwóch pozostałych budżetach nadal cienki
 
@@ -684,19 +738,38 @@ pracy skoncentrowanej na warstwie językowej i typach brak ruchu tutaj jest spó
 
 ## 7. Rekomendacje — uszeregowane po iloczynie ryzyka i kosztu
 
-### R1. Zmierzyć skład chunku wejściowego — nie podnosić progu (ryzyko: wydajność)
+### R1. Ładować widgety leniwie — chunk wejściowy niesie komplet zamiast użytych
 
-**Jedyny czerwony krok CI po naprawie z §3.4.** Bramka przekroczona o 11,0 KB,
-próg świeżo zaciśnięty (513 → 471) i **czuły — to jest stan pożądany, nie problem
-do obejścia**. Trzy hipotezy (słowniki i18n, rdzeń `locale`, `SeoPanel`) są
-**wykluczone pomiarem** w §5.2, więc inwentarz zawęzi się szybko:
+**Jedyny czerwony krok CI**, i po inwentarzu z §5.2 wiadomo dokładnie, z czego się
+bierze. Chunk wejściowy przekracza próg o 11,0 KB gzip, a jego największa pozycja to
+**renderer widgetów: 442,1 kB (16,3%) w `src/components/admin` + 223,0 kB (8,2%)
+w `src/lib/builder`**. To kod publiczny i **musi** być na ścieżce bootowania, bo
+nagłówek i stopka są budowane builderem — ale wciągany jest **komplet 44 widgetów**,
+nie te, których strona używa.
 
-```
-BUNDLE_INVENTORY=1 bun run build && bun run report:chunk-inventory index
-```
+Kierunek: `BuilderRenderer` rozdziela widgety po typie przez `React.lazy` /
+dynamiczny import, tak jak repo robi to już w 343 innych miejscach w tym samym
+chunku. Zysk jest ograniczony od dołu przez widgety obecne w chrome (nagłówek,
+stopka, menu), ale `SpeakersWidget`, `PostListView`, `OnboardingFormView`
+i `AccountMenuWidget` nie są chromem.
 
-Skrypt sam pisze, że podniesienie progu jest ostatecznością. Przy 0,62% zapasu na
-PUBLIC następna regresja i tak trafi w losowy commit.
+Druga pozycja do decyzji: **`node-html-parser` 201,7 kB (7,4%) + `dompurify`
+82,1 kB (3,0%)** na publicznej ścieżce bootowania. Jeśli parser HTML jest potrzebny
+tylko przy imporcie/sanityzacji treści redakcyjnej, jego miejsce nie jest w wejściu.
+
+**Progu nie podnosić.** Został zaciśnięty 513 → 471 trzy dni temu właśnie po to,
+żeby łapać takie wzrosty, i zadziałał za pierwszym razem. Skrypt sam pisze, że
+podniesienie jest ostatecznością.
+
+### R1b. Przenieść `components/admin/builder/ui/organisms/widget-view/`
+
+Wynika wprost z §5.2 i kosztuje jeden `git mv` plus aktualizację importów.
+Czterdzieści cztery komponenty **publicznego renderu** leżą pod ścieżką `admin`.
+Skutek nie jest estetyczny: każdy podział bundla po prefiksie ścieżki i każdy
+czytelnik raportu policzy 442 kB jako „panel admina w publicznym wejściu" —
+co jest nieprawdą i prowadzi do szukania nieistniejącego wycieku. Dziś ten katalog
+**fałszuje diagnostykę własnego zespołu**; bramka `check:entry-purity` mówi prawdę
+(ścieżka bootowania jest czysta), ale nazwa katalogu mówi co innego.
 
 ### R2. Opisowe komunikaty commitów (koszt: konwencja, ryzyko: zero)
 
