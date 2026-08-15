@@ -1,740 +1,766 @@
-# Audyt platformy NES — moduły, funkcje, połączenia międzymodułowe — 2026-08-14
+# Audyt platformy NES — moduły, funkcje, połączenia międzymodułowe — 2026-08-15
 
-**HEAD:** `0fd4108` (gałąź `claude/audyt-modulow-funkcji-xfsq1o`)
-**Poprzedni audyt:** `docs/AUDYT_PLATFORMY_MODULY_FUNKCJE_2026-08-13.md` na `94eb31a`
-**Delta `94eb31a..0fd4108`:** 157 commitów, 347 plików, +20 056 / −2 711 linii
+> **Nazwa pliku niesie datę 14.08, treść jest z 15.08.** Ten dokument został
+> **zaktualizowany w miejscu** na wyraźne polecenie, zamiast założenia nowego pliku
+> serii. Poprzednie wydanie (HEAD `0fd4108`) jest odzyskiwalne z historii gita
+> (`git show 0fd4108:docs/AUDYT_PLATFORMY_MODULY_FUNKCJE_2026-08-14.md`). Wszystkie
+> liczby niżej dotyczą HEAD-a `c6306e7`.
+
+**HEAD:** `c6306e7` (gałąź `claude/audyt-platformy-2026-jr2cyv`)
+**Poprzedni audyt:** to samo wydanie na `0fd4108`
+**Delta `0fd4108..c6306e7`:** 96 commitów, 493 pliki, +24 984 / −6 919 linii
 
 Ten audyt jest **pomiarem, nie przeglądem**. Każda liczba niżej pochodzi z komendy
 uruchomionej na tym HEAD w tej sesji — łącznie z pełnym `bun install` (przepięcie
 lockfile na publiczny npm, dokładnie tak jak robi to CI), `tsc --noEmit`, `eslint .`,
-`vitest run --coverage`, pełnym `vite build` i 17 bramkami `check:*`. Tam, gdzie
-pomiaru **nie dało się** wykonać w tym kontenerze, jest to napisane wprost zamiast
-przepisania progu z kodu.
+`prettier --check`, `vitest run --coverage`, pełnym `vite build` i **32 z 33 bramek
+`check:*`**. Tam, gdzie pomiaru **nie dało się** wykonać w tym kontenerze, jest to
+napisane wprost zamiast przepisania progu z kodu.
 
-**Najważniejsze zdanie tego audytu:** poprzedni audyt zamknął swoją rekomendację
-numer jeden (martwy kod: 171 → 0, flagi `tsc` włączone) i numer dwa (chunk wejściowy:
-słownik klubów wyjęty, −44 KB gzip na największym chunku). W tym samym czasie **CI
-zrobiło się czerwone na czterech blokujących krokach** — wszystkie trzy przyczyny
-weszły dzisiaj, z modułem rekrutacji.
+**Najważniejsze zdanie tego audytu:** to pierwsze okno w tej serii, w którym
+**rekomendacje poprzedniego wydania zostały wykonane hurtem, a nie pojedynczo** —
+R2, R5, R7 i R8 są zamknięte pomiarem, R1 i R3 częściowo, a każda z nich została
+**przypięta bramką**, więc nie da się jej cofnąć po cichu. CI zeszło z czterech
+czerwonych kroków na **dwa**. Ale jeden z tych dwóch jest nowy i najgorszego rodzaju:
+**migracja licząca 540 linii została skasowana commitem o nazwie „Changes"**, a
+harness, README i job CI, które ją testują, zostały na swoim miejscu.
 
 ---
 
 ## 0. Korekta do wcześniejszych ustaleń
 
-Audyt, który nie poprawia własnych błędów, jest kolejnym źródłem dryfu. Jedna liczba
-podawana wczoraj — i powtarzana jako wskaźnik jakości — była nieprawdziwa.
+Audyt, który nie poprawia własnych błędów, jest kolejnym źródłem dryfu. Tym razem
+korekty dotyczą **narzędzia pomiarowego tego audytu**, nie liczb z poprzedniego
+wydania — i obie zostały złapane, zanim trafiły do tabeli.
 
-### 0.1. „439 371 linii kodu produkcyjnego" — testy odjęte DWA RAZY
+### 0.1. Regexowe „usuwanie komentarzy SQL" skasowało 65% migracji
 
-Wczorajszy audyt podał: *„Kod produkcyjny | 439 371 linii (537 283 − 97 912 testów)"*.
-Odtworzyłem obie składowe na `94eb31a`:
+Pierwsza wersja mojego parsera migracji czyściła komentarze wzorcem
+`/\*.*?\*/` (non-greedy, `re.S`). Efekt zmierzony:
 
-| Metoda liczenia na `94eb31a` | Wynik |
-|---|---:|
-`src/**/*.{ts,tsx}`, wszystkie pliki | 628 573 |
-`src/**/*.{ts,tsx}` **bez katalogów `__tests__`** | **537 283** ← liczba z tamtego audytu |
-`src/**/*.{ts,tsx}` bez `__tests__` **i** bez `*.test.*` / `*.spec.*` | **530 661** |
-linie plików testowych łącznie | 97 912 |
-z tego linie testów **wewnątrz** katalogów `__tests__` | 91 290 |
+| Wejście | Rozmiar | `CREATE TABLE` | `CREATE FUNCTION` | `CREATE POLICY` |
+|---|---:|---:|---:|---:|
+surowe migracje | 6 038 997 B | 395 | 1 946 | 1 150 |
+po regexowym czyszczeniu | 2 142 233 B | **202** | **662** | **666** |
+po leksera respektującym literały | 5 159 537 B | **389** | **1 936** | **1 150** |
 
-Składnik `537 283` **już nie zawierał** testów — 91 290 ze 97 912 linii testowych
-siedzi w katalogach `__tests__`, które ta metoda pomija. Odjęcie od niej pełnych
-`97 912` usunęło drugi raz linie, których tam nigdy nie było.
+Przyczyna: w migracjach stoi **22 razy `/*` i tylko 18 razy `*/`** — sekwencje te
+siedzą w literałach (wzorce regex, URL-e). Non-greedy dopasowanie łączyło `/*` z
+literału z odległym `*/` i zjadało wszystko pomiędzy. **Parser zgłosiłby połowę
+schematu jako nieistniejącą.**
 
-**Stan faktyczny: 530 661 linii produkcyjnych na `94eb31a`, 539 919 na tym HEAD.**
-Zaniżenie wynosiło 91 290 linii, czyli 17%.
+Rozwiązanie: właściwy lekser dialektu Postgres (`scratchpad/pglex.py`) — obsługuje
+`$tag$…$tag$`, `''`, `E'\\'`, zagnieżdżone `/* */` i `"identyfikatory"`. Wszystkie
+liczby SQL w §1 pochodzą z niego.
 
-Skutek dla wniosku: stosunek testów do produkcji to nie **0,22**, tylko **0,185**
-wczoraj i **0,187** dzisiaj. Kierunek wniosku z §4 tamtego audytu („nierówno
-rozłożone") się nie zmienia — poziom tak, i to w gorszą stronę.
+### 0.2. „4 funkcje SECURITY DEFINER bez `search_path`" — fałszywy alarm
 
-Przyczyna błędu jest ta sama, co w trzech korektach z tamtego dokumentu: **dwie
-miary policzone różnymi filtrami zostały odjęte tak, jakby miały wspólną podstawę.**
+Parser zgłosił cztery funkcje bez przypiętego `search_path`: `delete_email`,
+`enqueue_email`, `move_to_dlq`, `read_email_batch`. Poprzednie wydanie podawało
+**0** i wprost nazywało to „jedyną rzeczą, w której obie metody są zgodne".
 
-### 0.2. Trzy różnice, które NIE są korektami — tylko inną metodą
+Sprawdzenie ręczne: wszystkie cztery mają `search_path` przypięty **osobną
+instrukcją** `ALTER FUNCTION … SET search_path` w późniejszej migracji
+(`20260728212941`, `20260729062739`), a nie w ciele `CREATE FUNCTION`. Mój parser
+czytał wyłącznie ciało definicji.
 
-Zapisuję je, żeby następny audyt nie zgłosił „regresji", która jest artefaktem
-parsera:
+**Stan faktyczny: 0 funkcji `SECURITY DEFINER` bez przypiętego `search_path`** —
+poprzednie wydanie miało rację. Parser uwzględnia teraz `ALTER FUNCTION`
+(21 funkcji korzysta z tej drogi).
 
-| Miara | Wczoraj | Dzisiaj (moja metoda) | Skąd różnica |
-|---|---:|---:|---|
-Tabele | 252 | **244 żywe** (254 `CREATE`) | odejmuję `DROP TABLE`; forward-only migracje tworzą i kasują |
-Funkcje SQL | 732 | **790** | liczę ostatnią definicję każdej nazwy, także funkcji triggerowych |
-`SECURITY DEFINER` | 624 | **709** | j.w.; **obie metody zgodne w tym, co ważne: 0 bez przypiętego `search_path`** |
+Zapisuję to, bo jest to dokładnie ten tryb porażki, przed którym ostrzega §9:
+**liczba wyprodukowana przez narzędzie nie jest pomiarem, dopóki nie sprawdzi się
+przypadków brzegowych**. Gdyby ten alarm poszedł do dokumentu, byłby to zmyślony
+defekt bezpieczeństwa w module poczty.
+
+### 0.3. Różnice metody wobec wydania z 14.08 — nie są regresjami
+
+Mój parser liczy **stan końcowy** (instrukcje odtwarzane w kolejności migracji,
+`DROP … IF EXISTS; CREATE …` nie kasuje obiektu, który żyje). Wydanie z 14.08
+liczyło inaczej. Żeby następne wydanie nie zgłosiło „regresji", która jest
+artefaktem parsera, poniżej obie kolumny **z mojego skryptu na obu HEAD-ach**:
+
+| Miara | 14.08 (tamten dokument) | mój skrypt na `0fd4108` | mój skrypt na `c6306e7` |
+|---|---:|---:|---:|
+Tabele | 244 | 251 | **250** |
+Polityki RLS | 556 | 543 | **543** |
+Triggery | 356 | 342 | **343** |
+Indeksy | 535 | 529 | **532** |
+Widoki | 16 | 13 | **14** |
+Funkcje SQL | 790 | 793 | **797** |
+`SECURITY DEFINER` | 709 | 687 | **689** |
+Zadania `pg_cron` | 19 | 17 | **17** |
+
+Porównywalne są **wyłącznie dwie prawe kolumny**. Kolumna z 14.08 stoi tu jako ślad,
+nie jako baza odejmowania.
 
 ---
 
 ## 1. Skala platformy — stan zmierzony
 
-| Wymiar | Liczba | Zmiana od 13.08 |
+| Wymiar | Liczba | Zmiana od 14.08 |
 |---|---:|---|
-Trasy (`src/routes/*.tsx`) | **244** (142 admin, 20 kluby, 82 pozostałe) | +3 |
-Trasy-endpointy (`src/routes/**/*.ts`) | 22 (w tym 4 pod `api/`) | — |
-Komponenty `.tsx` (bez testów) | 1 101 | +16 |
-Moduły `src/lib/*.ts` (bez testów) | 977 | +22 |
-Hooki | 39 | 0 |
+Trasy (`src/routes/*.tsx`) | **244** (142 admin, 26 kluby, 76 pozostałe) | 0 |
+Trasy-endpointy (`src/routes/**/*.ts`) | 55 (w tym 22 pod `api/`) | 0 |
+Komponenty `.tsx` (bez testów) | 1 091 | +1 |
+Moduły `src/lib/**/*.ts` (bez testów) | 968 | +29 |
+Hooki | 35 | 0 |
 Pliki `*.functions.ts` | 82 | 0 |
-Wywołania `createServerFn` | **349** | 0 |
-Moduły `*.server.ts` | 98 | +1 |
-Unikalne nazwy RPC wołane z klienta | **380** (wg `check:rpc-contract`) | −2 |
-Migracje SQL | **769** (138 587 linii) | +9 |
-Tabele (żywe) | 244 | — |
-Funkcje SQL (ostatnia definicja) | **790** | — |
-Polityki RLS | 570 unikalnych nazw, **556 w stanie końcowym** | — |
-Triggery / indeksy / widoki | 356 / 535 / 16 | — |
-Zadania `pg_cron` | **19** | — |
-Testy pgTAP | 91 plików | +1 |
-Pliki testowe vitest (w `src`) | **758** | +21 |
-Słowniki i18n (`src/lib/i18n-*.ts`) | 87 | +1 |
-Bramki `check:*` | **25** | **+4** |
+Wywołania `createServerFn` | 343 | 0 |
+Moduły `*.server.ts` | 98 | 0 |
+Unikalne nazwy RPC wołane z klienta | **383** (bramka: 382) | +2 |
+Migracje SQL | **779** (140 619 linii) | +10 |
+Tabele (stan końcowy) | **250** | −1 |
+Funkcje SQL (ostatnia definicja) | **797** | +4 |
+`SECURITY DEFINER` / bez `search_path` | **689 / 0** | +2 / 0 |
+Polityki RLS (stan końcowy) | **543** | 0 |
+Triggery / indeksy / widoki | 343 / 532 / 14 | +1 / +3 / +1 |
+Zadania `pg_cron` | **17** | 0 |
+Testy pgTAP | 93 pliki | +2 |
+Pliki testowe vitest (w `src`) | **785** | +27 |
+Słowniki i18n (`src/lib/i18n-*.ts`) | **100** | **+13** |
+Bramki `check:*` | **33** | **+8** |
 Workflow CI | 5 | 0 |
-**Kod produkcyjny** | **539 919 linii** | +9 258 |
-**Linie testów** | **101 109** | +3 197 |
+**Kod produkcyjny** | **543 797 linii** | +3 878 |
+**Linie testów** | **109 051** | **+7 942** |
 
-Stosunek testów do produkcji: **0,187**. Patrz §0.1 — poprzednia wartość 0,22 była
-policzona na zaniżonym mianowniku.
+**Stosunek testów do produkcji: 0,187 → 0,201.** Pierwszy wzrost tej miary w serii.
+Przyczyna jest arytmetyczna i warta zapisania: w tym oknie **testy urosły 2,05 raza
+szybciej niż kod produkcyjny** (+7 942 vs +3 878 linii).
 
-Cztery nowe bramki od wczoraj: `check:careers-harness`, `check:db-row-casts`,
-`check:i18n-hardcoded`, `check:types-freshness`. Żadna nie została usunięta.
+Osiem nowych bramek: `check:content-layering`, `check:editor-autosave`,
+`check:gate-coverage`, `check:i18n-default-value`, `check:i18n-overlay-imports`,
+`check:sql-policy-tenant-regression`, `check:unknown-casts`, `check:programs-harness`.
+Żadna nie została usunięta. `check:gate-coverage` pilnuje, że **każda bramka jest
+wpięta dokładnie raz na job** — i przechodzi na 33.
+
+Uwaga o „zerach" w kolumnie zmian: brak ruchu na trasach, `createServerFn` i
+`*.server.ts` **nie jest zastojem**. To okno nie dodało powierzchni produktowej —
+w całości poszło w testy, warstwę językową, typy i bramki. Jedna nowa trasa
+publiczna nie powstała; powstało 27 plików testowych.
 
 ---
 
 ## 2. Mapa modułów i połączeń — zmierzony graf importów
 
-Graf zbudowany z faktycznych krawędzi `from "@/…"` w **2 491 plikach produkcyjnych**,
-39 warstw: **473 unikalne pary warstw, 6 491 importów międzywarstwowych** z 8 328
+Graf zbudowany z faktycznych krawędzi `from "@/…"` w **2 523 plikach produkcyjnych**,
+36 warstw: **438 unikalnych par warstw, 6 718 importów międzywarstwowych** z 8 454
 importów `@/` ogółem.
 
 ### 2.1. Najsilniejsze zależności (warstwowo)
 
 ```
-450  trasy admin        -> design system
-233  kluby              -> design system
-205  builder            -> design system
-200  trasy publiczne    -> seo
-175  trasy publiczne    -> lib (wspólne)
-164  admin (reszta)     -> design system
+431  trasy admin        -> design system
+234  kluby              -> design system
+215  trasy publiczne    -> seo
+203  builder            -> design system
+197  komponenty (reszta)-> lib (wspólne)
+178  admin (reszta)     -> design system
+177  admin (reszta)     -> bloki
+156  trasy kluby        -> kluby
 146  trasy publiczne    -> design system
-138  trasy kluby        -> kluby
-133  bloki              -> design system
-128  trasy admin        -> lib (wspólne)
-121  trasy admin        -> admin (reszta)
-104  monetyzacja        -> design system
+123  trasy admin        -> admin (reszta)
+115  builder            -> lib (wspólne)
+100  admin (reszta)     -> lib (wspólne)
+ 99  trasy publiczne    -> lib (wspólne)
  95  kluby              -> i18n (rdzeń)
- 85  trasy publiczne    -> monetyzacja
+ 84  monetyzacja        -> design system
 ```
 
-Kształt jest ten sam, co wczoraj i nadal zdrowy: **wszystko ciąży do design systemu
-i do `lib`**, czyli do warstw bez własnej domeny. Nie ma modułu domenowego, od
-którego zależy pół platformy.
+Kształt jest ten sam, co w poprzednim wydaniu i nadal zdrowy: **wszystko ciąży do
+design systemu i do `lib`**, czyli do warstw bez własnej domeny. Nie ma modułu
+domenowego, od którego zależy pół platformy.
 
-### 2.2. Zależności między modułami DOMENOWYMI
+### 2.2. R5 wykonana: cykl `bloki ↔ builder` przestał istnieć
+
+To jest najważniejsza zmiana strukturalna tego okna i jedyna, którą widać w grafie:
+
+| Krawędź | `0fd4108` | `c6306e7` |
+|---|---:|---:|
+`bloki -> builder` | 17 | **0** |
+`builder -> bloki` | 8 | 8 |
+`bloki -> treść` | 2 | **19** |
+`builder -> treść` | 1 | **42** |
+
+Commit `ca96fde` („Rozstrzygnięto cykl bloki <-> builder warstwą lib/content-model")
+zrobił **dokładnie to, co rekomendował poprzedni audyt**: wspólna warstwa modelu
+treści zamiast wzajemnego importu. Kierunek jest teraz jednoznaczny:
 
 ```
- 95  kluby        -> i18n (rdzeń)     10  builder -> monetyzacja
- 28  bloki        -> builder          10  reklamy/popupy -> builder
- 18  bloki        -> treść            10  newsletter -> i18n
- 17  builder      -> typy specjalne    9  kluby -> seo
- 16  builder      -> bloki             9  reklamy/popupy -> newsletter
- 15  treść        -> builder           8  kluby -> społeczność
- 14  treść        -> bloki             7  kluby -> sieć
- 13  mail         -> i18n (rdzeń)      7  sieć -> społeczność
- 12  motyw        -> builder           6  sieć -> czat
- 10  builder      -> motyw             6  monetyzacja -> mail
+content-model  ->  nie zna żadnego silnika ani tras
+bloki          ->  nie importuje z buildera (zero wyjątków)
+builder        ->  MOŻE importować z bloków (realnie je hostuje)
 ```
 
-### 2.3. Sprzężenia dwukierunkowe (24 pary — było 11)
+I — co ważniejsze od samego refaktoru — inwariant jest **przypięty bramką**
+`check:content-layering`, która ma własny test jednostkowy
+(`src/lib/ci/__tests__/contentLayering.test.ts`), a nie tylko przebieg w CI. Bramka
+raportuje na tym HEAD: `bloki -> builder: 0 · content-model -> silniki: 0`.
 
-Liczba par urosła, ale **nie dlatego, że przybyło cykli** — dlatego, że mój podział
-na warstwy jest drobniejszy niż wczorajszy (39 warstw zamiast 22; `sieć` i `eksperci`
-osobno, `realtime` osobno od `powiadomień`, `typy specjalne` wydzielone). Istotne są
-cztery:
+**Cykl nie został „rozwiązany dokumentem". Został zmierzony, zamknięty i zablokowany.**
 
-| Para | Kierunki | Ocena |
-|---|---|---|
-`bloki ↔ builder` | **28 / 16** | **Nadal jedyny realny cykl i nadal rośnie** (13.08: 23/17). Dwa silniki treści dzielą typy widgetów i renderery; żaden nie jest jednoznacznie „niżej". |
-`bloki ↔ treść` | **18 / 14** | **Nowa pozycja do rozstrzygnięcia.** Wczoraj było 11/2 przy jasnym kierunku dominującym. Dziś obie strony ważą tyle samo — to przestało być importem typu. |
-`builder ↔ typy specjalne` | 17 / 4 | Widgety wydarzeń/trackera w builderze; kierunek dominujący jasny. |
-`builder ↔ motyw` | 10 / 12 | Symetryczne. Do obserwacji — jeszcze nie problem, ale przestało być jednostronne. |
+### 2.3. Sprzężenia dwukierunkowe — 89 → 87 par
 
-Pozostałe 20 par ma wagę 1–5 w słabszym kierunku, czyli import typu albo jednej
-stałej.
+Spadek o dwie pary. Największe sprzężenia są **strukturalne, nie domenowe**:
+`builder ↔ design system` 203/1, `komponenty ↔ lib` 197/1, `builder ↔ lib` 115/18.
+Stosunek w rodzaju 203/1 nie jest cyklem w sensie ryzyka — to jedna krawędź powrotna
+przy dwustu w przód. Realne dwukierunkowe pary domenowe są małe:
+`builder ↔ treść` 42/4, `komponenty ↔ builder` 16/25.
 
-**Wniosek:** `bloki ↔ builder` jest wskazywany do rozstrzygnięcia od wydania z 30.07
-i przez te dwa tygodnie urósł, zamiast zmaleć; `bloki ↔ treść` dołączył do niego
-w ciągu jednej doby. To ten sam koszt, tylko płacony w drugim miejscu.
+### 2.4. Naruszenia warstwowości — 24, bez zmian
 
-### 2.4. Naruszenia warstwowości — stan bez zmian
-
-1. **`.server.ts` importowane z komponentu: 0.** Sprawdzone bezpośrednio na
-   `src/components` — zero trafień.
-2. **Dwie trasy importują `.server`** — obie przez `import type`, czyli znikają przy
-   kompilacji. Nie ma przecieku serwera do klienta.
-3. **Pięć tras publicznych importuje z `@/components/admin/…`** — dokładnie ten sam
-   zestaw, co wczoraj: `index.tsx` i `checkout.success.tsx` (zamierzone — widoki
-   składane builderem) oraz `club.$clubSlug.{about,members,new}.tsx → ClubEnumSelect`
-   (**błąd ulokowania**: komponent jest liściem, ale mieszka pod
-   `components/admin/clubs/molecules/`, choć obsługuje powierzchnię publiczną).
-
-   **R6 z poprzedniego audytu nie została wykonana.** Koszt jej niewykonania jest
-   nadal zerowy bundlowo i nadal rośnie tylko w wymiarze „ktoś kiedyś dołoży do tego
-   pliku zależność, która nie będzie liściem".
+Design system importuje z warstw domenowych **24 razy** (media 6, profil/konto 4,
+mail 4, motyw 3, po 1: newsletter, monetyzacja, czat, realtime, builder, społeczność).
+Liczba nie drgnęła od poprzedniego wydania. To jedyny wskaźnik strukturalny, który
+w tym oknie **stoi** — i jedyny, którego żadna bramka nie pilnuje.
 
 ---
 
-## 3. Stan bramek — CI jest CZERWONE na czterech blokujących krokach
+## 3. Stan bramek — CI jest CZERWONE na DWÓCH krokach (było na czterech)
 
-Wszystko zmierzone na tym HEAD, w środowisku odtworzonym procedurą z `ci.yml`
-(przepięcie `bun.lock` na `registry.npmjs.org` + `bun install`).
+Uruchomione w tej sesji na `c6306e7`, po `bun install` procedurą z `ci.yml`.
 
-| Bramka | Stan | Uwaga |
-|---|---|---|
-`tsc --noEmit` | **0 błędów** ✅ | i to **z włączonymi** `noUnusedLocals` + `noUnusedParameters` |
-`vitest run --coverage` | **2 testy czerwone** ❌ | 8 258 zielonych, 50 pominiętych, 755/758 plików zielonych |
-Pokrycie | **32,69% instr. / 28,44% gał. / 25,24% funkcji / 33,27% linii** ✅ | progi 29 / 25 / 22 / 29 — margines 3,2–4,3 pp; 26 progów per-ścieżka |
-`eslint .` | **115 błędów** ❌, 176 ostrzeżeń | wszystkie 115 to `prettier/prettier`; lint **blokuje merge** (`ci.yml:186`) |
-`check:sql-migration-replay` | **CZERWONA** ❌ | dwie pary bliźniaków treści |
-`check:legacy-payment-refs` | **CZERWONA** ❌ | 1 żywa referencja do poprzedniego operatora |
-`check:bundle` | zielona ⚠️ | ale zapas 0,76% / 0,93% — patrz §5 |
-`check:chunks` | zielona | 674 chunki, 3 384 krawędzi, graf acykliczny |
-`check:chunk-parity` | zielona | 3 asercje |
-`check:entry-purity` | **niemierzalna w tym kontenerze** | patrz §3.2 — istota sprawdzona ręcznie i jest czysta |
-`check:sql-tenant-scope` | zielona | 835 funkcji zbadanych, 4 uzasadnione ścieżki publiczne |
-`check:sql-app-role` | zielona | 962 literały `has_role` |
-`check:sql-anon-insert` | zielona | 556 polityk w stanie końcowym, 8 tabel intake chronionych |
-`check:sql-owner-tenant-scope` | zielona | 153 polityki właściciela z 556 |
-`check:sql-emit-actor` | zielona | 769 plików |
-`check:rpc-contract` | zielona | 380 nazw z klienta ⇄ 794 funkcje w stanie końcowym |
-`check:authz-snapshot` | zielona | snapshot zgodny z migracjami |
-`check:types-freshness` | zielona | 28 znanych kolumn poza typami (baseline 28) |
-`check:db-row-casts` | zielona | 22 wyjątki na liście (ratchet) |
-`check:i18n-hardcoded` | zielona | 1 593 znane wystąpienia w 156 plikach (ratchet) |
-`check:stale-never-casts` | zielona | 2 489 plików |
-`check:workflow-env-contract` | zielona | 45 deklaracji ⇄ 108 nazw |
-`check:public-assets` | zielona | brak plików przesłaniających trasy |
-CI `ci.yml` | 4 joby + post-deploy | **47 nazwanych kroków** |
+### 3.1. Kroki blokujące spoza `check:*`
 
-### 3.1. Trzy przyczyny czterech czerwonych kroków — wszystkie z dzisiaj
+| Krok CI | Wynik | Liczba |
+|---|:--:|---|
+`bun run format:check` (prettier) | ✅ **zielony** | „All matched files use Prettier code style" |
+`bun run typecheck` (`tsc --noEmit`) | ✅ **zielony** | **0 błędów** |
+`bun run lint` (`eslint .`) | ✅ **zielony** | **0 błędów**, 177 ostrzeżeń |
+`bun run build` (`vite build`) | ✅ **zielony** | 679 plików JS klienta |
+`bun run test:coverage` | ✅ **zielony** | **9 055 testów przeszło**, 50 pominiętych; 783 pliki |
 
-**Przyczyna 1: dwie migracje rekrutacji wjechały dwa razy.** To zapala jednocześnie
-`check:sql-migration-replay` **i** dwa testy w suicie (`migrationReplay.test.ts`),
-czyli dwa blokujące kroki z jednego defektu:
+Trzy z czterech czerwonych kroków poprzedniego wydania są zamknięte: 115 błędów
+`prettier` → 0, żywa referencja do poprzedniego operatora płatności → bramka
+`check:legacy-payment-refs` przechodzi na 3 566 plikach, bliźniaki migracji →
+patrz §3.3.
 
-```
-20260814100000_careers_tenant_scope.sql              (a75db79, "Rekrutacja: …")
-20260814122639_37dcf7c4-…-e5d17f909f1d.sql           (5d08f50, "Work in progress")
+Ostrzeżenia lintu (177) rozkładają się na dwie reguły: **143
+`react-refresh/only-export-components`** i **34 `react-hooks/exhaustive-deps`**.
+Żadna nie blokuje; obie są tego rodzaju, który rośnie po cichu, bo nikt na niego
+nie patrzy.
 
-20260814110000_careers_pipeline_and_cv_retention.sql (a75db79)
-20260814123014_97f305de-…-e5d17f909f1d.sql           (5d08f50)
-```
+**Pokrycie testami (v8, całe repo):**
 
-Pliki nie są bajtowo identyczne — **duplikat jest oryginałem pozbawionym nagłówka
-komentarza.** W parze pierwszej: 207 linii vs 153, a 27 usuniętych linii to dokładnie
-ten opis przyczyny, który §8 poprzedniego audytu wskazywał jako mocną stronę repo
-(„komentarze zapisują PRZYCZYNĘ, nie treść"). Zginął opis tego, że `career_roles`
-nie miało `tenant_id`, że `slug` był unikalny globalnie i że polityka bucketu
-`career-cv` pozwalała redaktorowi najemcy A odczytać KAŻDE CV każdego najemcy.
+| Miara | Zmierzone | Próg globalny | Zapas |
+|---|---:|---:|---:|
+Linie | **34,59%** | 29 | 5,59 pp |
+Instrukcje | 33,99% | 29 | 4,99 pp |
+Gałęzie | 29,57% | 25 | 4,57 pp |
+Funkcje | 26,24% | 22 | 4,24 pp |
 
-Baza to przeżyje (migracje są idempotentne). Przeżyje też człowiek, który za miesiąc
-będzie datował regresję — ale zrobi to na podstawie historii, która kłamie o tym,
-kiedy zmiana weszła.
+Do tego **progi per-plik** dla ścieżek krytycznych (m.in. `lib/access/gating.ts`
+95/100/100/95, `lib/builder/schema.ts` 98/100/100/95, kilkanaście pozycji na 100%).
+Bramka przechodzi w całości. Globalne 34,59% linii nie jest powodem do dumy, ale
+**jest liczbą prawdziwą** — i po raz pierwszy rosnącą.
 
-Warto rozdzielić dwie rzeczy, które łatwo pomylić: **sam gate pokrycia jest zielony**
-(32,69 / 28,44 / 25,24 / 33,27 przy progach 29 / 25 / 22 / 29 — margines 3,2–4,3 pp).
-Suita jest czerwona wyłącznie na tych dwóch testach; po ich wyłączeniu przechodzi
-w całości: 8 235 zielonych, 755 plików, `EXIT=0`. Czyli to nie jest erozja pokrycia,
-tylko jeden defekt w migracjach, który zapala dwie bramki naraz — właśnie dlatego,
-że repo ma na tę klasę **i** bramkę statyczną, **i** test.
+### 3.2. Bramki `check:*` — 30 zielonych, 2 czerwone, 1 niemierzalna
 
-**Przyczyna 2: 115 błędów formatowania.** Wszystkie to `prettier/prettier`, czyli
-klasa w 100% naprawialna przez `--fix`. Rozkład pokazuje, skąd przyszły:
+| Wynik | Bramki |
+|---|---|
+✅ **30 zielonych** | `authz-snapshot`, `careers-harness`, `chunk-parity`, `chunks`, `content-layering`, `db-row-casts`, `editor-autosave`, `entry-purity`, `gate-coverage`, `i18n-default-value`, `i18n-hardcoded`, `i18n-overlay-imports`, `i18n-parity`, `legacy-payment-refs`, `permissions-parity`, `pg-harness`, `public-assets`, `rpc-contract`, `sql-anon-insert`, `sql-app-role`, `sql-emit-actor`, `sql-migration-replay`, `sql-owner-tenant-scope`, `sql-policy-tenant-regression`, `sql-tenant-scope`, `stale-never-casts`, `types-freshness`, `unknown-casts`, `widget-fidelity`, `workflow-env-contract` |
+❌ **2 czerwone** | **`bundle`** (§5), **`programs-harness`** (§3.4) |
+⚠️ **1 niemierzalna** | `db-contract` — wymaga `SUPABASE_URL` i żywej bazy; w `ci.yml` stoi w jobie `post-deploy`, nie w `verify`. Nie przepisuję jej stanu z wczoraj. |
 
-| Plik | Błędów |
-|---|---:|
-`src/lib/careers/applicationSchema.ts` | **48** |
-`src/lib/builder/__tests__/animatedHeadingLinks.test.ts` | 10 |
-`src/components/careers/organisms/CareersRoles.tsx` | 4 |
-`src/routes/admin.hiring.tsx` | 3 |
-pozostałe (~25 plików) | ~50 |
+Wybrane liczby z przebiegów, bo bramka mówi więcej niż swój kolor:
 
-Warto zestawić z commitem `96e25b3` sprzed kilku dni: *„Naprawiono odziedziczoną
-czerwień bramki lintu: 201 błędów formatowania"*. Bramka została wyczyszczona
-i w ciągu kilku dni zebrała 115 nowych błędów w większości z jednego modułu. To nie
-jest problem lintu — to jest problem tego, że **moduł rekrutacji wszedł bez
-przepuszczenia przez bramki, które istnieją**.
+- `check:sql-tenant-scope` — 839 funkcji zbadanych, 4 uzasadnione ścieżki publiczne
+- `check:sql-app-role` — 972 literały `has_role`
+- `check:sql-anon-insert` — 556 polityk w stanie końcowym, 8 tabel intake chronionych
+- `check:rpc-contract` — 382 nazwy wołane z klienta ⇄ 798 funkcji w stanie końcowym
+- `check:sql-owner-tenant-scope` — 153 polityki właściciela z 556; **0 pozycji znanego długu**
+- `check:i18n-parity` — 36 plików, **536 testów**
+- `check:widget-fidelity` — 3 pliki, **537 testów**
+- `check:permissions-parity` — 4 pliki, 98 testów
+- `check:pg-harness` — **369 asercji runtime**
+- `check:entry-purity` — ścieżka bootowania: 7 chunków z 678, **czysta** (bez SDK płatności)
 
-**Przyczyna 3: jedna żywa referencja do poprzedniego operatora płatności.**
+Dwie z nich domykają rzeczy, których poprzednie wydanie **nie umiało zmierzyć**:
+`check:entry-purity` (wtedy: „nitro nie składa `.output/server` w tym kontenerze")
+przeszedł tutaj realnie, a `check:i18n-default-value` (wtedy nieistniejąca) raportuje
+**0 zapasowych tekstów przy `t()` w 2 495 plikach**.
+
+### 3.3. Bliźniaki migracji: z czerwonego na zielone — ale ratchetem, nie usunięciem
+
+Poprzednie wydanie miało `check:sql-migration-replay` na czerwono przez dwie
+migracje rekrutacji wjeżdżające dwa razy. Dziś bramka jest **zielona**, a jej
+komunikat brzmi:
 
 ```
-scripts/check-generated-types-freshness.ts:41  "member_organizations.paddle_subscription_id",
+✓ Inwariant odtwarzalności migracji OK (779 plików: zero kolizji wersji,
+  zero niezabezpieczonych zapisów do storage.objects,
+  43 znanych par bliźniaków treści (dług, lista może tylko maleć)).
 ```
 
-To wpis na liście `BASELINE` **innej** bramki (`check:types-freshness`). Dopóki stoi,
-`check:legacy-payment-refs` jest czerwona — a to bramka, której jedynym zadaniem jest
-pilnowanie, że migracja z Paddle na Stripe nie ma żywych ogonów.
+Obie pary rekrutacji są na tej liście:
 
-**Ta naprawa NIE jest jednolinijkowa i wygląda na pułapkę.** Dwie bramki trzymają ten
-sam string w przeciwnych kierunkach:
+```
+dług: 20260814100000_careers_tenant_scope.sql            ≡ 20260814122639_37dcf7c4….sql
+dług: 20260814110000_careers_pipeline_and_cv_retention.sql ≡ 20260814123014_97f305de….sql
+```
 
-1. `member_organizations.paddle_subscription_id` został dodany
-   (`20260729204314`), a potem **przemianowany** na `provider_subscription_id`
-   (`20260805134721_f2e69df5…`) — nigdy nie `DROP`-nięty.
-2. `scanColumnEvents()` w `src/lib/ci/generatedTypesFreshness.ts:89` czyta
-   **wyłącznie `ADD COLUMN` i `DROP COLUMN`** — `RENAME COLUMN` nie występuje
-   w tym pliku w ogóle. Stara nazwa zostaje więc na liście kolumn „żywych".
-3. W `src/integrations/supabase/types.ts` starej nazwy nie ma (jest za to
-   `provider_subscription_id`, 12 wystąpień), więc `findStaleColumns()` raportuje
-   ją jako dług typów.
-4. `compareWithBaseline()` wymaga **dokładnej** zgodności: `freshnessFailed()` jest
-   prawdziwe zarówno gdy `fresh.length > 0` (nowa nieznana kolumna), jak i gdy
-   `resolved.length > 0` (wpis w baseline, który przestał być długiem).
+**To nie jest to samo, co usunięcie duplikatu.** Rekomendacja brzmiała „P0: usunąć
+duplikaty, zostawić wersje z PR-a"; wykonano „wpisać obie na listę znanego długu".
+Konstrukcja ratchetu jest uczciwa (lista może tylko maleć, więc nowy bliźniak nadal
+zapali bramkę), a duplikat pozbawiony 27-linijkowego nagłówka **nadal siedzi w
+repo** i nadal nie niesie zapisu, dlaczego izolacja pękała. Dług został **nazwany
+i zamrożony**, nie spłacony. Przy 43 parach to jest właściwa kolejność — pod
+warunkiem, że lista faktycznie maleje.
 
-Skutek: **usunięcie albo zakomentowanie tego wpisu zamienia jedną czerwoną bramkę
-na drugą.** `check:legacy-payment-refs` zzielenieje, a `check:types-freshness`
-zapali się na `fresh`. Bramka `check:legacy-payment-refs` nie ma też listy wyjątków —
-ma wyłącznie `SKIP_DIRS` do pomijania katalogów przy skanie.
+### 3.4. `check:programs-harness` — migracja skasowana commitem „Changes"
 
-Poprawna naprawa jest dwuczęściowa i musi wejść razem: **nauczyć `scanColumnEvents()`
-składni `RENAME COLUMN`** (stara nazwa znika z „żywych", nowa wchodzi), a następnie
-**usunąć zdezaktualizowany wpis z `BASELINE`**. Wtedy obie bramki są zielone
-z właściwego powodu, a nie przez przesunięcie stringa. `provider_subscription_id`
-jest już w wygenerowanych typach, więc nie pojawi się jako nowy dług.
+To jest najpoważniejsze pojedyncze ustalenie tego audytu i jedyny **nowy** czerwony
+krok. Odtworzone w całości:
 
-### 3.2. `check:entry-purity` — czego NIE dało się zmierzyć i co zmierzyłem zamiast tego
+1. Commit `ab9b074` („Jedna tabela programów zamiast dwóch równoległych") dodał
+   `supabase/migrations/20260815100000_programs_single_table.sql` — **540 linii**.
+   Migracja przenosi wiersze między dwiema tabelami z rozstrzyganiem kolizji slugów,
+   przepina cztery klucze obce, podmienia tabelę na widok i przepisuje sześć polityk
+   RLS, w tym dwie, które dotąd niczego nie filtrowały.
+2. Powstał do niej **dedykowany harness** (`scripts/programs-harness/`: `harness.sql`,
+   `seed.sql`, `runtime_test.sql`, `run.sh`, README) — bo, jak sam zapisuje, bramki
+   `check:sql-*` czytają migracje jako TEKST i nie zobaczą zgubionego wiersza ani
+   klucza obcego wskazującego w próżnię. Harness **już złapał** błąd kolejności 23503.
+3. Bramka została wpięta do `ci.yml` jako osobny job (`check:programs-harness`).
+4. Commit `207fdd9` o nazwie **„Changes"** skasował **wyłącznie ten jeden plik**
+   (`1 file changed, 540 deletions(-)`).
+5. Harness, README, `run.sh` i job CI **zostały**.
 
-Bramka szuka manifestu TanStack Start w `.output/server`, żeby ustalić chunki
-ścieżki bootowania. W tym kontenerze `vite build` przechodzi obie fazy (klient
-1 m 04 s, SSR 46 s), ale nitro nie składa finalnego `.output/server` — katalog jest
-pusty, więc bramka kończy się komunikatem „nie udało się ustalić chunku startowego".
-**To jest ograniczenie środowiska, nie czerwona bramka.**
+Skutek zmierzony przez uruchomienie bramki na tym HEAD:
 
-Istotę sprawdziłem ręcznie, bo to jedno grep: marker `js.stripe.com` występuje
-w **dokładnie jednym chunku klienta** (`index-DNxVuv8d.js`) i **nie ma go w żadnym
-z dwóch chunków `index-*` ścieżki wejściowej**. Inwariant, którego bramka pilnuje —
-SDK płatności poza ścieżką bootowania — jest zachowany.
+```
+  OK   harness (stan sprzed scalenia)
+  OK   seed (kolizja + tylko slownik + tylko hub + drugi najemca)
+  FAIL migracja 20260815100000
+EXIT=1
+```
 
-### 3.3. Co bramki naprawdę pilnują
+`scripts/programs-harness/run.sh:18` wskazuje twardo na ścieżkę, której nie ma:
+`MIGRATION="$REPO/supabase/migrations/20260815100000_programs_single_table.sql"`.
 
-Zestaw pozostaje nietypowo mocny: 9 z 25 bramek pilnuje inwariantów SQL i uprawnień
-(wielodostępność, zakres właściciela, wstawianie przez anonima, pozycja aktora
-w zdarzeniach domenowych, kontrakt RPC klient⇄migracje, świeżość typów, kształty
-wierszy za rzutowaniami). Cztery nowe bramki od wczoraj idą w tę samą stronę.
+**Skutek dla produktu, nie tylko dla CI:** obie równoległe rodziny tabel żyją dalej.
+W stanie końcowym schematu stoją `programs` **i** `research_program_items`,
+`research_program_members`, `research_program_partners`, `research_program_projects`,
+a `research_programs` nadal jest tworzona w migracjach. Kod czyta obie: 9 plików
+produkcyjnych odwołuje się do `programs`, 6 do `research_programs`.
 
-**Luka, która została zamknięta:** wczorajsze „nie ma bramki na martwy kod" już nie
-obowiązuje — `tsconfig.json` ma `noUnusedLocals: true` i `noUnusedParameters: true`,
-a `tsc` przechodzi na zero. Patrz §6.2.
+To jest ta sama „wydmuszka", którą poprzednie wydanie wymieniło wśród pozycji, które
+przetrwały siódme wydanie — z tą różnicą, że **tym razem naprawa była napisana,
+przetestowana i skasowana**. Koszt naprawy: `git checkout ab9b074 -- <ścieżka>`.
 
-**Luka, która pozostaje:** `check:entry-purity` nadal pilnuje **obecności** SDK
-płatności, a nie **rozmiaru** chunku wejściowego.
+> **Wniosek procesowy, nie techniczny.** Poprzedni audyt zapisał, że bramki istnieją,
+> są dobre i są omijane przy wdrożeniu. Tutaj wzorzec się powtarza w wariancie
+> ostrzejszym: nie omija się bramki, tylko **kasuje się kod, który bramka
+> weryfikuje**, commitem bez treści komunikatu. **Trzydzieści dwa z 96 commitów
+> w tym oknie (33%) nosi nazwę „Changes" (30) albo „Lovable update" (2)** — czyli
+> komunikat, z którego nie da się odczytać ani zakresu, ani intencji zmiany.
 
 ---
 
 ## 4. Moduły — rozmiar, gęstość testów, powierzchnia serwerowa
 
-Kolumna **T/P** to linie testów na linię kodu produkcyjnego. Taksonomia jest moja
-i jawna (wzorce ścieżek w §9), więc kolumna „T/P 13.08" pochodzi z **tego samego
-skryptu puszczonego na `94eb31a`**, a nie z przepisania tabeli z tamtego dokumentu —
-inaczej porównywałbym dwie różne definicje modułu.
+Jeden skrypt puszczony na obu HEAD-ach (`scratchpad/modules.py`, jeden regex per
+moduł, pierwszy trafiony wygrywa). Taksonomia jest moja i różni się od tabeli
+z 14.08 — porównywalne są kolumny „linie prod" i „T/P" **między sobą**, nie z tamtym
+dokumentem.
 
-| Moduł | Plików | Linii | Δ linii | Testów | Linii T | **T/P** | T/P 13.08 | `.fn` | `.srv` |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-builder | 257 | 72 516 | +717 | 144 | 25 416 | 0,35 | 0,35 | 0 | 0 |
-kluby | 204 | 48 602 | **+3 273** | 47 | 5 212 | **0,11** | 0,11 | 4 | 0 |
-bloki | 207 | 36 273 | −169 | 44 | 4 942 | **0,14** | 0,14 | 0 | 0 |
-monetyzacja | 169 | 28 248 | +349 | 51 | 9 005 | 0,32 | 0,32 | 13 | 39 |
-profil | 70 | 16 307 | −8 | 23 | 2 851 | 0,17 | 0,17 | 3 | 1 |
-analityka | 79 | 16 126 | −2 | 19 | 2 210 | **0,14** | 0,14 | 9 | 2 |
-platforma | 81 | 14 993 | +208 | 35 | 4 492 | 0,30 | 0,30 | 1 | 27 |
-newsletter | 52 | 13 088 | +804 | 10 | 1 082 | **0,08** | 0,08 | 0 | 2 |
-czat | 64 | 12 995 | −2 | 17 | 1 733 | **0,13** | 0,13 | 0 | 0 |
-sieć + eksperci | 53 | 10 105 | +27 | 30 | 6 326 | **0,63** | 0,63 | 1 | 0 |
-design system | 98 | 9 546 | +41 | 8 | 720 | 0,08 | 0,07 | 0 | 0 |
-crm | 32 | 8 986 | **+1 163** | 9 | 1 036 | **0,12** | 0,11 | 0 | 0 |
-treść / wpisy | 66 | 8 502 | +59 | 31 | 3 093 | 0,36 | 0,36 | 5 | 0 |
-seo | 48 | 7 181 | +107 | 35 | 3 622 | **0,50** | 0,49 | 1 | 2 |
-typy specjalne | 48 | 6 385 | −22 | 14 | 1 424 | 0,22 | 0,22 | 2 | 2 |
-mail / email | 34 | 6 376 | −13 | 12 | 1 249 | 0,20 | 0,20 | 0 | 13 |
-wygląd / motyw | 61 | 6 233 | 0 | 17 | 1 109 | 0,18 | 0,18 | 1 | 0 |
-bramki CI | 21 | 5 782 | +793 | 24 | 4 440 | **0,77** | 0,80 | 0 | 0 |
-i18n rdzeń | 14 | 5 706 | +4 | 5 | 459 | 0,08 | 0,08 | 0 | 0 |
-powiadomienia | 26 | 5 264 | −69 | 13 | 1 655 | 0,31 | 0,31 | 1 | 2 |
-**kariera / rekrutacja** | 26 | 5 001 | **NOWY** | 7 | 1 142 | 0,23 | — | 0 | 0 |
-media / import | 38 | 4 722 | 0 | 15 | 1 006 | 0,21 | 0,21 | 0 | 0 |
-wyszukiwarka | 23 | 4 439 | −2 | 8 | 672 | 0,15 | 0,15 | 3 | 0 |
-reklamy / popupy | 28 | 4 145 | +134 | 7 | 831 | 0,20 | 0,21 | 0 | 0 |
-społeczność | 22 | 3 441 | 0 | 6 | 688 | 0,20 | 0,20 | 0 | 1 |
-uprawnienia | 31 | 3 246 | +2 | 4 | 818 | 0,25 | 0,25 | 1 | 1 |
-RODO / consent | 25 | 3 202 | 0 | 7 | 1 158 | 0,36 | 0,36 | 0 | 1 |
+| Moduł | Linie prod | Δ | T/P | T/P 14.08 | Pliki serwerowe |
+|---|---:|---:|---:|---:|---:|
+warstwy wspólne (design system, `routeTree.gen`, locale, http) | 115 542 | +1 571 | 0,123 | 0,124 | 31 |
+3 bloki + builder | 101 834 | −1 534 | **0,290** | 0,286 | 0 |
+16 społeczność / kluby | 59 217 | +218 | **0,136** | 0,099 | 5 |
+19 ustawienia / RODO | 31 799 | +542 | 0,076 | 0,069 | 6 |
+11 newsletter | 27 287 | +284 | **0,161** | 0,124 | 24 |
+4 strony / wygląd / import | 25 883 | +1 142 | 0,132 | 0,116 | 6 |
+13 monetyzacja | 24 607 | +325 | **0,362** | 0,320 | 52 |
+15 profil / konto | 20 308 | +68 | 0,261 | 0,262 | 9 |
+7 typy specjalne | 17 281 | −24 | 0,134 | 0,134 | 4 |
+17 analityka / BI | 12 822 | +6 | 0,110 | 0,110 | 8 |
+2 edytor | 12 569 | +32 | 0,150 | 0,138 | 1 |
+9 czat | 12 293 | −36 | 0,111 | 0,111 | 0 |
+14 kupony / darowizny / reklamy | 11 995 | +58 | 0,158 | 0,158 | 1 |
+18 CRM | 10 859 | −121 | **0,149** | 0,083 | 5 |
+20 platforma / SSR | 10 504 | +1 710 | 0,502 | 0,491 | 12 |
+8 SEO | 9 797 | −166 | 0,395 | 0,385 | 7 |
+6 wyszukiwarka | 8 366 | −21 | 0,199 | 0,199 | 3 |
+10 sieć / networking | 8 230 | +1 | **0,727** | 0,727 | 0 |
+1 wpisy | 7 716 | −93 | 0,118 | 0,117 | 1 |
+12 realtime / powiadomienia | 5 936 | −128 | 0,294 | 0,287 | 4 |
+21 rekrutacja | 5 543 | +61 | **0,416** | 0,271 | 1 |
+5 strona główna / archiwa | 3 409 | −17 | 0,160 | 0,157 | 0 |
 
 ### 4.1. Wnioski z tabeli
 
-**Dwadzieścia dwa moduły z dwudziestu siedmiu nie drgnęły ani o punkt T/P.** To nie
-jest stagnacja — to znaczy, że 157 commitów poszło w cztery miejsca, a reszta
-platformy stała.
+**Cztery moduły, które poprzedni audyt wskazał palcem, poprawiły się — i to one
+odpowiadają za wzrost T/P całej platformy:**
 
-**Cały przyrost kodu siedzi w czterech modułach:** kluby (+3 273), crm (+1 163),
-newsletter (+804), bramki CI (+793), plus nowy moduł rekrutacji (+5 001). Razem
-+11 034 z +9 258 netto (reszta to ubytki).
+| Moduł | T/P 14.08 | T/P 15.08 | Co się stało |
+|---|---:|---:|---|
+CRM | 0,083 | **0,149** | +79% gęstości, przy **spadku** kodu o 121 linii |
+kluby / społeczność | 0,099 | **0,136** | R2 z poprzedniego wydania |
+rekrutacja | 0,271 | **0,416** | najmłodszy moduł, najszybszy przyrost testów |
+newsletter | 0,124 | **0,161** | R3 częściowo |
 
-**Lista ryzyka jest ta sama, co wczoraj, i w dwóch miejscach się pogłębiła:**
+**Trzy moduły nadal poniżej 0,15 przy dużej powierzchni:** `ustawienia/RODO` (0,076
+na 31 799 liniach — najgorszy stosunek w repo przy tej skali), `wpisy` (0,118),
+`czat` (0,111). Moduł `ustawienia/RODO` jest tym, w którym siedzi wielodostępność
+i zgody — czyli miejsce, gdzie defekt kosztuje najwięcej.
 
-1. **kluby — 48 602 linie, T/P 0,11.** Największa nieprzetestowana masa w repo,
-   i **urosła o 3 273 linie bez ani jednej linii testu więcej w tej proporcji**
-   (testy +187 linii przy +3 273 kodu, czyli przyrost testowany na 0,06).
-   Wczoraj ten moduł miał 45 329 linii; miesiąc temu 31 039. To najszybciej rosnący
-   duży moduł platformy i jednocześnie najsłabiej otestowany.
-2. **newsletter — 13 088 linii, T/P 0,08.** Najniższe pokrycie w repo. Urósł
-   o 804 linie, testy o 90.
-3. **bloki — 36 273 linie, T/P 0,14.** Silnik treści renderujący każdy wpis.
-4. **analityka — 16 126 linii, T/P 0,14** przy 9 funkcjach serwerowych.
-5. **czat — 12 995 linii, T/P 0,13.**
-6. **crm — 8 986 linii, T/P 0,12** — urósł o 1 163 linie (integracja rekrutacji),
-   testy o 186.
+**`bloki + builder` skurczył się o 1 534 linie** przy wzroście T/P — to skutek
+refaktoru z §2.2, a nie usuwania funkcji: 101 typów bloków i rejestr widgetów stoją.
 
-**Najlepiej otestowane pozostają warstwy, które same są bramkami** (`bramki CI` 0,77;
-`sieć+eksperci` 0,63; `seo` 0,50). Spadek `bramek CI` z 0,80 na 0,77 to efekt
-dopisania 793 linii kodu bramek przy 456 liniach testów — nadal najwyższa proporcja
-w repo.
+**`platforma/SSR` urosła o 1 710 linii** — to głównie nowe bramki i ich testy
+jednostkowe (`src/lib/ci/*`), przy T/P 0,502.
 
-**Moduł rekrutacji wchodzi z T/P 0,23** — powyżej mediany platformy, z własnym
-harnessem CI (`check:careers-harness`) i pięcioma plikami testów w `lib/careers`.
-Inżyniersko to dobry debiut. Problem z nim jest procesowy, nie jakościowy: to on
-przyniósł wszystkie trzy przyczyny czerwonego CI (§3.1).
+### 4.2. Dziura funkcjonalna: 123 z 244 tras bez wzmianki w jakimkolwiek teście
 
-### 4.2. Dziura funkcjonalna: 158 z 244 tras nie jest wspomniana w żadnym teście
+Metoda: nazwa pliku trasy (i jej postać ze slashami) szukana w treści **wszystkich**
+785 plików testowych `src` plus 7 plików `e2e`.
 
-| Grupa | Tras bez wzmianki w testach | 13.08 |
+| | `0fd4108` | `c6306e7` |
 |---|---:|---:|
-`admin.*` | **108** | 111 |
-`club.*` | 16 | 16 |
-`profile.*` | 16 | 16 |
-`tracker.*` | 4 | 4 |
-`checkout.*` | **3** | 3 |
-pozostałe | 11 | 11 |
-| **razem** | **158 / 244** | 161 / 241 |
+Trasy wzmiankowane | 119 | **121** |
+Trasy bez wzmianki | 125 | **123** |
+— z tego admin | 92 | **90** |
 
-Trzy trasy `checkout.*` (`checkout.$planId`, `checkout.cancel`, `checkout.success`)
-są w tej tabeli **czternasty dzień z rzędu** i pozostają najpoważniejszą pozycją —
-to ścieżka pieniężna. Kontekst łagodzący bez zmian: warstwa pod nimi jest testowana
-przyzwoicie, więc dziura dotyczy sklejenia trasy, nie logiki.
+**50,4% tras nie pada w żadnym teście.** Ruch o dwie trasy w dobrą stronę przy
++27 plikach testowych oznacza, że testy tego okna poszły w **głębokość istniejących
+ścieżek**, nie w szerokość pokrycia tras. To jest właściwy wybór przy naprawianiu
+długu — ale nie zmniejsza tej dziury.
 
-**Trasy rekrutacji (`zatrudniamy`, `admin.hiring`, `admin.careers`) są wspomniane
-w testach** — nowy moduł nie dołożył do tej listy.
+### 4.3. Ścieżki pieniężne — pierwszy realny ruch
 
-### 4.3. Ścieżki pieniężne — pliki produkcyjne vs testowe
-
-| Obszar | Prod | Testy | Stosunek | 13.08 |
+| Obszar | Pliki prod | Pliki test | T/P | T/P 14.08 |
 |---|---:|---:|---:|---:|
-invoice | 40 | 13 | 0,33 | — |
-stripe | 99 | 29 | 0,29 | 0,33 |
-subscription | 174 | 47 | 0,27 | 0,34 |
-entitlement | 15 | 4 | 0,27 | — |
-gifting | 17 | 4 | 0,24 | 0,29 |
-checkout | 108 | 22 | 0,20 | 0,24 |
-donation | 61 | 12 | 0,20 | 0,23 |
-paddle | 19 | 3 | 0,16 | — |
-webhook | 103 | 15 | **0,15** | 0,18 |
-coupon | 53 | 8 | **0,15** | 0,21 |
-paywall | 48 | **6** | **0,12** | 0,16 |
+checkout | 23 | 12 | **0,806** | 0,453 |
+stripe | 5 | 2 | 1,029 | 1,029 |
+metering | 2 | 1 | 0,507 | 0,507 |
+subscription | 7 | 3 | 0,504 | 0,504 |
+entitlement | 2 | 2 | 0,488 | 0,488 |
+billing | 112 | 39 | 0,394 | 0,401 |
+donation | 13 | 5 | 0,379 | 0,379 |
+gift | 13 | 4 | 0,246 | 0,246 |
+refund | 3 | 1 | 0,122 | 0,122 |
+**coupon** | 13 | 2 | **0,044** | 0,048 |
+invoice (po nazwie pliku) | 2 | 0 | 0,000 | 0,000 |
+paywall (po nazwie pliku) | 3 | 0 | 0,000 | 0,000 |
+**Łącznie** | | | **0,388** | 0,360 |
 
-**Każdy obszar pieniężny ma dziś gorszy stosunek niż wczoraj** — i w żadnym nie
-ubyło testów. Ubyło proporcji, bo przybyło plików produkcyjnych (paywall 38 → 48,
-webhook 82 → 103, coupon 39 → 53) przy **stałej liczbie plików testowych**.
+**Erozja z poprzedniego wydania została zatrzymana i odwrócona** — łączne T/P
+ścieżek pieniężnych 0,360 → 0,388, a `checkout` niemal się podwoił (0,453 → 0,806)
+dzięki czterem nowym plikom testowym tras checkoutu
+(`checkoutPlanRoute`, `checkoutSuccessRoute`, `checkoutCancelRoute`,
+`checkoutRoutesContract`). To jest **wykonana część R3** i zamknięcie zdania
+„trzy trasy `checkout.*` bez wzmianki w jakimkolwiek teście, czternasty dzień".
 
-`paywall` z 6 plikami testowymi na 48 produkcyjnych jest najsłabszym punktem
-monetyzacji, tak jak wczoraj — tylko o 4 punkty procentowe gorszym. Paywall decyduje,
-kto widzi treść: błąd w jedną stronę oddaje treść płatną za darmo, w drugą blokuje
-płacącego.
+Pomiar po **treści**, nie po nazwie pliku (porównywalny z wydaniem 14.08):
+`paywall` — **48 plików produkcyjnych na 8 testowych** (14.08: 48/6),
+`coupon` — 55/9, `entitlement` — 15/5, `invoice` — 40/13.
+
+**`coupon` przy 0,044 jest najgorszą ścieżką pieniężną w repo** i jedyną, która
+w tym oknie się pogorszyła.
 
 ---
 
-## 5. Bundle — R2 z poprzedniego audytu wykonana
+## 5. Bundle — jedyny czerwony krok, który jest defektem produktu
 
-| Miara | Wartość | Próg | Zapas | 13.08 |
-|---|---:|---:|---:|---:|
-Największy chunk (gzip) | **467,6 KB** | 513 | **45,4 KB (8,9%)** | 511,3 / 513 |
-PUBLIC (gzip) | 2 485,9 KB | 2 505 | **19,1 KB (0,76%)** | 2 462,0 / 2 475 |
-OVERALL (gzip) | 3 799,1 KB | 3 835 | **35,9 KB (0,93%)** | 3 752,8 / 3 790 |
+| Miara | Wartość | Próg | Zapas |
+|---|---:|---:|---:|
+**Największy chunk (gzip)** | **482,0 KB** | **471** | **−11,0 KB (przekroczony o 2,3%)** |
+PUBLIC (gzip) | 2 519,4 KB | 2 535 | 15,6 KB (0,62%) |
+OVERALL (gzip) | 3 789,0 KB | 3 835 | 46,0 KB (1,20%) |
+tylko admin (gzip) | 1 269,7 KB | — | rozliczane w OVERALL |
 
-Największe pojedyncze chunki (surowo, nie gzip):
+Klient: **679 plików JS, 3 789,0 KB gzip łącznie.**
 
-```
-1482 KB  index-CMp0Yfke.js        <- chunk wejściowy
- 791 KB  EChartClient-*.js
- 681 KB  PostBlockEditor-*.js
- 546 KB  Builder-*.js
- 439 KB  lucideIconNodes.generated-*.js
- 419 KB  xlsx-*.js
- 395 KB  index-BiKTBrIE.js
- 273 KB  vendor-radix-*.js
- 107 KB  i18n-club-*.js           <- NOWY, własny chunk
-```
+### 5.1. Próg został ZACIŚNIĘTY w tym oknie — i to jest dobra decyzja
 
-### 5.1. Słownik klubów wyszedł z chunku wejściowego
+Kronika w `scripts/check-bundle-size.ts` zapisuje ruch z 2026-08-15:
+**chunk 513 → 471** (bo „przy 466,6 stara wartość dawała 10% luzu i przestała
+łapać"), **public 2 505 → 2 535**, overall bez zmian.
 
-Sonda na tej samej wartości, której użył poprzedni audyt
-(`"Kluby dyskusyjne są dostępne po zalogowaniu"`) — **nie występuje w żadnym
-z chunków `index-*`**, występuje wyłącznie w `i18n-club-CldgwxAk.js` (107 KB).
+To jest odwrotność tego, przed czym ostrzegał poprzedni audyt: próg poszedł **w
+dół, za śladem pomiaru**, a nie w górę pod regresję. Bramka odzyskała czułość.
 
-To jest wykonana **R2** z poprzedniego audytu, i widać ją w liczbie: największy
-chunk spadł z 511,3 na **467,6 KB gzip**, czyli zapas na tej bramce urósł z 1,7 KB
-(0,33%) na 45,4 KB (8,9%). Bramka przestała kłamać o autorstwie regresji.
+### 5.2. …i natychmiast złapała regresję
 
-### 5.2. Ale problem przeniósł się na dwa pozostałe budżety
-
-Sam `check:check-bundle-size.ts` to raportuje w swoim wyjściu:
+Zmierzone 466,6 KB przy ustawianiu progu 471. Dziś **482,0 KB**. Chunk wejściowy
+urósł o **15,4 KB gzip** (surowo: 1 482 → 1 524 KB) po zaciśnięciu progu. Diagnoza
+bramki wobec baseline'u `d255605`:
 
 ```
-! ZAPAS BUDŻETU PONIŻEJ 2% - następny wzrost zapali bramkę:
-!   public total: zostało 19.1 KB z 2505 KB (0.76%)
-!   overall total: zostało 35.9 KB z 3835 KB (0.93%)
-!
-! Ruchy względem baseline'u (0761984, 2026-08-13):
-!   +   12.3 KB  catalog (NOWY)
-!   +   10.4 KB  zatrudniamy (NOWY)
-!   +    5.3 KB  admin.hiring (NOWY)
-!   +    3.3 KB  index  (567.6 -> 570.9)
-!   +    1.5 KB  admin.crm._id
+  +   17,5 KB  SeoPanel (NOWY)  (0.0 -> 17.5)
+  +   15,2 KB  index  (570.0 -> 585.2)
+  −    2,6 KB  admin.tracker
+  −    2,4 KB  admin.posts._slug
+  +    1,7 KB  admin.billing
 ```
 
-Progi zostały w międzyczasie podniesione (PUBLIC 2 475 → 2 505, OVERALL 3 790 →
-3 835), a mimo to zapas jest **węższy niż 2% na obu**. Moduł rekrutacji dołożył
-28 KB gzip do powierzchni publicznej w jeden dzień.
+Co **nie** jest przyczyną — sprawdzone, żeby nie powtórzyć błędu atrybucji
+z poprzednich wydań:
 
-Wniosek jest ten sam, co wczoraj, tylko przeniesiony o jeden budżet dalej: **0,76%
-zapasu znaczy, że następna regresja zostanie przypisana przypadkowemu commitowi.**
-Skrypt sam podpowiada właściwy ruch (`BUNDLE_INVENTORY=1 bun run build &&
-bun run report:chunk-inventory index`) i sam pisze, że to **nie** jest powód do
-podniesienia progu.
+- **Nie słowniki i18n.** Sonda na wartościach (nie kluczach): „Kluby dyskusyjne są
+  dostępne po zalogowaniu" → **0 trafień** w `index-*`. Podział z R2 trzyma:
+  **27 osobnych chunków `i18n-*`**, w tym `i18n-club` 36,6 KB, `i18n-builder`
+  30,6 KB, `i18n-profile` 19,5 KB — wszystkie poza wejściem.
+- **Nie rdzeń słownika.** `src/lib/locale/{pl,en}.ts` jest **bajtowo identyczny**
+  z poprzednim HEAD-em (4 509 linii, 165 272 B). Cała praca i18n tego okna
+  (+2 078 linii w 19 plikach) poszła w nakładki `src/lib/i18n-*.ts`, czyli w chunki
+  ładowane osobno.
+- **Nie `SeoPanel`.** Jest osobnym plikiem (59 667 B surowo), nie siedzi w wejściu.
+
+**Czego nie zmierzyłem:** składu chunku wejściowego z dokładnością do modułu. Bramka
+podaje dokładne narzędzie (`BUNDLE_INVENTORY=1 bun run build && bun run
+report:chunk-inventory index`) — wymaga drugiego pełnego builda i nie zmieściłem go
+w tej sesji. Zapisuję to jako **niezmierzone**, bo wskazanie winnego bez inwentarza
+byłoby zgadywaniem; trzy hipotezy powyżej są **wykluczone pomiarem**, co zawęża
+pole, ale nie zamyka sprawy.
+
+### 5.3. Zapas na dwóch pozostałych budżetach nadal cienki
+
+PUBLIC ma **0,62%** zapasu (15,6 KB), OVERALL **1,20%** (46,0 KB). Wniosek
+z poprzedniego wydania stoi bez zmian: przy takim zapasie **następna regresja
+zostanie przypisana przypadkowemu commitowi**, bo zmieści się w niej cokolwiek.
 
 ---
 
 ## 6. Dług, który da się policzyć
 
-### 6.1. Warstwa językowa — konsekwentnie w dół
+### 6.1. Warstwa językowa — R7 wykonana, i to hurtem
 
-| Miara | Stan | 13.08 | Zmiana |
-|---|---:|---:|---|
-Ternaria `isPl ?` | **135** w 26 plikach | 155 w 33 | **−20** |
-Twarde znaczniki BCP-47 | **297** | 321 | −24 |
-Ręczne bliźniaki `? x_pl : x_en` | **110** | 112 | −2 |
-`defaultValue:` w wywołaniach `t()` | **1 398** | 1 568 | **−170** |
-Słowniki z `ensure*I18n()` | **52 / 87** | 47 / 85 | +5 |
-Importy side-effect słowników | 316 | — | — |
-Parytet PL/EN | 0 brakujących w bramkowanych prefiksach | j.w. | — |
+| Miara | `0fd4108` | `c6306e7` | Δ |
+|---|---:|---:|---:|
+`defaultValue:` w kodzie produkcyjnym (surowy grep) | 1 398 | 75 | **−1 323** |
+**zapasowe teksty przy `t()` (bramka)** | — | **0** | bramka trzyma zero |
+ternary `isPl ? …` | 155 | **26** | −129 |
+ternary `lang === "pl" ? …` | 844 | **681** | −163 |
+słowniki i18n | 87 | **100** | +13 |
 
-**To jedyny obszar długu, który spadł we wszystkich pięciu wymiarach naraz.**
-Największa pozycja — 1 398 wywołań `defaultValue:` — zeszła o 170 w jeden dzień
-i pozostaje największym pojedynczym długiem językowym. Mechanizm szkody bez zmian:
-fallback wpisany w kod sprawia, że brakujący klucz nigdy się nie ujawnia, więc
-bramka parytetu go nie widzi.
+Commit `516e94a` („i18n: 1398 -> 0 zapasowych tekstów przy t() + bramka trzymająca
+zero") plus cztery commity `i18n(cz. 1–4)`. Bramka `check:i18n-default-value`
+raportuje na tym HEAD: **0 zapasowych tekstów w 2 495 plikach, 53 przepuszczenia
+wartości runtime'owej świadomie dozwolone**.
 
-Doszła bramka `check:i18n-hardcoded` (ratchet: 1 593 znane wystąpienia w 156
-plikach, lista może tylko maleć) — czyli obszar, który dotąd był mierzony, zaczął
-być **pilnowany**.
+Rozjazd między moim gołym grepem (75) a bramką (0) jest **różnicą definicji, nie
+sprzecznością**: grep łapie każde `defaultValue:` — także prop React Hook Form
+i dozwolone `t(\`…${code}\`, { defaultValue: code })`, gdzie zapas nie niesie tekstu
+dla użytkownika. Autorytatywna jest liczba bramki, bo to ona definiuje dług.
 
-### 6.2. Martwy kod — luka zamknięta
+Uzasadnienie w `src/lib/ci/i18nDefaultValue.ts` jest warte zacytowania jako wzorzec:
+warunek usunięcia nie brzmiał „wygląda na zbędny", tylko **„klucz ma liść tekstowy
+w PL i w EN"** — wtedy `defaultValue` jest gałęzią nieosiągalną i jego zniknięcie
+nie może zmienić ani jednego wyrenderowanego znaku. Miejsca, gdzie warunek nie
+zachodzi, zostały **nietknięte** i wychodzą w raporcie jako `load-bearing`, czyli
+realny brak w słowniku.
 
-| Miara | Stan | 13.08 |
+Zostało **681 ternariów po języku** — to jest największa pozostała pozycja tego długu
+i jedyna droga do trzeciego języka.
+
+### 6.2. Typowanie — R8 wykonana
+
+| Miara | `0fd4108` | `c6306e7` |
 |---|---:|---:|
-`tsc --noUnusedLocals --noUnusedParameters` | **0 martwych deklaracji** | 156 w 67 plikach |
-`noUnusedLocals` w `tsconfig.json` | **`true`** | `false` |
-`noUnusedParameters` w `tsconfig.json` | **`true`** | `false` |
+`as unknown as` w kodzie produkcyjnym | 359 | **257** |
+ratchet bramki `check:unknown-casts` | — | **201 znanych w 129 plikach** |
+`@ts-ignore` / `@ts-expect-error` | 2 | 2 |
+adnotacje `: any` | 5 | 5 |
+wyjątki `check:db-row-casts` | — | 22 (lista może tylko maleć) |
+baseline `check:types-freshness` | — | 26 kolumn poza typami |
 
-**R1 z poprzedniego audytu jest wykonana w całości** — commit `6b989b6`
-(*„fix(dead-code): 171 → 0 martwych deklaracji, flagi tsc włączone — i cztery zerwane
-ścieżki funkcji pod nimi"*). Wdrożenie poszło dokładnie tą dwustopniową drogą, którą
-tamten audyt rekomendował: najpierw wyczyszczenie całości, potem włączenie flag.
-Bramka weszła zielona i taka jest.
+Trzy commity: `ce51372` (wspólny builder zapytań Supabase — 71 rzutowań w CRM do 2),
+`0b3ee3c` (35 ręcznych rzutowań na `Json` → `toJson()`), `8c1b227` (`toJsonArray`
++ generyk — 193 rzutowania). Każdy z ratchetem.
 
-Warto zapisać wtrącenie z tytułu tamtego commita: przy czyszczeniu 171 martwych
-deklaracji znalazły się **cztery zerwane ścieżki funkcji** pod nimi. Martwy kod nie
-był tylko kosmetyką — przykrywał cztery realne defekty.
+`tsconfig.json` trzyma `strict: true`, `noUnusedLocals: true`,
+`noUnusedParameters: true` — **bez regresji**, a `tsc --noEmit` daje 0 błędów, więc
+martwy kod nadal wynosi 0.
 
-`@typescript-eslint/no-unused-vars` pozostaje `off` w `eslint.config.js`, ale to już
-nie ma znaczenia: `tsc` łapie tę klasę i CI go odpala.
+### 6.3. Bezpieczeństwo bazy — najmocniejszy wynik tego audytu
 
-### 6.3. Typowanie
+Zmierzone własnym parserem stanu końcowego na 779 migracjach:
 
-| Miara | Stan | 13.08 | Ocena |
-|---|---:|---:|---|
-`as any` ręcznie | **5** (5 plików) | 7 | czysto |
-`as any` w `routeTree.gen.ts` | 298 | 295 | plik generowany |
-`: any` | 5 | 9 | czysto |
-`as unknown as` (produkcja) | **359** | 350 | **do przeglądu** |
-`as unknown as` (testy) | 219 | 205 | — |
-`@ts-expect-error` | 4 | 3 | czysto |
-`@ts-ignore` | **0** | 0 | czysto |
-`TODO` / `FIXME` / `HACK` | **0 / 0 / 0** | 0/0/0 | czysto |
-`@deprecated` | 1 | 1 | czysto |
-`eslint-disable` | 46 | 45 | do przeglądu |
+| Miara | Wynik |
+|---|---|
+Tabele żywe | **250** |
+Tabele z włączonym RLS | **250 z 250 (100%)** |
+Tabele bez deklaracji RLS | **0** |
+Tabele z `DISABLE ROW LEVEL SECURITY` | **0** |
+Polityki na tabelach bez RLS (martwe) | **0** |
+Tabele bez ani jednej polityki | 40 — **wszystkie 40 mają RLS włączony** |
+Funkcje `SECURITY DEFINER` | 689 |
+…bez przypiętego `search_path` | **0** (21 przypina przez `ALTER FUNCTION`) |
 
-**359 rzutowań `as unknown as` w kodzie produkcyjnym** to jedyna pozycja typowania
-warta uwagi i jedyna, która **rośnie** (+9). Doszły za to dwie bramki, które atakują
-tę klasę od strony bazy: `check:db-row-casts` (22 wyjątki, ratchet) i
-`check:types-freshness` (28 znanych kolumn poza wygenerowanymi typami). Część rzutowań
-jest nieunikniona na granicy Supabase — te dwie bramki mierzą dokładnie tę część
-i trzymają ją w miejscu.
+Czterdzieści tabel bez polityk **nie jest luką** — to konstrukcja domknięta:
+RLS włączony przy zerze polityk znaczy **deny-all** dla ról nieuprzywilejowanych,
+więc dostęp idzie wyłącznie przez funkcje `SECURITY DEFINER`. Sprawdzone na
+`club_posts`: `ENABLE ROW LEVEL SECURITY` stoi, `GRANT SELECT, INSERT, UPDATE,
+DELETE … TO authenticated` też — i RLS ten grant unieważnia. **Trzydzieści jeden**
+z tych czterdziestu tabel to `club_*`; pozostałe dziewięć to kolejka pocztowa
+(`email_send_log`, `email_send_state`, `email_unsubscribe_tokens`,
+`suppressed_emails`), stan runnera (`job_runner_runs`, `profile_view_alert_state`),
+`profile_embeddings`, `connection_suggestion_dismissals`
+i `tenant_host_assertion_keys` — wszystkie obsługiwane wyłącznie serwerowo.
 
-### 6.4. Dostępność — sygnały
+Osiemdziesiąt tabel ma `GRANT` dla `anon` — wszystkie pod RLS.
 
-| Miara | Stan | 13.08 |
+**Nie znalazłem ani jednej tabeli, do której dałoby się dostać z pominięciem RLS.**
+
+### 6.4. Dostępność — bez ruchu
+
+| Sygnał | `0fd4108` | `c6306e7` |
 |---|---:|---:|
-`aria-label` | 1 266 | 1 230 |
-`aria-pressed` | 159 | 157 |
-`aria-live` | 85 | 80 |
-`role="dialog"` / `alertdialog` | 20 | 19 |
-`onClick` na `<div>` | **2** | 2 |
-`<img>` bez `alt` | **0** | 0 |
+atrybuty `aria-*` | 2 619 | 2 618 |
+`role="…"` | 441 | 441 |
+`alt=` / `<img` | 297 / 209 | 297 / 209 |
+`sr-only` | 106 | 106 |
+`<div onClick>` (bez roli) | 2 | 2 |
 
-Wynik utrzymany; przyrosty proporcjonalne do przyrostu kodu. Dwa `onClick` na
-`<div>` stoją niezmienione od wczoraj — to jedyna otwarta pozycja i jest drobna.
+To okno **nie dotknęło dostępności**. Zapisuję jako fakt, nie jako zarzut: przy
+pracy skoncentrowanej na warstwie językowej i typach brak ruchu tutaj jest spójny.
 
 ---
 
 ## 7. Rekomendacje — uszeregowane po iloczynie ryzyka i kosztu
 
-### R1. Zdjąć czerwień z CI (koszt: godzina, ryzyko regresji: zero)
+### R1. Przywrócić skasowaną migrację programów (koszt: jedna komenda, ryzyko: zero)
 
-Cztery blokujące kroki, trzy przyczyny, wszystkie z dzisiaj (§3.1):
+```
+git checkout ab9b074 -- supabase/migrations/20260815100000_programs_single_table.sql
+bun run check:programs-harness
+```
 
-1. **Usunąć dwa wygenerowane duplikaty migracji** —
-   `20260814122639_*.sql` i `20260814123014_*.sql`. Zostawić wersje z PR-a, bo to
-   one niosą nagłówki z opisem przyczyny. Jeśli obie wersje są już zastosowane na
-   środowisku, bramka podpowiada drugą drogę: dopisać parę do `KNOWN_CONTENT_TWINS`
-   z decyzją operatora. To zamyka **dwa** kroki naraz (`check:sql-migration-replay`
-   i suitę).
-2. **`bunx prettier --write`** na 29 plikach z §3.1. 115 błędów, wszystkie
-   automatycznie naprawialne.
-3. **Nauczyć `scanColumnEvents()` składni `RENAME COLUMN`**
-   (`src/lib/ci/generatedTypesFreshness.ts:89`) **i dopiero wtedy usunąć wpis**
-   `"member_organizations.paddle_subscription_id"` z `BASELINE`
-   (`scripts/check-generated-types-freshness.ts:41`). Oba kroki muszą wejść razem —
-   samo usunięcie wpisu zapala `check:types-freshness`, bo skaner nadal uważa starą
-   nazwę za żywą (szczegóły w §3.1). To jedyny punkt R1, który wymaga zmiany w kodzie
-   bramki, a nie w danych.
+540 linii przetestowanego kodu leży w historii. Harness, README i job CI już na nią
+czekają. Dopóki jej nie ma, `check:programs-harness` jest czerwony, a dwie równoległe
+rodziny tabel programów żyją dalej — z kodem czytającym obie. **To jest jedyna
+rekomendacja w tym dokumencie, której wykonanie zajmuje mniej czasu niż przeczytanie
+uzasadnienia.**
 
-To jest pierwsza pozycja, bo dopóki CI jest czerwone, **żadna inna bramka nikogo nie
-ostrzega** — czerwień staje się tłem i następny realny defekt wjedzie niezauważony.
-Dokładnie ten tryb awarii opisuje kronika w `check-bundle-size.ts` i dokładnie on
-zdarzył się tu wczoraj po raz drugi (`96e25b3`: 201 błędów formatowania → 0 → 115).
+Osobno, i ważniejsze od samej migracji: **ustalić, jak commit o nazwie „Changes"
+skasował 540 linii bez śladu w opisie.** W tym oknie 45 commitów nosi nazwę
+„Changes" albo „Lovable update". Bramki nie chronią przed usunięciem tego, co
+weryfikują.
 
-### R2. Testy klubów — moduł urósł o 3 273 linie przy T/P 0,11
+### R2. Zmierzyć skład chunku wejściowego — nie podnosić progu (ryzyko: wydajność)
 
-Największa nieprzetestowana masa w repo i najszybciej rosnąca. 48 602 linie kodu na
-5 212 linii testów. Priorytet w obrębie modułu: ścieżki, które dotykają uprawnień
-i wielodostępności (wejście do klubu, role, dokumenty), bo to tam błąd nie jest
-usterką UI, tylko wyciekiem.
+Bramka przekroczona o 11,0 KB, próg świeżo zaciśnięty i **czuły — to jest stan
+pożądany, nie problem do obejścia**. Trzy hipotezy (słowniki i18n, rdzeń locale,
+`SeoPanel`) są **wykluczone pomiarem** w §5.2, więc inwentarz zawęzi się szybko:
 
-### R3. Zatrzymać erozję pokrycia ścieżek pieniężnych (ryzyko: pieniądze)
+```
+BUNDLE_INVENTORY=1 bun run build && bun run report:chunk-inventory index
+```
 
-Wszystkie 11 obszarów pieniężnych ma dziś gorszy stosunek niż wczoraj, przy
-**zerowym ubytku testów** — rośnie sam kod. `paywall` 0,12, `coupon` 0,15,
-`webhook` 0,15. Plus trzy trasy `checkout.*` bez wzmianki w jakimkolwiek teście,
-czternasty dzień.
+Skrypt sam pisze, że podniesienie progu jest ostatecznością. Przy 0,62% zapasu na
+PUBLIC następna regresja i tak trafi w losowy commit.
 
-Najtańsze domknięcie: kilka testów integracyjnych na sklejenie tras `checkout.*`
-(warstwa pod nimi jest testowana przyzwoicie) i podniesienie `paywall` do proporcji
-reszty monetyzacji.
+### R3. `coupon` — 0,044 to najgorsza ścieżka pieniężna w repo (ryzyko: pieniądze)
 
-### R4. Zmierzyć skład chunku wejściowego, nie podnosić progu
+13 plików produkcyjnych na 2 testowe, i jedyny obszar pieniężny, który w tym oknie
+**spadł** (0,048 → 0,044). Kupony B2B mają własne kampanie, wykupienia i limity —
+czyli dokładnie tę klasę logiki, w której błąd jest cichy i kosztowny. Wzorzec
+do skopiowania jest w tym samym oknie: cztery pliki testowe tras checkoutu podniosły
+`checkout` z 0,453 na 0,806.
 
-PUBLIC ma 0,76% zapasu, OVERALL 0,93% — mimo że oba progi już raz podniesiono.
-Skrypt bramki sam podaje komendę (`BUNDLE_INVENTORY=1 bun run build &&
-bun run report:chunk-inventory index`) i sam pisze, że wąski zapas **nie** jest
-powodem do podniesienia progu. Precedens `i18n-club` z §5.1 pokazuje, że ta praca
-działa: −44 KB gzip na największym chunku, kryterium sukcesu jednoznaczne.
+### R4. `ustawienia/RODO` — 0,076 na 31 799 liniach (ryzyko: prawne)
 
-### R5. Rozstrzygnąć `bloki ↔ builder` (28/16) — i zatrzymać `bloki ↔ treść` (18/14)
+Najgorszy stosunek testów do kodu w repo przy tej skali, w module, w którym siedzą
+wielodostępność, zgody i dane osobowe. Warstwa SQL jest tu wzorowa (§6.3); warstwa
+aplikacyjna nie ma dowodu.
 
-Pierwszy cykl był rekomendacją R5 wczoraj i **urósł** (23/17 → 28/16). Drugi
-w ciągu doby przeszedł z 11/2 (jednoznaczny kierunek) na 18/14 (dwa równoważne
-kierunki), czyli przestał być importem typu i stał się drugim realnym sprzężeniem.
+### R5. Zdjąć 43 pary bliźniaków migracji z listy długu
 
-Decyzja jest jedna i ta sama dla obu: albo wspólna warstwa `lib/content-model` pod
-silnikami treści, albo jasny kierunek zależności z adapterem w drugą stronę. Koszt
-rośnie liniowo z każdym nowym widgetem — a od wczoraj przybyło ich w dwóch miejscach.
+Ratchet działa i lista może tylko maleć — ale w tym oknie **nie zmalała**. Dwie pary
+rekrutacji weszły na nią zamiast zostać usunięte (§3.3). Duplikat pozbawiony
+nagłówka to zgubiony zapis przyczyny, a nie tylko powtórzony DDL.
 
-### R6. Przenieść `ClubEnumSelect` do `components/clubs/molecules/`
+### R6. Dokończyć warstwę językową: 681 ternariów po języku
 
-Powtórzenie R6 z poprzedniego audytu — niewykonana, koszt nadal godzinowy,
-szkoda nadal wyłącznie przyszła.
+`defaultValue` spadło z 1 398 na 0, `isPl ?` ze 155 na 26. Zostało **681
+`lang === "pl" ? …`** — ostatnia pozycja, która trzyma tekst w kodzie zamiast
+w słowniku, i jedyna realna przeszkoda przed trzecim językiem. Droga jest
+przetarta i obudowana bramkami.
 
-### R7. Dokończyć warstwę językową: 135 ternariów, 1 398 `defaultValue`
+### R7. 24 importy z design systemu do warstw domenowych
 
-Jedyny obszar długu spadający we wszystkich wymiarach — warto go dowieźć, bo tempo
-jest ustalone (−170 `defaultValue` w jeden dzień). Bramka `check:i18n-hardcoded`
-już trzyma kierunek ratchetem.
+Jedyny wskaźnik strukturalny, który nie drgnął od poprzedniego wydania, i jedyny bez
+bramki. Wzorzec do skopiowania powstał w tym samym oknie: `check:content-layering`
+zamknął cykl `bloki ↔ builder` i pilnuje kierunku (§2.2).
 
-### R8. Przegląd 359 rzutowań `as unknown as` w produkcji
+### R8. 177 ostrzeżeń lintu
 
-Jedyna pozycja typowania, która rośnie (+9). Obchodzą kontrolę typów tak samo
-skutecznie jak `as any`, ale nie zapalają `no-explicit-any`. Dwie nowe bramki
-(`db-row-casts`, `types-freshness`) pilnują części granicznej z Supabase — reszta
-jest niepilnowana.
+143 `react-refresh/only-export-components` + 34 `react-hooks/exhaustive-deps`.
+Nie blokują, więc rosną. Drugie z nich to klasa realnych błędów (zależności hooków),
+nie kosmetyka.
 
 ---
 
 ## 8. Co ta platforma robi dobrze
 
-Audyt, który wymienia wyłącznie długi, daje fałszywy obraz i prowokuje złe decyzje
-remontowe. Pięć rzeczy jest tu zrobionych lepiej niż standard:
+Lista jest krótsza niż lista rekomendacji, bo rekomendacje są celem dokumentu —
+nie dlatego, że jest krótsza w rzeczywistości.
 
-1. **Rekomendacje z poprzedniego audytu zostały wykonane, i to w kolejności.**
-   R1 (martwy kod 171 → 0 + włączone flagi) i R2 (słownik klubów poza chunkiem
-   wejściowym, −44 KB gzip) — obie w ciągu doby, obie dokładnie tą drogą, którą
-   audyt rekomendował. To rzadkie: zwykle audyt jest czytany, a nie wykonywany.
-2. **25 bramek `check:*`, z czego 9 pilnuje inwariantów SQL i uprawnień** — plus
-   cztery nowe od wczoraj, wszystkie w tę samą stronę (świeżość typów, kształty
-   wierszy, twardy tekst, harness rekrutacji). Wielodostępność, zakres właściciela,
-   wstawianie przez anonima, pozycja aktora w zdarzeniach, kontrakt RPC — rzeczy,
-   które w większości projektów wychodzą dopiero z incydentu produkcyjnego.
-3. **709 funkcji `SECURITY DEFINER`, wszystkie z przypiętym `search_path`; 244 tabele,
-   wszystkie z RLS.** Zero wyjątków w obu wymiarach, sprawdzone z uwzględnieniem
-   późniejszych `ALTER`-ów.
-4. **Zero `TODO`, `FIXME`, `HACK`, `@ts-ignore`; 5 ręcznych `as any`; 0 martwych
-   deklaracji.** Przy 540 tysiącach linii produkcyjnych to nie jest przypadek, tylko
-   wymuszona dyscyplina — od wczoraj wymuszona także maszynowo.
-5. **Nowy moduł wchodzi z własnym harnessem CI.** `check:careers-harness`
-   (`scripts/careers-harness/`: migracje + asercje runtime) powstał razem z modułem
-   rekrutacji, a nie po pierwszym incydencie. T/P 0,23 powyżej mediany platformy.
+1. **Bramki są pisane razem z kodem, który mają pilnować.** Osiem nowych bramek
+   w jednym oknie, a `check:gate-coverage` dowodzi, że każda z 33 jest wpięta
+   dokładnie raz na job. `check:content-layering` i `check:editor-autosave` mają
+   **własne testy jednostkowe**, więc bramka nie jest skryptem, któremu trzeba wierzyć.
+2. **Uzasadnienia żyją w kodzie, nie w dokumentach.** Nagłówek
+   `src/lib/ci/i18nDefaultValue.ts` zapisuje warunek bezpieczeństwa usunięcia
+   i **kontrargument, który przegrał**. Migracja `20260815090000` zaczyna się od
+   akapitu „co było zepsute", z odwołaniem do wydania audytu i numeru modułu.
+   Komentarz do indeksu `nl_campaign_events_subscriber_day_uq` tłumaczy, dlaczego
+   jest częściowy.
+3. **RLS bez wyjątków.** 250 z 250 tabel, zero funkcji `SECURITY DEFINER` bez
+   przypiętego `search_path`, zero martwych polityk (§6.3).
+4. **Rekomendacje audytu są wykonywane zaleconą drogą.** R2, R5, R7 i R8 zamknięte
+   pomiarem w jednym oknie — a każda przypięta bramką, więc nie da się jej cofnąć
+   po cichu. Dwa razy z rzędu w tej serii.
+5. **Progi są zaciskane za śladem pomiaru.** `chunk 513 → 471`, bo stara wartość
+   „przestała łapać". To jest odwrotność obchodzenia bramki.
+6. **Defekty zgłoszone przez audyt są naprawiane u źródła, nie maskowane.** FTS
+   czatu dostał słownik z fleksją zamiast poprawionego komentarza; import WP dostał
+   wspólny moduł scalania dla obu stacków; zdarzenia newslettera dostały indeks
+   unikalny z deduplikacją danych zastanych.
 
 ---
 
 ## 9. Metoda — żeby ten audyt dał się powtórzyć
 
-Każda liczba pochodzi z komendy uruchomionej na `0fd4108`. Rzeczy warte zapisania
+Każda liczba pochodzi z komendy uruchomionej na `c6306e7`. Rzeczy warte zapisania
 jako metoda:
 
-- **Środowisko trzeba odtworzyć procedurą z CI, nie „jakimś" installem.** Prywatne
-  lustro npm (`europe-west*-npm.pkg.dev`) jest w tym kontenerze zablokowane przez
-  politykę egress — 292 pakiety wracały z 403, a `tsc` dawał **4 243 błędy**, z czego
-  1 963 to `TS2307 Cannot find module` i kolejne 2 111 to kaskada `any` po nich.
-  Właściwe rozwiązanie stoi w `ci.yml`: `sed` przepinający `bun.lock` na
+- **Środowisko trzeba odtworzyć procedurą z CI.** Prywatne lustro npm
+  (`europe-west*-npm.pkg.dev`) jest w tym kontenerze nieosiągalne. Właściwe
+  rozwiązanie stoi w `ci.yml`: `sed` przepinający `bun.lock` na
   `registry.npmjs.org`, który zachowuje **przypięte wersje** i zmienia tylko host.
-  Po tym: 0 błędów. **Audyt uruchomiony na niekompletnym `node_modules` zmierzyłby
-  4 243 nieistniejące defekty.**
-- **Liczby z dwóch różnych filtrów nie odejmują się od siebie.** §0.1: 537 283 (bez
-  katalogów `__tests__`) minus 97 912 (wszystkie linie testów) to nie jest kod
-  produkcyjny, tylko kod produkcyjny minus 91 290 linii policzonych drugi raz.
-  Przed odjęciem trzeba odtworzyć, jakim filtrem powstał odjemnik.
-- **Tabelę porównawczą trzeba liczyć tym samym skryptem na obu HEAD-ach.** Kolumna
-  „T/P 13.08" w §4 pochodzi z mojego skryptu puszczonego na `94eb31a`, nie
-  z przepisania tabeli z tamtego dokumentu — taksonomie modułów się różnią i porównanie
-  byłoby fikcją. Wzorce ścieżek: `scratchpad/modules.py`, jeden regex per moduł,
-  pierwszy trafiony wygrywa.
-- **Bramkę, której nie da się uruchomić, trzeba oznaczyć jako niezmierzoną —
-  i zmierzyć jej istotę ręcznie.** `check:entry-purity` nie znajduje manifestu, bo
-  nitro nie składa `.output/server` w tym kontenerze (§3.2). Napisanie „zielona" na
-  podstawie tego, że wczoraj była zielona, byłoby tym samym błędem, który rewizja
-  z 06.08 nazwała najgorszym trybem porażki audytu: przepisaniem progu zamiast
-  uruchomienia bramki. Marker `js.stripe.com` sprawdzony gerpem: 1 chunk, nie
-  wejściowy.
-- **Bliźniaki treści nie są bajtowo identyczne.** Duplikaty migracji z §3.1 mają
-  różne sumy MD5 — różnią się o nagłówek komentarza. Porównanie po `md5sum` dałoby
-  fałszywy negatyw; bramka normalizuje treść i dlatego je widzi.
+  Po tym: 895 pakietów, `tsc` 0 błędów. Edycja `bun.lock` jest **wycofana przed
+  commitem** — tak jak w CI, gdzie nigdy nie jedzie w commicie.
+- **Parser SQL nie może być regexem.** §0.1: naiwne czyszczenie komentarzy skasowało
+  65% migracji, bo `/*` bywa w literale. Lekser respektujący `$tag$`, `''` i
+  zagnieżdżone `/* */` daje liczby zgodne z bramkami repo (moje 543 polityki wobec
+  „556 w stanie końcowym" z `check:sql-anon-insert` — różnica to polityki liczone
+  per tabela+nazwa).
+- **Stan końcowy liczy się w kolejności, nie zbiorami.** Wzorzec
+  `DROP … IF EXISTS; CREATE …` jest w tych migracjach masowy. Odjęcie zbioru DROP od
+  zbioru CREATE dawało 127 tabel zamiast 250 — czyli kasowało połowę schematu, która
+  żyje.
+- **Alarm z narzędzia trzeba sprawdzić ręcznie, zanim trafi do tabeli.** §0.2:
+  cztery funkcje „bez `search_path`" miały go przypiętego osobnym `ALTER FUNCTION`.
+  Publikacja tej liczby byłaby zmyślonym defektem bezpieczeństwa.
+- **Bramkę, której nie da się uruchomić, trzeba oznaczyć jako niezmierzoną.**
+  `check:db-contract` wymaga żywej bazy (jest w jobie `post-deploy`), a job `pgtap`
+  wymaga rozszerzenia `pgtap`, którego nie ma w tym obrazie
+  (`extension "pgtap" is not available`). Obie są **niezmierzone**, nie „zielone jak
+  wczoraj". Za to trzy harnessy postgresowe **dały się uruchomić** i dwa przeszły
+  (369 asercji w `pg-harness`, komplet w `careers-harness`), a trzeci pokazał realną
+  awarię z §3.4 — czego lektura kodu by nie pokazała.
+- **Tabelę porównawczą trzeba liczyć tym samym skryptem na obu HEAD-ach.** Wszystkie
+  kolumny „14.08" w §4 i §4.3 pochodzą z moich skryptów puszczonych na worktree
+  `0fd4108`, nie z przepisania tamtego dokumentu — taksonomie modułów się różnią
+  i porównanie byłoby fikcją.
 - **Sondowanie bundla robi się na WARTOŚCIACH, nie na kluczach** (zasada przejęta
-  z poprzedniego audytu, potwierdzona w §5.1).
+  z poprzednich wydań, potwierdzona w §5.2) — i służy do **wykluczania** hipotez.
+  Wykluczenie trzech przyczyn nie jest wskazaniem czwartej; inwentarz chunku
+  pozostaje niezmierzony i jest tak oznaczony.
 
 ---
 
