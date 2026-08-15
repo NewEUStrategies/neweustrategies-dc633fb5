@@ -438,7 +438,7 @@ function EditorialTicker({
           {sectionWord}
         </span>
         <span
-          className="text-[11px] font-extrabold uppercase leading-none tracking-tight"
+          className="text-[11px] font-extrabold uppercase leading-none tracking-[0.06em]"
           style={{ color: "var(--tt-item)" }}
         >
           {label}
