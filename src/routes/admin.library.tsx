@@ -8,6 +8,7 @@
 import { useMemo, useState, type ChangeEvent } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-library";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Library, Upload, Plus, Save, Trash2, FileText, Lock, Pencil } from "lucide-react";
@@ -110,9 +111,8 @@ function emptyForm(): ResourceForm {
 }
 
 export function AdminLibraryPage() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const lang: Lang = i18n.language === "en" ? "en" : "pl";
-  const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
   const qc = useQueryClient();
 
   const resourcesQ = useQuery({
@@ -131,8 +131,9 @@ export function AdminLibraryPage() {
   );
 
   const rankLabel = (rank: number): string => {
-    const t = (tiersQ.data ?? []).find((x) => x.rank === rank);
-    return t ? tierName(t, lang) : L(`ranga ${rank}`, `rank ${rank}`);
+    // `tier`, nie `t` - lokalna zmienna przesłaniała funkcję tłumaczącą.
+    const tier = (tiersQ.data ?? []).find((x) => x.rank === rank);
+    return tier ? tierName(tier, lang) : t("adminLibrary.rank", { rank });
   };
 
   // Publikacja inline z optymistyczną aktualizacją cache (natychmiastowy Switch).
@@ -149,7 +150,7 @@ export function AdminLibraryPage() {
     },
     onError: (e: unknown, _vars, ctx) => {
       if (ctx?.prev) qc.setQueryData(["admin", "member-resources"], ctx.prev);
-      toast.error(e instanceof Error ? e.message : L("Nie udało się zapisać.", "Could not save."));
+      toast.error(e instanceof Error ? e.message : t("adminLibrary.couldSave"));
     },
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: ["admin", "member-resources"] });
@@ -160,11 +161,11 @@ export function AdminLibraryPage() {
     mutationFn: ({ id, filePath }: { id: string; filePath: string | null }) =>
       deleteResource(id, filePath),
     onSuccess: () => {
-      toast.success(L("Usunięto materiał.", "Resource deleted."));
+      toast.success(t("adminLibrary.resourceDeleted"));
       void qc.invalidateQueries({ queryKey: ["admin", "member-resources"] });
     },
     onError: (e: unknown) =>
-      toast.error(e instanceof Error ? e.message : L("Nie udało się usunąć.", "Could not delete.")),
+      toast.error(e instanceof Error ? e.message : t("adminLibrary.couldDelete")),
   });
 
   const rows = resourcesQ.data ?? [];
@@ -175,30 +176,22 @@ export function AdminLibraryPage() {
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold">
             <Library className="h-6 w-6" aria-hidden="true" />
-            {L("Biblioteka materiałów", "Members' library")}
+            {t("adminLibrary.membersLibrary")}
           </h1>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            {L(
-              "Pliki trafiają do prywatnego bucketu Storage i są chronione bramką rangi - pobierze je tylko zalogowany użytkownik o wystarczającej randze warstwy.",
-              "Files go to a private Storage bucket and are protected by a tier gate - only a signed-in user with a sufficient tier rank can download them.",
-            )}
+            {t("adminLibrary.filesGoPrivateStorageBucket")}
           </p>
         </div>
         <NewResourceDialog lang={lang} tierOptions={tierOptions} />
       </header>
 
       {resourcesQ.isLoading ? (
-        <p className="text-sm text-muted-foreground">{L("Wczytywanie...", "Loading...")}</p>
+        <p className="text-sm text-muted-foreground">{t("adminLibrary.loading")}</p>
       ) : resourcesQ.isError ? (
-        <p className="text-sm text-destructive">
-          {L("Nie udało się wczytać materiałów.", "Could not load resources.")}
-        </p>
+        <p className="text-sm text-destructive">{t("adminLibrary.couldLoadResources")}</p>
       ) : rows.length === 0 ? (
         <p className="rounded-md border border-dashed border-border/60 px-3 py-8 text-center text-sm text-muted-foreground">
-          {L(
-            "Brak materiałów. Dodaj pierwszy plik przyciskiem „Nowy materiał”.",
-            'No resources yet. Add the first file with "New resource".',
-          )}
+          {t("adminLibrary.noResourcesYet")}
         </p>
       ) : (
         <div className="space-y-3">
@@ -224,7 +217,7 @@ export function AdminLibraryPage() {
                       </span>
                       <span className="tabular-nums">{formatBytes(r.file_size)}</span>
                       <span className="tabular-nums">
-                        {L("Pobrania", "Downloads")}: {r.download_count}
+                        {t("adminLibrary.downloads")}: {r.download_count}
                       </span>
                       <span className="truncate font-mono opacity-70">{r.file_name}</span>
                     </div>
@@ -235,10 +228,10 @@ export function AdminLibraryPage() {
                     <Switch
                       checked={r.published}
                       onCheckedChange={(v) => setPublished.mutate({ id: r.id, published: v })}
-                      aria-label={L("Opublikowany", "Published")}
+                      aria-label={t("adminLibrary.published")}
                     />
                     <span className="text-xs text-muted-foreground">
-                      {r.published ? L("Opublikowany", "Published") : L("Ukryty", "Hidden")}
+                      {r.published ? t("adminLibrary.published") : t("adminLibrary.hidden")}
                     </span>
                   </div>
                   <EditResourceDialog lang={lang} tierOptions={tierOptions} row={r} />
@@ -246,18 +239,11 @@ export function AdminLibraryPage() {
                     size="icon"
                     variant="ghost"
                     className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                    aria-label={L("Usuń materiał", "Delete resource")}
+                    aria-label={t("adminLibrary.deleteResource")}
                     disabled={removeResource.isPending}
                     onClick={() => {
                       const title = lang === "pl" ? r.title_pl : r.title_en;
-                      if (
-                        confirm(
-                          L(
-                            `Usunąć „${title}”? Plik i metadane zostaną trwale usunięte.`,
-                            `Delete "${title}"? The file and metadata will be permanently removed.`,
-                          ),
-                        )
-                      ) {
+                      if (confirm(t("adminLibrary.confirmDeleteResource", { title }))) {
                         removeResource.mutate({ id: r.id, filePath: r.file_path });
                       }
                     }}
@@ -290,26 +276,26 @@ function ResourceFields({
   onChange: (patch: Partial<ResourceForm>) => void;
   tierOptions: MembershipTierRow[];
 }) {
-  const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
+  const { t } = useTranslation();
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <div>
           <Label className="text-xs">
-            {L("Tytuł PL", "Title PL")} <span className="text-destructive">*</span>
+            {t("adminLibrary.titlePl")} <span className="text-destructive">*</span>
           </Label>
           <Input value={value.title_pl} onChange={(e) => onChange({ title_pl: e.target.value })} />
         </div>
         <div>
           <Label className="text-xs">
-            {L("Tytuł EN", "Title EN")} <span className="text-destructive">*</span>
+            {t("adminLibrary.titleEn")} <span className="text-destructive">*</span>
           </Label>
           <Input value={value.title_en} onChange={(e) => onChange({ title_en: e.target.value })} />
         </div>
       </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <div>
-          <Label className="text-xs">{L("Opis PL", "Description PL")}</Label>
+          <Label className="text-xs">{t("adminLibrary.descriptionPl")}</Label>
           <Textarea
             rows={2}
             value={value.description_pl}
@@ -317,7 +303,7 @@ function ResourceFields({
           />
         </div>
         <div>
-          <Label className="text-xs">{L("Opis EN", "Description EN")}</Label>
+          <Label className="text-xs">{t("adminLibrary.descriptionEn")}</Label>
           <Textarea
             rows={2}
             value={value.description_en}
@@ -327,7 +313,7 @@ function ResourceFields({
       </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <div>
-          <Label className="text-xs">{L("Kategoria", "Category")}</Label>
+          <Label className="text-xs">{t("adminLibrary.category")}</Label>
           <Select
             value={value.category}
             onValueChange={(v) => onChange({ category: v as ResourceCategory })}
@@ -345,13 +331,13 @@ function ResourceFields({
           </Select>
         </div>
         <div>
-          <Label className="text-xs">{L("Wymagana warstwa", "Required tier")}</Label>
+          <Label className="text-xs">{t("adminLibrary.requiredTier")}</Label>
           <Select
             value={String(value.min_tier_rank)}
             onValueChange={(v) => onChange({ min_tier_rank: Number(v) })}
           >
             <SelectTrigger>
-              <SelectValue placeholder={L("Wybierz warstwę", "Select a tier")} />
+              <SelectValue placeholder={t("adminLibrary.selectTier")} />
             </SelectTrigger>
             <SelectContent>
               {tierOptions.map((t) => (
@@ -362,16 +348,13 @@ function ResourceFields({
             </SelectContent>
           </Select>
           <p className="mt-1 text-[11px] text-muted-foreground">
-            {L(
-              "Ranga 0 = wszyscy zalogowani, wyższa = węższy dostęp.",
-              "Rank 0 = any signed-in user, higher = narrower access.",
-            )}
+            {t("adminLibrary.rank0AnySignedUser")}
           </p>
         </div>
       </div>
       <div className="grid grid-cols-1 items-end gap-2 sm:grid-cols-2">
         <div>
-          <Label className="text-xs">{L("Kolejność", "Sort order")}</Label>
+          <Label className="text-xs">{t("adminLibrary.sortOrder")}</Label>
           <Input
             type="number"
             value={value.sort_order}
@@ -382,9 +365,9 @@ function ResourceFields({
           <Switch
             checked={value.published}
             onCheckedChange={(v) => onChange({ published: v })}
-            aria-label={L("Opublikowany", "Published")}
+            aria-label={t("adminLibrary.published")}
           />
-          <span className="text-xs">{L("Opublikowany", "Published")}</span>
+          <span className="text-xs">{t("adminLibrary.published")}</span>
         </div>
       </div>
     </div>
@@ -401,7 +384,7 @@ function NewResourceDialog({
   lang: Lang;
   tierOptions: MembershipTierRow[];
 }) {
-  const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<ResourceForm>(emptyForm);
@@ -411,9 +394,7 @@ function NewResourceDialog({
     mutationFn: (f: File) => uploadResourceFile(f),
     onError: (e: unknown) => {
       setFile(null);
-      toast.error(
-        e instanceof Error ? e.message : L("Nie udało się wysłać pliku.", "Upload failed."),
-      );
+      toast.error(e instanceof Error ? e.message : t("adminLibrary.uploadFailed"));
     },
   });
 
@@ -426,13 +407,13 @@ function NewResourceDialog({
   const create = useMutation({
     mutationFn: (input: ResourceInput) => createResource(input),
     onSuccess: () => {
-      toast.success(L("Dodano materiał.", "Resource added."));
+      toast.success(t("adminLibrary.resourceAdded"));
       void qc.invalidateQueries({ queryKey: ["admin", "member-resources"] });
       reset();
       setOpen(false);
     },
     onError: (e: unknown) =>
-      toast.error(e instanceof Error ? e.message : L("Nie udało się zapisać.", "Could not save.")),
+      toast.error(e instanceof Error ? e.message : t("adminLibrary.couldSave")),
   });
 
   const onPick = (e: ChangeEvent<HTMLInputElement>) => {
@@ -487,26 +468,26 @@ function NewResourceDialog({
       <DialogTrigger asChild>
         <Button size="sm">
           <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
-          {L("Nowy materiał", "New resource")}
+          {t("adminLibrary.newResource")}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{L("Nowy materiał", "New resource")}</DialogTitle>
+          <DialogTitle>{t("adminLibrary.newResource")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
             <Label className="text-xs">
-              {L("Plik", "File")} <span className="text-destructive">*</span>
+              {t("adminLibrary.file")} <span className="text-destructive">*</span>
             </Label>
             <input
               type="file"
               onChange={onPick}
-              aria-label={L("Wybierz plik do wysłania", "Choose a file to upload")}
+              aria-label={t("adminLibrary.chooseFileUpload")}
               className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary-foreground hover:file:bg-primary/90"
             />
             {upload.isPending ? (
-              <p className="text-xs text-muted-foreground">{L("Wysyłanie...", "Uploading...")}</p>
+              <p className="text-xs text-muted-foreground">{t("adminLibrary.uploading")}</p>
             ) : upload.data && file ? (
               <p className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
                 <Upload className="h-3 w-3" aria-hidden="true" />
@@ -514,10 +495,7 @@ function NewResourceDialog({
               </p>
             ) : (
               <p className="text-xs text-muted-foreground">
-                {L(
-                  "Wybierz plik - zostanie wysłany do prywatnego bucketu.",
-                  "Pick a file - it uploads to the private bucket.",
-                )}
+                {t("adminLibrary.pickFileUploadsPrivateBucket")}
               </p>
             )}
           </div>
@@ -531,11 +509,11 @@ function NewResourceDialog({
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => handleOpenChange(false)}>
-            {L("Anuluj", "Cancel")}
+            {t("adminLibrary.cancel")}
           </Button>
           <Button onClick={submit} disabled={!canSubmit}>
             <Save className="mr-1.5 h-4 w-4" aria-hidden="true" />
-            {L("Zapisz", "Save")}
+            {t("adminLibrary.save")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -571,7 +549,7 @@ function EditResourceDialog({
   tierOptions: MembershipTierRow[];
   row: MemberResourceRow;
 }) {
-  const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [pendingFile, setPendingFile] = useState<PendingReplacement | null>(null);
@@ -600,9 +578,7 @@ function EditResourceDialog({
       setPendingFile(uploaded);
     },
     onError: (e: unknown) =>
-      toast.error(
-        e instanceof Error ? e.message : L("Nie udało się wysłać pliku.", "Upload failed."),
-      ),
+      toast.error(e instanceof Error ? e.message : t("adminLibrary.uploadFailed")),
   });
 
   const onPick = (e: ChangeEvent<HTMLInputElement>) => {
@@ -649,12 +625,12 @@ function EditResourceDialog({
       }
       setPendingFile(null);
       upload.reset();
-      toast.success(L("Zapisano zmiany.", "Changes saved."));
+      toast.success(t("adminLibrary.changesSaved"));
       void qc.invalidateQueries({ queryKey: ["admin", "member-resources"] });
       setOpen(false);
     },
     onError: (e: unknown) =>
-      toast.error(e instanceof Error ? e.message : L("Nie udało się zapisać.", "Could not save.")),
+      toast.error(e instanceof Error ? e.message : t("adminLibrary.couldSave")),
   });
 
   const busy = upload.isPending || update.isPending;
@@ -681,18 +657,18 @@ function EditResourceDialog({
           size="icon"
           variant="ghost"
           className="h-8 w-8 text-muted-foreground hover:text-foreground"
-          aria-label={L("Edytuj materiał", "Edit resource")}
+          aria-label={t("adminLibrary.editResource")}
         >
           <Pencil className="h-4 w-4" aria-hidden="true" />
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{L("Edytuj materiał", "Edit resource")}</DialogTitle>
+          <DialogTitle>{t("adminLibrary.editResource")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label className="text-xs">{L("Plik", "File")}</Label>
+            <Label className="text-xs">{t("adminLibrary.file")}</Label>
             <div className="space-y-1 rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
               <p
                 className={`flex items-center gap-1.5 ${pendingFile ? "line-through opacity-60" : ""}`}
@@ -714,7 +690,7 @@ function EditResourceDialog({
                 type="file"
                 onChange={onPick}
                 disabled={busy}
-                aria-label={L("Wybierz nowy plik (podmiana)", "Choose a replacement file")}
+                aria-label={t("adminLibrary.chooseReplacementFile")}
                 className="block w-full min-w-0 flex-1 text-sm text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary-foreground hover:file:bg-primary/90 disabled:opacity-50"
               />
               {pendingFile && (
@@ -725,22 +701,16 @@ function EditResourceDialog({
                   onClick={cancelReplacement}
                   disabled={busy}
                 >
-                  {L("Zostaw obecny plik", "Keep current file")}
+                  {t("adminLibrary.keepCurrentFile")}
                 </Button>
               )}
             </div>
             <p className="text-[11px] text-muted-foreground">
               {upload.isPending
-                ? L("Wysyłanie...", "Uploading...")
+                ? t("adminLibrary.uploading")
                 : pendingFile
-                  ? L(
-                      "Nowy plik zastąpi obecny przy zapisie; stary zniknie z bucketu.",
-                      "The new file replaces the current one on save; the old object is removed.",
-                    )
-                  : L(
-                      "Możesz podmienić plik - licznik pobrań i metadane zostają.",
-                      "You can replace the file - the download counter and metadata stay.",
-                    )}
+                  ? t("adminLibrary.newFileReplacesCurrentOne")
+                  : t("adminLibrary.canReplaceFileDownloadCounter")}
             </p>
           </div>
           <ResourceFields
@@ -752,11 +722,11 @@ function EditResourceDialog({
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => handleOpenChange(false)}>
-            {L("Anuluj", "Cancel")}
+            {t("adminLibrary.cancel")}
           </Button>
           <Button onClick={() => update.mutate()} disabled={!canSubmit}>
             <Save className="mr-1.5 h-4 w-4" aria-hidden="true" />
-            {L("Zapisz", "Save")}
+            {t("adminLibrary.save")}
           </Button>
         </DialogFooter>
       </DialogContent>

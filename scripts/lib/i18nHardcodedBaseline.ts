@@ -114,8 +114,6 @@ export const HARDCODED_LANGUAGE_BASELINE: readonly (readonly [string, number])[]
   ["src/routes/admin.crm.index.tsx", 26],
   ["src/routes/admin.greetings.tsx", 1],
   ["src/routes/admin.i18n.tsx", 1],
-  ["src/routes/admin.integrations.tsx", 34],
-  ["src/routes/admin.library.tsx", 41],
   ["src/routes/admin.monetization.tsx", 25],
   ["src/routes/admin.organizations.new.tsx", 21],
   ["src/routes/admin.pages.$slug.tsx", 4],
