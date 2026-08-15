@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import * as lazyWidgets from "@/components/admin/builder/ui/organisms/widget-view/lazyWidgets";
+import * as lazyWidgets from "@/components/builder/organisms/widget-view/lazyWidgets";
 
 // The split widgets WidgetView pulls from the lazy registry. Importing the
 // module evaluates the React.lazy() factories without triggering their dynamic
@@ -47,6 +47,28 @@ const SPLIT_WIDGETS = [
   "CorridorMapWidgetView",
   "SourcesWidgetView",
   "MethodologyWidgetView",
+  // Podział po typie z 2026-08-15 (ocena 2026-08-14: entry ciągnął komplet
+  // widgetów; strona z pięcioma typami pobierała wszystkie 44)
+  "PostListView",
+  "TailoredMustReadsView",
+  "PostsSliderWidget",
+  "EventCountdownCardView",
+  "PurchaseConfirmationView",
+  "OnboardingFormView",
+  "ProgressCarouselView",
+  "RichHtmlView",
+  "SearchButtonWidget",
+  "AccountMenuWidget",
+  "SpeakersWidget",
+  "TeamMemberWidget",
+  "AuthorProfileCardWidget",
+  "InteractiveCircleWidget",
+  "TocWidget",
+  "PricingPlansView",
+  "DynamicTagWidget",
+  "GalleryLightboxZone",
+  // Kanwowy click-to-edit (normalizeBuilderRichHtml -> node-html-parser)
+  "Editable",
 ] as const;
 
 describe("lazyWidgets registry", () => {

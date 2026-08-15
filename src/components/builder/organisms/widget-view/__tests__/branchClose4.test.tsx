@@ -6,11 +6,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { WidgetView } from "@/components/admin/builder/WidgetView";
+import { WidgetView } from "@/components/builder/organisms/WidgetView";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import type { WidgetNode, WidgetType, WidgetContent } from "@/lib/builder/types";
 
 const db = vi.hoisted(() => ({ tables: {} as Record<string, unknown[]> }));
+
+// Podział kodu (React.lazy) zamieniony na importy statyczne - bez tego pierwszy
+// render leniwych widgetów pokazuje fallback Suspense i synchroniczne asercje
+// widzą pustkę tam, gdzie w produkcji SSR wypełnia boundary. Lustro eager jest
+// kontraktowo identyczne z rejestrem (src/lib/builder/ci/__tests__/eagerWidgetChunks.test.ts).
+vi.mock(
+  "@/components/builder/organisms/widget-view/lazyWidgets",
+  () => import("@/test/eagerWidgetChunks"),
+);
 
 vi.mock("@/integrations/supabase/client", () => {
   const mk = (table: string) => {

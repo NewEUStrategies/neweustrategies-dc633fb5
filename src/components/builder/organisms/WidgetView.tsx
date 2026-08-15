@@ -67,7 +67,17 @@ import {
   MeetingBookingView,
   EventSponsorsView,
   CircularCarouselView,
-} from "./ui/organisms/widget-view/lazyWidgets";
+  // Podział po typie (2026-08-15): listingi, karty zdarzeń, billing, formularz
+  // onboardingu, karuzela postępu i renderer HTML tekstu jadą w chunkach na
+  // żądanie - entry chrome nie płaci już za komplet widgetów.
+  PostListView,
+  TailoredMustReadsView,
+  EventCountdownCardView,
+  PurchaseConfirmationView,
+  OnboardingFormView,
+  ProgressCarouselView,
+  RichHtmlView,
+} from "./widget-view/lazyWidgets";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { AppLink } from "@/components/atoms/AppLink";
 import { asOneOf, asStr, pickI18n } from "@/lib/content-model/contentValue";
@@ -82,28 +92,23 @@ import {
   getStr,
   getNum,
   normalizeNewsletterVariant,
-} from "./ui/organisms/widget-view/frame";
-import { OnboardingFormView } from "./ui/organisms/widget-view/OnboardingFormView";
-import { ProgressCarouselView } from "./ui/organisms/widget-view/ProgressCarouselView";
-import { MOTION_INITIAL, MOTION_FINAL } from "./ui/organisms/widget-view/motion";
-import { Editable } from "./ui/molecules/Editable";
-// Eager: layout-critical / above-the-fold / navigation widgets.
-import { PostListView } from "./ui/organisms/widget-view/PostListView";
-import { TailoredMustReadsView } from "./ui/organisms/widget-view/TailoredMustReadsView";
-import { EventCountdownCardView } from "./ui/organisms/widget-view/EventCountdownCardView";
-import { PurchaseConfirmationView } from "./ui/organisms/widget-view/PurchaseConfirmationView";
+} from "./widget-view/frame";
+import { MOTION_INITIAL, MOTION_FINAL } from "./widget-view/motion";
+// Editable przez rejestr leniwy: renderuje się tylko w kanwie (canEdit), a jego
+// normalizacja HTML ciągnie node-html-parser - nie może jechać w entry chrome.
+import { Editable } from "./widget-view/lazyWidgets";
+// Eager zostaje wyłącznie nawigacja chrome (hydratacja headera przede
+// wszystkim) i tanie, małe widgety - patrz nagłówek widget-view/lazyWidgets.
 import { MegaMenu, type MegaMenuConfig } from "@/components/megaMenu/MegaMenu";
 import { SiteMenu } from "@/components/menu/SiteMenu";
-import { CategoriesView } from "./ui/organisms/widget-view/CategoriesView";
-import { TagsView } from "./ui/organisms/widget-view/TagsView";
-import { renderSimpleWidget, ResizableBox } from "./ui/organisms/widget-view/SimpleWidgets";
+import { CategoriesView } from "./widget-view/CategoriesView";
+import { TagsView } from "./widget-view/TagsView";
+import { renderSimpleWidget, ResizableBox } from "./widget-view/SimpleWidgets";
 import {
   SocialMailIcon,
   socialGlyphBoxStyle,
   SOCIAL_GLYPH_TILE_CLASS,
-} from "./ui/organisms/widget-view/socialGlyphs";
-
-import { RichHtmlView } from "./ui/organisms/widget-view/RichHtmlView";
+} from "./widget-view/socialGlyphs";
 export { getWidgetFrameStyle, hiddenOnDevice };
 
 const EASING_MAP: Record<string, string> = {

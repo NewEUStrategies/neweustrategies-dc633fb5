@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { WidgetView } from "@/components/admin/builder/WidgetView";
+import { WidgetView } from "@/components/builder/organisms/WidgetView";
 import type {
   WidgetNode,
   WidgetType,
@@ -14,6 +14,15 @@ import type {
   AdvancedSettings,
   Device,
 } from "@/lib/builder/types";
+
+// Podział kodu (React.lazy) zamieniony na importy statyczne - bez tego pierwszy
+// render leniwych widgetów pokazuje fallback Suspense i synchroniczne asercje
+// widzą pustkę tam, gdzie w produkcji SSR wypełnia boundary. Lustro eager jest
+// kontraktowo identyczne z rejestrem (src/lib/builder/ci/__tests__/eagerWidgetChunks.test.ts).
+vi.mock(
+  "@/components/builder/organisms/widget-view/lazyWidgets",
+  () => import("@/test/eagerWidgetChunks"),
+);
 
 vi.mock("@/integrations/supabase/client", () => {
   type Builder = Record<string, unknown> & { then: (r: (v: unknown) => unknown) => unknown };

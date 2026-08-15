@@ -6,7 +6,7 @@ import { createPortal } from "react-dom";
 import { Menu, Moon, Search, Sun, X } from "lucide-react";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { cn } from "@/lib/utils";
-import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
+import { BuilderRenderer } from "@/components/builder/organisms/BuilderRenderer";
 import type { BuilderDocument } from "@/lib/builder/types";
 import type { TickerConfig } from "@/lib/views/headerTickerQuery";
 import { resolveActiveTickerConfig } from "@/lib/views/tickerVariants";

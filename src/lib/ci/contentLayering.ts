@@ -87,10 +87,16 @@ export interface LayeringReport {
  * Wzorce warstw - PIERWSZY TRAFIONY WYGRYWA, więc kolejność ma znaczenie:
  * `components/admin/builder/` musi być sprawdzone przed `components/admin/`,
  * a `lib/content-model/` przed czymkolwiek innym.
+ *
+ * `components/builder/` to publiczna powierzchnia renderera buildera
+ * (BuilderRenderer, WidgetView, widget-view/*), wyprowadzona spod
+ * `components/admin/` 2026-08-15, bo eager-owa część renderera jechała w
+ * chunku wejściowym i inwentarz bundla księgował ją jako kod adminowy.
+ * Warstwowo to wciąż TEN SAM silnik builder - stąd wpis w tym samym wzorcu.
  */
 const LAYER_PATTERNS: ReadonlyArray<readonly [ContentLayer, RegExp]> = [
   ["content-model", /^src\/lib\/content-model\//],
-  ["builder", /^src\/(?:lib\/builder\/|components\/admin\/builder\/)/],
+  ["builder", /^src\/(?:lib\/builder\/|components\/admin\/builder\/|components\/builder\/)/],
   ["blocks", /^src\/(?:lib\/blocks\/|components\/blocks\/|components\/admin\/blocks\/)/],
   ["routes", /^src\/routes\//],
 ];

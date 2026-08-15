@@ -11,7 +11,7 @@ import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { toJson, type Json, type WidgetContent, type WidgetNode } from "@/lib/builder/types";
 import { WIDGETS } from "@/lib/builder/registry";
 import { AccordionEditor } from "../AccordionEditor";
-import { renderSimpleWidget } from "../../widget-view/SimpleWidgets";
+import { renderSimpleWidget } from "@/components/builder/organisms/widget-view/SimpleWidgets";
 
 type Recorded = Array<[string, Json]>;
 

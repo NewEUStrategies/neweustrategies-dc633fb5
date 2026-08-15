@@ -13,7 +13,7 @@
 // nie zmienia więc niczego w zachowaniu widgetu - usuwa tylko granicę Suspense.
 //
 // UŻYCIE
-//   vi.mock("@/components/admin/builder/ui/organisms/widget-view/lazyWidgets", () =>
+//   vi.mock("@/components/builder/organisms/widget-view/lazyWidgets", () =>
 //     import("@/test/eagerWidgetChunks"),
 //   );
 //
@@ -22,34 +22,34 @@
 export { NewsletterForm } from "@/components/NewsletterForm";
 export { JoinUsForm } from "@/components/interests/JoinUsForm";
 export { ContactFormView } from "@/components/blocks/ContactFormView";
-export { AuthFormWidget } from "@/components/admin/builder/ui/organisms/widget-view/AuthFormWidget";
+export { AuthFormWidget } from "@/components/builder/organisms/widget-view/AuthFormWidget";
 export { InterestsCustomizer } from "@/components/interests/InterestsCustomizer";
-export { TtsPlayerHost } from "@/components/admin/builder/ui/molecules/TtsPlayerHost";
-export { PodcastLatestView } from "@/components/admin/builder/ui/organisms/widget-view/PodcastLatestView";
+export { TtsPlayerHost } from "@/components/builder/molecules/TtsPlayerHost";
+export { PodcastLatestView } from "@/components/builder/organisms/widget-view/PodcastLatestView";
 export {
   ClubCardView,
   ClubThreadsView,
-} from "@/components/admin/builder/ui/organisms/widget-view/ClubWidgets";
-export { WebStoriesCarouselView } from "@/components/admin/builder/ui/organisms/widget-view/WebStoriesCarouselView";
-export { NewsTickerView } from "@/components/admin/builder/ui/organisms/widget-view/NewsTickerView";
-export { EventScheduleView } from "@/components/admin/builder/ui/organisms/widget-view/EventScheduleView";
-export { EventsListView } from "@/components/admin/builder/ui/organisms/widget-view/EventsListView";
-export { EventCountdownView } from "@/components/admin/builder/ui/organisms/widget-view/EventCountdownView";
-export { MeetingBookingView } from "@/components/admin/builder/ui/organisms/widget-view/MeetingBookingView";
-export { EventSponsorsView } from "@/components/admin/builder/ui/organisms/widget-view/EventSponsorsView";
-export { RatedListView } from "@/components/admin/builder/ui/organisms/widget-view/RatedListView";
-export { TabsBlock } from "@/components/admin/builder/ui/organisms/widget-view/TabsBlock";
-export { CircularCarouselView } from "@/components/admin/builder/ui/organisms/widget-view/CircularCarouselView";
+} from "@/components/builder/organisms/widget-view/ClubWidgets";
+export { WebStoriesCarouselView } from "@/components/builder/organisms/widget-view/WebStoriesCarouselView";
+export { NewsTickerView } from "@/components/builder/organisms/widget-view/NewsTickerView";
+export { EventScheduleView } from "@/components/builder/organisms/widget-view/EventScheduleView";
+export { EventsListView } from "@/components/builder/organisms/widget-view/EventsListView";
+export { EventCountdownView } from "@/components/builder/organisms/widget-view/EventCountdownView";
+export { MeetingBookingView } from "@/components/builder/organisms/widget-view/MeetingBookingView";
+export { EventSponsorsView } from "@/components/builder/organisms/widget-view/EventSponsorsView";
+export { RatedListView } from "@/components/builder/organisms/widget-view/RatedListView";
+export { TabsBlock } from "@/components/builder/organisms/widget-view/TabsBlock";
+export { CircularCarouselView } from "@/components/builder/organisms/widget-view/CircularCarouselView";
 export { AdSlotById } from "@/components/ads/AdSlotById";
 export { DonationsWidgetView } from "@/components/donations/DonationsWidgetView";
-export { RichTextView } from "@/components/admin/builder/ui/organisms/widget-view/RichTextView";
+export { RichTextView } from "@/components/builder/organisms/widget-view/RichTextView";
 export { SliderRender } from "@/lib/builder/sliderVariants";
 export { AnimatedHeadingRender } from "@/lib/builder/animatedHeadingVariants";
 export {
   ChartWidgetView,
   DataMapWidgetView,
-} from "@/components/admin/builder/ui/organisms/widget-view/DataVizWidgets";
-export { WorldMapWidgetView } from "@/components/admin/builder/ui/organisms/widget-view/WorldMapWidget";
+} from "@/components/builder/organisms/widget-view/DataVizWidgets";
+export { WorldMapWidgetView } from "@/components/builder/organisms/widget-view/WorldMapWidget";
 export {
   TimelineWidgetView,
   SankeyWidgetView,
@@ -60,4 +60,25 @@ export {
   CorridorMapWidgetView,
   SourcesWidgetView,
   MethodologyWidgetView,
-} from "@/components/admin/builder/ui/organisms/widget-view/FeatureWidgets";
+} from "@/components/builder/organisms/widget-view/FeatureWidgets";
+// Podział po typie z 2026-08-15 - lustro musi wystawiać komplet rejestru,
+// pilnuje tego src/lib/builder/ci/__tests__/eagerWidgetChunks.test.ts.
+export { PostListView } from "@/components/builder/organisms/widget-view/PostListView";
+export { TailoredMustReadsView } from "@/components/builder/organisms/widget-view/TailoredMustReadsView";
+export { PostsSliderWidget } from "@/components/builder/organisms/widget-view/PostsSliderWidget";
+export { EventCountdownCardView } from "@/components/builder/organisms/widget-view/EventCountdownCardView";
+export { PurchaseConfirmationView } from "@/components/builder/organisms/widget-view/PurchaseConfirmationView";
+export { OnboardingFormView } from "@/components/builder/organisms/widget-view/OnboardingFormView";
+export { ProgressCarouselView } from "@/components/builder/organisms/widget-view/ProgressCarouselView";
+export { RichHtmlView } from "@/components/builder/organisms/widget-view/RichHtmlView";
+export { SearchButtonWidget } from "@/components/builder/organisms/widget-view/SearchButtonWidget";
+export { AccountMenuWidget } from "@/components/builder/organisms/widget-view/AccountMenuWidget";
+export { SpeakersWidget } from "@/components/builder/organisms/widget-view/SpeakersWidget";
+export { TeamMemberWidget } from "@/components/builder/organisms/widget-view/TeamMemberWidget";
+export { AuthorProfileCardWidget } from "@/components/builder/organisms/widget-view/AuthorProfileCardWidget";
+export { InteractiveCircleWidget } from "@/components/builder/organisms/widget-view/InteractiveCircleWidget";
+export { TocWidget } from "@/components/builder/organisms/widget-view/TocWidget";
+export { PricingPlansView } from "@/components/builder/organisms/widget-view/PricingPlansView";
+export { DynamicTagWidget } from "@/components/builder/organisms/widget-view/DynamicTagWidgets";
+export { GalleryLightboxZone } from "@/components/builder/organisms/widget-view/GalleryLightbox";
+export { Editable } from "@/components/builder/molecules/Editable";

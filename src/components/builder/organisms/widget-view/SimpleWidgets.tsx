@@ -28,15 +28,30 @@ import {
   type Lang,
 } from "./frame";
 import { asBool, asNumInRange, asOneOf, asStr, pickI18n } from "@/lib/content-model/contentValue";
-import { GalleryLightboxZone } from "./GalleryLightbox";
 import { safeWidgetColor } from "@/lib/builder/cssColor";
 import { SOCIAL_OFFICIAL_COLOR } from "@/lib/builder/socialBrand";
 import { localizedPath } from "@/lib/i18n/localePath";
 import { autoInvertColor } from "@/lib/builder/autoInvertColor";
-import { DynamicTagWidget } from "./DynamicTagWidgets";
 import { useCurrentPostCtx } from "@/lib/content-model/postContext";
 import { resolveDynamicText, resolveDynamicList } from "@/lib/builder/dynamicText";
-import { ContactFormView, AuthFormWidget } from "./lazyWidgets";
+// Ciężkie widgety jadą przez rejestr leniwy - SimpleWidgets jest w eager-owej
+// ścieżce chrome (Header/Footer -> BuilderRenderer -> WidgetView), więc każdy
+// statyczny import stąd ląduje w chunku wejściowym KAŻDEJ strony.
+import {
+  ContactFormView,
+  AuthFormWidget,
+  DynamicTagWidget,
+  GalleryLightboxZone,
+  PostsSliderWidget,
+  SearchButtonWidget,
+  AccountMenuWidget,
+  TeamMemberWidget,
+  AuthorProfileCardWidget,
+  SpeakersWidget,
+  InteractiveCircleWidget,
+  TocWidget,
+  PricingPlansView,
+} from "./lazyWidgets";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { WidgetMediaImage } from "@/components/atoms/WidgetMediaImage";
 import { AppLink } from "@/components/atoms/AppLink";
@@ -64,17 +79,12 @@ import {
 import { SocialMailIcon } from "./socialGlyphs";
 
 import { DeferredFrame } from "@/components/atoms/DeferredFrame";
-import { ImageWidget, PostsSliderWidget } from "./mediaWidgets";
-import { SearchButtonWidget } from "./SearchButtonWidget";
+// ImageWidget zostaje eager: renderuje logo w chrome i obrazy nad zgięciem
+// (kandydaci LCP) - leniwy chunk opóźniałby hydratację najważniejszego medium.
+import { ImageWidget } from "./mediaWidgets";
 import { LangSwitcherDropdown, ThemeToggleWidget } from "./chromeWidgets";
-import { AccountMenuWidget, type AccountMenuConfig } from "./AccountMenuWidget";
-import { TeamMemberWidget } from "./TeamMemberWidget";
-import { AuthorProfileCardWidget } from "./AuthorProfileCardWidget";
-import { SpeakersWidget } from "./SpeakersWidget";
-import { InteractiveCircleWidget } from "./InteractiveCircleWidget";
+import type { AccountMenuConfig } from "./AccountMenuWidget";
 import { CounterWidget } from "./CounterWidget";
-import { TocWidget } from "./TocWidget";
-import { PricingPlansView } from "./PricingPlansView";
 import { AuthorByline } from "@/components/molecules/AuthorByline";
 import { resolveAuthorDisplay, widgetAuthorDisplayDefaults } from "@/lib/builder/authorDisplay";
 import { buildAvatarSrc, buildAvatarSrcSet } from "@/lib/cropSizes";

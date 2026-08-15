@@ -15,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Loader2, Monitor, Smartphone, AlertCircle, CheckCircle2 } from "lucide-react";
 import { wpPreviewPage } from "@/lib/wp-import.functions";
-import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
+import { BuilderRenderer } from "@/components/builder/organisms/BuilderRenderer";
 import type { Device } from "@/lib/builder/types";
 
 interface Props {

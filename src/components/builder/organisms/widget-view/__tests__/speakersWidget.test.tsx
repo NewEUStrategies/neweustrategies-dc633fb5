@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { WidgetView } from "@/components/admin/builder/WidgetView";
+import { WidgetView } from "@/components/builder/organisms/WidgetView";
 import type { WidgetNode, WidgetContent } from "@/lib/builder/types";
 
 vi.mock("@/integrations/supabase/client", () => {

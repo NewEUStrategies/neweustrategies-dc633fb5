@@ -7,7 +7,7 @@ Platforma ma **dwa** silniki treści:
 | silnik      | kod                                                             | model dokumentu                          |
 | ----------- | --------------------------------------------------------------- | ---------------------------------------- |
 | **bloki**   | `lib/blocks`, `components/blocks`, `components/admin/blocks`     | `BlocksDoc` -> `Block[]`                 |
-| **builder** | `lib/builder`, `components/admin/builder`                        | `BuilderDocument` -> sekcje -> kolumny -> widgety |
+| **builder** | `lib/builder`, `components/admin/builder` (edytor), `components/builder` (publiczny renderer) | `BuilderDocument` -> sekcje -> kolumny -> widgety |
 
 Przez sześć kolejnych wydań audytu (`docs/AUDYT_PLATFORMY_MODULY_FUNKCJE_*`)
 para `bloki <-> builder` była **jedynym realnym cyklem w repozytorium** - i

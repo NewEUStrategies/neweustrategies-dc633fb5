@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { memo, useEffect, useRef } from "react";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
-import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
+import { BuilderRenderer } from "@/components/builder/organisms/BuilderRenderer";
 import { defaultDocFor } from "@/lib/builder/chromeDefaults";
 import type { BuilderDocument } from "@/lib/builder/types";
 import {

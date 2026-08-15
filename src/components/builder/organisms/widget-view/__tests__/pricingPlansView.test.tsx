@@ -33,7 +33,7 @@ vi.mock("react-i18next", () => ({
 }));
 
 import { PricingPlansView } from "../PricingPlansView";
-import { WidgetView } from "@/components/admin/builder/WidgetView";
+import { WidgetView } from "@/components/builder/organisms/WidgetView";
 import type { WidgetNode } from "@/lib/builder/types";
 
 function wrap(ui: ReactElement) {

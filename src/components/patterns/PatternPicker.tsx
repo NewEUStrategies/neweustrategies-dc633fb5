@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
+import { BuilderRenderer } from "@/components/builder/organisms/BuilderRenderer";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { PATTERNS, PAGE_PATTERNS, POST_PATTERNS } from "@/lib/patterns/library";
 import type { Pattern, PagePattern, PostPattern } from "@/lib/patterns/types";

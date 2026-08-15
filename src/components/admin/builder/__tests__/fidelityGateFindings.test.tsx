@@ -31,6 +31,15 @@ import { useState } from "react";
 import type { Json, WidgetContent, WidgetNode, WidgetType } from "@/lib/builder/types";
 import { WIDGET_SCHEMAS } from "@/lib/builder/schemas";
 
+// Podział kodu (React.lazy) zamieniony na importy statyczne - bez tego pierwszy
+// render leniwych widgetów pokazuje fallback Suspense i synchroniczne asercje
+// widzą pustkę tam, gdzie w produkcji SSR wypełnia boundary. Lustro eager jest
+// kontraktowo identyczne z rejestrem (src/lib/builder/ci/__tests__/eagerWidgetChunks.test.ts).
+vi.mock(
+  "@/components/builder/organisms/widget-view/lazyWidgets",
+  () => import("@/test/eagerWidgetChunks"),
+);
+
 vi.mock("@/hooks/useAuth", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useAuth")>()),
   useRequiredTenant: () => "tenant-findings",
@@ -43,7 +52,7 @@ vi.mock("@/hooks/useAuth", async (importOriginal) => ({
 // nie da: `@/lib/i18n` sam importuje `react-i18next`, więc atrapa sięgająca po
 // słownik zamyka cykl importów i test wisi bez komunikatu.
 
-import { renderSimpleWidget } from "../ui/organisms/widget-view/SimpleWidgets";
+import { renderSimpleWidget } from "@/components/builder/organisms/widget-view/SimpleWidgets";
 import { WidgetContentFields } from "../WidgetProperties";
 
 const IMAGES = ["https://example.org/a.jpg", "https://example.org/b.jpg"];

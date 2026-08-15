@@ -8,7 +8,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { cleanup } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { WidgetView } from "@/components/admin/builder/WidgetView";
+import { WidgetView } from "@/components/builder/organisms/WidgetView";
 import type { WidgetContent, WidgetNode, WidgetType } from "@/lib/builder/types";
 
 vi.mock("@/integrations/supabase/client", () => {
@@ -26,9 +26,9 @@ vi.mock("react-i18next", () => ({
 }));
 // TTS renderuje odtwarzacz leniwie i nie pokazuje surowego tekstu w DOM -
 // podstawiamy sondę, żeby sprawdzić, co widget faktycznie do niego przekazuje.
-vi.mock("@/components/admin/builder/ui/organisms/widget-view/lazyWidgets", async (orig) => {
+vi.mock("@/components/builder/organisms/widget-view/lazyWidgets", async (orig) => {
   const actual =
-    await orig<typeof import("@/components/admin/builder/ui/organisms/widget-view/lazyWidgets")>();
+    await orig<typeof import("@/components/builder/organisms/widget-view/lazyWidgets")>();
   return {
     ...actual,
     TtsPlayerHost: (props: { customText: string; label: string }) => (

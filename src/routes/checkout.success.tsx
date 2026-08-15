@@ -15,7 +15,7 @@ import { billingKeys } from "@/lib/billing/keys";
 import { finalizeCheckout } from "@/lib/billing/checkout.functions";
 import { safeReturnPath } from "@/lib/billing/returnPath";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
-import { PurchaseConfirmationView } from "@/components/admin/builder/ui/organisms/widget-view/PurchaseConfirmationView";
+import { PurchaseConfirmationView } from "@/components/builder/organisms/widget-view/PurchaseConfirmationView";
 import { resolvedContentQueryOptions, type PageData } from "@/lib/queries/public";
 import { ContentRenderer } from "@/components/content/ContentRenderer";
 import { prepareContentForRender } from "@/lib/content/prepareContent";

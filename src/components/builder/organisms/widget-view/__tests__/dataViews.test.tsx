@@ -13,6 +13,15 @@ const db = vi.hoisted(() => ({ tables: {} as Record<string, unknown[]> }));
 const podcasts = vi.hoisted(() => ({ list: [] as unknown[] }));
 const stories = vi.hoisted(() => ({ list: [] as unknown[] }));
 
+// Podział kodu (React.lazy) zamieniony na importy statyczne - bez tego pierwszy
+// render leniwych widgetów pokazuje fallback Suspense i synchroniczne asercje
+// widzą pustkę tam, gdzie w produkcji SSR wypełnia boundary. Lustro eager jest
+// kontraktowo identyczne z rejestrem (src/lib/builder/ci/__tests__/eagerWidgetChunks.test.ts).
+vi.mock(
+  "@/components/builder/organisms/widget-view/lazyWidgets",
+  () => import("@/test/eagerWidgetChunks"),
+);
+
 vi.mock("@/integrations/supabase/client", () => {
   const makeBuilder = (table: string) => {
     const builder: Record<string, unknown> = {};

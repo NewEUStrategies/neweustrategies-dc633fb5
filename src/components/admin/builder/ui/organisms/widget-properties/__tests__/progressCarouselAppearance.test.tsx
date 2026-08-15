@@ -13,7 +13,7 @@ import {
   ProgressCarouselEditor,
   PROGRESS_CAROUSEL_EDITOR_HANDLED_KEYS,
 } from "../ProgressCarouselEditor";
-import { ProgressCarouselView } from "../../widget-view/ProgressCarouselView";
+import { ProgressCarouselView } from "@/components/builder/organisms/widget-view/ProgressCarouselView";
 
 type Recorded = Array<[string, Json]>;
 

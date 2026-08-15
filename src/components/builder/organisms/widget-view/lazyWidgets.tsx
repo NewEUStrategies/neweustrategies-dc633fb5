@@ -23,19 +23,37 @@
 // first mount - `null` made the widget blink out of existence for a moment,
 // so the canvas shows a shimmer placeholder instead.
 //
-// What stays EAGER (deliberately): layout-critical, frequently above-the-fold
-// or navigation widgets - heading, text, button, nav-link, mega-menu,
-// post-list / carousel, categories, tags, cta, dark-featured-card. Splitting
-// those would risk a visible pop-in on first paint.
+// What stays EAGER (deliberately): chrome-critical navigation and the cheap
+// inline JSX cases - heading, text (shell), button, nav-link, mega-menu, menu,
+// lang-switcher, theme-toggle, image (logo / LCP candidate), icon, divider,
+// spacer, copyright, social-icons, section-label, cta, dark-featured-card and
+// the other small inline branches of SimpleWidgets. Two reasons: navigation
+// must hydrate first (header interactivity), and chunks of a few hundred bytes
+// do not compress - 45 takich plików kosztowało kiedyś ~22 KB samych nagłówków
+// (patrz kronika w scripts/check-bundle-size.ts, wpis 2026-08-06 (2)).
+//
+// 2026-08-15: KONIEC „eager, bo tak wyszło". Ocena z 2026-08-14 zmierzyła, że
+// WidgetView ciągnął do chunku wejściowego KOMPLET widgetów (442,1 kB źródeł,
+// 16,3% entry) - strona używająca pięciu typów pobierała wszystkie 44. Od tej
+// zmiany po typie dzielone są też: post-list/karuzela, tailored-must-reads,
+// event-countdown-card, purchase-confirmation, onboarding-form,
+// progress-carousel, rich-html (normalizeRichHtml -> node-html-parser, 202 kB
+// źródła!), search-button, account-link, speakers, team-member,
+// author-profile-card, interactive-circle, toc, pricing, dynamiczne tagi
+// wpisu, lightbox galerii i slider z wpisów. SSR wypełnia każdą granicę
+// Suspense na serwerze, więc HTML i LCP są identyczne - odroczony jest
+// wyłącznie transfer JS na kliencie.
 import { lazy, Suspense, type ComponentProps, type ComponentType, type ReactElement } from "react";
 import { useBuilderMode } from "@/lib/content-model/editorCanvas";
+
+import type { Editable as EditableImpl } from "../../molecules/Editable";
 
 import type { NewsletterForm as NewsletterFormImpl } from "@/components/NewsletterForm";
 import type { ContactFormView as ContactFormViewImpl } from "@/components/blocks/ContactFormView";
 import type { AuthFormWidget as AuthFormWidgetImpl } from "./AuthFormWidget";
 import type { JoinUsForm as JoinUsFormImpl } from "@/components/interests/JoinUsForm";
 import type { InterestsCustomizer as InterestsCustomizerImpl } from "@/components/interests/InterestsCustomizer";
-import type { TtsPlayerHost as TtsPlayerHostImpl } from "@/components/admin/builder/ui/molecules/TtsPlayerHost";
+import type { TtsPlayerHost as TtsPlayerHostImpl } from "@/components/builder/molecules/TtsPlayerHost";
 import type { PodcastLatestView as PodcastLatestViewImpl } from "./PodcastLatestView";
 import type { WebStoriesCarouselView as WebStoriesCarouselViewImpl } from "./WebStoriesCarouselView";
 import type { NewsTickerView as NewsTickerViewImpl } from "./NewsTickerView";
@@ -72,6 +90,24 @@ import type {
   SourcesWidgetView as SourcesWidgetViewImpl,
   MethodologyWidgetView as MethodologyWidgetViewImpl,
 } from "./FeatureWidgets";
+import type { PostListView as PostListViewImpl } from "./PostListView";
+import type { TailoredMustReadsView as TailoredMustReadsViewImpl } from "./TailoredMustReadsView";
+import type { EventCountdownCardView as EventCountdownCardViewImpl } from "./EventCountdownCardView";
+import type { PurchaseConfirmationView as PurchaseConfirmationViewImpl } from "./PurchaseConfirmationView";
+import type { OnboardingFormView as OnboardingFormViewImpl } from "./OnboardingFormView";
+import type { ProgressCarouselView as ProgressCarouselViewImpl } from "./ProgressCarouselView";
+import type { RichHtmlView as RichHtmlViewImpl } from "./RichHtmlView";
+import type { SearchButtonWidget as SearchButtonWidgetImpl } from "./SearchButtonWidget";
+import type { AccountMenuWidget as AccountMenuWidgetImpl } from "./AccountMenuWidget";
+import type { SpeakersWidget as SpeakersWidgetImpl } from "./SpeakersWidget";
+import type { TeamMemberWidget as TeamMemberWidgetImpl } from "./TeamMemberWidget";
+import type { AuthorProfileCardWidget as AuthorProfileCardWidgetImpl } from "./AuthorProfileCardWidget";
+import type { InteractiveCircleWidget as InteractiveCircleWidgetImpl } from "./InteractiveCircleWidget";
+import type { TocWidget as TocWidgetImpl } from "./TocWidget";
+import type { PricingPlansView as PricingPlansViewImpl } from "./PricingPlansView";
+import type { DynamicTagWidget as DynamicTagWidgetImpl } from "./DynamicTagWidgets";
+import type { GalleryLightboxZone as GalleryLightboxZoneImpl } from "./GalleryLightbox";
+import type { PostsSliderWidget as PostsSliderWidgetImpl } from "./PostsSliderWidget";
 
 /** Builder-only shimmer; `null` on public pages (SSR fills the boundary). */
 function LazyFallback() {
@@ -135,7 +171,7 @@ const InterestsCustomizerLazy = lazy(() =>
 export const InterestsCustomizer = withSuspense(InterestsCustomizerLazy);
 
 const TtsPlayerHostLazy = lazy(() =>
-  import("@/components/admin/builder/ui/molecules/TtsPlayerHost").then((m) => ({
+  import("@/components/builder/molecules/TtsPlayerHost").then((m) => ({
     default: m.TtsPlayerHost,
   })),
 ) as ComponentType<ComponentProps<typeof TtsPlayerHostImpl>>;
@@ -312,3 +348,120 @@ const MethodologyWidgetViewLazy = lazy(() =>
   import("./FeatureWidgets").then((m) => ({ default: m.MethodologyWidgetView })),
 ) as ComponentType<ComponentProps<typeof MethodologyWidgetViewImpl>>;
 export const MethodologyWidgetView = withSuspense(MethodologyWidgetViewLazy);
+
+// --- podział po typie z 2026-08-15 (ocena: entry ciągnął komplet widgetów) ---
+// Listingi wpisów: post-list + karuzela dzielą jeden chunk (ten sam moduł),
+// personalizowane must-reads i slider z wpisów mają własne - każdy ciągnie
+// inną warstwę zapytań (postListQuery / useRecommendedPosts / sliderPostsQuery)
+// i żadna z nich nie ma prawa jechać w chunku wejściowym chrome.
+const PostListViewLazy = lazy(() =>
+  import("./PostListView").then((m) => ({ default: m.PostListView })),
+) as ComponentType<ComponentProps<typeof PostListViewImpl>>;
+export const PostListView = withSuspense(PostListViewLazy);
+
+const TailoredMustReadsViewLazy = lazy(() =>
+  import("./TailoredMustReadsView").then((m) => ({ default: m.TailoredMustReadsView })),
+) as ComponentType<ComponentProps<typeof TailoredMustReadsViewImpl>>;
+export const TailoredMustReadsView = withSuspense(TailoredMustReadsViewLazy);
+
+const PostsSliderWidgetLazy = lazy(() =>
+  import("./PostsSliderWidget").then((m) => ({ default: m.PostsSliderWidget })),
+) as ComponentType<ComponentProps<typeof PostsSliderWidgetImpl>>;
+export const PostsSliderWidget = withSuspense(PostsSliderWidgetLazy);
+
+const EventCountdownCardViewLazy = lazy(() =>
+  import("./EventCountdownCardView").then((m) => ({ default: m.EventCountdownCardView })),
+) as ComponentType<ComponentProps<typeof EventCountdownCardViewImpl>>;
+export const EventCountdownCardView = withSuspense(EventCountdownCardViewLazy);
+
+// Potwierdzenie zakupu ciągnie warstwę billingu (Stripe, subskrypcje, payments
+// functions) - typowy czytelnik nigdy nie renderuje tego widgetu.
+const PurchaseConfirmationViewLazy = lazy(() =>
+  import("./PurchaseConfirmationView").then((m) => ({ default: m.PurchaseConfirmationView })),
+) as ComponentType<ComponentProps<typeof PurchaseConfirmationViewImpl>>;
+export const PurchaseConfirmationView = withSuspense(PurchaseConfirmationViewLazy);
+
+const OnboardingFormViewLazy = lazy(() =>
+  import("./OnboardingFormView").then((m) => ({ default: m.OnboardingFormView })),
+) as ComponentType<ComponentProps<typeof OnboardingFormViewImpl>>;
+export const OnboardingFormView = withSuspense(OnboardingFormViewLazy);
+
+const ProgressCarouselViewLazy = lazy(() =>
+  import("./ProgressCarouselView").then((m) => ({ default: m.ProgressCarouselView })),
+) as ComponentType<ComponentProps<typeof ProgressCarouselViewImpl>>;
+export const ProgressCarouselView = withSuspense(ProgressCarouselViewLazy);
+
+// Widget `text`: sam shell zostaje w WidgetView, ale renderer HTML idzie lazy,
+// bo normalizeBuilderRichHtml ciągnie node-html-parser (202 kB źródła) i silnik
+// przypisów - najcięższa pojedyncza pozycja entry z inwentarza 2026-08-06.
+const RichHtmlViewLazy = lazy(() =>
+  import("./RichHtmlView").then((m) => ({ default: m.RichHtmlView })),
+) as ComponentType<ComponentProps<typeof RichHtmlViewImpl>>;
+export const RichHtmlView = withSuspense(RichHtmlViewLazy);
+
+// --- chrome na żądanie: cięższe widgety nagłówka -----------------------------
+// SSR renderuje przycisk/menu od razu (zero CLS), a hydratacja dociąga chunk;
+// React odtwarza kliknięcia sprzed hydratacji na granicy Suspense, więc
+// interakcja nie ginie. W entry zostają tylko lekkie chromeWidgets
+// (lang-switcher, theme-toggle) i nawigacja (menu, mega-menu).
+const SearchButtonWidgetLazy = lazy(() =>
+  import("./SearchButtonWidget").then((m) => ({ default: m.SearchButtonWidget })),
+) as ComponentType<ComponentProps<typeof SearchButtonWidgetImpl>>;
+export const SearchButtonWidget = withSuspense(SearchButtonWidgetLazy);
+
+const AccountMenuWidgetLazy = lazy(() =>
+  import("./AccountMenuWidget").then((m) => ({ default: m.AccountMenuWidget })),
+) as ComponentType<ComponentProps<typeof AccountMenuWidgetImpl>>;
+export const AccountMenuWidget = withSuspense(AccountMenuWidgetLazy);
+
+// --- widgety treści używane punktowo -----------------------------------------
+const SpeakersWidgetLazy = lazy(() =>
+  import("./SpeakersWidget").then((m) => ({ default: m.SpeakersWidget })),
+) as ComponentType<ComponentProps<typeof SpeakersWidgetImpl>>;
+export const SpeakersWidget = withSuspense(SpeakersWidgetLazy);
+
+const TeamMemberWidgetLazy = lazy(() =>
+  import("./TeamMemberWidget").then((m) => ({ default: m.TeamMemberWidget })),
+) as ComponentType<ComponentProps<typeof TeamMemberWidgetImpl>>;
+export const TeamMemberWidget = withSuspense(TeamMemberWidgetLazy);
+
+const AuthorProfileCardWidgetLazy = lazy(() =>
+  import("./AuthorProfileCardWidget").then((m) => ({ default: m.AuthorProfileCardWidget })),
+) as ComponentType<ComponentProps<typeof AuthorProfileCardWidgetImpl>>;
+export const AuthorProfileCardWidget = withSuspense(AuthorProfileCardWidgetLazy);
+
+const InteractiveCircleWidgetLazy = lazy(() =>
+  import("./InteractiveCircleWidget").then((m) => ({ default: m.InteractiveCircleWidget })),
+) as ComponentType<ComponentProps<typeof InteractiveCircleWidgetImpl>>;
+export const InteractiveCircleWidget = withSuspense(InteractiveCircleWidgetLazy);
+
+const TocWidgetLazy = lazy(() =>
+  import("./TocWidget").then((m) => ({ default: m.TocWidget })),
+) as ComponentType<ComponentProps<typeof TocWidgetImpl>>;
+export const TocWidget = withSuspense(TocWidgetLazy);
+
+const PricingPlansViewLazy = lazy(() =>
+  import("./PricingPlansView").then((m) => ({ default: m.PricingPlansView })),
+) as ComponentType<ComponentProps<typeof PricingPlansViewImpl>>;
+export const PricingPlansView = withSuspense(PricingPlansViewLazy);
+
+// Dynamiczne tagi wpisu (post-title, post-meta, post-cover, breadcrumbs, ...):
+// jeden moduł, jeden chunk - renderują się wyłącznie w szablonach wpisu.
+const DynamicTagWidgetLazy = lazy(() =>
+  import("./DynamicTagWidgets").then((m) => ({ default: m.DynamicTagWidget })),
+) as ComponentType<ComponentProps<typeof DynamicTagWidgetImpl>>;
+export const DynamicTagWidget = withSuspense(DynamicTagWidgetLazy);
+
+// Lightbox galerii: portal + focus trap dociągane dopiero na stronach z galerią.
+const GalleryLightboxZoneLazy = lazy(() =>
+  import("./GalleryLightbox").then((m) => ({ default: m.GalleryLightboxZone })),
+) as ComponentType<ComponentProps<typeof GalleryLightboxZoneImpl>>;
+export const GalleryLightboxZone = withSuspense(GalleryLightboxZoneLazy);
+
+// Kanwowy click-to-edit: renderuje się WYŁĄCZNIE przy canEdit (kanwa buildera),
+// a przez normalizeBuilderRichHtml ciągnie node-html-parser - statyczny import
+// w WidgetView wciągał parser do chunku wejściowego każdej strony publicznej.
+const EditableLazy = lazy(() =>
+  import("../../molecules/Editable").then((m) => ({ default: m.Editable })),
+) as ComponentType<ComponentProps<typeof EditableImpl>>;
+export const Editable = withSuspense(EditableLazy);

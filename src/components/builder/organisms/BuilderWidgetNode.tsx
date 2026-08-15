@@ -5,11 +5,11 @@
 // column with N widgets doesn't re-render all N whenever one changes.
 import { memo, useCallback, useMemo, type CSSProperties } from "react";
 import type { Device, WidgetNode } from "@/lib/builder/types";
-import { WidgetView, getWidgetFrameStyle } from "@/components/admin/builder/WidgetView";
+import { WidgetView, getWidgetFrameStyle } from "@/components/builder/organisms/WidgetView";
 import {
   AUTO_SIZE_WIDGETS,
   COMPACT_WIDGET_TYPES,
-} from "@/components/admin/builder/ui/organisms/widget-view/frame";
+} from "@/components/builder/organisms/widget-view/frame";
 import { RenderErrorBoundary } from "@/components/error/RenderErrorBoundary";
 import { safeUrl } from "@/lib/sanitize";
 

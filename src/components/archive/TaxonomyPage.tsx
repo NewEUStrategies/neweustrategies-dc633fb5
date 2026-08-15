@@ -9,7 +9,7 @@ import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useSuspenseQuery, useQuery } from "@tanstack/react-query";
 import { useTransition, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
+import { BuilderRenderer } from "@/components/builder/organisms/BuilderRenderer";
 import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 import { CurrentPostProvider } from "@/lib/content-model/postContext";
 import { buildArchiveCtx } from "@/lib/builder/archiveContext";

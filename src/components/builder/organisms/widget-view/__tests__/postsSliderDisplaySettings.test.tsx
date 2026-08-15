@@ -32,7 +32,7 @@ vi.mock("@/integrations/supabase/client", () => {
 
 vi.mock("@/lib/builder/contentRefs", () => ({ useResolvedPostRefs: () => new Map() }));
 
-import { PostsSliderWidget } from "../mediaWidgets";
+import { PostsSliderWidget } from "../PostsSliderWidget";
 
 const POSTS = [
   {
@@ -213,10 +213,7 @@ describe("PostsSliderWidget - granica leniwego chunka", () => {
     const { readFileSync } = await import("node:fs");
     const { resolve } = await import("node:path");
     const src = readFileSync(
-      resolve(
-        process.cwd(),
-        "src/components/admin/builder/ui/organisms/widget-view/mediaWidgets.tsx",
-      ),
+      resolve(process.cwd(), "src/components/builder/organisms/widget-view/mediaWidgets.tsx"),
       "utf8",
     );
     expect(src).toContain('from "@/lib/builder/sliderOptions"');

@@ -26,12 +26,12 @@ import type {
   Device,
   ResponsiveValue,
 } from "@/lib/builder/types";
-import { hiddenOnDevice } from "@/components/admin/builder/WidgetView";
-import { BuilderWidgetNode } from "@/components/admin/builder/ui/organisms/BuilderWidgetNode";
+import { hiddenOnDevice } from "@/components/builder/organisms/WidgetView";
+import { BuilderWidgetNode } from "@/components/builder/organisms/BuilderWidgetNode";
 import {
   AUTO_SIZE_WIDGETS,
   COMPACT_WIDGET_TYPES,
-} from "@/components/admin/builder/ui/organisms/widget-view/frame";
+} from "@/components/builder/organisms/widget-view/frame";
 import { RenderErrorBoundary } from "@/components/error/RenderErrorBoundary";
 import { afterPrerendering } from "@/lib/prerender";
 import { sanitizeHtmlId, sanitizeCssClass, safeImageUrl, hardenStyleCss } from "@/lib/sanitize";
@@ -49,9 +49,9 @@ import {
   COLUMN_SAFE_AREA_PX,
 } from "@/lib/builder/sectionStyles";
 import { UsedPostIdsProvider } from "@/lib/builder/usedPostIds";
-import { SectionTabsBar } from "@/components/admin/builder/ui/molecules/SectionTabsBar";
+import { SectionTabsBar } from "@/components/builder/molecules/SectionTabsBar";
 import { evaluateAccess, useAccessContext } from "@/lib/builder/accessControl";
-import { useInlineWidgetEdit } from "@/components/admin/builder/inlineEditContext";
+import { useInlineWidgetEdit } from "@/components/builder/inlineEditContext";
 
 import { useSectionPreload } from "@/lib/builder/useSectionPreload";
 import { AboveFoldProvider } from "@/lib/builder/aboveFold";

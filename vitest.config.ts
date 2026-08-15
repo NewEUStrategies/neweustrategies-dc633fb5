@@ -66,7 +66,7 @@ export default defineConfig({
         // Lines re-floored 95 -> 94.5: the gate was already red on main
         // (94.81% after the #43 merge); removing dead-but-imported code in
         // this layer moved it to 94.96%, still under the stale floor.
-        "src/components/admin/builder/ui/organisms/widget-view/**": {
+        "src/components/builder/organisms/widget-view/**": {
           statements: 93,
           functions: 90,
           lines: 94.5,

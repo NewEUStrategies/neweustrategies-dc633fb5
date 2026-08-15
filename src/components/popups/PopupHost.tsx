@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useLocation } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
+import { BuilderRenderer } from "@/components/builder/organisms/BuilderRenderer";
 import { beaconPopupEvent } from "@/lib/analytics/events";
 import { useAuth } from "@/hooks/useAuth";
 import { X } from "@/lib/lucide-shim";

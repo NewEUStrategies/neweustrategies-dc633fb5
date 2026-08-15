@@ -20,7 +20,7 @@ vi.mock("@/hooks/useAuth", async (importOriginal) => ({
 }));
 
 import { ImageEditor, IMAGE_EDITOR_HANDLED_KEYS } from "../ImageEditor";
-import { ImageWidget } from "../../widget-view/mediaWidgets";
+import { ImageWidget } from "@/components/builder/organisms/widget-view/mediaWidgets";
 
 type Recorded = Array<[string, Json]>;
 

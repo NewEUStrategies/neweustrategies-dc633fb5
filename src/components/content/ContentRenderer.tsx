@@ -17,7 +17,7 @@
 import type { BuilderDocument } from "@/lib/builder/types";
 import type { BlocksDoc } from "@/lib/blocks/types";
 
-import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
+import { BuilderRenderer } from "@/components/builder/organisms/BuilderRenderer";
 import { BlocksRenderer } from "@/components/blocks/BlocksRenderer";
 import { CurrentPostProvider, type CurrentPostCtx } from "@/lib/content-model/postContext";
 import { sanitizeMarkdownHtml } from "@/lib/sanitize";

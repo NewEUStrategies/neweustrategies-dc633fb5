@@ -20,7 +20,7 @@ import type { WidgetNode, Json } from "@/lib/builder/types";
 import { PropField, ItemFrame } from "../../atoms";
 import { ListShell } from "./ListShell";
 import { itemsOf, type Item } from "./shared";
-import { ACCOUNT_PRESETS } from "../widget-view/AccountMenuWidget";
+import { ACCOUNT_PRESETS } from "@/components/builder/organisms/widget-view/AccountMenuWidget";
 import { supabase } from "@/integrations/supabase/client";
 import { ChevronUp, ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";

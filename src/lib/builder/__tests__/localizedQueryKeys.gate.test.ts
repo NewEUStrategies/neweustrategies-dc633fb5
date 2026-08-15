@@ -191,7 +191,7 @@ describe("rejestr fabryk nie ma dziur", () => {
 });
 
 describe("zapytania pisane wprost w komponencie widgetu", () => {
-  const WIDGET_VIEW = resolve(SRC, "components/admin/builder/ui/organisms/widget-view");
+  const WIDGET_VIEW = resolve(SRC, "components/builder/organisms/widget-view");
 
   function walk(dir: string, out: string[] = []): string[] {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {

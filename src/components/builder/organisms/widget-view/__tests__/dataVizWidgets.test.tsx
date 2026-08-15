@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   ChartWidgetView,
   DataMapWidgetView,
-} from "@/components/admin/builder/ui/organisms/widget-view/DataVizWidgets";
+} from "@/components/builder/organisms/widget-view/DataVizWidgets";
 import type { WidgetNode } from "@/lib/builder/types";
 
 afterEach(() => {

@@ -9,12 +9,20 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BuilderModeProvider } from "@/lib/content-model/editorCanvas";
-import { WidgetView } from "@/components/admin/builder/WidgetView";
+import { WidgetView } from "@/components/builder/organisms/WidgetView";
 import type { WidgetContent, WidgetNode } from "@/lib/builder/types";
 
 const { subscribeSpy } = vi.hoisted(() => ({
   subscribeSpy: vi.fn(async () => ({ ok: true as const })),
 }));
+
+// Podział kodu (React.lazy) zamieniony na importy statyczne - bez tego pierwszy
+// render leniwych widgetów (w tym kanwowego Editable) pokazuje fallback Suspense.
+// Lustro eager jest kontraktowo identyczne z rejestrem.
+vi.mock(
+  "@/components/builder/organisms/widget-view/lazyWidgets",
+  () => import("@/test/eagerWidgetChunks"),
+);
 
 vi.mock("@/integrations/supabase/client", () => {
   const b: Record<string, unknown> = {};
