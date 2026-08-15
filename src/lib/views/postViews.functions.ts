@@ -157,17 +157,23 @@ export const getTrendingPosts = createServerFn({ method: "GET" })
           sb,
           (rows ?? []).map((r) => r.parent_page_id),
         );
-        return (rows ?? []).map((r) => ({
-          id: r.id,
-          slug: r.slug,
-          title_pl: r.title_pl,
-          title_en: r.title_en,
-          cover_image_url: r.cover_image_url,
-          published_at: r.published_at,
-          parent_page_id: r.parent_page_id,
-          views_count: Number(r.views_count ?? 0),
-          href: postHref(paths, r.parent_page_id, r.slug),
-        }));
+        return attachAuthors(
+          sb,
+          (rows ?? []).map((r) => ({
+            id: r.id,
+            slug: r.slug,
+            title_pl: r.title_pl,
+            title_en: r.title_en,
+            cover_image_url: r.cover_image_url,
+            published_at: r.published_at,
+            parent_page_id: r.parent_page_id,
+            views_count: Number(r.views_count ?? 0),
+            href: postHref(paths, r.parent_page_id, r.slug),
+            author_name: "",
+            author_avatar_url: null,
+          })),
+        );
+
       }),
   );
 
