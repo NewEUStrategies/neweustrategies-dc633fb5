@@ -11874,6 +11874,7 @@ export type Database = {
           name_pl: string
           slug: string
           sort_order: number
+          status: string
           tenant_id: string
           updated_at: string
         }
@@ -11889,6 +11890,7 @@ export type Database = {
           name_pl: string
           slug: string
           sort_order?: number
+          status?: string
           tenant_id?: string
           updated_at?: string
         }
@@ -11904,6 +11906,7 @@ export type Database = {
           name_pl?: string
           slug?: string
           sort_order?: number
+          status?: string
           tenant_id?: string
           updated_at?: string
         }
