@@ -23,6 +23,7 @@
 // trasy publicznej, a `prefetch.ts` ciągnie za sobą wszystkie moduły zapytań
 // widgetów.
 import type { BuilderDocument, Json, WidgetNode } from "./types";
+import { toJson } from "@/lib/builder/types";
 
 /**
  * Widgety, których nagłówek zależy od kontekstu wpisu/archiwum. Na stronie
@@ -61,7 +62,7 @@ export function widgetRendersTopHeading(widget: WidgetNode | null | undefined): 
 
   // 2. Nagłówek wpisany wprost w HTML widgetu tekstowego (`html_pl` / `html_en`
   //    i wszystko, co redakcja wkleiła w treść bogatą).
-  return containsH1Markup(content as unknown as Json);
+  return containsH1Markup(toJson(content));
 }
 
 /** Wszystkie widgety dokumentu - jeden obchód, bez alokacji tablic pośrednich. */

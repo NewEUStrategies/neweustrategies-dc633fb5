@@ -8,11 +8,11 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import type { Json } from "@/integrations/supabase/types";
 import { PreviewFrame } from "../atoms/PreviewFrame";
 import { VersionRow } from "../molecules/VersionRow";
 import { useSiteSettingsRevisions } from "@/lib/admin/useSiteSettingsRevisions";
 import { uiLocale } from "@/lib/i18n/format";
+import { toJson } from "@/lib/builder/types";
 import {
   COOKIE_BANNER_DEFAULTS,
   COOKIE_BANNER_SETTINGS_KEY,
@@ -71,7 +71,7 @@ export function CookieVersionsPane({ lang }: { lang: "pl" | "en" }) {
       const { error } = await supabase
         .from("site_settings")
         .upsert(
-          { key: COOKIE_BANNER_SETTINGS_KEY, value: value as unknown as Json },
+          { key: COOKIE_BANNER_SETTINGS_KEY, value: toJson(value) },
           { onConflict: "tenant_id,key" },
         );
       if (error) throw error;

@@ -3,8 +3,8 @@
 // (administrator / edytor w obrębie tenanta).
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { Json } from "@/integrations/supabase/types";
 import { legalVersionQueryKey } from "./useLegalDocument";
+import { toJson } from "@/lib/builder/types";
 import {
   safeParseLegalContent,
   type LegalDocContent,
@@ -88,7 +88,7 @@ export function useLegalVersionActions(docKey: LegalDocKey) {
         doc_key: input.docKey,
         label: input.label,
         note: input.note ?? null,
-        content: input.content as unknown as Json,
+        content: toJson(input.content),
         created_by: auth.user?.id ?? null,
       });
       if (error) throw error;

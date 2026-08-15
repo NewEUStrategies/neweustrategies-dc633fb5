@@ -239,6 +239,18 @@ jobs:
       - name: No new hardcoded PL/EN text in code
         run: bun run check:i18n-hardcoded
 
+      # Blocking ratchet on `as unknown as T` - the same type-check bypass as
+      # `as any`, minus the lint rule that would flag it. The repo keeps 5 hand
+      # written `as any` under a lint rule; this class counted 362 and nobody
+      # watched it, which is why it was the one typing metric that GREW between
+      # audits. Most of it was not a database boundary: 69 occurrences came from
+      # one typo (four copies of a Supabase query-builder type declaring `then`
+      # incompatibly with `PromiseLike`, so no `await` type-checked) and 35 were
+      # hand-rolled repeats of the existing `toJson()` helper. Frozen PER FILE:
+      # a count may only shrink, a file absent from the baseline must be zero.
+      - name: No new `as unknown as` casts
+        run: bun run check:unknown-casts
+
       # Blocking zero-threshold gate: `t()` may not carry a fallback string.
       # i18next reads `defaultValue` ONLY when the key is absent, and the drift
       # gate (`check:i18n-parity`) proves at every run that no key is absent -

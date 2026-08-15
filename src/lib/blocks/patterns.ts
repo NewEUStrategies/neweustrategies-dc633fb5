@@ -10,6 +10,7 @@
 import type { Block, BlockType, Json } from "./types";
 import { BLOCK_SPECS } from "./registry";
 import { regenerateBlockIds } from "./clipboard";
+import { toJson } from "@/lib/builder/types";
 
 export type PatternLang = "pl" | "en";
 
@@ -42,11 +43,11 @@ export const BLOCK_PATTERNS: readonly BlockPattern[] = [
       }),
       specBlock("list", {
         ordered: false,
-        items: [
+        items: toJson([
           pick(lang, "Najważniejsza obserwacja analizy.", "The single most important finding."),
           pick(lang, "Konsekwencja dla decydentów.", "What it means for decision-makers."),
           pick(lang, "Rekomendowany następny krok.", "The recommended next step."),
-        ] as unknown as Json,
+        ]),
       }),
     ],
   },
@@ -87,18 +88,18 @@ export const BLOCK_PATTERNS: readonly BlockPattern[] = [
     iconType: "columns",
     create: (lang) => [
       specBlock("columns", {
-        left: [
+        left: toJson([
           specBlock("heading", { level: 3, text: pick(lang, "Szanse", "Opportunities") }),
           specBlock("paragraph", {
             html: pick(lang, "<p>Argumenty za.</p>", "<p>Arguments in favour.</p>"),
           }),
-        ] as unknown as Json,
-        right: [
+        ]),
+        right: toJson([
           specBlock("heading", { level: 3, text: pick(lang, "Ryzyka", "Risks") }),
           specBlock("paragraph", {
             html: pick(lang, "<p>Argumenty przeciw.</p>", "<p>Arguments against.</p>"),
           }),
-        ] as unknown as Json,
+        ]),
       }),
     ],
   },
@@ -148,11 +149,11 @@ export const BLOCK_PATTERNS: readonly BlockPattern[] = [
       }),
       specBlock("table", {
         header: true,
-        rows: [
+        rows: toJson([
           [pick(lang, "Wskaźnik", "Indicator"), "2024", "2025"],
           [pick(lang, "Przykładowa metryka", "Sample metric"), "1,2", "1,8"],
           [pick(lang, "Druga metryka", "Second metric"), "42", "57"],
-        ] as unknown as Json,
+        ]),
       }),
     ],
   },
@@ -164,7 +165,7 @@ export const BLOCK_PATTERNS: readonly BlockPattern[] = [
       specBlock("group", {
         background: "",
         padding: 16,
-        children: [
+        children: toJson([
           specBlock("heading", { level: 3, text: pick(lang, "W skrócie", "In brief") }),
           specBlock("list", {
             ordered: true,
@@ -173,7 +174,7 @@ export const BLOCK_PATTERNS: readonly BlockPattern[] = [
               pick(lang, "Punkt drugi.", "Point two."),
             ] as unknown as Json,
           }),
-        ] as unknown as Json,
+        ]),
       }),
     ],
   },

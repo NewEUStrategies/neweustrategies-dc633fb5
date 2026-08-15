@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { toJson } from "@/lib/builder/types";
 import {
   Select,
   SelectContent,
@@ -230,7 +231,7 @@ export function CrmPartnerEndpointsPanel({ lang, stageLabels }: Props) {
           endpoint_id: endpointId,
           auth_kind: d.auth_kind,
           forward_stages: d.forward_stages.length > 0 ? d.forward_stages : ["new"],
-          consent_mapping: mapping as unknown as Json,
+          consent_mapping: toJson(mapping),
           workspace_id: d.workspace_id.trim() || null,
         },
         { onConflict: "endpoint_id" },
