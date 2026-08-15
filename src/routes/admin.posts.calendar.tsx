@@ -277,9 +277,7 @@ function EditorialCalendar() {
       await update$({
         data: { id: post.id, fields: { status: "scheduled", publish_at: nextIso } },
       });
-      toast.success(
-        t("admin.calendar.rescheduled", { defaultValue: "Przeniesiono termin publikacji" }),
-      );
+      toast.success(t("admin.calendar.rescheduled"));
       void qc.invalidateQueries({ queryKey: ["admin", "posts-calendar"] });
       void qc.invalidateQueries({ queryKey: ["admin", "posts-calendar-backlog"] });
       void qc.invalidateQueries({ queryKey: ["admin-posts"] });
@@ -303,18 +301,18 @@ function EditorialCalendar() {
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => void navigate({ to: "/admin/posts" })}>
             <ArrowLeft className="w-4 h-4 mr-1" aria-hidden="true" />
-            {t("admin.calendar.backToList", { defaultValue: "Lista wpisów" })}
+            {t("admin.calendar.backToList")}
           </Button>
           <h1 className="font-display text-xl inline-flex items-center gap-2">
             <CalendarDays className="w-5 h-5 text-brand" aria-hidden="true" />
-            {t("admin.calendar.title", { defaultValue: "Kalendarz redakcyjny" })}
+            {t("admin.calendar.title")}
           </h1>
         </div>
         <div className="flex items-center gap-1">
           <Button
             variant="outline"
             size="sm"
-            aria-label={t("admin.calendar.prevMonth", { defaultValue: "Poprzedni miesiąc" })}
+            aria-label={t("admin.calendar.prevMonth")}
             onClick={() => setAnchor((a) => new Date(a.getFullYear(), a.getMonth() - 1, 1))}
           >
             <ChevronLeft className="w-4 h-4" aria-hidden="true" />
@@ -327,12 +325,12 @@ function EditorialCalendar() {
               setAnchor(new Date(now.getFullYear(), now.getMonth(), 1));
             }}
           >
-            {t("admin.calendar.today", { defaultValue: "Dziś" })}
+            {t("admin.calendar.today")}
           </Button>
           <Button
             variant="outline"
             size="sm"
-            aria-label={t("admin.calendar.nextMonth", { defaultValue: "Następny miesiąc" })}
+            aria-label={t("admin.calendar.nextMonth")}
             onClick={() => setAnchor((a) => new Date(a.getFullYear(), a.getMonth() + 1, 1))}
           >
             <ChevronRight className="w-4 h-4" aria-hidden="true" />
@@ -350,13 +348,7 @@ function EditorialCalendar() {
           <span className="h-2.5 w-2.5 rounded-sm border border-amber-500/40 bg-amber-500/20" />
           {t("admin.status.scheduled")}
         </span>
-        {canPublish && (
-          <span>
-            {t("admin.calendar.dragHint", {
-              defaultValue: "Przeciągnij zaplanowany wpis lub szkic na dzień, aby ustawić termin.",
-            })}
-          </span>
-        )}
+        {canPublish && <span>{t("admin.calendar.dragHint")}</span>}
       </div>
 
       <DndContext sensors={sensors} onDragEnd={(e) => void onDragEnd(e)}>
@@ -388,12 +380,12 @@ function EditorialCalendar() {
           {canPublish && (
             <aside>
               <h2 className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
-                {t("admin.calendar.backlog", { defaultValue: "Bez terminu (szkice i recenzje)" })}
+                {t("admin.calendar.backlog")}
               </h2>
               <div className="space-y-1.5">
                 {(backlog ?? []).length === 0 && (
                   <p className="text-xs text-muted-foreground">
-                    {t("admin.calendar.backlogEmpty", { defaultValue: "Brak wpisów bez terminu." })}
+                    {t("admin.calendar.backlogEmpty")}
                   </p>
                 )}
                 {(backlog ?? []).map((p) => (

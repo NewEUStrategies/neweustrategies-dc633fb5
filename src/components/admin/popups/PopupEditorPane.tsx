@@ -73,31 +73,24 @@ export function PopupEditorPane({ popupId }: { popupId: string }) {
     setSaving(false);
     if (ok) {
       setSavedSnapshot(JSON.stringify({ name, status, doc, settings }));
-      toast.success(t("admin.popups.saved", { defaultValue: "Zapisano popup" }));
+      toast.success(t("admin.popups.saved"));
     } else {
-      toast.error(t("admin.popups.saveError", { defaultValue: "Nie udało się zapisać popupu" }));
+      toast.error(t("admin.popups.saveError"));
     }
   }, [doc, settings, name, status, save, t]);
 
   if (loading || (!popup && !doc)) {
-    return (
-      <p className="p-6 text-sm text-muted-foreground">
-        {t("admin.popups.loading", { defaultValue: "Ładowanie…" })}
-      </p>
-    );
+    return <p className="p-6 text-sm text-muted-foreground">{t("admin.popups.loading")}</p>;
   }
   if (!popup && !loading) {
     return (
       <div className="p-6 space-y-3">
-        <p className="text-sm text-muted-foreground">
-          {t("admin.popups.notFound", { defaultValue: "Nie znaleziono popupu." })}
-        </p>
+        <p className="text-sm text-muted-foreground">{t("admin.popups.notFound")}</p>
         <Link
           to="/admin/popups"
           className="text-sm text-brand hover:underline inline-flex items-center gap-1"
         >
-          <ArrowLeft className="w-4 h-4" />{" "}
-          {t("admin.popups.backToList", { defaultValue: "Wróć do listy popupów" })}
+          <ArrowLeft className="w-4 h-4" /> {t("admin.popups.backToList")}
         </Link>
       </div>
     );
@@ -112,13 +105,13 @@ export function PopupEditorPane({ popupId }: { popupId: string }) {
             to="/admin/popups"
             className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm shrink-0"
           >
-            <ArrowLeft className="w-4 h-4" /> {t("admin.popups.title", { defaultValue: "Popupy" })}
+            <ArrowLeft className="w-4 h-4" /> {t("admin.popups.title")}
           </Link>
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="h-9 w-64 font-medium"
-            placeholder={t("admin.popups.namePlaceholder", { defaultValue: "Nazwa popupu" })}
+            placeholder={t("admin.popups.namePlaceholder")}
           />
         </div>
         <div className="flex items-center gap-2">
@@ -127,34 +120,22 @@ export function PopupEditorPane({ popupId }: { popupId: string }) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="draft">
-                {t("admin.popups.statusDraft", { defaultValue: "Szkic" })}
-              </SelectItem>
-              <SelectItem value="active">
-                {t("admin.popups.statusActive", { defaultValue: "Aktywny" })}
-              </SelectItem>
-              <SelectItem value="archived">
-                {t("admin.popups.statusArchived", { defaultValue: "Zarchiwizowany" })}
-              </SelectItem>
+              <SelectItem value="draft">{t("admin.popups.statusDraft")}</SelectItem>
+              <SelectItem value="active">{t("admin.popups.statusActive")}</SelectItem>
+              <SelectItem value="archived">{t("admin.popups.statusArchived")}</SelectItem>
             </SelectContent>
           </Select>
           <Button onClick={() => void onSave()} disabled={saving}>
             <Save className="w-4 h-4 mr-2" />
-            {saving
-              ? t("admin.popups.saving", { defaultValue: "Zapisywanie…" })
-              : t("admin.popups.save", { defaultValue: "Zapisz" })}
+            {saving ? t("admin.popups.saving") : t("admin.popups.save")}
           </Button>
         </div>
       </div>
 
       <Tabs defaultValue="builder">
         <TabsList>
-          <TabsTrigger value="builder">
-            {t("admin.popups.tabBuilder", { defaultValue: "Builder" })}
-          </TabsTrigger>
-          <TabsTrigger value="settings">
-            {t("admin.popups.tabSettings", { defaultValue: "Ustawienia" })}
-          </TabsTrigger>
+          <TabsTrigger value="builder">{t("admin.popups.tabBuilder")}</TabsTrigger>
+          <TabsTrigger value="settings">{t("admin.popups.tabSettings")}</TabsTrigger>
         </TabsList>
         <TabsContent value="builder" className="mt-3">
           <Builder

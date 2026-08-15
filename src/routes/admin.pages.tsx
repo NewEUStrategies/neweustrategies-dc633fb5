@@ -288,9 +288,7 @@ function PagesList() {
       onConfirm: async () => {
         try {
           await del$({ data: { id } });
-          toast.success(
-            t("admin.bulkResult.trashedOne", { defaultValue: "Przeniesiono do kosza" }),
-          );
+          toast.success(t("admin.bulkResult.trashedOne"));
           invalidate();
         } catch (e) {
           toast.error(e instanceof Error ? e.message : String(e));
@@ -432,7 +430,7 @@ function PagesList() {
             trigger={
               <Button size="sm" variant="outline">
                 <Download className="w-4 h-4 mr-1.5" />
-                {t("admin.pages.importWp", { defaultValue: "Import z WordPress" })}
+                {t("admin.pages.importWp")}
               </Button>
             }
           />
@@ -454,10 +452,10 @@ function PagesList() {
       >
         <TabsList className="h-8">
           <TabsTrigger value="active" className="text-xs h-7">
-            {t("admin.list.tabs.all", { defaultValue: "Wszystkie" })}
+            {t("admin.list.tabs.all")}
           </TabsTrigger>
           <TabsTrigger value="trash" className="text-xs h-7">
-            {t("admin.list.tabs.trash", { defaultValue: "Kosz" })}
+            {t("admin.list.tabs.trash")}
             {typeof trashCount === "number" && trashCount > 0 ? ` (${trashCount})` : ""}
           </TabsTrigger>
         </TabsList>
@@ -477,7 +475,7 @@ function PagesList() {
       <AdminListToolbar
         search={search}
         onSearch={setSearch}
-        searchPlaceholder={t("admin.list.searchPages", { defaultValue: "Szukaj stron…" })}
+        searchPlaceholder={t("admin.list.searchPages")}
         status={statusFilter}
         onStatus={setStatusFilter}
         hideStatus={isTrash}
@@ -494,7 +492,7 @@ function PagesList() {
         <div className="flex flex-wrap items-end gap-2 mb-3">
           <div className="flex flex-col">
             <label className="text-[10px] uppercase text-muted-foreground mb-1">
-              {t("admin.list.deletedFrom", { defaultValue: "Usunięto od" })}
+              {t("admin.list.deletedFrom")}
             </label>
             <Input
               type="date"
@@ -505,7 +503,7 @@ function PagesList() {
           </div>
           <div className="flex flex-col">
             <label className="text-[10px] uppercase text-muted-foreground mb-1">
-              {t("admin.list.deletedTo", { defaultValue: "Usunięto do" })}
+              {t("admin.list.deletedTo")}
             </label>
             <Input
               type="date"
@@ -522,15 +520,13 @@ function PagesList() {
           selected.size > 0 ? (
             <div className="flex items-center gap-2 p-2 border-b border-border bg-muted/30 text-xs">
               <span className="px-2">
-                {t("admin.list.selected", { defaultValue: "Zaznaczono" })}: {selected.size}
+                {t("admin.list.selected")}: {selected.size}
               </span>
               <Button size="sm" variant="outline" onClick={onBulkRestore} className="h-7 text-xs">
-                <Undo2 className="w-3.5 h-3.5 mr-1.5" />{" "}
-                {t("admin.list.restore", { defaultValue: "Przywróć" })}
+                <Undo2 className="w-3.5 h-3.5 mr-1.5" /> {t("admin.list.restore")}
               </Button>
               <Button size="sm" variant="destructive" onClick={onBulkPurge} className="h-7 text-xs">
-                <Trash2 className="w-3.5 h-3.5 mr-1.5" />{" "}
-                {t("admin.list.purge", { defaultValue: "Usuń trwale" })}
+                <Trash2 className="w-3.5 h-3.5 mr-1.5" /> {t("admin.list.purge")}
               </Button>
               <Button size="sm" variant="ghost" onClick={clear} className="ml-auto h-7">
                 <X className="w-3.5 h-3.5" />
@@ -551,10 +547,10 @@ function PagesList() {
           <div className="p-10 text-center text-muted-foreground text-sm">
             {isTrash
               ? viewCount
-                ? t("admin.list.noResults", { defaultValue: "Brak wyników dla filtrów" })
-                : t("admin.list.trashEmpty", { defaultValue: "Kosz jest pusty" })
+                ? t("admin.list.noResults")
+                : t("admin.list.trashEmpty")
               : viewCount
-                ? t("admin.list.noResults", { defaultValue: "Brak wyników dla filtrów" })
+                ? t("admin.list.noResults")
                 : t("admin.pages.empty")}
           </div>
         ) : (
@@ -566,24 +562,18 @@ function PagesList() {
                     <Checkbox
                       checked={allSelected ? true : someSelected ? "indeterminate" : false}
                       onCheckedChange={toggleAll}
-                      aria-label={t("admin.list.selectAll", { defaultValue: "Zaznacz wszystkie" })}
+                      aria-label={t("admin.list.selectAll")}
                     />
                   </th>
                   <th className="text-left p-2">{t("admin.posts.titleCol")}</th>
                   <th className="text-left p-2 w-[140px] hidden lg:table-cell">
                     {t("admin.pages.topic")}
                   </th>
-                  <th className="text-left p-2 w-[110px]">
-                    {t("admin.list.lang.col", { defaultValue: "Języki" })}
-                  </th>
-                  <th className="text-left p-2 w-[120px]">
-                    {t("admin.list.author.col", { defaultValue: "Autor" })}
-                  </th>
+                  <th className="text-left p-2 w-[110px]">{t("admin.list.lang.col")}</th>
+                  <th className="text-left p-2 w-[120px]">{t("admin.list.author.col")}</th>
                   <th className="text-left p-2 w-[110px]">{t("admin.posts.status")}</th>
                   <th className="text-left p-2 w-[150px] hidden md:table-cell">
-                    {isTrash
-                      ? t("admin.list.deletedAt", { defaultValue: "Usunięto" })
-                      : t("admin.posts.updated")}
+                    {isTrash ? t("admin.list.deletedAt") : t("admin.posts.updated")}
                   </th>
                   <th className="p-2 w-[110px]" />
                 </tr>
@@ -601,7 +591,7 @@ function PagesList() {
                         <Checkbox
                           checked={selected.has(p.id)}
                           onCheckedChange={() => toggleOne(p.id)}
-                          aria-label={t("admin.list.select", { defaultValue: "Zaznacz" })}
+                          aria-label={t("admin.list.select")}
                         />
                       </td>
                       <td className="p-2">
@@ -611,7 +601,7 @@ function PagesList() {
                               {(viewLang === "en" ? p.title_en : p.title_pl) ||
                                 (viewLang === "en" ? p.title_pl : p.title_en) || (
                                   <span className="italic text-muted-foreground">
-                                    - {t("admin.list.untitled", { defaultValue: "bez tytułu" })} -
+                                    - {t("admin.list.untitled")} -
                                   </span>
                                 )}
                             </div>
@@ -625,7 +615,7 @@ function PagesList() {
                               {(viewLang === "en" ? p.title_en : p.title_pl) ||
                                 (viewLang === "en" ? p.title_pl : p.title_en) || (
                                   <span className="italic text-muted-foreground">
-                                    - {t("admin.list.untitled", { defaultValue: "bez tytułu" })} -
+                                    - {t("admin.list.untitled")} -
                                   </span>
                                 )}
                             </Link>
@@ -642,8 +632,7 @@ function PagesList() {
                           )}
                           {!isTrash && currentHome === p.slug && (
                             <Badge variant="outline" className="gap-1 text-[10px] py-0 px-1.5">
-                              <Home className="w-3 h-3" />{" "}
-                              {t("admin.list.home", { defaultValue: "Strona główna" })}
+                              <Home className="w-3 h-3" /> {t("admin.list.home")}
                             </Badge>
                           )}
                         </div>
@@ -671,12 +660,8 @@ function PagesList() {
                         <LangCoverageBadges
                           pl={cov.pl}
                           en={cov.en}
-                          missingTitlePl={t("admin.list.lang.missingPl", {
-                            defaultValue: "Brak wersji PL",
-                          })}
-                          missingTitleEn={t("admin.list.lang.missingEn", {
-                            defaultValue: "Brak wersji EN",
-                          })}
+                          missingTitlePl={t("admin.list.lang.missingPl")}
+                          missingTitleEn={t("admin.list.lang.missingEn")}
                         />
                       </td>
                       <td
@@ -701,7 +686,7 @@ function PagesList() {
                                 size="sm"
                                 variant="ghost"
                                 className="h-7 w-7 p-0"
-                                title={t("admin.list.restore", { defaultValue: "Przywróć" })}
+                                title={t("admin.list.restore")}
                                 onClick={() => restoreOne(p.id, titleOf(p))}
                               >
                                 <Undo2 className="w-3.5 h-3.5" />
@@ -710,7 +695,7 @@ function PagesList() {
                                 size="sm"
                                 variant="ghost"
                                 className="h-7 w-7 p-0"
-                                title={t("admin.list.purge", { defaultValue: "Usuń trwale" })}
+                                title={t("admin.list.purge")}
                                 onClick={() => purgeOne(p.id, titleOf(p))}
                               >
                                 <Trash2 className="w-3.5 h-3.5 text-destructive" />
@@ -729,17 +714,10 @@ function PagesList() {
                                 }
                                 title={
                                   p.status !== "published"
-                                    ? t("admin.list.homeNeedsPublish", {
-                                        defaultValue:
-                                          "Opublikuj stronę, aby ustawić ją jako główną",
-                                      })
+                                    ? t("admin.list.homeNeedsPublish")
                                     : currentHome === p.slug
-                                      ? t("admin.list.alreadyHome", {
-                                          defaultValue: "Już ustawiona jako strona główna",
-                                        })
-                                      : t("admin.list.setHome", {
-                                          defaultValue: "Ustaw jako stronę główną",
-                                        })
+                                      ? t("admin.list.alreadyHome")
+                                      : t("admin.list.setHome")
                                 }
                                 onClick={() =>
                                   setAsHome(
@@ -765,7 +743,7 @@ function PagesList() {
                                 size="sm"
                                 variant="ghost"
                                 className="h-7 w-7 p-0"
-                                title={t("admin.list.toTrash", { defaultValue: "Do kosza" })}
+                                title={t("admin.list.toTrash")}
                                 onClick={() => del(p.id, titleOf(p))}
                               >
                                 <Trash2 className="w-3.5 h-3.5 text-destructive" />

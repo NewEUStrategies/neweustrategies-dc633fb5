@@ -65,7 +65,6 @@ function Cover({
     >
       <ZoneTag
         label={t("admin.layoutScaffold.cover.label", {
-          defaultValue: "Cover - {{variant}}",
           variant: preset.cover,
         })}
       />
@@ -74,9 +73,7 @@ function Cover({
           <img src={url} alt="" className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full grid place-items-center text-xs text-muted-foreground/70">
-            {t("admin.layoutScaffold.cover.empty", {
-              defaultValue: "Brak cover - ustaw w panelu Szczegóły",
-            })}
+            {t("admin.layoutScaffold.cover.empty")}
           </div>
         )}
       </div>
@@ -172,36 +169,30 @@ function Header({
       <ZoneTag
         label={
           center
-            ? t("admin.layoutScaffold.header.centered", { defaultValue: "Nagłówek - centered" })
-            : t("admin.layoutScaffold.header.label", { defaultValue: "Nagłówek" })
+            ? t("admin.layoutScaffold.header.centered")
+            : t("admin.layoutScaffold.header.label")
         }
       />
       <div className={center ? "text-center mx-auto max-w-2xl" : ""}>
         <div className={`mb-4 flex flex-wrap gap-2 ${center ? "justify-center" : ""}`}>
-          <CategoryChipPreview
-            label={t("admin.layoutScaffold.overlay.category", { defaultValue: "Kategoria" })}
-          />
+          <CategoryChipPreview label={t("admin.layoutScaffold.overlay.category")} />
         </div>
         <h1 className="header-title-typography font-display mb-4 text-foreground/90">
           {title || (
             <span className="text-muted-foreground/70">
-              {t("admin.layoutScaffold.titlePlaceholder", { defaultValue: "Tytuł wpisu" })}
+              {t("admin.layoutScaffold.titlePlaceholder")}
             </span>
           )}
         </h1>
         {!showExcerpt ? (
           <p className="text-xs text-muted-foreground/60 mb-4 italic">
-            {t("admin.layoutScaffold.excerptHidden", {
-              defaultValue: "Ten layout nie pokazuje zajawki pod tytułem",
-            })}
+            {t("admin.layoutScaffold.excerptHidden")}
           </p>
         ) : excerpt ? (
           <p className="header-excerpt-typography text-muted-foreground mb-4">{excerpt}</p>
         ) : (
           <p className="text-xs text-muted-foreground/60 mb-4">
-            {t("admin.layoutScaffold.excerptPlaceholder", {
-              defaultValue: 'Excerpt - uzupełnij w „Szczegóły"',
-            })}
+            {t("admin.layoutScaffold.excerptPlaceholder")}
           </p>
         )}
         <div
@@ -233,11 +224,7 @@ function OverlayCover({
       className={`relative ${ZONE} overflow-hidden bg-neutral-900`}
       style={{ aspectRatio: "16 / 8" }}
     >
-      <ZoneTag
-        label={t("admin.layoutScaffold.overlay.label", {
-          defaultValue: "Cover overlay + nagłówek",
-        })}
-      />
+      <ZoneTag label={t("admin.layoutScaffold.overlay.label")} />
       {url && (
         <img src={url} alt="" className="absolute inset-0 w-full h-full object-cover opacity-80" />
       )}
@@ -256,13 +243,11 @@ function OverlayCover({
       >
         <div className={`overlay-meta-card w-full ${center ? "text-center" : ""}`}>
           <div className={`mb-3 flex flex-wrap gap-1.5 ${center ? "justify-center" : ""}`}>
-            <CategoryChipPreview
-              label={t("admin.layoutScaffold.overlay.category", { defaultValue: "Kategoria" })}
-            />
+            <CategoryChipPreview label={t("admin.layoutScaffold.overlay.category")} />
           </div>
 
           <h1 className="overlay-meta-title overlay-title-typography font-display mb-2 text-white">
-            {title || t("admin.layoutScaffold.titlePlaceholder", { defaultValue: "Tytuł wpisu" })}
+            {title || t("admin.layoutScaffold.titlePlaceholder")}
           </h1>
 
           {excerpt && (
@@ -303,15 +288,13 @@ function SideBySide({
   return (
     <div className="grid lg:grid-cols-2 gap-4 items-center" style={headerTypographyStyle(settings)}>
       <div className={`relative ${ZONE} overflow-hidden`} style={{ aspectRatio: "4 / 3" }}>
-        <ZoneTag
-          label={t("admin.layoutScaffold.sideBySide.cover", { defaultValue: "Cover - side" })}
-        />
+        <ZoneTag label={t("admin.layoutScaffold.sideBySide.cover")} />
         {url && <img src={url} alt="" className="w-full h-full object-cover" />}
       </div>
       <div className={`relative ${ZONE} px-4 py-4 pt-6`}>
-        <ZoneTag label={t("admin.layoutScaffold.header.label", { defaultValue: "Nagłówek" })} />
+        <ZoneTag label={t("admin.layoutScaffold.header.label")} />
         <p className="font-display header-title-typography">
-          {title || t("admin.layoutScaffold.titlePlaceholder", { defaultValue: "Tytuł wpisu" })}
+          {title || t("admin.layoutScaffold.titlePlaceholder")}
         </p>
         {excerpt && (
           <p className="header-excerpt-typography text-muted-foreground mt-2">{excerpt}</p>
@@ -324,33 +307,18 @@ function SideBySide({
 function FooterBars({ s }: { s: PostLayoutSettings }) {
   const { t } = useTranslation();
   const bars: Array<[string, boolean]> = [
-    [t("admin.layoutScaffold.footer.tags", { defaultValue: "Tagi" }), s.show_post_tags_bar],
-    [
-      t("admin.layoutScaffold.footer.authorCard", { defaultValue: "Karta autora" }),
-      s.show_author_card,
-    ],
-    [
-      t("admin.layoutScaffold.footer.prevNext", { defaultValue: "Poprzedni / Następny" }),
-      s.show_prev_next,
-    ],
-    [
-      t("admin.layoutScaffold.footer.newsletter", { defaultValue: "Newsletter" }),
-      s.show_bottom_newsletter,
-    ],
-    [
-      t("admin.layoutScaffold.footer.floatingShare", { defaultValue: "Floating share" }),
-      s.show_floating_share_bar,
-    ],
-    [
-      t("admin.layoutScaffold.footer.autoLoad", { defaultValue: "Auto-load next" }),
-      s.auto_load_next_post,
-    ],
+    [t("admin.layoutScaffold.footer.tags"), s.show_post_tags_bar],
+    [t("admin.layoutScaffold.footer.authorCard"), s.show_author_card],
+    [t("admin.layoutScaffold.footer.prevNext"), s.show_prev_next],
+    [t("admin.layoutScaffold.footer.newsletter"), s.show_bottom_newsletter],
+    [t("admin.layoutScaffold.footer.floatingShare"), s.show_floating_share_bar],
+    [t("admin.layoutScaffold.footer.autoLoad"), s.auto_load_next_post],
   ];
   const enabled = bars.filter(([, v]) => v);
   if (!enabled.length) return null;
   return (
     <div className={`relative pt-6 ${ZONE} px-4 pb-3 mt-4`}>
-      <ZoneTag label={t("admin.layoutScaffold.footer.label", { defaultValue: "Stopka wpisu" })} />
+      <ZoneTag label={t("admin.layoutScaffold.footer.label")} />
       <div className="flex flex-wrap gap-1.5">
         {enabled.map(([label]) => (
           <span
@@ -369,14 +337,12 @@ function Sidebar() {
   const { t } = useTranslation();
   return (
     <aside className={`relative pt-6 ${ZONE} px-3 pb-3 self-start lg:sticky lg:top-4 space-y-2`}>
-      <ZoneTag label={t("admin.layoutScaffold.sidebar.label", { defaultValue: "Sidebar" })} />
+      <ZoneTag label={t("admin.layoutScaffold.sidebar.label")} />
       <div className="h-6 rounded bg-muted/60" />
       <div className="h-16 rounded bg-muted/40" />
       <div className="h-24 rounded bg-muted/40" />
       <p className="text-[10px] text-muted-foreground/70 italic">
-        {t("admin.layoutScaffold.sidebar.hint", {
-          defaultValue: "Tu pojawi się: ToC, tagi, related, reklama, social.",
-        })}
+        {t("admin.layoutScaffold.sidebar.hint")}
       </p>
     </aside>
   );
@@ -457,7 +423,6 @@ export function LayoutScaffold({
     <div className={`relative pt-6 ${ZONE} p-4 mt-4`}>
       <ZoneTag
         label={t("admin.layoutScaffold.content.label", {
-          defaultValue: "Treść - max {{max}}px",
           max: contentMaxW,
         })}
       />
@@ -471,30 +436,27 @@ export function LayoutScaffold({
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground border-b border-border pb-2">
         <span className="font-semibold text-foreground/80">
-          {t("admin.layoutScaffold.summary.title", { defaultValue: "Podgląd layoutu:" })}
+          {t("admin.layoutScaffold.summary.title")}
         </span>
         <span className="px-1.5 py-0.5 rounded bg-muted/60">{preset.label}</span>
         <span className="px-1.5 py-0.5 rounded bg-muted/60">
           {t("admin.layoutScaffold.summary.format", {
-            defaultValue: "format: {{value}}",
             value: format,
           })}
         </span>
         <span className="px-1.5 py-0.5 rounded bg-muted/60">
           {t("admin.layoutScaffold.summary.header", {
-            defaultValue: "header: {{value}}",
             value: preset.header,
           })}
         </span>
         <span className="px-1.5 py-0.5 rounded bg-muted/60">
           {t("admin.layoutScaffold.summary.cover", {
-            defaultValue: "cover: {{value}}",
             value: preset.cover,
           })}
         </span>
         {hasSidebar && (
           <span className="px-1.5 py-0.5 rounded bg-brand/20">
-            {t("admin.layoutScaffold.summary.sidebar", { defaultValue: "+ sidebar" })}
+            {t("admin.layoutScaffold.summary.sidebar")}
           </span>
         )}
       </div>

@@ -41,22 +41,18 @@ export function PostTaxonomyGrid({
         onAddTag={() => void taxonomy.addTag()}
       />
       <BilingualPickerCard
-        label={t("admin.nav.programs", { defaultValue: "Projekty" })}
+        label={t("admin.nav.programs")}
         options={data.allPrograms ?? undefined}
         selectedIds={formApi.selectedPrograms}
         onSelectedChange={formApi.setSelectedPrograms}
-        emptyHint={t("admin.posts.noPrograms", {
-          defaultValue: "Brak projektów - dodaj je w /admin/programs",
-        })}
+        emptyHint={t("admin.posts.noPrograms")}
       />
       <BilingualPickerCard
-        label={t("admin.nav.regions", { defaultValue: "Regiony" })}
+        label={t("admin.nav.regions")}
         options={data.allRegions ?? undefined}
         selectedIds={formApi.selectedRegions}
         onSelectedChange={formApi.setSelectedRegions}
-        emptyHint={t("admin.posts.noRegions", {
-          defaultValue: "Brak regionów - dodaj je w /admin/regions",
-        })}
+        emptyHint={t("admin.posts.noRegions")}
       />
     </>
   );

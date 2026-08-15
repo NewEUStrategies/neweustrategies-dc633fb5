@@ -8,25 +8,11 @@
 // jobs-tick / community-cron.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { looseClient, looseTable, rowsOf } from "@/lib/supabase/looseQuery";
 import { requireCrmStaff } from "@/integrations/supabase/require-staff";
 import { withCommandIdempotency, type RpcClient } from "@/lib/http/idempotency";
 
 const j = (v: unknown): string => JSON.stringify(v ?? null);
-
-type AnyQuery = {
-  select: (s: string) => AnyQuery;
-  order: (c: string, o: { ascending: boolean; nullsFirst?: boolean }) => AnyQuery;
-  limit: (n: number) => AnyQuery;
-  eq: (c: string, v: unknown) => AnyQuery;
-  lte: (c: string, v: unknown) => AnyQuery;
-  maybeSingle: () => Promise<{ data: unknown; error: { message: string } | null }>;
-  insert: (v: unknown) => Promise<{ error: { message: string } | null }>;
-  update: (v: unknown) => AnyQuery;
-  delete: () => AnyQuery;
-  then: <R>(fn: (r: { data: unknown; error: { message: string } | null }) => R) => Promise<R>;
-};
-const tbl = (ctx: { supabase: unknown }, name: string): AnyQuery =>
-  (ctx.supabase as { from: (t: string) => AnyQuery }).from(name);
 
 const TASK_STATUSES = ["open", "done", "cancelled"] as const;
 export type CrmTaskStatus = (typeof TASK_STATUSES)[number];
@@ -58,17 +44,14 @@ export const listCrmLeadTasks = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => LeadTasksInput.parse(d))
   .handler(async ({ data, context }) => {
-    const { data: rows, error } = await (tbl(context, "crm_tasks")
+    const result = await looseTable(context, "crm_tasks")
       .select("*")
       .eq("lead_id", data.lead_id)
       .order("status", { ascending: true })
       .order("due_at", { ascending: true })
-      .limit(200) as unknown as Promise<{
-      data: unknown[];
-      error: { message: string } | null;
-    }>);
-    if (error) throw new Error(error.message);
-    return { json: j(rows ?? []) };
+      .limit(200);
+    if (result.error) throw new Error(result.error.message);
+    return { json: j(rowsOf(result)) };
   });
 
 const DueTasksInput = z.object({
@@ -87,17 +70,14 @@ export const listCrmDueTasks = createServerFn({ method: "POST" })
   .validator((d) => DueTasksInput.parse(d ?? {}))
   .handler(async ({ data, context }) => {
     const horizon = new Date(Date.now() + data.horizon_hours * 3_600_000).toISOString();
-    const { data: rows, error } = await (tbl(context, "crm_tasks")
+    const result = await looseTable(context, "crm_tasks")
       .select("*, lead:crm_leads!crm_tasks_lead_id_fkey(id,email,first_name,last_name)")
       .eq("status", "open")
       .lte("due_at", horizon)
       .order("due_at", { ascending: true })
-      .limit(data.limit) as unknown as Promise<{
-      data: unknown[];
-      error: { message: string } | null;
-    }>);
-    if (error) throw new Error(error.message);
-    return { json: j(rows ?? []) };
+      .limit(data.limit);
+    if (result.error) throw new Error(result.error.message);
+    return { json: j(rowsOf(result)) };
   });
 
 const CreateTaskInput = z.object({
@@ -116,7 +96,7 @@ export const createCrmTask = createServerFn({ method: "POST" })
     const userId = (context as { userId: string }).userId;
     // Lead i zadanie muszą mieszkać w tym samym tenantcie; bierzemy tenant_id
     // z leada, żeby nie polegać wyłącznie na domyślnej wartości kolumny.
-    const { data: lead } = await tbl(context, "crm_leads")
+    const { data: lead } = await looseTable(context, "crm_leads")
       .select("tenant_id")
       .eq("id", data.lead_id)
       .maybeSingle();
@@ -124,7 +104,7 @@ export const createCrmTask = createServerFn({ method: "POST" })
     if (!leadTenantId) throw new Error("lead_not_found");
 
     const insertTask = async () => {
-      const { error } = await tbl(context, "crm_tasks").insert({
+      const { error } = await looseTable(context, "crm_tasks").insert({
         tenant_id: leadTenantId,
         lead_id: data.lead_id,
         title: data.title,
@@ -163,9 +143,7 @@ export const updateCrmTask = createServerFn({ method: "POST" })
   .validator((d) => UpdateTaskInput.parse(d))
   .handler(async ({ data, context }) => {
     const { id, ...patch } = data;
-    const res = await (tbl(context, "crm_tasks").update(patch).eq("id", id) as unknown as Promise<{
-      error: { message: string } | null;
-    }>);
+    const res = await looseTable(context, "crm_tasks").update(patch).eq("id", id);
     if (res.error) throw new Error(res.error.message);
     return { ok: true };
   });
@@ -176,9 +154,7 @@ export const deleteCrmTask = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
-    const res = await (tbl(context, "crm_tasks").delete().eq("id", data.id) as unknown as Promise<{
-      error: { message: string } | null;
-    }>);
+    const res = await looseTable(context, "crm_tasks").delete().eq("id", data.id);
     if (res.error) throw new Error(res.error.message);
     return { ok: true };
   });
@@ -239,13 +215,7 @@ export const importCrmLeads = createServerFn({ method: "POST" })
     // Cała praca (dedup po email_norm, merge przez crm_upsert_from_form, unia
     // tagów) dzieje się w JEDNEJ transakcji RPC - guard is_staff + tenant
     // w środku (obrona w głąb obok requireCrmStaff).
-    const rpc = context.supabase as unknown as {
-      rpc: (
-        fn: "crm_import_leads",
-        args: { p_rows: unknown; p_source: string },
-      ) => Promise<{ data: unknown; error: { message: string } | null }>;
-    };
-    const { data: result, error } = await rpc.rpc("crm_import_leads", {
+    const { data: result, error } = await looseClient(context).rpc("crm_import_leads", {
       p_rows: data.rows,
       p_source: data.source,
     });

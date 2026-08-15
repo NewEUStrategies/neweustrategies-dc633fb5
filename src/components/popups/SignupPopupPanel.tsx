@@ -7,6 +7,7 @@
 // prawa to nagłówek + formularz rejestracji. Wszystko - teksty PL/EN, kolory,
 // kolejność bloków, wyrównania, szerokości - pochodzi z ustawień popupu.
 import { useTranslation } from "react-i18next";
+import { pickLocalized, pickPair } from "@/lib/i18n/pickLocalized";
 import { X } from "@/lib/lucide-shim";
 import { PopupSignupForm } from "@/components/PopupSignupForm";
 import { SignupShowcase } from "@/components/ui/signup-showcase";
@@ -60,7 +61,6 @@ export function SignupPopupPanel({
   // Popup zawsze stoi na ciemnym kadrze galerii, wiec w obu motywach uzywamy
   // wariantu z jasnymi napisami (surface="dark").
   const themeLogo = useBrandLogoUrl("dark", "horizontal");
-  const isPl = lang === "pl";
 
   const radiusPx = Math.max(0, settings.popup_border_radius_px ?? 6);
   const galleryRight = settings.popup_showcase_side === "right";
@@ -68,20 +68,29 @@ export function SignupPopupPanel({
   const formFr = 2 - galleryFr;
   const cols = galleryRight ? `${formFr}fr ${galleryFr}fr` : `${galleryFr}fr ${formFr}fr`;
 
+  // Bliźniacze kolumny (`*_pl` / `*_en`) idą przez KANONICZNY wybieracz, nie
+  // przez ternary po języku. Różnica nie jest kosmetyczna: goły ternary zwraca
+  // pustkę, gdy redaktor wypełnił tylko jedną wersję - popup z samym polskim
+  // tytułem pokazywał się po angielsku BEZ tytułu. `pickLocalized` schodzi wtedy
+  // na drugi język (żądany -> drugi -> ""), więc treść zawsze jest.
   const images = (settings.popup_showcase_images ?? [])
     .filter((img) => Boolean(img?.url))
     .map((img) => ({
       url: img.url,
-      caption: isPl ? img.caption_pl : img.caption_en,
-      title: isPl ? img.title_pl : img.title_en,
+      caption: pickLocalized(img, "caption", lang),
+      title: pickLocalized(img, "title", lang),
     }));
 
-  const eyebrow = isPl ? settings.popup_eyebrow_pl : settings.popup_eyebrow_en;
-  const title = isPl ? settings.popup_title_pl : settings.popup_title_en;
-  const desc = isPl ? settings.popup_description_pl : settings.popup_description_en;
-  const brand = isPl ? settings.popup_showcase_brand_pl : settings.popup_showcase_brand_en;
-  const tagline = isPl ? settings.popup_showcase_tagline_pl : settings.popup_showcase_tagline_en;
-  const captionPrefix = isPl ? design.gallery.captionPrefixPl : design.gallery.captionPrefixEn;
+  const eyebrow = pickLocalized(settings, "popup_eyebrow", lang);
+  const title = pickLocalized(settings, "popup_title", lang);
+  const desc = pickLocalized(settings, "popup_description", lang);
+  const brand = pickLocalized(settings, "popup_showcase_brand", lang);
+  const tagline = pickLocalized(settings, "popup_showcase_tagline", lang);
+  // Prefiks podpisu pochodzi z PRESETU wyglądu (camelCase, nie kolumny bazy).
+  const captionPrefix = pickPair(
+    lang === "pl" ? design.gallery.captionPrefixPl : design.gallery.captionPrefixEn,
+    lang === "pl" ? design.gallery.captionPrefixEn : design.gallery.captionPrefixPl,
+  );
   const alignLeft = design.form.align === "left";
 
   const shadow = design.panel.shadow;
@@ -116,7 +125,7 @@ export function SignupPopupPanel({
       {onClose && (
         <button
           type="button"
-          aria-label={t("common.close", { defaultValue: isPl ? "Zamknij" : "Close" })}
+          aria-label={t("common.close")}
           onClick={onClose}
           className="absolute right-3 top-3 z-30 flex h-9 w-9 items-center justify-center rounded-full border transition-colors hover:opacity-80"
           style={{
@@ -149,10 +158,8 @@ export function SignupPopupPanel({
           showBrand={settings.popup_showcase_show_brand}
           showCaption={settings.popup_showcase_show_caption}
           showDots={settings.popup_showcase_show_dots}
-          dotLabel={t("signupPopup.slide", { defaultValue: isPl ? "Slajd" : "Slide" })}
-          nextLabel={t("signupPopup.next", {
-            defaultValue: isPl ? "Następny kadr" : "Next frame",
-          })}
+          dotLabel={t("signupPopup.slide")}
+          nextLabel={t("signupPopup.next")}
           autoRotate={!previewOnly}
         />
       </div>

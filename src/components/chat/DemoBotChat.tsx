@@ -23,7 +23,6 @@ import {
   attachmentKindForMime,
   validateAttachment,
   formatBytes,
-  MAX_ATTACHMENT_BYTES,
   type AttachmentKind,
 } from "@/lib/chat/attachments";
 import { usePeerProfiles } from "@/lib/chat/useConversations";
@@ -240,19 +239,11 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
       if (!file) return;
       const invalid = validateAttachment(file);
       if (invalid === "size") {
-        toast.error(
-          t("chat.attachmentTooLarge", {
-            defaultValue: `Plik jest za duży (max ${formatBytes(MAX_ATTACHMENT_BYTES, lang)}).`,
-          }),
-        );
+        toast.error(t("chat.attachmentTooLarge"));
         return;
       }
       if (invalid === "type") {
-        toast.error(
-          t("chat.attachmentWrongType", {
-            defaultValue: "Ten typ pliku nie jest obsługiwany.",
-          }),
-        );
+        toast.error(t("chat.attachmentWrongType"));
         return;
       }
       const kind = attachmentKindForMime(file.type);
@@ -356,7 +347,7 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
             type="button"
             onClick={onBack}
             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:hidden"
-            aria-label={t("chat.back", { defaultValue: "Wróć" })}
+            aria-label={t("chat.back")}
           >
             <ArrowLeft className="h-4 w-4" aria-hidden />
           </button>
@@ -388,8 +379,8 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
           type="button"
           onClick={() => setMediaHistoryOpen(true)}
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          aria-label={t("chat.mediaHistory.open", { defaultValue: "Multimedia i pliki" })}
-          title={t("chat.mediaHistory.open", { defaultValue: "Multimedia i pliki" })}
+          aria-label={t("chat.mediaHistory.open")}
+          title={t("chat.mediaHistory.open")}
         >
           <Images className="h-4 w-4" aria-hidden />
         </button>
@@ -510,11 +501,11 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
             onClick={() => fileInputRef.current?.click()}
             disabled={botTyping}
             className="group/attach relative mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-all hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
-            aria-label={t("chat.attach", { defaultValue: "Załącz plik" })}
+            aria-label={t("chat.attach")}
           >
             <Paperclip className="h-[18px] w-[18px]" aria-hidden />
             <span className="pointer-events-none absolute -top-9 left-1/2 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-[10px] font-medium text-popover-foreground shadow-md group-hover/attach:block">
-              {t("chat.attach", { defaultValue: "Załącz plik" })}
+              {t("chat.attach")}
             </span>
           </button>
           <textarea
@@ -535,11 +526,7 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
             }}
             rows={1}
             placeholder={
-              staged
-                ? t("chat.attachmentCaptionPlaceholder", {
-                    defaultValue: "Dodaj opis (opcjonalnie)...",
-                  })
-                : t("chat.inputPlaceholder")
+              staged ? t("chat.attachmentCaptionPlaceholder") : t("chat.inputPlaceholder")
             }
             aria-label={t("chat.inputPlaceholder")}
             className="max-h-[140px] min-h-[36px] w-full min-w-0 flex-1 resize-none self-center border-0 bg-transparent px-1 py-1.5 text-[14px] leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:outline-none focus-visible:ring-0"

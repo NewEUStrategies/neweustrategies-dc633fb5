@@ -99,18 +99,10 @@ export function LoginPopup() {
       } catch (guardErr) {
         const msg = guardErr instanceof Error ? guardErr.message : "";
         if (msg.includes("rate_limited")) {
-          throw new Error(
-            t("auth.rateLimited", {
-              defaultValue: "Zbyt wiele prób - spróbuj ponownie za kilka minut.",
-            }),
-          );
+          throw new Error(t("auth.rateLimited"));
         }
         if (msg.includes("invalid_input")) {
-          throw new Error(
-            t("auth.invalidInput", {
-              defaultValue: "Nieprawidłowe dane - sprawdź adres email i spróbuj ponownie.",
-            }),
-          );
+          throw new Error(t("auth.invalidInput"));
         }
         throw guardErr;
       }
@@ -144,7 +136,7 @@ export function LoginPopup() {
           },
         });
         if (error) throw error;
-        toast.success(t("auth.signupOk", { defaultValue: "Sprawdź email aby potwierdzić konto." }));
+        toast.success(t("auth.signupOk"));
         setOpen(false);
       } else {
         // Hold the auto-close (see the session effect) until we know whether an
@@ -160,7 +152,7 @@ export function LoginPopup() {
           setMfaOpen(true);
         } else {
           setMfaPending(false);
-          toast.success(t("auth.signinOk", { defaultValue: "Zalogowano." }));
+          toast.success(t("auth.signinOk"));
           setOpen(false);
         }
       }
@@ -178,7 +170,7 @@ export function LoginPopup() {
         onVerified={() => {
           setMfaOpen(false);
           setMfaPending(false);
-          toast.success(t("auth.signinOk", { defaultValue: "Zalogowano." }));
+          toast.success(t("auth.signinOk"));
           setOpen(false);
         }}
         onCancel={() => {

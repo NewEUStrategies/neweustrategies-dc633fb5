@@ -162,9 +162,7 @@ export function PageUrlAutocomplete({ value, onChange, placeholder, lang, classN
                       : "bg-muted-foreground/10 text-muted-foreground")
                   }
                 >
-                  {h.kind === "page"
-                    ? t("builder.urlSuggest.page", { defaultValue: "Strona" })
-                    : t("builder.urlSuggest.post", { defaultValue: "Wpis" })}
+                  {h.kind === "page" ? t("builder.urlSuggest.page") : t("builder.urlSuggest.post")}
                 </span>
                 <span className="truncate">{h.title}</span>
               </span>

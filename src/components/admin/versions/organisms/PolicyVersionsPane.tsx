@@ -14,12 +14,13 @@ import { LEGAL_DOC_LIST, LEGAL_DOCS } from "@/lib/legal/registry";
 import { resolveLegalCopy } from "@/lib/legal/resolve";
 import type { LegalDocContent, LegalDocKey, LegalDocumentVersion } from "@/lib/legal/types";
 import { useLegalVersionActions, useLegalVersions } from "@/lib/legal/versions";
+import { uiLocale } from "@/lib/i18n/format";
 
 const BASELINE_ID = "__baseline__";
 
 function formatDate(iso: string, lang: "pl" | "en") {
   try {
-    return new Intl.DateTimeFormat(lang === "pl" ? "pl-PL" : "en-GB", {
+    return new Intl.DateTimeFormat(uiLocale(lang), {
       dateStyle: "medium",
       timeStyle: "short",
     }).format(new Date(iso));

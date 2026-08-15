@@ -187,7 +187,7 @@ export function WordStyleToolbar({ editor }: Props) {
       title: "Link",
       label: "URL",
       defaultValue: current,
-      confirmLabel: i18n.t("blocks.toolbar.apply", { defaultValue: "Zastosuj" }),
+      confirmLabel: i18n.t("blocks.toolbar.apply"),
     });
     if (url === null) return;
     if (url === "") editor.chain().focus().extendMarkRange("link").unsetLink().run();
@@ -201,14 +201,12 @@ export function WordStyleToolbar({ editor }: Props) {
     // do którego chciał podpiąć nową notę (regresja obsługi wielu przypisów).
     const { from, to, empty } = editor.state.selection;
     const selected = empty ? "" : editor.state.doc.textBetween(from, to, " ");
-    const promptLabel = i18n.t("blocks.toolbar.footnotePrompt", {
-      defaultValue: "Treść przypisu:",
-    });
+    const promptLabel = i18n.t("blocks.toolbar.footnotePrompt");
     const text = await promptDialog({
-      title: i18n.t("blocks.toolbar.footnote", { defaultValue: "Przypis" }),
+      title: i18n.t("blocks.toolbar.footnote"),
       label: promptLabel,
       defaultValue: selected,
-      confirmLabel: i18n.t("blocks.toolbar.insert", { defaultValue: "Wstaw" }),
+      confirmLabel: i18n.t("blocks.toolbar.insert"),
     });
     if (text === null) return;
     const body = text.trim();
@@ -229,14 +227,14 @@ export function WordStyleToolbar({ editor }: Props) {
       {/* Wiersz 1: znak + style */}
       <div className="flex items-center gap-0.5">
         <ToolbarBtn
-          title={i18n.t("blocks.toolbar.undo", { defaultValue: "Cofnij" })}
+          title={i18n.t("blocks.toolbar.undo")}
           onClick={() => editor.chain().focus().undo().run()}
           disabled={!can.undo()}
         >
           <Undo2 className="h-3.5 w-3.5" />
         </ToolbarBtn>
         <ToolbarBtn
-          title={i18n.t("blocks.toolbar.redo", { defaultValue: "Ponów" })}
+          title={i18n.t("blocks.toolbar.redo")}
           onClick={() => editor.chain().focus().redo().run()}
           disabled={!can.redo()}
         >
@@ -299,7 +297,7 @@ export function WordStyleToolbar({ editor }: Props) {
         {/* Text color */}
         <div className="relative flex items-center">
           <ToolbarBtn
-            title={i18n.t("blocks.toolbar.textColor", { defaultValue: "Kolor tekstu" })}
+            title={i18n.t("blocks.toolbar.textColor")}
             active={colorOpen}
             onClick={() => {
               setColorOpen((v) => !v);
@@ -312,7 +310,7 @@ export function WordStyleToolbar({ editor }: Props) {
             open={colorOpen}
             onClose={() => setColorOpen(false)}
             swatches={TEXT_COLORS}
-            label={i18n.t("blocks.toolbar.textColor", { defaultValue: "Kolor tekstu" })}
+            label={i18n.t("blocks.toolbar.textColor")}
             onPick={(c) => {
               if (c) editor.chain().focus().setColor(c).run();
               else editor.chain().focus().unsetColor().run();
@@ -323,7 +321,7 @@ export function WordStyleToolbar({ editor }: Props) {
         {/* Highlight */}
         <div className="relative flex items-center">
           <ToolbarBtn
-            title={i18n.t("blocks.toolbar.highlight", { defaultValue: "Zakreślacz" })}
+            title={i18n.t("blocks.toolbar.highlight")}
             active={editor.isActive("highlight") || hlOpen}
             onClick={() => {
               setHlOpen((v) => !v);
@@ -336,7 +334,7 @@ export function WordStyleToolbar({ editor }: Props) {
             open={hlOpen}
             onClose={() => setHlOpen(false)}
             swatches={HL_COLORS}
-            label={i18n.t("blocks.toolbar.highlight", { defaultValue: "Zakreślacz" })}
+            label={i18n.t("blocks.toolbar.highlight")}
             onPick={(c) => {
               if (c) editor.chain().focus().toggleHighlight({ color: c }).run();
               else editor.chain().focus().unsetHighlight().run();
@@ -347,7 +345,7 @@ export function WordStyleToolbar({ editor }: Props) {
         <Divider />
 
         <ToolbarBtn
-          title={i18n.t("blocks.toolbar.clearFormatting", { defaultValue: "Wyczyść formatowanie" })}
+          title={i18n.t("blocks.toolbar.clearFormatting")}
           onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()}
         >
           <Eraser className="h-3.5 w-3.5" />
@@ -360,7 +358,7 @@ export function WordStyleToolbar({ editor }: Props) {
         </ToolbarBtn>
         {editor.isActive("link") && (
           <ToolbarBtn
-            title={i18n.t("blocks.toolbar.unlink", { defaultValue: "Usuń link" })}
+            title={i18n.t("blocks.toolbar.unlink")}
             onClick={() => editor.chain().focus().extendMarkRange("link").unsetLink().run()}
           >
             <Link2Off className="h-3.5 w-3.5" />
@@ -369,12 +367,7 @@ export function WordStyleToolbar({ editor }: Props) {
 
         <Divider />
 
-        <ToolbarBtn
-          title={i18n.t("blocks.toolbar.footnoteInsert", {
-            defaultValue: "Wstaw przypis [fn]…[/fn]",
-          })}
-          onClick={insertFootnote}
-        >
+        <ToolbarBtn title={i18n.t("blocks.toolbar.footnoteInsert")} onClick={insertFootnote}>
           <StickyNote className="h-3.5 w-3.5" />
         </ToolbarBtn>
       </div>
@@ -382,7 +375,7 @@ export function WordStyleToolbar({ editor }: Props) {
       {/* Wiersz 2: akapit + wyrównanie + listy */}
       <div className="flex items-center gap-0.5">
         <ToolbarBtn
-          title={i18n.t("blocks.toolbar.paragraph", { defaultValue: "Akapit" })}
+          title={i18n.t("blocks.toolbar.paragraph")}
           active={editor.isActive("paragraph") && !isHeading(1) && !isHeading(2) && !isHeading(3)}
           onClick={() => editor.chain().focus().setParagraph().run()}
         >
@@ -413,28 +406,28 @@ export function WordStyleToolbar({ editor }: Props) {
         <Divider />
 
         <ToolbarBtn
-          title={i18n.t("blocks.toolbar.alignLeft", { defaultValue: "Do lewej" })}
+          title={i18n.t("blocks.toolbar.alignLeft")}
           active={align("left")}
           onClick={() => editor.chain().focus().setTextAlign("left").run()}
         >
           <AlignLeft className="h-3.5 w-3.5" />
         </ToolbarBtn>
         <ToolbarBtn
-          title={i18n.t("blocks.toolbar.alignCenter", { defaultValue: "Środek" })}
+          title={i18n.t("blocks.toolbar.alignCenter")}
           active={align("center")}
           onClick={() => editor.chain().focus().setTextAlign("center").run()}
         >
           <AlignCenter className="h-3.5 w-3.5" />
         </ToolbarBtn>
         <ToolbarBtn
-          title={i18n.t("blocks.toolbar.alignRight", { defaultValue: "Do prawej" })}
+          title={i18n.t("blocks.toolbar.alignRight")}
           active={align("right")}
           onClick={() => editor.chain().focus().setTextAlign("right").run()}
         >
           <AlignRight className="h-3.5 w-3.5" />
         </ToolbarBtn>
         <ToolbarBtn
-          title={i18n.t("blocks.toolbar.alignJustify", { defaultValue: "Wyjustuj" })}
+          title={i18n.t("blocks.toolbar.alignJustify")}
           active={align("justify")}
           onClick={() => editor.chain().focus().setTextAlign("justify").run()}
         >
@@ -444,21 +437,21 @@ export function WordStyleToolbar({ editor }: Props) {
         <Divider />
 
         <ToolbarBtn
-          title={i18n.t("blocks.toolbar.bulletList", { defaultValue: "Lista punktowa" })}
+          title={i18n.t("blocks.toolbar.bulletList")}
           active={editor.isActive("bulletList")}
           onClick={() => editor.chain().focus().toggleBulletList().run()}
         >
           <List className="h-3.5 w-3.5" />
         </ToolbarBtn>
         <ToolbarBtn
-          title={i18n.t("blocks.toolbar.orderedList", { defaultValue: "Lista numerowana" })}
+          title={i18n.t("blocks.toolbar.orderedList")}
           active={editor.isActive("orderedList")}
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
         >
           <ListOrdered className="h-3.5 w-3.5" />
         </ToolbarBtn>
         <ToolbarBtn
-          title={i18n.t("blocks.toolbar.blockquote", { defaultValue: "Cytat" })}
+          title={i18n.t("blocks.toolbar.blockquote")}
           active={editor.isActive("blockquote")}
           onClick={() => editor.chain().focus().toggleBlockquote().run()}
         >

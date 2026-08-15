@@ -274,7 +274,6 @@ function EditPage() {
         // formularz z wartością faktycznie zapisaną.
         toast.warning(
           t("admin.slugTaken", {
-            defaultValue: 'Slug był zajęty - zapisano jako "{{slug}}"',
             slug: canonical,
           }),
         );
@@ -332,18 +331,13 @@ function EditPage() {
 
   const save = async () => {
     if (hasBlockingSeoIssues(seoIssues)) {
-      toast.error(
-        t("admin.seo.validation.blockToast", {
-          defaultValue: "Zapis wstrzymany: pola SEO przekraczają twardy limit znaków.",
-        }),
-      );
+      toast.error(t("admin.seo.validation.blockToast"));
       return;
     }
     const pixelWarnings = seoIssues.filter((i) => i.severity === "warning");
     if (pixelWarnings.length > 0) {
       toast.warning(
         t("admin.seo.validation.warnToast", {
-          defaultValue: "Zapisano, ale {{count}} pól SEO zostanie uciętych w Google.",
           count: pixelWarnings.length,
         }),
       );
@@ -378,7 +372,7 @@ function EditPage() {
       !(await confirmDialog({
         title: t("admin.confirmDelete"),
         destructive: true,
-        confirmLabel: t("admin.delete", { defaultValue: "Usuń" }),
+        confirmLabel: t("admin.delete"),
       }))
     )
       return;
@@ -412,7 +406,7 @@ function EditPage() {
       </div>
       {form.status === "scheduled" && (
         <div>
-          <Label>{t("admin.workflow.publishAt", { defaultValue: "Data publikacji" })}</Label>
+          <Label>{t("admin.workflow.publishAt")}</Label>
           <Input
             type="datetime-local"
             value={isoToLocalInput(form.publish_at)}
@@ -420,17 +414,10 @@ function EditPage() {
           />
           <p className="mt-1 text-[11px] text-muted-foreground">
             {!form.publish_at
-              ? t("admin.workflow.publishAtRequired", {
-                  defaultValue: "Zaplanowany wpis wymaga daty publikacji.",
-                })
+              ? t("admin.workflow.publishAtRequired")
               : new Date(form.publish_at).getTime() <= Date.now()
-                ? t("admin.workflow.publishAtPast", {
-                    defaultValue:
-                      "Data jest w przeszłości - wpis zostanie opublikowany natychmiast.",
-                  })
-                : t("admin.workflow.publishAtHint", {
-                    defaultValue: "Wpis opublikuje się automatycznie o wskazanej godzinie.",
-                  })}
+                ? t("admin.workflow.publishAtPast")
+                : t("admin.workflow.publishAtHint")}
           </p>
         </div>
       )}
@@ -439,10 +426,7 @@ function EditPage() {
         <div className="flex items-center gap-2 h-10 px-3 rounded-md border border-border bg-muted/40 text-sm">
           <span className="font-medium">Visual Builder</span>
           <span className="text-xs text-muted-foreground">
-            {t("admin.pages.editor.builderLocked", {
-              defaultValue:
-                "Strony używają wspólnej struktury dla PL i EN - przełącznik języka zmienia tylko teksty.",
-            })}
+            {t("admin.pages.editor.builderLocked")}
           </span>
         </div>
       </div>
@@ -525,7 +509,7 @@ function EditPage() {
     form.title_pl ||
     form.title_en ||
     form.slug ||
-    t("admin.list.untitled", { defaultValue: "bez tytułu" })
+    t("admin.list.untitled")
   ).toString();
   const previewHref = `/${form.slug}`;
 
@@ -536,14 +520,14 @@ function EditPage() {
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
               <Link to="/admin" className="inline-flex items-center gap-1">
-                <HomeIcon className="w-3.5 h-3.5" /> {t("admin.title", { defaultValue: "Panel" })}
+                <HomeIcon className="w-3.5 h-3.5" /> {t("admin.title")}
               </Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
-              <Link to="/admin/pages">{t("admin.pages.title", { defaultValue: "Strony" })}</Link>
+              <Link to="/admin/pages">{t("admin.pages.title")}</Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
@@ -555,13 +539,11 @@ function EditPage() {
             <BreadcrumbPage className="text-xs text-muted-foreground inline-flex items-center gap-1">
               {step === "details" ? (
                 <>
-                  <SettingsIcon className="w-3 h-3" />{" "}
-                  {t("admin.pages.step.details", { defaultValue: "Szczegóły" })}
+                  <SettingsIcon className="w-3 h-3" /> {t("admin.pages.step.details")}
                 </>
               ) : (
                 <>
-                  <FileText className="w-3 h-3" />{" "}
-                  {t("admin.pages.step.content", { defaultValue: "Treść" })}
+                  <FileText className="w-3 h-3" /> {t("admin.pages.step.content")}
                 </>
               )}
             </BreadcrumbPage>
@@ -616,8 +598,7 @@ function EditPage() {
             onClick={() => setStep("details")}
             className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
           >
-            <ArrowLeft className="w-4 h-4" />{" "}
-            {t("admin.pages.step.details", { defaultValue: "Szczegóły strony" })}
+            <ArrowLeft className="w-4 h-4" /> {t("admin.pages.step.details")}
           </button>
         )}
         <div className="flex items-center gap-2">
@@ -626,16 +607,14 @@ function EditPage() {
               onClick={() => setStep("details")}
               className={`px-2 py-1 rounded inline-flex items-center gap-1 ${step === "details" ? "bg-brand text-brand-foreground" : "bg-muted hover:bg-muted/70"}`}
             >
-              <SettingsIcon className="w-3.5 h-3.5" /> 1.{" "}
-              {t("admin.pages.step.details", { defaultValue: "Szczegóły" })}
+              <SettingsIcon className="w-3.5 h-3.5" /> 1. {t("admin.pages.step.details")}
             </button>
             <span className="text-muted-foreground">→</span>
             <button
               onClick={() => setStep("content")}
               className={`px-2 py-1 rounded inline-flex items-center gap-1 ${step === "content" ? "bg-brand text-brand-foreground" : "bg-muted hover:bg-muted/70"}`}
             >
-              <FileText className="w-3.5 h-3.5" /> 2.{" "}
-              {t("admin.pages.step.content", { defaultValue: "Treść" })}
+              <FileText className="w-3.5 h-3.5" /> 2. {t("admin.pages.step.content")}
             </button>
           </div>
           {/* Jeden pasek stanu dla obu stosów (wpisy/strony): status autozapisu,
@@ -650,14 +629,9 @@ function EditPage() {
             onDiscard={discardToSaved}
           />
 
-          <Button
-            asChild
-            variant="outline"
-            size="sm"
-            title={t("admin.pages.preview", { defaultValue: "Podgląd strony w nowej karcie" })}
-          >
+          <Button asChild variant="outline" size="sm" title={t("admin.pages.preview")}>
             <a href={previewHref} target="_blank" rel="noopener noreferrer">
-              <Eye className="w-4 h-4 mr-1" /> {t("admin.preview", { defaultValue: "Podgląd" })}
+              <Eye className="w-4 h-4 mr-1" /> {t("admin.preview")}
             </a>
           </Button>
           <Button variant="ghost" size="sm" onClick={del}>

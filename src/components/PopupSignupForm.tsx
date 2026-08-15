@@ -11,6 +11,9 @@
 // Kolory nie są tu hardkodowane: panel popupu (SignupPopupPanel) ustawia tokeny
 // palety, a pola i checkboxy to niezmienione komponenty platformy.
 import { useRef, useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
+import { pickLocalized, pickPair } from "@/lib/i18n/pickLocalized";
+import "@/lib/i18n-signup-popup";
 import { useServerFn } from "@tanstack/react-start";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { Eye } from "@/lib/lucide-shim";
@@ -100,7 +103,7 @@ export function PopupSignupForm({
   const subscribe = useServerFn(subscribeToNewsletter);
   const authSettings = useAuthSettings();
 
-  const isPl = lang === "pl";
+  const { t } = useTranslation();
   const ext = settings.popup_extended_fields;
   const lists = settings.popup_mailing_lists ?? [];
   const fields = popupFieldMap(settings.popup_fields);
@@ -117,18 +120,18 @@ export function PopupSignupForm({
   const showNewsletter = fieldOn("newsletter_optin");
   const requireTerms = settings.popup_require_terms;
   const requirePrivacy = settings.popup_require_privacy !== false;
+  // Bliźniacze kolumny przez kanoniczny wybieracz: gdy redaktor wypełnił tylko
+  // jedną wersję, zgoda pokazuje ją zamiast pustki (pusta zgoda RODO to zgoda,
+  // której użytkownik nie mógł przeczytać).
   const privacyHtml =
-    (isPl
-      ? settings.popup_privacy_html_pl || settings.policy_html_pl
-      : settings.popup_privacy_html_en || settings.policy_html_en) ?? "";
-  const termsHtml = (isPl ? settings.popup_terms_html_pl : settings.popup_terms_html_en) ?? "";
+    pickLocalized(settings, "popup_privacy_html", lang) ||
+    pickLocalized(settings, "policy_html", lang);
+  const termsHtml = pickLocalized(settings, "popup_terms_html", lang);
   // Krótkie pola (imię/nazwisko, hasło/powtórz) stoją w dwóch kolumnach także
   // na telefonie - to skraca scroll popupu o ~2 wiersze. Pary z długą treścią
   // (e-mail + telefon) łamią się do jednej kolumny poniżej `sm`.
   const pairTightClass = form.twoColumnPairs ? "grid grid-cols-2 gap-2.5" : "space-y-2.5";
   const pairClass = form.twoColumnPairs ? "grid grid-cols-1 gap-2.5 sm:grid-cols-2" : "space-y-2.5";
-
-  const t = (pl: string, en: string) => (isPl ? pl : en);
 
   const track = (event: "submit" | "success" | "error", errorCode?: string) =>
     trackNewsletterPopupEvent({
@@ -170,30 +173,18 @@ export function PopupSignupForm({
 
     const email = v.email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      fail(t("Niepoprawny adres e-mail.", "Invalid e-mail address."), "invalid_email");
+      fail(t("signupPopup.errors.invalidEmail"), "invalid_email");
       return;
     }
 
     const nameRe = /^[\p{L}\p{M}'’\- ]{2,80}$/u;
     if (ext) {
       if (v.name.trim() && !nameRe.test(v.name.trim())) {
-        fail(
-          t(
-            "Imię zawiera niedozwolone znaki (min. 2 znaki).",
-            "Name contains invalid characters (min. 2 chars).",
-          ),
-          "invalid_first_name",
-        );
+        fail(t("signupPopup.errors.invalidFirstName"), "invalid_first_name");
         return;
       }
       if (v.surname.trim() && !nameRe.test(v.surname.trim())) {
-        fail(
-          t(
-            "Nazwisko zawiera niedozwolone znaki (min. 2 znaki).",
-            "Surname contains invalid characters (min. 2 chars).",
-          ),
-          "invalid_last_name",
-        );
+        fail(t("signupPopup.errors.invalidLastName"), "invalid_last_name");
         return;
       }
       if (v.linkedin.trim()) {
@@ -202,26 +193,14 @@ export function PopupSignupForm({
             v.linkedin.trim(),
           );
         if (!liOk) {
-          fail(
-            t(
-              "Niepoprawny URL LinkedIn (np. https://linkedin.com/in/jan-kowalski).",
-              "Invalid LinkedIn URL (e.g. https://linkedin.com/in/jane-doe).",
-            ),
-            "invalid_linkedin",
-          );
+          fail(t("signupPopup.errors.invalidLinkedin"), "invalid_linkedin");
           return;
         }
       }
       if (v.phone.trim()) {
         const phone = v.phone.trim().replace(/[\s\-().]/g, "");
         if (!/^\+?[0-9]{7,15}$/.test(phone)) {
-          fail(
-            t(
-              "Niepoprawny numer telefonu (7-15 cyfr, opcjonalnie z +).",
-              "Invalid phone number (7-15 digits, optional leading +).",
-            ),
-            "invalid_phone",
-          );
+          fail(t("signupPopup.errors.invalidPhone"), "invalid_phone");
           return;
         }
       }
@@ -241,7 +220,7 @@ export function PopupSignupForm({
       const visible = key === "list" ? showLists : ext && cfg.enabled;
       if (visible && cfg.required && !value.trim()) {
         fail(
-          t(`Pole "${cfg.label_pl}" jest wymagane.`, `The "${cfg.label_en}" field is required.`),
+          t("signupPopup.errors.fieldRequired", { field: pickLocalized(cfg, "label", lang) }),
           `required_${key}`,
         );
         return;
@@ -249,34 +228,25 @@ export function PopupSignupForm({
     }
 
     if (v.password.length < MIN_PASSWORD) {
-      fail(
-        t(
-          `Hasło musi mieć co najmniej ${MIN_PASSWORD} znaków.`,
-          `Password must be at least ${MIN_PASSWORD} characters long.`,
-        ),
-        "weak_password",
-      );
+      fail(t("signupPopup.errors.passwordTooShort", { count: MIN_PASSWORD }), "weak_password");
       return;
     }
     if (v.password !== v.passwordConfirm) {
-      fail(t("Hasła nie są identyczne.", "Passwords do not match."), "password_mismatch");
+      fail(t("signupPopup.errors.passwordMismatch"), "password_mismatch");
       return;
     }
 
     if (requirePrivacy && privacyHtml && !v.privacy) {
-      fail(
-        t("Wymagana akceptacja Polityki prywatności.", "Please accept the Privacy Policy."),
-        "privacy_required",
-      );
+      fail(t("signupPopup.errors.privacyRequired"), "privacy_required");
       return;
     }
     if (requireTerms && !v.terms) {
-      fail(t("Wymagana akceptacja regulaminu.", "Please accept the terms."), "terms_required");
+      fail(t("signupPopup.errors.termsRequired"), "terms_required");
       return;
     }
 
     if (!authSettings.allow_public_signup) {
-      fail(t("Rejestracja jest wyłączona.", "Sign-up is disabled."), "signup_disabled");
+      fail(t("signupPopup.errors.signupDisabled"), "signup_disabled");
       return;
     }
 
@@ -294,13 +264,7 @@ export function PopupSignupForm({
       } catch (guardErr) {
         const msg = guardErr instanceof Error ? guardErr.message : "";
         if (msg.includes("rate_limited")) {
-          fail(
-            t(
-              "Zbyt wiele prób - spróbuj ponownie za kilka minut.",
-              "Too many attempts - please try again in a few minutes.",
-            ),
-            "rate_limited",
-          );
+          fail(t("signupPopup.errors.rateLimited"), "rate_limited");
           return;
         }
         throw guardErr;
@@ -340,9 +304,7 @@ export function PopupSignupForm({
         const consents: Array<{ key: string; text: string; given: boolean; lang: "pl" | "en" }> = [
           {
             key: "newsletter",
-            text: isPl
-              ? "Zapisuję się do newslettera i akceptuję otrzymywanie wiadomości marketingowych."
-              : "I subscribe to the newsletter and accept receiving marketing messages.",
+            text: t("signupPopup.newsletterConsent", { lng: lang }),
             given: true,
             lang,
           },
@@ -382,15 +344,13 @@ export function PopupSignupForm({
     }
   };
 
-  const cta =
-    (isPl ? settings.popup_cta_pl : settings.popup_cta_en) || t("Załóż konto", "Create account");
-  const note =
-    (isPl ? settings.popup_note_pl : settings.popup_note_en) ??
-    t(
-      "Zakładając konto potwierdzasz adres e-mail. Zero spamu.",
-      "Creating an account confirms your e-mail. Zero spam.",
-    );
-  const hint = isPl ? form.hintPl : form.hintEn;
+  const cta = pickLocalized(settings, "popup_cta", lang, t("signupPopup.ctaFallback"));
+  const note = pickLocalized(settings, "popup_note", lang, t("signupPopup.noteFallback"));
+  // Podpowiedź pochodzi z PRESETU wyglądu (camelCase), nie z kolumn bazy.
+  const hint = pickPair(
+    lang === "pl" ? form.hintPl : form.hintEn,
+    lang === "pl" ? form.hintEn : form.hintPl,
+  );
 
   if (state === "ok") {
     return (
@@ -536,9 +496,7 @@ export function PopupSignupForm({
             <button
               type="button"
               onClick={() => setShowPass((s) => !s)}
-              aria-label={
-                showPass ? t("Ukryj hasło", "Hide password") : t("Pokaż hasło", "Show password")
-              }
+              aria-label={showPass ? t("signupPopup.hidePassword") : t("signupPopup.showPassword")}
               className="shrink-0 rounded-[6px] p-1 opacity-60 transition-opacity hover:opacity-100"
               style={{ color: "var(--nl-fg)" }}
             >
@@ -569,10 +527,10 @@ export function PopupSignupForm({
             value={v.list}
             onChange={(e) => upd("list", e.target.value)}
           >
-            <option value="">{placeholder("list") ?? t("Wybierz listę", "Choose a list")}</option>
+            <option value="">{placeholder("list") ?? t("signupPopup.chooseList")}</option>
             {lists.map((l) => (
               <option key={l.id} value={l.id}>
-                {isPl ? l.label_pl : l.label_en}
+                {pickLocalized(l, "label", lang)}
               </option>
             ))}
           </select>
@@ -630,7 +588,7 @@ export function PopupSignupForm({
       <div className="pt-3">
         <SubscribeButton
           loading={state === "loading"}
-          loadingLabel={t("Tworzę konto…", "Creating account…")}
+          loadingLabel={t("signupPopup.creatingAccount")}
           aria-label={cta}
           className="w-full"
         >
@@ -661,7 +619,10 @@ export function PopupSignupForm({
                 className="font-medium underline underline-offset-2 transition-opacity hover:opacity-80"
                 style={{ color: "var(--nl-fg)" }}
               >
-                {isPl ? form.loginLinkPl : form.loginLinkEn}
+                {pickPair(
+                  lang === "pl" ? form.loginLinkPl : form.loginLinkEn,
+                  lang === "pl" ? form.loginLinkEn : form.loginLinkPl,
+                )}
               </a>
             </p>
           )}

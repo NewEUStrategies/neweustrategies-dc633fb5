@@ -8,7 +8,8 @@
 //    wyłączanie funkcji app'a.
 //  - Metryki w admin_community_stats() (jeden round-trip).
 import { supabase } from "@/integrations/supabase/client";
-import type { Database, Json } from "@/integrations/supabase/types";
+import type { Database } from "@/integrations/supabase/types";
+import { toJson } from "@/lib/builder/types";
 
 // Typ + domyślne przeniesione do lib/community/modulesSettings (małego modułu
 // współdzielonego z chrome) - re-eksport utrzymuje dotychczasowe API admina.
@@ -80,7 +81,7 @@ export async function updateCommunityModules(
   const { error } = await supabase.from("site_settings").upsert(
     {
       key: COMMUNITY_MODULES_KEY,
-      value: next as unknown as Json,
+      value: toJson(next),
     },
     { onConflict: "tenant_id,key" },
   );

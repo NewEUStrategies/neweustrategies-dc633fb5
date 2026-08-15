@@ -31,6 +31,7 @@ import {
 } from "@/lib/comments/api";
 import { createGuestComment } from "@/lib/comments/guest.functions";
 import { buildCommentTree, canReplyToComment, type CommentTreeNode } from "@/lib/comments/tree";
+import { uiLocale } from "@/lib/i18n/format";
 
 interface Props {
   postId: string;
@@ -69,15 +70,7 @@ export function CommentsSection({ postId, lang }: Props) {
   const guestsAllowed = commentsOpen && !discussion.require_login_to_comment;
   const guestCreate$ = useServerFn(createGuestComment);
 
-  const moderationToast = () =>
-    toast.success(
-      t("comments.submittedPending", {
-        defaultValue:
-          lang === "pl"
-            ? "Dziękujemy - komentarz pojawi się po zatwierdzeniu przez moderację."
-            : "Thank you - your comment will appear once approved by moderation.",
-      }),
-    );
+  const moderationToast = () => toast.success(t("comments.submittedPending"));
 
   // Base key (no limit) so mutations can invalidate every fetched window at once.
   const listKey = ["post-comments", postId] as const;
@@ -115,14 +108,7 @@ export function CommentsSection({ postId, lang }: Props) {
       else if (msg === "comments_disabled") toast.error(t("comments.errors.disabled"));
       else if (msg.includes("rate limited"))
         // DB trigger rejects >5 comments/min - map the raw message to friendly copy.
-        toast.error(
-          t("comments.errors.rateLimited", {
-            defaultValue:
-              lang === "pl"
-                ? "Zwolnij - za dużo komentarzy na raz."
-                : "Slow down - too many comments at once.",
-          }),
-        );
+        toast.error(t("comments.errors.rateLimited"));
       else toast.error(t("comments.errors.generic"));
     },
   });
@@ -154,15 +140,7 @@ export function CommentsSection({ postId, lang }: Props) {
     },
     onError: (err: unknown) => {
       const msg = err instanceof Error ? err.message : "error";
-      if (msg.includes("rate limited"))
-        toast.error(
-          t("comments.errors.rateLimited", {
-            defaultValue:
-              lang === "pl"
-                ? "Zwolnij - za dużo komentarzy na raz."
-                : "Slow down - too many comments at once.",
-          }),
-        );
+      if (msg.includes("rate limited")) toast.error(t("comments.errors.rateLimited"));
       else if (msg.includes("auth required")) toast.error(t("comments.errors.authRequired"));
       else toast.error(t("comments.errors.generic"));
     },
@@ -181,19 +159,11 @@ export function CommentsSection({ postId, lang }: Props) {
     mutationFn: (input: { id: string; body: string }) => editComment(input.id, input.body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: listKey });
-      toast.success(t("comments.editSaved", { defaultValue: "Komentarz zaktualizowany" }));
+      toast.success(t("comments.editSaved"));
     },
     onError: (err: unknown) => {
       const msg = err instanceof Error ? err.message : "error";
-      if (msg.includes("edit window expired"))
-        toast.error(
-          t("comments.errors.editExpired", {
-            defaultValue:
-              lang === "pl"
-                ? "Komentarz można edytować tylko przez 15 minut od dodania."
-                : "Comments can only be edited within 15 minutes of posting.",
-          }),
-        );
+      if (msg.includes("edit window expired")) toast.error(t("comments.errors.editExpired"));
       else toast.error(t("comments.errors.generic"));
     },
   });
@@ -223,12 +193,7 @@ export function CommentsSection({ postId, lang }: Props) {
 
       {!commentsOpen ? (
         <p role="note" className="rounded-md bg-muted/50 p-4 text-sm text-muted-foreground">
-          {t("comments.closed", {
-            defaultValue:
-              lang === "pl"
-                ? "Komentarze pod tym wpisem są zamknięte."
-                : "Comments are closed for this post.",
-          })}
+          {t("comments.closed")}
         </p>
       ) : userId ? (
         <CommentComposer
@@ -293,12 +258,7 @@ export function CommentsSection({ postId, lang }: Props) {
               disabled={isFetching}
               onClick={() => setLimit((n) => n + COMMENTS_PAGE_SIZE)}
             >
-              {isFetching
-                ? t("comments.loading")
-                : t("comments.loadMore", {
-                    defaultValue:
-                      lang === "pl" ? "Załaduj więcej komentarzy" : "Load more comments",
-                  })}
+              {isFetching ? t("comments.loading") : t("comments.loadMore")}
             </Button>
           </div>
         )}
@@ -366,9 +326,7 @@ function GuestCommentComposer({
       className="space-y-3"
     >
       <FloatingInput
-        label={t("comments.guestName", {
-          defaultValue: lang === "pl" ? "Twoje imię lub pseudonim" : "Your name or nickname",
-        })}
+        label={t("comments.guestName")}
         value={name}
         onChange={(e) => setName(e.target.value)}
         maxLength={80}
@@ -385,7 +343,7 @@ function GuestCommentComposer({
           <>
             {onCancel && (
               <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
-                {t("common.cancel", { defaultValue: lang === "pl" ? "Anuluj" : "Cancel" })}
+                {t("common.cancel")}
               </Button>
             )}
             <Button type="submit" size="sm" disabled={disabled}>
@@ -475,7 +433,7 @@ function CommentComposer({
           <>
             {onCancel && (
               <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
-                {t("common.cancel", { defaultValue: lang === "pl" ? "Anuluj" : "Cancel" })}
+                {t("common.cancel")}
               </Button>
             )}
             <Button type="submit" size="sm" disabled={disabled}>
@@ -623,7 +581,7 @@ function CommentItem({
   const isGuest = !c.user_id;
   const name = c.author?.display_name?.trim() || c.author_name?.trim() || t("comments.anonymous");
   const initials = name.slice(0, 2).toUpperCase();
-  const when = new Date(c.created_at).toLocaleString(lang === "pl" ? "pl-PL" : "en-GB");
+  const when = new Date(c.created_at).toLocaleString(uiLocale(lang));
 
   return (
     <div className="flex gap-3">
@@ -651,19 +609,14 @@ function CommentItem({
             <span className="font-medium">{name}</span>
           )}
           {isGuest && (
-            <span className="text-xs text-muted-foreground/80">
-              ({t("comments.guestBadge", { defaultValue: lang === "pl" ? "gość" : "guest" })})
-            </span>
+            <span className="text-xs text-muted-foreground/80">({t("comments.guestBadge")})</span>
           )}
           <time className="text-xs text-muted-foreground" dateTime={c.created_at}>
             {when}
           </time>
           {c.edited_at && !isDeleted && (
-            <span
-              className="text-xs text-muted-foreground/70"
-              title={t("comments.edited", { defaultValue: "edytowano" })}
-            >
-              ({t("comments.edited", { defaultValue: "edytowano" })})
+            <span className="text-xs text-muted-foreground/70" title={t("comments.edited")}>
+              ({t("comments.edited")})
             </span>
           )}
           {isPending && (
@@ -678,7 +631,7 @@ function CommentItem({
               lang={lang}
               submitting={saving}
               initialValue={c.body ?? ""}
-              submitLabel={t("comments.saveEdit", { defaultValue: "Zapisz zmiany" })}
+              submitLabel={t("comments.saveEdit")}
               onSubmit={async (body) => {
                 // Blokada podwojnego wyslania: przycisk jest wylaczony przez
                 // `submitting`, a edytor zamyka sie dopiero po sukcesie mutacji.
@@ -723,7 +676,7 @@ function CommentItem({
                 className="inline-flex items-center gap-1 hover:text-foreground"
               >
                 <Pencil className="w-3.5 h-3.5" aria-hidden />
-                {t("comments.edit", { defaultValue: lang === "pl" ? "Edytuj" : "Edit" })}
+                {t("comments.edit")}
               </button>
             )}
             {isOwn && (

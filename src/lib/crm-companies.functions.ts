@@ -5,42 +5,49 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireCrmStaff } from "@/integrations/supabase/require-staff";
 import { z } from "zod";
-
-type AnyQuery = {
-  select: (s: string, opts?: { count?: "exact"; head?: boolean }) => AnyQuery;
-  order: (c: string, o: { ascending: boolean }) => AnyQuery;
-  limit: (n: number) => AnyQuery;
-  eq: (c: string, v: unknown) => AnyQuery;
-  in: (c: string, v: unknown[]) => AnyQuery;
-  or: (f: string) => AnyQuery;
-  ilike: (c: string, v: string) => AnyQuery;
-  gte: (c: string, v: unknown) => AnyQuery;
-  lte: (c: string, v: unknown) => AnyQuery;
-  update: (v: unknown) => AnyQuery;
-  delete: () => AnyQuery;
-  maybeSingle: () => Promise<{ data: unknown; error: { message: string } | null }>;
-  then: <R>(fn: (r: { data: unknown; error: { message: string } | null }) => R) => Promise<R>;
-};
-const tbl = (ctx: { supabase: unknown }, name: string): AnyQuery =>
-  (ctx.supabase as { from: (t: string) => AnyQuery }).from(name);
-
-// Wrapper do zapisów - zwraca `from()` z klienta Supabase bez zawężania
-// typu do AnyQuery (który nie eksponuje `insert`/`update`).
-const write = (
-  ctx: { supabase: unknown },
-  name: string,
-): {
-  insert: (v: unknown) => Promise<{ error: { message: string } | null }>;
-} =>
-  (
-    ctx.supabase as {
-      from: (t: string) => {
-        insert: (v: unknown) => Promise<{ error: { message: string } | null }>;
-      };
-    }
-  ).from(name);
+import { looseClient, looseTable, rowsOf, type LooseQuery } from "@/lib/supabase/looseQuery";
 
 const j = (v: unknown): string => JSON.stringify(v ?? null);
+
+/** Wiersz agregatu z `crm_companies_aggregates` - liczby bywają napisami. */
+interface CompanyAggregate {
+  readonly company_id: string;
+  readonly leads_count: number | string;
+  readonly last_lead_activity_at: string | null;
+  readonly contacts_count: number | string;
+}
+
+function isCompanyAggregate(row: unknown): row is CompanyAggregate {
+  return (
+    row !== null &&
+    typeof row === "object" &&
+    typeof (row as { company_id?: unknown }).company_id === "string"
+  );
+}
+
+/** Wiersz z identyfikatorem - minimum, jakiego potrzebuje agregacja po firmach. */
+function hasId(row: unknown): row is { id: string } {
+  return (
+    row !== null && typeof row === "object" && typeof (row as { id?: unknown }).id === "string"
+  );
+}
+
+/** Lead w feedzie aktywności firmy - pola czytane niżej przy budowie etykiet. */
+interface CompanyLeadRow {
+  readonly id: string;
+  readonly email: string;
+  readonly first_name: string | null;
+  readonly last_name: string | null;
+  readonly created_at: string;
+  readonly last_activity_at: string | null;
+  readonly stage: string;
+}
+
+function isCompanyLead(row: unknown): row is CompanyLeadRow {
+  if (row === null || typeof row !== "object") return false;
+  const r = row as Record<string, unknown>;
+  return typeof r.id === "string" && typeof r.email === "string";
+}
 
 const ListInput = z.object({
   search: z.string().trim().max(200).optional(),
@@ -55,7 +62,7 @@ export const listCrmCompanies = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => ListInput.parse(d))
   .handler(async ({ data, context }) => {
-    let q = tbl(context, "crm_companies")
+    let q = looseTable(context, "crm_companies")
       .select(
         "id, name, domain, country, branch, city, website, phone, address, postal_code, created_at, updated_at",
       )
@@ -69,12 +76,9 @@ export const listCrmCompanies = createServerFn({ method: "POST" })
       const s = `%${data.search.toLowerCase().replace(/[%_,()"\\]/g, "")}%`;
       q = q.or(`name.ilike.${s},domain.ilike.${s},city.ilike.${s},country.ilike.${s}`);
     }
-    const { data: rows, error } = await (q as unknown as Promise<{
-      data: Array<{ id: string }> | null;
-      error: { message: string } | null;
-    }>);
-    if (error) throw new Error(error.message);
-    const list = rows ?? [];
+    const listed = await q;
+    if (listed.error) throw new Error(listed.error.message);
+    const list = rowsOf(listed).filter(hasId);
     const ids = list.map((r) => r.id);
 
     // Jedno wywołanie RPC agreguje leady + kontakty po stronie bazy
@@ -82,27 +86,15 @@ export const listCrmCompanies = createServerFn({ method: "POST" })
     const leadsAgg: Record<string, { total: number; lastActivity: string | null }> = {};
     const contactsAgg: Record<string, number> = {};
     if (ids.length > 0) {
-      const { data: aggRows, error: aggError } = await (
-        context.supabase as unknown as {
-          rpc: (
-            n: string,
-            p: Record<string, unknown>,
-          ) => Promise<{
-            data: Array<{
-              company_id: string;
-              leads_count: number | string;
-              last_lead_activity_at: string | null;
-              contacts_count: number | string;
-            }> | null;
-            error: { message: string } | null;
-          }>;
-        }
-      ).rpc("crm_companies_aggregates", { _company_ids: ids });
+      const { data: aggRows, error: aggError } = await looseClient(context).rpc(
+        "crm_companies_aggregates",
+        { _company_ids: ids },
+      );
       if (aggError) throw new Error(aggError.message);
-      for (const r of aggRows ?? []) {
+      for (const r of (Array.isArray(aggRows) ? aggRows : []).filter(isCompanyAggregate)) {
         leadsAgg[r.company_id] = {
           total: Number(r.leads_count) || 0,
-          lastActivity: r.last_lead_activity_at,
+          lastActivity: r.last_lead_activity_at ?? null,
         };
         contactsAgg[r.company_id] = Number(r.contacts_count) || 0;
       }
@@ -123,34 +115,33 @@ export const getCrmCompany = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
-    const { data: company, error } = await tbl(context, "crm_companies")
+    const { data: company, error } = await looseTable(context, "crm_companies")
       .select("*")
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!company) throw new Error("not_found");
 
-    const fetchAll = async <T>(p: Promise<{ data: unknown }>): Promise<T> =>
-      ((await p).data ?? []) as T;
+    const fetchAll = async (query: LooseQuery): Promise<unknown[]> => rowsOf(await query);
 
     const [profiles, leads] = await Promise.all([
       fetchAll(
-        tbl(context, "profiles")
+        looseTable(context, "profiles")
           .select(
             "id, display_name, first_name, last_name, avatar_url, job_title, location, slug, contact_email, discoverable",
           )
           .eq("current_company_id", data.id)
           .order("updated_at", { ascending: false })
-          .limit(200) as unknown as Promise<{ data: unknown }>,
+          .limit(200),
       ),
       fetchAll(
-        tbl(context, "crm_leads")
+        looseTable(context, "crm_leads")
           .select(
             "id, email, first_name, last_name, phone, position, stage, tags, score, score_band, last_activity_at, created_at",
           )
           .eq("company_id", data.id)
           .order("last_activity_at", { ascending: false })
-          .limit(200) as unknown as Promise<{ data: unknown }>,
+          .limit(200),
       ),
     ]);
 
@@ -176,23 +167,16 @@ export const updateCrmCompany = createServerFn({ method: "POST" })
   .validator((d) => UpdateInput.parse(d))
   .handler(async ({ data, context }) => {
     const { id, ...patch } = data;
-    const supa = context.supabase as unknown as {
-      from: (t: string) => {
-        update: (v: unknown) => {
-          eq: (c: string, v: string) => Promise<{ error: { message: string } | null }>;
-        };
-      };
-    };
-    const { error } = await supa.from("crm_companies").update(patch).eq("id", id);
+    const { error } = await looseTable(context, "crm_companies").update(patch).eq("id", id);
     if (error) throw new Error(error.message);
     try {
-      await write(context, "audit_log").insert({
+      await looseTable(context, "audit_log").insert({
         actor_id: (context as { userId: string }).userId,
         action: "crm.company.update",
         entity_type: "crm_company",
         entity_id: id,
         metadata: { fields: Object.keys(patch) },
-      } as unknown as never);
+      });
     } catch {
       /* noop - audyt nie może blokować sukcesu mutacji */
     }
@@ -227,7 +211,7 @@ export const createCrmCompany = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const userId = (context as { userId: string }).userId;
     // Tenant z profilu bieżącego staffu (requireCrmStaff nie przekazuje go dalej).
-    const { data: profile, error: profileError } = await tbl(context, "profiles")
+    const { data: profile, error: profileError } = await looseTable(context, "profiles")
       .select("tenant_id")
       .eq("id", userId)
       .maybeSingle();
@@ -235,20 +219,7 @@ export const createCrmCompany = createServerFn({ method: "POST" })
     const tenantId = (profile as { tenant_id?: string } | null)?.tenant_id;
     if (!tenantId) throw new Error("tenant_unresolved");
 
-    const supa = context.supabase as unknown as {
-      from: (t: string) => {
-        insert: (v: unknown) => {
-          select: (s: string) => {
-            single: () => Promise<{
-              data: { id: string } | null;
-              error: { message: string; code?: string } | null;
-            }>;
-          };
-        };
-      };
-    };
-    const { data: row, error } = await supa
-      .from("crm_companies")
+    const { data: row, error } = await looseTable(context, "crm_companies")
       .insert({
         tenant_id: tenantId,
         created_by: userId,
@@ -270,17 +241,17 @@ export const createCrmCompany = createServerFn({ method: "POST" })
       throw new Error(error.message);
     }
     try {
-      await write(context, "audit_log").insert({
+      await looseTable(context, "audit_log").insert({
         actor_id: userId,
         action: "crm.company.create",
         entity_type: "crm_company",
-        entity_id: row?.id ?? null,
+        entity_id: hasId(row) ? row.id : null,
         metadata: { name: data.name },
-      } as unknown as never);
+      });
     } catch {
       /* noop - audyt nie może blokować sukcesu mutacji */
     }
-    return { ok: true, id: row?.id ?? null };
+    return { ok: true, id: hasId(row) ? row.id : null };
   });
 
 // ---- Dodawanie kontaktu (lead) powiązanego z firmą ----------------------
@@ -297,29 +268,16 @@ export const createCrmContactForCompany = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => CreateContactInput.parse(d))
   .handler(async ({ data, context }) => {
-    const supa = context.supabase as unknown as {
-      from: (t: string) => {
-        insert: (v: unknown) => {
-          select: (s: string) => {
-            single: () => Promise<{
-              data: { id: string } | null;
-              error: { message: string; code?: string } | null;
-            }>;
-          };
-        };
-      };
-    };
     // Resolve the company's tenant so the lead lands in the same tenant as the
     // parent company (the crm_leads RLS requires tenant_id = current_tenant_id()).
-    const { data: company } = await tbl(context, "crm_companies")
+    const { data: company } = await looseTable(context, "crm_companies")
       .select("tenant_id")
       .eq("id", data.company_id)
       .maybeSingle();
     const companyTenantId = (company as { tenant_id?: string } | null)?.tenant_id;
     if (!companyTenantId) throw new Error("company_not_found");
 
-    const { data: row, error } = await supa
-      .from("crm_leads")
+    const { data: row, error } = await looseTable(context, "crm_leads")
       .insert({
         tenant_id: companyTenantId,
         company_id: data.company_id,
@@ -339,17 +297,17 @@ export const createCrmContactForCompany = createServerFn({ method: "POST" })
       throw new Error(error.message);
     }
     try {
-      await write(context, "audit_log").insert({
+      await looseTable(context, "audit_log").insert({
         actor_id: (context as { userId: string }).userId,
         action: "crm.contact.create",
         entity_type: "crm_lead",
-        entity_id: row?.id ?? null,
+        entity_id: hasId(row) ? row.id : null,
         metadata: { company_id: data.company_id, email: data.email },
-      } as unknown as never);
+      });
     } catch {
       /* noop */
     }
-    return { ok: true, id: row?.id ?? null };
+    return { ok: true, id: hasId(row) ? row.id : null };
   });
 
 // ---- Notatka na poziomie firmy (przez audit_log, brak dedykowanej tabeli) ---
@@ -362,13 +320,13 @@ export const addCrmCompanyNote = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => NoteInput.parse(d))
   .handler(async ({ data, context }) => {
-    const { error } = await write(context, "audit_log").insert({
+    const { error } = await looseTable(context, "audit_log").insert({
       actor_id: (context as { userId: string }).userId,
       action: "crm.company.note",
       entity_type: "crm_company",
       entity_id: data.company_id,
       metadata: { body: data.body },
-    } as unknown as never);
+    });
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -378,22 +336,12 @@ export const getCrmCompanyActivity = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
-    const { data: leadRows } = (await tbl(context, "crm_leads")
+    const leadRows = await looseTable(context, "crm_leads")
       .select("id, email, first_name, last_name, created_at, last_activity_at, stage")
       .eq("company_id", data.id)
       .order("last_activity_at", { ascending: false })
-      .limit(200)) as unknown as {
-      data: Array<{
-        id: string;
-        email: string;
-        first_name: string | null;
-        last_name: string | null;
-        created_at: string;
-        last_activity_at: string | null;
-        stage: string;
-      }> | null;
-    };
-    const leads = leadRows ?? [];
+      .limit(200);
+    const leads = rowsOf(leadRows).filter(isCompanyLead);
     const leadIds = leads.map((l) => l.id);
     const leadLabel: Record<string, string> = {};
     for (const l of leads) {
@@ -401,27 +349,27 @@ export const getCrmCompanyActivity = createServerFn({ method: "POST" })
         [l.first_name, l.last_name].filter(Boolean).join(" ") || l.email || l.id.slice(0, 6);
     }
 
-    const auditCompanyP = tbl(context, "audit_log")
+    const auditCompanyP = looseTable(context, "audit_log")
       .select("id, action, entity_type, entity_id, metadata, actor_id, created_at")
       .eq("entity_type", "crm_company")
       .eq("entity_id", data.id)
       .order("created_at", { ascending: false })
-      .limit(50) as unknown as Promise<{ data: unknown }>;
+      .limit(50);
     const auditLeadsP =
       leadIds.length > 0
-        ? (tbl(context, "audit_log")
+        ? looseTable(context, "audit_log")
             .select("id, action, entity_type, entity_id, metadata, actor_id, created_at")
             .in("entity_id", leadIds)
             .order("created_at", { ascending: false })
-            .limit(100) as unknown as Promise<{ data: unknown }>)
+            .limit(100)
         : Promise.resolve({ data: [] as unknown[] });
     const notesP =
       leadIds.length > 0
-        ? (tbl(context, "crm_lead_notes")
+        ? looseTable(context, "crm_lead_notes")
             .select("id, body, lead_id, author_id, created_at")
             .in("lead_id", leadIds)
             .order("created_at", { ascending: false })
-            .limit(50) as unknown as Promise<{ data: unknown }>)
+            .limit(50)
         : Promise.resolve({ data: [] as unknown[] });
 
     const [a1, a2, notes] = await Promise.all([auditCompanyP, auditLeadsP, notesP]);
@@ -502,20 +450,16 @@ export const bulkUpdateCrmCompanies = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { ids, ...patch } = data;
     if (Object.keys(patch).length === 0) return { ok: true, updated: 0 };
-    const res = await (tbl(context, "crm_companies")
-      .update(patch)
-      .in("id", ids) as unknown as Promise<{
-      error: { message: string } | null;
-    }>);
+    const res = await looseTable(context, "crm_companies").update(patch).in("id", ids);
     if (res.error) throw new Error(res.error.message);
     try {
-      await write(context, "audit_log").insert({
+      await looseTable(context, "audit_log").insert({
         actor_id: (context as { userId: string }).userId,
         action: "crm.company.bulk_update",
         entity_type: "crm_company",
         entity_id: null,
         metadata: { count: ids.length, fields: Object.keys(patch) },
-      } as unknown as never);
+      });
     } catch {
       /* audyt best-effort */
     }
@@ -528,30 +472,24 @@ export const bulkDeleteCrmCompanies = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => BulkDeleteInput.parse(d))
   .handler(async ({ data, context }) => {
-    const rpc = (
-      context.supabase as unknown as {
-        rpc: (name: string, args?: Record<string, unknown>) => Promise<{ data: unknown }>;
-      }
-    ).rpc;
+    const client = looseClient(context);
     const userId = (context as { userId: string }).userId;
     const [{ data: isAdmin }, { data: isSuper }] = await Promise.all([
-      rpc("has_role", { _user_id: userId, _role: "admin" }),
-      rpc("has_role", { _user_id: userId, _role: "super_admin" }),
+      client.rpc("has_role", { _user_id: userId, _role: "admin" }),
+      client.rpc("has_role", { _user_id: userId, _role: "super_admin" }),
     ]);
     if (!isAdmin && !isSuper) throw new Error("forbidden");
 
-    const res = await (tbl(context, "crm_companies")
-      .delete()
-      .in("id", data.ids) as unknown as Promise<{ error: { message: string } | null }>);
+    const res = await looseTable(context, "crm_companies").delete().in("id", data.ids);
     if (res.error) throw new Error(res.error.message);
     try {
-      await write(context, "audit_log").insert({
+      await looseTable(context, "audit_log").insert({
         actor_id: userId,
         action: "crm.company.bulk_delete",
         entity_type: "crm_company",
         entity_id: null,
         metadata: { count: data.ids.length, ids: data.ids },
-      } as unknown as never);
+      });
     } catch {
       /* audyt best-effort */
     }

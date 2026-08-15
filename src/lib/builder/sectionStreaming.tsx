@@ -172,9 +172,7 @@ export function SectionStreamSkeleton({ minHeight = 280 }: { minHeight?: number 
     <div
       data-section-stream-skeleton
       aria-busy="true"
-      aria-label={t("builder.sectionLoading", {
-        defaultValue: "Wczytywanie sekcji…",
-      })}
+      aria-label={t("builder.sectionLoading")}
       className="w-full"
       style={{ minHeight }}
     >

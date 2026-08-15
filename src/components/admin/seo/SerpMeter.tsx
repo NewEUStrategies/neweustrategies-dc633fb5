@@ -15,12 +15,12 @@ export function SerpMeter({ metric }: { metric: SerpMetric }) {
   const pct = Math.min(100, Math.round(metric.ratio * 100));
   const label =
     metric.grade === "empty"
-      ? t("admin.seo.meter.empty", { defaultValue: "Użyty zostanie tekst domyślny" })
+      ? t("admin.seo.meter.empty")
       : metric.grade === "short"
-        ? t("admin.seo.meter.short", { defaultValue: "Za krótki" })
+        ? t("admin.seo.meter.short")
         : metric.grade === "long"
-          ? t("admin.seo.meter.long", { defaultValue: "Zostanie ucięty w Google" })
-          : t("admin.seo.meter.good", { defaultValue: "Dobra długość" });
+          ? t("admin.seo.meter.long")
+          : t("admin.seo.meter.good");
   return (
     <div className="mt-1.5 space-y-1">
       <div className="h-1 rounded-full bg-muted overflow-hidden">

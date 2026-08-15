@@ -44,13 +44,10 @@ export function SeoTextField({
   const handle = (next: string) => onChange(next.length ? next : null);
   const helperText = overHardLimit
     ? t("admin.seo.field.errorMax", {
-        defaultValue: "Osiągnięto twardy limit {{max}} znaków - skróć wpis.",
         max: maxLength,
       })
     : overPixelBudget
-      ? t("admin.seo.field.warnPixel", {
-          defaultValue: "Za długi dla Google - zostanie ucięty w wynikach wyszukiwania.",
-        })
+      ? t("admin.seo.field.warnPixel")
       : null;
 
   const commonProps = {

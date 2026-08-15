@@ -215,21 +215,11 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
     try {
       const res = await refreshOg({});
       if (!res.ok || !res.debuggers) {
-        toast.error(
-          t("profile.author.ogRefreshError", {
-            defaultValue:
-              "Nie udało się odświeżyć podglądu społecznościowego. Uzupełnij slug profilu i spróbuj ponownie.",
-          }),
-        );
+        toast.error(t("profile.author.ogRefreshError"));
         return;
       }
       setOgDebuggers(res.debuggers);
-      toast.success(
-        t("profile.author.ogRefreshOk", {
-          defaultValue:
-            "Podgląd społecznościowy zaktualizowany. Otwórz Post Debugger, aby wymusić rescrape.",
-        }),
-      );
+      toast.success(t("profile.author.ogRefreshOk"));
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -261,11 +251,7 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
         // i18n.t (stabilna instancja) zamiast t z useTranslation: identyczność
         // t zmienia się przy przełączeniu języka i wpięta w deps przeładowałaby
         // formularz w trakcie edycji, gubiąc niezapisane zmiany.
-        toast.error(
-          i18n.t("profile.author.loadError", {
-            defaultValue: "Nie udało się wczytać profilu autora. Odśwież stronę.",
-          }),
-        );
+        toast.error(i18n.t("profile.author.loadError"));
       }
       const canonicalBio = {
         bio_pl: preferCanonicalBio(prof?.bio_pl, row?.bio_pl ?? null),
@@ -468,14 +454,9 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
         <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-4 py-3">
           <div>
             <Label htmlFor="ape-is_public" className="font-semibold">
-              {t("profile.author.isPublic", { defaultValue: "Widoczny publicznie" })}
+              {t("profile.author.isPublic")}
             </Label>
-            <p className="text-xs text-muted-foreground">
-              {t("profile.author.isPublicHint", {
-                defaultValue:
-                  "Nowy profil startuje jako ukryty. Wyłączenie ukrywa profil na stronie eksperta i w widget BIO autora we wpisach.",
-              })}
-            </p>
+            <p className="text-xs text-muted-foreground">{t("profile.author.isPublicHint")}</p>
           </div>
           <Switch
             id="ape-is_public"
@@ -488,7 +469,7 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
         <section className="grid gap-3">
           <div className="flex items-baseline justify-between gap-3">
             <h3 className="text-sm font-semibold text-foreground/80">
-              {t("profile.author.avatarSection", { defaultValue: "Zdjęcie eksperta" })}
+              {t("profile.author.avatarSection")}
             </h3>
             <span className="text-[11px] text-muted-foreground">
               Rekomendowane: <b>600 × 600 px</b> (kwadrat, JPG/PNG/WebP, do 2 MB)
@@ -520,7 +501,7 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
                   size="sm"
                   onClick={() => setData({ ...data, avatar_url: null })}
                 >
-                  {t("common.remove", { defaultValue: "Usuń" })}
+                  {t("common.remove")}
                 </Button>
               )}
             </div>
@@ -553,10 +534,7 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
           {mode === "self" && (
             <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2">
               <div className="text-xs text-muted-foreground">
-                {t("profile.author.ogRefreshHint", {
-                  defaultValue:
-                    "Po zmianie zdjęcia lub bio odśwież podgląd społecznościowy - wymusi to nowy og:image w linkach.",
-                })}
+                {t("profile.author.ogRefreshHint")}
               </div>
               <Button
                 type="button"
@@ -572,11 +550,7 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
                   className={`mr-2 h-4 w-4 ${refreshingOg ? "animate-spin" : ""}`}
                   alt=""
                 />
-                {refreshingOg
-                  ? t("common.working", { defaultValue: "Odświeżam…" })
-                  : t("profile.author.ogRefreshBtn", {
-                      defaultValue: "Odśwież podgląd społecznościowy",
-                    })}
+                {refreshingOg ? t("common.working") : t("profile.author.ogRefreshBtn")}
               </Button>
               {ogDebuggers && (
                 <div className="w-full flex flex-wrap gap-2 pt-1">
@@ -606,7 +580,7 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
         {/* Podstawowe */}
         <section className="grid gap-4">
           <h3 className="text-sm font-semibold text-foreground/80">
-            {t("profile.author.basicSection", { defaultValue: "Dane zawodowe" })}
+            {t("profile.author.basicSection")}
           </h3>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
@@ -628,21 +602,16 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
               />
             </div>
           </div>
-          <p className="m-0 text-xs text-muted-foreground">
-            {t("profile.author.bioBulletsHint", {
-              defaultValue:
-                "Bio w formie punktorów - maksymalnie 5. Kolor punktora dziedziczony z ustawień tenanta (admin › Layouty ekspertów). Edycja synchronizuje profil prywatny.",
-            })}
-          </p>
+          <p className="m-0 text-xs text-muted-foreground">{t("profile.author.bioBulletsHint")}</p>
           <BulletEditor
             idPrefix="ape-bio_pl"
-            label={t("profile.author.bioPl", { defaultValue: "Bio - punktory (PL)" })}
+            label={t("profile.author.bioPl")}
             bullets={bulletsPl}
             onChange={setBulletsPl}
           />
           <BulletEditor
             idPrefix="ape-bio_en"
-            label={t("profile.author.bioEn", { defaultValue: "Bio - punktory (EN)" })}
+            label={t("profile.author.bioEn")}
             bullets={bulletsEn}
             onChange={setBulletsEn}
           />
@@ -678,7 +647,7 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
               <Label className="text-sm font-medium">{t("expert.orgFunctions")}</Label>
               <Button type="button" size="sm" variant="outline" onClick={addOrgFn}>
                 <BrandIcon name="plus" fallback={Plus} className="mr-1 h-4 w-4" alt="" />
-                {t("common.add", { defaultValue: "Dodaj" })}
+                {t("common.add")}
               </Button>
             </div>
             <p className="-mt-1 text-xs text-muted-foreground">{t("expert.orgFunctionsHint")}</p>
@@ -743,20 +712,15 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
         {/* Kontakt (niepubliczny - RODO/PII) */}
         <section className="grid gap-4">
           <h3 className="text-sm font-semibold text-foreground/80">
-            {t("profile.author.contactSection", {
-              defaultValue: "Dane kontaktowe (niepubliczne)",
-            })}
+            {t("profile.author.contactSection")}
           </h3>
           <p className="-mt-2 text-xs text-muted-foreground">
-            {t("profile.author.contactPrivacyHint", {
-              defaultValue:
-                "E-mail i telefon nie są publikowane na stronie profilu - widzisz je tylko Ty i administratorzy. Czytelnicy kontaktują się przez formularz zapytań.",
-            })}
+            {t("profile.author.contactPrivacyHint")}
           </p>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
               <FieldLabel htmlFor="ape-contact_email">
-                {t("profile.author.contactEmail", { defaultValue: "E-mail kontaktowy" })}
+                {t("profile.author.contactEmail")}
               </FieldLabel>
               <Input
                 id="ape-contact_email"
@@ -777,9 +741,7 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
               />
             </div>
             <div className="grid gap-2 sm:col-span-2">
-              <FieldLabel htmlFor="ape-website_url">
-                {t("profile.author.website", { defaultValue: "Strona WWW" })}
-              </FieldLabel>
+              <FieldLabel htmlFor="ape-website_url">{t("profile.author.website")}</FieldLabel>
               <Input
                 id="ape-website_url"
                 type="url"
@@ -839,7 +801,7 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
         {/* Social */}
         <section className="grid gap-4">
           <h3 className="text-sm font-semibold text-foreground/80">
-            {t("profile.author.socialSection", { defaultValue: "Media społecznościowe" })}
+            {t("profile.author.socialSection")}
           </h3>
           <div className="grid gap-4 sm:grid-cols-2">
             {(
@@ -881,22 +843,14 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
 
           <div className="grid gap-3">
             <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium">
-                {t("profile.author.customSocials", {
-                  defaultValue: "Własne linki (z ikoną)",
-                })}
-              </Label>
+              <Label className="text-sm font-medium">{t("profile.author.customSocials")}</Label>
               <Button type="button" size="sm" variant="outline" onClick={addCustom}>
                 <BrandIcon name="plus" fallback={Plus} className="mr-1 h-4 w-4" alt="" />
-                {t("common.add", { defaultValue: "Dodaj" })}
+                {t("common.add")}
               </Button>
             </div>
             {data.custom_socials.length === 0 && (
-              <p className="text-xs text-muted-foreground">
-                {t("profile.author.noCustomSocials", {
-                  defaultValue: "Brak własnych linków. Dodaj np. Threads, Bluesky, Mastodon...",
-                })}
-              </p>
+              <p className="text-xs text-muted-foreground">{t("profile.author.noCustomSocials")}</p>
             )}
             {data.custom_socials.map((s, idx) => (
               <div
@@ -923,7 +877,7 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
                   )}
                 </div>
                 <Input
-                  placeholder={t("profile.author.socialLabel", { defaultValue: "Etykieta" })}
+                  placeholder={t("profile.author.socialLabel")}
                   value={s.label}
                   onChange={(e) => updateCustom(idx, { label: e.target.value })}
                 />
@@ -934,9 +888,7 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
                   onChange={(e) => updateCustom(idx, { url: e.target.value })}
                 />
                 <Input
-                  placeholder={t("profile.author.iconUrl", {
-                    defaultValue: "URL ikony (opcjonalnie)",
-                  })}
+                  placeholder={t("profile.author.iconUrl")}
                   value={s.iconUrl ?? ""}
                   onChange={(e) => updateCustom(idx, { iconUrl: e.target.value })}
                 />
@@ -958,9 +910,7 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
 
         <div className="flex items-center gap-3">
           <Button type="submit" disabled={busy}>
-            {exists
-              ? t("profile.account.save")
-              : t("profile.author.create", { defaultValue: "Utwórz profil eksperta" })}
+            {exists ? t("profile.account.save") : t("profile.author.create")}
           </Button>
         </div>
       </form>

@@ -4,11 +4,31 @@
 // aktywnego języka, odporność na rzucający localStorage oraz zatrzymanie
 // propagacji pointerdown (drag kanwy buildera nie może łapać tych kliknięć).
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+// Prawdziwe zasoby i18n: bez tego `t()` zwraca GOŁY KLUCZ, a asercje na
+// widoczny tekst przechodziły wyłącznie dzięki `defaultValue` wpisanemu przy
+// wywołaniu - czyli test sprawdzał kopię napisu z kodu, a nie to, co widzi
+// użytkownik. Import wciąga rdzeń słownika (nakładki `i18n-*` dociąga sam
+// komponent), więc asercja mierzy teraz wartość ze słownika.
+import "@/lib/i18n";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import type { TFunction } from "i18next";
 import { LangSwitcherDropdown, ThemeToggleWidget } from "../chromeWidgets";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { realT } from "@/test/i18nReal";
 
 const changeLanguage = vi.hoisted(() => vi.fn(async () => {}));
+/**
+ * Pudełko na PRAWDZIWY `t`, wypełniane po zaimportowaniu modułów.
+ *
+ * Atrapa `react-i18next` musi tu zostać - test szpieguje `changeLanguage` i
+ * steruje `i18n.language`, czego prawdziwy hak nie da. Ale jej `t` nie może już
+ * zwracać `defaultValue`, bo po konwersji nie ma czego zwracać. Fabryka `vi.mock`
+ * jest hoistowana i NIE MOŻE sama zaimportować słownika (`@/lib/i18n` importuje
+ * `react-i18next`, czyli sam ten mock - import zapętliłby się i test wisiałby
+ * bez komunikatu). Dlatego fabryka czyta pudełko LENIWIE, przy wywołaniu
+ * `useTranslation()` w renderze, a więc długo po inicjalizacji modułów.
+ */
+const i18nBox = vi.hoisted(() => ({ t: null as TFunction | null }));
 const i18nState = vi.hoisted(() => ({ language: "pl" as string | undefined }));
 const routerState = vi.hoisted(() => ({
   current: null as null | {
@@ -19,12 +39,15 @@ const routerState = vi.hoisted(() => ({
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (k: string, o?: string | { defaultValue?: string }) =>
-      typeof o === "string" ? o : (o?.defaultValue ?? k),
+    t: (...args: Parameters<TFunction>) => i18nBox.t?.(...args),
     i18n: { language: i18nState.language, changeLanguage },
   }),
   initReactI18next: { type: "3rdParty", init: () => {} },
 }));
+
+// Po imporcie modułów (ESM wciąga je przed pierwszą instrukcją) - fabryka wyżej
+// zobaczy to przy pierwszym renderze.
+i18nBox.t = realT("pl");
 
 vi.mock("@tanstack/react-router", async (orig) => {
   const actual = await orig<typeof import("@tanstack/react-router")>();
@@ -137,15 +160,17 @@ describe("ThemeToggleWidget", () => {
       </ThemeProvider>,
     );
 
-    // Stan ciemny -> przycisk oferuje przejście do jasnego.
+    // Stan ciemny -> przycisk oferuje przejście do jasnego. Porównanie idzie
+    // przez KLUCZ, nie przez wpisany tu napis: inaczej test przypina się do
+    // treści słownika i redaktor psuje go poprawną korektą literówki.
     const btn = screen.getByRole("button");
-    expect(btn.getAttribute("aria-label")).toContain("light");
+    expect(btn.getAttribute("aria-label")).toBe(realT("pl")("common.preview.lightMode"));
 
     fireEvent.pointerDown(btn);
     expect(outer).not.toHaveBeenCalled();
 
     fireEvent.click(btn);
-    expect(btn.getAttribute("aria-label")).toContain("dark");
+    expect(btn.getAttribute("aria-label")).toBe(realT("pl")("common.preview.darkMode"));
     expect(document.documentElement.classList.contains("dark")).toBe(false);
   });
 });

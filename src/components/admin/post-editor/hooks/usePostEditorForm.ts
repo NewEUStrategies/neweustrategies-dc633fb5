@@ -16,7 +16,6 @@ import {
   replaceDataUrlImages,
   type DecodedDataUrl,
 } from "@/lib/blocks/persistImages";
-import type { Json } from "@/lib/blocks/types";
 import { isEditConflict } from "@/lib/content/saveConflict";
 import { useHistory } from "@/hooks/useHistory";
 import { useAutosave } from "@/hooks/useAutosave";
@@ -114,7 +113,11 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
   // trafić do biblioteki mediów, a dokument dostać publiczne adresy storage -
   // baza nie przechowuje base64, a grafika jest widoczna w /admin/media.
   const persistPastedImages = useCallback(
-    async (doc: Json | null | undefined): Promise<{ doc: Json | null; changed: boolean }> => {
+    // Generyk przenosi typ dokumentu wołającego na wylot (LocalizedBlocks,
+    // BuilderDocument) - bez niego każde wejście i wyjście wymagało pary
+    // rzutowań, bo interfejs nie jest przypisywalny do `Json` (brak sygnatury
+    // indeksu). Uzasadnienie przy `replaceDataUrlImages`.
+    async <T>(doc: T | null | undefined): Promise<{ doc: T | null; changed: boolean }> => {
       if (!doc || !user?.id || !tenantId) return { doc: doc ?? null, changed: false };
       const upload = async (decoded: DecodedDataUrl): Promise<string> => {
         const file = new File([decoded.bytes as BlobPart], decoded.filename, {
@@ -134,7 +137,6 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
       if (result.failed > 0) {
         toast.warning(
           t("blocks.clipboard.imagePersistFailed", {
-            defaultValue: "Nie udało się zapisać {{count}} wklejonych grafik do biblioteki mediów.",
             count: result.failed,
           }),
           { id: "blocks-image-persist" },
@@ -148,8 +150,8 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
         // więc niezmieniony formularz nie generuje dodatkowego autosave'u.
         setSlug((f) => {
           if (!f) return f;
-          const blocksJson = f.blocks_data as unknown as Json | null;
-          const builderJson = f.builder_data as unknown as Json | null;
+          const blocksJson = f.blocks_data;
+          const builderJson = f.builder_data;
           const nextBlocks = blocksJson
             ? replaceDataUrlImages(blocksJson, result.replacements)
             : blocksJson;
@@ -159,8 +161,8 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
           if (nextBlocks === blocksJson && nextBuilder === builderJson) return f;
           return {
             ...f,
-            blocks_data: nextBlocks as unknown as typeof f.blocks_data,
-            builder_data: nextBuilder as unknown as typeof f.builder_data,
+            blocks_data: nextBlocks,
+            builder_data: nextBuilder,
           };
         });
       }
@@ -172,22 +174,18 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
   const saveFn = useCallback(
     async (snapshot: PostForm | null) => {
       if (!snapshot) return;
-      const persistedBlocks = await persistPastedImages(
-        snapshot.blocks_data as unknown as Json | null,
-      );
-      const persistedBuilder = await persistPastedImages(
-        snapshot.builder_data as unknown as Json | null,
-      );
+      const persistedBlocks = await persistPastedImages(snapshot.blocks_data);
+      const persistedBuilder = await persistPastedImages(snapshot.builder_data);
       if (persistedBlocks.changed) {
         snapshot = {
           ...snapshot,
-          blocks_data: persistedBlocks.doc as unknown as PostForm["blocks_data"],
+          blocks_data: persistedBlocks.doc,
         };
       }
       if (persistedBuilder.changed) {
         snapshot = {
           ...snapshot,
-          builder_data: persistedBuilder.doc as unknown as PostForm["builder_data"],
+          builder_data: persistedBuilder.doc,
         };
       }
       const result = await update$({
@@ -268,7 +266,6 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
         // pole formularza z tym, co realnie trafiło do bazy.
         toast.warning(
           t("admin.slugTaken", {
-            defaultValue: 'Slug był zajęty - zapisano jako "{{slug}}"',
             slug: canonicalSlug,
           }),
         );
@@ -345,18 +342,13 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
 
   const save = async () => {
     if (hasBlockingSeoIssues(seoIssues)) {
-      toast.error(
-        t("admin.seo.validation.blockToast", {
-          defaultValue: "Zapis wstrzymany: pola SEO przekraczają twardy limit znaków.",
-        }),
-      );
+      toast.error(t("admin.seo.validation.blockToast"));
       return;
     }
     const pixelWarnings = seoIssues.filter((i) => i.severity === "warning");
     if (pixelWarnings.length > 0) {
       toast.warning(
         t("admin.seo.validation.warnToast", {
-          defaultValue: "Zapisano, ale {{count}} pól SEO zostanie uciętych w Google.",
           count: pixelWarnings.length,
         }),
       );
@@ -389,7 +381,7 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
       !(await confirmDialog({
         title: t("admin.confirmDelete"),
         destructive: true,
-        confirmLabel: t("admin.delete", { defaultValue: "Usuń" }),
+        confirmLabel: t("admin.delete"),
       }))
     )
       return;

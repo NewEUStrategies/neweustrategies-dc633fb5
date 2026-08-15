@@ -8,6 +8,8 @@
 // is not one. (Per the UX audit's "register OR exempt by design" option.)
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { uiLang } from "@/lib/i18n/format";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import * as Icons from "@/lib/lucide-shim";
 import { AppLink } from "@/components/atoms/AppLink";
@@ -87,10 +89,11 @@ export function AlertBar() {
   const [dismissed, setDismissed] = useState(false);
 
   const lang = i18n.language ?? "pl";
-  const isPl = lang.startsWith("pl");
-  const msg = (isPl ? bar.message_pl : bar.message_en) || bar.message_pl || bar.message_en;
-  const cta =
-    (isPl ? bar.cta_label_pl : bar.cta_label_en) || bar.cta_label_pl || bar.cta_label_en || "";
+  // Ta sama reguła fallbacku, co wszędzie indziej: żądany język -> drugi -> "".
+  // Ręczny łańcuch `||` robił to samo, tylko po raz kolejny i nieco inaczej
+  // (traktował biały znak jako treść).
+  const msg = pickLocalized(bar, "message", uiLang(lang));
+  const cta = pickLocalized(bar, "cta_label", uiLang(lang));
   const fingerprint = `${bar.message_pl}|${bar.message_en}|${bar.link_url}|${bar.style}`;
 
   useEffect(() => {

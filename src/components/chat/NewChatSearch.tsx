@@ -45,9 +45,7 @@ export function NewChatSearch({ onOpened }: { onOpened: (conversationId: string)
       </div>
       <div className="max-h-[260px] overflow-y-auto px-1 pb-1">
         {peopleQ.isLoading ? (
-          <p className="p-4 text-center text-xs text-muted-foreground">
-            {t("common.loading", { defaultValue: "..." })}
-          </p>
+          <p className="p-4 text-center text-xs text-muted-foreground">{t("common.loading")}</p>
         ) : people.length === 0 ? (
           <div className="flex flex-col items-center gap-1.5 p-5 text-center">
             <UserRoundSearch className="h-5 w-5 text-muted-foreground/50" aria-hidden />
@@ -82,10 +80,7 @@ export function NewChatSearch({ onOpened }: { onOpened: (conversationId: string)
                         }
                         toast.error(
                           msg.includes("not in your network")
-                            ? t("chat.notInNetwork", {
-                                defaultValue:
-                                  "Możesz pisać tylko do osób z Twojej zaakceptowanej sieci kontaktów.",
-                              })
+                            ? t("chat.notInNetwork")
                             : t("chat.startError"),
                         );
                       },

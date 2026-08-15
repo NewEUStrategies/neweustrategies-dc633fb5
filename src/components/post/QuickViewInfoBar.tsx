@@ -60,14 +60,14 @@ export function QuickViewInfoBar({
       {typeof readMinutes === "number" && readMinutes > 0 && (
         <span className="inline-flex items-center gap-1.5 text-muted-foreground">
           <Clock className="h-3.5 w-3.5" aria-hidden />
-          {t("post.readMinutes", { count: readMinutes, defaultValue: "{{count}} min read" })}
+          {t("post.readMinutes", { count: readMinutes })}
         </span>
       )}
       {dateText && (
         <span className="inline-flex items-center gap-1.5 text-muted-foreground">
           {isUpdated && (
             <span className="cms-widget-note rounded-sm bg-muted px-1.5 py-0.5 font-semibold uppercase tracking-wider">
-              {t("post.updated", { defaultValue: lang === "pl" ? "Aktualizacja" : "Updated" })}
+              {t("post.updated")}
             </span>
           )}
           <time dateTime={displayDate ?? undefined}>{dateText}</time>

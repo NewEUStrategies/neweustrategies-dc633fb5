@@ -293,14 +293,8 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
 
   const patch = (next: Partial<NotificationPreferences>) => {
     updatePrefs.mutate(next, {
-      onSuccess: () =>
-        toast.success(t("notifications.settings.saved", { defaultValue: "Zapisano preferencje" })),
-      onError: () =>
-        toast.error(
-          t("notifications.settings.saveError", {
-            defaultValue: "Nie udało się zapisać preferencji",
-          }),
-        ),
+      onSuccess: () => toast.success(t("notifications.settings.saved")),
+      onError: () => toast.error(t("notifications.settings.saveError")),
     });
   };
 
@@ -337,12 +331,8 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
       const code = err instanceof Error ? err.message : "";
       toast.error(
         code === "push_denied"
-          ? t("notifications.settings.pushDenied", {
-              defaultValue: "Przeglądarka odmówiła zgody na powiadomienia.",
-            })
-          : t("notifications.settings.pushError", {
-              defaultValue: "Nie udało się włączyć powiadomień push.",
-            }),
+          ? t("notifications.settings.pushDenied")
+          : t("notifications.settings.pushError"),
       );
     } finally {
       setPushBusy(false);
@@ -395,7 +385,7 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
             onClick={() => markAll.mutate()}
           >
             <CheckCheck className="h-4 w-4 mr-1.5" />
-            {t("notifications.markAllRead", { defaultValue: "Oznacz wszystkie" })}
+            {t("notifications.markAllRead")}
           </Button>
         )}
       </CardHeader>
@@ -408,16 +398,10 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
           {mode === "full" && (
             <div className="px-3 sm:px-4 pt-3">
               <TabsList>
-                <TabsTrigger value="all">
-                  {t("notifications.filters.all", { defaultValue: "Wszystkie" })}
-                </TabsTrigger>
-                <TabsTrigger value="unread">
-                  {t("notifications.filters.unread", { defaultValue: "Nieprzeczytane" })}
-                </TabsTrigger>
+                <TabsTrigger value="all">{t("notifications.filters.all")}</TabsTrigger>
+                <TabsTrigger value="unread">{t("notifications.filters.unread")}</TabsTrigger>
                 {showSettingsTab && (
-                  <TabsTrigger value="settings">
-                    {t("notifications.filters.settings", { defaultValue: "Ustawienia" })}
-                  </TabsTrigger>
+                  <TabsTrigger value="settings">{t("notifications.filters.settings")}</TabsTrigger>
                 )}
               </TabsList>
             </div>
@@ -425,12 +409,8 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
           {mode === "inbox" && (
             <div className="px-3 sm:px-4 pt-3">
               <TabsList>
-                <TabsTrigger value="all">
-                  {t("notifications.filters.all", { defaultValue: "Wszystkie" })}
-                </TabsTrigger>
-                <TabsTrigger value="unread">
-                  {t("notifications.filters.unread", { defaultValue: "Nieprzeczytane" })}
-                </TabsTrigger>
+                <TabsTrigger value="all">{t("notifications.filters.all")}</TabsTrigger>
+                <TabsTrigger value="unread">{t("notifications.filters.unread")}</TabsTrigger>
               </TabsList>
             </div>
           )}
@@ -452,12 +432,8 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                     type="search"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder={t("notifications.searchPlaceholder", {
-                      defaultValue: "Szukaj po treści, nadawcy...",
-                    })}
-                    aria-label={t("notifications.searchPlaceholder", {
-                      defaultValue: "Szukaj po treści, nadawcy...",
-                    })}
+                    placeholder={t("notifications.searchPlaceholder")}
+                    aria-label={t("notifications.searchPlaceholder")}
                     className="h-9 w-full rounded-[6px] border border-input bg-muted/40 !pl-[38px] pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   />
                 </label>
@@ -469,9 +445,7 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                     {KIND_OPTIONS.map((k) => (
                       <SelectItem key={k} value={k}>
                         {k === "all"
-                          ? t("notifications.filters.allKinds", {
-                              defaultValue: "Wszystkie typy",
-                            })
+                          ? t("notifications.filters.allKinds")
                           : t(`notifications.settings.kinds.${k}`, { defaultValue: k })}
                       </SelectItem>
                     ))}
@@ -482,16 +456,14 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
               <div className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-4 pb-3">
                 {listQ.isLoading ? (
                   <div className="py-10 text-center text-sm text-muted-foreground">
-                    {t("common.loading", { defaultValue: "Ładowanie..." })}
+                    {t("common.loading")}
                   </div>
                 ) : groups.length === 0 ? (
                   <div className="py-12 text-center text-sm text-muted-foreground">
                     <BellOff className="mx-auto mb-3 h-8 w-8 opacity-40" aria-hidden />
                     {query || kindFilter !== "all"
-                      ? t("notifications.noMatches", {
-                          defaultValue: "Brak wyników dla zadanych filtrów",
-                        })
-                      : t("notifications.empty", { defaultValue: "Brak powiadomień" })}
+                      ? t("notifications.noMatches")
+                      : t("notifications.empty")}
                   </div>
                 ) : (
                   <ul className="divide-y divide-border">
@@ -503,7 +475,6 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                         g.isConversation && !g.isSingle
                           ? t("notifications.grouped.messagesFrom", {
                               name: pickTitle(n, lang),
-                              defaultValue: `Messages from ${pickTitle(n, lang)}`,
                             })
                           : pickTitle(n, lang);
                       const allIds = g.items.map((i) => i.id);
@@ -612,7 +583,6 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                                 <span>
                                   {t("notifications.grouped.moreMessages", {
                                     count: extra,
-                                    defaultValue: `+${extra}`,
                                   })}
                                 </span>
                               )}
@@ -626,21 +596,13 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                                 onClick={() => markMany.mutate(unreadIds)}
                                 aria-label={
                                   g.isConversation && !g.isSingle
-                                    ? t("notifications.markGroupRead", {
-                                        defaultValue: "Oznacz całą rozmowę jako przeczytaną",
-                                      })
-                                    : t("notifications.markRead", {
-                                        defaultValue: "Oznacz jako przeczytane",
-                                      })
+                                    ? t("notifications.markGroupRead")
+                                    : t("notifications.markRead")
                                 }
                                 title={
                                   g.isConversation && !g.isSingle
-                                    ? t("notifications.markGroupRead", {
-                                        defaultValue: "Oznacz całą rozmowę jako przeczytaną",
-                                      })
-                                    : t("notifications.markRead", {
-                                        defaultValue: "Oznacz jako przeczytane",
-                                      })
+                                    ? t("notifications.markGroupRead")
+                                    : t("notifications.markRead")
                                 }
                               >
                                 <Check className="h-3.5 w-3.5" />
@@ -652,21 +614,13 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                                 onClick={() => unreadMany.mutate(allIds)}
                                 aria-label={
                                   g.isConversation && !g.isSingle
-                                    ? t("notifications.markGroupUnread", {
-                                        defaultValue: "Oznacz całą rozmowę jako nieprzeczytaną",
-                                      })
-                                    : t("notifications.markUnread", {
-                                        defaultValue: "Oznacz jako nieprzeczytane",
-                                      })
+                                    ? t("notifications.markGroupUnread")
+                                    : t("notifications.markUnread")
                                 }
                                 title={
                                   g.isConversation && !g.isSingle
-                                    ? t("notifications.markGroupUnread", {
-                                        defaultValue: "Oznacz całą rozmowę jako nieprzeczytaną",
-                                      })
-                                    : t("notifications.markUnread", {
-                                        defaultValue: "Oznacz jako nieprzeczytane",
-                                      })
+                                    ? t("notifications.markGroupUnread")
+                                    : t("notifications.markUnread")
                                 }
                               >
                                 <Mail className="h-3.5 w-3.5" />
@@ -679,17 +633,13 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                               onClick={() => deleteGroup.mutate(allIds)}
                               aria-label={
                                 g.isConversation && !g.isSingle
-                                  ? t("notifications.deleteGroup", {
-                                      defaultValue: "Usuń całą rozmowę",
-                                    })
-                                  : t("common.delete", { defaultValue: "Usuń" })
+                                  ? t("notifications.deleteGroup")
+                                  : t("common.delete")
                               }
                               title={
                                 g.isConversation && !g.isSingle
-                                  ? t("notifications.deleteGroup", {
-                                      defaultValue: "Usuń całą rozmowę",
-                                    })
-                                  : t("common.delete", { defaultValue: "Usuń" })
+                                  ? t("notifications.deleteGroup")
+                                  : t("common.delete")
                               }
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -707,12 +657,11 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                       size="sm"
                       disabled={listQ.isFetchingNextPage}
                       onClick={() => void listQ.fetchNextPage()}
-                      aria-label={t("notifications.loadMore", { defaultValue: "Załaduj więcej" })}
+                      aria-label={t("notifications.loadMore")}
                     >
                       {listQ.isFetchingNextPage
-                        ? t("common.loading", { defaultValue: "Ładowanie..." })
+                        ? t("common.loading")
                         : t("notifications.loadMore", {
-                            defaultValue: "Załaduj więcej",
                             count: NOTIFICATIONS_PAGE_SIZE,
                           })}
                     </Button>
@@ -733,15 +682,9 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
               className="mt-3 flex-1 min-h-0 overflow-y-auto px-3 sm:px-4 pb-4 space-y-6"
             >
               <div>
-                <h3 className="text-sm font-semibold">
-                  {t("notifications.settings.kindsHeader", {
-                    defaultValue: "Typy powiadomień",
-                  })}
-                </h3>
+                <h3 className="text-sm font-semibold">{t("notifications.settings.kindsHeader")}</h3>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  {t("notifications.settings.subtitle", {
-                    defaultValue: "Wybierz, jakie alerty trafiają do skrzynki.",
-                  })}
+                  {t("notifications.settings.subtitle")}
                 </p>
                 {/* Sekcje tematyczne z katalogu (@/lib/notifications/preferences):
                     szesnaście jednakowych wierszy to ściana, a nie wybór. Podział
@@ -786,9 +729,7 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                   <NotificationKindToggle
                     kind="security"
                     alwaysOn
-                    label={t("notifications.settings.kinds.security", {
-                      defaultValue: "Alerty bezpieczeństwa (zawsze włączone)",
-                    })}
+                    label={t("notifications.settings.kinds.security")}
                     checked={isNotificationKindEnabled(prefs, "security")}
                   />
                 </div>
@@ -796,23 +737,16 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
 
               <div>
                 <h3 className="text-sm font-semibold">
-                  {t("notifications.settings.behaviourHeader", {
-                    defaultValue: "Zachowanie domyślne",
-                  })}
+                  {t("notifications.settings.behaviourHeader")}
                 </h3>
                 <div className="mt-3 space-y-2">
                   <div className="flex items-start justify-between gap-3 rounded-md border border-border/60 px-3 py-2">
                     <div className="min-w-0">
                       <Label htmlFor="pref-chat-bell" className="text-sm font-normal">
-                        {t("notifications.settings.chatBell", {
-                          defaultValue: "Ikona czatu (dzwonek) w nagłówku",
-                        })}
+                        {t("notifications.settings.chatBell")}
                       </Label>
                       <p className="mt-0.5 text-xs text-muted-foreground">
-                        {t("notifications.settings.chatBellHint", {
-                          defaultValue:
-                            "Wyłącz, żeby ukryć skrót do czatu w topbarze. Rozmowy nadal działają w /messages i doku.",
-                        })}
+                        {t("notifications.settings.chatBellHint")}
                       </p>
                     </div>
                     <Switch
@@ -825,16 +759,10 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                   <div className="flex items-start justify-between gap-3 rounded-md border border-border/60 px-3 py-2">
                     <div className="min-w-0">
                       <Label htmlFor="pref-auto-mark" className="text-sm font-normal">
-                        {t("notifications.settings.autoMarkOnOpen", {
-                          defaultValue:
-                            "Automatycznie oznaczaj wiadomości jako przeczytane po otwarciu czatu",
-                        })}
+                        {t("notifications.settings.autoMarkOnOpen")}
                       </Label>
                       <p className="mt-0.5 text-xs text-muted-foreground">
-                        {t("notifications.settings.autoMarkOnOpenHint", {
-                          defaultValue:
-                            "Wyłącz, żeby powiadomienia zostawały do ręcznego zamknięcia.",
-                        })}
+                        {t("notifications.settings.autoMarkOnOpenHint")}
                       </p>
                     </div>
                     <Switch
@@ -847,14 +775,10 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                   <div className="flex items-start justify-between gap-3 rounded-md border border-border/60 px-3 py-2">
                     <div className="min-w-0">
                       <Label htmlFor="pref-group" className="text-sm font-normal">
-                        {t("notifications.settings.groupByConversation", {
-                          defaultValue: "Grupuj powiadomienia o wiadomościach wg rozmowy",
-                        })}
+                        {t("notifications.settings.groupByConversation")}
                       </Label>
                       <p className="mt-0.5 text-xs text-muted-foreground">
-                        {t("notifications.settings.groupByConversationHint", {
-                          defaultValue: "Zwiń wiele wiadomości z tego samego czatu w jeden wpis.",
-                        })}
+                        {t("notifications.settings.groupByConversationHint")}
                       </p>
                     </div>
                     <Switch
@@ -869,34 +793,21 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
 
               <div>
                 <h3 className="text-sm font-semibold">
-                  {t("notifications.settings.channelsHeader", {
-                    defaultValue: "Kanały doręczeń",
-                  })}
+                  {t("notifications.settings.channelsHeader")}
                 </h3>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  {t("notifications.settings.channelsSubtitle", {
-                    defaultValue:
-                      "Powiadomienia poza aplikacją: push w przeglądarce i zbiorczy e-mail.",
-                  })}
+                  {t("notifications.settings.channelsSubtitle")}
                 </p>
                 <div className="mt-3 space-y-2">
                   <div className="flex items-start justify-between gap-3 rounded-md border border-border/60 px-3 py-2">
                     <div className="min-w-0">
                       <Label htmlFor="pref-push" className="text-sm font-normal">
-                        {t("notifications.settings.push", {
-                          defaultValue: "Powiadomienia push w tej przeglądarce",
-                        })}
+                        {t("notifications.settings.push")}
                       </Label>
                       <p className="mt-0.5 text-xs text-muted-foreground">
                         {pushAvailable
-                          ? t("notifications.settings.pushHint", {
-                              defaultValue:
-                                "Alert pojawi się nawet przy zamkniętej karcie. Każde urządzenie włączasz osobno.",
-                            })
-                          : t("notifications.settings.pushUnsupported", {
-                              defaultValue:
-                                "Ta przeglądarka lub instalacja nie wspiera powiadomień push.",
-                            })}
+                          ? t("notifications.settings.pushHint")
+                          : t("notifications.settings.pushUnsupported")}
                       </p>
                     </div>
                     <Switch
@@ -909,14 +820,10 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                   <div className="flex items-start justify-between gap-3 rounded-md border border-border/60 px-3 py-2">
                     <div className="min-w-0">
                       <Label htmlFor="pref-digest" className="text-sm font-normal">
-                        {t("notifications.settings.digest", {
-                          defaultValue: "Digest e-mail z nieprzeczytanych powiadomień",
-                        })}
+                        {t("notifications.settings.digest")}
                       </Label>
                       <p className="mt-0.5 text-xs text-muted-foreground">
-                        {t("notifications.settings.digestHint", {
-                          defaultValue: "Jedno zbiorcze podsumowanie zamiast pojedynczych e-maili.",
-                        })}
+                        {t("notifications.settings.digestHint")}
                       </p>
                     </div>
                     <Select
@@ -930,16 +837,12 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="off">
-                          {t("notifications.settings.digestOff", { defaultValue: "Wyłączony" })}
-                        </SelectItem>
+                        <SelectItem value="off">{t("notifications.settings.digestOff")}</SelectItem>
                         <SelectItem value="daily">
-                          {t("notifications.settings.digestDaily", { defaultValue: "Codziennie" })}
+                          {t("notifications.settings.digestDaily")}
                         </SelectItem>
                         <SelectItem value="weekly">
-                          {t("notifications.settings.digestWeekly", {
-                            defaultValue: "Co tydzień",
-                          })}
+                          {t("notifications.settings.digestWeekly")}
                         </SelectItem>
                       </SelectContent>
                     </Select>

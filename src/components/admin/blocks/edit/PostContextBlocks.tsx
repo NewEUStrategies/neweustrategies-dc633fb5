@@ -19,6 +19,7 @@ import {
 import { ExpertPicker } from "@/components/admin/experts/ExpertPicker";
 import { readProfileCardStyle } from "@/lib/content-model/profileCardStyle";
 import { PROFILE_CARD_DEFAULTS } from "@/components/ui/profile-card";
+import { toJson } from "@/lib/content-model/json";
 
 interface Props {
   block: Block;
@@ -414,7 +415,7 @@ export function AuthorBioBlock({ block, onChange }: Props) {
   const set = (patch: Record<string, Json>) =>
     onChange({ ...block, data: { ...block.data, ...patch } });
   const setInline = (patch: Partial<CurrentPostAuthor>) =>
-    set({ inlineAuthor: { ...inlineAuthor, ...patch } as unknown as Json });
+    set({ inlineAuthor: toJson({ ...inlineAuthor, ...patch }) });
 
   // Podgląd czyta ustawienia prezentacji tym samym czytnikiem, co renderer
   // publiczny - panel nie może obiecać innego wyglądu niż strona.

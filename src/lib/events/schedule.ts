@@ -3,6 +3,7 @@
 // Zero React/IO - modul jest unit-testowalny i wspoldzielony przez widok,
 // edytor i rejestr prefetchu (zbieranie user_id prelegentow do zapytania).
 import type { WidgetContent } from "@/lib/builder/types";
+import { uiLocale } from "@/lib/i18n/format";
 
 export type Lang = "pl" | "en";
 
@@ -167,7 +168,7 @@ export function formatDayDate(date: string, lang: Lang): string {
   if (!date) return "";
   const parsed = new Date(`${date}T00:00:00`);
   if (Number.isNaN(parsed.getTime())) return "";
-  return parsed.toLocaleDateString(lang === "pl" ? "pl-PL" : "en-GB", {
+  return parsed.toLocaleDateString(uiLocale(lang), {
     weekday: "long",
     day: "numeric",
     month: "long",

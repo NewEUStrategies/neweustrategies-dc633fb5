@@ -8,6 +8,7 @@
 // on the consent-change event.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { uiLang } from "@/lib/i18n/format";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { useTranslation } from "react-i18next";
 import { Cookie, ChevronDown, ChevronUp, Check, X, Settings2 } from "lucide-react";
 import { GpcCategoryBadgeSlot, GpcNoticeSlot } from "@/components/consent/GpcSurfaceSlots";
@@ -247,11 +248,10 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
   // Kod języka bierzemy z kanonicznego `uiLang` - ta sama normalizacja co
   // w `formatDate`/`uiLocale`, zamiast własnego `startsWith` w komponencie.
   const uiLanguage = uiLang(i18n.language);
-  const isPl = uiLanguage === "pl";
   const privacy = useSiteSetting<PrivacyConfig>("privacy", PRIVACY_DEFAULTS);
   const saved = useCookieBannerConfig();
   const banner = configOverride ?? saved;
-  const t: CookieBannerCopy = isPl ? banner.copy.pl : banner.copy.en;
+  const t: CookieBannerCopy = banner.copy[uiLanguage];
   const { theme } = useTheme();
   const effectiveTheme = themeOverride ?? (theme === "dark" ? "dark" : "light");
   const brandMark = useBrandMarkUrl(effectiveTheme);
@@ -367,7 +367,7 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
     const ro = new ResizeObserver(measure);
     ro.observe(inner);
     return () => ro.disconnect();
-  }, [prefsOpen, isPl, gpcHonored, draft, t]);
+  }, [prefsOpen, uiLanguage, gpcHonored, draft, t]);
 
   const consentSurfaceVisible = mounted && (!decided || detailsOpen);
   useEffect(() => {
@@ -485,12 +485,12 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
       </a>
       .{/* Dodatkowe odnośniki z panelu admina (np. regulamin, RODO, kontakt). */}
       {(banner.links ?? [])
-        .filter((l) => l.url && (isPl ? l.label_pl : l.label_en))
+        .filter((l) => l.url && pickLocalized(l, "label", uiLanguage))
         .map((l) => (
           <span key={l.id}>
             {" "}
             <a href={l.url} className={LINK}>
-              {isPl ? l.label_pl : l.label_en}
+              {pickLocalized(l, "label", uiLanguage)}
             </a>
             .
           </span>
@@ -787,12 +787,12 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
                                   </span>
                                 )}
                               </td>
-                              <td className="px-3 py-2">{isPl ? v.party_pl : v.party_en}</td>
+                              <td className="px-3 py-2">{pickLocalized(v, "party", uiLanguage)}</td>
                               <td className={cn("px-3 py-2", CB_DIM)}>
-                                {isPl ? v.purpose_pl : v.purpose_en}
+                                {pickLocalized(v, "purpose", uiLanguage)}
                               </td>
                               <td className={cn("px-3 py-2 whitespace-nowrap", CB_DIM)}>
-                                {isPl ? v.ttl_pl : v.ttl_en}
+                                {pickLocalized(v, "ttl", uiLanguage)}
                               </td>
                             </tr>
                           ))}

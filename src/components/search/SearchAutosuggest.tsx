@@ -164,7 +164,7 @@ export function SearchAutosuggest({
         <ul
           id={AUTOSUGGEST_LISTBOX_ID}
           role="listbox"
-          aria-label={i18n.t("search.title", { lng: lang, defaultValue: "Szukaj" }) as string}
+          aria-label={i18n.t("search.title", { lng: lang }) as string}
           className="py-1"
         >
           {SUGGEST_BUCKET_ORDER.map((bucket) => {

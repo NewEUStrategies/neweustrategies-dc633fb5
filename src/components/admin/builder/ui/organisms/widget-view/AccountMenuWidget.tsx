@@ -693,7 +693,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
               {effectiveGuest.map((entry, i) => renderItem(entry, i + 1))}
             </div>
           )}
-          <span className="sr-only">{t("nav.account", { defaultValue: "Account menu" })}</span>
+          <span className="sr-only">{t("nav.account")}</span>
         </PopoverContent>
       </Popover>
     </div>

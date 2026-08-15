@@ -1,6 +1,6 @@
 // Widget registry - defaults + renderer. Used both inside the canvas and on
 // the public site.
-import type { WidgetNode, WidgetType, Json } from "./types";
+import type { WidgetNode, WidgetType } from "./types";
 import { newId } from "./types";
 import {
   Heading1,
@@ -63,6 +63,7 @@ import {
   Users,
 } from "@/lib/lucide-shim";
 import type { LucideIcon } from "@/lib/lucide-shim";
+import { toJson } from "@/lib/builder/types";
 
 export interface WidgetDef {
   type: WidgetType;
@@ -643,7 +644,7 @@ export const WIDGETS: WidgetDef[] = [
       requireFirstName: "0",
       requireLastName: "0",
       requireCompany: "0",
-      customFields: [] as unknown as Json,
+      customFields: toJson([]),
     }),
   },
   // Legacy "contact" widget kept for backward compatibility with already-saved
@@ -886,7 +887,7 @@ export const WIDGETS: WidgetDef[] = [
       signupHref: "/login?mode=signup",
       panelRadius: 12,
       panelWidth: 280,
-      items: [
+      items: toJson([
         {
           id: "g1",
           section: "guest",
@@ -972,7 +973,7 @@ export const WIDGETS: WidgetDef[] = [
           label_pl: "Panel admina",
           label_en: "Admin panel",
         },
-      ] as unknown as Json,
+      ]),
     }),
   },
   {
@@ -1046,7 +1047,7 @@ export const WIDGETS: WidgetDef[] = [
     category: "blocks",
     icon: Clock,
     defaults: () => ({
-      entries: [
+      entries: toJson([
         { type: "heading", date_pl: "1 sierpnia 2025", date_en: "1 Aug, 2025" },
         {
           type: "item",
@@ -1096,7 +1097,7 @@ export const WIDGETS: WidgetDef[] = [
           actorInitials: "",
           actorHref: "",
         },
-      ] as unknown as Json,
+      ]),
     }),
   },
   {
@@ -1111,13 +1112,13 @@ export const WIDGETS: WidgetDef[] = [
       pauseOnHover: true,
       fadeEdges: true,
       grayscale: true,
-      logos: [
+      logos: toJson([
         { label: "Brand 1", src: "", href: "", alt: "" },
         { label: "Brand 2", src: "", href: "", alt: "" },
         { label: "Brand 3", src: "", href: "", alt: "" },
         { label: "Brand 4", src: "", href: "", alt: "" },
         { label: "Brand 5", src: "", href: "", alt: "" },
-      ] as unknown as Json,
+      ]),
     }),
   },
   {
@@ -1136,7 +1137,7 @@ export const WIDGETS: WidgetDef[] = [
       // Klucz jest czytany przez ProgressCarouselView, więc musi istnieć
       // w defaultach, inaczej kontrolka panelu startuje "znikąd".
       accentColor: "",
-      items: [
+      items: toJson([
         {
           value: "slide-1",
           img: "",
@@ -1164,7 +1165,7 @@ export const WIDGETS: WidgetDef[] = [
           desc_pl: "Krótki opis slajdu.",
           desc_en: "A short slide description.",
         },
-      ] as unknown as Json,
+      ]),
     }),
   },
   {
@@ -1185,7 +1186,7 @@ export const WIDGETS: WidgetDef[] = [
       showArrows: true,
       // Puste = akcent dziedziczy kolor marki (var(--brand)).
       accentColor: "",
-      items: [
+      items: toJson([
         {
           id: "card-1",
           href: "",
@@ -1216,7 +1217,7 @@ export const WIDGETS: WidgetDef[] = [
           desc_pl: "Krótki opis karty.",
           desc_en: "A short card description.",
         },
-      ] as unknown as Json,
+      ]),
     }),
   },
   {
@@ -1316,7 +1317,7 @@ export const WIDGETS: WidgetDef[] = [
       limit: 24,
       // Klik na karcie prelegenta z profilem otwiera dialog profilu.
       openProfile: true,
-      speakers: [
+      speakers: toJson([
         {
           id: "sp-1",
           photo: "",
@@ -1332,7 +1333,7 @@ export const WIDGETS: WidgetDef[] = [
           description_en: "",
           href: "",
         },
-      ] as unknown as Json,
+      ]),
     }),
   },
   // --- Events ecosystem: agenda / lista wydarzen / odliczanie -------------
@@ -1350,7 +1351,7 @@ export const WIDGETS: WidgetDef[] = [
       columns: 2,
       showDayTabs: true,
       openProfile: true,
-      days: [
+      days: toJson([
         {
           id: "day-1",
           label_pl: "Dzień 1",
@@ -1387,7 +1388,7 @@ export const WIDGETS: WidgetDef[] = [
             },
           ],
         },
-      ] as unknown as Json,
+      ]),
     }),
   },
   {
@@ -1445,7 +1446,7 @@ export const WIDGETS: WidgetDef[] = [
       intro_en: "",
       accentColor: "",
       grayscale: true,
-      tiers: [
+      tiers: toJson([
         {
           id: "tier-1",
           name_pl: "Partner główny",
@@ -1469,7 +1470,7 @@ export const WIDGETS: WidgetDef[] = [
           size: "sm",
           sponsors: [],
         },
-      ] as unknown as Json,
+      ]),
     }),
   },
   {
@@ -1971,7 +1972,7 @@ export const WIDGETS: WidgetDef[] = [
         "I consent to processing of my personal data in accordance with the [Privacy Policy](/privacy-policy).",
       redirectTo: "/",
       loginHref: "/login",
-      customFields: [] as unknown as Json,
+      customFields: toJson([]),
     }),
   },
   {

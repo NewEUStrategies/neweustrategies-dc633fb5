@@ -20,15 +20,8 @@ function MarketingSettings() {
 
   return (
     <div>
-      <h2 className="font-display text-xl mb-2">
-        {t("admin.marketing.title", { defaultValue: "Marketing" })}
-      </h2>
-      <p className="text-sm text-muted-foreground mb-4">
-        {t("admin.marketing.hint", {
-          defaultValue:
-            "Tagi reklamowe uruchamiają się dopiero gdy użytkownik wyrazi zgodę na kategorię Marketingowe.",
-        })}
-      </p>
+      <h2 className="font-display text-xl mb-2">{t("admin.marketing.title")}</h2>
+      <p className="text-sm text-muted-foreground mb-4">{t("admin.marketing.hint")}</p>
       <Field label="Meta (Facebook) Pixel ID">
         <Text
           value={draft.meta_pixel_id}
@@ -48,7 +41,7 @@ function MarketingSettings() {
           onChange={(e) => set("tiktok_pixel_id", e.target.value)}
         />
       </Field>
-      <Field label={t("admin.marketing.customHead", { defaultValue: "Custom <head> HTML" })}>
+      <Field label={t("admin.marketing.customHead")}>
         <textarea
           value={draft.custom_head_html}
           onChange={(e) => set("custom_head_html", e.target.value)}
@@ -56,7 +49,7 @@ function MarketingSettings() {
           className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-mono"
         />
       </Field>
-      <Field label={t("admin.marketing.customBody", { defaultValue: "Custom <body> HTML" })}>
+      <Field label={t("admin.marketing.customBody")}>
         <textarea
           value={draft.custom_body_html}
           onChange={(e) => set("custom_body_html", e.target.value)}

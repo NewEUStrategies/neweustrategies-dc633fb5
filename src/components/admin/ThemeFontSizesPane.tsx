@@ -113,11 +113,7 @@ export function ThemeFontSizesPane() {
 
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 sm:flex sm:flex-wrap sm:justify-between">
         <div className="min-w-0">
-          <h3 className="font-display text-lg truncate">
-            {t("themeOptions.sections.fontSizes", {
-              defaultValue: isPL ? "Rozmiary czcionek" : "Font sizes",
-            })}
-          </h3>
+          <h3 className="font-display text-lg truncate">{t("themeOptions.sections.fontSizes")}</h3>
           <p className="text-xs text-muted-foreground">
             {isPL
               ? "Globalne rozmiary typografii (H1-H6, body, small, lead, blockquote, code) oraz odstępy treści - wspólne dla frontu i CMS buildera."

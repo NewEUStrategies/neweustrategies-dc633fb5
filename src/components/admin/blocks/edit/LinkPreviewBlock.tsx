@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Link2, Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
+import { toJson } from "@/lib/content-model/json";
 
 interface Props {
   block: Block;
@@ -45,17 +46,13 @@ export function LinkPreviewBlock({ block, onChange }: Props) {
 
   const patchItem = (index: number, key: keyof RawItem, value: string) => {
     const next = items.map((item, i) => (i === index ? { ...item, [key]: value } : item));
-    patch("items", next as unknown as Json);
+    patch("items", toJson(next));
   };
 
   const addItem = () =>
-    patch("items", [
-      ...items,
-      { labelPl: "", labelEn: "", url: "", imageSrc: "" },
-    ] as unknown as Json);
+    patch("items", toJson([...items, { labelPl: "", labelEn: "", url: "", imageSrc: "" }]));
 
-  const removeItem = (index: number) =>
-    patch("items", items.filter((_, i) => i !== index) as unknown as Json);
+  const removeItem = (index: number) => patch("items", toJson(items.filter((_, i) => i !== index)));
 
   return (
     <div className="not-prose space-y-3 rounded-[var(--radius)] border border-border bg-card p-3">

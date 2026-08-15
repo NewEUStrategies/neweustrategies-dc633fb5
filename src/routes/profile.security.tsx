@@ -7,7 +7,7 @@
 // konto", tam na „co o mnie wiecie i jak to zabrać". Link na dole strony
 // prowadzi tam wprost, bo granica nie jest oczywista z samej nazwy pozycji.
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { uiLang } from "@/lib/i18n/format";
+import { uiLang, uiLocale } from "@/lib/i18n/format";
 import { useTranslation } from "react-i18next";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -41,7 +41,6 @@ export const Route = createFileRoute("/profile/security")({
 function SecurityPage() {
   const { t, i18n } = useTranslation();
   const { user, signOut } = useAuth();
-  const isPl = i18n.language?.startsWith("pl") ?? false;
 
   const [current, setCurrent] = useState("");
   const [pw, setPw] = useState("");
@@ -343,7 +342,7 @@ function SecurityPage() {
               {t("profile.security.lastSignIn")}:{" "}
               <span className="font-medium text-foreground">
                 {user?.last_sign_in_at
-                  ? new Date(user.last_sign_in_at).toLocaleString(isPl ? "pl-PL" : "en-GB")
+                  ? new Date(user.last_sign_in_at).toLocaleString(uiLocale(i18n.language))
                   : "-"}
               </span>
             </p>
@@ -408,7 +407,7 @@ function SecurityPage() {
                         <span className="text-xs text-muted-foreground">
                           {t("profile.security.mfa.addedOn", {
                             date: new Date(f.created_at).toLocaleDateString(
-                              isPl ? "pl-PL" : "en-GB",
+                              uiLocale(i18n.language),
                             ),
                           })}
                         </span>

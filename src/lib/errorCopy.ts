@@ -41,6 +41,11 @@ type ErrorCopy = {
    * w całości, brakuje tylko danych jednej sekcji, a odpowiedź ma status 200.
    */
   degradedEyebrow: string;
+  /** Stopka pomocy pod kartą błędu i skróty ratunkowe. */
+  needHelp: string;
+  contactLink: string;
+  goBack: string;
+  keepGoing: string;
   generic: ErrorScenario;
 };
 
@@ -110,6 +115,10 @@ const COPY: Record<"pl" | "en", ErrorCopy> = {
       secondaryAction: "Strona główna",
     },
     degradedEyebrow: "Strona załadowana",
+    needHelp: "Potrzebujesz pomocy?",
+    contactLink: "Skontaktuj się z nami",
+    goBack: "Wróć",
+    keepGoing: "Przejdź dalej",
     generic: {
       title: "Nie udało się załadować strony",
       body: "Coś poszło nie tak po naszej stronie. Przepraszamy za utrudnienia.",
@@ -188,6 +197,10 @@ const COPY: Record<"pl" | "en", ErrorCopy> = {
       secondaryAction: "Go home",
     },
     degradedEyebrow: "Page loaded",
+    needHelp: "Need help?",
+    contactLink: "Contact support",
+    goBack: "Go back",
+    keepGoing: "Keep going",
     generic: {
       title: "This page didn't load",
       body: "Something went wrong on our end. We're sorry for the inconvenience.",

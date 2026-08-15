@@ -191,34 +191,22 @@ function CarouselSection({
   const autoplay = carouselAutoplayEnabled(c);
   const autoplayIntervalMs = carouselAutoplayIntervalMs(c);
   return (
-    <Collapsible
-      title={t("builder.postListEditor.carouselTitle", { defaultValue: "Karuzela" })}
-      defaultOpen
-    >
+    <Collapsible title={t("builder.postListEditor.carouselTitle")} defaultOpen>
       <div className="space-y-2">
         <PropField
-          label={t("builder.postListEditor.autoplay", { defaultValue: "Autoodtwarzanie" })}
-          hint={t("builder.postListEditor.autoplayHint", {
-            defaultValue:
-              "Karuzela przewija się sama i zatrzymuje na najechaniu, fokusie klawiatury oraz przyciskiem pauzy. Czytelnicy z ustawieniem „ogranicz ruch” widzą ją statycznie.",
-          })}
+          label={t("builder.postListEditor.autoplay")}
+          hint={t("builder.postListEditor.autoplayHint")}
         >
           <div className="flex h-8 items-center">
             <Switch
               checked={autoplay}
               onCheckedChange={(next) => setContent("autoplay", next)}
-              aria-label={t("builder.postListEditor.autoplay", {
-                defaultValue: "Autoodtwarzanie",
-              })}
+              aria-label={t("builder.postListEditor.autoplay")}
             />
           </div>
         </PropField>
         {autoplay && (
-          <PropField
-            label={t("builder.postListEditor.autoplayInterval", {
-              defaultValue: "Czas slajdu (ms)",
-            })}
-          >
+          <PropField label={t("builder.postListEditor.autoplayInterval")}>
             <Input
               type="number"
               min={CAROUSEL_AUTOPLAY_MIN_MS}
@@ -415,7 +403,7 @@ export function PostListEditor({ c, lang, setContent, widgetType = "post-list" }
           )}
         </div>
         <div className="mt-2 grid grid-cols-3 gap-2">
-          <PropField label={t("builder.postListEditor.showCover", { defaultValue: "Okładka" })}>
+          <PropField label={t("builder.postListEditor.showCover")}>
             <Select
               value={str(c, "showCover", "1") === "0" ? "0" : "1"}
               onValueChange={(v) => setContent("showCover", v)}
@@ -425,15 +413,15 @@ export function PostListEditor({ c, lang, setContent, widgetType = "post-list" }
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="1" className="text-xs">
-                  {t("builder.postListEditor.yes", { defaultValue: "Tak" })}
+                  {t("builder.postListEditor.yes")}
                 </SelectItem>
                 <SelectItem value="0" className="text-xs">
-                  {t("builder.postListEditor.no", { defaultValue: "Nie" })}
+                  {t("builder.postListEditor.no")}
                 </SelectItem>
               </SelectContent>
             </Select>
           </PropField>
-          <PropField label={t("builder.postListEditor.showTitle", { defaultValue: "Tytuł" })}>
+          <PropField label={t("builder.postListEditor.showTitle")}>
             <Select
               value={str(c, "showTitle", "1") === "0" ? "0" : "1"}
               onValueChange={(v) => setContent("showTitle", v)}
@@ -443,15 +431,15 @@ export function PostListEditor({ c, lang, setContent, widgetType = "post-list" }
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="1" className="text-xs">
-                  {t("builder.postListEditor.yes", { defaultValue: "Tak" })}
+                  {t("builder.postListEditor.yes")}
                 </SelectItem>
                 <SelectItem value="0" className="text-xs">
-                  {t("builder.postListEditor.no", { defaultValue: "Nie" })}
+                  {t("builder.postListEditor.no")}
                 </SelectItem>
               </SelectContent>
             </Select>
           </PropField>
-          <PropField label={t("builder.postListEditor.showExcerpt", { defaultValue: "Opis" })}>
+          <PropField label={t("builder.postListEditor.showExcerpt")}>
             <Select
               value={str(c, "showExcerpt", "1") === "0" ? "0" : "1"}
               onValueChange={(v) => setContent("showExcerpt", v)}
@@ -461,10 +449,10 @@ export function PostListEditor({ c, lang, setContent, widgetType = "post-list" }
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="1" className="text-xs">
-                  {t("builder.postListEditor.yes", { defaultValue: "Tak" })}
+                  {t("builder.postListEditor.yes")}
                 </SelectItem>
                 <SelectItem value="0" className="text-xs">
-                  {t("builder.postListEditor.no", { defaultValue: "Nie" })}
+                  {t("builder.postListEditor.no")}
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -488,7 +476,7 @@ export function PostListEditor({ c, lang, setContent, widgetType = "post-list" }
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={WEIGHT_INHERIT} className="text-xs">
-                    {t("builder.postListEditor.weightInherit", { defaultValue: "domyślna" })}
+                    {t("builder.postListEditor.weightInherit")}
                   </SelectItem>
                   {WEIGHT_OPTIONS.map((weight) => (
                     <SelectItem key={weight} value={weight} className="text-xs">
@@ -507,12 +495,10 @@ export function PostListEditor({ c, lang, setContent, widgetType = "post-list" }
         {supportsByline && (
           <div className="mt-2 space-y-1.5 border-t border-border/60 pt-2">
             <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-              {t("builder.postListEditor.authorDisplay", { defaultValue: "Autor" })}
+              {t("builder.postListEditor.authorDisplay")}
             </p>
             <p className="text-[9px] leading-snug text-muted-foreground/60">
-              {t("builder.postListEditor.authorDisplayHint", {
-                defaultValue: "Sposób prezentacji autora pod tytułem.",
-              })}
+              {t("builder.postListEditor.authorDisplayHint")}
             </p>
             <AuthorDisplayControl c={c} lang={lang} setContent={setContent} />
           </div>

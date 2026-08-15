@@ -311,7 +311,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
           <div className="flex items-center justify-between px-3 pt-2 pb-1">
             <span className="inline-flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               <Clock className="h-3 w-3" aria-hidden />
-              {t("search.recent", { defaultValue: "Ostatnie wyszukiwania" }) as string}
+              {t("search.recent") as string}
             </span>
             <button
               type="button"
@@ -321,7 +321,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
               }}
               className="text-[9px] font-medium text-muted-foreground transition-colors hover:text-[var(--brand)]"
             >
-              {t("search.recent_clear", { defaultValue: "Wyczyść" }) as string}
+              {t("search.recent_clear") as string}
             </button>
           </div>
           <ul role="list">
@@ -384,7 +384,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
           style={{ fontFamily: '"Red Hat Display", system-ui, sans-serif' }}
           className="mr-1 shrink-0 !text-[9px] !leading-[12px] font-semibold uppercase tracking-[0.04em] text-muted-foreground"
         >
-          {t("search.widget.operators", { defaultValue: "Operatory" }) as string}
+          {t("search.widget.operators") as string}
         </span>
         {OPERATORS.map(({ op, ins, caret }) => (
           <button
@@ -410,19 +410,19 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
           <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[8px] leading-none text-foreground/80">
             ↓
           </kbd>
-          {t("search.widget.kbd_navigate", { defaultValue: "nawiguj" }) as string}
+          {t("search.widget.kbd_navigate") as string}
         </span>
         <span className="inline-flex items-center gap-1">
           <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[8px] leading-none text-foreground/80">
             ↵
           </kbd>
-          {t("search.widget.kbd_select", { defaultValue: "wybierz" }) as string}
+          {t("search.widget.kbd_select") as string}
         </span>
         <span className="inline-flex items-center gap-1">
           <kbd className="rounded border border-border/60 bg-background px-1 py-0.5 font-mono text-[8px] leading-none text-foreground/80">
             esc
           </kbd>
-          {t("search.widget.kbd_close", { defaultValue: "zamknij" }) as string}
+          {t("search.widget.kbd_close") as string}
         </span>
       </div>
       <AppLink
@@ -432,7 +432,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
         style={{ color: "var(--brand)" }}
       >
         <SlidersHorizontal className="h-3 w-3 shrink-0" aria-hidden />
-        {t("search.widget.advanced", { defaultValue: "Zaawansowane" }) as string}
+        {t("search.widget.advanced") as string}
       </AppLink>
     </div>
   );

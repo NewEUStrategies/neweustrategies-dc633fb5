@@ -69,7 +69,7 @@ export function WidgetLivePreview({ widget, lang, device, mode }: Props) {
   return (
     <section
       className="mb-2 rounded-md border border-border/70 bg-muted/20"
-      aria-label={t("builder.widgetProps.livePreview", { defaultValue: "Podgląd na żywo" })}
+      aria-label={t("builder.widgetProps.livePreview")}
     >
       <div className="flex items-center gap-1 pr-1.5">
         <button
@@ -80,7 +80,7 @@ export function WidgetLivePreview({ widget, lang, device, mode }: Props) {
         >
           <span className="inline-flex items-center gap-1.5 font-medium">
             <Eye className="h-3 w-3" />
-            {t("builder.widgetProps.livePreview", { defaultValue: "Podgląd na żywo" })}
+            {t("builder.widgetProps.livePreview")}
           </span>
           <ChevronDown className={cn("h-3 w-3 transition-transform", open ? "" : "-rotate-90")} />
         </button>

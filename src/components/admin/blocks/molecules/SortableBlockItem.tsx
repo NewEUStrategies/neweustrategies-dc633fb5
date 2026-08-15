@@ -235,10 +235,8 @@ export function SortableBlockItem(props: Props) {
                     <button
                       type="button"
                       onClick={(e) => e.stopPropagation()}
-                      title={t("blocks.transform.menuLabel", { defaultValue: "Przekształć w" })}
-                      aria-label={t("blocks.transform.menuLabel", {
-                        defaultValue: "Przekształć w",
-                      })}
+                      title={t("blocks.transform.menuLabel")}
+                      aria-label={t("blocks.transform.menuLabel")}
                       className="flex items-center gap-0.5 px-1.5 h-6 rounded text-muted-foreground hover:bg-accent hover:text-foreground"
                     >
                       {TypeIcon ? <TypeIcon className="w-3.5 h-3.5" /> : null}
@@ -251,7 +249,7 @@ export function SortableBlockItem(props: Props) {
                     onClick={(e) => e.stopPropagation()}
                   >
                     <p className="px-2 py-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-                      {t("blocks.transform.menuLabel", { defaultValue: "Przekształć w" })}
+                      {t("blocks.transform.menuLabel")}
                     </p>
                     <div className="max-h-72 overflow-y-auto">
                       {transformItems((type) => {
@@ -379,9 +377,7 @@ export function SortableBlockItem(props: Props) {
         {hasTransforms && (
           <>
             <ContextMenuSub>
-              <ContextMenuSubTrigger>
-                {t("blocks.transform.menuLabel", { defaultValue: "Przekształć w" })}
-              </ContextMenuSubTrigger>
+              <ContextMenuSubTrigger>{t("blocks.transform.menuLabel")}</ContextMenuSubTrigger>
               <ContextMenuSubContent className="max-h-72 overflow-y-auto">
                 {(props.transforms ?? []).map((option) => {
                   const OptionIcon = option.icon;

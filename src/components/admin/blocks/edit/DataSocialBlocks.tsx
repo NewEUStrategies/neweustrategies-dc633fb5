@@ -6,6 +6,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import { AdminSelect } from "../AdminSelect";
+import { toJsonArray } from "@/lib/content-model/json";
 
 interface Props {
   block: Block;
@@ -52,7 +53,7 @@ export function TeamGridBlock({ block, onChange }: Props) {
     };
   });
   const update = (next: TeamMember[]) => {
-    onChange({ ...block, data: { ...block.data, items: next as unknown as Json[] } });
+    onChange({ ...block, data: { ...block.data, items: toJsonArray(next) } });
   };
   const columns = Number(block.data.columns ?? 3);
   const shape = String(block.data.shape ?? "circle");
@@ -193,7 +194,7 @@ export function LogoGridBlock({ block, onChange }: Props) {
     return { url: String(o.url ?? ""), alt: String(o.alt ?? ""), href: String(o.href ?? "") };
   });
   const update = (next: LogoItem[]) => {
-    onChange({ ...block, data: { ...block.data, items: next as unknown as Json[] } });
+    onChange({ ...block, data: { ...block.data, items: toJsonArray(next) } });
   };
 
   return (
@@ -319,7 +320,7 @@ export function FeatureGridBlock({ block, onChange }: Props) {
     };
   });
   const update = (next: FeatureItem[]) => {
-    onChange({ ...block, data: { ...block.data, items: next as unknown as Json[] } });
+    onChange({ ...block, data: { ...block.data, items: toJsonArray(next) } });
   };
   const iconOptions = [
     "star",

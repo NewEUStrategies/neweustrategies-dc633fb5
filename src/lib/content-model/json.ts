@@ -27,6 +27,17 @@ export type Json = string | number | boolean | null | Json[] | { [key: string]: 
 export const toJson = <T>(value: T): Json => value as unknown as Json;
 
 /**
+ * Wariant tablicowy {@link toJson} - dla pól typowanych `Json[]` (`items`,
+ * `plans`, `columns`, `rows` w blokach). Istnieje, bo `toJson()` zwraca UNIĘ
+ * `Json`, a przypisanie jej do pola `Json[]` wymaga jeszcze jednego zawężenia -
+ * więc każde takie miejsce odtwarzało `next as unknown as Json[]` ręcznie,
+ * wynosząc escape-hatch z powrotem POZA to jedno audytowalne miejsce, dla
+ * którego ten moduł powstał. Kontrakt jak w `toJson`: wołający zapewnia, że
+ * elementy są serializowalne do JSON-a.
+ */
+export const toJsonArray = <T>(values: readonly T[]): Json[] => values as unknown as Json[];
+
+/**
  * Identyfikator węzła dokumentu buildera (sekcja / kolumna / widget).
  *
  * `crypto.randomUUID()` tam, gdzie jest (przeglądarka z bezpiecznym

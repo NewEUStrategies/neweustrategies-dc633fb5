@@ -94,7 +94,7 @@ export function useMediaMutations(args: UseMediaMutationsArgs): UseMediaMutation
     (ids: string[]) => {
       if (!ids.length) return;
       setClipboard({ op: "copy", ids });
-      toast.success(t("admin.media.copied", { defaultValue: "Skopiowano" }));
+      toast.success(t("admin.media.copied"));
     },
     [t],
   );
@@ -102,7 +102,7 @@ export function useMediaMutations(args: UseMediaMutationsArgs): UseMediaMutation
     (ids: string[]) => {
       if (!ids.length) return;
       setClipboard({ op: "cut", ids });
-      toast.success(t("admin.media.cut", { defaultValue: "Wycięto" }));
+      toast.success(t("admin.media.cut"));
     },
     [t],
   );
@@ -131,7 +131,7 @@ export function useMediaMutations(args: UseMediaMutationsArgs): UseMediaMutation
             await updateMeta({ data: { mediaId: uploaded.mediaId, folderPath: folder } });
           }
         }
-        toast.success(t("admin.media.uploaded", { defaultValue: "Wgrano pliki" }));
+        toast.success(t("admin.media.uploaded"));
         invalidate();
       } catch (err) {
         toastError(err, "upload");
@@ -183,7 +183,7 @@ export function useMediaMutations(args: UseMediaMutationsArgs): UseMediaMutation
       if (!ids.length) return;
       try {
         await bulkDelete({ data: { mediaIds: ids } });
-        toast.success(t("admin.deleted", { defaultValue: "Usunięto" }));
+        toast.success(t("admin.deleted"));
         clearSelection();
         invalidate();
       } catch (err) {
@@ -198,7 +198,7 @@ export function useMediaMutations(args: UseMediaMutationsArgs): UseMediaMutation
     if (clipboard.op === "copy") {
       try {
         await duplicateFn({ data: { mediaIds: clipboard.ids, folderPath: currentPath } });
-        toast.success(t("admin.media.pasted", { defaultValue: "Wklejono" }));
+        toast.success(t("admin.media.pasted"));
         invalidate();
       } catch (err) {
         toastError(err, "save");
@@ -251,7 +251,7 @@ export function useMediaMutations(args: UseMediaMutationsArgs): UseMediaMutation
       const path = normalizePath(currentPath + raw + "/");
       try {
         await createFolder({ data: { path } });
-        toast.success(t("admin.media.folderCreated", { defaultValue: "Utworzono folder" }));
+        toast.success(t("admin.media.folderCreated"));
         invalidate();
         return true;
       } catch (err) {
@@ -269,7 +269,7 @@ export function useMediaMutations(args: UseMediaMutationsArgs): UseMediaMutation
       const newPath = normalizePath(parentOf(oldPath) + raw + "/");
       try {
         await renameFolder({ data: { oldPath, newPath } });
-        toast.success(t("admin.media.folderRenamed", { defaultValue: "Zmieniono nazwę" }));
+        toast.success(t("admin.media.folderRenamed"));
         if (currentPath.startsWith(oldPath)) {
           setCurrentPath(newPath + currentPath.slice(oldPath.length));
         }

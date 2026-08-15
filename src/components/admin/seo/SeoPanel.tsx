@@ -137,12 +137,12 @@ export function SeoPanel(props: SeoPanelProps) {
   const seoRow: SeoFieldsRow = value;
   const socialImage = resolveSocialImage(seoRow, props.coverImageUrl);
   const socialImageSource = value.seo_og_image_url
-    ? t("admin.seo.og.sourceOverride", { defaultValue: "Własny obrazek" })
+    ? t("admin.seo.og.sourceOverride")
     : props.coverImageUrl
-      ? t("admin.seo.og.sourceCover", { defaultValue: "Okładka wpisu" })
+      ? t("admin.seo.og.sourceCover")
       : value.og_image_generated_url
-        ? t("admin.seo.og.sourceCard", { defaultValue: "Wygenerowana karta" })
-        : t("admin.seo.og.sourceDefault", { defaultValue: "Domyślny obrazek serwisu" });
+        ? t("admin.seo.og.sourceCard")
+        : t("admin.seo.og.sourceDefault");
 
   const generateCard = async () => {
     const title =
@@ -151,7 +151,7 @@ export function SeoPanel(props: SeoPanelProps) {
         ? props.fallbackTitle.en || props.fallbackTitle.pl
         : props.fallbackTitle.pl || props.fallbackTitle.en);
     if (!title) {
-      toast.error(t("admin.seo.og.needTitle", { defaultValue: "Najpierw uzupełnij tytuł" }));
+      toast.error(t("admin.seo.og.needTitle"));
       return;
     }
     setGenerating(true);
@@ -162,7 +162,7 @@ export function SeoPanel(props: SeoPanelProps) {
         siteName: SITE_NAME,
       });
       onChange({ og_image_generated_url: url });
-      toast.success(t("admin.seo.og.generated", { defaultValue: "Karta OG wygenerowana" }));
+      toast.success(t("admin.seo.og.generated"));
     } catch (e) {
       toastError(e);
     } finally {
@@ -202,7 +202,7 @@ export function SeoPanel(props: SeoPanelProps) {
           noindex={value.seo_noindex}
         />
         <SeoTextField
-          label={t("admin.seo.titleLabel", { defaultValue: "Tytuł SEO" })}
+          label={t("admin.seo.titleLabel")}
           kind="title"
           value={lang === "en" ? value.seo_title_en : value.seo_title_pl}
           fallback={fallbackTitle}
@@ -210,7 +210,7 @@ export function SeoPanel(props: SeoPanelProps) {
           onChange={(v) => onChange({ [titleKey]: v } as Partial<SeoPanelValue>)}
         />
         <SeoTextField
-          label={t("admin.seo.descriptionLabel", { defaultValue: "Opis meta (description)" })}
+          label={t("admin.seo.descriptionLabel")}
           kind="description"
           value={lang === "en" ? value.seo_description_en : value.seo_description_pl}
           fallback={fallbackDescription}
@@ -226,13 +226,9 @@ export function SeoPanel(props: SeoPanelProps) {
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-sm font-semibold inline-flex items-center gap-2">
           <Search className="w-4 h-4" />
-          {t("admin.seo.panelTitle", { defaultValue: "SEO i podgląd w Google" })}
+          {t("admin.seo.panelTitle")}
         </h3>
-        <span className="text-[10px] text-muted-foreground">
-          {t("admin.seo.panelHint", {
-            defaultValue: "Puste pola = wartości domyślne z tytułu i zajawki",
-          })}
-        </span>
+        <span className="text-[10px] text-muted-foreground">{t("admin.seo.panelHint")}</span>
       </div>
 
       <SeoValidationSummary issues={issues} headingIssues={headingIssues} />
@@ -252,32 +248,18 @@ export function SeoPanel(props: SeoPanelProps) {
 
       <div className="grid md:grid-cols-2 gap-4 pt-2 border-t border-border">
         <div>
-          <Label>
-            {t("admin.seo.canonicalLabel", { defaultValue: "Canonical URL (nadpisanie)" })}
-          </Label>
+          <Label>{t("admin.seo.canonicalLabel")}</Label>
           <Input
             value={value.seo_canonical_url ?? ""}
             placeholder="https://…"
             onChange={(e) => onChange({ seo_canonical_url: e.target.value.trim() || null })}
           />
-          <p className="text-[10px] text-muted-foreground mt-1">
-            {t("admin.seo.canonicalHint", {
-              defaultValue: "Tylko dla treści przedrukowanych - wskazuje oryginalne źródło.",
-            })}
-          </p>
+          <p className="text-[10px] text-muted-foreground mt-1">{t("admin.seo.canonicalHint")}</p>
         </div>
         <div className="flex items-start justify-between gap-3 rounded-md border border-border p-3">
           <div>
-            <Label>
-              {t("admin.seo.noindexLabel", {
-                defaultValue: "Ukryj przed wyszukiwarkami (noindex)",
-              })}
-            </Label>
-            <p className="text-[10px] text-muted-foreground mt-1">
-              {t("admin.seo.noindexHint", {
-                defaultValue: "Usuwa też adres z sitemap, RSS i news-sitemap.",
-              })}
-            </p>
+            <Label>{t("admin.seo.noindexLabel")}</Label>
+            <p className="text-[10px] text-muted-foreground mt-1">{t("admin.seo.noindexHint")}</p>
           </div>
           <Switch
             checked={value.seo_noindex}
@@ -288,9 +270,7 @@ export function SeoPanel(props: SeoPanelProps) {
 
       <div className="pt-2 border-t border-border space-y-3">
         <div className="flex items-center justify-between gap-2">
-          <h4 className="text-sm font-semibold">
-            {t("admin.seo.og.title", { defaultValue: "Obrazek udostępniania (OG)" })}
-          </h4>
+          <h4 className="text-sm font-semibold">{t("admin.seo.og.title")}</h4>
           <span className="text-[10px] text-muted-foreground">{socialImageSource}</span>
         </div>
         <div className="grid md:grid-cols-2 gap-4">
@@ -300,9 +280,7 @@ export function SeoPanel(props: SeoPanelProps) {
                 <img src={socialImage} alt="" className="w-full h-full object-cover" />
               ) : (
                 <span className="text-xs text-muted-foreground px-4 text-center">
-                  {t("admin.seo.og.empty", {
-                    defaultValue: "Brak obrazka - użyty będzie domyślny",
-                  })}
+                  {t("admin.seo.og.empty")}
                 </span>
               )}
             </div>
@@ -318,17 +296,12 @@ export function SeoPanel(props: SeoPanelProps) {
               ) : (
                 <Sparkles className="w-4 h-4 mr-1.5" />
               )}
-              {t("admin.seo.og.generate", { defaultValue: "Generuj brandowaną kartę 1200x630" })}
+              {t("admin.seo.og.generate")}
             </Button>
           </div>
           <ImageSlot
-            label={t("admin.seo.og.overrideLabel", {
-              defaultValue: "Własny obrazek OG (nadpisanie)",
-            })}
-            hint={t("admin.seo.og.overrideHint", {
-              defaultValue:
-                "Ma pierwszeństwo przed okładką i wygenerowaną kartą. Zalecane 1200x630.",
-            })}
+            label={t("admin.seo.og.overrideLabel")}
+            hint={t("admin.seo.og.overrideHint")}
             value={value.seo_og_image_url ?? ""}
             onChange={(v) => onChange({ seo_og_image_url: v.trim() || null })}
             folder="og-cards"

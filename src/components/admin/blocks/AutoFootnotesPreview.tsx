@@ -101,12 +101,10 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
   return (
     <section
       className="mt-8 pt-4 border-t border-dashed border-border/70"
-      aria-label={t("blocksUi.footnotesTitle", { defaultValue: "Przypisy źródłowe" })}
+      aria-label={t("blocksUi.footnotesTitle")}
     >
       <div className="flex items-center gap-2 mb-3">
-        <h3 className="text-sm font-semibold text-foreground/90">
-          {t("blocksUi.footnotesTitle", { defaultValue: "Przypisy źródłowe" })}
-        </h3>
+        <h3 className="text-sm font-semibold text-foreground/90">{t("blocksUi.footnotesTitle")}</h3>
         <span
           className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground/80 bg-muted/60 px-1.5 py-0.5 rounded"
           title={t("admin.autoFootnotes.hint")}
@@ -192,7 +190,7 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
                         className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-medium bg-primary text-primary-foreground hover:opacity-90"
                       >
                         <Check className="h-3 w-3" />
-                        {t("common.save", { defaultValue: "Zapisz" })}
+                        {t("common.save")}
                       </button>
                       <button
                         type="button"
@@ -200,7 +198,7 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
                         className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted"
                       >
                         <X className="h-3 w-3" />
-                        {t("common.cancel", { defaultValue: "Anuluj" })}
+                        {t("common.cancel")}
                       </button>
                       <span className="text-[10px] text-muted-foreground/70 ml-auto">
                         {t("admin.autoFootnotes.hotkey")}
@@ -232,7 +230,7 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
                         <button
                           type="button"
                           onClick={() => removeEntry(e)}
-                          title={t("common.delete", { defaultValue: "Usuń" })}
+                          title={t("common.delete")}
                           aria-label={t("admin.autoFootnotes.removeLabel", { n: e.id })}
                           className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
                         >

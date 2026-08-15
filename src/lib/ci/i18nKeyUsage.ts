@@ -104,15 +104,31 @@ export interface KeyUsageOptions {
 }
 
 /** Kategorie liczby mnogiej i18next (CLDR) - PL używa też `few`/`many`. */
-const PLURAL_SUFFIXES = ["_zero", "_one", "_two", "_few", "_many", "_other"] as const;
+export const PLURAL_SUFFIXES = ["_zero", "_one", "_two", "_few", "_many", "_other"] as const;
 
 /** Klucz i18n: `a.b.c` - segmenty alfanumeryczne, bez spacji i myślników. */
-const KEY_SHAPE = /^[a-z][A-Za-z0-9]*(?:\.[A-Za-z0-9_]+)+$/;
+export const KEY_SHAPE = /^[a-z][A-Za-z0-9]*(?:\.[A-Za-z0-9_]+)+$/;
 
-const IDENT_BEFORE_T = /[A-Za-z0-9_$]/;
+export const IDENT_BEFORE_T = /[A-Za-z0-9_$]/;
 
-interface ParsedCall {
+/** Półotwarty zakres `[start, end)` w źródle - do cięcia przez codemod. */
+export interface SourceSpan {
+  readonly start: number;
+  readonly end: number;
+}
+
+export interface ParsedCall {
   readonly args: readonly string[];
+  /**
+   * Zakresy tych samych argumentów, indeks w indeks z `args`. Skanery czytają
+   * `args`, a przepisywacze (`i18nDefaultValue.ts`) potrzebują OFFSETÓW - bez
+   * nich wycięcie opcji z wywołania wymagałoby drugiego parsera, a dwa parsery
+   * tej samej składni rozjeżdżają się dokładnie na przypadkach brzegowych,
+   * dla których pisze się parser (zagnieżdżony obiekt, przecinek w łańcuchu).
+   */
+  readonly spans: readonly SourceSpan[];
+  /** Indeks otwierającego nawiasu. */
+  readonly open: number;
   /** Indeks znaku za zamykającym nawiasem. */
   readonly end: number;
 }
@@ -123,8 +139,9 @@ interface ParsedCall {
  * niedomkniętym wywołaniu (np. ucięty plik) - skaner ma nie wybuchać na
  * niepełnym wejściu.
  */
-function parseCallArgs(source: string, openParen: number): ParsedCall | null {
+export function parseCallArgs(source: string, openParen: number): ParsedCall | null {
   const args: string[] = [];
+  const spans: SourceSpan[] = [];
   let depth = 0;
   let argStart = openParen + 1;
   let quote: string | null = null;
@@ -168,13 +185,15 @@ function parseCallArgs(source: string, openParen: number): ParsedCall | null {
       depth -= 1;
       if (depth === 0 && ch === ")") {
         args.push(source.slice(argStart, index));
-        return { args, end: index + 1 };
+        spans.push({ start: argStart, end: index });
+        return { args, spans, open: openParen, end: index + 1 };
       }
       index += 1;
       continue;
     }
     if (ch === "," && depth === 1) {
       args.push(source.slice(argStart, index));
+      spans.push({ start: argStart, end: index });
       argStart = index + 1;
       index += 1;
       continue;
@@ -240,7 +259,7 @@ export function maskComments(source: string): string {
   return out.join("");
 }
 
-function lineOf(source: string, index: number): number {
+export function lineOf(source: string, index: number): number {
   let line = 1;
   for (let i = 0; i < index && i < source.length; i += 1) {
     if (source[i] === "\n") line += 1;
@@ -350,12 +369,12 @@ function hasReturnObjects(args: readonly (string | undefined)[]): boolean {
  * rozstrzyga poprawnie. Heurystyka, nie dowód - dlatego bramka ma kanarek
  * (`scanKeyUsage` musi znaleźć znane klucze), który wyłapie jej rozjazd.
  */
-interface PrefixScope {
+export interface PrefixScope {
   readonly at: number;
   readonly keyPrefix: string | null;
 }
 
-function readKeyPrefixScopes(source: string): PrefixScope[] {
+export function readKeyPrefixScopes(source: string): PrefixScope[] {
   const scopes: PrefixScope[] = [];
   for (const match of source.matchAll(/\buseTranslation\s*\(/g)) {
     const open = match.index + match[0].length - 1;
@@ -372,7 +391,7 @@ function readKeyPrefixScopes(source: string): PrefixScope[] {
   return scopes;
 }
 
-function prefixAt(scopes: readonly PrefixScope[], index: number): string | null {
+export function prefixAt(scopes: readonly PrefixScope[], index: number): string | null {
   let active: string | null = null;
   for (const scope of scopes) {
     if (scope.at > index) break;

@@ -1,5 +1,7 @@
 // Domain types for billing/checkout module. Strict - no any.
 
+import { uiLocale } from "@/lib/i18n/format";
+
 // Must match the DB enum `plan_interval` ("two_weeks" | "month" | "quarter" |
 // "year" | "one_time"); day/week are legacy-tolerant extras. The value stored
 // for a one-time plan is "one_time" (not "once"), so comparisons/labels must
@@ -125,7 +127,7 @@ export interface UserSubscriptionRow {
 
 export function formatMoney(amountCents: number, currency: string, locale: string): string {
   try {
-    return new Intl.NumberFormat(locale === "pl" ? "pl-PL" : "en-GB", {
+    return new Intl.NumberFormat(uiLocale(locale), {
       style: "currency",
       currency,
       maximumFractionDigits: 2,
@@ -143,7 +145,7 @@ export function formatMoney(amountCents: number, currency: string, locale: strin
  */
 export function formatMoneyWhole(amountCents: number, currency: string, locale: string): string {
   try {
-    return new Intl.NumberFormat(locale === "pl" ? "pl-PL" : "en-GB", {
+    return new Intl.NumberFormat(uiLocale(locale), {
       style: "currency",
       currency,
       minimumFractionDigits: 0,

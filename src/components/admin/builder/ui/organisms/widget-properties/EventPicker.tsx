@@ -4,6 +4,7 @@
 // moze podpiac widget przed publikacja wydarzenia.
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { uiLocale } from "@/lib/i18n/format";
 import {
   Select,
   SelectContent,
@@ -50,7 +51,7 @@ export function EventPicker({ value, onChange, lang }: Props) {
     const date = new Date(e.starts_at);
     const dateLabel = Number.isNaN(date.getTime())
       ? ""
-      : date.toLocaleDateString(lang === "pl" ? "pl-PL" : "en-GB", {
+      : date.toLocaleDateString(uiLocale(lang), {
           day: "2-digit",
           month: "2-digit",
           year: "numeric",

@@ -236,7 +236,7 @@ function MessagesInner() {
       ? [
           {
             id: "requests" as const,
-            label: t("expertRequest.inbox.tab", { defaultValue: "Zapytania" }),
+            label: t("expertRequest.inbox.tab"),
             icon: MessageSquareQuote,
             badge: pendingRequests,
           },
@@ -244,13 +244,13 @@ function MessagesInner() {
       : []),
     {
       id: "notifications",
-      label: t("notifications.title", { defaultValue: "Powiadomienia" }),
+      label: t("notifications.title"),
       icon: Bell,
       badge: unreadNotif,
     },
     {
       id: "consents",
-      label: t("notifications.consents.tab", { defaultValue: "Zgody" }),
+      label: t("notifications.consents.tab"),
       icon: ShieldCheck,
     },
   ];
@@ -309,9 +309,7 @@ function MessagesInner() {
         ) : activeView === "requests" ? (
           <div className="flex w-full min-w-0 flex-col">
             <div className="border-b border-border/60 px-4 py-3">
-              <h1 className="text-lg font-bold tracking-tight">
-                {t("expertRequest.inbox.title", { defaultValue: "Zapytania z formularzy" })}
-              </h1>
+              <h1 className="text-lg font-bold tracking-tight">{t("expertRequest.inbox.title")}</h1>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 {t("expertRequest.dialogSubtitle")}
               </p>

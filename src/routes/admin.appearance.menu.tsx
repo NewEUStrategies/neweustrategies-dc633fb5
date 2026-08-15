@@ -32,15 +32,8 @@ function MenuPage() {
     <div className="space-y-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold">
-            {t("admin.menu.title", { defaultValue: "Menu witryny" })}
-          </h1>
-          <p className="text-xs text-muted-foreground">
-            {t("admin.menu.subtitle", {
-              defaultValue:
-                "Dodaj strony, wpisy, kategorie lub własne odnośniki i ułóż je metodą przeciągnij-i-upuść. Menu jest automatycznie synchronizowane z nagłówkiem (widget MegaMenu).",
-            })}
-          </p>
+          <h1 className="text-lg font-semibold">{t("admin.menu.title")}</h1>
+          <p className="text-xs text-muted-foreground">{t("admin.menu.subtitle")}</p>
         </div>
         <Select value={currentKey} onValueChange={setSelected}>
           <SelectTrigger className="h-9 w-52">

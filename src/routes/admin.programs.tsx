@@ -166,7 +166,7 @@ function AdminPrograms() {
         <div>
           <h1 className="flex items-center gap-2 text-xl font-bold">
             <Briefcase className="h-5 w-5" />
-            {t("admin.nav.programs", { defaultValue: tp("title") })}
+            {t("admin.nav.programs")}
           </h1>
           <p className="mt-0.5 text-sm text-muted-foreground">{tp("subtitle")}</p>
         </div>

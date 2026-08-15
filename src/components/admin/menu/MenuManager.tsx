@@ -119,15 +119,13 @@ export function MenuManager({ menuKey }: Props) {
     mutationFn: async (payload: MenuItemInput[]) =>
       saveServer({ data: { menu_key: menuKey, items: payload } }),
     onSuccess: async () => {
-      toast.success(t("admin.menu.saved", { defaultValue: "Menu zapisane" }));
+      toast.success(t("admin.menu.saved"));
       await qc.invalidateQueries({ queryKey: ["menu-with-items", menuKey] });
       await qc.invalidateQueries({ queryKey: ["public-menu", menuKey] });
     },
     onError: (e: unknown) => {
       const msg = e instanceof Error ? e.message : String(e);
-      toast.error(
-        t("admin.menu.saveError", { defaultValue: "Nie udało się zapisać menu" }) + `: ${msg}`,
-      );
+      toast.error(t("admin.menu.saveError") + `: ${msg}`);
     },
   });
 
@@ -348,7 +346,7 @@ export function MenuManager({ menuKey }: Props) {
     return (
       <div className="p-8 flex items-center justify-center text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin mr-2" />
-        {t("common.loading", { defaultValue: "Wczytywanie..." })}
+        {t("common.loading")}
       </div>
     );
   }
@@ -356,9 +354,7 @@ export function MenuManager({ menuKey }: Props) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)] gap-6">
       <aside className="space-y-3">
-        <h2 className="text-sm font-semibold text-foreground">
-          {t("admin.menu.addItem", { defaultValue: "Dodaj element menu" })}
-        </h2>
+        <h2 className="text-sm font-semibold text-foreground">{t("admin.menu.addItem")}</h2>
         <AddItemPanel onAdd={addItems} />
       </aside>
 
@@ -366,14 +362,9 @@ export function MenuManager({ menuKey }: Props) {
         <div className="flex items-center justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold">
-              {t("admin.menu.structure", { defaultValue: "Struktura menu" })} · {menuKey}
+              {t("admin.menu.structure")} · {menuKey}
             </h2>
-            <p className="text-xs text-muted-foreground">
-              {t("admin.menu.dragHint", {
-                defaultValue:
-                  "Przeciągnij elementy, aby zmienić kolejność i hierarchię (max 3 poziomy).",
-              })}
-            </p>
+            <p className="text-xs text-muted-foreground">{t("admin.menu.dragHint")}</p>
           </div>
           <Button size="sm" onClick={handleSave} disabled={saveMutation.isPending}>
             {saveMutation.isPending ? (
@@ -381,7 +372,7 @@ export function MenuManager({ menuKey }: Props) {
             ) : (
               <Save className="h-3 w-3 mr-1" />
             )}
-            {t("common.save", { defaultValue: "Zapisz" })}
+            {t("common.save")}
           </Button>
         </div>
 
@@ -395,10 +386,7 @@ export function MenuManager({ menuKey }: Props) {
         >
           {tree.length === 0 && (
             <p className="text-xs text-muted-foreground text-center py-8">
-              {t("admin.menu.emptyMenu", {
-                defaultValue:
-                  "Brak elementów. Dodaj strony, wpisy, kategorie lub własne odnośniki z panelu po lewej.",
-              })}
+              {t("admin.menu.emptyMenu")}
             </p>
           )}
           {tree.length > 0 && (
@@ -524,14 +512,14 @@ function MenuNode({
 
   const typeLabel =
     item.item_type === "page"
-      ? t("admin.menu.typePage", { defaultValue: "Strona" })
+      ? t("admin.menu.typePage")
       : item.item_type === "post"
-        ? t("admin.menu.typePost", { defaultValue: "Wpis" })
+        ? t("admin.menu.typePost")
         : item.item_type === "category"
-          ? t("admin.menu.typeCategory", { defaultValue: "Kategoria" })
+          ? t("admin.menu.typeCategory")
           : item.item_type === "tag"
-            ? t("admin.menu.typeTag", { defaultValue: "Tag" })
-            : t("admin.menu.typeCustom", { defaultValue: "Własny" });
+            ? t("admin.menu.typeTag")
+            : t("admin.menu.typeCustom");
 
   // Type icon + depth-aware color for the type chip.
   const TypeIcon =
@@ -678,8 +666,8 @@ function MenuNode({
               className="h-7 w-7"
               onClick={() => onOutdent(item.local_id)}
               disabled={depth === 0}
-              aria-label={t("admin.menu.outdent", { defaultValue: "Cofnij w lewo" })}
-              title={t("admin.menu.outdent", { defaultValue: "Cofnij w lewo (poziom wyżej)" })}
+              aria-label={t("admin.menu.outdent")}
+              title={t("admin.menu.outdent")}
             >
               <ArrowLeft className="h-3.5 w-3.5" />
             </Button>
@@ -689,8 +677,8 @@ function MenuNode({
               className="h-7 w-7"
               onClick={() => onIndent(item.local_id)}
               disabled={siblingIndex === 0 || depth + 1 >= MAX_DEPTH}
-              aria-label={t("admin.menu.indent", { defaultValue: "Podepnij w prawo" })}
-              title={t("admin.menu.indent", { defaultValue: "Podepnij w prawo (jako podstrona)" })}
+              aria-label={t("admin.menu.indent")}
+              title={t("admin.menu.indent")}
             >
               <ArrowRight className="h-3.5 w-3.5" />
             </Button>
@@ -699,7 +687,7 @@ function MenuNode({
               variant="ghost"
               className="h-7 w-7 text-destructive hover:bg-destructive/10"
               onClick={() => onRemove(item.local_id)}
-              aria-label={t("common.delete", { defaultValue: "Usuń" })}
+              aria-label={t("common.delete")}
             >
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
@@ -736,14 +724,14 @@ function MenuNode({
         {isOpen && (
           <div className="border-t border-border/60 p-3 space-y-2 bg-muted/20 rounded-b-lg">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              <Field label={t("admin.menu.labelPl", { defaultValue: "Etykieta (PL)" })}>
+              <Field label={t("admin.menu.labelPl")}>
                 <Input
                   value={item.label_pl}
                   onChange={(e) => onUpdate(item.local_id, { label_pl: e.target.value })}
                   className="h-8 text-xs"
                 />
               </Field>
-              <Field label={t("admin.menu.labelEn", { defaultValue: "Etykieta (EN)" })}>
+              <Field label={t("admin.menu.labelEn")}>
                 <Input
                   value={item.label_en}
                   onChange={(e) => onUpdate(item.local_id, { label_en: e.target.value })}
@@ -757,7 +745,7 @@ function MenuNode({
                   className="h-8 text-xs"
                 />
               </Field>
-              <Field label={t("admin.menu.target", { defaultValue: "Cel" })}>
+              <Field label={t("admin.menu.target")}>
                 <Select
                   value={item.target}
                   onValueChange={(v) =>
@@ -768,23 +756,19 @@ function MenuNode({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="_self">
-                      {t("admin.menu.targetSelf", { defaultValue: "To samo okno" })}
-                    </SelectItem>
-                    <SelectItem value="_blank">
-                      {t("admin.menu.targetBlank", { defaultValue: "Nowa karta" })}
-                    </SelectItem>
+                    <SelectItem value="_self">{t("admin.menu.targetSelf")}</SelectItem>
+                    <SelectItem value="_blank">{t("admin.menu.targetBlank")}</SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label={t("admin.menu.cssClass", { defaultValue: "Klasa CSS" })}>
+              <Field label={t("admin.menu.cssClass")}>
                 <Input
                   value={item.css_class}
                   onChange={(e) => onUpdate(item.local_id, { css_class: e.target.value })}
                   className="h-8 text-xs"
                 />
               </Field>
-              <Field label={t("admin.menu.icon", { defaultValue: "Ikona" })}>
+              <Field label={t("admin.menu.icon")}>
                 <div className="h-8 flex items-center">
                   <LucideIconPicker
                     value={item.icon}
@@ -793,16 +777,14 @@ function MenuNode({
                 </div>
               </Field>
               {depth === 0 && (
-                <Field label={t("admin.menu.megaToggle", { defaultValue: "Mega panel" })}>
+                <Field label={t("admin.menu.megaToggle")}>
                   <div className="flex items-center gap-2 h-8">
                     <Switch
                       checked={item.mega_enabled}
                       onCheckedChange={(v) => onUpdate(item.local_id, { mega_enabled: v })}
                     />
                     <span className="text-xs text-muted-foreground">
-                      {item.mega_enabled
-                        ? t("admin.menu.megaOn", { defaultValue: "Włączony" })
-                        : t("admin.menu.megaOff", { defaultValue: "Wyłączony" })}
+                      {item.mega_enabled ? t("admin.menu.megaOn") : t("admin.menu.megaOff")}
                     </span>
                   </div>
                 </Field>
@@ -909,9 +891,7 @@ function MegaColumnsEditor({
   return (
     <div className="border border-border rounded-md p-3 space-y-2 bg-background">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold">
-          {t("admin.menu.megaColumns", { defaultValue: "Kolumny mega-panelu" })}
-        </span>
+        <span className="text-xs font-semibold">{t("admin.menu.megaColumns")}</span>
         <div className="flex items-center gap-2">
           <label className="text-[10px] text-muted-foreground">Kolumn/rząd</label>
           <Select
@@ -1093,34 +1073,24 @@ function MegaColumnsEditor({
         ))}
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant="outline" onClick={addColumn}>
-            + {t("admin.menu.addColumn", { defaultValue: "Dodaj kolumnę" })}
+            + {t("admin.menu.addColumn")}
           </Button>
           {derivedCols.length > 0 ? (
             <Button
               size="sm"
               variant="ghost"
               onClick={importFromTree}
-              title={t("admin.menu.importFromTreeHint", {
-                defaultValue:
-                  "Skopiuj kolumny z aktualnej struktury drzewa (dzieci = kolumny, wnuki = linki).",
-              })}
+              title={t("admin.menu.importFromTreeHint")}
             >
               {config.columns.length === 0
-                ? t("admin.menu.importFromTree", {
-                    defaultValue: "Wygeneruj kolumny z drzewa menu",
-                  })
-                : t("admin.menu.overwriteFromTree", {
-                    defaultValue: "Nadpisz kolumny z drzewa menu",
-                  })}
+                ? t("admin.menu.importFromTree")
+                : t("admin.menu.overwriteFromTree")}
             </Button>
           ) : null}
         </div>
         {config.columns.length === 0 && derivedCols.length > 0 ? (
           <p className="text-[11px] text-muted-foreground italic">
-            {t("admin.menu.autoDerivedHint", {
-              defaultValue:
-                "Brak konfiguracji kolumn - front automatycznie buduje mega menu z dzieci tej pozycji (poniżej podgląd 1:1).",
-            })}
+            {t("admin.menu.autoDerivedHint")}
           </p>
         ) : null}
       </div>
@@ -1187,10 +1157,10 @@ function MegaPreview({
     <div className="mt-3 border-t border-border pt-3 space-y-2">
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold">
-          {t("admin.menu.preview", { defaultValue: "Podgląd na żywo (front)" })}
+          {t("admin.menu.preview")}
           {usingDerived && hasContent ? (
             <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-800">
-              {t("admin.menu.autoFromTree", { defaultValue: "auto z drzewa" })}
+              {t("admin.menu.autoFromTree")}
             </span>
           ) : null}
         </span>
@@ -1213,10 +1183,7 @@ function MegaPreview({
         </div>
       </div>
       {hasContent ? (
-        <div
-          aria-label={t("admin.menu.previewAria", { defaultValue: "Podgląd mega-menu" })}
-          className="rounded-md bg-muted/30 p-3"
-        >
+        <div aria-label={t("admin.menu.previewAria")} className="rounded-md bg-muted/30 p-3">
           <MegaPanelView
             cols={cols}
             lang={lang}
@@ -1227,11 +1194,7 @@ function MegaPreview({
           />
         </div>
       ) : (
-        <p className="text-[11px] text-muted-foreground italic">
-          {t("admin.menu.previewEmpty", {
-            defaultValue: "Dodaj co najmniej jedną kolumnę, aby zobaczyć podgląd.",
-          })}
-        </p>
+        <p className="text-[11px] text-muted-foreground italic">{t("admin.menu.previewEmpty")}</p>
       )}
     </div>
   );

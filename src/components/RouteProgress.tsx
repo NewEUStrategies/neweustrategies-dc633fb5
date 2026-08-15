@@ -114,7 +114,7 @@ export function RouteProgress() {
           korzenia. Sam region zostaje w DOM od pierwszego renderu; zmienia sie
           wylacznie jego tresc, wiec czytnik ekranu ma stabilny punkt zaczepienia. */}
       <div role="status" aria-live="polite" className="sr-only">
-        {mounted && busy ? t("common.loading", { defaultValue: "Ładowanie…" }) : ""}
+        {mounted && busy ? t("common.loading") : ""}
       </div>
     </>
   );

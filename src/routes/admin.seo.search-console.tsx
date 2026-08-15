@@ -142,14 +142,9 @@ function SearchConsolePanel() {
       <div>
         <h1 className="font-display text-2xl font-bold inline-flex items-center gap-2">
           <Search className="w-6 h-6" />
-          {t("admin.gsc.title", { defaultValue: "Google Search Console" })}
+          {t("admin.gsc.title")}
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {t("admin.gsc.subtitle", {
-            defaultValue:
-              "Top zapytania, CTR, średnia pozycja oraz najlepsze strony z Twojej zweryfikowanej właściwości.",
-          })}
-        </p>
+        <p className="text-sm text-muted-foreground mt-1">{t("admin.gsc.subtitle")}</p>
       </div>
 
       {sitesQuery.isLoading && (
@@ -164,19 +159,13 @@ function SearchConsolePanel() {
 
       {notConfigured && (
         <div className="bg-amber-500/10 border border-amber-500/40 rounded-[6px] p-4 text-sm">
-          {t("admin.gsc.notConfigured", {
-            defaultValue:
-              "Konektor Google Search Console nie jest podłączony. Podłącz go w ustawieniach integracji.",
-          })}
+          {t("admin.gsc.notConfigured")}
         </div>
       )}
 
       {noSites && (
         <div className="bg-amber-500/10 border border-amber-500/40 rounded-[6px] p-4 text-sm">
-          {t("admin.gsc.noSites", {
-            defaultValue:
-              "Brak zweryfikowanych właściwości w podłączonym koncie Google Search Console.",
-          })}
+          {t("admin.gsc.noSites")}
         </div>
       )}
 
@@ -199,15 +188,9 @@ function SearchConsolePanel() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="7d">
-                {t("admin.gsc.range7d", { defaultValue: "Ostatnie 7 dni" })}
-              </SelectItem>
-              <SelectItem value="28d">
-                {t("admin.gsc.range28d", { defaultValue: "Ostatnie 28 dni" })}
-              </SelectItem>
-              <SelectItem value="90d">
-                {t("admin.gsc.range90d", { defaultValue: "Ostatnie 90 dni" })}
-              </SelectItem>
+              <SelectItem value="7d">{t("admin.gsc.range7d")}</SelectItem>
+              <SelectItem value="28d">{t("admin.gsc.range28d")}</SelectItem>
+              <SelectItem value="90d">{t("admin.gsc.range90d")}</SelectItem>
             </SelectContent>
           </Select>
           <span className="text-[11px] text-muted-foreground">
@@ -221,38 +204,38 @@ function SearchConsolePanel() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <StatCard
               icon={MousePointerClick}
-              label={t("admin.gsc.clicks", { defaultValue: "Kliknięcia" })}
+              label={t("admin.gsc.clicks")}
               value={totals.clicks.toLocaleString()}
               tone="text-brand"
             />
             <StatCard
               icon={Eye}
-              label={t("admin.gsc.impressions", { defaultValue: "Wyświetlenia" })}
+              label={t("admin.gsc.impressions")}
               value={totals.impressions.toLocaleString()}
             />
             <StatCard
               icon={TrendingUp}
-              label={t("admin.gsc.ctr", { defaultValue: "CTR" })}
+              label={t("admin.gsc.ctr")}
               value={formatPercent(totals.ctr)}
             />
             <StatCard
               icon={Target}
-              label={t("admin.gsc.position", { defaultValue: "Śr. pozycja" })}
+              label={t("admin.gsc.position")}
               value={formatPosition(totals.position)}
             />
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
             <GscTable
-              title={t("admin.gsc.topQueries", { defaultValue: "Top zapytania" })}
-              keyLabel={t("admin.gsc.query", { defaultValue: "Zapytanie" })}
+              title={t("admin.gsc.topQueries")}
+              keyLabel={t("admin.gsc.query")}
               rows={queriesQuery.data?.rows ?? []}
               loading={queriesQuery.isLoading}
               error={queriesQuery.error as Error | null}
             />
             <GscTable
-              title={t("admin.gsc.topPages", { defaultValue: "Top strony" })}
-              keyLabel={t("admin.gsc.page", { defaultValue: "Strona" })}
+              title={t("admin.gsc.topPages")}
+              keyLabel={t("admin.gsc.page")}
               rows={pagesQuery.data?.rows ?? []}
               loading={pagesQuery.isLoading}
               error={pagesQuery.error as Error | null}
@@ -274,7 +257,7 @@ function SearchConsolePanel() {
 
       <p className="text-[11px] text-muted-foreground">
         <Link to="/admin/seo" className="hover:text-brand hover:underline">
-          ← {t("admin.gsc.backToSeo", { defaultValue: "Wróć do przeglądu SEO" })}
+          ← {t("admin.gsc.backToSeo")}
         </Link>
       </p>
     </div>
@@ -307,16 +290,10 @@ function GscTable({
           <thead className="bg-muted/30 text-[10px] uppercase text-muted-foreground tracking-wide">
             <tr>
               <th className="p-2 text-left">{keyLabel}</th>
-              <th className="p-2 text-right w-20">
-                {t("admin.gsc.clicks", { defaultValue: "Klik." })}
-              </th>
-              <th className="p-2 text-right w-20">
-                {t("admin.gsc.impressions", { defaultValue: "Wyśw." })}
-              </th>
+              <th className="p-2 text-right w-20">{t("admin.gsc.clicks")}</th>
+              <th className="p-2 text-right w-20">{t("admin.gsc.impressions")}</th>
               <th className="p-2 text-right w-16">CTR</th>
-              <th className="p-2 text-right w-16">
-                {t("admin.gsc.positionShort", { defaultValue: "Poz." })}
-              </th>
+              <th className="p-2 text-right w-16">{t("admin.gsc.positionShort")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -337,7 +314,7 @@ function GscTable({
             {!loading && !error && !rows.length && (
               <tr>
                 <td colSpan={5} className="p-6 text-center text-muted-foreground">
-                  {t("admin.gsc.noData", { defaultValue: "Brak danych w tym okresie" })}
+                  {t("admin.gsc.noData")}
                 </td>
               </tr>
             )}

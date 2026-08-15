@@ -80,7 +80,7 @@ export function FooterSlideup({ pageType, pageId }: Props) {
   return (
     <div
       role="complementary"
-      aria-label={t("ads.slideupLabel", { defaultValue: "Reklama" })}
+      aria-label={t("ads.slideupLabel")}
       className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur shadow-2xl animate-in slide-in-from-bottom"
     >
       <div className="relative mx-auto max-w-6xl px-4 py-3 flex items-center justify-center">
@@ -89,7 +89,7 @@ export function FooterSlideup({ pageType, pageId }: Props) {
           <button
             type="button"
             onClick={dismiss}
-            aria-label={t("ads.dismiss", { defaultValue: "Zamknij reklamę" })}
+            aria-label={t("ads.dismiss")}
             className="absolute top-1 right-2 p-1.5 text-muted-foreground hover:text-foreground transition"
           >
             <X className="w-4 h-4" />

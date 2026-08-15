@@ -65,28 +65,14 @@ function ProfileEditPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-xl font-display font-semibold">
-          {t("profile.edit.title", { defaultValue: "Edycja profilu" })}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {t("profile.edit.intro", {
-            defaultValue: "Wszystkie dane Twojej tożsamości w jednym miejscu.",
-          })}
-        </p>
+        <h1 className="text-xl font-display font-semibold">{t("profile.edit.title")}</h1>
+        <p className="text-sm text-muted-foreground">{t("profile.edit.intro")}</p>
       </div>
       <Tabs value={activeTab} onValueChange={setTab}>
         <TabsList>
-          <TabsTrigger value="basic">
-            {t("profile.edit.tabs.basic", { defaultValue: "Dane podstawowe" })}
-          </TabsTrigger>
-          {showExpert && (
-            <TabsTrigger value="expert">
-              {t("profile.edit.tabs.expert", { defaultValue: "Profil eksperta" })}
-            </TabsTrigger>
-          )}
-          <TabsTrigger value="social">
-            {t("profile.edit.tabs.social", { defaultValue: "Social i bio" })}
-          </TabsTrigger>
+          <TabsTrigger value="basic">{t("profile.edit.tabs.basic")}</TabsTrigger>
+          {showExpert && <TabsTrigger value="expert">{t("profile.edit.tabs.expert")}</TabsTrigger>}
+          <TabsTrigger value="social">{t("profile.edit.tabs.social")}</TabsTrigger>
         </TabsList>
         <TabsContent value="basic" className="mt-4">
           <AccountIdentityPanel />
@@ -95,15 +81,8 @@ function ProfileEditPage() {
           <TabsContent value="expert" className="mt-4">
             <Card>
               <CardHeader>
-                <CardTitle>
-                  {t("profile.author.title", { defaultValue: "Profil eksperta" })}
-                </CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  {t("profile.author.intro", {
-                    defaultValue:
-                      "Publiczny profil eksperta - widoczny na /author/<slug> oraz w widget BIO we wpisach. Niezależny od profilu prywatnego (dane kontaktowe mogą się różnić).",
-                  })}
-                </p>
+                <CardTitle>{t("profile.author.title")}</CardTitle>
+                <p className="text-sm text-muted-foreground">{t("profile.author.intro")}</p>
               </CardHeader>
               <CardContent>
                 <AuthorProfileEditor userId={user.id} tenantId={tenantId} mode="self" />

@@ -6,6 +6,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import { AdminSelect } from "../AdminSelect";
+import { toJsonArray } from "@/lib/content-model/json";
 
 interface Props {
   block: Block;
@@ -190,7 +191,7 @@ export function ImageCarouselBlock({ block, onChange }: Props) {
     };
   });
   const update = (next: SlideItem[]) => {
-    onChange({ ...block, data: { ...block.data, items: next as unknown as Json[] } });
+    onChange({ ...block, data: { ...block.data, items: toJsonArray(next) } });
   };
   const autoplay = block.data.autoplay === true;
   const interval = Number(block.data.interval ?? 5000);

@@ -22,18 +22,14 @@ export function SeoValidationSummary({ issues, headingIssues = [] }: SeoValidati
 
   for (const issue of issues) {
     const fieldLabel =
-      issue.kind === "title"
-        ? t("admin.seo.titleLabel", { defaultValue: "Tytuł SEO" })
-        : t("admin.seo.descriptionLabel", { defaultValue: "Opis meta (description)" });
+      issue.kind === "title" ? t("admin.seo.titleLabel") : t("admin.seo.descriptionLabel");
     const text =
       issue.severity === "error"
         ? t("admin.seo.validation.errorLine", {
-            defaultValue: "{{chars}} / {{limit}} znaków (twardy limit)",
             chars: issue.chars,
             limit: issue.charLimit,
           })
         : t("admin.seo.validation.warnLine", {
-            defaultValue: "{{chars}} znaków, {{px}}px / {{pxLimit}}px budżetu Google",
             chars: issue.chars,
             px: issue.px,
             pxLimit: issue.pxLimit,
@@ -50,13 +46,9 @@ export function SeoValidationSummary({ issues, headingIssues = [] }: SeoValidati
     const pos = h.position ? ` (#${h.position})` : "";
     const snip = h.snippet ? ` - "${h.snippet}"` : "";
     if (h.kind === "missing_h1") {
-      text = t("admin.seo.validation.missingH1", {
-        defaultValue: "Brakuje H1 w treści - dodaj główny nagłówek.",
-      });
+      text = t("admin.seo.validation.missingH1");
     } else if (h.kind === "multiple_h1") {
       text = t("admin.seo.validation.multipleH1", {
-        defaultValue:
-          "Znaleziono {{count}} nagłówków H1 - powinien być tylko jeden{{pos}}{{snip}}.",
         count: h.count ?? 2,
         pos,
         snip,
@@ -65,8 +57,6 @@ export function SeoValidationSummary({ issues, headingIssues = [] }: SeoValidati
       text = t("admin.seo.validation.extraH1", { pos, snip });
     } else if (h.kind === "skipped_level") {
       text = t("admin.seo.validation.skippedLevel", {
-        defaultValue:
-          "Przeskoczony poziom nagłówka{{pos}}: H{{from}} → H{{to}}. Zachowaj hierarchię H2 → H3 → H4{{snip}}.",
         from: h.from,
         to: h.to,
         pos,
@@ -74,7 +64,6 @@ export function SeoValidationSummary({ issues, headingIssues = [] }: SeoValidati
       });
     } else if (h.kind === "empty_heading") {
       text = t("admin.seo.validation.emptyHeading", {
-        defaultValue: "Pusty nagłówek w treści{{pos}}{{extra}} - usuń lub uzupełnij tekst.",
         pos,
         extra: h.count && h.count > 1 ? ` (łącznie ${h.count})` : "",
       });
@@ -88,7 +77,7 @@ export function SeoValidationSummary({ issues, headingIssues = [] }: SeoValidati
     all.push({
       key: `h-${h.lang}-${h.kind}-${h.position ?? 0}`,
       severity: h.severity,
-      text: `${LANG_LABEL[h.lang]} - ${t("admin.seo.validation.headingLabel", { defaultValue: "Struktura nagłówków" })}: ${text}`,
+      text: `${LANG_LABEL[h.lang]} - ${t("admin.seo.validation.headingLabel")}: ${text}`,
     });
   }
 
@@ -99,11 +88,7 @@ export function SeoValidationSummary({ issues, headingIssues = [] }: SeoValidati
         className="flex items-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/5 px-3 py-2 text-[11px] text-emerald-700 dark:text-emerald-300"
       >
         <Check className="h-3.5 w-3.5" aria-hidden />
-        <span>
-          {t("admin.seo.validation.ok", {
-            defaultValue: "Wszystkie pola mieszczą się w limitach Google.",
-          })}
-        </span>
+        <span>{t("admin.seo.validation.ok")}</span>
       </div>
     );
   }
@@ -122,12 +107,8 @@ export function SeoValidationSummary({ issues, headingIssues = [] }: SeoValidati
         <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
         <span>
           {hasError
-            ? t("admin.seo.validation.errorHeading", {
-                defaultValue: "Zapis zablokowany - przekroczono twardy limit.",
-              })
-            : t("admin.seo.validation.warnHeading", {
-                defaultValue: "Ostrzeżenia SEO - warto poprawić przed publikacją.",
-              })}
+            ? t("admin.seo.validation.errorHeading")
+            : t("admin.seo.validation.warnHeading")}
         </span>
       </div>
       <ul className="space-y-0.5 pl-5 list-disc">

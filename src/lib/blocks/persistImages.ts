@@ -47,8 +47,22 @@ export function collectDataUrlImages(doc: Json): string[] {
  * Podmienia data-URL-e wg mapy (wartości pól i osadzenia w HTML-u).
  * Generyk zachowuje typ dokumentu wołającego (LocalizedBlocks, BuilderDocument…)
  * bez rzutowań po jego stronie - struktura wartości nie zmienia kształtu.
+ *
+ * DLACZEGO OGRANICZENIE `T extends Json` ZNIKŁO. Zdanie wyżej opisywało
+ * intencję, której sygnatura NIE POZWALAŁA spełnić: `BuilderDocument` i
+ * `LocalizedBlocks` to INTERFEJSY, a TypeScript nie nadaje interfejsom
+ * domyślnej sygnatury indeksu - więc żaden z nich nie jest przypisywalny do
+ * `Json`, choćby był w stu procentach serializowalny. Każdy wołający obchodził
+ * to podwójnym rzutowaniem w obie strony (`doc as unknown as Json`, potem
+ * `wynik as unknown as typeof doc`) - dziewięć takich par w samym haku edytora
+ * wpisu. Jedno udokumentowane `as Json` wewnątrz jest uczciwsze niż dziewięć
+ * nienazwanych na zewnątrz.
+ *
+ * KONTRAKT: `doc` ma być dokumentem SERIALIZOWALNYM DO JSON-a. Wartości spoza
+ * tego zbioru (`Date`, `Map`, klasa) przejdą przez obchód drzewa jak zwykły
+ * obiekt i stracą tożsamość - tak samo jak przy `JSON.parse(JSON.stringify(x))`.
  */
-export function replaceDataUrlImages<T extends Json>(doc: T, replacements: Map<string, string>): T {
+export function replaceDataUrlImages<T>(doc: T, replacements: Map<string, string>): T {
   if (replacements.size === 0) return doc;
   let mutations = 0;
   const visit = (value: Json): Json => {
@@ -74,7 +88,7 @@ export function replaceDataUrlImages<T extends Json>(doc: T, replacements: Map<s
     }
     return value;
   };
-  const next = visit(doc) as T;
+  const next = visit(doc as Json) as T;
   // Identyczność referencji, gdy mapa nie trafiła w żaden URL - wołający
   // (autosave, synchronizacja formularza) nie widzi wtedy pozornej zmiany.
   return mutations > 0 ? next : doc;
@@ -111,7 +125,7 @@ export function decodeDataUrlImage(dataUrl: string, index: number): DecodedDataU
   }
 }
 
-export interface PersistImagesResult<T extends Json = Json> {
+export interface PersistImagesResult<T = Json> {
   doc: T;
   uploaded: number;
   failed: number;
@@ -125,12 +139,12 @@ export interface PersistImagesResult<T extends Json = Json> {
  * z podmienionymi adresami. `cache` (dataUrl -> URL) chroni przed ponownym
  * uploadem tej samej grafiki przy kolejnych autosave'ach.
  */
-export async function persistDataUrlImages<T extends Json>(
+export async function persistDataUrlImages<T>(
   doc: T,
   upload: (decoded: DecodedDataUrl) => Promise<string>,
   cache?: Map<string, string>,
 ): Promise<PersistImagesResult<T>> {
-  const urls = collectDataUrlImages(doc);
+  const urls = collectDataUrlImages(doc as Json);
   if (urls.length === 0) {
     return { doc, uploaded: 0, failed: 0, changed: false, replacements: new Map() };
   }

@@ -104,11 +104,7 @@ export function BillingProfileForm({
       onSaved?.();
     } catch {
       // Never surface a raw backend error string to the visitor.
-      toast.error(
-        t("profile.billing.saveError", {
-          defaultValue: "Nie udało się zapisać danych. Spróbuj ponownie.",
-        }),
-      );
+      toast.error(t("profile.billing.saveError"));
     } finally {
       setBusy(false);
     }

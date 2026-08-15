@@ -5,6 +5,10 @@ import React from "react";
 // pokazywać nagłówka bez treści.
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
+import { useLang } from "@/lib/i18n/useLang";
+import type { AppLang } from "@/lib/i18n/localePath";
+import "@/lib/i18n-author-cv";
 import {
   Briefcase,
   GraduationCap,
@@ -17,7 +21,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { authorCvQueryOptions, type AuthorCv } from "@/lib/queries/authorCv";
-import { formatDate } from "@/lib/i18n/format";
+import { formatDate, uiLocale } from "@/lib/i18n/format";
 import { useAuth } from "@/hooks/useAuth";
 import { useConnectionStatuses } from "@/lib/network/useConnections";
 import { useSkillEndorsements, useToggleEndorsement } from "@/lib/network/useEndorsements";
@@ -38,23 +42,24 @@ function formatDateRange(
   start: string | null,
   end: string | null,
   isCurrent: boolean | null,
-  isPl: boolean,
+  lang: AppLang,
+  t: TFunction,
 ): string {
   const fmt = (d: string | null) => {
     if (!d) return "";
     const parsed = new Date(d);
     if (Number.isNaN(parsed.getTime())) return "";
-    return formatDate(parsed, isPl ? "pl" : "en", { year: "numeric", month: "short" });
+    return formatDate(parsed, lang, { year: "numeric", month: "short" });
   };
   const s = fmt(start);
-  const e = isCurrent ? (isPl ? "obecnie" : "present") : fmt(end);
-  if (s && e) return `${s} — ${e}`;
+  const e = isCurrent ? t("authorCv.present") : fmt(end);
+  if (s && e) return `${s} - ${e}`;
   return s || e;
 }
 
 export function AuthorCvSections({ userId, printIdentity }: Props): React.ReactElement | null {
-  const { i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  const { t } = useTranslation();
+  const lang = useLang();
   const { data } = useQuery(authorCvQueryOptions(userId));
 
   if (!data) return null;
@@ -71,21 +76,21 @@ export function AuthorCvSections({ userId, printIdentity }: Props): React.ReactE
         </div>
       )}
       {printIdentity && <CvPrintSheet identity={printIdentity} cv={data} />}
-      {experiences.length > 0 && <ExperienceSection items={experiences} isPl={isPl} />}
-      {education.length > 0 && <EducationSection items={education} isPl={isPl} />}
+      {experiences.length > 0 && <ExperienceSection items={experiences} lang={lang} t={t} />}
+      {education.length > 0 && <EducationSection items={education} lang={lang} t={t} />}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {skills.length > 0 && (
           <div className="lg:col-span-2">
-            <SkillsSection items={skills} isPl={isPl} authorId={userId ?? null} />
+            <SkillsSection items={skills} t={t} authorId={userId ?? null} />
           </div>
         )}
         {hobbies.length > 0 && (
           <div>
-            <HobbiesSection items={hobbies} isPl={isPl} />
+            <HobbiesSection items={hobbies} t={t} />
           </div>
         )}
       </div>
-      {awards.length > 0 && <AwardsSection items={awards} isPl={isPl} />}
+      {awards.length > 0 && <AwardsSection items={awards} lang={lang} t={t} />}
     </section>
   );
 }
@@ -109,14 +114,16 @@ function SectionHeader({
 
 function ExperienceSection({
   items,
-  isPl,
+  lang,
+  t,
 }: {
   items: AuthorCv["experiences"];
-  isPl: boolean;
+  lang: AppLang;
+  t: TFunction;
 }): React.ReactElement {
   return (
     <div>
-      <SectionHeader icon={Briefcase} title={isPl ? "Doświadczenie zawodowe" : "Experience"} />
+      <SectionHeader icon={Briefcase} title={t("authorCv.experience")} />
       <ol className="relative border-l border-border ml-3 space-y-6">
         {items.map((e) => (
           <li key={e.id} className="pl-5 relative">
@@ -134,13 +141,11 @@ function ExperienceSection({
               )}
               <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap items-baseline gap-x-2">
-                  <h3 className="font-semibold">
-                    {e.role_title || (isPl ? "Stanowisko" : "Role")}
-                  </h3>
+                  <h3 className="font-semibold">{e.role_title || t("authorCv.roleFallback")}</h3>
                   {e.company && <span className="text-muted-foreground">· {e.company}</span>}
                 </div>
                 <div className="flex flex-wrap gap-3 text-xs text-muted-foreground mt-0.5">
-                  <span>{formatDateRange(e.start_date, e.end_date, e.is_current, isPl)}</span>
+                  <span>{formatDateRange(e.start_date, e.end_date, e.is_current, lang, t)}</span>
                   {e.location && (
                     <span className="inline-flex items-center gap-1">
                       <MapPin className="w-3 h-3" />
@@ -164,14 +169,16 @@ function ExperienceSection({
 
 function EducationSection({
   items,
-  isPl,
+  lang,
+  t,
 }: {
   items: AuthorCv["education"];
-  isPl: boolean;
+  lang: AppLang;
+  t: TFunction;
 }): React.ReactElement {
   return (
     <div>
-      <SectionHeader icon={GraduationCap} title={isPl ? "Edukacja" : "Education"} />
+      <SectionHeader icon={GraduationCap} title={t("authorCv.education")} />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {items.map((e) => (
           <article key={e.id} className="rounded-lg border border-border bg-card p-4 flex gap-3">
@@ -183,14 +190,14 @@ function EducationSection({
               />
             )}
             <div className="flex-1 min-w-0">
-              <h3 className="font-semibold">{e.school || (isPl ? "Uczelnia" : "School")}</h3>
+              <h3 className="font-semibold">{e.school || t("authorCv.schoolFallback")}</h3>
               {(e.degree || e.field) && (
                 <div className="text-sm text-muted-foreground">
                   {[e.degree, e.field].filter(Boolean).join(" · ")}
                 </div>
               )}
               <div className="text-xs text-muted-foreground mt-0.5">
-                {formatDateRange(e.start_date, e.end_date, null, isPl)}
+                {formatDateRange(e.start_date, e.end_date, null, lang, t)}
               </div>
               {e.description && (
                 <p className="text-sm text-muted-foreground mt-2 whitespace-pre-line">
@@ -207,11 +214,11 @@ function EducationSection({
 
 function SkillsSection({
   items,
-  isPl,
+  t,
   authorId,
 }: {
   items: AuthorCv["skills"];
-  isPl: boolean;
+  t: TFunction;
   authorId: string | null;
 }): React.ReactElement {
   const grouped = items.reduce<Record<string, AuthorCv["skills"]>>((acc, s) => {
@@ -224,7 +231,7 @@ function SkillsSection({
 
   return (
     <div>
-      <SectionHeader icon={Sparkles} title={isPl ? "Umiejętności" : "Skills"} />
+      <SectionHeader icon={Sparkles} title={t("authorCv.skills")} />
       <div className="space-y-4">
         {groups.map(([category, list]) => (
           <div key={category || "default"}>
@@ -235,7 +242,7 @@ function SkillsSection({
             )}
             <div className="flex flex-wrap gap-2">
               {list.map((s) => (
-                <SkillChip key={s.id} skill={s} authorId={authorId} isPl={isPl} />
+                <SkillChip key={s.id} skill={s} authorId={authorId} t={t} />
               ))}
             </div>
           </div>
@@ -248,11 +255,11 @@ function SkillsSection({
 function SkillChip({
   skill,
   authorId,
-  isPl,
+  t,
 }: {
   skill: AuthorCv["skills"][number];
   authorId: string | null;
-  isPl: boolean;
+  t: TFunction;
 }): React.ReactElement {
   const endorsementsQ = useSkillEndorsements(authorId);
   const toggle = useToggleEndorsement(authorId ?? "");
@@ -277,25 +284,19 @@ function SkillChip({
     );
   };
 
-  const title = !user
-    ? isPl
-      ? "Zaloguj się, aby poprzeć"
-      : "Sign in to endorse"
-    : isOwner
-      ? isPl
-        ? "Nie możesz poprzeć własnej umiejętności"
-        : "You can't endorse your own skill"
-      : !connected
-        ? isPl
-          ? "Aby poprzeć, musisz być połączony w sieci kontaktów"
-          : "Connect first to endorse this skill"
-        : byMe
-          ? isPl
-            ? "Cofnij poparcie"
-            : "Remove endorsement"
-          : isPl
-            ? "Poprzyj tę umiejętność"
-            : "Endorse this skill";
+  // Pięć wykluczających się powodów, dlaczego przycisk robi (albo nie robi) to,
+  // co robi - jeden klucz na powód, wybór kluczem, nie zagnieżdżonym ternarem.
+  const title = t(
+    !user
+      ? "authorCv.endorse.signIn"
+      : isOwner
+        ? "authorCv.endorse.ownSkill"
+        : !connected
+          ? "authorCv.endorse.needConnection"
+          : byMe
+            ? "authorCv.endorse.remove"
+            : "authorCv.endorse.add",
+  );
 
   return (
     <button
@@ -335,7 +336,9 @@ function SkillChip({
       {count > 0 && (
         <span
           aria-label={
-            isPl ? `${count} osób poparło` : `${count} endorsement${count === 1 ? "" : "s"}`
+            // Formy mnogie ze słownika: polski ma `few`/`many`, których ręczne
+            // `${count === 1 ? "" : "s"}` nie umiało odmienić w ogóle.
+            t("authorCv.endorse.count", { count })
           }
           className={
             "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-medium " +
@@ -352,14 +355,14 @@ function SkillChip({
 
 function HobbiesSection({
   items,
-  isPl,
+  t,
 }: {
   items: AuthorCv["hobbies"];
-  isPl: boolean;
+  t: TFunction;
 }): React.ReactElement {
   return (
     <div>
-      <SectionHeader icon={Heart} title={isPl ? "Zainteresowania" : "Interests"} />
+      <SectionHeader icon={Heart} title={t("authorCv.interests")} />
       <div className="flex flex-wrap gap-2">
         {items.map((h) => (
           <span
@@ -377,17 +380,16 @@ function HobbiesSection({
 
 function AwardsSection({
   items,
-  isPl,
+  lang,
+  t,
 }: {
   items: AuthorCv["awards"];
-  isPl: boolean;
+  lang: AppLang;
+  t: TFunction;
 }): React.ReactElement {
   return (
     <div>
-      <SectionHeader
-        icon={Award}
-        title={isPl ? "Wyróżnienia i certyfikaty" : "Awards & certifications"}
-      />
+      <SectionHeader icon={Award} title={t("authorCv.awards")} />
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {items.map((a) => {
           const inner = (
@@ -403,7 +405,7 @@ function AwardsSection({
                   {a.issuer && <div className="text-xs text-muted-foreground">{a.issuer}</div>}
                   {a.awarded_at && (
                     <div className="text-xs text-muted-foreground">
-                      {new Date(a.awarded_at).toLocaleDateString(isPl ? "pl-PL" : "en-GB", {
+                      {new Date(a.awarded_at).toLocaleDateString(uiLocale(lang), {
                         year: "numeric",
                         month: "long",
                       })}

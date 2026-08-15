@@ -39,7 +39,7 @@ export function AddItemPanel({ onAdd }: Props) {
   return (
     <div className="space-y-2">
       <SectionShell
-        title={t("admin.menu.sections.pages", { defaultValue: "Strony" })}
+        title={t("admin.menu.sections.pages")}
         open={open === "pages"}
         onToggle={() => setOpen(open === "pages" ? "posts" : "pages")}
       >
@@ -55,7 +55,7 @@ export function AddItemPanel({ onAdd }: Props) {
       </SectionShell>
 
       <SectionShell
-        title={t("admin.menu.sections.posts", { defaultValue: "Wpisy" })}
+        title={t("admin.menu.sections.posts")}
         open={open === "posts"}
         onToggle={() => setOpen(open === "posts" ? "custom" : "posts")}
       >
@@ -71,7 +71,7 @@ export function AddItemPanel({ onAdd }: Props) {
       </SectionShell>
 
       <SectionShell
-        title={t("admin.menu.sections.custom", { defaultValue: "Własne odnośniki" })}
+        title={t("admin.menu.sections.custom")}
         open={open === "custom"}
         onToggle={() => setOpen(open === "custom" ? "categories" : "custom")}
       >
@@ -79,7 +79,7 @@ export function AddItemPanel({ onAdd }: Props) {
       </SectionShell>
 
       <SectionShell
-        title={t("admin.menu.sections.categories", { defaultValue: "Kategorie" })}
+        title={t("admin.menu.sections.categories")}
         open={open === "categories"}
         onToggle={() => setOpen(open === "categories" ? "tags" : "categories")}
       >
@@ -94,7 +94,7 @@ export function AddItemPanel({ onAdd }: Props) {
       </SectionShell>
 
       <SectionShell
-        title={t("admin.menu.sections.tags", { defaultValue: "Tagi" })}
+        title={t("admin.menu.sections.tags")}
         open={open === "tags"}
         onToggle={() => setOpen(open === "tags" ? "pages" : "tags")}
       >
@@ -242,7 +242,7 @@ function PickList({
       <Input
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        placeholder={t("admin.menu.searchPlaceholder", { defaultValue: "Szukaj..." })}
+        placeholder={t("admin.menu.searchPlaceholder")}
         className="h-8 text-xs"
       />
       <div className="max-h-56 overflow-y-auto border border-border rounded bg-background">
@@ -258,13 +258,13 @@ function PickList({
         ))}
         {rows.length === 0 && (
           <div className="px-2 py-3 text-xs text-muted-foreground text-center">
-            {t("admin.menu.empty", { defaultValue: "Brak wyników" })}
+            {t("admin.menu.empty")}
           </div>
         )}
       </div>
       <Button size="sm" onClick={addSelected} disabled={checked.size === 0} className="w-full">
         <Plus className="h-3 w-3 mr-1" />
-        {t("admin.menu.addToMenu", { defaultValue: "Dodaj do menu" })} ({checked.size})
+        {t("admin.menu.addToMenu")} ({checked.size})
       </Button>
     </div>
   );
@@ -289,7 +289,7 @@ function CustomLinkForm({ onAdd }: { onAdd: Props["onAdd"] }) {
       </div>
       <div>
         <label className="text-[11px] font-medium text-muted-foreground">
-          {t("admin.menu.labelPl", { defaultValue: "Etykieta (PL)" })}
+          {t("admin.menu.labelPl")}
         </label>
         <Input
           value={labelPl}
@@ -299,7 +299,7 @@ function CustomLinkForm({ onAdd }: { onAdd: Props["onAdd"] }) {
       </div>
       <div>
         <label className="text-[11px] font-medium text-muted-foreground">
-          {t("admin.menu.labelEn", { defaultValue: "Etykieta (EN)" })}
+          {t("admin.menu.labelEn")}
         </label>
         <Input
           value={labelEn}
@@ -327,7 +327,7 @@ function CustomLinkForm({ onAdd }: { onAdd: Props["onAdd"] }) {
         className="w-full"
       >
         <Plus className="h-3 w-3 mr-1" />
-        {t("admin.menu.addToMenu", { defaultValue: "Dodaj do menu" })}
+        {t("admin.menu.addToMenu")}
       </Button>
     </div>
   );

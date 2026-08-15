@@ -98,13 +98,13 @@ function Tags() {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("admin.list.searchTags", { defaultValue: "Szukaj tagów…" })}
+            placeholder={t("admin.list.searchTags")}
             className="pl-8 h-8 text-xs"
           />
         </div>
         {search && (
           <Button variant="ghost" size="sm" onClick={() => setSearch("")} className="h-8 text-xs">
-            <X className="w-3.5 h-3.5 mr-1" /> {t("admin.list.clear", { defaultValue: "Wyczyść" })}
+            <X className="w-3.5 h-3.5 mr-1" /> {t("admin.list.clear")}
           </Button>
         )}
       </div>
@@ -128,9 +128,7 @@ function Tags() {
         ))}
         {!filtered.length && (
           <p className="text-xs text-muted-foreground">
-            {data?.length
-              ? t("admin.list.noResults", { defaultValue: "Brak wyników" })
-              : t("admin.empty")}
+            {data?.length ? t("admin.list.noResults") : t("admin.empty")}
           </p>
         )}
       </div>

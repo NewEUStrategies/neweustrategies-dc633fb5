@@ -13,6 +13,7 @@ import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { WidgetContent } from "@/lib/builder/types";
 import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
+import { uiLocale } from "@/lib/i18n/format";
 
 export type Lang = "pl" | "en";
 
@@ -173,7 +174,7 @@ export interface MeetingDayGroup {
 
 /** Grupuje sloty po dniu lokalnym, zachowujac kolejnosc chronologiczna. */
 export function groupSlotsByDay(slots: MeetingSlotRow[], lang: Lang): MeetingDayGroup[] {
-  const locale = lang === "pl" ? "pl-PL" : "en-GB";
+  const locale = uiLocale(lang);
   const groups = new Map<string, MeetingDayGroup>();
   const sorted = [...slots].sort(
     (a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
@@ -205,7 +206,7 @@ export function groupSlotsByDay(slots: MeetingSlotRow[], lang: Lang): MeetingDay
 /** "10:00 - 10:30" w czasie lokalnym przegladarki (sloty sa "na zywo",
  *  wiec lokalny czas widza jest wlasciwym ukladem odniesienia). */
 export function formatSlotRange(slot: MeetingSlotRow, lang: Lang): string {
-  const locale = lang === "pl" ? "pl-PL" : "en-GB";
+  const locale = uiLocale(lang);
   const opts: Intl.DateTimeFormatOptions = { hour: "2-digit", minute: "2-digit" };
   const start = new Date(slot.starts_at);
   const end = new Date(slot.ends_at);

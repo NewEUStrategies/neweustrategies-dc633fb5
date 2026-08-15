@@ -219,7 +219,7 @@ function RedirectsAdmin() {
 
   const del = (row: RedirectRow) => {
     setConfirmState({
-      title: t("admin.redirects.confirmDelete", { defaultValue: "Usunąć przekierowanie?" }),
+      title: t("admin.redirects.confirmDelete"),
       description: `${row.source_path} → ${row.target_path}`,
       confirmLabel: t("admin.delete"),
       destructive: true,
@@ -262,7 +262,6 @@ function RedirectsAdmin() {
       const result = await importCsv$({ data: { csv } });
       toast.success(
         t("admin.redirects.imported", {
-          defaultValue: "Zaimportowano {{count}} przekierowań",
           count: result.imported,
         }) +
           (result.issues.length
@@ -302,14 +301,9 @@ function RedirectsAdmin() {
         <div>
           <h1 className="font-display text-2xl font-bold inline-flex items-center gap-2">
             <LinkIcon className="w-6 h-6" />
-            {t("admin.redirects.title", { defaultValue: "Przekierowania" })}
+            {t("admin.redirects.title")}
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {t("admin.redirects.subtitle", {
-              defaultValue:
-                "301/302/410, wildcardy i monitor 404 - stare adresy (np. z WordPressa) zawsze trafiają w nowe URL-e.",
-            })}
-          </p>
+          <p className="text-sm text-muted-foreground mt-1">{t("admin.redirects.subtitle")}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <input
@@ -333,11 +327,11 @@ function RedirectsAdmin() {
             ) : (
               <Upload className="w-4 h-4 mr-1.5" />
             )}
-            {t("admin.redirects.importCsv", { defaultValue: "Import CSV" })}
+            {t("admin.redirects.importCsv")}
           </Button>
           <Button size="sm" variant="outline" onClick={exportCsv} disabled={!redirects?.length}>
             <Download className="w-4 h-4 mr-1.5" />
-            {t("admin.redirects.exportCsv", { defaultValue: "Eksport CSV" })}
+            {t("admin.redirects.exportCsv")}
           </Button>
           <Button size="sm" onClick={() => setEditor({ ...EMPTY_EDITOR })}>
             <Plus className="w-4 h-4 mr-1.5" />
@@ -349,14 +343,14 @@ function RedirectsAdmin() {
       <Tabs defaultValue="rules">
         <TabsList>
           <TabsTrigger value="rules">
-            {t("admin.redirects.tabRules", { defaultValue: "Reguły" })}
+            {t("admin.redirects.tabRules")}
             <span className="ml-1.5 text-[10px] text-muted-foreground">
               ({redirects?.length ?? 0})
             </span>
           </TabsTrigger>
           <TabsTrigger value="404s">
             <AlertTriangle className="w-3.5 h-3.5 mr-1" />
-            {t("admin.redirects.tab404", { defaultValue: "Ostatnie 404" })}
+            {t("admin.redirects.tab404")}
             <span className="ml-1.5 text-[10px] text-muted-foreground">
               ({hits404?.length ?? 0})
             </span>
@@ -368,9 +362,7 @@ function RedirectsAdmin() {
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={t("admin.redirects.searchPlaceholder", {
-                defaultValue: "Szukaj po adresie lub notatce…",
-              })}
+              placeholder={t("admin.redirects.searchPlaceholder")}
               className="max-w-xs h-8 text-xs"
             />
             <Select
@@ -383,15 +375,9 @@ function RedirectsAdmin() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">
-                  {t("admin.redirects.filterAll", { defaultValue: "Wszystkie" })}
-                </SelectItem>
-                <SelectItem value="enabled">
-                  {t("admin.redirects.filterEnabled", { defaultValue: "Włączone" })}
-                </SelectItem>
-                <SelectItem value="disabled">
-                  {t("admin.redirects.filterDisabled", { defaultValue: "Wyłączone" })}
-                </SelectItem>
+                <SelectItem value="all">{t("admin.redirects.filterAll")}</SelectItem>
+                <SelectItem value="enabled">{t("admin.redirects.filterEnabled")}</SelectItem>
+                <SelectItem value="disabled">{t("admin.redirects.filterDisabled")}</SelectItem>
               </SelectContent>
             </Select>
             <span className="text-xs text-muted-foreground">
@@ -403,27 +389,13 @@ function RedirectsAdmin() {
             <table className="w-full text-xs">
               <thead className="bg-muted/30 text-[10px] uppercase text-muted-foreground tracking-wide">
                 <tr>
-                  <th className="p-2 text-left">
-                    {t("admin.redirects.colSource", { defaultValue: "Stary adres" })}
-                  </th>
-                  <th className="p-2 text-left">
-                    {t("admin.redirects.colTarget", { defaultValue: "Cel" })}
-                  </th>
-                  <th className="p-2 text-center w-14">
-                    {t("admin.redirects.colCode", { defaultValue: "Kod" })}
-                  </th>
-                  <th className="p-2 text-left w-24">
-                    {t("admin.redirects.colOrigin", { defaultValue: "Źródło" })}
-                  </th>
-                  <th className="p-2 text-right w-16">
-                    {t("admin.redirects.colHits", { defaultValue: "Trafienia" })}
-                  </th>
-                  <th className="p-2 text-left w-28">
-                    {t("admin.redirects.colLastHit", { defaultValue: "Ostatnie" })}
-                  </th>
-                  <th className="p-2 text-center w-14">
-                    {t("admin.redirects.colActive", { defaultValue: "Aktywne" })}
-                  </th>
+                  <th className="p-2 text-left">{t("admin.redirects.colSource")}</th>
+                  <th className="p-2 text-left">{t("admin.redirects.colTarget")}</th>
+                  <th className="p-2 text-center w-14">{t("admin.redirects.colCode")}</th>
+                  <th className="p-2 text-left w-24">{t("admin.redirects.colOrigin")}</th>
+                  <th className="p-2 text-right w-16">{t("admin.redirects.colHits")}</th>
+                  <th className="p-2 text-left w-28">{t("admin.redirects.colLastHit")}</th>
+                  <th className="p-2 text-center w-14">{t("admin.redirects.colActive")}</th>
                   <th className="p-2 text-right w-20" />
                 </tr>
               </thead>
@@ -501,48 +473,27 @@ function RedirectsAdmin() {
                 {!filtered.length && (
                   <tr>
                     <td colSpan={8} className="p-6 text-center text-muted-foreground">
-                      {redirects?.length
-                        ? t("admin.list.noResults", { defaultValue: "Brak wyników dla filtrów" })
-                        : t("admin.redirects.empty", {
-                            defaultValue:
-                              "Brak przekierowań - dodaj pierwsze lub zaimportuj CSV z mapą starych adresów.",
-                          })}
+                      {redirects?.length ? t("admin.list.noResults") : t("admin.redirects.empty")}
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
-          <p className="text-[11px] text-muted-foreground">
-            {t("admin.redirects.wildcardHint", {
-              defaultValue:
-                "Wskazówka: końcówka /* tworzy regułę wildcard, np. /stara-sekcja/* → /nowa-sekcja/* przenosi całe drzewo adresów.",
-            })}
-          </p>
+          <p className="text-[11px] text-muted-foreground">{t("admin.redirects.wildcardHint")}</p>
         </TabsContent>
 
         <TabsContent value="404s" className="mt-4 space-y-3">
-          <p className="text-xs text-muted-foreground">
-            {t("admin.redirects.hint404", {
-              defaultValue:
-                "Adresy, które ostatnio zwróciły 404 - po migracji z WordPressa to najszybszy sposób na wyłapanie utraconych linków.",
-            })}
-          </p>
+          <p className="text-xs text-muted-foreground">{t("admin.redirects.hint404")}</p>
           <div className="bg-card border border-border rounded-lg overflow-hidden overflow-x-auto">
             <table className="w-full text-xs">
               <thead className="bg-muted/30 text-[10px] uppercase text-muted-foreground tracking-wide">
                 <tr>
-                  <th className="p-2 text-left">
-                    {t("admin.redirects.colPath", { defaultValue: "Adres" })}
-                  </th>
-                  <th className="p-2 text-right w-16">
-                    {t("admin.redirects.colHits", { defaultValue: "Trafienia" })}
-                  </th>
-                  <th className="p-2 text-left w-28">
-                    {t("admin.redirects.colLastSeen", { defaultValue: "Ostatnio" })}
-                  </th>
+                  <th className="p-2 text-left">{t("admin.redirects.colPath")}</th>
+                  <th className="p-2 text-right w-16">{t("admin.redirects.colHits")}</th>
+                  <th className="p-2 text-left w-28">{t("admin.redirects.colLastSeen")}</th>
                   <th className="p-2 text-left max-w-[200px]">
-                    {t("admin.redirects.colReferrer", { defaultValue: "Referrer" })}
+                    {t("admin.redirects.colReferrer")}
                   </th>
                   <th className="p-2 text-right w-44" />
                 </tr>
@@ -569,7 +520,7 @@ function RedirectsAdmin() {
                         onClick={() => createFrom404(hit)}
                       >
                         <Plus className="w-3 h-3 mr-1" />
-                        {t("admin.redirects.create", { defaultValue: "Utwórz przekierowanie" })}
+                        {t("admin.redirects.create")}
                       </Button>
                       <Button
                         size="sm"
@@ -585,9 +536,7 @@ function RedirectsAdmin() {
                 {!hits404?.length && (
                   <tr>
                     <td colSpan={5} className="p-6 text-center text-muted-foreground">
-                      {t("admin.redirects.empty404", {
-                        defaultValue: "Brak zarejestrowanych 404 - to dobrze!",
-                      })}
+                      {t("admin.redirects.empty404")}
                     </td>
                   </tr>
                 )}
@@ -606,17 +555,13 @@ function RedirectsAdmin() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {editor?.id
-                ? t("admin.redirects.editTitle", { defaultValue: "Edytuj przekierowanie" })
-                : t("admin.redirects.newTitle", { defaultValue: "Nowe przekierowanie" })}
+              {editor?.id ? t("admin.redirects.editTitle") : t("admin.redirects.newTitle")}
             </DialogTitle>
           </DialogHeader>
           {editor && (
             <div className="space-y-3">
               <div>
-                <Label>
-                  {t("admin.redirects.fieldSource", { defaultValue: "Stary adres (źródło)" })}
-                </Label>
+                <Label>{t("admin.redirects.fieldSource")}</Label>
                 <Input
                   value={editor.source_path}
                   onChange={(e) => setEditor({ ...editor, source_path: e.target.value })}
@@ -627,17 +572,13 @@ function RedirectsAdmin() {
                   <p className="text-[10px] mt-1 text-muted-foreground">
                     {normalizedSource
                       ? `→ ${normalizedSource}`
-                      : t("admin.redirects.invalidSource", {
-                          defaultValue: "Nieprawidłowy adres źródłowy",
-                        })}
+                      : t("admin.redirects.invalidSource")}
                   </p>
                 )}
               </div>
               {editor.status_code !== 410 && (
                 <div>
-                  <Label>
-                    {t("admin.redirects.fieldTarget", { defaultValue: "Nowy adres (cel)" })}
-                  </Label>
+                  <Label>{t("admin.redirects.fieldTarget")}</Label>
                   <Input
                     value={editor.target_path}
                     onChange={(e) => setEditor({ ...editor, target_path: e.target.value })}
@@ -648,16 +589,14 @@ function RedirectsAdmin() {
                     <p className="text-[10px] mt-1 text-muted-foreground">
                       {normalizedTarget
                         ? `→ ${normalizedTarget}`
-                        : t("admin.redirects.invalidTarget", {
-                            defaultValue: "Nieprawidłowy adres docelowy",
-                          })}
+                        : t("admin.redirects.invalidTarget")}
                     </p>
                   )}
                 </div>
               )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>{t("admin.redirects.fieldCode", { defaultValue: "Kod HTTP" })}</Label>
+                  <Label>{t("admin.redirects.fieldCode")}</Label>
                   <Select
                     value={String(editor.status_code)}
                     onValueChange={(v) => {
@@ -674,27 +613,16 @@ function RedirectsAdmin() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="301">
-                        301 - {t("admin.redirects.code301", { defaultValue: "trwałe (SEO)" })}
-                      </SelectItem>
-                      <SelectItem value="302">
-                        302 - {t("admin.redirects.code302", { defaultValue: "tymczasowe" })}
-                      </SelectItem>
-                      <SelectItem value="307">
-                        307 -{" "}
-                        {t("admin.redirects.code307", { defaultValue: "tymczasowe (metoda)" })}
-                      </SelectItem>
-                      <SelectItem value="308">
-                        308 - {t("admin.redirects.code308", { defaultValue: "trwałe (metoda)" })}
-                      </SelectItem>
-                      <SelectItem value="410">
-                        410 - {t("admin.redirects.code410", { defaultValue: "treść usunięta" })}
-                      </SelectItem>
+                      <SelectItem value="301">301 - {t("admin.redirects.code301")}</SelectItem>
+                      <SelectItem value="302">302 - {t("admin.redirects.code302")}</SelectItem>
+                      <SelectItem value="307">307 - {t("admin.redirects.code307")}</SelectItem>
+                      <SelectItem value="308">308 - {t("admin.redirects.code308")}</SelectItem>
+                      <SelectItem value="410">410 - {t("admin.redirects.code410")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="flex items-end justify-between gap-2 pb-1">
-                  <Label>{t("admin.redirects.colActive", { defaultValue: "Aktywne" })}</Label>
+                  <Label>{t("admin.redirects.colActive")}</Label>
                   <Switch
                     checked={editor.is_enabled}
                     onCheckedChange={(v) => setEditor({ ...editor, is_enabled: v })}
@@ -702,7 +630,7 @@ function RedirectsAdmin() {
                 </div>
               </div>
               <div>
-                <Label>{t("admin.redirects.fieldNote", { defaultValue: "Notatka" })}</Label>
+                <Label>{t("admin.redirects.fieldNote")}</Label>
                 <Textarea
                   value={editor.note}
                   onChange={(e) => setEditor({ ...editor, note: e.target.value })}

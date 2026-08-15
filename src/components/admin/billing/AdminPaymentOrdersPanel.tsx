@@ -11,6 +11,7 @@ import { listPaymentOrders } from "@/lib/billing/paymentOrders.functions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { uiLocale } from "@/lib/i18n/format";
 
 const STATUS_TONE: Record<string, string> = {
   paid: "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300",
@@ -25,7 +26,7 @@ const FILTERS = ["all", "pending", "processing", "paid", "failed", "refunded", "
 type Filter = (typeof FILTERS)[number];
 
 function money(cents: number, currency: string, lang: "pl" | "en"): string {
-  return new Intl.NumberFormat(lang === "pl" ? "pl-PL" : "en-GB", {
+  return new Intl.NumberFormat(uiLocale(lang), {
     style: "currency",
     currency,
   }).format(cents / 100);
@@ -145,7 +146,7 @@ export function AdminPaymentOrdersPanel() {
                 {rows.map((row) => (
                   <tr key={row.id} className="border-b border-border/60 align-top">
                     <td className="py-2 pr-3 whitespace-nowrap text-muted-foreground">
-                      {new Date(row.createdAt).toLocaleString(lang === "pl" ? "pl-PL" : "en-GB")}
+                      {new Date(row.createdAt).toLocaleString(uiLocale(lang))}
                     </td>
                     <td className="py-2 pr-3">
                       <span className="block">

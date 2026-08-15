@@ -57,7 +57,7 @@ export function FolderTreeRow({
               e.stopPropagation();
               onRename(path);
             }}
-            aria-label={t("admin.media.rename", { defaultValue: "Zmień nazwę" })}
+            aria-label={t("admin.media.rename")}
           >
             <Pencil className="w-3 h-3" />
           </button>
@@ -68,7 +68,7 @@ export function FolderTreeRow({
               e.stopPropagation();
               onDelete(path);
             }}
-            aria-label={t("admin.delete", { defaultValue: "Usuń" })}
+            aria-label={t("admin.delete")}
           >
             <Trash2 className="w-3 h-3" />
           </button>

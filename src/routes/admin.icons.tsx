@@ -163,10 +163,7 @@ function IconsAdmin() {
             {visible < filtered.length && (
               <div ref={sentinelRef} className="py-6 flex justify-center">
                 <Button variant="outline" className="h-9" onClick={() => setVisible((v) => v + 60)}>
-                  {t("admin.icons.loadMore", {
-                    defaultValue: "Wczytaj więcej",
-                  })}{" "}
-                  ({filtered.length - visible})
+                  {t("admin.icons.loadMore")} ({filtered.length - visible})
                 </Button>
               </div>
             )}
@@ -427,7 +424,7 @@ const IconCard = memo(function IconCard({
       !(await confirmDialog({
         title: t("admin.icons.confirmDelete", { name: row.name }),
         destructive: true,
-        confirmLabel: t("admin.delete", { defaultValue: "Usuń" }),
+        confirmLabel: t("admin.delete"),
       }))
     )
       return;

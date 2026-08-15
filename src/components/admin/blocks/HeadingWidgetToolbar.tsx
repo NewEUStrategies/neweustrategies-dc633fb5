@@ -133,21 +133,21 @@ export function HeadingWidgetToolbar({ block, onChange, editor }: Props) {
       {editor && (
         <>
           <TBtn
-            title={i18n.t("blocks.toolbar.bold", { defaultValue: "Pogrubienie" })}
+            title={i18n.t("blocks.toolbar.bold")}
             active={editor.isActive("bold")}
             onClick={() => editor.chain().focus().toggleBold().run()}
           >
             <Bold className="h-3.5 w-3.5" />
           </TBtn>
           <TBtn
-            title={i18n.t("blocks.toolbar.italic", { defaultValue: "Kursywa" })}
+            title={i18n.t("blocks.toolbar.italic")}
             active={editor.isActive("italic")}
             onClick={() => editor.chain().focus().toggleItalic().run()}
           >
             <Italic className="h-3.5 w-3.5" />
           </TBtn>
           <TBtn
-            title={i18n.t("blocks.toolbar.normalText", { defaultValue: "Tekst normalny" })}
+            title={i18n.t("blocks.toolbar.normalText")}
             onClick={() => editor.chain().focus().unsetAllMarks().unsetMark("textStyle").run()}
           >
             <RemoveFormatting className="h-3.5 w-3.5" />
@@ -159,7 +159,7 @@ export function HeadingWidgetToolbar({ block, onChange, editor }: Props) {
       {/* Kolor nagłówka - zaznaczenie koloruje inline, brak zaznaczenia = cały blok */}
       <div className="relative">
         <TBtn
-          title={i18n.t("blocks.toolbar.color", { defaultValue: "Kolor tekstu" })}
+          title={i18n.t("blocks.toolbar.color")}
           active={colorOpen || Boolean(safeCssColor(d.color))}
           onClick={() => setColorOpen((v) => !v)}
         >
@@ -168,7 +168,7 @@ export function HeadingWidgetToolbar({ block, onChange, editor }: Props) {
         {colorOpen && (
           <div
             role="dialog"
-            aria-label={i18n.t("blocks.toolbar.color", { defaultValue: "Kolor tekstu" })}
+            aria-label={i18n.t("blocks.toolbar.color")}
             className="absolute left-0 top-[30px] z-40 w-[188px] rounded-md border border-border bg-popover p-2 shadow-lg"
           >
             <div className="grid grid-cols-6 gap-1">
@@ -190,7 +190,7 @@ export function HeadingWidgetToolbar({ block, onChange, editor }: Props) {
             <div className="mt-2 flex items-center gap-2">
               <input
                 type="color"
-                aria-label={i18n.t("blocks.toolbar.colorCustom", { defaultValue: "Własny kolor" })}
+                aria-label={i18n.t("blocks.toolbar.colorCustom")}
                 value={
                   /^#[0-9a-fA-F]{6}$/.test(String(d.color ?? "")) ? String(d.color) : "#111111"
                 }
@@ -205,7 +205,7 @@ export function HeadingWidgetToolbar({ block, onChange, editor }: Props) {
                   setColorOpen(false);
                 }}
               >
-                {i18n.t("blocks.toolbar.colorReset", { defaultValue: "Wyczyść kolor" })}
+                {i18n.t("blocks.toolbar.colorReset")}
               </button>
             </div>
           </div>
@@ -216,21 +216,21 @@ export function HeadingWidgetToolbar({ block, onChange, editor }: Props) {
 
       {/* Wyrównanie */}
       <TBtn
-        title={i18n.t("blocks.toolbar.alignLeft", { defaultValue: "Do lewej" })}
+        title={i18n.t("blocks.toolbar.alignLeft")}
         active={align === "left"}
         onClick={() => set({ align: "left" })}
       >
         <AlignLeft className="h-3.5 w-3.5" />
       </TBtn>
       <TBtn
-        title={i18n.t("blocks.toolbar.alignCenter", { defaultValue: "Wyśrodkuj" })}
+        title={i18n.t("blocks.toolbar.alignCenter")}
         active={align === "center"}
         onClick={() => set({ align: "center" })}
       >
         <AlignCenter className="h-3.5 w-3.5" />
       </TBtn>
       <TBtn
-        title={i18n.t("blocks.toolbar.alignRight", { defaultValue: "Do prawej" })}
+        title={i18n.t("blocks.toolbar.alignRight")}
         active={align === "right"}
         onClick={() => set({ align: "right" })}
       >
@@ -241,14 +241,14 @@ export function HeadingWidgetToolbar({ block, onChange, editor }: Props) {
 
       {/* Anchor / ID */}
       <TBtn
-        title={i18n.t("blocks.toolbar.anchor", { defaultValue: "Kotwica (ID)" })}
+        title={i18n.t("blocks.toolbar.anchor")}
         active={Boolean(d.anchor)}
         onClick={async () => {
           const v = await promptDialog({
-            title: i18n.t("blocks.toolbar.anchor", { defaultValue: "Kotwica (ID)" }),
+            title: i18n.t("blocks.toolbar.anchor"),
             label: "slug-nagłówka",
             defaultValue: String(d.anchor ?? ""),
-            confirmLabel: i18n.t("blocks.toolbar.apply", { defaultValue: "Zastosuj" }),
+            confirmLabel: i18n.t("blocks.toolbar.apply"),
           });
           if (v === null) return;
           set({ anchor: v.trim().replace(/\s+/g, "-").toLowerCase() });
@@ -257,7 +257,7 @@ export function HeadingWidgetToolbar({ block, onChange, editor }: Props) {
         <Anchor className="h-3.5 w-3.5" />
       </TBtn>
       <TBtn
-        title={i18n.t("blocks.toolbar.toc", { defaultValue: "W spisie treści" })}
+        title={i18n.t("blocks.toolbar.toc")}
         active={d.inToc !== false}
         onClick={() => set({ inToc: d.inToc === false })}
       >
@@ -266,10 +266,7 @@ export function HeadingWidgetToolbar({ block, onChange, editor }: Props) {
 
       <Divider />
 
-      <TBtn
-        title={i18n.t("blocks.toolbar.clear", { defaultValue: "Wyczyść" })}
-        onClick={() => set({ text: "" })}
-      >
+      <TBtn title={i18n.t("blocks.toolbar.clear")} onClick={() => set({ text: "" })}>
         <Trash2 className="h-3.5 w-3.5" />
       </TBtn>
     </div>

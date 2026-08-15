@@ -25,6 +25,7 @@ import { getPaymentsDiagnostics, syncCouponsToProvider } from "@/lib/billing/dia
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { uiLocale } from "@/lib/i18n/format";
 import {
   Select,
   SelectContent,
@@ -147,7 +148,7 @@ export function AdminPaymentsDiagnosticsPanel() {
   );
 
   const fmtDate = (iso: string | null) =>
-    iso ? new Date(iso).toLocaleString(lang === "pl" ? "pl-PL" : "en-GB") : "-";
+    iso ? new Date(iso).toLocaleString(uiLocale(lang)) : "-";
 
   return (
     <div className="space-y-4">

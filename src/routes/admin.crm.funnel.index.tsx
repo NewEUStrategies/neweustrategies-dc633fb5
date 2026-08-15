@@ -34,6 +34,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { BulkActionBar } from "@/components/molecules/BulkActionBar";
 import { FaceAwareAvatar } from "@/components/admin/crm/FaceAwareAvatar";
+import { uiLocale } from "@/lib/i18n/format";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -529,7 +530,7 @@ function FunnelPage() {
                       {r.language}
                     </td>
                     <td className="px-2 py-2 text-[12px] text-muted-foreground">
-                      {new Date(r.created_at).toLocaleDateString(lang === "pl" ? "pl-PL" : "en-GB")}
+                      {new Date(r.created_at).toLocaleDateString(uiLocale(lang))}
                     </td>
                     <td className="px-2 py-2 text-right">
                       {r.contact_id ? (

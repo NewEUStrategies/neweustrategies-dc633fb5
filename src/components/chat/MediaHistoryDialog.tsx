@@ -52,7 +52,7 @@ function ImageTile({
     return (
       <div
         className="aspect-square animate-pulse rounded-[6px] bg-muted"
-        aria-label={t("chat.mediaHistory.loading", { defaultValue: "Ładowanie..." })}
+        aria-label={t("chat.mediaHistory.loading")}
       />
     );
   }
@@ -93,8 +93,8 @@ function FileRow({
   const size = entry.message.attachment_size ?? 0;
   const isPdf = entry.message.attachment_mime === "application/pdf";
   const dayWords = {
-    today: t("chat.today", { defaultValue: "Dzisiaj" }),
-    yesterday: t("chat.yesterday", { defaultValue: "Wczoraj" }),
+    today: t("chat.today"),
+    yesterday: t("chat.yesterday"),
   };
   const time = `${dayLabel(entry.message.created_at, lang, dayWords)} - ${clockTime(entry.message.created_at, lang)}`;
   return (
@@ -116,8 +116,8 @@ function FileRow({
           type="button"
           onClick={() => onPreview(url, name)}
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          aria-label={t("chat.preview.previewPdf", { defaultValue: "Podgląd" })}
-          title={t("chat.preview.previewPdf", { defaultValue: "Podgląd" })}
+          aria-label={t("chat.preview.previewPdf")}
+          title={t("chat.preview.previewPdf")}
         >
           <Eye className="h-4 w-4" aria-hidden />
         </button>
@@ -129,8 +129,8 @@ function FileRow({
           rel="noopener noreferrer"
           download={name}
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          aria-label={t("chat.mediaHistory.download", { defaultValue: "Pobierz plik" })}
-          title={t("chat.mediaHistory.download", { defaultValue: "Pobierz plik" })}
+          aria-label={t("chat.mediaHistory.download")}
+          title={t("chat.mediaHistory.download")}
         >
           <Download className="h-4 w-4" aria-hidden />
         </a>
@@ -171,12 +171,9 @@ export function MediaHistoryDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl gap-3 p-4 sm:p-5">
         <DialogHeader className="space-y-1">
-          <DialogTitle className="text-base">
-            {t("chat.mediaHistory.title", { defaultValue: "Multimedia i pliki" })}
-          </DialogTitle>
+          <DialogTitle className="text-base">{t("chat.mediaHistory.title")}</DialogTitle>
           <DialogDescription className="text-xs">
             {t("chat.mediaHistory.subtitle", {
-              defaultValue: "Historia załączników wysłanych w tej rozmowie",
               count: totalCount,
             })}
           </DialogDescription>
@@ -186,14 +183,14 @@ export function MediaHistoryDialog({
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="media" className="gap-1.5 text-xs">
               <ImageIcon className="h-3.5 w-3.5" aria-hidden />
-              {t("chat.mediaHistory.tabMedia", { defaultValue: "Multimedia" })}
+              {t("chat.mediaHistory.tabMedia")}
               <span className="ml-1 rounded-full bg-muted px-1.5 text-[10px] tabular-nums text-muted-foreground">
                 {images.length}
               </span>
             </TabsTrigger>
             <TabsTrigger value="files" className="gap-1.5 text-xs">
               <FileText className="h-3.5 w-3.5" aria-hidden />
-              {t("chat.mediaHistory.tabFiles", { defaultValue: "Pliki" })}
+              {t("chat.mediaHistory.tabFiles")}
               <span className="ml-1 rounded-full bg-muted px-1.5 text-[10px] tabular-nums text-muted-foreground">
                 {files.length}
               </span>
@@ -203,9 +200,7 @@ export function MediaHistoryDialog({
           <TabsContent value="media" className="mt-3">
             {images.length === 0 ? (
               <div className="rounded-[6px] border border-dashed border-border/60 py-8 text-center text-xs text-muted-foreground">
-                {t("chat.mediaHistory.emptyMedia", {
-                  defaultValue: "Brak zdjęć w tej rozmowie",
-                })}
+                {t("chat.mediaHistory.emptyMedia")}
               </div>
             ) : (
               <ScrollArea className="h-[52vh] pr-2">
@@ -226,9 +221,7 @@ export function MediaHistoryDialog({
           <TabsContent value="files" className="mt-3">
             {files.length === 0 ? (
               <div className="rounded-[6px] border border-dashed border-border/60 py-8 text-center text-xs text-muted-foreground">
-                {t("chat.mediaHistory.emptyFiles", {
-                  defaultValue: "Brak plików w tej rozmowie",
-                })}
+                {t("chat.mediaHistory.emptyFiles")}
               </div>
             ) : (
               <ScrollArea className="h-[52vh] pr-2">

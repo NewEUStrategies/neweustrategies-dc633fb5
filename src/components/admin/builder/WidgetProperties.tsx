@@ -1000,13 +1000,10 @@ export function WidgetProperties({
 
           <section className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              {t("builder.widgetProps.dimensions", { defaultValue: "Wymiary widgetu" })}
+              {t("builder.widgetProps.dimensions")}
             </h4>
             <p className="text-[10px] text-muted-foreground -mt-1">
-              {t("builder.widgetProps.dimensionsHint", {
-                defaultValue:
-                  "Desktop jest wiodący. Na tabletach i telefonach wysokość dostosowuje się automatycznie do treści.",
-              })}
+              {t("builder.widgetProps.dimensionsHint")}
             </p>
             <WidgetHeightControl
               value={readDesktopHeight(widget.advanced?.height)}
@@ -1020,8 +1017,6 @@ export function WidgetProperties({
                 const r = typeof widget.content?.ratio === "string" ? widget.content.ratio : "";
                 if (!r || r === "auto") return undefined;
                 return t("builder.widgetProps.dimensionsRatioLock", {
-                  defaultValue:
-                    "Wysokość jest wyznaczana automatycznie przez proporcje obrazu ({{ratio}}). Usuń proporcje, aby ustawić własną wysokość.",
                   ratio: r,
                 });
               })()}
@@ -1143,19 +1138,17 @@ function WidgetHeightControl({
       >
         <div
           className="relative h-20 overflow-hidden rounded-md border border-border bg-muted/30 p-2"
-          aria-label={t("builder.widgetProps.dimensionsPreview", {
-            defaultValue: "Podgląd wysokości widgetu",
-          })}
+          aria-label={t("builder.widgetProps.dimensionsPreview")}
         >
           <div className="absolute inset-x-2 top-2 flex items-center justify-between text-[9px] text-muted-foreground">
-            <span>{t("builder.widgetProps.preview", { defaultValue: "Podgląd" })}</span>
+            <span>{t("builder.widgetProps.preview")}</span>
             <span className="inline-flex items-center gap-1 font-medium text-foreground">
               <MoveVertical className="size-3" />
               {typeof value === "number"
                 ? `${value}px`
                 : value === "auto"
-                  ? t("builder.widgetProps.dimensionsHug", { defaultValue: "Do treści" })
-                  : t("builder.widgetProps.dimensionsAuto", { defaultValue: "Automatyczna" })}
+                  ? t("builder.widgetProps.dimensionsHug")
+                  : t("builder.widgetProps.dimensionsAuto")}
             </span>
           </div>
           <div className="absolute inset-x-2 bottom-2 top-7 flex items-center justify-center border-x border-dashed border-brand/50">
@@ -1175,21 +1168,13 @@ function WidgetHeightControl({
         <div className="wp-seg" role="group">
           {(
             [
-              [
-                "auto",
-                t("builder.widgetProps.dimensionsAuto", { defaultValue: "Automatyczna" }),
-                undefined as DesktopHeight,
-              ],
+              ["auto", t("builder.widgetProps.dimensionsAuto"), undefined as DesktopHeight],
               [
                 "fixed",
-                t("builder.widgetProps.dimensionsFixed", { defaultValue: "Ustalona (px)" }),
+                t("builder.widgetProps.dimensionsFixed"),
                 typeof value === "number" ? value : 480,
               ],
-              [
-                "hug",
-                t("builder.widgetProps.dimensionsHug", { defaultValue: "Do treści" }),
-                "auto" as DesktopHeight,
-              ],
+              ["hug", t("builder.widgetProps.dimensionsHug"), "auto" as DesktopHeight],
             ] as const
           ).map(([key, label, target]) => {
             const active =
@@ -1204,11 +1189,7 @@ function WidgetHeightControl({
           })}
         </div>
         {typeof value === "number" && (
-          <PropField
-            label={t("builder.widgetProps.dimensionsDesktopPx", {
-              defaultValue: "Wysokość desktop (px)",
-            })}
-          >
+          <PropField label={t("builder.widgetProps.dimensionsDesktopPx")}>
             <div className="flex items-center gap-1">
               <Button
                 type="button"
@@ -1216,12 +1197,8 @@ function WidgetHeightControl({
                 size="icon"
                 className="size-8 shrink-0 rounded-md"
                 onClick={() => setFixedHeight(Number(numeric) - 10)}
-                aria-label={t("builder.widgetProps.decreaseHeight", {
-                  defaultValue: "Zmniejsz wysokość",
-                })}
-                title={t("builder.widgetProps.decreaseHeight", {
-                  defaultValue: "Zmniejsz wysokość",
-                })}
+                aria-label={t("builder.widgetProps.decreaseHeight")}
+                title={t("builder.widgetProps.decreaseHeight")}
               >
                 <Minus className="size-3.5" />
               </Button>
@@ -1250,12 +1227,8 @@ function WidgetHeightControl({
                 size="icon"
                 className="size-8 shrink-0 rounded-md"
                 onClick={() => setFixedHeight(Number(numeric) + 10)}
-                aria-label={t("builder.widgetProps.increaseHeight", {
-                  defaultValue: "Zwiększ wysokość",
-                })}
-                title={t("builder.widgetProps.increaseHeight", {
-                  defaultValue: "Zwiększ wysokość",
-                })}
+                aria-label={t("builder.widgetProps.increaseHeight")}
+                title={t("builder.widgetProps.increaseHeight")}
               >
                 <Plus className="size-3.5" />
               </Button>
@@ -1501,7 +1474,7 @@ export function WidgetContentFields({
   const authorSection = needsSharedAuthorControl(widget.type) ? (
     <section className="space-y-2 rounded-md border border-border/70 bg-muted/20 p-2">
       <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-        {t("builder.authorDisplay.section", { defaultValue: "Autor" })}
+        {t("builder.authorDisplay.section")}
       </h4>
       <AuthorDisplayControl
         c={c}

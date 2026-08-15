@@ -263,8 +263,8 @@ export function AttachmentFile({
                   ? "hover:bg-primary-foreground/20"
                   : "text-muted-foreground hover:bg-background hover:text-foreground",
               )}
-              aria-label={t("chat.preview.previewPdf", { defaultValue: "Podgląd" })}
-              title={t("chat.preview.previewPdf", { defaultValue: "Podgląd" })}
+              aria-label={t("chat.preview.previewPdf")}
+              title={t("chat.preview.previewPdf")}
             >
               <Eye className="h-3.5 w-3.5" aria-hidden />
             </button>

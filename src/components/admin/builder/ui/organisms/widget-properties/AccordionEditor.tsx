@@ -31,14 +31,12 @@ export function AccordionEditor({ c, lang, setContent }: Props) {
     const seeded: Item = {
       q_pl: t("builder.accordionEditor.defaultQuestion", {
         lng: "pl",
-        defaultValue: "Nowe pytanie",
       }),
       q_en: t("builder.accordionEditor.defaultQuestion", {
         lng: "en",
-        defaultValue: "New question",
       }),
-      a_pl: t("builder.accordionEditor.defaultAnswer", { lng: "pl", defaultValue: "Odpowiedź…" }),
-      a_en: t("builder.accordionEditor.defaultAnswer", { lng: "en", defaultValue: "Answer…" }),
+      a_pl: t("builder.accordionEditor.defaultAnswer", { lng: "pl" }),
+      a_en: t("builder.accordionEditor.defaultAnswer", { lng: "en" }),
     };
     update([...items, seeded]);
   };
@@ -46,27 +44,25 @@ export function AccordionEditor({ c, lang, setContent }: Props) {
   const variantOptions = [
     {
       value: "bordered",
-      label: t("builder.accordionEditor.variantBordered", { defaultValue: "Ramka" }),
+      label: t("builder.accordionEditor.variantBordered"),
     },
     {
       value: "separated",
-      label: t("builder.accordionEditor.variantSeparated", { defaultValue: "Osobne karty" }),
+      label: t("builder.accordionEditor.variantSeparated"),
     },
     {
       value: "minimal",
-      label: t("builder.accordionEditor.variantMinimal", { defaultValue: "Minimalny" }),
+      label: t("builder.accordionEditor.variantMinimal"),
     },
   ];
   return (
     <div className="space-y-3">
       <VariantPicker
-        label={t("builder.accordionEditor.variant", { defaultValue: "Wariant" })}
+        label={t("builder.accordionEditor.variant")}
         value={variant}
         options={variantOptions}
         onChange={(next) => setContent("variant", next)}
-        hint={t("builder.accordionEditor.variantHint", {
-          defaultValue: "Ramka, osobne karty albo same linie rozdzielające.",
-        })}
+        hint={t("builder.accordionEditor.variantHint")}
       />
       <ListShell title={t("builder.accordionEditor.title")} items={items} onAdd={addItem}>
         <div className="space-y-2">

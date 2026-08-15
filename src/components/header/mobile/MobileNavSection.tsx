@@ -4,6 +4,11 @@
 // Konfiguracja `NavItem` z super-admina jest zachowana jako fallback -
 // używana tylko wtedy, gdy admin celowo nie skonfigurował menu głównego.
 import { useEffect, useRef, type ComponentType } from "react";
+import { useTranslation } from "react-i18next";
+import { useLang } from "@/lib/i18n/useLang";
+import type { AppLang } from "@/lib/i18n/localePath";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
+import "@/lib/i18n-mobile-drawer";
 import { Link } from "@tanstack/react-router";
 import {
   Home,
@@ -53,13 +58,13 @@ const ICON_MAP: Record<NavIcon, ComponentType<{ className?: string }>> = {
 
 type Props = {
   items: NavItem[];
-  isPl: boolean;
   onNavigate: () => void;
   menuKey?: string;
 };
 
-export function MobileNavSection({ items, isPl, onNavigate, menuKey = "main" }: Props) {
-  const t = (pl: string, en: string) => (isPl ? pl : en);
+export function MobileNavSection({ items, onNavigate, menuKey = "main" }: Props) {
+  const { t } = useTranslation();
+  const lang = useLang();
   const wrapRef = useRef<HTMLElement | null>(null);
 
   // Zamknij szufladę po kliknięciu w link wewnątrz <SiteMenu mobile>.
@@ -77,16 +82,16 @@ export function MobileNavSection({ items, isPl, onNavigate, menuKey = "main" }: 
   return (
     <nav
       ref={wrapRef}
-      aria-label={t("Nawigacja", "Navigation")}
+      aria-label={t("mobileDrawer.navigation")}
       className="border-b border-border py-2"
     >
       <p className="px-4 pt-1 pb-2 text-[11px] font-bold tracking-wider uppercase text-muted-foreground">
-        {t("Nawigacja", "Navigation")}
+        {t("mobileDrawer.navigation")}
       </p>
       <div className="px-1 mobile-drawer-menu">
-        <SiteMenu menuKey={menuKey} lang={isPl ? "pl" : "en"} mobile />
+        <SiteMenu menuKey={menuKey} lang={lang} mobile />
       </div>
-      <MobileNavItemsFallback items={items} isPl={isPl} onNavigate={onNavigate} />
+      <MobileNavItemsFallback items={items} lang={lang} onNavigate={onNavigate} />
     </nav>
   );
 }
@@ -95,11 +100,11 @@ export function MobileNavSection({ items, isPl, onNavigate, menuKey = "main" }: 
 // Jeśli super-admin wyłączył wszystkie, znika bez śladu.
 function MobileNavItemsFallback({
   items,
-  isPl,
+  lang,
   onNavigate,
 }: {
   items: NavItem[];
-  isPl: boolean;
+  lang: AppLang;
   onNavigate: () => void;
 }) {
   const visible = items.filter((i) => i.enabled);
@@ -111,7 +116,7 @@ function MobileNavItemsFallback({
     <div className="mt-2">
       {visible.map((item) => {
         const Icon = ICON_MAP[item.icon] ?? LinkIcon;
-        const label = isPl ? item.label_pl : item.label_en;
+        const label = pickLocalized(item, "label", lang);
         const external = /^https?:\/\//.test(item.href);
         if (external) {
           return (

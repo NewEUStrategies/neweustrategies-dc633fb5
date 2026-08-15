@@ -38,16 +38,14 @@ export function LinkedSourceHeader({
           {preview}
           <div className="min-w-0">
             <div className="font-medium text-foreground">
-              {t("admin.linkedSource.label", { defaultValue: "Źródło" })}: {sourceLabel}
+              {t("admin.linkedSource.label")}: {sourceLabel}
             </div>
             {hasValue ? (
               <div className="text-muted-foreground truncate font-mono text-[11px]">
                 {sourceValue}
               </div>
             ) : (
-              <div className="text-muted-foreground">
-                {t("admin.linkedSource.empty", { defaultValue: "Brak wartości w źródle." })}
-              </div>
+              <div className="text-muted-foreground">{t("admin.linkedSource.empty")}</div>
             )}
           </div>
         </div>
@@ -55,7 +53,7 @@ export function LinkedSourceHeader({
           to={sourceHref}
           className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-[11px] font-medium text-foreground hover:bg-muted"
         >
-          {t("admin.linkedSource.manage", { defaultValue: "Zarządzaj" })}
+          {t("admin.linkedSource.manage")}
           <ExternalLink className="w-3 h-3" />
         </Link>
       </div>

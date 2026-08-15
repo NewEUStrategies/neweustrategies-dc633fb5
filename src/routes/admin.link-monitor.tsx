@@ -78,8 +78,6 @@ function LinkMonitor() {
       const result = await scan$({ data: { posts: 10 } });
       toast.success(
         t("admin.linkMonitor.scanDone", {
-          defaultValue:
-            "Przeskanowano {{posts}} wpisów, {{links}} linków, zepsutych: {{broken}}, migawek: {{archived}}",
           posts: result.postsScanned,
           links: result.linksChecked,
           broken: result.broken,
@@ -97,13 +95,9 @@ function LinkMonitor() {
   const copyArchive = async (url: string) => {
     try {
       await navigator.clipboard.writeText(url);
-      toast.success(
-        t("admin.linkMonitor.archiveCopied", { defaultValue: "Adres migawki skopiowany" }),
-      );
+      toast.success(t("admin.linkMonitor.archiveCopied"));
     } catch {
-      toast.error(
-        t("admin.linkMonitor.archiveCopyFailed", { defaultValue: "Nie udało się skopiować" }),
-      );
+      toast.error(t("admin.linkMonitor.archiveCopyFailed"));
     }
   };
 
@@ -113,7 +107,7 @@ function LinkMonitor() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="font-display text-xl inline-flex items-center gap-2">
             <Link2Off className="w-5 h-5 text-brand" aria-hidden="true" />
-            {t("admin.linkMonitor.title", { defaultValue: "Monitor linków wychodzących" })}
+            {t("admin.linkMonitor.title")}
           </h1>
           <Button size="sm" disabled={scanning} onClick={() => void scanNow()}>
             {scanning ? (
@@ -121,15 +115,10 @@ function LinkMonitor() {
             ) : (
               <RefreshCw className="w-4 h-4 mr-1.5" aria-hidden="true" />
             )}
-            {t("admin.linkMonitor.scanNow", { defaultValue: "Skanuj teraz (10 wpisów)" })}
+            {t("admin.linkMonitor.scanNow")}
           </Button>
         </div>
-        <p className="text-sm text-muted-foreground -mt-2">
-          {t("admin.linkMonitor.hint", {
-            defaultValue:
-              "Tło sprawdza rotacyjnie linki zewnętrzne opublikowanych wpisów (re-skan co 7 dni). Poniżej wyłącznie zepsute - z sugerowaną migawką Internet Archive do podmiany w przypisie.",
-          })}
-        </p>
+        <p className="text-sm text-muted-foreground -mt-2">{t("admin.linkMonitor.hint")}</p>
 
         {overThreshold && (
           <div
@@ -143,17 +132,11 @@ function LinkMonitor() {
             <div>
               <p className="font-medium">
                 {t("admin.linkMonitor.alertTitle", {
-                  defaultValue: "Przekroczony próg zepsutych linków ({{count}} ≥ {{threshold}})",
                   count: rows.length,
                   threshold: BROKEN_LINK_ALERT_THRESHOLD,
                 })}
               </p>
-              <p className="text-muted-foreground">
-                {t("admin.linkMonitor.alertBody", {
-                  defaultValue:
-                    "Administratorzy dostali powiadomienie. Podmień odnośniki na migawki archiwum - martwe przypisy podważają wiarygodność analiz i psują ocenę E-E-A-T.",
-                })}
-              </p>
+              <p className="text-muted-foreground">{t("admin.linkMonitor.alertBody")}</p>
             </div>
           </div>
         )}
@@ -162,21 +145,11 @@ function LinkMonitor() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="px-3 py-2">
-                  {t("admin.linkMonitor.colUrl", { defaultValue: "Link" })}
-                </th>
-                <th className="px-3 py-2">
-                  {t("admin.linkMonitor.colStatus", { defaultValue: "Status" })}
-                </th>
-                <th className="px-3 py-2">
-                  {t("admin.linkMonitor.colSuggestion", { defaultValue: "Sugerowana zamiana" })}
-                </th>
-                <th className="px-3 py-2">
-                  {t("admin.linkMonitor.colPost", { defaultValue: "Wpis" })}
-                </th>
-                <th className="px-3 py-2">
-                  {t("admin.linkMonitor.colChecked", { defaultValue: "Sprawdzono" })}
-                </th>
+                <th className="px-3 py-2">{t("admin.linkMonitor.colUrl")}</th>
+                <th className="px-3 py-2">{t("admin.linkMonitor.colStatus")}</th>
+                <th className="px-3 py-2">{t("admin.linkMonitor.colSuggestion")}</th>
+                <th className="px-3 py-2">{t("admin.linkMonitor.colPost")}</th>
+                <th className="px-3 py-2">{t("admin.linkMonitor.colChecked")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -215,23 +188,15 @@ function LinkMonitor() {
                               ? new Date(snapshotIso).toLocaleDateString(
                                   lang === "en" ? "en-GB" : "pl-PL",
                                 )
-                              : t("admin.linkMonitor.archiveSnapshot", {
-                                  defaultValue: "Migawka",
-                                })
-                            : t("admin.linkMonitor.archiveSearch", {
-                                defaultValue: "Szukaj migawki",
-                              })}
+                              : t("admin.linkMonitor.archiveSnapshot")
+                            : t("admin.linkMonitor.archiveSearch")}
                         </a>
                         <button
                           type="button"
                           onClick={() => void copyArchive(archiveHref)}
                           className="text-muted-foreground hover:text-foreground"
-                          title={t("admin.linkMonitor.archiveCopy", {
-                            defaultValue: "Skopiuj adres migawki",
-                          })}
-                          aria-label={t("admin.linkMonitor.archiveCopy", {
-                            defaultValue: "Skopiuj adres migawki",
-                          })}
+                          title={t("admin.linkMonitor.archiveCopy")}
+                          aria-label={t("admin.linkMonitor.archiveCopy")}
                         >
                           <Copy className="w-3.5 h-3.5" aria-hidden="true" />
                         </button>
@@ -261,9 +226,7 @@ function LinkMonitor() {
               {rows.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-3 py-6 text-center text-sm text-muted-foreground">
-                    {t("admin.linkMonitor.empty", {
-                      defaultValue: "Brak zepsutych linków - wszystko działa.",
-                    })}
+                    {t("admin.linkMonitor.empty")}
                   </td>
                 </tr>
               )}

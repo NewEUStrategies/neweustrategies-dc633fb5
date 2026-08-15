@@ -53,8 +53,8 @@ export function EditorLangSwitch({
   const { t } = useTranslation();
 
   const options: ReadonlyArray<{ lang: AppLang; flag: FlagCode; name: string }> = [
-    { lang: "pl", flag: "pl", name: t("common.lang.pl", "Polski") },
-    { lang: "en", flag: "gb", name: t("common.lang.en", "English") },
+    { lang: "pl", flag: "pl", name: t("common.lang.pl") },
+    { lang: "en", flag: "gb", name: t("common.lang.en") },
   ];
 
   const isLastActive = lang === "en";
@@ -63,7 +63,7 @@ export function EditorLangSwitch({
     <div
       className={`lang relative inline-flex p-[2px] rounded-[6px] border border-black/10 bg-[#f4f4f2] dark:border-white/10 dark:bg-[#27272a] ${className ?? ""}`}
       role="group"
-      aria-label={t("admin.language", "Język")}
+      aria-label={t("admin.language")}
     >
       <div
         className="lang__thumb absolute top-[2px] left-[2px] w-14 h-6 rounded-[6px] bg-white border border-black/[0.08] transition-transform duration-[340ms] ease-[cubic-bezier(.32,.72,0,1)] will-change-transform dark:bg-[#18181b] dark:border-white/[0.08]"

@@ -109,19 +109,19 @@ export function PostSettingsMetabox({
     {
       id: "toc",
       icon: ListOrdered,
-      label: t("admin.metabox.tabs.toc", { defaultValue: "Spis treści" }),
+      label: t("admin.metabox.tabs.toc"),
     },
     {
       id: "membership",
       icon: Lock,
-      label: t("admin.metabox.tabs.membership", { defaultValue: "Ochrona treści" }),
+      label: t("admin.metabox.tabs.membership"),
     },
     ...(showTakeaways
       ? [
           {
             id: "takeaways" as const,
             icon: ListChecks,
-            label: t("admin.metabox.tabs.takeaways", { defaultValue: "Dowiesz się…" }),
+            label: t("admin.metabox.tabs.takeaways"),
           },
         ]
       : []),
@@ -130,14 +130,8 @@ export function PostSettingsMetabox({
   return (
     <section className="rounded-xl border border-border bg-card overflow-hidden">
       <header className="px-4 py-3 border-b border-border bg-muted/30">
-        <h3 className="text-sm font-semibold">
-          {t("admin.metabox.title", { defaultValue: "Ustawienia strony" })}
-        </h3>
-        <p className="text-[11px] text-muted-foreground mt-0.5">
-          {t("admin.metabox.subtitle", {
-            defaultValue: "Nadpisania globalnych opcji tylko dla tego wpisu.",
-          })}
-        </p>
+        <h3 className="text-sm font-semibold">{t("admin.metabox.title")}</h3>
+        <p className="text-[11px] text-muted-foreground mt-0.5">{t("admin.metabox.subtitle")}</p>
       </header>
       <div className="grid grid-cols-[180px_minmax(0,1fr)] min-h-[280px]">
         {/* Sidebar tabs */}
@@ -251,11 +245,8 @@ function TocTab({
   return (
     <div className="space-y-4">
       <PanelHead
-        title={t("admin.metabox.toc.title", { defaultValue: "Spis treści (ToC)" })}
-        hint={t("admin.metabox.toc.hint", {
-          defaultValue:
-            "Dziedziczy z globalnych ustawień. Nadpisz tylko to, co ma być inne dla tego wpisu.",
-        })}
+        title={t("admin.metabox.toc.title")}
+        hint={t("admin.metabox.toc.hint")}
         globalHref="/admin/toc"
       />
 
@@ -268,7 +259,7 @@ function TocTab({
       />
 
       <RowOverride
-        label={t("admin.metabox.toc.enabled", { defaultValue: "Włącz ToC dla tego wpisu" })}
+        label={t("admin.metabox.toc.enabled")}
         globalValue={defaults.enabled ? "włączony" : "wyłączony"}
         overridden={value.enabled !== null && value.enabled !== undefined}
         onClear={() => patch({ enabled: null })}
@@ -306,7 +297,7 @@ function TocTab({
       </RowOverride>
 
       <RowOverride
-        label={t("admin.metabox.toc.layout", { defaultValue: "Wygląd karty" })}
+        label={t("admin.metabox.toc.layout")}
         globalValue={defaults.layout}
         overridden={!!value.layout}
         onClear={() => patch({ layout: null })}
@@ -377,9 +368,7 @@ function TocTab({
       </div>
 
       <RowOverride
-        label={t("admin.metabox.toc.position", {
-          defaultValue: "Pozycja (po ilu akapitach)",
-        })}
+        label={t("admin.metabox.toc.position")}
         globalValue={String(defaults.position)}
         overridden={value.position !== null && value.position !== undefined}
         onClear={() => patch({ position: null })}
@@ -395,7 +384,7 @@ function TocTab({
       </RowOverride>
 
       <RowOverride
-        label={t("admin.metabox.toc.sticky", { defaultValue: "Sticky przy scrollu" })}
+        label={t("admin.metabox.toc.sticky")}
         globalValue={defaults.sticky ? "włączony" : "wyłączony"}
         overridden={value.sticky !== null && value.sticky !== undefined}
         onClear={() => patch({ sticky: null })}
@@ -407,9 +396,7 @@ function TocTab({
       </RowOverride>
 
       <RowOverride
-        label={t("admin.metabox.toc.showInBody", {
-          defaultValue: "Pokaż ToC w treści (pod przyciskiem odsłuchu)",
-        })}
+        label={t("admin.metabox.toc.showInBody")}
         globalValue={defaults.showInBody ? "widoczny" : "tylko sidebar"}
         overridden={value.showInBody !== null && value.showInBody !== undefined}
         onClear={() => patch({ showInBody: null })}
@@ -426,9 +413,7 @@ function TocTab({
           onClick={() => onChange(null)}
           className="text-xs text-muted-foreground hover:text-foreground underline"
         >
-          {t("admin.metabox.toc.resetAll", {
-            defaultValue: "Przywróć wszystkie ustawienia globalne",
-          })}
+          {t("admin.metabox.toc.resetAll")}
         </button>
       )}
     </div>
@@ -550,15 +535,11 @@ export function TakeawaysTab({
   return (
     <div className="space-y-4">
       <PanelHead
-        title={t("admin.metabox.takeaways.title", {
-          defaultValue: "Z tego materiału dowiesz się, że…",
-        })}
+        title={t("admin.metabox.takeaways.title")}
         hint={t("admin.metabox.takeaways.hint", {
           max: MAX_TAKEAWAYS,
           min: RECOMMENDED_MIN,
           rec: RECOMMENDED_MAX,
-          defaultValue:
-            "Max {{max}} punktów. Rekomendacja: jedno zdanie = jedna myśl, ok. {{min}}-{{rec}} znaków ze spacjami na punkt (limit można przekroczyć).",
         })}
         globalHref="/admin/key-takeaways"
       />
@@ -568,10 +549,10 @@ export function TakeawaysTab({
         <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
           <div className="flex items-baseline justify-between gap-2">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              {t("admin.metabox.takeaways.variant.legend", { defaultValue: "Wariant wizualny" })}
+              {t("admin.metabox.takeaways.variant.legend")}
             </span>
             <span className="text-[10px] text-muted-foreground">
-              {t("admin.metabox.takeaways.variant.globalPrefix", { defaultValue: "Globalny:" })}{" "}
+              {t("admin.metabox.takeaways.variant.globalPrefix")}{" "}
               <span className="font-mono">{ktSettings.variant}</span>
             </span>
           </div>
@@ -580,29 +561,23 @@ export function TakeawaysTab({
               [
                 {
                   id: null,
-                  label: t("admin.metabox.takeaways.variant.inheritLabel", {
-                    defaultValue: "Globalny",
-                  }),
-                  desc: t("admin.metabox.takeaways.variant.inheritDesc", {
-                    defaultValue: "Użyj ustawienia globalnego",
-                  }),
+                  label: t("admin.metabox.takeaways.variant.inheritLabel"),
+                  desc: t("admin.metabox.takeaways.variant.inheritDesc"),
                 },
                 {
                   id: "card",
                   label: "A",
-                  desc: t("admin.metabox.takeaways.variant.card", { defaultValue: "Karta" }),
+                  desc: t("admin.metabox.takeaways.variant.card"),
                 },
                 {
                   id: "heading",
                   label: "B",
-                  desc: t("admin.metabox.takeaways.variant.heading", {
-                    defaultValue: "Nagłówek + kropki",
-                  }),
+                  desc: t("admin.metabox.takeaways.variant.heading"),
                 },
                 {
                   id: "ghost",
                   label: "C",
-                  desc: t("admin.metabox.takeaways.variant.ghost", { defaultValue: "Ghost" }),
+                  desc: t("admin.metabox.takeaways.variant.ghost"),
                 },
               ] as const
             ).map((opt) => {
@@ -642,9 +617,7 @@ export function TakeawaysTab({
       </Tabs>
 
       {current.length === 0 ? (
-        <p className="text-xs text-muted-foreground italic">
-          {t("post.takeaways.empty", { defaultValue: "Brak punktów dla tego języka." })}
-        </p>
+        <p className="text-xs text-muted-foreground italic">{t("post.takeaways.empty")}</p>
       ) : (
         <ul className="space-y-3">
           {current.map((bullet, i) => (
@@ -666,21 +639,17 @@ export function TakeawaysTab({
         onClick={add}
         disabled={current.length >= MAX_TAKEAWAYS}
       >
-        + {t("post.takeaways.add", { defaultValue: "Dodaj punkt" })}
+        + {t("post.takeaways.add")}
       </Button>
 
       {/* --- Live PL/EN visualisation --- */}
       <div className="pt-4 mt-2 border-t border-border space-y-3">
         <div className="flex items-center justify-between gap-2">
           <h5 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            {t("admin.metabox.takeaways.preview.title", {
-              defaultValue: "Podgląd na żywo (obie wersje językowe)",
-            })}
+            {t("admin.metabox.takeaways.preview.title")}
           </h5>
           <span className="text-[10px] text-muted-foreground">
-            {t("admin.metabox.takeaways.preview.activeVariant", {
-              defaultValue: "Aktywny wariant:",
-            })}{" "}
+            {t("admin.metabox.takeaways.preview.activeVariant")}{" "}
             <span className="font-mono">{effectiveVariant}</span>
             {variantOverride && (
               <span className="ml-1 rounded bg-primary/15 px-1 py-0.5 text-[9px] font-semibold uppercase text-primary">
@@ -692,10 +661,7 @@ export function TakeawaysTab({
 
         {!hasAnyContent ? (
           <div className="rounded-lg border border-dashed border-border bg-muted/20 px-3 py-6 text-center text-xs text-muted-foreground italic">
-            {t("admin.metabox.takeaways.preview.empty", {
-              defaultValue:
-                "Dodaj przynajmniej jeden punkt (PL lub EN), aby zobaczyć podgląd sekcji.",
-            })}
+            {t("admin.metabox.takeaways.preview.empty")}
           </div>
         ) : (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
@@ -808,12 +774,9 @@ function TakeawayRow({
     empty: "",
     short: t("admin.metabox.takeaways.row.tooShort", {
       min: RECOMMENDED_MIN,
-      defaultValue: "Za krótkie - dodaj kontekst (min. {{min}} znaków)",
     }),
-    ok: t("admin.metabox.takeaways.row.ok", { defaultValue: "Dobra długość" }),
-    long: t("admin.metabox.takeaways.row.tooLong", {
-      defaultValue: "Powyżej rekomendacji - dopuszczalne, ale krótsze zdanie działa lepiej",
-    }),
+    ok: t("admin.metabox.takeaways.row.ok"),
+    long: t("admin.metabox.takeaways.row.tooLong"),
   }[status];
 
   return (
@@ -826,9 +789,7 @@ function TakeawayRow({
           value={value}
           rows={2}
           maxLength={MAX_TAKEAWAY_LEN}
-          placeholder={t("admin.metabox.takeaways.row.placeholder", {
-            defaultValue: "Jedno zdanie, jedna myśl...",
-          })}
+          placeholder={t("admin.metabox.takeaways.row.placeholder")}
           onChange={(e) => onChange(e.target.value)}
         />
         <div className={cn("mt-1 text-[10px] flex justify-between gap-2", statusColor)}>
@@ -839,7 +800,6 @@ function TakeawayRow({
               max: MAX_TAKEAWAY_LEN,
               min: RECOMMENDED_MIN,
               rec: RECOMMENDED_MAX,
-              defaultValue: "{{len}}/{{max}} znaków ze spacjami · rekom. {{min}}-{{rec}}",
             })}
           </span>
         </div>
@@ -849,7 +809,7 @@ function TakeawayRow({
         variant="ghost"
         size="sm"
         onClick={onRemove}
-        aria-label={t("admin.metabox.takeaways.row.remove", { defaultValue: "Usuń punkt" })}
+        aria-label={t("admin.metabox.takeaways.row.remove")}
       >
         <Trash2 className="w-4 h-4 text-destructive" />
       </Button>

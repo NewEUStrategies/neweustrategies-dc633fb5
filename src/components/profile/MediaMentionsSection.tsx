@@ -5,6 +5,12 @@
 // filtruje `is_public=true` osobną politykę.
 import { useCallback, useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
+// Własna nakładka słownika. Komponent wołał `profile.mediaMentions.*`, nie
+// deklarując, skąd te klucze pochodzą - działało wyłącznie dlatego, że nakładkę
+// wciągała po drodze trasa profilu. Rejestracja jest idempotentna i dokłada
+// wyłącznie brakujące klucze, więc jawny import kosztuje tyle co nic, a zamienia
+// zależność dorozumianą (kolejność importów) w zadeklarowaną.
+import "@/lib/i18n-profile";
 import { toast } from "sonner";
 import {
   Plus,
@@ -136,7 +142,7 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
         toast.error(error.message);
         return;
       }
-      toast.success(t("profile.author.media.removed", { defaultValue: "Usunięto wpis medialny" }));
+      toast.success(t("profile.author.media.removed"));
     }
     setRows((prev) => prev.filter((_, i) => i !== idx));
   };
@@ -145,11 +151,7 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
     const row = rows[idx];
     if (!row) return;
     if (!row.outlet.trim() || !row.title.trim() || !row.published_on) {
-      toast.error(
-        t("profile.author.media.validation", {
-          defaultValue: "Wypełnij tytuł, wydawcę i datę.",
-        }),
-      );
+      toast.error(t("profile.author.media.validation"));
       return;
     }
     setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, _saving: true } : r)));
@@ -174,7 +176,7 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
       setRows((prev) =>
         prev.map((r, i) => (i === idx ? { ...r, _dirty: false, _saving: false } : r)),
       );
-      toast.success(t("profile.author.media.saved", { defaultValue: "Zapisano" }));
+      toast.success(t("profile.author.media.saved"));
     } else {
       const { data, error } = await supabase
         .from("media_mentions")
@@ -191,7 +193,7 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
           i === idx ? { ...r, id: data.id as string, _dirty: false, _saving: false } : r,
         ),
       );
-      toast.success(t("profile.author.media.added", { defaultValue: "Dodano wpis medialny" }));
+      toast.success(t("profile.author.media.added"));
     }
   };
 
@@ -200,33 +202,21 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-foreground/80">
-            {t("profile.author.media.heading", {
-              defaultValue: "Obecność w mediach, materiały zewnętrzne, podcasty",
-            })}
+            {t("profile.author.media.heading")}
           </h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {t("profile.author.media.hint", {
-              defaultValue:
-                "Dodawaj linki do wywiadów, wystąpień, op-edów i podcastów, w których się pojawiasz. Publiczne wpisy pokażą się na Twoim profilu eksperta w sekcji „W mediach”.",
-            })}
-          </p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{t("profile.author.media.hint")}</p>
         </div>
         <Button type="button" size="sm" variant="outline" onClick={addRow}>
           <Plus className="mr-1 h-4 w-4" />
-          {t("common.add", { defaultValue: "Dodaj" })}
+          {t("common.add")}
         </Button>
       </div>
 
       {loading ? (
-        <p className="text-xs text-muted-foreground">
-          {t("common.loading", { defaultValue: "Ładowanie..." })}
-        </p>
+        <p className="text-xs text-muted-foreground">{t("common.loading")}</p>
       ) : rows.length === 0 ? (
         <p className="rounded-md border border-dashed border-border/70 px-4 py-6 text-center text-xs text-muted-foreground">
-          {t("profile.author.media.empty", {
-            defaultValue:
-              "Nie masz jeszcze dodanych wystąpień medialnych. Kliknij „Dodaj” i wklej link do wywiadu, op-eda lub podcastu.",
-          })}
+          {t("profile.author.media.empty")}
         </p>
       ) : (
         <ul className="grid gap-3">
@@ -245,7 +235,7 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor={idFor("kind")} className="text-[11px] text-muted-foreground">
-                      {t("profile.author.media.kind", { defaultValue: "Rodzaj" })}
+                      {t("profile.author.media.kind")}
                     </Label>
                     <Select value={row.kind} onValueChange={(v) => patch(idx, { kind: v as Kind })}>
                       <SelectTrigger id={idFor("kind")} className="h-9">
@@ -265,7 +255,7 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
                       htmlFor={idFor("publishedOn")}
                       className="text-[11px] text-muted-foreground"
                     >
-                      {t("profile.author.media.publishedOn", { defaultValue: "Data publikacji" })}
+                      {t("profile.author.media.publishedOn")}
                     </Label>
                     <Input
                       id={idFor("publishedOn")}
@@ -278,9 +268,7 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <div className="grid gap-2">
                     <Label htmlFor={idFor("outlet")} className="text-[11px] text-muted-foreground">
-                      {t("profile.author.media.outlet", {
-                        defaultValue: "Wydawca / stacja / podcast",
-                      })}
+                      {t("profile.author.media.outlet")}
                     </Label>
                     <Input
                       id={idFor("outlet")}
@@ -295,9 +283,7 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
                       htmlFor={idFor("language")}
                       className="text-[11px] text-muted-foreground"
                     >
-                      {t("profile.author.media.language", {
-                        defaultValue: "Język (opcjonalnie)",
-                      })}
+                      {t("profile.author.media.language")}
                     </Label>
                     <Input
                       id={idFor("language")}
@@ -309,13 +295,11 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
                   </div>
                   <div className="grid gap-2 sm:col-span-2">
                     <Label htmlFor={idFor("title")} className="text-[11px] text-muted-foreground">
-                      {t("profile.author.media.title", { defaultValue: "Tytuł materiału" })}
+                      {t("profile.author.media.title")}
                     </Label>
                     <Input
                       id={idFor("title")}
-                      placeholder={t("profile.author.media.titlePlaceholder", {
-                        defaultValue: "np. Wywiad o polityce bezpieczeństwa UE",
-                      })}
+                      placeholder={t("profile.author.media.titlePlaceholder")}
                       value={row.title}
                       maxLength={300}
                       onChange={(e) => patch(idx, { title: e.target.value })}
@@ -327,7 +311,7 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
                       className="text-[11px] text-muted-foreground inline-flex items-center gap-1"
                     >
                       <ExternalLink className="h-3 w-3" aria-hidden />
-                      {t("profile.author.media.url", { defaultValue: "Link (URL)" })}
+                      {t("profile.author.media.url")}
                     </Label>
                     <Input
                       id={idFor("url")}
@@ -344,9 +328,7 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
                         className="text-[11px] text-muted-foreground inline-flex items-center gap-1"
                       >
                         <ImageIcon className="h-3 w-3" aria-hidden />
-                        {t("profile.author.media.cover", {
-                          defaultValue: "Okładka - URL obrazu (opcjonalnie)",
-                        })}
+                        {t("profile.author.media.cover")}
                       </Label>
                       <div className="grid gap-2 sm:grid-cols-[96px_1fr] sm:items-start">
                         {row.cover_url?.trim() ? (
@@ -379,9 +361,7 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
                       onCheckedChange={(v) => patch(idx, { is_public: v })}
                     />
                     <span className="text-muted-foreground">
-                      {t("profile.author.media.isPublic", {
-                        defaultValue: "Widoczne na profilu publicznym",
-                      })}
+                      {t("profile.author.media.isPublic")}
                     </span>
                   </label>
                   <div className="flex items-center gap-2">
@@ -393,7 +373,7 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
                       disabled={row._saving}
                     >
                       <Trash2 className="mr-1 h-4 w-4 text-destructive" />
-                      {t("common.remove", { defaultValue: "Usuń" })}
+                      {t("common.remove")}
                     </Button>
                     <Button
                       type="button"
@@ -403,10 +383,10 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
                     >
                       <Save className="mr-1 h-4 w-4" />
                       {row._saving
-                        ? t("common.saving", { defaultValue: "Zapisuję..." })
+                        ? t("common.saving")
                         : isNew
-                          ? t("common.add", { defaultValue: "Dodaj" })
-                          : t("common.save", { defaultValue: "Zapisz" })}
+                          ? t("common.add")
+                          : t("common.save")}
                     </Button>
                   </div>
                 </div>

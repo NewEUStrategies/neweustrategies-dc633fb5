@@ -69,49 +69,26 @@ export function PostSettingsCard({
   );
 
   return (
-    <SidebarSection
-      title={t("admin.posts.settingsCard", { defaultValue: "Ustawienia wpisu" })}
-      icon={SettingsIcon}
-    >
+    <SidebarSection title={t("admin.posts.settingsCard")} icon={SettingsIcon}>
       {workflowSection}
-      <SidebarSection
-        title={t("admin.posts.editorAdvanced", { defaultValue: "Zaawansowane: typ edytora" })}
-        icon={Layers}
-        defaultOpen={false}
-      >
+      <SidebarSection title={t("admin.posts.editorAdvanced")} icon={Layers} defaultOpen={false}>
         <p className="text-[11px] text-muted-foreground -mt-1">
-          {t("admin.posts.editorAdvancedHint", {
-            defaultValue:
-              "Domyślnie używany jest edytor blokowy. Zmień tylko jeśli wiesz, czego potrzebujesz.",
-          })}
+          {t("admin.posts.editorAdvancedHint")}
         </p>
         <div>
           <Label className="inline-flex items-center gap-1">
             {t("admin.posts.editor")}
-            <InfoHint
-              text={t("admin.posts.editorHint", {
-                defaultValue:
-                  "Bloki = zalecany edytor. Visual Builder = układ przeciągnij-i-upuść. Rich text / Markdown = starsze tryby tekstowe.",
-              })}
-            />
+            <InfoHint text={t("admin.posts.editorHint")} />
           </Label>
           <Select value={form.editor} onValueChange={(v) => set("editor", v as EditorType)}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="blocks">
-                {t("admin.posts.editorBlocks", { defaultValue: "Block editor (zalecane)" })}
-              </SelectItem>
-              <SelectItem value="builder">
-                {t("admin.posts.editorBuilder", { defaultValue: "Visual Builder (Elementor)" })}
-              </SelectItem>
-              <SelectItem value="richtext">
-                {t("admin.posts.editorRichtext", { defaultValue: "Rich text (legacy)" })}
-              </SelectItem>
-              <SelectItem value="markdown">
-                {t("admin.posts.editorMarkdown", { defaultValue: "Markdown (legacy)" })}
-              </SelectItem>
+              <SelectItem value="blocks">{t("admin.posts.editorBlocks")}</SelectItem>
+              <SelectItem value="builder">{t("admin.posts.editorBuilder")}</SelectItem>
+              <SelectItem value="richtext">{t("admin.posts.editorRichtext")}</SelectItem>
+              <SelectItem value="markdown">{t("admin.posts.editorMarkdown")}</SelectItem>
             </SelectContent>
           </Select>
           {form.editor !== "blocks" && (
@@ -125,7 +102,6 @@ export function PostSettingsCard({
                   const res = await migrate$({ data: { id: form.id } });
                   toast.success(
                     t("admin.posts.migrateOk", {
-                      defaultValue: "Skonwertowano na bloki (źródło: {{src}})",
                       src: res.source,
                     }),
                   );
@@ -137,7 +113,7 @@ export function PostSettingsCard({
                 }
               }}
             >
-              {t("admin.posts.migrateToBlocks", { defaultValue: "Konwertuj na bloki" })}
+              {t("admin.posts.migrateToBlocks")}
             </Button>
           )}
         </div>
@@ -145,12 +121,7 @@ export function PostSettingsCard({
       <div>
         <Label className="inline-flex items-center gap-1">
           Slug
-          <InfoHint
-            text={t("admin.posts.slugHint", {
-              defaultValue:
-                "Część adresu URL wpisu. Zmiana slug zmienia link; przy kolizji serwer dopisze sufiks.",
-            })}
-          />
+          <InfoHint text={t("admin.posts.slugHint")} />
         </Label>
         <Input
           value={form.slug}
@@ -162,20 +133,15 @@ export function PostSettingsCard({
       </div>
       <div>
         <Label className="inline-flex items-center gap-1">
-          {t("admin.posts.parentLabel", { defaultValue: "Strona nadrzędna" })}
-          <InfoHint
-            text={t("admin.posts.parentHint", {
-              defaultValue:
-                "Umieszcza wpis w ścieżce URL wybranej strony i wpływa na nawigację/breadcrumbs.",
-            })}
-          />
+          {t("admin.posts.parentLabel")}
+          <InfoHint text={t("admin.posts.parentHint")} />
         </Label>
         <PageParentSelect
           tenantId={data.tenantId}
           value={form.parent_page_id}
           onChange={(v) => v && set("parent_page_id", v)}
           label=""
-          noneLabel={t("admin.posts.parentNone", { defaultValue: "- wybierz stronę -" })}
+          noneLabel={t("admin.posts.parentNone")}
         />
       </div>
       <div>
@@ -184,14 +150,13 @@ export function PostSettingsCard({
           type="number"
           value={form.read_minutes ?? ""}
           onChange={(e) => set("read_minutes", e.target.value ? Number(e.target.value) : null)}
-          placeholder={t("admin.posts.readMinutesAuto", { defaultValue: "auto" })}
+          placeholder={t("admin.posts.readMinutesAuto")}
         />
         {/* Symultaniczny podgląd automatu dla OBU wersji językowych, liczony
             tym samym rdzeniem i ustawieniami co strona publiczna
             (/admin/reading-time). Puste pole = czytelnik dostaje automat. */}
         <p className="mt-1 text-xs text-muted-foreground">
           {t("admin.posts.readMinutesHint", {
-            defaultValue: "Auto: PL {{pl}} min · EN {{en}} min. Puste pole = automat.",
             pl: autoReadMinutes.pl.minutes,
             en: autoReadMinutes.en.minutes,
           })}

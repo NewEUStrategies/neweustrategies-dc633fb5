@@ -5,6 +5,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { uiLang } from "@/lib/i18n/format";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-mobile-drawer";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -79,10 +80,8 @@ const SECTION_LABELS: Record<
 function MobileDrawerEditor() {
   const navigate = useNavigate();
   const { isSuperAdmin, loading } = useAuth();
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const uiLanguage = uiLang(i18n.language);
-  const isPl = uiLanguage === "pl";
-  const t = (pl: string, en: string) => (isPl ? pl : en);
 
   useEffect(() => {
     if (!loading && !isSuperAdmin) navigate({ to: "/admin" });
@@ -130,7 +129,7 @@ function MobileDrawerEditor() {
         ...cfg.nav_items,
         {
           id,
-          label_pl: t("Nowa pozycja", "New item"),
+          label_pl: t("mobileDrawer.admin.newItem"),
           label_en: "New item",
           href: "/",
           icon: "link",
@@ -164,11 +163,11 @@ function MobileDrawerEditor() {
       const saved = await upsert({ data: parsed.data });
       setConfig(saved);
       queryClient.setQueryData(mobileDrawerConfigQueryOptions.queryKey, saved);
-      setMessage({ kind: "ok", text: t("Zapisano.", "Saved.") });
+      setMessage({ kind: "ok", text: t("mobileDrawer.admin.saved") });
     } catch (e) {
       setMessage({
         kind: "err",
-        text: e instanceof Error ? e.message : t("Błąd zapisu", "Save error"),
+        text: e instanceof Error ? e.message : t("mobileDrawer.admin.saveError"),
       });
     } finally {
       setSaving(false);
@@ -179,22 +178,17 @@ function MobileDrawerEditor() {
     <div className="space-y-8">
       <header className="space-y-1">
         <p className="text-xs font-bold tracking-wider uppercase text-muted-foreground">
-          {t("Super-admin", "Super-admin")}
+          {t("mobileDrawer.admin.badge")}
         </p>
-        <h1 className="text-2xl font-bold">{t("Mobilne menu", "Mobile menu")}</h1>
-        <p className="text-sm text-muted-foreground">
-          {t(
-            "Uporządkuj bloki mobilnego drawera i zdefiniuj pozycje nawigacji.",
-            "Reorder mobile drawer blocks and define navigation items.",
-          )}
-        </p>
+        <h1 className="text-2xl font-bold">{t("mobileDrawer.admin.title")}</h1>
+        <p className="text-sm text-muted-foreground">{t("mobileDrawer.admin.subtitle")}</p>
       </header>
 
       {/* Section order */}
       <section className="rounded-lg border border-border bg-card">
         <div className="p-4 border-b border-border">
           <h2 className="text-sm font-bold uppercase tracking-wider">
-            {t("Kolejność bloków", "Block order")}
+            {t("mobileDrawer.admin.blockOrder")}
           </h2>
         </div>
         <DndContext
@@ -217,7 +211,7 @@ function MobileDrawerEditor() {
         </DndContext>
         {DRAWER_SECTIONS.some((s) => !config.section_order.includes(s)) && (
           <div className="p-3 border-t border-border bg-muted/30 text-xs">
-            {t("Brakujące bloki: ", "Missing blocks: ")}
+            {t("mobileDrawer.admin.missingBlocks")}
             {DRAWER_SECTIONS.filter((s) => !config.section_order.includes(s)).map((s) => (
               <button
                 key={s}
@@ -238,7 +232,7 @@ function MobileDrawerEditor() {
       <section className="rounded-lg border border-border bg-card">
         <div className="p-4 border-b border-border">
           <h2 className="text-sm font-bold uppercase tracking-wider">
-            {t("Górny pas narzędzi", "Top tools")}
+            {t("mobileDrawer.admin.topTools")}
           </h2>
         </div>
         <div className="p-4 flex flex-wrap gap-4">
@@ -254,9 +248,9 @@ function MobileDrawerEditor() {
                   }))
                 }
               />
-              {key === "search" && t("Wyszukiwarka", "Search")}
-              {key === "theme" && t("Motyw", "Theme")}
-              {key === "language" && t("Język", "Language")}
+              {key === "search" && t("mobileDrawer.admin.toolSearch")}
+              {key === "theme" && t("mobileDrawer.admin.toolTheme")}
+              {key === "language" && t("mobileDrawer.admin.toolLanguage")}
             </label>
           ))}
         </div>
@@ -266,7 +260,7 @@ function MobileDrawerEditor() {
       <section className="rounded-lg border border-border bg-card">
         <div className="p-4 border-b border-border flex items-center justify-between">
           <h2 className="text-sm font-bold uppercase tracking-wider">
-            {t("Pozycje nawigacji", "Navigation items")}
+            {t("mobileDrawer.admin.navItems")}
           </h2>
           <button
             type="button"
@@ -275,15 +269,12 @@ function MobileDrawerEditor() {
             className="inline-flex items-center gap-1 h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition disabled:opacity-50"
           >
             <Plus className="w-3.5 h-3.5" />
-            {t("Dodaj", "Add")}
+            {t("mobileDrawer.admin.add")}
           </button>
         </div>
         {config.nav_items.length === 0 ? (
           <div className="p-6 text-center text-sm text-muted-foreground">
-            {t(
-              "Brak pozycji - sekcja nawigacji nie pokaże się w drawerze.",
-              "No items - the navigation section will be hidden in the drawer.",
-            )}
+            {t("mobileDrawer.admin.navEmpty")}
           </div>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onNavDragEnd}>
@@ -298,7 +289,6 @@ function MobileDrawerEditor() {
                     item={item}
                     onChange={(patch) => updateNavItem(item.id, patch)}
                     onRemove={() => removeNavItem(item.id)}
-                    isPl={isPl}
                   />
                 ))}
               </ul>
@@ -316,14 +306,14 @@ function MobileDrawerEditor() {
           className="inline-flex items-center gap-2 h-10 px-4 rounded-md bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition disabled:opacity-50"
         >
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          {t("Zapisz", "Save")}
+          {t("mobileDrawer.admin.save")}
         </button>
         <button
           type="button"
           onClick={resetDefaults}
           className="inline-flex items-center gap-2 h-10 px-4 rounded-md border border-border text-sm hover:bg-muted transition"
         >
-          {t("Przywróć domyślne", "Reset to defaults")}
+          {t("mobileDrawer.admin.resetDefaults")}
         </button>
         {message && (
           <span
@@ -378,12 +368,10 @@ function SortableNavRow({
   item,
   onChange,
   onRemove,
-  isPl,
 }: {
   item: NavItem;
   onChange: (patch: Partial<NavItem>) => void;
   onRemove: () => void;
-  isPl: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id,
@@ -393,7 +381,7 @@ function SortableNavRow({
     transition,
     opacity: isDragging ? 0.6 : 1,
   };
-  const t = (pl: string, en: string) => (isPl ? pl : en);
+  const { t } = useTranslation();
   const inputCls =
     "w-full h-9 px-2 rounded-md border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring";
   return (
@@ -410,7 +398,7 @@ function SortableNavRow({
         </button>
         <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
           <label className="text-xs">
-            {t("Etykieta PL", "Label PL")}
+            {t("mobileDrawer.admin.labelPl")}
             <input
               className={inputCls}
               value={item.label_pl}
@@ -419,7 +407,7 @@ function SortableNavRow({
             />
           </label>
           <label className="text-xs">
-            {t("Etykieta EN", "Label EN")}
+            {t("mobileDrawer.admin.labelEn")}
             <input
               className={inputCls}
               value={item.label_en}
@@ -428,7 +416,7 @@ function SortableNavRow({
             />
           </label>
           <label className="text-xs md:col-span-2">
-            {t("URL (/ ścieżka lub https://...)", "URL (/path or https://...)")}
+            {t("mobileDrawer.admin.url")}
             <input
               className={inputCls}
               value={item.href}
@@ -438,7 +426,7 @@ function SortableNavRow({
             />
           </label>
           <label className="text-xs">
-            {t("Ikona", "Icon")}
+            {t("mobileDrawer.admin.icon")}
             <select
               className={inputCls}
               value={item.icon}
@@ -457,13 +445,13 @@ function SortableNavRow({
               checked={item.enabled}
               onChange={(e) => onChange({ enabled: e.target.checked })}
             />
-            {t("Aktywny", "Enabled")}
+            {t("mobileDrawer.admin.enabled")}
           </label>
         </div>
         <button
           type="button"
           onClick={onRemove}
-          aria-label={t("Usuń", "Remove")}
+          aria-label={t("mobileDrawer.admin.remove")}
           className="mt-1 inline-flex items-center justify-center h-8 w-8 rounded-md border border-border text-destructive hover:bg-destructive/10 transition"
         >
           <Trash2 className="w-4 h-4" />

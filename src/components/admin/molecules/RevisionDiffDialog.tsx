@@ -45,14 +45,14 @@ function FieldDiffView({ diff }: { diff: FieldDiff }) {
             </p>
           ) : (
             <p className="text-muted-foreground italic">
-              {t("adminPostPanes.revisionDiff.emptyValue", { defaultValue: "(puste)" })}
+              {t("adminPostPanes.revisionDiff.emptyValue")}
             </p>
           )}
           {diff.after ? (
             <p className="rounded bg-emerald-500/10 px-2 py-1 break-words">{diff.after}</p>
           ) : (
             <p className="text-muted-foreground italic">
-              {t("adminPostPanes.revisionDiff.emptyValue", { defaultValue: "(puste)" })}
+              {t("adminPostPanes.revisionDiff.emptyValue")}
             </p>
           )}
         </div>
@@ -63,7 +63,6 @@ function FieldDiffView({ diff }: { diff: FieldDiff }) {
               <p key={i} className="px-2 py-0.5 text-center text-muted-foreground select-none">
                 ···{" "}
                 {t("adminPostPanes.revisionDiff.unchanged", {
-                  defaultValue: "{{count}} linii bez zmian",
                   count: line.gap,
                 })}{" "}
                 ···
@@ -133,13 +132,10 @@ export function RevisionDiffDialog({
     <Dialog open={!!request} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
-          <DialogTitle>
-            {t("adminPostPanes.revisionDiff.title", { defaultValue: "Porównanie rewizji" })}
-          </DialogTitle>
+          <DialogTitle>{t("adminPostPanes.revisionDiff.title")}</DialogTitle>
           <DialogDescription>
             {request
               ? t("adminPostPanes.revisionDiff.subtitle", {
-                  defaultValue: "{{before}} → {{after}}",
                   before: request.beforeLabel,
                   after: request.afterLabel,
                 })
@@ -150,21 +146,15 @@ export function RevisionDiffDialog({
           {q.isLoading ? (
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-              {t("adminPostPanes.revisionDiff.loading", { defaultValue: "Porównuję rewizje..." })}
+              {t("adminPostPanes.revisionDiff.loading")}
             </p>
           ) : q.isError ? (
-            <p className="text-sm text-destructive">
-              {t("adminPostPanes.revisionDiff.error", {
-                defaultValue: "Nie udało się porównać rewizji.",
-              })}
-            </p>
+            <p className="text-sm text-destructive">{t("adminPostPanes.revisionDiff.error")}</p>
           ) : q.data && q.data.length > 0 ? (
             q.data.map((diff) => <FieldDiffView key={diff.field} diff={diff} />)
           ) : (
             <p className="text-sm text-muted-foreground">
-              {t("adminPostPanes.revisionDiff.noChanges", {
-                defaultValue: "Brak różnic między porównywanymi wersjami.",
-              })}
+              {t("adminPostPanes.revisionDiff.noChanges")}
             </p>
           )}
         </div>

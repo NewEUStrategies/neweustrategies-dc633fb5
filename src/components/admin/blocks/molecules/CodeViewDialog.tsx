@@ -34,10 +34,10 @@ export function CodeViewDialog({ doc, lang, open, onOpenChange }: Props) {
     try {
       await navigator.clipboard.writeText(markup);
       setCopied(true);
-      toast.success(t("blocks.codeView.copied", { defaultValue: "Skopiowano markup." }));
+      toast.success(t("blocks.codeView.copied"));
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      toast.error(t("blocks.codeView.copyFailed", { defaultValue: "Nie udało się skopiować." }));
+      toast.error(t("blocks.codeView.copyFailed"));
     }
   };
 
@@ -45,13 +45,9 @@ export function CodeViewDialog({ doc, lang, open, onOpenChange }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
-          <DialogTitle>
-            {t("blocks.codeView.title", { defaultValue: "Widok kodu (markup Gutenberga)" })}
-          </DialogTitle>
+          <DialogTitle>{t("blocks.codeView.title")}</DialogTitle>
           <DialogDescription>
             {t("blocks.codeView.desc", {
-              defaultValue:
-                "Serializacja dokumentu ({{lang}}) zgodna z WordPressem - wklejenie jej do edytora bloków odtwarza treść.",
               lang: lang.toUpperCase(),
               count: doc.blocks.length,
             })}
@@ -61,13 +57,12 @@ export function CodeViewDialog({ doc, lang, open, onOpenChange }: Props) {
           readOnly
           value={markup}
           spellCheck={false}
-          aria-label={t("blocks.codeView.title", { defaultValue: "Widok kodu" })}
+          aria-label={t("blocks.codeView.title")}
           className="w-full h-[50vh] resize-none rounded-md border border-border bg-muted/40 p-3 font-mono text-xs leading-relaxed focus:outline-none focus:ring-1 focus:ring-foreground"
         />
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs text-muted-foreground">
             {t("blocks.codeView.blockCount", {
-              defaultValue: "Bloki: {{count}}",
               count: doc.blocks.length,
             })}
           </span>
@@ -77,7 +72,7 @@ export function CodeViewDialog({ doc, lang, open, onOpenChange }: Props) {
             className="inline-flex items-center gap-1.5 rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-background hover:opacity-90 transition-opacity"
           >
             {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-            {t("blocks.codeView.copy", { defaultValue: "Kopiuj markup" })}
+            {t("blocks.codeView.copy")}
           </button>
         </div>
       </DialogContent>

@@ -38,6 +38,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { uiLocale } from "@/lib/i18n/format";
 import {
   Building2,
   Search,
@@ -134,7 +135,7 @@ function formatRelative(iso: string | null, lang: "pl" | "en"): string {
     const n = Math.floor(diff / day);
     return lang === "pl" ? `${n} d temu` : `${n}d ago`;
   }
-  return d.toLocaleDateString(lang === "pl" ? "pl-PL" : "en-GB", {
+  return d.toLocaleDateString(uiLocale(lang), {
     day: "2-digit",
     month: "short",
     year: "numeric",

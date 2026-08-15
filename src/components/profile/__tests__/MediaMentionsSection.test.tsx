@@ -4,6 +4,12 @@
 // zapisem, przycinania pól, rozróżnienia INSERT/UPDATE, przełącznika
 // widoczności publicznej oraz tego, że etykiety są POWIĄZANE z polami.
 import { describe, expect, it, vi, beforeEach } from "vitest";
+// Prawdziwe zasoby i18n: bez tego `t()` zwraca GOŁY KLUCZ, a asercje na
+// widoczny tekst przechodziły wyłącznie dzięki `defaultValue` wpisanemu przy
+// wywołaniu - czyli test sprawdzał kopię napisu z kodu, a nie to, co widzi
+// użytkownik. Import wciąga rdzeń słownika (nakładki `i18n-*` dociąga sam
+// komponent), więc asercja mierzy teraz wartość ze słownika.
+import "@/lib/i18n";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 type SelectCall = { table: string; columns: string; filters: Array<[string, string]> };
@@ -67,14 +73,12 @@ vi.mock("@/integrations/supabase/client", () => {
 
 vi.mock("sonner", () => ({ toast: { error: h.toastError, success: h.toastSuccess } }));
 
-vi.mock("react-i18next", () => ({
-  useTranslation: () => ({
-    // Komponent podaje polskie `defaultValue` - test czyta dokładnie to, co
-    // zobaczy użytkownik bez załadowanego słownika.
-    t: (_key: string, opts?: { defaultValue?: string }) => opts?.defaultValue ?? _key,
-    i18n: { language: "pl" },
-  }),
-}));
+// BEZ atrapy `react-i18next`: prawdziwy hak na prawdziwym słowniku (import
+// `@/lib/i18n` wyżej). Atrapa zwracała `opts.defaultValue ?? key`, czyli test
+// czytał kopię napisu wpisaną w kodzie komponentu, a nie wartość ze słownika -
+// po zdjęciu zapasowych tekstów nie miała już czego zwracać. Mockować się jej
+// nie da: `@/lib/i18n` sam importuje `react-i18next`, więc atrapa sięgająca po
+// słownik zamyka cykl importów i test wisi bez komunikatu.
 
 import { MediaMentionsSection } from "../MediaMentionsSection";
 

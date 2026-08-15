@@ -63,9 +63,7 @@ export function TaxonomyPage({
 
   const LayoutComponent = getLayoutComponent(settings.layout_variant);
 
-  const emptyText = t("archive.empty", {
-    defaultValue: lang === "en" ? "No published posts yet." : "Brak opublikowanych wpisów.",
-  });
+  const emptyText = t("archive.empty");
 
   const extraBelow =
     kind === "category" && settings.show_podcasts && podcastsQ.data && podcastsQ.data.length > 0 ? (

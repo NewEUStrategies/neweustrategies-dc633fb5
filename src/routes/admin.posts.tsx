@@ -270,7 +270,7 @@ function PostsList() {
     setDuplicating(id);
     try {
       const created = await duplicate$({ data: { id } });
-      toast.success(t("admin.list.duplicated", { defaultValue: "Utworzono kopię wpisu" }));
+      toast.success(t("admin.list.duplicated"));
       invalidate();
       void navigate({ to: "/admin/posts/$slug", params: { slug: created.slug } });
     } catch (e) {
@@ -289,9 +289,7 @@ function PostsList() {
       onConfirm: async () => {
         try {
           await del$({ data: { id } });
-          toast.success(
-            t("admin.bulkResult.trashedOne", { defaultValue: "Przeniesiono do kosza" }),
-          );
+          toast.success(t("admin.bulkResult.trashedOne"));
           invalidate();
         } catch (e) {
           toast.error(e instanceof Error ? e.message : String(e));
@@ -428,17 +426,13 @@ function PostsList() {
         <div className="flex items-center gap-2">
           <Link to="/admin/import-wordpress">
             <Button size="sm" variant="outline" className="h-8 text-xs">
-              {t("admin.posts.import_wp", {
-                defaultValue: i18n.language.startsWith("pl")
-                  ? "Import z WordPress"
-                  : "Import from WordPress",
-              })}
+              {t("admin.posts.import_wp")}
             </Button>
           </Link>
           <Link to="/admin/posts/calendar">
             <Button size="sm" variant="outline">
               <CalendarDays className="w-4 h-4 mr-1.5" />
-              {t("admin.calendar.title", { defaultValue: "Kalendarz" })}
+              {t("admin.calendar.title")}
             </Button>
           </Link>
           <Link to="/admin/posts/new">
@@ -459,10 +453,10 @@ function PostsList() {
       >
         <TabsList className="h-8">
           <TabsTrigger value="active" className="text-xs h-7">
-            {t("admin.list.tabs.all", { defaultValue: "Wszystkie" })}
+            {t("admin.list.tabs.all")}
           </TabsTrigger>
           <TabsTrigger value="trash" className="text-xs h-7">
-            {t("admin.list.tabs.trash", { defaultValue: "Kosz" })}
+            {t("admin.list.tabs.trash")}
             {typeof trashCount === "number" && trashCount > 0 ? ` (${trashCount})` : ""}
           </TabsTrigger>
         </TabsList>
@@ -481,12 +475,11 @@ function PostsList() {
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span>
             {t("admin.list.enParityGap", {
-              defaultValue: "Parytet PL/EN: {{count}} opublikowanych wpisów bez wersji angielskiej",
               count: missingEnCount,
             })}
           </span>
           <span className="font-medium underline underline-offset-2">
-            {t("admin.list.enParityShow", { defaultValue: "pokaż" })}
+            {t("admin.list.enParityShow")}
           </span>
         </button>
       )}
@@ -494,7 +487,7 @@ function PostsList() {
       <AdminListToolbar
         search={search}
         onSearch={setSearch}
-        searchPlaceholder={t("admin.list.searchPosts", { defaultValue: "Szukaj wpisów…" })}
+        searchPlaceholder={t("admin.list.searchPosts")}
         status={statusFilter}
         onStatus={setStatusFilter}
         hideStatus={isTrash}
@@ -511,7 +504,7 @@ function PostsList() {
         <div className="flex flex-wrap items-end gap-2 mb-3">
           <div className="flex flex-col">
             <label className="text-[10px] uppercase text-muted-foreground mb-1">
-              {t("admin.list.deletedFrom", { defaultValue: "Usunięto od" })}
+              {t("admin.list.deletedFrom")}
             </label>
             <Input
               type="date"
@@ -522,7 +515,7 @@ function PostsList() {
           </div>
           <div className="flex flex-col">
             <label className="text-[10px] uppercase text-muted-foreground mb-1">
-              {t("admin.list.deletedTo", { defaultValue: "Usunięto do" })}
+              {t("admin.list.deletedTo")}
             </label>
             <Input
               type="date"
@@ -539,15 +532,13 @@ function PostsList() {
           selected.size > 0 ? (
             <div className="flex items-center gap-2 p-2 border-b border-border bg-muted/30 text-xs">
               <span className="px-2">
-                {t("admin.list.selected", { defaultValue: "Zaznaczono" })}: {selected.size}
+                {t("admin.list.selected")}: {selected.size}
               </span>
               <Button size="sm" variant="outline" onClick={onBulkRestore} className="h-7 text-xs">
-                <Undo2 className="w-3.5 h-3.5 mr-1.5" />{" "}
-                {t("admin.list.restore", { defaultValue: "Przywróć" })}
+                <Undo2 className="w-3.5 h-3.5 mr-1.5" /> {t("admin.list.restore")}
               </Button>
               <Button size="sm" variant="destructive" onClick={onBulkPurge} className="h-7 text-xs">
-                <Trash2 className="w-3.5 h-3.5 mr-1.5" />{" "}
-                {t("admin.list.purge", { defaultValue: "Usuń trwale" })}
+                <Trash2 className="w-3.5 h-3.5 mr-1.5" /> {t("admin.list.purge")}
               </Button>
               <Button size="sm" variant="ghost" onClick={clear} className="ml-auto h-7">
                 <X className="w-3.5 h-3.5" />
@@ -576,10 +567,10 @@ function PostsList() {
           <div className="p-10 text-center text-muted-foreground text-sm">
             {isTrash
               ? viewCount
-                ? t("admin.list.noResults", { defaultValue: "Brak wyników dla filtrów" })
-                : t("admin.list.trashEmpty", { defaultValue: "Kosz jest pusty" })
+                ? t("admin.list.noResults")
+                : t("admin.list.trashEmpty")
               : viewCount
-                ? t("admin.list.noResults", { defaultValue: "Brak wyników dla filtrów" })
+                ? t("admin.list.noResults")
                 : t("admin.posts.empty")}
           </div>
         ) : (
@@ -591,21 +582,15 @@ function PostsList() {
                     <Checkbox
                       checked={allSelected ? true : someSelected ? "indeterminate" : false}
                       onCheckedChange={toggleAll}
-                      aria-label={t("admin.list.selectAll", { defaultValue: "Zaznacz wszystkie" })}
+                      aria-label={t("admin.list.selectAll")}
                     />
                   </th>
                   <th className="text-left p-2">{t("admin.posts.titleCol")}</th>
-                  <th className="text-left p-2 w-[110px]">
-                    {t("admin.list.lang.col", { defaultValue: "Języki" })}
-                  </th>
-                  <th className="text-left p-2 w-[120px]">
-                    {t("admin.list.author.col", { defaultValue: "Autor" })}
-                  </th>
+                  <th className="text-left p-2 w-[110px]">{t("admin.list.lang.col")}</th>
+                  <th className="text-left p-2 w-[120px]">{t("admin.list.author.col")}</th>
                   <th className="text-left p-2 w-[110px]">{t("admin.posts.status")}</th>
                   <th className="text-left p-2 w-[150px] hidden md:table-cell">
-                    {isTrash
-                      ? t("admin.list.deletedAt", { defaultValue: "Usunięto" })
-                      : t("admin.posts.updated")}
+                    {isTrash ? t("admin.list.deletedAt") : t("admin.posts.updated")}
                   </th>
                   <th className="p-2 w-[90px]" />
                 </tr>
@@ -623,7 +608,7 @@ function PostsList() {
                         <Checkbox
                           checked={selected.has(p.id)}
                           onCheckedChange={() => toggleOne(p.id)}
-                          aria-label={t("admin.list.select", { defaultValue: "Zaznacz" })}
+                          aria-label={t("admin.list.select")}
                         />
                       </td>
                       <td className="p-2">
@@ -633,7 +618,7 @@ function PostsList() {
                               {(viewLang === "en" ? p.title_en : p.title_pl) ||
                                 (viewLang === "en" ? p.title_pl : p.title_en) || (
                                   <span className="italic text-muted-foreground">
-                                    - {t("admin.list.untitled", { defaultValue: "bez tytułu" })} -
+                                    - {t("admin.list.untitled")} -
                                   </span>
                                 )}
                             </div>
@@ -652,7 +637,7 @@ function PostsList() {
                               {(viewLang === "en" ? p.title_en : p.title_pl) ||
                                 (viewLang === "en" ? p.title_pl : p.title_en) || (
                                   <span className="italic text-muted-foreground">
-                                    - {t("admin.list.untitled", { defaultValue: "bez tytułu" })} -
+                                    - {t("admin.list.untitled")} -
                                   </span>
                                 )}
                             </div>
@@ -666,12 +651,8 @@ function PostsList() {
                         <LangCoverageBadges
                           pl={cov.pl}
                           en={cov.en}
-                          missingTitlePl={t("admin.list.lang.missingPl", {
-                            defaultValue: "Brak wersji PL",
-                          })}
-                          missingTitleEn={t("admin.list.lang.missingEn", {
-                            defaultValue: "Brak wersji EN",
-                          })}
+                          missingTitlePl={t("admin.list.lang.missingPl")}
+                          missingTitleEn={t("admin.list.lang.missingEn")}
                         />
                       </td>
                       <td
@@ -687,7 +668,6 @@ function PostsList() {
                           title={
                             p.status === "scheduled" && p.publish_at
                               ? t("admin.workflow.scheduledFor", {
-                                  defaultValue: "Publikacja: {{date}}",
                                   date: new Date(p.publish_at).toLocaleString(lang),
                                 })
                               : undefined
@@ -712,7 +692,7 @@ function PostsList() {
                                 size="sm"
                                 variant="ghost"
                                 className="h-7 w-7 p-0"
-                                title={t("admin.list.restore", { defaultValue: "Przywróć" })}
+                                title={t("admin.list.restore")}
                                 onClick={() => restoreOne(p.id, titleOf(p))}
                               >
                                 <Undo2 className="w-3.5 h-3.5" />
@@ -721,7 +701,7 @@ function PostsList() {
                                 size="sm"
                                 variant="ghost"
                                 className="h-7 w-7 p-0"
-                                title={t("admin.list.purge", { defaultValue: "Usuń trwale" })}
+                                title={t("admin.list.purge")}
                                 onClick={() => purgeOne(p.id, titleOf(p))}
                               >
                                 <Trash2 className="w-3.5 h-3.5 text-destructive" />
@@ -742,7 +722,7 @@ function PostsList() {
                                 size="sm"
                                 variant="ghost"
                                 className="h-7 w-7 p-0"
-                                title={t("admin.list.duplicate", { defaultValue: "Duplikuj" })}
+                                title={t("admin.list.duplicate")}
                                 disabled={duplicating === p.id}
                                 onClick={() => void duplicateOne(p.id)}
                               >
@@ -752,7 +732,7 @@ function PostsList() {
                                 size="sm"
                                 variant="ghost"
                                 className="h-7 w-7 p-0"
-                                title={t("admin.list.toTrash", { defaultValue: "Do kosza" })}
+                                title={t("admin.list.toTrash")}
                                 onClick={() => del(p.id, titleOf(p))}
                               >
                                 <Trash2 className="w-3.5 h-3.5 text-destructive" />

@@ -3,13 +3,13 @@
 // przywracanie wybranej wersji na rekord źródłowy.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { Json } from "@/integrations/supabase/types";
 import { emitWidgetCacheInvalidate } from "./widgetCacheInvalidation";
 import { parseGlobalWidgetData, type GlobalWidgetData } from "@/lib/builder/globalWidgets";
 import { parsePopupSettings, type PopupSettings } from "@/lib/builder/popups";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
 import type { BuilderDocument } from "@/lib/builder/types";
 import { WIDGET_QUERY_ROOTS } from "./queryKeys";
+import { toJson } from "@/lib/builder/types";
 
 export type BuilderEntityType = "global_widget" | "popup";
 
@@ -78,7 +78,7 @@ export function useRestoreBuilderRevision(entityType: BuilderEntityType) {
         if (!payload) throw new Error("invalid_revision_payload");
         const { error } = await supabase
           .from("builder_global_widgets")
-          .update({ data: payload as unknown as Json })
+          .update({ data: toJson(payload) })
           .eq("id", revision.entity_id);
         if (error) throw error;
         return;
@@ -87,8 +87,8 @@ export function useRestoreBuilderRevision(entityType: BuilderEntityType) {
       const { error } = await supabase
         .from("builder_popups")
         .update({
-          builder_data: payload.builder_data as unknown as Json,
-          settings: payload.settings as unknown as Json,
+          builder_data: toJson(payload.builder_data),
+          settings: toJson(payload.settings),
         })
         .eq("id", revision.entity_id);
       if (error) throw error;

@@ -7,6 +7,46 @@ const pl = {
   signupPopup: {
     slide: "Slajd",
     next: "Następny kadr",
+    // Napisy interfejsu formularza. Szły wcześniej przez lokalne
+    // `const t = (pl, en) => ...` - bliźniaka nazwanego dokładnie jak funkcja
+    // tłumacząca, więc w review wyglądały na wywołanie i18next, a były twardym
+    // dwujęzycznym tekstem w kodzie (bramka `check:i18n-hardcoded` nie widzi
+    // małego `t`, żeby nie łapać prawdziwego i18next).
+    errors: {
+      invalidEmail: "Niepoprawny adres e-mail.",
+      passwordMismatch: "Hasła nie są identyczne.",
+      privacyRequired: "Wymagana akceptacja Polityki prywatności.",
+      termsRequired: "Wymagana akceptacja regulaminu.",
+      signupDisabled: "Rejestracja jest wyłączona.",
+      rateLimited: "Zbyt wiele prób - spróbuj ponownie za kilka minut.",
+      invalidFirstName: "Imię zawiera niedozwolone znaki (min. 2 znaki).",
+      invalidLastName: "Nazwisko zawiera niedozwolone znaki (min. 2 znaki).",
+      invalidLinkedin: "Niepoprawny URL LinkedIn (np. https://linkedin.com/in/jan-kowalski).",
+      invalidPhone: "Niepoprawny numer telefonu (7-15 cyfr, opcjonalnie z +).",
+      // `{{field}}` to etykieta pola z konfiguracji popupu (treść redakcyjna,
+      // wybierana `pickLocalized`), a `{{count}}` - minimalna długość hasła.
+      fieldRequired: 'Pole "{{field}}" jest wymagane.',
+      passwordTooShort: "Hasło musi mieć co najmniej {{count}} znaków.",
+    },
+    ctaFallback: "Załóż konto",
+    noteFallback: "Zakładając konto potwierdzasz adres e-mail. Zero spamu.",
+    hidePassword: "Ukryj hasło",
+    showPassword: "Pokaż hasło",
+    chooseList: "Wybierz listę",
+    creatingAccount: "Tworzę konto…",
+    success: {
+      title: "Dane zostały wysłane!",
+      body: "Teraz potwierdź rejestrację konta w wiadomości e-mail - kliknij link aktywacyjny, który wysłaliśmy na adres:",
+      spamHint: "Nie widzisz wiadomości? Sprawdź folder Spam lub Oferty.",
+      resendSending: "Wysyłanie...",
+      resendSent: "Wysłano ponownie",
+      resend: "Wyślij link ponownie",
+      resendError: "Nie udało się wysłać ponownie - spróbuj za chwilę.",
+    },
+    // Treść zgody trafia do rejestru zgód RODO razem ze znacznikiem języka,
+    // w którym została pokazana - dlatego jest kluczem, a nie ternarem.
+    newsletterConsent:
+      "Zapisuję się do newslettera i akceptuję otrzymywanie wiadomości marketingowych.",
   },
 };
 
@@ -14,6 +54,36 @@ const en = {
   signupPopup: {
     slide: "Slide",
     next: "Next frame",
+    errors: {
+      invalidEmail: "Invalid e-mail address.",
+      passwordMismatch: "Passwords do not match.",
+      privacyRequired: "Please accept the Privacy Policy.",
+      termsRequired: "Please accept the terms.",
+      signupDisabled: "Sign-up is disabled.",
+      rateLimited: "Too many attempts - please try again in a few minutes.",
+      invalidFirstName: "Name contains invalid characters (min. 2 chars).",
+      invalidLastName: "Surname contains invalid characters (min. 2 chars).",
+      invalidLinkedin: "Invalid LinkedIn URL (e.g. https://linkedin.com/in/jane-doe).",
+      invalidPhone: "Invalid phone number (7-15 digits, optional leading +).",
+      fieldRequired: 'The "{{field}}" field is required.',
+      passwordTooShort: "Password must be at least {{count}} characters long.",
+    },
+    ctaFallback: "Create account",
+    noteFallback: "Creating an account confirms your e-mail. Zero spam.",
+    hidePassword: "Hide password",
+    showPassword: "Show password",
+    chooseList: "Choose a list",
+    creatingAccount: "Creating account…",
+    success: {
+      title: "Your details were sent!",
+      body: "Now confirm your registration by e-mail - click the activation link we sent to:",
+      spamHint: "Can't find the message? Check your Spam or Promotions folder.",
+      resendSending: "Sending...",
+      resendSent: "Sent again",
+      resend: "Resend the link",
+      resendError: "Could not resend - please try again shortly.",
+    },
+    newsletterConsent: "I subscribe to the newsletter and accept receiving marketing messages.",
   },
 };
 

@@ -505,14 +505,7 @@ function SearchPage() {
 
       <section>
         {isError ? (
-          <p className="text-sm text-destructive mb-4">
-            {t("search.error", {
-              defaultValue:
-                lang === "en"
-                  ? "Search failed. Please try again."
-                  : "Wyszukiwanie nie powiodło się. Spróbuj ponownie.",
-            })}
-          </p>
+          <p className="text-sm text-destructive mb-4">{t("search.error")}</p>
         ) : (
           <>
             <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
@@ -587,11 +580,7 @@ function SearchPage() {
 
             {!isFetching && posts.length === 0 && (suggest.data?.length ?? 0) > 0 && (
               <div className="mt-6">
-                <p className="text-sm font-medium mb-2">
-                  {t("search.didYouMean", {
-                    defaultValue: lang === "en" ? "Did you mean:" : "Czy chodziło Ci o:",
-                  })}
-                </p>
+                <p className="text-sm font-medium mb-2">{t("search.didYouMean")}</p>
                 <ul className="space-y-1.5">
                   {(suggest.data ?? []).map((s) => (
                     <li key={s.id}>
@@ -621,13 +610,7 @@ function SearchPage() {
                     })
                   }
                 >
-                  {isFetching
-                    ? t("common.loading", {
-                        defaultValue: lang === "en" ? "Loading..." : "Ładowanie...",
-                      })
-                    : t("common.loadMore", {
-                        defaultValue: lang === "en" ? "Load more" : "Załaduj więcej",
-                      })}
+                  {isFetching ? t("common.loading") : t("common.loadMore")}
                 </Button>
               </div>
             )}
@@ -828,9 +811,7 @@ function SearchPage() {
             {(popular.data?.length ?? 0) > 0 && (
               <div>
                 <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
-                  {t("search.popular", {
-                    defaultValue: lang === "en" ? "Popular searches" : "Popularne wyszukiwania",
-                  })}
+                  {t("search.popular")}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {(popular.data ?? []).map((p) => (

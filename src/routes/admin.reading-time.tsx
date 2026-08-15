@@ -132,11 +132,7 @@ function ReadingTimeAdmin() {
 
   const save = async () => {
     if (!parsed.success) {
-      toast.error(
-        t("admin.readingTime.invalid", {
-          defaultValue: "Popraw wartości poza zakresem przed zapisem.",
-        }),
-      );
+      toast.error(t("admin.readingTime.invalid"));
       return;
     }
     setBusy(true);
@@ -148,13 +144,13 @@ function ReadingTimeAdmin() {
       );
     setBusy(false);
     if (error) {
-      toast.error(t("admin.saveError", { defaultValue: "Nie udało się zapisać." }));
+      toast.error(t("admin.saveError"));
       return;
     }
     // Publiczny widok czyta ten sam zbiorczy cache - inwalidacja sprawia, że
     // zmiana rzutuje na wpisy bez przeładowania.
     await qc.invalidateQueries({ queryKey: siteSettingsQueryOptions.queryKey });
-    toast.success(t("admin.saved", { defaultValue: "Zapisano" }));
+    toast.success(t("admin.saved"));
   };
 
   const resetDefaults = () => setDraft(DEFAULT_READING_TIME_SETTINGS);
@@ -165,26 +161,19 @@ function ReadingTimeAdmin() {
         <div>
           <h1 className="flex items-center gap-2 font-display text-2xl">
             <Clock className="h-5 w-5" aria-hidden />
-            {t("admin.readingTime.title", { defaultValue: "Czas czytania" })}
+            {t("admin.readingTime.title")}
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t("admin.readingTime.subtitle", {
-              defaultValue:
-                "Algorytm liczy PL i EN niezależnie z pełnej treści wpisu. Zmiany rzutują natychmiast na stronę publiczną, JSON-LD i bloki.",
-            })}
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">{t("admin.readingTime.subtitle")}</p>
         </div>
         <Button variant="ghost" size="sm" onClick={resetDefaults}>
           <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
-          {t("admin.readingTime.reset", { defaultValue: "Domyślne" })}
+          {t("admin.readingTime.reset")}
         </Button>
       </header>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">
-            {t("admin.readingTime.basic", { defaultValue: "Parametry podstawowe" })}
-          </CardTitle>
+          <CardTitle className="text-base">{t("admin.readingTime.basic")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="flex items-center gap-3">
@@ -193,48 +182,38 @@ function ReadingTimeAdmin() {
               checked={draft.enabled}
               onCheckedChange={(v) => set("enabled", !!v)}
             />
-            <Label htmlFor="rt-enabled">
-              {t("admin.readingTime.enabled", {
-                defaultValue: "Pokazuj czas czytania na stronie publicznej",
-              })}
-            </Label>
+            <Label htmlFor="rt-enabled">{t("admin.readingTime.enabled")}</Label>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <NumberField
               id="rt-wpm-pl"
-              label={t("admin.readingTime.wpmPl", { defaultValue: "Prędkość PL (słowa/min)" })}
+              label={t("admin.readingTime.wpmPl")}
               value={draft.wpm_pl}
               onChange={(v) => set("wpm_pl", v)}
               min={60}
               max={1200}
-              hint={t("admin.readingTime.wpmPlHint", {
-                defaultValue: "Typowo 200-240 dla polskiej prozy.",
-              })}
+              hint={t("admin.readingTime.wpmPlHint")}
             />
             <NumberField
               id="rt-wpm-en"
-              label={t("admin.readingTime.wpmEn", { defaultValue: "Prędkość EN (słowa/min)" })}
+              label={t("admin.readingTime.wpmEn")}
               value={draft.wpm_en}
               onChange={(v) => set("wpm_en", v)}
               min={60}
               max={1200}
-              hint={t("admin.readingTime.wpmEnHint", {
-                defaultValue: "Typowo 220-260 dla angielskiej prozy.",
-              })}
+              hint={t("admin.readingTime.wpmEnHint")}
             />
             <NumberField
               id="rt-min"
-              label={t("admin.readingTime.min", { defaultValue: "Minimum (min)" })}
+              label={t("admin.readingTime.min")}
               value={draft.min_minutes}
               onChange={(v) => set("min_minutes", v)}
               min={0}
               max={10}
             />
             <div className="grid gap-1.5">
-              <Label htmlFor="rt-rounding">
-                {t("admin.readingTime.rounding", { defaultValue: "Zaokrąglanie" })}
-              </Label>
+              <Label htmlFor="rt-rounding">{t("admin.readingTime.rounding")}</Label>
               <Select
                 value={draft.rounding}
                 onValueChange={(v) => set("rounding", v as ReadingTimeSettings["rounding"])}
@@ -243,17 +222,9 @@ function ReadingTimeAdmin() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="round">
-                    {t("admin.readingTime.roundingRound", {
-                      defaultValue: "Matematyczne (1.5 → 2)",
-                    })}
-                  </SelectItem>
-                  <SelectItem value="ceil">
-                    {t("admin.readingTime.roundingCeil", { defaultValue: "W górę (1.1 → 2)" })}
-                  </SelectItem>
-                  <SelectItem value="floor">
-                    {t("admin.readingTime.roundingFloor", { defaultValue: "W dół (1.9 → 1)" })}
-                  </SelectItem>
+                  <SelectItem value="round">{t("admin.readingTime.roundingRound")}</SelectItem>
+                  <SelectItem value="ceil">{t("admin.readingTime.roundingCeil")}</SelectItem>
+                  <SelectItem value="floor">{t("admin.readingTime.roundingFloor")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -266,17 +237,13 @@ function ReadingTimeAdmin() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <ShieldAlert className="h-4 w-4 text-brand-ink" aria-hidden />
-              {t("admin.readingTime.advanced", {
-                defaultValue: "Parametry zaawansowane (super admin)",
-              })}
+              {t("admin.readingTime.advanced")}
             </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
             <NumberField
               id="rt-img-head"
-              label={t("admin.readingTime.imgHead", {
-                defaultValue: "Sekundy na obraz (pierwsze N)",
-              })}
+              label={t("admin.readingTime.imgHead")}
               value={draft.image_seconds_head}
               onChange={(v) => set("image_seconds_head", v)}
               min={0}
@@ -284,9 +251,7 @@ function ReadingTimeAdmin() {
             />
             <NumberField
               id="rt-img-tail"
-              label={t("admin.readingTime.imgTail", {
-                defaultValue: "Sekundy na każdy kolejny obraz",
-              })}
+              label={t("admin.readingTime.imgTail")}
               value={draft.image_seconds_tail}
               onChange={(v) => set("image_seconds_tail", v)}
               min={0}
@@ -294,9 +259,7 @@ function ReadingTimeAdmin() {
             />
             <NumberField
               id="rt-img-count"
-              label={t("admin.readingTime.imgCount", {
-                defaultValue: "Ile obrazów liczy się po stawce pełnej (N)",
-              })}
+              label={t("admin.readingTime.imgCount")}
               value={draft.image_head_count}
               onChange={(v) => set("image_head_count", v)}
               min={0}
@@ -304,17 +267,13 @@ function ReadingTimeAdmin() {
             />
             <NumberField
               id="rt-code"
-              label={t("admin.readingTime.codeFactor", {
-                defaultValue: "Mnożnik prędkości dla bloków kodu",
-              })}
+              label={t("admin.readingTime.codeFactor")}
               value={draft.code_wpm_factor}
               onChange={(v) => set("code_wpm_factor", v)}
               min={0.1}
               max={1}
               step={0.05}
-              hint={t("admin.readingTime.codeFactorHint", {
-                defaultValue: "0.5 = kod czytany 2x wolniej niż proza.",
-              })}
+              hint={t("admin.readingTime.codeFactorHint")}
             />
           </CardContent>
         </Card>
@@ -322,18 +281,12 @@ function ReadingTimeAdmin() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">
-            {t("admin.readingTime.preview", {
-              defaultValue: "Podgląd na żywo - PL i EN symultanicznie",
-            })}
-          </CardTitle>
+          <CardTitle className="text-base">{t("admin.readingTime.preview")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-1.5">
-              <Label htmlFor="rt-sample-pl">
-                {t("admin.readingTime.samplePl", { defaultValue: "Próbka treści PL" })}
-              </Label>
+              <Label htmlFor="rt-sample-pl">{t("admin.readingTime.samplePl")}</Label>
               <Textarea
                 id="rt-sample-pl"
                 rows={5}
@@ -342,9 +295,7 @@ function ReadingTimeAdmin() {
               />
             </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="rt-sample-en">
-                {t("admin.readingTime.sampleEn", { defaultValue: "Próbka treści EN" })}
-              </Label>
+              <Label htmlFor="rt-sample-en">{t("admin.readingTime.sampleEn")}</Label>
               <Textarea
                 id="rt-sample-en"
                 rows={5}
@@ -354,9 +305,7 @@ function ReadingTimeAdmin() {
             </div>
           </div>
           <div className="grid max-w-xs gap-1.5">
-            <Label htmlFor="rt-sample-images">
-              {t("admin.readingTime.sampleImages", { defaultValue: "Liczba obrazów w treści" })}
-            </Label>
+            <Label htmlFor="rt-sample-images">{t("admin.readingTime.sampleImages")}</Label>
             <Input
               id="rt-sample-images"
               type="number"
@@ -374,7 +323,6 @@ function ReadingTimeAdmin() {
             <span>
               <strong>PL:</strong>{" "}
               {t("admin.readingTime.previewValue", {
-                defaultValue: "{{min}} min ({{words}} słów)",
                 min: preview.pl.minutes,
                 words: preview.pl.words,
               })}
@@ -382,17 +330,12 @@ function ReadingTimeAdmin() {
             <span>
               <strong>EN:</strong>{" "}
               {t("admin.readingTime.previewValue", {
-                defaultValue: "{{min}} min ({{words}} słów)",
                 min: preview.en.minutes,
                 words: preview.en.words,
               })}
             </span>
             {!draft.enabled && (
-              <span className="text-muted-foreground">
-                {t("admin.readingTime.disabledNote", {
-                  defaultValue: "Czas czytania jest wyłączony na stronie publicznej.",
-                })}
-              </span>
+              <span className="text-muted-foreground">{t("admin.readingTime.disabledNote")}</span>
             )}
           </div>
         </CardContent>
@@ -400,9 +343,7 @@ function ReadingTimeAdmin() {
 
       <div className="flex items-center justify-end gap-2">
         <Button onClick={save} disabled={busy || !parsed.success}>
-          {busy
-            ? t("admin.saving", { defaultValue: "Zapisywanie..." })
-            : t("admin.save", { defaultValue: "Zapisz" })}
+          {busy ? t("admin.saving") : t("admin.save")}
         </Button>
       </div>
     </div>

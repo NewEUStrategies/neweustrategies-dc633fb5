@@ -1,6 +1,8 @@
 // Współdzielone typy i pomocnicze funkcje dla kuponów B2B - używane przez
 // klienta (walidacja live), serwer (checkout) oraz panel admina.
 
+import { uiLocale } from "@/lib/i18n/format";
+
 export type CouponDiscountKind = "percent" | "fixed";
 
 export interface B2bCouponRow {
@@ -61,7 +63,7 @@ export function formatDiscountLabel(
   if (kind === "percent" && percent != null) return `-${percent}%`;
   if (kind === "fixed" && cents != null) {
     const value = cents / 100;
-    const fmt = new Intl.NumberFormat(locale === "pl" ? "pl-PL" : "en-US", {
+    const fmt = new Intl.NumberFormat(uiLocale(locale), {
       style: "currency",
       currency: (currency || "PLN").toUpperCase(),
       maximumFractionDigits: 2,

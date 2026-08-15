@@ -26,15 +26,14 @@ function ExperimentsPage() {
   const removeExperiment = async (x: BuilderExperiment) => {
     const ok = await confirmDialog({
       title: t("admin.experiments.confirmDelete", {
-        defaultValue: 'Usunąć test "{{name}}" wraz z zebranymi danymi?',
         name: x.name,
       }),
       destructive: true,
-      confirmLabel: t("admin.delete", { defaultValue: "Usuń" }),
+      confirmLabel: t("admin.delete"),
     });
     if (!ok) return;
     await experiments.remove(x.id);
-    toast.success(t("admin.experiments.deleted", { defaultValue: "Usunięto test" }));
+    toast.success(t("admin.experiments.deleted"));
   };
 
   return (
@@ -42,28 +41,16 @@ function ExperimentsPage() {
       <header>
         <h1 className="font-display text-2xl font-bold inline-flex items-center gap-2">
           <FlaskConical className="w-6 h-6 text-brand" />
-          {t("admin.experiments.title", { defaultValue: "Testy A/B" })}
+          {t("admin.experiments.title")}
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {t("admin.experiments.subtitle", {
-            defaultValue:
-              "Testy sekcji tworzone w builderze stron (menu kontekstowe sekcji). Wariant przydzielany jest deterministycznie per odwiedzający, 50/50.",
-          })}
-        </p>
+        <p className="text-sm text-muted-foreground mt-1">{t("admin.experiments.subtitle")}</p>
       </header>
 
       {experiments.loading ? (
-        <p className="text-sm text-muted-foreground">
-          {t("admin.experiments.loading", { defaultValue: "Ładowanie…" })}
-        </p>
+        <p className="text-sm text-muted-foreground">{t("admin.experiments.loading")}</p>
       ) : experiments.items.length === 0 ? (
         <div className="border border-dashed border-border rounded-lg p-10 text-center">
-          <p className="text-sm text-muted-foreground">
-            {t("admin.experiments.empty", {
-              defaultValue:
-                "Brak testów. Kliknij sekcję prawym przyciskiem w builderze strony i wybierz „Utwórz test A/B”.",
-            })}
-          </p>
+          <p className="text-sm text-muted-foreground">{t("admin.experiments.empty")}</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -98,10 +85,10 @@ function ExperimentCard({
 
   const statusLabel =
     experiment.status === "running"
-      ? t("admin.experiments.statusRunning", { defaultValue: "Trwa" })
+      ? t("admin.experiments.statusRunning")
       : experiment.status === "paused"
-        ? t("admin.experiments.statusPaused", { defaultValue: "Wstrzymany" })
-        : t("admin.experiments.statusCompleted", { defaultValue: "Zakończony" });
+        ? t("admin.experiments.statusPaused")
+        : t("admin.experiments.statusCompleted");
   const statusCls =
     experiment.status === "running"
       ? "bg-emerald-500/15 text-emerald-600"
@@ -131,7 +118,7 @@ function ExperimentCard({
               variant="ghost"
               size="sm"
               onClick={onPause}
-              title={t("admin.experiments.pause", { defaultValue: "Wstrzymaj" })}
+              title={t("admin.experiments.pause")}
             >
               <Pause className="w-4 h-4" />
             </Button>
@@ -141,7 +128,7 @@ function ExperimentCard({
               variant="ghost"
               size="sm"
               onClick={onResume}
-              title={t("admin.experiments.resume", { defaultValue: "Wznów" })}
+              title={t("admin.experiments.resume")}
             >
               <Play className="w-4 h-4" />
             </Button>
@@ -150,7 +137,7 @@ function ExperimentCard({
             variant="ghost"
             size="sm"
             onClick={onRemove}
-            title={t("admin.experiments.delete", { defaultValue: "Usuń" })}
+            title={t("admin.experiments.delete")}
           >
             <Trash2 className="w-4 h-4 text-destructive" />
           </Button>
@@ -158,9 +145,7 @@ function ExperimentCard({
       </div>
 
       {!s ? (
-        <p className="text-xs text-muted-foreground">
-          {t("admin.experiments.loadingStats", { defaultValue: "Ładowanie wyników…" })}
-        </p>
+        <p className="text-xs text-muted-foreground">{t("admin.experiments.loadingStats")}</p>
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3">
@@ -174,19 +159,18 @@ function ExperimentCard({
                   className="rounded border border-border bg-muted/20 p-3 space-y-1"
                 >
                   <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                    {t("admin.experiments.variant", { defaultValue: "Wariant" })}{" "}
-                    {variant.toUpperCase()}
+                    {t("admin.experiments.variant")} {variant.toUpperCase()}
                   </div>
                   <div className="text-sm">
-                    {t("admin.experiments.exposures", { defaultValue: "Wyświetlenia" })}:{" "}
+                    {t("admin.experiments.exposures")}:{" "}
                     <span className="font-medium">{exposures}</span>
                   </div>
                   <div className="text-sm">
-                    {t("admin.experiments.conversions", { defaultValue: "Konwersje (kliknięcia)" })}
-                    : <span className="font-medium">{conversions}</span>
+                    {t("admin.experiments.conversions")}:{" "}
+                    <span className="font-medium">{conversions}</span>
                   </div>
                   <div className="text-sm">
-                    {t("admin.experiments.cr", { defaultValue: "Współczynnik konwersji" })}:{" "}
+                    {t("admin.experiments.cr")}:{" "}
                     <span className="font-medium">{(cr * 100).toFixed(1)}%</span>
                   </div>
                 </div>
@@ -195,18 +179,12 @@ function ExperimentCard({
           </div>
           <p className="text-xs text-muted-foreground">
             {s.exposures.a + s.exposures.b === 0
-              ? t("admin.experiments.noData", {
-                  defaultValue:
-                    "Brak danych - test zbiera wyniki po opublikowaniu strony z wariantami.",
-                })
+              ? t("admin.experiments.noData")
               : significant
                 ? t("admin.experiments.significant", {
-                    defaultValue:
-                      "Wynik istotny statystycznie (95%) - prowadzi wariant {{winner}}.",
                     winner,
                   })
                 : t("admin.experiments.notSignificant", {
-                    defaultValue: "Różnica nie jest jeszcze istotna statystycznie (|z| = {{z}})",
                     z: Math.abs(z).toFixed(2),
                   })}
           </p>

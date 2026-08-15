@@ -6,6 +6,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import { AdminSelect } from "../AdminSelect";
+import { toJsonArray } from "@/lib/content-model/json";
 
 interface Props {
   block: Block;
@@ -120,7 +121,7 @@ export function StatsCounterBlock({ block, onChange }: Props) {
     };
   });
   const update = (next: StatItem[]) => {
-    onChange({ ...block, data: { ...block.data, items: next as unknown as Json[] } });
+    onChange({ ...block, data: { ...block.data, items: toJsonArray(next) } });
   };
   const duration = Number(block.data.duration ?? 1500);
 
@@ -217,7 +218,7 @@ export function TestimonialsBlock({ block, onChange }: Props) {
     };
   });
   const update = (next: Testimonial[]) => {
-    onChange({ ...block, data: { ...block.data, items: next as unknown as Json[] } });
+    onChange({ ...block, data: { ...block.data, items: toJsonArray(next) } });
   };
   const layout = String(block.data.layout ?? "grid");
 
@@ -347,7 +348,7 @@ export function PricingTableBlock({ block, onChange }: Props) {
   });
 
   const update = (next: PricingPlan[]) => {
-    onChange({ ...block, data: { ...block.data, plans: next as unknown as Json[] } });
+    onChange({ ...block, data: { ...block.data, plans: toJsonArray(next) } });
   };
 
   return (
@@ -502,7 +503,7 @@ export function TimelineBlock({ block, onChange }: Props) {
     };
   });
   const update = (next: TimelineItem[]) => {
-    onChange({ ...block, data: { ...block.data, items: next as unknown as Json[] } });
+    onChange({ ...block, data: { ...block.data, items: toJsonArray(next) } });
   };
 
   return (

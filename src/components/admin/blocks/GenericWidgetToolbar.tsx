@@ -183,7 +183,7 @@ export function GenericWidgetToolbar({ block, onChange }: Props) {
           <Divider />
           <div className="relative">
             <TBtn
-              title={i18n.t("blocks.settings.colorPalette", { defaultValue: "Kolorystyka" })}
+              title={i18n.t("blocks.settings.colorPalette")}
               active={palette !== "neutral"}
               onClick={() => setPaletteOpen((v) => !v)}
             >

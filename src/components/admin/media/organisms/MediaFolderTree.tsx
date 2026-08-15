@@ -38,7 +38,7 @@ export function MediaFolderTree({
         <FolderTreeRow
           key={p}
           path={p}
-          label={p === "/" ? t("admin.media.root", { defaultValue: "Root" }) : folderName(p)}
+          label={p === "/" ? t("admin.media.root") : folderName(p)}
           depth={folderDepth(p)}
           active={p === currentPath}
           showActions={p !== "/"}

@@ -174,9 +174,7 @@ export function ExpertMaterialsExplorer({
       <span style={{ color: "var(--pv-accent)" }}>
         <BookOpen className="h-4 w-4" aria-hidden />
       </span>
-      {t("expert.publicationsHeading", {
-        defaultValue: lang === "en" ? "Expert publications" : "Publikacje eksperta",
-      })}
+      {t("expert.publicationsHeading")}
     </h2>
   );
 
@@ -209,12 +207,8 @@ export function ExpertMaterialsExplorer({
             value: tag.slug,
             label: tag.name,
           }))}
-          allLabel={t("expert.allTopics", {
-            defaultValue: lang === "en" ? "All topics" : "Wszystkie tematy",
-          })}
-          ariaLabel={t("expert.filterTopic", {
-            defaultValue: lang === "en" ? "Filter by topic" : "Filtruj po tematyce",
-          })}
+          allLabel={t("expert.allTopics")}
+          ariaLabel={t("expert.filterTopic")}
           alwaysShow
         />
         <FacetSelect
@@ -224,12 +218,8 @@ export function ExpertMaterialsExplorer({
             value: r.slug,
             label: lang === "en" ? r.name_en : r.name_pl,
           }))}
-          allLabel={t("expert.allRegions", {
-            defaultValue: lang === "en" ? "All regions" : "Wszystkie regiony",
-          })}
-          ariaLabel={t("expert.filterRegion", {
-            defaultValue: lang === "en" ? "Filter by region" : "Filtruj po regionie",
-          })}
+          allLabel={t("expert.allRegions")}
+          ariaLabel={t("expert.filterRegion")}
           alwaysShow
         />
         {facets.programs.length > 0 && (
@@ -281,8 +271,6 @@ export function ExpertMaterialsExplorer({
           <span>
             {" · "}
             {t("expert.pageIndicator", {
-              defaultValue:
-                lang === "en" ? "page {{page}} of {{pages}}" : "strona {{page}} z {{pages}}",
               page: currentPage,
               pages: totalPages,
             })}
@@ -292,12 +280,7 @@ export function ExpertMaterialsExplorer({
 
       {pageQ.isError ? (
         <div className="rounded-[8px] border border-dashed border-destructive/40 px-6 py-10 text-center">
-          <p className="text-sm text-muted-foreground">
-            {t("expert.materialsError", {
-              defaultValue:
-                lang === "en" ? "Failed to load materials." : "Nie udało się załadować materiałów.",
-            })}
-          </p>
+          <p className="text-sm text-muted-foreground">{t("expert.materialsError")}</p>
           <Button
             type="button"
             variant="outline"
@@ -306,7 +289,7 @@ export function ExpertMaterialsExplorer({
             onClick={() => void pageQ.refetch()}
           >
             <RotateCcw className="h-3.5 w-3.5" aria-hidden />
-            {t("expert.retry", { defaultValue: lang === "en" ? "Try again" : "Spróbuj ponownie" })}
+            {t("expert.retry")}
           </Button>
         </div>
       ) : pageQ.isLoading ? (

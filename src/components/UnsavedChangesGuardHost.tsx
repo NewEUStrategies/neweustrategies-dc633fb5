@@ -29,24 +29,18 @@ export function UnsavedChangesGuardHost() {
     >
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>
-            {t("admin.unsavedChangesTitle", { defaultValue: "Niezapisane zmiany" })}
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            {t("admin.unsavedChanges", {
-              defaultValue: "Masz niezapisane zmiany - czy na pewno chcesz opuścić edytor?",
-            })}
-          </AlertDialogDescription>
+          <AlertDialogTitle>{t("admin.unsavedChangesTitle")}</AlertDialogTitle>
+          <AlertDialogDescription>{t("admin.unsavedChanges")}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={() => resolveLeaveConfirmation(false)}>
-            {t("admin.stay", { defaultValue: "Zostań" })}
+            {t("admin.stay")}
           </AlertDialogCancel>
           <AlertDialogAction
             onClick={() => resolveLeaveConfirmation(true)}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
-            {t("admin.leave", { defaultValue: "Opuść bez zapisania" })}
+            {t("admin.leave")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

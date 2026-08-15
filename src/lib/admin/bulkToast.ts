@@ -16,18 +16,12 @@ import type { BulkResult } from "@/lib/content.functions";
  */
 export function toastBulkResult(t: TFunction, result: BulkResult, successKey: string): boolean {
   if (result.count === 0) {
-    toast.error(
-      t("admin.bulkResult.none", {
-        defaultValue: "Nie wykonano - brak uprawnień lub elementy juz nie istnieją",
-      }),
-    );
+    toast.error(t("admin.bulkResult.none"));
     return false;
   }
   if (result.count < result.requested) {
     toast.warning(
       t("admin.bulkResult.partial", {
-        defaultValue:
-          "Wykonano {{count}} z {{requested}} - pozostałe odrzucone (brak uprawnień lub element nie istnieje)",
         count: result.count,
         requested: result.requested,
       }),

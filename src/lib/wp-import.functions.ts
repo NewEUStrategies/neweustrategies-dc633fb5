@@ -15,7 +15,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireStaff } from "@/integrations/supabase/require-staff";
-import type { Database, Json } from "@/integrations/supabase/types";
+import type { Database } from "@/integrations/supabase/types";
 import type { BuilderDocument } from "@/lib/builder/types";
 import { toJson } from "@/lib/builder/types";
 import { convertHtmlToBuilder, type ConversionResult } from "@/lib/wp-import/convert";
@@ -385,7 +385,7 @@ export const wpImportPages = createServerFn({ method: "POST" })
             entity_type: "page",
             entity_id: current.id,
             author_id: userId,
-            snapshot: current as unknown as Json,
+            snapshot: toJson(current),
             note: "wp_import_pre_overwrite",
           });
           const finalSlug =
@@ -400,7 +400,7 @@ export const wpImportPages = createServerFn({ method: "POST" })
               title_en: built.title_en || current.title_en,
               editor: "builder",
               status: data.targetStatus,
-              builder_data: built.builderDoc as unknown as Json,
+              builder_data: toJson(built.builderDoc),
               cover_image_url: built.cover_image_url ?? current.cover_image_url,
               excerpt_pl: built.excerpt_pl ?? current.excerpt_pl,
               excerpt_en: built.excerpt_en ?? current.excerpt_en,
@@ -442,7 +442,7 @@ export const wpImportPages = createServerFn({ method: "POST" })
             title_en: built.title_en || "",
             editor: "builder",
             status: data.targetStatus,
-            builder_data: built.builderDoc as unknown as Json,
+            builder_data: toJson(built.builderDoc),
             cover_image_url: built.cover_image_url,
             excerpt_pl: built.excerpt_pl,
             excerpt_en: built.excerpt_en,
@@ -597,7 +597,7 @@ export const wpImportFromWxr = createServerFn({ method: "POST" })
             entity_type: "page",
             entity_id: current.id,
             author_id: userId,
-            snapshot: current as unknown as Json,
+            snapshot: toJson(current),
             note: "wxr_import_pre_overwrite",
           });
           const finalSlug =
@@ -612,7 +612,7 @@ export const wpImportFromWxr = createServerFn({ method: "POST" })
               title_en: built.title_en || current.title_en,
               editor: "builder",
               status: data.targetStatus,
-              builder_data: built.builderDoc as unknown as Json,
+              builder_data: toJson(built.builderDoc),
               cover_image_url: built.cover_image_url ?? current.cover_image_url,
               excerpt_pl: built.excerpt_pl ?? current.excerpt_pl,
               excerpt_en: built.excerpt_en ?? current.excerpt_en,
@@ -653,7 +653,7 @@ export const wpImportFromWxr = createServerFn({ method: "POST" })
             title_en: built.title_en || "",
             editor: "builder",
             status: data.targetStatus,
-            builder_data: built.builderDoc as unknown as Json,
+            builder_data: toJson(built.builderDoc),
             cover_image_url: built.cover_image_url,
             excerpt_pl: built.excerpt_pl,
             excerpt_en: built.excerpt_en,

@@ -23,6 +23,7 @@ import {
   splitUrl,
 } from "@/lib/seo/meta";
 import { getRequestUrl } from "@/lib/seo/request";
+import { uiLocale } from "@/lib/i18n/format";
 
 /** Pusta lista jako fallback zdegradowanego renderu (lib/ssr/resilientLoad). */
 const NO_LIVE_BLOGS: LiveBlogListItem[] = [];
@@ -90,7 +91,7 @@ function LiveIndex() {
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
-  const locale = lang === "pl" ? "pl-PL" : "en-GB";
+  const locale = uiLocale(lang);
 
   return (
     <div className="max-w-[1200px] mx-auto px-4 lg:px-8 py-8">

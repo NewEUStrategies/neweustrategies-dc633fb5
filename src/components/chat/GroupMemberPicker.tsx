@@ -55,9 +55,7 @@ export function GroupMemberPicker(props: GroupMemberPickerProps) {
       </label>
       <div className="mt-2 max-h-[220px] overflow-y-auto rounded-[6px] border border-border/60">
         {peopleQ.isLoading ? (
-          <p className="p-4 text-center text-xs text-muted-foreground">
-            {t("common.loading", { defaultValue: "..." })}
-          </p>
+          <p className="p-4 text-center text-xs text-muted-foreground">{t("common.loading")}</p>
         ) : people.length === 0 ? (
           <div className="flex flex-col items-center gap-1.5 p-5 text-center">
             <UserRoundSearch className="h-5 w-5 text-muted-foreground/50" aria-hidden />

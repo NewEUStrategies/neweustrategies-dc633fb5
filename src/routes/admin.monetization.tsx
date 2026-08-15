@@ -20,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Database } from "@/integrations/supabase/types";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { uiLocale } from "@/lib/i18n/format";
 import {
   Select,
   SelectContent,
@@ -99,9 +100,9 @@ function AdminMonetizationPage() {
     },
   });
 
-  const fmt = new Intl.NumberFormat(lang === "pl" ? "pl-PL" : "en-US");
+  const fmt = new Intl.NumberFormat(uiLocale(lang));
   const fmtMoney = (cents: number, currency = "PLN") =>
-    new Intl.NumberFormat(lang === "pl" ? "pl-PL" : "en-US", {
+    new Intl.NumberFormat(uiLocale(lang), {
       style: "currency",
       currency,
     }).format(cents / 100);

@@ -45,14 +45,10 @@ export function DisplayLivePreview({ c, lang }: Props) {
     <div
       className="mt-3 rounded-md border border-border/70 bg-muted/30 p-2.5"
       data-testid="post-list-live-preview"
-      aria-label={t("builder.postListEditor.livePreview", {
-        defaultValue: "Podgląd na żywo",
-      })}
+      aria-label={t("builder.postListEditor.livePreview")}
     >
       <div className="mb-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-        {t("builder.postListEditor.livePreview", {
-          defaultValue: "Podgląd na żywo",
-        })}
+        {t("builder.postListEditor.livePreview")}
       </div>
       <div className="flex gap-2.5">
         {showCover && (

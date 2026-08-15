@@ -246,7 +246,6 @@ export function CareersApplyForm({
         toast.error(
           t("careers.form.errors.summary", {
             count: Object.values(stepErrors).filter(Boolean).length,
-            defaultValue: "careers.form.errors.summary",
           }),
         );
         focusFirstError(stepErrors);
@@ -360,7 +359,6 @@ export function CareersApplyForm({
       toast.error(
         t("careers.form.errors.summary", {
           count: Object.values(result.errors).filter(Boolean).length,
-          defaultValue: "careers.form.errors.summary",
         }),
       );
       setStep(result.firstStep);
@@ -430,7 +428,6 @@ export function CareersApplyForm({
                 <span>
                   {t("careers.form.errors.summary", {
                     count: errorCount,
-                    defaultValue: "careers.form.errors.summary",
                   })}
                 </span>
               </div>
@@ -575,7 +572,6 @@ export function CareersApplyForm({
                 <p className="pl-1 text-[11px] text-muted-foreground" aria-live="polite">
                   {t("careers.form.charsLeft", {
                     count: Math.max(0, MESSAGE_MAX - form.message.trim().length),
-                    defaultValue: "careers.form.charsLeft",
                   })}
                 </p>
                 <label
@@ -635,9 +631,7 @@ export function CareersApplyForm({
               </SubscribeButton>
             )}
             <p aria-live="polite" className="sr-only">
-              {sending
-                ? t("careers.form.sendingStatus", { defaultValue: "careers.form.sendingStatus" })
-                : ""}
+              {sending ? t("careers.form.sendingStatus") : ""}
             </p>
           </div>
         </form>

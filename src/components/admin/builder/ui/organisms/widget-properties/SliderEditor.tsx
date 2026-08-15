@@ -380,18 +380,14 @@ export function SliderEditor({ c, lang, setContent }: Props) {
       {/* Display toggles - hoisted for visibility */}
       <div className="space-y-2 rounded-md border-2 border-brand/40 p-2 bg-brand/5">
         <div className="text-[11px] font-semibold uppercase tracking-wider text-brand">
-          {t("builder.sliderEditor.displayTitle", { defaultValue: "Wyświetlanie" })}
+          {t("builder.sliderEditor.displayTitle")}
         </div>
         <label className="flex items-center justify-between gap-2 py-1 cursor-pointer">
-          <span className="text-xs">
-            {t("builder.sliderEditor.showCover", { defaultValue: "Pokaż okładkę" })}
-          </span>
+          <span className="text-xs">{t("builder.sliderEditor.showCover")}</span>
           <Switch checked={showCover} onCheckedChange={(v) => setContent("showCover", v)} />
         </label>
         <label className="flex items-center justify-between gap-2 py-1 cursor-pointer border-t border-brand/20 pt-2">
-          <span className="text-xs">
-            {t("builder.sliderEditor.showTitle", { defaultValue: "Pokaż tytuł" })}
-          </span>
+          <span className="text-xs">{t("builder.sliderEditor.showTitle")}</span>
           <Switch checked={showTitle} onCheckedChange={(v) => setContent("showTitle", v)} />
         </label>
         <label className="flex items-center justify-between gap-2 py-1 cursor-pointer border-t border-brand/20 pt-2">
@@ -402,7 +398,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
             plus oba rozmiary (12 px / 20 px domyślnie). */}
         <div className="border-t border-brand/20 pt-2 space-y-2">
           <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-            {t("builder.sliderEditor.authorDisplay", { defaultValue: "Autor" })}
+            {t("builder.sliderEditor.authorDisplay")}
           </p>
           <AuthorDisplayControl c={c} lang={lang} setContent={setContent} />
         </div>

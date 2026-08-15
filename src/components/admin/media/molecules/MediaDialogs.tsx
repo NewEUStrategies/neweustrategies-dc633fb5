@@ -61,24 +61,24 @@ export function MediaDialogs({
       <Dialog open={newFolderOpen} onOpenChange={(o) => !o && onNewFolderClose()}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{t("admin.media.newFolder", { defaultValue: "Nowy folder" })}</DialogTitle>
+            <DialogTitle>{t("admin.media.newFolder")}</DialogTitle>
           </DialogHeader>
           <Input
             autoFocus
             value={newFolderName}
             onChange={(e) => onNewFolderNameChange(e.target.value)}
-            placeholder={t("admin.media.folderName", { defaultValue: "Nazwa folderu" })}
+            placeholder={t("admin.media.folderName")}
             onKeyDown={(e) => {
               if (e.key === "Enter") onCreateFolder();
             }}
           />
           <DialogFooter>
             <Button variant="outline" onClick={onNewFolderClose}>
-              {t("admin.cancel", { defaultValue: "Anuluj" })}
+              {t("admin.cancel")}
             </Button>
             <Button onClick={onCreateFolder}>
               <Check className="w-4 h-4 mr-1" />
-              {t("admin.create", { defaultValue: "Utwórz" })}
+              {t("admin.create")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -88,9 +88,7 @@ export function MediaDialogs({
       <Dialog open={!!renamingFolder} onOpenChange={(o) => !o && onRenamingFolderClose()}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>
-              {t("admin.media.renameFolder", { defaultValue: "Zmień nazwę folderu" })}
-            </DialogTitle>
+            <DialogTitle>{t("admin.media.renameFolder")}</DialogTitle>
           </DialogHeader>
           <Input
             autoFocus
@@ -102,9 +100,9 @@ export function MediaDialogs({
           />
           <DialogFooter>
             <Button variant="outline" onClick={onRenamingFolderClose}>
-              {t("admin.cancel", { defaultValue: "Anuluj" })}
+              {t("admin.cancel")}
             </Button>
-            <Button onClick={onRenameFolder}>{t("admin.save", { defaultValue: "Zapisz" })}</Button>
+            <Button onClick={onRenameFolder}>{t("admin.save")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -113,33 +111,25 @@ export function MediaDialogs({
       <Dialog open={!!confirmDelete} onOpenChange={(o) => !o && onConfirmDeleteClose()}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>
-              {t("admin.confirmDelete", { defaultValue: "Potwierdź usunięcie" })}
-            </DialogTitle>
+            <DialogTitle>{t("admin.confirmDelete")}</DialogTitle>
           </DialogHeader>
           {confirmDelete?.kind === "files" && (
             <p className="text-sm text-muted-foreground">
               {t("admin.media.confirmDeleteFiles", {
                 count: deleteCount,
-                defaultValue: `Usunąć ${deleteCount} plik(ów)? Operacji nie można cofnąć.`,
               })}
             </p>
           )}
           {confirmDelete?.kind === "folder" && (
-            <p className="text-sm text-muted-foreground">
-              {t("admin.media.confirmDeleteFolder", {
-                defaultValue:
-                  "Usunąć folder wraz z jego zawartością (pliki i podfoldery)? Tej operacji nie można cofnąć.",
-              })}
-            </p>
+            <p className="text-sm text-muted-foreground">{t("admin.media.confirmDeleteFolder")}</p>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={onConfirmDeleteClose}>
-              {t("admin.cancel", { defaultValue: "Anuluj" })}
+              {t("admin.cancel")}
             </Button>
             <Button variant="destructive" onClick={onConfirmDelete}>
               <Trash2 className="w-4 h-4 mr-1" />
-              {t("admin.delete", { defaultValue: "Usuń" })}
+              {t("admin.delete")}
             </Button>
           </DialogFooter>
         </DialogContent>

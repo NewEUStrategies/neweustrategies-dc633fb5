@@ -128,7 +128,7 @@ export function ConsentsPanel({
         marketing: false,
       };
       cmp.save({ ...cats, [cmpCat]: next }, source);
-      toast.success(t("notifications.consents.saved", { defaultValue: "Zapisano zgodę" }));
+      toast.success(t("notifications.consents.saved"));
       return;
     }
 
@@ -141,14 +141,8 @@ export function ConsentsPanel({
         source,
       },
       {
-        onSuccess: () =>
-          toast.success(t("notifications.consents.saved", { defaultValue: "Zapisano zgodę" })),
-        onError: () =>
-          toast.error(
-            t("notifications.consents.saveError", {
-              defaultValue: "Nie udało się zapisać zgody",
-            }),
-          ),
+        onSuccess: () => toast.success(t("notifications.consents.saved")),
+        onError: () => toast.error(t("notifications.consents.saveError")),
       },
     );
   };
@@ -164,14 +158,9 @@ export function ConsentsPanel({
             <ShieldCheck className="h-4 w-4" />
           </span>
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold">
-              {t("notifications.consents.title", { defaultValue: "Zgody i prywatność" })}
-            </h2>
+            <h2 className="text-sm font-semibold">{t("notifications.consents.title")}</h2>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              {t("notifications.consents.subtitle", {
-                defaultValue:
-                  "Zdecyduj, jakie wiadomości mogą do Ciebie trafiać. Każdą zmianę zapisujemy w niezmiennym rejestrze RODO.",
-              })}
+              {t("notifications.consents.subtitle")}
             </p>
           </div>
         </div>
@@ -244,15 +233,12 @@ export function ConsentsPanel({
                         </Label>
                         {definition.required && (
                           <span className="inline-flex h-4 items-center rounded-md bg-[var(--brand)]/10 px-1.5 text-[10px] font-medium text-[var(--brand)]">
-                            {t("notifications.consents.requiredBadge", {
-                              defaultValue: "Wymagana",
-                            })}
+                            {t("notifications.consents.requiredBadge")}
                           </span>
                         )}
                         <span className="text-[10px] tabular-nums text-muted-foreground">
                           {t("notifications.consents.version", {
                             version: definition.version,
-                            defaultValue: `Wersja ${definition.version}`,
                           })}
                         </span>
                         <GpcCategoryBadgeSlot clamped={gpcClamped} />
@@ -264,25 +250,19 @@ export function ConsentsPanel({
                       </p>
                       <p className="mt-1.5 text-[11px] tabular-nums text-muted-foreground/80">
                         {!hasDecision
-                          ? t("notifications.consents.notDecided", {
-                              defaultValue: "Nie podjęto decyzji",
-                            })
+                          ? t("notifications.consents.notDecided")
                           : effectiveGiven
                             ? t("notifications.consents.given", {
                                 date: fmt(dateIso, lang),
-                                defaultValue: `Udzielono ${fmt(dateIso, lang)}`,
                               })
                             : t("notifications.consents.withdrawn", {
                                 date: fmt(dateIso, lang),
-                                defaultValue: `Wycofano ${fmt(dateIso, lang)}`,
                               })}
                       </p>
                       {showOutdated && (
                         <p className="mt-1.5 inline-flex items-center gap-1.5 rounded-md bg-amber-500/10 px-2 py-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">
                           <AlertTriangle className="h-3 w-3" aria-hidden />
-                          {t("notifications.consents.versionOutdated", {
-                            defaultValue: "Nowa wersja tej zgody - potwierdź ponownie",
-                          })}
+                          {t("notifications.consents.versionOutdated")}
                         </p>
                       )}
                     </div>
@@ -305,7 +285,7 @@ export function ConsentsPanel({
           id="consent-history"
           className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
         >
-          {t("notifications.consents.history", { defaultValue: "Historia zmian" })}
+          {t("notifications.consents.history")}
         </h3>
         {/* Objaśnienie kolumny GPC pokazujemy TYLKO wtedy, gdy historia realnie
             ją zawiera - inaczej byłby to wykład o skrócie, którego nigdzie nie
@@ -315,7 +295,7 @@ export function ConsentsPanel({
           <p className="mt-2 text-xs text-muted-foreground">…</p>
         ) : !eventsQ.data || eventsQ.data.length === 0 ? (
           <p className="mt-2 text-xs text-muted-foreground">
-            {t("notifications.consents.historyEmpty", { defaultValue: "Brak zapisanych zmian." })}
+            {t("notifications.consents.historyEmpty")}
           </p>
         ) : (
           <ol className="mt-2 flex flex-col gap-1 text-[11px] tabular-nums text-muted-foreground">
@@ -337,8 +317,8 @@ export function ConsentsPanel({
                   </span>{" "}
                   -{" "}
                   {ev.given
-                    ? t("notifications.consents.stateGiven", { defaultValue: "udzielono" })
-                    : t("notifications.consents.stateWithdrawn", { defaultValue: "wycofano" })}{" "}
+                    ? t("notifications.consents.stateGiven")
+                    : t("notifications.consents.stateWithdrawn")}{" "}
                   <span className="text-muted-foreground/70">(v{ev.version})</span>
                 </span>
                 {/* Znacznik sygnału z CHWILI zapisu - to jedyne miejsce, w którym

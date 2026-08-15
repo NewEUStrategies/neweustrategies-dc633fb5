@@ -71,25 +71,23 @@ export function MediaToolbar({
   const { t } = useTranslation();
   return (
     <div className="flex items-center gap-2 mb-3 flex-wrap" data-nomarquee>
-      <h1 className="font-display text-xl font-bold mr-2">
-        {t("admin.nav.media", { defaultValue: "Media" })}
-      </h1>
+      <h1 className="font-display text-xl font-bold mr-2">{t("admin.nav.media")}</h1>
       <Button size="sm" onClick={onUpload} disabled={busy}>
         {busy ? (
           <>
             <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-            {t("admin.media.uploading", { defaultValue: "Wgrywanie…" })}
+            {t("admin.media.uploading")}
           </>
         ) : (
           <>
             <Upload className="w-4 h-4 mr-1.5" />
-            {t("admin.media.upload", { defaultValue: "Wgraj" })}
+            {t("admin.media.upload")}
           </>
         )}
       </Button>
       <Button size="sm" variant="outline" onClick={onNewFolder}>
         <FolderPlus className="w-4 h-4 mr-1.5" />
-        {t("admin.media.newFolder", { defaultValue: "Nowy folder" })}
+        {t("admin.media.newFolder")}
       </Button>
       <div className="h-6 w-px bg-border mx-1" />
       <Button size="sm" variant="ghost" onClick={onUndo} disabled={!canUndo} title="Ctrl+Z">
@@ -114,9 +112,7 @@ export function MediaToolbar({
         onClick={onDelete}
         disabled={!hasSelection && atRoot}
         title={
-          hasSelection
-            ? t("admin.media.deleteSelected", { defaultValue: "Usuń zaznaczone" })
-            : t("admin.media.deleteCurrentFolder", { defaultValue: "Usuń bieżący folder" })
+          hasSelection ? t("admin.media.deleteSelected") : t("admin.media.deleteCurrentFolder")
         }
         className="text-destructive hover:text-destructive"
       >
@@ -145,7 +141,7 @@ export function MediaToolbar({
         <Input
           value={search}
           onChange={(e) => onSearch(e.target.value)}
-          placeholder={t("admin.list.searchMedia", { defaultValue: "Szukaj plików…" })}
+          placeholder={t("admin.list.searchMedia")}
           className="pl-8 h-8 text-xs w-[240px]"
         />
       </div>

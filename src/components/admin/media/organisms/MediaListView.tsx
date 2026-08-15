@@ -37,18 +37,10 @@ export function MediaListView({
       <table className="w-full text-xs">
         <thead className="bg-muted/50 text-muted-foreground">
           <tr>
-            <th className="text-left px-3 py-2 font-medium">
-              {t("admin.media.colName", { defaultValue: "Nazwa" })}
-            </th>
-            <th className="text-left px-3 py-2 font-medium">
-              {t("admin.media.colType", { defaultValue: "Typ" })}
-            </th>
-            <th className="text-right px-3 py-2 font-medium">
-              {t("admin.media.colSize", { defaultValue: "Rozmiar" })}
-            </th>
-            <th className="text-left px-3 py-2 font-medium">
-              {t("admin.media.colDate", { defaultValue: "Data" })}
-            </th>
+            <th className="text-left px-3 py-2 font-medium">{t("admin.media.colName")}</th>
+            <th className="text-left px-3 py-2 font-medium">{t("admin.media.colType")}</th>
+            <th className="text-right px-3 py-2 font-medium">{t("admin.media.colSize")}</th>
+            <th className="text-left px-3 py-2 font-medium">{t("admin.media.colDate")}</th>
           </tr>
         </thead>
         <tbody>
@@ -67,9 +59,7 @@ export function MediaListView({
                 <Folder className="w-4 h-4 text-brand" />
                 {folderName(p)}
               </td>
-              <td className="px-3 py-1.5 text-muted-foreground">
-                {t("admin.media.folder", { defaultValue: "Folder" })}
-              </td>
+              <td className="px-3 py-1.5 text-muted-foreground">{t("admin.media.folder")}</td>
               <td className="px-3 py-1.5 text-right text-muted-foreground">-</td>
               <td className="px-3 py-1.5 text-muted-foreground">-</td>
             </tr>

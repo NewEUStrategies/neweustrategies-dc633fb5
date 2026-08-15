@@ -14,6 +14,7 @@ import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
 import { ensureI18n as ensureTrackerI18n } from "@/lib/i18n-tracker";
+import { uiLocale } from "@/lib/i18n/format";
 export const Route = createFileRoute("/tracker/changes")({
   head: () => {
     const url = getRequestUrl() || "/tracker/changes";
@@ -59,7 +60,7 @@ function dayLabel(iso: string, lang: Lang, t: (k: string) => string): string {
   if (iso === yesterday) return t("tracker.changes.yesterday");
   const d = new Date(`${iso}T00:00:00`);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString(lang === "pl" ? "pl-PL" : "en-GB", {
+  return d.toLocaleDateString(uiLocale(lang), {
     day: "numeric",
     month: "long",
     year: "numeric",

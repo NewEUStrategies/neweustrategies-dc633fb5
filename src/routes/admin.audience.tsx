@@ -5,10 +5,11 @@
 // admin_member_activity_series / admin_member_retention (SECURITY DEFINER,
 // guard admina tenanta w funkcji - patrz migracja 20260713190000).
 import { createFileRoute } from "@tanstack/react-router";
-import { uiLang } from "@/lib/i18n/format";
+import { uiLang, uiLocale } from "@/lib/i18n/format";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-audience";
 import {
   BadgeCheck,
   CreditCard,
@@ -58,9 +59,7 @@ interface RetentionRow {
 const WINDOWS = [7, 30, 90] as const;
 
 function AudienceDashboard() {
-  const { i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
-  const L = (pl: string, en: string) => (isPl ? pl : en);
+  const { t, i18n } = useTranslation();
   const [days, setDays] = useState<(typeof WINDOWS)[number]>(30);
 
   const funnelQ = useQuery({
@@ -101,25 +100,22 @@ function AudienceDashboard() {
 
   const activityChart: ChartConfig = {
     kind: "line",
-    title: L("Aktywność członków", "Member activity"),
-    description: L(
-      "Dziennie aktywni członkowie (odczyty, komentarze, czat, zakładki, obserwacje) i nowe rejestracje.",
-      "Daily active members (reads, comments, chat, bookmarks, follows) and new sign-ups.",
-    ),
+    title: t("adminAudience.activity.title"),
+    description: t("adminAudience.activity.chartDescription"),
     categories: series.map((r) =>
-      new Date(r.day).toLocaleDateString(isPl ? "pl-PL" : "en-GB", {
+      new Date(r.day).toLocaleDateString(uiLocale(i18n.language), {
         day: "numeric",
         month: "short",
       }),
     ),
     series: [
       {
-        name: L("Aktywni", "Active"),
+        name: t("adminAudience.activity.active"),
         values: series.map((r) => r.active_members),
         colorSlot: 1,
       },
       {
-        name: L("Nowi członkowie", "New members"),
+        name: t("adminAudience.funnel.newMembers"),
         values: series.map((r) => r.new_members),
         colorSlot: 2,
       },
@@ -138,43 +134,43 @@ function AudienceDashboard() {
     ? [
         {
           icon: Users,
-          label: L("Członkowie łącznie", "Members total"),
+          label: t("adminAudience.funnel.membersTotal"),
           value: f.members_total,
-          sub: L(`+${f.members_new} w oknie`, `+${f.members_new} in window`),
+          sub: t("adminAudience.funnel.newInWindow", { count: f.members_new }),
         },
         {
           icon: Eye,
-          label: L("Widoczni w katalogu (opt-in)", "Discoverable (opt-in)"),
+          label: t("adminAudience.funnel.discoverable"),
           value: f.discoverable_total,
-          sub: L(`+${f.discoverable_new} w oknie`, `+${f.discoverable_new} in window`),
+          sub: t("adminAudience.funnel.newInWindow", { count: f.discoverable_new }),
         },
         {
           icon: BadgeCheck,
-          label: L("Aktywni w oknie", "Active in window"),
+          label: t("adminAudience.funnel.activeInWindow"),
           value: f.active_members,
-          sub: L("dowolna aktywność", "any activity"),
+          sub: t("adminAudience.funnel.anyActivity"),
         },
         {
           icon: CreditCard,
-          label: L("Płacący", "Paying"),
+          label: t("adminAudience.funnel.paying"),
           value: f.paying_members,
-          sub: L("aktywne subskrypcje", "active subscriptions"),
+          sub: t("adminAudience.funnel.activeSubscriptions"),
         },
       ]
     : [];
 
   const sideStats = f
     ? [
-        { icon: Newspaper, label: L("Czytający", "Readers"), value: f.readers },
-        { icon: MessageCircle, label: L("Komentujący", "Commenters"), value: f.commenters },
+        { icon: Newspaper, label: t("adminAudience.activity.readers"), value: f.readers },
+        { icon: MessageCircle, label: t("adminAudience.activity.commenters"), value: f.commenters },
         {
           icon: MessagesSquare,
-          label: L("Piszący na czacie", "Chat senders"),
+          label: t("adminAudience.activity.chatSenders"),
           value: f.chat_senders,
         },
         {
           icon: UserPlus,
-          label: L("Subskrybenci newslettera", "Newsletter subscribers"),
+          label: t("adminAudience.funnel.newsletter"),
           value: f.newsletter_subscribed,
         },
       ]
@@ -186,15 +182,8 @@ function AudienceDashboard() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-3xl font-bold">
-            {L("Audytorium i retencja", "Audience & retention")}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {L(
-              "Lejek członka, dzienna aktywność i kohorty retencji.",
-              "Member funnel, daily activity and retention cohorts.",
-            )}
-          </p>
+          <h1 className="font-display text-3xl font-bold">{t("adminAudience.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("adminAudience.subtitle")}</p>
         </div>
         <div className="flex items-center gap-1 rounded-md border border-border p-1">
           {WINDOWS.map((w) => (
@@ -205,7 +194,7 @@ function AudienceDashboard() {
               className="h-7 px-3 text-xs"
               onClick={() => setDays(w)}
             >
-              {w} {L("dni", "days")}
+              {w} {t("adminAudience.days")}
             </Button>
           ))}
         </div>
@@ -213,13 +202,13 @@ function AudienceDashboard() {
 
       {funnelQ.isError ? (
         <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm">
-          {L("Nie udało się pobrać danych lejka.", "Failed to load funnel data.")}
+          {t("adminAudience.funnel.error")}
         </div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-3">
           <section className="lg:col-span-2 rounded-xl border border-border bg-card p-5">
             <h2 className="m-0 mb-4 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              {L("Lejek członka", "Member funnel")}
+              {t("adminAudience.funnel.title")}
             </h2>
             <div className="space-y-3">
               {(funnelQ.isLoading ? Array.from({ length: 4 }) : funnelSteps).map((step, i) => {
@@ -257,7 +246,7 @@ function AudienceDashboard() {
 
           <section className="rounded-xl border border-border bg-card p-5">
             <h2 className="m-0 mb-4 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              {L("Aktywność w oknie", "Activity in window")}
+              {t("adminAudience.activity.inWindow")}
             </h2>
             <dl className="m-0 space-y-3">
               {(funnelQ.isLoading ? Array.from({ length: 4 }) : sideStats).map((stat, i) => {
@@ -285,31 +274,21 @@ function AudienceDashboard() {
         {seriesQ.isLoading ? (
           <div className="h-[300px] animate-pulse rounded-md bg-muted/60" />
         ) : series.length === 0 ? (
-          <p className="m-0 text-sm text-muted-foreground">
-            {L("Brak danych aktywności w tym oknie.", "No activity data in this window.")}
-          </p>
+          <p className="m-0 text-sm text-muted-foreground">{t("adminAudience.activity.empty")}</p>
         ) : (
           <Chart config={activityChart} lang={uiLang(i18n.language)} />
         )}
       </section>
 
-      <RetentionTable rows={retentionQ.data ?? []} loading={retentionQ.isLoading} isPl={isPl} />
+      <RetentionTable rows={retentionQ.data ?? []} loading={retentionQ.isLoading} />
     </div>
   );
 }
 
 // Kohorty: wiersz = tydzień rejestracji, kolumny = aktywność w tygodniu N po
 // rejestracji (procent kohorty; intensywność tła rośnie z retencją).
-function RetentionTable({
-  rows,
-  loading,
-  isPl,
-}: {
-  rows: RetentionRow[];
-  loading: boolean;
-  isPl: boolean;
-}) {
-  const L = (pl: string, en: string) => (isPl ? pl : en);
+function RetentionTable({ rows, loading }: { rows: RetentionRow[]; loading: boolean }) {
+  const { t, i18n } = useTranslation();
   const cohorts = new Map<string, { size: number; weeks: Map<number, number> }>();
   for (const r of rows) {
     const c = cohorts.get(r.cohort_start) ?? { size: r.cohort_size, weeks: new Map() };
@@ -323,27 +302,24 @@ function RetentionTable({
   return (
     <section className="rounded-xl border border-border bg-card p-5">
       <h2 className="m-0 mb-1 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-        {L("Retencja kohortowa (tygodnie)", "Cohort retention (weeks)")}
+        {t("adminAudience.retention.title")}
       </h2>
       <p className="mt-0 mb-4 text-xs text-muted-foreground">
-        {L(
-          "Odsetek członków z danego tygodnia rejestracji aktywnych w kolejnych tygodniach.",
-          "Share of members from each sign-up week active in subsequent weeks.",
-        )}
+        {t("adminAudience.retention.description")}
       </p>
       {loading ? (
         <div className="h-40 animate-pulse rounded-md bg-muted/60" />
       ) : cohortKeys.length === 0 ? (
-        <p className="m-0 text-sm text-muted-foreground">
-          {L("Brak rejestracji w analizowanym okresie.", "No sign-ups in the analysed period.")}
-        </p>
+        <p className="m-0 text-sm text-muted-foreground">{t("adminAudience.retention.empty")}</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-xs">
             <thead>
               <tr className="text-left text-muted-foreground">
-                <th className="py-1.5 pr-3 font-medium">{L("Kohorta", "Cohort")}</th>
-                <th className="py-1.5 pr-3 text-right font-medium">{L("Osoby", "Size")}</th>
+                <th className="py-1.5 pr-3 font-medium">{t("adminAudience.retention.cohort")}</th>
+                <th className="py-1.5 pr-3 text-right font-medium">
+                  {t("adminAudience.retention.size")}
+                </th>
                 {Array.from({ length: maxOffset + 1 }).map((_, w) => (
                   <th key={w} className="px-1.5 py-1.5 text-center font-medium">
                     T{w}
@@ -357,7 +333,7 @@ function RetentionTable({
                 return (
                   <tr key={key} className="border-t border-border/60">
                     <td className="py-1.5 pr-3 whitespace-nowrap">
-                      {new Date(key).toLocaleDateString(isPl ? "pl-PL" : "en-GB", {
+                      {new Date(key).toLocaleDateString(uiLocale(i18n.language), {
                         day: "numeric",
                         month: "short",
                       })}

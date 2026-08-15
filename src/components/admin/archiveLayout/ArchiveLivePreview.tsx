@@ -99,18 +99,9 @@ export function ArchiveLivePreview({ archiveType, settings, lang }: Props) {
     <section className="space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-          {t("archiveLayout.livePreview", {
-            defaultValue: lang === "en" ? "Live preview" : "Podgląd na żywo",
-          })}
+          {t("archiveLayout.livePreview")}
         </h2>
-        <span className="text-xs text-muted-foreground">
-          {t("archiveLayout.livePreviewHint", {
-            defaultValue:
-              lang === "en"
-                ? "Changes are visible before saving"
-                : "Zmiany są widoczne przed zapisaniem",
-          })}
-        </span>
+        <span className="text-xs text-muted-foreground">{t("archiveLayout.livePreviewHint")}</span>
       </div>
       <div
         className="rounded-xl border border-border overflow-hidden shadow-sm bg-linear-to-br from-muted/40 via-background to-muted/20 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900"

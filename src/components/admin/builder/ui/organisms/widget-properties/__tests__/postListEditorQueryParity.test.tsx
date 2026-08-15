@@ -14,6 +14,12 @@
 // Plus: kontrolka autoodtwarzania karuzeli (dotad pole istnialo wylacznie w
 // martwym schemacie) jest w panelu i zapisuje PRAWDZIWY boolean.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+// Prawdziwe zasoby i18n: bez tego `t()` zwraca GOŁY KLUCZ, a asercje na
+// widoczny tekst przechodziły wyłącznie dzięki `defaultValue` wpisanemu przy
+// wywołaniu - czyli test sprawdzał kopię napisu z kodu, a nie to, co widzi
+// użytkownik. Import wciąga rdzeń słownika (nakładki `i18n-*` dociąga sam
+// komponent), więc asercja mierzy teraz wartość ze słownika.
+import "@/lib/i18n";
 import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Json, WidgetContent } from "@/lib/builder/types";
@@ -52,14 +58,12 @@ vi.mock("@/integrations/supabase/client", () => {
   };
 });
 
-vi.mock("react-i18next", () => ({
-  useTranslation: () => ({
-    t: (k: string, o?: { defaultValue?: string; count?: number }) =>
-      o?.defaultValue ?? (typeof o?.count === "number" ? `${k}:${o.count}` : k),
-    i18n: { language: "pl" },
-  }),
-  initReactI18next: { type: "3rdParty", init: () => {} },
-}));
+// BEZ atrapy `react-i18next`: prawdziwy hak na prawdziwym słowniku (import
+// `@/lib/i18n` wyżej). Atrapa zwracała `opts.defaultValue ?? key`, czyli test
+// czytał kopię napisu wpisaną w kodzie komponentu, a nie wartość ze słownika -
+// po zdjęciu zapasowych tekstów nie miała już czego zwracać. Mockować się jej
+// nie da: `@/lib/i18n` sam importuje `react-i18next`, więc atrapa sięgająca po
+// słownik zamyka cykl importów i test wisi bez komunikatu.
 
 import { PostListEditor } from "../PostListEditor";
 import { postListOrderColumn, postListVariantHasByline } from "@/lib/builder/postListQuery";
@@ -180,7 +184,10 @@ describe("PostListEditor - licznik pasujacych wpisow stosuje WSZYSTKIE filtry", 
 
     renderEditor({ categoriesCsv: "pusta" });
 
-    expect(await screen.findByText("builder.postListEditor.matchCount:0")).toBeInTheDocument();
+    // Asercja na WYRENDEROWANY napis ze słownika (`builder.postListEditor.matchCount`),
+    // a nie na syntetyczne `klucz:licznik` z dawnej atrapy `t`. Dopasowanie po
+    // regexie, bo licznik stoi w środku zdania z drugą interpolacją (język podglądu).
+    expect(await screen.findByText(/Pasujących wpisów:\s*0\b/)).toBeInTheDocument();
   });
 });
 
