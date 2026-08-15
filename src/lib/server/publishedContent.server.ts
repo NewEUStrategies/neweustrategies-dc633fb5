@@ -464,9 +464,9 @@ export async function fetchTaxonomyForFeed(
           .maybeSingle();
         if (!data) return null;
         return {
-          slug: data.slug,
-          name_pl: data.name_pl,
-          name_en: data.name_en,
+          slug: data.slug ?? slug,
+          name_pl: data.name_pl ?? data.name_en ?? slug,
+          name_en: data.name_en ?? data.name_pl ?? slug,
           description_pl: data.tagline_pl ?? null,
           description_en: data.tagline_en ?? null,
         };
@@ -477,7 +477,14 @@ export async function fetchTaxonomyForFeed(
         .eq("tenant_id", tenantId)
         .eq("slug", slug)
         .maybeSingle();
-      return (data as TaxonomyFeedMeta | null) ?? null;
+      if (!data) return null;
+      return {
+        slug: data.slug ?? slug,
+        name_pl: data.name_pl ?? data.name_en ?? slug,
+        name_en: data.name_en ?? data.name_pl ?? slug,
+        description_pl: data.description_pl ?? null,
+        description_en: data.description_en ?? null,
+      };
     }),
   );
 }
