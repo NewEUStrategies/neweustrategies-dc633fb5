@@ -4,9 +4,11 @@
 // paywall carried its own hardcoded dictionary that drifted from pricing copy.
 // Kept as a separate small bundle (not i18n-profile) so the article route does
 // not pay for the full profile dictionary.
+// The pl/en objects are exported (same convention as i18n-chat) so the parity
+// test can verify both trees and placeholders without reaching into i18next.
 import i18n from "./i18n";
 
-const pl = {
+export const paywallPl = {
   paywall: {
     membersOnly: "Treść tylko dla zalogowanych",
     membersDesc: "Zaloguj się lub załóż darmowe konto, aby kontynuować czytanie.",
@@ -64,7 +66,7 @@ const pl = {
   },
 };
 
-const en: typeof pl = {
+export const paywallEn: typeof paywallPl = {
   paywall: {
     membersOnly: "Members-only content",
     membersDesc: "Sign in or create a free account to continue reading.",
@@ -122,5 +124,5 @@ const en: typeof pl = {
   },
 };
 
-i18n.addResourceBundle("pl", "translation", pl, true, true);
-i18n.addResourceBundle("en", "translation", en, true, true);
+i18n.addResourceBundle("pl", "translation", paywallPl, true, true);
+i18n.addResourceBundle("en", "translation", paywallEn, true, true);
