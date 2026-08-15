@@ -124,6 +124,7 @@ const COPY: Record<"pl" | "en", ErrorCopy> = {
     contactLink: "Skontaktuj się z nami",
     goBack: "Wróć",
     keepGoing: "Przejdź dalej",
+    genericCode: "UPSSS...",
     generic: {
       title: "Nie udało się załadować strony",
       body: "Coś poszło nie tak po naszej stronie. Przepraszamy za utrudnienia.",
