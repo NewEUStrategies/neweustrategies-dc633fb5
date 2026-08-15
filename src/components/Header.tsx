@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-mobile-drawer";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { memo, Suspense, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -64,7 +65,6 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
   const { t } = useTranslation();
   // URL-seeded language (SSR-safe, no hydration flicker) - see useLang docs.
   const lang = useLang();
-  const isPl = lang === "pl";
 
   // Loader in __root.tsx prefetches this query, so useSuspenseQuery resolves
   // synchronously on hydration and on every client navigation - the header
@@ -208,7 +208,7 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
             )}
           </AppLink>
           <div className="flex items-center gap-2 justify-self-end">
-            <LangReelSwitcher label={isPl ? "Język" : "Language"} />
+            <LangReelSwitcher label={t("mobileDrawer.language")} />
             <button
               type="button"
               onClick={() => setOpen(true)}
@@ -265,11 +265,7 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
                   <X className="w-5 h-5" aria-hidden />
                 </button>
               </div>
-              <MobileDrawerBody
-                builderDoc={cfg.builder_data}
-                isPl={isPl}
-                onNavigate={() => setOpen(false)}
-              />
+              <MobileDrawerBody builderDoc={cfg.builder_data} onNavigate={() => setOpen(false)} />
             </div>
           </div>,
           document.body,

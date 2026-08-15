@@ -3,20 +3,20 @@
 import { Sun, Moon, Search } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { LangToggle } from "@/components/atoms/LangToggle";
+import { useTranslation } from "react-i18next";
 import type { TopTools } from "@/lib/mobileDrawer";
+import "@/lib/i18n-mobile-drawer";
 
 type Props = {
   tools: TopTools;
-  isPl: boolean;
   onNavigate?: () => void;
 };
 
-export function MobileTopTools({ tools, isPl, onNavigate }: Props) {
+export function MobileTopTools({ tools, onNavigate }: Props) {
+  const { t } = useTranslation();
   const { theme, toggle } = useTheme();
   const anyTool = tools.search || tools.theme || tools.language;
   if (!anyTool) return null;
-
-  const t = (pl: string, en: string) => (isPl ? pl : en);
 
   const openSearch = () => {
     // Zamykamy drawer, potem oddajemy klatkę na animację i otwieramy overlay
@@ -31,7 +31,7 @@ export function MobileTopTools({ tools, isPl, onNavigate }: Props) {
     <div
       className="px-4 py-3 border-b border-border bg-background"
       role="group"
-      aria-label={t("Narzędzia", "Tools")}
+      aria-label={t("mobileDrawer.tools")}
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
@@ -39,7 +39,7 @@ export function MobileTopTools({ tools, isPl, onNavigate }: Props) {
             <button
               type="button"
               onClick={openSearch}
-              aria-label={t("Otwórz wyszukiwarkę", "Open search")}
+              aria-label={t("mobileDrawer.openSearch")}
               className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-border text-foreground hover:bg-muted transition shrink-0"
             >
               <Search className="w-4 h-4" aria-hidden />
@@ -52,7 +52,7 @@ export function MobileTopTools({ tools, isPl, onNavigate }: Props) {
             <button
               type="button"
               onClick={toggle}
-              aria-label={t("Przełącz motyw", "Toggle theme")}
+              aria-label={t("mobileDrawer.toggleTheme")}
               className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-border text-foreground hover:bg-muted transition shrink-0"
             >
               {theme === "dark" ? (

@@ -123,6 +123,8 @@
     "builder.sliderEditor.link",
     "builder.sliderEditor.ratio219",
     "builder.tabsPane.innerSecN",
+    "builder.textRotateEditor.sampleEn",
+    "builder.textRotateEditor.samplePl",
     "builder.widgetLibrary.catFeatures",
     "builder.widgetLibrary.catMedia",
     "builder.widgetLibrary.sub.audio",
@@ -147,6 +149,6 @@
   "repoWide": {
     "missingEn": 0,
     "missingPl": 0,
-    "untranslated": 440
+    "untranslated": 442
   }
 }

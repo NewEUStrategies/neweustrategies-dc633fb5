@@ -3,10 +3,12 @@
 // /membership-registration, dzięki czemu obie są zawsze zsynchronizowane 1:1.
 import { useNavigate, Link } from "@tanstack/react-router";
 import { uiLang } from "@/lib/i18n/format";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { preAuthGuard } from "@/lib/auth/bruteforce.functions";
 import { useTranslation } from "react-i18next";
+import { pickPair } from "@/lib/i18n/pickLocalized";
+import "@/lib/i18n-auth-portal";
 import { supabase } from "@/integrations/supabase/client";
 import { isMfaChallengeRequired } from "@/lib/auth/mfa";
 import { MfaChallenge } from "@/components/auth/MfaChallenge";
@@ -33,9 +35,8 @@ import illustrationDark from "@/assets/login-illustration-dark.jpg";
 export type Mode = "signin" | "signup" | "reset";
 
 export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const uiLanguage = uiLang(i18n.language);
-  const isPl = uiLanguage === "pl";
   const navigate = useNavigate();
   const { session, loading } = useAuth();
   const settings = useAuthSettings();
@@ -59,11 +60,7 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
     setExtra((prev) => ({ ...prev, [key]: v }));
 
   const runPreAuthGuard = useServerFn(preAuthGuard);
-
-  const rateLimitedMessage = () =>
-    isPl
-      ? "Zbyt wiele prób - spróbuj ponownie za kilka minut."
-      : "Too many attempts - please try again in a few minutes.";
+  const themeLabel = t(theme === "dark" ? "common.preview.lightMode" : "common.preview.darkMode");
 
   useEffect(() => {
     if (loading || !session || mfaPending) return;
@@ -71,73 +68,18 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
     navigate({ to: "/" });
   }, [session, loading, mfaPending, navigate]);
 
-  const t = useMemo(() => {
-    const dict = {
-      pl: {
-        signin: "Zaloguj się",
-        signup: "Zarejestruj się",
-        reset: "Resetuj hasło",
-        heroTitle: settings.hero_title_pl,
-        heroSub: settings.hero_subtitle_pl,
-        haveNo: "Nie masz konta?",
-        haveYes: "Masz już konto?",
-        signUpLink: "Zarejestruj się",
-        signInLink: "Zaloguj się",
-        email: "E-mail",
-        password: "Hasło",
-        name: "Imię i nazwisko",
-        forgot: "Zapomniałeś hasła?",
-        back: "Wróć do logowania",
-        submitSignin: "Zaloguj się",
-        submitSignup: "Utwórz konto",
-        submitReset: "Wyślij link",
-        resetSub: "Wyślemy link do zmiany hasła na Twój adres.",
-        legalPre: "Klikając przycisk, akceptujesz ",
-        legalPrivacy: "Politykę prywatności",
-        legalAnd: " i ",
-        legalTerms: "Regulamin",
-        legalSuf: ".",
-        backHome: "Wróć na stronę",
-        showPw: "Pokaż hasło",
-        hidePw: "Ukryj hasło",
-      },
-      en: {
-        signin: "Sign In",
-        signup: "Sign Up",
-        reset: "Reset password",
-        heroTitle: settings.hero_title_en,
-        heroSub: settings.hero_subtitle_en,
-        haveNo: "Don't have an account?",
-        haveYes: "Already have an account?",
-        signUpLink: "Sign Up",
-        signInLink: "Sign In",
-        email: "E-Mail",
-        password: "Password",
-        name: "Full name",
-        forgot: "Forgot password?",
-        back: "Back to sign in",
-        submitSignin: "Sign In",
-        submitSignup: "Create account",
-        submitReset: "Send link",
-        resetSub: "We'll email a password reset link.",
-        legalPre: "By clicking the button, you agree to the ",
-        legalPrivacy: "Privacy Policy",
-        legalAnd: " and ",
-        legalTerms: "Terms of Service",
-        legalSuf: ".",
-        backHome: "Back to site",
-        showPw: "Show password",
-        hidePw: "Hide password",
-      },
-    } as const;
-    return isPl ? dict.pl : dict.en;
-  }, [
-    isPl,
-    settings.hero_title_pl,
-    settings.hero_title_en,
-    settings.hero_subtitle_pl,
-    settings.hero_subtitle_en,
-  ]);
+  // Napisy portalu idą ze słownika (`i18n-auth-portal.ts`). Tekst bohatera jest
+  // treścią REDAKCYJNĄ z ustawień strony logowania, nie napisem interfejsu, więc
+  // wybiera go `pickPair` - kanoniczna reguła bliźniaczych kolumn (żądany język,
+  // potem drugi, potem pusto), a nie kolejny ternary po języku.
+  const heroTitle = pickPair(
+    uiLanguage === "pl" ? settings.hero_title_pl : settings.hero_title_en,
+    uiLanguage === "pl" ? settings.hero_title_en : settings.hero_title_pl,
+  );
+  const heroSub = pickPair(
+    uiLanguage === "pl" ? settings.hero_subtitle_pl : settings.hero_subtitle_en,
+    uiLanguage === "pl" ? settings.hero_subtitle_en : settings.hero_subtitle_pl,
+  );
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -151,24 +93,20 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
       } catch (guardErr) {
         const msg = guardErr instanceof Error ? guardErr.message : "";
         if (msg.includes("rate_limited")) {
-          throw new Error(rateLimitedMessage());
+          throw new Error(t("authPortal.errors.rateLimited"));
         }
         if (msg.includes("invalid_input")) {
           // ZodError z walidatora - pokazujemy czytelny komunikat zamiast
           // surowego JSON-a i zostawiamy formularz w bezpiecznym stanie
           // (bez redirectu, bez blank screen); użytkownik poprawia dane.
-          throw new Error(
-            isPl
-              ? "Nieprawidłowe dane logowania - sprawdź adres email i spróbuj ponownie."
-              : "Invalid sign-in details - check your email and try again.",
-          );
+          throw new Error(t("authPortal.errors.invalidInput"));
         }
         throw guardErr;
       }
 
       if (mode === "signup") {
         if (!settings.allow_public_signup) {
-          throw new Error(isPl ? "Rejestracja jest wyłączona." : "Sign-up is disabled.");
+          throw new Error(t("authPortal.errors.signupDisabled"));
         }
         // Wymagalność pól pochodzi z globalnej konfiguracji rejestracji.
         const missing = reg.visible.find(
@@ -182,12 +120,10 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
             !val(f.key).trim(),
         );
         if (missing) {
-          throw new Error(
-            isPl ? "Uzupełnij wymagane pola." : "Please fill in all required fields.",
-          );
+          throw new Error(t("authPortal.errors.missingFields"));
         }
         if (reg.isEnabled("password_confirm") && password !== passwordConfirm) {
-          throw new Error(isPl ? "Hasła nie są identyczne." : "Passwords do not match.");
+          throw new Error(t("authPortal.errors.passwordMismatch"));
         }
         const metadata = buildSignupMetadata(
           {
@@ -215,17 +151,13 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
         });
         if (error) throw error;
 
-        toast.success(
-          isPl ? "Konto utworzone - sprawdź email." : "Account created - check your email.",
-        );
+        toast.success(t("authPortal.toasts.accountCreated"));
       } else if (mode === "reset") {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: `${window.location.origin}/reset-password`,
         });
         if (error) throw error;
-        toast.success(
-          isPl ? "Link wysłany. Sprawdź skrzynkę." : "Reset link sent. Check your inbox.",
-        );
+        toast.success(t("authPortal.toasts.resetSent"));
         setMode("signin");
       } else {
         setMfaPending(true);
@@ -238,7 +170,7 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
           setMfaOpen(true);
         } else {
           setMfaPending(false);
-          toast.success(isPl ? "Zalogowano" : "Signed in");
+          toast.success(t("authPortal.toasts.signedIn"));
         }
       }
     } catch (err) {
@@ -329,7 +261,7 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
           className="absolute top-6 left-6 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors z-20"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
-          {t.backHome}
+          {t("authPortal.backHome")}
         </Link>
       )}
 
@@ -338,24 +270,8 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
         <button
           type="button"
           onClick={toggleTheme}
-          aria-label={
-            theme === "dark"
-              ? isPl
-                ? "Tryb jasny"
-                : "Light mode"
-              : isPl
-                ? "Tryb ciemny"
-                : "Dark mode"
-          }
-          title={
-            theme === "dark"
-              ? isPl
-                ? "Tryb jasny"
-                : "Light mode"
-              : isPl
-                ? "Tryb ciemny"
-                : "Dark mode"
-          }
+          aria-label={themeLabel}
+          title={themeLabel}
           className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-border bg-card/80 backdrop-blur text-muted-foreground hover:text-foreground transition-colors"
         >
           {theme === "dark" ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
@@ -365,16 +281,16 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
             <button
               type="button"
               onClick={() => i18n.changeLanguage("pl")}
-              aria-pressed={isPl}
-              className={`px-2 py-0.5 rounded-full transition ${isPl ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              aria-pressed={uiLanguage === "pl"}
+              className={`px-2 py-0.5 rounded-full transition ${uiLanguage === "pl" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
             >
               PL
             </button>
             <button
               type="button"
               onClick={() => i18n.changeLanguage("en")}
-              aria-pressed={!isPl}
-              className={`px-2 py-0.5 rounded-full transition ${!isPl ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              aria-pressed={uiLanguage !== "pl"}
+              className={`px-2 py-0.5 rounded-full transition ${uiLanguage !== "pl" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
             >
               EN
             </button>
@@ -398,19 +314,19 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
             active={mode === "signin"}
             onClick={() => setMode("signin")}
             icon={<LogIn className="w-5 h-5" />}
-            label={t.signin}
+            label={t("authPortal.signin")}
           />
           <RailButton
             active={mode === "signup"}
             onClick={() => setMode("signup")}
             icon={<UserPlus className="w-5 h-5" />}
-            label={t.signup}
+            label={t("authPortal.signup")}
           />
           <RailButton
             active={mode === "reset"}
             onClick={() => setMode("reset")}
             icon={<KeyRound className="w-5 h-5" />}
-            label={t.reset}
+            label={t("authPortal.reset")}
           />
         </aside>
 
@@ -428,14 +344,14 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
           >
             <div className="p-8 relative z-10">
               <h2 className="font-display text-3xl xl:text-4xl font-bold leading-tight mb-2 drop-shadow-md">
-                {t.heroTitle}
+                {heroTitle}
               </h2>
-              <p className="text-sm text-primary-foreground/90 max-w-xs drop-shadow">{t.heroSub}</p>
+              <p className="text-sm text-primary-foreground/90 max-w-xs drop-shadow">{heroSub}</p>
             </div>
             <div className="p-6 relative z-10 flex items-center justify-between text-[11px] uppercase tracking-wider text-primary-foreground/80">
               <span>© {new Date().getFullYear()} New European Strategies</span>
               <span className="px-2 py-1 rounded bg-white/15 backdrop-blur-sm">
-                {isPl ? "PL" : "EN"}
+                {uiLanguage.toUpperCase()}
               </span>
             </div>
           </section>
@@ -458,7 +374,11 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
                     : "bg-muted text-muted-foreground"
                 }`}
               >
-                {m === "signin" ? t.signin : m === "signup" ? t.signup : t.reset}
+                {m === "signin"
+                  ? t("authPortal.signin")
+                  : m === "signup"
+                    ? t("authPortal.signup")
+                    : t("authPortal.reset")}
               </button>
             ))}
           </div>
@@ -471,23 +391,23 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
             <p className="text-sm text-muted-foreground">
               {mode === "signin" && (
                 <>
-                  {t.haveNo}{" "}
+                  {t("authPortal.haveNo")}{" "}
                   <button
                     onClick={() => setMode("signup")}
                     className="text-primary font-semibold hover:underline"
                   >
-                    {t.signUpLink}
+                    {t("authPortal.signUpLink")}
                   </button>
                 </>
               )}
               {mode === "signup" && (
                 <>
-                  {t.haveYes}{" "}
+                  {t("authPortal.haveYes")}{" "}
                   <button
                     onClick={() => setMode("signin")}
                     className="text-primary font-semibold hover:underline"
                   >
-                    {t.signInLink}
+                    {t("authPortal.signInLink")}
                   </button>
                 </>
               )}
@@ -496,7 +416,7 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
                   onClick={() => setMode("signin")}
                   className="text-primary font-semibold hover:underline"
                 >
-                  ← {t.back}
+                  ← {t("authPortal.back")}
                 </button>
               )}
             </p>
@@ -522,7 +442,7 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
                         <FieldBox
                           key={f.key}
                           className={full ? "sm:col-span-2" : ""}
-                          label={reg.label(f.key, t.password)}
+                          label={reg.label(f.key, t("authPortal.password"))}
                           type={showPw ? "text" : "password"}
                           required
                           minLength={8}
@@ -539,7 +459,9 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
                               <button
                                 type="button"
                                 onClick={() => setShowPw((v) => !v)}
-                                aria-label={showPw ? t.hidePw : t.showPw}
+                                aria-label={
+                                  showPw ? t("authPortal.hidePw") : t("authPortal.showPw")
+                                }
                                 className="p-1 text-muted-foreground/70 transition-colors hover:text-foreground"
                               >
                                 {showPw ? (
@@ -595,7 +517,7 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
               </div>
             ) : (
               <>
-                <Field label={t.email} icon={<Mail className="w-4 h-4" />}>
+                <Field label={t("authPortal.email")} icon={<Mail className="w-4 h-4" />}>
                   <Input
                     type="email"
                     required
@@ -609,7 +531,7 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
 
                 {mode === "signin" && (
                   <Field
-                    label={t.password}
+                    label={t("authPortal.password")}
                     icon={<Lock className="w-4 h-4" />}
                     action={
                       <button
@@ -617,7 +539,7 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
                         onClick={() => setMode("reset")}
                         className="text-xs text-primary hover:underline"
                       >
-                        {t.forgot}
+                        {t("authPortal.forgot")}
                       </button>
                     }
                   >
@@ -627,14 +549,14 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
                       autoComplete="current-password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder={isPl ? "Minimum 8 znaków" : "At least 8 characters"}
+                      placeholder={t("authPortal.passwordPlaceholder")}
                       className="icon-input icon-input-with-action h-12 placeholder:text-muted-foreground/50 placeholder:font-normal tracking-wide transition-shadow focus-visible:ring-2 focus-visible:ring-primary/40"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPw((v) => !v)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 hover:text-foreground transition-colors p-1 rounded-md"
-                      aria-label={showPw ? t.hidePw : t.showPw}
+                      aria-label={showPw ? t("authPortal.hidePw") : t("authPortal.showPw")}
                     >
                       {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -644,7 +566,7 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
             )}
 
             {mode === "reset" && (
-              <p className="text-xs text-muted-foreground -mt-2">{t.resetSub}</p>
+              <p className="text-xs text-muted-foreground -mt-2">{t("authPortal.resetSub")}</p>
             )}
 
             <Button
@@ -655,34 +577,34 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
               {busy ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : mode === "signin" ? (
-                t.submitSignin
+                t("authPortal.submitSignin")
               ) : mode === "signup" ? (
-                t.submitSignup
+                t("authPortal.submitSignup")
               ) : (
-                t.submitReset
+                t("authPortal.submitReset")
               )}
             </Button>
 
             <p className="text-[11px] leading-relaxed text-muted-foreground text-center pt-2">
-              {t.legalPre}
+              {t("authPortal.legalPre")}
               <a
                 href={settings.privacy_url || "/polityka-prywatnosci"}
                 target="_blank"
                 rel="noreferrer"
                 className="underline hover:text-foreground"
               >
-                {t.legalPrivacy}
+                {t("authPortal.legalPrivacy")}
               </a>
-              {t.legalAnd}
+              {t("authPortal.legalAnd")}
               <a
                 href={settings.terms_url || "/regulamin"}
                 target="_blank"
                 rel="noreferrer"
                 className="underline hover:text-foreground"
               >
-                {t.legalTerms}
+                {t("authPortal.legalTerms")}
               </a>
-              {t.legalSuf}
+              {t("authPortal.legalSuf")}
             </p>
           </form>
         </main>
@@ -693,7 +615,7 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
         onVerified={() => {
           setMfaOpen(false);
           setMfaPending(false);
-          toast.success(isPl ? "Zalogowano" : "Signed in");
+          toast.success(t("authPortal.toasts.signedIn"));
         }}
         onCancel={() => {
           setMfaOpen(false);

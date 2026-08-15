@@ -2,10 +2,11 @@
 // Wyekstrahowana z Header.tsx, żeby drawer składał się z klocków.
 import { Link } from "@tanstack/react-router";
 import { LogIn, UserPlus, User, LogOut } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
+import "@/lib/i18n-mobile-drawer";
 
 type Props = {
-  isPl: boolean;
   onNavigate: () => void;
 };
 
@@ -18,20 +19,20 @@ const accountIcon =
 const primaryBtn = accountRow;
 const secondaryBtn = accountRow;
 
-export function MobileAccountSection({ isPl, onNavigate }: Props) {
+export function MobileAccountSection({ onNavigate }: Props) {
+  const { t } = useTranslation();
   const { session, signOut } = useAuth();
-  const t = (pl: string, en: string) => (isPl ? pl : en);
 
   return (
     <div className="px-3 py-3 border-b border-border bg-muted/20">
       <p className="text-[11px] font-bold tracking-wider uppercase text-muted-foreground mb-1.5 px-2.5">
-        {t("Konto", "Account")}
+        {t("mobileDrawer.account")}
       </p>
       {session ? (
         <div className="flex flex-col gap-0.5">
           <Link to="/profile" onClick={onNavigate} className={primaryBtn}>
             <User className={accountIcon} />
-            {t("Moje konto", "My account")}
+            {t("mobileDrawer.myAccount")}
           </Link>
           <button
             type="button"
@@ -42,14 +43,14 @@ export function MobileAccountSection({ isPl, onNavigate }: Props) {
             className={secondaryBtn}
           >
             <LogOut className={accountIcon} />
-            {t("Wyloguj", "Sign out")}
+            {t("mobileDrawer.signOut")}
           </button>
         </div>
       ) : (
         <div className="flex flex-col gap-0.5">
           <Link to="/login" onClick={onNavigate} className={primaryBtn}>
             <LogIn className={accountIcon} />
-            {t("Zaloguj", "Sign in")}
+            {t("mobileDrawer.signIn")}
           </Link>
           <Link
             to="/login"
@@ -58,7 +59,7 @@ export function MobileAccountSection({ isPl, onNavigate }: Props) {
             className={secondaryBtn}
           >
             <UserPlus className={accountIcon} />
-            {t("Zarejestruj", "Register")}
+            {t("mobileDrawer.register")}
           </Link>
         </div>
       )}

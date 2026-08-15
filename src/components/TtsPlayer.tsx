@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-tts-player";
 import { Loader2 } from "@/lib/lucide-shim";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -22,8 +23,7 @@ interface TtsPlayerProps {
 }
 
 export function TtsPlayer({ text, voiceId, model, label }: TtsPlayerProps) {
-  const { i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +48,7 @@ export function TtsPlayer({ text, voiceId, model, label }: TtsPlayerProps) {
 
   const handleClick = async () => {
     if (!text || !text.trim()) {
-      setError(isPl ? "Brak tekstu do odczytania" : "No text to read aloud");
+      setError(t("ttsPlayer.errors.noText"));
       return;
     }
     if (audioRef.current && audioUrl) {
@@ -69,11 +69,7 @@ export function TtsPlayer({ text, voiceId, model, label }: TtsPlayerProps) {
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData.session?.access_token;
       if (!accessToken) {
-        throw new Error(
-          isPl
-            ? "Zaloguj się, aby odsłuchać wersję audio."
-            : "Sign in to listen to the audio version.",
-        );
+        throw new Error(t("ttsPlayer.errors.signInRequired"));
       }
       const res = await fetch("/api/tts", {
         method: "POST",
@@ -86,11 +82,7 @@ export function TtsPlayer({ text, voiceId, model, label }: TtsPlayerProps) {
       if (!res.ok) {
         // Never surface the raw server error text to the reader.
         await res.text().catch(() => "");
-        throw new Error(
-          isPl
-            ? "Nie udało się wczytać wersji audio. Spróbuj ponownie."
-            : "Could not load the audio version. Please try again.",
-        );
+        throw new Error(t("ttsPlayer.errors.loadFailed"));
       }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
