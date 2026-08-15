@@ -77,7 +77,7 @@ export const DEFAULT_TICKER_CONFIG: TickerConfig = {
   enabled: true,
   source: "trending",
   mode: "scroll",
-  layoutStyle: "classic",
+  layoutStyle: "editorial",
   days: 7,
   limit: 8,
   visibleCount: 1,
