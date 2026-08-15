@@ -33,6 +33,7 @@ import {
   COMPACT_WIDGET_TYPES,
 } from "@/components/admin/builder/ui/organisms/widget-view/frame";
 import { RenderErrorBoundary } from "@/components/error/RenderErrorBoundary";
+import { afterPrerendering } from "@/lib/prerender";
 import { sanitizeHtmlId, sanitizeCssClass, safeImageUrl, hardenStyleCss } from "@/lib/sanitize";
 import {
   sectionWrapperStyle,
@@ -371,9 +372,16 @@ function ExperimentSection({
   variant: AbVariant;
   children: React.ReactNode;
 }) {
-  useEffect(() => {
-    recordExperimentEvent(experimentId, variant, "exposure");
-  }, [experimentId, variant]);
+  // Ekspozycja liczy się dopiero, gdy odwiedzający NAPRAWDĘ jest na stronie.
+  // Strona wyrenderowana spekulacyjnie (Speculation Rules `prerender`) montuje
+  // ten efekt w tle - bez tej osłony sam najazd kursora na link w treści
+  // podbijałby MIANOWNIK współczynnika konwersji, czyli zaniżał wynik
+  // eksperymentu tym mocniej, im lepiej działa prefetch. Ta sama zasada, co
+  // w `useRecordPostView` i w telemetrii RUM z `__root.tsx`.
+  useEffect(
+    () => afterPrerendering(() => recordExperimentEvent(experimentId, variant, "exposure")),
+    [experimentId, variant],
+  );
   return (
     <div
       style={{ display: "contents" }}

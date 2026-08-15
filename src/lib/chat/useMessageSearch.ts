@@ -1,8 +1,16 @@
-// Wyszukiwanie w treści rozmów: cienki hook nad RPC search_messages (FTS po
-// messages.body z polską fleksją). RPC lustrzanie egzekwuje warunki RLS
-// (tenant, członkostwo, expires_at, cleared_before) i wyklucza tombstony,
-// więc klient niczego nie musi filtrować. Snippet wraca w konwencji
-// [[[ ]]] - renderowanie przez <SearchSnippet>, nigdy innerHTML.
+// Wyszukiwanie w treści rozmów: cienki hook nad RPC search_messages.
+//
+// Po stronie bazy wektor, zapytanie i podświetlenie idą przez JEDNĄ
+// konfigurację `public.nes_polish` (migracja 20260815090000): fleksja tam,
+// gdzie serwer ma słownik, `simple` + `unaccent` tam, gdzie go nie ma - w obu
+// przypadkach z prefiksem na lemacie, więc pole filtruje listę w trakcie
+// pisania. Do 15.08 komentarz obiecywał tu „polską fleksję", a wektor stał na
+// gołym `simple` - siedem wydań audytu z rzędu.
+//
+// RPC lustrzanie egzekwuje warunki RLS (tenant, członkostwo, expires_at,
+// cleared_before) i wyklucza tombstony, więc klient niczego nie musi
+// filtrować. Snippet wraca w konwencji [[[ ]]] - renderowanie przez
+// <SearchSnippet>, nigdy innerHTML.
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
