@@ -22,7 +22,7 @@ import {
   readProfileCardStyle,
 } from "@/lib/content-model/profileCardStyle";
 import { WIDGET_SCHEMAS } from "@/lib/builder/schemas";
-import { AuthorProfileCardWidget } from "@/components/admin/builder/ui/organisms/widget-view/AuthorProfileCardWidget";
+import { AuthorProfileCardWidget } from "@/components/builder/organisms/widget-view/AuthorProfileCardWidget";
 import { AuthorBioView } from "@/components/blocks/PostContextViews";
 import { CurrentPostProvider, type CurrentPostCtx } from "@/lib/content-model/postContext";
 import { filterInternalExperts, type InternalExpertEntry } from "@/lib/experts/internalBase";

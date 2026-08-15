@@ -53,7 +53,7 @@ import { CurrentPostProvider, type CurrentPostCtx } from "@/lib/content-model/po
 // zdążą się wydarzyć - bramka zobaczyłaby "wszystkie ustawienia martwe" tam,
 // gdzie w produkcji SSR wypełnia boundary i widget renderuje się normalnie.
 vi.mock(
-  "@/components/admin/builder/ui/organisms/widget-view/lazyWidgets",
+  "@/components/builder/organisms/widget-view/lazyWidgets",
   () => import("@/test/eagerWidgetChunks"),
 );
 
@@ -182,7 +182,7 @@ vi.mock("@tanstack/react-router", async (orig) => {
 });
 
 import { WidgetContentFields, PANEL_EXTRA_CONTENT_KEYS } from "../WidgetProperties";
-import { WidgetView } from "../WidgetView";
+import { WidgetView } from "@/components/builder/organisms/WidgetView";
 
 /**
  * Realny kontekst wpisu (jak na stronie wpisu) - widgety `post-*` bez kontekstu

@@ -44,7 +44,7 @@ describe("globalne tokeny Theme Design: `.cms-post-*` mają pierwszeństwo nad u
     const css = read("src/styles.css");
     const slider = read("src/lib/builder/sliderVariants.tsx");
     const mustReads = read(
-      "src/components/admin/builder/ui/organisms/widget-view/TailoredMustReadsView.tsx",
+      "src/components/builder/organisms/widget-view/TailoredMustReadsView.tsx",
     );
 
     expect(css).toMatch(/--cms-underline-thickness:\s*2px/);
@@ -63,10 +63,10 @@ describe("globalne tokeny Theme Design: `.cms-post-*` mają pierwszeństwo nad u
   const OFFENDING =
     /\b(?:leading-(?:none|tight|snug|normal|relaxed|loose)|text-(?:xs|sm|base|lg|xl|2xl|3xl|4xl|5xl))\b/;
   const FILES = [
-    "src/components/admin/builder/ui/organisms/widget-view/PostListView.tsx",
-    "src/components/admin/builder/ui/organisms/widget-view/PodcastLatestView.tsx",
-    "src/components/admin/builder/ui/organisms/widget-view/DynamicTagWidgets.tsx",
-    "src/components/admin/builder/ui/organisms/widget-view/WebStoriesCarouselView.tsx",
+    "src/components/builder/organisms/widget-view/PostListView.tsx",
+    "src/components/builder/organisms/widget-view/PodcastLatestView.tsx",
+    "src/components/builder/organisms/widget-view/DynamicTagWidgets.tsx",
+    "src/components/builder/organisms/widget-view/WebStoriesCarouselView.tsx",
     "src/lib/builder/sliderVariants.tsx",
     "src/lib/builder/animatedHeadingVariants.tsx",
   ];

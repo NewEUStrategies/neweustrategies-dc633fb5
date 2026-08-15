@@ -9,7 +9,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { WidgetView } from "@/components/admin/builder/WidgetView";
+import { WidgetView } from "@/components/builder/organisms/WidgetView";
 import { makeWidget } from "@/lib/builder/registry";
 import type { WidgetNode } from "@/lib/builder/types";
 

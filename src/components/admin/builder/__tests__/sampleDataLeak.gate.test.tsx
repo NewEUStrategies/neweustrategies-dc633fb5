@@ -29,6 +29,15 @@ import { BuilderModeProvider } from "@/lib/content-model/editorCanvas";
 import { CurrentPostProvider, type CurrentPostCtx } from "@/lib/content-model/postContext";
 import { SAMPLE_POST_TOKENS, findSampleLeak } from "@/lib/builder/ci/sampleTokens";
 
+// Podział kodu (React.lazy) zamieniony na importy statyczne - bez tego pierwszy
+// render leniwych widgetów pokazuje fallback Suspense i synchroniczne asercje
+// widzą pustkę tam, gdzie w produkcji SSR wypełnia boundary. Lustro eager jest
+// kontraktowo identyczne z rejestrem (src/lib/builder/ci/__tests__/eagerWidgetChunks.test.ts).
+vi.mock(
+  "@/components/builder/organisms/widget-view/lazyWidgets",
+  () => import("@/test/eagerWidgetChunks"),
+);
+
 vi.mock("@/integrations/supabase/client", () => {
   type Builder = Record<string, unknown> & { then: (r: (v: unknown) => unknown) => unknown };
   const builder = {} as Builder;
@@ -99,7 +108,7 @@ vi.mock("@tanstack/react-router", async (orig) => {
   };
 });
 
-import { WidgetView } from "../WidgetView";
+import { WidgetView } from "@/components/builder/organisms/WidgetView";
 
 const DEVICE: Device = "desktop";
 const LANGS = ["pl", "en"] as const;
@@ -243,7 +252,7 @@ describe("PRÓBKA MA JEDNO ŹRÓDŁO: żaden renderer nie zaszywa własnej", () 
    * prawdziwy wyciek by się schował.
    */
   const PUBLIC_RENDER_DIRS = [
-    "components/admin/builder/ui/organisms/widget-view",
+    "components/builder/organisms/widget-view",
     "components/blocks",
     "components/content",
     "components/archive",
@@ -276,7 +285,7 @@ describe("PRÓBKA MA JEDNO ŹRÓDŁO: żaden renderer nie zaszywa własnej", () 
   function publicRenderFiles(): string[] {
     const out: string[] = [];
     for (const dir of PUBLIC_RENDER_DIRS) walk(resolve(SRC, dir), out);
-    out.push(resolve(SRC, "components/admin/builder/WidgetView.tsx"));
+    out.push(resolve(SRC, "components/builder/organisms/WidgetView.tsx"));
     return out;
   }
 

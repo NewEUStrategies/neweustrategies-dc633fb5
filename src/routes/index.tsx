@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import { FooterSlideup } from "@/components/ads/FooterSlideup";
 import { useInFeedAds } from "@/components/ads/useInFeedAds";
-import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
+import { BuilderRenderer } from "@/components/builder/organisms/BuilderRenderer";
 import { PaginatedPostGrid } from "@/components/archive/PaginatedPostGrid";
 import { parseBuilderDoc } from "@/lib/builder/parse";
 import { builderDocHasTopHeading } from "@/lib/builder/headings";

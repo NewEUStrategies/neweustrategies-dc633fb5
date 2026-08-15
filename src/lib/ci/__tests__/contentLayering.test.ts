@@ -20,6 +20,10 @@ describe("layerOf", () => {
     expect(layerOf("src/components/admin/blocks/AdminColorPicker.tsx")).toBe("blocks");
     expect(layerOf("src/lib/builder/types.ts")).toBe("builder");
     expect(layerOf("src/components/admin/builder/Builder.tsx")).toBe("builder");
+    // Publiczny renderer buildera wyprowadzony spod components/admin (2026-08-15)
+    // zostaje w warstwie builder - inwariant kierunku zależności obejmuje go nadal.
+    expect(layerOf("src/components/builder/organisms/WidgetView.tsx")).toBe("builder");
+    expect(layerOf("src/components/builder/organisms/widget-view/lazyWidgets.tsx")).toBe("builder");
     expect(layerOf("src/routes/$.tsx")).toBe("routes");
   });
 
@@ -90,7 +94,7 @@ describe("scanContentLayering", () => {
   it("przepuszcza builder -> bloki i liczy te krawędzie informacyjnie", () => {
     const { violations, stats } = scanContentLayering([
       source(
-        "src/components/admin/builder/ui/organisms/widget-view/RichTextView.tsx",
+        "src/components/builder/organisms/widget-view/RichTextView.tsx",
         'import type { BlocksDoc } from "@/lib/blocks/types";',
         'import { BlocksRenderer } from "@/components/blocks/BlocksRenderer";',
       ),
@@ -131,7 +135,7 @@ describe("scanContentLayering", () => {
       source(
         "src/lib/blocks/registry.tsx",
         'export type { WidgetType } from "@/lib/builder/types";',
-        'const lazy = () => import("@/components/admin/builder/WidgetView");',
+        'const lazy = () => import("@/components/builder/organisms/WidgetView");',
         'import "@/lib/builder/designTokens";',
       ),
     ]);

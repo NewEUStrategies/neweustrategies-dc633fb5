@@ -26,7 +26,7 @@ już to umożliwia (builder pełni rolę „page-composition engine").
 Wszystkie żyją w kategorii **„NES Digital Features"** w palecie buildera
 (`WidgetLibrary`) i renderują się przez `WidgetView` jak każdy inny widget.
 Silnik: `src/components/features/*`; adapter treść→config:
-`src/components/admin/builder/ui/organisms/widget-view/FeatureWidgets.tsx`.
+`src/components/builder/organisms/widget-view/FeatureWidgets.tsx`.
 
 | Widget (`type`)           | Komponent         | Do czego                                               |
 | ------------------------- | ----------------- | ------------------------------------------------------ |

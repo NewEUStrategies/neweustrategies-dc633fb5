@@ -8,7 +8,7 @@ import { RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PreviewFrame } from "../atoms/PreviewFrame";
 import { VersionRow } from "../molecules/VersionRow";
-import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
+import { BuilderRenderer } from "@/components/builder/organisms/BuilderRenderer";
 import { useGlobalWidgets } from "@/lib/builder/globalWidgets";
 import { usePopupsAdmin } from "@/lib/builder/popups";
 import { useSectionTemplates, useTemplateRevisions } from "@/lib/builder/templates";

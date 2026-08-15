@@ -8,7 +8,7 @@ import { WIDGET_SCHEMAS } from "@/lib/builder/schemas";
 import { SchemaFieldControl } from "../../molecules/SchemaFieldControl";
 import { ExpertLinkPanel } from "./ExpertLinkPanel";
 import type { ExpertHydration } from "@/lib/experts/hydration";
-import { AuthorProfileCardWidget } from "../widget-view/AuthorProfileCardWidget";
+import { AuthorProfileCardWidget } from "@/components/builder/organisms/widget-view/AuthorProfileCardWidget";
 
 interface Props {
   c: WidgetNode["content"];

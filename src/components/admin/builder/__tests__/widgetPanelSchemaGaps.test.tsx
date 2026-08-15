@@ -19,14 +19,24 @@ import { WIDGETS } from "@/lib/builder/registry";
 import { WIDGET_SCHEMAS, type SchemaField } from "@/lib/builder/schemas";
 
 // ImageSlot (edytor obrazka) wymaga kontekstu tenanta z `useAuth`.
+
+// Podział kodu (React.lazy) zamieniony na importy statyczne - bez tego pierwszy
+// render leniwych widgetów pokazuje fallback Suspense i synchroniczne asercje
+// widzą pustkę tam, gdzie w produkcji SSR wypełnia boundary. Lustro eager jest
+// kontraktowo identyczne z rejestrem (src/lib/builder/ci/__tests__/eagerWidgetChunks.test.ts).
+vi.mock(
+  "@/components/builder/organisms/widget-view/lazyWidgets",
+  () => import("@/test/eagerWidgetChunks"),
+);
+
 vi.mock("@/hooks/useAuth", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useAuth")>()),
   useRequiredTenant: () => "tenant-test",
 }));
 
 import { WidgetProperties, unhandledSchemaFields } from "../WidgetProperties";
-import { renderSimpleWidget } from "../ui/organisms/widget-view/SimpleWidgets";
-import { DynamicTagWidget } from "../ui/organisms/widget-view/DynamicTagWidgets";
+import { renderSimpleWidget } from "@/components/builder/organisms/widget-view/SimpleWidgets";
+import { DynamicTagWidget } from "@/components/builder/organisms/widget-view/DynamicTagWidgets";
 
 function defaultsOf(type: WidgetType): WidgetContent {
   return WIDGETS.find((w) => w.type === type)?.defaults() ?? {};

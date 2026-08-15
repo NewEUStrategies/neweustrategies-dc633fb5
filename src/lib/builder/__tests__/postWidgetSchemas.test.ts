@@ -44,10 +44,7 @@ function schemaKeys(type: WidgetType): Set<string> {
 }
 
 const RENDERER_SOURCE = readFileSync(
-  resolve(
-    process.cwd(),
-    "src/components/admin/builder/ui/organisms/widget-view/DynamicTagWidgets.tsx",
-  ),
+  resolve(process.cwd(), "src/components/builder/organisms/widget-view/DynamicTagWidgets.tsx"),
   "utf8",
 );
 

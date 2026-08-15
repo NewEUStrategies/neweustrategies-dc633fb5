@@ -4,7 +4,7 @@ import type { ReactElement } from "react";
 // wszystko poza tym pozostaje statyczne.
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useLang } from "@/lib/i18n/useLang";
-import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
+import { BuilderRenderer } from "@/components/builder/organisms/BuilderRenderer";
 import type { BuilderDocument } from "@/lib/builder/types";
 import { mobileDrawerConfigQueryOptions } from "@/lib/queries/mobileDrawer";
 import type { DrawerSection } from "@/lib/mobileDrawer";

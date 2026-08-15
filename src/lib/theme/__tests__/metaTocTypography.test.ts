@@ -36,7 +36,7 @@ describe("meta + TOC typography inherits theme font sizes", () => {
   });
 
   it("TOC views no longer hardcode font sizes", () => {
-    const widget = read("src/components/admin/builder/ui/organisms/widget-view/TocWidget.tsx");
+    const widget = read("src/components/builder/organisms/widget-view/TocWidget.tsx");
     for (const hard of [
       "text-[13px]",
       "text-[14px]",

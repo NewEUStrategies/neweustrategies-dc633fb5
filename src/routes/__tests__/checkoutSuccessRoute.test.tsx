@@ -52,7 +52,7 @@ vi.mock("@/lib/queries/public", () => ({
 }));
 // Widok wbudowany i renderer treści mają własne, pełne zestawy testów - tutaj
 // interesuje nas WYBÓR między nimi, więc obie strony są sondami.
-vi.mock("@/components/admin/builder/ui/organisms/widget-view/PurchaseConfirmationView", () => ({
+vi.mock("@/components/builder/organisms/widget-view/PurchaseConfirmationView", () => ({
   PurchaseConfirmationView: ({ lang }: { lang: string }) => (
     <div data-testid="builtin-confirmation" data-lang={lang} />
   ),

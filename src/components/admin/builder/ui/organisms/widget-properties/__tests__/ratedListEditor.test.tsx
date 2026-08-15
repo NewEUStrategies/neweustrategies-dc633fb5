@@ -13,7 +13,7 @@ import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { toJson, type Json, type WidgetContent } from "@/lib/builder/types";
 import { RatedListEditor } from "../RatedListEditor";
-import { RatedListView } from "../../widget-view/RatedListView";
+import { RatedListView } from "@/components/builder/organisms/widget-view/RatedListView";
 
 type Recorded = Array<[string, Json]>;
 

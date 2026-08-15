@@ -3,8 +3,11 @@ import { useTranslation } from "react-i18next";
 import type { BuilderDocument, Device, WidgetType } from "@/lib/builder/types";
 import { WIDGET_MAP } from "@/lib/builder/registry";
 import { parseGlobalWidgetData, type GlobalWidgetData } from "@/lib/builder/globalWidgets";
-import { BuilderRenderer, BuilderEmptyPickerProvider } from "../../../BuilderRenderer";
-import { InlineEditProvider } from "../../../inlineEditContext";
+import {
+  BuilderRenderer,
+  BuilderEmptyPickerProvider,
+} from "@/components/builder/organisms/BuilderRenderer";
+import { InlineEditProvider } from "@/components/builder/inlineEditContext";
 import { SectionDropZone } from "./SectionDropZone";
 import { WidgetResizeOverlay } from "./WidgetResizeOverlay";
 import type { Selection } from "./types";

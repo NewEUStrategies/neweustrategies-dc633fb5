@@ -5,7 +5,7 @@
 // renderowałby pustkę - czyli "wszystkie ustawienia martwe" albo, gorzej,
 // zwolnienie wpisane w listę odstępstw zamiast naprawy.
 import { describe, it, expect } from "vitest";
-import * as lazyChunks from "@/components/admin/builder/ui/organisms/widget-view/lazyWidgets";
+import * as lazyChunks from "@/components/builder/organisms/widget-view/lazyWidgets";
 import * as eagerChunks from "@/test/eagerWidgetChunks";
 
 const names = (mod: object): string[] =>

@@ -73,7 +73,7 @@ describe("zasięg typografii w kluczowych widokach", () => {
     ["kluby (/club)", "src/routes/club.tsx", "data-club-typography"],
     [
       "builder Elementor",
-      "src/components/admin/builder/ui/organisms/BuilderRenderer.tsx",
+      "src/components/builder/organisms/BuilderRenderer.tsx",
       "data-theme-typography",
     ],
     ["builder Gutenberg", "src/components/admin/blocks/BlockCanvas.tsx", "data-theme-typography"],
