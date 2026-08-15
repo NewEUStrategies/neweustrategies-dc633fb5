@@ -2372,6 +2372,15 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       label: "Etykieta (badge)",
       placeholder: "Najnowsze / Latest",
     },
+    {
+      key: "direction",
+      type: "select",
+      label: "Kierunek animacji",
+      options: [
+        { value: "vertical", label: "Pionowy (slide)" },
+        { value: "horizontal", label: "Poziomy (marquee)" },
+      ],
+    },
     { key: "limit", type: "number", label: "Liczba wpisów", min: 3, max: 30 },
     {
       key: "speedSeconds",

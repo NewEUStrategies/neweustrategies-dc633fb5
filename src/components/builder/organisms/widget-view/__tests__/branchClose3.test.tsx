@@ -233,6 +233,7 @@ describe("NewsTickerView with options + hover toggles off", () => {
         c={{
           badge_pl: "B",
           badge_en: "Be",
+          direction: "horizontal",
           limit: 5,
           speedSeconds: 25,
           pauseOnHover: false,

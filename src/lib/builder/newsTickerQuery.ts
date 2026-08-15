@@ -17,7 +17,12 @@ export interface TickerPost {
   slug: string;
   title_pl: string | null;
   title_en: string | null;
+  author_id: string | null;
+  author_display_name: string | null;
+  author_avatar_url: string | null;
 }
+
+type ProfileAuthor = { id: string; display_name: string | null; avatar_url: string | null };
 
 interface NewsTickerInput {
   /** Rows to FETCH (over-fetched past the display limit when uniqueOnPage). */
@@ -76,14 +81,36 @@ async function fetchTickerPosts(input: NewsTickerInput): Promise<TickerPost[]> {
   }
   let q = supabase
     .from("posts")
-    .select("id, slug, title_pl, title_en")
+    .select("id, slug, title_pl, title_en, author_id")
     .eq("status", "published")
     .order("published_at", { ascending: false })
     .limit(input.limit);
   if (allowedIds) q = q.in("id", allowedIds);
   const { data } = await q;
-  return (data ?? []) as TickerPost[];
+  const posts = (data ?? []) as TickerPost[];
+
+  const authorIds = Array.from(new Set(posts.map((p) => p.author_id).filter((id): id is string => !!id)));
+  const profileMap = new Map<string, ProfileAuthor>();
+  if (authorIds.length) {
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, display_name, avatar_url")
+      .in("id", authorIds);
+    for (const p of (profiles ?? []) as ProfileAuthor[]) {
+      profileMap.set(p.id, p);
+    }
+  }
+
+  return posts.map((p) => {
+    const author = p.author_id ? profileMap.get(p.author_id) : undefined;
+    return {
+      ...p,
+      author_display_name: author?.display_name ?? null,
+      author_avatar_url: author?.avatar_url ?? null,
+    };
+  });
 }
+
 
 // `lang` is accepted for call-site symmetry with the other builder widget
 // queries; the ticker selects both title columns and picks the language at
