@@ -92,7 +92,10 @@ describe("panel admina - warstwa dostępu", () => {
     const source = read(`${ROUTES_DIR}/admin.users.$id.tsx`);
     expect(source).toMatch(/!\(isAdmin \|\| isSuperAdmin\)/);
     // Nadanie `super_admin` zostaje ostrzejsze - dokładnie jak w RPC.
-    expect(source).toMatch(/isSuperAdmin && <SelectItem value="super_admin"/);
+    // Wzorzec znosi zawinięcie JSX w nawias (prettier zawija, gdy etykieta
+    // przestaje być literałem i schodzi z `t()`), bo pilnowany jest WARUNEK,
+    // a nie sposób sformatowania gałęzi.
+    expect(source).toMatch(/isSuperAdmin &&\s*\(?\s*<SelectItem value="super_admin"/);
   });
 
   it("autorytet nadawania rol jest pokryty pgTAP - i to on jest ostateczny", () => {

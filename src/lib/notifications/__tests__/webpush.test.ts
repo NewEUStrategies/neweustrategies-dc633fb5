@@ -294,6 +294,10 @@ describe("VAPID JWT", () => {
     const scalar = Buffer.alloc(32);
     randomBytes(31).copy(scalar, 1);
     scalar[31] |= 0x01; // skalar != 0
+    // DOKŁADNIE jeden bajt zerowy na początku. Bez tego test był flakiem
+    // 1-na-256: gdy wylosowany `scalar[1]` też wyszedł 0x00, Node ścinał DWA
+    // bajty i klucz miał 30, a nie 31 - asercja padała, choć kod był w porządku.
+    scalar[1] |= 0x01;
     ecdh.setPrivateKey(scalar);
     expect(ecdh.getPrivateKey()).toHaveLength(31);
 

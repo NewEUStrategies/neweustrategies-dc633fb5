@@ -18,6 +18,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { normalizeBuilderRichHtml } from "@/lib/builder/normalizeRichHtml";
+// i18n-overlay-imports: pomijamy @/lib/i18n-builder (waga chunka - powód niżej)
 // BEZ side-effectowego `import "@/lib/i18n-builder"` - ta sama zasada, co w
 // `widget-view/resizeWrappers.tsx`. Moduł leży w EAGER-owej ścieżce publicznego
 // chrome (WidgetView <- BuilderRenderer <- Header/Footer), a słownik buildera
