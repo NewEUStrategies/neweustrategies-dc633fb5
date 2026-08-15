@@ -217,6 +217,16 @@ jobs:
       - name: Content engines keep one dependency direction
         run: bun run check:content-layering
 
+      # Blocking gate on a defect that review cannot catch by reading: the page
+      # editor carried a comment promising autosave over code where
+      # `useAutosave` did not appear at all, so editors lost builder work on tab
+      # close for eight releases while the posts editor was wired correctly the
+      # whole time. Nothing compared the two surfaces. The scanner strips
+      # comments, so a commented-out `useAutosave(...)` cannot silence it.
+      # Rationale: src/lib/ci/editorAutosaveContract.ts
+      - name: Editor surfaces really autosave
+        run: bun run check:editor-autosave
+
       # Blocking gate on the CAUSE of those casts: generated types going stale.
       # `src/integrations/supabase/types.ts` is generated from the database, and
       # the migrations are forward-only. Add a column by migration without

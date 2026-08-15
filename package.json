@@ -42,6 +42,7 @@
     "check:legacy-payment-refs": "bun run scripts/check-legacy-payment-refs.ts",
     "check:stale-never-casts": "bun run scripts/check-stale-never-casts.ts",
     "check:content-layering": "bun run scripts/check-content-layering.ts",
+    "check:editor-autosave": "bun run scripts/check-editor-autosave.ts",
     "check:workflow-env-contract": "bun run scripts/check-workflow-env-contract.ts",
     "check:sql-migration-replay": "bun run scripts/check-sql-migration-replay.ts",
     "check:rpc-contract": "bun run scripts/check-sql-rpc-contract.ts",
