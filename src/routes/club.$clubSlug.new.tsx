@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { ClubEnumSelect } from "@/components/admin/clubs/molecules/ClubEnumSelect";
+import { ClubEnumSelect } from "@/components/clubs/molecules/ClubEnumSelect";
 import { ClubIconPicker } from "@/components/clubs/molecules/ClubIconPicker";
 import { normalizeClubThreadIcon } from "@/lib/clubs/threadIcons";
 import { ClubTopicSelect } from "@/components/clubs/molecules/ClubTopicSelect";

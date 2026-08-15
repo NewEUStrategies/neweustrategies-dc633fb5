@@ -14,7 +14,7 @@ import "@/lib/i18n-public";
 import { FootnoteTooltips } from "@/components/Footnotes";
 import { createCounter, type Footnote } from "@/lib/footnotes";
 import { safeParseBlocks } from "@/lib/blocks/schema";
-import { RenderErrorBoundary } from "@/components/admin/builder/ui/organisms/widget-view/RenderErrorBoundary";
+import { RenderErrorBoundary } from "@/components/error/RenderErrorBoundary";
 import {
   BlockView,
   BlocksTenantProvider,

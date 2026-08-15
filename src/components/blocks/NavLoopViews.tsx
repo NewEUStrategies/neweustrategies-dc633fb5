@@ -7,7 +7,7 @@ import {
   postNeighborQueryOptions,
   queryLoopBlockQueryOptions,
 } from "@/lib/queries/blocks";
-import { useCurrentPostCtx } from "@/lib/builder/currentPostContext";
+import { useCurrentPostCtx } from "@/lib/content-model/postContext";
 import { AppLink } from "@/components/atoms/AppLink";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { formatDate } from "@/lib/i18n/format";

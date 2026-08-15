@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toPlVocative } from "@/lib/i18n/plVocative";
 import { localizedPath } from "@/lib/i18n/localePath";
 import type { WidgetContent } from "@/lib/builder/types";
-import { asBool, asNumInRange, asOneOf, pickI18n } from "@/lib/builder/contentValue";
+import { asBool, asNumInRange, asOneOf, pickI18n } from "@/lib/content-model/contentValue";
 import { AuthorByline } from "@/components/molecules/AuthorByline";
 import { resolveAuthorDisplay } from "@/lib/builder/authorDisplay";
 

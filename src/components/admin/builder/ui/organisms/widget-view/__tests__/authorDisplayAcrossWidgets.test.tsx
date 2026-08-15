@@ -47,7 +47,7 @@ import { PostListView } from "../PostListView";
 import { RatedListView } from "../RatedListView";
 import { DynamicTagWidget } from "../DynamicTagWidgets";
 import { WidgetView } from "@/components/admin/builder/WidgetView";
-import { CurrentPostProvider, type CurrentPostCtx } from "@/lib/builder/currentPostContext";
+import { CurrentPostProvider, type CurrentPostCtx } from "@/lib/content-model/postContext";
 import type { WidgetContent, WidgetNode } from "@/lib/builder/types";
 
 const AUTHOR = "Anna Autorka";

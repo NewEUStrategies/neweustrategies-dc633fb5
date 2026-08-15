@@ -8,7 +8,10 @@
 // typy trafiają jako `rich-text` z surowym HTML-em i wpisem w warnings.
 //
 // Pure, deterministic, no DOM. Testowalny.
-
+//
+// Mieszka w `wp-import` z tego samego powodu co `convert.ts`: produkuje
+// dokument BUILDERA, a nie bloków - patrz nagłówek `convert.ts` oraz
+// `src/lib/content-model/README.md`.
 import type {
   BuilderDocument,
   SectionNode,
@@ -16,9 +19,9 @@ import type {
   WidgetNode,
   WidgetType,
 } from "@/lib/builder/types";
-import { newId, toJson } from "@/lib/builder/types";
-import type { BlocksDoc } from "./types";
-import { htmlToBlocks } from "./migrate";
+import { newId, toJson } from "@/lib/content-model/json";
+import type { BlocksDoc } from "@/lib/blocks/types";
+import { htmlToBlocks } from "@/lib/blocks/migrate";
 
 /* ============================ HTML utilities ============================= */
 

@@ -18,12 +18,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import { DynamicTagWidget } from "../DynamicTagWidgets";
 import { makeWidget } from "@/lib/builder/registry";
-import { BuilderModeProvider } from "@/lib/builder/modeContext";
+import { BuilderModeProvider } from "@/lib/content-model/editorCanvas";
 import {
   CurrentPostProvider,
   PLACEHOLDER_POST_CTX,
   type CurrentPostCtx,
-} from "@/lib/builder/currentPostContext";
+} from "@/lib/content-model/postContext";
 import type { WidgetType } from "@/lib/builder/types";
 
 /** Wszystkie widgety zależne od kontekstu wpisu / archiwum. */

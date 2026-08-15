@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ClubTopicSelect } from "@/components/clubs/molecules/ClubTopicSelect";
-import { ClubEnumSelect } from "../molecules/ClubEnumSelect";
+import { ClubEnumSelect } from "@/components/clubs/molecules/ClubEnumSelect";
 import { ClubLayoutPicker } from "../molecules/ClubLayoutPicker";
 import { CLUB_STATUSES, type ClubLayout, type ClubStatus } from "@/lib/clubs/types";
 import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";

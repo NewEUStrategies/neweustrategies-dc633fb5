@@ -3,7 +3,7 @@
 //
 // KONTRAKT ODCZYTU USTAWIEŃ (dlaczego ten plik wygląda tak, a nie inaczej)
 //
-// 1. Każdy przełącznik idzie przez `asBool` z `@/lib/builder/contentValue`.
+// 1. Każdy przełącznik idzie przez `asBool` z `@/lib/content-model/contentValue`.
 //    Panel właściwości commitował historycznie stringi "0"/"1", a stary idiom
 //    `data.showX !== false` uznawał "0" za PRAWDĘ - wyłączenie pola po prostu
 //    nie działało. `readAuthFlag()` czyta pierwszy klucz, który niesie rozpoznaną
@@ -36,7 +36,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, EyeOff, User, KeyRound, ShieldCheck, LogIn } from "lucide-react";
 
 import { toast } from "sonner";
-import { asNumInRange, asStr } from "@/lib/builder/contentValue";
+import { asNumInRange, asStr } from "@/lib/content-model/contentValue";
 import {
   AUTH_LAYOUT,
   AUTH_SHELL_CLASS,
@@ -46,7 +46,7 @@ import {
   type AuthContent,
   type AuthLang,
   type AuthVariant,
-} from "@/lib/builder/authFormSettings";
+} from "@/lib/content-model/authFormSettings";
 import {
   collectCustomValues,
   parseCustomFields,
@@ -54,7 +54,7 @@ import {
   pickPlaceholder,
   validateCustom,
   type CustomField,
-} from "@/lib/builder/formFields";
+} from "@/lib/content-model/formFields";
 
 type Lang = AuthLang;
 type ContentBag = AuthContent;

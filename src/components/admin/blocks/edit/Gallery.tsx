@@ -1,4 +1,4 @@
-import { toJson } from "@/lib/builder/types";
+import { toJson } from "@/lib/content-model/json";
 import type { Block } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";

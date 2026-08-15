@@ -76,7 +76,7 @@ import {
   LostPasswordFormView,
   ResetPasswordFormView,
 } from "../AuthFormBlocks";
-import { readAuthVariant, readAuthFlag, pickAuthText } from "@/lib/builder/authFormSettings";
+import { readAuthVariant, readAuthFlag, pickAuthText } from "@/lib/content-model/authFormSettings";
 import { WIDGET_SCHEMAS } from "@/lib/builder/schemas";
 import { WIDGETS } from "@/lib/builder/registry";
 

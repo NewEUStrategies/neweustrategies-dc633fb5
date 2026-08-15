@@ -1,10 +1,19 @@
-// Granular render boundary for the builder. The global ErrorBoundary in
-// __root.tsx catches a crash anywhere in the tree and replaces the *entire*
-// page with a fallback - far too blunt for a page composed of dozens of
-// independently-authored sections and widgets. Wrapping each section and each
-// widget in this boundary isolates a render crash to the offending node: the
-// rest of the page keeps rendering, the error is reported, and the broken node
-// degrades to nothing in production (or a compact inline diagnostic in dev).
+// Ziarnista granica renderu dla treści składanej z wielu niezależnie
+// redagowanych węzłów - używana przez OBA silniki treści (sekcje i widgety
+// buildera, bloki edytora bloków, sekcje strumieniowane w SSR). Globalny
+// ErrorBoundary z `__root.tsx` łapie wywrotkę gdziekolwiek w drzewie i
+// podmienia CAŁĄ stronę na fallback - stanowczo za grubo dla strony złożonej
+// z kilkudziesięciu węzłów. Owinięcie każdego węzła tą granicą izoluje
+// wywrotkę do winowajcy: reszta strony renderuje się dalej, błąd jest
+// raportowany, a zepsuty węzeł degraduje do niczego na produkcji (albo do
+// zwięzłej diagnostyki inline w dev).
+//
+// Moduł mieszka w `components/error`, a nie pod builderem, bo `components/blocks`
+// też go potrzebuje - trzymanie go w drzewie buildera było jedną z krawędzi
+// cyklu `bloki <-> builder` (patrz `src/lib/content-model/README.md`).
+// Etykieta raportu (`boundary: "builder_render_boundary"`) zostaje bez zmian
+// świadomie: to nazwa istniejącego sygnału telemetrycznego, a ciągłość serii
+// pomiarowej jest warta więcej niż zgodność nazwy z nową ścieżką pliku.
 //
 // It is SSR-safe: React renders the fallback when a boundary catches during
 // server rendering, so a single malformed widget can no longer 500 the page.

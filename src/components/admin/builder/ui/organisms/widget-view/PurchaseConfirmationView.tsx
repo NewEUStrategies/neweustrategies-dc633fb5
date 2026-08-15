@@ -21,7 +21,7 @@ import {
   ShieldCheck,
 } from "@/lib/lucide-shim";
 import type { WidgetContent } from "@/lib/builder/types";
-import { useBuilderMode } from "@/lib/builder/modeContext";
+import { useBuilderMode } from "@/lib/content-model/editorCanvas";
 import { useAuth } from "@/hooks/useAuth";
 import { billingKeys } from "@/lib/billing/keys";
 import { fetchMyStripeSubscription } from "@/lib/billing/subscriptionQueries";

@@ -6,7 +6,7 @@ import { render, screen, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import { DynamicTagWidget } from "../DynamicTagWidgets";
-import { CurrentPostProvider, type CurrentPostCtx } from "@/lib/builder/currentPostContext";
+import { CurrentPostProvider, type CurrentPostCtx } from "@/lib/content-model/postContext";
 import type { WidgetNode, WidgetType } from "@/lib/builder/types";
 
 const FULL: CurrentPostCtx = {

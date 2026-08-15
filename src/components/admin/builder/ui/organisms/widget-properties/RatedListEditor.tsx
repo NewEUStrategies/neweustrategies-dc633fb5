@@ -14,7 +14,7 @@ import { PropField, ColorField, ItemFrame, CollapsibleSection as Collapsible } f
 import { AuthorDisplayControl } from "../../molecules/AuthorDisplayControl";
 import { ListShell } from "./ListShell";
 import { itemsOf, type Item } from "./shared";
-import { asBool, asNum, asOneOf, asStr } from "@/lib/builder/contentValue";
+import { asBool, asNum, asOneOf, asStr } from "@/lib/content-model/contentValue";
 import { TaxonomyPicker } from "./TaxonomyPicker";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-builder";

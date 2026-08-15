@@ -11,7 +11,7 @@
 
 import type { Block } from "./types";
 import { newBlockId } from "./types";
-import { toJson } from "@/lib/builder/types";
+import { toJson } from "@/lib/content-model/json";
 
 /** Znaczniki, po których poznajemy że schowek niesie realną strukturę. */
 const RICH_MARKERS =

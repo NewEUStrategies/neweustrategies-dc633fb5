@@ -1,6 +1,6 @@
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
-import { toJson } from "@/lib/builder/types";
+import { toJson } from "@/lib/content-model/json";
 import type { Block, Json } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
 import { Plus, Trash2, HelpCircle } from "lucide-react";

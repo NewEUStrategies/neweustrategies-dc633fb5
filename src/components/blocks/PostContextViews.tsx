@@ -15,7 +15,7 @@ import {
   useCurrentPostCtx,
   type CurrentPostAuthor,
   type CustomAuthorSocial,
-} from "@/lib/builder/currentPostContext";
+} from "@/lib/content-model/postContext";
 import { AppLink } from "@/components/atoms/AppLink";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { ProfileCard, type ProfileCardStyle } from "@/components/ui/profile-card";
@@ -79,7 +79,7 @@ interface AuthorBioProps {
   authorOverride?: CurrentPostAuthor | null;
   /**
    * Ustawienia prezentacji wariantu „profile". Te same klucze wystawia panel
-   * widgetu `author-profile-card` w builderze - patrz lib/builder/profileCardStyle.
+   * widgetu `author-profile-card` w builderze - patrz lib/content-model/profileCardStyle.
    */
   profileStyle?: ProfileCardStyle;
 }

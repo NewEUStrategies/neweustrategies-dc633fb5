@@ -88,7 +88,7 @@ import { EventsListView } from "../EventsListView";
 import { EventCountdownView } from "../EventCountdownView";
 import { EventScheduleView } from "../EventScheduleView";
 import { SpeakersWidget } from "../SpeakersWidget";
-import { BuilderModeProvider } from "@/lib/builder/modeContext";
+import { BuilderModeProvider } from "@/lib/content-model/editorCanvas";
 
 function renderWithClient(ui: ReactElement) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });

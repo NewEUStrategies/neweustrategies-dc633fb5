@@ -28,7 +28,7 @@ import {
 } from "@/lib/builder/animatedHeadingLinks";
 import { resolveDynamicText, resolveDynamicList } from "@/lib/builder/dynamicText";
 import { useBuilderLabel } from "@/lib/builder/labelsEn";
-import { PLACEHOLDER_POST_CTX } from "@/lib/builder/currentPostContext";
+import { PLACEHOLDER_POST_CTX } from "@/lib/content-model/postContext";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-builder";
 

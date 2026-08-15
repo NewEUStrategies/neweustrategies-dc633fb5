@@ -31,7 +31,7 @@ import {
   prefetchBuilderSectionQuery,
   sectionQueryOptionsList,
 } from "@/lib/builder/prefetch";
-import { RenderErrorBoundary } from "@/components/admin/builder/ui/organisms/widget-view/RenderErrorBoundary";
+import { RenderErrorBoundary } from "@/components/error/RenderErrorBoundary";
 
 /**
  * True while the server streams HTML, false in the browser. Vite replaces

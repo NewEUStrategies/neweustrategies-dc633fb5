@@ -25,8 +25,8 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import type { Device, WidgetNode, WidgetType } from "@/lib/builder/types";
 import { WIDGETS, makeWidget } from "@/lib/builder/registry";
-import { BuilderModeProvider } from "@/lib/builder/modeContext";
-import { CurrentPostProvider, type CurrentPostCtx } from "@/lib/builder/currentPostContext";
+import { BuilderModeProvider } from "@/lib/content-model/editorCanvas";
+import { CurrentPostProvider, type CurrentPostCtx } from "@/lib/content-model/postContext";
 import { SAMPLE_POST_TOKENS, findSampleLeak } from "@/lib/builder/ci/sampleTokens";
 
 vi.mock("@/integrations/supabase/client", () => {
@@ -253,7 +253,7 @@ describe("PRÓBKA MA JEDNO ŹRÓDŁO: żaden renderer nie zaszywa własnej", () 
 
   /** Kanoniczne źródło próbki + moduły, które ją świadomie opisują. */
   const ALLOWED = new Set([
-    "lib/builder/currentPostContext.tsx",
+    "lib/content-model/postContext.tsx",
     "lib/builder/ci/sampleTokens.ts",
     "lib/builder/archiveContext.ts",
   ]);

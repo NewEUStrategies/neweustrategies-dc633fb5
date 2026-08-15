@@ -6,7 +6,7 @@
 // odwiedzającym strony kategorii i tagu. Renderer nie ma już własnej próbki;
 // jedynym źródłem danych archiwum jest ten moduł (publicznie) oraz
 // `PLACEHOLDER_POST_CTX` (wyłącznie kanwa buildera).
-import type { CurrentPostCtx } from "./currentPostContext";
+import type { CurrentPostCtx } from "@/lib/content-model/postContext";
 import type { TaxonomyMeta } from "@/lib/queries/archives";
 
 /**

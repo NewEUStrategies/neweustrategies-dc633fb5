@@ -2,7 +2,7 @@
 import { htmlToPlainText } from "@/lib/sanitize";
 // Czerpią dane z CurrentPostCtx (dla post-*) i site_settings (dla site-*).
 
-import { useCurrentPostCtx } from "@/lib/builder/currentPostContext";
+import { useCurrentPostCtx } from "@/lib/content-model/postContext";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { AppLink } from "@/components/atoms/AppLink";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";

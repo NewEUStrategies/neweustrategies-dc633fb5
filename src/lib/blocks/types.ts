@@ -1,5 +1,13 @@
 // Block editor (Gutenberg/Foxiz-style) - typy podstawowe.
 // Każdy wpis może być serializowany jako BlocksDoc i renderowany publicznie.
+//
+// `Json` i `newBlockId` mieszkają w `@/lib/content-model` (jedna definicja pod
+// oba silniki treści) i są tu re-eksportowane, żeby dotychczasowe importy
+// `@/lib/blocks/types` zostały bez zmian.
+import type { Json } from "@/lib/content-model/json";
+
+export type { Json } from "@/lib/content-model/json";
+export { newBlockId } from "@/lib/content-model/json";
 
 export type BlockType =
   | "paragraph"
@@ -121,8 +129,6 @@ export type BlockType =
   // Faza 6 - opcjonalny hover-podgląd linku
   | "link-preview";
 
-export type Json = string | number | boolean | null | Json[] | { [k: string]: Json };
-
 export interface BlockStyle {
   align?: "left" | "center" | "right" | "wide" | "full";
   marginTop?: number; // px
@@ -146,11 +152,6 @@ export interface BlocksDoc {
 }
 
 export const EMPTY_BLOCKS_DOC: BlocksDoc = { version: 1, blocks: [] };
-
-export function newBlockId(): string {
-  // krótki, czytelny id (bez zależności od uuid)
-  return "b_" + Math.random().toString(36).slice(2, 10);
-}
 
 /** Per-language content split - taka sama strategia jak w content_pl/en. */
 export interface LocalizedBlocks {

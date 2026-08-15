@@ -23,7 +23,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import type { BuilderDocument } from "@/lib/builder/types";
-import { convertHtmlToBuilder, type ConversionResult } from "@/lib/blocks/convert";
+import { convertHtmlToBuilder, type ConversionResult } from "@/lib/wp-import/convert";
 
 /**
  * Los treści EN - wchodzi do rezultatu importu, żeby nigdy nie był niewidoczny.

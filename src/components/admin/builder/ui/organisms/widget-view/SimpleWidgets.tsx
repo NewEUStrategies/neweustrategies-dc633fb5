@@ -27,14 +27,14 @@ import {
   getStrArr,
   type Lang,
 } from "./frame";
-import { asBool, asNumInRange, asOneOf, asStr, pickI18n } from "@/lib/builder/contentValue";
+import { asBool, asNumInRange, asOneOf, asStr, pickI18n } from "@/lib/content-model/contentValue";
 import { GalleryLightboxZone } from "./GalleryLightbox";
 import { safeWidgetColor } from "@/lib/builder/cssColor";
 import { SOCIAL_OFFICIAL_COLOR } from "@/lib/builder/socialBrand";
 import { localizedPath } from "@/lib/i18n/localePath";
 import { autoInvertColor } from "@/lib/builder/autoInvertColor";
 import { DynamicTagWidget } from "./DynamicTagWidgets";
-import { useCurrentPostCtx } from "@/lib/builder/currentPostContext";
+import { useCurrentPostCtx } from "@/lib/content-model/postContext";
 import { resolveDynamicText, resolveDynamicList } from "@/lib/builder/dynamicText";
 import { ContactFormView, AuthFormWidget } from "./lazyWidgets";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
