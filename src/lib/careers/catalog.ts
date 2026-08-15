@@ -4,6 +4,12 @@
 // admina). Gdy tabela ofert jest pusta (świeża instalacja), strona publiczna
 // spada na wbudowany katalog i18n z `roles.ts`, żeby nigdy nie pokazać pustej
 // listy. Moduł jest czysty (bez Reacta) - hooki mieszkają w `useCareerContent`.
+//
+// GRANICA POWIERZCHNI (bramka budżetu, wpis 2026-08-15). Ten moduł jest
+// współdzielony przez trasę publiczną /zatrudniamy i adminową /admin/hiring,
+// więc jego chunk bramka rozlicza do PUBLIC. Mieszka tu WYŁĄCZNIE to, czego
+// dotyka strona publiczna; pomocniki wyłącznie adminowe (import wbudowanego
+// katalogu do bazy) mieszkają w `catalogAdmin.ts`.
 import { queryOptions } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
 
@@ -165,27 +171,6 @@ export function fallbackOffers(t: TFunction): CareerOffer[] {
     summary: t(roleSummaryKey(role.id)),
     responsibilities: roleBulletKeys(role).map((key) => t(key)),
     requirements: roleRequirementKeys(role).map((key) => t(key)),
-  }));
-}
-
-/** Wbudowany katalog jako wiersze bazy - do jednorazowego importu w adminie. */
-export function fallbackRoleRows(t: TFunction, tEn: TFunction): Array<Omit<CareerRoleRow, "id">> {
-  return CAREER_ROLES.map((role, index) => ({
-    slug: role.id,
-    department: role.department,
-    engagement: role.engagement,
-    seniority: role.seniority,
-    location: role.location,
-    sort_order: index * 10,
-    is_published: true,
-    title_pl: t(roleTitleKey(role.id)),
-    title_en: tEn(roleTitleKey(role.id)),
-    summary_pl: t(roleSummaryKey(role.id)),
-    summary_en: tEn(roleSummaryKey(role.id)),
-    responsibilities_pl: roleBulletKeys(role).map((key) => t(key)),
-    responsibilities_en: roleBulletKeys(role).map((key) => tEn(key)),
-    requirements_pl: roleRequirementKeys(role).map((key) => t(key)),
-    requirements_en: roleRequirementKeys(role).map((key) => tEn(key)),
   }));
 }
 

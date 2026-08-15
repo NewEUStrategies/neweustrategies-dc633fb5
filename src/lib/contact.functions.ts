@@ -7,7 +7,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 
-import { CAREERS_FORM_ID, isCareerCvPath, normalizeCvUrl } from "@/lib/careers/recruitmentLayer";
+// Celowo `recruitmentShared`, nie `recruitmentLayer`: ten moduł importuje
+// pięć publicznych powierzchni formularzy, więc pełna warstwa (parsowanie
+// skrzynki, etapy pipeline'u) jechałaby w chunku rozliczanym do PUBLIC -
+// patrz granica powierzchni w recruitmentShared.ts i kronika bramki budżetu.
+import { CAREERS_FORM_ID, isCareerCvPath, normalizeCvUrl } from "@/lib/careers/recruitmentShared";
 
 // SECURITY: `recipient` is intentionally NOT part of the public input.
 // The admin notification address must come from the trusted server-side

@@ -275,6 +275,72 @@ const CLIENT_DIR =
 // idzie na 3835 (~1% zapasu nad zmierzonym 3794,6 - reguła z 08-12; tę liczbę
 // podnosi każdy nowy ekran adminowy, których czytelnik nigdy nie pobiera).
 
+// 2026-08-15  ZAPAS PUBLIC/OVERALL PONIŻEJ 1% - zmierzone, naprawione u źródła,
+//             bez ruszania progów w górę. Ostrzeżenie o zapasie wskazywało
+//             `catalog +12,3` i `zatrudniamy +10,4`; pomiar rozłożył to na
+//             TRZY różne historie, z których każda dostała inną odpowiedź.
+//
+// POMIAR PRZED (ten sam host, pełny build): 466,6 chunk / 2487,3 public /
+// 3801,9 overall -> zapasy 0,71% public i 0,86% overall.
+//
+// 1. `invalidate +18,6 (NOWY)` + `znikł SeoPanel` to JEDEN ruch, nie dwa:
+//    chunk ustawień edytora (PostSettingsMetabox, AccessSettingsPane, SeoPanel,
+//    RevisionsCard - 106,4 kB źródeł wg przyrządu) zmienił nazwę, bo doszedł mu
+//    moduł `lib/seo/invalidate.ts`. Nie był regresją - ale od zawsze liczył się
+//    do PUBLIC, mimo że w zbudowanym wyjściu importują go WYŁĄCZNIE
+//    `admin.pages._slug` i `admin.posts._slug` (odwołanie w `index-*.js` to
+//    wpis manifestu preloadu, nie import - ta sama pułapka, co przy
+//    `i18n-clubs-admin` 08-13).
+// 2. `zatrudniamy +10,4` i większość `catalog +12,3` to nowa powierzchnia
+//    produktu (trasa karier + jej dwujęzyczny słownik `i18n-careers`, 37,2 kB
+//    źródła) - PUBLIC liczy każdy chunk osiągalny z publicznego URL-a, więc
+//    te bajty są zasadne. Nieuzasadnione było to, co jechało z nimi na
+//    gapę przez współdzielenie modułów między poddrzewami public/admin:
+//    parsowanie skrzynki rekrutacyjnej (`recruitmentLayer`) w chunku
+//    publicznym przez trzy drobne helpery formularza, a import wbudowanego
+//    katalogu do bazy (`fallbackRoleRows`) w chunku `catalog`. Naprawa jak
+//    zawsze na krawędzi grafu, nie w kilobajtach: publiczne jądro wyszło do
+//    `recruitmentShared.ts`, helper adminowy do `catalogAdmin.ts`; po cięciu
+//    `recruitmentLayer` ma w zbudowanym wyjściu dokładnie dwóch importerów
+//    (`admin.careers`, `admin.crm._id`), a chunk publicznego formularza
+//    (`cvUpload`) spadł do 2,6 KB.
+// 3. NAJWIĘKSZE: przypadek (1) nie był wyjątkiem, był PRÓBKĄ. Klasyfikacja
+//    ADMIN_ONLY po nazwie chunku systematycznie ZAWYŻAŁA PUBLIC, bo chunk
+//    współdzielony przez kilka tras adminowych dostaje nazwę modułu, nie
+//    trasy (`AdminColorPicker`, `NewsletterBuilder`, `LeadTasksPanel`,
+//    rodzina dashboardów analityki - to są wprost „kandydaci wymagający
+//    dowodu" z notki 08-13). Ręczne dopisywanie nazw ma dwie wady zmierzone
+//    tego dnia: nie nadąża (255,4 KB gzip w 90 chunkach z twardym dowodem
+//    adminowości liczyło się do PUBLIC) i KOLIDUJE (w wyjściu jest kilka
+//    RÓŻNYCH plików `i18n-<hash>.js`: rdzeń publiczny obok słowników
+//    adminowych - nazwa nie umie ich rozróżnić, plik umie). Od dziś bramka
+//    prowadzi więc DOWÓD sama, per plik: buduje graf realnych krawędzi
+//    importu w zbudowanym wyjściu (`from"./x.js"` / `import("./x.js")`;
+//    goły string w manifeście preloadu NIE jest krawędzią) i domyka
+//    tranzytywnie zbiór chunków, których wszyscy importerzy są adminowi.
+//    Nazwy z ADMIN_ONLY zostają jako kotwice domknięcia (trasy `admin.*` są
+//    nazwane po trasie, więc stabilne). Kierunek błędu jest bezpieczny:
+//    chunk bez dowodu zostaje w PUBLIC, a gdy jutro dowolna publiczna trasa
+//    zaimportuje `AdminColorPicker`, krawędź pojawia się w grafie i chunk
+//    WRACA do PUBLIC automatycznie - czyli regresja zapala bramkę, zamiast
+//    chować się za wpisem na liście.
+//
+// POMIAR PO (ten sam host, pełny build): 466,6 chunk / 2232,5 public /
+// 3802,7 overall. PUBLIC spada o 254,8 KB - z czego ~2 KB to realne zejście
+// bajtów z publicznego grafu (punkt 2), a reszta to KOREKTA POMIARU, nie
+// odchudzenie (punkt 1+3; bajty nie znikły, przestały być błędnie liczone
+// czytelnikowi). OVERALL bez zmian z definicji - klasyfikacja nie usuwa
+// kodu; jego realne zejście to wciąż backlog z 08-06 (i18n-club 181 kB
+// w entry, node-html-parser 202 kB, lucide-react 187 kB).
+//
+// FLOORY idą W DÓŁ, tuż nad nowy zmierzony ślad (reguła 08-12/08-14, ~1%):
+// public 2505 -> 2255, chunk 513 -> 471 (przy 466,6 stara wartość dawała 10%
+// luzu i przestała łapać regresje entry - a pozycja i18n-club wciąż tam
+// siedzi), overall ZOSTAJE 3835 (zmierzone 3802,7; konwencja ~1% dałaby
+// 3841, czyli WYŻEJ - nie podnosimy). Zapas overall 0,86% pozostaje ciasny
+// świadomie: to koszt realnie wydanej powierzchni adminowej i zejdzie
+// wyłącznie przez usunięcie bajtów z backlogu, nie przez księgowość.
+
 /**
  * Progi ZAMROŻONE (2026-08-12). Do tej pory każdy z nich dało się rozluźnić
  * jedną zmienną środowiskową w workflow - bramka, którą wolno wyłączyć bez
@@ -285,19 +351,20 @@ const CLIENT_DIR =
  * do lokalnego eksperymentu „ile zejdzie, jeśli...".
  */
 const FROZEN_BUDGET_KB = {
-  // Największy pojedynczy chunk gzip. Zmierzone: main 511,1 / ta gałąź 511,2.
-  // BEZ zapasu, bo to jedyna z tych liczb, którą płaci każde pierwsze wejście,
-  // a jej wzrost od 08-06 (+72 KB) ma zmierzoną przyczynę do naprawy - patrz
-  // wpis 2026-08-12 wyżej.
-  chunk: 513,
-  // gzip JS osiągalny z publicznego URL-a. Zmierzone 2026-08-14: 2479,1
-  // (trasa karier +19,3 KB z wcześniejszego commita + infrastruktura preloadu
-  // LCP +2,0 KB - patrz wpis 2026-08-14 wyżej). ~1% zapasu, bo tę liczbę
-  // podnosi KAŻDA nowa trasa publiczna i przy zapasie rzędu kilku KB bramka
-  // zapala się od cudzych merge'ów w ciągu godziny (lekcja z 08-01).
-  public: 2505,
-  // gzip JS łącznie z kodem tylko adminowym. Zmierzone 2026-08-14 (2): czysty
-  // main 3794,6 (dryf: powierzchnia karier + entry - patrz wpis wyżej).
+  // Największy pojedynczy chunk gzip. Zmierzone 2026-08-15: 466,6 (~1% zapasu).
+  // To jedyna z tych liczb, którą płaci każde pierwsze wejście - stara wartość
+  // 513 przy zmierzonych 466,6 dawała 10% luzu i przestała łapać regresje
+  // entry, a pozycja i18n-club (181 kB źródła) wciąż w nim siedzi - patrz
+  // wpisy 2026-08-12 i 2026-08-15 wyżej.
+  chunk: 471,
+  // gzip JS osiągalny z publicznego URL-a. Zmierzone 2026-08-15: 2232,5 po
+  // korekcie klasyfikacji (dowód grafowy adminowości per plik - patrz wpis
+  // 2026-08-15). ~1% zapasu, bo tę liczbę podnosi KAŻDA nowa trasa publiczna
+  // i przy zapasie rzędu kilku KB bramka zapala się od cudzych merge'ów
+  // w ciągu godziny (lekcja z 08-01).
+  public: 2255,
+  // gzip JS łącznie z kodem tylko adminowym. Zmierzone 2026-08-15: 3802,7 -
+  // próg ZOSTAJE (konwencja ~1% dałaby 3841, czyli wyżej; nie podnosimy).
   overall: 3835,
 } as const;
 
@@ -406,31 +473,23 @@ function stableChunkName(file: string): string {
 // ani jednego publicznego importera). Odwolanie w `index-*.js` to wpis w MANIFESCIE
 // zasobow trasy (tablica stringow do preloadu), nie import statyczny.
 //
-// NIEDOSZACOWANIE, KTORE TU ZOSTAJE - I KOREKTA WCZESNIEJSZEJ WERSJI TEJ NOTKI.
-// Ta lista zna trzy slowniki adminowe (`i18n-admin-semantic`, `i18n-admin-tts`,
-// `i18n-clubs-admin`), a slownikow jest 27. Poprzednia wersja tego akapitu
-// twierdzila, ze `i18n-builder`, `i18n-profile`, `i18n-admin-extras` i `i18n-chat`
-// licza sie do PUBLIC, „choc zaden czytelnik ich nie sciaga", i szacowala zysk
-// na ~100 KB. POMIAR PO IMPORTERACH W ZBUDOWANYM WYJSCIU TO ZDEMENTOWAL - dwa
-// z tych czterech sa realnie publiczne:
-//   * `i18n-chat` (12,3 KB) - wchodzi przez `ChatBell`, `ChatDock` ORAZ trase
-//     publicznego watku klubu `club._clubSlug.t._threadSlug`;
-//   * `i18n-admin-extras` (14,0 KB) - obok chunkow `admin-*` odwoluje sie do
-//     niego `profile.index`, czyli powierzchnia profilu.
-// Przeklasyfikowanie ktoregokolwiek z nich byloby dokladnie tym bledem, ktory
-// opisuje wycofany eksperyment wyzej: ladniejsza liczba bez pokrycia w bajtach.
+// 2026-08-15: DOWOD PRZESTAL BYC RECZNY. Akapit „KANDYDACI, KTORZY ZOSTAJA"
+// z 08-13 (i18n-builder, i18n-admin-analytics - „wymagaja dowodu, nie nazwy")
+// jest od dzis wykonywany przez sama bramke: `proveAdminOnly` buduje graf
+// realnych krawedzi importu w zbudowanym wyjsciu i domyka tranzytywnie zbior
+// chunkow, ktorych WSZYSCY importerzy sa adminowi (kotwica: ta lista nazw).
+// Goly string w manifescie preloadu `index-*.js` nie jest krawedzia - czyli
+// dokladnie ten sam dowod, ktory 08-13 przeprowadzono recznie dla
+// `i18n-clubs-admin`, tylko per PLIK zamiast per nazwa. Per plik, bo nazwa
+// nie umie rozroznic kilku ROZNYCH plikow `i18n-<hash>.js` (rdzen publiczny
+// obok slownikow adminowych), a plik umie. Wnioski z pomiarow 08-13 stoja:
+// `i18n-chat` i `i18n-admin-extras` maja publicznych importerow i dowod
+// ich NIE obejmie; obejmuje za to automatycznie rodzine analityki i kazdy
+// przyszly chunk tej klasy - a gdy publiczna trasa zaimportuje ktorykolwiek
+// z nich, krawedz pojawia sie w grafie i chunk wraca do PUBLIC sam z siebie.
 //
-// KANDYDACI, KTORZY ZOSTAJA (i nadal WYMAGAJA dowodu, nie nazwy):
-//   * `i18n-builder` (29,6 KB) - odwoluja sie do niego wylacznie widgety
-//     edytora (`StructurePicker`, `LucideIconPicker`, `ImageSlot`, `NumberInput`,
-//     `EmptyContainerPickerBox`), ktore nie maja prefiksu z ADMIN_ONLY;
-//   * `i18n-admin-analytics` (18,2 KB) - dashboardy `Ga4BiDashboard`,
-//     `GscBiDashboard`, `KpiTile`, `AudienceSegmentsDashboard`.
-// Realny zysk to wiec ~48 KB, nie ~100 - i dopiero po domknieciu importow tak,
-// jak zrobiono to dla `i18n-clubs-admin` (akapit wyzej: zero publicznych
-// importerow w zbudowanym wyjsciu, a wpis w `index-*.js` to MANIFEST preloadu,
-// nie import). To decyzja wlasciciela, nie efekt uboczny - dlatego zostaje
-// ZMIERZONA i ZAPISANA, a nie wykonana po cichu.
+// Ta lista pozostaje KOTWICA domkniecia (trasy `admin.*` sa nazwane po
+// trasie, wiec stabilne; reszta to nazwy sprawdzone recznie w przeszlosci).
 const ADMIN_ONLY =
   /^(admin\.|Builder-|PostBlockEditor|ThemeOptionsPane|AdminShell|sidebar|vendor-dnd-|EChartClient|SemanticReconciliationPanel|MetricDictionary|WindowProvenance|i18n-admin-semantic|i18n-admin-tts|i18n-clubs-admin|TtsVoiceSelect)/;
 function isAdminOnly(file: string): boolean {
@@ -457,21 +516,83 @@ function gzipKb(file: string): number {
   return Bun.gzipSync(readFileSync(file)).length / 1024;
 }
 
+/**
+ * DOWÓD ADMINOWOŚCI Z GRAFU IMPORTÓW (2026-08-15) - patrz kronika i notka nad
+ * ADMIN_ONLY. Zwraca zbiór plików, których wszyscy importerzy (tranzytywnie)
+ * są adminowi, więc żadna publiczna trasa nie ma do nich krawędzi w grafie.
+ *
+ * Krawędzią jest wyłącznie literalny import w kodzie chunku - `from"./x.js"`,
+ * `import"./x.js"`, `import("./x.js")`, `export...from"./x.js"`. Goły string
+ * `"assets/x.js"` w tablicy manifestu preloadu krawędzią NIE jest (pułapka
+ * opisana przy `i18n-clubs-admin`, 08-13): preload tylko pobiera plik,
+ * wykonanie wymaga importu.
+ *
+ * Kierunek błędu jest bezpieczny z konstrukcji: chunk bez kompletnego dowodu
+ * (w tym chunk bez ani jednej widocznej krawędzi, np. ładowany wyłącznie przez
+ * mechanizm tras) zostaje w PUBLIC. Moduł wejściowy nigdy nie jest adminowy.
+ */
+function proveAdminOnly(paths: readonly string[]): Set<string> {
+  const byBase = new Map<string, string>();
+  for (const p of paths) byBase.set(basename(p), p);
+
+  // Odwrotny graf: plik -> zbiór plików, które go importują.
+  const importersOf = new Map<string, Set<string>>();
+  for (const p of paths) importersOf.set(p, new Set());
+  const EDGE_RE = /(?:\bfrom|\bimport)\s*\(?\s*["'][^"']*?([\w.$[\]-]+\.js)["']\)?/g;
+  for (const p of paths) {
+    const source = readFileSync(p, "utf8");
+    for (const match of source.matchAll(EDGE_RE)) {
+      const target = byBase.get(match[1]);
+      if (target && target !== p) importersOf.get(target)?.add(p);
+    }
+  }
+
+  const isEntryChunk = (p: string) => basename(p).startsWith("index-");
+  const admin = new Set(paths.filter((p) => isAdminOnly(p)));
+  const proven = new Set<string>();
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const p of paths) {
+      if (admin.has(p) || isEntryChunk(p)) continue;
+      const importers = importersOf.get(p);
+      if (!importers || importers.size === 0) continue;
+      let allAdmin = true;
+      for (const importer of importers) {
+        if (!admin.has(importer)) {
+          allAdmin = false;
+          break;
+        }
+      }
+      if (allAdmin) {
+        admin.add(p);
+        proven.add(p);
+        changed = true;
+      }
+    }
+  }
+  return proven;
+}
+
 const files = walkJs(CLIENT_DIR);
 if (files.length === 0) {
   console.error(`✗ No client JS found in ${CLIENT_DIR}. Run \`bun run build\` first.`);
   process.exit(1);
 }
 
+const provenAdmin = proveAdminOnly(files);
+
 let total = 0;
 let publicTotal = 0;
+let provenAdminTotal = 0;
 let max = 0;
 let maxFile = "";
 const perChunk = new Map<string, number>();
 for (const f of files) {
   const kb = gzipKb(f);
   total += kb;
-  if (!isAdminOnly(f)) publicTotal += kb;
+  if (provenAdmin.has(f)) provenAdminTotal += kb;
+  else if (!isAdminOnly(f)) publicTotal += kb;
   const name = stableChunkName(f);
   perChunk.set(name, (perChunk.get(name) ?? 0) + kb);
   if (kb > max) {
@@ -483,9 +604,21 @@ const adminTotal = total - publicTotal;
 
 console.log(`Client JS: ${files.length} files, ${total.toFixed(1)} KB gzip total`);
 console.log(`  public:      ${publicTotal.toFixed(1)} KB  (budget ≤ ${MAX_PUBLIC_KB} KB)`);
-console.log(`  admin-only:  ${adminTotal.toFixed(1)} KB  (billed to OVERALL only)`);
+console.log(
+  `  admin-only:  ${adminTotal.toFixed(1)} KB  (billed to OVERALL only; w tym ` +
+    `${provenAdminTotal.toFixed(1)} KB w ${provenAdmin.size} chunkach z dowodu grafowego)`,
+);
 console.log(`  overall:     ${total.toFixed(1)} KB  (budget ≤ ${MAX_TOTAL_KB} KB)`);
 console.log(`Largest chunk: ${max.toFixed(1)} KB gzip (${maxFile})  (budget ≤ ${MAX_CHUNK_KB} KB)`);
+
+// Audyt dowodu na żądanie: pełna lista chunków adminowych z grafu, z wagami.
+if (process.argv.includes("--admin-proof")) {
+  const rows = [...provenAdmin]
+    .map((p) => ({ name: stableChunkName(p), kb: gzipKb(p) }))
+    .sort((a, b) => b.kb - a.kb);
+  console.log(`Chunki adminowe z dowodu grafowego (${rows.length}):`);
+  for (const row of rows) console.log(`  ${row.kb.toFixed(1).padStart(7)} KB  ${row.name}`);
+}
 
 // ── Baseline: jawna aktualizacja ─────────────────────────────────────────────
 if (process.argv.includes("--update-baseline")) {
