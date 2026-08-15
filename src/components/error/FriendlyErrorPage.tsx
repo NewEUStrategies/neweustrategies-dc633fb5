@@ -71,7 +71,7 @@ export function FriendlyErrorPage({
   const kind = useMemo(() => classifyError(error), [error]);
   const scenario = copy[kind];
   const Icon = ICONS[kind];
-  const code = CODE_LABEL[kind];
+  const code = kind === "generic" ? copy.genericCode : CODE_LABEL[kind];
   const lang = currentLang();
 
   useEffect(() => {
