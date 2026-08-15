@@ -286,3 +286,84 @@ CREATE POLICY "program items public read" ON public.research_program_items
   USING (tenant_id = (SELECT public.public_tenant_id())
          AND EXISTS (SELECT 1 FROM public.research_programs p
                       WHERE p.id = research_program_items.program_id AND p.status = 'published'));
+
+-- ===========================================================================
+-- DRUGI KOMPLET POLITYK NA TYCH SAMYCH CZTERECH TABELACH
+--
+-- To NIE jest duplikat przez pomyłkę - tak wygląda produkcja. Migracja
+-- 20260713181044 nadała politykom nazwy `rpm` / `rpp` / `rppart` / `rpi`,
+-- 20260714112155 przepisała cztery `staff write` dokładając zakres tenanta,
+-- a 20260714130000 (expert_hub) dołożyła OBOK drugi komplet pod nazwami
+-- opisowymi (`"program members public read"` itd.). Polityki permisywne
+-- sumują się przez OR, więc oba komplety żyją.
+--
+-- Pierwsza wersja tego harnessu odtwarzała TYLKO komplet z expert_hub -
+-- i przez to przepuściła realny defekt: `DROP TABLE research_programs`
+-- wywalił się na produkcyjnym CI z 2BP01, wymieniając osiem zależnych polityk
+-- `rp*`, których harness nie znał. Harness odtwarzający stan z JEDNEJ migracji
+-- zamiast ze STANU KOŃCOWEGO mierzy fikcję - dokładnie ten tryb porażki, przed
+-- którym ostrzega scripts/pg-harness/README.md.
+-- ===========================================================================
+CREATE POLICY "rpm public read" ON public.research_program_members FOR SELECT
+  TO anon, authenticated
+  USING (EXISTS (SELECT 1 FROM public.research_programs p
+                  WHERE p.id = program_id AND p.status = 'published'
+                    AND p.tenant_id = (SELECT public_tenant_id())));
+CREATE POLICY "rpm staff write" ON public.research_program_members FOR ALL
+  TO authenticated
+  USING ((has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'editor'::app_role))
+         AND EXISTS (SELECT 1 FROM public.research_programs p
+                      WHERE p.id = research_program_members.program_id
+                        AND p.tenant_id = current_tenant_id()))
+  WITH CHECK ((has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'editor'::app_role))
+         AND EXISTS (SELECT 1 FROM public.research_programs p
+                      WHERE p.id = research_program_members.program_id
+                        AND p.tenant_id = current_tenant_id()));
+
+CREATE POLICY "rpp public read" ON public.research_program_projects FOR SELECT
+  TO anon, authenticated
+  USING (EXISTS (SELECT 1 FROM public.research_programs p
+                  WHERE p.id = program_id AND p.status = 'published'
+                    AND p.tenant_id = (SELECT public_tenant_id())));
+CREATE POLICY "rpp staff write" ON public.research_program_projects FOR ALL
+  TO authenticated
+  USING ((has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'editor'::app_role))
+         AND EXISTS (SELECT 1 FROM public.research_programs p
+                      WHERE p.id = research_program_projects.program_id
+                        AND p.tenant_id = current_tenant_id()))
+  WITH CHECK ((has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'editor'::app_role))
+         AND EXISTS (SELECT 1 FROM public.research_programs p
+                      WHERE p.id = research_program_projects.program_id
+                        AND p.tenant_id = current_tenant_id()));
+
+CREATE POLICY "rppart public read" ON public.research_program_partners FOR SELECT
+  TO anon, authenticated
+  USING (EXISTS (SELECT 1 FROM public.research_programs p
+                  WHERE p.id = program_id AND p.status = 'published'
+                    AND p.tenant_id = (SELECT public_tenant_id())));
+CREATE POLICY "rppart staff write" ON public.research_program_partners FOR ALL
+  TO authenticated
+  USING ((has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'editor'::app_role))
+         AND EXISTS (SELECT 1 FROM public.research_programs p
+                      WHERE p.id = research_program_partners.program_id
+                        AND p.tenant_id = current_tenant_id()))
+  WITH CHECK ((has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'editor'::app_role))
+         AND EXISTS (SELECT 1 FROM public.research_programs p
+                      WHERE p.id = research_program_partners.program_id
+                        AND p.tenant_id = current_tenant_id()));
+
+CREATE POLICY "rpi public read" ON public.research_program_items FOR SELECT
+  TO anon, authenticated
+  USING (EXISTS (SELECT 1 FROM public.research_programs p
+                  WHERE p.id = program_id AND p.status = 'published'
+                    AND p.tenant_id = (SELECT public_tenant_id())));
+CREATE POLICY "rpi staff write" ON public.research_program_items FOR ALL
+  TO authenticated
+  USING ((has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'editor'::app_role))
+         AND EXISTS (SELECT 1 FROM public.research_programs p
+                      WHERE p.id = research_program_items.program_id
+                        AND p.tenant_id = current_tenant_id()))
+  WITH CHECK ((has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'editor'::app_role))
+         AND EXISTS (SELECT 1 FROM public.research_programs p
+                      WHERE p.id = research_program_items.program_id
+                        AND p.tenant_id = current_tenant_id()));

@@ -308,51 +308,105 @@ $$;
 -- 5. Polityki dzieci - przepisane na `programs` PRZED usunięciem starej tabeli
 -- ---------------------------------------------------------------------------
 -- Polityka odwołująca się do tabeli jest jej zależnością: bez tego kroku
--- `DROP TABLE` padłby na 2BP01, a `CASCADE` po cichu skasowałby publiczny
--- odczyt czterech tabel.
-DROP POLICY IF EXISTS "program members public read" ON public.research_program_members;
-CREATE POLICY "program members public read" ON public.research_program_members
-  FOR SELECT TO anon, authenticated
-  USING (
-    tenant_id = (SELECT public.public_tenant_id())
-    AND EXISTS (
-      SELECT 1 FROM public.programs p
-       WHERE p.id = research_program_members.program_id AND p.status = 'published'
-    )
-  );
+-- `DROP TABLE` pada na 2BP01, a `CASCADE` po cichu skasowałby odczyt i zapis
+-- czterech tabel - czyli najgorszy możliwy wynik: migracja „przechodzi",
+-- a moduł programów cicho przestaje działać dla wszystkich poza service_role.
+--
+-- DLACZEGO SWEEP, A NIE LISTA NAZW
+-- Pierwsza wersja wypisywała cztery polityki z nazwami z `20260714130000`
+-- (`"program members public read"` itd.) - i to było ZA MAŁO. Na tych samych
+-- czterech tabelach żyje DRUGI komplet z `20260713181044`, nazwany `rpm` /
+-- `rpp` / `rppart` / `rpi`, w tym cztery `staff write` przepisane jeszcze raz
+-- w `20260714112155`. Razem OSIEM polityk, których hand-made lista nie
+-- obejmowała - i `DROP TABLE` wywalił się dokładnie na nich:
+--
+--   ERROR: cannot drop table research_programs because other objects depend on it
+--   policy rpm public read on table research_program_members depends on …  (×8)
+--
+-- Dlatego ten krok NIE zna nazw. Pyta katalog systemowy o KAŻDĄ politykę na
+-- tych tabelach, której wyrażenie wspomina `research_programs`, i odtwarza ją
+-- z zamienioną relacją - zachowując polecenie, role, tryb permissive/restrictive
+-- oraz `USING` i `WITH CHECK` CO DO ZNAKU. Przepisywanie wyrażeń ręcznie jest
+-- tym, jak się przypadkiem zawęża albo rozszerza politykę; tu nie ma na to
+-- miejsca, bo nic nie jest przepisywane z pamięci.
+--
+-- `research_program_members` NIE zawiera podciągu `research_programs`
+-- (po `research_program` idzie `_`, nie `s`), więc podmiana nie tyka nazw
+-- tabel-dzieci ani kolumn - wyłącznie odwołania do tabeli rodzica.
+DO $pol$
+DECLARE
+  r       record;
+  v_cmd   text;
+  v_sql   text;
+  v_count integer := 0;
+BEGIN
+  FOR r IN
+    SELECT c.relname AS tbl,
+           p.polname,
+           p.polcmd,
+           p.polpermissive,
+           pg_get_expr(p.polqual, p.polrelid)      AS qual,
+           pg_get_expr(p.polwithcheck, p.polrelid) AS wcheck,
+           (SELECT string_agg(quote_ident(ro.rolname), ', ' ORDER BY ro.rolname)
+              FROM pg_roles ro WHERE ro.oid = ANY (p.polroles)) AS roles
+      FROM pg_policy p
+      JOIN pg_class c ON c.oid = p.polrelid
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE n.nspname = 'public'
+       AND c.relname IN ('research_program_members', 'research_program_projects',
+                         'research_program_partners', 'research_program_items')
+       AND (COALESCE(pg_get_expr(p.polqual, p.polrelid), '') LIKE '%research_programs%'
+         OR COALESCE(pg_get_expr(p.polwithcheck, p.polrelid), '') LIKE '%research_programs%')
+  LOOP
+    v_cmd := CASE r.polcmd
+               WHEN 'r' THEN 'SELECT' WHEN 'a' THEN 'INSERT'
+               WHEN 'w' THEN 'UPDATE' WHEN 'd' THEN 'DELETE' ELSE 'ALL'
+             END;
 
-DROP POLICY IF EXISTS "program projects public read" ON public.research_program_projects;
-CREATE POLICY "program projects public read" ON public.research_program_projects
-  FOR SELECT TO anon, authenticated
-  USING (
-    tenant_id = (SELECT public.public_tenant_id())
-    AND EXISTS (
-      SELECT 1 FROM public.programs p
-       WHERE p.id = research_program_projects.program_id AND p.status = 'published'
-    )
-  );
+    v_sql := format(
+      'CREATE POLICY %I ON public.%I AS %s FOR %s TO %s',
+      r.polname, r.tbl,
+      CASE WHEN r.polpermissive THEN 'PERMISSIVE' ELSE 'RESTRICTIVE' END,
+      v_cmd,
+      COALESCE(r.roles, 'PUBLIC')
+    );
+    IF r.qual IS NOT NULL THEN
+      v_sql := v_sql || format(' USING (%s)', replace(r.qual, 'research_programs', 'programs'));
+    END IF;
+    IF r.wcheck IS NOT NULL THEN
+      v_sql := v_sql || format(' WITH CHECK (%s)', replace(r.wcheck, 'research_programs', 'programs'));
+    END IF;
 
-DROP POLICY IF EXISTS "program partners public read" ON public.research_program_partners;
-CREATE POLICY "program partners public read" ON public.research_program_partners
-  FOR SELECT TO anon, authenticated
-  USING (
-    tenant_id = (SELECT public.public_tenant_id())
-    AND EXISTS (
-      SELECT 1 FROM public.programs p
-       WHERE p.id = research_program_partners.program_id AND p.status = 'published'
-    )
-  );
+    EXECUTE format('DROP POLICY %I ON public.%I', r.polname, r.tbl);
+    EXECUTE v_sql;
+    v_count := v_count + 1;
+  END LOOP;
 
-DROP POLICY IF EXISTS "program items public read" ON public.research_program_items;
-CREATE POLICY "program items public read" ON public.research_program_items
-  FOR SELECT TO anon, authenticated
-  USING (
-    tenant_id = (SELECT public.public_tenant_id())
-    AND EXISTS (
-      SELECT 1 FROM public.programs p
-       WHERE p.id = research_program_items.program_id AND p.status = 'published'
-    )
-  );
+  RAISE NOTICE 'Przepisano % polityk dzieci z research_programs na programs', v_count;
+END
+$pol$;
+
+-- Asercja: po sweepie ŻADNA polityka na tych tabelach nie może już wspominać
+-- starej relacji. Bez niej `DROP TABLE` niżej powiedziałby to samo, ale
+-- komunikatem o zależnościach zamiast o przyczynie.
+DO $pol_check$
+DECLARE
+  v_left integer;
+BEGIN
+  SELECT count(*) INTO v_left
+    FROM pg_policy p
+    JOIN pg_class c ON c.oid = p.polrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+   WHERE n.nspname = 'public'
+     AND c.relname LIKE 'research_program\_%'
+     AND (COALESCE(pg_get_expr(p.polqual, p.polrelid), '') LIKE '%research_programs%'
+       OR COALESCE(pg_get_expr(p.polwithcheck, p.polrelid), '') LIKE '%research_programs%');
+  IF v_left > 0 THEN
+    RAISE EXCEPTION
+      '% polityk nadal odwoluje sie do research_programs - sweep nie objal wszystkich tabel', v_left;
+  END IF;
+END
+$pol_check$;
 
 -- ---------------------------------------------------------------------------
 -- 6. Polityki `programs` - status zamiast braku filtra + tenant w członkostwie
@@ -447,53 +501,6 @@ COMMENT ON COLUMN public.programs.is_active IS
 -- Dwie funkcje w stanie końcowym czytały `research_programs`; przepięte
 -- na `programs` razem z warunkiem `status = 'published'`, który po scaleniu
 -- żyje na tej samej tabeli.
-
--- Etykieta kotwicy wątku klubowego (kopia z 20260808280000 - zmieniona
--- WYŁĄCZNIE relacja w gałęzi 'research_program').
-CREATE OR REPLACE FUNCTION public.club_anchor_label(p_type text, p_id text)
-RETURNS text
-LANGUAGE plpgsql STABLE SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_label text;
-BEGIN
-  IF p_type IS NULL OR NULLIF(btrim(COALESCE(p_id, '')), '') IS NULL THEN
-    RETURN NULL;
-  END IF;
-  IF p_id !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
-    RETURN NULL;
-  END IF;
-
-  CASE p_type
-    WHEN 'eu_policy_item' THEN
-      SELECT COALESCE(NULLIF(btrim(i.title_pl), ''), NULLIF(btrim(i.title_en), ''))
-        INTO v_label FROM public.eu_policy_items i WHERE i.id = p_id::uuid;
-    WHEN 'post' THEN
-      SELECT COALESCE(NULLIF(btrim(p.title_pl), ''), NULLIF(btrim(p.title_en), ''), p.slug)
-        INTO v_label FROM public.posts p
-       WHERE p.id = p_id::uuid AND p.deleted_at IS NULL;
-    WHEN 'event' THEN
-      SELECT COALESCE(NULLIF(btrim(e.title_pl), ''), NULLIF(btrim(e.title_en), ''), e.slug)
-        INTO v_label FROM public.events e WHERE e.id = p_id::uuid;
-    -- Programy nazywają kolumny `name_*`, nie `title_*` - różnica, która nie
-    -- odezwałaby się przy CREATE, tylko przy pierwszym wątku zakotwiczonym
-    -- w programie (ciało plpgsql nie jest walidowane).
-    WHEN 'research_program' THEN
-      SELECT COALESCE(NULLIF(btrim(r.name_pl), ''), NULLIF(btrim(r.name_en), ''), r.slug)
-        INTO v_label FROM public.programs r WHERE r.id = p_id::uuid;
-    WHEN 'club_thread' THEN
-      v_label := public.club_linked_item_label('club_thread', p_id);
-    ELSE
-      v_label := NULL;
-  END CASE;
-
-  RETURN v_label;
-EXCEPTION WHEN OTHERS THEN
-  -- Kotwica wskazująca na skasowaną treść nie może wywalić CAŁEJ listy wątków.
-  RETURN NULL;
-END;
-$$;
 
 -- Zespół programu (kopia z 20260714130000 - zmieniona WYŁĄCZNIE relacja).
 CREATE OR REPLACE FUNCTION public.get_program_members(p_program_ids uuid[])

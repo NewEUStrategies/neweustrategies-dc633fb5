@@ -16,6 +16,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 PGDIR="${PROGRAMS_HARNESS_DIR:-/tmp/nespg-programs}"
 MIGRATION="$REPO/supabase/migrations/20260815100000_programs_single_table.sql"
+MIGRATION_CLUB="$REPO/supabase/migrations/20260815100100_club_anchor_label_single_programs_table.sql"
 KEEP=0
 for arg in "$@"; do case "$arg" in --keep) KEEP=1 ;; esac; done
 
@@ -67,7 +68,8 @@ step() {
 
 step "harness (stan sprzed scalenia)" "$HERE/harness.sql"
 step "seed (kolizja + tylko slownik + tylko hub + drugi najemca)" "$HERE/seed.sql"
-step "migracja 20260815100000" "$MIGRATION"
+step "migracja 20260815100000 (scalenie)" "$MIGRATION"
+step "migracja 20260815100100 (kotwica klubu)" "$MIGRATION_CLUB"
 step "asercje runtime" "$HERE/runtime_test.sql"
 
 echo

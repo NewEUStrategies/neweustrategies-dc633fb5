@@ -76,6 +76,38 @@ BEGIN
   ASSERT v_n = 1, 'wszystkie pola redakcyjne musza przejsc na wiersz po scaleniu';
   v_asserts := v_asserts + 1;
 
+  -- ── 3b. ZADNA polityka nie wisi na starej relacji ────────────────────────
+  -- To jest asercja, ktorej brak przepuscil realna awarie na CI: DROP TABLE
+  -- padl na 2BP01, wymieniajac osiem zaleznych polityk `rp*`. Liczymy KAZDA
+  -- polityke na tabelach-dzieciach, nie tylko te o znanych nazwach.
+  SELECT count(*) INTO v_n
+    FROM pg_policy p
+    JOIN pg_class c ON c.oid = p.polrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+   WHERE n.nspname = 'public'
+     AND c.relname LIKE 'research\_program\_%'
+     AND (COALESCE(pg_get_expr(p.polqual, p.polrelid), '') LIKE '%research_programs%'
+       OR COALESCE(pg_get_expr(p.polwithcheck, p.polrelid), '') LIKE '%research_programs%');
+  ASSERT v_n = 0, format('%s polityk nadal odwoluje sie do research_programs', v_n);
+  v_asserts := v_asserts + 1;
+
+  -- Sweep ma PRZEPISAC polityki, a nie je pogubic. Oba komplety (opisowy
+  -- z expert_hub i skrocony `rp*`) muszaja przezyc scalenie.
+  SELECT count(*) INTO v_n
+    FROM pg_policy p JOIN pg_class c ON c.oid = p.polrelid
+   WHERE c.relname = 'research_program_members';
+  ASSERT v_n = 3, format('research_program_members ma miec 3 polityki po scaleniu, ma %s', v_n);
+  v_asserts := v_asserts + 1;
+
+  -- Zakres tenanta w polityce zapisu nie moze wyparowac przy przepisaniu.
+  SELECT pg_get_expr(p.polqual, p.polrelid) INTO v_txt
+    FROM pg_policy p JOIN pg_class c ON c.oid = p.polrelid
+   WHERE c.relname = 'research_program_members' AND p.polname = 'rpm staff write';
+  ASSERT v_txt LIKE '%current_tenant_id%' AND v_txt LIKE '%programs%'
+     AND v_txt NOT LIKE '%research_programs%',
+    format('rpm staff write musi zachowac zakres tenanta i wskazywac programs: %L', v_txt);
+  v_asserts := v_asserts + 1;
+
   -- ── 4. Dzieci wskazuja na scalony program ────────────────────────────────
   SELECT count(*) INTO v_n FROM public.research_program_members
    WHERE program_id = 'e0000000-0000-0000-0000-000000000001';
