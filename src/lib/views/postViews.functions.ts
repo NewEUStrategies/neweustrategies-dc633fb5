@@ -53,55 +53,7 @@ export interface TrendingPost {
   parent_page_id: string;
   views_count: number;
   href: string;
-  /** Display name of the post author (empty when unknown). */
-  author_name: string;
-  /** Avatar URL of the post author (null when unknown). */
-  author_avatar_url: string | null;
 }
-
-/**
- * Enrich ticker rows with author display data in TWO round-trips max
- * (posts.author_id lookup + profiles batch), never per-post.
- */
-async function attachAuthors(
-  sb: ReturnType<typeof client>,
-  posts: TrendingPost[],
-): Promise<TrendingPost[]> {
-  if (!posts.length) return posts;
-  const { data: authorRows } = await sb
-    .from("posts")
-    .select("id,author_id")
-    .in(
-      "id",
-      posts.map((p) => p.id),
-    );
-  const authorByPost = new Map<string, string>();
-  for (const row of authorRows ?? []) {
-    if (row.author_id) authorByPost.set(row.id, row.author_id);
-  }
-  const authorIds = Array.from(new Set(authorByPost.values()));
-  if (!authorIds.length) return posts;
-  // profiles is RLS-closed for anon; the public byline projection lives in
-  // profiles_public (same shape, only publicly safe columns).
-  const { data: profiles } = await sb
-    .from("profiles_public")
-    .select("id,display_name,avatar_url")
-    .in("id", authorIds);
-
-  const profileById = new Map(
-    (profiles ?? []).map((p) => [p.id, { name: p.display_name ?? "", avatar: p.avatar_url }]),
-  );
-  return posts.map((p) => {
-    const authorId = authorByPost.get(p.id);
-    const prof = authorId ? profileById.get(authorId) : undefined;
-    return {
-      ...p,
-      author_name: prof?.name ?? "",
-      author_avatar_url: prof?.avatar ?? null,
-    };
-  });
-}
-
 
 // Posts in one list overwhelmingly share a handful of parent pages, and
 // page_full_path is one DB round-trip per call - resolving it per POST (the
@@ -160,23 +112,17 @@ export const getTrendingPosts = createServerFn({ method: "GET" })
           sb,
           (rows ?? []).map((r) => r.parent_page_id),
         );
-        return attachAuthors(
-          sb,
-          (rows ?? []).map((r) => ({
-            id: r.id,
-            slug: r.slug,
-            title_pl: r.title_pl,
-            title_en: r.title_en,
-            cover_image_url: r.cover_image_url,
-            published_at: r.published_at,
-            parent_page_id: r.parent_page_id,
-            views_count: Number(r.views_count ?? 0),
-            href: postHref(paths, r.parent_page_id, r.slug),
-            author_name: "",
-            author_avatar_url: null,
-          })),
-        );
-
+        return (rows ?? []).map((r) => ({
+          id: r.id,
+          slug: r.slug,
+          title_pl: r.title_pl,
+          title_en: r.title_en,
+          cover_image_url: r.cover_image_url,
+          published_at: r.published_at,
+          parent_page_id: r.parent_page_id,
+          views_count: Number(r.views_count ?? 0),
+          href: postHref(paths, r.parent_page_id, r.slug),
+        }));
       }),
   );
 
@@ -209,23 +155,17 @@ async function toTrendingPosts(
     sb,
     rows.map((r) => r.parent_page_id),
   );
-  return attachAuthors(
-    sb,
-    rows.map((r) => ({
-      id: r.id,
-      slug: r.slug,
-      title_pl: r.title_pl ?? "",
-      title_en: r.title_en ?? "",
-      cover_image_url: r.cover_image_url,
-      published_at: r.published_at,
-      parent_page_id: r.parent_page_id,
-      views_count: 0,
-      href: postHref(paths, r.parent_page_id, r.slug),
-      author_name: "",
-      author_avatar_url: null,
-    })),
-  );
-
+  return rows.map((r) => ({
+    id: r.id,
+    slug: r.slug,
+    title_pl: r.title_pl ?? "",
+    title_en: r.title_en ?? "",
+    cover_image_url: r.cover_image_url,
+    published_at: r.published_at,
+    parent_page_id: r.parent_page_id,
+    views_count: 0,
+    href: postHref(paths, r.parent_page_id, r.slug),
+  }));
 }
 
 export const getTickerPosts = createServerFn({ method: "GET" })
