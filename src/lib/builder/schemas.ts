@@ -2,7 +2,7 @@
 // Single source of truth for the simple widget content editors.
 // Complex list-style widgets (accordion, tabs, pricing) keep custom editors.
 import type { WidgetType } from "./types";
-import { asBool } from "./contentValue";
+import { asBool } from "@/lib/content-model/contentValue";
 import { SOCIAL_IDLE_ICON_COLOR } from "./socialBrand";
 
 /**

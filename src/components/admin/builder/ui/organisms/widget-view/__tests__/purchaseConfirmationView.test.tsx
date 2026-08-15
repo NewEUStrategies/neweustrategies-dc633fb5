@@ -59,7 +59,7 @@ vi.mock("@/utils/payments.functions", () => ({
 }));
 
 import { PurchaseConfirmationView } from "../PurchaseConfirmationView";
-import { BuilderModeProvider } from "@/lib/builder/modeContext";
+import { BuilderModeProvider } from "@/lib/content-model/editorCanvas";
 import type { WidgetContent } from "@/lib/builder/types";
 
 function wrap(ui: ReactElement) {

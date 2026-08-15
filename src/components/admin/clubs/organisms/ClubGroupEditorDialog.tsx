@@ -42,7 +42,7 @@ import {
 } from "@/components/ui/select";
 import { ConfirmDialog, type ConfirmState } from "@/components/admin/ConfirmDialog";
 import { InheritedField } from "../atoms/InheritedField";
-import { ClubEnumSelect } from "../molecules/ClubEnumSelect";
+import { ClubEnumSelect } from "@/components/clubs/molecules/ClubEnumSelect";
 import { useDeleteClubGroup, useUpsertClubGroup } from "@/lib/clubs/useClubs";
 import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 import {

@@ -1,6 +1,6 @@
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
-import { toJson } from "@/lib/builder/types";
+import { toJson } from "@/lib/content-model/json";
 import type { Block } from "@/lib/blocks/types";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";

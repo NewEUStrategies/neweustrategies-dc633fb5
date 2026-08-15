@@ -30,7 +30,7 @@ import {
 import type { BuilderDocument, Device, Mode } from "@/lib/builder/types";
 import { emptyDocument, isEmptyDocument } from "@/lib/builder/types";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
-import { BuilderModeProvider } from "@/lib/builder/modeContext";
+import { BuilderModeProvider } from "@/lib/content-model/editorCanvas";
 import { useTheme } from "@/components/ThemeProvider";
 import { findWidget, findSection, findColumn, findInner } from "@/lib/builder/operations";
 import * as ops from "@/lib/builder/operations";

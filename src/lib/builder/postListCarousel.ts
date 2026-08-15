@@ -9,7 +9,7 @@
 //
 // Modul jest czysty (bez Reacta i DOM-u), wiec kontrakt jest testowalny wprost.
 import type { WidgetContent } from "@/lib/builder/types";
-import { asBool, asNumInRange } from "@/lib/builder/contentValue";
+import { asBool, asNumInRange } from "@/lib/content-model/contentValue";
 
 /** Granice tempa slajdow. Ponizej ~1,5 s karuzela jest nieczytelna, powyzej
  *  30 s przestaje byc karuzela. Edytor uzywa tych samych liczb w `min`/`max`. */

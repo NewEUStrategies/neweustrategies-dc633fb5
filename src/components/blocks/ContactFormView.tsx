@@ -25,7 +25,7 @@ import {
   readI18nOverride,
   validateCustom,
   type CustomField,
-} from "@/lib/builder/formFields";
+} from "@/lib/content-model/formFields";
 import { safeImageUrl, hardenStyleCss } from "@/lib/sanitize";
 import { floatingPlaceholder } from "@/components/ui/floating-input";
 import { Checkbox } from "@/components/ui/checkbox";

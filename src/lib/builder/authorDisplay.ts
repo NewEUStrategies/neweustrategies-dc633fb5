@@ -21,7 +21,13 @@
 // Moduł jest CZYSTY (bez Reacta, DOM-u i I/O) - tę samą regułę czyta panel
 // właściwości, kanwa buildera, SSR strony publicznej i warstwa zapytań
 // (`withAuthors`), więc "panel obiecuje / renderer nie czyta" nie ma jak wrócić.
-import { asBool, asNumInRange, asStr, isContentValueSet, type ContentLang } from "./contentValue";
+import {
+  asBool,
+  asNumInRange,
+  asStr,
+  isContentValueSet,
+  type ContentLang,
+} from "@/lib/content-model/contentValue";
 
 /**
  * Strukturalny kontrakt wejścia rezolwera.

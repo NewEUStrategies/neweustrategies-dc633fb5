@@ -16,8 +16,8 @@ import {
   useCurrentPostCtxOrPreview,
   type CurrentPostAuthor,
   type CurrentPostCtx,
-} from "@/lib/builder/currentPostContext";
-import { asBool, asNum, asOneOf, asStr, pickI18n } from "@/lib/builder/contentValue";
+} from "@/lib/content-model/postContext";
+import { asBool, asNum, asOneOf, asStr, pickI18n } from "@/lib/content-model/contentValue";
 import { postViewCountQueryOptions } from "@/lib/builder/postViewCountQuery";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
 import {

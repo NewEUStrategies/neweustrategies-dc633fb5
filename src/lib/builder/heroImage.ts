@@ -27,7 +27,7 @@ import type {
 } from "@/lib/builder/types";
 import type { Lang } from "@/lib/builder/postListQuery";
 import type { ImagePreloadInput } from "@/lib/seo/meta";
-import { asBool, asNumInRange, asOneOf, asStr } from "@/lib/builder/contentValue";
+import { asBool, asNumInRange, asOneOf, asStr } from "@/lib/content-model/contentValue";
 import { safeImageUrl } from "@/lib/sanitize";
 import { buildImageSrcSet } from "@/lib/cropSizes";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";

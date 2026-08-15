@@ -2,13 +2,21 @@
 //
 // Pipeline: stripFoxizShortcodes -> Elementor mapper -> Gutenberg -> plain HTML.
 // Zwraca doc + coverage + warnings + listę mediów wykrytych w treści (do mirroru).
-
+//
+// DLACZEGO TEN PLIK MIESZKA W `wp-import`, A NIE W `blocks`
+// Moduł nie należy do silnika bloków - CZYTA blokami, ale PRODUKUJE dokument
+// buildera, a jego jedyni konsumenci to `wp-import/buildPage.ts` i
+// `wp-import.functions.ts`. Trzymany pod `lib/blocks/` był krawędzią cyklu
+// `bloki -> builder` (4 z 23 zmierzonych 14.08), i to krawędzią fałszywą:
+// import wynikał z miejsca pliku, nie z zależności silnika bloków od buildera.
+// `wp-import` to adapter stojący NAD oboma silnikami, więc wolno mu znać oba.
+// Patrz `src/lib/content-model/README.md`.
 import type { BuilderDocument } from "@/lib/builder/types";
-import { newId, toJson } from "@/lib/builder/types";
-import type { BlocksDoc } from "./types";
-import { parseGutenberg, stripFoxizShortcodes } from "./gutenberg";
+import { newId, toJson } from "@/lib/content-model/json";
+import type { BlocksDoc } from "@/lib/blocks/types";
+import { parseGutenberg, stripFoxizShortcodes } from "@/lib/blocks/gutenberg";
 import { elementorToBuilder, isElementorHtml } from "./elementor";
-import { htmlToBlocks } from "./migrate";
+import { htmlToBlocks } from "@/lib/blocks/migrate";
 
 export interface ConversionCoverage {
   elementorMapped: number;

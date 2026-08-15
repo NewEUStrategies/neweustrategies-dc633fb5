@@ -16,7 +16,7 @@ import {
   SLIDER_ROUNDED_VALUES,
   SLIDER_VARIANT_VALUES,
 } from "@/lib/builder/sliderOptions";
-import { asBool, asNum, asNumInRange, asOneOf, asStr } from "@/lib/builder/contentValue";
+import { asBool, asNum, asNumInRange, asOneOf, asStr } from "@/lib/content-model/contentValue";
 import { resolveAuthorDisplay } from "@/lib/builder/authorDisplay";
 import { SliderRender } from "./lazyWidgets";
 import { sliderPostsQueryOptions } from "@/lib/builder/sliderPostsQuery";

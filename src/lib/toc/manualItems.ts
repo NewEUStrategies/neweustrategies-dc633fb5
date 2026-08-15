@@ -19,7 +19,7 @@
 // `items_pl` / `items_en`, więc ręczne pozycje nigdy się nie renderowały.
 
 import { createAnchorAllocator, slugifyAnchor } from "@/lib/content/anchorSlug";
-import { pickI18nArray, type ContentBag, type ContentLang } from "@/lib/builder/contentValue";
+import { pickI18nArray, type ContentBag, type ContentLang } from "@/lib/content-model/contentValue";
 
 export interface ManualTocItem {
   id: string;

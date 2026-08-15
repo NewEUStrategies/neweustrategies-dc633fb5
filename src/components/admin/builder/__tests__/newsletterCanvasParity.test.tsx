@@ -8,7 +8,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BuilderModeProvider } from "@/lib/builder/modeContext";
+import { BuilderModeProvider } from "@/lib/content-model/editorCanvas";
 import { WidgetView } from "@/components/admin/builder/WidgetView";
 import type { WidgetContent, WidgetNode } from "@/lib/builder/types";
 

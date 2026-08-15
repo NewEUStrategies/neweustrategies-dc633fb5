@@ -38,7 +38,7 @@ vi.mock("react-i18next", () => ({
 
 import { MeetingBookingView } from "../MeetingBookingView";
 import { EventSponsorsView } from "../EventSponsorsView";
-import { BuilderModeProvider } from "@/lib/builder/modeContext";
+import { BuilderModeProvider } from "@/lib/content-model/editorCanvas";
 
 function renderWithClient(ui: ReactElement) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });

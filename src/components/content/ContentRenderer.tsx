@@ -19,7 +19,7 @@ import type { BlocksDoc } from "@/lib/blocks/types";
 
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { BlocksRenderer } from "@/components/blocks/BlocksRenderer";
-import { CurrentPostProvider, type CurrentPostCtx } from "@/lib/builder/currentPostContext";
+import { CurrentPostProvider, type CurrentPostCtx } from "@/lib/content-model/postContext";
 import { sanitizeMarkdownHtml } from "@/lib/sanitize";
 import { enhanceContentImages } from "@/lib/content/enhanceImages";
 import { resolveContentEngine } from "@/lib/content/contentEngine";

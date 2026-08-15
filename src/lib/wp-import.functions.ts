@@ -18,7 +18,7 @@ import { requireStaff } from "@/integrations/supabase/require-staff";
 import type { Database, Json } from "@/integrations/supabase/types";
 import type { BuilderDocument } from "@/lib/builder/types";
 import { toJson } from "@/lib/builder/types";
-import { convertHtmlToBuilder, type ConversionResult } from "@/lib/blocks/convert";
+import { convertHtmlToBuilder, type ConversionResult } from "@/lib/wp-import/convert";
 import {
   buildPageFromHtmlPair,
   type BuiltPage,

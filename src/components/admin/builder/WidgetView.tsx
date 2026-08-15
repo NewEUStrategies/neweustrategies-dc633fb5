@@ -29,7 +29,7 @@ import { WIDGET_MEDIA_SPLIT_SIZES } from "@/lib/builder/widgetImageSizes";
 import { resolveGlobalWidgetInstance, useGlobalWidgetNode } from "@/lib/builder/globalWidgets";
 import { processWidgetFootnotes } from "@/lib/footnotes";
 import { useTheme } from "@/components/ThemeProvider";
-import { useBuilderMode } from "@/lib/builder/modeContext";
+import { useBuilderMode } from "@/lib/content-model/editorCanvas";
 // Heavy, non-critical widgets are code-split via lazyWidgets so they never
 // weigh down the shared Header/Footer bundle on pages that don't render them.
 // SSR streaming still renders them server-side, so the HTML is unchanged.
@@ -70,7 +70,7 @@ import {
 } from "./ui/organisms/widget-view/lazyWidgets";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { AppLink } from "@/components/atoms/AppLink";
-import { asOneOf, asStr, pickI18n } from "@/lib/builder/contentValue";
+import { asOneOf, asStr, pickI18n } from "@/lib/content-model/contentValue";
 
 type Lang = "pl" | "en";
 

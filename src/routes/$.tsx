@@ -14,7 +14,7 @@ import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { errorCopy } from "@/lib/errorCopy";
 import { cleanExcerpt } from "@/lib/text/cleanExcerpt";
 import { PublicNotFound } from "@/components/molecules/PublicNotFound";
-import { type CurrentPostCtx } from "@/lib/builder/currentPostContext";
+import { type CurrentPostCtx } from "@/lib/content-model/postContext";
 import { preferCanonicalBio } from "@/lib/profile/canonicalBio";
 import { ContentRenderer } from "@/components/content/ContentRenderer";
 import { prepareContentForRender } from "@/lib/content/prepareContent";
