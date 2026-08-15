@@ -233,8 +233,57 @@ BEGIN
   ASSERT v_n = 1, 'czlonkowie opublikowanego huba musza byc widoczni';
 
   RESET ROLE;
-  RAISE NOTICE 'asercje RLS: 7 OK';
+  RAISE NOTICE 'asercje RLS (anon): 7 OK';
 END
 $rls$;
+
+-- ── 10. Zapis przez widok jako `authenticated`, nie superuser ──────────────
+-- Blok wyzej sprawdzal ODCZYT. Panel redakcji PISZE - i pisze rola
+-- `authenticated`, ktora przy `security_invoker = true` musi miec uprawnienia
+-- NA TABELI BAZOWEJ, nie tylko na widoku. Test wykonany jako postgres
+-- (superuser) przeszedlby, nawet gdyby grantow brakowalo.
+DO $rw$
+DECLARE
+  v_n integer;
+BEGIN
+  SET LOCAL ROLE authenticated;
+
+  INSERT INTO public.research_programs (tenant_id, slug, name_pl, name_en, status)
+  VALUES ('11111111-0000-0000-0000-000000000001', 'zapis-jako-user', 'Zapis', 'Write', 'published');
+  SELECT count(*) INTO v_n FROM public.research_programs WHERE slug = 'zapis-jako-user';
+  ASSERT v_n = 1, 'authenticated z rola admina musi moc pisac przez widok';
+
+  UPDATE public.research_programs SET tagline_pl = 'Zmienione' WHERE slug = 'zapis-jako-user';
+  SELECT count(*) INTO v_n FROM public.research_programs
+   WHERE slug = 'zapis-jako-user' AND tagline_pl = 'Zmienione';
+  ASSERT v_n = 1, 'UPDATE przez widok jako authenticated musi zadzialac';
+
+  DELETE FROM public.research_programs WHERE slug = 'zapis-jako-user';
+  SELECT count(*) INTO v_n FROM public.research_programs WHERE slug = 'zapis-jako-user';
+  ASSERT v_n = 0, 'DELETE przez widok jako authenticated musi zadzialac';
+
+  RESET ROLE;
+  RAISE NOTICE 'asercje zapisu przez widok: 3 OK';
+END
+$rw$;
+
+-- ── 11. Zwykly uzytkownik (bez roli sztabowej) NIE pisze ───────────────────
+DO $rw_deny$
+DECLARE
+  v_failed boolean := false;
+BEGIN
+  PERFORM set_config('nes.uid', 'bbbbbbbb-0000-0000-0000-00000000000b', true);
+  SET LOCAL ROLE authenticated;
+  BEGIN
+    INSERT INTO public.research_programs (tenant_id, slug, name_pl, name_en)
+    VALUES ('11111111-0000-0000-0000-000000000001', 'nielegalny', 'Nie', 'No');
+  EXCEPTION WHEN insufficient_privilege THEN
+    v_failed := true;
+  END;
+  RESET ROLE;
+  ASSERT v_failed, 'uzytkownik bez roli admin/editor NIE MOZE pisac przez widok';
+  RAISE NOTICE 'asercje odmowy zapisu: 1 OK';
+END
+$rw_deny$;
 
 SELECT 'programs-harness: WSZYSTKIE ASERCJE PRZESZLY' AS wynik;

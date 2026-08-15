@@ -32,18 +32,20 @@ w połowie migracji, po `ALTER TABLE`, które już się wykonały.
 
 ## Co sprawdza
 
-**23 asercje strukturalne + 7 asercji RLS.**
+**27 asercji strukturalnych + 7 RLS (anon) + 3 zapisu przez widok + 1 odmowy zapisu.**
 
-| Obszar | Pytanie |
-| ------ | ------- |
-| kształt | czy `research_programs` jest widokiem, czy stara tabela zniknęła, czy widok ma `security_invoker = true` |
-| kompletność | czy żaden program nie zginął przy scaleniu i czy identyfikatory hubów bez kolizji są zachowane |
-| kolizja | czy warstwa redakcyjna trafiła na wiersz słownika i czy opis ze słownika NIE został nadpisany |
-| dzieci | czy cztery tabele wskazują na `programs`, czy istnieje 4/4 kluczy obcych, czy żaden nie wisi na nieistniejącej tabeli |
-| treść | czy `post_programs` przeżyło scalenie (FK treści nie były ruszane) |
-| `status` ↔ `is_active` | czy kolumny nie mogą się rozjechać, w obie strony zapisu, także przy `INSERT` |
-| widok | czy `INSERT` / `UPDATE` / `DELETE` przez widok trafiają do `programs` i odpalają trigger |
-| RLS | czy anon NIE widzi szkicu, widzi opublikowany, nie widzi cudzego najemcy, nie widzi członkostwa w programie innego najemcy |
+| Obszar                 | Pytanie                                                                                                                                                                                             |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| kształt                | czy `research_programs` jest widokiem, czy stara tabela zniknęła, czy widok ma `security_invoker = true`                                                                                            |
+| kompletność            | czy żaden program nie zginął przy scaleniu i czy identyfikatory hubów bez kolizji są zachowane                                                                                                      |
+| kolizja                | czy warstwa redakcyjna trafiła na wiersz słownika i czy opis ze słownika NIE został nadpisany                                                                                                       |
+| dzieci                 | czy cztery tabele wskazują na `programs`, czy istnieje 4/4 kluczy obcych, czy żaden nie wisi na nieistniejącej tabeli                                                                               |
+| treść                  | czy `post_programs` przeżyło scalenie (FK treści nie były ruszane)                                                                                                                                  |
+| `status` ↔ `is_active` | czy kolumny nie mogą się rozjechać, w obie strony zapisu, także przy `INSERT`                                                                                                                       |
+| widok                  | czy `INSERT` / `UPDATE` / `DELETE` przez widok trafiają do `programs` i odpalają trigger                                                                                                            |
+| RPC                    | czy `get_program_members` i `club_anchor_label` (przepięte na `programs`) realnie się WYWOŁUJĄ - ciała plpgsql/sql nie są walidowane przy `CREATE`                                                  |
+| RLS                    | czy anon NIE widzi szkicu, widzi opublikowany, nie widzi cudzego najemcy, nie widzi członkostwa w programie innego najemcy                                                                          |
+| zapis                  | czy `authenticated` z rolą sztabową pisze przez widok (`security_invoker` wymaga grantów na TABELI BAZOWEJ - test jako superuser przeszedłby mimo ich braku) i czy zwykły użytkownik dostaje odmowę |
 
 Dwie ostatnie pozycje to dziury **domknięte** tą migracją: `programs public read`
 nie miał filtra statusu (bo statusu nie było), a `program_members public read`
