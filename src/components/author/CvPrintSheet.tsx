@@ -13,9 +13,13 @@
 import { useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
+import { useLang } from "@/lib/i18n/useLang";
+import type { AppLang } from "@/lib/i18n/localePath";
+import "@/lib/i18n-author-cv";
 import { FileDown } from "lucide-react";
 import type { AuthorCv } from "@/lib/queries/authorCv";
-import { formatDate } from "@/lib/i18n/format";
+import { formatDate, uiLocale } from "@/lib/i18n/format";
 
 export interface CvPrintIdentity {
   name: string;
@@ -31,16 +35,17 @@ function range(
   start: string | null,
   end: string | null,
   isCurrent: boolean | null,
-  isPl: boolean,
+  lang: AppLang,
+  t: TFunction,
 ): string {
   const fmt = (d: string | null) => {
     if (!d) return "";
     const parsed = new Date(d);
     if (Number.isNaN(parsed.getTime())) return "";
-    return formatDate(parsed, isPl ? "pl" : "en", { year: "numeric", month: "short" });
+    return formatDate(parsed, lang, { year: "numeric", month: "short" });
   };
   const s = fmt(start);
-  const e = isCurrent ? (isPl ? "obecnie" : "present") : fmt(end);
+  const e = isCurrent ? t("authorCv.present") : fmt(end);
   if (s && e) return `${s} - ${e}`;
   return s || e;
 }
@@ -75,20 +80,17 @@ export function useCvPrint(name: string) {
 }
 
 export function CvDownloadButton({ identity }: { identity: CvPrintIdentity }) {
-  const { i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  const { t } = useTranslation();
   const print = useCvPrint(identity.name);
   return (
     <button
       type="button"
       onClick={print}
       className="no-print inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium transition-colors hover:border-brand hover:text-brand"
-      title={
-        isPl ? "Pobierz CV jako PDF (drukowanie do pliku)" : "Download CV as PDF (print to file)"
-      }
+      title={t("authorCv.print.buttonTitle")}
     >
       <FileDown className="h-3.5 w-3.5" aria-hidden />
-      {isPl ? "Pobierz CV (PDF)" : "Download CV (PDF)"}
+      {t("authorCv.print.buttonLabel")}
     </button>
   );
 }
@@ -100,8 +102,8 @@ export function CvPrintSheet({
   identity: CvPrintIdentity;
   cv: AuthorCv;
 }): React.ReactPortal | null {
-  const { i18n } = useTranslation();
-  const isPl = (i18n.language ?? "pl").startsWith("pl");
+  const { t } = useTranslation();
+  const lang = useLang();
   if (typeof document === "undefined") return null;
 
   const { experiences, education, skills, awards, hobbies } = cv;
@@ -121,15 +123,15 @@ export function CvPrintSheet({
 
       {experiences.length > 0 && (
         <section>
-          <h2>{isPl ? "Doświadczenie zawodowe" : "Experience"}</h2>
+          <h2>{t("authorCv.experience")}</h2>
           {experiences.map((e) => (
             <article key={e.id}>
               <h3>
-                {e.role_title || (isPl ? "Stanowisko" : "Role")}
+                {e.role_title || t("authorCv.roleFallback")}
                 {e.company ? ` · ${e.company}` : ""}
               </h3>
               <p className="cv-print-meta">
-                {[range(e.start_date, e.end_date, e.is_current, isPl), e.location]
+                {[range(e.start_date, e.end_date, e.is_current, lang, t), e.location]
                   .filter(Boolean)
                   .join(" · ")}
               </p>
@@ -141,14 +143,14 @@ export function CvPrintSheet({
 
       {education.length > 0 && (
         <section>
-          <h2>{isPl ? "Edukacja" : "Education"}</h2>
+          <h2>{t("authorCv.education")}</h2>
           {education.map((e) => (
             <article key={e.id}>
-              <h3>{e.school || (isPl ? "Uczelnia" : "School")}</h3>
+              <h3>{e.school || t("authorCv.schoolFallback")}</h3>
               <p className="cv-print-meta">
                 {[
                   [e.degree, e.field].filter(Boolean).join(" · "),
-                  range(e.start_date, e.end_date, null, isPl),
+                  range(e.start_date, e.end_date, null, lang, t),
                 ]
                   .filter(Boolean)
                   .join(" · ")}
@@ -161,7 +163,7 @@ export function CvPrintSheet({
 
       {skills.length > 0 && (
         <section>
-          <h2>{isPl ? "Umiejętności" : "Skills"}</h2>
+          <h2>{t("authorCv.skills")}</h2>
           <p className="cv-print-skills">
             {skills
               .map((s) =>
@@ -174,7 +176,7 @@ export function CvPrintSheet({
 
       {awards.length > 0 && (
         <section>
-          <h2>{isPl ? "Wyróżnienia i certyfikaty" : "Awards & certifications"}</h2>
+          <h2>{t("authorCv.awards")}</h2>
           {awards.map((a) => (
             <article key={a.id}>
               <h3>{a.title}</h3>
@@ -182,7 +184,7 @@ export function CvPrintSheet({
                 {[
                   a.issuer,
                   a.awarded_at
-                    ? new Date(a.awarded_at).toLocaleDateString(isPl ? "pl-PL" : "en-US", {
+                    ? new Date(a.awarded_at).toLocaleDateString(uiLocale(lang), {
                         year: "numeric",
                         month: "long",
                       })
@@ -199,14 +201,14 @@ export function CvPrintSheet({
 
       {hobbies.length > 0 && (
         <section>
-          <h2>{isPl ? "Zainteresowania" : "Interests"}</h2>
+          <h2>{t("authorCv.interests")}</h2>
           <p className="cv-print-skills">{hobbies.map((h) => h.label).join(" · ")}</p>
         </section>
       )}
 
       {identity.profileUrl && (
         <footer className="cv-print-footer">
-          {isPl ? "Pełny profil: " : "Full profile: "}
+          {t("authorCv.print.fullProfile")}
           {identity.profileUrl}
         </footer>
       )}
