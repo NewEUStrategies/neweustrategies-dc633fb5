@@ -44,6 +44,16 @@ const TYPES_FILE = "src/integrations/supabase/types.ts";
  * jako JEDYNA żywa referencja do poprzedniego operatora płatności w repo, którą
  * `check:legacy-payment-refs` słusznie oblewał. Nazwa nowej kolumny jest
  * w typach, więc dług nie przenosi się pod nią.
+ *
+ * 2026-08-15: 27 -> 26 wpisów. `research_programs.created_by` odpada, bo
+ * `research_programs` PRZESTAŁO BYĆ TABELĄ w 20260815110844: model przeniesiony
+ * do `public.programs`, `DROP TABLE public.research_programs`, a nazwa wróciła
+ * jako widok nad `programs`. Ta sama klasa co wpis wyżej, o piętro wyżej -
+ * odtwarzanie znało `DROP COLUMN`, ale nie znało `DROP TABLE`, więc kolumny
+ * skasowanej tabeli zostawały żywe na zawsze. Fantom był tu nie do zbicia
+ * migracją: nie ma czego dodać ani przemianować, żeby zniknął. Kolumna po
+ * przeniesieniu (`programs.created_by`) jest w typach, więc dług nie wędruje
+ * pod nową tabelę.
  */
 const BASELINE: readonly string[] = [
   "membership_grants.source_coupon_id",
@@ -72,7 +82,6 @@ const BASELINE: readonly string[] = [
   "research_program_members.tenant_id",
   "research_program_partners.tenant_id",
   "research_program_projects.tenant_id",
-  "research_programs.created_by",
 ];
 
 function migrations(): ScannedMigration[] {
