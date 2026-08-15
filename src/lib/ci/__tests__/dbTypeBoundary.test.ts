@@ -213,6 +213,82 @@ describe("generatedTypesFreshness - typy vs migracje", () => {
     expect(events).toEqual([]);
   });
 
+  // ── DROP TABLE: regresja 2026-08-15 ───────────────────────────────────────
+  // Odtwarzanie znało śmierć kolumny, ale nie tabeli, więc kolumny skasowanej
+  // tabeli zostawały „żywe" na zawsze - fantom nie do zbicia żadną migracją.
+  // Kształt z repo: `research_programs` -> `programs` + widok (20260815110844).
+
+  it("kolumny skasowanej tabeli NIE są długiem", () => {
+    const stale = findStaleColumns(
+      [
+        { file: "001.sql", sql: "ALTER TABLE public.profiles ADD COLUMN nowa text;" },
+        { file: "002.sql", sql: "DROP TABLE public.profiles;" },
+      ],
+      readGeneratedColumns(TYPES),
+    );
+    expect(stale).toEqual([]);
+  });
+
+  it("`ALTER PUBLICATION … DROP TABLE` NIE kasuje tabeli - to wypis z replikacji", () => {
+    // Najgroźniejszy fałszywy pozytyw tej bramki: w repo jest pięć takich linii
+    // i naiwny wzorzec uciszyłby dług na żywych tabelach (`crm_leads`,
+    // `newsletter_subscribers`, …) - fałszywy spokój zamiast fałszywego długu.
+    const stale = findStaleColumns(
+      [
+        { file: "001.sql", sql: "ALTER TABLE public.profiles ADD COLUMN nowa text;" },
+        {
+          file: "002.sql",
+          sql: "ALTER PUBLICATION supabase_realtime DROP TABLE public.profiles;",
+        },
+      ],
+      readGeneratedColumns(TYPES),
+    );
+    expect(stale.map(columnKey)).toEqual(["profiles.nowa"]);
+  });
+
+  it("`DROP TABLE` zawinięty do drugiej linii instrukcji też nie kasuje", () => {
+    const events = scanColumnEvents([
+      {
+        file: "001.sql",
+        sql: "ALTER PUBLICATION supabase_realtime\n  DROP TABLE public.profiles;",
+      },
+    ]);
+    expect(events).toEqual([]);
+  });
+
+  it("`EXECUTE 'DROP TABLE …'` jest świadomie poza skanem", () => {
+    // Pominięcie myli się w stronę bezpieczną: zostaje ewentualny fałszywy
+    // dług, który widać na liście i da się zdjąć ręcznie.
+    const events = scanColumnEvents([
+      { file: "001.sql", sql: "DO $$ BEGIN EXECUTE 'DROP TABLE public.profiles'; END $$;" },
+    ]);
+    expect(events).toEqual([]);
+  });
+
+  it("czyta listę tabel, `IF EXISTS` i `CASCADE`", () => {
+    expect(
+      scanColumnEvents([{ file: "001.sql", sql: "DROP TABLE IF EXISTS public.a, b CASCADE;" }]),
+    ).toEqual([
+      { kind: "drop-table", table: "a", file: "001.sql" },
+      { kind: "drop-table", table: "b", file: "001.sql" },
+    ]);
+  });
+
+  it("tabela odtworzona po skasowaniu liczy się od nowa - kolejność w pliku, nie kolejność wzorców", () => {
+    // `DROP TABLE` i `ALTER TABLE` zbierają dwa niezależne przebiegi; bez sortu
+    // pozycją instrukcji drop wykonałby się PO addzie i skasował świeży dług.
+    const stale = findStaleColumns(
+      [
+        {
+          file: "001.sql",
+          sql: "DROP TABLE public.profiles;\nALTER TABLE public.profiles ADD COLUMN nowa text;",
+        },
+      ],
+      readGeneratedColumns(TYPES),
+    );
+    expect(stale.map(columnKey)).toEqual(["profiles.nowa"]);
+  });
+
   it("baseline wycisza znany dług, ale nie nowy", () => {
     const stale = findStaleColumns(
       [

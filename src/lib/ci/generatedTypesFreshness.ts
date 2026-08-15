@@ -57,6 +57,41 @@
 // które przeszły przez rename. `RENAME TO` (tabela) tylko PRZENOSI wpisy już
 // zebrane; nie dokłada nowych, bo świeża nazwa tabeli nadal podlega zwolnieniu
 // z akapitu wyżej.
+//
+// ── DLACZEGO SKANER ZNA `DROP TABLE` (korekta 2026-08-15) ──────────────────
+// Ta sama klasa co wyżej, o piętro wyżej: odtwarzanie znało śmierć KOLUMNY
+// (`DROP COLUMN`), ale nie znało śmierci TABELI. Kolumny skasowanej tabeli
+// zostawały więc w zbiorze „żywych" na zawsze - fantom nie do zbicia migracją,
+// bo nie ma czego dodać ani przemianować, żeby zniknął.
+//
+// Wystąpiło realnie: `research_programs` przestało być tabelą w 20260815110844
+// (model przeniesiony do `public.programs`, `DROP TABLE public.research_programs`,
+// a nazwa wróciła jako WIDOK nad `programs`). Wpis `research_programs.created_by`
+// przetrwał w zamrożonym długu i oblewał bramkę jako `resolved` - dług zniknął,
+// ale z niewłaściwego powodu: przypadkiem, bo widok o tej samej nazwie wnosi tę
+// kolumnę do wygenerowanych typów. Gdyby model przenieśli bez widoku, ten sam
+// wpis stałby w liście jako wieczny dług nieistniejącej tabeli.
+//
+// ANKROWANIE DO POCZĄTKU INSTRUKCJI JEST TU CAŁĄ TREŚCIĄ, nie kosmetyką.
+// Napis `DROP TABLE` pada w tym repo w trzech różnych znaczeniach i tylko jedno
+// kasuje tabelę:
+//   * `ALTER PUBLICATION supabase_realtime DROP TABLE public.crm_leads` - to
+//     wypisanie z publikacji replikacji, tabela żyje dalej. Naiwny wzorzec
+//     „gdziekolwiek `DROP TABLE`" skasowałby tu SIEDEM żywych tabel (m.in.
+//     `crm_leads`, `newsletter_subscribers`, `contact_messages`) i uciszył
+//     bramkę dokładnie tam, gdzie ma krzyczeć - fałszywy spokój, klasa
+//     groźniejsza od fałszywego długu;
+//   * `EXECUTE 'DROP TABLE public.suppressed_emails'` - drop dynamiczny w bloku
+//     `DO`. Świadomie NIE liczony: rozbiór SQL-a w napisie wymagałby drugiego
+//     parsera, a pominięcie myli się w stronę bezpieczną (zostaje ewentualny
+//     fałszywy dług, który widać i da się zdjąć z listy ręcznie).
+// Dlatego zdarzenie powstaje wyłącznie wtedy, gdy `DROP TABLE` OTWIERA
+// instrukcję - poprzedza je początek pliku albo `;`.
+//
+// Kolejność wewnątrz jednej migracji ma znaczenie (`DROP TABLE x; CREATE TABLE x;
+// ALTER TABLE x ADD COLUMN y`), a `ALTER`-y i `DROP`-y zbierają dwa niezależne
+// przebiegi wzorców. Dlatego zdarzenia są sortowane pozycją instrukcji w pliku,
+// a nie kolejnością przebiegów.
 
 /** Migracja poddana skanowi (nazwa pliku + treść). */
 export interface ScannedMigration {
@@ -127,57 +162,99 @@ export type ColumnEvent =
       readonly from: string;
       readonly to: string;
       readonly file: string;
-    };
+    }
+  | { readonly kind: "drop-table"; readonly table: string; readonly file: string };
 
 /** `ALTER TABLE … RENAME TO nowa` - przemianowanie TABELI, nie kolumny. */
 const RENAME_TABLE_RE = /\bRENAME\s+TO\s+"?([a-z0-9_]+)"?/i;
 /** `ALTER TABLE … RENAME [COLUMN] stara TO nowa`. Słowo COLUMN jest w PG opcjonalne. */
 const RENAME_COLUMN_RE = /\bRENAME\s+(?:COLUMN\s+)?"?([a-z0-9_]+)"?\s+TO\s+"?([a-z0-9_]+)"?/i;
+/**
+ * `DROP TABLE [IF EXISTS] a, public.b [CASCADE]` OTWIERAJĄCE instrukcję.
+ *
+ * `(?:^|;)` to cały mechanizm odsiewania `ALTER PUBLICATION … DROP TABLE`
+ * i `EXECUTE '…'` - uzasadnienie w nagłówku modułu. Bez flagi `m`: `^` ma
+ * znaczyć początek PLIKU, nie początek linii, bo instrukcja zawinięta do
+ * następnej linii (`ALTER PUBLICATION x\n  DROP TABLE y`) też ma nie trafiać.
+ */
+const DROP_TABLE_RE = /(?:^|;)\s*DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?([^;]+)/gi;
+
+/** Nazwy tabel z listy jednego `DROP TABLE` - bez schematu, bez `CASCADE`. */
+function dropTableTargets(list: string): string[] {
+  const names: string[] = [];
+  for (const item of list.replace(/\s+(?:CASCADE|RESTRICT)\s*$/i, "").split(",")) {
+    const name = /(?:^|\.)"?([a-z0-9_]+)"?\s*$/i.exec(item.trim());
+    if (name !== null) names.push(name[1]);
+  }
+  return names;
+}
 
 /**
- * Zdarzenia kolumnowe ze wszystkich `ALTER TABLE`, w kolejności migracji.
+ * Zdarzenia kolumnowe ze wszystkich `ALTER TABLE` i `DROP TABLE`, w kolejności
+ * migracji, a wewnątrz migracji - w kolejności instrukcji w pliku.
  * Kolejność ma znaczenie: kolumna dodana i później skreślona nie jest długiem
- * typów, a kolumna przemianowana jest długiem pod NOWĄ nazwą.
+ * typów, kolumna przemianowana jest długiem pod NOWĄ nazwą, a po skasowaniu
+ * tabeli nie ma długu żadna z jej kolumn.
  *
  * `ALTER INDEX … RENAME TO` (a takich w repo jest kilkanaście przy okazji
  * przemianowań tabel) nie wchodzi tu w ogóle - wzorzec zaczyna się od
- * `ALTER TABLE`.
+ * `ALTER TABLE`. `ALTER PUBLICATION … DROP TABLE` odsiewa ankrowanie
+ * `DROP_TABLE_RE` do początku instrukcji.
  */
 export function scanColumnEvents(migrations: readonly ScannedMigration[]): ColumnEvent[] {
   const out: ColumnEvent[] = [];
   for (const { file, sql } of migrations) {
     const clean = stripLineComments(sql);
+    // Pozycja instrukcji w pliku, nie kolejność przebiegu wzorca: `ALTER`-y
+    // i `DROP TABLE` zbierają dwa niezależne skany, a odtwarzanie w
+    // `findStaleColumns` jest wrażliwe na kolejność. Sort jest stabilny, więc
+    // zdarzenia z JEDNEJ instrukcji zachowują kolejność dopisania.
+    const found: { readonly at: number; readonly event: ColumnEvent }[] = [];
+
     const alters = clean.matchAll(
       /ALTER TABLE\s+(?:IF EXISTS\s+)?(?:public\.)?"?([a-z0-9_]+)"?([\s\S]*?);/gi,
     );
     for (const alter of alters) {
+      const at = alter.index;
       const table = alter[1];
       const body = alter[2];
       for (const add of body.matchAll(/ADD COLUMN\s+(?:IF NOT EXISTS\s+)?"?([a-z0-9_]+)"?/gi)) {
-        out.push({ kind: "add", table, column: add[1], file });
+        found.push({ at, event: { kind: "add", table, column: add[1], file } });
       }
       for (const drop of body.matchAll(/DROP COLUMN\s+(?:IF EXISTS\s+)?"?([a-z0-9_]+)"?/gi)) {
-        out.push({ kind: "drop", table, column: drop[1], file });
+        found.push({ at, event: { kind: "drop", table, column: drop[1], file } });
       }
       // Kolejność testów jest istotna: `RENAME TO x` pasuje TYLKO do tabeli,
       // a wzorzec kolumnowy sprawdzamy dopiero, gdy tabelowy nie trafił -
       // inaczej `RENAME CONSTRAINT`/`RENAME TO` mogłyby dać zdarzenie widmo.
       const renamedTable = RENAME_TABLE_RE.exec(body);
       if (renamedTable !== null) {
-        out.push({ kind: "rename-table", from: table, to: renamedTable[1], file });
+        found.push({ at, event: { kind: "rename-table", from: table, to: renamedTable[1], file } });
         continue;
       }
       const renamedColumn = RENAME_COLUMN_RE.exec(body);
       if (renamedColumn !== null) {
-        out.push({
-          kind: "rename-column",
-          table,
-          from: renamedColumn[1],
-          to: renamedColumn[2],
-          file,
+        found.push({
+          at,
+          event: {
+            kind: "rename-column",
+            table,
+            from: renamedColumn[1],
+            to: renamedColumn[2],
+            file,
+          },
         });
       }
     }
+
+    for (const dropped of clean.matchAll(DROP_TABLE_RE)) {
+      for (const table of dropTableTargets(dropped[1])) {
+        found.push({ at: dropped.index, event: { kind: "drop-table", table, file } });
+      }
+    }
+
+    found.sort((a, b) => a.at - b.at);
+    for (const { event } of found) out.push(event);
   }
   return out;
 }
@@ -217,6 +294,20 @@ export function findStaleColumns(
           live.set(`${event.to}.${key.slice(cut + 1)}`, file);
         }
         break;
+      case "drop-table":
+        // Tabeli nie ma - nie ma też ŻADNEJ jej kolumny. Bez tej gałęzi wpisy
+        // przeżywały własną tabelę i nie dawały się zbić żadną migracją.
+        for (const key of [...live.keys()]) {
+          if (key.slice(0, key.indexOf(".")) === event.table) live.delete(key);
+        }
+        break;
+      default: {
+        // Nagłówek `ColumnEvent` obiecywał, że dopisanie rodzaju bez gałęzi tutaj
+        // przestaje się kompilować - `switch` bez tej asercji przepuszczał je po
+        // cichu. Teraz obietnica jest pokryta: `never` nie przyjmie nowego wariantu.
+        const unhandled: never = event;
+        throw new Error(`nieobsłużone zdarzenie DDL: ${JSON.stringify(unhandled)}`);
+      }
     }
   }
   const out: StaleColumn[] = [];
