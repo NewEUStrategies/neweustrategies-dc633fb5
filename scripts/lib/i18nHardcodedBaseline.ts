@@ -89,7 +89,6 @@ export const HARDCODED_LANGUAGE_BASELINE: readonly (readonly [string, number])[]
   ["src/components/profile/ProfileBadges.tsx", 1],
   ["src/components/share/FloatingShareBar.tsx", 1],
   ["src/components/ui/datetime-picker.tsx", 6],
-  ["src/lib/builder/meetingsQuery.ts", 2],
   ["src/lib/builder/widgetTextFields.ts", 1],
   ["src/lib/chat/attachments.ts", 1],
   ["src/lib/citations/format.ts", 8],
