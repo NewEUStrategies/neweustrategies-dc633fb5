@@ -18,6 +18,13 @@
 // the featured image and every same-host <img> referenced in content,
 // uploads to the `media` bucket and rewrites URLs in the imported HTML
 // before parsing.
+//
+// LANGUAGE CONTRACT: a job carries exactly ONE language (`data.language`). The
+// imported side wins, the OTHER side is preserved verbatim - title, excerpt and
+// blocks alike (see lib/wp-import/localizedMerge). Until this was wired in, a
+// PL re-import blanked `title_en`/`excerpt_en` and replaced `blocks_data.en`
+// with an empty document, silently destroying hand-written English versions;
+// the pages stack (lib/wp-import.functions.ts) had merged correctly all along.
 
 import { toJson } from "@/lib/builder/types";
 import { createServerFn } from "@tanstack/react-start";
@@ -25,8 +32,11 @@ import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireStaff } from "@/integrations/supabase/require-staff";
 import { parseGutenberg } from "@/lib/blocks/gutenberg";
-import { localizedBlocksToBuilderDoc } from "@/lib/builder/migrate/blocksToBuilder";
-import type { LocalizedBlocks } from "@/lib/blocks/types";
+import {
+  mergeLocalizedImport,
+  serializeLocalizedBlocks,
+  type LocalizedImport,
+} from "@/lib/wp-import/localizedMerge";
 import { recordAudit } from "./server/audit.server";
 import { rateLimit } from "./server/rate-limit.server";
 import { normalizeSourcePath, normalizeTargetPath } from "./seo/redirects";
@@ -70,7 +80,6 @@ async function captureWpRedirect(
     return false;
   }
 }
-import type { Json } from "@/integrations/supabase/types";
 
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/wordpress_com";
 const MAX_LOG_ENTRIES = 500;
@@ -615,6 +624,9 @@ export const runWpImportJob = createServerFn({ method: "POST" })
       });
       const parentPath = typeof parentPathRaw === "string" && parentPathRaw ? parentPathRaw : null;
       let redirects_created = 0;
+      // Ile wpisów zachowało wersję w drugim języku - raportowane w podsumowaniu,
+      // żeby „nie zgubiliśmy EN" było widoczne, a nie domniemane.
+      let preserved_counterparts = 0;
 
       const site = encodeURIComponent(data.site);
       const qs = new URLSearchParams({
@@ -701,33 +713,23 @@ export const runWpImportJob = createServerFn({ method: "POST" })
           const doc = parseGutenberg(html);
           const title = stripTags(wp.title);
           const excerpt = stripTags(wp.excerpt).slice(0, 1000);
-
-          const blocksPayload =
-            data.language === "pl"
-              ? { pl: doc, en: { version: 1, blocks: [] } }
-              : { pl: { version: 1, blocks: [] }, en: doc };
-          const blocks_data = JSON.parse(JSON.stringify(blocksPayload)) as Json;
-          const builder_data = JSON.parse(
-            JSON.stringify(
-              localizedBlocksToBuilderDoc(blocksPayload as unknown as LocalizedBlocks),
-            ),
-          ) as Json;
-
-          const titleField =
-            data.language === "pl"
-              ? { title_pl: title, title_en: "" }
-              : { title_pl: "", title_en: title };
-          const excerptField =
-            data.language === "pl"
-              ? { excerpt_pl: excerpt, excerpt_en: null }
-              : { excerpt_pl: null, excerpt_en: excerpt };
+          const incoming: LocalizedImport = {
+            language: data.language,
+            title,
+            excerpt,
+            doc,
+          };
 
           const status = mapStatus(wp.status);
 
-          // Existing post?
+          // Existing post? Czytamy TAKŻE kolumny drugiego języka - import wchodzi
+          // zawsze jednojęzycznie, a payload budowany „jakby drugiej wersji nie
+          // było" kasował ją przy sync_existing (patrz lib/wp-import/localizedMerge).
           const { data: existing } = await supabase
             .from("posts")
-            .select("id, cover_image_url")
+            .select(
+              "id, cover_image_url, editor, title_pl, title_en, excerpt_pl, excerpt_en, blocks_data, builder_data",
+            )
             .eq("tenant_id", tenantId)
             .eq("slug", desiredSlug)
             .maybeSingle();
@@ -737,6 +739,9 @@ export const runWpImportJob = createServerFn({ method: "POST" })
             await logger.push("info", `Skipped (slug exists): ${desiredSlug}`, wp.ID);
           } else if (existing?.id && data.sync_existing) {
             const prevCover = (existing.cover_image_url as string | null) ?? null;
+            // Język importowany wygrywa, przeciwny zostaje nietknięty.
+            const merged = mergeLocalizedImport(incoming, existing);
+            const { blocks_data, builder_data } = serializeLocalizedBlocks(merged.blocks);
             const { error: upErr } = await supabase
               .from("posts")
               .update({
@@ -746,12 +751,23 @@ export const runWpImportJob = createServerFn({ method: "POST" })
                 cover_image_url: coverUrl,
                 blocks_data,
                 builder_data,
-                ...titleField,
-                ...excerptField,
+                title_pl: merged.title_pl,
+                title_en: merged.title_en,
+                excerpt_pl: merged.excerpt_pl,
+                excerpt_en: merged.excerpt_en,
               })
-              .eq("id", existing.id);
+              .eq("id", existing.id)
+              .eq("tenant_id", tenantId);
             if (upErr) throw new Error(upErr.message);
             updated_count += 1;
+            if (merged.counterpartPreserved) {
+              preserved_counterparts += 1;
+              await logger.push(
+                "info",
+                `Kept existing ${merged.counterpart.toUpperCase()} version from ${merged.counterpartSource}: ${desiredSlug}`,
+                wp.ID,
+              );
+            }
             if (prevCover !== coverUrl) {
               await logger.push(
                 "info",
@@ -779,10 +795,17 @@ export const runWpImportJob = createServerFn({ method: "POST" })
                 source: "wordpress_com",
                 wp_id: wp.ID,
                 cover_changed: prevCover !== coverUrl,
+                language: data.language,
+                counterpart_preserved: merged.counterpartPreserved,
+                counterpart_source: merged.counterpartSource,
               },
             });
           } else {
             const slug = await ensureUniqueSlug(supabase, tenantId, desiredSlug);
+            // Nowy wpis - brak wersji do ocalenia, ale ta sama ścieżka budowania
+            // payloadu (jedno miejsce, w którym powstaje para blocks/builder).
+            const fresh = mergeLocalizedImport(incoming, null);
+            const { blocks_data, builder_data } = serializeLocalizedBlocks(fresh.blocks);
             const { data: inserted, error } = await supabase
               .from("posts")
               .insert({
@@ -796,8 +819,10 @@ export const runWpImportJob = createServerFn({ method: "POST" })
                 cover_image_url: coverUrl,
                 blocks_data,
                 builder_data,
-                ...titleField,
-                ...excerptField,
+                title_pl: fresh.title_pl,
+                title_en: fresh.title_en,
+                excerpt_pl: fresh.excerpt_pl,
+                excerpt_en: fresh.excerpt_en,
               })
               .select("id, slug")
               .single();
@@ -844,7 +869,7 @@ export const runWpImportJob = createServerFn({ method: "POST" })
       });
       await logger.push(
         "info",
-        `Done. imported=${imported}, updated=${updated_count}, skipped=${skipped}, failed=${failed}, media=${importer?.count ?? 0}, redirects=${redirects_created}`,
+        `Done. imported=${imported}, updated=${updated_count}, skipped=${skipped}, failed=${failed}, media=${importer?.count ?? 0}, redirects=${redirects_created}, kept_other_language=${preserved_counterparts}`,
       );
 
       return {

@@ -1,0 +1,253 @@
+import { describe, expect, it } from "vitest";
+import type { BlocksDoc } from "@/lib/blocks/types";
+import { localizedBlocksToBuilderDoc } from "@/lib/builder/migrate/blocksToBuilder";
+import { toJson } from "@/lib/builder/types";
+import {
+  emptyBlocksDoc,
+  hasBlocks,
+  mergeLocalizedImport,
+  resolveLocalizedBlocks,
+  serializeLocalizedBlocks,
+  type ExistingLocalized,
+} from "@/lib/wp-import/localizedMerge";
+
+const doc = (text: string): BlocksDoc => ({
+  version: 1,
+  blocks: [{ id: `b_${text}`, type: "paragraph", data: { html: text } }] as BlocksDoc["blocks"],
+});
+
+/** Wiersz, jaki import zastaje: PL i EN wypełnione ręcznie przez redakcję. */
+const bilingualRow: ExistingLocalized = {
+  editor: "blocks",
+  title_pl: "Strategia UE",
+  title_en: "EU strategy",
+  excerpt_pl: "Zapowiedź PL",
+  excerpt_en: "EN excerpt",
+  blocks_data: toJson({ pl: doc("stare-pl"), en: doc("ręczne-en") }),
+  builder_data: null,
+};
+
+const plImport = { language: "pl" as const, title: "Nowy tytuł", excerpt: "Nowa zapowiedź" };
+const enImport = { language: "en" as const, title: "New title", excerpt: "New excerpt" };
+
+describe("mergeLocalizedImport - import PL nie kasuje wersji EN", () => {
+  it("zachowuje tytuł, zapowiedź i bloki EN", () => {
+    const merged = mergeLocalizedImport({ ...plImport, doc: doc("nowe-pl") }, bilingualRow);
+
+    expect(merged.title_en).toBe("EU strategy");
+    expect(merged.excerpt_en).toBe("EN excerpt");
+    expect(merged.blocks.en).toEqual(doc("ręczne-en"));
+  });
+
+  it("nadpisuje stronę PL wartościami z importu", () => {
+    const merged = mergeLocalizedImport({ ...plImport, doc: doc("nowe-pl") }, bilingualRow);
+
+    expect(merged.title_pl).toBe("Nowy tytuł");
+    expect(merged.excerpt_pl).toBe("Nowa zapowiedź");
+    expect(merged.blocks.pl).toEqual(doc("nowe-pl"));
+  });
+
+  it("raportuje ocalony język w wyniku (materiał do logu importu)", () => {
+    const merged = mergeLocalizedImport({ ...plImport, doc: doc("nowe-pl") }, bilingualRow);
+
+    expect(merged.counterpart).toBe("en");
+    expect(merged.counterpartPreserved).toBe(true);
+  });
+});
+
+describe("mergeLocalizedImport - symetria kierunku EN", () => {
+  it("import EN zachowuje kompletną wersję PL", () => {
+    const merged = mergeLocalizedImport({ ...enImport, doc: doc("new-en") }, bilingualRow);
+
+    expect(merged.title_pl).toBe("Strategia UE");
+    expect(merged.excerpt_pl).toBe("Zapowiedź PL");
+    expect(merged.blocks.pl).toEqual(doc("stare-pl"));
+    expect(merged.title_en).toBe("New title");
+    expect(merged.blocks.en).toEqual(doc("new-en"));
+    expect(merged.counterpart).toBe("pl");
+  });
+});
+
+describe("mergeLocalizedImport - przypadki brzegowe", () => {
+  it("nowy wpis (current = null) daje pustą drugą wersję bez gałęzi u wywołującego", () => {
+    const merged = mergeLocalizedImport({ ...plImport, doc: doc("nowe-pl") }, null);
+
+    expect(merged.title_en).toBe("");
+    expect(merged.excerpt_en).toBeNull();
+    expect(merged.blocks.en).toEqual(emptyBlocksDoc());
+    expect(merged.counterpartPreserved).toBe(false);
+  });
+
+  it("pusty tytuł z WordPressa nie kasuje istniejącego tytułu importowanego języka", () => {
+    const merged = mergeLocalizedImport(
+      { language: "pl", title: "   ", excerpt: "", doc: doc("nowe-pl") },
+      bilingualRow,
+    );
+
+    expect(merged.title_pl).toBe("Strategia UE");
+    expect(merged.excerpt_pl).toBe("Zapowiedź PL");
+  });
+
+  it("pusta zapowiedź nie zapisuje pustego stringa przy braku poprzedniej wartości", () => {
+    const merged = mergeLocalizedImport(
+      { language: "pl", title: "Tytuł", excerpt: "   ", doc: doc("nowe-pl") },
+      null,
+    );
+
+    expect(merged.excerpt_pl).toBeNull();
+  });
+
+  it("wiersz z samym PL nie zgłasza fałszywego 'ocalono EN'", () => {
+    const merged = mergeLocalizedImport({ ...plImport, doc: doc("nowe-pl") }, {
+      title_pl: "Strategia UE",
+      title_en: "",
+      excerpt_pl: "Zapowiedź PL",
+      excerpt_en: null,
+      blocks_data: toJson({ pl: doc("stare-pl"), en: emptyBlocksDoc() }),
+    } satisfies ExistingLocalized);
+
+    expect(merged.counterpartPreserved).toBe(false);
+  });
+});
+
+describe("resolveLocalizedBlocks - żywe źródło, nie kopia zapasowa", () => {
+  it("tryb blocks: kanoniczne jest blocks_data", () => {
+    expect(resolveLocalizedBlocks({ ...bilingualRow, editor: "blocks" })).toEqual({
+      blocks: { pl: doc("stare-pl"), en: doc("ręczne-en") },
+      source: "blocks_data",
+    });
+  });
+
+  it("sięga do builder_data, gdy blocks_data jest puste (wpisy zmigrowane do buildera)", () => {
+    const row: ExistingLocalized = {
+      editor: "blocks",
+      blocks_data: null,
+      builder_data: toJson(
+        localizedBlocksToBuilderDoc({ pl: doc("builder-pl"), en: doc("builder-en") }),
+      ),
+    };
+
+    expect(resolveLocalizedBlocks(row)).toEqual({
+      blocks: { pl: doc("builder-pl"), en: doc("builder-en") },
+      source: "builder_data",
+    });
+  });
+
+  it("import PL nie gubi EN schowanego wyłącznie w builder_data", () => {
+    const row: ExistingLocalized = {
+      editor: "builder",
+      title_pl: "Strategia UE",
+      title_en: "EU strategy",
+      blocks_data: null,
+      builder_data: toJson(
+        localizedBlocksToBuilderDoc({ pl: doc("builder-pl"), en: doc("builder-en") }),
+      ),
+    };
+
+    const merged = mergeLocalizedImport({ ...plImport, doc: doc("nowe-pl") }, row);
+
+    expect(merged.blocks.en).toEqual(doc("builder-en"));
+    expect(merged.counterpartPreserved).toBe(true);
+  });
+
+  it("zwraca pustą parę dla śmieci w kolumnach", () => {
+    const row: ExistingLocalized = { blocks_data: toJson("nie-dokument"), builder_data: toJson(7) };
+
+    expect(resolveLocalizedBlocks(row)).toEqual({
+      blocks: { pl: emptyBlocksDoc(), en: emptyBlocksDoc() },
+      source: "none",
+    });
+  });
+
+  it("puste dokumenty nie są współdzieloną, mutowalną stałą", () => {
+    const first = resolveLocalizedBlocks(null);
+    first.blocks.pl.blocks.push({
+      id: "x",
+      type: "paragraph",
+      data: {},
+    } as BlocksDoc["blocks"][number]);
+
+    expect(resolveLocalizedBlocks(null).blocks.pl.blocks).toHaveLength(0);
+  });
+});
+
+// Regresja z recenzji PR #234: `blocks_data` przeżywa migrację blocks->builder
+// jako kopia zapasowa i NIE jest aktualizowana przy edycji w builderze
+// (PostContentEditor -> BuilderPane pisze tylko builder_data). Ślepe
+// preferowanie tej kopii przywracało wersję EN sprzed migracji.
+describe("wpis prowadzony przez builder - kopia blocks_data jest NIEAKTUALNA", () => {
+  const migratedThenEdited: ExistingLocalized = {
+    editor: "builder",
+    title_pl: "Strategia UE",
+    title_en: "EU strategy",
+    // Zamrożone przy migracji - EN sprzed wszystkich późniejszych poprawek.
+    blocks_data: toJson({ pl: doc("przed-migracja-pl"), en: doc("przed-migracja-en") }),
+    // Żywa treść: redaktor poprawił EN już w builderze.
+    builder_data: toJson(localizedBlocksToBuilderDoc({ pl: doc("zywe-pl"), en: doc("zywe-en") })),
+  };
+
+  it("czyta wersję żywą, nie zamrożoną kopię", () => {
+    expect(resolveLocalizedBlocks(migratedThenEdited)).toEqual({
+      blocks: { pl: doc("zywe-pl"), en: doc("zywe-en") },
+      source: "builder_data",
+    });
+  });
+
+  it("import PL zachowuje ŻYWE EN i nie wskrzesza wersji sprzed migracji", () => {
+    const merged = mergeLocalizedImport({ ...plImport, doc: doc("nowe-pl") }, migratedThenEdited);
+
+    expect(merged.blocks.en).toEqual(doc("zywe-en"));
+    expect(merged.blocks.en).not.toEqual(doc("przed-migracja-en"));
+    expect(merged.counterpartSource).toBe("builder_data");
+  });
+
+  it("EN skasowane w builderze zostaje skasowane - kopia go nie wskrzesza", () => {
+    const enDeletedInBuilder: ExistingLocalized = {
+      editor: "builder",
+      title_pl: "Strategia UE",
+      title_en: "",
+      blocks_data: toJson({ pl: doc("przed-migracja-pl"), en: doc("przed-migracja-en") }),
+      builder_data: toJson(
+        localizedBlocksToBuilderDoc({ pl: doc("zywe-pl"), en: emptyBlocksDoc() }),
+      ),
+    };
+
+    const merged = mergeLocalizedImport({ ...plImport, doc: doc("nowe-pl") }, enDeletedInBuilder);
+
+    expect(merged.blocks.en).toEqual(emptyBlocksDoc());
+    expect(merged.counterpartPreserved).toBe(false);
+  });
+
+  it("builder bez osadzonej pary { pl, en } spada awaryjnie na blocks_data", () => {
+    const handBuilt: ExistingLocalized = {
+      editor: "builder",
+      blocks_data: toJson({ pl: doc("kopia-pl"), en: doc("kopia-en") }),
+      builder_data: toJson({ version: 1, sections: [] }),
+    };
+
+    expect(resolveLocalizedBlocks(handBuilt).source).toBe("blocks_data");
+  });
+});
+
+describe("serializeLocalizedBlocks", () => {
+  it("buduje spójną parę blocks_data + builder_data z jednego dokumentu", () => {
+    const blocks = { pl: doc("nowe-pl"), en: doc("ręczne-en") };
+    const { blocks_data, builder_data } = serializeLocalizedBlocks(blocks);
+
+    expect(blocks_data).toEqual(blocks);
+    // Ta sama para językowa musi dać się odczytać z układu buildera - import
+    // zostawia wpis w trybie `builder`, więc to ta kolumna będzie żywa.
+    expect(resolveLocalizedBlocks({ editor: "builder", blocks_data, builder_data })).toEqual({
+      blocks,
+      source: "builder_data",
+    });
+  });
+});
+
+describe("hasBlocks", () => {
+  it("odróżnia pustą skorupę od realnej treści", () => {
+    expect(hasBlocks(emptyBlocksDoc())).toBe(false);
+    expect(hasBlocks(doc("x"))).toBe(true);
+    expect(hasBlocks(null)).toBe(false);
+  });
+});
