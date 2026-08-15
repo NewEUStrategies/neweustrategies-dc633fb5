@@ -49,19 +49,26 @@ R2 — testy klubów | ✅ **wykonana** | T/P klubów **0,099 → 0,136** |
 R3 — pokrycie ścieżek pieniężnych | ⚠️ **częściowo** | `checkout` **0,453 → 0,806** (4 nowe pliki testów tras); łącznie 0,360 → **0,388** |
 R1 — zdjąć czerwień z CI | ⚠️ **częściowo** | 4 czerwone kroki → **2** |
 
-**2. CI: cztery czerwone kroki → dwa. Ale jeden z dwóch jest nowy i najgorszego rodzaju.**
+**2. CI: cztery czerwone kroki → jeden.**
 `prettier` 115 błędów → **0**. `tsc` → **0 błędów**. `eslint` → **0 błędów** (177 ostrzeżeń).
 `vitest` → **9 055 testów zielonych**, gate pokrycia zielony. `build` → zielony.
-Czerwone zostały dwa: **`check:bundle`** (chunk wejściowy 482,0 KB przy progu 471) i
-**`check:programs-harness`** — bo migracja, którą ta bramka testuje, **została skasowana**.
+Czerwony został jeden: **`check:bundle`** (chunk wejściowy 482,0 KB przy progu 471).
+Drugi, `check:programs-harness`, był **osieroconym testem** i został naprawiony w trakcie
+tego audytu — patrz punkt 3.
 
-**3. Migracja licząca 540 linii zniknęła commitem o nazwie „Changes".**
-Commit `ab9b074` dodał `20260815100000_programs_single_table.sql` — scalenie dwóch równoległych
-tabel programów, czyli naprawę defektu, który ten dokument zgłaszał **siedem wydań z rzędu**.
-Powstał do niej dedykowany harness, który **już złapał** błąd kolejności 23503. Commit `207fdd9`
-(„Changes") skasował **wyłącznie ten plik** (`1 file changed, 540 deletions(-)`). Harness, README
-i job CI zostały. Uruchomienie bramki na tym HEAD: `FAIL migracja 20260815100000`, `EXIT=1`.
-Obie rodziny tabel żyją dalej. Naprawa: `git checkout ab9b074 -- <ścieżka>`.
+**3. KOREKTA WŁASNEGO USTALENIA Z TEJ SESJI: scalenie tabel programów ZASZŁO.**
+Pierwsza wersja tego dokumentu twierdziła, że commit `207fdd9` („Changes") skasował naprawę
+i że „obie rodziny tabel żyją dalej". **To było błędne.** Ręczna migracja
+`20260815100000_programs_single_table.sql` (540 linii) została **zastąpiona** łańcuchem trzech
+migracji — `20260815110437` (kolumna `status`) → `20260815110844` (scalenie: przeniesienie
+wierszy, przepięcie czterech kluczy obcych, `DROP TABLE research_programs` + widok w jej
+miejsce) → `20260815111026` (`club_anchor_label` przepięty na `programs`) — i dopiero potem
+usunięta, **słusznie**. `research_programs` jest dziś **widokiem**, nie tabelą; cztery
+tabele-dzieci zachowały historyczny przedrostek w nazwie, ale wskazują na `public.programs`.
+Nie przeczytałem tego z wykazu tabel, bo **nazwa relacji nie jest dowodem na jej rodzica**.
+Co zostaje w mocy: **nikt nie przepiął harnessu przy podmianie**, więc blokujący job CI przez
+dobę wskazywał na nieistniejący plik. Przepięty w tym audycie na trzy faktyczne migracje —
+**38 asercji przechodzi**, `check:pg-harness` zostaje zielony (369 asercji).
 
 **4. Cztery „wydmuszki" z listy przetrwałych zostały zamknięte — pomiarem, nie deklaracją.**
 
@@ -71,7 +78,7 @@ Autozapis stron — komentarz kłamie od 30.07 | ✅ **zamknięta** | `useAutosa
 Import WP niszczy drugi język (stack wpisów) | ✅ **zamknięta** | wspólny `lib/wp-import/localizedMerge` w **obu** stackach; `mergeLocalizedImport(incoming, existing)`; test 253 linie |
 FTS czatu w konfiguracji `simple` | ✅ **zamknięta** | `20260815090000` przebudował wektor na `public.nes_polish` + `nes_polish_tsquery` z prefiksami; pełny backfill |
 Brak UNIQUE na zdarzeniach newslettera | ✅ **zamknięta** | `nl_campaign_events_subscriber_day_uq` na `(kampania, subskrybent, rodzaj, doba UTC)` + deduplikacja danych zastanych |
-Dwie tabele programów | ❌ **otwarta — naprawa napisana i skasowana** | patrz punkt 3 |
+Dwie tabele programów | ✅ **zamknięta** | `20260815110844` przeniósł wiersze, przepiął 4 klucze obce i podmienił `research_programs` na **widok**; harness potwierdza 38 asercjami (patrz punkt 3) |
 A/B client-side | ❌ **otwarta** | `assignVariant` nadal czystą funkcją w `lib/builder/experiments.ts` |
 
 ---
@@ -176,16 +183,17 @@ w jednym oknie — oba zweryfikowane ręcznie na tym HEAD.
 
 ---
 
-# MODUŁ 7 — Typy treści specjalne · **7,9 → 7,6/10** ↓
+# MODUŁ 7 — Typy treści specjalne · **7,9 → 8,1/10** ↑
 
-Jedyny moduł, który w tym oknie **spadł** — i to nie dlatego, że coś w nim zepsuto, tylko dlatego,
-że gotową naprawę usunięto z repo.
+Defekt zgłaszany przez ten dokument **siedem wydań z rzędu** — dwie równoległe tabele programów —
+jest w tym oknie zamknięty. Ocena początkowo poszła w dół (7,6), bo błędnie odczytałem stan
+schematu; korekta jest opisana w STANIE OGÓLNYM pkt 3.
 
 | Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
 | ------- | :---: | ------- | -------- | -------------- |
 | Tracker legislacyjny | **8** | Pasek etapów, macierz 27 państw, feed „co się zmieniło", RSS, loader SSR z budżetem ścieżki krytycznej | **Brak importu EUR-Lex/OEIL — wszystko ręcznie**; 4 trasy `tracker.*` bez wzmianki w testach | Import EUR-Lex/OEIL — ostatnia duża luka modułu |
 | Huby ekspertów | **8** | Katalog z filtrami, „zapytanie do eksperta" (Pro+) z kwotami, jedna generacja | `expert-layouts`: nadpisanie per-ekspert niezrobione | Dokończyć inline editor |
-| **Programy badawcze** | **5 → 3** ↓↓ | Hub `research-programs` i RSS per program działają | **NAPRAWA BYŁA NAPISANA, PRZETESTOWANA I SKASOWANA.** `ab9b074` dodał `20260815100000_programs_single_table.sql` (540 linii: przenoszenie wierszy z rozstrzyganiem kolizji slugów, przepięcie 4 kluczy obcych, podmiana tabeli na widok, przepisanie 6 polityk RLS — w tym dwóch, które **niczego nie filtrowały**). Powstał dedykowany harness, który **złapał realny błąd kolejności 23503**. Commit `207fdd9` **„Changes"** skasował ten jeden plik. Harness i job CI zostały → **`check:programs-harness` jest CZERWONY** (`FAIL migracja 20260815100000`). W stanie końcowym żyją obie rodziny: `programs` **i** `research_program_{items,members,partners,projects}`; kod czyta obie (9 plików vs 6). **Ósme wydanie** | **P0:** `git checkout ab9b074 -- supabase/migrations/20260815100000_programs_single_table.sql` |
+| **Programy badawcze** | **5 → 8** ↑↑ | **SCALONE — po siedmiu wydaniach, zweryfikowane uruchomieniem migracji na żywym Postgresie.** `20260815110844` buduje `program_merge_map`, przenosi wiersze z rozstrzyganiem kolizji slugów, przepina `program_id` w czterech tabelach-dzieciach, wymienia klucze obce na `public.programs`, a `research_programs` **podmienia z tabeli na widok** (`security_invoker=true`) — więc stary kod czytający tę nazwę dalej działa, ale źródłem prawdy jest jedna tabela. `20260815111026` przepina `club_anchor_label` z `research_programs` na `programs`. Harness modułu potwierdza **38 asercji**: 27 strukturalnych, 7 RLS dla `anon`, 3 zapisu przez widok, 1 odmowy zapisu | Cztery tabele-dzieci zachowały historyczny przedrostek `research_program_*` w nazwie mimo nowego rodzica — to zmyliło pierwszą wersję tej oceny i zmyli następnego czytelnika | Rozważyć zmianę nazw dzieci na `program_*` |
 | Wydarzenia | **9** | Waitlist FIFO serwerowy, RSVP-mail idempotentny, ICS RFC 5545, `event-reminders` w pg_cron (potwierdzone w stanie końcowym), SSR + JSON-LD | — | Utrzymać |
 | Q&A | **7** | Moderacja (4 statusy), odpowiedzi eksperckie, Chatham House, JSON-LD, SSR | — | Utrzymać |
 | Ankiety (polls) | **8** | Realtime głosowanie, utwardzone RPC, pgTAP | — | Utrzymać |
@@ -403,7 +411,7 @@ Jedyny moduł, który w tym oknie **spadł** — i to nie dlatego, że coś w ni
 
 ---
 
-# MODUŁ 20 — Platforma / backend / infrastruktura / SSR · **7,9 → 8,3/10** ↑
+# MODUŁ 20 — Platforma / backend / infrastruktura / SSR · **7,9 → 8,4/10** ↑↑
 
 | Funkcja | Ocena | ✅ Dobry | ⚠️ Słaby | 🔧 Rekomendacja |
 | ------- | :---: | ------- | -------- | -------------- |
@@ -414,12 +422,12 @@ Jedyny moduł, który w tym oknie **spadł** — i to nie dlatego, że coś w ni
 | **Lint** | **4 → 8** ↑↑ | **NAPRAWIONE:** `eslint .` = **0 błędów** (14.08: 115 błędów `prettier/prettier`, krok blokujący); `prettier --check` = „All matched files use Prettier code style" | **177 ostrzeżeń** i rosną, bo nie blokują: 143 `react-refresh/only-export-components` + **34 `react-hooks/exhaustive-deps`** — to drugie jest klasą realnych błędów, nie kosmetyką | Wyzerować `exhaustive-deps` |
 | **Testy jednostkowe** | **7 → 8** ↑ | **9 055 testów zielonych**, 50 pominiętych, 783/785 plików; gate pokrycia zielony: **33,99 / 29,57 / 26,24 / 34,59** przy progach 29 / 25 / 22 / 29, plus progi per-plik dla ścieżek krytycznych. **T/P platformy 0,187 → 0,201 — pierwszy wzrost w serii** (testy urosły 2,05× szybciej niż kod) | Globalne pokrycie linii 34,59% jest niskie; **50,4% tras (123 z 244) nie pada w żadnym teście** | Podnosić pokrycie tras |
 | **Bundle publiczny** | **7 → 5** ↓↓ | Progi **zaciśnięto za śladem pomiaru** (chunk 513 → 471, bo „przy 466,6 stara wartość dawała 10% luzu i przestała łapać") — bramka odzyskała czułość; `check:chunks` zielona (**678 chunków, 3 398 krawędzi, graf acykliczny**); `check:entry-purity` zielona; podział słowników i18n trzyma (**27 chunków `i18n-*`**, sonda na wartości: 0 trafień w wejściu) | **CZERWONA: 482,0 KB przy progu 471 (+11,0 KB).** Zapas PUBLIC **0,62%**, OVERALL **1,20%** — cieńszy niż wydanie temu. Skład chunku wejściowego **niezmierzony** (wyklucziłem słowniki i18n, rdzeń `locale` — bajtowo identyczny — i `SeoPanel`) | **P1:** `BUNDLE_INVENTORY=1 bun run build && bun run report:chunk-inventory index` |
-| pgTAP / harnessy postgresowe | **8** | **93 pliki pgTAP**; `check:pg-harness` zielona (**369 asercji runtime**), `check:careers-harness` zielona (9 migracji) | **`check:programs-harness` CZERWONA** (patrz M7); job `pgtap` **niemierzalny** w tym obrazie (brak rozszerzenia `pgtap`) | Przywrócić skasowaną migrację |
+| pgTAP / harnessy postgresowe | **9** | **93 pliki pgTAP**; wszystkie trzy harnessy postgresowe **zielone i uruchomione w tej sesji**: `pg-harness` (369 asercji runtime), `careers-harness` (9 migracji), `programs-harness` (38 asercji — po przepięciu z osieroconej migracji, patrz M7). Harnessy łapią to, czego bramki tekstowe nie widzą: `programs-harness` złapał błąd kolejności 23503, a przy tej naprawie pokazał, że **przywrócenie skasowanej migracji zapala `pg-harness`** | Job `pgtap` **niemierzalny** w tym obrazie (brak rozszerzenia `pgtap`) | Utrzymać |
 | **Bramki `check:*`** | **9 → 10** ↑ | **33 bramki** (14.08: 25), **+8 w jednym oknie**: `content-layering`, `editor-autosave`, `gate-coverage`, `i18n-default-value`, `i18n-overlay-imports`, `sql-policy-tenant-regression`, `unknown-casts`, `programs-harness`. **`check:gate-coverage` dowodzi, że każda z 33 jest wpięta dokładnie raz na job.** Dwie nowe bramki mają **własne testy jednostkowe** — bramka przestała być skryptem, któremu trzeba wierzyć | — | Utrzymać (wzorzec sektorowy) |
 | Kontrakt bazy po wdrożeniu | **8** | `check:db-contract` w jobie `post-deploy` | **Niemierzalny bez środowiska** — nie przepisuję stanu z wczoraj | — |
 | Debranding platformy | **7** | Realny | Pięć shimów `/lovable/*` bez daty wygaśnięcia | Termin + test |
-| **Higiena repo i ślad audytowy** | **4 → 3** ↓ | Komentarze migracji zapisują przyczynę; kronika budżetów w `check-bundle-size.ts`; `check:sql-migration-replay` **zielona** — 43 pary bliźniaków treści jako **ratchet, który może tylko maleć** | **Ratchet nie zmalał — urósł o dwie pary rekrutacji.** Rekomendacja brzmiała „usunąć duplikaty", wykonano „wpisać na listę". Gorzej: **commit „Changes" skasował 540-liniową migrację** (M7), a **32 z 96 commitów w tym oknie (33%) nosi nazwę „Changes" (30) albo „Lovable update" (2)** | **P0:** przywrócić migrację; wymusić opisowe komunikaty commitów |
-| **Zielone CI** | **3 → 6** ↑↑ | **Cztery czerwone kroki → dwa.** `prettier`, `tsc`, `eslint`, `build`, `test:coverage` — wszystkie **zielone i zmierzone**. 30 z 33 bramek zielonych | **Nadal czerwone: `check:bundle` i `check:programs-harness`.** Pierwsza to realna regresja wydajności; druga to **kod skasowany z repo** — czyli nie „ominięta bramka", tylko usunięty przedmiot weryfikacji | **P0:** obie naprawialne w kwadrans |
+| **Higiena repo i ślad audytowy** | **4** | Komentarze migracji zapisują przyczynę; kronika budżetów w `check-bundle-size.ts`; `check:sql-migration-replay` **zielona** — 43 pary bliźniaków treści jako **ratchet, który może tylko maleć** | **Ratchet nie zmalał — urósł o dwie pary rekrutacji.** Do tego **32 z 96 commitów (33%) nosi nazwę „Changes” (30) albo „Lovable update” (2)**; jeden z nich skasował 540-liniową migrację — kasacja była **słuszna** (migracja była już zastąpiona), ale z komunikatu nie dało się tego odczytać, więc harness został osierocony i trzymał blokujący job CI na czerwono przez dobę | Komunikat commita ma mówić, **co zastępuje co**; zdjąć pary z ratchetu |
+| **Zielone CI** | **3 → 7** ↑↑ | **Cztery czerwone kroki → jeden.** `prettier`, `tsc`, `eslint`, `build`, `test:coverage` — wszystkie **zielone i zmierzone**; **31 z 33 bramek zielonych**, 1 niemierzalna (`db-contract`, wymaga żywej bazy) | **Czerwony został `check:bundle`** — realna regresja wydajności złapana przez świeżo zaciśnięty próg (482,0 KB przy 471) | **P1:** zmierzyć skład chunku wejściowego |
 
 ---
 
@@ -453,22 +461,21 @@ najlepszy stosunek w repo.
 | 4 | Strony / media / import | 6,8 | 6,8 | **8,0** ↑↑ | 15 | Profil i konto | 8,5 | 8,5 | **8,5** |
 | 5 | Strona główna / archiwa | 8,3 | 8,4 | **8,4** | 16 | Społeczność / kluby | 8,1 | 8,1 | **8,3** ↑ |
 | 6 | Wyszukiwarka | 8,3 | 8,4 | **8,4** | 17 | Analityka i BI | 7,6 | 7,8 | **7,7** ↓ |
-| 7 | Typy specjalne | 7,9 | 7,9 | **7,6** ↓ | 18 | CRM | 8,4 | 8,4 | **8,6** ↑ |
+| 7 | Typy specjalne | 7,9 | 7,9 | **8,1** ↑ | 18 | CRM | 8,4 | 8,4 | **8,6** ↑ |
 | 8 | SEO / feedy | 8,4 | 8,8 | **8,8** | 19 | Ustawienia / multi-tenant | 8,7 | 8,9 | **9,0** ↑ |
-| 9 | Czat | 8,3 | 8,3 | **8,6** ↑ | 20 | Platforma / backend / SSR | 7,3 | 7,9 | **8,3** ↑ |
+| 9 | Czat | 8,3 | 8,3 | **8,6** ↑ | 20 | Platforma / backend / SSR | 7,3 | 7,9 | **8,4** ↑↑ |
 | 10 | Sieć | 8,1 | 8,4 | **8,4** | 21 | Rekrutacja / kariera | — | 7,2 | **7,8** ↑ |
 | 11 | Newsletter | 7,5 | 7,3 | **7,9** ↑↑ | | | | | |
 
-**Średnia platformy: ~8,4/10** (14.08: ~8,2 · 06.08 r2: ~8,1). Czternaście modułów w górę lub bez
-zmian, trzy w dół.
+**Średnia platformy: ~8,4/10** (14.08: ~8,2 · 06.08 r2: ~8,1). Osiemnaście modułów w górę lub bez
+zmian, dwa w dół (kupony, analityka).
 
-**Werdykt kompozytu: 8,2/10** (14.08: 7,9 · 06.08 r2: 7,7) — nadal niżej niż średnia arytmetyczna,
+**Werdykt kompozytu: 8,3/10** (14.08: 7,9 · 06.08 r2: 7,7) — nadal niżej niż średnia arytmetyczna,
 bo ważę w dół:
 
-- **CI nadal czerwone — ale na dwóch krokach zamiast czterech, i po raz pierwszy żaden z nich nie
-  jest brudem w kodzie.** `check:bundle` to realna regresja wydajności złapana przez **świeżo
-  zaciśnięty** próg. `check:programs-harness` to nie ominięta bramka, tylko **usunięty przedmiot
-  weryfikacji**.
+- **CI nadal czerwone — ale na jednym kroku zamiast czterech, i nie jest to brud w kodzie.**
+  `check:bundle` to realna regresja wydajności złapana przez **świeżo zaciśnięty** próg — czyli
+  bramka robiąca dokładnie to, po co ją zaciśnięto.
 - **Największa dziura pokrycia stoi.** 123 z 244 tras (**50,4%**) nie pada w żadnym teście; globalne
   pokrycie linii 34,59%. Ruch o dwie trasy przy +27 plikach testowych znaczy, że testy tego okna
   poszły w głębokość, nie w szerokość — słusznie, ale dziura została.
@@ -477,13 +484,16 @@ bo ważę w dół:
   `wpisy` 0,118, `czat` 0,111.
 - **`coupon` przy T/P 0,044** — najgorsza ścieżka pieniężna w repo i jedyna, która w tym oknie
   spadła.
-- **32 z 96 commitów (33%) o nazwie „Changes"/„Lovable update"** w jednym oknie, z czego jeden skasował
-  540 linii przetestowanej migracji.
+- **32 z 96 commitów (33%) o nazwie „Changes”/„Lovable update”** w jednym oknie. Jeden z nich
+  skasował 540-liniową migrację — **słusznie**, bo była już zastąpiona, ale komunikat tego nie
+  powiedział, więc harness testujący tę migrację został osierocony i przez dobę trzymał blokujący
+  job CI na czerwono. To jedyny defekt procesowy tego okna, który realnie kosztował czas.
 
 **Podnoszę werdykt o 0,3**, bo drugi raz z rzędu **rekomendacje zostały wykonane, a nie przeczytane
 — tym razem cztery naraz i każda przypięta bramką**, więc żadnej nie da się cofnąć po cichu.
-Cztery „wydmuszki" ciągnące się przez siedem wydań są dziś zamknięte **i zweryfikowane pomiarem**:
-autozapis stron (3→9), import WP (4→8), FTS czatu (6→9), UNIQUE newslettera (6→9). Do tego cykl
+**Pięć** „wydmuszek” ciągnących się przez siedem wydań jest dziś zamkniętych **i zweryfikowanych
+pomiarem**: autozapis stron (3→9), import WP (4→8), FTS czatu (6→9), UNIQUE newslettera (6→9)
+i **scalenie tabel programów (5→8)**. Do tego cykl
 `bloki ↔ builder` (7→9), warstwa językowa (1 398 → 0 zapasowych tekstów), typy (359 → 257 rzutowań)
 i pierwszy w serii wzrost stosunku testów do kodu (0,187 → 0,201).
 
@@ -505,7 +515,7 @@ i pierwszy w serii wzrost stosunku testów do kodu (0,187 → 0,201).
 | Wpisy — czytelnik | **8,7** | OSW 5,0 | +3,7 |
 | Strona główna / archiwa | **8,4** | OSW 4,0 | +4,4 |
 | Wyszukiwarka | **8,4** | OSW 2,3 | +6,1 |
-| Typy specjalne | **7,6** ↓ | OSW 3,0 | +4,6 |
+| Typy specjalne | **8,1** ↑ | OSW 3,0 | +5,1 |
 | SEO / feedy | **8,8** | OSW 5,0 | +3,8 |
 | Czat | **8,6** ↑ | brak | kategorialna |
 | Sieć | **8,4** | ~0,5 | kategorialna |
@@ -526,7 +536,7 @@ paywalla klasy produkcyjnej, wyszukiwarki ponad podstawową, czatu, sieci ani pr
 | Wpisy — czytelnik | **8,7** | ECFR/Bruegel 6,5 | +2,2 |
 | Strona główna / archiwa | **8,4** | ECFR/Bruegel 6,0 | +2,4 |
 | Wyszukiwarka | **8,4** | ECFR 3,8 | +4,6 |
-| Typy specjalne | **7,6** ↓ | ECFR/Bruegel 5,0 | +2,6 |
+| Typy specjalne | **8,1** ↑ | ECFR/Bruegel 5,0 | +3,1 |
 | SEO / feedy | **8,8** | ECFR/Bruegel 6,0 | +2,8 |
 | Czat | **8,6** ↑ | brak | kategorialna |
 | Sieć | **8,4** | ~1,0 | kategorialna |
@@ -545,17 +555,16 @@ temu był najsłabszym punktem porównania, urósł o 0,6 po zamknięciu podwój
 | ------------------ | :-: | :-----------: | :-----: |
 | Wpisy — czytelnik | **8,7** | CFR 7,5 | +1,2 |
 | Wyszukiwarka | **8,4** | RAND 5,6 | +2,8 |
-| Typy specjalne | **7,6** ↓ | **CSIS 7,0** | **+0,6** |
+| Typy specjalne | **8,1** ↑ | **CSIS 7,0** | **+1,1** |
 | SEO / feedy | **8,8** | Brookings/CFR 7,5 | +1,3 |
 | Paywall | **9,0** | CFR 2,0 | +7,0 |
 | Konwersja | **8,3** | Brookings/CSIS 5,0 | +3,3 |
 | Profil | **8,5** | Brookings 4,0 | +4,5 |
 
-**Werdykt USA: NES nadal nie przegrywa żadnego modułu obserwowalnego — ale margines w typach
-specjalnych stopniał z +0,9 do +0,6.** Powód nie jest zewnętrzny: CSIS stoi w miejscu, to NES cofnął
-się po skasowaniu migracji programów. Dwie luki wobec CSIS/CFR są dziś realne: **brak importu
-EUR-Lex/OEIL** (tracker wypełniany ręcznie) i **dwie równoległe tabele programów**. Pierwsza wymaga
-projektu, druga — jednej komendy `git checkout`.
+**Werdykt USA: NES nadal nie przegrywa żadnego modułu obserwowalnego, a margines w typach
+specjalnych urósł z +0,9 do +1,1** — po scaleniu tabel programów. Została **jedna** twarda luka
+wobec CSIS/CFR: **brak importu EUR-Lex/OEIL**. Nasz tracker wypełnia się ręcznie, ich trackery są
+zasilane potokiem — i to jedyny powód, dla którego przewaga w tym module to +1,1, a nie +2.
 
 ## Świat — media globalne (FT, Bloomberg, Reuters, Economist, Politico, Axios, Euractiv)
 
@@ -563,7 +572,7 @@ projektu, druga — jednej komendy `git checkout`.
 | ------------------ | :-: | :--------------: | :-----: |
 | Wpisy — czytelnik | **8,7** | **FT/Bloomberg 9,0** | **−0,3** |
 | Wyszukiwarka | **8,4** | FT 4,8 | +3,6 |
-| Typy specjalne | **7,6** ↓ | **Bloomberg 9,0** | **−1,4** |
+| Typy specjalne | **8,1** ↑ | **Bloomberg 9,0** | **−0,9** |
 | SEO / feedy | **8,8** | **Reuters 9,0** | **−0,2** |
 | Czat | **8,6** ↑ | brak | kategorialna |
 | Sieć | **8,4** | ~1,0 | kategorialna |
@@ -576,7 +585,7 @@ projektu, druga — jednej komendy `git checkout`.
 Zamknięcie podwójnego zliczania otwarć było tu decydujące — bo to nie była luka funkcjonalna,
 tylko **niewiarygodność liczb**: wskaźnik otwarć potrafił przekroczyć 100%. Zostały cztery różnice
 ułamkowe (czytanie −0,3, SEO −0,2, konwersja −0,2, newsletter −0,1) i jedna realna: **storytelling**
-(Bloomberg Graphics 9,0 vs 7,6), która w tym oknie **się pogłębiła** z winy własnej.
+(Bloomberg Graphics 9,0 vs 8,1) — jedyne miejsce, gdzie różnica liczy się w punktach, nie w ułamkach.
 
 **Ale:** media mają wyszukiwarkę o połowę słabszą (max FT 4,8), profil czytelnika szczątkowy (3,7),
 a czat i sieć **zerowe**. To firmy z setkami inżynierów robiące jedną rzecz świetnie — NES robi
@@ -603,9 +612,8 @@ właśnie dołożył wyszukiwanie z polską fleksją), sieć i profil użytkowni
 wyszukiwarka (max RAND 5,6 / FT 4,8 vs 8,4). To **przewagi kategorialne**, nie stopniowe.
 
 **3. Gdzie NES realnie przegrywa (uczciwie, po pomiarze):**
-- **Storytelling/microsites** — Bloomberg Graphics (9,0) bije moduł 7 (7,6) o 1,4, i ta luka
-  **urosła w tym oknie z winy własnej**. Twarde braki: import EUR-Lex/OEIL oraz **przywrócenie
-  skasowanej migracji programów**.
+- **Storytelling/microsites** — Bloomberg Graphics (9,0) bije moduł 7 (8,1) o 0,9. Po scaleniu
+  tabel programów został **jeden** twardy brak: import EUR-Lex/OEIL do trackera legislacyjnego.
 - **Czytanie, SEO, konwersja, newsletter** — globalne media mają przewagę szlifu (−0,3 / −0,2 /
   −0,2 / −0,1). To najzdrowszy rodzaj przegranej i praktycznie domknięty.
 
@@ -620,15 +628,21 @@ Platforma ma **250 z 250 tabel pod RLS**, **689 funkcji `SECURITY DEFINER` z prz
 `search_path` bez jednego wyjątku**, zero martwych polityk, zero błędów `tsc`, zero błędów lintu
 i 9 055 zielonych testów.
 
-I ma **czerwone CI, bo commit o nazwie „Changes" skasował 540 linii przetestowanej migracji**,
-zostawiając na miejscu harness, README i job CI, które ją weryfikują.
+I ma **czerwone CI na jednym kroku** — `check:bundle`, bo chunk wejściowy urósł o 11 KB ponad
+próg, który sama ta platforma zacisnęła trzy dni wcześniej, żeby takie wzrosty łapać. To jest
+bramka robiąca swoją robotę, nie awaria.
 
-To jest postęp: przestano omijać bramki, zaczęto **kasować kod, który bramki pilnują**. Różnica jest
-istotna, bo drugi tryb porażki jest **głośny** — bramka od razu zrobiła się czerwona i pokazała
-palcem plik. Najwyżej oprocentowana inwestycja w tej platformie to nadal nie kolejna funkcja, tylko
-**dyscyplina komunikatów commitów i przeglądu zmian**: 32 z 96 commitów w jednym oknie o nazwie
-„Changes" albo „Lovable update" to jedyny powód, dla którego 540 linii mogło zniknąć bez śladu
-w opisie.
+Drugi czerwony krok, który widniał w pierwszej wersji tego dokumentu, okazał się **osieroconym
+testem**: scalenie tabel programów zaszło, tylko harness został wskazujący na migrację zastąpioną
+łańcuchem trzech innych. Naprawiony w tym audycie; 38 asercji przechodzi.
+
+Ta pomyłka jest sama w sobie wnioskiem, i to dwustronnym. Dla audytu: **`git log` i wykaz nazw nie
+są pomiarem stanu schematu** — `research_programs` wygląda w wykazie jak żywa tabela, a jest
+widokiem. Dla zespołu: **32 z 96 commitów o nazwie „Changes” albo „Lovable update”** sprawiły, że
+odróżnienie „skasowano naprawę” od „zastąpiono naprawę i posprzątano” wymagało uruchomienia
+migracji na żywym Postgresie. Komunikat commita mówiący **co zastępuje co** kosztuje jedno zdanie
+i oszczędza dokładnie tę pracę — a przede wszystkim sprawiłby, że autor podmiany przepiąłby harness
+od razu, zamiast zostawiać blokujący job CI na czerwono na dobę.
 
 ---
 

@@ -21,9 +21,13 @@ napisane wprost zamiast przepisania progu z kodu.
 **rekomendacje poprzedniego wydania zostały wykonane hurtem, a nie pojedynczo** —
 R2, R5, R7 i R8 są zamknięte pomiarem, R1 i R3 częściowo, a każda z nich została
 **przypięta bramką**, więc nie da się jej cofnąć po cichu. CI zeszło z czterech
-czerwonych kroków na **dwa**. Ale jeden z tych dwóch jest nowy i najgorszego rodzaju:
-**migracja licząca 540 linii została skasowana commitem o nazwie „Changes"**, a
-harness, README i job CI, które ją testują, zostały na swoim miejscu.
+czerwonych kroków na **jeden** (`check:bundle`) — po naprawie opisanej w §3.4,
+wykonanej w trakcie tego audytu.
+
+Drugi czerwony krok, `check:programs-harness`, okazał się **awarią testu, nie
+schematu**, i wymagał korekty mojego własnego ustalenia — patrz §0.4. Zapisuję to
+w nagłówku, bo pierwsza wersja tego dokumentu twierdziła coś przeciwnego
+i twierdziła to jako „najpoważniejsze pojedyncze ustalenie".
 
 ---
 
@@ -93,6 +97,47 @@ Zadania `pg_cron` | 19 | 17 | **17** |
 
 Porównywalne są **wyłącznie dwie prawe kolumny**. Kolumna z 14.08 stoi tu jako ślad,
 nie jako baza odejmowania.
+
+### 0.4. „Skasowana migracja programów" — poprawiam własne ustalenie z tej sesji
+
+Pierwsza wersja tego dokumentu podawała jako **najpoważniejsze ustalenie audytu**:
+migracja scalająca tabele programów została skasowana commitem „Changes", więc
+„obie równoległe rodziny tabel programów żyją dalej", a naprawa to jedna komenda
+`git checkout`. **To było błędne w części, która najbardziej znaczy: scalenie
+w schemacie ZASZŁO.**
+
+Co ustaliłem dopiero po przywróceniu pliku i uruchomieniu go na żywym Postgresie:
+
+| Fakt | Dowód |
+|---|---|
+Skasowana migracja została **zastąpiona**, nie utracona | `20260815110844:116` robi `DROP TABLE public.research_programs`, a linia 117 zakłada w jej miejsce widok; wcześniej buduje `program_merge_map`, przenosi wiersze i przepina `program_id` w czterech tabelach-dzieciach z powrotem na `public.programs` |
+Łańcuch zastępczy ma trzy ogniwa | `20260815110437` (kolumna `status`) → `20260815110844` (scalenie) → `20260815111026` (`club_anchor_label` przepięty z `research_programs` na `programs`) |
+`research_programs` **nie jest żywą tabelą** | w stanie końcowym to **widok** (`security_invoker=true`); w moim wykazie 250 żywych tabel nie ma jej ani przed, ani po |
+Przywrócenie pliku jest **szkodliwe** | stara migracja redefiniuje `club_anchor_label`, więc wpada w selektor `scripts/pg-harness` (`grep -lE 'public\.(club_\|admin_club_)'`); replay w tym podzbiorze wywala się na `relation "public.programs" does not exist`, bo harness klubów nie zna tabel modułu programów. Zmierzone: `check:pg-harness` **zrobił się czerwony** po przywróceniu |
+
+**Czym naprawdę był czerwony `check:programs-harness`:** `run.sh:18` wskazywał
+twardo na plik usunięty przy podmianie. Harness został **osierocony** — testował
+migrację, której już nie ma, mimo że praca, którą sprawdza, jest w schemacie.
+To awaria testu, nie schematu.
+
+**Co zrobiłem zamiast przywracania:** przepiąłem harness na trzy migracje, które
+faktycznie wykonują scalenie. Wynik: **38 asercji przechodzi** (27 strukturalnych,
+7 RLS dla `anon`, 3 zapisu przez widok, 1 odmowy zapisu), `check:pg-harness`
+zostaje zielony (369 asercji), `check:authz-snapshot` bez regeneracji.
+
+**Dlaczego się pomyliłem — i co to mówi o metodzie.** Zbudowałem wniosek na
+`git log` i na wykazie tabel, w którym zobaczyłem `programs` obok
+`research_program_items/members/partners/projects`. Wyciągnąłem z tego „obie
+rodziny żyją", **nie sprawdzając, czym jest sam `research_programs` w stanie
+końcowym** — a jest widokiem. Tabele-dzieci noszą stary przedrostek w nazwie
+i to mnie zmyliło: **nazwa relacji nie jest dowodem na jej rodzica.** Właściwym
+sprawdzeniem było jedno zapytanie o `DROP TABLE`/`CREATE VIEW` na tej nazwie,
+i zajęło mniej niż minutę, kiedy w końcu je zadałem.
+
+Ustalenie, które **zostaje w mocy**: blokujący job CI przez ponad dobę wskazywał
+na nieistniejący plik, a przy podmianie migracji nikt nie przepiął harnessu.
+Zmienia się kaliber — z „skasowano naprawę" na „nie zaktualizowano testu przy
+podmianie" — nie zmienia się wzorzec procesowy z §3.4.
 
 ---
 
@@ -216,7 +261,7 @@ w tym oknie **stoi** — i jedyny, którego żadna bramka nie pilnuje.
 
 ---
 
-## 3. Stan bramek — CI jest CZERWONE na DWÓCH krokach (było na czterech)
+## 3. Stan bramek — CI jest CZERWONE na JEDNYM kroku (było na czterech)
 
 Uruchomione w tej sesji na `c6306e7`, po `bun install` procedurą z `ci.yml`.
 
@@ -254,12 +299,12 @@ Do tego **progi per-plik** dla ścieżek krytycznych (m.in. `lib/access/gating.t
 Bramka przechodzi w całości. Globalne 34,59% linii nie jest powodem do dumy, ale
 **jest liczbą prawdziwą** — i po raz pierwszy rosnącą.
 
-### 3.2. Bramki `check:*` — 30 zielonych, 2 czerwone, 1 niemierzalna
+### 3.2. Bramki `check:*` — 31 zielonych, 1 czerwona, 1 niemierzalna
 
 | Wynik | Bramki |
 |---|---|
-✅ **30 zielonych** | `authz-snapshot`, `careers-harness`, `chunk-parity`, `chunks`, `content-layering`, `db-row-casts`, `editor-autosave`, `entry-purity`, `gate-coverage`, `i18n-default-value`, `i18n-hardcoded`, `i18n-overlay-imports`, `i18n-parity`, `legacy-payment-refs`, `permissions-parity`, `pg-harness`, `public-assets`, `rpc-contract`, `sql-anon-insert`, `sql-app-role`, `sql-emit-actor`, `sql-migration-replay`, `sql-owner-tenant-scope`, `sql-policy-tenant-regression`, `sql-tenant-scope`, `stale-never-casts`, `types-freshness`, `unknown-casts`, `widget-fidelity`, `workflow-env-contract` |
-❌ **2 czerwone** | **`bundle`** (§5), **`programs-harness`** (§3.4) |
+✅ **31 zielonych** | `authz-snapshot`, `careers-harness`, `chunk-parity`, `chunks`, `content-layering`, `db-row-casts`, `editor-autosave`, `entry-purity`, `gate-coverage`, `i18n-default-value`, `i18n-hardcoded`, `i18n-overlay-imports`, `i18n-parity`, `legacy-payment-refs`, `permissions-parity`, `pg-harness`, `programs-harness` (§3.4), `public-assets`, `rpc-contract`, `sql-anon-insert`, `sql-app-role`, `sql-emit-actor`, `sql-migration-replay`, `sql-owner-tenant-scope`, `sql-policy-tenant-regression`, `sql-tenant-scope`, `stale-never-casts`, `types-freshness`, `unknown-casts`, `widget-fidelity`, `workflow-env-contract` |
+❌ **1 czerwona** | **`bundle`** (§5) |
 ⚠️ **1 niemierzalna** | `db-contract` — wymaga `SUPABASE_URL` i żywej bazy; w `ci.yml` stoi w jobie `post-deploy`, nie w `verify`. Nie przepisuję jej stanu z wczoraj. |
 
 Wybrane liczby z przebiegów, bo bramka mówi więcej niż swój kolor:
@@ -307,53 +352,70 @@ repo** i nadal nie niesie zapisu, dlaczego izolacja pękała. Dług został **na
 i zamrożony**, nie spłacony. Przy 43 parach to jest właściwa kolejność — pod
 warunkiem, że lista faktycznie maleje.
 
-### 3.4. `check:programs-harness` — migracja skasowana commitem „Changes"
+### 3.4. `check:programs-harness` — osierocony harness, naprawiony w tym audycie
 
-To jest najpoważniejsze pojedyncze ustalenie tego audytu i jedyny **nowy** czerwony
-krok. Odtworzone w całości:
+Ta bramka była drugim czerwonym krokiem i wymagała korekty mojego ustalenia
+(§0.4). Wersja ostateczna, odtworzona w całości i **zweryfikowana uruchomieniem**:
 
-1. Commit `ab9b074` („Jedna tabela programów zamiast dwóch równoległych") dodał
-   `supabase/migrations/20260815100000_programs_single_table.sql` — **540 linii**.
-   Migracja przenosi wiersze między dwiema tabelami z rozstrzyganiem kolizji slugów,
-   przepina cztery klucze obce, podmienia tabelę na widok i przepisuje sześć polityk
-   RLS, w tym dwie, które dotąd niczego nie filtrowały.
-2. Powstał do niej **dedykowany harness** (`scripts/programs-harness/`: `harness.sql`,
-   `seed.sql`, `runtime_test.sql`, `run.sh`, README) — bo, jak sam zapisuje, bramki
-   `check:sql-*` czytają migracje jako TEKST i nie zobaczą zgubionego wiersza ani
-   klucza obcego wskazującego w próżnię. Harness **już złapał** błąd kolejności 23503.
-3. Bramka została wpięta do `ci.yml` jako osobny job (`check:programs-harness`).
-4. Commit `207fdd9` o nazwie **„Changes"** skasował **wyłącznie ten jeden plik**
-   (`1 file changed, 540 deletions(-)`).
-5. Harness, README, `run.sh` i job CI **zostały**.
+1. Commit `ab9b074` dodał `20260815100000_programs_single_table.sql` — **540 linii**
+   ręcznego scalenia dwóch tabel programów. Powstał do niej dedykowany harness
+   (`scripts/programs-harness/`), który **złapał realny błąd kolejności 23503**.
+2. Scalenie zostało następnie **przepisane na łańcuch trzech migracji**:
+   `20260815110437` (kolumna `status`) → `20260815110844` (właściwe scalenie:
+   `program_merge_map`, przeniesienie wierszy, przepięcie czterech kluczy obcych,
+   `DROP TABLE research_programs` + widok w jej miejsce) → `20260815111026`
+   (`club_anchor_label` przepięty na `public.programs`).
+3. Commit `207fdd9` o nazwie **„Changes"** skasował ręczną wersję —
+   **słusznie**, bo była już zastąpiona.
+4. **Nikt nie przepiął harnessu.** `run.sh:18` dalej wskazywał na skasowany plik,
+   więc blokujący job CI failował na `FAIL migracja 20260815100000` — mimo że
+   scalenie w schemacie **zaszło**.
 
-Skutek zmierzony przez uruchomienie bramki na tym HEAD:
+**Stan schematu (zmierzony, nie wywnioskowany z nazw):** `research_programs` jest
+w stanie końcowym **widokiem** (`security_invoker=true`) nad `public.programs`,
+a nie tabelą. Cztery tabele-dzieci (`research_program_{items,members,partners,projects}`)
+zachowały historyczny przedrostek w nazwie, ale ich `program_id` wskazuje na
+`public.programs`. **Jedna rodzina tabel, nie dwie.**
+
+**Naprawa wykonana w tym audycie:** harness przepięty na trzy migracje, które
+faktycznie wykonują scalenie. Zmierzone po zmianie:
 
 ```
   OK   harness (stan sprzed scalenia)
   OK   seed (kolizja + tylko slownik + tylko hub + drugi najemca)
-  FAIL migracja 20260815100000
-EXIT=1
+  OK   migracja 20260815110437 (kolumna status)
+  OK   migracja 20260815110844 (scalenie)
+  OK   migracja 20260815111026 (etykieta kotwicy)
+  OK   asercje runtime
+       asercje strukturalne: 27 OK · asercje RLS (anon): 7 OK
+       asercje zapisu przez widok: 3 OK · asercje odmowy zapisu: 1 OK
+programs-harness: OK
 ```
 
-`scripts/programs-harness/run.sh:18` wskazuje twardo na ścieżkę, której nie ma:
-`MIGRATION="$REPO/supabase/migrations/20260815100000_programs_single_table.sql"`.
+`check:pg-harness` zostaje zielony (369 asercji), `check:authz-snapshot` zgodny
+bez regeneracji, `check:gate-coverage` nadal widzi 33 bramki wpięte po razie.
 
-**Skutek dla produktu, nie tylko dla CI:** obie równoległe rodziny tabel żyją dalej.
-W stanie końcowym schematu stoją `programs` **i** `research_program_items`,
-`research_program_members`, `research_program_partners`, `research_program_projects`,
-a `research_programs` nadal jest tworzona w migracjach. Kod czyta obie: 9 plików
-produkcyjnych odwołuje się do `programs`, 6 do `research_programs`.
+**Czego NIE należy robić — sprawdzone doświadczalnie.** Przywrócenie skasowanego
+pliku (`git checkout ab9b074 -- …`) wygląda jak naprawa i **psuje inny job**:
+stara migracja redefiniuje `club_anchor_label`, więc wpada w selektor treściowy
+`scripts/pg-harness` (`grep -lE 'public\.(club_|admin_club_)'`), a ten podzbiór
+nie zna tabel modułu programów — replay wywala się na
+`relation "public.programs" does not exist`. Zmierzone: po przywróceniu
+`check:pg-harness` **zrobił się czerwony**, a `check:authz-snapshot` wymagał
+regeneracji (779 → 780 migracji, przy niezmienionych 839 funkcjach i 543
+politykach — czysty licznik proweniencji, zero zmian uprawnień).
 
-To jest ta sama „wydmuszka", którą poprzednie wydanie wymieniło wśród pozycji, które
-przetrwały siódme wydanie — z tą różnicą, że **tym razem naprawa była napisana,
-przetestowana i skasowana**. Koszt naprawy: `git checkout ab9b074 -- <ścieżka>`.
-
-> **Wniosek procesowy, nie techniczny.** Poprzedni audyt zapisał, że bramki istnieją,
-> są dobre i są omijane przy wdrożeniu. Tutaj wzorzec się powtarza w wariancie
-> ostrzejszym: nie omija się bramki, tylko **kasuje się kod, który bramka
-> weryfikuje**, commitem bez treści komunikatu. **Trzydzieści dwa z 96 commitów
-> w tym oknie (33%) nosi nazwę „Changes" (30) albo „Lovable update" (2)** — czyli
-> komunikat, z którego nie da się odczytać ani zakresu, ani intencji zmiany.
+> **Wniosek procesowy, nie techniczny — i słabszy, niż pisałem pierwotnie.**
+> To nie jest „skasowano naprawę". To jest **podmiana migracji bez aktualizacji
+> testu, który ją pilnuje** — a więc dokładnie ten sam wzorzec, który poprzednie
+> wydanie nazwało „bramki istnieją, są dobre i są omijane przy wdrożeniu", tylko
+> od drugiej strony: bramka nie została ominięta, została **osierocona**.
+> Sprzyjał temu opis zmiany: **32 z 96 commitów w tym oknie (33%) nosi nazwę
+> „Changes" (30) albo „Lovable update" (2)** — komunikat, z którego nie da się
+> odczytać ani zakresu, ani intencji. Gdyby commit `207fdd9` nazywał się
+> „scalenie programów przepisane na łańcuch 110437/110844/111026 — kasuję wersję
+> ręczną", przepięcie harnessu byłoby oczywistym następnym krokiem dla autora,
+> a nie ustaleniem audytu dobę później.
 
 ---
 
@@ -622,29 +684,12 @@ pracy skoncentrowanej na warstwie językowej i typach brak ruchu tutaj jest spó
 
 ## 7. Rekomendacje — uszeregowane po iloczynie ryzyka i kosztu
 
-### R1. Przywrócić skasowaną migrację programów (koszt: jedna komenda, ryzyko: zero)
+### R1. Zmierzyć skład chunku wejściowego — nie podnosić progu (ryzyko: wydajność)
 
-```
-git checkout ab9b074 -- supabase/migrations/20260815100000_programs_single_table.sql
-bun run check:programs-harness
-```
-
-540 linii przetestowanego kodu leży w historii. Harness, README i job CI już na nią
-czekają. Dopóki jej nie ma, `check:programs-harness` jest czerwony, a dwie równoległe
-rodziny tabel programów żyją dalej — z kodem czytającym obie. **To jest jedyna
-rekomendacja w tym dokumencie, której wykonanie zajmuje mniej czasu niż przeczytanie
-uzasadnienia.**
-
-Osobno, i ważniejsze od samej migracji: **ustalić, jak commit o nazwie „Changes"
-skasował 540 linii bez śladu w opisie.** W tym oknie 45 commitów nosi nazwę
-„Changes" albo „Lovable update". Bramki nie chronią przed usunięciem tego, co
-weryfikują.
-
-### R2. Zmierzyć skład chunku wejściowego — nie podnosić progu (ryzyko: wydajność)
-
-Bramka przekroczona o 11,0 KB, próg świeżo zaciśnięty i **czuły — to jest stan
-pożądany, nie problem do obejścia**. Trzy hipotezy (słowniki i18n, rdzeń locale,
-`SeoPanel`) są **wykluczone pomiarem** w §5.2, więc inwentarz zawęzi się szybko:
+**Jedyny czerwony krok CI po naprawie z §3.4.** Bramka przekroczona o 11,0 KB,
+próg świeżo zaciśnięty (513 → 471) i **czuły — to jest stan pożądany, nie problem
+do obejścia**. Trzy hipotezy (słowniki i18n, rdzeń `locale`, `SeoPanel`) są
+**wykluczone pomiarem** w §5.2, więc inwentarz zawęzi się szybko:
 
 ```
 BUNDLE_INVENTORY=1 bun run build && bun run report:chunk-inventory index
@@ -652,6 +697,20 @@ BUNDLE_INVENTORY=1 bun run build && bun run report:chunk-inventory index
 
 Skrypt sam pisze, że podniesienie progu jest ostatecznością. Przy 0,62% zapasu na
 PUBLIC następna regresja i tak trafi w losowy commit.
+
+### R2. Opisowe komunikaty commitów (koszt: konwencja, ryzyko: zero)
+
+To jest rekomendacja wyprowadzona wprost z §3.4 — i jedyna, która w tym oknie
+kosztowała realny czas. **32 z 96 commitów (33%) nosi nazwę „Changes" (30) albo
+„Lovable update" (2).** Jeden z nich skasował 540-liniową migrację. Kasacja była
+**słuszna** (migracja była już zastąpiona łańcuchem trzech innych), ale z komunikatu
+nie dało się tego odczytać — więc harness, który tę migrację testował, został
+osierocony i przez dobę trzymał blokujący job CI na czerwono.
+
+Wniosek nie brzmi „nie kasujcie". Brzmi: **zmiana, której nie da się zrozumieć
+z komunikatu, kosztuje tyle, ile trwa jej odtworzenie z drugiej strony** — tutaj
+było to uruchomienie migracji na żywym Postgresie i porównanie stanu końcowego
+schematu. Minimum: komunikat, który mówi, **co zastępuje co**.
 
 ### R3. `coupon` — 0,044 to najgorsza ścieżka pieniężna w repo (ryzyko: pieniądze)
 
@@ -753,6 +812,20 @@ jako metoda:
   wczoraj". Za to trzy harnessy postgresowe **dały się uruchomić** i dwa przeszły
   (369 asercji w `pg-harness`, komplet w `careers-harness`), a trzeci pokazał realną
   awarię z §3.4 — czego lektura kodu by nie pokazała.
+- **Nazwa relacji nie jest dowodem na jej rodzaj ani na jej rodzica.** §0.4: wykaz
+  żywych tabel pokazał `programs` obok `research_program_items/members/partners/
+  projects` i wyprowadziłem z tego „obie rodziny tabel żyją". `research_programs`
+  jest w stanie końcowym **widokiem**, a dzieci tylko zachowały historyczny
+  przedrostek. Jedno zapytanie o `DROP TABLE`/`CREATE VIEW` na tej nazwie
+  rozstrzygało sprawę i zajęło mniej niż minutę — zadane po fakcie.
+- **„Czerwona bramka" i „zepsuty produkt" to dwa różne ustalenia.** Osierocony
+  harness (§3.4) daje ten sam kolor w CI, co realna regresja schematu, i wymaga
+  zupełnie innej naprawy. Rozstrzyga to dopiero **uruchomienie migracji na żywym
+  Postgresie i porównanie stanu końcowego**, nie lektura `git log`.
+- **Naprawę, która „wygląda oczywiście", trzeba zmierzyć jak każdą inną.**
+  Przywrócenie skasowanego pliku wyglądało na jednokomendową naprawę, a zapaliło
+  `check:pg-harness` — bo migracja wpada w treściowy selektor cudzego harnessu.
+  Bez uruchomienia obu harnessów wypchnąłbym regresję pod hasłem naprawy.
 - **Tabelę porównawczą trzeba liczyć tym samym skryptem na obu HEAD-ach.** Wszystkie
   kolumny „14.08" w §4 i §4.3 pochodzą z moich skryptów puszczonych na worktree
   `0fd4108`, nie z przepisania tamtego dokumentu — taksonomie modułów się różnią

@@ -1,7 +1,7 @@
 -- Powierzchnia styku dla migracji scalającej tabele programów.
 --
 -- To NIE jest replika produkcji. Odtwarzamy dokładnie tyle, ile dotyka
--- 20260815100000: obie rodziny programów w kształcie SPRZED scalenia
+-- Stan SPRZED scalenia (20260815110437 + 110844 + 111026): obie rodziny programów
 -- (przepisane z migracji 20260713175104 / 20260713181044 / 20260714130000)
 -- plus obiekty, o które te tabele zahaczają. Każdy obiekt przepisany
 -- z ORYGINAŁU - inaczej test przechodziłby na fikcji.
