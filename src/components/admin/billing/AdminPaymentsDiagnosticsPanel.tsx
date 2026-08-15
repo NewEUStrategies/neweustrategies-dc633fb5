@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-billing";
 import { toast } from "sonner";
 import {
   CheckCircle2,
@@ -34,12 +35,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const CHECK_LABELS: Record<string, { pl: string; en: string }> = {
-  gateway_configured: { pl: "Bramka płatności", en: "Payment gateway" },
-  webhook_endpoint: { pl: "Odbiornik zdarzeń", en: "Event endpoint" },
-  catalog: { pl: "Katalog cen", en: "Price catalog" },
-  webhook_failures: { pl: "Błędy zdarzeń (7 dni)", en: "Event errors (7 days)" },
-  webhook_traffic: { pl: "Ruch zdarzeń (7 dni)", en: "Event traffic (7 days)" },
+// Identyfikatory kontroli przychodzą z serwera (`diagnostics.functions`), więc
+// mapowanie id -> klucz słownika zostaje jawne. Nieznane id renderujemy surowo:
+// nowa kontrola po stronie serwera ma pokazać swoją nazwę techniczną, a nie
+// zniknąć z listy dlatego, że nikt nie dopisał tłumaczenia.
+const CHECK_LABEL_KEYS: Record<string, string> = {
+  gateway_configured: "adminBilling.checks.gateway",
+  webhook_endpoint: "adminBilling.checks.endpoint",
+  catalog: "adminBilling.checks.catalog",
+  webhook_failures: "adminBilling.checks.failures",
+  webhook_traffic: "adminBilling.checks.traffic",
 };
 
 function StateIcon({ state }: { state: "ok" | "warn" | "error" }) {
@@ -51,9 +56,8 @@ function StateIcon({ state }: { state: "ok" | "warn" | "error" }) {
 }
 
 export function AdminPaymentsDiagnosticsPanel() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
-  const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
   const { user } = useAuth();
 
   const clientEnv = getStripeEnvironmentSafe();
@@ -88,10 +92,11 @@ export function AdminPaymentsDiagnosticsPanel() {
     mutationFn: () => syncFn({ data: { environment: env } }),
     onSuccess: (r) => {
       toast.success(
-        L(
-          `Kupony: ${r.created} nowych, ${r.existing} istniejących, ${r.failed} błędów`,
-          `Coupons: ${r.created} created, ${r.existing} existing, ${r.failed} failed`,
-        ),
+        t("adminBilling.couponsSynced", {
+          created: r.created,
+          existing: r.existing,
+          failed: r.failed,
+        }),
       );
       void diagQ.refetch();
     },
@@ -101,29 +106,24 @@ export function AdminPaymentsDiagnosticsPanel() {
   const { openPlanCheckout, loading: checkoutLoading } = useCheckout();
   const runTestCheckout = async () => {
     if (!user?.id) {
-      toast.error(L("Zaloguj się, aby przetestować.", "Sign in to run the test."));
+      toast.error(t("adminBilling.signRunTest"));
       return;
     }
     if (env !== clientEnv) {
-      toast.error(
-        L(
-          "Nakładka płatności działa w środowisku tej wersji aplikacji - przełącz środowisko z powrotem.",
-          "The checkout overlay runs in this build's environment - switch it back.",
-        ),
-      );
+      toast.error(t("adminBilling.checkoutOverlayRunsBuildS"));
       return;
     }
     try {
       const plan = (plansQ.data ?? []).find((row) => row.id === testPlanId);
       if (!plan) {
-        toast.error(L("Wybierz plan do testu.", "Pick a plan to test."));
+        toast.error(t("adminBilling.pickPlanTest"));
         return;
       }
       const entry = BILLING_CATALOG.find(
         (e) => e.tierKey === plan.tier_key && e.interval === plan.interval,
       );
       if (!entry) {
-        toast.error(L("Brak ceny w katalogu Stripe.", "No matching Stripe price in catalog."));
+        toast.error(t("adminBilling.matchingStripePriceCatalog"));
         return;
       }
       const res = await openPlanCheckout({
@@ -162,7 +162,7 @@ export function AdminPaymentsDiagnosticsPanel() {
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-[0.8125rem] font-medium text-muted-foreground">
             <Stethoscope className="h-4 w-4" aria-hidden="true" />
-            {L("Diagnostyka płatności", "Payments diagnostics")}
+            {t("adminBilling.paymentsDiagnostics")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -172,12 +172,8 @@ export function AdminPaymentsDiagnosticsPanel() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="sandbox">
-                  {L("Środowisko testowe", "Test environment")}
-                </SelectItem>
-                <SelectItem value="live">
-                  {L("Środowisko produkcyjne", "Live environment")}
-                </SelectItem>
+                <SelectItem value="sandbox">{t("adminBilling.testEnvironment")}</SelectItem>
+                <SelectItem value="live">{t("adminBilling.liveEnvironment")}</SelectItem>
               </SelectContent>
             </Select>
             <Button
@@ -189,18 +185,18 @@ export function AdminPaymentsDiagnosticsPanel() {
               disabled={diagQ.isFetching}
             >
               <RefreshCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-              {L("Sprawdź ponownie", "Re-run checks")}
+              {t("adminBilling.reRunChecks")}
             </Button>
           </div>
 
           {diagQ.isLoading && (
             <p className="text-[0.8125rem] text-muted-foreground">
-              {L("Sprawdzam integrację...", "Running checks...")}
+              {t("adminBilling.runningChecks")}
             </p>
           )}
           {diagQ.isError && (
             <p className="text-[0.8125rem] text-destructive">
-              {L("Nie udało się pobrać diagnostyki.", "Could not load diagnostics.")}
+              {t("adminBilling.couldLoadDiagnostics")}
             </p>
           )}
 
@@ -214,7 +210,7 @@ export function AdminPaymentsDiagnosticsPanel() {
                   <StateIcon state={c.state} />
                   <span>
                     <span className="font-medium">
-                      {CHECK_LABELS[c.id] ? CHECK_LABELS[c.id][lang] : c.id}
+                      {CHECK_LABEL_KEYS[c.id] ? t(CHECK_LABEL_KEYS[c.id]) : c.id}
                     </span>
                     <span className="block break-all text-xs text-muted-foreground">
                       {c.detail}
@@ -227,10 +223,12 @@ export function AdminPaymentsDiagnosticsPanel() {
 
           {diag && (
             <p className="text-[0.8125rem] text-muted-foreground">
-              {L(
-                `Zdarzenia (7 dni): ${diag.webhooks.total}, w tym błędów ${diag.webhooks.failed}. Ostatnie: ${fmtDate(diag.webhooks.lastEventAt)}. Średni czas obsługi: ${diag.webhooks.avgDurationMs ?? "-"} ms.`,
-                `Events (7 days): ${diag.webhooks.total}, errors ${diag.webhooks.failed}. Last: ${fmtDate(diag.webhooks.lastEventAt)}. Average handling time: ${diag.webhooks.avgDurationMs ?? "-"} ms.`,
-              )}
+              {t("adminBilling.webhookSummary", {
+                total: diag.webhooks.total,
+                failed: diag.webhooks.failed,
+                last: fmtDate(diag.webhooks.lastEventAt),
+                avgMs: diag.webhooks.avgDurationMs ?? "-",
+              })}
             </p>
           )}
         </CardContent>
@@ -239,15 +237,12 @@ export function AdminPaymentsDiagnosticsPanel() {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-[0.8125rem] font-medium text-muted-foreground">
-            {L("Test checkoutu i subskrypcji", "Checkout and subscription test")}
+            {t("adminBilling.checkoutSubscriptionTest")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-[0.8125rem] text-muted-foreground">
-            {L(
-              "Otwiera prawdziwy formularz płatności Stripe na Twoim koncie. W podglądzie to tryb testowy - użyj karty 4242 4242 4242 4242. Po opłaceniu sprawdź dziennik zdarzeń: zakup ma pojawić się jako „processed”.",
-              "Opens the real Stripe checkout form on your account. In preview this is test mode - use card 4242 4242 4242 4242. After paying, check the event log: the purchase should appear as “processed”.",
-            )}
+            {t("adminBilling.opensRealStripeCheckoutForm")}
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <Select value={testPlanId} onValueChange={setTestPlanId}>
@@ -270,14 +265,11 @@ export function AdminPaymentsDiagnosticsPanel() {
               disabled={checkoutLoading || !testPlanId}
             >
               <PlayCircle className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-              {L("Uruchom test", "Run test")}
+              {t("adminBilling.runTest")}
             </Button>
             {missingPrices.length > 0 && (
               <span className="text-[0.8125rem] text-destructive">
-                {L(
-                  `Brakuje cen u operatora: ${missingPrices.length}`,
-                  `Missing provider prices: ${missingPrices.length}`,
-                )}
+                {t("adminBilling.missingProviderPrices", { count: missingPrices.length })}
               </span>
             )}
           </div>
@@ -288,7 +280,7 @@ export function AdminPaymentsDiagnosticsPanel() {
                 <li key={c.priceId} className="flex items-center gap-2">
                   <StateIcon state={c.providerPriceId ? "ok" : "error"} />
                   <span className="font-mono">{c.priceId}</span>
-                  <span className="truncate">{c.providerPriceId ?? L("brak", "missing")}</span>
+                  <span className="truncate">{c.providerPriceId ?? t("adminBilling.missing")}</span>
                 </li>
               ))}
             </ul>
@@ -299,15 +291,12 @@ export function AdminPaymentsDiagnosticsPanel() {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-[0.8125rem] font-medium text-muted-foreground">
-            {L("Kupony B2B a rabaty u operatora", "B2B coupons vs provider discounts")}
+            {t("adminBilling.b2bCouponsVsProviderDiscounts")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-[0.8125rem] text-muted-foreground">
-            {L(
-              "Kupony żyją w bazie; rabat u operatora powstaje przy pierwszym użyciu kodu. Poniższy przycisk tworzy je z góry, razem z datą wygaśnięcia i limitem użyć.",
-              "Coupons live in the database; the provider discount is created on first use of the code. The button below creates them upfront, including expiry date and usage limit.",
-            )}
+            {t("adminBilling.couponsLiveDatabaseProviderDiscount")}
           </p>
           <Button
             type="button"
@@ -318,7 +307,7 @@ export function AdminPaymentsDiagnosticsPanel() {
             disabled={syncM.isPending}
           >
             <RefreshCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-            {L("Zsynchronizuj kupony", "Sync coupons")}
+            {t("adminBilling.syncCoupons")}
           </Button>
 
           {diag && diag.coupons.length > 0 && (
@@ -326,12 +315,12 @@ export function AdminPaymentsDiagnosticsPanel() {
               <table className="w-full text-left text-[0.8125rem]">
                 <thead className="bg-muted/40 text-muted-foreground">
                   <tr>
-                    <th className="px-3 py-2 font-medium">{L("Kod", "Code")}</th>
-                    <th className="px-3 py-2 font-medium">{L("Rabat", "Discount")}</th>
-                    <th className="px-3 py-2 font-medium">{L("Ważny do", "Valid until")}</th>
-                    <th className="px-3 py-2 font-medium">{L("Użycia", "Redemptions")}</th>
-                    <th className="px-3 py-2 font-medium">{L("Nadaje dostęp", "Grants access")}</th>
-                    <th className="px-3 py-2 font-medium">{L("U operatora", "At provider")}</th>
+                    <th className="px-3 py-2 font-medium">{t("adminBilling.code")}</th>
+                    <th className="px-3 py-2 font-medium">{t("adminBilling.discount")}</th>
+                    <th className="px-3 py-2 font-medium">{t("adminBilling.validUntil")}</th>
+                    <th className="px-3 py-2 font-medium">{t("adminBilling.redemptions")}</th>
+                    <th className="px-3 py-2 font-medium">{t("adminBilling.grantsAccess")}</th>
+                    <th className="px-3 py-2 font-medium">{t("adminBilling.provider")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -350,7 +339,7 @@ export function AdminPaymentsDiagnosticsPanel() {
                       </td>
                       <td className="px-3 py-2 text-muted-foreground">
                         {c.grantsTierKey
-                          ? `${c.grantsTierKey}${c.grantsDurationDays ? ` · ${c.grantsDurationDays} ${L("dni", "days")}` : ""}`
+                          ? `${c.grantsTierKey}${c.grantsDurationDays ? ` · ${c.grantsDurationDays} ${t("adminBilling.days")}` : ""}`
                           : "-"}
                       </td>
                       <td className="px-3 py-2">
@@ -359,16 +348,14 @@ export function AdminPaymentsDiagnosticsPanel() {
                             variant="outline"
                             className="border-0 bg-emerald-500/12 text-[0.75rem] text-emerald-700 dark:text-emerald-300"
                           >
-                            {L("zsynchronizowany", "synced")}
+                            {t("adminBilling.synced")}
                           </Badge>
                         ) : (
                           <Badge
                             variant="outline"
                             className="border-0 bg-muted text-[0.75rem] text-muted-foreground"
                           >
-                            {c.active
-                              ? L("przy pierwszym użyciu", "on first use")
-                              : L("nieaktywny", "inactive")}
+                            {c.active ? t("adminBilling.firstUse") : t("adminBilling.inactive")}
                           </Badge>
                         )}
                       </td>

@@ -12,11 +12,6 @@
 // w JEDNYM miejscu, a nie edycją runnera bramki.
 export const HARDCODED_LANGUAGE_BASELINE: readonly (readonly [string, number])[] = [
   ["src/components/admin/AdminLangBar.tsx", 1],
-  ["src/components/admin/billing/AdminBillingPanel.tsx", 34],
-  ["src/components/admin/billing/AdminPaymentOrdersPanel.tsx", 23],
-  ["src/components/admin/billing/AdminPaymentsDiagnosticsPanel.tsx", 24],
-  ["src/components/admin/billing/AdminTicketOrdersPanel.tsx", 18],
-  ["src/components/admin/billing/AdminWebhookLogPanel.tsx", 35],
   ["src/components/admin/builder/ui/organisms/builder/VisualCanvas.tsx", 1],
   ["src/components/admin/builder/ui/organisms/widget-properties/AuthorProfileCardEditor.tsx", 2],
   ["src/components/admin/builder/ui/organisms/widget-properties/DisplayLivePreview.tsx", 3],
@@ -124,9 +119,7 @@ export const HARDCODED_LANGUAGE_BASELINE: readonly (readonly [string, number])[]
   ["src/routes/admin.integrations.tsx", 34],
   ["src/routes/admin.library.tsx", 41],
   ["src/routes/admin.monetization.tsx", 25],
-  ["src/routes/admin.organizations.$id.tsx", 101],
   ["src/routes/admin.organizations.new.tsx", 21],
-  ["src/routes/admin.organizations.tsx", 32],
   ["src/routes/admin.pages.$slug.tsx", 4],
   ["src/routes/admin.pages.new.tsx", 2],
   ["src/routes/admin.personalized.tsx", 2],

@@ -5,6 +5,7 @@ import { Fragment, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-billing";
 import { ChevronDown, ChevronRight, Loader2, Ticket } from "lucide-react";
 
 import { getTicketOrderHistory, listTicketOrders } from "@/lib/billing/ticketOrders.functions";
@@ -37,32 +38,32 @@ function StatusBadge({ value }: { value: string }) {
 }
 
 function OrderHistory({ orderId, lang }: { orderId: string; lang: "pl" | "en" }) {
+  const { t } = useTranslation();
   const load = useServerFn(getTicketOrderHistory);
   const q = useQuery({
     queryKey: ["admin", "ticket-orders", "history", orderId],
     queryFn: () => load({ data: { orderId } }),
     staleTime: 30_000,
   });
-  const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
   const labelFor = (kind: string, label: string) =>
     kind === "order_created"
-      ? L("Zamówienie utworzone", "Order created")
+      ? t("adminBilling.orderCreated")
       : kind === "order_paid"
-        ? L("Płatność zaksięgowana", "Payment settled")
+        ? t("adminBilling.paymentSettled")
         : label;
 
   if (q.isLoading) {
     return (
       <p className="flex items-center gap-2 px-4 py-3 text-[0.8125rem] text-muted-foreground">
         <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-        {L("Wczytuję historię...", "Loading history...")}
+        {t("adminBilling.loadingHistory")}
       </p>
     );
   }
   if (q.isError) {
     return (
       <p className="px-4 py-3 text-[0.8125rem] text-destructive">
-        {L("Nie udało się wczytać historii.", "Could not load the history.")}
+        {t("adminBilling.couldLoadHistory")}
       </p>
     );
   }
@@ -70,7 +71,7 @@ function OrderHistory({ orderId, lang }: { orderId: string; lang: "pl" | "en" })
   if (entries.length === 0) {
     return (
       <p className="px-4 py-3 text-[0.8125rem] text-muted-foreground">
-        {L("Brak zapisanych zmian.", "No recorded changes.")}
+        {t("adminBilling.recordedChanges")}
       </p>
     );
   }
@@ -100,9 +101,8 @@ function OrderHistory({ orderId, lang }: { orderId: string; lang: "pl" | "en" })
 }
 
 export function AdminTicketOrdersPanel() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
-  const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
   const [openId, setOpenId] = useState<string | null>(null);
 
   const load = useServerFn(listTicketOrders);
@@ -133,31 +133,30 @@ export function AdminTicketOrdersPanel() {
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-[0.8125rem] font-medium text-muted-foreground">
           <Ticket className="h-4 w-4" aria-hidden="true" />
-          {L("Zamówienia biletowe", "Ticket orders")}
+          {t("adminBilling.ticketOrders")}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-[0.8125rem] text-muted-foreground">
-          {L(
-            `Opłacone: ${stats.paidCount} · biletów: ${stats.tickets} · oczekujące: ${stats.pending}`,
-            `Paid: ${stats.paidCount} · tickets: ${stats.tickets} · pending: ${stats.pending}`,
-          )}
+          {t("adminBilling.ticketStats", {
+            paid: stats.paidCount,
+            tickets: stats.tickets,
+            pending: stats.pending,
+          })}
         </p>
 
         {ordersQ.isLoading && (
           <p className="flex items-center gap-2 text-[0.8125rem] text-muted-foreground">
             <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-            {L("Wczytuję zamówienia...", "Loading orders...")}
+            {t("adminBilling.loadingOrders")}
           </p>
         )}
         {ordersQ.isError && (
-          <p className="text-[0.8125rem] text-destructive">
-            {L("Nie udało się wczytać zamówień.", "Could not load the orders.")}
-          </p>
+          <p className="text-[0.8125rem] text-destructive">{t("adminBilling.couldLoadOrders")}</p>
         )}
         {!ordersQ.isLoading && rows.length === 0 && (
           <p className="text-[0.8125rem] text-muted-foreground">
-            {L("Brak zamówień biletowych.", "No ticket orders yet.")}
+            {t("adminBilling.ticketOrdersYet")}
           </p>
         )}
 
@@ -166,13 +165,13 @@ export function AdminTicketOrdersPanel() {
             <table className="w-full text-left text-[0.8125rem]">
               <thead className="bg-muted/40 text-muted-foreground">
                 <tr>
-                  <th className="w-8 px-2 py-2" aria-label={L("Historia", "History")} />
-                  <th className="px-3 py-2 font-medium">{L("Wydarzenie", "Event")}</th>
-                  <th className="px-3 py-2 font-medium">{L("Kupujący", "Buyer")}</th>
-                  <th className="px-3 py-2 font-medium">{L("Bilety", "Tickets")}</th>
-                  <th className="px-3 py-2 font-medium">{L("Cena", "Price")}</th>
-                  <th className="px-3 py-2 font-medium">{L("Status", "Status")}</th>
-                  <th className="px-3 py-2 font-medium">{L("Data", "Date")}</th>
+                  <th className="w-8 px-2 py-2" aria-label={t("adminBilling.history")} />
+                  <th className="px-3 py-2 font-medium">{t("adminBilling.event")}</th>
+                  <th className="px-3 py-2 font-medium">{t("adminBilling.buyer")}</th>
+                  <th className="px-3 py-2 font-medium">{t("adminBilling.tickets")}</th>
+                  <th className="px-3 py-2 font-medium">{t("adminBilling.price")}</th>
+                  <th className="px-3 py-2 font-medium">{t("adminBilling.status")}</th>
+                  <th className="px-3 py-2 font-medium">{t("adminBilling.date")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -192,7 +191,7 @@ export function AdminTicketOrdersPanel() {
                             size="icon"
                             className="h-7 w-7"
                             aria-expanded={open}
-                            aria-label={L("Pokaż historię zmian", "Show change history")}
+                            aria-label={t("adminBilling.showChangeHistory")}
                             onClick={() => setOpenId(open ? null : row.id)}
                           >
                             {open ? (
@@ -215,7 +214,7 @@ export function AdminTicketOrdersPanel() {
                             // Konto usunięte (RODO): zamówienie zostało jako dowód
                             // księgowy, danych kupującego już nie ma i nie wróci.
                             <span className="italic text-muted-foreground">
-                              {L("Konto usunięte", "Account deleted")}
+                              {t("adminBilling.accountDeleted")}
                             </span>
                           ) : (
                             <>

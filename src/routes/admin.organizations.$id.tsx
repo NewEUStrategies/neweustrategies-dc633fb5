@@ -4,6 +4,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { uiLocale } from "@/lib/i18n/format";
+import "@/lib/i18n-admin-organizations";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -74,7 +76,6 @@ export const Route = createFileRoute("/admin/organizations/$id")({
 });
 
 type Lang = "pl" | "en";
-const tr = (lang: Lang) => (pl: string, en: string) => (lang === "pl" ? pl : en);
 
 const DEFAULT_PRIMARY = "#0F3460";
 const DEFAULT_ACCENT = "#E94560";
@@ -82,9 +83,8 @@ const DEFAULT_INK = "#141414";
 
 function AdminOrganizationDetailPage() {
   const { id } = Route.useParams();
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const lang: Lang = i18n.language === "en" ? "en" : "pl";
-  const L = tr(lang);
   const qc = useQueryClient();
   const navigate = useNavigate();
 
@@ -131,7 +131,7 @@ function AdminOrganizationDetailPage() {
       await updateOrganization(id, patch);
     },
     onSuccess: () => {
-      toast.success(L("Zapisano", "Saved"));
+      toast.success(t("adminOrganizations.saved"));
       void qc.invalidateQueries({ queryKey: billingKeys.admin.memberOrg(id) });
       void qc.invalidateQueries({ queryKey: billingKeys.admin.memberOrgs() });
     },
@@ -141,7 +141,7 @@ function AdminOrganizationDetailPage() {
   const removeOrg = useMutation({
     mutationFn: () => deleteOrganization(id),
     onSuccess: () => {
-      toast.success(L("Usunięto organizację", "Organization deleted"));
+      toast.success(t("adminOrganizations.organizationDeleted"));
       void qc.invalidateQueries({ queryKey: billingKeys.admin.memberOrgs() });
       void navigate({ to: "/admin/organizations" });
     },
@@ -149,12 +149,12 @@ function AdminOrganizationDetailPage() {
   });
 
   if (orgQ.isLoading || !draft) {
-    return <p className="p-5 text-sm text-muted-foreground">{L("Wczytywanie...", "Loading...")}</p>;
+    return <p className="p-5 text-sm text-muted-foreground">{t("adminOrganizations.loading")}</p>;
   }
   if (!orgQ.data) {
     return (
       <p className="p-5 text-sm text-muted-foreground">
-        {L("Nie znaleziono organizacji.", "Organization not found.")}
+        {t("adminOrganizations.organizationFound")}
       </p>
     );
   }
@@ -173,7 +173,7 @@ function AdminOrganizationDetailPage() {
           <Button asChild variant="ghost" size="sm" className="mt-0.5 h-8">
             <Link to="/admin/organizations">
               <ArrowLeft className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-              {L("Wróć", "Back")}
+              {t("adminOrganizations.back")}
             </Link>
           </Button>
           <div>
@@ -186,10 +186,10 @@ function AdminOrganizationDetailPage() {
                 {draft.tier_key}
               </Badge>
               <Badge variant="outline" className="text-[10px]">
-                {isActive ? L("aktywna", "active") : L("wstrzymana", "suspended")}
+                {isActive ? t("adminOrganizations.active") : t("adminOrganizations.suspended")}
               </Badge>
               <span className="text-[10px] text-muted-foreground">
-                {L("limit miejsc", "seat limit")}: {draft.seats_limit}
+                {t("adminOrganizations.seatLimit")}: {draft.seats_limit}
               </span>
             </div>
           </div>
@@ -199,10 +199,10 @@ function AdminOrganizationDetailPage() {
             <Switch
               checked={isActive}
               onCheckedChange={(v) => patch((d) => ({ ...d, status: v ? "active" : "suspended" }))}
-              aria-label={L("Status", "Status")}
+              aria-label={t("adminOrganizations.status")}
             />
             <span className="text-[11px] text-muted-foreground">
-              {isActive ? L("aktywna", "active") : L("wstrzymana", "suspended")}
+              {isActive ? t("adminOrganizations.active") : t("adminOrganizations.suspended")}
             </span>
           </div>
           <Button
@@ -211,19 +211,12 @@ function AdminOrganizationDetailPage() {
             className="h-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
             disabled={removeOrg.isPending}
             onClick={() => {
-              if (
-                confirm(
-                  L(
-                    `Usunąć organizację "${draft.name}"? Miejsca zostaną skasowane.`,
-                    `Delete organization "${draft.name}"? Its seats will be removed.`,
-                  ),
-                )
-              )
+              if (confirm(t("adminOrganizations.deleteConfirm", { name: draft.name })))
                 removeOrg.mutate();
             }}
           >
             <Trash2 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-            {L("Usuń", "Delete")}
+            {t("adminOrganizations.delete")}
           </Button>
           <Button
             size="sm"
@@ -232,7 +225,7 @@ function AdminOrganizationDetailPage() {
             onClick={() => save.mutate()}
           >
             <Save className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-            {save.isPending ? L("Zapisywanie...", "Saving...") : L("Zapisz", "Save")}
+            {save.isPending ? t("adminOrganizations.saving") : t("adminOrganizations.save")}
           </Button>
         </div>
       </header>
@@ -241,19 +234,19 @@ function AdminOrganizationDetailPage() {
         <TabsList className="h-8">
           <TabsTrigger value="general" className="text-xs">
             <Settings2 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-            {L("Ogólne", "General")}
+            {t("adminOrganizations.general")}
           </TabsTrigger>
           <TabsTrigger value="branding" className="text-xs">
             <Palette className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-            {L("Marka", "Branding")}
+            {t("adminOrganizations.branding")}
           </TabsTrigger>
           <TabsTrigger value="logos" className="text-xs">
             <ImageIcon className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-            {L("Logo", "Logos")}
+            {t("adminOrganizations.logos")}
           </TabsTrigger>
           <TabsTrigger value="seats" className="text-xs">
             <Users className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-            {L("Miejsca", "Seats")}
+            {t("adminOrganizations.seats")}
           </TabsTrigger>
         </TabsList>
 
@@ -263,7 +256,6 @@ function AdminOrganizationDetailPage() {
 
         <TabsContent value="branding" className="mt-4">
           <BrandingPane
-            lang={lang}
             primary={primary}
             accent={accent}
             ink={ink}
@@ -273,7 +265,6 @@ function AdminOrganizationDetailPage() {
 
         <TabsContent value="logos" className="mt-4">
           <LogosPane
-            lang={lang}
             draft={draft}
             primary={primary}
             accent={accent}
@@ -283,7 +274,6 @@ function AdminOrganizationDetailPage() {
 
         <TabsContent value="seats" className="mt-4">
           <SeatsPane
-            lang={lang}
             orgId={id}
             seatsLimit={draft.seats_limit}
             seatsSource={draft.seats_source}
@@ -308,13 +298,13 @@ function GeneralPane({
   patch: (mut: (d: OrganizationRow) => OrganizationRow) => void;
   tierOptions: MembershipTierRow[];
 }) {
-  const L = tr(lang);
+  const { t } = useTranslation();
   return (
     <div className="grid gap-4 lg:grid-cols-3">
       <div className="space-y-4 lg:col-span-2">
-        <Card title={L("Podstawowe", "Basics")}>
+        <Card title={t("adminOrganizations.basics")}>
           <div className="grid gap-3">
-            <Field label={L("Nazwa organizacji", "Name")}>
+            <Field label={t("adminOrganizations.name")}>
               <Input
                 value={draft.name}
                 onChange={(e) => patch((d) => ({ ...d, name: e.target.value }))}
@@ -322,7 +312,7 @@ function GeneralPane({
               />
             </Field>
             <div className="grid gap-3 md:grid-cols-2">
-              <Field label={L("Slug (URL)", "Slug (URL)")}>
+              <Field label={t("adminOrganizations.slugUrl")}>
                 <Input
                   value={draft.slug ?? ""}
                   onChange={(e) =>
@@ -334,7 +324,7 @@ function GeneralPane({
                   className="h-8 text-sm"
                 />
               </Field>
-              <Field label={L("Sektor", "Sector")}>
+              <Field label={t("adminOrganizations.sector")}>
                 <Input
                   value={draft.sector ?? ""}
                   onChange={(e) => patch((d) => ({ ...d, sector: e.target.value || null }))}
@@ -342,7 +332,7 @@ function GeneralPane({
                 />
               </Field>
             </div>
-            <Field label={L("Opis", "Description")}>
+            <Field label={t("adminOrganizations.description")}>
               <Textarea
                 value={draft.description ?? ""}
                 onChange={(e) => patch((d) => ({ ...d, description: e.target.value || null }))}
@@ -352,13 +342,13 @@ function GeneralPane({
           </div>
         </Card>
 
-        <Card title={L("Kontakt i adres", "Contact & location")}>
+        <Card title={t("adminOrganizations.contactLocation")}>
           <div className="grid gap-3 md:grid-cols-2">
             <Field
               label={
                 <>
                   <Mail className="mr-1 inline h-3 w-3" aria-hidden="true" />
-                  {L("E-mail", "Email")}
+                  {t("adminOrganizations.email")}
                 </>
               }
             >
@@ -373,7 +363,7 @@ function GeneralPane({
               label={
                 <>
                   <Globe className="mr-1 inline h-3 w-3" aria-hidden="true" />
-                  {L("Strona www", "Website")}
+                  {t("adminOrganizations.website")}
                 </>
               }
             >
@@ -388,7 +378,7 @@ function GeneralPane({
               label={
                 <>
                   <MapPin className="mr-1 inline h-3 w-3" aria-hidden="true" />
-                  {L("Miasto", "City")}
+                  {t("adminOrganizations.city")}
                 </>
               }
             >
@@ -398,7 +388,7 @@ function GeneralPane({
                 className="h-8 text-sm"
               />
             </Field>
-            <Field label={L("Kraj", "Country")}>
+            <Field label={t("adminOrganizations.country")}>
               <Input
                 value={draft.country ?? ""}
                 onChange={(e) => patch((d) => ({ ...d, country: e.target.value || null }))}
@@ -408,7 +398,7 @@ function GeneralPane({
           </div>
         </Card>
 
-        <Card title={L("Notatka wewnętrzna", "Internal note")}>
+        <Card title={t("adminOrganizations.internalNote")}>
           <Textarea
             value={draft.note ?? ""}
             onChange={(e) => patch((d) => ({ ...d, note: e.target.value || null }))}
@@ -418,9 +408,9 @@ function GeneralPane({
       </div>
 
       <aside className="space-y-4">
-        <Card title={L("Członkostwo", "Membership")}>
+        <Card title={t("adminOrganizations.membership")}>
           <div className="space-y-3">
-            <Field label={L("Warstwa", "Tier")}>
+            <Field label={t("adminOrganizations.tier")}>
               <Select
                 value={draft.tier_key}
                 onValueChange={(v) => patch((d) => ({ ...d, tier_key: v }))}
@@ -437,7 +427,7 @@ function GeneralPane({
                 </SelectContent>
               </Select>
             </Field>
-            <Field label={L("Limit miejsc", "Seat limit")}>
+            <Field label={t("adminOrganizations.seatLimitLabel")}>
               <Input
                 type="number"
                 value={draft.seats_limit}
@@ -447,14 +437,8 @@ function GeneralPane({
               />
               <p className="mt-1 text-[10px] text-muted-foreground">
                 {draft.seats_source === "subscription"
-                  ? L(
-                      "Liczba miejsc pochodzi z opłaconej subskrypcji Zespół - zmień ją w zakładce Miejsca.",
-                      "Seat count comes from the paid Team subscription - change it in the Seats tab.",
-                    )
-                  : L(
-                      "Liczbę miejsc zmieniasz w zakładce Miejsca - uprawnienia dopasują się od razu.",
-                      "Change the seat count in the Seats tab - entitlements adjust immediately.",
-                    )}
+                  ? t("adminOrganizations.seatCountComesPaidTeam")
+                  : t("adminOrganizations.changeSeatCountSeatsTab")}
               </p>
             </Field>
           </div>
@@ -462,27 +446,21 @@ function GeneralPane({
 
         {/* Mostek do kartoteki sprzedażowej: link utrzymuje trigger DB
             (upsert firmy CRM po nazwie), więc karta jest tylko podglądem. */}
-        <Card title={L("Firma w CRM", "CRM company")}>
+        <Card title={t("adminOrganizations.crmCompany")}>
           {draft.crm_company_id ? (
             <div className="space-y-2 text-sm">
               <p className="text-xs text-muted-foreground">
-                {L(
-                  "Organizacja jest połączona z kartoteką sprzedażową - leady, notatki i kupony B2B widzą wspólną firmę.",
-                  "This organisation is linked to its sales record - leads, notes and B2B coupons share one company.",
-                )}
+                {t("adminOrganizations.organisationLinkedSalesRecordLeads")}
               </p>
               <Button asChild size="sm" variant="outline" className="w-full">
                 <Link to="/admin/companies/$id" params={{ id: draft.crm_company_id }}>
-                  {L("Otwórz kartę firmy", "Open the company record")}
+                  {t("adminOrganizations.openCompanyRecord")}
                 </Link>
               </Button>
             </div>
           ) : (
             <p className="text-xs text-muted-foreground">
-              {L(
-                "Link do kartoteki CRM powstanie automatycznie przy najbliższym zapisie organizacji.",
-                "The CRM record link is created automatically on the next save of this organisation.",
-              )}
+              {t("adminOrganizations.crmRecordLinkCreatedAutomatically")}
             </p>
           )}
         </Card>
@@ -493,37 +471,35 @@ function GeneralPane({
 
 // -------- Marka (kolory) --------
 function BrandingPane({
-  lang,
   primary,
   accent,
   ink,
   onChange,
 }: {
-  lang: Lang;
   primary: string;
   accent: string;
   ink: string;
   onChange: (key: "brand_primary" | "brand_accent" | "brand_ink", v: string | null) => void;
 }) {
-  const L = tr(lang);
+  const { t } = useTranslation();
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <Card title={L("Kolory marki", "Brand colors")}>
+      <Card title={t("adminOrganizations.brandColors")}>
         <div className="grid gap-3">
           <ColorRow
-            label={L("Primary (główny)", "Primary")}
+            label={t("adminOrganizations.primary")}
             value={primary}
             onChange={(v) => onChange("brand_primary", v || null)}
             defaultValue={DEFAULT_PRIMARY}
           />
           <ColorRow
-            label={L("Accent (akcent)", "Accent")}
+            label={t("adminOrganizations.accent")}
             value={accent}
             onChange={(v) => onChange("brand_accent", v || null)}
             defaultValue={DEFAULT_ACCENT}
           />
           <ColorRow
-            label={L("Ink (tekst)", "Ink (text)")}
+            label={t("adminOrganizations.inkText")}
             value={ink}
             onChange={(v) => onChange("brand_ink", v || null)}
             defaultValue={DEFAULT_INK}
@@ -531,7 +507,7 @@ function BrandingPane({
         </div>
       </Card>
 
-      <Card title={L("Podgląd marki", "Brand preview")}>
+      <Card title={t("adminOrganizations.brandPreview")}>
         <div className="space-y-3">
           <div
             className="rounded-lg p-5 shadow-sm ring-1 ring-black/5"
@@ -544,13 +520,13 @@ function BrandingPane({
                 className="rounded-md px-3 py-1 text-xs font-medium"
                 style={{ background: accent, color: "#fff" }}
               >
-                {L("Przycisk akcent", "Accent button")}
+                {t("adminOrganizations.accentButton")}
               </span>
               <span
                 className="rounded-md border px-3 py-1 text-xs font-medium"
                 style={{ borderColor: "#ffffff40" }}
               >
-                {L("Kontur", "Outline")}
+                {t("adminOrganizations.outline")}
               </span>
             </div>
           </div>
@@ -560,10 +536,10 @@ function BrandingPane({
           >
             <p className="text-[10px] uppercase tracking-widest opacity-60">Light surface</p>
             <p className="mt-1 text-lg font-semibold" style={{ color: primary }}>
-              {L("Nagłówek marki", "Brand heading")}
+              {t("adminOrganizations.brandHeading")}
             </p>
             <p className="text-xs" style={{ color: ink, opacity: 0.75 }}>
-              {L("Treść w kolorze Ink na jasnym tle.", "Body copy in Ink on a light surface.")}
+              {t("adminOrganizations.bodyCopyInkLightSurface")}
             </p>
           </div>
         </div>
@@ -604,13 +580,11 @@ function ColorRow({
 
 // -------- Logo (poziome/pionowe, light/dark) + podglądy na tłach --------
 function LogosPane({
-  lang,
   draft,
   primary,
   accent,
   onChange,
 }: {
-  lang: Lang;
   draft: OrganizationRow;
   primary: string;
   accent: string;
@@ -619,100 +593,85 @@ function LogosPane({
     v: string | null,
   ) => void;
 }) {
-  const L = tr(lang);
+  const { t } = useTranslation();
   return (
     <div className="space-y-4">
       <div className="grid gap-4 md:grid-cols-2">
         <LogoSlot
-          label={L("Poziome - jasny motyw", "Horizontal - light theme")}
-          desc={L(
-            "Na jasnym tle; zwykle ciemne logo.",
-            "For light backgrounds; usually dark logo.",
-          )}
+          label={t("adminOrganizations.horizontalLightTheme")}
+          desc={t("adminOrganizations.lightBackgroundsUsuallyDarkLogo")}
           value={draft.logo_h_light ?? ""}
           onChange={(v) => onChange("logo_h_light", v || null)}
         />
         <LogoSlot
-          label={L("Poziome - ciemny motyw", "Horizontal - dark theme")}
-          desc={L(
-            "Na ciemnym tle; zwykle jasne logo.",
-            "For dark backgrounds; usually light logo.",
-          )}
+          label={t("adminOrganizations.horizontalDarkTheme")}
+          desc={t("adminOrganizations.darkBackgroundsUsuallyLightLogo")}
           value={draft.logo_h_dark ?? ""}
           onChange={(v) => onChange("logo_h_dark", v || null)}
         />
         <LogoSlot
-          label={L("Pionowe - jasny motyw", "Vertical - light theme")}
-          desc={L(
-            "Kwadratowe / stackowane logo na jasnym tle.",
-            "Square / stacked logo on light bg.",
-          )}
+          label={t("adminOrganizations.verticalLightTheme")}
+          desc={t("adminOrganizations.squareStackedLogoLightBg")}
           value={draft.logo_v_light ?? ""}
           onChange={(v) => onChange("logo_v_light", v || null)}
         />
         <LogoSlot
-          label={L("Pionowe - ciemny motyw", "Vertical - dark theme")}
-          desc={L(
-            "Kwadratowe / stackowane logo na ciemnym tle.",
-            "Square / stacked logo on dark bg.",
-          )}
+          label={t("adminOrganizations.verticalDarkTheme")}
+          desc={t("adminOrganizations.squareStackedLogoDarkBg")}
           value={draft.logo_v_dark ?? ""}
           onChange={(v) => onChange("logo_v_dark", v || null)}
         />
       </div>
 
-      <Card title={L("Podgląd na tłach", "Preview on backgrounds")}>
+      <Card title={t("adminOrganizations.previewBackgrounds")}>
         <p className="mb-3 text-[11px] text-muted-foreground">
-          {L(
-            "Zobacz jak wygląda logo na białym, ciemnym oraz w kolorach marki - upewnij się, że wersje light/dark są dobrane poprawnie.",
-            "See how the logo looks on white, dark and brand colors - ensure the light/dark versions are chosen correctly.",
-          )}
+          {t("adminOrganizations.seeHowLogoLooksWhite")}
         </p>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <PreviewTile
-            label={L("Białe tło", "White")}
+            label={t("adminOrganizations.white")}
             bg="#ffffff"
             src={draft.logo_h_light ?? draft.logo_v_light}
             variant="horizontal"
           />
           <PreviewTile
-            label={L("Ciemne tło", "Dark")}
+            label={t("adminOrganizations.dark")}
             bg="#0F172A"
             src={draft.logo_h_dark ?? draft.logo_v_dark}
             variant="horizontal"
           />
           <PreviewTile
-            label={L("Primary", "Primary")}
+            label={t("adminOrganizations.primaryShort")}
             bg={primary}
             src={draft.logo_h_dark ?? draft.logo_v_dark}
             variant="horizontal"
           />
           <PreviewTile
-            label={L("Accent", "Accent")}
+            label={t("adminOrganizations.accentShort")}
             bg={accent}
             src={draft.logo_h_dark ?? draft.logo_v_dark}
             variant="horizontal"
           />
           <PreviewTile
-            label={L("Białe - pionowe", "White - vertical")}
+            label={t("adminOrganizations.whiteVertical")}
             bg="#ffffff"
             src={draft.logo_v_light ?? draft.logo_h_light}
             variant="vertical"
           />
           <PreviewTile
-            label={L("Ciemne - pionowe", "Dark - vertical")}
+            label={t("adminOrganizations.darkVertical")}
             bg="#0F172A"
             src={draft.logo_v_dark ?? draft.logo_h_dark}
             variant="vertical"
           />
           <PreviewTile
-            label={L("Gradient marki", "Brand gradient")}
+            label={t("adminOrganizations.brandGradient")}
             bg={`linear-gradient(135deg, ${primary}, ${accent})`}
             src={draft.logo_h_dark ?? draft.logo_v_dark}
             variant="horizontal"
           />
           <PreviewTile
-            label={L("Szara powierzchnia", "Grey surface")}
+            label={t("adminOrganizations.greySurface")}
             bg="#F1F5F9"
             src={draft.logo_h_light ?? draft.logo_v_light}
             variant="horizontal"
@@ -720,14 +679,14 @@ function LogosPane({
         </div>
       </Card>
 
-      <Card title={L("Favicon", "Favicon")}>
+      <Card title={t("adminOrganizations.favicon")}>
         <div className="max-w-sm">
           <ImageSlot
-            label={L("Kwadratowa ikona (32-512px)", "Square icon (32-512px)")}
+            label={t("adminOrganizations.squareIcon32512px")}
             value={draft.logo_favicon ?? ""}
             onChange={(v) => onChange("logo_favicon", v || null)}
             folder="orgs"
-            hint={L("Używane w emailach i eksporcie.", "Used in emails and exports.")}
+            hint={t("adminOrganizations.usedEmailsExports")}
           />
         </div>
       </Card>
@@ -798,21 +757,19 @@ function PreviewTile({
 
 // -------- Miejsca --------
 function SeatsPane({
-  lang,
   orgId,
   seatsLimit,
   seatsSource,
   graceDays,
   reminderDays,
 }: {
-  lang: Lang;
   orgId: string;
   seatsLimit: number;
   seatsSource: string;
   graceDays: number;
   reminderDays: number[];
 }) {
-  const L = tr(lang);
+  const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const seatsKey = billingKeys.admin.orgSeats(orgId);
 
@@ -840,10 +797,10 @@ function SeatsPane({
     },
     onSuccess: (res) => {
       toast.success(
-        L(
-          `Limit miejsc: ${res.seatsLimit} (zawieszone: ${res.suspended})`,
-          `Seat limit: ${res.seatsLimit} (suspended: ${res.suspended})`,
-        ),
+        t("adminOrganizations.seatLimitUpdated", {
+          limit: res.seatsLimit,
+          suspended: res.suspended,
+        }),
       );
       void qc.invalidateQueries({ queryKey: seatsKey });
       void qc.invalidateQueries({ queryKey: billingKeys.admin.memberOrg(orgId) });
@@ -851,8 +808,8 @@ function SeatsPane({
     onError: (err: Error) =>
       toast.error(
         err.message.includes("provider")
-          ? L("Operator odrzucił zmianę liczby miejsc", "The payment provider rejected the change")
-          : L("Nie udało się zmienić limitu miejsc", "Could not change the seat limit"),
+          ? t("adminOrganizations.paymentProviderRejectedChange")
+          : t("adminOrganizations.couldChangeSeatLimit"),
       ),
   });
 
@@ -871,14 +828,11 @@ function SeatsPane({
       return res;
     },
     onSuccess: (res) => {
-      toast.success(
-        L(`Okres karencji: ${res.graceDays} dni`, `Grace period: ${res.graceDays} days`),
-      );
+      toast.success(t("adminOrganizations.gracePeriodUpdated", { days: res.graceDays }));
       void qc.invalidateQueries({ queryKey: seatsKey });
       void qc.invalidateQueries({ queryKey: billingKeys.admin.memberOrg(orgId) });
     },
-    onError: () =>
-      toast.error(L("Nie udało się zmienić karencji", "Could not change the grace period")),
+    onError: () => toast.error(t("adminOrganizations.couldChangeGracePeriod")),
   });
 
   const expireNow = useMutation({
@@ -888,13 +842,10 @@ function SeatsPane({
       return res;
     },
     onSuccess: (res) => {
-      toast.success(
-        L(`Wygaszono miejsc: ${res.expired}`, `Seats moved out of grace: ${res.expired}`),
-      );
+      toast.success(t("adminOrganizations.seatsExpired", { count: res.expired }));
       void qc.invalidateQueries({ queryKey: seatsKey });
     },
-    onError: () =>
-      toast.error(L("Nie udało się domknąć karencji", "Could not close grace periods")),
+    onError: () => toast.error(t("adminOrganizations.couldCloseGracePeriods")),
   });
 
   // Progi przypomnień w trakcie karencji - konfigurowalne per organizacja
@@ -914,15 +865,12 @@ function SeatsPane({
     onSuccess: (res) => {
       toast.success(
         res.days.length > 0
-          ? L(
-              `Przypomnienia: ${res.days.join(", ")} dni przed`,
-              `Reminders: ${res.days.join(", ")} days before`,
-            )
-          : L("Przypomnienia wyłączone", "Reminders disabled"),
+          ? t("adminOrganizations.remindersDays", { days: res.days.join(", ") })
+          : t("adminOrganizations.remindersDisabled"),
       );
       void qc.invalidateQueries({ queryKey: billingKeys.admin.memberOrg(orgId) });
     },
-    onError: () => toast.error(L("Nie udało się zapisać progów", "Could not save reminder days")),
+    onError: () => toast.error(t("adminOrganizations.couldSaveReminderDays")),
   });
 
   const toggleDay = (day: number) => {
@@ -940,9 +888,8 @@ function SeatsPane({
       if (!res.ok) throw new Error(res.error);
       return res;
     },
-    onSuccess: (res) =>
-      toast.success(L(`Wysłano przypomnień: ${res.sent}`, `Reminders sent: ${res.sent}`)),
-    onError: () => toast.error(L("Nie udało się wysłać przypomnień", "Could not send reminders")),
+    onSuccess: (res) => toast.success(t("adminOrganizations.remindersSent", { count: res.sent })),
+    onError: () => toast.error(t("adminOrganizations.couldSendReminders")),
   });
 
   const [email, setEmail] = useState("");
@@ -951,25 +898,23 @@ function SeatsPane({
   const addSeat = useMutation({
     mutationFn: () => addOrgSeat(orgId, email.trim(), role),
     onSuccess: () => {
-      toast.success(L("Dodano miejsce", "Seat added"));
+      toast.success(t("adminOrganizations.seatAdded"));
       setEmail("");
       void qc.invalidateQueries({ queryKey: seatsKey });
     },
     onError: (err: Error) => {
       const msg = err.message.toLowerCase();
-      if (msg.includes("limit")) toast.error(L("Osiągnięto limit miejsc", "Seat limit reached"));
-      else if (msg.includes("exists"))
-        toast.error(L("Miejsce już istnieje", "Seat already exists"));
-      else if (msg.includes("invalid email"))
-        toast.error(L("Nieprawidłowy e-mail", "Invalid email"));
-      else toast.error(L("Nie udało się dodać miejsca", "Could not add seat"));
+      if (msg.includes("limit")) toast.error(t("adminOrganizations.seatLimitReached"));
+      else if (msg.includes("exists")) toast.error(t("adminOrganizations.seatAlreadyExists"));
+      else if (msg.includes("invalid email")) toast.error(t("adminOrganizations.invalidEmail"));
+      else toast.error(t("adminOrganizations.couldAddSeat"));
     },
   });
 
   const removeSeat = useMutation({
     mutationFn: (seatId: string) => removeOrgSeat(seatId),
     onSuccess: () => {
-      toast.success(L("Usunięto miejsce", "Seat removed"));
+      toast.success(t("adminOrganizations.seatRemoved"));
       void qc.invalidateQueries({ queryKey: seatsKey });
     },
     onError: (err: Error) => toast.error(err.message),
@@ -979,7 +924,7 @@ function SeatsPane({
     <Card
       title={
         <span className="flex items-center justify-between">
-          <span>{L("Miejsca", "Seats")}</span>
+          <span>{t("adminOrganizations.seats")}</span>
           <span
             className={`text-[10px] tabular-nums ${atLimit ? "font-semibold text-destructive" : "text-muted-foreground"}`}
           >
@@ -999,7 +944,7 @@ function SeatsPane({
             value={nextSeats}
             onChange={(e) => setNextSeats(clampSeats(Number(e.target.value)))}
             className="h-8 w-24 text-sm"
-            aria-label={L("Liczba miejsc", "Seat count")}
+            aria-label={t("adminOrganizations.seatCount")}
           />
           <Button
             size="sm"
@@ -1008,34 +953,25 @@ function SeatsPane({
             onClick={() => applySeats.mutate()}
           >
             {applySeats.isPending
-              ? L("Zapisywanie...", "Saving...")
-              : L("Ustaw liczbę miejsc", "Apply seat count")}
+              ? t("adminOrganizations.saving")
+              : t("adminOrganizations.applySeatCount")}
           </Button>
           <Badge variant="outline" className="text-[10px]">
             {seatsSource === "subscription"
-              ? L("z subskrypcji", "from subscription")
-              : L("ręcznie", "manual")}
+              ? t("adminOrganizations.subscription")
+              : t("adminOrganizations.manual")}
           </Badge>
         </div>
         <p className="text-[10px] text-muted-foreground">
           {seatsSource === "subscription"
-            ? L(
-                "Zmiana przelicza subskrypcję u operatora: zwiększenie rozlicza się od razu, zmniejszenie od nowego okresu.",
-                "The change updates the paid subscription: increases bill immediately, decreases apply from the next period.",
-              )
-            : L(
-                "Miejsca ponad limit zostają w organizacji, ale tracą uprawnienia warstwy.",
-                "Seats above the limit stay in the organisation but lose their tier entitlements.",
-              )}
+            ? t("adminOrganizations.changeUpdatesPaidSubscriptionIncreases")
+            : t("adminOrganizations.seatsAboveLimitStayOrganisation")}
         </p>
         {atRisk.length > 0 ? (
           <p className="text-[10px] font-medium text-destructive">
             {clampGraceDays(graceDays) > 0
-              ? L(
-                  `Wejdą w karencję (${clampGraceDays(graceDays)} dni):`,
-                  `Will enter grace (${clampGraceDays(graceDays)} days):`,
-                )
-              : L("Stracą dostęp od razu:", "Will lose access immediately:")}{" "}
+              ? t("adminOrganizations.willEnterGrace", { days: clampGraceDays(graceDays) })
+              : t("adminOrganizations.loseAccessImmediately")}{" "}
             {atRisk.join(", ")}
           </p>
         ) : null}
@@ -1051,7 +987,7 @@ function SeatsPane({
             value={nextGrace}
             onChange={(e) => setNextGrace(clampGraceDays(Number(e.target.value)))}
             className="h-8 w-24 text-sm"
-            aria-label={L("Okres karencji w dniach", "Grace period in days")}
+            aria-label={t("adminOrganizations.gracePeriodDays")}
           />
           <Button
             size="sm"
@@ -1063,8 +999,8 @@ function SeatsPane({
             onClick={() => applyGrace.mutate()}
           >
             {applyGrace.isPending
-              ? L("Zapisywanie...", "Saving...")
-              : L("Ustaw karencję", "Apply grace period")}
+              ? t("adminOrganizations.saving")
+              : t("adminOrganizations.applyGracePeriod")}
           </Button>
           <Button
             size="sm"
@@ -1073,7 +1009,7 @@ function SeatsPane({
             disabled={expireNow.isPending}
             onClick={() => expireNow.mutate()}
           >
-            {L("Domknij zaległe", "Close overdue")}
+            {t("adminOrganizations.closeOverdue")}
           </Button>
           <Button
             size="sm"
@@ -1082,14 +1018,11 @@ function SeatsPane({
             disabled={sendReminders.isPending}
             onClick={() => sendReminders.mutate()}
           >
-            {L("Wyślij przypomnienia", "Send reminders")}
+            {t("adminOrganizations.sendReminders")}
           </Button>
         </div>
         <p className="text-[10px] text-muted-foreground">
-          {L(
-            "Po zmniejszeniu limitu osoby ponad limit zachowują pełny dostęp przez tyle dni i dostają maila z datą oraz informacją, co dalej. 0 = utrata dostępu od razu.",
-            "After a seat reduction, people above the limit keep full access for this many days and receive an email with the date and next steps. 0 = access ends immediately.",
-          )}
+          {t("adminOrganizations.afterSeatReductionPeopleAbove")}
         </p>
       </div>
 
@@ -1108,7 +1041,7 @@ function SeatsPane({
                 aria-pressed={on}
                 onClick={() => toggleDay(day)}
               >
-                {L(`${day} dni`, `${day} d`)}
+                {t("adminOrganizations.dayCount", { count: day })}
               </Button>
             );
           })}
@@ -1119,7 +1052,7 @@ function SeatsPane({
             onChange={(e) => setDaysText(e.target.value)}
             placeholder="14, 7, 3, 1"
             className="h-8 w-40 text-sm tabular-nums"
-            aria-label={L("Dni przypomnień", "Reminder days")}
+            aria-label={t("adminOrganizations.reminderDays")}
           />
           <Button
             size="sm"
@@ -1129,31 +1062,28 @@ function SeatsPane({
             onClick={() => applyReminderDays.mutate()}
           >
             {applyReminderDays.isPending
-              ? L("Zapisywanie...", "Saving...")
-              : L("Zapisz przypomnienia", "Save reminders")}
+              ? t("adminOrganizations.saving")
+              : t("adminOrganizations.saveReminders")}
           </Button>
           <Badge variant="outline" className="text-[10px] tabular-nums">
             {parsedDays.length > 0
-              ? L(
-                  `${parsedDays.length}/${MAX_REMINDER_SLOTS} progów`,
-                  `${parsedDays.length}/${MAX_REMINDER_SLOTS} steps`,
-                )
-              : L("wyłączone", "disabled")}
+              ? t("adminOrganizations.reminderSlots", {
+                  used: parsedDays.length,
+                  max: MAX_REMINDER_SLOTS,
+                })
+              : t("adminOrganizations.disabled")}
           </Badge>
         </div>
         <p className="text-[10px] text-muted-foreground">
-          {L(
-            "Ile dni przed utratą dostępu wysyłamy przypomnienie (1-90, maks. 10 progów). Puste pole wyłącza przypomnienia - zostaje tylko mail o końcu dostępu.",
-            "How many days before access ends we send a reminder (1-90, up to 10 steps). Leave empty to disable reminders - only the final email remains.",
-          )}
+          {t("adminOrganizations.howManyDaysBeforeAccess")}
         </p>
       </div>
 
       {seatsQ.isLoading ? (
-        <p className="text-xs text-muted-foreground">{L("Wczytywanie...", "Loading...")}</p>
+        <p className="text-xs text-muted-foreground">{t("adminOrganizations.loading")}</p>
       ) : seats.length === 0 ? (
         <p className="text-xs text-muted-foreground">
-          {L("Brak miejsc. Dodaj pierwsze konto.", "No seats yet. Add the first account.")}
+          {t("adminOrganizations.seatsYetAddFirstAccount")}
         </p>
       ) : (
         <ul className="space-y-1.5">
@@ -1169,23 +1099,28 @@ function SeatsPane({
                     variant={seat.role === "owner" ? "default" : "secondary"}
                     className="text-[10px]"
                   >
-                    {seat.role === "owner" ? L("właściciel", "owner") : L("członek", "member")}
+                    {seat.role === "owner"
+                      ? t("adminOrganizations.owner")
+                      : t("adminOrganizations.member")}
                   </Badge>
                   <Badge variant="outline" className="text-[10px]">
-                    {seat.claimed_at ? L("aktywne", "active") : L("zaproszony", "invited")}
+                    {seat.claimed_at
+                      ? t("adminOrganizations.activeSeats")
+                      : t("adminOrganizations.invited")}
                   </Badge>
                   {seat.status === "grace" ? (
                     <Badge className="bg-[#FA9346] text-[10px] text-white hover:bg-[#FA9346]">
                       {seat.grace_until
-                        ? L(
-                            `karencja do ${new Date(seat.grace_until).toLocaleDateString("pl-PL")}`,
-                            `grace until ${new Date(seat.grace_until).toLocaleDateString("en-GB")}`,
-                          )
-                        : L("karencja", "grace")}
+                        ? t("adminOrganizations.graceUntil", {
+                            date: new Date(seat.grace_until).toLocaleDateString(
+                              uiLocale(i18n.language),
+                            ),
+                          })
+                        : t("adminOrganizations.grace")}
                     </Badge>
                   ) : seat.status === "suspended" ? (
                     <Badge variant="destructive" className="text-[10px]">
-                      {L("bez dostępu", "no access")}
+                      {t("adminOrganizations.access")}
                     </Badge>
                   ) : null}
                 </span>
@@ -1195,7 +1130,7 @@ function SeatsPane({
                   size="icon"
                   variant="ghost"
                   className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
-                  aria-label={L("Usuń miejsce", "Remove seat")}
+                  aria-label={t("adminOrganizations.removeSeat")}
                   disabled={removeSeat.isPending}
                   onClick={() => removeSeat.mutate(seat.id)}
                 >
@@ -1217,7 +1152,7 @@ function SeatsPane({
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder={L("e-mail konta", "account email")}
+            placeholder={t("adminOrganizations.accountEmail")}
             className="h-8 pl-8 text-sm"
           />
         </div>
@@ -1226,8 +1161,8 @@ function SeatsPane({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="member">{L("członek", "member")}</SelectItem>
-            <SelectItem value="owner">{L("właściciel", "owner")}</SelectItem>
+            <SelectItem value="member">{t("adminOrganizations.member")}</SelectItem>
+            <SelectItem value="owner">{t("adminOrganizations.owner")}</SelectItem>
           </SelectContent>
         </Select>
         <Button
@@ -1236,7 +1171,7 @@ function SeatsPane({
           disabled={!email.trim() || addSeat.isPending || atLimit}
           onClick={() => addSeat.mutate()}
         >
-          {L("Dodaj miejsce", "Add seat")}
+          {t("adminOrganizations.addSeat")}
         </Button>
       </div>
     </Card>

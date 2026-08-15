@@ -6,6 +6,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-organizations";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Landmark, Building2, Plus, Trash2, Users, Mail, Settings2 } from "lucide-react";
@@ -38,14 +39,12 @@ export const Route = createFileRoute("/admin/organizations")({
 });
 
 type Lang = "pl" | "en";
-const tr = (lang: Lang) => (pl: string, en: string) => (lang === "pl" ? pl : en);
 
 const ORGS_KEY = billingKeys.admin.memberOrgs();
 
 function AdminOrganizationsPage() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const lang: Lang = i18n.language === "en" ? "en" : "pl";
-  const L = tr(lang);
 
   const tiersQ = useMembershipTiers();
   const tiers = useMemo<MembershipTierRow[]>(() => tiersQ.data ?? [], [tiersQ.data]);
@@ -73,33 +72,30 @@ function AdminOrganizationsPage() {
         <div>
           <h1 className="flex items-center gap-2 text-lg font-semibold">
             <Landmark className="h-4 w-4 text-primary" aria-hidden="true" />
-            {L("Organizacje członkowskie", "Member organizations")}
+            {t("adminOrganizations.memberOrganizations")}
           </h1>
           <p className="mt-0.5 max-w-3xl text-xs text-muted-foreground">
-            {L(
-              "Członkostwo korporacyjne i partnerstwo strategiczne z wieloma kontami-miejscami. Sprzedaż offline - tu zarządzasz organizacjami, marką i miejscami.",
-              "Corporate membership and strategic partnership with multiple seat accounts. Sold offline - here you manage organizations, branding and seats.",
-            )}
+            {t("adminOrganizations.corporateMembershipStrategicPartnershipMultiple")}
           </p>
         </div>
         <Button asChild size="sm" className="h-8">
           <Link to="/admin/organizations/new">
             <Plus className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-            {L("Nowa organizacja", "New organization")}
+            {t("adminOrganizations.newOrganization")}
           </Link>
         </Button>
       </header>
 
       {orgsQ.isLoading ? (
-        <p className="text-sm text-muted-foreground">{L("Wczytywanie...", "Loading...")}</p>
+        <p className="text-sm text-muted-foreground">{t("adminOrganizations.loading")}</p>
       ) : orgs.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          {L("Brak organizacji. Utwórz pierwszą.", "No organizations yet. Create the first one.")}
+          {t("adminOrganizations.organizationsYetCreateFirstOne")}
         </p>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {orgs.map((org) => (
-            <OrgCard key={org.id} lang={lang} org={org} tierLabel={tierLabel(org.tier_key)} />
+            <OrgCard key={org.id} org={org} tierLabel={tierLabel(org.tier_key)} />
           ))}
         </div>
       )}
@@ -111,23 +107,15 @@ function AdminOrganizationsPage() {
 // Karta organizacji: dane, przełącznik statusu, usuwanie oraz zarządzanie
 // miejscami (osadzony SeatManager).
 // ---------------------------------------------------------------------------
-function OrgCard({
-  lang,
-  org,
-  tierLabel,
-}: {
-  lang: Lang;
-  org: OrganizationRow;
-  tierLabel: string;
-}) {
-  const L = tr(lang);
+function OrgCard({ org, tierLabel }: { org: OrganizationRow; tierLabel: string }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
 
   const setStatus = useMutation({
     mutationFn: (active: boolean) =>
       updateOrganization(org.id, { status: active ? "active" : "suspended" }),
     onSuccess: () => {
-      toast.success(L("Zaktualizowano status", "Status updated"));
+      toast.success(t("adminOrganizations.statusUpdated"));
       void qc.invalidateQueries({ queryKey: ORGS_KEY });
     },
     onError: (err: Error) => toast.error(err.message),
@@ -136,7 +124,7 @@ function OrgCard({
   const removeOrg = useMutation({
     mutationFn: () => deleteOrganization(org.id),
     onSuccess: () => {
-      toast.success(L("Usunięto organizację", "Organization deleted"));
+      toast.success(t("adminOrganizations.organizationDeleted"));
       void qc.invalidateQueries({ queryKey: ORGS_KEY });
     },
     onError: (err: Error) => toast.error(err.message),
@@ -156,17 +144,10 @@ function OrgCard({
             size="icon"
             variant="ghost"
             className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
-            aria-label={L("Usuń organizację", "Delete organization")}
+            aria-label={t("adminOrganizations.deleteOrganization")}
             disabled={removeOrg.isPending}
             onClick={() => {
-              if (
-                confirm(
-                  L(
-                    `Usunąć organizację "${org.name}"? Miejsca zostaną skasowane. Operacji nie można cofnąć.`,
-                    `Delete organization "${org.name}"? Its seats will be removed. This cannot be undone.`,
-                  ),
-                )
-              ) {
+              if (confirm(t("adminOrganizations.deleteConfirmList", { name: org.name }))) {
                 removeOrg.mutate();
               }
             }}
@@ -179,12 +160,12 @@ function OrgCard({
             {tierLabel}
           </Badge>
           <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-            {L("limit miejsc", "seat limit")}: {org.seats_limit}
+            {t("adminOrganizations.seatLimit")}: {org.seats_limit}
           </span>
           <Button asChild size="sm" variant="outline" className="ml-auto h-6 text-[10px]">
             <Link to="/admin/organizations/$id" params={{ id: org.id }}>
               <Settings2 className="mr-1 h-3 w-3" aria-hidden="true" />
-              {L("Zarządzaj", "Manage")}
+              {t("adminOrganizations.manage")}
             </Link>
           </Button>
         </div>
@@ -197,10 +178,10 @@ function OrgCard({
               checked={isActive}
               onCheckedChange={(v) => setStatus.mutate(v)}
               disabled={setStatus.isPending}
-              aria-label={L("Status organizacji", "Organization status")}
+              aria-label={t("adminOrganizations.organizationStatus")}
             />
             <span className="text-xs">
-              {isActive ? L("aktywna", "active") : L("wstrzymana", "suspended")}
+              {isActive ? t("adminOrganizations.active") : t("adminOrganizations.suspended")}
             </span>
           </div>
           {org.contact_email ? (
@@ -211,7 +192,7 @@ function OrgCard({
           ) : null}
         </div>
 
-        <SeatManager lang={lang} orgId={org.id} seatsLimit={org.seats_limit} />
+        <SeatManager orgId={org.id} seatsLimit={org.seats_limit} />
       </CardContent>
     </Card>
   );
@@ -221,16 +202,8 @@ function OrgCard({
 // Zarządzanie miejscami organizacji: licznik użyte/limit, lista miejsc oraz
 // dodawanie po e-mailu z rolą. Limit i unikalność egzekwuje RPC org_add_seat.
 // ---------------------------------------------------------------------------
-function SeatManager({
-  lang,
-  orgId,
-  seatsLimit,
-}: {
-  lang: Lang;
-  orgId: string;
-  seatsLimit: number;
-}) {
-  const L = tr(lang);
+function SeatManager({ orgId, seatsLimit }: { orgId: string; seatsLimit: number }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const seatsKey = billingKeys.admin.orgSeats(orgId);
 
@@ -248,20 +221,20 @@ function SeatManager({
   const addSeat = useMutation({
     mutationFn: () => addOrgSeat(orgId, email.trim(), role),
     onSuccess: () => {
-      toast.success(L("Dodano miejsce", "Seat added"));
+      toast.success(t("adminOrganizations.seatAdded"));
       setEmail("");
       void qc.invalidateQueries({ queryKey: seatsKey });
     },
     onError: (err: Error) => {
       const msg = err.message.toLowerCase();
       if (msg.includes("limit")) {
-        toast.error(L("Osiągnięto limit miejsc", "Seat limit reached"));
+        toast.error(t("adminOrganizations.seatLimitReached"));
       } else if (msg.includes("exists")) {
-        toast.error(L("Miejsce już istnieje", "Seat already exists"));
+        toast.error(t("adminOrganizations.seatAlreadyExists"));
       } else if (msg.includes("invalid email")) {
-        toast.error(L("Nieprawidłowy e-mail", "Invalid email"));
+        toast.error(t("adminOrganizations.invalidEmail"));
       } else {
-        toast.error(L("Nie udało się dodać miejsca", "Could not add seat"));
+        toast.error(t("adminOrganizations.couldAddSeat"));
       }
     },
   });
@@ -269,7 +242,7 @@ function SeatManager({
   const removeSeat = useMutation({
     mutationFn: (seatId: string) => removeOrgSeat(seatId),
     onSuccess: () => {
-      toast.success(L("Usunięto miejsce", "Seat removed"));
+      toast.success(t("adminOrganizations.seatRemoved"));
       void qc.invalidateQueries({ queryKey: seatsKey });
     },
     onError: (err: Error) => toast.error(err.message),
@@ -285,7 +258,7 @@ function SeatManager({
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-1.5 text-xs font-medium">
           <Users className="h-3.5 w-3.5" aria-hidden="true" />
-          {L("Miejsca", "Seats")}
+          {t("adminOrganizations.seats")}
         </span>
         <span
           className={`text-xs tabular-nums ${atLimit ? "font-semibold text-destructive" : "text-muted-foreground"}`}
@@ -295,10 +268,10 @@ function SeatManager({
       </div>
 
       {seatsQ.isLoading ? (
-        <p className="text-xs text-muted-foreground">{L("Wczytywanie...", "Loading...")}</p>
+        <p className="text-xs text-muted-foreground">{t("adminOrganizations.loading")}</p>
       ) : seats.length === 0 ? (
         <p className="text-xs text-muted-foreground">
-          {L("Brak miejsc. Dodaj pierwsze konto.", "No seats yet. Add the first account.")}
+          {t("adminOrganizations.seatsYetAddFirstAccount")}
         </p>
       ) : (
         <ul className="space-y-1.5">
@@ -311,10 +284,14 @@ function SeatManager({
                 <span className="truncate text-xs font-medium">{seat.invited_email}</span>
                 <span className="flex items-center gap-1">
                   <Badge variant={seat.role === "owner" ? "default" : "secondary"}>
-                    {seat.role === "owner" ? L("właściciel", "owner") : L("członek", "member")}
+                    {seat.role === "owner"
+                      ? t("adminOrganizations.owner")
+                      : t("adminOrganizations.member")}
                   </Badge>
                   <Badge variant="outline">
-                    {seat.claimed_at ? L("aktywne", "active") : L("zaproszony", "invited")}
+                    {seat.claimed_at
+                      ? t("adminOrganizations.activeSeats")
+                      : t("adminOrganizations.invited")}
                   </Badge>
                 </span>
               </div>
@@ -323,7 +300,7 @@ function SeatManager({
                   size="icon"
                   variant="ghost"
                   className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
-                  aria-label={L("Usuń miejsce", "Remove seat")}
+                  aria-label={t("adminOrganizations.removeSeat")}
                   disabled={removeSeat.isPending}
                   onClick={() => removeSeat.mutate(seat.id)}
                 >
@@ -345,7 +322,7 @@ function SeatManager({
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder={L("e-mail konta", "account email")}
+            placeholder={t("adminOrganizations.accountEmail")}
             className="h-8 pl-8 text-sm"
             onKeyDown={(e) => {
               if (e.key === "Enter") {
@@ -356,12 +333,15 @@ function SeatManager({
           />
         </div>
         <Select value={role} onValueChange={(v) => setRole(v as "owner" | "member")}>
-          <SelectTrigger className="h-8 w-28 shrink-0 text-sm" aria-label={L("Rola", "Role")}>
+          <SelectTrigger
+            className="h-8 w-28 shrink-0 text-sm"
+            aria-label={t("adminOrganizations.role")}
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="member">{L("członek", "member")}</SelectItem>
-            <SelectItem value="owner">{L("właściciel", "owner")}</SelectItem>
+            <SelectItem value="member">{t("adminOrganizations.member")}</SelectItem>
+            <SelectItem value="owner">{t("adminOrganizations.owner")}</SelectItem>
           </SelectContent>
         </Select>
         <Button
@@ -369,10 +349,10 @@ function SeatManager({
           className="h-8 shrink-0"
           disabled={!email.trim() || addSeat.isPending || atLimit}
           onClick={submitAdd}
-          title={atLimit ? L("Osiągnięto limit miejsc", "Seat limit reached") : undefined}
+          title={atLimit ? t("adminOrganizations.seatLimitReached") : undefined}
         >
           <Plus className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-          {L("Dodaj miejsce", "Add seat")}
+          {t("adminOrganizations.addSeat")}
         </Button>
       </div>
     </div>
