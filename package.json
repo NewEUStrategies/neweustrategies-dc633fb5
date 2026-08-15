@@ -59,6 +59,7 @@
     "cron:tick": "node scripts/scheduler-tick.mjs",
     "check:pg-harness": "bash scripts/pg-harness/run.sh",
     "check:careers-harness": "bash scripts/careers-harness/run.sh",
+    "check:programs-harness": "bash scripts/programs-harness/run.sh",
     "test:pgtap-local": "bash scripts/pgtap-local/run.sh"
   },
   "dependencies": {

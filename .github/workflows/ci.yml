@@ -571,6 +571,17 @@ jobs:
       - name: Run careers-harness (migracje + asercje runtime)
         run: bun run check:careers-harness
 
+      # Ten sam klaster, trzeci harness - tym razem nie modul, tylko JEDNA
+      # migracja: scalenie `public.programs` z `public.research_programs`
+      # (20260815100000). Migracja przenosi wiersze miedzy tabelami, przepina
+      # cztery klucze obce i podmienia tabele na widok, czyli robi wylacznie
+      # rzeczy, ktorych bramki `check:sql-*` NIE WIDZA - one czytaja migracje
+      # jako tekst. Harness zlapal tu realny blad kolejnosci: przepisanie
+      # `program_id` przed zdjeciem starego FK wywala sie na 23503, a w tekscie
+      # migracji wyglada poprawnie. Patrz scripts/programs-harness/README.md.
+      - name: Run programs-harness (scalenie tabel programow + asercje runtime)
+        run: bun run check:programs-harness
+
   # Bramka PO WDROŻENIU: sprawdza, że wszystkie obiekty wynikające z migracji
   # (tabele, widoki, RPC schematu public) faktycznie istnieją w bazie, a na
   # koniec generuje raport zgodności wdrożenia (PR-y, liczba testów, status CI,
