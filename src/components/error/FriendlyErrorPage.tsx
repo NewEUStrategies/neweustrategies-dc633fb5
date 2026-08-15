@@ -249,10 +249,15 @@ export function FriendlyErrorPage({
           <div className="grid gap-8 p-5 sm:p-8 lg:grid-cols-[1.15fr_1fr] lg:gap-12 lg:p-10">
             <div className="min-w-0">
               <div className="relative">
-                {/* Wielka cyfra/kod jako znak wodny - nadaje stronie skalę. */}
+                {/* Wielka cyfra/kod jako znak wodny - nadaje stronie skalę.
+                    Dłuższa etykieta („UPSSS...") dostaje mniejszy stopień, żeby
+                    nie wyjechała poza kolumnę na wąskich ekranach. */}
                 <span
                   aria-hidden="true"
-                  className="pointer-events-none absolute -left-1 -top-8 select-none font-display text-[6rem] font-bold leading-none tracking-tight text-brand/10 sm:text-[8rem]"
+                  className={cn(
+                    "pointer-events-none absolute -left-1 -top-8 select-none whitespace-nowrap font-display font-bold leading-none tracking-tight text-brand/10",
+                    code.length > 4 ? "text-[3.5rem] sm:text-[5rem]" : "text-[6rem] sm:text-[8rem]",
+                  )}
                 >
                   {code}
                 </span>
