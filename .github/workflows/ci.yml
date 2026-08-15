@@ -626,8 +626,11 @@ jobs:
         run: bun run check:careers-harness
 
       # Ten sam klaster, trzeci harness - tym razem nie modul, tylko JEDNA
-      # migracja: scalenie `public.programs` z `public.research_programs`
-      # (20260815100000). Migracja przenosi wiersze miedzy tabelami, przepina
+      # zmiana: scalenie `public.programs` z `public.research_programs`
+      # (20260815110437 + 110844 + 111026; pierwotnie jedna reczna migracja
+      # 20260815100000, zastapiona tym lancuchem i usunieta - harness zostal
+      # wtedy wskazujacy na nieistniejacy plik i failowal, mimo ze scalenie
+      # ZASZLO; patrz README harnessu). Scalenie przenosi wiersze, przepina
       # cztery klucze obce i podmienia tabele na widok, czyli robi wylacznie
       # rzeczy, ktorych bramki `check:sql-*` NIE WIDZA - one czytaja migracje
       # jako tekst. Harness zlapal tu realny blad kolejnosci: przepisanie

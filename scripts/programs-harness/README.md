@@ -2,8 +2,8 @@
 
 ## Po co to istnieje
 
-`20260815100000_programs_single_table.sql` robi cztery rzeczy, których **żadna
-bramka `check:sql-*` nie jest w stanie zobaczyć**, bo wszystkie czytają migracje
+Scalenie tabel programów robi cztery rzeczy, których **żadna bramka
+`check:sql-*` nie jest w stanie zobaczyć**, bo wszystkie czytają migracje
 jako TEKST:
 
 1. przenosi wiersze między dwiema tabelami z rozstrzyganiem kolizji slugów,
@@ -12,6 +12,28 @@ jako TEKST:
 4. przepisuje sześć polityk RLS, w tym dwie, które dotąd niczego nie filtrowały.
 
 Harness sprawdza **skutki na danych**, nie składnię.
+
+## Na czym harness stoi (i dlaczego był czerwony)
+
+Scalenie było najpierw napisane jako **jedna ręczna migracja**
+`20260815100000_programs_single_table.sql` (540 linii). Ta migracja została
+**zastąpiona** łańcuchem trzech migracji i usunięta z repo (commit `207fdd9`):
+
+| Migracja | Co wnosi |
+| --- | --- |
+| `20260815110437` | kolumna `programs.status` |
+| `20260815110844` | właściwe scalenie: `program_merge_map`, przeniesienie wierszy, przepięcie 4 kluczy obcych, `DROP TABLE research_programs` + widok |
+| `20260815111026` | `club_anchor_label` przepięty z `research_programs` na `programs` |
+
+Harness **nie został wtedy przepięty** i wskazywał na skasowany plik, więc
+`check:programs-harness` failował (`FAIL migracja 20260815100000`) — mimo że
+scalenie w schemacie **zaszło**. To była awaria testu, nie schematu.
+
+**Nie przywracaj skasowanej migracji**: ponowne scalenie jest już wykonane przez
+łańcuch wyżej, a dodatkowo stara migracja wpada w selektor
+`scripts/pg-harness` (redefiniuje `club_anchor_label`), gdzie replay wywala się
+na `relation "public.programs" does not exist` — bo harness klubów nie zna
+tabel modułu programów.
 
 ## Co już złapał
 

@@ -1,4 +1,4 @@
--- Asercje runtime po scaleniu tabel programów (20260815100000).
+-- Asercje runtime po scaleniu tabel programów (20260815110437 + 110844 + 111026).
 --
 -- Sprawdzamy SKUTKI, nie składnię: bramki `check:sql-*` czytają migracje jako
 -- tekst i nie zobaczą ani zgubionego wiersza, ani polityki, która po zmianie

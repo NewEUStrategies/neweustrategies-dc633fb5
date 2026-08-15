@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Stawia lokalny PostgreSQL, odtwarza stan SPRZED scalenia tabel programów,
-# wykonuje migrację 20260815100000 i sprawdza SKUTKI na danych.
+# wykonuje migracje scalajace (20260815110437 + 110844 + 111026) i sprawdza SKUTKI na danych.
+#
+# UWAGA HISTORYCZNA: harness powstal dla jednej recznej migracji
+# 20260815100000_programs_single_table.sql, ktora zostala ZASTAPIONA lancuchem
+# trzech migracji i usunieta z repo (commit 207fdd9). Harness zostal wtedy
+# wskazujacy na nieistniejacy plik, wiec `check:programs-harness` byl czerwony,
+# mimo ze samo scalenie w schemacie ZASZLO. Przepiety na faktyczne migracje.
 #
 # Po co: bramki `check:sql-*` czytają migracje jako TEKST. Nie zobaczą wiersza
 # zgubionego przy scaleniu, klucza obcego wskazującego w próżnię ani polityki,
@@ -15,7 +21,9 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 PGDIR="${PROGRAMS_HARNESS_DIR:-/tmp/nespg-programs}"
-MIGRATION="$REPO/supabase/migrations/20260815100000_programs_single_table.sql"
+MIGRATION_STATUS="$REPO/supabase/migrations/20260815110437_63bd9623-2115-49ac-b773-c394dc8e5759.sql"
+MIGRATION="$REPO/supabase/migrations/20260815110844_54c27fbd-795e-4ad4-b4a4-e2ccc05135cc.sql"
+MIGRATION_ANCHOR="$REPO/supabase/migrations/20260815111026_c9b91031-faf0-4283-9d84-50bbfc60f34c.sql"
 KEEP=0
 for arg in "$@"; do case "$arg" in --keep) KEEP=1 ;; esac; done
 
@@ -67,7 +75,9 @@ step() {
 
 step "harness (stan sprzed scalenia)" "$HERE/harness.sql"
 step "seed (kolizja + tylko slownik + tylko hub + drugi najemca)" "$HERE/seed.sql"
-step "migracja 20260815100000" "$MIGRATION"
+step "migracja 20260815110437 (kolumna status)" "$MIGRATION_STATUS"
+step "migracja 20260815110844 (scalenie)" "$MIGRATION"
+step "migracja 20260815111026 (etykieta kotwicy)" "$MIGRATION_ANCHOR"
 step "asercje runtime" "$HERE/runtime_test.sql"
 
 echo
