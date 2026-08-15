@@ -3,6 +3,8 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-coupons";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { Plus, Loader2, Send, Archive, Download } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -53,9 +55,7 @@ interface CampaignRow {
 }
 
 function CampaignsPage() {
-  const { i18n } = useTranslation();
-  const lang = i18n.language === "en" ? "en" : "pl";
-  const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
 
@@ -96,7 +96,9 @@ function CampaignsPage() {
       return data as number;
     },
     onSuccess: (n) => {
-      toast.success(L(`Wygenerowano ${n} kodów`, `Generated ${n} codes`));
+      // Liczebnik przez `count`, nie przez szew z literału: polski ma trzy
+      // formy (1 kod / 2 kody / 5 kodów), których „${n} kodów" nie odda.
+      toast.success(t("adminCoupons.codesGenerated", { count: n }));
       void qc.invalidateQueries({ queryKey: ["admin", "b2b-coupon-campaigns"] });
       void qc.invalidateQueries({ queryKey: ["admin", "b2b-coupons"] });
     },
@@ -143,7 +145,7 @@ function CampaignsPage() {
     a.download = `coupons-${campaignName.replace(/\s+/g, "_")}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success(L("Wyeksportowano CSV", "CSV exported"));
+    toast.success(t("adminCoupons.csvExported"));
   };
 
   const sendNewsletter = useMutation({
@@ -177,7 +179,7 @@ function CampaignsPage() {
       return nl.id;
     },
     onSuccess: () => {
-      toast.success(L("Kampania newslettera utworzona", "Newsletter campaign created"));
+      toast.success(t("adminCoupons.newsletterCampaignCreated"));
       void qc.invalidateQueries({ queryKey: ["admin", "b2b-coupon-campaigns"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -187,16 +189,13 @@ function CampaignsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <p className="text-sm text-muted-foreground">
-          {L(
-            "Twórz kampanie masowo, generuj unikalne kody i rozsyłaj przez newsletter.",
-            "Create bulk campaigns, generate unique codes and send via newsletter.",
-          )}
+          {t("adminCoupons.createBulkCampaignsGenerateUnique")}
         </p>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button className="h-10 rounded-[6px]">
               <Plus className="h-4 w-4 mr-2" />
-              {L("Nowa kampania", "New campaign")}
+              {t("adminCoupons.newCampaign")}
             </Button>
           </DialogTrigger>
           <CampaignCreateDialog
@@ -211,30 +210,28 @@ function CampaignsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">{L("Kampanie", "Campaigns")}</CardTitle>
+          <CardTitle className="text-base">{t("adminCoupons.campaigns")}</CardTitle>
         </CardHeader>
         <CardContent>
           {campaignsQ.isLoading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground py-6">
               <Loader2 className="h-4 w-4 animate-spin" />
-              {L("Wczytywanie…", "Loading…")}
+              {t("adminCoupons.loading")}
             </div>
           ) : (campaignsQ.data ?? []).length === 0 ? (
-            <p className="text-sm text-muted-foreground py-6">
-              {L("Brak kampanii. Utwórz pierwszą.", "No campaigns yet.")}
-            </p>
+            <p className="text-sm text-muted-foreground py-6">{t("adminCoupons.campaignsYet")}</p>
           ) : (
             <div className="overflow-x-auto -mx-4 px-4">
               <table className="w-full text-sm">
                 <thead className="text-xs text-muted-foreground uppercase">
                   <tr className="border-b border-border/60">
-                    <th className="text-left py-2 pr-3">{L("Nazwa", "Name")}</th>
-                    <th className="text-left py-2 pr-3">{L("Rabat", "Discount")}</th>
-                    <th className="text-left py-2 pr-3">{L("Kody", "Codes")}</th>
-                    <th className="text-left py-2 pr-3">{L("Subskrypcja", "Subscription")}</th>
-                    <th className="text-left py-2 pr-3">{L("Segment", "Segment")}</th>
-                    <th className="text-left py-2 pr-3">{L("Status", "Status")}</th>
-                    <th className="text-right py-2">{L("Akcje", "Actions")}</th>
+                    <th className="text-left py-2 pr-3">{t("adminCoupons.name")}</th>
+                    <th className="text-left py-2 pr-3">{t("adminCoupons.discount")}</th>
+                    <th className="text-left py-2 pr-3">{t("adminCoupons.codes")}</th>
+                    <th className="text-left py-2 pr-3">{t("adminCoupons.subscription")}</th>
+                    <th className="text-left py-2 pr-3">{t("adminCoupons.segment")}</th>
+                    <th className="text-left py-2 pr-3">{t("adminCoupons.status")}</th>
+                    <th className="text-right py-2">{t("adminCoupons.actions")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -284,7 +281,7 @@ function CampaignsPage() {
                               onClick={() => generate.mutate(c.id)}
                               disabled={generate.isPending}
                             >
-                              {L("Generuj", "Generate")}
+                              {t("adminCoupons.generate")}
                             </Button>
                           )}
                           {c.status === "generated" && (
@@ -305,7 +302,7 @@ function CampaignsPage() {
                                 disabled={sendNewsletter.isPending}
                               >
                                 <Send className="h-3.5 w-3.5 mr-1" />
-                                {L("Wyślij", "Send")}
+                                {t("adminCoupons.send")}
                               </Button>
                             </>
                           )}
@@ -341,9 +338,8 @@ function CampaignCreateDialog({
   tiers: Array<{ key: string; name_pl: string; name_en: string }>;
   onCreated: () => void;
 }) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
-  const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -362,7 +358,7 @@ function CampaignCreateDialog({
 
   const submit = async () => {
     if (!name.trim()) {
-      toast.error(L("Podaj nazwę", "Enter a name"));
+      toast.error(t("adminCoupons.enterName"));
       return;
     }
     setBusy(true);
@@ -386,18 +382,18 @@ function CampaignCreateDialog({
       toast.error(error.message);
       return;
     }
-    toast.success(L("Kampania utworzona (draft)", "Campaign created (draft)"));
+    toast.success(t("adminCoupons.campaignCreatedDraft"));
     onCreated();
   };
 
   return (
     <DialogContent className="max-w-xl">
       <DialogHeader>
-        <DialogTitle>{L("Nowa kampania kuponowa", "New coupon campaign")}</DialogTitle>
+        <DialogTitle>{t("adminCoupons.newCouponCampaign")}</DialogTitle>
       </DialogHeader>
       <div className="space-y-3">
         <div>
-          <Label>{L("Nazwa", "Name")}</Label>
+          <Label>{t("adminCoupons.name")}</Label>
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -406,12 +402,12 @@ function CampaignCreateDialog({
           />
         </div>
         <div>
-          <Label>{L("Opis (opcjonalnie)", "Description (optional)")}</Label>
+          <Label>{t("adminCoupons.descriptionOptional")}</Label>
           <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <Label>{L("Prefix", "Prefix")}</Label>
+            <Label>{t("adminCoupons.prefix")}</Label>
             <Input
               value={prefix}
               onChange={(e) => setPrefix(e.target.value.toUpperCase())}
@@ -420,7 +416,7 @@ function CampaignCreateDialog({
             />
           </div>
           <div>
-            <Label>{L("Długość kodu", "Code length")}</Label>
+            <Label>{t("adminCoupons.codeLength")}</Label>
             <Input
               type="number"
               min={4}
@@ -431,7 +427,7 @@ function CampaignCreateDialog({
             />
           </div>
           <div>
-            <Label>{L("Ilość kodów", "Code count")}</Label>
+            <Label>{t("adminCoupons.codeCount")}</Label>
             <Input
               type="number"
               min={1}
@@ -445,20 +441,20 @@ function CampaignCreateDialog({
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label>{L("Typ rabatu", "Discount type")}</Label>
+            <Label>{t("adminCoupons.discountType")}</Label>
             <Select value={kind} onValueChange={(v) => setKind(v as "percent" | "fixed")}>
               <SelectTrigger className="h-10 rounded-[6px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="percent">%</SelectItem>
-                <SelectItem value="fixed">{L("Kwotowy", "Fixed")}</SelectItem>
+                <SelectItem value="fixed">{t("adminCoupons.fixed")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           {kind === "percent" ? (
             <div>
-              <Label>{L("Procent", "Percent")}</Label>
+              <Label>{t("adminCoupons.percent")}</Label>
               <Input
                 type="number"
                 min={1}
@@ -471,7 +467,7 @@ function CampaignCreateDialog({
           ) : (
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <Label>{L("Kwota (gr)", "Amount (cents)")}</Label>
+                <Label>{t("adminCoupons.amountCents2")}</Label>
                 <Input
                   type="number"
                   min={1}
@@ -481,7 +477,7 @@ function CampaignCreateDialog({
                 />
               </div>
               <div>
-                <Label>{L("Waluta", "Currency")}</Label>
+                <Label>{t("adminCoupons.currency")}</Label>
                 <Input
                   value={currency}
                   onChange={(e) => setCurrency(e.target.value)}
@@ -496,31 +492,31 @@ function CampaignCreateDialog({
         <DatePickerField
           value={validUntil}
           onChange={setValidUntil}
-          label={L("Ważne do", "Valid until")}
+          label={t("adminCoupons.validUntil2")}
         />
 
         <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/60">
           <div>
-            <Label>{L("Nadaje subskrypcję", "Grants subscription")}</Label>
+            <Label>{t("adminCoupons.grantsSubscription")}</Label>
             <Select
               value={tierKey || "none"}
               onValueChange={(v) => setTierKey(v === "none" ? "" : v)}
             >
               <SelectTrigger className="h-10 rounded-[6px]">
-                <SelectValue placeholder={L("Brak", "None")} />
+                <SelectValue placeholder={t("adminCoupons.none")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">{L("Brak", "None")}</SelectItem>
-                {tiers.map((t) => (
-                  <SelectItem key={t.key} value={t.key}>
-                    {lang === "pl" ? t.name_pl : t.name_en}
+                <SelectItem value="none">{t("adminCoupons.none")}</SelectItem>
+                {tiers.map((tier) => (
+                  <SelectItem key={tier.key} value={tier.key}>
+                    {pickLocalized(tier, "name", lang)}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div>
-            <Label>{L("Czas trwania (dni)", "Duration (days)")}</Label>
+            <Label>{t("adminCoupons.durationDays")}</Label>
             <Input
               type="number"
               min={1}
@@ -533,7 +529,7 @@ function CampaignCreateDialog({
         </div>
 
         <div>
-          <Label>{L("Segment newslettera (tag)", "Newsletter segment (tag)")}</Label>
+          <Label>{t("adminCoupons.newsletterSegmentTag")}</Label>
           <Input
             value={segment}
             onChange={(e) => setSegment(e.target.value)}
@@ -544,11 +540,7 @@ function CampaignCreateDialog({
       </div>
       <DialogFooter>
         <Button onClick={submit} disabled={busy} className="h-10 rounded-[6px]">
-          {busy ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            L("Utwórz kampanię", "Create campaign")
-          )}
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : t("adminCoupons.createCampaign")}
         </Button>
       </DialogFooter>
     </DialogContent>

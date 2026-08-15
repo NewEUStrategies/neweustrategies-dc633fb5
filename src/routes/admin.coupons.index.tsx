@@ -3,6 +3,8 @@ import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-coupons";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { Plus, Trash2, Copy, Check, Loader2, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -46,9 +48,8 @@ type ExtRow = B2bCouponRow & {
 };
 
 function CouponsListPage() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
-  const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive" | "expired">(
@@ -155,7 +156,7 @@ function CouponsListPage() {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={L("Szukaj po kodzie/nazwie", "Search by code/name")}
+            placeholder={t("adminCoupons.searchCodeName")}
             className="h-10 w-56 rounded-[6px]"
           />
           <Select
@@ -166,10 +167,10 @@ function CouponsListPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">{L("Wszystkie", "All")}</SelectItem>
-              <SelectItem value="active">{L("Aktywne", "Active")}</SelectItem>
-              <SelectItem value="inactive">{L("Nieaktywne", "Inactive")}</SelectItem>
-              <SelectItem value="expired">{L("Wygasłe", "Expired")}</SelectItem>
+              <SelectItem value="all">{t("adminCoupons.all")}</SelectItem>
+              <SelectItem value="active">{t("adminCoupons.active")}</SelectItem>
+              <SelectItem value="inactive">{t("adminCoupons.inactive")}</SelectItem>
+              <SelectItem value="expired">{t("adminCoupons.expired")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -177,7 +178,7 @@ function CouponsListPage() {
           <DialogTrigger asChild>
             <Button className="h-10 rounded-[6px]">
               <Plus className="h-4 w-4 mr-2" />
-              {L("Nowy kupon", "New coupon")}
+              {t("adminCoupons.newCoupon")}
             </Button>
           </DialogTrigger>
           <CouponCreateDialog
@@ -192,43 +193,36 @@ function CouponsListPage() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard label={L("Wszystkie", "Total")} value={String(rows.length)} />
-        <StatCard label={L("Aktywne", "Active")} value={String(active)} />
-        <StatCard
-          label={L("Użycia łącznie", "Total redemptions")}
-          value={String(totalRedemptions)}
-        />
-        <StatCard label={L("Wygasłe", "Expired")} value={String(expired)} />
+        <StatCard label={t("adminCoupons.total")} value={String(rows.length)} />
+        <StatCard label={t("adminCoupons.active")} value={String(active)} />
+        <StatCard label={t("adminCoupons.totalRedemptions")} value={String(totalRedemptions)} />
+        <StatCard label={t("adminCoupons.expired")} value={String(expired)} />
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">{L("Lista kuponów", "Coupon list")}</CardTitle>
+          <CardTitle className="text-base">{t("adminCoupons.couponList")}</CardTitle>
         </CardHeader>
         <CardContent>
           {couponsQ.isLoading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground py-6">
               <Loader2 className="h-4 w-4 animate-spin" />
-              {L("Wczytywanie…", "Loading…")}
+              {t("adminCoupons.loading")}
             </div>
           ) : filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-6">
-              {L("Brak wyników.", "No results.")}
-            </p>
+            <p className="text-sm text-muted-foreground py-6">{t("adminCoupons.results")}</p>
           ) : (
             <div className="overflow-x-auto -mx-4 px-4">
               <table className="w-full text-sm">
                 <thead className="text-xs text-muted-foreground uppercase">
                   <tr className="border-b border-border/60">
-                    <th className="text-left py-2 pr-3">{L("Kod", "Code")}</th>
-                    <th className="text-left py-2 pr-3">{L("Rabat", "Discount")}</th>
-                    <th className="text-left py-2 pr-3">{L("Użycia", "Uses")}</th>
-                    <th className="text-left py-2 pr-3">{L("Ważność", "Validity")}</th>
-                    <th className="text-left py-2 pr-3">
-                      {L("Plan / Subskrypcja", "Plan / Subscription")}
-                    </th>
-                    <th className="text-left py-2 pr-3">{L("Status", "Status")}</th>
-                    <th className="text-right py-2">{L("Akcje", "Actions")}</th>
+                    <th className="text-left py-2 pr-3">{t("adminCoupons.code")}</th>
+                    <th className="text-left py-2 pr-3">{t("adminCoupons.discount")}</th>
+                    <th className="text-left py-2 pr-3">{t("adminCoupons.uses")}</th>
+                    <th className="text-left py-2 pr-3">{t("adminCoupons.validity")}</th>
+                    <th className="text-left py-2 pr-3">{t("adminCoupons.planSubscription")}</th>
+                    <th className="text-left py-2 pr-3">{t("adminCoupons.status")}</th>
+                    <th className="text-right py-2">{t("adminCoupons.actions")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -243,7 +237,7 @@ function CouponsListPage() {
                             className="text-muted-foreground hover:text-foreground"
                             onClick={() => {
                               void navigator.clipboard.writeText(c.code);
-                              toast.success(L("Skopiowano", "Copied"));
+                              toast.success(t("adminCoupons.copied"));
                             }}
                           >
                             <Copy className="h-3.5 w-3.5" />
@@ -288,10 +282,10 @@ function CouponsListPage() {
                         {c.active ? (
                           <Badge className="bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/10">
                             <Check className="h-3 w-3 mr-1" />
-                            {L("Aktywny", "Active")}
+                            {t("adminCoupons.active2")}
                           </Badge>
                         ) : (
-                          <Badge variant="secondary">{L("Nieaktywny", "Inactive")}</Badge>
+                          <Badge variant="secondary">{t("adminCoupons.inactive2")}</Badge>
                         )}
                       </td>
                       <td className="py-3 text-right">
@@ -306,7 +300,7 @@ function CouponsListPage() {
                             size="icon"
                             aria-label="delete"
                             onClick={() => {
-                              if (confirm(L("Usunąć kupon?", "Delete coupon?") + ` ${c.code}`)) {
+                              if (confirm(t("adminCoupons.deleteCoupon") + ` ${c.code}`)) {
                                 remove.mutate(c.id);
                               }
                             }}
@@ -345,9 +339,8 @@ interface CreateDialogProps {
 }
 
 function CouponCreateDialog({ plans, tiers, onCreated }: CreateDialogProps) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
-  const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
 
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
@@ -367,15 +360,15 @@ function CouponCreateDialog({ plans, tiers, onCreated }: CreateDialogProps) {
   const submit = async () => {
     const norm = normalizeCouponCode(code);
     if (!norm) {
-      toast.error(L("Podaj kod", "Enter a code"));
+      toast.error(t("adminCoupons.enterCode"));
       return;
     }
     if (kind === "percent" && (percent < 1 || percent > 100)) {
-      toast.error(L("Procent 1–100", "Percent 1–100"));
+      toast.error(t("adminCoupons.percent1100"));
       return;
     }
     if (kind === "fixed" && cents <= 0) {
-      toast.error(L("Kwota > 0", "Amount > 0"));
+      toast.error(t("adminCoupons.amount0"));
       return;
     }
     setBusy(true);
@@ -400,19 +393,19 @@ function CouponCreateDialog({ plans, tiers, onCreated }: CreateDialogProps) {
       toast.error(error.message);
       return;
     }
-    toast.success(L("Kupon utworzony", "Coupon created"));
+    toast.success(t("adminCoupons.couponCreated"));
     onCreated();
   };
 
   return (
     <DialogContent className="max-w-xl">
       <DialogHeader>
-        <DialogTitle>{L("Nowy kupon B2B", "New B2B coupon")}</DialogTitle>
+        <DialogTitle>{t("adminCoupons.newB2bCoupon")}</DialogTitle>
       </DialogHeader>
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label>{L("Kod", "Code")}</Label>
+            <Label>{t("adminCoupons.code")}</Label>
             <Input
               value={code}
               onChange={(e) => setCode(e.target.value)}
@@ -421,7 +414,7 @@ function CouponCreateDialog({ plans, tiers, onCreated }: CreateDialogProps) {
             />
           </div>
           <div>
-            <Label>{L("Nazwa (opcjonalnie)", "Name (optional)")}</Label>
+            <Label>{t("adminCoupons.nameOptional")}</Label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -431,26 +424,26 @@ function CouponCreateDialog({ plans, tiers, onCreated }: CreateDialogProps) {
         </div>
 
         <div>
-          <Label>{L("Opis wewnętrzny", "Internal description")}</Label>
+          <Label>{t("adminCoupons.internalDescription")}</Label>
           <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label>{L("Typ rabatu", "Discount type")}</Label>
+            <Label>{t("adminCoupons.discountType")}</Label>
             <Select value={kind} onValueChange={(v) => setKind(v as CouponDiscountKind)}>
               <SelectTrigger className="h-10 rounded-[6px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="percent">%</SelectItem>
-                <SelectItem value="fixed">{L("Kwotowy", "Fixed")}</SelectItem>
+                <SelectItem value="fixed">{t("adminCoupons.fixed")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           {kind === "percent" ? (
             <div>
-              <Label>{L("Procent", "Percent")}</Label>
+              <Label>{t("adminCoupons.percent")}</Label>
               <Input
                 type="number"
                 min={1}
@@ -463,7 +456,7 @@ function CouponCreateDialog({ plans, tiers, onCreated }: CreateDialogProps) {
           ) : (
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <Label>{L("Kwota (grosze)", "Amount (cents)")}</Label>
+                <Label>{t("adminCoupons.amountCents")}</Label>
                 <Input
                   type="number"
                   min={1}
@@ -473,7 +466,7 @@ function CouponCreateDialog({ plans, tiers, onCreated }: CreateDialogProps) {
                 />
               </div>
               <div>
-                <Label>{L("Waluta", "Currency")}</Label>
+                <Label>{t("adminCoupons.currency")}</Label>
                 <Input
                   value={currency}
                   onChange={(e) => setCurrency(e.target.value)}
@@ -487,13 +480,13 @@ function CouponCreateDialog({ plans, tiers, onCreated }: CreateDialogProps) {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label>{L("Limit użyć", "Max redemptions")}</Label>
+            <Label>{t("adminCoupons.maxRedemptions")}</Label>
             <Input
               type="number"
               min={1}
               value={maxRedemptions}
               onChange={(e) => setMaxRedemptions(e.target.value)}
-              placeholder={L("bez limitu", "unlimited")}
+              placeholder={t("adminCoupons.unlimited")}
               className="h-10 rounded-[6px]"
             />
           </div>
@@ -501,44 +494,44 @@ function CouponCreateDialog({ plans, tiers, onCreated }: CreateDialogProps) {
             <DatePickerField
               value={validFrom}
               onChange={setValidFrom}
-              label={L("Ważny od", "Valid from")}
+              label={t("adminCoupons.valid")}
             />
             <DatePickerField
               value={validUntil}
               onChange={setValidUntil}
-              label={L("Ważny do", "Valid until")}
+              label={t("adminCoupons.validUntil")}
             />
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/60">
           <div>
-            <Label>{L("Nadaje subskrypcję (opcjonalnie)", "Grants subscription (optional)")}</Label>
+            <Label>{t("adminCoupons.grantsSubscriptionOptional")}</Label>
             <Select
               value={grantsTierKey || "none"}
               onValueChange={(v) => setGrantsTierKey(v === "none" ? "" : v)}
             >
               <SelectTrigger className="h-10 rounded-[6px]">
-                <SelectValue placeholder={L("Brak", "None")} />
+                <SelectValue placeholder={t("adminCoupons.none")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">{L("Brak", "None")}</SelectItem>
-                {tiers.map((t) => (
-                  <SelectItem key={t.key} value={t.key}>
-                    {lang === "pl" ? t.name_pl : t.name_en}
+                <SelectItem value="none">{t("adminCoupons.none")}</SelectItem>
+                {tiers.map((tier) => (
+                  <SelectItem key={tier.key} value={tier.key}>
+                    {pickLocalized(tier, "name", lang)}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div>
-            <Label>{L("Czas trwania (dni)", "Duration (days)")}</Label>
+            <Label>{t("adminCoupons.durationDays")}</Label>
             <Input
               type="number"
               min={1}
               value={grantsDurationDays}
               onChange={(e) => setGrantsDurationDays(e.target.value)}
-              placeholder={L("bezterminowo", "unlimited")}
+              placeholder={t("adminCoupons.unlimited2")}
               disabled={!grantsTierKey}
               className="h-10 rounded-[6px]"
             />
@@ -546,12 +539,10 @@ function CouponCreateDialog({ plans, tiers, onCreated }: CreateDialogProps) {
         </div>
 
         <div>
-          <Label>{L("Ogranicz do planów (opcjonalnie)", "Restrict to plans (optional)")}</Label>
+          <Label>{t("adminCoupons.restrictPlansOptional")}</Label>
           <div className="rounded-[6px] border border-border/60 p-2 max-h-40 overflow-y-auto space-y-1">
             {plans.length === 0 && (
-              <p className="text-xs text-muted-foreground">
-                {L("Brak planów", "No plans available")}
-              </p>
+              <p className="text-xs text-muted-foreground">{t("adminCoupons.plansAvailable")}</p>
             )}
             {plans.map((p) => {
               const on = planIds.includes(p.id);
@@ -567,7 +558,7 @@ function CouponCreateDialog({ plans, tiers, onCreated }: CreateDialogProps) {
                     }
                   />
                   <span className={p.active ? "" : "text-muted-foreground line-through"}>
-                    {(lang === "pl" ? p.name_pl : p.name_en) || p.name_pl || p.name_en}
+                    {pickLocalized(p, "name", lang)}
                   </span>
                 </label>
               );
@@ -577,7 +568,7 @@ function CouponCreateDialog({ plans, tiers, onCreated }: CreateDialogProps) {
       </div>
       <DialogFooter>
         <Button onClick={submit} disabled={busy} className="h-10 rounded-[6px]">
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : L("Utwórz kupon", "Create coupon")}
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : t("adminCoupons.createCoupon")}
         </Button>
       </DialogFooter>
     </DialogContent>

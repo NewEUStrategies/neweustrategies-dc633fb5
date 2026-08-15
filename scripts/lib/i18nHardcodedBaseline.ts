@@ -109,8 +109,6 @@ export const HARDCODED_LANGUAGE_BASELINE: readonly (readonly [string, number])[]
   ["src/routes/admin.companies.$id.tsx", 2],
   ["src/routes/admin.companies.index.tsx", 3],
   ["src/routes/admin.coupons.analytics.tsx", 17],
-  ["src/routes/admin.coupons.campaigns.tsx", 35],
-  ["src/routes/admin.coupons.index.tsx", 49],
   ["src/routes/admin.coupons.redemptions.tsx", 18],
   ["src/routes/admin.coupons.tsx", 6],
   ["src/routes/admin.crm.index.tsx", 26],
