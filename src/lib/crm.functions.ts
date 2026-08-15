@@ -12,6 +12,13 @@ import {
   type ConsentLogTimelineRow,
 } from "@/lib/crm/consentLog";
 import { z } from "zod";
+import {
+  looseClient,
+  looseTable,
+  rowsOf,
+  fetchRows,
+  type LooseQuery,
+} from "@/lib/supabase/looseQuery";
 
 const STAGE_ENUM = z.enum(["new", "contacted", "qualified", "proposal", "won", "lost", "archived"]);
 
@@ -74,37 +81,12 @@ const ListInput = z.object({
 });
 type ListParams = z.infer<typeof ListInput>;
 
-type QueryResult = { data: unknown; error: { message: string } | null; count?: number | null };
-
-type AnyQuery = {
-  select: (s: string, opts?: { count?: "exact" }) => AnyQuery;
-  order: (c: string, o: { ascending: boolean; nullsFirst?: boolean }) => AnyQuery;
-  limit: (n: number) => AnyQuery;
-  range: (from: number, to: number) => AnyQuery;
-  eq: (c: string, v: unknown) => AnyQuery;
-  is: (c: string, v: unknown) => AnyQuery;
-  not: (c: string, op: string, v: unknown) => AnyQuery;
-  in: (c: string, v: unknown[]) => AnyQuery;
-  or: (f: string) => AnyQuery;
-  ilike: (c: string, v: string) => AnyQuery;
-  gte: (c: string, v: unknown) => AnyQuery;
-  lte: (c: string, v: unknown) => AnyQuery;
-  overlaps: (c: string, v: unknown[]) => AnyQuery;
-  maybeSingle: () => Promise<{ data: unknown; error: { message: string } | null }>;
-  insert: (v: unknown) => Promise<{ error: { message: string } | null }>;
-  update: (v: unknown) => AnyQuery;
-  delete: () => AnyQuery;
-  then: <R>(fn: (r: QueryResult) => R) => Promise<R>;
-};
-const tbl = (ctx: { supabase: unknown }, name: string): AnyQuery =>
-  (ctx.supabase as { from: (t: string) => AnyQuery }).from(name);
-
 const j = (v: unknown): string => JSON.stringify(v ?? null);
 
 // Wspólna aplikacja filtrów listy leadów - jedno źródło prawdy dla listy
 // (paginowanej) i eksportu CSV, żeby eksport zawsze odpowiadał temu, co admin
 // widzi po filtrach.
-function applyLeadListFilters(q: AnyQuery, data: ListParams): AnyQuery {
+function applyLeadListFilters(q: LooseQuery, data: ListParams): LooseQuery {
   if (data.stage) q = q.eq("stage", data.stage);
   if (data.band) q = q.eq("score_band", data.band);
   if (data.owner_ids && data.owner_ids.length > 0) q = q.in("owner_id", data.owner_ids);
@@ -134,7 +116,7 @@ function applyLeadListFilters(q: AnyQuery, data: ListParams): AnyQuery {
   return q;
 }
 
-function applyLeadListSort(q: AnyQuery, data: ListParams): AnyQuery {
+function applyLeadListSort(q: LooseQuery, data: ListParams): LooseQuery {
   const ascending = data.sort_dir === "asc";
   // nullsFirst: false trzyma puste follow-upy/firmy na końcu niezależnie od
   // kierunku; id jako tiebreaker daje deterministyczne okna paginacji.
@@ -149,18 +131,10 @@ export const listCrmLeads = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const view = data.scope === "all" ? "crm_leads_all" : "crm_leads";
     const from = (data.page - 1) * data.limit;
-    let q = tbl(context, view).select("*", { count: "exact" });
+    let q = looseTable(context, view).select("*", { count: "exact" });
     q = applyLeadListFilters(q, data);
     q = applyLeadListSort(q, data).range(from, from + data.limit - 1);
-    const {
-      data: leads,
-      error,
-      count,
-    } = await (q as unknown as Promise<{
-      data: unknown[];
-      error: { message: string } | null;
-      count: number | null;
-    }>);
+    const { data: leads, error, count } = await q;
     if (error) throw new Error(error.message);
     return {
       json: j(leads ?? []),
@@ -176,7 +150,7 @@ export const getCrmLead = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
-    const { data: lead, error } = await tbl(context, "crm_leads")
+    const { data: lead, error } = await looseTable(context, "crm_leads")
       .select("*")
       .eq("id", data.id)
       .maybeSingle();
@@ -184,12 +158,9 @@ export const getCrmLead = createServerFn({ method: "POST" })
     if (!lead) throw new Error("Lead not found");
     const L = lead as { email: string; tenant_id: string; id: string };
 
-    const fetchAll = async <T>(p: Promise<{ data: unknown }>): Promise<T> =>
-      ((await p).data ?? []) as T;
-
     const [messages, subs, consents, notes] = await Promise.all([
-      fetchAll(
-        tbl(context, "contact_messages")
+      fetchRows(
+        looseTable(context, "contact_messages")
           .select(
             // `form_id` + `custom` niosą warstwę rekrutacyjną (rola, dział,
             // poziom, termin, LinkedIn, CV), a osadzone `career_applications`
@@ -200,31 +171,31 @@ export const getCrmLead = createServerFn({ method: "POST" })
           .ilike("email", L.email)
           .eq("tenant_id", L.tenant_id)
           .order("created_at", { ascending: false })
-          .limit(100) as unknown as Promise<{ data: unknown }>,
+          .limit(100),
       ),
-      fetchAll(
-        tbl(context, "newsletter_subscribers")
+      fetchRows(
+        looseTable(context, "newsletter_subscribers")
           .select(
             "id, status, source, source_form_id, source_form_name, language, ip, consents, confirmed_at, created_at, updated_at",
           )
           .ilike("email", L.email)
           .eq("tenant_id", L.tenant_id)
           .order("created_at", { ascending: false })
-          .limit(50) as unknown as Promise<{ data: unknown }>,
+          .limit(50),
       ),
-      fetchAll(
-        tbl(context, "crm_consent_log")
+      fetchRows(
+        looseTable(context, "crm_consent_log")
           .select("*")
           .ilike("email", L.email)
           .eq("tenant_id", L.tenant_id)
           .order("created_at", { ascending: false })
-          .limit(200) as unknown as Promise<{ data: unknown }>,
+          .limit(200),
       ),
-      fetchAll(
-        tbl(context, "crm_lead_notes")
+      fetchRows(
+        looseTable(context, "crm_lead_notes")
           .select("id, body, author_id, created_at")
           .eq("lead_id", L.id)
-          .order("created_at", { ascending: false }) as unknown as Promise<{ data: unknown }>,
+          .order("created_at", { ascending: false }),
       ),
     ]);
 
@@ -234,7 +205,7 @@ export const getCrmLead = createServerFn({ method: "POST" })
     try {
       const email = L.email?.toLowerCase() ?? "";
       if (email) {
-        const { data: prof } = (await tbl(context, "profiles")
+        const { data: prof } = (await looseTable(context, "profiles")
           .select("avatar_url, email, contact_email")
           .or(`email.ilike.${email},contact_email.ilike.${email}`)
           .eq("tenant_id", L.tenant_id)
@@ -282,14 +253,14 @@ export const updateCrmLead = createServerFn({ method: "POST" })
 
     // Tenant isolation: read the lead first, then restrict the update to that
     // tenant. Also validate any company_id change belongs to the same tenant.
-    const { data: lead } = (await tbl(context, "crm_leads")
+    const { data: lead } = (await looseTable(context, "crm_leads")
       .select("id, tenant_id")
       .eq("id", id)
       .maybeSingle()) as { data: { id: string; tenant_id: string } | null };
     if (!lead) throw new Error("lead_not_found");
 
     if (patch.company_id) {
-      const { data: company } = (await tbl(context, "crm_companies")
+      const { data: company } = (await looseTable(context, "crm_companies")
         .select("id, tenant_id")
         .eq("id", patch.company_id)
         .maybeSingle()) as { data: { id: string; tenant_id: string } | null };
@@ -298,12 +269,10 @@ export const updateCrmLead = createServerFn({ method: "POST" })
       }
     }
 
-    const res = await (tbl(context, "crm_leads")
+    const res = await looseTable(context, "crm_leads")
       .update({ ...patch, tenant_id: lead.tenant_id })
       .eq("id", id)
-      .eq("tenant_id", lead.tenant_id) as unknown as Promise<{
-      error: { message: string } | null;
-    }>);
+      .eq("tenant_id", lead.tenant_id);
     if (res.error) throw new Error(res.error.message);
     return { ok: true };
   });
@@ -315,21 +284,22 @@ export const getCrmLeadMonthlyMetering = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
-    const { data: lead } = (await tbl(context, "crm_leads")
+    const { data: lead } = (await looseTable(context, "crm_leads")
       .select("email, tenant_id")
       .eq("id", data.id)
       .maybeSingle()) as { data: { email: string; tenant_id: string } | null };
     if (!lead?.email) return { json: j(null) };
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const admin = supabaseAdmin as unknown as { from: (t: string) => AnyQuery };
+    const admin = looseClient({ supabase: supabaseAdmin });
     const emailLc = lead.email.toLowerCase().replace(/[%_,()"\\]/g, "");
-    const profRes = (await admin
+    const profRes = await admin
       .from("profiles")
       .select("id")
       .or(`email.ilike.${emailLc},contact_email.ilike.${emailLc}`)
       .eq("tenant_id", lead.tenant_id)
-      .limit(1)) as unknown as { data: Array<{ id: string }> | null };
+      .limit(1)
+      .returns<{ id: string }>();
     const userId = profRes.data?.[0]?.id ?? null;
     if (!userId) return { json: j(null) };
 
@@ -343,6 +313,7 @@ export const getCrmLeadMonthlyMetering = createServerFn({ method: "POST" })
         .from("metering_settings")
         .select("member_monthly_limit, enabled")
         .eq("tenant_id", lead.tenant_id)
+        .returns<{ member_monthly_limit: number | null; enabled: boolean | null }>()
         .maybeSingle(),
       admin
         .from("metered_views")
@@ -352,14 +323,9 @@ export const getCrmLeadMonthlyMetering = createServerFn({ method: "POST" })
         .eq("period_month", periodStr)
         .limit(1000),
     ]);
-    const ms = (
-      msRes as unknown as {
-        data: { member_monthly_limit: number | null; enabled: boolean | null } | null;
-      }
-    ).data;
-    const rows = (mvRes as unknown as { data: unknown[] | null }).data ?? [];
+    const ms = msRes.data;
     const monthly_limit = ms?.member_monthly_limit ?? 5;
-    const used = rows.length;
+    const used = rowsOf(mvRes).length;
     return {
       json: j({
         used,
@@ -382,34 +348,39 @@ export const getCrmLeadMembership = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
-    const { data: lead } = (await tbl(context, "crm_leads")
+    const { data: lead } = (await looseTable(context, "crm_leads")
       .select("email, tenant_id")
       .eq("id", data.id)
       .maybeSingle()) as { data: { email: string; tenant_id: string } | null };
     if (!lead?.email) return { json: j(null) };
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const admin = supabaseAdmin as unknown as { from: (t: string) => AnyQuery };
+    const admin = looseClient({ supabase: supabaseAdmin });
     const emailLc = lead.email.toLowerCase().replace(/[%_,()"\\]/g, "");
-    const profRes = (await admin
+    const profRes = await admin
       .from("profiles")
       .select("id")
       .or(`email.ilike.${emailLc},contact_email.ilike.${emailLc}`)
       .eq("tenant_id", lead.tenant_id)
-      .limit(1)) as unknown as { data: Array<{ id: string }> | null };
+      .limit(1)
+      .returns<{ id: string }>();
     const userId = profRes.data?.[0]?.id ?? null;
     if (!userId) return { json: j(null) };
 
     const { resolveLeadMembership } = await import("@/lib/crm/membershipSummary");
-    type Rows<T> = { data: T[] | null };
     const [tiersRes, subsRes, grantsRes, seatsRes] = await Promise.all([
       admin
         .from("membership_tiers")
         .select("key, rank, name_pl, name_en, is_default")
         .eq("tenant_id", lead.tenant_id)
-        .eq("active", true) as unknown as Promise<
-        Rows<{ key: string; rank: number; name_pl: string; name_en: string; is_default: boolean }>
-      >,
+        .eq("active", true)
+        .returns<{
+          key: string;
+          rank: number;
+          name_pl: string;
+          name_en: string;
+          is_default: boolean;
+        }>(),
       admin
         .from("user_subscriptions")
         .select(
@@ -419,8 +390,8 @@ export const getCrmLeadMembership = createServerFn({ method: "POST" })
         .eq("user_id", userId)
         .eq("status", "active")
         .order("started_at", { ascending: false })
-        .limit(20) as unknown as Promise<
-        Rows<{
+        .limit(20)
+        .returns<{
           id: string;
           status: string;
           started_at: string;
@@ -433,22 +404,20 @@ export const getCrmLeadMembership = createServerFn({ method: "POST" })
             interval: string;
             tier_key: string | null;
           } | null;
-        }>
-      >,
+        }>(),
       admin
         .from("membership_grants")
         .select("tier_key, source, starts_at, expires_at, revoked_at")
         .eq("tenant_id", lead.tenant_id)
         .eq("user_id", userId)
-        .limit(50) as unknown as Promise<
-        Rows<{
+        .limit(50)
+        .returns<{
           tier_key: string;
           source: string;
           starts_at: string;
           expires_at: string | null;
           revoked_at: string | null;
-        }>
-      >,
+        }>(),
       admin
         .from("organization_seats")
         .select(
@@ -456,8 +425,8 @@ export const getCrmLeadMembership = createServerFn({ method: "POST" })
         )
         .eq("tenant_id", lead.tenant_id)
         .eq("user_id", userId)
-        .limit(20) as unknown as Promise<
-        Rows<{
+        .limit(20)
+        .returns<{
           claimed_at: string | null;
           org: {
             id: string;
@@ -467,8 +436,7 @@ export const getCrmLeadMembership = createServerFn({ method: "POST" })
             starts_at: string;
             expires_at: string | null;
           } | null;
-        }>
-      >,
+        }>(),
     ]);
 
     const summary = resolveLeadMembership({
@@ -496,26 +464,14 @@ export const getCrmLeadProfileSync = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => ProfileSyncInput.parse(d))
   .handler(async ({ data, context }) => {
-    const { data: lead } = (await tbl(context, "crm_leads")
+    const { data: lead } = (await looseTable(context, "crm_leads")
       .select("email, tenant_id")
       .eq("id", data.lead_id)
       .maybeSingle()) as { data: { email: string; tenant_id: string } | null };
     if (!lead?.email) return { json: j(null) };
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const admin = supabaseAdmin as unknown as {
-      from: (t: string) => {
-        select: (s: string) => AdminChain;
-      };
-    };
-    type AdminChain = {
-      eq: (c: string, v: unknown) => AdminChain;
-      or: (f: string) => AdminChain;
-      order: (c: string, o: { ascending: boolean }) => AdminChain;
-      limit: (n: number) => Promise<{ data: unknown }>;
-      maybeSingle: () => Promise<{ data: unknown }>;
-      then: <R>(fn: (r: { data: unknown }) => R) => Promise<R>;
-    };
+    const admin = looseClient({ supabase: supabaseAdmin });
 
     const emailLc = lead.email.toLowerCase().replace(/[%_,()"\\]/g, "");
     const profileRes = (await admin
@@ -594,7 +550,7 @@ export const addCrmNote = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const userId = (context as { userId: string }).userId;
     const insertNote = async () => {
-      const { error } = await tbl(context, "crm_lead_notes").insert({
+      const { error } = await looseTable(context, "crm_lead_notes").insert({
         lead_id: data.lead_id,
         body: data.body,
         author_id: userId,
@@ -620,9 +576,7 @@ export const deleteCrmNote = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
-    const res = await (tbl(context, "crm_lead_notes")
-      .delete()
-      .eq("id", data.id) as unknown as Promise<{ error: { message: string } | null }>);
+    const res = await looseTable(context, "crm_lead_notes").delete().eq("id", data.id);
     if (res.error) throw new Error(res.error.message);
     return { ok: true };
   });
@@ -632,15 +586,15 @@ export const exportCrmLeadsCsv = createServerFn({ method: "POST" })
   .validator((d) => ListInput.parse(d))
   .handler(async ({ data, context }) => {
     const view = data.scope === "all" ? "crm_leads_all" : "crm_leads";
-    let q = tbl(context, view).select("*");
+    let q = looseTable(context, view).select("*");
     // Eksport = dokładnie ten sam zestaw filtrów i porządek co lista (bez
     // paginacji, z twardym sufitem wierszy).
     q = applyLeadListFilters(q, data);
     q = applyLeadListSort(q, data).limit(5000);
-    const { data: rows, error } = await (q as unknown as Promise<{
-      data: Record<string, unknown>[];
-      error: { message: string } | null;
-    }>);
+    // Eksport CSV czyta kolumny po nazwie ze `cols`, więc wiersz opisujemy jako
+    // słownik - nie znamy pełnego kształtu widoku, a i tak bierzemy z niego
+    // tylko wymienione niżej pola.
+    const { data: rows, error } = await q.returns<Record<string, unknown>>();
     if (error) throw new Error(error.message);
     const cols = [
       "email",
@@ -734,81 +688,77 @@ async function buildLeadTimeline(
   context: { supabase: unknown },
   leadId: string,
 ): Promise<{ lead: Record<string, unknown>; events: TimelineEvent[] }> {
-  const { data: lead, error } = await tbl(context, "crm_leads")
+  const { data: lead, error } = await looseTable(context, "crm_leads")
     .select("*")
     .eq("id", leadId)
     .maybeSingle();
   if (error || !lead) throw new Error(error?.message ?? "Lead not found");
   const L = lead as { id: string; tenant_id: string; email: string };
 
-  const fetchAll = async <T>(p: Promise<{ data: unknown }>): Promise<T> =>
-    ((await p).data ?? []) as T;
-
   const [messages, subs, consents, notes, audits] = await Promise.all([
-    fetchAll<
-      Array<{
-        id: string;
-        form_name: string | null;
-        form_type: string | null;
-        subject: string | null;
-        message: string;
-        created_at: string;
-        page_url: string | null;
-        lang: string;
-      }>
-    >(
-      tbl(context, "contact_messages")
+    fetchRows(
+      looseTable(context, "contact_messages")
         .select("id, form_name, form_type, subject, message, page_url, lang, created_at")
         .ilike("email", L.email)
         .eq("tenant_id", L.tenant_id)
         .order("created_at", { ascending: false })
-        .limit(200) as unknown as Promise<{ data: unknown }>,
+        .limit(200)
+        .returns<{
+          id: string;
+          form_name: string | null;
+          form_type: string | null;
+          subject: string | null;
+          message: string;
+          created_at: string;
+          page_url: string | null;
+          lang: string;
+        }>(),
     ),
-    fetchAll<
-      Array<{
-        id: string;
-        status: string;
-        source_form_name: string | null;
-        confirmed_at: string | null;
-        created_at: string;
-      }>
-    >(
-      tbl(context, "newsletter_subscribers")
+    fetchRows(
+      looseTable(context, "newsletter_subscribers")
         .select("id, status, source_form_name, confirmed_at, created_at")
         .ilike("email", L.email)
         .eq("tenant_id", L.tenant_id)
         .order("created_at", { ascending: false })
-        .limit(50) as unknown as Promise<{ data: unknown }>,
+        .limit(50)
+        .returns<{
+          id: string;
+          status: string;
+          source_form_name: string | null;
+          confirmed_at: string | null;
+          created_at: string;
+        }>(),
     ),
-    fetchAll<ConsentLogTimelineRow[]>(
-      tbl(context, "crm_consent_log")
+    fetchRows(
+      looseTable(context, "crm_consent_log")
         .select(CONSENT_LOG_TIMELINE_SELECT)
         .ilike("email", L.email)
         .eq("tenant_id", L.tenant_id)
         .order("created_at", { ascending: false })
-        .limit(500) as unknown as Promise<{ data: unknown }>,
+        .limit(500)
+        .returns<ConsentLogTimelineRow>(),
     ),
-    fetchAll<Array<{ id: string; body: string; author_id: string | null; created_at: string }>>(
-      tbl(context, "crm_lead_notes")
+    fetchRows(
+      looseTable(context, "crm_lead_notes")
         .select("id, body, author_id, created_at")
         .eq("lead_id", L.id)
-        .order("created_at", { ascending: false }) as unknown as Promise<{ data: unknown }>,
+        .order("created_at", { ascending: false })
+        .returns<{ id: string; body: string; author_id: string | null; created_at: string }>(),
     ),
-    fetchAll<
-      Array<{
-        id: string;
-        action: string;
-        actor_id: string | null;
-        metadata: Record<string, unknown> | null;
-        created_at: string;
-      }>
-    >(
-      tbl(context, "audit_log")
+    fetchRows(
+      looseTable(context, "audit_log")
         .select("id, action, actor_id, metadata, created_at")
         .eq("entity_type", "crm_lead")
         .eq("entity_id", L.id)
         .order("created_at", { ascending: false })
-        .limit(500) as unknown as Promise<{ data: unknown }>,
+        .limit(500)
+        .returns<{
+          id: string;
+          action: string;
+          actor_id: string | null;
+          metadata: Record<string, unknown> | null;
+          created_at: string;
+        }>(),
     ),
   ]);
 
@@ -940,7 +890,7 @@ export const getCrmScoringSettings = createServerFn({ method: "GET" })
   .middleware([requireCrmStaff])
   .handler(async ({ context }) => {
     // RLS: staff czyta wiersz swojego tenanta; brak wiersza = domyślne.
-    const { data: row, error } = await tbl(context, "crm_scoring_settings")
+    const { data: row, error } = await looseTable(context, "crm_scoring_settings")
       .select("*")
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -956,7 +906,7 @@ export const upsertCrmScoringSettings = createServerFn({ method: "POST" })
     const { data: isAdmin } = await rpc("has_role", { _user_id: userId, _role: "admin" });
     const { data: isSuper } = await rpc("is_super_admin");
     if (!isAdmin && !isSuper) throw new Error("Forbidden");
-    const { data: tenantRow } = await tbl(context, "profiles")
+    const { data: tenantRow } = await looseTable(context, "profiles")
       .select("tenant_id")
       .eq("id", userId)
       .maybeSingle();
@@ -977,16 +927,15 @@ export const upsertCrmScoringSettings = createServerFn({ method: "POST" })
     }
     const payload = { ...data, weights };
 
-    const { data: existing } = await tbl(context, "crm_scoring_settings")
+    const { data: existing } = await looseTable(context, "crm_scoring_settings")
       .select("tenant_id")
       .maybeSingle();
     const res = existing
-      ? await (tbl(context, "crm_scoring_settings")
-          .update(payload)
-          .eq("tenant_id", tenantId) as unknown as Promise<{
-          error: { message: string } | null;
-        }>)
-      : await tbl(context, "crm_scoring_settings").insert({ ...payload, tenant_id: tenantId });
+      ? await looseTable(context, "crm_scoring_settings").update(payload).eq("tenant_id", tenantId)
+      : await looseTable(context, "crm_scoring_settings").insert({
+          ...payload,
+          tenant_id: tenantId,
+        });
     if (res.error) throw new Error(res.error.message);
     return { ok: true };
   });
@@ -1058,11 +1007,7 @@ export const bulkUpdateCrmLeads = createServerFn({ method: "POST" })
     let touched = 0;
 
     if (Object.keys(flatPatch).length > 0) {
-      const res = await (tbl(context, "crm_leads")
-        .update(flatPatch)
-        .in("id", ids) as unknown as Promise<{
-        error: { message: string } | null;
-      }>);
+      const res = await looseTable(context, "crm_leads").update(flatPatch).in("id", ids);
       if (res.error) throw new Error(res.error.message);
       touched = ids.length;
     }
@@ -1070,25 +1015,16 @@ export const bulkUpdateCrmLeads = createServerFn({ method: "POST" })
     if ((addTags?.length ?? 0) > 0 || (removeTags?.length ?? 0) > 0) {
       // Tagi to text[] - potrzebujemy per-rekord read-modify-write (Postgrest
       // nie udostępnia array_append/remove w PATCH bulk). Robimy w porcjach.
-      const { data: rows } = (await tbl(context, "crm_leads")
+      const { data: rows } = await looseTable(context, "crm_leads")
         .select("id, tags")
-        .in("id", ids)) as unknown as {
-        data: Array<{ id: string; tags: string[] | null }> | null;
-      };
-      const supa = context.supabase as unknown as {
-        from: (t: string) => {
-          update: (v: unknown) => {
-            eq: (c: string, v: string) => Promise<{ error: { message: string } | null }>;
-          };
-        };
-      };
+        .in("id", ids)
+        .returns<{ id: string; tags: string[] | null }>();
       for (const row of rows ?? []) {
         const current = new Set((row.tags ?? []).map((t) => t.trim()).filter(Boolean));
         for (const t of addTags ?? []) current.add(t);
         for (const t of removeTags ?? []) current.delete(t);
         const next = Array.from(current);
-        const res = await supa
-          .from("crm_leads")
+        const res = await looseTable(context, "crm_leads")
           .update({ tags: next.length > 0 ? next : null })
           .eq("id", row.id);
         if (res.error) throw new Error(res.error.message);
@@ -1097,7 +1033,7 @@ export const bulkUpdateCrmLeads = createServerFn({ method: "POST" })
     }
 
     try {
-      await tbl(context, "audit_log").insert({
+      await looseTable(context, "audit_log").insert({
         actor_id: (context as { userId: string }).userId,
         action: "crm.lead.bulk_update",
         entity_type: "crm_lead",
@@ -1108,7 +1044,7 @@ export const bulkUpdateCrmLeads = createServerFn({ method: "POST" })
           add_tags: addTags ?? [],
           remove_tags: removeTags ?? [],
         },
-      } as unknown as never);
+      });
     } catch {
       /* audyt best-effort */
     }
@@ -1123,30 +1059,24 @@ export const bulkDeleteCrmLeads = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     // Delete zarezerwowane dla adminów - staff bez roli admin/super_admin
     // dostaje odmowę. RLS może i tak zablokować, ale sprawdzamy jawnie.
-    const rpc = (
-      context.supabase as unknown as {
-        rpc: (name: string, args?: Record<string, unknown>) => Promise<{ data: unknown }>;
-      }
-    ).rpc;
+    const client = looseClient(context);
     const userId = (context as { userId: string }).userId;
     const [{ data: isAdmin }, { data: isSuper }] = await Promise.all([
-      rpc("has_role", { _user_id: userId, _role: "admin" }),
-      rpc("has_role", { _user_id: userId, _role: "super_admin" }),
+      client.rpc("has_role", { _user_id: userId, _role: "admin" }),
+      client.rpc("has_role", { _user_id: userId, _role: "super_admin" }),
     ]);
     if (!isAdmin && !isSuper) throw new Error("forbidden");
 
-    const res = await (tbl(context, "crm_leads").delete().in("id", data.ids) as unknown as Promise<{
-      error: { message: string } | null;
-    }>);
+    const res = await looseTable(context, "crm_leads").delete().in("id", data.ids);
     if (res.error) throw new Error(res.error.message);
     try {
-      await tbl(context, "audit_log").insert({
+      await looseTable(context, "audit_log").insert({
         actor_id: userId,
         action: "crm.lead.bulk_delete",
         entity_type: "crm_lead",
         entity_id: null,
         metadata: { count: data.ids.length, ids: data.ids },
-      } as unknown as never);
+      });
     } catch {
       /* audyt best-effort */
     }
@@ -1162,24 +1092,13 @@ export const listStaffUsers = createServerFn({ method: "GET" })
     const claims = (context as { claims: { tenant_id?: string } }).claims;
     const tenantId = claims?.tenant_id ?? null;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const admin = supabaseAdmin as unknown as {
-      from: (t: string) => {
-        select: (s: string) => {
-          in: (c: string, v: unknown[]) => Promise<{ data: unknown }>;
-          eq: (
-            c: string,
-            v: unknown,
-          ) => {
-            in: (c: string, v: unknown[]) => Promise<{ data: unknown }>;
-          };
-        };
-      };
-    };
+    const admin = looseClient({ supabase: supabaseAdmin });
     const staffRoles = ["admin", "super_admin", "editor", "moderator"];
-    const rolesRes = (await admin
+    const rolesRes = await admin
       .from("user_roles")
       .select("user_id, role")
-      .in("role", staffRoles)) as { data: Array<{ user_id: string; role: string }> | null };
+      .in("role", staffRoles)
+      .returns<{ user_id: string; role: string }>();
     const userIds = Array.from(new Set((rolesRes.data ?? []).map((r) => r.user_id)));
     if (userIds.length === 0) return { json: j([]) };
     const cols = "id, first_name, last_name, display_name, avatar_url, tenant_id";

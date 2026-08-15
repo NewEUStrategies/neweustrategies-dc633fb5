@@ -14,7 +14,6 @@ import { withCommandIdempotency, type RpcClient } from "@/lib/http/idempotency";
 
 const j = (v: unknown): string => JSON.stringify(v ?? null);
 
-
 const TASK_STATUSES = ["open", "done", "cancelled"] as const;
 export type CrmTaskStatus = (typeof TASK_STATUSES)[number];
 

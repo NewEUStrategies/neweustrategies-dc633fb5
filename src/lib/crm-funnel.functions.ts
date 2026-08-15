@@ -10,26 +10,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireCrmStaff } from "@/integrations/supabase/require-staff";
 import { funnelMarketingConsent } from "@/lib/crm/funnelConsent";
 import { z } from "zod";
-
-type AnyQuery = {
-  select: (s: string, opts?: { count?: "exact"; head?: boolean }) => AnyQuery;
-  order: (c: string, o: { ascending: boolean }) => AnyQuery;
-  limit: (n: number) => AnyQuery;
-  eq: (c: string, v: unknown) => AnyQuery;
-  neq: (c: string, v: unknown) => AnyQuery;
-  is: (c: string, v: unknown) => AnyQuery;
-  in: (c: string, v: unknown[]) => AnyQuery;
-  or: (f: string) => AnyQuery;
-  ilike: (c: string, v: string) => AnyQuery;
-  gte: (c: string, v: unknown) => AnyQuery;
-  lte: (c: string, v: unknown) => AnyQuery;
-  update: (v: unknown) => AnyQuery;
-  maybeSingle: () => Promise<{ data: unknown; error: { message: string } | null }>;
-  then: <R>(fn: (r: { data: unknown; error: { message: string } | null }) => R) => Promise<R>;
-};
-
-const tbl = (ctx: { supabase: unknown }, name: string): AnyQuery =>
-  (ctx.supabase as { from: (t: string) => AnyQuery }).from(name);
+import { looseClient, looseTable } from "@/lib/supabase/looseQuery";
 
 const write = (
   ctx: { supabase: unknown },
@@ -73,7 +54,7 @@ export const listFunnelSubscribers = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => ListInput.parse(d))
   .handler(async ({ data, context }) => {
-    let q = tbl(context, "crm_funnel_view")
+    let q = looseTable(context, "crm_funnel_view")
       .select("*")
       .order("created_at", { ascending: false })
       .limit(data.limit);
@@ -116,7 +97,7 @@ export const getFunnelSubscriber = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: row, error } = await tbl(context, "crm_funnel_view")
+    const { data: row, error } = await looseTable(context, "crm_funnel_view")
       .select("*")
       .eq("id", data.id)
       .maybeSingle();
@@ -140,10 +121,7 @@ export type FunnelStats = {
 export const funnelStats = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .handler(async ({ context }): Promise<FunnelStats> => {
-    const supabase = context.supabase as unknown as {
-      rpc: (n: string) => Promise<{ data: unknown; error: { message: string } | null }>;
-    };
-    const { data, error } = await supabase.rpc("crm_funnel_stats");
+    const { data, error } = await looseClient(context).rpc("crm_funnel_stats");
     if (error) throw new Error(error.message);
     const row = (Array.isArray(data) ? data[0] : data) as Partial<
       Record<keyof FunnelStats, number | string | null>
@@ -167,7 +145,7 @@ export const bulkUnsubscribeFunnel = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => BulkInput.parse(d))
   .handler(async ({ data, context }) => {
-    const { error } = await tbl(context, "newsletter_subscribers")
+    const { error } = await looseTable(context, "newsletter_subscribers")
       .update({ status: "unsubscribed", unsubscribed_at: new Date().toISOString() })
       .in("id", data.ids);
     if (error) throw new Error(error.message);
@@ -188,7 +166,7 @@ export const convertFunnelToContacts = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => ConvertInput.parse(d))
   .handler(async ({ data, context }) => {
-    const { data: subs, error } = await tbl(context, "newsletter_subscribers")
+    const { data: subs, error } = await looseTable(context, "newsletter_subscribers")
       .select("id,tenant_id,email,first_name,last_name,language,status,confirmed_at,consents")
       .in("id", data.ids);
     if (error) throw new Error(error.message);
@@ -272,7 +250,9 @@ export const updateFunnelStatus = createServerFn({ method: "POST" })
     // nie wytwarza, bo byłby to fałszywy dowód zgody.
     const patch: Record<string, unknown> = { status: data.status };
     if (data.status === "unsubscribed") patch.unsubscribed_at = new Date().toISOString();
-    const { error } = await tbl(context, "newsletter_subscribers").update(patch).eq("id", data.id);
+    const { error } = await looseTable(context, "newsletter_subscribers")
+      .update(patch)
+      .eq("id", data.id);
     if (error) throw new Error(error.message);
 
     try {
