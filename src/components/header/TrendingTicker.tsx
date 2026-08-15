@@ -119,6 +119,31 @@ export function TrendingTicker({
 
   const iconClass = `tt-flame tt-flame-${iconAnimation}`;
 
+  if (layoutStyle === "editorial") {
+    return (
+      <div
+        className={`cms-trending cms-trending--editorial border-b ${className ?? ""}`}
+        data-testid="trending-ticker"
+        data-tt-vid={vid}
+        data-tt-layout="editorial"
+        style={{ background: "var(--tt-bg)", borderColor: "var(--tt-border)" }}
+      >
+        <TickerPaletteStyle vid={vid} palette={palette} />
+        <div className={`${innerMax} px-4 lg:px-8`}>
+          <EditorialTicker
+            posts={posts.slice(0, Math.max(2, Math.min(6, posts.length)))}
+            label={label}
+            lang={lang}
+            intervalSec={Math.max(3, intervalSec)}
+          />
+        </div>
+        <TickerStyles />
+      </div>
+    );
+  }
+
+
+
   return (
     <div
       className={`cms-trending border-b ${isBadge ? "cms-trending--badge" : "cms-trending--classic"} ${className ?? ""}`}
@@ -345,6 +370,124 @@ function TickerPaletteStyle({ vid, palette }: { vid: string; palette: TickerColo
   return <style dangerouslySetInnerHTML={{ __html: hardenStyleCss(css) }} />;
 }
 
+interface EditorialPost {
+  id: string;
+  href?: string;
+  slug?: string;
+  title_pl: string | null;
+  title_en: string | null;
+  author_name?: string;
+  author_avatar_url?: string | null;
+}
+
+/**
+ * "Editorial" layout - static section block on the left, vertically sliding
+ * headline (title + author) on the right. Pauses on hover and honors
+ * prefers-reduced-motion (falls back to a static first item).
+ */
+function EditorialTicker({
+  posts,
+  label,
+  lang,
+  intervalSec,
+}: {
+  posts: EditorialPost[];
+  label: string;
+  lang: "pl" | "en";
+  intervalSec: number;
+}) {
+  const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const count = posts.length;
+
+  useEffect(() => {
+    if (paused || count < 2) return;
+    const t = window.setInterval(() => setIndex((i) => (i + 1) % count), intervalSec * 1000);
+    return () => window.clearInterval(t);
+  }, [paused, count, intervalSec]);
+
+  const active = posts[Math.min(index, count - 1)];
+  const title =
+    lang === "en"
+      ? active.title_en || active.title_pl || ""
+      : active.title_pl || active.title_en || "";
+  const href = active.href ?? (active.slug ? `/post/${active.slug}` : "#");
+  const sectionWord = lang === "en" ? "Section" : "Sekcja";
+
+  return (
+    <div
+      className="tt-ed relative flex items-stretch h-14 overflow-hidden"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocus={() => setPaused(true)}
+      onBlur={() => setPaused(false)}
+    >
+      <div
+        className="relative flex flex-col justify-center pl-4 pr-5 shrink-0 select-none"
+        style={{ borderRight: "1px solid var(--tt-border)" }}
+      >
+        <span
+          className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full"
+          aria-hidden
+          style={{ background: "var(--tt-label)" }}
+        />
+        <span
+          className="text-[9px] font-bold uppercase leading-none tracking-[0.25em] mb-1"
+          style={{ color: "var(--tt-label)" }}
+        >
+          {sectionWord}
+        </span>
+        <span
+          className="text-[11px] font-extrabold uppercase leading-none tracking-[0.06em]"
+          style={{ color: "var(--tt-item)" }}
+        >
+          {label}
+        </span>
+      </div>
+
+      <div className="relative flex-1 min-w-0 pl-5 pr-2">
+        <div key={active.id} className="tt-ed-slide absolute inset-0 pl-5 pr-2 flex items-center">
+          <AppLink href={href} className="group flex-1 min-w-0 flex flex-col justify-center py-1.5">
+            <span
+              className="tt-ed-title text-[14px] font-semibold leading-snug truncate"
+              style={{ color: "var(--tt-item)" }}
+              title={title}
+            >
+              {title}
+            </span>
+            {active.author_name ? (
+              <span className="mt-1 flex items-center gap-2 min-w-0">
+                {active.author_avatar_url ? (
+                  <img
+                    src={active.author_avatar_url}
+                    alt=""
+                    loading="lazy"
+                    className="w-[18px] h-[18px] rounded-full object-cover grayscale"
+                    style={{ boxShadow: "0 0 0 1px var(--tt-border)" }}
+                  />
+                ) : null}
+                <span
+                  className="text-[11px] font-medium truncate"
+                  style={{ color: "var(--tt-counter)" }}
+                >
+                  {active.author_name}
+                </span>
+              </span>
+            ) : null}
+          </AppLink>
+          <span
+            className="hidden sm:block pl-6 text-[22px] font-bold tabular-nums leading-none opacity-40 select-none"
+            style={{ color: "var(--tt-counter)" }}
+            aria-hidden
+          >
+            {String(index + 1).padStart(2, "0")}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TickerStyles() {
   return (
     <style
@@ -389,7 +532,15 @@ function TickerStyles() {
         .tt-flame-spin     { animation: tt-flame-spin     3.2s linear infinite }
         .tt-flame-wave     { animation: tt-flame-wave     1.6s ease-in-out infinite }
 
+        @keyframes tt-ed-slide {
+          from { opacity: 0; transform: translateY(14px) }
+          to   { opacity: 1; transform: translateY(0) }
+        }
+        .tt-ed-slide { animation: tt-ed-slide 460ms cubic-bezier(.2,.8,.2,1) both }
+        .tt-ed .group:hover .tt-ed-title { color: var(--tt-item-hover, var(--tt-label)) }
+
         @media (prefers-reduced-motion: reduce) {
+          .tt-ed-slide { animation: none !important }
           .tt-anim-fade, .tt-anim-slide, .tt-anim-flip { animation: none !important }
           .tt-caret, .tt-flame-pulse, .tt-flame-flicker, .tt-flame-spin, .tt-flame-wave {
             animation: none !important
