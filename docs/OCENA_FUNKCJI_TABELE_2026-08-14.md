@@ -132,6 +132,7 @@ A/B client-side | ❌ **otwarta** | `assignVariant` nadal czystą funkcją w `li
 | Import z Gutenberga / markdown | **8** | Realne parsery, osobne stosy undo per język | — | Utrzymać |
 | Świeżość danych widgetów | **9** | Lokalizowane klucze zapytań, bramka | — | Utrzymać |
 | Odporność renderu | **8** | Error boundaries per widget | — | Utrzymać |
+| Koszt renderera w chunku wejściowym (nowa) | **6** | Renderer jest publiczny z założenia i musi być na ścieżce bootowania: BuilderRenderer importują Header, Footer, ContentRenderer, TaxonomyPage, PopupHost i MobileDrawerBody - nagłówek i stopka są budowane builderem | Wciąga KOMPLET 44 widgetów zamiast użytych. Zmierzone inwentarzem: src/components/admin (czyli widget-view/*) to 442,1 kB, 16,3% chunku wejściowego, src/lib/builder kolejne 223,0 kB - razem 24,5%. Strona używająca pięciu typów widgetów pobiera wszystkie 44. To jedyna przyczyna czerwonej bramki check:bundle | Rozdzielić widgety po typie przez React.lazy; katalog przenieść spod admin/ (fałszuje diagnostykę bundla) |
 
 ---
 
