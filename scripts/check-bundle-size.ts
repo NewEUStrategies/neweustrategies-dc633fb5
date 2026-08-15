@@ -430,7 +430,6 @@ const FROZEN_BUDGET_KB = {
   overall: 3835,
 } as const;
 
-
 /** GitHub Actions ustawia CI=true; honorujemy też generyczne CI innych runnerów. */
 const IN_CI = process.env["CI"] === "true" || process.env["CI"] === "1";
 
