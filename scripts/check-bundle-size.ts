@@ -370,6 +370,39 @@ const CLIENT_DIR =
 // podnosimy). Zapas overall 0,84% pozostaje ciasny świadomie: to koszt
 // realnie wydanej powierzchni adminowej i zejdzie wyłącznie przez
 // usunięcie bajtów z backlogu, nie przez księgowość.
+//
+// 2026-08-15 (3)  PO MERGE'U PR #240 (podział WidgetView per typ + katalog
+//             widgetów spod admin/). Zmierzone na tym samym hoście:
+//             376,5 chunk / 2543,2 public / 3814,4 overall.
+//             CO SIĘ STAŁO, wg diffu per chunk względem baseline'u d255605:
+//   * `index` 570,0 -> 475,8 KB (-94,2) - komplet 44 widgetów zszedł z chunku
+//     wejściowego, a `check:entry-purity` widzi już tylko 7 chunków statycznie
+//     osiągalnych ze ścieżki bootowania (z 724). To jest cel tej pracy i on
+//     został osiągnięty: pierwszy transfer czytelnika spadł o ~16%;
+//   * cena: 254 NOWYCH chunków = +242,6 KB gzip łącznie. Sam podział nie
+//     usuwa kodu, tylko przenosi go za granice `import()`, a każdy mały plik
+//     gzipuje się gorzej niż ten sam kod w jednym strumieniu (znany koszt,
+//     patrz wpis 2026-08-06 (2) o 45 plikach po kilkaset bajtów). Największa
+//     pojedyncza pozycja to `normalizeRichHtml` 46,9 KB - to NIE jest nowy
+//     kod, tylko `node-html-parser` (201,7 kB źródła, 98,9% chunku) wycięty
+//     z `index` do własnego chunku ładowanego dopiero przez widget rich-html.
+//             BILANS: PUBLIC 2508,4 -> 2543,2 (+34,8 KB księgowo), ale to, co
+//             płaci realny czytelnik PRZY PIERWSZYM WEJŚCIU, spadło o 94,2 KB.
+//             PUBLIC liczy OSIĄGALNOŚĆ z publicznego URL-a, więc lazy chunk
+//             widgetu, którego dana strona nie renderuje, wchodzi do sumy tak
+//             samo jak kod w entry - dlatego ta bramka rośnie od podziału,
+//             który poprawia percepcję. Świadomie NIE cofamy podziału i NIE
+//             sklejamy widgetów w grube barrel'e: to odzyskałoby kilkanaście
+//             KB sumy kosztem powrotu bajtów na ścieżkę bootowania.
+//             REALNE zejście sumy zostaje tam, gdzie było nazwane: usunięcie
+//             `node-html-parser` z publicznego grafu (normalizacja list WP
+//             przy imporcie/zapisie zamiast przy renderze), split i18n-club
+//             i lucide-react.
+//
+// FLOORY za śladem (reguła 08-12/08-14, ~1%): public 2535 -> 2570 (nad
+// zmierzonym 2543,2), overall ZOSTAJE 3835 (zmierzone 3814,4, zapas 0,5%),
+// chunk 471 -> 385 RATCHET W DÓŁ (zmierzone 376,5 - podział zbił entry, więc
+// próg schodzi razem z nim i dalej łapie regresję rzędu 2%).
 
 /**
  * Progi ZAMROŻONE (2026-08-12). Do tej pory każdy z nich dało się rozluźnić
@@ -381,24 +414,22 @@ const CLIENT_DIR =
  * do lokalnego eksperymentu „ile zejdzie, jeśli...".
  */
 const FROZEN_BUDGET_KB = {
-  // Największy pojedynczy chunk gzip. Zmierzone 2026-08-15: 466,6 (~1% zapasu).
-  // To jedyna z tych liczb, którą płaci każde pierwsze wejście - stara wartość
-  // 513 przy zmierzonych 466,6 dawała 10% luzu i przestała łapać regresje
-  // entry, a pozycja i18n-club (181 kB źródła) wciąż w nim siedzi - patrz
-  // wpisy 2026-08-12 i 2026-08-15 wyżej.
-  chunk: 471,
-  // gzip JS osiągalny z publicznego URL-a. Zmierzone 2026-08-15 (2): 2508,4
-  // po pełnej korekcie klasyfikacji (największy punkt stały grafu importów,
-  // korzeń: trasy /admin - patrz wpis 2026-08-15 (2); poprzednia księgowość
-  // ZANIŻALA tę liczbę m.in. o EChartClient na publicznej ścieżce insightów
-  // klubu). ~1% zapasu, bo tę liczbę podnosi KAŻDA nowa trasa publiczna
-  // i przy zapasie rzędu kilku KB bramka zapala się od cudzych merge'ów
-  // w ciągu godziny (lekcja z 08-01).
-  public: 2535,
-  // gzip JS łącznie z kodem tylko adminowym. Zmierzone 2026-08-15: 3802,7 -
-  // próg ZOSTAJE (konwencja ~1% dałaby 3841, czyli wyżej; nie podnosimy).
+  // Największy pojedynczy chunk gzip. Zmierzone 2026-08-15 (3): 376,5 po
+  // podziale WidgetView (PR #240) - ratchet 471 -> 385 (~2% zapasu). To jedyna
+  // z tych liczb, którą płaci każde pierwsze wejście; pozycja i18n-club
+  // (181 kB źródła) wciąż w niej siedzi.
+  chunk: 385,
+  // gzip JS osiągalny z publicznego URL-a. Zmierzone 2026-08-15 (3): 2543,2 -
+  // suma rośnie po podziale per widget, bo liczy OSIĄGALNOŚĆ, a nie transfer
+  // pierwszego wejścia (ten spadł o 94,2 KB) - patrz wpis 2026-08-15 (3).
+  // ~1% zapasu, bo tę liczbę podnosi KAŻDA nowa trasa publiczna i przy zapasie
+  // rzędu kilku KB bramka zapala się od cudzych merge'ów (lekcja z 08-01).
+  public: 2570,
+  // gzip JS łącznie z kodem tylko adminowym. Zmierzone 2026-08-15 (3): 3814,4 -
+  // próg ZOSTAJE (konwencja ~1% dałaby 3852, czyli wyżej; nie podnosimy).
   overall: 3835,
 } as const;
+
 
 /** GitHub Actions ustawia CI=true; honorujemy też generyczne CI innych runnerów. */
 const IN_CI = process.env["CI"] === "true" || process.env["CI"] === "1";
