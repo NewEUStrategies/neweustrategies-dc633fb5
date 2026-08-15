@@ -6189,6 +6189,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "events_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "research_programs"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "events_region_id_fkey"
             columns: ["region_id"]
             isOneToOne: false
@@ -9902,6 +9909,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "podcasts_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "research_programs"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "podcasts_region_id_fkey"
             columns: ["region_id"]
             isOneToOne: false
@@ -10610,6 +10624,13 @@ export type Database = {
             columns: ["program_id"]
             isOneToOne: false
             referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_programs_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "research_programs"
             referencedColumns: ["id"]
           },
         ]
@@ -11859,6 +11880,13 @@ export type Database = {
             referencedRelation: "programs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "program_members_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "research_programs"
+            referencedColumns: ["id"]
+          },
         ]
       }
       programs: {
@@ -12510,6 +12538,13 @@ export type Database = {
             foreignKeyName: "research_program_items_program_id_fkey"
             columns: ["program_id"]
             isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_program_items_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
             referencedRelation: "research_programs"
             referencedColumns: ["id"]
           },
@@ -12544,6 +12579,13 @@ export type Database = {
           sort_order?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "research_program_members_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "research_program_members_program_id_fkey"
             columns: ["program_id"]
@@ -12585,6 +12627,13 @@ export type Database = {
           url?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "research_program_partners_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "research_program_partners_program_id_fkey"
             columns: ["program_id"]
@@ -12639,88 +12688,14 @@ export type Database = {
             foreignKeyName: "research_program_projects_program_id_fkey"
             columns: ["program_id"]
             isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_program_projects_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
             referencedRelation: "research_programs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      research_programs: {
-        Row: {
-          accent_color: string
-          category_id: string | null
-          contact_email: string | null
-          created_at: string
-          hero_image_url: string | null
-          icon: string
-          id: string
-          name_en: string
-          name_pl: string
-          research_questions: Json
-          scope_en: string | null
-          scope_pl: string | null
-          slug: string
-          sort_order: number
-          status: string
-          tagline_en: string | null
-          tagline_pl: string | null
-          tenant_id: string
-          updated_at: string
-        }
-        Insert: {
-          accent_color?: string
-          category_id?: string | null
-          contact_email?: string | null
-          created_at?: string
-          hero_image_url?: string | null
-          icon?: string
-          id?: string
-          name_en: string
-          name_pl: string
-          research_questions?: Json
-          scope_en?: string | null
-          scope_pl?: string | null
-          slug: string
-          sort_order?: number
-          status?: string
-          tagline_en?: string | null
-          tagline_pl?: string | null
-          tenant_id?: string
-          updated_at?: string
-        }
-        Update: {
-          accent_color?: string
-          category_id?: string | null
-          contact_email?: string | null
-          created_at?: string
-          hero_image_url?: string | null
-          icon?: string
-          id?: string
-          name_en?: string
-          name_pl?: string
-          research_questions?: Json
-          scope_en?: string | null
-          scope_pl?: string | null
-          slug?: string
-          sort_order?: number
-          status?: string
-          tagline_en?: string | null
-          tagline_pl?: string | null
-          tenant_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "research_programs_category_id_fkey"
-            columns: ["category_id"]
-            isOneToOne: false
-            referencedRelation: "categories"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "research_programs_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
@@ -14956,6 +14931,90 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "profiles_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_programs: {
+        Row: {
+          accent_color: string | null
+          category_id: string | null
+          contact_email: string | null
+          created_at: string | null
+          created_by: string | null
+          hero_image_url: string | null
+          icon: string | null
+          id: string | null
+          name_en: string | null
+          name_pl: string | null
+          research_questions: Json | null
+          scope_en: string | null
+          scope_pl: string | null
+          slug: string | null
+          sort_order: number | null
+          status: string | null
+          tagline_en: string | null
+          tagline_pl: string | null
+          tenant_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          accent_color?: string | null
+          category_id?: string | null
+          contact_email?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          hero_image_url?: string | null
+          icon?: string | null
+          id?: string | null
+          name_en?: string | null
+          name_pl?: string | null
+          research_questions?: Json | null
+          scope_en?: string | null
+          scope_pl?: string | null
+          slug?: string | null
+          sort_order?: number | null
+          status?: string | null
+          tagline_en?: string | null
+          tagline_pl?: string | null
+          tenant_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          accent_color?: string | null
+          category_id?: string | null
+          contact_email?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          hero_image_url?: string | null
+          icon?: string | null
+          id?: string | null
+          name_en?: string | null
+          name_pl?: string | null
+          research_questions?: Json | null
+          scope_en?: string | null
+          scope_pl?: string | null
+          slug?: string | null
+          sort_order?: number | null
+          status?: string | null
+          tagline_en?: string | null
+          tagline_pl?: string | null
+          tenant_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "programs_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "programs_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -19079,6 +19138,7 @@ export type Database = {
         Returns: unknown
       }
       nes_pl_light_stem: { Args: { _term: string }; Returns: string }
+      nes_polish_tsquery: { Args: { _q: string }; Returns: unknown }
       nes_post_embedding_source: {
         Args: {
           p_excerpt_en: string
