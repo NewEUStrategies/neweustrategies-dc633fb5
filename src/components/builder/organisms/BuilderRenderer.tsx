@@ -54,6 +54,7 @@ import { evaluateAccess, useAccessContext } from "@/lib/builder/accessControl";
 import { useInlineWidgetEdit } from "@/components/builder/inlineEditContext";
 
 import { useSectionPreload } from "@/lib/builder/useSectionPreload";
+import { warmCommonWidgetChunks } from "./widget-view/warmWidgetChunks";
 import { AboveFoldProvider } from "@/lib/builder/aboveFold";
 import { useBuilderDebug, toggleBuilderDebug } from "@/lib/builder/builderDebug";
 import { safeParseBuilderDoc, isKnownWidgetType } from "@/lib/builder/schema";
@@ -215,6 +216,14 @@ export function BuilderRenderer({
   }, [device]);
 
   const effectiveDevice = device ?? viewportDevice;
+
+  // Po hydratacji dociągnij w czasie bezczynności chunki najczęstszych typów
+  // widgetów (tekst, listingi, tagi wpisu) - nawigacja SPA montuje je wtedy
+  // z cache zamiast pokazywać pusty fallback granicy Suspense. Szczegóły i
+  // uzasadnienie: widget-view/warmWidgetChunks.ts (recenzja PR #240).
+  useEffect(() => {
+    warmCommonWidgetChunks();
+  }, []);
 
   return (
     <UsedPostIdsProvider>
