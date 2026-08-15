@@ -28,11 +28,11 @@ import {
   CAREER_SECTION_KEYS,
   careerRolesQueryOptions,
   careerSectionsQueryOptions,
-  fallbackRoleRows,
   type CareerLocation,
   type CareerRoleRow,
   type CareerSectionRow,
 } from "@/lib/careers/catalog";
+import { fallbackRoleRows } from "@/lib/careers/catalogAdmin";
 
 export const Route = createFileRoute("/admin/hiring")({
   head: () => ({
