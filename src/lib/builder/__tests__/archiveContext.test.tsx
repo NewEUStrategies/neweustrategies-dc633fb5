@@ -12,7 +12,7 @@ import { render, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { buildArchiveCtx } from "@/lib/builder/archiveContext";
 import { DynamicTagWidget } from "@/components/admin/builder/ui/organisms/widget-view/DynamicTagWidgets";
-import { CurrentPostProvider } from "@/lib/builder/currentPostContext";
+import { CurrentPostProvider } from "@/lib/content-model/postContext";
 import { makeWidget } from "@/lib/builder/registry";
 import type { TaxonomyMeta } from "@/lib/queries/archives";
 

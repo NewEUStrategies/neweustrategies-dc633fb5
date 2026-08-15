@@ -31,7 +31,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { MemberPicker } from "@/components/admin/community/MemberPicker";
 import { ConfirmDialog, type ConfirmState } from "@/components/admin/ConfirmDialog";
-import { ClubEnumSelect } from "../molecules/ClubEnumSelect";
+import { ClubEnumSelect } from "@/components/clubs/molecules/ClubEnumSelect";
 import { ClubSegmentCampaign } from "./ClubSegmentCampaign";
 import {
   useClubInvitations,

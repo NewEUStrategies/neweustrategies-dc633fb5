@@ -7,39 +7,38 @@
 // „Rekrutacja" na karcie kontaktu /admin/crm/$id - więc parsowanie mieszka tutaj,
 // w czystym module (bez Reacta, bez zapytań), z testem jednostkowym.
 //
+// GRANICA POWIERZCHNI (bramka budżetu, wpis 2026-08-15). Ten moduł ma
+// WYŁĄCZNIE adminowych importerów: trasę /admin/careers i panel „Rekrutacja"
+// karty CRM (import w `admin.crm.$id.tsx` jest wyłącznie typem, więc znika
+// w kompilacji). Część wspólną z publicznym formularzem - identyfikator
+// formularza, walidację ścieżki CV, normalizację linku i słowniki
+// działu/poziomu/startu - mieszka w `recruitmentShared.ts`; stąd jest
+// re-eksportowana, żeby adminowe importy i testy widziały jeden spójny moduł.
+// Dopisanie tu czegokolwiek, co czyta kod publiczny, wciąga całe parsowanie
+// skrzynki do chunku rozliczanego do PUBLIC - patrz kronika bramki.
+//
 // Etykiety są tu, a nie w i18n, bo panel admina używa wbudowanych słowników
 // PL/EN (ten sam wzorzec, co `admin.careers.tsx` i `admin.crm.$id.tsx`) -
 // kandydat wybiera slug ("mid", "immediately"), a operator musi widzieć tekst.
 
-export type CareerAdminLang = "pl" | "en";
+import {
+  CAREERS_FORM_ID,
+  isCareerCvPath,
+  labelFromPair,
+  normalizeCvUrl,
+  type CareerAdminLang,
+} from "./recruitmentShared";
 
-/** `contact_messages.form_id` zgłoszeń rekrutacyjnych (ustawia CareersApplyForm). */
-export const CAREERS_FORM_ID = "careers";
-
-/**
- * Ścieżka CV w prywatnym buckecie `career-cv`, dokładnie taka, jaką generuje
- * `uploadCv`.
- *
- * DWA KSZTAŁTY, oba dozwolone:
- *   * `<tenant_id>/uploads/<YYYY-MM-DD>/<uuid>.<ext>` - konwencja obowiązująca,
- *     w której ścieżka niesie tenanta, więc polityka bucketu potrafi zawęzić
- *     odczyt do personelu TEGO najemcy;
- *   * `uploads/<YYYY-MM-DD>/<uuid>.<ext>` - pliki sprzed zmiany konwencji.
- *     Nie przenosimy ich (UPDATE `storage.objects.name` rozjechałby wiersz
- *     z plikiem w magazynie), więc muszą dalej przechodzić walidację - prawo do
- *     nich pilnuje polityka, sprawdzając referencję ze zgłoszenia najemcy.
- *
- * BEZPIECZEŃSTWO: `custom.cv_path` przychodzi z publicznego formularza, a panel
- * admina podpisuje ją bez pytania (`signCvUrl`). Bez tej bramki wystarczyłoby
- * podmienić pole w żądaniu, żeby wymusić podpisany link do DOWOLNEGO obiektu
- * w buckecie - czyli do CV innego kandydata.
- */
-const CV_PATH_RE =
-  /^(?:[0-9a-fA-F-]{36}\/)?uploads\/\d{4}-\d{2}-\d{2}\/[0-9a-fA-F-]{8,64}\.(?:pdf|doc|docx)$/;
-
-export function isCareerCvPath(value: string | null | undefined): boolean {
-  return typeof value === "string" && CV_PATH_RE.test(value);
-}
+export {
+  CAREERS_FORM_ID,
+  departmentLabel,
+  fallbackApplicationMessage,
+  isCareerCvPath,
+  normalizeCvUrl,
+  seniorityLabel,
+  startLabel,
+  type CareerAdminLang,
+} from "./recruitmentShared";
 
 /** Etapy procesu rekrutacyjnego - 1:1 z enumem `public.career_stage`. */
 export const CAREER_STAGES = [
@@ -82,49 +81,6 @@ export const CAREER_STAGE_STYLE: Record<CareerStage, string> = {
   withdrawn: "bg-muted text-muted-foreground",
 };
 
-/**
- * Link do CV podany ręcznie. Formularz przyjmuje adres bez schematu
- * ("linkedin.com/in/x" przechodzi walidację), a `<a href>` bez schematu jest
- * URL-em RELATYWNYM - w panelu admina prowadziłby do /admin/linkedin.com/...
- * Zwraca `null`, gdy wartość nie wygląda na adres http(s).
- */
-export function normalizeCvUrl(value: string | null | undefined): string | null {
-  const raw = (value ?? "").trim();
-  if (!raw) return null;
-  const withScheme = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
-  try {
-    const url = new URL(withScheme);
-    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-    if (!url.hostname.includes(".")) return null;
-    return url.toString();
-  } catch {
-    return null;
-  }
-}
-
-const DEPARTMENT_LABELS: Record<string, [string, string]> = {
-  analysis: ["Analizy", "Research"],
-  policy: ["Polityka publiczna", "Public policy"],
-  marketing: ["Marketing", "Marketing"],
-  advisory: ["Doradztwo", "Advisory"],
-  editorial: ["Redakcja", "Editorial"],
-  operations: ["Operacje", "Operations"],
-};
-
-const SENIORITY_LABELS: Record<string, [string, string]> = {
-  junior: ["Junior", "Junior"],
-  mid: ["Specjalista", "Mid-level"],
-  senior: ["Senior", "Senior"],
-  lead: ["Lead / kierownik", "Lead"],
-};
-
-const START_LABELS: Record<string, [string, string]> = {
-  immediately: ["Od zaraz", "Immediately"],
-  month: ["W ciągu miesiąca", "Within a month"],
-  quarter: ["W ciągu kwartału", "Within a quarter"],
-  later: ["Później / do ustalenia", "Later / to agree"],
-};
-
 const ENGAGEMENT_LABELS: Record<string, [string, string]> = {
   full_time: ["Pełny etat", "Full time"],
   part_time: ["Część etatu", "Part time"],
@@ -139,69 +95,12 @@ const LOCATION_LABELS: Record<string, [string, string]> = {
   brussels: ["Bruksela", "Brussels"],
 };
 
-function label(
-  dict: Record<string, [string, string]>,
-  slug: string | null | undefined,
-  lang: CareerAdminLang,
-): string {
-  const key = (slug ?? "").trim();
-  if (!key) return "";
-  const pair = dict[key];
-  // Nieznany slug pokazujemy surowo - lepiej zobaczyć "kontrakt_zlecenie" niż
-  // puste pole, gdy ktoś doda wartość w bazie bez aktualizacji słownika.
-  if (!pair) return key;
-  return lang === "en" ? pair[1] : pair[0];
-}
-
-export const departmentLabel = (slug: string | null | undefined, lang: CareerAdminLang) =>
-  label(DEPARTMENT_LABELS, slug, lang);
-export const seniorityLabel = (slug: string | null | undefined, lang: CareerAdminLang) =>
-  label(SENIORITY_LABELS, slug, lang);
-export const startLabel = (slug: string | null | undefined, lang: CareerAdminLang) =>
-  label(START_LABELS, slug, lang);
 export const engagementLabel = (slug: string | null | undefined, lang: CareerAdminLang) =>
-  label(ENGAGEMENT_LABELS, slug, lang);
+  labelFromPair(ENGAGEMENT_LABELS, slug, lang);
 export const locationLabel = (slug: string | null | undefined, lang: CareerAdminLang) =>
-  label(LOCATION_LABELS, slug, lang);
+  labelFromPair(LOCATION_LABELS, slug, lang);
 export const stageLabel = (slug: string | null | undefined, lang: CareerAdminLang) =>
-  label(STAGE_LABELS, slug, lang);
-
-/**
- * Treść wiadomości dla zgłoszenia bez „Dlaczego Ty".
- *
- * Pole „Dlaczego Ty" jest w formularzu NIEOBOWIĄZKOWE (rolę uzasadnienia
- * przejęło CV), ale `contact_messages.message` jest wymagane w trzech
- * niezależnych miejscach po drodze: `ContactInput` (zod, `.min(1)`),
- * `form_field_policies` tenanta (`contact_form.message` z `required = true`,
- * seed 20260706195647) i `NOT NULL` w tabeli. Puste pole kończyło się więc
- * wyjątkiem server-fn i gołym tostem „nie udało się wysłać" - zgłoszenie nie
- * zapisywało się w ogóle. Zamiast rozszczelniać kontrakt formularza kontaktowego
- * wysyłamy streszczenie dopasowania: operator w skrzynce widzi rolę, dział,
- * poziom i termin startu, a nie pusty prostokąt.
- */
-export function fallbackApplicationMessage(input: {
-  lang: CareerAdminLang;
-  roleLabel: string;
-  department: string;
-  seniority: string;
-  start: string;
-}): string {
-  const pl = input.lang !== "en";
-  const rows: Array<[string, string]> = [
-    [pl ? "Rola" : "Role", input.roleLabel.trim()],
-    [pl ? "Dział" : "Department", departmentLabel(input.department, input.lang)],
-    [pl ? "Poziom" : "Seniority", seniorityLabel(input.seniority, input.lang)],
-    [pl ? "Dostępność" : "Availability", startLabel(input.start, input.lang)],
-  ];
-  const head = pl
-    ? "Zgłoszenie rekrutacyjne bez dodatkowego uzasadnienia - dane z kreatora:"
-    : "Application submitted without a cover note - details from the form:";
-  const body = rows
-    .filter(([, value]) => value.length > 0)
-    .map(([key, value]) => `${key}: ${value}`)
-    .join("\n");
-  return body ? `${head}\n${body}` : head;
-}
+  labelFromPair(STAGE_LABELS, slug, lang);
 
 /** Wiersz `contact_messages` w minimalnym zakresie potrzebnym warstwie. */
 export interface RecruitmentMessageRow {

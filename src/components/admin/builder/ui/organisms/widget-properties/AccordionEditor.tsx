@@ -7,7 +7,7 @@ import { PropField, ItemFrame } from "../../atoms";
 import { VariantPicker } from "../../molecules/VariantPicker";
 import { ListShell } from "./ListShell";
 import { itemsOf, type Item } from "./shared";
-import { asOneOf } from "@/lib/builder/contentValue";
+import { asOneOf } from "@/lib/content-model/contentValue";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-builder";
 

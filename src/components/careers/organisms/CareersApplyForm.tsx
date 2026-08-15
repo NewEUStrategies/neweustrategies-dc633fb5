@@ -37,7 +37,10 @@ import {
   type CareerFieldErrors,
   type CareerFieldName,
 } from "@/lib/careers/applicationSchema";
-import { CAREERS_FORM_ID, fallbackApplicationMessage } from "@/lib/careers/recruitmentLayer";
+// Publiczne jądro zamiast pełnej warstwy: formularz potrzebuje tylko
+// identyfikatora i treści zastępczej, a import `recruitmentLayer` wciągałby
+// parsowanie skrzynki admina do chunku trasy publicznej (kronika bramki).
+import { CAREERS_FORM_ID, fallbackApplicationMessage } from "@/lib/careers/recruitmentShared";
 import { CareerCvField, EMPTY_CV, type CvValue } from "../molecules/CareerCvField";
 import { CAREER_FORM_STEPS, CareerFormStepper } from "../molecules/CareerFormStepper";
 import { CareerFormSuccess } from "../molecules/CareerFormSuccess";

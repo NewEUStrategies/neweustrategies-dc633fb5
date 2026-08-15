@@ -11,7 +11,7 @@ import { useTransition, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { PublicNotFound } from "@/components/molecules/PublicNotFound";
-import { CurrentPostProvider } from "@/lib/builder/currentPostContext";
+import { CurrentPostProvider } from "@/lib/content-model/postContext";
 import { buildArchiveCtx } from "@/lib/builder/archiveContext";
 import { taxonomyArchiveQueryOptions, type ArchiveSort } from "@/lib/queries/archives";
 import { podcastsByCategoryQueryOptions } from "@/lib/queries/podcasts";

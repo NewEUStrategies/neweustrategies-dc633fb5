@@ -8,7 +8,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { updatePage, deletePage } from "@/lib/content.functions";
 import { isEditConflict } from "@/lib/content/saveConflict";
 import { useHistory } from "@/hooks/useHistory";
+import { useAutosave } from "@/hooks/useAutosave";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
+import { AutosaveBar } from "@/components/admin/AutosaveBar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { isoToLocalInput, localInputToIso } from "@/lib/content/workflow";
@@ -153,11 +155,6 @@ function EditPage() {
   const [step, setStep] = useState<"details" | "content">("details");
   const [seoIssues, setSeoIssues] = useState<SeoIssue[]>([]);
 
-  // `savedFormRef` mirrors the form snapshot last persisted to the server.
-  // We compare `form` (identity) against it to derive `isDirty` - this keeps
-  // the "unsaved changes" guard honest across saves (unlike `history.canUndo`
-  // which stays true forever after the first edit).
-  const savedFormRef = useRef<PageForm | null>(null);
   // Baza optimistic-locka: updated_at ostatnio załadowanego/zapisanego wiersza.
   const baseUpdatedAtRef = useRef<string | null>(null);
 
@@ -165,8 +162,8 @@ function EditPage() {
   // (page.id się zmienia) - kolejne refetche `page-by-slug` przynoszą starszy
   // updated_at (cache nie jest bumpowany po autosave), a nadpisanie
   // baseUpdatedAtRef stalą wartością powodowało EDIT_CONFLICT przy następnym
-  // zapisie. savedFormRef też przypinamy tylko przy pierwszym odczycie -
-  // porównanie dirty i tak liczy się względem lastSaved z useAutosave.
+  // zapisie. Czysty snapshot trzyma `useAutosave` (lastSaved) - jego pierwszy
+  // przebieg przypina właśnie tę załadowaną wartość, bez zapisu.
   const loadedIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (!page) return;
@@ -174,7 +171,6 @@ function EditPage() {
     loadedIdRef.current = page.id;
     const normalized: PageForm = page.editor === "builder" ? page : { ...page, editor: "builder" };
     history.reset(normalized);
-    savedFormRef.current = normalized;
     baseUpdatedAtRef.current = normalized.updated_at ?? null;
   }, [page, history.reset]);
 
@@ -252,7 +248,6 @@ function EditPage() {
         ...snapshot,
         updated_at: result?.updatedAt ?? snapshot.updated_at,
       };
-      savedFormRef.current = snapshot;
       // The server returns the canonical slug (uniqueSlug may have suffixed it
       // on collision). Navigate only to the persisted slug so the address bar
       // and the loaded record always match what is really in the database.
@@ -295,18 +290,29 @@ function EditPage() {
     [id, update$, qc, navigate, routeSlug, tenantId, setForm, t],
   );
 
-  // Autozapis włączony (jak dla wpisów): chroni przed utratą pracy przy awarii
+  // Autozapis - taki sam kontrakt jak w edytorze wpisów
+  // (post-editor/hooks/usePostEditorForm): chroni przed utratą pracy przy awarii
   // lub zamknięciu karty. Bezpieczny dzięki optimistic-lockowi w updatePage
   // (baseUpdatedAt) - równoległa edycja nie nadpisze cicho cudzych zmian, a
   // konflikt jest sygnalizowany. saveFn celowo unika ciężkich inwalidacji przy
   // każdym debounce (patrz wyżej), więc nie powoduje "auto-refresh" edytora.
-  const isDirty = form !== null && form !== savedFormRef.current;
-  useUnsavedChangesGuard(isDirty || busy);
+  // `enabled` dopiero po załadowaniu wiersza: pierwszy przebieg hooka przypina
+  // czysty snapshot (bez zapisu), więc samo otwarcie strony nic nie bumpuje.
+  const autosave = useAutosave<PageForm | null>({
+    value: form,
+    enabled: form !== null,
+    save: saveFn,
+  });
+  const isDirty = autosave.isDirty;
+  useUnsavedChangesGuard(isDirty || autosave.status === "saving" || busy);
 
   // Ciężkie inwalidacje (widget cache, SEO cache) odpalamy raz przy opuszczeniu
   // edytora, jeśli w trakcie sesji był realny zapis - żeby publiczne widoki
   // załadowały świeży stan przy następnej wizycie.
   const dirtyRef = useRef(false);
+  useEffect(() => {
+    if (autosave.status === "saved") dirtyRef.current = true;
+  }, [autosave.status]);
   useEffect(() => {
     return () => {
       if (!dirtyRef.current) return;
@@ -338,9 +344,10 @@ function EditPage() {
     }
     setBusy(true);
     try {
-      const snapshot = form;
-      await saveFn(snapshot);
-      savedFormRef.current = snapshot;
+      // Ręczny "Zapisz" = domknięcie autozapisu: flush czeka na najświeższą
+      // wartość i ODRZUCA, gdy zapis padł - nigdy nie chwalimy się zapisem,
+      // którego nie było.
+      await autosave.flush();
       dirtyRef.current = true;
       toast.success(t("admin.saved"));
     } catch (e) {
@@ -352,11 +359,11 @@ function EditPage() {
     }
   };
 
-  // Discard unsaved edits: revert to the last SAVED snapshot (savedFormRef),
+  // Discard unsaved edits: revert to the last SAVED snapshot (autosave.lastSaved),
   // not the stale mount-time row - resetting to the fetched row leaves a dirty
   // form that a subsequent save would persist over newer already-saved work.
   const discardToSaved = () => {
-    const target = savedFormRef.current ?? page;
+    const target = autosave.lastSaved ?? page;
     if (target) history.reset(target);
   };
 
@@ -610,31 +617,17 @@ function EditPage() {
               <FileText className="w-3.5 h-3.5" /> 2. {t("admin.pages.step.content")}
             </button>
           </div>
-          <div className="flex items-center gap-1 text-xs">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={history.undo}
-              disabled={!history.canUndo}
-              title="Cofnij (Ctrl+Z)"
-            >
-              ↶
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={history.redo}
-              disabled={!history.canRedo}
-              title="Ponów (Ctrl+Shift+Z)"
-            >
-              ↷
-            </Button>
-            {isDirty && (
-              <span className="text-[11px] text-amber-600 dark:text-amber-400 ml-1">
-                {t("admin.unsavedChanges")}
-              </span>
-            )}
-          </div>
+          {/* Jeden pasek stanu dla obu stosów (wpisy/strony): status autozapisu,
+              cofnij/ponów i odrzucenie zmian z potwierdzeniem - w pełni i18n. */}
+          <AutosaveBar
+            status={autosave.status}
+            error={autosave.error}
+            canUndo={history.canUndo}
+            canRedo={history.canRedo}
+            onUndo={history.undo}
+            onRedo={history.redo}
+            onDiscard={discardToSaved}
+          />
 
           <Button asChild variant="outline" size="sm" title={t("admin.pages.preview")}>
             <a href={previewHref} target="_blank" rel="noopener noreferrer">
@@ -643,15 +636,6 @@ function EditPage() {
           </Button>
           <Button variant="ghost" size="sm" onClick={del}>
             <Trash2 className="w-4 h-4 mr-1 text-destructive" /> {t("admin.delete")}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={discardToSaved}
-            disabled={!isDirty || busy}
-            title={t("admin.cancelHint")}
-          >
-            {t("admin.cancel")}
           </Button>
           <Button onClick={save} disabled={busy}>
             <Save className="w-4 h-4 mr-2" /> {busy ? "..." : t("admin.save")}

@@ -8,7 +8,7 @@
 import type { WidgetNode, WidgetContent } from "@/lib/builder/types";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
 import { ProfileCard, type ProfileCardSocial } from "@/components/ui/profile-card";
-import { readProfileCardStyle } from "@/lib/builder/profileCardStyle";
+import { readProfileCardStyle } from "@/lib/content-model/profileCardStyle";
 import { XIcon } from "@/components/atoms/XIcon";
 import { Facebook, Linkedin, Globe, Instagram, Youtube, Mail } from "@/lib/lucide-shim";
 import { getStr, type Lang } from "./frame";

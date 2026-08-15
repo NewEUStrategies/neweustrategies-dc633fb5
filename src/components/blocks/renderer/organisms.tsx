@@ -14,8 +14,8 @@
 
 import type { BlockRenderer } from "./context";
 import { bool, num, readBlocksArray, str, strList } from "./data";
-import type { CurrentPostAuthor } from "@/lib/builder/currentPostContext";
-import { readProfileCardStyle } from "@/lib/builder/profileCardStyle";
+import type { CurrentPostAuthor } from "@/lib/content-model/postContext";
+import { readProfileCardStyle } from "@/lib/content-model/profileCardStyle";
 // Ciężkie / rzadkie bloki dynamiczne (realtime live blog, ankieta, kalendarz)
 // dogrywamy leniwie z osobnych chunków - patrz lazyBlockViews.tsx. Czytelnik
 // zwykłego artykułu nie ściąga już ich kodu; SSR i tak wypełnia boundary.

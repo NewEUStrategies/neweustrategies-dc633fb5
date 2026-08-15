@@ -25,7 +25,7 @@ import { ImageSlot } from "./ImageSlot";
 import { readThumbnailOverrides, setThumbnailOverride } from "@/lib/builder/thumbnailOverrides";
 import { Image as ImageIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { asBool, asNum, asOneOf, asStr } from "@/lib/builder/contentValue";
+import { asBool, asNum, asOneOf, asStr } from "@/lib/content-model/contentValue";
 import {
   POST_LIST_ORDER_BY,
   postListOrderColumn,

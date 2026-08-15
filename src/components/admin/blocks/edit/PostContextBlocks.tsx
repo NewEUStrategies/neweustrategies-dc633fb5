@@ -15,9 +15,9 @@ import {
   PLACEHOLDER_POST_CTX,
   type CurrentPostAuthor,
   type CustomAuthorSocial,
-} from "@/lib/builder/currentPostContext";
+} from "@/lib/content-model/postContext";
 import { ExpertPicker } from "@/components/admin/experts/ExpertPicker";
-import { readProfileCardStyle } from "@/lib/builder/profileCardStyle";
+import { readProfileCardStyle } from "@/lib/content-model/profileCardStyle";
 import { PROFILE_CARD_DEFAULTS } from "@/components/ui/profile-card";
 import { toJson } from "@/lib/builder/types";
 
@@ -279,7 +279,7 @@ const AUTHOR_BIO_VARIANT_LABEL_KEY: Record<AuthorBioVariant, string> = {
 
 /**
  * Ustawienia prezentacji wariantu „Karta profilu". Klucze SĄ TE SAME, co w
- * panelu widgetu `author-profile-card` w builderze (lib/builder/profileCardStyle),
+ * panelu widgetu `author-profile-card` w builderze (lib/content-model/profileCardStyle),
  * więc ten sam dokument wygląda identycznie w obu edytorach i na stronie.
  */
 function ProfileVariantSettings({

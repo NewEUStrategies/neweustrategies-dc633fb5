@@ -57,7 +57,7 @@ import {
 import { MemberPicker } from "@/components/admin/community/MemberPicker";
 import { ConfirmDialog, type ConfirmState } from "@/components/admin/ConfirmDialog";
 import { ClubTopicSelect } from "@/components/clubs/molecules/ClubTopicSelect";
-import { ClubEnumSelect } from "../molecules/ClubEnumSelect";
+import { ClubEnumSelect } from "@/components/clubs/molecules/ClubEnumSelect";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
   useAdminClubGroups,

@@ -2,7 +2,7 @@
 // render real values on public pages and a clearly-marked sample ONLY inside
 // the admin builder canvas.
 import { createContext, useContext, type ReactNode } from "react";
-import { useBuilderMode } from "./modeContext";
+import { useBuilderMode } from "./editorCanvas";
 
 export interface CustomAuthorSocial {
   label: string;

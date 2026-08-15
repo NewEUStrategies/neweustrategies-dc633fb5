@@ -25,7 +25,7 @@ import {
   parseChartKind,
 } from "@/lib/charts/parse";
 import { parseChartData } from "@/lib/charts/csv";
-import { asBool, asNumInRange } from "@/lib/builder/contentValue";
+import { asBool, asNumInRange } from "@/lib/content-model/contentValue";
 
 interface Props {
   value: string;

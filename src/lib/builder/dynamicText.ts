@@ -7,7 +7,7 @@
 // The resolver is intentionally string-in / string-out and *safe*: unknown
 // tokens are left untouched so authors can spot typos, and no HTML is
 // generated - callers keep full control over presentation.
-import type { CurrentPostCtx } from "./currentPostContext";
+import type { CurrentPostCtx } from "@/lib/content-model/postContext";
 
 export type DynamicTagLang = "pl" | "en";
 

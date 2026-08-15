@@ -35,7 +35,7 @@ import {
   ClubSignalMetric,
 } from "@/components/clubs/atoms/ClubNetworkPrimitives";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
-import { ClubEnumSelect } from "@/components/admin/clubs/molecules/ClubEnumSelect";
+import { ClubEnumSelect } from "@/components/clubs/molecules/ClubEnumSelect";
 import { useAuth } from "@/hooks/useAuth";
 import { CLUB_MEMBER_ROLES, type ClubMemberRole } from "@/lib/clubs/types";
 import { useClubBySlug, useClubMembers, useSetClubMemberRole } from "@/lib/clubs/useClubs";

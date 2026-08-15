@@ -12,7 +12,14 @@ import { sliderFallbackImagesQueryOptions } from "@/lib/builder/sliderFallbackQu
 import { CAROUSEL_DEFAULTS, useCarouselDefaults } from "@/lib/theme/carouselDefaults";
 import { AppLink, toClientHref } from "@/components/atoms/AppLink";
 import { useRouter } from "@tanstack/react-router";
-import { asBool, asNum, asNumInRange, asOneOf, asStr, pickI18n } from "./contentValue";
+import {
+  asBool,
+  asNum,
+  asNumInRange,
+  asOneOf,
+  asStr,
+  pickI18n,
+} from "@/lib/content-model/contentValue";
 import {
   NAV_ARROW_VARIANT_VALUES,
   NAV_BG_STYLES,

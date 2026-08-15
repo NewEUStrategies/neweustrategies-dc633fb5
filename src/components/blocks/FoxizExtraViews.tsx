@@ -3,7 +3,7 @@
 
 import { useMemo, useState, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useCurrentPostCtx } from "@/lib/builder/currentPostContext";
+import { useCurrentPostCtx } from "@/lib/content-model/postContext";
 import { AppLink } from "@/components/atoms/AppLink";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";

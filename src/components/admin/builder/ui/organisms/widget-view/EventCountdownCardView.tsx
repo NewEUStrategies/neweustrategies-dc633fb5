@@ -12,10 +12,9 @@ import { AppLink } from "@/components/atoms/AppLink";
 import { CalendarDays, Clock, Users, MapPin, ArrowRight } from "@/lib/lucide-shim";
 import { eventByIdQueryOptions, eventRsvpCountsQueryOptions } from "@/lib/builder/eventsQuery";
 import { countdownParts, isStartingSoon, pad2, parseCountdownTarget } from "@/lib/events/countdown";
-import { useBuilderMode } from "@/lib/builder/modeContext";
+import { useBuilderMode } from "@/lib/content-model/editorCanvas";
 import { getBool, getNum, getStr, type Lang } from "./frame";
-import { asOneOf } from "@/lib/builder/contentValue";
-import { uiLocale } from "@/lib/i18n/format";
+import { asOneOf } from "@/lib/content-model/contentValue";
 
 function locStr(c: WidgetContent, base: string, lang: Lang): string {
   return getStr(c, `${base}_${lang}`) || getStr(c, `${base}_pl`) || getStr(c, `${base}_en`);

@@ -1288,7 +1288,7 @@ export const WIDGETS: WidgetDef[] = [
       showProfileLink: true,
       // Prezentacja = odwzorowanie wzorca (duże zdjęcie, karta nachodząca,
       // wypełnione przyciski social). Te same klucze czyta wariant `profile`
-      // bloku `author-bio` - patrz lib/builder/profileCardStyle.
+      // bloku `author-bio` - patrz lib/content-model/profileCardStyle.
       imageSize: 470,
       overlap: 80,
       cardMaxWidth: 1024,

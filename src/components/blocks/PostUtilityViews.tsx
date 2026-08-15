@@ -5,7 +5,7 @@ import type * as React from "react";
 
 import { XIcon } from "@/components/atoms/XIcon";
 import { useMemo, useState, useCallback } from "react";
-import { useCurrentPostCtx } from "@/lib/builder/currentPostContext";
+import { useCurrentPostCtx } from "@/lib/content-model/postContext";
 import { useReadingTimeSettings } from "@/hooks/useReadingTimeSettings";
 import { computeReadingMinutes } from "@/lib/readingTime";
 import { AppLink } from "@/components/atoms/AppLink";

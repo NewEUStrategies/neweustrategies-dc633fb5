@@ -1,5 +1,18 @@
 // Drag-and-drop builder types - shared between editor and public renderer.
 // Tree: Document -> Sections -> (InnerSections | Columns) -> Columns -> Widgets.
+//
+// Prymitywy wspólne dla OBU silników treści (`Json`, `toJson`, `newId`, `Mode`)
+// mieszkają w `@/lib/content-model` i są tu tylko re-eksportowane, żeby
+// dotychczasowe importy `@/lib/builder/types` zostały bez zmian. Bloki i inne
+// warstwy biorą je WPROST z `content-model` - inaczej sięganie po escape-hatch
+// do JSON-a odtwarzałoby cykl `bloki <-> builder`.
+// Importy są celowo GŁĘBOKIE (bez barrela): `types.ts` ląduje w chunku
+// wejściowym i w skryptach CI, więc nie może pociągnąć Reacta z `postContext`.
+import type { Json } from "@/lib/content-model/json";
+
+export type { Json } from "@/lib/content-model/json";
+export { toJson, newId } from "@/lib/content-model/json";
+export type { Mode } from "@/lib/content-model/editorCanvas";
 
 export type Device = "desktop" | "tablet" | "mobile";
 
@@ -15,7 +28,7 @@ export interface ResponsiveValue<T> {
 // A widget style field may either hold a single value (applies to both modes,
 // typically a semantic CSS token like `var(--gc-body-bg)` that already swaps
 // itself), or a ThemedValue with separate `light`/`dark` overrides.
-export type Mode = "light" | "dark";
+// `Mode` pochodzi z `content-model/editorCanvas` (re-eksport na górze pliku).
 export interface ThemedValue<T> {
   light?: T;
   dark?: T;
@@ -475,29 +488,8 @@ export type WidgetType =
   | "event-countdown-card"
   | "purchase-confirmation";
 
-// JSON-safe primitives that may live inside a widget's content map.
-export type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
-
+/** Swobodna mapa treści widgetu. `Json` + `toJson` - patrz re-eksport na górze. */
 export type WidgetContent = { [key: string]: Json };
-
-/**
- * Narrow a typed value to `Json` for storage in a widget's content map or a
- * Supabase jsonb column. Centralizes the otherwise hand-rolled
- * `value as unknown as Json` double-cast so the escape hatch lives in one
- * audited place. The caller is asserting the value is JSON-serializable.
- */
-export const toJson = <T>(value: T): Json => value as unknown as Json;
-
-/**
- * Array counterpart of {@link toJson}, for block fields typed `Json[]`
- * (`items`, `plans`, `columns`, `rows`). Exists because `toJson()` returns the
- * `Json` union and assigning it to a `Json[]` field still needs a narrowing
- * step - so every such call site was hand-rolling `next as unknown as Json[]`
- * instead, putting the escape hatch back outside the one audited place this
- * module exists to provide. Same contract as `toJson`: the caller asserts the
- * items are JSON-serializable.
- */
-export const toJsonArray = <T>(values: readonly T[]): Json[] => values as unknown as Json[];
 
 export interface WidgetNode {
   id: string;
@@ -630,8 +622,3 @@ export const emptyDocument = (): BuilderDocument => ({ version: 1, sections: [] 
  */
 export const isEmptyDocument = (doc: BuilderDocument | null | undefined): boolean =>
   !doc || !Array.isArray(doc.sections) || doc.sections.length === 0;
-
-export const newId = (): string =>
-  typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : Math.random().toString(36).slice(2) + Date.now().toString(36);

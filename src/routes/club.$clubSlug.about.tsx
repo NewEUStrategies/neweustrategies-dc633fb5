@@ -19,7 +19,7 @@ import {
   useMyClubMemberships,
   useSetClubNotifyLevel,
 } from "@/lib/clubs/useClubs";
-import { ClubEnumSelect } from "@/components/admin/clubs/molecules/ClubEnumSelect";
+import { ClubEnumSelect } from "@/components/clubs/molecules/ClubEnumSelect";
 import { CLUB_NOTIFY_LEVELS, toClubInviteError, toClubNotifyLevel } from "@/lib/clubs/types";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
 import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";

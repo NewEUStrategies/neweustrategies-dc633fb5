@@ -32,7 +32,7 @@ import {
   type SliderConfig,
   type SliderItem,
 } from "@/lib/builder/sliderVariants";
-import { asBool, asNum, asNumInRange, asOneOf, asStr } from "@/lib/builder/contentValue";
+import { asBool, asNum, asNumInRange, asOneOf, asStr } from "@/lib/content-model/contentValue";
 import { resolveAuthorDisplay } from "@/lib/builder/authorDisplay";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-builder";

@@ -23,7 +23,6 @@ import {
   CAREER_SECTION_KEYS,
   countOffersByDepartment,
   fallbackOffers,
-  fallbackRoleRows,
   filterOffersByDepartment,
   findOffer,
   rowToOffer,
@@ -32,6 +31,7 @@ import {
   type CareerRoleRow,
   type CareerSectionRow,
 } from "../catalog";
+import { fallbackRoleRows } from "../catalogAdmin";
 import { CAREER_DEPARTMENTS, CAREER_ROLES } from "../roles";
 
 /**

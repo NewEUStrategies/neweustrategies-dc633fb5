@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/dialog";
 import { CoverImagePicker } from "@/components/admin/CoverImagePicker";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { ClubEnumSelect } from "../molecules/ClubEnumSelect";
+import { ClubEnumSelect } from "@/components/clubs/molecules/ClubEnumSelect";
 import { ClubTopicSelect } from "@/components/clubs/molecules/ClubTopicSelect";
 import { ClubLayoutPicker } from "../molecules/ClubLayoutPicker";
 import { useClubSlugAvailable, useUpsertClub } from "@/lib/clubs/useClubs";
