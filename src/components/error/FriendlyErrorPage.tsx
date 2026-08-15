@@ -17,6 +17,7 @@ import {
   ShieldAlert,
   WifiOff,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 import { currentLang } from "@/lib/i18n/localeRuntime";
 import { errorCopy, classifyError, type ErrorKind } from "@/lib/errorCopy";
@@ -46,13 +47,17 @@ const ICONS: Record<ErrorKind, React.ComponentType<{ className?: string; size?: 
   generic: AlertCircle,
 };
 
-const CODE_LABEL: Record<ErrorKind, string> = {
+/**
+ * Kody techniczne (HTTP/NET) są uniwersalne i zostają dosłowne. Wyjątkiem jest
+ * błąd ogólny: tam nie ma żadnego kodu do pokazania, więc etykieta jest zwykłym
+ * komunikatem do człowieka - i musi iść ze słownika (`genericCode`).
+ */
+const CODE_LABEL: Record<Exclude<ErrorKind, "generic">, string> = {
   unauthorized: "401",
   sessionExpired: "302",
   network: "NET",
   // Render zdegradowany wychodzi z HTTP 200 - etykieta nie może sugerować awarii.
   degraded: "200",
-  generic: "ERR",
 };
 
 export function FriendlyErrorPage({
@@ -67,7 +72,7 @@ export function FriendlyErrorPage({
   const kind = useMemo(() => classifyError(error), [error]);
   const scenario = copy[kind];
   const Icon = ICONS[kind];
-  const code = CODE_LABEL[kind];
+  const code = kind === "generic" ? copy.genericCode : CODE_LABEL[kind];
   const lang = currentLang();
 
   useEffect(() => {
@@ -233,11 +238,7 @@ export function FriendlyErrorPage({
         <div className="overflow-hidden rounded-[6px] border border-border bg-card/80 shadow-sm backdrop-blur-sm">
           {/* Pasek statusu - jak nagłówek raportu technicznego. */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border bg-muted/40 px-5 py-2.5 sm:px-8">
-            <span className="inline-flex items-center gap-1.5 font-mono text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-brand">
-              <span
-                className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand"
-                aria-hidden="true"
-              />
+            <span className="inline-flex items-center font-mono text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-brand">
               {code}
             </span>
             <span className="h-1 w-1 rounded-full bg-muted-foreground/50" aria-hidden="true" />
@@ -249,10 +250,15 @@ export function FriendlyErrorPage({
           <div className="grid gap-8 p-5 sm:p-8 lg:grid-cols-[1.15fr_1fr] lg:gap-12 lg:p-10">
             <div className="min-w-0">
               <div className="relative">
-                {/* Wielka cyfra/kod jako znak wodny - nadaje stronie skalę. */}
+                {/* Wielka cyfra/kod jako znak wodny - nadaje stronie skalę.
+                    Dłuższa etykieta („UPSSS...") dostaje mniejszy stopień, żeby
+                    nie wyjechała poza kolumnę na wąskich ekranach. */}
                 <span
                   aria-hidden="true"
-                  className="pointer-events-none absolute -left-1 -top-8 select-none font-display text-[6rem] font-bold leading-none tracking-tight text-brand/10 sm:text-[8rem]"
+                  className={cn(
+                    "pointer-events-none absolute -left-1 -top-8 select-none whitespace-nowrap font-display font-bold leading-none tracking-tight text-brand/10",
+                    code.length > 4 ? "text-[3.5rem] sm:text-[5rem]" : "text-[6rem] sm:text-[8rem]",
+                  )}
                 >
                   {code}
                 </span>

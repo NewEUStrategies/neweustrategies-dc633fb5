@@ -46,6 +46,11 @@ type ErrorCopy = {
   contactLink: string;
   goBack: string;
   keepGoing: string;
+  /**
+   * Etykieta kodu na pasku statusu dla błędu ogólnego. Techniczne „ERR" nic
+   * czytelnikowi nie mówi - ludzki okrzyk mówi więcej, więc żyje w słowniku.
+   */
+  genericCode: string;
   generic: ErrorScenario;
 };
 
@@ -119,6 +124,7 @@ const COPY: Record<"pl" | "en", ErrorCopy> = {
     contactLink: "Skontaktuj się z nami",
     goBack: "Wróć",
     keepGoing: "Przejdź dalej",
+    genericCode: "UPSSS...",
     generic: {
       title: "Nie udało się załadować strony",
       body: "Coś poszło nie tak po naszej stronie. Przepraszamy za utrudnienia.",
@@ -201,6 +207,7 @@ const COPY: Record<"pl" | "en", ErrorCopy> = {
     contactLink: "Contact support",
     goBack: "Go back",
     keepGoing: "Keep going",
+    genericCode: "OOPS...",
     generic: {
       title: "This page didn't load",
       body: "Something went wrong on our end. We're sorry for the inconvenience.",
