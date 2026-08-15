@@ -1,4 +1,3 @@
-// News ticker - horizontal marquee of latest posts. Used as a builder widget.
 import { useEffect, useId, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { WidgetContent } from "@/lib/builder/types";
@@ -36,22 +35,12 @@ export function NewsTickerView({ c, lang }: { c: WidgetContent; lang: Lang }) {
   const pauseOnHover = bool(c, "pauseOnHover", true);
   const separator = str(c, "separator", "•") || "•";
   const uniqueOnPage = bool(c, "uniqueOnPage", false);
+  const direction = str(c, "direction", "vertical") || "vertical";
 
   const used = useUsedPostIds();
-  // Stable, snapshot-independent query (same key on the server prefetch / stream
-  // gate and the client), so a streamed ticker reuses the dehydrated rows
-  // instead of refetching under a divergent key. uniqueOnPage de-dup is applied
-  // client-side below, never in the key.
   const { data, isLoading } = useQuery(newsTickerQueryOptions(c, lang));
-  // Use the RAW query data (stable: undefined or a memoized array) as the effect
-  // dependency. The defaulted `fetched` below is a fresh [] on every render while
-  // the query is pending, so depending on it would re-fire the effect each render
-  // -> setState -> re-render loop.
   const fetched: TickerPost[] = data ?? [];
 
-  // Client-only de-dup, empty on the server and the first client render (so they
-  // match), then adopted post-mount - refining from already-cached rows with no
-  // network round-trip.
   const [excludeIds, setExcludeIds] = useState<readonly string[]>([]);
   useEffect(() => {
     if (!uniqueOnPage) return;
@@ -62,7 +51,6 @@ export function NewsTickerView({ c, lang }: { c: WidgetContent; lang: Lang }) {
     ? dedupeAndSlice(fetched, excludeIds, displayLimit)
     : fetched.slice(0, displayLimit);
 
-  // Register the IDs actually shown so later uniqueOnPage widgets exclude them.
   const visibleIdsKey = rows.map((r) => r.id).join(",");
   useEffect(() => {
     if (visibleIdsKey) used.register(visibleIdsKey.split(","));
@@ -86,31 +74,192 @@ export function NewsTickerView({ c, lang }: { c: WidgetContent; lang: Lang }) {
     );
   }
 
-  // Render two copies of the list back-to-back for a seamless loop.
-  const items = [...rows, ...rows];
+  if (direction === "horizontal") {
+    const items = [...rows, ...rows];
+    return (
+      <NewsTickerMarqueeHorizontal
+        badge={badge}
+        separator={separator}
+        durationSec={speedSeconds}
+        pauseOnHover={pauseOnHover}
+      >
+        {items.map((p, i) => (
+          <span key={`${p.id}-${i}`} className="inline-flex items-center gap-3 shrink-0">
+            <AppLink href={`/post/${p.slug}`} className="cms-post-title whitespace-nowrap">
+              {title(p)}
+            </AppLink>
+            <span aria-hidden className="text-muted-foreground/70 select-none">
+              {separator}
+            </span>
+          </span>
+        ))}
+      </NewsTickerMarqueeHorizontal>
+    );
+  }
 
   return (
-    <NewsTickerMarquee
+    <NewsTickerVertical
       badge={badge}
-      separator={separator}
       durationSec={speedSeconds}
       pauseOnHover={pauseOnHover}
     >
-      {items.map((p, i) => (
-        <span key={`${p.id}-${i}`} className="inline-flex items-center gap-3 shrink-0">
-          <AppLink href={`/post/${p.slug}`} className="cms-post-title whitespace-nowrap">
-            {title(p)}
-          </AppLink>
-          <span aria-hidden className="text-muted-foreground/70 select-none">
-            {separator}
-          </span>
-        </span>
+      {rows.map((p, i) => (
+        <NewsTickerVerticalItem
+          key={p.id}
+          post={p}
+          index={i}
+          title={title(p)}
+        />
       ))}
-    </NewsTickerMarquee>
+    </NewsTickerVertical>
   );
 }
 
-function NewsTickerMarquee({
+function NewsTickerVerticalItem({
+  post,
+  index,
+  title,
+}: {
+  post: TickerPost;
+  index: number;
+  title: string;
+}) {
+  const hasAuthor = post.author_display_name || post.author_avatar_url;
+  const displayName = post.author_display_name || undefined;
+
+  return (
+    <AppLink
+      href={`/post/${post.slug}`}
+      className="group flex h-20 shrink-0 items-center gap-4 px-6 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      title={title}
+    >
+      <span className="w-10 shrink-0 text-2xl font-black tracking-tighter text-[var(--brand)] opacity-30 transition-opacity group-hover:opacity-50">
+        {String(index + 1).padStart(2, "0")}
+      </span>
+      <div className="flex min-w-0 flex-col justify-center">
+        <span className="truncate text-sm font-bold tracking-tight text-foreground transition-colors group-hover:text-[var(--brand-ink)]">
+          {title}
+        </span>
+        {hasAuthor ? (
+          <div className="mt-1 flex items-center gap-2">
+            {post.author_avatar_url ? (
+              <img
+                src={post.author_avatar_url}
+                alt=""
+                loading="lazy"
+                className="h-4 w-4 rounded-[3px] object-cover ring-1 ring-border"
+              />
+            ) : null}
+            {displayName ? (
+              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                {displayName}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </AppLink>
+  );
+}
+
+function NewsTickerVertical({
+  badge,
+  durationSec,
+  pauseOnHover,
+  children,
+}: {
+  badge: string;
+  durationSec: number;
+  pauseOnHover: boolean;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const animName = `news-ticker-vertical-${useId().replace(/:/g, "")}`;
+  const items = Array.isArray(children) ? children : [children];
+  const count = items.length;
+  // Duplicate the first item at the end for a seamless vertical loop.
+  const first = items[0];
+  const trackItems = [...items, first];
+  const m = trackItems.length; // N + 1
+
+  const keyframes = buildVerticalKeyframes(m, animName);
+
+  return (
+    <div
+      ref={ref}
+      data-news-ticker="vertical"
+      className="relative flex w-full items-stretch overflow-hidden rounded-md border border-border bg-card"
+      role="marquee"
+      aria-label={badge}
+    >
+      <div className="relative z-10 flex shrink-0 items-center bg-brand px-5 py-2 text-[11px] font-black uppercase tracking-[0.2em] text-brand-foreground shadow-[4px_0_20px_rgba(0,0,0,0.1)]">
+        <span>{badge}</span>
+        <div
+          className="absolute -right-3 top-0 bottom-0 w-6 bg-brand skew-x-[-12deg] -z-10"
+          aria-hidden
+        />
+      </div>
+      <div className="relative flex-1 overflow-hidden">
+        <div className="pointer-events-none absolute top-0 left-0 right-0 z-10 h-3 bg-gradient-to-b from-card to-transparent" />
+        <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 h-3 bg-gradient-to-t from-card to-transparent" />
+        <div
+          className="flex flex-col"
+          style={{
+            animation: `${animName} ${durationSec}s cubic-bezier(0.65, 0, 0.35, 1) infinite`,
+            animationPlayState: "running",
+          }}
+          onMouseEnter={(e) => {
+            if (pauseOnHover) e.currentTarget.style.animationPlayState = "paused";
+          }}
+          onMouseLeave={(e) => {
+            if (pauseOnHover) e.currentTarget.style.animationPlayState = "running";
+          }}
+        >
+          {trackItems.map((child, i) => (
+            <div key={`${i}`} aria-hidden={i === count ? true : undefined}>
+              {child}
+            </div>
+          ))}
+        </div>
+        <style
+          dangerouslySetInnerHTML={{
+            __html: keyframes,
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function buildVerticalKeyframes(m: number, animName: string): string {
+  if (m < 2) return "";
+  const slot = 100 / m;
+  const transition = 100 / (m * (m - 1));
+  const hold = slot - transition;
+
+  let steps = "";
+  for (let i = 0; i < m - 1; i++) {
+    const start = i * (slot + transition);
+    const end = start + hold;
+    const y = -((i * 100) / m);
+    steps += `${start.toFixed(2)}%, ${end.toFixed(2)}% { transform: translate3d(0, ${y.toFixed(2)}%, 0); }\n`;
+  }
+  // Final duplicate item at 100% so the loop snaps back to the first item seamlessly.
+  const finalY = -(((m - 1) * 100) / m);
+  steps += `100% { transform: translate3d(0, ${finalY.toFixed(2)}%, 0); }\n`;
+
+  return `
+    @keyframes ${animName} {
+      0% { transform: translate3d(0, 0, 0); }
+      ${steps}
+    }
+    @media (prefers-reduced-motion: reduce) {
+      [data-news-ticker="vertical"] [style*="animation"] { animation: none !important; }
+    }
+  `;
+}
+
+function NewsTickerMarqueeHorizontal({
   badge,
   durationSec,
   pauseOnHover,
@@ -123,24 +272,17 @@ function NewsTickerMarquee({
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
-  // Stable across SSR and client hydration. useId is deterministic per component
-  // position, so the injected `@keyframes` name and the element's `animation`
-  // style match byte-for-byte between server and client. `Math.random()` here
-  // generated a DIFFERENT name on the client's hydration pass, so the SSR markup
-  // and the hydrated render disagreed - a hydration mismatch that makes React 19
-  // throw away the server HTML and re-render the subtree on the client. Colons
-  // from useId are not valid in a CSS identifier, so strip them.
   const animName = `news-ticker-${useId().replace(/:/g, "")}`;
 
   return (
     <div
       ref={ref}
-      data-news-ticker
+      data-news-ticker="horizontal"
       className="relative flex w-full items-stretch overflow-hidden rounded-md border border-border bg-card"
       role="marquee"
       aria-label={badge}
     >
-      <div className="flex shrink-0 items-center bg-brand text-brand-foreground px-3 py-2 text-[11px] font-bold uppercase tracking-wider">
+      <div className="flex shrink-0 items-center bg-brand px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-brand-foreground">
         {badge}
       </div>
       <div className="relative flex-1 overflow-hidden">
@@ -167,7 +309,7 @@ function NewsTickerMarquee({
             100% { transform: translate3d(-50%,0,0); }
           }
           @media (prefers-reduced-motion: reduce) {
-            [data-news-ticker] [style*="animation"] { animation: none !important; }
+            [data-news-ticker="horizontal"] [style*="animation"] { animation: none !important; }
           }
         `,
           }}

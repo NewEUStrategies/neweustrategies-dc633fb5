@@ -1853,6 +1853,7 @@ export const WIDGETS: WidgetDef[] = [
     defaults: () => ({
       badge_pl: "Najnowsze",
       badge_en: "Latest",
+      direction: "vertical",
       limit: 10,
       speedSeconds: 40,
       pauseOnHover: true,

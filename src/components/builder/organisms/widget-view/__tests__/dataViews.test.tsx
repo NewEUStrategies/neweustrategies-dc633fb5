@@ -254,14 +254,33 @@ describe("TabsBlock", () => {
 });
 
 describe("NewsTickerView", () => {
-  it("renders a marquee of post links when data is present", async () => {
+  it("renders a vertical slide of post links when data is present", async () => {
     db.tables.posts = [
-      { id: "1", slug: "alpha", title_pl: "Alfa", title_en: "Alpha" },
-      { id: "2", slug: "beta", title_pl: "Beta", title_en: "Beta" },
+      { id: "1", slug: "alpha", title_pl: "Alfa", title_en: "Alpha", author_id: "a1" },
+      { id: "2", slug: "beta", title_pl: "Beta", title_en: "Beta", author_id: "a2" },
+    ];
+    db.tables.profiles = [
+      { id: "a1", display_name: "Anna", avatar_url: "https://cdn.x/a1.jpg" },
+      { id: "a2", display_name: "Jan", avatar_url: null },
     ];
     wrap(<NewsTickerView c={{ badge_pl: "Najnowsze", limit: 10 }} lang="pl" />);
-    const links = await screen.findAllByRole("link", { name: "Alfa" });
-    expect(links[0].getAttribute("href")).toBe("/post/alpha");
+    await screen.findAllByText("Alfa");
+    const links = screen.getAllByRole("link");
+    expect(links.some((l) => l.getAttribute("href") === "/post/alpha")).toBe(true);
+    expect(links.some((l) => l.getAttribute("href") === "/post/beta")).toBe(true);
+    expect(screen.getByText("Anna")).toBeTruthy();
+  });
+
+  it("renders a horizontal marquee when direction is set to horizontal", async () => {
+    db.tables.posts = [
+      { id: "1", slug: "alpha", title_pl: "Alfa", title_en: "Alpha", author_id: "a1" },
+    ];
+    db.tables.profiles = [{ id: "a1", display_name: "Anna", avatar_url: null }];
+    const { container } = wrap(
+      <NewsTickerView c={{ badge_pl: "Najnowsze", limit: 10, direction: "horizontal" }} lang="pl" />,
+    );
+    await screen.findAllByText("Alfa");
+    expect(container.querySelector(".w-max")).toBeTruthy();
   });
 
   it("shows an empty-state message when there are no posts", async () => {
@@ -479,10 +498,14 @@ describe("CategoriesView / TagsView", () => {
 });
 
 describe("NewsTickerView extra branches", () => {
-  it("pauses on hover and uses a custom separator", async () => {
-    db.tables.posts = [{ id: "1", slug: "a", title_pl: "Alfa", title_en: "Alpha" }];
+  it("pauses on hover and uses a custom separator in horizontal mode", async () => {
+    db.tables.posts = [{ id: "1", slug: "a", title_pl: "Alfa", title_en: "Alpha", author_id: "a1" }];
+    db.tables.profiles = [{ id: "a1", display_name: "Anna", avatar_url: null }];
     const { container } = wrap(
-      <NewsTickerView c={{ separator: "-", pauseOnHover: true, speedSeconds: 30 }} lang="pl" />,
+      <NewsTickerView
+        c={{ separator: "-", pauseOnHover: true, speedSeconds: 30, direction: "horizontal" }}
+        lang="pl"
+      />,
     );
     await screen.findAllByText("Alfa");
     const track = container.querySelector(".w-max") as HTMLElement;
@@ -494,7 +517,10 @@ describe("NewsTickerView extra branches", () => {
   it("filters by category slugs", async () => {
     db.tables.categories = [{ id: "c1" }];
     db.tables.post_categories = [{ post_id: "1" }];
-    db.tables.posts = [{ id: "1", slug: "a", title_pl: "Alfa", title_en: "Alpha" }];
+    db.tables.posts = [
+      { id: "1", slug: "a", title_pl: "Alfa", title_en: "Alpha", author_id: "a1" },
+    ];
+    db.tables.profiles = [{ id: "a1", display_name: "Anna", avatar_url: null }];
     wrap(<NewsTickerView c={{ categoriesCsv: "ue", uniqueOnPage: true }} lang="en" />);
     expect((await screen.findAllByText("Alpha")).length).toBeGreaterThan(0);
   });
