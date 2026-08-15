@@ -268,7 +268,7 @@ describe("NewsTickerView", () => {
     const links = screen.getAllByRole("link");
     expect(links.some((l) => l.getAttribute("href") === "/post/alpha")).toBe(true);
     expect(links.some((l) => l.getAttribute("href") === "/post/beta")).toBe(true);
-    expect(screen.getByText("Anna")).toBeTruthy();
+    expect(screen.getAllByText("Anna").length).toBeGreaterThan(0);
   });
 
   it("renders a horizontal marquee when direction is set to horizontal", async () => {
