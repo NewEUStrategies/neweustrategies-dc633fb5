@@ -46,13 +46,17 @@ const ICONS: Record<ErrorKind, React.ComponentType<{ className?: string; size?: 
   generic: AlertCircle,
 };
 
-const CODE_LABEL: Record<ErrorKind, string> = {
+/**
+ * Kody techniczne (HTTP/NET) są uniwersalne i zostają dosłowne. Wyjątkiem jest
+ * błąd ogólny: tam nie ma żadnego kodu do pokazania, więc etykieta jest zwykłym
+ * komunikatem do człowieka - i musi iść ze słownika (`genericCode`).
+ */
+const CODE_LABEL: Record<Exclude<ErrorKind, "generic">, string> = {
   unauthorized: "401",
   sessionExpired: "302",
   network: "NET",
   // Render zdegradowany wychodzi z HTTP 200 - etykieta nie może sugerować awarii.
   degraded: "200",
-  generic: "ERR",
 };
 
 export function FriendlyErrorPage({
