@@ -66,15 +66,9 @@ export function AuthorDisplayControl({
 
   // Etykiety wyciągnięte przed JSX: ta sama treść opisuje pole wizualnie
   // (PropField) i dla czytnika ekranu (aria-label), więc nie mogą się rozjechać.
-  const nameSizeLabel = t("builder.authorDisplay.nameSize", {
-    defaultValue: "Rozmiar czcionki autora (px)",
-  });
-  const avatarSizeLabel = t("builder.authorDisplay.avatarSize", {
-    defaultValue: "Rozmiar zdjęcia autora (px)",
-  });
-  const labelTextLabel = t("builder.authorDisplay.labelText", {
-    defaultValue: "Etykieta autora (i18n)",
-  });
+  const nameSizeLabel = t("builder.authorDisplay.nameSize");
+  const avatarSizeLabel = t("builder.authorDisplay.avatarSize");
+  const labelTextLabel = t("builder.authorDisplay.labelText");
 
   const labelKey = `${AUTHOR_DISPLAY_KEYS.label}_${lang}`;
   const labelValue = typeof c[labelKey] === "string" ? (c[labelKey] as string) : "";
@@ -82,9 +76,7 @@ export function AuthorDisplayControl({
   return (
     <div className="space-y-2" data-author-display-control={display.mode}>
       <label className="flex cursor-pointer items-center justify-between gap-2 py-1">
-        <span className="text-xs">
-          {t("builder.authorDisplay.showName", { defaultValue: "Imię i nazwisko autora" })}
-        </span>
+        <span className="text-xs">{t("builder.authorDisplay.showName")}</span>
         <Switch
           checked={display.showName}
           onCheckedChange={(v) => setVisibility(v, display.showAvatar)}
@@ -93,9 +85,7 @@ export function AuthorDisplayControl({
 
       {avatarSupported && (
         <label className="flex cursor-pointer items-center justify-between gap-2 py-1">
-          <span className="text-xs">
-            {t("builder.authorDisplay.showAvatar", { defaultValue: "Zdjęcie autora (awatar)" })}
-          </span>
+          <span className="text-xs">{t("builder.authorDisplay.showAvatar")}</span>
           <Switch
             checked={display.showAvatar}
             onCheckedChange={(v) => setVisibility(display.showName, v)}
@@ -144,12 +134,7 @@ export function AuthorDisplayControl({
       {/* Etykieta ma sens WYŁĄCZNIE bez zdjęcia: wtedy byline to sam tekst
           „Autor: Imię Nazwisko” / „By: First Last” i potrzebuje wprowadzenia. */}
       {display.showName && !display.showAvatar && (
-        <PropField
-          label={labelTextLabel}
-          hint={t("builder.authorDisplay.labelHint", {
-            defaultValue: "Puste = „Autor” (PL) / „By” (EN).",
-          })}
-        >
+        <PropField label={labelTextLabel} hint={t("builder.authorDisplay.labelHint")}>
           <Input
             aria-label={labelTextLabel}
             value={labelValue}
@@ -176,9 +161,7 @@ export function AuthorDisplayControl({
         }}
       >
         <RotateCcw className="h-3 w-3" />
-        {t("builder.authorDisplay.reset", {
-          defaultValue: "Przywróć domyślne (12 px / 20 px)",
-        })}
+        {t("builder.authorDisplay.reset")}
       </button>
     </div>
   );

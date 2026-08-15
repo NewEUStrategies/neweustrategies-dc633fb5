@@ -62,17 +62,13 @@ export function RevisionsCard({ entityType, entityId, onRestored }: RevisionsCar
   if (!entityId) return null;
 
   const noteLabel = (note: string | null): string | null => {
-    if (note === "autosave")
-      return t("admin.revisions.note.autosave", { defaultValue: "autozapis" });
-    if (note === "pre_restore")
-      return t("admin.revisions.note.preRestore", { defaultValue: "kopia przed przywróceniem" });
+    if (note === "autosave") return t("admin.revisions.note.autosave");
+    if (note === "pre_restore") return t("admin.revisions.note.preRestore");
     return note;
   };
 
   const fmt = (iso: string) => new Date(iso).toLocaleString(lang);
-  const currentLabel = t("adminPostPanes.revisionDiff.current", {
-    defaultValue: "bieżąca wersja",
-  });
+  const currentLabel = t("adminPostPanes.revisionDiff.current");
 
   const diffWithCurrent = (revisionId: string, createdAt: string) => {
     setDiffArmedId(null);
@@ -116,18 +112,16 @@ export function RevisionsCard({ entityType, entityId, onRestored }: RevisionsCar
 
   const restore = (revisionId: string, createdAt: string) => {
     setConfirmState({
-      title: t("admin.revisions.confirmTitle", { defaultValue: "Przywrócić tę rewizję?" }),
+      title: t("admin.revisions.confirmTitle"),
       description: t("admin.revisions.confirmDescription", {
-        defaultValue:
-          "Treść z {{date}} zastąpi bieżącą wersję. Obecny stan zostanie zapisany jako kopia, a status publikacji się nie zmieni.",
         date: new Date(createdAt).toLocaleString(lang),
       }),
-      confirmLabel: t("admin.revisions.confirmAction", { defaultValue: "Przywróć" }),
+      confirmLabel: t("admin.revisions.confirmAction"),
       onConfirm: async () => {
         setBusyId(revisionId);
         try {
           await restore$({ data: { id: revisionId } });
-          toast.success(t("admin.revisions.restored", { defaultValue: "Przywrócono rewizję" }));
+          toast.success(t("admin.revisions.restored"));
           await refetch();
           onRestored();
         } catch (e) {
@@ -143,7 +137,7 @@ export function RevisionsCard({ entityType, entityId, onRestored }: RevisionsCar
     <div className="bg-card border border-border rounded-lg p-4 space-y-3">
       <h3 className="text-sm font-semibold inline-flex items-center gap-2">
         <Clock className="w-4 h-4" />
-        {t("admin.revisions.title", { defaultValue: "Rewizje" })}
+        {t("admin.revisions.title")}
         {revisions?.length ? (
           <span className="text-[10px] font-normal text-muted-foreground">
             ({revisions.length})
@@ -155,8 +149,6 @@ export function RevisionsCard({ entityType, entityId, onRestored }: RevisionsCar
         <div className="flex flex-wrap items-center gap-2 rounded border border-brand/30 bg-brand/5 px-2 py-1.5 text-[11px]">
           <span className="min-w-0 flex-1">
             {t("adminPostPanes.revisionDiff.armedHint", {
-              defaultValue:
-                "Baza porównania: {{date}}. Kliknij ikonę porównania przy innej rewizji albo porównaj z bieżącą wersją.",
               date: fmt(
                 (revisions ?? []).find((r) => r.id === diffArmedId)?.created_at ??
                   new Date().toISOString(),
@@ -172,9 +164,7 @@ export function RevisionsCard({ entityType, entityId, onRestored }: RevisionsCar
               if (armed) diffWithCurrent(armed.id, armed.created_at);
             }}
           >
-            {t("adminPostPanes.revisionDiff.withCurrent", {
-              defaultValue: "Porównaj z bieżącą",
-            })}
+            {t("adminPostPanes.revisionDiff.withCurrent")}
           </Button>
           <Button
             size="sm"
@@ -182,7 +172,7 @@ export function RevisionsCard({ entityType, entityId, onRestored }: RevisionsCar
             className="h-6 px-2 text-[11px]"
             onClick={() => setDiffArmedId(null)}
           >
-            {t("adminPostPanes.revisionDiff.cancel", { defaultValue: "Anuluj" })}
+            {t("adminPostPanes.revisionDiff.cancel")}
           </Button>
         </div>
       )}
@@ -190,11 +180,7 @@ export function RevisionsCard({ entityType, entityId, onRestored }: RevisionsCar
       {isLoading ? (
         <p className="text-xs text-muted-foreground">...</p>
       ) : !revisions?.length ? (
-        <p className="text-xs text-muted-foreground">
-          {t("admin.revisions.empty", {
-            defaultValue: "Brak rewizji - powstaną przy kolejnych zapisach.",
-          })}
-        </p>
+        <p className="text-xs text-muted-foreground">{t("admin.revisions.empty")}</p>
       ) : (
         <ul className="space-y-1.5 max-h-64 overflow-auto pr-1">
           {revisions.map((r) => {
@@ -228,12 +214,8 @@ export function RevisionsCard({ entityType, entityId, onRestored }: RevisionsCar
                     aria-pressed={diffArmedId === r.id}
                     title={
                       diffArmedId && diffArmedId !== r.id
-                        ? t("adminPostPanes.revisionDiff.compareWithArmed", {
-                            defaultValue: "Porównaj z zaznaczoną rewizją",
-                          })
-                        : t("adminPostPanes.revisionDiff.compare", {
-                            defaultValue: "Porównaj tę rewizję",
-                          })
+                        ? t("adminPostPanes.revisionDiff.compareWithArmed")
+                        : t("adminPostPanes.revisionDiff.compare")
                     }
                     onClick={() => compare(r.id, r.created_at)}
                   >
@@ -244,7 +226,7 @@ export function RevisionsCard({ entityType, entityId, onRestored }: RevisionsCar
                     variant="ghost"
                     className="h-7 px-2"
                     disabled={busyId !== null}
-                    title={t("admin.revisions.restore", { defaultValue: "Przywróć tę wersję" })}
+                    title={t("admin.revisions.restore")}
                     onClick={() => restore(r.id, r.created_at)}
                   >
                     <Undo2 className="w-3.5 h-3.5" />

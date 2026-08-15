@@ -73,15 +73,8 @@ function TocAdmin() {
     <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
       <header className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-display font-bold">
-            {t("admin.toc.title", { defaultValue: "Spis treści (ToC)" })}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {t("admin.toc.subtitle", {
-              defaultValue:
-                "Globalne ustawienia spisu treści dla wpisów. Każdy wpis może nadpisać te wartości w swoim metaboksie.",
-            })}
-          </p>
+          <h1 className="text-2xl font-display font-bold">{t("admin.toc.title")}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{t("admin.toc.subtitle")}</p>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -91,11 +84,11 @@ function TocAdmin() {
             disabled={!dirty}
           >
             <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
-            {t("common.reset", { defaultValue: "Przywróć domyślne" })}
+            {t("common.reset")}
           </Button>
           <Button size="sm" onClick={() => save.mutate(draft)} disabled={!dirty || save.isPending}>
             <Save className="w-3.5 h-3.5 mr-1.5" />
-            {t("common.save", { defaultValue: "Zapisz" })}
+            {t("common.save")}
           </Button>
         </div>
       </header>
@@ -105,25 +98,19 @@ function TocAdmin() {
         <div className="space-y-5 rounded-xl border border-border bg-card p-5">
           <section className="space-y-3">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              {t("admin.toc.general", { defaultValue: "Ogólne" })}
+              {t("admin.toc.general")}
             </h2>
 
             <label className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-sm font-medium">
-                  {t("admin.toc.enabled", { defaultValue: "Domyślnie włączony" })}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {t("admin.toc.enabledHint", {
-                    defaultValue: "Wpisy mogą to nadpisać w swoim metaboksie.",
-                  })}
-                </div>
+                <div className="text-sm font-medium">{t("admin.toc.enabled")}</div>
+                <div className="text-xs text-muted-foreground">{t("admin.toc.enabledHint")}</div>
               </div>
               <Switch checked={draft.enabled} onCheckedChange={(v) => update("enabled", v)} />
             </label>
 
             <div>
-              <Label className="text-xs">{t("admin.toc.layout", { defaultValue: "Układ" })}</Label>
+              <Label className="text-xs">{t("admin.toc.layout")}</Label>
               <Select value={draft.layout} onValueChange={(v) => update("layout", v as TocLayout)}>
                 <SelectTrigger className="h-9">
                   <SelectValue />
@@ -144,9 +131,7 @@ function TocAdmin() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs">
-                  {t("admin.toc.position", { defaultValue: "Pozycja (po ilu akapitach)" })}
-                </Label>
+                <Label className="text-xs">{t("admin.toc.position")}</Label>
                 <Input
                   type="number"
                   min={-1}
@@ -160,9 +145,7 @@ function TocAdmin() {
                 </p>
               </div>
               <div>
-                <Label className="text-xs">
-                  {t("admin.toc.minHeadings", { defaultValue: "Min. liczba nagłówków" })}
-                </Label>
+                <Label className="text-xs">{t("admin.toc.minHeadings")}</Label>
                 <Input
                   type="number"
                   min={1}
@@ -173,9 +156,7 @@ function TocAdmin() {
                 />
               </div>
               <div>
-                <Label className="text-xs">
-                  {t("admin.toc.minLevel", { defaultValue: "Min. poziom nagłówka" })}
-                </Label>
+                <Label className="text-xs">{t("admin.toc.minLevel")}</Label>
                 <Select
                   value={String(draft.minLevel)}
                   onValueChange={(v) => update("minLevel", parseInt(v, 10))}
@@ -193,9 +174,7 @@ function TocAdmin() {
                 </Select>
               </div>
               <div>
-                <Label className="text-xs">
-                  {t("admin.toc.maxLevel", { defaultValue: "Maks. poziom nagłówka" })}
-                </Label>
+                <Label className="text-xs">{t("admin.toc.maxLevel")}</Label>
                 <Select
                   value={String(draft.maxLevel)}
                   onValueChange={(v) => update("maxLevel", parseInt(v, 10))}
@@ -222,9 +201,7 @@ function TocAdmin() {
             </div>
 
             <div>
-              <Label className="text-xs">
-                {t("admin.toc.columns", { defaultValue: "Kolumny spisu treści" })}
-              </Label>
+              <Label className="text-xs">{t("admin.toc.columns")}</Label>
               <div className="grid grid-cols-3 gap-2 mt-1">
                 {TOC_COLUMNS.map((c) => {
                   const label =
@@ -268,24 +245,15 @@ function TocAdmin() {
             </div>
 
             <label className="flex items-center justify-between gap-3">
-              <div className="text-sm font-medium">
-                {t("admin.toc.sticky", { defaultValue: "Sticky przy scrollu" })}
-              </div>
+              <div className="text-sm font-medium">{t("admin.toc.sticky")}</div>
               <Switch checked={draft.sticky} onCheckedChange={(v) => update("sticky", v)} />
             </label>
 
             <label className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-sm font-medium">
-                  {t("admin.toc.showInBody", {
-                    defaultValue: "Pokaż ToC w treści (pod przyciskiem odsłuchu)",
-                  })}
-                </div>
+                <div className="text-sm font-medium">{t("admin.toc.showInBody")}</div>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  {t("admin.toc.showInBodyHint", {
-                    defaultValue:
-                      "Domyślnie wyłączone - ToC jest widoczny tylko w prawym sidebarze.",
-                  })}
+                  {t("admin.toc.showInBodyHint")}
                 </p>
               </div>
               <Switch checked={draft.showInBody} onCheckedChange={(v) => update("showInBody", v)} />
@@ -294,7 +262,7 @@ function TocAdmin() {
 
           <section className="space-y-3 pt-3 border-t border-border">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              {t("admin.toc.labels", { defaultValue: "Etykiety" })}
+              {t("admin.toc.labels")}
             </h2>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -318,7 +286,7 @@ function TocAdmin() {
 
           <section className="space-y-3 pt-3 border-t border-border">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              {t("admin.toc.colors", { defaultValue: "Kolory" })}
+              {t("admin.toc.colors")}
             </h2>
             <div className="grid grid-cols-2 gap-3">
               {(
@@ -348,9 +316,7 @@ function TocAdmin() {
         {/* PREVIEW */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <div className="text-sm font-semibold">
-              {t("admin.toc.preview", { defaultValue: "Podgląd" })}
-            </div>
+            <div className="text-sm font-semibold">{t("admin.toc.preview")}</div>
             <Tabs
               value={previewLang}
               onValueChange={(v) => setPreviewLang(v === "en" ? "en" : "pl")}

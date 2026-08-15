@@ -51,7 +51,7 @@ function GlossaryAdmin() {
     onSuccess: () => {
       setDraft(EMPTY_DRAFT);
       invalidate();
-      toast.success(t("admin.glossary.added", { defaultValue: "Dodano termin" }));
+      toast.success(t("admin.glossary.added"));
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : String(e)),
   });
@@ -67,9 +67,9 @@ function GlossaryAdmin() {
 
   const remove = async (term: GlossaryTerm) => {
     const ok = await confirmDialog({
-      title: t("admin.glossary.deleteTitle", { defaultValue: "Usunąć termin?" }),
+      title: t("admin.glossary.deleteTitle"),
       description: term.term_pl,
-      confirmLabel: t("admin.glossary.deleteConfirm", { defaultValue: "Usuń" }),
+      confirmLabel: t("admin.glossary.deleteConfirm"),
       destructive: true,
     });
     if (ok) deleteM.mutate(term.id);
@@ -80,43 +80,36 @@ function GlossaryAdmin() {
       <div className="p-4 lg:p-6 max-w-4xl mx-auto space-y-6">
         <h1 className="font-display text-xl inline-flex items-center gap-2">
           <BookOpen className="w-5 h-5 text-brand" aria-hidden="true" />
-          {t("admin.glossary.title", { defaultValue: "Słowniczek pojęć" })}
+          {t("admin.glossary.title")}
         </h1>
-        <p className="text-sm text-muted-foreground -mt-3">
-          {t("admin.glossary.hint", {
-            defaultValue:
-              "Pierwsze wystąpienie terminu w treści wpisu dostaje tooltip z definicją; całość publikuje się na /glossary.",
-          })}
-        </p>
+        <p className="text-sm text-muted-foreground -mt-3">{t("admin.glossary.hint")}</p>
 
         <div className="rounded-lg border border-border bg-card p-4 space-y-2">
           <div className="grid gap-2 sm:grid-cols-2">
             <Input
               value={draft.term_pl}
               onChange={(e) => setDraft((d) => ({ ...d, term_pl: e.target.value }))}
-              placeholder={t("admin.glossary.termPl", { defaultValue: "Termin (PL)" })}
+              placeholder={t("admin.glossary.termPl")}
               maxLength={140}
             />
             <Input
               value={draft.term_en}
               onChange={(e) => setDraft((d) => ({ ...d, term_en: e.target.value }))}
-              placeholder={t("admin.glossary.termEn", { defaultValue: "Termin (EN)" })}
+              placeholder={t("admin.glossary.termEn")}
               maxLength={140}
             />
           </div>
           <Textarea
             value={draft.definition_pl}
             onChange={(e) => setDraft((d) => ({ ...d, definition_pl: e.target.value }))}
-            placeholder={t("admin.glossary.defPl", { defaultValue: "Definicja (PL)" })}
+            placeholder={t("admin.glossary.defPl")}
             rows={2}
             maxLength={600}
           />
           <Textarea
             value={draft.definition_en}
             onChange={(e) => setDraft((d) => ({ ...d, definition_en: e.target.value }))}
-            placeholder={t("admin.glossary.defEn", {
-              defaultValue: "Definicja (EN, opcjonalna)",
-            })}
+            placeholder={t("admin.glossary.defEn")}
             rows={2}
             maxLength={600}
           />
@@ -126,7 +119,7 @@ function GlossaryAdmin() {
             onClick={() => addM.mutate()}
           >
             <Plus className="w-4 h-4 mr-1" aria-hidden="true" />
-            {t("admin.glossary.add", { defaultValue: "Dodaj termin" })}
+            {t("admin.glossary.add")}
           </Button>
         </div>
 
@@ -153,7 +146,7 @@ function GlossaryAdmin() {
                 size="sm"
                 variant="ghost"
                 className="h-7 w-7 p-0 shrink-0"
-                aria-label={t("admin.glossary.deleteConfirm", { defaultValue: "Usuń" })}
+                aria-label={t("admin.glossary.deleteConfirm")}
                 onClick={() => void remove(term)}
               >
                 <Trash2 className="w-3.5 h-3.5 text-destructive" aria-hidden="true" />
@@ -161,9 +154,7 @@ function GlossaryAdmin() {
             </li>
           ))}
           {(terms ?? []).length === 0 && (
-            <li className="p-4 text-sm text-muted-foreground">
-              {t("admin.glossary.empty", { defaultValue: "Brak terminów - dodaj pierwszy." })}
-            </li>
+            <li className="p-4 text-sm text-muted-foreground">{t("admin.glossary.empty")}</li>
           )}
         </ul>
       </div>

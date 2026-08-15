@@ -239,6 +239,20 @@ jobs:
       - name: No new hardcoded PL/EN text in code
         run: bun run check:i18n-hardcoded
 
+      # Blocking zero-threshold gate: `t()` may not carry a fallback string.
+      # i18next reads `defaultValue` ONLY when the key is absent, and the drift
+      # gate (`check:i18n-parity`) proves at every run that no key is absent -
+      # so every `defaultValue` here is an unreachable branch AND a second
+      # source of truth for the same sentence. It is also the sole carrier of
+      # the `masked` failure mode: with a fallback in place, deleting a key
+      # stops showing a bare key on screen and starts showing Polish prose in
+      # the English UI. Measured on 2026-08-15: 1 342 occurrences, all provably
+      # unreachable, all removed mechanically (`bun run codemod:i18n-default-value`).
+      # Threshold is zero rather than a ratchet, because a new occurrence is
+      # removable by the same codemod in the same commit that created it.
+      - name: No fallback strings on t()
+        run: bun run check:i18n-default-value
+
       # Blocking wiring gate: every env var a workflow exports must have a
       # reader. Workflow and script are separately valid when the names drift
       # apart, and both sides tolerate a missing value, so the combination

@@ -328,7 +328,7 @@ function ProfileInline() {
                 onClick={() => {
                   void promptDialog({
                     title: t("profile.account.specialization"),
-                    confirmLabel: t("common.save", { defaultValue: "Zapisz" }),
+                    confirmLabel: t("common.save"),
                   }).then((v) => {
                     if (v != null) void saveField("specialization", v.trim() || null);
                   });
@@ -351,7 +351,7 @@ function ProfileInline() {
                 onClick={() => {
                   void promptDialog({
                     title: t("profile.account.locationPh"),
-                    confirmLabel: t("common.save", { defaultValue: "Zapisz" }),
+                    confirmLabel: t("common.save"),
                   }).then((v) => {
                     if (v != null) void saveField("location", v.trim() || null);
                   });

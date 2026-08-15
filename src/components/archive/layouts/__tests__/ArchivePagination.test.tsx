@@ -5,12 +5,22 @@
 // zachowanie przeglądarki (nowa karta / kopiuj link). Bez `hrefFor`
 // (podgląd admina) wariant przyciskowy zostaje bez zmian.
 import { describe, expect, it, vi, afterEach } from "vitest";
+// Prawdziwe zasoby i18n: bez tego `t()` zwraca GOŁY KLUCZ, a asercje na
+// widoczny tekst przechodziły wyłącznie dzięki `defaultValue` wpisanemu przy
+// wywołaniu - czyli test sprawdzał kopię napisu z kodu, a nie to, co widzi
+// użytkownik. Import wciąga rdzeń słownika (nakładki `i18n-*` dociąga sam
+// komponent), więc asercja mierzy teraz wartość ze słownika.
+import "@/lib/i18n";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import type { TFunction } from "i18next";
 import { ArchivePagination } from "@/components/archive/layouts/ArchivePagination";
+import { realT } from "@/test/i18nReal";
 
-const t = ((key: string, opts?: { defaultValue?: string }) =>
-  opts?.defaultValue ?? key) as unknown as TFunction;
+// Komponent dostaje `t` propsem, więc test podaje PRAWDZIWY tłumacz przypięty
+// do języka - ten sam, który dostanie w produkcji. Poprzednia atrapa
+// (`opts.defaultValue ?? key` z rzutowaniem `as unknown as TFunction`)
+// sprawdzała napis wpisany w kod komponentu, a nie wpis w słowniku.
+const t = realT("pl");
+const tEn = realT("en");
 
 const hrefFor = (page: number) => (page > 1 ? `/blog?page=${page}` : "/blog");
 
@@ -50,7 +60,7 @@ describe("ArchivePagination", () => {
         onPageChange={onPageChange}
         isPending={false}
         lang="en"
-        t={t}
+        t={tEn}
         hrefFor={hrefFor}
       />,
     );
@@ -87,7 +97,7 @@ describe("ArchivePagination", () => {
         onPageChange={() => {}}
         isPending={false}
         lang="en"
-        t={t}
+        t={tEn}
         hrefFor={hrefFor}
       />,
     );

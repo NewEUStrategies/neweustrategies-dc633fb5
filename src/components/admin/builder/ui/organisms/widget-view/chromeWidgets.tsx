@@ -75,8 +75,8 @@ export function LangSwitcherDropdown({ label }: { label: string }) {
   };
 
   const options: ReadonlyArray<{ lang: AppLang; flag: FlagCode; name: string }> = [
-    { lang: "pl", flag: "pl", name: t("common.lang.pl", "Polski") },
-    { lang: "en", flag: "gb", name: t("common.lang.en", "English") },
+    { lang: "pl", flag: "pl", name: t("common.lang.pl") },
+    { lang: "en", flag: "gb", name: t("common.lang.en") },
   ];
 
   const isLastActive = current === "en";

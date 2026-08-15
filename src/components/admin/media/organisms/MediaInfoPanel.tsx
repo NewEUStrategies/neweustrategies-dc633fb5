@@ -27,13 +27,7 @@ export function MediaInfoPanel({ target, imgSize, onSaveAlt }: MediaInfoPanelPro
   }, [target?.id, target?.alt_text]);
 
   if (!target) {
-    return (
-      <p className="text-muted-foreground">
-        {t("admin.media.selectOneFile", {
-          defaultValue: "Zaznacz jeden plik, aby zobaczyć szczegóły.",
-        })}
-      </p>
-    );
+    return <p className="text-muted-foreground">{t("admin.media.selectOneFile")}</p>;
   }
 
   const isImage = target.mime_type?.startsWith("image/");
@@ -56,43 +50,32 @@ export function MediaInfoPanel({ target, imgSize, onSaveAlt }: MediaInfoPanelPro
         <div className="font-semibold truncate" title={target.filename}>
           {target.filename}
         </div>
-        <InfoRow
-          label={t("admin.media.infoType", { defaultValue: "Typ" })}
-          value={target.mime_type ?? "-"}
-        />
-        <InfoRow
-          label={t("admin.media.infoSize", { defaultValue: "Rozmiar" })}
-          value={formatBytes(target.size_bytes)}
-        />
+        <InfoRow label={t("admin.media.infoType")} value={target.mime_type ?? "-"} />
+        <InfoRow label={t("admin.media.infoSize")} value={formatBytes(target.size_bytes)} />
         {imgSize && (
           <InfoRow
-            label={t("admin.media.infoDimensions", { defaultValue: "Wymiary" })}
+            label={t("admin.media.infoDimensions")}
             value={`${imgSize.w} × ${imgSize.h} px`}
           />
         )}
+        <InfoRow label={t("admin.media.infoFolder")} value={target.folder_path} />
         <InfoRow
-          label={t("admin.media.infoFolder", { defaultValue: "Folder" })}
-          value={target.folder_path}
-        />
-        <InfoRow
-          label={t("admin.media.infoCreated", { defaultValue: "Utworzono" })}
+          label={t("admin.media.infoCreated")}
           value={new Date(target.created_at).toLocaleString()}
         />
-        <InfoRow label={t("admin.media.infoId", { defaultValue: "ID" })} value={target.id} mono />
+        <InfoRow label={t("admin.media.infoId")} value={target.id} mono />
       </div>
       {isImage && (
         <div className="pt-2 border-t border-border space-y-2">
           <label className="block text-muted-foreground" htmlFor={`alt-${target.id}`}>
-            {t("admin.media.altText", { defaultValue: "Tekst alternatywny (alt)" })}
+            {t("admin.media.altText")}
           </label>
           <textarea
             id={`alt-${target.id}`}
             value={altDraft}
             onChange={(e) => setAltDraft(e.target.value.slice(0, 500))}
             rows={2}
-            placeholder={t("admin.media.altPlaceholder", {
-              defaultValue: "Opisz obraz dla czytników ekranu i SEO",
-            })}
+            placeholder={t("admin.media.altPlaceholder")}
             className="w-full rounded border border-border bg-background px-2 py-1.5 text-xs resize-y focus:outline-none focus:ring-1 focus:ring-brand"
           />
           <div className="flex items-center justify-between gap-2">
@@ -106,15 +89,13 @@ export function MediaInfoPanel({ target, imgSize, onSaveAlt }: MediaInfoPanelPro
                 setSavingAlt(true);
                 try {
                   await onSaveAlt(target.id, altDraft.trim());
-                  toast.success(t("admin.saved", { defaultValue: "Zapisano" }));
+                  toast.success(t("admin.saved"));
                 } finally {
                   setSavingAlt(false);
                 }
               }}
             >
-              {savingAlt
-                ? t("admin.saving", { defaultValue: "Zapisywanie…" })
-                : t("admin.save", { defaultValue: "Zapisz" })}
+              {savingAlt ? t("admin.saving") : t("admin.save")}
             </Button>
           </div>
         </div>
@@ -126,8 +107,7 @@ export function MediaInfoPanel({ target, imgSize, onSaveAlt }: MediaInfoPanelPro
           rel="noreferrer"
           className="inline-flex items-center gap-1 text-brand hover:underline"
         >
-          {t("admin.media.openInNewTab", { defaultValue: "Otwórz w nowej karcie" })}{" "}
-          <MoreVertical className="w-3 h-3 rotate-90" />
+          {t("admin.media.openInNewTab")} <MoreVertical className="w-3 h-3 rotate-90" />
         </a>
       </div>
     </div>

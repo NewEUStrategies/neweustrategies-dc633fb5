@@ -290,15 +290,13 @@ function AdminShellInner({
         {
           to: "/admin/category-colors",
           icon: Palette,
-          label: t("admin.nav.categoryColors", {
-            defaultValue: "Kolory kategorii",
-          }),
+          label: t("admin.nav.categoryColors"),
         },
         { to: "/admin/tags", icon: Tags, label: t("admin.nav.tags") },
         {
           to: "/admin/glossary",
           icon: BookOpen,
-          label: t("admin.nav.glossary", { defaultValue: "Słowniczek" }),
+          label: t("admin.nav.glossary"),
         },
         { to: "/admin/content-area", icon: FileText, label: t("admin.nav.contentArea") },
       ],
@@ -310,52 +308,38 @@ function AdminShellInner({
         {
           to: "/admin/monetization",
           icon: TrendingUp,
-          label: t("admin.nav.monetization", {
-            defaultValue: lang === "pl" ? "Dashboard monetyzacji" : "Monetization",
-          }),
+          label: t("admin.nav.monetization"),
         },
         { to: "/admin/paywall", icon: Lock, label: t("admin.nav.paywall") },
         {
           to: "/admin/gifting",
           icon: Gift,
-          label: t("admin.nav.gifting", {
-            defaultValue: lang === "pl" ? "Podaruj artykuł" : "Gift articles",
-          }),
+          label: t("admin.nav.gifting"),
         },
         {
           to: "/admin/coupons",
           icon: Megaphone,
-          label: t("admin.nav.coupons", {
-            defaultValue: lang === "pl" ? "Kupony B2B" : "B2B coupons",
-          }),
+          label: t("admin.nav.coupons"),
         },
         {
           to: "/admin/membership",
           icon: Crown,
-          label: t("admin.nav.membership", {
-            defaultValue: lang === "pl" ? "Członkostwo" : "Membership",
-          }),
+          label: t("admin.nav.membership"),
         },
         {
           to: "/admin/pricing",
           icon: BadgePercent,
-          label: t("admin.nav.pricing", {
-            defaultValue: lang === "pl" ? "Cennik i segmenty" : "Pricing & segments",
-          }),
+          label: t("admin.nav.pricing"),
         },
         {
           to: "/admin/organizations",
           icon: Landmark,
-          label: t("admin.nav.organizations", {
-            defaultValue: lang === "pl" ? "Organizacje" : "Organisations",
-          }),
+          label: t("admin.nav.organizations"),
         },
         {
           to: "/admin/library",
           icon: BookOpen,
-          label: t("admin.nav.library", {
-            defaultValue: lang === "pl" ? "Biblioteka" : "Library",
-          }),
+          label: t("admin.nav.library"),
         },
         { to: "/admin/ads", icon: Megaphone, label: t("admin.nav.ads") },
         {
@@ -371,9 +355,7 @@ function AdminShellInner({
         {
           to: "/admin/donations",
           icon: HandHeart,
-          label: t("admin.nav.donations", {
-            defaultValue: lang === "pl" ? "Darowizny" : "Donations",
-          }),
+          label: t("admin.nav.donations"),
         },
       ],
     },
@@ -385,7 +367,7 @@ function AdminShellInner({
         {
           to: "/admin/popups",
           icon: MousePointerClick,
-          label: t("admin.nav.popups", { defaultValue: lang === "pl" ? "Popupy" : "Popups" }),
+          label: t("admin.nav.popups"),
         },
         {
           to: "/admin/settings/social-preview",
@@ -410,46 +392,34 @@ function AdminShellInner({
         {
           to: "/admin/experiments",
           icon: FlaskConical,
-          label: t("admin.nav.experiments", {
-            defaultValue: lang === "pl" ? "Testy A/B" : "A/B tests",
-          }),
+          label: t("admin.nav.experiments"),
         },
         { to: "/admin/personalized", icon: Wand2, label: t("admin.nav.personalized") },
         { to: "/admin/related-posts", icon: Share2, label: t("admin.nav.relatedPosts") },
         {
           to: "/admin/crm",
           icon: Users,
-          label: t("admin.nav.crm", {
-            defaultValue: lang === "pl" ? "Kontakty CRM" : "CRM Contacts",
-          }),
+          label: t("admin.nav.crm"),
         },
         {
           to: "/admin/crm/funnel",
           icon: Mail,
-          label: t("admin.nav.crmFunnel", {
-            defaultValue: lang === "pl" ? "CRM - Lejek marketingowy" : "CRM - Marketing funnel",
-          }),
+          label: t("admin.nav.crmFunnel"),
         },
         {
           to: "/admin/companies",
           icon: Users,
-          label: t("admin.nav.companies", {
-            defaultValue: lang === "pl" ? "Firmy CRM" : "CRM companies",
-          }),
+          label: t("admin.nav.companies"),
         },
         {
           to: "/admin/workflows",
           icon: Workflow,
-          label: t("admin.nav.workflows", {
-            defaultValue: lang === "pl" ? "Automatyzacje" : "Automations",
-          }),
+          label: t("admin.nav.workflows"),
         },
         {
           to: "/admin/integrations",
           icon: Cable,
-          label: t("admin.nav.integrations", {
-            defaultValue: lang === "pl" ? "Integracje" : "Integrations",
-          }),
+          label: t("admin.nav.integrations"),
         },
       ],
     },
@@ -460,9 +430,7 @@ function AdminShellInner({
         {
           to: "/admin/contact",
           icon: Inbox,
-          label: t("admin.nav.contact", {
-            defaultValue: lang === "pl" ? "Centrum kontaktu" : "Contact center",
-          }),
+          label: t("admin.nav.contact"),
         },
         {
           // Zgłoszenia rekrutacyjne ze strony /zatrudniamy (Contact Center +
@@ -484,9 +452,7 @@ function AdminShellInner({
         {
           to: "/admin/community",
           icon: Users,
-          label: t("admin.nav.community", {
-            defaultValue: lang === "pl" ? "Społeczność" : "Community",
-          }),
+          label: t("admin.nav.community"),
         },
         {
           // Skrót wprost do zarządzania klubami dyskusyjnymi - bez niego trzeba
@@ -530,9 +496,7 @@ function AdminShellInner({
         {
           to: "/admin/comments",
           icon: MessageCircle,
-          label: t("admin.nav.comments", {
-            defaultValue: lang === "pl" ? "Komentarze" : "Comments",
-          }),
+          label: t("admin.nav.comments"),
         },
         {
           to: "/admin/expert-requests",
@@ -542,31 +506,23 @@ function AdminShellInner({
         {
           to: "/admin/tracker",
           icon: Landmark,
-          label: t("admin.nav.tracker", {
-            defaultValue: lang === "pl" ? "Tracker UE" : "EU tracker",
-          }),
+          label: t("admin.nav.tracker"),
         },
         { to: "/admin/podcasts", icon: Mic, label: t("admin.nav.podcasts") },
         {
           to: "/admin/research-programs",
           icon: FlaskConical,
-          label: t("admin.nav.researchPrograms", {
-            defaultValue: lang === "pl" ? "Programy - landing" : "Program landings",
-          }),
+          label: t("admin.nav.researchPrograms"),
         },
         {
           to: "/admin/programs",
           icon: FlaskConical,
-          label: t("admin.nav.programs", {
-            defaultValue: lang === "pl" ? "Programy - tagowanie" : "Program tags",
-          }),
+          label: t("admin.nav.programs"),
         },
         {
           to: "/admin/live-blog",
           icon: Radio,
-          label: t("admin.nav.liveBlog", {
-            defaultValue: "Live blog",
-          }),
+          label: t("admin.nav.liveBlog"),
         },
         { to: "/admin/web-stories", icon: Film, label: t("admin.nav.webStories") },
       ],
@@ -579,16 +535,12 @@ function AdminShellInner({
         {
           to: "/admin/appearance/category-archive",
           icon: FolderTree,
-          label: t("archiveLayout.categoryTab", {
-            defaultValue: lang === "pl" ? "Layout kategorii" : "Category layout",
-          }),
+          label: t("archiveLayout.categoryTab"),
         },
         {
           to: "/admin/appearance/tag-archive",
           icon: Tags,
-          label: t("archiveLayout.tagTab", {
-            defaultValue: lang === "pl" ? "Layout tagów" : "Tag layout",
-          }),
+          label: t("archiveLayout.tagTab"),
         },
         { to: "/admin/theme-options", icon: Palette, label: t("admin.nav.themeOptions") },
         {
@@ -601,23 +553,17 @@ function AdminShellInner({
         {
           to: "/admin/key-takeaways",
           icon: ListChecks,
-          label: t("admin.nav.keyTakeaways", {
-            defaultValue: lang === "pl" ? "Sekcja „Dowiesz się…”" : "Key takeaways",
-          }),
+          label: t("admin.nav.keyTakeaways"),
         },
         {
           to: "/admin/toc",
           icon: ListChecks,
-          label: t("admin.nav.toc", {
-            defaultValue: lang === "pl" ? "Spis treści (ToC)" : "Table of contents",
-          }),
+          label: t("admin.nav.toc"),
         },
         {
           to: "/admin/reading-time",
           icon: Clock,
-          label: t("admin.nav.readingTime", {
-            defaultValue: lang === "pl" ? "Czas czytania" : "Reading time",
-          }),
+          label: t("admin.nav.readingTime"),
         },
         { to: "/admin/icons", icon: Shapes, label: t("admin.nav.icons") },
         ...(isSuperAdmin ? [{ to: "/admin/names", icon: Users, label: t("admin.nav.names") }] : []),
@@ -626,9 +572,7 @@ function AdminShellInner({
               {
                 to: "/admin/super/mobile-drawer",
                 icon: PanelLeft,
-                label: t("admin.nav.mobileDrawer", {
-                  defaultValue: lang === "pl" ? "Mobilne menu" : "Mobile menu",
-                }),
+                label: t("admin.nav.mobileDrawer"),
               },
             ]
           : []),
@@ -637,9 +581,7 @@ function AdminShellInner({
               {
                 to: "/admin/greetings",
                 icon: MessageCircle,
-                label: t("admin.nav.greetings", {
-                  defaultValue: lang === "pl" ? "Powitania" : "Greetings",
-                }),
+                label: t("admin.nav.greetings"),
               },
             ]
           : []),
@@ -655,61 +597,45 @@ function AdminShellInner({
               {
                 to: "/admin/analytics",
                 icon: TrendingUp,
-                label: t("admin.nav.analytics", {
-                  defaultValue: lang === "pl" ? "Analityka (GA4 / GSC)" : "Analytics (GA4 / GSC)",
-                }),
+                label: t("admin.nav.analytics"),
               },
               {
                 to: "/admin/audience",
                 icon: TrendingUp,
-                label: t("admin.nav.audience", {
-                  defaultValue: lang === "pl" ? "Audytorium / retencja" : "Audience / retention",
-                }),
+                label: t("admin.nav.audience"),
               },
               {
                 to: "/admin/seo",
                 icon: Search,
-                label: t("admin.nav.seo", { defaultValue: "SEO" }),
+                label: t("admin.nav.seo"),
               },
               {
                 to: "/admin/redirects",
                 icon: LinkIcon,
-                label: t("admin.nav.redirects", {
-                  defaultValue: lang === "pl" ? "Przekierowania" : "Redirects",
-                }),
+                label: t("admin.nav.redirects"),
               },
               { to: "/admin/users", icon: Users, label: t("admin.nav.users") },
               {
                 to: "/admin/authors",
                 icon: Users,
-                label: t("admin.nav.authors", {
-                  defaultValue: lang === "pl" ? "Autorzy" : "Authors",
-                }),
+                label: t("admin.nav.authors"),
               },
               {
                 to: "/admin/permissions",
                 icon: ShieldCheck,
-                label: t("admin.nav.permissions", {
-                  // Strona opisuje role ORAZ warstwy członkostwa (macierz
-                  // generowana z bramek SQL), więc etykieta nie zawęża jej do ról.
-                  defaultValue: lang === "pl" ? "Macierz uprawnień" : "Permissions matrix",
-                }),
+                label: t("admin.nav.permissions"),
               },
               {
                 to: "/admin/programs",
                 icon: Briefcase,
-                label: t("admin.nav.programs", {
-                  defaultValue: lang === "pl" ? "Programy" : "Programs",
-                }),
+                label: t("admin.nav.programs"),
               },
               ...(isSuperAdmin
                 ? [
                     {
                       to: "/admin/login-settings",
                       icon: Lock,
-                      label: t("admin.nav.loginSettings", {
-                        defaultValue: lang === "pl" ? "Strona logowania" : "Login page",
-                      }),
+                      label: t("admin.nav.loginSettings"),
                     },
                   ]
                 : []),
@@ -744,16 +670,11 @@ function AdminShellInner({
           <TooltipProvider delayDuration={0}>
             <div className="p-3 border-b border-border">
               <div className={`flex items-center ${compact ? "justify-center" : "gap-2"}`}>
-                <SidebarTooltip
-                  label={t("admin.nav.dashboard", { defaultValue: "Kokpit" })}
-                  compact={compact}
-                >
+                <SidebarTooltip label={t("admin.nav.dashboard")} compact={compact}>
                   <Link
                     to="/admin"
                     data-sidebar-brand
-                    title={
-                      compact ? undefined : t("admin.nav.dashboard", { defaultValue: "Kokpit" })
-                    }
+                    title={compact ? undefined : t("admin.nav.dashboard")}
                     className={`font-display font-bold text-sm flex items-center justify-center min-w-0 ${compact ? "" : "flex-1"} bg-transparent hover:bg-transparent`}
                     style={{ background: "transparent" }}
                   >
@@ -804,12 +725,7 @@ function AdminShellInner({
                               href={item.href}
                               icon={Icon}
                               label={label}
-                              hint={t("admin.nav.externalNewTab", {
-                                defaultValue:
-                                  lang === "pl"
-                                    ? "Otwiera się w nowej karcie"
-                                    : "Opens in a new tab",
-                              })}
+                              hint={t("admin.nav.externalNewTab")}
                               compact={compact}
                             />
                           </SidebarTooltip>

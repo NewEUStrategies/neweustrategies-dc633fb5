@@ -7,9 +7,7 @@ export function MediaEmptyState() {
   return (
     <div className="flex flex-col items-center justify-center text-muted-foreground text-sm py-16">
       <Upload className="w-6 h-6 mb-2" />
-      {t("admin.media.dropHere", {
-        defaultValue: "Przeciągnij pliki tutaj lub kliknij „Wgraj”",
-      })}
+      {t("admin.media.dropHere")}
     </div>
   );
 }

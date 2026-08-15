@@ -24,8 +24,7 @@ export function DynamicTagInserter({ onInsert, label, compact = true }: Props) {
   const bl = useBuilderLabel();
   const [open, setOpen] = useState(false);
   const lang = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
-  const triggerLabel =
-    label ?? t("builder.dynamicTag.trigger", { defaultValue: "Wstaw tag dynamiczny" });
+  const triggerLabel = label ?? t("builder.dynamicTag.trigger");
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -44,12 +43,10 @@ export function DynamicTagInserter({ onInsert, label, compact = true }: Props) {
       <PopoverContent align="end" className="w-72 p-0 max-h-[320px] overflow-auto">
         <div className="px-3 py-2 border-b border-border">
           <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            {t("builder.dynamicTag.title", { defaultValue: "Tagi dynamiczne" })}
+            {t("builder.dynamicTag.title")}
           </div>
           <div className="text-[11px] text-muted-foreground mt-0.5">
-            {t("builder.dynamicTag.hint", {
-              defaultValue: "Zostaną zastąpione danymi wpisu przy publikacji.",
-            })}
+            {t("builder.dynamicTag.hint")}
           </div>
         </div>
         <div className="py-1">

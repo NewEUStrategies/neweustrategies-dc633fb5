@@ -63,19 +63,15 @@ export function BulkActionsBar({
   return (
     <>
       <div className="flex flex-wrap items-center gap-2 px-3 py-2 bg-muted/40 border-b border-border text-sm">
-        <span className="font-medium">
-          {t("admin.bulk.selected", { defaultValue: "{{count}} zaznaczonych", count })}
-        </span>
+        <span className="font-medium">{t("admin.bulk.selected", { count })}</span>
         <Button size="sm" variant="ghost" onClick={onClear} className="h-7 px-2">
-          <X className="w-3.5 h-3.5 mr-1" /> {t("admin.list.clear", { defaultValue: "Wyczyść" })}
+          <X className="w-3.5 h-3.5 mr-1" /> {t("admin.list.clear")}
         </Button>
         <div className="mx-2 h-4 w-px bg-border" />
-        <span className="text-muted-foreground">
-          {t("admin.bulk.changeStatus", { defaultValue: "Zmień status:" })}
-        </span>
+        <span className="text-muted-foreground">{t("admin.bulk.changeStatus")}</span>
         <Select value={status} onValueChange={(v) => setStatus(v as BulkStatus)}>
           <SelectTrigger className="h-7 w-40">
-            <SelectValue placeholder={t("admin.bulk.pick", { defaultValue: "Wybierz..." })} />
+            <SelectValue placeholder={t("admin.bulk.pick")} />
           </SelectTrigger>
           <SelectContent>
             {statuses.map((s) => (
@@ -92,8 +88,7 @@ export function BulkActionsBar({
           disabled={!status || busy}
           className="h-7"
         >
-          <Check className="w-3.5 h-3.5 mr-1" />{" "}
-          {t("admin.bulk.apply", { defaultValue: "Zastosuj" })}
+          <Check className="w-3.5 h-3.5 mr-1" /> {t("admin.bulk.apply")}
         </Button>
         <div className="ml-auto flex items-center gap-2">
           {onMigrateToBlocks && (
@@ -105,7 +100,7 @@ export function BulkActionsBar({
               className="h-7"
             >
               <Layers className="w-3.5 h-3.5 mr-1" />
-              {t("admin.bulk.migrateToBlocks", { defaultValue: "Konwertuj na bloki" })}
+              {t("admin.bulk.migrateToBlocks")}
             </Button>
           )}
           <Button
@@ -116,7 +111,7 @@ export function BulkActionsBar({
             className="h-7"
           >
             <Trash2 className="w-3.5 h-3.5 mr-1" />
-            {t("admin.bulk.deleteSelected", { defaultValue: "Usuń zaznaczone" })}
+            {t("admin.bulk.deleteSelected")}
           </Button>
         </div>
       </div>
@@ -126,21 +121,15 @@ export function BulkActionsBar({
           <AlertDialogHeader>
             <AlertDialogTitle>
               {t("admin.bulk.confirmDeleteTitle", {
-                defaultValue: "Usunąć {{count}} elementów?",
                 count,
               })}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {t("admin.bulk.confirmDeleteDescription", {
-                defaultValue:
-                  "Tej operacji nie można cofnąć. Zaznaczone elementy zostaną trwale usunięte.",
-              })}
+              {t("admin.bulk.confirmDeleteDescription")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>
-              {t("admin.bulk.cancel", { defaultValue: "Anuluj" })}
-            </AlertDialogCancel>
+            <AlertDialogCancel>{t("admin.bulk.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={async () => {
@@ -153,7 +142,7 @@ export function BulkActionsBar({
                 }
               }}
             >
-              {t("admin.bulk.delete", { defaultValue: "Usuń" })}
+              {t("admin.bulk.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

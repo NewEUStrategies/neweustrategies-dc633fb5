@@ -41,44 +41,28 @@ export function PopupSettingsPane({ value, onChange }: Props) {
   return (
     <div className="grid gap-6 md:grid-cols-2 max-w-4xl">
       <section className="space-y-4">
-        <h3 className="text-sm font-medium">
-          {t("admin.popups.settings.triggerSection", { defaultValue: "Wyzwalacz" })}
-        </h3>
+        <h3 className="text-sm font-medium">{t("admin.popups.settings.triggerSection")}</h3>
 
         <div className="space-y-1.5">
-          <Label>
-            {t("admin.popups.settings.trigger", { defaultValue: "Kiedy pokazać popup" })}
-          </Label>
+          <Label>{t("admin.popups.settings.trigger")}</Label>
           <Select value={value.trigger} onValueChange={(v) => set("trigger", v as PopupTrigger)}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="immediate">
-                {t("admin.popups.settings.triggerImmediate", { defaultValue: "Od razu" })}
+                {t("admin.popups.settings.triggerImmediate")}
               </SelectItem>
-              <SelectItem value="delay">
-                {t("admin.popups.settings.triggerDelay", { defaultValue: "Po opóźnieniu" })}
-              </SelectItem>
-              <SelectItem value="scroll">
-                {t("admin.popups.settings.triggerScroll", {
-                  defaultValue: "Po przewinięciu strony",
-                })}
-              </SelectItem>
-              <SelectItem value="exit-intent">
-                {t("admin.popups.settings.triggerExit", {
-                  defaultValue: "Przy próbie wyjścia (exit intent)",
-                })}
-              </SelectItem>
+              <SelectItem value="delay">{t("admin.popups.settings.triggerDelay")}</SelectItem>
+              <SelectItem value="scroll">{t("admin.popups.settings.triggerScroll")}</SelectItem>
+              <SelectItem value="exit-intent">{t("admin.popups.settings.triggerExit")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         {value.trigger === "delay" && (
           <div className="space-y-1.5">
-            <Label>
-              {t("admin.popups.settings.delaySeconds", { defaultValue: "Opóźnienie (sekundy)" })}
-            </Label>
+            <Label>{t("admin.popups.settings.delaySeconds")}</Label>
             <Input
               type="number"
               min={0}
@@ -90,11 +74,7 @@ export function PopupSettingsPane({ value, onChange }: Props) {
 
         {value.trigger === "scroll" && (
           <div className="space-y-1.5">
-            <Label>
-              {t("admin.popups.settings.scrollPercent", {
-                defaultValue: "Głębokość przewinięcia (%)",
-              })}
-            </Label>
+            <Label>{t("admin.popups.settings.scrollPercent")}</Label>
             <Input
               type="number"
               min={1}
@@ -108,11 +88,7 @@ export function PopupSettingsPane({ value, onChange }: Props) {
         )}
 
         <div className="space-y-1.5">
-          <Label>
-            {t("admin.popups.settings.frequencyDays", {
-              defaultValue: "Częstotliwość (dni między wyświetleniami)",
-            })}
-          </Label>
+          <Label>{t("admin.popups.settings.frequencyDays")}</Label>
           <Input
             type="number"
             min={0}
@@ -120,46 +96,36 @@ export function PopupSettingsPane({ value, onChange }: Props) {
             onChange={(e) => set("frequencyDays", Math.max(0, Number(e.target.value) || 0))}
           />
           <p className="text-xs text-muted-foreground">
-            {t("admin.popups.settings.frequencyHint", {
-              defaultValue: "0 = przy każdej wizycie. Licznik startuje po zamknięciu popupu.",
-            })}
+            {t("admin.popups.settings.frequencyHint")}
           </p>
         </div>
 
-        <h3 className="text-sm font-medium pt-2">
-          {t("admin.popups.settings.targetingSection", { defaultValue: "Targetowanie" })}
-        </h3>
+        <h3 className="text-sm font-medium pt-2">{t("admin.popups.settings.targetingSection")}</h3>
 
         <div className="space-y-1.5">
-          <Label>{t("admin.popups.settings.audience", { defaultValue: "Odbiorcy" })}</Label>
+          <Label>{t("admin.popups.settings.audience")}</Label>
           <Select value={value.audience} onValueChange={(v) => set("audience", v as PopupAudience)}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="any">
-                {t("admin.popups.settings.audienceAny", { defaultValue: "Wszyscy" })}
-              </SelectItem>
-              <SelectItem value="guest">
-                {t("admin.popups.settings.audienceGuest", { defaultValue: "Tylko niezalogowani" })}
-              </SelectItem>
-              <SelectItem value="user">
-                {t("admin.popups.settings.audienceUser", { defaultValue: "Tylko zalogowani" })}
-              </SelectItem>
+              <SelectItem value="any">{t("admin.popups.settings.audienceAny")}</SelectItem>
+              <SelectItem value="guest">{t("admin.popups.settings.audienceGuest")}</SelectItem>
+              <SelectItem value="user">{t("admin.popups.settings.audienceUser")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         <div className="space-y-2">
-          <Label>{t("admin.popups.settings.devices", { defaultValue: "Urządzenia" })}</Label>
+          <Label>{t("admin.popups.settings.devices")}</Label>
           {(["desktop", "tablet", "mobile"] as const).map((d) => (
             <div key={d} className="flex items-center justify-between gap-2">
               <span className="text-sm">
                 {d === "desktop"
-                  ? t("admin.popups.settings.deviceDesktop", { defaultValue: "Desktop" })
+                  ? t("admin.popups.settings.deviceDesktop")
                   : d === "tablet"
-                    ? t("admin.popups.settings.deviceTablet", { defaultValue: "Tablet" })
-                    : t("admin.popups.settings.deviceMobile", { defaultValue: "Mobile" })}
+                    ? t("admin.popups.settings.deviceTablet")
+                    : t("admin.popups.settings.deviceMobile")}
               </span>
               <Switch
                 checked={value.devices[d]}
@@ -170,31 +136,18 @@ export function PopupSettingsPane({ value, onChange }: Props) {
         </div>
 
         <div className="space-y-1.5">
-          <Label>
-            {t("admin.popups.settings.includePaths", {
-              defaultValue: "Pokaż tylko na ścieżkach (jedna na linię)",
-            })}
-          </Label>
+          <Label>{t("admin.popups.settings.includePaths")}</Label>
           <Textarea
             rows={3}
             value={pathsToText(value.includePaths)}
             onChange={(e) => set("includePaths", textToPaths(e.target.value))}
             placeholder={"/\n/post/*\n/pricing"}
           />
-          <p className="text-xs text-muted-foreground">
-            {t("admin.popups.settings.pathsHint", {
-              defaultValue:
-                "Puste = cała witryna. Gwiazdka na końcu dopasowuje prefiks, np. /post/*.",
-            })}
-          </p>
+          <p className="text-xs text-muted-foreground">{t("admin.popups.settings.pathsHint")}</p>
         </div>
 
         <div className="space-y-1.5">
-          <Label>
-            {t("admin.popups.settings.excludePaths", {
-              defaultValue: "Wyklucz ścieżki (jedna na linię)",
-            })}
-          </Label>
+          <Label>{t("admin.popups.settings.excludePaths")}</Label>
           <Textarea
             rows={3}
             value={pathsToText(value.excludePaths)}
@@ -205,57 +158,39 @@ export function PopupSettingsPane({ value, onChange }: Props) {
       </section>
 
       <section className="space-y-4">
-        <h3 className="text-sm font-medium">
-          {t("admin.popups.settings.appearanceSection", { defaultValue: "Wygląd" })}
-        </h3>
+        <h3 className="text-sm font-medium">{t("admin.popups.settings.appearanceSection")}</h3>
 
         <div className="space-y-1.5">
-          <Label>{t("admin.popups.settings.width", { defaultValue: "Szerokość" })}</Label>
+          <Label>{t("admin.popups.settings.width")}</Label>
           <Select value={value.width} onValueChange={(v) => set("width", v as PopupWidth)}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="sm">
-                {t("admin.popups.settings.widthSm", { defaultValue: "Wąski (420 px)" })}
-              </SelectItem>
-              <SelectItem value="md">
-                {t("admin.popups.settings.widthMd", { defaultValue: "Średni (640 px)" })}
-              </SelectItem>
-              <SelectItem value="lg">
-                {t("admin.popups.settings.widthLg", { defaultValue: "Szeroki (860 px)" })}
-              </SelectItem>
-              <SelectItem value="xl">
-                {t("admin.popups.settings.widthXl", { defaultValue: "Bardzo szeroki (1080 px)" })}
-              </SelectItem>
+              <SelectItem value="sm">{t("admin.popups.settings.widthSm")}</SelectItem>
+              <SelectItem value="md">{t("admin.popups.settings.widthMd")}</SelectItem>
+              <SelectItem value="lg">{t("admin.popups.settings.widthLg")}</SelectItem>
+              <SelectItem value="xl">{t("admin.popups.settings.widthXl")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         <div className="space-y-1.5">
-          <Label>{t("admin.popups.settings.position", { defaultValue: "Pozycja" })}</Label>
+          <Label>{t("admin.popups.settings.position")}</Label>
           <Select value={value.position} onValueChange={(v) => set("position", v as PopupPosition)}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="center">
-                {t("admin.popups.settings.positionCenter", { defaultValue: "Środek ekranu" })}
-              </SelectItem>
-              <SelectItem value="top">
-                {t("admin.popups.settings.positionTop", { defaultValue: "Góra ekranu" })}
-              </SelectItem>
-              <SelectItem value="bottom">
-                {t("admin.popups.settings.positionBottom", { defaultValue: "Dół ekranu" })}
-              </SelectItem>
+              <SelectItem value="center">{t("admin.popups.settings.positionCenter")}</SelectItem>
+              <SelectItem value="top">{t("admin.popups.settings.positionTop")}</SelectItem>
+              <SelectItem value="bottom">{t("admin.popups.settings.positionBottom")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         <div className="space-y-1.5">
-          <Label>
-            {t("admin.popups.settings.overlayColor", { defaultValue: "Kolor przyciemnienia tła" })}
-          </Label>
+          <Label>{t("admin.popups.settings.overlayColor")}</Label>
           <Input
             value={value.overlayColor}
             onChange={(e) => set("overlayColor", e.target.value)}
@@ -264,9 +199,7 @@ export function PopupSettingsPane({ value, onChange }: Props) {
         </div>
 
         <div className="space-y-1.5">
-          <Label>
-            {t("admin.popups.settings.borderRadius", { defaultValue: "Zaokrąglenie rogów (px)" })}
-          </Label>
+          <Label>{t("admin.popups.settings.borderRadius")}</Label>
           <Input
             type="number"
             min={0}
@@ -276,11 +209,7 @@ export function PopupSettingsPane({ value, onChange }: Props) {
         </div>
 
         <div className="flex items-center justify-between gap-2">
-          <Label className="font-normal">
-            {t("admin.popups.settings.showCloseButton", {
-              defaultValue: "Pokaż przycisk zamknięcia",
-            })}
-          </Label>
+          <Label className="font-normal">{t("admin.popups.settings.showCloseButton")}</Label>
           <Switch
             checked={value.showCloseButton}
             onCheckedChange={(v) => set("showCloseButton", v)}
@@ -288,11 +217,7 @@ export function PopupSettingsPane({ value, onChange }: Props) {
         </div>
 
         <div className="flex items-center justify-between gap-2">
-          <Label className="font-normal">
-            {t("admin.popups.settings.closeOnOverlay", {
-              defaultValue: "Zamykaj kliknięciem w tło",
-            })}
-          </Label>
+          <Label className="font-normal">{t("admin.popups.settings.closeOnOverlay")}</Label>
           <Switch
             checked={value.closeOnOverlay}
             onCheckedChange={(v) => set("closeOnOverlay", v)}

@@ -75,24 +75,24 @@ function VerdictBadge({ verdict }: { verdict: string | undefined }) {
       return {
         Icon: CheckCircle2,
         cls: "text-emerald-600 bg-emerald-500/10 border-emerald-500/20",
-        label: t("admin.seo.gsc.verdict.pass", { defaultValue: "OK" }),
+        label: t("admin.seo.gsc.verdict.pass"),
       };
     if (v === "PARTIAL")
       return {
         Icon: AlertTriangle,
         cls: "text-amber-600 bg-amber-500/10 border-amber-500/20",
-        label: t("admin.seo.gsc.verdict.partial", { defaultValue: "Ostrzeżenia" }),
+        label: t("admin.seo.gsc.verdict.partial"),
       };
     if (v === "FAIL")
       return {
         Icon: XCircle,
         cls: "text-red-600 bg-red-500/10 border-red-500/20",
-        label: t("admin.seo.gsc.verdict.fail", { defaultValue: "Problem" }),
+        label: t("admin.seo.gsc.verdict.fail"),
       };
     return {
       Icon: AlertTriangle,
       cls: "text-muted-foreground bg-muted border-border",
-      label: t("admin.seo.gsc.verdict.neutral", { defaultValue: "Nieznany" }),
+      label: t("admin.seo.gsc.verdict.neutral"),
     };
   })();
   return (
@@ -144,7 +144,7 @@ export function UrlInspectionWidget({ path, lang = "pl" }: Props) {
         },
       });
       setResult(JSON.parse(res.raw) as InspectionResult);
-      toast.success(t("admin.seo.gsc.inspectDone", { defaultValue: "Sprawdzono w Google Index" }));
+      toast.success(t("admin.seo.gsc.inspectDone"));
     } catch (e) {
       toastError(e);
     } finally {
@@ -156,7 +156,7 @@ export function UrlInspectionWidget({ path, lang = "pl" }: Props) {
     return (
       <div className="rounded-[6px] border border-border p-4 text-xs text-muted-foreground inline-flex items-center gap-2">
         <Loader2 className="w-3.5 h-3.5 animate-spin" />
-        {t("admin.seo.gsc.loading", { defaultValue: "Ładowanie właściwości Google..." })}
+        {t("admin.seo.gsc.loading")}
       </div>
     );
   }
@@ -164,10 +164,7 @@ export function UrlInspectionWidget({ path, lang = "pl" }: Props) {
   if (!configured) {
     return (
       <div className="rounded-[6px] border border-border p-4 text-xs text-muted-foreground">
-        {t("admin.seo.gsc.notConfigured", {
-          defaultValue:
-            "Połącz Google Search Console w Ustawieniach, aby sprawdzać status indeksowania.",
-        })}
+        {t("admin.seo.gsc.notConfigured")}
       </div>
     );
   }
@@ -175,9 +172,7 @@ export function UrlInspectionWidget({ path, lang = "pl" }: Props) {
   if (sites.length === 0) {
     return (
       <div className="rounded-[6px] border border-border p-4 text-xs text-muted-foreground">
-        {t("admin.seo.gsc.noSites", {
-          defaultValue: "Brak zweryfikowanych właściwości na koncie GSC.",
-        })}
+        {t("admin.seo.gsc.noSites")}
       </div>
     );
   }
@@ -189,9 +184,7 @@ export function UrlInspectionWidget({ path, lang = "pl" }: Props) {
   return (
     <div className="rounded-[6px] border border-border p-4 space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <h4 className="text-sm font-semibold">
-          {t("admin.seo.gsc.widgetTitle", { defaultValue: "Podgląd w Google Index" })}
-        </h4>
+        <h4 className="text-sm font-semibold">{t("admin.seo.gsc.widgetTitle")}</h4>
         {result?.inspectionResult?.inspectionResultLink ? (
           <a
             href={result.inspectionResult.inspectionResultLink}
@@ -199,7 +192,7 @@ export function UrlInspectionWidget({ path, lang = "pl" }: Props) {
             rel="noreferrer"
             className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
           >
-            {t("admin.seo.gsc.openInGsc", { defaultValue: "Otwórz w GSC" })}
+            {t("admin.seo.gsc.openInGsc")}
             <ExternalLink className="w-3 h-3" />
           </a>
         ) : null}
@@ -231,7 +224,7 @@ export function UrlInspectionWidget({ path, lang = "pl" }: Props) {
           ) : (
             <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
           )}
-          {t("admin.seo.gsc.inspect", { defaultValue: "Sprawdź URL" })}
+          {t("admin.seo.gsc.inspect")}
         </Button>
       </div>
 
@@ -242,17 +235,17 @@ export function UrlInspectionWidget({ path, lang = "pl" }: Props) {
       {result ? (
         <div className="grid gap-2 pt-1">
           <Row
-            label={t("admin.seo.gsc.indexing", { defaultValue: "Indeksowanie" })}
+            label={t("admin.seo.gsc.indexing")}
             verdict={idx?.verdict}
             detail={idx?.coverageState}
           />
           <Row
-            label={t("admin.seo.gsc.mobile", { defaultValue: "Mobile" })}
+            label={t("admin.seo.gsc.mobile")}
             verdict={mob?.verdict}
             detail={mob?.issues?.[0]?.message}
           />
           <Row
-            label={t("admin.seo.gsc.richResults", { defaultValue: "Rich results" })}
+            label={t("admin.seo.gsc.richResults")}
             verdict={rich?.verdict}
             detail={
               rich?.detectedItems
@@ -263,17 +256,13 @@ export function UrlInspectionWidget({ path, lang = "pl" }: Props) {
           />
           {idx?.lastCrawlTime ? (
             <p className="text-[10px] text-muted-foreground">
-              {t("admin.seo.gsc.lastCrawl", { defaultValue: "Ostatni crawl" })}:{" "}
+              {t("admin.seo.gsc.lastCrawl")}:{" "}
               {new Date(idx.lastCrawlTime).toLocaleString(lang === "en" ? "en-GB" : "pl-PL")}
             </p>
           ) : null}
         </div>
       ) : (
-        <p className="text-[11px] text-muted-foreground">
-          {t("admin.seo.gsc.hint", {
-            defaultValue: "Sprawdź, czy strona jest w indeksie Google i czy nie ma błędów.",
-          })}
-        </p>
+        <p className="text-[11px] text-muted-foreground">{t("admin.seo.gsc.hint")}</p>
       )}
     </div>
   );

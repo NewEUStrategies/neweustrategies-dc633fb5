@@ -237,7 +237,7 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
           ]
             .filter(Boolean)
             .join(" ")}
-          aria-label={t("notifications.title", { defaultValue: "Powiadomienia" })}
+          aria-label={t("notifications.title")}
           aria-haspopup="dialog"
           aria-expanded={open}
         >
@@ -275,7 +275,7 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
         <div className="flex items-center justify-between px-3 py-2 border-b border-border/60">
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold uppercase tracking-wide">
-              {t("notifications.title", { defaultValue: "Powiadomienia" })}
+              {t("notifications.title")}
             </span>
             {unread > 0 && (
               <UnreadBadge
@@ -292,19 +292,19 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
             disabled={unread === 0 || markAll.isPending}
             onClick={() => markAll.mutate()}
           >
-            {t("notifications.markAllRead", { defaultValue: "Oznacz wszystkie" })}
+            {t("notifications.markAllRead")}
           </button>
         </div>
 
         <div className="max-h-[360px] overflow-y-auto">
           {listQ.isLoading ? (
             <div className="p-4 text-xs text-muted-foreground text-center">
-              {t("common.loading", { defaultValue: "Ładowanie..." })}
+              {t("common.loading")}
             </div>
           ) : items.length === 0 ? (
             <div className="p-6 text-xs text-muted-foreground text-center">
               <BellOff className="mx-auto mb-2 h-5 w-5 opacity-50" aria-hidden />
-              {t("notifications.empty", { defaultValue: "Brak powiadomień" })}
+              {t("notifications.empty")}
             </div>
           ) : (
             <ul className="divide-y divide-border/60">
@@ -320,7 +320,6 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
                   g.isConversation && !g.isSingle
                     ? t("notifications.grouped.messagesFrom", {
                         name: pickTitle(n, lang),
-                        defaultValue: `Messages from ${pickTitle(n, lang)}`,
                       })
                     : pickTitle(n, lang);
                 const inner = (
@@ -379,7 +378,6 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
                           <span aria-hidden>
                             {t("notifications.grouped.moreMessages", {
                               count: extra,
-                              defaultValue: `+${extra} more`,
                             })}
                           </span>
                         )}
@@ -399,12 +397,8 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
                             if (ids.length > 0) markMany.mutate(ids);
                           }}
                           className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          aria-label={t("notifications.markRead", {
-                            defaultValue: "Oznacz jako przeczytane",
-                          })}
-                          title={t("notifications.markRead", {
-                            defaultValue: "Oznacz jako przeczytane",
-                          })}
+                          aria-label={t("notifications.markRead")}
+                          title={t("notifications.markRead")}
                         >
                           <Check className="h-3.5 w-3.5" aria-hidden />
                         </button>
@@ -417,12 +411,8 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
                             unreadOne.mutate(g.latest.id);
                           }}
                           className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          aria-label={t("notifications.markUnread", {
-                            defaultValue: "Oznacz jako nieprzeczytane",
-                          })}
-                          title={t("notifications.markUnread", {
-                            defaultValue: "Oznacz jako nieprzeczytane",
-                          })}
+                          aria-label={t("notifications.markUnread")}
+                          title={t("notifications.markUnread")}
                         >
                           <Mail className="h-3.5 w-3.5" aria-hidden />
                         </button>
@@ -489,7 +479,7 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
             className="flex items-center justify-center gap-1.5 h-8 rounded-md text-xs font-medium hover:bg-muted/60 transition-colors"
           >
             <Inbox className="h-3.5 w-3.5" aria-hidden />
-            {t("notifications.openInbox", { defaultValue: "Otwórz skrzynkę" })}
+            {t("notifications.openInbox")}
           </Link>
         </div>
       </PopoverContent>

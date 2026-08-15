@@ -544,9 +544,7 @@ function ExpertHubPage() {
             <PodcastEpisodeStrip
               episodes={podcastsQ.data}
               lang={lang}
-              title={t("expert.podcastsHeading", {
-                defaultValue: lang === "en" ? "Podcasts" : "Podcasty",
-              })}
+              title={t("expert.podcastsHeading")}
             />
           </section>
         )}

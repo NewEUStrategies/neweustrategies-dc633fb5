@@ -83,17 +83,13 @@ function UserDetail() {
       toast.error(error.message);
       return;
     }
-    toast.success(t("admin.saved", { defaultValue: L("Zapisano", "Saved") }));
+    toast.success(t("admin.saved"));
     qc.invalidateQueries({ queryKey: ["admin-user", id] });
     qc.invalidateQueries({ queryKey: ["admin", "all-users"] });
   };
 
   if (isLoading) {
-    return (
-      <div className="text-sm text-muted-foreground">
-        {t("admin.loading", { defaultValue: L("Ładowanie...", "Loading...") })}
-      </div>
-    );
+    return <div className="text-sm text-muted-foreground">{t("admin.loading")}</div>;
   }
 
   if (error || !data) {
@@ -303,7 +299,7 @@ function UserDetail() {
             <Field label="ID" value={data.id} mono />
             <Field label="Slug" value={data.slug} />
             <Field
-              label={t("admin.users.created", { defaultValue: L("Utworzono", "Created") })}
+              label={t("admin.users.created")}
               value={new Date(data.created_at).toLocaleString(locale)}
             />
             {data.updated_at && (

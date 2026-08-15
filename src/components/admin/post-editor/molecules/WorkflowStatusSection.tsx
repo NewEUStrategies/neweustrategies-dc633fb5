@@ -56,26 +56,19 @@ export function WorkflowStatusSection({
             {statusOptions.map((o) => (
               <SelectItem key={o.value} value={o.value} disabled={o.publisherOnly}>
                 {t(`admin.status.${o.value}`)}
-                {o.publisherOnly
-                  ? ` - ${t("admin.workflow.adminOnly", { defaultValue: "tylko administrator" })}`
-                  : ""}
+                {o.publisherOnly ? ` - ${t("admin.workflow.adminOnly")}` : ""}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
         {!canPublish && (
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            {t("admin.workflow.writerHint", {
-              defaultValue:
-                "Publikuje administrator - wyślij wpis do recenzji, a redakcja go zatwierdzi.",
-            })}
-          </p>
+          <p className="mt-1 text-[11px] text-muted-foreground">{t("admin.workflow.writerHint")}</p>
         )}
       </div>
 
       {status === "scheduled" && (
         <div>
-          <Label>{t("admin.workflow.publishAt", { defaultValue: "Data publikacji" })}</Label>
+          <Label>{t("admin.workflow.publishAt")}</Label>
           <Input
             type="datetime-local"
             value={isoToLocalInput(publishAt)}
@@ -83,17 +76,10 @@ export function WorkflowStatusSection({
           />
           <p className="mt-1 text-[11px] text-muted-foreground">
             {!publishAt
-              ? t("admin.workflow.publishAtRequired", {
-                  defaultValue: "Zaplanowany wpis wymaga daty publikacji.",
-                })
+              ? t("admin.workflow.publishAtRequired")
               : scheduledInPast
-                ? t("admin.workflow.publishAtPast", {
-                    defaultValue:
-                      "Data jest w przeszłości - wpis zostanie opublikowany natychmiast.",
-                  })
-                : t("admin.workflow.publishAtHint", {
-                    defaultValue: "Wpis opublikuje się automatycznie o wskazanej godzinie.",
-                  })}
+                ? t("admin.workflow.publishAtPast")
+                : t("admin.workflow.publishAtHint")}
           </p>
         </div>
       )}
@@ -101,7 +87,6 @@ export function WorkflowStatusSection({
       {status === "published" && publishedAt && (
         <p className="text-[11px] text-muted-foreground">
           {t("admin.workflow.publishedAt", {
-            defaultValue: "Opublikowano: {{date}}",
             date: new Date(publishedAt).toLocaleString(uiLang),
           })}
         </p>
@@ -115,7 +100,7 @@ export function WorkflowStatusSection({
           disabled={busy}
           onClick={() => onApplyStatus("pending_review")}
         >
-          {t("admin.workflow.submitReview", { defaultValue: "Wyślij do recenzji" })}
+          {t("admin.workflow.submitReview")}
         </Button>
       )}
       {status === "pending_review" &&
@@ -128,7 +113,7 @@ export function WorkflowStatusSection({
               disabled={busy}
               onClick={() => onApplyStatus("published")}
             >
-              {t("admin.workflow.approvePublish", { defaultValue: "Zatwierdź i opublikuj" })}
+              {t("admin.workflow.approvePublish")}
             </Button>
             <Button
               type="button"
@@ -138,15 +123,11 @@ export function WorkflowStatusSection({
               disabled={busy}
               onClick={() => onApplyStatus("draft")}
             >
-              {t("admin.workflow.rejectToDraft", { defaultValue: "Odrzuć do szkicu" })}
+              {t("admin.workflow.rejectToDraft")}
             </Button>
           </div>
         ) : (
-          <p className="text-[11px] text-muted-foreground">
-            {t("admin.workflow.awaitingReview", {
-              defaultValue: "Wpis czeka na recenzję administratora.",
-            })}
-          </p>
+          <p className="text-[11px] text-muted-foreground">{t("admin.workflow.awaitingReview")}</p>
         ))}
     </div>
   );

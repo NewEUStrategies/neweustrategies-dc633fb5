@@ -84,9 +84,7 @@ export function TextRotateEditor({ c, lang, setContent }: Props) {
         <div className="flex items-center gap-2">
           <span className="inline-block h-4 w-1 rounded bg-muted-foreground/50" />
           <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            {t("builder.textRotateEditor.staticText", {
-              defaultValue: isPl ? "Tekst statyczny" : "Static text",
-            })}
+            {t("builder.textRotateEditor.staticText")}
           </h4>
         </div>
         <div className="grid grid-cols-2 gap-2">

@@ -201,9 +201,7 @@ function BlogIndex() {
           page={page}
           totalPages={totalPages}
           lang={lang}
-          emptyText={t("blog.empty", {
-            defaultValue: lang === "en" ? "No published posts yet." : "Brak opublikowanych wpisów.",
-          })}
+          emptyText={t("blog.empty")}
           isPending={isPending}
           onPageChange={onPageChange}
           hrefFor={hrefFor}

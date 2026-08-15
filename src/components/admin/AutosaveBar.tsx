@@ -21,14 +21,14 @@ export function AutosaveBar({ status, error, canUndo, canRedo, onUndo, onRedo, o
 
   const label =
     status === "saving"
-      ? t("admin.autosave.saving", { defaultValue: "Zapisywanie..." })
+      ? t("admin.autosave.saving")
       : status === "saved"
-        ? t("admin.autosave.saved", { defaultValue: "Zapisano" })
+        ? t("admin.autosave.saved")
         : status === "dirty"
-          ? t("admin.autosave.dirty", { defaultValue: "Niezapisane zmiany" })
+          ? t("admin.autosave.dirty")
           : status === "error"
-            ? (error ?? t("admin.autosave.error", { defaultValue: "Błąd zapisu" }))
-            : t("admin.autosave.idle", { defaultValue: "Gotowe" });
+            ? (error ?? t("admin.autosave.error"))
+            : t("admin.autosave.idle");
 
   const Icon =
     status === "saving"
@@ -56,8 +56,8 @@ export function AutosaveBar({ status, error, canUndo, canRedo, onUndo, onRedo, o
         variant="ghost"
         onClick={onUndo}
         disabled={!canUndo}
-        aria-label={t("admin.autosave.undo", { defaultValue: "Cofnij" })}
-        title={t("admin.autosave.undo", { defaultValue: "Cofnij" })}
+        aria-label={t("admin.autosave.undo")}
+        title={t("admin.autosave.undo")}
       >
         <Undo2 className="w-4 h-4" />
       </Button>
@@ -67,8 +67,8 @@ export function AutosaveBar({ status, error, canUndo, canRedo, onUndo, onRedo, o
         variant="ghost"
         onClick={onRedo}
         disabled={!canRedo}
-        aria-label={t("admin.autosave.redo", { defaultValue: "Ponów" })}
-        title={t("admin.autosave.redo", { defaultValue: "Ponów" })}
+        aria-label={t("admin.autosave.redo")}
+        title={t("admin.autosave.redo")}
       >
         <Redo2 className="w-4 h-4" />
       </Button>
@@ -83,21 +83,19 @@ export function AutosaveBar({ status, error, canUndo, canRedo, onUndo, onRedo, o
           variant="ghost"
           onClick={() => {
             void confirmDialog({
-              title: t("admin.autosave.discardConfirm", {
-                defaultValue: "Odrzucić niezapisane zmiany?",
-              }),
-              confirmLabel: t("admin.autosave.discard", { defaultValue: "Anuluj zmiany" }),
+              title: t("admin.autosave.discardConfirm"),
+              confirmLabel: t("admin.autosave.discard"),
               destructive: true,
             }).then((ok) => {
               if (ok) onDiscard();
             });
           }}
-          aria-label={t("admin.autosave.discard", { defaultValue: "Anuluj zmiany" })}
-          title={t("admin.autosave.discard", { defaultValue: "Anuluj zmiany" })}
+          aria-label={t("admin.autosave.discard")}
+          title={t("admin.autosave.discard")}
           className="text-destructive hover:text-destructive"
         >
           <RotateCcw className="w-4 h-4 mr-1" />
-          {t("admin.autosave.discard", { defaultValue: "Anuluj zmiany" })}
+          {t("admin.autosave.discard")}
         </Button>
       )}
     </div>

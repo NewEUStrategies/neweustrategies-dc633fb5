@@ -134,7 +134,6 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
       if (result.failed > 0) {
         toast.warning(
           t("blocks.clipboard.imagePersistFailed", {
-            defaultValue: "Nie udało się zapisać {{count}} wklejonych grafik do biblioteki mediów.",
             count: result.failed,
           }),
           { id: "blocks-image-persist" },
@@ -268,7 +267,6 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
         // pole formularza z tym, co realnie trafiło do bazy.
         toast.warning(
           t("admin.slugTaken", {
-            defaultValue: 'Slug był zajęty - zapisano jako "{{slug}}"',
             slug: canonicalSlug,
           }),
         );
@@ -345,18 +343,13 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
 
   const save = async () => {
     if (hasBlockingSeoIssues(seoIssues)) {
-      toast.error(
-        t("admin.seo.validation.blockToast", {
-          defaultValue: "Zapis wstrzymany: pola SEO przekraczają twardy limit znaków.",
-        }),
-      );
+      toast.error(t("admin.seo.validation.blockToast"));
       return;
     }
     const pixelWarnings = seoIssues.filter((i) => i.severity === "warning");
     if (pixelWarnings.length > 0) {
       toast.warning(
         t("admin.seo.validation.warnToast", {
-          defaultValue: "Zapisano, ale {{count}} pól SEO zostanie uciętych w Google.",
           count: pixelWarnings.length,
         }),
       );
@@ -389,7 +382,7 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
       !(await confirmDialog({
         title: t("admin.confirmDelete"),
         destructive: true,
-        confirmLabel: t("admin.delete", { defaultValue: "Usuń" }),
+        confirmLabel: t("admin.delete"),
       }))
     )
       return;

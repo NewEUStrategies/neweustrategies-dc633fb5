@@ -23,7 +23,7 @@ export function BackToTop({ thresholdPx = 400 }: Props) {
     <button
       type="button"
       onClick={onClick}
-      aria-label={t("footer.back_to_top", { defaultValue: "Wróć na górę" })}
+      aria-label={t("footer.back_to_top")}
       className={[
         "fixed bottom-6 right-6 z-40 h-11 w-11 rounded-[6px]",
         "bg-brand text-brand-foreground shadow-lg",

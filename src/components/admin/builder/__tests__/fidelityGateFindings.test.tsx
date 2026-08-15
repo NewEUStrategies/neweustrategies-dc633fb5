@@ -19,6 +19,12 @@
 //  5. `social-icons` - kluczem kanonicznym platformy jest `x`; panel zapisuje go
 //     wprost, a `twitter` czyta jako alias historyczny (`legacyKeys`).
 import { describe, it, expect, vi, afterEach } from "vitest";
+// Prawdziwe zasoby i18n: bez tego `t()` zwraca GOŁY KLUCZ, a asercje na
+// widoczny tekst przechodziły wyłącznie dzięki `defaultValue` wpisanemu przy
+// wywołaniu - czyli test sprawdzał kopię napisu z kodu, a nie to, co widzi
+// użytkownik. Import wciąga rdzeń słownika (nakładki `i18n-*` dociąga sam
+// komponent), więc asercja mierzy teraz wartość ze słownika.
+import "@/lib/i18n";
 import { render, cleanup, fireEvent, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
@@ -30,13 +36,12 @@ vi.mock("@/hooks/useAuth", async (importOriginal) => ({
   useRequiredTenant: () => "tenant-findings",
 }));
 
-vi.mock("react-i18next", () => ({
-  useTranslation: () => ({
-    t: (key: string, opts?: { defaultValue?: string }) => opts?.defaultValue ?? key,
-    i18n: { language: "pl", changeLanguage: () => Promise.resolve() },
-  }),
-  initReactI18next: { type: "3rdParty", init: () => {} },
-}));
+// BEZ atrapy `react-i18next`: prawdziwy hak na prawdziwym słowniku (import
+// `@/lib/i18n` wyżej). Atrapa zwracała `opts.defaultValue ?? key`, czyli test
+// czytał kopię napisu wpisaną w kodzie komponentu, a nie wartość ze słownika -
+// po zdjęciu zapasowych tekstów nie miała już czego zwracać. Mockować się jej
+// nie da: `@/lib/i18n` sam importuje `react-i18next`, więc atrapa sięgająca po
+// słownik zamyka cykl importów i test wisi bez komunikatu.
 
 import { renderSimpleWidget } from "../ui/organisms/widget-view/SimpleWidgets";
 import { WidgetContentFields } from "../WidgetProperties";

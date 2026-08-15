@@ -144,34 +144,34 @@ function SeoOverview() {
   const tiles = [
     {
       key: "total",
-      label: t("admin.seoOverview.tileTotal", { defaultValue: "Treści" }),
+      label: t("admin.seoOverview.tileTotal"),
       value: summary.total,
       tone: "text-foreground",
     },
     {
       key: "missing",
-      label: t("admin.seoOverview.tileMissingDesc", { defaultValue: "Brak opisu" }),
+      label: t("admin.seoOverview.tileMissingDesc"),
       value: summary.missingDescription,
       tone: summary.missingDescription ? "text-destructive" : "text-emerald-500",
       filter: "missing_description" as const,
     },
     {
       key: "image",
-      label: t("admin.seoOverview.tileDefaultImage", { defaultValue: "Domyślny obrazek OG" }),
+      label: t("admin.seoOverview.tileDefaultImage"),
       value: summary.defaultImage,
       tone: summary.defaultImage ? "text-amber-500" : "text-emerald-500",
       filter: "default_image" as const,
     },
     {
       key: "noindex",
-      label: t("admin.seoOverview.tileNoindex", { defaultValue: "Noindex" }),
+      label: t("admin.seoOverview.tileNoindex"),
       value: summary.noindexed,
       tone: "text-muted-foreground",
       filter: "noindex" as const,
     },
     {
       key: "overrides",
-      label: t("admin.seoOverview.tileOverrides", { defaultValue: "Z nadpisaniami SEO" }),
+      label: t("admin.seoOverview.tileOverrides"),
       value: summary.withOverrides,
       tone: "text-muted-foreground",
       filter: "overrides" as const,
@@ -179,10 +179,10 @@ function SeoOverview() {
   ];
 
   const imageSourceLabel: Record<SeoContentStatus["socialImage"], string> = {
-    override: t("admin.seo.og.sourceOverride", { defaultValue: "Własny obrazek" }),
-    cover: t("admin.seo.og.sourceCover", { defaultValue: "Okładka wpisu" }),
-    card: t("admin.seo.og.sourceCard", { defaultValue: "Wygenerowana karta" }),
-    default: t("admin.seo.og.sourceDefault", { defaultValue: "Domyślny obrazek serwisu" }),
+    override: t("admin.seo.og.sourceOverride"),
+    cover: t("admin.seo.og.sourceCover"),
+    card: t("admin.seo.og.sourceCard"),
+    default: t("admin.seo.og.sourceDefault"),
   };
 
   return (
@@ -190,14 +190,9 @@ function SeoOverview() {
       <div>
         <h1 className="font-display text-2xl font-bold inline-flex items-center gap-2">
           <Search className="w-6 h-6" />
-          {t("admin.seoOverview.title", { defaultValue: "SEO - przegląd treści" })}
+          {t("admin.seoOverview.title")}
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {t("admin.seoOverview.subtitle", {
-            defaultValue:
-              "Stan SEO każdej strony i wpisu (także z buildera): opisy meta per język, obrazki OG, nadpisania i noindex.",
-          })}
-        </p>
+        <p className="text-sm text-muted-foreground mt-1">{t("admin.seoOverview.subtitle")}</p>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -224,9 +219,7 @@ function SeoOverview() {
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder={t("admin.seoOverview.searchPlaceholder", {
-            defaultValue: "Szukaj po tytule lub slugu…",
-          })}
+          placeholder={t("admin.seoOverview.searchPlaceholder")}
           className="max-w-xs h-8 text-xs"
         />
         <Select
@@ -239,9 +232,7 @@ function SeoOverview() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">
-              {t("admin.seoOverview.kindAll", { defaultValue: "Wszystko" })}
-            </SelectItem>
+            <SelectItem value="all">{t("admin.seoOverview.kindAll")}</SelectItem>
             <SelectItem value="post">{t("admin.nav.posts")}</SelectItem>
             <SelectItem value="page">{t("admin.nav.pages")}</SelectItem>
           </SelectContent>
@@ -255,25 +246,13 @@ function SeoOverview() {
         <table className="w-full text-xs">
           <thead className="bg-muted/30 text-[10px] uppercase text-muted-foreground tracking-wide">
             <tr>
-              <th className="p-2 text-left">
-                {t("admin.seoOverview.colTitle", { defaultValue: "Tytuł" })}
-              </th>
-              <th className="p-2 text-left w-16">
-                {t("admin.seoOverview.colKind", { defaultValue: "Typ" })}
-              </th>
-              <th className="p-2 text-left w-24">
-                {t("admin.seoOverview.colStatus", { defaultValue: "Status" })}
-              </th>
-              <th className="p-2 text-center w-20">
-                {t("admin.seoOverview.colDesc", { defaultValue: "Opis PL / EN" })}
-              </th>
-              <th className="p-2 text-left w-32">
-                {t("admin.seoOverview.colImage", { defaultValue: "Obrazek OG" })}
-              </th>
+              <th className="p-2 text-left">{t("admin.seoOverview.colTitle")}</th>
+              <th className="p-2 text-left w-16">{t("admin.seoOverview.colKind")}</th>
+              <th className="p-2 text-left w-24">{t("admin.seoOverview.colStatus")}</th>
+              <th className="p-2 text-center w-20">{t("admin.seoOverview.colDesc")}</th>
+              <th className="p-2 text-left w-32">{t("admin.seoOverview.colImage")}</th>
               <th className="p-2 text-center w-16">noindex</th>
-              <th className="p-2 text-left w-28">
-                {t("admin.seoOverview.colScore", { defaultValue: "Kompletność" })}
-              </th>
+              <th className="p-2 text-left w-28">{t("admin.seoOverview.colScore")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -298,8 +277,8 @@ function SeoOverview() {
                       <File className="w-3 h-3" />
                     )}
                     {kind === "post"
-                      ? t("admin.seoOverview.kindPost", { defaultValue: "Wpis" })
-                      : t("admin.seoOverview.kindPage", { defaultValue: "Strona" })}
+                      ? t("admin.seoOverview.kindPost")
+                      : t("admin.seoOverview.kindPage")}
                   </span>
                 </td>
                 <td className="p-2">
@@ -337,21 +316,14 @@ function SeoOverview() {
             {!filtered.length && (
               <tr>
                 <td colSpan={7} className="p-6 text-center text-muted-foreground">
-                  {rows.length
-                    ? t("admin.list.noResults", { defaultValue: "Brak wyników dla filtrów" })
-                    : t("admin.loading")}
+                  {rows.length ? t("admin.list.noResults") : t("admin.loading")}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
-      <p className="text-[11px] text-muted-foreground">
-        {t("admin.seoOverview.scoreHint", {
-          defaultValue:
-            "Kompletność: opisy PL i EN po 25 pkt, obrazek OG inny niż domyślny 20 pkt, tytuł SEO 15 pkt, indeksowalność 15 pkt.",
-        })}
-      </p>
+      <p className="text-[11px] text-muted-foreground">{t("admin.seoOverview.scoreHint")}</p>
     </div>
   );
 }

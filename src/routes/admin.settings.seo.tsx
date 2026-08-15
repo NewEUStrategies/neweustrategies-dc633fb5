@@ -9,13 +9,7 @@ import { Field, Text, NumberInput, Checkbox, SaveBar } from "@/components/admin/
 import { ImageSlot } from "@/components/admin/ImageSlot";
 import { LinkedSourceHeader, LinkedImagePreview } from "@/components/admin/settings/LinkedSource";
 import { RobotsTxtPreview } from "@/components/admin/seo/RobotsTxtPreview";
-import {
-  AI_SEARCH_CRAWLERS,
-  AI_TRAINING_CRAWLERS,
-  DEFAULT_SEO_SETTINGS,
-  SEO_SETTINGS_KEY,
-  type SeoSettings,
-} from "@/lib/seo/settings";
+import { DEFAULT_SEO_SETTINGS, SEO_SETTINGS_KEY, type SeoSettings } from "@/lib/seo/settings";
 import { SITE_NAME } from "@/lib/seo/meta";
 
 type ThemeLogo = { main?: string; organization?: string };
@@ -41,30 +35,17 @@ function SeoSettingsTab() {
 
   return (
     <div>
-      <h2 className="text-lg font-semibold mb-1">
-        {t("admin.seoSettings.title", { defaultValue: "SEO, GEO i AEO" })}
-      </h2>
-      <p className="text-xs text-muted-foreground mb-4">
-        {t("admin.seoSettings.subtitle", {
-          defaultValue:
-            "Widoczność w Google, w wynikach zero-click i w odpowiedziach asystentów AI.",
-        })}
-      </p>
+      <h2 className="text-lg font-semibold mb-1">{t("admin.seoSettings.title")}</h2>
+      <p className="text-xs text-muted-foreground mb-4">{t("admin.seoSettings.subtitle")}</p>
 
-      <h3 className="text-sm font-semibold mt-6 mb-1">
-        {t("admin.seoSettings.sectionTitles", { defaultValue: "Tytuły stron" })}
-      </h3>
+      <h3 className="text-sm font-semibold mt-6 mb-1">{t("admin.seoSettings.sectionTitles")}</h3>
       <Field
-        label={t("admin.seoSettings.titleSuffix", { defaultValue: "Sufiks tytułu" })}
-        hint={t("admin.seoSettings.titleSuffixHint", {
-          defaultValue: `Dopisywany do tytułów: "Nagłówek - ${SITE_NAME}". Ręcznie ustawione tytuły SEO pozostają bez zmian. Puste pole = nazwa serwisu.`,
-        })}
+        label={t("admin.seoSettings.titleSuffix")}
+        hint={t("admin.seoSettings.titleSuffixHint")}
       >
         <div className="space-y-2">
           <Checkbox
-            label={t("admin.seoSettings.titleSuffixEnabled", {
-              defaultValue: "Dopisuj sufiks do tytułów",
-            })}
+            label={t("admin.seoSettings.titleSuffixEnabled")}
             checked={draft.title_suffix_enabled}
             onChange={(v) => set("title_suffix_enabled", v)}
           />
@@ -77,24 +58,16 @@ function SeoSettingsTab() {
         </div>
       </Field>
 
-      <h3 className="text-sm font-semibold mt-6 mb-1">
-        {t("admin.seoSettings.sectionFeeds", { defaultValue: "Kanały i sitemapy" })}
-      </h3>
-      <Field
-        label={t("admin.seoSettings.rss", { defaultValue: "Kanały RSS" })}
-        hint={t("admin.seoSettings.rssHint", {
-          defaultValue:
-            "/rss.xml (PL) i /en/rss.xml (EN). Stary adres /feed przekierowuje automatycznie.",
-        })}
-      >
+      <h3 className="text-sm font-semibold mt-6 mb-1">{t("admin.seoSettings.sectionFeeds")}</h3>
+      <Field label={t("admin.seoSettings.rss")} hint={t("admin.seoSettings.rssHint")}>
         <div className="flex flex-wrap items-center gap-4">
           <Checkbox
-            label={t("admin.seoSettings.rssEnabled", { defaultValue: "Włączone" })}
+            label={t("admin.seoSettings.rssEnabled")}
             checked={draft.rss_enabled}
             onChange={(v) => set("rss_enabled", v)}
           />
           <label className="inline-flex items-center gap-2 text-sm">
-            {t("admin.seoSettings.rssCount", { defaultValue: "Liczba wpisów" })}
+            {t("admin.seoSettings.rssCount")}
             <NumberInput
               value={draft.rss_item_count}
               min={5}
@@ -107,15 +80,12 @@ function SeoSettingsTab() {
         </div>
       </Field>
       <Field
-        label={t("admin.seoSettings.newsSitemap", { defaultValue: "Sitemap Google News" })}
-        hint={t("admin.seoSettings.newsSitemapHint", {
-          defaultValue:
-            "/news-sitemap.xml - artykuły z ostatnich 48h. Obowiązkowy dla wydawcy w Google News.",
-        })}
+        label={t("admin.seoSettings.newsSitemap")}
+        hint={t("admin.seoSettings.newsSitemapHint")}
       >
         <div className="space-y-2">
           <Checkbox
-            label={t("admin.seoSettings.newsSitemapEnabled", { defaultValue: "Włączony" })}
+            label={t("admin.seoSettings.newsSitemapEnabled")}
             checked={draft.news_sitemap_enabled}
             onChange={(v) => set("news_sitemap_enabled", v)}
           />
@@ -125,55 +95,27 @@ function SeoSettingsTab() {
             placeholder={SITE_NAME}
             maxLength={120}
           />
-          <p className="text-[11px] text-muted-foreground">
-            {t("admin.seoSettings.newsNameHint", {
-              defaultValue:
-                "Nazwa publikacji (news:name) - musi być stała i zgodna z nazwą w Google Publisher Center.",
-            })}
-          </p>
+          <p className="text-[11px] text-muted-foreground">{t("admin.seoSettings.newsNameHint")}</p>
         </div>
       </Field>
 
-      <h3 className="text-sm font-semibold mt-6 mb-1">
-        {t("admin.seoSettings.sectionAi", { defaultValue: "GEO - widoczność w AI" })}
-      </h3>
-      <Field
-        label="llms.txt"
-        hint={t("admin.seoSettings.llmsHint", {
-          defaultValue:
-            "Przewodnik po serwisie dla asystentów AI (llmstxt.org) - sekcje, najnowsze artykuły i zasady cytowania. Zwiększa szansę na poprawne cytowania z kanonicznymi linkami.",
-        })}
-      >
+      <h3 className="text-sm font-semibold mt-6 mb-1">{t("admin.seoSettings.sectionAi")}</h3>
+      <Field label="llms.txt" hint={t("admin.seoSettings.llmsHint")}>
         <Checkbox
-          label={t("admin.seoSettings.llmsEnabled", { defaultValue: "Serwuj /llms.txt" })}
+          label={t("admin.seoSettings.llmsEnabled")}
           checked={draft.llms_txt_enabled}
           onChange={(v) => set("llms_txt_enabled", v)}
         />
       </Field>
-      <Field
-        label={t("admin.seoSettings.aiCrawlers", { defaultValue: "Crawlery AI" })}
-        hint={t("admin.seoSettings.aiCrawlersHint", {
-          defaultValue:
-            "Wyszukiwawcze: " +
-            AI_SEARCH_CRAWLERS.join(", ") +
-            ". Treningowe: " +
-            AI_TRAINING_CRAWLERS.join(", ") +
-            ".",
-        })}
-      >
+      <Field label={t("admin.seoSettings.aiCrawlers")} hint={t("admin.seoSettings.aiCrawlersHint")}>
         <div className="space-y-2">
           <Checkbox
-            label={t("admin.seoSettings.aiSearchAllowed", {
-              defaultValue:
-                "Wpuszczaj crawlery wyszukiwawcze AI (cytowania w odpowiedziach - zalecane)",
-            })}
+            label={t("admin.seoSettings.aiSearchAllowed")}
             checked={draft.ai_search_crawlers_allowed}
             onChange={(v) => set("ai_search_crawlers_allowed", v)}
           />
           <Checkbox
-            label={t("admin.seoSettings.aiTrainingAllowed", {
-              defaultValue: "Wpuszczaj crawlery treningowe (uczenie modeli)",
-            })}
+            label={t("admin.seoSettings.aiTrainingAllowed")}
             checked={draft.ai_training_crawlers_allowed}
             onChange={(v) => set("ai_training_crawlers_allowed", v)}
           />
@@ -181,36 +123,23 @@ function SeoSettingsTab() {
       </Field>
 
       <Field
-        label={t("admin.seoSettings.robotsPreview", { defaultValue: "robots.txt" })}
-        hint={t("admin.seoSettings.robotsPreviewHint", {
-          defaultValue:
-            "Plik składa trasa /robots.txt dla każdego żądania - z klasyfikacją hosta, ogłoszeniem sitemap i polityką crawlerów AI z tego ekranu. Poniżej podgląd dla domeny publikacji.",
-        })}
+        label={t("admin.seoSettings.robotsPreview")}
+        hint={t("admin.seoSettings.robotsPreviewHint")}
       >
         <RobotsTxtPreview settings={draft} />
       </Field>
 
-      <h3 className="text-sm font-semibold mt-6 mb-1">
-        {t("admin.seoSettings.sectionEntity", { defaultValue: "Marka i dane strukturalne" })}
-      </h3>
+      <h3 className="text-sm font-semibold mt-6 mb-1">{t("admin.seoSettings.sectionEntity")}</h3>
       <Field
-        label={t("admin.seoSettings.publisherLogo", { defaultValue: "Logo wydawcy" })}
-        hint={t("admin.seoSettings.publisherLogoHint", {
-          defaultValue:
-            "Używane w JSON-LD (NewsArticle/Organization) - wymagane do rich results w Google News.",
-        })}
+        label={t("admin.seoSettings.publisherLogo")}
+        hint={t("admin.seoSettings.publisherLogoHint")}
       >
         <LinkedSourceHeader
-          sourceLabel={t("admin.linkedSource.themeOptionsOrgLogo", {
-            defaultValue: "Opcje motywu - Logo organizacji",
-          })}
+          sourceLabel={t("admin.linkedSource.themeOptionsOrgLogo")}
           sourceHref="/admin/theme-options#logo"
           sourceValue={publisherLogoSource}
           preview={<LinkedImagePreview src={publisherLogoSource} />}
-          hint={t("admin.linkedSource.overrideHint", {
-            defaultValue:
-              "Puste pole = użyj wartości ze źródła. Wgraj obraz poniżej, aby nadpisać dla SEO/JSON-LD.",
-          })}
+          hint={t("admin.linkedSource.overrideHint")}
         />
         <ImageSlot
           label=""
@@ -219,13 +148,7 @@ function SeoSettingsTab() {
           folder="branding"
         />
       </Field>
-      <Field
-        label={t("admin.seoSettings.sameAs", { defaultValue: "Profile marki (sameAs)" })}
-        hint={t("admin.seoSettings.sameAsHint", {
-          defaultValue:
-            "Po jednym adresie w linii (LinkedIn, X, Facebook, YouTube, Wikipedia…). Wzmacnia encję marki w grafach wiedzy i odpowiedziach AI.",
-        })}
-      >
+      <Field label={t("admin.seoSettings.sameAs")} hint={t("admin.seoSettings.sameAsHint")}>
         <textarea
           value={draft.organization_same_as.join("\n")}
           onChange={(e) =>
@@ -244,10 +167,8 @@ function SeoSettingsTab() {
         />
       </Field>
       <Field
-        label={t("admin.seoSettings.twitterSite", { defaultValue: "Konto X/Twitter" })}
-        hint={t("admin.seoSettings.twitterSiteHint", {
-          defaultValue: 'Opcjonalny uchwyt "@marka" dla twitter:site (karty udostępniania).',
-        })}
+        label={t("admin.seoSettings.twitterSite")}
+        hint={t("admin.seoSettings.twitterSiteHint")}
       >
         <Text
           value={draft.twitter_site}

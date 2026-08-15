@@ -30,7 +30,7 @@ export function SlashMenu({ specs, activeIndex, onPick, onHover }: Props) {
   return (
     <div
       role="listbox"
-      aria-label={t("blocks.inserter.resultsLabel", { defaultValue: "Dostępne bloki" })}
+      aria-label={t("blocks.inserter.resultsLabel")}
       className="absolute left-0 top-full z-50 mt-1 w-72 max-h-72 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-lg"
     >
       {specs.length === 0 ? (

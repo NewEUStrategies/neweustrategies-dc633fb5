@@ -113,7 +113,7 @@ function GreetingsAdmin() {
       .upsert({ key: "greetings", value: dict as never }, { onConflict: "tenant_id,key" });
     setBusy(false);
     if (error) toast.error(error.message);
-    else toast.success(t("admin.saved", { defaultValue: isPL ? "Zapisano" : "Saved" }));
+    else toast.success(t("admin.saved"));
   };
 
   const resetBucket = (b: TimeBucket) => {
@@ -177,11 +177,7 @@ function GreetingsAdmin() {
   }, [dict, lang, isPL]);
 
   if (!loaded) {
-    return (
-      <p className="p-6 text-sm text-muted-foreground">
-        {t("admin.loading", { defaultValue: "Loading…" })}
-      </p>
-    );
+    return <p className="p-6 text-sm text-muted-foreground">{t("admin.loading")}</p>;
   }
 
   const title = isPL ? "Powitania" : "Greetings";

@@ -200,7 +200,7 @@ function Categories() {
       !(await confirmDialog({
         title: t("admin.confirmDelete"),
         destructive: true,
-        confirmLabel: t("admin.delete", { defaultValue: "Usuń" }),
+        confirmLabel: t("admin.delete"),
       }))
     )
       return;
@@ -325,7 +325,7 @@ function Categories() {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("admin.list.searchCategories", { defaultValue: "Szukaj kategorii…" })}
+            placeholder={t("admin.list.searchCategories")}
             className="pl-8 h-8 text-xs"
           />
         </div>
@@ -334,21 +334,11 @@ function Categories() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">
-              {t("admin.list.lang.all", { defaultValue: "Wszystkie języki" })}
-            </SelectItem>
-            <SelectItem value="complete">
-              {t("admin.list.lang.complete", { defaultValue: "PL + EN" })}
-            </SelectItem>
-            <SelectItem value="missing_any">
-              {t("admin.list.lang.missingAny", { defaultValue: "Brak tłumaczenia" })}
-            </SelectItem>
-            <SelectItem value="pl_only">
-              {t("admin.list.lang.plOnly", { defaultValue: "Tylko PL" })}
-            </SelectItem>
-            <SelectItem value="en_only">
-              {t("admin.list.lang.enOnly", { defaultValue: "Tylko EN" })}
-            </SelectItem>
+            <SelectItem value="all">{t("admin.list.lang.all")}</SelectItem>
+            <SelectItem value="complete">{t("admin.list.lang.complete")}</SelectItem>
+            <SelectItem value="missing_any">{t("admin.list.lang.missingAny")}</SelectItem>
+            <SelectItem value="pl_only">{t("admin.list.lang.plOnly")}</SelectItem>
+            <SelectItem value="en_only">{t("admin.list.lang.enOnly")}</SelectItem>
           </SelectContent>
         </Select>
         {isFiltered && (
@@ -361,7 +351,7 @@ function Categories() {
             }}
             className="h-8 text-xs"
           >
-            <X className="w-3.5 h-3.5 mr-1" /> {t("admin.list.clear", { defaultValue: "Wyczyść" })}
+            <X className="w-3.5 h-3.5 mr-1" /> {t("admin.list.clear")}
           </Button>
         )}
       </div>
@@ -369,9 +359,7 @@ function Categories() {
       <div className="bg-card border border-border rounded-lg overflow-hidden">
         {!filtered.length ? (
           <div className="p-10 text-center text-muted-foreground text-sm">
-            {data?.length
-              ? t("admin.list.noResults", { defaultValue: "Brak wyników dla filtrów" })
-              : t("admin.empty")}
+            {data?.length ? t("admin.list.noResults") : t("admin.empty")}
           </div>
         ) : (
           <table className="w-full text-xs">
@@ -380,14 +368,8 @@ function Categories() {
                 <th className="text-left p-2">Nazwa (PL)</th>
                 <th className="text-left p-2">Name (EN)</th>
                 <th className="text-left p-2 w-[130px]">Wymiar</th>
-                <th
-                  className="text-left p-2 w-[110px]"
-                  title={t("admin.list.lang.help", {
-                    defaultValue:
-                      "Pokrycie tłumaczeniami: PL = wypełniona nazwa polska, EN = wypełniona nazwa angielska",
-                  })}
-                >
-                  {t("admin.list.lang.col", { defaultValue: "Tłumaczenia" })}
+                <th className="text-left p-2 w-[110px]" title={t("admin.list.lang.help")}>
+                  {t("admin.list.lang.col")}
                 </th>
                 <th className="text-left p-2 w-[180px]">Slug</th>
                 <th className="p-2 w-[70px]" />

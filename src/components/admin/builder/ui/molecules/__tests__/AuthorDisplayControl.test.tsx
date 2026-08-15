@@ -7,16 +7,21 @@
 //     otwarty w starszym wydaniu aplikacji nadal wygląda tak samo,
 //   * pola rozmiaru i etykiety pojawiają się dokładnie tam, gdzie mają sens.
 import { describe, it, expect, vi, afterEach } from "vitest";
+// Prawdziwe zasoby i18n: bez tego `t()` zwraca GOŁY KLUCZ, a asercje na
+// widoczny tekst przechodziły wyłącznie dzięki `defaultValue` wpisanemu przy
+// wywołaniu - czyli test sprawdzał kopię napisu z kodu, a nie to, co widzi
+// użytkownik. Import wciąga rdzeń słownika (nakładki `i18n-*` dociąga sam
+// komponent), więc asercja mierzy teraz wartość ze słownika.
+import "@/lib/i18n";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import type { Json, WidgetContent } from "@/lib/builder/types";
 
-vi.mock("react-i18next", () => ({
-  useTranslation: () => ({
-    t: (k: string, o?: { defaultValue?: string }) => o?.defaultValue ?? k,
-    i18n: { language: "pl" },
-  }),
-  initReactI18next: { type: "3rdParty", init: () => {} },
-}));
+// BEZ atrapy `react-i18next`: prawdziwy hak na prawdziwym słowniku (import
+// `@/lib/i18n` wyżej). Atrapa zwracała `opts.defaultValue ?? key`, czyli test
+// czytał kopię napisu wpisaną w kodzie komponentu, a nie wartość ze słownika -
+// po zdjęciu zapasowych tekstów nie miała już czego zwracać. Mockować się jej
+// nie da: `@/lib/i18n` sam importuje `react-i18next`, więc atrapa sięgająca po
+// słownik zamyka cykl importów i test wisi bez komunikatu.
 
 import { AuthorDisplayControl } from "../AuthorDisplayControl";
 

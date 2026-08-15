@@ -19,7 +19,7 @@ function SettingsLayout() {
     // audycie. Realne rozmiary wariantów obrazów żyją w /admin/crop-sizes
     // (custom_crop_sizes + srcSet), stąd link w tym miejscu nawigacji.
     { to: "/admin/crop-sizes", label: t("admin.settingsNav.cropSizes") },
-    { to: "/admin/settings/seo", label: t("admin.settingsNav.seo", { defaultValue: "SEO" }) },
+    { to: "/admin/settings/seo", label: t("admin.settingsNav.seo") },
     {
       to: "/admin/settings/site-identity",
       label: t("admin.settingsNav.siteIdentity"),
@@ -35,7 +35,7 @@ function SettingsLayout() {
     },
     {
       to: "/admin/settings/cookie-banner",
-      label: t("admin.settingsNav.cookieBanner", { defaultValue: "Cookie banner" }),
+      label: t("admin.settingsNav.cookieBanner"),
     },
     {
       to: "/admin/settings/mobile-bottom-bar",
@@ -43,11 +43,11 @@ function SettingsLayout() {
     },
     {
       to: "/admin/settings/analytics",
-      label: t("admin.settingsNav.analytics", { defaultValue: "Analityka" }),
+      label: t("admin.settingsNav.analytics"),
     },
     {
       to: "/admin/settings/marketing",
-      label: t("admin.settingsNav.marketing", { defaultValue: "Marketing" }),
+      label: t("admin.settingsNav.marketing"),
     },
   ];
   return (

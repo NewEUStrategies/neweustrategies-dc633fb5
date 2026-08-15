@@ -59,8 +59,8 @@ export function MediaPreviewDialog({ file, onClose }: MediaPreviewDialogProps) {
             variant={infoOpen ? "default" : "outline"}
             onClick={() => setInfoOpen((v) => !v)}
             className="shrink-0 mr-8"
-            title={t("admin.media.usageInfo", { defaultValue: "Gdzie wykorzystywane" })}
-            aria-label={t("admin.media.usageInfo", { defaultValue: "Gdzie wykorzystywane" })}
+            title={t("admin.media.usageInfo")}
+            aria-label={t("admin.media.usageInfo")}
             aria-pressed={infoOpen}
           >
             <Info className="w-4 h-4" />
@@ -103,11 +103,7 @@ export function MediaPreviewDialog({ file, onClose }: MediaPreviewDialogProps) {
             {file && kind === "other" && (
               <div className="flex flex-col items-center gap-3 text-muted-foreground p-6 text-center">
                 <span className="text-5xl">📄</span>
-                <div className="text-sm">
-                  {t("admin.media.previewUnavailable", {
-                    defaultValue: "Podgląd niedostępny dla tego formatu.",
-                  })}
-                </div>
+                <div className="text-sm">{t("admin.media.previewUnavailable")}</div>
                 <div className="text-xs">{mime || ext.toUpperCase()}</div>
               </div>
             )}
@@ -117,13 +113,13 @@ export function MediaPreviewDialog({ file, onClose }: MediaPreviewDialogProps) {
               <div className="flex items-center justify-between p-3 border-b border-border">
                 <h3 className="text-sm font-semibold flex items-center gap-1.5">
                   <Info className="w-4 h-4" />
-                  {t("admin.media.usedIn", { defaultValue: "Wykorzystywane w" })}
+                  {t("admin.media.usedIn")}
                 </h3>
                 <button
                   type="button"
                   onClick={() => setInfoOpen(false)}
                   className="p-1 rounded hover:bg-muted"
-                  aria-label={t("admin.close", { defaultValue: "Zamknij" })}
+                  aria-label={t("admin.close")}
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -144,19 +140,19 @@ export function MediaPreviewDialog({ file, onClose }: MediaPreviewDialogProps) {
               rel="noopener noreferrer"
               className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground underline"
             >
-              {t("admin.media.openInNewTab", { defaultValue: "Otwórz w nowej karcie" })}
+              {t("admin.media.openInNewTab")}
             </a>
           )}
           {file && (
             <a href={url} download={file.filename} className="inline-flex">
               <Button variant="outline" size="sm">
                 <Download className="w-4 h-4 mr-1" />
-                {t("admin.download", { defaultValue: "Pobierz" })}
+                {t("admin.download")}
               </Button>
             </a>
           )}
           <Button size="sm" onClick={onClose}>
-            {t("admin.close", { defaultValue: "Zamknij" })}
+            {t("admin.close")}
           </Button>
         </DialogFooter>
       </DialogContent>

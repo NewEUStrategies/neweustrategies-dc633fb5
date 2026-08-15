@@ -208,8 +208,7 @@ function ReactionChips({
               <ul className="max-h-[180px] overflow-y-auto py-1">
                 {rows.map((r) => {
                   const profile = reactorProfiles?.get(r.user_id);
-                  const display =
-                    nameFor(r.user_id) || t("chat.reactions.someone", { defaultValue: "..." });
+                  const display = nameFor(r.user_id) || t("chat.reactions.someone");
                   return (
                     <li
                       key={r.id}
@@ -554,10 +553,8 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
               "mb-0.5 max-w-full truncate rounded-[6px] bg-muted/50 px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               mine ? "text-right self-end" : "text-left self-start",
             )}
-            aria-label={t("chat.jumpToReplied", {
-              defaultValue: "Przejdź do oryginalnej wiadomości",
-            })}
-            title={t("chat.jumpToReplied", { defaultValue: "Przejdź do oryginalnej wiadomości" })}
+            aria-label={t("chat.jumpToReplied")}
+            title={t("chat.jumpToReplied")}
           >
             <span className="font-medium">
               {t("chat.replyToMessage")} {repliedAuthorName ?? ""}
@@ -588,7 +585,7 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
                 disabled={!message.body}
               >
                 <Copy className="h-3.5 w-3.5" aria-hidden />
-                {t("chat.copyMessage", { defaultValue: "Kopiuj tekst" })}
+                {t("chat.copyMessage")}
               </ContextMenuItem>
               {onToggleStar && (
                 <ContextMenuItem onSelect={() => onToggleStar(message, starred)}>

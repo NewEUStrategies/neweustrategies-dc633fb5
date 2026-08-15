@@ -167,7 +167,7 @@ export function NestedBlocksEditor({ blocks, onChange, emptyLabel }: Props) {
     return (
       <div className="rounded-md border border-dashed border-border p-2">
         <p className="text-[11px] text-muted-foreground italic mb-1">
-          {emptyLabel ?? t("blocks.nested.empty", { defaultValue: "Pusty kontener" })}
+          {emptyLabel ?? t("blocks.nested.empty")}
         </p>
         <BlockInserter
           variant="fab"
@@ -291,8 +291,8 @@ function NestedChildRow({
         {...attributes}
         {...listeners}
         onClick={(e) => e.stopPropagation()}
-        title={t("blocks.actions.drag", { defaultValue: "Przeciągnij" })}
-        aria-label={t("blocks.actions.drag", { defaultValue: "Przeciągnij" })}
+        title={t("blocks.actions.drag")}
+        aria-label={t("blocks.actions.drag")}
         className="absolute left-0 top-1/2 -translate-y-1/2 p-0.5 rounded text-muted-foreground opacity-0 group-hover/nested:opacity-100 hover:bg-accent cursor-grab active:cursor-grabbing"
       >
         <GripVertical className="w-3 h-3" />
@@ -305,31 +305,31 @@ function NestedChildRow({
         <IconButton
           disabled={index === 0}
           onClick={() => onMove(-1)}
-          title={t("blocks.actions.up", { defaultValue: "W górę" })}
-          aria-label={t("blocks.actions.up", { defaultValue: "W górę" })}
+          title={t("blocks.actions.up")}
+          aria-label={t("blocks.actions.up")}
         >
           <ChevronUp className="w-3 h-3" />
         </IconButton>
         <IconButton
           disabled={index === total - 1}
           onClick={() => onMove(1)}
-          title={t("blocks.actions.down", { defaultValue: "W dół" })}
-          aria-label={t("blocks.actions.down", { defaultValue: "W dół" })}
+          title={t("blocks.actions.down")}
+          aria-label={t("blocks.actions.down")}
         >
           <ChevronDown className="w-3 h-3" />
         </IconButton>
         <IconButton
           onClick={onDuplicate}
-          title={t("blocks.actions.duplicate", { defaultValue: "Duplikuj" })}
-          aria-label={t("blocks.actions.duplicate", { defaultValue: "Duplikuj" })}
+          title={t("blocks.actions.duplicate")}
+          aria-label={t("blocks.actions.duplicate")}
         >
           <Copy className="w-3 h-3" />
         </IconButton>
         <IconButton
           danger
           onClick={onRemove}
-          title={t("blocks.actions.remove", { defaultValue: "Usuń" })}
-          aria-label={t("blocks.actions.remove", { defaultValue: "Usuń" })}
+          title={t("blocks.actions.remove")}
+          aria-label={t("blocks.actions.remove")}
         >
           <Trash2 className="w-3 h-3" />
         </IconButton>

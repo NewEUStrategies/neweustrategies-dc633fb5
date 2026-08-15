@@ -131,7 +131,7 @@ export function ImageLightbox({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="max-w-[96vw] gap-0 border-none bg-black/90 p-0 shadow-none sm:max-w-[92vw]"
-        aria-label={t("chat.preview.title", { defaultValue: "Podgląd obrazu" })}
+        aria-label={t("chat.preview.title")}
       >
         <DialogTitle className="sr-only">{name}</DialogTitle>
 
@@ -144,7 +144,6 @@ export function ImageLightbox({
               aria-live="polite"
             >
               {t("chat.preview.counter", {
-                defaultValue: "{{index}} z {{total}}",
                 index: clamped + 1,
                 total,
               })}
@@ -153,7 +152,7 @@ export function ImageLightbox({
           <ToolbarButton
             onClick={() => setZoom((z) => Math.max(MIN_ZOOM, +(z - ZOOM_STEP).toFixed(2)))}
             disabled={zoom <= MIN_ZOOM}
-            label={t("chat.preview.zoomOut", { defaultValue: "Pomniejsz" })}
+            label={t("chat.preview.zoomOut")}
           >
             <ZoomOut className="h-4 w-4" aria-hidden />
           </ToolbarButton>
@@ -163,7 +162,7 @@ export function ImageLightbox({
           <ToolbarButton
             onClick={() => setZoom((z) => Math.min(MAX_ZOOM, +(z + ZOOM_STEP).toFixed(2)))}
             disabled={zoom >= MAX_ZOOM}
-            label={t("chat.preview.zoomIn", { defaultValue: "Powiększ" })}
+            label={t("chat.preview.zoomIn")}
           >
             <ZoomIn className="h-4 w-4" aria-hidden />
           </ToolbarButton>
@@ -173,13 +172,13 @@ export function ImageLightbox({
               setOffset({ x: 0, y: 0 });
             }}
             disabled={zoom === 1 && offset.x === 0 && offset.y === 0}
-            label={t("chat.preview.reset", { defaultValue: "Dopasuj" })}
+            label={t("chat.preview.reset")}
           >
             <Maximize2 className="h-4 w-4" aria-hidden />
           </ToolbarButton>
           <ToolbarButton
             onClick={() => setRotation((r) => (r + 90) % 360)}
-            label={t("chat.preview.rotate", { defaultValue: "Obróć" })}
+            label={t("chat.preview.rotate")}
           >
             <RotateCw className="h-4 w-4" aria-hidden />
           </ToolbarButton>
@@ -188,7 +187,7 @@ export function ImageLightbox({
               <ToolbarLink
                 href={current.url}
                 download={current.name ?? undefined}
-                label={t("chat.preview.download", { defaultValue: "Pobierz" })}
+                label={t("chat.preview.download")}
               >
                 <Download className="h-4 w-4" aria-hidden />
               </ToolbarLink>
@@ -196,16 +195,13 @@ export function ImageLightbox({
                 href={current.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                label={t("chat.preview.openInNewTab", { defaultValue: "Otwórz w nowej karcie" })}
+                label={t("chat.preview.openInNewTab")}
               >
                 <ExternalLink className="h-4 w-4" aria-hidden />
               </ToolbarLink>
             </>
           )}
-          <ToolbarButton
-            onClick={() => onOpenChange(false)}
-            label={t("chat.preview.close", { defaultValue: "Zamknij" })}
-          >
+          <ToolbarButton onClick={() => onOpenChange(false)} label={t("chat.preview.close")}>
             <X className="h-4 w-4" aria-hidden />
           </ToolbarButton>
         </div>
@@ -231,9 +227,7 @@ export function ImageLightbox({
               }}
             />
           ) : (
-            <div className="text-sm text-white/60">
-              {t("chat.mediaHistory.loading", { defaultValue: "Ładowanie..." })}
-            </div>
+            <div className="text-sm text-white/60">{t("chat.mediaHistory.loading")}</div>
           )}
 
           {total > 1 && (
@@ -242,7 +236,7 @@ export function ImageLightbox({
                 type="button"
                 onClick={() => changeIndex(-1)}
                 className="absolute left-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-                aria-label={t("chat.preview.prev", { defaultValue: "Poprzednie" })}
+                aria-label={t("chat.preview.prev")}
               >
                 <ChevronLeft className="h-5 w-5" aria-hidden />
               </button>
@@ -250,7 +244,7 @@ export function ImageLightbox({
                 type="button"
                 onClick={() => changeIndex(1)}
                 className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-                aria-label={t("chat.preview.next", { defaultValue: "Następne" })}
+                aria-label={t("chat.preview.next")}
               >
                 <ChevronRight className="h-5 w-5" aria-hidden />
               </button>
@@ -328,7 +322,7 @@ export interface PdfPreviewDialogProps {
 
 export function PdfPreviewDialog({ open, onOpenChange, url, name }: PdfPreviewDialogProps) {
   const { t } = useTranslation();
-  const title = name ?? t("chat.preview.pdfTitle", { defaultValue: "Podgląd PDF" });
+  const title = name ?? t("chat.preview.pdfTitle");
   // Do wielu widocznych PDF w tej samej sesji można trzymać sygnaturę URL,
   // by wymusić remount iframe'a przy zmianie źródła.
   const iframeKey = useMemo(() => url ?? "empty", [url]);
@@ -348,24 +342,20 @@ export function PdfPreviewDialog({ open, onOpenChange, url, name }: PdfPreviewDi
                 href={url}
                 download={name ?? undefined}
                 className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                title={t("chat.preview.download", { defaultValue: "Pobierz" })}
+                title={t("chat.preview.download")}
               >
                 <Download className="h-3.5 w-3.5" aria-hidden />
-                <span className="hidden sm:inline">
-                  {t("chat.preview.download", { defaultValue: "Pobierz" })}
-                </span>
+                <span className="hidden sm:inline">{t("chat.preview.download")}</span>
               </a>
               <a
                 href={url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                title={t("chat.preview.openInNewTab", { defaultValue: "Otwórz w nowej karcie" })}
+                title={t("chat.preview.openInNewTab")}
               >
                 <ExternalLink className="h-3.5 w-3.5" aria-hidden />
-                <span className="hidden sm:inline">
-                  {t("chat.preview.openInNewTab", { defaultValue: "Otwórz w nowej karcie" })}
-                </span>
+                <span className="hidden sm:inline">{t("chat.preview.openInNewTab")}</span>
               </a>
             </>
           )}
@@ -373,8 +363,8 @@ export function PdfPreviewDialog({ open, onOpenChange, url, name }: PdfPreviewDi
             type="button"
             onClick={() => onOpenChange(false)}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label={t("chat.preview.close", { defaultValue: "Zamknij" })}
-            title={t("chat.preview.close", { defaultValue: "Zamknij" })}
+            aria-label={t("chat.preview.close")}
+            title={t("chat.preview.close")}
           >
             <X className="h-4 w-4" aria-hidden />
           </button>
@@ -389,7 +379,7 @@ export function PdfPreviewDialog({ open, onOpenChange, url, name }: PdfPreviewDi
             />
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              {t("chat.preview.pdfLoading", { defaultValue: "Ładowanie PDF..." })}
+              {t("chat.preview.pdfLoading")}
             </div>
           )}
         </div>

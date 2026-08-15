@@ -27,8 +27,6 @@ export function EditPresenceBanner({ entityType, entityId }: EditPresenceBannerP
       <Users className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
       <span>
         {t("admin.presence.editingNow", {
-          defaultValue:
-            "Ten element edytuje teraz: {{names}}. Zapisujcie ostrożnie - zmiany mogą się nadpisać.",
           names,
         })}
       </span>

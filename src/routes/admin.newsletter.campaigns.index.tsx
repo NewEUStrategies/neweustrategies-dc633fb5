@@ -195,7 +195,7 @@ function CampaignsList() {
         },
       }),
     onSuccess: ({ id }) => {
-      toast.success(t("adminCampaigns.created", "Utworzono kampanię"));
+      toast.success(t("adminCampaigns.created"));
       navigate({ to: "/admin/newsletter/campaigns/$id", params: { id } });
     },
     onError: (err: Error) => toast.error(err.message),
@@ -204,7 +204,7 @@ function CampaignsList() {
   const removeMut = useMutation({
     mutationFn: (id: string) => remove({ data: { id } }),
     onSuccess: () => {
-      toast.success(t("adminCampaigns.deleted", "Kampania usunięta"));
+      toast.success(t("adminCampaigns.deleted"));
       qc.invalidateQueries({ queryKey: ["admin", "newsletter-campaigns"] });
     },
     onError: (err: Error) => toast.error(err.message),

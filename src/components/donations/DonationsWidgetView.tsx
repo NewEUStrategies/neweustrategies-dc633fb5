@@ -88,7 +88,7 @@ export function DonationsWidgetView(props: DonationsWidgetProps) {
   const lang: "pl" | "en" = props.lang ?? (i18n.language === "en" ? "en" : "pl");
   const variant: DonationsVariant = props.variant ?? "hero";
   const href = props.href?.trim() || "/support";
-  const cta = props.cta?.trim() || t("donationsWidget.cta", "Wesprzyj");
+  const cta = props.cta?.trim() || t("donationsWidget.cta");
   const title =
     props.title?.trim() || (lang === "pl" ? "Mecenat obywatelski" : "Citizen patronage");
   const subtitle = props.subtitle?.trim() ?? "";

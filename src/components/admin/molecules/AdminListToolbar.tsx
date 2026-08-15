@@ -98,7 +98,7 @@ export function AdminListToolbar({
         <Input
           value={search}
           onChange={(e) => onSearch(e.target.value)}
-          placeholder={searchPlaceholder ?? t("admin.list.search", { defaultValue: "Szukaj…" })}
+          placeholder={searchPlaceholder ?? t("admin.list.search")}
           className="h-8 text-xs"
           style={{ paddingLeft: "2.75rem" }}
         />
@@ -110,9 +110,7 @@ export function AdminListToolbar({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">
-              {t("admin.list.status.all", { defaultValue: "Wszystkie statusy" })}
-            </SelectItem>
+            <SelectItem value="all">{t("admin.list.status.all")}</SelectItem>
             <SelectItem value="published">{t("admin.status.published")}</SelectItem>
             <SelectItem value="draft">{t("admin.status.draft")}</SelectItem>
             <SelectItem value="pending_review">{t("admin.status.pending_review")}</SelectItem>
@@ -128,23 +126,13 @@ export function AdminListToolbar({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">
-              {t("admin.list.lang.all", { defaultValue: "Wszystkie języki" })}
-            </SelectItem>
+            <SelectItem value="all">{t("admin.list.lang.all")}</SelectItem>
             <SelectItem value="has_pl">{t("admin.list.lang.hasPl")}</SelectItem>
             <SelectItem value="has_en">{t("admin.list.lang.hasEn")}</SelectItem>
-            <SelectItem value="complete">
-              {t("admin.list.lang.complete", { defaultValue: "PL i EN" })}
-            </SelectItem>
-            <SelectItem value="pl_only">
-              {t("admin.list.lang.plOnly", { defaultValue: "Tylko PL" })}
-            </SelectItem>
-            <SelectItem value="en_only">
-              {t("admin.list.lang.enOnly", { defaultValue: "Tylko EN" })}
-            </SelectItem>
-            <SelectItem value="missing_any">
-              {t("admin.list.lang.missingAny", { defaultValue: "Brak tłumaczenia" })}
-            </SelectItem>
+            <SelectItem value="complete">{t("admin.list.lang.complete")}</SelectItem>
+            <SelectItem value="pl_only">{t("admin.list.lang.plOnly")}</SelectItem>
+            <SelectItem value="en_only">{t("admin.list.lang.enOnly")}</SelectItem>
+            <SelectItem value="missing_any">{t("admin.list.lang.missingAny")}</SelectItem>
           </SelectContent>
         </Select>
       )}
@@ -155,9 +143,7 @@ export function AdminListToolbar({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">
-              {t("admin.list.author.all", { defaultValue: "Wszyscy autorzy" })}
-            </SelectItem>
+            <SelectItem value="all">{t("admin.list.author.all")}</SelectItem>
             {authors.map((a) => (
               <SelectItem key={a.id} value={a.id}>
                 {a.display_name || a.slug || a.id.slice(0, 6)}
@@ -169,7 +155,7 @@ export function AdminListToolbar({
 
       {isFiltered && (
         <Button variant="ghost" size="sm" onClick={clearAll} className="h-8 text-xs">
-          <X className="w-3.5 h-3.5 mr-1" /> {t("admin.list.clear", { defaultValue: "Wyczyść" })}
+          <X className="w-3.5 h-3.5 mr-1" /> {t("admin.list.clear")}
         </Button>
       )}
 

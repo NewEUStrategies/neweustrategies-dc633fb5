@@ -178,7 +178,7 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
             <button
               type="button"
               onClick={toggle}
-              aria-label={t("common.toggleTheme", "Przełącz motyw")}
+              aria-label={t("common.toggleTheme")}
               className="inline-flex items-center justify-center h-10 w-10 rounded-md text-foreground hover:bg-muted transition shrink-0"
             >
               {isDark ? (

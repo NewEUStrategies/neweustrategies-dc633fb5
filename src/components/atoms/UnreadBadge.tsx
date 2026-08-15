@@ -6,6 +6,27 @@ import { cn } from "@/lib/utils";
 export type UnreadBadgeSize = "sm" | "md" | "lg";
 export type UnreadBadgeVariant = "primary" | "alert";
 
+/**
+ * Klucze etykiety dostępności, jakie ta odznaka umie wyrenderować - JAWNA UNIA,
+ * nie `string`.
+ *
+ * PO CO UNIA ZAMIAST `string`. Dopóki prop był `string`, klucz docierał tu jako
+ * wartość runtime'owa, więc bramka rozjazdu kod<->słownik nie miała czego
+ * sprawdzić i wywołanie nosiło polski `defaultValue` „na wszelki wypadek" -
+ * czyli angielski czytnik ekranu dostawał polskie zdanie, gdyby klucz zniknął.
+ * Unia zamienia to na błąd kompilacji: każdy z tych kluczy MUSI istnieć w obu
+ * słownikach (w formach mnogich), a literały z tej listy widzi już skaner
+ * `scanKeyReferences`. Nowa powierzchnia dopisuje tu swój klucz i tym samym
+ * deklaruje go do tłumaczenia.
+ */
+export type UnreadBadgeLabelKey =
+  | "notifications.unread"
+  | "chat.unread"
+  | "mobileBottomBar.unreadNotifications"
+  | "mobileBottomBar.unreadClubs"
+  | "mobileBottomBar.unreadChat"
+  | "mobileBottomBar.unreadNetwork";
+
 interface UnreadBadgeProps {
   count: number;
   size?: UnreadBadgeSize;
@@ -15,8 +36,8 @@ interface UnreadBadgeProps {
   variant?: UnreadBadgeVariant;
   pulse?: boolean;
   className?: string;
-  /** Optional override for the aria label; defaults to i18n "notifications.unread" / "chat.unread". */
-  labelKey?: string;
+  /** Klucz etykiety dostępności - musi istnieć w PL i EN (formy mnogie). */
+  labelKey?: UnreadBadgeLabelKey;
   labelNamespace?: string;
 }
 
@@ -70,7 +91,7 @@ export function UnreadBadge({
           ["--unread-badge-fs" as string]: `${fontSizePx ?? SIZE_FONT_PX[size]}px`,
         } as CSSProperties
       }
-      aria-label={t(labelKey, { count, defaultValue: `${count} nieprzeczytanych` })}
+      aria-label={t(labelKey, { count })}
       aria-live="polite"
     >
       {display}

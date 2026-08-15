@@ -51,9 +51,8 @@ export function MediaBreadcrumbs({
         {selectedCount
           ? t("admin.media.selectedCount", {
               count: selectedCount,
-              defaultValue: `Zaznaczono: ${selectedCount}`,
             })
-          : `${itemCount} ${t("admin.media.items", { defaultValue: "elementów" })}`}
+          : `${itemCount} ${t("admin.media.items")}`}
       </span>
     </div>
   );

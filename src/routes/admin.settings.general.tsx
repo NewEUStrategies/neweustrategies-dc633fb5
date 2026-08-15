@@ -84,16 +84,11 @@ function GeneralSettings() {
       </Field>
       <Field label={t("admin.general.siteIcon")} hint={t("admin.general.siteIconHint")}>
         <LinkedSourceHeader
-          sourceLabel={t("admin.linkedSource.themeOptionsBookmark", {
-            defaultValue: "Opcje motywu - Zakładka (bookmark)",
-          })}
+          sourceLabel={t("admin.linkedSource.themeOptionsBookmark")}
           sourceHref="/admin/theme-options#logo"
           sourceValue={themeLogo.bookmark_ios}
           preview={<LinkedImagePreview src={themeLogo.bookmark_ios} />}
-          hint={t("admin.linkedSource.overrideHint", {
-            defaultValue:
-              "Puste pole = użyj wartości ze źródła. Wpisz URL, aby nadpisać dla tej witryny.",
-          })}
+          hint={t("admin.linkedSource.overrideHint")}
         />
         <Text
           value={draft.site_icon_url}
@@ -103,16 +98,11 @@ function GeneralSettings() {
       </Field>
       <Field label={t("admin.general.siteLogo")}>
         <LinkedSourceHeader
-          sourceLabel={t("admin.linkedSource.themeOptionsLogo", {
-            defaultValue: "Opcje motywu - Logo główne",
-          })}
+          sourceLabel={t("admin.linkedSource.themeOptionsLogo")}
           sourceHref="/admin/theme-options#logo"
           sourceValue={themeLogo.main}
           preview={<LinkedImagePreview src={themeLogo.main} />}
-          hint={t("admin.linkedSource.overrideHint", {
-            defaultValue:
-              "Puste pole = użyj wartości ze źródła. Wpisz URL, aby nadpisać dla tej witryny.",
-          })}
+          hint={t("admin.linkedSource.overrideHint")}
         />
         <Text
           value={draft.site_logo_url}

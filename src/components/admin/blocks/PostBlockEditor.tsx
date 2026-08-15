@@ -142,12 +142,10 @@ export function PostBlockEditor({ value, onChange, documentPane, canvasWrap, pre
                 type="button"
                 onClick={() => setCodeViewOpen(true)}
                 className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-                title={t("blocks.codeView.title", {
-                  defaultValue: "Widok kodu (markup Gutenberga)",
-                })}
+                title={t("blocks.codeView.title")}
               >
                 <FileCode2 className="w-3.5 h-3.5" />
-                <span>{t("blocks.codeView.button", { defaultValue: "Widok kodu" })}</span>
+                <span>{t("blocks.codeView.button")}</span>
               </button>
               <div
                 data-tour="blocks-history"

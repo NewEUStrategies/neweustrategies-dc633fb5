@@ -182,7 +182,7 @@ export function MobileBottomBarView({
   return (
     <nav
       ref={navRef}
-      aria-label={t("mobileBottomBar.nav", { defaultValue: "Nawigacja mobilna" })}
+      aria-label={t("mobileBottomBar.nav")}
       className={`mbb ${className ?? ""}`}
       style={style}
       data-ready={ready ? "true" : "false"}

@@ -260,7 +260,7 @@ export function BlockInserter({
           type="button"
           onClick={() => setOpen(false)}
           className="p-1 hover:bg-accent rounded"
-          aria-label={t("blocks.inserter.close", { defaultValue: "Zamknij" })}
+          aria-label={t("blocks.inserter.close")}
         >
           <X className="w-3.5 h-3.5" />
         </button>
@@ -269,7 +269,7 @@ export function BlockInserter({
       {showTabs && (
         <div
           role="tablist"
-          aria-label={t("blocks.inserter.tabsLabel", { defaultValue: "Rodzaj zawartości" })}
+          aria-label={t("blocks.inserter.tabsLabel")}
           className="flex items-center gap-1 mb-2 border-b border-border"
         >
           {(["blocks", "patterns"] as const).map((key) => (
@@ -285,9 +285,7 @@ export function BlockInserter({
                   : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
             >
-              {key === "blocks"
-                ? t("blocks.inserter.tabBlocks", { defaultValue: "Bloki" })
-                : t("blocks.inserter.tabPatterns", { defaultValue: "Wzorce" })}
+              {key === "blocks" ? t("blocks.inserter.tabBlocks") : t("blocks.inserter.tabPatterns")}
             </button>
           ))}
         </div>
@@ -322,11 +320,7 @@ export function BlockInserter({
           )}
         </div>
       ) : (
-        <div
-          id={listboxId}
-          role="listbox"
-          aria-label={t("blocks.inserter.resultsLabel", { defaultValue: "Dostępne bloki" })}
-        >
+        <div id={listboxId} role="listbox" aria-label={t("blocks.inserter.resultsLabel")}>
           {visibleSpecs.length === 0 ? (
             <p className="text-xs text-muted-foreground italic py-3 text-center">
               {t("blocks.noResults")}
@@ -344,7 +338,7 @@ export function BlockInserter({
                 onClick={() => setExpanded(true)}
                 className="w-full mt-2 py-2 rounded bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity"
               >
-                {t("blocks.inserter.browseAll", { defaultValue: "Przeglądaj wszystko" })}
+                {t("blocks.inserter.browseAll")}
               </button>
             </>
           ) : (

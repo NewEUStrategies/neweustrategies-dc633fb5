@@ -50,15 +50,9 @@ export function ArchivePagination({
   hrefFor?: (page: number) => string;
 }) {
   const items = buildRange(page, totalPages);
-  const prevLabel = t("archive.prev", {
-    defaultValue: lang === "en" ? "Previous page" : "Poprzednia strona",
-  });
-  const nextLabel = t("archive.next", {
-    defaultValue: lang === "en" ? "Next page" : "Następna strona",
-  });
-  const pageLabel = t("archive.pageLabel", {
-    defaultValue: lang === "en" ? "Page" : "Strona",
-  });
+  const prevLabel = t("archive.prev");
+  const nextLabel = t("archive.next");
+  const pageLabel = t("archive.pageLabel");
   const busy = isPending || disabled;
 
   const interceptClick = (event: MouseEvent<HTMLAnchorElement>, target: number) => {

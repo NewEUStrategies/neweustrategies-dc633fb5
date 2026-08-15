@@ -41,11 +41,10 @@ function isConversationFocused(conversationId: string): boolean {
 }
 
 function attachmentSummary(row: MessageRow): string | null {
-  if (row.kind === "image") return i18n.t("chat.photo", { defaultValue: "Zdjęcie" });
-  if (row.kind === "audio")
-    return i18n.t("chat.voice.message", { defaultValue: "Wiadomość głosowa" });
+  if (row.kind === "image") return i18n.t("chat.photo");
+  if (row.kind === "audio") return i18n.t("chat.voice.message");
   if (row.kind === "file") {
-    const label = i18n.t("chat.file", { defaultValue: "Plik" });
+    const label = i18n.t("chat.file");
     return row.attachment_name ? `${label}: ${row.attachment_name}` : label;
   }
   return null;
@@ -90,7 +89,7 @@ function buildPreview(row: MessageRow): string {
   if (attach && text) return `${attach} - ${text}`;
   if (attach) return attach;
   if (text.length > 140) return `${text.slice(0, 137)}...`;
-  return text || i18n.t("chat.incoming.emptyBody", { defaultValue: "..." });
+  return text || i18n.t("chat.incoming.emptyBody");
 }
 
 async function resolvePeer(senderId: string): Promise<PeerProfile | null> {
@@ -123,9 +122,9 @@ async function handleInsert(uid: string, row: MessageRow) {
   if (await isMutedConversation(uid, row.conversation_id)) return;
 
   const peer = await resolvePeer(row.sender_id);
-  const name = peer?.display_name ?? i18n.t("chat.incoming.someone", { defaultValue: "Ktoś" });
+  const name = peer?.display_name ?? i18n.t("chat.incoming.someone");
   const preview = buildPreview(row);
-  const openLabel = i18n.t("chat.incoming.open", { defaultValue: "Otwórz" });
+  const openLabel = i18n.t("chat.incoming.open");
 
   toast(name, {
     description: preview,

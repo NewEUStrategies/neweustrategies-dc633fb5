@@ -60,7 +60,7 @@ export const AdSlotView = memo(function AdSlotView({ placement, className }: Sin
   }, [blocked, shouldRender, slot.id, placement.id]);
 
   const dimensions = { width: slot.width, height: slot.height };
-  const label = t("ads.label", { defaultValue: "Reklama" });
+  const label = t("ads.label");
 
   if (blocked) {
     return (
@@ -74,9 +74,7 @@ export const AdSlotView = memo(function AdSlotView({ placement, className }: Sin
         label={label}
         className={className}
       >
-        {t("ads.consentBlocked", {
-          defaultValue: "Treść reklamowa zablokowana - wymaga zgody marketingowej.",
-        })}
+        {t("ads.consentBlocked")}
       </AdContainer>
     );
   }

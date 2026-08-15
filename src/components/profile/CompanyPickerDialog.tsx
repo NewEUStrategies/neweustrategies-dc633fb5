@@ -168,18 +168,11 @@ export function CompanyPickerDialog({
         if (error) throw error;
       }
       invalidateProfile();
-      toast.success(
-        companyId
-          ? t("company.toast.linked", { defaultValue: "Firma przypisana" })
-          : t("company.toast.detached", { defaultValue: "Firma odłączona" }),
-      );
+      toast.success(companyId ? t("company.toast.linked") : t("company.toast.detached"));
       closeAndRestoreFocus();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      toast.error(
-        t("company.errors.linkFailed", { defaultValue: "Nie udało się przypisać firmy" }) +
-          ` (${msg})`,
-      );
+      toast.error(t("company.errors.linkFailed") + ` (${msg})`);
     } finally {
       setSaving(false);
     }
@@ -195,13 +188,11 @@ export function CompanyPickerDialog({
     if (saving) return;
     const name = form.name.trim();
     if (!name) {
-      toast.error(t("company.errors.nameRequired", { defaultValue: "Nazwa jest wymagana" }));
+      toast.error(t("company.errors.nameRequired"));
       return;
     }
     if (!tenantId || !user?.id) {
-      toast.error(
-        t("company.errors.linkFailed", { defaultValue: "Nie udało się przypisać firmy" }),
-      );
+      toast.error(t("company.errors.linkFailed"));
       return;
     }
     setSaving(true);
@@ -221,14 +212,11 @@ export function CompanyPickerDialog({
       await supabase.rpc("link_current_company", { _company_id: companyId });
       void qc.invalidateQueries({ queryKey: ["crm-companies-search"] });
       invalidateProfile();
-      toast.success(t("company.toast.created", { defaultValue: "Firma dodana" }));
+      toast.success(t("company.toast.created"));
       closeAndRestoreFocus();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      toast.error(
-        t("company.errors.createFailed", { defaultValue: "Nie udało się dodać firmy" }) +
-          ` (${msg})`,
-      );
+      toast.error(t("company.errors.createFailed") + ` (${msg})`);
     } finally {
       setSaving(false);
     }
@@ -240,19 +228,10 @@ export function CompanyPickerDialog({
         <DialogHeader className="px-5 pt-5 pb-3 border-b border-border">
           <DialogTitle className="flex items-center gap-2 text-[15px] font-semibold">
             <Building2 className="h-4 w-4 text-primary" />
-            {mode === "create"
-              ? t("company.createTitle", { defaultValue: "Dodaj nową firmę" })
-              : t("company.pickTitle", { defaultValue: "Wybierz firmę" })}
+            {mode === "create" ? t("company.createTitle") : t("company.pickTitle")}
           </DialogTitle>
           <DialogDescription className="text-[12px] text-muted-foreground">
-            {mode === "create"
-              ? t("company.createDesc", {
-                  defaultValue:
-                    "Wymagana jest tylko nazwa. Pozostałe dane możesz uzupełnić później.",
-                })
-              : t("company.pickDesc", {
-                  defaultValue: "Wpisz nazwę firmy - podpowiedzi zaciągają się z CRM.",
-                })}
+            {mode === "create" ? t("company.createDesc") : t("company.pickDesc")}
           </DialogDescription>
         </DialogHeader>
 
@@ -269,9 +248,7 @@ export function CompanyPickerDialog({
                   ref={inputRef}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder={t("company.searchPh", {
-                    defaultValue: "np. New European Strategies",
-                  })}
+                  placeholder={t("company.searchPh")}
                   className="h-9 pl-12 text-[13px] rounded-md"
                   autoComplete="off"
                 />
@@ -285,11 +262,7 @@ export function CompanyPickerDialog({
                 </div>
               ) : results.length === 0 ? (
                 <div className="px-5 py-6 text-center text-[12px] text-muted-foreground">
-                  {trimmed
-                    ? t("company.noMatches", { defaultValue: "Brak dopasowań" })
-                    : t("company.startTyping", {
-                        defaultValue: "Zacznij pisać, aby zobaczyć firmy",
-                      })}
+                  {trimmed ? t("company.noMatches") : t("company.startTyping")}
                 </div>
               ) : (
                 <ul className="py-1">
@@ -338,7 +311,6 @@ export function CompanyPickerDialog({
                 <Plus className="h-4 w-4" />
                 <span className="min-w-0 truncate">
                   {t("company.createNamed", {
-                    defaultValue: 'Dodaj nową firmę: "{{name}}"',
                     name: trimmed,
                   })}
                 </span>
@@ -355,7 +327,7 @@ export function CompanyPickerDialog({
                   onClick={() => void linkCompany(null)}
                   disabled={saving}
                 >
-                  {t("company.detach", { defaultValue: "Odłącz firmę" })}
+                  {t("company.detach")}
                 </Button>
               ) : (
                 <span />
@@ -368,14 +340,14 @@ export function CompanyPickerDialog({
                 onClick={() => onOpenChange(false)}
                 disabled={saving}
               >
-                {t("common.cancel", { defaultValue: "Anuluj" })}
+                {t("common.cancel")}
               </Button>
             </DialogFooter>
           </div>
         ) : (
           <form onSubmit={submitCreate} className="flex flex-col">
             <div className="px-5 py-4 space-y-3 max-h-[60vh] overflow-y-auto">
-              <FieldRow label={t("company.fields.name", { defaultValue: "Nazwa" })} required>
+              <FieldRow label={t("company.fields.name")} required>
                 <Input
                   value={form.name}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
@@ -386,7 +358,7 @@ export function CompanyPickerDialog({
                 />
               </FieldRow>
               <div className="grid grid-cols-2 gap-3">
-                <FieldRow label={t("company.fields.country", { defaultValue: "Kraj" })}>
+                <FieldRow label={t("company.fields.country")}>
                   <Input
                     value={form.country}
                     onChange={(e) => setForm((f) => ({ ...f, country: e.target.value }))}
@@ -394,7 +366,7 @@ export function CompanyPickerDialog({
                     maxLength={80}
                   />
                 </FieldRow>
-                <FieldRow label={t("company.fields.branch", { defaultValue: "Oddział / dział" })}>
+                <FieldRow label={t("company.fields.branch")}>
                   <Input
                     value={form.branch}
                     onChange={(e) => setForm((f) => ({ ...f, branch: e.target.value }))}
@@ -404,7 +376,7 @@ export function CompanyPickerDialog({
                 </FieldRow>
               </div>
               <div className="grid grid-cols-[1fr_120px] gap-3">
-                <FieldRow label={t("company.fields.city", { defaultValue: "Miasto" })}>
+                <FieldRow label={t("company.fields.city")}>
                   <Input
                     value={form.city}
                     onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))}
@@ -412,7 +384,7 @@ export function CompanyPickerDialog({
                     maxLength={80}
                   />
                 </FieldRow>
-                <FieldRow label={t("company.fields.postalCode", { defaultValue: "Kod pocztowy" })}>
+                <FieldRow label={t("company.fields.postalCode")}>
                   <Input
                     value={form.postal_code}
                     onChange={(e) => setForm((f) => ({ ...f, postal_code: e.target.value }))}
@@ -421,7 +393,7 @@ export function CompanyPickerDialog({
                   />
                 </FieldRow>
               </div>
-              <FieldRow label={t("company.fields.address", { defaultValue: "Adres" })}>
+              <FieldRow label={t("company.fields.address")}>
                 <Input
                   value={form.address}
                   onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
@@ -430,7 +402,7 @@ export function CompanyPickerDialog({
                 />
               </FieldRow>
               <div className="grid grid-cols-2 gap-3">
-                <FieldRow label={t("company.fields.website", { defaultValue: "Strona WWW" })}>
+                <FieldRow label={t("company.fields.website")}>
                   <Input
                     type="url"
                     value={form.website}
@@ -440,7 +412,7 @@ export function CompanyPickerDialog({
                     maxLength={200}
                   />
                 </FieldRow>
-                <FieldRow label={t("company.fields.phone", { defaultValue: "Telefon" })}>
+                <FieldRow label={t("company.fields.phone")}>
                   <Input
                     type="tel"
                     value={form.phone}
@@ -461,7 +433,7 @@ export function CompanyPickerDialog({
                 onClick={() => setMode("search")}
                 disabled={saving}
               >
-                {t("company.back", { defaultValue: "Wróć do wyszukiwania" })}
+                {t("company.back")}
               </Button>
               <div className="flex gap-2">
                 <Button
@@ -472,14 +444,10 @@ export function CompanyPickerDialog({
                   onClick={() => onOpenChange(false)}
                   disabled={saving}
                 >
-                  {t("common.cancel", { defaultValue: "Anuluj" })}
+                  {t("common.cancel")}
                 </Button>
                 <Button type="submit" size="sm" className="h-8 text-[12px]" disabled={saving}>
-                  {saving ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    t("company.save", { defaultValue: "Dodaj firmę" })
-                  )}
+                  {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t("company.save")}
                 </Button>
               </div>
             </DialogFooter>

@@ -391,19 +391,19 @@ export function MediaManager() {
       const idsForBatch = many ? Array.from(selectedIds) : [id];
       return [
         {
-          label: t("admin.media.open", { defaultValue: "Otwórz" }),
+          label: t("admin.media.open"),
           onSelect: () => {
             if (row) window.open(row.public_url, "_blank");
           },
         },
         {
-          label: t("admin.media.rename", { defaultValue: "Zmień nazwę" }),
+          label: t("admin.media.rename"),
           icon: <Pencil className="w-3.5 h-3.5" />,
           disabled: many,
           onSelect: () => beginRename(id),
         },
         {
-          label: t("admin.media.getInfo", { defaultValue: "Informacje" }),
+          label: t("admin.media.getInfo"),
           icon: <Info className="w-3.5 h-3.5" />,
           onSelect: () => {
             selectOnly(id);
@@ -412,17 +412,17 @@ export function MediaManager() {
         },
         { separator: true },
         {
-          label: t("admin.media.copyUrl", { defaultValue: "Skopiuj URL" }),
+          label: t("admin.media.copyUrl"),
           icon: <Copy className="w-3.5 h-3.5" />,
           onSelect: () => {
             if (row) {
               void navigator.clipboard.writeText(row.public_url);
-              toast.success(t("admin.media.urlCopied", { defaultValue: "URL skopiowany" }));
+              toast.success(t("admin.media.urlCopied"));
             }
           },
         },
         {
-          label: t("admin.media.download", { defaultValue: "Pobierz" }),
+          label: t("admin.media.download"),
           icon: <Download className="w-3.5 h-3.5" />,
           onSelect: () => {
             if (row) {
@@ -435,19 +435,19 @@ export function MediaManager() {
         },
         { separator: true },
         {
-          label: t("admin.media.copy", { defaultValue: "Kopiuj" }),
+          label: t("admin.media.copy"),
           shortcut: "⌘C",
           onSelect: () => mutations.copy(idsForBatch),
         },
         {
-          label: t("admin.media.cutAction", { defaultValue: "Wytnij" }),
+          label: t("admin.media.cutAction"),
           icon: <Scissors className="w-3.5 h-3.5" />,
           shortcut: "⌘X",
           onSelect: () => mutations.cut(idsForBatch),
         },
         { separator: true },
         {
-          label: t("admin.delete", { defaultValue: "Usuń" }),
+          label: t("admin.delete"),
           icon: <Trash2 className="w-3.5 h-3.5" />,
           danger: true,
           onSelect: () => setConfirmDelete({ kind: "files", ids: idsForBatch }),
@@ -459,11 +459,11 @@ export function MediaManager() {
       const path = cm.targetId;
       return [
         {
-          label: t("admin.media.open", { defaultValue: "Otwórz" }),
+          label: t("admin.media.open"),
           onSelect: () => setCurrentPath(path),
         },
         {
-          label: t("admin.media.rename", { defaultValue: "Zmień nazwę" }),
+          label: t("admin.media.rename"),
           icon: <Pencil className="w-3.5 h-3.5" />,
           onSelect: () => {
             setRenamingFolder(path);
@@ -472,7 +472,7 @@ export function MediaManager() {
         },
         { separator: true },
         {
-          label: t("admin.delete", { defaultValue: "Usuń" }),
+          label: t("admin.delete"),
           icon: <Trash2 className="w-3.5 h-3.5" />,
           danger: true,
           onSelect: () => setConfirmDelete({ kind: "folder", folder: path }),
@@ -483,25 +483,25 @@ export function MediaManager() {
     // Empty canvas
     return [
       {
-        label: t("admin.media.newFolder", { defaultValue: "Nowy folder" }),
+        label: t("admin.media.newFolder"),
         icon: <FolderPlus className="w-3.5 h-3.5" />,
         onSelect: () => setNewFolderOpen(true),
       },
       {
-        label: t("admin.media.uploadFiles", { defaultValue: "Wgraj pliki" }),
+        label: t("admin.media.uploadFiles"),
         icon: <Upload className="w-3.5 h-3.5" />,
         onSelect: () => fileInputRef.current?.click(),
       },
       { separator: true },
       {
-        label: t("admin.media.paste", { defaultValue: "Wklej" }),
+        label: t("admin.media.paste"),
         icon: <ClipboardPaste className="w-3.5 h-3.5" />,
         shortcut: "⌘V",
         disabled: !mutations.canPaste,
         onSelect: () => void mutations.doPaste(),
       },
       {
-        label: t("admin.media.selectAll", { defaultValue: "Zaznacz wszystko" }),
+        label: t("admin.media.selectAll"),
         shortcut: "⌘A",
         onSelect: selectAll,
       },

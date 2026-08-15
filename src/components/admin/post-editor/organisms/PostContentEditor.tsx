@@ -50,9 +50,9 @@ export function PostContentEditor({
 
   const pickImage = async (): Promise<string | null> =>
     promptDialog({
-      title: t("admin.imageUrlTitle", { defaultValue: "Adres URL obrazka" }),
+      title: t("admin.imageUrlTitle"),
       placeholder: "https://…",
-      confirmLabel: t("admin.insert", { defaultValue: "Wstaw" }),
+      confirmLabel: t("admin.insert"),
     });
 
   return (

@@ -420,9 +420,7 @@ export function MessageList(props: MessageListProps) {
                   className="rounded-[6px] bg-muted px-3 py-1 text-[11px] text-muted-foreground"
                   aria-live="polite"
                 >
-                  {loadingOlder
-                    ? t("common.loading", { defaultValue: "..." })
-                    : t("chat.loadOlder")}
+                  {loadingOlder ? t("common.loading") : t("chat.loadOlder")}
                 </span>
               </div>
             )}

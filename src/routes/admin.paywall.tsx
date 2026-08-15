@@ -95,7 +95,7 @@ function PaywallAdmin() {
       !(await confirmDialog({
         title: t("admin.paywall.confirmRemove"),
         destructive: true,
-        confirmLabel: t("admin.delete", { defaultValue: "Usuń" }),
+        confirmLabel: t("admin.delete"),
       }))
     )
       return;
@@ -126,7 +126,7 @@ function PaywallAdmin() {
             {highlightedPlans > 0 && (
               <Badge variant="secondary" className="gap-1 rounded-[6px]">
                 <Sparkles className="h-3 w-3" aria-hidden />
-                {t("admin.paywall.highlighted", "Wyróżniony")} × {highlightedPlans}
+                {t("admin.paywall.highlighted")} × {highlightedPlans}
               </Badge>
             )}
           </div>
@@ -223,7 +223,7 @@ function PaywallAdmin() {
                               className="h-4 rounded-[6px] px-1.5 text-[10px]"
                             >
                               <Sparkles className="mr-0.5 h-2.5 w-2.5" aria-hidden />
-                              {t("admin.paywall.highlighted", "Wyróżniony")}
+                              {t("admin.paywall.highlighted")}
                             </Badge>
                           )}
                         </div>
@@ -358,7 +358,7 @@ function PaywallAdmin() {
                     </Select>
                   </div>
                   <div>
-                    <Label>{t("admin.paywall.trialDays", "Dni okresu próbnego")}</Label>
+                    <Label>{t("admin.paywall.trialDays")}</Label>
                     <Input
                       type="number"
                       min={0}
@@ -384,7 +384,7 @@ function PaywallAdmin() {
                       checked={!!draft.highlighted}
                       onCheckedChange={(v) => setDraft({ ...draft, highlighted: v })}
                     />
-                    {t("admin.paywall.highlighted", "Wyróżniony")}
+                    {t("admin.paywall.highlighted")}
                   </label>
                   <div>
                     <Label>{t("admin.paywall.sort")}</Label>
@@ -397,7 +397,7 @@ function PaywallAdmin() {
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <Label>{t("admin.paywall.badgePl", "Plakietka (PL)")}</Label>
+                      <Label>{t("admin.paywall.badgePl")}</Label>
                       <Input
                         value={draft.badge_pl ?? ""}
                         onChange={(e) => setDraft({ ...draft, badge_pl: e.target.value })}
@@ -405,7 +405,7 @@ function PaywallAdmin() {
                       />
                     </div>
                     <div>
-                      <Label>{t("admin.paywall.badgeEn", "Badge (EN)")}</Label>
+                      <Label>{t("admin.paywall.badgeEn")}</Label>
                       <Input
                         value={draft.badge_en ?? ""}
                         onChange={(e) => setDraft({ ...draft, badge_en: e.target.value })}
@@ -420,7 +420,7 @@ function PaywallAdmin() {
               <FieldGroup label={t("admin.paywall.groupFeatures")}>
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
-                    <Label>{t("admin.paywall.featuresPl", "Funkcje (PL, jedna na linię)")}</Label>
+                    <Label>{t("admin.paywall.featuresPl")}</Label>
                     <Textarea
                       rows={5}
                       value={(draft.features_pl ?? []).join("\n")}
@@ -436,7 +436,7 @@ function PaywallAdmin() {
                     />
                   </div>
                   <div>
-                    <Label>{t("admin.paywall.featuresEn", "Features (EN, one per line)")}</Label>
+                    <Label>{t("admin.paywall.featuresEn")}</Label>
                     <Textarea
                       rows={5}
                       value={(draft.features_en ?? []).join("\n")}

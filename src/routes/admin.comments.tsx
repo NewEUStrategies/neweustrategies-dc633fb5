@@ -270,7 +270,7 @@ function Row({
             {r.author?.display_name ?? r.author_name ?? "-"}
             {!r.user_id && r.author_name && (
               <span className="ml-1 font-normal text-xs text-muted-foreground">
-                ({t("adminComments.guest", { defaultValue: "gość" })})
+                ({t("adminComments.guest")})
               </span>
             )}
           </span>

@@ -116,7 +116,7 @@ export function SignupPopupPanel({
       {onClose && (
         <button
           type="button"
-          aria-label={t("common.close", { defaultValue: isPl ? "Zamknij" : "Close" })}
+          aria-label={t("common.close")}
           onClick={onClose}
           className="absolute right-3 top-3 z-30 flex h-9 w-9 items-center justify-center rounded-full border transition-colors hover:opacity-80"
           style={{
@@ -149,10 +149,8 @@ export function SignupPopupPanel({
           showBrand={settings.popup_showcase_show_brand}
           showCaption={settings.popup_showcase_show_caption}
           showDots={settings.popup_showcase_show_dots}
-          dotLabel={t("signupPopup.slide", { defaultValue: isPl ? "Slajd" : "Slide" })}
-          nextLabel={t("signupPopup.next", {
-            defaultValue: isPl ? "Następny kadr" : "Next frame",
-          })}
+          dotLabel={t("signupPopup.slide")}
+          nextLabel={t("signupPopup.next")}
           autoRotate={!previewOnly}
         />
       </div>

@@ -77,45 +77,29 @@ export function InternalLinkSuggestions(props: Props) {
       } else {
         await navigator.clipboard.writeText(html);
       }
-      toast.success(
-        t("admin.seo.linkSuggestions.copied", {
-          defaultValue: "Skopiowano link do schowka",
-        }),
-      );
+      toast.success(t("admin.seo.linkSuggestions.copied"));
     } catch {
-      toast.error(
-        t("admin.seo.linkSuggestions.copyFail", {
-          defaultValue: "Nie udało się skopiować",
-        }),
-      );
+      toast.error(t("admin.seo.linkSuggestions.copyFail"));
     }
   };
 
   const reasonLabel = (r: string) =>
     r === "category"
-      ? t("admin.seo.linkSuggestions.reasonCategory", { defaultValue: "kategoria" })
+      ? t("admin.seo.linkSuggestions.reasonCategory")
       : r === "tag"
-        ? t("admin.seo.linkSuggestions.reasonTag", { defaultValue: "tag" })
-        : t("admin.seo.linkSuggestions.reasonContent", { defaultValue: "treść" });
+        ? t("admin.seo.linkSuggestions.reasonTag")
+        : t("admin.seo.linkSuggestions.reasonContent");
 
   return (
     <div className="rounded-md border border-border/60 bg-card/40 p-3 space-y-2">
       <div className="flex items-center gap-2 text-xs font-medium">
         <Sparkles className="h-3.5 w-3.5 text-brand" aria-hidden />
-        <span>
-          {t("admin.seo.linkSuggestions.title", {
-            defaultValue: "Sugerowane linki wewnętrzne",
-          })}
-        </span>
+        <span>{t("admin.seo.linkSuggestions.title")}</span>
         {q.isFetching ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : null}
       </div>
 
       {!enabled ? (
-        <p className="text-[11px] text-muted-foreground">
-          {t("admin.seo.linkSuggestions.hint", {
-            defaultValue: "Wybierz kategorię/tagi lub uzupełnij tytuł, aby zobaczyć propozycje.",
-          })}
-        </p>
+        <p className="text-[11px] text-muted-foreground">{t("admin.seo.linkSuggestions.hint")}</p>
       ) : q.data && q.data.length > 0 ? (
         <ul className="space-y-1.5">
           {q.data.map((s) => {
@@ -143,9 +127,7 @@ export function InternalLinkSuggestions(props: Props) {
                     size="icon"
                     className="h-6 w-6"
                     onClick={() => copyLink(s.slug, title)}
-                    title={t("admin.seo.linkSuggestions.copy", {
-                      defaultValue: "Kopiuj link",
-                    })}
+                    title={t("admin.seo.linkSuggestions.copy")}
                   >
                     <Copy className="h-3 w-3" aria-hidden />
                   </Button>
@@ -154,9 +136,7 @@ export function InternalLinkSuggestions(props: Props) {
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex h-6 w-6 items-center justify-center rounded-[4px] hover:bg-muted"
-                    title={t("admin.seo.linkSuggestions.open", {
-                      defaultValue: "Otwórz",
-                    })}
+                    title={t("admin.seo.linkSuggestions.open")}
                   >
                     <ArrowRight className="h-3 w-3" aria-hidden />
                   </a>
@@ -168,14 +148,12 @@ export function InternalLinkSuggestions(props: Props) {
       ) : q.isLoading ? (
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
           <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-          {t("admin.seo.linkSuggestions.loading", { defaultValue: "Szukam kandydatów..." })}
+          {t("admin.seo.linkSuggestions.loading")}
         </div>
       ) : (
         <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
           <LinkIcon className="h-3 w-3" aria-hidden />
-          {t("admin.seo.linkSuggestions.empty", {
-            defaultValue: "Brak dopasowań w tym tenantcie.",
-          })}
+          {t("admin.seo.linkSuggestions.empty")}
         </p>
       )}
     </div>

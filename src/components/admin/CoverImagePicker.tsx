@@ -140,8 +140,8 @@ export function CoverImagePicker({
                 type="button"
                 onClick={clear}
                 className="absolute top-1.5 right-1.5 h-6 w-6 inline-flex items-center justify-center rounded-md bg-background/90 border border-border hover:bg-destructive hover:text-destructive-foreground"
-                title={t("admin.remove", { defaultValue: "Usuń" })}
-                aria-label={t("admin.remove", { defaultValue: "Usuń" })}
+                title={t("admin.remove")}
+                aria-label={t("admin.remove")}
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -150,7 +150,7 @@ export function CoverImagePicker({
         </div>
       ) : (
         <div className="rounded-md border border-dashed border-border h-24 flex items-center justify-center text-[11px] text-muted-foreground">
-          {t("admin.posts.coverEmpty", { defaultValue: "Brak obrazka wyróżniającego" })}
+          {t("admin.posts.coverEmpty")}
         </div>
       )}
 
@@ -164,9 +164,7 @@ export function CoverImagePicker({
           className="h-8 text-xs"
         >
           <Upload className="w-3.5 h-3.5 mr-1" />
-          {uploading
-            ? t("admin.uploading", { defaultValue: "Wgrywam…" })
-            : t("admin.posts.coverUpload", { defaultValue: "Wgraj plik" })}
+          {uploading ? t("admin.uploading") : t("admin.posts.coverUpload")}
         </Button>
         <Button
           type="button"
@@ -176,7 +174,7 @@ export function CoverImagePicker({
           className="h-8 text-xs"
         >
           <ImageIcon className="w-3.5 h-3.5 mr-1" />
-          {t("admin.posts.coverLibrary", { defaultValue: "Biblioteka" })}
+          {t("admin.posts.coverLibrary")}
         </Button>
       </div>
 
@@ -221,9 +219,7 @@ export function CoverImagePicker({
           setPickerOpen(false);
         }}
         accept="image"
-        title={t("admin.posts.coverLibraryTitle", {
-          defaultValue: "Wybierz obrazek wyróżniający",
-        })}
+        title={t("admin.posts.coverLibraryTitle")}
       />
     </div>
   );

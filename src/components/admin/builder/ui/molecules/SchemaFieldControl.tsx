@@ -108,17 +108,11 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
               type="button"
               onClick={() => setUrlPickerOpen(true)}
               className="inline-flex h-8 items-center justify-center gap-1 rounded-[6px] border border-border px-2 text-[11px] text-muted-foreground hover:border-brand hover:bg-muted/30 hover:text-foreground"
-              title={t("builder.imageSlot.pickFromLibrary", {
-                defaultValue: "Wybierz z biblioteki",
-              })}
-              aria-label={t("builder.imageSlot.pickFromLibrary", {
-                defaultValue: "Wybierz z biblioteki",
-              })}
+              title={t("builder.imageSlot.pickFromLibrary")}
+              aria-label={t("builder.imageSlot.pickFromLibrary")}
             >
               <FolderOpen className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">
-                {t("builder.imageSlot.mediaLibrary", { defaultValue: "Biblioteka" })}
-              </span>
+              <span className="hidden sm:inline">{t("builder.imageSlot.mediaLibrary")}</span>
             </button>
           </div>
           <MediaPickerDialog
@@ -128,7 +122,7 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
               setContent(field.key, url);
               setUrlPickerOpen(false);
             }}
-            title={t("builder.imageSlot.pickFromLibrary", { defaultValue: "Wybierz z biblioteki" })}
+            title={t("builder.imageSlot.pickFromLibrary")}
           />
         </PropField>
       );
@@ -200,9 +194,7 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
               value={asString(read(field.key))}
               onChange={(e) => setContent(field.key, e.target.value)}
               className="text-xs font-mono"
-              placeholder={t("builder.schemaField.chartDataPlaceholder", {
-                defaultValue: "; Seria A; Seria B\n2024; 12; 8",
-              })}
+              placeholder={t("builder.schemaField.chartDataPlaceholder")}
             />
             <ChartDataSpreadsheetDialog
               value={asString(read(field.key))}
@@ -284,12 +276,7 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
             allowTransparent={true}
             allowReset={true}
             inheritedValue={field.inheritedValue}
-            placeholder={
-              field.placeholder ??
-              t("builder.schemaField.colorInherits", {
-                defaultValue: "dziedziczy z global colors (lub transparent)",
-              })
-            }
+            placeholder={field.placeholder ?? t("builder.schemaField.colorInherits")}
           />
         </PropField>
       );

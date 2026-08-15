@@ -585,7 +585,7 @@ function AnalyticsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <Activity className="w-6 h-6" />
-            {t("admin.nav.analytics", { defaultValue: "Analityka i wydajność" })}
+            {t("admin.nav.analytics")}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             Google Analytics 4, Search Console oraz Web Vitals w jednym miejscu.

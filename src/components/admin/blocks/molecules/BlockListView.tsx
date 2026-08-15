@@ -97,33 +97,22 @@ export function BlockListView({
   };
 
   if (rows.length === 0) {
-    return (
-      <p className="text-xs text-muted-foreground italic">
-        {t("blocks.listView.empty", { defaultValue: "Brak bloków - zacznij pisać w kanwie." })}
-      </p>
-    );
+    return <p className="text-xs text-muted-foreground italic">{t("blocks.listView.empty")}</p>;
   }
 
   return (
     <div>
       <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
-        {t("blocks.listView.title", { defaultValue: "Struktura dokumentu" })}
+        {t("blocks.listView.title")}
       </p>
       {/* Skróty zaznaczenia blokowego - jedyne miejsce, gdzie redakcja je
           zobaczy bez czytania dokumentacji (Shift+klik działa też tutaj). */}
       <p className="text-[10px] leading-snug text-muted-foreground/80 mb-1.5">
-        {t("blocks.selection.hint", {
-          defaultValue:
-            "Shift+strzałki rozszerzają zaznaczenie, Shift+Home/End sięgają krawędzi dokumentu.",
-        })}
+        {t("blocks.selection.hint")}
       </p>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={topLevelIds} strategy={verticalListSortingStrategy}>
-          <ul
-            role="tree"
-            aria-label={t("blocks.listView.title", { defaultValue: "Struktura dokumentu" })}
-            className="space-y-0.5"
-          >
+          <ul role="tree" aria-label={t("blocks.listView.title")} className="space-y-0.5">
             {rows.map((row) => (
               <ListRow
                 key={row.id}
@@ -190,7 +179,7 @@ function ListRow({
             {...attributes}
             {...listeners}
             onClick={(e) => e.stopPropagation()}
-            title={t("blocks.actions.drag", { defaultValue: "Przeciągnij" })}
+            title={t("blocks.actions.drag")}
             className="shrink-0 p-0.5 -ml-0.5 rounded text-muted-foreground opacity-0 group-hover/row:opacity-100 cursor-grab active:cursor-grabbing"
           >
             <GripVertical className="w-3 h-3" />

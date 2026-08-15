@@ -253,7 +253,6 @@ export function PostListView({
       <PostListCarousel
         autoplay={carouselAutoplayEnabled(c)}
         intervalMs={carouselAutoplayIntervalMs(c)}
-        lang={lang}
       >
         {rows.map((p, i) => (
           <PostCard
@@ -680,12 +679,10 @@ export function PostListView({
 function PostListCarousel({
   autoplay,
   intervalMs,
-  lang,
   children,
 }: {
   autoplay: boolean;
   intervalMs: number;
-  lang: Lang;
   children: React.ReactNode;
 }) {
   const { t } = useTranslation();
@@ -738,12 +735,8 @@ function PostListCarousel({
       {...(controllable
         ? {
             role: "group",
-            "aria-roledescription": t("postCarousel.roleDescription", {
-              defaultValue: lang === "pl" ? "karuzela" : "carousel",
-            }),
-            "aria-label": t("postCarousel.label", {
-              defaultValue: lang === "pl" ? "Karuzela wpisów" : "Post carousel",
-            }),
+            "aria-roledescription": t("postCarousel.roleDescription"),
+            "aria-label": t("postCarousel.label"),
             tabIndex: 0,
             "data-autoplay": running ? "running" : "paused",
           }
@@ -757,12 +750,8 @@ function PostListCarousel({
 
   const btn =
     "inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card text-foreground transition-colors hover:border-brand/60 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-  const pauseLabel = t("postCarousel.pause", {
-    defaultValue: lang === "pl" ? "Zatrzymaj automatyczne przewijanie" : "Pause autoplay",
-  });
-  const playLabel = t("postCarousel.play", {
-    defaultValue: lang === "pl" ? "Wznów automatyczne przewijanie" : "Resume autoplay",
-  });
+  const pauseLabel = t("postCarousel.pause");
+  const playLabel = t("postCarousel.play");
 
   return (
     <div
@@ -776,17 +765,13 @@ function PostListCarousel({
       <div
         className="mt-2 flex items-center justify-end gap-1.5"
         role="group"
-        aria-label={t("postCarousel.controls", {
-          defaultValue: lang === "pl" ? "Sterowanie karuzelą" : "Carousel controls",
-        })}
+        aria-label={t("postCarousel.controls")}
       >
         <button
           type="button"
           className={btn}
           onClick={() => step(-1)}
-          aria-label={t("postCarousel.prev", {
-            defaultValue: lang === "pl" ? "Poprzedni wpis" : "Previous post",
-          })}
+          aria-label={t("postCarousel.prev")}
         >
           <ChevronLeft className="h-4 w-4" aria-hidden />
         </button>
@@ -807,9 +792,7 @@ function PostListCarousel({
           type="button"
           className={btn}
           onClick={() => step(1)}
-          aria-label={t("postCarousel.next", {
-            defaultValue: lang === "pl" ? "Następny wpis" : "Next post",
-          })}
+          aria-label={t("postCarousel.next")}
         >
           <ChevronRight className="h-4 w-4" aria-hidden />
         </button>

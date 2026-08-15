@@ -61,22 +61,10 @@ export function RobotsTxtPreview({ settings }: { settings: SeoSettings }) {
           rel="noreferrer"
           className="text-brand hover:underline"
         >
-          {t("admin.seoSettings.robotsOpenLive", { defaultValue: "Otwórz /robots.txt" })}
+          {t("admin.seoSettings.robotsOpenLive")}
         </a>
-        <span>
-          {t("admin.seoSettings.robotsAliasHint", {
-            defaultValue:
-              "Aliasy hostingu, domeny historyczne i podglądy dostają pełny zakaz (Disallow: /).",
-          })}
-        </span>
-        {nonCanonicalHost && (
-          <span>
-            {t("admin.seoSettings.robotsPreviewHostHint", {
-              defaultValue:
-                "Panel działa na hoście podglądu - powyżej jest polityka domeny publikacji.",
-            })}
-          </span>
-        )}
+        <span>{t("admin.seoSettings.robotsAliasHint")}</span>
+        {nonCanonicalHost && <span>{t("admin.seoSettings.robotsPreviewHostHint")}</span>}
       </div>
     </div>
   );
