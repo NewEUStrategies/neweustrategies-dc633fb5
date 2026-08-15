@@ -98,12 +98,7 @@ export function SignupSuccessPanel({ email, lang, redirectTo, previewOnly = fals
               : tr("resend")}
         </button>
         {resend === "error" ? (
-          <p className="text-[11px] text-destructive">
-            {t(
-              "Nie udało się wysłać ponownie - spróbuj za chwilę.",
-              "Could not resend - please try again shortly.",
-            )}
-          </p>
+          <p className="text-[11px] text-destructive">{tr("resendError")}</p>
         ) : null}
       </div>
     </div>

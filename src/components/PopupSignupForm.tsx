@@ -180,23 +180,11 @@ export function PopupSignupForm({
     const nameRe = /^[\p{L}\p{M}'’\- ]{2,80}$/u;
     if (ext) {
       if (v.name.trim() && !nameRe.test(v.name.trim())) {
-        fail(
-          t(
-            "Imię zawiera niedozwolone znaki (min. 2 znaki).",
-            "Name contains invalid characters (min. 2 chars).",
-          ),
-          "invalid_first_name",
-        );
+        fail(t("signupPopup.errors.invalidFirstName"), "invalid_first_name");
         return;
       }
       if (v.surname.trim() && !nameRe.test(v.surname.trim())) {
-        fail(
-          t(
-            "Nazwisko zawiera niedozwolone znaki (min. 2 znaki).",
-            "Surname contains invalid characters (min. 2 chars).",
-          ),
-          "invalid_last_name",
-        );
+        fail(t("signupPopup.errors.invalidLastName"), "invalid_last_name");
         return;
       }
       if (v.linkedin.trim()) {
@@ -205,26 +193,14 @@ export function PopupSignupForm({
             v.linkedin.trim(),
           );
         if (!liOk) {
-          fail(
-            t(
-              "Niepoprawny URL LinkedIn (np. https://linkedin.com/in/jan-kowalski).",
-              "Invalid LinkedIn URL (e.g. https://linkedin.com/in/jane-doe).",
-            ),
-            "invalid_linkedin",
-          );
+          fail(t("signupPopup.errors.invalidLinkedin"), "invalid_linkedin");
           return;
         }
       }
       if (v.phone.trim()) {
         const phone = v.phone.trim().replace(/[\s\-().]/g, "");
         if (!/^\+?[0-9]{7,15}$/.test(phone)) {
-          fail(
-            t(
-              "Niepoprawny numer telefonu (7-15 cyfr, opcjonalnie z +).",
-              "Invalid phone number (7-15 digits, optional leading +).",
-            ),
-            "invalid_phone",
-          );
+          fail(t("signupPopup.errors.invalidPhone"), "invalid_phone");
           return;
         }
       }
@@ -244,7 +220,7 @@ export function PopupSignupForm({
       const visible = key === "list" ? showLists : ext && cfg.enabled;
       if (visible && cfg.required && !value.trim()) {
         fail(
-          t(`Pole "${cfg.label_pl}" jest wymagane.`, `The "${cfg.label_en}" field is required.`),
+          t("signupPopup.errors.fieldRequired", { field: pickLocalized(cfg, "label", lang) }),
           `required_${key}`,
         );
         return;
@@ -252,13 +228,7 @@ export function PopupSignupForm({
     }
 
     if (v.password.length < MIN_PASSWORD) {
-      fail(
-        t(
-          `Hasło musi mieć co najmniej ${MIN_PASSWORD} znaków.`,
-          `Password must be at least ${MIN_PASSWORD} characters long.`,
-        ),
-        "weak_password",
-      );
+      fail(t("signupPopup.errors.passwordTooShort", { count: MIN_PASSWORD }), "weak_password");
       return;
     }
     if (v.password !== v.passwordConfirm) {
@@ -294,13 +264,7 @@ export function PopupSignupForm({
       } catch (guardErr) {
         const msg = guardErr instanceof Error ? guardErr.message : "";
         if (msg.includes("rate_limited")) {
-          fail(
-            t(
-              "Zbyt wiele prób - spróbuj ponownie za kilka minut.",
-              "Too many attempts - please try again in a few minutes.",
-            ),
-            "rate_limited",
-          );
+          fail(t("signupPopup.errors.rateLimited"), "rate_limited");
           return;
         }
         throw guardErr;
