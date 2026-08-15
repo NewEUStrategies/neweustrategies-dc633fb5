@@ -11863,94 +11863,51 @@ export type Database = {
       }
       programs: {
         Row: {
-          accent_color: string
-          category_id: string | null
-          contact_email: string | null
           cover_url: string | null
           created_at: string
-          created_by: string | null
           description_en: string | null
           description_pl: string | null
-          hero_image_url: string | null
-          icon: string
           id: string
           is_active: boolean
           kind: string
           name_en: string
           name_pl: string
-          research_questions: Json
-          scope_en: string | null
-          scope_pl: string | null
           slug: string
           sort_order: number
-          status: string
-          tagline_en: string | null
-          tagline_pl: string | null
           tenant_id: string
           updated_at: string
         }
         Insert: {
-          accent_color?: string
-          category_id?: string | null
-          contact_email?: string | null
           cover_url?: string | null
           created_at?: string
-          created_by?: string | null
           description_en?: string | null
           description_pl?: string | null
-          hero_image_url?: string | null
-          icon?: string
           id?: string
           is_active?: boolean
           kind?: string
           name_en: string
           name_pl: string
-          research_questions?: Json
-          scope_en?: string | null
-          scope_pl?: string | null
           slug: string
           sort_order?: number
-          status?: string
-          tagline_en?: string | null
-          tagline_pl?: string | null
           tenant_id?: string
           updated_at?: string
         }
         Update: {
-          accent_color?: string
-          category_id?: string | null
-          contact_email?: string | null
           cover_url?: string | null
           created_at?: string
-          created_by?: string | null
           description_en?: string | null
           description_pl?: string | null
-          hero_image_url?: string | null
-          icon?: string
           id?: string
           is_active?: boolean
           kind?: string
           name_en?: string
           name_pl?: string
-          research_questions?: Json
-          scope_en?: string | null
-          scope_pl?: string | null
           slug?: string
           sort_order?: number
-          status?: string
-          tagline_en?: string | null
-          tagline_pl?: string | null
           tenant_id?: string
           updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "programs_category_id_fkey"
-            columns: ["category_id"]
-            isOneToOne: false
-            referencedRelation: "categories"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "programs_tenant_id_fkey"
             columns: ["tenant_id"]
