@@ -17,6 +17,7 @@ import {
   ShieldAlert,
   WifiOff,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 import { currentLang } from "@/lib/i18n/localeRuntime";
 import { errorCopy, classifyError, type ErrorKind } from "@/lib/errorCopy";
