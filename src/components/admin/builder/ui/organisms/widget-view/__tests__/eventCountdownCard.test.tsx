@@ -34,7 +34,7 @@ vi.mock("@/integrations/supabase/client", () => {
 });
 
 import { EventCountdownCardView } from "../EventCountdownCardView";
-import { BuilderModeProvider } from "@/lib/builder/modeContext";
+import { BuilderModeProvider } from "@/lib/content-model/editorCanvas";
 import type { WidgetContent } from "@/lib/builder/types";
 
 function wrap(ui: ReactElement) {

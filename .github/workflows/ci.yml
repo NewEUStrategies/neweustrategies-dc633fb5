@@ -200,6 +200,23 @@ jobs:
       - name: No stale `as never` casts on the Supabase boundary
         run: bun run check:stale-never-casts
 
+      # Blocking gate on the ONE architectural cycle this repo ever had. Six
+      # consecutive audits named `blocks <-> builder` as the only real cycle in
+      # the codebase, and it GREW instead of shrinking: 30.07 first flagged,
+      # 13.08 at 23/17, 14.08 at 28/16. The cause was mechanical rather than
+      # conceptual - neither content engine sat "below" the other, so every new
+      # widget added an edge in whichever direction was convenient that day
+      # (`lib/blocks/wordPaste.ts` imported `toJson` from the builder purely
+      # because that was where the JSON escape hatch happened to live).
+      # The direction is now settled - shared primitives in `lib/content-model`,
+      # `blocks` never imports from `builder`, `builder` may import from
+      # `blocks` because it genuinely hosts it - and this gate is what keeps it
+      # settled. Without it the decision survives exactly until the first widget
+      # that finds the reverse direction convenient, which is precisely how the
+      # previous six releases went. Rationale: src/lib/content-model/README.md
+      - name: Content engines keep one dependency direction
+        run: bun run check:content-layering
+
       # Blocking gate on the CAUSE of those casts: generated types going stale.
       # `src/integrations/supabase/types.ts` is generated from the database, and
       # the migrations are forward-only. Add a column by migration without

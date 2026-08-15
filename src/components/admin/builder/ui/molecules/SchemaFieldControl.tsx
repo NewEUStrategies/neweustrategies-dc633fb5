@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { toJson } from "@/lib/builder/types";
 import type { Json } from "@/lib/builder/types";
-import { asBool } from "@/lib/builder/contentValue";
+import { asBool } from "@/lib/content-model/contentValue";
 import type { SchemaField as SchemaFieldDef } from "@/lib/builder/schemas";
 import { Input } from "@/components/ui/input";
 import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";

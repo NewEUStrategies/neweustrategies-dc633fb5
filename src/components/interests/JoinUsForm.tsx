@@ -21,7 +21,7 @@ import { getConsentDefinition } from "@/lib/notifications/consentCatalog";
 import { useMyInterests } from "@/hooks/useInterests";
 import { TopicsDroplist, useInterestGroups } from "@/components/interests/TopicsDroplist";
 import { useNewsletterFieldLabels } from "@/lib/newsletter/newsletterFieldLabels";
-import { useBuilderMode } from "@/lib/builder/modeContext";
+import { useBuilderMode } from "@/lib/content-model/editorCanvas";
 import { cn } from "@/lib/utils";
 import {
   CustomFieldsRenderer,

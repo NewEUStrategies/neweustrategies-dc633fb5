@@ -11,7 +11,7 @@ import { AppLink } from "@/components/atoms/AppLink";
 import { ArrowRight } from "@/lib/lucide-shim";
 import { eventByIdQueryOptions } from "@/lib/builder/eventsQuery";
 import { countdownParts, pad2, parseCountdownTarget } from "@/lib/events/countdown";
-import { useBuilderMode } from "@/lib/builder/modeContext";
+import { useBuilderMode } from "@/lib/content-model/editorCanvas";
 import { getBool, getStr, type Lang } from "./frame";
 
 function locStr(c: WidgetContent, base: string, lang: Lang): string {

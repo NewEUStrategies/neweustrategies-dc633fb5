@@ -32,7 +32,7 @@ import {
   AUTO_SIZE_WIDGETS,
   COMPACT_WIDGET_TYPES,
 } from "@/components/admin/builder/ui/organisms/widget-view/frame";
-import { RenderErrorBoundary } from "@/components/admin/builder/ui/organisms/widget-view/RenderErrorBoundary";
+import { RenderErrorBoundary } from "@/components/error/RenderErrorBoundary";
 import { sanitizeHtmlId, sanitizeCssClass, safeImageUrl, hardenStyleCss } from "@/lib/sanitize";
 import {
   sectionWrapperStyle,

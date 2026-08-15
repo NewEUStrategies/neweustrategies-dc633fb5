@@ -9,7 +9,7 @@
 // `href="#…"` widgetu zawsze trafia w `id` wyemitowane przez silniki treści,
 // również dla liter atomowych (`ł`), które dawna kopia NFKD-only gubiła.
 //
-// Odczyt treści: wyłącznie przez lib/builder/contentValue (asBool / asOneOf /
+// Odczyt treści: wyłącznie przez lib/content-model/contentValue (asBool / asOneOf /
 // pickI18n) oraz lib/toc/manualItems. Ręczne `getStr(...) !== "0"` cicho
 // odwracało nowe, prawdziwie booleanowe zapisy przełączników, a lista pozycji
 // czytana wprost z `items_pl` gubiła treść zapisaną pod bezjęzykowym `items`.
@@ -18,7 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { List, LayoutGrid, PanelLeft, ChevronDown, Menu as MenuIcon } from "@/lib/lucide-shim";
 import { cn } from "@/lib/utils";
 import type { WidgetContent } from "@/lib/builder/types";
-import { asBool, asOneOf, pickI18n } from "@/lib/builder/contentValue";
+import { asBool, asOneOf, pickI18n } from "@/lib/content-model/contentValue";
 import { scanHeadings, type ScannedHeading } from "@/lib/content/anchorScan";
 import { parseManualTocItems, readManualTocLines, type ManualTocItem } from "@/lib/toc/manualItems";
 import { type Lang } from "./frame";

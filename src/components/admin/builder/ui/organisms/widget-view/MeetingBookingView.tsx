@@ -10,7 +10,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { WidgetContent } from "@/lib/builder/types";
 import { useAuth } from "@/hooks/useAuth";
-import { useBuilderMode } from "@/lib/builder/modeContext";
+import { useBuilderMode } from "@/lib/content-model/editorCanvas";
 import { AppLink } from "@/components/atoms/AppLink";
 import { CalendarCheck, Clock, MapPin, Plus, Trash2, X } from "@/lib/lucide-shim";
 import {

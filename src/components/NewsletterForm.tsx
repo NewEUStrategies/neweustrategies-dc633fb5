@@ -12,7 +12,7 @@ import { useTranslation } from "react-i18next";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import "@/lib/i18n-public";
-import { useBuilderMode } from "@/lib/builder/modeContext";
+import { useBuilderMode } from "@/lib/content-model/editorCanvas";
 import { useNewsletterSettings, type NewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 import {
@@ -39,7 +39,7 @@ import {
   readI18nOverride,
   validateCustom,
   type CustomField,
-} from "@/lib/builder/formFields";
+} from "@/lib/content-model/formFields";
 
 function BuilderInlineWrapper({
   settings,

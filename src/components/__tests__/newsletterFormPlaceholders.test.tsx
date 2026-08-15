@@ -36,7 +36,7 @@ vi.mock("@tanstack/react-start", () => {
   };
 });
 vi.mock("@/lib/newsletter.functions", () => ({ subscribeToNewsletter: {} }));
-vi.mock("@/lib/builder/modeContext", () => ({ useBuilderMode: () => null }));
+vi.mock("@/lib/content-model/editorCanvas", () => ({ useBuilderMode: () => null }));
 vi.mock("@/components/newsletter/NewsletterDocRenderer", () => ({
   NewsletterDocRenderer: () => null,
 }));

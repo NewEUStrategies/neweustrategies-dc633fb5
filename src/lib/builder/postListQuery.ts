@@ -1,7 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { WidgetContent } from "@/lib/builder/types";
-import { asBool, asNum, asOneOf, asStr } from "@/lib/builder/contentValue";
+import { asBool, asNum, asOneOf, asStr } from "@/lib/content-model/contentValue";
 import { authorDisplayMode, type AuthorDisplayMode } from "@/lib/builder/authorDisplay";
 import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 import { edgeTtlCache } from "@/lib/ssrCache";

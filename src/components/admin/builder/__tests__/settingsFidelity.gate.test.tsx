@@ -46,7 +46,7 @@ import {
   RENDERER_ENUMERATES_CONTENT,
   WIDGET_PROBE_STATES,
 } from "@/lib/builder/ci/settingsFidelityGate";
-import { CurrentPostProvider, type CurrentPostCtx } from "@/lib/builder/currentPostContext";
+import { CurrentPostProvider, type CurrentPostCtx } from "@/lib/content-model/postContext";
 
 // Podział kodu (`React.lazy`) zamieniony na importy statyczne. Bez tego pierwszy
 // render 33 widgetów pokazuje fallback Suspense, a ich odczyty treści nigdy nie

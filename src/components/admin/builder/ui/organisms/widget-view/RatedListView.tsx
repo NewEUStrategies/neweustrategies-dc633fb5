@@ -12,7 +12,7 @@ import {
   asStr,
   pickI18n,
   type ContentBag,
-} from "@/lib/builder/contentValue";
+} from "@/lib/content-model/contentValue";
 import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 import { autoInvertColor } from "@/lib/builder/autoInvertColor";
 import { AppLink } from "@/components/atoms/AppLink";

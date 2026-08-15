@@ -9,7 +9,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, Eye, MousePointerClick } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { BuilderModeProvider } from "@/lib/builder/modeContext";
+import { BuilderModeProvider } from "@/lib/content-model/editorCanvas";
 import type { Device, Mode, WidgetNode } from "@/lib/builder/types";
 import { SOCIAL_HOVER_PREVIEW_ATTR } from "./widget-view/socialHover";
 import { WidgetView } from "../../WidgetView";

@@ -17,11 +17,14 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ProfileCard, PROFILE_CARD_DEFAULTS } from "@/components/ui/profile-card";
-import { PROFILE_CARD_STYLE_KEYS, readProfileCardStyle } from "@/lib/builder/profileCardStyle";
+import {
+  PROFILE_CARD_STYLE_KEYS,
+  readProfileCardStyle,
+} from "@/lib/content-model/profileCardStyle";
 import { WIDGET_SCHEMAS } from "@/lib/builder/schemas";
 import { AuthorProfileCardWidget } from "@/components/admin/builder/ui/organisms/widget-view/AuthorProfileCardWidget";
 import { AuthorBioView } from "@/components/blocks/PostContextViews";
-import { CurrentPostProvider, type CurrentPostCtx } from "@/lib/builder/currentPostContext";
+import { CurrentPostProvider, type CurrentPostCtx } from "@/lib/content-model/postContext";
 import { filterInternalExperts, type InternalExpertEntry } from "@/lib/experts/internalBase";
 import type { WidgetContent, WidgetNode } from "@/lib/builder/types";
 
