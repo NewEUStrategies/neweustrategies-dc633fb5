@@ -119,6 +119,31 @@ export function TrendingTicker({
 
   const iconClass = `tt-flame tt-flame-${iconAnimation}`;
 
+  if (layoutStyle === "editorial") {
+    return (
+      <div
+        className={`cms-trending cms-trending--editorial border-b ${className ?? ""}`}
+        data-testid="trending-ticker"
+        data-tt-vid={vid}
+        data-tt-layout="editorial"
+        style={{ background: "var(--tt-bg)", borderColor: "var(--tt-border)" }}
+      >
+        <TickerPaletteStyle vid={vid} palette={palette} />
+        <div className={`${innerMax} px-4 lg:px-8`}>
+          <EditorialTicker
+            posts={posts.slice(0, Math.max(2, Math.min(6, posts.length)))}
+            label={label}
+            lang={lang}
+            intervalSec={Math.max(3, intervalSec)}
+          />
+        </div>
+        <TickerStyles />
+      </div>
+    );
+  }
+
+
+
   return (
     <div
       className={`cms-trending border-b ${isBadge ? "cms-trending--badge" : "cms-trending--classic"} ${className ?? ""}`}
