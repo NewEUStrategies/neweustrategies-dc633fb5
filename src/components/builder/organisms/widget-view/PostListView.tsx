@@ -248,13 +248,6 @@ export function PostListView({
     return (lang === "pl" ? p.excerpt_pl : p.excerpt_en) || "";
   };
 
-  // Per-line underline on mobile: line-clamp forces `display: -webkit-box`,
-  // so the parent `.cms-post-title` gradient collapses to a single bar.
-  // Wrapping the text in an inline span restores the per-line underline.
-  const TitleSpan = ({ title }: { title: string }) => (
-    <span className="cms-title-underline">{title}</span>
-  );
-
   if (carousel) {
     return (
       <PostListCarousel
