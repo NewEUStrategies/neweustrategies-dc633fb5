@@ -517,7 +517,7 @@ export function PostListView({
             )}
             {title(p) && (
               <h3 className="cms-post-title line-clamp-3" style={tStyle}>
-                {title(p)}
+                <TitleSpan title={title(p)} />
               </h3>
             )}
             {excerpt(p) && (
