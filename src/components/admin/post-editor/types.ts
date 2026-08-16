@@ -17,6 +17,8 @@ export interface PostForm {
   // ciche nadpisanie, gdy ktoś inny zapisał w międzyczasie.
   updated_at?: string | null;
   status: PostWorkflowStatus;
+  /** Autor główny wpisu - pierwszy na liście autorów (karta "Autorzy"). */
+  author_id: string | null;
   editor: EditorType;
   title_pl: string;
   title_en: string;
