@@ -32,6 +32,9 @@ import { describe, expect, it } from "vitest";
 const ROUTES_DIR = "src/routes";
 const ADMIN_LAYOUT = "src/routes/admin.tsx";
 const SHELL = "src/components/admin/AdminShell.tsx";
+// Mapa nawigacji panelu mieszka w osobnym module - to tam stoją wpisy
+// zawężone `isSuperAdmin`, więc bramka musi czytać oba pliki.
+const NAV_MAP = "src/lib/admin/adminNav.ts";
 const ROLE_RPC_TEST = "supabase/tests/role_management_test.sql";
 
 function read(path: string): string {
@@ -67,7 +70,7 @@ describe("panel admina - warstwa dostępu", () => {
     // Ukrycie linku w `AdminShell` nie chroni niczego: adres wpisuje się z ręki.
     // Dla każdej trasy, której wpis nawigacji jest zawężony `isSuperAdmin`,
     // wymagamy własnego sprawdzenia w pliku trasy.
-    const shell = read(SHELL);
+    const shell = `${read(SHELL)}\n${read(NAV_MAP)}`;
     const gated = [
       ...shell.matchAll(/isSuperAdmin\s*\?\s*\[\{[^]]*?to:\s*"\/admin\/([a-z0-9-]+)"/g),
     ]
