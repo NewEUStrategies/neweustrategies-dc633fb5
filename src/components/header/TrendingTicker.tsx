@@ -538,7 +538,6 @@ function TickerGlassMarquee({
               <span
                 aria-hidden
                 className="tt-live-separator inline-block w-px h-3.5 shrink-0 self-center"
-                style={{ background: "color-mix(in srgb, var(--tt-border) 60%, transparent)" }}
               />
               {skin === "live" ? <TickerAuthor post={p} /> : null}
             </AppLink>
@@ -618,7 +617,6 @@ function TickerGlassCards({
                 <span
                   aria-hidden
                   className="tt-live-separator inline-block w-px h-3.5 shrink-0 self-center"
-                  style={{ background: "color-mix(in srgb, var(--tt-border) 60%, transparent)" }}
                 />
                 {skin === "live" ? <TickerAuthor post={p} /> : null}
               </AppLink>
@@ -880,7 +878,8 @@ function TickerStyles() {
         }
         .tt-live-separator {
           width: 1px; height: 14px; margin: 0 5px;
-          background: color-mix(in srgb, var(--tt-border) 55%, transparent);
+          background: currentColor;
+          opacity: 0.35;
           flex-shrink: 0; align-self: center;
         }
         /* Pionowy slide: numer w kolorze brandu, jak w poziomym marquee */
