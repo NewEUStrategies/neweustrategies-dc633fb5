@@ -121,9 +121,11 @@ export function SignupShowcase({
   const rootStyle = {
     background: galleryBackground(palette, design.gradientAngle),
     padding: `${design.paddingPx}px`,
+    ["--nl-root-p" as string]: `${design.paddingPx}px`,
     ["--nl-fg" as string]: ink,
     ["--nl-muted" as string]: inkMuted,
   } as CSSProperties;
+
 
   const tiles = useMemo(() => images.slice(0, 4), [images]);
 
@@ -144,12 +146,14 @@ export function SignupShowcase({
             <img
               src={logoUrl}
               alt={brand || "logo"}
+              data-showcase-logo=""
               className="w-auto max-w-[200px] object-contain"
               style={{ height: `${design.logoHeightPx}px` }}
             />
           ) : (
             <BrandMark className="h-5 w-5" />
           ))}
+
         {brand && <span className="font-display">{brand}</span>}
       </div>
     ) : null;
@@ -334,6 +338,7 @@ export function SignupShowcase({
 
   return (
     <div
+      data-showcase-root=""
       className={
         "relative flex h-full min-h-0 flex-col gap-3.5 sm:gap-5 " +
         (alignLeft ? "items-start" : "items-center")
@@ -343,6 +348,7 @@ export function SignupShowcase({
       {design.order.map((block) => blocks[block])}
     </div>
   );
+
 }
 
 // Kafle są dekoracyjne (nawigacja idzie przez kropki i strzałkę z etykietami
