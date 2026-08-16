@@ -632,7 +632,7 @@ export function PostListView({
                   className="cms-post-title line-clamp-2 transition-colors group-hover:text-brand"
                   style={tStyle}
                 >
-                  {title(p)}
+                  <TitleSpan title={title(p)} />
                 </h4>
               )}
               {excerpt(p) && (
