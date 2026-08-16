@@ -200,6 +200,10 @@ const COPY = {
     layout_badge: "Badge marquee (solid block)",
     layout_glassMarquee: "Glass marquee (seamless, horizontal)",
     layout_glassCards: "Glass cards (vertical rotation)",
+    layout_glassRibbon: "Gradient ribbon (horizontal)",
+    layout_glassSpotlight: "Spotlight (vertical rotation)",
+    layout_glassTape: "News tape (mono, horizontal)",
+
     marqueeHint: "This style carries its own animation - the presentation mode does not apply.",
     resetColors: "Reset to defaults",
     cannotDeleteLast: "At least one variant must remain.",
