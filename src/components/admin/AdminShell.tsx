@@ -265,389 +265,59 @@ function AdminShellInner({
   const [forceCompact, setForceCompact] = useState(false);
   const compact = ((isEditRoute || forceCompact) && !extras) || sidebarStyle === "style-4";
 
-  type NavIcon = typeof LayoutDashboard;
-  // Dwa rodzaje pozycji: wewnętrzna trasa panelu (`to`, TanStack <Link>) oraz
-  // usługa zewnętrzna (`href`, nowa karta przez SidebarExternalNavLink) - np.
-  // Darowizny, których zbiórka żyje na zrzutka.pl i nie ma trasy w panelu.
-  type NavItem =
-    | { to: string; icon: NavIcon; label: string; badge?: number }
-    | { href: string; icon: NavIcon; label: string };
-  type NavGroup = { id: string; label?: string; items: NavItem[] };
+  const groups = useMemo(
+    () => buildAdminNavGroups({ t, isAdmin, isSuperAdmin, clubPending }),
+    [t, isAdmin, isSuperAdmin, clubPending],
+  );
 
-  const groups: NavGroup[] = [
-    {
-      id: "overview",
-      items: [{ to: "/admin", icon: LayoutDashboard, label: t("admin.nav.dashboard") }],
-    },
-    {
-      id: "content",
-      label: t("admin.navGroups.content"),
-      items: [
-        { to: "/admin/posts", icon: Newspaper, label: t("admin.nav.posts") },
-        { to: "/admin/pages", icon: File, label: t("admin.nav.pages") },
-        { to: "/admin/media", icon: ImageIcon, label: t("admin.nav.media") },
-        { to: "/admin/categories", icon: FolderTree, label: t("admin.nav.categories") },
-        {
-          to: "/admin/category-colors",
-          icon: Palette,
-          label: t("admin.nav.categoryColors"),
-        },
-        { to: "/admin/tags", icon: Tags, label: t("admin.nav.tags") },
-        {
-          to: "/admin/glossary",
-          icon: BookOpen,
-          label: t("admin.nav.glossary"),
-        },
-        { to: "/admin/content-area", icon: FileText, label: t("admin.nav.contentArea") },
-      ],
-    },
-    {
-      id: "monetization",
-      label: t("admin.navGroups.monetization"),
-      items: [
-        {
-          to: "/admin/monetization",
-          icon: TrendingUp,
-          label: t("admin.nav.monetization"),
-        },
-        { to: "/admin/paywall", icon: Lock, label: t("admin.nav.paywall") },
-        {
-          to: "/admin/gifting",
-          icon: Gift,
-          label: t("admin.nav.gifting"),
-        },
-        {
-          to: "/admin/coupons",
-          icon: Megaphone,
-          label: t("admin.nav.coupons"),
-        },
-        {
-          to: "/admin/membership",
-          icon: Crown,
-          label: t("admin.nav.membership"),
-        },
-        {
-          to: "/admin/pricing",
-          icon: BadgePercent,
-          label: t("admin.nav.pricing"),
-        },
-        {
-          to: "/admin/organizations",
-          icon: Landmark,
-          label: t("admin.nav.organizations"),
-        },
-        {
-          to: "/admin/library",
-          icon: BookOpen,
-          label: t("admin.nav.library"),
-        },
-        { to: "/admin/ads", icon: Megaphone, label: t("admin.nav.ads") },
-        {
-          to: "/admin/billing",
-          icon: CreditCard,
-          label: t("admin.nav.billing"),
-        },
-        {
-          to: "/admin/billing-reconcile",
-          icon: CreditCard,
-          label: t("admin.nav.billingReconcile"),
-        },
-        {
-          to: "/admin/donations",
-          icon: HandHeart,
-          label: t("admin.nav.donations"),
-        },
-      ],
-    },
-    {
-      id: "engagement",
-      label: t("admin.navGroups.engagement"),
-      items: [
-        { to: "/admin/newsletter", icon: Mail, label: t("admin.nav.newsletter") },
-        {
-          to: "/admin/popups",
-          icon: MousePointerClick,
-          label: t("admin.nav.popups"),
-        },
-        {
-          to: "/admin/settings/social-preview",
-          icon: ImageIcon,
-          label: t("admin.nav.socialPreview"),
-        },
-        {
-          to: "/admin/settings/cookie-banner",
-          icon: ShieldCheck,
-          label: t("admin.nav.cookieBanner"),
-        },
-        {
-          to: "/admin/versions",
-          icon: HistoryIcon,
-          label: t("admin.nav.versions"),
-        },
-        {
-          to: "/admin/i18n",
-          icon: Globe2,
-          label: t("admin.nav.i18nAudit"),
-        },
-        {
-          to: "/admin/experiments",
-          icon: FlaskConical,
-          label: t("admin.nav.experiments"),
-        },
-        { to: "/admin/personalized", icon: Wand2, label: t("admin.nav.personalized") },
-        { to: "/admin/related-posts", icon: Share2, label: t("admin.nav.relatedPosts") },
-        {
-          to: "/admin/crm",
-          icon: Users,
-          label: t("admin.nav.crm"),
-        },
-        {
-          to: "/admin/crm/funnel",
-          icon: Mail,
-          label: t("admin.nav.crmFunnel"),
-        },
-        {
-          to: "/admin/companies",
-          icon: Users,
-          label: t("admin.nav.companies"),
-        },
-        {
-          to: "/admin/workflows",
-          icon: Workflow,
-          label: t("admin.nav.workflows"),
-        },
-        {
-          to: "/admin/integrations",
-          icon: Cable,
-          label: t("admin.nav.integrations"),
-        },
-      ],
-    },
-    {
-      id: "community",
-      label: t("admin.navGroups.community"),
-      items: [
-        {
-          to: "/admin/contact",
-          icon: Inbox,
-          label: t("admin.nav.contact"),
-        },
-        {
-          // Zgłoszenia rekrutacyjne ze strony /zatrudniamy (Contact Center +
-          // CRM), z własną skrzynką zamiast mieszania ich z kontaktem ogólnym.
-          to: "/admin/careers",
-          icon: Briefcase,
-          // Bez `defaultValue`: oba klucze stoją w słowniku PL i EN
-          // (i18n-admin-extras), a bundel rejestruje trasa `/admin` przed
-          // renderem powłoki. Zaszyty tekst zastępczy tylko maskowałby brak
-          // wpisu - dokładnie tak `admin.nav.hiring` przeżył bez tłumaczenia.
-          label: t("admin.nav.careers"),
-        },
-        {
-          // Zarządzanie treścią strony /zatrudniamy: oferty pracy i sekcje.
-          to: "/admin/hiring",
-          icon: Briefcase,
-          label: t("admin.nav.hiring"),
-        },
-        {
-          to: "/admin/community",
-          icon: Users,
-          label: t("admin.nav.community"),
-        },
-        {
-          // Skrót wprost do zarządzania klubami dyskusyjnymi - bez niego trzeba
-          // było przejść przez /admin/community i dopiero tam wybrać zakładkę.
-          to: "/admin/community/clubs",
-          icon: MessagesSquare,
-          label: t("admin.nav.clubs"),
-          badge: clubPending,
-        },
-        {
-          // Katalog elementów Klubu - słowniki, odznaki, macierz uprawnień
-          // i kody odmów bez wchodzenia w konkretny klub. Od przeniesienia do
-          // panelu trasa jest administracyjna; /club/elements przekierowuje.
-          to: "/admin/community/clubs/elements",
-          icon: Shapes,
-          label: t("admin.nav.clubElements"),
-        },
-        {
-          // Taksonomia obszarów tematycznych jest wspólna dla całej
-          // organizacji, więc mieszka obok klubów, nie w konkretnym klubie.
-          to: "/admin/community/clubs/topics",
-          icon: Shapes,
-          label: t("admin.nav.clubTopics"),
-        },
-        {
-          // Skrzynka zgloszen do klubow - decyzje zapadaja przekrojowo,
-          // dlatego stoi obok taksonomii, a nie w karcie pojedynczego klubu.
-          to: "/admin/community/clubs/applications",
-          icon: Inbox,
-          label: t("admin.nav.clubApplications"),
-        },
+  // Wyszukiwarka wewnętrzna panelu (tylko admin) - filtruje mapę nawigacji,
+  // bez sięgania po treści publiczne.
+  const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement | null>(null);
+  const results = useMemo(() => searchAdminNav(groups, query), [groups, query]);
+  const searching = query.trim().length > 0;
 
-        {
-          // Specjalizacje sa najwyzszym poziomem taksonomii i maja wlasne
-          // strony publiczne, wiec stoja obok obszarow tematycznych.
-          to: "/admin/community/clubs/specializations",
-          icon: Shapes,
-          label: t("admin.nav.clubSpecializations"),
-        },
+  // Grupy zwijane; stan trzymany lokalnie w przeglądarce, żeby układ panelu
+  // przetrwał przeładowanie. Grupa z aktywną trasą jest zawsze rozwinięta.
+  const [collapsedGroups, setCollapsedGroups] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(NAV_COLLAPSED_KEY);
+      if (raw) {
+        const parsed: unknown = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          setCollapsedGroups(parsed.filter((v): v is string => typeof v === "string"));
+        }
+      }
+    } catch {
+      /* brak dostępu do storage - zostajemy przy domyślnym układzie */
+    }
+  }, []);
+  const toggleGroup = (id: string) => {
+    setCollapsedGroups((prev) => {
+      const next = prev.includes(id) ? prev.filter((g) => g !== id) : [...prev, id];
+      try {
+        window.localStorage.setItem(NAV_COLLAPSED_KEY, JSON.stringify(next));
+      } catch {
+        /* ignorujemy - to tylko preferencja widoku */
+      }
+      return next;
+    });
+  };
 
-        {
-          to: "/admin/comments",
-          icon: MessageCircle,
-          label: t("admin.nav.comments"),
-        },
-        {
-          to: "/admin/expert-requests",
-          icon: Inbox,
-          label: t("admin.nav.expertRequests"),
-        },
-        {
-          to: "/admin/tracker",
-          icon: Landmark,
-          label: t("admin.nav.tracker"),
-        },
-        { to: "/admin/podcasts", icon: Mic, label: t("admin.nav.podcasts") },
-        {
-          to: "/admin/research-programs",
-          icon: FlaskConical,
-          label: t("admin.nav.researchPrograms"),
-        },
-        {
-          to: "/admin/programs",
-          icon: FlaskConical,
-          label: t("admin.nav.programs"),
-        },
-        {
-          to: "/admin/live-blog",
-          icon: Radio,
-          label: t("admin.nav.liveBlog"),
-        },
-        { to: "/admin/web-stories", icon: Film, label: t("admin.nav.webStories") },
-      ],
-    },
-    {
-      id: "design",
-      label: t("admin.navGroups.design"),
-      items: [
-        { to: "/admin/appearance", icon: PanelsTopLeft, label: t("admin.nav.appearance") },
-        {
-          to: "/admin/appearance/category-archive",
-          icon: FolderTree,
-          label: t("archiveLayout.categoryTab"),
-        },
-        {
-          to: "/admin/appearance/tag-archive",
-          icon: Tags,
-          label: t("archiveLayout.tagTab"),
-        },
-        { to: "/admin/theme-options", icon: Palette, label: t("admin.nav.themeOptions") },
-        {
-          to: "/admin/settings/mobile-bottom-bar",
-          icon: Smartphone,
-          label: t("admin.nav.mobileBottomBar"),
-        },
-        { to: "/admin/post-layouts", icon: LayoutGrid, label: t("admin.nav.postLayouts") },
-        { to: "/admin/expert-layouts", icon: Users, label: t("admin.nav.expertLayouts") },
-        {
-          to: "/admin/key-takeaways",
-          icon: ListChecks,
-          label: t("admin.nav.keyTakeaways"),
-        },
-        {
-          to: "/admin/toc",
-          icon: ListChecks,
-          label: t("admin.nav.toc"),
-        },
-        {
-          to: "/admin/reading-time",
-          icon: Clock,
-          label: t("admin.nav.readingTime"),
-        },
-        { to: "/admin/icons", icon: Shapes, label: t("admin.nav.icons") },
-        ...(isSuperAdmin ? [{ to: "/admin/names", icon: Users, label: t("admin.nav.names") }] : []),
-        ...(isSuperAdmin
-          ? [
-              {
-                to: "/admin/super/mobile-drawer",
-                icon: PanelLeft,
-                label: t("admin.nav.mobileDrawer"),
-              },
-            ]
-          : []),
-        ...(isAdmin
-          ? [
-              {
-                to: "/admin/greetings",
-                icon: MessageCircle,
-                label: t("admin.nav.greetings"),
-              },
-            ]
-          : []),
-      ],
-    },
-    ...(isAdmin
-      ? [
-          {
-            id: "system",
-            label: t("admin.navGroups.system"),
-            items: [
-              { to: "/admin/performance", icon: Gauge, label: t("admin.nav.performance") },
-              {
-                to: "/admin/analytics",
-                icon: TrendingUp,
-                label: t("admin.nav.analytics"),
-              },
-              {
-                to: "/admin/audience",
-                icon: TrendingUp,
-                label: t("admin.nav.audience"),
-              },
-              {
-                to: "/admin/seo",
-                icon: Search,
-                label: t("admin.nav.seo"),
-              },
-              {
-                to: "/admin/redirects",
-                icon: LinkIcon,
-                label: t("admin.nav.redirects"),
-              },
-              { to: "/admin/users", icon: Users, label: t("admin.nav.users") },
-              {
-                to: "/admin/authors",
-                icon: Users,
-                label: t("admin.nav.authors"),
-              },
-              {
-                to: "/admin/permissions",
-                icon: ShieldCheck,
-                label: t("admin.nav.permissions"),
-              },
-              {
-                to: "/admin/programs",
-                icon: Briefcase,
-                label: t("admin.nav.programs"),
-              },
-              ...(isSuperAdmin
-                ? [
-                    {
-                      to: "/admin/login-settings",
-                      icon: Lock,
-                      label: t("admin.nav.loginSettings"),
-                    },
-                  ]
-                : []),
-              { to: "/admin/settings", icon: Settings, label: t("admin.nav.settings") },
-            ],
-          },
-        ]
-      : []),
-  ];
-  void Star;
-  void Bookmark;
-  void Brush;
+  // Skrót klawiaturowy: Cmd/Ctrl+K ustawia fokus na wyszukiwarce panelu.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
 
   const handleSignOut = async () => {
     await signOut();
