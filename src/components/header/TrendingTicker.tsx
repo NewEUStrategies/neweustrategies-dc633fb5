@@ -450,8 +450,15 @@ function TickerGlassMarquee({
   );
 }
 
-/** v5 - floating glass cards rotating vertically, one headline at a time. */
-function TickerGlassCards({ label, posts, lang, intervalSec, iconClass }: MarqueeLayoutProps) {
+/** Vertical rotation engine - skins: cards (v5), spotlight (v11). */
+function TickerGlassCards({
+  label,
+  posts,
+  lang,
+  intervalSec,
+  iconClass,
+  skin,
+}: MarqueeLayoutProps) {
   const anim = `tt-cards-${useId().replace(/:/g, "")}`;
   const slots = posts.length + 1; // duplicate first card for a seamless loop
   const durationSec = Math.max(6, posts.length * Math.max(2, intervalSec));
@@ -459,7 +466,10 @@ function TickerGlassCards({ label, posts, lang, intervalSec, iconClass }: Marque
   const track = [...posts, posts[0]];
 
   return (
-    <div className="tt-glass tt-glass--cards flex items-center gap-3 overflow-hidden">
+    <div
+      className={`tt-glass tt-glass--cards tt-skin--${skin} flex items-center gap-3 overflow-hidden`}
+    >
+
       <span className="tt-glass-label tt-glass-chip inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap">
         <Flame className={`w-3.5 h-3.5 shrink-0 ${iconClass}`} aria-hidden />
         <span>{label}</span>
