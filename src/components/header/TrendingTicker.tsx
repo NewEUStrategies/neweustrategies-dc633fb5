@@ -515,11 +515,8 @@ function TickerGlassMarquee({
               tabIndex={i >= posts.length ? -1 : undefined}
             >
               {skin === "live" ? (
-                <span
-                  className="tt-live-index shrink-0 text-[13px] font-bold tabular-nums"
-                  style={{ color: "var(--tt-label)" }}
-                  aria-hidden
-                >
+                <span className="tt-live-index shrink-0 tabular-nums" aria-hidden>
+
                   {String((i % posts.length) + 1).padStart(2, "0")}
                 </span>
               ) : (
