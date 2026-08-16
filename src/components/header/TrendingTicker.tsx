@@ -515,11 +515,8 @@ function TickerGlassMarquee({
               tabIndex={i >= posts.length ? -1 : undefined}
             >
               {skin === "live" ? (
-                <span
-                  className="tt-live-index shrink-0 text-[13px] font-bold tabular-nums"
-                  style={{ color: "var(--tt-label)" }}
-                  aria-hidden
-                >
+                <span className="tt-live-index shrink-0 tabular-nums" aria-hidden>
+
                   {String((i % posts.length) + 1).padStart(2, "0")}
                 </span>
               ) : (
@@ -596,9 +593,10 @@ function TickerGlassCards({
               aria-hidden={i >= posts.length ? true : undefined}
             >
               <span
-                className={`${skin === "live" ? "tt-live-index " : ""}text-[10px] font-bold tabular-nums opacity-70`}
-                style={{ color: "var(--tt-counter)" }}
+                className={`${skin === "live" ? "tt-live-index " : "text-[10px] font-bold opacity-70 "}tabular-nums`}
+                style={skin === "live" ? undefined : { color: "var(--tt-counter)" }}
               >
+
                 {String((i % posts.length) + 1).padStart(2, "0")}
               </span>
               <AppLink
@@ -830,15 +828,24 @@ function TickerStyles() {
         /* Widget "Na czasie" - skośny badge brand, szklana karta, autor inline */
         .tt-skin--live { gap: 0 }
         .tt-skin--live .tt-glass-chip {
-          border-radius: 0;
-          clip-path: polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%);
-          padding-right: 26px;
-          background: linear-gradient(135deg,
-            var(--tt-label), color-mix(in srgb, var(--tt-label) 62%, white));
+          /* Pierwowzór: miękki pomarańczowy pill z gradientem w prawo, nie skos */
+          border-radius: 12px;
+          clip-path: none;
+          padding: 9px 18px;
+          margin-right: 14px;
+          gap: 8px;
+          background: linear-gradient(100deg,
+            color-mix(in srgb, var(--tt-label) 88%, black 4%) 0%,
+            var(--tt-label) 45%,
+            color-mix(in srgb, var(--tt-label) 78%, white) 100%);
           color: var(--tt-label-fg);
-          font-weight: 800; letter-spacing: .16em;
-          box-shadow: 0 8px 24px -14px color-mix(in srgb, var(--tt-label) 90%, transparent);
+          font-size: 13px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase;
+          box-shadow:
+            0 10px 26px -12px color-mix(in srgb, var(--tt-label) 85%, transparent),
+            0 1px 0 0 color-mix(in srgb, white 26%, transparent) inset;
         }
+        .tt-skin--live .tt-glass-chip svg { width: 16px; height: 16px }
+
         /* Wariant "Na czasie": badge jest samodzielny, bez ciemnego paska nachodzącego na niego */
         .tt-skin--live .tt-glass-track,
         .tt-skin--live .tt-glass-viewport {
@@ -873,7 +880,13 @@ function TickerStyles() {
         }
         .tt-skin--live .tt-item.tt-item { column-gap: 0; line-height: 1.5 }
         .tt-skin--live .tt-glass-pill.tt-glass-pill { column-gap: 0; line-height: 1.5 }
-        .tt-skin--live .tt-live-index { margin-right: 10px }
+        /* Numer jak w pierwowzorze: brand, lżejszy niż tytuł, lekko przygaszony */
+        .tt-skin--live .tt-live-index {
+          margin-right: 12px;
+          font-size: 14px; font-weight: 600; letter-spacing: .02em;
+          color: color-mix(in srgb, var(--tt-label) 82%, transparent);
+        }
+
         .tt-skin--live .tt-live-title.tt-live-title { line-height: 1.5; padding-block: 2px }
         .tt-live-separator {
           width: 1px; height: 14px; margin: 0 10px;
@@ -881,10 +894,12 @@ function TickerStyles() {
           opacity: 0.35;
           flex-shrink: 0; align-self: center;
         }
-        /* Pionowy slide: numer w kolorze brandu, jak w poziomym marquee */
+        /* Pionowy slide: ten sam numer co w poziomym marquee */
         .tt-skin--live .tt-glass-card > .tt-live-index {
-          font-size: 13px; opacity: 1; color: var(--tt-label);
+          font-size: 14px; font-weight: 600; opacity: 1;
+          color: color-mix(in srgb, var(--tt-label) 82%, transparent);
         }
+
 
         /* v11 - spotlight rotation */
         .tt-skin--spotlight .tt-glass-viewport {
