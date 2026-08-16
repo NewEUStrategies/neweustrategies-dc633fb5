@@ -859,7 +859,7 @@ function PostCard({
               className="cms-post-title line-clamp-2 sm:line-clamp-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)]"
               style={titleStyle}
             >
-              {title}
+              <TitleSpan title={title} />
             </h4>
           )}
           {authorOverlayNode}
