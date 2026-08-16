@@ -833,21 +833,85 @@ function TickerStyles() {
         }
         .tt-skin--tape .tt-glass-pill:hover { transform: none }
 
-        /* Widget "Na czasie" - skośny badge brand, szklana karta, autor inline */
+        /* Widget "Na czasie" - badge "Prestigious glass pill v5":
+           skośny równoległobok w gradiencie brandu, jasna krawędź, pulsujące
+           pierścienie przy ikonie i przesuwający się refleks przy hoverze. */
         .tt-skin--live { gap: 0 }
         .tt-skin--live .tt-glass-chip {
-          border-radius: 0;
-          clip-path: polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%);
-          padding-right: 26px;
-          background: linear-gradient(135deg,
-            var(--tt-label), color-mix(in srgb, var(--tt-label) 62%, white));
+          position: relative;
+          overflow: hidden;
+          height: 40px;
+          padding: 0 20px;
+          border-radius: 2px;
+          border-left: 4px solid color-mix(in srgb, white 55%, transparent);
+          clip-path: none;
+          transform: skewX(-12deg);
+          transform-origin: center;
+          background: linear-gradient(90deg,
+            color-mix(in srgb, var(--tt-label) 62%, white),
+            var(--tt-label));
           color: var(--tt-label-fg);
-          font-weight: 800; letter-spacing: .16em;
-          box-shadow: 0 8px 24px -14px color-mix(in srgb, var(--tt-label) 90%, transparent);
+          font-weight: 900;
+          font-size: 11px;
+          letter-spacing: .15em;
+          text-transform: uppercase;
+          box-shadow: 0 10px 26px -16px color-mix(in srgb, var(--tt-label) 95%, transparent);
+          transition: transform .3s ease, box-shadow .3s ease;
+          gap: 10px;
+        }
+        .tt-skin--live .tt-glass-chip:active { transform: skewX(-12deg) scale(.96) }
+        .tt-skin--live .tt-chip-icon,
+        .tt-skin--live .tt-chip-text {
+          transform: skewX(12deg);
+          filter: drop-shadow(0 1px 1px color-mix(in srgb, black 22%, transparent));
+        }
+        .tt-skin--live .tt-chip-text { user-select: none }
+        /* Pulsujące pierścienie za ikoną - startują dopiero przy hoverze. */
+        .tt-skin--live .tt-chip-icon::before,
+        .tt-skin--live .tt-chip-icon::after {
+          content: "";
+          position: absolute;
+          border-radius: 9999px;
+          background: color-mix(in srgb, #fff4ed 60%, transparent);
+          opacity: 0;
+          transition: opacity .5s ease;
+          pointer-events: none;
+        }
+        .tt-skin--live .tt-chip-icon::before { width: 24px; height: 24px }
+        .tt-skin--live .tt-chip-icon::after {
+          width: 20px; height: 20px;
+          background: color-mix(in srgb, #fff4ed 30%, transparent);
+        }
+        .tt-skin--live .tt-glass-chip:hover .tt-chip-icon::before,
+        .tt-skin--live .tt-glass-chip:hover .tt-chip-icon::after {
+          opacity: 1;
+          animation: tt-live-ping 2.5s cubic-bezier(0,0,.2,1) infinite;
+        }
+        .tt-skin--live .tt-glass-chip:hover .tt-chip-icon::after { animation-delay: .8s }
+        @keyframes tt-live-ping {
+          75%, 100% { transform: scale(2); opacity: 0 }
+        }
+        /* Refleks przejeżdżający po badge przy hoverze. */
+        .tt-skin--live .tt-glass-chip::after {
+          content: "";
+          position: absolute;
+          inset: 0 auto 0 -100%;
+          width: 100%;
+          background: linear-gradient(90deg, transparent,
+            color-mix(in srgb, white 30%, transparent), transparent);
+          transition: left 1s ease-in-out;
+          pointer-events: none;
+        }
+        .tt-skin--live .tt-glass-chip:hover::after { left: 100% }
+        @media (prefers-reduced-motion: reduce) {
+          .tt-skin--live .tt-glass-chip::after { transition: none }
+          .tt-skin--live .tt-glass-chip:hover .tt-chip-icon::before,
+          .tt-skin--live .tt-glass-chip:hover .tt-chip-icon::after { animation: none }
         }
         /* Wariant "Na czasie": badge jest samodzielny, bez ciemnego paska nachodzącego na niego */
         .tt-skin--live .tt-glass-track,
         .tt-skin--live .tt-glass-viewport {
+
           background: transparent;
           border: none;
           border-radius: 0;
