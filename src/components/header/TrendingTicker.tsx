@@ -376,14 +376,14 @@ function TickerGlassMarquee({ label, posts, lang, intervalSec, iconClass }: Marq
   const loop = [...posts, ...posts];
 
   return (
-    <div className="tt-glass tt-glass--marquee flex h-10 items-stretch gap-3 overflow-hidden">
-      <span className="tt-glass-label inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+    <div className="tt-glass tt-glass--marquee flex items-center gap-3 overflow-hidden">
+      <span className="tt-glass-label tt-glass-chip inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap">
         <Flame className={`w-3.5 h-3.5 shrink-0 ${iconClass}`} aria-hidden />
         <span>{label}</span>
       </span>
       <div className="tt-glass-track relative min-w-0 flex-1 overflow-hidden">
         <div
-          className="flex w-max items-center gap-8 h-10"
+          className="flex w-max items-center gap-3 py-2"
           style={{ animation: `${anim} ${durationSec}s linear infinite` }}
           onMouseEnter={(e) => {
             e.currentTarget.style.animationPlayState = "paused";
@@ -396,7 +396,8 @@ function TickerGlassMarquee({ label, posts, lang, intervalSec, iconClass }: Marq
             <AppLink
               key={`${p.id}-${i}`}
               href={itemHref(p)}
-              className="tt-item inline-flex items-center gap-2 whitespace-nowrap text-[13px] leading-none font-medium shrink-0"
+              className="tt-item tt-glass-pill inline-flex items-center gap-2 whitespace-nowrap text-[13px] leading-none font-medium shrink-0"
+
               style={{ color: "var(--tt-item)" }}
               title={itemTitle(p, lang)}
               aria-hidden={i >= posts.length ? true : undefined}
