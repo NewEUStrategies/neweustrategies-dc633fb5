@@ -5,7 +5,7 @@ import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight } from "@/lib/lucide-shim";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
-import { buildImageSrcSet } from "@/lib/cropSizes";
+import { buildImageSrcSet, buildTransformedImageUrl } from "@/lib/cropSizes";
 import { SLIDER_FULL_BLEED_SIZES, SLIDER_SPLIT_SIZES, sliderMultiCardSizes } from "./sliderSizes";
 import { useResolvedPostRefs } from "./contentRefs";
 import { sliderFallbackImagesQueryOptions } from "@/lib/builder/sliderFallbackQuery";
@@ -361,7 +361,12 @@ function ResilientSliderImage({
       draggable={false}
       data-fill-image
       loading={priority ? "eager" : "lazy"}
-      fetchPriority={priority && active ? "high" : "auto"}
+      // Slajdy 2..N leżą w viewporcie (stack absolute, ukryte tylko przez
+      // opacity), więc natywne lazy i tak startuje ich pobieranie od razu -
+      // "low" zdejmuje je z drogi prawdziwego kandydata LCP (slajd aktywny).
+      // Deterministyczne dla SSR/hydratacji: obie strony renderują idx=0
+      // jako aktywny.
+      fetchPriority={priority && active ? "high" : active ? "auto" : "low"}
       decoding="async"
       className={className ?? "eh-img absolute inset-0 w-full h-full object-cover widget-media-fg"}
       style={{
@@ -1771,10 +1776,24 @@ function MinimalStripVariant(p: VariantProps) {
               className={`relative shrink-0 overflow-hidden transition-all ${i === p.safeIdx ? "ring-2 ring-foreground" : "ring-1 ring-border opacity-70 hover:opacity-100"}`}
               style={{ width: 96, aspectRatio: "4 / 3", borderRadius: 4 }}
             >
+              {/* Miniatura maluje się w polu 96x72 - stały wariant 2x DPR ze
+                  Storage zamiast DRUGIEGO pobrania pełnowymiarowego oryginału
+                  (główny kadr slajdu używa innego, transformowanego URL-a,
+                  więc cache HTTP tych pobrań nie skleja). Dla URL-i spoza
+                  Supabase buildTransformedImageUrl dokleja tylko nieszkodliwe
+                  parametry w/h. */}
               <img
-                src={safeImageUrl(it.image) || it.image}
+                src={buildTransformedImageUrl(safeImageUrl(it.image) || it.image, {
+                  width: 192,
+                  height: 144,
+                  resize: "cover",
+                })}
                 alt=""
                 className="absolute inset-0 w-full h-full object-cover"
+                loading="lazy"
+                decoding="async"
+                width={96}
+                height={72}
               />
             </button>
           ))}

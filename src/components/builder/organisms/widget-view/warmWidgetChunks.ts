@@ -50,6 +50,12 @@ export function warmCommonWidgetChunks(defer: Defer = idleDefer): void {
     void import("./RichHtmlView");
     void import("./PostListView");
     void import("./DynamicTagWidgets");
+    // Ścieżka hero strony głównej: PostsSliderWidget + silnik wariantów
+    // slidera. Loader "/" rozgrzewa DANE slidera, ale bez tych chunków
+    // nawigacja SPA z artykułu na "/" montowała największy element nad
+    // zgięciem jako pusty fallback Suspense, dopóki kod się nie pobrał.
+    void import("./PostsSliderWidget");
+    void import("@/lib/builder/sliderVariants");
   });
 }
 

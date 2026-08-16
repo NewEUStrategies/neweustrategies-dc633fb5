@@ -5,6 +5,7 @@ import { Link } from "@tanstack/react-router";
 import { latestWebStoriesQueryOptions } from "@/lib/queries/webStories";
 import { storyTitle } from "@/lib/web-stories/types";
 import { StoryViewer } from "@/components/web-stories/StoryViewer";
+import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 
 interface Props {
   c: Record<string, unknown>;
@@ -55,10 +56,20 @@ export function WebStoriesCarouselView({ c, lang }: Props) {
               aria-label={title}
             >
               {s.cover_url ? (
-                <img
+                // Kafelek maluje się na ~160 px (karuzela) / 20-50vw (grid),
+                // a surowe <img> ściągało pełnowymiarową okładkę historii na
+                // każdy kafelek. OptimizedImage dokłada width-scaled srcSet
+                // (dla URL-i spoza Supabase degraduje do czystego src) oraz
+                // decoding=async; układ rezerwuje rodzic przez aspectRatio.
+                <OptimizedImage
                   src={s.cover_url}
                   alt=""
-                  loading="lazy"
+                  responsive
+                  sizes={
+                    variant === "grid"
+                      ? "(min-width: 1024px) 20vw, (min-width: 768px) 25vw, (min-width: 640px) 33vw, 50vw"
+                      : "160px"
+                  }
                   className="absolute inset-0 w-full h-full object-cover transition-transform group-hover:scale-105"
                 />
               ) : (

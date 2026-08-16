@@ -146,11 +146,12 @@ function WebStorySinglePage() {
                   className="relative aspect-[9/16] overflow-hidden rounded-xl border border-border bg-card"
                 >
                   {m.cover_url && (
-                    <img
+                    <OptimizedImage
                       src={m.cover_url}
                       alt=""
+                      responsive
+                      sizes="(min-width: 768px) 200px, 45vw"
                       className="absolute inset-0 w-full h-full object-cover"
-                      loading="lazy"
                     />
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />

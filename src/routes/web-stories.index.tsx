@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import { GalleryHorizontal } from "@/lib/lucide-shim";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
+import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { latestWebStoriesQueryOptions } from "@/lib/queries/webStories";
 import { storyTitle, storyDescription, type WebStory } from "@/lib/web-stories/types";
 import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
@@ -94,11 +95,12 @@ function WebStoriesIndex() {
                 className="group relative aspect-[9/16] overflow-hidden rounded-xl border border-border bg-card"
               >
                 {s.cover_url ? (
-                  <img
+                  <OptimizedImage
                     src={s.cover_url}
                     alt=""
+                    responsive
+                    sizes="(min-width: 1024px) 380px, (min-width: 768px) 45vw, 92vw"
                     className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    loading="lazy"
                   />
                 ) : (
                   <div className="absolute inset-0 bg-muted" />

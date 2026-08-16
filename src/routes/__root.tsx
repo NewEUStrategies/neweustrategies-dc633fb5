@@ -36,10 +36,9 @@ import { ContentAreaStyle } from "../components/ContentAreaStyle";
 import { ThemeOptionsStyle } from "../components/ThemeOptionsStyle";
 import { ThemeDesignStyle } from "../components/theme/ThemeDesignStyle";
 import { ThemeFontSizesStyle } from "../components/theme/ThemeFontSizesStyle";
-import { ConsentBanner } from "../components/ConsentBanner";
 import { ConsentScriptInjector } from "../components/ConsentScriptInjector";
 import { useEffectiveConsent } from "../lib/ads/consent";
-import { ConsentPreviewPanel } from "../components/ConsentPreviewPanel";
+import { whenIdle } from "../lib/ads/idle";
 
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { WidgetLiveSync } from "../lib/builder/widgetCacheInvalidation";
@@ -63,7 +62,6 @@ import { SiteChrome } from "../components/SiteChrome";
 import { GlobalAudioPlayerProvider, useGlobalAudioPlayer } from "../lib/audio/global-player";
 import { UnsavedChangesGuardHost } from "../components/UnsavedChangesGuardHost";
 import { AppDialogHost } from "../components/AppDialogHost";
-import { ExpertRequestDialogHost } from "../components/chat/ExpertRequestDialogHost";
 import { EMPTY_TOKENS } from "../lib/builder/designTokens";
 import { defaultPostLayoutSettings } from "../lib/postLayouts";
 import { withBudget } from "../lib/asyncBudget";
@@ -89,6 +87,33 @@ const PopupHost = lazy(() =>
 );
 const GlobalAudioBar = lazy(() =>
   import("../components/audio/GlobalAudioBar").then((m) => ({ default: m.GlobalAudioBar })),
+);
+// Dialog "zapytaj eksperta" otwiera się WYŁĄCZNIE zdarzeniem busa
+// (expertRequestDialogBus) - statyczny import ciągnął 347-liniowy formularz
+// (zod + FloatingInput + hooki quota) i pełne słowniki PL+EN do chunku
+// wejściowego każdej strony, mimo że Suspense wokół hosta już istniał.
+// UWAGA: host musi być zamontowany od pierwszego renderu (bus nie ma replay
+// ostatniego zdarzenia) - lazy tylko wydziela chunk, nie odracza montażu.
+const ExpertRequestDialogHost = lazy(() =>
+  import("../components/chat/ExpertRequestDialogHost").then((m) => ({
+    default: m.ExpertRequestDialogHost,
+  })),
+);
+// Baner zgód renderuje null zarówno w SSR, jak i w pierwszym renderze klienta
+// (`mounted` przestawia się dopiero w useEffect), więc React.lazy nie zmienia
+// tu ANI JEDNEGO bajtu HTML-a - a wynosi ~1400 linii źródeł (banner 859 +
+// cookieBanner/config 170 + registry 402) poza chunk wejściowy. Musi pozostać
+// zamontowany bezwarunkowo: jego efekty są jedynym pisarzem
+// setMarketingConsent/setConsentOverlayVisible w overlayCoordinator - bramka
+// "tylko dopóki nie zdecydowano" odblokowałaby popupy marketingowe u osób,
+// które marketing odrzuciły.
+const ConsentBanner = lazy(() =>
+  import("../components/ConsentBanner").then((m) => ({ default: m.ConsentBanner })),
+);
+// Panel podglądu zgód (aktywny tylko przy ?consent-preview=1) - ta sama
+// doktryna lazy-overlay co wyżej.
+const ConsentPreviewPanel = lazy(() =>
+  import("../components/ConsentPreviewPanel").then((m) => ({ default: m.ConsentPreviewPanel })),
 );
 
 // Pasek audio montuje się (i dociąga swój chunk) dopiero, gdy odtwarzacz ma
@@ -191,6 +216,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           href: "https://unnltowbgszpdzwpawdu.supabase.co",
           crossOrigin: "anonymous",
         },
+        // DRUGI preconnect, bez crossOrigin - to nie duplikat: przeglądarka
+        // kluczuje połączenia parą (origin, tryb poświadczeń). Wariant
+        // "anonymous" rozgrzewa wyłącznie pulę CORS (fetch supabase-js),
+        // a KAŻDY <img> okładki/treści i preload LCP idą w trybie no-cors
+        // i płaciły pełny DNS+TCP+TLS na zimnym połączeniu (Lighthouse:
+        // "preconnect found but not used by the browser"). Dwa preconnecty
+        // do jednego originu to standardowy wzorzec dla hostów serwujących
+        // jednocześnie ruch CORS i no-CORS.
+        { rel: "preconnect", href: "https://unnltowbgszpdzwpawdu.supabase.co" },
         // RSS autodiscovery for both language feeds, on every page - feed
         // readers and crawlers find the feeds regardless of the entry URL.
         ...feedDiscoveryLinks(getOrigin()),
@@ -222,6 +256,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // per-język (latin-ext tylko dla PL), a dokumenty są keyowane ścieżką
     // z prefiksem języka, więc wpis cache nigdy nie niesie cudzych hintów.
     appendLinkHeader(`<${appCss}>; rel="preload"; as="style"`);
+    // Preconnect (tryb z poświadczeniami, jak <img>) także z nagłówka HTTP:
+    // handshake do hosta obrazów startuje z nagłówków odpowiedzi / 103 Early
+    // Hints, zanim parser dojdzie do <head>. Odpowiednik <link> wyżej.
+    appendLinkHeader('<https://unnltowbgszpdzwpawdu.supabase.co>; rel="preconnect"');
     for (const value of fontPreloadLinkHeaderValues(currentLang(), {
       latin: redHatDisplayLatin,
       latinExt: redHatDisplayLatinExt,
@@ -462,12 +500,24 @@ function RootComponent() {
 
   useEffect(() => {
     // Preview iframe watchdog: reload when the editor preview hangs on boot
-    // or the main thread freezes for too long. No-op outside iframes.
+    // or the main thread freezes for too long. No-op outside iframes - dlatego
+    // ten sam test co wewnątrz modułu wykonujemy PRZED importem: produkcyjny
+    // czytelnik (poza iframe'em edytora) nie pobiera i nie parsuje chunku,
+    // który i tak zrobiłby no-op w oknie tuż po hydratacji.
     let stopWatchdog: (() => void) | undefined;
-    void import("../lib/watchdog/previewWatchdog").then((m) => {
-      m.markPreviewAppReady();
-      stopWatchdog = m.startPreviewWatchdog();
-    });
+    const inPreviewIframe = (() => {
+      try {
+        return window.self !== window.top;
+      } catch {
+        return true;
+      }
+    })();
+    if (inPreviewIframe) {
+      void import("../lib/watchdog/previewWatchdog").then((m) => {
+        m.markPreviewAppReady();
+        stopWatchdog = m.startPreviewWatchdog();
+      });
+    }
     // Attribute Web Vitals to the correct subpage on soft navigations
     // (kategorie, wpisy, strony statyczne). Flush the previous path's
     // accumulators before switching so LCP/CLS/INP land per URL.
@@ -487,14 +537,19 @@ function RootComponent() {
 
     // Cache-busting: chunk-load errors -> jednorazowy hard reload; polling
     // /api/public/version -> reload przy najbliższej nawigacji, gdy pojawi
-    // się nowy deploy. Ładowane leniwie po hydratacji.
+    // się nowy deploy. Odroczone do bezczynności (whenIdle): setup pollingu
+    // nie ma żadnej pilności w pierwszych sekundach wizyty, a jego fetch+parse
+    // konkurował z dekodowaniem LCP i fontami tuż po hydratacji.
     let stopCacheBusting: (() => void) | undefined;
-    void import("../lib/cacheBusting").then((m) => {
-      stopCacheBusting = m.startCacheBusting(router);
-    });
+    const cancelCacheBustingIdle = whenIdle(() => {
+      void import("../lib/cacheBusting").then((m) => {
+        stopCacheBusting = m.startCacheBusting(router);
+      });
+    }, 3000);
 
     return () => {
       unsub();
+      cancelCacheBustingIdle();
       stopWatchdog?.();
       stopCacheBusting?.();
     };
@@ -528,10 +583,10 @@ function RootComponent() {
               <GlobalAudioBarGate />
             </GlobalAudioPlayerProvider>
           </ErrorBoundary>
-          <ConsentBanner />
           <ConsentScriptInjector />
-          <ConsentPreviewPanel />
           <Suspense fallback={null}>
+            <ConsentBanner />
+            <ConsentPreviewPanel />
             <LoginPopup />
             <NewsletterPopup />
             <PopupHost />

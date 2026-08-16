@@ -5,6 +5,7 @@ import { useMemo, useState, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useCurrentPostCtx } from "@/lib/content-model/postContext";
 import { AppLink } from "@/components/atoms/AppLink";
+import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { morePostsBlockQueryOptions } from "@/lib/queries/blocks";
@@ -372,10 +373,13 @@ export function MorePostsView({
               <AppLink href={href} className="group block">
                 <div className="aspect-[4/3] w-full overflow-hidden rounded-md bg-muted">
                   {p.cover_image_url ? (
-                    <img
+                    // Miniatura maluje się na ~150-290 px (siatka 2/4 kolumn) -
+                    // responsywny srcSet zamiast pełnowymiarowej okładki wpisu.
+                    <OptimizedImage
                       src={p.cover_image_url}
                       alt={title}
-                      loading="lazy"
+                      responsive
+                      sizes="(min-width: 768px) 200px, 45vw"
                       className="w-full h-full object-cover transition-transform group-hover:scale-105"
                     />
                   ) : null}
