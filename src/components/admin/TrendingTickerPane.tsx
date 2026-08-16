@@ -46,7 +46,7 @@ const MAX_SELECTED = 3;
 
 const COPY = {
   pl: {
-    title: "Widget „Na czasie”",
+    title: "Widget „Warte przeczytania”",
     desc: "Pasek w nagłówku - warianty, źródła, kolory light/dark, etykieta i animacja ognia.",
     enabled: "Włącz pasek",
     source: "Źródło wpisów",
@@ -92,8 +92,8 @@ const COPY = {
     labels: "Etykieta paska",
     labelPl: "Etykieta (PL)",
     labelEn: "Etykieta (EN)",
-    labelPlaceholderPl: "Na czasie",
-    labelPlaceholderEn: "Trending",
+    labelPlaceholderPl: "Warte przeczytania",
+    labelPlaceholderEn: "Worth reading",
     icon: "Animacja ikony ognia",
     icon_none: "Bez animacji",
     icon_pulse: "Pulsuje",
@@ -120,7 +120,7 @@ const COPY = {
     layout_glassRibbon: "Wstążka gradientowa (poziomy)",
     layout_glassSpotlight: "Reflektor (rotacja pionowa)",
     layout_glassTape: "Taśma newsowa (mono, poziomy)",
-    layout_glassLive: 'Widget "Na czasie" (badge + autor)',
+    layout_glassLive: 'Widget "Warte przeczytania" (badge + autor)',
     liveDirection: "Kierunek ruchu",
     liveDirection_vertical: "Pionowy slide",
     liveDirection_horizontal: "Poziomy marquee",
