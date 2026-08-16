@@ -383,6 +383,12 @@ export const en = {
     },
     navGroups: {
       content: "Content",
+      taxonomy: "Taxonomies",
+      media: "Media & formats",
+      marketing: "Marketing",
+      billing: "Payments",
+      crm: "CRM & inboxes",
+      analytics: "Analytics",
       monetization: "Monetization",
       engagement: "Engagement",
       community: "Community & media",
@@ -468,7 +474,12 @@ export const en = {
     sidebar: {
       expand: "Expand",
       collapse: "Collapse",
+      searchPlaceholder: "Search the panel (⌘K)",
+      searchLabel: "Search the admin panel",
+      searchClear: "Clear search",
+      searchEmpty: 'No results for "{{query}}"',
     },
+
     appearance: {
       header: "Header",
       footer: "Footer",

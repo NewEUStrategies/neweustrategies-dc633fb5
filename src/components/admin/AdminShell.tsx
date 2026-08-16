@@ -2,73 +2,33 @@ import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  LayoutDashboard,
-  FileText,
-  File,
-  FolderTree,
-  Tags,
-  Users,
-  Image as ImageIcon,
   LogOut,
   Home,
   Moon,
   Sun,
   Globe,
-  Settings,
   PanelLeft,
-  Star,
-  Mail,
-  Bookmark,
   ChevronRight,
-  Lock,
-  Palette,
-  LayoutGrid,
-  Shapes,
-  PanelsTopLeft,
-  Smartphone,
-  Newspaper,
-  Megaphone,
-  Mic,
-  Film,
-  Brush,
-  Wand2,
-  Share2,
-  Gauge,
-  MousePointerClick,
-  Clock as HistoryIcon,
-  Globe2,
-  FlaskConical,
-  Link as LinkIcon,
+  ChevronDown,
   Search,
+  X,
   ExternalLink,
 } from "@/lib/lucide-shim";
-import {
-  BadgePercent,
-  BookOpen,
-  Briefcase,
-  Cable,
-  Clock,
-  CreditCard,
-  Crown,
-  Gift,
-  HandHeart,
-  Inbox,
-  Landmark,
-  ListChecks,
-  MessageCircle,
-  MessagesSquare,
-  Radio,
-  ShieldCheck,
-  TrendingUp,
-  Workflow,
-} from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { AdminLangBar } from "@/components/admin/AdminLangBar";
-import { useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  buildAdminNavGroups,
+  searchAdminNav,
+  adminNavItemKey,
+  type AdminNavGroup,
+  type AdminNavItem,
+} from "@/lib/admin/adminNav";
 import {
   AdminSidebarExtrasProvider,
   useAdminSidebarExtrasSlot,
 } from "@/components/admin/AdminSidebarExtras";
+
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { useClubPendingCounts } from "@/lib/clubs/useClubs";
 import { cn } from "@/lib/utils";
@@ -224,6 +184,99 @@ function SidebarTooltip({
   );
 }
 
+/** Klucz preferencji zwiniętych grup nawigacji panelu. */
+const NAV_COLLAPSED_KEY = "nes.admin.nav.collapsedGroups";
+
+/** Czy w grupie znajduje się trasa, na której właśnie jesteśmy. */
+function groupContainsPath(group: AdminNavGroup, path: string): boolean {
+  return group.items.some(
+    (item) => "to" in item && (path === item.to || path.startsWith(`${item.to}/`)),
+  );
+}
+
+/** Czy pozycja nawigacji odpowiada aktualnej ścieżce. */
+function isNavItemActive(to: string, path: string): boolean {
+  if (path === to) return true;
+  if (to === "/admin" || to === "/admin/appearance") return false;
+  // Kontakty CRM podświetlamy tylko na /admin/crm i szczegółach kontaktu,
+  // nie w lejku ani firmach.
+  if (to === "/admin/crm") return /^\/admin\/crm\/(?!funnel|companies)[^/]+/.test(path);
+  // Skrót do klubów ma własną pozycję, więc "Społeczność" nie może się
+  // podświetlać razem z nim.
+  if (to === "/admin/community" && path.startsWith("/admin/community/clubs")) return false;
+  return path.startsWith(`${to}/`);
+}
+
+type AdminNavRowProps = {
+  item: AdminNavItem;
+  path: string;
+  compact: boolean;
+  externalHint: string;
+  badgeLabel: string;
+  groupLabel?: string;
+  onNavigate?: () => void;
+};
+
+/** Pojedynczy wiersz nawigacji - wspólny dla listy grup i wyników wyszukiwania. */
+function AdminNavRow({
+  item,
+  path,
+  compact,
+  externalHint,
+  badgeLabel,
+  groupLabel,
+  onNavigate,
+  ...rest
+}: AdminNavRowProps & Record<string, unknown>) {
+  const Icon = item.icon;
+  if ("href" in item) {
+    return (
+      <SidebarExternalNavLink
+        {...rest}
+        href={item.href}
+        icon={Icon}
+        label={item.label}
+        hint={externalHint}
+        compact={compact}
+      />
+    );
+  }
+  const active = isNavItemActive(item.to, path);
+  return (
+    <Link
+      {...rest}
+      to={item.to}
+      activeOptions={{ exact: true }}
+      onClick={onNavigate}
+      title={compact ? undefined : item.label}
+      data-sidebar="menu-button"
+      data-active={active ? "true" : "false"}
+      className={cn(
+        "flex items-center py-1 rounded-md text-[13px] leading-tight transition",
+        compact ? "justify-center px-0" : "gap-1.5 px-2",
+        active ? "bg-brand text-brand-foreground" : "text-foreground hover:bg-muted",
+      )}
+    >
+      <Icon className="w-3 h-3 shrink-0" />
+      <span className={cn("truncate", compact && "hidden")}>{item.label}</span>
+      {groupLabel && !compact ? (
+        <span className="ml-auto shrink-0 truncate text-[10px] uppercase tracking-wide text-muted-foreground">
+          {groupLabel}
+        </span>
+      ) : null}
+      {!groupLabel && typeof item.badge === "number" && item.badge > 0 && !compact ? (
+        <span
+          className="ml-auto inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500/20 px-1 text-[10px] font-semibold tabular-nums text-amber-700 dark:text-amber-300"
+          aria-label={badgeLabel}
+        >
+          {item.badge > 99 ? "99+" : item.badge}
+        </span>
+      ) : null}
+    </Link>
+  );
+}
+
+
 export function AdminShell({
   children,
   hideSidebar,
@@ -265,389 +318,59 @@ function AdminShellInner({
   const [forceCompact, setForceCompact] = useState(false);
   const compact = ((isEditRoute || forceCompact) && !extras) || sidebarStyle === "style-4";
 
-  type NavIcon = typeof LayoutDashboard;
-  // Dwa rodzaje pozycji: wewnętrzna trasa panelu (`to`, TanStack <Link>) oraz
-  // usługa zewnętrzna (`href`, nowa karta przez SidebarExternalNavLink) - np.
-  // Darowizny, których zbiórka żyje na zrzutka.pl i nie ma trasy w panelu.
-  type NavItem =
-    | { to: string; icon: NavIcon; label: string; badge?: number }
-    | { href: string; icon: NavIcon; label: string };
-  type NavGroup = { id: string; label?: string; items: NavItem[] };
+  const groups = useMemo(
+    () => buildAdminNavGroups({ t, isAdmin, isSuperAdmin, clubPending }),
+    [t, isAdmin, isSuperAdmin, clubPending],
+  );
 
-  const groups: NavGroup[] = [
-    {
-      id: "overview",
-      items: [{ to: "/admin", icon: LayoutDashboard, label: t("admin.nav.dashboard") }],
-    },
-    {
-      id: "content",
-      label: t("admin.navGroups.content"),
-      items: [
-        { to: "/admin/posts", icon: Newspaper, label: t("admin.nav.posts") },
-        { to: "/admin/pages", icon: File, label: t("admin.nav.pages") },
-        { to: "/admin/media", icon: ImageIcon, label: t("admin.nav.media") },
-        { to: "/admin/categories", icon: FolderTree, label: t("admin.nav.categories") },
-        {
-          to: "/admin/category-colors",
-          icon: Palette,
-          label: t("admin.nav.categoryColors"),
-        },
-        { to: "/admin/tags", icon: Tags, label: t("admin.nav.tags") },
-        {
-          to: "/admin/glossary",
-          icon: BookOpen,
-          label: t("admin.nav.glossary"),
-        },
-        { to: "/admin/content-area", icon: FileText, label: t("admin.nav.contentArea") },
-      ],
-    },
-    {
-      id: "monetization",
-      label: t("admin.navGroups.monetization"),
-      items: [
-        {
-          to: "/admin/monetization",
-          icon: TrendingUp,
-          label: t("admin.nav.monetization"),
-        },
-        { to: "/admin/paywall", icon: Lock, label: t("admin.nav.paywall") },
-        {
-          to: "/admin/gifting",
-          icon: Gift,
-          label: t("admin.nav.gifting"),
-        },
-        {
-          to: "/admin/coupons",
-          icon: Megaphone,
-          label: t("admin.nav.coupons"),
-        },
-        {
-          to: "/admin/membership",
-          icon: Crown,
-          label: t("admin.nav.membership"),
-        },
-        {
-          to: "/admin/pricing",
-          icon: BadgePercent,
-          label: t("admin.nav.pricing"),
-        },
-        {
-          to: "/admin/organizations",
-          icon: Landmark,
-          label: t("admin.nav.organizations"),
-        },
-        {
-          to: "/admin/library",
-          icon: BookOpen,
-          label: t("admin.nav.library"),
-        },
-        { to: "/admin/ads", icon: Megaphone, label: t("admin.nav.ads") },
-        {
-          to: "/admin/billing",
-          icon: CreditCard,
-          label: t("admin.nav.billing"),
-        },
-        {
-          to: "/admin/billing-reconcile",
-          icon: CreditCard,
-          label: t("admin.nav.billingReconcile"),
-        },
-        {
-          to: "/admin/donations",
-          icon: HandHeart,
-          label: t("admin.nav.donations"),
-        },
-      ],
-    },
-    {
-      id: "engagement",
-      label: t("admin.navGroups.engagement"),
-      items: [
-        { to: "/admin/newsletter", icon: Mail, label: t("admin.nav.newsletter") },
-        {
-          to: "/admin/popups",
-          icon: MousePointerClick,
-          label: t("admin.nav.popups"),
-        },
-        {
-          to: "/admin/settings/social-preview",
-          icon: ImageIcon,
-          label: t("admin.nav.socialPreview"),
-        },
-        {
-          to: "/admin/settings/cookie-banner",
-          icon: ShieldCheck,
-          label: t("admin.nav.cookieBanner"),
-        },
-        {
-          to: "/admin/versions",
-          icon: HistoryIcon,
-          label: t("admin.nav.versions"),
-        },
-        {
-          to: "/admin/i18n",
-          icon: Globe2,
-          label: t("admin.nav.i18nAudit"),
-        },
-        {
-          to: "/admin/experiments",
-          icon: FlaskConical,
-          label: t("admin.nav.experiments"),
-        },
-        { to: "/admin/personalized", icon: Wand2, label: t("admin.nav.personalized") },
-        { to: "/admin/related-posts", icon: Share2, label: t("admin.nav.relatedPosts") },
-        {
-          to: "/admin/crm",
-          icon: Users,
-          label: t("admin.nav.crm"),
-        },
-        {
-          to: "/admin/crm/funnel",
-          icon: Mail,
-          label: t("admin.nav.crmFunnel"),
-        },
-        {
-          to: "/admin/companies",
-          icon: Users,
-          label: t("admin.nav.companies"),
-        },
-        {
-          to: "/admin/workflows",
-          icon: Workflow,
-          label: t("admin.nav.workflows"),
-        },
-        {
-          to: "/admin/integrations",
-          icon: Cable,
-          label: t("admin.nav.integrations"),
-        },
-      ],
-    },
-    {
-      id: "community",
-      label: t("admin.navGroups.community"),
-      items: [
-        {
-          to: "/admin/contact",
-          icon: Inbox,
-          label: t("admin.nav.contact"),
-        },
-        {
-          // Zgłoszenia rekrutacyjne ze strony /zatrudniamy (Contact Center +
-          // CRM), z własną skrzynką zamiast mieszania ich z kontaktem ogólnym.
-          to: "/admin/careers",
-          icon: Briefcase,
-          // Bez `defaultValue`: oba klucze stoją w słowniku PL i EN
-          // (i18n-admin-extras), a bundel rejestruje trasa `/admin` przed
-          // renderem powłoki. Zaszyty tekst zastępczy tylko maskowałby brak
-          // wpisu - dokładnie tak `admin.nav.hiring` przeżył bez tłumaczenia.
-          label: t("admin.nav.careers"),
-        },
-        {
-          // Zarządzanie treścią strony /zatrudniamy: oferty pracy i sekcje.
-          to: "/admin/hiring",
-          icon: Briefcase,
-          label: t("admin.nav.hiring"),
-        },
-        {
-          to: "/admin/community",
-          icon: Users,
-          label: t("admin.nav.community"),
-        },
-        {
-          // Skrót wprost do zarządzania klubami dyskusyjnymi - bez niego trzeba
-          // było przejść przez /admin/community i dopiero tam wybrać zakładkę.
-          to: "/admin/community/clubs",
-          icon: MessagesSquare,
-          label: t("admin.nav.clubs"),
-          badge: clubPending,
-        },
-        {
-          // Katalog elementów Klubu - słowniki, odznaki, macierz uprawnień
-          // i kody odmów bez wchodzenia w konkretny klub. Od przeniesienia do
-          // panelu trasa jest administracyjna; /club/elements przekierowuje.
-          to: "/admin/community/clubs/elements",
-          icon: Shapes,
-          label: t("admin.nav.clubElements"),
-        },
-        {
-          // Taksonomia obszarów tematycznych jest wspólna dla całej
-          // organizacji, więc mieszka obok klubów, nie w konkretnym klubie.
-          to: "/admin/community/clubs/topics",
-          icon: Shapes,
-          label: t("admin.nav.clubTopics"),
-        },
-        {
-          // Skrzynka zgloszen do klubow - decyzje zapadaja przekrojowo,
-          // dlatego stoi obok taksonomii, a nie w karcie pojedynczego klubu.
-          to: "/admin/community/clubs/applications",
-          icon: Inbox,
-          label: t("admin.nav.clubApplications"),
-        },
+  // Wyszukiwarka wewnętrzna panelu (tylko admin) - filtruje mapę nawigacji,
+  // bez sięgania po treści publiczne.
+  const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement | null>(null);
+  const results = useMemo(() => searchAdminNav(groups, query), [groups, query]);
+  const searching = query.trim().length > 0;
 
-        {
-          // Specjalizacje sa najwyzszym poziomem taksonomii i maja wlasne
-          // strony publiczne, wiec stoja obok obszarow tematycznych.
-          to: "/admin/community/clubs/specializations",
-          icon: Shapes,
-          label: t("admin.nav.clubSpecializations"),
-        },
+  // Grupy zwijane; stan trzymany lokalnie w przeglądarce, żeby układ panelu
+  // przetrwał przeładowanie. Grupa z aktywną trasą jest zawsze rozwinięta.
+  const [collapsedGroups, setCollapsedGroups] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(NAV_COLLAPSED_KEY);
+      if (raw) {
+        const parsed: unknown = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          setCollapsedGroups(parsed.filter((v): v is string => typeof v === "string"));
+        }
+      }
+    } catch {
+      /* brak dostępu do storage - zostajemy przy domyślnym układzie */
+    }
+  }, []);
+  const toggleGroup = (id: string) => {
+    setCollapsedGroups((prev) => {
+      const next = prev.includes(id) ? prev.filter((g) => g !== id) : [...prev, id];
+      try {
+        window.localStorage.setItem(NAV_COLLAPSED_KEY, JSON.stringify(next));
+      } catch {
+        /* ignorujemy - to tylko preferencja widoku */
+      }
+      return next;
+    });
+  };
 
-        {
-          to: "/admin/comments",
-          icon: MessageCircle,
-          label: t("admin.nav.comments"),
-        },
-        {
-          to: "/admin/expert-requests",
-          icon: Inbox,
-          label: t("admin.nav.expertRequests"),
-        },
-        {
-          to: "/admin/tracker",
-          icon: Landmark,
-          label: t("admin.nav.tracker"),
-        },
-        { to: "/admin/podcasts", icon: Mic, label: t("admin.nav.podcasts") },
-        {
-          to: "/admin/research-programs",
-          icon: FlaskConical,
-          label: t("admin.nav.researchPrograms"),
-        },
-        {
-          to: "/admin/programs",
-          icon: FlaskConical,
-          label: t("admin.nav.programs"),
-        },
-        {
-          to: "/admin/live-blog",
-          icon: Radio,
-          label: t("admin.nav.liveBlog"),
-        },
-        { to: "/admin/web-stories", icon: Film, label: t("admin.nav.webStories") },
-      ],
-    },
-    {
-      id: "design",
-      label: t("admin.navGroups.design"),
-      items: [
-        { to: "/admin/appearance", icon: PanelsTopLeft, label: t("admin.nav.appearance") },
-        {
-          to: "/admin/appearance/category-archive",
-          icon: FolderTree,
-          label: t("archiveLayout.categoryTab"),
-        },
-        {
-          to: "/admin/appearance/tag-archive",
-          icon: Tags,
-          label: t("archiveLayout.tagTab"),
-        },
-        { to: "/admin/theme-options", icon: Palette, label: t("admin.nav.themeOptions") },
-        {
-          to: "/admin/settings/mobile-bottom-bar",
-          icon: Smartphone,
-          label: t("admin.nav.mobileBottomBar"),
-        },
-        { to: "/admin/post-layouts", icon: LayoutGrid, label: t("admin.nav.postLayouts") },
-        { to: "/admin/expert-layouts", icon: Users, label: t("admin.nav.expertLayouts") },
-        {
-          to: "/admin/key-takeaways",
-          icon: ListChecks,
-          label: t("admin.nav.keyTakeaways"),
-        },
-        {
-          to: "/admin/toc",
-          icon: ListChecks,
-          label: t("admin.nav.toc"),
-        },
-        {
-          to: "/admin/reading-time",
-          icon: Clock,
-          label: t("admin.nav.readingTime"),
-        },
-        { to: "/admin/icons", icon: Shapes, label: t("admin.nav.icons") },
-        ...(isSuperAdmin ? [{ to: "/admin/names", icon: Users, label: t("admin.nav.names") }] : []),
-        ...(isSuperAdmin
-          ? [
-              {
-                to: "/admin/super/mobile-drawer",
-                icon: PanelLeft,
-                label: t("admin.nav.mobileDrawer"),
-              },
-            ]
-          : []),
-        ...(isAdmin
-          ? [
-              {
-                to: "/admin/greetings",
-                icon: MessageCircle,
-                label: t("admin.nav.greetings"),
-              },
-            ]
-          : []),
-      ],
-    },
-    ...(isAdmin
-      ? [
-          {
-            id: "system",
-            label: t("admin.navGroups.system"),
-            items: [
-              { to: "/admin/performance", icon: Gauge, label: t("admin.nav.performance") },
-              {
-                to: "/admin/analytics",
-                icon: TrendingUp,
-                label: t("admin.nav.analytics"),
-              },
-              {
-                to: "/admin/audience",
-                icon: TrendingUp,
-                label: t("admin.nav.audience"),
-              },
-              {
-                to: "/admin/seo",
-                icon: Search,
-                label: t("admin.nav.seo"),
-              },
-              {
-                to: "/admin/redirects",
-                icon: LinkIcon,
-                label: t("admin.nav.redirects"),
-              },
-              { to: "/admin/users", icon: Users, label: t("admin.nav.users") },
-              {
-                to: "/admin/authors",
-                icon: Users,
-                label: t("admin.nav.authors"),
-              },
-              {
-                to: "/admin/permissions",
-                icon: ShieldCheck,
-                label: t("admin.nav.permissions"),
-              },
-              {
-                to: "/admin/programs",
-                icon: Briefcase,
-                label: t("admin.nav.programs"),
-              },
-              ...(isSuperAdmin
-                ? [
-                    {
-                      to: "/admin/login-settings",
-                      icon: Lock,
-                      label: t("admin.nav.loginSettings"),
-                    },
-                  ]
-                : []),
-              { to: "/admin/settings", icon: Settings, label: t("admin.nav.settings") },
-            ],
-          },
-        ]
-      : []),
-  ];
-  void Star;
-  void Bookmark;
-  void Brush;
+  // Skrót klawiaturowy: Cmd/Ctrl+K ustawia fokus na wyszukiwarce panelu.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
 
   const handleSignOut = async () => {
     await signOut();
@@ -704,91 +427,110 @@ function AdminShellInner({
                 </SidebarTooltip>
               )}
             </div>
-            <nav className="flex-1 p-2 space-y-3 overflow-y-auto">
-              {groups.map((group, idx) => (
-                <div key={group.id} className={idx > 0 ? "pt-2 border-t border-border/60" : ""}>
-                  {group.label && !compact && (
-                    <div
-                      data-sidebar="group-label"
-                      className="px-2 pt-1 pb-0 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold"
-                    >
-                      {group.label}
-                    </div>
-                  )}
-                  <div className="space-y-0.5">
-                    {group.items.map((item) => {
-                      const { icon: Icon, label } = item;
-                      if ("href" in item) {
-                        return (
-                          <SidebarTooltip key={item.href} label={label} compact={compact}>
-                            <SidebarExternalNavLink
-                              href={item.href}
-                              icon={Icon}
-                              label={label}
-                              hint={t("admin.nav.externalNewTab")}
-                              compact={compact}
-                            />
-                          </SidebarTooltip>
-                        );
+            {!compact && (
+              <div className="p-2 border-b border-border">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    ref={searchRef}
+                    type="search"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") setQuery("");
+                      if (e.key === "Enter") {
+                        const first = results[0]?.item;
+                        if (first && "to" in first) {
+                          setQuery("");
+                          void navigate({ to: first.to });
+                        }
                       }
-                      const { to } = item;
-                      const isCrmContacts = to === "/admin/crm";
-
-                      const active =
-                        path === to ||
-                        (to !== "/admin" &&
-                          to !== "/admin/appearance" &&
-                          // Skrót do klubów ma własną pozycję, więc "Społeczność"
-                          // nie może się podświetlać razem z nim.
-                          !(
-                            to === "/admin/community" && path.startsWith("/admin/community/clubs")
-                          ) &&
-                          !isCrmContacts &&
-                          path.startsWith(`${to}/`));
-
-                      // Kontakty CRM powinny być podświetlone tylko na /admin/crm
-                      // i szczegółach kontaktu (/admin/crm/$id), ale NIE gdy użytkownik
-                      // znajduje się w lejku lub firmach CRM.
-                      const crmContactsActive =
-                        isCrmContacts &&
-                        (path === "/admin/crm" ||
-                          /^\/admin\/crm\/(?!funnel|companies)[^/]+/.test(path));
-
-                      const finalActive = active || crmContactsActive;
-
-                      return (
-                        <SidebarTooltip key={to} label={label} compact={compact}>
-                          <Link
-                            to={to}
-                            activeOptions={{ exact: true }}
-                            title={compact ? undefined : label}
-                            data-sidebar="menu-button"
-                            data-active={finalActive ? "true" : "false"}
-                            className={`flex items-center py-1 rounded-md text-[13px] leading-tight transition ${
-                              compact ? "justify-center px-0" : "gap-1.5 px-2"
-                            } ${
-                              finalActive
-                                ? "bg-brand text-brand-foreground"
-                                : "text-foreground hover:bg-muted"
-                            }`}
-                          >
-                            <Icon className="w-3 h-3 shrink-0" />
-                            <span className={`truncate ${compact ? "hidden" : ""}`}>{label}</span>
-                            {typeof item.badge === "number" && item.badge > 0 && !compact ? (
-                              <span
-                                className="ml-auto inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500/20 px-1 text-[10px] font-semibold tabular-nums text-amber-700 dark:text-amber-300"
-                                aria-label={t("admin.nav.pendingItems")}
-                              >
-                                {item.badge > 99 ? "99+" : item.badge}
-                              </span>
-                            ) : null}
-                          </Link>
-                        </SidebarTooltip>
-                      );
-                    })}
-                  </div>
+                    }}
+                    placeholder={t("admin.sidebar.searchPlaceholder")}
+                    aria-label={t("admin.sidebar.searchLabel")}
+                    data-admin-nav-search
+                    className="h-7 w-full rounded-md border border-border bg-background pl-7 pr-6 text-[12px] text-foreground outline-none transition focus:border-brand"
+                  />
+                  {searching && (
+                    <button
+                      type="button"
+                      onClick={() => setQuery("")}
+                      aria-label={t("admin.sidebar.searchClear")}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
                 </div>
-              ))}
+              </div>
+            )}
+            <nav className="flex-1 p-2 space-y-3 overflow-y-auto">
+              {searching ? (
+                <div className="space-y-0.5">
+                  {results.length === 0 ? (
+                    <p className="px-2 py-3 text-[12px] text-muted-foreground">
+                      {t("admin.sidebar.searchEmpty", { query: query.trim() })}
+                    </p>
+                  ) : (
+                    results.map((hit) => (
+                      <AdminNavRow
+                        key={`${hit.groupId}-${adminNavItemKey(hit.item)}`}
+                        item={hit.item}
+                        path={path}
+                        compact={false}
+                        groupLabel={hit.groupLabel}
+                        externalHint={t("admin.nav.externalNewTab")}
+                        badgeLabel={t("admin.nav.pendingItems")}
+                        onNavigate={() => setQuery("")}
+                      />
+                    ))
+                  )}
+                </div>
+              ) : (
+                groups.map((group, idx) => {
+                  const hasActive = groupContainsPath(group, path);
+                  const collapsed = !compact && !hasActive && collapsedGroups.includes(group.id);
+                  return (
+                    <div key={group.id} className={idx > 0 ? "pt-2 border-t border-border/60" : ""}>
+                      {group.label && !compact && (
+                        <button
+                          type="button"
+                          onClick={() => toggleGroup(group.id)}
+                          data-sidebar="group-label"
+                          aria-expanded={!collapsed}
+                          className="flex w-full items-center gap-1 rounded px-2 pt-1 pb-0.5 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold hover:text-foreground"
+                        >
+                          <ChevronDown
+                            className={cn("h-3 w-3 shrink-0 transition-transform", collapsed && "-rotate-90")}
+                            aria-hidden="true"
+                          />
+                          <span className="truncate">{group.label}</span>
+                        </button>
+                      )}
+                      {!collapsed && (
+                        <div className="space-y-0.5">
+                          {group.items.map((item) => (
+                            <SidebarTooltip
+                              key={adminNavItemKey(item)}
+                              label={item.label}
+                              compact={compact}
+                            >
+                              <AdminNavRow
+                                item={item}
+                                path={path}
+                                compact={compact}
+                                externalHint={t("admin.nav.externalNewTab")}
+                                badgeLabel={t("admin.nav.pendingItems")}
+                              />
+                            </SidebarTooltip>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+
 
               {extras && !compact && (
                 <div className="mt-4 pt-3 border-t border-border space-y-0.5">

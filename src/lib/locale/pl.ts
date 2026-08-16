@@ -388,6 +388,12 @@ export const pl = {
     },
     navGroups: {
       content: "Treści",
+      taxonomy: "Taksonomie",
+      media: "Media i formaty",
+      marketing: "Marketing",
+      billing: "Płatności",
+      crm: "CRM i skrzynki",
+      analytics: "Analityka",
       monetization: "Monetyzacja",
       engagement: "Zaangażowanie",
       community: "Społeczność i media",
@@ -473,6 +479,10 @@ export const pl = {
     sidebar: {
       expand: "Rozszerz",
       collapse: "Zwiń",
+      searchPlaceholder: "Szukaj w panelu (⌘K)",
+      searchLabel: "Szukaj w panelu administracyjnym",
+      searchClear: "Wyczyść wyszukiwanie",
+      searchEmpty: 'Brak wyników dla "{{query}}"',
     },
     appearance: {
       header: "Nagłówek",
