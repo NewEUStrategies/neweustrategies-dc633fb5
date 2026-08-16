@@ -6,6 +6,7 @@ import {
   normalizeTickerConfig,
   normalizeTickerSettings,
   resolveActiveTickerConfig,
+  isMarqueeLayout,
 } from "@/lib/views/tickerVariants";
 import { resolveTickerSource } from "@/lib/views/headerTickerQuery";
 
@@ -79,5 +80,22 @@ describe("resolveTickerSource", () => {
     expect(resolveTickerSource({ source: "pinned", pinnedPostId: "x", pinnedUntil: past })).toBe(
       "latest",
     );
+  });
+});
+
+describe("layouty marquee w pasku Na czasie", () => {
+  it("normalizacja przyjmuje nowe style paska", () => {
+    expect(normalizeTickerConfig({ layoutStyle: "glassMarquee" }).layoutStyle).toBe("glassMarquee");
+    expect(normalizeTickerConfig({ layoutStyle: "glassCards" }).layoutStyle).toBe("glassCards");
+    // Nieznany styl nie może wysadzić paska - wraca do klasycznego.
+    expect(normalizeTickerConfig({ layoutStyle: "neon" }).layoutStyle).toBe("classic");
+  });
+
+  it("tylko warianty marquee mają własną animację", () => {
+    expect(isMarqueeLayout("glassMarquee")).toBe(true);
+    expect(isMarqueeLayout("glassCards")).toBe(true);
+    expect(isMarqueeLayout("classic")).toBe(false);
+    expect(isMarqueeLayout("badge")).toBe(false);
+    expect(isMarqueeLayout(undefined)).toBe(false);
   });
 });
