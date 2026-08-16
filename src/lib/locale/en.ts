@@ -485,6 +485,8 @@ export const en = {
       footer: "Footer",
       menu: "Menu",
       postSidebar: "Post sidebar",
+      categoryArchive: "Category archive",
+      tagArchive: "Tag archive",
       globalColors: "Global Colors",
     },
     icons: {

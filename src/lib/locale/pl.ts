@@ -489,6 +489,8 @@ export const pl = {
       footer: "Stopka",
       menu: "Menu",
       postSidebar: "Sidebar wpisu",
+      categoryArchive: "Archiwum kategorii",
+      tagArchive: "Archiwum tagów",
       globalColors: "Global Colors",
     },
     icons: {
