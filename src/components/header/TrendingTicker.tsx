@@ -122,9 +122,11 @@ export function TrendingTicker({
   const iconClass = `tt-flame tt-flame-${iconAnimation}`;
 
   if (isMarquee) {
+    const isVerticalLayout = layoutStyle === "glassCards" || layoutStyle === "glassSpotlight";
+    const skin = SKIN_BY_LAYOUT[layoutStyle] ?? "marquee";
     return (
       <div
-        className={`cms-trending border-b cms-trending--${layoutStyle === "glassCards" ? "glass-cards" : "glass-marquee"} ${className ?? ""}`}
+        className={`cms-trending border-b cms-trending--glass cms-trending--${skin} ${className ?? ""}`}
         data-testid="trending-ticker"
         data-tt-vid={vid}
         data-tt-layout={layoutStyle}
@@ -132,13 +134,14 @@ export function TrendingTicker({
       >
         <TickerPaletteStyle vid={vid} palette={palette} />
         <div className={`${innerMax} px-4 lg:px-8`}>
-          {layoutStyle === "glassCards" ? (
+          {isVerticalLayout ? (
             <TickerGlassCards
               label={label}
               posts={posts}
               lang={lang}
               intervalSec={intervalSec}
               iconClass={iconClass}
+              skin={skin}
             />
           ) : (
             <TickerGlassMarquee
@@ -147,12 +150,14 @@ export function TrendingTicker({
               lang={lang}
               intervalSec={intervalSec}
               iconClass={iconClass}
+              skin={skin}
             />
           )}
         </div>
         <TickerStyles />
       </div>
     );
+
   }
 
   return (
