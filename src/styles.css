@@ -1532,17 +1532,6 @@ a:active > * > .cms-title-underline {
   }
 }
 
-/* On mobile viewports the per-line underline should be visible statically
-   (each wrapped line gets its own underline) instead of collapsing to a
-   single full-width bar under the whole clamped title. */
-@media (max-width: 640px) {
-  .cms-title-underline,
-  .cms-title-underline:hover,
-  .cms-title-underline:active {
-    background-size: 100% var(--cms-underline-thickness, 2px);
-  }
-}
-
 /* Prevent double underline on any anchor wrapping a .cms-post-title */
 a:has(.cms-post-title),
 a:has(.cms-post-title):hover,
