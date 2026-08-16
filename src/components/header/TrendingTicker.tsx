@@ -669,6 +669,61 @@ function TickerStyles() {
           border-top: 1px solid color-mix(in srgb, var(--tt-border) 60%, transparent);
         }
 
+        /* v9 - animated gradient ribbon */
+        @keyframes tt-ribbon-shift { to { background-position: 200% 50% } }
+        .tt-skin--ribbon .tt-glass-track {
+          border-radius: 999px; padding: 0 10px;
+          background: linear-gradient(90deg,
+            color-mix(in srgb, var(--tt-label) 22%, transparent),
+            color-mix(in srgb, var(--tt-label) 4%, transparent),
+            color-mix(in srgb, var(--tt-label) 22%, transparent));
+          background-size: 200% 100%;
+          animation: tt-ribbon-shift 9s linear infinite;
+          box-shadow: 0 0 0 1px color-mix(in srgb, var(--tt-label) 26%, transparent) inset;
+        }
+        .tt-skin--ribbon .tt-glass-pill {
+          background: none; border: none; box-shadow: none; backdrop-filter: none;
+          -webkit-backdrop-filter: none; padding: 0 6px; letter-spacing: .02em;
+        }
+        .tt-skin--ribbon .tt-glass-pill:hover { transform: none; text-decoration: underline }
+        .tt-skin--ribbon .tt-glass-dot {
+          width: 5px; height: 5px; transform: rotate(45deg); border-radius: 1px;
+        }
+
+        /* v13 - ticker tape */
+        .tt-skin--tape .tt-glass-chip {
+          border-radius: 0; clip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+          background: var(--tt-label); color: var(--tt-label-fg);
+        }
+        .tt-skin--tape .tt-glass-track {
+          border-top: 1px dashed color-mix(in srgb, var(--tt-border) 90%, transparent);
+          border-bottom: 1px dashed color-mix(in srgb, var(--tt-border) 90%, transparent);
+        }
+        .tt-skin--tape .tt-glass-pill {
+          border-radius: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+          font-size: 12px; letter-spacing: .04em; text-transform: uppercase;
+          background: none; box-shadow: none; backdrop-filter: none;
+          -webkit-backdrop-filter: none;
+          border: 1px solid color-mix(in srgb, var(--tt-border) 90%, transparent);
+          clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
+        }
+        .tt-skin--tape .tt-glass-pill:hover { transform: none }
+
+        /* v11 - spotlight rotation */
+        .tt-skin--spotlight .tt-glass-viewport {
+          border-radius: 0; border-left: 2px solid var(--tt-label);
+          border-top: none; border-right: none; border-bottom: none;
+          background: radial-gradient(120% 140% at 0% 50%,
+            color-mix(in srgb, var(--tt-label) 20%, transparent), transparent 70%);
+          box-shadow: none;
+        }
+        .tt-skin--spotlight .tt-glass-card + .tt-glass-card { border-top: none }
+        .tt-skin--spotlight .tt-glass-card > span:first-child {
+          font-size: 18px; opacity: 1; color: var(--tt-label);
+        }
+        .tt-skin--spotlight .tt-item { font-size: 14px; font-weight: 600 }
+
+
 
         @media (prefers-reduced-motion: reduce) {
           .tt-glass [style*="animation"] { animation: none !important }
