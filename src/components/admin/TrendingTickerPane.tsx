@@ -35,6 +35,7 @@ import {
   type TickerSettings,
   type TickerVariant,
   type LayoutStyle,
+  isMarqueeLayout,
 } from "@/lib/views/tickerVariants";
 
 type Json = Record<string, unknown>;
@@ -113,6 +114,9 @@ const COPY = {
     layoutStyle: "Styl paska",
     layout_classic: "Klasyczny (ikona + tekst)",
     layout_badge: "Badge marquee (kolorowy blok)",
+    layout_glassMarquee: "Marquee szklane (płynny, poziomy)",
+    layout_glassCards: "Szklane karty (rotacja pionowa)",
+    marqueeHint: "Ten styl ma własną animację - tryb prezentacji nie ma tu zastosowania.",
     resetColors: "Przywróć domyślne",
     cannotDeleteLast: "Musi zostać przynajmniej jeden wariant.",
     undo: "Cofnij",
@@ -190,6 +194,9 @@ const COPY = {
     layoutStyle: "Bar style",
     layout_classic: "Classic (icon + text)",
     layout_badge: "Badge marquee (solid block)",
+    layout_glassMarquee: "Glass marquee (seamless, horizontal)",
+    layout_glassCards: "Glass cards (vertical rotation)",
+    marqueeHint: "This style carries its own animation - the presentation mode does not apply.",
     resetColors: "Reset to defaults",
     cannotDeleteLast: "At least one variant must remain.",
     undo: "Undo",
@@ -465,6 +472,7 @@ export function TrendingTickerPane() {
 
   const currentSource = (cfg.source ?? "trending") as Source;
   const currentMode = (cfg.mode ?? "scroll") as Mode;
+  const marqueeLayout = isMarqueeLayout(cfg.layoutStyle);
   const selectedIds = cfg.selectedPostIds ?? [];
 
   return (
@@ -599,7 +607,7 @@ export function TrendingTickerPane() {
         <div className="space-y-1.5">
           <Label>{t.layoutStyle}</Label>
           <div className="grid grid-cols-2 gap-2">
-            {(["classic", "badge"] as const).map((s) => {
+            {(["classic", "badge", "glassMarquee", "glassCards"] as const).map((s) => {
               const active = (cfg.layoutStyle ?? "classic") === s;
               return (
                 <button
@@ -619,7 +627,10 @@ export function TrendingTickerPane() {
           </div>
         </div>
 
-        {/* Mode */}
+        {/* Mode - marquee layouts animate themselves, so the knob is moot there. */}
+        {marqueeLayout ? (
+          <p className="text-xs text-muted-foreground">{t.marqueeHint}</p>
+        ) : (
         <div className="space-y-1.5">
           <Label>{t.mode}</Label>
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
@@ -639,6 +650,7 @@ export function TrendingTickerPane() {
             ))}
           </div>
         </div>
+        )}
 
         {/* Icon animation removed - flame stays static. */}
 
