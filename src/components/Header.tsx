@@ -149,6 +149,7 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
             limit={trending.limit ?? 8}
             visibleCount={trending.visibleCount ?? 1}
             intervalSec={trending.intervalSec ?? 6}
+            scrollSpeed={trending.scrollSpeed ?? 60}
             pinnedPostId={trending.pinnedPostId}
             pinnedUntil={trending.pinnedUntil ?? null}
             selectedPostIds={trending.selectedPostIds}

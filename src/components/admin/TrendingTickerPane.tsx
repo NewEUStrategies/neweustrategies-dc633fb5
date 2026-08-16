@@ -65,6 +65,7 @@ const COPY = {
     days: "Okres dla trendingu (dni)",
     limit: "Liczba wpisów",
     interval: "Co ile sekund zmieniać komunikat",
+    scrollSpeed: "Szybkość przewijania (px/s)",
     pinnedId: "ID przypiętego wpisu (UUID)",
     pinnedUntil: "Wyświetlaj do (data i godzina)",
     full: "Pełna szerokość",
@@ -149,6 +150,7 @@ const COPY = {
     days: "Trending window (days)",
     limit: "Posts shown",
     interval: "Seconds between rotations",
+    scrollSpeed: "Scroll speed (px/s)",
     pinnedId: "Pinned post ID (UUID)",
     pinnedUntil: "Display until (date & time)",
     full: "Full width",
@@ -454,7 +456,7 @@ export function TrendingTickerPane() {
 
   const previewKey = useMemo(
     () =>
-      `${activeVariant.id}-${cfg.source}-${cfg.mode}-${cfg.layoutStyle}-${cfg.visibleCount}-${cfg.intervalSec}-${cfg.pinnedPostId}-${cfg.pinnedUntil}-${cfg.limit}-${cfg.days}-${(cfg.selectedPostIds ?? []).join(",")}-${cfg.mixedFill}-${cfg.iconAnimation}-${cfg.labelPl}-${cfg.labelEn}-${JSON.stringify(cfg.colors ?? {})}`,
+      `${activeVariant.id}-${cfg.source}-${cfg.mode}-${cfg.layoutStyle}-${cfg.visibleCount}-${cfg.intervalSec}-${cfg.scrollSpeed}-${cfg.pinnedPostId}-${cfg.pinnedUntil}-${cfg.limit}-${cfg.days}-${(cfg.selectedPostIds ?? []).join(",")}-${cfg.mixedFill}-${cfg.iconAnimation}-${cfg.labelPl}-${cfg.labelEn}-${JSON.stringify(cfg.colors ?? {})}`,
     [activeVariant.id, cfg],
   );
 
@@ -481,6 +483,8 @@ export function TrendingTickerPane() {
   const currentSource = (cfg.source ?? "trending") as Source;
   const currentMode = (cfg.mode ?? "scroll") as Mode;
   const marqueeLayout = isMarqueeLayout(cfg.layoutStyle);
+  const horizontalMarquee =
+    marqueeLayout && cfg.layoutStyle !== "glassCards" && cfg.layoutStyle !== "glassSpotlight";
   const selectedIds = cfg.selectedPostIds ?? [];
 
   return (
@@ -724,6 +728,22 @@ export function TrendingTickerPane() {
               onChange={(e) => set("intervalSec", Math.max(2, Number(e.target.value) || 2))}
             />
           </div>
+          {horizontalMarquee && (
+            <div className="space-y-1.5">
+              <Label htmlFor="tt-speed">{t.scrollSpeed}</Label>
+              <Input
+                id="tt-speed"
+                type="number"
+                min={10}
+                max={400}
+                step={5}
+                value={cfg.scrollSpeed ?? 60}
+                onChange={(e) =>
+                  set("scrollSpeed", Math.max(10, Math.min(400, Number(e.target.value) || 60)))
+                }
+              />
+            </div>
+          )}
         </div>
 
         {/* Mixed fill */}
@@ -938,6 +958,7 @@ export function TrendingTickerPane() {
               limit={cfg.limit ?? 8}
               visibleCount={cfg.visibleCount ?? 1}
               intervalSec={cfg.intervalSec ?? 6}
+              scrollSpeed={cfg.scrollSpeed ?? 60}
               pinnedPostId={cfg.pinnedPostId || undefined}
               pinnedUntil={cfg.pinnedUntil || null}
               selectedPostIds={cfg.selectedPostIds}

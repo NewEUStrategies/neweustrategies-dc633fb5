@@ -33,6 +33,8 @@ export interface TickerConfig {
   /** Rotate modes only: how many posts visible side-by-side at once. */
   visibleCount?: number;
   intervalSec?: number;
+  /** Horizontal marquee layouts: scroll speed in px per second. */
+  scrollSpeed?: number;
   pinnedPostId?: string;
   pinnedUntil?: string | null;
   /** Selected source: up to 3 hand-picked post IDs, order preserved. */
