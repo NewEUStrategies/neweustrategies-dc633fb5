@@ -555,7 +555,7 @@ export function PostListView({
               className="cms-post-title text-[1.35em] line-clamp-3 transition-colors group-hover:text-brand"
               style={tStyle}
             >
-              {title(lead)}
+              <TitleSpan title={title(lead)} />
             </h3>
           )}
           {excerpt(lead) && (
