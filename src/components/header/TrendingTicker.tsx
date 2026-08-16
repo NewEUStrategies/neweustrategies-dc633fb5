@@ -871,10 +871,10 @@ function TickerStyles() {
           color: var(--tt-label);
           box-shadow: 0 0 0 1px color-mix(in srgb, var(--tt-border) 90%, transparent);
         }
-        .tt-skin--live .tt-item { column-gap: 0; line-height: 1.5 }
-        .tt-skin--live .tt-glass-pill { column-gap: 0; line-height: 1.5 }
+        .tt-skin--live .tt-item.tt-item { column-gap: 0; line-height: 1.5 }
+        .tt-skin--live .tt-glass-pill.tt-glass-pill { column-gap: 0; line-height: 1.5 }
         .tt-skin--live .tt-live-index { margin-right: 10px }
-        .tt-skin--live .tt-live-title { line-height: 1.5; padding-block: 2px }
+        .tt-skin--live .tt-live-title.tt-live-title { line-height: 1.5; padding-block: 2px }
         .tt-live-separator {
           width: 1px; height: 14px; margin: 0 5px;
           background: currentColor;
