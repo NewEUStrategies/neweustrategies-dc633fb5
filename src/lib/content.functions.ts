@@ -25,6 +25,7 @@ import {
   shouldSnapshot,
 } from "./content/revisions";
 import { KEY_TAKEAWAYS_MAX_ITEMS, KEY_TAKEAWAYS_MAX_ITEM_LENGTH } from "./keyTakeaways/limits";
+import { MAX_POST_AUTHORS, splitAuthors } from "./content/postAuthors";
 
 // ---------- shared helpers ----------
 
@@ -1515,4 +1516,95 @@ export const deleteTag = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     await audit(supabase, tenantId, "tag.delete", "tag", data.id);
     return { ok: true as const };
+  });
+
+/**
+ * Autorzy wpisu (autor główny + współautorzy) jako JEDNA uporządkowana lista.
+ * Kontrakt: element [0] to autor główny (posts.author_id) - "pierwszy
+ * wymieniony jest najważniejszy" - a kolejni trafiają do post_authors z
+ * sort_order 1..n, dokładnie w podanej kolejności. Publiczna warstwa odczytu
+ * (orderAuthorIds/buildPostAuthors) czyta tę samą kolejność, więc byline,
+ * cytowania i tagi citation_author są spójne.
+ *
+ * Zmiana AUTORA GŁÓWNEGO jest zastrzeżona dla ról publikujących: dla zwykłego
+ * autora oznaczałaby oddanie sobie samemu praw do wpisu (RLS ownership) i
+ * ciche wypadnięcie wpisu z jego warsztatu.
+ */
+export const setPostAuthors = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .validator((i: unknown) =>
+    z
+      .object({ id: UUID, authorIds: z.array(UUID).min(1).max(MAX_POST_AUTHORS) })
+      .parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    return guard("post.authors", userId, 60, async () => {
+      const tenantId = await resolveTenant(supabase, userId);
+      const { main, coAuthors } = splitAuthors(data.authorIds);
+      if (!main) throw new Error("A post needs at least one author");
+
+      const { data: existing, error: exErr } = await supabase
+        .from("posts")
+        .select("id, author_id")
+        .eq("id", data.id)
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      if (exErr) throw new Error(exErr.message);
+      if (!existing) throw new Error("Post not found or access denied");
+
+      // Wszyscy autorzy muszą należeć do tego samego obszaru roboczego -
+      // inaczej dałoby się przypisać wpis do profilu z innego tenanta.
+      const ordered = [main, ...coAuthors];
+      const { data: profileRows, error: profErr } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .in("id", ordered);
+      if (profErr) throw new Error(profErr.message);
+      const known = new Set((profileRows ?? []).map((r) => r.id as string));
+      if (ordered.some((id) => !known.has(id))) {
+        throw new Error("Author not found in this workspace");
+      }
+
+      if (main !== existing.author_id) {
+        if (!(await resolveCanPublish(supabase))) {
+          throw new Error(
+            "Only an administrator can change the main author - reorder co-authors instead",
+          );
+        }
+      }
+
+      const { data: touched, error: upErr } = await supabase
+        .from("posts")
+        .update({ author_id: main, updated_at: new Date().toISOString() } as PostUpdateRow)
+        .eq("id", data.id)
+        .select("id, updated_at");
+      if (upErr) throw new Error(upErr.message);
+      if (!touched?.length) {
+        throw new Error("Save rejected - you do not have permission to edit this post");
+      }
+
+      const { error: delErr } = await supabase
+        .from("post_authors")
+        .delete()
+        .eq("post_id", data.id);
+      if (delErr) throw new Error(delErr.message);
+      if (coAuthors.length) {
+        const { error: insErr } = await supabase.from("post_authors").insert(
+          coAuthors.map((user_id, i) => ({
+            post_id: data.id,
+            user_id,
+            sort_order: i + 1,
+          })),
+        );
+        if (insErr) throw new Error(insErr.message);
+      }
+
+      await audit(supabase, tenantId, "post.update", "post", data.id, {
+        authors: ordered,
+        mainAuthorChanged: main !== existing.author_id,
+      });
+      return { ok: true as const, updatedAt: touched[0].updated_at ?? null };
+    });
   });
