@@ -832,29 +832,22 @@ function TickerStyles() {
           font-weight: 800; letter-spacing: .16em;
           box-shadow: 0 8px 24px -14px color-mix(in srgb, var(--tt-label) 90%, transparent);
         }
+        /* Wariant "Na czasie": badge jest samodzielny, bez ciemnego paska nachodzącego na niego */
         .tt-skin--live .tt-glass-track,
         .tt-skin--live .tt-glass-viewport {
-          border-radius: 0 10px 10px 0;
-          border: 1px solid color-mix(in srgb, var(--tt-border) 90%, transparent);
-          border-left: none;
-          background: color-mix(in srgb, var(--tt-bg) 70%, transparent);
-          backdrop-filter: blur(10px) saturate(1.2);
-          -webkit-backdrop-filter: blur(10px) saturate(1.2);
-          margin-left: -12px;
+          background: transparent;
+          border: none;
+          border-radius: 0;
+          box-shadow: none;
+          backdrop-filter: none;
+          -webkit-backdrop-filter: none;
+          margin-left: 0;
         }
-        /* Szklane górne/dolne zanikanie w wariancie pionowym */
+        .tt-skin--live .tt-glass-track::before,
+        .tt-skin--live .tt-glass-track::after,
         .tt-skin--live .tt-glass-viewport::before,
         .tt-skin--live .tt-glass-viewport::after {
-          content: ""; position: absolute; left: 0; right: 0; height: 12px;
-          pointer-events: none; z-index: 2;
-        }
-        .tt-skin--live .tt-glass-viewport::before {
-          top: 0; background: linear-gradient(to bottom,
-            color-mix(in srgb, var(--tt-bg) 92%, transparent), transparent);
-        }
-        .tt-skin--live .tt-glass-viewport::after {
-          bottom: 0; background: linear-gradient(to top,
-            color-mix(in srgb, var(--tt-bg) 92%, transparent), transparent);
+          display: none;
         }
         .tt-skin--live .tt-glass-card { padding: 0 16px }
         .tt-skin--live .tt-item { font-size: 14px; font-weight: 700; letter-spacing: -.01em }
