@@ -459,6 +459,7 @@ export type WidgetType =
   | "donations"
   // News ticker
   | "news-ticker"
+  | "trending-now"
   // Podcast
   | "podcast-latest"
   // Kluby dyskusyjne (spec §5.5)

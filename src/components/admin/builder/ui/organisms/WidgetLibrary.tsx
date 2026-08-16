@@ -147,6 +147,7 @@ export function WidgetLibrary({
     carousel: "listings",
     "event-list": "listings",
     "news-ticker": "listings",
+    "trending-now": "listings",
     "podcast-latest": "listings",
     "club-card": "listings",
     "club-threads": "listings",

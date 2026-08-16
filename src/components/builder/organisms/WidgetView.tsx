@@ -44,6 +44,7 @@ import {
   ClubThreadsView,
   WebStoriesCarouselView,
   NewsTickerView,
+  TrendingNowView,
   RatedListView,
   TabsBlock,
   AdSlotById,
@@ -851,6 +852,8 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     }
     case "news-ticker":
       return wrap(<NewsTickerView c={c} lang={lang} />);
+    case "trending-now":
+      return wrap(<TrendingNowView c={c} lang={lang} />);
     case "event-schedule":
       return wrap(<EventScheduleView c={c} lang={lang} />);
     case "event-list":

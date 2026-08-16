@@ -1862,6 +1862,24 @@ export const WIDGETS: WidgetDef[] = [
       uniqueOnPage: false,
     }),
   },
+  // Na czasie (trending pill: numer + tytuł + autor)
+  {
+    type: "trending-now",
+    label: "Na czasie",
+    category: "dynamic",
+    icon: Flame,
+    defaults: () => ({
+      badge_pl: "Na czasie",
+      badge_en: "Trending",
+      limit: 6,
+      intervalSec: 5,
+      pauseOnHover: true,
+      showAuthor: true,
+      showIndex: true,
+      categoriesCsv: "",
+      uniqueOnPage: false,
+    }),
+  },
   // Podcast
   {
     type: "podcast-latest",

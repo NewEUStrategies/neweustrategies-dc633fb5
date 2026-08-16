@@ -57,6 +57,7 @@ import type { TtsPlayerHost as TtsPlayerHostImpl } from "@/components/builder/mo
 import type { PodcastLatestView as PodcastLatestViewImpl } from "./PodcastLatestView";
 import type { WebStoriesCarouselView as WebStoriesCarouselViewImpl } from "./WebStoriesCarouselView";
 import type { NewsTickerView as NewsTickerViewImpl } from "./NewsTickerView";
+import type { TrendingNowView as TrendingNowViewImpl } from "./TrendingNowView";
 import type { EventScheduleView as EventScheduleViewImpl } from "./EventScheduleView";
 import type { EventsListView as EventsListViewImpl } from "./EventsListView";
 import type {
@@ -192,6 +193,11 @@ const NewsTickerViewLazy = lazy(() =>
   import("./NewsTickerView").then((m) => ({ default: m.NewsTickerView })),
 ) as ComponentType<ComponentProps<typeof NewsTickerViewImpl>>;
 export const NewsTickerView = withSuspense(NewsTickerViewLazy);
+
+const TrendingNowViewLazy = lazy(() =>
+  import("./TrendingNowView").then((m) => ({ default: m.TrendingNowView })),
+) as ComponentType<ComponentProps<typeof TrendingNowViewImpl>>;
+export const TrendingNowView = withSuspense(TrendingNowViewLazy);
 
 // Widgety wydarzen: agenda (dialog profilu prelegenta + react-query),
 // lista wydarzen i odliczanie - wszystkie poza bundlem wejsciowym chrome.
