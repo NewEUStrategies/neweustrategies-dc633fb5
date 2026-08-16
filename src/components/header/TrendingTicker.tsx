@@ -949,16 +949,30 @@ function TickerStyles() {
           color: var(--tt-label);
           box-shadow: 0 0 0 1px color-mix(in srgb, var(--tt-border) 90%, transparent);
         }
-        .tt-skin--live .tt-item.tt-item { column-gap: 0; line-height: 1.5 }
-        .tt-skin--live .tt-glass-pill.tt-glass-pill { column-gap: 0; line-height: 1.5 }
+        /* Jedna linia bazowa dla całego elementu: wspólny wiersz 24px, każdy
+           składnik (numer, tytuł, kreska, awatar, nazwisko) jest wyśrodkowany
+           w tej samej wysokości - bez ucinania g/j/y/ą/ę. */
+        .tt-skin--live .tt-item.tt-item { column-gap: 0; line-height: 1.5; align-items: center }
+        .tt-skin--live .tt-glass-pill.tt-glass-pill { column-gap: 0; line-height: 1.5; align-items: center }
+        .tt-skin--live .tt-live-index,
+        .tt-skin--live .tt-live-author,
+        .tt-skin--live .tt-live-name {
+          display: inline-flex; align-items: center;
+          height: 24px; line-height: 1.5; padding-block: 0;
+        }
         .tt-skin--live .tt-live-index { margin-right: 10px }
-        .tt-skin--live .tt-live-title.tt-live-title { line-height: 1.5; padding-block: 2px }
+        .tt-skin--live .tt-live-title.tt-live-title {
+          display: inline-block; height: 24px; line-height: 24px;
+          padding-block: 0; align-self: center;
+        }
         .tt-live-separator {
           width: 1px; height: 14px; margin: 0 10px;
           background: currentColor;
           opacity: 0.35;
           flex-shrink: 0; align-self: center;
         }
+        .tt-skin--live .tt-live-avatar { align-self: center }
+
         /* Pionowy slide: numer w kolorze brandu, jak w poziomym marquee */
         .tt-skin--live .tt-glass-card > .tt-live-index {
           font-size: 13px; opacity: 1; color: var(--tt-label);
