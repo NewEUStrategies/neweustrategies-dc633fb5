@@ -89,7 +89,9 @@ async function fetchTickerPosts(input: NewsTickerInput): Promise<TickerPost[]> {
   const { data } = await q;
   const posts = (data ?? []) as TickerPost[];
 
-  const authorIds = Array.from(new Set(posts.map((p) => p.author_id).filter((id): id is string => !!id)));
+  const authorIds = Array.from(
+    new Set(posts.map((p) => p.author_id).filter((id): id is string => !!id)),
+  );
   const profileMap = new Map<string, ProfileAuthor>();
   if (authorIds.length) {
     const { data: profiles } = await supabase
@@ -110,7 +112,6 @@ async function fetchTickerPosts(input: NewsTickerInput): Promise<TickerPost[]> {
     };
   });
 }
-
 
 // `lang` is accepted for call-site symmetry with the other builder widget
 // queries; the ticker selects both title columns and picks the language at

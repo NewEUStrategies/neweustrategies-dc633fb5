@@ -277,7 +277,10 @@ describe("NewsTickerView", () => {
     ];
     db.tables.profiles = [{ id: "a1", display_name: "Anna", avatar_url: null }];
     const { container } = wrap(
-      <NewsTickerView c={{ badge_pl: "Najnowsze", limit: 10, direction: "horizontal" }} lang="pl" />,
+      <NewsTickerView
+        c={{ badge_pl: "Najnowsze", limit: 10, direction: "horizontal" }}
+        lang="pl"
+      />,
     );
     await screen.findAllByText("Alfa");
     expect(container.querySelector(".w-max")).toBeTruthy();
@@ -499,7 +502,9 @@ describe("CategoriesView / TagsView", () => {
 
 describe("NewsTickerView extra branches", () => {
   it("pauses on hover and uses a custom separator in horizontal mode", async () => {
-    db.tables.posts = [{ id: "1", slug: "a", title_pl: "Alfa", title_en: "Alpha", author_id: "a1" }];
+    db.tables.posts = [
+      { id: "1", slug: "a", title_pl: "Alfa", title_en: "Alpha", author_id: "a1" },
+    ];
     db.tables.profiles = [{ id: "a1", display_name: "Anna", avatar_url: null }];
     const { container } = wrap(
       <NewsTickerView
