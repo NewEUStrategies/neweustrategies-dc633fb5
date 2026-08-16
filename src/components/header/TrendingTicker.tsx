@@ -612,9 +612,8 @@ function TickerStyles() {
     <style
       dangerouslySetInnerHTML={{
         __html: `
-        [data-ticker], [data-ticker] *,
-        .tt-glass, .tt-glass *,
-        .tt-item, .tt-glass-pill, .tt-glass-chip, .tt-glass-label, .tt-glass-card {
+        .cms-trending, .cms-trending *,
+        .tt-glass, .tt-glass * {
           font-family: var(--font-display, "Red Hat Display", system-ui, sans-serif);
         }
         @keyframes tt-fade { from { opacity: 0 } to { opacity: 1 } }
