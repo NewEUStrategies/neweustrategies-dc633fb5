@@ -191,13 +191,18 @@ export function TrendingTicker({
       >
         {isBadge ? (
           <span
-            className="inline-flex items-center h-10 px-4 text-[12px] leading-none font-bold uppercase tracking-[0.14em] shrink-0 whitespace-nowrap mr-4"
+            className="inline-flex items-center h-10 px-2 sm:px-4 text-[12px] leading-none font-bold uppercase tracking-[0.14em] shrink-0 whitespace-nowrap mr-4"
             style={{
               background: "var(--tt-label-bg)",
               color: "var(--tt-label-fg)",
             }}
           >
-            {label}
+            <Flame
+              className={`w-4 h-4 shrink-0 ${iconClass}`}
+              style={{ color: "var(--tt-label-fg)" }}
+              aria-hidden
+            />
+            <span className="hidden sm:inline leading-none">{label}</span>
           </span>
         ) : (
           <>
@@ -210,7 +215,7 @@ export function TrendingTicker({
                 style={{ color: "var(--tt-label)" }}
                 aria-hidden
               />
-              <span className="leading-none">{label}</span>
+              <span className="hidden sm:inline leading-none">{label}</span>
             </span>
             <span
               className="hidden sm:block self-center h-4 w-px shrink-0 mr-4"
@@ -492,7 +497,7 @@ function TickerGlassMarquee({
         <span className="tt-chip-icon relative inline-flex items-center justify-center shrink-0">
           <Flame className={`w-3.5 h-3.5 shrink-0 ${iconClass}`} aria-hidden />
         </span>
-        <span className="tt-chip-text">{label}</span>
+        <span className="tt-chip-text hidden sm:inline">{label}</span>
       </span>
 
       <div className="tt-glass-track relative min-w-0 flex-1 overflow-hidden">
@@ -578,7 +583,7 @@ function TickerGlassCards({
         <span className="tt-chip-icon relative inline-flex items-center justify-center shrink-0">
           <Flame className={`w-3.5 h-3.5 shrink-0 ${iconClass}`} aria-hidden />
         </span>
-        <span className="tt-chip-text">{label}</span>
+        <span className="tt-chip-text hidden sm:inline">{label}</span>
       </span>
 
       <div
