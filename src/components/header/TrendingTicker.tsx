@@ -955,14 +955,16 @@ function TickerStyles() {
         .tt-skin--live .tt-item.tt-item { column-gap: 0; line-height: 1.5; align-items: center }
         .tt-skin--live .tt-glass-pill.tt-glass-pill { column-gap: 0; line-height: 1.5; align-items: center }
         .tt-skin--live .tt-live-index,
-        .tt-skin--live .tt-live-title.tt-live-title,
         .tt-skin--live .tt-live-author,
         .tt-skin--live .tt-live-name {
           display: inline-flex; align-items: center;
           height: 24px; line-height: 1.5; padding-block: 0;
         }
         .tt-skin--live .tt-live-index { margin-right: 10px }
-        .tt-skin--live .tt-live-title.tt-live-title { max-width: 100%; align-self: center }
+        .tt-skin--live .tt-live-title.tt-live-title {
+          display: inline-block; height: 24px; line-height: 24px;
+          padding-block: 0; align-self: center;
+        }
         .tt-live-separator {
           width: 1px; height: 14px; margin: 0 10px;
           background: currentColor;
