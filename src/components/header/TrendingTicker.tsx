@@ -882,7 +882,13 @@ function TickerStyles() {
         }
         .tt-skin--live .tt-item.tt-item { column-gap: 0; line-height: 1.5 }
         .tt-skin--live .tt-glass-pill.tt-glass-pill { column-gap: 0; line-height: 1.5 }
-        .tt-skin--live .tt-live-index { margin-right: 10px }
+        /* Numer jak w pierwowzorze: brand, lżejszy niż tytuł, lekko przygaszony */
+        .tt-skin--live .tt-live-index {
+          margin-right: 12px;
+          font-size: 14px; font-weight: 600; letter-spacing: .02em;
+          color: color-mix(in srgb, var(--tt-label) 82%, transparent);
+        }
+
         .tt-skin--live .tt-live-title.tt-live-title { line-height: 1.5; padding-block: 2px }
         .tt-live-separator {
           width: 1px; height: 14px; margin: 0 10px;
