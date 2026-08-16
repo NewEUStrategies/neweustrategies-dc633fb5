@@ -376,14 +376,14 @@ function TickerGlassMarquee({ label, posts, lang, intervalSec, iconClass }: Marq
   const loop = [...posts, ...posts];
 
   return (
-    <div className="tt-glass tt-glass--marquee flex h-10 items-stretch gap-3 overflow-hidden">
-      <span className="tt-glass-label inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+    <div className="tt-glass tt-glass--marquee flex items-center gap-3 overflow-hidden">
+      <span className="tt-glass-label tt-glass-chip inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap">
         <Flame className={`w-3.5 h-3.5 shrink-0 ${iconClass}`} aria-hidden />
         <span>{label}</span>
       </span>
       <div className="tt-glass-track relative min-w-0 flex-1 overflow-hidden">
         <div
-          className="flex w-max items-center gap-8 h-10"
+          className="flex w-max items-center gap-3 py-2"
           style={{ animation: `${anim} ${durationSec}s linear infinite` }}
           onMouseEnter={(e) => {
             e.currentTarget.style.animationPlayState = "paused";
@@ -396,7 +396,8 @@ function TickerGlassMarquee({ label, posts, lang, intervalSec, iconClass }: Marq
             <AppLink
               key={`${p.id}-${i}`}
               href={itemHref(p)}
-              className="tt-item inline-flex items-center gap-2 whitespace-nowrap text-[13px] leading-none font-medium shrink-0"
+              className="tt-item tt-glass-pill inline-flex items-center gap-2 whitespace-nowrap text-[13px] leading-none font-medium shrink-0"
+
               style={{ color: "var(--tt-item)" }}
               title={itemTitle(p, lang)}
               aria-hidden={i >= posts.length ? true : undefined}
@@ -430,12 +431,12 @@ function TickerGlassCards({ label, posts, lang, intervalSec, iconClass }: Marque
   const track = [...posts, posts[0]];
 
   return (
-    <div className="tt-glass tt-glass--cards flex h-10 items-stretch gap-3 overflow-hidden">
-      <span className="tt-glass-label inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+    <div className="tt-glass tt-glass--cards flex items-center gap-3 overflow-hidden">
+      <span className="tt-glass-label tt-glass-chip inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap">
         <Flame className={`w-3.5 h-3.5 shrink-0 ${iconClass}`} aria-hidden />
         <span>{label}</span>
       </span>
-      <div className="relative min-w-0 flex-1 overflow-hidden">
+      <div className="tt-glass-viewport relative min-w-0 flex-1 overflow-hidden">
         <div
           className="flex flex-col"
           style={{ animation: `${anim} ${durationSec}s cubic-bezier(.65,0,.35,1) infinite` }}
@@ -449,7 +450,8 @@ function TickerGlassCards({ label, posts, lang, intervalSec, iconClass }: Marque
           {track.map((p, i) => (
             <div
               key={`${p.id}-${i}`}
-              className="tt-glass-card flex h-10 shrink-0 items-center gap-2.5"
+              className="tt-glass-card flex h-11 shrink-0 items-center gap-2.5"
+
               aria-hidden={i === posts.length ? true : undefined}
             >
               <span
@@ -570,16 +572,41 @@ function TickerStyles() {
         .tt-flame-wave     { animation: tt-flame-wave     1.6s ease-in-out infinite }
 
         /* Glass marquee / cards (v7 / v5) */
+        .tt-glass { position: relative; padding: 6px 0 }
         .tt-glass-label {
           font-size: 11px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase;
           color: var(--tt-label);
         }
-        .tt-glass {
-          position: relative;
+        .tt-glass-chip {
+          height: 28px; padding: 0 12px; border-radius: 999px;
+          border: 1px solid color-mix(in srgb, var(--tt-label) 34%, transparent);
+          background: linear-gradient(135deg,
+            color-mix(in srgb, var(--tt-label) 18%, transparent),
+            color-mix(in srgb, var(--tt-label) 4%, transparent));
+          box-shadow: 0 1px 0 color-mix(in srgb, #fff 22%, transparent) inset,
+                      0 6px 18px -12px color-mix(in srgb, var(--tt-label) 80%, transparent);
+          backdrop-filter: blur(10px) saturate(140%);
+          -webkit-backdrop-filter: blur(10px) saturate(140%);
+        }
+        .tt-glass-pill {
+          height: 28px; padding: 0 14px; border-radius: 999px;
+          border: 1px solid color-mix(in srgb, var(--tt-border) 90%, transparent);
+          background: linear-gradient(135deg,
+            color-mix(in srgb, #fff 12%, transparent),
+            color-mix(in srgb, #fff 3%, transparent));
+          box-shadow: 0 1px 0 color-mix(in srgb, #fff 18%, transparent) inset;
+          backdrop-filter: blur(8px) saturate(130%);
+          -webkit-backdrop-filter: blur(8px) saturate(130%);
+          transition: transform .25s cubic-bezier(.22,.61,.36,1), border-color .25s, box-shadow .25s;
+        }
+        .tt-glass-pill:hover {
+          transform: translateY(-1px);
+          border-color: color-mix(in srgb, var(--tt-label) 55%, transparent);
+          box-shadow: 0 10px 24px -16px color-mix(in srgb, var(--tt-label) 90%, transparent);
         }
         .tt-glass--marquee .tt-glass-track::before,
         .tt-glass--marquee .tt-glass-track::after {
-          content: ""; position: absolute; top: 0; bottom: 0; width: 40px; z-index: 2;
+          content: ""; position: absolute; top: 0; bottom: 0; width: 56px; z-index: 2;
           pointer-events: none;
         }
         .tt-glass--marquee .tt-glass-track::before {
@@ -588,7 +615,22 @@ function TickerStyles() {
         .tt-glass--marquee .tt-glass-track::after {
           right: 0; background: linear-gradient(to left, var(--tt-bg), transparent);
         }
-        .tt-glass--cards .tt-glass-card { padding-right: 8px }
+        .tt-glass--cards .tt-glass-viewport {
+          height: 44px; border-radius: 12px;
+          border: 1px solid color-mix(in srgb, var(--tt-border) 90%, transparent);
+          background: linear-gradient(135deg,
+            color-mix(in srgb, #fff 10%, transparent),
+            color-mix(in srgb, #fff 2%, transparent));
+          box-shadow: 0 1px 0 color-mix(in srgb, #fff 16%, transparent) inset,
+                      0 12px 28px -22px color-mix(in srgb, var(--tt-label) 80%, transparent);
+          backdrop-filter: blur(10px) saturate(140%);
+          -webkit-backdrop-filter: blur(10px) saturate(140%);
+        }
+        .tt-glass--cards .tt-glass-card { padding: 0 14px }
+        .tt-glass--cards .tt-glass-card + .tt-glass-card {
+          border-top: 1px solid color-mix(in srgb, var(--tt-border) 60%, transparent);
+        }
+
 
         @media (prefers-reduced-motion: reduce) {
           .tt-glass [style*="animation"] { animation: none !important }
