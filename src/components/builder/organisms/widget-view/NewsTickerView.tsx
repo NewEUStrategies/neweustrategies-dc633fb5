@@ -197,9 +197,10 @@ function NewsTickerVertical({
         <span>{badge}</span>
       </div>
 
-      <div className="relative flex-1 overflow-hidden">
-        <div className="pointer-events-none absolute top-0 left-0 right-0 z-10 h-3 bg-gradient-to-b from-card to-transparent" />
-        <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 h-3 bg-gradient-to-t from-card to-transparent" />
+      <div className="relative flex-1 overflow-hidden bg-muted/20">
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-2 bg-gradient-to-b from-foreground/5 to-transparent" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-2 bg-gradient-to-t from-foreground/5 to-transparent" />
+
         <div
           className="flex flex-col"
           style={{
