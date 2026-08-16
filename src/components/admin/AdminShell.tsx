@@ -334,91 +334,110 @@ function AdminShellInner({
                 </SidebarTooltip>
               )}
             </div>
-            <nav className="flex-1 p-2 space-y-3 overflow-y-auto">
-              {groups.map((group, idx) => (
-                <div key={group.id} className={idx > 0 ? "pt-2 border-t border-border/60" : ""}>
-                  {group.label && !compact && (
-                    <div
-                      data-sidebar="group-label"
-                      className="px-2 pt-1 pb-0 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold"
-                    >
-                      {group.label}
-                    </div>
-                  )}
-                  <div className="space-y-0.5">
-                    {group.items.map((item) => {
-                      const { icon: Icon, label } = item;
-                      if ("href" in item) {
-                        return (
-                          <SidebarTooltip key={item.href} label={label} compact={compact}>
-                            <SidebarExternalNavLink
-                              href={item.href}
-                              icon={Icon}
-                              label={label}
-                              hint={t("admin.nav.externalNewTab")}
-                              compact={compact}
-                            />
-                          </SidebarTooltip>
-                        );
+            {!compact && (
+              <div className="p-2 border-b border-border">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    ref={searchRef}
+                    type="search"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") setQuery("");
+                      if (e.key === "Enter") {
+                        const first = results[0]?.item;
+                        if (first && "to" in first) {
+                          setQuery("");
+                          void navigate({ to: first.to });
+                        }
                       }
-                      const { to } = item;
-                      const isCrmContacts = to === "/admin/crm";
-
-                      const active =
-                        path === to ||
-                        (to !== "/admin" &&
-                          to !== "/admin/appearance" &&
-                          // Skrót do klubów ma własną pozycję, więc "Społeczność"
-                          // nie może się podświetlać razem z nim.
-                          !(
-                            to === "/admin/community" && path.startsWith("/admin/community/clubs")
-                          ) &&
-                          !isCrmContacts &&
-                          path.startsWith(`${to}/`));
-
-                      // Kontakty CRM powinny być podświetlone tylko na /admin/crm
-                      // i szczegółach kontaktu (/admin/crm/$id), ale NIE gdy użytkownik
-                      // znajduje się w lejku lub firmach CRM.
-                      const crmContactsActive =
-                        isCrmContacts &&
-                        (path === "/admin/crm" ||
-                          /^\/admin\/crm\/(?!funnel|companies)[^/]+/.test(path));
-
-                      const finalActive = active || crmContactsActive;
-
-                      return (
-                        <SidebarTooltip key={to} label={label} compact={compact}>
-                          <Link
-                            to={to}
-                            activeOptions={{ exact: true }}
-                            title={compact ? undefined : label}
-                            data-sidebar="menu-button"
-                            data-active={finalActive ? "true" : "false"}
-                            className={`flex items-center py-1 rounded-md text-[13px] leading-tight transition ${
-                              compact ? "justify-center px-0" : "gap-1.5 px-2"
-                            } ${
-                              finalActive
-                                ? "bg-brand text-brand-foreground"
-                                : "text-foreground hover:bg-muted"
-                            }`}
-                          >
-                            <Icon className="w-3 h-3 shrink-0" />
-                            <span className={`truncate ${compact ? "hidden" : ""}`}>{label}</span>
-                            {typeof item.badge === "number" && item.badge > 0 && !compact ? (
-                              <span
-                                className="ml-auto inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500/20 px-1 text-[10px] font-semibold tabular-nums text-amber-700 dark:text-amber-300"
-                                aria-label={t("admin.nav.pendingItems")}
-                              >
-                                {item.badge > 99 ? "99+" : item.badge}
-                              </span>
-                            ) : null}
-                          </Link>
-                        </SidebarTooltip>
-                      );
-                    })}
-                  </div>
+                    }}
+                    placeholder={t("admin.sidebar.searchPlaceholder")}
+                    aria-label={t("admin.sidebar.searchLabel")}
+                    data-admin-nav-search
+                    className="h-7 w-full rounded-md border border-border bg-background pl-7 pr-6 text-[12px] text-foreground outline-none transition focus:border-brand"
+                  />
+                  {searching && (
+                    <button
+                      type="button"
+                      onClick={() => setQuery("")}
+                      aria-label={t("admin.sidebar.searchClear")}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
                 </div>
-              ))}
+              </div>
+            )}
+            <nav className="flex-1 p-2 space-y-3 overflow-y-auto">
+              {searching ? (
+                <div className="space-y-0.5">
+                  {results.length === 0 ? (
+                    <p className="px-2 py-3 text-[12px] text-muted-foreground">
+                      {t("admin.sidebar.searchEmpty", { query: query.trim() })}
+                    </p>
+                  ) : (
+                    results.map((hit) => (
+                      <AdminNavRow
+                        key={`${hit.groupId}-${adminNavItemKey(hit.item)}`}
+                        item={hit.item}
+                        path={path}
+                        compact={false}
+                        groupLabel={hit.groupLabel}
+                        externalHint={t("admin.nav.externalNewTab")}
+                        badgeLabel={t("admin.nav.pendingItems")}
+                        onNavigate={() => setQuery("")}
+                      />
+                    ))
+                  )}
+                </div>
+              ) : (
+                groups.map((group, idx) => {
+                  const hasActive = groupContainsPath(group, path);
+                  const collapsed = !compact && !hasActive && collapsedGroups.includes(group.id);
+                  return (
+                    <div key={group.id} className={idx > 0 ? "pt-2 border-t border-border/60" : ""}>
+                      {group.label && !compact && (
+                        <button
+                          type="button"
+                          onClick={() => toggleGroup(group.id)}
+                          data-sidebar="group-label"
+                          aria-expanded={!collapsed}
+                          className="flex w-full items-center gap-1 rounded px-2 pt-1 pb-0.5 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold hover:text-foreground"
+                        >
+                          <ChevronDown
+                            className={cn("h-3 w-3 shrink-0 transition-transform", collapsed && "-rotate-90")}
+                            aria-hidden="true"
+                          />
+                          <span className="truncate">{group.label}</span>
+                        </button>
+                      )}
+                      {!collapsed && (
+                        <div className="space-y-0.5">
+                          {group.items.map((item) => (
+                            <SidebarTooltip
+                              key={adminNavItemKey(item)}
+                              label={item.label}
+                              compact={compact}
+                            >
+                              <AdminNavRow
+                                item={item}
+                                path={path}
+                                compact={compact}
+                                externalHint={t("admin.nav.externalNewTab")}
+                                badgeLabel={t("admin.nav.pendingItems")}
+                              />
+                            </SidebarTooltip>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+
 
               {extras && !compact && (
                 <div className="mt-4 pt-3 border-t border-border space-y-0.5">
