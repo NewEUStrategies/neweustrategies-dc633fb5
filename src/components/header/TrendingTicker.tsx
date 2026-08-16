@@ -398,8 +398,12 @@ function TickerAuthor({ post }: { post: TickerItemProps["post"] }) {
   const avatar = post.author_avatar_url?.trim() ?? "";
   if (!name && !avatar) return null;
   return (
-    <span className="tt-live-author inline-flex shrink-0 items-center gap-[5px] pl-[5px]">
-
+    <span className="tt-live-author inline-flex shrink-0 items-center gap-[5px]">
+      <span
+        aria-hidden
+        className="tt-live-separator inline-block w-px h-3.5 shrink-0 self-center"
+        style={{ background: "color-mix(in srgb, var(--tt-border) 60%, transparent)" }}
+      />
       {avatar ? (
         <img
           src={avatar}
@@ -531,6 +535,11 @@ function TickerGlassMarquee({
                 />
               )}
               <span className="min-w-0 truncate">{itemTitle(p, lang)}</span>
+              <span
+                aria-hidden
+                className="tt-live-separator inline-block w-px h-3.5 shrink-0 self-center"
+                style={{ background: "color-mix(in srgb, var(--tt-border) 60%, transparent)" }}
+              />
               {skin === "live" ? <TickerAuthor post={p} /> : null}
             </AppLink>
           ))}
@@ -606,6 +615,11 @@ function TickerGlassCards({
                 tabIndex={i >= posts.length ? -1 : undefined}
               >
                 <span className="min-w-0 truncate">{itemTitle(p, lang)}</span>
+                <span
+                  aria-hidden
+                  className="tt-live-separator inline-block w-px h-3.5 shrink-0 self-center"
+                  style={{ background: "color-mix(in srgb, var(--tt-border) 60%, transparent)" }}
+                />
                 {skin === "live" ? <TickerAuthor post={p} /> : null}
               </AppLink>
 
@@ -863,6 +877,11 @@ function TickerStyles() {
           background: color-mix(in srgb, var(--tt-label) 18%, transparent);
           color: var(--tt-label);
           box-shadow: 0 0 0 1px color-mix(in srgb, var(--tt-border) 90%, transparent);
+        }
+        .tt-live-separator {
+          width: 1px; height: 14px; margin: 0 5px;
+          background: color-mix(in srgb, var(--tt-border) 55%, transparent);
+          flex-shrink: 0; align-self: center;
         }
         /* Pionowy slide: numer w kolorze brandu, jak w poziomym marquee */
         .tt-skin--live .tt-glass-card > .tt-live-index {
