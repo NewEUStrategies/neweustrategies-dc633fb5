@@ -132,8 +132,8 @@ export function ReadingHeader({
   const isDark = themeMode === "dark";
   const themeLogo = themeSettings.logo ?? {};
   const horizontalLogo = isDark
-    ? themeLogo.mobile_dark || themeLogo.mobile || themeLogo.main_dark || themeLogo.main || ""
-    : themeLogo.mobile || themeLogo.mobile_dark || themeLogo.main || themeLogo.main_dark || "";
+    ? themeLogo.mobile_dark || themeLogo.main_dark || themeLogo.mobile || themeLogo.main || ""
+    : themeLogo.mobile || themeLogo.main || themeLogo.mobile_dark || themeLogo.main_dark || "";
 
   const [visible, setVisible] = useState(pinned);
   const [menuOpen, setMenuOpen] = useState(false);

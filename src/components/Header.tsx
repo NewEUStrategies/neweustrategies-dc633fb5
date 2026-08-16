@@ -79,9 +79,12 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
   const { theme: mode, toggle } = useTheme();
   const isDark = mode === "dark";
   const themeLogo = theme.logo ?? {};
+  // Dark mode na mobile/tablecie ma pokazywać ten sam (jasny napis) wariant co
+  // desktop: dedykowane mobile_dark -> desktopowe main_dark -> dopiero potem
+  // warianty jasne jako awaryjny fallback.
   const mobileLogo = isDark
-    ? themeLogo.mobile_dark || themeLogo.mobile || themeLogo.main_dark || themeLogo.main || ""
-    : themeLogo.mobile || themeLogo.mobile_dark || themeLogo.main || themeLogo.main_dark || "";
+    ? themeLogo.mobile_dark || themeLogo.main_dark || themeLogo.mobile || themeLogo.main || ""
+    : themeLogo.mobile || themeLogo.main || themeLogo.mobile_dark || themeLogo.main_dark || "";
 
   const [open, setOpen] = useState(false);
   // Jedno-tapowa szukajka na mobilnym pasku (audyt: szukanie było schowane za
