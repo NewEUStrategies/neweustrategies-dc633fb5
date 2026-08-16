@@ -399,11 +399,6 @@ function TickerAuthor({ post }: { post: TickerItemProps["post"] }) {
   if (!name && !avatar) return null;
   return (
     <span className="tt-live-author inline-flex shrink-0 items-center gap-[5px]">
-      <span
-        aria-hidden
-        className="tt-live-separator inline-block w-px h-3.5 shrink-0 self-center"
-        style={{ background: "color-mix(in srgb, var(--tt-border) 60%, transparent)" }}
-      />
       {avatar ? (
         <img
           src={avatar}
@@ -534,7 +529,7 @@ function TickerGlassMarquee({
                   aria-hidden
                 />
               )}
-              <span className="min-w-0 truncate">{itemTitle(p, lang)}</span>
+              <span className="tt-live-title min-w-0 truncate">{itemTitle(p, lang)}</span>
               <span
                 aria-hidden
                 className="tt-live-separator inline-block w-px h-3.5 shrink-0 self-center"
@@ -613,7 +608,7 @@ function TickerGlassCards({
                 title={itemTitle(p, lang)}
                 tabIndex={i >= posts.length ? -1 : undefined}
               >
-                <span className="min-w-0 truncate">{itemTitle(p, lang)}</span>
+                <span className="tt-live-title min-w-0 truncate">{itemTitle(p, lang)}</span>
                 <span
                   aria-hidden
                   className="tt-live-separator inline-block w-px h-3.5 shrink-0 self-center"
@@ -876,6 +871,10 @@ function TickerStyles() {
           color: var(--tt-label);
           box-shadow: 0 0 0 1px color-mix(in srgb, var(--tt-border) 90%, transparent);
         }
+        .tt-skin--live .tt-item.tt-item { column-gap: 0; line-height: 1.5 }
+        .tt-skin--live .tt-glass-pill.tt-glass-pill { column-gap: 0; line-height: 1.5 }
+        .tt-skin--live .tt-live-index { margin-right: 10px }
+        .tt-skin--live .tt-live-title.tt-live-title { line-height: 1.5; padding-block: 2px }
         .tt-live-separator {
           width: 1px; height: 14px; margin: 0 5px;
           background: currentColor;
