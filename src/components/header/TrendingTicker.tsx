@@ -896,10 +896,12 @@ function TickerStyles() {
           opacity: 0.35;
           flex-shrink: 0; align-self: center;
         }
-        /* Pionowy slide: numer w kolorze brandu, jak w poziomym marquee */
+        /* Pionowy slide: ten sam numer co w poziomym marquee */
         .tt-skin--live .tt-glass-card > .tt-live-index {
-          font-size: 13px; opacity: 1; color: var(--tt-label);
+          font-size: 14px; font-weight: 600; opacity: 1;
+          color: color-mix(in srgb, var(--tt-label) 82%, transparent);
         }
+
 
         /* v11 - spotlight rotation */
         .tt-skin--spotlight .tt-glass-viewport {
