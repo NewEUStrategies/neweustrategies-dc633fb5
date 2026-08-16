@@ -382,25 +382,43 @@ const SKIN_BY_LAYOUT: Partial<Record<LayoutStyle, MarqueeSkin>> = {
   glassLive: "live",
 };
 
+/** Inicjały jako zapas, gdy profil nie ma awatara - autor MA być zawsze widoczny. */
+function authorInitials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
 /** Inline'owy autor (awatar + nazwisko) - używany przez skin `live`. */
 function TickerAuthor({ post }: { post: TickerItemProps["post"] }) {
-  if (!post.author_avatar_url && !post.author_display_name) return null;
+  const name = post.author_display_name?.trim() ?? "";
+  const avatar = post.author_avatar_url?.trim() ?? "";
+  if (!name && !avatar) return null;
   return (
     <span className="tt-live-author inline-flex shrink-0 items-center gap-2">
-      {post.author_avatar_url ? (
+      <span className="tt-live-sep" aria-hidden />
+      {avatar ? (
         <img
-          src={post.author_avatar_url}
+          src={avatar}
           alt=""
           loading="lazy"
           width={20}
           height={20}
           className="tt-live-avatar h-5 w-5 rounded-full object-cover"
         />
-      ) : null}
-      {post.author_display_name ? (
-        <span className="hidden whitespace-nowrap text-[12px] font-semibold sm:inline">
-          {post.author_display_name}
+      ) : name ? (
+        <span
+          className="tt-live-avatar inline-flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-bold"
+          aria-hidden
+        >
+          {authorInitials(name)}
         </span>
+      ) : null}
+      {name ? (
+        <span className="tt-live-name whitespace-nowrap text-[12px] font-semibold">{name}</span>
       ) : null}
     </span>
   );
@@ -575,7 +593,7 @@ function TickerGlassCards({
               aria-hidden={i >= posts.length ? true : undefined}
             >
               <span
-                className="text-[10px] font-bold tabular-nums opacity-70"
+                className={`${skin === "live" ? "tt-live-index " : ""}text-[10px] font-bold tabular-nums opacity-70`}
                 style={{ color: "var(--tt-counter)" }}
               >
                 {String((i % posts.length) + 1).padStart(2, "0")}
@@ -845,12 +863,20 @@ function TickerStyles() {
           border: 1px solid color-mix(in srgb, var(--tt-border) 70%, transparent);
           font-size: 14px; font-weight: 700;
         }
-        .tt-skin--live .tt-live-author {
-          border-left: 1px solid color-mix(in srgb, var(--tt-border) 90%, transparent);
-          padding-left: 10px; color: var(--tt-counter);
+        .tt-skin--live .tt-live-author { color: var(--tt-counter) }
+        .tt-skin--live .tt-live-sep {
+          display: inline-block; width: 1px; height: 16px;
+          background: color-mix(in srgb, var(--tt-border) 90%, transparent);
         }
+        .tt-skin--live .tt-live-name { color: var(--tt-counter) }
         .tt-skin--live .tt-live-avatar {
+          background: color-mix(in srgb, var(--tt-label) 18%, transparent);
+          color: var(--tt-label);
           box-shadow: 0 0 0 1px color-mix(in srgb, var(--tt-border) 90%, transparent);
+        }
+        /* Pionowy slide: numer w kolorze brandu, jak w poziomym marquee */
+        .tt-skin--live .tt-glass-card > .tt-live-index {
+          font-size: 13px; opacity: 1; color: var(--tt-label);
         }
 
         /* v11 - spotlight rotation */

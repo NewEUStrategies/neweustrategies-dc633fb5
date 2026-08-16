@@ -64,7 +64,12 @@ interface AuthorRow {
   avatar_url: string | null;
 }
 
-/** Jedno dodatkowe zapytanie: post -> author_id, potem profiles w batchu. */
+/**
+ * Autorzy paska JEDNYM round-tripem: RPC `get_post_refs` (join wpis +
+ * `profiles_public`). NIE wolno tu czytać `profiles` - ta tabela ma politykę
+ * SELECT wyłącznie dla zalogowanych (self/staff), więc render anonimowy (SSR
+ * strony głównej) dostawał pustą listę i pasek szedł bez autora.
+ */
 async function resolveAuthors(
   sb: ReturnType<typeof client>,
   postIds: readonly string[],
@@ -72,23 +77,28 @@ async function resolveAuthors(
   const out = new Map<string, AuthorRow>();
   const ids = Array.from(new Set(postIds.filter(Boolean)));
   if (!ids.length) return out;
-  const { data: posts, error } = await sb.from("posts").select("id, author_id").in("id", ids);
-  if (error || !posts?.length) return out;
-  const byPost = new Map<string, string>();
-  for (const row of posts as Array<{ id: string; author_id: string | null }>) {
-    if (row.author_id) byPost.set(row.id, row.author_id);
+  const { data, error } = await (
+    sb.rpc as unknown as (
+      fn: string,
+      args: { _post_ids: string[] },
+    ) => PromiseLike<{ data: unknown; error: { message: string } | null }>
+  )("get_post_refs", { _post_ids: ids });
+  if (error || !Array.isArray(data)) {
+    if (error) console.warn("get_post_refs failed:", error.message);
+    return out;
   }
-  const authorIds = Array.from(new Set([...byPost.values()]));
-  if (!authorIds.length) return out;
-  const { data: profiles } = await sb
-    .from("profiles")
-    .select("id, display_name, avatar_url")
-    .in("id", authorIds);
-  const byAuthor = new Map<string, AuthorRow>();
-  for (const p of (profiles ?? []) as AuthorRow[]) byAuthor.set(p.id, p);
-  for (const [postId, authorId] of byPost) {
-    const a = byAuthor.get(authorId);
-    if (a) out.set(postId, a);
+  for (const row of data as Array<{
+    id: string;
+    author_id: string | null;
+    author_name: string | null;
+    author_avatar: string | null;
+  }>) {
+    if (!row.author_name && !row.author_avatar) continue;
+    out.set(row.id, {
+      id: row.author_id ?? row.id,
+      display_name: row.author_name,
+      avatar_url: row.author_avatar,
+    });
   }
   return out;
 }
