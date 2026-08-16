@@ -384,7 +384,7 @@ export function PostListView({
               >
                 {title(p) && (
                   <h4 className="cms-post-title line-clamp-3" style={tStyle}>
-                    {title(p)}
+                    <TitleSpan title={title(p)} />
                   </h4>
                 )}
                 {<AuthorMeta p={p} />}
