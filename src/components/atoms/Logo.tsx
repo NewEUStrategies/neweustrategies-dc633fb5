@@ -47,8 +47,10 @@ export function Logo({ size = "md", withWordmark = true, variant = "main" }: Log
   const pick = (light: string, dark: string) => (isDark ? dark || light : light || dark);
   const main = pick(l.main, l.main_dark);
   const resolved = (() => {
-    if (variant === "mobile") return pick(l.mobile, l.mobile_dark) || main;
-    if (variant === "transparent") return pick(l.transparent, l.transparent_dark) || main;
+    // W dark mode nie schodzimy do jasnego wariantu mobilnego - lepszy jest
+    // desktopowy `main_dark` (białe napisy) niż ciemne logo na ciemnym tle.
+    if (variant === "mobile") return (isDark ? l.mobile_dark : l.mobile) || main;
+    if (variant === "transparent") return (isDark ? l.transparent_dark : l.transparent) || main;
     return main;
   })();
   const src = resolved;
