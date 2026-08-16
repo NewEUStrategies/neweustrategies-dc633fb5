@@ -2364,6 +2364,66 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     ...SOCIAL_PLATFORM_COLOR_FIELDS,
   ],
 
+  "trending-now": [
+    {
+      key: "badge",
+      type: "i18nText",
+      label: "Etykieta (badge)",
+      placeholder: "Na czasie / Trending",
+    },
+    { key: "limit", type: "number", label: "Liczba wpisów", min: 3, max: 30 },
+    {
+      key: "intervalSec",
+      type: "number",
+      label: "Co ile sekund zmieniać wpis",
+      min: 2,
+      max: 60,
+    },
+    {
+      key: "pauseOnHover",
+      type: "select",
+      label: "Pauza po najechaniu",
+      options: [
+        { value: "true", label: "Tak" },
+        { value: "false", label: "Nie" },
+      ],
+    },
+    {
+      key: "showIndex",
+      type: "select",
+      label: "Numer pozycji",
+      options: [
+        { value: "true", label: "Pokaż" },
+        { value: "false", label: "Ukryj" },
+      ],
+    },
+    {
+      key: "showAuthor",
+      type: "select",
+      label: "Autor (awatar + imię)",
+      options: [
+        { value: "true", label: "Pokaż" },
+        { value: "false", label: "Ukryj" },
+      ],
+    },
+    {
+      key: "categoriesCsv",
+      type: "text",
+      label: "Kategorie (slugi, po przecinku)",
+      placeholder: "polityka, gospodarka",
+      hint: "Pozostaw puste = wszystkie.",
+    },
+    {
+      key: "uniqueOnPage",
+      type: "select",
+      label: "Nie powtarzaj wpisów",
+      options: [
+        { value: "false", label: "Wyłączone" },
+        { value: "true", label: "Pomiń wpisy widoczne w innych widgetach" },
+      ],
+    },
+  ],
+
   // `rated-list` has its own custom list editor in WidgetProperties.tsx.
   "news-ticker": [
     {

@@ -32,6 +32,7 @@ export {
 } from "@/components/builder/organisms/widget-view/ClubWidgets";
 export { WebStoriesCarouselView } from "@/components/builder/organisms/widget-view/WebStoriesCarouselView";
 export { NewsTickerView } from "@/components/builder/organisms/widget-view/NewsTickerView";
+export { TrendingNowView } from "@/components/builder/organisms/widget-view/TrendingNowView";
 export { EventScheduleView } from "@/components/builder/organisms/widget-view/EventScheduleView";
 export { EventsListView } from "@/components/builder/organisms/widget-view/EventsListView";
 export { EventCountdownView } from "@/components/builder/organisms/widget-view/EventCountdownView";

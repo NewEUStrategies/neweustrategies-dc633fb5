@@ -181,7 +181,7 @@ export function widgetQueryOptionsList(widget: WidgetNode, lang: Lang): BuilderS
   if (widget.type === "post-list" || widget.type === "carousel") {
     out.push(postListQueryOptions(widget.content, lang));
   }
-  if (widget.type === "news-ticker") {
+  if (widget.type === "news-ticker" || widget.type === "trending-now") {
     out.push(newsTickerQueryOptions(widget.content, lang));
   }
   if (widget.type === "event-list") {
@@ -350,7 +350,7 @@ export function widgetCacheTargets(widget: WidgetNode, lang: Lang): WidgetCacheT
     const opts = postListQueryOptions(widget.content, lang);
     out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
   }
-  if (widget.type === "news-ticker") {
+  if (widget.type === "news-ticker" || widget.type === "trending-now") {
     const opts = newsTickerQueryOptions(widget.content, lang);
     out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
   }
