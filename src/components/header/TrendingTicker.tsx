@@ -600,14 +600,15 @@ function TickerGlassCards({
               </span>
               <AppLink
                 href={itemHref(p)}
-                className="tt-item flex min-w-0 flex-1 items-center gap-2.5 text-[13px] leading-none font-medium"
+                className="tt-item flex min-w-0 items-center gap-2.5 text-[13px] leading-none font-medium"
                 style={{ color: "var(--tt-item)" }}
                 title={itemTitle(p, lang)}
                 tabIndex={i >= posts.length ? -1 : undefined}
               >
-                <span className="min-w-0 flex-1 truncate">{itemTitle(p, lang)}</span>
+                <span className="min-w-0 truncate">{itemTitle(p, lang)}</span>
                 {skin === "live" ? <TickerAuthor post={p} /> : null}
               </AppLink>
+
             </div>
           ))}
         </div>
