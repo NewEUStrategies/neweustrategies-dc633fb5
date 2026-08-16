@@ -188,6 +188,9 @@ export function TypographyControl({ value, onChange }: Props) {
         <FontPicker value={v.fontFamily} onChange={(stack) => set({ fontFamily: stack })} />
       </PropField>
 
+      <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        {t("builder.typographyControl.desktopGroup")}
+      </div>
       <div className="grid grid-cols-2 gap-2">
         <PropField label={t("builder.typographyControl.titleSize")}>
           {renderSizeInput(unifiedPx, setUnifiedSize, t("builder.typographyControl.titleSizeAria"))}
@@ -196,6 +199,29 @@ export function TypographyControl({ value, onChange }: Props) {
           {renderSizeInput(descPx, setDescSize, t("builder.typographyControl.descSizeAria"))}
         </PropField>
       </div>
+
+      <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        {t("builder.typographyControl.mobileGroup")}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <PropField label={t("builder.typographyControl.titleSizeMobile")}>
+          {renderSizeInput(
+            mobilePx,
+            setMobileSize,
+            t("builder.typographyControl.titleSizeMobileAria"),
+            "26",
+          )}
+        </PropField>
+        <PropField label={t("builder.typographyControl.descSizeMobile")}>
+          {renderSizeInput(
+            descMobilePx,
+            setDescMobileSize,
+            t("builder.typographyControl.descSizeMobileAria"),
+            "14",
+          )}
+        </PropField>
+      </div>
+
 
       <PropField label={t("builder.typographyControl.gap")}>
         {renderSizeInput(
