@@ -859,17 +859,13 @@ function TickerStyles() {
         .tt-skin--live .tt-glass-card { padding: 0 16px }
         .tt-skin--live .tt-item { font-size: 14px; font-weight: 700; letter-spacing: -.01em }
         .tt-skin--live .tt-glass-pill {
-          border-radius: 8px; background: none; box-shadow: none;
+          border-radius: 0; background: none; box-shadow: none; border: 0;
           backdrop-filter: none; -webkit-backdrop-filter: none;
-          border: 1px solid color-mix(in srgb, var(--tt-border) 70%, transparent);
           font-size: 14px; font-weight: 700;
         }
         .tt-skin--live .tt-live-author { color: var(--tt-counter) }
-        .tt-skin--live .tt-live-sep {
-          display: inline-block; width: 1px; height: 16px;
-          background: color-mix(in srgb, var(--tt-border) 90%, transparent);
-        }
         .tt-skin--live .tt-live-name { color: var(--tt-counter) }
+
         .tt-skin--live .tt-live-avatar {
           background: color-mix(in srgb, var(--tt-label) 18%, transparent);
           color: var(--tt-label);
