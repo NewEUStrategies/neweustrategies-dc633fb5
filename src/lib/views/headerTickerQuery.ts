@@ -12,6 +12,7 @@ import {
 } from "@/lib/views/postViews.functions";
 import type {
   IconAnimation,
+  LiveDirection,
   LayoutStyle,
   MixedFill,
   TickerColorScheme,
@@ -46,6 +47,8 @@ export interface TickerConfig {
   labelEn?: string;
   /** Flame icon animation preset. */
   iconAnimation?: IconAnimation;
+  /** `glassLive`: pionowy slide (domyślnie) albo poziomy marquee. */
+  liveDirection?: LiveDirection;
   /** Per-mode (light/dark) color palette. */
   colors?: TickerColorScheme;
   fullWidth?: boolean;

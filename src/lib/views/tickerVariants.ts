@@ -17,7 +17,9 @@ export type MixedFill = "trending" | "latest";
  *  - `glassCards`    - vertically rotating floating glass cards (v5).
  *  - `glassRibbon`   - horizontal marquee on an animated gradient ribbon (v9).
  *  - `glassSpotlight`- vertical rotation with a spotlight glow and large index (v11).
- *  - `glassTape`     - horizontal ticker tape, monospaced with cut corners (v13). */
+ *  - `glassTape`     - horizontal ticker tape, monospaced with cut corners (v13).
+ *  - `glassLive`     - widget "Na czasie": skośny badge + karta z numerem, tytułem
+ *                     i inline'owym autorem (awatar + nazwisko). */
 export type LayoutStyle =
   | "classic"
   | "badge"
@@ -25,7 +27,12 @@ export type LayoutStyle =
   | "glassCards"
   | "glassRibbon"
   | "glassSpotlight"
-  | "glassTape";
+  | "glassTape"
+  | "glassLive";
+
+/** Kierunek ruchu dla stylu `glassLive`. */
+export type LiveDirection = "vertical" | "horizontal";
+export const LIVE_DIRECTIONS: readonly LiveDirection[] = ["vertical", "horizontal"];
 
 
 export interface TickerColors {
@@ -105,6 +112,7 @@ export const DEFAULT_TICKER_CONFIG: TickerConfig = {
   labelEn: "",
   iconAnimation: "flicker",
   colors: DEFAULT_TICKER_COLORS,
+  liveDirection: "vertical",
   fullWidth: true,
 };
 
@@ -136,6 +144,7 @@ const LAYOUTS: readonly LayoutStyle[] = [
   "glassRibbon",
   "glassSpotlight",
   "glassTape",
+  "glassLive",
 ];
 
 /** Layouts that carry their own marquee motion - the `mode` knob does not apply. */
@@ -145,6 +154,7 @@ export const MARQUEE_LAYOUTS: readonly LayoutStyle[] = [
   "glassRibbon",
   "glassSpotlight",
   "glassTape",
+  "glassLive",
 ];
 
 
@@ -199,6 +209,7 @@ export function normalizeTickerConfig(raw: unknown): TickerConfig {
     labelPl: safeString(r.labelPl, ""),
     labelEn: safeString(r.labelEn, ""),
     iconAnimation: safeEnum<IconAnimation>(r.iconAnimation, ICON_ANIMS, "flicker"),
+    liveDirection: safeEnum<LiveDirection>(r.liveDirection, LIVE_DIRECTIONS, "vertical"),
     colors: normalizeColors(r.colors),
     fullWidth: safeBool(r.fullWidth, true),
   };
