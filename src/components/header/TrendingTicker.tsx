@@ -497,12 +497,23 @@ function TickerGlassMarquee({
               aria-hidden={i >= posts.length ? true : undefined}
               tabIndex={i >= posts.length ? -1 : undefined}
             >
-              <span
-                className="tt-glass-dot inline-block w-1 h-1 rounded-full shrink-0"
-                style={{ background: "var(--tt-dot)" }}
-                aria-hidden
-              />
+              {skin === "live" ? (
+                <span
+                  className="tt-live-index shrink-0 text-[13px] font-bold tabular-nums"
+                  style={{ color: "var(--tt-label)" }}
+                  aria-hidden
+                >
+                  {String((i % posts.length) + 1).padStart(2, "0")}
+                </span>
+              ) : (
+                <span
+                  className="tt-glass-dot inline-block w-1 h-1 rounded-full shrink-0"
+                  style={{ background: "var(--tt-dot)" }}
+                  aria-hidden
+                />
+              )}
               <span className="min-w-0 truncate">{itemTitle(p, lang)}</span>
+              {skin === "live" ? <TickerAuthor post={p} /> : null}
             </AppLink>
           ))}
         </div>
@@ -571,12 +582,13 @@ function TickerGlassCards({
               </span>
               <AppLink
                 href={itemHref(p)}
-                className="tt-item min-w-0 truncate text-[13px] leading-none font-medium"
+                className="tt-item flex min-w-0 flex-1 items-center gap-2.5 text-[13px] leading-none font-medium"
                 style={{ color: "var(--tt-item)" }}
                 title={itemTitle(p, lang)}
                 tabIndex={i >= posts.length ? -1 : undefined}
               >
-                {itemTitle(p, lang)}
+                <span className="min-w-0 flex-1 truncate">{itemTitle(p, lang)}</span>
+                {skin === "live" ? <TickerAuthor post={p} /> : null}
               </AppLink>
             </div>
           ))}
