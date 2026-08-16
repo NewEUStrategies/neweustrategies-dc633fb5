@@ -1,10 +1,11 @@
-// Builder widget `trending-now` ("Na czasie").
+// Builder widget `trending-now` ("Warte przeczytania" / "Worth reading").
 //
 // Jeden wiersz w formie pigułki: pomarańczowy badge po lewej, a po prawej
 // szklana karta z inline'owym numerem, tytułem, awatarem i imieniem autora.
 // Dane pochodzą z tego samego zapytania co `news-ticker`, więc prefetch,
 // cache i de-duplikacja wpisów na stronie działają identycznie.
 import { useEffect, useId, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { Flame } from "lucide-react";
 import type { WidgetContent } from "@/lib/builder/types";
@@ -43,10 +44,11 @@ export function buildTrendingKeyframes(slots: number, animName: string): string 
 }
 
 export function TrendingNowView({ c, lang }: { c: WidgetContent; lang: Lang }) {
+  const { t } = useTranslation();
   const badge =
     readStr(c, `badge_${lang}`) ||
     readStr(c, "badge_pl") ||
-    (lang === "pl" ? "Na czasie" : "Trending");
+    t("trendingTicker.badge");
   const displayLimit = newsTickerDisplayLimit(c);
   const intervalSec = Math.max(2, Math.min(60, asNum(c.intervalSec, 5)));
   const pauseOnHover = asBool(c.pauseOnHover, true);

@@ -2369,7 +2369,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       key: "badge",
       type: "i18nText",
       label: "Etykieta (badge)",
-      placeholder: "Na czasie / Trending",
+      placeholder: "Warte przeczytania / Worth reading",
     },
     { key: "limit", type: "number", label: "Liczba wpisów", min: 3, max: 30 },
     {

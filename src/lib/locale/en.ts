@@ -104,6 +104,9 @@ export const en = {
     pause: "Pause autoplay",
     play: "Resume autoplay",
   },
+  trendingTicker: {
+    badge: "Worth reading",
+  },
   newsletter: {
     title: "STRATEGIC THINKING, NEW PERSPECTIVES",
     sub: "Follow the global and European great-power game from the front row",
