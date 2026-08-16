@@ -474,7 +474,12 @@ export const en = {
     sidebar: {
       expand: "Expand",
       collapse: "Collapse",
+      searchPlaceholder: "Search the panel (⌘K)",
+      searchLabel: "Search the admin panel",
+      searchClear: "Clear search",
+      searchEmpty: 'No results for "{{query}}"',
     },
+
     appearance: {
       header: "Header",
       footer: "Footer",
