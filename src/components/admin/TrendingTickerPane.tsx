@@ -492,7 +492,10 @@ export function TrendingTickerPane() {
   const currentMode = (cfg.mode ?? "scroll") as Mode;
   const marqueeLayout = isMarqueeLayout(cfg.layoutStyle);
   const horizontalMarquee =
-    marqueeLayout && cfg.layoutStyle !== "glassCards" && cfg.layoutStyle !== "glassSpotlight";
+    marqueeLayout &&
+    cfg.layoutStyle !== "glassCards" &&
+    cfg.layoutStyle !== "glassSpotlight" &&
+    (cfg.layoutStyle !== "glassLive" || (cfg.liveDirection ?? "vertical") === "horizontal");
   const selectedIds = cfg.selectedPostIds ?? [];
 
   return (
