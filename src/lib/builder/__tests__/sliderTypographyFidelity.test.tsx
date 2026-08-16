@@ -76,3 +76,26 @@ describe("SliderRender - typografia editorial-hero", () => {
     expect(css).not.toMatch(/font-size:[^;]*[<>{}]/);
   });
 });
+
+describe("SliderRender - osobny rozmiar mobilny", () => {
+  it("emituje media query z mobilnym rozmiarem tytułu i opisu", () => {
+    const { container } = render(
+      <SliderRender
+        config={{
+          variant: "editorial-hero",
+          items,
+          typography: {
+            fontSize: { desktop: "34px", tablet: "34px", mobile: "26px" },
+            descriptionFontSize: { desktop: "16px", tablet: "16px", mobile: "14px" },
+          },
+        }}
+        lang="pl"
+      />,
+    );
+    const css = styleText(container);
+    expect(css).toContain("@media (max-width: 767px)");
+    expect(css).toMatch(/@media \(max-width: 767px\)\{[^}]*font-size:26px !important;/);
+    expect(css).toContain("font-size:14px !important;");
+    expect(css).toContain('[data-builder-renderer][data-device="mobile"]');
+  });
+});
