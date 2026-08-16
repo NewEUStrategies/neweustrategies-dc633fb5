@@ -431,12 +431,12 @@ function TickerGlassCards({ label, posts, lang, intervalSec, iconClass }: Marque
   const track = [...posts, posts[0]];
 
   return (
-    <div className="tt-glass tt-glass--cards flex h-10 items-stretch gap-3 overflow-hidden">
-      <span className="tt-glass-label inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+    <div className="tt-glass tt-glass--cards flex items-center gap-3 overflow-hidden">
+      <span className="tt-glass-label tt-glass-chip inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap">
         <Flame className={`w-3.5 h-3.5 shrink-0 ${iconClass}`} aria-hidden />
         <span>{label}</span>
       </span>
-      <div className="relative min-w-0 flex-1 overflow-hidden">
+      <div className="tt-glass-viewport relative min-w-0 flex-1 overflow-hidden">
         <div
           className="flex flex-col"
           style={{ animation: `${anim} ${durationSec}s cubic-bezier(.65,0,.35,1) infinite` }}
@@ -450,7 +450,8 @@ function TickerGlassCards({ label, posts, lang, intervalSec, iconClass }: Marque
           {track.map((p, i) => (
             <div
               key={`${p.id}-${i}`}
-              className="tt-glass-card flex h-10 shrink-0 items-center gap-2.5"
+              className="tt-glass-card flex h-11 shrink-0 items-center gap-2.5"
+
               aria-hidden={i === posts.length ? true : undefined}
             >
               <span
