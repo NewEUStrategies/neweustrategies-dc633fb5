@@ -16,6 +16,7 @@ import {
   isMarqueeLayout,
   type IconAnimation,
   type LayoutStyle,
+  type LiveDirection,
   type MixedFill,
   type TickerColorScheme,
 } from "@/lib/views/tickerVariants";
@@ -34,6 +35,8 @@ export interface TickerProps {
   intervalSec?: number;
   /** Horizontal marquee layouts: scroll speed in px/s. */
   scrollSpeed?: number;
+  /** `glassLive`: pionowy slide (domyślnie) albo poziomy marquee. */
+  liveDirection?: LiveDirection;
   pinnedPostId?: string;
   pinnedUntil?: string | null;
   selectedPostIds?: string[];
@@ -66,6 +69,7 @@ export function TrendingTicker({
   visibleCount = 1,
   intervalSec = 6,
   scrollSpeed = 60,
+  liveDirection = "vertical",
   pinnedPostId,
   pinnedUntil,
   selectedPostIds,
@@ -125,7 +129,10 @@ export function TrendingTicker({
   const iconClass = `tt-flame tt-flame-${iconAnimation}`;
 
   if (isMarquee) {
-    const isVerticalLayout = layoutStyle === "glassCards" || layoutStyle === "glassSpotlight";
+    const isVerticalLayout =
+      layoutStyle === "glassCards" ||
+      layoutStyle === "glassSpotlight" ||
+      (layoutStyle === "glassLive" && liveDirection === "vertical");
     const skin = SKIN_BY_LAYOUT[layoutStyle] ?? "marquee";
     return (
       <div
@@ -277,6 +284,8 @@ interface TickerItemProps {
     href?: string;
     title_pl: string | null;
     title_en: string | null;
+    author_display_name?: string | null;
+    author_avatar_url?: string | null;
   };
   index: number;
   lang: "pl" | "en";
@@ -362,7 +371,7 @@ function TypewriterText({ text, delayMs }: { text: string; delayMs: number }) {
 }
 
 /** Visual skin applied to the two marquee engines (horizontal / vertical). */
-type MarqueeSkin = "marquee" | "cards" | "ribbon" | "spotlight" | "tape";
+type MarqueeSkin = "marquee" | "cards" | "ribbon" | "spotlight" | "tape" | "live";
 
 const SKIN_BY_LAYOUT: Partial<Record<LayoutStyle, MarqueeSkin>> = {
   glassMarquee: "marquee",
@@ -370,7 +379,32 @@ const SKIN_BY_LAYOUT: Partial<Record<LayoutStyle, MarqueeSkin>> = {
   glassRibbon: "ribbon",
   glassSpotlight: "spotlight",
   glassTape: "tape",
+  glassLive: "live",
 };
+
+/** Inline'owy autor (awatar + nazwisko) - używany przez skin `live`. */
+function TickerAuthor({ post }: { post: TickerItemProps["post"] }) {
+  if (!post.author_avatar_url && !post.author_display_name) return null;
+  return (
+    <span className="tt-live-author inline-flex shrink-0 items-center gap-2">
+      {post.author_avatar_url ? (
+        <img
+          src={post.author_avatar_url}
+          alt=""
+          loading="lazy"
+          width={20}
+          height={20}
+          className="tt-live-avatar h-5 w-5 rounded-full object-cover"
+        />
+      ) : null}
+      {post.author_display_name ? (
+        <span className="hidden whitespace-nowrap text-[12px] font-semibold sm:inline">
+          {post.author_display_name}
+        </span>
+      ) : null}
+    </span>
+  );
+}
 
 interface MarqueeLayoutProps {
   label: string;
