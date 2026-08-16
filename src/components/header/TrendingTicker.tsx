@@ -385,8 +385,15 @@ function itemHref(post: TickerItemProps["post"]): string {
   return post.href ?? (post.slug ? `/post/${post.slug}` : "#");
 }
 
-/** v7 - seamless horizontal marquee inside a gradient glass frame. */
-function TickerGlassMarquee({ label, posts, lang, intervalSec, iconClass }: MarqueeLayoutProps) {
+/** Horizontal marquee engine - skins: marquee (v7), ribbon (v9), tape (v13). */
+function TickerGlassMarquee({
+  label,
+  posts,
+  lang,
+  intervalSec,
+  iconClass,
+  skin,
+}: MarqueeLayoutProps) {
   const anim = `tt-marquee-${useId().replace(/:/g, "")}`;
   // One lap should scale with the number of items, not with a fixed duration -
   // otherwise 3 posts fly by and 20 posts crawl.
@@ -394,7 +401,10 @@ function TickerGlassMarquee({ label, posts, lang, intervalSec, iconClass }: Marq
   const loop = [...posts, ...posts];
 
   return (
-    <div className="tt-glass tt-glass--marquee flex items-center gap-3 overflow-hidden">
+    <div
+      className={`tt-glass tt-glass--marquee tt-skin--${skin} flex items-center gap-3 overflow-hidden`}
+    >
+
       <span className="tt-glass-label tt-glass-chip inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap">
         <Flame className={`w-3.5 h-3.5 shrink-0 ${iconClass}`} aria-hidden />
         <span>{label}</span>
