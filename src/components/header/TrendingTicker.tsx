@@ -575,9 +575,12 @@ function TickerGlassCards({
       className={`tt-glass tt-glass--cards tt-skin--${skin} flex items-center gap-3 overflow-hidden`}
     >
       <span className="tt-glass-label tt-glass-chip inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap">
-        <Flame className={`w-3.5 h-3.5 shrink-0 ${iconClass}`} aria-hidden />
-        <span>{label}</span>
+        <span className="tt-chip-icon relative inline-flex items-center justify-center shrink-0">
+          <Flame className={`w-3.5 h-3.5 shrink-0 ${iconClass}`} aria-hidden />
+        </span>
+        <span className="tt-chip-text">{label}</span>
       </span>
+
       <div
         className="tt-glass-viewport relative min-w-0 flex-1 overflow-hidden"
         style={{ ["--tt-rows" as string]: String(rows) }}
