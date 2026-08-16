@@ -147,7 +147,7 @@ export function PodcastLatestView({ c, lang }: Props) {
               params={{ slug: p.slug }}
               className="cms-post-title line-clamp-2 block"
             >
-              {podcastTitle(p, lang)}
+              <span className="cms-title-underline">{podcastTitle(p, lang)}</span>
             </Link>
             <div className="cms-post-excerpt">{formatDuration(p.duration_seconds)}</div>
             {showPlayer && (

@@ -59,6 +59,13 @@ const overlayFrame = (a: ImageAspect) =>
 const listFrame = (a: ImageAspect) =>
   `relative block ${ASPECT_CLASS[a]} w-[112px] sm:w-[128px] shrink-0 overflow-hidden rounded-sm bg-muted`;
 
+// Per-line underline on mobile: line-clamp forces `display: -webkit-box`,
+// so the parent `.cms-post-title` gradient collapses to a single bar.
+// Wrapping the text in an inline span restores the per-line underline.
+function TitleSpan({ title }: { title: string }) {
+  return <span className="cms-title-underline">{title}</span>;
+}
+
 type Variant =
   | "card"
   | "minimal"
@@ -297,7 +304,7 @@ export function PostListView({
             <div className="min-w-0">
               {title(p) && (
                 <h4 className="cms-post-title line-clamp-2" style={tStyle}>
-                  {title(p)}
+                  <TitleSpan title={title(p)} />
                 </h4>
               )}
               {excerpt(p) && (
@@ -377,7 +384,7 @@ export function PostListView({
               >
                 {title(p) && (
                   <h4 className="cms-post-title line-clamp-3" style={tStyle}>
-                    {title(p)}
+                    <TitleSpan title={title(p)} />
                   </h4>
                 )}
                 {<AuthorMeta p={p} />}
@@ -461,7 +468,7 @@ export function PostListView({
               >
                 {title(p) && (
                   <h4 className="cms-post-title line-clamp-3" style={tStyle}>
-                    {title(p)}
+                    <TitleSpan title={title(p)} />
                   </h4>
                 )}
                 {showExcerpt && excerpt(p) && (
@@ -510,7 +517,7 @@ export function PostListView({
             )}
             {title(p) && (
               <h3 className="cms-post-title line-clamp-3" style={tStyle}>
-                {title(p)}
+                <TitleSpan title={title(p)} />
               </h3>
             )}
             {excerpt(p) && (
@@ -548,7 +555,7 @@ export function PostListView({
               className="cms-post-title text-[1.35em] line-clamp-3 transition-colors group-hover:text-brand"
               style={tStyle}
             >
-              {title(lead)}
+              <TitleSpan title={title(lead)} />
             </h3>
           )}
           {excerpt(lead) && (
@@ -584,7 +591,7 @@ export function PostListView({
                     className="cms-post-title line-clamp-3 transition-colors group-hover:text-brand"
                     style={tStyle}
                   >
-                    {title(p)}
+                    <TitleSpan title={title(p)} />
                   </h4>
                 )}
               </AppLink>
@@ -625,7 +632,7 @@ export function PostListView({
                   className="cms-post-title line-clamp-2 transition-colors group-hover:text-brand"
                   style={tStyle}
                 >
-                  {title(p)}
+                  <TitleSpan title={title(p)} />
                 </h4>
               )}
               {excerpt(p) && (
@@ -852,7 +859,7 @@ function PostCard({
               className="cms-post-title line-clamp-2 sm:line-clamp-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)]"
               style={titleStyle}
             >
-              {title}
+              <TitleSpan title={title} />
             </h4>
           )}
           {authorOverlayNode}
@@ -880,7 +887,7 @@ function PostCard({
         )}
         {title && (
           <h4 className="cms-post-title line-clamp-2" style={titleStyle}>
-            {title}
+            <TitleSpan title={title} />
           </h4>
         )}
         {excerpt && (
@@ -908,11 +915,11 @@ function PostCard({
         />
       )}
       <div className="p-3">
-        {title && (
-          <h4 className="cms-post-title mb-1.5 line-clamp-2" style={titleStyle}>
-            {title}
-          </h4>
-        )}
+          {title && (
+            <h4 className="cms-post-title mb-1.5 line-clamp-2" style={titleStyle}>
+              <TitleSpan title={title} />
+            </h4>
+          )}
         {excerpt && (
           <p className="cms-post-excerpt line-clamp-2" style={excerptStyle}>
             {excerpt}
