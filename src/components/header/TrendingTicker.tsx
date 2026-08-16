@@ -833,73 +833,67 @@ function TickerStyles() {
         }
         .tt-skin--tape .tt-glass-pill:hover { transform: none }
 
-        /* Widget "Na czasie" - badge "Prestigious glass pill v5":
-           skośny równoległobok w gradiencie brandu, jasna krawędź, pulsujące
-           pierścienie przy ikonie i przesuwający się refleks przy hoverze. */
-        .tt-skin--live { gap: 14px }
+        /* Widget "Na czasie" - subtelny, mniejszy badge brandowy
+           (nie przytłaczający, pasuje do headera zamiast go dominować). */
+        .tt-skin--live { gap: 8px }
         .tt-skin--live .tt-glass-chip {
           position: relative;
           overflow: hidden;
-          height: 40px;
-          padding: 0 20px;
-          border-radius: 2px;
-          border-left: 4px solid color-mix(in srgb, white 55%, transparent);
+          height: 26px;
+          padding: 0 10px;
+          border-radius: 3px;
+          border-left: 2px solid color-mix(in srgb, white 45%, transparent);
           clip-path: none;
-          transform: skewX(-12deg);
+          transform: skewX(-8deg);
           transform-origin: center;
           background: linear-gradient(90deg,
-            color-mix(in srgb, var(--tt-label) 62%, white),
-            var(--tt-label));
+            color-mix(in srgb, var(--tt-label) 78%, transparent),
+            color-mix(in srgb, var(--tt-label) 92%, transparent));
           color: var(--tt-label-fg);
-          font-weight: 900;
-          font-size: 11px;
-          letter-spacing: .15em;
+          font-weight: 800;
+          font-size: 10px;
+          letter-spacing: .06em;
           text-transform: uppercase;
-          box-shadow: 0 10px 26px -16px color-mix(in srgb, var(--tt-label) 95%, transparent);
-          transition: transform .3s ease, box-shadow .3s ease;
-          gap: 10px;
+          box-shadow: 0 3px 10px -4px color-mix(in srgb, var(--tt-label) 55%, transparent);
+          transition: transform .25s ease, box-shadow .25s ease;
+          gap: 6px;
         }
-        .tt-skin--live .tt-glass-chip:active { transform: skewX(-12deg) scale(.96) }
+        .tt-skin--live .tt-glass-chip:active { transform: skewX(-8deg) scale(.97) }
         .tt-skin--live .tt-chip-icon,
         .tt-skin--live .tt-chip-text {
-          transform: skewX(12deg);
-          filter: drop-shadow(0 1px 1px color-mix(in srgb, black 22%, transparent));
+          transform: skewX(8deg);
         }
         .tt-skin--live .tt-chip-text { user-select: none }
-        /* Pulsujące pierścienie za ikoną - startują dopiero przy hoverze. */
-        .tt-skin--live .tt-chip-icon::before,
-        .tt-skin--live .tt-chip-icon::after {
+        .tt-skin--live .tt-chip-icon {
+          width: 16px; height: 16px;
+        }
+        /* Bardzo subtelny puls za ikoną - tylko na hover, ledwo widoczny. */
+        .tt-skin--live .tt-chip-icon::before {
           content: "";
           position: absolute;
+          inset: 0;
           border-radius: 9999px;
-          background: color-mix(in srgb, #fff4ed 60%, transparent);
+          background: color-mix(in srgb, #fff 24%, transparent);
           opacity: 0;
-          transition: opacity .5s ease;
+          transition: opacity .4s ease;
           pointer-events: none;
         }
-        .tt-skin--live .tt-chip-icon::before { width: 24px; height: 24px }
-        .tt-skin--live .tt-chip-icon::after {
-          width: 20px; height: 20px;
-          background: color-mix(in srgb, #fff4ed 30%, transparent);
-        }
-        .tt-skin--live .tt-glass-chip:hover .tt-chip-icon::before,
-        .tt-skin--live .tt-glass-chip:hover .tt-chip-icon::after {
+        .tt-skin--live .tt-glass-chip:hover .tt-chip-icon::before {
           opacity: 1;
-          animation: tt-live-ping 2.5s cubic-bezier(0,0,.2,1) infinite;
+          animation: tt-live-ping 2.8s cubic-bezier(0,0,.2,1) infinite;
         }
-        .tt-skin--live .tt-glass-chip:hover .tt-chip-icon::after { animation-delay: .8s }
         @keyframes tt-live-ping {
-          75%, 100% { transform: scale(2); opacity: 0 }
+          75%, 100% { transform: scale(1.7); opacity: 0 }
         }
-        /* Refleks przejeżdżający po badge przy hoverze. */
+        /* Delikatny refleks na hover. */
         .tt-skin--live .tt-glass-chip::after {
           content: "";
           position: absolute;
           inset: 0 auto 0 -100%;
           width: 100%;
           background: linear-gradient(90deg, transparent,
-            color-mix(in srgb, white 30%, transparent), transparent);
-          transition: left 1s ease-in-out;
+            color-mix(in srgb, white 18%, transparent), transparent);
+          transition: left .8s ease-in-out;
           pointer-events: none;
         }
         .tt-skin--live .tt-glass-chip:hover::after { left: 100% }
