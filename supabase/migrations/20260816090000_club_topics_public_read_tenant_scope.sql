@@ -26,6 +26,17 @@
 -- są SECURITY DEFINER z bramką `assert_admin_tenant()`.
 -- ============================================================================
 
+-- `_caller_tenant()` jest wyliczane wewnątrz polityk przez role klienckie,
+-- ale 20260718215759 odebrało funkcji EXECUTE od PUBLIC i żadna migracja nie
+-- nadała go z powrotem. Postgres sprawdza EXECUTE zanim wejdzie w SECURITY
+-- DEFINER, więc bezpośredni odczyt/zapis pod polityką odwołującą się do
+-- funkcji (club_specializations_public_read, club_topics_admin_*) kończył
+-- się "permission denied for function _caller_tenant". Funkcja zwraca
+-- wyłącznie tenant_id WŁASNEGO profilu wołającego (auth.uid(); dla anon
+-- NULL) - grant niczego nie odsłania.
+REVOKE ALL ON FUNCTION public._caller_tenant() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public._caller_tenant() TO anon, authenticated, service_role;
+
 DROP POLICY IF EXISTS "club_topics_public_read" ON public.club_topics;
 CREATE POLICY "club_topics_public_read"
   ON public.club_topics FOR SELECT

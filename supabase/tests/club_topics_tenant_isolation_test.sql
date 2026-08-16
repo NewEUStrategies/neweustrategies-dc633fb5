@@ -19,7 +19,7 @@
 -- otwiera - ani przez tabelę, ani przez RPC.
 
 BEGIN;
-SELECT plan(13);
+SELECT plan(14);
 
 -- ── (1) Strukturalnie: polityka i ciało RPC wiążą najemcę ───────────────────
 SELECT ok(
@@ -35,6 +35,15 @@ SELECT ok(
 SELECT ok(
   pg_get_functiondef('public.club_topics_active()'::regprocedure) ~ 'public_tenant_id',
   'club_topics_active() filtruje po tenancie w CIELE (SECURITY DEFINER omija RLS, tautologia = wyciek)'
+);
+
+-- Postgres sprawdza EXECUTE zanim wejdzie w SECURITY DEFINER: bez grantu dla
+-- ról klienckich polityka wołająca _caller_tenant() rzuca "permission denied"
+-- zamiast filtrować (20260718215759 odebrało EXECUTE od PUBLIC bez re-grantu).
+SELECT ok(
+  has_function_privilege('anon', 'public._caller_tenant()', 'EXECUTE')
+  AND has_function_privilege('authenticated', 'public._caller_tenant()', 'EXECUTE'),
+  'anon i authenticated mają EXECUTE na _caller_tenant() - warunek działania polityk, które go wołają'
 );
 
 -- ── Seed: dwaj najemcy z domenami, członek w A, katalogi po obu stronach ────
