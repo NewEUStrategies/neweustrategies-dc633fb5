@@ -329,7 +329,7 @@ function TickerItem({
     >
       {showCounter && (
         <span
-          className="text-[12px] leading-none font-bold tabular-nums"
+          className="hidden sm:inline text-[12px] leading-none font-bold tabular-nums"
           style={{ color: "var(--tt-counter)" }}
         >
           {String(displayIdx).padStart(2, "0")}
@@ -524,7 +524,7 @@ function TickerGlassMarquee({
             >
               {skin === "live" ? (
                 <span
-                  className="tt-live-index shrink-0 text-[13px] font-bold tabular-nums"
+                  className="tt-live-index hidden sm:inline shrink-0 text-[13px] font-bold tabular-nums"
                   style={{ color: "var(--tt-label)" }}
                   aria-hidden
                 >
@@ -607,7 +607,7 @@ function TickerGlassCards({
               aria-hidden={i >= posts.length ? true : undefined}
             >
               <span
-                className={`${skin === "live" ? "tt-live-index " : ""}text-[10px] font-bold tabular-nums opacity-70`}
+                className={`${skin === "live" ? "tt-live-index " : ""}hidden sm:inline text-[10px] font-bold tabular-nums opacity-70`}
                 style={{ color: "var(--tt-counter)" }}
               >
                 {String((i % posts.length) + 1).padStart(2, "0")}
