@@ -2,7 +2,7 @@
 // Sources: trending | latest | pinned | selected | mixed.
 // Modes: scroll (marquee) | fade | slide | flip | typewriter.
 // Colors and label overridable per light/dark via CSS custom properties.
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { Flame } from "lucide-react";
@@ -13,6 +13,7 @@ import {
 } from "@/lib/views/headerTickerQuery";
 import {
   DEFAULT_TICKER_COLORS,
+  isMarqueeLayout,
   type IconAnimation,
   type LayoutStyle,
   type MixedFill,
@@ -80,6 +81,7 @@ export function TrendingTicker({
   const palette = colors ?? DEFAULT_TICKER_COLORS;
   const vid = safeAttr(variantId);
   const isBadge = layoutStyle === "badge";
+  const isMarquee = isMarqueeLayout(layoutStyle);
 
   const { data, isLoading } = useQuery(
     headerTickerQueryOptions({
@@ -118,6 +120,40 @@ export function TrendingTicker({
     kind === "scroll" ? posts : posts.slice(batch * perView, batch * perView + perView);
 
   const iconClass = `tt-flame tt-flame-${iconAnimation}`;
+
+  if (isMarquee) {
+    return (
+      <div
+        className={`cms-trending border-b cms-trending--${layoutStyle === "glassCards" ? "glass-cards" : "glass-marquee"} ${className ?? ""}`}
+        data-testid="trending-ticker"
+        data-tt-vid={vid}
+        data-tt-layout={layoutStyle}
+        style={{ background: "var(--tt-bg)", borderColor: "var(--tt-border)" }}
+      >
+        <TickerPaletteStyle vid={vid} palette={palette} />
+        <div className={`${innerMax} px-4 lg:px-8`}>
+          {layoutStyle === "glassCards" ? (
+            <TickerGlassCards
+              label={label}
+              posts={posts}
+              lang={lang}
+              intervalSec={intervalSec}
+              iconClass={iconClass}
+            />
+          ) : (
+            <TickerGlassMarquee
+              label={label}
+              posts={posts}
+              lang={lang}
+              intervalSec={intervalSec}
+              iconClass={iconClass}
+            />
+          )}
+        </div>
+        <TickerStyles />
+      </div>
+    );
+  }
 
   return (
     <div
@@ -313,6 +349,148 @@ function TypewriterText({ text, delayMs }: { text: string; delayMs: number }) {
   );
 }
 
+interface MarqueeLayoutProps {
+  label: string;
+  posts: readonly TickerItemProps["post"][];
+  lang: "pl" | "en";
+  intervalSec: number;
+  iconClass: string;
+}
+
+function itemTitle(post: TickerItemProps["post"], lang: "pl" | "en"): string {
+  return lang === "en" ? post.title_en || post.title_pl || "" : post.title_pl || post.title_en || "";
+}
+
+function itemHref(post: TickerItemProps["post"]): string {
+  return post.href ?? (post.slug ? `/post/${post.slug}` : "#");
+}
+
+/** v7 - seamless horizontal marquee inside a gradient glass frame. */
+function TickerGlassMarquee({ label, posts, lang, intervalSec, iconClass }: MarqueeLayoutProps) {
+  const anim = `tt-marquee-${useId().replace(/:/g, "")}`;
+  // One lap should scale with the number of items, not with a fixed duration -
+  // otherwise 3 posts fly by and 20 posts crawl.
+  const durationSec = Math.max(18, Math.min(120, posts.length * Math.max(2, intervalSec) * 0.9));
+  const loop = [...posts, ...posts];
+
+  return (
+    <div className="tt-glass tt-glass--marquee flex h-10 items-stretch gap-3 overflow-hidden">
+      <span className="tt-glass-label inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+        <Flame className={`w-3.5 h-3.5 shrink-0 ${iconClass}`} aria-hidden />
+        <span>{label}</span>
+      </span>
+      <div className="tt-glass-track relative min-w-0 flex-1 overflow-hidden">
+        <div
+          className="flex w-max items-center gap-8 h-10"
+          style={{ animation: `${anim} ${durationSec}s linear infinite` }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.animationPlayState = "paused";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.animationPlayState = "running";
+          }}
+        >
+          {loop.map((p, i) => (
+            <AppLink
+              key={`${p.id}-${i}`}
+              href={itemHref(p)}
+              className="tt-item inline-flex items-center gap-2 whitespace-nowrap text-[13px] leading-none font-medium shrink-0"
+              style={{ color: "var(--tt-item)" }}
+              title={itemTitle(p, lang)}
+              aria-hidden={i >= posts.length ? true : undefined}
+              tabIndex={i >= posts.length ? -1 : undefined}
+            >
+              <span
+                className="tt-glass-dot inline-block w-1 h-1 rounded-full"
+                style={{ background: "var(--tt-dot)" }}
+                aria-hidden
+              />
+              {itemTitle(p, lang)}
+            </AppLink>
+          ))}
+        </div>
+      </div>
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `@keyframes ${anim}{0%{transform:translate3d(0,0,0)}100%{transform:translate3d(-50%,0,0)}}`,
+        }}
+      />
+    </div>
+  );
+}
+
+/** v5 - floating glass cards rotating vertically, one headline at a time. */
+function TickerGlassCards({ label, posts, lang, intervalSec, iconClass }: MarqueeLayoutProps) {
+  const anim = `tt-cards-${useId().replace(/:/g, "")}`;
+  const slots = posts.length + 1; // duplicate first card for a seamless loop
+  const durationSec = Math.max(6, posts.length * Math.max(2, intervalSec));
+  const keyframes = buildVerticalKeyframes(slots, anim);
+  const track = [...posts, posts[0]];
+
+  return (
+    <div className="tt-glass tt-glass--cards flex h-10 items-stretch gap-3 overflow-hidden">
+      <span className="tt-glass-label inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+        <Flame className={`w-3.5 h-3.5 shrink-0 ${iconClass}`} aria-hidden />
+        <span>{label}</span>
+      </span>
+      <div className="relative min-w-0 flex-1 overflow-hidden">
+        <div
+          className="flex flex-col"
+          style={{ animation: `${anim} ${durationSec}s cubic-bezier(.65,0,.35,1) infinite` }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.animationPlayState = "paused";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.animationPlayState = "running";
+          }}
+        >
+          {track.map((p, i) => (
+            <div
+              key={`${p.id}-${i}`}
+              className="tt-glass-card flex h-10 shrink-0 items-center gap-2.5"
+              aria-hidden={i === posts.length ? true : undefined}
+            >
+              <span
+                className="text-[10px] font-bold tabular-nums opacity-70"
+                style={{ color: "var(--tt-counter)" }}
+              >
+                {String((i % posts.length) + 1).padStart(2, "0")}
+              </span>
+              <AppLink
+                href={itemHref(p)}
+                className="tt-item min-w-0 truncate text-[13px] leading-none font-medium"
+                style={{ color: "var(--tt-item)" }}
+                title={itemTitle(p, lang)}
+                tabIndex={i === posts.length ? -1 : undefined}
+              >
+                {itemTitle(p, lang)}
+              </AppLink>
+            </div>
+          ))}
+        </div>
+      </div>
+      <style dangerouslySetInnerHTML={{ __html: keyframes }} />
+    </div>
+  );
+}
+
+/** Hold-then-advance vertical keyframes for `slots` stacked rows. */
+export function buildVerticalKeyframes(slots: number, animName: string): string {
+  if (slots < 2) return "";
+  const slot = 100 / slots;
+  const transition = 100 / (slots * (slots - 1));
+  const hold = slot - transition;
+  let steps = "";
+  for (let i = 0; i < slots - 1; i += 1) {
+    const start = i * (slot + transition);
+    const end = start + hold;
+    const y = -((i * 100) / slots);
+    steps += `${start.toFixed(2)}%,${end.toFixed(2)}%{transform:translate3d(0,${y.toFixed(2)}%,0)}`;
+  }
+  steps += `100%{transform:translate3d(0,${(-(((slots - 1) * 100) / slots)).toFixed(2)}%,0)}`;
+  return `@keyframes ${animName}{0%{transform:translate3d(0,0,0)}${steps}}`;
+}
+
 function TickerPaletteStyle({ vid, palette }: { vid: string; palette: TickerColorScheme }) {
   const sel = `[data-tt-vid="${vid}"]`;
   const L = palette.light;
@@ -389,7 +567,29 @@ function TickerStyles() {
         .tt-flame-spin     { animation: tt-flame-spin     3.2s linear infinite }
         .tt-flame-wave     { animation: tt-flame-wave     1.6s ease-in-out infinite }
 
+        /* Glass marquee / cards (v7 / v5) */
+        .tt-glass-label {
+          font-size: 11px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase;
+          color: var(--tt-label);
+        }
+        .tt-glass {
+          position: relative;
+        }
+        .tt-glass--marquee .tt-glass-track::before,
+        .tt-glass--marquee .tt-glass-track::after {
+          content: ""; position: absolute; top: 0; bottom: 0; width: 40px; z-index: 2;
+          pointer-events: none;
+        }
+        .tt-glass--marquee .tt-glass-track::before {
+          left: 0; background: linear-gradient(to right, var(--tt-bg), transparent);
+        }
+        .tt-glass--marquee .tt-glass-track::after {
+          right: 0; background: linear-gradient(to left, var(--tt-bg), transparent);
+        }
+        .tt-glass--cards .tt-glass-card { padding-right: 8px }
+
         @media (prefers-reduced-motion: reduce) {
+          .tt-glass [style*="animation"] { animation: none !important }
           .tt-anim-fade, .tt-anim-slide, .tt-anim-flip { animation: none !important }
           .tt-caret, .tt-flame-pulse, .tt-flame-flicker, .tt-flame-spin, .tt-flame-wave {
             animation: none !important
