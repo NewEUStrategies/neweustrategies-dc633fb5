@@ -593,9 +593,10 @@ function TickerGlassCards({
               aria-hidden={i >= posts.length ? true : undefined}
             >
               <span
-                className={`${skin === "live" ? "tt-live-index " : ""}text-[10px] font-bold tabular-nums opacity-70`}
-                style={{ color: "var(--tt-counter)" }}
+                className={`${skin === "live" ? "tt-live-index " : "text-[10px] font-bold opacity-70 "}tabular-nums`}
+                style={skin === "live" ? undefined : { color: "var(--tt-counter)" }}
               >
+
                 {String((i % posts.length) + 1).padStart(2, "0")}
               </span>
               <AppLink
