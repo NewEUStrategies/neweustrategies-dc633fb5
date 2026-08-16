@@ -304,7 +304,7 @@ export function PostListView({
             <div className="min-w-0">
               {title(p) && (
                 <h4 className="cms-post-title line-clamp-2" style={tStyle}>
-                  {title(p)}
+                  <TitleSpan title={title(p)} />
                 </h4>
               )}
               {excerpt(p) && (
