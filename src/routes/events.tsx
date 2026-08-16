@@ -18,6 +18,7 @@ import { buildContentHead, splitUrl, SITE_NAME } from "@/lib/seo/meta";
 import { breadcrumbListJsonLd, eventsCollectionJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
 import { EventsListSkeleton } from "@/components/community/EventsListSkeleton";
+import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
@@ -256,7 +257,16 @@ function EventCard({ event, lang }: { event: PublicEvent; lang: "pl" | "en" }) {
     <li className="group relative overflow-hidden rounded-lg border border-border bg-card transition hover:border-primary/60">
       {event.cover_url && (
         <div className="aspect-video w-full overflow-hidden bg-muted">
-          <img src={event.cover_url} alt="" loading="lazy" className="h-full w-full object-cover" />
+          {/* Karta maluje się na max ~576 px (md:grid-cols-2); responsywny
+              srcSet zdejmuje pobieranie pełnowymiarowego oryginału na kartę.
+              Układ rezerwuje rodzic (aspect-video). */}
+          <OptimizedImage
+            src={event.cover_url}
+            alt=""
+            responsive
+            sizes="(min-width: 768px) 45vw, 92vw"
+            className="h-full w-full object-cover"
+          />
         </div>
       )}
       <div className="p-5">

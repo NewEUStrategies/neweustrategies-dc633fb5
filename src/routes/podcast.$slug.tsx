@@ -40,6 +40,7 @@ import {
 import { appendLinkHeader } from "@/lib/http/responseHeaders";
 import { getRequestUrl } from "@/lib/seo/request";
 import { sanitizeHtml } from "@/lib/sanitize";
+import { buildAvatarSrc } from "@/lib/cropSizes";
 import { pickLocalized, pickPair } from "@/lib/i18n/pickLocalized";
 import { ensureI18n as ensurePodcastsI18n } from "@/lib/i18n-podcasts";
 
@@ -51,8 +52,12 @@ export const Route = createFileRoute("/podcast/$slug")({
     // więc deskryptor niesie sam `href` (para srcset/sizes wskazywałaby inny
     // wariant niż malowany i podwoiłaby pobranie). Wartość idzie też jako
     // nagłówek HTTP `Link` (fetch przed parsowaniem HTML, 103 Early Hints).
+    // PARYTET: ten sam buildAvatarSrc(…, 128) co w malowanym <img> - okładka
+    // renderuje się w polu 128x128, więc preload/paint schodzą na ~256 px
+    // wariant ze Storage zamiast pełnowymiarowego oryginału na wysokim
+    // priorytecie (URL-e spoza Supabase przechodzą bez zmian).
     const coverPreload: ImagePreloadInput | null = data.cover_image_url
-      ? { href: data.cover_image_url }
+      ? { href: buildAvatarSrc(data.cover_image_url, 128) }
       : null;
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
     return { podcast: data, coverPreload };
@@ -220,10 +225,14 @@ function PodcastSinglePage() {
         <div className="w-32 h-32 shrink-0 rounded-xl overflow-hidden border border-border bg-muted">
           {p.cover_image_url ? (
             <img
-              src={p.cover_image_url}
+              src={buildAvatarSrc(p.cover_image_url, 128)}
               alt=""
               className="w-full h-full object-cover"
               loading="eager"
+              fetchPriority="high"
+              decoding="async"
+              width={128}
+              height={128}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
@@ -321,9 +330,13 @@ function PodcastSinglePage() {
                 <>
                   {person.profile_avatar_url ? (
                     <img
-                      src={person.profile_avatar_url}
+                      src={buildAvatarSrc(person.profile_avatar_url, 36)}
                       alt=""
                       className="w-9 h-9 rounded-full object-cover border border-border"
+                      loading="lazy"
+                      decoding="async"
+                      width={36}
+                      height={36}
                     />
                   ) : (
                     <span className="w-9 h-9 rounded-full bg-muted flex items-center justify-center">
@@ -525,9 +538,13 @@ function PodcastSinglePage() {
                   >
                     {e.cover_image_url ? (
                       <img
-                        src={e.cover_image_url}
+                        src={buildAvatarSrc(e.cover_image_url, 56)}
                         alt=""
                         className="w-14 h-14 rounded-md object-cover border border-border shrink-0"
+                        loading="lazy"
+                        decoding="async"
+                        width={56}
+                        height={56}
                       />
                     ) : (
                       <div className="w-14 h-14 rounded-md bg-muted flex items-center justify-center shrink-0">

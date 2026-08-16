@@ -29,7 +29,7 @@ import { GpcDeclarationSlot } from "@/components/consent/GpcSurfaceSlots";
 import { VisibilityAndContactSection } from "@/components/profile/privacy/VisibilityAndContactSection";
 import { DataRightsSection } from "@/components/profile/privacy/DataRightsSection";
 import { ensureI18n as ensureNetworkI18n } from "@/lib/i18n-network";
-import { OPEN_PREFS_EVENT } from "@/lib/ads/consent";
+import { requestConsentPreferences } from "@/lib/ads/consent";
 
 export const Route = createFileRoute("/profile/privacy")({
   component: PrivacyPage,
@@ -41,9 +41,9 @@ function PrivacyPage() {
   const { t } = useTranslation();
 
   const openBannerPreferences = () => {
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new Event(OPEN_PREFS_EVENT));
-    }
+    // Helper odkłada żądanie w stanie modułu, więc klik działa także zanim
+    // leniwy chunk ConsentBanner zdąży się pobrać i zasubskrybować.
+    requestConsentPreferences();
   };
 
   return (

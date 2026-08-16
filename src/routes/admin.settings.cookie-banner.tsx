@@ -17,7 +17,7 @@ import {
 import { ConsentBanner } from "@/components/ConsentBanner";
 import { CookieBannerBrandingSection } from "@/components/admin/cookie-banner/CookieBannerBrandingSection";
 import { DetectedElementsPanel } from "@/components/admin/cookie-banner/DetectedElementsPanel";
-import { OPEN_PREFS_EVENT } from "@/lib/ads/consent";
+import { requestConsentPreferences } from "@/lib/ads/consent";
 
 export const Route = createFileRoute("/admin/settings/cookie-banner")({
   head: () => ({
@@ -363,10 +363,10 @@ function CookieBannerSettings() {
 // więc kolory, logo, treści i odnośniki widać przed kliknięciem „Zapisz".
 function PreviewOverlay({ config, onClose }: { config: CookieBannerConfig; onClose: () => void }) {
   const [surface, setSurface] = useState<"light" | "dark">("light");
-  // ConsentBanner hides once the user has decided; dispatch OPEN_PREFS_EVENT so
+  // ConsentBanner hides once the user has decided; dispatch OPEN_PREFS so
   // it opens the expanded modal for the preview regardless of prior consent.
   useEffectOnce(() => {
-    window.dispatchEvent(new Event(OPEN_PREFS_EVENT));
+    requestConsentPreferences();
   });
   return (
     <div className="fixed inset-0 z-[70]">

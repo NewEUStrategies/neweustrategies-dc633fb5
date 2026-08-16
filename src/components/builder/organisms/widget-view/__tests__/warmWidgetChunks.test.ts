@@ -3,7 +3,13 @@
 // lekkie stuby - test mierzy, że import() się WYDARZYŁ, nie treść modułów).
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const loaded = vi.hoisted(() => ({ rich: 0, postList: 0, dynamicTags: 0 }));
+const loaded = vi.hoisted(() => ({
+  rich: 0,
+  postList: 0,
+  dynamicTags: 0,
+  postsSlider: 0,
+  sliderVariants: 0,
+}));
 
 vi.mock("../RichHtmlView", () => {
   loaded.rich += 1;
@@ -16,6 +22,14 @@ vi.mock("../PostListView", () => {
 vi.mock("../DynamicTagWidgets", () => {
   loaded.dynamicTags += 1;
   return { DynamicTagWidget: () => null };
+});
+vi.mock("../PostsSliderWidget", () => {
+  loaded.postsSlider += 1;
+  return { PostsSliderWidget: () => null };
+});
+vi.mock("@/lib/builder/sliderVariants", () => {
+  loaded.sliderVariants += 1;
+  return { SliderRender: () => null };
 });
 
 import { warmCommonWidgetChunks, resetWarmWidgetChunksForTests } from "../warmWidgetChunks";
@@ -37,15 +51,19 @@ describe("warmCommonWidgetChunks", () => {
     loaded.rich = 0;
     loaded.postList = 0;
     loaded.dynamicTags = 0;
+    loaded.postsSlider = 0;
+    loaded.sliderVariants = 0;
   });
 
-  it("dociąga chunki tekstu, listingów i tagów wpisu dokładnie raz", async () => {
+  it("dociąga chunki tekstu, listingów, tagów wpisu i hero-slidera dokładnie raz", async () => {
     warmCommonWidgetChunks(immediate);
     warmCommonWidgetChunks(immediate);
     await vi.waitFor(() => {
       expect(loaded.rich).toBe(1);
       expect(loaded.postList).toBe(1);
       expect(loaded.dynamicTags).toBe(1);
+      expect(loaded.postsSlider).toBe(1);
+      expect(loaded.sliderVariants).toBe(1);
     });
   });
 

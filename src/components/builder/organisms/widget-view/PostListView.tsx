@@ -915,11 +915,11 @@ function PostCard({
         />
       )}
       <div className="p-3">
-          {title && (
-            <h4 className="cms-post-title mb-1.5 line-clamp-2" style={titleStyle}>
-              <TitleSpan title={title} />
-            </h4>
-          )}
+        {title && (
+          <h4 className="cms-post-title mb-1.5 line-clamp-2" style={titleStyle}>
+            <TitleSpan title={title} />
+          </h4>
+        )}
         {excerpt && (
           <p className="cms-post-excerpt line-clamp-2" style={excerptStyle}>
             {excerpt}

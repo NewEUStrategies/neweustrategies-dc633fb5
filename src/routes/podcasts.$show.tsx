@@ -18,6 +18,7 @@ import {
   episodesPeopleQueryOptions,
 } from "@/lib/queries/podcasts";
 import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { buildAvatarSrc } from "@/lib/cropSizes";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { ensureI18n as ensurePodcastsI18n } from "@/lib/i18n-podcasts";
 import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHeaders";
@@ -85,8 +86,11 @@ export const Route = createFileRoute("/podcasts/$show")({
     // więc deskryptor niesie sam `href` (para srcset/sizes wskazywałaby inny
     // wariant niż malowany i podwoiłaby pobranie). Wartość idzie też jako
     // nagłówek HTTP `Link` (fetch przed parsowaniem HTML, 103 Early Hints).
+    // PARYTET: ten sam buildAvatarSrc(…, 160) co w malowanym <img> - okładka
+    // renderuje się w polu 160x160, więc preload/paint schodzą na ~320 px
+    // wariant ze Storage zamiast pełnowymiarowego oryginału.
     const coverPreload: ImagePreloadInput | null = show.cover_image_url
-      ? { href: show.cover_image_url }
+      ? { href: buildAvatarSrc(show.cover_image_url, 160) }
       : null;
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
     return { show, degraded: episodes.degraded, coverPreload };
@@ -227,10 +231,14 @@ function ShowPage() {
         <div className="w-40 h-40 shrink-0 rounded-xl overflow-hidden border border-border bg-muted">
           {show.cover_image_url ? (
             <img
-              src={show.cover_image_url}
+              src={buildAvatarSrc(show.cover_image_url, 160)}
               alt=""
               className="w-full h-full object-cover"
               loading="eager"
+              fetchPriority="high"
+              decoding="async"
+              width={160}
+              height={160}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
@@ -280,9 +288,13 @@ function ShowPage() {
                 <span className="flex items-center gap-2">
                   {h.profile_avatar_url ? (
                     <img
-                      src={h.profile_avatar_url}
+                      src={buildAvatarSrc(h.profile_avatar_url, 32)}
                       alt=""
                       className="w-8 h-8 rounded-full object-cover border border-border"
+                      loading="lazy"
+                      decoding="async"
+                      width={32}
+                      height={32}
                     />
                   ) : (
                     <span className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
@@ -340,9 +352,13 @@ function ShowPage() {
                       >
                         {e.cover_image_url ? (
                           <img
-                            src={e.cover_image_url}
+                            src={buildAvatarSrc(e.cover_image_url, 64)}
                             alt=""
                             className="w-16 h-16 rounded-md object-cover border border-border shrink-0"
+                            loading="lazy"
+                            decoding="async"
+                            width={64}
+                            height={64}
                           />
                         ) : (
                           <div className="w-16 h-16 rounded-md bg-muted flex items-center justify-center shrink-0">

@@ -1533,9 +1533,7 @@ export const deleteTag = createServerFn({ method: "POST" })
 export const setPostAuthors = createServerFn({ method: "POST" })
   .middleware([requireStaff])
   .validator((i: unknown) =>
-    z
-      .object({ id: UUID, authorIds: z.array(UUID).min(1).max(MAX_POST_AUTHORS) })
-      .parse(i),
+    z.object({ id: UUID, authorIds: z.array(UUID).min(1).max(MAX_POST_AUTHORS) }).parse(i),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -1585,10 +1583,7 @@ export const setPostAuthors = createServerFn({ method: "POST" })
         throw new Error("Save rejected - you do not have permission to edit this post");
       }
 
-      const { error: delErr } = await supabase
-        .from("post_authors")
-        .delete()
-        .eq("post_id", data.id);
+      const { error: delErr } = await supabase.from("post_authors").delete().eq("post_id", data.id);
       if (delErr) throw new Error(delErr.message);
       if (coAuthors.length) {
         const { error: insErr } = await supabase.from("post_authors").insert(

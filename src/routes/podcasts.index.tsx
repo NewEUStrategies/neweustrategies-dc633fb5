@@ -11,6 +11,9 @@ import { Mic } from "@/lib/lucide-shim";
 import { Rss } from "lucide-react";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
+import { OptimizedImage } from "@/components/atoms/OptimizedImage";
+import { CARD_IMAGE_SIZES } from "@/lib/cardImageSizes";
+import { buildAvatarSrc } from "@/lib/cropSizes";
 import {
   latestPodcastsQueryOptions,
   publishedShowsQueryOptions,
@@ -166,7 +169,7 @@ function PodcastsIndex() {
             <section className="space-y-4">
               <h2 className="font-display text-xl">{t("podcastNetwork.programsHeading")}</h2>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {shows.map((s) => {
+                {shows.map((s, index) => {
                   const st = showStats.get(s.id);
                   const desc = showDescription(s, lang);
                   const count = st?.count ?? 0;
@@ -179,9 +182,17 @@ function PodcastsIndex() {
                     >
                       <div className="aspect-video bg-muted relative overflow-hidden">
                         {s.cover_image_url ? (
-                          <img
+                          // Responsywny srcSet zamiast pełnowymiarowego
+                          // oryginału na każdej karcie; pierwszy rząd siatki
+                          // (kandydaci LCP na górze strony) jest eager+high,
+                          // reszta lazy. Rodzic rezerwuje układ (aspect-video),
+                          // więc bez width/height nie ma CLS.
+                          <OptimizedImage
                             src={s.cover_image_url}
                             alt=""
+                            responsive
+                            sizes={CARD_IMAGE_SIZES}
+                            priority={index < 3}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                           />
                         ) : (
@@ -234,9 +245,13 @@ function PodcastsIndex() {
                       >
                         {e.cover_image_url ? (
                           <img
-                            src={e.cover_image_url}
+                            src={buildAvatarSrc(e.cover_image_url, 80)}
                             alt=""
                             className="w-20 h-20 rounded-md object-cover border border-border shrink-0"
+                            loading="lazy"
+                            decoding="async"
+                            width={80}
+                            height={80}
                           />
                         ) : (
                           <div className="w-20 h-20 rounded-md bg-muted flex items-center justify-center shrink-0">
