@@ -354,13 +354,26 @@ function TypewriterText({ text, delayMs }: { text: string; delayMs: number }) {
   );
 }
 
+/** Visual skin applied to the two marquee engines (horizontal / vertical). */
+type MarqueeSkin = "marquee" | "cards" | "ribbon" | "spotlight" | "tape";
+
+const SKIN_BY_LAYOUT: Partial<Record<LayoutStyle, MarqueeSkin>> = {
+  glassMarquee: "marquee",
+  glassCards: "cards",
+  glassRibbon: "ribbon",
+  glassSpotlight: "spotlight",
+  glassTape: "tape",
+};
+
 interface MarqueeLayoutProps {
   label: string;
   posts: readonly TickerItemProps["post"][];
   lang: "pl" | "en";
   intervalSec: number;
   iconClass: string;
+  skin: MarqueeSkin;
 }
+
 
 function itemTitle(post: TickerItemProps["post"], lang: "pl" | "en"): string {
   return lang === "en"
