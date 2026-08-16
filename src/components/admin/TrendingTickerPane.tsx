@@ -116,6 +116,10 @@ const COPY = {
     layout_badge: "Badge marquee (kolorowy blok)",
     layout_glassMarquee: "Marquee szklane (płynny, poziomy)",
     layout_glassCards: "Szklane karty (rotacja pionowa)",
+    layout_glassRibbon: "Wstążka gradientowa (poziomy)",
+    layout_glassSpotlight: "Reflektor (rotacja pionowa)",
+    layout_glassTape: "Taśma newsowa (mono, poziomy)",
+
     marqueeHint: "Ten styl ma własną animację - tryb prezentacji nie ma tu zastosowania.",
     resetColors: "Przywróć domyślne",
     cannotDeleteLast: "Musi zostać przynajmniej jeden wariant.",
@@ -196,6 +200,10 @@ const COPY = {
     layout_badge: "Badge marquee (solid block)",
     layout_glassMarquee: "Glass marquee (seamless, horizontal)",
     layout_glassCards: "Glass cards (vertical rotation)",
+    layout_glassRibbon: "Gradient ribbon (horizontal)",
+    layout_glassSpotlight: "Spotlight (vertical rotation)",
+    layout_glassTape: "News tape (mono, horizontal)",
+
     marqueeHint: "This style carries its own animation - the presentation mode does not apply.",
     resetColors: "Reset to defaults",
     cannotDeleteLast: "At least one variant must remain.",
@@ -607,7 +615,17 @@ export function TrendingTickerPane() {
         <div className="space-y-1.5">
           <Label>{t.layoutStyle}</Label>
           <div className="grid grid-cols-2 gap-2">
-            {(["classic", "badge", "glassMarquee", "glassCards"] as const).map((s) => {
+            {(
+              [
+                "classic",
+                "badge",
+                "glassMarquee",
+                "glassCards",
+                "glassRibbon",
+                "glassSpotlight",
+                "glassTape",
+              ] as const
+            ).map((s) => {
               const active = (cfg.layoutStyle ?? "classic") === s;
               return (
                 <button

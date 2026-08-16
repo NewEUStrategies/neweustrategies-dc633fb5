@@ -11,11 +11,22 @@ export const MAX_TICKER_VARIANTS = 5;
 export type IconAnimation = "none" | "pulse" | "flicker" | "spin" | "wave";
 export type MixedFill = "trending" | "latest";
 /** Visual layout of the bar.
- *  - `classic`      - flame + text label, items scrolled horizontally.
- *  - `badge`        - solid colored block on the left, dot separators.
- *  - `glassMarquee` - seamless horizontal marquee in a gradient glass frame (v7).
- *  - `glassCards`   - vertically rotating floating glass cards (v5). */
-export type LayoutStyle = "classic" | "badge" | "glassMarquee" | "glassCards";
+ *  - `classic`       - flame + text label, items scrolled horizontally.
+ *  - `badge`         - solid colored block on the left, dot separators.
+ *  - `glassMarquee`  - seamless horizontal marquee in a gradient glass frame (v7).
+ *  - `glassCards`    - vertically rotating floating glass cards (v5).
+ *  - `glassRibbon`   - horizontal marquee on an animated gradient ribbon (v9).
+ *  - `glassSpotlight`- vertical rotation with a spotlight glow and large index (v11).
+ *  - `glassTape`     - horizontal ticker tape, monospaced with cut corners (v13). */
+export type LayoutStyle =
+  | "classic"
+  | "badge"
+  | "glassMarquee"
+  | "glassCards"
+  | "glassRibbon"
+  | "glassSpotlight"
+  | "glassTape";
+
 
 export interface TickerColors {
   bg: string;
@@ -116,10 +127,25 @@ const SOURCES: readonly TickerSource[] = ["trending", "latest", "pinned", "selec
 const MODES: readonly TickerMode[] = ["scroll", "rotate", "fade", "slide", "flip", "typewriter"];
 const ICON_ANIMS: readonly IconAnimation[] = ["none", "pulse", "flicker", "spin", "wave"];
 const MIX_FILLS: readonly MixedFill[] = ["trending", "latest"];
-const LAYOUTS: readonly LayoutStyle[] = ["classic", "badge", "glassMarquee", "glassCards"];
+const LAYOUTS: readonly LayoutStyle[] = [
+  "classic",
+  "badge",
+  "glassMarquee",
+  "glassCards",
+  "glassRibbon",
+  "glassSpotlight",
+  "glassTape",
+];
 
 /** Layouts that carry their own marquee motion - the `mode` knob does not apply. */
-export const MARQUEE_LAYOUTS: readonly LayoutStyle[] = ["glassMarquee", "glassCards"];
+export const MARQUEE_LAYOUTS: readonly LayoutStyle[] = [
+  "glassMarquee",
+  "glassCards",
+  "glassRibbon",
+  "glassSpotlight",
+  "glassTape",
+];
+
 
 export function isMarqueeLayout(layout: LayoutStyle | undefined): boolean {
   return MARQUEE_LAYOUTS.includes(layout ?? "classic");

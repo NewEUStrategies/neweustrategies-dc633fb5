@@ -122,9 +122,11 @@ export function TrendingTicker({
   const iconClass = `tt-flame tt-flame-${iconAnimation}`;
 
   if (isMarquee) {
+    const isVerticalLayout = layoutStyle === "glassCards" || layoutStyle === "glassSpotlight";
+    const skin = SKIN_BY_LAYOUT[layoutStyle] ?? "marquee";
     return (
       <div
-        className={`cms-trending border-b cms-trending--${layoutStyle === "glassCards" ? "glass-cards" : "glass-marquee"} ${className ?? ""}`}
+        className={`cms-trending border-b cms-trending--glass cms-trending--${skin} ${className ?? ""}`}
         data-testid="trending-ticker"
         data-tt-vid={vid}
         data-tt-layout={layoutStyle}
@@ -132,13 +134,14 @@ export function TrendingTicker({
       >
         <TickerPaletteStyle vid={vid} palette={palette} />
         <div className={`${innerMax} px-4 lg:px-8`}>
-          {layoutStyle === "glassCards" ? (
+          {isVerticalLayout ? (
             <TickerGlassCards
               label={label}
               posts={posts}
               lang={lang}
               intervalSec={intervalSec}
               iconClass={iconClass}
+              skin={skin}
             />
           ) : (
             <TickerGlassMarquee
@@ -147,12 +150,14 @@ export function TrendingTicker({
               lang={lang}
               intervalSec={intervalSec}
               iconClass={iconClass}
+              skin={skin}
             />
           )}
         </div>
         <TickerStyles />
       </div>
     );
+
   }
 
   return (
@@ -349,13 +354,26 @@ function TypewriterText({ text, delayMs }: { text: string; delayMs: number }) {
   );
 }
 
+/** Visual skin applied to the two marquee engines (horizontal / vertical). */
+type MarqueeSkin = "marquee" | "cards" | "ribbon" | "spotlight" | "tape";
+
+const SKIN_BY_LAYOUT: Partial<Record<LayoutStyle, MarqueeSkin>> = {
+  glassMarquee: "marquee",
+  glassCards: "cards",
+  glassRibbon: "ribbon",
+  glassSpotlight: "spotlight",
+  glassTape: "tape",
+};
+
 interface MarqueeLayoutProps {
   label: string;
   posts: readonly TickerItemProps["post"][];
   lang: "pl" | "en";
   intervalSec: number;
   iconClass: string;
+  skin: MarqueeSkin;
 }
+
 
 function itemTitle(post: TickerItemProps["post"], lang: "pl" | "en"): string {
   return lang === "en"
@@ -367,8 +385,15 @@ function itemHref(post: TickerItemProps["post"]): string {
   return post.href ?? (post.slug ? `/post/${post.slug}` : "#");
 }
 
-/** v7 - seamless horizontal marquee inside a gradient glass frame. */
-function TickerGlassMarquee({ label, posts, lang, intervalSec, iconClass }: MarqueeLayoutProps) {
+/** Horizontal marquee engine - skins: marquee (v7), ribbon (v9), tape (v13). */
+function TickerGlassMarquee({
+  label,
+  posts,
+  lang,
+  intervalSec,
+  iconClass,
+  skin,
+}: MarqueeLayoutProps) {
   const anim = `tt-marquee-${useId().replace(/:/g, "")}`;
   // One lap should scale with the number of items, not with a fixed duration -
   // otherwise 3 posts fly by and 20 posts crawl.
@@ -376,7 +401,10 @@ function TickerGlassMarquee({ label, posts, lang, intervalSec, iconClass }: Marq
   const loop = [...posts, ...posts];
 
   return (
-    <div className="tt-glass tt-glass--marquee flex items-center gap-3 overflow-hidden">
+    <div
+      className={`tt-glass tt-glass--marquee tt-skin--${skin} flex items-center gap-3 overflow-hidden`}
+    >
+
       <span className="tt-glass-label tt-glass-chip inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap">
         <Flame className={`w-3.5 h-3.5 shrink-0 ${iconClass}`} aria-hidden />
         <span>{label}</span>
@@ -422,8 +450,15 @@ function TickerGlassMarquee({ label, posts, lang, intervalSec, iconClass }: Marq
   );
 }
 
-/** v5 - floating glass cards rotating vertically, one headline at a time. */
-function TickerGlassCards({ label, posts, lang, intervalSec, iconClass }: MarqueeLayoutProps) {
+/** Vertical rotation engine - skins: cards (v5), spotlight (v11). */
+function TickerGlassCards({
+  label,
+  posts,
+  lang,
+  intervalSec,
+  iconClass,
+  skin,
+}: MarqueeLayoutProps) {
   const anim = `tt-cards-${useId().replace(/:/g, "")}`;
   const slots = posts.length + 1; // duplicate first card for a seamless loop
   const durationSec = Math.max(6, posts.length * Math.max(2, intervalSec));
@@ -431,7 +466,10 @@ function TickerGlassCards({ label, posts, lang, intervalSec, iconClass }: Marque
   const track = [...posts, posts[0]];
 
   return (
-    <div className="tt-glass tt-glass--cards flex items-center gap-3 overflow-hidden">
+    <div
+      className={`tt-glass tt-glass--cards tt-skin--${skin} flex items-center gap-3 overflow-hidden`}
+    >
+
       <span className="tt-glass-label tt-glass-chip inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap">
         <Flame className={`w-3.5 h-3.5 shrink-0 ${iconClass}`} aria-hidden />
         <span>{label}</span>
@@ -630,6 +668,61 @@ function TickerStyles() {
         .tt-glass--cards .tt-glass-card + .tt-glass-card {
           border-top: 1px solid color-mix(in srgb, var(--tt-border) 60%, transparent);
         }
+
+        /* v9 - animated gradient ribbon */
+        @keyframes tt-ribbon-shift { to { background-position: 200% 50% } }
+        .tt-skin--ribbon .tt-glass-track {
+          border-radius: 999px; padding: 0 10px;
+          background: linear-gradient(90deg,
+            color-mix(in srgb, var(--tt-label) 22%, transparent),
+            color-mix(in srgb, var(--tt-label) 4%, transparent),
+            color-mix(in srgb, var(--tt-label) 22%, transparent));
+          background-size: 200% 100%;
+          animation: tt-ribbon-shift 9s linear infinite;
+          box-shadow: 0 0 0 1px color-mix(in srgb, var(--tt-label) 26%, transparent) inset;
+        }
+        .tt-skin--ribbon .tt-glass-pill {
+          background: none; border: none; box-shadow: none; backdrop-filter: none;
+          -webkit-backdrop-filter: none; padding: 0 6px; letter-spacing: .02em;
+        }
+        .tt-skin--ribbon .tt-glass-pill:hover { transform: none; text-decoration: underline }
+        .tt-skin--ribbon .tt-glass-dot {
+          width: 5px; height: 5px; transform: rotate(45deg); border-radius: 1px;
+        }
+
+        /* v13 - ticker tape */
+        .tt-skin--tape .tt-glass-chip {
+          border-radius: 0; clip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+          background: var(--tt-label); color: var(--tt-label-fg);
+        }
+        .tt-skin--tape .tt-glass-track {
+          border-top: 1px dashed color-mix(in srgb, var(--tt-border) 90%, transparent);
+          border-bottom: 1px dashed color-mix(in srgb, var(--tt-border) 90%, transparent);
+        }
+        .tt-skin--tape .tt-glass-pill {
+          border-radius: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+          font-size: 12px; letter-spacing: .04em; text-transform: uppercase;
+          background: none; box-shadow: none; backdrop-filter: none;
+          -webkit-backdrop-filter: none;
+          border: 1px solid color-mix(in srgb, var(--tt-border) 90%, transparent);
+          clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
+        }
+        .tt-skin--tape .tt-glass-pill:hover { transform: none }
+
+        /* v11 - spotlight rotation */
+        .tt-skin--spotlight .tt-glass-viewport {
+          border-radius: 0; border-left: 2px solid var(--tt-label);
+          border-top: none; border-right: none; border-bottom: none;
+          background: radial-gradient(120% 140% at 0% 50%,
+            color-mix(in srgb, var(--tt-label) 20%, transparent), transparent 70%);
+          box-shadow: none;
+        }
+        .tt-skin--spotlight .tt-glass-card + .tt-glass-card { border-top: none }
+        .tt-skin--spotlight .tt-glass-card > span:first-child {
+          font-size: 18px; opacity: 1; color: var(--tt-label);
+        }
+        .tt-skin--spotlight .tt-item { font-size: 14px; font-weight: 600 }
+
 
 
         @media (prefers-reduced-motion: reduce) {
