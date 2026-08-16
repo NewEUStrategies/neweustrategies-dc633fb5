@@ -407,11 +407,11 @@ function TickerAuthor({ post }: { post: TickerItemProps["post"] }) {
           loading="lazy"
           width={20}
           height={20}
-          className="tt-live-avatar h-5 w-5 rounded-full object-cover"
+          className="tt-live-avatar h-5 w-5 rounded-[5px] object-cover"
         />
       ) : name ? (
         <span
-          className="tt-live-avatar inline-flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-bold"
+          className="tt-live-avatar inline-flex h-5 w-5 items-center justify-center rounded-[5px] text-[9px] font-bold"
           aria-hidden
         >
           {authorInitials(name)}
