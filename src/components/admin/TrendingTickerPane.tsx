@@ -120,6 +120,10 @@ const COPY = {
     layout_glassRibbon: "Wstążka gradientowa (poziomy)",
     layout_glassSpotlight: "Reflektor (rotacja pionowa)",
     layout_glassTape: "Taśma newsowa (mono, poziomy)",
+    layout_glassLive: 'Widget "Na czasie" (badge + autor)',
+    liveDirection: "Kierunek ruchu",
+    liveDirection_vertical: "Pionowy slide",
+    liveDirection_horizontal: "Poziomy marquee",
 
     marqueeHint: "Ten styl ma własną animację - tryb prezentacji nie ma tu zastosowania.",
     resetColors: "Przywróć domyślne",
@@ -205,6 +209,10 @@ const COPY = {
     layout_glassRibbon: "Gradient ribbon (horizontal)",
     layout_glassSpotlight: "Spotlight (vertical rotation)",
     layout_glassTape: "News tape (mono, horizontal)",
+    layout_glassLive: 'Trending widget (badge + author)',
+    liveDirection: "Motion direction",
+    liveDirection_vertical: "Vertical slide",
+    liveDirection_horizontal: "Horizontal marquee",
 
     marqueeHint: "This style carries its own animation - the presentation mode does not apply.",
     resetColors: "Reset to defaults",
@@ -456,7 +464,7 @@ export function TrendingTickerPane() {
 
   const previewKey = useMemo(
     () =>
-      `${activeVariant.id}-${cfg.source}-${cfg.mode}-${cfg.layoutStyle}-${cfg.visibleCount}-${cfg.intervalSec}-${cfg.scrollSpeed}-${cfg.pinnedPostId}-${cfg.pinnedUntil}-${cfg.limit}-${cfg.days}-${(cfg.selectedPostIds ?? []).join(",")}-${cfg.mixedFill}-${cfg.iconAnimation}-${cfg.labelPl}-${cfg.labelEn}-${JSON.stringify(cfg.colors ?? {})}`,
+      `${activeVariant.id}-${cfg.source}-${cfg.mode}-${cfg.layoutStyle}-${cfg.visibleCount}-${cfg.intervalSec}-${cfg.scrollSpeed}-${cfg.liveDirection}-${cfg.pinnedPostId}-${cfg.pinnedUntil}-${cfg.limit}-${cfg.days}-${(cfg.selectedPostIds ?? []).join(",")}-${cfg.mixedFill}-${cfg.iconAnimation}-${cfg.labelPl}-${cfg.labelEn}-${JSON.stringify(cfg.colors ?? {})}`,
     [activeVariant.id, cfg],
   );
 
@@ -628,6 +636,7 @@ export function TrendingTickerPane() {
                 "glassRibbon",
                 "glassSpotlight",
                 "glassTape",
+                "glassLive",
               ] as const
             ).map((s) => {
               const active = (cfg.layoutStyle ?? "classic") === s;
@@ -728,6 +737,27 @@ export function TrendingTickerPane() {
               onChange={(e) => set("intervalSec", Math.max(2, Number(e.target.value) || 2))}
             />
           </div>
+          {(cfg.layoutStyle ?? "classic") === "glassLive" && (
+            <div className="space-y-1.5">
+              <Label>{t.liveDirection}</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {(["vertical", "horizontal"] as const).map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => set("liveDirection", d)}
+                    className={`rounded-[5px] border px-3 py-2 text-xs transition ${
+                      (cfg.liveDirection ?? "vertical") === d
+                        ? "border-brand bg-brand/10 text-brand font-medium"
+                        : "border-border hover:bg-muted"
+                    }`}
+                  >
+                    {t[`liveDirection_${d}` as const]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {horizontalMarquee && (
             <div className="space-y-1.5">
               <Label htmlFor="tt-speed">{t.scrollSpeed}</Label>
@@ -959,6 +989,7 @@ export function TrendingTickerPane() {
               visibleCount={cfg.visibleCount ?? 1}
               intervalSec={cfg.intervalSec ?? 6}
               scrollSpeed={cfg.scrollSpeed ?? 60}
+              liveDirection={cfg.liveDirection ?? "vertical"}
               pinnedPostId={cfg.pinnedPostId || undefined}
               pinnedUntil={cfg.pinnedUntil || null}
               selectedPostIds={cfg.selectedPostIds}
