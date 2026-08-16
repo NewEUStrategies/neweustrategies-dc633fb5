@@ -702,8 +702,8 @@ function TickerStyles() {
 
         /* Flame animations */
         @keyframes tt-flame-pulse {
-          0%,100% { transform: scale(1); filter: drop-shadow(0 0 0 currentColor) }
-          50%     { transform: scale(1.18); filter: drop-shadow(0 0 6px currentColor) }
+          0%,100% { transform: scale(1) rotate(-1deg) }
+          50%     { transform: scale(1.2) rotate(2deg) }
         }
         @keyframes tt-flame-flicker {
           0%,100% { transform: scale(1) rotate(-2deg); opacity: 1 }
@@ -831,7 +831,11 @@ function TickerStyles() {
           /* Pierwowzór: miękki pomarańczowy pill z gradientem w prawo, nie skos */
           border-radius: 12px;
           clip-path: none;
-          padding: 9px 18px;
+          height: auto;
+          overflow: visible;
+          /* letter-spacing dokłada odstęp PO ostatniej literze - kompensujemy go
+             po prawej, żeby optycznie oba marginesy były równe (nie "ucięte"). */
+          padding: 9px 18px 9px 18px;
           margin-right: 14px;
           gap: 8px;
           background: linear-gradient(100deg,
@@ -844,7 +848,14 @@ function TickerStyles() {
             0 10px 26px -12px color-mix(in srgb, var(--tt-label) 85%, transparent),
             0 1px 0 0 color-mix(in srgb, white 26%, transparent) inset;
         }
-        .tt-skin--live .tt-glass-chip svg { width: 16px; height: 16px }
+        /* Tekst badge'a: zjadamy trailing letter-spacing i dajemy zapas na ogonki. */
+        .tt-skin--live .tt-glass-chip > span { margin-right: -.14em; line-height: 1.15 }
+        .tt-skin--live .tt-glass-chip svg {
+          width: 16px; height: 16px;
+          /* Ikona ma animować się sama - żadnej poświaty/pulsu za nią. */
+          filter: none;
+          animation: tt-flame-flicker 1.4s ease-in-out infinite;
+        }
 
         /* Wariant "Na czasie": badge jest samodzielny, bez ciemnego paska nachodzącego na niego */
         .tt-skin--live .tt-glass-track,
