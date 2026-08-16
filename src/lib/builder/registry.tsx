@@ -1862,15 +1862,15 @@ export const WIDGETS: WidgetDef[] = [
       uniqueOnPage: false,
     }),
   },
-  // Na czasie (trending pill: numer + tytuł + autor)
+  // Warte przeczytania (trending pill: numer + tytuł + autor)
   {
     type: "trending-now",
-    label: "Na czasie",
+    label: "Warte przeczytania",
     category: "dynamic",
     icon: Flame,
     defaults: () => ({
-      badge_pl: "Na czasie",
-      badge_en: "Trending",
+      badge_pl: "Warte przeczytania",
+      badge_en: "Worth reading",
       limit: 6,
       intervalSec: 5,
       pauseOnHover: true,
