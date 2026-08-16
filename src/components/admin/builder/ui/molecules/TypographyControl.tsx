@@ -114,7 +114,6 @@ export function TypographyControl({ value, onChange }: Props) {
     });
   };
 
-
   const renderSizeInput = (
     current: string,
     setter: (raw: string) => void,
@@ -221,7 +220,6 @@ export function TypographyControl({ value, onChange }: Props) {
           )}
         </PropField>
       </div>
-
 
       <PropField label={t("builder.typographyControl.gap")}>
         {renderSizeInput(
