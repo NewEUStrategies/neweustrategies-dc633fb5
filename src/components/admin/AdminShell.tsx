@@ -184,6 +184,99 @@ function SidebarTooltip({
   );
 }
 
+/** Klucz preferencji zwiniętych grup nawigacji panelu. */
+const NAV_COLLAPSED_KEY = "nes.admin.nav.collapsedGroups";
+
+/** Czy w grupie znajduje się trasa, na której właśnie jesteśmy. */
+function groupContainsPath(group: AdminNavGroup, path: string): boolean {
+  return group.items.some(
+    (item) => "to" in item && (path === item.to || path.startsWith(`${item.to}/`)),
+  );
+}
+
+/** Czy pozycja nawigacji odpowiada aktualnej ścieżce. */
+function isNavItemActive(to: string, path: string): boolean {
+  if (path === to) return true;
+  if (to === "/admin" || to === "/admin/appearance") return false;
+  // Kontakty CRM podświetlamy tylko na /admin/crm i szczegółach kontaktu,
+  // nie w lejku ani firmach.
+  if (to === "/admin/crm") return /^\/admin\/crm\/(?!funnel|companies)[^/]+/.test(path);
+  // Skrót do klubów ma własną pozycję, więc "Społeczność" nie może się
+  // podświetlać razem z nim.
+  if (to === "/admin/community" && path.startsWith("/admin/community/clubs")) return false;
+  return path.startsWith(`${to}/`);
+}
+
+type AdminNavRowProps = {
+  item: AdminNavItem;
+  path: string;
+  compact: boolean;
+  externalHint: string;
+  badgeLabel: string;
+  groupLabel?: string;
+  onNavigate?: () => void;
+};
+
+/** Pojedynczy wiersz nawigacji - wspólny dla listy grup i wyników wyszukiwania. */
+function AdminNavRow({
+  item,
+  path,
+  compact,
+  externalHint,
+  badgeLabel,
+  groupLabel,
+  onNavigate,
+  ...rest
+}: AdminNavRowProps & Record<string, unknown>) {
+  const Icon = item.icon;
+  if ("href" in item) {
+    return (
+      <SidebarExternalNavLink
+        {...rest}
+        href={item.href}
+        icon={Icon}
+        label={item.label}
+        hint={externalHint}
+        compact={compact}
+      />
+    );
+  }
+  const active = isNavItemActive(item.to, path);
+  return (
+    <Link
+      {...rest}
+      to={item.to}
+      activeOptions={{ exact: true }}
+      onClick={onNavigate}
+      title={compact ? undefined : item.label}
+      data-sidebar="menu-button"
+      data-active={active ? "true" : "false"}
+      className={cn(
+        "flex items-center py-1 rounded-md text-[13px] leading-tight transition",
+        compact ? "justify-center px-0" : "gap-1.5 px-2",
+        active ? "bg-brand text-brand-foreground" : "text-foreground hover:bg-muted",
+      )}
+    >
+      <Icon className="w-3 h-3 shrink-0" />
+      <span className={cn("truncate", compact && "hidden")}>{item.label}</span>
+      {groupLabel && !compact ? (
+        <span className="ml-auto shrink-0 truncate text-[10px] uppercase tracking-wide text-muted-foreground">
+          {groupLabel}
+        </span>
+      ) : null}
+      {!groupLabel && typeof item.badge === "number" && item.badge > 0 && !compact ? (
+        <span
+          className="ml-auto inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500/20 px-1 text-[10px] font-semibold tabular-nums text-amber-700 dark:text-amber-300"
+          aria-label={badgeLabel}
+        >
+          {item.badge > 99 ? "99+" : item.badge}
+        </span>
+      ) : null}
+    </Link>
+  );
+}
+
+
 export function AdminShell({
   children,
   hideSidebar,
