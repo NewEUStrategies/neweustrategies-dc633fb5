@@ -398,8 +398,8 @@ function TickerAuthor({ post }: { post: TickerItemProps["post"] }) {
   const avatar = post.author_avatar_url?.trim() ?? "";
   if (!name && !avatar) return null;
   return (
-    <span className="tt-live-author inline-flex shrink-0 items-center gap-2">
-      <span className="tt-live-sep" aria-hidden />
+    <span className="tt-live-author inline-flex shrink-0 items-center gap-[5px] pl-[5px]">
+
       {avatar ? (
         <img
           src={avatar}
@@ -600,14 +600,15 @@ function TickerGlassCards({
               </span>
               <AppLink
                 href={itemHref(p)}
-                className="tt-item flex min-w-0 flex-1 items-center gap-2.5 text-[13px] leading-none font-medium"
+                className="tt-item flex min-w-0 items-center gap-2.5 text-[13px] leading-none font-medium"
                 style={{ color: "var(--tt-item)" }}
                 title={itemTitle(p, lang)}
                 tabIndex={i >= posts.length ? -1 : undefined}
               >
-                <span className="min-w-0 flex-1 truncate">{itemTitle(p, lang)}</span>
+                <span className="min-w-0 truncate">{itemTitle(p, lang)}</span>
                 {skin === "live" ? <TickerAuthor post={p} /> : null}
               </AppLink>
+
             </div>
           ))}
         </div>
@@ -858,17 +859,13 @@ function TickerStyles() {
         .tt-skin--live .tt-glass-card { padding: 0 16px }
         .tt-skin--live .tt-item { font-size: 14px; font-weight: 700; letter-spacing: -.01em }
         .tt-skin--live .tt-glass-pill {
-          border-radius: 8px; background: none; box-shadow: none;
+          border-radius: 0; background: none; box-shadow: none; border: 0;
           backdrop-filter: none; -webkit-backdrop-filter: none;
-          border: 1px solid color-mix(in srgb, var(--tt-border) 70%, transparent);
           font-size: 14px; font-weight: 700;
         }
         .tt-skin--live .tt-live-author { color: var(--tt-counter) }
-        .tt-skin--live .tt-live-sep {
-          display: inline-block; width: 1px; height: 16px;
-          background: color-mix(in srgb, var(--tt-border) 90%, transparent);
-        }
         .tt-skin--live .tt-live-name { color: var(--tt-counter) }
+
         .tt-skin--live .tt-live-avatar {
           background: color-mix(in srgb, var(--tt-label) 18%, transparent);
           color: var(--tt-label);
