@@ -615,7 +615,17 @@ export function TrendingTickerPane() {
         <div className="space-y-1.5">
           <Label>{t.layoutStyle}</Label>
           <div className="grid grid-cols-2 gap-2">
-            {(["classic", "badge", "glassMarquee", "glassCards"] as const).map((s) => {
+            {(
+              [
+                "classic",
+                "badge",
+                "glassMarquee",
+                "glassCards",
+                "glassRibbon",
+                "glassSpotlight",
+                "glassTape",
+              ] as const
+            ).map((s) => {
               const active = (cfg.layoutStyle ?? "classic") === s;
               return (
                 <button
