@@ -40,33 +40,80 @@ export function TypographyControl({ value, onChange }: Props) {
     onChange(next);
   };
 
-  const rawUnified = v.fontSize?.desktop ?? v.fontSize?.tablet ?? v.fontSize?.mobile ?? "";
+  // Rozmiary są rozdzielone na desktop (desktop + tablet) i mobile, żeby
+  // redakcja mogła ustawić np. 34px na desktopie i 26px na telefonie.
+  const rawUnified = v.fontSize?.desktop ?? v.fontSize?.tablet ?? "";
   const unifiedPx = String(rawUnified).replace(/[^0-9]/g, "");
+  const mobilePx = String(v.fontSize?.mobile ?? "").replace(/[^0-9]/g, "");
   const setUnifiedSize = (raw: string) => {
     const digits = raw.replace(/[^0-9]/g, "");
     if (!digits) {
-      set({ fontSize: undefined });
+      set({ fontSize: v.fontSize?.mobile ? { mobile: v.fontSize.mobile } : undefined });
       return;
     }
     const px = `${digits}px`;
-    set({ fontSize: { desktop: px, tablet: px, mobile: px } });
+    set({ fontSize: { desktop: px, tablet: px, mobile: v.fontSize?.mobile ?? px } });
+  };
+  const setMobileSize = (raw: string) => {
+    const digits = raw.replace(/[^0-9]/g, "");
+    const desktop = v.fontSize?.desktop ?? v.fontSize?.tablet;
+    if (!digits) {
+      set({
+        fontSize: desktop ? { desktop, tablet: v.fontSize?.tablet ?? desktop } : undefined,
+      });
+      return;
+    }
+    const px = `${digits}px`;
+    set({
+      fontSize: {
+        ...(desktop ? { desktop, tablet: v.fontSize?.tablet ?? desktop } : {}),
+        mobile: px,
+      },
+    });
   };
 
-  const rawDesc =
-    v.descriptionFontSize?.desktop ??
-    v.descriptionFontSize?.tablet ??
-    v.descriptionFontSize?.mobile ??
-    "";
+  const rawDesc = v.descriptionFontSize?.desktop ?? v.descriptionFontSize?.tablet ?? "";
   const descPx = String(rawDesc).replace(/[^0-9]/g, "");
+  const descMobilePx = String(v.descriptionFontSize?.mobile ?? "").replace(/[^0-9]/g, "");
   const setDescSize = (raw: string) => {
     const digits = raw.replace(/[^0-9]/g, "");
     if (!digits) {
-      set({ descriptionFontSize: undefined });
+      set({
+        descriptionFontSize: v.descriptionFontSize?.mobile
+          ? { mobile: v.descriptionFontSize.mobile }
+          : undefined,
+      });
       return;
     }
     const px = `${digits}px`;
-    set({ descriptionFontSize: { desktop: px, tablet: px, mobile: px } });
+    set({
+      descriptionFontSize: {
+        desktop: px,
+        tablet: px,
+        mobile: v.descriptionFontSize?.mobile ?? px,
+      },
+    });
   };
+  const setDescMobileSize = (raw: string) => {
+    const digits = raw.replace(/[^0-9]/g, "");
+    const desktop = v.descriptionFontSize?.desktop ?? v.descriptionFontSize?.tablet;
+    if (!digits) {
+      set({
+        descriptionFontSize: desktop
+          ? { desktop, tablet: v.descriptionFontSize?.tablet ?? desktop }
+          : undefined,
+      });
+      return;
+    }
+    const px = `${digits}px`;
+    set({
+      descriptionFontSize: {
+        ...(desktop ? { desktop, tablet: v.descriptionFontSize?.tablet ?? desktop } : {}),
+        mobile: px,
+      },
+    });
+  };
+
 
   const renderSizeInput = (
     current: string,
