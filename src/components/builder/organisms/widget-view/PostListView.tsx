@@ -887,7 +887,7 @@ function PostCard({
         )}
         {title && (
           <h4 className="cms-post-title line-clamp-2" style={titleStyle}>
-            {title}
+            <TitleSpan title={title} />
           </h4>
         )}
         {excerpt && (
