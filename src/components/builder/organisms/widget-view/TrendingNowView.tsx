@@ -45,10 +45,7 @@ export function buildTrendingKeyframes(slots: number, animName: string): string 
 
 export function TrendingNowView({ c, lang }: { c: WidgetContent; lang: Lang }) {
   const { t } = useTranslation();
-  const badge =
-    readStr(c, `badge_${lang}`) ||
-    readStr(c, "badge_pl") ||
-    t("trendingTicker.badge");
+  const badge = readStr(c, `badge_${lang}`) || readStr(c, "badge_pl") || t("trendingTicker.badge");
   const displayLimit = newsTickerDisplayLimit(c);
   const intervalSec = Math.max(2, Math.min(60, asNum(c.intervalSec, 5)));
   const pauseOnHover = asBool(c.pauseOnHover, true);

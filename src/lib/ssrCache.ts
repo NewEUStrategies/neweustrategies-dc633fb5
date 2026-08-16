@@ -27,8 +27,11 @@ const STALE_FACTOR = 5;
 
 // Single-flight: równoległe żądania tego samego klucza (normalny stan świeżo
 // wystartowanego izolatu - każdy root loader rozgrzewa te same ustawienia)
-// dzielą JEDEN fetch zamiast N identycznych round-tripów.
-const inFlight = new Map<string, Promise<unknown>>();
+// dzielą JEDEN fetch zamiast N identycznych round-tripów. Lot niesie swoją
+// generację: żądanie złożone PO invalidacji nie może dołączyć do fetcha
+// rozpoczętego przed nią (dostałoby sprzed-operatorskie dane, mimo że zapis
+// do magazynu byłby odrzucony).
+const inFlight = new Map<string, { gen: number; promise: Promise<unknown> }>();
 
 // Klucze, których odświeżenie w tle już biegnie - drugi stale-hit nie
 // startuje drugiego fetcha.
@@ -112,16 +115,20 @@ export async function edgeTtlCache<T>(
   }
 
   // Zimny miss albo twarde wygaśnięcie: blokujący fetch, single-flight.
-  const pending = inFlight.get(scopedKey) as Promise<T> | undefined;
-  if (pending) return pending;
+  const pending = inFlight.get(scopedKey);
+  if (pending && pending.gen === generation) return pending.promise as Promise<T>;
   const genAtFetchStart = generation;
   const flight = fetcher()
     .then((data) => {
       storeEntry(scopedKey, data, genAtFetchStart);
       return data;
     })
-    .finally(() => inFlight.delete(scopedKey));
-  inFlight.set(scopedKey, flight);
+    .finally(() => {
+      // Nowszy lot (po invalidacji) mógł nadpisać wpis - kasujemy tylko SWÓJ.
+      const current = inFlight.get(scopedKey);
+      if (current && current.promise === flight) inFlight.delete(scopedKey);
+    });
+  inFlight.set(scopedKey, { gen: genAtFetchStart, promise: flight });
   return flight;
 }
 

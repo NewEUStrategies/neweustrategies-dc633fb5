@@ -39,6 +39,30 @@ const EVENT = "consent-change";
 const PREVIEW_EVENT = "consent-preview-change";
 export const OPEN_PREFS_EVENT = "consent-open-preferences";
 
+// Klik "ustawienia cookies" może paść, ZANIM leniwy chunk ConsentBanner
+// (React.lazy w __root) zdąży się pobrać i zarejestrować listener
+// OPEN_PREFS_EVENT - jednorazowe zdarzenie okienne przepadłoby bez śladu.
+// Dyspozytor odkłada więc żądanie w stanie modułu (ten plik jest w chunku
+// wejściowym), a baner konsumuje je przy montażu.
+let pendingOpenPrefs = false;
+
+/**
+ * Otwórz panel preferencji zgód. Bezpieczne także PRZED zamontowaniem baneru:
+ * żądanie czeka w stanie modułu i baner odtworzy je zaraz po montażu.
+ */
+export function requestConsentPreferences(): void {
+  if (typeof window === "undefined") return;
+  pendingOpenPrefs = true;
+  window.dispatchEvent(new CustomEvent(OPEN_PREFS_EVENT));
+}
+
+/** Konsumpcja odłożonego żądania otwarcia preferencji (woła ConsentBanner). */
+export function consumeOpenPrefsRequest(): boolean {
+  const pending = pendingOpenPrefs;
+  pendingOpenPrefs = false;
+  return pending;
+}
+
 export type ConsentCategory = "necessary" | "functional" | "analytics" | "marketing";
 
 export interface ConsentState {

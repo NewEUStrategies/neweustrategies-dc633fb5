@@ -17,6 +17,7 @@ import {
   useConsent,
   useGpcSignal,
   OPEN_PREFS_EVENT,
+  consumeOpenPrefsRequest,
   type ConsentCategory,
 } from "@/lib/ads/consent";
 import { isGpcClampedCategory, isGpcOverrideValid } from "@/lib/consent/gpc";
@@ -317,8 +318,16 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
   }, [state, gpcHonored]);
 
   useEffect(() => {
-    const open = () => setDetailsOpen(true);
+    const open = () => {
+      // Konsumpcja także na drodze zdarzeniowej: odłożone żądanie nie może
+      // otworzyć panelu drugi raz przy ponownym montażu baneru.
+      consumeOpenPrefsRequest();
+      setDetailsOpen(true);
+    };
     window.addEventListener(OPEN_PREFS_EVENT, open);
+    // Klik sprzed pobrania chunku (baner jest React.lazy w __root): żądanie
+    // czeka w stanie modułu consent.ts - odtwórz je zaraz po montażu.
+    if (consumeOpenPrefsRequest()) setDetailsOpen(true);
     return () => window.removeEventListener(OPEN_PREFS_EVENT, open);
   }, []);
 

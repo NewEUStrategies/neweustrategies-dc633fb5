@@ -171,7 +171,6 @@ export function TrendingTicker({
         <TickerStyles />
       </div>
     );
-
   }
 
   return (
@@ -422,7 +421,9 @@ function TickerAuthor({ post }: { post: TickerItemProps["post"] }) {
         </span>
       ) : null}
       {name ? (
-        <span className="tt-live-name hidden sm:inline whitespace-nowrap text-[12px] font-semibold">{name}</span>
+        <span className="tt-live-name hidden sm:inline whitespace-nowrap text-[12px] font-semibold">
+          {name}
+        </span>
       ) : null}
     </span>
   );
@@ -440,7 +441,6 @@ interface MarqueeLayoutProps {
   iconClass: string;
   skin: MarqueeSkin;
 }
-
 
 function itemTitle(post: TickerItemProps["post"], lang: "pl" | "en"): string {
   return lang === "en"
@@ -626,7 +626,6 @@ function TickerGlassCards({
                 />
                 {skin === "live" ? <TickerAuthor post={p} /> : null}
               </AppLink>
-
             </div>
           ))}
         </div>

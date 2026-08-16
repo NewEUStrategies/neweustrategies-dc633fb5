@@ -34,7 +34,6 @@ export type LayoutStyle =
 export type LiveDirection = "vertical" | "horizontal";
 export const LIVE_DIRECTIONS: readonly LiveDirection[] = ["vertical", "horizontal"];
 
-
 export interface TickerColors {
   bg: string;
   border: string;
@@ -156,7 +155,6 @@ export const MARQUEE_LAYOUTS: readonly LayoutStyle[] = [
   "glassTape",
   "glassLive",
 ];
-
 
 export function isMarqueeLayout(layout: LayoutStyle | undefined): boolean {
   return MARQUEE_LAYOUTS.includes(layout ?? "classic");

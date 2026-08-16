@@ -19,6 +19,7 @@ const h = vi.hoisted(() => ({
 
 vi.mock("@/lib/ads/consent", () => ({
   OPEN_PREFS_EVENT: "consent-open-preferences",
+  consumeOpenPrefsRequest: () => false,
   useConsent: () => ({
     state: null,
     decided: false,

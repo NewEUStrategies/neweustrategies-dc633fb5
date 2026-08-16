@@ -103,6 +103,22 @@ describe("edgeTtlCache host scoping", () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
+  it("a read after invalidation does not join a pre-invalidation in-flight fetch", async () => {
+    state.host = "a.example";
+    let releaseOld!: (v: string) => void;
+    const oldGate = new Promise<string>((r) => (releaseOld = r));
+    const preInvalidation = edgeTtlCache("inv2", 60_000, () => oldGate);
+    await invalidateEdgeTtlCache("inv2");
+    // Odczyt PO invalidacji startuje świeży fetch zamiast dołączyć do lotu
+    // sprzed niej - inaczej dostałby sprzed-operatorskie dane.
+    const fresh = vi.fn().mockResolvedValue("fresh");
+    const postInvalidation = edgeTtlCache("inv2", 60_000, fresh);
+    releaseOld("pre-invalidation");
+    await expect(preInvalidation).resolves.toBe("pre-invalidation");
+    await expect(postInvalidation).resolves.toBe("fresh");
+    expect(fresh).toHaveBeenCalledTimes(1);
+  });
+
   it("a fetch started before invalidation cannot store pre-invalidation data", async () => {
     state.host = "a.example";
     let release!: (v: string) => void;

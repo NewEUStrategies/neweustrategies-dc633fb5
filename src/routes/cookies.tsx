@@ -11,7 +11,7 @@ import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead } from "@/lib/seo/meta";
 import { staticPageSeoQueryOptions, pickStaticSeo } from "@/lib/queries/staticPageSeo";
-import { OPEN_PREFS_EVENT, useConsent, type ConsentCategory } from "@/lib/ads/consent";
+import { requestConsentPreferences, useConsent, type ConsentCategory } from "@/lib/ads/consent";
 
 interface CategoryCopy {
   key: ConsentCategory;
@@ -187,8 +187,9 @@ function CookiesPage() {
   const { state, acceptAll, rejectAll } = useConsent();
 
   const openPrefs = () => {
-    if (typeof window === "undefined") return;
-    window.dispatchEvent(new CustomEvent(OPEN_PREFS_EVENT));
+    // Helper odkłada żądanie w stanie modułu, więc klik działa także zanim
+    // leniwy chunk ConsentBanner zdąży się pobrać i zasubskrybować.
+    requestConsentPreferences();
   };
 
   return (

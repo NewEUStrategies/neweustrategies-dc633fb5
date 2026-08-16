@@ -187,7 +187,11 @@ export function buildAdminNavGroups({
           icon: FolderTree,
           label: t("admin.appearance.categoryArchive"),
         },
-        { to: "/admin/appearance/tag-archive", icon: Tags, label: t("admin.appearance.tagArchive") },
+        {
+          to: "/admin/appearance/tag-archive",
+          icon: Tags,
+          label: t("admin.appearance.tagArchive"),
+        },
         { to: "/admin/theme-options", icon: Palette, label: t("admin.nav.themeOptions") },
         { to: "/admin/post-layouts", icon: LayoutGrid, label: t("admin.nav.postLayouts") },
         { to: "/admin/expert-layouts", icon: Users, label: t("admin.nav.expertLayouts") },

@@ -209,7 +209,7 @@ const COPY = {
     layout_glassRibbon: "Gradient ribbon (horizontal)",
     layout_glassSpotlight: "Spotlight (vertical rotation)",
     layout_glassTape: "News tape (mono, horizontal)",
-    layout_glassLive: 'Worth reading widget (badge + author)',
+    layout_glassLive: "Worth reading widget (badge + author)",
     liveDirection: "Motion direction",
     liveDirection_vertical: "Vertical slide",
     liveDirection_horizontal: "Horizontal marquee",

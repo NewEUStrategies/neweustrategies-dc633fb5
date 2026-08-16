@@ -95,7 +95,7 @@ rozgrzewane przez loader roota wygasały stadnie. Teraz:
   `buildAvatarSrc(…, 80)` + lazy.
 - **`WebStoriesCarouselView`** (widget buildera, m.in. strona główna): kafelki
   ~160 px pobierały pełnowymiarowe okładki historii - teraz `OptimizedImage
-  responsive` z `sizes` zależnym od wariantu (carousel/grid). Analogicznie
+responsive` z `sizes` zależnym od wariantu (carousel/grid). Analogicznie
   kafelki w `web-stories.index.tsx` i "więcej historii" w
   `web-stories.$slug.tsx`.
 - **`events.tsx`**: karty wydarzeń przez `OptimizedImage responsive`.
@@ -111,6 +111,26 @@ rozgrzewane przez loader roota wygasały stadnie. Teraz:
     ich nie wstrzymuje) dostają `fetchPriority="low"`, żeby nie konkurowały o
     pasmo z aktywnym slajdem (LCP). Deterministyczne dla SSR/hydratacji
     (obie strony renderują idx=0 jako aktywny).
+
+## Poprawki po recenzji (PR #243)
+
+- **Replay busa dialogu eksperta** (`expertRequestDialogBus.ts`): klik w CTA
+  mógł paść, zanim leniwy chunk hosta się pobierze - emisja do pustego zbioru
+  listenerów gubiła prefill. Bus zapamiętuje ostatnie żądanie i odtwarza je
+  pierwszemu subskrybentowi; `close` czyści stan.
+- **Replay żądania preferencji zgód** (`consent.ts` +
+  `requestConsentPreferences()`): jednorazowy `OPEN_PREFS_EVENT` wysłany przed
+  rejestracją listenera lazy-banera przepadał. Dyspozytor odkłada żądanie w
+  stanie modułu (chunk wejściowy), baner konsumuje je przy montażu; wszystkie
+  trzy miejsca dyspozycji (`cookies.tsx`, `profile.privacy.tsx`, podgląd w
+  adminie) przeszły na helper.
+- **Single-flight a invalidacja** (`ssrCache.ts`): odczyt złożony PO
+  `invalidateEdgeTtlCache` nie dołącza już do lotu rozpoczętego przed nią
+  (lot niesie swoją generację) - wcześniej dostawał sprzed-operatorskie dane,
+  choć zapis do magazynu był odrzucany.
+- **Formatowanie**: bramka CI `format:check` używa prettiera 3.8.3 z lockfile;
+  10 plików spoza tego pakietu było już na mainie sformatowanych nowszym
+  prettierem i blokowało bramkę - przeformatowane do 3.8.3.
 
 ## Świadomie odrzucone / backlog
 
