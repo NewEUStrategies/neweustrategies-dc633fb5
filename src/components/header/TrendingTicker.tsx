@@ -836,7 +836,7 @@ function TickerStyles() {
         /* Widget "Na czasie" - badge "Prestigious glass pill v5":
            skośny równoległobok w gradiencie brandu, jasna krawędź, pulsujące
            pierścienie przy ikonie i przesuwający się refleks przy hoverze. */
-        .tt-skin--live { gap: 0 }
+        .tt-skin--live { gap: 14px }
         .tt-skin--live .tt-glass-chip {
           position: relative;
           overflow: hidden;
