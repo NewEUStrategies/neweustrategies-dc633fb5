@@ -157,7 +157,14 @@ const KNOWN_CONTENT_TWINS: readonly string[] = [
   // pilnuje od teraz `check:sql-policy-tenant-regression`.
   "20260814100000_careers_tenant_scope.sql|20260814122639_37dcf7c4-65f3-4b41-a1a8-d5e5cf3cab5c.sql",
   "20260814110000_careers_pipeline_and_cv_retention.sql|20260814123014_97f305de-e08e-4e76-b1d0-e5d17f909f1d.sql",
+  // PR #242 (izolacja najemcy w club_topics) wjechał do repo jako plik nazwany
+  // ręcznie, ale nigdy nie został zastosowany w produkcyjnej bazie - polityka
+  // stała na USING (true), a club_topics_active() na tautologii. Operator
+  // zastosował identyczną treść narzędziem migracji (plik 20260816204256),
+  // więc obie wersje są zastosowane; treść jest idempotentna.
+  "20260816090000_club_topics_public_read_tenant_scope.sql|20260816204256_d05ac5e5-13f2-43dc-b08b-15a03105188b.sql",
 ];
+
 
 /**
  * Treść migracji bez komentarzy i bez różnic w białych znakach. Dwa pliki
