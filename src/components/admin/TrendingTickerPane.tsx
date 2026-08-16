@@ -648,6 +648,7 @@ export function TrendingTickerPane() {
             ))}
           </div>
         </div>
+        )}
 
         {/* Icon animation removed - flame stays static. */}
 
