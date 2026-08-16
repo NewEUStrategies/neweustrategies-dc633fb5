@@ -3,6 +3,7 @@ export { PublishChecklistCard } from "./PublishChecklistCard";
 export { WorkflowStatusSection } from "./WorkflowStatusSection";
 export { TranslateCard, type TranslateCardInput } from "./TranslateCard";
 export { SeriesCard } from "./SeriesCard";
+export { PostAuthorsCard } from "./PostAuthorsCard";
 export { PreviewLinksCard } from "./PreviewLinksCard";
 export { ChangelogCard } from "./ChangelogCard";
 export { LayoutOverridesCard } from "./LayoutOverridesCard";

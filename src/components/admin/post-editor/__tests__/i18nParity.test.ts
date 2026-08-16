@@ -23,7 +23,7 @@ function namespace(lang: "pl" | "en", key: string): unknown {
 }
 
 // The sub-namespaces introduced when the editor route was moved to atomic design.
-const ADDED_NAMESPACES = ["editor", "nav", "taxonomy", "layout", "sections"] as const;
+const ADDED_NAMESPACES = ["editor", "nav", "taxonomy", "layout", "sections", "authors"] as const;
 
 describe("post-editor i18n PL/EN parity", () => {
   it.each(ADDED_NAMESPACES)("has matching PL and EN keys under adminPostPanes.%s", (ns) => {

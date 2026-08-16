@@ -5,11 +5,17 @@
 import { useTranslation } from "react-i18next";
 import type { ReactNode } from "react";
 import { Layers } from "@/lib/lucide-shim";
-import { History, ListChecks, Eye } from "lucide-react";
+import { History, ListChecks, Eye, Users } from "lucide-react";
 import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
 import { RevisionsCard } from "@/components/admin/molecules/RevisionsCard";
 import { SidebarSection } from "../atoms";
-import { PublishChecklistCard, SeriesCard, PreviewLinksCard, ChangelogCard } from "../molecules";
+import {
+  PublishChecklistCard,
+  SeriesCard,
+  PostAuthorsCard,
+  PreviewLinksCard,
+  ChangelogCard,
+} from "../molecules";
 import { PostSettingsCard } from "./PostSettingsCard";
 import { PostTranslateCard } from "./PostTranslateCard";
 import { PostTaxonomyGrid } from "./PostTaxonomyGrid";
@@ -57,6 +63,13 @@ export function PostSidebarBundle({
         autoReadMinutes={autoReadMinutes}
       />
       <PostTranslateCard formApi={formApi} />
+      <SidebarSection title={t("adminPostPanes.authors.title")} icon={Users} defaultOpen={false}>
+        <PostAuthorsCard
+          postId={data.id}
+          tenantId={data.tenantId}
+          mainAuthorId={data.post?.author_id ?? null}
+        />
+      </SidebarSection>
       <SidebarSection title={t("adminPostPanes.series.title")} icon={Layers} defaultOpen={false}>
         <SeriesCard postId={data.id} />
       </SidebarSection>
