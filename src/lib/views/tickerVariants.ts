@@ -127,10 +127,25 @@ const SOURCES: readonly TickerSource[] = ["trending", "latest", "pinned", "selec
 const MODES: readonly TickerMode[] = ["scroll", "rotate", "fade", "slide", "flip", "typewriter"];
 const ICON_ANIMS: readonly IconAnimation[] = ["none", "pulse", "flicker", "spin", "wave"];
 const MIX_FILLS: readonly MixedFill[] = ["trending", "latest"];
-const LAYOUTS: readonly LayoutStyle[] = ["classic", "badge", "glassMarquee", "glassCards"];
+const LAYOUTS: readonly LayoutStyle[] = [
+  "classic",
+  "badge",
+  "glassMarquee",
+  "glassCards",
+  "glassRibbon",
+  "glassSpotlight",
+  "glassTape",
+];
 
 /** Layouts that carry their own marquee motion - the `mode` knob does not apply. */
-export const MARQUEE_LAYOUTS: readonly LayoutStyle[] = ["glassMarquee", "glassCards"];
+export const MARQUEE_LAYOUTS: readonly LayoutStyle[] = [
+  "glassMarquee",
+  "glassCards",
+  "glassRibbon",
+  "glassSpotlight",
+  "glassTape",
+];
+
 
 export function isMarqueeLayout(layout: LayoutStyle | undefined): boolean {
   return MARQUEE_LAYOUTS.includes(layout ?? "classic");
