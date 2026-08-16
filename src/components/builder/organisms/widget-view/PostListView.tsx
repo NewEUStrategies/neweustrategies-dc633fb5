@@ -59,6 +59,13 @@ const overlayFrame = (a: ImageAspect) =>
 const listFrame = (a: ImageAspect) =>
   `relative block ${ASPECT_CLASS[a]} w-[112px] sm:w-[128px] shrink-0 overflow-hidden rounded-sm bg-muted`;
 
+// Per-line underline on mobile: line-clamp forces `display: -webkit-box`,
+// so the parent `.cms-post-title` gradient collapses to a single bar.
+// Wrapping the text in an inline span restores the per-line underline.
+function TitleSpan({ title }: { title: string }) {
+  return <span className="cms-title-underline">{title}</span>;
+}
+
 type Variant =
   | "card"
   | "minimal"
