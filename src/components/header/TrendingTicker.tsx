@@ -16,6 +16,7 @@ import {
   isMarqueeLayout,
   type IconAnimation,
   type LayoutStyle,
+  type LiveDirection,
   type MixedFill,
   type TickerColorScheme,
 } from "@/lib/views/tickerVariants";
@@ -34,6 +35,8 @@ export interface TickerProps {
   intervalSec?: number;
   /** Horizontal marquee layouts: scroll speed in px/s. */
   scrollSpeed?: number;
+  /** `glassLive`: pionowy slide (domyślnie) albo poziomy marquee. */
+  liveDirection?: LiveDirection;
   pinnedPostId?: string;
   pinnedUntil?: string | null;
   selectedPostIds?: string[];
@@ -66,6 +69,7 @@ export function TrendingTicker({
   visibleCount = 1,
   intervalSec = 6,
   scrollSpeed = 60,
+  liveDirection = "vertical",
   pinnedPostId,
   pinnedUntil,
   selectedPostIds,
@@ -125,7 +129,10 @@ export function TrendingTicker({
   const iconClass = `tt-flame tt-flame-${iconAnimation}`;
 
   if (isMarquee) {
-    const isVerticalLayout = layoutStyle === "glassCards" || layoutStyle === "glassSpotlight";
+    const isVerticalLayout =
+      layoutStyle === "glassCards" ||
+      layoutStyle === "glassSpotlight" ||
+      (layoutStyle === "glassLive" && liveDirection === "vertical");
     const skin = SKIN_BY_LAYOUT[layoutStyle] ?? "marquee";
     return (
       <div
@@ -277,6 +284,8 @@ interface TickerItemProps {
     href?: string;
     title_pl: string | null;
     title_en: string | null;
+    author_display_name?: string | null;
+    author_avatar_url?: string | null;
   };
   index: number;
   lang: "pl" | "en";
@@ -362,7 +371,7 @@ function TypewriterText({ text, delayMs }: { text: string; delayMs: number }) {
 }
 
 /** Visual skin applied to the two marquee engines (horizontal / vertical). */
-type MarqueeSkin = "marquee" | "cards" | "ribbon" | "spotlight" | "tape";
+type MarqueeSkin = "marquee" | "cards" | "ribbon" | "spotlight" | "tape" | "live";
 
 const SKIN_BY_LAYOUT: Partial<Record<LayoutStyle, MarqueeSkin>> = {
   glassMarquee: "marquee",
@@ -370,7 +379,32 @@ const SKIN_BY_LAYOUT: Partial<Record<LayoutStyle, MarqueeSkin>> = {
   glassRibbon: "ribbon",
   glassSpotlight: "spotlight",
   glassTape: "tape",
+  glassLive: "live",
 };
+
+/** Inline'owy autor (awatar + nazwisko) - używany przez skin `live`. */
+function TickerAuthor({ post }: { post: TickerItemProps["post"] }) {
+  if (!post.author_avatar_url && !post.author_display_name) return null;
+  return (
+    <span className="tt-live-author inline-flex shrink-0 items-center gap-2">
+      {post.author_avatar_url ? (
+        <img
+          src={post.author_avatar_url}
+          alt=""
+          loading="lazy"
+          width={20}
+          height={20}
+          className="tt-live-avatar h-5 w-5 rounded-full object-cover"
+        />
+      ) : null}
+      {post.author_display_name ? (
+        <span className="hidden whitespace-nowrap text-[12px] font-semibold sm:inline">
+          {post.author_display_name}
+        </span>
+      ) : null}
+    </span>
+  );
+}
 
 interface MarqueeLayoutProps {
   label: string;
@@ -463,12 +497,23 @@ function TickerGlassMarquee({
               aria-hidden={i >= posts.length ? true : undefined}
               tabIndex={i >= posts.length ? -1 : undefined}
             >
-              <span
-                className="tt-glass-dot inline-block w-1 h-1 rounded-full shrink-0"
-                style={{ background: "var(--tt-dot)" }}
-                aria-hidden
-              />
+              {skin === "live" ? (
+                <span
+                  className="tt-live-index shrink-0 text-[13px] font-bold tabular-nums"
+                  style={{ color: "var(--tt-label)" }}
+                  aria-hidden
+                >
+                  {String((i % posts.length) + 1).padStart(2, "0")}
+                </span>
+              ) : (
+                <span
+                  className="tt-glass-dot inline-block w-1 h-1 rounded-full shrink-0"
+                  style={{ background: "var(--tt-dot)" }}
+                  aria-hidden
+                />
+              )}
               <span className="min-w-0 truncate">{itemTitle(p, lang)}</span>
+              {skin === "live" ? <TickerAuthor post={p} /> : null}
             </AppLink>
           ))}
         </div>
@@ -537,12 +582,13 @@ function TickerGlassCards({
               </span>
               <AppLink
                 href={itemHref(p)}
-                className="tt-item min-w-0 truncate text-[13px] leading-none font-medium"
+                className="tt-item flex min-w-0 flex-1 items-center gap-2.5 text-[13px] leading-none font-medium"
                 style={{ color: "var(--tt-item)" }}
                 title={itemTitle(p, lang)}
                 tabIndex={i >= posts.length ? -1 : undefined}
               >
-                {itemTitle(p, lang)}
+                <span className="min-w-0 flex-1 truncate">{itemTitle(p, lang)}</span>
+                {skin === "live" ? <TickerAuthor post={p} /> : null}
               </AppLink>
             </div>
           ))}
@@ -754,6 +800,58 @@ function TickerStyles() {
           clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
         }
         .tt-skin--tape .tt-glass-pill:hover { transform: none }
+
+        /* Widget "Na czasie" - skośny badge brand, szklana karta, autor inline */
+        .tt-skin--live { gap: 0 }
+        .tt-skin--live .tt-glass-chip {
+          border-radius: 0;
+          clip-path: polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%);
+          padding-right: 26px;
+          background: linear-gradient(135deg,
+            var(--tt-label), color-mix(in srgb, var(--tt-label) 62%, white));
+          color: var(--tt-label-fg);
+          font-weight: 800; letter-spacing: .16em;
+          box-shadow: 0 8px 24px -14px color-mix(in srgb, var(--tt-label) 90%, transparent);
+        }
+        .tt-skin--live .tt-glass-track,
+        .tt-skin--live .tt-glass-viewport {
+          border-radius: 0 10px 10px 0;
+          border: 1px solid color-mix(in srgb, var(--tt-border) 90%, transparent);
+          border-left: none;
+          background: color-mix(in srgb, var(--tt-bg) 70%, transparent);
+          backdrop-filter: blur(10px) saturate(1.2);
+          -webkit-backdrop-filter: blur(10px) saturate(1.2);
+          margin-left: -12px;
+        }
+        /* Szklane górne/dolne zanikanie w wariancie pionowym */
+        .tt-skin--live .tt-glass-viewport::before,
+        .tt-skin--live .tt-glass-viewport::after {
+          content: ""; position: absolute; left: 0; right: 0; height: 12px;
+          pointer-events: none; z-index: 2;
+        }
+        .tt-skin--live .tt-glass-viewport::before {
+          top: 0; background: linear-gradient(to bottom,
+            color-mix(in srgb, var(--tt-bg) 92%, transparent), transparent);
+        }
+        .tt-skin--live .tt-glass-viewport::after {
+          bottom: 0; background: linear-gradient(to top,
+            color-mix(in srgb, var(--tt-bg) 92%, transparent), transparent);
+        }
+        .tt-skin--live .tt-glass-card { padding: 0 16px }
+        .tt-skin--live .tt-item { font-size: 14px; font-weight: 700; letter-spacing: -.01em }
+        .tt-skin--live .tt-glass-pill {
+          border-radius: 8px; background: none; box-shadow: none;
+          backdrop-filter: none; -webkit-backdrop-filter: none;
+          border: 1px solid color-mix(in srgb, var(--tt-border) 70%, transparent);
+          font-size: 14px; font-weight: 700;
+        }
+        .tt-skin--live .tt-live-author {
+          border-left: 1px solid color-mix(in srgb, var(--tt-border) 90%, transparent);
+          padding-left: 10px; color: var(--tt-counter);
+        }
+        .tt-skin--live .tt-live-avatar {
+          box-shadow: 0 0 0 1px color-mix(in srgb, var(--tt-border) 90%, transparent);
+        }
 
         /* v11 - spotlight rotation */
         .tt-skin--spotlight .tt-glass-viewport {

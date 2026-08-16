@@ -53,6 +53,44 @@ export interface TrendingPost {
   parent_page_id: string;
   views_count: number;
   href: string;
+  /** Autor wpisu (profiles.display_name / avatar_url) - używany przez styl `glassLive`. */
+  author_display_name: string | null;
+  author_avatar_url: string | null;
+}
+
+interface AuthorRow {
+  id: string;
+  display_name: string | null;
+  avatar_url: string | null;
+}
+
+/** Jedno dodatkowe zapytanie: post -> author_id, potem profiles w batchu. */
+async function resolveAuthors(
+  sb: ReturnType<typeof client>,
+  postIds: readonly string[],
+): Promise<Map<string, AuthorRow>> {
+  const out = new Map<string, AuthorRow>();
+  const ids = Array.from(new Set(postIds.filter(Boolean)));
+  if (!ids.length) return out;
+  const { data: posts, error } = await sb.from("posts").select("id, author_id").in("id", ids);
+  if (error || !posts?.length) return out;
+  const byPost = new Map<string, string>();
+  for (const row of posts as Array<{ id: string; author_id: string | null }>) {
+    if (row.author_id) byPost.set(row.id, row.author_id);
+  }
+  const authorIds = Array.from(new Set([...byPost.values()]));
+  if (!authorIds.length) return out;
+  const { data: profiles } = await sb
+    .from("profiles")
+    .select("id, display_name, avatar_url")
+    .in("id", authorIds);
+  const byAuthor = new Map<string, AuthorRow>();
+  for (const p of (profiles ?? []) as AuthorRow[]) byAuthor.set(p.id, p);
+  for (const [postId, authorId] of byPost) {
+    const a = byAuthor.get(authorId);
+    if (a) out.set(postId, a);
+  }
+  return out;
 }
 
 // Posts in one list overwhelmingly share a handful of parent pages, and
@@ -108,10 +146,16 @@ export const getTrendingPosts = createServerFn({ method: "GET" })
           console.warn("trending_posts failed:", error.message);
           return [];
         }
-        const paths = await resolveParentPaths(
-          sb,
-          (rows ?? []).map((r) => r.parent_page_id),
-        );
+        const [paths, authors] = await Promise.all([
+          resolveParentPaths(
+            sb,
+            (rows ?? []).map((r) => r.parent_page_id),
+          ),
+          resolveAuthors(
+            sb,
+            (rows ?? []).map((r) => r.id),
+          ),
+        ]);
         return (rows ?? []).map((r) => ({
           id: r.id,
           slug: r.slug,
@@ -122,6 +166,8 @@ export const getTrendingPosts = createServerFn({ method: "GET" })
           parent_page_id: r.parent_page_id,
           views_count: Number(r.views_count ?? 0),
           href: postHref(paths, r.parent_page_id, r.slug),
+          author_display_name: authors.get(r.id)?.display_name ?? null,
+          author_avatar_url: authors.get(r.id)?.avatar_url ?? null,
         }));
       }),
   );
@@ -151,10 +197,16 @@ async function toTrendingPosts(
   sb: ReturnType<typeof client>,
   rows: TickerRow[],
 ): Promise<TrendingPost[]> {
-  const paths = await resolveParentPaths(
-    sb,
-    rows.map((r) => r.parent_page_id),
-  );
+  const [paths, authors] = await Promise.all([
+    resolveParentPaths(
+      sb,
+      rows.map((r) => r.parent_page_id),
+    ),
+    resolveAuthors(
+      sb,
+      rows.map((r) => r.id),
+    ),
+  ]);
   return rows.map((r) => ({
     id: r.id,
     slug: r.slug,
@@ -165,6 +217,8 @@ async function toTrendingPosts(
     parent_page_id: r.parent_page_id,
     views_count: 0,
     href: postHref(paths, r.parent_page_id, r.slug),
+    author_display_name: authors.get(r.id)?.display_name ?? null,
+    author_avatar_url: authors.get(r.id)?.avatar_url ?? null,
   }));
 }
 
