@@ -612,6 +612,10 @@ function TickerStyles() {
     <style
       dangerouslySetInnerHTML={{
         __html: `
+        .cms-trending, .cms-trending *,
+        .tt-glass, .tt-glass * {
+          font-family: var(--font-display, "Red Hat Display", system-ui, sans-serif);
+        }
         @keyframes tt-fade { from { opacity: 0 } to { opacity: 1 } }
         @keyframes tt-slide {
           from { opacity: 0; transform: translateY(60%) }
@@ -742,8 +746,8 @@ function TickerStyles() {
           border-bottom: 1px dashed color-mix(in srgb, var(--tt-border) 90%, transparent);
         }
         .tt-skin--tape .tt-glass-pill {
-          border-radius: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-          font-size: 12px; letter-spacing: .04em; text-transform: uppercase;
+          border-radius: 0;
+          font-size: 12px; font-variant-numeric: tabular-nums; letter-spacing: .04em; text-transform: uppercase;
           background: none; box-shadow: none; backdrop-filter: none;
           -webkit-backdrop-filter: none;
           border: 1px solid color-mix(in srgb, var(--tt-border) 90%, transparent);
