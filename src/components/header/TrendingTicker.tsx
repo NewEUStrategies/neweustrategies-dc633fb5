@@ -857,6 +857,8 @@ function TickerStyles() {
           box-shadow: 0 3px 10px -4px color-mix(in srgb, var(--tt-label) 55%, transparent);
           transition: transform .25s ease, box-shadow .25s ease;
           gap: 6px;
+          /* skew wysuwa lewą krawędź w lewo - dodajemy margines, żeby nie być obciętym przez overflow-hidden rodzica */
+          margin-left: 4px;
         }
         .tt-skin--live .tt-glass-chip:active { transform: skewX(-8deg) scale(.97) }
         .tt-skin--live .tt-chip-icon,
@@ -867,23 +869,31 @@ function TickerStyles() {
         .tt-skin--live .tt-chip-icon {
           width: 16px; height: 16px;
         }
-        /* Bardzo subtelny puls za ikoną - tylko na hover, ledwo widoczny. */
-        .tt-skin--live .tt-chip-icon::before {
+        /* Ikona flame w badge „Na czasie" ma być nieruchoma - wyłączamy globalne animacje. */
+        .tt-skin--live .tt-flame {
+          animation: none !important;
+          transform: none !important;
+          will-change: auto;
+        }
+        /* Delikatna pulsacja za ikoną - zawsze widoczna, nienarzucająca się. */
+        .tt-skin--live .tt-chip-icon::before,
+        .tt-skin--live .tt-chip-icon::after {
           content: "";
           position: absolute;
-          inset: 0;
           border-radius: 9999px;
-          background: color-mix(in srgb, #fff 24%, transparent);
-          opacity: 0;
-          transition: opacity .4s ease;
+          background: color-mix(in srgb, #fff 18%, transparent);
+          opacity: .55;
           pointer-events: none;
+          animation: tt-live-ping 2.6s cubic-bezier(0,0,.2,1) infinite;
         }
-        .tt-skin--live .tt-glass-chip:hover .tt-chip-icon::before {
-          opacity: 1;
-          animation: tt-live-ping 2.8s cubic-bezier(0,0,.2,1) infinite;
+        .tt-skin--live .tt-chip-icon::before { width: 18px; height: 18px }
+        .tt-skin--live .tt-chip-icon::after {
+          width: 14px; height: 14px;
+          background: color-mix(in srgb, #fff 10%, transparent);
+          animation-delay: .9s;
         }
         @keyframes tt-live-ping {
-          75%, 100% { transform: scale(1.7); opacity: 0 }
+          75%, 100% { transform: scale(1.6); opacity: 0 }
         }
         /* Delikatny refleks na hover. */
         .tt-skin--live .tt-glass-chip::after {
@@ -899,8 +909,8 @@ function TickerStyles() {
         .tt-skin--live .tt-glass-chip:hover::after { left: 100% }
         @media (prefers-reduced-motion: reduce) {
           .tt-skin--live .tt-glass-chip::after { transition: none }
-          .tt-skin--live .tt-glass-chip:hover .tt-chip-icon::before,
-          .tt-skin--live .tt-glass-chip:hover .tt-chip-icon::after { animation: none }
+          .tt-skin--live .tt-chip-icon::before,
+          .tt-skin--live .tt-chip-icon::after { animation: none }
         }
         /* Wariant "Na czasie": badge jest samodzielny, bez ciemnego paska nachodzącego na niego */
         .tt-skin--live .tt-glass-track,
