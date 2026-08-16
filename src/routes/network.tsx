@@ -774,20 +774,24 @@ function NetworkInner() {
           })
         }
       >
-        <TabsList className="h-9 w-full justify-start overflow-x-auto rounded-[6px] bg-muted/40 sm:w-auto">
-          <TabsTrigger value="connections" className="rounded-[4px] text-xs">
+        {/* `w-auto shrink-0` na wyzwalaczach: bazowy TabsTrigger ma `w-full`,
+            co w poziomym scrollerze rozpychało zakładki i ucinało etykiety
+            ("Otrzymane"/"Wysłane"). Tu każda zakładka ma szerokość treści. */}
+        <TabsList className="h-9 w-full max-w-full justify-start gap-1 overflow-x-auto rounded-[6px] bg-muted/40 sm:w-auto">
+          <TabsTrigger value="connections" className="w-auto shrink-0 rounded-[4px] text-xs">
             {tabLabel("connections", Number(counts?.connections ?? 0) || undefined)}
           </TabsTrigger>
-          <TabsTrigger value="received" className="rounded-[4px] text-xs">
+          <TabsTrigger value="received" className="w-auto shrink-0 rounded-[4px] text-xs">
             {tabLabel("received", Number(counts?.pending_in ?? 0) || undefined)}
           </TabsTrigger>
-          <TabsTrigger value="sent" className="rounded-[4px] text-xs">
+          <TabsTrigger value="sent" className="w-auto shrink-0 rounded-[4px] text-xs">
             {tabLabel("sent", Number(counts?.pending_out ?? 0) || undefined)}
           </TabsTrigger>
-          <TabsTrigger value="suggestions" className="rounded-[4px] text-xs">
+          <TabsTrigger value="suggestions" className="w-auto shrink-0 rounded-[4px] text-xs">
             {tabLabel("suggestions", undefined)}
           </TabsTrigger>
         </TabsList>
+
 
         {/* Panele wewnątrz Tabs, aby Radix powiązał role="tabpanel" z aria-controls
             wyzwalaczy (dostępność klawiatury/czytników). Nieaktywne panele są
