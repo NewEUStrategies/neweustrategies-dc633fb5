@@ -702,8 +702,8 @@ function TickerStyles() {
 
         /* Flame animations */
         @keyframes tt-flame-pulse {
-          0%,100% { transform: scale(1); filter: drop-shadow(0 0 0 currentColor) }
-          50%     { transform: scale(1.18); filter: drop-shadow(0 0 6px currentColor) }
+          0%,100% { transform: scale(1) rotate(-1deg) }
+          50%     { transform: scale(1.2) rotate(2deg) }
         }
         @keyframes tt-flame-flicker {
           0%,100% { transform: scale(1) rotate(-2deg); opacity: 1 }
