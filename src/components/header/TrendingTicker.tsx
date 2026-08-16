@@ -82,7 +82,7 @@ export function TrendingTicker({
   variantId = "default",
   className,
 }: TickerProps) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const kind = normalizeMode(mode);
   const palette = colors ?? DEFAULT_TICKER_COLORS;
@@ -116,7 +116,7 @@ export function TrendingTicker({
 
   if (isLoading || !posts.length) return null;
 
-  const defaultLabel = lang === "en" ? "Trending" : "Na czasie";
+  const defaultLabel = t("trendingTicker.badge");
   const label =
     lang === "en"
       ? (labelEn && labelEn.trim()) || (labelPl && labelPl.trim()) || defaultLabel

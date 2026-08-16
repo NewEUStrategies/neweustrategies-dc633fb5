@@ -104,6 +104,9 @@ export const pl = {
     pause: "Zatrzymaj automatyczne przewijanie",
     play: "Wznów automatyczne przewijanie",
   },
+  trendingTicker: {
+    badge: "Warte przeczytania",
+  },
   newsletter: {
     title: "STRATEGICZNE MYŚLENIE, NOWE PERSPEKTYWY",
     sub: "Śledź globalną i europejską grę mocarstw z pierwszego rzędu",
