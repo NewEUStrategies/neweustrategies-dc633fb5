@@ -2,7 +2,7 @@
 // Sources: trending | latest | pinned | selected | mixed.
 // Modes: scroll (marquee) | fade | slide | flip | typewriter.
 // Colors and label overridable per light/dark via CSS custom properties.
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { Flame } from "lucide-react";
@@ -32,6 +32,8 @@ export interface TickerProps {
   limit?: number;
   visibleCount?: number;
   intervalSec?: number;
+  /** Horizontal marquee layouts: scroll speed in px/s. */
+  scrollSpeed?: number;
   pinnedPostId?: string;
   pinnedUntil?: string | null;
   selectedPostIds?: string[];
@@ -63,6 +65,7 @@ export function TrendingTicker({
   limit = 8,
   visibleCount = 1,
   intervalSec = 6,
+  scrollSpeed = 60,
   pinnedPostId,
   pinnedUntil,
   selectedPostIds,
@@ -140,6 +143,8 @@ export function TrendingTicker({
               posts={posts}
               lang={lang}
               intervalSec={intervalSec}
+              scrollSpeed={scrollSpeed}
+              perView={perView}
               iconClass={iconClass}
               skin={skin}
             />
@@ -149,6 +154,8 @@ export function TrendingTicker({
               posts={posts}
               lang={lang}
               intervalSec={intervalSec}
+              scrollSpeed={scrollSpeed}
+              perView={perView}
               iconClass={iconClass}
               skin={skin}
             />
@@ -370,6 +377,10 @@ interface MarqueeLayoutProps {
   posts: readonly TickerItemProps["post"][];
   lang: "pl" | "en";
   intervalSec: number;
+  /** Horizontal engine: px per second. */
+  scrollSpeed: number;
+  /** How many items are visible at once in the viewport. */
+  perView: number;
   iconClass: string;
   skin: MarqueeSkin;
 }
@@ -391,26 +402,48 @@ function TickerGlassMarquee({
   posts,
   lang,
   intervalSec,
+  scrollSpeed,
+  perView,
   iconClass,
   skin,
 }: MarqueeLayoutProps) {
   const anim = `tt-marquee-${useId().replace(/:/g, "")}`;
-  // One lap should scale with the number of items, not with a fixed duration -
-  // otherwise 3 posts fly by and 20 posts crawl.
-  const durationSec = Math.max(18, Math.min(120, posts.length * Math.max(2, intervalSec) * 0.9));
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const [lapPx, setLapPx] = useState(0);
+
+  // One lap = half of the duplicated track. Measuring it keeps the configured
+  // speed honest (px/s) no matter how many posts or how long the titles are.
+  useLayoutEffect(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    const measure = () => setLapPx(el.scrollWidth / 2);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [posts, lang, perView]);
+
+  const speed = Math.max(10, Math.min(400, scrollSpeed || 60));
+  // Fallback before measurement: assume ~220px per item.
+  const estimated = posts.length * 220;
+  const durationSec = Math.max(4, (lapPx || estimated) / speed);
   const loop = [...posts, ...posts];
+  // "Items visible at once" caps each pill so exactly `perView` fit the viewport.
+  const pillMax = perView > 1 ? `calc((100% - ${(perView - 1) * 12}px) / ${perView})` : undefined;
 
   return (
     <div
       className={`tt-glass tt-glass--marquee tt-skin--${skin} flex items-center gap-3 overflow-hidden`}
+      data-tt-interval={intervalSec}
     >
-
       <span className="tt-glass-label tt-glass-chip inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap">
         <Flame className={`w-3.5 h-3.5 shrink-0 ${iconClass}`} aria-hidden />
         <span>{label}</span>
       </span>
       <div className="tt-glass-track relative min-w-0 flex-1 overflow-hidden">
         <div
+          ref={trackRef}
           className="flex w-max items-center gap-3 py-2"
           style={{ animation: `${anim} ${durationSec}s linear infinite` }}
           onMouseEnter={(e) => {
@@ -425,18 +458,17 @@ function TickerGlassMarquee({
               key={`${p.id}-${i}`}
               href={itemHref(p)}
               className="tt-item tt-glass-pill inline-flex items-center gap-2 whitespace-nowrap text-[13px] leading-none font-medium shrink-0"
-
-              style={{ color: "var(--tt-item)" }}
+              style={{ color: "var(--tt-item)", maxWidth: pillMax }}
               title={itemTitle(p, lang)}
               aria-hidden={i >= posts.length ? true : undefined}
               tabIndex={i >= posts.length ? -1 : undefined}
             >
               <span
-                className="tt-glass-dot inline-block w-1 h-1 rounded-full"
+                className="tt-glass-dot inline-block w-1 h-1 rounded-full shrink-0"
                 style={{ background: "var(--tt-dot)" }}
                 aria-hidden
               />
-              {itemTitle(p, lang)}
+              <span className="min-w-0 truncate">{itemTitle(p, lang)}</span>
             </AppLink>
           ))}
         </div>
@@ -456,25 +488,31 @@ function TickerGlassCards({
   posts,
   lang,
   intervalSec,
+  perView,
   iconClass,
   skin,
 }: MarqueeLayoutProps) {
   const anim = `tt-cards-${useId().replace(/:/g, "")}`;
-  const slots = posts.length + 1; // duplicate first card for a seamless loop
-  const durationSec = Math.max(6, posts.length * Math.max(2, intervalSec));
-  const keyframes = buildVerticalKeyframes(slots, anim);
-  const track = [...posts, posts[0]];
+  const rows = Math.max(1, Math.min(perView, posts.length));
+  // Duplicate the first `rows` cards so the loop never shows an empty slot.
+  const track = [...posts, ...posts.slice(0, rows)];
+  const slots = track.length;
+  const steps = posts.length; // one hold per real post
+  const durationSec = Math.max(2, posts.length * Math.max(2, intervalSec));
+  const keyframes = buildVerticalKeyframes(slots, anim, steps);
 
   return (
     <div
       className={`tt-glass tt-glass--cards tt-skin--${skin} flex items-center gap-3 overflow-hidden`}
     >
-
       <span className="tt-glass-label tt-glass-chip inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap">
         <Flame className={`w-3.5 h-3.5 shrink-0 ${iconClass}`} aria-hidden />
         <span>{label}</span>
       </span>
-      <div className="tt-glass-viewport relative min-w-0 flex-1 overflow-hidden">
+      <div
+        className="tt-glass-viewport relative min-w-0 flex-1 overflow-hidden"
+        style={{ ["--tt-rows" as string]: String(rows) }}
+      >
         <div
           className="flex flex-col"
           style={{ animation: `${anim} ${durationSec}s cubic-bezier(.65,0,.35,1) infinite` }}
@@ -489,8 +527,7 @@ function TickerGlassCards({
             <div
               key={`${p.id}-${i}`}
               className="tt-glass-card flex h-11 shrink-0 items-center gap-2.5"
-
-              aria-hidden={i === posts.length ? true : undefined}
+              aria-hidden={i >= posts.length ? true : undefined}
             >
               <span
                 className="text-[10px] font-bold tabular-nums opacity-70"
@@ -503,7 +540,7 @@ function TickerGlassCards({
                 className="tt-item min-w-0 truncate text-[13px] leading-none font-medium"
                 style={{ color: "var(--tt-item)" }}
                 title={itemTitle(p, lang)}
-                tabIndex={i === posts.length ? -1 : undefined}
+                tabIndex={i >= posts.length ? -1 : undefined}
               >
                 {itemTitle(p, lang)}
               </AppLink>
@@ -517,20 +554,25 @@ function TickerGlassCards({
 }
 
 /** Hold-then-advance vertical keyframes for `slots` stacked rows. */
-export function buildVerticalKeyframes(slots: number, animName: string): string {
+export function buildVerticalKeyframes(
+  slots: number,
+  animName: string,
+  stepCount = slots - 1,
+): string {
   if (slots < 2) return "";
+  const steps = Math.max(1, Math.min(stepCount, slots - 1));
   const slot = 100 / slots;
-  const transition = 100 / (slots * (slots - 1));
+  const transition = 100 / (slots * steps);
   const hold = slot - transition;
-  let steps = "";
-  for (let i = 0; i < slots - 1; i += 1) {
-    const start = i * (slot + transition);
-    const end = start + hold;
+  let frames = "";
+  for (let i = 0; i < steps; i += 1) {
+    const start = i * ((100 - transition) / steps);
+    const end = start + Math.max(0, hold);
     const y = -((i * 100) / slots);
-    steps += `${start.toFixed(2)}%,${end.toFixed(2)}%{transform:translate3d(0,${y.toFixed(2)}%,0)}`;
+    frames += `${start.toFixed(2)}%,${end.toFixed(2)}%{transform:translate3d(0,${y.toFixed(2)}%,0)}`;
   }
-  steps += `100%{transform:translate3d(0,${(-(((slots - 1) * 100) / slots)).toFixed(2)}%,0)}`;
-  return `@keyframes ${animName}{0%{transform:translate3d(0,0,0)}${steps}}`;
+  frames += `100%{transform:translate3d(0,${(-((steps * 100) / slots)).toFixed(2)}%,0)}`;
+  return `@keyframes ${animName}{0%{transform:translate3d(0,0,0)}${frames}}`;
 }
 
 function TickerPaletteStyle({ vid, palette }: { vid: string; palette: TickerColorScheme }) {
@@ -654,7 +696,7 @@ function TickerStyles() {
           right: 0; background: linear-gradient(to left, var(--tt-bg), transparent);
         }
         .tt-glass--cards .tt-glass-viewport {
-          height: 44px; border-radius: 12px;
+          height: calc(44px * var(--tt-rows, 1)); border-radius: 12px;
           border: 1px solid color-mix(in srgb, var(--tt-border) 90%, transparent);
           background: linear-gradient(135deg,
             color-mix(in srgb, #fff 10%, transparent),
