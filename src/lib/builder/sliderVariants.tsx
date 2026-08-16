@@ -837,9 +837,21 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   const resolvedTitleFs = cssLen(titleSize) ?? (titleSizePx > 0 ? `${titleSizePx}px` : undefined);
   const resolvedDescFs =
     cssLen(descSize) ?? (subtitleSizePx > 0 ? `${subtitleSizePx}px` : undefined);
+  // Osobne wartości mobilne (panel: sekcja "Mobile") - emitowane w media query,
+  // więc na telefonie tytuł może mieć np. 26px zamiast desktopowych 34px.
+  const resolvedTitleFsMobile = cssLen(config.typography?.fontSize?.mobile);
+  const resolvedDescFsMobile = cssLen(config.typography?.descriptionFontSize?.mobile);
   const resolvedGap = titleDescriptionGapPx >= 0 ? `${titleDescriptionGapPx}px` : undefined;
   const instanceId = `eh-i-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const instanceSel = `.eh-slider.${instanceId}.${instanceId}.${instanceId}`;
+  const mobileRules = [
+    resolvedTitleFsMobile && resolvedTitleFsMobile !== resolvedTitleFs
+      ? `${instanceSel} .cms-post-title{font-size:${resolvedTitleFsMobile} !important;}`
+      : "",
+    resolvedDescFsMobile && resolvedDescFsMobile !== resolvedDescFs
+      ? `${instanceSel} .cms-post-excerpt{font-size:${resolvedDescFsMobile} !important;}`
+      : "",
+  ].filter(Boolean);
   const instanceCss = [
     resolvedTitleFs
       ? `${instanceSel} .cms-post-title{font-size:${resolvedTitleFs} !important;}`
@@ -848,9 +860,22 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
       ? `${instanceSel} .cms-post-excerpt{font-size:${resolvedDescFs} !important;}`
       : "",
     resolvedGap ? `${instanceSel} [data-eh-gap]{margin-top:${resolvedGap} !important;}` : "",
+    mobileRules.length ? `@media (max-width: 767px){${mobileRules.join("")}}` : "",
+    // Kanwa buildera symuluje szerokość urządzenia atrybutem, nie viewportem.
+    mobileRules.length
+      ? mobileRules
+          .map((rule) =>
+            [
+              `[data-builder-renderer][data-device="mobile"] ${rule}`,
+              `[data-visual-canvas][data-device="mobile"] ${rule}`,
+            ].join(""),
+          )
+          .join("")
+      : "",
   ]
     .filter(Boolean)
     .join("\n");
+
 
   const [idx, setIdx] = useState(0);
   useEffect(() => {
