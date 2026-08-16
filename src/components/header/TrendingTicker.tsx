@@ -876,7 +876,7 @@ function TickerStyles() {
         .tt-skin--live .tt-live-index { margin-right: 10px }
         .tt-skin--live .tt-live-title.tt-live-title { line-height: 1.5; padding-block: 2px }
         .tt-live-separator {
-          width: 1px; height: 14px; margin: 0 5px;
+          width: 1px; height: 14px; margin: 0 10px;
           background: currentColor;
           opacity: 0.35;
           flex-shrink: 0; align-self: center;
