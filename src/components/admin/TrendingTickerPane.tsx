@@ -35,6 +35,7 @@ import {
   type TickerSettings,
   type TickerVariant,
   type LayoutStyle,
+  isMarqueeLayout,
 } from "@/lib/views/tickerVariants";
 
 type Json = Record<string, unknown>;
@@ -471,6 +472,7 @@ export function TrendingTickerPane() {
 
   const currentSource = (cfg.source ?? "trending") as Source;
   const currentMode = (cfg.mode ?? "scroll") as Mode;
+  const marqueeLayout = isMarqueeLayout(cfg.layoutStyle);
   const selectedIds = cfg.selectedPostIds ?? [];
 
   return (
