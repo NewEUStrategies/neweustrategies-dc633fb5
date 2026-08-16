@@ -398,8 +398,8 @@ function TickerAuthor({ post }: { post: TickerItemProps["post"] }) {
   const avatar = post.author_avatar_url?.trim() ?? "";
   if (!name && !avatar) return null;
   return (
-    <span className="tt-live-author inline-flex shrink-0 items-center gap-2">
-      <span className="tt-live-sep" aria-hidden />
+    <span className="tt-live-author inline-flex shrink-0 items-center gap-[5px] pl-[5px]">
+
       {avatar ? (
         <img
           src={avatar}
