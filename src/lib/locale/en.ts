@@ -383,6 +383,12 @@ export const en = {
     },
     navGroups: {
       content: "Content",
+      taxonomy: "Taxonomies",
+      media: "Media & formats",
+      marketing: "Marketing",
+      billing: "Payments",
+      crm: "CRM & inboxes",
+      analytics: "Analytics",
       monetization: "Monetization",
       engagement: "Engagement",
       community: "Community & media",
