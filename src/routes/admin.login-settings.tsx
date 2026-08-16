@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { useAuthSettings, useSaveAuthSettings } from "@/hooks/useAuthSettings";
 import { AUTH_DEFAULTS, type AuthSettings } from "@/lib/authSettings";
@@ -15,6 +15,7 @@ import defaultLoginLight from "@/assets/login-illustration-light.jpg";
 import defaultLoginDark from "@/assets/login-illustration-dark.jpg";
 import { adminToast } from "@/lib/adminToasts";
 import { useTranslation } from "react-i18next";
+import { useAuth } from "@/hooks/useAuth";
 import { ensureI18n as ensureAdminLoginSettingsI18n } from "@/lib/i18n-admin-login-settings";
 import { RegistrationFieldsSection } from "@/components/admin/auth/RegistrationFieldsSection";
 import "@/lib/i18n-admin-popup-signup";
@@ -26,6 +27,9 @@ function LoginSettingsPage() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
   ensureAdminLoginSettingsI18n();
   const { t } = useTranslation();
+  // Ukrycie pozycji w nawigacji niczego nie chroni - adres wpisuje się z ręki,
+  // więc trasa sama pilnuje roli super_admina.
+  const { isSuperAdmin, loading } = useAuth();
   const remote = useAuthSettings();
   const save = useSaveAuthSettings();
   const [s, setS] = useState<AuthSettings>(remote);
@@ -45,6 +49,9 @@ function LoginSettingsPage() {
       toast.error(e instanceof Error ? e.message : t("adminLoginSettings.errGeneric"));
     }
   };
+
+  if (loading) return null;
+  if (!isSuperAdmin) return <Navigate to="/admin" />;
 
   return (
     <div className="w-full space-y-4">
