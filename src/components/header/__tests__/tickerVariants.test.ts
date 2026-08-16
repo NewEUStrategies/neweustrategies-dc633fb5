@@ -99,3 +99,17 @@ describe("layouty marquee w pasku Na czasie", () => {
     expect(isMarqueeLayout(undefined)).toBe(false);
   });
 });
+
+describe('glassLive - widget "Na czasie"', () => {
+  it("jest wariantem marquee i akceptuje kierunek", () => {
+    expect(isMarqueeLayout("glassLive")).toBe(true);
+    const cfg = normalizeTickerConfig({ layoutStyle: "glassLive", liveDirection: "horizontal" });
+    expect(cfg.layoutStyle).toBe("glassLive");
+    expect(cfg.liveDirection).toBe("horizontal");
+  });
+
+  it("domyślnie ustawia pionowy slide", () => {
+    expect(normalizeTickerConfig({ layoutStyle: "glassLive" }).liveDirection).toBe("vertical");
+    expect(normalizeTickerConfig({ liveDirection: "diagonal" }).liveDirection).toBe("vertical");
+  });
+});
