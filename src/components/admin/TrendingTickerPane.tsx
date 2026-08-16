@@ -116,6 +116,10 @@ const COPY = {
     layout_badge: "Badge marquee (kolorowy blok)",
     layout_glassMarquee: "Marquee szklane (płynny, poziomy)",
     layout_glassCards: "Szklane karty (rotacja pionowa)",
+    layout_glassRibbon: "Wstążka gradientowa (poziomy)",
+    layout_glassSpotlight: "Reflektor (rotacja pionowa)",
+    layout_glassTape: "Taśma newsowa (mono, poziomy)",
+
     marqueeHint: "Ten styl ma własną animację - tryb prezentacji nie ma tu zastosowania.",
     resetColors: "Przywróć domyślne",
     cannotDeleteLast: "Musi zostać przynajmniej jeden wariant.",
