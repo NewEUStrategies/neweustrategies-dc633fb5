@@ -11,7 +11,13 @@ type TFn = Parameters<typeof buildAdminNavGroups>[0]["t"];
 const t = ((key: string) => key) as unknown as TFn;
 
 function build(overrides: Partial<Parameters<typeof buildAdminNavGroups>[0]> = {}) {
-  return buildAdminNavGroups({ t, isAdmin: true, isSuperAdmin: true, clubPending: 3, ...overrides });
+  return buildAdminNavGroups({
+    t,
+    isAdmin: true,
+    isSuperAdmin: true,
+    clubPending: 3,
+    ...overrides,
+  });
 }
 
 describe("adminNav", () => {

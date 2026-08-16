@@ -358,7 +358,9 @@ interface MarqueeLayoutProps {
 }
 
 function itemTitle(post: TickerItemProps["post"], lang: "pl" | "en"): string {
-  return lang === "en" ? post.title_en || post.title_pl || "" : post.title_pl || post.title_en || "";
+  return lang === "en"
+    ? post.title_en || post.title_pl || ""
+    : post.title_pl || post.title_en || "";
 }
 
 function itemHref(post: TickerItemProps["post"]): string {

@@ -631,25 +631,25 @@ export function TrendingTickerPane() {
         {marqueeLayout ? (
           <p className="text-xs text-muted-foreground">{t.marqueeHint}</p>
         ) : (
-        <div className="space-y-1.5">
-          <Label>{t.mode}</Label>
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-            {(["scroll", "fade", "slide", "flip", "typewriter"] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => set("mode", m)}
-                className={`rounded-[6px] border px-3 py-2 text-xs transition ${
-                  currentMode === m
-                    ? "border-brand bg-brand/10 text-brand font-medium"
-                    : "border-border hover:bg-muted"
-                }`}
-              >
-                {t[`mode_${m}` as const]}
-              </button>
-            ))}
+          <div className="space-y-1.5">
+            <Label>{t.mode}</Label>
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+              {(["scroll", "fade", "slide", "flip", "typewriter"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => set("mode", m)}
+                  className={`rounded-[6px] border px-3 py-2 text-xs transition ${
+                    currentMode === m
+                      ? "border-brand bg-brand/10 text-brand font-medium"
+                      : "border-border hover:bg-muted"
+                  }`}
+                >
+                  {t[`mode_${m}` as const]}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
         )}
 
         {/* Icon animation removed - flame stays static. */}

@@ -98,18 +98,9 @@ export function NewsTickerView({ c, lang }: { c: WidgetContent; lang: Lang }) {
   }
 
   return (
-    <NewsTickerVertical
-      badge={badge}
-      durationSec={speedSeconds}
-      pauseOnHover={pauseOnHover}
-    >
+    <NewsTickerVertical badge={badge} durationSec={speedSeconds} pauseOnHover={pauseOnHover}>
       {rows.map((p, i) => (
-        <NewsTickerVerticalItem
-          key={p.id}
-          post={p}
-          index={i}
-          title={title(p)}
-        />
+        <NewsTickerVerticalItem key={p.id} post={p} index={i} title={title(p)} />
       ))}
     </NewsTickerVertical>
   );

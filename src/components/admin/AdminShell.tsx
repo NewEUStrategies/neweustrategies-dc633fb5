@@ -276,7 +276,6 @@ function AdminNavRow({
   );
 }
 
-
 export function AdminShell({
   children,
   hideSidebar,
@@ -370,7 +369,6 @@ function AdminShellInner({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
-
 
   const handleSignOut = async () => {
     await signOut();
@@ -501,7 +499,10 @@ function AdminShellInner({
                           className="flex w-full items-center gap-1 rounded px-2 pt-1 pb-0.5 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold hover:text-foreground"
                         >
                           <ChevronDown
-                            className={cn("h-3 w-3 shrink-0 transition-transform", collapsed && "-rotate-90")}
+                            className={cn(
+                              "h-3 w-3 shrink-0 transition-transform",
+                              collapsed && "-rotate-90",
+                            )}
                             aria-hidden="true"
                           />
                           <span className="truncate">{group.label}</span>
@@ -530,7 +531,6 @@ function AdminShellInner({
                   );
                 })
               )}
-
 
               {extras && !compact && (
                 <div className="mt-4 pt-3 border-t border-border space-y-0.5">
