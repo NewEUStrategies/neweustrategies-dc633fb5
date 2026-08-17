@@ -61,6 +61,19 @@ interface ApRow {
   is_public: boolean | null;
 }
 
+/**
+ * Wiersz wizytówki wspólny dla OBU źródeł: tabela bazowa typuje
+ * user_id/is_public jako NOT NULL, widok author_profiles_public - wszystkie
+ * kolumny jako nullable. Unia obu to wariant nullable, zawężany strażnikiem
+ * przy scalaniu (bez rzutowań - kształt pilnuje kompilator).
+ */
+interface ApSourceRow {
+  user_id: string | null;
+  job_title: string | null;
+  company: string | null;
+  is_public: boolean | null;
+}
+
 interface UserRow {
   id: string;
   display_name: string | null;
@@ -87,25 +100,25 @@ export const internalExpertBaseQueryOptions = () =>
         supabase.rpc("admin_list_users"),
       ]);
 
-      const expertIds = new Set(
-        ((badgeRes.data ?? []) as { user_id: string }[]).map((r) => r.user_id),
-      );
+      const expertIds = new Set((badgeRes.data ?? []).map((b) => b.user_id));
+
       const apByUser = new Map<string, ApRow>();
       // Kolejność scalania: wiersze z tabeli bazowej (własny/adminowe)
       // nadpisują projekcję publiczną - to te same fizyczne wiersze, ale
       // tylko tabela niesie profile niepubliczne.
-      for (const row of [
-        ...((apPublicRes.data ?? []) as unknown as ApRow[]),
-        ...((apOwnRes.data ?? []) as unknown as ApRow[]),
-      ]) {
-        if (row?.user_id) apByUser.set(row.user_id, row);
+      const apRows: readonly ApSourceRow[] = [
+        ...(apPublicRes.data ?? []),
+        ...(apOwnRes.data ?? []),
+      ];
+      for (const row of apRows) {
+        if (row.user_id) apByUser.set(row.user_id, { ...row, user_id: row.user_id });
       }
 
       const restricted = !!adminRes.error;
       let people: UserRow[];
 
       if (!restricted) {
-        people = ((adminRes.data ?? []) as unknown as UserRow[]).filter(
+        people = (adminRes.data ?? []).filter(
           (r) =>
             expertIds.has(r.id) ||
             apByUser.has(r.id) ||
@@ -122,10 +135,21 @@ export const internalExpertBaseQueryOptions = () =>
           .from("profiles_public")
           .select("id, slug, display_name, avatar_url")
           .in("id", ids);
-        people = ((data ?? []) as unknown as Omit<UserRow, "roles">[]).map((p) => ({
-          ...p,
-          roles: null,
-        }));
+        // Widok typuje id jako nullable - strażnik zawęża i odsiewa wiersze
+        // bez identyfikatora zamiast rzutować kształt.
+        people = (data ?? []).flatMap((p) =>
+          p.id
+            ? [
+                {
+                  id: p.id,
+                  slug: p.slug,
+                  display_name: p.display_name,
+                  avatar_url: p.avatar_url,
+                  roles: null,
+                },
+              ]
+            : [],
+        );
       }
 
       const entries: InternalExpertEntry[] = people

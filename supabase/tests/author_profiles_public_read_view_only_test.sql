@@ -16,14 +16,18 @@
 --   * publiczna projekcja przechodzi WYŁĄCZNIE przez widok
 --     author_profiles_public (DEFINER, bez kolumn kontaktowych): anon
 --     i zalogowany czytelnik widzą publiczny profil przez widok, a wiersz
---     tabeli bazowej czyta tylko właściciel i admin tenanta.
+--     tabeli bazowej czyta tylko właściciel i admin tenanta,
+--   * izolacja najemców trzyma na OBU powierzchniach: admin obcego tenanta
+--     nie czyta wiersza przez tabelę (guard tenant_id w polityce admina),
+--     a anon na domenie obcego tenanta nie widzi profilu przez widok
+--     (public_tenant_id() z nagłówka hosta).
 --
 -- Konwencje: plik samowystarczalny (BEGIN/plan/finish/ROLLBACK), wcielenia
 -- przez SET LOCAL ROLE + request.jwt.claims, seed z wyłączonymi triggerami
 -- auth.users - jak w author_contact_privacy_test.sql.
 
 BEGIN;
-SELECT plan(14);
+SELECT plan(16);
 
 -- ── (1) Publiczne polityki SELECT zniknęły z tabeli bazowej ─────────────────
 SELECT is(
@@ -84,22 +88,26 @@ SELECT ok(
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
 INSERT INTO public.tenants (id, slug, name, domain) VALUES
-  ('77777777-7777-7777-7777-777777777777', 'tenant-g', 'Tenant G', 'tenant-g.example');
+  ('77777777-7777-7777-7777-777777777777', 'tenant-g', 'Tenant G', 'tenant-g.example'),
+  ('88888888-8888-8888-8888-888888888888', 'tenant-h', 'Tenant H', 'tenant-h.example');
 
 INSERT INTO auth.users (id, email) VALUES
   ('70000000-0000-0000-0000-000000000001', 'owner@g.test'),
   ('70000000-0000-0000-0000-000000000002', 'admin@g.test'),
-  ('70000000-0000-0000-0000-000000000003', 'reader@g.test');
+  ('70000000-0000-0000-0000-000000000003', 'reader@g.test'),
+  ('80000000-0000-0000-0000-000000000001', 'admin@h.test');
 
 INSERT INTO public.profiles (id, email, display_name, tenant_id) VALUES
   ('70000000-0000-0000-0000-000000000001', 'owner@g.test',  'Owner G',  '77777777-7777-7777-7777-777777777777'),
   ('70000000-0000-0000-0000-000000000002', 'admin@g.test',  'Admin G',  '77777777-7777-7777-7777-777777777777'),
-  ('70000000-0000-0000-0000-000000000003', 'reader@g.test', 'Reader G', '77777777-7777-7777-7777-777777777777');
+  ('70000000-0000-0000-0000-000000000003', 'reader@g.test', 'Reader G', '77777777-7777-7777-7777-777777777777'),
+  ('80000000-0000-0000-0000-000000000001', 'admin@h.test',  'Admin H',  '88888888-8888-8888-8888-888888888888');
 
 INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES
   ('70000000-0000-0000-0000-000000000001', 'author', '77777777-7777-7777-7777-777777777777'),
   ('70000000-0000-0000-0000-000000000002', 'admin',  '77777777-7777-7777-7777-777777777777'),
-  ('70000000-0000-0000-0000-000000000003', 'user',   '77777777-7777-7777-7777-777777777777');
+  ('70000000-0000-0000-0000-000000000003', 'user',   '77777777-7777-7777-7777-777777777777'),
+  ('80000000-0000-0000-0000-000000000001', 'admin',  '88888888-8888-8888-8888-888888888888');
 
 -- Profil PUBLICZNY z kompletem kontaktowego PII - dokładnie ten wiersz,
 -- który stare polityki wystawiały każdemu.
@@ -178,6 +186,28 @@ SELECT is(
     WHERE user_id = '70000000-0000-0000-0000-000000000001'),
   1,
   'admin tenanta nadal widzi wiersze swojego tenanta (polityka "Admins can manage tenant author profiles")'
+);
+
+-- ── (8) Izolacja najemców: obcy admin i obcy host nie widzą NIC ─────────────
+SELECT set_config('request.jwt.claims',
+  '{"sub":"80000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+
+SELECT is(
+  (SELECT count(user_id)::int FROM public.author_profiles
+    WHERE user_id = '70000000-0000-0000-0000-000000000001'),
+  0,
+  'admin OBCEGO tenanta nie czyta wiersza tenanta G przez tabelę bazową (guard tenant_id w polityce admina)'
+);
+
+SET LOCAL ROLE anon;
+SELECT set_config('request.jwt.claims', '', true);
+SELECT set_config('request.headers', '{"x-tenant-host":"tenant-h.example"}', true);
+
+SELECT is(
+  (SELECT count(*)::int FROM public.author_profiles_public
+    WHERE user_id = '70000000-0000-0000-0000-000000000001'),
+  0,
+  'anon na domenie OBCEGO tenanta nie widzi profilu tenanta G przez widok (public_tenant_id() z nagłówka hosta)'
 );
 
 RESET ROLE;

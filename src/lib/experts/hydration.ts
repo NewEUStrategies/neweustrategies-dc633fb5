@@ -4,14 +4,16 @@
 // osoby kopiujemy dane do `content`, więc renderer nie robi już żadnej sieci,
 // a redakcja może nadpisać dowolne pole ręcznie.
 //
-// Dwa źródła `author_profiles` scalane priorytetem:
+// Trzy źródła `author_profiles` scalane priorytetem:
 //  1) admin_get_author_profile() (SECURITY DEFINER) - pełny wiersz z
 //     contact_email, ale WYŁĄCZNIE dla admina tego samego tenanta;
-//  2) fallback dla staffu bez roli admin (editor/author): publiczna projekcja
-//     author_profiles_public, żeby hydratacja nie gubiła stanowiska, bio i
-//     socjali - bez kolumn kontaktowych. Tabela bazowa nie ma już polityk
-//     odczytu anon/authenticated (20260817120000), więc bezpośredni select
-//     widziałby wyłącznie wiersz własny.
+//  2) własny wiersz z tabeli bazowej (polityka "Owners can view own author
+//     profile") - autor/editor hydrujący SWOJĄ kartę widzi stanowisko i bio
+//     także PRZED publikacją profilu; dla cudzych wierszy RLS zwraca pusty
+//     zbiór (nie błąd), bo tabela nie ma już polityk odczytu publicznego
+//     (20260817120000);
+//  3) publiczna projekcja author_profiles_public - profile opublikowane,
+//     bez kolumn kontaktowych.
 import { supabase } from "@/integrations/supabase/client";
 import { adminGetAuthorProfile } from "@/lib/experts/adminAuthorProfileRpc";
 
@@ -31,7 +33,7 @@ export interface ExpertHydration {
 }
 
 export async function fetchExpertHydration(userId: string): Promise<ExpertHydration | null> {
-  const [{ data: prof, error: profErr }, adminRes, publicRes] = await Promise.all([
+  const [{ data: prof, error: profErr }, adminRes, ownRes, publicRes] = await Promise.all([
     supabase
       .from("profiles")
       .select(
@@ -41,6 +43,11 @@ export async function fetchExpertHydration(userId: string): Promise<ExpertHydrat
       .maybeSingle(),
     adminGetAuthorProfile(userId).maybeSingle(),
     supabase
+      .from("author_profiles")
+      .select("job_title, website_url, x_url, linkedin_url, full_bio_pl, full_bio_en")
+      .eq("user_id", userId)
+      .maybeSingle(),
+    supabase
       .from("author_profiles_public")
       .select("job_title, website_url, x_url, linkedin_url, full_bio_pl, full_bio_en")
       .eq("user_id", userId)
@@ -49,26 +56,39 @@ export async function fetchExpertHydration(userId: string): Promise<ExpertHydrat
   if (profErr) throw profErr;
   if (adminRes.error && publicRes.error) throw adminRes.error;
   if (!prof) return null;
-  const p = prof as Record<string, unknown>;
-  const a = (adminRes.data ?? publicRes.data ?? {}) as Record<string, unknown>;
-  const pick = (...vals: unknown[]): string | null => {
+
+  // Nakładka autorska z trzech ścieżek o RÓŻNYCH projekcjach: pełny wiersz
+  // RPC admina, własny wiersz z tabeli (kolumny bezpieczne) albo publiczna
+  // projekcja - stąd wszystkie pola opcjonalne, a contact_email obecny
+  // wyłącznie w pierwszej. Kształt pilnowany przez kompilator, bez rzutowań.
+  const overlay: {
+    job_title?: string | null;
+    website_url?: string | null;
+    x_url?: string | null;
+    linkedin_url?: string | null;
+    full_bio_pl?: string | null;
+    full_bio_en?: string | null;
+    contact_email?: string | null;
+  } = adminRes.data ?? ownRes.data ?? publicRes.data ?? {};
+
+  const pick = (...vals: (string | null | undefined)[]): string | null => {
     for (const v of vals) {
       if (typeof v === "string" && v.trim().length > 0) return v;
     }
     return null;
   };
   return {
-    authorId: p.id as string,
-    authorSlug: (p.slug as string | null) ?? null,
-    photo: pick(p.avatar_url),
-    name: pick(p.display_name),
-    positionPl: pick(a.job_title),
-    positionEn: pick(a.job_title),
-    bioPl: pick(a.full_bio_pl, p.bio_pl),
-    bioEn: pick(a.full_bio_en, p.bio_en),
-    email: pick(a.contact_email),
-    x: pick(a.x_url, p.twitter_url),
-    linkedin: pick(a.linkedin_url, p.linkedin_url),
-    website: pick(a.website_url, p.website_url),
+    authorId: prof.id,
+    authorSlug: prof.slug,
+    photo: pick(prof.avatar_url),
+    name: pick(prof.display_name),
+    positionPl: pick(overlay.job_title),
+    positionEn: pick(overlay.job_title),
+    bioPl: pick(overlay.full_bio_pl, prof.bio_pl),
+    bioEn: pick(overlay.full_bio_en, prof.bio_en),
+    email: pick(overlay.contact_email),
+    x: pick(overlay.x_url, prof.twitter_url),
+    linkedin: pick(overlay.linkedin_url, prof.linkedin_url),
+    website: pick(overlay.website_url, prof.website_url),
   };
 }
