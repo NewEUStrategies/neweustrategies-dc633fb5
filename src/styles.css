@@ -5836,11 +5836,16 @@ textarea::placeholder {
       width: auto;
     }
     .nlp [data-showcase-grid] {
-      /* inline `min-height: var(--nl-grid-h)` był silniejszy niż reguła CSS,
-         więc mobilna mozaika nie była ograniczana do 22vh. */
-      min-height: min(var(--nl-grid-h, 240px), 22vh) !important;
-      max-height: 22vh !important;
+      /* Kadry mają wyglądać JAK NA DESKTOPIE: zamiast twardego przycięcia do
+         22vh (które spłaszczało mozaikę i zmieniało kadrowanie object-cover)
+         trzymamy proporcję zbliżoną do kolumny galerii na desktopie i tylko
+         górny limit chroni przed wypchnięciem formularza poza ekran. */
+      min-height: 0 !important;
+      height: auto !important;
+      aspect-ratio: 16 / 10;
+      max-height: 30vh !important;
     }
+
     .nlp [data-showcase-grid] ~ * {
       margin-top: 0;
     }
