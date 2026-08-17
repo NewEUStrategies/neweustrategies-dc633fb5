@@ -52,13 +52,15 @@ describe("SponsoredDisclosure", () => {
 
   // FAIL-SAFE: niepełna deklaracja nie może wygasić oznaczenia.
   it("brak nazwy reklamodawcy nadal renderuje etykietę", () => {
-    render(<SponsoredDisclosure post={{ is_sponsored: true, sponsored_kind: "sponsored" }} lang="pl" />);
+    render(
+      <SponsoredDisclosure post={{ is_sponsored: true, sponsored_kind: "sponsored" }} lang="pl" />,
+    );
     expect(screen.getByText("MATERIAŁ SPONSOROWANY")).toBeInTheDocument();
     expect(screen.getByText(/charakter komercyjny/i)).toBeInTheDocument();
   });
 
   // Wytyczna Google: link opłacony nie może wyglądać na rekomendację redakcji.
-  it("link reklamodawcy ma rel=\"sponsored nofollow\"", () => {
+  it('link reklamodawcy ma rel="sponsored nofollow"', () => {
     render(<SponsoredDisclosure post={paid} lang="pl" />);
     const link = screen.getByRole("link");
     expect(link.getAttribute("href")).toBe("https://acme.example");
@@ -68,7 +70,9 @@ describe("SponsoredDisclosure", () => {
 
   // DSA art. 26 ust. 1 lit. c.
   it("płatnik innej niż reklamodawca pojawia się osobnym zdaniem", () => {
-    render(<SponsoredDisclosure post={{ ...paid, sponsored_payer_name: "Agencja XYZ" }} lang="pl" />);
+    render(
+      <SponsoredDisclosure post={{ ...paid, sponsored_payer_name: "Agencja XYZ" }} lang="pl" />,
+    );
     expect(screen.getByText(/Agencja XYZ/)).toBeInTheDocument();
   });
 
