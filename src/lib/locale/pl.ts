@@ -5,6 +5,7 @@ export const pl = {
   common: {
     retry: "Spróbuj ponownie",
     loading: "Ładowanie…",
+    noPosts: "Brak wpisów do wyświetlenia.",
     loadMore: "Załaduj więcej",
     add: "Dodaj",
     remove: "Usuń",

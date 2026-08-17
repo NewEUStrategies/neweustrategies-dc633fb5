@@ -77,13 +77,11 @@ export function TrendingNowView({ c, lang }: { c: WidgetContent; lang: Lang }) {
   if ((isLoading && !rows.length) || !rows.length) {
     return (
       <div className="cms-meta w-full overflow-hidden rounded-full border border-border bg-card px-4 py-2">
-        {isLoading
-          ? lang === "pl"
-            ? "Ładowanie…"
-            : "Loading…"
-          : lang === "pl"
-            ? "Brak wpisów do wyświetlenia."
-            : "No posts to display."}
+        {/* Napisy ze słownika, nie ternary po języku: rozgałęzienie w kodzie
+            omija bramkę parytetu PL/EN i zamyka drogę do trzeciego języka
+            (bramka `check:i18n-hardcoded`). `lng` przypięte do języka widgetu,
+            bo widok buildera renderuje się też serwerowo. */}
+        {t(isLoading ? "common.loading" : "common.noPosts", { lng: lang })}
       </div>
     );
   }

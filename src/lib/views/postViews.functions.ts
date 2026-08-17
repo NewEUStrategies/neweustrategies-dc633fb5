@@ -77,12 +77,12 @@ async function resolveAuthors(
   const out = new Map<string, AuthorRow>();
   const ids = Array.from(new Set(postIds.filter(Boolean)));
   if (!ids.length) return out;
-  const { data, error } = await (
-    sb.rpc as unknown as (
-      fn: string,
-      args: { _post_ids: string[] },
-    ) => PromiseLike<{ data: unknown; error: { message: string } | null }>
-  )("get_post_refs", { _post_ids: ids });
+  // Bez rzutowania: `get_post_refs` jest już w wygenerowanych typach
+  // (Args: { _post_ids: string[] }), więc `sb.rpc` typuje to wywołanie samo.
+  // Rzutowanie przez `unknown` pochodziło z czasów, gdy funkcji w typach nie było,
+  // i przeżyło regenerację - dokładnie klasa długu, którą pilnuje
+  // `check:unknown-casts`.
+  const { data, error } = await sb.rpc("get_post_refs", { _post_ids: ids });
   if (error || !Array.isArray(data)) {
     if (error) console.warn("get_post_refs failed:", error.message);
     return out;
