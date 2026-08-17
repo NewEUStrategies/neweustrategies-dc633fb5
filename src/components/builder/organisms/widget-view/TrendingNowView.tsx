@@ -77,13 +77,7 @@ export function TrendingNowView({ c, lang }: { c: WidgetContent; lang: Lang }) {
   if ((isLoading && !rows.length) || !rows.length) {
     return (
       <div className="cms-meta w-full overflow-hidden rounded-full border border-border bg-card px-4 py-2">
-        {isLoading
-          ? lang === "pl"
-            ? "Ładowanie…"
-            : "Loading…"
-          : lang === "pl"
-            ? "Brak wpisów do wyświetlenia."
-            : "No posts to display."}
+        {isLoading ? t("trendingTicker.loading") : t("trendingTicker.empty")}
       </div>
     );
   }

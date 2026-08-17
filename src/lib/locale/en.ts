@@ -106,6 +106,8 @@ export const en = {
   },
   trendingTicker: {
     badge: "Worth reading",
+    loading: "Loading…",
+    empty: "No posts to display.",
   },
   newsletter: {
     title: "STRATEGIC THINKING, NEW PERSPECTIVES",

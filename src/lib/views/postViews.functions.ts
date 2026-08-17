@@ -9,6 +9,7 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import type { Database } from "@/integrations/supabase/types";
 import { fetchWithTenantHost } from "@/integrations/supabase/tenant-host-fetch";
+import { looseClient } from "@/lib/supabase/looseQuery";
 import { edgeTtlCache } from "@/lib/ssrCache";
 
 // Anon client running UNDER RLS: public_tenant_id() (and with it
@@ -77,12 +78,11 @@ async function resolveAuthors(
   const out = new Map<string, AuthorRow>();
   const ids = Array.from(new Set(postIds.filter(Boolean)));
   if (!ids.length) return out;
-  const { data, error } = await (
-    sb.rpc as unknown as (
-      fn: string,
-      args: { _post_ids: string[] },
-    ) => PromiseLike<{ data: unknown; error: { message: string } | null }>
-  )("get_post_refs", { _post_ids: ids });
+  // RPC spoza wygenerowanych typów - sankcjonowana furtka looseClient
+  // (lib/supabase/looseQuery.ts) zamiast rzutowania na sygnaturę wywołania.
+  const { data, error } = await looseClient({ supabase: sb }).rpc("get_post_refs", {
+    _post_ids: ids,
+  });
   if (error || !Array.isArray(data)) {
     if (error) console.warn("get_post_refs failed:", error.message);
     return out;

@@ -106,6 +106,8 @@ export const pl = {
   },
   trendingTicker: {
     badge: "Warte przeczytania",
+    loading: "Ładowanie…",
+    empty: "Brak wpisów do wyświetlenia.",
   },
   newsletter: {
     title: "STRATEGICZNE MYŚLENIE, NOWE PERSPEKTYWY",

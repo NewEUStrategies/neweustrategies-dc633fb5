@@ -71,16 +71,6 @@ const ROW_CAST_EXCEPTIONS: readonly RowCastException[] = [
     reason: "model widoku listy gwiazdek, składany z dwóch zapytań",
   },
   {
-    file: "src/lib/experts/internalBase.ts",
-    type: "ApRow",
-    reason: "rpc admin_list_users - RETURNS TABLE kłamie o nullowalności",
-  },
-  {
-    file: "src/lib/experts/internalBase.ts",
-    type: "UserRow",
-    reason: "rpc admin_list_users - RETURNS TABLE kłamie o nullowalności",
-  },
-  {
     file: "src/lib/queries/series.ts",
     type: "PartRowRaw",
     reason: "join: select zagnieżdża posts(...)",
