@@ -10886,8 +10886,13 @@ export type Database = {
           excerpt_en: string | null
           excerpt_pl: string | null
           id: string
+          is_sponsored: boolean
           layout_overrides: Json | null
           og_image_generated_url: string | null
+          organization_id: string | null
+          organization_logo_url: string | null
+          organization_name: string | null
+          organization_website: string | null
           outbound_links_checked_at: string | null
           parent_page_id: string
           post_format: string
@@ -10905,6 +10910,19 @@ export type Database = {
           seo_title_pl: string | null
           sidebar_layout_id: string | null
           slug: string
+          sponsored_advertiser_name: string | null
+          sponsored_advertiser_url: string | null
+          sponsored_affiliate: boolean
+          sponsored_kind: string | null
+          sponsored_marked_at: string | null
+          sponsored_marked_by: string | null
+          sponsored_note_en: string | null
+          sponsored_note_pl: string | null
+          sponsored_order_ref: string | null
+          sponsored_payer_name: string | null
+          sponsored_political: boolean
+          sponsored_political_process: string | null
+          sponsored_sponsor_controller: string | null
           status: Database["public"]["Enums"]["post_status"]
           takeaways_en: string[]
           takeaways_pl: string[]
@@ -10934,8 +10952,13 @@ export type Database = {
           excerpt_en?: string | null
           excerpt_pl?: string | null
           id?: string
+          is_sponsored?: boolean
           layout_overrides?: Json | null
           og_image_generated_url?: string | null
+          organization_id?: string | null
+          organization_logo_url?: string | null
+          organization_name?: string | null
+          organization_website?: string | null
           outbound_links_checked_at?: string | null
           parent_page_id: string
           post_format?: string
@@ -10953,6 +10976,19 @@ export type Database = {
           seo_title_pl?: string | null
           sidebar_layout_id?: string | null
           slug: string
+          sponsored_advertiser_name?: string | null
+          sponsored_advertiser_url?: string | null
+          sponsored_affiliate?: boolean
+          sponsored_kind?: string | null
+          sponsored_marked_at?: string | null
+          sponsored_marked_by?: string | null
+          sponsored_note_en?: string | null
+          sponsored_note_pl?: string | null
+          sponsored_order_ref?: string | null
+          sponsored_payer_name?: string | null
+          sponsored_political?: boolean
+          sponsored_political_process?: string | null
+          sponsored_sponsor_controller?: string | null
           status?: Database["public"]["Enums"]["post_status"]
           takeaways_en?: string[]
           takeaways_pl?: string[]
@@ -10982,8 +11018,13 @@ export type Database = {
           excerpt_en?: string | null
           excerpt_pl?: string | null
           id?: string
+          is_sponsored?: boolean
           layout_overrides?: Json | null
           og_image_generated_url?: string | null
+          organization_id?: string | null
+          organization_logo_url?: string | null
+          organization_name?: string | null
+          organization_website?: string | null
           outbound_links_checked_at?: string | null
           parent_page_id?: string
           post_format?: string
@@ -11001,6 +11042,19 @@ export type Database = {
           seo_title_pl?: string | null
           sidebar_layout_id?: string | null
           slug?: string
+          sponsored_advertiser_name?: string | null
+          sponsored_advertiser_url?: string | null
+          sponsored_affiliate?: boolean
+          sponsored_kind?: string | null
+          sponsored_marked_at?: string | null
+          sponsored_marked_by?: string | null
+          sponsored_note_en?: string | null
+          sponsored_note_pl?: string | null
+          sponsored_order_ref?: string | null
+          sponsored_payer_name?: string | null
+          sponsored_political?: boolean
+          sponsored_political_process?: string | null
+          sponsored_sponsor_controller?: string | null
           status?: Database["public"]["Enums"]["post_status"]
           takeaways_en?: string[]
           takeaways_pl?: string[]
@@ -11015,6 +11069,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "posts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "crm_companies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "posts_parent_page_id_fkey"
             columns: ["parent_page_id"]
@@ -17850,6 +17911,8 @@ export type Database = {
           _branch?: string
           _city?: string
           _country?: string
+          _domain?: string
+          _logo_url?: string
           _name: string
           _phone?: string
           _postal_code?: string
@@ -18476,8 +18539,13 @@ export type Database = {
           excerpt_en: string | null
           excerpt_pl: string | null
           id: string
+          is_sponsored: boolean
           layout_overrides: Json | null
           og_image_generated_url: string | null
+          organization_id: string | null
+          organization_logo_url: string | null
+          organization_name: string | null
+          organization_website: string | null
           outbound_links_checked_at: string | null
           parent_page_id: string
           post_format: string
@@ -18495,6 +18563,19 @@ export type Database = {
           seo_title_pl: string | null
           sidebar_layout_id: string | null
           slug: string
+          sponsored_advertiser_name: string | null
+          sponsored_advertiser_url: string | null
+          sponsored_affiliate: boolean
+          sponsored_kind: string | null
+          sponsored_marked_at: string | null
+          sponsored_marked_by: string | null
+          sponsored_note_en: string | null
+          sponsored_note_pl: string | null
+          sponsored_order_ref: string | null
+          sponsored_payer_name: string | null
+          sponsored_political: boolean
+          sponsored_political_process: string | null
+          sponsored_sponsor_controller: string | null
           status: Database["public"]["Enums"]["post_status"]
           takeaways_en: string[]
           takeaways_pl: string[]
@@ -19722,6 +19803,7 @@ export type Database = {
           country: string
           domain: string
           id: string
+          logo_url: string
           name: string
           phone: string
           postal_code: string
