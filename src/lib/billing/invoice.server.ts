@@ -14,14 +14,10 @@ import { isTransactionId } from "@/lib/billing/transactionId";
 import { retrieveTransactionOwners } from "@/lib/billing/transactions.server";
 
 export type InvoiceError =
-  | "invalid_transaction"
-  | "not_found"
-  | "forbidden"
-  | "invoice_unavailable";
+  "invalid_transaction" | "not_found" | "forbidden" | "invoice_unavailable";
 
 export type InvoiceResult =
-  | { ok: true; url: string; transactionId: string }
-  | { ok: false; error: InvoiceError };
+  { ok: true; url: string; transactionId: string } | { ok: false; error: InvoiceError };
 
 interface TransactionOwners {
   customerId: string | null;

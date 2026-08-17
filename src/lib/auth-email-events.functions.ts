@@ -29,16 +29,15 @@ export const getAuthEmailEvents = createServerFn({ method: "GET" })
       .default({})
       .parse(data ?? {}),
   )
-  .handler(
-    async ({ data }): Promise<AuthEmailEventsReport> =>
-      fetchAuthEmailEvents({
-        days: data.days,
-        emailType: data.emailType,
-        lang: data.lang,
-        status: data.status,
-        fallbackOnly: data.fallbackOnly,
-        search: data.search,
-        page: data.page,
-        pageSize: data.pageSize,
-      }),
+  .handler(async ({ data }): Promise<AuthEmailEventsReport> =>
+    fetchAuthEmailEvents({
+      days: data.days,
+      emailType: data.emailType,
+      lang: data.lang,
+      status: data.status,
+      fallbackOnly: data.fallbackOnly,
+      search: data.search,
+      page: data.page,
+      pageSize: data.pageSize,
+    }),
   );

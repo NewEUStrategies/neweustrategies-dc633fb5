@@ -144,42 +144,41 @@ const trendingSchema = z.object({
 
 export const getTrendingPosts = createServerFn({ method: "GET" })
   .validator((d) => trendingSchema.parse(d))
-  .handler(
-    async ({ data }): Promise<TrendingPost[]> =>
-      edgeTtlCache(`trending_posts:${data.days}:${data.limit}`, TICKER_TTL_MS, async () => {
-        const sb = client();
-        const { data: rows, error } = await sb.rpc("trending_posts", {
-          _days: data.days,
-          _limit: data.limit,
-        });
-        if (error) {
-          console.warn("trending_posts failed:", error.message);
-          return [];
-        }
-        const [paths, authors] = await Promise.all([
-          resolveParentPaths(
-            sb,
-            (rows ?? []).map((r) => r.parent_page_id),
-          ),
-          resolveAuthors(
-            sb,
-            (rows ?? []).map((r) => r.id),
-          ),
-        ]);
-        return (rows ?? []).map((r) => ({
-          id: r.id,
-          slug: r.slug,
-          title_pl: r.title_pl,
-          title_en: r.title_en,
-          cover_image_url: r.cover_image_url,
-          published_at: r.published_at,
-          parent_page_id: r.parent_page_id,
-          views_count: Number(r.views_count ?? 0),
-          href: postHref(paths, r.parent_page_id, r.slug),
-          author_display_name: authors.get(r.id)?.display_name ?? null,
-          author_avatar_url: authors.get(r.id)?.avatar_url ?? null,
-        }));
-      }),
+  .handler(async ({ data }): Promise<TrendingPost[]> =>
+    edgeTtlCache(`trending_posts:${data.days}:${data.limit}`, TICKER_TTL_MS, async () => {
+      const sb = client();
+      const { data: rows, error } = await sb.rpc("trending_posts", {
+        _days: data.days,
+        _limit: data.limit,
+      });
+      if (error) {
+        console.warn("trending_posts failed:", error.message);
+        return [];
+      }
+      const [paths, authors] = await Promise.all([
+        resolveParentPaths(
+          sb,
+          (rows ?? []).map((r) => r.parent_page_id),
+        ),
+        resolveAuthors(
+          sb,
+          (rows ?? []).map((r) => r.id),
+        ),
+      ]);
+      return (rows ?? []).map((r) => ({
+        id: r.id,
+        slug: r.slug,
+        title_pl: r.title_pl,
+        title_en: r.title_en,
+        cover_image_url: r.cover_image_url,
+        published_at: r.published_at,
+        parent_page_id: r.parent_page_id,
+        views_count: Number(r.views_count ?? 0),
+        href: postHref(paths, r.parent_page_id, r.slug),
+        author_display_name: authors.get(r.id)?.display_name ?? null,
+        author_avatar_url: authors.get(r.id)?.avatar_url ?? null,
+      }));
+    }),
   );
 
 // Latest / pinned / selected / mixed posts for the header ticker. Reuses
@@ -234,106 +233,105 @@ async function toTrendingPosts(
 
 export const getTickerPosts = createServerFn({ method: "GET" })
   .validator((d) => tickerSchema.parse(d))
-  .handler(
-    async ({ data }): Promise<TrendingPost[]> =>
-      edgeTtlCache(
-        `ticker_posts:${data.source}:${data.limit}:${data.days ?? ""}:${data.pinnedPostId ?? ""}:${(data.selectedPostIds ?? []).join(",")}:${data.mixedFill ?? ""}`,
-        TICKER_TTL_MS,
-        async () => {
-          const sb = client();
+  .handler(async ({ data }): Promise<TrendingPost[]> =>
+    edgeTtlCache(
+      `ticker_posts:${data.source}:${data.limit}:${data.days ?? ""}:${data.pinnedPostId ?? ""}:${(data.selectedPostIds ?? []).join(",")}:${data.mixedFill ?? ""}`,
+      TICKER_TTL_MS,
+      async () => {
+        const sb = client();
 
-          if (data.source === "mixed") {
-            const pinnedIds = [
-              ...(data.selectedPostIds ?? []),
-              ...(data.pinnedPostId ? [data.pinnedPostId] : []),
-            ].filter((v, i, a) => a.indexOf(v) === i);
+        if (data.source === "mixed") {
+          const pinnedIds = [
+            ...(data.selectedPostIds ?? []),
+            ...(data.pinnedPostId ? [data.pinnedPostId] : []),
+          ].filter((v, i, a) => a.indexOf(v) === i);
 
-            let pinnedRows: TickerRow[] = [];
-            if (pinnedIds.length) {
+          let pinnedRows: TickerRow[] = [];
+          if (pinnedIds.length) {
+            const { data: rows, error } = await sb
+              .from("posts")
+              .select("id,slug,title_pl,title_en,cover_image_url,published_at,parent_page_id")
+              .in("id", pinnedIds)
+              .eq("status", "published")
+              .is("deleted_at", null);
+            if (error) {
+              console.warn("getTickerPosts(mixed:pinned) failed:", error.message);
+            } else {
+              const order = new Map(pinnedIds.map((id, i) => [id, i]));
+              pinnedRows = (rows ?? []).sort(
+                (a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0),
+              );
+            }
+          }
+
+          const remaining = Math.max(0, data.limit - pinnedRows.length);
+          let fillRows: TickerRow[] = [];
+          if (remaining > 0) {
+            if ((data.mixedFill ?? "trending") === "trending") {
+              const { data: rows, error } = await sb.rpc("trending_posts", {
+                _days: data.days ?? 7,
+                _limit: remaining + pinnedRows.length,
+              });
+              if (error) {
+                console.warn("getTickerPosts(mixed:trending) failed:", error.message);
+              } else {
+                fillRows = (rows ?? [])
+                  .filter((r) => !pinnedRows.some((p) => p.id === r.id))
+                  .slice(0, remaining)
+                  .map((r) => ({
+                    id: r.id,
+                    slug: r.slug,
+                    title_pl: r.title_pl,
+                    title_en: r.title_en,
+                    cover_image_url: r.cover_image_url,
+                    published_at: r.published_at,
+                    parent_page_id: r.parent_page_id,
+                  }));
+              }
+            } else {
               const { data: rows, error } = await sb
                 .from("posts")
                 .select("id,slug,title_pl,title_en,cover_image_url,published_at,parent_page_id")
-                .in("id", pinnedIds)
                 .eq("status", "published")
-                .is("deleted_at", null);
+                .is("deleted_at", null)
+                .order("published_at", { ascending: false })
+                .limit(remaining + pinnedRows.length);
               if (error) {
-                console.warn("getTickerPosts(mixed:pinned) failed:", error.message);
+                console.warn("getTickerPosts(mixed:latest) failed:", error.message);
               } else {
-                const order = new Map(pinnedIds.map((id, i) => [id, i]));
-                pinnedRows = (rows ?? []).sort(
-                  (a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0),
-                );
+                fillRows = (rows ?? [])
+                  .filter((r) => !pinnedRows.some((p) => p.id === r.id))
+                  .slice(0, remaining);
               }
             }
-
-            const remaining = Math.max(0, data.limit - pinnedRows.length);
-            let fillRows: TickerRow[] = [];
-            if (remaining > 0) {
-              if ((data.mixedFill ?? "trending") === "trending") {
-                const { data: rows, error } = await sb.rpc("trending_posts", {
-                  _days: data.days ?? 7,
-                  _limit: remaining + pinnedRows.length,
-                });
-                if (error) {
-                  console.warn("getTickerPosts(mixed:trending) failed:", error.message);
-                } else {
-                  fillRows = (rows ?? [])
-                    .filter((r) => !pinnedRows.some((p) => p.id === r.id))
-                    .slice(0, remaining)
-                    .map((r) => ({
-                      id: r.id,
-                      slug: r.slug,
-                      title_pl: r.title_pl,
-                      title_en: r.title_en,
-                      cover_image_url: r.cover_image_url,
-                      published_at: r.published_at,
-                      parent_page_id: r.parent_page_id,
-                    }));
-                }
-              } else {
-                const { data: rows, error } = await sb
-                  .from("posts")
-                  .select("id,slug,title_pl,title_en,cover_image_url,published_at,parent_page_id")
-                  .eq("status", "published")
-                  .is("deleted_at", null)
-                  .order("published_at", { ascending: false })
-                  .limit(remaining + pinnedRows.length);
-                if (error) {
-                  console.warn("getTickerPosts(mixed:latest) failed:", error.message);
-                } else {
-                  fillRows = (rows ?? [])
-                    .filter((r) => !pinnedRows.some((p) => p.id === r.id))
-                    .slice(0, remaining);
-                }
-              }
-            }
-
-            return toTrendingPosts(sb, [...pinnedRows, ...fillRows]);
           }
 
-          let q = sb
-            .from("posts")
-            .select("id,slug,title_pl,title_en,cover_image_url,published_at,parent_page_id")
-            .eq("status", "published")
-            .is("deleted_at", null);
-          if (data.source === "pinned" && data.pinnedPostId) {
-            q = q.eq("id", data.pinnedPostId).limit(1);
-          } else if (data.source === "selected" && data.selectedPostIds?.length) {
-            q = q.in("id", data.selectedPostIds).limit(data.selectedPostIds.length);
-          } else {
-            q = q.order("published_at", { ascending: false }).limit(data.limit);
-          }
-          const { data: rows, error } = await q;
-          if (error) {
-            console.warn("getTickerPosts failed:", error.message);
-            return [];
-          }
-          const mapped = await toTrendingPosts(sb, (rows ?? []) as TickerRow[]);
-          if (data.source === "selected" && data.selectedPostIds?.length) {
-            const order = new Map(data.selectedPostIds.map((id, i) => [id, i]));
-            mapped.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
-          }
-          return mapped;
-        },
-      ),
+          return toTrendingPosts(sb, [...pinnedRows, ...fillRows]);
+        }
+
+        let q = sb
+          .from("posts")
+          .select("id,slug,title_pl,title_en,cover_image_url,published_at,parent_page_id")
+          .eq("status", "published")
+          .is("deleted_at", null);
+        if (data.source === "pinned" && data.pinnedPostId) {
+          q = q.eq("id", data.pinnedPostId).limit(1);
+        } else if (data.source === "selected" && data.selectedPostIds?.length) {
+          q = q.in("id", data.selectedPostIds).limit(data.selectedPostIds.length);
+        } else {
+          q = q.order("published_at", { ascending: false }).limit(data.limit);
+        }
+        const { data: rows, error } = await q;
+        if (error) {
+          console.warn("getTickerPosts failed:", error.message);
+          return [];
+        }
+        const mapped = await toTrendingPosts(sb, (rows ?? []) as TickerRow[]);
+        if (data.source === "selected" && data.selectedPostIds?.length) {
+          const order = new Map(data.selectedPostIds.map((id, i) => [id, i]));
+          mapped.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+        }
+        return mapped;
+      },
+    ),
   );

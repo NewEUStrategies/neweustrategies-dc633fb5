@@ -398,11 +398,7 @@ async function handleAdjustment(data: Record<string, unknown>, env: StripeEnv): 
     transactionId: str("transactionId"),
     subscriptionId: str("subscriptionId"),
     action: (str("action") ?? "other") as
-      | "refund"
-      | "chargeback"
-      | "chargeback_warning"
-      | "credit"
-      | "other",
+      "refund" | "chargeback" | "chargeback_warning" | "credit" | "other",
     status: str("status"),
     amountCents: Number.isFinite(amountCents) ? amountCents : null,
     currency: str("currencyCode") ?? totals?.currencyCode ?? null,

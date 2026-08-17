@@ -6,13 +6,7 @@
 // Zestaw kombinacji jest zgodny z GitHub/Word, żeby nie zaskakiwać użytkownika.
 
 export type MarkdownActionId =
-  | "bold"
-  | "italic"
-  | "bulletList"
-  | "numberedList"
-  | "quote"
-  | "code"
-  | "link";
+  "bold" | "italic" | "bulletList" | "numberedList" | "quote" | "code" | "link";
 
 interface ShortcutBinding {
   /** Klawisz bazowy (porównanie bez rozróżniania wielkości liter). */

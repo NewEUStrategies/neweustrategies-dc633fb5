@@ -8,12 +8,7 @@
 import type { BillingDocument, PaymentOrder } from "./types";
 
 export type PaymentHistoryKind =
-  | "invoice"
-  | "receipt"
-  | "credit_note"
-  | "subscription"
-  | "one_time"
-  | "grant";
+  "invoice" | "receipt" | "credit_note" | "subscription" | "one_time" | "grant";
 
 export interface PaymentHistoryRow {
   id: string;

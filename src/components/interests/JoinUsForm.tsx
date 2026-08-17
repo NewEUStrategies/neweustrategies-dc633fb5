@@ -153,13 +153,7 @@ export interface JoinUsFormProps {
 const ICON_EM = 1.15;
 
 type ExtraKey =
-  | "firstName"
-  | "lastName"
-  | "position"
-  | "linkedin"
-  | "phone"
-  | "company"
-  | "country";
+  "firstName" | "lastName" | "position" | "linkedin" | "phone" | "company" | "country";
 
 export function JoinUsForm({
   variant = "card",

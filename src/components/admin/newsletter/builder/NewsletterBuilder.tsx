@@ -381,8 +381,7 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
     const { active, over } = e;
     if (!over) return;
     const data = active.data.current as
-      | { kind?: string; type?: NlWidgetType; preset?: Partial<NlWidget> }
-      | undefined;
+      { kind?: string; type?: NlWidgetType; preset?: Partial<NlWidget> } | undefined;
     const target = resolveDropTarget(String(over.id));
     if (!target.sectionId) return;
 

@@ -19,7 +19,6 @@ export const getAuthEmailPreviews = createServerFn({ method: "GET" })
       .default({})
       .parse(data ?? {}),
   )
-  .handler(
-    async ({ data }): Promise<AuthEmailPreview[]> =>
-      renderAllAuthEmailPreviews(data.lang, data.firstName, data.gender),
+  .handler(async ({ data }): Promise<AuthEmailPreview[]> =>
+    renderAllAuthEmailPreviews(data.lang, data.firstName, data.gender),
   );

@@ -72,16 +72,14 @@ export interface JobsTickResult {
    * `pruned` = wektory usunięte po opt-oucie z katalogu.
    */
   profileIndex:
-    | { scanned: number; embedded: number; pruned?: number; skipped?: string }
-    | { error: string };
+    { scanned: number; embedded: number; pruned?: number; skipped?: string } | { error: string };
   /**
    * Warstwa semantyczna WĄTKÓW KLUBOWYCH. Znowu osobne pole, nie wspólny
    * licznik z profilami: tabela wektorów klubu (A6) stała pusta, bo nikt jej
    * nie karmił, i po wspólnym liczniku nie dałoby się tego odczytać z logu.
    */
   clubThreadIndex:
-    | { scanned: number; embedded: number; pruned?: number; skipped?: string }
-    | { error: string };
+    { scanned: number; embedded: number; pruned?: number; skipped?: string } | { error: string };
   /**
    * Harmonogram Discussion Club (V2 §5): otwarcia grup zaplanowanych, zamknięcia
    * okien dyskusji, wygasłe kadencje ról i zaproszenia, usypianie martwych

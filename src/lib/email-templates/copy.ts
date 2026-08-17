@@ -8,12 +8,7 @@ import type { PolishGender } from "@/lib/i18n/polishVocative";
  */
 
 export type AuthEmailType =
-  | "signup"
-  | "invite"
-  | "magiclink"
-  | "recovery"
-  | "email_change"
-  | "reauthentication";
+  "signup" | "invite" | "magiclink" | "recovery" | "email_change" | "reauthentication";
 
 interface Copy {
   subject: string;

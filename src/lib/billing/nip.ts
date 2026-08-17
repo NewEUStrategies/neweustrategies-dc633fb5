@@ -5,8 +5,7 @@
 // identyfikator po swojej stronie; my chronimy fakturę przed literówkami).
 
 export type TaxIdValidation =
-  | { ok: true; normalized: string }
-  | { ok: false; reason: "format" | "checksum" };
+  { ok: true; normalized: string } | { ok: false; reason: "format" | "checksum" };
 
 /** Usuwa separatory (spacje, myślniki, kropki) i normalizuje wielkość liter. */
 export function normalizeTaxId(raw: string): string {

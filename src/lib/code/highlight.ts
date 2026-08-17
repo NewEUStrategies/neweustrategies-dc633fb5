@@ -6,13 +6,7 @@
 // cache. Twardy inwariant: konkatenacja tokenów odtwarza wejście 1:1.
 
 export type TokenKind =
-  | "comment"
-  | "string"
-  | "keyword"
-  | "number"
-  | "property"
-  | "variable"
-  | "type";
+  "comment" | "string" | "keyword" | "number" | "property" | "variable" | "type";
 
 export interface HighlightToken {
   text: string;

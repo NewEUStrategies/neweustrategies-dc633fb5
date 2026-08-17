@@ -62,13 +62,7 @@ export interface CareerRoleRow {
 }
 
 export type CareerSectionKey =
-  | "hero"
-  | "values"
-  | "benefits"
-  | "roles"
-  | "process"
-  | "form"
-  | "closing";
+  "hero" | "values" | "benefits" | "roles" | "process" | "form" | "closing";
 
 export const CAREER_SECTION_KEYS = [
   "hero",

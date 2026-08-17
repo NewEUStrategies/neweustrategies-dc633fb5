@@ -13,14 +13,7 @@ export type AdPosition =
   | "footer_slideup";
 
 export type AdPageType =
-  | "all"
-  | "home"
-  | "post"
-  | "page"
-  | "category"
-  | "tag"
-  | "archive"
-  | "search";
+  "all" | "home" | "post" | "page" | "category" | "tag" | "archive" | "search";
 
 export interface AdSlot {
   id: string;

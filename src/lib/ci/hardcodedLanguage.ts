@@ -42,11 +42,7 @@ export interface ScannedSource {
 }
 
 export type HardcodedKind =
-  | "ternary-isPl"
-  | "ternary-lang"
-  | "twin-helper"
-  | "manual-lang-code"
-  | "same-both-branches";
+  "ternary-isPl" | "ternary-lang" | "twin-helper" | "manual-lang-code" | "same-both-branches";
 
 export interface HardcodedHit {
   readonly file: string;

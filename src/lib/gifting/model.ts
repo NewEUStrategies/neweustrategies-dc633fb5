@@ -53,13 +53,7 @@ export function buildGiftUrl(baseUrl: string, code: string): string {
 
 /** Kanaly udostepniania - spojne z SocialKey panelu czytania (FloatingShareBar). */
 export type GiftChannelId =
-  | "mail"
-  | "facebook"
-  | "linkedin"
-  | "whatsapp"
-  | "telegram"
-  | "x"
-  | "reddit";
+  "mail" | "facebook" | "linkedin" | "whatsapp" | "telegram" | "x" | "reddit";
 
 export interface GiftShareTarget {
   id: GiftChannelId;
@@ -278,13 +272,7 @@ export function mapGiftError(message: string | null | undefined): GiftErrorKey {
  *  - "invalid"   - kod nieznany / nie dla tego wpisu / tresc na haslo.
  */
 export type GiftRedeemReason =
-  | "ok"
-  | "owner"
-  | "entitled"
-  | "exhausted"
-  | "expired"
-  | "revoked"
-  | "invalid";
+  "ok" | "owner" | "entitled" | "exhausted" | "expired" | "revoked" | "invalid";
 
 const REDEEM_REASONS: ReadonlySet<string> = new Set<GiftRedeemReason>([
   "ok",

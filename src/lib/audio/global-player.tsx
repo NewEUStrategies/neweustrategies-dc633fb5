@@ -52,13 +52,7 @@ export type AudioStatus = "idle" | "loading" | "playing" | "paused" | "error";
  * - error: błąd na dowolnym etapie
  */
 export type TtsStage =
-  | "idle"
-  | "preparing"
-  | "synthesizing"
-  | "streaming"
-  | "ready"
-  | "cached"
-  | "error";
+  "idle" | "preparing" | "synthesizing" | "streaming" | "ready" | "cached" | "error";
 
 export interface TtsProgress {
   stage: TtsStage;

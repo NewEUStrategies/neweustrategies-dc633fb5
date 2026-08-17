@@ -32,9 +32,7 @@ import {
 } from "./normalize";
 
 export type RpcHubResult =
-  | { kind: "ok"; hub: ExpertHubData }
-  | { kind: "not-found" }
-  | { kind: "unavailable" };
+  { kind: "ok"; hub: ExpertHubData } | { kind: "not-found" } | { kind: "unavailable" };
 
 // Guardy jsonb → Row współdzielone z resztą warstwy danych huba (normalize).
 const rowsOf = jsonRows;

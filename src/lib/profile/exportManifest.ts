@@ -21,12 +21,7 @@
 
 /** Wartość przenośna: eksport jest kontraktem JSON, nie zrzutem obiektów JS. */
 export type JsonValue =
-  | null
-  | boolean
-  | number
-  | string
-  | JsonValue[]
-  | { [key: string]: JsonValue };
+  null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
 /** Wersja formatu. Zmiana ZAKRESU sekcji = zmiana wersji (konsument to czyta). */
 export const PERSONAL_DATA_EXPORT_FORMAT = "nes.personal-data-export.v2" as const;

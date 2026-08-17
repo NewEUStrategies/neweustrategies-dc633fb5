@@ -17,12 +17,7 @@ import "@/lib/i18n-donations-widget";
 import { uiLocale } from "@/lib/i18n/format";
 
 export type DonationsVariant =
-  | "hero"
-  | "progress"
-  | "stats-strip"
-  | "compact-card"
-  | "inline-bar"
-  | "thermometer";
+  "hero" | "progress" | "stats-strip" | "compact-card" | "inline-bar" | "thermometer";
 
 export interface DonationsWidgetProps {
   variant?: DonationsVariant;

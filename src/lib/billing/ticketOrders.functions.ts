@@ -16,15 +16,13 @@ export const listTicketOrders = createServerFn({ method: "GET" })
   .validator((input: unknown) =>
     z.object({ limit: z.number().int().min(1).max(500).optional() }).parse(input ?? {}),
   )
-  .handler(
-    async ({ data, context }): Promise<TicketOrderRow[]> =>
-      loadTicketOrders(context.supabase, data.limit ?? 200),
+  .handler(async ({ data, context }): Promise<TicketOrderRow[]> =>
+    loadTicketOrders(context.supabase, data.limit ?? 200),
   );
 
 export const getTicketOrderHistory = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ orderId: z.string().uuid() }).parse(input))
-  .handler(
-    async ({ data, context }): Promise<TicketOrderHistoryEntry[]> =>
-      loadTicketOrderHistory(context.supabase, data.orderId),
+  .handler(async ({ data, context }): Promise<TicketOrderHistoryEntry[]> =>
+    loadTicketOrderHistory(context.supabase, data.orderId),
   );

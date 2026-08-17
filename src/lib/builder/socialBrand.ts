@@ -8,13 +8,7 @@
 // To są kolory MAREK ZEWNĘTRZNYCH - świadomie nie są tokenami naszego motywu.
 
 export type SocialPlatformKey =
-  | "facebook"
-  | "x"
-  | "youtube"
-  | "instagram"
-  | "linkedin"
-  | "spotify"
-  | "newsletter";
+  "facebook" | "x" | "youtube" | "instagram" | "linkedin" | "spotify" | "newsletter";
 
 /** Oficjalne kolory marek (bazowe, „surowe"). */
 export const SOCIAL_OFFICIAL_COLOR: Record<string, string> = {

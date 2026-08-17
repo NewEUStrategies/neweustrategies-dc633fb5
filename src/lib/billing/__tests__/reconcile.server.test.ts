@@ -55,8 +55,7 @@ const db = vi.hoisted(() => {
     chain.single = chain.maybeSingle;
     chain.then = (
       onFulfilled?:
-        | ((value: { data: unknown; error: { message: string } | null }) => unknown)
-        | null,
+        ((value: { data: unknown; error: { message: string } | null }) => unknown) | null,
       onRejected?: ((reason: unknown) => unknown) | null,
     ) => Promise.resolve(resultFor(table, [])).then(onFulfilled, onRejected);
     return chain;

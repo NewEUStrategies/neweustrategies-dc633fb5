@@ -76,8 +76,7 @@ export interface DonationSessionInput {
 }
 
 export type DonationSessionResult =
-  | { ok: true; clientSecret: string; donationId: string }
-  | { ok: false; error: string };
+  { ok: true; clientSecret: string; donationId: string } | { ok: false; error: string };
 
 /** Konfiguracja darowizn z `site_settings` (fallback: wartości domyślne). */
 export async function loadDonationsConfig(): Promise<DonationsConfig> {

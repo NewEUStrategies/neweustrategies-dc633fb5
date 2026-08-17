@@ -62,8 +62,7 @@ export const Route = createFileRoute("/programs/$slug")({
     const url = getRequestUrl() || `/programs/${params.slug}`;
     const lang = activeLang(url);
     const data = loaderData as
-      | { landing: ProgramLanding; heroPreload: ImagePreloadInput | null }
-      | undefined;
+      { landing: ProgramLanding; heroPreload: ImagePreloadInput | null } | undefined;
     const landing = data?.landing ?? null;
     const heroPreload = data?.heroPreload ?? null;
     const program = landing?.program ?? null;

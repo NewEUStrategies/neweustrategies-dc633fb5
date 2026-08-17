@@ -59,8 +59,7 @@ function isH3SwallowedErrorBody(body: string): boolean {
 function isClientAbort(request: Request, error?: unknown): boolean {
   if (request.signal?.aborted) return true;
   const err = error as
-    | { code?: string; name?: string; message?: string; cause?: unknown }
-    | undefined;
+    { code?: string; name?: string; message?: string; cause?: unknown } | undefined;
   if (!err) return false;
   const text = `${err.code ?? ""} ${err.name ?? ""} ${err.message ?? ""}`.toLowerCase();
   if (text.includes("econnreset") || text.includes("aborted") || text.includes("abort"))

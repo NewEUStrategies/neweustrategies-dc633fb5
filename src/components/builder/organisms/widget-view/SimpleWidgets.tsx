@@ -1181,19 +1181,9 @@ export function renderSimpleWidget(
         navBgColor: typeof c.navBgColor === "string" ? c.navBgColor : undefined,
         navArrowColor: typeof c.navArrowColor === "string" ? c.navArrowColor : undefined,
         navBgStyle: (typeof c.navBgStyle === "string" ? c.navBgStyle : undefined) as
-          | "glass"
-          | "solid"
-          | "outline"
-          | "soft"
-          | "gradient"
-          | "shadow"
-          | undefined,
+          "glass" | "solid" | "outline" | "soft" | "gradient" | "shadow" | undefined,
         navPosition: (typeof c.navPosition === "string" ? c.navPosition : undefined) as
-          | "mid"
-          | "mid-outside"
-          | "bottom"
-          | "top"
-          | undefined,
+          "mid" | "mid-outside" | "bottom" | "top" | undefined,
         navArrowVariant: (typeof c.navArrowVariant === "string" ? c.navArrowVariant : undefined) as
           | "chevron"
           | "chevron-bold"
