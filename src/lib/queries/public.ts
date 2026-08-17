@@ -10,6 +10,7 @@ import { GUEST_ACCESS_CONTEXT, stripInaccessibleNodes } from "@/lib/builder/acce
 import type { ContentAccessRule } from "@/hooks/useContentAccess";
 import type { LayoutOverrides, PostFormat } from "@/lib/postLayouts";
 import { edgeTtlCache } from "@/lib/ssrCache";
+import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
 
 // Non-sensitive columns of the access rule. Safe to ship to anonymous SSR so the
 // paywall teaser renders server-side (good for SEO); the body itself stays gated
@@ -33,6 +34,24 @@ const ENTITY_BASE_COLS =
   "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, updated_at";
 
 /**
+ * Migawka organizacji przypisanej do wpisu. Czytamy KOPIĘ z wiersza wpisu, a nie
+ * `crm_companies` przez join - tamta tabela jest czytelna wyłącznie dla stafu CRM
+ * (crm_companies_staff_read), więc dla anonimowego czytelnika join zwracałby NULL.
+ * Uzasadnienie i konsekwencje: migracja 20260817090000.
+ */
+const ORGANIZATION_SELECT_COLS =
+  "organization_id, organization_name, organization_logo_url, organization_website";
+
+/**
+ * Ujawnienie komercyjne. `sponsored_order_ref`, `sponsored_marked_by` i
+ * `sponsored_marked_at` są tu CELOWO NIEOBECNE: to ślad rozliczalności dla
+ * redakcji, a nie treść dla czytelnika - nie mają czego szukać w publicznym
+ * bundlu (ani w grancie kolumnowym, patrz ta sama migracja).
+ */
+const SPONSORED_SELECT_COLS =
+  "is_sponsored, sponsored_kind, sponsored_advertiser_name, sponsored_advertiser_url, sponsored_payer_name, sponsored_note_pl, sponsored_note_en, sponsored_affiliate, sponsored_political, sponsored_political_process, sponsored_sponsor_controller";
+
+/**
  * Kolumny encji treści dla renderu publicznego (bez body - to gated RPC).
  *
  * UWAGA: każdy wpis MUSI być jednym literałem szablonowym. Klient Supabase
@@ -41,7 +60,7 @@ const ENTITY_BASE_COLS =
  * czyli tracimy całe typowanie wierszy (i wracamy do rzutowań przez `unknown`).
  */
 export const ENTITY_SELECT_COLS = {
-  post: `${ENTITY_BASE_COLS}, read_minutes, post_format, layout_overrides, ${TAKEAWAYS_SELECT_COLS}, toc_override, custom_meta, related_override, author_id, audio_url_pl, audio_url_en, ${SEO_FIELDS_SELECT}`,
+  post: `${ENTITY_BASE_COLS}, read_minutes, post_format, layout_overrides, ${TAKEAWAYS_SELECT_COLS}, toc_override, custom_meta, related_override, author_id, audio_url_pl, audio_url_en, ${SEO_FIELDS_SELECT}, ${ORGANIZATION_SELECT_COLS}, ${SPONSORED_SELECT_COLS}`,
   page: `${ENTITY_BASE_COLS}, template_type, header_override, ${TAKEAWAYS_SELECT_COLS}, ${SEO_FIELDS_SELECT}`,
   /**
    * Strona główna w trybie statycznej strony: bez pól postowych i bez pól
@@ -125,6 +144,12 @@ export interface BlogListItem {
   published_at: string | null;
   parent_page_id: string;
   href: string;
+  // Wymagane, nie opcjonalne - patrz uzasadnienie przy `PostCardData`
+  // w components/molecules/PostListCard: opcjonalność pozwalała zapytaniu
+  // przemilczeć te kolumny i wyrenderować sponsorowany materiał bez oznaczenia.
+  is_sponsored: boolean | null;
+  sponsored_kind: string | null;
+  sponsored_affiliate: boolean | null;
 }
 
 export interface PageData {
@@ -172,6 +197,23 @@ export interface PostData extends PageData {
   toc_override: Record<string, unknown> | null;
   audio_url_pl: string | null;
   audio_url_en: string | null;
+  /** Migawka organizacji (patrz ORGANIZATION_SELECT_COLS). */
+  organization_id: string | null;
+  organization_name: string | null;
+  organization_logo_url: string | null;
+  organization_website: string | null;
+  /** Ujawnienie komercyjne (patrz SPONSORED_SELECT_COLS + lib/content/sponsored.ts). */
+  is_sponsored: boolean;
+  sponsored_kind: string | null;
+  sponsored_advertiser_name: string | null;
+  sponsored_advertiser_url: string | null;
+  sponsored_payer_name: string | null;
+  sponsored_note_pl: string | null;
+  sponsored_note_en: string | null;
+  sponsored_affiliate: boolean;
+  sponsored_political: boolean;
+  sponsored_political_process: string | null;
+  sponsored_sponsor_controller: string | null;
 }
 
 interface AuthorProfileOverlay {
@@ -509,7 +551,7 @@ export const blogListQueryOptions = (limit: number = BLOG_PAGE_SIZE) =>
         const { data, error } = await supabase
           .from("posts")
           .select(
-            "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id",
+            `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, ${SPONSORED_LIST_COLS}`,
           )
           .eq("status", "published")
           .is("deleted_at", null)
@@ -565,7 +607,7 @@ export const blogArchiveQueryOptions = (params: BlogArchiveParams = {}) => {
         const { data, count, error } = await supabase
           .from("posts")
           .select(
-            "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id",
+            `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, ${SPONSORED_LIST_COLS}`,
             { count: "exact" },
           )
           .eq("status", "published")

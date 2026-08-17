@@ -36,7 +36,11 @@ export const I18N_OVERLAY_IMPORT_BASELINE: readonly (readonly [string, number])[
   ["src/components/admin/popups/signup/FormTab.tsx", 24],
   ["src/components/admin/popups/signup/GalleryTab.tsx", 45],
   ["src/components/admin/popups/signup/LayoutTab.tsx", 33],
-  ["src/components/admin/post-editor/hooks/usePostEditorForm.ts", 4],
+  // 2026-08-17: 4 -> 0. Hook dostał bezpośredni import `@/lib/i18n-admin-post-panes`
+  // (woła `adminPostPanes.sponsored.*` przy odrzuconej publikacji), co domknęło
+  // też cztery wcześniejsze pośrednie zależności. Wpis zostaje z zerem, żeby
+  // ratchet nie wpuścił ich z powrotem.
+  ["src/components/admin/post-editor/hooks/usePostEditorForm.ts", 0],
   ["src/components/admin/post-editor/molecules/TtsVoiceCard.tsx", 17],
   ["src/components/archive/layouts/ArchiveHeader.tsx", 2],
   ["src/components/billing/BillingDocumentsCard.tsx", 10],

@@ -5,6 +5,7 @@ import type { BuilderDocument } from "@/lib/builder/types";
 import type { LocalizedBlocks } from "@/lib/blocks/types";
 import type { LayoutOverrides, PostFormat } from "@/lib/postLayouts";
 import type { PostWorkflowStatus } from "@/lib/content/workflow";
+import type { SponsoredKind } from "@/lib/content/sponsored";
 import type { TocOverride } from "@/lib/toc/settings";
 
 export type EditorType = "blocks" | "richtext" | "markdown" | "builder";
@@ -56,6 +57,39 @@ export interface PostForm {
   seo_noindex: boolean;
   seo_og_image_url: string | null;
   og_image_generated_url: string | null;
+  // Atrybucja organizacji: referencja do firmy w CRM + SNAPSHOT jej danych
+  // prezentacyjnych. Snapshot nie jest duplikacją z lenistwa - crm_companies
+  // czyta wyłącznie staff CRM, więc publiczny render nie ma jak dołączyć tej
+  // tabeli (migracja 20260817090000).
+  organization_id: string | null;
+  organization_name: string | null;
+  organization_logo_url: string | null;
+  organization_website: string | null;
+  // Ujawnienie komercyjnego charakteru materiału. Reguły i podstawy prawne:
+  // src/lib/content/sponsored.ts.
+  is_sponsored: boolean;
+  sponsored_kind: SponsoredKind | null;
+  sponsored_advertiser_name: string | null;
+  /** Adres elektroniczny zlecającego - element ustawowy (uśude art. 9 ust. 1 pkt 1). */
+  sponsored_advertiser_url: string | null;
+  /** Płatnik, gdy inny niż reklamodawca (DSA art. 26 ust. 1 lit. c). */
+  sponsored_payer_name: string | null;
+  sponsored_note_pl: string | null;
+  sponsored_note_en: string | null;
+  sponsored_affiliate: boolean;
+  /** Reklama polityczna wg rozp. (UE) 2024/900 - wiąże wydawcę bezpośrednio. */
+  sponsored_political: boolean;
+  sponsored_political_process: string | null;
+  sponsored_sponsor_controller: string | null;
+  /** Numer zlecenia/umowy - ślad rozliczalności, nigdy nie renderowany publicznie. */
+  sponsored_order_ref: string | null;
+  /**
+   * TYLKO DO ODCZYTU (jak `published_at`): serwer stempluje to w chwili pierwszej
+   * deklaracji i klient nigdy nie odsyła tego pola w payloadzie zapisu. Gdyby
+   * odsyłał, każdy autozapis przepisywałby datę deklaracji na „teraz" i ślad
+   * rozliczalności przestałby cokolwiek dowodzić.
+   */
+  sponsored_marked_at: string | null;
 }
 
 export interface CategoryOpt {

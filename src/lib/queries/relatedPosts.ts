@@ -10,6 +10,7 @@ import {
   type RelatedPostsConfig,
 } from "@/lib/relatedPosts";
 import type { BlogListItem } from "@/lib/queries/public";
+import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
 
 const RELATED_TTL = 5 * 60_000;
 
@@ -117,7 +118,7 @@ export const relatedPostsQueryOptions = (input: RelatedPostsInput) =>
       const { data: posts } = await supabase
         .from("posts")
         .select(
-          "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, author_id",
+          `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, author_id, ${SPONSORED_LIST_COLS}`,
         )
         .in("id", ids)
         .eq("status", "published")
@@ -133,6 +134,9 @@ export const relatedPostsQueryOptions = (input: RelatedPostsInput) =>
         published_at: string | null;
         parent_page_id: string;
         author_id: string | null;
+        is_sponsored: boolean | null;
+        sponsored_kind: string | null;
+        sponsored_affiliate: boolean | null;
       }>;
       if (rows.length === 0) return [];
 
@@ -178,6 +182,9 @@ export const relatedPostsQueryOptions = (input: RelatedPostsInput) =>
           r.published_at,
         );
         const item: BlogListItem = {
+          is_sponsored: r.is_sponsored,
+          sponsored_kind: r.sponsored_kind,
+          sponsored_affiliate: r.sponsored_affiliate,
           id: r.id,
           slug: r.slug,
           title_pl: r.title_pl,
