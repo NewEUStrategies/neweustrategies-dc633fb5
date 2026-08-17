@@ -158,7 +158,7 @@ COMMENT ON COLUMN public.posts.sponsored_note_en IS
 COMMENT ON COLUMN public.posts.sponsored_affiliate IS
   'TRUE = the body contains affiliate links; renders its own disclosure line. Orthogonal to is_sponsored (dyrektywa 2005/29/WE art. 7 ust. 2).';
 COMMENT ON COLUMN public.posts.sponsored_order_ref IS
-  'EDITORIAL-INTERNAL order / contract reference for the accountability trail. Deliberately NOT part of the public column grant below and NOT selected by the public content query.';
+  'EDITORIAL-INTERNAL order / contract reference. NOT selected by the public content query and NOT in the column grant below - but see the WARNING in this migration header: a table-wide GRANT SELECT on posts (20260709151903) is live, so this column is NOT privilege-protected today. Do not store secrets here.';
 COMMENT ON COLUMN public.posts.sponsored_marked_by IS
   'Who declared the commercial relationship (accountability trail).';
 COMMENT ON COLUMN public.posts.sponsored_marked_at IS
@@ -243,6 +243,21 @@ CREATE INDEX IF NOT EXISTS posts_tenant_sponsored_idx
 -- `sponsored_marked_at` NIE - to ślad rozliczalności dla redakcji, nie treść
 -- dla czytelnika (panel czyta je przez get_post_for_edit, SECURITY DEFINER,
 -- który omija ACL kolumnowy).
+-- OSTRZEŻENIE, KTÓRE WYSZŁO PRZY AUDYCIE TEJ ZMIANY (defekt ZASTANY, nie nasz).
+-- Kolumnowy ACL na `posts` NIE DZIAŁA w odtworzonym stanie końcowym: migracja
+-- 20260709151903 wykonuje `GRANT SELECT ON public.posts TO anon` (tabelarycznie),
+-- czyli PO obu migracjach zawężających (20260702200000, 20260703052720) i nigdy
+-- nie została cofnięta. W PostgreSQL uprawnienie tabelaryczne zaspokaja kontrolę
+-- dostępu dla KAŻDEJ kolumny, więc:
+--   * odcięcie kolumn treści (content_pl/en, builder_data, blocks_data), na
+--     którym stoi paywall po stronie przywilejów, jest dziś nieskuteczne;
+--   * `sponsored_order_ref` też jest czytelny bezpośrednio przez PostgREST,
+--     mimo że nie ma go w grancie niżej ani w publicznym zapytaniu.
+-- Nie naprawiamy tego TUTAJ: przywrócenie ACL wymaga REVOKE + przeliczenia listy
+-- kolumn dla całej tabeli i dotyka każdego zapytania, które dziś polega na
+-- grancie tabelarycznym - to osobna zmiana bezpieczeństwa o dużym zasięgu, a nie
+-- doklejka do funkcji redakcyjnej. Grant niżej zostaje, bo jest POPRAWNY względem
+-- doktryny fail-closed z 20260702200000 i zadziała w chwili, gdy ACL wróci.
 GRANT SELECT (
   organization_id,
   organization_name,

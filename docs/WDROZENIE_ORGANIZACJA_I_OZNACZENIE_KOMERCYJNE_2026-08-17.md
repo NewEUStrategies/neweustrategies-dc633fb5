@@ -222,3 +222,29 @@ Nowe testy: `content/__tests__/sponsored.test.ts` (21 przypadków, każdy pilnuj
 konkretnego wymogu prawnego), `post/__tests__/SponsoredDisclosure.test.tsx`
 (12), `post-editor/molecules/__tests__/PostSponsoredCard.test.tsx` (9 - w tym
 inwariant atomowego patcha z §4).
+
+---
+
+## 8. Defekt ZASTANY, wykryty przy audycie tej zmiany
+
+**Kolumnowy ACL na `public.posts` nie działa.** Migracja `20260709151903`
+wykonuje `GRANT SELECT ON public.posts TO anon` (tabelarycznie), czyli PO obu
+migracjach zawężających (`20260702200000`, `20260703052720`) i nigdy nie została
+cofnięta. W PostgreSQL uprawnienie tabelaryczne zaspokaja kontrolę dostępu dla
+KAŻDEJ kolumny, więc odcięcie kolumn treści - na którym po stronie przywilejów
+stoi paywall (`content_pl`, `content_en`, `builder_data`, `blocks_data`) - jest
+dziś nieskuteczne. To defekt POWAŻNIEJSZY niż cokolwiek w tym wdrożeniu:
+`get_entity_content()` znów jest ścieżką „uprzejmą", a nie egzekwowaną.
+
+Konsekwencja dla tej zmiany: `sponsored_order_ref` nie jest chroniony
+przywilejem, choć nie ma go ani w publicznym zapytaniu, ani w grancie
+kolumnowym. Komentarz przy kolumnie mówi to wprost - żeby nikt nie wpisał tam
+danych wrażliwych w zaufaniu do ochrony, której nie ma.
+
+**Nie naprawiamy tego tutaj.** Przywrócenie ACL wymaga `REVOKE` i przeliczenia
+listy kolumn dla całej tabeli, a więc dotyka każdego zapytania, które dziś
+polega na grancie tabelarycznym (m.in. `select("*")` po stronie roli
+`authenticated`). To osobna zmiana bezpieczeństwa o dużym zasięgu, z własnym
+przebiegiem testów - nie doklejka do funkcji redakcyjnej. Grant kolumnowy
+dodany w `20260817090000` zostaje, bo jest poprawny względem doktryny
+fail-closed i zadziała w chwili, gdy ACL wróci.
