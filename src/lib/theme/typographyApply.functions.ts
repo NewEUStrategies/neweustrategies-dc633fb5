@@ -23,11 +23,9 @@ export interface ApplyTypographyResult {
 
 export const applyTypographyToPublished = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
-    (input: Partial<ApplyTypographyInput> | undefined): ApplyTypographyInput => ({
-      dryRun: input?.dryRun !== false,
-    }),
-  )
+  .inputValidator((input: Partial<ApplyTypographyInput> | undefined): ApplyTypographyInput => ({
+    dryRun: input?.dryRun !== false,
+  }))
   .handler(async ({ data, context }): Promise<ApplyTypographyResult> => {
     const { data: isAdmin, error: roleError } = await context.supabase.rpc("has_role", {
       _user_id: context.userId,

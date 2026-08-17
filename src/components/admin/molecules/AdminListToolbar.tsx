@@ -12,20 +12,9 @@ import { Search, X } from "@/lib/lucide-shim";
 import type { TenantAuthor } from "@/components/admin/hooks/useTenantAuthors";
 
 export type StatusFilter =
-  | "all"
-  | "published"
-  | "draft"
-  | "pending_review"
-  | "scheduled"
-  | "archived";
+  "all" | "published" | "draft" | "pending_review" | "scheduled" | "archived";
 export type LangFilter =
-  | "all"
-  | "has_pl"
-  | "has_en"
-  | "pl_only"
-  | "en_only"
-  | "missing_any"
-  | "complete";
+  "all" | "has_pl" | "has_en" | "pl_only" | "en_only" | "missing_any" | "complete";
 
 export interface AdminListToolbarProps {
   search: string;

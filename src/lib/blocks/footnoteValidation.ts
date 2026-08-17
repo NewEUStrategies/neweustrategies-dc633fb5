@@ -85,7 +85,7 @@ function scanField(ctx: FieldCtx, value: unknown): void {
   //    (te literówki wtedy zawyżałyby fałszywe "UNCLOSED").
   MALFORMED_RE.lastIndex = 0;
   const seenMalformed: Array<{ text: string; index: number }> = [];
-  for (let m: RegExpExecArray | null; (m = MALFORMED_RE.exec(value)) !== null; ) {
+  for (let m: RegExpExecArray | null; (m = MALFORMED_RE.exec(value)) !== null;) {
     // Pomijamy dokładne, poprawne tagi.
     if (m[0] === "[fn]" || m[0] === "[/fn]") continue;
     seenMalformed.push({ text: m[0], index: m.index });
@@ -104,7 +104,7 @@ function scanField(ctx: FieldCtx, value: unknown): void {
   // 2) Parowanie poprawnych markerów - stos otwartych `[fn]`.
   TAG_RE.lastIndex = 0;
   const openStack: Array<{ index: number }> = [];
-  for (let m: RegExpExecArray | null; (m = TAG_RE.exec(value)) !== null; ) {
+  for (let m: RegExpExecArray | null; (m = TAG_RE.exec(value)) !== null;) {
     const tag = m[0];
     const at = m.index;
     if (tag === "[fn]") {

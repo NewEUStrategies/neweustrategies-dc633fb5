@@ -54,14 +54,12 @@ export const Route = createFileRoute("/llms.txt")({
           posts
             .filter((p) => (lang === "en" ? p.title_en : p.title_pl))
             .slice(0, LATEST_COUNT)
-            .map(
-              (p): LlmsTxtArticle => ({
-                title: lang === "en" ? p.title_en : p.title_pl,
-                url: `${origin}${localizedPath(p.path, lang)}`,
-                description: lang === "en" ? p.excerpt_en : p.excerpt_pl,
-                publishedAt: p.published_at,
-              }),
-            );
+            .map((p): LlmsTxtArticle => ({
+              title: lang === "en" ? p.title_en : p.title_pl,
+              url: `${origin}${localizedPath(p.path, lang)}`,
+              description: lang === "en" ? p.excerpt_en : p.excerpt_pl,
+              publishedAt: p.published_at,
+            }));
 
         const body = buildLlmsTxt({
           siteName: SITE_NAME,

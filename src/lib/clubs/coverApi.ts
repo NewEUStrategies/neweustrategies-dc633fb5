@@ -27,8 +27,7 @@ export const CLUB_COVER_ACCEPT_ATTR = CLUB_COVER_MIME.join(",");
 export const CLUB_COVER_MAX_BYTES = 8 * 1024 * 1024;
 
 export type ClubCoverRejection =
-  | { kind: "mime"; mime: string }
-  | { kind: "size"; sizeBytes: number; maxBytes: number };
+  { kind: "mime"; mime: string } | { kind: "size"; sizeBytes: number; maxBytes: number };
 
 export function checkClubCoverFile(file: {
   type: string;

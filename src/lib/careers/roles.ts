@@ -7,12 +7,7 @@
 
 /** Dział organizacji - stały, zamknięty zbiór (faseta filtrów). */
 export type CareerDepartmentId =
-  | "analysis"
-  | "policy"
-  | "marketing"
-  | "advisory"
-  | "editorial"
-  | "operations";
+  "analysis" | "policy" | "marketing" | "advisory" | "editorial" | "operations";
 
 /** Tryb współpracy - używany jako znacznik na karcie roli. */
 export type CareerEngagement = "full_time" | "part_time" | "contract" | "internship";

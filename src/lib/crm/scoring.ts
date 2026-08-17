@@ -201,12 +201,10 @@ export function parseScoringSettings(row: unknown): ScoringSettings {
     weights,
   };
   // Progi muszą maleć (CHECK w bazie) - niespójne wejście wraca do domyślnych.
-  if (
-    !(
-      settings.hot_threshold > settings.warm_threshold &&
-      settings.warm_threshold > settings.cool_threshold
-    )
-  ) {
+  if (!(
+    settings.hot_threshold > settings.warm_threshold &&
+    settings.warm_threshold > settings.cool_threshold
+  )) {
     settings.hot_threshold = d.hot_threshold;
     settings.warm_threshold = d.warm_threshold;
     settings.cool_threshold = d.cool_threshold;

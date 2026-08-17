@@ -33,11 +33,7 @@ export interface PublicExposure {
 
 /** Powód ekspozycji - klucz i18n `profilePrivacy.exposureReason.<powód>`. */
 export type ExposureReason =
-  | "editorialRole"
-  | "expertBadge"
-  | "authorProfile"
-  | "speakerProfile"
-  | "publishedContent";
+  "editorialRole" | "expertBadge" | "authorProfile" | "speakerProfile" | "publishedContent";
 
 /** Zachowawczy stan wyjściowy: nic nie jest publiczne, dopóki baza nie powie inaczej. */
 export const EXPOSURE_NONE: PublicExposure = {

@@ -785,8 +785,7 @@ export const duplicatePost = createServerFn({ method: "POST" })
       });
       if (srcErr) throw new Error(srcErr.message);
       const src = (Array.isArray(srcRows) ? srcRows[0] : srcRows) as
-        | Database["public"]["Tables"]["posts"]["Row"]
-        | undefined;
+        Database["public"]["Tables"]["posts"]["Row"] | undefined;
       if (!src) throw new Error("Post not found");
 
       const slug = await uniqueSlug(supabase, "posts", tenantId, `${src.slug}-kopia`);

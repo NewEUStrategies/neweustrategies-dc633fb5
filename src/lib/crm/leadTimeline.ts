@@ -11,12 +11,7 @@
 // wykonywany z uprawnieniami admina.
 
 export type LeadTimelineEventType =
-  | "submit"
-  | "consent"
-  | "note"
-  | "stage_change"
-  | "webhook"
-  | "newsletter";
+  "submit" | "consent" | "note" | "stage_change" | "webhook" | "newsletter";
 
 export type LeadTimelineEvent = {
   id: string;

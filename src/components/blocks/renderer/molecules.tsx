@@ -675,9 +675,7 @@ export const renderFaq: BlockRenderer = ({ block, cls, lang }) => {
 export const renderToc: BlockRenderer = ({ block, cls, lang, allBlocks }) => {
   const cols = str(block.data, "columns", "col-1");
   const columns = (cols === "col-2" || cols === "half" ? cols : "col-1") as
-    | "col-1"
-    | "col-2"
-    | "half";
+    "col-1" | "col-2" | "half";
   return (
     <div className={cls}>
       <TocBlockView
@@ -699,8 +697,7 @@ export const renderNewsletter: BlockRenderer = ({ block, cls, lang }) => {
   const title = str(block.data, "title");
   const description = str(block.data, "description");
   const variant = (str(block.data, "variant", "card") === "inline" ? "inline" : "card") as
-    | "card"
-    | "inline";
+    "card" | "inline";
   return (
     <section
       className={`not-prose my-6 rounded-lg border border-border bg-gradient-to-br from-primary/10 to-transparent p-5 ${cls}`}

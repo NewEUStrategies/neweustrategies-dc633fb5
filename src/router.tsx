@@ -149,8 +149,7 @@ export const getRouter = () => {
       });
 
       const dehydrated = (await integrationDehydrate?.()) as
-        | (Record<string, unknown> & { queryStream?: ReadableStream<unknown> })
-        | undefined;
+        (Record<string, unknown> & { queryStream?: ReadableStream<unknown> }) | undefined;
       if (dehydrated?.queryStream) {
         dehydrated.queryStream = guardQueryStream(dehydrated.queryStream, queryClient, {
           label: router.state.location.pathname,

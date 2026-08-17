@@ -112,13 +112,7 @@ export type MotionPreset =
   | "rubber";
 
 export type MotionEasing =
-  | "ease"
-  | "ease-in"
-  | "ease-out"
-  | "ease-in-out"
-  | "linear"
-  | "spring"
-  | "bounce";
+  "ease" | "ease-in" | "ease-out" | "ease-in-out" | "linear" | "spring" | "bounce";
 
 type WidgetSize = number | "auto";
 type WidgetWidth = WidgetSize | `${number}%`;
@@ -218,24 +212,11 @@ export interface WidgetLink {
 export type ContentWidth = "boxed" | "full";
 export type SectionHeight = "default" | "fit-screen" | "min-height" | "fixed";
 export type VerticalAlign =
-  | "default"
-  | "top"
-  | "middle"
-  | "bottom"
-  | "space-between"
-  | "space-around"
-  | "space-evenly";
+  "default" | "top" | "middle" | "bottom" | "space-between" | "space-around" | "space-evenly";
 export type ColumnsGap = "default" | "no" | "narrow" | "extended" | "wide" | "wider" | "custom";
 export type OverflowMode = "default" | "hidden";
 export type HtmlTag =
-  | "div"
-  | "header"
-  | "footer"
-  | "main"
-  | "article"
-  | "aside"
-  | "section"
-  | "nav";
+  "div" | "header" | "footer" | "main" | "article" | "aside" | "section" | "nav";
 
 export interface SectionLayout {
   contentWidth?: ContentWidth; // boxed (default) | full

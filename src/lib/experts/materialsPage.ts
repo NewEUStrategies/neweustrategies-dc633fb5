@@ -94,9 +94,7 @@ export function paginateMaterials(
 
 /** Wynik mapowania ładunku RPC (dyskryminowany - IO decyduje o fallbacku). */
 export type MaterialsPayloadResult =
-  | { kind: "ok"; page: ExpertMaterialsPage }
-  | { kind: "not-found" }
-  | { kind: "invalid" };
+  { kind: "ok"; page: ExpertMaterialsPage } | { kind: "not-found" } | { kind: "invalid" };
 
 /**
  * jsonb z get_expert_materials → ExpertMaterialsPage. Pozycje mapowane w

@@ -10,12 +10,7 @@
 
 /** Statusy subskrypcji zwracane przez operatora płatności. */
 export type ProviderSubscriptionStatus =
-  | "active"
-  | "trialing"
-  | "past_due"
-  | "paused"
-  | "canceled"
-  | string;
+  "active" | "trialing" | "past_due" | "paused" | "canceled" | string;
 
 /** Status w `user_subscriptions` (enum `purchase_status`). */
 export type EntitlementStatus = "pending" | "active" | "refunded" | "canceled";

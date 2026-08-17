@@ -15,11 +15,7 @@ interface RecommendedImageSize {
 }
 
 export type LayoutHeaderMode =
-  | "above-cover"
-  | "below-cover"
-  | "overlay"
-  | "side-by-side"
-  | "no-cover";
+  "above-cover" | "below-cover" | "overlay" | "side-by-side" | "no-cover";
 
 export type LayoutCoverMode =
   | "wide" // pełna szerokość kolumny artykułu

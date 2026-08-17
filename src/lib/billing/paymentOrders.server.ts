@@ -6,13 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Tables } from "@/integrations/supabase/types";
 
 export type PaymentOrderStatusFilter =
-  | "all"
-  | "pending"
-  | "processing"
-  | "paid"
-  | "failed"
-  | "refunded"
-  | "canceled";
+  "all" | "pending" | "processing" | "paid" | "failed" | "refunded" | "canceled";
 
 export interface PaymentOrderRow {
   id: string;

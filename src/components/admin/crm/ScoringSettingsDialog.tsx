@@ -148,11 +148,7 @@ export function ScoringSettingsDialog({ lang }: { lang: "pl" | "en" }) {
   const setNum =
     (
       field:
-        | "half_life_days"
-        | "horizon_days"
-        | "hot_threshold"
-        | "warm_threshold"
-        | "cool_threshold",
+        "half_life_days" | "horizon_days" | "hot_threshold" | "warm_threshold" | "cool_threshold",
     ) =>
     (raw: string) => {
       const value = Number(raw);

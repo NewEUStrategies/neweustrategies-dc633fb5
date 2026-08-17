@@ -15,8 +15,7 @@
 
 /** Segment treści po podziale: zwykły tekst albo wzmianka do zalinkowania. */
 export type MentionSegment =
-  | { kind: "text"; text: string }
-  | { kind: "mention"; slug: string; raw: string };
+  { kind: "text"; text: string } | { kind: "mention"; slug: string; raw: string };
 
 /** Aktywna wzmianka pisana pod kursorem (typeahead podpowiedzi). */
 export interface ActiveMention {

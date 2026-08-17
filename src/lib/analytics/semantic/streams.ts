@@ -22,12 +22,7 @@
 
 /** Sześć strumieni, z których platforma czyta liczby. */
 export type StreamId =
-  | "ga4"
-  | "first_party"
-  | "web_vitals"
-  | "ad_events"
-  | "newsletter"
-  | "content_views";
+  "ga4" | "first_party" | "web_vitals" | "ad_events" | "newsletter" | "content_views";
 
 /**
  * Bramka zgody (RODO) wymagana, żeby zdarzenie w ogóle powstało. To NAJWAŻNIEJSZY

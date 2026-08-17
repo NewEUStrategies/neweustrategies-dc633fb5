@@ -197,12 +197,7 @@ export function WidgetProperties({
 
   // ---- Themed (light/dark) helpers for color-style fields ----
   type ColorKey =
-    | "bgColor"
-    | "textColor"
-    | "borderColor"
-    | "iconColor"
-    | "iconHoverColor"
-    | "iconActiveColor";
+    "bgColor" | "textColor" | "borderColor" | "iconColor" | "iconHoverColor" | "iconActiveColor";
   const getColor = (key: ColorKey): string | undefined =>
     pickMode<string>(widget.style?.[key] as Themed<string> | undefined, mode);
   const setColor = (key: ColorKey, v: string | undefined) =>
@@ -279,8 +274,7 @@ export function WidgetProperties({
     setStyle((s) => {
       const prev = s.typography as unknown as Themed<WidgetTypography> | undefined;
       s.typography = setThemedMode<WidgetTypography>(prev, mode, next) as unknown as
-        | WidgetTypography
-        | undefined;
+        WidgetTypography | undefined;
     });
   };
 

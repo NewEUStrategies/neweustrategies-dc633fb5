@@ -14,14 +14,7 @@ function addMonthsClamped(d: Date, months: number): void {
 }
 
 export type PlanInterval =
-  | "day"
-  | "week"
-  | "two_weeks"
-  | "month"
-  | "quarter"
-  | "year"
-  | "one_time"
-  | string;
+  "day" | "week" | "two_weeks" | "month" | "quarter" | "year" | "one_time" | string;
 
 export function periodEndFor(interval: PlanInterval | null | undefined, from: Date): Date {
   const d = new Date(from.getTime());

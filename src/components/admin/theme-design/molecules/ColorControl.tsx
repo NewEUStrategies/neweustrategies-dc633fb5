@@ -19,8 +19,7 @@ const INHERIT_DEFAULTS: Record<
 
 function readColor(draft: ThemeDesign, section: string, field: string): string {
   const sectionRecord = (draft as Record<string, unknown>)[section] as
-    | Record<string, unknown>
-    | undefined;
+    Record<string, unknown> | undefined;
   const value = sectionRecord?.[field];
   return typeof value === "string" ? value : "";
 }

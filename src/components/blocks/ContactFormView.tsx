@@ -193,10 +193,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   const buttonAlign = s(data, "buttonAlign", "left") as "left" | "center" | "right" | "full";
   const buttonPosition = s(data, "buttonPosition", "bottom") as "bottom" | "inline-right";
   const buttonVariant = s(data, "buttonVariant", "solid") as
-    | "solid"
-    | "outline"
-    | "ghost"
-    | "gradient";
+    "solid" | "outline" | "ghost" | "gradient";
   const buttonSize = s(data, "buttonSize", "md") as "sm" | "md" | "lg";
 
   // `recipient` (widget override) is intentionally ignored client-side; the

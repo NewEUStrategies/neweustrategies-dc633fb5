@@ -11,11 +11,7 @@
 // importy (`from "@/lib/builder/sliderVariants"`) działają bez zmian.
 
 export type SliderVariant =
-  | "editorial-hero"
-  | "multi-card"
-  | "cinematic-overlay"
-  | "split-feature"
-  | "minimal-strip";
+  "editorial-hero" | "multi-card" | "cinematic-overlay" | "split-feature" | "minimal-strip";
 
 /** Sposób prezentacji autora slajdu. */
 export type SliderAuthorDisplay = "avatar" | "label" | "none";

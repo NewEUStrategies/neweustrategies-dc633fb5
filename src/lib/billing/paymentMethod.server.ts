@@ -46,9 +46,7 @@ export async function fetchPaymentMethodPreview(input: {
   });
   if (!("deleted" in customer) || customer.deleted !== true) {
     const fromCustomer = (customer as Stripe.Customer).invoice_settings?.default_payment_method as
-      | Stripe.PaymentMethod
-      | string
-      | null;
+      Stripe.PaymentMethod | string | null;
     if (fromCustomer && typeof fromCustomer !== "string") return toPreview(fromCustomer);
   }
 
@@ -57,9 +55,7 @@ export async function fetchPaymentMethodPreview(input: {
       expand: ["default_payment_method"],
     });
     const fromSubscription = subscription.default_payment_method as
-      | Stripe.PaymentMethod
-      | string
-      | null;
+      Stripe.PaymentMethod | string | null;
     if (fromSubscription && typeof fromSubscription !== "string")
       return toPreview(fromSubscription);
   }

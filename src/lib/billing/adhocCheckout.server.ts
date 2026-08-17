@@ -54,8 +54,7 @@ export type { StripeEnv };
 export const MIN_ADHOC_AMOUNT_CENTS = 50;
 
 export type CheckoutSessionResult =
-  | { ok: true; clientSecret: string; sessionId: string }
-  | { ok: false; error: string };
+  { ok: true; clientSecret: string; sessionId: string } | { ok: false; error: string };
 
 /**
  * Znajduje istniejącego klienta Stripe po `metadata.userId`, potem po
