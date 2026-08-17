@@ -354,10 +354,17 @@ BEGIN
   -- ciche zignorowanie uploadu - i wpis bez logo, choć plik poszedł do storage.
   IF existing_id IS NOT NULL THEN
     IF _logo_url IS NOT NULL AND btrim(_logo_url) <> '' THEN
+      -- `tenant_id` powtórzony JAWNIE, choć `existing_id` pochodzi z zapytania
+      -- już zawężonego do najemcy. To funkcja SECURITY DEFINER, więc omija RLS -
+      -- jedyną ochroną byłaby wtedy poprawność wyprowadzenia zmiennej piętro
+      -- wyżej. Drugi, niezależny predykat jest doktryną tego repo (jak w
+      -- get_entity_content): refaktor, który kiedyś przestawi źródło
+      -- `existing_id`, nie może cicho otworzyć zapisu do obcego najemcy.
       UPDATE public.crm_companies
          SET logo_url = _logo_url,
              updated_at = now()
        WHERE id = existing_id
+         AND tenant_id = public.current_tenant_id()
          AND (logo_url IS NULL OR btrim(logo_url) = '');
     END IF;
     RETURN existing_id;

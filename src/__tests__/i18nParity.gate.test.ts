@@ -51,6 +51,16 @@ const GATED_PREFIXES = [
   // isGated() dopasowuje po prefiksie z kropka, wiec "club" NIE obejmuje
   // "clubElements.*" - bez tego wpisu 95 kluczy stalo poza bramka.
   "clubElements",
+  // Ujawnienie komercyjne: te napisy NIE są interfejsem, są treścią
+  // OŚWIADCZENIA PRAWNEGO przy artykule. Brak polskiego brzmienia nie daje
+  // „surowego klucza" do zauważenia w code review - daje polską stronę
+  // z angielską etykietą „ADVERTISEMENT", czyli oznaczenie w języku, którego
+  // odbiorca nie musi znać. Rekomendacje UOKiK (2022) wymagają oznaczenia
+  // w języku odbiorcy, a UPNPR art. 7 pkt 11 nie zna wymówki „tłumaczenie
+  // przyjdzie w następnym PR". Dlatego bramka od pierwszego dnia, nie po
+  // pierwszym incydencie (lekcja z prefiksów „network" i „club").
+  "sponsored",
+  "postOrganization",
 ] as const;
 
 // Klucze, dla których identyczny tekst PL i EN jest poprawny (nazwy własne,

@@ -23,7 +23,6 @@ import { useTranslation } from "react-i18next";
 import { Megaphone } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -41,7 +40,7 @@ import {
   disclosureGaps,
   type SponsoredKind,
 } from "@/lib/content/sponsored";
-import { InfoHint } from "../atoms";
+import { FieldRow, InfoHint } from "../atoms";
 import type { PostForm } from "../types";
 import "@/lib/i18n-admin-post-panes";
 
@@ -111,7 +110,7 @@ export function PostSponsoredCard({
 
       {form.is_sponsored && (
         <div className="space-y-3">
-          <FieldBlock
+          <FieldRow
             label={t("adminPostPanes.sponsored.kindLabel")}
             hint={t("adminPostPanes.sponsored.kindHint")}
           >
@@ -135,7 +134,7 @@ export function PostSponsoredCard({
                 ))}
               </SelectContent>
             </Select>
-          </FieldBlock>
+          </FieldRow>
 
           {/* AC z Rekomendacji UOKiK: powtarzalne świadczenia od tego samego
               podmiotu to współpraca reklamowa, nie barter. Ostrzeżenie stoi przy
@@ -147,7 +146,7 @@ export function PostSponsoredCard({
           )}
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <FieldBlock
+            <FieldRow
               label={t("adminPostPanes.sponsored.advertiserLabel")}
               hint={t("adminPostPanes.sponsored.advertiserHint")}
               missing={gaps.includes("advertiser")}
@@ -170,9 +169,9 @@ export function PostSponsoredCard({
                     {t("adminPostPanes.sponsored.advertiserFromOrg")}
                   </Button>
                 )}
-            </FieldBlock>
+            </FieldRow>
 
-            <FieldBlock
+            <FieldRow
               label={t("adminPostPanes.sponsored.advertiserUrlLabel")}
               hint={t("adminPostPanes.sponsored.advertiserUrlHint")}
               missing={gaps.includes("advertiserUrl")}
@@ -185,9 +184,9 @@ export function PostSponsoredCard({
                 className="h-9 text-[13px]"
                 maxLength={2048}
               />
-            </FieldBlock>
+            </FieldRow>
 
-            <FieldBlock
+            <FieldRow
               label={t("adminPostPanes.sponsored.payerLabel")}
               hint={t("adminPostPanes.sponsored.payerHint")}
             >
@@ -197,9 +196,9 @@ export function PostSponsoredCard({
                 className="h-9 text-[13px]"
                 maxLength={200}
               />
-            </FieldBlock>
+            </FieldRow>
 
-            <FieldBlock
+            <FieldRow
               label={t("adminPostPanes.sponsored.orderRefLabel")}
               hint={t("adminPostPanes.sponsored.orderRefHint")}
             >
@@ -209,11 +208,11 @@ export function PostSponsoredCard({
                 className="h-9 text-[13px]"
                 maxLength={120}
               />
-            </FieldBlock>
+            </FieldRow>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <FieldBlock
+            <FieldRow
               label={t("adminPostPanes.sponsored.notePlLabel")}
               hint={t("adminPostPanes.sponsored.noteHint")}
             >
@@ -224,8 +223,8 @@ export function PostSponsoredCard({
                 maxLength={1000}
                 className="text-[13px]"
               />
-            </FieldBlock>
-            <FieldBlock label={t("adminPostPanes.sponsored.noteEnLabel")}>
+            </FieldRow>
+            <FieldRow label={t("adminPostPanes.sponsored.noteEnLabel")}>
               <Textarea
                 value={form.sponsored_note_en ?? ""}
                 onChange={(e) => onPatch({ sponsored_note_en: e.target.value || null })}
@@ -233,7 +232,7 @@ export function PostSponsoredCard({
                 maxLength={1000}
                 className="text-[13px]"
               />
-            </FieldBlock>
+            </FieldRow>
           </div>
 
           <label className="flex items-start gap-3 rounded-md border border-border p-3">
@@ -254,7 +253,7 @@ export function PostSponsoredCard({
 
           {form.sponsored_political && (
             <div className="grid gap-3 sm:grid-cols-2">
-              <FieldBlock
+              <FieldRow
                 label={t("adminPostPanes.sponsored.politicalProcessLabel")}
                 hint={t("adminPostPanes.sponsored.politicalProcessHint")}
                 missing={gaps.includes("politicalProcess")}
@@ -266,8 +265,8 @@ export function PostSponsoredCard({
                   className="h-9 text-[13px]"
                   maxLength={300}
                 />
-              </FieldBlock>
-              <FieldBlock
+              </FieldRow>
+              <FieldRow
                 label={t("adminPostPanes.sponsored.sponsorControllerLabel")}
                 hint={t("adminPostPanes.sponsored.sponsorControllerHint")}
               >
@@ -279,7 +278,7 @@ export function PostSponsoredCard({
                   className="h-9 text-[13px]"
                   maxLength={200}
                 />
-              </FieldBlock>
+              </FieldRow>
             </div>
           )}
         </div>
@@ -322,34 +321,6 @@ export function PostSponsoredCard({
           <SponsoredDisclosure post={form} lang={lang} className="mb-0" />
         </div>
       )}
-    </div>
-  );
-}
-
-function FieldBlock({
-  label,
-  hint,
-  missing,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  /** Brak wymagany do publikacji - podświetlamy etykietę, nie blokujemy pisania. */
-  missing?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-1">
-      <Label
-        className={`inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide ${
-          missing ? "text-destructive" : "text-muted-foreground"
-        }`}
-      >
-        {label}
-        {missing && <span aria-hidden="true">*</span>}
-        {hint && <InfoHint text={hint} />}
-      </Label>
-      {children}
     </div>
   );
 }

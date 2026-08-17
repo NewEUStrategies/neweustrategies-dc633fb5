@@ -15,6 +15,7 @@ export { TtsVoiceCard } from "./TtsVoiceCard";
 export { StepIndicator } from "./StepIndicator";
 export { PostOrganizationPicker } from "./PostOrganizationPicker";
 export { PostSponsoredCard } from "./PostSponsoredCard";
+export { type OrganizationSelection } from "./organizationDirectory";
 // `OrganizationPickerDialog` świadomie NIE jest tu wystawiony: to szczegół
 // implementacyjny `PostOrganizationPicker` (sąsiedni moduł importuje go wprost),
 // a barrel wystawia to, czego używają organizmy.

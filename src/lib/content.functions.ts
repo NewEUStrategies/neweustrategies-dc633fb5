@@ -604,6 +604,33 @@ export const updatePost = createServerFn({ method: "POST" })
         updates.slug = await uniqueSlug(supabase, "posts", tenantId, updates.slug, data.id);
       }
 
+      // IZOLACJA NAJEMCY dla przypisanej organizacji.
+      //
+      // `organization_id` przychodzi OD KLIENTA, a klucz obcy sprawdza tylko, czy
+      // taka firma istnieje - NIE czy należy do tego najemcy. Panel podpowiada
+      // wyłącznie organizacje z `search_companies_public` (zawężone do najemcy),
+      // ale spreparowany POST mógłby wpisać UUID firmy INNEGO najemcy. Publiczny
+      // render czyta migawkę, więc dane obcego najemcy nie wyciekłyby, natomiast
+      // wpis nosiłby referencję przez granicę najemcy: raporty „co
+      // opublikowaliśmy dla tej organizacji" liczyłyby cudze materiały, a
+      // inwariant izolacji byłby naruszony w bazie.
+      //
+      // Czytamy przez service_role ZAWĘŻONE tenantem (ten sam wzorzec co pre-read
+      // wyżej), bo RLS na crm_companies zamyka tę tabelę przed rolą `author` -
+      // odczyt klientem użytkownika odrzuciłby też poprawne przypisania.
+      if (typeof updates.organization_id === "string") {
+        const { supabaseAdmin: adminForOrg } =
+          await import("@/integrations/supabase/client.server");
+        const { data: org, error: orgErr } = await adminForOrg
+          .from("crm_companies")
+          .select("id")
+          .eq("id", updates.organization_id)
+          .eq("tenant_id", tenantId)
+          .maybeSingle();
+        if (orgErr) throw new Error(orgErr.message);
+        if (!org) throw new Error("Organization not found in this workspace");
+      }
+
       // Ślad rozliczalności: kto i kiedy zadeklarował relację komercyjną.
       // Stemplujemy tylko przy PRZEJŚCIU w stan oznaczony - kolejne autozapisy
       // opublikowanego materiału nie mają przepisywać daty deklaracji.

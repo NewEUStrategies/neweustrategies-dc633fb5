@@ -42,8 +42,12 @@ export function SponsoredDisclosure({
   // to stan otoczenia: przy renderze serwerowym potrafi jeszcze nie odpowiadać
   // prefiksowi z URL-a, a wtedy angielska strona dostałaby polską etykietę.
   // `lng` zamyka tę furtkę - to samo `lang`, z którego bierzemy wersję treści.
-  const t = (key: string, opts?: Record<string, unknown>): string =>
-    translate(key, { lng: lang, ...opts });
+  // Interpolacje w tym pasku są WYŁĄCZNIE tekstowe (nazwa reklamodawcy, płatnika,
+  // proces, podmiot kontrolujący), więc wartości są zawężone do `string` zamiast
+  // `unknown` - typ pilnuje, że nikt nie wstrzyknie tu obiektu, który i18next
+  // wyrenderowałby jako „[object Object]" w treści oświadczenia prawnego.
+  const t = (key: string, values?: Readonly<Record<string, string>>): string =>
+    translate(key, { lng: lang, ...values });
   const disclosure = resolveDisclosure(post);
   if (!disclosure.required) return null;
 

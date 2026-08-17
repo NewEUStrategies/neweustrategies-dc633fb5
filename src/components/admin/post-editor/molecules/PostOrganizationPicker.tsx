@@ -29,18 +29,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { InfoHint } from "../atoms";
 import type { PostForm } from "../types";
-import { OrganizationPickerDialog, type OrganizationSelection } from "./OrganizationPickerDialog";
+import { OrganizationPickerDialog } from "./OrganizationPickerDialog";
+import {
+  ORGANIZATION_DROPLIST_LIMIT,
+  organizationRowSchema,
+  organizationSearchKey,
+  type OrganizationSelection,
+} from "./organizationDirectory";
 import "@/lib/i18n-admin-post-panes";
-
-const optionSchema = z.object({
-  id: z.string().uuid(),
-  name: z.string(),
-  website: z.string().nullable(),
-  logo_url: z.string().nullable(),
-});
-
-/** Ile organizacji mieści droplista, zanim redaktor musi użyć wyszukiwania. */
-const DROPLIST_LIMIT = 50;
 
 /** Wartość „brak organizacji" w <Select> - Radix nie przyjmuje pustego stringa. */
 const NONE_VALUE = "__none__";
@@ -58,16 +54,16 @@ export function PostOrganizationPicker({
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const options = useQuery({
-    queryKey: ["post-organizations-droplist", tenantId],
+    queryKey: organizationSearchKey(tenantId, "__droplist__"),
     enabled: !!tenantId,
     staleTime: 60_000,
     queryFn: async () => {
       const { data, error } = await supabase.rpc("search_companies_public", {
         _query: "",
-        _limit: DROPLIST_LIMIT,
+        _limit: ORGANIZATION_DROPLIST_LIMIT,
       });
       if (error) throw error;
-      const parsed = z.array(optionSchema).safeParse(data ?? []);
+      const parsed = z.array(organizationRowSchema).safeParse(data ?? []);
       if (!parsed.success) {
         console.error("search_companies_public parse error", parsed.error);
         return [];
@@ -138,7 +134,7 @@ export function PostOrganizationPicker({
       _query: form.organization_name?.trim() || "",
       _limit: 100,
     });
-    const parsed = error ? null : z.array(optionSchema).safeParse(data ?? []);
+    const parsed = error ? null : z.array(organizationRowSchema).safeParse(data ?? []);
     const fresh = parsed?.success ? parsed.data.find((r) => r.id === id) : undefined;
     if (!fresh) {
       // Brak trafienia znaczy tu jedno z dwóch: firmę usunięto z CRM albo
@@ -226,7 +222,7 @@ export function PostOrganizationPicker({
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[13px] font-medium">
-              {form.organization_name ?? "—"}
+              {form.organization_name ?? "-"}
             </span>
             {form.organization_website && (
               <span className="block truncate text-[11px] text-muted-foreground">
