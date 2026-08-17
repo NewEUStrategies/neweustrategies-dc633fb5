@@ -405,6 +405,21 @@ export interface ArticleJsonLdInput {
   publisherLogoUrl?: string | null;
   /** Emit SpeakableSpecification (voice assistants / AI answer engines). */
   speakable?: boolean;
+  /**
+   * Warstwa maszynowa ujawnienia komercyjnego. Rekomendacje UOKiK mówią
+   * o oznaczeniu DWUPOZIOMOWYM: widoczna etykieta dla człowieka PLUS mechanizm
+   * platformy. Dla wydawcy tym drugim poziomem są dane strukturalne - stąd te
+   * dwa pola. Nie zastępują etykiety i nigdy nie mogą jej zastąpić: crawler
+   * czyta JSON-LD, czytelnik nie.
+   */
+  sponsorName?: string | null;
+  /**
+   * Nadpisanie `@type` artykułu (`AdvertiserContentArticle`) - TYLKO dla treści
+   * dostarczonej/opłaconej przez reklamodawcę, patrz `articleJsonLdType`
+   * w lib/content/sponsored.ts. Sponsoring z zachowaną niezależnością redakcyjną
+   * zostaje `NewsArticle`.
+   */
+  articleTypeOverride?: string | null;
 }
 
 /** Build the JSON-LD graph for an article/page. Emits NewsArticle for posts
@@ -425,7 +440,7 @@ export function buildArticleJsonLd(input: ArticleJsonLdInput): Record<string, un
 
   const graph: Record<string, unknown> = {
     "@context": "https://schema.org",
-    "@type": input.isArticle ? "NewsArticle" : "WebPage",
+    "@type": input.isArticle ? (input.articleTypeOverride ?? "NewsArticle") : "WebPage",
     headline: input.title,
     name: input.title,
     description: input.description,
@@ -443,6 +458,13 @@ export function buildArticleJsonLd(input: ArticleJsonLdInput): Record<string, un
     graph.author = input.authorName ? { "@type": "Person", name: input.authorName } : publisher;
     if (input.section) graph.articleSection = input.section;
     if (input.tags?.length) graph.keywords = input.tags.join(", ");
+    // `sponsor` jest własnością schema.org/CreativeWork - niesie relację nawet
+    // wtedy, gdy `@type` zostaje NewsArticle (sponsoring z zachowaną
+    // niezależnością redakcyjną JEST materiałem redakcyjnym, więc podmiana typu
+    // byłaby nadgorliwa i zaniżałaby jego wartość w wyszukiwarce).
+    if (input.sponsorName) {
+      graph.sponsor = { "@type": "Organization", name: input.sponsorName };
+    }
   }
 
   // Key takeaways double as the machine-readable abstract - the exact shape

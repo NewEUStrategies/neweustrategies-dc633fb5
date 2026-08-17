@@ -28,6 +28,10 @@ import { AutoLoadNextPost } from "@/components/post/AutoLoadNextPost";
 import { CustomMetaList } from "@/components/post/CustomMetaList";
 import { PostOverlayMeta } from "@/components/post/PostOverlayMeta";
 import { CategoryBadges } from "@/components/post/CategoryBadges";
+import { SponsoredDisclosure } from "@/components/post/SponsoredDisclosure";
+import { SponsoredBadge } from "@/components/post/SponsoredBadge";
+import { PostOrganizationCard } from "@/components/post/PostOrganizationCard";
+import { articleJsonLdType, resolveDisclosure } from "@/lib/content/sponsored";
 import { RelatedPosts } from "@/components/post/RelatedPosts";
 import { RelatedPostsAfterParagraph } from "@/components/post/RelatedPostsAfterParagraph";
 import { relatedPostsConfigQueryOptions } from "@/lib/queries/relatedPosts";
@@ -396,6 +400,12 @@ export const Route = createFileRoute("/$")({
     // Jeden seam dla wpisów i STRON (lib/keyTakeaways/resolve.ts) - to samo
     // rozstrzygnięcie zasila JSON-LD tutaj i sekcję w body niżej.
     const takeaways = resolveTakeaways(it, lang);
+    // Ten sam seam co pasek ujawnienia w body: jedna funkcja domenowa rozstrzyga,
+    // co jest ujawniane, więc <head> i widok nie mogą się rozjechać.
+    // Zawężamy do wiersza WPISU, zamiast rzutować `PageData | PostData` na
+    // wejście ujawnienia: strony nie mają tych kolumn, a TypeScript słusznie
+    // odrzuca „typ słaby bez wspólnych właściwości". Ujawnienie dotyczy wpisów.
+    const postDisclosure = isPost ? resolveDisclosure(it as PostData) : null;
     const parentCrumbs = [...(loaderData.crumbs ?? [])].sort((a, b) => a.depth - b.depth);
     const sectionCrumb = isPost
       ? parentCrumbs[parentCrumbs.length - 1]
@@ -420,6 +430,11 @@ export const Route = createFileRoute("/$")({
       publisherLogoUrl:
         seoSettings.publisher_logo_url.trim() || (origin ? `${origin}/og-default.jpg` : null),
       speakable: isPost,
+      // Drugi poziom oznaczenia (po widocznej etykiecie): dane strukturalne.
+      // `resolveDisclosure` rozstrzyga to samo, co render paska, więc JSON-LD nie
+      // może twierdzić czegoś innego niż to, co widzi czytelnik.
+      sponsorName: postDisclosure?.advertiser ?? null,
+      articleTypeOverride: postDisclosure ? articleJsonLdType(postDisclosure.kind) : null,
     });
     const breadcrumbLd = breadcrumbListJsonLd(
       buildBreadcrumbs(
@@ -932,6 +947,9 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
     // Poza wpisami na haslo przycisk pokazujemy zawsze - takze w layoutach
     // nieredakcyjnych i bez paywalla (mobile: obok badge'a Google).
     const shareableArticle = accessRule?.mode !== "password";
+    // Czy rząd badge'ów ma się w ogóle pojawić, gdy wpis nie ma kategorii -
+    // materiał komercyjny bez kategorii nadal potrzebuje oznaczenia.
+    const sponsoredInMeta = post.is_sponsored === true || post.sponsored_affiliate === true;
     const giftButton = shareableArticle ? (
       <GiftArticleButton postId={it.id} title={title} url={citationUrl} lang={lang} />
     ) : null;
@@ -994,9 +1012,19 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                 }
               />
             }
+            // Badge w rzędzie nad tytułem obok kategorii. Duplikacja z paskiem
+            // nad treścią jest zamierzona: UOKiK zaleca oznaczenie widoczne
+            // niezależnie od miejsca wejścia w materiał, a rząd badge'ów jest
+            // jedynym elementem, który w layoucie z okładką-overlayem stoi
+            // ponad zgięciem także na mobile.
             categoryBadges={
-              postCategories.length > 0 ? (
-                <CategoryBadges items={postCategories} lang={lang} />
+              postCategories.length > 0 || sponsoredInMeta ? (
+                <>
+                  <SponsoredBadge post={post} lang={lang} />
+                  {postCategories.length > 0 && (
+                    <CategoryBadges items={postCategories} lang={lang} />
+                  )}
+                </>
               ) : null
             }
             headerActions={editorialActions ? articleActions : undefined}
@@ -1057,6 +1085,19 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                 {!merged.quick_view_info && !editorialActions && (
                   <div className="no-print mb-4 hidden justify-end sm:flex">{articleActions}</div>
                 )}
+                {/* Ujawnienie komercyjne NAD treścią i POZA `.article-body`.
+                    Dwa powody, oba niekosmetyczne:
+                      * `.article-body` jest selektorem `speakable` oraz
+                        paywallowego `hasPart` w JSON-LD (lib/seo/meta.ts) -
+                        wciągnięcie tam etykiety kazałoby asystentom głosowym
+                        czytać ją jako początek artykułu, a Google traktować jako
+                        treść płatną;
+                      * pasek nie przechodzi przez `allowAd()` - legalne
+                        oznaczenie nie może zniknąć, bo wyczerpał się budżet
+                        slotów reklamowych albo czytelnik włączył tryb czytania.
+                    Renderuje się serwerowo, więc widzi je też crawler i czytelnik
+                    bez JS (Rekomendacje UOKiK: widoczne bez rozwijania). */}
+                <SponsoredDisclosure post={post} lang={lang} />
                 {contentBlock}
                 {relatedCfg.enabled && relatedCfg.position === "after_paragraph" && (
                   <RelatedPostsAfterParagraph
@@ -1183,6 +1224,11 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
                       : null
                   }
                 />
+                {/* Atrybucja organizacji pod materiałem, obok karty autora -
+                    to informacja o pochodzeniu, nie oznaczenie prawne, więc jej
+                    miejsce jest w stopce artykułu, a nie nad treścią (tam stoi
+                    ujawnienie komercyjne, które ma inny status). */}
+                <PostOrganizationCard post={post} className="mt-6" />
                 <PostFeedback postId={post.id} lang={lang} />
                 <PostChangelog postId={post.id} lang={lang} />
                 {merged.show_citation && (

@@ -21,6 +21,12 @@ import { useHistory } from "@/hooks/useHistory";
 import { useAutosave } from "@/hooks/useAutosave";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { buildPublishChecklist, isPublishTransition } from "@/lib/content/publishChecklist";
+import { disclosureGaps, parseDisclosureError } from "@/lib/content/sponsored";
+// Nakładka rejestruje klucze EFEKTEM UBOCZNYM importu, a ten hook woła
+// `adminPostPanes.sponsored.*` w obsłudze odrzuconej publikacji. Bez tej linijki
+// redaktor zobaczyłby w toaście goły klucz zamiast komunikatu - i to dokładnie
+// w momencie, w którym potrzebuje wiedzieć, czego brakuje.
+import "@/lib/i18n-admin-post-panes";
 import { statusOptionsFor, type PostWorkflowStatus } from "@/lib/content/workflow";
 import { useAuth } from "@/hooks/useAuth";
 import { confirmDialog } from "@/lib/appDialogs";
@@ -227,6 +233,22 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
             seo_noindex: snapshot.seo_noindex ?? false,
             seo_og_image_url: snapshot.seo_og_image_url,
             og_image_generated_url: snapshot.og_image_generated_url,
+            organization_id: snapshot.organization_id,
+            organization_name: snapshot.organization_name,
+            organization_logo_url: snapshot.organization_logo_url,
+            organization_website: snapshot.organization_website,
+            is_sponsored: snapshot.is_sponsored ?? false,
+            sponsored_kind: snapshot.sponsored_kind,
+            sponsored_advertiser_name: snapshot.sponsored_advertiser_name,
+            sponsored_advertiser_url: snapshot.sponsored_advertiser_url,
+            sponsored_payer_name: snapshot.sponsored_payer_name,
+            sponsored_note_pl: snapshot.sponsored_note_pl,
+            sponsored_note_en: snapshot.sponsored_note_en,
+            sponsored_affiliate: snapshot.sponsored_affiliate ?? false,
+            sponsored_political: snapshot.sponsored_political ?? false,
+            sponsored_political_process: snapshot.sponsored_political_process,
+            sponsored_sponsor_controller: snapshot.sponsored_sponsor_controller,
+            sponsored_order_ref: snapshot.sponsored_order_ref,
           },
           categories: selectedCats,
           tags: selectedTags,
@@ -240,6 +262,19 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
         // (i18n PL/EN) i przerwij zapis - autosave/flush odrzuci, treść zostaje.
         if (isEditConflict(err)) {
           toast.error(t("admin.editConflict"), { id: "edit-conflict" });
+        }
+        // Serwer odrzucił PUBLIKACJĘ niekompletnej deklaracji komercyjnej i
+        // odpowiedział kodem, nie zdaniem - tłumaczymy go tutaj, bo tylko klient
+        // zna język panelu. Wymieniamy KTÓRE pole brakuje; „zapis odrzucony" bez
+        // wskazania pola kazałoby redaktorowi zgadywać.
+        const gaps = parseDisclosureError(err);
+        if (gaps.length > 0) {
+          toast.error(
+            t("adminPostPanes.sponsored.gapToast", {
+              fields: gaps.map((gap) => t(`adminPostPanes.sponsored.gap.${gap}`)).join(", "),
+            }),
+            { id: "sponsored-disclosure-gap" },
+          );
         }
         throw err;
       });
@@ -410,6 +445,9 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
         takeaways_pl: form.takeaways_pl,
         categoriesCount: selectedCats.length,
         tagsCount: selectedTags.length,
+        // Jedno źródło prawdy z bramką serwerową (updatePost) - checklista nie
+        // liczy tej reguły po swojemu, tylko woła tę samą funkcję domenową.
+        sponsoredGaps: disclosureGaps(form),
       })
     : null;
 

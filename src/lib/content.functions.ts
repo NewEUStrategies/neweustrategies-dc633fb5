@@ -16,6 +16,7 @@ import { recordAudit, type AuditAction } from "./server/audit.server";
 import { rateLimit } from "./server/rate-limit.server";
 import { POST_STATUSES, evaluateTransition, isFirstPublish } from "./content/workflow";
 import { editConflictError } from "./content/saveConflict";
+import { DISCLOSURE_ERROR_PREFIX, SPONSORED_KINDS, disclosureGaps } from "./content/sponsored";
 import { normalizeSourcePath, normalizeTargetPath } from "./seo/redirects";
 import { isAllowedTtsVoiceId } from "./audio/ttsCanonical";
 import {
@@ -112,6 +113,7 @@ async function audit(
 }
 
 type PostUpdateRow = Database["public"]["Tables"]["posts"]["Update"];
+type PostRow = Database["public"]["Tables"]["posts"]["Row"];
 type PageUpdateRow = Database["public"]["Tables"]["pages"]["Update"];
 type ContentStatus = Database["public"]["Enums"]["post_status"];
 
@@ -301,6 +303,44 @@ const SeoBlock = {
   og_image_generated_url: z.string().url().max(2048).nullable().optional(),
 };
 
+// Atrybucja organizacji przy wpisie. `organization_id` wskazuje firmę w CRM,
+// a trzy pozostałe pola są SNAPSHOTEM jej danych prezentacyjnych z chwili
+// przypisania - crm_companies jest czytelne tylko dla stafu CRM, więc publiczny
+// render nie ma jak dołączyć tej tabeli (pełne uzasadnienie w migracji
+// 20260817090000). Snapshot jest przy okazji dowodem, co czytelnik zobaczył.
+const OrganizationBlock = {
+  organization_id: UUID.nullable().optional(),
+  organization_name: NullableStr(200),
+  organization_logo_url: z.string().url().max(2048).nullable().optional(),
+  organization_website: z.string().url().max(300).nullable().optional(),
+};
+
+// Ujawnienie komercyjnego charakteru materiału. Kształt i podstawy prawne:
+// src/lib/content/sponsored.ts + migracja 20260817090000.
+//
+// Kompletności deklaracji NIE da się sprawdzić na poziomie tego schematu:
+// `updatePost` przyjmuje PostCore.partial(), więc autozapis potrafi przysłać
+// samo `is_sponsored: true`, a reklamodawca siedzi już w wierszu. Reguła
+// dwuczęściowa (UOKiK) dotyczy STANU PO ZAPISIE, dlatego bramka stoi w
+// handlerze `updatePost`, na scaleniu `existing` z patchem (szukaj
+// `disclosureGaps`). Baza domyka to samo od dołu CHECK-iem
+// `posts_sponsored_disclosure_complete_check` - tam trafia tylko to, co
+// przeciekłoby obok serwera.
+const SponsoredBlock = {
+  is_sponsored: z.boolean().optional(),
+  sponsored_kind: z.enum(SPONSORED_KINDS).nullable().optional(),
+  sponsored_advertiser_name: NullableStr(200),
+  sponsored_advertiser_url: z.string().url().max(2048).nullable().optional(),
+  sponsored_payer_name: NullableStr(200),
+  sponsored_note_pl: NullableStr(1000),
+  sponsored_note_en: NullableStr(1000),
+  sponsored_affiliate: z.boolean().optional(),
+  sponsored_political: z.boolean().optional(),
+  sponsored_political_process: NullableStr(300),
+  sponsored_sponsor_controller: NullableStr(200),
+  sponsored_order_ref: NullableStr(120),
+};
+
 // Recursive JSON value tolerated by the builder payload. `undefined` is not
 // valid JSON but UI state frequently leaves keys with `undefined` values
 // (e.g. `typography.descriptionFontSize: undefined` from cleared controls).
@@ -353,6 +393,8 @@ const PostCore = z.object({
   custom_meta: z.record(z.string().max(64), z.string().max(200)).nullable().optional(),
   related_override: z.record(z.string().max(64), z.unknown()).nullable().optional(),
   ...SeoBlock,
+  ...OrganizationBlock,
+  ...SponsoredBlock,
 });
 
 async function resolveDefaultBlogPage(
@@ -562,12 +604,57 @@ export const updatePost = createServerFn({ method: "POST" })
         updates.slug = await uniqueSlug(supabase, "posts", tenantId, updates.slug, data.id);
       }
 
+      // Ślad rozliczalności: kto i kiedy zadeklarował relację komercyjną.
+      // Stemplujemy tylko przy PRZEJŚCIU w stan oznaczony - kolejne autozapisy
+      // opublikowanego materiału nie mają przepisywać daty deklaracji.
+      if (updates.is_sponsored === true && existing.is_sponsored !== true) {
+        updates.sponsored_marked_by = userId;
+        updates.sponsored_marked_at = new Date().toISOString();
+      }
+
       // Editorial workflow gate (mirrors the enforce_post_workflow trigger,
       // but fails with a friendly message before touching the row).
       const nextStatus = updates.status ?? existing.status;
       const statusChanges = nextStatus !== existing.status;
       const nextPublishAt =
         updates.publish_at !== undefined ? updates.publish_at : existing.publish_at;
+
+      // Bramka kompletności ujawnienia komercyjnego - TYLKO dla materiału, który
+      // po zapisie jest publicznie czytelny (published / scheduled).
+      //
+      // DLACZEGO NIE PRZY KAŻDYM ZAPISIE. `updatePost` jest ścieżką autozapisu
+      // (debounce 1500 ms). Warunek na polach TEKSTOWYCH - nazwa reklamodawcy,
+      // jego adres, proces w reklamie politycznej - byłby przez kilka sekund
+      // niespełniony przy każdym normalnym pisaniu, a odrzucenie dotyczy CAŁEGO
+      // wiersza: razem z deklaracją nie zapisałyby się niezwiązane zmiany tytułu
+      // i treści z tej samej migawki. Wersja robocza z niedokończoną deklaracją
+      // nikogo nie wprowadza w błąd - opublikowana wprowadza, i dokładnie tam
+      // stoi bramka.
+      //
+      // Liczy się STAN PO ZAPISIE, nie sam patch: PostCore.partial() pozwala
+      // przysłać samo `is_sponsored: true`, gdy reklamodawca jest już w wierszu
+      // (i odwrotnie - wyczyszczenie nazwy przy włączonej fladze też musi oblać).
+      // Dlatego scalamy `existing` z patchem.
+      //
+      // Komunikat jest KODEM, nie zdaniem po angielsku: klient tłumaczy go na
+      // PL/EN (`adminPostPanes.sponsored.gap.*`). Surowa angielszczyzna z serwera
+      // lądowałaby w polskim panelu.
+      if (nextStatus === "published" || nextStatus === "scheduled") {
+        const merged = <K extends keyof PostRow>(key: K): PostRow[K] =>
+          (updates as Partial<PostRow>)[key] !== undefined
+            ? ((updates as Partial<PostRow>)[key] as PostRow[K])
+            : existing[key];
+        const gaps = disclosureGaps({
+          is_sponsored: merged("is_sponsored"),
+          sponsored_kind: merged("sponsored_kind"),
+          sponsored_advertiser_name: merged("sponsored_advertiser_name"),
+          sponsored_advertiser_url: merged("sponsored_advertiser_url"),
+          sponsored_political: merged("sponsored_political"),
+          sponsored_political_process: merged("sponsored_political_process"),
+        });
+        if (gaps.length > 0) throw new Error(`${DISCLOSURE_ERROR_PREFIX}${gaps.join(",")}`);
+      }
+
       if (statusChanges) {
         const actor = { canPublish: await resolveCanPublish(supabase) };
         const verdict = evaluateTransition(actor, existing.status, nextStatus, nextPublishAt);
@@ -757,7 +844,17 @@ export const deletePost = createServerFn({ method: "POST" })
  *   - statusu i dat publikacji (kopia zawsze startuje jako draft),
  *   - seo_canonical_url (wskazywałby oryginał - kopia to nowy byt),
  *   - og_image_generated_url (karta OG niesie stary tytuł - wygeneruje się nowa),
- *   - audio_url_* (lektor czyta konkretną treść; po edycji byłby mylący).
+ *   - audio_url_* (lektor czyta konkretną treść; po edycji byłby mylący),
+ *   - sponsored_order_ref (numer zlecenia dotyczy JEDNEJ publikacji - przepisany
+ *     zaśmieciłby ślad rozliczalności dwoma wpisami na to samo zlecenie).
+ *
+ * ŚWIADOMIE KOPIUJE ujawnienie sponsoringu (is_sponsored, rodzaj relacji,
+ * reklamodawca). Wybór jest asymetryczny z rozmysłem: kopia z NADMIAROWĄ
+ * etykietą to pomyłka redakcyjna, którą widać w karcie i którą redakcja zdejmie
+ * jednym kliknięciem, a kopia BEZ etykiety to advertorial opublikowany bez
+ * oznaczenia - czyli kryptoreklama (UZNK art. 16 ust. 1 pkt 4). Domyślamy się
+ * w stronę ujawnienia.
+ *
  * Autorem kopii zostaje duplikujący (jak w WordPressie); współautorzy 1:1.
  */
 export const duplicatePost = createServerFn({ method: "POST" })
@@ -825,6 +922,25 @@ export const duplicatePost = createServerFn({ method: "POST" })
           seo_description_en: src.seo_description_en,
           seo_noindex: src.seo_noindex,
           seo_og_image_url: src.seo_og_image_url,
+          organization_id: src.organization_id,
+          organization_name: src.organization_name,
+          organization_logo_url: src.organization_logo_url,
+          organization_website: src.organization_website,
+          is_sponsored: src.is_sponsored,
+          sponsored_kind: src.sponsored_kind,
+          sponsored_advertiser_name: src.sponsored_advertiser_name,
+          sponsored_advertiser_url: src.sponsored_advertiser_url,
+          sponsored_payer_name: src.sponsored_payer_name,
+          sponsored_note_pl: src.sponsored_note_pl,
+          sponsored_note_en: src.sponsored_note_en,
+          sponsored_affiliate: src.sponsored_affiliate,
+          sponsored_political: src.sponsored_political,
+          sponsored_political_process: src.sponsored_political_process,
+          sponsored_sponsor_controller: src.sponsored_sponsor_controller,
+          // Deklarację przepisuje TEN, kto duplikuje - ślad rozliczalności
+          // dotyczy nowego wiersza, nie oryginału.
+          sponsored_marked_by: src.is_sponsored ? userId : null,
+          sponsored_marked_at: src.is_sponsored ? new Date().toISOString() : null,
         })
         .select("id, slug")
         .single();

@@ -21,6 +21,8 @@ import {
   type PostRow,
 } from "@/lib/builder/postListQuery";
 import { resolveAuthorDisplay } from "@/lib/builder/authorDisplay";
+import { SponsoredBadge } from "@/components/post/SponsoredBadge";
+import type { SponsoredDisclosureInput } from "@/lib/content/sponsored";
 import { AuthorByline } from "@/components/molecules/AuthorByline";
 import {
   carouselAutoplayEnabled,
@@ -62,8 +64,28 @@ const listFrame = (a: ImageAspect) =>
 // Per-line underline on mobile: line-clamp forces `display: -webkit-box`,
 // so the parent `.cms-post-title` gradient collapses to a single bar.
 // Wrapping the text in an inline span restores the per-line underline.
-function TitleSpan({ title }: { title: string }) {
-  return <span className="cms-title-underline">{title}</span>;
+function TitleSpan({
+  title,
+  post,
+  lang,
+}: {
+  title: string;
+  /** Wiersz wpisu - potrzebny wyłącznie do oznaczenia komercyjnego. */
+  post?: SponsoredDisclosureInput;
+  lang?: "pl" | "en";
+}) {
+  return (
+    <>
+      {/* Oznaczenie stoi PRZED tytułem, wewnątrz nagłówka. Ten widget ma
+          jedenaście wariantów, a `TitleSpan` jest jedynym miejscem, przez które
+          przechodzą wszystkie - wstawienie badge'a per wariant zostawiłoby
+          nieoznaczone te, o których ktoś zapomni. Obowiązek dotyczy pozycji
+          w zestawieniu (UPNPR art. 7 pkt 11a), więc „prawie wszędzie" nie
+          wystarcza. Układ „REKLAMA · Nagłówek" jest standardem wydawniczym. */}
+      {post && <SponsoredBadge post={post} lang={lang} className="mr-1.5 align-middle" />}
+      <span className="cms-title-underline">{title}</span>
+    </>
+  );
 }
 
 type Variant =
@@ -268,6 +290,7 @@ export function PostListView({
             variant={variant}
             aspect={aspect}
             carousel
+            lang={lang}
             title={title(p)}
             excerpt={excerpt(p)}
             titleStyle={tStyle}
@@ -304,7 +327,7 @@ export function PostListView({
             <div className="min-w-0">
               {title(p) && (
                 <h4 className="cms-post-title line-clamp-2" style={tStyle}>
-                  <TitleSpan title={title(p)} />
+                  <TitleSpan title={title(p)} post={p} lang={lang} />
                 </h4>
               )}
               {excerpt(p) && (
@@ -384,7 +407,7 @@ export function PostListView({
               >
                 {title(p) && (
                   <h4 className="cms-post-title line-clamp-3" style={tStyle}>
-                    <TitleSpan title={title(p)} />
+                    <TitleSpan title={title(p)} post={p} lang={lang} />
                   </h4>
                 )}
                 {<AuthorMeta p={p} />}
@@ -468,7 +491,7 @@ export function PostListView({
               >
                 {title(p) && (
                   <h4 className="cms-post-title line-clamp-3" style={tStyle}>
-                    <TitleSpan title={title(p)} />
+                    <TitleSpan title={title(p)} post={p} lang={lang} />
                   </h4>
                 )}
                 {showExcerpt && excerpt(p) && (
@@ -517,7 +540,7 @@ export function PostListView({
             )}
             {title(p) && (
               <h3 className="cms-post-title line-clamp-3" style={tStyle}>
-                <TitleSpan title={title(p)} />
+                <TitleSpan title={title(p)} post={p} lang={lang} />
               </h3>
             )}
             {excerpt(p) && (
@@ -555,7 +578,7 @@ export function PostListView({
               className="cms-post-title text-[1.35em] line-clamp-3 transition-colors group-hover:text-brand"
               style={tStyle}
             >
-              <TitleSpan title={title(lead)} />
+              <TitleSpan title={title(lead)} post={lead} lang={lang} />
             </h3>
           )}
           {excerpt(lead) && (
@@ -591,7 +614,7 @@ export function PostListView({
                     className="cms-post-title line-clamp-3 transition-colors group-hover:text-brand"
                     style={tStyle}
                   >
-                    <TitleSpan title={title(p)} />
+                    <TitleSpan title={title(p)} post={p} lang={lang} />
                   </h4>
                 )}
               </AppLink>
@@ -632,7 +655,7 @@ export function PostListView({
                   className="cms-post-title line-clamp-2 transition-colors group-hover:text-brand"
                   style={tStyle}
                 >
-                  <TitleSpan title={title(p)} />
+                  <TitleSpan title={title(p)} post={p} lang={lang} />
                 </h4>
               )}
               {excerpt(p) && (
@@ -660,6 +683,7 @@ export function PostListView({
           p={p}
           variant={variant}
           aspect={aspect}
+          lang={lang}
           title={title(p)}
           excerpt={excerpt(p)}
           titleStyle={tStyle}
@@ -813,6 +837,7 @@ function PostCard({
   variant,
   aspect,
   carousel = false,
+  lang,
   title,
   excerpt,
   titleStyle,
@@ -825,6 +850,8 @@ function PostCard({
   variant: Variant;
   aspect: ImageAspect;
   carousel?: boolean;
+  /** Język materiału - przypina brzmienie oznaczenia komercyjnego. */
+  lang?: "pl" | "en";
   title: string;
   excerpt: string;
   titleStyle?: React.CSSProperties;
@@ -859,7 +886,7 @@ function PostCard({
               className="cms-post-title line-clamp-2 sm:line-clamp-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)]"
               style={titleStyle}
             >
-              <TitleSpan title={title} />
+              <TitleSpan title={title} post={p} lang={lang} />
             </h4>
           )}
           {authorOverlayNode}
@@ -887,7 +914,7 @@ function PostCard({
         )}
         {title && (
           <h4 className="cms-post-title line-clamp-2" style={titleStyle}>
-            <TitleSpan title={title} />
+            <TitleSpan title={title} post={p} lang={lang} />
           </h4>
         )}
         {excerpt && (
@@ -917,7 +944,7 @@ function PostCard({
       <div className="p-3">
         {title && (
           <h4 className="cms-post-title mb-1.5 line-clamp-2" style={titleStyle}>
-            <TitleSpan title={title} />
+            <TitleSpan title={title} post={p} lang={lang} />
           </h4>
         )}
         {excerpt && (

@@ -15,6 +15,7 @@ import { formatDateShort } from "@/lib/i18n/format";
 // `sizes` okładek mieszka w lib/cardImageSizes (wspólne z preloadem LCP w
 // head() tras archiwów - parytet preload<->render jest strukturalny).
 import { CARD_IMAGE_SIZES } from "@/lib/cardImageSizes";
+import { SponsoredBadge } from "@/components/post/SponsoredBadge";
 
 // Minimalny, dwujęzyczny kształt danych karty. `BlogListItem` jest z nim
 // strukturalnie zgodny, więc można przekazać go wprost.
@@ -25,6 +26,13 @@ interface PostCardData {
   excerpt_en: string | null;
   cover_image_url: string | null;
   published_at: string | null;
+  // Oznaczenie komercyjne - OPCJONALNE, żeby każde istniejące miejsce wywołania
+  // dalej się kompilowało. Pola dostarczają listy, które je wybierają w selekcie
+  // (blogArchiveQueryOptions, archives POST_COLS); tam, gdzie ich nie ma, badge
+  // po prostu się nie renderuje.
+  is_sponsored?: boolean | null;
+  sponsored_kind?: string | null;
+  sponsored_affiliate?: boolean | null;
 }
 
 interface PostListCardProps {
@@ -89,6 +97,10 @@ export function PostListCard({
         />
       )}
       <div className="p-5">
+        {/* Oznaczenie NAD tytułem, nie pod datą: czytelnik ma je zobaczyć razem
+            z nagłówkiem, na którego podstawie decyduje o kliknięciu (UPNPR
+            art. 7 pkt 11a + art. 7 ust. 2 - informacja „nieczasowa" to wada). */}
+        <SponsoredBadge post={post} lang={lang} className="mb-2" />
         <h2 className={`font-display mb-2 line-clamp-2 ${titleClassName}`}>{title}</h2>
         {excerptOverride ? (
           <p className="text-sm text-muted-foreground line-clamp-3">{excerptOverride}</p>

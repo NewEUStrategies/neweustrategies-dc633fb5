@@ -69,8 +69,12 @@ async function hydrateHref(rows: Array<Omit<BlogListItem, "href">>): Promise<Blo
   }));
 }
 
+// Oznaczenie komercyjne jedzie razem z kolumnami listy: obowiązek dotyczy TAKŻE
+// pozycji w zestawieniu (UPNPR art. 7 pkt 11a), a nie tylko strony wpisu. Bez
+// tych trzech kolumn archiwa kategorii/tagów/autora renderowałyby sponsorowane
+// materiały bez żadnego wyróżnienia.
 const POST_COLS =
-  "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, author_id";
+  "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, author_id, is_sponsored, sponsored_kind, sponsored_affiliate";
 
 // ---------- TAXONOMY (category / tag) --------------------------------------
 // (Profil autora/eksperta przeniesiony do lib/experts/queries.ts - hub

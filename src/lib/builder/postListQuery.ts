@@ -19,6 +19,10 @@ export interface PostRow {
   published_at: string | null;
   post_format: string | null;
   author_id: string | null;
+  /** Ujawnienie komercyjne dla oznaczenia pozycji listy (UPNPR art. 7 pkt 11a). */
+  is_sponsored?: boolean | null;
+  sponsored_kind?: string | null;
+  sponsored_affiliate?: boolean | null;
   /** Resolved inside the query for variants that render a byline (see
    *  {@link POST_LIST_BYLINE_VARIANTS}), so author names ship with the SSR
    *  prefetch instead of popping in via a separate client-side query after
@@ -355,7 +359,11 @@ async function fetchPostListRows(input: PostListInput): Promise<PostRow[]> {
   let q = supabase
     .from("posts")
     .select(
-      "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, post_format, author_id",
+      // Oznaczenie komercyjne jedzie z listą: obowiązek dotyczy TAKŻE pozycji
+      // w zestawieniu (UPNPR art. 7 pkt 11a), a widget `post-list` zasila
+      // strony główne budowane builderem - bez tych kolumn sponsorowany materiał
+      // trafiałby tam bez żadnego wyróżnienia.
+      "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, post_format, author_id, is_sponsored, sponsored_kind, sponsored_affiliate",
     )
     .eq("status", "published")
     .is("deleted_at", null);
