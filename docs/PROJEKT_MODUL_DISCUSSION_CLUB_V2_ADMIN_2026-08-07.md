@@ -20,10 +20,10 @@ w V1 §0: brak powierzchni, gdzie członek rozmawia z członkiem jak z równym s
 
 Dlatego V2 rozdziela dwie rzeczy, które łatwo pomylić:
 
-| Warstwa | Kto włada | Co obejmuje |
-| ------- | --------- | ----------- |
+| Warstwa       | Kto włada                                      | Co obejmuje                                                                                                 |
+| ------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | **Struktura** | **wyłącznie `admin` / `super_admin`** w panelu | kluby, grupy, uprawnienia, członkostwa, zaproszenia, harmonogram, moderacja, kto w ogóle może założyć temat |
-| **Treść** | członkowie w zakresie, który admin im nadał | tematy (jeśli admin na to pozwolił), odpowiedzi, reakcje, stanowiska |
+| **Treść**     | członkowie w zakresie, który admin im nadał    | tematy (jeśli admin na to pozwolił), odpowiedzi, reakcje, stanowiska                                        |
 
 Administrator dostaje **pełną kontrolę nad tym, kto co może** — łącznie z opcją
 „tematy zakłada wyłącznie redakcja", jeśli tego chcesz. Ale to jest **ustawienie
@@ -146,7 +146,7 @@ $$;
 
 Po każdej migracji modułu: `bun run generate:authz-snapshot`. Test parytetu
 (`src/lib/authz/__tests__`) porównuje `authzSnapshot.generated.ts` z odtworzeniem ze SQL-a —
-rozjazd obleje CI. **Uwaga operacyjna:** `check:authz-snapshot` jest dziś *poza* workflow CI
+rozjazd obleje CI. **Uwaga operacyjna:** `check:authz-snapshot` jest dziś _poza_ workflow CI
 (otwarta pozycja z audytu), więc dopóki tam nie wejdzie, trzeba go odpalać ręcznie.
 
 ### 2.4 Macierz zdolności
@@ -154,18 +154,18 @@ rozjazd obleje CI. **Uwaga operacyjna:** `check:authz-snapshot` jest dziś *poza
 `S` = staff (`admin`/`super_admin`) zawsze · `✅` = tak · `⚙️` = zależy od ustawienia
 klubu/grupy · `—` = nie
 
-| Zdolność | super_admin | admin | editor | lead | moderator | member | observer | nie-członek |
-| -------- | :---------: | :---: | :----: | :--: | :-------: | :----: | :------: | :---------: |
-| Tworzy klub / grupę | ✅ | ✅ | — | — | — | — | — | — |
-| Edytuje ustawienia klubu | ✅ | ✅ | — | ⚙️ | — | — | — | — |
-| Zakłada temat | ✅ | ✅ | ⚙️ | ✅ | ✅ | ⚙️ | — | — |
-| Odpowiada | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | — |
-| Reaguje / stanowisko | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | — |
-| Moderuje treść | ✅ | ✅ | — | ✅ | ✅ | — | — | — |
-| Zaprasza | ✅ | ✅ | — | ✅ | ⚙️ | ⚙️ | — | — |
-| Zarządza członkami / rolami | ✅ | ✅ | — | ⚙️ | — | — | — | — |
-| Ujawnia autora (Chatham) | ✅ | ✅ | — | — | ⚙️ | — | — | — |
-| Czyta klub `secret` | ✅ | ✅ | — | ✅ | ✅ | ✅ | ✅ | — |
+| Zdolność                    | super_admin | admin | editor | lead | moderator | member | observer | nie-członek |
+| --------------------------- | :---------: | :---: | :----: | :--: | :-------: | :----: | :------: | :---------: |
+| Tworzy klub / grupę         |     ✅      |  ✅   |   —    |  —   |     —     |   —    |    —     |      —      |
+| Edytuje ustawienia klubu    |     ✅      |  ✅   |   —    |  ⚙️  |     —     |   —    |    —     |      —      |
+| Zakłada temat               |     ✅      |  ✅   |   ⚙️   |  ✅  |    ✅     |   ⚙️   |    —     |      —      |
+| Odpowiada                   |     ✅      |  ✅   |   ✅   |  ✅  |    ✅     |   ✅   |    —     |      —      |
+| Reaguje / stanowisko        |     ✅      |  ✅   |   ✅   |  ✅  |    ✅     |   ✅   |    —     |      —      |
+| Moderuje treść              |     ✅      |  ✅   |   —    |  ✅  |    ✅     |   —    |    —     |      —      |
+| Zaprasza                    |     ✅      |  ✅   |   —    |  ✅  |    ⚙️     |   ⚙️   |    —     |      —      |
+| Zarządza członkami / rolami |     ✅      |  ✅   |   —    |  ⚙️  |     —     |   —    |    —     |      —      |
+| Ujawnia autora (Chatham)    |     ✅      |  ✅   |   —    |  —   |    ⚙️     |   —    |    —     |      —      |
+| Czyta klub `secret`         |     ✅      |  ✅   |   —    |  ✅  |    ✅     |   ✅   |    ✅    |      —      |
 
 Dwie decyzje warte uzasadnienia:
 
@@ -186,12 +186,12 @@ a `permissionRows.ts` dostaje nowy blok `club`.
 
 ### 3.1 Cztery ścieżki, jeden panel
 
-| Ścieżka | Adresat | Mechanizm | Kiedy |
-| ------- | ------- | --------- | ----- |
-| **A. Bezpośrednia** | istniejący członek platformy | `club_invitations` + powiadomienie | codzienna |
-| **B. E-mailowa** | ktoś spoza platformy | **istniejące `user_invitations`** + e-mail | pozyskanie |
-| **C. Link** | grupa nieznanych z góry | `club_invite_links` (token, limit, wygasanie) | konferencja, newsletter |
-| **D. Segmentowa** | zbiór wyliczony z danych | kolejka B/A wg reguły | kampania |
+| Ścieżka             | Adresat                      | Mechanizm                                     | Kiedy                   |
+| ------------------- | ---------------------------- | --------------------------------------------- | ----------------------- |
+| **A. Bezpośrednia** | istniejący członek platformy | `club_invitations` + powiadomienie            | codzienna               |
+| **B. E-mailowa**    | ktoś spoza platformy         | **istniejące `user_invitations`** + e-mail    | pozyskanie              |
+| **C. Link**         | grupa nieznanych z góry      | `club_invite_links` (token, limit, wygasanie) | konferencja, newsletter |
+| **D. Segmentowa**   | zbiór wyliczony z danych     | kolejka B/A wg reguły                         | kampania                |
 
 ### 3.2 Ścieżka B reużywa istniejący system
 
@@ -244,13 +244,13 @@ przy linku w newsletterze, gdzie nie wiadomo, kto kliknie.
 
 Admin wybiera regułę z droplisty zamiast eksportować CSV:
 
-- posiadacze odznaki *(droplista z `profile_badges`)*
-- poziom reputacji ≥ *(droplista z `REPUTATION_LEVELS`)*
-- obserwujący dossier *(autocomplete z `eu_policy_items`)*
-- uczestnicy wydarzenia *(droplista z `events` + status RSVP)*
+- posiadacze odznaki _(droplista z `profile_badges`)_
+- poziom reputacji ≥ _(droplista z `REPUTATION_LEVELS`)_
+- obserwujący dossier _(autocomplete z `eu_policy_items`)_
+- uczestnicy wydarzenia _(droplista z `events` + status RSVP)_
 - członkowie innego klubu / grupy
-- plan członkowski ≥ *(droplista z `membership_tiers`)*
-- specjalizacja / lokalizacja *(fasety z `people_filter_options` — te same, co na `/people`)*
+- plan członkowski ≥ _(droplista z `membership_tiers`)_
+- specjalizacja / lokalizacja _(fasety z `people_filter_options` — te same, co na `/people`)_
 
 Panel pokazuje **podgląd liczebności przed wysyłką** („reguła obejmuje 47 osób;
 12 jest już w klubie; 3 mają wyłączone zaproszenia — wyśle się 32"). Wysyłka wchodzi
@@ -292,7 +292,7 @@ nie kłamie o dostępności.
 
 ### 4.2 Lista klubów
 
-Tabela (`ui/table.tsx`) z kolumnami: nazwa + ikona · widoczność *(Badge)* · grupy ·
+Tabela (`ui/table.tsx`) z kolumnami: nazwa + ikona · widoczność _(Badge)_ · grupy ·
 członkowie · tematy · ostatnia aktywność · status · akcje.
 
 Nad tabelą pasek filtrów z **droplist** (Radix `Select`, wzorzec z `admin.community.events.tsx:110`):
@@ -306,39 +306,40 @@ widoczność · przypisz prowadzącego · eksportuj członków.
 
 Radix `Tabs`, stan w URL (`?tab=`), tak jak `/network`.
 
-**1 · Ogólne** — nazwa PL/EN *(FloatingInput)*, slug z auto-generowaniem i ostrzeżeniem
-przy zmianie, tagline, opis *(FloatingTextarea)*, ikona *(picker nad `icon_library` — wzorzec z `admin/menu/MenuManager.tsx`)*,
-kolor akcentu *(`admin/theme-design/molecules/ColorControl.tsx`)*, okładka *(`CoverImagePicker`)*,
-obszar polityki *(droplista — te same 10 wartości, co `eu_policy_items.policy_area`)*.
+**1 · Ogólne** — nazwa PL/EN _(FloatingInput)_, slug z auto-generowaniem i ostrzeżeniem
+przy zmianie, tagline, opis _(FloatingTextarea)_, ikona _(picker nad `icon_library` — wzorzec z `admin/menu/MenuManager.tsx`)_,
+kolor akcentu _(`admin/theme-design/molecules/ColorControl.tsx`)_, okładka _(`CoverImagePicker`)_,
+obszar polityki _(droplista — te same 10 wartości, co `eu_policy_items.policy_area`)_.
 
 **2 · Dostęp** — cztery droplisty + `SaveBar`:
-widoczność · polityka wstępu · minimalny plan *(z `membership_tiers` posortowanych po `rank`)*
-· tryb atrybucji *(V1 §1.2)*. Pod spodem **żywy podgląd zdania**:
+widoczność · polityka wstępu · minimalny plan _(z `membership_tiers` posortowanych po `rank`)_
+· tryb atrybucji _(V1 §1.2)_. Pod spodem **żywy podgląd zdania**:
 „Klub widoczny dla zalogowanych. Wejście na zaproszenie. Wymaga planu Pro.
 Wypowiedzi podpisane." — jedno zdanie zamiast czterech pól do samodzielnego złożenia.
 
 **3 · Grupy** — lista z drag & drop (`@dnd-kit`, już w zależnościach; ten sam wzorzec,
-co kolejność bloków w builderze). Wiersz: nazwa · widoczność *(z etykietą „dziedziczone"
-gdy `NULL`)* · kto może zakładać temat · tematy · status. Dialog tworzenia z polem
+co kolejność bloków w builderze). Wiersz: nazwa · widoczność _(z etykietą „dziedziczone"
+gdy `NULL`)_ · kto może zakładać temat · tematy · status. Dialog tworzenia z polem
 „dziedzicz z klubu / nadpisz" przy każdym ustawieniu.
 
-**4 · Tematy** — lista wszystkich tematów klubu z filtrami *(grupa, rodzaj, status, autor)*.
-Akcje: przypnij · zablokuj · przenieś do innej grupy *(droplista)* · scal · usuń.
+**4 · Tematy** — lista wszystkich tematów klubu z filtrami _(grupa, rodzaj, status, autor)_.
+Akcje: przypnij · zablokuj · przenieś do innej grupy _(droplista)_ · scal · usuń.
 Przycisk **„Nowy temat"** — admin zakłada temat **w imieniu klubu** albo wskazanego autora
-(`MemberPicker`), z opcją publikacji zaplanowanej *(§5)*.
+(`MemberPicker`), z opcją publikacji zaplanowanej _(§5)_.
 
-**5 · Członkowie** — tabela: osoba *(awatar + odznaki + poziom reputacji)* · rola
-*(droplista inline: lead/moderator/member/observer)* · status · dołączył · ostatnia
+**5 · Członkowie** — tabela: osoba _(awatar + odznaki + poziom reputacji)_ · rola
+_(droplista inline: lead/moderator/member/observer)_ · status · dołączył · ostatnia
 aktywność · liczba postów. Filtry po roli i statusie. Bulk: zmień rolę · usuń · zbanuj ·
 wyślij wiadomość. Dodanie osoby przez `MemberPicker` — komponent **już istnieje**
 w `admin/community/`, więc zero nowego kodu wyszukiwania osób.
 
 **6 · Zaproszenia** — trzy panele w jednym ekranie:
-- *Wyślij* — przełącznik ścieżki (osoba / e-mail / segment), pod spodem właściwa kontrolka
+
+- _Wyślij_ — przełącznik ścieżki (osoba / e-mail / segment), pod spodem właściwa kontrolka
   (`MemberPicker` / pole e-mail z walidacją i wklejeniem listy / builder reguły z §3.4),
-- *Linki* — tabela linków z `label`, wykorzystaniem `used_count/max_uses`, datą wygaśnięcia
-  *(`DateTimePicker`)*, przyciskiem kopiowania i „unieważnij",
-- *Historia* — tabela jak `admin.users.invitations.tsx`: osoba · kanał · status *(Badge)* ·
+- _Linki_ — tabela linków z `label`, wykorzystaniem `used_count/max_uses`, datą wygaśnięcia
+  _(`DateTimePicker`)_, przyciskiem kopiowania i „unieważnij",
+- _Historia_ — tabela jak `admin.users.invitations.tsx`: osoba · kanał · status _(Badge)_ ·
   wysłano · wygasa · akcje (ponów / unieważnij).
 
 **7 · Uprawnienia** — czytelna macierz z §2.4, ale **dla tego klubu**: wiersze = zdolności,
@@ -346,9 +347,9 @@ kolumny = role, komórki `⚙️` klikalne. Pod spodem „Podgląd jako…" (`Me
 pokazuje wynik `club_capabilities()` dla wskazanej osoby wraz z `reason`. To jest
 najtańszy sposób na uniknięcie klasy błędów „myślałem, że ma dostęp".
 
-**8 · Moderacja** — kolejka oczekujących *(gdy `moderation_mode` ≠ `post`)*, zgłoszenia
+**8 · Moderacja** — kolejka oczekujących _(gdy `moderation_mode` ≠ `post`)_, zgłoszenia
 z `report_user`, log `club_moderation_log`. Akcje wsadowe: zatwierdź · ukryj · usuń ·
-zbanuj autora. Ujawnienie autora (Chatham) za osobnym potwierdzeniem *(`ConfirmDialog`)*
+zbanuj autora. Ujawnienie autora (Chatham) za osobnym potwierdzeniem _(`ConfirmDialog`)_
 z polem „powód" — trafia do `audit_log`.
 
 **9 · Statystyki** — `StatCard`-y jak na `/admin/community` (wzorzec `admin.community.index.tsx:115`):
@@ -360,24 +361,24 @@ na karcie, a nie w rozwijanym raporcie: temat bez odpowiedzi to porażka klubu.
 
 Zero nowych prymitywów — wszystko z tego, co platforma ma:
 
-| Potrzeba | Komponent | Wzorzec w kodzie |
-| -------- | --------- | ---------------- |
-| Droplista | `ui/select.tsx` (Radix) | `admin.community.events.tsx:110` |
-| Data i godzina | `ui/datetime-picker.tsx` + `ui/calendar.tsx` | `DateTimePicker` |
-| Wybór osoby | `admin/community/MemberPicker.tsx` | istnieje |
-| Tabela | `ui/table.tsx` | `admin.users.invitations.tsx` |
-| Dialog | `ui/dialog.tsx` | `CreateEventDialog` |
-| Potwierdzenie | `admin/ConfirmDialog.tsx` | istnieje |
-| Zapis ustawień | `admin/settings/fields.tsx` → `SaveBar` | `admin.settings.discussion.tsx` |
-| Akcje wsadowe | `admin/BulkActionsBar.tsx` | istnieje |
-| Kolejność | `@dnd-kit` | builder bloków |
-| Zakładki | `ui/tabs.tsx` | `/network` |
-| Statusy | `ui/badge.tsx` | wszędzie |
-| Statystyki | `StatCard` | `admin.community.index.tsx` |
-| Okładka | `admin/CoverImagePicker.tsx` | istnieje |
-| Kolor akcentu | `admin/theme-design/molecules/ColorControl.tsx` | istnieje |
-| Ikona | wzorzec z `admin/menu/MenuManager.tsx` nad `icon_library` | istnieje |
-| Podnawigacja | `admin/community/CommunitySubNav.tsx` | +1 zakładka |
+| Potrzeba       | Komponent                                                 | Wzorzec w kodzie                 |
+| -------------- | --------------------------------------------------------- | -------------------------------- |
+| Droplista      | `ui/select.tsx` (Radix)                                   | `admin.community.events.tsx:110` |
+| Data i godzina | `ui/datetime-picker.tsx` + `ui/calendar.tsx`              | `DateTimePicker`                 |
+| Wybór osoby    | `admin/community/MemberPicker.tsx`                        | istnieje                         |
+| Tabela         | `ui/table.tsx`                                            | `admin.users.invitations.tsx`    |
+| Dialog         | `ui/dialog.tsx`                                           | `CreateEventDialog`              |
+| Potwierdzenie  | `admin/ConfirmDialog.tsx`                                 | istnieje                         |
+| Zapis ustawień | `admin/settings/fields.tsx` → `SaveBar`                   | `admin.settings.discussion.tsx`  |
+| Akcje wsadowe  | `admin/BulkActionsBar.tsx`                                | istnieje                         |
+| Kolejność      | `@dnd-kit`                                                | builder bloków                   |
+| Zakładki       | `ui/tabs.tsx`                                             | `/network`                       |
+| Statusy        | `ui/badge.tsx`                                            | wszędzie                         |
+| Statystyki     | `StatCard`                                                | `admin.community.index.tsx`      |
+| Okładka        | `admin/CoverImagePicker.tsx`                              | istnieje                         |
+| Kolor akcentu  | `admin/theme-design/molecules/ColorControl.tsx`           | istnieje                         |
+| Ikona          | wzorzec z `admin/menu/MenuManager.tsx` nad `icon_library` | istnieje                         |
+| Podnawigacja   | `admin/community/CommunitySubNav.tsx`                     | +1 zakładka                      |
 
 ---
 
@@ -410,9 +411,9 @@ opisuje już jeden kanoniczny potok doręczeń i drugi by go rozspoił.
 
 ### 6.1 Nowe tabele
 
-`club_groups` *(§1)* · `club_invite_links` + `club_invite_link_uses` *(§3.3)* ·
-`club_role_grants` *(audyt nadań ról — kto, komu, kiedy, do kiedy)* ·
-`club_segment_rules` *(zapisane reguły segmentów z §3.4, żeby kampanię dało się powtórzyć)*
+`club_groups` _(§1)_ · `club_invite_links` + `club_invite_link_uses` _(§3.3)_ ·
+`club_role_grants` _(audyt nadań ról — kto, komu, kiedy, do kiedy)_ ·
+`club_segment_rules` _(zapisane reguły segmentów z §3.4, żeby kampanię dało się powtórzyć)_
 
 `club_threads` zyskuje `group_id`; `club_members` zyskuje `role_expires_at`,
 `invited_by`, `invite_source` (`direct`/`email`/`link`/`segment`/`auto`) — ostatnie pole
@@ -451,14 +452,14 @@ badge przy zakładce „Kluby" w panelu. Triggery, nie `COUNT(*)`.
 
 ## 7. Bramki CI — co dochodzi względem V1
 
-| Bramka | Nowy wymóg |
-| ------ | ---------- |
-| **pgTAP** | macierz z §2.4 w komplecie · `super_admin` przechodzi wszędzie tam, gdzie `admin` *(inwariant §2.3)* · rola klubowa **nigdy** nie trafia do `user_invitations.role` · `max_uses` odporny na równoległe wejścia · dziedziczenie `NULL` → wartość klubu · `role_expires_at` realnie odbiera uprawnienia |
-| `check:authz-snapshot` | regeneracja po każdej migracji modułu; **wpiąć do CI** (dziś poza workflow) |
-| `check:permissions-parity` | nowy blok `club` w `permissionRows.ts` |
-| `check:i18n-parity` + key-usage | prefiksy `club` i `adminClubs`, zero `defaultValue` |
-| `check:bundle` | panel admina za `lazy()`; budżety są dziś czerwone (+30,6 / +87,9 / +124,0 KB) |
-| vitest | `club_capabilities` jako czysta funkcja mapująca · builder reguł segmentu · dziedziczenie ustawień grupy |
+| Bramka                          | Nowy wymóg                                                                                                                                                                                                                                                                                            |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **pgTAP**                       | macierz z §2.4 w komplecie · `super_admin` przechodzi wszędzie tam, gdzie `admin` _(inwariant §2.3)_ · rola klubowa **nigdy** nie trafia do `user_invitations.role` · `max_uses` odporny na równoległe wejścia · dziedziczenie `NULL` → wartość klubu · `role_expires_at` realnie odbiera uprawnienia |
+| `check:authz-snapshot`          | regeneracja po każdej migracji modułu; **wpiąć do CI** (dziś poza workflow)                                                                                                                                                                                                                           |
+| `check:permissions-parity`      | nowy blok `club` w `permissionRows.ts`                                                                                                                                                                                                                                                                |
+| `check:i18n-parity` + key-usage | prefiksy `club` i `adminClubs`, zero `defaultValue`                                                                                                                                                                                                                                                   |
+| `check:bundle`                  | panel admina za `lazy()`; budżety są dziś czerwone (+30,6 / +87,9 / +124,0 KB)                                                                                                                                                                                                                        |
+| vitest                          | `club_capabilities` jako czysta funkcja mapująca · builder reguł segmentu · dziedziczenie ustawień grupy                                                                                                                                                                                              |
 
 ---
 
@@ -469,19 +470,19 @@ struktura i uprawnienia muszą stać, zanim ktokolwiek napisze pierwsze zdanie.
 
 **A1 — Struktura i panel.** `clubs`, `club_groups`, `club_members`, `club_capabilities`,
 `is_club_admin`, trasy `/admin/community/clubs` + edytor (zakładki 1–3, 5), snapshot
-autoryzacji, pgTAP macierzy. *Efekt: admin tworzy kluby i grupy, dodaje ludzi. Bez treści.*
+autoryzacji, pgTAP macierzy. _Efekt: admin tworzy kluby i grupy, dodaje ludzi. Bez treści._
 
-**A2 — Zaproszenia.** Cztery ścieżki *(§3)*, zakładka 6, wpięcie w `user_invitations`,
-limity, wygasanie. *Efekt: klub da się zapełnić.*
+**A2 — Zaproszenia.** Cztery ścieżki _(§3)_, zakładka 6, wpięcie w `user_invitations`,
+limity, wygasanie. _Efekt: klub da się zapełnić._
 
 **A3 — Treść.** `club_threads` + `club_replies` + zakładka 4 + publiczne trasy `/club/*`.
-*Efekt: moduł działa końcowo.*
+_Efekt: moduł działa końcowo._
 
 **A4 — Interakcja.** Reakcje, wzmianki, subskrypcje, powiadomienia z **kompletem**
-producentów *(V1 §6.4)*, liczniki.
+producentów _(V1 §6.4)_, liczniki.
 
-**A5 — Zarządzanie w skali.** Moderacja *(zakładka 8)*, harmonogram *(§5)*, kadencje ról,
-statystyki *(zakładka 9)*, segmenty.
+**A5 — Zarządzanie w skali.** Moderacja _(zakładka 8)_, harmonogram _(§5)_, kadencje ról,
+statystyki _(zakładka 9)_, segmenty.
 
 **A6 — Odkrywalność.** FTS `polish`, embeddingi, zakładka w wyszukiwarce, widgety buildera,
 digest.
@@ -493,14 +494,14 @@ system zarządzania** i możesz zdecydować o reszcie na podstawie tego, jak si�
 
 ## 9. Decyzje do podjęcia
 
-Trzy z V1 zostają otwarte *(Chatham House, anonimizacja przy usunięciu konta, płatność)*.
+Trzy z V1 zostają otwarte _(Chatham House, anonimizacja przy usunięciu konta, płatność)_.
 Dochodzą trzy nowe:
 
-1. **Czy członek może założyć temat?** *(§0)* Rekomendacja: droplista `who_can_post`
+1. **Czy członek może założyć temat?** _(§0)_ Rekomendacja: droplista `who_can_post`
    z domyślną wartością `moderators` na start i przejściem na `members` w wybranych
    grupach po pierwszym miesiącu. Ustawienie, nie architektura — ale trzeba wybrać domyślną.
 2. **Czy `lead` może zarządzać członkami?** Rekomendacja: **tak** (`⚙️` włączone),
    inaczej każde dołączenie przechodzi przez admina i klub stoi.
 3. **Czy zaproszenia e-mailowe mogą zakładać konta?** `user_invitations` to potrafi
    (`magic_link`). Rekomendacja: tak, ale **wyłącznie** z `metadata.club_role` i rolą
-   platformy `user` — nigdy z rolą redakcyjną *(§3.2)*.
+   platformy `user` — nigdy z rolą redakcyjną _(§3.2)_.

@@ -43,25 +43,25 @@ dla testów, więc ta dyscyplina jest realnie wymuszona, a nie deklarowana.
 
 ## 1. Skala platformy — stan zmierzony
 
-| Wymiar | Liczba |
-|---|---|
-Trasy (`src/routes/*.tsx`) | **241** (139 admin, 81 publiczne, 20 kluby, 2 API) |
-Komponenty `.tsx` | 1 085 |
-Moduły `src/lib/*.ts` | 955 |
-Hooki | 39 |
-Pliki `*.functions.ts` (server functions) | 82 |
-Wywołania `createServerFn` | **349** |
-Moduły `*.server.ts` | 97 |
-Unikalne nazwy RPC wołane z klienta | **382** |
-Migracje SQL | **760** (137 080 linii) |
-Tabele | 252 |
-Funkcje SQL (ostatnia definicja) | **732** |
-Testy pgTAP | 90 plików |
-Pliki testowe vitest | **737** (97 912 linii) |
-Słowniki i18n | 85 plików |
-Bramki `check:*` | 21 |
-Workflow CI | 5 |
-**Kod produkcyjny** | **439 371 linii** (537 283 − 97 912 testów) |
+| Wymiar                                    | Liczba                                             |
+| ----------------------------------------- | -------------------------------------------------- |
+| Trasy (`src/routes/*.tsx`)                | **241** (139 admin, 81 publiczne, 20 kluby, 2 API) |
+| Komponenty `.tsx`                         | 1 085                                              |
+| Moduły `src/lib/*.ts`                     | 955                                                |
+| Hooki                                     | 39                                                 |
+| Pliki `*.functions.ts` (server functions) | 82                                                 |
+| Wywołania `createServerFn`                | **349**                                            |
+| Moduły `*.server.ts`                      | 97                                                 |
+| Unikalne nazwy RPC wołane z klienta       | **382**                                            |
+| Migracje SQL                              | **760** (137 080 linii)                            |
+| Tabele                                    | 252                                                |
+| Funkcje SQL (ostatnia definicja)          | **732**                                            |
+| Testy pgTAP                               | 90 plików                                          |
+| Pliki testowe vitest                      | **737** (97 912 linii)                             |
+| Słowniki i18n                             | 85 plików                                          |
+| Bramki `check:*`                          | 21                                                 |
+| Workflow CI                               | 5                                                  |
+| **Kod produkcyjny**                       | **439 371 linii** (537 283 − 97 912 testów)        |
 
 Stosunek testów do produkcji: **0,22** (97 912 / 439 371). To nie jest
 zła liczba dla platformy z 349 funkcjami serwerowymi, ale jest bardzo
@@ -113,19 +113,19 @@ później rozplątać.
 
 ### 2.3. Sprzężenia dwukierunkowe (11 par)
 
-| Para | Kierunki | Ocena |
-|---|---|---|
-`bloki ↔ builder` | 23 / 17 | **Do rozstrzygnięcia.** Najsilniejszy cykl w repo. Dwa silniki treści dzielą typy widgetów i renderery; ani jeden nie jest jednoznacznie „niżej". |
-`treść ↔ bloki` | 11 / 2 | Akceptowalne — kierunek dominujący jest jasny, powrót to 2 importy typów. |
-`treść ↔ builder` | 4 / 1 | Jak wyżej. |
-`builder ↔ wydarzenia` | 9 / 2 | Widget wydarzeń w builderze; kierunek dominujący jasny. |
-`profil ↔ monetyzacja` | 1 / 5 | Do zaakceptowania: plan konta jest atrybutem profilu. |
-`profil ↔ czat` | 1 / 3 | Do zaakceptowania. |
-`profil ↔ eksperci` | 3 / 1 | Do zaakceptowania. |
-`czat ↔ realtime` | 1 / 1 | Symetryczne po jednym imporcie — najprawdopodobniej typ. |
-`powiadomienia ↔ kluby` | 1 / 1 | Jak wyżej. |
-`seo ↔ analityka` | 1 / 1 | Jak wyżej. |
-`builder ↔ powiadomienia` | 1 / 1 | Jak wyżej. |
+| Para                      | Kierunki | Ocena                                                                                                                                             |
+| ------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bloki ↔ builder`         | 23 / 17  | **Do rozstrzygnięcia.** Najsilniejszy cykl w repo. Dwa silniki treści dzielą typy widgetów i renderery; ani jeden nie jest jednoznacznie „niżej". |
+| `treść ↔ bloki`           | 11 / 2   | Akceptowalne — kierunek dominujący jest jasny, powrót to 2 importy typów.                                                                         |
+| `treść ↔ builder`         | 4 / 1    | Jak wyżej.                                                                                                                                        |
+| `builder ↔ wydarzenia`    | 9 / 2    | Widget wydarzeń w builderze; kierunek dominujący jasny.                                                                                           |
+| `profil ↔ monetyzacja`    | 1 / 5    | Do zaakceptowania: plan konta jest atrybutem profilu.                                                                                             |
+| `profil ↔ czat`           | 1 / 3    | Do zaakceptowania.                                                                                                                                |
+| `profil ↔ eksperci`       | 3 / 1    | Do zaakceptowania.                                                                                                                                |
+| `czat ↔ realtime`         | 1 / 1    | Symetryczne po jednym imporcie — najprawdopodobniej typ.                                                                                          |
+| `powiadomienia ↔ kluby`   | 1 / 1    | Jak wyżej.                                                                                                                                        |
+| `seo ↔ analityka`         | 1 / 1    | Jak wyżej.                                                                                                                                        |
+| `builder ↔ powiadomienia` | 1 / 1    | Jak wyżej.                                                                                                                                        |
 
 **Wniosek:** dziesięć z jedenastu cykli to sprzężenia o wadze 1–2 w słabszym
 kierunku, czyli import typu albo jednej stałej. Jeden — `bloki ↔ builder` —
@@ -159,19 +159,19 @@ na decyzję architektoniczną.
 
 Wszystkie zmierzone na tym HEAD.
 
-| Bramka | Stan | Uwaga |
-|---|---|---|
-`tsc --noEmit` | **0 błędów** | jedyny komunikat to `@ai-sdk/openai-compatible` — proxy npm w tym kontenerze zwraca 403; pakiet jest w `package.json` |
-`eslint src/` | **0 błędów**, 173 ostrzeżenia | ostrzeżenia to `react-hooks/exhaustive-deps` i `react-refresh/only-export-components` |
-`vitest run` | **8 061 testów zielonych**, 50 pominiętych, 737 plików | |
-Pokrycie | **32,50% instr. / 28,23% gałęzi / 24,88% funkcji / 33,09% linii** przy progach 29 / 25 / 22 / 29 | margines ~3,5 pp; 26 progów per-ścieżka |
-`check:i18n-parity` | zielone, 327 asercji | 12 bramkowanych prefiksów, 0 brakujących kluczy |
-`check:bundle` | zielone | 511,3 / 2 462,0 / 3 752,8 przy 513 / 2 475 / 3 790 |
-`check:entry-purity` | zielone | ścieżka bootowania: 7 chunków z 665 |
-`check:chunks` | zielone | 665 chunków, 3 310 krawędzi, graf acykliczny |
-`check:chunk-parity` | zielone | 3 asercje |
-`check:*` łącznie | 21 skryptów | |
-CI `ci.yml` | 5 jobów: `verify`, `pgtap`, `pg-harness`, `post-deploy` + billing/scheduler/e2e/lighthouse | **32 nazwane kroki** w `verify` |
+| Bramka               | Stan                                                                                             | Uwaga                                                                                                                 |
+| -------------------- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `tsc --noEmit`       | **0 błędów**                                                                                     | jedyny komunikat to `@ai-sdk/openai-compatible` — proxy npm w tym kontenerze zwraca 403; pakiet jest w `package.json` |
+| `eslint src/`        | **0 błędów**, 173 ostrzeżenia                                                                    | ostrzeżenia to `react-hooks/exhaustive-deps` i `react-refresh/only-export-components`                                 |
+| `vitest run`         | **8 061 testów zielonych**, 50 pominiętych, 737 plików                                           |                                                                                                                       |
+| Pokrycie             | **32,50% instr. / 28,23% gałęzi / 24,88% funkcji / 33,09% linii** przy progach 29 / 25 / 22 / 29 | margines ~3,5 pp; 26 progów per-ścieżka                                                                               |
+| `check:i18n-parity`  | zielone, 327 asercji                                                                             | 12 bramkowanych prefiksów, 0 brakujących kluczy                                                                       |
+| `check:bundle`       | zielone                                                                                          | 511,3 / 2 462,0 / 3 752,8 przy 513 / 2 475 / 3 790                                                                    |
+| `check:entry-purity` | zielone                                                                                          | ścieżka bootowania: 7 chunków z 665                                                                                   |
+| `check:chunks`       | zielone                                                                                          | 665 chunków, 3 310 krawędzi, graf acykliczny                                                                          |
+| `check:chunk-parity` | zielone                                                                                          | 3 asercje                                                                                                             |
+| `check:*` łącznie    | 21 skryptów                                                                                      |                                                                                                                       |
+| CI `ci.yml`          | 5 jobów: `verify`, `pgtap`, `pg-harness`, `post-deploy` + billing/scheduler/e2e/lighthouse       | **32 nazwane kroki** w `verify`                                                                                       |
 
 ### 3.1. Co bramki naprawdę pilnują — i czego nie
 
@@ -208,30 +208,30 @@ Kolumna **T/P** to linie testów na linię kodu produkcyjnego. To najlepszy
 pojedynczy wskaźnik tego, gdzie zmiana jest bezpieczna, a gdzie idzie się
 po omacku.
 
-| Moduł | Plików | Linii | Testów | Linii T | **T/P** | `.functions` | `.server` |
-|---|---:|---:|---:|---:|---:|---:|---:|
-builder | 244 | 67 194 | 139 | 24 989 | 0,37 | 0 | 0 |
-bloki | 162 | 32 656 | 36 | 4 572 | **0,14** | 0 | 0 |
-kluby | 158 | 31 039 | 45 | 4 916 | **0,16** | 4 | 0 |
-monetyzacja | 120 | 17 591 | 41 | 7 233 | 0,41 | 13 | 39 |
-czat | 57 | 12 309 | 13 | 1 363 | **0,11** | 0 | 0 |
-analityka | 53 | 11 412 | 7 | 1 041 | **0,09** | 6 | 2 |
-newsletter | 35 | 10 808 | 10 | 992 | **0,09** | 0 | 2 |
-sieć + eksperci | 49 | 8 376 | 30 | 6 327 | **0,76** | 1 | 0 |
-treść / wpisy | 81 | 8 138 | 23 | 1 917 | 0,24 | 4 | 0 |
-platforma | 48 | 8 027 | 26 | 3 518 | 0,44 | 2 | 26 |
-wygląd / motyw | 81 | 7 706 | 27 | 1 724 | 0,22 | 1 | 0 |
-profil | 33 | 7 611 | 14 | 2 241 | 0,29 | 1 | 0 |
-seo | 41 | 5 406 | 32 | 3 338 | **0,62** | 1 | 2 |
-crm | 26 | 5 388 | 7 | 809 | **0,15** | 0 | 0 |
-powiadomienia | 26 | 5 333 | 13 | 1 655 | 0,31 | 1 | 2 |
-bramki CI | 18 | 4 989 | 21 | 3 984 | **0,80** | 0 | 0 |
-mail / email | 25 | 4 910 | 10 | 1 262 | 0,26 | 0 | 13 |
-wyszukiwarka | 22 | 3 575 | 8 | 672 | 0,19 | 3 | 0 |
-uprawnienia | 22 | 1 749 | 3 | 802 | 0,46 | 0 | 0 |
-społeczność | 15 | 1 536 | 3 | 250 | 0,16 | 0 | 1 |
-RODO / consent | 16 | 1 463 | 2 | 239 | 0,16 | 0 | 0 |
-i18n rdzeń | 11 | 1 020 | 5 | 459 | 0,45 | 0 | 0 |
+| Moduł           | Plików |  Linii | Testów | Linii T |  **T/P** | `.functions` | `.server` |
+| --------------- | -----: | -----: | -----: | ------: | -------: | -----------: | --------: |
+| builder         |    244 | 67 194 |    139 |  24 989 |     0,37 |            0 |         0 |
+| bloki           |    162 | 32 656 |     36 |   4 572 | **0,14** |            0 |         0 |
+| kluby           |    158 | 31 039 |     45 |   4 916 | **0,16** |            4 |         0 |
+| monetyzacja     |    120 | 17 591 |     41 |   7 233 |     0,41 |           13 |        39 |
+| czat            |     57 | 12 309 |     13 |   1 363 | **0,11** |            0 |         0 |
+| analityka       |     53 | 11 412 |      7 |   1 041 | **0,09** |            6 |         2 |
+| newsletter      |     35 | 10 808 |     10 |     992 | **0,09** |            0 |         2 |
+| sieć + eksperci |     49 |  8 376 |     30 |   6 327 | **0,76** |            1 |         0 |
+| treść / wpisy   |     81 |  8 138 |     23 |   1 917 |     0,24 |            4 |         0 |
+| platforma       |     48 |  8 027 |     26 |   3 518 |     0,44 |            2 |        26 |
+| wygląd / motyw  |     81 |  7 706 |     27 |   1 724 |     0,22 |            1 |         0 |
+| profil          |     33 |  7 611 |     14 |   2 241 |     0,29 |            1 |         0 |
+| seo             |     41 |  5 406 |     32 |   3 338 | **0,62** |            1 |         2 |
+| crm             |     26 |  5 388 |      7 |     809 | **0,15** |            0 |         0 |
+| powiadomienia   |     26 |  5 333 |     13 |   1 655 |     0,31 |            1 |         2 |
+| bramki CI       |     18 |  4 989 |     21 |   3 984 | **0,80** |            0 |         0 |
+| mail / email    |     25 |  4 910 |     10 |   1 262 |     0,26 |            0 |        13 |
+| wyszukiwarka    |     22 |  3 575 |      8 |     672 |     0,19 |            3 |         0 |
+| uprawnienia     |     22 |  1 749 |      3 |     802 |     0,46 |            0 |         0 |
+| społeczność     |     15 |  1 536 |      3 |     250 |     0,16 |            0 |         1 |
+| RODO / consent  |     16 |  1 463 |      2 |     239 |     0,16 |            0 |         0 |
+| i18n rdzeń      |     11 |  1 020 |      5 |     459 |     0,45 |            0 |         0 |
 
 ### 4.1. Wnioski z tabeli
 
@@ -262,14 +262,14 @@ i eksport danych to za mało niezależnie od proporcji.
 
 ### 4.2. Dziura funkcjonalna: 161 z 241 tras nie jest wspomniana w żadnym teście
 
-| Grupa | Tras bez wzmianki w testach |
-|---|---|
-`admin.*` | **111** |
-`profile.*` | 16 |
-`club.*` | 16 |
-`tracker.*` | 4 |
-`checkout.*` | **3** |
-pozostałe | 11 |
+| Grupa        | Tras bez wzmianki w testach |
+| ------------ | --------------------------- |
+| `admin.*`    | **111**                     |
+| `profile.*`  | 16                          |
+| `club.*`     | 16                          |
+| `tracker.*`  | 4                           |
+| `checkout.*` | **3**                       |
+| pozostałe    | 11                          |
 
 Trzy trasy `checkout.*` bez wzmianki w testach są najpoważniejszą pozycją
 na tej liście — to ścieżka pieniężna. Kontekst łagodzący: warstwa **pod**
@@ -278,16 +278,16 @@ trasy, nie logiki.
 
 ### 4.3. Ścieżki pieniężne — pliki produkcyjne vs pliki testowe
 
-| Obszar | Prod | Testy | Stosunek |
-|---|---:|---:|---:|
-subscription | 140 | 47 | 0,34 |
-stripe | 88 | 29 | 0,33 |
-checkout | 90 | 22 | 0,24 |
-webhook | 82 | 15 | 0,18 |
-donation | 52 | 12 | 0,23 |
-coupon | 39 | 8 | 0,21 |
-paywall | 38 | **6** | **0,16** |
-gifting | 14 | 4 | 0,29 |
+| Obszar       | Prod | Testy | Stosunek |
+| ------------ | ---: | ----: | -------: |
+| subscription |  140 |    47 |     0,34 |
+| stripe       |   88 |    29 |     0,33 |
+| checkout     |   90 |    22 |     0,24 |
+| webhook      |   82 |    15 |     0,18 |
+| donation     |   52 |    12 |     0,23 |
+| coupon       |   39 |     8 |     0,21 |
+| paywall      |   38 | **6** | **0,16** |
+| gifting      |   14 |     4 |     0,29 |
 
 **`paywall` z 6 plikami testowymi na 38 produkcyjnych jest najsłabszym
 punktem monetyzacji.** Paywall decyduje, kto widzi treść — błąd w jedną
@@ -299,11 +299,11 @@ stronę oddaje treść płatną darmo, w drugą blokuje płacącego.
 
 Stan zmierzony po pełnym buildzie:
 
-| Miara | Wartość | Próg | Zapas |
-|---|---:|---:|---:|
-Największy chunk (gzip) | 511,3 KB | 513 | **1,7 KB** |
-PUBLIC (gzip) | 2 462,0 KB | 2 475 | **13,0 KB** |
-OVERALL (gzip) | 3 752,8 KB | 3 790 | 37,2 KB |
+| Miara                   |    Wartość |  Próg |       Zapas |
+| ----------------------- | ---------: | ----: | ----------: |
+| Największy chunk (gzip) |   511,3 KB |   513 |  **1,7 KB** |
+| PUBLIC (gzip)           | 2 462,0 KB | 2 475 | **13,0 KB** |
+| OVERALL (gzip)          | 3 752,8 KB | 3 790 |     37,2 KB |
 
 Najwięksi pojedynczy winowajcy (surowo, nie gzip):
 
@@ -324,7 +324,7 @@ w `index-HSMM7HnQ.js`. Premisa zadania jest prawdziwa.
 
 **Ale diagnoza była błędna.** Dwie pierwsze sondy (`club.role.moderator`,
 `adminClubs.`) dały zero, co przez moment sugerowało, że słownika tam nie ma —
-te ciągi to *ścieżki kluczy używane w kodzie*, a w pliku słownika istnieją
+te ciągi to _ścieżki kluczy używane w kodzie_, a w pliku słownika istnieją
 jako zagnieżdżone obiekty (`role: { moderator: … }`), więc nigdy nie
 pojawiają się dosłownie. Sonda na wartości, nie na klucze, rozstrzyga.
 
@@ -369,16 +369,16 @@ w `check-bundle-size.ts` opisuje trzy razy (08-01, 08-03, 08-12).
 
 ### 6.1. Warstwa językowa
 
-| Miara | Stan | Zmiana w tej gałęzi |
-|---|---:|---|
-Ternaria `isPl ?` | **155** w 33 plikach | 432 → 155 (−277) |
-Twarde znaczniki BCP-47 | **321** | ~−6 |
-Ręczne bliźniaki `? x_pl : x_en` | **112** | znacząco w dół |
-`defaultValue:` w wywołaniach `t()` | **1 568** | bez zmian |
-Słowniki z `ensureI18n()` | 47 / 85 | +2 |
-Słowniki tylko side-effect | **38** | — |
-Parytet PL/EN | 0 brakujących w 12 bramkowanych prefiksach | |
-Wartości identyczne PL/EN | 429 (raportowane, nie bramkowane) | −1 |
+| Miara                               |                                       Stan | Zmiana w tej gałęzi |
+| ----------------------------------- | -----------------------------------------: | ------------------- |
+| Ternaria `isPl ?`                   |                       **155** w 33 plikach | 432 → 155 (−277)    |
+| Twarde znaczniki BCP-47             |                                    **321** | ~−6                 |
+| Ręczne bliźniaki `? x_pl : x_en`    |                                    **112** | znacząco w dół      |
+| `defaultValue:` w wywołaniach `t()` |                                  **1 568** | bez zmian           |
+| Słowniki z `ensureI18n()`           |                                    47 / 85 | +2                  |
+| Słowniki tylko side-effect          |                                     **38** | —                   |
+| Parytet PL/EN                       | 0 brakujących w 12 bramkowanych prefiksach |                     |
+| Wartości identyczne PL/EN           |          429 (raportowane, nie bramkowane) | −1                  |
 
 **1 568 wywołań `defaultValue:`** to największa pozostała pozycja długu
 językowego i jest niewidoczna dla bramki parytetu: fallback wpisany w kod
@@ -396,13 +396,13 @@ Oba są adminowe, więc nie obciążają PUBLIC-a, ale obciążają chunk admina
 `tsc --noUnusedLocals` na tym HEAD, **po naprawie opisanej niżej: 156
 martwych deklaracji w 67 plikach**. Przed naprawą było 192.
 
-| Plik | Martwych |
-|---|---:|
-`admin/blocks/BlockCanvas.tsx` | **52** |
-`interests/JoinUsForm.tsx` | 8 |
-`builder/…/SpeakersEditor.tsx` | 6 |
-`routes/admin.analytics.tsx` | 4 |
-pozostałe (~63 plików) | ~86 |
+| Plik                           | Martwych |
+| ------------------------------ | -------: |
+| `admin/blocks/BlockCanvas.tsx` |   **52** |
+| `interests/JoinUsForm.tsx`     |        8 |
+| `builder/…/SpeakersEditor.tsx` |        6 |
+| `routes/admin.analytics.tsx`   |        4 |
+| pozostałe (~63 plików)         |      ~86 |
 
 **Z tego 26 dołożyła TA GAŁĄŹ** — zmierzone, nie oszacowane: ten sam
 `tsc --noUnusedLocals` na bazie gałęzi (`1ea4ccd`, worktree) daje **166**,
@@ -428,17 +428,17 @@ najpierw wyczyszczenia całości, inaczej wejdzie czerwona.
 
 ### 6.3. Typowanie
 
-| Miara | Stan | Ocena |
-|---|---:|---|
-`as any` ręcznie | **7** (w 7 plikach) | czysto |
-`as any` w `routeTree.gen.ts` | 295 | plik generowany |
-`: any` | 9 | czysto |
-`as unknown as` | 555 (350 prod / 205 testy) | do przeglądu |
-`@ts-expect-error` | 3 | czysto |
-`@ts-ignore` | **0** | czysto |
-`TODO` / `FIXME` / `HACK` | **0 / 0 / 0** | czysto |
-`@deprecated` | 1 | czysto |
-`eslint-disable` | 45 | do przeglądu |
+| Miara                         |                       Stan | Ocena           |
+| ----------------------------- | -------------------------: | --------------- |
+| `as any` ręcznie              |        **7** (w 7 plikach) | czysto          |
+| `as any` w `routeTree.gen.ts` |                        295 | plik generowany |
+| `: any`                       |                          9 | czysto          |
+| `as unknown as`               | 555 (350 prod / 205 testy) | do przeglądu    |
+| `@ts-expect-error`            |                          3 | czysto          |
+| `@ts-ignore`                  |                      **0** | czysto          |
+| `TODO` / `FIXME` / `HACK`     |              **0 / 0 / 0** | czysto          |
+| `@deprecated`                 |                          1 | czysto          |
+| `eslint-disable`              |                         45 | do przeglądu    |
 
 **350 rzutowań `as unknown as` w kodzie produkcyjnym** to jedyna pozycja
 typowania warta uwagi. Część jest nieunikniona (granica Supabase, gdzie
@@ -448,15 +448,15 @@ jak `as any`, tylko nie zapala `no-explicit-any`.
 
 ### 6.4. Dostępność — sygnały
 
-| Miara | Stan |
-|---|---:|
-`aria-label` | 1 230 |
-`aria-pressed` | 157 |
-`aria-live` | 80 |
-`role="dialog"` / `alertdialog` | 19 |
-`onClick` na `<div>` | **2** |
-`<img>` bez `alt` | **0** |
-Przyciski tylko z ikoną, bez nazwy | **0** |
+| Miara                              |  Stan |
+| ---------------------------------- | ----: |
+| `aria-label`                       | 1 230 |
+| `aria-pressed`                     |   157 |
+| `aria-live`                        |    80 |
+| `role="dialog"` / `alertdialog`    |    19 |
+| `onClick` na `<div>`               | **2** |
+| `<img>` bez `alt`                  | **0** |
+| Przyciski tylko z ikoną, bez nazwy | **0** |
 
 To dobry wynik i nie jest przypadkiem: dwie ostatnie pozycje były
 naprawiane w commitach z 12–13.08 (m.in. przełącznik podglądu maila

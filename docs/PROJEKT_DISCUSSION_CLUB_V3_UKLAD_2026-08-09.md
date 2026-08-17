@@ -29,13 +29,13 @@ produktowej (dorobek, cykl kwartalny, klasy członkostwa).
 Klub referencyjny („Bezpieczeństwo Europy Środkowo-Wschodniej", migracja `20260808220000`) ma dziś
 pięć pozycji w liście oznaczonej „Grupy". Żadna z nich nie jest tematem:
 
-| Pozycja w liście | Jaką oś NAPRAWDĘ wyraża | Czy moduł ma już lepszą reprezentację tej osi |
-| ---------------- | ----------------------- | --------------------------------------------- |
-| Debata otwarta | brak osi — to jest „wszystko pozostałe" | tak: pozycja „Wszystkie działy" |
-| Akty prawne | **kotwica** w treści platformy | tak: `club_threads.anchor_type/anchor_id` + filtr `p_anchored` |
-| Stanowiska klubu | **zamierzony wynik** wątku | tak: `club_threads.kind = 'position'` |
-| Biblioteka | **powierzchnia** (materiały) | tak: sekcja „Dokumenty" + tabela `club_documents` |
-| Kuluary | **reżim zaufania** | tak: `attribution_mode = 'chatham'` + `visibility = 'private'` |
+| Pozycja w liście | Jaką oś NAPRAWDĘ wyraża                 | Czy moduł ma już lepszą reprezentację tej osi                  |
+| ---------------- | --------------------------------------- | -------------------------------------------------------------- |
+| Debata otwarta   | brak osi — to jest „wszystko pozostałe" | tak: pozycja „Wszystkie działy"                                |
+| Akty prawne      | **kotwica** w treści platformy          | tak: `club_threads.anchor_type/anchor_id` + filtr `p_anchored` |
+| Stanowiska klubu | **zamierzony wynik** wątku              | tak: `club_threads.kind = 'position'`                          |
+| Biblioteka       | **powierzchnia** (materiały)            | tak: sekcja „Dokumenty" + tabela `club_documents`              |
+| Kuluary          | **reżim zaufania**                      | tak: `attribution_mode = 'chatham'` + `visibility = 'private'` |
 
 **Cztery z pięciu „grup" duplikują osie, które moduł już ma** — i wyrażają je gorzej, bo jako
 jednorazowy wybór z listy zamiast jako właściwość wątku. Wątek „stanowiskowy" w dziale
@@ -77,12 +77,12 @@ w UI mówiły „Grupy". Rozjazd był w samym module, nie tylko między modułem
 
 **Zasada nadrzędna: jedna oś = jedna kontrolka = jedno miejsce na ekranie.**
 
-| Oś | Pytanie użytkownika | Nośnik w danych (już istnieje) | Miejsce w układzie |
-| -- | ------------------- | ------------------------------ | ------------------ |
-| **DZIAŁ TEMATYCZNY** | „o czym?" | `club_groups` + hierarchia z konwencji slugów | lewa szyna, drzewo |
-| **TRYB PRACY** | „z jakim wynikiem?" | `club_threads.kind` (6 wartości) | chipy nad strumieniem |
-| **ETAP CYKLU** | „gdzie jesteśmy w procesie?" | `club_milestones` (+ nowe pole kwartału) | belka nad strumieniem |
-| **REŻIM** | „na jakich zasadach?" | `attribution_mode` + `visibility` działu | znacznik przy dziale i wątku |
+| Oś                   | Pytanie użytkownika          | Nośnik w danych (już istnieje)                | Miejsce w układzie           |
+| -------------------- | ---------------------------- | --------------------------------------------- | ---------------------------- |
+| **DZIAŁ TEMATYCZNY** | „o czym?"                    | `club_groups` + hierarchia z konwencji slugów | lewa szyna, drzewo           |
+| **TRYB PRACY**       | „z jakim wynikiem?"          | `club_threads.kind` (6 wartości)              | chipy nad strumieniem        |
+| **ETAP CYKLU**       | „gdzie jesteśmy w procesie?" | `club_milestones` (+ nowe pole kwartału)      | belka nad strumieniem        |
+| **REŻIM**            | „na jakich zasadach?"        | `attribution_mode` + `visibility` działu      | znacznik przy dziale i wątku |
 
 Dwa dodatkowe wymiary zostają tam, gdzie są, bo są **filtrami**, a nie osiami nawigacji:
 kotwica (`anchored`) i status (`open`/`resolved`/`dormant`).
@@ -91,13 +91,13 @@ kotwica (`anchored`) i status (`open`/`resolved`/`dormant`).
 
 Rekomendacja: **przenieść je na właściwe osie i zbudować działy tematyczne od nowa.**
 
-| Dziś | Docelowo |
-| ---- | -------- |
-| Debata otwarta | znika — to jest widok domyślny („Wszystkie działy") |
-| Akty prawne | filtr „zakotwiczone" (istnieje w RPC, brak kontrolki w UI) |
-| Stanowiska klubu | chip trybu pracy „Stanowisko" (`kind = 'position'`) |
-| Biblioteka | sekcja „Dokumenty" — już jest w szynie, dublet znika |
-| **Kuluary** | **zostaje działem** — bo naprawdę jest osobną przestrzenią o innym reżimie |
+| Dziś             | Docelowo                                                                   |
+| ---------------- | -------------------------------------------------------------------------- |
+| Debata otwarta   | znika — to jest widok domyślny („Wszystkie działy")                        |
+| Akty prawne      | filtr „zakotwiczone" (istnieje w RPC, brak kontrolki w UI)                 |
+| Stanowiska klubu | chip trybu pracy „Stanowisko" (`kind = 'position'`)                        |
+| Biblioteka       | sekcja „Dokumenty" — już jest w szynie, dublet znika                       |
+| **Kuluary**      | **zostaje działem** — bo naprawdę jest osobną przestrzenią o innym reżimie |
 
 Nowe działy tematyczne dla klubu bezpieczeństwa (wytyczne §2, poziom „domena"):
 
@@ -212,18 +212,18 @@ czyli leżą obok materiałów źródłowych, notatek i prezentacji, bez rozró�
 
 Mapowanie wytycznych na obecny słownik `CLUB_DOCUMENT_KINDS`:
 
-| Produkt z wytycznych §7 | Dziś | Propozycja |
-| ----------------------- | ---- | ---------- |
-| Briefing PRZED spotkaniem (5–10 stron) | `brief` | `brief` — bez zmian |
-| Discussion Note | — | `discussion_note` |
-| Policy Brief | `brief` (**kolizja**) | `policy_brief` |
-| Scenario Paper | — | `scenario` |
-| Strategic Memo | — | `memo` |
-| Research Agenda | — | `research_agenda` |
-| Public Insight | — | `public_insight` |
-| Internal Decision Memo | — | `decision_memo` (+ `visibility = 'moderators'`) |
-| Minutes / synteza | `minutes` | bez zmian |
-| Analiza, dane, stanowisko, akt, prezentacja | `analysis`, `dataset`, `position`, `legal`, `presentation` | bez zmian |
+| Produkt z wytycznych §7                     | Dziś                                                       | Propozycja                                      |
+| ------------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------- |
+| Briefing PRZED spotkaniem (5–10 stron)      | `brief`                                                    | `brief` — bez zmian                             |
+| Discussion Note                             | —                                                          | `discussion_note`                               |
+| Policy Brief                                | `brief` (**kolizja**)                                      | `policy_brief`                                  |
+| Scenario Paper                              | —                                                          | `scenario`                                      |
+| Strategic Memo                              | —                                                          | `memo`                                          |
+| Research Agenda                             | —                                                          | `research_agenda`                               |
+| Public Insight                              | —                                                          | `public_insight`                                |
+| Internal Decision Memo                      | —                                                          | `decision_memo` (+ `visibility = 'moderators'`) |
+| Minutes / synteza                           | `minutes`                                                  | bez zmian                                       |
+| Analiza, dane, stanowisko, akt, prezentacja | `analysis`, `dataset`, `position`, `legal`, `presentation` | bez zmian                                       |
 
 **Kolizja `brief` jest istotna.** Ta sama wartość oznacza dziś materiał, który powstaje PRZED
 spotkaniem, i produkt, który powstaje PO. To są dwa końce procesu i mieszanie ich w jednym filtrze
@@ -312,15 +312,15 @@ dokumenty, nadchodzące wpisy, otwarte etapy, rozkład na działy i rodzaje.
 
 To są metryki **ruchu**. Wytyczne §13 dokładają metryki **jakości**:
 
-| Wskaźnik z wytycznych | Da się policzyć dziś? |
-| --------------------- | --------------------- |
-| Odsetek uczestników wracających na kolejne sesje | tak — `club_event_rsvp` po osobach, brak widoku |
-| Frekwencja członków | tak — RSVP `going` vs. obecni, brak pola „obecny" |
-| Liczba ukończonych analiz | po rozdzieleniu produktów (§4) |
-| Liczba rekomendacji | wymaga nowego bytu lub konwencji na `decision_memo` |
-| Liczba współprac między członkami | częściowo — współautorstwo dokumentów |
-| Cytowania publikacji | nie — wymaga danych z zewnątrz |
-| Ocena jakości moderacji | nie — wymaga ankiety po sesji |
+| Wskaźnik z wytycznych                            | Da się policzyć dziś?                               |
+| ------------------------------------------------ | --------------------------------------------------- |
+| Odsetek uczestników wracających na kolejne sesje | tak — `club_event_rsvp` po osobach, brak widoku     |
+| Frekwencja członków                              | tak — RSVP `going` vs. obecni, brak pola „obecny"   |
+| Liczba ukończonych analiz                        | po rozdzieleniu produktów (§4)                      |
+| Liczba rekomendacji                              | wymaga nowego bytu lub konwencji na `decision_memo` |
+| Liczba współprac między członkami                | częściowo — współautorstwo dokumentów               |
+| Cytowania publikacji                             | nie — wymaga danych z zewnątrz                      |
+| Ocena jakości moderacji                          | nie — wymaga ankiety po sesji                       |
 
 Do tego **test trzech pytań** z wytycznych §13, zadawany po każdym spotkaniu (czy uczestnicy
 dowiedzieli się czegoś nowego / czy zmieniła się ich ocena problemu / czy powstała konkretna idea).
@@ -331,23 +331,23 @@ podpiąć go pod zamknięcie wydarzenia.
 
 ## 10. Mapa: wytyczne → stan modułu
 
-| § | Wymóg | Stan | Luka |
-| - | ----- | ---- | ---- |
-| 1 | Tożsamość i pozycjonowanie | opis, hasło, zasady, okładka | pozycjonowanie („czym to NIE jest") nie ma miejsca w UI |
-| 2 | Zakres tematyczny, 3 poziomy (diagnoza/interpretacja/implikacje) | katalog obszarów + `topic` na wątku | oś tematyczna niewidoczna w klubie; brak trzech poziomów |
-| 3 | Pięć kategorii członkostwa | role uprawnień | brak klasy członkostwa |
-| 4 | Zarządzanie, rada, kadencje | role + `role_expires_at` | brak rady programowej i widoku kadencji |
-| 5 | Standard spotkania (7 bloków) | `club_events` z rodzajami | brak agendy, pytania, moderatora, syntezy |
-| 6 | Zasady debaty i poufność | zasady klubu + Chatham House + zgłoszenia | poufność dwuwartościowa, nie czterowartościowa |
-| 7 | Warstwa badawcza (briefing → produkt) | dokumenty z rodzajami | kolizja `brief`, brak siedmiu typów produktów |
-| 8 | Produkty klubu | biblioteka | brak wydzielonego „Dorobku" |
-| 9 | Elitarność i dostęp | widoczność ×4, polityka wstępu ×3, progi planu | pełne pokrycie |
-| 10 | Niezależność i etyka | — | brak deklaracji konfliktu interesów i polityki finansowania |
-| 11 | Finansowanie | progi planu, płatności | brak oznaczania materiałów sponsorowanych |
-| 12 | Warstwa cyfrowa | portal, biblioteka, kalendarz, sondaże, wyszukiwarka semantyczna | brak tagowania bazy wiedzy |
-| 13 | Mierzenie jakości | metryki ruchu | brak metryk dorobku i testu trzech pytań |
-| 14 | Cykl roczny/kwartalny | harmonogram etapów | brak nagłówka cyklu i pytania przewodniego |
-| 15 | Wersja minimalna i docelowa | — | decyzja produktowa, nie techniczna |
+| §   | Wymóg                                                            | Stan                                                             | Luka                                                        |
+| --- | ---------------------------------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------- |
+| 1   | Tożsamość i pozycjonowanie                                       | opis, hasło, zasady, okładka                                     | pozycjonowanie („czym to NIE jest") nie ma miejsca w UI     |
+| 2   | Zakres tematyczny, 3 poziomy (diagnoza/interpretacja/implikacje) | katalog obszarów + `topic` na wątku                              | oś tematyczna niewidoczna w klubie; brak trzech poziomów    |
+| 3   | Pięć kategorii członkostwa                                       | role uprawnień                                                   | brak klasy członkostwa                                      |
+| 4   | Zarządzanie, rada, kadencje                                      | role + `role_expires_at`                                         | brak rady programowej i widoku kadencji                     |
+| 5   | Standard spotkania (7 bloków)                                    | `club_events` z rodzajami                                        | brak agendy, pytania, moderatora, syntezy                   |
+| 6   | Zasady debaty i poufność                                         | zasady klubu + Chatham House + zgłoszenia                        | poufność dwuwartościowa, nie czterowartościowa              |
+| 7   | Warstwa badawcza (briefing → produkt)                            | dokumenty z rodzajami                                            | kolizja `brief`, brak siedmiu typów produktów               |
+| 8   | Produkty klubu                                                   | biblioteka                                                       | brak wydzielonego „Dorobku"                                 |
+| 9   | Elitarność i dostęp                                              | widoczność ×4, polityka wstępu ×3, progi planu                   | pełne pokrycie                                              |
+| 10  | Niezależność i etyka                                             | —                                                                | brak deklaracji konfliktu interesów i polityki finansowania |
+| 11  | Finansowanie                                                     | progi planu, płatności                                           | brak oznaczania materiałów sponsorowanych                   |
+| 12  | Warstwa cyfrowa                                                  | portal, biblioteka, kalendarz, sondaże, wyszukiwarka semantyczna | brak tagowania bazy wiedzy                                  |
+| 13  | Mierzenie jakości                                                | metryki ruchu                                                    | brak metryk dorobku i testu trzech pytań                    |
+| 14  | Cykl roczny/kwartalny                                            | harmonogram etapów                                               | brak nagłówka cyklu i pytania przewodniego                  |
+| 15  | Wersja minimalna i docelowa                                      | —                                                                | decyzja produktowa, nie techniczna                          |
 
 Pełne pokrycie: **§9**. Blisko: §1, §4, §12. Największe luki: **§7, §8, §13, §14** — i wszystkie
 cztery dotyczą tego samego: **klub nie pokazuje, co wyprodukował.**
@@ -356,25 +356,25 @@ cztery dotyczą tego samego: **klub nie pokazuje, co wyprodukował.**
 
 ## 11. Etapy
 
-| Etap | Zakres | Migracja | Stan |
-| ---- | ------ | -------- | ---- |
-| **E0** | nazewnictwo: „Grupy" → „Działy tematyczne" (PL), „Groups" → „Topic sections" (EN), w hubie, panelu i katalogu elementów | nie | **wdrożone** |
-| **E1** | rozdzielenie osi: chipy trybu pracy, filtry kotwicy i nieprzeczytanych, znacznik reżimu, panel reżimu w szynie | nie | **wdrożone** |
-| **E2** | „Dorobek": rozdzielenie `brief`, siedem rodzajów produktu, zakres biblioteki, panel dorobku w prawej kolumnie | tak (A29) | **wdrożone** |
-| **E3** | cykl kwartalny + standard spotkania (agenda, pytanie przewodnie, moderator, synteza, briefing → produkt) | tak (`club_cycles`, kolumny `club_events`) | do decyzji |
-| **E4** | klasy członkostwa, metryki jakości, test trzech pytań, tagowanie bazy wiedzy, czterostopniowa poufność | tak | do decyzji |
+| Etap   | Zakres                                                                                                                  | Migracja                                   | Stan         |
+| ------ | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ | ------------ |
+| **E0** | nazewnictwo: „Grupy" → „Działy tematyczne" (PL), „Groups" → „Topic sections" (EN), w hubie, panelu i katalogu elementów | nie                                        | **wdrożone** |
+| **E1** | rozdzielenie osi: chipy trybu pracy, filtry kotwicy i nieprzeczytanych, znacznik reżimu, panel reżimu w szynie          | nie                                        | **wdrożone** |
+| **E2** | „Dorobek": rozdzielenie `brief`, siedem rodzajów produktu, zakres biblioteki, panel dorobku w prawej kolumnie           | tak (A29)                                  | **wdrożone** |
+| **E3** | cykl kwartalny + standard spotkania (agenda, pytanie przewodnie, moderator, synteza, briefing → produkt)                | tak (`club_cycles`, kolumny `club_events`) | do decyzji   |
+| **E4** | klasy członkostwa, metryki jakości, test trzech pytań, tagowanie bazy wiedzy, czterostopniowa poufność                  | tak                                        | do decyzji   |
 
 ### Co dokładnie weszło (E0–E2)
 
 **Warstwa danych — migracja `20260809000000_discussion_clubs_a29_*`:**
 
-* `club_documents.kind` rozszerzony o siedem rodzajów produktu (`discussion_note`,
+- `club_documents.kind` rozszerzony o siedem rodzajów produktu (`discussion_note`,
   `policy_brief`, `scenario`, `memo`, `research_agenda`, `public_insight`, `decision_memo`);
   `brief` znaczy od teraz wyłącznie briefing przedsesyjny;
-* `club_documents_list` przyjmuje `p_kinds text[]` — zawężenie po ZBIORZE rodzajów. Bez tego
+- `club_documents_list` przyjmuje `p_kinds text[]` — zawężenie po ZBIORZE rodzajów. Bez tego
   „Dorobek" musiałby odsiewać rodzaje po stronie klienta, a `total_count` liczy się w oknie
   PRZED limitem: licznik i paginacja mówiłyby o innym zbiorze niż lista pod nimi;
-* pięć działów klubu referencyjnego przebudowanych na cztery tematyczne
+- pięć działów klubu referencyjnego przebudowanych na cztery tematyczne
   (Architektura bezpieczeństwa → poddział Wschodnia flanka i NATO, Zdolności i przemysł obronny,
   Technologia i cyber) plus Kuluary jako reżim. Wątki przeniesione **po slugu, nie hurtem**:
   „Debata otwarta" trzymała i wątek o zdolnościach przemysłowych, i sondaż porządkowy klubu,
@@ -389,19 +389,19 @@ a nie na `group_id` — dokładnie z tego powodu robi to też `admin_club_thread
 
 **Warstwa interfejsu:**
 
-* `ClubStreamFilters` — chipy rodzaju wątku (6 wartości `club_threads.kind`) plus filtry
+- `ClubStreamFilters` — chipy rodzaju wątku (6 wartości `club_threads.kind`) plus filtry
   „tylko zakotwiczone" i „tylko nieprzeczytane". Wszystko idzie do RPC (`p_kind`, `p_anchored`,
   `p_unread_only` istnieją od A26), nie do przeglądarki;
-* włączenie zawężenia wątkowego w trybie „Wszystko" przestawia strumień na „Wątki" — widocznie,
+- włączenie zawężenia wątkowego w trybie „Wszystko" przestawia strumień na „Wątki" — widocznie,
   bo rusza się segmentowany przełącznik obok. Inaczej filtr rodzaju wyglądałby na zepsuty,
   skoro dokumenty i terminy go nie dotyczą;
-* `ClubRegimeMark` — znacznik przy dziale, który NADPISUJE regułę klubu (Chatham House albo
+- `ClubRegimeMark` — znacznik przy dziale, który NADPISUJE regułę klubu (Chatham House albo
   zawężoną widoczność). Dział dziedziczący nie dostaje nic: znacznik przy każdej pozycji
   nie znaczy nic;
-* panel „Reżim" w szynie: zdanie o atrybucji klubu plus lista działów z własnym reżimem;
-* biblioteka dostała przełącznik zakresu **Wszystko / Dorobek / Materiały**, a chipy rodzaju
+- panel „Reżim" w szynie: zdanie o atrybucji klubu plus lista działów z własnym reżimem;
+- biblioteka dostała przełącznik zakresu **Wszystko / Dorobek / Materiały**, a chipy rodzaju
   idą za zakresem — rodzaj spoza zakresu zwróciłby pustkę;
-* panel „Dorobek klubu" otwiera prawą kolumnę, „Puls" schodzi na koniec. Panel **nie znika przy
+- panel „Dorobek klubu" otwiera prawą kolumnę, „Puls" schodzi na koniec. Panel **nie znika przy
   zerze**: klub bez ani jednego produktu ma to zobaczyć, bo to jest informacja o klubie,
   a nie brak danych do ukrycia.
 

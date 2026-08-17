@@ -28,14 +28,14 @@ To nie jest replika bazy produkcyjnej. Stawiamy PostgreSQL 16, aplikujemy
 `current_tenant_id()`, atrapy magazynu, `crm_leads`), potem
 `careers-harness/harness.sql` - czyli WYLACZNIE to, czego brakuje temu modulowi:
 
-| Obiekt | Dlaczego tutaj, a nie we wspolnym harnessie |
-| ------ | ------------------------------------------- |
-| `contact_messages` | tabela, na ktorej stoi caly modul; wspolny harness jej nie potrzebuje |
-| `storage.buckets.file_size_limit` / `allowed_mime_types` | atrapa ma tylko `(id, name, public)`, a migracja ustawia limit i liste MIME - to jedyna serwerowa egzekucja publicznego uploadu |
-| granty schematow `storage` i `auth` | w Supabase zaklada je rozszerzenie magazynu i GoTrue; bez nich test polityk pada na "permission denied", czyli na ATRAPIE |
-| `tenants.is_default` | kolumna istnieje w prawdziwym schemacie (patrz `types.ts`), migracje careers wybieraja po niej najemce do backfillu |
-| `public_tenant_id()` sterowany sesja | atrapa zwraca najstarszego najemce; bez mozliwosci przestawienia tej wartosci test "anonim z hosta B nie wgra pliku do katalogu A" nie istnieje |
-| `current_tenant_id()` jako SECURITY DEFINER | tak brzmi OSTATNIA definicja w migracjach (20260626180412); atrapa ma SECURITY INVOKER, wiec pod RLS zwracala NULL, a polityka `tenant_id = NULL` nie przepuszcza NICZEGO - test tenant-scope "przechodzilby" przez odciecie wszystkiego |
+| Obiekt                                                   | Dlaczego tutaj, a nie we wspolnym harnessie                                                                                                                                                                                              |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `contact_messages`                                       | tabela, na ktorej stoi caly modul; wspolny harness jej nie potrzebuje                                                                                                                                                                    |
+| `storage.buckets.file_size_limit` / `allowed_mime_types` | atrapa ma tylko `(id, name, public)`, a migracja ustawia limit i liste MIME - to jedyna serwerowa egzekucja publicznego uploadu                                                                                                          |
+| granty schematow `storage` i `auth`                      | w Supabase zaklada je rozszerzenie magazynu i GoTrue; bez nich test polityk pada na "permission denied", czyli na ATRAPIE                                                                                                                |
+| `tenants.is_default`                                     | kolumna istnieje w prawdziwym schemacie (patrz `types.ts`), migracje careers wybieraja po niej najemce do backfillu                                                                                                                      |
+| `public_tenant_id()` sterowany sesja                     | atrapa zwraca najstarszego najemce; bez mozliwosci przestawienia tej wartosci test "anonim z hosta B nie wgra pliku do katalogu A" nie istnieje                                                                                          |
+| `current_tenant_id()` jako SECURITY DEFINER              | tak brzmi OSTATNIA definicja w migracjach (20260626180412); atrapa ma SECURITY INVOKER, wiec pod RLS zwracala NULL, a polityka `tenant_id = NULL` nie przepuszcza NICZEGO - test tenant-scope "przechodzilby" przez odciecie wszystkiego |
 
 Ostatni wiersz jest wazny: atrapa moze sprawic, ze test przechodzi z ZLEGO
 powodu. Dlatego kazda pozycja wyzej jest przepisana z oryginalu, a nie wymyslona.

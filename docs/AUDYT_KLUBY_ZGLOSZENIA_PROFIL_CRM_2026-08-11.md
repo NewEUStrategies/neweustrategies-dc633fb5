@@ -84,7 +84,7 @@ ERROR:  new row for relation "crm_leads" violates check constraint
 
 **Zawodzą OBA przypadki, nie tylko nowy lead.** To jest nieintuicyjna część:
 `ON CONFLICT DO UPDATE` nie ratuje sytuacji, bo PostgreSQL waliduje CHECK na
-wierszu *proponowanym do wstawienia*, ZANIM dojdzie do arbitrażu konfliktu.
+wierszu _proponowanym do wstawienia_, ZANIM dojdzie do arbitrażu konfliktu.
 Klauzula `DO UPDATE` nie ustawia `source_type` i wygląda bezpiecznie - ale
 nigdy nie zostaje osiągnięta.
 
@@ -105,7 +105,7 @@ jest niedziałająca w 100% przypadków**. Nie ma tu przypadku brzegowego.
 **Poprawka.** Dwie drogi, obie jednolinijkowe:
 
 1. rozszerzyć ograniczenie o `'club_application'` (nowa migracja z `DROP
-   CONSTRAINT` + `ADD CONSTRAINT`, bo `ADD COLUMN IF NOT EXISTS` z 20260722 już
+CONSTRAINT` + `ADD CONSTRAINT`, bo `ADD COLUMN IF NOT EXISTS` z 20260722 już
    nie zadziała) - właściwe, jeśli klubowy lead ma być osobnym segmentem CRM;
 2. użyć wartości z dozwolonego zbioru - jeśli segmentacja ma iść po
    `club_applied_at IS NOT NULL` (kolumna już istnieje i indeks też),
@@ -131,13 +131,13 @@ generowanych. Nie ma triggera, nie ma drugiego RPC, nie ma szwu.
 
 Wobec tego status `accepted` to **etykieta bez konsekwencji**:
 
-| Co powinno się stać | Stan |
-|---|---|
-| wiersz w `club_members` (kandydat wchodzi do klubu) | nie powstaje |
-| zaproszenie zamiast członkostwa (`club_invite`, `club_invite_by_email`) | nie jest wysyłane |
-| powiadomienie kandydata (`club_notify`, kanał `club` istnieje) | nie powstaje |
-| e-mail z decyzją | nie istnieje |
-| uzupełnienie profilu danymi ze zgłoszenia | nie następuje (rozdz. 3) |
+| Co powinno się stać                                                     | Stan                     |
+| ----------------------------------------------------------------------- | ------------------------ |
+| wiersz w `club_members` (kandydat wchodzi do klubu)                     | nie powstaje             |
+| zaproszenie zamiast członkostwa (`club_invite`, `club_invite_by_email`) | nie jest wysyłane        |
+| powiadomienie kandydata (`club_notify`, kanał `club` istnieje)          | nie powstaje             |
+| e-mail z decyzją                                                        | nie istnieje             |
+| uzupełnienie profilu danymi ze zgłoszenia                               | nie następuje (rozdz. 3) |
 
 Moduł ma wszystkie potrzebne klocki - `club_invite`, `club_invite_by_email`,
 `club_notify`, `club_members` z `invite_source` - i żaden nie jest podłączony.
@@ -149,8 +149,8 @@ i wypełnił 20 pól, nie zobaczy żadnej zmiany.
 
 Migracja nadaje `GRANT SELECT … TO authenticated` i politykę
 `club_applications_select_own`, a komentarz w `applyApi.ts:5-6` uzasadnia to
-wprost: *„RLS daje mu wyłącznie odczyt własnych zgłoszeń, żeby formularz mógł
-pokazać historię"*.
+wprost: _„RLS daje mu wyłącznie odczyt własnych zgłoszeń, żeby formularz mógł
+pokazać historię"_.
 
 Nic tej historii nie czyta. W `src/lib/clubs/` nie ma funkcji czytającej
 `club_applications` (są `fetchMyClubMemberships`, `fetchMyClubInvitations`,
@@ -182,16 +182,16 @@ Formularz startuje z `EMPTY_CLUB_APPLY` (`club.apply.tsx:102-105`) i nie czyta
 profilu ani `user.email`. Kandydat jest zalogowany, ma opłacone PRO i mimo to
 przepisuje ręcznie dane, które platforma już o nim ma:
 
-| Pole formularza | Kolumna w `profiles` | Prefill |
-|---|---|---|
-| `firstName` | `first_name` | nie |
-| `lastName` | `last_name` | nie |
-| `email` | `email` / `contact_email` | nie |
-| `phone` | `phone` | nie |
-| `company` | `current_company` | nie |
-| `jobPosition` | `job_title` | nie |
-| `country` | `location` | nie |
-| `linkedinUrl` | `linkedin_url` | nie |
+| Pole formularza | Kolumna w `profiles`      | Prefill |
+| --------------- | ------------------------- | ------- |
+| `firstName`     | `first_name`              | nie     |
+| `lastName`      | `last_name`               | nie     |
+| `email`         | `email` / `contact_email` | nie     |
+| `phone`         | `phone`                   | nie     |
+| `company`       | `current_company`         | nie     |
+| `jobPosition`   | `job_title`               | nie     |
+| `country`       | `location`                | nie     |
+| `linkedinUrl`   | `linkedin_url`            | nie     |
 
 Osiem z czternastu pól obowiązkowych. Droga odczytu jest gotowa: RPC
 `get_own_profile()` (SECURITY DEFINER, zakres `auth.uid()`, nadany dla
@@ -246,8 +246,8 @@ danych.
 
 Formularz zbiera `marketingConsent`. Trafia on do `club_applications` i (próbuje
 trafić) do `crm_leads.marketing_consent`. Nie trafia do `user_consents` -
-rejestru, który `JoinUsForm` opisuje jako *„jedno źródło prawdy widoczne
-w profilu użytkownika"* i zasila przez `setMyConsent`. Użytkownik, który wyraził
+rejestru, który `JoinUsForm` opisuje jako _„jedno źródło prawdy widoczne
+w profilu użytkownika"_ i zasila przez `setMyConsent`. Użytkownik, który wyraził
 zgodę w zgłoszeniu klubowym, nie zobaczy jej w profilu i nie ma jej gdzie
 odwołać. Patrz też 4.2 - na istniejącym leadzie ta zgoda nie zapisuje się nawet
 w CRM.
@@ -325,7 +325,7 @@ istnieją wyłącznie w skrzynce klubowej.
 - **Scoring JEST przeliczany.** `trg_score_on_lead_change` (ostatnia definicja
   `20260719083815…sql:655-660`) odpala `compute_crm_lead_score(NEW.id)` po
   `INSERT` oraz po `UPDATE OF email, email_norm, phone, company, position,
-  linkedin_url, marketing_consent`. Klubowy `DO UPDATE` rusza `phone`, `company`
+linkedin_url, marketing_consent`. Klubowy `DO UPDATE` rusza `phone`, `company`
   i `position`, więc trafia w listę; ścieżka `INSERT` odpala się bezwarunkowo.
   Jawne wołanie `recompute_crm_lead_score` jest zbędne.
 
@@ -374,8 +374,8 @@ subskrypcję), oznacza to:
 ### 5.1 Bramka zgłoszenia ignoruje własny próg klubu (ŚREDNIE)
 
 `club_capabilities` jest w tym module opisane jako **jedyne** źródło prawdy
-o dostępie: *„Każdy RPC modułu woła tę funkcję - żadnej bramki nie pisze się
-inline"* (`…a1_structure.sql:601`). `club_apply_submit` pisze bramkę inline
+o dostępie: _„Każdy RPC modułu woła tę funkcję - żadnej bramki nie pisze się
+inline"_ (`…a1_structure.sql:601`). `club_apply_submit` pisze bramkę inline
 (`…:96`) i porównuje wyłącznie z globalnym literałem `20`, nie zaglądając
 w `clubs.min_tier_rank` wybranego klubu.
 
@@ -499,7 +499,7 @@ To zamyka wyjaśnienie znaleziska 1.1: `runtime_test.sql` (2039 linii asercji)
 nie zawiera ani jednej asercji dla `club_apply_submit`, a nawet gdyby zawierał,
 nie miałby gdzie jej wykonać. Testy jednostkowe pokrywają wyłącznie czystą
 walidację i kopię SEO (`clubApplyAndSpecSeo.test.ts`) - ani jednej linii ścieżki
-serwerowej. Bramka `check:db-contract` sprawdza *istnienie* obiektów, nie
+serwerowej. Bramka `check:db-contract` sprawdza _istnienie_ obiektów, nie
 zgodność wartości z ograniczeniami, więc `source_type` był poza jej zasięgiem.
 
 **I tu jest głębsza część problemu: `pg-harness` nie jest w ogóle wpięty w CI.**
@@ -515,7 +515,7 @@ lukę otwartą:
 1. stub `crm_leads` w `harness.sql` **wraz z ograniczeniem
    `crm_leads_source_type_check`** - bez samego ograniczenia asercja przeszłaby
    na fikcji, czego README harnessu wprost zakazuje
-   (*„inaczej test przechodziłby na fikcji"*);
+   (_„inaczej test przechodziłby na fikcji"_);
 2. asercja w `runtime_test.sql` wołająca `club_apply_submit` na komplecie
    danych i sprawdzająca, że wiersz faktycznie powstał w obu tabelach;
 3. **wpięcie `check:pg-harness` do `ci.yml`** - inaczej 1 i 2 istnieją, ale nic
@@ -558,26 +558,26 @@ by nie wracać do tego przy przeglądzie.
 
 ## 9. Priorytety
 
-| # | Znalezisko | Waga | Koszt |
-|---|---|---|---|
-| 1.1 | `source_type` łamie CHECK - zgłoszenia nie działają wcale | **krytyczne** | 1 migracja |
-| 8.1 | Harness czerwony, bez stubu `crm_leads`, bez asercji dla nowego RPC i **niewpięty w CI** | wysokie | stub + asercja + job |
-| 2.1 | „Zaakceptowano" bez członkostwa i bez powiadomienia | wysokie | RPC + szew |
-| 3.2 | Brak back-fillu profilu (wzorzec gotowy) | wysokie | ~7 linii SQL |
-| 4.1 | Ominięcie `crm_upsert_from_form` - 4 utracone efekty | wysokie | przepisanie zapisu (2 kroki) |
-| 3.1 | Brak prefillu z profilu (8 z 14 pól) - **decyzja produktowa** | wysokie (UX) | server-fn + `useQuery` |
-| 8.2 | Brak deduplikacji zgłoszeń | średnie | indeks + `IF EXISTS` |
-| 5.1 | Bramka ignoruje `min_tier_rank` klubu | średnie | filtr + `club_capabilities` |
-| 4.2 | Zgoda i `source_type` nie aktualizują się | średnie | krok 2 poprawki z 4.1 |
-| 6.1 | `club_applications` poza eksportem RODO | średnie | 1 zbiór w RPC |
-| 6.2 | Brak anonimizacji przy usunięciu konta | średnie | funkcja |
-| 3.3 | Zgoda marketingowa poza `user_consents` | średnie | szew do rejestru |
-| 2.2 | Kandydat nie widzi własnego zgłoszenia | średnie | `fetchMy…` + sekcja |
-| 5.2 | Próg `20` w trzech kopiach bez bramki | średnie | test parytetu |
-| 5.3 | `planTierFromRank` obniża progi ≥ 30 przy zapisie | niskie | warunek w `onChange` |
-| 7.1 | Skrzynka admina bez `name_en` | niskie | 1 kolumna w RPC |
-| 7.2 | Meta `/club/apply` tylko po polsku | niskie | `head()` z i18n |
-| 8.3 | Niezmapowany błąd rzutowania `years_experience` | niskie | walidacja w RPC |
+| #   | Znalezisko                                                                               | Waga          | Koszt                        |
+| --- | ---------------------------------------------------------------------------------------- | ------------- | ---------------------------- |
+| 1.1 | `source_type` łamie CHECK - zgłoszenia nie działają wcale                                | **krytyczne** | 1 migracja                   |
+| 8.1 | Harness czerwony, bez stubu `crm_leads`, bez asercji dla nowego RPC i **niewpięty w CI** | wysokie       | stub + asercja + job         |
+| 2.1 | „Zaakceptowano" bez członkostwa i bez powiadomienia                                      | wysokie       | RPC + szew                   |
+| 3.2 | Brak back-fillu profilu (wzorzec gotowy)                                                 | wysokie       | ~7 linii SQL                 |
+| 4.1 | Ominięcie `crm_upsert_from_form` - 4 utracone efekty                                     | wysokie       | przepisanie zapisu (2 kroki) |
+| 3.1 | Brak prefillu z profilu (8 z 14 pól) - **decyzja produktowa**                            | wysokie (UX)  | server-fn + `useQuery`       |
+| 8.2 | Brak deduplikacji zgłoszeń                                                               | średnie       | indeks + `IF EXISTS`         |
+| 5.1 | Bramka ignoruje `min_tier_rank` klubu                                                    | średnie       | filtr + `club_capabilities`  |
+| 4.2 | Zgoda i `source_type` nie aktualizują się                                                | średnie       | krok 2 poprawki z 4.1        |
+| 6.1 | `club_applications` poza eksportem RODO                                                  | średnie       | 1 zbiór w RPC                |
+| 6.2 | Brak anonimizacji przy usunięciu konta                                                   | średnie       | funkcja                      |
+| 3.3 | Zgoda marketingowa poza `user_consents`                                                  | średnie       | szew do rejestru             |
+| 2.2 | Kandydat nie widzi własnego zgłoszenia                                                   | średnie       | `fetchMy…` + sekcja          |
+| 5.2 | Próg `20` w trzech kopiach bez bramki                                                    | średnie       | test parytetu                |
+| 5.3 | `planTierFromRank` obniża progi ≥ 30 przy zapisie                                        | niskie        | warunek w `onChange`         |
+| 7.1 | Skrzynka admina bez `name_en`                                                            | niskie        | 1 kolumna w RPC              |
+| 7.2 | Meta `/club/apply` tylko po polsku                                                       | niskie        | `head()` z i18n              |
+| 8.3 | Niezmapowany błąd rzutowania `years_experience`                                          | niskie        | walidacja w RPC              |
 
 Kolejność wykonania: **1.1 przed wszystkim** (bez tego reszta ścieżki nie ma
 jak zadziałać), potem 8.1 (żeby 1.1 nie mogło się powtórzyć), potem blok

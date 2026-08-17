@@ -6,11 +6,11 @@ oraz **korekta 1** z tego samego audytu (statyczny import modala kasy).
 
 Audyt postawił trzy zarzuty i trzy rekomendacje:
 
-| Zarzut audytu                                                        | Odpowiedź w tym wdrożeniu                                       |
-| -------------------------------------------------------------------- | --------------------------------------------------------------- |
-| Podstawa prawno-podatkowa zmiany modelu **nieudokumentowana w repo**  | §1 tego dokumentu + odsyłacze z kodu (`donations.server.ts` i in.) |
-| `DonationForm` importuje dialog kasy statycznie (korekta 1)           | §3 - `LazyEmbeddedCheckoutDialog` w 4 miejscach + leniwe SDK      |
-| Brak testu ścieżki cyklicznej                                         | §5 - 17 testów księgi darowizn + 8 testów formularza              |
+| Zarzut audytu                                                        | Odpowiedź w tym wdrożeniu                                          |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Podstawa prawno-podatkowa zmiany modelu **nieudokumentowana w repo** | §1 tego dokumentu + odsyłacze z kodu (`donations.server.ts` i in.) |
+| `DonationForm` importuje dialog kasy statycznie (korekta 1)          | §3 - `LazyEmbeddedCheckoutDialog` w 4 miejscach + leniwe SDK       |
+| Brak testu ścieżki cyklicznej                                        | §5 - 17 testów księgi darowizn + 8 testów formularza               |
 
 Przy okazji zamknięte zostały trzy defekty wykryte podczas prac (§2) i rozjazd
 międzymodułowy, przez który trzy powierzchnie serwisu prowadziły darczyńcę
@@ -67,7 +67,7 @@ modułu:
 Opodatkowaniu VAT podlega odpłatna dostawa towarów i odpłatne świadczenie usług
 (art. 5 ust. 1 pkt 1 ustawy o VAT; art. 2 ust. 1 lit. c dyrektywy 2006/112/WE).
 Warunkiem jest **bezpośredni związek** między świadczeniem a wynagrodzeniem
-(utrwalona linia TSUE, m.in. C-16/93 *Tolsma*). Darowizna bez świadczenia
+(utrwalona linia TSUE, m.in. C-16/93 _Tolsma_). Darowizna bez świadczenia
 wzajemnego tego związku nie ma, więc pozostaje **poza zakresem VAT**.
 
 Odbicie w kodzie (`src/lib/billing/donations.server.ts`):
@@ -114,14 +114,14 @@ docelowo warto dać samoobsługę w profilu darczyńcy.
 
 ### 1.6 Dane osobowe (RODO)
 
-| Dana                                | Podstawa / decyzja techniczna                                                         |
-| ----------------------------------- | -------------------------------------------------------------------------------------- |
-| `donor_email`                       | Podawany dobrowolnie, na potwierdzenie wpłaty. Normalizowany (lowercase), limit 320 zn. |
-| `message`                           | Dobrowolny, limit 500 zn.; **nigdy** nie trafia do publicznych statystyk                 |
-| `user_id`                           | Tylko dla zalogowanego darczyńcy (rejestr w profilu + status wspierającego)              |
-| Adres IP                            | **Nie jest zapisywany.** Limit prób pracuje na solonym skrócie SHA-256 (§2.4)            |
-| Publiczne statystyki                | Wyłącznie sumy i kwoty ostatnich pozycji - zero PII (`getDonationsPublicStats`)          |
-| Usunięcie konta                     | `donations.user_id` ma `ON DELETE SET NULL` - dowód wpłaty zostaje, tożsamość znika      |
+| Dana                 | Podstawa / decyzja techniczna                                                           |
+| -------------------- | --------------------------------------------------------------------------------------- |
+| `donor_email`        | Podawany dobrowolnie, na potwierdzenie wpłaty. Normalizowany (lowercase), limit 320 zn. |
+| `message`            | Dobrowolny, limit 500 zn.; **nigdy** nie trafia do publicznych statystyk                |
+| `user_id`            | Tylko dla zalogowanego darczyńcy (rejestr w profilu + status wspierającego)             |
+| Adres IP             | **Nie jest zapisywany.** Limit prób pracuje na solonym skrócie SHA-256 (§2.4)           |
+| Publiczne statystyki | Wyłącznie sumy i kwoty ostatnich pozycji - zero PII (`getDonationsPublicStats`)         |
+| Usunięcie konta      | `donations.user_id` ma `ON DELETE SET NULL` - dowód wpłaty zostaje, tożsamość znika     |
 
 ### 1.7 Przeciwdziałanie nadużyciom
 
@@ -219,11 +219,11 @@ zewnętrznej **wpisany w kodzie** - ten sam użytkownik trafiał raz tu, raz tam
 
 `src/lib/billing/donationTarget.ts` (czysty, client-safe) rozstrzyga to raz:
 
-| Konfiguracja                  | Cel                                          |
-| ----------------------------- | -------------------------------------------- |
-| `enabled: false`              | brak celu - powierzchnia nie zaprasza do wpłaty |
-| `provider: "stripe"`          | `/donate` - nawigacja wewnętrzna              |
-| `provider: "external"`        | adres z ustawień (pusty → stała awaryjna), nowa karta z `rel="noopener noreferrer"` |
+| Konfiguracja           | Cel                                                                                 |
+| ---------------------- | ----------------------------------------------------------------------------------- |
+| `enabled: false`       | brak celu - powierzchnia nie zaprasza do wpłaty                                     |
+| `provider: "stripe"`   | `/donate` - nawigacja wewnętrzna                                                    |
+| `provider: "external"` | adres z ustawień (pusty → stała awaryjna), nowa karta z `rel="noopener noreferrer"` |
 
 Konsumenci: `DonationForm`, `DonationCta` (widget CMS, 6 wariantów), karta
 wpłaty na `/support`. Konfigurację czyta wspólny `donationsConfigQueryOptions`
@@ -254,14 +254,14 @@ statystyk, żeby administrator widział skutek kliknięcia od razu.
 
 ## 5. Testy
 
-| Plik                                                        | Co pokrywa                                                                                 |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `billing/__tests__/donationsLedger.server.test.ts` (17)      | Miniaturowa tabela `donations` z prawdziwymi filtrami i unikatami: otwarcie kasy (cykliczność, konto, kasowanie osieroconego wiersza, limit), księgowanie jednorazowe (data zapłaty, ponowienie, ochrona zwrotu, brak identyfikatorów), **ścieżka cykliczna** (pierwsza wpłata, odnowienie, duplikat faktury, kotwica po subskrypcji, fallback kwoty, wyścig webhooków), stan subskrypcji |
-| `billing/__tests__/donationTarget.test.ts` (4)               | Rozstrzyganie celu dla wszystkich trybów konfiguracji                                        |
-| `donations/__tests__/DonationForm.test.tsx` (8)              | Wsparcie miesięczne end-to-end w UI, informacja o cykliczności, granice kwoty, błąd serwera, degradacja trybów |
-| `donations/__tests__/DonationCta.test.tsx` (4)               | CTA widgetu: link wewnętrzny, nasza kasa, zbiórka zewnętrzna, moduł wyłączony                 |
-| `checkout/__tests__/LazyEmbeddedCheckoutDialog.test.tsx` (1) | Dowód leniwości: licznik importów modułu kasy - 0 przed sesją, 1 po niej                      |
-| `billing/__tests__/donationRecurring.test.ts` (3, istniejący)| Rozpoznanie darowizny w dyspozytorze webhooka (bez zmian)                                     |
+| Plik                                                          | Co pokrywa                                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `billing/__tests__/donationsLedger.server.test.ts` (17)       | Miniaturowa tabela `donations` z prawdziwymi filtrami i unikatami: otwarcie kasy (cykliczność, konto, kasowanie osieroconego wiersza, limit), księgowanie jednorazowe (data zapłaty, ponowienie, ochrona zwrotu, brak identyfikatorów), **ścieżka cykliczna** (pierwsza wpłata, odnowienie, duplikat faktury, kotwica po subskrypcji, fallback kwoty, wyścig webhooków), stan subskrypcji |
+| `billing/__tests__/donationTarget.test.ts` (4)                | Rozstrzyganie celu dla wszystkich trybów konfiguracji                                                                                                                                                                                                                                                                                                                                     |
+| `donations/__tests__/DonationForm.test.tsx` (8)               | Wsparcie miesięczne end-to-end w UI, informacja o cykliczności, granice kwoty, błąd serwera, degradacja trybów                                                                                                                                                                                                                                                                            |
+| `donations/__tests__/DonationCta.test.tsx` (4)                | CTA widgetu: link wewnętrzny, nasza kasa, zbiórka zewnętrzna, moduł wyłączony                                                                                                                                                                                                                                                                                                             |
+| `checkout/__tests__/LazyEmbeddedCheckoutDialog.test.tsx` (1)  | Dowód leniwości: licznik importów modułu kasy - 0 przed sesją, 1 po niej                                                                                                                                                                                                                                                                                                                  |
+| `billing/__tests__/donationRecurring.test.ts` (3, istniejący) | Rozpoznanie darowizny w dyspozytorze webhooka (bez zmian)                                                                                                                                                                                                                                                                                                                                 |
 
 Wynik lokalny: `vitest run` - 6242 testy zielone; jedyna czerwona pozycja
 (`authzSnapshotParity`) jest **wcześniejsza niż to wdrożenie** i dotyczy

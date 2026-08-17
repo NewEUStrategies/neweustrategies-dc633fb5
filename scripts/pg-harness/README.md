@@ -27,12 +27,12 @@ z ORYGINALNEJ migracji, bo inaczej test przechodziłby na fikcji.
 
 Czego brakuje i co to znaczy:
 
-| Brak | Skutek |
-| ---- | ------ |
-| `pgvector` | funkcje semantyczne trzeba uruchomić z atrapą typu (`--vector-stub`); sprawdzamy składnię i widoczność, nie jakość wyszukiwania |
-| `pg_cron` | harmonogram wołamy ręcznie, nie sprawdzamy planowania |
-| `pgtap` | asercje są gołym SQL-em, nie planem TAP |
-| konfiguracja `polish` | **nie istnieje też w standardowym PostgreSQL 16** - i to jest ustalenie, nie ograniczenie harnessu |
+| Brak                  | Skutek                                                                                                                          |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `pgvector`            | funkcje semantyczne trzeba uruchomić z atrapą typu (`--vector-stub`); sprawdzamy składnię i widoczność, nie jakość wyszukiwania |
+| `pg_cron`             | harmonogram wołamy ręcznie, nie sprawdzamy planowania                                                                           |
+| `pgtap`               | asercje są gołym SQL-em, nie planem TAP                                                                                         |
+| konfiguracja `polish` | **nie istnieje też w standardowym PostgreSQL 16** - i to jest ustalenie, nie ograniczenie harnessu                              |
 
 ## Użycie
 

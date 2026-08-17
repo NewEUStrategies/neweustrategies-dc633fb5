@@ -31,10 +31,10 @@ W `src/routes/quiz.tsx` tło jest renderowane jako absolutnie pozycjonowany div 
 
 Przygotuj **dwa główne warianty** + opcjonalnie `reduced-motion`:
 
-| Wariant | Nazwa pliku bazowa | Kiedy używany |
-|--------|---------------------|---------------|
-| Light | `quiz-bg-light` | `prefers-color-scheme: light` oraz `.light` |
-| Dark | `quiz-bg-dark` | `prefers-color-scheme: dark` oraz `.dark` |
+| Wariant                      | Nazwa pliku bazowa                            | Kiedy używany                                                      |
+| ---------------------------- | --------------------------------------------- | ------------------------------------------------------------------ |
+| Light                        | `quiz-bg-light`                               | `prefers-color-scheme: light` oraz `.light`                        |
+| Dark                         | `quiz-bg-dark`                                | `prefers-color-scheme: dark` oraz `.dark`                          |
 | Reduced motion (opcjonalnie) | `quiz-bg-light-subtle`, `quiz-bg-dark-subtle` | `prefers-reduced-motion: reduce` — mniej detali, mniejszy kontrast |
 
 ---
@@ -43,12 +43,12 @@ Przygotuj **dwa główne warianty** + opcjonalnie `reduced-motion`:
 
 ### Rekomendowane canvasy (bazowe @1x)
 
-| Breakpoint | Szerokość | Wysokość min | Uwagi |
-|-----------|-----------|--------------|-------|
-| Mobile | 640 px | 1200 px | Wąski, wysoki obraz — focal point na dole |
-| Tablet | 1024 px | 1400 px | Więcej przestrzeni bocznej |
-| Desktop | 1920 px | 1600 px | Główny wariant |
-| Wide | 2560 px | 1800 px | Dla ekranów 2K/4K |
+| Breakpoint | Szerokość | Wysokość min | Uwagi                                     |
+| ---------- | --------- | ------------ | ----------------------------------------- |
+| Mobile     | 640 px    | 1200 px      | Wąski, wysoki obraz — focal point na dole |
+| Tablet     | 1024 px   | 1400 px      | Więcej przestrzeni bocznej                |
+| Desktop    | 1920 px   | 1600 px      | Główny wariant                            |
+| Wide       | 2560 px   | 1800 px      | Dla ekranów 2K/4K                         |
 
 ### Eksportuj w dwóch gęstościach
 
@@ -71,12 +71,12 @@ quiz-bg-dark-desktop-1920x1600.webp
 
 ## 4. Formaty plików
 
-| Format | Kiedy | Uwagi |
-|--------|-------|-------|
-| **WebP** | Preferowany | Najlepszy stosunek jakości do rozmiaru, wsparcie > 95% |
-| **AVIF** | Opcjonalnie | Jeszcze mniejszy plik; można dodać jako pierwszy `<source>` |
-| **PNG** | Fallback | Tylko jeśli obraz zawiera przezroczystość. Dla `/quiz` lepszy jest **JPG** lub WebP bez alpha |
-| **JPG** | Fallback | Dla starszych przeglądarek |
+| Format   | Kiedy       | Uwagi                                                                                         |
+| -------- | ----------- | --------------------------------------------------------------------------------------------- |
+| **WebP** | Preferowany | Najlepszy stosunek jakości do rozmiaru, wsparcie > 95%                                        |
+| **AVIF** | Opcjonalnie | Jeszcze mniejszy plik; można dodać jako pierwszy `<source>`                                   |
+| **PNG**  | Fallback    | Tylko jeśli obraz zawiera przezroczystość. Dla `/quiz` lepszy jest **JPG** lub WebP bez alpha |
+| **JPG**  | Fallback    | Dla starszych przeglądarek                                                                    |
 
 > **Nie używaj przezroczystości** w tle — overlay gradientowy i tak zmiękcza krawędzie.
 
@@ -231,7 +231,7 @@ export function QuizBackground() {
         className={cn(
           "h-full w-full object-cover object-bottom",
           "[.dark_&]:hidden",
-          "dark:hidden"
+          "dark:hidden",
         )}
         aria-hidden="true"
         loading="eager"
@@ -242,7 +242,7 @@ export function QuizBackground() {
         alt=""
         className={cn(
           "hidden h-full w-full object-cover object-bottom",
-          "dark:block [.dark_&]:block"
+          "dark:block [.dark_&]:block",
         )}
         aria-hidden="true"
         loading="eager"

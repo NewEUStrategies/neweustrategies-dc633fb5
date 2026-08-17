@@ -12,10 +12,10 @@ Data: 2026-08-06 · Zakres: cztery findingi audytu (izolacja tenanta, RODO, dor�
 (20260723092200) rozstrzygały status **globalnie**, bez ani jednego predykatu na
 `tenant_id`:
 
-| funkcja | źródła statusu | predykat tenanta |
-| --- | --- | --- |
-| `is_expert_user` | `author_profiles`, `event_speakers`, `podcast_episode_people`, `user_roles` (admin/editor/author) | **brak** |
-| `is_vip_user` | `membership_grants`, `user_subscriptions` + `access_plans` | **brak** |
+| funkcja          | źródła statusu                                                                                    | predykat tenanta |
+| ---------------- | ------------------------------------------------------------------------------------------------- | ---------------- |
+| `is_expert_user` | `author_profiles`, `event_speakers`, `podcast_episode_people`, `user_roles` (admin/editor/author) | **brak**         |
+| `is_vip_user`    | `membership_grants`, `user_subscriptions` + `access_plans`                                        | **brak**         |
 
 Obie funkcje siedzą w **każdej** bramce tiera czatu jako obejście:
 
@@ -38,7 +38,7 @@ izolacja obszarów roboczych ma zabraniać.
    Dotyczy `is_expert_user`, `is_vip_user`, `is_gated_recipient`.
 2. **Warianty jednoargumentowe** zostają (są w wielu ciałach), ale delegują do
    (1) z rozstrzygniętym tenantem: `COALESCE(current_tenant_id(), tenant domowy
-   PODMIOTU)`. Pierwszeństwo ma obszar **wywołania**; fallback działa tam, gdzie
+PODMIOTU)`. Pierwszeństwo ma obszar **wywołania**; fallback działa tam, gdzie
    nie ma kontekstu HTTP (trigger, cron, `service_role`). Nigdy „gdziekolwiek".
 3. **Konsumenci przekazują tenanta jawnie** - `get_or_create_direct_conversation`,
    `create_group_conversation`, `my_expert_request_quota`, `send_expert_request`.
@@ -168,10 +168,10 @@ brak powiadomienia jest gorszy niż brak powiadomienia **plus** utrata zapytania
 
 ## 4. Pokrycie modułu 15,4% - `src/lib/network` i `src/components/profile` na 0%
 
-| powierzchnia | przed | po |
-| --- | --- | --- |
-| `src/lib/network/**` | 0% | **89,7% instrukcji · 70,8% gałęzi · 100% funkcji/linii** |
-| `src/components/profile/**` | 0% | **26,2% instrukcji · 27,3% gałęzi · 27,1% funkcji** |
+| powierzchnia                | przed | po                                                       |
+| --------------------------- | ----- | -------------------------------------------------------- |
+| `src/lib/network/**`        | 0%    | **89,7% instrukcji · 70,8% gałęzi · 100% funkcji/linii** |
+| `src/components/profile/**` | 0%    | **26,2% instrukcji · 27,3% gałęzi · 27,1% funkcji**      |
 
 Nowe pliki testowe (11 plików, 194 testy):
 

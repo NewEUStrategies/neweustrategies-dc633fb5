@@ -32,6 +32,13 @@ src/integrations/supabase/types.ts
 # przebiegu narzędzia, nie kod źródłowy. Zacommitowane jako materiał dowodowy
 # pomiaru, przepisywane przy każdym uruchomieniu.
 .lighthouseci
+# Audyt z 05.08 cytuje w bloku kodu DOSŁOWNY bajt NUL - to materiał dowodowy
+# znaleziska (separator wpisany bajtowo na offsecie 4440), a nie zapis `<0x00>`.
+# Prettier nie przepuszcza NUL przez parser i podmienia go na U+FFFD, czyli
+# kasuje dokładnie tę jedną rzecz, dla której ten fragment istnieje. Dlatego
+# plik zostaje poza formatowaniem - jak pozostałe pliki, których treść musi
+# przetrwać bajt w bajt.
+docs/AUDYT_BRUTALNY_REWIZJA_ZALOZEN_2026-08-05.md
 # Raporty bramek: `reports/*` jest w .gitignore poza dwoma plikami odniesienia,
 # które generują skrypty CI (`check:bundle`, `check:i18n-parity`). Formatowanie
 # ich rozjechałoby porównanie z artefaktem świeżo wyprodukowanym w przebiegu.

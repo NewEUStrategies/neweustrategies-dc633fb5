@@ -42,11 +42,11 @@ wydania — i obie zostały złapane, zanim trafiły do tabeli.
 Pierwsza wersja mojego parsera migracji czyściła komentarze wzorcem
 `/\*.*?\*/` (non-greedy, `re.S`). Efekt zmierzony:
 
-| Wejście | Rozmiar | `CREATE TABLE` | `CREATE FUNCTION` | `CREATE POLICY` |
-|---|---:|---:|---:|---:|
-surowe migracje | 6 038 997 B | 395 | 1 946 | 1 150 |
-po regexowym czyszczeniu | 2 142 233 B | **202** | **662** | **666** |
-po leksera respektującym literały | 5 159 537 B | **389** | **1 936** | **1 150** |
+| Wejście                           |     Rozmiar | `CREATE TABLE` | `CREATE FUNCTION` | `CREATE POLICY` |
+| --------------------------------- | ----------: | -------------: | ----------------: | --------------: |
+| surowe migracje                   | 6 038 997 B |            395 |             1 946 |           1 150 |
+| po regexowym czyszczeniu          | 2 142 233 B |        **202** |           **662** |         **666** |
+| po leksera respektującym literały | 5 159 537 B |        **389** |         **1 936** |       **1 150** |
 
 Przyczyna: w migracjach stoi **22 razy `/*` i tylko 18 razy `*/`** — sekwencje te
 siedzą w literałach (wzorce regex, URL-e). Non-greedy dopasowanie łączyło `/*` z
@@ -84,16 +84,16 @@ Mój parser liczy **stan końcowy** (instrukcje odtwarzane w kolejności migracj
 liczyło inaczej. Żeby następne wydanie nie zgłosiło „regresji", która jest
 artefaktem parsera, poniżej obie kolumny **z mojego skryptu na obu HEAD-ach**:
 
-| Miara | 14.08 (tamten dokument) | mój skrypt na `0fd4108` | mój skrypt na `c6306e7` |
-|---|---:|---:|---:|
-Tabele | 244 | 251 | **250** |
-Polityki RLS | 556 | 543 | **543** |
-Triggery | 356 | 342 | **343** |
-Indeksy | 535 | 529 | **532** |
-Widoki | 16 | 13 | **14** |
-Funkcje SQL | 790 | 793 | **797** |
-`SECURITY DEFINER` | 709 | 687 | **689** |
-Zadania `pg_cron` | 19 | 17 | **17** |
+| Miara              | 14.08 (tamten dokument) | mój skrypt na `0fd4108` | mój skrypt na `c6306e7` |
+| ------------------ | ----------------------: | ----------------------: | ----------------------: |
+| Tabele             |                     244 |                     251 |                 **250** |
+| Polityki RLS       |                     556 |                     543 |                 **543** |
+| Triggery           |                     356 |                     342 |                 **343** |
+| Indeksy            |                     535 |                     529 |                 **532** |
+| Widoki             |                      16 |                      13 |                  **14** |
+| Funkcje SQL        |                     790 |                     793 |                 **797** |
+| `SECURITY DEFINER` |                     709 |                     687 |                 **689** |
+| Zadania `pg_cron`  |                      19 |                      17 |                  **17** |
 
 Porównywalne są **wyłącznie dwie prawe kolumny**. Kolumna z 14.08 stoi tu jako ślad,
 nie jako baza odejmowania.
@@ -108,12 +108,12 @@ w schemacie ZASZŁO.**
 
 Co ustaliłem dopiero po przywróceniu pliku i uruchomieniu go na żywym Postgresie:
 
-| Fakt | Dowód |
-|---|---|
-Skasowana migracja została **zastąpiona**, nie utracona | `20260815110844:116` robi `DROP TABLE public.research_programs`, a linia 117 zakłada w jej miejsce widok; wcześniej buduje `program_merge_map`, przenosi wiersze i przepina `program_id` w czterech tabelach-dzieciach z powrotem na `public.programs` |
-Łańcuch zastępczy ma trzy ogniwa | `20260815110437` (kolumna `status`) → `20260815110844` (scalenie) → `20260815111026` (`club_anchor_label` przepięty z `research_programs` na `programs`) |
-`research_programs` **nie jest żywą tabelą** | w stanie końcowym to **widok** (`security_invoker=true`); w moim wykazie 250 żywych tabel nie ma jej ani przed, ani po |
-Przywrócenie pliku jest **szkodliwe** | stara migracja redefiniuje `club_anchor_label`, więc wpada w selektor `scripts/pg-harness` (`grep -lE 'public\.(club_\|admin_club_)'`); replay w tym podzbiorze wywala się na `relation "public.programs" does not exist`, bo harness klubów nie zna tabel modułu programów. Zmierzone: `check:pg-harness` **zrobił się czerwony** po przywróceniu |
+| Fakt                                                    | Dowód                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Skasowana migracja została **zastąpiona**, nie utracona | `20260815110844:116` robi `DROP TABLE public.research_programs`, a linia 117 zakłada w jej miejsce widok; wcześniej buduje `program_merge_map`, przenosi wiersze i przepina `program_id` w czterech tabelach-dzieciach z powrotem na `public.programs`                                                                                             |
+| Łańcuch zastępczy ma trzy ogniwa                        | `20260815110437` (kolumna `status`) → `20260815110844` (scalenie) → `20260815111026` (`club_anchor_label` przepięty z `research_programs` na `programs`)                                                                                                                                                                                           |
+| `research_programs` **nie jest żywą tabelą**            | w stanie końcowym to **widok** (`security_invoker=true`); w moim wykazie 250 żywych tabel nie ma jej ani przed, ani po                                                                                                                                                                                                                             |
+| Przywrócenie pliku jest **szkodliwe**                   | stara migracja redefiniuje `club_anchor_label`, więc wpada w selektor `scripts/pg-harness` (`grep -lE 'public\.(club_\|admin_club_)'`); replay w tym podzbiorze wywala się na `relation "public.programs" does not exist`, bo harness klubów nie zna tabel modułu programów. Zmierzone: `check:pg-harness` **zrobił się czerwony** po przywróceniu |
 
 **Czym naprawdę był czerwony `check:programs-harness`:** `run.sh:18` wskazywał
 twardo na plik usunięty przy podmianie. Harness został **osierocony** — testował
@@ -143,31 +143,31 @@ podmianie" — nie zmienia się wzorzec procesowy z §3.4.
 
 ## 1. Skala platformy — stan zmierzony
 
-| Wymiar | Liczba | Zmiana od 14.08 |
-|---|---:|---|
-Trasy (`src/routes/*.tsx`) | **244** (142 admin, 26 kluby, 76 pozostałe) | 0 |
-Trasy-endpointy (`src/routes/**/*.ts`) | 55 (w tym 22 pod `api/`) | 0 |
-Komponenty `.tsx` (bez testów) | 1 091 | +1 |
-Moduły `src/lib/**/*.ts` (bez testów) | 968 | +29 |
-Hooki | 35 | 0 |
-Pliki `*.functions.ts` | 82 | 0 |
-Wywołania `createServerFn` | 343 | 0 |
-Moduły `*.server.ts` | 98 | 0 |
-Unikalne nazwy RPC wołane z klienta | **383** (bramka: 382) | +2 |
-Migracje SQL | **779** (140 619 linii) | +10 |
-Tabele (stan końcowy) | **250** | −1 |
-Funkcje SQL (ostatnia definicja) | **797** | +4 |
-`SECURITY DEFINER` / bez `search_path` | **689 / 0** | +2 / 0 |
-Polityki RLS (stan końcowy) | **543** | 0 |
-Triggery / indeksy / widoki | 343 / 532 / 14 | +1 / +3 / +1 |
-Zadania `pg_cron` | **17** | 0 |
-Testy pgTAP | 93 pliki | +2 |
-Pliki testowe vitest (w `src`) | **785** | +27 |
-Słowniki i18n (`src/lib/i18n-*.ts`) | **100** | **+13** |
-Bramki `check:*` | **33** | **+8** |
-Workflow CI | 5 | 0 |
-**Kod produkcyjny** | **543 797 linii** | +3 878 |
-**Linie testów** | **109 051** | **+7 942** |
+| Wymiar                                 |                                      Liczba | Zmiana od 14.08 |
+| -------------------------------------- | ------------------------------------------: | --------------- |
+| Trasy (`src/routes/*.tsx`)             | **244** (142 admin, 26 kluby, 76 pozostałe) | 0               |
+| Trasy-endpointy (`src/routes/**/*.ts`) |                    55 (w tym 22 pod `api/`) | 0               |
+| Komponenty `.tsx` (bez testów)         |                                       1 091 | +1              |
+| Moduły `src/lib/**/*.ts` (bez testów)  |                                         968 | +29             |
+| Hooki                                  |                                          35 | 0               |
+| Pliki `*.functions.ts`                 |                                          82 | 0               |
+| Wywołania `createServerFn`             |                                         343 | 0               |
+| Moduły `*.server.ts`                   |                                          98 | 0               |
+| Unikalne nazwy RPC wołane z klienta    |                       **383** (bramka: 382) | +2              |
+| Migracje SQL                           |                     **779** (140 619 linii) | +10             |
+| Tabele (stan końcowy)                  |                                     **250** | −1              |
+| Funkcje SQL (ostatnia definicja)       |                                     **797** | +4              |
+| `SECURITY DEFINER` / bez `search_path` |                                 **689 / 0** | +2 / 0          |
+| Polityki RLS (stan końcowy)            |                                     **543** | 0               |
+| Triggery / indeksy / widoki            |                              343 / 532 / 14 | +1 / +3 / +1    |
+| Zadania `pg_cron`                      |                                      **17** | 0               |
+| Testy pgTAP                            |                                    93 pliki | +2              |
+| Pliki testowe vitest (w `src`)         |                                     **785** | +27             |
+| Słowniki i18n (`src/lib/i18n-*.ts`)    |                                     **100** | **+13**         |
+| Bramki `check:*`                       |                                      **33** | **+8**          |
+| Workflow CI                            |                                           5 | 0               |
+| **Kod produkcyjny**                    |                           **543 797 linii** | +3 878          |
+| **Linie testów**                       |                                 **109 051** | **+7 942**      |
 
 **Stosunek testów do produkcji: 0,187 → 0,201.** Pierwszy wzrost tej miary w serii.
 Przyczyna jest arytmetyczna i warta zapisania: w tym oknie **testy urosły 2,05 raza
@@ -220,12 +220,12 @@ domenowego, od którego zależy pół platformy.
 
 To jest najważniejsza zmiana strukturalna tego okna i jedyna, którą widać w grafie:
 
-| Krawędź | `0fd4108` | `c6306e7` |
-|---|---:|---:|
-`bloki -> builder` | 17 | **0** |
-`builder -> bloki` | 8 | 8 |
-`bloki -> treść` | 2 | **19** |
-`builder -> treść` | 1 | **42** |
+| Krawędź            | `0fd4108` | `c6306e7` |
+| ------------------ | --------: | --------: |
+| `bloki -> builder` |        17 |     **0** |
+| `builder -> bloki` |         8 |         8 |
+| `bloki -> treść`   |         2 |    **19** |
+| `builder -> treść` |         1 |    **42** |
 
 Commit `ca96fde` („Rozstrzygnięto cykl bloki <-> builder warstwą lib/content-model")
 zrobił **dokładnie to, co rekomendował poprzedni audyt**: wspólna warstwa modelu
@@ -267,13 +267,13 @@ Uruchomione w tej sesji na `c6306e7`, po `bun install` procedurą z `ci.yml`.
 
 ### 3.1. Kroki blokujące spoza `check:*`
 
-| Krok CI | Wynik | Liczba |
-|---|:--:|---|
-`bun run format:check` (prettier) | ✅ **zielony** | „All matched files use Prettier code style" |
-`bun run typecheck` (`tsc --noEmit`) | ✅ **zielony** | **0 błędów** |
-`bun run lint` (`eslint .`) | ✅ **zielony** | **0 błędów**, 177 ostrzeżeń |
-`bun run build` (`vite build`) | ✅ **zielony** | 679 plików JS klienta |
-`bun run test:coverage` | ✅ **zielony** | **9 055 testów przeszło**, 50 pominiętych; 783 pliki |
+| Krok CI                              |     Wynik      | Liczba                                               |
+| ------------------------------------ | :------------: | ---------------------------------------------------- |
+| `bun run format:check` (prettier)    | ✅ **zielony** | „All matched files use Prettier code style"          |
+| `bun run typecheck` (`tsc --noEmit`) | ✅ **zielony** | **0 błędów**                                         |
+| `bun run lint` (`eslint .`)          | ✅ **zielony** | **0 błędów**, 177 ostrzeżeń                          |
+| `bun run build` (`vite build`)       | ✅ **zielony** | 679 plików JS klienta                                |
+| `bun run test:coverage`              | ✅ **zielony** | **9 055 testów przeszło**, 50 pominiętych; 783 pliki |
 
 Trzy z czterech czerwonych kroków poprzedniego wydania są zamknięte: 115 błędów
 `prettier` → 0, żywa referencja do poprzedniego operatora płatności → bramka
@@ -287,12 +287,12 @@ nie patrzy.
 
 **Pokrycie testami (v8, całe repo):**
 
-| Miara | Zmierzone | Próg globalny | Zapas |
-|---|---:|---:|---:|
-Linie | **34,59%** | 29 | 5,59 pp |
-Instrukcje | 33,99% | 29 | 4,99 pp |
-Gałęzie | 29,57% | 25 | 4,57 pp |
-Funkcje | 26,24% | 22 | 4,24 pp |
+| Miara      |  Zmierzone | Próg globalny |   Zapas |
+| ---------- | ---------: | ------------: | ------: |
+| Linie      | **34,59%** |            29 | 5,59 pp |
+| Instrukcje |     33,99% |            29 | 4,99 pp |
+| Gałęzie    |     29,57% |            25 | 4,57 pp |
+| Funkcje    |     26,24% |            22 | 4,24 pp |
 
 Do tego **progi per-plik** dla ścieżek krytycznych (m.in. `lib/access/gating.ts`
 95/100/100/95, `lib/builder/schema.ts` 98/100/100/95, kilkanaście pozycji na 100%).
@@ -301,11 +301,11 @@ Bramka przechodzi w całości. Globalne 34,59% linii nie jest powodem do dumy, a
 
 ### 3.2. Bramki `check:*` — 31 zielonych, 1 czerwona, 1 niemierzalna
 
-| Wynik | Bramki |
-|---|---|
-✅ **31 zielonych** | `authz-snapshot`, `careers-harness`, `chunk-parity`, `chunks`, `content-layering`, `db-row-casts`, `editor-autosave`, `entry-purity`, `gate-coverage`, `i18n-default-value`, `i18n-hardcoded`, `i18n-overlay-imports`, `i18n-parity`, `legacy-payment-refs`, `permissions-parity`, `pg-harness`, `programs-harness` (§3.4), `public-assets`, `rpc-contract`, `sql-anon-insert`, `sql-app-role`, `sql-emit-actor`, `sql-migration-replay`, `sql-owner-tenant-scope`, `sql-policy-tenant-regression`, `sql-tenant-scope`, `stale-never-casts`, `types-freshness`, `unknown-casts`, `widget-fidelity`, `workflow-env-contract` |
-❌ **1 czerwona** | **`bundle`** (§5) |
-⚠️ **1 niemierzalna** | `db-contract` — wymaga `SUPABASE_URL` i żywej bazy; w `ci.yml` stoi w jobie `post-deploy`, nie w `verify`. Nie przepisuję jej stanu z wczoraj. |
+| Wynik                 | Bramki                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ✅ **31 zielonych**   | `authz-snapshot`, `careers-harness`, `chunk-parity`, `chunks`, `content-layering`, `db-row-casts`, `editor-autosave`, `entry-purity`, `gate-coverage`, `i18n-default-value`, `i18n-hardcoded`, `i18n-overlay-imports`, `i18n-parity`, `legacy-payment-refs`, `permissions-parity`, `pg-harness`, `programs-harness` (§3.4), `public-assets`, `rpc-contract`, `sql-anon-insert`, `sql-app-role`, `sql-emit-actor`, `sql-migration-replay`, `sql-owner-tenant-scope`, `sql-policy-tenant-regression`, `sql-tenant-scope`, `stale-never-casts`, `types-freshness`, `unknown-casts`, `widget-fidelity`, `workflow-env-contract` |
+| ❌ **1 czerwona**     | **`bundle`** (§5)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ⚠️ **1 niemierzalna** | `db-contract` — wymaga `SUPABASE_URL` i żywej bazy; w `ci.yml` stoi w jobie `post-deploy`, nie w `verify`. Nie przepisuję jej stanu z wczoraj.                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 Wybrane liczby z przebiegów, bo bramka mówi więcej niż swój kolor:
 
@@ -426,42 +426,42 @@ moduł, pierwszy trafiony wygrywa). Taksonomia jest moja i różni się od tabel
 z 14.08 — porównywalne są kolumny „linie prod" i „T/P" **między sobą**, nie z tamtym
 dokumentem.
 
-| Moduł | Linie prod | Δ | T/P | T/P 14.08 | Pliki serwerowe |
-|---|---:|---:|---:|---:|---:|
-warstwy wspólne (design system, `routeTree.gen`, locale, http) | 115 542 | +1 571 | 0,123 | 0,124 | 31 |
-3 bloki + builder | 101 834 | −1 534 | **0,290** | 0,286 | 0 |
-16 społeczność / kluby | 59 217 | +218 | **0,136** | 0,099 | 5 |
-19 ustawienia / RODO | 31 799 | +542 | 0,076 | 0,069 | 6 |
-11 newsletter | 27 287 | +284 | **0,161** | 0,124 | 24 |
-4 strony / wygląd / import | 25 883 | +1 142 | 0,132 | 0,116 | 6 |
-13 monetyzacja | 24 607 | +325 | **0,362** | 0,320 | 52 |
-15 profil / konto | 20 308 | +68 | 0,261 | 0,262 | 9 |
-7 typy specjalne | 17 281 | −24 | 0,134 | 0,134 | 4 |
-17 analityka / BI | 12 822 | +6 | 0,110 | 0,110 | 8 |
-2 edytor | 12 569 | +32 | 0,150 | 0,138 | 1 |
-9 czat | 12 293 | −36 | 0,111 | 0,111 | 0 |
-14 kupony / darowizny / reklamy | 11 995 | +58 | 0,158 | 0,158 | 1 |
-18 CRM | 10 859 | −121 | **0,149** | 0,083 | 5 |
-20 platforma / SSR | 10 504 | +1 710 | 0,502 | 0,491 | 12 |
-8 SEO | 9 797 | −166 | 0,395 | 0,385 | 7 |
-6 wyszukiwarka | 8 366 | −21 | 0,199 | 0,199 | 3 |
-10 sieć / networking | 8 230 | +1 | **0,727** | 0,727 | 0 |
-1 wpisy | 7 716 | −93 | 0,118 | 0,117 | 1 |
-12 realtime / powiadomienia | 5 936 | −128 | 0,294 | 0,287 | 4 |
-21 rekrutacja | 5 543 | +61 | **0,416** | 0,271 | 1 |
-5 strona główna / archiwa | 3 409 | −17 | 0,160 | 0,157 | 0 |
+| Moduł                                                          | Linie prod |      Δ |       T/P | T/P 14.08 | Pliki serwerowe |
+| -------------------------------------------------------------- | ---------: | -----: | --------: | --------: | --------------: |
+| warstwy wspólne (design system, `routeTree.gen`, locale, http) |    115 542 | +1 571 |     0,123 |     0,124 |              31 |
+| 3 bloki + builder                                              |    101 834 | −1 534 | **0,290** |     0,286 |               0 |
+| 16 społeczność / kluby                                         |     59 217 |   +218 | **0,136** |     0,099 |               5 |
+| 19 ustawienia / RODO                                           |     31 799 |   +542 |     0,076 |     0,069 |               6 |
+| 11 newsletter                                                  |     27 287 |   +284 | **0,161** |     0,124 |              24 |
+| 4 strony / wygląd / import                                     |     25 883 | +1 142 |     0,132 |     0,116 |               6 |
+| 13 monetyzacja                                                 |     24 607 |   +325 | **0,362** |     0,320 |              52 |
+| 15 profil / konto                                              |     20 308 |    +68 |     0,261 |     0,262 |               9 |
+| 7 typy specjalne                                               |     17 281 |    −24 |     0,134 |     0,134 |               4 |
+| 17 analityka / BI                                              |     12 822 |     +6 |     0,110 |     0,110 |               8 |
+| 2 edytor                                                       |     12 569 |    +32 |     0,150 |     0,138 |               1 |
+| 9 czat                                                         |     12 293 |    −36 |     0,111 |     0,111 |               0 |
+| 14 kupony / darowizny / reklamy                                |     11 995 |    +58 |     0,158 |     0,158 |               1 |
+| 18 CRM                                                         |     10 859 |   −121 | **0,149** |     0,083 |               5 |
+| 20 platforma / SSR                                             |     10 504 | +1 710 |     0,502 |     0,491 |              12 |
+| 8 SEO                                                          |      9 797 |   −166 |     0,395 |     0,385 |               7 |
+| 6 wyszukiwarka                                                 |      8 366 |    −21 |     0,199 |     0,199 |               3 |
+| 10 sieć / networking                                           |      8 230 |     +1 | **0,727** |     0,727 |               0 |
+| 1 wpisy                                                        |      7 716 |    −93 |     0,118 |     0,117 |               1 |
+| 12 realtime / powiadomienia                                    |      5 936 |   −128 |     0,294 |     0,287 |               4 |
+| 21 rekrutacja                                                  |      5 543 |    +61 | **0,416** |     0,271 |               1 |
+| 5 strona główna / archiwa                                      |      3 409 |    −17 |     0,160 |     0,157 |               0 |
 
 ### 4.1. Wnioski z tabeli
 
 **Cztery moduły, które poprzedni audyt wskazał palcem, poprawiły się — i to one
 odpowiadają za wzrost T/P całej platformy:**
 
-| Moduł | T/P 14.08 | T/P 15.08 | Co się stało |
-|---|---:|---:|---|
-CRM | 0,083 | **0,149** | +79% gęstości, przy **spadku** kodu o 121 linii |
-kluby / społeczność | 0,099 | **0,136** | R2 z poprzedniego wydania |
-rekrutacja | 0,271 | **0,416** | najmłodszy moduł, najszybszy przyrost testów |
-newsletter | 0,124 | **0,161** | R3 częściowo |
+| Moduł               | T/P 14.08 | T/P 15.08 | Co się stało                                    |
+| ------------------- | --------: | --------: | ----------------------------------------------- |
+| CRM                 |     0,083 | **0,149** | +79% gęstości, przy **spadku** kodu o 121 linii |
+| kluby / społeczność |     0,099 | **0,136** | R2 z poprzedniego wydania                       |
+| rekrutacja          |     0,271 | **0,416** | najmłodszy moduł, najszybszy przyrost testów    |
+| newsletter          |     0,124 | **0,161** | R3 częściowo                                    |
 
 **Trzy moduły nadal poniżej 0,15 przy dużej powierzchni:** `ustawienia/RODO` (0,076
 na 31 799 liniach — najgorszy stosunek w repo przy tej skali), `wpisy` (0,118),
@@ -479,11 +479,11 @@ jednostkowe (`src/lib/ci/*`), przy T/P 0,502.
 Metoda: nazwa pliku trasy (i jej postać ze slashami) szukana w treści **wszystkich**
 785 plików testowych `src` plus 7 plików `e2e`.
 
-| | `0fd4108` | `c6306e7` |
-|---|---:|---:|
-Trasy wzmiankowane | 119 | **121** |
-Trasy bez wzmianki | 125 | **123** |
-— z tego admin | 92 | **90** |
+|                    | `0fd4108` | `c6306e7` |
+| ------------------ | --------: | --------: |
+| Trasy wzmiankowane |       119 |   **121** |
+| Trasy bez wzmianki |       125 |   **123** |
+| — z tego admin     |        92 |    **90** |
 
 **50,4% tras nie pada w żadnym teście.** Ruch o dwie trasy w dobrą stronę przy
 +27 plikach testowych oznacza, że testy tego okna poszły w **głębokość istniejących
@@ -492,21 +492,21 @@ długu — ale nie zmniejsza tej dziury.
 
 ### 4.3. Ścieżki pieniężne — pierwszy realny ruch
 
-| Obszar | Pliki prod | Pliki test | T/P | T/P 14.08 |
-|---|---:|---:|---:|---:|
-checkout | 23 | 12 | **0,806** | 0,453 |
-stripe | 5 | 2 | 1,029 | 1,029 |
-metering | 2 | 1 | 0,507 | 0,507 |
-subscription | 7 | 3 | 0,504 | 0,504 |
-entitlement | 2 | 2 | 0,488 | 0,488 |
-billing | 112 | 39 | 0,394 | 0,401 |
-donation | 13 | 5 | 0,379 | 0,379 |
-gift | 13 | 4 | 0,246 | 0,246 |
-refund | 3 | 1 | 0,122 | 0,122 |
-**coupon** | 13 | 2 | **0,044** | 0,048 |
-invoice (po nazwie pliku) | 2 | 0 | 0,000 | 0,000 |
-paywall (po nazwie pliku) | 3 | 0 | 0,000 | 0,000 |
-**Łącznie** | | | **0,388** | 0,360 |
+| Obszar                    | Pliki prod | Pliki test |       T/P | T/P 14.08 |
+| ------------------------- | ---------: | ---------: | --------: | --------: |
+| checkout                  |         23 |         12 | **0,806** |     0,453 |
+| stripe                    |          5 |          2 |     1,029 |     1,029 |
+| metering                  |          2 |          1 |     0,507 |     0,507 |
+| subscription              |          7 |          3 |     0,504 |     0,504 |
+| entitlement               |          2 |          2 |     0,488 |     0,488 |
+| billing                   |        112 |         39 |     0,394 |     0,401 |
+| donation                  |         13 |          5 |     0,379 |     0,379 |
+| gift                      |         13 |          4 |     0,246 |     0,246 |
+| refund                    |          3 |          1 |     0,122 |     0,122 |
+| **coupon**                |         13 |          2 | **0,044** |     0,048 |
+| invoice (po nazwie pliku) |          2 |          0 |     0,000 |     0,000 |
+| paywall (po nazwie pliku) |          3 |          0 |     0,000 |     0,000 |
+| **Łącznie**               |            |            | **0,388** |     0,360 |
 
 **Erozja z poprzedniego wydania została zatrzymana i odwrócona** — łączne T/P
 ścieżek pieniężnych 0,360 → 0,388, a `checkout` niemal się podwoił (0,453 → 0,806)
@@ -526,12 +526,12 @@ w tym oknie się pogorszyła.
 
 ## 5. Bundle — jedyny czerwony krok, który jest defektem produktu
 
-| Miara | Wartość | Próg | Zapas |
-|---|---:|---:|---:|
-**Największy chunk (gzip)** | **482,0 KB** | **471** | **−11,0 KB (przekroczony o 2,3%)** |
-PUBLIC (gzip) | 2 519,4 KB | 2 535 | 15,6 KB (0,62%) |
-OVERALL (gzip) | 3 789,0 KB | 3 835 | 46,0 KB (1,20%) |
-tylko admin (gzip) | 1 269,7 KB | — | rozliczane w OVERALL |
+| Miara                       |      Wartość |    Próg |                              Zapas |
+| --------------------------- | -----------: | ------: | ---------------------------------: |
+| **Największy chunk (gzip)** | **482,0 KB** | **471** | **−11,0 KB (przekroczony o 2,3%)** |
+| PUBLIC (gzip)               |   2 519,4 KB |   2 535 |                    15,6 KB (0,62%) |
+| OVERALL (gzip)              |   3 789,0 KB |   3 835 |                    46,0 KB (1,20%) |
+| tylko admin (gzip)          |   1 269,7 KB |       — |               rozliczane w OVERALL |
 
 Klient: **679 plików JS, 3 789,0 KB gzip łącznie.**
 
@@ -590,13 +590,13 @@ zostanie przypisana przypadkowemu commitowi**, bo zmieści się w niej cokolwiek
 
 ### 6.1. Warstwa językowa — R7 wykonana, i to hurtem
 
-| Miara | `0fd4108` | `c6306e7` | Δ |
-|---|---:|---:|---:|
-`defaultValue:` w kodzie produkcyjnym (surowy grep) | 1 398 | 75 | **−1 323** |
-**zapasowe teksty przy `t()` (bramka)** | — | **0** | bramka trzyma zero |
-ternary `isPl ? …` | 155 | **26** | −129 |
-ternary `lang === "pl" ? …` | 844 | **681** | −163 |
-słowniki i18n | 87 | **100** | +13 |
+| Miara                                               | `0fd4108` | `c6306e7` |                  Δ |
+| --------------------------------------------------- | --------: | --------: | -----------------: |
+| `defaultValue:` w kodzie produkcyjnym (surowy grep) |     1 398 |        75 |         **−1 323** |
+| **zapasowe teksty przy `t()` (bramka)**             |         — |     **0** | bramka trzyma zero |
+| ternary `isPl ? …`                                  |       155 |    **26** |               −129 |
+| ternary `lang === "pl" ? …`                         |       844 |   **681** |               −163 |
+| słowniki i18n                                       |        87 |   **100** |                +13 |
 
 Commit `516e94a` („i18n: 1398 -> 0 zapasowych tekstów przy t() + bramka trzymająca
 zero") plus cztery commity `i18n(cz. 1–4)`. Bramka `check:i18n-default-value`
@@ -620,18 +620,18 @@ i jedyna droga do trzeciego języka.
 
 ### 6.2. Typowanie — R8 wykonana
 
-| Miara | `0fd4108` | `c6306e7` |
-|---|---:|---:|
-`as unknown as` w kodzie produkcyjnym | 359 | **257** |
-ratchet bramki `check:unknown-casts` | — | **201 znanych w 129 plikach** |
-`@ts-ignore` / `@ts-expect-error` | 2 | 2 |
-adnotacje `: any` | 5 | 5 |
-wyjątki `check:db-row-casts` | — | 22 (lista może tylko maleć) |
-baseline `check:types-freshness` | — | 26 kolumn poza typami |
+| Miara                                 | `0fd4108` |                     `c6306e7` |
+| ------------------------------------- | --------: | ----------------------------: |
+| `as unknown as` w kodzie produkcyjnym |       359 |                       **257** |
+| ratchet bramki `check:unknown-casts`  |         — | **201 znanych w 129 plikach** |
+| `@ts-ignore` / `@ts-expect-error`     |         2 |                             2 |
+| adnotacje `: any`                     |         5 |                             5 |
+| wyjątki `check:db-row-casts`          |         — |   22 (lista może tylko maleć) |
+| baseline `check:types-freshness`      |         — |         26 kolumn poza typami |
 
 Trzy commity: `ce51372` (wspólny builder zapytań Supabase — 71 rzutowań w CRM do 2),
-`0b3ee3c` (35 ręcznych rzutowań na `Json` → `toJson()`), `8c1b227` (`toJsonArray`
-+ generyk — 193 rzutowania). Każdy z ratchetem.
+`0b3ee3c` (35 ręcznych rzutowań na `Json` → `toJson()`), `8c1b227` (`toJsonArray` +
+generyk — 193 rzutowania). Każdy z ratchetem.
 
 `tsconfig.json` trzyma `strict: true`, `noUnusedLocals: true`,
 `noUnusedParameters: true` — **bez regresji**, a `tsc --noEmit` daje 0 błędów, więc
@@ -641,16 +641,16 @@ martwy kod nadal wynosi 0.
 
 Zmierzone własnym parserem stanu końcowego na 779 migracjach:
 
-| Miara | Wynik |
-|---|---|
-Tabele żywe | **250** |
-Tabele z włączonym RLS | **250 z 250 (100%)** |
-Tabele bez deklaracji RLS | **0** |
-Tabele z `DISABLE ROW LEVEL SECURITY` | **0** |
-Polityki na tabelach bez RLS (martwe) | **0** |
-Tabele bez ani jednej polityki | 40 — **wszystkie 40 mają RLS włączony** |
-Funkcje `SECURITY DEFINER` | 689 |
-…bez przypiętego `search_path` | **0** (21 przypina przez `ALTER FUNCTION`) |
+| Miara                                 | Wynik                                      |
+| ------------------------------------- | ------------------------------------------ |
+| Tabele żywe                           | **250**                                    |
+| Tabele z włączonym RLS                | **250 z 250 (100%)**                       |
+| Tabele bez deklaracji RLS             | **0**                                      |
+| Tabele z `DISABLE ROW LEVEL SECURITY` | **0**                                      |
+| Polityki na tabelach bez RLS (martwe) | **0**                                      |
+| Tabele bez ani jednej polityki        | 40 — **wszystkie 40 mają RLS włączony**    |
+| Funkcje `SECURITY DEFINER`            | 689                                        |
+| …bez przypiętego `search_path`        | **0** (21 przypina przez `ALTER FUNCTION`) |
 
 Czterdzieści tabel bez polityk **nie jest luką** — to konstrukcja domknięta:
 RLS włączony przy zerze polityk znaczy **deny-all** dla ról nieuprzywilejowanych,
@@ -669,13 +669,13 @@ Osiemdziesiąt tabel ma `GRANT` dla `anon` — wszystkie pod RLS.
 
 ### 6.4. Dostępność — bez ruchu
 
-| Sygnał | `0fd4108` | `c6306e7` |
-|---|---:|---:|
-atrybuty `aria-*` | 2 619 | 2 618 |
-`role="…"` | 441 | 441 |
-`alt=` / `<img` | 297 / 209 | 297 / 209 |
-`sr-only` | 106 | 106 |
-`<div onClick>` (bez roli) | 2 | 2 |
+| Sygnał                     | `0fd4108` | `c6306e7` |
+| -------------------------- | --------: | --------: |
+| atrybuty `aria-*`          |     2 619 |     2 618 |
+| `role="…"`                 |       441 |       441 |
+| `alt=` / `<img`            | 297 / 209 | 297 / 209 |
+| `sr-only`                  |       106 |       106 |
+| `<div onClick>` (bez roli) |         2 |         2 |
 
 To okno **nie dotknęło dostępności**. Zapisuję jako fakt, nie jako zarzut: przy
 pracy skoncentrowanej na warstwie językowej i typach brak ruchu tutaj jest spójny.
@@ -814,7 +814,7 @@ jako metoda:
   awarię z §3.4 — czego lektura kodu by nie pokazała.
 - **Nazwa relacji nie jest dowodem na jej rodzaj ani na jej rodzica.** §0.4: wykaz
   żywych tabel pokazał `programs` obok `research_program_items/members/partners/
-  projects` i wyprowadziłem z tego „obie rodziny tabel żyją". `research_programs`
+projects` i wyprowadziłem z tego „obie rodziny tabel żyją". `research_programs`
   jest w stanie końcowym **widokiem**, a dzieci tylko zachowały historyczny
   przedrostek. Jedno zapytanie o `DROP TABLE`/`CREATE VIEW` na tej nazwie
   rozstrzygało sprawę i zajęło mniej niż minutę — zadane po fakcie.
@@ -837,5 +837,5 @@ jako metoda:
 
 ---
 
-*Dokument towarzyszy `docs/OCENA_FUNKCJI_TABELE_2026-08-14.md` (oceny poglądowe
-funkcja po funkcji) i kontynuuje serię `AUDYT_PLATFORMY_MODULY_FUNKCJE_*`.*
+_Dokument towarzyszy `docs/OCENA_FUNKCJI_TABELE_2026-08-14.md` (oceny poglądowe
+funkcja po funkcji) i kontynuuje serię `AUDYT_PLATFORMY_MODULY_FUNKCJE_*`._

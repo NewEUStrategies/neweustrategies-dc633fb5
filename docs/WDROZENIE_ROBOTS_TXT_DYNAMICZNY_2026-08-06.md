@@ -4,13 +4,13 @@ Realizacja findingu nr 2 z `OCENA_FUNKCJI_TABELE_2026-08-06_R2.md` (MODUŁ 8 -
 SEO/GEO/AEO, ocena `robots.txt` **9 → 4**) wraz z dwiema dziurami tej samej
 powierzchni, które wyszły przy naprawie.
 
-| Finding / rekomendacja                                                                    | Status        |
-| ----------------------------------------------------------------------------------------- | ------------- |
-| `public/robots.txt` przesłania dynamiczną trasę - produkcja oddaje `Allow: /` każdemu hostowi | ✅ wdrożone |
+| Finding / rekomendacja                                                                                | Status      |
+| ----------------------------------------------------------------------------------------------------- | ----------- |
+| `public/robots.txt` przesłania dynamiczną trasę - produkcja oddaje `Allow: /` każdemu hostowi         | ✅ wdrożone |
 | „Usunąć `public/robots.txt` i dopisać test/e2e, który potwierdza, że `/robots.txt` odpowiada z trasy" | ✅ wdrożone |
-| „Inwariant: `public/` nie zawiera plików kolidujących z trasami" (wiersz `llms.txt`)      | ✅ wdrożone   |
-| Polityka crawlerów AI z panelu nie docierała do robots.txt (`aiCrawlerDirectives` bez wołającego) | ✅ wdrożone |
-| Domena tenanta klasyfikowana jako host nieznany → zakaz indeksowania całego serwisu tenanta | ✅ wdrożone |
+| „Inwariant: `public/` nie zawiera plików kolidujących z trasami" (wiersz `llms.txt`)                  | ✅ wdrożone |
+| Polityka crawlerów AI z panelu nie docierała do robots.txt (`aiCrawlerDirectives` bez wołającego)     | ✅ wdrożone |
+| Domena tenanta klasyfikowana jako host nieznany → zakaz indeksowania całego serwisu tenanta           | ✅ wdrożone |
 
 ---
 
@@ -41,27 +41,27 @@ Klasa błędu była całkowicie niewidoczna w repo.
 
 ## 2. Naprawa
 
-| Zmiana                                                                       | Plik |
-| ---------------------------------------------------------------------------- | ---- |
-| Usunięty statyczny plik                                                      | `public/robots.txt` (delete) |
-| Trasa cienka jak pozostałe powierzchnie maszynowe                            | `src/routes/robots[.]txt.ts` |
-| Cała logika żądania: host → klasa → tenant → ustawienia → treść              | `src/lib/server/robotsRequest.server.ts` (nowy) |
-| Grupy per user-agent + nagłówki odpowiedzi w czystym builderze               | `src/lib/seo/robots.ts` |
-| Polityka crawlerów AI jako STRUKTURY, nie linie tekstu                       | `src/lib/seo/settings.ts` (`aiCrawlerGroups`) |
-| Jedna klasyfikacja hosta dla robots.txt i sitemapy                           | `src/lib/http/host.ts` (`classifyCrawlHost`, `crawlHostOrigin`) |
-| Ścisłe dopasowanie domeny tenanta (bez fallbacku)                            | `src/lib/server/tenant.server.ts` (`resolveDomainBinding`) |
-| Sitemapa korzysta z tej samej klasyfikacji (bez zmiany zachowania)           | `src/lib/server/sitemapRequest.server.ts` |
-| Podgląd pliku dla redakcji (PL/EN) + link do żywego adresu                   | `src/components/admin/seo/RobotsTxtPreview.tsx` (nowy), `src/routes/admin.settings.seo.tsx` |
+| Zmiana                                                             | Plik                                                                                        |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| Usunięty statyczny plik                                            | `public/robots.txt` (delete)                                                                |
+| Trasa cienka jak pozostałe powierzchnie maszynowe                  | `src/routes/robots[.]txt.ts`                                                                |
+| Cała logika żądania: host → klasa → tenant → ustawienia → treść    | `src/lib/server/robotsRequest.server.ts` (nowy)                                             |
+| Grupy per user-agent + nagłówki odpowiedzi w czystym builderze     | `src/lib/seo/robots.ts`                                                                     |
+| Polityka crawlerów AI jako STRUKTURY, nie linie tekstu             | `src/lib/seo/settings.ts` (`aiCrawlerGroups`)                                               |
+| Jedna klasyfikacja hosta dla robots.txt i sitemapy                 | `src/lib/http/host.ts` (`classifyCrawlHost`, `crawlHostOrigin`)                             |
+| Ścisłe dopasowanie domeny tenanta (bez fallbacku)                  | `src/lib/server/tenant.server.ts` (`resolveDomainBinding`)                                  |
+| Sitemapa korzysta z tej samej klasyfikacji (bez zmiany zachowania) | `src/lib/server/sitemapRequest.server.ts`                                                   |
+| Podgląd pliku dla redakcji (PL/EN) + link do żywego adresu         | `src/components/admin/seo/RobotsTxtPreview.tsx` (nowy), `src/routes/admin.settings.seo.tsx` |
 
 ### Klasy hosta
 
-| Klasa     | Kiedy                                        | robots.txt                                | `X-Robots-Tag`      |
-| --------- | -------------------------------------------- | ----------------------------------------- | ------------------- |
-| `brand`   | `CANONICAL_SITE_HOSTS` (apex + www)          | `Allow: /` + sitemapy na originie marki   | `all`               |
-| `tenant`  | dokładne dopasowanie `tenants.domain` (± www)| `Allow: /` + sitemapy na WŁASNYM originie | `all`               |
-| `alias`   | `*.pages.dev`, `*.workers.dev`, `LEGACY_HOST_SUFFIXES` | `Disallow: /`                    | `noindex, nofollow` |
-| `editor`  | localhost, `id-preview--*`, `EDITOR_HOST_SUFFIXES` | `Disallow: /`                       | `noindex, nofollow` |
-| `unknown` | domena, której nie objął żaden tenant        | `Disallow: /` (fail-closed)               | `noindex, nofollow` |
+| Klasa     | Kiedy                                                  | robots.txt                                | `X-Robots-Tag`      |
+| --------- | ------------------------------------------------------ | ----------------------------------------- | ------------------- |
+| `brand`   | `CANONICAL_SITE_HOSTS` (apex + www)                    | `Allow: /` + sitemapy na originie marki   | `all`               |
+| `tenant`  | dokładne dopasowanie `tenants.domain` (± www)          | `Allow: /` + sitemapy na WŁASNYM originie | `all`               |
+| `alias`   | `*.pages.dev`, `*.workers.dev`, `LEGACY_HOST_SUFFIXES` | `Disallow: /`                             | `noindex, nofollow` |
+| `editor`  | localhost, `id-preview--*`, `EDITOR_HOST_SUFFIXES`     | `Disallow: /`                             | `noindex, nofollow` |
+| `unknown` | domena, której nie objął żaden tenant                  | `Disallow: /` (fail-closed)               | `noindex, nofollow` |
 
 Kolejność reguł jest częścią kontraktu: **marka > podgląd/alias > katalog
 domen**, więc wpisanie aliasu hostingu jako domeny tenanta nie otwiera
@@ -117,20 +117,20 @@ więc `User-agent: *` z `Allow: /` pozostaje nietknięty.
 3. **E2E** (`e2e/seo.spec.ts`) - „robots.txt is served by the route, not by a
    static asset": obecność `X-Robots-Tag` (statyczny asset go nie ma) oraz
    RÓŻNA treść dla `localhost` i dla `x-forwarded-host:
-   neweuropeanstrategies.com` (statyczny plik nie zmienia treści per host).
+neweuropeanstrategies.com` (statyczny plik nie zmienia treści per host).
 4. **Test repo-inwariantu** w `src/lib/ci/__tests__/publicAssetShadowing.test.ts`
    - imiennie pilnuje, że `public/robots.txt` nie wraca, a trasa istnieje.
 
 ## 4. Testy
 
-| Zakres | Plik |
-| ------ | ---- |
-| Builder: grupy per agent, kolejność, puste grupy, komentarz per host, nagłówki (w tym `no-store` przy `volatile`) | `src/lib/seo/__tests__/robots.test.ts` |
-| Polityka AI: struktury + dotarcie do gotowego pliku | `src/lib/seo/__tests__/settings.test.ts` |
-| Klasyfikacja hosta i origin publikacji | `src/lib/http/__tests__/host.test.ts` |
-| Plan żądania: 5 klas hosta, news sitemap, degradacja ustawień, `volatile`, tenant z własnym originem (zaślepione tylko dwie granice I/O) | `src/lib/server/__tests__/robotsRequest.test.ts` |
-| Bramka anty-przesłonięcia: logika + inwariant repo | `src/lib/ci/__tests__/publicAssetShadowing.test.ts` |
-| E2E powierzchni | `e2e/seo.spec.ts` |
+| Zakres                                                                                                                                   | Plik                                                |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| Builder: grupy per agent, kolejność, puste grupy, komentarz per host, nagłówki (w tym `no-store` przy `volatile`)                        | `src/lib/seo/__tests__/robots.test.ts`              |
+| Polityka AI: struktury + dotarcie do gotowego pliku                                                                                      | `src/lib/seo/__tests__/settings.test.ts`            |
+| Klasyfikacja hosta i origin publikacji                                                                                                   | `src/lib/http/__tests__/host.test.ts`               |
+| Plan żądania: 5 klas hosta, news sitemap, degradacja ustawień, `volatile`, tenant z własnym originem (zaślepione tylko dwie granice I/O) | `src/lib/server/__tests__/robotsRequest.test.ts`    |
+| Bramka anty-przesłonięcia: logika + inwariant repo                                                                                       | `src/lib/ci/__tests__/publicAssetShadowing.test.ts` |
+| E2E powierzchni                                                                                                                          | `e2e/seo.spec.ts`                                   |
 
 ## 5. Weryfikacja ręczna po wdrożeniu
 

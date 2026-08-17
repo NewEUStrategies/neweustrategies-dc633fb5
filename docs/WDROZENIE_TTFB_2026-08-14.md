@@ -62,4 +62,4 @@ Skąd sekundy TTFB przy zimnej ścieżce:
 2. Skonfiguruj `vars.APP_BASE_URL` w repo (jeśli brak) - bez tego krok
    warmera loguje ostrzeżenie i nic nie robi.
 3. Test ręczny warmera: `WARM_BASE_URL=https://... WARM_TICKS=1 node
-   scripts/warm-edge-cache.mjs` - log `[warm] / -> 200 nes=HIT ...ms`.
+scripts/warm-edge-cache.mjs` - log `[warm] / -> 200 nes=HIT ...ms`.

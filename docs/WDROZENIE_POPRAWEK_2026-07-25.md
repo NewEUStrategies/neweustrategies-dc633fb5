@@ -35,11 +35,11 @@
 `src/lib/network/useRecommendations.ts`, `src/components/network/RecommendationsSection.tsx`,
 `src/lib/i18n-network.ts`, `supabase/tests/recommendations_contract_test.sql`
 
-| # | Niezgodność | Skutek | Naprawa |
-|---|-------------|--------|---------|
-| 1 | status: klient filtrował `visible`, baza zapisuje `published` | zatwierdzona rekomendacja NIGDY nie trafiała na profil („brak publicznych rekomendacji" na zawsze) | klient używa słownika bazy (`pending\|published\|declined\|hidden`) |
-| 2 | akcja: klient wysyłał `approve` / `delete`, baza rozpoznawała `publish` / `decline` / `hide` | **cichy no-op z toastem sukcesu** - `CASE` spadał do `ELSE status`, UPDATE trafiał we wiersz (brak `NOT FOUND`), więc UI mówił „Opublikowano" / „Usunięto" przy zerowej zmianie stanu | RPC przyjmuje oba warianty czasownika i **fail-closed** podnosi `invalid_action` dla nieznanego; `delete` realizuje prawdziwy `DELETE` (dotąd nieobsługiwany) |
-| 3 | relacja: dialog zbierał wolny tekst 2..120 znaków, kolumna ma domknięty `CHECK IN (colleague…other)` | każdy realny wpis kończył się naruszeniem `CHECK` (surowy błąd 23514 w toaście) | `<Select>` z 7 opcjami ze słownika + walidacja w RPC z kodem `invalid_relationship`; słownik wystawiony jako `recommendation_relationships()` |
+| #   | Niezgodność                                                                                          | Skutek                                                                                                                                                                                | Naprawa                                                                                                                                                       |
+| --- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | status: klient filtrował `visible`, baza zapisuje `published`                                        | zatwierdzona rekomendacja NIGDY nie trafiała na profil („brak publicznych rekomendacji" na zawsze)                                                                                    | klient używa słownika bazy (`pending\|published\|declined\|hidden`)                                                                                           |
+| 2   | akcja: klient wysyłał `approve` / `delete`, baza rozpoznawała `publish` / `decline` / `hide`         | **cichy no-op z toastem sukcesu** - `CASE` spadał do `ELSE status`, UPDATE trafiał we wiersz (brak `NOT FOUND`), więc UI mówił „Opublikowano" / „Usunięto" przy zerowej zmianie stanu | RPC przyjmuje oba warianty czasownika i **fail-closed** podnosi `invalid_action` dla nieznanego; `delete` realizuje prawdziwy `DELETE` (dotąd nieobsługiwany) |
+| 3   | relacja: dialog zbierał wolny tekst 2..120 znaków, kolumna ma domknięty `CHECK IN (colleague…other)` | każdy realny wpis kończył się naruszeniem `CHECK` (surowy błąd 23514 w toaście)                                                                                                       | `<Select>` z 7 opcjami ze słownika + walidacja w RPC z kodem `invalid_relationship`; słownik wystawiony jako `recommendation_relationships()`                 |
 
 Dodatkowo (ta sama funkcja, ten sam przepływ):
 
@@ -130,14 +130,14 @@ oba route'y RSS, `components/admin/podcasts/*`, `admin.podcasts.tsx`
 Kanał emitował z listy tagów wymaganych przez Apple tylko `<title>`,
 `<description>` i `<language>`, więc **nie przechodził walidacji**:
 
-| Tag | Stan wyjściowy |
-|-----|----------------|
-| `<itunes:category>` | brak całkowicie (twardy wymóg) |
-| `<itunes:explicit>` | brak całkowicie (twardy wymóg) |
-| `<itunes:image>` | pole opcjonalne w builderze, a `/podcast/rss.xml` nie podawał go WCALE |
-| `<itunes:owner>` | brak e-maila = brak możliwości weryfikacji własności kanału |
-| `<itunes:author>` | brak nazwy wydawcy w katalogu |
-| `<itunes:episodeType>`, `<itunes:explicit>`, `<itunes:title>` (item) | brak |
+| Tag                                                                  | Stan wyjściowy                                                         |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `<itunes:category>`                                                  | brak całkowicie (twardy wymóg)                                         |
+| `<itunes:explicit>`                                                  | brak całkowicie (twardy wymóg)                                         |
+| `<itunes:image>`                                                     | pole opcjonalne w builderze, a `/podcast/rss.xml` nie podawał go WCALE |
+| `<itunes:owner>`                                                     | brak e-maila = brak możliwości weryfikacji własności kanału            |
+| `<itunes:author>`                                                    | brak nazwy wydawcy w katalogu                                          |
+| `<itunes:episodeType>`, `<itunes:explicit>`, `<itunes:title>` (item) | brak                                                                   |
 
 - schema: `itunes_*` na `podcast_settings` (kanał sieciowy) i `podcast_shows`
   (nadpisania per program), `explicit` + `episode_type` na `podcasts`,
@@ -221,16 +221,16 @@ naprawczych (`-- FIX: był public_tenant_id()` w `20260724100000`) - czyli była
 
 ## Weryfikacja
 
-| Krok | Wynik |
-|------|-------|
-| `tsc --noEmit` | ✓ czysto |
-| `vitest run` | ✓ 2667 pass / 0 fail / 50 skipped (316 plików) |
-| `eslint` na plikach z tej zmiany | ✓ czysto |
-| `check:sql-tenant-scope` | ✓ (naprawiona - patrz §7) |
-| `check:sql-app-role` | ✓ (nowa bramka) |
-| `check:chunks` | ✓ graf acykliczny |
-| `bun run build` | ✓ |
-| pgTAP | 2 nowe pliki (`recommendations_contract`, `coupon_effects_after_payment`) - weryfikuje CI |
+| Krok                             | Wynik                                                                                     |
+| -------------------------------- | ----------------------------------------------------------------------------------------- |
+| `tsc --noEmit`                   | ✓ czysto                                                                                  |
+| `vitest run`                     | ✓ 2667 pass / 0 fail / 50 skipped (316 plików)                                            |
+| `eslint` na plikach z tej zmiany | ✓ czysto                                                                                  |
+| `check:sql-tenant-scope`         | ✓ (naprawiona - patrz §7)                                                                 |
+| `check:sql-app-role`             | ✓ (nowa bramka)                                                                           |
+| `check:chunks`                   | ✓ graf acykliczny                                                                         |
+| `bun run build`                  | ✓                                                                                         |
+| pgTAP                            | 2 nowe pliki (`recommendations_contract`, `coupon_effects_after_payment`) - weryfikuje CI |
 
 **Nowe testy:** 39 przypadków w 5 plikach (`couponMoney`, `media/upload`,
 `wp-import/buildPage`, `seo/podcastChannelMeta`, `i18nAdminPodcasts`) +

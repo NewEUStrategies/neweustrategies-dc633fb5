@@ -15,18 +15,18 @@ zaznaczeniu) działają na nim bez zmian w swoich modułach.
 
 ## 1. Co doszło (matryca zachowań)
 
-| Zachowanie | WP Gutenberg | NES przed | NES po |
-| --- | --- | --- | --- |
-| Przeciągnięcie myszą przez granicę bloku zaznacza CAŁE bloki | tak (`useSelectionObserver`) | brak | ✓ |
-| Shift+strzałka w dół/górę rozszerza zaznaczenie blokowe | tak | brak | ✓ |
-| Shift+strzałka ZAWĘŻA zaznaczenie przy odwrotnym kierunku | tak | brak | ✓ |
-| Shift+strzałka z wnętrza akapitu/nagłówka na krawędzi treści eskaluje do zaznaczenia bloków | tak | brak | ✓ |
-| Shift+klik w treść INNEGO bloku zaznacza zakres bloków | tak | tylko poza treścią | ✓ |
-| Zwykła strzałka w trybie blokowym zwija zaznaczenie do jednego bloku | tak | brak | ✓ |
-| Pisanie znaku przy zaznaczeniu >= 2 bloków zastępuje je akapitem | tak (`onBeforeInput`) | brak | ✓ |
-| Enter przy zaznaczeniu >= 2 bloków zastępuje je pustym akapitem | tak | brak | ✓ |
-| Shift+Home / Shift+End - zaznaczenie do krawędzi dokumentu | nie | brak | ✓+ (ponad WP) |
-| Komunikat `aria-live` o liczbie zaznaczonych bloków | tak (`speak()`) | brak | ✓ |
+| Zachowanie                                                                                  | WP Gutenberg                 | NES przed          | NES po        |
+| ------------------------------------------------------------------------------------------- | ---------------------------- | ------------------ | ------------- |
+| Przeciągnięcie myszą przez granicę bloku zaznacza CAŁE bloki                                | tak (`useSelectionObserver`) | brak               | ✓             |
+| Shift+strzałka w dół/górę rozszerza zaznaczenie blokowe                                     | tak                          | brak               | ✓             |
+| Shift+strzałka ZAWĘŻA zaznaczenie przy odwrotnym kierunku                                   | tak                          | brak               | ✓             |
+| Shift+strzałka z wnętrza akapitu/nagłówka na krawędzi treści eskaluje do zaznaczenia bloków | tak                          | brak               | ✓             |
+| Shift+klik w treść INNEGO bloku zaznacza zakres bloków                                      | tak                          | tylko poza treścią | ✓             |
+| Zwykła strzałka w trybie blokowym zwija zaznaczenie do jednego bloku                        | tak                          | brak               | ✓             |
+| Pisanie znaku przy zaznaczeniu >= 2 bloków zastępuje je akapitem                            | tak (`onBeforeInput`)        | brak               | ✓             |
+| Enter przy zaznaczeniu >= 2 bloków zastępuje je pustym akapitem                             | tak                          | brak               | ✓             |
+| Shift+Home / Shift+End - zaznaczenie do krawędzi dokumentu                                  | nie                          | brak               | ✓+ (ponad WP) |
+| Komunikat `aria-live` o liczbie zaznaczonych bloków                                         | tak (`speak()`)              | brak               | ✓             |
 
 **Uwaga o „zaznaczaniu tekstu w poprzek bloków”:** WP core także NIE pozwala
 zaznaczyć fragmentu tekstu przez granicę bloku - przeciągnięcie przez granicę
@@ -45,16 +45,16 @@ polu RichText (także nagłówek, element listy), my na razie w akapicie.
 
 ## 2. Architektura (atomic design + separacja warstw)
 
-| Warstwa | Plik | Rola |
-| --- | --- | --- |
-| Domena (czysta, bez DOM) | `src/lib/blocks/crossSelection.ts` | Model kotwica + ognisko, `extendSelection`, `extendSelectionToEdge`, `moveSelection`, `currentSelectionRange`, `isPrintableKey`. Zero zależności od Reacta i DOM. |
-| Most do DOM | `src/lib/blocks/selectionDom.ts` | `topLevelBlockIdFromNode`, `domSelectionEnds`, `enterBlockSelectionMode`, `isEditableTarget` - tłumaczenie natywnej selekcji na bloki top-level. |
-| Arbitraż kanw | `src/components/admin/blocks/hooks/canvasStack.ts` | Wspólny rejestr zamontowanych kanw (`useCanvasStack`, `canvasOwnsEvent`) - używany TERAZ i przez schowek, i przez zaznaczenie. |
-| Zachowanie (hook) | `src/components/admin/blocks/hooks/useCrossBlockSelection.ts` | Jedyny właściciel zaznaczenia blokowego: obserwator przeciągania, klawiatura trybu blokowego, kontroler dla kanwy. |
-| Atom | `src/components/admin/blocks/atoms/BlockSelectionAnnouncer.tsx` | Region `aria-live` (sr-only) z liczbą zaznaczonych bloków (PL/EN, pluralizacja). |
-| Molekuła | `src/components/admin/blocks/molecules/BlockListView.tsx` | Podpowiedź skrótów zaznaczenia w panelu struktury dokumentu. |
-| Organizm | `src/components/admin/blocks/BlockCanvas.tsx` | Konsument kontrolera; sama kanwa nie składa już list id ręcznie. |
-| Edytory inline | `edit/Paragraph.tsx`, `edit/Heading.tsx` | Eskalacja Shift+strzałki na krawędzi treści (`onExtendBlockSelection`). |
+| Warstwa                  | Plik                                                            | Rola                                                                                                                                                              |
+| ------------------------ | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Domena (czysta, bez DOM) | `src/lib/blocks/crossSelection.ts`                              | Model kotwica + ognisko, `extendSelection`, `extendSelectionToEdge`, `moveSelection`, `currentSelectionRange`, `isPrintableKey`. Zero zależności od Reacta i DOM. |
+| Most do DOM              | `src/lib/blocks/selectionDom.ts`                                | `topLevelBlockIdFromNode`, `domSelectionEnds`, `enterBlockSelectionMode`, `isEditableTarget` - tłumaczenie natywnej selekcji na bloki top-level.                  |
+| Arbitraż kanw            | `src/components/admin/blocks/hooks/canvasStack.ts`              | Wspólny rejestr zamontowanych kanw (`useCanvasStack`, `canvasOwnsEvent`) - używany TERAZ i przez schowek, i przez zaznaczenie.                                    |
+| Zachowanie (hook)        | `src/components/admin/blocks/hooks/useCrossBlockSelection.ts`   | Jedyny właściciel zaznaczenia blokowego: obserwator przeciągania, klawiatura trybu blokowego, kontroler dla kanwy.                                                |
+| Atom                     | `src/components/admin/blocks/atoms/BlockSelectionAnnouncer.tsx` | Region `aria-live` (sr-only) z liczbą zaznaczonych bloków (PL/EN, pluralizacja).                                                                                  |
+| Molekuła                 | `src/components/admin/blocks/molecules/BlockListView.tsx`       | Podpowiedź skrótów zaznaczenia w panelu struktury dokumentu.                                                                                                      |
+| Organizm                 | `src/components/admin/blocks/BlockCanvas.tsx`                   | Konsument kontrolera; sama kanwa nie składa już list id ręcznie.                                                                                                  |
+| Edytory inline           | `edit/Paragraph.tsx`, `edit/Heading.tsx`                        | Eskalacja Shift+strzałki na krawędzi treści (`onExtendBlockSelection`).                                                                                           |
 
 Zyski międzymodułowe:
 
@@ -87,7 +87,7 @@ Zyski międzymodułowe:
   trafia do treści przez `escapeInlineText`, więc `<`, `>` i `&` z klawiatury
   są znakami, a nie znacznikami (test w `inlineHtml.test.ts`).
 - **Brak przypadkowej utraty treści:** nadpisanie zaznaczenia pisaniem wymaga
-  >= 2 zaznaczonych bloków (WP tak samo - `hasMultiSelection`), a każda taka
+  `>= 2` zaznaczonych bloków (WP tak samo - `hasMultiSelection`), a każda taka
   zmiana idzie przez `emitChange` -> stos undo/redo per język.
 - Zdarzenia klawiatury są przyjmowane wyłącznie, gdy `canvasOwnsEvent` uzna je
   za należące do tej kanwy - klawisz wpisany w dowolne inne pole formularza
@@ -98,8 +98,8 @@ Zyski międzymodułowe:
 ## 4. i18n (PL/EN) i warstwa wizualna
 
 - Nowe klucze (bramkowany prefiks `blocks`, więc CI wymusza obie wersje):
-  `blocks.selection.count` (pluralizacja PL: 1 blok / 2-4 bloki / 5+ bloków
-  + EN one/other) oraz `blocks.selection.hint` (skróty w panelu struktury).
+  `blocks.selection.count` (pluralizacja PL: 1 blok / 2-4 bloki / 5+ bloków +
+  EN one/other) oraz `blocks.selection.hint` (skróty w panelu struktury).
 - Warstwa wizualna nie rusza gridu ani responsywności: podświetlenie
   zaznaczonych bloków korzysta z istniejących klas wiersza, doszła jedna reguła
   w `styles.css` gasząca natywne `::selection` i karetkę w trakcie przeciągania
@@ -110,12 +110,12 @@ Zyski międzymodułowe:
 
 ## 5. Testy
 
-| Plik | Zakres | Liczba |
-| --- | --- | --- |
-| `src/lib/blocks/__tests__/crossSelection.test.ts` | semantyka zakresów: rozszerzanie, zawężanie, przejście przez kotwicę, krawędzie, Home/End, odtwarzanie końców, klawisze znakowe | 24 |
-| `src/lib/blocks/__tests__/selectionDom.test.ts` | mapowanie węzeł -> blok top-level (także z zagnieżdżenia), końce selekcji DOM, rozpoznawanie pól edytowalnych, wejście w tryb blokowy | 13 |
-| `src/components/admin/blocks/hooks/__tests__/useCrossBlockSelection.test.tsx` | przeciąganie przez granicę bloku (start/koniec/powrót do jednego bloku/prawy przycisk), Shift+strzałki i Shift+Home/End, zwykłe strzałki, pisanie i Enter po zaznaczeniu, kontroler (anchor/extend/toggle/selectAll/selectRange/clear/extendFromBlock), zasięg klawiatury (poza kanwą / zgubiony fokus), arbitraż dwóch kanw, sprzątanie po odmontowaniu | 32 |
-| `src/lib/blocks/__tests__/inlineHtml.test.ts` | escapowanie tekstu wstawianego do treści bloku | +1 |
+| Plik                                                                          | Zakres                                                                                                                                                                                                                                                                                                                                                   | Liczba |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| `src/lib/blocks/__tests__/crossSelection.test.ts`                             | semantyka zakresów: rozszerzanie, zawężanie, przejście przez kotwicę, krawędzie, Home/End, odtwarzanie końców, klawisze znakowe                                                                                                                                                                                                                          | 24     |
+| `src/lib/blocks/__tests__/selectionDom.test.ts`                               | mapowanie węzeł -> blok top-level (także z zagnieżdżenia), końce selekcji DOM, rozpoznawanie pól edytowalnych, wejście w tryb blokowy                                                                                                                                                                                                                    | 13     |
+| `src/components/admin/blocks/hooks/__tests__/useCrossBlockSelection.test.tsx` | przeciąganie przez granicę bloku (start/koniec/powrót do jednego bloku/prawy przycisk), Shift+strzałki i Shift+Home/End, zwykłe strzałki, pisanie i Enter po zaznaczeniu, kontroler (anchor/extend/toggle/selectAll/selectRange/clear/extendFromBlock), zasięg klawiatury (poza kanwą / zgubiony fokus), arbitraż dwóch kanw, sprzątanie po odmontowaniu | 32     |
+| `src/lib/blocks/__tests__/inlineHtml.test.ts`                                 | escapowanie tekstu wstawianego do treści bloku                                                                                                                                                                                                                                                                                                           | +1     |
 
 Razem 70 nowych testów. Pełna suita: `vitest run` zielony (4722 testy zdane, 50 pominiętych),
 `tsc --noEmit` czysto, `eslint` na zmienionych plikach 0 błędów, bramka

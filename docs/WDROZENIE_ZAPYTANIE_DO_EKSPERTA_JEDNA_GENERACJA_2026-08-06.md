@@ -7,13 +7,13 @@ a na świeżej bazie cała piątka wołanych RPC była martwa. Naprawy istniały
 
 ## 1. Stan wyjściowy: dwa światy, jeden wołany
 
-| | generacja „inmail" (WOŁANA przez klienta) | generacja „expert_request" (nieużywana) |
-| --- | --- | --- |
-| RPC | `my_inmail_quota`, `send_expert_inmail`, `resolve_expert_inmail`, `list_my_inmails`, `admin_list_inmails` | `my_expert_request_quota`, `send_expert_request`, `resolve_expert_request`, `list_my_expert_requests`, `admin_list_expert_requests` |
-| tabela | `public.expert_inmails` | `public.expert_requests` |
-| licznik puli | `status <> 'cancelled'` | wszystkie wysłane w miesiącu |
-| serializacja wysyłek | brak | `pg_advisory_xact_lock` |
-| pula | flagi `chat_inmail_quota_2/5` (Plus = 2, Pro = 5) | liczba `features.expert_request_quota` (Plus = 1, Pro = 3) |
+|                      | generacja „inmail" (WOŁANA przez klienta)                                                                 | generacja „expert_request" (nieużywana)                                                                                             |
+| -------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| RPC                  | `my_inmail_quota`, `send_expert_inmail`, `resolve_expert_inmail`, `list_my_inmails`, `admin_list_inmails` | `my_expert_request_quota`, `send_expert_request`, `resolve_expert_request`, `list_my_expert_requests`, `admin_list_expert_requests` |
+| tabela               | `public.expert_inmails`                                                                                   | `public.expert_requests`                                                                                                            |
+| licznik puli         | `status <> 'cancelled'`                                                                                   | wszystkie wysłane w miesiącu                                                                                                        |
+| serializacja wysyłek | brak                                                                                                      | `pg_advisory_xact_lock`                                                                                                             |
+| pula                 | flagi `chat_inmail_quota_2/5` (Plus = 2, Pro = 5)                                                         | liczba `features.expert_request_quota` (Plus = 1, Pro = 3)                                                                          |
 
 `src/lib/chat/useExpertRequests.ts` wołał wyłącznie lewą kolumnę.
 
@@ -41,10 +41,10 @@ w ledgerze. Na świeżej bazie rename **JEST** stosowany, a dwie późniejsze mi
 (`20260724115134`, `20260724130000`) odtwarzają `send_expert_inmail` pod **starą** nazwą
 tabeli. Stan końcowy migracji na świeżej bazie:
 
-| RPC klienta | co się dzieje |
-| --- | --- |
-| `send_expert_inmail` | istnieje, ale ciało celuje w nieistniejącą tabelę → **42P01** przy wywołaniu |
-| `my_inmail_quota`, `resolve_expert_inmail`, `list_my_inmails`, `admin_list_inmails` | nie istnieją wcale → **PGRST202** |
+| RPC klienta                                                                         | co się dzieje                                                                |
+| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `send_expert_inmail`                                                                | istnieje, ale ciało celuje w nieistniejącą tabelę → **42P01** przy wywołaniu |
+| `my_inmail_quota`, `resolve_expert_inmail`, `list_my_inmails`, `admin_list_inmails` | nie istnieją wcale → **PGRST202**                                            |
 
 Potwierdzone eksperymentalnie na Postgresie 16 (odwzorowane zależności obu światów,
 migracja stosowana na każdym z nich osobno) oraz statycznie nową bramką CI - po usunięciu
@@ -141,15 +141,15 @@ referencją) i nie liczy `ALTER PUBLICATION … DROP TABLE` jako wycofania tabel
 
 ## 4. Weryfikacja
 
-| Co | Jak |
-| --- | --- |
-| migracja stosuje się w OBU światach i zbiega je do jednej tabeli | Postgres 16 lokalnie: harness produkcyjny (`expert_inmails`) i świeży (`expert_requests`), migracja na każdym osobno |
-| 12 grup asercji behawioralnych (pula, pętla obejścia, tenant, guard, antyspam, ACL) | ten sam harness, oba światy - przechodzą identycznie |
-| pgTAP `supabase/tests/expert_request_single_generation_test.sql` | 29 asercji: kontrakt obiektów, ACL, parytet delegatu, pula, pętla obejścia, zamknięty zapis przez Data API, guard kolumnowy, maszyna stanów, dryf tenanta, moderacja, antyspam |
-| bramka wykrywa naprawiony defekt | usunięcie migracji naprawczej → `check:rpc-contract` wskazuje 4 brakujące RPC + `send_expert_inmail` → `public.expert_inmails` |
-| jednostkowe | `src/lib/ci/__tests__/rpcContract.test.ts` (16), `src/lib/chat/__tests__/expertRequestErrors.test.ts` (21), `src/components/chat/__tests__/expertRequestCancel.test.tsx` (6) |
-| pełny zestaw | `bunx vitest run` - 618 plików / 6696 testów zielonych; `tsc --noEmit` czysty |
-| bramki SQL/authz | `check:sql-tenant-scope`, `check:sql-app-role`, `check:sql-anon-insert`, `check:sql-migration-replay`, `check:sql-owner-tenant-scope`, `check:authz-snapshot`, `check:i18n-parity`, `check:permissions-parity` - zielone |
+| Co                                                                                  | Jak                                                                                                                                                                                                                      |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| migracja stosuje się w OBU światach i zbiega je do jednej tabeli                    | Postgres 16 lokalnie: harness produkcyjny (`expert_inmails`) i świeży (`expert_requests`), migracja na każdym osobno                                                                                                     |
+| 12 grup asercji behawioralnych (pula, pętla obejścia, tenant, guard, antyspam, ACL) | ten sam harness, oba światy - przechodzą identycznie                                                                                                                                                                     |
+| pgTAP `supabase/tests/expert_request_single_generation_test.sql`                    | 29 asercji: kontrakt obiektów, ACL, parytet delegatu, pula, pętla obejścia, zamknięty zapis przez Data API, guard kolumnowy, maszyna stanów, dryf tenanta, moderacja, antyspam                                           |
+| bramka wykrywa naprawiony defekt                                                    | usunięcie migracji naprawczej → `check:rpc-contract` wskazuje 4 brakujące RPC + `send_expert_inmail` → `public.expert_inmails`                                                                                           |
+| jednostkowe                                                                         | `src/lib/ci/__tests__/rpcContract.test.ts` (16), `src/lib/chat/__tests__/expertRequestErrors.test.ts` (21), `src/components/chat/__tests__/expertRequestCancel.test.tsx` (6)                                             |
+| pełny zestaw                                                                        | `bunx vitest run` - 618 plików / 6696 testów zielonych; `tsc --noEmit` czysty                                                                                                                                            |
+| bramki SQL/authz                                                                    | `check:sql-tenant-scope`, `check:sql-app-role`, `check:sql-anon-insert`, `check:sql-migration-replay`, `check:sql-owner-tenant-scope`, `check:authz-snapshot`, `check:i18n-parity`, `check:permissions-parity` - zielone |
 
 `check-db-contract.ts`: lista `SUPERSEDED` **wyzerowana**. Cztery obiekty generacji
 „expert_request", które nie istniały w produkcji, powstają teraz w tej migracji, więc

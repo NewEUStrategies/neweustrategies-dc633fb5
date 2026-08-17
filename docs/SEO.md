@@ -47,7 +47,7 @@ thin layers that never re-implement logic:
 | `/tracker/rss.xml`             | EU policy tracker dossiers, ordered by `updated_at` (stage movement is the news)                                                                                                |
 | `/live/rss.xml`                | Live-coverage entries (one item per update, anchored to the post)                                                                                                               |
 | `/llms.txt`                    | Site guide for AI assistants (GEO / zero-click citations)                                                                                                                       |
-| `/robots.txt`                  | Per-host crawl policy: sitemap index + news sitemap, admin-managed AI-crawler groups, `X-Robots-Tag`. Never a static file - see below                                            |
+| `/robots.txt`                  | Per-host crawl policy: sitemap index + news sitemap, admin-managed AI-crawler groups, `X-Robots-Tag`. Never a static file - see below                                           |
 
 ### Sitemap sharding
 
@@ -74,13 +74,13 @@ classification (`classifyCrawlHost` in `src/lib/http/host.ts`) drives both the
 crawl policy and the origin the sitemaps are announced on, so canonicalization
 and indexing can never disagree:
 
-| Host class | Example                    | robots.txt                                        | `X-Robots-Tag`      |
-| ---------- | -------------------------- | ------------------------------------------------- | ------------------- |
-| `brand`    | `neweuropeanstrategies.com`| `Allow: /` + sitemaps on the canonical origin     | `all`               |
-| `tenant`   | a domain in `tenants.domain` | `Allow: /` + sitemaps on **that host's** origin  | `all`               |
+| Host class | Example                       | robots.txt                                       | `X-Robots-Tag`      |
+| ---------- | ----------------------------- | ------------------------------------------------ | ------------------- |
+| `brand`    | `neweuropeanstrategies.com`   | `Allow: /` + sitemaps on the canonical origin    | `all`               |
+| `tenant`   | a domain in `tenants.domain`  | `Allow: /` + sitemaps on **that host's** origin  | `all`               |
 | `alias`    | `*.pages.dev`, legacy domains | `Disallow: /` (they 301 to the canonical origin) | `noindex, nofollow` |
-| `editor`   | `localhost`, editor previews | `Disallow: /`                                    | `noindex, nofollow` |
-| `unknown`  | an unclaimed domain        | `Disallow: /` (fail-closed)                       | `noindex, nofollow` |
+| `editor`   | `localhost`, editor previews  | `Disallow: /`                                    | `noindex, nofollow` |
+| `unknown`  | an unclaimed domain           | `Disallow: /` (fail-closed)                      | `noindex, nofollow` |
 
 Only an exact `tenants.domain` match (or its www/apex alias) counts as `tenant` -
 the default-tenant fallback of `resolveCrawlerTenantForHost` must never open
@@ -94,7 +94,7 @@ sitemap routes would fail closed for this host (a robots.txt pointing a crawler
 at a 404 is a ready-made Search Console error).
 
 **Deployment invariant.** The Cloudflare deploy binds `.output/public/` as
-`assets`, and the Asset Worker answers *before* our worker. A committed
+`assets`, and the Asset Worker answers _before_ our worker. A committed
 `public/robots.txt` therefore disabled this whole route in production while
 every test stayed green (the dev server has no asset layer in front of the
 router) - the audit of 2026-08-06 found production serving static `Allow: /` to

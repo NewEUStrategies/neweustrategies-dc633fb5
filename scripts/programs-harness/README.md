@@ -19,11 +19,11 @@ Scalenie było najpierw napisane jako **jedna ręczna migracja**
 `20260815100000_programs_single_table.sql` (540 linii). Ta migracja została
 **zastąpiona** łańcuchem trzech migracji i usunięta z repo (commit `207fdd9`):
 
-| Migracja | Co wnosi |
-| --- | --- |
-| `20260815110437` | kolumna `programs.status` |
+| Migracja         | Co wnosi                                                                                                                          |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `20260815110437` | kolumna `programs.status`                                                                                                         |
 | `20260815110844` | właściwe scalenie: `program_merge_map`, przeniesienie wierszy, przepięcie 4 kluczy obcych, `DROP TABLE research_programs` + widok |
-| `20260815111026` | `club_anchor_label` przepięty z `research_programs` na `programs` |
+| `20260815111026` | `club_anchor_label` przepięty z `research_programs` na `programs`                                                                 |
 
 Harness **nie został wtedy przepięty** i wskazywał na skasowany plik, więc
 `check:programs-harness` failował (`FAIL migracja 20260815100000`) — mimo że

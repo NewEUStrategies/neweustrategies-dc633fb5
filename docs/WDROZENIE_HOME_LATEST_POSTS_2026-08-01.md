@@ -33,13 +33,13 @@ PR #121 usunął na `/blog`. Naprawa: trasa `/` dostaje ten sam kontrakt URL-a c
 
 - `?page=N` walidowane współdzielonym parserem (`src/lib/routing/pageSearch.ts`),
 - loader SSR prefetchuje DOKŁADNIE żądaną stronę przez `blogArchiveQueryOptions({page,
-  pageSize})` - klucz zapytania 1:1 z komponentem (hydracja bez drugiego fetcha),
+pageSize})` - klucz zapytania 1:1 z komponentem (hydracja bez drugiego fetcha),
   degradacja seeduje pusty wynik z `updatedAt: 0` i wyklucza render ze współdzielonego
   cache (no-store), jak dotąd,
 - `head()`: strony >1 są `noindex, follow`; canonical zawsze wskazuje czysty `/`
   (splitUrl odcina query), więc `?page` nie tworzy duplikatów także w trybie statycznym,
 - paginacja renderuje realne `<a href>` (ArchivePagination + `router.buildLocation(...)
-  .publicHref` - z prefiksem języka `/en?page=2`), zmiana strony biegnie w
+.publicHref` - z prefiksem języka `/en?page=2`), zmiana strony biegnie w
   `useTransition` (siatka zostaje na ekranie, kontrolki dostają `isPending`),
 - rozmiar strony honoruje `posts_per_page` z ustawień czytania (widełki 1..100).
 
@@ -47,8 +47,8 @@ PR #121 usunął na `/blog`. Naprawa: trasa `/` dostaje ten sam kontrakt URL-a c
 
 `LatestPostsHome` utrzymywał kopię siatki z `/blog` (grid + karty + wstawki in-feed +
 pasek stron). Wydzielony organizm `src/components/archive/PaginatedPostGrid.tsx`
-(atomic design: organizm składający molekuły `ArchivePostList` + `ArchivePagination`
-+ scroll-to-top) jest teraz JEDYNĄ definicją tej kompozycji - używają go `/` (tryb
+(atomic design: organizm składający molekuły `ArchivePostList` + `ArchivePagination` +
+scroll-to-top) jest teraz JEDYNĄ definicją tej kompozycji - używają go `/` (tryb
 wpisów) i `/blog`. Empty state obu tras przechodzi na kanoniczny wariant
 `ArchivePostList` (ikona + ramka), spójny z archiwami i wyszukiwarką.
 `ArchivePostList` dostał opcjonalne `firstCardPriority` (pierwsza karta jako kandydat
