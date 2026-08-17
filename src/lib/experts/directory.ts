@@ -71,8 +71,10 @@ export const expertsDirectoryQueryOptions = () =>
           .from("profiles_public")
           .select("id, slug, display_name, avatar_url, verified_at")
           .in("id", expertIds),
+        // Publiczna projekcja (bez PII kontaktowego) - tabela bazowa nie ma
+        // już polityk odczytu anon/authenticated (20260817120000).
         supabase
-          .from("author_profiles")
+          .from("author_profiles_public")
           .select("user_id, job_title, company, is_public")
           .in("user_id", expertIds),
         supabase
@@ -95,14 +97,15 @@ export const expertsDirectoryQueryOptions = () =>
       if (profErr) throw profErr;
       if (apErr) throw apErr;
 
-      // Tylko eksperci z publicznym profilem autorskim.
+      // Tylko eksperci z publicznym profilem autorskim. Widok typuje kolumny
+      // jako nullable - strażnik na user_id zawęża bez rzutowań.
       type ApLite = { job_title: string | null; company: string | null };
       const publicApByUser = new Map<string, ApLite>();
-      for (const row of (aps ?? []) as Record<string, unknown>[]) {
-        if (row.is_public === true) {
-          publicApByUser.set(row.user_id as string, {
-            job_title: (row.job_title as string | null) ?? null,
-            company: (row.company as string | null) ?? null,
+      for (const row of aps ?? []) {
+        if (row.user_id && row.is_public === true) {
+          publicApByUser.set(row.user_id, {
+            job_title: row.job_title,
+            company: row.company,
           });
         }
       }

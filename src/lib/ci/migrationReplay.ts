@@ -165,7 +165,6 @@ const KNOWN_CONTENT_TWINS: readonly string[] = [
   "20260816090000_club_topics_public_read_tenant_scope.sql|20260816204256_d05ac5e5-13f2-43dc-b08b-15a03105188b.sql",
 ];
 
-
 /**
  * Treść migracji bez komentarzy i bez różnic w białych znakach. Dwa pliki
  * generowane osobno dla tej samej zmiany różnią się zwykle wyłącznie nagłówkiem

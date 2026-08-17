@@ -6,7 +6,10 @@
 --   * author_profiles_public_read_pii
 --       - anon NIE czyta wrażliwych kolumn (phone, media_contact_email)
 --       - RLS "Public can view public author profiles" zawężone do
---         is_public=true AND tenant_id=public_tenant_id() (kontrola dodatnia)
+--         is_public=true AND tenant_id=public_tenant_id() (kontrola dodatnia);
+--         od 20260817120000 polityka nie istnieje W OGÓLE - publiczny odczyt
+--         przeszedł w całości na widok author_profiles_public (stan przybija
+--         author_profiles_public_read_view_only_test.sql)
 --       - owner ma pełny dostęp przez SECURITY DEFINER get_own_author_profile()
 --   * content_access_public_read_no_tenant_filter
 --       - password_hash oraz password_hint_pl/en NIEczytelne dla anon

@@ -100,7 +100,6 @@ export const UNKNOWN_CAST_BASELINE: readonly (readonly [string, number])[] = [
   ["src/lib/email/reputationGate.server.ts", 1],
   ["src/lib/email/suppression.server.ts", 1],
   ["src/lib/experts/adminAuthorProfileRpc.ts", 1],
-  ["src/lib/experts/internalBase.ts", 3],
   ["src/lib/experts/materials.ts", 1],
   ["src/lib/experts/rpcHub.ts", 1],
   ["src/lib/http/middlewareResult.ts", 2],
