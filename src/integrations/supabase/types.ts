@@ -14533,6 +14533,18 @@ export type Database = {
           },
         ]
       }
+      career_page_sections_public: {
+        Row: {
+          is_visible: boolean | null
+          key: string | null
+          sort_order: number | null
+          subtitle_en: string | null
+          subtitle_pl: string | null
+          title_en: string | null
+          title_pl: string | null
+        }
+        Relationships: []
+      }
       content_access_public: {
         Row: {
           created_at: string | null

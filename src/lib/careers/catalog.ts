@@ -87,7 +87,8 @@ export interface CareerSectionRow {
 const ROLE_COLUMNS =
   "id,slug,department,engagement,seniority,location,sort_order,is_published,title_pl,title_en,summary_pl,summary_en,responsibilities_pl,responsibilities_en,requirements_pl,requirements_en";
 
-const SECTION_COLUMNS = "key,is_visible,sort_order,title_pl,title_en,subtitle_pl,subtitle_en";
+export const SECTION_COLUMNS =
+  "key,is_visible,sort_order,title_pl,title_en,subtitle_pl,subtitle_en";
 
 /** Oferty widoczne publicznie (opublikowane, wg kolejności). */
 export const careerRolesQueryOptions = (includeDrafts = false) =>
@@ -107,13 +108,25 @@ export const careerRolesQueryOptions = (includeDrafts = false) =>
     },
   });
 
+/**
+ * Sekcje strony publicznej - czytane z WIDOKU, nie z tabeli.
+ *
+ * Od migracji 20260817230000 polityka `career_sections_public_read` filtruje
+ * `AND is_visible`, więc tabela bazowa nie oddaje już anonowi wiersza sekcji
+ * wyłączonej (razem z jej roboczymi nagłówkami - to była treść tego findingu).
+ * Gdyby strona nadal czytała tabelę, `sectionState` widziałby BRAK wiersza,
+ * a brak wiersza znaczy "pokaż" - sekcja zdjęta przez redakcję wróciłaby na
+ * stronę. Widok `career_page_sections_public` oddaje komplet kluczy najemcy
+ * wraz z flagą `is_visible`, ale nagłówki sekcji ukrytej ma ucięte do NULL:
+ * sygnał "ukryj" przeżywa, brudnopis nie wychodzi.
+ */
 export const careerSectionsQueryOptions = () =>
   queryOptions({
-    queryKey: ["career-page-sections"] as const,
+    queryKey: ["career-page-sections", "public"] as const,
     staleTime: 60_000,
     queryFn: async (): Promise<CareerSectionRow[]> => {
       const { data, error } = await supabase
-        .from("career_page_sections")
+        .from("career_page_sections_public")
         .select(SECTION_COLUMNS)
         .order("sort_order", { ascending: true });
       if (error) throw new Error(error.message);

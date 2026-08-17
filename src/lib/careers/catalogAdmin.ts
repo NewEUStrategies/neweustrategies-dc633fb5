@@ -6,9 +6,11 @@
 // w tamtym module jedzie do czytelnika, który nigdy go nie wykona. Import
 // wbudowanego katalogu do bazy uruchamia tylko operator panelu, dlatego
 // mieszka tutaj, w module z jednym adminowym importerem (`admin.hiring.tsx`).
-// Moduł jest czysty (bez Reacta, bez zapytań) - jak cała warstwa danych karier.
+// Moduł jest czysty (bez Reacta) - jak cała warstwa danych karier.
+import { queryOptions } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
 
+import { supabase } from "@/integrations/supabase/client";
 import {
   CAREER_ROLES,
   roleBulletKeys,
@@ -16,7 +18,34 @@ import {
   roleSummaryKey,
   roleTitleKey,
 } from "./roles";
-import type { CareerRoleRow } from "./catalog";
+import { SECTION_COLUMNS, type CareerRoleRow, type CareerSectionRow } from "./catalog";
+
+/**
+ * Sekcje strony w wersji redakcyjnej - z TABELI, nie z publicznego widoku.
+ *
+ * Panel musi widzieć sekcje wyłączone razem z ich roboczymi nagłówkami, bo to
+ * one są przedmiotem edycji; publiczna projekcja `career_page_sections_public`
+ * (20260817230000) tnie te nagłówki do NULL, więc czytanie jej w adminie
+ * kasowałoby operatorowi treść przy każdym odświeżeniu. Odczyt tabeli
+ * przechodzi polityką `career_sections_staff_read` (is_staff + własny tenant).
+ *
+ * Klucz jest rodzeństwem klucza publicznego pod wspólnym prefiksem
+ * `["career-page-sections"]`, żeby jedna inwalidacja po zapisie odświeżała oba
+ * odczyty - w adminie /admin/hiring żyją obok siebie.
+ */
+export const careerSectionsAdminQueryOptions = () =>
+  queryOptions({
+    queryKey: ["career-page-sections", "admin"] as const,
+    staleTime: 60_000,
+    queryFn: async (): Promise<CareerSectionRow[]> => {
+      const { data, error } = await supabase
+        .from("career_page_sections")
+        .select(SECTION_COLUMNS)
+        .order("sort_order", { ascending: true });
+      if (error) throw new Error(error.message);
+      return (data ?? []) as CareerSectionRow[];
+    },
+  });
 
 /** Wbudowany katalog jako wiersze bazy - do jednorazowego importu w adminie. */
 export function fallbackRoleRows(t: TFunction, tEn: TFunction): Array<Omit<CareerRoleRow, "id">> {

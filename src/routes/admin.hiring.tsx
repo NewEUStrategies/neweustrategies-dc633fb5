@@ -27,12 +27,11 @@ import {
 import {
   CAREER_SECTION_KEYS,
   careerRolesQueryOptions,
-  careerSectionsQueryOptions,
   type CareerLocation,
   type CareerRoleRow,
   type CareerSectionRow,
 } from "@/lib/careers/catalog";
-import { fallbackRoleRows } from "@/lib/careers/catalogAdmin";
+import { careerSectionsAdminQueryOptions, fallbackRoleRows } from "@/lib/careers/catalogAdmin";
 
 export const Route = createFileRoute("/admin/hiring")({
   head: () => ({
@@ -297,7 +296,9 @@ function AdminHiringPage() {
   const [draft, setDraft] = useState<RoleDraft | null>(null);
 
   const rolesQuery = useQuery(careerRolesQueryOptions(true));
-  const sectionsQuery = useQuery(careerSectionsQueryOptions());
+  // Panel czyta TABELĘ (widok publiczny tnie nagłówki sekcji ukrytych do NULL,
+  // a to właśnie one są tu przedmiotem edycji) - patrz 20260817230000.
+  const sectionsQuery = useQuery(careerSectionsAdminQueryOptions());
   const rows = useMemo(() => rolesQuery.data ?? [], [rolesQuery.data]);
 
   useEffect(() => {
