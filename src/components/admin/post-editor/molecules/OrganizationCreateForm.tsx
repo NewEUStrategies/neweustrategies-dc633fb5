@@ -122,6 +122,7 @@ export function OrganizationCreateForm({
         _website: form.website.trim() || undefined,
         _phone: form.phone.trim() || undefined,
         _logo_url: logoUrl ?? undefined,
+        _domain: form.domain.trim() || undefined,
       });
       if (error) throw error;
       if (!newId) throw new Error("empty_response");

@@ -1127,6 +1127,37 @@ export const bulkUpdatePosts = createServerFn({ method: "POST" })
       if (data.status === "published" && !(await resolveCanPublish(supabase))) {
         throw new Error("Workflow: only an administrator can publish - submit for review instead");
       }
+      // Bramka ujawnienia komercyjnego obowiązuje TAKŻE hurt.
+      //
+      // `updatePost` odrzuca publikację niekompletnej deklaracji, ale masowa
+      // zmiana statusu szła wcześniej prosto do `applyBulkStatus` - czyli
+      // zaznaczenie dwudziestu szkiców i wybranie „Opublikuj" wypuszczało
+      // materiał sponsorowany bez reklamodawcy, mimo że ta sama treść zapisana
+      // pojedynczo zostałaby odrzucona. Obowiązek oznaczenia nie zależy od tego,
+      // którym przyciskiem redakcja publikuje.
+      //
+      // Odrzucamy CAŁĄ operację, nie „pomijamy złe wiersze": ciche opublikowanie
+      // 18 z 20 wpisów zostawiłoby redakcję w przekonaniu, że poszły wszystkie.
+      // Czytamy przez service_role zawężone tenantem (RLS na body-kolumnach nie
+      // dotyczy tych pól, ale trzymamy ten sam wzorzec co pre-read w updatePost).
+      if (data.status === "published") {
+        const { supabaseAdmin: adminForBulk } =
+          await import("@/integrations/supabase/client.server");
+        const { data: rows, error: rowsErr } = await adminForBulk
+          .from("posts")
+          .select(
+            "id, slug, is_sponsored, sponsored_kind, sponsored_advertiser_name, sponsored_advertiser_url, sponsored_political, sponsored_political_process",
+          )
+          .in("id", data.ids)
+          .eq("tenant_id", tenantId);
+        if (rowsErr) throw new Error(rowsErr.message);
+        const blocked = (rows ?? [])
+          .filter((row) => disclosureGaps(row).length > 0)
+          .map((row) => row.slug);
+        if (blocked.length > 0) {
+          throw new Error(`${DISCLOSURE_ERROR_PREFIX}bulk:${blocked.join(",")}`);
+        }
+      }
       const affected = await applyBulkStatus(supabase, "posts", data.ids, data.status);
       if (affected.length) {
         await audit(

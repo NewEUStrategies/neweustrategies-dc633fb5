@@ -68,6 +68,21 @@ export function isSponsoredKind(value: string): value is SponsoredKind {
 export const DEFAULT_SPONSORED_KIND: SponsoredKind = "sponsored";
 
 /**
+ * Kolumny, które MUSI wybrać każde zapytanie produkujące kartę wpisu.
+ *
+ * Jedna stała, bo powierzchni list jest kilkanaście (strona główna, /blog,
+ * archiwa, powiązane, program, seria, bloki, live-blogi, następny wpis, lista
+ * zapisanych) i każda ma własny select. Przy wpisywaniu tych trzech nazw z ręki
+ * w każdym z nich pierwsze pominięcie jest kwestią czasu - a pominięcie znaczy
+ * sponsorowany materiał w zestawieniu BEZ oznaczenia, czego zabrania UPNPR
+ * art. 7 pkt 11a. Typy `PostCardData` i `BlogListItem` wymagają tych pól
+ * (nie `?:`), więc zapomnienie stałej jest błędem KOMPILACJI, nie cichym brakiem.
+ *
+ * Ten moduł nie ma żadnych importów, więc stała nie tworzy cyklu w `lib/queries`.
+ */
+export const SPONSORED_LIST_COLS = "is_sponsored, sponsored_kind, sponsored_affiliate";
+
+/**
  * Pola wpisu, z których wynika ujawnienie. Nazwy 1:1 z kolumnami `posts`, żeby
  * ten sam obiekt dał się podać zarówno z formularza panelu, jak i z wiersza
  * publicznego zapytania - bez warstwy mapującej, która mogłaby się rozjechać.

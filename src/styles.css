@@ -5838,9 +5838,7 @@ textarea::placeholder {
     /* Mozaika kadrów: BEZ zmian względem desktopu - żadnego przycinania
        wysokości, bo `object-cover` zmieniałby wtedy kadrowanie i na telefonie
        widać było inny fragment grafiki niż na desktopie. */
-
   }
-
 
   /* Pola popupu to NIEZMIENIONY atom platformy (`.input-group` + `.input` +
      `.user-label`) - ten sam, którego używa widget „Dołącz do nas". Zero reguł

@@ -26,13 +26,23 @@ interface PostCardData {
   excerpt_en: string | null;
   cover_image_url: string | null;
   published_at: string | null;
-  // Oznaczenie komercyjne - OPCJONALNE, żeby każde istniejące miejsce wywołania
-  // dalej się kompilowało. Pola dostarczają listy, które je wybierają w selekcie
-  // (blogArchiveQueryOptions, archives POST_COLS); tam, gdzie ich nie ma, badge
-  // po prostu się nie renderuje.
-  is_sponsored?: boolean | null;
-  sponsored_kind?: string | null;
-  sponsored_affiliate?: boolean | null;
+  // Oznaczenie komercyjne jest WYMAGANE, nie opcjonalne.
+  //
+  // Pierwsza wersja miała tu `?:`, żeby nie ruszać istniejących wywołań - i to
+  // był błąd tej samej klasy, którą ta funkcja ma zamykać: gdy pole jest
+  // opcjonalne, zapytanie, które zapomni je wybrać, KOMPILUJE SIĘ, a karta
+  // renderuje sponsorowany materiał bez oznaczenia. Cicho, bez żadnego sygnału.
+  // Dokładnie tak zostały bez badge'a `ArchiveListing` i lista zapisanych
+  // („reading-list"), choć obie wołają tę kartę.
+  //
+  // Oznaczenie pozycji w zestawieniu jest obowiązkiem (UPNPR art. 7 pkt 11a),
+  // więc „prawie wszędzie" nie jest stanem dopuszczalnym. Typ wymagany zamienia
+  // ten defekt w błąd kompilacji: KAŻDE zapytanie produkujące kartę musi te
+  // kolumny wybrać, a nowe miejsce wywołania nie ma jak o nich zapomnieć.
+  // `null` jest dozwolony (kolumna nullable), brak POLA - nie.
+  is_sponsored: boolean | null;
+  sponsored_kind: string | null;
+  sponsored_affiliate: boolean | null;
 }
 
 interface PostListCardProps {

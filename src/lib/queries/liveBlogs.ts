@@ -7,6 +7,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { BlogListItem } from "@/lib/queries/public";
+import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
 
 /** Relacja "żyje", jeśli ostatni wpis pojawił się w tym oknie. */
 export const LIVE_WINDOW_MS = 3 * 60 * 60 * 1000;
@@ -22,8 +23,7 @@ export function isLiveNow(lastEntryAt: string, now: number = Date.now()): boolea
   return Number.isFinite(t) && now - t < LIVE_WINDOW_MS;
 }
 
-const POST_COLS =
-  "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id";
+const POST_COLS = `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, ${SPONSORED_LIST_COLS}`;
 
 export const liveBlogsQueryOptions = (limit = 30) =>
   queryOptions({

@@ -12,6 +12,7 @@ import type { BlogListItem } from "@/lib/queries/public";
 import type { PublicEvent } from "@/lib/community/publicQueries";
 import type { Podcast } from "@/lib/podcast/types";
 import { normalizeQuestions, orderByIds, type ResearchQuestion } from "@/lib/programs/shape";
+import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
 
 const TTL = 60_000;
 
@@ -88,8 +89,7 @@ const PROGRAM_FIELDS =
   "research_questions,icon,accent_color,hero_image_url,category_id,contact_email," +
   "sort_order,status,updated_at,created_at";
 
-const POST_COLS =
-  "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, author_id";
+const POST_COLS = `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, author_id, ${SPONSORED_LIST_COLS}`;
 
 const PODCAST_FIELDS =
   "id,tenant_id,slug,title_pl,title_en,excerpt_pl,excerpt_en,show_notes_pl,show_notes_en," +

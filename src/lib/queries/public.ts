@@ -10,6 +10,7 @@ import { GUEST_ACCESS_CONTEXT, stripInaccessibleNodes } from "@/lib/builder/acce
 import type { ContentAccessRule } from "@/hooks/useContentAccess";
 import type { LayoutOverrides, PostFormat } from "@/lib/postLayouts";
 import { edgeTtlCache } from "@/lib/ssrCache";
+import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
 
 // Non-sensitive columns of the access rule. Safe to ship to anonymous SSR so the
 // paywall teaser renders server-side (good for SEO); the body itself stays gated
@@ -132,17 +133,6 @@ export async function fetchGatedBody(
   };
 }
 
-/**
- * Minimum ujawnienia komercyjnego dla LIST.
- *
- * Nie jest to optymalizacja „weź mniej kolumn": oznaczenie przy pozycji listy
- * jest odrębnym obowiązkiem (UPNPR art. 7 pkt 11a - płatne pozycje w
- * zestawieniach), a decyzję „klikam / nie klikam" czytelnik podejmuje właśnie
- * tam. Pełne zdanie z reklamodawcą zostaje na stronie wpisu, w liście wystarczy
- * rodzaj relacji - i te trzy kolumny go rozstrzygają.
- */
-const LIST_SPONSORED_COLS = "is_sponsored, sponsored_kind, sponsored_affiliate";
-
 export interface BlogListItem {
   id: string;
   slug: string;
@@ -154,9 +144,12 @@ export interface BlogListItem {
   published_at: string | null;
   parent_page_id: string;
   href: string;
-  is_sponsored?: boolean | null;
-  sponsored_kind?: string | null;
-  sponsored_affiliate?: boolean | null;
+  // Wymagane, nie opcjonalne - patrz uzasadnienie przy `PostCardData`
+  // w components/molecules/PostListCard: opcjonalność pozwalała zapytaniu
+  // przemilczeć te kolumny i wyrenderować sponsorowany materiał bez oznaczenia.
+  is_sponsored: boolean | null;
+  sponsored_kind: string | null;
+  sponsored_affiliate: boolean | null;
 }
 
 export interface PageData {
@@ -558,7 +551,7 @@ export const blogListQueryOptions = (limit: number = BLOG_PAGE_SIZE) =>
         const { data, error } = await supabase
           .from("posts")
           .select(
-            "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id",
+            `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, ${SPONSORED_LIST_COLS}`,
           )
           .eq("status", "published")
           .is("deleted_at", null)
@@ -614,7 +607,7 @@ export const blogArchiveQueryOptions = (params: BlogArchiveParams = {}) => {
         const { data, count, error } = await supabase
           .from("posts")
           .select(
-            `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, ${LIST_SPONSORED_COLS}`,
+            `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, ${SPONSORED_LIST_COLS}`,
             { count: "exact" },
           )
           .eq("status", "published")

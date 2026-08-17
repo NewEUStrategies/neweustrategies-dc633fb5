@@ -3,6 +3,7 @@
 // szkicowych części cyklu. Hrefy jak w archiwach: page_full_path per parent.
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
 
 export interface SeriesMeta {
   id: string;
@@ -22,6 +23,10 @@ export interface SeriesPart {
   cover_image_url: string | null;
   published_at: string | null;
   href: string;
+  // Oznaczenie komercyjne wymagane przez kartę listy (UPNPR art. 7 pkt 11a).
+  is_sponsored: boolean | null;
+  sponsored_kind: string | null;
+  sponsored_affiliate: boolean | null;
 }
 
 export interface PostSeriesInfo {
@@ -42,6 +47,9 @@ interface PartRowRaw {
     cover_image_url: string | null;
     published_at: string | null;
     parent_page_id: string;
+    is_sponsored: boolean | null;
+    sponsored_kind: string | null;
+    sponsored_affiliate: boolean | null;
   } | null;
 }
 
@@ -66,6 +74,9 @@ async function hydratePartHrefs(rows: PartRowRaw[]): Promise<SeriesPart[]> {
       title_en: r.posts.title_en,
       cover_image_url: r.posts.cover_image_url,
       published_at: r.posts.published_at,
+      is_sponsored: r.posts.is_sponsored,
+      sponsored_kind: r.posts.sponsored_kind,
+      sponsored_affiliate: r.posts.sponsored_affiliate,
       href: `/${paths.get(r.posts.parent_page_id) ?? "blog"}/${r.posts.slug}`,
     }))
     .sort((a, b) => a.part_number - b.part_number);
@@ -75,7 +86,7 @@ async function fetchSeriesParts(seriesId: string): Promise<SeriesPart[]> {
   const { data, error } = await supabase
     .from("post_series")
     .select(
-      "post_id, part_number, posts(slug, title_pl, title_en, cover_image_url, published_at, parent_page_id)",
+      `post_id, part_number, posts(slug, title_pl, title_en, cover_image_url, published_at, parent_page_id, ${SPONSORED_LIST_COLS})`,
     )
     .eq("series_id", seriesId)
     .order("part_number", { ascending: true });

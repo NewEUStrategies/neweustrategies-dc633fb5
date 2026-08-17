@@ -17911,6 +17911,7 @@ export type Database = {
           _branch?: string
           _city?: string
           _country?: string
+          _domain?: string
           _logo_url?: string
           _name: string
           _phone?: string

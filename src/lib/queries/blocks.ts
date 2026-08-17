@@ -15,6 +15,7 @@ import { queryOptions, type FetchQueryOptions, type QueryClient } from "@tanstac
 import { supabase } from "@/integrations/supabase/client";
 import type { BlocksDoc } from "@/lib/blocks/types";
 import type { PublicPoll } from "@/lib/community/publicQueries";
+import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
 
 const STALE_TIME = 2 * 60_000;
 const GC_TIME = 10 * 60_000;
@@ -60,8 +61,7 @@ export interface PostNeighbor {
   href: string;
 }
 
-const POST_SELECT =
-  "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id";
+const POST_SELECT = `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, ${SPONSORED_LIST_COLS}`;
 
 /** Post ids belonging to a category slug (empty slug -> null = no filter). */
 async function postIdsForCategorySlug(categorySlug: string): Promise<string[] | null> {

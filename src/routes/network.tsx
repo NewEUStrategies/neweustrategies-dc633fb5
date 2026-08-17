@@ -792,7 +792,6 @@ function NetworkInner() {
           </TabsTrigger>
         </TabsList>
 
-
         {/* Panele wewnątrz Tabs, aby Radix powiązał role="tabpanel" z aria-controls
             wyzwalaczy (dostępność klawiatury/czytników). Nieaktywne panele są
             odmontowywane - zachowane leniwe ładowanie danych zakładek. */}

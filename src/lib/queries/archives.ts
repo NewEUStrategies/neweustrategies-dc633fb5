@@ -7,6 +7,7 @@ import type { BlogListItem } from "@/lib/queries/public";
 import type { SectionNode } from "@/lib/builder/types";
 import { currentLang } from "@/lib/i18n/localeRuntime";
 import { edgeTtlCache } from "@/lib/ssrCache";
+import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
 
 const TTL = 2 * 60_000;
 /** TTL per-isolate archiwów: publikacje widoczne w minutę, jak reszta SSR. */
@@ -59,7 +60,19 @@ async function fetchParentPaths(parentIds: string[]): Promise<Map<string, string
   return paths;
 }
 
-async function hydrateHref(rows: Array<Omit<BlogListItem, "href">>): Promise<BlogListItem[]> {
+/**
+ * Dokłada `href` z pełnej ścieżki rodzica.
+ *
+ * Generyk zamiast `Array<Omit<BlogListItem, "href">>`: funkcja potrzebuje tylko
+ * `slug` i `parent_page_id`, a sztywny typ zmuszał wywołujących do rzutowania
+ * (wyniki wyszukiwania niosą dodatkowe pola: headline_*, access_mode, post_format).
+ * Rzutowanie przez `unknown` zdejmowałoby kontrolę typów dokładnie tam, gdzie
+ * dokładamy oznaczenie komercyjne - a to pola, których nie wolno zgubić po cichu.
+ * Generyk PRZENOSI typ wejścia na wylot, więc nie ma czego rzutować.
+ */
+async function hydrateHref<T extends { slug: string; parent_page_id: string }>(
+  rows: readonly T[],
+): Promise<Array<T & { href: string }>> {
   if (rows.length === 0) return [];
   const parentIds = Array.from(new Set(rows.map((r) => r.parent_page_id)));
   const paths = await fetchParentPaths(parentIds);
@@ -73,8 +86,54 @@ async function hydrateHref(rows: Array<Omit<BlogListItem, "href">>): Promise<Blo
 // pozycji w zestawieniu (UPNPR art. 7 pkt 11a), a nie tylko strony wpisu. Bez
 // tych trzech kolumn archiwa kategorii/tagów/autora renderowałyby sponsorowane
 // materiały bez żadnego wyróżnienia.
-const POST_COLS =
-  "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, author_id, is_sponsored, sponsored_kind, sponsored_affiliate";
+const POST_COLS = `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, author_id, ${SPONSORED_LIST_COLS}`;
+
+/**
+ * Dokłada oznaczenie komercyjne do wierszy zwróconych przez `search_posts`.
+ *
+ * DLACZEGO DOCZYTANIEM, A NIE ROZSZERZENIEM RPC. `search_posts` to 281-linijkowa
+ * funkcja SQL z kilkoma CTE; przeciągnięcie trzech kolumn przez `base` i każdy
+ * SELECT niżej to realne ryzyko wywrócenia wyszukiwania całego serwisu, a nie da
+ * się tego zweryfikować bez klastra. Jedno dodatkowe zapytanie po `id` (tenant
+ * i status pilnuje RLS `Public reads published posts`) daje ten sam efekt bez
+ * dotykania silnika wyszukiwania. Koszt: jeden round-trip na wyszukiwanie.
+ *
+ * Wynik jest KOMPLETNY, nie „najlepszy możliwy": brak wiersza w mapie oznacza,
+ * że wpis zniknął między zapytaniami - wtedy `null`, czyli brak oznaczenia dla
+ * materiału, którego i tak nie ma na liście.
+ */
+async function hydrateSponsored<T extends { id: string }>(
+  rows: readonly T[],
+): Promise<
+  Array<
+    T & {
+      is_sponsored: boolean | null;
+      sponsored_kind: string | null;
+      sponsored_affiliate: boolean | null;
+    }
+  >
+> {
+  if (rows.length === 0) return [];
+  const { data } = await supabase
+    .from("posts")
+    .select(SPONSORED_LIST_COLS_WITH_ID)
+    .in(
+      "id",
+      rows.map((r) => r.id),
+    );
+  const byId = new Map((data ?? []).map((r) => [r.id, r]));
+  return rows.map((r) => {
+    const flags = byId.get(r.id);
+    return {
+      ...r,
+      is_sponsored: flags?.is_sponsored ?? null,
+      sponsored_kind: flags?.sponsored_kind ?? null,
+      sponsored_affiliate: flags?.sponsored_affiliate ?? null,
+    };
+  });
+}
+
+const SPONSORED_LIST_COLS_WITH_ID = `id, ${SPONSORED_LIST_COLS}`;
 
 // ---------- TAXONOMY (category / tag) --------------------------------------
 // (Profil autora/eksperta przeniesiony do lib/experts/queries.ts - hub
@@ -484,16 +543,14 @@ export const searchQueryOptions = (
         };
         raw = [...raw].sort((a, b) => score(b) - score(a));
       }
-      const rows = raw.map(
-        ({
-          rank: _rank,
-          total_count: _tc,
-          fuzzy: _fz,
-          ...row
-        }): Omit<SearchResultItem, "href"> & { author_id: string | null } => row,
-      );
+      const stripped = raw.map(({ rank: _rank, total_count: _tc, fuzzy: _fz, ...row }) => row);
+      // Oznaczenie komercyjne doczytujemy tu, bo `search_posts` go nie zwraca -
+      // patrz `hydrateSponsored`. Bez tego wyniki wyszukiwania i /publications
+      // (silnik /search w trybie browse) pokazywałyby sponsorowane materiały bez
+      // wyróżnienia, mimo że obowiązek dotyczy pozycji w zestawieniu.
+      const rows = await hydrateSponsored(stripped);
 
-      const posts = (await hydrateHref(rows)) as SearchResultItem[];
+      const posts: SearchResultItem[] = await hydrateHref(rows);
 
       // Telemetria zapytań (fundament podpowiedzi/trendów) - fire-and-forget,
       // odporna na brak funkcji przed wdrożeniem migracji. Logujemy tylko realne

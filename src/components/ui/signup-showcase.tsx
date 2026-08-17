@@ -126,7 +126,6 @@ export function SignupShowcase({
     ["--nl-muted" as string]: inkMuted,
   } as CSSProperties;
 
-
   const tiles = useMemo(() => images.slice(0, 4), [images]);
 
   const brandRow =
@@ -348,7 +347,6 @@ export function SignupShowcase({
       {design.order.map((block) => blocks[block])}
     </div>
   );
-
 }
 
 // Kafle są dekoracyjne (nawigacja idzie przez kropki i strzałkę z etykietami

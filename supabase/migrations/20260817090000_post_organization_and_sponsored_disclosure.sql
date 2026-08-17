@@ -332,6 +332,9 @@ DROP FUNCTION IF EXISTS public.create_company_self_service(
 DROP FUNCTION IF EXISTS public.create_company_self_service(
   text, text, text, text, text, text, text, text, text
 );
+DROP FUNCTION IF EXISTS public.create_company_self_service(
+  text, text, text, text, text, text, text, text, text, text
+);
 
 CREATE FUNCTION public.create_company_self_service(
   _name text,
@@ -342,7 +345,8 @@ CREATE FUNCTION public.create_company_self_service(
   _postal_code text DEFAULT NULL,
   _website text DEFAULT NULL,
   _phone text DEFAULT NULL,
-  _logo_url text DEFAULT NULL
+  _logo_url text DEFAULT NULL,
+  _domain text DEFAULT NULL
 )
 RETURNS uuid
 LANGUAGE plpgsql
@@ -387,7 +391,7 @@ BEGIN
 
   INSERT INTO public.crm_companies (
     tenant_id, created_by, name, country, branch, city, address, postal_code,
-    website, phone, logo_url
+    website, phone, logo_url, domain
   ) VALUES (
     public.current_tenant_id(),
     auth.uid(),
@@ -399,7 +403,8 @@ BEGIN
     nullif(trim(coalesce(_postal_code, '')), ''),
     nullif(trim(coalesce(_website, '')), ''),
     nullif(trim(coalesce(_phone, '')), ''),
-    nullif(trim(coalesce(_logo_url, '')), '')
+    nullif(trim(coalesce(_logo_url, '')), ''),
+    nullif(trim(coalesce(_domain, '')), '')
   )
   RETURNING id INTO new_id;
 
@@ -415,8 +420,8 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.create_company_self_service(
-  text, text, text, text, text, text, text, text, text
+  text, text, text, text, text, text, text, text, text, text
 ) FROM public;
 GRANT EXECUTE ON FUNCTION public.create_company_self_service(
-  text, text, text, text, text, text, text, text, text
+  text, text, text, text, text, text, text, text, text, text
 ) TO authenticated;
