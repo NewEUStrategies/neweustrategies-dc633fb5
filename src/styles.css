@@ -5835,22 +5835,10 @@ textarea::placeholder {
       max-height: 36px;
       width: auto;
     }
-    .nlp [data-showcase-grid] {
-      /* Kadry mają wyglądać JAK NA DESKTOPIE: zamiast twardego przycięcia do
-         22vh (które spłaszczało mozaikę i zmieniało kadrowanie object-cover)
-         trzymamy proporcję zbliżoną do kolumny galerii na desktopie i tylko
-         górny limit chroni przed wypchnięciem formularza poza ekran. */
-      flex: 0 0 auto !important;
-      min-height: 0 !important;
-      height: auto !important;
-      aspect-ratio: 16 / 10;
-      max-height: 30vh !important;
-    }
+    /* Mozaika kadrów: BEZ zmian względem desktopu - żadnego przycinania
+       wysokości, bo `object-cover` zmieniałby wtedy kadrowanie i na telefonie
+       widać było inny fragment grafiki niż na desktopie. */
 
-
-    .nlp [data-showcase-grid] ~ * {
-      margin-top: 0;
-    }
   }
 
 
