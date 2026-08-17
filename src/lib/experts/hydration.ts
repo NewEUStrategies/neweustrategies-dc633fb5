@@ -7,9 +7,11 @@
 // Dwa źródła `author_profiles` scalane priorytetem:
 //  1) admin_get_author_profile() (SECURITY DEFINER) - pełny wiersz z
 //     contact_email, ale WYŁĄCZNIE dla admina tego samego tenanta;
-//  2) fallback dla staffu bez roli admin (editor/author): select ograniczony
-//     do kolumn publicznych, żeby hydratacja nie gubiła stanowiska, bio i
-//     socjali - bez kolumn kontaktowych, których SELECT jest odebrany (42501).
+//  2) fallback dla staffu bez roli admin (editor/author): publiczna projekcja
+//     author_profiles_public, żeby hydratacja nie gubiła stanowiska, bio i
+//     socjali - bez kolumn kontaktowych. Tabela bazowa nie ma już polityk
+//     odczytu anon/authenticated (20260817120000), więc bezpośredni select
+//     widziałby wyłącznie wiersz własny.
 import { supabase } from "@/integrations/supabase/client";
 import { adminGetAuthorProfile } from "@/lib/experts/adminAuthorProfileRpc";
 
@@ -39,7 +41,7 @@ export async function fetchExpertHydration(userId: string): Promise<ExpertHydrat
       .maybeSingle(),
     adminGetAuthorProfile(userId).maybeSingle(),
     supabase
-      .from("author_profiles")
+      .from("author_profiles_public")
       .select("job_title, website_url, x_url, linkedin_url, full_bio_pl, full_bio_en")
       .eq("user_id", userId)
       .maybeSingle(),

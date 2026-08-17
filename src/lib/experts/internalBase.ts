@@ -10,7 +10,11 @@
 //
 // Dlatego lista składa się z trzech sygnałów, scalanych po `user_id`:
 //   1) odznaka `expert` (profile_badges) -> `isExpert`,
-//   2) profil autorski (author_profiles) -> stanowisko, firma, `isPublic`,
+//   2) profil autorski -> stanowisko, firma, `isPublic`; z DWÓCH źródeł, bo
+//      tabela bazowa nie ma już polityk odczytu publicznego (20260817120000):
+//      widok author_profiles_public daje profile opublikowane, a tabela
+//      author_profiles (RLS: właściciel + admin tenanta) dokłada adminowi
+//      profile NIEpubliczne, czekające na publikację,
 //   3) role redakcyjne (admin_list_users) -> osoby bez profilu autorskiego.
 //
 // `admin_list_users` jest dostępne tylko dla admina tenanta. Dla staffu bez tej
@@ -73,8 +77,12 @@ export const internalExpertBaseQueryOptions = () =>
     queryKey: ["admin", "internal-expert-base"] as const,
     staleTime: TTL,
     queryFn: async (): Promise<InternalExpertBase> => {
-      const [badgeRes, apRes, adminRes] = await Promise.all([
+      const [badgeRes, apPublicRes, apOwnRes, adminRes] = await Promise.all([
         supabase.from("profile_badges").select("user_id").eq("badge", "expert"),
+        // Profile opublikowane: publiczna projekcja (bez PII kontaktowego).
+        supabase.from("author_profiles_public").select("user_id, job_title, company, is_public"),
+        // Tabela bazowa: RLS wpuszcza wiersz własny oraz - dla admina -
+        // wszystkie wiersze tenanta, w tym profile czekające na publikację.
         supabase.from("author_profiles").select("user_id, job_title, company, is_public"),
         supabase.rpc("admin_list_users"),
       ]);
@@ -83,7 +91,13 @@ export const internalExpertBaseQueryOptions = () =>
         ((badgeRes.data ?? []) as { user_id: string }[]).map((r) => r.user_id),
       );
       const apByUser = new Map<string, ApRow>();
-      for (const row of (apRes.data ?? []) as unknown as ApRow[]) {
+      // Kolejność scalania: wiersze z tabeli bazowej (własny/adminowe)
+      // nadpisują projekcję publiczną - to te same fizyczne wiersze, ale
+      // tylko tabela niesie profile niepubliczne.
+      for (const row of [
+        ...((apPublicRes.data ?? []) as unknown as ApRow[]),
+        ...((apOwnRes.data ?? []) as unknown as ApRow[]),
+      ]) {
         if (row?.user_id) apByUser.set(row.user_id, row);
       }
 

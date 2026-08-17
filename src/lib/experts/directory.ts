@@ -71,8 +71,10 @@ export const expertsDirectoryQueryOptions = () =>
           .from("profiles_public")
           .select("id, slug, display_name, avatar_url, verified_at")
           .in("id", expertIds),
+        // Publiczna projekcja (bez PII kontaktowego) - tabela bazowa nie ma
+        // już polityk odczytu anon/authenticated (20260817120000).
         supabase
-          .from("author_profiles")
+          .from("author_profiles_public")
           .select("user_id, job_title, company, is_public")
           .in("user_id", expertIds),
         supabase
