@@ -881,7 +881,6 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     .filter(Boolean)
     .join("\n");
 
-
   const [idx, setIdx] = useState(0);
   useEffect(() => {
     setIdx(0);
