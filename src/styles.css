@@ -5840,11 +5840,13 @@ textarea::placeholder {
          22vh (które spłaszczało mozaikę i zmieniało kadrowanie object-cover)
          trzymamy proporcję zbliżoną do kolumny galerii na desktopie i tylko
          górny limit chroni przed wypchnięciem formularza poza ekran. */
+      flex: 0 0 auto !important;
       min-height: 0 !important;
       height: auto !important;
       aspect-ratio: 16 / 10;
       max-height: 30vh !important;
     }
+
 
     .nlp [data-showcase-grid] ~ * {
       margin-top: 0;
