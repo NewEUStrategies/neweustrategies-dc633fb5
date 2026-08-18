@@ -310,18 +310,18 @@ describe("useSaveSearch", () => {
   it("zapis bez sesji jest odrzucany PRZED dotknięciem bazy", async () => {
     h.user.current = null;
     const { result } = renderHook(() => useSaveSearch(), { wrapper });
-    await expect(
-      result.current.mutateAsync({ name: "X", params: { q: "x" } }),
-    ).rejects.toThrow("Not authenticated");
+    await expect(result.current.mutateAsync({ name: "X", params: { q: "x" } })).rejects.toThrow(
+      "Not authenticated",
+    );
     expect(stubs.from?.chainsFor("saved_searches")).toHaveLength(0);
   });
 
   it("błąd zapisu WRACA do wywołującego (panel pokazuje toast błędu)", async () => {
     stubs.from?.setResponse("saved_searches", fail("duplicate key value", "23505"));
     const { result } = renderHook(() => useSaveSearch(), { wrapper });
-    await expect(
-      result.current.mutateAsync({ name: "X", params: { q: "x" } }),
-    ).rejects.toThrow("duplicate key value");
+    await expect(result.current.mutateAsync({ name: "X", params: { q: "x" } })).rejects.toThrow(
+      "duplicate key value",
+    );
   });
 
   it("udany zapis unieważnia listę zapisów tego użytkownika", async () => {
@@ -336,9 +336,7 @@ describe("useSaveSearch", () => {
       ),
     });
     await result.current.mutateAsync({ name: "X", params: { q: "x" } });
-    await waitFor(() =>
-      expect(spy).toHaveBeenCalledWith({ queryKey: ["saved-searches", "u-1"] }),
-    );
+    await waitFor(() => expect(spy).toHaveBeenCalledWith({ queryKey: ["saved-searches", "u-1"] }));
   });
 });
 
@@ -410,27 +408,25 @@ describe("useToggleSavedSearchAlert", () => {
     const s = saved({ url: "/search?q=energia" });
     await result.current.mutateAsync({ search: s, enabled: true });
     await result.current.mutateAsync({ search: { ...s, alert_enabled: true }, enabled: false });
-    const patches = stubs.from
-      ?.chainsFor("saved_searches")
-      .map((c) => patchOf(c)?.alert_enabled);
+    const patches = stubs.from?.chainsFor("saved_searches").map((c) => patchOf(c)?.alert_enabled);
     expect(patches).toEqual([true, false]);
   });
 
   it("przełączenie bez sesji jest odrzucane PRZED dotknięciem bazy", async () => {
     h.user.current = null;
     const { result } = renderHook(() => useToggleSavedSearchAlert(), { wrapper });
-    await expect(
-      result.current.mutateAsync({ search: saved(), enabled: true }),
-    ).rejects.toThrow("Not authenticated");
+    await expect(result.current.mutateAsync({ search: saved(), enabled: true })).rejects.toThrow(
+      "Not authenticated",
+    );
     expect(stubs.from?.chainsFor("saved_searches")).toHaveLength(0);
   });
 
   it("błąd zapisu wraca do wywołującego - dzwonek nie może skłamać o stanie", async () => {
     stubs.from?.setResponse("saved_searches", fail("row level security", "42501"));
     const { result } = renderHook(() => useToggleSavedSearchAlert(), { wrapper });
-    await expect(
-      result.current.mutateAsync({ search: saved(), enabled: true }),
-    ).rejects.toThrow("row level security");
+    await expect(result.current.mutateAsync({ search: saved(), enabled: true })).rejects.toThrow(
+      "row level security",
+    );
   });
 
   it("udane przełączenie unieważnia listę zapisów", async () => {
@@ -445,9 +441,7 @@ describe("useToggleSavedSearchAlert", () => {
       ),
     });
     await result.current.mutateAsync({ search: saved(), enabled: true });
-    await waitFor(() =>
-      expect(spy).toHaveBeenCalledWith({ queryKey: ["saved-searches", "u-1"] }),
-    );
+    await waitFor(() => expect(spy).toHaveBeenCalledWith({ queryKey: ["saved-searches", "u-1"] }));
   });
 });
 
@@ -490,8 +484,6 @@ describe("useDeleteSavedSearch", () => {
       ),
     });
     await result.current.mutateAsync("s-9");
-    await waitFor(() =>
-      expect(spy).toHaveBeenCalledWith({ queryKey: ["saved-searches", "u-1"] }),
-    );
+    await waitFor(() => expect(spy).toHaveBeenCalledWith({ queryKey: ["saved-searches", "u-1"] }));
   });
 });
