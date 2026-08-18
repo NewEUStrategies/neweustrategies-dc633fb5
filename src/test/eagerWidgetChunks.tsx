@@ -82,4 +82,10 @@ export { TocWidget } from "@/components/builder/organisms/widget-view/TocWidget"
 export { PricingPlansView } from "@/components/builder/organisms/widget-view/PricingPlansView";
 export { DynamicTagWidget } from "@/components/builder/organisms/widget-view/DynamicTagWidgets";
 export { GalleryLightboxZone } from "@/components/builder/organisms/widget-view/GalleryLightbox";
+// 2026-08-18: `accordion` i `section-label` przeszły z eager do `lazyWidgets`,
+// ale lustro nie dostało tych dwóch eksportów - każdy test podmieniający rejestr
+// wywalał się na „No \"AccordionWidget\" export is defined on the mock". Bramka
+// parytetu tego nie złapała, bo sama nie dawała się skolekcjonować.
+export { AccordionWidget } from "@/components/builder/organisms/widget-view/AccordionWidget";
+export { SectionLabelWidgetView } from "@/lib/builder/sectionLabelVariants";
 export { Editable } from "@/components/builder/molecules/Editable";
