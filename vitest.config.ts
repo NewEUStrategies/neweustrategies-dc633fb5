@@ -581,6 +581,46 @@ export default defineConfig({
           lines: 98,
           branches: 90,
         },
+        // TRASY POCZTOWE - trzy powierzchnie, które audyt zastał na 0%, a
+        // które przyjmują ruch Z ZEWNĄTRZ albo wysyłają ze zweryfikowanej
+        // domeny nadawczej. Handlery są wołane wprost przez
+        // `Route.options.server.handlers.POST` - bez runtime'u routera i bez
+        // zmian w kodzie produkcyjnym.
+        //
+        // transactional/send.ts: trzy bramki decydują, czy to funkcja produktu,
+        // czy OTWARTY PRZEKAŹNIK - uwierzytelnienie, autoryzacja (sam ważny
+        // token to dowolne konto czytelnika; bez drugiej bramki każdy zalogowany
+        // wysłałby z naszej domeny dowolną treść na dowolny adres) oraz
+        // allowlista hostów w linkach. Do tego cykl życia tokenu wypisu: mail
+        // MUSI wyjść z DZIAŁAJĄCYM linkiem (RFC 8058), także gdy poprzedni
+        // token był już zużyty.
+        "src/routes/platform/email/transactional/send.ts": {
+          statements: 96,
+          functions: 98,
+          lines: 98,
+          branches: 92,
+        },
+        // auth/webhook.ts: jedyna droga, którą mail z linkiem do logowania
+        // trafia do kolejki. Pilnowane: 401 dla KAŻDEGO błędu podpisu (a nie
+        // 400), wiersz `pending` zapisany PRZED kolejkowaniem oraz ślad
+        // porażki w logu i w diagnostyce.
+        "src/routes/platform/email/auth/webhook.ts": {
+          statements: 93,
+          functions: 98,
+          lines: 96,
+          branches: 82,
+        },
+        // webhooks.resend.ts: endpoint PUBLICZNY. Bez weryfikacji podpisu byłby
+        // otwartym sposobem na wpisanie dowolnego adresu na listę wykluczeń.
+        // Testy liczą HMAC tak jak dostawca (prawdziwa weryfikacja, nie atrapa).
+        // Niedobita funkcja to ramka trasy `POST: ({request}) => handle(request)`
+        // - handle() jest testowany wprost, dokładnie jak przy webhooku Stripe.
+        "src/routes/api/public/webhooks.resend.ts": {
+          statements: 94,
+          functions: 70,
+          lines: 94,
+          branches: 95,
+        },
       },
     },
   },
