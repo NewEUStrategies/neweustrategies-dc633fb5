@@ -496,6 +496,57 @@ export default defineConfig({
           lines: 100,
           branches: 100,
         },
+        // ── MODUŁ 1: WPISY - DOŚWIADCZENIE CZYTELNIKA ────────────────────────
+        // Audyt 18.08 dał temu modułowi 31,8% linii i 26,9% funkcji przy 74
+        // plikach produkcyjnych, z których 43 nie miały ANI JEDNEJ wykonanej
+        // linii. Progi poniżej są floorowane tuż pod ZMIERZONYM pokryciem -
+        // zasada bez zmian: wolno je wyłącznie podnosić.
+        //
+        // REGUŁA GLOSARIUSZA. Chodzi po węzłach tekstowych opublikowanego
+        // artykułu i je podmienia, więc jej defekt psuje TREŚĆ, nie panel.
+        // Trzymamy 100% linii i funkcji; niedobite gałęzie to obronne ramiona
+        // przeniesione 1:1 z komponentu (`node.textContent ?? ""`,
+        // `range.parentNode?.`), nieosiągalne przy poprawnym DOM-ie.
+        "src/lib/post/glossaryHighlight.ts": {
+          statements: 97,
+          functions: 100,
+          lines: 100,
+          branches: 90,
+        },
+        // WARSTWA USTAWIEŃ MODUŁU. Cztery pliki, które startowały odpowiednio z
+        // 51,2% (1 z 10 funkcji), 0 z 5, 0 z 8 i 0 z 8 - a decydują o tym, co
+        // czytelnik widzi na KAŻDYM wpisie tenanta i czy zapis w panelu
+        // faktycznie dotarł do bazy. Wszystkie cztery są teraz na 100% linii
+        // i funkcji, więc trzymamy je jak pozostałe czyste moduły w tym pliku.
+        //
+        // toc/settings.ts - niedobite gałęzie to `?? slugifyHeading(text)`
+        // (fallback kotwicy, gdy derywacja dokumentu nie zna bloku - przy
+        // spójnym dokumencie nieosiągalny) i `b.data.level ?? 2` w wariancie,
+        // który ma już własny test przez brak pola.
+        "src/lib/toc/settings.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 90,
+        },
+        "src/lib/keyTakeaways/settings.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/relatedPosts/adminConfig.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/hooks/usePostLayoutSettings.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
       },
     },
   },
