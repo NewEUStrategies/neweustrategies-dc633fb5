@@ -363,6 +363,56 @@ export function retentionReasons(): RetentionReasonRow[] {
   ];
 }
 
+// --- dziennik zdarzeń operatora (panel admina) ------------------------------
+
+/**
+ * Wiersz dziennika `payment_webhook_events` w kształcie, jaki czyta panel
+ * administratora. Domyślnie zdarzenie PRZETWORZONE - stany wyjątkowe
+ * (`failed`, `received`) test ustawia jawnie, bo to one są przedmiotem
+ * diagnozy.
+ */
+export function webhookEvent(overrides: Partial<WebhookEventRow> = {}): WebhookEventRow {
+  return {
+    id: "evt-row-1",
+    event_id: "evt_1SyntetyczneZdarzenie",
+    event_type: "checkout.session.completed",
+    status: "processed",
+    environment: "sandbox",
+    error: null,
+    subscription_id: null,
+    customer_id: "cus_stripe_1",
+    user_id: BILLING_IDS.me,
+    occurred_at: isoPast(1),
+    created_at: isoPast(1),
+    processed_at: isoPast(1),
+    duration_ms: 120,
+    retry_count: 0,
+    last_retried_at: null,
+    payload: { id: "evt_1SyntetyczneZdarzenie", type: "checkout.session.completed" },
+    ...overrides,
+  };
+}
+
+/** Kształt wiersza dziennika czytany przez panel (podzbiór kolumn tabeli). */
+export interface WebhookEventRow {
+  id: string;
+  event_id: string;
+  event_type: string;
+  status: string;
+  environment: string;
+  error: string | null;
+  subscription_id: string | null;
+  customer_id: string | null;
+  user_id: string | null;
+  occurred_at: string | null;
+  created_at: string;
+  processed_at: string | null;
+  duration_ms: number | null;
+  retry_count: number;
+  last_retried_at: string | null;
+  payload: unknown;
+}
+
 // --- atrapa operatora płatności ---------------------------------------------
 
 export interface StripeStub {
