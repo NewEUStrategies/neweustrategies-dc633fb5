@@ -1,4 +1,4 @@
-# Czat: refaktor organizmu na atomy, 554 testy i trzy zapory CI (2026-08-18)
+# Czat: refaktor organizmu na atomy, 607 testów i trzy zapory CI (2026-08-18)
 
 Zamknięcie pozycji **„Gęstość testów: 4/10 - T/P 0,111, bez ruchu w tej delcie, przy
 12 293 liniach"** z audytu `OCENA_FUNKCJI_TABELE_2026-08-14.md` (MODUŁ 9) oraz otwartej
@@ -112,7 +112,7 @@ Wierność atrapy jest tu warunkiem sensu testu, nie kosmetyką.
 
 ---
 
-## 4. Testy: 554 przypadki w 31 plikach
+## 4. Testy: 607 przypadków w 33 plikach
 
 ### 4.1 Atomy testowe (`src/test/chat/fixtures.ts`)
 
@@ -154,7 +154,8 @@ Nie „czy się renderuje", a **czy gwarancja nadal obowiązuje**:
 
 | Powierzchnia                                                    |  Przed |                         Po |
 | --------------------------------------------------------------- | -----: | -------------------------: |
-| `src/lib/chat` (instrukcje)                                     | 19,67% |                     70,34% |
+| `src/lib/chat` (instrukcje)                                     | 19,67% |                     78,52% |
+| `src/lib/chat` (funkcje)                                        | 18,13% |                     84,82% |
 | `src/components/chat`                                           | 17,32% |                     44,63% |
 | `ChatWindow.tsx`                                                |     0% |                     83,55% |
 | `useMessages.ts`                                                |     0% |                     90,42% |
@@ -162,9 +163,31 @@ Nie „czy się renderuje", a **czy gwarancja nadal obowiązuje**:
 | `thread.ts` / `menuOptions.ts` / `useThreadJump.ts` / `keys.ts` |      - | 100% na czterech metrykach |
 
 Co ZOSTAJE nieotestowane i dlaczego to nie jest ukryte: kompozytor (585 linii), panel
-mediów, dialogi kręgu i wyglądu, katalog osób, skrzynka zapytań do eksperta, nagrywanie
-głosu i dataset emoji. Każda z tych powierzchni ma własną warstwę danych, której ten PR
-nie dotykał - są następnym krokiem, nie regresją tego.
+mediów, dialogi kręgu i wyglądu, katalog osób, pseudonimy, toasty przychodzące
+i nagrywanie głosu (MediaRecorder). Każda z tych powierzchni ma własną warstwę danych,
+której ten PR nie dotykał - są następnym krokiem, nie regresją tego.
+
+### 4.4 Domknięcie zerowych modułów warstwy danych
+
+Osobna partia po pierwszym pomiarze, bo `src/lib/chat` miał jeszcze pięć plików bez ani
+jednej asercji, a każdy niesie warunek poprawności widoczny dla użytkownika albo dla
+INNYCH użytkowników:
+
+- `expertRequestDialogBus` ma **replay**: host dialogu jest `React.lazy`, więc klik w CTA
+  może paść przed pobraniem jego chunka. Trzy warunki bez których prefill przepada:
+  odtworzenie pierwszemu subskrybentowi, zużycie replayu RAZ, unieważnienie zaległego
+  żądania przez zamknięcie.
+- `emoji.ts` (467 linii) - poza wyszukiwaniem dwujęzycznym testy pilnują inwariantów
+  DATASETU: brak duplikatów emotki i brak wielkich liter w słowach kluczowych (wielka
+  litera czyni wpis niewyszukiwalnym, bo porównanie idzie po lowercase).
+- `useDiscoverable` - trzy przełączniki prywatności profilu. Wspólna reguła: zapis
+  zawężony `.eq("id", user.id)`, bo grant UPDATE na `profiles` ma `authenticated`, nie
+  tylko właściciela. Domyślne wartości przy braku wiersza są RÓŻNE per pole: brak wiersza
+  to „nie w katalogu" (false), ale „przyjmuję zapytania" (true).
+- `useExpertRequests` - normalizacja zwrotki RPC (wartość nieliczbowa schodzi na zero,
+  nie na NaN w interfejsie; `unlimited` wymaga DOKŁADNIE `true`), pomijanie pustych pól
+  opcjonalnych (RPC ma rozróżniać „nie podano" od „podano nic") i zakres unieważnień -
+  wysłanie odświeża skrzynkę I pulę, bo anulowanie nie zwraca limitu.
 
 ---
 
@@ -176,6 +199,16 @@ Pokrycie stało w miejscu przez trzy pomiary, bo **sam pomiar niczego nie pilnuj
 Progi floorowane ~4 pp pod zmierzonym poziomem (marża na dryf CI); zasada jak wszędzie
 w tym pliku: wolno je wyłącznie podnosić. Czyste moduły wątku dostają 100% na wszystkich
 czterech metrykach - one niosą reguły, których złamanie widzi WYŁĄCZNIE użytkownik.
+
+| Ścieżka                                             | instrukcje / funkcje / linie / gałęzie | zmierzone                 |
+| --------------------------------------------------- | -------------------------------------- | ------------------------- |
+| `src/lib/chat/**`                                   | 74 / 80 / 77 / 67                      | 78,5 / 84,8 / 81,9 / 71,9 |
+| `src/lib/chat/useMessages.ts`                       | 86 / 87 / 91 / 78                      | 90,4 / 91,5 / 95,7 / 82,5 |
+| `src/lib/chat/useConversations.ts`                  | 90 / 96 / 96 / 80                      | 94,9 / 100 / 100 / 84,3   |
+| `src/components/chat/**`                            | 40 / 36 / 41 / 34                      | 44,6 / 40,0 / 45,6 / 38,3 |
+| `src/components/chat/ChatWindow.tsx`                | 78 / 60 / 84 / 70                      | 83,6 / 64,4 / 88,1 / 75,2 |
+| `src/lib/ci/ftsConfigSymmetry.ts`                   | 90 / 100 / 94 / 76                     | 94,4 / 100 / 97,7 / 81,0  |
+| `thread` / `menuOptions` / `useThreadJump` / `keys` | 100 / 100 / 100 / 100                  | 100 na czterech           |
 
 ### 5.2 Bramka symetrii FTS (`src/lib/ci/ftsConfigSymmetry.ts`)
 
