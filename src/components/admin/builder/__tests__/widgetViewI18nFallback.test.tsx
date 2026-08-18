@@ -11,6 +11,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WidgetView } from "@/components/builder/organisms/WidgetView";
 import type { WidgetContent, WidgetNode, WidgetType } from "@/lib/builder/types";
 
+// Rejestr leniwych widgetow -> lustro eager: czesc widgetow tekstowych jedzie
+// przez React.lazy, wiec bez podmiany SSR-owy markup zawiera pusty fallback
+// Suspense i lancuch fallbackow i18n nie ma czego pokazac.
+vi.mock(
+  "@/components/builder/organisms/widget-view/lazyWidgets",
+  () => import("@/test/eagerWidgetChunks"),
+);
+
 vi.mock("@/integrations/supabase/client", () => {
   const b: Record<string, unknown> = {};
   for (const m of ["select", "eq", "is", "in", "not", "order", "range", "limit"]) b[m] = () => b;

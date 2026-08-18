@@ -16,6 +16,7 @@ const SPLIT_WIDGETS = [
   "PodcastLatestView",
   "WebStoriesCarouselView",
   "NewsTickerView",
+  "TrendingNowView",
   // Kluby dyskusyjne (spec §5.5)
   "ClubCardView",
   "ClubThreadsView",
@@ -69,6 +70,10 @@ const SPLIT_WIDGETS = [
   "GalleryLightboxZone",
   // Kanwowy click-to-edit (normalizeBuilderRichHtml -> node-html-parser)
   "Editable",
+  // 2026-08-18: akordeon (jedyny eager konsument DOMPurify) i etykieta sekcji
+  // (21 wariantow, ~39 kB zrodel) zjechaly do leniwego rejestru.
+  "AccordionWidget",
+  "SectionLabelWidgetView",
 ] as const;
 
 describe("lazyWidgets registry", () => {

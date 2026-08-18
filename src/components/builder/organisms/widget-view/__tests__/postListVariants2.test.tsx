@@ -9,6 +9,13 @@ import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
+// Rejestr leniwych widgetow -> lustro eager: `post-list` jedzie przez React.lazy
+// od 2026-08-15, wiec bez podmiany warianty renderuja fallback Suspense.
+vi.mock(
+  "@/components/builder/organisms/widget-view/lazyWidgets",
+  () => import("@/test/eagerWidgetChunks"),
+);
+
 const db = vi.hoisted(() => ({ tables: {} as Record<string, unknown[]> }));
 
 vi.mock("@/integrations/supabase/client", () => {
