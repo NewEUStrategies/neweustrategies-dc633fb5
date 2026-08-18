@@ -11,7 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight } from "@/lib/lucide-shim";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { AppLink } from "@/components/atoms/AppLink";
-import { safeUrl } from "@/lib/sanitize";
+import { safeUrl } from "@/lib/sanitizePure";
 import { menuWithItemsQueryOptions } from "@/lib/menus/queries";
 import { megaFeaturedPostQueryOptions } from "@/lib/menus/megaFeatured";
 import { MegaPanelView } from "@/components/menu/MegaPanelView";

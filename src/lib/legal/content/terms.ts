@@ -1,6 +1,7 @@
 // Serializowalna treść dokumentu prawnego (ikony jako nazwy, nie komponenty).
 // Jedno źródło prawdy dla publicznej strony oraz dla wersjonowania w /admin.
 import type { LegalDocContent } from "../types";
+import { TERMS_META } from "../meta";
 import {
   LEGAL_CONTACT_EMAIL,
   LEGAL_ENTITY,
@@ -14,8 +15,8 @@ import {
 export const TERMS_CONTENT: LegalDocContent = {
   pl: {
     eyebrow: "Warunki",
-    title: "Regulamin serwisu",
-    lead: `Warunki korzystania z serwisu neweuropeanstrategies.com prowadzonego przez ${LEGAL_ENTITY} - zakres usług, płatności, prawa i obowiązki stron.`,
+    // Tytuł + lead żyją w ../meta.ts (head() tras czyta je bez pełnej treści).
+    ...TERMS_META.pl,
     updated: `Ostatnia aktualizacja: ${LEGAL_UPDATED}`,
     footnote: `Regulamin prowadzi ${LEGAL_ENTITY}. O istotnych zmianach informujemy z wyprzedzeniem na tej stronie oraz mailowo dla aktywnych subskrybentów.`,
     sections: [
@@ -146,8 +147,7 @@ export const TERMS_CONTENT: LegalDocContent = {
   },
   en: {
     eyebrow: "Terms",
-    title: "Terms and conditions",
-    lead: `Terms of use for neweuropeanstrategies.com operated by ${LEGAL_ENTITY} - scope of the service, payments, rights and obligations.`,
+    ...TERMS_META.en,
     updated: `Last updated: ${LEGAL_UPDATED}`,
     footnote: `These terms are maintained by ${LEGAL_ENTITY}. Material changes are announced in advance on this page and by email to active subscribers.`,
     sections: [

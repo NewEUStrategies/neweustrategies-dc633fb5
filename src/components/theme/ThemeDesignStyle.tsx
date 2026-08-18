@@ -13,7 +13,7 @@ import {
   useThemeDesignLangMode,
   themeDesignToCss,
 } from "@/lib/theme/themeDesign";
-import { hardenStyleCss } from "@/lib/sanitize";
+import { hardenStyleCss } from "@/lib/sanitizePure";
 
 export function ThemeDesignStyle() {
   const { i18n } = useTranslation();

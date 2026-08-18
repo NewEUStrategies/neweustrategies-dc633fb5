@@ -13,7 +13,7 @@ import {
   safeUrl,
   safeImageUrl,
   hardenStyleCss,
-} from "@/lib/sanitize";
+} from "@/lib/sanitizePure";
 import { useInView } from "@/hooks/use-in-view";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { hoverCss } from "@/lib/builder/hoverCss";

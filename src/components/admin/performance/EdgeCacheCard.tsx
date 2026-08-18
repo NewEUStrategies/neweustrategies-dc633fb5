@@ -187,6 +187,12 @@ export function EdgeCacheCard() {
                 label={t("adminEdgeCache.tiles.revalidationFailures")}
                 value={number(snapshot.revalidationFailures)}
               />
+              {/* Rosnące odrzuty rozmiarowe = trasa wypada z cache'a NA STAŁE
+                  i każdy czytelnik płaci pełny render SSR (diagnoza 2026-08-18). */}
+              <StatTile
+                label={t("adminEdgeCache.tiles.oversize")}
+                value={number(snapshot.oversize ?? 0)}
+              />
             </div>
             <div className="rounded-lg border border-border/70 bg-muted/30 p-3">
               <div className="flex flex-wrap items-center gap-2">

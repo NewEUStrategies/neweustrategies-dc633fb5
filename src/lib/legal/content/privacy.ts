@@ -1,6 +1,7 @@
 // Serializowalna treść dokumentu prawnego (ikony jako nazwy, nie komponenty).
 // Jedno źródło prawdy dla publicznej strony oraz dla wersjonowania w /admin.
 import type { LegalDocContent } from "../types";
+import { PRIVACY_META } from "../meta";
 import {
   LEGAL_CONTACT_EMAIL,
   LEGAL_ENTITY,
@@ -11,8 +12,8 @@ import {
 export const PRIVACY_CONTENT: LegalDocContent = {
   pl: {
     eyebrow: "Prywatność",
-    title: "Polityka prywatności",
-    lead: `Wyjaśniamy, jakie dane osobowe przetwarza ${LEGAL_ENTITY}, na jakiej podstawie prawnej, komu je powierzamy i jakie prawa Ci przysługują.`,
+    // Tytuł + lead żyją w ../meta.ts (head() tras czyta je bez pełnej treści).
+    ...PRIVACY_META.pl,
     updated: `Ostatnia aktualizacja: ${LEGAL_UPDATED}`,
     footnote: `Tę politykę prowadzi ${LEGAL_ENTITY}. Aktualizujemy ją, gdy zmieniają się nasze procesy lub przepisy - istotne zmiany komunikujemy na tej stronie.`,
     sections: [
@@ -137,8 +138,7 @@ export const PRIVACY_CONTENT: LegalDocContent = {
   },
   en: {
     eyebrow: "Privacy",
-    title: "Privacy notice",
-    lead: `We explain what personal data ${LEGAL_ENTITY} processes, on what legal basis, who we share it with and what rights you have.`,
+    ...PRIVACY_META.en,
     updated: `Last updated: ${LEGAL_UPDATED}`,
     footnote: `This notice is maintained by ${LEGAL_ENTITY}. We update it whenever our processes or the law change - material changes are announced on this page.`,
     sections: [

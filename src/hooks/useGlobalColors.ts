@@ -3,7 +3,7 @@
 import { toJson } from "@/lib/builder/types";
 import { useMutation, useQuery, useQueryClient, queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
+import { notifyError, notifySuccess } from "@/lib/notify";
 import {
   EMPTY_GLOBAL_COLORS,
   type GlobalColorsValue,
@@ -45,9 +45,9 @@ export function useSaveGlobalColors() {
     },
     onSuccess: (next) => {
       qc.setQueryData(QUERY_KEY, next);
-      toast.success("Zapisano kolory globalne");
+      notifySuccess("Zapisano kolory globalne");
     },
-    onError: (e: Error) => toast.error(e.message || "Błąd zapisu kolorów"),
+    onError: (e: Error) => notifyError(e.message || "Błąd zapisu kolorów"),
   });
 }
 

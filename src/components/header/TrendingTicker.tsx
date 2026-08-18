@@ -21,7 +21,7 @@ import {
   type TickerColorScheme,
 } from "@/lib/views/tickerVariants";
 import { AppLink } from "@/components/atoms/AppLink";
-import { hardenStyleCss } from "@/lib/sanitize";
+import { hardenStyleCss } from "@/lib/sanitizePure";
 
 export type { TickerMode };
 

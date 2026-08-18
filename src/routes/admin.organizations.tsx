@@ -6,7 +6,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import "@/lib/i18n-admin-organizations";
+import { ensureI18n as ensureAdminOrganizationsI18n } from "@/lib/i18n-admin-organizations";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Landmark, Building2, Plus, Trash2, Users, Mail, Settings2 } from "lucide-react";
@@ -43,6 +43,9 @@ type Lang = "pl" | "en";
 const ORGS_KEY = billingKeys.admin.memberOrgs();
 
 function AdminOrganizationsPage() {
+  // Rejestracja słownika w chunku KOMPONENTU trasy (nie w entry) - patrz
+  // komentarz przy ensureI18n w lib/i18n-admin-organizations.ts.
+  ensureAdminOrganizationsI18n();
   const { t, i18n } = useTranslation();
   const lang: Lang = i18n.language === "en" ? "en" : "pl";
 

@@ -10,7 +10,7 @@ import { ClubWorkspaceLayout } from "@/components/clubs/organisms/ClubWorkspaceL
 import { ClubExpertsScreen } from "@/components/clubs/organisms/ClubExpertsScreen";
 import { useAuth } from "@/hooks/useAuth";
 import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
-import { fetchClubBySlug } from "@/lib/clubs/api";
+import { fetchClubBySlug } from "@/lib/clubs/publicClub";
 import { clubKeys } from "@/lib/clubs/queryKeys";
 import { uiLocale } from "@/lib/i18n/format";
 import { ensureClubI18n } from "@/lib/i18n-club";

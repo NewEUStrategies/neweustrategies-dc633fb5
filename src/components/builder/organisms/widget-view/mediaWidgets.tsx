@@ -5,7 +5,7 @@
 import { type CSSProperties, type SyntheticEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { WidgetNode } from "@/lib/builder/types";
-import { safeImageUrl } from "@/lib/sanitize";
+import { safeImageUrl } from "@/lib/sanitizePure";
 import { getStr, type Lang } from "./frame";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { useAboveFold } from "@/lib/builder/aboveFold";

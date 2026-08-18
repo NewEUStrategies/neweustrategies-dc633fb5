@@ -18,12 +18,15 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { ensureI18n as ensureAdminLoginSettingsI18n } from "@/lib/i18n-admin-login-settings";
 import { RegistrationFieldsSection } from "@/components/admin/auth/RegistrationFieldsSection";
-import "@/lib/i18n-admin-popup-signup";
+import { ensureI18n as ensureAdminPopupSignupI18n } from "@/lib/i18n-admin-popup-signup";
 export const Route = createFileRoute("/admin/login-settings")({
   component: LoginSettingsPage,
 });
 
 function LoginSettingsPage() {
+  // Rejestracja słownika w chunku KOMPONENTU trasy (nie w entry) - patrz
+  // komentarz przy ensureI18n w lib/i18n-admin-popup-signup.ts.
+  ensureAdminPopupSignupI18n();
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
   ensureAdminLoginSettingsI18n();
   const { t } = useTranslation();

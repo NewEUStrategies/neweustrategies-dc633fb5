@@ -14,7 +14,7 @@ import { useClubBySlug, useClubThreads, useMyClubInvitations } from "@/lib/clubs
 import { resolveClubMinisiteAccess } from "@/lib/clubs/minisiteAccess";
 import { ClubMinisite } from "@/components/clubs/organisms/ClubMinisite";
 import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
-import { fetchClubBySlug } from "@/lib/clubs/api";
+import { fetchClubBySlug } from "@/lib/clubs/publicClub";
 import { clubKeys } from "@/lib/clubs/queryKeys";
 import { ensureClubI18n } from "@/lib/i18n-club";
 

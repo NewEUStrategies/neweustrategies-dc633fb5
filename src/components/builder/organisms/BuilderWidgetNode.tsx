@@ -11,7 +11,7 @@ import {
   COMPACT_WIDGET_TYPES,
 } from "@/components/builder/organisms/widget-view/frame";
 import { RenderErrorBoundary } from "@/components/error/RenderErrorBoundary";
-import { safeUrl } from "@/lib/sanitize";
+import { safeUrl } from "@/lib/sanitizePure";
 
 interface BuilderWidgetNodeProps {
   widget: WidgetNode;

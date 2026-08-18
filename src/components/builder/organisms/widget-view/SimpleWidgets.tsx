@@ -1,11 +1,10 @@
 // Read-only widget renderers (no inline editing). Returns null when the
 // widget type isn't handled here - caller falls through to the main switch.
 import { type CSSProperties, type ReactElement, type ReactNode } from "react";
-import type { Json, WidgetNode, WidgetTypography } from "@/lib/builder/types";
+import type { WidgetNode, WidgetTypography } from "@/lib/builder/types";
 import * as LucideIcons from "@/lib/lucide-shim";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
-import { sanitizeHtml, safeUrl, safeImageUrl } from "@/lib/sanitize";
-import { SectionLabelRender, readSectionLabelProps } from "@/lib/builder/sectionLabelVariants";
+import { safeUrl, safeImageUrl } from "@/lib/sanitizePure";
 // Type-only z ciężkich modułów wariantów - runtime dociera lazy przez
 // lazyWidgets (slider ~53 KB i animowane nagłówki nie obciążają stron,
 // które ich nie renderują).
@@ -17,7 +16,12 @@ import type {
   AnimatedHeadingShape,
 } from "@/lib/builder/animatedHeadingVariants";
 import { toAnimatedHeadingLink } from "@/lib/builder/animatedHeadingLinks";
-import { SliderRender, AnimatedHeadingRender } from "./lazyWidgets";
+import {
+  SliderRender,
+  AnimatedHeadingRender,
+  AccordionWidget,
+  SectionLabelWidgetView,
+} from "./lazyWidgets";
 import { TextRotate } from "@/components/ui/text-rotate";
 import {
   COMPACT_ICON_BOX_SIZE,
@@ -27,7 +31,7 @@ import {
   getStrArr,
   type Lang,
 } from "./frame";
-import { asBool, asNumInRange, asOneOf, asStr, pickI18n } from "@/lib/content-model/contentValue";
+import { asBool, asNumInRange, asOneOf, asStr } from "@/lib/content-model/contentValue";
 import { safeWidgetColor } from "@/lib/builder/cssColor";
 import { SOCIAL_OFFICIAL_COLOR } from "@/lib/builder/socialBrand";
 import { localizedPath } from "@/lib/i18n/localePath";
@@ -136,9 +140,6 @@ const compactIconBoxStyle = (size = COMPACT_ICON_BOX_SIZE): CSSProperties => ({
   lineHeight: 0,
   boxSizing: "border-box",
 });
-
-/** Warianty accordionu, które renderer umie narysować (patrz AccordionEditor). */
-const ACCORDION_VARIANTS = ["bordered", "separated", "minimal"] as const;
 
 /** Tryby koloru ikon social, które renderer umie rozwiązać. */
 const SOCIAL_COLOR_MODES = ["inherit", "brand", "official", "custom", "dark", "light"] as const;
@@ -1300,39 +1301,10 @@ export function renderSimpleWidget(
       // Legacy alias: delegate to the full-featured contact-form renderer.
       return <ContactFormView data={(node.content ?? {}) as Record<string, unknown>} lang={lang} />;
 
-    case "accordion": {
-      const items = Array.isArray(c.items)
-        ? c.items.filter(
-            (it): it is { [key: string]: Json } =>
-              typeof it === "object" && it !== null && !Array.isArray(it),
-          )
-        : [];
-      const variant = asOneOf(c.variant, ACCORDION_VARIANTS, "bordered");
-      const containerCls =
-        variant === "separated"
-          ? "space-y-2"
-          : variant === "minimal"
-            ? "divide-y divide-border"
-            : "divide-y divide-border border border-border rounded-lg overflow-hidden";
-      const itemCls =
-        variant === "separated" ? "group border border-border rounded-lg overflow-hidden" : "group";
-      return (
-        <div className={containerCls}>
-          {items.map((it, i) => (
-            <details key={i} className={itemCls}>
-              <summary className="cursor-pointer list-none px-4 py-3 flex justify-between items-center hover:bg-muted/30 font-medium text-sm">
-                <span>{pickI18n(it, "q", lang)}</span>
-                <span className="text-muted-foreground group-open:rotate-180 transition">▾</span>
-              </summary>
-              <div
-                className="px-4 pb-4 text-sm text-muted-foreground"
-                dangerouslySetInnerHTML={{ __html: sanitizeHtml(pickI18n(it, "a", lang)) }}
-              />
-            </details>
-          ))}
-        </div>
-      );
-    }
+    case "accordion":
+      // Lazy (AccordionWidget): jedyny konsument sanitizeHtml/DOMPurify w tym
+      // module - statyczna krawędź trzymała DOMPurify w chunku wejściowym.
+      return <AccordionWidget content={c} lang={lang} />;
     case "timeline": {
       const entries = Array.isArray(c.entries) ? (c.entries as Array<Record<string, unknown>>) : [];
       const Icons = LucideIcons as Record<string, React.ComponentType<{ className?: string }>>;
@@ -1645,12 +1617,16 @@ export function renderSimpleWidget(
         </div>
       );
     }
-    case "section-label": {
-      const props = readSectionLabelProps(c, lang, {
-        theme: theme === "dark" ? "dark" : "light",
-      });
-      return <SectionLabelRender {...props} />;
-    }
+    case "section-label":
+      // Lazy (sectionLabelVariants ~39 kB źródeł, 21 wariantów) - nie chrome;
+      // SSR wypełnia granicę, chunk dogrzewa warmWidgetChunks.
+      return (
+        <SectionLabelWidgetView
+          content={c}
+          lang={lang}
+          theme={theme === "dark" ? "dark" : "light"}
+        />
+      );
 
     case "hot-topic-bar": {
       const badge = getStr(c, `badge_${lang}`) || getStr(c, "badge_pl") || "Hot topic";

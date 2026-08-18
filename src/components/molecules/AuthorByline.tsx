@@ -12,7 +12,7 @@
 // poza builderem (strona autora, stopka wpisu) bez ciągnięcia zależności.
 import type { CSSProperties, MouseEventHandler, ReactNode } from "react";
 import { AppLink } from "@/components/atoms/AppLink";
-import { safeImageUrl } from "@/lib/sanitize";
+import { safeImageUrl } from "@/lib/sanitizePure";
 import { buildAvatarSrc, buildAvatarSrcSet } from "@/lib/cropSizes";
 import {
   AUTHOR_AVATAR_RADIUS_PX_DEFAULT,

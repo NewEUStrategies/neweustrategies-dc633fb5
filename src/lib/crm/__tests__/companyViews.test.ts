@@ -17,7 +17,7 @@
 //      wstrzyknięcia formuły ma własny plik (`csv.test.ts`); tutaj sprawdzamy
 //      SKLEJENIE - że kolumny, kolejność i język nagłówka są takie, jak operator
 //      widzi na ekranie.
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   BUILTIN_COMPANY_VIEWS,
   COMPANY_COLUMNS,
@@ -39,6 +39,17 @@ import {
 
 /** Chwila odniesienia - wiersze budowane względem niej, nie względem "teraz". */
 const NOW = Date.parse("2026-08-14T12:00:00Z");
+
+// `applyCompanyFilter` czyta REALNY zegar (Date.now) - bez zamrożenia go na
+// chwili odniesienia testy zakresów ("7d"/"30d") gniły z upływem kalendarza:
+// wiersz `daysAgo(3)` liczony od stałego NOW wypadał z okna "7d" po czterech
+// dniach od zapisania testu (pierwszy raz oblał 2026-08-18).
+beforeAll(() => {
+  vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
+});
+afterAll(() => {
+  vi.useRealTimers();
+});
 
 function daysAgo(days: number): string {
   return new Date(NOW - days * 86_400_000).toISOString();

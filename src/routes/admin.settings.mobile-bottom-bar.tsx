@@ -32,7 +32,7 @@ import {
   type MobileBottomBarItem,
 } from "@/lib/mobileBottomBar/config";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
-import "@/lib/i18n-mobile-bottom-bar";
+import { ensureI18n as ensureMobileBottomBarI18n } from "@/lib/i18n-mobile-bottom-bar";
 
 /** Etykiety opcji licznika - klucze i18n, żeby panel też był dwujęzyczny. */
 const BADGE_LABEL_KEYS: Record<BottomBarBadgeSource, string> = {
@@ -79,6 +79,9 @@ function ColorField({
 }
 
 function MobileBottomBarSettings() {
+  // Rejestracja słownika w chunku KOMPONENTU trasy (nie w entry) - patrz
+  // komentarz przy ensureI18n w lib/i18n-mobile-bottom-bar.ts.
+  ensureMobileBottomBarI18n();
   const { t, i18n } = useTranslation();
   const { query, save } = useSettings<MobileBottomBarConfig>(
     MOBILE_BOTTOM_BAR_SETTINGS_KEY,

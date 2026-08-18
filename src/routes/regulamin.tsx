@@ -8,6 +8,7 @@ import { buildContentHead } from "@/lib/seo/meta";
 import { staticPageSeoQueryOptions, pickStaticSeo } from "@/lib/queries/staticPageSeo";
 import { LEGAL_ENTITY } from "@/lib/legal/entity";
 import { TERMS_CONTENT } from "@/lib/legal/content/terms";
+import { TERMS_META } from "@/lib/legal/meta";
 import { useLegalDocumentCopy } from "@/lib/legal/useLegalDocument";
 
 const COPY = TERMS_CONTENT;
@@ -23,7 +24,10 @@ export const Route = createFileRoute("/regulamin")({
   head: ({ loaderData }) => {
     const url = getRequestUrl() || "/regulamin";
     const lang = activeLang(url);
-    const c = COPY[lang];
+    // Meta z lekkiego modułu lib/legal/meta.ts - NIE z COPY: stała wspólna dla
+    // head() i komponentu ląduje w module ?tsr-shared, czyli w chunku wejściowym
+    // każdej strony, razem z pełną treścią dokumentu.
+    const c = TERMS_META[lang];
     const seo = pickStaticSeo(loaderData?.seo ?? null, lang, {
       title: `${c.title} - ${LEGAL_ENTITY}`,
       description: c.lead,

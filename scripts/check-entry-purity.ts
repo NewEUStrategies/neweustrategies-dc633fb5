@@ -104,6 +104,74 @@ const HEAVY_DICTIONARIES: readonly HeavyDictionary[] = [
     markers: ["Zgłoszenia do klubów"],
     remedy: "jak wyżej - panel ma własny chunk, wołany przez `ensureAdminClubsI18n()`",
   },
+  // 2026-08-18: trzy najcięższe słowniki, które wracały do entry przez
+  // SIDE-EFFECTOWY import w pliku trasy (`import "@/lib/i18n-…"`). Splitter
+  // nie przenosi importu bez referencji, więc słownik zostawał w shellu trasy,
+  // a shelle wszystkich tras są eager. Naprawa: no-op `ensureI18n()` wołany
+  // W KOMPONENCIE trasy (wzorzec i18n-club/i18n-network).
+  {
+    label: "i18n-admin-post-panes (słownik edytora wpisów, ~40 kB źródeł)",
+    markers: ["Wgrany plik MP3 ma pierwszeństwo - dla tego języka lektor AI nie jest wołany."],
+    remedy:
+      "w pliku trasy zamień side-effectowy import słownika na " +
+      "`import { ensureI18n } from …` wołane w komponencie trasy",
+  },
+  {
+    label: "i18n-network (słownik Mojej sieci, ~27 kB źródeł)",
+    markers: ["Sieć kontaktów jest dostępna po zalogowaniu"],
+    remedy: "jak wyżej - ensureI18n() w komponencie, nigdy side-effect w pliku trasy",
+  },
+  {
+    label: "i18n-admin-popup-signup (słownik popupu zapisu, ~17 kB źródeł)",
+    markers: ["Zapisano ustawienia popupu"],
+    remedy: "jak wyżej - ensureI18n() w komponencie, nigdy side-effect w pliku trasy",
+  },
+];
+
+/**
+ * Ciężkie moduły spoza słowników, które 2026-08-18 zeszły ze ścieżki
+ * bootowania i nie mają prawa na nią wrócić. Ta sama mechanika markerów:
+ * wartość-literal, która przeżywa minifikację.
+ */
+const HEAVY_MODULES: readonly HeavyDictionary[] = [
+  {
+    label: "dompurify (~82 kB źródeł)",
+    // Nazwy hooków DOMPurify - klucze obiektu, esbuild ich nie mangluje.
+    markers: ["beforeSanitizeElements"],
+    remedy:
+      "czyste helpery sanityzacji importuj z `lib/sanitizePure` (bez DOMPurify); " +
+      "sanitizeHtml/sanitizeMarkdownHtml wolno wołać tylko z chunków lazy " +
+      "(wzorzec: widget-view/AccordionWidget)",
+  },
+  {
+    label: "sonner (biblioteka toastów, ~63 kB źródeł)",
+    markers: ["data-sonner-toaster"],
+    remedy:
+      "moduły ścieżki bootowania wołają toasty przez `lib/notify` (leniwy most), " +
+      "a <Toaster/> w __root.tsx jest React.lazy - nie przywracaj statycznych importów sonnera",
+  },
+  {
+    label: "lib/builder/sectionLabelVariants (21 wariantów etykiety, ~39 kB źródeł)",
+    // Wartość wariantu, nie etykieta: etykiety PL są zduplikowane w
+    // lib/builder/labelsEn.ts (mapa tłumaczeń kluczowana etykietą), więc
+    // marker po etykiecie wskazywałby zły moduł w komunikacie bramki.
+    markers: ["slanted-ribbon-rule"],
+    remedy:
+      "widget section-label renderuj przez lazyWidgets.SectionLabelWidgetView, " +
+      "nigdy statycznym importem w SimpleWidgets/WidgetView",
+  },
+  {
+    label: "lib/legal/content/* (pełne treści dokumentów prawnych, ~37 kB źródeł)",
+    // Po jednym markerze na dokument: privacy / terms / refunds.
+    markers: [
+      "Administratorem Twoich danych osobowych jest ",
+      "Zawierasz umowę o świadczenie usług drogą elektroniczną",
+      "który technicznie realizuje zwrot środków",
+    ],
+    remedy:
+      "head() trasy prawnej czyta wyłącznie lib/legal/meta.ts - wspólna stała " +
+      "head+komponent ląduje w module ?tsr-shared, czyli w entry (patrz meta.ts)",
+  },
 ];
 
 const CLIENT_DIR =
@@ -235,6 +303,21 @@ function main(): void {
     }
   }
 
+  for (const mod of HEAVY_MODULES) {
+    const hits: string[] = [];
+    for (const chunk of bootGraph) {
+      const src = readFileSync(join(CLIENT_DIR, chunk), "utf8");
+      if (mod.markers.some((marker) => src.includes(marker))) hits.push(chunk);
+    }
+    if (hits.length > 0) {
+      violations.push(
+        `  • ${mod.label}\n` +
+          hits.map((h) => `      w chunku startowym: ${h}`).join("\n") +
+          `\n      naprawa: ${mod.remedy}`,
+      );
+    }
+  }
+
   console.log(
     `Sciezka bootowania: ${boot.join(", ")} -> ${bootGraph.size} chunkow statycznie osiagalnych ` +
       `(z ${files.length}).`,
@@ -255,7 +338,8 @@ function main(): void {
   console.log(
     "✓ Sciezka bootowania czysta.\n" +
       `  SDK operatora:     ${FORBIDDEN_SDKS.map((s) => s.label).join(", ")}\n` +
-      `  ciezkie slowniki:  ${HEAVY_DICTIONARIES.map((d) => d.label.split(" ")[0]).join(", ")}`,
+      `  ciezkie slowniki:  ${HEAVY_DICTIONARIES.map((d) => d.label.split(" ")[0]).join(", ")}\n` +
+      `  ciezkie moduly:    ${HEAVY_MODULES.map((m) => m.label.split(" ")[0]).join(", ")}`,
   );
 }
 

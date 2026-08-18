@@ -70,7 +70,6 @@ import {
   type ClubThreadViewRow,
   type ClubNotifyLevel,
   type ClubUpsertInput,
-  type ClubViewRow,
 } from "./types";
 
 /**
@@ -116,11 +115,9 @@ export async function fetchClubList(
 
 /** Karta klubu po slugu. `null` = klub nie istnieje albo jest niewidoczny
  *  (secret bez dostepu) - interfejs pokazuje 404, nie 403. */
-export async function fetchClubBySlug(slug: string): Promise<ClubViewRow | null> {
-  const { data, error } = await supabase.rpc("club_view", { p_slug: slug });
-  if (error) throw error;
-  return data?.[0] ?? null;
-}
+// fetchClubBySlug żyje w ./publicClub (jedyna funkcja potrzebna EAGER-owemu
+// loaderowi trasy huba) - re-eksport utrzymuje dotychczasowe API tego modułu.
+export { fetchClubBySlug } from "./publicClub";
 
 export async function fetchClubGroups(clubId: string): Promise<ClubGroupRow[]> {
   const { data, error } = await supabase.rpc("club_groups_list", { p_club_id: clubId });

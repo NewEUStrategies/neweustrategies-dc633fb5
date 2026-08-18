@@ -41,7 +41,7 @@ vi.mock("@/lib/chat/useExpertRequests", () => ({
   useResolveExpertRequest: () => ({ mutateAsync: h.resolveSpy, isPending: false }),
 }));
 
-import { ExpertRequestList } from "@/routes/profile.expert-requests";
+import { ExpertRequestList } from "@/components/chat/ExpertRequestList";
 
 function row(overrides: Partial<ExpertRequestRow> = {}): ExpertRequestRow {
   return {

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { NES_CACHE_HEADER } from "@/lib/http/documentCache";
+import { DOCUMENT_CACHE_MAX_ENTRY_BYTES, NES_CACHE_HEADER } from "@/lib/http/documentCache";
 import {
   applyDeferredDocumentStore,
   getDocumentCacheSnapshot,
@@ -454,5 +454,59 @@ describe("obserwowalność bez nagłówków (hosting je zdejmuje)", () => {
     expect(after.cached).toBe(true);
     expect(after.status).toBe("HIT");
     expect(after.bytes).toBeGreaterThan(0);
+  });
+});
+
+describe("odrzut rozmiarowy (dokument > limit wpisu)", () => {
+  it("liczy odrzut, loguje go i NIE zapisuje wpisu - kolejne żądanie to znów MISS", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const oversized = "x".repeat(DOCUMENT_CACHE_MAX_ENTRY_BYTES + 1);
+      const render = vi.fn(() => htmlResponse(oversized));
+
+      const first = await renderThroughEdge("/za-duzy", render);
+      await first.arrayBuffer();
+      await settle();
+
+      let snapshot = getDocumentCacheSnapshot();
+      expect(snapshot.oversize).toBe(1);
+      expect(snapshot.stores).toBe(0);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("/za-duzy"));
+
+      // Wpis nie istnieje, więc drugi czytelnik płaci pełny render (MISS) -
+      // dokładnie ten stan ma być odtąd WIDOCZNY w liczniku, nie cichy.
+      const second = await renderThroughEdge("/za-duzy", render);
+      expect(second.headers.get(NES_CACHE_HEADER)).toBe("MISS");
+      expect(render).toHaveBeenCalledTimes(2);
+      // Dren kopii tee + domknięcie zapisu: bez tego licznik drugiego odrzutu
+      // wystrzeliłby asynchronicznie już PO resecie następnego testu.
+      await second.arrayBuffer();
+      await settle();
+      snapshot = getDocumentCacheSnapshot();
+      expect(snapshot.misses).toBe(2);
+      expect(snapshot.oversize).toBe(2);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("dokument RÓWNY limitowi wchodzi do cache'a bez odrzutu (warunek brzegowy)", async () => {
+    // Dokładnie na granicy: kontrakt to `received > maxBytes` - dokument równy
+    // limitowi MUSI wejść; o bajt większy odpada (test wyżej). Regresja `>` na
+    // `>=` ma tu oblać, a nie przejść niezauważona.
+    const body = "y".repeat(DOCUMENT_CACHE_MAX_ENTRY_BYTES);
+    const render = vi.fn(() => htmlResponse(body));
+
+    const first = await renderThroughEdge("/w-limicie", render);
+    await first.arrayBuffer();
+    await settle();
+
+    const snapshot = getDocumentCacheSnapshot();
+    expect(snapshot.oversize).toBe(0);
+    expect(snapshot.stores).toBe(1);
+
+    const second = await renderThroughEdge("/w-limicie", render);
+    expect(second.headers.get(NES_CACHE_HEADER)).toBe("HIT");
+    expect(render).toHaveBeenCalledTimes(1);
   });
 });

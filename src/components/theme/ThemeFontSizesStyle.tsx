@@ -3,7 +3,7 @@
 // Dopóki bulk-query site_settings nie wróci, emitujemy defaulty - dzięki temu
 // tytuł wpisu i lead nigdy nie renderują się bez tokenów motywu.
 import { useFontSizes, fontSizesToCss, FONT_SIZES_DEFAULTS } from "@/lib/theme/fontSizes";
-import { hardenStyleCss } from "@/lib/sanitize";
+import { hardenStyleCss } from "@/lib/sanitizePure";
 
 export function ThemeFontSizesStyle() {
   const { data } = useFontSizes();

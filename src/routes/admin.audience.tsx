@@ -9,7 +9,7 @@ import { uiLang, uiLocale } from "@/lib/i18n/format";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import "@/lib/i18n-admin-audience";
+import { ensureI18n as ensureAdminAudienceI18n } from "@/lib/i18n-admin-audience";
 import {
   BadgeCheck,
   CreditCard,
@@ -59,6 +59,9 @@ interface RetentionRow {
 const WINDOWS = [7, 30, 90] as const;
 
 function AudienceDashboard() {
+  // Rejestracja słownika w chunku KOMPONENTU trasy (nie w entry) - patrz
+  // komentarz przy ensureI18n w lib/i18n-admin-audience.ts.
+  ensureAdminAudienceI18n();
   const { t, i18n } = useTranslation();
   const [days, setDays] = useState<(typeof WINDOWS)[number]>(30);
 

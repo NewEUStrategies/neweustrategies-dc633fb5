@@ -17,8 +17,6 @@ import { ensureI18n } from "@/lib/i18n-admin-site-identity";
 import { DEFAULT_SEO_SETTINGS, SEO_SETTINGS_KEY, type SeoSettings } from "@/lib/seo/settings";
 import { SITE_DEFAULT_DESCRIPTION, SITE_DEFAULT_TITLE } from "@/lib/seo/meta";
 
-ensureI18n();
-
 export const Route = createFileRoute("/admin/settings/site-identity")({
   component: SiteIdentityTab,
   head: () => ({ meta: [{ title: "Tytuł i opis serwisu - Ustawienia" }] }),
@@ -27,6 +25,9 @@ export const Route = createFileRoute("/admin/settings/site-identity")({
 type EcosystemRow = { id: string; label: string; hint: string; href: string };
 
 function SiteIdentityTab() {
+  // Rejestracja słownika w chunku KOMPONENTU trasy (nie w entry) - wywołanie
+  // na poziomie modułu trzymało import w shellu trasy, czyli w entry.
+  ensureI18n();
   const { t } = useTranslation();
   const { query, save } = useSettings<SeoSettings>(SEO_SETTINGS_KEY, DEFAULT_SEO_SETTINGS);
   const [draft, setDraft] = useDraft<SeoSettings>(query.data);

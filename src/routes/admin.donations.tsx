@@ -21,7 +21,7 @@ import {
   formatDonationAmount,
   type DonationsConfig,
 } from "@/lib/billing/donationsConfig";
-import "@/lib/i18n-donate";
+import { ensureI18n as ensureDonateI18n } from "@/lib/i18n-donate";
 
 export const Route = createFileRoute("/admin/donations")({
   head: () => ({
@@ -31,6 +31,9 @@ export const Route = createFileRoute("/admin/donations")({
 });
 
 function AdminDonations() {
+  // Rejestracja słownika w chunku KOMPONENTU trasy (nie w entry) - patrz
+  // komentarz przy ensureI18n w lib/i18n-donate.ts.
+  ensureDonateI18n();
   const { t, i18n } = useTranslation();
   const lang = i18n.language?.startsWith("en") ? "en" : "pl";
   const { query, save } = useSettings<DonationsConfig>(DONATIONS_SETTINGS_KEY, DONATIONS_DEFAULTS);

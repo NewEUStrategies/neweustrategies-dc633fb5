@@ -8,7 +8,7 @@
 // <DesignTokensStyle />. The font also appears in the global <FontPicker /> so
 // editors can use it for headings/body text just like any built-in option.
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
+import { notifyError } from "@/lib/notify";
 
 export interface CustomFont {
   /** Stable id used as the CSS font-family name (slug). */
@@ -80,11 +80,11 @@ export async function uploadCustomFont(opts: {
 }): Promise<CustomFont | null> {
   const ext = opts.file.name.split(".").pop()?.toLowerCase() ?? "";
   if (!ALLOWED_EXT.has(ext)) {
-    toast.error("Dozwolone formaty: .woff2, .woff, .ttf, .otf");
+    notifyError("Dozwolone formaty: .woff2, .woff, .ttf, .otf");
     return null;
   }
   if (opts.file.size > MAX_BYTES) {
-    toast.error("Plik fontu jest większy niż 5 MB");
+    notifyError("Plik fontu jest większy niż 5 MB");
     return null;
   }
   const id = slugifyFontName(opts.label || opts.file.name.replace(/\.[^.]+$/, ""));
@@ -95,7 +95,7 @@ export async function uploadCustomFont(opts: {
     upsert: false,
   });
   if (error) {
-    toast.error(error.message || "Nie udało się wysłać fontu");
+    notifyError(error.message || "Nie udało się wysłać fontu");
     return null;
   }
   const { data } = supabase.storage.from("media").getPublicUrl(path);

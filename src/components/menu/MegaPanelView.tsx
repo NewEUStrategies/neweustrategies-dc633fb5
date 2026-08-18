@@ -3,7 +3,7 @@
 // oba miejsca wyglądały 1:1 - jeden komponent, jeden design system.
 import { ArrowRight } from "@/lib/lucide-shim";
 import { AppLink } from "@/components/atoms/AppLink";
-import { safeUrl } from "@/lib/sanitize";
+import { safeUrl } from "@/lib/sanitizePure";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import type { MegaColumn } from "@/lib/menus/types";
 import type { MegaFeaturedPost } from "@/lib/menus/megaFeatured";

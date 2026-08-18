@@ -41,7 +41,7 @@ import { CLUB_MEMBER_ROLES, type ClubMemberRole } from "@/lib/clubs/types";
 import { useClubBySlug, useClubMembers, useSetClubMemberRole } from "@/lib/clubs/useClubs";
 import { useClubRosterSignal } from "@/lib/clubs/useClubNetwork";
 import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
-import { fetchClubBySlug } from "@/lib/clubs/api";
+import { fetchClubBySlug } from "@/lib/clubs/publicClub";
 import { clubKeys } from "@/lib/clubs/queryKeys";
 import { formatDateShort, formatNumber, uiLang, uiLocale } from "@/lib/i18n/format";
 import { ensureClubI18n } from "@/lib/i18n-club";

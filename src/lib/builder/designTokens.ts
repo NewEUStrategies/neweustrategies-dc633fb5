@@ -11,7 +11,7 @@
 import { toJson } from "@/lib/builder/types";
 import { useQuery, useMutation, useQueryClient, queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
+import { notifyError, notifySuccess } from "@/lib/notify";
 import { customFontsCss, type CustomFont } from "@/lib/theme/customFonts";
 import { edgeTtlCache } from "@/lib/ssrCache";
 
@@ -143,9 +143,9 @@ export function useSaveDesignTokens() {
     },
     onSuccess: (next) => {
       qc.setQueryData(QUERY_KEY, next);
-      toast.success("Zapisano tokeny marki");
+      notifySuccess("Zapisano tokeny marki");
     },
-    onError: (e: Error) => toast.error(e.message || "Błąd zapisu tokenów"),
+    onError: (e: Error) => notifyError(e.message || "Błąd zapisu tokenów"),
   });
 }
 

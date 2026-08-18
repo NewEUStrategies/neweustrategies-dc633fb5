@@ -11,7 +11,7 @@ import { DonationForm } from "@/components/donations/DonationForm";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
-import "@/lib/i18n-donate";
+import { ensureI18n as ensureDonateI18n } from "@/lib/i18n-donate";
 
 export const Route = createFileRoute("/donate")({
   validateSearch: (search: Record<string, unknown>): { status?: string } => ({
@@ -36,6 +36,9 @@ export const Route = createFileRoute("/donate")({
 });
 
 function DonatePage() {
+  // Rejestracja słownika w chunku KOMPONENTU trasy (nie w entry) - patrz
+  // komentarz przy ensureI18n w lib/i18n-donate.ts.
+  ensureDonateI18n();
   const { t } = useTranslation();
   const { status } = Route.useSearch();
 

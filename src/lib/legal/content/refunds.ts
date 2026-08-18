@@ -1,6 +1,7 @@
 // Serializowalna treść dokumentu prawnego (ikony jako nazwy, nie komponenty).
 // Jedno źródło prawdy dla publicznej strony oraz dla wersjonowania w /admin.
 import type { LegalDocContent } from "../types";
+import { REFUNDS_META } from "../meta";
 import {
   LEGAL_CONTACT_EMAIL,
   LEGAL_ENTITY,
@@ -13,8 +14,8 @@ import {
 export const REFUNDS_CONTENT: LegalDocContent = {
   pl: {
     eyebrow: "Zwroty",
-    title: "Polityka zwrotów i reklamacji",
-    lead: `Gwarancja zwrotu pieniędzy przez ${REFUND_WINDOW_DAYS} dni od zakupu - bez ukrytych warunków. Poniżej wyjaśniamy, jak złożyć wniosek i kiedy otrzymasz środki.`,
+    // Tytuł + lead żyją w ../meta.ts (head() tras czyta je bez pełnej treści).
+    ...REFUNDS_META.pl,
     updated: `Ostatnia aktualizacja: ${LEGAL_UPDATED}`,
     footnote: `Politykę prowadzi ${LEGAL_ENTITY}. Nie stosujemy zapisów typu "sprzedaż ostateczna" - Twoje prawa konsumenckie pozostają nienaruszone.`,
     sections: [
@@ -93,8 +94,7 @@ export const REFUNDS_CONTENT: LegalDocContent = {
   },
   en: {
     eyebrow: "Refunds",
-    title: "Refund policy",
-    lead: `A ${REFUND_WINDOW_DAYS}-day money-back guarantee with no hidden conditions. Below we explain how to request a refund and when you get your money back.`,
+    ...REFUNDS_META.en,
     updated: `Last updated: ${LEGAL_UPDATED}`,
     footnote: `This policy is maintained by ${LEGAL_ENTITY}. We do not use "all sales final" clauses - your statutory consumer rights are unaffected.`,
     sections: [

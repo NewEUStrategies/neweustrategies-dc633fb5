@@ -8,7 +8,7 @@
 import { useMemo, useState, type ChangeEvent } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import "@/lib/i18n-admin-library";
+import { ensureI18n as ensureAdminLibraryI18n } from "@/lib/i18n-admin-library";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Library, Upload, Plus, Save, Trash2, FileText, Lock, Pencil } from "lucide-react";
@@ -110,7 +110,13 @@ function emptyForm(): ResourceForm {
   };
 }
 
-export function AdminLibraryPage() {
+// BEZ `export`: wyeksportowany komponent nie może zostać wycięty przez route
+// splitter (symbol jest częścią interfejsu modułu), więc CAŁA strona (25 kB
+// źródeł) jechała w chunku wejściowym każdej strony publicznej.
+function AdminLibraryPage() {
+  // Rejestracja słownika w chunku KOMPONENTU trasy (nie w entry) - patrz
+  // komentarz przy ensureI18n w lib/i18n-admin-library.ts.
+  ensureAdminLibraryI18n();
   const { t, i18n } = useTranslation();
   const lang: Lang = i18n.language === "en" ? "en" : "pl";
   const qc = useQueryClient();

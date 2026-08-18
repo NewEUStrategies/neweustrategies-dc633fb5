@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { getStripeEnvironmentSafe } from "@/lib/stripe";
 import { getReconcileReport, repairReconcileEntry } from "@/lib/billing/reconcile.functions";
 import type { ReconcileIssue, ReconcileReport } from "@/lib/billing/reconcile.server";
-import "@/lib/i18n-admin-reconcile";
+import { ensureI18n as ensureAdminReconcileI18n } from "@/lib/i18n-admin-reconcile";
 
 export const Route = createFileRoute("/admin/billing-reconcile")({
   head: () => ({
@@ -30,6 +30,9 @@ function issueKey(issue: ReconcileIssue): string {
 }
 
 function AdminBillingReconcile() {
+  // Rejestracja słownika w chunku KOMPONENTU trasy (nie w entry) - patrz
+  // komentarz przy ensureI18n w lib/i18n-admin-reconcile.ts.
+  ensureAdminReconcileI18n();
   const { t, i18n } = useTranslation();
   const [environment, setEnvironment] = useState<Env>(getStripeEnvironmentSafe());
   const [sinceHours, setSinceHours] = useState(72);

@@ -3,7 +3,7 @@
 // (--primary, --background, …) take effect on every page. Mount once near the app root.
 import { useDesignTokens, tokensToCss } from "@/lib/builder/designTokens";
 import { useGlobalColors, globalColorsToCss } from "@/hooks/useGlobalColors";
-import { hardenStyleCss } from "@/lib/sanitize";
+import { hardenStyleCss } from "@/lib/sanitizePure";
 
 export function DesignTokensStyle() {
   const { data: tokens } = useDesignTokens();

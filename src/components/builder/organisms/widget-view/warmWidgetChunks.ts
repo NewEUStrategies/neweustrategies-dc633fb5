@@ -56,6 +56,10 @@ export function warmCommonWidgetChunks(defer: Defer = idleDefer): void {
     // zgięciem jako pusty fallback Suspense, dopóki kod się nie pobrał.
     void import("./PostsSliderWidget");
     void import("@/lib/builder/sliderVariants");
+    // Etykiety sekcji: od wydzielenia z SimpleWidgets (chunk wejściowy) są
+    // lazy, a występują nad zgięciem większości stron z sekcjami buildera -
+    // rozgrzanie eliminuje pusty kadr etykiety przy nawigacji SPA.
+    void import("@/lib/builder/sectionLabelVariants");
   });
 }
 
