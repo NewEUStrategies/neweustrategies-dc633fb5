@@ -69,6 +69,14 @@ const SPLIT_WIDGETS = [
   "GalleryLightboxZone",
   // Kanwowy click-to-edit (normalizeBuilderRichHtml -> node-html-parser)
   "Editable",
+  // Dopisane 18.08.2026: trzy widgety weszły do rejestru bez uzupełnienia tej
+  // listy, więc bramka „nie przecieka nieoczekiwanych eksportów" stała czerwona
+  // na mainie. To jedyny test, który pilnuje, że nazwa eksportu z rejestru
+  // zgadza się z tym, po co sięga WidgetView - czerwień oznaczała, że NIKT nie
+  // pilnował ani tych trzech, ani żadnej kolejnej zmiany rejestru.
+  "TrendingNowView",
+  "AccordionWidget",
+  "SectionLabelWidgetView",
 ] as const;
 
 describe("lazyWidgets registry", () => {
