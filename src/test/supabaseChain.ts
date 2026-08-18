@@ -128,6 +128,12 @@ const CHAIN_METHODS: readonly string[] = [
   "in",
   "is",
   "not",
+  // Filtry wzorcem. Bez nich atrapa milczy o warstwie danych, która ADRESUJE
+  // OPERACJE NIEODWRACALNE po prefiksie (kasowanie i przenoszenie folderu
+  // mediów idzie przez `.like("folder_path", …)`), a literówka w nazwie ogniwa
+  // ma być błędem testu, nie cichym pominięciem.
+  "like",
+  "ilike",
   "or",
   "filter",
   "match",
