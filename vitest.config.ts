@@ -11,6 +11,15 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text-summary", "text", "html"],
+      // Raport POWSTAJE TAKŻE PRZY CZERWONEJ SUICIE. `checkThresholds` żyje
+      // wewnątrz `reportCoverage()`, z którego vitest wychodzi natychmiast po
+      // pierwszym czerwonym teście - bez tej flagi na czerwonej suicie nie ma
+      // ANI raportu, ANI sprawdzenia progów. Komentarz z 2026-07-21 niżej opisuje
+      // dokładnie ten tryb awarii („przy 78 czerwonych testach bramka nigdy nie
+      // dobiegala do progow"), ale wtedy naprawiono skutek (obniżono floor), a nie
+      // przyczynę. Pomiar własnej pracy nie może zależeć od tego, czy ktoś inny
+      // nie zostawił czerwonego testu w zupełnie innym module.
+      reportOnFailure: true,
       // HONEST measurement scope: the WHOLE application source. The previous
       // config whitelisted ~38 files (~5% of src/) and presented a 98% number
       // for that sliver as if it were the project's coverage. Coverage is now
