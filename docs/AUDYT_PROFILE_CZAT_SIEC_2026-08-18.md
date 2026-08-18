@@ -1,6 +1,7 @@
-# Audyt modułu profili, czatu i sieci kontaktów — RUNDA 2 (2026-08-18)
+# Audyt modułu profili, czatu i sieci kontaktów — RUNDA 2 (2026-08-18) + REWIZJA
 
-**Data:** 2026-08-18 · **HEAD:** `16c6e213` (`main`) · **Gałąź:** `claude/user-profile-chat-audit-i4na3t`
+**Data:** 2026-08-18 · **HEAD (rewizja):** `e83570cf` · **HEAD (pomiar bazowy):** `16c6e213`
+· **Gałąź:** `claude/user-profile-chat-audit-i4na3t`
 **Poprzednie wydanie:** `AUDYT_PROFILE_CZAT_SIEC_2026-08-06.md` (16 ustaleń, HEAD `633d02e` → `c6f94cf`)
 **Zakres:** bez zmian — profil użytkownika, profil eksperta, warstwy/rodzaje subskrypcji, czat,
 sieć kontaktów.
@@ -10,16 +11,104 @@ Runda 2 odpowiada na dwa pytania: **(a)** czy ustalenia rundy 1 są realnie zamk
 weszły do repozytorium. Metoda bez zmian: każde ustalenie ma dowód w postaci `plik:linia`, wyniku
 uruchomionego narzędzia albo odtworzonego zachowania.
 
-> **Werdykt w dwóch zdaniach.** **Wszystkie 16 ustaleń rundy 1 są zamknięte** — sprawdzone
-> pojedynczo na ostatnich definicjach funkcji/widoków, nie na opisach PR-ów; kilka poprawek wyszło
-> poza rekomendacje audytu. Runda 2 wnosi **3 nowe ustalenia w zakresie** (dwie luki blokady, jedna
-> regresja klasy „kompletność eksportu RODO”) i **2 czerwone bramki blokujące CI poza zakresem**
-> (`check:authz-snapshot`, `check:sql-migration-replay`), które trzeba zdjąć, zanim cokolwiek
-> innego wjedzie na `main`.
+> **Werdykt.** **Wszystkie 16 ustaleń rundy 1 są zamknięte** — sprawdzone pojedynczo na ostatnich
+> definicjach funkcji/widoków, nie na opisach PR-ów; kilka poprawek wyszło poza rekomendacje
+> audytu. Runda 2 wnosi **3 nowe ustalenia w zakresie** (dwie luki blokady, jedna regresja klasy
+> „kompletność eksportu RODO”) i **2 czerwone bramki blokujące CI poza zakresem**. Po rewizji
+> (patrz sekcja 0) jedna z tych bramek jest zielona, druga nadal czerwona, a §N1–§N3 pozostają
+> otwarte.
 
 ---
 
-## 1. Delta i sygnały zmierzone na `16c6e213`
+## 0. REWIZJA — pomiar na `e83570cf` (2 PR-y, 10 commitów po `16c6e213`)
+
+Delta jest mała i skupiona: **PR #249** (bliźniak migracji kariery) i **PR #250** (refaktor czatu,
+testy, trzy zapory). Ta sekcja podaje wyłącznie to, co się zmieniło; reszta dokumentu opisuje
+pomiar bazowy na `16c6e213` i pozostaje w mocy.
+
+### 0.1 Status ustaleń rundy 2 po rewizji
+
+| #   | Ustalenie                                  | Status na `e83570cf`  | Dowód                                                                                                                                                              |
+| --- | ------------------------------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| N5  | Bliźniacza migracja treści (careers)       | ✅ **zamknięte**      | `check:sql-migration-replay` **exit 0**; bliźniak zarejestrowany w `KNOWN_CONTENT_TWINS` z decyzją operatora, a rejestr długu **waliduje sam siebie** (`e8d82748`) |
+| N4  | `check:authz-snapshot`                     | ❌ **nadal czerwone** | ten sam dryf: nowa bramka flagi `pro_briefings` na polityce `policy:events/events member read` + proweniencja. **Nadal blokuje `verify`**                          |
+| N1  | Blokada nie zamyka „Zapytania do eksperta” | ❌ **bez zmian**      | `send_expert_request` (ostatnia def. `20260812102000`): **0** odwołań do `is_blocked_pair`                                                                         |
+| N2  | Kompletność eksportu RODO                  | ❌ **bez zmian**      | wszystkie 9 tabel nadal poza eksportem (0 trafień per tabela w `export.functions.ts`)                                                                              |
+| N3  | `degree` / `mutual_count` a blokada        | ❌ **bez zmian**      | `connection_statuses`: 2 odwołania do `is_blocked_pair`, oba w `can_invite`                                                                                        |
+
+Delta nie celowała w §N1–§N3 — celowała w **lukę jakościową, którą wskazałem w ocenie modułów**
+(pokrycie czatu) oraz w §N5. To spójny wybór, nie przeoczenie; zapisuję dla porządku, że trzy
+ustalenia rundy 2 nadal czekają.
+
+### 0.2 Czat: zamknięcie luki, którą wskazała ocena modułów
+
+Ocena z tej samej doby brzmiała: „**czat 6,5/10** — architektonicznie dobry, testowo najsłabszy…
+17–20 % pokrycia, które nie drgnęło przez trzy pomiary”. Rewizja tę pozycję domyka.
+
+| Metryka                            | Runda 2 (`16c6e213`)     | **Rewizja (`e83570cf`)**       |
+| ---------------------------------- | ------------------------ | ------------------------------ |
+| `src/lib/chat` (instrukcje)        | 19,7 %                   | **78,5 %** (1305 / 1662)       |
+| `src/lib/chat` — pliki na zerze    | 12 z 29                  | **2 z 34**                     |
+| `src/components/chat`              | 17,3 %                   | **44,6 %** (765 / 1714)        |
+| Pliki testów czatu                 | 13                       | **31**                         |
+| `ChatWindow.tsx`                   | 1165 linii, 0 % pokrycia | **643 linie** (−45 %), 83,55 % |
+| **Pokrycie całego zakresu audytu** | 32,93 %                  | **56,43 %** (3447 / 6108)      |
+
+**Zweryfikowałem ich własne liczby, nie przepisałem.** `WDROZENIE_CZAT_TESTY_REFAKTOR_2026-08-18.md`
+deklaruje 78,52 % dla `src/lib/chat` i 44,63 % dla `src/components/chat` — mój niezależny przebieg
+v8 daje **78,5 %** i **44,6 %**, czyli zgodność do zaokrąglenia. Liczba plików też się zgadza
+(33 w ich liczeniu, 33 w moim po dołożeniu atomu `UnreadBadge` i katalogu `mobile`). Rozbieżność
+w liczbie przypadków — deklarowane 607, zmierzone 602 — mieści się w innym doborze plików i **nie
+jest ustaleniem**; obie metryki, które cokolwiek znaczą (pokrycie, liczba plików), zgadzają się.
+
+**Dwie rzeczy zrobione lepiej, niż wynikałoby z samego podniesienia pokrycia:**
+
+1. **Progi per katalog jako ratchet w `vitest.config.ts`** (`src/lib/chat/**`: 74 / 80 / 77 / 67)
+   plus **100 % przypięte na czterech nowych czystych modułach** (`thread.ts`, `menuOptions.ts`,
+   `useThreadJump.ts`, `keys.ts`). Pokrycie przestaje być metryką raportową, staje się warunkiem.
+2. **Pokrycie wjechało do blokującego joba `verify`** (`ci.yml:384`, krok „Test + coverage gate”).
+   Komentarz nad krokiem nazywa dokładnie tę pułapkę, którą bym zgłosił: _„previously CI ran plain
+   `vitest run`, so the gate was local-only and could silently rot”_. Ratchet bez CI byłby ozdobą —
+   nie jest.
+
+### 0.3 Nowy kod czatu: brak nowych ustaleń
+
+`ChatWindow` rozbity na 6 komponentów + 5 modułów warstwy danych. Przejrzałem je pod kątem
+regresji prywatności — **żadnej nie znalazłem**, a dwa rozstrzygnięcia są wprost dobre:
+
+- **`BlockedComposerNotice.tsx:1–8`** trzyma asymetrię blokady poprawnie: pokazuje **wyłącznie
+  własną** blokadę (RLS `user_blocks` wystawia tylko swoje), a kierunek odwrotny („to on nas
+  zablokował”) jest świadomie niewidoczny i egzekwowany serwerowo błędem `chat: blocked`. To ta
+  sama zasada, której brak w kanale zapytań do eksperta — **§N1 jest po rewizji ostrzejsze, nie
+  łagodniejsze**: repozytorium właśnie zapisało wprost, że blokada nie może być ujawniona i że DM
+  ją egzekwuje, a drugi kanał kontaktu nadal jej nie zna i od naprawy §7 **dostarcza
+  powiadomienie**.
+- **Zgłoszenie do moderacji z okna rozmowy** (`ChatWindowDialogs.tsx:50–51`, `:118`) reużywa
+  `ReportUserDialog` i RPC `report_user`, zamiast dublować dialog — powody, limit dzienny
+  i deduplikacja zostają w jednym miejscu.
+- `useAutoMarkRead.ts:67–77` i `useTypingRegistry.ts:34–40` respektują preferencje
+  (`auto_mark_on_open`, `typing_indicators_enabled`) i dokumentują naprawiony po drodze błąd
+  kolejności efektów.
+
+Osobno: bramka symetrii FTS została przepisana (`ftsConfigSymmetry.ts` 91 → 496 linii,
+`d4faeb97` — „zieleń tylko po sprawdzeniu i zakres z zależności”), czyli zespół sam znalazł
+i domknął **fałszywie zieloną bramkę** — klasę, którą w rundzie 1 zgłaszałem jako defekt
+(`check:no-paddle`, `check:sql-app-role`).
+
+### 0.4 Nowy najsłabszy punkt: profil
+
+Pałeczka przeszła z czatu na profil. Po rewizji najniższe pokrycie w zakresie mają
+**`src/lib/profile` 22,0 %** (9 z 16 plików na zerze) i **`src/components/profile` 27,8 %**
+(6 z 17). Nie podnoszę tego do rangi ustalenia — to ten sam wymiar co §12 rundy 1, a §12 jest
+zamknięte w części, którą wskazało jako priorytet. Zapisuję jako **następny naturalny krok**, gdyby
+ratchet czatu miał dostać rodzeństwo.
+
+---
+
+## 1. Delta i sygnały — pomiar bazowy na `16c6e213`
+
+> Liczby w tej sekcji opisują HEAD `16c6e213`. Pozycje, które rewizja `e83570cf` zmieniła
+> (pokrycie czatu, `check:sql-migration-replay`), są zaktualizowane w sekcji 0 — tam jest stan bieżący.
 
 Instalacja jak w CI (`bun.lock` przepięty na publiczny npm, `.github/workflows/ci.yml`).
 
@@ -129,13 +218,13 @@ Liczba bramek `check:*` wzrosła z 14 do 36. To jakościowo inny reżim niż w r
 
 ## 3. Nowe ustalenia rundy 2
 
-| #   | Obszar                    | Ustalenie                                                                                                                                             | Waga                    |
-| --- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| N1  | Czat / sieć — blokady     | `send_expert_request` **nie sprawdza `is_blocked_pair`** — zablokowany dostarcza wpis do skrzynki i powiadomienie osobie, która go zablokowała        | **Średnia**             |
-| N2  | Profil — RODO             | Klasa „kompletność eksportu” wróciła: 9 tabel z danymi osobowymi poza eksportem, a nowa bramka pilnuje **zawężenia do właściciela**, nie kompletności | **Średnia**             |
-| N3  | Sieć — blokady            | `degree` i `mutual_count` ignorują blokadę, choć `can_invite` jej nie ignoruje; pgTAP stopnia ma **zero** asercji o blokadach                         | **Niska**               |
-| N4  | Platforma (poza zakresem) | `check:authz-snapshot` **CZERWONA** — nowa bramka flagi `pro_briefings` + dryf proweniencji                                                           | **Wysoka (blokuje CI)** |
-| N5  | Platforma (poza zakresem) | `check:sql-migration-replay` **CZERWONA** — bliźniacza migracja o identycznej treści (careers)                                                        | **Wysoka (blokuje CI)** |
+| #   | Obszar                    | Ustalenie                                                                                                                                             | Waga                                               |
+| --- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| N1  | Czat / sieć — blokady     | `send_expert_request` **nie sprawdza `is_blocked_pair`** — zablokowany dostarcza wpis do skrzynki i powiadomienie osobie, która go zablokowała        | **Średnia**                                        |
+| N2  | Profil — RODO             | Klasa „kompletność eksportu” wróciła: 9 tabel z danymi osobowymi poza eksportem, a nowa bramka pilnuje **zawężenia do właściciela**, nie kompletności | **Średnia**                                        |
+| N3  | Sieć — blokady            | `degree` i `mutual_count` ignorują blokadę, choć `can_invite` jej nie ignoruje; pgTAP stopnia ma **zero** asercji o blokadach                         | **Niska**                                          |
+| N4  | Platforma (poza zakresem) | `check:authz-snapshot` **CZERWONA** — nowa bramka flagi `pro_briefings` na polityce zdarzeń + dryf proweniencji                                       | **Wysoka (blokuje CI)** — nadal otwarte po rewizji |
+| N5  | Platforma (poza zakresem) | `check:sql-migration-replay` **CZERWONA** — bliźniacza migracja o identycznej treści (careers)                                                        | ~~Wysoka~~ **✅ zamknięte w rewizji** (sekcja 0.1) |
 
 ---
 
@@ -310,12 +399,12 @@ operatora (lista może tylko maleć).
 
 ## 4. Kolejność naprawy
 
-| Priorytet              | Pozycje  | Uzasadnienie                                                                                                                                                                                                                                      |
-| ---------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **P0 — odblokować CI** | §N4, §N5 | Dwa blokujące kroki CI są czerwone, więc **nic innego nie wjedzie**. Oba są proceduralne: regeneracja snapshotu po zatwierdzeniu zmiany uprawnień oraz usunięcie/zarejestrowanie bliźniaka treści. Poza zakresem audytu, ale przed nim w kolejce. |
-| **P1**                 | §N1      | Obejście blokady dostarczające powiadomienie. Naprawa: trzy linie SQL, symetrycznie do DM. Przy okazji jedna decyzja o pozostałych trzech kanałach.                                                                                               |
-| **P2**                 | §N2      | Zgodność RODO. Dwie sekcje to jedna linia każda (RPC gotowe); reszta to praca prosta. **Bramka kompletności jest ważniejsza niż same sekcje** — bez niej lista odrasta.                                                                           |
-| **P3**                 | §N3      | Rozstrzygnięcie i zapis decyzji; naprawa albo dopisek w pgTAP.                                                                                                                                                                                    |
+| Priorytet              | Pozycje | Uzasadnienie                                                                                                                                                                                                                                                                       |
+| ---------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **P0 — odblokować CI** | §N4     | **Po rewizji został jeden czerwony krok** (§N5 zamknięte — patrz 0.1), ale wystarcza, by nic nie wjechało na `main`. Naprawa proceduralna: zatwierdzić zmianę uprawnień w review, potem `bun run generate:authz-snapshot` i commit. Poza zakresem audytu, ale przed nim w kolejce. |
+| **P1**                 | §N1     | Obejście blokady dostarczające powiadomienie. Naprawa: trzy linie SQL, symetrycznie do DM. Przy okazji jedna decyzja o pozostałych trzech kanałach.                                                                                                                                |
+| **P2**                 | §N2     | Zgodność RODO. Dwie sekcje to jedna linia każda (RPC gotowe); reszta to praca prosta. **Bramka kompletności jest ważniejsza niż same sekcje** — bez niej lista odrasta.                                                                                                            |
+| **P3**                 | §N3     | Rozstrzygnięcie i zapis decyzji; naprawa albo dopisek w pgTAP.                                                                                                                                                                                                                     |
 
 ## 5. Ocena kierunku (bez punktów)
 
