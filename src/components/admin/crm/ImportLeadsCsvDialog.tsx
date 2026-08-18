@@ -76,6 +76,12 @@ const FIELD_LABELS: Record<"pl" | "en", Record<FieldKey, string>> = {
   },
 };
 
+// Radix Select ODRZUCA pustą wartość pozycji (rzuca wyjątkiem, żeby `""` mogło
+// znaczyć „wyczyszczone"). Opcja „pomiń kolumnę" ma w mapowaniu właśnie pustą
+// wartość, więc w interfejsie zastępuje ją wartownik - inaczej krok mapowania
+// kolumn NIE RENDERUJE SIĘ WCALE (cały dialog padał po wybraniu pliku).
+const SKIP_VALUE = "__skip__";
+
 const TXT = {
   pl: {
     open: "Import CSV",
@@ -249,19 +255,19 @@ export function ImportLeadsCsvDialog({
                       {h || `col_${i + 1}`}
                     </div>
                     <Select
-                      value={mapping[i] ?? ""}
+                      value={mapping[i] ? mapping[i] : SKIP_VALUE}
                       onValueChange={(v) => {
                         const next = [...mapping];
-                        next[i] = v as FieldKey;
+                        next[i] = v === SKIP_VALUE ? "" : (v as FieldKey);
                         setMapping(next);
                       }}
                     >
-                      <SelectTrigger className="h-8">
+                      <SelectTrigger className="h-8" aria-label={`${t.mapping}: ${h || i + 1}`}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         {LEAD_IMPORT_FIELD_CHOICES.map((k) => (
-                          <SelectItem key={k || "skip"} value={k}>
+                          <SelectItem key={k || SKIP_VALUE} value={k || SKIP_VALUE}>
                             {fieldLabels[k]}
                           </SelectItem>
                         ))}
