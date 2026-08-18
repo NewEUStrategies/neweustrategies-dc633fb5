@@ -7,7 +7,7 @@
 // Search and creation go through SECURITY DEFINER RPCs instead of direct
 // table access: crm_companies read policy is staff-only, while members still
 // need to pick/link a company from their own tenant.
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, Check, Loader2, Plus, Search } from "lucide-react";
@@ -96,6 +96,9 @@ export function CompanyPickerDialog({
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  // Ziarno identyfikatorów pól formularza tworzenia firmy - `useId`, bo dialog
+  // może być zamontowany więcej niż raz (edytor profilu i panel tożsamości).
+  const formId = useId();
 
   useEffect(() => {
     if (!open) return;
@@ -209,7 +212,26 @@ export function CompanyPickerDialog({
       });
       if (error) throw error;
       if (!companyId) throw new Error("empty_response");
-      await supabase.rpc("link_current_company", { _company_id: companyId });
+      // Drugi krok - powiązanie z profilem - musi zgłosić błąd tak samo jak
+      // pierwszy. Bez sprawdzenia `error` tutaj firma ląduje w CRM, profil
+      // zostaje BEZ powiązania, a użytkownik i tak widzi "utworzono".
+      //
+      // Błąd TEGO kroku dostaje WŁASNY komunikat (`linkFailed`, nie
+      // `createFailed`): firma w tym miejscu JUŻ istnieje w CRM, więc
+      // "nie udało się dodać firmy" jest nieprawdziwe i wysłałoby użytkownika
+      // do ponownego tworzenia - czyli duplikatu firmy zamiast powtórzenia
+      // samego powiązania. Lista wyszukiwania jest tu i tak unieważniana, bo
+      // firma naprawdę przybyła do CRM - kolejne wpisanie tej samej nazwy w
+      // wyszukiwarkę znajdzie ją i pozwoli połączyć bez tworzenia drugiej.
+      const { error: linkError } = await supabase.rpc("link_current_company", {
+        _company_id: companyId,
+      });
+      if (linkError) {
+        void qc.invalidateQueries({ queryKey: ["crm-companies-search"] });
+        const msg = linkError instanceof Error ? linkError.message : String(linkError);
+        toast.error(t("company.errors.linkFailed") + ` (${msg})`);
+        return;
+      }
       void qc.invalidateQueries({ queryKey: ["crm-companies-search"] });
       invalidateProfile();
       toast.success(t("company.toast.created"));
@@ -347,8 +369,9 @@ export function CompanyPickerDialog({
         ) : (
           <form onSubmit={submitCreate} className="flex flex-col">
             <div className="px-5 py-4 space-y-3 max-h-[60vh] overflow-y-auto">
-              <FieldRow label={t("company.fields.name")} required>
+              <FieldRow label={t("company.fields.name")} required htmlFor={`${formId}-name`}>
                 <Input
+                  id={`${formId}-name`}
                   value={form.name}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                   className="h-9 text-[13px] rounded-md"
@@ -358,16 +381,18 @@ export function CompanyPickerDialog({
                 />
               </FieldRow>
               <div className="grid grid-cols-2 gap-3">
-                <FieldRow label={t("company.fields.country")}>
+                <FieldRow label={t("company.fields.country")} htmlFor={`${formId}-country`}>
                   <Input
+                    id={`${formId}-country`}
                     value={form.country}
                     onChange={(e) => setForm((f) => ({ ...f, country: e.target.value }))}
                     className="h-9 text-[13px] rounded-md"
                     maxLength={80}
                   />
                 </FieldRow>
-                <FieldRow label={t("company.fields.branch")}>
+                <FieldRow label={t("company.fields.branch")} htmlFor={`${formId}-branch`}>
                   <Input
+                    id={`${formId}-branch`}
                     value={form.branch}
                     onChange={(e) => setForm((f) => ({ ...f, branch: e.target.value }))}
                     className="h-9 text-[13px] rounded-md"
@@ -376,16 +401,18 @@ export function CompanyPickerDialog({
                 </FieldRow>
               </div>
               <div className="grid grid-cols-[1fr_120px] gap-3">
-                <FieldRow label={t("company.fields.city")}>
+                <FieldRow label={t("company.fields.city")} htmlFor={`${formId}-city`}>
                   <Input
+                    id={`${formId}-city`}
                     value={form.city}
                     onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))}
                     className="h-9 text-[13px] rounded-md"
                     maxLength={80}
                   />
                 </FieldRow>
-                <FieldRow label={t("company.fields.postalCode")}>
+                <FieldRow label={t("company.fields.postalCode")} htmlFor={`${formId}-postal_code`}>
                   <Input
+                    id={`${formId}-postal_code`}
                     value={form.postal_code}
                     onChange={(e) => setForm((f) => ({ ...f, postal_code: e.target.value }))}
                     className="h-9 text-[13px] rounded-md"
@@ -393,8 +420,9 @@ export function CompanyPickerDialog({
                   />
                 </FieldRow>
               </div>
-              <FieldRow label={t("company.fields.address")}>
+              <FieldRow label={t("company.fields.address")} htmlFor={`${formId}-address`}>
                 <Input
+                  id={`${formId}-address`}
                   value={form.address}
                   onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
                   className="h-9 text-[13px] rounded-md"
@@ -402,9 +430,10 @@ export function CompanyPickerDialog({
                 />
               </FieldRow>
               <div className="grid grid-cols-2 gap-3">
-                <FieldRow label={t("company.fields.website")}>
+                <FieldRow label={t("company.fields.website")} htmlFor={`${formId}-website`}>
                   <Input
                     type="url"
+                    id={`${formId}-website`}
                     value={form.website}
                     onChange={(e) => setForm((f) => ({ ...f, website: e.target.value }))}
                     placeholder="https://"
@@ -412,9 +441,10 @@ export function CompanyPickerDialog({
                     maxLength={200}
                   />
                 </FieldRow>
-                <FieldRow label={t("company.fields.phone")}>
+                <FieldRow label={t("company.fields.phone")} htmlFor={`${formId}-phone`}>
                   <Input
                     type="tel"
+                    id={`${formId}-phone`}
                     value={form.phone}
                     onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
                     className="h-9 text-[13px] rounded-md"
@@ -458,18 +488,38 @@ export function CompanyPickerDialog({
   );
 }
 
+/**
+ * Wiersz pola formularza firmy.
+ *
+ * `htmlFor` jest WYMAGANY, bo `Label` jest tu RODZEŃSTWEM pola, nie jego
+ * rodzicem - bez powiązania czytnik ekranu ogłasza osiem nienazwanych pól
+ * tekstowych i nie ma z czego odczytać, które jest nazwą firmy, a które
+ * kodem pocztowym (WCAG 1.3.1 / 4.1.2). Gwiazdka przy `required` jest
+ * dekoracją dla wzroku - `aria-hidden`, bo pole niesie własne `required`.
+ */
 function FieldRow({
   label,
+  htmlFor,
+  required = false,
   children,
 }: {
   label: string;
+  htmlFor: string;
   required?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-1">
-      <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+      <Label
+        htmlFor={htmlFor}
+        className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
+      >
         {label}
+        {required && (
+          <span aria-hidden="true" className="ml-0.5 text-destructive">
+            *
+          </span>
+        )}
       </Label>
       {children}
     </div>

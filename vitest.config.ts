@@ -262,16 +262,78 @@ export default defineConfig({
           lines: 100,
           branches: 95,
         },
-        // Powierzchnia profilu użytkownika - również startowała z 0%. Duże
-        // panele (edytor autora, panele tożsamości, wybór firmy) są jeszcze
-        // nieotestowane, dlatego próg jest niski, ale REALNY: pilnuje atomów
-        // edycji „w miejscu", nawigacji, bramki sesji, podglądu mediów oraz
-        // sekcji CV, w których żyje stempel tenanta.
+        // ── PROFIL ─────────────────────────────────────────────────────────────
+        // Audyt 18.08 postawił profilowi ten sam zarzut, co czatowi wcześniej:
+        // pokrycie stało w miejscu (22,0% src/lib/profile, 27,8%
+        // src/components/profile), a 9+6 plików na okrągłym zerze - w tym
+        // AuthorProfileEditor.tsx (219 instrukcji, największy pojedynczy plik
+        // profilu) i CompanyPickerDialog.tsx bez ani jednej asercji. Ten sam
+        // ruch, co przy czacie: fixture'y w duchu atomic design
+        // (`src/test/profile/fixtures.ts`, plus wspólna atrapa łańcucha
+        // PostgREST wyprowadzona do `src/test/supabaseChain.ts` - jest teraz
+        // JEDNA, nie osobna kopia na każdą powierzchnię testową).
+        //
+        // Progi floorowane ~4 pp pod ZMIERZONYM poziomem (marża na dryf CI) -
+        // wolno je wyłącznie podnosić.
+        //
+        // WARSTWA DANYCH: 22,02% -> 85,22% instrukcji (85% funkcji). Jedyny
+        // plik wciąż na zerze to `export.functions.ts` (server fn RODO) - ma
+        // już bramkę statyczną (`__tests__/exportOwnerScope.gate.test.ts`),
+        // a pokrycie runtime'owe server fn zostało świadomie pominięte
+        // (koszt/zysk nieopłacalny na tym etapie - patrz dokument wdrożenia).
+        "src/lib/profile/**": {
+          statements: 81,
+          functions: 81,
+          lines: 81,
+          branches: 75,
+        },
+        // CZYSTE MODUŁY profilu trzymamy pod 100% na wszystkich czterech
+        // metrykach - tak jak czyste moduły czatu i płatności wyżej. Niosą
+        // reguły widoczne wyłącznie dla użytkownika: punktację Big Five
+        // (klucz odwrócony na połowie pytań), wagi kompletności profilu
+        // (suma = 100, zsynchronizowana z bramką CI wobec SQL-a), adresy
+        // kanoniczne paneli (nie mogą wskazywać na przekierowanie) i
+        // synchronizację podglądu gościa między stroną a layoutem.
+        "src/lib/profile/personality.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/profile/completeness.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/profile/routes.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/profile/guestPreviewStore.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // WARSTWA KOMPONENTÓW: 27,84% -> 89,54% instrukcji. Zero plików na
+        // zerze (było 6 z 17, w tym AuthorProfileEditor.tsx bez ANI JEDNEJ
+        // asercji przy 219 instrukcjach - największy pojedynczy plik tej
+        // powierzchni). Trzy defekty wyszły PRZY PISANIU tych testów i zostały
+        // naprawione osobnymi commitami: propozycja publicznego adresu profilu
+        // zjadała literę „ł" (transliteracja przez samo `normalize("NFKD")` nie
+        // rozkłada tej litery), pola formularza tworzenia firmy nie miały
+        // `htmlFor` (osiem nienazwanych pól dla czytnika ekranu), a utworzenie
+        // nowej firmy w CRM ignorowało błąd DRUGIEGO kroku (powiązania z
+        // profilem) - firma lądowała w bazie, użytkownik widział fałszywy
+        // sukces. Szczegóły w dokumencie wdrożenia.
         "src/components/profile/**": {
-          statements: 25,
-          functions: 25,
-          lines: 25,
-          branches: 25,
+          statements: 85,
+          functions: 74,
+          lines: 87,
+          branches: 82,
         },
         // ── CZAT / KOMUNIKATOR ────────────────────────────────────────────────
         // Audyt 14.08 (MODUŁ 9) postawił temu modułowi jeden zarzut i był to
