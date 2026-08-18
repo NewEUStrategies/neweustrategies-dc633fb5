@@ -22,6 +22,9 @@ function makePost(over: Partial<BlogListItem> = {}): BlogListItem {
     published_at: "2026-06-20T00:00:00Z",
     parent_page_id: "pp",
     href: "/blog/s",
+    is_sponsored: false,
+    sponsored_kind: null,
+    sponsored_affiliate: false,
     ...over,
   };
 }

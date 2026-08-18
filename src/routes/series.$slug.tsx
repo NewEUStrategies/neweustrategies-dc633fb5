@@ -76,6 +76,9 @@ function SeriesPage() {
                   excerpt_en: null,
                   cover_image_url: part.cover_image_url,
                   published_at: part.published_at,
+                  is_sponsored: part.is_sponsored,
+                  sponsored_kind: part.sponsored_kind,
+                  sponsored_affiliate: part.sponsored_affiliate,
                 }}
                 href={part.href}
                 lang={lang}

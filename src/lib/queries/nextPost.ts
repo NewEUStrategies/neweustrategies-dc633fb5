@@ -2,6 +2,7 @@
 // w obrębie tej samej strony nadrzędnej. Używane przez AutoLoadNextPost.
 import { supabase } from "@/integrations/supabase/client";
 import { fetchGatedBody } from "@/lib/queries/public";
+import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
 
 export interface NextPostSummary {
   id: string;
@@ -24,8 +25,7 @@ export interface NextPostSummary {
 // Only non-gated display columns (incl. the `editor` discriminator) are selected
 // directly; the body columns are fetched through the SECURITY DEFINER
 // get_entity_content RPC (see fetchGatedBody).
-const COLS =
-  "id, slug, editor, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id";
+const COLS = `id, slug, editor, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, ${SPONSORED_LIST_COLS}`;
 
 export async function fetchNextPost(params: {
   currentPostId: string;

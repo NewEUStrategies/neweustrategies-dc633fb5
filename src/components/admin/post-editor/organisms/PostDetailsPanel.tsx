@@ -12,6 +12,7 @@ import { SeoPanel } from "@/components/admin/seo/SeoPanel";
 import { InternalLinkSuggestions } from "@/components/admin/seo/InternalLinkSuggestions";
 import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
 import { RevisionsCard } from "@/components/admin/molecules/RevisionsCard";
+import { PostOrganizationPicker, PostSponsoredCard } from "../molecules";
 import { PostDetailsNav, type DetailsTab } from "./PostDetailsNav";
 import { TakeawaysSection } from "./TakeawaysSection";
 import { AudioSection } from "./AudioSection";
@@ -19,7 +20,7 @@ import { CustomMetaSection } from "./CustomMetaSection";
 import { RelatedSection } from "./RelatedSection";
 import { PostTaxonomyGrid } from "./PostTaxonomyGrid";
 import { PostSidebarBundle } from "./PostSidebarBundle";
-import type { AutoReadMinutes } from "../types";
+import type { AutoReadMinutes, PostForm } from "../types";
 import type { InlineTaxonomyApi, PostEditorData, PostEditorFormApi } from "../hooks";
 import "@/lib/i18n-admin-post-panes";
 
@@ -48,6 +49,14 @@ export function PostDetailsPanel({
 }) {
   const { t } = useTranslation();
   const { form, set } = formApi;
+  // Patch WIELOKLUCZOWY, jak w SeoPanel niżej: karty organizacji i sponsoringu
+  // zmieniają po kilka pól naraz (id + migawka; flaga + rodzaj relacji). Osobne
+  // `set()` na każde pole dałyby tyle samo wpisów w historii undo i tyle samo
+  // szans, żeby autozapis utrwalił stan pośredni.
+  const patch = (next: Partial<PostForm>) =>
+    formApi.history.set((f) => (f ? { ...f, ...next } : f), {
+      coalesceKey: Object.keys(next).sort().join("|"),
+    });
   if (!form) return null;
 
   return (
@@ -173,6 +182,15 @@ export function PostDetailsPanel({
           )}
 
           {detailsTab === "access" && <AccessSettingsPane entityType="post" entityId={data.id} />}
+
+          {detailsTab === "organization" && (
+            <div className="space-y-6">
+              <PostOrganizationPicker form={form} onPatch={patch} />
+              <div className="border-t border-border pt-6">
+                <PostSponsoredCard form={form} uiLang={uiLang} onPatch={patch} />
+              </div>
+            </div>
+          )}
 
           {detailsTab === "audio" && <AudioSection formApi={formApi} />}
 

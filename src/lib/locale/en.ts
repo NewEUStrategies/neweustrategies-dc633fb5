@@ -5,6 +5,7 @@ export const en = {
   common: {
     retry: "Try again",
     loading: "Loading…",
+    noPosts: "No posts to display.",
     loadMore: "Load more",
     add: "Add",
     remove: "Remove",

@@ -12,7 +12,10 @@ import {
   Link as LinkIconLucide,
   Mic,
 } from "@/lib/lucide-shim";
-import { History, Database, ListChecks } from "lucide-react";
+// Building2 nie ma w `@/lib/lucide-shim` (shim niesie tylko ikony z gorących
+// ścieżek publicznych) - ta sama furtka, z której już korzystają History,
+// Database i ListChecks.
+import { History, Database, ListChecks, Building2 } from "lucide-react";
 import "@/lib/i18n-admin-post-panes";
 
 export type DetailsTab =
@@ -27,6 +30,7 @@ export type DetailsTab =
   | "taxonomy"
   | "access"
   | "audio"
+  | "organization"
   | "revisions";
 
 type TabDef = {
@@ -119,6 +123,16 @@ const GROUPS: { id: string; labelKey: string; tabs: TabDef[] }[] = [
         labelKey: "adminPostPanes.nav.access",
         icon: Lock,
         hintKey: "adminPostPanes.nav.accessHint",
+      },
+      // Atrybucja organizacji i oznaczenie komercyjne stoją w grupie
+      // „Publikacja", nie „Struktura": obie rzeczy rozstrzygają się w momencie
+      // wypuszczenia materiału i obie są warunkiem legalnej publikacji, a nie
+      // elementem układu treści.
+      {
+        id: "organization",
+        labelKey: "adminPostPanes.nav.organization",
+        icon: Building2,
+        hintKey: "adminPostPanes.nav.organizationHint",
       },
     ],
   },
