@@ -17,6 +17,16 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ok, type RecordedChain, type SupabaseFromStub } from "@/test/supabaseChain";
 
+/**
+ * `refetchOnReconnect` nie jest czescia PUBLICZNEGO typu `QueryOptions`
+ * (react-query trzyma go w typie obserwatora), a to wlasnie ta opcja jest tu
+ * przedmiotem testu. Rzut jest waski i zlokalizowany w jednym helperze -
+ * czytamy dokladnie to jedno pole, nie rozluzniamy typowania calego zapytania.
+ */
+function refetchOnReconnectOf(options: unknown): unknown {
+  return (options as { refetchOnReconnect?: unknown }).refetchOnReconnect;
+}
+
 const h = vi.hoisted(() => ({ tenantId: "tenant-alfa" as string }));
 const stubs = vi.hoisted(() => ({ from: null as unknown, rpc: null as unknown }));
 
@@ -225,7 +235,7 @@ describe("usePostEditorData - zapora przed utratą tekstu", () => {
       .getQueryCache()
       .find({ queryKey: ["post-by-slug", "tenant-alfa", "moj-wpis"] });
     expect(query).toBeDefined();
-    expect(query?.options.refetchOnReconnect).toBe(false);
+    expect(refetchOnReconnectOf(query?.options)).toBe(false);
   });
 
   it("słowniki taksonomii NIE mają tego wyłącznika (mogą się odświeżać)", async () => {
@@ -242,6 +252,6 @@ describe("usePostEditorData - zapora przed utratą tekstu", () => {
     const query = client.getQueryCache().find({ queryKey: ["categories", "tenant-alfa"] });
     expect(query).toBeDefined();
     // Domyślna wartość react-query, czyli słownik ODŚWIEŻA się po powrocie sieci.
-    expect(query?.options.refetchOnReconnect).toBe(true);
+    expect(refetchOnReconnectOf(query?.options)).toBe(true);
   });
 });
