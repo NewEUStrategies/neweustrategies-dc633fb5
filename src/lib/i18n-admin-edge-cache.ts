@@ -26,6 +26,7 @@ const pl = {
       purges: "Unieważnienia",
       revalidations: "Odświeżenia w tle",
       revalidationFailures: "Nieudane odświeżenia",
+      oversize: "Odrzuty rozmiarowe",
     },
     since: "Statystyki od {{date}} (bieżąca instancja).",
     isolateNote:
@@ -98,6 +99,7 @@ const en = {
       purges: "Purges",
       revalidations: "Background refreshes",
       revalidationFailures: "Failed refreshes",
+      oversize: "Oversize rejections",
     },
     since: "Stats since {{date}} (current instance).",
     isolateNote:

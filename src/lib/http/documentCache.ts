@@ -56,8 +56,22 @@ export const DOCUMENT_CACHE_MAX_FRESH_MS = 180_000;
  */
 export const DOCUMENT_CACHE_MAX_SWR_MS = 24 * 60 * 60 * 1000;
 
-/** Limit rozmiaru pojedynczego dokumentu (większe nie wchodzą do cache). */
-export const DOCUMENT_CACHE_MAX_ENTRY_BYTES = 1024 * 1024;
+/**
+ * Limit rozmiaru pojedynczego dokumentu (większe nie wchodzą do cache).
+ *
+ * 2026-08-18: 1 MiB -> 2 MiB. Strona główna niesie w HTML-u dehydratowane
+ * dane WSZYSTKICH sekcji (celowo - patrz prefetchCachedRouteQueries) plus
+ * pełną mapę site_settings z builder_data chrome'u; dokument potrafi
+ * przekroczyć 1 MiB i wtedy NAJWAŻNIEJSZA trasa serwisu wypadała z cache'a
+ * PO CICHU - każdy czytelnik płacił pełny render SSR (sekundy TTFB), a
+ * liczniki pokazywały wyłącznie rosnące MISS-y bez śladu przyczyny. Odrzut
+ * jest teraz zliczany (stats.oversize) i logowany w documentCache.server.ts,
+ * więc następne przekroczenie limitu będzie widoczne w /admin/performance
+ * zamiast objawiać się wolnym pierwszym wejściem. Budżet całego magazynu
+ * (24 MiB, approx-LRU) pozostaje nadrzędny, więc koszt pamięci jest
+ * ograniczony z konstrukcji.
+ */
+export const DOCUMENT_CACHE_MAX_ENTRY_BYTES = 2 * 1024 * 1024;
 /** Budżet bajtów całego magazynu per isolate (approx-LRU eviction). */
 export const DOCUMENT_CACHE_MAX_TOTAL_BYTES = 24 * 1024 * 1024;
 

@@ -119,6 +119,13 @@ export interface DocumentCacheSnapshot {
   stores: number;
   evictions: number;
   purges: number;
+  /**
+   * Dokumenty ODRZUCONE z cache'a, bo przekroczyły limit rozmiaru wpisu.
+   * Rosnące oversize przy stores == 0 dla danej trasy oznacza, że KAŻDY
+   * czytelnik płaci pełny render SSR - to była niewidoczna dotąd przyczyna
+   * wolnego pierwszego wejścia (diagnoza 2026-08-18).
+   */
+  oversize: number;
   /** Odświeżenia wpisów uruchomione ZA odpowiedzią (stale-while-revalidate). */
   revalidations: number;
   /** Z tego takie, które nie odłożyły świeżego dokumentu (wpis został STALE). */
@@ -163,6 +170,8 @@ const stats = {
   stores: 0,
   evictions: 0,
   purges: 0,
+  /** Dokumenty za duże na wpis (> DOCUMENT_CACHE_MAX_ENTRY_BYTES) - patrz komentarz przy stałej. */
+  oversize: 0,
   revalidations: 0,
   revalidationFailures: 0,
   startedAt: new Date().toISOString(),
@@ -378,7 +387,7 @@ function withCacheStatus(
 async function collectStream(
   stream: ReadableStream<Uint8Array>,
   maxBytes: number,
-): Promise<Uint8Array | null> {
+): Promise<Uint8Array | "oversize" | null> {
   const reader = stream.getReader();
   const chunks: Uint8Array[] = [];
   let received = 0;
@@ -389,8 +398,11 @@ async function collectStream(
       if (value) {
         received += value.byteLength;
         if (received > maxBytes) {
+          // Rozróżniamy odrzut rozmiarowy od błędu strumienia: za duży
+          // dokument to sygnał operacyjny (trasa wypada z cache'a NA STAŁE),
+          // a nie chwilowy zgrzyt sieci - wołający zlicza go osobno.
           await reader.cancel();
-          return null;
+          return "oversize";
         }
         chunks.push(value);
       }
@@ -517,6 +529,18 @@ export function applyDeferredDocumentStore(
   const link = response.headers.get("link") ?? record.link;
   const [toClient, toCache] = response.body.tee();
   const work = collectStream(toCache, DOCUMENT_CACHE_MAX_ENTRY_BYTES).then(async (body) => {
+    if (body === "oversize") {
+      // GŁOŚNO, nie po cichu: dokument za duży na wpis oznacza, że ta trasa
+      // NIGDY nie trafi do cache'a i każdy czytelnik płaci pełny render SSR.
+      // Do 2026-08-18 dokładnie tak (bez śladu w logach i licznikach) strona
+      // główna wypadała z NES Edge Cache - patrz komentarz przy
+      // DOCUMENT_CACHE_MAX_ENTRY_BYTES.
+      stats.oversize += 1;
+      console.warn(
+        `[nes-edge-cache] dokument > ${DOCUMENT_CACHE_MAX_ENTRY_BYTES} B nie wchodzi do cache: ${record.key}`,
+      );
+      return false;
+    }
     if (!body) return false;
     const entry: DocumentCacheEntry = {
       body,
@@ -769,6 +793,7 @@ export function getDocumentCacheSnapshot(): DocumentCacheSnapshot {
     stores: stats.stores,
     evictions: stats.evictions,
     purges: stats.purges,
+    oversize: stats.oversize,
     revalidations: stats.revalidations,
     revalidationFailures: stats.revalidationFailures,
     startedAt: stats.startedAt,
@@ -852,6 +877,7 @@ export function resetDocumentCacheForTests(): void {
   stats.stores = 0;
   stats.evictions = 0;
   stats.purges = 0;
+  stats.oversize = 0;
   stats.revalidations = 0;
   stats.revalidationFailures = 0;
   stats.startedAt = new Date().toISOString();
