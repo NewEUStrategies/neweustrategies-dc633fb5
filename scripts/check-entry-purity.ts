@@ -152,7 +152,10 @@ const HEAVY_MODULES: readonly HeavyDictionary[] = [
   },
   {
     label: "lib/builder/sectionLabelVariants (21 wariantów etykiety, ~39 kB źródeł)",
-    markers: ["01 - Pionowy pasek"],
+    // Wartość wariantu, nie etykieta: etykiety PL są zduplikowane w
+    // lib/builder/labelsEn.ts (mapa tłumaczeń kluczowana etykietą), więc
+    // marker po etykiecie wskazywałby zły moduł w komunikacie bramki.
+    markers: ["slanted-ribbon-rule"],
     remedy:
       "widget section-label renderuj przez lazyWidgets.SectionLabelWidgetView, " +
       "nigdy statycznym importem w SimpleWidgets/WidgetView",

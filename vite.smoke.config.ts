@@ -197,7 +197,15 @@ export default defineConfig({
                 // tailwind-merge i dompurify nie importują niczego; sonner
                 // importuje wyłącznie react/react-dom (vendor-react, krawędź
                 // jednokierunkowa).
-                if (id.includes("/node_modules/zod/")) return "vendor-zod";
+                // Tylko zod TOP-LEVEL: @tanstack/react-start wozi ZAGNIEŻDŻONĄ
+                // kopię zod 4 (node_modules/@tanstack/.../node_modules/zod) -
+                // mieszanie dwóch wersji w jednym cache-stabilnym chunku
+                // sprzęgałoby jego unieważnianie z bumpami frameworka.
+                if (
+                  /\/node_modules\/zod\//.test(id) &&
+                  !/\/node_modules\/[^]*?\/node_modules\/zod\//.test(id)
+                )
+                  return "vendor-zod";
                 if (id.includes("/node_modules/tailwind-merge/")) return "vendor-tw-merge";
                 if (id.includes("/node_modules/dompurify/")) return "vendor-dompurify";
                 if (id.includes("/node_modules/sonner/")) return "vendor-sonner";

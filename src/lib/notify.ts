@@ -27,6 +27,8 @@ type ToastFn = (message: string) => unknown;
 let toastModule: { success: ToastFn; error: ToastFn } | null = null;
 let loading: Promise<void> | null = null;
 const queue: Array<() => void> = [];
+/** Górna granica kolejki: toasty to dekoracja, nie bufor zdarzeń. */
+const QUEUE_LIMIT = 20;
 
 function flush(): void {
   while (queue.length > 0) queue.shift()?.();
@@ -38,17 +40,23 @@ function withToast(run: (t: { success: ToastFn; error: ToastFn }) => void): void
     run(toastModule);
     return;
   }
-  queue.push(() => {
-    if (toastModule) run(toastModule);
-  });
+  if (queue.length < QUEUE_LIMIT) {
+    queue.push(() => {
+      if (toastModule) run(toastModule);
+    });
+  }
   loading ??= import("sonner")
     .then((m) => {
       toastModule = m.toast;
       flush();
     })
     .catch(() => {
-      // Chunk sonnera nie dojechał (sieć) - toasty są dekoracją, nie blokujemy.
+      // Chunk sonnera nie dojechał (sieć) - toasty są dekoracją, nie
+      // blokujemy. `loading = null` pozwala NASTĘPNEMU wywołaniu ponowić
+      // import (bez resetu każdy kolejny toast pchałby do kolejki, której
+      // nikt już nigdy nie opróżni - rosłaby bez końca i bez efektu).
       queue.length = 0;
+      loading = null;
     });
 }
 
