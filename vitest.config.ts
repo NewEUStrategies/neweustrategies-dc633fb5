@@ -11,6 +11,16 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text-summary", "text", "html"],
+      // Raport pokrycia POWSTAJE też przy czerwonej suicie. Bez tego vitest
+      // wychodzi z `reportCoverage()` po pierwszym padniętym teście - a
+      // `checkThresholds` żyje WEWNĄTRZ tej funkcji, więc na czerwonej suicie
+      // nie dostajemy ani liczb, ani bramki. Praktyczny skutek był taki, że
+      // autor nowych testów nie mógł zmierzyć własnej pracy, dopóki cała
+      // suita nie była zielona (a bywała czerwona z powodu zupełnie innej
+      // powierzchni). Raport z czerwonego przebiegu jest oczywiście NIŻSZY
+      // niż prawda (pliki, które padły w kolekcji, nie wykonały ani linii) -
+      // służy do porównywania własnej delty, nie do raportowania stanu repo.
+      reportOnFailure: true,
       // HONEST measurement scope: the WHOLE application source. The previous
       // config whitelisted ~38 files (~5% of src/) and presented a 98% number
       // for that sliver as if it were the project's coverage. Coverage is now
