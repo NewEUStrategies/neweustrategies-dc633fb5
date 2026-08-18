@@ -10,8 +10,13 @@
 // zmianie kontraktu, drugie - zależność, która nic nie znaczy (usunięcie
 // fixture'ów czatu psułoby testy profilu).
 //
-// Dlatego atrapa stoi tu, a `test/chat/fixtures.ts` re-eksportuje ją dalej -
-// żaden z 33 plików testowych czatu nie zmienia importu.
+// 2026-08-18: plik przeprowadzil sie z `src/test/supabaseChain.ts` do
+// `src/test/supabase/chain.ts`, bo obok stanela DRUGA atrapa tej samej rangi
+// (`./rpc` - rejestrator wywolan RPC). Katalog `src/test/supabase/` trzyma je
+// razem: `chain` dla powierzchni czytajacych tabele (czat, profil,
+// KOMENTARZE), `rpc` dla powierzchni RPC-only (KLUBY, siec kontaktow).
+// `test/chat/fixtures.ts` re-eksportuje calosc dalej - zaden z 17 plikow
+// testowych czatu nie zmienia importu.
 
 /**
  * Błąd PostgREST. `PostgrestError` w supabase-js DZIEDZICZY po `Error`, więc

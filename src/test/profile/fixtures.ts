@@ -20,7 +20,7 @@ import type { ProfileEditorRow } from "@/lib/profile/useProfileEditor";
 import type { RawExposureRow } from "@/lib/profile/publicExposure";
 
 // Atrapa łańcucha PostgREST jest wspólna dla wszystkich powierzchni (mieszka
-// w `src/test/supabaseChain.ts`) - re-eksport, żeby test profilu miał JEDEN
+// w `src/test/supabase/`) - re-eksport, żeby test profilu miał JEDEN
 // import atomów, tak jak testy czatu i sieci.
 export {
   fail,
@@ -34,7 +34,7 @@ export {
   type SupabaseFromStub,
   type SupabaseResult,
   type TableResponder,
-} from "@/test/supabaseChain";
+} from "@/test/supabase";
 
 /**
  * Identyfikatory testowe. Tenant jest JAWNY, bo ścieżka uploadu do Storage
