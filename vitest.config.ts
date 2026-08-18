@@ -497,6 +497,90 @@ export default defineConfig({
           lines: 100,
           branches: 100,
         },
+        // ── NEWSLETTER: DORĘCZALNOŚĆ ─────────────────────────────────────────
+        // Audyt 18.08 dał tej powierzchni najgorszą możliwą ocenę: 0,0% linii
+        // i 0 z 23 funkcji - przy tym, że to ONA decyduje, czy mail w ogóle
+        // dojdzie i czy odbicie trafi na listę wykluczeń. Powód zera był
+        // techniczny, nie ambicjonalny: handlery `createServerFn` nie dają się
+        // wywołać poza runtime'em TanStack Start (patrz src/test/serverFn.ts),
+        // więc nie było czym ich dotknąć.
+        //
+        // Progi floorowane tuż pod ZMIERZONYM poziomem - wolno je wyłącznie
+        // podnosić. Pilnują rzeczy, których złamanie NIE wywala się głośno,
+        // tylko cicho psuje dostarczalność.
+        //
+        // provider.server.ts: trzy pola wyniku sterują całą pętlą ponowień -
+        // `rateLimited` (wstrzymaj CAŁĄ wysyłkę), `permanent` (prosto do DLQ,
+        // bez mielenia martwego adresu) i `messageId` (JEDYNY klucz korelacji
+        // webhooka odbicia z odbiorcą). Niedobita funkcja to `.catch(() => "")`
+        // przy odczycie ciała błędu - `Response.text()` nie odrzuca w teście.
+        "src/lib/email/provider.server.ts": {
+          statements: 96,
+          functions: 90,
+          lines: 98,
+          branches: 98,
+        },
+        // reputationGate.server.ts: bramka broniąca CAŁEJ domeny (nie
+        // pojedynczych adresów) przed przekroczeniem progu skarg Google.
+        // Trzymana pod 100%, bo fail-open przy awarii liczników i zachowanie
+        // werdyktu mimo potwierdzenia operatora to reguły, na których stoi
+        // decyzja „wysyłać albo nie".
+        "src/lib/email/reputationGate.server.ts": {
+          statements: 98,
+          functions: 100,
+          lines: 98,
+          branches: 98,
+        },
+        // system-log.server.ts: DEDUPLIKACJA po message_id. Jeden e-mail
+        // zostawia w logu wiele wierszy (pending -> sent/dlq); bez sprowadzenia
+        // ich do najnowszego stanu raport pokazuje wielokrotność wysyłki, a
+        // wskaźnik dostarczalności liczy tę samą wiadomość kilka razy.
+        "src/lib/email/system-log.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 94,
+        },
+        // auth-events.server.ts: sumy liczone po CAŁYM oknie (nie po
+        // przefiltrowanej stronie) oraz rozróżnienie „brak tabeli" od „błąd" -
+        // cicha pustka udawałaby, że maile logowania wychodzą.
+        "src/lib/email/auth-events.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        // recipient-name.server.ts: pierwsza linijka KAŻDEJ wiadomości.
+        // Niedobite gałęzie to ramiona obronne po `split()` i po pustej
+        // odmianie, nieosiągalne z prawdziwego wejścia.
+        "src/lib/email/recipient-name.server.ts": {
+          statements: 98,
+          functions: 100,
+          lines: 98,
+          branches: 88,
+        },
+        // txOverrides.server.ts: fail-soft. Awaria panelu redakcyjnego nie
+        // może zatrzymać maila z resetem hasła - każda ścieżka błędu kończy
+        // się kompletem treści domyślnych.
+        "src/lib/email/txOverrides.server.ts": {
+          statements: 98,
+          functions: 100,
+          lines: 98,
+          branches: 95,
+        },
+        // newsletter-deliverability.functions.ts: 0 z 19 funkcji -> 19 z 19.
+        // Pilnuje mapowania liczników (na nich stoi bramka reputacji),
+        // sanityzacji frazy szukania wstawianej do wzorca `ilike` oraz reguły,
+        // że w trybie `first_party` instrukcja webhooka NIE zawiera
+        // email.opened/email.clicked (inaczej podwójne zliczanie otwarć).
+        // Niedobite gałęzie: fallbacki `?? ""` dla pól, które walidator zod
+        // i tak wymusza jako tekst.
+        "src/lib/newsletter-deliverability.functions.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 90,
+        },
       },
     },
   },
