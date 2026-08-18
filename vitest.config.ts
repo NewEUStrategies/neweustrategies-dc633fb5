@@ -533,6 +533,32 @@ export default defineConfig({
           lines: 100,
           branches: 70,
         },
+        // ── MODUŁ 7: TRACKER LEGISLACYJNY ─────────────────────────────────────
+        // Flagowa funkcja publiczna, której WARSTWA WEJŚCIA stała na zerze:
+        // `queries.ts` (488 linii - największy plik trackera) i `feed.server.ts`
+        // nie miały ani jednego wykonania, mimo że przechodzi przez nie każdy
+        // publiczny odczyt i cały kanał RSS. Reguły etapów, JSON-LD i budowa
+        // pozycji feedu miały testy od dawna - dziura była dokładnie w tym,
+        // co loader ZWRACA.
+        //
+        // Testy sprawdzają KONTRAKT ZAPYTANIA (nagrane ogniwa łańcucha
+        // PostgREST), nie tylko dane z atrapy - inaczej „przechodziłyby" także
+        // po skasowaniu `.eq("status", "published")`.
+        //
+        // Izolacji tenantów feedu tu NIE MA: to własność RLS, dowiedziona
+        // w `supabase/tests/tracker_feed_tenant_isolation_test.sql`.
+        "src/lib/tracker/queries.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/tracker/feed.server.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
         // ── MODUŁ 7: BIBLIOTEKA PLIKÓW ────────────────────────────────────────
         // Jedyna funkcjonalność modułu, którą audyt 18.08 podał na ABSOLUTNYM
         // zerze: 5 plików, 0 z 72 funkcji, 229 linii bez ani jednego wykonania.
