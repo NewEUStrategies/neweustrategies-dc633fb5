@@ -724,6 +724,19 @@ export default defineConfig({
           lines: 86,
           branches: 76,
         },
+        // ── PANEL ADMINA: IMPORT CSV ─────────────────────────────────────────
+        // Reguły importu wyprowadzone z dialogu do czystego modułu. Import
+        // wprowadza na listę DANE OSOBOWE wraz ze statusem zgody
+        // marketingowej, a decydują o tym ciche reguły: regexy nagłówków
+        // i słowniki dopuszczalnych wartości. Ich pomyłka nie wywala się
+        // głośno - zapisuje po prostu inne dane niż w pliku. Czysty moduł
+        // trzymamy pod 100%, jak pozostałe czyste moduły w tym pliku.
+        "src/components/admin/newsletter/subscribers/importCsvMapping.ts": {
+          statements: 98,
+          functions: 100,
+          lines: 98,
+          branches: 95,
+        },
       },
     },
   },

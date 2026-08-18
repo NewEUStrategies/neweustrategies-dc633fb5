@@ -30,17 +30,13 @@ import {
 import { Upload, FileText } from "lucide-react";
 import { importNewsletterSubscribers } from "@/lib/newsletter-admin.functions";
 import { parseCsv } from "@/lib/csv/parseCsv";
-
-type FieldKey =
-  | "email"
-  | "firstName"
-  | "lastName"
-  | "displayName"
-  | "language"
-  | "status"
-  | "company"
-  | "source"
-  | "";
+import {
+  autoMapHeader,
+  buildImportRows,
+  looksLikeEmail,
+  FIELD_KEYS,
+  type FieldKey,
+} from "./importCsvMapping";
 
 const FIELD_LABELS: Record<FieldKey, string> = {
   email: "E-mail (wymagane)",
@@ -53,21 +49,6 @@ const FIELD_LABELS: Record<FieldKey, string> = {
   source: "Zrodlo",
   "": "-- pomin --",
 };
-
-function autoMap(header: string[]): FieldKey[] {
-  return header.map((h): FieldKey => {
-    const n = h.trim().toLowerCase();
-    if (/^(e[-_ ]?mail|mail|adres)/.test(n)) return "email";
-    if (/(first|imi)/.test(n)) return "firstName";
-    if (/(last|nazwisko|surname)/.test(n)) return "lastName";
-    if (/(name|nazwa)/.test(n)) return "displayName";
-    if (/(lang|jezyk|language)/.test(n)) return "language";
-    if (/status/.test(n)) return "status";
-    if (/(company|firma)/.test(n)) return "company";
-    if (/(source|zrod)/.test(n)) return "source";
-    return "";
-  });
-}
 
 export function ImportCsvDialog({
   open,
@@ -85,15 +66,14 @@ export function ImportCsvDialog({
 
   const parsed = useMemo(() => (csvText ? parseCsv(csvText) : null), [csvText]);
   const emailIdx = mapping.indexOf("email");
-  const validRows =
-    parsed?.rows.filter((r) => emailIdx >= 0 && /.+@.+\..+/.test(r[emailIdx] ?? "")) ?? [];
+  const validRows = parsed?.rows.filter((r) => emailIdx >= 0 && looksLikeEmail(r[emailIdx])) ?? [];
 
   const onFile = async (f: File) => {
     setFile(f);
     const t = await f.text();
     setCsvText(t);
     const p = parseCsv(t);
-    setMapping(autoMap(p.header));
+    setMapping(autoMapHeader(p.header));
   };
 
   const reset = () => {
@@ -107,24 +87,7 @@ export function ImportCsvDialog({
       toast.error("Zmapuj kolumne e-mail.");
       return;
     }
-    const rows = validRows.map((r) => {
-      const row: Record<string, string> = {};
-      mapping.forEach((k, i) => {
-        if (k && r[i]) row[k] = r[i]!.trim();
-      });
-      return {
-        email: row.email!,
-        firstName: row.firstName || undefined,
-        lastName: row.lastName || undefined,
-        displayName: row.displayName || undefined,
-        language: (row.language === "en" ? "en" : "pl") as "pl" | "en",
-        status: (row.status === "pending" || row.status === "unsubscribed"
-          ? row.status
-          : "subscribed") as "subscribed" | "pending" | "unsubscribed",
-        source: row.source || undefined,
-        company: row.company || undefined,
-      };
-    });
+    const rows = buildImportRows(parsed.rows, mapping);
 
     setBusy(true);
     try {
@@ -210,7 +173,7 @@ export function ImportCsvDialog({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {(Object.keys(FIELD_LABELS) as FieldKey[]).map((k) => (
+                        {FIELD_KEYS.map((k) => (
                           <SelectItem key={k || "skip"} value={k}>
                             {FIELD_LABELS[k]}
                           </SelectItem>
