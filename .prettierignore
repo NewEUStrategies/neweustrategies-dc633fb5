@@ -32,7 +32,26 @@ src/integrations/supabase/types.ts
 # przebiegu narzędzia, nie kod źródłowy. Zacommitowane jako materiał dowodowy
 # pomiaru, przepisywane przy każdym uruchomieniu.
 .lighthouseci
+# Audyt z 05.08 cytuje w bloku kodu DOSŁOWNY bajt NUL - to materiał dowodowy
+# znaleziska (separator wpisany bajtowo na offsecie 4440), a nie zapis `<0x00>`.
+# Prettier nie przepuszcza NUL przez parser i podmienia go na U+FFFD, czyli
+# kasuje dokładnie tę jedną rzecz, dla której ten fragment istnieje. Dlatego
+# plik zostaje poza formatowaniem - jak pozostałe pliki, których treść musi
+# przetrwać bajt w bajt.
+docs/AUDYT_BRUTALNY_REWIZJA_ZALOZEN_2026-08-05.md
+# Analiza modułów z 12.08 to gęsty zapis dowodowy, w którym literalne ścieżki
+# stoją w gołym tekście, nie w spanach kodu - a Markdown czyta je jako składnię:
+# `src/lib/__tests__` to dla parsera pogrubienie (`__x__`), więc formater zapisuje
+# je jako `src/lib/**tests**` i ścieżka przestaje być ścieżką (111 wystąpień),
+# a `|` w `lib/seo/head|meta|jsonld|request` rozbija wiersz tabeli na siedem
+# komórek i zjada spacje wokół sąsiedniego tekstu. Zgłoszone w review PR-a #246.
+# Naprawa u źródła znaczyłaby przepisanie kilkuset odwołań w cudzym materiale
+# dowodowym; plik zostaje poza formatowaniem - jak audyt z 05.08 wyżej.
+docs/ANALIZA_MODULOW_DOGLEBNA_2026-08-12.md
 # Raporty bramek: `reports/*` jest w .gitignore poza dwoma plikami odniesienia,
 # które generują skrypty CI (`check:bundle`, `check:i18n-parity`). Formatowanie
 # ich rozjechałoby porównanie z artefaktem świeżo wyprodukowanym w przebiegu.
 reports
+# Katalog skills platformy - resetowany przy każdej wiadomości, więc formatowanie
+# go nie przetrwa i bramka `format:check` fałszywie czerwieniła się na cudzej treści.
+.workspace

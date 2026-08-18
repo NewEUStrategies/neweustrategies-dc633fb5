@@ -4,6 +4,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PostListCard } from "@/components/molecules/PostListCard";
+import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
 
 interface Props {
   parentPageId: string;
@@ -20,6 +21,11 @@ interface Row {
   excerpt_en: string | null;
   cover_image_url: string | null;
   published_at: string | null;
+  // Wymagane przez `PostCardData` - oznaczenie pozycji listy jest obowiązkiem
+  // (UPNPR art. 7 pkt 11a), więc typ nie pozwala go pominąć w selekcie.
+  is_sponsored: boolean | null;
+  sponsored_kind: string | null;
+  sponsored_affiliate: boolean | null;
 }
 
 const L = {
@@ -35,7 +41,7 @@ export function ArchiveListing({ parentPageId, lang, parentPath }: Props) {
       const { data, error } = await supabase
         .from("posts")
         .select(
-          "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at",
+          `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, ${SPONSORED_LIST_COLS}`,
         )
         .eq("status", "published")
         .is("deleted_at", null)

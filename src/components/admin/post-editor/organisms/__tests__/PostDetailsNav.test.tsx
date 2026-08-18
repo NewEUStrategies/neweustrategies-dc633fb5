@@ -6,10 +6,10 @@ import { PostDetailsNav } from "../PostDetailsNav";
 describe("PostDetailsNav", () => {
   it("renders every tab across the metadata groups (i18n labels)", () => {
     render(<PostDetailsNav active="general" onSelect={() => {}} />);
-    // 12 tabs total across the five groups. Assert via the button role so a tab
+    // 13 tabs total across the five groups. Assert via the button role so a tab
     // label that coincides with a group header (e.g. "Publikacja") is
     // unambiguous - the group headers are plain text, only tabs are buttons.
-    expect(screen.getAllByRole("button")).toHaveLength(12);
+    expect(screen.getAllByRole("button")).toHaveLength(13);
     for (const label of [
       /Ogólne/,
       /Dowiesz się…/,
@@ -22,6 +22,7 @@ describe("PostDetailsNav", () => {
       /Custom meta/,
       /Publikacja/,
       /Dostęp/,
+      /Organizacja i sponsoring/,
       /Historia zmian/,
     ]) {
       expect(screen.getByRole("button", { name: label })).toBeInTheDocument();

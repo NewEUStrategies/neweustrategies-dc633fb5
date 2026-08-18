@@ -6,14 +6,14 @@
 
 Platforma zbierała dane w **sześciu niezależnych strumieniach**:
 
-| # | Strumień             | Składowanie                                                    | Producent                                                     |
-| - | -------------------- | -------------------------------------------------------------- | ------------------------------------------------------------- |
-| 1 | GA4                  | GA4 Data API                                                   | `src/lib/analytics/ga4.functions.ts`                          |
-| 2 | Zdarzenia first-party| `public.analytics_events`                                       | `src/lib/analytics/track.ts` → `/api/public/track`            |
-| 3 | Web Vitals (RUM)     | `public.web_vitals`                                             | `src/lib/webVitals.ts` → `/api/public/vitals`                 |
-| 4 | Zdarzenia reklam     | `public.ad_events`                                              | `src/lib/analytics/events.ts` → `/api/public/ad-event`        |
-| 5 | Newsletter           | `public.newsletter_campaign_events`                             | `src/lib/newsletter/trackingEvents.server.ts`                 |
-| 6 | Odsłony treści       | `public.post_views`, `related_post_clicks`, `user_read_history` | `useRecordPostView`, `relatedClickBeacon`                     |
+| #   | Strumień              | Składowanie                                                     | Producent                                              |
+| --- | --------------------- | --------------------------------------------------------------- | ------------------------------------------------------ |
+| 1   | GA4                   | GA4 Data API                                                    | `src/lib/analytics/ga4.functions.ts`                   |
+| 2   | Zdarzenia first-party | `public.analytics_events`                                       | `src/lib/analytics/track.ts` → `/api/public/track`     |
+| 3   | Web Vitals (RUM)      | `public.web_vitals`                                             | `src/lib/webVitals.ts` → `/api/public/vitals`          |
+| 4   | Zdarzenia reklam      | `public.ad_events`                                              | `src/lib/analytics/events.ts` → `/api/public/ad-event` |
+| 5   | Newsletter            | `public.newsletter_campaign_events`                             | `src/lib/newsletter/trackingEvents.server.ts`          |
+| 6   | Odsłony treści        | `public.post_views`, `related_post_clicks`, `user_read_history` | `useRecordPostView`, `relatedClickBeacon`              |
 
 Silnik insightów istniał (`InsightSection` + generatory per dashboard), ale **nie
 było warstwy uzgadniającej definicje**. Skutek: ta sama nazwa metryki oznaczała
@@ -34,13 +34,13 @@ która jest właściwa. Najostrzejsze przykłady, potwierdzone w kodzie:
   drugie (naturalny odruch przy liczeniu CTR) daje wskaźnik na dwóch różnych
   populacjach.
 - **`user_read_history` to STAN, nie zdarzenie.** UPSERT na `(user_id, post_id)`
-  oznacza, że `read_at` to *ostatnie* przeczytanie pary. Liczba wierszy w oknie
+  oznacza, że `read_at` to _ostatnie_ przeczytanie pary. Liczba wierszy w oknie
   odpowiada na pytanie „ile par ostatnio czytano w tym oknie", a nie „ile było
   przeczytań" - dłuższe okno kończące się dziś może zwrócić MNIEJ wierszy niż
   krótsze.
 - **Trzy różne „28 dni".** Web Vitals liczył `now - days * 86 400 000`
   (kroczące milisekundy UTC), GA4 dostawał `"28daysAgo"`/`"today"` (dni w strefie
-  czasowej *property*, z niedomkniętym dniem bieżącym), a
+  czasowej _property_, z niedomkniętym dniem bieżącym), a
   `related_posts_signals` używał `now() - make_interval(days => N)`.
 - **Podwójnie liczony dzień graniczny.** GA4 dostawał okno bieżące
   `[28daysAgo, today]` i poprzednie `[56daysAgo, 28daysAgo]`. Oba przedziały są w
@@ -59,7 +59,7 @@ która jest właściwa. Najostrzejsze przykłady, potwierdzone w kodzie:
   liczyło się dwa razy, więc wskaźnik otwarć potrafił przekroczyć **100%**.
   Domknięte 2026-08-14 (migracja `20260814150000`): strumień ma dziś
   `dedupe: "utc_day"` - jeden wiersz na `(kampania, subskrybent, rodzaj, doba
-  UTC)` egzekwowany indeksem unikalnym - i dokładnie jednego producenta
+UTC)` egzekwowany indeksem unikalnym - i dokładnie jednego producenta
   (`NEWSLETTER_ENGAGEMENT_SOURCE`). Konsekwencja dla czytania liczb: wiersz to
   **dobo-odbiorca**, nie interakcja, więc o LUDZIACH mówi wyłącznie
   `COUNT(DISTINCT subscriber_id)`. Szczegóły: `docs/ARCHITECTURE.md` §11.6.
@@ -96,26 +96,26 @@ src/components/admin/analytics/semantic/
 
 `comparabilityOf(a, b)` rozstrzyga, czy dwie liczby wolno w ogóle zestawiać:
 
-| Poziom          | Warunek                                            | Znaczenie                                                        |
-| --------------- | -------------------------------------------------- | ---------------------------------------------------------------- |
-| `equivalent`    | ta sama bramka zgody, ziarno i deduplikacja         | liczby POWINNY się zgadzać (wąska tolerancja)                    |
-| `analogous`     | ta sama bramka, inne ziarno lub deduplikacja        | przesunięcie jest OCZEKIWANE - sprawdzamy rząd wielkości i kierunek |
-| `incomparable`  | różne bramki zgody                                 | różne populacje, żadna arytmetyka między nimi nie ma sensu       |
+| Poziom         | Warunek                                      | Znaczenie                                                           |
+| -------------- | -------------------------------------------- | ------------------------------------------------------------------- |
+| `equivalent`   | ta sama bramka zgody, ziarno i deduplikacja  | liczby POWINNY się zgadzać (wąska tolerancja)                       |
+| `analogous`    | ta sama bramka, inne ziarno lub deduplikacja | przesunięcie jest OCZEKIWANE - sprawdzamy rząd wielkości i kierunek |
+| `incomparable` | różne bramki zgody                           | różne populacje, żadna arytmetyka między nimi nie ma sensu          |
 
 ### 2.2. Werdykty uzgodnienia
 
 `reconcileMetric` zwraca jedną wartość kanoniczną (ze strumienia
 autorytatywnego - **nigdy średnią**) plus werdykt:
 
-| Werdykt          | Kiedy                                                        | Czy wymaga reakcji |
-| ---------------- | ------------------------------------------------------------ | ------------------ |
-| `aligned`        | powiązania równoważne, w tolerancji                          | nie                |
-| `expected_drift` | powiązania analogiczne, w tolerancji                         | nie                |
-| `single_source`  | metrykę liczy tylko jeden strumień                           | nie                |
-| `incomparable`   | różne bramki zgody albo okno niezdatne do porównań           | nie                |
-| `divergent`      | odchylenie poza pasmem tolerancji metryki                    | **tak**            |
-| `order_inverted` | kolejność wielkości sprzeczna z konstrukcją strumieni        | **tak**            |
-| `unavailable`    | strumień autorytatywny nie zwrócił liczby                    | informacyjnie      |
+| Werdykt          | Kiedy                                                 | Czy wymaga reakcji |
+| ---------------- | ----------------------------------------------------- | ------------------ |
+| `aligned`        | powiązania równoważne, w tolerancji                   | nie                |
+| `expected_drift` | powiązania analogiczne, w tolerancji                  | nie                |
+| `single_source`  | metrykę liczy tylko jeden strumień                    | nie                |
+| `incomparable`   | różne bramki zgody albo okno niezdatne do porównań    | nie                |
+| `divergent`      | odchylenie poza pasmem tolerancji metryki             | **tak**            |
+| `order_inverted` | kolejność wielkości sprzeczna z konstrukcją strumieni | **tak**            |
+| `unavailable`    | strumień autorytatywny nie zwrócił liczby             | informacyjnie      |
 
 `order_inverted` to najmocniejszy sygnał w całej warstwie. GA4 filtruje boty i
 sesjonizuje po użytkowniku, więc **nie może** raportować więcej odsłon niż nasz

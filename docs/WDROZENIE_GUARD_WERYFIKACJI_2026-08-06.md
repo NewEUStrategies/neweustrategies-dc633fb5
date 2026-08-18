@@ -13,11 +13,11 @@ Migracja `20260806094104` (weryfikacja po domenie e-mail) dopisała do
 odbudowała funkcję na **najstarszej** definicji (`20260713160000`), a nie na ostatniej
 żywej (`20260805122338`). Trzy skutki uboczne, żaden nieopisany:
 
-| | `20260805122338` (poprzednia żywa) | `20260806094104` (weszła poza PR-em) |
-| --- | --- | --- |
-| kto może | `has_role(admin)` OR `has_role(super_admin)` | **tylko** `has_role(admin)` |
-| odmowa | `RAISE ... USING ERRCODE = '42501'` | `RAISE` bez ERRCODE (`P0001`) |
-| furtka automatu | brak | `app.verification_sync` |
+|                 | `20260805122338` (poprzednia żywa)           | `20260806094104` (weszła poza PR-em) |
+| --------------- | -------------------------------------------- | ------------------------------------ |
+| kto może        | `has_role(admin)` OR `has_role(super_admin)` | **tylko** `has_role(admin)`          |
+| odmowa          | `RAISE ... USING ERRCODE = '42501'`          | `RAISE` bez ERRCODE (`P0001`)        |
+| furtka automatu | brak                                         | `app.verification_sync`              |
 
 Potwierdzone eksperymentalnie na Postgresie 16 z odwzorowanymi politykami i triggerami:
 `super_admin` bez osobnej roli `admin` dostawał
@@ -25,21 +25,22 @@ Potwierdzone eksperymentalnie na Postgresie 16 z odwzorowanymi politykami i trig
 
 Konsekwencje: (a) produktowa - `super_admin` przestał móc nadać i odebrać weryfikację,
 choć weryfikacja steruje odznaką, a odznaka `expert` pociąga dożywotni VIP; (b) sygnałowa
+
 - klient nie mógł odróżnić braku uprawnień (`42501`) od błędu logiki; (c) CI - snapshot
-autoryzacji rozjechał się z migracjami i kładł test parytetu macierzy uprawnień na `main`.
+  autoryzacji rozjechał się z migracjami i kładł test parytetu macierzy uprawnień na `main`.
 
 ## 2. Rozstrzygnięcie: `super_admin` wraca
 
 Nie było to zawężenie do udokumentowania, tylko regres do naprawy. Cały pozostały osprzęt
 tej samej ścieżki - w tym fragmenty **tej samej migracji** - mówi `admin` OR `super_admin`:
 
-| Bramka | Zbiór ról | Skąd |
-| ------ | --------- | ---- |
-| polityka RLS `"Admins can update tenant profiles"` | `admin`, `super_admin` | `20260731185816` |
-| `admin_assert_verification_admin()` | `admin`, `super_admin` | `20260806094104` (ta sama migracja) |
-| polityka `"verification domains staff read"` | `admin`, `super_admin` | `20260806094104` (ta sama migracja) |
-| `admin_grant_profile_badge()` - ta sama odznaka inną drogą | `admin`, `super_admin` | `20260803113000` |
-| bliźniaczy `profiles_guard_privileged_columns()` | `admin`, `super_admin`, `editor` | `20260806094239` (commit obok) |
+| Bramka                                                     | Zbiór ról                        | Skąd                                |
+| ---------------------------------------------------------- | -------------------------------- | ----------------------------------- |
+| polityka RLS `"Admins can update tenant profiles"`         | `admin`, `super_admin`           | `20260731185816`                    |
+| `admin_assert_verification_admin()`                        | `admin`, `super_admin`           | `20260806094104` (ta sama migracja) |
+| polityka `"verification domains staff read"`               | `admin`, `super_admin`           | `20260806094104` (ta sama migracja) |
+| `admin_grant_profile_badge()` - ta sama odznaka inną drogą | `admin`, `super_admin`           | `20260803113000`                    |
+| bliźniaczy `profiles_guard_privileged_columns()`           | `admin`, `super_admin`, `editor` | `20260806094239` (commit obok)      |
 
 Guard **przeczył polityce RLS, która go przepuszczała**: `super_admin` mógł dodać domenę
 weryfikującą (i nadać odznakę automatem), ale nie mógł nadać jej ręcznie.
@@ -99,12 +100,12 @@ odpowiadałby edytorowi surowym `42501`.
 
 ## 4. Weryfikacja
 
-| Co | Wynik |
-| -- | ----- |
-| `bunx tsc --noEmit` | bez błędów |
-| `bun run lint` (pliki zmienione) | bez błędów |
-| `check:authz-snapshot` | ✓ zgodny z migracjami |
-| test parytetu macierzy + `authzGates` (41 + 26 asercji) | zielone (przed zmianą: parytet czerwony) |
+| Co                                                                                      | Wynik                                                                                        |
+| --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `bunx tsc --noEmit`                                                                     | bez błędów                                                                                   |
+| `bun run lint` (pliki zmienione)                                                        | bez błędów                                                                                   |
+| `check:authz-snapshot`                                                                  | ✓ zgodny z migracjami                                                                        |
+| test parytetu macierzy + `authzGates` (41 + 26 asercji)                                 | zielone (przed zmianą: parytet czerwony)                                                     |
 | migracja + 13 scenariuszy bramki na Postgresie 16 z odwzorowanymi politykami/triggerami | wszystkie przechodzą; kontrola negatywna na definicji `20260806094104` pada na `super_admin` |
 
 pgTAP w CI wymaga stacka Supabase (Docker), niedostępnego w tym środowisku - stąd
@@ -117,10 +118,10 @@ na realnym Postgresie. To dowód na logikę i składnię, nie zamiennik przebieg
 Zmierzone na `main` (przez `git stash`) i po tej zmianie - identycznie, więc nie są jej skutkiem,
 ale trzymają suitę na czerwono i wymagają osobnej decyzji:
 
-| Krok CI | Stan | Diagnoza |
-| ------- | ---- | -------- |
-| `check:sql-app-role` | czerwony przed i po (3 trafienia) | skaner **nie usuwa komentarzy TS** przed dopasowaniem `has_role(..., 'literal')`, więc łapie dwa własne komentarze dokumentacyjne parsera (`authzGates.ts:9` - `has_role(uid, 'X')`, `:72` - `has_role(<uid>, 'rola')`) oraz **celowy negatywny fixture** parsera (`authzGates.test.ts:94`: `'tenant_admin'`, którego test wymaga, by dowieść odsiewania literałów poza enumem). Fix wymaga dwóch decyzji: strip komentarzy dla `.ts/.tsx` + wyłączenie plików-fixture'ów parsera z tego skanu. |
-| `Lint` | czerwony przed i po (617 problemów, 480 naprawialnych `--fix`) | dryf formatowania Prettiera w plikach nietkniętych tą zmianą (m.in. `admin.users.index.tsx`, `start.ts`, `payments.functions.ts`). Pliki zmienione tutaj przechodzą `eslint` z kodem 0. |
+| Krok CI              | Stan                                                           | Diagnoza                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| -------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `check:sql-app-role` | czerwony przed i po (3 trafienia)                              | skaner **nie usuwa komentarzy TS** przed dopasowaniem `has_role(..., 'literal')`, więc łapie dwa własne komentarze dokumentacyjne parsera (`authzGates.ts:9` - `has_role(uid, 'X')`, `:72` - `has_role(<uid>, 'rola')`) oraz **celowy negatywny fixture** parsera (`authzGates.test.ts:94`: `'tenant_admin'`, którego test wymaga, by dowieść odsiewania literałów poza enumem). Fix wymaga dwóch decyzji: strip komentarzy dla `.ts/.tsx` + wyłączenie plików-fixture'ów parsera z tego skanu. |
+| `Lint`               | czerwony przed i po (617 problemów, 480 naprawialnych `--fix`) | dryf formatowania Prettiera w plikach nietkniętych tą zmianą (m.in. `admin.users.index.tsx`, `start.ts`, `payments.functions.ts`). Pliki zmienione tutaj przechodzą `eslint` z kodem 0.                                                                                                                                                                                                                                                                                                         |
 
 ## 5. Dług świadomie nieruszony
 

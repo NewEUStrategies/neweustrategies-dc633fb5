@@ -132,14 +132,14 @@ predykat `can_manage_profile_verification()` + rozdział własności kolumn), do
 `20260806160002_profile_verification_guard_insert_parity.sql` (parytet INSERT/UPDATE).
 Różnica względem usuniętego wariantu, dla porządku:
 
-| Aspekt | usunięty wariant | stan żywy |
-| ------ | ---------------- | --------- |
-| krąg uprawnionych | `has_role(admin) OR is_super_admin()` | `can_manage_profile_verification()` - jeden predykat, cztery ścieżki |
-| skalowanie tenantem | brak (`is_super_admin` ponad tenantami) | tenant WIERSZA (`OLD`/`NEW.tenant_id` vs `current_tenant_id()`) |
-| własność kolumn | dublowana z `privileged_columns` | jedna kolumna = jedna bramka |
-| zasięg triggera | `BEFORE INSERT OR UPDATE`, bez `OF` | to samo (przywrócone w 20260806160000) |
-| `ERRCODE` | `42501` | `42501` (bez zmian) |
-| furtki | `app.verification_sync`, brak `auth.uid()` | te same |
+| Aspekt              | usunięty wariant                           | stan żywy                                                            |
+| ------------------- | ------------------------------------------ | -------------------------------------------------------------------- |
+| krąg uprawnionych   | `has_role(admin) OR is_super_admin()`      | `can_manage_profile_verification()` - jeden predykat, cztery ścieżki |
+| skalowanie tenantem | brak (`is_super_admin` ponad tenantami)    | tenant WIERSZA (`OLD`/`NEW.tenant_id` vs `current_tenant_id()`)      |
+| własność kolumn     | dublowana z `privileged_columns`           | jedna kolumna = jedna bramka                                         |
+| zasięg triggera     | `BEFORE INSERT OR UPDATE`, bez `OF`        | to samo (przywrócone w 20260806160000)                               |
+| `ERRCODE`           | `42501`                                    | `42501` (bez zmian)                                                  |
+| furtki              | `app.verification_sync`, brak `auth.uid()` | te same                                                              |
 
 `is_super_admin()` ponad tenantami odpadło świadomie: weryfikacja nadaje odznakę, a
 odznaka `expert` dożywotni VIP, więc admin (także platformowy) rozstrzyga to w SWOIM

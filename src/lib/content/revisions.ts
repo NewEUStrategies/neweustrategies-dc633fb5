@@ -24,6 +24,30 @@ export const REVISION_FIELDS = [
   "takeaways_variant",
   "custom_meta",
   "related_override",
+  // Atrybucja organizacji i ujawnienie komercyjne. Bez tych pól historia zmian
+  // nie umiała odtworzyć ANI zaudytować deklaracji: kto był wskazany jako
+  // reklamodawca w chwili publikacji, kiedy zmieniono rodzaj relacji, czy
+  // materiał był kiedyś oznaczony jako polityczny. Rewizje są jedynym miejscem,
+  // w którym ta zmiana jest widoczna w czasie - `sponsored_marked_by/_at`
+  // zapisuje tylko PIERWSZĄ deklarację, więc same z siebie nie pokazują edycji.
+  // Ślad rozliczalności bez historii zmian jest połowiczny, a to obowiązek
+  // (rozp. UE 2024/900 art. 12 ust. 4 wymaga przechowywania noty i JEJ ZMIAN).
+  "organization_id",
+  "organization_name",
+  "organization_logo_url",
+  "organization_website",
+  "is_sponsored",
+  "sponsored_kind",
+  "sponsored_advertiser_name",
+  "sponsored_advertiser_url",
+  "sponsored_payer_name",
+  "sponsored_note_pl",
+  "sponsored_note_en",
+  "sponsored_affiliate",
+  "sponsored_political",
+  "sponsored_political_process",
+  "sponsored_sponsor_controller",
+  "sponsored_order_ref",
 ] as const;
 
 type RevisionField = (typeof REVISION_FIELDS)[number];

@@ -22,67 +22,67 @@ Skala: **✓** pełny parytet · **±** parytet częściowy (świadomy kompromis
 
 ### 1.1 Pisanie (writing flow)
 
-| Zachowanie | WP Gutenberg | NES | Status |
-| --- | --- | --- | --- |
-| Enter dzieli akapit; karetka od razu w nowym bloku | tak | tak (`Paragraph.tsx` Enter -> `insertAt` -> `requestBlockFocus`) | ✓ |
-| Enter w nagłówku przenosi ogon do nowego akapitu | tak | tak (`Heading.tsx`, split z `getHTMLFromFragment`) | ✓ |
-| Shift+Enter = miękki `<br>` | tak | tak | ✓ |
-| Backspace na pustym bloku usuwa go, karetka na koniec poprzedniego | tak | tak (`deleteEmptyAt`) | ✓ |
-| Backspace na POCZĄTKU niepustego bloku scala z poprzednim, karetka w punkcie złączenia | tak | tak (`mergeWithPrevious` + `lib/blocks/merge.ts` + karetka offsetowa w `focus.ts`) | ✓ |
-| Strzałki góra/dół na krawędzi wizualnej linii przechodzą do sąsiedniego bloku | tak | tak (ProseMirror `endOfTextblock` - respektuje zawijanie i bidi) | ✓ |
-| Strzałki lewo/prawo na początku/końcu treści przechodzą do sąsiedniego bloku | tak | tak | ✓ |
-| Slash `/` otwiera wybór bloku | tylko w PUSTYM kontekście bloku (`allowContext` autouzupełniacza) | pusty akapit + filtrowanie inline `/zapytanie` | ✓ (2026-08-03: weryfikacja WP potwierdziła ten sam warunek; różnica została w polach innych niż akapit - nagłówek/lista) |
-| Skróty markdown (`##`, `>`, `-`, `1.`, `---`, ``` ) | tak | tak; transformacja nie gubi karetki | ✓ |
-| Placeholder "Wpisz / aby wybrać blok" | tak | tak (akapit + appender) | ✓ |
+| Zachowanie                                                                             | WP Gutenberg                                                      | NES                                                                                | Status                                                                                                                   |
+| -------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Enter dzieli akapit; karetka od razu w nowym bloku                                     | tak                                                               | tak (`Paragraph.tsx` Enter -> `insertAt` -> `requestBlockFocus`)                   | ✓                                                                                                                        |
+| Enter w nagłówku przenosi ogon do nowego akapitu                                       | tak                                                               | tak (`Heading.tsx`, split z `getHTMLFromFragment`)                                 | ✓                                                                                                                        |
+| Shift+Enter = miękki `<br>`                                                            | tak                                                               | tak                                                                                | ✓                                                                                                                        |
+| Backspace na pustym bloku usuwa go, karetka na koniec poprzedniego                     | tak                                                               | tak (`deleteEmptyAt`)                                                              | ✓                                                                                                                        |
+| Backspace na POCZĄTKU niepustego bloku scala z poprzednim, karetka w punkcie złączenia | tak                                                               | tak (`mergeWithPrevious` + `lib/blocks/merge.ts` + karetka offsetowa w `focus.ts`) | ✓                                                                                                                        |
+| Strzałki góra/dół na krawędzi wizualnej linii przechodzą do sąsiedniego bloku          | tak                                                               | tak (ProseMirror `endOfTextblock` - respektuje zawijanie i bidi)                   | ✓                                                                                                                        |
+| Strzałki lewo/prawo na początku/końcu treści przechodzą do sąsiedniego bloku           | tak                                                               | tak                                                                                | ✓                                                                                                                        |
+| Slash `/` otwiera wybór bloku                                                          | tylko w PUSTYM kontekście bloku (`allowContext` autouzupełniacza) | pusty akapit + filtrowanie inline `/zapytanie`                                     | ✓ (2026-08-03: weryfikacja WP potwierdziła ten sam warunek; różnica została w polach innych niż akapit - nagłówek/lista) |
+| Skróty markdown (`##`, `>`, `-`, `1.`, `---`, ``` )                                    | tak                                                               | tak; transformacja nie gubi karetki                                                | ✓                                                                                                                        |
+| Placeholder "Wpisz / aby wybrać blok"                                                  | tak                                                               | tak (akapit + appender)                                                            | ✓                                                                                                                        |
 
 ### 1.2 Zaznaczanie i operacje zbiorcze
 
-| Zachowanie | WP Gutenberg | NES | Status |
-| --- | --- | --- | --- |
-| Dwustopniowe Ctrl/Cmd+A (treść bloku -> wszystkie bloki) | tak | tak (paragraph + heading; selekcja DOM czyszczona przy eskalacji) | ✓ |
-| Shift+klik zaznacza zakres bloków | tak | tak (`blockRange`, kotwica = ostatni zwykły klik) | ✓ |
-| Ctrl/Cmd+klik przełącza pojedynczy blok | tak | tak (`toggleInSelection`, kolejność dokumentu) | ✓ |
-| Delete/Backspace usuwa zaznaczone; Escape czyści | tak | tak | ✓ |
-| Ctrl+Shift+D duplikuje (też podczas pisania) | tak | tak (`duplicateSelection`; świeże id również w zagnieżdżeniach) | ✓ |
-| Shift+strzałki rozszerzają zaznaczenie blokowe | tak | tak (kotwica + ognisko; odwrotny kierunek ZAWĘŻA, eskalacja z wnętrza akapitu/nagłówka na krawędzi treści) | ✓ |
-| Zaznaczenie w poprzek bloków przeciągnięciem myszą | tak - przechodzi w zaznaczenie CAŁYCH bloków | tak (`useCrossBlockSelection`: obserwator selekcji + wygaszenie natywnego podświetlenia w trakcie przeciągania) | ✓ |
-| Shift+klik w treść INNEGO bloku zaznacza zakres bloków | tak | tak | ✓ |
-| Pisanie / Enter przy zaznaczeniu >= 2 bloków zastępuje je akapitem | tak (`onBeforeInput`) | tak (znak escapowany, jeden blok NIE jest nadpisywany) | ✓ |
-| Shift+Home / Shift+End - zaznaczenie do krawędzi dokumentu | nie | tak | ✓+ |
-| Komunikat `aria-live` o liczbie zaznaczonych bloków | tak (`speak()`) | tak (PL/EN z pluralizacją) | ✓ |
+| Zachowanie                                                         | WP Gutenberg                                 | NES                                                                                                             | Status |
+| ------------------------------------------------------------------ | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------ |
+| Dwustopniowe Ctrl/Cmd+A (treść bloku -> wszystkie bloki)           | tak                                          | tak (paragraph + heading; selekcja DOM czyszczona przy eskalacji)                                               | ✓      |
+| Shift+klik zaznacza zakres bloków                                  | tak                                          | tak (`blockRange`, kotwica = ostatni zwykły klik)                                                               | ✓      |
+| Ctrl/Cmd+klik przełącza pojedynczy blok                            | tak                                          | tak (`toggleInSelection`, kolejność dokumentu)                                                                  | ✓      |
+| Delete/Backspace usuwa zaznaczone; Escape czyści                   | tak                                          | tak                                                                                                             | ✓      |
+| Ctrl+Shift+D duplikuje (też podczas pisania)                       | tak                                          | tak (`duplicateSelection`; świeże id również w zagnieżdżeniach)                                                 | ✓      |
+| Shift+strzałki rozszerzają zaznaczenie blokowe                     | tak                                          | tak (kotwica + ognisko; odwrotny kierunek ZAWĘŻA, eskalacja z wnętrza akapitu/nagłówka na krawędzi treści)      | ✓      |
+| Zaznaczenie w poprzek bloków przeciągnięciem myszą                 | tak - przechodzi w zaznaczenie CAŁYCH bloków | tak (`useCrossBlockSelection`: obserwator selekcji + wygaszenie natywnego podświetlenia w trakcie przeciągania) | ✓      |
+| Shift+klik w treść INNEGO bloku zaznacza zakres bloków             | tak                                          | tak                                                                                                             | ✓      |
+| Pisanie / Enter przy zaznaczeniu >= 2 bloków zastępuje je akapitem | tak (`onBeforeInput`)                        | tak (znak escapowany, jeden blok NIE jest nadpisywany)                                                          | ✓      |
+| Shift+Home / Shift+End - zaznaczenie do krawędzi dokumentu         | nie                                          | tak                                                                                                             | ✓+     |
+| Komunikat `aria-live` o liczbie zaznaczonych bloków                | tak (`speak()`)                              | tak (PL/EN z pluralizacją)                                                                                      | ✓      |
 
 ### 1.3 Schowek
 
-| Zachowanie | WP Gutenberg | NES | Status |
-| --- | --- | --- | --- |
-| Ctrl+C/X na zaznaczonych blokach + toast "Skopiowano N bloków do schowka" | tak | tak (pluralizacja PL: blok/bloki/bloków + EN) | ✓ |
-| Ctrl+V odtwarza bloki (nowe id, też między wpisami/kartami) | tak | tak (sentinel JSON bezstratny) | ✓ |
-| Wklejanie bloków SKOPIOWANYCH W WORDPRESSIE | n/d | tak - parsujemy markup `<!-- wp:… -->` (HTML i plain-text z widoku kodu WP) | ✓+ |
-| Wklejanie NASZYCH bloków DO WordPressa | n/d | tak - payload niesie równolegle markup Gutenberga | ✓+ |
-| Wklejka z Worda/Google Docs: nagłówki, listy zagnieżdżone, tabele, cytaty | tak | tak (`wordPaste.ts`; tabele -> strukturalny blok `table` ze spanami i wyrównaniem) | ✓ |
-| Wklejka plików graficznych (zrzut ekranu) -> blok obrazu | tak | tak (`imagePaste.ts`; kanwa + wnętrze akapitu) | ✓ |
-| Zwykły tekst -> akapity po pustych liniach | tak | tak | ✓ |
-| Zagnieżdżone kanwy (edytor w modalu buildera) bez podwójnej wklejki | n/d | tak (stos kanw w `useBlockClipboard`; obsługuje wierzchnia) | ✓+ |
+| Zachowanie                                                                | WP Gutenberg | NES                                                                                | Status |
+| ------------------------------------------------------------------------- | ------------ | ---------------------------------------------------------------------------------- | ------ |
+| Ctrl+C/X na zaznaczonych blokach + toast "Skopiowano N bloków do schowka" | tak          | tak (pluralizacja PL: blok/bloki/bloków + EN)                                      | ✓      |
+| Ctrl+V odtwarza bloki (nowe id, też między wpisami/kartami)               | tak          | tak (sentinel JSON bezstratny)                                                     | ✓      |
+| Wklejanie bloków SKOPIOWANYCH W WORDPRESSIE                               | n/d          | tak - parsujemy markup `<!-- wp:… -->` (HTML i plain-text z widoku kodu WP)        | ✓+     |
+| Wklejanie NASZYCH bloków DO WordPressa                                    | n/d          | tak - payload niesie równolegle markup Gutenberga                                  | ✓+     |
+| Wklejka z Worda/Google Docs: nagłówki, listy zagnieżdżone, tabele, cytaty | tak          | tak (`wordPaste.ts`; tabele -> strukturalny blok `table` ze spanami i wyrównaniem) | ✓      |
+| Wklejka plików graficznych (zrzut ekranu) -> blok obrazu                  | tak          | tak (`imagePaste.ts`; kanwa + wnętrze akapitu)                                     | ✓      |
+| Zwykły tekst -> akapity po pustych liniach                                | tak          | tak                                                                                | ✓      |
+| Zagnieżdżone kanwy (edytor w modalu buildera) bez podwójnej wklejki       | n/d          | tak (stos kanw w `useBlockClipboard`; obsługuje wierzchnia)                        | ✓+     |
 
 ### 1.4 Transformacje, inserter, appender
 
-| Zachowanie | WP Gutenberg | NES | Status |
-| --- | --- | --- | --- |
-| Menu "Przekształć w" na przycisku typu bloku | tak | tak (11 typów rodziny tekstowej, z zachowaniem treści; toolbar + menu kontekstowe) | ✓ |
-| Podgląd transformacji przy hover | tak | nie (sama lista z ikonami) | ± |
-| Szybki inserter: najczęściej używane + "Przeglądaj wszystko" | tak (6 kafli) | tak (6 kafli + rozwijana pełna biblioteka 8 kategorii) | ✓ |
-| Nawigacja klawiaturą po wynikach insertera | tak | tak (strzałki po siatce 3-kol., Home/End, Enter; `aria-activedescendant`, `role=option`, scroll-into-view) | ✓ |
-| Appender "Wpisz / aby wybrać blok" pod treścią i w pustym dokumencie | tak | tak (`BlockAppender`; klik = akapit z karetką) | ✓ |
-| Inserter "+" między blokami (hover) | tak | tak | ✓ |
-| Zakładki Bloki / Wzorce / Media w bibliotece | tak | nie (tylko bloki) | ✗ |
+| Zachowanie                                                           | WP Gutenberg  | NES                                                                                                        | Status |
+| -------------------------------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------- | ------ |
+| Menu "Przekształć w" na przycisku typu bloku                         | tak           | tak (11 typów rodziny tekstowej, z zachowaniem treści; toolbar + menu kontekstowe)                         | ✓      |
+| Podgląd transformacji przy hover                                     | tak           | nie (sama lista z ikonami)                                                                                 | ±      |
+| Szybki inserter: najczęściej używane + "Przeglądaj wszystko"         | tak (6 kafli) | tak (6 kafli + rozwijana pełna biblioteka 8 kategorii)                                                     | ✓      |
+| Nawigacja klawiaturą po wynikach insertera                           | tak           | tak (strzałki po siatce 3-kol., Home/End, Enter; `aria-activedescendant`, `role=option`, scroll-into-view) | ✓      |
+| Appender "Wpisz / aby wybrać blok" pod treścią i w pustym dokumencie | tak           | tak (`BlockAppender`; klik = akapit z karetką)                                                             | ✓      |
+| Inserter "+" między blokami (hover)                                  | tak           | tak                                                                                                        | ✓      |
+| Zakładki Bloki / Wzorce / Media w bibliotece                         | tak           | nie (tylko bloki)                                                                                          | ✗      |
 
 ### 1.5 Media i trwałość
 
-| Zachowanie | WP Gutenberg | NES | Status |
-| --- | --- | --- | --- |
-| Wklejone grafiki trafiają do biblioteki mediów | ręcznie / wtyczki | **automatycznie przy zapisie** (`persistImages.ts`: upload + podmiana URL, cache anty-duplikacyjny, izolacja `tenant_id`, allowlista MIME bez SVG) | ✓+ |
-| Autosave | interwał ~60 s | debounce 1,5 s, serializacja zapisów, guard niezapisanych zmian | ✓+ |
-| Rewizje | lista + prosty diff | 19 pól, limit 50, throttle 5 min, diff DWÓCH dowolnych rewizji, restore nie zmienia statusu publikacji | ✓+ |
+| Zachowanie                                     | WP Gutenberg        | NES                                                                                                                                                | Status |
+| ---------------------------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| Wklejone grafiki trafiają do biblioteki mediów | ręcznie / wtyczki   | **automatycznie przy zapisie** (`persistImages.ts`: upload + podmiana URL, cache anty-duplikacyjny, izolacja `tenant_id`, allowlista MIME bez SVG) | ✓+     |
+| Autosave                                       | interwał ~60 s      | debounce 1,5 s, serializacja zapisów, guard niezapisanych zmian                                                                                    | ✓+     |
+| Rewizje                                        | lista + prosty diff | 19 pól, limit 50, throttle 5 min, diff DWÓCH dowolnych rewizji, restore nie zmienia statusu publikacji                                             | ✓+     |
 
 ---
 
@@ -117,16 +117,16 @@ Niezależny przegląd nastawiony na ZNALEZIENIE błędów (nie potwierdzenie suk
 8 przepływów end-to-end po kodzie, łącznie z wnętrzami zależności (prosemirror-view, @tiptap/core).
 Werdykty przed poprawkami i stan po poprawkach (wszystkie naprawione w tym PR):
 
-| # | Przepływ | Werdykt przeglądu | Stan po poprawkach |
-| --- | --- | --- | --- |
-| 1 | Enter-split + fokus | **BUG (krytyczny, sprzed tej fali)**: `insertAt` czytał `docRef` aktualizowany dopiero przy re-renderze, więc przycięcie bloku źródłowego (`deleteRange`) przegrywało z wstawieniem ogona - treść się duplikowała ("Hello World" -> "Hello World" + " World") | **NAPRAWIONE**: `emitChange` aktualizuje `docRef` optymistycznie - sekwencyjne mutacje w jednym ticku się składają; wszystkie 12 mutatorów + schowek przechodzą tędy |
-| 2 | Merge Backspace | OK merytorycznie (offsety/encje/`<br>`/prev-heading poprawne); RYZYKO wyścigu `setContent` (mapuje selekcję na koniec) z pętlą rAF fokusu | **DOMKNIĘTE**: rejestr oczekującego fokusu w `focus.ts`; `Paragraph`/`Heading` po własnym `setContent` wołają `reapplyPendingBlockFocus` - karetka deterministycznie ląduje w punkcie złączenia |
-| 3 | Schowek | **BUG**: stos kanw trzymał ELEMENTY - po podmianie węzła (pusty<->niepusty dokument) arbitraż wskazywał odpięty div i Ctrl+C/X/V milkło; RYZYKO: Firefox/Safari nie gwarantują zdarzenia `copy` przy fokusie na `<body>` | **NAPRAWIONE**: stos trzyma REFERENCJE (`ref.current` zawsze żywy); kanwa ma `tabIndex=-1`, a `selectAllBlocks` fokusuje kanwę - zdarzenia schowka mają target wewnątrz `[data-block-canvas]` (wzorzec WP). Podwójne paste: przegląd potwierdził, że NIE występuje |
-| 4 | Persist images | OK (kolejność przed `update$`, `File` z `Uint8Array` poprawny, brak pętli); RYZYKO: zbędny drugi zapis przez głęboki klon `builder_data` bez zmian | **ZMITYGOWANE**: `replaceDataUrlImages` zwraca oryginalną referencję przy braku trafień; synchronizacja formularza nie tworzy pozornych zmian |
-| 5 | Transforms | **OK** (kompletność ikon/i18n wymuszona typami; cache na `[t]` unieważnia się przy zmianie języka) | bez zmian; bonus: `details` dodane do typów z fokusem po transformacji |
-| 6 | Inserter | **OK** (kolejność `visibleSpecs` = kolejność renderu we wszystkich 3 trybach; clamp odporny na kurczące się wyniki; slash-menu działa) | bez zmian |
-| 7 | Appender | **OK** (fokus na świeżym akapicie; retry 30 klatek pokrywa montowanie TipTapa) | bez zmian |
-| 8 | Regresje | **BUG (mały)**: heurystyka "pierwszy edytowalny" w `focus.ts` trafiała w pole JĘZYKA bloku `code` (input przed textarea) i mieliła podgląd bloku `html`; brak retry gdy pole montuje się po hoście | **NAPRAWIONE**: opt-in marker `[data-block-editable]` (paragraph/heading/code), retry gdy host jest a pola brak, `html` usunięty z typów fokusowanych (edycja żyje w sidebarze) |
+| #   | Przepływ            | Werdykt przeglądu                                                                                                                                                                                                                                             | Stan po poprawkach                                                                                                                                                                                                                                                 |
+| --- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Enter-split + fokus | **BUG (krytyczny, sprzed tej fali)**: `insertAt` czytał `docRef` aktualizowany dopiero przy re-renderze, więc przycięcie bloku źródłowego (`deleteRange`) przegrywało z wstawieniem ogona - treść się duplikowała ("Hello World" -> "Hello World" + " World") | **NAPRAWIONE**: `emitChange` aktualizuje `docRef` optymistycznie - sekwencyjne mutacje w jednym ticku się składają; wszystkie 12 mutatorów + schowek przechodzą tędy                                                                                               |
+| 2   | Merge Backspace     | OK merytorycznie (offsety/encje/`<br>`/prev-heading poprawne); RYZYKO wyścigu `setContent` (mapuje selekcję na koniec) z pętlą rAF fokusu                                                                                                                     | **DOMKNIĘTE**: rejestr oczekującego fokusu w `focus.ts`; `Paragraph`/`Heading` po własnym `setContent` wołają `reapplyPendingBlockFocus` - karetka deterministycznie ląduje w punkcie złączenia                                                                    |
+| 3   | Schowek             | **BUG**: stos kanw trzymał ELEMENTY - po podmianie węzła (pusty<->niepusty dokument) arbitraż wskazywał odpięty div i Ctrl+C/X/V milkło; RYZYKO: Firefox/Safari nie gwarantują zdarzenia `copy` przy fokusie na `<body>`                                      | **NAPRAWIONE**: stos trzyma REFERENCJE (`ref.current` zawsze żywy); kanwa ma `tabIndex=-1`, a `selectAllBlocks` fokusuje kanwę - zdarzenia schowka mają target wewnątrz `[data-block-canvas]` (wzorzec WP). Podwójne paste: przegląd potwierdził, że NIE występuje |
+| 4   | Persist images      | OK (kolejność przed `update$`, `File` z `Uint8Array` poprawny, brak pętli); RYZYKO: zbędny drugi zapis przez głęboki klon `builder_data` bez zmian                                                                                                            | **ZMITYGOWANE**: `replaceDataUrlImages` zwraca oryginalną referencję przy braku trafień; synchronizacja formularza nie tworzy pozornych zmian                                                                                                                      |
+| 5   | Transforms          | **OK** (kompletność ikon/i18n wymuszona typami; cache na `[t]` unieważnia się przy zmianie języka)                                                                                                                                                            | bez zmian; bonus: `details` dodane do typów z fokusem po transformacji                                                                                                                                                                                             |
+| 6   | Inserter            | **OK** (kolejność `visibleSpecs` = kolejność renderu we wszystkich 3 trybach; clamp odporny na kurczące się wyniki; slash-menu działa)                                                                                                                        | bez zmian                                                                                                                                                                                                                                                          |
+| 7   | Appender            | **OK** (fokus na świeżym akapicie; retry 30 klatek pokrywa montowanie TipTapa)                                                                                                                                                                                | bez zmian                                                                                                                                                                                                                                                          |
+| 8   | Regresje            | **BUG (mały)**: heurystyka "pierwszy edytowalny" w `focus.ts` trafiała w pole JĘZYKA bloku `code` (input przed textarea) i mieliła podgląd bloku `html`; brak retry gdy pole montuje się po hoście                                                            | **NAPRAWIONE**: opt-in marker `[data-block-editable]` (paragraph/heading/code), retry gdy host jest a pola brak, `html` usunięty z typów fokusowanych (edycja żyje w sidebarze)                                                                                    |
 
 Sygnały jakości na HEAD gałęzi po poprawkach: `vitest` - pełna suita zielona (**3928 testów**,
 w tym 73 testy jednostkowe modułów tej fali: clipboard round-trip + interop WP, merge z offsetem

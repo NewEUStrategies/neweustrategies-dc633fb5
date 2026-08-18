@@ -48,6 +48,12 @@ function mockPosts(lang: "pl" | "en"): BlogListItem[] {
     published_at: new Date(Date.now() - i * 86400_000).toISOString(),
     parent_page_id: "preview",
     href: "#preview",
+    // Podgląd administracyjny: dane atrapowe, więc bez relacji komercyjnej.
+    // Pola są WYMAGANE przez typ karty, żeby żadna realna lista nie mogła ich
+    // pominąć - atrapa musi je podać jawnie, dokładnie tak jak produkcja.
+    is_sponsored: false,
+    sponsored_kind: null,
+    sponsored_affiliate: false,
   }));
 }
 

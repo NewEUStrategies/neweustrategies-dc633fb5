@@ -11,12 +11,12 @@ i **co przy okazji wyszło jako trzeci, dotąd nieopisany defekt**.
 
 ## 1. Punkt wyjścia: co z korekt było prawdą, a co nie
 
-| Zapis audytu | Weryfikacja na kodzie | Wniosek |
-| ------------ | --------------------- | ------- |
-| „Tracker: obserwacje nikogo nie powiadamiają" | `tg_eu_policy_update_applied` robi fan-out `enqueue_notification` do `eu_policy_follows` + `emit_domain_event('policy.updated.v1')`; gałąź `'tracker'` jest w mapie preferencji | **nieprawda - wycofane** |
-| „brakuje e-mailowego digestu" | `DIGEST_SECTIONS` w `lib/notifications/digestEmail.ts` ma sekcję `tracker` **jako pierwszą**, `dispatchDueDigests` wysyła przez `claim_due_digests` z listą wykluczeń i idempotencją | **nieprawda - wycofane** |
-| „brak `tracker.rss.xml`" | brak trasy, brak handlera, brak autodiscovery - potwierdzone | **prawda → wdrożone** |
-| „Key takeaways: dla stron gałąź renderu nigdy ich nie pokazuje" | kolumny + trigger na `pages`, loader je selectuje, render bez bramki `isPost` | **nieprawda - wycofane** |
+| Zapis audytu                                                    | Weryfikacja na kodzie                                                                                                                                                                | Wniosek                  |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------ |
+| „Tracker: obserwacje nikogo nie powiadamiają"                   | `tg_eu_policy_update_applied` robi fan-out `enqueue_notification` do `eu_policy_follows` + `emit_domain_event('policy.updated.v1')`; gałąź `'tracker'` jest w mapie preferencji      | **nieprawda - wycofane** |
+| „brakuje e-mailowego digestu"                                   | `DIGEST_SECTIONS` w `lib/notifications/digestEmail.ts` ma sekcję `tracker` **jako pierwszą**, `dispatchDueDigests` wysyła przez `claim_due_digests` z listą wykluczeń i idempotencją | **nieprawda - wycofane** |
+| „brak `tracker.rss.xml`"                                        | brak trasy, brak handlera, brak autodiscovery - potwierdzone                                                                                                                         | **prawda → wdrożone**    |
+| „Key takeaways: dla stron gałąź renderu nigdy ich nie pokazuje" | kolumny + trigger na `pages`, loader je selectuje, render bez bramki `isPost`                                                                                                        | **nieprawda - wycofane** |
 
 Z czterech zarzutów alertowo-takeawayowych realny był **jeden**. To nie znaczy, że nie było co naprawiać -
 weryfikacja odkryła **defekt, którego żaden audyt nie widział** (§3).
@@ -29,13 +29,13 @@ wymaga konta** i którą czytają agregatory oraz redakcje.
 
 ### Architektura (warstwy, nie jeden plik)
 
-| Warstwa | Plik | Odpowiedzialność |
-| ------- | ---- | ---------------- |
-| Model czysty | `src/lib/tracker/feed.ts` | scalanie dwóch strumieni, lokalizacja, GUID-y, porządek, limit. Zero React / Supabase / requestu |
-| Czytnik danych | `src/lib/server/publishedContent.server.ts` → `fetchTrackerFeedSources()` | service role + **jawny filtr tenanta**, `status='published'`, edge cache 60 s, degradacja do pustych list |
-| Handler | `src/lib/tracker/feed.server.ts` | zaufany host → tenant **fail-closed (404)**, bramka `rss_enabled`, język z prefiksu URL, nagłówki cache 1:1 z pozostałymi feedami |
-| Trasa | `src/routes/tracker.rss[.]xml.ts` | 12 linii - tylko GET → handler |
-| Atom UI | `src/components/tracker/TrackerFeedLink.tsx` | wejście dla człowieka (i18n PL/EN, `hrefLang`, ikona, tytuł opisujący zawartość) |
+| Warstwa        | Plik                                                                      | Odpowiedzialność                                                                                                                  |
+| -------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Model czysty   | `src/lib/tracker/feed.ts`                                                 | scalanie dwóch strumieni, lokalizacja, GUID-y, porządek, limit. Zero React / Supabase / requestu                                  |
+| Czytnik danych | `src/lib/server/publishedContent.server.ts` → `fetchTrackerFeedSources()` | service role + **jawny filtr tenanta**, `status='published'`, edge cache 60 s, degradacja do pustych list                         |
+| Handler        | `src/lib/tracker/feed.server.ts`                                          | zaufany host → tenant **fail-closed (404)**, bramka `rss_enabled`, język z prefiksu URL, nagłówki cache 1:1 z pozostałymi feedami |
+| Trasa          | `src/routes/tracker.rss[.]xml.ts`                                         | 12 linii - tylko GET → handler                                                                                                    |
+| Atom UI        | `src/components/tracker/TrackerFeedLink.tsx`                              | wejście dla człowieka (i18n PL/EN, `hrefLang`, ikona, tytuł opisujący zawartość)                                                  |
 
 ### Decyzje projektowe (i dlaczego takie)
 
@@ -56,6 +56,7 @@ wypunktował w buderze (PR #141).
 
 **Sieroty są odrzucane.** Aktualizacja bez swojego dossier na liście nie wchodzi do kanału. Nawet gdyby
 czytnik kiedyś zwrócił wpis dossier nieopublikowanego albo z obcego tenanta, jego **treść nie wycieknie**
+
 - to obrona w drugiej warstwie, obok filtra tenanta i RLS.
 
 **Porządek deterministyczny.** Malejąco po dacie, remis rozstrzyga guid. Bez tiebreakera dwa wpisy z tej
@@ -93,12 +94,12 @@ sekcji takeaways - **jest** fallback na drugi język: pusty tytuł byłby pozycj
 Weryfikując korektę nr 2 (która okazała się nieprawdą), znalazłem realny błąd **obok** niej. Limit
 punktów żył w trzech warstwach i rozjechał się w każdej:
 
-| Warstwa | Stan przed | Skutek |
-| ------- | ---------- | ------ |
-| Trigger DB (`posts_validate_takeaways`, `pages_validate_takeaways`) | **7** (migracja `20260709100809` podniosła z 6) | - |
-| Schemat zod (`content.functions.ts`, wpisy **i** strony) | `.max(6)` | **siódmego punktu nie dało się zapisać** - błąd walidacji |
-| Panel edytora (`PostSettingsMetabox`) | licznik `/6`, przycisk blokowany na 6 | redakcja nie miała jak dojść do 7 |
-| Podpowiedź w tym samym panelu (PL i EN) | „Max **7** punktów" | **panel kłamał** |
+| Warstwa                                                             | Stan przed                                      | Skutek                                                    |
+| ------------------------------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------- |
+| Trigger DB (`posts_validate_takeaways`, `pages_validate_takeaways`) | **7** (migracja `20260709100809` podniosła z 6) | -                                                         |
+| Schemat zod (`content.functions.ts`, wpisy **i** strony)            | `.max(6)`                                       | **siódmego punktu nie dało się zapisać** - błąd walidacji |
+| Panel edytora (`PostSettingsMetabox`)                               | licznik `/6`, przycisk blokowany na 6           | redakcja nie miała jak dojść do 7                         |
+| Podpowiedź w tym samym panelu (PL i EN)                             | „Max **7** punktów"                             | **panel kłamał**                                          |
 
 Naprawa: jedna stała w module czystym `src/lib/keyTakeaways/limits.ts`
 (`KEY_TAKEAWAYS_MAX_ITEMS = 7`, `KEY_TAKEAWAYS_MAX_ITEM_LENGTH = 500`, rekomendacje długości), importowana
@@ -146,14 +147,14 @@ nazwa wariantu, świadomie identyczna).
 
 ## 6. Sygnały (zmierzone na tej gałęzi)
 
-| Sygnał | Wynik |
-| ------ | ----- |
-| `vitest run` | **4665 pass / 0 fail / 50 skip** (511 plików) - +40 testów wobec bazy |
-| `tsc --noEmit` | czysto |
-| `eslint` + `prettier --check` na plikach tej zmiany | czysto |
-| `check:sql-tenant-scope` / `app-role` / `anon-insert` | ✓ / ✓ / ✓ (504 funkcje, 870 literałów, 518 polityk) |
-| Nowe pliki pgTAP | 2 (18 asercji) - odpalą się w jobie `pgtap` |
-| Nowe/zmienione testy jednostkowe | 26 asercji kanału, 20 limitów/rozstrzygania, 8 kontraktu selectu, 4 guid RSS, 1 llms |
+| Sygnał                                                | Wynik                                                                                |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `vitest run`                                          | **4665 pass / 0 fail / 50 skip** (511 plików) - +40 testów wobec bazy                |
+| `tsc --noEmit`                                        | czysto                                                                               |
+| `eslint` + `prettier --check` na plikach tej zmiany   | czysto                                                                               |
+| `check:sql-tenant-scope` / `app-role` / `anon-insert` | ✓ / ✓ / ✓ (504 funkcje, 870 literałów, 518 polityk)                                  |
+| Nowe pliki pgTAP                                      | 2 (18 asercji) - odpalą się w jobie `pgtap`                                          |
+| Nowe/zmienione testy jednostkowe                      | 26 asercji kanału, 20 limitów/rozstrzygania, 8 kontraktu selectu, 4 guid RSS, 1 llms |
 
 ## 7. Czego świadomie NIE zrobiłem
 
@@ -167,6 +168,6 @@ nazwa wariantu, świadomie identyczna).
 
 ---
 
-*Dokument towarzyszy `OCENA_FUNKCJI_TABELE_2026-08-03.md` (korekty 1, 1b i 2 zaktualizowane w tabelach
+_Dokument towarzyszy `OCENA_FUNKCJI_TABELE_2026-08-03.md` (korekty 1, 1b i 2 zaktualizowane w tabelach
 M1, M7 i M8). Treść artykułów pozostaje poza zakresem oceny - ten PR dotyczy wyłącznie mechaniki
-platformy.*
+platformy._

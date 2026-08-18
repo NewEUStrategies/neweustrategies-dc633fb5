@@ -65,8 +65,8 @@ potoku nie dostawał NIC do swojego timeoutu.
 - `src/server.ts`: `applyDeferredDocumentStore` wpięty po normalizacji
   odpowiedzi, przed strażnikiem dokumentu.
 - Semantyka cache bez zmian: HIT/STALE/single-flight/L2/purge jak dotąd;
-  testy L1/L2 zaktualizowane o warstwę `applyDeferredDocumentStore`
-  + **test regresyjny tożsamości body** (`documentCache.server.test.ts`).
+  testy L1/L2 zaktualizowane o warstwę `applyDeferredDocumentStore` +
+  **test regresyjny tożsamości body** (`documentCache.server.test.ts`).
 
 ## 3. Obrona w głębi: strażnik strumienia DOKUMENTU
 
@@ -120,13 +120,13 @@ queryTimeout 5 s  <  SSR_DB_DEADLINE 8 s  <  queryStreamGuard.maxMs 10 s
 
 ## 6. Pomiary (produkcyjny build, node-server, zimny izolat)
 
-| Scenariusz              | Przed                          | Po                       |
-| ----------------------- | ------------------------------ | ------------------------ |
-| `GET /` total           | 62,49 s (błąd transferu)       | ~2,5 s (czyste EOF)      |
-| `GET /` TTFB            | 2,48 s                         | ~2,5 s (bez zmian)       |
-| Kompletność HTML        | ucięty ogon, brak `</html>`    | kompletny dokument       |
-| Drugie żądanie (HIT)    | 62 s (każdy render osobno)     | milisekundy (replay L1)  |
-| Bot (isbot -> allReady) | 0 bajtów do timeoutu bota      | pełny dokument po całości|
+| Scenariusz              | Przed                       | Po                        |
+| ----------------------- | --------------------------- | ------------------------- |
+| `GET /` total           | 62,49 s (błąd transferu)    | ~2,5 s (czyste EOF)       |
+| `GET /` TTFB            | 2,48 s                      | ~2,5 s (bez zmian)        |
+| Kompletność HTML        | ucięty ogon, brak `</html>` | kompletny dokument        |
+| Drugie żądanie (HIT)    | 62 s (każdy render osobno)  | milisekundy (replay L1)   |
+| Bot (isbot -> allReady) | 0 bajtów do timeoutu bota   | pełny dokument po całości |
 
 ## 7. Testy
 

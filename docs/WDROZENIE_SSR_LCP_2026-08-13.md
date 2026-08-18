@@ -13,12 +13,12 @@ przyspieszenia. Dlatego KAŻDA para `srcSet`/`sizes` żyje teraz w jednym,
 współdzielonym module, z którego czytają i renderery, i budowniczowie
 preloadu:
 
-| Moduł | Konsumenci |
-| --- | --- |
-| `lib/builder/sliderSizes.ts` | `sliderVariants` (render) + `heroImage` (preload) |
-| `lib/builder/widgetImageSizes.ts` | `PostListView`, `mediaWidgets`, `WidgetView` + `heroImage` |
-| `lib/cardImageSizes.ts` | `PostListCard` + `archivePreload` (trasy archiwów) |
-| `lib/postLayouts.ts` (`coverImageSizes`) | bez zmian - wzorzec, z którego wyszła reszta |
+| Moduł                                    | Konsumenci                                                 |
+| ---------------------------------------- | ---------------------------------------------------------- |
+| `lib/builder/sliderSizes.ts`             | `sliderVariants` (render) + `heroImage` (preload)          |
+| `lib/builder/widgetImageSizes.ts`        | `PostListView`, `mediaWidgets`, `WidgetView` + `heroImage` |
+| `lib/cardImageSizes.ts`                  | `PostListCard` + `archivePreload` (trasy archiwów)         |
+| `lib/postLayouts.ts` (`coverImageSizes`) | bez zmian - wzorzec, z którego wyszła reszta               |
 
 ## 2. Preload obrazu LCP per klasa tras
 

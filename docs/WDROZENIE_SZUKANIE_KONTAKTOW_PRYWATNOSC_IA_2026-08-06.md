@@ -4,13 +4,13 @@ Pięć pozycji z rewizji 2 wydania 06.08 (`OCENA_FUNKCJI_TABELE_2026-08-06_R2.md
 domkniętych w jednej gałęzi, bo trzy z nich schodzą się w tym samym miejscu:
 w prywatności czatu i w tym, gdzie użytkownik jej szuka.
 
-| § | Pozycja | Rozstrzygnięcie |
-| - | ------- | --------------- |
-| 8 | escapowanie i indeks w `search_chat_contacts` (7 × surowy ILIKE) | RPC przepisane na `discovery_search` + escapowany `LIKE`, wspólne prymitywy z katalogiem osób |
-| 9 | fantomowe `'contacts'` w bramce (wymaga decyzji produktowej) | `contacts` staje się realnym, czwartym poziomem prywatności; bramka ROZSTRZYGA wartość zamiast dopasowywać literał |
-| 10 | IA prywatności | trzy powierzchnie scalone w hub `/profile/privacy`; `/profile/security` zostaje przy bezpieczeństwie konta |
-| 11 | IA finansów | grupa nawigacji „Płatności i bezpieczeństwo" (8 pozycji) rozbita: finanse 4 + nowa grupa prywatności 2; dwie trasy scalone |
-| 13 | trzy przedawnione `as never` | usunięte 25 castów + bramka CI, która nie pozwoli im wrócić |
+| §   | Pozycja                                                          | Rozstrzygnięcie                                                                                                            |
+| --- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| 8   | escapowanie i indeks w `search_chat_contacts` (7 × surowy ILIKE) | RPC przepisane na `discovery_search` + escapowany `LIKE`, wspólne prymitywy z katalogiem osób                              |
+| 9   | fantomowe `'contacts'` w bramce (wymaga decyzji produktowej)     | `contacts` staje się realnym, czwartym poziomem prywatności; bramka ROZSTRZYGA wartość zamiast dopasowywać literał         |
+| 10  | IA prywatności                                                   | trzy powierzchnie scalone w hub `/profile/privacy`; `/profile/security` zostaje przy bezpieczeństwie konta                 |
+| 11  | IA finansów                                                      | grupa nawigacji „Płatności i bezpieczeństwo" (8 pozycji) rozbita: finanse 4 + nowa grupa prywatności 2; dwie trasy scalone |
+| 13  | trzy przedawnione `as never`                                     | usunięte 25 castów + bramka CI, która nie pozwoli im wrócić                                                                |
 
 ---
 
@@ -71,12 +71,12 @@ Fantom nazywał funkcję, której platforma naprawdę nie miała, więc zamiast
 kasować literał - domykamy go. `contacts` staje się czwartym poziomem, a cała
 czwórka układa się w jeden malejący porządek:
 
-| poziom | kto może zacząć nowy wątek |
-| ------ | -------------------------- |
-| `everyone` | ktokolwiek z obszaru roboczego |
-| **`contacts`** | **wyłącznie zaakceptowana sieć kontaktów** |
-| `existing` | wyłącznie osoby, z którymi wątek już istnieje |
-| `nobody` | nikt (dodatkowo wycisza przychodzące w istniejących wątkach) |
+| poziom         | kto może zacząć nowy wątek                                   |
+| -------------- | ------------------------------------------------------------ |
+| `everyone`     | ktokolwiek z obszaru roboczego                               |
+| **`contacts`** | **wyłącznie zaakceptowana sieć kontaktów**                   |
+| `existing`     | wyłącznie osoby, z którymi wątek już istnieje                |
+| `nobody`       | nikt (dodatkowo wycisza przychodzące w istniejących wątkach) |
 
 Trzy powody, dla których to zmiana produktowa, a nie kosmetyka:
 
@@ -101,11 +101,11 @@ dokłada wybór, którego nie było. Opcja w UI, i18n PL/EN, pgTAP.
 Nazwa „centrum prywatności" była na wyrost: `/profile/privacy` zawierało
 wyłącznie **zgody**, a właściwe ustawienia prywatności mieszkały gdzie indziej.
 
-| Co | Gdzie było | Gdzie jest |
-| -- | ---------- | ---------- |
+| Co                                                                                                                                                             | Gdzie było                                                                               | Gdzie jest                 |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | -------------------------- |
 | widoczność w katalogu, zapytania do eksperta, kto może zacząć rozmowę, kto może zaprosić do sieci, potwierdzenia odczytu, wskaźnik pisania, status dostępności | **w środku formularza** `/profile/edit`, pod przyciskiem „Zapisz", którego nie dotyczyły | `/profile/privacy`, blok 1 |
-| zgody cookie/komunikacja + rejestr RODO + GPC | `/profile/privacy` | `/profile/privacy`, blok 2 |
-| eksport danych (art. 15/20) i usunięcie konta (art. 17) | `/profile/security`, między hasłem a 2FA | `/profile/privacy`, blok 3 |
+| zgody cookie/komunikacja + rejestr RODO + GPC                                                                                                                  | `/profile/privacy`                                                                       | `/profile/privacy`, blok 2 |
+| eksport danych (art. 15/20) i usunięcie konta (art. 17)                                                                                                        | `/profile/security`, między hasłem a 2FA                                                 | `/profile/privacy`, blok 3 |
 
 Trzy bloki w kolejności rosnącej nieodwracalności: kogo wpuszczam (codziennie) →
 na co się godzę (rzadko, audytowane) → co mi wydacie i jak mnie usuniecie (raz).
@@ -128,10 +128,10 @@ wspólnego, a dwie kolejne prowadziły do tej samej treści:
 - `/profile/orders` i `/profile/payments` to były dwie listy tych samych
   transakcji, obie z `InvoiceLookupCard`.
 
-| Przed | Po |
-| ----- | -- |
+| Przed                                                                                     | Po                                                                        |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | jedna grupa: membership, plan, billing, subscription, orders, payments, security, privacy | **Płatności i plan**: membership, [organization], plan, payments, billing |
-| | **Prywatność i bezpieczeństwo**: privacy, security |
+|                                                                                           | **Prywatność i bezpieczeństwo**: privacy, security                        |
 
 `/profile/subscription` → przekierowanie na `/profile/plan`,
 `/profile/orders` → przekierowanie na `/profile/payments` (które wchłonęło

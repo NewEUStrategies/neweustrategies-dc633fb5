@@ -22,7 +22,8 @@ export type ChecklistItemId =
   | "takeaways"
   | "tags"
   | "enVersion"
-  | "indexable";
+  | "indexable"
+  | "sponsoredDisclosure";
 
 export interface ChecklistItem {
   id: ChecklistItemId;
@@ -42,6 +43,13 @@ export interface PublishChecklistInput {
   takeaways_pl: string[];
   categoriesCount: number;
   tagsCount: number;
+  /**
+   * Braki w ujawnieniu komercyjnym (`disclosureGaps` z content/sponsored.ts).
+   * Podawane gotowe, a nie liczone tutaj, żeby checklista miała JEDNO źródło
+   * prawdy z bramką serwerową - dwie niezależne implementacje tej samej reguły
+   * rozjechałyby się przy pierwszej zmianie prawa.
+   */
+  sponsoredGaps: readonly string[];
 }
 
 export interface PublishChecklist {
@@ -55,6 +63,19 @@ export interface PublishChecklist {
 
 const REQUIRED_POINTS = 15;
 const RECOMMENDED_POINTS = 10;
+
+/**
+ * Pozycje pokazywane w checkliście, ale NIE liczone do wyniku.
+ *
+ * `sponsoredDisclosure` jest poza punktacją z dwóch powodów. Po pierwsze skala
+ * jest ogłoszona jako 0-100 (karta rysuje `score/100` i szerokość paska w %),
+ * a dorzucenie piątej pozycji wymaganej dałoby maksimum 115 - pasek wyszedłby
+ * za krawędź. Po drugie i ważniejsze: to nie jest miara JAKOŚCI wpisu. Materiał
+ * bez relacji komercyjnej spełnia ją bezwarunkowo, więc punktowanie rozdawałoby
+ * darmowe punkty każdemu zwykłemu tekstowi i zaniżało realną wartość pozostałych
+ * pozycji. Pozycja pełni rolę bramki (missingRequired), nie składnika oceny.
+ */
+const UNSCORED: ReadonlySet<ChecklistItemId> = new Set(["sponsoredDisclosure"]);
 /** Minimalna liczba takeaways, przy której sekcja "Dowiesz się" ma sens. */
 const MIN_TAKEAWAYS = 3;
 
@@ -84,12 +105,23 @@ export function buildPublishChecklist(input: PublishChecklistInput): PublishChec
       ok: has(input.title_en) && (has(input.excerpt_en) || has(input.seo_description_en)),
     },
     { id: "indexable", level: "recommended", ok: !input.seo_noindex },
+    // Jedyna pozycja, której "required" nie jest miękkie w praktyce: serwer
+    // ODRZUCA publikację z brakami w ujawnieniu (updatePost), bo to obowiązek
+    // ustawowy, nie higiena redakcyjna. Pozycja jest tu, żeby redaktor zobaczył
+    // brak w checkliście, a nie dopiero w komunikacie błędu.
+    { id: "sponsoredDisclosure", level: "required", ok: input.sponsoredGaps.length === 0 },
   ];
 
   const missingRequired = items.filter((i) => i.level === "required" && !i.ok);
   const missingRecommended = items.filter((i) => i.level === "recommended" && !i.ok);
   const score = items.reduce(
-    (acc, i) => acc + (i.ok ? (i.level === "required" ? REQUIRED_POINTS : RECOMMENDED_POINTS) : 0),
+    (acc, i) =>
+      acc +
+      (UNSCORED.has(i.id) || !i.ok
+        ? 0
+        : i.level === "required"
+          ? REQUIRED_POINTS
+          : RECOMMENDED_POINTS),
     0,
   );
 

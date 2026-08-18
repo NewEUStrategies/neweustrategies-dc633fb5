@@ -28,6 +28,7 @@ import { openLoginPopup } from "@/lib/loginPopupBus";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ensureI18n as ensureReadingListI18n } from "@/lib/i18n-reading-list";
+import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
 type Tab = "saved" | "followed" | "recommended";
 type Lang = "pl" | "en";
 
@@ -239,7 +240,7 @@ function SavedSection({ columns, lang }: { columns: number; lang: Lang }) {
       const { data, error } = await supabase
         .from("posts")
         .select(
-          "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id",
+          `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, ${SPONSORED_LIST_COLS}`,
         )
         .in("id", postIds)
         .eq("status", "published")

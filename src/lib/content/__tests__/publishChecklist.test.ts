@@ -17,6 +17,7 @@ const complete: PublishChecklistInput = {
   takeaways_pl: ["Punkt 1", "Punkt 2", "Punkt 3"],
   categoriesCount: 1,
   tagsCount: 2,
+  sponsoredGaps: [],
 };
 
 describe("buildPublishChecklist", () => {
@@ -65,6 +66,19 @@ describe("buildPublishChecklist", () => {
   it("noindex zgłasza pozycję indexable", () => {
     const cl = buildPublishChecklist({ ...complete, seo_noindex: true });
     expect(cl.missingRecommended.map((i) => i.id)).toContain("indexable");
+  });
+
+  it("braki w ujawnieniu komercyjnym blokują publikację, ale nie ruszają wyniku", () => {
+    const cl = buildPublishChecklist({ ...complete, sponsoredGaps: ["advertiser"] });
+    expect(cl.requiredOk).toBe(false);
+    expect(cl.missingRequired.map((i) => i.id)).toEqual(["sponsoredDisclosure"]);
+    // Poza punktacją: skala zostaje 0-100 (patrz UNSCORED).
+    expect(cl.score).toBe(100);
+  });
+
+  it("bez relacji komercyjnej pozycja ujawnienia jest spełniona bezwarunkowo", () => {
+    const cl = buildPublishChecklist(complete);
+    expect(cl.items.find((i) => i.id === "sponsoredDisclosure")?.ok).toBe(true);
   });
 });
 

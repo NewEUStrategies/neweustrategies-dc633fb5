@@ -3,4 +3,5 @@ export { InfoHint } from "./InfoHint";
 export { SidebarSection } from "./SidebarSection";
 export { SectionCard } from "./SectionCard";
 export { ChecklistItemRow } from "./ChecklistItemRow";
+export { FieldRow } from "./FieldRow";
 export { TriStateSelect, type TriStateLabels } from "./TriStateSelect";

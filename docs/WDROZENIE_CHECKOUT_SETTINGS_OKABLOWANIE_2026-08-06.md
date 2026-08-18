@@ -32,6 +32,7 @@ form-encoded body z czasów, gdy repo nie używało SDK operatora („konwencja
 repo: żadnego SDK Stripe, surowe URLSearchParams”). Po migracji na
 `stripe` 22.x sesje powstają przez `stripe.checkout.sessions.create(params)`
 z typowanym obiektem, więc stary kształt **nie miał jak** wpiąć się w ścieżkę
+
 - i nikt go nie wpiął.
 
 ## 2. Nowa architektura - jedna czysta funkcja, trzy ścieżki wejścia
@@ -46,14 +47,14 @@ z typowanym obiektem, więc stary kształt **nie miał jak** wpiąć się w ści
   `SessionCreateParams`. **Jedyne** miejsce, w którym rozstrzygamy zależności
   wymuszone przez API Stripe:
 
-  | Reguła | Skutek |
-  | ------ | ------ |
-  | `discounts` + `allow_promotion_codes` = błąd API | rabat kuponu B2B wygrywa, pole kodu znika |
-  | `customer` + `customer_creation` = błąd API | `customer_creation=always` tylko dla gościa w trybie `payment` |
-  | istniejący klient + `automatic_tax` | wymagane `customer_update.address='auto'` |
-  | istniejący klient + `tax_id_collection` | wymagane `customer_update.name='auto'` |
-  | `automatic_tax` potrzebuje jurysdykcji | `billing_address_collection='required'` |
-  | subskrypcja fakturowana jest zawsze | `invoice_creation` wyłącznie w trybie `payment` |
+  | Reguła                                           | Skutek                                                         |
+  | ------------------------------------------------ | -------------------------------------------------------------- |
+  | `discounts` + `allow_promotion_codes` = błąd API | rabat kuponu B2B wygrywa, pole kodu znika                      |
+  | `customer` + `customer_creation` = błąd API      | `customer_creation=always` tylko dla gościa w trybie `payment` |
+  | istniejący klient + `automatic_tax`              | wymagane `customer_update.address='auto'`                      |
+  | istniejący klient + `tax_id_collection`          | wymagane `customer_update.name='auto'`                         |
+  | `automatic_tax` potrzebuje jurysdykcji           | `billing_address_collection='required'`                        |
+  | subskrypcja fakturowana jest zawsze              | `invoice_creation` wyłącznie w trybie `payment`                |
 
   Poprzednia (martwa) implementacja **nie znała** trzech pierwszych reguł -
   gdyby ją naiwnie podłączyć, każda sesja zalogowanego kupującego kończyłaby
@@ -74,12 +75,12 @@ flagi widzi skutek natychmiast.
 
 ### Ścieżki wejścia (wszystkie trzy silniki checkoutu)
 
-| Plik | Co się zmieniło |
-| ---- | --------------- |
-| `checkout.functions.ts` | `INSERT ... RETURNING id, tenant_id`, `loadCheckoutSettings` przed utworzeniem sesji, `settings` do obu gałęzi (plan katalogowy + ad-hoc) |
-| `stripeCheckout.functions.ts` | to samo dla drugiego silnika (plan z `lookup_key`) |
-| `adhocCheckoutOrder.server.ts` | to samo dla odblokowania treści / biletu / darowizny |
-| `adhocCheckout.server.ts` | `settings?: CheckoutSettings` w obu wejściach; `...sessionFlags(...)` zastępuje zahardkodowane `managed_payments` |
+| Plik                           | Co się zmieniło                                                                                                                           |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `checkout.functions.ts`        | `INSERT ... RETURNING id, tenant_id`, `loadCheckoutSettings` przed utworzeniem sesji, `settings` do obu gałęzi (plan katalogowy + ad-hoc) |
+| `stripeCheckout.functions.ts`  | to samo dla drugiego silnika (plan z `lookup_key`)                                                                                        |
+| `adhocCheckoutOrder.server.ts` | to samo dla odblokowania treści / biletu / darowizny                                                                                      |
+| `adhocCheckout.server.ts`      | `settings?: CheckoutSettings` w obu wejściach; `...sessionFlags(...)` zastępuje zahardkodowane `managed_payments`                         |
 
 Darowizny z `donations.server.ts` (osobny moduł, `mode: subscription` dla
 cyklicznych) pozostają poza tym mechanizmem - darowizna nie jest sprzedażą i
@@ -129,12 +130,12 @@ jawnie.
 
 ## 5. Testy
 
-| Plik | Zakres |
-| ---- | ------ |
-| `__tests__/checkoutSettings.test.ts` | normalizacja, płaszczyzna, **wszystkie 6 reguł API** (16 testów) |
-| `__tests__/checkoutSessionFlags.server.test.ts` | **nowy** - ładunek faktycznie przekazany do `stripe.checkout.sessions.create` (6 testów) |
-| `__tests__/checkoutSettingsLoad.server.test.ts` | **nowy** - zawężenie do tenantu, fail-safe (4 testy) |
-| `components/checkout/__tests__/checkoutAssurances.test.tsx` | **nowy** - obietnice UI vs sesja (5 testów) |
+| Plik                                                        | Zakres                                                                                   |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `__tests__/checkoutSettings.test.ts`                        | normalizacja, płaszczyzna, **wszystkie 6 reguł API** (16 testów)                         |
+| `__tests__/checkoutSessionFlags.server.test.ts`             | **nowy** - ładunek faktycznie przekazany do `stripe.checkout.sessions.create` (6 testów) |
+| `__tests__/checkoutSettingsLoad.server.test.ts`             | **nowy** - zawężenie do tenantu, fail-safe (4 testy)                                     |
+| `components/checkout/__tests__/checkoutAssurances.test.tsx` | **nowy** - obietnice UI vs sesja (5 testów)                                              |
 
 Kluczowy jest drugi z nich: test czystej funkcji nie wykryłby ponownego
 odłączenia modułu - dokładnie tak martwy kod przetrwał sześć wydań. Test

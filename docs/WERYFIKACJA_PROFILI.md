@@ -18,17 +18,19 @@ członkowie New European Strategies są weryfikowani automatycznie.
    (`grant_source = system`); nadania ręczne pozostają nietknięte.
 
 ## Ścieżka ręczna (wyjątki)
+
 Dla osób bez firmowego adresu (partnerzy, eksperci zewnętrzni) są dwie kontrolki i
 **celowo nie są tym samym**:
 
-| Kontrolka | Co zapisuje | Co z tego wynika |
-| --------- | ----------- | ---------------- |
-| Panel → Użytkownicy → *(osoba)* → **Weryfikacja zawodowa** | `profiles.verified_at` + `verified_by` (RPC `admin_set_profile_verification`) | flaga `verified` w katalogu osób (`search_people`) i filtr „tylko zweryfikowani"; `verified_by` to stempel audytowy |
-| Panel → Społeczność → Odznaki → **Przyznaj odznakę** | wiersz w `profile_badges` (`grant_source = manual`) | odznaka prezentacyjna przy profilu; odznaka `expert` dodatkowo nadaje dożywotni VIP (`sync_expert_vip_grant`, 20260805201517) |
+| Kontrolka                                                  | Co zapisuje                                                                   | Co z tego wynika                                                                                                              |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Panel → Użytkownicy → _(osoba)_ → **Weryfikacja zawodowa** | `profiles.verified_at` + `verified_by` (RPC `admin_set_profile_verification`) | flaga `verified` w katalogu osób (`search_people`) i filtr „tylko zweryfikowani"; `verified_by` to stempel audytowy           |
+| Panel → Społeczność → Odznaki → **Przyznaj odznakę**       | wiersz w `profile_badges` (`grant_source = manual`)                           | odznaka prezentacyjna przy profilu; odznaka `expert` dodatkowo nadaje dożywotni VIP (`sync_expert_vip_grant`, 20260805201517) |
 
 Nadanie ręczne (z obowiązkową notatką uzasadniającą: kto / na jakiej podstawie) jest
 odporne na przeglądy zbiorcze: sweep cofa wyłącznie nadania automatyczne
 (`grant_source = system`), a `verified_at` czyści tylko wtedy, gdy `verified_by IS NULL`
+
 - czyli nigdy po decyzji administratora.
 
 ## Przegląd zbiorczy
@@ -44,12 +46,12 @@ Weryfikacja nie jest ozdobą: steruje odznaką, a odznaka `expert` nadaje **doż
 VIP** (`sync_expert_vip_grant`). Dlatego od migracji `20260806150000` decyzję „kto
 może” podejmuje **jeden predykat**, z którego czytają wszystkie ścieżki:
 
-| Ścieżka | Bramka |
-| ------- | ------ |
-| Bezpośredni `UPDATE profiles.verified_at / verified_by` | trigger `profiles_guard_verification` |
-| RPC panelu (`admin_set_profile_verification`) | ten sam predykat + zgodność tenanta |
-| RPC domen weryfikacji (`admin_*_verification_domain`) | `admin_assert_verification_admin()` |
-| Odczyt `verification_domains` (RLS) | polityka `verification domains staff read` |
+| Ścieżka                                                 | Bramka                                     |
+| ------------------------------------------------------- | ------------------------------------------ |
+| Bezpośredni `UPDATE profiles.verified_at / verified_by` | trigger `profiles_guard_verification`      |
+| RPC panelu (`admin_set_profile_verification`)           | ten sam predykat + zgodność tenanta        |
+| RPC domen weryfikacji (`admin_*_verification_domain`)   | `admin_assert_verification_admin()`        |
+| Odczyt `verification_domains` (RLS)                     | polityka `verification domains staff read` |
 
 Predykat: **`can_manage_profile_verification(uuid)` → `admin` albo `super_admin`**.
 `has_role()` porównuje `tenant_id` z `current_tenant_id()`, więc uprawnienie liczy się
@@ -74,10 +76,10 @@ w audycie `OCENA_FUNKCJI_TABELE_2026-08-06_R2.md`, korekta 3).
 
 ## Własność kolumn (jedna kolumna = jedna bramka)
 
-| Kolumna | Bramka | Reakcja na brak uprawnień |
-| ------- | ------ | ------------------------- |
-| `verified_at`, `verified_by` | `profiles_guard_verification` | `RAISE 42501` - naruszenie zostawia ślad |
-| `current_company_id` | `profiles_guard_privileged_columns` | cichy revert wartości |
+| Kolumna                      | Bramka                              | Reakcja na brak uprawnień                |
+| ---------------------------- | ----------------------------------- | ---------------------------------------- |
+| `verified_at`, `verified_by` | `profiles_guard_verification`       | `RAISE 42501` - naruszenie zostawia ślad |
+| `current_company_id`         | `profiles_guard_privileged_columns` | cichy revert wartości                    |
 
 Odmowa przy weryfikacji jest **twarda dla każdego** - także dla zwykłego członka.
 Do `20260806150000` samonadanie było po cichu wycofywane przez bramkę bliźniaczą
@@ -124,13 +126,13 @@ toast i zero zmiany w bazie.
 
 ## Czym to jest pilnowane
 
-| Bramka | Co mierzy | Bez bazy? |
-| ------ | --------- | --------- |
-| `supabase/tests/profiles_verification_guard_test.sql` (37 asercji) | ZACHOWANIE: kto przechodzi, jak wygląda odmowa, izolacja obszarów roboczych, pokrycie INSERT, ścieżka firmy | nie (pgTAP) |
-| `src/__tests__/profilesVerificationGuard.invariant.test.ts` | EFEKTYWNY zbiór ról (przez rozwinięcie predykatu), wiązanie tenanta, `SECURITY DEFINER` oraz ZASIĘG triggerów (`INSERT`+`UPDATE`, brak `OF`) | tak |
-| `check:authz-snapshot` | snapshot `/admin/permissions` kontra bramki odtworzone z migracji, bajt w bajt | tak |
-| `check:sql-migration-replay` | unikalność wersji migracji (`schema_migrations.version` to klucz główny) | tak |
-| `check:pgtap-plan` | `plan(N)` zgodny z liczbą asercji w każdym z 73 plików suity | tak |
+| Bramka                                                             | Co mierzy                                                                                                                                    | Bez bazy?   |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `supabase/tests/profiles_verification_guard_test.sql` (37 asercji) | ZACHOWANIE: kto przechodzi, jak wygląda odmowa, izolacja obszarów roboczych, pokrycie INSERT, ścieżka firmy                                  | nie (pgTAP) |
+| `src/__tests__/profilesVerificationGuard.invariant.test.ts`        | EFEKTYWNY zbiór ról (przez rozwinięcie predykatu), wiązanie tenanta, `SECURITY DEFINER` oraz ZASIĘG triggerów (`INSERT`+`UPDATE`, brak `OF`) | tak         |
+| `check:authz-snapshot`                                             | snapshot `/admin/permissions` kontra bramki odtworzone z migracji, bajt w bajt                                                               | tak         |
+| `check:sql-migration-replay`                                       | unikalność wersji migracji (`schema_migrations.version` to klucz główny)                                                                     | tak         |
+| `check:pgtap-plan`                                                 | `plan(N)` zgodny z liczbą asercji w każdym z 73 plików suity                                                                                 | tak         |
 
 Rozdział „bez bazy / z bazą” jest tu istotny: `20260806150000` cofnęła pokrycie INSERT
 nie ruszając ciała funkcji, więc ani snapshot autoryzacji, ani bramka literałów ról nie
