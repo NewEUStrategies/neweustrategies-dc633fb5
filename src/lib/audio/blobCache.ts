@@ -7,6 +7,8 @@
 // całe MP3) albo, w drugą stronę, zwolnienie blobu, który jest właśnie
 // odtwarzany, czyli urwane audio w połowie artykułu.
 
+import { transliterateAtomicLetters } from "@/lib/content/anchorSlug";
+
 /** Górny limit trzymanych blobów - zapora przed nieograniczonym wzrostem pamięci. */
 export const MAX_CACHED_BLOBS = 12;
 
@@ -81,10 +83,16 @@ export function setCachedBlob(key: string, url: string, keepUrl?: string | null)
  * Nazwa pliku dla pobranego MP3. Transliteruje diakrytyki, wycina wszystko poza
  * bezpiecznym alfabetem i przycina do 80 znaków; puste wejście degraduje do
  * `artykul`, żeby pobranie nigdy nie dało pliku o nazwie `.mp3`.
+ *
+ * `transliterateAtomicLetters` MUSI iść PRZED `normalize("NFKD")`: litery bez
+ * rozkładu kanonicznego (`ł`, `ø`, `đ`, `ß`, `æ`) nie są przez NFKD ruszane,
+ * więc kolejny krok wycinałby je razem ze znakami niedozwolonymi - „Małe firmy"
+ * pobierało się jako `Mae-firmy`. Mapa jest importowana z JEDNEGO kanonicznego
+ * miejsca (`lib/content/anchorSlug`), nie kopiowana tutaj.
  */
 export function sanitizeFilename(input: string): string {
   return (
-    input
+    transliterateAtomicLetters(input)
       .normalize("NFKD")
       .replace(/[\u0300-\u036f]/g, "")
       .replace(/[^a-z0-9-_ ]/gi, "")

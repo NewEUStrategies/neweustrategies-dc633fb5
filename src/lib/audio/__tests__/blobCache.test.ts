@@ -176,18 +176,22 @@ describe("domyślna funkcja zwalniająca", () => {
 describe("sanitizeFilename - nazwa pobieranego MP3", () => {
   it("transliteruje diakrytyki i zamienia spacje na łączniki", () => {
     expect(sanitizeFilename("Rola Unii Europejskiej")).toBe("Rola-Unii-Europejskiej");
-    expect(sanitizeFilename("Zażółć gęślą")).toBe("Zazoc-gesla");
+    expect(sanitizeFilename("Zażółć gęślą")).toBe("Zazolc-gesla");
   });
 
-  it("DEFEKT (przypięty): litera l z kreską ZNIKA z nazwy pliku, zamiast stać się l", () => {
+  it("REGRESJA: litery bez rozkładu kanonicznego są transliterowane, nie gubione", () => {
+    // DEFEKT ZNALEZIONY TYM TESTEM (naprawiony osobnym commitem):
     // `normalize("NFKD")` NIE rozkłada U+0142 (ł) na `l` + znak łączący - to
-    // odrębny punkt kodowy, nie litera z diakrytykiem. Kolejny krok wycina
-    // wszystko poza [a-z0-9-_ ], więc `ł` po prostu ginie: „Małe firmy" pobiera
-    // się jako `Mae-firmy`. Ten sam defekt naprawiono już raz w propozycji
-    // publicznego adresu profilu (PR #252) - tutaj przeżył.
-    // Zachowanie przypięte; naprawa idzie osobnym commitem.
-    expect(sanitizeFilename("Małe firmy")).toBe("Mae-firmy");
-    expect(sanitizeFilename("Łódź")).toBe("odz");
+    // odrębny punkt kodowy, nie litera z diakrytykiem - więc krok wycinający
+    // znaki poza [a-z0-9-_ ] zjadał ją razem z nimi. „Małe firmy" pobierało się
+    // jako `Mae-firmy`, „Łódź" jako `odz`.
+    expect(sanitizeFilename("Małe firmy")).toBe("Male-firmy");
+    expect(sanitizeFilename("Łódź")).toBe("Lodz");
+  });
+
+  it("transliteruje też pozostałe litery atomowe (nordyckie, germańskie)", () => {
+    expect(sanitizeFilename("Straße")).toBe("Strasse");
+    expect(sanitizeFilename("Malmø")).toBe("Malmo");
   });
 
   it("wycina znaki niebezpieczne dla systemu plików", () => {
