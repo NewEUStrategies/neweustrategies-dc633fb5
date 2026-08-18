@@ -7,10 +7,12 @@
 --      wydarzen niebramkowanych poziomem"), a od 20260812103500 rowniez
 --      wydarzen czlonkowskich z ranga domyslna 0 - bo taki wiersz produkuje
 --      panel redakcji i tak go traktuja rsvp_event/get_event_access
---      (GREATEST(COALESCE(min_tier_rank, 0), 1)). Warstwa authenticated
---      ("events member read") widzi je nadal, wiec bramka jest upsellem,
---      nie 404. join_url/recording_url odciete grantem kolumnowym (jedyna
---      sciezka: RPC get_event_access).
+--      (GREATEST(COALESCE(min_tier_rank, 0), 1)). Od 20260817220000 warstwa
+--      authenticated ("events member read") czyta ta sama definicje
+--      "kwalifikuje sie" co RPC - bramke przybija osobny plik
+--      community_events_member_read_tier_gate_test.sql. join_url/
+--      recording_url odciete grantem kolumnowym (jedyna sciezka:
+--      RPC get_event_access).
 --   2. rsvp_event: wyscig o ostatnie miejsce pod FOR UPDATE (komplet ->
 --      lista rezerwowa, patrz community_events_waitlist_test.sql),
 --      idempotentne ponowienie, zwolnienie miejsca przez 'cancelled',
