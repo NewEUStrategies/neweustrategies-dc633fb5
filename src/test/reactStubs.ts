@@ -158,3 +158,48 @@ export function radixSelectStub(react: typeof import("react")): Record<string, u
       react.createElement("option", { value }, children as never),
   };
 }
+
+// --- atrapa Radix Switch ----------------------------------------------------
+
+/**
+ * Natywny `<input type="checkbox" role="switch">` w miejsce Radixowego.
+ * Radix Switch nie przełącza się pod happy-dom od samego `fireEvent.click`
+ * (potrzebuje zdarzeń wskaźnika), więc test nie miałby jak wejść w tryb
+ * zależny od przełącznika - a od tego zależą całe sekcje formularzy
+ * rozliczeniowych i paneli redakcyjnych (pole NIP pojawia się dopiero
+ * w trybie firmy).
+ *
+ * Atrapa jest wierna w tym, na czym stoją asercje: zachowuje `id`
+ * (więc `<Label htmlFor>` dalej wiąże etykietę), rolę `switch`,
+ * `aria-checked` i wywołanie `onCheckedChange` z nową wartością.
+ *
+ * Bez JSX (jak cały ten moduł) - wołane z wnętrza fabryki `vi.mock`.
+ */
+export function radixSwitchStub(react: typeof import("react")): Record<string, unknown> {
+  return {
+    Switch: ({
+      checked,
+      onCheckedChange,
+      disabled,
+      id,
+      ...rest
+    }: {
+      checked?: boolean;
+      onCheckedChange?: (next: boolean) => void;
+      disabled?: boolean;
+      id?: string;
+      [key: string]: unknown;
+    }) =>
+      react.createElement("input", {
+        ...rest,
+        type: "checkbox",
+        role: "switch",
+        id,
+        checked: !!checked,
+        disabled,
+        "aria-checked": checked ? "true" : "false",
+        onChange: (event: { target: { checked: boolean } }) =>
+          onCheckedChange?.(event.target.checked),
+      }),
+  };
+}
