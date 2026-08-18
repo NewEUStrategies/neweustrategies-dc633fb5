@@ -19,6 +19,18 @@ import {
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { getCroppedBlob, getImageDimensions, readFileAsDataUrl } from "@/lib/media/imageCrop";
+import {
+  ROTATION_MAX,
+  ROTATION_MIN,
+  ZOOM_MAX,
+  ZOOM_MIN,
+  aspectRatioLabel,
+  quantizeRotation,
+  quantizeZoom,
+  sourceAspectWarning,
+  stepRotation,
+  stepZoom,
+} from "@/lib/media/cropGeometry";
 
 export type CropKind = "avatar" | "cover";
 
@@ -104,15 +116,10 @@ export function ImageCropDialog({
 
   const tolerance = preset.tolerance ?? 0.35;
 
-  const ratioLabel = useMemo(() => {
-    if (Math.abs(preset.aspect - 1) < 0.01) return "1:1";
-    // Reduce a/b using GCD approximation
-    const w = preset.targetWidth;
-    const h = preset.targetHeight;
-    const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
-    const g = gcd(w, h);
-    return `${w / g}:${h / g}`;
-  }, [preset]);
+  const ratioLabel = useMemo(
+    () => aspectRatioLabel(preset.aspect, preset.targetWidth, preset.targetHeight),
+    [preset],
+  );
 
   // Load file into a data URL + validate source aspect ratio.
   useEffect(() => {
@@ -132,9 +139,7 @@ export function ImageCropDialog({
       setSrc(url);
       try {
         const { width, height } = await getImageDimensions(url);
-        const sourceRatio = width / height;
-        const diff = Math.abs(sourceRatio - preset.aspect) / preset.aspect;
-        setAspectWarn(diff > tolerance);
+        setAspectWarn(sourceAspectWarning(width, height, preset.aspect, tolerance));
       } catch {
         setAspectWarn(false);
       }
@@ -238,19 +243,18 @@ export function ImageCropDialog({
             </span>
             <Slider
               value={[zoom]}
-              min={1}
-              max={6}
+              min={ZOOM_MIN}
+              max={ZOOM_MAX}
               step={0.01}
-              onValueChange={(v) => setZoom(Math.round((v[0] ?? 1) * 100) / 100)}
+              onValueChange={(v) => setZoom(quantizeZoom(v[0] ?? ZOOM_MIN))}
               onKeyDown={(e) => {
                 // Precyzyjny krok: Shift = 0.01, domyślny 0.05
-                const fine = e.shiftKey ? 0.01 : 0.05;
                 if (e.key === "ArrowRight" || e.key === "ArrowUp") {
                   e.preventDefault();
-                  setZoom((z) => Math.min(6, Math.round((z + fine) * 100) / 100));
+                  setZoom((z) => stepZoom(z, 1, e.shiftKey));
                 } else if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
                   e.preventDefault();
-                  setZoom((z) => Math.max(1, Math.round((z - fine) * 100) / 100));
+                  setZoom((z) => stepZoom(z, -1, e.shiftKey));
                 }
               }}
               aria-label={t.zoom}
@@ -267,19 +271,19 @@ export function ImageCropDialog({
             </span>
             <Slider
               value={[rotation]}
-              min={-180}
-              max={180}
+              min={ROTATION_MIN}
+              max={ROTATION_MAX}
               step={0.5}
-              onValueChange={(v) => setRotation(Math.round((v[0] ?? 0) * 10) / 10)}
+              onValueChange={(v) => setRotation(quantizeRotation(v[0] ?? 0))}
               onKeyDown={(e) => {
                 // Shift = 0.1°, domyślny 1°, snap co 15° z Alt
-                const fine = e.altKey ? 15 : e.shiftKey ? 0.1 : 1;
+                const mods = { alt: e.altKey, shift: e.shiftKey };
                 if (e.key === "ArrowRight" || e.key === "ArrowUp") {
                   e.preventDefault();
-                  setRotation((r) => Math.min(180, Math.round((r + fine) * 10) / 10));
+                  setRotation((r) => stepRotation(r, 1, mods));
                 } else if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
                   e.preventDefault();
-                  setRotation((r) => Math.max(-180, Math.round((r - fine) * 10) / 10));
+                  setRotation((r) => stepRotation(r, -1, mods));
                 }
               }}
               aria-label={t.rotate}

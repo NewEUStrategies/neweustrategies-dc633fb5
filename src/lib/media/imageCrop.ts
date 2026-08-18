@@ -2,6 +2,8 @@
 // off-screen canvas. Fed by react-easy-crop's `croppedAreaPixels` payload.
 // Output is rescaled to `targetWidth × targetHeight` for consistent storage.
 
+import { rotationBoundingBox, toRadians } from "./cropGeometry";
+
 export interface CropArea {
   x: number;
   y: number;
@@ -19,8 +21,6 @@ async function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-const toRad = (deg: number) => (deg * Math.PI) / 180;
-
 /**
  * Return a Blob containing the cropped/rotated region, rescaled to
  * (targetWidth, targetHeight). Uses a two-canvas approach:
@@ -37,11 +37,14 @@ export async function getCroppedBlob(
   quality: number = 0.92,
 ): Promise<Blob> {
   const image = await loadImage(imageSrc);
-  const rad = toRad(rotationDeg);
+  const rad = toRadians(rotationDeg);
 
   // Bounding box that fits any rotation of the source image
-  const bBoxWidth = Math.abs(Math.cos(rad) * image.width) + Math.abs(Math.sin(rad) * image.height);
-  const bBoxHeight = Math.abs(Math.sin(rad) * image.width) + Math.abs(Math.cos(rad) * image.height);
+  const { width: bBoxWidth, height: bBoxHeight } = rotationBoundingBox(
+    image.width,
+    image.height,
+    rotationDeg,
+  );
 
   const rotCanvas = document.createElement("canvas");
   rotCanvas.width = bBoxWidth;
