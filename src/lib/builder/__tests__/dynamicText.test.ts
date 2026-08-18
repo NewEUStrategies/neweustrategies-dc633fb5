@@ -12,6 +12,7 @@ import {
   listDynamicTags,
   resolveDynamicText,
   resolveDynamicList,
+  hasDynamicTokens,
 } from "../dynamicText";
 import type { CurrentPostCtx } from "@/lib/content-model/postContext";
 
@@ -252,5 +253,46 @@ describe("resolveDynamicList", () => {
 
   it("nie zjada elementów, których nie da się rozwiązać", () => {
     expect(resolveDynamicList(["{post.title}", ""], null, "pl")).toEqual(["{post.title}", ""]);
+  });
+});
+
+describe("hasDynamicTokens", () => {
+  it("rozpoznaje tekst z tokenem i bez tokenu", () => {
+    expect(hasDynamicTokens("{post.title}")).toBe(true);
+    expect(hasDynamicTokens("Zwykły tekst")).toBe(false);
+    expect(hasDynamicTokens("© {year}")).toBe(true);
+  });
+
+  it("puste wejście to brak tokenów", () => {
+    expect(hasDynamicTokens("")).toBe(false);
+    expect(hasDynamicTokens(undefined)).toBe(false);
+    expect(hasDynamicTokens(null)).toBe(false);
+  });
+
+  it("nie uznaje klamer, które nie są tokenem", () => {
+    expect(hasDynamicTokens("{ spacja }")).toBe(false);
+    expect(hasDynamicTokens("{}")).toBe(false);
+    expect(hasDynamicTokens("{1abc}")).toBe(false);
+  });
+
+  it("REGRESJA: wynik jest STABILNY przy wielokrotnym wywołaniu", () => {
+    // Funkcja używała współdzielonego regexpa z flagą `g`, a `.test()` na takim
+    // regexpie przesuwa `lastIndex` - dla TEGO SAMEGO wejścia odpowiedzi szły
+    // na przemian true/false/true/false. Konsument, który sprawdzałby dwa
+    // pola pod rząd, dostawał losowy wynik dla drugiego.
+    for (let i = 0; i < 6; i += 1) {
+      expect(hasDynamicTokens("{year}")).toBe(true);
+    }
+    for (let i = 0; i < 6; i += 1) {
+      expect(hasDynamicTokens("bez tokenu")).toBe(false);
+    }
+  });
+
+  it("REGRESJA: nie truje `resolveDynamicText` wywołanego po nim", () => {
+    // Oba korzystają z tej samej stałej rodziny wzorców - sprawdzanie nie może
+    // zmieniać stanu podmieniania.
+    expect(hasDynamicTokens("{post.slug}")).toBe(true);
+    expect(resolveDynamicText("{post.slug}", ctx({ slug: "abc" }), "pl")).toBe("abc");
+    expect(hasDynamicTokens("{post.slug}")).toBe(true);
   });
 });
