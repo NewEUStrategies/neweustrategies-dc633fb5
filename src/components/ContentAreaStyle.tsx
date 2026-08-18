@@ -2,7 +2,7 @@
 // klasy `.post-content` na publicznym widoku. Komponent montowany raz w
 // `__root.tsx`, podobnie jak <DesignTokensStyle/>.
 import { usePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
-import { hardenStyleCss } from "@/lib/sanitize";
+import { hardenStyleCss } from "@/lib/sanitizePure";
 
 function num(px: number | null | undefined, fallback: string) {
   return typeof px === "number" && px > 0 ? `${px}px` : fallback;

@@ -381,6 +381,24 @@ export default defineConfig({
                 ) {
                   return "vendor-i18n";
                 }
+                // Biblioteki bez zależności (zod / tailwind-merge / dompurify)
+                // i sonner (zależny wyłącznie od react) - własne chunki
+                // vendorowe zamiast zapadania się w chunk wejściowy. Dla zod i
+                // tailwind-merge (nadal statycznie osiągalne z entry) nie
+                // zmniejsza to bajtów pierwszej wizyty, ale zdejmuje ~230 kB
+                // źródeł z NAJWIĘKSZEGO pliku (budżet largest-chunk) i daje
+                // trwały cache między deployami. dompurify i sonner są od
+                // 2026-08-18 poza grafem bootowania (patrz lib/sanitizePure.ts
+                // i lib/notify.ts) - nazwany chunk stabilizuje ich adres,
+                // a bramka check-entry-purity pilnuje, żeby nie wróciły.
+                // Domknięcie zależności (incydent 2026-07-20): zod,
+                // tailwind-merge i dompurify nie importują niczego; sonner
+                // importuje wyłącznie react/react-dom (vendor-react, krawędź
+                // jednokierunkowa).
+                if (id.includes("/node_modules/zod/")) return "vendor-zod";
+                if (id.includes("/node_modules/tailwind-merge/")) return "vendor-tw-merge";
+                if (id.includes("/node_modules/dompurify/")) return "vendor-dompurify";
+                if (id.includes("/node_modules/sonner/")) return "vendor-sonner";
                 return undefined;
               },
             },

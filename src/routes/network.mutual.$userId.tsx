@@ -13,7 +13,7 @@ import { NetworkDistance } from "@/components/network/organisms/NetworkDistance"
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useOnlineUsers } from "@/lib/chat/presence";
-import "@/lib/i18n-network";
+import { ensureI18n as ensureNetworkI18n } from "@/lib/i18n-network";
 
 type MutualRow = {
   user_id: string;
@@ -48,6 +48,9 @@ export const Route = createFileRoute("/network/mutual/$userId")({
 });
 
 function MutualConnectionsPage() {
+  // Rejestracja słownika w chunku KOMPONENTU trasy (nie w entry) - patrz
+  // komentarz przy ensureI18n w lib/i18n-network.ts.
+  ensureNetworkI18n();
   const { userId } = Route.useParams();
   const { t } = useTranslation();
   const { user } = useAuth();

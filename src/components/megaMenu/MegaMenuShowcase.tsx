@@ -9,7 +9,7 @@ import { AppLink } from "@/components/atoms/AppLink";
 import { GridCard } from "@/components/ui/grid-card";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { MegaMenuArrowIcon, resolveMegaMenuIcon } from "@/lib/megaMenu/showcaseIcons";
-import { safeUrl } from "@/lib/sanitize";
+import { safeUrl } from "@/lib/sanitizePure";
 
 export type ShowcaseLang = "pl" | "en";
 

@@ -29,7 +29,6 @@ import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 import { FriendlyErrorPage } from "../components/error/FriendlyErrorPage";
 import { ThemeProvider } from "../components/ThemeProvider";
 import { AuthProvider } from "../hooks/useAuth";
-import { Toaster } from "../components/ui/sonner";
 import { IconPackSync } from "../components/IconPackSync";
 import { DesignTokensStyle } from "../components/DesignTokensStyle";
 import { ContentAreaStyle } from "../components/ContentAreaStyle";
@@ -115,6 +114,15 @@ const ConsentBanner = lazy(() =>
 const ConsentPreviewPanel = lazy(() =>
   import("../components/ConsentPreviewPanel").then((m) => ({ default: m.ConsentPreviewPanel })),
 );
+// Toaster (sonner) - overlay jak wyżej: renderuje wyłącznie skutki interakcji
+// (toasty mutacji), nigdy pierwszego malowania, a statyczny import trzymał
+// całą bibliotekę sonner (~63 kB źródeł) w chunku wejściowym. Moduły ścieżki
+// bootowania wołają toasty przez leniwy most lib/notify.ts (kolejka FIFO do
+// czasu załadowania chunku), więc semantyka wywołań nie zmienia się.
+// Świadomy kompromis: toast wystrzelony między hydratacją a montażem chunku
+// przepada (sonner nie odtwarza historii subskrybentom) - realny nadawca
+// (mutacje operatora) nie kończy się przed hydratacją.
+const Toaster = lazy(() => import("../components/ui/sonner").then((m) => ({ default: m.Toaster })));
 
 // Pasek audio montuje się (i dociąga swój chunk) dopiero, gdy odtwarzacz ma
 // track albo zgłosił błąd (toast o nieudanym TTS mieszka w GlobalAudioBar).
@@ -597,7 +605,9 @@ function RootComponent() {
           <Suspense fallback={null}>
             <ExpertRequestDialogHost />
           </Suspense>
-          <Toaster />
+          <Suspense fallback={null}>
+            <Toaster />
+          </Suspense>
         </AuthProvider>
       </ThemeProvider>
     </I18nextProvider>

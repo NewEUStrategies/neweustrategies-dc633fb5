@@ -35,7 +35,7 @@ import {
   type GiftAdminSettings,
   type GiftAdminSettingsDraft,
 } from "@/lib/gifting/admin-model";
-import "@/lib/i18n-gifting-admin";
+import { ensureI18n as ensureGiftingAdminI18n } from "@/lib/i18n-gifting-admin";
 import { uiLocale } from "@/lib/i18n/format";
 
 export const Route = createFileRoute("/admin/gifting")({
@@ -45,6 +45,9 @@ export const Route = createFileRoute("/admin/gifting")({
 type Tab = "settings" | "links" | "audit";
 
 function GiftingAdmin() {
+  // Rejestracja słownika w chunku KOMPONENTU trasy (nie w entry) - patrz
+  // komentarz przy ensureI18n w lib/i18n-gifting-admin.ts.
+  ensureGiftingAdminI18n();
   const { t, i18n } = useTranslation();
   const [tab, setTab] = useState<Tab>("settings");
   const lang = i18n.language === "en" ? "en" : "pl";

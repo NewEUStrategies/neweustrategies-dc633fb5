@@ -17,7 +17,7 @@ import type {
   ColumnsGap,
   VerticalAlign,
 } from "./types";
-import { safeImageUrl } from "@/lib/sanitize";
+import { safeImageUrl } from "@/lib/sanitizePure";
 
 // ---------- responsive helper ----------
 

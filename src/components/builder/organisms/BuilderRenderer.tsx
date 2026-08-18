@@ -34,7 +34,7 @@ import {
 } from "@/components/builder/organisms/widget-view/frame";
 import { RenderErrorBoundary } from "@/components/error/RenderErrorBoundary";
 import { afterPrerendering } from "@/lib/prerender";
-import { sanitizeHtmlId, sanitizeCssClass, safeImageUrl, hardenStyleCss } from "@/lib/sanitize";
+import { sanitizeHtmlId, sanitizeCssClass, safeImageUrl, hardenStyleCss } from "@/lib/sanitizePure";
 import {
   sectionWrapperStyle,
   sectionContainerStyle,

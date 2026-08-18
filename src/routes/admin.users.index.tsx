@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import "@/lib/i18n-admin-users";
+import { ensureI18n as ensureAdminUsersI18n } from "@/lib/i18n-admin-users";
 import { useLang } from "@/lib/i18n/useLang";
 import { roleLabel } from "@/lib/authz/roleLabels";
 import type { AppRole } from "@/lib/authz/roles";
@@ -132,6 +132,9 @@ function primaryRole(roles: Role[]): Role {
 }
 
 function Users() {
+  // Rejestracja słownika w chunku KOMPONENTU trasy (nie w entry) - patrz
+  // komentarz przy ensureI18n w lib/i18n-admin-users.ts.
+  ensureAdminUsersI18n();
   const { t, i18n } = useTranslation();
   const lang = useLang();
   const qc = useQueryClient();

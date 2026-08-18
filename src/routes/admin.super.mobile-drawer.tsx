@@ -5,7 +5,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { uiLang } from "@/lib/i18n/format";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import "@/lib/i18n-mobile-drawer";
+import { ensureI18n as ensureMobileDrawerI18n } from "@/lib/i18n-mobile-drawer";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -78,6 +78,9 @@ const SECTION_LABELS: Record<
 };
 
 function MobileDrawerEditor() {
+  // Rejestracja słownika w chunku KOMPONENTU trasy (nie w entry) - patrz
+  // komentarz przy ensureI18n w lib/i18n-mobile-drawer.ts.
+  ensureMobileDrawerI18n();
   const navigate = useNavigate();
   const { isSuperAdmin, loading } = useAuth();
   const { t, i18n } = useTranslation();

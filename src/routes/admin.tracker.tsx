@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import "@/lib/i18n-admin-tracker";
+import { ensureI18n as ensureAdminTrackerI18n } from "@/lib/i18n-admin-tracker";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -82,6 +82,9 @@ function nullifyEmpty(value: string): string | null {
 }
 
 function AdminTrackerPage() {
+  // Rejestracja słownika w chunku KOMPONENTU trasy (nie w entry) - patrz
+  // komentarz przy ensureI18n w lib/i18n-admin-tracker.ts.
+  ensureAdminTrackerI18n();
   const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
   const qc = useQueryClient();

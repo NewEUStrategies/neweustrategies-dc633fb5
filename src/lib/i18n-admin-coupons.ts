@@ -169,4 +169,11 @@ const en = {
 i18n.addResourceBundle("pl", "translation", pl, true, true);
 i18n.addResourceBundle("en", "translation", en, true, true);
 
-export {};
+/**
+ * No-op wołany w KOMPONENCIE trasy (nie side-effectowym importem w pliku
+ * trasy): route splitter przenosi wtedy import razem z komponentem do jego
+ * chunku, a rejestracja (addResourceBundle wyżej) uruchamia się przy
+ * załadowaniu tego chunku - słownik nie wchodzi do chunku wejściowego
+ * KAŻDEJ strony. Wzorzec: i18n-club.ts / i18n-network.ts.
+ */
+export function ensureI18n(): void {}

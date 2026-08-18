@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { uiLocale } from "@/lib/i18n/format";
-import "@/lib/i18n-admin-organizations";
+import { ensureI18n as ensureAdminOrganizationsI18n } from "@/lib/i18n-admin-organizations";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -82,6 +82,9 @@ const DEFAULT_ACCENT = "#E94560";
 const DEFAULT_INK = "#141414";
 
 function AdminOrganizationDetailPage() {
+  // Rejestracja słownika w chunku KOMPONENTU trasy (nie w entry) - patrz
+  // komentarz przy ensureI18n w lib/i18n-admin-organizations.ts.
+  ensureAdminOrganizationsI18n();
   const { id } = Route.useParams();
   const { t, i18n } = useTranslation();
   const lang: Lang = i18n.language === "en" ? "en" : "pl";

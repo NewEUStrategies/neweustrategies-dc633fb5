@@ -9,7 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { ChevronDown } from "@/lib/lucide-shim";
 import "@/lib/i18n-public";
-import { safeUrl, safeImageUrl } from "@/lib/sanitize";
+import { safeUrl, safeImageUrl } from "@/lib/sanitizePure";
 import { buildImageSrcSet } from "@/lib/cropSizes";
 import { AppLink } from "@/components/atoms/AppLink";
 

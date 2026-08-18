@@ -28,7 +28,7 @@ import type {
 import type { Lang } from "@/lib/builder/postListQuery";
 import type { ImagePreloadInput } from "@/lib/seo/meta";
 import { asBool, asNumInRange, asOneOf, asStr } from "@/lib/content-model/contentValue";
-import { safeImageUrl } from "@/lib/sanitize";
+import { safeImageUrl } from "@/lib/sanitizePure";
 import { buildImageSrcSet } from "@/lib/cropSizes";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
 import { SLIDER_VARIANT_VALUES } from "@/lib/builder/sliderOptions";

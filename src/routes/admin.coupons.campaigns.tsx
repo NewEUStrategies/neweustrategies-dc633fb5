@@ -3,7 +3,7 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import "@/lib/i18n-admin-coupons";
+import { ensureI18n as ensureAdminCouponsI18n } from "@/lib/i18n-admin-coupons";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { Plus, Loader2, Send, Archive, Download } from "lucide-react";
 import { toast } from "sonner";
@@ -55,6 +55,9 @@ interface CampaignRow {
 }
 
 function CampaignsPage() {
+  // Rejestracja słownika w chunku KOMPONENTU trasy (nie w entry) - patrz
+  // komentarz przy ensureI18n w lib/i18n-admin-coupons.ts.
+  ensureAdminCouponsI18n();
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);

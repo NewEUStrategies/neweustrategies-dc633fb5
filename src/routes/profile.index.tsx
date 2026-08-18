@@ -58,7 +58,7 @@ import {
 } from "@/components/profile/sections/ProfileExtraSections";
 import { ProfileIntentSection } from "@/components/profile/sections/ProfileIntentSection";
 import { cn } from "@/lib/utils";
-import { htmlToPlainText } from "@/lib/sanitize";
+import { htmlToPlainText } from "@/lib/sanitizePure";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { useTheme } from "@/components/ThemeProvider";
 import { ensureI18n as ensureProfileExtras2I18n } from "@/lib/i18n-profile-extras2";

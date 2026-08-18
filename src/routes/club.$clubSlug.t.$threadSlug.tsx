@@ -117,7 +117,7 @@ import { ClubThreadWorkspace } from "@/components/clubs/organisms/ClubThreadWork
 import { useClubThreadWorkspace } from "@/lib/clubs/useClubWorkspace";
 import { EMPTY_WORKSPACE_SUMMARY } from "@/lib/clubs/workspaceTypes";
 import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
-import { fetchClubBySlug } from "@/lib/clubs/api";
+import { fetchClubBySlug } from "@/lib/clubs/publicClub";
 import { clubKeys } from "@/lib/clubs/queryKeys";
 import { formatDateTime } from "@/lib/i18n/format";
 import {

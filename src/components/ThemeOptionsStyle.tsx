@@ -1,7 +1,7 @@
 // Injects CSS variables driven by site_settings.theme_options
 // (Buttons + Text Fields tabs) so changes apply across the whole site.
 import { useSiteSetting } from "@/lib/useSiteSetting";
-import { hardenStyleCss } from "@/lib/sanitize";
+import { hardenStyleCss } from "@/lib/sanitizePure";
 
 type ButtonsCfg = {
   default_variant?: "solid" | "outline" | "ghost" | "pill";

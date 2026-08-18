@@ -34,7 +34,7 @@ import {
   PostLayoutCard,
   type DetailsTab,
 } from "@/components/admin/post-editor";
-import "@/lib/i18n-admin-post-panes";
+import { ensureI18n as ensureAdminPostPanesI18n } from "@/lib/i18n-admin-post-panes";
 
 export const Route = createFileRoute("/admin/posts/$slug")({
   component: EditPost,
@@ -47,6 +47,9 @@ export const Route = createFileRoute("/admin/posts/$slug")({
 });
 
 function EditPost() {
+  // Rejestracja słownika w chunku KOMPONENTU trasy (nie w entry) - patrz
+  // komentarz przy ensureI18n w lib/i18n-admin-post-panes.ts.
+  ensureAdminPostPanesI18n();
   const { slug: routeSlug } = Route.useParams();
   const { lang: langSearch } = Route.useSearch();
   const { i18n } = useTranslation();

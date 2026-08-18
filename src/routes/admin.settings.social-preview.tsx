@@ -18,7 +18,7 @@ import { ImageSlot, type ImageSlotTransform } from "@/components/admin/ImageSlot
 import { formatBytes } from "@/components/admin/media/lib/mediaFormat";
 import { prepareOgImageFile, type OgIssue } from "@/lib/media/ogImage";
 import { socialSourceRows } from "@/lib/seo/socialPreviewSources";
-import "@/lib/i18n-og-upload";
+import { ensureI18n as ensureOgUploadI18n } from "@/lib/i18n-og-upload";
 import { DEFAULT_SEO_SETTINGS, SEO_SETTINGS_KEY, type SeoSettings } from "@/lib/seo/settings";
 import {
   SITE_CANONICAL_ORIGIN,
@@ -33,6 +33,9 @@ export const Route = createFileRoute("/admin/settings/social-preview")({
 });
 
 function SocialPreviewTab() {
+  // Rejestracja słownika w chunku KOMPONENTU trasy (nie w entry) - patrz
+  // komentarz przy ensureI18n w lib/i18n-og-upload.ts.
+  ensureOgUploadI18n();
   const { t, i18n } = useTranslation();
   const lang = i18n.language?.startsWith("en") ? "en" : "pl";
   const { query, save } = useSettings<SeoSettings>(SEO_SETTINGS_KEY, DEFAULT_SEO_SETTINGS);

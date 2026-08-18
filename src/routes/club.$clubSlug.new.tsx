@@ -36,7 +36,7 @@ import {
   type ClubAnchorValue,
 } from "@/components/clubs/molecules/ClubAnchorPicker";
 import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
-import { fetchClubBySlug } from "@/lib/clubs/api";
+import { fetchClubBySlug } from "@/lib/clubs/publicClub";
 import { clubKeys } from "@/lib/clubs/queryKeys";
 import { newIdempotencyKey } from "@/lib/http/idempotency";
 import { useThreadDraft } from "@/lib/clubs/useThreadDraft";

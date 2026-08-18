@@ -15,7 +15,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import "@/lib/i18n-admin-integrations";
+import { ensureI18n as ensureAdminIntegrationsI18n } from "@/lib/i18n-admin-integrations";
 import { toast } from "sonner";
 import {
   Cable,
@@ -161,6 +161,9 @@ function kindUrlPlaceholder(raw: string): string {
 }
 
 function AdminIntegrationsPage() {
+  // Rejestracja słownika w chunku KOMPONENTU trasy (nie w entry) - patrz
+  // komentarz przy ensureI18n w lib/i18n-admin-integrations.ts.
+  ensureAdminIntegrationsI18n();
   const { t } = useTranslation();
   const qc = useQueryClient();
   const dispatchNow = useServerFn(dispatchIntegrationDeliveries);

@@ -9,7 +9,7 @@ import { useTranslation } from "react-i18next";
 import { ArrowLeft, BookOpen, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import "@/lib/i18n-admin-tracker-guide";
+import { ensureI18n as ensureAdminTrackerGuideI18n } from "@/lib/i18n-admin-tracker-guide";
 
 export const Route = createFileRoute("/admin/tracker-guide")({
   component: TrackerGuidePage,
@@ -28,6 +28,9 @@ function isStep(value: unknown): value is Step {
 }
 
 function TrackerGuidePage() {
+  // Rejestracja słownika w chunku KOMPONENTU trasy (nie w entry) - patrz
+  // komentarz przy ensureI18n w lib/i18n-admin-tracker-guide.ts.
+  ensureAdminTrackerGuideI18n();
   const { t } = useTranslation();
   const steps = t("adminTrackerGuide.steps", { returnObjects: true });
 

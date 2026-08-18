@@ -8,7 +8,7 @@
 import { toJson } from "@/lib/builder/types";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
+import { notifyError, notifySuccess } from "@/lib/notify";
 import { z } from "zod";
 import { deepMerge } from "@/lib/deepMerge";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
@@ -441,9 +441,9 @@ export function useSaveThemeDesign() {
     onSuccess: ({ next, lang }) => {
       qc.setQueryData(lang === "en" ? QUERY_KEY_EN : QUERY_KEY, next);
       qc.invalidateQueries({ queryKey: ["site_settings_public", "all"] });
-      toast.success(lang === "en" ? "Zapisano Theme Design (EN)" : "Zapisano Theme Design");
+      notifySuccess(lang === "en" ? "Zapisano Theme Design (EN)" : "Zapisano Theme Design");
     },
-    onError: (e: Error) => toast.error(e.message || "Błąd zapisu"),
+    onError: (e: Error) => notifyError(e.message || "Błąd zapisu"),
   });
 }
 
@@ -460,13 +460,13 @@ export function useSaveThemeDesignLangMode() {
     onSuccess: (next) => {
       qc.setQueryData(QUERY_KEY_LANG_MODE, next);
       qc.invalidateQueries({ queryKey: ["site_settings_public", "all"] });
-      toast.success(
+      notifySuccess(
         next.mode === "split"
           ? "Styl treści: osobno dla PL i EN"
           : "Styl treści: wspólny dla PL i EN",
       );
     },
-    onError: (e: Error) => toast.error(e.message || "Błąd zapisu"),
+    onError: (e: Error) => notifyError(e.message || "Błąd zapisu"),
   });
 }
 

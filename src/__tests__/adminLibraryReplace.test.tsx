@@ -7,6 +7,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
+import type React from "react";
 
 const { rows, uploadSpy, updateSpy, removeObjSpy } = vi.hoisted(() => ({
   rows: [] as Array<Record<string, unknown>>,
@@ -31,7 +32,12 @@ vi.mock("@/lib/billing/tiers", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-import { AdminLibraryPage } from "@/routes/admin.library";
+import { Route as AdminLibraryRoute } from "@/routes/admin.library";
+
+// Komponent trasy NIE jest eksportowany (eksport blokował route splitter i
+// trzymał całą stronę w chunku wejściowym) - test sięga po niego przez
+// opcje trasy, dokładnie tak jak robi to router.
+const AdminLibraryPage = AdminLibraryRoute.options.component as React.ComponentType;
 
 const OLD_PATH = "t1/u1/1-stary.pdf";
 

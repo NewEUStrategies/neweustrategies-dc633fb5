@@ -5,7 +5,7 @@
 import { toJson } from "@/lib/builder/types";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
+import { notifyError, notifySuccess } from "@/lib/notify";
 import { z } from "zod";
 import { deepMerge } from "@/lib/deepMerge";
 import { commitSiteSettingWrite, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
@@ -169,9 +169,9 @@ export function useSaveFontSizes() {
       // niepotwierdzona wartość nadpisuje ewentualną starą odpowiedź serwera,
       // więc podgląd i strona publiczna nigdy nie migają starymi tokenami.
       await commitSiteSettingWrite(qc, FONT_SIZES_KEY, next);
-      toast.success("Zapisano rozmiary czcionek");
+      notifySuccess("Zapisano rozmiary czcionek");
     },
-    onError: (e: Error) => toast.error(e.message || "Błąd zapisu"),
+    onError: (e: Error) => notifyError(e.message || "Błąd zapisu"),
   });
 }
 

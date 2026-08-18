@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-mobile-drawer";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { memo, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, memo, Suspense, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Menu, Moon, Search, Sun, X } from "lucide-react";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
@@ -17,7 +17,15 @@ import type { AdPageType } from "@/lib/ads/types";
 import { TrendingTicker } from "@/components/header/TrendingTicker";
 import { HeaderSkeleton } from "@/components/header/HeaderSkeleton";
 import { MobileDrawerBody } from "@/components/header/mobile/MobileDrawerBody";
-import { SearchOverlay } from "@/components/SearchOverlay";
+// SearchOverlay przez React.lazy: renderuje null aż do otwarcia (searchOpen
+// startuje false po obu stronach), więc lazy nie zmienia ani bajta HTML-a,
+// a ~20 kB źródeł overlayu schodzi z chunku wejściowego każdej strony.
+// Montowany BEZWARUNKOWO (nie za bramką searchOpen): stan wewnętrzny
+// (ostatnie wyszukiwania, wpisana fraza) ma przeżywać zamknięcie overlayu -
+// dokładnie jak przed zmianą. Ta sama doktryna lazy-overlay co w __root.tsx.
+const SearchOverlay = lazy(() =>
+  import("@/components/SearchOverlay").then((m) => ({ default: m.SearchOverlay })),
+);
 import { AppLink } from "@/components/atoms/AppLink";
 import { LangReelSwitcher } from "@/components/atoms/LangReelSwitcher";
 
@@ -275,15 +283,17 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
           </div>,
           document.body,
         )}
-      <SearchOverlay
-        open={searchOpen}
-        onClose={() => setSearchOpen(false)}
-        mode="fullscreen"
-        heading={t("common.search")}
-        liveResults
-        limit={8}
-        lang={lang}
-      />
+      <Suspense fallback={null}>
+        <SearchOverlay
+          open={searchOpen}
+          onClose={() => setSearchOpen(false)}
+          mode="fullscreen"
+          heading={t("common.search")}
+          liveResults
+          limit={8}
+          lang={lang}
+        />
+      </Suspense>
     </>
   );
 }

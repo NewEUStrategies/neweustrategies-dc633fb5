@@ -403,6 +403,43 @@ const CLIENT_DIR =
 // zmierzonym 2543,2), overall ZOSTAJE 3835 (zmierzone 3814,4, zapas 0,5%),
 // chunk 471 -> 385 RATCHET W DÓŁ (zmierzone 376,5 - podział zbił entry, więc
 // próg schodzi razem z nim i dalej łapie regresję rzędu 2%).
+//
+// 2026-08-18  CIĘCIE ŚCIEŻKI BOOTOWANIA (diagnoza wolnego pierwszego wejścia,
+//             docs/WDROZENIE_PIERWSZE_WEJSCIE_2026-08-18.md). Zmierzone na
+//             jednym hoście przed/po (uwaga: instalacja npm z publicznego
+//             rejestru czytała ~1% WYŻEJ niż baseline CI - liczby porównywać
+//             parami przed/po, nie z baseline'em):
+//   * chunk wejściowy (plik index-*.js): 373,9 -> 253,2 KB gz (-120,7 KB,
+//     -32%) - to płaci KAŻDE pierwsze wejście przed hydratacją;
+//   * pełne domknięcie statyczne bootu: 654 -> ~554 KB gz / 2179 -> ~1876 KB
+//     surowych (parse/compile skaluje się z surowymi);
+//   * największym plikiem przestał być entry - jest nim EChartClient
+//     (266,8 KB gz, admin-only, lazy).
+//             CO ZESZŁO z entry (przyczyny, nie kilobajty - pilnuje ich
+//             check:entry-purity): 182 kB źródeł słowników i18n-* (side-effect
+//             importy w plikach tras -> wzorzec ensureI18n() w komponencie),
+//             dompurify (split lib/sanitizePure), sonner (lib/notify + lazy
+//             Toaster), sekcje-label i akordeon (lazyWidgets), treści prawne
+//             (lib/legal/meta.ts vs moduł ?tsr-shared), clubs/api (loader
+//             importuje wycinek publicClub), eksportowane komponenty tras
+//             admin.library/admin.comments (eksport blokował splitter).
+//             zod i tailwind-merge ZOSTAJĄ na ścieżce bootowania (schematy
+//             ustawień w loaderze roota / cn() w każdym komponencie), ale we
+//             własnych chunkach vendorowych - stabilny cache między deployami.
+//             BILANS KSIĘGOWY: public 2567,4 -> 2535,0 (-32,4; słowniki
+//             adminowe wróciły do grafu admin-only), overall 3847,6 -> 3866,4
+//             (+18,8) - ta sama klasa kosztu co wpis 2026-08-15 (3): podział
+//             nie usuwa kodu, a ~30 nowych granic chunków gzipuje się gorzej
+//             niż jeden strumień. Świadomie akceptowane: +19 KB sumy sesji
+//             (w większości powierzchnie adminowe) za -121 KB gz na KAŻDYM
+//             pierwszym wejściu czytelnika.
+//
+// FLOORY za śladem: public 2570 -> 2545 RATCHET W DÓŁ (zmierzone 2535,0 na
+// hoście czytającym wyżej niż CI), overall 3835 -> 3870 (zmierzone 3866,4;
+// na CI przewidywane ~3833 - stary próg zostawiał <0,1% zapasu, czyli
+// flapping od pierwszego cudzego merge'a; ~1% zapasu wg lekcji z 08-01),
+// chunk 385 -> 280 RATCHET W DÓŁ (zmierzone 266,8 - entry zszedł do 253,2,
+// próg schodzi za śladem i dalej łapie regresję rzędu 5%).
 
 /**
  * Progi ZAMROŻONE (2026-08-12). Do tej pory każdy z nich dało się rozluźnić
@@ -414,20 +451,19 @@ const CLIENT_DIR =
  * do lokalnego eksperymentu „ile zejdzie, jeśli...".
  */
 const FROZEN_BUDGET_KB = {
-  // Największy pojedynczy chunk gzip. Zmierzone 2026-08-15 (3): 376,5 po
-  // podziale WidgetView (PR #240) - ratchet 471 -> 385 (~2% zapasu). To jedyna
-  // z tych liczb, którą płaci każde pierwsze wejście; pozycja i18n-club
-  // (181 kB źródła) wciąż w niej siedzi.
-  chunk: 385,
-  // gzip JS osiągalny z publicznego URL-a. Zmierzone 2026-08-15 (3): 2543,2 -
-  // suma rośnie po podziale per widget, bo liczy OSIĄGALNOŚĆ, a nie transfer
-  // pierwszego wejścia (ten spadł o 94,2 KB) - patrz wpis 2026-08-15 (3).
-  // ~1% zapasu, bo tę liczbę podnosi KAŻDA nowa trasa publiczna i przy zapasie
-  // rzędu kilku KB bramka zapala się od cudzych merge'ów (lekcja z 08-01).
-  public: 2570,
-  // gzip JS łącznie z kodem tylko adminowym. Zmierzone 2026-08-15 (3): 3814,4 -
-  // próg ZOSTAJE (konwencja ~1% dałaby 3852, czyli wyżej; nie podnosimy).
-  overall: 3835,
+  // Największy pojedynczy chunk gzip. Zmierzone 2026-08-18: 266,8 (EChartClient,
+  // admin-only) - entry po cięciu ścieżki bootowania ma 253,2. Ratchet
+  // 385 -> 280: próg schodzi za śladem (wpis 2026-08-18 w kronice).
+  chunk: 280,
+  // gzip JS osiągalny z publicznego URL-a. Zmierzone 2026-08-18: 2535,0
+  // (host czytający ~1% wyżej niż CI) - słowniki adminowe wróciły do grafu
+  // admin-only. Ratchet 2570 -> 2545.
+  public: 2545,
+  // gzip JS łącznie z kodem tylko adminowym. Zmierzone 2026-08-18: 3866,4
+  // (na CI przewidywane ~3833). Podniesione 3835 -> 3870: koszt ~30 nowych
+  // granic chunków po zejściu ~700 kB źródeł ze ścieżki bootowania - pełne
+  // uzasadnienie we wpisie 2026-08-18 w kronice wyżej.
+  overall: 3870,
 } as const;
 
 /** GitHub Actions ustawia CI=true; honorujemy też generyczne CI innych runnerów. */

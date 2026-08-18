@@ -4,14 +4,14 @@ import { BrandIcon } from "@/components/icons/BrandIcon";
 
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import "@/lib/i18n-admin-users";
+import { ensureI18n as ensureAdminUsersI18n } from "@/lib/i18n-admin-users";
 import { ROLE_LABEL_KEYS } from "@/lib/authz/roleLabels";
 import type { AppRole } from "@/lib/authz/roles";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 
 import { supabase } from "@/integrations/supabase/client";
-import { htmlToPlainText } from "@/lib/sanitize";
+import { htmlToPlainText } from "@/lib/sanitizePure";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -59,6 +59,9 @@ type Role = AppRole;
 const ASSIGNABLE_ROLES: readonly Role[] = ["admin", "editor", "author", "user"];
 
 function UserDetail() {
+  // Rejestracja słownika w chunku KOMPONENTU trasy (nie w entry) - patrz
+  // komentarz przy ensureI18n w lib/i18n-admin-users.ts.
+  ensureAdminUsersI18n();
   const { id } = Route.useParams();
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();

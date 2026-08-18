@@ -1135,3 +1135,25 @@ function contrastOn(color: string): string {
   }
   return "#ffffff";
 }
+
+/**
+ * Kompletny widok widgetu "section-label" (odczyt propsów + render) za jedną
+ * granicą modułu - konsumowany przez lazyWidgets. SimpleWidgets renderował
+ * dotąd ten moduł statycznie (readSectionLabelProps + SectionLabelRender),
+ * przez co 21 wariantów etykiety (~39 kB źródeł) jechało w chunku wejściowym
+ * KAŻDEJ strony. Etykieta sekcji nie jest widgetem chrome - SSR wypełnia
+ * granicę Suspense, a chunk dogrzewa warmWidgetChunks (główna ścieżka
+ * czytelnicza: etykiety sekcji na stronie głównej).
+ */
+export function SectionLabelWidgetView({
+  content,
+  lang,
+  theme,
+}: {
+  content: WidgetNode["content"];
+  lang: "pl" | "en";
+  theme: "light" | "dark";
+}) {
+  const props = readSectionLabelProps(content, lang, { theme });
+  return <SectionLabelRender {...props} />;
+}

@@ -26,8 +26,11 @@
 // What stays EAGER (deliberately): chrome-critical navigation and the cheap
 // inline JSX cases - heading, text (shell), button, nav-link, mega-menu, menu,
 // lang-switcher, theme-toggle, image (logo / LCP candidate), icon, divider,
-// spacer, copyright, social-icons, section-label, cta, dark-featured-card and
-// the other small inline branches of SimpleWidgets. Two reasons: navigation
+// spacer, copyright, social-icons, cta, dark-featured-card and
+// the other small inline branches of SimpleWidgets.
+// 2026-08-18: section-label i accordion przestały być eager - etykieta ciągnęła
+// 21 wariantów (~39 kB źródeł), a akordeon był jedynym eager konsumentem
+// sanitizeHtml/DOMPurify; oba żyją niżej w tym rejestrze. Two reasons: navigation
 // must hydrate first (header interactivity), and chunks of a few hundred bytes
 // do not compress - 45 takich plików kosztowało kiedyś ~22 KB samych nagłówków
 // (patrz kronika w scripts/check-bundle-size.ts, wpis 2026-08-06 (2)).
@@ -108,6 +111,8 @@ import type { TocWidget as TocWidgetImpl } from "./TocWidget";
 import type { PricingPlansView as PricingPlansViewImpl } from "./PricingPlansView";
 import type { DynamicTagWidget as DynamicTagWidgetImpl } from "./DynamicTagWidgets";
 import type { GalleryLightboxZone as GalleryLightboxZoneImpl } from "./GalleryLightbox";
+import type { AccordionWidget as AccordionWidgetImpl } from "./AccordionWidget";
+import type { SectionLabelWidgetView as SectionLabelWidgetViewImpl } from "@/lib/builder/sectionLabelVariants";
 import type { PostsSliderWidget as PostsSliderWidgetImpl } from "./PostsSliderWidget";
 
 /** Builder-only shimmer; `null` on public pages (SSR fills the boundary). */
@@ -463,6 +468,22 @@ const GalleryLightboxZoneLazy = lazy(() =>
   import("./GalleryLightbox").then((m) => ({ default: m.GalleryLightboxZone })),
 ) as ComponentType<ComponentProps<typeof GalleryLightboxZoneImpl>>;
 export const GalleryLightboxZone = withSuspense(GalleryLightboxZoneLazy);
+
+// Akordeon (FAQ): jedyny konsument sanitizeHtml (DOMPurify) w SimpleWidgets -
+// wydzielony, żeby DOMPurify nie jechał w chunku wejściowym każdej strony.
+const AccordionWidgetLazy = lazy(() =>
+  import("./AccordionWidget").then((m) => ({ default: m.AccordionWidget })),
+) as ComponentType<ComponentProps<typeof AccordionWidgetImpl>>;
+export const AccordionWidget = withSuspense(AccordionWidgetLazy);
+
+// Etykieta sekcji: 21 wariantów wizualnych (~39 kB źródeł) - nie chrome.
+// Dogrzewane w warmWidgetChunks (etykiety sekcji na głównej ścieżce czytelniczej).
+const SectionLabelWidgetViewLazy = lazy(() =>
+  import("@/lib/builder/sectionLabelVariants").then((m) => ({
+    default: m.SectionLabelWidgetView,
+  })),
+) as ComponentType<ComponentProps<typeof SectionLabelWidgetViewImpl>>;
+export const SectionLabelWidgetView = withSuspense(SectionLabelWidgetViewLazy);
 
 // Kanwowy click-to-edit: renderuje się WYŁĄCZNIE przy canEdit (kanwa buildera),
 // a przez normalizeBuilderRichHtml ciągnie node-html-parser - statyczny import

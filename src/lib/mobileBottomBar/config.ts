@@ -9,7 +9,7 @@
 // useSiteSetting(). Treści są dwujęzyczne (PL/EN) z fallbackiem na klucz i18n,
 // a kolory - w tym akcent aktywnej pozycji - są rozdzielone na tryb jasny i
 // ciemny, żeby kontrast nie zależał od motywu.
-import { safeUrl } from "@/lib/sanitize";
+import { safeUrl } from "@/lib/sanitizePure";
 import { DEFAULT_LANG, localizedPath, normalizeLang, stripLangPrefix } from "@/lib/i18n/localePath";
 import { uiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";

@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
+import type React from "react";
 
 // Kolejka moderacji: dane z API, akcje zbiorcze przez bulkModerateComments.
 const { bulkSpy, modSpy, rows } = vi.hoisted(() => ({
@@ -17,7 +18,12 @@ vi.mock("@/lib/comments/api", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-import { AdminComments } from "@/routes/admin.comments";
+import { Route as AdminCommentsRoute } from "@/routes/admin.comments";
+
+// Komponent trasy NIE jest eksportowany (eksport blokował route splitter i
+// trzymał całą stronę w chunku wejściowym) - test sięga po niego przez
+// opcje trasy, dokładnie tak jak robi to router.
+const AdminComments = AdminCommentsRoute.options.component as React.ComponentType;
 
 function wrap(node: ReactNode) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });

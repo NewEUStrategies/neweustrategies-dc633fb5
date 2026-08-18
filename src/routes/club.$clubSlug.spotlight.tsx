@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import { ClubWorkspaceLayout } from "@/components/clubs/organisms/ClubWorkspaceLayout";
 import { ClubSpotlightScreen } from "@/components/clubs/organisms/ClubSpotlightScreen";
 import { buildClubHead, toClubHeadSource } from "@/lib/clubs/clubHead";
-import { fetchClubBySlug } from "@/lib/clubs/api";
+import { fetchClubBySlug } from "@/lib/clubs/publicClub";
 import { clubKeys } from "@/lib/clubs/queryKeys";
 import { ensureClubI18n } from "@/lib/i18n-club";
 

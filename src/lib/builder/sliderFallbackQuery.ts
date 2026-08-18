@@ -3,7 +3,7 @@
 // wydzieleniem ciągnęło to cały ~53 KB renderer sliderów do współdzielonego
 // bundla na stronach, które żadnego slidera nie mają.
 import { supabase } from "@/integrations/supabase/client";
-import { safeImageUrl } from "@/lib/sanitize";
+import { safeImageUrl } from "@/lib/sanitizePure";
 import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 import { edgeTtlCache } from "@/lib/ssrCache";
 

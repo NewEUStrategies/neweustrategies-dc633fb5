@@ -41,14 +41,17 @@ import {
 import { ensureI18n } from "@/lib/i18n-admin-comments";
 import { uiLocale } from "@/lib/i18n/format";
 
-ensureI18n();
-
 export const Route = createFileRoute("/admin/comments")({
   component: AdminComments,
   head: () => ({ meta: [{ title: "Comments · Admin" }] }),
 });
 
-export function AdminComments() {
+// BEZ `export`: jak w admin.library.tsx - eksport blokował route splitter
+// i trzymał całą stronę (12 kB źródeł) w chunku wejściowym.
+function AdminComments() {
+  // Rejestracja słownika w chunku KOMPONENTU trasy (nie w entry) - wywołanie
+  // na poziomie modułu trzymało import w shellu trasy, czyli w entry.
+  ensureI18n();
   const { t, i18n } = useTranslation();
   const lang = (i18n.language.startsWith("pl") ? "pl" : "en") as "pl" | "en";
   const qc = useQueryClient();
