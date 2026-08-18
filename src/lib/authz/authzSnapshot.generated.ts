@@ -65,10 +65,11 @@ export const AUTHZ_SNAPSHOT: AuthzSnapshotModule = {
     {"capability":"gift_links","ref":"fn:can_gift_articles/0","kind":"function","object":"can_gift_articles","file":"20260723170000_expert_request_capability.sql","bypassRoles":[],"tenantRef":"none"},
     {"capability":"premium_content","ref":"fn:has_content_access/2","kind":"function","object":"has_content_access","file":"20260723090000_tier_content_gating_tracker.sql","bypassRoles":[],"tenantRef":"row"},
     {"capability":"pro_briefings","ref":"fn:get_event_access/1","kind":"function","object":"get_event_access","file":"20260724100000_fix_definer_header_tenant_scope.sql","bypassRoles":["admin","editor"],"tenantRef":"caller"},
-    {"capability":"pro_briefings","ref":"fn:rsvp_event/2","kind":"function","object":"rsvp_event","file":"20260721150000_events_waitlist_recordings_gate.sql","bypassRoles":[],"tenantRef":"row"},
+    {"capability":"pro_briefings","ref":"fn:rsvp_event/2","kind":"function","object":"rsvp_event","file":"20260818065327_6b2f8f3e-361e-4894-8e10-55750fb073e3.sql","bypassRoles":[],"tenantRef":"row"},
+    {"capability":"pro_briefings","ref":"policy:events/events member read","kind":"policy","object":"events","file":"20260818065327_6b2f8f3e-361e-4894-8e10-55750fb073e3.sql","bypassRoles":[],"tenantRef":"row"},
     {"capability":"qa_priority","ref":"fn:list_qa_questions/1","kind":"function","object":"list_qa_questions","file":"20260724090700_qa_list_my_vote.sql","bypassRoles":[],"tenantRef":"row"},
     {"capability":"recordings","ref":"fn:get_event_access/1","kind":"function","object":"get_event_access","file":"20260724100000_fix_definer_header_tenant_scope.sql","bypassRoles":["admin","editor"],"tenantRef":"caller"},
     {"capability":"regulatory_monitoring","ref":"policy:eu_policy_follows/policy follows owner all","kind":"policy","object":"eu_policy_follows","file":"20260814221337_7032c52d-ad30-4821-a2e9-4ae1fa855a8f.sql","bypassRoles":[],"tenantRef":"row"},
   ],
-  stats: {"migrations":784,"functions":840,"policies":541},
+  stats: {"migrations":788,"functions":840,"policies":541},
 };
