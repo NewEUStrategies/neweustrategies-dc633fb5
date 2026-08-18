@@ -11,7 +11,9 @@
     "directMessage",
     "club",
     "adminClubs",
-    "clubElements"
+    "clubElements",
+    "sponsored",
+    "postOrganization"
   ],
   "missing": [],
   "missingEn": [],
@@ -125,6 +127,8 @@
     "builder.tabsPane.innerSecN",
     "builder.textRotateEditor.sampleEn",
     "builder.textRotateEditor.samplePl",
+    "builder.typographyControl.desktopGroup",
+    "builder.typographyControl.mobileGroup",
     "builder.widgetLibrary.catFeatures",
     "builder.widgetLibrary.catMedia",
     "builder.widgetLibrary.sub.audio",
@@ -149,6 +153,6 @@
   "repoWide": {
     "missingEn": 0,
     "missingPl": 0,
-    "untranslated": 456
+    "untranslated": 459
   }
 }
