@@ -60,7 +60,9 @@ export const listFunnelSubscribers = createServerFn({ method: "POST" })
       .limit(data.limit);
 
     if (data.search && data.search.length > 0) {
-      const term = data.search.replace(/[%_]/g, "");
+      // Strip LIKE wildcards and PostgREST .or() metacharacters so the search
+      // phrase cannot inject extra filter conditions.
+      const term = data.search.replace(/[%_,()"\\]/g, "");
       q = q.or(
         `email.ilike.%${term}%,first_name.ilike.%${term}%,last_name.ilike.%${term}%,display_name.ilike.%${term}%`,
       );
