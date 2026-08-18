@@ -568,23 +568,23 @@ describe("aggregateRunStats - ramiona brzegowe", () => {
 });
 
 // ---------------------------------------------------------------------------
-// ŚWIADEK DEFEKTU: runda wartości warunku jest STRATNA.
+// RUNDA WARTOŚCI WARUNKU JEST BEZSTRATNA (regresja naprawionego defektu).
 //
-// `conditionToPairs` -> (edytor) -> `pairsToCondition` przechodzi przez tekst.
-// Wartość, która W BAZIE jest STRINGIEM wyglądającym jak inny typ JSON
-// ("true", "42", "null", '{"a":1}'), wraca z tej rundy jako TEN INNY TYP.
+// Do 18.08 runda `conditionToPairs` -> (edytor) -> `pairsToCondition` gubiła
+// typ: wartość, która W BAZIE jest STRINGIEM wyglądającym jak inny typ JSON
+// ("true", "42", "null", '{"a":1}'), wracała z niej jako TEN INNY TYP.
 //
-// Skutek produkcyjny: redaktor otwiera istniejący przepis, zapisuje BEZ
-// TKNIĘCIA warunku - i typ wartości się zmienia. `payload @> condition`
-// rozróżnia typy, więc przepis PRZESTAJE SIĘ ODPALAĆ, bez żadnego komunikatu.
-// Dokładnie klasa „zły warunek przechodzi cicho".
+// Skutek produkcyjny był cichy i kosztowny: redaktor otwierał istniejący
+// przepis, zapisywał BEZ TKNIĘCIA warunku, a `payload @> condition` przestawał
+// pasować, bo containment na jsonb rozróżnia typy. Przepis przestawał się
+// odpalać, bez ani jednego komunikatu - dokładnie klasa „zły warunek przechodzi
+// cicho".
 //
-// Ten blok opisuje stan OBECNY (nie życzenie), żeby naprawa miała punkt
-// odniesienia. Naprawa idzie osobnym commitem i zamienia te asercje na
-// asercje poprawności.
+// Naprawa: `conditionValueToInput` wypisuje string W CUDZYSŁOWACH, gdy inaczej
+// zmieniłby typ. Ten blok jest więc teraz TESTEM REGRESJI, nie świadkiem defektu.
 // ---------------------------------------------------------------------------
 
-describe("DEFEKT: runda warunku gubi typ string dla wartości wyglądających jak JSON", () => {
+describe("runda warunku zachowuje typ (także dla stringów wyglądających jak JSON)", () => {
   const roundTrip = (value: unknown) => pairsToCondition(conditionToPairs({ k: value } as never));
 
   it("runda ZACHOWUJE typy, które nie kolidują z tekstem", () => {
@@ -600,22 +600,42 @@ describe("DEFEKT: runda warunku gubi typ string dla wartości wyglądających ja
     expect(roundTrip("tekst z, przecinkiem")).toEqual({ k: "tekst z, przecinkiem" });
   });
 
-  it("runda ZMIENIA typ stringów wyglądających jak literał JSON", () => {
-    // Każda z tych linii to przepis, który po otwarciu i zapisie przestaje
-    // pasować do payloadu.
-    expect(roundTrip("true")).toEqual({ k: true }); // oczekiwane: { k: "true" }
-    expect(roundTrip("false")).toEqual({ k: false }); // oczekiwane: { k: "false" }
-    expect(roundTrip("null")).toEqual({ k: null }); // oczekiwane: { k: "null" }
-    expect(roundTrip("42")).toEqual({ k: 42 }); // oczekiwane: { k: "42" }
-    expect(roundTrip("-3.5")).toEqual({ k: -3.5 }); // oczekiwane: { k: "-3.5" }
-    expect(roundTrip('{"a":1}')).toEqual({ k: { a: 1 } }); // oczekiwane: { k: '{"a":1}' }
-    expect(roundTrip("[1,2]")).toEqual({ k: [1, 2] }); // oczekiwane: { k: "[1,2]" }
+  it("runda ZACHOWUJE typ string dla wartości wyglądających jak literał JSON", () => {
+    // Każda z tych linii to przepis, który PRZED naprawą po otwarciu i zapisie
+    // przestawał pasować do payloadu.
+    expect(roundTrip("true")).toEqual({ k: "true" });
+    expect(roundTrip("false")).toEqual({ k: "false" });
+    expect(roundTrip("null")).toEqual({ k: "null" });
+    expect(roundTrip("42")).toEqual({ k: "42" });
+    expect(roundTrip("-3.5")).toEqual({ k: "-3.5" });
+    expect(roundTrip('{"a":1}')).toEqual({ k: '{"a":1}' });
+    expect(roundTrip("[1,2]")).toEqual({ k: "[1,2]" });
+    // Naprawa domknęła też przypadki, których defekt dotyczył ubocznie:
+    // wiodące zera i otaczające spacje przestały być zjadane.
+    expect(roundTrip("007")).toEqual({ k: "007" });
+    expect(roundTrip("  spacja  ")).toEqual({ k: "  spacja  " });
   });
 
-  it("conditionValueToInput nie odróżnia stringa `true` od boolean true", () => {
-    // Źródło straty: reprezentacja tekstowa obu wartości jest identyczna,
-    // a `parseConditionValue` nie ma z czego odtworzyć intencji.
-    expect(conditionValueToInput("true")).toBe(conditionValueToInput(true));
-    expect(conditionValueToInput("42")).toBe(conditionValueToInput(42));
+  it("conditionValueToInput ODRÓŻNIA stringa `true` od boolean true", () => {
+    // To była przyczyna źródłowa straty: reprezentacja tekstowa obu wartości
+    // była identyczna, więc `parseConditionValue` nie miał z czego odtworzyć
+    // intencji. Teraz string, który zmieniłby typ, jedzie w cudzysłowach.
+    expect(conditionValueToInput(true)).toBe("true");
+    expect(conditionValueToInput("true")).toBe('"true"');
+    expect(conditionValueToInput(42)).toBe("42");
+    expect(conditionValueToInput("42")).toBe('"42"');
+    expect(conditionValueToInput(null)).toBe("null");
+    expect(conditionValueToInput("null")).toBe('"null"');
+  });
+
+  it("zwykłe wartości tekstowe WYGLĄDAJĄ jak dotąd (brak szumu cudzysłowów)", () => {
+    // Naprawa nie ma prawa zmienić tego, co redaktor widzi w typowym warunku -
+    // cudzysłowy pojawiają się WYŁĄCZNIE tam, gdzie ratują typ.
+    expect(conditionValueToInput("won")).toBe("won");
+    expect(conditionValueToInput("pending_review")).toBe("pending_review");
+    expect(conditionValueToInput("")).toBe("");
+    expect(conditionValueToInput("tekst z, przecinkiem")).toBe("tekst z, przecinkiem");
+    expect(conditionValueToInput("1e5")).toBe("1e5");
+    expect(conditionValueToInput("TRUE")).toBe("TRUE");
   });
 });
