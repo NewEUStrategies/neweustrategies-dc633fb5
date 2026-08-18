@@ -24,6 +24,27 @@ export type FieldKey =
   | "source"
   | "";
 
+/**
+ * Wartość reprezentująca „pomiń tę kolumnę" na liście wyboru.
+ *
+ * Pole docelowe jest wtedy pustym napisem, ale kontrolka wyboru (Radix Select)
+ * REZERWUJE pusty napis dla „brak zaznaczenia" i rzuca wyjątkiem, gdy pozycja
+ * listy ma `value=""`. Dlatego na granicy UI pusty klucz jest tłumaczony na
+ * ten sentinel - a `fieldKeyFromOption`/`optionFromFieldKey` są jedynym
+ * miejscem, które o tym wie.
+ */
+export const SKIP_OPTION = "__skip__";
+
+/** Wartość pozycji listy wyboru dla danego pola docelowego. */
+export function optionFromFieldKey(key: FieldKey): string {
+  return key === "" ? SKIP_OPTION : key;
+}
+
+/** Pole docelowe dla wartości wybranej na liście. */
+export function fieldKeyFromOption(option: string): FieldKey {
+  return option === SKIP_OPTION ? "" : (option as FieldKey);
+}
+
 /** Kolejność decyduje o kolejności pozycji na liście wyboru w dialogu. */
 export const FIELD_KEYS: readonly FieldKey[] = [
   "email",

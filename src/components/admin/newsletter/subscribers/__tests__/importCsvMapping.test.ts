@@ -8,6 +8,9 @@
 import { describe, it, expect } from "vitest";
 import {
   autoMapHeader,
+  fieldKeyFromOption,
+  optionFromFieldKey,
+  SKIP_OPTION,
   buildImportRow,
   buildImportRows,
   looksLikeEmail,
@@ -262,6 +265,28 @@ describe("buildImportRows - cały plik", () => {
 
   it("pusty plik daje pustą listę", () => {
     expect(buildImportRows([], mapping)).toEqual([]);
+  });
+});
+
+describe("wartości listy wyboru (granica UI)", () => {
+  it("„pomiń” ma wartość zastępczą - kontrolka rezerwuje pusty napis", () => {
+    // Radix Select traktuje `value=""` jako „brak zaznaczenia” i rzuca
+    // wyjątkiem na pozycji listy z pustą wartością - dlatego pole „pomiń”
+    // jedzie przez sentinel.
+    expect(optionFromFieldKey("")).toBe(SKIP_OPTION);
+    expect(SKIP_OPTION).not.toBe("");
+  });
+
+  it("pozostałe pola idą przez granicę bez zmiany", () => {
+    expect(optionFromFieldKey("email")).toBe("email");
+    expect(optionFromFieldKey("company")).toBe("company");
+  });
+
+  it("droga powrotna oddaje dokładnie to samo pole", () => {
+    for (const key of FIELD_KEYS) {
+      expect(fieldKeyFromOption(optionFromFieldKey(key))).toBe(key);
+    }
+    expect(fieldKeyFromOption(SKIP_OPTION)).toBe("");
   });
 });
 

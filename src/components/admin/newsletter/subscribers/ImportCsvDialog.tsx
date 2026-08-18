@@ -33,7 +33,9 @@ import { parseCsv } from "@/lib/csv/parseCsv";
 import {
   autoMapHeader,
   buildImportRows,
+  fieldKeyFromOption,
   looksLikeEmail,
+  optionFromFieldKey,
   FIELD_KEYS,
   type FieldKey,
 } from "./importCsvMapping";
@@ -162,10 +164,10 @@ export function ImportCsvDialog({
                       {h || `col_${i + 1}`}
                     </div>
                     <Select
-                      value={mapping[i] ?? ""}
+                      value={optionFromFieldKey(mapping[i] ?? "")}
                       onValueChange={(v) => {
                         const next = [...mapping];
-                        next[i] = v as FieldKey;
+                        next[i] = fieldKeyFromOption(v);
                         setMapping(next);
                       }}
                     >
@@ -174,7 +176,7 @@ export function ImportCsvDialog({
                       </SelectTrigger>
                       <SelectContent>
                         {FIELD_KEYS.map((k) => (
-                          <SelectItem key={k || "skip"} value={k}>
+                          <SelectItem key={k || "skip"} value={optionFromFieldKey(k)}>
                             {FIELD_LABELS[k]}
                           </SelectItem>
                         ))}

@@ -737,6 +737,19 @@ export default defineConfig({
           lines: 98,
           branches: 95,
         },
+        // Dialog importu - najbardziej ryzykowna operacja panelu (wprowadza
+        // cudze dane osobowe wraz ze statusem zgody). Próg pilnuje sklejenia:
+        // plik -> mapowanie -> podgląd -> wysyłka, w tym blokady przycisku bez
+        // zmapowanego adresu i tego, że przy błędzie importu dialog NIE
+        // zamyka się „na sukces". Niedobite linie to dwa ramiona obronne
+        // nieosiągalne z UI: `onChange` bez pliku i guard w `doImport`, który
+        // chroni ścieżkę z już zablokowanym przyciskiem.
+        "src/components/admin/newsletter/subscribers/ImportCsvDialog.tsx": {
+          statements: 88,
+          functions: 90,
+          lines: 90,
+          branches: 85,
+        },
       },
     },
   },
