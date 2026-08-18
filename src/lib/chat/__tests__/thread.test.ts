@@ -462,9 +462,9 @@ describe("sendErrorMessageKey", () => {
   });
 
   it("dopasowuje FRAGMENT, bo PostgREST owija komunikat swoim kontekstem", () => {
-    expect(
-      sendErrorMessageKey('new row violates ... RAISE: chat: blocked (code P0001)'),
-    ).toBe("chat.block.sendBlocked");
+    expect(sendErrorMessageKey("new row violates ... RAISE: chat: blocked (code P0001)")).toBe(
+      "chat.block.sendBlocked",
+    );
   });
 
   it("MILCZY dla pozostałych awarii - dymek sam sygnalizuje nieudaną wysyłkę", () => {

@@ -273,6 +273,102 @@ export default defineConfig({
           lines: 25,
           branches: 25,
         },
+        // ── CZAT / KOMUNIKATOR ────────────────────────────────────────────────
+        // Audyt 14.08 (MODUŁ 9) postawił temu modułowi jeden zarzut i był to
+        // zarzut o TESTY: „T/P 0,111 - bez ruchu w tej delcie, przy 12 293
+        // liniach". Pokrycie stało na 17-20% przez TRZY kolejne pomiary, więc
+        // sam pomiar niczego nie pilnował - dopiero próg zamienia jednorazowy
+        // wysiłek w zaporę. Bez tych wpisów następna generacja mogła zejść
+        // z powrotem do zera i żadna bramka by tego nie zauważyła.
+        //
+        // Progi są floorowane ~4 pp pod ZMIERZONYM poziomem (marża na dryf
+        // środowiska CI) i wolno je wyłącznie podnosić - identyczna zasada, co
+        // przy sieci kontaktów i paywallu wyżej.
+        //
+        // WARSTWA DANYCH: 19,67% -> 70,34% instrukcji. Niedobita reszta to
+        // powierzchnie z własnymi warstwami danych, których ten PR nie dotykał
+        // (katalog osób, skrzynka zapytań do eksperta, nagrywanie głosu,
+        // dataset emoji) - one są następnym krokiem, nie regresją tego.
+        "src/lib/chat/**": {
+          statements: 66,
+          functions: 70,
+          lines: 69,
+          branches: 61,
+        },
+        // CZYSTE MODUŁY WĄTKU trzymamy pod 100% na wszystkich czterech
+        // metrykach - tak jak pozostałe czyste moduły w tym pliku. To one
+        // niosą reguły, których złamanie widzi WYŁĄCZNIE użytkownik: kolejność
+        // wiadomości i deduplikację bliźniaka optymistycznego (`thread`),
+        // budżet stron przy skoku do trafienia (`useThreadJump`), zgodność
+        // etykiet okien znikania z lustrem CHECK-a (`menuOptions`) oraz
+        // izolację cache'u między kontami (`keys`).
+        "src/lib/chat/thread.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/chat/menuOptions.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/chat/useThreadJump.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/chat/keys.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // WARSTWA DANYCH ROZMOWY - dwa pliki, od których zależy, czy wiadomość
+        // dojdzie i czy nie wycieknie między tenantami. Startowały z 0% i 12%.
+        "src/lib/chat/useMessages.ts": {
+          statements: 86,
+          functions: 87,
+          lines: 91,
+          branches: 78,
+        },
+        "src/lib/chat/useConversations.ts": {
+          statements: 90,
+          functions: 96,
+          lines: 96,
+          branches: 80,
+        },
+        // WARSTWA KOMPONENTÓW: 17,32% -> 44,63%. Próg jest niższy niż w warstwie
+        // danych i to jest uczciwe: kompozytor (585 linii), panel mediów, dialogi
+        // kręgu i wyglądu oraz dataset emoji nadal stoją na zerze. Pilnuje tego,
+        // co ten PR faktycznie pokrył: okna rozmowy w obu wariantach, menu, doku
+        // z limitem okien, dzwonka, wiersza listy z potwierdzeniami i wersją
+        // roboczą, paska wyszukiwania oraz przekazywania wiadomości.
+        "src/components/chat/**": {
+          statements: 40,
+          functions: 36,
+          lines: 41,
+          branches: 34,
+        },
+        // Organizm okna rozmowy - z 0% na 83,55% po podziale na atomy.
+        "src/components/chat/ChatWindow.tsx": {
+          statements: 78,
+          functions: 60,
+          lines: 84,
+          branches: 70,
+        },
+        // Bramka symetrii FTS: czysty analizator migracji. Niedobite gałęzie to
+        // ramiona obronne dla wzorców, których w repo nie ma (konfiguracja
+        // z parametru, wektor liczony poza migracjami) - zostawiamy je, bo
+        // bramka MA mówić „nie rozstrzygnąłem", a nie udawać zieleń.
+        "src/lib/ci/ftsConfigSymmetry.ts": {
+          statements: 90,
+          functions: 100,
+          lines: 94,
+          branches: 76,
+        },
       },
     },
   },

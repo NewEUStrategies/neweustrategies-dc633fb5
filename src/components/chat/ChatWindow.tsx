@@ -287,6 +287,7 @@ export function ChatWindow(props: ChatWindowProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [clearDialogOpen, setClearDialogOpen] = useState(false);
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
 
   useEffect(() => {
     setReplyTo(null);
@@ -294,6 +295,7 @@ export function ChatWindow(props: ChatWindowProps) {
     setDeleteTarget(null);
     setForwardTarget(null);
     setBlockDialogOpen(false);
+    setReportDialogOpen(false);
     setGroupInfoOpen(false);
     setAppearanceOpen(false);
   }, [conversationId]);
@@ -515,6 +517,7 @@ export function ChatWindow(props: ChatWindowProps) {
         onMute={handleMute}
         onSetTtl={handleTtl}
         onOpenBlockDialog={() => setBlockDialogOpen(true)}
+        onOpenReportDialog={() => setReportDialogOpen(true)}
         onOpenClearDialog={() => setClearDialogOpen(true)}
       />
       {variant === "dock" && onMinimize && (
@@ -620,6 +623,7 @@ export function ChatWindow(props: ChatWindowProps) {
         view={view}
         isGroup={isGroup}
         peerName={peerName}
+        peerId={peerId}
         peerBlocked={peerBlocked}
         deleteTarget={deleteTarget}
         onDeleteTargetChange={setDeleteTarget}
@@ -632,6 +636,8 @@ export function ChatWindow(props: ChatWindowProps) {
         blockDialogOpen={blockDialogOpen}
         onBlockDialogOpenChange={setBlockDialogOpen}
         onConfirmBlockToggle={handleConfirmBlockToggle}
+        reportDialogOpen={reportDialogOpen}
+        onReportDialogOpenChange={setReportDialogOpen}
         groupInfoOpen={groupInfoOpen}
         onGroupInfoClose={() => setGroupInfoOpen(false)}
         onLeftGroup={onBack ?? onClose}

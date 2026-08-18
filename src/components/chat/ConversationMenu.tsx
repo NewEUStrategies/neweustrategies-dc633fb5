@@ -19,6 +19,7 @@ import {
   BellOff,
   Check,
   Eraser,
+  Flag,
   MoreVertical,
   Palette,
   Pin,
@@ -53,6 +54,11 @@ export interface ConversationMenuProps {
   onMute: (seconds: number | null) => void;
   onSetTtl: (seconds: number | null) => void;
   onOpenBlockDialog: () => void;
+  /**
+   * Zgłoszenie osoby do moderacji. Tylko wątek bezpośredni - zgłasza się
+   * OSOBĘ, nie krąg (a w kręgu nie wiadomo którą).
+   */
+  onOpenReportDialog: () => void;
   onOpenClearDialog: () => void;
 }
 
@@ -193,15 +199,26 @@ export function ConversationMenu(props: ConversationMenuProps) {
 
           <div className="my-1 h-px bg-border/60" aria-hidden />
           {peerId && (
-            <button
-              type="button"
-              role="menuitem"
-              onClick={act(props.onOpenBlockDialog)}
-              className={cn(ITEM_CLASS, peerBlocked && "text-destructive hover:text-destructive")}
-            >
-              <Ban className="h-3.5 w-3.5" aria-hidden />
-              {peerBlocked ? t("chat.block.unblock") : t("chat.block.block")}
-            </button>
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={act(props.onOpenBlockDialog)}
+                className={cn(ITEM_CLASS, peerBlocked && "text-destructive hover:text-destructive")}
+              >
+                <Ban className="h-3.5 w-3.5" aria-hidden />
+                {peerBlocked ? t("chat.block.unblock") : t("chat.block.block")}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={act(props.onOpenReportDialog)}
+                className={ITEM_CLASS}
+              >
+                <Flag className={ICON_CLASS} aria-hidden />
+                {t("chat.menu.report")}
+              </button>
+            </>
           )}
           <button
             type="button"

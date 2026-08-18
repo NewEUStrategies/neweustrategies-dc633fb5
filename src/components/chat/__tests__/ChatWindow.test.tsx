@@ -203,6 +203,11 @@ vi.mock("../ChatAppearanceDialog", () => ({
     open ? <div data-testid="appearance" /> : null,
 }));
 
+vi.mock("@/components/network/ReportUserDialog", () => ({
+  ReportUserDialog: ({ open, userId }: { open: boolean; userId: string }) =>
+    open ? <div data-testid="report" data-user={userId} /> : null,
+}));
+
 vi.mock("../ForwardDialog", () => ({
   ForwardDialog: ({ message }: { message: unknown }) =>
     message ? <div data-testid="forward" /> : null,
@@ -328,11 +333,13 @@ describe("ChatWindow - nagłówek kręgu", () => {
     expect(screen.getByTestId("group-info")).toBeTruthy();
   });
 
-  it("menu kręgu ma pozycję informacji, a NIE ma blokady osoby", () => {
+  it("menu kręgu ma pozycję informacji, a NIE ma blokady ani zgłoszenia osoby", () => {
     renderGroup();
     const menu = openMenu();
     expect(menu.textContent).toContain(chatPl.chat.group.info);
+    // Blokuje się i zgłasza OSOBĘ - w kręgu nie wiadomo którą.
     expect(menu.textContent).not.toContain(chatPl.chat.block.block);
+    expect(menu.textContent).not.toContain(chatPl.chat.menu.report);
   });
 });
 
@@ -563,6 +570,17 @@ describe("ChatWindow - blokada rozmówcy", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: chatPl.chat.block.unblock }));
     const dialog = await screen.findByRole("alertdialog");
     expect(dialog.textContent).toContain(chatPl.chat.block.unblockConfirm);
+  });
+
+  it("menu wątku bezpośredniego prowadzi do ZGŁOSZENIA osoby do moderacji", () => {
+    // Rekomendacja audytu 14.08 (MODUŁ 9): do tej pory zgłoszenie istniało
+    // wyłącznie na profilu i w popoverze sieci - nie tam, gdzie problem się dzieje.
+    renderWindow();
+    const menu = openMenu();
+    expect(menu.textContent).toContain(chatPl.chat.menu.report);
+
+    fireEvent.click(screen.getByRole("menuitem", { name: chatPl.chat.menu.report }));
+    expect(screen.getByTestId("report").getAttribute("data-user")).toBe(CHAT_IDS.peer);
   });
 
   it("nieudana blokada daje komunikat błędu", async () => {

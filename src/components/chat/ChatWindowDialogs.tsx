@@ -11,6 +11,7 @@
 // stan przy przełączeniu wariantu. Trzymane w jednej molekule renderują się
 // dokładnie raz, niezależnie od tego, który wariant chrome'u je otacza.
 import { useTranslation } from "react-i18next";
+import { ReportUserDialog } from "@/components/network/ReportUserDialog";
 import type { ChatMessage, ConversationView } from "@/lib/chat/types";
 import { ChatAppearanceDialog } from "./ChatAppearanceDialog";
 import { ChatConfirmDialog } from "./ChatConfirmDialog";
@@ -23,6 +24,8 @@ export interface ChatWindowDialogsProps {
   view: ConversationView | undefined;
   isGroup: boolean;
   peerName: string;
+  /** Null w kręgu - blokada i zgłoszenie dotyczą OSOBY, nie wątku. */
+  peerId: string | null;
   peerBlocked: boolean;
 
   /** Cofnięcie wysłania: wiadomość docelowa albo null. */
@@ -42,6 +45,15 @@ export interface ChatWindowDialogsProps {
   onBlockDialogOpenChange: (open: boolean) => void;
   onConfirmBlockToggle: () => void;
 
+  /**
+   * Zgłoszenie osoby do moderacji tenanta. Reużywa dialogu sieci kontaktów
+   * (`ReportUserDialog`), bo powody, limit dzienny i deduplikację egzekwuje ten
+   * sam RPC `report_user` - drugi dialog o tej samej treści byłby drugim
+   * miejscem do rozjazdu z listą powodów w bazie.
+   */
+  reportDialogOpen: boolean;
+  onReportDialogOpenChange: (open: boolean) => void;
+
   groupInfoOpen: boolean;
   onGroupInfoClose: () => void;
   /** Po wyjściu z kręgu wracamy na listę (page) albo zamykamy okno (dock). */
@@ -53,7 +65,7 @@ export interface ChatWindowDialogsProps {
 
 export function ChatWindowDialogs(props: ChatWindowDialogsProps) {
   const { t } = useTranslation();
-  const { deleteTarget, view, isGroup, peerName, peerBlocked } = props;
+  const { deleteTarget, view, isGroup, peerName, peerId, peerBlocked } = props;
 
   return (
     <>
@@ -101,6 +113,15 @@ export function ChatWindowDialogs(props: ChatWindowDialogsProps) {
         cancelLabel={t("chat.close")}
         onConfirm={props.onConfirmBlockToggle}
       />
+
+      {peerId && (
+        <ReportUserDialog
+          userId={peerId}
+          displayName={peerName}
+          open={props.reportDialogOpen}
+          onOpenChange={props.onReportDialogOpenChange}
+        />
+      )}
 
       {isGroup && view && (
         <GroupInfoDialog
