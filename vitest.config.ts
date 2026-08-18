@@ -500,6 +500,110 @@ export default defineConfig({
           lines: 100,
           branches: 100,
         },
+        // ── WYSZUKIWARKA ──────────────────────────────────────────────────────
+        // 2026-08-18: moduł NIE MIAŁ ANI JEDNEGO progu per-ścieżka, mimo że
+        // komentarz z 2026-07-21 w tym samym pliku wskazuje go WPROST jako
+        // jedną z przyczyn obniżenia globalnego floora („main dolozyl duze
+        // nieotestowane powierzchnie (wyszukiwarka v5, trasy, panele)"). Czyli:
+        // moduł, który zmusił zespół do zejścia z progiem, przez miesiąc nie
+        // dostał własnej zapory - a `check:gate-coverage` tego nie zgłosi, bo
+        // pilnuje wpięcia bramek `check:*` w workflow, nie istnienia progów.
+        //
+        // Stan wyjściowy (audyt 18.08, MODUŁ 6): 33,21% linii, 32,65% funkcji,
+        // 28,89% gałęzi, 16 z 24 plików na ZERZE - w tym cała warstwa alertów
+        // o nowych wynikach, rejestr komend i wejścia serwerowe.
+        //
+        // Progi floorowane ~4 pp pod zmierzonym poziomem (marża na dryf CI),
+        // zasada bez zmian: wolno je wyłącznie podnosić.
+        //
+        // WARSTWA DANYCH: 98,24% linii, 98,06% funkcji. Niedobite gałęzie to
+        // ramiona, których nie da się wywołać z testu jednostkowego: strażniki
+        // `typeof window === "undefined"` w historii fraz (happy-dom zawsze ma
+        // `window`, więc ścieżka SSR jest nieosiągalna) oraz fallbacki `?? null`
+        // w mapowaniach wierszy, których RPC nigdy nie zwraca puste.
+        "src/lib/search/**": {
+          statements: 92,
+          functions: 94,
+          lines: 94,
+          branches: 84,
+        },
+        // WARSTWA KOMPONENTÓW: 98,11% linii, 98,28% funkcji, zero plików na
+        // zerze (było 6 z 12). Niedobite gałęzie: warianty klas aktywnego
+        // wiersza i obronne `?? null` przy avatarach.
+        "src/components/search/**": {
+          statements: 94,
+          functions: 94,
+          lines: 94,
+          branches: 89,
+        },
+        // CZYSTE MODUŁY WYSZUKIWARKI - pod 100% funkcji, tak jak czyste moduły
+        // czatu, profilu i płatności wyżej. Niosą reguły, których złamanie widzi
+        // WYŁĄCZNIE użytkownik i których nie pilnuje żaden typ:
+        //
+        // fuzzy.ts - dopasowanie komend WRAZ ze składaniem diakrytyków
+        // (naprawa 18.08: „platnosci" nie znajdowało „Płatności"). Niedobita
+        // gałąź to premia za granicę wielkości liter, martwa od czasu, gdy
+        // matcher porównuje napisy już zmałolitowane.
+        "src/lib/search/fuzzy.ts": {
+          statements: 94,
+          functions: 100,
+          lines: 100,
+          branches: 86,
+        },
+        // facetModel.ts - model faset i podpowiedzi: mapowanie URL → filtry RPC,
+        // chipy aktywnych filtrów, cele nawigacji podpowiedzi. Jedno źródło
+        // prawdy dla panelu, chipów, eksploratora i autosuggesta naraz.
+        "src/lib/search/facetModel.ts": {
+          statements: 92,
+          functions: 92,
+          lines: 93,
+          branches: 81,
+        },
+        // recentSearches.ts - historia fraz w localStorage. Wołana podczas
+        // RENDERU, więc jej ramiona obronne decydują, czy rzut magazynu (tryb
+        // prywatny, wyczerpany limit) wywróci stronę. Gałęzie < 100, bo
+        // strażnik SSR `typeof window === "undefined"` jest w happy-dom
+        // nieosiągalny.
+        "src/lib/search/recentSearches.ts": {
+          statements: 85,
+          functions: 100,
+          lines: 100,
+          branches: 70,
+        },
+        // registry.tsx - rejestr komend palety. `visibleCommands` decyduje, CO
+        // użytkownik widzi: pokazanie komendy panelu gościowi nie daje mu
+        // uprawnień, ale ujawnia mapę panelu. Trzymany pod 100% na wszystkich
+        // czterech metrykach.
+        "src/lib/search/registry.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // ZAPISANE WYSZUKIWANIA I ALERTY - najwyższe ryzyko modułu: ten plik
+        // włącza WYSYŁKĘ powiadomień o nowych trafieniach, a `savedSearchHref`
+        // jest adresem, pod który prowadzi powiadomienie. Startował z 0 z 16
+        // funkcji; trzymany pod 100%.
+        "src/hooks/useSavedSearches.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // TRASA /search - kompozycja całej wyszukiwarki i jedyne miejsce, gdzie
+        // żyje nawigacja klawiaturą po podpowiedziach, „wyczyść wszystko"
+        // i deep-linki z podpowiedzi (komponenty są sterowane). Startowała
+        // z 0% przy 57 funkcjach, czyli 1/5 całego modułu. Próg niższy niż
+        // reszta i to jest uczciwe: niedobite zostają gałęzie renderu
+        // zależne od stanów pośrednich zapytań (szkielet ładowania osób,
+        // liczniki zakładek dla wariantów `tab`) oraz kalendarz Radix, którego
+        // wybór dnia wymaga realnego wskaźnika.
+        "src/routes/search.tsx": {
+          statements: 88,
+          functions: 78,
+          lines: 88,
+          branches: 80,
+        },
       },
     },
   },
