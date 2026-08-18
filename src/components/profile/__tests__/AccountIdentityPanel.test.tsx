@@ -82,12 +82,13 @@ vi.mock("@tanstack/react-query", () => ({
   }),
 }));
 
-vi.mock("@tanstack/react-router", () => ({
-  Link: ({ to, children }: { to: string; children?: unknown }) => {
-    const React = require("react") as typeof import("react");
-    return React.createElement("a", { href: to }, children as never);
-  },
-}));
+vi.mock("@tanstack/react-router", async () => {
+  const React = await import("react");
+  return {
+    Link: ({ to, children }: { to: string; children?: unknown }) =>
+      React.createElement("a", { href: to }, children as never),
+  };
+});
 
 vi.mock("sonner", () => ({
   toast: {
