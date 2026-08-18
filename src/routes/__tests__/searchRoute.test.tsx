@@ -24,6 +24,9 @@ const h = vi.hoisted(() => ({
    *  wartość karmi je nawzajem złym kształtem i wywraca render. */
   rpcByFn: {} as Record<string, unknown>,
   rpc: vi.fn(),
+  voiceOpts: null as null | { onText: (t: string) => void; onFinal?: (t: string) => void },
+  user: null as null | { id: string },
+  savedSearches: [] as unknown[],
   searchData: null as unknown,
   peopleData: [] as unknown[],
   suggestData: [] as unknown[],
@@ -45,8 +48,25 @@ vi.mock("@/integrations/supabase/client", async () => {
 });
 vi.mock("@/components/ads/useInFeedAds", () => ({ useInFeedAds: () => () => null }));
 vi.mock("@/components/ads/FooterSlideup", () => ({ FooterSlideup: () => null }));
-vi.mock("@/lib/search/useVoiceSearch", () => ({ useVoiceSearch: () => h.voice }));
-vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: null }) }));
+vi.mock("@/lib/search/useVoiceSearch", () => ({
+  useVoiceSearch: (opts: { onText: (t: string) => void; onFinal?: (t: string) => void }) => {
+    // Przechwycone zwrotki: to trasa decyduje, co zrobić z transkrypcją,
+    // a hook jest tu zamockowany, więc bez tego te dwie funkcje nie wykonują się nigdy.
+    h.voiceOpts = opts;
+    return h.voice;
+  },
+}));
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: h.user }) }));
+vi.mock("@/hooks/useSavedSearches", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/hooks/useSavedSearches")>();
+  return {
+    ...actual,
+    useSavedSearches: () => ({ data: h.savedSearches }),
+    useSaveSearch: () => ({ mutateAsync: vi.fn(), isPending: false }),
+    useDeleteSavedSearch: () => ({ mutateAsync: vi.fn() }),
+    useToggleSavedSearchAlert: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  };
+});
 
 // Zapytania podmienione na poziomie OPCJI: trasa ma dowieść, co do nich wysyła
 // i co robi z odpowiedzią - nie tego, jak wygląda RPC (to pgTAP).
@@ -155,6 +175,9 @@ beforeEach(() => {
   h.peopleData = [];
   h.suggestData = [];
   h.voice = { supported: true, listening: false, busy: false, toggle: vi.fn(), stop: vi.fn() };
+  h.voiceOpts = null;
+  h.user = null;
+  h.savedSearches = [];
   clearRecentSearches();
 });
 
@@ -617,5 +640,264 @@ describe("/search - tryby zaawansowane", () => {
       fireEvent.click(screen.getByRole("button", { name: "Dokładna fraza" }));
     });
     await waitFor(() => expect(view.search().match).toBe("phrase"));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Sortowanie, daty, doładowanie
+// ---------------------------------------------------------------------------
+
+describe("/search - sortowanie", () => {
+  it("domyślnie aktywna jest trafność, a wybór jej NIE zapisuje w adresie", async () => {
+    const view = await mount("/search?q=raport&sort=newest");
+    await waitFor(() => expect(screen.getByRole("group", { name: "Sortuj" })).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Najnowsze" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Trafność" }));
+    });
+    // Domyślna wartość znika z URL-a - adres zostaje krótki i kanoniczny.
+    await waitFor(() => expect(view.search().sort).toBeUndefined());
+  });
+
+  it("wybór innego porządku ląduje w adresie", async () => {
+    const view = await mount("/search?q=raport");
+    await waitFor(() => expect(screen.getByRole("group", { name: "Sortuj" })).toBeInTheDocument());
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Najpopularniejsze" }));
+    });
+    await waitFor(() => expect(view.search().sort).toBe("popular"));
+  });
+});
+
+describe("/search - zakres dat", () => {
+  it("pokazuje wybraną datę zamiast placeholdera", async () => {
+    await mount("/search?q=raport&from=2026-01-15");
+    await waitFor(() => expect(screen.getByText("Data")).toBeInTheDocument());
+    // Format „d MMM yyyy" z polskim locale date-fns.
+    expect(screen.getByText("15 sty 2026")).toBeInTheDocument();
+  });
+
+  it("bez daty pokazuje placeholder obu granic", async () => {
+    await mount("/search?q=raport");
+    await waitFor(() => expect(screen.getByText("Data")).toBeInTheDocument());
+    expect(screen.getAllByText("Wybierz datę")).toHaveLength(2);
+  });
+
+  it("otwiera kalendarz po kliknięciu granicy zakresu", async () => {
+    await mount("/search?q=raport");
+    await waitFor(() => expect(screen.getAllByText("Wybierz datę").length).toBe(2));
+    const trigger = screen.getAllByText("Wybierz datę")[0].closest("button")!;
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+    await waitFor(() => expect(trigger).toHaveAttribute("aria-expanded", "true"));
+  });
+});
+
+describe("/search - doładowanie wyników", () => {
+  it("doładowanie NIE gubi już pokazanych wyników", async () => {
+    h.searchData = result({ posts: [post()], total: 40 });
+    await mount("/search?q=raport");
+    const more = await screen.findByRole("button", { name: /Pokaż więcej|Załaduj/i });
+    await act(async () => {
+      fireEvent.click(more);
+    });
+    await waitFor(() => expect(screen.getByText("Raport roczny")).toBeInTheDocument());
+  });
+
+  it("ZMIANA FILTRA wraca na pierwszą stronę - inaczej użytkownik widziałby okno z poprzedniego zapytania", async () => {
+    h.searchData = result({ posts: [post()], total: 40 });
+    const view = await mount("/search?q=raport");
+    const more = await screen.findByRole("button", { name: /Pokaż więcej|Załaduj/i });
+    await act(async () => {
+      fireEvent.click(more);
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("checkbox", { name: /Energia/ }));
+    });
+    await waitFor(() => expect(view.search().topic).toBe("t-1"));
+    expect(screen.getByText("Raport roczny")).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Zakładki eksploracyjne i osoby
+// ---------------------------------------------------------------------------
+
+describe("/search - zakładki eksploracyjne", () => {
+  it("zakładka „rodzaje treści” pokazuje wymiary formatu, nie listy wpisów", async () => {
+    h.searchData = result({
+      facets: [
+        facet({ dim: "pub_type", id: "pt-1", slug: "raport", label_pl: "Raport" }),
+        facet({ dim: "topic", id: "t-1", label_pl: "Energia" }),
+      ],
+    });
+    await mount("/search?q=raport&tab=types");
+    await waitFor(() => expect(screen.getByText("Raport")).toBeInTheDocument());
+    expect(screen.queryByText("Raport roczny")).not.toBeInTheDocument();
+  });
+
+  it("zakładka „tematyka” pokazuje wymiary taksonomii", async () => {
+    await mount("/search?q=raport&tab=topics");
+    await waitFor(() => expect(screen.getByText("Energia")).toBeInTheDocument());
+  });
+});
+
+describe("/search - osoby i organizacje", () => {
+  const person = {
+    id: "u-1",
+    kind: "person",
+    slug: "jan-kowalski",
+    label_pl: "Jan Kowalski",
+    label_en: "Jan Kowalski",
+    sublabel_pl: "Analityk",
+    sublabel_en: "Analyst",
+    avatar_url: null,
+    posts_count: 3,
+    verified: false,
+  };
+
+  it("zakładka osób pokazuje wyniki katalogu", async () => {
+    h.peopleData = [person];
+    await mount("/search?q=kowalski&tab=people");
+    await waitFor(() => expect(screen.getByText("Jan Kowalski")).toBeInTheDocument());
+  });
+
+  it("bez frazy zakładka osób działa w trybie PRZEGLĄDANIA i mówi o tym wprost", async () => {
+    h.peopleData = [person];
+    await mount("/search?tab=people");
+    await waitFor(() =>
+      expect(screen.getByText("Przeglądasz wszystkie osoby i organizacje.")).toBeInTheDocument(),
+    );
+  });
+
+  it("brak osób daje komunikat, nie pustą płachtę", async () => {
+    h.peopleData = [];
+    await mount("/search?q=kowalski&tab=people");
+    await waitFor(() =>
+      expect(screen.getByText("Brak osób i organizacji dla tej frazy.")).toBeInTheDocument(),
+    );
+  });
+
+  it("w zakładce „wszystko” osoby pokazują się PASKIEM nad wynikami, z przejściem do sekcji", async () => {
+    h.peopleData = [person];
+    const view = await mount("/search?q=kowalski");
+    await waitFor(() => expect(screen.getByText("Jan Kowalski")).toBeInTheDocument());
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Zobacz|wszystk/i }));
+    });
+    await waitFor(() => expect(view.search().tab).toBe("people"));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Snippet, błąd i zapisane wyszukiwania
+// ---------------------------------------------------------------------------
+
+describe("/search - prezentacja wyników", () => {
+  it("podświetlenie z bazy renderuje się jako <mark>, a nie surowe delimitery", async () => {
+    h.searchData = result({
+      posts: [post({ headline_pl: "polityka [[[energetyczna]]] w CEE" })],
+    });
+    const { container } = await mount("/search?q=energetyczna");
+    await waitFor(() => expect(container.querySelector("mark")).not.toBeNull());
+    expect(container.querySelector("mark")?.textContent).toBe("energetyczna");
+  });
+
+  it("wpis BEZ podświetlenia pokazuje zwykły lead", async () => {
+    const { container } = await mount("/search?q=raport");
+    await waitFor(() => expect(screen.getByText("Raport roczny")).toBeInTheDocument());
+    expect(container.querySelector("mark")).toBeNull();
+  });
+
+  it("BŁĄD zapytania mówi o błędzie zamiast udawać zero wyników", async () => {
+    h.searchData = Promise.reject(new Error("500"));
+    await mount("/search?q=raport");
+    await waitFor(() =>
+      expect(
+        screen.getByText("Coś poszło nie tak podczas wyszukiwania. Spróbuj ponownie."),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it("podpowiedź „czy chodziło o” prowadzi pod poprawioną frazę", async () => {
+    h.searchData = result({ posts: [], total: 0 });
+    h.rpcByFn.search_suggest = [{ id: "s-1", title_pl: "raport", title_en: "report" }];
+    await mount("/search?q=rapotr");
+    await waitFor(() => expect(screen.getByText("raport")).toBeInTheDocument());
+    expect(screen.getByRole("link", { name: "raport" })).toHaveAttribute(
+      "href",
+      "/search?q=raport",
+    );
+  });
+});
+
+describe("/search - zapisane wyszukiwania", () => {
+  it("gość widzi zachętę do logowania zamiast przycisku zapisu", async () => {
+    await mount("/search?q=raport");
+    await waitFor(() =>
+      expect(screen.getByText("Zaloguj się, aby zapisywać wyszukiwania.")).toBeInTheDocument(),
+    );
+  });
+});
+
+describe("/search - transkrypcja dyktowania trafia do pola i wyników", () => {
+  it("strumień transkrypcji wpisuje się do pola frazy, ale JESZCZE nie wyszukuje", async () => {
+    const view = await mount("/search");
+    await act(async () => {
+      h.voiceOpts!.onText("polityka energetyczna");
+    });
+    expect(phraseInput()).toHaveValue("polityka energetyczna");
+    // Wyszukiwanie w trakcie mówienia migotałoby wynikami przy każdym słowie.
+    expect(view.search().q).toBe("");
+  });
+
+  it("FINALNA transkrypcja wyszukuje i zapisuje frazę w historii", async () => {
+    const view = await mount("/search");
+    await act(async () => {
+      h.voiceOpts!.onFinal!("polityka energetyczna");
+    });
+    await waitFor(() => expect(view.search().q).toBe("polityka energetyczna"));
+  });
+});
+
+describe("/search - przywracanie zapisanego wyszukiwania", () => {
+  it("zapisany snapshot przechodzi przez TEN SAM walidator, co adres", async () => {
+    h.user = { id: "u-1" };
+    h.savedSearches = [
+      {
+        id: "s-1",
+        name: "Energia w CEE",
+        params: { q: "energia", topic: "t-1", access: "members" },
+        created_at: "2026-08-01T10:00:00Z",
+        alert_enabled: false,
+        url: "/search?q=energia",
+        entity: "posts",
+      },
+    ];
+    const view = await mount("/search?q=raport");
+    await waitFor(() => expect(screen.getByText("Energia w CEE")).toBeInTheDocument());
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Energia w CEE" }));
+    });
+    await waitFor(() =>
+      expect(view.search()).toMatchObject({ q: "energia", topic: "t-1", access: "members" }),
+    );
+  });
+
+  it("snapshot ze ŚMIECIEM ze starszego modelu NIE PRZEJDZIE walidatora", () => {
+    // `params` to jsonb - mógł powstać w wersji modelu, której już nie ma.
+    // Trasa przepuszcza przywracany snapshot przez TEN SAM `SearchParams`, co
+    // adres (patrz `onApply` w `routes/search.tsx`), więc nieznany tryb pada
+    // zamiast trafić do zapytania. Asercja idzie wprost na walidator: klik
+    // wywołałby rzut w asynchronicznej nawigacji routera, poza zasięgiem testu.
+    const parse = (input: Record<string, unknown>) =>
+      (SearchRoute.options.validateSearch as (s: Record<string, unknown>) => unknown)(input);
+    expect(() => parse({ q: "energia", match: "wszystkie-slowa" })).toThrow();
+    expect(() => parse({ q: "energia", match: "phrase" })).not.toThrow();
   });
 });
