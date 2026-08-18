@@ -302,7 +302,9 @@ describe("SearchAutosuggest - stopka frazy", () => {
         onSetQuery={noop}
       />,
     );
-    expect(screen.queryByRole("button", { name: /Zobacz wszystkie wyniki/ })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Zobacz wszystkie wyniki/ }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("Operatory")).toBeInTheDocument();
   });
 

@@ -241,6 +241,17 @@ describe("CommandPalette - filtrowanie w trakcie pisania", () => {
     expect(hasRow("Strony")).toBe(true);
   });
 
+  it("znajduje komendę pisaną BEZ OGONKÓW - tak pisze większość użytkowników", async () => {
+    // Do 18.08.2026 „platnosci" nie znajdowało „Płatności", a „bezpieczenstwo"
+    // nie znajdowało „Bezpieczeństwo konta" - przy jednoczesnym `unaccent`
+    // w bazie, więc ta sama fraza znajdowała TREŚĆ, ale nie komendę.
+    h.auth.current = { isAdmin: true, user: { id: "u-1" } };
+    render(<CommandPalette />);
+    open();
+    await type("platnosci");
+    expect(hasRow("Płatności")).toBe(true);
+  });
+
   it("znajduje komendę po fragmencie ŚCIEŻKI", async () => {
     h.auth.current = { isAdmin: true, user: { id: "u-1" } };
     render(<CommandPalette />);
@@ -366,9 +377,7 @@ describe("CommandPalette - wyszukiwanie treści na serwerze", () => {
   it("SPÓŹNIONA odpowiedź starej frazy NIE nadpisuje wyników nowej", async () => {
     let resolveOld: (v: { hits: SearchHit[] }) => void = () => {};
     h.globalSearch
-      .mockImplementationOnce(
-        () => new Promise<{ hits: SearchHit[] }>((r) => (resolveOld = r)),
-      )
+      .mockImplementationOnce(() => new Promise<{ hits: SearchHit[] }>((r) => (resolveOld = r)))
       .mockResolvedValueOnce({ hits: [hit({ id: "new", title_pl: "Nowy wynik" })] });
 
     render(<CommandPalette />);
