@@ -420,11 +420,14 @@ export function xhrStub(
   }
 
   // `FakeXhr` odgrywa tylko cztery użyte przez kod produkcyjny człony, nie
-  // pełny interfejs `XMLHttpRequest` (kilkadziesiąt pól) - stąd cel
-  // przypisania jest typowany WŁASNYM, minimalnym kształtem zamiast
-  // podwójnego rzutowania `as unknown as`, które bramka `check:unknown-casts`
-  // traktuje jak `as any`.
-  (globalThis as { XMLHttpRequest: typeof FakeXhr }).XMLHttpRequest = FakeXhr;
+  // pełny interfejs `XMLHttpRequest` (kilkadziesiąt pól) - dlatego `tsc` samo
+  // odmawia pojedynczego `as` (TS2352: „neither type sufficiently overlaps”).
+  // Próba obejścia typem docelowym węższym niż `typeof XMLHttpRequest` (bez
+  // mostka przez `unknown`) NIE działa z tego samego powodu - to jest właśnie
+  // sytuacja, do której `as unknown as` istnieje jako legalny idiom testowy
+  // (patrz `scripts/lib/unknownCastBaseline.ts`), a nie coś do wymyślania na
+  // nowo. Wpis jest w baseline bramki `check:unknown-casts`.
+  globalThis.XMLHttpRequest = FakeXhr as unknown as typeof XMLHttpRequest;
   return {
     requests,
     restore() {

@@ -151,5 +151,11 @@ export const UNKNOWN_CAST_BASELINE: readonly (readonly [string, number])[] = [
   ["src/routes/author.$slug.tsx", 1],
   ["src/routes/network.mutual.$userId.tsx", 1],
   ["src/server.ts", 1],
+  // Atrapa `XMLHttpRequest` w `xhrStub` (postęp wysyłki avatara/CV): `FakeXhr`
+  // odgrywa tylko cztery użyte przez kod produkcyjny człony, nie pełny
+  // interfejs przeglądarki - `tsc` sam odmawia pojedynczego `as` (TS2352,
+  // niewystarczające pokrycie strukturalne). To legalny idiom testowy
+  // podmiany globalnego konstruktora, nie dług do ścięcia.
+  ["src/test/profile/fixtures.ts", 1],
   ["src/test/routeHarness.tsx", 1],
 ];
