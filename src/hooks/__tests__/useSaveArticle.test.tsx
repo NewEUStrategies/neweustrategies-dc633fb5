@@ -352,22 +352,23 @@ describe("useSaveArticle - przełączanie w magazynie lokalnym", () => {
     expect(storedItems()).toEqual([]);
   });
 
-  it("DEFEKT (przypięty): przy zablokowanym magazynie przycisk OGŁASZA zapis, którego nie ma", async () => {
-    // Znalezione TYM testem. `toggleLocal` owija zapis we własne `try/catch`,
-    // ale `writeStoredValue` (lib/storageKeys) POCHŁANIA wyjątek sam - więc
-    // `catch` w hooku jest martwy, a wykonanie leci dalej do
-    // `setLocalSaved(true)` i `savedToast()`. Użytkownik w trybie prywatnym
-    // widzi „Dodano do zapisanych", a po odświeżeniu strony artykułu nie ma.
-    // Test przypina stan FAKTYCZNY; naprawa idzie osobnym commitem, zgodnie
-    // z zasadą „nie zmieniaj zachowania przy ekstrakcji".
+  it("REGRESJA: zablokowany magazyn NIE ogłasza zapisu - stan zostaje, leci komunikat błędu", async () => {
+    // DEFEKT ZNALEZIONY TYM TESTEM (naprawiony osobnym commitem): `toggleLocal`
+    // owijał zapis we własne `try/catch`, ale `writeStoredValue` pochłania
+    // wyjątek SAM, więc `catch` był martwy i wykonanie leciało do
+    // `setLocalSaved(true)` + toastu „Dodano do zapisanych". W trybie prywatnym
+    // Safari użytkownik widział potwierdzenie zapisu, którego nie było, a po
+    // odświeżeniu strony artykuł znikał bez żadnego sygnału.
     h.storage = memoryStorage({ blockWrites: true });
     const { result } = mount();
     await waitFor(() => expect(result.current.isSaved).toBe(false));
 
     act(() => result.current.toggle());
 
-    expect(result.current.isSaved).toBe(true);
+    expect(result.current.isSaved).toBe(false);
     expect(storedItems()).toEqual([]);
+    expect(h.toastError).toHaveBeenCalledTimes(1);
+    expect(h.toastSuccess).not.toHaveBeenCalled();
   });
 
   it("BRAK adresu wpisu: przełącznik nic nie robi (nie zapisuje pustego wiersza)", async () => {
