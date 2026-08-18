@@ -690,6 +690,40 @@ export default defineConfig({
           lines: 98,
           branches: 90,
         },
+        // ── NEWSLETTER: KAMPANIE I WYSYŁKA ───────────────────────────────────
+        // Audyt: 17,9% linii przy 7,7% GAŁĘZI - czyli praktycznie bez pokrycia
+        // tam, gdzie mieszkają decyzje. A decyzje są tu NIEODWRACALNE: raz
+        // wysłanej wiadomości nie da się cofnąć, a każda wysłana dwa razy to
+        // skarga na spam, po której obniżana jest reputacja CAŁEJ domeny.
+        //
+        // Zmierzone po tej pracy: 88,35% linii, 80,29% gałęzi, 83% funkcji.
+        // Próg floorowany tuż pod osiągniętym poziomem pilnuje reguł, których
+        // złamania nie widać w kodzie, tylko w skrzynkach odbiorców:
+        //   * WZNOWIENIE nie wysyła nikomu drugi raz, a porównanie „już
+        //     wysłano" idzie po adresie ZNORMALIZOWANYM (adres wchodzi na
+        //     listę trzema drogami i tylko część z nich normalizuje wielkość
+        //     liter - to ta strona porównania, po której idzie sygnał skargi),
+        //   * adresy z aktywną blokadą wypadają ZANIM powstanie pierwszy
+        //     request do dostawcy i zostają w logu jako `suppressed`,
+        //   * błąd dostawcy w połowie partii nie zatrzymuje reszty paczki
+        //     i nie liczy wysłanych dwa razy,
+        //   * mail bez mechanizmu wypisu NIE WYCHODZI (brak origin zatrzymuje
+        //     kampanię) - wymóg prawny i warunek pozostania poza czarną listą,
+        //   * kampanii W LOCIE nie da się edytować ani skasować (filtr statusu
+        //     przy UPDATE/DELETE jest tu jedyną zaporą - RLS nie zna pojęcia
+        //     „kampania w trakcie wysyłki"),
+        //   * tick działa bez człowieka przy klawiaturze, więc przy
+        //     przekroczonym progu skarg zatrzymuje kampanię ze statusem
+        //     `failed` i powodem, zamiast wysłać ją po cichu.
+        // Niedobita reszta to podgląd wpisów w kreatorze treści
+        // (resolveCampaignDocPosts / searchCampaignPosts) - powierzchnia
+        // edytora, nie wysyłki.
+        "src/lib/newsletter-campaigns.functions.ts": {
+          statements: 84,
+          functions: 80,
+          lines: 86,
+          branches: 76,
+        },
       },
     },
   },
