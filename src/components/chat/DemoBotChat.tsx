@@ -255,7 +255,9 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
       setStaged({ file, kind, previewUrl });
       textareaRef.current?.focus({ preventScroll: true });
     },
-    [staged, t, lang],
+    // `lang` nie występuje w ciele - komunikaty idą przez `t`, które i tak
+    // zmienia tożsamość po przełączeniu języka.
+    [staged, t],
   );
 
   const clearStaged = useCallback(() => {
