@@ -88,7 +88,7 @@ Sortowanie: po pokryciu linii, rosnąco (najsłabsze na górze).
 | 17  | Analityka i BI                                        |          85 |     27,36% |  21,74% |  22,58% | **28,00%** |        51 | 0,224 |    199 |     442 |
 | 1   | Wpisy: doświadczenie czytelnika                       |          74 |     31,75% |  32,89% |  26,93% | **31,81%** |        43 | 0,405 |    321 |     697 |
 | 13  | Monetyzacja: checkout / subskrypcje / billing         |         162 |     31,97% |  29,71% |  26,68% | **32,71%** |        87 | 0,302 |    542 |   1 252 |
-| 6   | Wyszukiwarka                                          |          24 |     32,65% |  28,89% |  32,65% | **33,21%** |        11 | 0,333 |     63 |     117 |
+| 6   | Wyszukiwarka ✅                                       |          24 |     96,66% |  90,00% |  95,21% | **97,38%** |         0 | 0,750 |    589 |     117 |
 | 3   | Silniki treści: bloki + page builder ⚠                |         448 |     39,10% |  33,89% |  29,04% | **39,99%** |       205 | 0,448 |  2 048 |   4 507 |
 | 12  | Realtime / powiadomienia / web-push                   |          28 |     41,64% |  26,10% |  41,02% | **44,12%** |        13 | 0,464 |     93 |     223 |
 | 8   | SEO, feedy, dane strukturalne                         |          73 |     50,75% |  43,58% |  48,94% | **50,31%** |        32 | 0,521 |    314 |     724 |
@@ -122,7 +122,7 @@ nigdy nie uruchomione w teście.
 | 13  | Monetyzacja: checkout / subskrypcje / billing         |         1 387 |        370 | **26,68%** |
 | 1   | Wpisy: doświadczenie czytelnika                       |           698 |        188 | **26,93%** |
 | 3   | Silniki treści: bloki + page builder ⚠                |         6 828 |      1 983 | **29,04%** |
-| 6   | Wyszukiwarka                                          |           291 |         95 | **32,65%** |
+| 6   | Wyszukiwarka ✅                                       |           292 |        278 | **95,21%** |
 | 20  | Platforma / backend / infrastruktura / SSR            |         1 930 |        775 | **40,16%** |
 | 12  | Realtime / powiadomienia / web-push                   |           373 |        153 | **41,02%** |
 | 21  | Rekrutacja / kariera                                  |           348 |        164 | **47,13%** |
@@ -198,12 +198,23 @@ wzorcami ścieżek. Kolumna „fn” to funkcje wywołane / wszystkie funkcje w 
 | Chrome mobilny (drawer, dolny pasek) |     11 |        219 |  41,5% | 36,5% |   41,1% | **44,3%** |     23/56 |
 | Mega menu                            |      3 |        135 |  80,9% | 64,2% |   79,5% | **88,1%** |     31/39 |
 
-### MODUŁ 6 — Wyszukiwarka · linie 33,21% · funkcje 32,65%
+### MODUŁ 6 — Wyszukiwarka · linie 97,38% · funkcje 95,21% ✅ ZAMKNIĘTY
+
+Domknięty 2026-08-18 - `docs/WDROZENIE_WYSZUKIWARKA_TESTY_2026-08-18.md`. Zero plików na 0%
+(było 16 z 24 w pomiarze pełnym audytu: 11). Moduł ma teraz własne progi per-ścieżka
+w `vitest.config.ts`, których wcześniej nie miał wcale.
 
 | Funkcjonalność                               | Plików | LOC mierz. | Instr. |  Gał. | Funkcje |     Linie | fn (szt.) |
 | -------------------------------------------- | -----: | ---------: | -----: | ----: | ------: | --------: | --------: |
-| Wyszukiwarka: UI (overlay, filtry, zapisane) |     13 |        410 |  25,0% | 20,8% |   28,8% | **26,6%** |    38/132 |
-| Wyszukiwarka: indeks i zapytania             |     10 |        500 |  49,6% | 52,2% |   55,9% | **50,8%** |    57/102 |
+| Wyszukiwarka: UI (overlay, filtry, zapisane) |     13 |        410 |  96,5% | 90,4% |   93,1% | **96,4%** |   161/173 |
+| Wyszukiwarka: indeks i zapytania             |     10 |        500 |  96,6% | 88,5% |   98,1% | **98,2%** |   101/103 |
+| Zapisane wyszukiwania i alerty (hook)        |      1 |         40 |   100% |  100% |    100% |  **100%** |     16/16 |
+
+Przy okazji naprawiony defekt wyszukiwarki komend: fraza bez ogonków („platnosci") nie
+znajdowała polskich etykiet („Płatności"), mimo że baza składa diakrytyki od dawna
+(`unaccent` w `search_quick`). Rozstrzygnięta też anomalia z tego audytu -
+`SearchAutosuggest.test.tsx` istniał, a komponent miał 0 z 19 funkcji: ten plik testowy nie
+importował komponentu ani razu, jego asercje zasilały `facetModel.ts`.
 
 ### MODUŁ 7 — Typy treści specjalne · linie 16,47% · funkcje 14,60%
 
@@ -1062,7 +1073,7 @@ Liczba bez bramki gnije: pokrycie spada z każdym mergem, którego nikt nie mier
 - **MODUŁ 2 — Edytor wpisów i workflow redakcyjny**: linie 8,34%, funkcje 6,85%, plików 0%: 64/83
 - **MODUŁ 4 — Strony, wygląd, motyw, media, import**: linie 22,76%, funkcje 16,18%, plików 0%: 72/129
 - **MODUŁ 5 — Strona główna, archiwa, chrome**: linie 16,71%, funkcje 11,80%, plików 0%: 34/51
-- **MODUŁ 6 — Wyszukiwarka**: linie 33,21%, funkcje 32,65%, plików 0%: 11/24
+- ~~**MODUŁ 6 — Wyszukiwarka**: linie 33,21%, funkcje 32,65%, plików 0%: 11/24~~ → **ZAMKNIĘTY 18.08.2026**: linie 97,38%, funkcje 95,21%, plików 0%: 0/24
 - **MODUŁ 7 — Typy treści specjalne**: linie 16,47%, funkcje 14,60%, plików 0%: 75/109
 - **MODUŁ 11 — Newsletter i e-mail**: linie 26,70%, funkcje 20,74%, plików 0%: 70/135
 - **MODUŁ 12 — Realtime / powiadomienia / web-push**: linie 44,12%, funkcje 41,02%, plików 0%: 13/28
@@ -1228,7 +1239,7 @@ Rozbicie liczby plików produkcyjnych:
 | 3   | Silniki treści: bloki + page builder                  |   449 |      110 202 |           201 |     32 901 |
 | 4   | Strony, wygląd, motyw, media, import                  |   130 |       16 555 |            35 |      2 481 |
 | 5   | Strona główna, archiwa, chrome                        |    51 |        9 150 |             9 |      1 073 |
-| 6   | Wyszukiwarka                                          |    24 |        4 582 |             8 |        680 |
+| 6   | Wyszukiwarka ✅                                       |    24 |        4 582 |            18 |       6011 |
 | 7   | Typy treści specjalne                                 |   109 |       25 083 |            20 |      2 742 |
 | 8   | SEO, feedy, dane strukturalne                         |    73 |       10 265 |            38 |      3 850 |
 | 9   | Czat / komunikator                                    |    80 |       15 462 |            36 |      9 164 |
