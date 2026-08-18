@@ -547,6 +547,47 @@ export default defineConfig({
           lines: 100,
           branches: 100,
         },
+        // SILNIK REKOMENDACJI. `buildIdf` i `normalizeMap` stały na zerze, choć
+        // decydują, KTÓRE trzy artykuły czytelnik zobaczy pod tekstem, a
+        // `use_idf` jest przełącznikiem w panelu - redakcja może je włączyć bez
+        // wiedzy o zachowaniu na brzegach (termin w każdym dokumencie, unikat
+        // w korpusie 10 000 wpisów, korpus bez sygnału). Cały plik jest teraz na
+        // 100% linii i funkcji; niedobita gałąź to `cand.authorId && current.authorId`
+        // w kombinacji, której nie da się osiągnąć bez obu wartości null naraz.
+        "src/lib/relatedPosts.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
+        // ZAPISANE ARTYKUŁY. `useBookmarks` startował z 0 z 2 funkcji, a
+        // `useSaveArticle` z pamięcią lokalną gościa i wygasaniem (`readLocal`,
+        // `pruneExpired`) czyta dane Z URZĄDZENIA użytkownika - uszkodzony JSON,
+        // wpis bez znacznika czasu i zablokowany magazyn to stany, które w
+        // produkcji WYSTĘPUJĄ (tryb prywatny Safari).
+        "src/hooks/useBookmarks.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/hooks/useSaveArticle.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
+        // Beacon kliknięcia w rekomendację: telemetria opcjonalna, klik NIE -
+        // każda ścieżka błędu (brak `sendBeacon`, tryb offline, wyjątek
+        // z rozszerzenia przeglądarki) musi kończyć się cicho. Niedobite gałęzie
+        // to `typeof navigator === "undefined"` (pod happy-dom zawsze fałszywe)
+        // i puste ciało `.catch(() => undefined)`.
+        "src/lib/relatedClickBeacon.ts": {
+          statements: 90,
+          functions: 100,
+          lines: 100,
+          branches: 70,
+        },
       },
     },
   },
