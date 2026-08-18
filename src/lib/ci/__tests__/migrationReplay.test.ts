@@ -17,6 +17,8 @@ import {
   migrationReplayFailed,
   renderMigrationReplayReport,
   stripFunctionBodies,
+  validateTwinLedger,
+  type KnownContentTwin,
 } from "@/lib/ci/migrationReplay";
 
 const MIGRATIONS_DIR = "supabase/migrations";
@@ -294,6 +296,33 @@ describe("inwariant bliźniaków treści", () => {
     expect(report.recreatedFunctions.map((r) => r.signature)).toEqual(["f/2"]);
   });
 
+  it("znana para jest raportowana z wpisem rejestru, nie samą nazwą", () => {
+    // Bramka ma umieć powiedzieć nie tylko CO jest długiem, ale i skąd się wziął.
+    const files = ["20260101000000_a.sql", "20260102000000_b.sql"];
+    const ledger: KnownContentTwin[] = [
+      {
+        files: [files[0], files[1]],
+        deployment: "PR #1",
+        appliedOn: "2026-01-02",
+        rationale: "obie wersje w ledgerze",
+      },
+    ];
+    const report = analyzeMigrationReplay(
+      files,
+      [
+        { file: files[0], sql: twin },
+        { file: files[1], sql: twin },
+      ],
+      ledger,
+    );
+
+    expect(report.contentTwins).toEqual([]);
+    expect(report.knownContentTwins).toHaveLength(1);
+    expect(report.knownContentTwins[0].entry.deployment).toBe("PR #1");
+    expect(migrationReplayFailed(report)).toBe(false);
+    expect(renderMigrationReplayReport(report)).toContain("dług: PR #1 (2026-01-02)");
+  });
+
   it("ratchet: lista znanego długu odzwierciedla stan repo", () => {
     const repoFiles = readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith(".sql"));
     const repoSources = repoFiles.map((file) => ({
@@ -313,5 +342,99 @@ describe("inwariant bliźniaków treści", () => {
       report.recreatedFunctions,
       "CREATE FUNCTION dla istniejącej sygnatury - replay od zera padnie na 42723",
     ).toEqual([]);
+    expect(
+      report.twinLedgerDefects,
+      "rejestr długu niespójny sam ze sobą - patrz validateTwinLedger",
+    ).toEqual([]);
+  });
+});
+
+// Rejestr długu jest DANYMI, a dane bez walidacji gniją w jedną stronę. Przez
+// pierwsze wydania nośnikiem była płaska lista kluczy, więc wymagana doktryną
+// „decyzja operatora + DOWÓD zastosowania" mieszkała w komentarzach - i jeden
+// z nich („Wdrożenie PR #191") przeżył wpis, którego dotyczył. Te testy pilnują,
+// żeby każde pole wpisu było albo weryfikowalne, albo wymagane.
+describe("inwariant rejestru bliźniaków (validateTwinLedger)", () => {
+  const entry: KnownContentTwin = {
+    files: ["20260101000000_a.sql", "20260102000000_b.sql"],
+    deployment: "PR #1",
+    appliedOn: "2026-01-02",
+    rationale: "obie wersje w `schema_migrations`, SQL idempotentny",
+  };
+
+  it("przepuszcza wpis kompletny", () => {
+    expect(validateTwinLedger([entry])).toEqual([]);
+  });
+
+  it("REALNY rejestr repo jest spójny", () => {
+    // Bez wejścia z katalogu: rejestr to stała, jego poprawność nie zależy
+    // od tego, co akurat leży w supabase/migrations.
+    expect(analyzeMigrationReplay([]).twinLedgerDefects).toEqual([]);
+  });
+
+  it("zgłasza nazwę spoza konwencji migracji", () => {
+    const defects = validateTwinLedger([{ ...entry, files: ["init.sql", "20260102000000_b.sql"] }]);
+    expect(defects.map((d) => d.problem).join(" ")).toContain("konwencji nazw");
+  });
+
+  it("zgłasza parę wskazującą dwa razy ten sam plik", () => {
+    const defects = validateTwinLedger([
+      {
+        ...entry,
+        files: ["20260101000000_a.sql", "20260101000000_a.sql"],
+        appliedOn: "2026-01-01",
+      },
+    ]);
+    expect(defects).toHaveLength(1);
+    expect(defects[0].problem).toContain("dwa razy ten sam plik");
+  });
+
+  it("zgłasza parę zapisaną malejąco - klucz musi być kanoniczny", () => {
+    const defects = validateTwinLedger([
+      { ...entry, files: ["20260102000000_b.sql", "20260101000000_a.sql"] },
+    ]);
+    expect(defects.map((d) => d.problem).join(" ")).toContain("nie stoją rosnąco");
+  });
+
+  it("zgłasza wpis powtórzony", () => {
+    const defects = validateTwinLedger([entry, entry]);
+    expect(defects.map((d) => d.problem)).toContain("wpis powtórzony w rejestrze");
+  });
+
+  it("zgłasza rejestr nieposortowany - inaczej diffy rosną, a wpisy się gubią", () => {
+    const later: KnownContentTwin = {
+      ...entry,
+      files: ["20260301000000_c.sql", "20260302000000_d.sql"],
+      appliedOn: "2026-03-02",
+    };
+    expect(
+      validateTwinLedger([later, entry])
+        .map((d) => d.problem)
+        .join(" "),
+    ).toContain("nie jest posortowany");
+    expect(validateTwinLedger([entry, later])).toEqual([]);
+  });
+
+  it("nie przepuszcza wpisu bez decyzji operatora ani bez wdrożenia", () => {
+    expect(validateTwinLedger([{ ...entry, rationale: "   " }])[0].problem).toContain("rationale");
+    expect(validateTwinLedger([{ ...entry, deployment: "" }])[0].problem).toContain("deployment");
+  });
+
+  it("konfrontuje `appliedOn` z wersją PÓŹNIEJSZEGO pliku pary", () => {
+    // Jedyne pole opisowe, które da się sprawdzić z rzeczywistością - i jest.
+    expect(validateTwinLedger([{ ...entry, appliedOn: "2.01.2026" }])[0].problem).toContain(
+      "poza formatem",
+    );
+    expect(validateTwinLedger([{ ...entry, appliedOn: "2026-01-01" }])[0].problem).toContain(
+      "rozjeżdża się z wersją",
+    );
+  });
+
+  it("wada rejestru CZERWIENI bramkę i mówi, jak ją naprawić", () => {
+    const report = analyzeMigrationReplay([], [], [{ ...entry, rationale: "" }]);
+    expect(migrationReplayFailed(report)).toBe(true);
+    const rendered = renderMigrationReplayReport(report);
+    expect(rendered).toContain("niespójny sam ze sobą");
+    expect(rendered).toContain("appliedOn");
   });
 });
