@@ -86,13 +86,11 @@ const searchBox = () => screen.getByPlaceholderText("adminBilling.searchTypeIdUs
 beforeEach(() => {
   h.lang.current = "pl";
   h.readError.current = false;
-  h.retry
-    .mockReset()
-    .mockResolvedValue({
-      status: "processed",
-      eventType: "checkout.session.completed",
-      durationMs: 42,
-    });
+  h.retry.mockReset().mockResolvedValue({
+    status: "processed",
+    eventType: "checkout.session.completed",
+    durationMs: 42,
+  });
   h.toastSuccess.mockReset();
   h.toastError.mockReset();
   h.chain = supabaseFromStub();
