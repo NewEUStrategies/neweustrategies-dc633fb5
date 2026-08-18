@@ -1,43 +1,35 @@
-// Organism: a single conversation surface. Two variants:
-//  - "dock": floating Messenger-style popup window (bottom-right)
-//  - "page": fills the right pane of the /messages route
-// Owns the realtime channel, read receipts, typing state and mutations.
-// Registers the chat i18n bundle for every surface that renders messages
-// (the /messages route must NOT import it at module top level - that would
-// pull the strings into the eager entry graph).
+// Organizm: powierzchnia JEDNEJ rozmowy. Dwa warianty:
+//  - "dock" - pływające okno w stylu Messengera (prawy dolny róg),
+//  - "page" - wypełnia prawy panel trasy /messages.
+//
+// Rejestruje pakiet i18n czatu dla każdej powierzchni renderującej wiadomości
+// (trasa /messages NIE MOŻE importować go na poziomie modułu - wciągnęłoby to
+// teksty do gorącego grafu wejściowego).
+//
+// ── CO TU ZOSTAŁO PO PODZIALE (audyt: 1212 linii, 0% pokrycia) ──────────────
+// Ten plik jest teraz WYŁĄCZNIE kompozycją: spina warstwę danych z częściami
+// prezentacyjnymi i przekazuje intencje. Wszystko, co dało się przetestować bez
+// renderowania okna, wyszło do sąsiadów:
+//
+//   lib/chat/thread.ts          - kolejność wątku, separator nieprzeczytanych,
+//                                 ścieżki załączników, deskryptor podtytułu,
+//                                 nazwa autora, profile reagujących,
+//   lib/chat/useTypingRegistry  - zbiór piszących + liczniki wygaszenia,
+//   lib/chat/useThreadJump      - skok do trafienia z budżetem stron,
+//   lib/chat/useAutoMarkRead    - oznaczanie przeczytania (widoczność karty),
+//   ChatWindowHeader            - oba paski nagłówka,
+//   ConversationMenu            - menu rozmowy,
+//   ChatWindowDialogs           - wszystkie warstwy modalne,
+//   ChatIconButton              - przycisk ikonowy rzędu akcji,
+//   BlockedComposerNotice       - pasek zamiast kompozytora przy blokadzie.
+//
+// Efekt uboczny podziału jest ważniejszy niż liczba linii: reguły, które
+// wcześniej dało się sprawdzić tylko w przeglądarce, mają dziś testy
+// jednostkowe, a organizm ma test renderujący oba warianty.
 import "@/lib/i18n-chat";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  Archive,
-  ArchiveRestore,
-  ArrowLeft,
-  Ban,
-  BellOff,
-  Check,
-  Eraser,
-  Images,
-  Minus,
-  MoreVertical,
-  Palette,
-  Pin,
-  PinOff,
-  Search,
-  Timer,
-  UsersRound,
-  X,
-} from "lucide-react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Images, Minus, Search, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import {
   isMuted as isConversationMuted,
@@ -52,7 +44,6 @@ import {
 } from "@/lib/chat/useConversations";
 import { aggregatePeerReadState, conversationDisplay, isGroupView } from "@/lib/chat/display";
 import { useNicknames } from "@/lib/chat/nicknames";
-import { isExpired, MESSAGE_TTL_OPTIONS } from "@/lib/chat/receipts";
 import { useStarredIds, useToggleStar } from "@/lib/chat/stars";
 import {
   normalizeQuickEmoji,
@@ -61,9 +52,24 @@ import {
   themeClass,
 } from "@/lib/chat/themes";
 import {
+  attachmentPathsOf,
+  buildReactorProfiles,
+  canShowTyping,
+  firstUnreadMessageId,
+  headerSubtitle,
+  needsUnreadSnapshot,
+  orderThreadMessages,
+  resolveAuthorName as resolveAuthorNameFor,
+  sendErrorMessageKey,
+  typingDisplay,
+  type UnreadSnapshot,
+} from "@/lib/chat/thread";
+import { useAutoMarkRead } from "@/lib/chat/useAutoMarkRead";
+import { useThreadJump } from "@/lib/chat/useThreadJump";
+import { useTypingRegistry } from "@/lib/chat/useTypingRegistry";
+import {
   canEditMessage,
   retrySendInput,
-  useConversationChannel,
   useDeleteMessage,
   useDiscardFailedMessage,
   useEditMessage,
@@ -81,40 +87,40 @@ import { usePrefetchAttachmentUrls } from "@/lib/chat/attachments";
 import type { ChatLang } from "@/lib/chat/time";
 import type { ChatMessage } from "@/lib/chat/types";
 import { cn } from "@/lib/utils";
-import { ChatAppearanceDialog } from "./ChatAppearanceDialog";
-import { ChatAvatar } from "./ChatAvatar";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { BlockedComposerNotice } from "./BlockedComposerNotice";
 import { ChatComposer } from "./ChatComposer";
+import { ChatIconButton } from "./ChatIconButton";
 import { ChatMediaPanel } from "./ChatMediaPanel";
 import { ChatSurfaceBoundary } from "./ChatSurfaceBoundary";
-import { ForwardDialog } from "./ForwardDialog";
-import { GroupInfoDialog } from "./GroupInfoDialog";
+import { ChatWindowDialogs } from "./ChatWindowDialogs";
+import { ChatWindowHeader } from "./ChatWindowHeader";
+import { ConversationMenu } from "./ConversationMenu";
 import { MessageList } from "./MessageList";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { MessageSearchBar } from "./MessageSearchBar";
 
-const TYPING_VISIBLE_MS = 4000;
 const EMPTY_REACTIONS_MAP: ReadonlyMap<string, never[]> = new Map();
 
-// Reactive tab visibility - the read-receipt effect must re-run when the user
-// returns to the tab, not only when a dependency happens to change.
-function subscribeVisibility(callback: () => void) {
-  document.addEventListener("visibilitychange", callback);
-  return () => document.removeEventListener("visibilitychange", callback);
-}
-const getDocumentVisible = () => document.visibilityState === "visible";
-const getDocumentVisibleServer = () => false;
+/** Placeholder nagłówka, dopóki lista rozmów się nie wczyta. */
+const PENDING_DISPLAY = {
+  isGroup: false,
+  name: "...",
+  avatarUrl: null,
+  peerId: null,
+  slug: null,
+} as const;
 
 export interface ChatWindowProps {
   conversationId: string;
   variant: "dock" | "page";
   onClose?: () => void;
   onMinimize?: () => void;
-  /** Page variant only: mobile back-to-list action. */
+  /** Tylko wariant page: powrót do listy na mobile. */
   onBack?: () => void;
   autoFocus?: boolean;
   /**
-   * External "scroll to this message" request (inbox-wide message search).
-   * nonce re-arms the jump when the same hit is clicked twice in a row.
+   * Zewnętrzne żądanie „przewiń do tej wiadomości" (wyszukiwarka skrzynki).
+   * nonce przezbraja skok, gdy to samo trafienie kliknięto dwa razy pod rząd.
    */
   jumpRequest?: { id: string; nonce: number } | null;
   className?: string;
@@ -145,55 +151,37 @@ export function ChatWindow(props: ChatWindowProps) {
   const isGroup = !!view && isGroupView(view);
   const display = view
     ? conversationDisplay(view, peersQ.data, t("chat.group.circle"), conversationNicknames)
-    : { isGroup: false, name: "...", avatarUrl: null, peerId: null, slug: null };
-  const peerId = display.peerId;
-  const peerName = display.name;
-  const peerAvatar = display.avatarUrl;
-  const peerSlug = display.slug;
+    : PENDING_DISPLAY;
+  const { peerId, name: peerName, avatarUrl: peerAvatar, slug: peerSlug } = display;
 
-  // Reactor lookup: powers avatars + tooltip names on reaction chips.
-  // Combines peer profiles with a synthesized "self" entry pulled from the
-  // Supabase auth session (avatar_url + display name fall back gracefully).
-  const reactorProfiles = useMemo<
-    ReadonlyMap<string, { display_name: string; avatar_url: string | null }>
-  >(() => {
-    const map = new Map<string, { display_name: string; avatar_url: string | null }>();
-    if (peersQ.data) {
-      for (const [id, p] of peersQ.data) {
-        map.set(id, {
-          display_name: p.display_name ?? "",
-          avatar_url: p.avatar_url ?? null,
-        });
-      }
-    }
-    if (user) {
-      const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
-      const displayName =
-        (typeof meta.display_name === "string" && meta.display_name) ||
-        (typeof meta.full_name === "string" && meta.full_name) ||
-        (typeof meta.name === "string" && meta.name) ||
-        user.email ||
-        t("chat.you");
-      const avatarUrl =
-        typeof meta.avatar_url === "string" && meta.avatar_url ? meta.avatar_url : null;
-      map.set(user.id, { display_name: displayName, avatar_url: avatarUrl });
-    }
-    return map;
-  }, [peersQ.data, user, t]);
+  // Profile reagujących: rozmówcy z RPC + zsyntetyzowany wpis „ja" z sesji
+  // (własny avatar stoi na chipie reakcji, a `get_chat_peers` zwraca wyłącznie
+  // rozmówców).
+  const reactorProfiles = useMemo(
+    () =>
+      buildReactorProfiles({
+        peerProfiles: peersQ.data,
+        me: user ? { id: user.id, email: user.email, metadata: user.user_metadata } : null,
+        youLabel: t("chat.you"),
+      }),
+    [peersQ.data, user, t],
+  );
 
-  // Shared per-conversation personalization (Messenger semantics): the theme
-  // recolors every --chat-user-* token below this root, the wallpaper styles
-  // the thread scroller, the quick emoji powers the composer's one-tap send.
+  // Wspólna personalizacja rozmowy (semantyka Messengera): motyw przekolorowuje
+  // wszystkie tokeny --chat-user-* poniżej tego korzenia, tapeta stylizuje
+  // scroller wątku, szybka emotka napędza wysyłkę jednym dotknięciem.
   const theme = normalizeTheme(view?.conversation.theme);
   const wallpaper = normalizeWallpaper(view?.conversation.wallpaper);
   const quickEmoji = normalizeQuickEmoji(view?.conversation.quick_emoji);
-  const peerOnline = !!peerId && online.has(peerId);
-  const onlinePeers = useMemo(
-    () => peerIds.reduce((sum, id) => sum + (online.has(id) ? 1 : 0), 0),
-    [peerIds, online],
+  const subtitle = useMemo(
+    () => headerSubtitle({ isGroup, peerIds, onlineIds: online, peerId }),
+    [isGroup, peerIds, online, peerId],
   );
-  // Group receipts use all-members semantics (read/delivered only when every
-  // member did) - for direct threads this is exactly the single peer row.
+  const peerOnline = !!peerId && online.has(peerId);
+
+  // Potwierdzenia w kręgu mają semantykę „wszyscy członkowie" (przeczytane /
+  // doręczone tylko wtedy, gdy KAŻDY) - dla wątku bezpośredniego to dokładnie
+  // wiersz jedynego rozmówcy.
   const { lastReadAt: peerLastReadAt, lastDeliveredAt: peerLastDeliveredAt } = view
     ? aggregatePeerReadState(view)
     : { lastReadAt: null, lastDeliveredAt: null };
@@ -218,177 +206,75 @@ export function ChatWindow(props: ChatWindowProps) {
   const clearHistory = useClearConversationHistory();
   const setMessageTtl = useSetMessageTtl();
 
-  // Block state: RLS only exposes MY blocks, so this covers "I blocked the
-  // peer"; the reverse direction is enforced server-side ("chat: blocked").
+  // Stan blokady: RLS pokazuje WYŁĄCZNIE własne blokady, więc to pokrywa
+  // przypadek „ja zablokowałem rozmówcę"; kierunek odwrotny egzekwuje serwer
+  // ("chat: blocked").
   const blocksQ = useMyBlocks();
   const blockUser = useBlockUser();
   const unblockUser = useUnblockUser();
   const peerBlocked = !!peerId && !!blocksQ.data?.has(peerId);
 
-  // Privacy preference: with typing indicators off we never broadcast our own
-  // "typing..." pings (receiving the peer's stays unaffected).
+  // Preferencja prywatności: przy wyłączonych wskaźnikach pisania nie nadajemy
+  // własnych pingów (odbiór pingów rozmówcy zostaje bez zmian).
   const prefsQ = useNotificationPreferences();
   const typingEnabled = prefsQ.data?.typing_indicators_enabled ?? true;
+  const { typingUserIds, sendTyping } = useTypingRegistry(conversationId, true, typingEnabled);
 
-  // Who is typing - a SET of user ids, not a single slot: in groups several
-  // members can type at once and one member pausing must not clear another's
-  // indicator. Each typer gets an independent expiry timer; an explicit stop
-  // (typing:false, sent along with the message) removes only that typer.
-  const [typingUserIds, setTypingUserIds] = useState<ReadonlySet<string>>(new Set());
-  const typingTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
-  const removeTyper = useCallback((userId: string) => {
-    const timer = typingTimersRef.current.get(userId);
-    if (timer) clearTimeout(timer);
-    typingTimersRef.current.delete(userId);
-    setTypingUserIds((prev) => {
-      if (!prev.has(userId)) return prev;
-      const next = new Set(prev);
-      next.delete(userId);
-      return next;
-    });
-  }, []);
-  const { sendTyping } = useConversationChannel(conversationId, true, (event) => {
-    if (event.typing === false) {
-      removeTyper(event.userId);
-      return;
-    }
-    setTypingUserIds((prev) => {
-      if (prev.has(event.userId)) return prev;
-      const next = new Set(prev);
-      next.add(event.userId);
-      return next;
-    });
-    const existing = typingTimersRef.current.get(event.userId);
-    if (existing) clearTimeout(existing);
-    typingTimersRef.current.set(
-      event.userId,
-      setTimeout(() => removeTyper(event.userId), TYPING_VISIBLE_MS),
-    );
-  });
-  const peerTyping = typingUserIds.size > 0;
-  // Conversation switch without remount (dock): the previous thread's typers
-  // must not leak into the new one - drop state and timers on both edges.
-  useEffect(() => {
-    setTypingUserIds((prev) => (prev.size === 0 ? prev : new Set()));
-    const timers = typingTimersRef.current;
-    const clearAll = () => {
-      for (const timer of timers.values()) clearTimeout(timer);
-      timers.clear();
-    };
-    clearAll();
-    return clearAll;
-  }, [conversationId]);
-
-  // Minute tick: the 5-minute edit window must close visually even when
-  // nothing else re-renders, and disappearing messages must vanish live
-  // between refetches. Only the list shell re-renders on a tick - memoized
-  // bubbles re-render solely when their own `editable` flips.
+  // Tyknięcie minuty: pięciominutowe okno edycji musi zamknąć się WIZUALNIE,
+  // nawet gdy nic innego się nie przerenderowuje, a wiadomości znikające muszą
+  // zniknąć na żywo między refetchami. Na tyknięciu przerenderowuje się tylko
+  // powłoka listy - zmemoizowane dymki dopiero, gdy zmieni się ich `editable`.
   const [editTick, setEditTick] = useState(0);
   useEffect(() => {
     const timer = setInterval(() => setEditTick((n) => n + 1), 60_000);
     return () => clearInterval(timer);
   }, []);
 
-  // Snapshot the unread state the first time this conversation's row is seen,
-  // BEFORE mark-read fires - so the "unread" divider lands where the user left
-  // off rather than collapsing to zero the moment the thread opens.
-  const unreadSnapshotRef = useRef<{
-    convId: string;
-    count: number;
-    lastReadAt: string | null;
-  } | null>(null);
-  if (view && unreadSnapshotRef.current?.convId !== conversationId) {
+  // Migawka stanu nieprzeczytanych z PIERWSZEGO zobaczenia wiersza tej rozmowy,
+  // czyli PRZED oznaczeniem przeczytania - żeby separator „nieprzeczytane"
+  // wylądował tam, gdzie użytkownik skończył, a nie zapadł się do zera w chwili
+  // otwarcia wątku.
+  const unreadSnapshotRef = useRef<UnreadSnapshot | null>(null);
+  if (view && needsUnreadSnapshot(unreadSnapshotRef.current, conversationId)) {
     unreadSnapshotRef.current = {
-      convId: conversationId,
+      conversationId,
       count: view.me.unread_count,
       lastReadAt: view.me.last_read_at,
     };
   }
-
-  const messages: ChatMessage[] = useMemo(() => {
-    // editTick keeps the expiry cutoff fresh: disappearing messages vanish on
-    // the minute tick instead of waiting for the next refetch (RLS is the
-    // authority; this mirrors it client-side).
-    const nowMs = editTick >= 0 ? Date.now() : 0;
-    const pages = messagesQ.data?.pages ?? [];
-    const flat = pages.flatMap((page) => page.rows).filter((m) => !isExpired(m, nowMs));
-    // Pages are newest-first; render oldest -> newest and drop duplicates
-    // (an optimistic row can coexist with its realtime twin for a frame).
-    const seen = new Set<string>();
-    const ordered: ChatMessage[] = [];
-    for (let i = flat.length - 1; i >= 0; i--) {
-      const m = flat[i];
-      if (m && !seen.has(m.id)) {
-        seen.add(m.id);
-        ordered.push(m);
-      }
-    }
-    // ISO-8601 sorts lexicographically; plain compare beats localeCompare.
-    // Id tiebreaker keeps equal-timestamp rows (optimistic vs server clock)
-    // in a stable order across re-renders.
-    return ordered.sort((a, b) =>
-      a.created_at < b.created_at
-        ? -1
-        : a.created_at > b.created_at
-          ? 1
-          : a.id < b.id
-            ? -1
-            : a.id > b.id
-              ? 1
-              : 0,
-    );
-  }, [messagesQ.data, editTick]);
-
   const unreadSnapshot =
-    unreadSnapshotRef.current?.convId === conversationId ? unreadSnapshotRef.current : null;
-  const firstUnreadId = useMemo(() => {
-    if (!user || !unreadSnapshot || unreadSnapshot.count <= 0) return null;
-    const cutoff = unreadSnapshot.lastReadAt ? new Date(unreadSnapshot.lastReadAt).getTime() : 0;
-    for (const m of messages) {
-      if (m.sender_id !== user.id && new Date(m.created_at).getTime() > cutoff) return m.id;
-    }
-    return null;
-    // unreadSnapshot is a per-conversation ref snapshot; messages drive recompute.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, conversationId, user?.id]);
+    unreadSnapshotRef.current?.conversationId === conversationId ? unreadSnapshotRef.current : null;
 
-  // One batched storage call signs every attachment in the loaded history.
-  const attachmentPaths = useMemo(
-    () =>
-      messages
-        .filter((m) => !!m.attachment_path && !m.deleted_at && !m.pending)
-        .map((m) => m.attachment_path as string),
-    [messages],
+  const messages = useMemo(
+    // editTick trzyma odcięcie wygaśnięcia świeże: wiadomości znikające
+    // przepadają na tyknięciu minuty, nie przy najbliższym refetchu (RLS jest
+    // autorytetem, to jest jego lustro po stronie klienta).
+    () => orderThreadMessages(messagesQ.data?.pages, editTick >= 0 ? Date.now() : 0),
+    [messagesQ.data, editTick],
   );
+
+  const firstUnreadId = useMemo(
+    () => firstUnreadMessageId(messages, user?.id, unreadSnapshot),
+    // unreadSnapshot to migawka w refie per rozmowa; przeliczenie napędzają wiadomości.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [messages, conversationId, user?.id],
+  );
+
+  // Jedno wywołanie storage podpisuje każdy załącznik z wczytanej historii.
+  const attachmentPaths = useMemo(() => attachmentPathsOf(messages), [messages]);
   usePrefetchAttachmentUrls(attachmentPaths);
 
-  // Read receipt: whenever the newest message is from the peer and the tab is
-  // visible, mark the thread read (clears the badge + shows "seen" to them).
-  // Coalesced client-side per message id (the RPC also no-ops server-side when
-  // there is nothing new, so no realtime fanout happens for repeats). The
-  // visibility flag is reactive, so returning to a hidden tab marks pending
-  // unreads immediately.
-  const visible = useSyncExternalStore(
-    subscribeVisibility,
-    getDocumentVisible,
-    getDocumentVisibleServer,
-  );
+  // Potwierdzenie odczytu - reguła i reaktywna widoczność karty żyją w hooku.
   const lastMessage = messages[messages.length - 1];
-  const unread = view?.me.unread_count ?? 0;
-  const lastMarkedRef = useRef<string | null>(null);
-  const autoMarkOnOpen = prefsQ.data?.auto_mark_on_open ?? true;
-  useEffect(() => {
-    if (!user || !lastMessage || !visible) return;
-    // Preferencja per tenant: gdy użytkownik wyłączy auto-mark, zostawiamy
-    // licznik nieprzeczytanych do jawnego oznaczenia (np. przez menu rozmowy).
-    if (!autoMarkOnOpen) return;
-    if (lastMessage.sender_id !== user.id && unread > 0) {
-      if (lastMarkedRef.current === lastMessage.id) return;
-      lastMarkedRef.current = lastMessage.id;
-      markRead.mutate(conversationId);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lastMessage?.id, unread, conversationId, user?.id, visible, autoMarkOnOpen]);
+  const { mutate: mutateMarkRead } = markRead;
+  useAutoMarkRead({
+    conversationId,
+    myUserId: user?.id,
+    lastMessage,
+    unreadCount: view?.me.unread_count ?? 0,
+    enabled: prefsQ.data?.auto_mark_on_open ?? true,
+    markRead: mutateMarkRead,
+  });
 
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [editTarget, setEditTarget] = useState<ChatMessage | null>(null);
@@ -398,12 +284,10 @@ export function ChatWindow(props: ChatWindowProps) {
   const [blockDialogOpen, setBlockDialogOpen] = useState(false);
   const [groupInfoOpen, setGroupInfoOpen] = useState(false);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
-  // Wyszukiwanie w treści rozmowy + skok do trafienia. Jump target żyje tutaj
-  // (nie w MessageList), bo dociąganie starszych stron aż do znalezienia
-  // wiadomości wymaga messagesQ; MessageList tylko przewija, gdy id już jest.
   const [searchOpen, setSearchOpen] = useState(false);
-  const [jumpTarget, setJumpTarget] = useState<string | null>(null);
-  const jumpPagesLeftRef = useRef(0);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
 
   useEffect(() => {
     setReplyTo(null);
@@ -411,12 +295,33 @@ export function ChatWindow(props: ChatWindowProps) {
     setDeleteTarget(null);
     setForwardTarget(null);
     setBlockDialogOpen(false);
+    setReportDialogOpen(false);
     setGroupInfoOpen(false);
     setAppearanceOpen(false);
   }, [conversationId]);
 
-  // Stable handlers: MessageBubble is memoized, so these references must not
-  // change per render or the memo is defeated for the whole thread.
+  // Skok do trafienia wyszukiwarki. Cel żyje w hooku (nie w MessageList), bo
+  // dociąganie starszych stron aż do znalezienia wiadomości wymaga messagesQ;
+  // MessageList tylko przewija, gdy id już jest w oknie.
+  const { fetchNextPage } = messagesQ;
+  const handleLoadOlder = useCallback(() => void fetchNextPage(), [fetchNextPage]);
+  const fetchOlderPage = useCallback(() => void fetchNextPage(), [fetchNextPage]);
+  const handleJumpExhausted = useCallback(() => toast.error(t("chat.search.jumpFailed")), [t]);
+  const isMessageLoaded = useCallback(
+    (messageId: string) => messages.some((m) => m.id === messageId),
+    [messages],
+  );
+  const { jumpTarget, onJumpHandled, startJump } = useThreadJump({
+    request: jumpRequest ?? null,
+    isLoaded: isMessageLoaded,
+    hasNextPage: !!messagesQ.hasNextPage,
+    isFetchingNextPage: messagesQ.isFetchingNextPage,
+    fetchNextPage: fetchOlderPage,
+    onExhausted: handleJumpExhausted,
+  });
+
+  // Stabilne handlery: MessageBubble jest zmemoizowany, więc te referencje nie
+  // mogą zmieniać się co render - inaczej memo jest zniesione dla całego wątku.
   const uid = user?.id;
   const { mutate: mutateReaction } = toggleReaction;
   const handleReact = useCallback(
@@ -441,9 +346,9 @@ export function ChatWindow(props: ChatWindowProps) {
     (message: ChatMessage) => discardFailed(message.id),
     [discardFailed],
   );
-  // Retry = drop the failed optimistic row and re-send the same payload as a
-  // fresh mutation (the attachment object is already in storage, so a retry
-  // never re-uploads). World-class clients never make the user retype.
+  // Ponowienie = zdejmij nieudany wiersz optymistyczny i wyślij ten sam ładunek
+  // jako świeżą mutację (obiekt załącznika jest już w storage, więc ponowienie
+  // nigdy nie wysyła pliku drugi raz). Klasa światowa nie każe przepisywać.
   const { mutate: mutateSendForRetry } = sendMessage;
   const handleRetryFailed = useCallback(
     (message: ChatMessage) => {
@@ -458,68 +363,22 @@ export function ChatWindow(props: ChatWindowProps) {
     (message: ChatMessage) => (uid ? canEditMessage(message, uid) : false),
     [uid],
   );
-  const { fetchNextPage } = messagesQ;
-  const handleLoadOlder = useCallback(() => void fetchNextPage(), [fetchNextPage]);
-
-  // Zewnętrzne żądanie skoku (wyszukiwarka skrzynki) - nonce pozwala ponowić
-  // skok do tej samej wiadomości. Budżet stron ogranicza automatyczne
-  // dociąganie historii (12 stron = ~480 wiadomości wstecz).
-  const JUMP_PAGE_BUDGET = 12;
-  useEffect(() => {
-    if (!jumpRequest) return;
-    jumpPagesLeftRef.current = JUMP_PAGE_BUDGET;
-    setJumpTarget(jumpRequest.id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jumpRequest?.id, jumpRequest?.nonce]);
-
-  const jumpTargetLoaded = useMemo(
-    () => !!jumpTarget && messages.some((m) => m.id === jumpTarget),
-    [jumpTarget, messages],
-  );
-  useEffect(() => {
-    if (!jumpTarget || jumpTargetLoaded) return;
-    // Trafienie poza załadowanym oknem: dociągaj starsze strony, aż wiadomość
-    // wejdzie do okna (MessageList wtedy przewinie), wyczerpie się historia
-    // (np. wiadomość właśnie znikła po TTL) albo skończy się budżet stron.
-    if (!messagesQ.hasNextPage || jumpPagesLeftRef.current <= 0) {
-      toast.error(t("chat.search.jumpFailed"));
-      setJumpTarget(null);
-      return;
-    }
-    if (messagesQ.isFetchingNextPage) return;
-    jumpPagesLeftRef.current -= 1;
-    void fetchNextPage();
-  }, [
-    jumpTarget,
-    jumpTargetLoaded,
-    messagesQ.hasNextPage,
-    messagesQ.isFetchingNextPage,
-    fetchNextPage,
-    t,
-  ]);
-  const handleJumpHandled = useCallback(() => setJumpTarget(null), []);
   const handleClearReply = useCallback(() => setReplyTo(null), []);
   const handleCancelEdit = useCallback(() => setEditTarget(null), []);
-  const handleTyping = useCallback(
-    (typing?: boolean) => {
-      if (typingEnabled) sendTyping(typing);
-    },
-    [typingEnabled, sendTyping],
-  );
+  const handleTyping = useCallback((typing?: boolean) => sendTyping(typing), [sendTyping]);
   const { mutate: mutateSend } = sendMessage;
   const handleSend = useCallback(
     (input: SendMessageInput) => {
-      // The outgoing message supersedes the typing state on the peer's side -
-      // broadcast an explicit stop so their indicator clears instantly.
+      // Wysłana wiadomość zastępuje stan „pisze..." u rozmówcy - nadajemy jawne
+      // zatrzymanie, żeby jego wskaźnik zgasł natychmiast.
       handleTyping(false);
       mutateSend(input, {
         onError: (err) => {
-          // The mutation's own onError already flipped the optimistic row to
-          // its failed state; here we only translate the server verdict.
-          if (err.message.includes("chat: blocked")) toast.error(t("chat.block.sendBlocked"));
-          else if (err.message.includes("recipient unavailable"))
-            toast.error(t("chat.recipientUnavailable"));
-          else if (err.message.includes("rate limited")) toast.error(t("chat.rateLimited"));
+          // Mutacja w swoim onError już przełączyła wiersz optymistyczny w stan
+          // nieudany; tutaj tylko tłumaczymy werdykt serwera (i milczymy, gdy
+          // dymek mówi już wszystko - patrz `sendErrorMessageKey`).
+          const key = sendErrorMessageKey(err.message);
+          if (key) toast.error(t(key));
         },
       });
     },
@@ -552,13 +411,15 @@ export function ChatWindow(props: ChatWindowProps) {
     },
     [mutateToggleStar, t],
   );
+  const { mutate: mutateDeleteMessage } = deleteMessage;
+  const handleConfirmDelete = useCallback(
+    (message: ChatMessage) => mutateDeleteMessage(message.id),
+    [mutateDeleteMessage],
+  );
 
-  // Conversation menu state + actions (pin / archive / mute / clear / ttl).
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [clearDialogOpen, setClearDialogOpen] = useState(false);
-  const settingErr = () => toast.error(t("chat.menu.error"));
-  const handlePinToggle = () => {
-    setMenuOpen(false);
+  // Akcje menu rozmowy (przypnij / archiwizuj / wycisz / wyczyść / TTL).
+  const settingErr = useCallback(() => toast.error(t("chat.menu.error")), [t]);
+  const handlePinToggle = useCallback(() => {
     setPinned.mutate(
       { conversationId, pinned: !pinned },
       {
@@ -566,9 +427,8 @@ export function ChatWindow(props: ChatWindowProps) {
           err.message.includes("pin limit") ? toast.error(t("chat.menu.pinLimit")) : settingErr(),
       },
     );
-  };
-  const handleArchiveToggle = () => {
-    setMenuOpen(false);
+  }, [setPinned, conversationId, pinned, t, settingErr]);
+  const handleArchiveToggle = useCallback(() => {
     setArchived.mutate(
       { conversationId, archived: !archived },
       {
@@ -577,289 +437,96 @@ export function ChatWindow(props: ChatWindowProps) {
         onError: settingErr,
       },
     );
-  };
-  const handleMute = (seconds: number | null) => {
-    setMenuOpen(false);
-    setMuted.mutate({ conversationId, seconds }, { onError: settingErr });
-  };
-  const handleTtl = (seconds: number | null) => {
-    setMenuOpen(false);
-    setMessageTtl.mutate(
-      { conversationId, ttlSeconds: seconds },
-      {
-        onSuccess: () => toast.success(t("chat.disappearing.saved")),
-        onError: settingErr,
-      },
-    );
-  };
-  const handleClearHistory = () => {
+  }, [setArchived, conversationId, archived, t, settingErr]);
+  const handleMute = useCallback(
+    (seconds: number | null) => {
+      setMuted.mutate({ conversationId, seconds }, { onError: settingErr });
+    },
+    [setMuted, conversationId, settingErr],
+  );
+  const handleTtl = useCallback(
+    (seconds: number | null) => {
+      setMessageTtl.mutate(
+        { conversationId, ttlSeconds: seconds },
+        { onSuccess: () => toast.success(t("chat.disappearing.saved")), onError: settingErr },
+      );
+    },
+    [setMessageTtl, conversationId, t, settingErr],
+  );
+  const handleClearHistory = useCallback(() => {
     setClearDialogOpen(false);
     clearHistory.mutate(
       { conversationId },
-      {
-        onSuccess: () => toast.success(t("chat.menu.cleared")),
-        onError: settingErr,
-      },
+      { onSuccess: () => toast.success(t("chat.menu.cleared")), onError: settingErr },
     );
-  };
+  }, [clearHistory, conversationId, t, settingErr]);
 
   if (!user) return null;
 
-  const peerTypingSafe = peerTyping && (isGroup || !!peerId);
-  const typingIds = [...typingUserIds];
-  const typingNames = isGroup
-    ? typingIds.map(
-        (id) => conversationNicknames?.get(id) ?? peersQ.data?.get(id)?.display_name ?? "...",
-      )
-    : [peerName];
-  const firstTypingId = typingIds[0];
-  const typingAvatarUrl = isGroup
-    ? firstTypingId
-      ? (peersQ.data?.get(firstTypingId)?.avatar_url ?? null)
-      : null
-    : peerAvatar;
-  const headerSubtitle = isGroup
-    ? `${t("chat.group.members", { count: peerIds.length + 1 })}${
-        onlinePeers > 0 ? ` · ${t("chat.group.online", { count: onlinePeers })}` : ""
-      }`
-    : peerOnline
-      ? t("chat.online")
-      : t("chat.offline");
+  const myUserId = user.id;
+  const resolveAuthorName = (senderId: string): string =>
+    resolveAuthorNameFor({
+      senderId,
+      myUserId,
+      isGroup,
+      peerName,
+      youLabel: t("chat.you"),
+      nickname: conversationNicknames?.get(senderId) ?? null,
+      profileName: peersQ.data?.get(senderId)?.display_name ?? null,
+    });
 
-  const resolveAuthorName = (senderId: string): string => {
-    if (senderId === user.id) return t("chat.you");
-    const nickname = conversationNicknames?.get(senderId);
-    if (nickname) return nickname;
-    if (!isGroup) return peerName;
-    return peersQ.data?.get(senderId)?.display_name ?? "...";
-  };
+  const typing = typingDisplay({
+    typingUserIds,
+    isGroup,
+    peerName,
+    peerAvatarUrl: peerAvatar,
+    resolveName: (id) =>
+      conversationNicknames?.get(id) ?? peersQ.data?.get(id)?.display_name ?? "...",
+    resolveAvatarUrl: (id) => peersQ.data?.get(id)?.avatar_url ?? null,
+  });
+  const showTyping = canShowTyping({ typingCount: typingUserIds.size, isGroup, peerId });
 
-  const searchToggle = (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          onClick={() => setSearchOpen((v) => !v)}
-          className={cn(
-            "flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-            searchOpen && "bg-muted text-foreground",
-          )}
-          aria-label={searchOpen ? t("chat.search.close") : t("chat.search.inConversation")}
-          aria-pressed={searchOpen}
-        >
-          <Search className="h-4 w-4" aria-hidden />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="bottom">
-        {searchOpen ? t("chat.search.close") : t("chat.search.inConversation")}
-      </TooltipContent>
-    </Tooltip>
-  );
-
-  const mediaToggle = (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          onClick={() => setMediaOpen((v) => !v)}
-          className={cn(
-            "flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-            mediaOpen && "bg-muted text-foreground",
-          )}
-          aria-label={mediaOpen ? t("chat.mediaPanel.close") : t("chat.mediaPanel.open")}
-          aria-pressed={mediaOpen}
-        >
-          <Images className="h-4 w-4" aria-hidden />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="bottom">
-        {mediaOpen ? t("chat.mediaPanel.close") : t("chat.mediaPanel.open")}
-      </TooltipContent>
-    </Tooltip>
-  );
-
-  const menuItemClass =
-    "flex w-full items-center gap-2 rounded-[6px] px-2 py-1.5 text-left text-[12px] transition-colors hover:bg-muted";
-  const menuHeadingClass =
-    "px-2 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground";
-  const conversationMenu = (
-    <Popover open={menuOpen} onOpenChange={setMenuOpen}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              className={cn(
-                "flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-                menuOpen && "bg-muted text-foreground",
-              )}
-              aria-label={t("chat.menu.title")}
-              aria-haspopup="menu"
-            >
-              <MoreVertical className="h-4 w-4" aria-hidden />
-            </button>
-          </PopoverTrigger>
-        </TooltipTrigger>
-        <TooltipContent side="bottom">{t("chat.menu.title")}</TooltipContent>
-      </Tooltip>
-      <PopoverContent
-        side="bottom"
-        align="end"
-        sideOffset={4}
-        className="w-60 rounded-[6px] border-border/60 bg-popover p-1.5 shadow-xl"
-      >
-        <div role="menu" aria-label={t("chat.menu.title")} className="flex flex-col">
-          {isGroup && (
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setMenuOpen(false);
-                setGroupInfoOpen(true);
-              }}
-              className={menuItemClass}
-            >
-              <UsersRound className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-              {t("chat.group.info")}
-            </button>
-          )}
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              setMenuOpen(false);
-              setAppearanceOpen(true);
-            }}
-            className={menuItemClass}
-          >
-            <Palette className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-            {t("chat.appearance.open")}
-          </button>
-          <button type="button" role="menuitem" onClick={handlePinToggle} className={menuItemClass}>
-            {pinned ? (
-              <PinOff className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-            ) : (
-              <Pin className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-            )}
-            {pinned ? t("chat.menu.unpin") : t("chat.menu.pin")}
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={handleArchiveToggle}
-            className={menuItemClass}
-          >
-            {archived ? (
-              <ArchiveRestore className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-            ) : (
-              <Archive className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-            )}
-            {archived ? t("chat.menu.unarchive") : t("chat.menu.archive")}
-          </button>
-
-          <p className={menuHeadingClass}>{t("chat.menu.muteSection")}</p>
-          {muted ? (
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => handleMute(null)}
-              className={menuItemClass}
-            >
-              <BellOff className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-              {t("chat.menu.unmute")}
-            </button>
-          ) : (
-            <>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => handleMute(8 * 3600)}
-                className={menuItemClass}
-              >
-                <BellOff className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-                {t("chat.menu.mute8h")}
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => handleMute(7 * 86400)}
-                className={menuItemClass}
-              >
-                <BellOff className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-                {t("chat.menu.muteWeek")}
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => handleMute(-1)}
-                className={menuItemClass}
-              >
-                <BellOff className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-                {t("chat.menu.muteAlways")}
-              </button>
-            </>
-          )}
-
-          <p className={menuHeadingClass}>{t("chat.disappearing.title")}</p>
-          {[null, ...MESSAGE_TTL_OPTIONS].map((option) => {
-            const active = (ttlSeconds ?? null) === option;
-            const label =
-              option === null
-                ? t("chat.disappearing.off")
-                : option === 86400
-                  ? t("chat.disappearing.day")
-                  : option === 604800
-                    ? t("chat.disappearing.week")
-                    : t("chat.disappearing.quarter");
-            return (
-              <button
-                key={option ?? "off"}
-                type="button"
-                role="menuitemradio"
-                aria-checked={active}
-                onClick={() => handleTtl(option)}
-                className={cn(menuItemClass, active && "bg-muted font-medium")}
-              >
-                <Timer className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-                <span className="flex-1">{label}</span>
-                {active && <Check className="h-3.5 w-3.5 text-[var(--brand)]" aria-hidden />}
-              </button>
-            );
-          })}
-
-          <div className="my-1 h-px bg-border/60" aria-hidden />
-          {peerId && (
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setMenuOpen(false);
-                setBlockDialogOpen(true);
-              }}
-              className={cn(
-                menuItemClass,
-                peerBlocked ? "text-destructive hover:text-destructive" : "",
-              )}
-            >
-              <Ban className="h-3.5 w-3.5" aria-hidden />
-              {peerBlocked ? t("chat.block.unblock") : t("chat.block.block")}
-            </button>
-          )}
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              setMenuOpen(false);
-              setClearDialogOpen(true);
-            }}
-            className={cn(menuItemClass, "text-destructive hover:text-destructive")}
-          >
-            <Eraser className="h-3.5 w-3.5" aria-hidden />
-            {t("chat.menu.clear")}
-          </button>
-        </div>
-      </PopoverContent>
-    </Popover>
+  const headerActions = (
+    <>
+      <ChatIconButton
+        icon={Search}
+        label={searchOpen ? t("chat.search.close") : t("chat.search.inConversation")}
+        onClick={() => setSearchOpen((v) => !v)}
+        pressed={searchOpen}
+      />
+      <ChatIconButton
+        icon={Images}
+        label={mediaOpen ? t("chat.mediaPanel.close") : t("chat.mediaPanel.open")}
+        onClick={() => setMediaOpen((v) => !v)}
+        pressed={mediaOpen}
+      />
+      <ConversationMenu
+        open={menuOpen}
+        onOpenChange={setMenuOpen}
+        isGroup={isGroup}
+        pinned={pinned}
+        archived={archived}
+        muted={muted}
+        ttlSeconds={ttlSeconds}
+        peerId={peerId}
+        peerBlocked={peerBlocked}
+        onOpenGroupInfo={() => setGroupInfoOpen(true)}
+        onOpenAppearance={() => setAppearanceOpen(true)}
+        onTogglePin={handlePinToggle}
+        onToggleArchive={handleArchiveToggle}
+        onMute={handleMute}
+        onSetTtl={handleTtl}
+        onOpenBlockDialog={() => setBlockDialogOpen(true)}
+        onOpenReportDialog={() => setReportDialogOpen(true)}
+        onOpenClearDialog={() => setClearDialogOpen(true)}
+      />
+      {variant === "dock" && onMinimize && (
+        <ChatIconButton icon={Minus} label={t("chat.minimize")} onClick={onMinimize} />
+      )}
+      {variant === "dock" && onClose && (
+        <ChatIconButton icon={X} label={t("chat.close")} onClick={onClose} />
+      )}
+    </>
   );
 
   const mainCol = (
@@ -869,10 +536,7 @@ export function ChatWindow(props: ChatWindowProps) {
           conversationId={conversationId}
           lang={lang}
           resolveAuthorName={resolveAuthorName}
-          onJump={(hit) => {
-            jumpPagesLeftRef.current = JUMP_PAGE_BUDGET;
-            setJumpTarget(hit.id);
-          }}
+          onJump={(hit) => startJump(hit.id)}
           onClose={() => setSearchOpen(false)}
         />
       )}
@@ -881,7 +545,7 @@ export function ChatWindow(props: ChatWindowProps) {
       <ChatSurfaceBoundary>
         <MessageList
           lang={lang}
-          myUserId={user.id}
+          myUserId={myUserId}
           messages={messages}
           reactions={reactionsQ.data ?? EMPTY_REACTIONS_MAP}
           reactorProfiles={reactorProfiles}
@@ -890,18 +554,18 @@ export function ChatWindow(props: ChatWindowProps) {
           isGroup={isGroup}
           senderProfiles={isGroup ? peersQ.data : undefined}
           senderNicknames={conversationNicknames}
-          typingNames={typingNames}
-          typingAvatarUrl={typingAvatarUrl}
+          typingNames={typing.names}
+          typingAvatarUrl={typing.avatarUrl}
           peerLastReadAt={peerLastReadAt}
           peerLastDeliveredAt={peerLastDeliveredAt}
-          peerTyping={peerTypingSafe}
+          peerTyping={showTyping}
           ttlSeconds={ttlSeconds}
           wallpaper={wallpaper}
           starredIds={starredIdsQ.data}
           firstUnreadId={firstUnreadId}
           unreadCount={unreadSnapshot?.count ?? 0}
           jumpToId={jumpTarget}
-          onJumpHandled={handleJumpHandled}
+          onJumpHandled={onJumpHandled}
           hasOlder={!!messagesQ.hasNextPage}
           loadingOlder={messagesQ.isFetchingNextPage || messagesQ.isLoading}
           onLoadOlder={handleLoadOlder}
@@ -917,17 +581,7 @@ export function ChatWindow(props: ChatWindowProps) {
         />
       </ChatSurfaceBoundary>
       {peerBlocked ? (
-        <div className="border-t border-border/60 bg-background/95 px-3 py-2.5 text-center">
-          <p className="text-[12px] text-muted-foreground">{t("chat.block.composerNotice")}</p>
-          <button
-            type="button"
-            onClick={handleUnblock}
-            disabled={unblockUser.isPending}
-            className="mt-1.5 rounded-[6px] border border-border/60 px-3 py-1 text-[12px] font-medium transition-colors hover:bg-muted disabled:opacity-50"
-          >
-            {t("chat.block.unblock")}
-          </button>
-        </div>
+        <BlockedComposerNotice onUnblock={handleUnblock} pending={unblockUser.isPending} />
       ) : (
         <ChatComposer
           conversationId={conversationId}
@@ -947,100 +601,67 @@ export function ChatWindow(props: ChatWindowProps) {
     </div>
   );
 
-  const panel = mediaOpen ? (
-    <ChatMediaPanel
-      conversationId={conversationId}
-      enabled={mediaOpen}
-      onClose={() => setMediaOpen(false)}
-      className={
-        variant === "dock"
-          ? "w-[180px] shrink-0"
-          : "absolute inset-y-0 right-0 z-30 w-full border-l border-border/60 bg-card shadow-xl md:static md:w-[260px] md:shrink-0 md:shadow-none lg:w-[300px]"
-      }
-    />
-  ) : null;
-
   const body = (
     <>
       <div className="relative flex min-h-0 flex-1 flex-row">
         {mainCol}
-        {panel}
+        {mediaOpen && (
+          <ChatMediaPanel
+            conversationId={conversationId}
+            enabled={mediaOpen}
+            onClose={() => setMediaOpen(false)}
+            className={
+              variant === "dock"
+                ? "w-[180px] shrink-0"
+                : "absolute inset-y-0 right-0 z-30 w-full border-l border-border/60 bg-card shadow-xl md:static md:w-[260px] md:shrink-0 md:shadow-none lg:w-[300px]"
+            }
+          />
+        )}
       </div>
-
-      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("chat.deleteMessage")}</AlertDialogTitle>
-            <AlertDialogDescription>{t("chat.deleteConfirm")}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("chat.close")}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (deleteTarget) deleteMessage.mutate(deleteTarget.id);
-                setDeleteTarget(null);
-              }}
-            >
-              {t("chat.deleteMessage")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      <ForwardDialog
-        message={forwardTarget}
-        excludeConversationId={conversationId}
-        onClose={() => setForwardTarget(null)}
+      <ChatWindowDialogs
+        conversationId={conversationId}
+        view={view}
+        isGroup={isGroup}
+        peerName={peerName}
+        peerId={peerId}
+        peerBlocked={peerBlocked}
+        deleteTarget={deleteTarget}
+        onDeleteTargetChange={setDeleteTarget}
+        onConfirmDelete={handleConfirmDelete}
+        forwardTarget={forwardTarget}
+        onForwardClose={() => setForwardTarget(null)}
+        clearDialogOpen={clearDialogOpen}
+        onClearDialogOpenChange={setClearDialogOpen}
+        onConfirmClear={handleClearHistory}
+        blockDialogOpen={blockDialogOpen}
+        onBlockDialogOpenChange={setBlockDialogOpen}
+        onConfirmBlockToggle={handleConfirmBlockToggle}
+        reportDialogOpen={reportDialogOpen}
+        onReportDialogOpenChange={setReportDialogOpen}
+        groupInfoOpen={groupInfoOpen}
+        onGroupInfoClose={() => setGroupInfoOpen(false)}
+        onLeftGroup={onBack ?? onClose}
+        appearanceOpen={appearanceOpen}
+        onAppearanceClose={() => setAppearanceOpen(false)}
       />
-      <AlertDialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("chat.menu.clear")}</AlertDialogTitle>
-            <AlertDialogDescription>{t("chat.menu.clearConfirm")}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("chat.close")}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleClearHistory}>
-              {t("chat.menu.clear")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      <AlertDialog open={blockDialogOpen} onOpenChange={setBlockDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {peerBlocked
-                ? t("chat.block.unblockTitle", { name: peerName })
-                : t("chat.block.blockTitle", { name: peerName })}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {peerBlocked ? t("chat.block.unblockConfirm") : t("chat.block.blockConfirm")}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("chat.close")}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmBlockToggle}>
-              {peerBlocked ? t("chat.block.unblock") : t("chat.block.block")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      {isGroup && view && (
-        <GroupInfoDialog
-          view={view}
-          open={groupInfoOpen}
-          onClose={() => setGroupInfoOpen(false)}
-          onLeft={onBack ?? onClose}
-        />
-      )}
-      {view && (
-        <ChatAppearanceDialog
-          view={view}
-          open={appearanceOpen}
-          onClose={() => setAppearanceOpen(false)}
-        />
-      )}
     </>
+  );
+
+  const header = (
+    <ChatWindowHeader
+      variant={variant}
+      name={peerName}
+      avatarUrl={peerAvatar}
+      slug={peerSlug}
+      isGroup={isGroup}
+      peerOnline={peerOnline}
+      subtitle={subtitle}
+      muted={muted}
+      pinned={pinned}
+      onBack={onBack}
+      onOpenGroupInfo={() => setGroupInfoOpen(true)}
+      actions={headerActions}
+    />
   );
 
   if (variant === "page") {
@@ -1050,78 +671,7 @@ export function ChatWindow(props: ChatWindowProps) {
           className={cn("flex h-full min-h-0 flex-col", themeClass(theme), className)}
           data-active-conversation={conversationId}
         >
-          <div className="flex items-center gap-1.5 border-b border-border/60 bg-card/80 px-2.5 py-2 backdrop-blur supports-[backdrop-filter]:bg-card/70 sm:gap-2.5 sm:px-4 sm:py-3">
-            {onBack && (
-              <button
-                type="button"
-                onClick={onBack}
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors md:hidden"
-                aria-label={t("chat.messages")}
-              >
-                <ArrowLeft className="h-4 w-4" aria-hidden />
-              </button>
-            )}
-            {isGroup ? (
-              <button
-                type="button"
-                onClick={() => setGroupInfoOpen(true)}
-                className="flex min-w-0 flex-1 items-center gap-2.5 rounded-[6px] text-left transition-colors hover:bg-muted/40"
-                aria-haspopup="dialog"
-                aria-label={t("chat.group.info")}
-                title={t("chat.group.info")}
-              >
-                <ChatAvatar
-                  name={peerName}
-                  avatarUrl={peerAvatar}
-                  size="sm"
-                  to={peerSlug ? `/author/${peerSlug}` : undefined}
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-1.5 truncate text-sm font-semibold">
-                    <span className="truncate">{peerName}</span>
-                    {muted && (
-                      <BellOff
-                        className="h-3 w-3 shrink-0 text-muted-foreground"
-                        aria-label={t("chat.menu.mutedBadge")}
-                      />
-                    )}
-                    {pinned && (
-                      <Pin
-                        className="h-3 w-3 shrink-0 text-muted-foreground"
-                        aria-label={t("chat.menu.pinnedBadge")}
-                      />
-                    )}
-                  </span>
-                  <span className="block text-[11px] text-muted-foreground">{headerSubtitle}</span>
-                </span>
-              </button>
-            ) : (
-              <>
-                <ChatAvatar name={peerName} avatarUrl={peerAvatar} online={peerOnline} size="sm" />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 truncate text-sm font-semibold">
-                    <span className="truncate">{peerName}</span>
-                    {muted && (
-                      <BellOff
-                        className="h-3 w-3 shrink-0 text-muted-foreground"
-                        aria-label={t("chat.menu.mutedBadge")}
-                      />
-                    )}
-                    {pinned && (
-                      <Pin
-                        className="h-3 w-3 shrink-0 text-muted-foreground"
-                        aria-label={t("chat.menu.pinnedBadge")}
-                      />
-                    )}
-                  </div>
-                  <div className="text-[11px] text-muted-foreground">{headerSubtitle}</div>
-                </div>
-              </>
-            )}
-            {searchToggle}
-            {mediaToggle}
-            {conversationMenu}
-          </div>
+          {header}
           {body}
         </div>
       </TooltipProvider>
@@ -1142,69 +692,16 @@ export function ChatWindow(props: ChatWindowProps) {
         aria-label={`${t("chat.title")}: ${peerName}`}
         data-active-conversation={conversationId}
         onKeyDown={(e) => {
-          // Messenger behavior: Escape closes the dock window. The composer
-          // stops propagation when Escape means "cancel editing", and Radix
-          // portals (emoji picker, delete dialog) live outside this subtree.
+          // Zachowanie Messengera: Escape zamyka okno dokowane. Kompozytor
+          // zatrzymuje propagację, gdy Escape znaczy „anuluj edycję", a portale
+          // Radixa (picker emoji, dialog usunięcia) żyją poza tym poddrzewem.
           if (e.key === "Escape" && onClose) {
             e.stopPropagation();
             onClose();
           }
         }}
       >
-        <header className="flex items-center gap-1.5 border-b border-border/60 bg-background px-3 py-2 shadow-sm">
-          <ChatAvatar
-            name={peerName}
-            avatarUrl={peerAvatar}
-            online={!isGroup && peerOnline}
-            size="md"
-            to={peerSlug ? `/author/${peerSlug}` : undefined}
-          />
-          <div className="min-w-0 flex-1 pl-0.5">
-            <div className="flex items-center gap-1 truncate text-[14px] font-semibold leading-tight">
-              <span className="truncate">{peerName}</span>
-              {muted && (
-                <BellOff
-                  className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                  aria-label={t("chat.menu.mutedBadge")}
-                />
-              )}
-            </div>
-            <div className="text-[11px] leading-tight text-muted-foreground">{headerSubtitle}</div>
-          </div>
-          {searchToggle}
-          {mediaToggle}
-          {conversationMenu}
-          {onMinimize && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={onMinimize}
-                  className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                  aria-label={t("chat.minimize")}
-                >
-                  <Minus className="h-4 w-4" aria-hidden />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">{t("chat.minimize")}</TooltipContent>
-            </Tooltip>
-          )}
-          {onClose && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                  aria-label={t("chat.close")}
-                >
-                  <X className="h-4 w-4" aria-hidden />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">{t("chat.close")}</TooltipContent>
-            </Tooltip>
-          )}
-        </header>
+        {header}
         {body}
       </section>
     </TooltipProvider>

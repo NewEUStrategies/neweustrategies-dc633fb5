@@ -186,6 +186,10 @@ export const chatPl = {
       clearConfirm:
         "Dotychczasowe wiadomości znikną z TWOJEGO widoku tej rozmowy (u rozmówcy pozostaną). Nowe wiadomości będą przychodzić normalnie. Tej operacji nie można cofnąć.",
       cleared: "Historia rozmowy wyczyszczona u Ciebie",
+      // Wejście do moderacji Z OKNA ROZMOWY. Do 18.08 zgłoszenie osoby istniało
+      // wyłącznie na profilu i w popoverze sieci - czyli nie tam, gdzie problem
+      // się dzieje (audyt 14.08, MODUŁ 9: „Zgłoś brak w oknie czatu").
+      report: "Zgłoś osobę",
       error: "Nie udało się zapisać ustawienia rozmowy. Spróbuj ponownie.",
     },
     disappearing: {
@@ -675,6 +679,7 @@ export const chatEn = {
       clearConfirm:
         "Existing messages will disappear from YOUR view of this conversation (your peer keeps them). New messages keep arriving normally. This cannot be undone.",
       cleared: "Chat history cleared on your side",
+      report: "Report user",
       error: "Could not save the conversation setting. Please try again.",
     },
     disappearing: {
