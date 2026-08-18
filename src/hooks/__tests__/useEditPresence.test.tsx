@@ -10,7 +10,8 @@ import { render, renderHook, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { EntityPresencePeer } from "@/lib/realtime/useEntityPresence";
 
-const useEntityPresence = vi.fn<(t: string, id: string | null | undefined) => EntityPresencePeer[]>();
+const useEntityPresence =
+  vi.fn<(t: string, id: string | null | undefined) => EntityPresencePeer[]>();
 
 vi.mock("@/lib/realtime/useEntityPresence", () => ({
   useEntityPresence: (t: string, id: string | null | undefined) => useEntityPresence(t, id),
@@ -70,7 +71,9 @@ describe("EditPresenceBanner", () => {
   it("wymienia obecnych po przecinku", () => {
     useEntityPresence.mockReturnValue([peer("Ola"), peer("Jan"), peer("Zofia")]);
     render(<EditPresenceBanner entityType="post" entityId="p1" />);
-    expect(screen.getByRole("status")).toHaveTextContent("admin.presence.editingNow:Ola, Jan, Zofia");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "admin.presence.editingNow:Ola, Jan, Zofia",
+    );
   });
 
   it("zapowiada zmianę czytnikowi ekranu, nie przerywając mu pracy", () => {

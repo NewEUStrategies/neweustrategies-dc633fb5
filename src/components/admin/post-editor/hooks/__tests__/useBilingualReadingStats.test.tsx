@@ -9,10 +9,7 @@
 // `read_minutes` i która trafia na stronę publiczną oraz do JSON-LD.
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  DEFAULT_READING_TIME_SETTINGS,
-  type ReadingTimeSettings,
-} from "@/lib/readingTime";
+import { DEFAULT_READING_TIME_SETTINGS, type ReadingTimeSettings } from "@/lib/readingTime";
 import type { PostForm } from "../../types";
 
 const h = vi.hoisted(() => ({
@@ -73,7 +70,9 @@ describe("czas czytania osobno dla każdej wersji językowej", () => {
   });
 
   it("REGRESJA: bloki polskie nie wliczają się do wersji angielskiej", () => {
-    const { result } = renderHook(() => useBilingualReadingStats(form({ blocks_data: blocksDoc(words(660)) })));
+    const { result } = renderHook(() =>
+      useBilingualReadingStats(form({ blocks_data: blocksDoc(words(660)) })),
+    );
 
     // Podanie obu wersji bloków do obu języków pokazałoby przy angielskim
     // tekście czas polskiego - redakcja wpisałaby tę liczbę do `read_minutes`

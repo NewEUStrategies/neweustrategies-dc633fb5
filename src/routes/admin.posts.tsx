@@ -40,10 +40,13 @@ import {
   applyDeletedScope,
   applyMissingEnCountFilters,
   applyPostsListFilters,
+  authorMapOf,
+  authorOf,
   bulkStatusesFor,
   coverageOf,
   dialogTitleOf,
   emptyStateKey,
+  filtersSignature,
   postsListQueryKey,
   rowTitleOf,
   selectAllState,
@@ -54,6 +57,14 @@ import {
   type PostsListFilters,
   type PostsListView,
 } from "@/components/admin/post-editor/lib/postsListQuery";
+import {
+  confirmPurgeMany,
+  confirmPurgeOne,
+  confirmRestoreMany,
+  confirmRestoreOne,
+  confirmTrashMany,
+  confirmTrashOne,
+} from "@/components/admin/post-editor/lib/postsListDialogs";
 
 export const Route = createFileRoute("/admin/posts")({
   component: PostsLayout,
@@ -98,10 +109,7 @@ function PostsList() {
   }, [search]);
 
   const authorsQ = useTenantAuthors(tenantId);
-  const authorMap = useMemo(
-    () => new Map((authorsQ.data ?? []).map((a) => [a.id, a])),
-    [authorsQ.data],
-  );
+  const authorMap = useMemo(() => authorMapOf(authorsQ.data), [authorsQ.data]);
 
   // Cały stan filtrów w jednym obiekcie - ten sam kształt czyta klucz cache
   // i budowniczy zapytania, więc nie da się dołożyć filtra bez dołożenia go
@@ -214,9 +222,12 @@ function PostsList() {
   const pagedPosts = useMemo(() => postsResult?.rows ?? [], [postsResult]);
   const total = postsResult?.count ?? 0;
   const allIds = useMemo(() => pagedPosts.map((p) => p.id), [pagedPosts]);
+  // Zmiana KTÓREGOKOLWIEK filtra cofa listę na stronę 1 - patrz
+  // `filtersSignature`. Numer strony świadomie nie wchodzi do podpisu.
+  const filtersKey = filtersSignature(filters);
   useEffect(() => {
     setPage(1);
-  }, [view, searchDebounced, statusFilter, langFilter, authorFilter, trashFrom, trashTo, pageSize]);
+  }, [filtersKey]);
   const toggleOne = (id: string) => setSelected((prev) => toggleSelected(prev, id));
   const toggleAll = () => setSelected((prev) => toggleAllSelected(allIds, prev));
   const clear = () => setSelected(new Set());
@@ -250,10 +261,7 @@ function PostsList() {
 
   const del = (id: string, title: string) => {
     setConfirmState({
-      title: "Przenieść do kosza?",
-      description: `Wpis "${title}" zostanie przeniesiony do kosza. Możesz go później przywrócić.`,
-      confirmLabel: "Przenieś do kosza",
-      destructive: true,
+      ...confirmTrashOne(title),
       onConfirm: async () => {
         try {
           await del$({ data: { id } });
@@ -269,10 +277,7 @@ function PostsList() {
   const onBulkDelete = () => {
     const ids = [...selected];
     setConfirmState({
-      title: `Przenieść do kosza ${ids.length} wpisów?`,
-      description: "Zaznaczone wpisy zostaną przeniesione do kosza.",
-      confirmLabel: "Przenieś do kosza",
-      destructive: true,
+      ...confirmTrashMany(ids.length),
       onConfirm: async () => {
         try {
           const res = await bulkDel$({ data: { ids } });
@@ -300,9 +305,7 @@ function PostsList() {
 
   const restoreOne = (id: string, title: string) => {
     setConfirmState({
-      title: "Przywrócić wpis?",
-      description: `"${title}" zostanie przywrócony z kosza.`,
-      confirmLabel: "Przywróć",
+      ...confirmRestoreOne(title),
       onConfirm: async () => {
         try {
           const res = await restore$({ data: { ids: [id] } });
@@ -316,10 +319,7 @@ function PostsList() {
   };
   const purgeOne = (id: string, title: string) => {
     setConfirmState({
-      title: "Usunąć trwale?",
-      description: `"${title}" zostanie nieodwracalnie usunięty. Tej operacji nie można cofnąć.`,
-      confirmLabel: "Usuń trwale",
-      destructive: true,
+      ...confirmPurgeOne(title),
       onConfirm: async () => {
         try {
           const res = await purge$({ data: { ids: [id] } });
@@ -334,9 +334,7 @@ function PostsList() {
   const onBulkRestore = () => {
     const ids = [...selected];
     setConfirmState({
-      title: `Przywrócić ${ids.length} wpisów?`,
-      description: "Zaznaczone wpisy zostaną przywrócone z kosza.",
-      confirmLabel: "Przywróć",
+      ...confirmRestoreMany(ids.length),
       onConfirm: async () => {
         try {
           const res = await restore$({ data: { ids } });
@@ -364,11 +362,7 @@ function PostsList() {
   const onBulkPurge = () => {
     const ids = [...selected];
     setConfirmState({
-      title: `Usunąć trwale ${ids.length} wpisów?`,
-      description:
-        "Zaznaczone wpisy zostaną nieodwracalnie usunięte. Tej operacji nie można cofnąć.",
-      confirmLabel: "Usuń trwale",
-      destructive: true,
+      ...confirmPurgeMany(ids.length),
       onConfirm: async () => {
         try {
           const res = await purge$({ data: { ids } });
@@ -554,7 +548,7 @@ function PostsList() {
               <tbody>
                 {pagedPosts.map((p) => {
                   const cov = coverageOf(p);
-                  const author = p.author_id ? authorMap.get(p.author_id) : null;
+                  const author = authorOf(p, authorMap);
                   return (
                     <tr
                       key={p.id}

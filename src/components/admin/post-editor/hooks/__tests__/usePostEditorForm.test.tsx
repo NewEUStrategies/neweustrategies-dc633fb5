@@ -499,6 +499,18 @@ describe("skróty klawiszowe undo/redo", () => {
     expect(result.current.form?.title_pl).toBe("Tytuł z bazy");
   });
 
+  it("nie przechwytuje innych skrótów z Ctrl (np. Ctrl+S)", () => {
+    const { result } = mount();
+    act(() => result.current.set("title_pl", "Nowy tytuł"));
+
+    const event = press("s", { ctrl: true });
+
+    // Edytor obsługuje WYŁĄCZNIE cofanie i ponawianie. Połknięcie innych
+    // skrótów odbierałoby przeglądarce i systemowi ich własne funkcje.
+    expect(event.defaultPrevented).toBe(false);
+    expect(result.current.form?.title_pl).toBe("Nowy tytuł");
+  });
+
   it("po odmontowaniu edytora skrót przestaje być przechwytywany", () => {
     const { unmount } = mount();
     unmount();
@@ -883,6 +895,17 @@ describe("odrzucenie zmian (discardToSaved)", () => {
     expect(result.current.selectedCats).toEqual(["c-1"]);
   });
 
+  it("kliknięcie „odrzuć” przed wczytaniem wpisu nie tworzy formularza", () => {
+    const { result } = mount({ post: undefined, id: "", isLoading: true });
+
+    act(() => result.current.discardToSaved());
+
+    // Ostatni zapisany stan nie istnieje - podstawienie go bezwarunkowo
+    // dałoby formularz `null` w miejscu, gdzie reszta edytora oczekuje wpisu.
+    expect(result.current.form).toBeNull();
+    expect(result.current.selectedCats).toEqual([]);
+  });
+
   it("po odrzuceniu zmian autozapis nadal uważa formularz za brudny i zapisuje go raz jeszcze", async () => {
     // ZACHOWANIE ISTNIEJĄCE, przypięte świadomie (zgłoszone w raporcie, kodu
     // nie ruszam). `useAutosave` porównuje wartości przez `Object.is`, a
@@ -940,7 +963,10 @@ describe("normalizacja slugu po zapisie", () => {
       await result.current.save();
     });
 
-    expect(h.toastWarning).toHaveBeenCalledWith('admin.slugTaken|{"slug":"zajety-slug-2"}', undefined);
+    expect(h.toastWarning).toHaveBeenCalledWith(
+      'admin.slugTaken|{"slug":"zajety-slug-2"}',
+      undefined,
+    );
     expect(result.current.form?.slug).toBe("zajety-slug-2");
     // Nawigacja MUSI iść na slug zapisany: przejście na „zajety-slug"
     // załadowałoby CUDZY wpis, który ten slug posiada.

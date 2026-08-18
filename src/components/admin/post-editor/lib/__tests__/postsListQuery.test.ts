@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { supabaseFromStub, type RecordedChain } from "@/test/supabaseChain";
+import { authorLabel, type TenantAuthor } from "@/components/admin/hooks/useTenantAuthors";
 import {
   PARITY_GAP_FILTERS,
   POSTS_LIST_COLUMNS,
@@ -7,11 +8,14 @@ import {
   applyDeletedScope,
   applyMissingEnCountFilters,
   applyPostsListFilters,
+  authorMapOf,
+  authorOf,
   bulkStatusesFor,
   coverageOf,
   deletedAtRange,
   dialogTitleOf,
   emptyStateKey,
+  filtersSignature,
   isAllSelected,
   pageRange,
   postsListQueryKey,
@@ -171,10 +175,7 @@ describe("applyPostsListFilters - status i autor", () => {
   });
 
   it("filtr autora działa w obu zakładkach", () => {
-    expect(callsOf(listChain({ author: "user-7" }), "eq")).toContainEqual([
-      "author_id",
-      "user-7",
-    ]);
+    expect(callsOf(listChain({ author: "user-7" }), "eq")).toContainEqual(["author_id", "user-7"]);
     expect(callsOf(listChain({ view: "trash", author: "user-7" }), "eq")).toContainEqual([
       "author_id",
       "user-7",
@@ -325,6 +326,36 @@ describe("sortowanie i paginacja", () => {
     const chain = listChain({ view: "trash", search: "x", lang: "pl_only", status: "draft" });
     const methods = chain.calls.map((c) => c.method);
     expect(methods.slice(-2)).toEqual(["order", "range"]);
+  });
+});
+
+describe("filtersSignature", () => {
+  it("REGRESJA: zmiana KAŻDEGO filtra cofa listę na stronę 1", () => {
+    // Strona jest współrzędną w zbiorze wyników, nie stanem użytkownika.
+    // Filtr zawężony przy otwartej stronie 5 pytałby o wiersze 200-249 zbioru,
+    // który ma ich trzy: redaktor zobaczyłby „brak wyników dla filtrów”
+    // i uznał, że szukanych wpisów nie ma.
+    const base = filtersSignature(filters());
+    const variants: Partial<PostsListFilters>[] = [
+      { view: "trash" },
+      { search: "x" },
+      { status: "draft" },
+      { lang: "pl_only" },
+      { author: "u1" },
+      { trashFrom: "2026-08-01" },
+      { trashTo: "2026-08-18" },
+      { pageSize: 25 },
+    ];
+    for (const over of variants) {
+      expect(filtersSignature(filters(over)), JSON.stringify(over)).not.toBe(base);
+    }
+  });
+
+  it("REGRESJA: sama zmiana strony NIE cofa listy na stronę 1", () => {
+    // Podpis z numerem strony zapętliłby stronicowanie: klik w „następna”
+    // zmieniałby podpis, efekt wracałby na stronę 1 i lista nigdy nie
+    // wyszłaby poza pierwsze 50 wpisów.
+    expect(filtersSignature(filters({ page: 7 }))).toBe(filtersSignature(filters({ page: 1 })));
   });
 });
 
@@ -521,11 +552,46 @@ describe("tytuły wierszy i komunikatów", () => {
   it("dialog spada na SLUG, nie na drugi język", () => {
     // „Usunąć trwale?” musi wskazać konkretny wiersz. Slug jest unikalny
     // w obszarze roboczym, tytuł drugiego języka - nie musi.
-    expect(dialogTitleOf({ title_pl: null, title_en: "English", slug: "wpis" }, "pl")).toBe(
-      "wpis",
-    );
+    expect(dialogTitleOf({ title_pl: null, title_en: "English", slug: "wpis" }, "pl")).toBe("wpis");
     expect(dialogTitleOf({ title_pl: "", title_en: "", slug: "wpis" }, "en")).toBe("wpis");
     expect(dialogTitleOf(row, "en")).toBe("English");
+  });
+});
+
+describe("mapa autorów", () => {
+  const ania: TenantAuthor = {
+    id: "u-1",
+    display_name: "Ania Nowak",
+    slug: "ania",
+    avatar_url: null,
+  };
+
+  it("indeksuje autorów po identyfikatorze", () => {
+    expect(authorMapOf([ania]).get("u-1")).toBe(ania);
+  });
+
+  it("brak danych autorów daje pustą mapę, nie wyjątek", () => {
+    // Zapytanie o autorów jest osobne i wraca później niż lista - przez
+    // pierwszy render `data` jest `undefined`, a tabela już się rysuje.
+    expect(authorMapOf(undefined).size).toBe(0);
+    expect(authorMapOf(null).size).toBe(0);
+    expect(authorMapOf([]).size).toBe(0);
+  });
+
+  it("REGRESJA: wpis bez autora i wpis z autorem spoza listy dają to samo: brak", () => {
+    // Oba przypadki są normalne: import z WordPressa nie ustawia `author_id`,
+    // a autor bywa usunięty z obszaru roboczego. Odczyt z niezdefiniowanego
+    // obiektu wysypałby CAŁĄ tabelę - jeden osierocony wiersz zabrałby
+    // redakcji dostęp do listy.
+    const map = authorMapOf([ania]);
+    expect(authorOf({ author_id: null }, map)).toBeNull();
+    expect(authorOf({ author_id: "u-nieznany" }, map)).toBeNull();
+    expect(authorLabel(authorOf({ author_id: "u-nieznany" }, map))).toBe("-");
+  });
+
+  it("znaleziony autor daje etykietę z nazwy widocznej", () => {
+    const map = authorMapOf([ania]);
+    expect(authorLabel(authorOf({ author_id: "u-1" }, map))).toBe("Ania Nowak");
   });
 });
 

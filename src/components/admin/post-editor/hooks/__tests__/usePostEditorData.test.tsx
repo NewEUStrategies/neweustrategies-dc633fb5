@@ -110,15 +110,16 @@ describe("wiersz wpisu do edycji", () => {
     const { result, client } = mountData();
     await waitFor(() => expect(result.current.post).toBeTruthy());
 
-    const query = client
-      .getQueryCache()
-      .find({ queryKey: ["post-by-slug", TENANT, ROUTE_SLUG] });
+    const query = client.getQueryCache().find({ queryKey: ["post-by-slug", TENANT, ROUTE_SLUG] });
 
     // Refetch w tle podmienia `post`, a hook formularza robi wtedy
     // `history.reset(post)` - niezapisane zmiany i historia cofania znikają
     // redaktorowi bez śladu. Jedyne dozwolone odświeżenia są jawne
     // (przywrócenie wersji, zmiana slugu).
-    expect(query?.options.refetchOnReconnect).toBe(false);
+    // `QueryOptions` (typ opcji w cache'u) nie wystawia flag obserwatora, choć
+    // react-query je tam trzyma - stąd rzut na sam odczytywany kształt.
+    const options = query?.options as { refetchOnReconnect?: boolean } | undefined;
+    expect(options?.refetchOnReconnect).toBe(false);
   });
 
   it("klucz cache wiersza niesie tenant, więc obszary robocze się nie mieszają", async () => {
@@ -166,13 +167,18 @@ describe("słowniki taksonomii", () => {
   });
 
   it("pusty wynik daje pustą listę, nie null", async () => {
-    stub.setResponse("categories", ok(null));
+    for (const table of ["categories", "tags", "programs", "regions"]) {
+      stub.setResponse(table, ok(null));
+    }
     const { result } = mountData();
 
-    await waitFor(() => expect(result.current.allCats).toBeTruthy());
-    // Karta kategorii mapuje po tablicy; `null` wywróciłby cały panel
+    await waitFor(() => expect(result.current.allRegions).toBeTruthy());
+    // Karty taksonomii mapują po tablicy; `null` wywróciłby cały panel
     // edytora, a nie tylko jedną listę.
     expect(result.current.allCats).toEqual([]);
+    expect(result.current.allTags).toEqual([]);
+    expect(result.current.allPrograms).toEqual([]);
+    expect(result.current.allRegions).toEqual([]);
   });
 });
 
@@ -207,10 +213,17 @@ describe("relacje wpisu", () => {
   });
 
   it("brak relacji daje puste listy zaznaczeń", async () => {
-    stub.setResponse("post_categories", ok(null));
+    for (const table of ["post_categories", "post_tags", "post_programs", "post_regions"]) {
+      stub.setResponse(table, ok(null));
+    }
     const { result } = mountData();
 
-    await waitFor(() => expect(result.current.postCats).toBeTruthy());
+    await waitFor(() => expect(result.current.postRegions).toBeTruthy());
+    // Hook formularza robi `postCats.map(...)` w efekcie - `null` zamiast
+    // pustej tablicy wywala edytor przy wpisie bez żadnej kategorii.
     expect(result.current.postCats).toEqual([]);
+    expect(result.current.postTags).toEqual([]);
+    expect(result.current.postPrograms).toEqual([]);
+    expect(result.current.postRegions).toEqual([]);
   });
 });

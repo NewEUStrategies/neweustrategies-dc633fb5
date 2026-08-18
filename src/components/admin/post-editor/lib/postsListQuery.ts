@@ -12,6 +12,7 @@
 // `viewLangFor` + `parsePostEditorSearch` w `postRouteParams.ts`) i to jej
 // filtry decydują, co redaktor w ogóle zobaczy.
 import type { BulkStatus } from "@/components/admin/BulkActionsBar";
+import type { TenantAuthor } from "@/components/admin/hooks/useTenantAuthors";
 import type { StatusFilter, LangFilter } from "@/components/admin/molecules/AdminListToolbar";
 import { escapeLike } from "@/lib/admin/listFilters";
 
@@ -104,6 +105,29 @@ export const POSTS_LIST_INVALIDATE_KEYS: ReadonlyArray<ReadonlyArray<string>> = 
   ["admin-posts-view-count"],
   ["admin-posts-missing-en-count"],
 ];
+
+/**
+ * Podpis filtrów BEZ numeru strony - zmiana podpisu cofa listę na stronę 1.
+ *
+ * Reguła istnieje, bo strona jest współrzędną W ZBIORZE WYNIKÓW, a nie stanem
+ * użytkownika: zawężenie filtra przy otwartej stronie 5 pytałoby o wiersze
+ * 200-249 zbioru, który ma ich trzy - lista wyszłaby pusta z komunikatem
+ * „brak wyników dla filtrów”, choć wyniki są. Podpis jest tu, a nie w tablicy
+ * zależności efektu, żeby dołożenie nowego filtra bez dołożenia go do resetu
+ * było widoczne w teście, a nie dopiero w zgłoszeniu redakcji.
+ */
+export function filtersSignature(f: PostsListFilters): string {
+  return JSON.stringify([
+    f.view,
+    f.search,
+    f.status,
+    f.lang,
+    f.author,
+    f.trashFrom,
+    f.trashTo,
+    f.pageSize,
+  ]);
+}
 
 /** Zakres wierszy dla PostgREST `.range()` - obustronnie DOMKNIĘTY. */
 export function pageRange(page: number, pageSize: number): { from: number; to: number } {
@@ -286,6 +310,31 @@ export function rowTitleOf(
   const primary = viewLang === "en" ? p.title_en : p.title_pl;
   const secondary = viewLang === "en" ? p.title_pl : p.title_en;
   return primary || secondary || null;
+}
+
+/**
+ * Autorzy obszaru roboczego pod klucz `id`. Lista wpisów trzyma w wierszu samo
+ * `author_id`, a nazwisko dokłada z osobnego zapytania - bez mapy każdy wiersz
+ * przeszukiwałby tablicę autorów liniowo przy każdym renderze.
+ */
+export function authorMapOf(
+  authors: readonly TenantAuthor[] | null | undefined,
+): Map<string, TenantAuthor> {
+  return new Map((authors ?? []).map((a) => [a.id, a]));
+}
+
+/**
+ * Autor wiersza albo `null`. Dwa osobne przypadki dają ten sam wynik i oba są
+ * normalne: wpis bez autora (import z WordPressa) i autor spoza bieżącej listy
+ * (odszedł z zespołu, należy do innego obszaru). Etykieta schodzi wtedy na
+ * „-”, zamiast wysypać wiersz na odczycie z niezdefiniowanego obiektu.
+ */
+export function authorOf(
+  row: { author_id: string | null },
+  authors: ReadonlyMap<string, TenantAuthor>,
+): TenantAuthor | null {
+  if (!row.author_id) return null;
+  return authors.get(row.author_id) ?? null;
 }
 
 /** Stan pola „zaznacz wszystkie” - dokładnie to, co przyjmuje `Checkbox`. */
