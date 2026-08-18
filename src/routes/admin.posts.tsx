@@ -33,7 +33,27 @@ import { LangCoverageBadges } from "@/components/admin/atoms/LangCoverageBadges"
 import { StatusBadge } from "@/components/admin/atoms/StatusBadge";
 import { useTenantAuthors, authorLabel } from "@/components/admin/hooks/useTenantAuthors";
 import { AdminPagination } from "@/components/admin/molecules/AdminPagination";
-import { escapeLike } from "@/lib/admin/listFilters";
+import {
+  POSTS_LIST_COLUMNS,
+  POSTS_LIST_INVALIDATE_KEYS,
+  PARITY_GAP_FILTERS,
+  applyDeletedScope,
+  applyMissingEnCountFilters,
+  applyPostsListFilters,
+  bulkStatusesFor,
+  coverageOf,
+  dialogTitleOf,
+  emptyStateKey,
+  postsListQueryKey,
+  rowTitleOf,
+  selectAllState,
+  shouldShowParityGap,
+  toggleAllSelected,
+  toggleSelected,
+  viewLangFor,
+  type PostsListFilters,
+  type PostsListView,
+} from "@/components/admin/post-editor/lib/postsListQuery";
 
 export const Route = createFileRoute("/admin/posts")({
   component: PostsLayout,
@@ -44,8 +64,6 @@ function PostsLayout() {
   if (path !== "/admin/posts") return <Outlet />;
   return <PostsList />;
 }
-
-type View = "active" | "trash";
 
 function PostsList() {
   const { t, i18n } = useTranslation();
@@ -60,7 +78,7 @@ function PostsList() {
   const duplicate$ = useServerFn(duplicatePost);
   const navigate = useNavigate();
   const migrate$ = useServerFn(bulkMigratePostsToBlocks);
-  const [view, setView] = useState<View>("active");
+  const [view, setView] = useState<PostsListView>("active");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const [search, setSearch] = useState("");
@@ -85,12 +103,22 @@ function PostsList() {
     [authorsQ.data],
   );
 
-  const { data: postsResult, isLoading } = useQuery({
-    enabled: !!tenantId,
-    placeholderData: keepPreviousData,
-    queryKey: [
-      "admin-posts",
-      tenantId,
+  // Cały stan filtrów w jednym obiekcie - ten sam kształt czyta klucz cache
+  // i budowniczy zapytania, więc nie da się dołożyć filtra bez dołożenia go
+  // do klucza (a więc bez odświeżenia listy).
+  const filters: PostsListFilters = useMemo(
+    () => ({
+      view,
+      search: searchDebounced,
+      status: statusFilter,
+      lang: langFilter,
+      author: authorFilter,
+      trashFrom,
+      trashTo,
+      page,
+      pageSize,
+    }),
+    [
       view,
       searchDebounced,
       statusFilter,
@@ -101,6 +129,12 @@ function PostsList() {
       page,
       pageSize,
     ],
+  );
+
+  const { data: postsResult, isLoading } = useQuery({
+    enabled: !!tenantId,
+    placeholderData: keepPreviousData,
+    queryKey: postsListQueryKey(tenantId, filters),
     queryFn: async () => {
       // Opportunistic tick: flip due scheduled posts to published even when
       // pg_cron is unavailable (local/dev). Harmless no-op otherwise.
@@ -108,55 +142,13 @@ function PostsList() {
         () => undefined,
         () => undefined,
       );
-      const isTrashView = view === "trash";
-      const from = (page - 1) * pageSize;
-      const to = from + pageSize - 1;
-      let q = supabase
-        .from("posts")
-        .select(
-          "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, status, published_at, publish_at, updated_at, author_id, deleted_at",
-          { count: "exact" },
-        )
-        .eq("tenant_id", tenantId!);
-      q = isTrashView ? q.not("deleted_at", "is", null) : q.is("deleted_at", null);
-      // Search: title_pl / title_en / slug (case-insensitive substring).
-      const term = searchDebounced.trim();
-      if (term) {
-        const like = `%${escapeLike(term)}%`;
-        q = q.or(`title_pl.ilike.${like},title_en.ilike.${like},slug.ilike.${like}`);
-      }
-      // Status (active view only — trash hides the status filter).
-      if (!isTrashView && statusFilter !== "all") q = q.eq("status", statusFilter);
-      // Author.
-      if (authorFilter !== "all") q = q.eq("author_id", authorFilter);
-      // Language coverage: "present" = not null AND not empty string.
-      if (langFilter === "complete") {
-        q = q
-          .not("title_pl", "is", null)
-          .neq("title_pl", "")
-          .not("title_en", "is", null)
-          .neq("title_en", "");
-      } else if (langFilter === "has_pl") {
-        q = q.not("title_pl", "is", null).neq("title_pl", "");
-      } else if (langFilter === "has_en") {
-        q = q.not("title_en", "is", null).neq("title_en", "");
-      } else if (langFilter === "missing_any") {
-        q = q.or("title_pl.is.null,title_pl.eq.,title_en.is.null,title_en.eq.");
-      } else if (langFilter === "pl_only") {
-        q = q.not("title_pl", "is", null).neq("title_pl", "").or("title_en.is.null,title_en.eq.");
-      } else if (langFilter === "en_only") {
-        q = q.not("title_en", "is", null).neq("title_en", "").or("title_pl.is.null,title_pl.eq.");
-      }
-      // Trash date range on deleted_at (inclusive day boundaries).
-      if (isTrashView) {
-        if (trashFrom) q = q.gte("deleted_at", new Date(trashFrom).toISOString());
-        if (trashTo)
-          q = q.lte(
-            "deleted_at",
-            new Date(new Date(trashTo).getTime() + 24 * 60 * 60 * 1000 - 1).toISOString(),
-          );
-      }
-      q = q.order(isTrashView ? "deleted_at" : "updated_at", { ascending: false }).range(from, to);
+      const q = applyPostsListFilters(
+        supabase
+          .from("posts")
+          .select(POSTS_LIST_COLUMNS, { count: "exact" })
+          .eq("tenant_id", tenantId!),
+        filters,
+      );
       const { data, count, error } = await q;
       if (error) throw error;
       return { rows: data ?? [], count: count ?? 0 };
@@ -167,11 +159,13 @@ function PostsList() {
     enabled: !!tenantId,
     queryKey: ["admin-posts-trash-count", tenantId],
     queryFn: async () => {
-      const { count, error } = await supabase
-        .from("posts")
-        .select("id", { count: "exact", head: true })
-        .eq("tenant_id", tenantId!)
-        .not("deleted_at", "is", null);
+      const { count, error } = await applyDeletedScope(
+        supabase
+          .from("posts")
+          .select("id", { count: "exact", head: true })
+          .eq("tenant_id", tenantId!),
+        "trash",
+      );
       if (error) throw error;
       return count ?? 0;
     },
@@ -184,13 +178,12 @@ function PostsList() {
     enabled: !!tenantId,
     queryKey: ["admin-posts-missing-en-count", tenantId],
     queryFn: async () => {
-      const { count, error } = await supabase
-        .from("posts")
-        .select("id", { count: "exact", head: true })
-        .eq("tenant_id", tenantId!)
-        .eq("status", "published")
-        .is("deleted_at", null)
-        .or("title_en.is.null,title_en.eq.");
+      const { count, error } = await applyMissingEnCountFilters(
+        supabase
+          .from("posts")
+          .select("id", { count: "exact", head: true })
+          .eq("tenant_id", tenantId!),
+      );
       if (error) throw error;
       return count ?? 0;
     },
@@ -203,23 +196,19 @@ function PostsList() {
     enabled: !!tenantId,
     queryKey: ["admin-posts-view-count", tenantId, view],
     queryFn: async () => {
-      let q = supabase
-        .from("posts")
-        .select("id", { count: "exact", head: true })
-        .eq("tenant_id", tenantId!);
-      q = view === "trash" ? q.not("deleted_at", "is", null) : q.is("deleted_at", null);
-      const { count, error } = await q;
+      const { count, error } = await applyDeletedScope(
+        supabase
+          .from("posts")
+          .select("id", { count: "exact", head: true })
+          .eq("tenant_id", tenantId!),
+        view,
+      );
       if (error) throw error;
       return count ?? 0;
     },
   });
 
   const isTrash = view === "trash";
-
-  const coverageOf = (p: { title_pl: string | null; title_en: string | null }) => ({
-    pl: !!(p.title_pl && p.title_pl.trim()),
-    en: !!(p.title_en && p.title_en.trim()),
-  });
 
   // Rows + total now come straight from the server (filtered + paginated).
   const pagedPosts = useMemo(() => postsResult?.rows ?? [], [postsResult]);
@@ -228,39 +217,18 @@ function PostsList() {
   useEffect(() => {
     setPage(1);
   }, [view, searchDebounced, statusFilter, langFilter, authorFilter, trashFrom, trashTo, pageSize]);
-  const allSelected = allIds.length > 0 && allIds.every((id) => selected.has(id));
-  const someSelected = selected.size > 0 && !allSelected;
-
-  const toggleOne = (id: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(allIds));
+  const toggleOne = (id: string) => setSelected((prev) => toggleSelected(prev, id));
+  const toggleAll = () => setSelected((prev) => toggleAllSelected(allIds, prev));
   const clear = () => setSelected(new Set());
 
   const invalidate = () => {
-    qc.invalidateQueries({ queryKey: ["admin-posts"] });
-    qc.invalidateQueries({ queryKey: ["admin-posts-trash-count"] });
-    qc.invalidateQueries({ queryKey: ["admin-posts-view-count"] });
+    for (const queryKey of POSTS_LIST_INVALIDATE_KEYS) qc.invalidateQueries({ queryKey });
   };
 
   // Widoczny język listy zależy od filtra językowego: gdy użytkownik wybierze
   // "Angielski" / "Tylko EN", tytuły oraz otwierana wersja edytora przełączają
   // się na EN. Analogicznie dla PL. Bez filtra - język UI.
-  const viewLang: "pl" | "en" =
-    langFilter === "has_en" || langFilter === "en_only"
-      ? "en"
-      : langFilter === "has_pl" || langFilter === "pl_only"
-        ? "pl"
-        : lang.startsWith("en")
-          ? "en"
-          : "pl";
-  const titleOf = (p: { title_pl: string | null; title_en: string | null; slug: string }) =>
-    (viewLang === "en" ? p.title_en : p.title_pl) || p.slug;
+  const viewLang = viewLangFor(langFilter, lang);
 
   // Duplikat -> szkic-kopia; od razu otwieramy edytor kopii (skraca pętlę
   // "powiel i popraw" dla powtarzalnych formatów).
@@ -446,7 +414,7 @@ function PostsList() {
       <Tabs
         value={view}
         onValueChange={(v) => {
-          setView(v as View);
+          setView(v as PostsListView);
           clear();
         }}
         className="mb-3"
@@ -462,13 +430,13 @@ function PostsList() {
         </TabsList>
       </Tabs>
 
-      {!isTrash && typeof missingEnCount === "number" && missingEnCount > 0 && (
+      {shouldShowParityGap(view, missingEnCount) && (
         <button
           type="button"
           onClick={() => {
-            setStatusFilter("published");
-            setLangFilter("pl_only");
-            setPage(1);
+            setStatusFilter(PARITY_GAP_FILTERS.status);
+            setLangFilter(PARITY_GAP_FILTERS.lang);
+            setPage(PARITY_GAP_FILTERS.page);
           }}
           className="mb-3 inline-flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-800 dark:text-amber-300 hover:bg-amber-500/20 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
         >
@@ -552,26 +520,14 @@ function PostsList() {
             onApplyStatus={onBulkStatus}
             onDelete={onBulkDelete}
             onMigrateToBlocks={onBulkMigrate}
-            statuses={
-              // Editorial workflow: everyone submits for review; publishing in
-              // bulk stays an admin capability (enforced server-side too).
-              isAdmin
-                ? ["draft", "pending_review", "published", "archived"]
-                : ["draft", "pending_review", "archived"]
-            }
+            statuses={bulkStatusesFor(isAdmin)}
           />
         )}
         {isLoading ? (
           <div className="p-8 text-center text-muted-foreground text-xs">…</div>
         ) : !total ? (
           <div className="p-10 text-center text-muted-foreground text-sm">
-            {isTrash
-              ? viewCount
-                ? t("admin.list.noResults")
-                : t("admin.list.trashEmpty")
-              : viewCount
-                ? t("admin.list.noResults")
-                : t("admin.posts.empty")}
+            {t(emptyStateKey(view, viewCount))}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -580,7 +536,7 @@ function PostsList() {
                 <tr>
                   <th className="p-2 w-8">
                     <Checkbox
-                      checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                      checked={selectAllState(allIds, selected)}
                       onCheckedChange={toggleAll}
                       aria-label={t("admin.list.selectAll")}
                     />
@@ -615,12 +571,11 @@ function PostsList() {
                         {isTrash ? (
                           <>
                             <div className="font-medium text-[13px] truncate max-w-[420px]">
-                              {(viewLang === "en" ? p.title_en : p.title_pl) ||
-                                (viewLang === "en" ? p.title_pl : p.title_en) || (
-                                  <span className="italic text-muted-foreground">
-                                    - {t("admin.list.untitled")} -
-                                  </span>
-                                )}
+                              {rowTitleOf(p, viewLang) ?? (
+                                <span className="italic text-muted-foreground">
+                                  - {t("admin.list.untitled")} -
+                                </span>
+                              )}
                             </div>
                             <div className="text-[10px] text-muted-foreground truncate max-w-[420px]">
                               /{p.slug}
@@ -634,12 +589,11 @@ function PostsList() {
                             className="block group"
                           >
                             <div className="font-medium text-[13px] truncate max-w-[420px] text-[#231f20] dark:text-[#F8F6F4] group-hover:text-[#FDB078] group-hover:underline underline-offset-2">
-                              {(viewLang === "en" ? p.title_en : p.title_pl) ||
-                                (viewLang === "en" ? p.title_pl : p.title_en) || (
-                                  <span className="italic text-muted-foreground">
-                                    - {t("admin.list.untitled")} -
-                                  </span>
-                                )}
+                              {rowTitleOf(p, viewLang) ?? (
+                                <span className="italic text-muted-foreground">
+                                  - {t("admin.list.untitled")} -
+                                </span>
+                              )}
                             </div>
                             <div className="text-[10px] text-[#231f20] dark:text-[#F8F6F4] truncate max-w-[420px] group-hover:text-[#FDB078] group-hover:underline">
                               /{p.slug}
@@ -693,7 +647,7 @@ function PostsList() {
                                 variant="ghost"
                                 className="h-7 w-7 p-0"
                                 title={t("admin.list.restore")}
-                                onClick={() => restoreOne(p.id, titleOf(p))}
+                                onClick={() => restoreOne(p.id, dialogTitleOf(p, viewLang))}
                               >
                                 <Undo2 className="w-3.5 h-3.5" />
                               </Button>
@@ -702,7 +656,7 @@ function PostsList() {
                                 variant="ghost"
                                 className="h-7 w-7 p-0"
                                 title={t("admin.list.purge")}
-                                onClick={() => purgeOne(p.id, titleOf(p))}
+                                onClick={() => purgeOne(p.id, dialogTitleOf(p, viewLang))}
                               >
                                 <Trash2 className="w-3.5 h-3.5 text-destructive" />
                               </Button>
@@ -733,7 +687,7 @@ function PostsList() {
                                 variant="ghost"
                                 className="h-7 w-7 p-0"
                                 title={t("admin.list.toTrash")}
-                                onClick={() => del(p.id, titleOf(p))}
+                                onClick={() => del(p.id, dialogTitleOf(p, viewLang))}
                               >
                                 <Trash2 className="w-3.5 h-3.5 text-destructive" />
                               </Button>
