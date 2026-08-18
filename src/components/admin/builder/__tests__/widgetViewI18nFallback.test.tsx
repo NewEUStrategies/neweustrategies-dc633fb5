@@ -11,14 +11,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WidgetView } from "@/components/builder/organisms/WidgetView";
 import type { WidgetContent, WidgetNode, WidgetType } from "@/lib/builder/types";
 
-// Rejestr leniwych widgetow -> lustro eager: czesc widgetow tekstowych jedzie
-// przez React.lazy, wiec bez podmiany SSR-owy markup zawiera pusty fallback
-// Suspense i lancuch fallbackow i18n nie ma czego pokazac.
-vi.mock(
-  "@/components/builder/organisms/widget-view/lazyWidgets",
-  () => import("@/test/eagerWidgetChunks"),
-);
-
 vi.mock("@/integrations/supabase/client", () => {
   const b: Record<string, unknown> = {};
   for (const m of ["select", "eq", "is", "in", "not", "order", "range", "limit"]) b[m] = () => b;
@@ -34,9 +26,11 @@ vi.mock("react-i18next", () => ({
 }));
 // TTS renderuje odtwarzacz leniwie i nie pokazuje surowego tekstu w DOM -
 // podstawiamy sondę, żeby sprawdzić, co widget faktycznie do niego przekazuje.
-vi.mock("@/components/builder/organisms/widget-view/lazyWidgets", async (orig) => {
-  const actual =
-    await orig<typeof import("@/components/builder/organisms/widget-view/lazyWidgets")>();
+vi.mock("@/components/builder/organisms/widget-view/lazyWidgets", async () => {
+  // Lustro EAGER, nie prawdziwy rejestr: `text` renderuje przez leniwy
+  // `RichHtmlView`, a w SSR fallback Suspense to `null` - asercja o tresci
+  // EN pracowalaby na pustym divie niezaleznie od lancucha fallbackow i18n.
+  const actual = await import("@/test/eagerWidgetChunks");
   return {
     ...actual,
     TtsPlayerHost: (props: { customText: string; label: string }) => (
