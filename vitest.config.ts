@@ -11,6 +11,18 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text-summary", "text", "html"],
+      // Raport i progi MUSZĄ powstać także na czerwonej suicie. `checkThresholds`
+      // żyje wewnątrz `coverageProvider.reportCoverage()`, a vitest wychodzi
+      // z niego natychmiast przy pierwszym padniętym teście
+      // (`if (!this._coverageOptions.reportOnFailure) return;`). Skutek przy
+      // domyślnym `false`: jeden czerwony test wyłączał JEDNOCZEŚNIE próg
+      // globalny i wszystkie progi per-ścieżka, a raportu nie było wcale -
+      // czyli dokładnie w chwili, w której pokrycie może się osunąć, bramka
+      // milczała, a autor zmiany nie miał czym zmierzyć własnej pracy.
+      // Audyt 2026-08-18 (rozdz. 9.3) musiał z tego powodu odtwarzać pomiar
+      // obejściem. Zieleń CI nadal zależy od testów - to jest wyłącznie
+      // przywrócenie widoczności pomiaru.
+      reportOnFailure: true,
       // HONEST measurement scope: the WHOLE application source. The previous
       // config whitelisted ~38 files (~5% of src/) and presented a 98% number
       // for that sliver as if it were the project's coverage. Coverage is now
