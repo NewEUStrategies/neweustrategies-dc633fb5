@@ -21,11 +21,15 @@
 --      (osobna polityka "events staff read" - bramka warstwy jej nie rusza).
 --   6. get_event_access dla niekwalifikujacego sie konta nadal zwraca
 --      'tier_required' (RPC jest SECURITY DEFINER - kontrakt bez zmian).
+--   7. rsvp_event nie omija bramki odczytu (recenzja PR #248): public
+--      z progiem rangi odrzuca rank 0 ('events: membership required')
+--      takze przy znajomosci UUID, member z ranga wchodzi, a wydarzenia
+--      z progiem 0 przyjmuja zapis jak dotad.
 --
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(7);
+SELECT plan(10);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -174,6 +178,30 @@ SELECT is(
                      'eg-briefing', 'eg-draft', 'eg-foreign')),
   ARRAY['eg-briefing', 'eg-draft', 'eg-members', 'eg-members-default', 'eg-open', 'eg-public-tier'],
   'editor bez subskrypcji (rank 0) czyta caly wlasny tenant ze szkicem wlacznie ("events staff read"), bez obcego tenanta'
+);
+
+-- -- 7. rsvp_event nie omija bramki odczytu ------------------------------------------
+SELECT set_config('request.jwt.claims',
+  '{"sub":"e6000000-0000-0000-0000-0000000000aa","role":"authenticated"}', true);
+
+SELECT throws_ok(
+  $$ SELECT public.rsvp_event('e6333333-3333-3333-3333-333333333302', 'going') $$,
+  'P0001',
+  'events: membership required',
+  'reader (rank 0) NIE zapisze sie na public z progiem rangi nawet znajac UUID (zapis nie omija bramki odczytu)'
+);
+
+SELECT lives_ok(
+  $$ SELECT public.rsvp_event('e6333333-3333-3333-3333-333333333301', 'going') $$,
+  'reader (rank 0) nadal zapisuje sie na wydarzenie niebramkowane (prog 0 przechodzi)'
+);
+
+SELECT set_config('request.jwt.claims',
+  '{"sub":"e6000000-0000-0000-0000-0000000000bb","role":"authenticated"}', true);
+
+SELECT lives_ok(
+  $$ SELECT public.rsvp_event('e6333333-3333-3333-3333-333333333302', 'going') $$,
+  'member (rank 10) zapisuje sie na public z progiem 10'
 );
 
 SELECT * FROM finish();
