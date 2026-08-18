@@ -364,10 +364,10 @@ export default defineConfig({
         // z parametru, wektor liczony poza migracjami) - zostawiamy je, bo
         // bramka MA mówić „nie rozstrzygnąłem", a nie udawać zieleń.
         "src/lib/ci/ftsConfigSymmetry.ts": {
-          statements: 90,
+          statements: 93,
           functions: 100,
-          lines: 94,
-          branches: 76,
+          lines: 98,
+          branches: 81,
         },
       },
     },

@@ -207,7 +207,7 @@ czterech metrykach - one niosą reguły, których złamanie widzi WYŁĄCZNIE u�
 | `src/lib/chat/useConversations.ts`                  | 90 / 96 / 96 / 80                      | 94,9 / 100 / 100 / 84,3   |
 | `src/components/chat/**`                            | 40 / 36 / 41 / 34                      | 44,6 / 40,0 / 45,6 / 38,3 |
 | `src/components/chat/ChatWindow.tsx`                | 78 / 60 / 84 / 70                      | 83,6 / 64,4 / 88,1 / 75,2 |
-| `src/lib/ci/ftsConfigSymmetry.ts`                   | 90 / 100 / 94 / 76                     | 94,4 / 100 / 97,7 / 81,0  |
+| `src/lib/ci/ftsConfigSymmetry.ts`                   | 93 / 100 / 98 / 81                     | 95,9 / 100 / 100 / 84,4   |
 | `thread` / `menuOptions` / `useThreadJump` / `keys` | 100 / 100 / 100 / 100                  | 100 na czterech           |
 
 ### 5.2 Bramka symetrii FTS (`src/lib/ci/ftsConfigSymmetry.ts`)
@@ -222,18 +222,39 @@ Bramka czyta migracje i sprawdza, że konfiguracja **BUDOWY wektora**, **ZAPYTAN
 i **PODŚWIETLENIA** jest ta sama. Rozwiązuje przy tym:
 
 - budowniczych zapytań (`RETURNS tsquery` -> konfiguracja z literału),
-- kolumny wektorowe z `GENERATED ALWAYS AS` i z triggerów (`NEW.<kol> := to_tsvector(cfg…)`),
-- **aliasy tabel** z klauzul FROM/JOIN - i to jest warunek poprawności, nie wygoda:
-  kolumna `search_vector` żyje w tym repo w siedmiu tabelach, część świadomie na `simple`,
-  część na `public.nes_polish`. Pierwsza wersja bramki dopasowywała po samej nazwie
-  kolumny i produkowała 27 fałszywych alarmów.
+- budowniczych **wektorów** (`RETURNS tsvector`): `posts` i `pages` nie wołają
+  `to_tsvector` w triggerze, tylko `public.nes_posts_search_vector(…)` - konfiguracja
+  siedzi wewnątrz tej funkcji,
+- kolumny wektorowe z `GENERATED ALWAYS AS` i z triggerów (`NEW.<kol> := …`),
+- **aliasy tabel** z klauzul FROM/JOIN oraz **CTE** (łańcuchowo, `CTE -> CTE -> tabela`) -
+  i to jest warunek poprawności, nie wygoda: kolumna `search_vector` żyje w tym repo
+  w siedmiu tabelach, część świadomie na `simple`, część na `public.nes_polish`. Pierwsza
+  wersja bramki dopasowywała po samej nazwie kolumny i produkowała 27 fałszywych alarmów.
 
-Bramka ocenia migracje od progu `20260815090000` (spłata długu) - historii się nie
-przepisuje - ale fakty zbiera z CAŁEJ historii, bo definicja funkcji z lipca może być
-nadal aktualna. To, czego nie rozstrzygnęła, raportuje jako `unresolved`, zamiast udawać
-zieleń. Sonda historyczna potwierdziła, że przy progu z 20.07 bramka zgłasza oryginalny
-dług słowami: `wektor messages.search_vector budowany w 'simple', odpytywany w
-'public.nes_polish'`.
+Bramka **ocenia całą historię migracji** (`SYMMETRY_ENFORCED_FROM = "00000000000000"`) -
+wszystkie **siedem** powierzchni szukających repo: `search_posts`, `search_quick`,
+`search_facets`, `search_messages`, `run_saved_search_alerts`, `club_search`,
+`club_thread_search`. Pierwsza wersja stała na progu `20260815090000` (spłata długu
+czatu) i oceniała **jedną** powierzchnię, bo pozostałych sześciu nie umiała przeczytać:
+`posts`/`pages` budują wektor funkcją pomocniczą, a wyszukiwarki klubów porównują wektor
+przez CTE. Po domknięciu obu ścieżek cały katalog jest symetryczny, więc próg przestał
+być potrzebny - zamrożona historia, której nie umiemy przeczytać, to nie to samo co
+historia przeczytana i czysta. Próg został jako pokrętło (i punkt odniesienia
+`CHAT_FTS_DEBT_PAID_IN`), a test pilnuje, że nie wrócił po cichu.
+
+To, czego nie rozstrzygnęła, raportuje jako `unresolved` - i **zatrzymuje CI**
+(`gateFailed`), zamiast udawać zieleń. Sonda historyczna potwierdziła, że przy progu
+z 20.07 bramka zgłasza oryginalny dług słowami: `wektor messages.search_vector budowany
+w 'simple', odpytywany w 'public.nes_polish'`.
+
+Cztery defekty własne bramki, złapane testem, zanim wyszły z gałęzi:
+
+| Defekt                                                                                | Skutek, gdyby przeżył                                   |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| raport mówił „OK", gdy `violations` puste, choć `unresolved` niepuste                 | zieleń nad powierzchnią, której nikt nie sprawdził      |
+| zakres liczony z daty samej funkcji, nie z jej zależności                             | nowa migracja psuje starą wyszukiwarkę bez alarmu       |
+| `websearch_to_tsquery` uznawane za nieznanego budowniczego (wzorzec `^(?:…)_tsquery`) | dwie wyszukiwarki klubów w `unresolved` = czerwone CI   |
+| trigger wiązany wzorcem przez CAŁY plik - brał tabelę z pierwszego `CREATE TRIGGER`   | wektor `pages` pod kluczem `posts`, `pages` niewidoczna |
 
 ### 5.3 Parytet PL/EN
 
