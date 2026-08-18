@@ -3,7 +3,7 @@
 ## Diagnoza
 
 Podniesienie `prettier` z `^3.7.3` na `^3.9.6` przeformatowało kod źródłowy, ale
-zostawiło trzy rzeczy, przez które „cała platforma na 3.9.6" nie było prawdą.
+zostawiło pięć rzeczy, przez które „cała platforma na 3.9.6" nie było prawdą.
 
 ### 1. Manifest i lock mówiły co innego
 
@@ -73,6 +73,53 @@ się od `+`, `*` i `>` w treści akapitu. Sześć trafień `*` w
 `PROJEKT_DISCUSSION_CLUB_V3_UKLAD_2026-08-09.md` sprawdzono i odrzucono jako
 prawdziwe punktory (`*` -> `-` to czysta normalizacja).
 
+### 4. Cała analiza modułów z 12.08 nie przeżywa formatowania
+
+Znalezione w review PR-a #246 (Codex), po tym jak mój pierwszy skan tego NIE
+złapał: normalizator porównujący treść odejmował m.in. `_`, `*` i `|`, więc
+klasa „literał techniczny zjedzony przez składnię Markdowna" była dla niego
+niewidzialna z definicji. Dwa realne uszkodzenia w tym pliku:
+
+- `src/lib/__tests__` -> `src/lib/**tests**`. Dla Markdowna `__x__` to
+  pogrubienie, więc formater zapisuje je kanonicznie jako `**x**` i ścieżka
+  przestaje być ścieżką - **111 wystąpień**. Analogicznie `chat_*.sql` ->
+  `chat__.sql`. Render był zepsuty już wcześniej (to samo `__` czytał tak samo),
+  ale ŹRÓDŁO trzymało prawdziwą nazwę - i to ono jest tu materiałem dowodowym.
+- `` `lib/seo/head|meta|jsonld|request` `` w wierszu tabeli. GFM tnie komórki po
+  `|` PRZED parsowaniem inline, więc wiersz czterokolumnowy rozpadł się na
+  siedem komórek, span kodu pękł, a spacje wokół sąsiedniego tekstu zniknęły
+  (`request`używane`).
+
+Naprawa u źródła to przepisanie kilkuset odwołań w cudzym zapisie dowodowym -
+plik trafia więc do `.prettierignore`, jak audyt z 05.08.
+
+### 5. Ratchet `check:unknown-casts` liczył o jedno rzutowanie za mało
+
+Bramka stanęła na `WidgetProperties.tsx: 1 -> 2` i wygląda to jak nowy dług
+dołożony przez tę zmianę. Nie jest. Prettier 3.7 łamał unię w celu rzutowania
+na wiodący `|`:
+
+    s.typography = setThemedMode<WidgetTypography>(prev, mode, next) as unknown as
+      | WidgetTypography
+      | undefined;
+
+Skaner (`src/lib/ci/unknownCasts.ts`) wymagał, żeby cel zaczynał się od nazwy,
+`{` albo `(` - `|` nie pasowało do żadnej postaci, więc rzutowanie było dla
+ratchetu NIEWIDZIALNE. 3.9.6 składa unię z powrotem do jednej linii i to samo
+rzutowanie zaczyna się liczyć. Oba rzutowania są w tym pliku od dawna; zmienił
+się wyłącznie sposób łamania linii.
+
+Dlatego zamknięta jest PRZYCZYNA, nie objaw: skaner rozpoznaje teraz także cel
+z wiodącym `|` (dziś w repo nie ma ani jednego takiego miejsca - bramka po
+prostu przestaje zależeć od tego, jak formater złamie linię), a baseline
+zapisuje liczbę prawdziwą (2). To ta sama korekta co po review PR-a #235,
+opisana w nagłówku `scripts/lib/unknownCastBaseline.ts`.
+
+Drugie znalezisko bramki - `src/lib/views/postViews.functions.ts` - jest
+zastane na gałęzi i **naprawione już na `main`**, więc znika w commicie
+scalającym PR-a (CI buduje merge, nie sam head). Zweryfikowane lokalnie: po
+podstawieniu wersji z `main` bramka jest zielona (199 rzutowań w 128 plikach).
+
 ## Zmiana
 
 | Plik                                            | Zmiana                                                                 |
@@ -80,6 +127,9 @@ prawdziwe punktory (`*` -> `-` to czysta normalizacja).
 | `package.json`                                  | `"prettier": "3.9.6"` - pin dokładny, zgodny z kopią manifestu w locku |
 | `package.json`                                  | `format:check` -> `prettier --check .`, ten sam zbiór co `format`      |
 | `.prettierignore`                               | wyłączony audyt z 05.08 (bajt NUL) wraz z powodem                      |
+| `.prettierignore`                               | wyłączona analiza modułów z 12.08 (111 ścieżek `__tests__` + pipe)     |
+| `src/lib/ci/unknownCasts.ts`                    | skaner liczy też cel unii z wiodącym `                                 | ` - koniec zależności od łamania linii |
+| `scripts/lib/unknownCastBaseline.ts`            | `WidgetProperties.tsx` 1 -> 2: liczba prawdziwa, nie nowy dług         |
 | `docs/WDROZENIE_CROSS_BLOCK_SELECTION_...md:90` | `>= 2` w span kodu - wiersz nie zaczyna się już od `>`                 |
 | 7 plików `docs/**.md` (8 wierszy)               | spójnik `+` przeniesiony na koniec poprzedniego wiersza                |
 | 53 pliki `docs/**.md`, `scripts/**/README.md`   | sformatowane 3.9.6                                                     |

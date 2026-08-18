@@ -33,7 +33,13 @@ export const UNKNOWN_CAST_BASELINE: readonly (readonly [string, number])[] = [
   ["src/components/builder/organisms/widget-view/SimpleWidgets.tsx", 1],
   ["src/components/builder/organisms/widget-view/SpeakersWidget.tsx", 1],
   ["src/components/builder/organisms/widget-view/TeamMemberWidget.tsx", 1],
-  ["src/components/admin/builder/WidgetProperties.tsx", 1],
+  // 2, nie 1: drugie rzutowanie (`setThemedMode(...) as unknown as WidgetTypography
+  // | undefined`) BYŁO tu od zawsze, ale Prettier 3.7 łamał tę unię na wiodący `|`,
+  // a takiego celu skaner nie rozpoznawał. Podniesienie do 3.9.6 zlepiło unię
+  // z powrotem w jedną linię i rzutowanie stało się policzalne. To NIE jest nowy
+  // dług - to ta sama korekta co po review PR-a #235 (patrz nagłówek pliku):
+  // baseline zapisuje liczbę PRAWDZIWĄ. Ratchet dalej trzyma kierunek: 2 -> mniej.
+  ["src/components/admin/builder/WidgetProperties.tsx", 2],
   ["src/components/builder/organisms/WidgetView.tsx", 1],
   ["src/components/admin/crm/CrmPartnerEndpointsPanel.tsx", 1],
   ["src/components/admin/menu/AddItemPanel.tsx", 2],

@@ -31,16 +31,16 @@ Skala: **9–10** wybitne · **7–8** produkcyjne · **5–6** działa z wyraź
 
 ## Sygnały na HEAD `a9b9e14` (zmierzone w tej sesji)
 
-| Sygnał                         | Wartość na `a9b9e14` (12.08)                                                | `1788ffb` (08.08) | `22b711a` (06.08) |
-| ------------------------------ | --------------------------------------------------------------------------- | ----------------- | ----------------- |
-| Pliki TS/TSX                   | **3 151** (testów: **714**)                                                 | 3 007 (685)       | 2 708 (535)       |
-| Trasy                          | **240 `.tsx`** (w tym **140** admin) + **22 `.ts`**                         | 231 / 138 / 22    | 213 / 134 / —     |
-| Migracje SQL                   | **748**                                                                     | 714               | 621               |
-| pgTAP                          | **87** plików                                                               | 87                | 73                |
-| `CREATE POLICY` (kumulatywnie) | **1 054**                                                                   | 1 038             | —                 |
-| Skrypty/bramki w `scripts/`    | **31**                                                                      | 30                | —                 |
-| Kroki `check:*` w `ci.yml`     | **24**                                                                      | 24                | ~22               |
-| Kod modułu Klubów              | **58** plików `src/lib/clubs/` + **106** komponentów + **20** tras `club.*` | 30 / — / 13       | —                 |
+| Sygnał | Wartość na `a9b9e14` (12.08) | `1788ffb` (08.08) | `22b711a` (06.08) |
+| ------ | ---------------------------- | ----------------- | ----------------- |
+| Pliki TS/TSX | **3 151** (testów: **714**) | 3 007 (685) | 2 708 (535) |
+| Trasy | **240 `.tsx`** (w tym **140** admin) + **22 `.ts`** | 231 / 138 / 22 | 213 / 134 / — |
+| Migracje SQL | **748** | 714 | 621 |
+| pgTAP | **87** plików | 87 | 73 |
+| `CREATE POLICY` (kumulatywnie) | **1 054** | 1 038 | — |
+| Skrypty/bramki w `scripts/` | **31** | 30 | — |
+| Kroki `check:*` w `ci.yml` | **24** | 24 | ~22 |
+| Kod modułu Klubów | **58** plików `src/lib/clubs/` + **106** komponentów + **20** tras `club.*` | 30 / — / 13 | — |
 
 **Nowe obszary wprowadzone deltą 08→12.08** (nie istniały w momencie pomiaru sekcji 1–16):
 `src/components/membership-join/` + `membership-join.tsx` + `i18n-membership-join.ts` (przepływ dołączania
@@ -52,6 +52,7 @@ do członkostwa → oceniony w odświeżeniu **M13**), `src/lib/files/` + `src/c
 
 **Objętość audytu:** 442 funkcji w 21 modułach · średnia ocen modułów **7,7/10** · rozkład: 6 modułów ≥8,0 · 13 w 7,0–7,9 · 2 poniżej 7,0
 
+
 ## Ustalenia krytyczne — do naprawy przed czymkolwiek innym
 
 Audyt wykrył **12 defektów klasy krytycznej**: bezpieczeństwo, izolacja najemców, dowody zgody RODO
@@ -59,20 +60,20 @@ i utrata danych. Każdy ma dowód w kodzie i jest niezależny od pozostałych, w
 równolegle. Kolejność poniżej to kolejność wdrożenia (najpierw to, co jest zdalnie wykorzystywalne
 albo niszczy dane).
 
-| #      | Klasa                                       | Defekt                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Plik-dowód                                                         | Moduł |
-| ------ | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ----- |
-| K1     | **XSS (stored, sesja admina)**              | Eksport osi czasu leada do PDF wstawia imię i e-mail leada do `document.write` bez escapowania — lead sam kontroluje te pola przez formularz publiczny                                                                                                                                                                                                                                                                                                  | `admin.crm.index.tsx:1571-1573`                                    | 18    |
-| ~~K2~~ | ~~RODO — fałszowanie dowodu zgody~~         | **USTALENIE WYCOFANE (12.08).** Twierdzenie było nieprawdziwe: migracja `20260803190927:140-148` **już** zdejmuje polityki `user_consents_insert_own`/`_update_own`/`_delete_own` i wykonuje `REVOKE INSERT, UPDATE, DELETE` na obu tabelach od `authenticated` i `anon`. Sekcja M19 czytała starszą migrację, nie stan końcowy forward-only. Pozycja zamieniona na dopisanie obu tabel do `PROTECTED_INTAKE_TABLES`, żeby regres był wykrywalny bramką | `20260803190927:140-148`                                           | 19    |
-| K3     | **RODO — fabrykowanie zgody marketingowej** | `convertFunnelToContacts` ustawia `marketing_consent=true` i `newsletter_status='subscribed'` niezależnie od faktycznego statusu; `updateFunnelStatus` dopisuje `confirmed_at`; bulk „Zgoda: TAK" zmienia zgodę bez wpisu w `crm_consent_log`                                                                                                                                                                                                           | `crm-funnel.functions.ts:204-214,234`                              | 18    |
-| K4     | **Izolacja najemców**                       | `admin_get_user_consent` nie filtruje po `tenant_id` — admin najemcy A czyta zgody użytkownika najemcy B                                                                                                                                                                                                                                                                                                                                                | RPC `admin_get_user_consent`                                       | 19    |
-| K5     | **Izolacja najemców**                       | RPC `related_posts_signals` przyjmuje `_tenant` jako parametr zamiast brać go z `assert_admin_tenant()` — admin dowolnego najemcy czyta analitykę treści innego                                                                                                                                                                                                                                                                                         | RPC `related_posts_signals`                                        | 17    |
-| K6     | **Autoryzacja + SSRF**                      | `fetchClubLinkPreview` i `embedClubQuery` to server functions bez `requireSupabaseAuth` i bez rate limitu; blokada SSRF działa na literalnym hostname, nie na rozwiązanym IP                                                                                                                                                                                                                                                                            | `linkPreview.functions.ts:107`, `clubSemantic.functions.ts:47`     | 21    |
-| K7     | **Wyciek treści płatnej/bramkowanej**       | Kontrola dostępu widgetów (`advanced.access`) jest wyłącznie kliencka — bramkowane rolami węzły jadą w `builder_data` do przeglądarki każdego gościa. Rekomendacja nr 1 **drugi audyt z rzędu**; `accessControl.ts` nietknięty przez 699 commitów                                                                                                                                                                                                       | `src/lib/builder/accessControl.ts`, `src/lib/queries/public.ts`    | 3     |
-| K8     | **RODO — telemetria bez zgody**             | `useRecordPostView` rejestruje odsłony bez sprawdzenia `hasAnalyticsConsent()`, wbrew deklaracji na `/cookies:74`; `viewerHash` nie ma wygaśnięcia                                                                                                                                                                                                                                                                                                      | `useRecordPostView.ts`, `/cookies:74`                              | 17    |
-| K9     | **Timing attack na sekretach**              | Porównania sekretów operatorem `===` zamiast `secretsEqual` w dwóch trasach podglądu                                                                                                                                                                                                                                                                                                                                                                    | `platform/email/transactional/preview.ts:21`, `auth/preview.ts:90` | 20    |
-| K10    | **Utrata danych**                           | Zapis koloru w `/admin/category-colors` idzie przez `upsertCategory`, więc nadpisuje opisy kategorii `NULL`-ami                                                                                                                                                                                                                                                                                                                                         | `admin.category-colors.tsx`                                        | 5     |
-| K11    | **Czerwona bramka CI**                      | `check:authz-snapshot` kończy się kodem 1 na HEAD (snapshot zna 744 migracje, w repo jest 748) — bramka jest w `ci.yml`, więc `main` jest czerwony                                                                                                                                                                                                                                                                                                      | `src/lib/authz/authzSnapshot.generated.ts`                         | 19    |
-| K12    | **Ciche gubienie powiadomień**              | Migracja klubowa A4 cofnęła `CHECK` i `enqueue_notification` dla typu `meeting` vs `meeting_booking` — powiadomienia o spotkaniach 1-1 giną w połkniętym wyjątku, a przełącznik UI pisze do kolumny, której nikt nie czyta                                                                                                                                                                                                                              | migracja `20260808094000`, `enqueue_notification`                  | 12    |
+| # | Klasa | Defekt | Plik-dowód | Moduł |
+| - | ----- | ------ | ---------- | ----- |
+| K1 | **XSS (stored, sesja admina)** | Eksport osi czasu leada do PDF wstawia imię i e-mail leada do `document.write` bez escapowania — lead sam kontroluje te pola przez formularz publiczny | `admin.crm.index.tsx:1571-1573` | 18 |
+| ~~K2~~ | ~~RODO — fałszowanie dowodu zgody~~ | **USTALENIE WYCOFANE (12.08).** Twierdzenie było nieprawdziwe: migracja `20260803190927:140-148` **już** zdejmuje polityki `user_consents_insert_own`/`_update_own`/`_delete_own` i wykonuje `REVOKE INSERT, UPDATE, DELETE` na obu tabelach od `authenticated` i `anon`. Sekcja M19 czytała starszą migrację, nie stan końcowy forward-only. Pozycja zamieniona na dopisanie obu tabel do `PROTECTED_INTAKE_TABLES`, żeby regres był wykrywalny bramką | `20260803190927:140-148` | 19 |
+| K3 | **RODO — fabrykowanie zgody marketingowej** | `convertFunnelToContacts` ustawia `marketing_consent=true` i `newsletter_status='subscribed'` niezależnie od faktycznego statusu; `updateFunnelStatus` dopisuje `confirmed_at`; bulk „Zgoda: TAK" zmienia zgodę bez wpisu w `crm_consent_log` | `crm-funnel.functions.ts:204-214,234` | 18 |
+| K4 | **Izolacja najemców** | `admin_get_user_consent` nie filtruje po `tenant_id` — admin najemcy A czyta zgody użytkownika najemcy B | RPC `admin_get_user_consent` | 19 |
+| K5 | **Izolacja najemców** | RPC `related_posts_signals` przyjmuje `_tenant` jako parametr zamiast brać go z `assert_admin_tenant()` — admin dowolnego najemcy czyta analitykę treści innego | RPC `related_posts_signals` | 17 |
+| K6 | **Autoryzacja + SSRF** | `fetchClubLinkPreview` i `embedClubQuery` to server functions bez `requireSupabaseAuth` i bez rate limitu; blokada SSRF działa na literalnym hostname, nie na rozwiązanym IP | `linkPreview.functions.ts:107`, `clubSemantic.functions.ts:47` | 21 |
+| K7 | **Wyciek treści płatnej/bramkowanej** | Kontrola dostępu widgetów (`advanced.access`) jest wyłącznie kliencka — bramkowane rolami węzły jadą w `builder_data` do przeglądarki każdego gościa. Rekomendacja nr 1 **drugi audyt z rzędu**; `accessControl.ts` nietknięty przez 699 commitów | `src/lib/builder/accessControl.ts`, `src/lib/queries/public.ts` | 3 |
+| K8 | **RODO — telemetria bez zgody** | `useRecordPostView` rejestruje odsłony bez sprawdzenia `hasAnalyticsConsent()`, wbrew deklaracji na `/cookies:74`; `viewerHash` nie ma wygaśnięcia | `useRecordPostView.ts`, `/cookies:74` | 17 |
+| K9 | **Timing attack na sekretach** | Porównania sekretów operatorem `===` zamiast `secretsEqual` w dwóch trasach podglądu | `platform/email/transactional/preview.ts:21`, `auth/preview.ts:90` | 20 |
+| K10 | **Utrata danych** | Zapis koloru w `/admin/category-colors` idzie przez `upsertCategory`, więc nadpisuje opisy kategorii `NULL`-ami | `admin.category-colors.tsx` | 5 |
+| K11 | **Czerwona bramka CI** | `check:authz-snapshot` kończy się kodem 1 na HEAD (snapshot zna 744 migracje, w repo jest 748) — bramka jest w `ci.yml`, więc `main` jest czerwony | `src/lib/authz/authzSnapshot.generated.ts` | 19 |
+| K12 | **Ciche gubienie powiadomień** | Migracja klubowa A4 cofnęła `CHECK` i `enqueue_notification` dla typu `meeting` vs `meeting_booking` — powiadomienia o spotkaniach 1-1 giną w połkniętym wyjątku, a przełącznik UI pisze do kolumny, której nikt nie czyta | migracja `20260808094000`, `enqueue_notification` | 12 |
 
 **Dodatkowo funkcja nieosiągalna mimo kompletnej implementacji** (nie krytyczna, ale marnuje gotową pracę):
 ustawienia powiadomień w `NotificationsCenter` są renderowane wyłącznie w zakładce „settings", a ta
@@ -91,31 +92,33 @@ w liniach 768/786, digest w 911) są produktowo nieosiągalne dla użytkownika (
 > adwersarialnej nie została ukończona** (patrz nota metodyczna na początku dokumentu), więc żadne
 > twierdzenie nie zostało kontr-sprawdzone przed publikacją.
 
+
 ## Ranking modułów
 
-| Poz. | #   | Moduł                                                                                                             | Funkcji | Ocena   | Pomiar na HEAD         |
-| ---- | --- | ----------------------------------------------------------------------------------------------------------------- | ------- | ------- | ---------------------- |
-| 1    | 3   | Silniki treści: block editor + page builder                                                                       | 24      | **8,3** | `a9b9e14 (odświeżone)` |
-| 2    | 8   | SEO, feedy, dane strukturalne, cache brzegowy                                                                     | 20      | **8,3** | `1788ffb`              |
-| 3    | 9   | Czat / komunikator                                                                                                | 20      | **8,3** | `1788ffb`              |
-| 4    | 13  | Monetyzacja: cennik, checkout, subskrypcje, billing, paywall                                                      | 25      | **8,2** | `a9b9e14 (odświeżone)` |
-| 5    | 11  | Newsletter                                                                                                        | 17      | **8,1** | `1788ffb`              |
-| 6    | 10  | Sieć / networking (LinkedIn-lite) + eksperci                                                                      | 22      | **8,0** | `1788ffb`              |
-| 7    | 1   | Wpisy — doświadczenie czytelnika                                                                                  | 23      | **7,9** | `1788ffb`              |
-| 8    | 2   | Edytor wpisów i workflow redakcyjny                                                                               | 22      | **7,9** | `1788ffb`              |
-| 9    | 20  | Platforma: SSR, backend, integracje, narzędzia deweloperskie                                                      | 21      | **7,9** | `a9b9e14`              |
-| 10   | 6   | Wyszukiwarka                                                                                                      | 14      | **7,7** | `1788ffb`              |
-| 11   | 14  | Monetyzacja uzupełniająca: kupony, darowizny, prezenty, reklamy                                                   | 21      | **7,7** | `1788ffb`              |
-| 12   | 15  | Profil i konto użytkownika                                                                                        | 25      | **7,7** | `1788ffb`              |
-| 13   | 16  | Zarządzanie społecznością (admin): moderacja, badges, engagement, Q&A                                             | 17      | **7,6** | `1788ffb`              |
-| 14   | 21  | Kluby dyskusyjne (Discussion Club)                                                                                | 26      | **7,6** | `a9b9e14`              |
-| 15   | 5   | Strona główna, archiwa, nawigacja (chrome)                                                                        | 19      | **7,5** | `1788ffb`              |
-| 16   | 19  | Ustawienia, użytkownicy, uprawnienia, multi-tenant, RODO, consent                                                 | 22      | **7,5** | `a9b9e14`              |
-| 17   | 4   | Wygląd, motyw, media, import WordPress                                                                            | 20      | **7,4** | `1788ffb`              |
-| 18   | 7   | Typy treści specjalne (podcasty, web stories, wydarzenia, programy, quizy, ankiety, glosariusz, biblioteka, live) | 18      | **7,4** | `1788ffb`              |
-| 19   | 17  | Analityka i BI                                                                                                    | 25      | **7,0** | `a9b9e14`              |
-| 20   | 12  | Realtime, powiadomienia, web-push                                                                                 | 19      | **6,5** | `1788ffb`              |
-| 21   | 18  | CRM                                                                                                               | 22      | **6,4** | `a9b9e14`              |
+| Poz. | # | Moduł | Funkcji | Ocena | Pomiar na HEAD |
+| ---- | - | ----- | ------- | ----- | -------------- |
+| 1 | 3 | Silniki treści: block editor + page builder | 24 | **8,3** | `a9b9e14 (odświeżone)` |
+| 2 | 8 | SEO, feedy, dane strukturalne, cache brzegowy | 20 | **8,3** | `1788ffb` |
+| 3 | 9 | Czat / komunikator | 20 | **8,3** | `1788ffb` |
+| 4 | 13 | Monetyzacja: cennik, checkout, subskrypcje, billing, paywall | 25 | **8,2** | `a9b9e14 (odświeżone)` |
+| 5 | 11 | Newsletter | 17 | **8,1** | `1788ffb` |
+| 6 | 10 | Sieć / networking (LinkedIn-lite) + eksperci | 22 | **8,0** | `1788ffb` |
+| 7 | 1 | Wpisy — doświadczenie czytelnika | 23 | **7,9** | `1788ffb` |
+| 8 | 2 | Edytor wpisów i workflow redakcyjny | 22 | **7,9** | `1788ffb` |
+| 9 | 20 | Platforma: SSR, backend, integracje, narzędzia deweloperskie | 21 | **7,9** | `a9b9e14` |
+| 10 | 6 | Wyszukiwarka | 14 | **7,7** | `1788ffb` |
+| 11 | 14 | Monetyzacja uzupełniająca: kupony, darowizny, prezenty, reklamy | 21 | **7,7** | `1788ffb` |
+| 12 | 15 | Profil i konto użytkownika | 25 | **7,7** | `1788ffb` |
+| 13 | 16 | Zarządzanie społecznością (admin): moderacja, badges, engagement, Q&A | 17 | **7,6** | `1788ffb` |
+| 14 | 21 | Kluby dyskusyjne (Discussion Club) | 26 | **7,6** | `a9b9e14` |
+| 15 | 5 | Strona główna, archiwa, nawigacja (chrome) | 19 | **7,5** | `1788ffb` |
+| 16 | 19 | Ustawienia, użytkownicy, uprawnienia, multi-tenant, RODO, consent | 22 | **7,5** | `a9b9e14` |
+| 17 | 4 | Wygląd, motyw, media, import WordPress | 20 | **7,4** | `1788ffb` |
+| 18 | 7 | Typy treści specjalne (podcasty, web stories, wydarzenia, programy, quizy, ankiety, glosariusz, biblioteka, live) | 18 | **7,4** | `1788ffb` |
+| 19 | 17 | Analityka i BI | 25 | **7,0** | `a9b9e14` |
+| 20 | 12 | Realtime, powiadomienia, web-push | 19 | **6,5** | `1788ffb` |
+| 21 | 18 | CRM | 22 | **6,4** | `a9b9e14` |
+
 
 ## Najpilniejsze rekomendacje per moduł
 
@@ -289,6 +292,7 @@ Pięć pozycji o największym wpływie z każdego modułu — pełne uzasadnieni
 4. Podpiąć gotowy podgląd dokumentów (useDocumentViewer, 505 linii) w ClubDocumentLibrary i ClubThreadDocumentsPanel oraz dodać wgrywanie plików — dziś podgląd działa tylko w ClubPostCard, a biblioteka przyjmuje wyłącznie URL
 5. Testy renderu największych organizmów: ClubHub (619), ClubCalendar (600), ClubPostCard (514), ClubAccessGate (492), club.apply.tsx (754) i 21 komponentów panelu; priorytet — mapowanie draftu edytora na admin_club_upsert oraz brakujący eksport .ics
 
+
 ---
 
 # Część I — mapa relacji między modułami
@@ -304,44 +308,44 @@ Legenda modułów: **1** Wpisy-czytelnik · **2** Edytor/workflow · **3** Block
 ### Macierz zależności (liczba importów: wiersz = importujący, kolumna = importowany)
 
 | z \ do | **1** | **2** | **3** | **4** | **5** | **6** | **7** | **8** | **9** | **10** | **11** | **12** | **13** | **14** | **15** | **16** | **17** | **18** | **19** | **20** | **21** |
-| ------ | ----- | ----- | ----- | ----- | ----- | ----- | ----- | ----- | ----- | ------ | ------ | ------ | ------ | ------ | ------ | ------ | ------ | ------ | ------ | ------ | ------ |
-| **1**  | ·     | 4     | 24    | 16    | 3     | ·     | 1     | 4     | 1     | 1      | 1      | 2      | ·      | 1      | 9      | 2      | 1      | ·      | 8      | 63     | ·      |
-| **2**  | 7     | ·     | 1     | 3     | ·     | ·     | 1     | 2     | ·     | ·      | ·      | 2      | ·      | ·      | 3      | ·      | ·      | ·      | 1      | 41     | ·      |
-| **3**  | 12    | ·     | ·     | 7     | 3     | ·     | 4     | 2     | ·     | ·      | 1      | ·      | ·      | ·      | 7      | 3      | ·      | 2      | 2      | 59     | ·      |
-| **4**  | 5     | ·     | 17    | ·     | 2     | ·     | ·     | ·     | ·     | ·      | ·      | ·      | ·      | ·      | 4      | ·      | ·      | ·      | 6      | 48     | ·      |
-| **5**  | 2     | ·     | 11    | 19    | ·     | 2     | 2     | 22    | 2     | 2      | 1      | 2      | ·      | 10     | 4      | 1      | 1      | 1      | 7      | 61     | ·      |
-| **6**  | ·     | ·     | ·     | 11    | 15    | ·     | ·     | 3     | ·     | 1      | ·      | ·      | ·      | 2      | 3      | ·      | 1      | ·      | ·      | 17     | ·      |
-| **7**  | ·     | ·     | 5     | 11    | 7     | ·     | ·     | 71    | ·     | 3      | 1      | 1      | 7      | ·      | 8      | 14     | ·      | ·      | 3      | 76     | 1      |
-| **8**  | 4     | ·     | ·     | 4     | 1     | ·     | 5     | ·     | ·     | ·      | ·      | 1      | ·      | ·      | 3      | ·      | 2      | ·      | 13     | 48     | ·      |
-| **9**  | ·     | ·     | ·     | 2     | ·     | 4     | ·     | ·     | ·     | ·      | ·      | 6      | ·      | ·      | 24     | 3      | ·      | ·      | ·      | 42     | ·      |
-| **10** | ·     | ·     | 1     | 3     | 5     | 2     | 2     | 11    | 25    | ·      | ·      | 3      | 1      | ·      | 48     | 15     | ·      | ·      | 1      | 61     | ·      |
-| **11** | ·     | ·     | 4     | 6     | ·     | ·     | ·     | 6     | ·     | ·      | ·      | ·      | 1      | ·      | 6      | ·      | 1      | ·      | 2      | 59     | ·      |
-| **12** | ·     | ·     | 1     | 2     | ·     | ·     | ·     | 1     | 1     | ·      | ·      | ·      | 1      | 2      | 8      | ·      | ·      | ·      | 5      | 18     | 2      |
-| **13** | 2     | ·     | 2     | 3     | ·     | ·     | 4     | 7     | ·     | ·      | ·      | ·      | ·      | 3      | 28     | ·      | 2      | 1      | 3      | 131    | ·      |
-| **14** | ·     | ·     | ·     | 5     | ·     | ·     | ·     | 3     | ·     | ·      | ·      | ·      | 23     | ·      | 3      | ·      | 1      | ·      | 7      | 29     | ·      |
-| **15** | ·     | ·     | 6     | 8     | ·     | ·     | ·     | 6     | 1     | 8      | 6      | 3      | 3      | 1      | ·      | ·      | ·      | ·      | 8      | 70     | ·      |
-| **16** | 2     | ·     | ·     | 1     | ·     | ·     | 3     | 11    | ·     | ·      | ·      | ·      | 5      | ·      | 7      | ·      | ·      | ·      | 2      | 22     | ·      |
-| **17** | ·     | ·     | 1     | 1     | ·     | ·     | 3     | 1     | ·     | ·      | ·      | ·      | ·      | 2      | ·      | ·      | ·      | ·      | 1      | 22     | ·      |
-| **18** | 2     | ·     | 2     | 2     | ·     | ·     | ·     | 3     | ·     | ·      | ·      | 1      | 4      | ·      | 1      | ·      | ·      | ·      | 1      | 47     | ·      |
-| **19** | 1     | ·     | 4     | 9     | 2     | ·     | 1     | 21    | ·     | ·      | ·      | 2      | 3      | 7      | 9      | 1      | 4      | ·      | ·      | 89     | ·      |
-| **20** | 110   | 19    | 543   | 179   | 33    | 6     | 46    | 41    | 4     | 13     | 52     | 7      | 85     | 17     | 53     | 5      | 25     | 26     | 79     | ·      | 42     |
-| **21** | ·     | ·     | ·     | ·     | ·     | ·     | 1     | 3     | 1     | ·      | ·      | 1      | 4      | ·      | 11     | 6      | ·      | ·      | ·      | 51     | ·      |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| **1** | · | 4 | 24 | 16 | 3 | · | 1 | 4 | 1 | 1 | 1 | 2 | · | 1 | 9 | 2 | 1 | · | 8 | 63 | · |
+| **2** | 7 | · | 1 | 3 | · | · | 1 | 2 | · | · | · | 2 | · | · | 3 | · | · | · | 1 | 41 | · |
+| **3** | 12 | · | · | 7 | 3 | · | 4 | 2 | · | · | 1 | · | · | · | 7 | 3 | · | 2 | 2 | 59 | · |
+| **4** | 5 | · | 17 | · | 2 | · | · | · | · | · | · | · | · | · | 4 | · | · | · | 6 | 48 | · |
+| **5** | 2 | · | 11 | 19 | · | 2 | 2 | 22 | 2 | 2 | 1 | 2 | · | 10 | 4 | 1 | 1 | 1 | 7 | 61 | · |
+| **6** | · | · | · | 11 | 15 | · | · | 3 | · | 1 | · | · | · | 2 | 3 | · | 1 | · | · | 17 | · |
+| **7** | · | · | 5 | 11 | 7 | · | · | 71 | · | 3 | 1 | 1 | 7 | · | 8 | 14 | · | · | 3 | 76 | 1 |
+| **8** | 4 | · | · | 4 | 1 | · | 5 | · | · | · | · | 1 | · | · | 3 | · | 2 | · | 13 | 48 | · |
+| **9** | · | · | · | 2 | · | 4 | · | · | · | · | · | 6 | · | · | 24 | 3 | · | · | · | 42 | · |
+| **10** | · | · | 1 | 3 | 5 | 2 | 2 | 11 | 25 | · | · | 3 | 1 | · | 48 | 15 | · | · | 1 | 61 | · |
+| **11** | · | · | 4 | 6 | · | · | · | 6 | · | · | · | · | 1 | · | 6 | · | 1 | · | 2 | 59 | · |
+| **12** | · | · | 1 | 2 | · | · | · | 1 | 1 | · | · | · | 1 | 2 | 8 | · | · | · | 5 | 18 | 2 |
+| **13** | 2 | · | 2 | 3 | · | · | 4 | 7 | · | · | · | · | · | 3 | 28 | · | 2 | 1 | 3 | 131 | · |
+| **14** | · | · | · | 5 | · | · | · | 3 | · | · | · | · | 23 | · | 3 | · | 1 | · | 7 | 29 | · |
+| **15** | · | · | 6 | 8 | · | · | · | 6 | 1 | 8 | 6 | 3 | 3 | 1 | · | · | · | · | 8 | 70 | · |
+| **16** | 2 | · | · | 1 | · | · | 3 | 11 | · | · | · | · | 5 | · | 7 | · | · | · | 2 | 22 | · |
+| **17** | · | · | 1 | 1 | · | · | 3 | 1 | · | · | · | · | · | 2 | · | · | · | · | 1 | 22 | · |
+| **18** | 2 | · | 2 | 2 | · | · | · | 3 | · | · | · | 1 | 4 | · | 1 | · | · | · | 1 | 47 | · |
+| **19** | 1 | · | 4 | 9 | 2 | · | 1 | 21 | · | · | · | 2 | 3 | 7 | 9 | 1 | 4 | · | · | 89 | · |
+| **20** | 110 | 19 | 543 | 179 | 33 | 6 | 46 | 41 | 4 | 13 | 52 | 7 | 85 | 17 | 53 | 5 | 25 | 26 | 79 | · | 42 |
+| **21** | · | · | · | · | · | · | 1 | 3 | 1 | · | · | 1 | 4 | · | 11 | 6 | · | · | · | 51 | · |
 
 Uwaga metodyczna: do modułu 20 zaliczono także katalog `src/components/admin` (726 plików — wspólna powłoka panelu admina wszystkich modułów) oraz współdzielone `src/lib/queries`, `src/lib/server`, `src/integrations`. To wyjaśnia bardzo wysoki wiersz i kolumnę „20" — w szczególności krawędź 20→3 (543) to panele admina renderujące/edytujące dokumenty buildera.
 
 ### Ranking modułów-fundamentów (zależności przychodzące)
 
-| #    | Moduł                                                                                                          | Importy przychodzące | Charakter                                                                                                                  |
-| ---- | -------------------------------------------------------------------------------------------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| 1    | **20 Platforma/SSR/backend**                                                                                   | 1054                 | klient Supabase (importowany w 292 plikach), `lib/http` (60), `lib/i18n` (246 odwołań), sanitizacja, SSR, server functions |
-| 2    | **3 Blocks+builder**                                                                                           | 622                  | silnik renderowania treści i layoutów; `lib/builder` to najczęściej importowany katalog lib (631 odwołań)                  |
-| 3    | **4 Motyw/media/WP-import**                                                                                    | 292                  | tokeny designu, `lucide-shim` (216 odwołań), media                                                                         |
-| 4    | **15 Profil/konto**                                                                                            | 239                  | `hooks/useAuth` importowany w 185 plikach — de facto fundament sesji dla 9, 10, 12, 13, 21                                 |
-| 5    | **8 SEO/feedy**                                                                                                | 218                  | `lib/seo/head                                                                                                              | meta | jsonld | request`używane przez każdą trasę publiczną (330 odwołań do`lib/seo`) |
-| 6    | **19 Ustawienia/authz/tenant/RODO**                                                                            | 149                  | `useSiteSetting` (42 pliki), `has_role` RPC (15 wywołań), tenant                                                           |
-| 7    | **1 Wpisy-czytelnik**                                                                                          | 147                  | typy i ustawienia postów używane przez edytor, bloki, SEO                                                                  |
-| 8    | **13 Monetyzacja-core**                                                                                        | 137                  | gating/paywall/checkout używane przez 14, 18, 7, 21                                                                        |
-| 9–21 | 7 (73), 5 (71), 11 (62), 16 (50), 14 (45), 21 (45), 17 (38), 9 (35), 12 (31), 18 (30), 10 (28), 2 (23), 6 (14) |                      | moduły-liście                                                                                                              |
+| # | Moduł | Importy przychodzące | Charakter |
+|---|---|---|---|
+| 1 | **20 Platforma/SSR/backend** | 1054 | klient Supabase (importowany w 292 plikach), `lib/http` (60), `lib/i18n` (246 odwołań), sanitizacja, SSR, server functions |
+| 2 | **3 Blocks+builder** | 622 | silnik renderowania treści i layoutów; `lib/builder` to najczęściej importowany katalog lib (631 odwołań) |
+| 3 | **4 Motyw/media/WP-import** | 292 | tokeny designu, `lucide-shim` (216 odwołań), media |
+| 4 | **15 Profil/konto** | 239 | `hooks/useAuth` importowany w 185 plikach — de facto fundament sesji dla 9, 10, 12, 13, 21 |
+| 5 | **8 SEO/feedy** | 218 | `lib/seo/head|meta|jsonld|request` używane przez każdą trasę publiczną (330 odwołań do `lib/seo`) |
+| 6 | **19 Ustawienia/authz/tenant/RODO** | 149 | `useSiteSetting` (42 pliki), `has_role` RPC (15 wywołań), tenant |
+| 7 | **1 Wpisy-czytelnik** | 147 | typy i ustawienia postów używane przez edytor, bloki, SEO |
+| 8 | **13 Monetyzacja-core** | 137 | gating/paywall/checkout używane przez 14, 18, 7, 21 |
+| 9–21 | 7 (73), 5 (71), 11 (62), 16 (50), 14 (45), 21 (45), 17 (38), 9 (35), 12 (31), 18 (30), 10 (28), 2 (23), 6 (14) | | moduły-liście |
 
 Najsilniej sprzężone pary (suma obu kierunków, poza parami z 20): **7↔8** (71/5), **10↔15** (48/8), **13↔15** (28/3), **1↔3** (24/12 — cykl), **10↔9** (25/0), **9↔15** (24/1), **14↔13** (23/3), **5↔8** (22/1), **19↔8** (21/13 — cykl), **5↔4** (19/2), **4↔3** (17/7).
 
@@ -373,30 +377,30 @@ Mechanizmy przekrojowe w warstwie danych: god-tabele `posts` (110 wywołań `fro
 
 ### Pojedyncze punkty awarii (SPOF)
 
-| Punkt                                              | Zasięg                                                           | Ryzyko                                                                                                                                                                                      |
-| -------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/integrations/supabase/client`                 | importowany w 292 plikach                                        | awaria/misconfig klienta = cała platforma bez danych                                                                                                                                        |
-| `src/lib/server/tenant.server.ts`                  | wszystkie powierzchnie service-role (sitemapy, RSS, redirecty)   | błąd resolucji hosta = przeciek treści między tenantami (plik sam to dokumentuje; plan crawler jest fail-closed — utrzymać)                                                                 |
-| `hooks/useAuth` (185 plików)                       | sesja dla 9, 10, 12, 13, 15, 21                                  | regresja = logout/paywall/czat/kluby padają jednocześnie                                                                                                                                    |
-| tabela `site_settings` + `useSiteSetting`          | konfiguracja 15+ modułów                                         | zły zapis jednego klucza psuje renderowanie wielu modułów                                                                                                                                   |
-| `lib/builder` + `BuilderRenderer`                  | home, header, footer, treść stron, kluby                         | jedna ścieżka renderowania całego frontu publicznego                                                                                                                                        |
+| Punkt | Zasięg | Ryzyko |
+|---|---|---|
+| `src/integrations/supabase/client` | importowany w 292 plikach | awaria/misconfig klienta = cała platforma bez danych |
+| `src/lib/server/tenant.server.ts` | wszystkie powierzchnie service-role (sitemapy, RSS, redirecty) | błąd resolucji hosta = przeciek treści między tenantami (plik sam to dokumentuje; plan crawler jest fail-closed — utrzymać) |
+| `hooks/useAuth` (185 plików) | sesja dla 9, 10, 12, 13, 15, 21 | regresja = logout/paywall/czat/kluby padają jednocześnie |
+| tabela `site_settings` + `useSiteSetting` | konfiguracja 15+ modułów | zły zapis jednego klucza psuje renderowanie wielu modułów |
+| `lib/builder` + `BuilderRenderer` | home, header, footer, treść stron, kluby | jedna ścieżka renderowania całego frontu publicznego |
 | szyna `public.domain_events` / `emit_domain_event` | triggery na ~20 tabelach (CRM, billing, chat, newsletter, posty) | zmitygowane: funkcja ma `EXCEPTION WHEN OTHERS` (nie blokuje transakcji źródłowej), ale cicha awaria = brak inwalidacji/notyfikacji w całej platformie — warto dodać monitoring lag/failure |
-| `lib/seo/*` (330 odwołań, 118 plików)              | head/meta/jsonld każdej trasy                                    | regresja = wadliwe metadane całego serwisu naraz                                                                                                                                            |
+| `lib/seo/*` (330 odwołań, 118 plików) | head/meta/jsonld każdej trasy | regresja = wadliwe metadane całego serwisu naraz |
 
 ---
 
 # Część II — sekcje modułowe: funkcja po funkcji
 
+
 ---
 
 ## Moduł 1 — Wpisy — doświadczenie czytelnika
 
-**Zakres zbadany:** src/routes/$.tsx (1283 l.), post.$slug.tsx, preview.$token.tsx, blog.index.tsx, api/public/related-click.ts · src/components/: PostLayoutRenderer.tsx (+testy), PostContentStyle.tsx, Footnotes.tsx, PostFooterBars.tsx, Lightbox.tsx, TtsPlayer.tsx, post/ (19 plików), comments/ (2+testy), share/ (FloatingShareBar, ReadingHeader), audio/ (4 pliki) · src/lib/: postLayouts.ts, readingTime.ts, footnotes.ts, manualToc.ts, smoothAnchorScroll.ts, relatedPosts.ts, relatedPosts/, relatedClickBeacon.ts, toc/, keyTakeaways/, citations/, comments/, content/prepareContent.ts, content/previewTokens.functions.ts, views/postViews.functions.ts, queries/{relatedPosts,adjacentPosts,nextPost,public}.ts · src/hooks/: useRecordPostView, useSaveArticle, useBookmarks, useRecommendedPosts · testy: src/lib/**tests** (footnotes ×9, readingTime, postLayouts, relatedPosts, manualToc), citations/**tests** (×4), keyTakeaways/**tests** (×3), comments/**tests** (×3), e2e (user-paths, ssr-completeness), pgTAP (user_bookmarks_tenant_isolation, related_posts_config_provisioning, post_tts_canonical_rendition, metering_paywall) · **Funkcji:** 23 · **Ocena modułu:** 7,9/10
+**Zakres zbadany:** src/routes/$.tsx (1283 l.), post.$slug.tsx, preview.$token.tsx, blog.index.tsx, api/public/related-click.ts · src/components/: PostLayoutRenderer.tsx (+testy), PostContentStyle.tsx, Footnotes.tsx, PostFooterBars.tsx, Lightbox.tsx, TtsPlayer.tsx, post/ (19 plików), comments/ (2+testy), share/ (FloatingShareBar, ReadingHeader), audio/ (4 pliki) · src/lib/: postLayouts.ts, readingTime.ts, footnotes.ts, manualToc.ts, smoothAnchorScroll.ts, relatedPosts.ts, relatedPosts/, relatedClickBeacon.ts, toc/, keyTakeaways/, citations/, comments/, content/prepareContent.ts, content/previewTokens.functions.ts, views/postViews.functions.ts, queries/{relatedPosts,adjacentPosts,nextPost,public}.ts · src/hooks/: useRecordPostView, useSaveArticle, useBookmarks, useRecommendedPosts · testy: src/lib/__tests__ (footnotes ×9, readingTime, postLayouts, relatedPosts, manualToc), citations/__tests__ (×4), keyTakeaways/__tests__ (×3), comments/__tests__ (×3), e2e (user-paths, ssr-completeness), pgTAP (user_bookmarks_tenant_isolation, related_posts_config_provisioning, post_tts_canonical_rendition, metering_paywall) · **Funkcji:** 23 · **Ocena modułu:** 7,9/10
 
 Moduł obejmuje pełną ścieżkę czytelnika wpisu: od rozwiązania URL i SSR z edge-cache, przez system layoutów, przypisy, TOC, czas czytania, powiązane wpisy, komentarze, odsłuch audio, po cytowania naukowe i sygnały zaufania (feedback, changelog, serie). Stan ogólny jest wysoki — kod jest gęsto komentowany decyzjami architektonicznymi ("dlaczego", nie "co"), rdzenie logiki są czyste i przetestowane, i18n PL/EN jest konsekwentny, a bezpieczeństwo treści bramkowanej (body przez SECURITY DEFINER RPC, nigdy bezpośredni select) jest wzorcowe. Najważniejszy wniosek: publiczny silnik powiązanych wpisów renderuje po **starym scorerze** (bez sygnałów v2 i min_score, które admin konfiguruje), a AutoLoadNextPost omija wspólny pipeline treści (surowe `[fn]` w doładowanych wpisach, brak rejestracji odsłon) — to dwie realne luki między deklaracją produktu a zachowaniem kodu.
 
 ### 1.1. Resolver publiczny wpisu i SSR — **9/10**
-
 - **Pliki:** src/routes/$.tsx:184-467 (loader/head), 496-1197 (render), src/lib/queries/public.ts:602-710, src/lib/asyncBudget.ts
 - **Co robi:** Uniwersalna trasa `/$` rozwiązuje ścieżkę `/<rodzic>/<slug>` do wpisu/strony, ładuje treść z budżetami czasowymi (5 s primary, 3 s secondary), ustawia nagłówki edge-cache (ISR-like, anonimowa powłoka), prefetchuje layout/bloki/related dla crawleerów i emituje pełny head() (JSON-LD, breadcrumbs, preload LCP okładki, tagi Highwire).
 - **Relacje:** Moduł 8 (SEO/feedy) — buildContentHead/buildArticleJsonLd/citationMetaTags; Moduł 20 (Platforma/SSR) — withBudget, contentCacheControl, ssrCache; Moduł 3 (Silniki treści) — ContentRenderer/prepareContentForRender; Moduł 13 (Monetyzacja-core) — access rule z resolvera, get_entity_content RPC; Moduł 14 — gifting hooks; Moduł 5 (Chrome) — SiteChrome w __root.
@@ -407,7 +411,6 @@ Moduł obejmuje pełną ścieżkę czytelnika wpisu: od rozwiązania URL i SSR z
   2. Dodać test jednostkowy loadera z symulacją timeoutu primary query (withBudget) — potwierdzić kontrakt NO_STORE + notFound.
 
 ### 1.2. Trasy legacy i kanonizacja URL — **8/10**
-
 - **Pliki:** src/routes/post.$slug.tsx:18-32, src/routes/$.tsx:196-241, src/lib/routing/legacyPostPath.ts
 - **Co robi:** `/post/<slug>` i płaskie poWordPressowe `/<slug>` (oraz slugi ze złym rodzicem) są 301-owane na kanoniczną ścieżkę `rodzic/slug`; brakujący wpis → 302 na /blog (celowo tymczasowe — wpis może wrócić z kosza); hierarchiczne `/category/a/b` kolapsowane do płaskiej formy.
 - **Relacje:** Moduł 8 (SEO) — transfer link equity 301 vs 302 świadomie rozdzielony; Moduł 4 (WP-import) — obsługa adresów poimportowych.
@@ -417,8 +420,7 @@ Moduł obejmuje pełną ścieżkę czytelnika wpisu: od rozwiązania URL i SSR z
   1. Objąć fallback taksonomii `edgeTtlCache` per slug (routes/$.tsx:214-228) — 404-y botów nie powinny młócić DB.
 
 ### 1.3. System layoutów wpisu — **9/10**
-
-- **Pliki:** src/lib/postLayouts.ts:1-497, src/components/PostLayoutRenderer.tsx:1-327, src/components/PostContentStyle.tsx, src/lib/**tests**/postLayouts.test.ts, PostLayoutRenderer.test.tsx, PostLayoutRenderer.a11y.test.tsx
+- **Pliki:** src/lib/postLayouts.ts:1-497, src/components/PostLayoutRenderer.tsx:1-327, src/components/PostContentStyle.tsx, src/lib/__tests__/postLayouts.test.ts, PostLayoutRenderer.test.tsx, PostLayoutRenderer.a11y.test.tsx
 - **Co robi:** 20 presetów (12 standard, 5 video, 5 audio, 3 gallery) sterujących pozycją nagłówka (above/below/overlay/split/no-cover), croppingiem okładki, sidebar'em i szerokością kolumny; merge globalnych ustawień z per-wpis `layout_overrides`; typografia nagłówka/overlay przez CSS custom properties; View Transitions morph okładki.
 - **Relacje:** Moduł 2 (Edytor) — te same presety w admin.post-layouts i LayoutScaffold (podgląd 1:1); Moduł 4 (Motyw/media) — OptimizedImage, buildImageSrcSet, site_settings `post_layout_settings`; Moduł 19 (Ustawienia) — useSiteSetting.
 - **✅ Mocne:** Jedno źródło `coverImageSizes()` dla `<img sizes>` i preloadu (postLayouts.ts:227-232 — komentarz wprost o dryfcie); degradacja bez okładki do klasycznego nagłówka zamiast pustej czarnej ramy (PostLayoutRenderer.tsx:97-101); testy jednostkowe + dedykowany test a11y.
@@ -428,7 +430,6 @@ Moduł obejmuje pełną ścieżkę czytelnika wpisu: od rozwiązania URL i SSR z
   2. Dodać wizualny test regresyjny (playwright screenshot) dla overlay na mobile — scrimy kontrastowe (PostLayoutRenderer.tsx:204-226) są krytyczne dla czytelności i łatwe do zepsucia.
 
 ### 1.4. Archiwum bloga /blog — **7,5/10**
-
 - **Pliki:** src/routes/blog.index.tsx:1-201, src/lib/queries/public.ts (blogArchiveQueryOptions, resolvePostsPerPage)
 - **Co robi:** SSR-paginowane archiwum (`?page=N`), rozmiar strony z ustawienia czytania, kanoniczny URL bez paginacji, `noindex,follow` dla stron >1, CollectionPage JSON-LD, zmiana strony w useTransition (siatka zostaje na ekranie), reklamy in-feed.
 - **Relacje:** Moduł 8 (SEO) — buildContentHead, breadcrumbListJsonLd; Moduł 14 (Monetyzacja-uzupełniająca) — useInFeedAds, FooterSlideup; Moduł 19 — site_settings posts_per_page.
@@ -439,7 +440,6 @@ Moduł obejmuje pełną ścieżkę czytelnika wpisu: od rozwiązania URL i SSR z
   2. Dodać konfigurowalny tytuł/opis archiwum (klucz site_settings) — parytet z archiwami taksonomii.
 
 ### 1.5. Podgląd szkicu po tokenie — **7,5/10**
-
 - **Pliki:** src/routes/preview.$token.tsx:1-127, src/lib/content/previewTokens.functions.ts:1-147
 - **Co robi:** `/preview/$token` renderuje szkic bez konta (prasa/partnerzy przed premierą): server fn z service role waliduje token (24 losowe bajty base64url) i expiry, trasa pokazuje uproszczony widok z banerem embarga, pełnym noindex i tym samym pipeline'em treści co produkcja (przypisy, manual TOC).
 - **Relacje:** Moduł 2 (Edytor/workflow) — createPreviewToken/list/revoke za requireStaff; Moduł 19 (authz) — rate limit per token/user; Moduł 3 — prepareContentForRender.
@@ -451,18 +451,16 @@ Moduł obejmuje pełną ścieżkę czytelnika wpisu: od rozwiązania URL i SSR z
   3. Rozważyć jednorazowe unieważnienie tokenu po publikacji wpisu (trigger DB).
 
 ### 1.6. Gating treści w widoku czytelnika (paywall UX) — **8/10**
-
 - **Pliki:** src/routes/$.tsx:583-652 (łańcuch pickBody), 822-887 (render paywall/meter/gift), src/lib/access/gating.ts, metering.ts (+testy), src/hooks/useUnlockedContent.ts, usePasswordUnlock.ts
 - **Co robi:** Reguła dostępu (mode/teaser/plany) przychodzi z resolvera i renderuje teaser paywalla już w anonimowym SSR; klient dokłada kolejno: odblokowanie uprawnionego, hasło, licznik (metering RPC), kod podarunkowy — `pickBody` preferuje odblokowaną kopię; licznik "zostało N" tylko gdy body przyszło "na licznik".
 - **Relacje:** Moduł 13 (Monetyzacja-core) — WŁAŚCICIEL logiki dostępu (gating.ts, metering.ts, RPC has_content_access/consume_metered_view; tu tylko render); Moduł 14 — gifting (redeem_gift_link, GiftBanner/GiftArticleButton); Moduł 8 — `gated` w JSON-LD (paywalled content markup).
 - **✅ Mocne:** Kolejność źródeł body jawna i skomentowana (bodyBeforeGift decyduje o banerze podarunkowym — baner tylko gdy to KOD otworzył treść, $.tsx:645-652, 818-823); testy lib/access/{gating,metering}.test.ts + pgTAP metering_paywall_test.sql.
-- **⚠️ Słabe:** Cztery równoległe hooki odblokowań (unlocked/pwd/metered/gifted) każdy z własnym stanem — brak jednego testu integracyjnego rendersweep dla kombinacji (np. metered+gift jednocześnie); szukałem w src/lib/ssr/**tests**/postRenderSweep.test.ts — pokrywa render, nie kombinacje gatingu.
+- **⚠️ Słabe:** Cztery równoległe hooki odblokowań (unlocked/pwd/metered/gifted) każdy z własnym stanem — brak jednego testu integracyjnego rendersweep dla kombinacji (np. metered+gift jednocześnie); szukałem w src/lib/ssr/__tests__/postRenderSweep.test.ts — pokrywa render, nie kombinacje gatingu.
 - **🔧 Rekomendacje:**
   1. Test kombinatoryczny pickBody-łańcucha (unlocked ⊕ pwd ⊕ metered ⊕ gifted) jako tabela przypadków — dziś kolejność gwarantuje tylko komentarz.
 
 ### 1.7. Przypisy źródłowe [fn] — **9/10**
-
-- **Pliki:** src/lib/footnotes.ts:1-259, src/lib/content/prepareContent.ts:40-82, src/components/Footnotes.tsx:1-114, testy: src/lib/**tests**/{footnoteMarkers,fnMulti,parseBakedFootnotes,globalWidgetOverlayFootnotes×6}.test.ts, blocks/**tests**/footnote*.test.ts
+- **Pliki:** src/lib/footnotes.ts:1-259, src/lib/content/prepareContent.ts:40-82, src/components/Footnotes.tsx:1-114, testy: src/lib/__tests__/{footnoteMarkers,fnMulti,parseBakedFootnotes,globalWidgetOverlayFootnotes×6}.test.ts, blocks/__tests__/footnote*.test.ts
 - **Co robi:** Jedyny silnik przypisów `[fn]…[/fn]` dla trzech silników treści: marker kotwiczony (`role="doc-noteref"`, href/id/data-fn) lub samodzielny dla globalnych widgetów; sekcja końcowa z backlinkami ↩ i tooltipy hover/focus; osobne liczniki per silnik (świadoma decyzja z sekcją "dlaczego" w prepareContent.ts:44-60).
 - **Relacje:** Moduł 3 (Silniki treści) — walker dokumentu buildera po WIDGET_TEXT_FIELDS; Moduł 2 (Edytor) — parytet podglądu (preview używa tego samego pipeline'u); Moduł 4 (WP-import) — parseBakedFootnotes dla migrowanego markupu.
 - **✅ Mocne:** Najlepiej przetestowany podsystem modułu (9+ plików testów, w tym i18n, mixed, snapshot); a11y: `aria-describedby="footnotes-heading"`, `role="doc-noteref"`, sanityzacja treści noty przy renderze (Footnotes.tsx:39).
@@ -471,7 +469,6 @@ Moduł obejmuje pełną ścieżkę czytelnika wpisu: od rozwiązania URL i SSR z
   1. Clamp pozycji tooltipa do viewportu + zamykanie Escape (Footnotes.tsx:59-113) — zgodność z WCAG 1.4.13.
 
 ### 1.8. Spis treści (TOC) — **8/10**
-
 - **Pliki:** src/lib/toc/settings.ts:1-203, manualItems.ts (+test), src/lib/manualToc.ts:1-106 (+test), src/components/post/InlineToc.tsx, src/lib/smoothAnchorScroll.ts:1-161 (+test), FloatingShareBar (skan+scrollspy)
 - **Co robi:** Trzy powierzchnie TOC: inline w treści (blocksDoc, po merge globalnych ustawień z per-wpis override), manualny `<!--TOC-->` w HTML (czysty string-transform, SSR-safe) i interaktywny w panelu czytania (scrollspy + smooth scroll z poszanowaniem prefers-reduced-motion i anulowaniem na intencję użytkownika). Gwarancja JEDNEGO TOC na stronie (bodyTocActive wyłącza kopię w sidebarze, $.tsx:592-599).
 - **Relacje:** Moduł 3 (Silniki treści) — resolveBlockAnchors/anchorSlug (jeden kanoniczny slugifikator — komentarz o historycznym rozjeździe `#…-ma-ych-…`, toc/settings.ts:117-121); Moduł 19 — site_settings toc_defaults.
@@ -481,8 +478,7 @@ Moduł obejmuje pełną ścieżkę czytelnika wpisu: od rozwiązania URL i SSR z
   1. Rozszerzyć InlineToc o źródło builder/html (scanHeadings z anchorScan już istnieje) albo jawnie zablokować przełącznik showInBody w panelu dla wpisów nie-blocks.
 
 ### 1.9. Czas czytania — **9/10**
-
-- **Pliki:** src/lib/readingTime.ts:1-258, src/hooks/useReadingTimeSettings.ts, src/lib/**tests**/readingTime.test.ts, routes/$.tsx:696-723
+- **Pliki:** src/lib/readingTime.ts:1-258, src/hooks/useReadingTimeSettings.ts, src/lib/__tests__/readingTime.test.ts, routes/$.tsx:696-723
 - **Co robi:** Algorytm Medium/NNG: słowa/wpm per JĘZYK (PL 220, EN 238), krzywa obrazów (head/tail), wolniejsze czytanie kodu; wszystkie parametry z panelu /admin/reading-time (site_settings.reading_time, zod strict); ręczny `posts.read_minutes` jako override; jedno rozstrzygnięcie `resolveReadMinutes` zasila meta przy tytule, quick-view, widget odsłuchu i JSON-LD.
 - **Relacje:** Moduł 2 (Edytor) — computeBilingualReadingStats w podglądach; Moduł 8 — wartość w JSON-LD; Moduł 19 — useSiteSetting.
 - **✅ Mocne:** Rdzeń czysty i testowany; PL/EN liczone niezależnie z językowo dobranym wpm (fleksja — readingTime.ts:7-9); `enabled: false` ukrywa czas globalnie zamiast pokazywać zero.
@@ -491,17 +487,15 @@ Moduł obejmuje pełną ścieżkę czytelnika wpisu: od rozwiązania URL i SSR z
   1. Dla `type === "gallery"` liczyć realną liczbę elementów tablicy zdjęć (readingTime.ts:120-122).
 
 ### 1.10. Key takeaways ("Z tego materiału dowiesz się…") — **8/10**
-
 - **Pliki:** src/lib/keyTakeaways/{resolve,limits,settings}.ts (+3 pliki testów), src/components/molecules/KeyTakeaways.tsx, routes/$.tsx:388, 770, 856-861
 - **Co robi:** Punkty kluczowe per język (celowo BEZ fallbacku PL→EN — komentarz z uzasadnieniem, resolve.ts:19-29), normalizacja przez jedną funkcję (trim, limit 7×500 zn.), to samo rozstrzygnięcie zasila JSON-LD w head() i sekcję w body; warianty wizualne per wpis.
 - **Relacje:** Moduł 8 (SEO/AEO) — takeaways → abstract/speakable w JSON-LD; Moduł 2 (Edytor) — panel z licznikiem po tej samej stałej; DB — trigger posts_validate_takeaways + kontrakt pgTAP (takeaways_limits_contract).
 - **✅ Mocne:** Wzorcowa praca nad spójnością warstw — historia rozjazdu limitu 6/7 opisana w limits.ts:1-14 i domknięta jedną stałą + kontraktem pgTAP; testy resolve/limits/selectContract.
-- **⚠️ Słabe:** Placeholder-defekt naprawiony (puste = brak sekcji, $.tsx:853-856), ale sekcja nie ma testu komponentu KeyTakeaways (warianty wizualne nietestowane) — szukałem w molecules/**tests** — brak.
+- **⚠️ Słabe:** Placeholder-defekt naprawiony (puste = brak sekcji, $.tsx:853-856), ale sekcja nie ma testu komponentu KeyTakeaways (warianty wizualne nietestowane) — szukałem w molecules/__tests__ — brak.
 - **🔧 Rekomendacje:**
   1. Test snapshot wariantów KeyTakeaways (numbered/checklist itd.) — warianty per wpis (`takeaways_variant`) są dziś nietestowane.
 
 ### 1.11. Powiązane wpisy — **7/10**
-
 - **Pliki:** src/lib/relatedPosts.ts:1-317 (+test), src/lib/relatedPosts/settings.ts (+test), src/lib/queries/relatedPosts.ts:1-199, src/components/post/RelatedPosts.tsx:1-481, RelatedPostsAfterParagraph.tsx, relatedVisuals.tsx, src/lib/relatedClickBeacon.ts, src/routes/api/public/related-click.ts
 - **Co robi:** Konfigurowalny silnik rekomendacji (pozycja end/sidebar/after_paragraph, 6 layoutów UI, wagi sygnałów v2 z IDF/popularnością/dwell/personalizacją), per-wpis override, klik-beacon (sendBeacon → related_post_clicks z rate-limitem i walidacją cross-tenant).
 - **Relacje:** Moduł 17 (Analityka/BI) — related_post_clicks zasila CTR/sankey; Moduł 16/19 — RPC get_related_posts_config (izolacja tenant — komentarz o sumowaniu polityk OR, queries/relatedPosts.ts:19-26); Moduł 3 — widget related w blocks (prefetch w loaderze).
@@ -513,7 +507,6 @@ Moduł obejmuje pełną ścieżkę czytelnika wpisu: od rozwiązania URL i SSR z
   3. Zbiorczy RPC/batch dla page_full_path (mapa parent_id→path jednym zapytaniem).
 
 ### 1.12. Komentarze publiczne — **8/10**
-
 - **Pliki:** src/components/comments/CommentsSection.tsx:1-762, CommentComposerShell.tsx (+test), src/lib/comments/{api,tree,guest.functions}.ts (+testy tree/selection), migracje 20260720140000_comments_guests_threading.sql, 20260724090400_fix_comments_remoderate_on_edit.sql
 - **Co robi:** Wątki do MAX_COMMENT_DEPTH (trigger DB), paginacja WĄTKAMI (rodzice + wszystkie odpowiedzi — naprawiony bug gubienia odpowiedzi na granicy okna, api.ts:92-102), goście z podpisem + honeypot przekazywanym na serwer + rate limit per IP (fail-closed), edycja własnych 15 min (guard DB), soft-delete z potwierdzeniem, realtime refresh, uczciwy licznik zatwierdzonych.
 - **Relacje:** Moduł 16 (Społeczność-admin) — moderateComment/bulkModerate/fetchAdminComments (moderacja poza zakresem); Moduł 12 (Realtime) — subscribeToTable; Moduł 10 — MentionText/MentionTextarea; Moduł 19 — site_settings discussion + RLS/triggery DB jako źródło prawdy.
@@ -524,7 +517,6 @@ Moduł obejmuje pełną ścieżkę czytelnika wpisu: od rozwiązania URL i SSR z
   2. Monitorować/logować przypadek `replies.length === REPLIES_FETCH_CAP` (api.ts:41,87) — dziś ucięcie jest niewidoczne.
 
 ### 1.13. Rejestrowanie odsłon i historii czytania — **8/10**
-
 - **Pliki:** src/hooks/useRecordPostView.ts:1-70, src/lib/views/postViews.functions.ts:1-110, src/lib/views/viewerHash.ts, src/lib/prerender.ts
 - **Co robi:** Fire-and-forget zapis odsłony po 1,5 s (filtr back/forward), świadomy prerenderingu (Speculation Rules — odliczanie po aktywacji), wykluczenie autora własnego wpisu, anty-spam 5 min w SECURITY DEFINER `record_post_view`; równolegle upsert `user_read_history` zalogowanego (zasila wykluczenie "już przeczytane" w rekomendacjach).
 - **Relacje:** Moduł 17 (Analityka) — post_views/trending_posts; Moduł 15 (Profil) — user_read_history (owner-RLS); Moduł 12 — brak (celowo fire-and-forget); Moduł 20 — afterPrerendering.
@@ -534,7 +526,6 @@ Moduł obejmuje pełną ścieżkę czytelnika wpisu: od rozwiązania URL i SSR z
   1. Test hooka z fake timers: mount → auth po 500 ms → assert pojedynczego wywołania record (useRecordPostView.ts).
 
 ### 1.14. Zapis na później / zakładki — **8/10**
-
 - **Pliki:** src/hooks/useSaveArticle.ts:1-189, src/hooks/useBookmarks.ts:1-62, src/components/atoms/SaveArticleButton.tsx, pgTAP: supabase/tests/user_bookmarks_tenant_isolation_test.sql
 - **Co robi:** Jeden przycisk, cztery ścieżki: zalogowany+personalizacja → DB (user_bookmarks), gość+allowGuests → localStorage z TTL admina (pruning przy odczycie i zapisie), gość bez zgody → popup logowania, feature-off → localStorage; toast z akcją "Otwórz listę" do walidowanej ścieżki reading-list.
 - **Relacje:** Moduł 15 (Profil/konto) — /reading-list, /profile/bookmarks, anonMerge po zalogowaniu (ten sam cutoff TTL); Moduł 19 — usePersonalizedSettings (site_settings personalizacji); pgTAP izolacja tenantowa.
@@ -545,7 +536,6 @@ Moduł obejmuje pełną ścieżkę czytelnika wpisu: od rozwiązania URL i SSR z
   2. Optimistic toggle z rollbackiem w useToggleBookmark — percepcja natychmiastowości.
 
 ### 1.15. Rekomendacje spersonalizowane — **7/10**
-
 - **Pliki:** src/hooks/useRecommendedPosts.ts:1-49, RPC get_recommended_posts_v2 (migracja 20260730120046), konsumenci: src/routes/reading-list.tsx, TailoredMustReadsView (widget buildera)
 - **Co robi:** Jedna ścieżka dla zalogowanego (follows + historia czytania w SQL) i gościa (zainteresowania z localStorage parametrami RPC); klucz zapytania na wspólnym korzeniu WIDGET_QUERY_ROOTS (inwalidacje z useInterests/useFollows trafiają w ten sam literal).
 - **Relacje:** Moduł 15 (Profil) — follows/interests/anonMerge; Moduł 3 (Silniki treści) — widget TailoredMustReads; Moduł 17 — scoring czytelnictwa w SQL.
@@ -556,7 +546,6 @@ Moduł obejmuje pełną ścieżkę czytelnika wpisu: od rozwiązania URL i SSR z
   2. Rozważyć sekcję rekomendacji pod related na wpisie (odbiorca danych read-history już istnieje).
 
 ### 1.16. Pasek czytania, udostępnianie i cytat-share — **8/10**
-
 - **Pliki:** src/components/share/FloatingShareBar.tsx:1-797, ReadingHeader.tsx:1-508, src/components/post/QuoteShareBar.tsx:1-186, src/lib/rafThrottle.ts (+test), src/lib/a11y/useFocusTrap.ts
 - **Co robi:** Panel czytania (rail/sidebar): pierścień postępu, scrollspy TOC z MutationObserver (re-skan po lazy-mount), 7 platform share z konfiguracją CMS, print/PDF, save; sticky ReadingHeader z wyszukiwarką i kontem pojawiający się gdy główny header znika; QuoteShareBar — zaznaczenie tekstu → pasek X/LinkedIn/kopiuj z limitem 280-23 znaków dla X.
 - **Relacje:** Moduł 6 (Wyszukiwarka) — SearchButtonWidget w ReadingHeader; Moduł 12 — NotificationsBell/ChatBell; Moduł 5 (Chrome) — przekazanie górnej krawędzi (jeden pasek naraz); Moduł 19 — ReadingPanelSettings z sidebar buildera.
@@ -567,7 +556,6 @@ Moduł obejmuje pełną ścieżkę czytelnika wpisu: od rozwiązania URL i SSR z
   2. BrandIcon dla WhatsApp/Telegram/Reddit + ujednolicenie intent-URL X.
 
 ### 1.17. Odsłuch artykułu (TTS/audio) — **8/10**
-
 - **Pliki:** src/components/audio/{SidebarListenCard(368),GlobalAudioBar(438),ArticleListenButton(109),MorphPlayPause}.tsx, src/components/post/MobileArticleActions.tsx, src/lib/audio/* (testy: playbackRate, ttsCanonical, audioSource), src/components/TtsPlayer.tsx, pgTAP post_tts_canonical_rendition_test.sql
 - **Co robi:** Globalny player (bottom bar w __root, przeżywa nawigacje): sidebar-karta i przycisk mobilny sterują tym samym trackiem; kanoniczny endpoint `/api/public/post-tts` `{postId, lang}` — jeden głos i jeden plik cache per wpis; wgrany MP3 per język pomija ElevenLabs; etapy syntezy w UI, prędkość, ±15 s, pobranie MP3.
 - **Relacje:** Moduł 3 — widget TTS buildera (TtsPlayerHost); Moduł 7 (Treści specjalne) — formaty audio/video mają własny odtwarzacz (bramka format !== audio/video, $.tsx:1000); Moduł 13 — koszty syntezy (cache jako kontrola kosztu); Moduł 20 — endpoint publiczny.
@@ -577,7 +565,6 @@ Moduł obejmuje pełną ścieżkę czytelnika wpisu: od rozwiązania URL i SSR z
   1. Zmigrować widget buildera z TtsPlayer na kanoniczny post-tts/global player albo oznaczyć widget jako admin-only — usunąć ostatnią ścieżkę klienckiego tekstu+głosu.
 
 ### 1.18. Cytowania naukowe — **9/10**
-
 - **Pliki:** src/lib/citations/format.ts:1-402 (+4 pliki testów, w tym snapshot), src/components/post/CitationBox.tsx:1-161, src/lib/seo/citations.ts (tagi Highwire w head, $.tsx:433-447)
 - **Co robi:** Box "Cytuj tę analizę" (Chicago 17 z HTML-kursywą + wariant plain, APA 7, BibTeX z urldate) + meta `citation_*` (Google Scholar/Zotero) z listą autorów z loadera (główny + współautorzy post_authors) i kanonicznym URL z override SEO.
 - **Relacje:** Moduł 8 (SEO) — citationMetaTags w head; Moduł 2 — post_authors (kolejność współautorów); Moduł 20 — edge-cache wymusił datę dostępu po mount.
@@ -587,7 +574,6 @@ Moduł obejmuje pełną ścieżkę czytelnika wpisu: od rozwiązania URL i SSR z
   1. Rozważyć domyślne wyłączenie show_citation dla formatów video/gallery (merge w $.tsx:1145) — zostawiając override per wpis.
 
 ### 1.19. Meta wpisu, autor i stopka — **7/10**
-
 - **Pliki:** src/components/post/{PostOverlayMeta(160),QuickViewInfoBar(79)(+test),CategoryBadges(57),CustomMetaList(83),AuthorBusinessCard(278)(+test)}.tsx, src/components/PostFooterBars.tsx:1-105, src/lib/customMeta.ts (+test)
 - **Co robi:** Meta przy tytule (autor, data, czas czytania, pola custom_meta z publicznych definicji), pigułki kategorii, pasek Quick View (kategoria/czas/aktualizacja + akcje), wizytówka autora w sidebarze (socialsy, bio z preferencją kanonicznego), stopka: pasek tagów / karta autora / prev-next wg flag ustawień.
 - **Relacje:** Moduł 15 (Profil) — author_profiles_public (PII contact_email celowo wycięte — $.tsx:798-801, 1083-1085); Moduł 2 — custom_meta definicje; Moduł 10 (Sieć/eksperci) — socialsy autora.
@@ -598,7 +584,6 @@ Moduł obejmuje pełną ścieżkę czytelnika wpisu: od rozwiązania URL i SSR z
   2. Dodać link do /author/<slug> w karcie autora stopki (PostFooterBars.tsx:51-66).
 
 ### 1.20. Sygnały żywej analizy: feedback, changelog, serie — **8/10**
-
 - **Pliki:** src/components/post/{PostFeedback(92),PostChangelog(79),PostSeriesNav(76)}.tsx, src/lib/content/feedback.functions.ts, src/lib/queries/series.ts
 - **Co robi:** Jednokliknięciowy feedback "Czy ta analiza była przydatna?" (dedup serwerowy IP+UA + localStorage), publiczna "Historia aktualizacji" ze świadomych wpisów redakcyjnych (post_changelog), nagłówek serii "Dossier: X — część N z M" z nawigacją między częściami — wszystkie trzy renderują się tylko gdy mają dane (zero szumu).
 - **Relacje:** Moduł 2 (Edytor) — panel changelog/serii przy wpisie; Moduł 17 (Analityka) — zliczanie feedbacku; Moduł 7 (Treści specjalne) — strona serii /series/$slug.
@@ -609,7 +594,6 @@ Moduł obejmuje pełną ścieżkę czytelnika wpisu: od rozwiązania URL i SSR z
   2. Test PostSeriesNav dla pozycji brzegowych (pierwsza/ostatnia część).
 
 ### 1.21. Słowniczek w treści — **7/10**
-
 - **Pliki:** src/components/post/GlossaryHighlighter.tsx:1-177, src/lib/queries/glossary.ts
 - **Co robi:** Auto-oznacza PIERWSZE wystąpienie każdego terminu słowniczka w wyrenderowanym DOM (TreeWalker, granice słów Unicode, dłuższe terminy najpierw, pomija linki/kod/nagłówki), tooltip z definicją i linkiem do /glossary; czysty cleanup przy zmianie języka/wpisu.
 - **Relacje:** Moduł 7 (Treści specjalne) — /glossary i admin.glossary; Moduł 3 — działa nad DOM wszystkich silników treści bez modyfikacji rendererów.
@@ -620,7 +604,6 @@ Moduł obejmuje pełną ścieżkę czytelnika wpisu: od rozwiązania URL i SSR z
   2. Re-skan po ustabilizowaniu strumienia (jednorazowy MutationObserver z debounce zamiast trwałego) — domknięcie luki streamowanej treści.
 
 ### 1.22. Nawigacja sekwencyjna (prev/next + auto-load) — **6/10**
-
 - **Pliki:** src/components/post/AutoLoadNextPost.tsx:1-182, src/lib/queries/nextPost.ts:1-71, src/lib/queries/adjacentPosts.ts:1-47, PostFooterBars.tsx:68-102
 - **Co robi:** Prev/next w stopce (adjacentPosts — ścisłe porównania published_at, zapytanie tylko gdy flaga włączona) oraz nieskończone doładowywanie kolejnego wpisu tej samej strony nadrzędnej (IntersectionObserver, replaceState URL + document.title przy przekroczeniu nagłówka, body przez gated RPC — premium nie wycieka).
 - **Relacje:** Moduł 13 — fetchGatedBody (nextPost.ts:52-57); Moduł 17 — deklarowane "poprawne zliczanie analityki kolejnych odsłon" (komentarz w nagłówku pliku); Moduł 3 — ContentRenderer.
@@ -632,7 +615,6 @@ Moduł obejmuje pełną ścieżkę czytelnika wpisu: od rozwiązania URL i SSR z
   3. Dociągnąć adjacentPosts o parent_path realny zamiast stałego "post" (dziś każdy klik przechodzi przez redirect 301 z /post/$slug — zbędny hop).
 
 ### 1.23. Lightbox obrazów — **7/10**
-
 - **Pliki:** src/components/Lightbox.tsx:1-39
 - **Co robi:** Cienki wrapper yet-another-react-lightbox z CSS bundlowanym przez Vite (zero CDN — działa offline i pod restrykcyjnym CSP), lazy-ready (renderuje dopiero po pierwszym otwarciu), SSR-safe.
 - **Relacje:** Moduł 3 (Silniki treści) — GalleryBlock; Moduł 9 (Czat) — podgląd załączników/historii mediów.
@@ -642,29 +624,28 @@ Moduł obejmuje pełną ścieżkę czytelnika wpisu: od rozwiązania URL i SSR z
   1. Przekazywać figcaption jako description slajdu z GalleryBlock — czytelnik nie traci kontekstu zdjęcia.
 
 ### Podsumowanie modułu 1
-
 - **Średnia ocen funkcji:** 7,9 · **Rozkład:** 5× 9-10 · 16× 7-8 · 1× 5-6 · 0× <5
 
 - **Relacje modułu (zbiorczo):**
 
-| Moduł                    | Mechanizm                                                                                                               | Kierunek zależności                                               |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| 2 Edytor/workflow        | wspólne presety layoutów, preview tokens (requireStaff), custom_meta, post_authors, changelog/serie panele              | M1 ← M2 (dane), M2 ← M1 (presety/parytet podglądu)                |
-| 3 Silniki treści         | ContentRenderer, prepareContentForRender, blocks/builder docs, anchorSlug/anchorScan, widget TTS/related                | dwukierunkowa (M1 renderuje przez M3; M3 używa footnotes.ts z M1) |
-| 4 Motyw/media/WP-import  | OptimizedImage, buildImageSrcSet/cropSizes, parseBakedFootnotes dla importu WP                                          | M1 → M4                                                           |
-| 5 Chrome/nawigacja       | SiteChrome w __root (header/footer poza trasą), przekazanie krawędzi ReadingHeader                                      | M1 → M5                                                           |
-| 6 Wyszukiwarka           | SearchButtonWidget w ReadingHeader                                                                                      | M1 → M6                                                           |
-| 7 Treści specjalne       | /series/$slug, /glossary, formaty audio/video z własnym playerem                                                        | M1 → M7                                                           |
-| 8 SEO/feedy              | buildContentHead, JSON-LD (article+breadcrumb), citation_* Highwire, canonical/robots override                          | M1 → M8                                                           |
-| 10 Sieć/eksperci         | MentionText/Textarea w komentarzach, socialsy autora                                                                    | M1 → M10                                                          |
-| 12 Realtime              | subscribeToTable(comments), NotificationsBell/ChatBell w ReadingHeader                                                  | M1 → M12                                                          |
-| 13 Monetyzacja-core      | access rule z resolvera, get_entity_content RPC, metering RPC, Paywall render                                           | M1 → M13 (UX tu, logika tam)                                      |
-| 14 Monetyzacja-uzup.     | gifting (redeem_gift_link), AdZone/MidPostAds/FooterSlideup, budżet reklam trybu czytania                               | M1 → M14                                                          |
-| 15 Profil/konto          | user_bookmarks, user_read_history, follows/interests (RPC v2), reading-list, author_profiles_public                     | dwukierunkowa (M1 pisze historię/zakładki; czyta profil autora)   |
-| 16 Społeczność-admin     | moderateComment/bulkModerate/fetchAdminComments w lib/comments/api.ts (współdzielony plik)                              | M16 ← M1 (API), moderacja poza zakresem                           |
-| 17 Analityka/BI          | record_post_view, related_post_clicks (beacon), post_feedback, trending_posts                                           | M1 → M17 (producent zdarzeń)                                      |
-| 19 Ustawienia/authz/RODO | site_settings (post_layout, reading_time, toc_defaults, discussion, personalizacja), RLS/triggery DB, rate-limit.server | M1 → M19                                                          |
-| 20 Platforma/SSR         | withBudget, cachePolicy/edge-cache, ssrCache, prerender, tenant-host-fetch                                              | M1 → M20                                                          |
+| Moduł | Mechanizm | Kierunek zależności |
+|---|---|---|
+| 2 Edytor/workflow | wspólne presety layoutów, preview tokens (requireStaff), custom_meta, post_authors, changelog/serie panele | M1 ← M2 (dane), M2 ← M1 (presety/parytet podglądu) |
+| 3 Silniki treści | ContentRenderer, prepareContentForRender, blocks/builder docs, anchorSlug/anchorScan, widget TTS/related | dwukierunkowa (M1 renderuje przez M3; M3 używa footnotes.ts z M1) |
+| 4 Motyw/media/WP-import | OptimizedImage, buildImageSrcSet/cropSizes, parseBakedFootnotes dla importu WP | M1 → M4 |
+| 5 Chrome/nawigacja | SiteChrome w __root (header/footer poza trasą), przekazanie krawędzi ReadingHeader | M1 → M5 |
+| 6 Wyszukiwarka | SearchButtonWidget w ReadingHeader | M1 → M6 |
+| 7 Treści specjalne | /series/$slug, /glossary, formaty audio/video z własnym playerem | M1 → M7 |
+| 8 SEO/feedy | buildContentHead, JSON-LD (article+breadcrumb), citation_* Highwire, canonical/robots override | M1 → M8 |
+| 10 Sieć/eksperci | MentionText/Textarea w komentarzach, socialsy autora | M1 → M10 |
+| 12 Realtime | subscribeToTable(comments), NotificationsBell/ChatBell w ReadingHeader | M1 → M12 |
+| 13 Monetyzacja-core | access rule z resolvera, get_entity_content RPC, metering RPC, Paywall render | M1 → M13 (UX tu, logika tam) |
+| 14 Monetyzacja-uzup. | gifting (redeem_gift_link), AdZone/MidPostAds/FooterSlideup, budżet reklam trybu czytania | M1 → M14 |
+| 15 Profil/konto | user_bookmarks, user_read_history, follows/interests (RPC v2), reading-list, author_profiles_public | dwukierunkowa (M1 pisze historię/zakładki; czyta profil autora) |
+| 16 Społeczność-admin | moderateComment/bulkModerate/fetchAdminComments w lib/comments/api.ts (współdzielony plik) | M16 ← M1 (API), moderacja poza zakresem |
+| 17 Analityka/BI | record_post_view, related_post_clicks (beacon), post_feedback, trending_posts | M1 → M17 (producent zdarzeń) |
+| 19 Ustawienia/authz/RODO | site_settings (post_layout, reading_time, toc_defaults, discussion, personalizacja), RLS/triggery DB, rate-limit.server | M1 → M19 |
+| 20 Platforma/SSR | withBudget, cachePolicy/edge-cache, ssrCache, prerender, tenant-host-fetch | M1 → M20 |
 
 - **5 najpilniejszych rekomendacji:**
   1. **(1.11 Powiązane wpisy)** Podpiąć silnik scoringu v2 (sygnały popularności/dwell/personalizacji, IDF, min_score) do publicznego zapytania `relatedPostsQueryOptions` — dziś suwaki wag w /admin/related-posts nie wpływają na to, co widzi czytelnik (src/lib/queries/relatedPosts.ts:169-195).
@@ -677,12 +658,11 @@ Moduł obejmuje pełną ścieżkę czytelnika wpisu: od rozwiązania URL i SSR z
 
 ## Moduł 2 — Edytor wpisów i workflow redakcyjny
 
-**Zakres zbadany:** src/components/admin/post-editor/** (hooks, atoms, molecules, organisms, **tests**), src/components/admin/{PostEditor,PostSettingsMetabox,PostGeneralOverview,AutosaveBar,BulkActionsBar}.tsx, src/components/admin/molecules/{RevisionsCard,RevisionDiffDialog,EditPresenceBanner}.tsx, src/components/admin/workflows/**, src/components/admin/versions/VersionsPane.tsx, src/components/composer/ComposerShell.tsx, src/lib/composer/**, src/lib/content/{workflow,publishChecklist,revisions,revisionDiff,saveConflict,previewTokens.functions,translate.functions}.ts (+ testy), src/lib/{revisions.functions,posts-migrate.functions,content.functions,unsavedChanges}.ts, src/lib/jobs/scheduler.ts, src/hooks/{useAutosave,useHistory,useEditPresence,useUnsavedChangesGuard}.ts (+ testy), src/lib/realtime/useEntityPresence.ts, src/routes/{admin.posts,admin.posts.$slug,admin.posts.new,admin.posts.calendar,admin.pages,admin.pages.$slug,admin.workflows}.tsx, supabase/migrations/{20260702090100_editorial_workflow,20260720123000_pages_scheduled_publishing,20260711204000 (silnik workflow),20260720130000_post_changelog}.sql, e2e/ · **Funkcji:** 22 · **Ocena modułu:** 7,9/10
+**Zakres zbadany:** src/components/admin/post-editor/** (hooks, atoms, molecules, organisms, __tests__), src/components/admin/{PostEditor,PostSettingsMetabox,PostGeneralOverview,AutosaveBar,BulkActionsBar}.tsx, src/components/admin/molecules/{RevisionsCard,RevisionDiffDialog,EditPresenceBanner}.tsx, src/components/admin/workflows/**, src/components/admin/versions/VersionsPane.tsx, src/components/composer/ComposerShell.tsx, src/lib/composer/**, src/lib/content/{workflow,publishChecklist,revisions,revisionDiff,saveConflict,previewTokens.functions,translate.functions}.ts (+ testy), src/lib/{revisions.functions,posts-migrate.functions,content.functions,unsavedChanges}.ts, src/lib/jobs/scheduler.ts, src/hooks/{useAutosave,useHistory,useEditPresence,useUnsavedChangesGuard}.ts (+ testy), src/lib/realtime/useEntityPresence.ts, src/routes/{admin.posts,admin.posts.$slug,admin.posts.new,admin.posts.calendar,admin.pages,admin.pages.$slug,admin.workflows}.tsx, supabase/migrations/{20260702090100_editorial_workflow,20260720123000_pages_scheduled_publishing,20260711204000 (silnik workflow),20260720130000_post_changelog}.sql, e2e/ · **Funkcji:** 22 · **Ocena modułu:** 7,9/10
 
 Moduł to kompletny proces redakcyjny klasy WordPress+: dwustopniowy edytor wpisów (szczegóły → treść) z autosave, undo/redo, optimistic-lockiem, rewizjami z diffem, miękką checklistą publikacji, workflow ról (draft → pending_review → published/scheduled) egzekwowanym równolegle w UI, w server functions i w triggerze DB, plus kalendarz redakcyjny, linki embargo, tłumaczenie AI i automatyzacje "gdy X → zrób Y". Stan ogólny bardzo dobry: logika domenowa jest czysta i pokryta testami jednostkowymi, i18n PL/EN pilnowany testem parytetu, bezpieczeństwo warstwowe (requireStaff + RLS + trigger + rate limit + audit). Najważniejszy wniosek: luki są punktowe, nie systemowe — brak realnego autosave w edytorze stron mimo komentarza deklarującego jego istnienie, niespójna semantyka `published_at` między `publish_due_posts()` a warstwą aplikacyjną oraz zerowe pokrycie e2e ścieżek redakcyjnych.
 
 ### 2.1. Autosave (silnik debounced + pasek statusu) — **9/10**
-
 - **Pliki:** src/hooks/useAutosave.ts:44-163, src/hooks/useAutosave.test.ts (8 testów), src/components/admin/AutosaveBar.tsx:19-105
 - **Co robi:** Debounced autozapis (1,5 s idle) z serializacją zapisów i konwergencją do najświeższej wartości (pętla `drain` na refach, useAutosave.ts:86-108); `flush()` ODRZUCA przy błędzie zapisu, więc UI nigdy nie pokaże "Zapisano" dla niezapisanej treści; eksponuje `isDirty`/`lastSaved` dla guardu nawigacji i "odrzuć zmiany". AutosaveBar renderuje status (aria-live="polite") + undo/redo + discard z confirm dialogiem.
 - **Relacje:** Moduł 3 (Silniki treści) — ten sam hook chroni dokumenty bloków/buildera zapisywane w snapshotcie formularza; Moduł 20 (Platforma/SSR) — zapis przez TanStack server function.
@@ -693,7 +673,6 @@ Moduł to kompletny proces redakcyjny klasy WordPress+: dwustopniowy edytor wpis
   2. Pokazać `lastSavedAt` w AutosaveBar.tsx — standard Google Docs/WordPress, zwiększa zaufanie do autosave.
 
 ### 2.2. Undo/redo (historia stanu formularza) — **9/10**
-
 - **Pliki:** src/hooks/useHistory.ts:69-185, src/hooks/useHistory.test.ts (10 testów), src/components/admin/post-editor/hooks/usePostEditorForm.ts:96-111 (skróty Ctrl/Cmd+Z / Shift+Z / Y)
 - **Co robi:** Generyczny hook past/present/future (limit 200 wpisów) z `coalesceKey` sklejającym serię edycji tego samego pola w jeden krok undo, etykietami operacji dla toastów i `syncExternal` dla kontrolowanych wartości. Jedno źródło dla edytora wpisów, stron i buildera.
 - **Relacje:** Moduł 3 (Silniki treści) — builder/bloki używają tego samego hooka (komentarz: scalenie dwóch wcześniejszych duplikatów lib/builder + hooks).
@@ -703,7 +682,6 @@ Moduł to kompletny proces redakcyjny klasy WordPress+: dwustopniowy edytor wpis
   1. W handlerze skrótów pomijać zdarzenia z aktywnym elementem input/textarea/contenteditable (usePostEditorForm.ts:97) — dziś undo formularza "kradnie" undo pola.
 
 ### 2.3. Guard niezapisanych zmian (router + beforeunload) — **8/10**
-
 - **Pliki:** src/hooks/useUnsavedChangesGuard.ts:17-33, src/lib/unsavedChanges.ts:24-53, użycia: usePostEditorForm.ts:318, admin.pages.$slug.tsx:305
 - **Co robi:** Jedna flaga `when` blokuje dwa kanały wyjścia: nawigację in-app (TanStack `useBlocker` + stylowany dialog przez module-store i `<UnsavedChangesGuardHost/>` w __root) oraz zamknięcie karty (natywny beforeunload). Posty blokują przy `isDirty || saving`, strony przy `isDirty || busy`.
 - **Relacje:** Moduł 5 (Chrome/nawigacja) — host dialogu montowany w __root.tsx; Moduł 20 (Platforma/SSR) — API blockera TanStack Router.
@@ -714,7 +692,6 @@ Moduł to kompletny proces redakcyjny klasy WordPress+: dwustopniowy edytor wpis
   2. Trzeci przycisk "Zapisz i wyjdź" w dialogu hosta wołający `flush()` przed zwolnieniem blokady — najczęstszy scenariusz redaktora.
 
 ### 2.4. Maszyna formularza edytora wpisu (klient) — **8/10**
-
 - **Pliki:** src/components/admin/post-editor/hooks/usePostEditorForm.ts:37-501, hooks/usePostEditorData.ts:11-123, routes/admin.posts.$slug.tsx:49-126
 - **Co robi:** Orkiestruje cały cykl życia formularza: RPC `get_post_for_edit` (SECURITY DEFINER, tenant-scoped) → useHistory → useAutosave → saveFn z optimistic-lockiem; persystuje wklejone grafiki data-URL do biblioteki mediów przed zapisem (z cache anty-duplikacyjnym, usePostEditorForm.ts:116-170); nawiguje wyłącznie na slug kanoniczny zwrócony przez serwer; ciężkie inwalidacje (widget/SEO cache, router) odracza do odmontowania edytora (usePostEditorForm.ts:325-338).
 - **Relacje:** Moduł 4 (Motyw/media) — uploadAndRegisterMedia/registerMediaUpload; Moduł 3 (Silniki treści) — persistDataUrlImages działa na blocks_data/builder_data; Moduł 8 (SEO/feedy) — invalidateSeoCaches + walidacja SeoIssue blokująca zapis; Moduł 1 (Wpisy-czytelnik) — query key `post-by-slug`, invalidacja `admin-posts`.
@@ -725,7 +702,6 @@ Moduł to kompletny proces redakcyjny klasy WordPress+: dwustopniowy edytor wpis
   2. Wysyłać taksonomie tylko gdy się zmieniły względem lastSaved (porównanie tablic przed dodaniem do payloadu) — tnie churn M2M w bazie.
 
 ### 2.5. Serwerowy zapis wpisu + optimistic lock — **8,5/10**
-
 - **Pliki:** src/lib/content.functions.ts:387-431 (createPost), 504-728 (updatePost), src/lib/content/saveConflict.ts (+ test), routes/admin.posts.new.tsx:12-38
 - **Co robi:** `updatePost`: Zod (limity długości, allowlista głosów TTS), pre-read przez service_role scoped tenantem (kolumny body odcięte grantami od roli authenticated), bramka workflow z czytelnym komunikatem, snapshot rewizji, atomowy optimistic-lock (`.eq("updated_at", base)` na UPDATE, content.functions.ts:612) z rozróżnieniem konfliktu od odmowy RLS dodatkowym odczytem (615-628), stemplowanie `published_at` tylko przy pierwszej publikacji (isFirstPublish), auto-redirect 301 przy zmianie sluga opublikowanego wpisu, audit z akcją zależną od przejścia (post.publish/schedule/review.submit). `createPost` tworzy szkic blokowy z unikalnym slugiem i domyślną stroną /blog; admin.posts.new ma synchroniczny single-flight lock na StrictMode (createStartedRef).
 - **Relacje:** Moduł 8 (SEO/feedy) — captureAutoRedirect, published_at zasila RSS/sitemapy; Moduł 19 (Ustawienia/authz) — requireStaff, can_publish_content RPC, rate limity; Moduł 17 (Analityka/BI) — audit_log; Moduł 1 — wspólna tabela posts.
@@ -736,7 +712,6 @@ Moduł to kompletny proces redakcyjny klasy WordPress+: dwustopniowy edytor wpis
   2. Rozważyć RPC transakcyjne dla update+M2M — dzisiejsza konsystencja jest "best effort" na 6 round-tripów.
 
 ### 2.6. Workflow redakcyjny statusów (role, przejścia, egzekucja 3-warstwowa) — **8,5/10**
-
 - **Pliki:** src/lib/content/workflow.ts:43-108 (+ workflow.test.ts, 15 testów), supabase/migrations/20260702090100_editorial_workflow.sql:23-64 (can_publish_content + trigger enforce_post_workflow), src/components/admin/post-editor/molecules/WorkflowStatusSection.tsx:33-153, content.functions.ts:564-591
 - **Co robi:** Pięć statusów (draft, pending_review, scheduled, published, archived); publikacja/planowanie tylko dla admin/super_admin, autorzy wysyłają do recenzji. Ta sama tabela decyzyjna (`evaluateTransition`) działa w UI (statusOptionsFor — opcje disabled z podpowiedzią), w server function (przyjazny komunikat) i w triggerze DB (ERRCODE 42501 — defense in depth dla bezpośrednich zapisów PostgREST). `isFirstPublish` chroni niemutowalność `published_at` (parytet WordPress przy re-publikacji).
 - **Relacje:** Moduł 19 (Ustawienia/authz) — has_role/app_role; Moduł 1 + 8 — `published_at` porządkuje listy publiczne, RSS i sitemapy (komentarz workflow.ts:60-71); Moduł 12 (Realtime) — event post.published.v1 po publikacji.
@@ -747,7 +722,6 @@ Moduł to kompletny proces redakcyjny klasy WordPress+: dwustopniowy edytor wpis
   2. Pole "notatka recenzji" przy odrzuceniu (kolumna lub wpis w post_changelog/audit z metadata.reason) — zamyka pętlę feedbacku autor↔recenzent.
 
 ### 2.7. Planowanie publikacji (publish_at + auto-publisher) — **8/10**
-
 - **Pliki:** supabase/migrations/20260702090100_editorial_workflow.sql:66-107 (publish_due_posts + pg_cron), 20260720123000_pages_scheduled_publishing.sql (parytet stron), routes/admin.posts.tsx:105-110 (tick oportunistyczny), WorkflowStatusSection.tsx:76-99, usePostEditorForm.ts:465-469 (scheduledInPast)
 - **Co robi:** Status `scheduled` z wymaganym `publish_at`; `publish_due_posts()` (SECURITY DEFINER) flipuje zaległe wpisy na published — pg_cron co minutę na hostowanym Supabase, a fallbackiem jest oportunistyczny RPC przy każdym wejściu na listę wpisów (nieszkodliwy no-op). UI: datetime-local z konwersją strefy (isoToLocalInput/localInputToIso, testowane round-trip), ostrzeżenie o dacie w przeszłości, badge z terminem na liście.
 - **Relacje:** Moduł 20 (Platforma/SSR) — pg_cron/pg_net i kontrakt jobs-tick (src/lib/jobs/scheduler.ts, testowany: freshness/parse/normalize); Moduł 1 + 8 — antydatowanie published_at wpływa na kolejność list i feedów.
@@ -758,7 +732,6 @@ Moduł to kompletny proces redakcyjny klasy WordPress+: dwustopniowy edytor wpis
   2. Emitować powiadomienie (Moduł 12) po flipie scheduled→published — autor nie widzi, że jego wpis wyszedł.
 
 ### 2.8. Kalendarz redakcyjny (drag&drop terminów) — **7/10**
-
 - **Pliki:** src/routes/admin.posts.calendar.tsx:38-409
 - **Co robi:** Miesięczna siatka 6 tygodni (czysta matematyka dat, poniedziałek pierwszy); published = kropka read-only (świadomie: re-datowanie psułoby archiwa/feedy), scheduled przeciągalny między dniami (zachowuje godzinę), backlog szkiców/recenzji przeciągany na dzień = zaplanowanie na 09:00 przez updatePost (bramka serwera i trigger obowiązują).
 - **Relacje:** Moduł 2-wewnętrzne updatePost; Moduł 19 — canPublish z useAuth ukrywa DnD dla nie-adminów (serwer i tak egzekwuje).
@@ -769,7 +742,6 @@ Moduł to kompletny proces redakcyjny klasy WordPress+: dwustopniowy edytor wpis
   2. "+N więcej" po 3 wpisach w komórce dnia — stabilna wysokość siatki przy intensywnej publikacji.
 
 ### 2.9. Rewizje treści — snapshoty, throttling, restore (serwer) — **8,5/10**
-
 - **Pliki:** src/lib/content/revisions.ts:7-83 (+ revisions.test.ts), src/lib/content.functions.ts:439-502 (writeRevisionSnapshot), src/lib/revisions.functions.ts:54-268 (list/diff/restore)
 - **Co robi:** Snapshot 19 pól treściowych (REVISION_FIELDS) do `content_revisions` przy każdym zapisie dotykającym treści — z throttlem 5 min dla autosave i wymuszeniem przy zmianie statusu; prune do 50 rewizji per encja. Restore: nie-destrukcyjny (najpierw snapshot "pre_restore" stanu żywego), świadomie NIE przywraca statusu (restore treści nie może cicho (od)publikować), wykrywa cichą odmowę RLS (0 wierszy bez błędu → jawny błąd, revisions.functions.ts:255-257). Lista to lekkie projekcje JSON (kilobajty zamiast megabajtów builder JSON).
 - **Relacje:** Moduł 3 (Silniki treści) — snapshot obejmuje blocks_data/builder_data; Moduł 19 — RLS (autor nie kasuje historii, delete tylko dla can_publish_content, migracja :109-119); Moduł 17 — audit revision.restore.
@@ -780,7 +752,6 @@ Moduł to kompletny proces redakcyjny klasy WordPress+: dwustopniowy edytor wpis
   2. Wymusić snapshot także przy odmontowaniu edytora (flush "końca sesji") — zamyka okno throttlingu.
 
 ### 2.10. Rewizje — UI listy, porównanie i wizualny diff — **8/10**
-
 - **Pliki:** src/components/admin/molecules/RevisionsCard.tsx:35-268, RevisionDiffDialog.tsx (174 l.), src/lib/content/revisionDiff.ts:33-236 (+ revisionDiff.test.ts, 9 testów)
 - **Co robi:** Karta w edytorze (posty i strony): lista 30 rewizji z autorem/статusem/notą (autozapis vs kopia przed przywróceniem), restore z confirm dialogiem, diff w wzorcu dwóch kliknięć (pierwszy klik "uzbraja" bazę porównania, drugi porównuje; pasek kontekstowy prowadzi do "porównaj z bieżącą"). Diff: własny liniowy LCS z limitem 800 linii (ochrona przed macierzą O(n·m)), normalizacja bloków/HTML do linii tekstu, pola skalarne jako przed→po.
 - **Relacje:** Moduł 3 — docToLines rozumie strukturę dokumentu bloków; Moduł 16 (Społeczność-admin) — useTenantAuthors dla etykiet autorów.
@@ -791,7 +762,6 @@ Moduł to kompletny proces redakcyjny klasy WordPress+: dwustopniowy edytor wpis
   2. "Pokaż starsze" doładowujące kolejne 30 — historia 50 rewizji jest obcięta w UI bez informacji.
 
 ### 2.11. Checklista publikacji + miękka bramka — **8,5/10**
-
 - **Pliki:** src/lib/content/publishChecklist.ts:65-110 (+ publishChecklist.test.ts, 9 testów), molecules/PublishChecklistCard.tsx:10-64, usePostEditorForm.ts:408-438 (confirmPublishGaps)
 - **Co robi:** Jedna czysta ocena kompletności (4 pozycje required: tytuł PL, okładka, kategoria, opis PL; 4 recommended: takeaways≥3, tagi, wersja EN, indeksowalność; score 0-100) zasila jednocześnie kartę w sidebarze (progressbar z aria-valuenow) i miękką bramkę przy przejściu w published/scheduled — braki wywołują confirm dialog z listą, nie twardą blokadę (filozofia udokumentowana: pilne noty muszą przejść). `isPublishTransition` pilnuje, by autosave już opublikowanych wpisów nie przechodził przez bramkę.
 - **Relacje:** Moduł 8 (SEO/feedy) — świadomie komplementarna do scoringu SEO (contentStatus.ts ocenia pola SEO, checklista patrzy redakcyjnie); pozycja enVersion wspiera strategiczny parytet PL/EN.
@@ -802,7 +772,6 @@ Moduł to kompletny proces redakcyjny klasy WordPress+: dwustopniowy edytor wpis
   2. Konfiguracja pozycji required/recommended w site_settings (Moduł 19) dla tenantów o innym profilu redakcyjnym.
 
 ### 2.12. Presence edycji (kto edytuje teraz) — **7/10**
-
 - **Pliki:** src/hooks/useEditPresence.ts:13-18 (nakładka), src/lib/realtime/useEntityPresence.ts:35-90, molecules/EditPresenceBanner.tsx:15-37, użycie: admin.posts.$slug.tsx:94
 - **Co robi:** Kanał Supabase Realtime presence `presence:<tenant>:<typ>:<id>` z `private:true` (Realtime Authorization ogranicza topic do tenanta — wcześniej publiczny topic ujawniał nazwiska edytorów); banner amber z listą współedytujących (role=status, aria-live). Miękka świadomość, nie lock — twardym zabezpieczeniem jest optimistic-lock (2.5).
 - **Relacje:** Moduł 12 (Realtime/powiadomienia) — wspólna infrastruktura useEntityPresence (CRM, media, konwersacje używają jej bezpośrednio); Moduł 19 — tenant-scoping kanału.
@@ -813,7 +782,6 @@ Moduł to kompletny proces redakcyjny klasy WordPress+: dwustopniowy edytor wpis
   2. Pokazywać czas obecności peera ("edytuje od 12:03") — dane już są w payloadzie.
 
 ### 2.13. Lista wpisów: filtry, paginacja, kosz, akcje masowe — **7,5/10**
-
 - **Pliki:** src/routes/admin.posts.tsx:50-788, src/components/admin/BulkActionsBar.tsx:37-163, content.functions.ts:895-999 (bulkDelete/restore/purge/bulkUpdate)
 - **Co robi:** Server-side filtrowanie (szukajka z debounce 250 ms i escapeLike, status, autor, 6 wariantów pokrycia językowego PL/EN) + paginacja z count; zakładka Kosz (soft delete, zakres dat usunięcia, restore/purge pojedynczo i masowo); licznik "parytet PL/EN" z klikiem ustawiającym filtry (:471-492); bulk zmiana statusu z bramką ról (publikacja masowa tylko admin — UI :564-570 i serwer :983-985); bulk konwersja na bloki.
 - **Relacje:** Moduł 4 (WP-import) — link "Import z WordPress"; Moduł 2.7 — tick publish_due_posts w queryFn; Moduł 16 — useTenantAuthors; Moduł 3 — bulkMigratePostsToBlocks.
@@ -824,7 +792,6 @@ Moduł to kompletny proces redakcyjny klasy WordPress+: dwustopniowy edytor wpis
   2. Zamienić hexy na tokeny semantyczne w admin.posts.tsx:651-660 — spójność z design systemem i dark mode.
 
 ### 2.14. Duplikacja wpisu — **8/10**
-
 - **Pliki:** src/lib/content.functions.ts:753-893 (duplicatePost), admin.posts.tsx:266-281 (duplicateOne + nawigacja do kopii)
 - **Co robi:** Kopia jako szkic z pełną treścią (wszystkie silniki), SEO, layoutem, taksonomiami i współautorami; świadomie NIE kopiuje statusu/dat publikacji, seo_canonical_url, og_image_generated_url i audio_url_* (uzasadnienia w komentarzu :753-760); autor kopii = duplikujący; sufiks "-kopia"/"(copy)" per język; UI od razu otwiera edytor kopii.
 - **Relacje:** Moduł 3 — kopiuje blocks_data/builder_data; Moduł 8 — pomija canonical (kopia = nowy byt); Moduł 7 (Treści specjalne) — świadome pominięcie audio lektora.
@@ -834,7 +801,6 @@ Moduł to kompletny proces redakcyjny klasy WordPress+: dwustopniowy edytor wpis
   1. Zdecydować jawnie o serii przy duplikacji (kopiować lub odnotować pominięcie w komentarzu jak dla audio/canonical) — dziś zachowanie jest niedookreślone.
 
 ### 2.15. Dwustopniowy flow edytora + metadane szczegółów — **7,5/10**
-
 - **Pliki:** hooks/usePostEditorStep.ts:18-29 (+ test), organisms/{PostDetailsPanel,PostDetailsNav,PostEditorHeader}.tsx (+ test PostDetailsNav), PostGeneralOverview.tsx:171-619, PostSettingsMetabox.tsx:90-918, molecules/StepIndicator.tsx, hooks/useBilingualReadingStats.ts, hooks/useInlineTaxonomy.ts
 - **Co robi:** Content-first: wpis z tytułem otwiera się od razu w kroku "Treść", nowy/bez tytułu w "Szczegóły" (auto-jump dokładnie raz, nie walczy z ręczną nawigacją — testowane); panel szczegółów z boczną nawigacją 10+ zakładek (Ogólne = żywy dashboard kafelków synchronizowany z formularzem, Ustawienia = metabox Foxiz-style ToC/ochrona/takeaways z limitami z jednego źródła lib/keyTakeaways/limits), inline tworzenie kategorii/tagów z tenant_id, podgląd czasu czytania PL/EN z ustawień globalnych.
 - **Relacje:** Moduł 13 (Monetyzacja-core) — AccessSettingsPane (ochrona treści) osadzony w metaboxie i sidebarze; Moduł 8 — SeoPanel + InternalLinkSuggestions jako zakładki; Moduł 7 — AudioSection (TTS); Moduł 19 — ustawienia czasu czytania/takeaways z site_settings.
@@ -845,7 +811,6 @@ Moduł to kompletny proces redakcyjny klasy WordPress+: dwustopniowy edytor wpis
   2. Wspólny typ DetailsTab importowany z jednego miejsca (dziś PostGeneralOverview.tsx:30-40 i PostDetailsNav definiują go równolegle).
 
 ### 2.16. Silniki legacy (richtext/markdown) + migracja do bloków — **7/10**
-
 - **Pliki:** src/components/admin/PostEditor.tsx:32-198 (TipTap + split-view markdown), molecules/EditorModeToggle.tsx (+ test), src/lib/posts-migrate.functions.ts:43-102, organisms/PostContentEditor.tsx:58-140
 - **Co robi:** Przełącznik silnika per wpis (bloki domyślne dla nowych — createPost:421; builder i tryby tekstowe jako opt-in/legacy). TipTap z toolbar (bold/italic/H2-3/listy/cytat/link/obraz przez promptDialog lub picker mediów) i guardem synchronizacji zewnętrznych zmian bez resetu kursora (PostEditor.tsx:76-82); markdown z podglądem na żywo. Migracja: pojedyncza i bulk (limit 500, sequential) konwersja content_pl/en/builder_data → BlocksDoc przez service_role scoped tenantem, zapis pod RLS wołającego.
 - **Relacje:** Moduł 3 (Silniki treści) — migratePostContent i PostBlockEditor to serce Modułu 3, tu tylko proces przełączenia/migracji; Moduł 4 — onPickImage.
@@ -856,7 +821,6 @@ Moduł to kompletny proces redakcyjny klasy WordPress+: dwustopniowy edytor wpis
   2. i18n etykiet toolbara TipTap (PostEditor.tsx) — jedyne nieprzetłumaczone aria-labels w edytorze.
 
 ### 2.17. Linki podglądu z tokenem (embargo) — **8/10**
-
 - **Pliki:** src/lib/content/previewTokens.functions.ts:25-147, molecules/PreviewLinksCard.tsx:19-124, src/routes/preview.$token.tsx
 - **Co robi:** Tokenowe linki do szkicu bez konta: 24 losowe bajty base64url (crypto.getRandomValues), TTL domyślnie 72 h (max 30 dni), lista aktywnych z datą wygaśnięcia, kopiowanie do schowka i odwołanie. Publiczny odczyt przez service_role z twardą walidacją (token istnieje, nie wygasł, wpis nie w koszu) i rate limitem po prefiksie tokena (anty-zgadywanie).
 - **Relacje:** Moduł 1 (Wpisy-czytelnik) — /preview/$token renderuje treść czytelnikowi; Moduł 19 — RLS staff+tenant na post_preview_tokens; Moduł 13 — podgląd omija paywall świadomie (embargo dla recenzentów zewnętrznych).
@@ -867,7 +831,6 @@ Moduł to kompletny proces redakcyjny klasy WordPress+: dwustopniowy edytor wpis
   2. Odnotowywać first_used_at/use_count przy fetchPreviewPost — redakcja widzi, czy recenzent otworzył link.
 
 ### 2.18. Historia aktualizacji wpisu (changelog publiczny) — **7,5/10**
-
 - **Pliki:** molecules/ChangelogCard.tsx:22-143, supabase/migrations/20260720130000_post_changelog.sql
 - **Co robi:** Świadome, dwujęzyczne wpisy "co zaktualizowano" (data + nota PL, opcjonalnie EN, max 280 znaków) widoczne publicznie pod analizą — osobny byt od technicznych rewizji (2.9). Mutacje bezpośrednio klientem Supabase pod RLS (staff+tenant), invalidacja cache admin i publicznego.
 - **Relacje:** Moduł 1 (Wpisy-czytelnik) — query key ["public","post-changelog",postId] renderowany na stronie wpisu; Moduł 19 — RLS "changelog staff manage".
@@ -878,7 +841,6 @@ Moduł to kompletny proces redakcyjny klasy WordPress+: dwustopniowy edytor wpis
   2. Edycja in-place istniejącej noty — dziś literówka = usuń i dodaj od nowa.
 
 ### 2.19. Tłumaczenie AI PL→EN (szkic w formularzu) — **8/10**
-
 - **Pliki:** organisms/PostTranslateCard.tsx:10-59, molecules/TranslateCard.tsx, src/lib/content/translate.functions.ts:14-…, src/lib/content/translateSegments.ts (+ translateSegments.test.ts)
 - **Co robi:** Server fn STATELESS: przyjmuje bieżące pola PL (tytuł, zajawka, takeaways, SEO, treść HTML lub dokument bloków walidowany safeParseBlocks), zwraca szkic pól EN — NIC nie zapisuje; wynik ląduje w formularzu JEDNĄ zmianą historii (undo cofa całe tłumaczenie, PostTranslateCard.tsx:33-55); ostrzeżenie o nadpisaniu istniejącej treści EN; rate limit 10/okno (ostrzejszy niż zapisy — woła zewnętrzny model).
 - **Relacje:** Moduł 3 — tłumaczenie dokumentu bloków per segment z zachowaniem struktury; Moduł 20 — zewnętrzny model przez warstwę serwera; wspiera parytet PL/EN z 2.13.
@@ -888,7 +850,6 @@ Moduł to kompletny proces redakcyjny klasy WordPress+: dwustopniowy edytor wpis
   1. Parametr kierunku tłumaczenia (pl→en / en→pl) w translate.functions.ts — schema i segmentacja są symetryczne.
 
 ### 2.20. Automatyzacje redakcyjne — silnik przepisów "gdy X → zrób Y" — **8/10**
-
 - **Pliki:** src/routes/admin.workflows.tsx:61-301, src/components/admin/workflows/{WorkflowDefinitionsPanel,WorkflowEditorDialog,WorkflowRunsPanel,WorkflowTemplatesPanel,CorrelationTracePanel,atoms}.tsx, src/lib/admin/workflows.ts (+ workflows.test.ts, ~20 testów), supabase/migrations/20260711204000 (run_workflow_step, tg_run_workflows_for_event, install_workflow_template)
 - **Co robi:** Panel /admin/workflows: przepisy per tenant (trigger = typ zdarzenia domenowego np. post.published.v1, warunek containment @> na payloadzie, sekwencja akcji), KPI okna 500 przebiegów, katalog szablonów instalowanych per tenant, log przebiegów i diagnostyczny ślad korelacji (workflow_runs + integration_deliveries po correlation_id, linkowalny przez search params). Egzekucja w DB: trigger na domain_events uruchamia pasujące definicje.
 - **Relacje:** Moduł 12 (Realtime/powiadomienia) — źródłem są domain_events (post.published.v1 emitowany przez publikację z tego modułu); Moduł 11 (Newsletter), 18 (CRM) — akcje i szablony cross-module; Moduł 19 — RLS per tenant na definicjach.
@@ -899,7 +860,6 @@ Moduł to kompletny proces redakcyjny klasy WordPress+: dwustopniowy edytor wpis
   2. Podpowiedzi kluczy warunku per trigger_event_type (katalog payloadów już istnieje w lib/integrations/formats.ts).
 
 ### 2.21. ComposerShell — wspólna powłoka kompozytora tekstu — **8/10**
-
 - **Pliki:** src/components/composer/ComposerShell.tsx:41-…, src/lib/composer/validation.ts:40-89 (+ validation.test.ts), src/lib/composer/shortcuts.ts, konsumenci: components/comments/CommentComposerShell.tsx (+ test), components/forms/MessageComposerField.tsx
 - **Co robi:** Uniwersalna karta kompozytora markdown: pasek 7 akcji formatowania (czysta funkcja applyMarkdown na zaznaczeniu), licznik znaków, walidacja jako jedno źródło prawdy dla disabled/aria (status ok/empty/tooShort/tooLong/unchanged/submitting), skróty klawiszowe przez formatterRef, wariant funkcyjny slotu akcji dostający wynik walidacji.
 - **Relacje:** Moduł 16 (Społeczność-admin)/Moduł 1 — kompozytor komentarzy (CommentComposerShell to alias 1:1); Moduł 10/18 — pola "wiadomość" w formularzach kontaktowych (ContactForm).
@@ -909,7 +869,6 @@ Moduł to kompletny proces redakcyjny klasy WordPress+: dwustopniowy edytor wpis
   1. Rozważyć użycie ComposerShell dla pól excerpt/notatek changelog w edytorze wpisów — licznik znaków i walidacja już gotowe, dziś Input bez licznika przy maxLength=280 (ChangelogCard).
 
 ### 2.22. Strony: lista, metadane i parytet workflow — **7/10**
-
 - **Pliki:** src/routes/admin.pages.tsx (802 l., lista + kosz + BulkActionsBar + tick publish_due_pages:129), src/routes/admin.pages.$slug.tsx:140-360 (metadane, statusy, optimistic-lock), content.functions.ts:1003-1091 (PageCore/createPage/updatePage), supabase/migrations/20260720123000
 - **Co robi:** Lista stron z koszem i akcjami masowymi (ta sama BulkActionsBar), edytor metadanych strony (slug, rodzic, menu_order, template_type, SEO, takeaways, ToC) z useHistory + skrótami undo/redo + optimistic-lockiem (baseUpdatedAt, identyczny kontrakt EDIT_CONFLICT co posty) + RevisionsCard; workflow scheduled dla stron przez REUŻYTY trigger enforce_post_workflow i publish_due_pages(). Sama kanwa buildera = Moduł 3.
 - **Relacje:** Moduł 3 (Silniki treści) — Builder jako edytor treści strony; Moduł 8 — SeoPanel; Moduł 2-wewnętrzne — współdzieli useHistory, useUnsavedChangesGuard, RevisionsCard, saveConflict, workflow helpers.
@@ -920,25 +879,24 @@ Moduł to kompletny proces redakcyjny klasy WordPress+: dwustopniowy edytor wpis
   2. Zamknąć lukę dirty-tracking: `isDirty = form !== savedFormRef.current` (:304) porównuje tożsamość referencji — undo do stanu identycznego treściowo z zapisanym nadal raportuje dirty; porównanie przez lastSaved z realnego autosave załatwi to przy okazji pkt 1.
 
 ### Podsumowanie modułu 2
-
 - **Średnia ocen funkcji:** 7,9 · **Rozkład:** 2× 9–10 / 20× 7–8,5 / 0× 5–6 / 0× <5
 
 - **Relacje modułu (zbiorczo):**
 
-| Moduł                     | Mechanizm                                                                                                                                                                                        | Kierunek zależności                                   |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------- |
-| 1 Wpisy-czytelnik         | wspólna tabela `posts` (status/published_at), query keys `post-by-slug`/`admin-posts`, trasa /preview/$token, publiczny changelog                                                                | M2 → M1 (publikuje to, co M1 renderuje)               |
-| 3 Silniki treści          | import PostBlockEditor/Builder/LayoutScaffold, kolumny blocks_data/builder_data w snapshotach form/rewizji, migratePostContent                                                                   | M2 → M3 (osadza silniki, nie definiuje ich)           |
-| 4 Motyw/media/WP-import   | uploadAndRegisterMedia + registerMediaUpload (wklejone grafiki), link importu WP na liście                                                                                                       | M2 → M4                                               |
-| 7 Treści specjalne        | AudioSection/tts_voice_* (allowlista ttsCanonical), SeriesCard                                                                                                                                   | M2 → M7                                               |
-| 8 SEO/feedy               | SeoPanel/walidacja SeoIssue blokująca zapis, invalidateSeoCaches, captureAutoRedirect 301, published_at porządkuje RSS/sitemapy                                                                  | dwukierunkowa (M2 pisze dane, M8 waliduje w edytorze) |
-| 12 Realtime/powiadomienia | domain_events `post.published.v1` (trigger silnika automatyzacji), kanały presence `presence:<tenant>:post:<id>`                                                                                 | M2 → M12 (emituje/konsumuje)                          |
-| 13 Monetyzacja-core       | AccessSettingsPane (ochrona treści) w metaboxie i sidebarze                                                                                                                                      | M2 → M13                                              |
-| 16 Społeczność-admin      | useTenantAuthors (etykiety autorów), ComposerShell reużyty przez komentarze                                                                                                                      | dwukierunkowa                                         |
-| 17 Analityka/BI           | recordAudit/audit_log dla wszystkich mutacji (update/publish/schedule/restore/duplicate)                                                                                                         | M2 → M17                                              |
-| 19 Ustawienia/authz/RODO  | requireStaff, can_publish_content/has_role, RLS content_revisions/post_preview_tokens, rate limity, site_settings (czas czytania, layouty); VersionsPane (polityki/cookies) należy tu, nie do M2 | M2 → M19                                              |
-| 20 Platforma/SSR          | createServerFn TanStack, pg_cron + kontrakt jobs-tick (lib/jobs/scheduler.ts), TanStack Router blocker                                                                                           | M2 → M20                                              |
-| 11 Newsletter / 18 CRM    | szablony i akcje silnika automatyzacji (workflow_templates cross-module)                                                                                                                         | M2 → M11/M18                                          |
+| Moduł | Mechanizm | Kierunek zależności |
+|---|---|---|
+| 1 Wpisy-czytelnik | wspólna tabela `posts` (status/published_at), query keys `post-by-slug`/`admin-posts`, trasa /preview/$token, publiczny changelog | M2 → M1 (publikuje to, co M1 renderuje) |
+| 3 Silniki treści | import PostBlockEditor/Builder/LayoutScaffold, kolumny blocks_data/builder_data w snapshotach form/rewizji, migratePostContent | M2 → M3 (osadza silniki, nie definiuje ich) |
+| 4 Motyw/media/WP-import | uploadAndRegisterMedia + registerMediaUpload (wklejone grafiki), link importu WP na liście | M2 → M4 |
+| 7 Treści specjalne | AudioSection/tts_voice_* (allowlista ttsCanonical), SeriesCard | M2 → M7 |
+| 8 SEO/feedy | SeoPanel/walidacja SeoIssue blokująca zapis, invalidateSeoCaches, captureAutoRedirect 301, published_at porządkuje RSS/sitemapy | dwukierunkowa (M2 pisze dane, M8 waliduje w edytorze) |
+| 12 Realtime/powiadomienia | domain_events `post.published.v1` (trigger silnika automatyzacji), kanały presence `presence:<tenant>:post:<id>` | M2 → M12 (emituje/konsumuje) |
+| 13 Monetyzacja-core | AccessSettingsPane (ochrona treści) w metaboxie i sidebarze | M2 → M13 |
+| 16 Społeczność-admin | useTenantAuthors (etykiety autorów), ComposerShell reużyty przez komentarze | dwukierunkowa |
+| 17 Analityka/BI | recordAudit/audit_log dla wszystkich mutacji (update/publish/schedule/restore/duplicate) | M2 → M17 |
+| 19 Ustawienia/authz/RODO | requireStaff, can_publish_content/has_role, RLS content_revisions/post_preview_tokens, rate limity, site_settings (czas czytania, layouty); VersionsPane (polityki/cookies) należy tu, nie do M2 | M2 → M19 |
+| 20 Platforma/SSR | createServerFn TanStack, pg_cron + kontrakt jobs-tick (lib/jobs/scheduler.ts), TanStack Router blocker | M2 → M20 |
+| 11 Newsletter / 18 CRM | szablony i akcje silnika automatyzacji (workflow_templates cross-module) | M2 → M11/M18 |
 
 - **5 najpilniejszych rekomendacji:**
   1. **(2.22)** Wpiąć realny autosave do edytora stron — komentarz w admin.pages.$slug.tsx:299-305 deklaruje "Autozapis włączony (jak dla wpisów)", ale useAutosave nie jest tam wywoływany; awaria karty = utrata sesji pracy nad stroną.
@@ -955,30 +913,27 @@ Moduł to kompletny proces redakcyjny klasy WordPress+: dwustopniowy edytor wpis
 
 Moduł to dwa komplementarne silniki kompozycji treści: block editor w stylu Gutenberga (zmierzona unia `BlockType` = **101 typów bloków** — zweryfikowane na a9b9e14: bez zmian, wszystkie w `IMPLEMENTED_BLOCKS` i w schemacie Zod) do treści artykułowej oraz page builder w stylu Elementora (zmierzona unia `WidgetType` = **94 typy widgetów** — zweryfikowane na a9b9e14: +1 `world-map`, `WIDGET_TYPES` w schema.ts zgodne 94/94) będący kanonicznym silnikiem kompozycji stron, chrome'u (Header/Footer/Menu), popupów i archiwów — spięte fasadą `ContentRenderer` i widgetem `rich-text` osadzającym bloki w builderze. Stan ogólny jest bardzo wysoki: kod gęsto komentowany decyzjami "dlaczego", czyste, testowalne rdzenie, wyjątkowa w skali projektu infrastruktura bramek CI (wierność panel⇄renderer mierzona Proxy na wykonaniu, nie deklaracją) i przemyślany SSR (streaming sekcji poniżej foldu z budżetem 2 s). Najważniejszy wniosek pozostaje ten sam po 699 commitach delty: dwie realne luki to kontrola dostępu widgetów egzekwowana wyłącznie po stronie klienta (bramkowana treść i tak jedzie w `builder_data` do przeglądarki — **defekt NIEnaprawiony, zweryfikowane na a9b9e14**) oraz sidebar builder — najsłabiej przetestowany, monolityczny fragment modułu. Delta dołożyła trzecią, mniejszą: bramka wierności ma zmierzoną martwą strefę "klucz czytany, ale bez efektu".
 
-### 3.1. Model i rejestr bloków (101 typów) — **9/10** _(zweryfikowane na a9b9e14: unia BlockType nadal 101, `src/lib/blocks` bez zmian w delcie poza 3 liniami w widokach)_
-
+### 3.1. Model i rejestr bloków (101 typów) — **9/10** *(zweryfikowane na a9b9e14: unia BlockType nadal 101, `src/lib/blocks` bez zmian w delcie poza 3 liniami w widokach)*
 - **Pliki:** src/lib/blocks/types.ts:4-122 (unia BlockType), registry.tsx:121-1578 (BLOCK_SPECS + IMPLEMENTED_BLOCKS), schema.ts:26-167 (Zod), variants.ts, i18n.ts
 - **Co robi:** Definiuje 101 typów bloków (core Gutenberg, Foxiz/Ruby, auth-formy, marketing, wizualizacja danych) z fabrykami domyślnych instancji, kategoriami i ikonami; `safeParseBlocks` waliduje dokument na granicy zaufania (jsonb z DB, server fns) i degraduje łagodnie — odrzuca tylko pojedyncze niepoprawne bloki zamiast całego dokumentu (schema.ts:149-167).
 - **Relacje:** Moduł 2 (Edytor/workflow) — `blocks_data` w posts/pages zapisywany przez workflow redakcyjny; Moduł 20 (Platforma/SSR) — walidacja na granicy server fn.
 - **✅ Mocne:** IMPLEMENTED_BLOCKS pokrywa 101/101 typów unii (registry.tsx:1476-1578); schemat Zod `.strict()` z limitem 500 bloków i enumeracją wszystkich typów; per-język `LocalizedBlocks {pl,en}` w typie, nie doklejane ad hoc.
 - **⚠️ Słabe:** `label`/`description` w BLOCK_SPECS są hardcodowane po polsku (registry.tsx:124-131) — inserter tłumaczy je niezależnymi kluczami `blocks.types.*` (BlockInserter.tsx:90), więc rejestr i i18n mogą się rozjechać bez testu parytetu (builder ma taki test — `labelsEn.test.ts` — blocks nie).
 - **🔧 Rekomendacje:**
-  1. Dodać test parytetu kluczy `blocks.types.<type>` ↔ unia BlockType (analogiczny do lib/builder/**tests**/labelsEn.test.ts) — nowy blok bez tłumaczenia ma oblewać CI.
+  1. Dodać test parytetu kluczy `blocks.types.<type>` ↔ unia BlockType (analogiczny do lib/builder/__tests__/labelsEn.test.ts) — nowy blok bez tłumaczenia ma oblewać CI.
   2. Usunąć zdublowane pole `label` z BLOCK_SPECS albo oznaczyć je jako fallback dev-only — jedno źródło prawdy dla etykiet.
 
 ### 3.2. Edytor blokowy (kanwa, inserter, sidebar, toolbary) — **8/10**
-
 - **Pliki:** src/components/admin/blocks/PostBlockEditor.tsx:35-229, BlockCanvas.tsx (662 l., @dnd-kit SortableContext), BlockInserter.tsx (405 l.), BlockSidebar.tsx (514 l., List View), BlockEditRenderer.tsx, WordStyleToolbar.tsx (470 l.), edit/ (63 komponenty), hooks/useLocalizedBlocksHistory.ts, atoms/BlockSelectionAnnouncer.tsx
 - **Co robi:** Pełny edytor Gutenberg-style: kanwa z drag&drop, slash-menu (`parseSlashQuery`), inserter z wyszukiwarką i wzorcami, sidebar Blok/Dokument, undo/redo per język (izolowane stosy PL/EN z ochroną przed "parent echo"), Alt+strzałki do przenoszenia bloku, zaznaczenie wielokrotne, widok kodu (markup Gutenberga), tour onboardingowy.
 - **Relacje:** Moduł 2 (Edytor/workflow) — hostowany przez PostContentEditor.tsx; autosave/rewizje wpisów żyją w Module 2; Moduł 4 (Motyw/media) — biblioteka mediów w blokach obrazkowych; Moduł 15 (Profil) — tour onboardingowy współdzielony.
 - **✅ Mocne:** Dostępność ponadstandardowa: `BlockSelectionAnnouncer` z `role="status" aria-live="polite"` ogłasza zakres zaznaczenia czytnikom ekranu; przemyślany podział skrótów (Ctrl+Z poza contenteditable — TipTap obsługuje własne undo pierwszy, PostBlockEditor.tsx:70-78).
 - **⚠️ Słabe:** Warstwa komponentów edytora ma tylko 4 pliki testów (quotePreviewParity + 2 hooki + canvasStack) na ~70 plików źródłowych — logika lib/ jest świetnie pokryta, ale sama kanwa (BlockCanvas 662 l.) i 63 edytory bloków testów montowanych prawie nie mają.
 - **🔧 Rekomendacje:**
-  1. Dodać smoke-test montujący wszystkie 63 edytory z domyślną instancją `BLOCK_SPECS[type].create()` (wzorzec już istnieje: widget-view/**tests**/allWidgets.smoke.test.tsx) — wychwyci crashe po refaktorach typów.
+  1. Dodać smoke-test montujący wszystkie 63 edytory z domyślną instancją `BLOCK_SPECS[type].create()` (wzorzec już istnieje: widget-view/__tests__/allWidgets.smoke.test.tsx) — wychwyci crashe po refaktorach typów.
   2. Test interakcji dla BlockCanvas (dnd + multi-select) na wzór chromeWidgetsInteraction.test.tsx.
 
 ### 3.3. Publiczny renderer bloków — **9/10**
-
 - **Pliki:** src/components/blocks/BlocksRenderer.tsx:41-149, renderer/ (registry.tsx, atoms/molecules/organisms, lazyBlockViews.tsx, tenant.tsx, footnotes.ts), BlocksRenderer.test.tsx, src/components/content/ContentRenderer.tsx:49-88
 - **Co robi:** SSR-friendly render BlocksDoc: walidacja `safeParseBlocks`, pre-pass przypisów przed renderem (sekcja przypisów znana od pierwszego malowania), granica tenanta (`BlocksTenantProvider`, `x-tenant-host`), per-blok `RenderErrorBoundary` (wadliwy blok degraduje się do niczego zamiast wywalać artykuł), flaga `hidden` i nadpisania marginesów z inspektora.
 - **Relacje:** Moduł 1 (Wpisy-czytelnik) — ContentRenderer w routes/$.tsx wybiera silnik (`resolveContentEngine`); Moduł 12 (Realtime) — blok `liveblog` subskrybuje per postId; Moduł 16 (Społeczność) — PollBlockView przez RPC `vote_poll` + realtime poll_votes; Moduł 20 (SSR) — hydratacja identyczna serwer/klient (jawny tenantHost).
@@ -988,7 +943,6 @@ Moduł to dwa komplementarne silniki kompozycji treści: block editor w stylu Gu
   1. Test: BlocksRenderer z przypisem zawierającym `<script>`/`onerror` — asercja że output jest czysty (obecnie gwarancja rozproszona między wordPaste a lib/footnotes).
 
 ### 3.4. Selekcja, fokus i nawigacja cross-block — **8/10**
-
 - **Pliki:** src/lib/blocks/selection.ts, crossSelection.ts (148 l.), selectionDom.ts (88 l.), focus.ts (167 l.), tree.ts, hooks/useCrossBlockSelection.ts; testy: selection, crossSelection, selectionDom, focus, tree (5 plików) + useCrossBlockSelection.test.tsx
 - **Co robi:** Czysta logika zaznaczenia wieloblokowego (Shift+klik/strzałki), mapowanie zaznaczenia DOM→model, zarządzanie fokusem po operacjach (wstaw/usuń/scal) i pomocnicy drzewa bloków.
 - **Relacje:** brak istotnych (wewnętrzne dla 3.2).
@@ -998,7 +952,6 @@ Moduł to dwa komplementarne silniki kompozycji treści: block editor w stylu Gu
   1. Rozszerzyć crossSelection o ścieżki zagnieżdżone (wspólny format z footnoteOrigins.PathSegment) — dziś kopiowanie zakresu wewnątrz kolumn wymaga wyjścia na poziom kontenera.
 
 ### 3.5. Transformacje, scalanie i zagnieżdżenia bloków — **8/10**
-
 - **Pliki:** src/lib/blocks/transforms.ts (184 l.), merge.ts (61 l.), nested.ts (61 l.); testy: transforms, merge, nested
 - **Co robi:** Konwersje między typami bloków (paragraph↔heading↔list↔quote itd.), scalanie bloku z poprzednim (Backspace na początku), czyste operacje na dzieciach kontenerów (group/row/stack/grid: `children`, columns: `left`/`right`) w kształcie identycznym z tym, co czyta renderer publiczny (`readBlocksArray`) — zero migracji.
 - **Relacje:** brak istotnych.
@@ -1008,7 +961,6 @@ Moduł to dwa komplementarne silniki kompozycji treści: block editor w stylu Gu
   1. Dodać rekurencyjną walidację dzieci kontenerów w safeParseBlocks (lib/blocks/schema.ts) z tą samą łagodną degradacją co top-level — dziś zepsute dziecko wykrywa dopiero renderer.
 
 ### 3.6. Schowek i pipeline wklejania (Word/GDocs/obrazy) — **9/10**
-
 - **Pliki:** src/lib/blocks/clipboard.ts (196 l.), wordPaste.ts (959 l.), imagePaste.ts, inlineHtml.ts, persistImages.ts (173 l.); testy: clipboard, wordPaste, imagePaste, inlineHtml, persistImages; konsument: src/components/admin/post-editor/hooks/usePostEditorForm.ts
 - **Co robi:** Import strukturalny wklejek z Word/Google Docs/LibreOffice/web: nagłówki, listy, tabele, cytaty, formatowanie inline, a przypisy dolne trzech pakietów biurowych (`#_ftn`, `#ftnt`, `#sdfootnote`) normalizowane do wspólnego shortcode'u `[fn]…[/fn]`; wklejone grafiki data-URI są przy zapisie wgrywane do bucketa `media` i podmieniane na URL-e storage (baza nie puchnie od base64 w jsonb).
 - **Relacje:** Moduł 4 (Motyw/media) — upload do bucketa `media` + rejestracja w bibliotece; Moduł 2 (Edytor) — persistImages wołany z usePostEditorForm przy zapisie.
@@ -1018,7 +970,6 @@ Moduł to dwa komplementarne silniki kompozycji treści: block editor w stylu Gu
   1. Rozszerzyć collectDataUrlImages o `srcset` (persistImages.ts:18) + test regresyjny.
 
 ### 3.7. Interop: Gutenberg / Elementor / Markdown — **8/10**
-
 - **Pliki:** src/lib/blocks/gutenberg.ts (448 l.: parseGutenberg, blocksToGutenberg, stripFoxizShortcodes), elementor.ts (483 l.: Elementor→BuilderDocument), markdown.ts (skróty `## `, `- ` w Paragraph), migrate.ts (htmlToBlocks, 332 l.), convert.ts (141 l., wp-import); testy: gutenberg.test, migrate.test
 - **Co robi:** Dwukierunkowa kompatybilność z Gutenbergiem (`<!-- wp:xxx {json} -->` ↔ BlocksDoc — wpisy pozostają przenośne), unwrap shortcode'ów Foxiz/Shortcodes Ultimate, mapowanie regularnego HTML-a Elementora na natywne sekcje/kolumny/widgety buildera (nieznane typy → `rich-text` z warnings), fallback htmlToBlocks dla dowolnego HTML.
 - **Relacje:** Moduł 4 (WP-import) — convertHtmlToBuilder w wp-import.functions.ts i wp-import/buildPage.ts, parseGutenberg w wxr.ts; widok kodu edytora (CodeViewDialog) używa blocksToGutenberg.
@@ -1029,7 +980,6 @@ Moduł to dwa komplementarne silniki kompozycji treści: block editor w stylu Gu
   2. Domapować najczęstsze widgety Elementora (form → contact, posts → post-list, image-carousel → slider) — dziś to główne źródło degradacji do rich-text.
 
 ### 3.8. Przypisy: walidacja, pochodzenie, kotwice — **9/10**
-
 - **Pliki:** src/lib/blocks/anchors.ts (103 l.), footnoteValidation.ts (232 l.), footnoteOrigins.ts (177 l.), components/blocks/renderer/footnotes.ts (113 l.), admin/blocks/AutoFootnotesPreview.tsx; testy: anchors, footnoteValidation, footnoteOrigins + testy renderera
 - **Co robi:** Walidator markerów `[fn]…[/fn]` z pięcioma klasami błędów (UNCLOSED, STRAY_CLOSE, NESTED, EMPTY, MALFORMED_TAG) i ścieżkami wskazującymi konkretny blok/pole; mapowanie pochodzenia przypisów (footnoteOrigins) zgodne ścieżkami z walidatorem; generacja/deduplikacja kotwic nagłówków; pre-pass renderera zbierający przypisy przed malowaniem (SSR-safe).
 - **Relacje:** Moduł 1 (Wpisy-czytelnik) — wspólny silnik lib/footnotes (numeracja jednolita między blocks/builder/html); Moduł 2 (Edytor) — AutoFootnotesPreview w sidebarze dokumentu.
@@ -1039,7 +989,6 @@ Moduł to dwa komplementarne silniki kompozycji treści: block editor w stylu Gu
   1. Zwracać `kind` + parametry zamiast gotowego message i tłumaczyć w UI (blocks.ui.*) — parytet PL/EN.
 
 ### 3.9. Osadzenia (embed) i link preview — **8/10**
-
 - **Pliki:** src/lib/blocks/embed.ts (337 l.), linkPreview.ts (168 l.), components/blocks/LinkPreviewBlockView.tsx, XQuoteShare.tsx, admin/blocks/edit/Embed.tsx, LinkPreviewBlock.tsx; testy: embed.test, linkPreview.test
 - **Co robi:** Normalizacja URL-i providerów osadzeń (YouTube/Vimeo/X/spotify itd.) do bezpiecznych iframe'ów; blok "Podgląd linku" z opcjonalnym hover-podglądem (statyczny obrazek lub zrzut z Microlink) i twardą walidacją http(s)-only (`isSafeHttpUrl` blokuje javascript:/data:, linkPreview.ts:46-52).
 - **Relacje:** Moduł 20 (SSR) — osadzenia renderowane leniwie po stronie klienta (lazyBlockViews).
@@ -1049,8 +998,7 @@ Moduł to dwa komplementarne silniki kompozycji treści: block editor w stylu Gu
   1. Cache zrzutów Microlink po stronie storage (jednorazowy fetch przy zapisie bloku zamiast per-czytelnik) — components/blocks/LinkPreviewBlockView.tsx.
 
 ### 3.10. Wzorce (patterns) bloków i buildera — **7,5/10**
-
-- **Pliki:** src/lib/blocks/patterns.ts (202 l., wzorce blokowe w inserterze), src/lib/patterns/library.ts (674 l., wzorce builderowe), types.ts, i18n.ts, components/patterns/PatternPicker.tsx; wpięcie: BlockInserter.tsx, routes/admin.pages.new.tsx; testy: blocks/**tests**/patterns.test, lib/patterns/**tests**
+- **Pliki:** src/lib/blocks/patterns.ts (202 l., wzorce blokowe w inserterze), src/lib/patterns/library.ts (674 l., wzorce builderowe), types.ts, i18n.ts, components/patterns/PatternPicker.tsx; wpięcie: BlockInserter.tsx, routes/admin.pages.new.tsx; testy: blocks/__tests__/patterns.test, lib/patterns/__tests__
 - **Co robi:** Statyczna biblioteka wzorców startowych: sekcje blokowe (FAQ, pros/cons, hero...) wstawiane z insertera oraz pełne dokumenty builderowe (landing hero, cennik...) klonowane z fresh-id przy tworzeniu strony; treści dwujęzyczne (text_pl/text_en) w danych wzorca.
 - **Relacje:** Moduł 2 (Edytor) — PatternPicker na trasie tworzenia strony.
 - **✅ Mocne:** Klonowanie przez fabryki z `newId()` per instancja (library.ts:7-24) — brak współdzielonych referencji między wstawieniami; i18n wzorców przez klucze `blocks.patterns.items.<key>` (BlockInserter.tsx:91-92).
@@ -1059,7 +1007,6 @@ Moduł to dwa komplementarne silniki kompozycji treści: block editor w stylu Gu
   1. Dodać wzorce użytkownika w DB (rozszerzyć builder_section_templates o typ "pattern"/"page" albo osobna tabela z RLS per tenant) i wpiąć w PatternPicker.
 
 ### 3.11. Model dokumentu buildera: typy, operacje, walidacja — **9/10**
-
 - **Pliki:** src/lib/builder/types.ts:347-626 (WidgetType **94 typy** — zweryfikowane na a9b9e14, drzewo Section→Column/InnerSection→Widget, ResponsiveValue, Themed, AdvancedSettings), operations.ts (623 l.), schema.ts (280 l.), clipboard.ts (sessionStorage cross-tab), dndMime.ts; testy: operations.test, schema.test (test dryfu WIDGET_TYPES ↔ rejestr), abOperations.test
 - **Co robi:** Typowany model dokumentu z pełnym systemem ustawień (responsive per-breakpoint, light/dark `Themed<T>`, hover, motion, access, A/B tag, link całego widgetu); czyste operacje find/clone/move/duplicate ze świeżymi id; koercyjny, odporny parser na granicy zaufania — gwarantuje inwarianty strukturalne, dropuje tylko nienaprawialne węzły zamiast całej strony (schema.ts:5-14, kontrast do all-or-nothing bloków — świadoma, udokumentowana decyzja).
 - **Relacje:** Moduł 20 (SSR) — safeParseBuilderDoc na każdym wejściu builder_data z DB.
@@ -1069,8 +1016,7 @@ Moduł to dwa komplementarne silniki kompozycji treści: block editor w stylu Gu
   1. Zmierzyć koszt na dużym dokumencie i przejść na structural sharing (immer/patch) w useHistory lub przynajmniej porównanie po hash-u — Builder.tsx:95-99, operations.ts:23-65.
 
 ### 3.12. Edytor page buildera (UI dwupanelowe) — **9/10**
-
-- **Pliki:** src/components/admin/builder/Builder.tsx (783 l.), ui/organisms/builder/ (VisualCanvas 1128 l., Toolbar, ChromeFrame, SectionDropZone, WidgetResizeOverlay, CanvasActionBar), Navigator.tsx, WidgetLibrary.tsx (603 l.), StructurePicker, section-properties/ + widget-properties/ (37 edytorów), molecules (BuilderContextMenu, BulkActionBar, Editable — inline edit, LinkPicker, DynamicTagInserter...), hooks (useBuilderOperations, useBuilderClipboard, useBuilderShortcuts, useGlobalWidgetSync); 13 testów w **tests** (w tym 2 bramki .gate)
+- **Pliki:** src/components/admin/builder/Builder.tsx (783 l.), ui/organisms/builder/ (VisualCanvas 1128 l., Toolbar, ChromeFrame, SectionDropZone, WidgetResizeOverlay, CanvasActionBar), Navigator.tsx, WidgetLibrary.tsx (603 l.), StructurePicker, section-properties/ + widget-properties/ (37 edytorów), molecules (BuilderContextMenu, BulkActionBar, Editable — inline edit, LinkPicker, DynamicTagInserter...), hooks (useBuilderOperations, useBuilderClipboard, useBuilderShortcuts, useGlobalWidgetSync); 13 testów w __tests__ (w tym 2 bramki .gate)
 - **Co robi:** Dwupanelowy builder w stylu Elementora: paleta/właściwości po lewej, kanwa z natywnym HTML5 dnd po prawej; podgląd urządzeń (desktop/tablet/mobile), tryb light/dark kanwy podążający za motywem, podgląd chrome'u (realny Header/Footer), inline editing tekstu na kanwie, resize widgetów uchwytami, menu kontekstowe, bulk-akcje, pełny zestaw skrótów (copy/cut/paste/duplicate/undo/redo/save/navigator), undo/redo z etykietami operacji i czyszczeniem live-typografii (Builder.tsx:101-118), tour onboardingowy.
 - **Relacje:** Moduł 2 (Edytor/workflow) — hostowany przez admin.pages.$slug (autosave po stronie trasy) i BuilderPane post-editora; Moduł 5 (Chrome) — scope header/footer/menu przez AppearanceBuilderPane; Moduł 19 (Ustawienia) — tryb motywu z ThemeProvider.
 - **✅ Mocne:** Martwy kod aktywnie usuwany i dokumentowany (nota o usuniętych, nigdy niemontowanych sensorach @dnd-kit — Builder.tsx:14-17); bramki `settingsFidelity.gate.test.tsx` i `sampleDataLeak.gate.test.tsx` pilnują całej powierzchni edytora, nie pojedynczych widgetów.
@@ -1079,9 +1025,8 @@ Moduł to dwa komplementarne silniki kompozycji treści: block editor w stylu Gu
   1. Usunąć ui/atoms/index.js (duplikat index.ts) i dodać regułę knip/lint na pary .js/.ts.
   2. Test dnd VisualCanvas (jsdom dispatchEvent dragstart/drop na SectionDropZone) — najbardziej ruchliwa, nietestowana ścieżka edytora.
 
-### 3.13. Rejestr widgetów (94 typy) i schematy paneli ustawień — **8,5/10** _(zweryfikowane na a9b9e14)_
-
-- **Pliki:** src/lib/builder/registry.tsx (**2184 l.**, WIDGETS: defaults + ikony + kategorie), schemas.ts (**3590 l.**, SchemaField — deklaratywne panele), widgetTextFields.ts, labelsEn.ts + labelsEn.test.ts, formFieldConfig.tsx, sliderVariants/**sectionLabelVariants.tsx (1150 l.)**/animatedHeadingVariants, WidgetProperties.tsx:1637-1670 (PANEL_EXTRA_CONTENT_KEYS + CUSTOM_EDITOR_HANDLED_KEYS); testy: postWidgetSchemas, widgetTextFields, builderI18nKeys, deadWidgetSettings, widget-view/**tests**/variantRenderers.test.tsx:306-331 (sweep wszystkich wariantów etykiet sekcji)
+### 3.13. Rejestr widgetów (94 typy) i schematy paneli ustawień — **8,5/10** *(zweryfikowane na a9b9e14)*
+- **Pliki:** src/lib/builder/registry.tsx (**2184 l.**, WIDGETS: defaults + ikony + kategorie), schemas.ts (**3590 l.**, SchemaField — deklaratywne panele), widgetTextFields.ts, labelsEn.ts + labelsEn.test.ts, formFieldConfig.tsx, sliderVariants/**sectionLabelVariants.tsx (1150 l.)**/animatedHeadingVariants, WidgetProperties.tsx:1637-1670 (PANEL_EXTRA_CONTENT_KEYS + CUSTOM_EDITOR_HANDLED_KEYS); testy: postWidgetSchemas, widgetTextFields, builderI18nKeys, deadWidgetSettings, widget-view/__tests__/variantRenderers.test.tsx:306-331 (sweep wszystkich wariantów etykiet sekcji)
 - **Co robi:** Pojedynczy rejestr **94** typów widgetów z dwujęzycznymi defaults (`text_pl`/`text_en` w fabrykach) oraz deklaratywne schematy pól napędzające panel właściwości (SchemaFieldControl) — panel dla większości widgetów jest danymi, nie kodem. Edytory niestandardowe mogą kooperować ze schematem przez opt-in `<EDITOR>_HANDLED_KEYS` (WidgetProperties.tsx:1647-1667): pola, których edytor nie rysuje sam, panel dorysowuje pod nim generycznie.
 - **Relacje:** Moduł 7 (Treści specjalne) — widgety chart/data-map (silnik src/components/charts) i feature-* (src/components/features); Moduł 11 (Newsletter) — widget newsletter renderuje realny NewsletterForm; Moduł 13/14 (Monetyzacja) — pricing, donations, ad-slot, purchase-confirmation; Moduł 21 (Kluby) — club-card/club-threads.
 - **✅ Mocne:** Etykiety PL mapowane na EN centralnie z testem kompletności — nowa polska etykieta bez tłumaczenia oblewa CI (labelsEn.test.ts:1-10); defaults zawsze dwujęzyczne (registry.tsx:84). Delta pokazała, że mechanizm działa pod obciążeniem: biblioteka wariantów etykiet sekcji wzrosła z **11 do 21** wariantów (sectionLabelVariants.tsx:8-61, +10 wariantów redakcyjnych typu editorial-index/double-deck-masthead/ticker-strip), wszystkie 10 nowych etykiet PL dostały tłumaczenie w labelsEn.ts:870-886, a sweep renderowy jest data-driven (`SECTION_LABEL_VARIANTS.map`), więc nowe warianty weszły pod test bez dopisywania przypadków. Delta usunęła też martwe ustawienie `lang-switcher.showLabel` w PIĘCIU miejscach naraz (registry.tsx, schemas.ts, chromeDefaults.ts, chromeWidgets.tsx, labelsEn.ts) wraz z aktualizacją dwóch testów — czyszczenie schematu zamiast dopisania zwolnienia do bramki.
@@ -1091,7 +1036,6 @@ Moduł to dwa komplementarne silniki kompozycji treści: block editor w stylu Gu
   2. Domknąć heurystykę labelsEn.test: wymagać wpisu dla KAŻDEJ etykiety z `*_VARIANTS`/`WIDGET_SCHEMAS` (allowlista identycznych w EN zamiast detekcji "czy to brzmi po polsku") — dziś `Europa` przecieka do panelu EN.
 
 ### 3.14. Publiczny renderer buildera + SSR streaming sekcji — **9/10**
-
 - **Pliki:** src/components/admin/builder/ui/organisms/BuilderRenderer.tsx (**851 l.**), BuilderWidgetNode.tsx, WidgetView.tsx (**1457 l.**, dyspozytor), widget-view/ (46 plików widoków, lazyWidgets.tsx — code-splitting, RenderErrorBoundary.tsx), lib/builder/sectionStyles.tsx, sectionStreaming.tsx (272 l.), useSectionPreload.ts, hoverCss.ts; testy: sectionStreaming.test.tsx, allWidgets.smoke.test.tsx, lazyWidgets.test.ts (lustro eager/lazy), ~40 testów widoków
 - **Co robi:** Read-only render pełnego drzewa z wszystkimi ustawieniami sekcji (tła/gradienty/video/slideshow, overlaye, shape dividery, tabsy sekcji, border hover); poprawka urządzenia w useLayoutEffect przed malowaniem (bez flasha desktop→mobile, BuilderRenderer.tsx:71-77); Suspense-streaming sekcji poniżej foldu z serwer-only gate (tree-shaken z bundla klienta) i budżetem 2 s — TTFB śledzi koszt above-the-fold, nie całego dokumentu (sectionStreaming.tsx:1-49); sanityzacja każdego stringa użytkownika (sanitizeHtmlId/CssClass, scopeCustomCss z rekursywnym scopingiem @media i blacklistą @import/expression, sanitize.ts:156-221; hardenStyleCss na każdym data-driven `<style>`).
 - **Relacje:** Moduł 5 (Chrome) — Header/Footer/MobileDrawerBody renderują builder_templates tym samym rendererem; Moduł 1 — strony i wpisy builderowe przez ContentRenderer; Moduł 20 (SSR) — edge cache + dehydratacja query; Moduł 6 — widget search-button/search-form.
@@ -1102,7 +1046,6 @@ Moduł to dwa komplementarne silniki kompozycji treści: block editor w stylu Gu
   2. Test regresyjny na skutek ustawień rozmiaru obrazka (`ratio=auto` × widthPx/maxWidthPx/heightPx → asercja na computed style), bo bramka wierności mierzy odczyt klucza, nie jego efekt — patrz 3.22.
 
 ### 3.15. Widgety danych: zapytania, prefetch SSR, inwalidacja — **9/10**
-
 - **Pliki:** src/lib/builder/postListQuery.ts, sliderPostsQuery.ts + sliderFallbackQuery.ts, eventsQuery.ts, meetingsQuery.ts, newsTickerQuery.ts, speakersQuery.ts, clubsQuery.ts, contentRefs.ts, postViewCountQuery.ts, prefetch.ts (527 l.), queryKeys.ts (109 l.), widgetCacheInvalidation.tsx, usedPostIds.tsx (dedup wpisów na stronie), currentPostContext.tsx, archiveContext.ts; testy: 15+ (postListQuery, eventsQuery, meetingsQuery, queryKeys, uniqueOnPageDedup, sectionPrefetch, countdownCardPrefetch...)
 - **Co robi:** Warstwa danych widgetów dynamicznych: opcje zapytań per widget z prefetchem SSR całego dokumentu (cache warming tras edge-cached), kanoniczne korzenie kluczy react-query w jednym miejscu — rozjazd klucz↔inwalidacja "niewyrażalny" (queryKeys.ts:11-21, z testem spójności), deduplikacja wpisów między widgetami na stronie, konteksty bieżącego wpisu/archiwum dla dynamic tags.
 - **Relacje:** Moduł 1 (Wpisy) — posty/okładki (postListQuery, sliderPosts); Moduł 16 (Społeczność-admin) — events/speakers (tenant-scoped RLS); Moduł 10 (Sieć/eksperci) — meeting_slots/meeting_bookings przez utwardzone RPC; Moduł 21 (Kluby) — clubsQuery; Moduł 12 (Realtime) — LIVE_INVALIDATED_ROOTS + widgetCacheInvalidation cross-tab; Moduł 20 (SSR) — prefetchCachedRouteQueries.
@@ -1112,7 +1055,6 @@ Moduł to dwa komplementarne silniki kompozycji treści: block editor w stylu Gu
   1. Deklarować cache-targets przy definicji widgetu (pole w WIDGETS/schemas zamiast list w prefetch.ts) + test kompletności: każdy widget z queryOptions musi deklarować prefetch.
 
 ### 3.16. Widgety globalne, szablony sekcji, rewizje elementów — **8/10**
-
 - **Pliki:** src/lib/builder/globalWidgets.ts (251 l.), hooks/useGlobalWidgetSync.ts, revisions.ts (106 l.), templates.ts (155 l.), TemplateHistoryDialog.tsx, starterTemplates.ts (742 l.), homepageTemplate.ts, pageTemplates.ts (69 l.); testy: globalWidgets.test, revisions.test, starterTemplates.test; DB: builder_global_widgets, builder_section_templates, builder_revisions (trigger-snapshoty) — RLS per tenant (migracja 20260702085900)
 - **Co robi:** Widget zapisany raz i referencjonowany na wielu stronach: instancja trzyma lokalny snapshot (fallback SSR/offline) + `globalId`, renderery nakładają żywy rekord przez React Query — edycja globala propaguje wszędzie; szablony sekcji w DB z historią rewizji per szablon (snapshot triggerem DB); historia wersji widgetów globalnych i popupów z przywracaniem; presety szablonów stron (default/full_width/landing/archive_listing/contact) czytane przez routes/$.tsx.
 - **Relacje:** Moduł 2 (Edytor/workflow) — rewizje CAŁYCH stron (BuilderVersionsPane w components/admin/versions) należą do Modułu 2; tu tylko rewizje bytów builderowych; Moduł 19 — RLS current_tenant_id().
@@ -1122,7 +1064,6 @@ Moduł to dwa komplementarne silniki kompozycji treści: block editor w stylu Gu
   1. Dodać warunek `updated_at` (compare-and-swap) przy restore i przy debounced upsert w useGlobalWidgetSync — ochrona przed lost update między adminami.
 
 ### 3.17. A/B testy sekcji — **8/10**
-
 - **Pliki:** src/lib/builder/experiments.ts (312 l.), abOperations (w operations), routes/admin.experiments.tsx; testy: experiments.test, abOperations.test; DB: builder_experiments + builder_experiment_events (insert wyłącznie przez beacon /api/public/experiment-event — RLS blokuje anon insert, migracja 20260730140000)
 - **Co robi:** Dwie sekcje-rodzeństwo tagowane `advanced.abTest={experimentId, variant}`; deterministyczny przydział wariantu per visitor (FNV-1a po visitorId+experimentId, localStorage), eventy exposure/conversion przez beacon; kanwa buildera pokazuje oba warianty z badge'ami, publiczny renderer dokładnie jeden.
 - **Relacje:** Moduł 17 (Analityka/BI) — builder_experiment_events konsumowane przez admin.experiments; Moduł 20 (SSR) — beacon endpoint; Moduł 19 — RLS lockdown insertów.
@@ -1133,7 +1074,6 @@ Moduł to dwa komplementarne silniki kompozycji treści: block editor w stylu Gu
   2. Rejestrować exposure dopiero po ustabilizowaniu swapu (rAF po mount), by nie liczyć ekspozycji A u odwiedzających B.
 
 ### 3.18. Popupy builderowe — **8/10**
-
 - **Pliki:** src/lib/builder/popups.ts (376 l.), components/popups/PopupHost.tsx (wpięty w __root.tsx), routes/admin.popups.tsx + admin.popups.$id.tsx (PopupEditorPane hostuje pełny Builder ze scope="popup"); testy: popups.test; DB: builder_popups (RLS: anon widzi tylko `active`)
 - **Co robi:** Popupy jako pełne dokumenty buildera z typowanymi ustawieniami wyświetlania: trigger (immediate/delay/scroll/exit-intent), frequency capping (dni od zamknięcia), audience (guest/user), urządzenia, targeting ścieżek include/exclude z wildcard prefix (excludes wygrywają, admin zawsze wykluczony), szerokość/pozycja/overlay.
 - **Relacje:** Moduł 20 (SSR/platforma) — PopupHost w __root; Moduł 12 (Realtime) — inwalidacja popupsActive w LIVE_INVALIDATED_ROOTS; Moduł 19 — RLS statusowe.
@@ -1142,8 +1082,7 @@ Moduł to dwa komplementarne silniki kompozycji treści: block editor w stylu Gu
 - **🔧 Rekomendacje:**
   1. Dodać priorytet + zasadę "jeden popup na odsłonę" w PopupHost (components/popups/PopupHost.tsx) — deterministyczny wybór zamiast wyścigu timerów.
 
-### 3.19. Kontrola dostępu widgetów (auth/role) — **6/10** _(zweryfikowane na a9b9e14: defekt NIEnaprawiony)_
-
+### 3.19. Kontrola dostępu widgetów (auth/role) — **6/10** *(zweryfikowane na a9b9e14: defekt NIEnaprawiony)*
 - **Pliki:** src/lib/builder/accessControl.ts (31 l. — **plik nietknięty przez całą deltę 699 commitów**, `git log 1788ffb..a9b9e14 -- accessControl.ts` = 0 commitów), ui/molecules/AccessControl.tsx + VisibilityControl.tsx, użycie: BuilderRenderer.tsx:52 (import), :309/318 (sekcje), :440/494 (kolumny i sekcje wewnętrzne), :723/733 (widgety) — to JEDYNE miejsca egzekwowania w repo
 - **Co robi:** Bramkuje widoczność widgetu/kolumny/sekcji po stanie zalogowania (any/guest/user) i rolach (admin/editor/author, tryb any/all) — czysty evaluateAccess + hook czytający sesję.
 - **Relacje:** Moduł 19 (Ustawienia/authz) — role z useAuth; Moduł 13 (Monetyzacja-core) — UWAGA: to NIE jest substytut bramkowania płatnej treści (tam body idzie przez SECURITY DEFINER RPC).
@@ -1155,7 +1094,6 @@ Moduł to dwa komplementarne silniki kompozycji treści: block editor w stylu Gu
   3. Test jednostkowy evaluateAccess (macierz auth×roles×mode).
 
 ### 3.20. Sidebar builder (panel boczny wpisu) — **6,5/10**
-
 - **Pliki:** src/components/admin/sidebarBuilder/SidebarBuilderPane.tsx (606 l.), src/lib/sidebarBuilder/types.ts (zod widgetsArraySchema), lib/builder/sidebarStyles.tsx, lib/queries/sidebarLayouts.ts; wpięcie: routes/admin.appearance.post-sidebar.tsx; DB: post_sidebar_layouts (zapisy admin-only przez RLS)
 - **Co robi:** Trzykolumnowy mini-builder sidebara wpisu (paleta → kanwa → inspektor): panel czytania (ToC+share+save), tagi, karta autora, newsletter, reklama itd.; reorder strzałkami (bez dnd), persystencja layoutów per tenant.
 - **Relacje:** Moduł 1 (Wpisy-czytelnik) — layout konsumowany przy renderze wpisu; Moduł 11 — widget newsletter; Moduł 14 — slot reklamowy; Moduł 19 — RLS admin-only.
@@ -1166,7 +1104,6 @@ Moduł to dwa komplementarne silniki kompozycji treści: block editor w stylu Gu
   2. Wydzielić PALETTE i logikę mutacji z SidebarBuilderPane.tsx do lib/sidebarBuilder + testy round-trip zapisu/odczytu post_sidebar_layouts.
 
 ### 3.21. Migracja blocks/html → builder + weryfikacja po-migracyjna — **9/10**
-
 - **Pliki:** src/lib/builder/migrate/blocksToBuilder.ts (56 l.), htmlToBuilder.ts (100 l.), verifyMigration.ts (122 l.), scripts/migrate-blocks-to-builder.ts (185 l.), scripts/verify-migration.ts; testy: blocksToBuilder.test, htmlToBuilder.test, verifyMigration.test
 - **Co robi:** Jednorazowa migracja treści legacy do buildera: blocks → widget `rich-text` (osadza dokument bloków), HTML richtext/markdown → widget `text` z pre-procesowanymi przypisami i markerem TOC (identycznie jak publiczny render — zero regresji); skrypt dry-run domyślnie, `--apply` wymaga service-role, nie-destrukcyjny i odwracalny (oryginalne kolumny nietknięte); audyt po-migracyjny weryfikuje 1:1 korespondencję referencji i listy przypisów, resztki `[fn]` i inline `style=` (które sanitizer widgetu by uciął).
 - **Relacje:** Moduł 2 (Edytor) — flip kolumny `editor` na "builder"; Moduł 19 — wymóg service-role dla zapisu.
@@ -1175,9 +1112,8 @@ Moduł to dwa komplementarne silniki kompozycji treści: block editor w stylu Gu
 - **🔧 Rekomendacje:**
   1. Zapisać wynik `scripts/verify-migration.ts` z produkcji do docs/ (lub wyciąć skrypty po potwierdzeniu) — domknąć pętlę audytu.
 
-### 3.22. Bramki CI wierności ustawień i próbek — **9/10** _(korekta z 9,5 — zweryfikowane na a9b9e14: delta wyjawiła martwą strefę modelu pomiaru)_
-
-- **Pliki:** src/lib/builder/ci/settingsFidelity.ts (465 l.) + test, **settingsFidelityGate.ts (205 l. — konfiguracja: WIDGET_PROBE_STATES / RENDERER_ENUMERATES_CONTENT / FIDELITY_WAIVERS)**, sampleTokens.ts, localizedQueryKeys.ts, ci/**tests**/eagerWidgetChunks.test.ts; bramki: components/admin/builder/**tests**/settingsFidelity.gate.test.tsx (714 l.), sampleDataLeak.gate.test.tsx, widgetPanelSchemaGaps.test.tsx, fidelityGateFindings.test.tsx, widgetViewI18nFallback.test.tsx, lib/builder/**tests**/deadWidgetSettings.test.ts, builderI18nKeys.test.ts, localizedQueryKeys.gate.test.ts; skrypt: `check:widget-fidelity` (package.json:47 — 3 bramki + raport `reports/widget-fidelity.json`)
+### 3.22. Bramki CI wierności ustawień i próbek — **9/10** *(korekta z 9,5 — zweryfikowane na a9b9e14: delta wyjawiła martwą strefę modelu pomiaru)*
+- **Pliki:** src/lib/builder/ci/settingsFidelity.ts (465 l.) + test, **settingsFidelityGate.ts (205 l. — konfiguracja: WIDGET_PROBE_STATES / RENDERER_ENUMERATES_CONTENT / FIDELITY_WAIVERS)**, sampleTokens.ts, localizedQueryKeys.ts, ci/__tests__/eagerWidgetChunks.test.ts; bramki: components/admin/builder/__tests__/settingsFidelity.gate.test.tsx (714 l.), sampleDataLeak.gate.test.tsx, widgetPanelSchemaGaps.test.tsx, fidelityGateFindings.test.tsx, widgetViewI18nFallback.test.tsx, lib/builder/__tests__/deadWidgetSettings.test.ts, builderI18nKeys.test.ts, localizedQueryKeys.gate.test.ts; skrypt: `check:widget-fidelity` (package.json:47 — 3 bramki + raport `reports/widget-fidelity.json`)
 - **Co robi:** Systemowa likwidacja klasy defektów "ustawienie martwe/ukryte": treść widgetu opakowana w Proxy notujące odczyty kluczy, ten sam widget renderowany przez panel (klucze OFEROWANE) i renderer (klucze CZYTANE) — różnica symetryczna zbiorów to lista defektów, łącznie z rozjazdem nazwy (`items` ≠ `items_pl`); lustro eager/lazy chunków pilnowane asercją (nowy lazy-widget nie wypadnie z bramki); osobna, tańsza bramka i18n fallbacków.
 - **Zmierzona skala bramki na a9b9e14:** iteruje po `WIDGETS` (settingsFidelity.gate.test.tsx:409, 474, 528 + asercja `MEASURED.size === WIDGETS.length` w :524), czyli **94 typy widgetów** (było 93). Zwolnienia: **9 typów / 30 kluczy** (button 2, cta 2, join-us 19, toc 1, team-member 2, author-profile-card 1, contact 1, contact-form 1, donations 1) + **1** renderer przekazujący całą treść spreadem (`newsletter`, RENDERER_ENUMERATES_CONTENT) + 7 typów z fixturami stanu (WIDGET_PROBE_STATES). Plik konfiguracji zwolnień jest **nietknięty przez deltę** (`git diff 1788ffb..a9b9e14 -- ci/settingsFidelityGate.ts` = pusto) — nowy widget `world-map` wszedł pod bramkę z **zerem zwolnień**, korzystając z opt-inu `WORLD_MAP_EDITOR_HANDLED_KEYS` (WidgetProperties.tsx:1669) zamiast wyjątku. To najlepszy możliwy dowód, że bramka nie gnije: rośnie pokrycie, nie lista wyjątków.
 - **Relacje:** brak istotnych (meta-warstwa nad 3.12-3.14, 3.23).
@@ -1189,8 +1125,7 @@ Moduł to dwa komplementarne silniki kompozycji treści: block editor w stylu Gu
   3. Utrwalić `reports/widget-fidelity.json` w repo (dziś generuje go dopiero uruchomienie bramki; w drzewie jest tylko `reports/i18n-parity.json`) — liczba zwolnień powinna być widoczna w review, nie tylko w CI.
 
 ### 3.23. Widget „Mapa świata": silnik geo + adapter treści (nowe w delcie) — **9/10**
-
-- **Pliki:** src/lib/maps/worldMapGeo.ts (510 l., czysta geometria: projectPoint, createCurvedPath, arcTiming, arcKeyframes, sparkKeyframes, resolveArcs, resolveMarkers, fitViewBox, coerceLat/coerceLng), src/lib/maps/countryCentroids.ts (194 l., WYGENEROWANE), src/lib/builder/worldMapContent.ts (201 l., treść widgetu → propsy), src/components/maps/WorldMap.tsx (450 l., prezentacja SVG), ui/organisms/widget-view/WorldMapWidget.tsx (83 l., adapter + zapytanie o profile), ui/organisms/widget-properties/WorldMapEditor.tsx (492 l., edytor listy połączeń + picker kraju + ProfilePicker), rejestr: registry.tsx:268-352, schemas.ts:870-907, types.ts:367, schema.ts:49, lazyWidgets.tsx:263-269, WidgetView.tsx:862, prefetch.ts:211-214 i :364-370, WidgetLibrary.tsx:158; assety: public/geo/world-dots.v1.svg (545 KiB, generowany przez scripts/generate-dotted-world.ts z public/geo/world-110m.v1.json); testy: lib/maps/**tests**/worldMapGeo.test.ts (**28 przypadków**), lib/builder/**tests**/worldMapContent.test.ts (168 l., **16 przypadków**), widget-view/**tests**/worldMapWidget.test.tsx (225 l., **11 przypadków**) — razem **55 asercji jednostkowych na jeden widget**, najwyższa gęstość testów per widget w module
+- **Pliki:** src/lib/maps/worldMapGeo.ts (510 l., czysta geometria: projectPoint, createCurvedPath, arcTiming, arcKeyframes, sparkKeyframes, resolveArcs, resolveMarkers, fitViewBox, coerceLat/coerceLng), src/lib/maps/countryCentroids.ts (194 l., WYGENEROWANE), src/lib/builder/worldMapContent.ts (201 l., treść widgetu → propsy), src/components/maps/WorldMap.tsx (450 l., prezentacja SVG), ui/organisms/widget-view/WorldMapWidget.tsx (83 l., adapter + zapytanie o profile), ui/organisms/widget-properties/WorldMapEditor.tsx (492 l., edytor listy połączeń + picker kraju + ProfilePicker), rejestr: registry.tsx:268-352, schemas.ts:870-907, types.ts:367, schema.ts:49, lazyWidgets.tsx:263-269, WidgetView.tsx:862, prefetch.ts:211-214 i :364-370, WidgetLibrary.tsx:158; assety: public/geo/world-dots.v1.svg (545 KiB, generowany przez scripts/generate-dotted-world.ts z public/geo/world-110m.v1.json); testy: lib/maps/__tests__/worldMapGeo.test.ts (**28 przypadków**), lib/builder/__tests__/worldMapContent.test.ts (168 l., **16 przypadków**), widget-view/__tests__/worldMapWidget.test.tsx (225 l., **11 przypadków**) — razem **55 asercji jednostkowych na jeden widget**, najwyższa gęstość testów per widget w module
 - **Co robi:** 94. typ widgetu: mapa świata z animowanymi łukami połączeń („centrala → świat"). Warstwy są ostro rozdzielone — geometria (czysta, bez Reacta), adapter treści (czysty, bez DOM), prezentacja (SVG + CSS keyframes), edytor. Tryb „Eksperci" podpina końce łuków pod PUBLICZNE profile platformy przez to samo RPC co widgety prelegentów (`get_public_speakers` → `speakersByIdsQueryOptions`): etykieta i odsyłacz pochodzą z żywego profilu (`/author/<slug>`), nie z ręcznej kopii. Kadr `auto/europe/world`, kolory z tokenów motywu, animacja z pętlą lub jednorazowa.
 - **Relacje:** Moduł 10 (Sieć/eksperci) — `speakersByIdsQueryOptions` / `get_public_speakers`, wspólny z widgetem `speakers`; Moduł 20 (Platforma/SSR) — prefetch zarejestrowany w OBU ścieżkach (`widgetQueryOptionsList` dla SSR i `widgetCacheTargets` dla edge cache), więc serwer renderuje komplet etykiet; Moduł 4 (Motyw/media) — kolory z `--foreground`/`--brand`/`--card`, maska generowana przy budowie; Moduł 19 (Ustawienia/RODO) — jawna decyzja, że współrzędne są redakcyjne, bo `profiles_public` celowo nie niesie kolumny `location` (WorldMapWidget.tsx:10-15).
 - **✅ Mocne:** Kompletność podpięcia bez ani jednego skrótu: typ w unii I w `WIDGET_TYPES`, wpis w rejestrze, schemat skalarny, edytor niestandardowy zgłoszony do `CUSTOM_EDITOR_HANDLED_KEYS` (kooperacja ze schematem, nie przesłonięcie go), własny chunk `React.lazy` z lustrem w `src/test/eagerWidgetChunks.tsx:52` i asercją w lazyWidgets.test.ts:36-37, prefetch w obu ścieżkach, kategoria w palecie, **zero zwolnień w bramce wierności**. Dostępność zaprojektowana, nie doklejona: SVG to `role="group"` (nie `img`, bo punkty bywają linkami — WorldMap.tsx:42-46, :215), a KOMPLET połączeń jest dostępny jako lista `.sr-only` (:439) — czytnik i wyszukiwarka dostają treść, nie grafikę; `usePrefersReducedMotion` (:139). Determinizm SSR jest testowany wprost („daje identyczny napis przy tych samych wejściach (SSR == klient)", worldMapGeo.test.ts:56, :183). Geometria nie podróżuje w bundlu JS (maska SVG liczona przy budowie, centroidy tylko w bundlu admina). Kolory przechodzą przez `safeWidgetColor` z testem odrzucającym wstrzyknięcia do atrybutu `style` (worldMapContent.test.ts:125-138), czas animacji jest clampowany (:139). i18n dwujęzyczny na trzech poziomach: defaults `*_pl/_en`, etykiety panelu w BUILDER_LABELS_EN (labelsEn.ts:70-83), fallback językowy etykiet punktów z testem (:82). Komentarze wyjaśniają odstępstwa od pierwowzoru jako decyzje inżynierskie (brak framer-motion, brak `next-themes`), nie jako improwizację.
@@ -1201,8 +1136,7 @@ Moduł to dwa komplementarne silniki kompozycji treści: block editor w stylu Gu
   3. Test montowany dla WorldMapEditor: dodanie/usunięcie/przeciągnięcie połączenia, wybór kraju wpisujący centroid do lat/lng, walidacja współrzędnych poza zakresem (wzorzec: chromeWidgetsInteraction.test.tsx).
 
 ### 3.24. Typografia widgetów i bloków sterowana tokenami motywu (nowe w delcie) — **7/10**
-
-- **Pliki:** src/styles.css:1574-1625 (`.cms-meta`, `.cms-toc-heading/-kicker/-item/-sub/-index`, `.cms-widget-title/-label/-kicker/-note`) + :7477-7520 (zasięg `[data-theme-typography]`), src/lib/theme/fontSizes.ts:185 (emisja `--fs-small` z Opcji motywu), zasięg wpięty w BuilderRenderer.tsx:221 i admin/blocks/BlockCanvas.tsx:585; konsumenci w module: widget-view/TocWidget.tsx, blocks/TocBlockView.tsx, blocks/PostUtilityViews.tsx, blocks/FoxizExtraViews.tsx, admin/blocks/LayoutScaffold.tsx; testy: src/lib/theme/**tests**/metaTocTypography.test.ts, themeTypographyScope.test.ts, fontSizesSync.test.tsx, typographyApply.test.ts
+- **Pliki:** src/styles.css:1574-1625 (`.cms-meta`, `.cms-toc-heading/-kicker/-item/-sub/-index`, `.cms-widget-title/-label/-kicker/-note`) + :7477-7520 (zasięg `[data-theme-typography]`), src/lib/theme/fontSizes.ts:185 (emisja `--fs-small` z Opcji motywu), zasięg wpięty w BuilderRenderer.tsx:221 i admin/blocks/BlockCanvas.tsx:585; konsumenci w module: widget-view/TocWidget.tsx, blocks/TocBlockView.tsx, blocks/PostUtilityViews.tsx, blocks/FoxizExtraViews.tsx, admin/blocks/LayoutScaffold.tsx; testy: src/lib/theme/__tests__/metaTocTypography.test.ts, themeTypographyScope.test.ts, fontSizesSync.test.tsx, typographyApply.test.ts
 - **Co robi:** Domyka pętlę „Admin → Opcje motywu → Rozmiary czcionek" po stronie silników treści: spis treści (widget buildera I blok), meta wpisu (czas czytania, odsłony, byline) i etykiety widgetów wpisu przestają mieć twarde `text-[13px]`/`text-sm`, a czytają `var(--fs-small)`/`var(--lh-small)` przez klasy `.cms-*`. Atrybut `data-theme-typography` na korzeniu renderera buildera i na kanwie bloków daje ten sam zasięg podglądowi w adminie i stronie publicznej — redaktor widzi w edytorze rozmiar, który zobaczy czytelnik. Klasy podwajają selektor (`.cms-toc-item.cms-toc-item`) po to, by wygrać specyficznością z utility Tailwinda.
 - **Relacje:** Moduł 4 (Motyw/media) — źródłem prawdy są `theme_options` → `src/lib/theme/fontSizes.ts`, moduł 3 jest tu wyłącznie konsumentem; Moduł 1 (Wpisy-czytelnik) — meta wpisu i ToC renderowane na stronie wpisu; Moduł 21 (Kluby) — ten sam zasięg ma alias `[data-club-typography]` (styles.css:7480).
 - **✅ Mocne:** Zmiana jest zasięgowa, nie punktowa: jeden atrybut na korzeniu obu silników zamiast przepisywania każdego widoku; podglądy w adminie (BlockCanvas, LayoutScaffold) dostały ten sam zasięg co strona, więc klasa defektu „w edytorze inaczej niż na stronie" jest zamknięta dla tej rodziny rozmiarów. Regresja jest przypięta testem, który nazywa defekt wprost (metaTocTypography.test.ts:1-3) i sprawdza OBIE strony kontraktu — obecność deklaracji w CSS i brak twardych literałów w widokach. LayoutScaffold oddał też `font-bold leading-[1.1]` do klas motywu (LayoutScaffold.tsx:185, :264, :313), więc waga i interlinia nagłówka też przestały być zaklepane.
@@ -1213,38 +1147,37 @@ Moduł to dwa komplementarne silniki kompozycji treści: block editor w stylu Gu
   3. Bramka lint/regex „żaden nowy widok w widget-view/ i components/blocks/ nie dodaje `text-[Npx]`" (na wzór istniejących bramek modułu) — bez tego migracja będzie odrastać.
 
 ### Podsumowanie modułu 3
-
 - **Średnia ocen funkcji:** 8,3 (198,5 / 24 = 8,27 — zweryfikowane na a9b9e14) · **Rozkład:** **11 funkcji 9–10** / **11 funkcji 7–8** / 2 funkcje 5–6 / 0 funkcji <5
 - **Wpływ delty na ocenę:** +1 funkcja 9/10 (3.23 Mapa świata), +1 funkcja 7/10 (3.24 typografia z tokenów), −0,5 na 3.22 (zmierzona martwa strefa bramki: „klucz czytany ≠ klucz działający"). Średnia nie drgnęła (8,32 → 8,27), bo delta dołożyła jedną funkcję powyżej i jedną poniżej średniej modułu.
 
 - **Relacje modułu (zbiorczo):**
 
-| Moduł                     | Mechanizm                                                                                                                                                                                                                                                                                                          | Kierunek zależności                                                 |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- |
-| 1 Wpisy-czytelnik         | ContentRenderer w routes/$.tsx; post-list/slider/dynamic-tags czytają posts; currentPostContext                                                                                                                                                                                                                    | M1 → M3 (konsumuje renderery), M3 → M1 (dane wpisów)                |
-| 2 Edytor/workflow         | PostContentEditor/BuilderPane hostują edytory; autosave/rewizje stron (BuilderVersionsPane) w M2; persistImages z usePostEditorForm; flip kolumny `editor`                                                                                                                                                         | M2 → M3                                                             |
-| 4 Motyw/media/WP-import   | gutenberg/elementor/convert w wp-import.functions; bucket `media` dla persistImages; site_design_tokens + customFonts; **`--fs-small`/`--lh-small` z theme_options → klasy `.cms-*` w widokach (3.24)**; **`buildAvatarSrc/SrcSet` z lib/cropSizes w widokach widgetów**; maska geo generowana przy budowie (3.23) | M4 → M3 (import, tokeny typografii, resize mediów), M3 → M4 (media) |
-| 5 Chrome/nawigacja        | Header/Footer/MobileDrawerBody renderują builder_templates przez BuilderRenderer; widgety menu/mega-menu/lang-switcher/theme-toggle; siteSettingsLiveSync                                                                                                                                                          | M5 → M3                                                             |
-| 6 Wyszukiwarka            | widgety search-button/search-form                                                                                                                                                                                                                                                                                  | M3 → M6                                                             |
-| 7 Treści specjalne        | widgety chart/data-map (src/components/charts), feature-* (src/components/features), web-stories-carousel, podcast-latest, tts                                                                                                                                                                                     | M3 → M7                                                             |
-| 10 Sieć/eksperci          | meeting-booking (RPC meeting_slots/meeting_bookings), speakers (speaker_profiles), author-profile-card, **world-map w trybie „Eksperci" (`get_public_speakers` → `speakersByIdsQueryOptions`, link do `/author/<slug>`)**                                                                                          | M3 → M10                                                            |
-| 11 Newsletter             | widget/blok newsletter renderuje realny NewsletterForm                                                                                                                                                                                                                                                             | M3 → M11                                                            |
-| 12 Realtime/powiadomienia | blok liveblog (subskrypcja per post), realtime poll_votes, siteSettingsLiveSync (postgres_changes staff-only), LIVE_INVALIDATED_ROOTS                                                                                                                                                                              | M3 ↔ M12                                                            |
-| 13/14 Monetyzacja         | widgety pricing, donations, purchase-confirmation (checkout.success), ad-slot; access gating NIE zastępuje entitlements                                                                                                                                                                                            | M3 → M13/M14                                                        |
-| 15 Profil/konto           | widgety account-link/menu, login/register/lost/reset (strukturalne), customize-interests, onboarding-form                                                                                                                                                                                                          | M3 → M15                                                            |
-| 16 Społeczność-admin      | blok poll (RPC vote_poll), events ecosystem (event-schedule/list/countdown/sponsors, tabele events, tenant-scoped RLS)                                                                                                                                                                                             | M3 → M16                                                            |
-| 17 Analityka/BI           | builder_experiment_events → admin.experiments (wyniki A/B)                                                                                                                                                                                                                                                         | M3 → M17                                                            |
-| 19 Ustawienia/authz/RODO  | site_settings (bulk query), role z useAuth w accessControl, RLS current_tenant_id() na builder_*                                                                                                                                                                                                                   | M3 → M19                                                            |
-| 20 Platforma/SSR          | sectionStreaming, prefetchCachedRouteQueries + edge cache, beacon /api/public/experiment-event, granica tenanta x-tenant-host                                                                                                                                                                                      | M3 ↔ M20                                                            |
-| 21 Kluby                  | widgety club-card/club-threads (clubsQuery)                                                                                                                                                                                                                                                                        | M3 → M21                                                            |
+| Moduł | Mechanizm | Kierunek zależności |
+|---|---|---|
+| 1 Wpisy-czytelnik | ContentRenderer w routes/$.tsx; post-list/slider/dynamic-tags czytają posts; currentPostContext | M1 → M3 (konsumuje renderery), M3 → M1 (dane wpisów) |
+| 2 Edytor/workflow | PostContentEditor/BuilderPane hostują edytory; autosave/rewizje stron (BuilderVersionsPane) w M2; persistImages z usePostEditorForm; flip kolumny `editor` | M2 → M3 |
+| 4 Motyw/media/WP-import | gutenberg/elementor/convert w wp-import.functions; bucket `media` dla persistImages; site_design_tokens + customFonts; **`--fs-small`/`--lh-small` z theme_options → klasy `.cms-*` w widokach (3.24)**; **`buildAvatarSrc/SrcSet` z lib/cropSizes w widokach widgetów**; maska geo generowana przy budowie (3.23) | M4 → M3 (import, tokeny typografii, resize mediów), M3 → M4 (media) |
+| 5 Chrome/nawigacja | Header/Footer/MobileDrawerBody renderują builder_templates przez BuilderRenderer; widgety menu/mega-menu/lang-switcher/theme-toggle; siteSettingsLiveSync | M5 → M3 |
+| 6 Wyszukiwarka | widgety search-button/search-form | M3 → M6 |
+| 7 Treści specjalne | widgety chart/data-map (src/components/charts), feature-* (src/components/features), web-stories-carousel, podcast-latest, tts | M3 → M7 |
+| 10 Sieć/eksperci | meeting-booking (RPC meeting_slots/meeting_bookings), speakers (speaker_profiles), author-profile-card, **world-map w trybie „Eksperci" (`get_public_speakers` → `speakersByIdsQueryOptions`, link do `/author/<slug>`)** | M3 → M10 |
+| 11 Newsletter | widget/blok newsletter renderuje realny NewsletterForm | M3 → M11 |
+| 12 Realtime/powiadomienia | blok liveblog (subskrypcja per post), realtime poll_votes, siteSettingsLiveSync (postgres_changes staff-only), LIVE_INVALIDATED_ROOTS | M3 ↔ M12 |
+| 13/14 Monetyzacja | widgety pricing, donations, purchase-confirmation (checkout.success), ad-slot; access gating NIE zastępuje entitlements | M3 → M13/M14 |
+| 15 Profil/konto | widgety account-link/menu, login/register/lost/reset (strukturalne), customize-interests, onboarding-form | M3 → M15 |
+| 16 Społeczność-admin | blok poll (RPC vote_poll), events ecosystem (event-schedule/list/countdown/sponsors, tabele events, tenant-scoped RLS) | M3 → M16 |
+| 17 Analityka/BI | builder_experiment_events → admin.experiments (wyniki A/B) | M3 → M17 |
+| 19 Ustawienia/authz/RODO | site_settings (bulk query), role z useAuth w accessControl, RLS current_tenant_id() na builder_* | M3 → M19 |
+| 20 Platforma/SSR | sectionStreaming, prefetchCachedRouteQueries + edge cache, beacon /api/public/experiment-event, granica tenanta x-tenant-host | M3 ↔ M20 |
+| 21 Kluby | widgety club-card/club-threads (clubsQuery) | M3 → M21 |
 
-- **5 najpilniejszych rekomendacji** _(po odświeżeniu na a9b9e14)_:
+- **5 najpilniejszych rekomendacji** *(po odświeżeniu na a9b9e14)*:
   1. **(3.19)** Server-side stripping węzłów bramkowanych rolami z `builder_data` w loaderze publicznym — dziś kontrola dostępu widgetów jest wyłącznie kliencka, a "ukryta" treść jedzie w JSON-ie do każdej przeglądarki; plus test jednostkowy `evaluateAccess` i ostrzeżenie w panelu, że nie zastępuje entitlements Modułu 13. **Rekomendacja nr 1 drugi raz z rzędu: accessControl.ts nie został tknięty przez 699 commitów delty.**
   2. **(3.22 + 3.14)** Domknąć martwą strefę bramki wierności "klucz czytany ≠ klucz działający" (test na computed style dla kluczy wymiarowych/kolorystycznych) i przenieść wzorzec settingsFidelity na block editor — delta dostarczyła dowód, że ta klasa defektów realnie wychodzi na produkcję (panelowa szerokość obrazka bez efektu dla `ratio=auto`, logo rozlane w headerze).
   3. **(3.20)** Sidebar builder: wydzielić logikę z 606-liniowego monolitu, dodać testy round-trip post_sidebar_layouts, a docelowo zunifikować z silnikiem buildera (trzeci, niezależny model widgetów to dług architektoniczny) — bez zmian po delcie.
   4. **(3.17)** Opcjonalne SSR-owe bucketowanie cookie-based dla eksperymentów above-the-fold i rejestracja exposure po ustabilizowaniu swapu — eliminuje flash wariantu A u kubełka B i systematyczne skrzywienie metryk ekspozycji; bez zmian po delcie.
   5. **(3.24 + 3.13)** Dokończyć migrację typografii na tokeny motywu (zostaje 62 twarde `text-[Npx]` w `widget-view/` i 13 w `components/blocks/`) i domknąć heurystykę `labelsEn.test` na etykiety bez diakrytyków (`Europa` przecieka do panelu EN) — obie luki to bezpośredni dług wprowadzony/powtórzony przez deltę, najtańszy do zamknięcia.
-- _Wypadły z top-5, ale pozostają otwarte i niezmienione:_ koszt historii edytora na dużych dokumentach (3.11/3.12 — `JSON.stringify` isEqual + deep-clone przy każdej mutacji), warnings importu Elementora bez UI (3.7), wzorce użytkownika w DB (3.10), lost update przy restore rewizji (3.16), brak priorytetów popupów (3.18).
+- *Wypadły z top-5, ale pozostają otwarte i niezmienione:* koszt historii edytora na dużych dokumentach (3.11/3.12 — `JSON.stringify` isEqual + deep-clone przy każdej mutacji), warnings importu Elementora bez UI (3.7), wzorce użytkownika w DB (3.10), lost update przy restore rewizji (3.16), brak priorytetów popupów (3.18).
 
 **Odświeżenie delty 1788ffb→a9b9e14:** delta objęła w tym module **34 pliki** (11 w `src/lib/builder`, +2355/−115 linii) plus 4 nowe pliki w `src/lib/maps` i `src/components/maps`; block editor jest praktycznie nietknięty (3 pliki w `src/components/blocks`, 5 linii; 2 pliki w `src/components/admin/blocks`, 9 linii) — cały ruch jest w page builderze.
 
@@ -1262,7 +1195,6 @@ Moduł to dwa komplementarne silniki kompozycji treści: block editor w stylu Gu
 Moduł to warstwa wyglądu platformy (tryb ciemny, tokeny marki, Global Colors, Theme Design, typografia, fonty, ikony), pełna biblioteka mediów w stylu iOS Files z serwerowym CRUD i dwie niezależne ścieżki importu z WordPressa (konektor WP.com + upload WXR). Stan ogólny jest solidnie produkcyjny: architektura „site_settings/site_design_tokens → wstrzykiwane `<style>` z CSS variables" jest spójna, utwardzona (`hardenStyleCss`), SSR-świadoma i dobrze otestowana w warstwie lib. Najważniejszy wniosek: utwardzenie bucketu `media` allowlistą MIME (migracja 20260725090400) zamknęło wektor SVG-XSS, ale **rozjechało się z trzema konsumentami** — upload własnych fontów (`font/*` nie jest na liście bucketu → funkcja martwa), biblioteka ikon (`accept="image/*"` zaprasza SVG, który storage odrzuca) i mirrory importu WP (deklarują `image/svg+xml`, którego bucket nie przyjmie).
 
 ### 4.1. Tryb jasny/ciemny (ThemeProvider + skrypt pre-hydratacyjny) — **8,5/10**
-
 - **Pliki:** src/components/ThemeProvider.tsx:1–97, src/routes/__root.tsx:399 (themeInitScript), 419, 503, src/components/atoms/ThemeToggle.tsx
 - **Co robi:** Kontekst motywu light/dark z zapisem do localStorage, śledzeniem `prefers-color-scheme` na żywo, synchronizacją między kartami (event `storage`) i inline skryptem w `<head>` eliminującym FOUC; klasa `.dark` + `color-scheme` na `<html>`.
 - **Relacje:** Moduł 20 (Platforma/SSR) — themeInitScript w __root.tsx musi być w synchronizacji z `readStored()` (komentarz w kodzie to wymusza); Moduł 9 (Czat) — lib/chat/themes czyta tryb; wszystkie moduły UI konsumują `.dark`.
@@ -1272,18 +1204,16 @@ Moduł to warstwa wyglądu platformy (tryb ciemny, tokeny marki, Global Colors, 
   1. Test parności: wyekstrahować logikę wyboru motywu do czystej funkcji współdzielonej przez ThemeProvider i generator themeInitScript (__root.tsx), z testem — dziś rozjazd wykryje dopiero użytkownik.
 
 ### 4.2. Tokeny marki + kolory globalne → CSS runtime (DesignTokensStyle) — **8,0/10**
-
 - **Pliki:** src/components/DesignTokensStyle.tsx:8–16, src/lib/builder/designTokens.ts:78–175, src/lib/builder/globalColors.ts:816–985, src/hooks/useGlobalColors.ts:16–54
 - **Co robi:** Jeden odczyt wiersza `site_design_tokens` (dedupe in-flight + `edgeTtlCache` 60 s per tenant-host) zasila dwa query (`--brand-*` + `--gc-*`); `globalColorsToCss` emituje zmienne per tryb, nadpisania tokenów shadcn (`--ring`, `--brand`) i „mostek widgetowy" w `@layer utilities` z selektorami `:where()` o zerowej specyficzności.
 - **Relacje:** Moduł 20 (Platforma/SSR) — root loader grzeje query na każdej trasie, degradacja do defaultów zamiast 500; Moduł 2 (Edytor) — canvas buildera czyta te same zmienne; Moduł 5 (Chrome) — reguły `header a/svg`, `[data-sidebar]`; wspólna tabela DB `site_design_tokens` (RLS per tenant).
 - **✅ Mocne:** Świadoma inżynieria kaskady — komentarze w globalColors.ts:888–896 i 920–925 dokumentują, czemu reguły są w `@layer utilities` (unlayered CSS bije Tailwinda niezależnie od specyficzności); `hardenStyleCss` na każdej interpolacji wartości z DB; odporność na awarię (fetch → null → defaulty, designTokens.ts:100–107).
 - **⚠️ Słabe:** ~120 reguł mostka generowanych zawsze, nawet gdy tenant nie ustawił żadnego slotu (stały narzut CSS w każdym SSR); `GLOBAL_COLOR_GROUPS` (717 linii definicji slotów) nie ma testu snapshotowego CSS — jedyne testy dotykające tego obszaru to cssColor.test.ts.
 - **🔧 Rekomendacje:**
-  1. Test snapshot `globalColorsToCss(EMPTY_GLOBAL_COLORS)` i wariantu z wartościami (src/lib/builder/**tests**/) — regresje kaskady wykrywane dziś ręcznie.
+  1. Test snapshot `globalColorsToCss(EMPTY_GLOBAL_COLORS)` i wariantu z wartościami (src/lib/builder/__tests__/) — regresje kaskady wykrywane dziś ręcznie.
   2. Emitować mostek widgetowy warunkowo (tylko sloty użyte) albo przenieść stałą część do styles.css, zostawiając w `<style>` wyłącznie wartości zmiennych.
 
 ### 4.3. Panel Global Colors (dwa równoległe edytory) — **6,5/10**
-
 - **Pliki:** src/components/admin/GlobalColorsEditor.tsx (1479 linii; undo/redo, kategorie, palety localStorage), src/routes/admin.appearance.global-colors.tsx:19–140 (drugi, prostszy edytor tych samych danych), src/components/admin/ThemeBackgroundsPane.tsx:1–304 (trzeci widok per grupa: tła/inputy/ikony/linki)
 - **Co robi:** Edycja slotów `GLOBAL_COLOR_GROUPS` (light/dark/hover/typografia) zapisywanych do `site_design_tokens.global_colors`. Pełny edytor żyje w Opcjach motywu; trasa /admin/appearance/global-colors ma własną, uboższą implementację.
 - **Relacje:** Moduł 19 (Ustawienia) — zapis przez `useSaveGlobalColors` (upsert `onConflict: tenant_id`); Moduł 5 (Chrome) — layout appearance z zakładkami header/footer/menu wskazuje na Moduł 5, zakładka global-colors należy tu.
@@ -1294,8 +1224,7 @@ Moduł to warstwa wyglądu platformy (tryb ciemny, tokeny marki, Global Colors, 
   2. Przenieść `label`/`description` slotów do słowników i18n (lib/i18n-admin-global-colors-editor.ts już istnieje) — dziś PL/EN wymieszane w stałych.
 
 ### 4.4. Opcje motywu (theme_options: logo, header, przyciski, pola) — **7,5/10**
-
-- **Pliki:** src/components/admin/ThemeOptionsPane.tsx:74–1894 (typ + panel), src/components/ThemeOptionsStyle.tsx:29–93, src/routes/admin.theme-options.tsx, src/components/admin/**tests**/ThemeOptionsPane.regression.test.tsx
+- **Pliki:** src/components/admin/ThemeOptionsPane.tsx:74–1894 (typ + panel), src/components/ThemeOptionsStyle.tsx:29–93, src/routes/admin.theme-options.tsx, src/components/admin/__tests__/ThemeOptionsPane.regression.test.tsx
 - **Co robi:** Panel Foxiz-style w `site_settings.theme_options`: 16 wariantów logo (light/dark × main/mobile/transparent/organization/sidebar/bookmark), layouty nagłówka, menu, wyszukiwarka, alert bar, socials, przyciski i pola tekstowe; `ThemeOptionsStyle` emituje `--to-btn-*` / `--to-input-*` na `:root`.
 - **Relacje:** Moduł 5 (Chrome/nawigacja) — sekcje header.* konfigurują nagłówek renderowany przez Moduł 5 (granica przebiega wewnątrz jednego klucza settings!); Moduł 19 (Ustawienia) — `useSettings` + SiteSettingsHistoryDialog (historia zmian z restore); Moduł 12 — brak; Moduł 6 (Wyszukiwarka) — sekcja header.search steruje trybem live search.
 - **✅ Mocne:** Jedyny pane z testem regresyjnym (ThemeOptionsPane.regression.test.tsx); podglądy na żywo (ButtonPreview/InputPreview czytają te same zmienne `--gc-*`, których użyje front); historia wersji ustawień z przywracaniem (ThemeOptionsPane.tsx:1349–1359); deep-linkowanie sekcji hashem (tsx:316–323).
@@ -1305,8 +1234,7 @@ Moduł to warstwa wyglądu platformy (tryb ciemny, tokeny marki, Global Colors, 
   2. Wydzielić sekcje header.* do modułu chrome (wspólna granica z Modułem 5), zostawiając tu logo/buttons/text_fields.
 
 ### 4.5. Theme Design (style kart wpisów, PL/EN split, live preview) — **8,5/10**
-
-- **Pliki:** src/lib/theme/themeDesign.ts:92–666, src/components/theme/ThemeDesignStyle.tsx:18–35, src/components/admin/theme-design/ThemeDesignPane.tsx:37–139, hooks/useThemeDesignDrafts.ts:81+, lib/**tests** (mutations, tabs, previewCopy), src/lib/theme/**tests**/themeDesign.test.ts
+- **Pliki:** src/lib/theme/themeDesign.ts:92–666, src/components/theme/ThemeDesignStyle.tsx:18–35, src/components/admin/theme-design/ThemeDesignPane.tsx:37–139, hooks/useThemeDesignDrafts.ts:81+, lib/__tests__ (mutations, tabs, previewCopy), src/lib/theme/__tests__/themeDesign.test.ts
 - **Co robi:** Zod-schema tokenów `--td-*` (nagłówki bloków, miniatury, read-more, meta, toolbar, mode-switcher, social icons, tytuły/zajawki kart, indeksy list) z dziedziczeniem z Global Colors (`THEME_DESIGN_COLOR_INHERITANCE`), trybem shared/split PL–EN, dark-overrides i live-preview przez podmianę cache react-query (`useLiveThemeDesignPreview`).
 - **Relacje:** Moduł 1 (Wpisy-czytelnik) — karty/listy wpisów konsumują `.cms-*` klasy; Moduł 2 (Edytor) — canvas Gutenberg/builder odbija draft na żywo (test postThemeDesignInheritance.test.tsx); Moduł 19 — `site_settings` klucze `theme_design`, `theme_design_en`, `theme_design_lang_mode`; query key `["site_settings", KEY]`.
 - **✅ Mocne:** Migracja legacy wartości „zaszytych" na tokeny dziedziczenia (LEGACY_INHERIT_VALUES + normalizeLegacyInheritedColors, themeDesign.ts:242–358) — rzadko spotykana dbałość o stare wiersze DB; naprawa nieprawidłowego `hsl(var(--x))` (normalizeColor, tsx:501–508); izolacja tenantów w hooku draftów (drop draftów przy zmianie tenanta, useThemeDesignDrafts.ts:8–13); testy lib + hook + atomy.
@@ -1316,8 +1244,7 @@ Moduł to warstwa wyglądu platformy (tryb ciemny, tokeny marki, Global Colors, 
   2. Toasty przez `t()` (i18n-admin-theme-design już jest ładowany w panelu).
 
 ### 4.6. Globalne rozmiary czcionek i rytm pionowy (font_sizes) — **8,0/10**
-
-- **Pliki:** src/lib/theme/fontSizes.ts:36–274, src/components/theme/ThemeFontSizesStyle.tsx:6–15, src/components/admin/ThemeFontSizesPane.tsx:1–605, src/lib/theme/**tests**/fontSizes.test.ts
+- **Pliki:** src/lib/theme/fontSizes.ts:36–274, src/components/theme/ThemeFontSizesStyle.tsx:6–15, src/components/admin/ThemeFontSizesPane.tsx:1–605, src/lib/theme/__tests__/fontSizes.test.ts
 - **Co robi:** Tokeny H1–H6 (desktop/mobile/lineHeight/letterSpacing/weight/transform), body/small/lead/blockquote/code + odstępy (`--sp-*`), media query na konfigurowalnym breakpoincie; reguły o podwojonej specyficzności synchronizują front (`.single-post-content`) z canvasem buildera (`[data-builder-renderer]`).
 - **Relacje:** Moduł 2 (Edytor) — identyczny rytm w canvasie Gutenberga (komentarze fontSizes.ts:212–216, 244–249); Moduł 1 — publiczny wpis; Moduł 19 — `site_settings.font_sizes` + invalidacja `site_settings_public`.
 - **✅ Mocne:** Walidacja Zod z clampami zapisu (useSaveFontSizes parsuje przed upsertem, fontSizes.ts:159–160); przemyślana strategia specyficzności (podwojone klasy wygrywają z ContentAreaStyle niezależnie od kolejności `<style>`); test jednostkowy CSS.
@@ -1327,8 +1254,7 @@ Moduł to warstwa wyglądu platformy (tryb ciemny, tokeny marki, Global Colors, 
   2. Podnieść minimalny `body.size` do 12–14 px lub dodać ostrzeżenie a11y w panelu.
 
 ### 4.7. Normalizacja typografii opublikowanych treści — **8,0/10**
-
-- **Pliki:** src/lib/theme/typographyApply.ts:30–133, src/lib/theme/typographyApply.functions.ts:24–81, src/lib/theme/**tests**/typographyApply.test.ts, konsument: src/components/admin/ThemeFontSizesPane.tsx
+- **Pliki:** src/lib/theme/typographyApply.ts:30–133, src/lib/theme/typographyApply.functions.ts:24–81, src/lib/theme/__tests__/typographyApply.test.ts, konsument: src/components/admin/ThemeFontSizesPane.tsx
 - **Co robi:** Czyste funkcje zdejmujące inline `font-size/line-height/font-family/letter-spacing` z HTML, blocks_data i builder_data (importy z WP/Worda), server fn `applyTypographyToPublished` z trybem dry-run i wymogiem roli admin.
 - **Relacje:** Moduł 2 (Edytor/workflow) — patchuje `posts.content_*`, `blocks_data`, `builder_data`; Moduł 3 (Silniki treści) — treść po normalizacji dziedziczy tokeny motywu; celowo bez service-role (RLS ogranicza do tenanta admina, functions.ts:38–39).
 - **✅ Mocne:** Rozdział czysta-logika/I-O umożliwia testy bez DB (5 testów); dry-run domyślnie; jawne sprawdzenie `has_role admin` ponad middleware auth (functions.ts:32–36).
@@ -1337,7 +1263,6 @@ Moduł to warstwa wyglądu platformy (tryb ciemny, tokeny marki, Global Colors, 
   1. Snapshot każdego patchowanego wpisu do `content_revisions` (wzorzec z wp-import.functions.ts:383–390) przed update — operacja stanie się odwracalna.
 
 ### 4.8. Styl Content Area (post_layout_settings → typografia treści) — **7,0/10**
-
 - **Pliki:** src/components/ContentAreaStyle.tsx:11–94, hook usePostLayoutSettings (Moduł 1), montaż __root.tsx:35
 - **Co robi:** Wstrzykuje style linków (kolor/underline per tryb), szerokość `.alignwide`, odstępy akapitów, styl list, wyrównanie nagłówka wpisu — na `.post-content`/`.single-post-content` oraz canvas buildera.
 - **Relacje:** Moduł 1 (Wpisy-czytelnik) — czyta `post_layout_settings` (klucz współdzielony z panelem Content Area Modułu 1/2); Moduł 2 — parity canvasu (`--cms-paragraph-spacing`, tsx:47–55).
@@ -1347,8 +1272,7 @@ Moduł to warstwa wyglądu platformy (tryb ciemny, tokeny marki, Global Colors, 
   1. Walidować wartości kolorów przez istniejący lib/builder/cssColor.ts przed interpolacją (dotyczy też ThemeOptionsStyle) — dziś zaufanie do dyscypliny panelu admina.
 
 ### 4.9. Własne fonty (upload @font-face) — **3,5/10**
-
-- **Pliki:** src/lib/theme/customFonts.ts:74–110 (uploadCustomFont), src/components/admin/CustomFontUploader.tsx:20–118, konsument: src/routes/admin.settings.design.tsx:114, render: designTokens.ts:174 (customFontsCss), test: src/lib/theme/**tests**/customFonts.test.ts
+- **Pliki:** src/lib/theme/customFonts.ts:74–110 (uploadCustomFont), src/components/admin/CustomFontUploader.tsx:20–118, konsument: src/routes/admin.settings.design.tsx:114, render: designTokens.ts:174 (customFontsCss), test: src/lib/theme/__tests__/customFonts.test.ts
 - **Co robi:** Upload .woff2/.woff/.ttf/.otf do bucketu `media` pod `<tenant>/fonts/*`, wpis w `site_design_tokens.fonts.custom[]`, render `@font-face` w DesignTokensStyle i ekspozycja w FontPicker.
 - **Relacje:** Moduł 19 (Ustawienia) — panel Design; Moduł 8 (SEO/feedy) — lib/seo/fontPreload.test.ts sugeruje preload fontów; wspólny bucket `media`.
 - **✅ Mocne:** Walidacja rozszerzenia i limitu 5 MB przed uploadem; slug-sanityzacja nazwy jako font-family; `font-display: swap`; test generowania CSS (4 testy).
@@ -1359,7 +1283,6 @@ Moduł to warstwa wyglądu platformy (tryb ciemny, tokeny marki, Global Colors, 
   3. Test integracyjny/e2e smoke uploadu fontu — regresja tej klasy (kolizja z migracją DB) jest niewykrywalna unit-testami czystego CSS.
 
 ### 4.10. Biblioteka ikon (icon_library: custom/flagi/brand) — **5,5/10**
-
 - **Pliki:** src/lib/iconLibrary.ts:33–210, src/routes/admin.icons.tsx:1–545 (accept="image/*" w liniach 281, 525), migracja 20260628141106 (RLS: publiczny SELECT, zarządzanie admin/editor)
 - **Co robi:** CRUD ikon per tenant z wariantami light/dark/default, hurtowy import grupujący pliki po sufiksach `-dark`/`-light`, `resolveIconUrl` dobiera wariant do trybu strony.
 - **Relacje:** Moduł 5 (Chrome) — ikony w menu/stopce; Moduł 3 (Silniki treści) — widgety; wspólna tabela `icon_library` (RLS tenant + rola), bucket `media`.
@@ -1371,7 +1294,6 @@ Moduł to warstwa wyglądu platformy (tryb ciemny, tokeny marki, Global Colors, 
   3. Jeśli SVG ma wrócić dla ikon: dedykowany bucket z sanityzacją SVG (DOMPurify po stronie serwera) i `Content-Disposition`, nie publiczny `media`.
 
 ### 4.11. System ikon runtime (iconPack, DynamicIcon, brandIconRegistry) — **7,5/10**
-
 - **Pliki:** src/lib/iconPack.ts:1–50, src/components/IconPackSync.tsx:8–24, src/lib/icons/DynamicIcon.tsx:1–308, src/lib/icons/DynamicIconFull.tsx, lucideIconNodes.generated.ts, src/lib/brandIconRegistry.ts:25–48, src/lib/lucide-shim{,.fa}.tsx
 - **Co robi:** Przełącznik pakietu ikon lucide/fontawesome (useSyncExternalStore + localStorage, synchronizowany z `site_settings.general.icon_pack`), SSR-safe resolver ikon po nazwie z dwupoziomowym ładowaniem (bazowy zestaw synchronicznie, reszta lazy chunk), rejestr aliasów ikon brandowych z bezpiecznym fallbackiem (Circle).
 - **Relacje:** Moduł 5 (Chrome) — SiteMenu/MegaPanelView renderują DynamicIcon; Moduł 19 — ustawienie `general.icon_pack`; Moduł 20 (SSR) — lazy() renderuje się synchronicznie na serwerze (DynamicIcon.tsx:12–13).
@@ -1381,7 +1303,6 @@ Moduł to warstwa wyglądu platformy (tryb ciemny, tokeny marki, Global Colors, 
   1. Zasilić initial state iconPack z warmowanego `site_settings` w SSR (dane już są w cache root loadera) zamiast czekać na useEffect w IconPackSync.
 
 ### 4.12. Biblioteka mediów — UI (menedżer w stylu iOS Files) — **8,5/10**
-
 - **Pliki:** src/components/admin/media/MediaManager.tsx:64–510, hooks/{useMediaData,useMediaSelection,useMediaMutations,useMediaDragDrop,useMediaKeyboardShortcuts,useMarqueeSelection}.ts, organisms/{MediaGridView,MediaListView,MediaInfoPanel,MediaPreviewDialog,MediaFolderTree}.tsx, molecules/, atoms/, MediaPickerDialog.tsx, trasa admin.media.tsx
 - **Co robi:** Pełny menedżer: foldery wirtualne, multi-select (klik/Cmd/Shift/marquee), context menu, skróty (Del, F2, Ctrl+A/C/X/V/Z), drag&drop plików OS i przenoszenie do folderów, rename, panel info z listą użyć, grid/list, undo/redo; MediaPickerDialog reużywany przez editory.
 - **Relacje:** Moduł 2 (Edytor) — MediaPickerDialog w CoverImagePicker/ImageSlot/LinkPicker; Moduł 11 (Newsletter) — builder kampanii używa pickera; Moduł 7 (Treści specjalne) — admin.podcasts; Moduł 19 — admin.login-settings; wspólna tabela `media`/`media_folders`.
@@ -1391,7 +1312,6 @@ Moduł to warstwa wyglądu platformy (tryb ciemny, tokeny marki, Global Colors, 
   1. Paginacja/infinite query w useMediaData + wyszukiwanie po całej bibliotece (`ilike` po filename/alt) — obecny model przestanie się skalować pierwszy.
 
 ### 4.13. Media — funkcje serwerowe (rejestracja, foldery, bulk, użycia) — **8,0/10**
-
 - **Pliki:** src/lib/media.functions.ts:72–134 (registerMediaUpload), 138–172 (deleteMedia), 200–307 (getMediaUsage), 440–760 (update/bulk/duplicate/foldery), migracje 20260531180217 (media), 20260707132745 (media_folders)
 - **Co robi:** Rejestracja uploadu z autorytatywnym tenantem z `profiles`, prefiksem ścieżki, allowlistą MIME, limitami per typ i rate-limitem 60/min; kasowanie z ownership-checkiem przez RLS zanim admin-klient usunie obiekt; skan użyć mediów w postach/stronach (service-role przypięty do tenanta, bo kolumny body są REVOKED); foldery wirtualne z escapowaniem LIKE (anty LIKE-injection, :410–417) i audytem każdej operacji.
 - **Relacje:** Moduł 2/3 — getMediaUsage skanuje `posts`/`pages` (cover/content/builder/blocks/layout); Moduł 19 (authz) — requireStaff + audit_log; Moduł 16 — audyt; wspólne tabele `media`, `media_folders`.
@@ -1402,8 +1322,7 @@ Moduł to warstwa wyglądu platformy (tryb ciemny, tokeny marki, Global Colors, 
   2. Zwracać z registerMediaUpload rozróżnialny kod błędu (mime/size/rate-limit) zamiast gołych `Error(message)` — klient tłumaczy dziś po treści.
 
 ### 4.14. Pipeline uploadu klienckiego (anty-SVG-XSS) + kadrowanie — **8,5/10**
-
-- **Pliki:** src/lib/media/upload.ts:43–215, src/lib/media/imageCrop.ts:30–102, testy: src/lib/media/**tests**/upload.test.ts (15 testów), migracja 20260725090400
+- **Pliki:** src/lib/media/upload.ts:43–215, src/lib/media/imageCrop.ts:30–102, testy: src/lib/media/__tests__/upload.test.ts (15 testów), migracja 20260725090400
 - **Co robi:** Jedyna ścieżka uploadu do bucketu `media`: walidacja MIME/rozmiaru PRZED wysyłką (lustro listy serwera), upload → rejestracja → obowiązkowe sprzątnięcie obiektu przy odrzuconej rejestracji; helpery kadrowania canvasem (rotacja + rescale) dla react-easy-crop.
 - **Relacje:** Moduł 2 (Edytor) — ImageSlot buildera; Moduł 15 (Profil) — awatary przez cropper; Moduł 19 — kontrakt z migracją bucketu; wszystkie uploady UI schodzą do tej funkcji.
 - **✅ Mocne:** Wybitna dokumentacja defektu, który moduł zamyka (bifurkacja uploadu → stored XSS przez SVG, upload.ts:1–32) i obrona w głębi (klient + serwer + bucket allowlist); 15 testów w tym storageObjectPath z edge-case rozszerzeń (:113–121); poprawka `split(".").pop()` na nazwach bez kropki.
@@ -1412,8 +1331,7 @@ Moduł to warstwa wyglądu platformy (tryb ciemny, tokeny marki, Global Colors, 
   1. Test „lustrzanej listy": porównanie `UPLOADABLE_MIME` z `ALLOWED_MIME` serwera w jednym unit-teście (import obu) — rozjazd wykrywany w CI zamiast w produkcji.
 
 ### 4.15. Crop sizes + transformacje obrazów (Supabase render API) — **7,5/10**
-
-- **Pliki:** src/lib/cropSizes.ts:19–170, src/routes/admin.crop-sizes.tsx:26–241, media.functions.ts:326–387 (regenerateThumbnails), test: src/lib/**tests**/cropSizes.test.ts (8 testów), migracja 20260624182857 (custom_crop_sizes)
+- **Pliki:** src/lib/cropSizes.ts:19–170, src/routes/admin.crop-sizes.tsx:26–241, media.functions.ts:326–387 (regenerateThumbnails), test: src/lib/__tests__/cropSizes.test.ts (8 testów), migracja 20260624182857 (custom_crop_sizes)
 - **Co robi:** CRUD presetów kadrów per tenant + rodzina builderów URL: `buildTransformedImageUrl` (crop), `buildScaledImageUrl` (contain — z udokumentowaną pułapką width-only Supabase), `buildImageSrcSet` (breakpointy), `buildAvatarSrc(Set)` (DPR-aware) i pre-warm transformacji HEAD-fetchami.
 - **Relacje:** Moduł 1 (Wpisy) — OptimizedImage, enhanceImages; Moduł 5 (Chrome) — MegaMenu; Moduł 10 (Sieć/eksperci) — AuthorByline awatary; Moduł 20 — `$.tsx` (public renderer); wspólna tabela `custom_crop_sizes`.
 - **✅ Mocne:** Komentarze klasy produkcyjnej przy nieoczywistych zachowaniach API (bez `resize` width-only tnie zamiast skalować, cropSizes.ts:118–124; jakość 88 vs 75 z uzasadnieniem wizualnym, :57–61); testy URL builderów.
@@ -1422,8 +1340,7 @@ Moduł to warstwa wyglądu platformy (tryb ciemny, tokeny marki, Global Colors, 
   1. Walidacja `width/height ≈ ratio_w/ratio_h` przy zapisie + wskazanie konsumentów presetu w UI, inaczej sekcja pozostaje „konfiguracją donikąd".
 
 ### 4.16. Walidacja i kompresja obrazów OG (1200×630) — **8,0/10**
-
-- **Pliki:** src/lib/media/ogImage.ts:39–188, test: src/lib/media/**tests**/ogImage.test.ts
+- **Pliki:** src/lib/media/ogImage.ts:39–188, test: src/lib/media/__tests__/ogImage.test.ts
 - **Co robi:** Kontrakt karty społecznościowej: allowlista MIME scraperów, reguła proporcji 1% tolerancji, plan kompresji (PNG dla alfa, schodkowe jakości JPEG do 300 KB) i przeglądarkowa `prepareOgImageFile` zwracająca zoptymalizowany plik + listę problemów.
 - **Relacje:** Moduł 8 (SEO/feedy) — konsumowane przez upload obrazów OG (i18n-og-upload.ts); Moduł 2 — panel wpisu.
 - **✅ Mocne:** Rozdział czystej logiki (testowalnej bez DOM) od warstwy canvas; deterministyczny plan kompresji; kody błędów neutralne językowo (UI tłumaczy).
@@ -1432,7 +1349,6 @@ Moduł to warstwa wyglądu platformy (tryb ciemny, tokeny marki, Global Colors, 
   1. Realna próbka alfa z canvasa (getImageData na downsamplu) zamiast heurystyki po MIME — mniejsze pliki OG dla większości PNG.
 
 ### 4.17. Import wpisów z WP.com — system jobów (background + progress) — **7,0/10**
-
 - **Pliki:** src/lib/wordpress-import.functions.ts:41–72 (redirecty), 78–85 (MIME), 302–345 (mirror), 468–924 (server fns), src/routes/admin.import-wordpress.tsx:27–624, migracja 20260602214417 (wp_import_jobs)
 - **Co robi:** Import wpisów (postów) przez konektor: `createWpImportJob` (wiersz jobu + rate-limit 10/min) → `runWpImportJob` (streaming logu do DB, kooperatywny cancel per iteracja, sync-existing, mirror mediów z rewrite URL-i, lossless Gutenberg) → `getWpImportJob` (polling) + przechwytywanie redirectów 301 ze starych permalinków.
 - **Relacje:** Moduł 3 (Silniki treści) — parseGutenberg + blocksToBuilder; Moduł 8 (SEO) — upsert do `redirects` (source="wp_import"); Moduł 2 — zapis postów; Moduł 19 — audit + rate-limit; wspólna tabela `wp_import_jobs`.
@@ -1444,8 +1360,7 @@ Moduł to warstwa wyglądu platformy (tryb ciemny, tokeny marki, Global Colors, 
   3. Przenieść teksty trasy importu na słowniki i18n (wzorzec lib/i18n-*).
 
 ### 4.18. Import stron WP: konektor + WXR (pary PL/EN, mirror mediów) — **8,0/10**
-
-- **Pliki:** src/lib/wp-import.functions.ts:132–688, src/lib/wp-import/wxr.ts:94–236, src/lib/wp-import/buildPage.ts:76–139, src/lib/server/wp-media.server.ts:126–230, src/components/admin/{WordPressImportDialog,WxrUploadPanel,WordPressPreviewDialog}.tsx, test: src/lib/wp-import/**tests**/buildPage.test.ts (8 testów), montaż: admin.pages.tsx
+- **Pliki:** src/lib/wp-import.functions.ts:132–688, src/lib/wp-import/wxr.ts:94–236, src/lib/wp-import/buildPage.ts:76–139, src/lib/server/wp-media.server.ts:126–230, src/components/admin/{WordPressImportDialog,WxrUploadPanel,WordPressPreviewDialog}.tsx, test: src/lib/wp-import/__tests__/buildPage.test.ts (8 testów), montaż: admin.pages.tsx
 - **Co robi:** Dwie ścieżki importu STRON zbiegające do wspólnego `buildPageFromHtmlPair`: konektor WP.com (lista/preview/import z parowaniem PL/EN i nadpisywaniem targetu) oraz kliencki parser WXR (DOMParser; strony + attachmenty + meta WPML/Polylang + fallback z JSON-a Elementora), z auto-snapshotem do `content_revisions` przed nadpisaniem i twardą ochroną sluga „main".
 - **Relacje:** Moduł 2 (Edytor) — zapis `pages.builder_data`/`content_*` + content_revisions; Moduł 3 — convertHtmlToBuilder; Moduł 20 — server fns z requireStaff; wspólne tabele `pages`, `media`.
 - **✅ Mocne:** Modelowa naprawa cichej utraty treści EN z jawnym kontraktem `enBody: none|persisted|empty` raportowanym w wynikach (buildPage.ts:1–37, 122–123) i testami; snapshot przed każdym nadpisaniem (wp-import.functions.ts:383–390, 595–602); rollback storage przy nieudanym insercie wiersza media (wp-media.server.ts:211–215); SSRF-guard w mirrorze.
@@ -1455,7 +1370,6 @@ Moduł to warstwa wyglądu platformy (tryb ciemny, tokeny marki, Global Colors, 
   2. Zjednoczyć logikę importu stron z systemem jobów z 4.17 (progress/cancel) — dziś import 100 stron to jeden długi request bez odzysku.
 
 ### 4.19. Logo marki dla powierzchni marketingowych (useBrandLogoUrl) — **7,5/10**
-
 - **Pliki:** src/lib/brand/useBrandLogoUrl.ts:41–91
 - **Co robi:** Jedno źródło prawdy wyboru logotypu (popup rejestracji, baner cookie, podglądy admina) z deterministyczną kolejnością kandydatów: ustawienia logowania → warianty theme_options.logo, per powierzchnia (dark/light) i kształt (horizontal/any); `useBrandMarkUrl` dla małych kwadratowych powierzchni.
 - **Relacje:** Moduł 19 (Ustawienia/authz) — useAuthSettings (form_logo_url_*); Moduł 13/14 (Monetyzacja) — popup signup; Moduł 19 (RODO) — CookieBannerBrandingSection; czyta `site_settings.theme_options` (klucz z 4.4).
@@ -1465,7 +1379,6 @@ Moduł to warstwa wyglądu platformy (tryb ciemny, tokeny marki, Global Colors, 
   1. Wyekstrahować `pickLogo(cfg, surface, shape)` jako czystą funkcję + test tabelaryczny; współdzielić typ logo z ThemeOptionsPane.
 
 ### 4.20. Badge preferowanego źródła Google (konfiguracja logo/urządzeń) — **7,0/10**
-
 - **Pliki:** src/routes/admin.settings.google-source.tsx:22–165, src/components/admin/google-source/GoogleSourceBadgeDeviceSection.tsx:1–96, lib/seo/googleSourceBadge (definicje)
 - **Co robi:** Panel ustawień badge'a „preferowane źródło Google": włącznik, adresy PL/EN, logo light/dark (przez CoverImagePicker → biblioteka mediów), rozmiar sygnetu, zachowanie per desktop/mobile, podgląd w obu trybach; zapis do `site_settings.google_source_badge`.
 - **Relacje:** Moduł 8 (SEO/feedy) — publiczny GooglePreferredSourceBadge i lib/seo/googleSourceBadge należą do SEO, tu jest wyłącznie panel konfiguracyjny + media; Moduł 17 (Analityka) — event `google_preferred_source_click` w raportach CTA.
@@ -1475,26 +1388,25 @@ Moduł to warstwa wyglądu platformy (tryb ciemny, tokeny marki, Global Colors, 
   1. Przenieść etykiety na słowniki i18n — jedyny panel w tym obszarze bez tłumaczeń EN.
 
 ### Podsumowanie modułu 4
-
 - **Średnia ocen funkcji:** 7,4 · **Rozkład:** 0× 9–10 / 17× 7–8 / 2× 5–6 / 1× <5
 
 - **Relacje modułu (zbiorczo):**
 
-| Moduł                    | Mechanizm                                                                                                                                                                                | Kierunek zależności                            |
-| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| 1 Wpisy-czytelnik        | zmienne `--td-*`/`--fs-*`/`.post-content`; OptimizedImage/enhanceImages ← cropSizes; post_layout_settings                                                                                | M4 → M1 (M1 konsumuje)                         |
-| 2 Edytor/workflow        | MediaPickerDialog/ImageSlot; parity canvasu (`[data-builder-renderer]`); WP-import pisze pages/posts + content_revisions; typographyApply patchuje posts                                 | dwukierunkowa                                  |
-| 3 Silniki treści         | convertHtmlToBuilder, parseGutenberg, blocksToBuilder w imporcie WP                                                                                                                      | M4 → M3 (import używa)                         |
-| 5 Chrome/nawigacja       | sekcje header.* w theme_options; `--gc-header-*`/`[data-sidebar]` CSS; DynamicIcon w SiteMenu; trasy admin.appearance.header/footer/menu                                                 | M4 dostarcza konfigurację/tokeny, M5 renderuje |
-| 6 Wyszukiwarka           | theme_options.header.search (tryb, live limit)                                                                                                                                           | M4 → M6                                        |
-| 7 Treści specjalne       | admin.podcasts używa MediaPicker; audio MIME w allowliście uploadu                                                                                                                       | M7 → M4                                        |
-| 8 SEO/feedy              | ogImage.ts dla kart OG; redirects z WP-importu; googleSourceBadge; fontPreload                                                                                                           | dwukierunkowa                                  |
-| 11 Newsletter            | builder kampanii używa MediaPickerDialog                                                                                                                                                 | M11 → M4                                       |
-| 13/14 Monetyzacja        | useBrandLogoUrl w popupie signup                                                                                                                                                         | M13/14 → M4                                    |
-| 15 Profil/konto          | awatary przez imageCrop + buildAvatarSrc                                                                                                                                                 | M15 → M4                                       |
-| 17 Analityka/BI          | event google_preferred_source_click                                                                                                                                                      | M4 → M17                                       |
-| 19 Ustawienia/authz/RODO | site_settings (theme_options, font_sizes, theme_design*, carousel_defaults, google_source_badge, general.icon_pack); requireStaff, audit_log, rate-limit; RLS tenantowe wszystkich tabel | M4 → M19 (infrastruktura)                      |
-| 20 Platforma/SSR         | montaż wszystkich `<style>`-injectorów w __root.tsx; edgeTtlCache; themeInitScript; server functions                                                                                     | dwukierunkowa                                  |
+| Moduł | Mechanizm | Kierunek zależności |
+|---|---|---|
+| 1 Wpisy-czytelnik | zmienne `--td-*`/`--fs-*`/`.post-content`; OptimizedImage/enhanceImages ← cropSizes; post_layout_settings | M4 → M1 (M1 konsumuje) |
+| 2 Edytor/workflow | MediaPickerDialog/ImageSlot; parity canvasu (`[data-builder-renderer]`); WP-import pisze pages/posts + content_revisions; typographyApply patchuje posts | dwukierunkowa |
+| 3 Silniki treści | convertHtmlToBuilder, parseGutenberg, blocksToBuilder w imporcie WP | M4 → M3 (import używa) |
+| 5 Chrome/nawigacja | sekcje header.* w theme_options; `--gc-header-*`/`[data-sidebar]` CSS; DynamicIcon w SiteMenu; trasy admin.appearance.header/footer/menu | M4 dostarcza konfigurację/tokeny, M5 renderuje |
+| 6 Wyszukiwarka | theme_options.header.search (tryb, live limit) | M4 → M6 |
+| 7 Treści specjalne | admin.podcasts używa MediaPicker; audio MIME w allowliście uploadu | M7 → M4 |
+| 8 SEO/feedy | ogImage.ts dla kart OG; redirects z WP-importu; googleSourceBadge; fontPreload | dwukierunkowa |
+| 11 Newsletter | builder kampanii używa MediaPickerDialog | M11 → M4 |
+| 13/14 Monetyzacja | useBrandLogoUrl w popupie signup | M13/14 → M4 |
+| 15 Profil/konto | awatary przez imageCrop + buildAvatarSrc | M15 → M4 |
+| 17 Analityka/BI | event google_preferred_source_click | M4 → M17 |
+| 19 Ustawienia/authz/RODO | site_settings (theme_options, font_sizes, theme_design*, carousel_defaults, google_source_badge, general.icon_pack); requireStaff, audit_log, rate-limit; RLS tenantowe wszystkich tabel | M4 → M19 (infrastruktura) |
+| 20 Platforma/SSR | montaż wszystkich `<style>`-injectorów w __root.tsx; edgeTtlCache; themeInitScript; server functions | dwukierunkowa |
 
 - **5 najpilniejszych rekomendacji:**
   1. **(4.9) Naprawić martwy upload własnych fontów** — bucket `media` po migracji 20260725090400 nie przyjmuje `font/*`; dodać MIME fontów do allowlisty bucketu i list lustrzanych (albo dedykowany bucket `fonts`) oraz przepuścić upload przez `uploadAndRegisterMedia`.
@@ -1512,7 +1424,6 @@ Moduł to warstwa wyglądu platformy (tryb ciemny, tokeny marki, Global Colors, 
 Moduł to cała publiczna powłoka serwisu: header z tickerem i alert-barem, nawigacja (menu DB + mega-menu buildera + drawer + pasek dolny), stopka, strona główna w dwóch trybach oraz archiwa kategorii/tagów z 6 konfigurowalnymi layoutami. Stan ogólny wysoki produkcyjnie — wyróżnia się inżynieria SSR/CLS (warm-up chrome w loaderze roota, degradacja bez zatruwania edge-cache, anti-CLS skrypt alert-bara) oraz dwujęzyczność. Najważniejszy wniosek: rdzeń (home, header, pasek dolny) jest klasy 8–9, ale ogon ma realne defekty — zapis kolorów kategorii kasuje opisy (utrata danych), archiwa taksonomii ucinają się cicho powyżej ~1000 wpisów w pivocie, a zapis menu jest nieatomowy (delete-all + insert).
 
 ### 5.1. SiteChrome — globalna powłoka layoutu — **8/10**
-
 - **Pliki:** src/components/SiteChrome.tsx:1-115
 - **Co robi:** Owija każdą trasę w Header/Footer/MobileBottomBar/RouteProgress z wyjątkami (/admin, /login, `staticData.ownChrome`); czyta `kind` (post/page) z loaderData dopasowanej trasy i przekazuje do headera (tryb reading vs sticky) oraz do typu strony reklamowej; utrzymuje stabilny slot ChatDock (view-transition) i rezerwę `data-site-shell` pod pasek dolny.
 - **Relacje:** Moduł 9 (Czat) — lazy import ChatDock; Moduł 16 (Społeczność-admin) — `useCommunityModules` (site_settings.community_modules.chat_enabled); Moduł 13 (Monetyzacja-core) — `adPageTypeForLocation`; Moduł 19 (Ustawienia/authz) — ImpersonationBanner; Moduł 20 (Platforma/SSR) — view transitions, kontrakt e2e ssr-completeness (`<main id="main-content">`).
@@ -1522,7 +1433,6 @@ Moduł to cała publiczna powłoka serwisu: header z tickerem i alert-barem, naw
   1. Wydzielić `isHomePath(pathname)` do lib/i18n/localePath i użyć w SiteChrome.tsx:89 i Header.tsx:292 — jedna definicja przy dodaniu kolejnego języka.
 
 ### 5.2. Header — pasek buildera + silnik sticky-shrink — **8/10**
-
 - **Pliki:** src/components/Header.tsx:1-531, src/lib/layout/headerMode.ts:1-59, src/components/header/HeaderSkeleton.tsx
 - **Co robi:** Renderuje header jako dokument buildera (desktop) + kompaktowy pasek mobilny (lupa/motyw/logo/język/hamburger); tryb `sticky-shrink` (histereza scrolla, pomiar `--hdr-nat/--hdr-tt/--hdr-extra`, transform→zoom po animacji, publikacja `--sticky-header-h` dla kotwic) vs `reading` na wpisach (headerMode).
 - **Relacje:** Moduł 3 (Silniki treści) — BuilderRenderer dla `site_settings.header.builder_data`; Moduł 4 (Motyw) — logo z `theme_options.logo`, ThemeProvider (toggle dark); Moduł 6 (Wyszukiwarka) — SearchOverlay + eventy `neus:open-mobile-search/menu`; Moduł 13 — AdZone `header_banner`; Moduł 1 (Wpisy-czytelnik) — oddaje krawędź ReadingHeaderowi wpisu; Moduł 19 — `site_settings` bulk query.
@@ -1533,18 +1443,16 @@ Moduł to cała publiczna powłoka serwisu: header z tickerem i alert-barem, naw
   2. Skala z-indeksów jako tokeny (styles.css) zamiast literałów 9998/9999/z-40.
 
 ### 5.3. AlertBar — pasek komunikatu nad headerem — **7/10**
-
 - **Pliki:** src/components/AlertBar.tsx:1-184
 - **Co robi:** Pasek ogłoszenia z `site_settings.theme_options.header.alert_bar` (PL/EN, 4 style, ikona, CTA, dismiss z fingerprintem treści w localStorage); inline `<script>` ukrywa pasek w trakcie parsowania HTML, zanim przeglądarka go namaluje (zero CLS dla osób, które zamknęły pasek).
 - **Relacje:** Moduł 4 (Motyw) — klucz `theme_options` w site_settings (edytowany w panelu motywu); Moduł 19 — site_settings.
 - **✅ Mocne:** Wzorzec anti-CLS z escapowaniem `<` w JSON (blokada wstrzyknięcia `</script>` przez treść komunikatu); fingerprint unieważnia dismiss po zmianie treści; fallback ikony i języka.
-- **⚠️ Słabe:** Brak jakichkolwiek testów (szukałem `AlertBar` w _.test._ — brak); kolory styli info/warning/success są zahardkodowane (bg-sky-600 itd.) poza tokenami motywu — w niestandardowej palecie tenanta mogą gryźć się z marką.
+- **⚠️ Słabe:** Brak jakichkolwiek testów (szukałem `AlertBar` w *.test.* — brak); kolory styli info/warning/success są zahardkodowane (bg-sky-600 itd.) poza tokenami motywu — w niestandardowej palecie tenanta mogą gryźć się z marką.
 - **🔧 Rekomendacje:**
   1. Test jednostkowy dismiss-fingerprint + escapowania skryptu (to jedyny ręcznie sklejany inline-script w chrome).
   2. Przenieść palety styli na tokeny semantyczne lub umożliwić nadpisanie kolorów w konfiguracji.
 
 ### 5.4. TrendingTicker — pasek „Na czasie" z wariantami — **8/10**
-
 - **Pliki:** src/components/header/TrendingTicker.tsx:1-403, src/lib/views/headerTickerQuery.ts, src/lib/views/tickerVariants.ts, src/lib/views/tickerDraftBridge (podgląd admina)
 - **Co robi:** Pasek wpisów w headerze: 5 źródeł (trending/latest/pinned/selected/mixed), 5 trybów animacji, 2 layouty (classic/badge), kolory per light/dark przez CSS vars, do 5 nazwanych presetów z aktywnym wariantem (normalizacja legacy-kształtu).
 - **Relacje:** Moduł 17 (Analityka/BI) — źródło „trending" z postViews.functions (`getTrendingPosts`); Moduł 1 — linki do wpisów; Moduł 20 — SSR prefetch w loaderze roota (headerTickerQueryOptions, wspólny cache klient/serwer).
@@ -1555,20 +1463,18 @@ Moduł to cała publiczna powłoka serwisu: header z tickerem i alert-barem, naw
   2. Przepisać TypewriterText na dwa refy zamiast mutowania obiektu timera.
 
 ### 5.5. System menu (DB) — menus/menu_items + SiteMenu + MenuManager — **7/10**
-
 - **Pliki:** src/lib/menus/{types,queries,menu.functions,megaFeatured}.ts, src/components/menu/{SiteMenu,MegaPanelView}.tsx, src/components/admin/menu/{MenuManager,AddItemPanel}.tsx, src/routes/admin.appearance.menu.tsx, supabase/migrations/20260716104723 (RLS menus_read_public/menu_items_read_public)
 - **Co robi:** Menedżer menu w stylu WordPress (drag&drop 3 poziomy, mega-panel per pozycja z kolumnami i featured wpisem, zapis atomowy z klientowym `local_id`→UUID) + publiczny renderer SiteMenu (dropdown/mega/mobile accordion) i wspólny widok MegaPanelView (podgląd admina == front).
 - **Relacje:** Moduł 3 — SiteMenu jako widget buildera (WidgetView); Moduł 1 — featured wpis z `posts` (megaFeatured) + profil autora z `profiles_public`; Moduł 19 — RLS per tenant, `has_role` hard-guard w saveMenu; Moduł 20 — warm-up menu `main`/`footer` w loaderze roota (edgeTtlCache 60 s), TTFB-równoległość.
 - **✅ Mocne:** Zod na wejściu zapisu (max 500 pozycji, walidacja mega_config); jedno okrążenie DB dla menu+pozycji (inner join po `menus.key`); luźny parser `parseMegaConfig` — uszkodzony rekord nie wywala SSR; skeleton zamiast fałszywego „Menu jest puste" podczas ładowania.
-- **⚠️ Słabe:** `saveMenu` (menu.functions.ts:131-181) robi **delete-all + insert BFS bez transakcji** — błąd inserta po udanym delete zostawia tenant z PUSTYM menu na produkcji (komentarz w pliku przyznaje ograniczenie PostgREST); zagnieżdżone submenu w SiteMenu (SubmenuItem:239) otwiera się wyłącznie na mouseenter — poziom 3 jest niedostępny z klawiatury mimo `aria-haspopup`; brak testów SiteMenu/MenuManager (szukałem _.test._ w components/menu i admin/menu — brak).
+- **⚠️ Słabe:** `saveMenu` (menu.functions.ts:131-181) robi **delete-all + insert BFS bez transakcji** — błąd inserta po udanym delete zostawia tenant z PUSTYM menu na produkcji (komentarz w pliku przyznaje ograniczenie PostgREST); zagnieżdżone submenu w SiteMenu (SubmenuItem:239) otwiera się wyłącznie na mouseenter — poziom 3 jest niedostępny z klawiatury mimo `aria-haspopup`; brak testów SiteMenu/MenuManager (szukałem *.test.* w components/menu i admin/menu — brak).
 - **🔧 Rekomendacje:**
   1. RPC `save_menu(jsonb)` w Postgresie (jedna transakcja: delete+insert) i wywołanie go z saveMenu — eliminacja okna utraty menu.
   2. Obsługa klawiatury dla SubmenuItem (otwarcie na focus/Enter, zamknięcie na Escape) — parytet z MegaMenu widgetem, który ma to rozwiązane.
   3. Testy jednostkowe buildTree/saveMenu (kolejność BFS, sieroty parent_id).
 
 ### 5.6. MegaMenu — widget buildera (kolumny linków/kategorii) — **8/10**
-
-- **Pliki:** src/components/megaMenu/{MegaMenu,MegaMenuShowcase}.tsx, src/lib/megaMenu/showcaseIcons.ts, src/lib/queries/megaMenu.ts, testy: megaMenu/**tests**/ (3 pliki) + MegaMenuShowcase.test.tsx
+- **Pliki:** src/components/megaMenu/{MegaMenu,MegaMenuShowcase}.tsx, src/lib/megaMenu/showcaseIcons.ts, src/lib/queries/megaMenu.ts, testy: megaMenu/__tests__/ (3 pliki) + MegaMenuShowcase.test.tsx
 - **Co robi:** Dropdown/accordion konfigurowany w builderze: kolumny „links" i „category" (świeże wpisy kategorii z miniaturami, parytet z Foxiz), karta featured z focal point/aspect ratio, dwa layouty desktop (classic/showcase), trigger hover lub click.
 - **Relacje:** Moduł 3 — osadzenie jako widget buildera (WidgetView); Moduł 1 — wpisy kategorii (megaMenuCategoryQueryOptions); Moduł 4 — `buildImageSrcSet`/cropSizes dla miniatur.
 - **✅ Mocne:** Najlepiej przetestowany element nawigacji (~25 asercji: parity kolumn desktop/mobile, normalizeFeatured z clampowaniem); świadoma decyzja a11y „disclosure-nav zamiast role=menu" z uzasadnieniem w komentarzu; keyboard-parity dla wariantu hover (focus/blur); srcset ogranicza pobieranie pełnych okładek.
@@ -1577,17 +1483,15 @@ Moduł to cała publiczna powłoka serwisu: header z tickerem i alert-barem, naw
   1. Docelowo zasilić widget MegaMenu danymi z systemu menus (item_type/ref_id już istnieją) albo jasno oznaczyć w edytorze buildera, które źródło jest „kanoniczne".
 
 ### 5.7. Mobilny drawer — konfigurowalna szuflada nagłówka — **8/10**
-
 - **Pliki:** src/lib/mobileDrawer.ts, src/lib/mobileDrawer.functions.ts, src/components/header/mobile/{MobileDrawerBody,MobileTopTools,MobileAccountSection,MobileNavSection}.tsx, src/routes/admin.super.mobile-drawer.tsx, migracja 20260703082028 (RLS + audyt)
 - **Co robi:** Szuflada mobilna składana z bloków (top_tools/account/nav/builder) w kolejności per tenant (`mobile_drawer_configs`); nav renderuje to samo menu `main` co desktop (SiteMenu mobile), fallback na ręczne NavItems; panel super-admina z dnd-kit do układania sekcji.
 - **Relacje:** Moduł 6 — event `neus:open-mobile-search` otwiera wspólny SearchOverlay; Moduł 15 (Profil/konto) — MobileAccountSection (useAuth, sign-out); Moduł 3 — sekcja builder renderuje dokument headera w trybie mobile; Moduł 19 — `is_super_admin` hard-guard + RLS tenant, trigger audytu zmian konfiguracji.
-- **✅ Mocne:** Zamknięta lista ikon (enum NAV_ICONS) zamiast dowolnych stringów do renderera; `parseDrawerConfig` odporny na uszkodzony rekord; testy lib/**tests**/mobileDrawer.test.ts (5); host-aware klient publiczny (`fetchWithTenantHost` — poprawna izolacja multi-tenant przy SSR).
+- **✅ Mocne:** Zamknięta lista ikon (enum NAV_ICONS) zamiast dowolnych stringów do renderera; `parseDrawerConfig` odporny na uszkodzony rekord; testy lib/__tests__/mobileDrawer.test.ts (5); host-aware klient publiczny (`fetchWithTenantHost` — poprawna izolacja multi-tenant przy SSR).
 - **⚠️ Słabe:** Ochrona trasy admina to client-side redirect (komentarz w admin.super.mobile-drawer.tsx:3) — treść panelu nie wycieka (RLS blokuje zapis), ale UX błędu zależy od klienta; brak testu komponentu MobileDrawerBody (kolejność sekcji).
 - **🔧 Rekomendacje:**
   1. Test renderu MobileDrawerBody dla niestandardowego `section_order` (to jedyny kod czytający kolejność).
 
 ### 5.8. Mobilny pasek dolny (animated tab bar) — **9/10**
-
 - **Pliki:** src/lib/mobileBottomBar/config.ts:1-331, src/components/mobile/MobileBottomBar.tsx, src/components/mobile/bottomBar/{MobileBottomBarView,BottomBarTab,LiveTabBadge,badges/*}.tsx, src/routes/admin.settings.mobile-bottom-bar.tsx, src/lib/i18n-mobile-bottom-bar.ts
 - **Co robi:** Pasek dolny dla zalogowanych na mobile: konfigurowalne pozycje (ikona/kolor light+dark/badge), garb SVG clip-path przesuwany transformem nad aktywną pozycją, chowanie przy scrollu, rezerwacja miejsca `--mbb-space` na `<html>`, liczniki nieprzeczytanych per moduł; pełny panel admina z podglądem na żywo.
 - **Relacje:** Moduł 9 — ChatUnreadBadge; Moduł 10 (Sieć) — NetworkPendingBadge; Moduł 12 (Realtime/powiadomienia) — NotificationsUnreadBadge; Moduł 21 (Kluby) — ClubUnreadBadge (`user_pending_counters.club_unread`); Moduł 19 — site_settings[mobile_bottom_bar] per tenant.
@@ -1597,7 +1501,6 @@ Moduł to cała publiczna powłoka serwisu: header z tickerem i alert-barem, naw
   1. Ujawnić w panelu admina informację, że pasek widzą tylko zalogowani (jedno zdanie w opisie ustawienia).
 
 ### 5.9. Footer — dokument buildera + chrome stopki — **8/10**
-
 - **Pliki:** src/components/Footer.tsx:1-121, src/components/footer/{BackToTop,CopyrightBar}.tsx, src/lib/theme/footerSettings.ts, src/routes/admin.appearance.footer.tsx
 - **Co robi:** Stopka jako dokument buildera z fallbackiem `defaultDocFor("footer")`, pasek copyright z szablonem `{year}` i linkami prawnymi (zawsze, „wymóg operatora płatności"), BackToTop z progiem, delegowane śledzenie kliknięć i zapisów newslettera.
 - **Relacje:** Moduł 8 (SEO/feedy) — rejestr FOOTER_LINKS (footerNavigation) współdzielony z JSON-LD SiteNavigation na home; Moduł 17 — trackFooterLink/trackFooterNewsletterSubmit; Moduł 11 (Newsletter) — heurystyka `[data-newsletter-form]`/input[type=email]; Moduł 3 — BuilderRenderer.
@@ -1608,7 +1511,6 @@ Moduł to cała publiczna powłoka serwisu: header z tickerem i alert-barem, naw
   2. Emitować `trackFooterNewsletterSubmit` na zdarzeniu potwierdzenia (moduł 11 ma stan sukcesu), nie na submit.
 
 ### 5.10. Strona główna „/" — tryb statyczny i „najnowsze wpisy" — **9/10**
-
 - **Pliki:** src/routes/index.tsx:1-438, src/lib/queries/public.ts:350-560 (homepageModeQueryOptions, homePageQueryOptions, blogArchiveQueryOptions, resolvePostsPerPage)
 - **Co robi:** Dwa tryby z `site_settings.reading.homepage_mode`: strona buildera (z przypisami [fn], prefetch widgetów przed dehydracją, dokładnie jeden H1) albo paginowana lista wpisów (?page=N, indeksowalne href-y, noindex,follow >1); loader defensywny — allSettled, seed fallbacków `updatedAt: 0` (samonaprawa), nagłówek edge-cache ustawiany NA KOŃCU i tylko przy czystym renderze.
 - **Relacje:** Moduł 3 — BuilderRenderer + prefetchCachedRouteQueries; Moduł 8 — JSON-LD Organization/WebSite/SiteNavigation (tylko na home, per wytyczne GEO/AEO), SEO overrides strony statycznej; Moduł 13 — useInFeedAds("home"), FooterSlideup; Moduł 20 — contentCacheControl/ISR, kontrakt hydratacji React 19 (streaming celowo wyłączony, komentarz o korupcji $_TSR); Moduł 1 — PaginatedPostGrid/PostListCard.
@@ -1618,7 +1520,6 @@ Moduł to cała publiczna powłoka serwisu: header z tickerem i alert-barem, naw
   1. Test integracyjny loadera: awaria homePageQueryOptions ⇒ nagłówek `private, no-store` (to najcenniejszy inwariant tej trasy).
 
 ### 5.11. Archiwa taksonomii — /category/$slug i /tag/$slug — **7/10**
-
 - **Pliki:** src/routes/category.$slug.tsx:1-162, src/routes/tag.$slug.tsx:1-133, src/components/archive/TaxonomyPage.tsx:1-135, src/lib/queries/archives.ts:75-253
 - **Co robi:** Wspólny widok archiwum (kategoria/tag): paginacja i sort w URL (?page,?sort — defaulty niejawne, kanoniczny URL czysty), sekcja featured z builder_templates, layout wg archive_layout_settings, head() z CollectionPage + BreadcrumbList JSON-LD i autodiscovery RSS kanału taksonomii.
 - **Relacje:** Moduł 1 — posts/post_categories/post_tags, PostListCard; Moduł 3 — featured_section (builder_templates); Moduł 7 (Treści specjalne) — PodcastEpisodeStrip pod archiwum kategorii; Moduł 8 — breadcrumbListJsonLd, RSS `category/$slug/rss.xml` (trasy feedów w module 8); Moduł 20 — edgeTtlCache 60 s per tenant-host.
@@ -1629,7 +1530,6 @@ Moduł to cała publiczna powłoka serwisu: header z tickerem i alert-barem, naw
   2. Dodać `setCacheControlHeader(contentCacheControl())` / NO_STORE w loaderze tag.$slug (parytet z category.$slug.tsx:53-57).
 
 ### 5.12. System 6 layoutów archiwum (registry + komponenty) — **7/10**
-
 - **Pliki:** src/components/archive/layouts/{registry,variants,ArchiveHeader,ArchiveBody,ArchiveToolbar,ArchivePosts,ArchiveSidebar,ArchivePagination,heroBackgrounds,types}.tsx
 - **Co robi:** Rejestr wariantów 1–6 (Minimal/Classic/Magazine/Hero/Dark/Bento) z podglądami SVG; wspólne klocki: header z hero/breadcrumbs/follow, toolbar sortowania z licznikiem wyników, siatka grid/list/masonry z reklamami in-feed, sidebar (popular/related/newsletter/ads), paginacja numeryczna z prawdziwymi `<a href>` dla crawlerów.
 - **Relacje:** Moduł 13 — AdZone sidebar + useInFeedAds + FooterSlideup; Moduł 11 — NewsletterForm w sidebarze; Moduł 10/12 — FollowButton (obserwowanie taksonomii); Moduł 1 — PostListCard.
@@ -1641,7 +1541,6 @@ Moduł to cała publiczna powłoka serwisu: header z tickerem i alert-barem, naw
   3. Respektować `columns` w wariancie masonry (mapa kolumn jak COL_CLASS).
 
 ### 5.13. Ustawienia layoutu archiwum + panel admina — **7/10**
-
 - **Pliki:** src/lib/archive-layout-settings.ts:1-111, src/components/admin/archiveLayout/{ArchiveLayoutAdmin,ArchiveLivePreview}.tsx, src/routes/admin.appearance.{category-archive,tag-archive}.tsx, migracje 20260716135520/20260716220420 (RLS: SELECT public, ALL staff)
 - **Co robi:** Per-tenant konfiguracja archiwów (wariant 1–6, kolumny, styl listy, hero, sidebar z kolejnością widgetów, posts_per_page) w tabeli `archive_layout_settings` (osobno category/tag); panel z żywym podglądem (ArchiveLivePreview renderuje te same komponenty co front) i zapisem upsert.
 - **Relacje:** Moduł 19 — RLS (odczyt publiczny, zapis staff), upsert `onConflict: tenant_id,archive_type`; Moduł 20 — edgeTtlCache 60 s w queryFn (SSR nie bije w bazę na każdym renderze).
@@ -1651,7 +1550,6 @@ Moduł to cała publiczna powłoka serwisu: header z tickerem i alert-barem, naw
   1. Schemat Zod współdzielony zapis/odczyt (jak footerSettings) + clamp posts_per_page (1–100) przed upsertem.
 
 ### 5.14. Hub autora/eksperta — /author/$slug — **8/10**
-
 - **Pliki:** src/routes/author.$slug.tsx:1-605 (+ komponenty expertów z modułu 10)
 - **Co robi:** Hub treściowy eksperta: hero z layoutem per tenant (`expert_layout_settings`) i nadpisaniami per ekspert (inline-editor z draftem na żywo), eksplorator materiałów z paginacją i filtrami w URL, sekcje CV/media/podcasty; SEO Person+BreadcrumbList JSON-LD, warunkowa indeksacja (isIndexableProfile), og:type profile, cache-buster og:image.
 - **Relacje:** Moduł 10 (Sieć/eksperci) — GŁÓWNY właściciel logiki (expertHubQueryOptions, Connect/DM/Introduction, NetworkDistance, RPC get_expert_hub — pgTAP expert_hub_test.sql, expert_materials_pagination_test.sql); Moduł 15 — badges, profile views; Moduł 7 — PodcastEpisodeStrip; Moduł 8 — meta/robots; Moduł 5 dostarcza tu tylko ramę archiwum (Breadcrumbs, ArchiveSkeleton, wzorzec paginacji URL).
@@ -1661,7 +1559,6 @@ Moduł to cała publiczna powłoka serwisu: header z tickerem i alert-barem, naw
   1. Zmienić nazwę flagi (`materialsFailed`) i wynieść budowę Person JSON-LD do src/lib/seo/ — czytelność i reużycie w /experts.
 
 ### 5.15. Breadcrumbs — komponent + hierarchia stron — **7/10**
-
 - **Pliki:** src/components/Breadcrumbs.tsx:1-59, src/lib/breadcrumbs.ts:1-43 (RPC `page_breadcrumbs`)
 - **Co robi:** Prezentacyjny breadcrumb „outline pill" (Home + trail, aria-current, truncate) i budowa trailu z hierarchii stron (RPC page_breadcrumbs sortowane po depth, opcjonalny wpis na końcu); klasy eksportowane, by widget buildera renderował identycznie.
 - **Relacje:** Moduł 1 — trail wpisu w $.tsx (kind=post); Moduł 8 — BreadcrumbList JSON-LD emitowany z head() tras (jawnie wskazane w komentarzu, rozdzielenie odpowiedzialności); Moduł 3 — BreadcrumbsView widget współdzieli stałe klas; używany też w live/search/blog/podcasts/experts.
@@ -1671,7 +1568,6 @@ Moduł to cała publiczna powłoka serwisu: header z tickerem i alert-barem, naw
   1. Mikro-test buildBreadcrumbs (3 przypadki: sama strona, hierarchia, hierarchia+post).
 
 ### 5.16. RouteProgress — pasek postępu nawigacji — **8/10**
-
 - **Pliki:** src/components/RouteProgress.tsx:1-108
 - **Co robi:** 2px pasek u góry viewportu wizualizujący WYŁĄCZNIE nawigacje routera (celowo nie useIsFetching — uzasadnienie w komentarzu: tło zapytań wpisu „udawało ładowanie"); opóźnienie 120 ms eliminuje flash przy szybkich przejściach, pełzanie do 90%, snap 100% + fade.
 - **Relacje:** Moduł 20 — useRouterState (isLoading/pending); brak innych istotnych.
@@ -1681,7 +1577,6 @@ Moduł to cała publiczna powłoka serwisu: header z tickerem i alert-barem, naw
   1. Wyprowadzić kolor cienia z tego samego tokenu (color-mix) zamiast stałej rgba.
 
 ### 5.17. Zarządzanie kategoriami + kolory obszarów (admin) — **6/10**
-
 - **Pliki:** src/routes/admin.categories.tsx:1-450, src/routes/admin.category-colors.tsx:1-248, src/lib/categoryAreas.ts:1-34, src/lib/content.functions.ts:1403-1447 (upsertCategory)
 - **Co robi:** CRUD kategorii wielowymiarowych (7 kinds: specjalizacja/typ publikacji/region/temat/projekt/seria/organizacja, hierarchia per wymiar, filtr pokrycia tłumaczeń) oraz osobny ekran kolorów pigułek dla 12 kanonicznych obszarów (seed brakujących jednym klikiem, kontrast tekstu z luminancji).
 - **Relacje:** Moduł 2 (Edytor/workflow) — te same kategorie przypinane do wpisów; Moduł 6 — wymiary kinds są fasetami wyszukiwarki (TAXONOMY_DIMS w archives.ts); Moduł 1 — kolor pigułki na kartach wpisów; Moduł 19 — requireStaff + rate-limit guard + audit log w upsertCategory.
@@ -1693,8 +1588,7 @@ Moduł to cała publiczna powłoka serwisu: header z tickerem i alert-barem, naw
   3. Przenieść KIND_LABEL do i18n (panel ma języki EN/PL).
 
 ### 5.18. Listing dzieci strony (archive_listing) + BuilderPageShell — **6/10**
-
-- **Pliki:** src/components/pages/ArchiveListing.tsx:1-72, src/components/pages/BuilderPageShell.tsx, src/components/pages/**tests**/BuilderPageShell.test.tsx
+- **Pliki:** src/components/pages/ArchiveListing.tsx:1-72, src/components/pages/BuilderPageShell.tsx, src/components/pages/__tests__/BuilderPageShell.test.tsx
 - **Co robi:** Dla stron o `template_type === 'archive_listing'` renderuje siatkę opublikowanych wpisów-dzieci (`posts.parent_page_id`), max 60, sort po dacie; BuilderPageShell to rama renderowania stron buildera (z testem).
 - **Relacje:** Moduł 1 — posts + PostListCard; Moduł 3 — osadzenie w rendererze stron ($.tsx).
 - **✅ Mocne:** Prosty, poprawny odczyt public Data API z RLS; href budowany z pełnej ścieżki rodzica (spójny z kanonicznymi adresami wpisów).
@@ -1703,7 +1597,6 @@ Moduł to cała publiczna powłoka serwisu: header z tickerem i alert-barem, naw
   1. Paginacja (?page=N) tym samym wzorcem co blogArchiveQueryOptions albo przycisk „więcej"; skeleton zamiast „...".
 
 ### 5.19. Obszar treści — admin.content-area (szerokości/typografia strefy wpisu) — **7/10**
-
 - **Pliki:** src/routes/admin.content-area.tsx:1-462, src/lib/postLayouts.ts (defaultPostLayoutSettings, prefetch w __root.tsx:276)
 - **Co robi:** Panel edycji PostLayoutSettings (max-szerokości z/bez sidebara, kolory, typografia strefy treści) z własnymi atomami formularza (Number/Slider/Color/Toggle); ustawienia grzane w loaderze roota z fallbackiem defaultów.
 - **Relacje:** Moduł 1 (Wpisy-czytelnik) — konsument ustawień (PostLayoutRenderer — tam liczone `has_sidebar_max_width` itd.); Moduł 4 — kolory obok globalnych tokenów (granica modułów: tokeny globalne to Moduł 4, ten panel dotyczy tylko strefy treści); Moduł 19 — site_settings.
@@ -1713,30 +1606,29 @@ Moduł to cała publiczna powłoka serwisu: header z tickerem i alert-barem, naw
   1. Zunifikować z components/admin/settings/fields (mniej kodu, spójny wygląd paneli).
 
 ### Podsumowanie modułu 5
-
 - **Średnia ocen funkcji:** 7,5 · **Rozkład:** 2× 9–10 · 15× 7–8 · 2× 5–6 · 0× <5
 - **Relacje modułu (zbiorczo):**
 
-| Moduł                     | Mechanizm                                                                                                                             | Kierunek zależności                                                  |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| 1 Wpisy-czytelnik         | PostListCard, tabele posts/post_categories/post_tags, headerMode (reading vs ReadingHeader), PostLayoutSettings                       | 5 → 1 (render kart, oddanie krawędzi), 1 → 5 (contentKind z loadera) |
-| 2 Edytor/workflow         | wspólna tabela categories (upsertCategory/deleteCategory)                                                                             | 5 ↔ 2                                                                |
-| 3 Silniki treści          | BuilderRenderer (header/footer/home/drawer/featured), builder_templates, widgety SiteMenu/MegaMenu/Breadcrumbs                        | 5 → 3                                                                |
-| 4 Motyw/media             | site_settings.theme_options (logo, alert_bar), ThemeProvider, cropSizes/srcset; tokeny globalne poza zakresem                         | 5 → 4                                                                |
-| 6 Wyszukiwarka            | SearchOverlay w headerze/drawerze, eventy neus:open-mobile-search; wymiary kinds jako fasety                                          | 5 → 6                                                                |
-| 7 Treści specjalne        | PodcastEpisodeStrip w archiwach i hubie autora                                                                                        | 5 → 7                                                                |
-| 8 SEO/feedy               | buildContentHead, jsonld (Breadcrumb/Collection/Organization/Person), FOOTER_LINKS, autodiscovery RSS taksonomii                      | 5 → 8                                                                |
-| 9 Czat                    | ChatDock slot w SiteChrome, ChatUnreadBadge                                                                                           | 5 → 9                                                                |
-| 10 Sieć/eksperci          | hub /author/$slug (get_expert_hub RPC), Connect/DM, NetworkPendingBadge                                                               | 5 ↔ 10                                                               |
-| 11 Newsletter             | NewsletterForm (sidebar archiwum), tracking submitów w stopce                                                                         | 5 → 11                                                               |
-| 12 Realtime/powiadomienia | NotificationsUnreadBadge (user_pending_counters)                                                                                      | 5 → 12                                                               |
-| 13/14 Monetyzacja         | AdZone (header_banner/sidebar), useInFeedAds (home/category/tag), FooterSlideup, adPageType                                           | 5 → 13/14                                                            |
-| 15 Profil/konto           | MobileAccountSection (useAuth), /profile w pasku dolnym                                                                               | 5 → 15                                                               |
-| 16 Społeczność-admin      | site_settings.community_modules.chat_enabled                                                                                          | 16 → 5                                                               |
-| 17 Analityka/BI           | getTrendingPosts (postViews) dla tickera, footerTracking                                                                              | 5 ↔ 17                                                               |
-| 19 Ustawienia/authz       | site_settings bulk (klucze header/footer/theme_options/mobile_bottom_bar/reading), RLS per tenant, has_role/is_super_admin, audit log | 5 → 19                                                               |
-| 20 Platforma/SSR          | warm-up chrome w __root loaderze, edgeTtlCache, setCacheControlHeader/ISR, view transitions, e2e ssr-completeness                     | 5 ↔ 20                                                               |
-| 21 Kluby                  | ClubUnreadBadge (club_unread), href /club                                                                                             | 5 → 21                                                               |
+| Moduł | Mechanizm | Kierunek zależności |
+|---|---|---|
+| 1 Wpisy-czytelnik | PostListCard, tabele posts/post_categories/post_tags, headerMode (reading vs ReadingHeader), PostLayoutSettings | 5 → 1 (render kart, oddanie krawędzi), 1 → 5 (contentKind z loadera) |
+| 2 Edytor/workflow | wspólna tabela categories (upsertCategory/deleteCategory) | 5 ↔ 2 |
+| 3 Silniki treści | BuilderRenderer (header/footer/home/drawer/featured), builder_templates, widgety SiteMenu/MegaMenu/Breadcrumbs | 5 → 3 |
+| 4 Motyw/media | site_settings.theme_options (logo, alert_bar), ThemeProvider, cropSizes/srcset; tokeny globalne poza zakresem | 5 → 4 |
+| 6 Wyszukiwarka | SearchOverlay w headerze/drawerze, eventy neus:open-mobile-search; wymiary kinds jako fasety | 5 → 6 |
+| 7 Treści specjalne | PodcastEpisodeStrip w archiwach i hubie autora | 5 → 7 |
+| 8 SEO/feedy | buildContentHead, jsonld (Breadcrumb/Collection/Organization/Person), FOOTER_LINKS, autodiscovery RSS taksonomii | 5 → 8 |
+| 9 Czat | ChatDock slot w SiteChrome, ChatUnreadBadge | 5 → 9 |
+| 10 Sieć/eksperci | hub /author/$slug (get_expert_hub RPC), Connect/DM, NetworkPendingBadge | 5 ↔ 10 |
+| 11 Newsletter | NewsletterForm (sidebar archiwum), tracking submitów w stopce | 5 → 11 |
+| 12 Realtime/powiadomienia | NotificationsUnreadBadge (user_pending_counters) | 5 → 12 |
+| 13/14 Monetyzacja | AdZone (header_banner/sidebar), useInFeedAds (home/category/tag), FooterSlideup, adPageType | 5 → 13/14 |
+| 15 Profil/konto | MobileAccountSection (useAuth), /profile w pasku dolnym | 5 → 15 |
+| 16 Społeczność-admin | site_settings.community_modules.chat_enabled | 16 → 5 |
+| 17 Analityka/BI | getTrendingPosts (postViews) dla tickera, footerTracking | 5 ↔ 17 |
+| 19 Ustawienia/authz | site_settings bulk (klucze header/footer/theme_options/mobile_bottom_bar/reading), RLS per tenant, has_role/is_super_admin, audit log | 5 → 19 |
+| 20 Platforma/SSR | warm-up chrome w __root loaderze, edgeTtlCache, setCacheControlHeader/ISR, view transitions, e2e ssr-completeness | 5 ↔ 20 |
+| 21 Kluby | ClubUnreadBadge (club_unread), href /club | 5 → 21 |
 
 - **5 najpilniejszych rekomendacji:**
   1. **(5.17)** Naprawić utratę danych w /admin/category-colors — zapis koloru wysyła `description_pl/en: null` i kasuje opisy kategorii używane w SEO archiwów; przejść na partial update pola `color`.
@@ -1754,7 +1646,6 @@ Moduł to cała publiczna powłoka serwisu: header z tickerem i alert-barem, naw
 Moduł to kompletna wyszukiwarka treści klasy "premium think-tank": FTS w Postgresie (unaccent, prefiks, lekka polska fleksja, operatory AND/OR/NOT/"fraza"/-wykluczenie), fasety multi-select z licznikami dysjunktywnymi, addytywna warstwa semantyczna pgvector, autosuggest w 4 kubełkach, overlay w chrome, paleta poleceń ⌘K, zapisane wyszukiwania z alertami cron, telemetria, głos (STT + VAD). Stan jest solidnie produkcyjny — warstwa SQL ma rzadko spotykane pokrycie pgTAP (5 plików, ~690 linii), a trzy powierzchnie UI współdzielą atomy i model. Najważniejszy wniosek: jakość rdzenia (silnik + fasety) wyprzedza brzegi — `popular_searches` upublicznia frazę pojedynczego użytkownika bez progu liczności i bez retencji logu, a zakładka „Tematyka" w overlayu buduje filtr PostgREST ze surowej frazy (ILIKE bez unaccent + znaki sterujące `,()` wywracają zapytanie).
 
 ### 6.1. Silnik FTS w Postgresie (search_posts + parser zapytań + wektory) — **8,5/10**
-
 - **Pliki:** supabase/migrations/20260628210000_fulltext_search.sql:22–188 (nes_jsonb_text, wektory A/B/C, triggery, GIN), 20260720150043:3–161 (nes_search_positive_rest, nes_search_tsquery_adv), 20260714130000:623 (nes_pl_light_stem), 20260720215250:314–451 (search_posts v6), supabase/tests/{search_tsquery,search_operators,search_posts_smoke,premium_search}_test.sql
 - **Co robi:** tsvector z wagami (A tytuł/slug, B lead/takeaways, C treść — w tym tekst z JSONB `blocks_data`/`builder_data` do 900k znaków), utrzymywany triggerami; parser zapytań z unaccent, prefiksem `:*`, operatorami AND/OR/NOT, `"frazą"` (`<->`), `-wykluczeniem` i lekkim stemem PL; RPC `search_posts` z trybami all/any/phrase, zakresem tytułów, fallbackiem trigramowym (literówki, `word_similarity>0.3`), sortowaniem relevance/newest/popular, oknem `total_count` i snippetami `ts_headline` z delimiterami `[[[ ]]]`.
 - **Relacje:** Moduł 1 (Wpisy-czytelnik) — tabela `posts` + `content_access`; Moduł 2 (Edytor) — trigger indeksuje `blocks_data`/`builder_data`, więc każda ścieżka zapisu edytora odświeża wektor; Moduł 13 (Monetyzacja-core) — filtr/faseta `access` z `content_access.mode`; Moduł 20 (Platforma/SSR) — tenant wyłącznie serwerowo (`coalesce(current_tenant_id(), public_tenant_id())`, SECURITY DEFINER).
@@ -1766,8 +1657,7 @@ Moduł to kompletna wyszukiwarka treści klasy "premium think-tank": FTS w Postg
   3. Rozważyć dołączenie `pages` do `search_posts` (albo osobną sekcję "Strony" na /search) — wektor już istnieje i jest utrzymywany.
 
 ### 6.2. Fasety multi-select z licznikami dysjunktywnymi (search_facets + facetModel) — **8,5/10**
-
-- **Pliki:** supabase/migrations/20260720215250:453–602 (search_facets v6, flagi ok_*), 20260720215250:155–176 (nes_post_matches_term_group), src/lib/search/facetModel.ts:1–303, src/components/search/SearchFacetPanel.tsx, src/components/search/ActiveFilterChips.tsx, src/lib/search/**tests**/facetModel.test.ts (198 linii), supabase/tests/faceted_search_test.sql (plan 14)
+- **Pliki:** supabase/migrations/20260720215250:453–602 (search_facets v6, flagi ok_*), 20260720215250:155–176 (nes_post_matches_term_group), src/lib/search/facetModel.ts:1–303, src/components/search/SearchFacetPanel.tsx, src/components/search/ActiveFilterChips.tsx, src/lib/search/__tests__/facetModel.test.ts (198 linii), supabase/tests/faceted_search_test.sql (plan 14)
 - **Co robi:** 12 wymiarów (7 taksonomii z `categories.kind` + autor/format/lang/access/rok); multi-select CSV w URL (OR wewnątrz wymiaru, AND między wymiarami, ekspansja hierarchii region→państwo do 10 poziomów); liczniki dysjunktywne — każdy wymiar liczony z pominięciem własnego filtra (flagi `ok_*`, standard Algolii); chipy aktywnych filtrów per wartość z cache etykiet odpornym na zerową liczność.
 - **Relacje:** Moduł 3 (Silniki treści) — wspólna tabela `categories` (kind: pub_type/region/topic/project/series/organization) i `post_categories`; Moduł 7 (Treści specjalne) — `/publications` reużywa `searchQueryOptions` w trybie browse (src/routes/publications.tsx:168).
 - **✅ Mocne:** poprawna semantyka licznika dysjunktywnego (search_facets:561–570) — po zaznaczeniu termu pozostałe wartości wymiaru nie znikają; hierarchia w `orderTree` z fallbackiem na odcięte korzenie; test pgTAP sprawdza rolowanie liczników państw do regionu; czysty model bez Reacta z pełnym testem jednostkowym.
@@ -1777,7 +1667,6 @@ Moduł to kompletna wyszukiwarka treści klasy "premium think-tank": FTS w Postg
   2. Ograniczyć listę wartości fasety (np. top 12 + „pokaż więcej") — dziś panel renderuje wszystko.
 
 ### 6.3. Strona /search — stan w URL, sekcje, paginacja — **7,5/10**
-
 - **Pliki:** src/routes/search.tsx:139–866, src/lib/queries/archives.ts:255–520, e2e/user-paths.spec.ts:78–84
 - **Co robi:** cały stan (fraza, 7 wymiarów, daty/rok, sort, match/scope, tab) w URL walidowanym Zod-em; równoległe RPC `search_posts`+`search_facets`(+semantyka); „load more" przez rosnący `_limit` (60→300); tryb przeglądania po filtrach bez frazy; canonical + hreflang przez `buildContentHead`; licznik wyników w `aria-live`.
 - **Relacje:** Moduł 8 (SEO/feedy) — head/hreflang (lib/seo/meta); Moduł 14 (Monetyzacja-uzupełniająca) — `useInFeedAds("search")` + `FooterSlideup`; Moduł 1 — render kart przez `ArchivePostList`; Moduł 5 (Chrome) — breadcrumbs; Moduł 17 (Analityka) — `log_search_query` fire-and-forget w queryFn (archives.ts:497–505).
@@ -1789,8 +1678,7 @@ Moduł to kompletna wyszukiwarka treści klasy "premium think-tank": FTS w Postg
   3. Wydzielić z SearchPage sekcje (formularz+głos, wyniki, empty-state) do komponentów — 867 linii utrudnia zmiany.
 
 ### 6.4. Tryby zaawansowane i operatory (AdvancedSearchPanel + wstawki) — **8,0/10**
-
-- **Pliki:** src/components/search/AdvancedSearchPanel.tsx:63–126, **tests**/AdvancedSearchPanel.test.tsx, stopki operatorów: SearchAutosuggest.tsx:108–114/247–272, SearchOverlay.tsx:66–72/394–408, supabase/tests/search_operators_test.sql (151 linii)
+- **Pliki:** src/components/search/AdvancedSearchPanel.tsx:63–126, __tests__/AdvancedSearchPanel.test.tsx, stopki operatorów: SearchAutosuggest.tsx:108–114/247–272, SearchOverlay.tsx:66–72/394–408, supabase/tests/search_operators_test.sql (151 linii)
 - **Co robi:** segmenty match (wszystkie/dowolne/fraza) i scope (wszędzie/tytuły) emitujące łatki URL; ściąga składni; przyciski wstawiające operatory do inputa z zachowaniem karetki; deep-link `adv=1` z widgetu nagłówka otwiera panel (search.tsx:206).
 - **Relacje:** funkcjonalnie sprzężone z 6.1 (parser `nes_search_tsquery_adv`); chipy match/scope w 6.2 (activeSelections, facetModel.ts:260–263).
 - **✅ Mocne:** tryby są też usuwalnymi chipami — użytkownik widzi, że działa np. „dokładna fraza", i jednym kliknięciem wraca do domyślnych; parser operatorów przetestowany pgTAP (frazy `<->`, NOT, mieszane grupy OR).
@@ -1799,8 +1687,7 @@ Moduł to kompletna wyszukiwarka treści klasy "premium think-tank": FTS w Postg
   1. Wynieść OPERATORS + logikę `insertOperator` do wspólnego modułu (np. lib/search/operators.ts) z etykietą z i18n — usunie duplikację i lukę PL/EN.
 
 ### 6.5. Autosuggest premium (search_autosuggest + 4 kubełki) — **8,0/10**
-
-- **Pliki:** supabase/migrations/20260726214210 (RPC v5: kategorie, autorzy, posty, strony, firmy), src/lib/queries/archives.ts:534–556, src/lib/search/facetModel.ts:305–395 (kubełki, suggestionHref), src/components/search/SearchAutosuggest.tsx, SuggestListView.tsx, src/lib/search/useAuthorAvatars.ts, **tests**/SearchAutosuggest.test.tsx
+- **Pliki:** supabase/migrations/20260726214210 (RPC v5: kategorie, autorzy, posty, strony, firmy), src/lib/queries/archives.ts:534–556, src/lib/search/facetModel.ts:305–395 (kubełki, suggestionHref), src/components/search/SearchAutosuggest.tsx, SuggestListView.tsx, src/lib/search/useAuthorAvatars.ts, __tests__/SearchAutosuggest.test.tsx
 - **Co robi:** jeden RPC (debounce 200 ms) zwraca scorowane podpowiedzi 5 typów encji; klient grupuje w kubełki Tytuły/Rodzaje treści/Tematyka/Osoby i organizacje z zakładkami i licznikami; każdy kind ma statyczny cel nawigacji (post→permalink, kategoria→archiwum, term bez strony→/search z filtrem, firma→fraza); wybór posta rozwiązuje ścieżkę rodzica RPC `page_full_path` dopiero na klik (search.tsx:317–330).
 - **Relacje:** Moduł 5 (Chrome) — ten sam mega-box renderuje SearchButtonWidget nagłówka; Moduł 10 (Sieć) — kind `author` czyta `profiles.discoverable`, avatary z `profiles_public`; Moduł 18 (CRM) — kind `company` z `member_organizations`.
 - **✅ Mocne:** wzorzec combobox/listbox z `aria-activedescendant` sterowany przez rodzica (fokus nie ucieka z inputa); wspólne atomy SuggestListView dla trzech powierzchni — deklaracja "jeden spójny UX" pokryta kodem; degradacja przy braku RPC (catch → pusta lista, archives.ts:551–554).
@@ -1809,8 +1696,7 @@ Moduł to kompletna wyszukiwarka treści klasy "premium think-tank": FTS w Postg
   1. Ograniczyć kandydatów w RPC prefiltrem trgm/prefiksowym (indeks na `lower(unaccent(name))`), zanim policzy się score — dziś koszt rośnie z liczbą wierszy wszystkich 5 tabel.
 
 ### 6.6. SearchOverlay — szybkie wyszukiwanie w chrome (5 zakładek) — **7,0/10**
-
-- **Pliki:** src/components/SearchOverlay.tsx:1–554, src/lib/search/overlayTabs.ts:1–162, montaż: Header.tsx:277–284, most zdarzeń: ReadingHeader.tsx:308, MobileTopTools.tsx:26, test: src/components/**tests**/SearchOverlay.a11y.test.tsx (axe)
+- **Pliki:** src/components/SearchOverlay.tsx:1–554, src/lib/search/overlayTabs.ts:1–162, montaż: Header.tsx:277–284, most zdarzeń: ReadingHeader.tsx:308, MobileTopTools.tsx:26, test: src/components/__tests__/SearchOverlay.a11y.test.tsx (axe)
 - **Co robi:** pełnoekranowa nakładka z lupy w headerze; jedno zapytanie React Query pobiera równolegle 5 sekcji (wpisy `search_posts`, tematyka categories/tags ILIKE, kluby `club_search`, osoby `search_people`, eksperci `search_people_orgs`) — liczniki zakładek są realne, przełączanie bez round-tripów; auto-wybór pierwszej niepustej zakładki; ostatnie wyszukiwania; operatory w stopce; portal do body z `inert` na tle.
 - **Relacje:** Moduł 5 (Chrome) — montowany w Header, otwierany zdarzeniami `neus:open-mobile-search` z ReadingHeader/MobileTopTools; Moduł 21 (Kluby) — RPC `club_search` filtruje po `club_capabilities` (nie zdradza klubów zamkniętych), zdejmuje `<b>` z ts_headline (overlayTabs.ts:99–101); Moduł 10 (Sieć) — zakładka „osoby" woła `search_people` (granica modułu: tu tylko konsumpcja); Moduł 17 (Analityka) — `trackSearch` po każdym rozstrzygniętym zapytaniu (SearchOverlay.tsx:159–162).
 - **✅ Mocne:** wzorowa dostępność modalna — `inert`+`aria-hidden` na rodzeństwie, focus trap, combobox z aria-activedescendant, test axe; każde źródło odporne na brak funkcji w DB (catch → pusta sekcja); komentarz przy portalu dokumentuje realny bug (`contain: layout` headera).
@@ -1821,7 +1707,6 @@ Moduł to kompletna wyszukiwarka treści klasy "premium think-tank": FTS w Postg
   3. Dodać test jednostkowy overlayTabs (grupowanie, firstNonEmptyTab, strip `<b>` ze snippetów klubów).
 
 ### 6.7. Paleta poleceń ⌘K (CommandPalette + registry + fuzzy) — **7,5/10**
-
 - **Pliki:** src/components/search/CommandPalette.tsx:41–295, src/lib/search/registry.tsx:60–403, src/lib/search/fuzzy.ts, src/lib/search/search.functions.ts (server fn `globalSearch` → RPC `search_quick`), src/components/search/HighlightedText.tsx, montaż: routes/__root.tsx:84–85, 531; testy: fuzzy.test.ts, HighlightedText.test.tsx
 - **Co robi:** globalne ⌘K/Ctrl+K oraz `/` poza polami tekstowymi; fuzzy-ranking (subsequence z bonusami za granice słów/prefiks) statycznego rejestru ~35 komend PL/EN filtrowanych po roli (adminOnly/authOnly); równolegle debounced (180 ms) wyszukiwanie treści server fn-em `globalSearch` (anon klient pod RLS, tenant pinowany `fetchWithTenantHost`, RPC `search_quick` posty+strony).
 - **Relacje:** Moduł 19 (Ustawienia/authz) — `useAuth().isAdmin` bramkuje komendy administracyjne (tylko nawigacja, trasy same się bronią); Moduł 20 (Platforma/SSR) — lazy-load w __root + wzorzec tenant-host-fetch; Moduł 15 (Profil) — sekcja komend konta.
@@ -1832,8 +1717,7 @@ Moduł to kompletna wyszukiwarka treści klasy "premium think-tank": FTS w Postg
   2. Przenieść wyszukiwanie treści palety na React Query (queryKey + staleTime) zamiast ręcznego setTimeout/useState.
 
 ### 6.8. Sekcja „Osoby i organizacje" (search_people_orgs) — **7,5/10**
-
-- **Pliki:** supabase/migrations/20260720151559 (RPC: profil redakcyjny z dorobkiem + termy organizacji, scoring prefiks>substring>trgm), src/lib/queries/archives.ts:562–604, src/components/search/PeopleOrgResults.tsx (+PeopleOrgStrip), **tests**/PeopleOrgResults.test.tsx, supabase/tests/premium_search_test.sql:11,31–35
+- **Pliki:** supabase/migrations/20260720151559 (RPC: profil redakcyjny z dorobkiem + termy organizacji, scoring prefiks>substring>trgm), src/lib/queries/archives.ts:562–604, src/components/search/PeopleOrgResults.tsx (+PeopleOrgStrip), __tests__/PeopleOrgResults.test.tsx, supabase/tests/premium_search_test.sql:11,31–35
 - **Co robi:** zakładka „people" na /search (60 pozycji, działa też bez frazy jako katalog) + kompaktowy pasek nad wynikami „Wszystko" (6 pozycji); karty z avatarem/logo, weryfikacją, licznikiem publikacji; osoba→hub `/author/<slug>`, organizacja→`/search?org=<id>`.
 - **Relacje:** Moduł 10 (Sieć/eksperci) — GRANICA MODUŁU: to wyszukiwanie AUTORÓW TREŚCI (`user_is_editorial` + `discoverable` + dorobek), nie katalogu członków (`search_people` z RLS po tenancie wołającego — Moduł 10); Moduł 9 (Czat) — `DirectMessageButton` na karcie osoby; Moduł 3 (Silniki treści) — organizacje to termy `categories.kind='organization'`.
 - **✅ Mocne:** RPC wymaga jawnego opt-in `discoverable=true` i roli redakcyjnej — pgTAP pilnuje, że zwykły profil nie wycieka do publicznej wyszukiwarki; dwustopniowa prezentacja (strip → pełna sekcja) z uczciwymi licznikami.
@@ -1842,7 +1726,6 @@ Moduł to kompletna wyszukiwarka treści klasy "premium think-tank": FTS w Postg
   1. Zmaterializować dorobek (kolumna `published_count` odświeżana w jobs-tick) — dziś każde otwarcie zakładki liczy count() po postach dla każdego kandydata.
 
 ### 6.9. Warstwa semantyczna wpisów (pgvector + blend rankingu) — **8,0/10**
-
 - **Pliki:** supabase/migrations/20260720215250:604–681 (post_embeddings vector(768) + HNSW, posts_needing_embeddings, semantic_search_posts), src/lib/server/embeddings.server.ts:27–115 (klient bramki + runSemanticIndexBatch), src/lib/server/jobsTick.server.ts:203–204 (indekser w ticku), src/lib/search/semantic.functions.ts (server fn + cache zapytań), src/lib/queries/archives.ts:444–482 (blend 0,75·FTS + 0,25·cosine)
 - **Co robi:** indekser przyrostowy (content_hash z tytułów+zajawek, partie 24 w jobs-tick) zapisuje embeddingi 768D (text-embedding-3-small); przy frazie ≥4 znaki i sorcie relevance server fn embeduje zapytanie (cache 300 pozycji w pamięci procesu) i RPC zwraca podobieństwa kosinusowe; klient miesza sygnał z FTS wyłącznie jako re-rank pobranego okna (zbiór i total bez zmian; fallback trigramowy nietknięty).
 - **Relacje:** Moduł 20 (Platforma/SSR) — jobs-tick jako nośnik indeksera, `fetchWithTenantHost`; Moduł 10 — bliźniaczy wzorzec `profile_embeddings` (peopleSemantic.functions.ts w lib/search obsługuje katalog osób — architektonicznie należy do Modułu 10, świadomie inny przepływ: serwer tylko embeduje, RPC leci z sesją użytkownika pod RLS); Moduł 21 (Kluby) — `runClubThreadIndexBatch` w tym samym pliku serwera.
@@ -1854,7 +1737,6 @@ Moduł to kompletna wyszukiwarka treści klasy "premium think-tank": FTS w Postg
   3. Rozważyć union trafień semantycznych spoza okna FTS (z progiem podobieństwa) zamiast czystego re-ranku.
 
 ### 6.10. Zapisane wyszukiwania + alerty o nowych wynikach — **8,0/10**
-
 - **Pliki:** src/hooks/useSavedSearches.ts:1–145, src/components/search/SavedSearchesPanel.tsx, migracje: 20260713173411:470–500 (tabela + RLS owner-only), 20260720215250:68–292 (kolumny alertów, trigger watermarku, run_saved_search_alerts + pg_cron co 20 min), 20260807142000 (encja `people`, gałąź producenta)
 - **Co robi:** zalogowany zapisuje snapshot parametrów URL pod nazwą (INSERT z `url` kanonicznym); dzwonek włącza alert — producent w DB odpyta wpisy nowsze niż watermark z pełną rekonstrukcją filtrów (tsquery, term-groups, autor, daty, dostęp) i wyśle powiadomienie `saved_search` przez `enqueue_notification` z poprawną polską odmianą liczebników; panel encjo-agnostyczny (posts/people).
 - **Relacje:** Moduł 12 (Realtime/powiadomienia) — `enqueue_notification`, `notification_preferences.enabled_saved_search`, dedup 5 min; Moduł 10 (Sieć) — encja `people` obserwuje katalog osób (watermark `last_seen_profile_at`); Moduł 19 (Ustawienia/RODO) — dane użytkownika w `saved_searches` (RLS owner-only, tenant default `current_tenant_id()`).
@@ -1865,18 +1747,16 @@ Moduł to kompletna wyszukiwarka treści klasy "premium think-tank": FTS w Postg
   2. pgTAP dla producenta alertów: watermark, odmiana PL, gałąź people, brak duplikatów.
 
 ### 6.11. Telemetria zapytań, popularne frazy, did-you-mean — **7,0/10**
-
 - **Pliki:** supabase/migrations/20260712110000_search_premium.sql:14–147 (search_query_log + log_search_query + popular_searches + search_suggest), 20260725181005:11–21 i 20260730085737:85–92 (RLS admin-read), src/lib/queries/archives.ts:497–505, src/routes/search.tsx:392–423, 830–853, src/lib/analytics/track.ts:173–183 (trackSearch)
 - **Co robi:** każde realne zapytanie (≥2 znaki) loguje się fire-and-forget do `search_query_log` (normalizacja, dedup 10 s, tama 120/min/tenant); `popular_searches` podpowiada top frazy 30 dni z wynikami >0 w stanie pustym; `search_suggest` (trgm nad tytułami) daje „czy chodziło Ci o…" przy zerze trafień; równolegle event `search` do analityki produktowej.
 - **Relacje:** Moduł 17 (Analityka/BI) — `trackSearch` (overlay + /search) i polityka admin-read na logu (BI może czytać, choć w src nie znalazłem konsumenta poza `popular_searches`); Moduł 19 (RODO) — log jest anonimowy (bez user_id), ale bez retencji.
 - **✅ Mocne:** przemyślana tama anty-nadużyciowa i dedup w samym RPC; did-you-mean zwraca klikalne wpisy zamiast surowych stringów; zerowe frazy nie zostają podpowiedziami.
-- **⚠️ Słabe:** `popular_searches` nie ma progu minimalnej liczności — fraza wyszukana RAZ przez jednego użytkownika staje się publiczną podpowiedzią dla wszystkich (prywatność: wpisanie własnego nazwiska/frazy wrażliwej ją upublicznia); brak retencji/purge `search_query_log` (szukałem w migracjach _gdpr_/_retention_ i w jobs-tick — inne logi mają, ten nie) — nieograniczony wzrost; tama liczy `count(*)` z ostatniej minuty przy każdym insercie.
+- **⚠️ Słabe:** `popular_searches` nie ma progu minimalnej liczności — fraza wyszukana RAZ przez jednego użytkownika staje się publiczną podpowiedzią dla wszystkich (prywatność: wpisanie własnego nazwiska/frazy wrażliwej ją upublicznia); brak retencji/purge `search_query_log` (szukałem w migracjach *gdpr*/*retention* i w jobs-tick — inne logi mają, ten nie) — nieograniczony wzrost; tama liczy `count(*)` z ostatniej minuty przy każdym insercie.
 - **🔧 Rekomendacje:**
   1. Próg `HAVING count(*) >= 3` (i/lub minimum odrębnych dni) w `popular_searches` — zamyka wektor upublicznienia frazy jednej osoby.
   2. Purge logu >90 dni w jobs-tick/pg_cron — spójnie z retencją innych tabel telemetrycznych.
 
 ### 6.12. Ostatnie wyszukiwania (localStorage) — **7,5/10**
-
 - **Pliki:** src/lib/search/recentSearches.ts:1–41, konsumenci: SearchOverlay.tsx:123–132/309–340, search.tsx:279–289/816–829, SearchAutosuggest.tsx:314–361 (RecentSearchesList), SearchButtonWidget
 - **Co robi:** 6 ostatnich fraz w `localStorage` (`recent-searches:v1`), dedup case-insensitive, pokazywane po fokusie przy pustym polu na trzech powierzchniach, z czyszczeniem historii.
 - **Relacje:** brak istotnych (czysto kliencka, współdzielona przez powierzchnie modułu).
@@ -1886,7 +1766,6 @@ Moduł to kompletna wyszukiwarka treści klasy "premium think-tank": FTS w Postg
   1. Mały test jednostkowy (dedup, limit 6, odporność na uszkodzony JSON) — logika trywialna, ale ma 4 konsumentów.
 
 ### 6.13. Wyszukiwanie głosowe (STT przez bramkę AI + VAD) — **7,5/10**
-
 - **Pliki:** src/lib/search/useVoiceSearch.ts:1–366, src/routes/api/stt.ts:1–123, użycie: search.tsx:305–310/723–743, SearchButtonWidget
 - **Co robi:** dyktowanie frazy — MediaRecorder z adaptacyjnym VAD (kalibracja szumu 400 ms, próg = noiseFloor×2,2, highpass 90 Hz, EMA, auto-stop po 1,1 s ciszy, twardy sufit 30 s) → POST /api/stt (gpt-4o-mini-transcribe przez bramkę, wymaga zalogowania, rate-limit 20/min i 200/h fail-closed) → fraza do inputa i submit; fallback Web Speech API dla anonimów/braku nagrywania; przycisk znika bez wsparcia.
 - **Relacje:** Moduł 20 (Platforma/SSR) — `rateLimit` serwerowy i wzorzec API route; Moduł 15 (Profil/konto) — token sesji Supabase bramkuje STT (kredyty AI tylko dla zalogowanych).
@@ -1897,8 +1776,7 @@ Moduł to kompletna wyszukiwarka treści klasy "premium think-tank": FTS w Postg
   2. Test jednostkowy maszyny stanów toggle/stop (z mockiem MediaRecorder) — najbardziej stanowy kod modułu bez asercji.
 
 ### 6.14. Widget wyszukiwania w nagłówku (SearchButtonWidget) — **7,5/10**
-
-- **Pliki:** src/components/admin/builder/ui/organisms/widget-view/SearchButtonWidget.tsx (mega-box live search), **tests**/SearchButtonWidget.test.tsx, użycie: ReadingHeader.tsx:286–298, header buildera; blok Gutenberg: src/components/admin/blocks/edit/Search.tsx (formularz → action /search)
+- **Pliki:** src/components/admin/builder/ui/organisms/widget-view/SearchButtonWidget.tsx (mega-box live search), __tests__/SearchButtonWidget.test.tsx, użycie: ReadingHeader.tsx:286–298, header buildera; blok Gutenberg: src/components/admin/blocks/edit/Search.tsx (formularz → action /search)
 - **Co robi:** pole live-search w desktopowym headerze i nagłówku czytania — ten sam RPC `search_autosuggest` i te same 4 kubełki co /search; synchronizacja frazy z `?q=` na /search (most `SearchUrlQSync` renderowany tylko z RouterProviderem); głos, ostatnie wyszukiwania, avatary autorów; prosty blok „Search" edytora emituje formularz z akcją /search.
 - **Relacje:** Moduł 5 (Chrome/nawigacja) — widget żyje w systemie widgetów headera (theme_options `header.search` steruje trybem — odnotowane w audycie Modułu 4 §4.4); Moduł 2 (Edytor) — wariant blokowy Gutenberg i render w builderze.
 - **✅ Mocne:** działa poza RouterProviderem (testy/izolowany render degradują do zwykłego pola — komentarz i wzorzec „hook w dziecku" zgodny z rules-of-hooks, SearchButtonWidget.tsx:45–59); jedyna powierzchnia wyszukiwania z testem komponentowym w builderze; header i strona /search nigdy się nie rozjeżdżają (sync ?q=).
@@ -1907,28 +1785,27 @@ Moduł to kompletna wyszukiwarka treści klasy "premium think-tank": FTS w Postg
   1. Zbudować wspólny hook `useAutosuggest(q)` (React Query + klawiatura) konsumowany przez widget, /search i overlay — dziś poprawka w jednej kopii nie propaguje się do pozostałych.
 
 ### Podsumowanie modułu 6
-
 - **Średnia ocen funkcji:** 7,7 · **Rozkład:** 0× 9–10 / 14× 7–8 / 0× 5–6 / 0× <5
 - **Relacje modułu (zbiorczo):**
 
-| Moduł                     | Mechanizm                                                                                                                                                  | Kierunek zależności                       |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| 1 Wpisy-czytelnik         | tabele `posts`/`content_access`, render `ArchivePostList`, permalinki `/post/<slug>`                                                                       | 6 → 1 (czyta)                             |
-| 2 Edytor/workflow         | trigger FTS indeksuje `blocks_data`/`builder_data`; blok Gutenberg „Search"; widget w builderze                                                            | 2 → 6 (zasila wektor), 6 → 2 (komponenty) |
-| 3 Silniki treści          | wspólna taksonomia `categories.kind`/`post_categories` (fasety, organizacje)                                                                               | 6 → 3                                     |
-| 5 Chrome/nawigacja        | SearchOverlay w Header, SearchButtonWidget, zdarzenia `neus:open-mobile-search`, theme_options `header.search`                                             | 5 → 6 (montaż)                            |
-| 7 Treści specjalne        | `/publications` reużywa `searchQueryOptions({browse:true})`                                                                                                | 7 → 6                                     |
-| 8 SEO/feedy               | `buildContentHead` (canonical/hreflang) na /search                                                                                                         | 6 → 8                                     |
-| 9 Czat                    | `DirectMessageButton` na kartach osób; (odnotowane: `search_messages` w migracji modułu to zakres M9)                                                      | 6 → 9                                     |
-| 10 Sieć/eksperci          | zakładki people (RPC `search_people`), `peopleSemantic.functions.ts` w lib/search, encja `people` zapisanych wyszukiwań — granica: katalog członków to M10 | 6 ↔ 10                                    |
-| 12 Realtime/powiadomienia | `enqueue_notification('saved_search')`, `notification_preferences.enabled_saved_search`, pg_cron co 20 min                                                 | 6 → 12                                    |
-| 13 Monetyzacja-core       | faseta/filtr `access` z `content_access.mode`                                                                                                              | 6 → 13                                    |
-| 14 Monetyzacja-uzup.      | `useInFeedAds("search")`, `FooterSlideup` na /search                                                                                                       | 14 → 6                                    |
-| 17 Analityka/BI           | `trackSearch`, `search_query_log` (RLS admin-read)                                                                                                         | 6 → 17                                    |
-| 18 CRM                    | kind `company` autosuggest z `member_organizations`                                                                                                        | 6 → 18                                    |
-| 19 Ustawienia/authz/RODO  | RLS owner-only `saved_searches`; bramka ról palety; log zapytań bez retencji (luka)                                                                        | 6 → 19                                    |
-| 20 Platforma/SSR          | server fn + `fetchWithTenantHost`, jobs-tick (indekser embeddingów), rateLimit /api/stt, `edgeTtlCache` archiwów                                           | 6 → 20                                    |
-| 21 Kluby                  | zakładka klubów overlayu przez `club_search` (capability-aware)                                                                                            | 6 → 21                                    |
+| Moduł | Mechanizm | Kierunek zależności |
+|---|---|---|
+| 1 Wpisy-czytelnik | tabele `posts`/`content_access`, render `ArchivePostList`, permalinki `/post/<slug>` | 6 → 1 (czyta) |
+| 2 Edytor/workflow | trigger FTS indeksuje `blocks_data`/`builder_data`; blok Gutenberg „Search"; widget w builderze | 2 → 6 (zasila wektor), 6 → 2 (komponenty) |
+| 3 Silniki treści | wspólna taksonomia `categories.kind`/`post_categories` (fasety, organizacje) | 6 → 3 |
+| 5 Chrome/nawigacja | SearchOverlay w Header, SearchButtonWidget, zdarzenia `neus:open-mobile-search`, theme_options `header.search` | 5 → 6 (montaż) |
+| 7 Treści specjalne | `/publications` reużywa `searchQueryOptions({browse:true})` | 7 → 6 |
+| 8 SEO/feedy | `buildContentHead` (canonical/hreflang) na /search | 6 → 8 |
+| 9 Czat | `DirectMessageButton` na kartach osób; (odnotowane: `search_messages` w migracji modułu to zakres M9) | 6 → 9 |
+| 10 Sieć/eksperci | zakładki people (RPC `search_people`), `peopleSemantic.functions.ts` w lib/search, encja `people` zapisanych wyszukiwań — granica: katalog członków to M10 | 6 ↔ 10 |
+| 12 Realtime/powiadomienia | `enqueue_notification('saved_search')`, `notification_preferences.enabled_saved_search`, pg_cron co 20 min | 6 → 12 |
+| 13 Monetyzacja-core | faseta/filtr `access` z `content_access.mode` | 6 → 13 |
+| 14 Monetyzacja-uzup. | `useInFeedAds("search")`, `FooterSlideup` na /search | 14 → 6 |
+| 17 Analityka/BI | `trackSearch`, `search_query_log` (RLS admin-read) | 6 → 17 |
+| 18 CRM | kind `company` autosuggest z `member_organizations` | 6 → 18 |
+| 19 Ustawienia/authz/RODO | RLS owner-only `saved_searches`; bramka ról palety; log zapytań bez retencji (luka) | 6 → 19 |
+| 20 Platforma/SSR | server fn + `fetchWithTenantHost`, jobs-tick (indekser embeddingów), rateLimit /api/stt, `edgeTtlCache` archiwów | 6 → 20 |
+| 21 Kluby | zakładka klubów overlayu przez `club_search` (capability-aware) | 6 → 21 |
 
 - **5 najpilniejszych rekomendacji:**
   1. **(6.6)** Naprawić `fetchTopics` w overlayTabs.ts:47–60 — surowa fraza w `.or(...ilike...)` PostgREST (znaki `,()` wywracają filtr) i brak unaccent; przenieść do małego RPC spójnego z resztą silnika.
@@ -1941,13 +1818,12 @@ Moduł to kompletna wyszukiwarka treści klasy "premium think-tank": FTS w Postg
 
 ## Moduł 7 — Typy treści specjalne (podcasty, web stories, wydarzenia, programy, quizy, ankiety, glosariusz, biblioteka, live)
 
-**Zakres zbadany:** src/routes/{podcasts.index,podcast.$slug,podcasts.$show,podcast.rss[.]xml,podcasts.$show.rss[.]xml,events,events.$slug,live,live_.rss[.]xml,library,glossary,polls,quiz,web-stories.index,web-stories.$slug,web-stories.$slug.amp,programs.index,programs.$slug,programs.$slug.rss[.]xml,admin.podcasts,admin.web-stories,admin.glossary,admin.library,admin.live-blog,admin.research-programs,admin.community.events,admin.community.polls}.tsx/.ts (~11 000 linii tras), src/lib/{podcast,web-stories,events,programs}/ (+ **tests**), src/lib/queries/{podcasts,webStories,glossary,liveBlogs,programs}.ts, src/lib/community/publicQueries.ts, src/lib/admin/{community,library}.ts, src/components/{podcast,web-stories,events,quiz,programs,community,admin/podcasts}/, src/components/post/GlossaryHighlighter.tsx, src/components/blocks/{PollBlockView,LiveBlogBlock}.tsx, src/hooks/useEventSeatsRealtime.ts, src/lib/billing/resources.functions.ts, src/lib/seo/{podcastRss,podcastChannelMeta,podcastFeedReadiness,ampStory}.ts + **tests**, migracje: 20260624202309 (web_stories), 20260713093000 (events), 20260713097000 (polls), 20260713174428 (member_resources), 20260713181044 (research_programs), 20260720134000 (glossary), 20260721150000 (waitlist/recordings), 20260725090500 (Apple meta), 20260727200000 (speaker_profiles), pgTAP: community_events_test (plan 21), community_events_waitlist_test (plan 22), community_polls_contrib_test (plan 21) · **Funkcji:** 18 · **Ocena modułu:** 7,4/10
+**Zakres zbadany:** src/routes/{podcasts.index,podcast.$slug,podcasts.$show,podcast.rss[.]xml,podcasts.$show.rss[.]xml,events,events.$slug,live,live_.rss[.]xml,library,glossary,polls,quiz,web-stories.index,web-stories.$slug,web-stories.$slug.amp,programs.index,programs.$slug,programs.$slug.rss[.]xml,admin.podcasts,admin.web-stories,admin.glossary,admin.library,admin.live-blog,admin.research-programs,admin.community.events,admin.community.polls}.tsx/.ts (~11 000 linii tras), src/lib/{podcast,web-stories,events,programs}/ (+ __tests__), src/lib/queries/{podcasts,webStories,glossary,liveBlogs,programs}.ts, src/lib/community/publicQueries.ts, src/lib/admin/{community,library}.ts, src/components/{podcast,web-stories,events,quiz,programs,community,admin/podcasts}/, src/components/post/GlossaryHighlighter.tsx, src/components/blocks/{PollBlockView,LiveBlogBlock}.tsx, src/hooks/useEventSeatsRealtime.ts, src/lib/billing/resources.functions.ts, src/lib/seo/{podcastRss,podcastChannelMeta,podcastFeedReadiness,ampStory}.ts + __tests__, migracje: 20260624202309 (web_stories), 20260713093000 (events), 20260713097000 (polls), 20260713174428 (member_resources), 20260713181044 (research_programs), 20260720134000 (glossary), 20260721150000 (waitlist/recordings), 20260725090500 (Apple meta), 20260727200000 (speaker_profiles), pgTAP: community_events_test (plan 21), community_events_waitlist_test (plan 22), community_polls_contrib_test (plan 21) · **Funkcji:** 18 · **Ocena modułu:** 7,4/10
 
 Moduł to „drugi obieg treści" think-tanku: sieć podcastów w modelu RUSI (programy→sezony→odcinki) z feedami Apple-ready, wydarzenia z RSVP/kolejką FIFO/płatnymi biletami QR, ankiety z anty-kotwiczeniem, biblioteka członkowska za bramką warstw, glosariusz z auto-tooltipami, relacje live z własnym RSS, web stories z wariantem AMP, landing quizu i landingi programów badawczych. Stan jest solidnie produkcyjny: logika domenowa siedzi w utwardzonych RPC z realnym pokryciem pgTAP (64 asercje dla wydarzeń/ankiet), a trasy publiczne konsekwentnie stosują odporne SSR (loadResilient, degradacja na 200). Najważniejszy wniosek: rdzeń bazodanowy wyprzedza brzegi UI — panel admina ankiet zapisuje opcje w kształcie `{label_pl,label_en}`, podczas gdy cała strona publiczna (PollCard, pgTAP, RPC klubów) czyta `{pl,en}`, więc ankieta utworzona w panelu renderuje się z pustymi etykietami; drugi wyraźny brak to detal wydarzenia bez SSR i bez metadanych per-wydarzenie.
 
 ### 7.1. Sieć podcastów — strony publiczne (indeks, program, odcinek) — **8,0/10**
-
-- **Pliki:** src/routes/podcasts.index.tsx:47–266, src/routes/podcasts.$show.tsx:50–365, src/routes/podcast.$slug.tsx:34–526, src/lib/podcast/types.ts:1–234 (+ **tests**/types.test.ts, 9 testów), src/lib/queries/podcasts.ts:1–293, src/components/podcast/PodcastEpisodeStrip.tsx
+- **Pliki:** src/routes/podcasts.index.tsx:47–266, src/routes/podcasts.$show.tsx:50–365, src/routes/podcast.$slug.tsx:34–526, src/lib/podcast/types.ts:1–234 (+ __tests__/types.test.ts, 9 testów), src/lib/queries/podcasts.ts:1–293, src/components/podcast/PodcastEpisodeStrip.tsx
 - **Co robi:** katalog programów (podcast_shows) ze statystykami odcinków, strona programu grupująca odcinki po sezonach z JSON-LD PodcastSeries, strona odcinka z odtwarzaczem (rozdziały z seek-iem, cytaty do skopiowania, źródła/materiały, transkrypcja w `<details>`, prowadzący/goście z linkiem do profilu). Treści dwujęzyczne per pole (title_pl/title_en) z fallbackiem.
 - **Relacje:** Moduł 1 (Wpisy-czytelnik) — PodcastEpisodeStrip na /author/$slug i TaxonomyPage (podcastsByProfile/byCategory, queries/podcasts.ts:220–292); Moduł 8 (SEO/feedy) — JSON-LD PodcastEpisode/PodcastSeries + autodiscovery `feedAlternateLink`; Moduł 10 (Sieć/eksperci) — podcast_episode_people→profiles (join w PERSON_FIELDS); Moduł 20 (Platforma/SSR) — loadResilient/resilientCacheControl; Moduł 4 (Media) — okładki i audio z biblioteki mediów.
 - **✅ Mocne:** wzorowa obsługa degradacji tożsamościowej w podcasts.$show.tsx:51–79 (blip backendu ≠ 404 — trzy stany rozróżnione komentarzem i kodem); defensywne parsery jsonb (parseChapters/Quotes/Resources, types.ts:109–139) — zepsuty wpis odpada zamiast wywracać UI; show notes i transkrypcja przechodzą przez sanitizeHtml (podcast.$slug.tsx:407,473).
@@ -1958,7 +1834,6 @@ Moduł to „drugi obieg treści" think-tanku: sieć podcastów w modelu RUSI (p
   3. Przenieść literały PL/EN stron podcastowych do słownika i18n (wzorzec lib/i18n-programs.ts).
 
 ### 7.2. RSS podcastów (kanał sieciowy + per program) i metadane Apple — **8,5/10**
-
 - **Pliki:** src/routes/podcast.rss[.]xml.ts:48–130, src/routes/podcasts.$show.rss[.]xml.ts:44–134, src/lib/seo/podcastRss.ts (+ podcastRss.test.ts, 29 testów), src/lib/seo/podcastChannelMeta.ts (+ 7 testów), src/lib/seo/applePodcastCategories.ts, src/lib/server/publishedContent.server.ts (fetchPublishedPodcasts*, fetchMediaMetaByUrls)
 - **Co robi:** dwa poziomy feedów RSS 2.0 + iTunes (sieć i per-program, model „katalogu odrębnych serii"), z `<enclosure>` o realnym rozmiarze/MIME dociąganym z tabeli media, tagami itunes:explicit/episodeType/season oraz metadanymi kanału (autor, właściciel, kategoria, okładka) scalanymi: program → podcast_settings → domyślne marki.
 - **Relacje:** Moduł 8 (SEO/feedy) — współdzielony builder XML i kontrakt fail-closed hosta; Moduł 20 (Platforma/SSR) — resolveCrawlerTenantIdForHost + trustedPublicHost (service role zawężony do tenanta hosta); Moduł 4 (Media) — fetchMediaMetaByUrls dla enclosure length/type; Moduł 19 (Ustawienia) — tabela podcast_settings.
@@ -1968,7 +1843,6 @@ Moduł to „drugi obieg treści" think-tanku: sieć podcastów w modelu RUSI (p
   1. Wydzielić wspólny helper budowy itemów podcastowych (requestContext + mapa PodcastRssItem) do lib/seo — dwie trasy różnią się tylko źródłem odcinków i tytułem kanału.
 
 ### 7.3. Panel administracyjny podcastów — **7,0/10**
-
 - **Pliki:** src/routes/admin.podcasts.tsx:1–2072 (EditorPane:1260, ShowsPane:596, PodcastSettingsPane:945, People/Chapters/Quotes/ResourcesEditor:1825–2072), src/components/admin/podcasts/{ApplePodcastMetaFields.tsx (209), PodcastFeedReadinessCard.tsx (73)}, src/lib/seo/podcastFeedReadiness.ts, src/lib/i18n-admin-podcasts.ts
 - **Co robi:** pełny CRUD odcinków (audio z MediaPicker + autodetekcja czasu trwania przez `new Audio()`, admin.podcasts.tsx:87–103), programów (sort_order, linki platform), uczestników (profil lub wpis ręczny), rozdziałów/cytatów/źródeł, oraz ustawień kanału z polami Apple Podcasts Connect i kartą „gotowości feedu" (zlicza odcinki bez rozmiaru pliku/czasu trwania zanim zrobi to walidator Apple).
 - **Relacje:** Moduł 4 (Media) — MediaPickerDialog + tabela media (odczyt rozmiarów, :997–1010); Moduł 19 (Authz/RLS) — zapisy wprost do tabel pod politykami `podcasts/podcast_shows editor insert/update` (migracja 20260713155029); Moduł 8 (SEO) — podcastFeedReadiness świadomie oddzielony od buildera XML, żeby nie wciągać generatora do bundla admina (komentarz :52–53).
@@ -1980,8 +1854,7 @@ Moduł to „drugi obieg treści" think-tanku: sieć podcastów w modelu RUSI (p
   3. Dodać miękkie usuwanie (deleted_at już jest w zapytaniach publicznych — panel może je ustawiać zamiast DELETE).
 
 ### 7.4. Wydarzenia — publiczna lista /events — **8,0/10**
-
-- **Pliki:** src/routes/events.tsx:52–318, src/lib/community/publicQueries.ts:43–86 (edgeTtlCache :69–75), src/lib/seo/**tests**/eventsJsonld.test.ts (4 testy), src/components/community/EventsListSkeleton.tsx
+- **Pliki:** src/routes/events.tsx:52–318, src/lib/community/publicQueries.ts:43–86 (edgeTtlCache :69–75), src/lib/seo/__tests__/eventsJsonld.test.ts (4 testy), src/components/community/EventsListSkeleton.tsx
 - **Co robi:** lista nadchodzących/archiwalnych wydarzeń z kartami (okładka, kind, capacity, plakietki members-only/Pro briefing), SSR z zasiewem cache i JSON-LD CollectionPage z węzłami Event budowanym z lekkiej projekcji loadera (headEvents, :79–93).
 - **Relacje:** Moduł 19 (Ustawienia) — bramka `community_modules.events_enabled` z site_settings (dedupe z root loaderem, :64–68); Moduł 12 (Realtime) — klucz ["public-events"] zarejestrowany w eventInvalidationMap (publicQueries.ts:54–57, eventInvalidationMap.ts:267); Moduł 8 (SEO) — eventsCollectionJsonLd + breadcrumbs; Moduł 20 (SSR) — edgeTtlCache per-tenant 60 s.
 - **✅ Mocne:** wzorcowy komentarz i implementacja przejścia fail-loud→fail-soft w transporcie (:57–62) — degradacja daje 200 z uczciwym komunikatem zamiast 500 wypadającego z CDN; JSON-LD z projekcji loadera zamiast pełnych wierszy (mniejszy HTML).
@@ -1990,7 +1863,6 @@ Moduł to „drugi obieg treści" think-tanku: sieć podcastów w modelu RUSI (p
   1. Dodać paginację archiwum (osobne zapytanie upcoming/past z range) zanim liczba wydarzeń przekroczy 200.
 
 ### 7.5. Wydarzenie — detal z RSVP, kolejką FIFO i pierwszeństwem rejestracji — **7,5/10**
-
 - **Pliki:** src/routes/events.$slug.tsx:60–589, src/lib/community/publicQueries.ts:99–176 (get_event_access, rsvp_event, get_event_waitlist_position), src/lib/events/rsvp-email.functions.ts, migracje 20260713093000 + 20260721150000, pgTAP community_events_test.sql (plan 21) i community_events_waitlist_test.sql (plan 22)
 - **Co robi:** trój-stanowe RSVP (going/interested/cancelled) wyłącznie przez RPC `rsvp_event` (granty INSERT/UPDATE cofnięte migracją 20260713200000 — komentarz :157–159); przy komplecie serwer degraduje 'going' do 'waitlist' FIFO z pozycją; okno rejestracji rsvp_opens_at + wcześniejszy dostęp dla rangi early_rsvp_rank; linki do transmisji/nagrania nigdy nie opuszczają bazy bez uprawnienia (grant kolumnowy + RPC get_event_access, publicQueries.ts:38–41); mail potwierdzający bezpłatny RSVP po serwerowej re-weryfikacji statusu.
 - **Relacje:** Moduł 13 (Monetyzacja-core) — bramki warstw (useMembershipTiers/useCurrentTier, flaga recordings/pro_briefings); Moduł 9/16 (Czat/Społeczność) — EventGroupButton zakłada krąg czatu dla uczestników (:507); Moduł 11 (Newsletter/e-mail) — notifyEventRegistration z kluczem idempotencji `rsvp:{id}`; Moduł 12 (Realtime) — liczniki miejsc (7.7); Moduł 21 (Kluby) — brak bezpośredni, ale wspólna tabela events w kalendarzu klubu.
@@ -2001,29 +1873,26 @@ Moduł to „drugi obieg treści" think-tanku: sieć podcastów w modelu RUSI (p
   2. Przenieść wyliczenia requiredTierName/recordingTierName (3 IIFE w komponencie, :239–290) do czystego modułu z testami — logika progów warstw jest dziś nietestowalna.
 
 ### 7.6. Płatne bilety i bilet QR — **7,0/10**
-
 - **Pliki:** src/components/community/EventTicketPurchase.tsx:31–117, EventTicketCard.tsx:27–146, ticketDocument.ts (108), src/lib/events/{ticket.functions.ts:10–32, ticket.server.ts:12–147, ticketCode.ts:10–25, ticketTypes.ts}
 - **Co robi:** zakup biletu przez `createCheckoutOrder` (kind=one_time + event_id — kwota czytana z wiersza wydarzenia, nigdy z klienta); webhook Stripe potwierdza RSVP; bilet: kod `NES-XXXX-XXXX` deterministycznie z id zamówienia/RSVP (alfabet bez I/O), QR z adresem weryfikacyjnym, pobranie potwierdzenia jako HTML.
 - **Relacje:** Moduł 13 (Monetyzacja-core) — checkout.functions, payment_orders, LazyEmbeddedCheckoutDialog, getStripeEnvironment; Moduł 15 (Profil) — holderName z profiles; Moduł 20 (SSR/server fn) — wzorzec tss-serverfn-split (deklaracja/logika rozdzielone, ticket.functions.ts:3–4).
 - **✅ Mocne:** `assertSeatAvailable` serwerowo rzuca `event_full` przed sprzedażą (ticket.server.ts:66–83) z wyjątkiem dla ponawiających płatność; RLS ogranicza odczyt biletu do własnego wiersza RSVP/zamówienia; publicClient poprawnie obsługuje nieprzezroczyste klucze `sb_` (:17–27).
-- **⚠️ Słabe:** dopasowanie zamówienia do wydarzenia to skan 20 ostatnich opłaconych zamówień po `metadata.event_id` (ticket.server.ts:107–117) — aktywny kupujący z >20 nowszymi zamówieniami dostanie bilet bez numeru transakcji/kwoty; ticketCode.ts i ticket.server.ts nie mają testów (w lib/events/**tests** są tylko countdown/schedule/sponsors); „weryfikacja przy wejściu odpytuje backend" (ticketCode.ts:5) — ale trasy/panelu skanera nie znalazłem (grep `?ticket=`): QR prowadzi na stronę wydarzenia, weryfikator nie istnieje.
+- **⚠️ Słabe:** dopasowanie zamówienia do wydarzenia to skan 20 ostatnich opłaconych zamówień po `metadata.event_id` (ticket.server.ts:107–117) — aktywny kupujący z >20 nowszymi zamówieniami dostanie bilet bez numeru transakcji/kwoty; ticketCode.ts i ticket.server.ts nie mają testów (w lib/events/__tests__ są tylko countdown/schedule/sponsors); „weryfikacja przy wejściu odpytuje backend" (ticketCode.ts:5) — ale trasy/panelu skanera nie znalazłem (grep `?ticket=`): QR prowadzi na stronę wydarzenia, weryfikator nie istnieje.
 - **🔧 Rekomendacje:**
   1. Filtrować payment_orders po `metadata->>event_id` w zapytaniu (PostgREST `->>`), nie skanem 20 wierszy.
   2. Zbudować widok weryfikacji biletu dla staffu (parametr `?ticket=` dziś nic nie robi) — bez niego QR jest tylko ozdobą.
   3. Dodać testy ticketCode (determinizm, kolizje formatu) i loadMyEventTicket (fallback bez zamówienia).
 
 ### 7.7. Stan miejsc w czasie rzeczywistym — **8,0/10**
-
 - **Pliki:** src/hooks/useEventSeatsRealtime.ts:19–43, src/lib/events/ticket.server.ts:31–60 (seatsFor/loadEventSeatState), src/lib/realtime/tableChannelHub.ts (subscribeToTable)
 - **Co robi:** liczba zajętych miejsc liczona serwerowo przez RPC `get_event_rsvp_counts` (SECURITY DEFINER — bez wglądu w cudze wiersze RSVP); realtime na event_rsvps jest wyłącznie sygnałem „przelicz" (invalidate), nigdy źródłem danych; staleTime 10 s + refetch przy powrocie na kartę.
 - **Relacje:** Moduł 12 (Realtime/powiadomienia) — współdzielony tableChannelHub (jeden kanał na tabelę+filtr); Moduł 13 — isFull blokuje przycisk zakupu biletu (EventTicketPurchase:105).
 - **✅ Mocne:** wzorcowa architektura „realtime jako trigger, serwer jako prawda" (komentarz :3–5 i kod się zgadzają); fallback na liczby z listy, gdy odczyt trwa (events.$slug.tsx:229–232).
 - **⚠️ Słabe:** brak testu hooka (renderHook) — kontrakt inwalidacji dwóch kluczy (:36–37) jest nieprzybity; `eslint-disable exhaustive-deps` maskuje zależność queryKey.
 - **🔧 Rekomendacje:**
-  1. Test jednostkowy hooka: zdarzenie na kanale → invalidate obu kluczy (wzorzec testów z lib/community/**tests**/publicQueryOptions.test.ts).
+  1. Test jednostkowy hooka: zdarzenie na kanale → invalidate obu kluczy (wzorzec testów z lib/community/__tests__/publicQueryOptions.test.ts).
 
 ### 7.8. Prelegenci wydarzeń (chipy, dialog profilu, panel) — **7,5/10**
-
 - **Pliki:** src/components/events/{EventSpeakersSection.tsx:13–79, SpeakerChip.tsx (74), SpeakerAvatar.tsx (55), SpeakerProfileDialog.tsx (277), SpeakerStars.tsx (22), speakerAvatarSizes.ts}, src/lib/builder/speakersQuery.ts, src/components/admin/community/EventSpeakersManager.tsx, migracja 20260727200000 (speaker_profiles + get_public_speakers)
 - **Co robi:** sekcja „Prelegenci" na detalu wydarzenia z relacji event_speakers wzbogaconej o speaker_profiles/profiles przez definerowe RPC get_public_speakers; klik otwiera dialog profilu z fallbackiem danych z chipa; znacznik eksperta (ShieldCheck).
 - **Relacje:** Moduł 3 (Silniki treści) — speakersQueryOptions współdzielone z widgetami buildera (SpeakersWidget, EventScheduleView; agenda parsuje prelegentów z lib/events/schedule.ts, prefetch SSR w lib/builder/prefetch.ts:29); Moduł 10 (Eksperci) — flaga is_expert i profil; Moduł 16 (Społeczność-admin) — EventSpeakersManager w panelu wydarzeń.
@@ -2033,7 +1902,6 @@ Moduł to „drugi obieg treści" think-tanku: sieć podcastów w modelu RUSI (p
   1. Wydzielić `speakerRoleLabel(speaker, lang)` do lib (używany w ≥2 miejscach) i pokryć testem fallbacków.
 
 ### 7.9. Dodaj do kalendarza (Google / Outlook / ICS) — **8,0/10**
-
 - **Pliki:** src/components/community/AddToCalendar.tsx:20–106, src/lib/community/calendar.ts (+ calendar.test.ts)
 - **Co robi:** popover z trzema ścieżkami: głębokie linki Google/Outlook i pobranie .ics (uid = id wydarzenia, escaping ICS w lib/community/calendar); wczesna walidacja — komponent znika przy nieparsowalnej dacie startu (:50–55).
 - **Relacje:** Moduł 16 (Społeczność) — lib/community/calendar współdzielony z kalendarzem klubów (Moduł 21).
@@ -2043,7 +1911,6 @@ Moduł to „drugi obieg treści" think-tanku: sieć podcastów w modelu RUSI (p
   1. Przycinać description w linkach Google/Outlook (np. 500 znaków + URL) i rozważyć TZID w ICS dla wydarzeń stacjonarnych.
 
 ### 7.10. Panel wydarzeń społeczności (CRUD, statusy, przypomnienia) — **6,5/10**
-
 - **Pliki:** src/routes/admin.community.events.tsx:1–575 (Create/EditEventDialog:264–575), src/lib/admin/community.ts (fetchAdminEvents, createEvent, updateEvent, updateEventStatus, deleteEvent, runEventReminders:245–249)
 - **Co robi:** CRUD wydarzeń (tytuły/opisy PL+EN, kind, capacity, visibility, min_tier_rank, bilet, okna RSVP), zmiana statusu draft/published/cancelled, ręczne odpalenie przypomnień przez RPC `run_event_reminders`, zarządzanie prelegentami (EventSpeakersManager).
 - **Relacje:** Moduł 16 (Społeczność-admin) — trasa żyje w shellu admin.community; Moduł 12 (Powiadomienia) — run_event_reminders emituje powiadomienia; Moduł 19 (RLS) — zapisy wprost do events pod polityką staff.
@@ -2054,8 +1921,7 @@ Moduł to „drugi obieg treści" think-tanku: sieć podcastów w modelu RUSI (p
   2. Dodać kolumnę „going/waitlist" w liście (get_event_rsvp_counts przyjmuje tablicę id — jedno RPC).
 
 ### 7.11. Ankiety — strona publiczna, blok we wpisie, głosowanie — **8,0/10**
-
-- **Pliki:** src/routes/polls.tsx:24–134, src/components/community/PollCard.tsx:23–125, src/components/blocks/PollBlockView.tsx:21–76, src/lib/community/publicQueries.ts:178–265, migracja 20260713097000 (vote_poll, get_poll_results), pgTAP community_polls_contrib_test.sql (plan 21), src/lib/community/**tests**/publicQueryOptions.test.ts (kontrakt kluczy)
+- **Pliki:** src/routes/polls.tsx:24–134, src/components/community/PollCard.tsx:23–125, src/components/blocks/PollBlockView.tsx:21–76, src/lib/community/publicQueries.ts:178–265, migracja 20260713097000 (vote_poll, get_poll_results), pgTAP community_polls_contrib_test.sql (plan 21), src/lib/community/__tests__/publicQueryOptions.test.ts (kontrakt kluczy)
 - **Co robi:** lista ankiet z SSR (pytania/opcje w HTML), wyniki wyłącznie klienckie i per-user (anty-kotwiczenie: RPC zwraca visible=false przed oddaniem głosu, edge cache nigdy nie zapieka rozkładu); głos przez RPC vote_poll (walidacja indeksu, jeden głos ze zmianą zdania); realtime na poll_votes z debounce 250 ms; jeden PollCard współdzielony przez /polls i blok „poll" we wpisie.
 - **Relacje:** Moduł 1/3 (Wpisy/bloki) — PollBlockView + pollBlockQueryOptions z prefetchem SSR bloków; Moduł 12 (Realtime) — postgres_changes z filtrem `poll_id=in.(...)`; Moduł 19 (Ustawienia) — bramka polls_enabled; Moduł 21 (Kluby) — wspólna tabela polls (create_club_thread_poll insertuje do niej, migracja 20260808220000:178).
 - **✅ Mocne:** anty-kotwiczenie egzekwowane w DB i sumiennie odwzorowane w architekturze cache (komentarz publicQueries.ts:244–250 — wyniki celowo poza loaderem); test kontraktu kluczy SSR↔klient (5 asercji) chroni przed dryfem; wspólny głos w bloku odświeża /polls i odwrotnie (wspólny prefiks klucza).
@@ -2064,7 +1930,6 @@ Moduł to „drugi obieg treści" think-tanku: sieć podcastów w modelu RUSI (p
   1. Rozważyć /polls/$id z OG (pytanie jako tytuł) — ankiety są naturalnym materiałem social, dziś linkowalna jest tylko lista.
 
 ### 7.12. Ankiety — panel administracyjny — **4,0/10**
-
 - **Pliki:** src/routes/admin.community.polls.tsx:36–362 (CreatePollButton:219–362, PollResults:181–217), src/lib/admin/community.ts:573–634 (createPoll:606, fetchPollResults:622)
 - **Co robi:** lista ankiet z filtrem statusu, tworzenie (pytanie PL/EN + 2–8 opcji, ends_at, draft/open), otwieranie/zamykanie, usuwanie, podgląd wyników liczony klientem z surowych poll_votes.
 - **Relacje:** Moduł 16 (Społeczność-admin) — shell admin.community; Moduł 19 (RLS) — polityki staff na polls/poll_votes.
@@ -2076,7 +1941,6 @@ Moduł to „drugi obieg treści" think-tanku: sieć podcastów w modelu RUSI (p
   3. Ujednolicić odczyt wyników na get_poll_results_bulk i dodać edycję ankiety w statusie draft.
 
 ### 7.13. Biblioteka materiałów członkowskich — **8,0/10**
-
 - **Pliki:** src/routes/library.tsx:32–202, src/lib/community/publicQueries.ts:377–417, src/lib/billing/resources.functions.ts (downloadMemberResource), src/routes/admin.library.tsx:1–765, src/lib/admin/library.ts, src/lib/i18n-library.ts, migracja 20260713174428 (member_resources + authorize_resource_download)
 - **Co robi:** publiczne metadane materiałów (teaser z kłódką, kategorie z ikonami, licznik pobrań), plik w prywatnym buckecie — pobranie przez server fn: RPC `authorize_resource_download` (published + ranga warstwy, staff bez bramki, log do resource_downloads) → dopiero potem service role podpisuje URL na 120 s; panel: upload, publikacja Switchem, podmiana pliku (nowy obiekt najpierw, stary schodzi best-effort), min_tier_rank per materiał.
 - **Relacje:** Moduł 13 (Monetyzacja-core) — bramka rangi (useCurrentTier) + upsell /pricing; Moduł 17 (Analityka) — resource_downloads jako historia uczestnictwa; Moduł 4 (Media/Storage) — prywatny bucket member-resources; Moduł 20 (SSR) — loader zasiewa listę (SSR siatki kart), personalizacja kliencka.
@@ -2087,7 +1951,6 @@ Moduł to „drugi obieg treści" think-tanku: sieć podcastów w modelu RUSI (p
   2. Dodać filtr kategorii + proste wyszukiwanie po tytule (limit listy to już 300 wierszy).
 
 ### 7.14. Glosariusz — strona publiczna, panel, auto-tooltipy we wpisach — **6,5/10**
-
 - **Pliki:** src/routes/glossary.tsx:25–110, src/lib/queries/glossary.ts, src/routes/admin.glossary.tsx:19–172, src/components/post/GlossaryHighlighter.tsx:22–120, migracja 20260720134000
 - **Co robi:** publiczna lista alfabetyczna PL/EN z JSON-LD DefinedTermSet (limit 200 termów w markupie), kotwice per termin (id=slug); panel dodawania/usuwania termów; auto-podlinkowanie: pierwsze wystąpienie terminu w wyrenderowanym DOM wpisu dostaje tooltip z definicją (TreeWalker, granice słów Unicode, dłuższe terminy najpierw, pomija linki/kod/nagłówki).
 - **Relacje:** Moduł 1 (Wpisy-czytelnik) — GlossaryHighlighter działa na DOM artykułu, więc obejmuje wszystkie silniki treści bez zmian w rendererach (komentarz :4–5); Moduł 8 (SEO) — DefinedTermSet; Moduł 19 (RLS) — polityka „glossary staff manage".
@@ -2099,7 +1962,6 @@ Moduł to „drugi obieg treści" think-tanku: sieć podcastów w modelu RUSI (p
   3. Testy markFirstOccurrences (czysta funkcja DOM — łatwa do pokrycia happy-dom): granice słów, kolejność zachłanna, SKIP_CLOSEST.
 
 ### 7.15. Relacje na żywo — indeks /live, RSS wpisów, panel redakcyjny — **7,5/10**
-
 - **Pliki:** src/routes/live.tsx:30–184, src/lib/queries/liveBlogs.ts:12–79 (+ liveBlogs.test.ts, 3 testy), src/routes/live_.rss[.]xml.ts:42–113, src/routes/admin.live-blog.tsx:47–465, src/components/blocks/LiveBlogBlock.tsx (czytnik — granica z Modułem 1/3)
 - **Co robi:** indeks postów z osadzoną relacją (plakietka LIVE gdy ostatni wpis <3 h, licznik wpisów z poprawną polską fleksją), wyprowadzony z live_blog_entries przez złączenie z opublikowanymi postami; RSS gdzie itemem jest WPIS relacji z kotwicą `#live-{id}` i filtrem języka wpisu; panel: wybór postu, autodetekcja bloków `liveblog` w blocks_data (przez definerowe get_post_for_edit), CRUD wpisów + przypinanie, sanitizeHtml treści.
 - **Relacje:** Moduł 1 (Wpisy-czytelnik) — LiveBlogBlock renderuje wpisy w treści posta (jedyny blok z websocketem dla czytelników); Moduł 2 (Edytor) — deep-link z edytora bloku niesie blockId (admin.live-blog.tsx:167–182); Moduł 8 (SEO/feedy) — kontrakt buildRssXml + rss_enabled; Moduł 12 (Realtime) — kanał `liveblog:{postId}:{blockId}`; Moduł 20 (SSR) — crawlerDegradeIsSafe (poprawka 2026-08-03 opisana w :47–52).
@@ -2110,7 +1972,6 @@ Moduł to „drugi obieg treści" think-tanku: sieć podcastów w modelu RUSI (p
   2. Jawne zamknięcie relacji (flaga na bloku lub wpis „końcowy") zamiast wyłącznie heurystyki 3 h.
 
 ### 7.16. Web stories — indeks, viewer, wariant AMP, panel — **7,5/10**
-
 - **Pliki:** src/routes/web-stories.index.tsx:23–118, web-stories.$slug.tsx:11–139, web-stories.$slug.amp.ts:19–57, src/components/web-stories/StoryViewer.tsx:16–214, src/lib/web-stories/types.ts:9–88 (+ types.test.ts, 9 testów), src/lib/seo/ampStory.ts (+ ampStory.test.ts, 17 testów), src/routes/admin.web-stories.tsx:26–521
 - **Co robi:** siatka 9:16 opublikowanych stories, pełnoekranowy viewer (progress bary rAF, autoplay z pauzą zachowującą elapsed, klawiatura, tap-zones, focus trap, tła image/video/color, CTA), równoległy dokument `<amp-story>` podlinkowany rel=amphtml (kwalifikacja do prezentacji Web Stories w Google, emitowany tylko gdy przejdzie canBuildAmpStory — poster wymagany), panel CRUD z edytorem stron.
 - **Relacje:** Moduł 8 (SEO) — ampStory builder + JSON-LD CreativeWork + sekcja „stories" w sitemapIndex.ts:40; Moduł 3 (Builder) — WebStoriesCarouselView (widget karuzeli); Moduł 20 (SSR) — AMP przez service role fail-closed na tenancie hosta; Moduł 4 (Media) — media_url/poster stron.
@@ -2121,8 +1982,7 @@ Moduł to „drugi obieg treści" think-tanku: sieć podcastów w modelu RUSI (p
   2. Dodać obsługę swipe (pointer events) i respektować prefers-reduced-motion (pauza autoplay).
 
 ### 7.17. Landing quizu EuroChallenge — **7,5/10**
-
-- **Pliki:** src/routes/quiz.tsx:40–349, src/components/quiz/{LazyQuizIframe.tsx:27–112, QuizBackground.tsx (180)}, src/lib/seo/jsonld.ts (platformLandingJsonLd) + **tests**/quizLanding.test.ts (9 testów)
+- **Pliki:** src/routes/quiz.tsx:40–349, src/components/quiz/{LazyQuizIframe.tsx:27–112, QuizBackground.tsx (180)}, src/lib/seo/jsonld.ts (platformLandingJsonLd) + __tests__/quizLanding.test.ts (9 testów)
 - **Co robi:** strona z własnym chrome (staticData.ownChrome) osadzająca zewnętrzny quiz (nes-quiz.com/embed) w leniwym iframie (IntersectionObserver + requestIdleCallback + native lazy, placeholder bez layout shiftu), sidebar udostępniania (copy/LinkedIn/FB/Messenger/WhatsApp/e-mail), tło light/dark z preloadem wariantu i JSON-LD platformLanding (mainEntity→WebApplication kredytuje promowaną platformę).
 - **Relacje:** Moduł 5 (Chrome/nawigacja) — renderuje globalny Header/Footer mimo własnego layoutu; Moduł 8 (SEO) — canonical/hreflang/OG za językiem renderu (naprawa opisana w :44–48), testy quizLanding; Moduł 4 (Motyw) — BrandIcon z fallbackami lucide.
 - **✅ Mocne:** SSR-poprawny fallback adresu udostępniania per język (:114–119 — komentarz nazywa dokładny błąd, którego unika); przemyślany budżet wydajności (iframe nie blokuje pierwszego paintu, preload tła tylko właściwego wariantu).
@@ -2131,7 +1991,6 @@ Moduł to „drugi obieg treści" think-tanku: sieć podcastów w modelu RUSI (p
   1. Przenieść QUIZ_PLATFORM_URL/embed do site_settings (multi-tenant CMS nie powinien mieć w kodzie URL-i jednej instalacji).
 
 ### 7.18. Programy badawcze — katalog, landing, RSS, panel — **8,0/10**
-
 - **Pliki:** src/routes/programs.index.tsx:27–151, programs.$slug.tsx:38–587, programs.$slug.rss[.]xml.ts:5–11, src/lib/queries/programs.ts:20–296, src/lib/programs/{shape,visual,icons}.ts (+ 13 testów), src/routes/admin.research-programs.tsx:41–1134, src/components/programs/ProgramIcon.tsx, src/lib/i18n-programs.ts
 - **Co robi:** katalog programów (kolor akcentu, ikona, tagline) i landing w stylu RUSI: teza/zakres, pytania badawcze, lider+zespół (RPC get_program_members), projekty ze statusami, partnerzy, raporty flagowe (kuratorowane z zachowaniem kolejności — orderByIds), najnowsze publikacje automatycznie z podpiętej kategorii, kuratorowane podcasty i wydarzenia, newsletter i kontakt; per-program RSS przez taxonomyFeedResponse; panel z 4 zakładkami (members/projects/partners/items).
 - **Relacje:** Moduł 7 wewnętrznie spina inne funkcje modułu (kuratorowane podcasty→7.1, wydarzenia→7.5); Moduł 1/3 — publikacje przez post_categories + PostListCard; Moduł 11 (Newsletter) — NewsletterForm z source=`program:{slug}`; Moduł 12 (Powiadomienia) — FollowButton targetType="program" (subskrypcja tematyczna); Moduł 8 (SEO) — taxonomyFeed + breadcrumbs + sekcja „programs" w sitemapIndex; Moduł 10 (Eksperci) — członkowie z profiles (UWAGA: /admin/programs to INNA tabela `programs` huba eksperckiego — Moduł 10; tu audytowana jest research_programs z /admin/research-programs, rozdział jawnie opisany w nagłówku admin.research-programs.tsx:1–6).
@@ -2142,28 +2001,27 @@ Moduł to „drugi obieg treści" think-tanku: sieć podcastów w modelu RUSI (p
   2. Wspólny resolver href postów (ten sam N+1 co w 7.15).
 
 ### Podsumowanie modułu 7
-
 - **Średnia ocen funkcji:** 7,4 · **Rozkład:** 0× 9–10 / 15× 7–8 / 2× 5–6 / 1× <5
 - **Relacje modułu (zbiorczo):**
 
-| Moduł                      | Mechanizm                                                                                                                                                                       | Kierunek zależności               |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| 1 Wpisy-czytelnik          | GlossaryHighlighter na DOM artykułu; PollBlockView i LiveBlogBlock w treści wpisu; PodcastEpisodeStrip na /author i stronach kategorii                                          | 7 → 1 (dostarcza komponenty/dane) |
-| 2 Edytor/workflow          | deep-link edytora bloku do /admin/live-blog (blockId); bloki liveblog/poll w blocks_data                                                                                        | 2 → 7                             |
-| 3 Silniki treści (builder) | widgety event-schedule/countdown/sponsors/list, SpeakersWidget, WebStoriesCarouselView importują lib/events/* i speakersQuery; prefetch SSR agendy (lib/builder/prefetch.ts:29) | 3 → 7 (import lib)                |
-| 4 Motyw/media              | MediaPickerDialog, tabela media (enclosure RSS), bucket member-resources, okładki                                                                                               | 7 → 4                             |
-| 5 Chrome/nawigacja         | quiz z ownChrome renderuje Header/Footer; breadcrumbs na /live, /podcasts/$show                                                                                                 | 7 → 5                             |
-| 6 Wyszukiwarka             | BRAK integracji — podcasty/wydarzenia/stories/glosariusz nieindeksowane (zweryfikowane grep src/lib/search)                                                                     | luka                              |
-| 8 SEO/feedy                | podcastRss/ampStory/jsonld/taxonomyFeed w lib/seo; sekcje sitemapIndex: podcasts/programs/stories/events; kontrakt fail-closed feedów                                           | 7 ↔ 8                             |
-| 10 Sieć/eksperci           | podcast_episode_people→profiles; speaker_profiles + is_expert; członkowie programów; odrębna tabela `programs` (admin.programs) należy do M10                                   | 7 → 10                            |
-| 11 Newsletter              | NewsletterForm na landingu programu (source=program:slug); mail potwierdzenia RSVP (notifyEventRegistration)                                                                    | 7 → 11                            |
-| 12 Realtime/powiadomienia  | tableChannelHub (event_rsvps), postgres_changes (poll_votes, live_blog_entries), eventInvalidationMap["public-events"], FollowButton(program), run_event_reminders              | 7 ↔ 12                            |
-| 13 Monetyzacja-core        | createCheckoutOrder (bilety), payment_orders, webhook Stripe potwierdza RSVP, bramki warstw (min_tier_rank, flagi recordings/pro_briefings), authorize_resource_download        | 7 → 13                            |
-| 16 Społeczność-admin       | shell admin.community.* (events/polls), EventSpeakersManager; Q&A i engagement poza zakresem (współdzielą publicQueries.ts)                                                     | 7 ↔ 16                            |
-| 17 Analityka/BI            | resource_downloads (historia pobrań)                                                                                                                                            | 7 → 17                            |
-| 19 Ustawienia/authz        | site_settings community_modules (events/polls_enabled), RLS wszystkich tabel modułu, granty kolumnowe join_url/recording_url                                                    | 7 → 19                            |
-| 20 Platforma/SSR           | loadResilient/edgeTtlCache/setCacheControlHeader, trustedPublicHost + resolveCrawlerTenantIdForHost (feedy, AMP), wzorzec tss-serverfn-split                                    | 7 → 20                            |
-| 21 Kluby                   | wspólna tabela polls (create_club_thread_poll), lib/community/calendar współdzielony z kalendarzem klubu                                                                        | 21 → 7 (wspólna tabela)           |
+| Moduł | Mechanizm | Kierunek zależności |
+|---|---|---|
+| 1 Wpisy-czytelnik | GlossaryHighlighter na DOM artykułu; PollBlockView i LiveBlogBlock w treści wpisu; PodcastEpisodeStrip na /author i stronach kategorii | 7 → 1 (dostarcza komponenty/dane) |
+| 2 Edytor/workflow | deep-link edytora bloku do /admin/live-blog (blockId); bloki liveblog/poll w blocks_data | 2 → 7 |
+| 3 Silniki treści (builder) | widgety event-schedule/countdown/sponsors/list, SpeakersWidget, WebStoriesCarouselView importują lib/events/* i speakersQuery; prefetch SSR agendy (lib/builder/prefetch.ts:29) | 3 → 7 (import lib) |
+| 4 Motyw/media | MediaPickerDialog, tabela media (enclosure RSS), bucket member-resources, okładki | 7 → 4 |
+| 5 Chrome/nawigacja | quiz z ownChrome renderuje Header/Footer; breadcrumbs na /live, /podcasts/$show | 7 → 5 |
+| 6 Wyszukiwarka | BRAK integracji — podcasty/wydarzenia/stories/glosariusz nieindeksowane (zweryfikowane grep src/lib/search) | luka |
+| 8 SEO/feedy | podcastRss/ampStory/jsonld/taxonomyFeed w lib/seo; sekcje sitemapIndex: podcasts/programs/stories/events; kontrakt fail-closed feedów | 7 ↔ 8 |
+| 10 Sieć/eksperci | podcast_episode_people→profiles; speaker_profiles + is_expert; członkowie programów; odrębna tabela `programs` (admin.programs) należy do M10 | 7 → 10 |
+| 11 Newsletter | NewsletterForm na landingu programu (source=program:slug); mail potwierdzenia RSVP (notifyEventRegistration) | 7 → 11 |
+| 12 Realtime/powiadomienia | tableChannelHub (event_rsvps), postgres_changes (poll_votes, live_blog_entries), eventInvalidationMap["public-events"], FollowButton(program), run_event_reminders | 7 ↔ 12 |
+| 13 Monetyzacja-core | createCheckoutOrder (bilety), payment_orders, webhook Stripe potwierdza RSVP, bramki warstw (min_tier_rank, flagi recordings/pro_briefings), authorize_resource_download | 7 → 13 |
+| 16 Społeczność-admin | shell admin.community.* (events/polls), EventSpeakersManager; Q&A i engagement poza zakresem (współdzielą publicQueries.ts) | 7 ↔ 16 |
+| 17 Analityka/BI | resource_downloads (historia pobrań) | 7 → 17 |
+| 19 Ustawienia/authz | site_settings community_modules (events/polls_enabled), RLS wszystkich tabel modułu, granty kolumnowe join_url/recording_url | 7 → 19 |
+| 20 Platforma/SSR | loadResilient/edgeTtlCache/setCacheControlHeader, trustedPublicHost + resolveCrawlerTenantIdForHost (feedy, AMP), wzorzec tss-serverfn-split | 7 → 20 |
+| 21 Kluby | wspólna tabela polls (create_club_thread_poll), lib/community/calendar współdzielony z kalendarzem klubu | 21 → 7 (wspólna tabela) |
 
 - **5 najpilniejszych rekomendacji:**
   1. **(7.12)** Naprawić kształt opcji ankiet w panelu admina: `{label_pl,label_en}` → kanoniczne `{pl,en}` (lib/admin/community.ts:601) + migracja istniejących wierszy + CHECK w DB — ankiety tworzone w panelu mają dziś puste etykiety na /polls i w bloku wpisu.
@@ -2176,12 +2034,11 @@ Moduł to „drugi obieg treści" think-tanku: sieć podcastów w modelu RUSI (p
 
 ## Moduł 8 — SEO, feedy, dane strukturalne, cache brzegowy
 
-**Zakres zbadany:** src/lib/seo/ (43 pliki źródłowe + 32 pliki testów w **tests**), src/components/seo/ (GooglePreferredSourceBadge + test), src/components/admin/seo/ (9 komponentów: SeoPanel, SerpPreview, SerpMeter, SeoTextField, SeoValidationSummary, InternalLinkSuggestions, RobotsTxtPreview, UrlInspectionWidget, SeoScorePill), src/lib/{customMeta,cacheBusting,prerender,ssrCache,edgeCache.functions,redirects.functions}.ts, src/lib/server/{robotsRequest,sitemapRequest,sitemapEntries}.server.ts, trasy: sitemap[.]xml, sitemaps.$section, sitemap-index[.]xml, sitemap.tsx, news-sitemap[.]xml, rss[.]xml, feed.ts, category/tag/programs.$slug.rss, podcast.rss, podcasts.$show.rss, tracker.rss, live_.rss, llms[.]txt, robots[.]txt, web-stories.$slug.amp, admin.seo, admin.seo.search-console, admin.settings.seo, admin.settings.google-source, admin.redirects, admin.custom-meta, src/start.ts:244–293 (middleware), migracje: 20260702130000_seo_toolkit, 20260703063657, 20260703090300_redirects_tenant_scope, e2e/seo.spec.ts (16 testów), public/ (brak robots.txt — potwierdzone) · **Funkcji:** 20 · **Ocena modułu:** 8,3/10
+**Zakres zbadany:** src/lib/seo/ (43 pliki źródłowe + 32 pliki testów w __tests__), src/components/seo/ (GooglePreferredSourceBadge + test), src/components/admin/seo/ (9 komponentów: SeoPanel, SerpPreview, SerpMeter, SeoTextField, SeoValidationSummary, InternalLinkSuggestions, RobotsTxtPreview, UrlInspectionWidget, SeoScorePill), src/lib/{customMeta,cacheBusting,prerender,ssrCache,edgeCache.functions,redirects.functions}.ts, src/lib/server/{robotsRequest,sitemapRequest,sitemapEntries}.server.ts, trasy: sitemap[.]xml, sitemaps.$section, sitemap-index[.]xml, sitemap.tsx, news-sitemap[.]xml, rss[.]xml, feed.ts, category/tag/programs.$slug.rss, podcast.rss, podcasts.$show.rss, tracker.rss, live_.rss, llms[.]txt, robots[.]txt, web-stories.$slug.amp, admin.seo, admin.seo.search-console, admin.settings.seo, admin.settings.google-source, admin.redirects, admin.custom-meta, src/start.ts:244–293 (middleware), migracje: 20260702130000_seo_toolkit, 20260703063657, 20260703090300_redirects_tenant_scope, e2e/seo.spec.ts (16 testów), public/ (brak robots.txt — potwierdzone) · **Funkcji:** 20 · **Ocena modułu:** 8,3/10
 
 Moduł to kompletna warstwa widoczności maszynowej platformy: budowa `<head>` (canonical/hreflang/OG), JSON-LD (NewsArticle z paywallem, Organization, QAPage, Events), sitemapa indeks+shardy z kanonizacją przekierowań, Google News sitemap, rodzina feedów RSS (site, taksonomie, podcast iTunes), dynamiczny robots.txt z redakcyjną polityką crawlerów AI, llms.txt z rejestrem powierzchni maszynowych pilnowanym testem kontraktu, menedżer przekierowań z monitorem 404 oraz narzędzia redakcyjne (SERP preview, przegląd SEO, GSC). Stan jest wyraźnie ponadprzeciętny: czyste, framework-free buildery z 281 przechodzącymi testami jednostkowymi + 16 testów e2e, konsekwentny kontrakt tenant fail-closed na każdej powierzchni service-role i przemyślana obsługa XSS (safeJsonLd, safeCssColor). Najważniejszy wniosek: rdzeń wyprzedza brzegi — statystyki trafień przekierowań są martwe (RPC `record_redirect_hit` nie ma ani jednego wołającego, kolumna w /admin/redirects zawsze pokazuje 0), logger 404 ignoruje istniejący atomowy RPC `record_seo_404` (wyścig read-then-write), a AMP stories mają zaszyty na sztywno język PL.
 
 ### 8.1. Budowa `<head>`: meta/OG/canonical/hreflang + nadpisania marki per host — **9,0/10**
-
 - **Pliki:** src/lib/seo/meta.ts:1–338 (buildContentHead, buildRootHead, hreflangLinks, feedDiscoveryLinks, feedAlternateLink, imagePreloadLink), fields.ts:1–128 (łańcuch fallbacków seo_title/description/og_image, applyTitleSuffix, resolveRobotsMeta), head.ts:21–30 (activeLang), request.ts (getRequestUrl izomorficzny), socialDefaults.ts, brandDefaults.ts, testy: meta.test, headContract.test, fields.test, socialDefaults.test, siteIdentity.test
 - **Co robi:** czyste buildery deskryptorów `head()` TanStack: pełny klaster hreflang (x-default + PL/EN po prefiksie ścieżki), canonical z tłumieniem hreflang przy override, OG/Twitter z gwarantowaną kartą (fallback marki per host z site_settings), robots meta z domyślnymi dyrektywami zero-click (`max-image-preview:large, max-snippet:-1`). Nadpisania tytułu/opisu/karty per host trzymane w pamięci kluczowanej hostem (tenant-safe by construction, cap 100 hostów).
 - **Relacje:** Moduł 1 (Wpisy-czytelnik) — import w $.tsx:362–435 i ~50 trasach publicznych; Moduł 20 (Platforma/SSR) — root loader zasila rememberBrandDefaults/rememberSocialDefaults; Moduł 19 (Ustawienia) — site_settings["seo"]; Moduł 21 (Kluby) — clubHead.ts importuje buildContentHead; Moduł 5 (Chrome) — i18n localePath jako źródło mapowania język↔URL.
@@ -2192,7 +2049,6 @@ Moduł to kompletna warstwa widoczności maszynowej platformy: budowa `<head>` (
   2. Wyprowadzić SITE_NAME/SITE_CANONICAL_ORIGIN do konfiguracji tenanta — warunek realnej białej etykiety.
 
 ### 8.2. Dane strukturalne JSON-LD (artykuł, encja marki, Q&A, wydarzenia) — **9,0/10**
-
 - **Pliki:** src/lib/seo/jsonld.ts:1–472 (safeJsonLd, organizationJsonLd/NewsMediaOrganization, webSiteJsonLd+SearchAction, breadcrumbListJsonLd, siteNavigationJsonLd, qaPageJsonLd, faqPageJsonLd, qaCollectionJsonLd, eventsCollectionJsonLd, platformLandingJsonLd), meta.ts:340–426 (buildArticleJsonLd: NewsArticle, paywall isAccessibleForFree+hasPart, abstract z takeaways, speakable), footerNavigation.ts (rejestr linków stopki), testy: jsonld, qaJsonld, eventsJsonld, quizLanding + e2e/seo.spec.ts:209
 - **Co robi:** kompletna warstwa GEO/AEO: NewsArticle z markupem paywalla wg wzorca Google, Organization+WebSite emitowane raz na stronie głównej (`@id` jako cel referencji), BreadcrumbList z SSR (komentarz: wcześniejsza emisja w body pojawiała się dopiero po hydracji — crawlery jej nie widziały), QAPage tylko dla pytań z odpowiedzią (niepełne psują walidację rich results), Event z mapowaniem kind→eventAttendanceMode bez zgadywania nieznanych trybów.
 - **Relacje:** Moduł 1 — $.tsx:393–412 (NewsArticle + speakable + abstract); Moduł 13 (Monetyzacja-core) — pole `gated` → isAccessibleForFree; Moduł 16 (Społeczność-admin)/7 — qa.$slug, events.tsx; Moduł 6 (Wyszukiwarka) — SearchAction celuje w /search; Moduł 5 — breadcrumbs.ts + footerNavigation współdzielone z UI stopki i analityką kliknięć (Moduł 17).
@@ -2203,7 +2059,6 @@ Moduł to kompletna warstwa widoczności maszynowej platformy: budowa `<head>` (
   2. Dodać ProfilePage/Person JSON-LD na stronach autorów (author.$slug.tsx) spięty `@id` z organizacją.
 
 ### 8.3. Sitemapa: indeks + shardy sekcji z kanonizacją przekierowań — **9,0/10**
-
 - **Pliki:** src/lib/seo/sitemapIndex.ts:1–139 (limity, nazwy shardów, parseSitemapShard), sitemapXml.ts:1–142 (expandSitemapUrls: kanonizacja+warianty językowe+deduplikacja+stabilne sortowanie), sitemapUrls.ts:1–128 (canonicalSitemapPath przez indeks reguł przekierowań, klaster hreflang per wpis), trasy: sitemap[.]xml.ts, sitemaps.$section.ts, sitemap-index[.]xml.ts (301-alias), src/lib/server/sitemapEntries.server.ts (389 linii, 11 sekcji), sitemapRequest.server.ts:1–83, testy: sitemapIndex, sitemapXml, sitemapUrls, -sitemap.xml.test + e2e/seo.spec.ts:9–50
 - **Co robi:** /sitemap.xml jest `<sitemapindex>` wskazującym shardy per typ treści (/sitemaps/posts.xml, przy przepełnieniu posts-2.xml; 25 000 adresów/shard = połowa limitu protokołu). Każdy adres przechodzi przez TEN SAM indeks reguł przekierowań co middleware (sitemapa nigdy nie ogłasza adresu, który odpowie 301/410), każdy dokument dostaje wpis per język z pełnym klastrem hreflang. Indeks liczy adresy dokładnie tą samą funkcją co shard (deterministyczne granice), news-sitemap dopisany do indeksu warunkowo od ustawień.
 - **Relacje:** Moduł 8 wewn. (przekierowania) — wspólny cache indeksu reguł (redirects.server.ts:102); Moduły 1/3/7/10/16 — sekcje pages/posts/taxonomy/podcasts/programs/stories/tracker/events/qa/experts czytają ich tabele; Moduł 20 — resolveSitemapTenant/crawlerPublishOrigin (tenant fail-closed, kanonizacja originu aliasów).
@@ -2214,7 +2069,6 @@ Moduł to kompletna warstwa widoczności maszynowej platformy: budowa `<head>` (
   2. Rozważyć `lastmod` per wpis sekcji "core" (teraz szkielet bez dat) — GSC lepiej priorytetyzuje recrawl.
 
 ### 8.4. Google News sitemap — **8,0/10**
-
 - **Pliki:** src/lib/seo/newsSitemap.ts:1–67 (okno 48 h, cap 1000, filtr w czystym builderze), src/routes/news-sitemap[.]xml.ts:1–84, settings.ts:119–121 (effectiveNewsPublicationName), test: newsSitemap.test
 - **Co robi:** /news-sitemap.xml z wpisami per wariant językowy (`<news:language>` pl/en osobno), tylko artykuły ≤48 h (reguła Google egzekwowana w builderze z zegarem wstrzykiwanym do testów), nazwa publikacji z ustawień redakcji, wyłączany przełącznikiem news_sitemap_enabled (wtedy trasa = 404 i znika z robots.txt oraz indeksu sitemapy — trzy powierzchnie spójnie).
 - **Relacje:** Moduł 1 — fetchPublishedPosts; Moduł 19 — site_settings["seo"]; Moduł 20 — resolveCrawlerTenantIdForHost + crawlerDegradeIsSafe (poprawka 2026-08-03 udokumentowana w trasie: brak członu degradacji dawał 404 na hoście podglądu, choć indeks go ogłaszał).
@@ -2225,7 +2079,6 @@ Moduł to kompletna warstwa widoczności maszynowej platformy: budowa `<head>` (
   2. Filtrować `published_at >= now()-48h` już w zapytaniu zamiast stałego LIMIT 200 — koszt i poprawność w jednym.
 
 ### 8.5. Feedy RSS: site-wide, taksonomiczne i aliasy WP — **8,0/10**
-
 - **Pliki:** src/lib/seo/rss.ts:1–114 (builder RSS 2.0: guid isPermaLink, media:content, dc:creator), src/routes/rss[.]xml.ts:1–84, taxonomyFeed.server.ts:1–94 (wspólna fabryka kategoria/tag/program), trasy category/tag/programs.$slug.rss (po ~12 linii), feed.ts (301 /feed→/rss.xml z zachowaniem języka), meta.ts:228–259 (autodiscovery w head), test: rss.test + e2e/seo.spec.ts:63
 - **Co robi:** /rss.xml i /en/rss.xml (język z prefiksu URL), pozycje wyłącznie z excerptem (paywall-safe by design — pełna treść nigdy nie trafia do publicznego feedu), feedy per kategoria/tag/program przez jedną fabrykę identyczną kontraktowo z feedem głównym (tenant fail-closed, rss_enabled, cache headers), alias WP /feed dla starych subskrypcji.
 - **Relacje:** Moduł 1 — fetchPublishedPosts(By Taxonomy); Moduł 3 (Silniki treści) — fetchTaxonomyForFeed (kategorie/tagi/programy); Moduł 13 — paywall-safe excerpt; Moduł 7 — feedy tracker/live rejestrowane w MACHINE_SURFACES, ale implementacja w lib/tracker i live (poza modułem 8, odnotowane); Moduł 4 (WP-import) — alias /feed.
@@ -2236,7 +2089,6 @@ Moduł to kompletna warstwa widoczności maszynowej platformy: budowa `<head>` (
   2. Wyrównać degradację hosta podglądowego w taxonomyFeedResponse z /rss.xml (crawlerDegradeIsSafe) — spójny kontrakt wszystkich feedów.
 
 ### 8.6. Feedy podcastowe iTunes + gotowość Apple Podcasts Connect — **9,0/10**
-
 - **Pliki:** src/lib/seo/podcastRss.ts:1–257 (builder RSS+iTunes: enclosure, kategoria, explicit, owner, episodeType, wspólny guid między-językowy), podcastChannelMeta.ts:1–107 (dziedziczenie program→kanał→marka, podkategoria zawsze z tej samej warstwy co kategoria), applePodcastCategories.ts (taksonomia Apple + normalizacja), podcastFeedReadiness.ts:1–86 (blocking/warnings przed zgłoszeniem), trasy podcast.rss[.]xml.ts:1–130 i podcasts.$show.rss[.]xml.ts, testy: podcastRss, podcastChannelMeta + e2e/seo.spec.ts:160 (autodiscovery)
 - **Co robi:** dwa poziomy feedów (kanał sieciowy + per program) z kompletem tagów wymaganych przez Apple (historia braków udokumentowana w nagłówku buildera: przed 2026-07-25 kanał nie przechodził walidacji). Fail-safe: kategoria/explicit mają defaulty, okładka degraduje do pierwszej okładki odcinka; braki niedomyślne (e-mail właściciela) raportuje readiness w /admin/podcasts ZANIM redakcja zgłosi kanał. Prawdziwy rozmiar/MIME enclosure z biblioteki mediów.
 - **Relacje:** Moduł 7 (Treści specjalne) — tabele podcasts/podcast_shows/podcast_settings, panel /admin/podcasts konsumuje readiness; Moduł 4 (Media) — fetchMediaMetaByUrls (rozmiar/MIME); Moduł 20 — tenant fail-closed.
@@ -2246,7 +2098,6 @@ Moduł to kompletna warstwa widoczności maszynowej platformy: budowa `<head>` (
   1. Dodać redakcyjny tytuł/opis kanału do podcast_settings i resolvePodcastChannelMeta — nazwa kanału w katalogach nie powinna być pochodną tytułu serwisu.
 
 ### 8.7. Dynamiczny robots.txt + polityka crawlerów AI — **9,0/10**
-
 - **Pliki:** src/lib/seo/robots.ts:1–152 (builder grup per user-agent, nagłówki z semantyką volatile), src/lib/server/robotsRequest.server.ts:1–153 (klasyfikacja hosta → tenant → polityka), src/routes/robots[.]txt.ts:1–35, settings.ts:19–39+144–153 (AI_SEARCH_CRAWLERS/AI_TRAINING_CRAWLERS, aiCrawlerGroups), RobotsTxtPreview.tsx (podgląd w adminie z TEGO SAMEGO buildera), testy: robots.test + e2e/seo.spec.ts:71–141 (w tym dowód "z trasy, nie z assetu")
 - **Co robi:** robots.txt per host: kanoniczny (Allow + Disallow /admin,/api,/auth + sitemapy + grupy AI), legacy/preview (pełny zakaz), nieznany (fail-closed). Rozdzielona polityka crawlerów AI wyszukiwania (cytowania) od treningowych (GPTBot, CCBot...) — redakcja może zostać widoczna w odpowiedziach AI, a odmówić treningu. Odpowiedź "niepewna" (katalog domen padł) jest jawnie nie-cache'owalna (robots.ts:123–133), żeby chwilowa awaria nie zamroziła Disallow w CDN.
 - **Relacje:** Moduł 19 — site_settings["seo"] (przełączniki AI); Moduł 20 — classifyCrawlHost/trustedPublicHost + bramka CI check:public-assets (public/robots.txt nie może wrócić — audyt 2026-08-06 opisany w trasie: warstwa assetów odpowiadała PRZED workerem i cały mechanizm był martwy na produkcji).
@@ -2256,7 +2107,6 @@ Moduł to kompletna warstwa widoczności maszynowej platformy: budowa `<head>` (
   1. Poszerzyć ROBOTS_DEFAULT_DISALLOW (robots.ts:52) o /checkout, /messages, /profile, /reset-password (lista już istnieje w documentCache.ts) albo emitować meta noindex na tych trasach — spójna polityka z NES Edge Cache i Speculation Rules.
 
 ### 8.8. llms.txt + rejestr powierzchni maszynowych — **9,0/10**
-
 - **Pliki:** src/lib/seo/llms.ts:1–100 (builder markdown wg llmstxt.org), machineSurfaces.ts:1–133 (MACHINE_SURFACES + PER_ITEM_FEED_ROUTE_FILES + llmsTxtResourceLines), src/routes/llms[.]txt.ts:1–98, testy: llms.test, machineSurfaces.contract.test
 - **Co robi:** /llms.txt dla asystentów AI: opis serwisu PL/EN, sekcje z kategorii, 15 najnowszych artykułów per język, zasoby maszynowe z JEDNEGO rejestru oraz polityka cytowań (kanoniczne URL-e, oznaczenie premium w JSON-LD). Rejestr MACHINE_SURFACES jest jedynym źródłem prawdy o feedach/sitemapach — test kontraktu wymusza, że każdy wpis ma realny plik trasy, każda trasa-powierzchnia jest zarejestrowana i llms.txt publikuje adresy rejestru.
 - **Relacje:** Moduł 1/3 — fetchPublishedPosts, fetchPublicCategories; Moduł 19 — llms_txt_enabled + opisy z ustawień; Moduł 7 — feedy tracker/live/stories ogłaszane przez rejestr.
@@ -2266,7 +2116,6 @@ Moduł to kompletna warstwa widoczności maszynowej platformy: budowa `<head>` (
   1. Emitować sekcje w obu wariantach językowych jak zasoby (llmsTxtResourceLines już to robi dla feedów) — spójność z resztą pliku.
 
 ### 8.9. Menedżer przekierowań + monitor 404 — **7,5/10**
-
 - **Pliki:** src/lib/seo/redirects.ts:1–398 (czysty rdzeń: normalizacja, matching exact/query/wildcard, łańcuchy do 5 skoków, CSV import/eksport), redirects.server.ts:1–204 (cache indeksu per tenant TTL 30 s + single-flight, resolveRedirectForRequest, maybeLog404), redirects.functions.ts:1–233 (CRUD requireStaff + Zod + audit + rate limit), src/routes/admin.redirects.tsx (740 linii: tabela, edytor, CSV, monitor 404 z one-click "utwórz przekierowanie"), src/start.ts:259–293 (middleware przed routerem + logger po odpowiedzi pod waitUntil), migracje 20260702130000 + 20260703090300 (tenant-scope RLS), testy: redirects.test (20 przypadków), redirectLangAware.test
 - **Co robi:** przekierowania per tenant dopasowywane PRZED routerem (301/302/307/308/410), z semantyką WP (shortlinki "?p=123"), wildcardami longest-prefix, domykaniem łańcuchów w jeden skok i language-aware fallbackiem (reguła dla ścieżki kanonicznej działa też pod /en z re-prefiksacją celu). Monitor 404 zbiera tylko HTML-owe 404 routera (asset/API odfiltrowane), admin tworzy regułę jednym kliknięciem.
 - **Relacje:** Moduł 20 (Platforma/SSR) — middleware w start.ts, runAfterResponse/waitUntil; Moduł 8.3 — wspólny indeks reguł z sitemapą (getRedirectIndexForTenant); Moduł 4 (WP-import) — CSV map permalinków; Moduł 19 — requireStaff, audit_log, rate limit, RLS tenant_id (migracja 20260703090300 domyka historyczny cross-tenant traffic-takeover).
@@ -2278,8 +2127,7 @@ Moduł to kompletna warstwa widoczności maszynowej platformy: budowa `<head>` (
   3. Dodać pgTAP dla polityk RLS redirects/seo_404_hits (wzorzec z 88 istniejących testów) — to powierzchnia, która już raz miała lukę cross-tenant.
 
 ### 8.10. NES Edge Cache — panel admina, cache TTL SSR i inwalidacja kliencka — **8,0/10**
-
-- **Pliki:** src/lib/edgeCache.functions.ts:1–58 (getEdgeCacheStats/purgeEdgeCache/probeEdgeCache pod requireStaff, purge zawężony do hosta żądania), src/lib/ssrCache.ts:1–71 (edgeTtlCache per izolat, klucz prefiksowany hostem, cap 500 wpisów approx-LRU), src/lib/seo/invalidate.ts:1–59 (invalidateSeoCaches: 8 prefiksów query keys + router.invalidate), src/lib/i18n-admin-edge-cache.ts, testy: invalidate.test, src/lib/**tests**/ssrCacheHostScope.test.ts
+- **Pliki:** src/lib/edgeCache.functions.ts:1–58 (getEdgeCacheStats/purgeEdgeCache/probeEdgeCache pod requireStaff, purge zawężony do hosta żądania), src/lib/ssrCache.ts:1–71 (edgeTtlCache per izolat, klucz prefiksowany hostem, cap 500 wpisów approx-LRU), src/lib/seo/invalidate.ts:1–59 (invalidateSeoCaches: 8 prefiksów query keys + router.invalidate), src/lib/i18n-admin-edge-cache.ts, testy: invalidate.test, src/lib/__tests__/ssrCacheHostScope.test.ts
 - **Co robi:** warstwa administracyjna i pomocnicza cache brzegowego: karta /admin/performance?tab=cache (statystyki, purge per host tenanta, sonda pojedynczej ścieżki zastępująca zdjęty przez hosting nagłówek x-nes-cache), per-izolatowy TTL-cache anonimowych odczytów SSR (tenant-safe by construction) oraz kliencki inwalidator po zmianach SEO (wołany z edytora wpisów i stron). Sama maszyneria dokumentowego cache (L1/L2, SWR single-flight) żyje w documentCache.server.ts — to Moduł 20; tu oceniam wyłącznie warstwę modułu 8.
 - **Relacje:** Moduł 20 — documentCache.server (implementacja L1/L2, granica jawnie odnotowana); Moduł 2 (Edytor) — usePostEditorForm.ts:335 i admin.pages.$slug.tsx:317 wołają invalidateSeoCaches; Moduł 19 — requireStaff; Moduł 17 — karta performance.
 - **✅ Mocne:** sonda ścieżki z walidacją "wyłącznie ścieżka względna" (edgeCache.functions.ts:20–30 — nie da się zrobić z niej SSRF-a); invalidate.test seeduje cache PRAWDZIWYMI kluczami z src/lib/queries i wykrywa dryf nazw (komentarz w invalidate.ts:36–38); eviction w ssrCache uzasadniony konkretną klasą awarii (OOM izolatu = cały serwis).
@@ -2289,7 +2137,6 @@ Moduł to kompletna warstwa widoczności maszynowej platformy: budowa `<head>` (
   2. Rozważyć purge NES Edge Cache po publikacji wpisu (hook w usePostEditorForm obok invalidateSeoCaches) — publikacja breaking news widoczna natychmiast, nie po ≤3 min.
 
 ### 8.11. Generator kart OG (canvas) + łańcuch fallbacków og:image — **8,0/10**
-
 - **Pliki:** src/lib/seo/ogCard.ts:1–101 (czysty layout: wrap wg wstrzykiwanego measure, dobór rozmiaru 72→42 px, ellipsis), ogCardCanvas.ts:1–120 (render w przeglądarce edytora + upload do bucketa media z upsertem i cache-busterem ?v=), ogImage.ts:1–23 (cache-buster awatarów z profiles.updated_at), fields.ts:98–109 (resolveSocialImage: override → cover → generated → default; socialImageIsGeneratedCard daje wymiary 1200×630), test: ogCard.test
 - **Co robi:** brandowana karta 1200×630 rysowana na offscreen canvas w przeglądarce redaktora (zero zależności runtime serwera), zapisywana jako jeden obiekt per encja (og-cards/post-{id}.png); publiczny head używa jej jako trzeciego ogniwa fallbacku, a wygenerowana karta jako jedyna emituje og:image:width/height.
 - **Relacje:** Moduł 2 (Edytor) — generowanie odpalane z panelu SEO edytora, zapis og_image_generated_url na posts/pages; Moduł 4 (Media) — bucket "media" Supabase Storage; Moduł 15 (Profil) — withOgVersion dla awatarów autorów/ekspertów.
@@ -2300,7 +2147,6 @@ Moduł to kompletna warstwa widoczności maszynowej platformy: budowa `<head>` (
   2. Wariant karty per język (osobny plik post-{id}-en.png) wybierany w fields.resolveSocialImage wg lang.
 
 ### 8.12. AMP Web Stories — **7,0/10**
-
 - **Pliki:** src/lib/seo/ampStory.ts:1–195 (builder <amp-story>: poster wymagany, strony image/video/color, JSON-LD Article, safeCssColor), src/routes/web-stories.$slug.amp.ts:1–57, link zwrotny: web-stories.$slug.tsx:43 (rel=amphtml), test: ampStory.test
 - **Co robi:** równoległy, samowystarczalny dokument AMP dla web stories (kwalifikacja do karuzeli/Discover Google), budowany z tych samych danych co reactowy viewer; kanoniczna strona linkuje amphtml, dokument AMP wskazuje kanoniczną; bez ważnego postera trasa oddaje 404 zamiast dokumentu, który Google odrzuci.
 - **Relacje:** Moduł 7 (Treści specjalne) — tabela web_stories + safeParsePages; Moduł 19 — publisher_logo_url z ustawień SEO; Moduł 20 — tenant fail-closed.
@@ -2312,18 +2158,16 @@ Moduł to kompletna warstwa widoczności maszynowej platformy: budowa `<head>` (
   3. Dodać test e2e AMP (fetch + sanity walidacja struktury), jak dla pozostałych powierzchni w e2e/seo.spec.ts.
 
 ### 8.13. Panel SEO edytora: SERP preview, walidacja, nagłówki, sugestie linków — **8,0/10**
-
 - **Pliki:** src/lib/seo/serp.ts:1–92 (szerokość pikselowa wg klas znaków — podejście Yoast, limity 600/960 px), validation.ts:1–118 (issues error/warning per język z efektywną wartością po fallbackach), headingValidation.ts:1–257 (H1/skoki poziomów/duplikaty/shouty z HTML I drzewa bloków), linkSuggestions.functions.ts:1–134 (kandydaci po kategoriach+tagach+FTS, scoring z powodami), komponenty: SeoPanel.tsx (344), SerpPreview, SerpMeter, SeoTextField, SeoValidationSummary, InternalLinkSuggestions, testy: serp.test, validation.test
 - **Co robi:** panel SEO w edytorze wpisów/stron: podgląd snippetu Google mierzony pikselami (nie znakami), walidacja pre-save (twardy cap znaków blokuje, przekroczenie budżetu pikselowego ostrzega), audyt struktury nagłówków treści (HTML + bloki Editor.js/Gutenberg/builder) i sugestie linkowania wewnętrznego ograniczone do opublikowanych wpisów tenanta.
 - **Relacje:** Moduł 2 (Edytor) — PostDetailsPanel montuje SeoPanel, hasBlockingSeoIssues w preflight zapisu; Moduł 6 (Wyszukiwarka) — linkSuggestions używa tego samego wektora FTS `posts.fts`; Moduł 19 — requireSupabaseAuth + tenant z profiles.
 - **✅ Mocne:** walidacja liczy wartości EFEKTYWNE (override → fallback → slug), więc ostrzega o tym, co realnie zobaczy Google, nie o pustych polach; heading-audit czyta obie reprezentacje treści (HTML i block tree), co pokrywa wszystkie edytory platformy.
-- **⚠️ Słabe:** headingValidation nie ma testu jednostkowego (grep w **tests**: 0 trafień — jedyny czysty moduł tej funkcji bez testu, przy 257 liniach regexowo-heurystycznego kodu); scoring linkSuggestions liczy kandydatów z post_categories/post_tags bez filtra tenant_id przed drugim zapytaniem (bezpieczne — finalny SELECT filtruje tenant+published — ale pierwszy krok skanuje szerzej niż trzeba).
+- **⚠️ Słabe:** headingValidation nie ma testu jednostkowego (grep w __tests__: 0 trafień — jedyny czysty moduł tej funkcji bez testu, przy 257 liniach regexowo-heurystycznego kodu); scoring linkSuggestions liczy kandydatów z post_categories/post_tags bez filtra tenant_id przed drugim zapytaniem (bezpieczne — finalny SELECT filtruje tenant+published — ale pierwszy krok skanuje szerzej niż trzeba).
 - **🔧 Rekomendacje:**
   1. Dodać headingValidation.test (przypadki: brak H1, H2→H4, blok Gutenberga, pusty nagłówek) — moduł zmienia się wraz z edytorami i nie ma dziś siatki.
   2. Zawęzić zapytania post_categories/post_tags o join do posts tenant_id (linkSuggestions.functions.ts:72–92).
 
 ### 8.14. Przegląd SEO treści + ustawienia SEO/GEO/AEO — **8,5/10**
-
 - **Pliki:** src/routes/admin.seo.tsx:1–357 (tabela postów+stron z oceną, tiles, filtry), src/lib/seo/contentStatus.ts:1–110 (przejrzysty scoring 0–100: opisy 2×25, obraz 20, override 15, indeksowalność 15), src/routes/admin.settings.seo.tsx:1–263 (jeden blob "seo": tytuły, sufiks, feedy, news, llms, polityka AI, sameAs, logo wydawcy, domyślna karta), settings.ts:41–133 (Zod schema + parseSeoSettings odporny na zepsuty wiersz), testy: contentStatus.test, settings.test
 - **Co robi:** /admin/seo — jedna tenantowa tabela wszystkich wpisów i stron z per-językowym stanem pól, źródłem karty społecznościowej, noindexem i oceną; /admin/settings/seo — wszystkie przełączniki widoczności maszynowej z podglądem robots.txt renderowanym z produkcyjnego buildera.
 - **Relacje:** Moduł 1/2 — kolumny seo_* posts/pages (SEO_FIELDS_SELECT); Moduł 19 — useSettings/site_settings; Moduł 8.7 — RobotsTxtPreview; Moduł 4 — logo z theme_options jako źródło publisher_logo.
@@ -2334,7 +2178,6 @@ Moduł to kompletna warstwa widoczności maszynowej platformy: budowa `<head>` (
   2. Wyeksponować canonicalOverride w tabeli (dane już policzone w contentStatus).
 
 ### 8.15. Integracja Google Search Console (dashboard + inspekcja URL) — **7,5/10**
-
 - **Pliki:** src/routes/admin.seo.search-console.tsx:1–373 (top zapytania, CTR, pozycja, top strony, zakresy 7/28/90 dni z korektą 2-dniowego opóźnienia GSC), src/components/admin/seo/UrlInspectionWidget.tsx:1–304 (URL Inspection API: verdict, coverage, mobile, rich results, link do pełnego raportu), serwerowe funkcje w src/lib/analytics/gsc.functions.ts (Moduł 17)
 - **Co robi:** panel Search Console w adminie SEO: wybór zweryfikowanej właściwości, metryki wyszukiwania i — bez wychodzenia z edytora — inspekcja stanu indeksacji konkretnej ścieżki (widget osadzony w SeoPanel).
 - **Relacje:** Moduł 17 (Analityka/BI) — listGscSites/queryGscAnalytics/inspectGscUrl przez connector gateway (implementacja poza modułem 8, odnotowane); Moduł 2 — widget w SeoPanel.
@@ -2345,7 +2188,6 @@ Moduł to kompletna warstwa widoczności maszynowej platformy: budowa `<head>` (
   2. Persystować wybór właściwości (localStorage/site_settings) — drobiazg o dużym wpływie na codzienne użycie.
 
 ### 8.16. Badge „Preferowane źródło w Google" — **8,0/10**
-
 - **Pliki:** src/lib/seo/googleSourceBadge.ts:1–151 (konfiguracja per breakpoint: wariant/wyrównanie/marginesy/logo z clampingiem, useGoogleSourceBadgeConfig z bulk query), googleSourceBadgeAnalytics.ts:1–53 (podwójny beacon: analytics_events + GA4), src/components/seo/GooglePreferredSourceBadge.tsx:1–133, src/routes/admin.settings.google-source.tsx (165 linii, podgląd live z configOverride), test: GooglePreferredSourceBadge.test.tsx
 - **Co robi:** klikany badge kierujący czytelników do panelu Google Preferred Sources (podbicie priorytetu marki w Top Stories), renderowany przy artykule ($.tsx), w pełni sterowany z admina (włącznik globalny + per desktop/mobile, adresy PL/EN, własne logo jasne/ciemne) z telemetrią kliknięć.
 - **Relacje:** Moduł 1 — montaż w $.tsx; Moduł 17 — track() do analytics_events + gtag po zgodzie marketingowej; Moduł 19 — site_settings["google_source_badge"].
@@ -2355,8 +2197,7 @@ Moduł to kompletna warstwa widoczności maszynowej platformy: budowa `<head>` (
   1. Walidować url_pl/url_en do https:// przy zapisie i odczycie (fallback do DEFAULT_URL) — symetrycznie do allowlisty w redirects.
 
 ### 8.17. Custom Meta (globalne definicje + wartości per wpis) — **7,5/10**
-
-- **Pliki:** src/lib/customMeta.ts:1–71 (typy, listCustomMetaDefs, upsert/delete, buildCustomMetaItems, metaLabel PL↔EN), src/routes/admin.custom-meta.tsx:1–257 (CRUD definicji z ikoną i pozycją), src/components/post/CustomMetaList.tsx (render publiczny), src/components/admin/CustomMetaValuesEditor.tsx (wartości w edytorze), test: src/lib/**tests**/customMeta.test.ts
+- **Pliki:** src/lib/customMeta.ts:1–71 (typy, listCustomMetaDefs, upsert/delete, buildCustomMetaItems, metaLabel PL↔EN), src/routes/admin.custom-meta.tsx:1–257 (CRUD definicji z ikoną i pozycją), src/components/post/CustomMetaList.tsx (render publiczny), src/components/admin/CustomMetaValuesEditor.tsx (wartości w edytorze), test: src/lib/__tests__/customMeta.test.ts
 - **Co robi:** tenantowe definicje pól meta (klucz, etykiety PL/EN, ikona, pozycja) stają się polami edytora wpisu; wartości żyją w posts.custom_meta (jsonb) i renderują się na stronie wpisu w kolejności definicji, z pomijaniem pustych.
 - **Relacje:** Moduł 2 (Edytor) — CustomMetaValuesEditor w edytorze wpisu; Moduł 1 — CustomMetaList w $.tsx; Moduł 19 — RLS (definicje publicznie czytelne, mutacje editor/admin).
 - **✅ Mocne:** buildCustomMetaItems zachowuje porządek definicji i odfiltrowuje puste — kontrakt renderu objęty testem; etykieta z fallbackiem między językami zamiast surowego klucza.
@@ -2366,17 +2207,15 @@ Moduł to kompletna warstwa widoczności maszynowej platformy: budowa `<head>` (
   2. Dodać typ pola (text/number/date/url) w definicji z walidacją w edytorze.
 
 ### 8.18. Warstwa wydajnościowa head: Speculation Rules, preloady, osłona prerenderingu, cache-busting — **8,5/10**
-
 - **Pliki:** src/lib/seo/speculationRules.ts:1–60 (prefetch moderate z wykluczeniami współdzielonymi z NES Edge Cache + opt-out data-no-speculate), fontPreload.ts:1–40 (latin zawsze, latin-ext tylko PL, crossOrigin obowiązkowy), meta.ts:308–338 (imagePreloadLink dla LCP z imageSrcSet/imageSizes), prerender.ts:1–28 (document.prerendering guard dla beaconów), cacheBusting.ts:1–152 (chunk-load error → jednorazowy hard reload z guardem; polling wersji → miękki router.invalidate), testy: speculationRules.test, fontPreload.test; konsumenci: __root.tsx, $.tsx
 - **Co robi:** natywny prefetch nawigacji przez Speculation Rules (dokument identyczny dla wszystkich — bezpieczny dla cache dokumentów), preload krytycznych subsetów fontu per język, preload obrazka LCP zsynchronizowany z srcSet renderowanego `<img>`, osłona telemetrii przed prerenderowanymi stronami oraz samonaprawa po deployu (stary chunk → reload; nowa wersja → cicha rewalidacja loaderów).
 - **Relacje:** Moduł 20 — PUBLIC_DOCUMENT_DENY_PREFIXES z documentCache.ts (jedna lista dla cache/prefetch), api/public/version; Moduł 5 (Chrome) — AppLink preloadRoute jako warstwa komplementarna (decyzja o usunięciu prerender-setu udokumentowana w speculationRules.ts:8–17); Moduł 17 — prerender guard chroni liczniki odsłon/RUM.
 - **✅ Mocne:** usunięcie zestawu `prerender` z pełnym uzasadnieniem mechanizmu (AppLink przechwytuje nawigacje → przeglądarkowy prerender nigdy nie był konsumowany — render w tle szedł do kosza); ewolucja cache-busting z hard na soft reload opisana z przyczyną (BUILD_ID per-isolate w preview → migotanie UI).
-- **⚠️ Słabe:** cacheBusting.ts nie ma testu jednostkowego (looksLikeChunkLoadError i guard reloadu to czysta, łatwo testowalna logika; szukałem cacheBusting w **tests** — brak).
+- **⚠️ Słabe:** cacheBusting.ts nie ma testu jednostkowego (looksLikeChunkLoadError i guard reloadu to czysta, łatwo testowalna logika; szukałem cacheBusting w __tests__ — brak).
 - **🔧 Rekomendacje:**
   1. Test dla looksLikeChunkLoadError + safeReloadOnce (sessionStorage-guard) — regresja w tym pliku objawia się pętlą reloadów u czytelników.
 
 ### 8.19. Mapa HTML /sitemap + drzewo stron — **8,5/10**
-
 - **Pliki:** src/routes/sitemap.tsx:1–211 (strony w hierarchii, kategorie, najnowsze wpisy, linki społeczności; SSR loader z ensureQueryData), src/lib/seo/pageTree.ts:1–64 (drzewo z flat rows, ścieżki po łańcuchu rodziców, sieroty promowane do korzeni), test: pageTree.test + e2e/seo.spec.ts:170
 - **Co robi:** ludzko- i AI-czytelny odpowiednik sitemap.xml: każda opublikowana strona (z zachowaniem hierarchii), kategorie i najnowsze artykuły na jednej płasko-crawlowalnej stronie; SSR przez loader, head z pełnym klastrem hreflang, zarejestrowana w MACHINE_SURFACES i llms.txt.
 - **Relacje:** Moduł 1/3 — publicPagesTree/publicCategories/blogList query options; Moduł 5 — Link routera z lokalizacją przez splat route; Moduł 20 — contentCacheControl (dokument cache'owalny).
@@ -2386,39 +2225,37 @@ Moduł to kompletna warstwa widoczności maszynowej platformy: budowa `<head>` (
   1. Wyprowadzić listę publicznych tras społeczności do współdzielonego rejestru konsumowanego przez /sitemap i sekcję "core" sitemap.xml — jedno źródło prawdy jak MACHINE_SURFACES.
 
 ### 8.20. Meta cytowań Google Scholar (Highwire Press) — **8,0/10**
-
 - **Pliki:** src/lib/seo/citations.ts:1–65 (citation_title/author/publication_date/journal_title/language/fulltext_html_url wg wytycznych Scholar), konsument: $.tsx:435 (tylko artykuły)
 - **Co robi:** emituje w `<head>` wpisów tagi citation_* czytane przez Google Scholar, Zotero i Mendeley — format "Nazwisko, Imię", daty YYYY/MM/DD UTC, serwis w roli wydawnictwa (konwencja Brookings/Bruegel przywołana w komentarzu). Formatowanie cytowań dla czytelnika żyje osobno (lib/citations/format.ts — Moduł 1).
 - **Relacje:** Moduł 1 — render w $.tsx + typ CitationAuthor z lib/citations/format; Moduł 10 (Sieć/eksperci) — dane autorów.
 - **✅ Mocne:** wielu autorów obsłużonych poprawnie (jeden tag per autor); defensywne parsowanie dat (null zamiast Invalid Date w meta).
-- **⚠️ Słabe:** brak dedykowanego testu jednostkowego (32 pliki w seo/**tests**, citations bez własnego — logika prosta, ale format daty i kolejność tagów to kontrakt zewnętrzny); brak citation_pdf_url dla wpisów z załącznikiem PDF (biblioteka publikacji istnieje w Module 7).
+- **⚠️ Słabe:** brak dedykowanego testu jednostkowego (32 pliki w seo/__tests__, citations bez własnego — logika prosta, ale format daty i kolejność tagów to kontrakt zewnętrzny); brak citation_pdf_url dla wpisów z załącznikiem PDF (biblioteka publikacji istnieje w Module 7).
 - **🔧 Rekomendacje:**
   1. Mini-test kontraktu (format daty, "Nazwisko, Imię", kolejność) — tanie ubezpieczenie zewnętrznego kontraktu.
   2. Emitować citation_pdf_url, gdy wpis ma powiązany plik PDF w bibliotece.
 
 ### Podsumowanie modułu 8
-
 - **Średnia ocen funkcji:** 8,3 · **Rozkład:** 6× 9–10 / 14× 7–8 / 0× 5–6 / 0× <5
 
 - **Relacje modułu (zbiorczo):**
 
-| Moduł                    | Mechanizm                                                                                                                                                                             | Kierunek zależności                            |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| 1 Wpisy-czytelnik        | buildContentHead/JsonLd/citations/badge w $.tsx i ~50 trasach; tabele posts (kolumny seo_*) dla feedów/sitemap                                                                        | 1 → 8 (import builderów), 8 → 1 (odczyt posts) |
-| 2 Edytor/workflow        | SeoPanel + walidacje w edytorze; invalidateSeoCaches z usePostEditorForm; generacja kart OG; zapis seo_*                                                                              | 2 → 8                                          |
-| 3 Silniki treści         | categories/tags/programs: feedy taksonomiczne, sekcja taxonomy sitemapy, sekcje llms.txt                                                                                              | 8 → 3 (odczyt tabel)                           |
-| 4 Motyw/media/WP-import  | bucket media (karty OG), CSV redirectów z migracji WP, alias /feed, logo z theme_options                                                                                              | 8 ↔ 4                                          |
-| 5 Chrome/nawigacja       | breadcrumbs → BreadcrumbList; footerNavigation współdzielony ze stopką; localePath jako rdzeń hreflang                                                                                | 8 ↔ 5                                          |
-| 6 Wyszukiwarka           | SearchAction w WebSite JSON-LD → /search; linkSuggestions używa wektora posts.fts                                                                                                     | 8 → 6                                          |
-| 7 Treści specjalne       | sekcje sitemapy (stories/tracker/events/qa), AMP stories, feedy tracker/live (implementacja w M7, rejestr w M8), dane podcastów                                                       | 8 ↔ 7                                          |
-| 10 Sieć/eksperci         | sekcja experts sitemapy; autorzy w citation_author                                                                                                                                    | 8 → 10                                         |
-| 13 Monetyzacja-core      | isAccessibleForFree/hasPart (paywall JSON-LD); feedy paywall-safe (tylko excerpt)                                                                                                     | 8 → 13 (kontrakt)                              |
-| 15 Profil/konto          | withOgVersion (cache-buster og:image awatarów z profiles.updated_at)                                                                                                                  | 15 → 8                                         |
-| 16 Społeczność-admin     | qaPageJsonLd/eventsCollectionJsonLd; sekcje qa/events sitemapy                                                                                                                        | 8 ↔ 16                                         |
-| 17 Analityka/BI          | gsc.functions (Search Console), track() badge'a, log kliknięć stopki po footerNavigation                                                                                              | 8 → 17                                         |
-| 19 Ustawienia/authz/RODO | site_settings["seo"]/["google_source_badge"]; requireStaff, audit_log, rate limit; RLS redirects/seo_404_hits                                                                         | 8 → 19                                         |
-| 20 Platforma/SSR         | start.ts (middleware redirect/404/cache), documentCache.server (NES Edge Cache — granica modułu), tenant.server (fail-closed hosty), trustedPublicHost, PUBLIC_DOCUMENT_DENY_PREFIXES | 8 ↔ 20 (granica jawnie odnotowana)             |
-| 21 Kluby                 | clubHead.ts importuje buildContentHead                                                                                                                                                | 21 → 8                                         |
+| Moduł | Mechanizm | Kierunek zależności |
+|---|---|---|
+| 1 Wpisy-czytelnik | buildContentHead/JsonLd/citations/badge w $.tsx i ~50 trasach; tabele posts (kolumny seo_*) dla feedów/sitemap | 1 → 8 (import builderów), 8 → 1 (odczyt posts) |
+| 2 Edytor/workflow | SeoPanel + walidacje w edytorze; invalidateSeoCaches z usePostEditorForm; generacja kart OG; zapis seo_* | 2 → 8 |
+| 3 Silniki treści | categories/tags/programs: feedy taksonomiczne, sekcja taxonomy sitemapy, sekcje llms.txt | 8 → 3 (odczyt tabel) |
+| 4 Motyw/media/WP-import | bucket media (karty OG), CSV redirectów z migracji WP, alias /feed, logo z theme_options | 8 ↔ 4 |
+| 5 Chrome/nawigacja | breadcrumbs → BreadcrumbList; footerNavigation współdzielony ze stopką; localePath jako rdzeń hreflang | 8 ↔ 5 |
+| 6 Wyszukiwarka | SearchAction w WebSite JSON-LD → /search; linkSuggestions używa wektora posts.fts | 8 → 6 |
+| 7 Treści specjalne | sekcje sitemapy (stories/tracker/events/qa), AMP stories, feedy tracker/live (implementacja w M7, rejestr w M8), dane podcastów | 8 ↔ 7 |
+| 10 Sieć/eksperci | sekcja experts sitemapy; autorzy w citation_author | 8 → 10 |
+| 13 Monetyzacja-core | isAccessibleForFree/hasPart (paywall JSON-LD); feedy paywall-safe (tylko excerpt) | 8 → 13 (kontrakt) |
+| 15 Profil/konto | withOgVersion (cache-buster og:image awatarów z profiles.updated_at) | 15 → 8 |
+| 16 Społeczność-admin | qaPageJsonLd/eventsCollectionJsonLd; sekcje qa/events sitemapy | 8 ↔ 16 |
+| 17 Analityka/BI | gsc.functions (Search Console), track() badge'a, log kliknięć stopki po footerNavigation | 8 → 17 |
+| 19 Ustawienia/authz/RODO | site_settings["seo"]/["google_source_badge"]; requireStaff, audit_log, rate limit; RLS redirects/seo_404_hits | 8 → 19 |
+| 20 Platforma/SSR | start.ts (middleware redirect/404/cache), documentCache.server (NES Edge Cache — granica modułu), tenant.server (fail-closed hosty), trustedPublicHost, PUBLIC_DOCUMENT_DENY_PREFIXES | 8 ↔ 20 (granica jawnie odnotowana) |
+| 21 Kluby | clubHead.ts importuje buildContentHead | 21 → 8 |
 
 - **5 najpilniejszych rekomendacji:**
   1. **(8.9)** Podpiąć RPC `record_redirect_hit` w resolveRedirectForRequest (src/lib/seo/redirects.server.ts:123) — funkcja DB i kolumna hit_count w /admin/redirects istnieją, ale licznik jest martwy: redakcja nie widzi, które reguły są żywe, a które można skasować.
@@ -2431,24 +2268,22 @@ Moduł to kompletna warstwa widoczności maszynowej platformy: budowa `<head>` (
 
 ## Moduł 9 — Czat / komunikator
 
-**Zakres zbadany:** src/components/chat/ (29 komponentów + 4 testy), src/lib/chat/ (26 modułów + 10 testów), src/routes/messages.tsx, src/routes/admin.community.chat.tsx, src/lib/admin/community.ts (część czatowa), src/lib/i18n-chat.ts, src/lib/i18n-direct-message.ts, migracje SQL: 20260712230000_chat_whatsapp_architecture, 20260713094000_group_conversations, 20260713200000_chat_admin_tenant_scope_fix, 20260716090000_chat_conversation_personalization, 20260720160000_chat_message_search, 20260723180000_chat_plus_tier_gating_and_benefit, 20260806221000_chat_privacy_contacts_level, 20260801122000/124000, 20260806220000 i pokrewne; pgTAP: supabase/tests/chat__.sql, get_chat_peers_contract_test.sql, expert_request__.sql · **Funkcji:** 20 · **Ocena modułu:** 8,3/10
+**Zakres zbadany:** src/components/chat/ (29 komponentów + 4 testy), src/lib/chat/ (26 modułów + 10 testów), src/routes/messages.tsx, src/routes/admin.community.chat.tsx, src/lib/admin/community.ts (część czatowa), src/lib/i18n-chat.ts, src/lib/i18n-direct-message.ts, migracje SQL: 20260712230000_chat_whatsapp_architecture, 20260713094000_group_conversations, 20260713200000_chat_admin_tenant_scope_fix, 20260716090000_chat_conversation_personalization, 20260720160000_chat_message_search, 20260723180000_chat_plus_tier_gating_and_benefit, 20260806221000_chat_privacy_contacts_level, 20260801122000/124000, 20260806220000 i pokrewne; pgTAP: supabase/tests/chat_*.sql, get_chat_peers_contract_test.sql, expert_request_*.sql · **Funkcji:** 20 · **Ocena modułu:** 8,3/10
 
 Pełnoprawny komunikator klasy WhatsApp/Messenger wbudowany w multi-tenant CMS: rozmowy 1:1 i grupowe („kręgi"), załączniki i głosówki, potwierdzenia dostarczenia/odczytu, znikające wiadomości, personalizacja, FTS w treści oraz sformalizowane „Zapytania do eksperta" spięte z monetyzacją. Stan ogólny bardzo dobry: całe egzekwowanie reguł (tenant, blokady, prywatność, tiery) mieszka w bazie (RLS + SECURITY DEFINER), warstwa klienta jest zdyscyplinowana (optymistyczne cache z czystymi, testowanymi funkcjami; ref-countowane kanały realtime), a pokrycie testami (vitest + pgTAP) jest wyraźnie powyżej średniej repo. Najsłabszym ogniwem jest panel moderacji admina (liczniki liczone klientem bez agregacji, brak paginacji, i18n inline) oraz skalowalne limity twarde (600 wierszy uczestników w fetchu listy, brak wirtualizacji długich wątków).
 
 ### 9.1. Skrzynka odbiorcza /messages (dwupanelowa, taby, deep-link) — **8/10**
-
 - **Pliki:** src/routes/messages.tsx:1-689
 - **Co robi:** Pełnoekranowa skrzynka Messenger-style: lewy panel z listą rozmów (filtry „wszystkie/nieprzeczytane/kręgi", sekcja archiwum, szkice, wynik FTS pod listą), prawy panel z aktywnym wątkiem; taby widoków czaty/zapytania/powiadomienia/zgody z licznikami; deep-link `?c=<id>` i `?view=`; gdy tenant wyłączył moduł czatu, widok „chats" przekierowuje na powiadomienia (linia 104-126).
 - **Relacje:** Moduł 12 (Realtime/powiadomienia) — hostuje NotificationsCenter (inbox+consents) i useUnreadCount; Moduł 16 (Społeczność-admin) — useCommunityModules().chat_enabled (site/community settings); Moduł 6 (Wyszukiwarka) — komponent SearchSnippet do snippetów FTS; Moduł 5 (Chrome) — spójny powrót do /profile.
 - **✅ Mocne:** `ssr:false` z uzasadnionym komentarzem (AuthGate + localStorage = gwarantowany hydration mismatch); noindex/nofollow; snapshot „unread" i skok do trafienia FTS z nonce (ponowny klik tego samego wyniku działa); skeleton listy zamiast spinnera; responsywny mobile flow (lista ↔ wątek).
-- **⚠️ Słabe:** Tytuł w `head` zaszyty po polsku („Wiadomości") — jedyny nieprzetłumaczony punkt trasy; taby mają `role="tablist"/"tab"` i `role="radiogroup"/"radio"`, ale bez obsługi strzałek klawiatury (wzorzec ARIA niepełny); brak testu integracyjnego samej trasy (szukałem w src/routes i **tests** — jest tylko pokrycie komponentów składowych).
+- **⚠️ Słabe:** Tytuł w `head` zaszyty po polsku („Wiadomości") — jedyny nieprzetłumaczony punkt trasy; taby mają `role="tablist"/"tab"` i `role="radiogroup"/"radio"`, ale bez obsługi strzałek klawiatury (wzorzec ARIA niepełny); brak testu integracyjnego samej trasy (szukałem w src/routes i __tests__ — jest tylko pokrycie komponentów składowych).
 - **🔧 Rekomendacje:**
   1. Dodać nawigację strzałkami dla tablist/radiogroup (messages.tsx:272-303, 410-438) — domyka wzorzec ARIA dla klawiatury.
   2. Przenieść tytuł meta do i18n lub podwójnej wersji PL/EN (messages.tsx:86).
   3. Test RTL trasy: przełączanie tabów + fallback widoku przy chat_enabled=false.
 
 ### 9.2. Warstwa danych listy rozmów + odznaka nieprzeczytanych — **9/10**
-
 - **Pliki:** src/lib/chat/useConversations.ts:1-563, src/lib/chat/keys.ts, src/lib/chat/display.ts, src/lib/chat/types.ts, src/components/mobile/bottomBar/badges/ChatUnreadBadge.tsx
 - **Co robi:** Jedno zapytanie (`conversation_participants` z joinem `conversations`, RLS member-only) grupowane klientowo w ConversationView {conversation, me, peers}; sort WhatsApp (pinned→aktywność); `useChatUnreadTotal` jako `select` na tej samej cache (zero dodatkowych round-tripów); `usePeerProfiles` przez RPC `get_chat_peers` z seedowaniem kluczy per-peer; jeden współdzielony kanał realtime per user (tableChannelHub) + debounced `mark_conversations_delivered`.
 - **Relacje:** Moduł 12 (Realtime) — subscribeToTable/tableChannelHub oraz eventInvalidationMap.ts:39 invaliduje chatKeys.conversations; Moduł 5 (Chrome) — ChatUnreadBadge w mobilnym bottom barze ładowany leniwie; Moduł 15 (Profil) — get_chat_peers czyta bezpieczne pola profiles.
@@ -2459,8 +2294,7 @@ Pełnoprawny komunikator klasy WhatsApp/Messenger wbudowany w multi-tenant CMS: 
   2. Alternatywnie: widok SQL/RPC zwracający już zgrupowane ConversationView z paginacją.
 
 ### 9.3. Wątek wiadomości: paginacja, wysyłka optymistyczna, edycja, unsend, retry — **9/10**
-
-- **Pliki:** src/lib/chat/useMessages.ts:40-265, src/lib/chat/messageCache.ts:1-193, supabase/migrations/20260712230000 (messages_before_insert, messages_enforce_edit_window, messages_content_check), src/lib/chat/**tests**/messageCache.test.ts
+- **Pliki:** src/lib/chat/useMessages.ts:40-265, src/lib/chat/messageCache.ts:1-193, supabase/migrations/20260712230000 (messages_before_insert, messages_enforce_edit_window, messages_content_check), src/lib/chat/__tests__/messageCache.test.ts
 - **Co robi:** Infinite query stron newest-first z kursorem złożonym (created_at, id) odpornym na równe timestampy; wysyłka z optymistycznym seedem (z cancelQueries chroniącym pierwszą wiadomość nowego wątku przed nadpisaniem przez spóźniony fetch), edycja własnych tekstów w oknie 5 min (trigger DB egzekwuje), unsend jako tombstone czyszczący treść i załącznik, retry nieudanej wysyłki bez ponownego uploadu.
 - **Relacje:** Moduł 13 (Monetyzacja-core) — insert przechodzi przez tg_messages_guard (rate limit, blokady, tier); Moduł 12 — kanał postgres_changes łata cache bez refetchu.
 - **✅ Mocne:** messageCache jest czysty i unit-testowany (deduplikacja optimistic vs realtime echo, wstawianie w chronologicznie poprawny slot zamiast „na wierzch", nextCursor liczony raz przy fetchu, więc patche nie psują hasNextPage); CHECK w DB ogranicza body do 8000 znaków i wymusza spójność kind/załącznik; komunikat „rate limited" tłumaczony na dedykowany toast.
@@ -2470,7 +2304,6 @@ Pełnoprawny komunikator klasy WhatsApp/Messenger wbudowany w multi-tenant CMS: 
   2. Rozważyć dwa parametry `.lt`/`.eq` zamiast sklejanego `.or` dla czytelności i odporności.
 
 ### 9.4. Powierzchnie rozmowy: ChatWindow (dock/page), ChatDock, ChatBell — **8,5/10**
-
 - **Pliki:** src/components/chat/ChatWindow.tsx:1-1234, ChatDock.tsx:1-163, ChatBell.tsx:1-258, ChatSurfaceBoundary.tsx, chatDockBus.ts, src/components/SiteChrome.tsx (montaż)
 - **Co robi:** Jeden organizm rozmowy w dwóch wariantach (pływające okno Messenger i prawy panel /messages); dock hostuje do 3 okien + rail zminimalizowanych chipów z licznikami; ChatBell to droplista ostatnich rozmów w nagłówku; globalny bus `openChatWindow` otwiera rozmowę z dowolnego miejsca (profil, wyszukiwarka) bez prop-drillingu.
 - **Relacje:** Moduł 5 (Chrome/nawigacja) — SiteChrome montuje ChatDock/ChatBell, AccountMenuWidget builder-a linkuje do czatu; Moduł 12 — preferencja chat_bell_enabled ukrywa ikonę; Moduł 15 — ChatAvatar linkuje do /author/{slug}.
@@ -2481,8 +2314,7 @@ Pełnoprawny komunikator klasy WhatsApp/Messenger wbudowany w multi-tenant CMS: 
   2. Smoke-test RTL ChatDock: open→minimize→restore→eviction.
 
 ### 9.5. Kompozytor wiadomości + szkice — **8,5/10**
-
-- **Pliki:** src/components/chat/ChatComposer.tsx:1-585, src/lib/chat/drafts.ts:1-167, src/lib/chat/**tests**/drafts.test.ts, EmojiPicker.tsx, emoji.ts, emojiQuick.ts
+- **Pliki:** src/components/chat/ChatComposer.tsx:1-585, src/lib/chat/drafts.ts:1-167, src/lib/chat/__tests__/drafts.test.ts, EmojiPicker.tsx, emoji.ts, emojiQuick.ts
 - **Co robi:** Auto-rosnąca textarea (Enter wysyła, Shift+Enter łamie), lazy EmojiPicker (~20 KB ładowane przy pierwszym otwarciu), staging załącznika z podpisem przed uploadem (flow WhatsApp), morph mikrofon↔wyślij, throttling typing 2,5 s, quick-emoji per rozmowa. Szkice per użytkownik+rozmowa w localStorage z debounce, pruningiem (50 szt./30 dni) i flushem na pagehide/visibilitychange; podgląd „Szkic:" na liście rozmów przez useSyncExternalStore.
 - **Relacje:** brak istotnych poza wewnątrzmodułowymi (drafts zasilają ConversationListItem).
 - **✅ Mocne:** Bufor edycji świadomie NIE jest szkicem (przełączenie edycji przywraca szkic — linie 139-164); revoke object URL przy unmount; drafts.ts z czystym pruneDrafts i testami; user-scoped klucz storage (zmiana konta nie wskrzesza cudzych szkiców).
@@ -2492,7 +2324,6 @@ Pełnoprawny komunikator klasy WhatsApp/Messenger wbudowany w multi-tenant CMS: 
   2. Licznik znaków po przekroczeniu ~90% MAX_BODY_LENGTH.
 
 ### 9.6. Ustawienia rozmowy: pin / archiwum / wyciszenie / czyszczenie / znikające wiadomości — **9/10**
-
 - **Pliki:** supabase/migrations/20260712230000_chat_whatsapp_architecture.sql:36-501 (chat_set_pinned/archived/muted, chat_clear_history, chat_set_message_ttl, chat_purge_expired_messages + pg_cron), src/lib/chat/useConversations.ts:343-524, src/lib/chat/receipts.ts:40-46, menu w ChatWindow.tsx:707-885, supabase/tests/chat_whatsapp_features_test.sql
 - **Co robi:** Komplet ustawień per uczestnik (self-row, tenant-gated RPC): pin z limitem 5, archiwum (zdejmuje pin), mute 8h/tydzień/na zawsze (`'infinity'` obsłużone też po stronie klienta), „wyczyść czat dla mnie" (cleared_before w RLS, clock_timestamp() zamiast now() — poprawność wewnątrz transakcji), znikające wiadomości 24h/7d/90d: trigger stampuje expires_at, RLS ukrywa natychmiast, cron purguje twardo co godzinę z kaskadą usuwania obiektów storage.
 - **Relacje:** Moduł 12 — mute wyłącza fan-out powiadomień w tg_messages_notify_recipients; Moduł 20 (Platforma) — pg_cron z fallbackiem NOTICE, gdy rozszerzenie niedostępne.
@@ -2502,7 +2333,6 @@ Pełnoprawny komunikator klasy WhatsApp/Messenger wbudowany w multi-tenant CMS: 
   1. Wpiąć chat_purge_expired_messages w panel „Scheduler health" (admin) — dziś status joba widać tylko w cron.job.
 
 ### 9.7. Realtime per-rozmowa, wskaźnik pisania, obecność online — **8,5/10**
-
 - **Pliki:** src/lib/chat/useMessages.ts:405-675 (useConversationChannel, typingChannels), src/lib/chat/presence.ts:1-143, PresenceDot.tsx
 - **Co robi:** Per otwarta rozmowa: kanał postgres_changes (INSERT/UPDATE messages → patch cache; reactions → patch mapy; participants UPDATE → odświeżenie „seen"; nicknames → invalidacja) + osobny STABILNY kanał broadcast typing (`private:true` — Realtime Authorization ogranicza topic do członków rozmowy), ref-countowany na poziomie modułu; presence per tenant (zielona kropka) na jednym współdzielonym prywatnym kanale z grace-period 2 s na teardown (StrictMode/remount bez migotania „wszyscy offline").
 - **Relacje:** Moduł 12 (Realtime) — to granica modułów: hub kanałów (tableChannelHub) i polityki RLS na realtime.messages należą do infrastruktury M12, tu jest ich konsumpcja; Moduł 15 — preferencje typing_indicators_enabled i show_online_status.
@@ -2513,8 +2343,7 @@ Pełnoprawny komunikator klasy WhatsApp/Messenger wbudowany w multi-tenant CMS: 
   2. Wyekstrahować ref-count do czystej struktury i pokryć testem (dwie akwizycje/zwolnienia, grace-period).
 
 ### 9.8. Potwierdzenia dostarczenia i odczytu (receipts) — **9/10**
-
-- **Pliki:** src/lib/chat/receipts.ts:1-47, src/lib/chat/display.ts (aggregatePeerReadState), useConversations.ts:326-341 i 536-544 (mark_conversation_read, mark_conversations_delivered), ChatWindow.tsx:365-391, supabase/migrations/20260712190000 (wzajemna polityka potwierdzeń), **tests**/receipts.test.ts
+- **Pliki:** src/lib/chat/receipts.ts:1-47, src/lib/chat/display.ts (aggregatePeerReadState), useConversations.ts:326-341 i 536-544 (mark_conversation_read, mark_conversations_delivered), ChatWindow.tsx:365-391, supabase/migrations/20260712190000 (wzajemna polityka potwierdzeń), __tests__/receipts.test.ts
 - **Co robi:** Semantyka WhatsApp: zegar (pending) → ✓ (sent) → ✓✓ (delivered przez mark_conversations_delivered) → ✓✓ kolorowe (read z last_read_at). Grupy: „przeczytane" dopiero, gdy KAŻDY członek przeczytał. Mark-read odpala się tylko przy widocznej karcie (useSyncExternalStore na visibilitychange) i szanuje preferencję auto_mark_on_open.
 - **Relacje:** Moduł 12 — preferencja read receipts w notification_preferences; wzajemna polityka RLS: wyłączenie potwierdzeń ukrywa wiersz uczestnika OBU stronom (fallback hiddenPeerRow w 9.2).
 - **✅ Mocne:** Czysta funkcja computeReceipt z testami; prywatność „cap na sent", gdy któraś strona wyłączyła potwierdzenia — zgodność klient/DB opisana i egzekwowana w RLS; debounce delivered (800 ms, moduł-level) ogranicza RPC przy burstach.
@@ -2523,7 +2352,6 @@ Pełnoprawny komunikator klasy WhatsApp/Messenger wbudowany w multi-tenant CMS: 
   1. Popover „Wyświetlone przez..." na własnym ostatnim dymku w kręgach (dane już są w view.peers).
 
 ### 9.9. Reakcje emoji + gwiazdki — **8/10**
-
 - **Pliki:** src/lib/chat/useMessages.ts:267-403 (useReactions, useToggleReaction), src/lib/chat/stars.ts:1-111, MessageBubble.tsx:120-260 (ReactionChips), migracja 20260712230000 §2 (message_stars + RLS), EmojiPicker.tsx
 - **Co robi:** Reakcje w semantyce Messengera (ten sam emoji = cofnij, inny = podmień) z optymistycznym patch-em o strukturalnym współdzieleniu (tylko dotknięta wiadomość dostaje nową tożsamość — memoizowane dymki nie renderują się na darmo); gwiazdki prywatne per użytkownik (nadawca nie wie), z triggerem stampującym conversation/tenant z wiadomości (klient nie może sfałszować).
 - **Relacje:** brak istotnych (wewnątrz modułu; realtime patch przez kanał z 9.7).
@@ -2533,7 +2361,6 @@ Pełnoprawny komunikator klasy WhatsApp/Messenger wbudowany w multi-tenant CMS: 
   1. Wyekstrahować patchReactions + logikę rollbacku do czystego modułu i pokryć testem (wzorzec messageCache).
 
 ### 9.10. Załączniki: obrazy i pliki (upload, signed URLs, kwoty) — **8,5/10**
-
 - **Pliki:** src/lib/chat/attachments.ts:1-207, AttachmentContent.tsx, AttachmentPreview.tsx, migracje: 20260801122000 (ochrona DELETE w storage przy purge), chat_check_upload_quota (20/min), bucket chat-attachments (prywatny, 30 MB, allowlist MIME)
 - **Co robi:** Klientowe lustro kontraktu bucketa (walidacja typu/rozmiaru z tłumaczonym feedbackiem), upload przez createSignedUploadUrl + XHR z realnym progresem, kontrakt ścieżki `<tenant>/<conversation>/<uid>/<plik>` egzekwowany storage RLS; podpisywanie URL-i wsadowo (jeden createSignedUrls dla całej historii wątku) z TTL 15 min i odświeżaniem przed wygaśnięciem.
 - **Relacje:** Moduł 4 (Media) — wzorzec uploadu współdzielony z avatarami (komentarz w kodzie); Moduł 19 (RODO) — krótki TTL podpisów ogranicza życie wyciekniętego URL-a.
@@ -2544,7 +2371,6 @@ Pełnoprawny komunikator klasy WhatsApp/Messenger wbudowany w multi-tenant CMS: 
   2. AbortController/xhr.abort() + przycisk anuluj w pasku progresu (ChatComposer.tsx:373-386).
 
 ### 9.11. Wiadomości głosowe (voice notes) — **8/10**
-
 - **Pliki:** src/lib/chat/voice.ts:1-176, ChatComposer.tsx:274-309 i 419-453, AttachmentContent.tsx (AttachmentAudio), migracja 20260712230000 §1/§4 (kind='audio', attachment_duration ≤600, allowlist audio/webm|ogg|mp4|mpeg)
 - **Co robi:** Nagrywanie MediaRecorder z wyborem kontenera per przeglądarka (Safari→mp4), HUD z timerem, twardy cap 10 min auto-wysyłający (lustro CHECK-a DB), pełny teardown mikrofonu na finish/cancel/unmount; wysyłka tym samym prywatnym pipeline co załączniki; podgląd listy pokazuje „🎤 Wiadomość głosowa" (trigger zeruje last_message_preview dla audio).
 - **Relacje:** brak istotnych (pipeline z 9.10).
@@ -2554,7 +2380,6 @@ Pełnoprawny komunikator klasy WhatsApp/Messenger wbudowany w multi-tenant CMS: 
   1. Dodać 'audio' do zapytania załączników i zakładkę „Głosowe" w ChatMediaPanel (useMessages.ts:689-714, ChatMediaPanel.tsx).
 
 ### 9.12. Kręgi — rozmowy grupowe — **8/10**
-
 - **Pliki:** supabase/migrations/20260713094000_group_conversations.sql:1-293, src/lib/chat/useGroups.ts:1-76, GroupCreateDialog.tsx, GroupMemberPicker.tsx, GroupInfoDialog.tsx (374 linie: rename, opis, dodawanie, wyjście, nicki), display.ts (isGroupView)
 - **Co robi:** Grupy do 50 osób (cap 49 zaproszonych + twórca) na istniejącej infrastrukturze 1:1: role owner/member, tytuł 2-80 znaków (CHECK), opis (chat_set_group_description), dopraszanie tylko przez ownera z serwerowym filtrem kandydatów (tenant, blokady, allow_messages_from), wyjście z hand-offem ownera na najstarszego członka, ostatni wychodzący kasuje konwersację.
 - **Relacje:** Moduł 10 (Sieć) — filter_group_candidates honoruje poziom 'contacts' = zaakceptowane połączenie (od 20260806221000); Moduł 12 — fan-out powiadomień i receipts działają generycznie po uczestnikach.
@@ -2565,8 +2390,7 @@ Pełnoprawny komunikator klasy WhatsApp/Messenger wbudowany w multi-tenant CMS: 
   2. Rozważyć współdzielenie uprawnienia dopraszania (rola admin) przy rosnących kręgach.
 
 ### 9.13. Personalizacja rozmowy: motywy, tapety, quick emoji, nicki — **8,5/10**
-
-- **Pliki:** src/lib/chat/themes.ts:1-103, ChatAppearanceDialog.tsx:1-393, src/lib/chat/nicknames.ts:1-131, useConversations.ts:441-510, migracja 20260716090000, pgTAP: chat_personalization_test.sql + chat_personalization_perms_test.sql, **tests**/themes.test.ts, **tests**/nicknames.test.ts
+- **Pliki:** src/lib/chat/themes.ts:1-103, ChatAppearanceDialog.tsx:1-393, src/lib/chat/nicknames.ts:1-131, useConversations.ts:441-510, migracja 20260716090000, pgTAP: chat_personalization_test.sql + chat_personalization_perms_test.sql, __tests__/themes.test.ts, __tests__/nicknames.test.ts
 - **Co robi:** Współdzielony wygląd rozmowy w semantyce Messengera (dowolny członek ustawia motyw/tapetę/quick emoji dla wszystkich; RPC `chat_set_appearance` z sentinelem 'keep'); motywy to czyste klasy CSS `.chat-theme-<id>` dla obu schematów kolorów; nicki per rozmowa (każdy może nadać każdemu, wszyscy widzą) rozstrzygane w KAŻDEJ powierzchni przez resolveMemberName.
 - **Relacje:** Moduł 4 (Motyw) — tokeny --chat-user-* w styles.css, dark mode czysto CSS-owy.
 - **✅ Mocne:** Whitelisty motywów/tapet lustrzane z CHECK-ami DB i pilnowane testem parytetu (themes.test.ts); dwa oddzielne testy pgTAP (funkcjonalny + uprawnień); optymistyczna zmiana wyglądu z propagacją do peerów przez istniejący kanał listy (bump wierszy uczestników w RPC — sprytne, zero nowych kanałów).
@@ -2575,7 +2399,6 @@ Pełnoprawny komunikator klasy WhatsApp/Messenger wbudowany w multi-tenant CMS: 
   1. Fallback: przy przekroczeniu limitu dociągać nicki per otwarta rozmowa (nicknames.ts:70-86).
 
 ### 9.14. Wyszukiwanie: kontakty czatu + FTS w treści wiadomości — **8,5/10**
-
 - **Pliki:** supabase/migrations/20260720160000_chat_message_search.sql:1-130, 20260801124000_search_chat_contacts.sql, 20260806220000_search_chat_contacts_indexed.sql, src/lib/chat/useMessageSearch.ts:1-46, MessageSearchBar.tsx, NewChatSearch.tsx:1-126, useConversations.ts:249-274, pgTAP chat_contacts_search_and_privacy_test.sql
 - **Co robi:** (a) wyszukiwarka ODBIORCÓW: RPC search_chat_contacts zwraca wyłącznie osoby, do których get_or_create_direct_conversation pozwoli napisać (naprawa martwej wyszukiwarki po niejednoznacznym przeciążeniu search_people — udokumentowana w komentarzu); (b) FTS w treści: messages.search_vector (body waga A, nazwa załącznika B, unaccent + polska fleksja przez nes_search_tsquery), RPC search_messages z JAWNIE powtórzonym lustrem RLS (tenant, członkostwo, expires_at, cleared_before, wykluczenie tombstone'ów), snippet ts_headline w konwencji [[[ ]]]; skok do trafienia dociąga historię z budżetem 12 stron.
 - **Relacje:** Moduł 6 (Wyszukiwarka) — reużycie nes_search_tsquery, unaccent i SearchSnippet (bez innerHTML); Moduł 10 — badge „verified" w wynikach z tego samego atomu co katalog osób.
@@ -2586,7 +2409,6 @@ Pełnoprawny komunikator klasy WhatsApp/Messenger wbudowany w multi-tenant CMS: 
   2. „Pokaż więcej wyników" w sekcji FTS skrzynki (total_count już wraca z RPC).
 
 ### 9.15. Prywatność i bramki dostępu: blokady, allow_messages_from, tier gating, izolacja tenanta — **9/10**
-
 - **Pliki:** supabase/migrations/20260806221000_chat_privacy_contacts_level.sql:1-227, 20260712190000_chat_privacy_tenant_hardening.sql, 20260723180000_chat_plus_tier_gating_and_benefit.sql, src/lib/chat/useBlocks.ts:1-86, src/components/network/DirectMessageButton.tsx, pgTAP: chat_privacy_isolation_test.sql, chat_conversation_tenant_isolation_test.sql, definer_header_tenant_isolation_test.sql
 - **Co robi:** Wielowarstwowa bramka rozpoczęcia rozmowy w get_or_create_direct_conversation: auth → blokada pary → wspólny tenant → sieć kontaktów (is_connected_pair) → tier (features.chat_enabled; Essential bez czatu) → bramka ekspercka (chat_direct_gated / wymóg zapytania) → discoverable → poziom prywatności odbiorcy. Poziomy everyone>contacts>existing>nobody rozstrzygane JEDNYM predykatem chat_accepts_new_thread (fail-closed na nieznaną wartość), współdzielonym przez DM-y i kręgi.
 - **Relacje:** Moduł 10 (Sieć) — is_connected_pair; blokada zrywa połączenie (tg_user_blocks_sever_connection); Moduł 13 (Monetyzacja-core) — my_effective_tier_features, seed_chat_tier_flags per tier, benefit w copy planu Plus na /pricing; Moduł 19 (Authz/RODO) — current_tenant_id, is_super_admin, wzorce REVOKE/GRANT; Moduł 15 — dialog upgrade w DirectMessageButton (i18n-direct-message).
@@ -2596,7 +2418,6 @@ Pełnoprawny komunikator klasy WhatsApp/Messenger wbudowany w multi-tenant CMS: 
   1. Jawna informacja w UI (np. stopka pierwszej rozmowy / polityka prywatności), że rozmowy podlegają moderacji administracyjnej — wymóg transparentności RODO (art. 13).
 
 ### 9.16. Zapytania do eksperta (expert requests / dawne inMail) — **8,5/10**
-
 - **Pliki:** src/lib/chat/useExpertRequests.ts:1-173, ExpertRequestDialog.tsx:1-347, ExpertRequestDialogHost.tsx, ExpertRequestsInbox.tsx:1-235, ExpertRequestCancelDialog.tsx, expertRequestErrors.ts:1-73, expertRequestGate.ts, expertRequestDialogBus.ts, expertRequestsSearch.ts, migracje: 20260806160000/160001/161000, 20260724090500 (race kwoty), 20260724130000; testy: 4× vitest w lib/chat, expertRequestCancel.test.tsx, ExpertRequestButton.matrix.test.tsx, pgTAP expert_request_single_generation_test.sql + expert_request_visibility_test.sql, i18nExpertRequest.test.ts
 - **Co robi:** Sformalizowany formularz (temat, uzasadnienie ≥20 znaków, do 5 pytań, do 3 linków — walidacja zod lustrzana z serwerem) dla Plus/Pro piszących do ekspertów/VIP; miesięczna pula (Plus=2, Pro=5, anulowanie NIE zwraca limitu — jawnie komunikowane); skrzynka odbiorcy w /messages (tab tylko dla faktycznych odbiorców), approve tworzy serwerowo rozmowę i otwiera ją; globalny bus otwiera dialog, gdy DM zwróci „chat: expert requires request".
 - **Relacje:** Moduł 13 (Monetyzacja) — kwoty z flag tieru (chat_inmail_quota_*); Moduł 10 (Eksperci) — ExpertRequestButton na profilach, is_expert_user/is_vip_user; Moduł 12 — tg_expert_request_notify (powiadomienia o zapytaniu); Moduł 16 — admin_list_expert_requests + admin_set_expert_requests_enabled (trasa admin.expert-requests.tsx).
@@ -2606,7 +2427,6 @@ Pełnoprawny komunikator klasy WhatsApp/Messenger wbudowany w multi-tenant CMS: 
   1. Link/tab „Wysłane" w widoku zapytań /messages (messages.tsx:309-327) prowadzący do profile.expert-requests.
 
 ### 9.17. Panel mediów + przekazywanie dalej (forward) — **7,5/10**
-
 - **Pliki:** ChatMediaPanel.tsx:1-270, MediaHistoryDialog.tsx:1-264, ForwardDialog.tsx:1-151, useMessages.ts:677-714 (useConversationAttachments), stars.ts:40-62 (useStarredMessages)
 - **Co robi:** Boczny panel Zdjęcia/Pliki/Gwiazdki niezależny od paginacji wątku (osobne zapytanie po attachment_path, limit 500); forward wiadomości do innej rozmowy z listą celów i filtrem.
 - **Relacje:** brak istotnych (wewnątrzmodułowe).
@@ -2617,7 +2437,6 @@ Pełnoprawny komunikator klasy WhatsApp/Messenger wbudowany w multi-tenant CMS: 
   2. Zakładka „Głosowe" + nawigacja strzałkami w podglądzie zdjęć.
 
 ### 9.18. Powiadomienia przychodzące: toasty + fan-out DB — **8/10**
-
 - **Pliki:** src/lib/chat/useIncomingChatToasts.ts:1-189, migracja 20260712230000 §5 (tg_messages_notify_recipients), ChatBell.tsx (pulse)
 - **Co robi:** Jeden ref-countowany kanał INSERT na messages per user → toast sonner z akcją „Otwórz" (dock), tłumienie gdy rozmowa jest otwarta I sfocusowana (selektor data-active-conversation) albo wyciszona (cache mute 60 s inwalidowana natychmiast przez mutację mute); równolegle trigger DB robi fan-out do tabeli notifications (tytuł=nadawca, preview per kind, pomija wyciszonych i opt-out enabled_message).
 - **Relacje:** Moduł 12 (Realtime/powiadomienia) — zapis do notifications + notification_preferences; event `nes:chat-incoming` konsumowany przez animowany dzwonek.
@@ -2628,8 +2447,7 @@ Pełnoprawny komunikator klasy WhatsApp/Messenger wbudowany w multi-tenant CMS: 
   2. TTL na peerCache (np. 5 min) w useIncomingChatToasts.ts:96-106.
 
 ### 9.19. Demo bot (lokalny podgląd czatu) — **8/10**
-
-- **Pliki:** DemoBotChat.tsx:1-562, DemoBotListItem.tsx, **tests**/DemoBotChat.test.tsx, **tests**/DemoBotChat.contract.test.tsx
+- **Pliki:** DemoBotChat.tsx:1-562, DemoBotListItem.tsx, __tests__/DemoBotChat.test.tsx, __tests__/DemoBotChat.contract.test.tsx
 - **Co robi:** Wirtualny wątek "bot" w skrzynce (tylko klient, zero DB/realtime): renderuje PRAWDZIWY MessageList z pełnym cyklem ticków, reakcjami, odpowiedziami i tombstone'ami; bot odpowiada echem po „pisze..."; służy jako bezpieczny onboarding/preview UI.
 - **Relacje:** brak istotnych (celowo odcięty od Supabase; id `__demo_bot__` nigdy nie trafia do DB).
 - **✅ Mocne:** Test kontraktowy pilnuje, że demo używa realnego MessageList (podgląd nie może się rozjechać z prawdziwym czatem — rzadki, mądry wzorzec); ukrywany przy filtrach/szukaniu, żeby nie zaśmiecać realnej listy.
@@ -2638,7 +2456,6 @@ Pełnoprawny komunikator klasy WhatsApp/Messenger wbudowany w multi-tenant CMS: 
   1. localStorage dismiss („ukryj podgląd bota") po pierwszej interakcji.
 
 ### 9.20. Moderacja administracyjna czatu (/admin/community/chat) — **6,5/10**
-
 - **Pliki:** src/routes/admin.community.chat.tsx:1-300, src/lib/admin/community.ts:102-167, migracja 20260713200000_chat_admin_tenant_scope_fix.sql:1-120 (polityki staff_read/staff_delete/staff_update, admin_soft_delete_message)
 - **Co robi:** Lista wszystkich konwersacji tenanta (liczba uczestników/wiadomości, preview, TTL), drill-in do wiadomości z soft-delete (ukrycie), kasowanie konwersacji (cascade), ręczny purge wygasłych.
 - **Relacje:** Moduł 16 (Społeczność-admin) — trasa w admin.community.*, admin_community_stats; Moduł 19 (Authz) — polityki staff tenant-scoped po security-fixie cross-tenant (has_role bez predykatu tenant naprawione w 20260713200000).
@@ -2651,23 +2468,22 @@ Pełnoprawny komunikator klasy WhatsApp/Messenger wbudowany w multi-tenant CMS: 
   4. Przenieść stringi do bundla i18n-admin-* jak w pozostałych trasach admina.
 
 ### Podsumowanie modułu 9
-
 - **Średnia ocen funkcji:** 8,3 · **Rozkład:** 4× 9-10 · 15× 7-8(,5) · 1× 5-6 · 0× <5
 - **Relacje modułu (zbiorczo):**
 
-| Moduł                     | Mechanizm                                                                                                                                                                                                       | Kierunek zależności                                                 |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Moduł | Mechanizm | Kierunek zależności |
+|---|---|---|
 | 12 Realtime/powiadomienia | tableChannelHub, eventInvalidationMap→chatKeys, tabela notifications (fan-out tg_messages_notify_recipients), notification_preferences (mute/typing/receipts/online/chat_bell), NotificationsCenter w /messages | dwukierunkowa (czat konsumuje infrastrukturę, zasila powiadomienia) |
-| 10 Sieć/eksperci          | is_connected_pair jako bramka DM, blokada zrywa połączenie (tg_user_blocks_sever_connection), DirectMessageButton/ExpertRequestButton, usePeopleDirectory dla /people, is_expert_user/is_vip_user               | dwukierunkowa                                                       |
-| 13 Monetyzacja-core       | my_effective_tier_features (chat_enabled, chat_direct_gated, chat_inmail_quota_2/5), seed_chat_tier_flags w seedzie pricingu, benefit czatu w copy planu Plus (/pricing)                                        | czat zależy od 13                                                   |
-| 16 Społeczność-admin      | community_modules.chat_enabled/expert_requests_enabled, trasa admin.community.chat, admin_community_stats, admin_list_expert_requests                                                                           | dwukierunkowa                                                       |
-| 19 Ustawienia/authz/RODO  | current_tenant_id, has_role, is_super_admin, wzorce RLS/REVOKE, pgTAP izolacji tenantów                                                                                                                         | czat zależy od 19                                                   |
-| 6 Wyszukiwarka            | nes_search_tsquery, unaccent, konwencja snippetów [[[ ]]], komponent SearchSnippet                                                                                                                              | czat zależy od 6                                                    |
-| 5 Chrome/nawigacja        | SiteChrome montuje ChatDock/ChatBell, mobilny bottom bar (ChatUnreadBadge lazy), AccountMenuWidget                                                                                                              | 5 konsumuje czat                                                    |
-| 15 Profil/konto           | profiles (display_name/avatar/discoverable), useDiscoverable w ustawieniach prywatności profilu, AuthGate                                                                                                       | dwukierunkowa                                                       |
-| 4 Motyw/media             | tokeny CSS --chat-user-*, wzorzec uploadu signed-URL+XHR współdzielony z avatarami                                                                                                                              | czat zależy od 4                                                    |
-| 21 Kluby                  | club.$clubSlug.members.tsx importuje komponenty czatu (DM z listy członków klubu)                                                                                                                               | 21 konsumuje czat                                                   |
-| 17 Analityka/BI           | member_analytics (20260713190000) agreguje aktywność wiadomości                                                                                                                                                 | 17 czyta tabele czatu                                               |
+| 10 Sieć/eksperci | is_connected_pair jako bramka DM, blokada zrywa połączenie (tg_user_blocks_sever_connection), DirectMessageButton/ExpertRequestButton, usePeopleDirectory dla /people, is_expert_user/is_vip_user | dwukierunkowa |
+| 13 Monetyzacja-core | my_effective_tier_features (chat_enabled, chat_direct_gated, chat_inmail_quota_2/5), seed_chat_tier_flags w seedzie pricingu, benefit czatu w copy planu Plus (/pricing) | czat zależy od 13 |
+| 16 Społeczność-admin | community_modules.chat_enabled/expert_requests_enabled, trasa admin.community.chat, admin_community_stats, admin_list_expert_requests | dwukierunkowa |
+| 19 Ustawienia/authz/RODO | current_tenant_id, has_role, is_super_admin, wzorce RLS/REVOKE, pgTAP izolacji tenantów | czat zależy od 19 |
+| 6 Wyszukiwarka | nes_search_tsquery, unaccent, konwencja snippetów [[[ ]]], komponent SearchSnippet | czat zależy od 6 |
+| 5 Chrome/nawigacja | SiteChrome montuje ChatDock/ChatBell, mobilny bottom bar (ChatUnreadBadge lazy), AccountMenuWidget | 5 konsumuje czat |
+| 15 Profil/konto | profiles (display_name/avatar/discoverable), useDiscoverable w ustawieniach prywatności profilu, AuthGate | dwukierunkowa |
+| 4 Motyw/media | tokeny CSS --chat-user-*, wzorzec uploadu signed-URL+XHR współdzielony z avatarami | czat zależy od 4 |
+| 21 Kluby | club.$clubSlug.members.tsx importuje komponenty czatu (DM z listy członków klubu) | 21 konsumuje czat |
+| 17 Analityka/BI | member_analytics (20260713190000) agreguje aktywność wiadomości | 17 czyta tabele czatu |
 
 - **5 najpilniejszych rekomendacji:**
   1. **(9.20)** Naprawić liczniki w panelu moderacji — agregacja `count: exact, head: true` lub RPC zamiast liczenia pobranych wierszy ciętych limitem PostgREST; dodać paginację i audit-log akcji (src/lib/admin/community.ts:102-167).
@@ -2680,13 +2496,12 @@ Pełnoprawny komunikator klasy WhatsApp/Messenger wbudowany w multi-tenant CMS: 
 
 ## Moduł 10 — Sieć / networking (LinkedIn-lite) + eksperci
 
-**Zakres zbadany:** src/components/network/ (w tym atoms/molecules/organisms + 17 testów), src/components/experts/, src/components/mentions/, src/components/author/, src/components/interests/, src/components/FollowButton.tsx · src/lib/network/ (8 plików + 4 testy), src/lib/experts/ (14 plików + 7 testów), src/lib/mentions/, src/lib/interests/, src/lib/expertLayouts.ts (+ test w lib/**tests**) · hooki useFollows, useFollowedFeed, useInterests, useExpertLayoutSettings · trasy network.tsx, network.mutual.$userId.tsx, people.tsx, experts.tsx, author.$slug.tsx, contributors.tsx, contribute.tsx, profile.follows.tsx, profile.interests.tsx, profile.expert-requests.tsx, admin.expert-layouts.tsx, admin.expert-requests.tsx, admin.authors.tsx, admin.community.contributors.tsx · migracje 20260717123000, 20260717170000, 20260807100000, 20260807143000, 20260724120000, 20260725090000, 20260714130000, 20260731193000, 20260731210001 · pgTAP: connections_network, connections_v2, connection_degree, introductions_flow, recommendations_contract, expert_hub, expert_materials_pagination, expert_request_* · **Funkcji:** 22 · **Ocena modułu:** 8,0/10
+**Zakres zbadany:** src/components/network/ (w tym atoms/molecules/organisms + 17 testów), src/components/experts/, src/components/mentions/, src/components/author/, src/components/interests/, src/components/FollowButton.tsx · src/lib/network/ (8 plików + 4 testy), src/lib/experts/ (14 plików + 7 testów), src/lib/mentions/, src/lib/interests/, src/lib/expertLayouts.ts (+ test w lib/__tests__) · hooki useFollows, useFollowedFeed, useInterests, useExpertLayoutSettings · trasy network.tsx, network.mutual.$userId.tsx, people.tsx, experts.tsx, author.$slug.tsx, contributors.tsx, contribute.tsx, profile.follows.tsx, profile.interests.tsx, profile.expert-requests.tsx, admin.expert-layouts.tsx, admin.expert-requests.tsx, admin.authors.tsx, admin.community.contributors.tsx · migracje 20260717123000, 20260717170000, 20260807100000, 20260807143000, 20260724120000, 20260725090000, 20260714130000, 20260731193000, 20260731210001 · pgTAP: connections_network, connections_v2, connection_degree, introductions_flow, recommendations_contract, expert_hub, expert_materials_pagination, expert_request_* · **Funkcji:** 22 · **Ocena modułu:** 8,0/10
 
 Moduł to pełnokrwisty „LinkedIn-lite": graf połączeń 1°/2°/3° z mostami, zaproszenia z cichą odmową, sugestie z pętlą zwrotną, wprowadzenia (introductions), rekomendacje, poparcia umiejętności, „kto oglądał profil", katalog osób i publiczne huby ekspertów z konfigurowalnymi layoutami. Stan ogólny jest wysoki i wyraźnie powyżej średniej rynkowej: praktycznie cała powierzchnia grafu społecznościowego jest RPC-only (SECURITY DEFINER, zero grantów klienckich na user_connections — migracja 20260717123000:66-69), decyzje prywatnościowe (cicha odmowa, anonimowość mostu bez opt-in `discoverable`, maskowanie widzów profilu) są egzekwowane w bazie, a nie w UI, i pokryte pgTAP + testami komponentów + bramką i18n. Najważniejszy wniosek: rdzeń „connections + eksperci" jest klasy produkcyjnej z ambicją na 9, natomiast starsza warstwa follows/obserwowanych (useFollows/FollowButton/profile.follows) odstaje jakościowo — bez testów, z inline'owym i18n i bez spójnej architektury z resztą modułu.
 
 ### 10.1. Graf połączeń — warstwa danych RPC (connections) — **9/10**
-
-- **Pliki:** src/lib/network/useConnections.ts:1-359, src/lib/network/keys.ts:1-13, supabase/migrations/20260717123000_connections_network.sql (RPC connection_request/respond/cancel/remove, REVOKE :515-521, RLS bez polityk :64-69), 20260717170000_connections_v2.sql; testy: src/lib/network/**tests**/useConnections.test.tsx (5 bloków describe), networkKeys.test.ts; pgTAP: supabase/tests/connections_network_test.sql, connections_v2_test.sql
+- **Pliki:** src/lib/network/useConnections.ts:1-359, src/lib/network/keys.ts:1-13, supabase/migrations/20260717123000_connections_network.sql (RPC connection_request/respond/cancel/remove, REVOKE :515-521, RLS bez polityk :64-69), 20260717170000_connections_v2.sql; testy: src/lib/network/__tests__/useConnections.test.tsx (5 bloków describe), networkKeys.test.ts; pgTAP: supabase/tests/connections_network_test.sql, connections_v2_test.sql
 - **Co robi:** Kompletna warstwa danych sieci kontaktów: batchowane statusy (connection_statuses), moja sieć z wyszukiwaniem trgm i infinite query, skrzynki zaproszeń, liczniki, sugestie, mutacje (wyślij/odpowiedz/wycofaj/usuń) oraz realtime przez sygnały pośrednie (powiadomienia kind='connection' i licznik connections_pending), bo tabela celowo nie jest w publikacji Realtime.
 - **Relacje:** Moduł 12 (Realtime/powiadomienia) — subscribeToTable z tableChannelHub, pendingCounterKeys; Moduł 9 (Czat) — useStartConversation/openChatWindow z ConnectButton; Moduł 19 (Ustawienia/authz) — toggle community_modules.connections_enabled; Moduł 16 (Społeczność-admin) — report_user trafia do moderacji.
 - **✅ Mocne:** Tabela user_connections bez żadnych grantów klienckich („odmowa wygląda jak oczekujące" egzekwowane w DB); klucze cache zawierają id użytkownika (keys.ts:1-2 — zmiana konta nie serwuje cudzej sieci); typy wprost z Database["public"]["Functions"] (useConnections.ts:30-34); spójna inwalidacja całego zakresu + liczników (invalidateNetwork :189-192); testy jednostkowe i pgTAP.
@@ -2696,7 +2511,6 @@ Moduł to pełnokrwisty „LinkedIn-lite": graf połączeń 1°/2°/3° z mostam
   2. Ujednolicić paginację połączeń: albo czysty infinite scroll, albo strona z RPC — usunąć podwójne cięcie stron w network.tsx:301-315.
 
 ### 10.2. Strona /network (zakładki: połączenia, zaproszenia, sugestie) — **8/10**
-
 - **Pliki:** src/routes/network.tsx:1-809
 - **Co robi:** Panel „Moja sieć" dla zalogowanych (AuthGate, noindex): wyszukiwanie w obrębie sieci z debounce, paginacja z prefetchem kolejnych stron, skrzynki in/out z cichą odmową, sugestie oraz deep-link `?c=` z powiadomienia (podświetlenie i scrollIntoView wiersza).
 - **Relacje:** Moduł 12 — liczniki zakładek z my_network_counts + realtime; Moduł 9 — presence (useOnlineUsers), DirectMessageButton; Moduł 15 (Profil/konto) — IntentChip/profileIntentLabelKey na kartach; Moduł 5 (Chrome) — wejście z dzwonka powiadomień.
@@ -2707,8 +2521,7 @@ Moduł to pełnokrwisty „LinkedIn-lite": graf połączeń 1°/2°/3° z mostam
   2. Dodać src/routes/network.tsx do SCANNED_DIRS bramki networkI18nKeys.gate.test.ts i przenieść defaultValue do i18n-network.
 
 ### 10.3. ConnectButton — maszyna stanów relacji — **9/10**
-
-- **Pliki:** src/components/network/ConnectButton.tsx:1-443; test: src/components/network/**tests**/ConnectButton.matrix.test.tsx
+- **Pliki:** src/components/network/ConnectButton.tsx:1-443; test: src/components/network/__tests__/ConnectButton.matrix.test.tsx
 - **Co robi:** Jedna maszyna stanów dla wszystkich powierzchni (none → pending_out → pending_in → connected): popover z notką do 300 znaków, wycofanie/odmowa/usunięcie z potwierdzeniami, menu „W sieci" (wiadomość/zgłoś/usuń). Przy pominiętym propie `state` sam pobiera status batchowanym RPC.
 - **Relacje:** Moduł 9 (Czat) — useStartConversation z obsługą bramek „expert requires request"/„tier disabled" (:329-352); Moduł 13 (Monetyzacja-core) — przekierowanie na /pricing przy zablokowanym tierze; Moduł 19 — chowanie przycisku przy wyłączonym module.
 - **✅ Mocne:** Dedykowane mapowanie błędów DB (rate limited / blocked / peer not available — :124-134) zamiast generycznego toastu; nie renderuje CTA, które DB i tak odrzuci (canInvite :100); nie odpytuje statusu przy wyłączonym module (:74-77); test macierzowy stanów.
@@ -2717,7 +2530,6 @@ Moduł to pełnokrwisty „LinkedIn-lite": graf połączeń 1°/2°/3° z mostam
   1. Ustalić w RPC stałe prefiksy błędów (np. `net:rate_limited`) i mapować po prefiksie — zmiana w migracji connections + ConnectButton.tsx:124-134 i pgTAP pilnujący kontraktu.
 
 ### 10.4. Stopień oddalenia 1°/2°/3° + ścieżka mostu — **9/10**
-
 - **Pliki:** src/lib/network/degree.ts:1-115, src/components/network/atoms/DegreeBadge.tsx, atoms/PathNode.tsx, molecules/ConnectionPathTrail.tsx, molecules/ConnectionDistance.tsx, organisms/NetworkDistance.tsx, useDegreeLabels.ts; migracja 20260807100000_connection_degree.sql; testy: degree.test.ts, DegreeBadge.test.tsx, ConnectionPathTrail.test.tsx, NetworkDistance.test.tsx, networkI18nKeys.gate.test.ts; pgTAP connection_degree_test.sql
 - **Co robi:** Jedno źródło prawdy dla stopnia oddalenia w grafie zaakceptowanych relacji i „mostu" (mój kontakt 1° otwierający drogę), renderowane jako odznaka, ścieżka „Ty → Anna → Marek" i dystans na profilu — wszystko z tego samego batchowanego connection_statuses (zero dodatkowych RPC).
 - **Relacje:** brak istotnych poza wewnętrznymi (konsumowane przez /people, /network, profil autora — 10.2, 10.6, 10.13).
@@ -2727,7 +2539,6 @@ Moduł to pełnokrwisty „LinkedIn-lite": graf połączeń 1°/2°/3° z mostam
   1. Rozszerzyć degree.test.ts o przypadki toBridge z pustymi/whitespace stringami (degree.ts:61-71) dla domknięcia kontraktu.
 
 ### 10.5. Sugestie „osoby, które możesz znać" + pętla zwrotna — **8/10**
-
 - **Pliki:** src/lib/network/useSuggestionFeedback.ts:1-81, SuggestionsTab w src/routes/network.tsx:571-692, migracja 20260807143000_connection_suggestion_feedback.sql
 - **Co robi:** Sugestie z connection_suggestions (wspólne kontakty + wspólne dossier + wspólne wydarzenia jako meta) z trwałym „nie, dziękuję" (dismiss per osoba) i zbiorczym przywróceniem; tabela dismissals bez grantów klienckich (decyzja jest prywatna).
 - **Relacje:** Moduł 7 (Treści specjalne) — sygnał shared_follows z dossier trackera; Moduł 16 — wydarzenia (shared_events) jako sygnał afiniczności.
@@ -2738,7 +2549,6 @@ Moduł to pełnokrwisty „LinkedIn-lite": graf połączeń 1°/2°/3° z mostam
   2. Dodać unit test useSuggestionFeedback (inwalidacja obu kluczy po mutacji) obok useConnections.test.tsx.
 
 ### 10.6. Katalog osób /people (fasety, tryb semantyczny, zapisane wyszukiwania) — **8,5/10**
-
 - **Pliki:** src/routes/people.tsx:1-675; warstwa danych: src/lib/chat/usePeopleDirectory.ts, src/lib/profile/peopleSearchParams.ts, src/lib/search/peopleSemantic.functions.ts
 - **Co robi:** Wewnętrzny katalog opt-in profili (AuthGate, noindex): wyszukiwanie trgm+unaccent, 5 faset (specjalizacja/firma/rola/lokalizacja/intencja) + „tylko zweryfikowani", jawny tryb semantyczny (?sem=1), stan w URL-u (deep-linki + zapisane wyszukiwania z alertami), banner sterujący własną widocznością (discoverable).
 - **Relacje:** Moduł 6 (Wyszukiwarka) — embeddingi trybu semantycznego; Moduł 9 (Czat) — usePeopleDirectory/useDiscoverable/presence żyją w lib/chat; Moduł 12 — licznik connections_pending na przycisku; Moduł 15 — intencje profilu, odznaki (useBadgesForUsers), SavedSearchesPanel (saved_searches, migracja 20260807142000); Moduł 8 (SEO) — noindex + disallow w robots.
@@ -2749,7 +2559,6 @@ Moduł to pełnokrwisty „LinkedIn-lite": graf połączeń 1°/2°/3° z mostam
   2. Rozszerzyć fasetę intencji na multi-select (URL już niesie string, wystarczy CSV) — people.tsx:513-519.
 
 ### 10.7. Wspólne kontakty (/network/mutual/$userId + MutualConnectionsHint) — **7,5/10**
-
 - **Pliki:** src/routes/network.mutual.$userId.tsx:1-247, src/components/network/MutualConnectionsHint.tsx:1-34; test: MutualConnectionsHint.test.tsx
 - **Co robi:** Hint „N wspólnych kontaktów" na profilu (z cache batchowanego connection_statuses — zero dodatkowych zapytań) linkujący do pełnej listy wspólnych kontaktów (RPC mutual_connections, SECURITY DEFINER, tenant-scoped) z powrotem do profilu i podsumowaniem dystansu.
 - **Relacje:** Moduł 9 — presence + DirectMessageButton przy każdym wierszu.
@@ -2760,7 +2569,6 @@ Moduł to pełnokrwisty „LinkedIn-lite": graf połączeń 1°/2°/3° z mostam
   2. Przenieść defaultValue do i18n-network i objąć trasę bramką kluczy.
 
 ### 10.8. Wprowadzenia (introductions: requester → bridge → target) — **8/10**
-
 - **Pliki:** src/lib/network/useIntroductions.ts:1-134, src/components/network/RequestIntroductionButton.tsx, RequestIntroductionDialog.tsx, IntroductionsCard.tsx; migracja 20260724120000_fix_introductions_flow.sql; testy: RequestIntroductionButton.matrix.test.tsx, RequestIntroductionDialog.test.tsx, IntroductionsCard.test.tsx, networkProfileHooks.test.tsx („wprowadzenia"); pgTAP introductions_flow_test.sql
 - **Co robi:** LinkedIn-owy łańcuch wprowadzeń: prośba przez wspólny most (przycisk na profilu widoczny tylko gdy mutualCount>0 i brak połączenia), moderacja mostu (forward/decline), wycofanie przez proszącego; karta trzech ról w zakładce Activity profilu. DB egzekwuje obustronnie zaakceptowane relacje, zgodę targetu i dedup na trójkę.
 - **Relacje:** Moduł 15 (Profil/konto) — IntroductionsCard montowana w profile.index.tsx:687 (z deep-linkiem roli z URL); Moduł 12 — powiadomienia o wprowadzeniach.
@@ -2770,7 +2578,6 @@ Moduł to pełnokrwisty „LinkedIn-lite": graf połączeń 1°/2°/3° z mostam
   1. Zregenerować src/integrations/supabase/types.ts i usunąć ręczną augmentację IntroductionRow (useIntroductions.ts:29-31).
 
 ### 10.9. Rekomendacje profilowe — **8,5/10**
-
 - **Pliki:** src/lib/network/useRecommendations.ts:1-186, src/components/network/RecommendationsSection.tsx:1-394; migracja 20260725090000_fix_recommendations_client_db_contract.sql; testy: RecommendationsSection.test.tsx, networkProfileHooks.test.tsx („rekomendacje"); pgTAP recommendations_contract_test.sql
 - **Co robi:** Rekomendacje na publicznym profilu: pisać może tylko zaakceptowany kontakt (RPC), odbiorca moderuje (publish/hide/decline/delete), autor nigdy nie widzi odmowy — baza pokazuje mu hidden/declined jako pending.
 - **Relacje:** Moduł 13 — brak; brak istotnych poza profilem autora (10.13).
@@ -2780,7 +2587,6 @@ Moduł to pełnokrwisty „LinkedIn-lite": graf połączeń 1°/2°/3° z mostam
   1. Dodać w RecommendationsSection stan „autor widzi swoją pending" z wyjaśnieniem (dziś autor nie wie, że odbiorca mógł już odmówić — to celowe, ale copy może zarządzić oczekiwaniami).
 
 ### 10.10. Poparcia umiejętności + publiczne CV z eksportem PDF — **7,5/10**
-
 - **Pliki:** src/lib/network/useEndorsements.ts:1-86, src/components/author/AuthorCvSections.tsx:1-441, src/components/author/CvPrintSheet.tsx:1-217; testy: networkProfileHooks.test.tsx („poparcia umiejętności")
 - **Co robi:** Sekcja CV na hubie autora (doświadczenie, edukacja, umiejętności, nagrody, hobby) z poparciami umiejętności (endorse/unendorse przez RPC, tylko zaakceptowana znajomość) i eksportem CV do PDF przez window.print (deploy na Workers bez Chromium).
 - **Relacje:** Moduł 15 (Profil/konto) — dane CV edytowane w profilu (authorCvQueryOptions z lib/queries); Moduł 20 (Platforma/SSR) — mechanika print bez serwerowego renderu.
@@ -2791,7 +2597,6 @@ Moduł to pełnokrwisty „LinkedIn-lite": graf połączeń 1°/2°/3° z mostam
   2. Test jsdom dla useCvPrint (klasa dodana/zdjęta po afterprint, tytuł dokumentu przywrócony).
 
 ### 10.11. „Kto oglądał Twój profil" (profile views) — **8/10**
-
 - **Pliki:** src/lib/network/useProfileViews.ts:1-138, src/components/network/ProfileViewsCard.tsx; rejestracja: src/routes/author.$slug.tsx:369-381; testy: ProfileViewsCard.test.tsx, networkProfileHooks.test.tsx („wyświetlenia profilu")
 - **Co robi:** Rejestruje obejrzenia cudzego profilu (RPC z debouncingiem 1/h/parę w bazie), liczniki 7/30/90 dni, lista widzów respektująca tryb prywatności WIDZA (public/anonymous/private — maskowanie w bazie) oraz kontroler własnego trybu.
 - **Relacje:** Moduł 15 — karta w zakładce Activity profilu (profile.index.tsx:680); kolumna profiles.profile_view_mode pod RLS „tylko ja".
@@ -2802,7 +2607,6 @@ Moduł to pełnokrwisty „LinkedIn-lite": graf połączeń 1°/2°/3° z mostam
   2. Zamienić eslint-disable na stabilny uchwyt mutacji (useRef/useEffectEvent) w author.$slug.tsx:376-381.
 
 ### 10.12. Zgłaszanie użytkowników (ReportUserDialog + AuthorMoreMenu) — **7,5/10**
-
 - **Pliki:** src/components/network/ReportUserDialog.tsx, AuthorMoreMenu.tsx, useReportUser w src/lib/network/useConnections.ts:309-326; testy: ReportUserDialog.test.tsx, AuthorMoreMenu.test.tsx
 - **Co robi:** Zgłoszenie osoby do moderacji tenanta (5 powodów + szczegóły do 1000 znaków), dostępne z overflow menu profilu autora i z popovera ConnectButton; dedup i rate limit w DB (report_user).
 - **Relacje:** Moduł 16 (Społeczność-admin) — zgłoszenia konsumuje moderacja; Moduł 19 — reguły rate-limit w DB.
@@ -2812,7 +2616,6 @@ Moduł to pełnokrwisty „LinkedIn-lite": graf połączeń 1°/2°/3° z mostam
   1. pgTAP dla report_user (dedup tej samej pary, limit częstotliwości, izolacja tenanta).
 
 ### 10.13. Hub eksperta /author/$slug (SSR, SEO, degradacja) — **9/10**
-
 - **Pliki:** src/routes/author.$slug.tsx:1-605; src/lib/experts/queries.ts:1-278, rpcHub.ts, normalize.ts, hydration.ts, types.ts, publicVisibility.ts:1-51; testy: queries.smoke.test.ts, normalize.test.ts, publicVisibility.test.ts; pgTAP expert_hub_test.sql, author_profile_public_access_test.sql
 - **Co robi:** Publiczny hub eksperta agregujący profil, programy, obszary, „W mediach", materiały i CV — jeden RPC get_expert_hub (z layoutem tenanta w tym samym round-tripie) z fallbackiem legacy na okno wdrożeniowe; SSR z trzema rozłącznymi stanami (wiersz/404/degradacja no-store), pełne SEO (Person + BreadcrumbList JSON-LD, og:type=profile, wersjonowany og:image po updated_at) i warunkowa indeksacja.
 - **Relacje:** Moduł 8 (SEO/feedy) — buildContentHead, safeJsonLd, ogVersion; Moduł 20 (Platforma/SSR) — loadResilient, edgeTtlCache per-isolate (queries.ts:263-271), cache-control; Moduł 1 (Wpisy-czytelnik) — materiały z posts; Moduł 7 — wydarzenia/podcasty w materiałach; Moduł 19 — PII kontaktowe odcięte widokiem author_profiles_public (historia awarii w komentarzu queries.ts:181-189).
@@ -2823,7 +2626,6 @@ Moduł to pełnokrwisty „LinkedIn-lite": graf połączeń 1°/2°/3° z mostam
   2. Uzupełnić typ profilu o facebook_url/instagram_url/spotify_url zamiast rzutowań inline (author.$slug.tsx:244-246).
 
 ### 10.14. Eksplorator materiałów eksperta (paginacja serwerowa + fasety) — **8,5/10**
-
 - **Pliki:** src/lib/experts/materials.ts, materialsPage.ts:1-143, materialsSearch.ts, filter.ts; src/components/experts/ExpertMaterialsExplorer.tsx, ExpertMaterialCard.tsx; migracja 20260731193000_get_expert_materials.sql; testy: materialsPage.test.ts, materialsSearch.test.ts, filter.test.ts, materials.smoke.test.ts; pgTAP expert_materials_pagination_test.sql
 - **Co robi:** Filtrowalny zbiór materiałów (artykuły/raporty/wideo/podcasty/wydarzenia) z paginacją serwerową — stan strony i filtrów w URL (?page/kind/topic/region/year/program), RPC liczy total i zwraca tylko okno; fasety zawężone w SQL do wartości, które coś zwrócą.
 - **Relacje:** Moduł 1 — posty; Moduł 7 — wydarzenia i podcasty; Moduł 3 (Silniki treści) — wspólny wzorzec paginacji archiwów (ArchivePagination).
@@ -2833,7 +2635,6 @@ Moduł to pełnokrwisty „LinkedIn-lite": graf połączeń 1°/2°/3° z mostam
   1. Zaplanować usunięcie ścieżki legacy fetchMaterials/fetchExpertHubLegacy po potwierdzeniu wdrożenia RPC na wszystkich środowiskach (queries.ts:136-140).
 
 ### 10.15. Katalog ekspertów /experts + panel /admin/authors — **7/10**
-
 - **Pliki:** src/routes/experts.tsx:1-257, src/routes/admin.authors.tsx:1-331, src/lib/experts/directory.ts:1-190
 - **Co robi:** Publiczny, SSR-owany katalog ekspertów (odznaka 'expert' + publiczny profil autorski) z kartami, filtrami po obszarze (?area) i programie oraz licznikiem publikacji; wariant panelowy dla admina (role, e-mail, wspólny cache z /admin/users).
 - **Relacje:** Moduł 8 — buildContentHead dla /experts; Moduł 20 — loadResilient + resilientCacheControl (experts.tsx:42-50); Moduł 16/19 — adminUsersQueryOptions i role w admin.authors.
@@ -2845,8 +2646,7 @@ Moduł to pełnokrwisty „LinkedIn-lite": graf połączeń 1°/2°/3° z mostam
   3. Zastąpić `length` w queryKey stabilnym hashem listy id lub inwalidacją po mutacjach użytkowników (admin.authors.tsx:66).
 
 ### 10.16. Layouty stron ekspertów (presety, panel admina, inline-edytor) — **8,5/10**
-
-- **Pliki:** src/lib/expertLayouts.ts:1-408 (+ src/lib/**tests**/expertLayouts.test.ts), src/hooks/useExpertLayoutSettings.ts:1-126, src/routes/admin.expert-layouts.tsx:1-444, src/components/experts/ExpertLayoutRenderer.tsx (1169 linii), ExpertLayoutInlineEditor.tsx (577), ExpertPresetThumb.tsx; migracje 20260713212243/20260731210000/20260731210001
+- **Pliki:** src/lib/expertLayouts.ts:1-408 (+ src/lib/__tests__/expertLayouts.test.ts), src/hooks/useExpertLayoutSettings.ts:1-126, src/routes/admin.expert-layouts.tsx:1-444, src/components/experts/ExpertLayoutRenderer.tsx (1169 linii), ExpertLayoutInlineEditor.tsx (577), ExpertPresetThumb.tsx; migracje 20260713212243/20260731210000/20260731210001
 - **Co robi:** 8 presetów layoutu huba + widoczność/kolejność 10 sekcji + tokeny kolorów per tenant (expert_layout_settings), z nadpisaniami per-ekspert (author_profiles.layout_preset/layout_overrides) edytowanymi inline na własnej stronie; ten sam renderer obsługuje podgląd admina, draft na żywo i produkcję (preview == produkcja).
 - **Relacje:** Moduł 4 (Motyw/media) — mirror wzorca postLayouts; Moduł 19 — RLS „właściciel lub admin tego samego tenanta" na author_profiles (author.$slug.tsx:406-412 odzwierciedla to w UI); Moduł 20 — edgeTtlCache na odczycie ustawień (useExpertLayoutSettings.ts:29).
 - **✅ Mocne:** Sanityzacja kolorów CSS białą listą znaków przeciw wstrzyknięciu do scoped `<style>` (expertLayouts.ts:257-268 — wyklucza `;{}<>:"'`, więc i url()/data:); aliasy legacy presetów chronią stare wiersze i payloady z cache (:222-233); normalizacja section_order do pełnej permutacji — niepełny zapis nie gubi sekcji (:270-291); nadpisania parsowane defensywnie (złe typy odpadają po cichu); jest test lib.
@@ -2856,7 +2656,6 @@ Moduł to pełnokrwisty „LinkedIn-lite": graf połączeń 1°/2°/3° z mostam
   2. Test snapshot/DOM dla ExpertLayoutRenderer per preset (8 wariantów × widoczność sekcji).
 
 ### 10.17. Zapytania do ekspertów — powierzchnie (przycisk, skrzynki, admin) — **7,5/10**
-
 - **Pliki:** src/components/experts/ExpertRequestButton.tsx (+ ExpertRequestButton.matrix.test.tsx), src/routes/profile.expert-requests.tsx:1-195, src/routes/admin.expert-requests.tsx:1-145; warstwa danych w src/lib/chat/useExpertRequests.ts (Moduł 9); migracje 20260723170000, 20260724090500, 20260806160001; pgTAP expert_request_visibility_test.sql, expert_request_single_generation_test.sql
 - **Co robi:** CTA „Zapytanie do eksperta" na hubie (widoczny tylko dla warstw składających zapytania; VIP+ piszą wprost), skrzynki wysłane/odebrane z deep-linkiem z powiadomienia (?box&r), pula miesięczna rozstrzygana serwerowo, panel admina do rozstrzygania.
 - **Relacje:** Moduł 9 (Czat) — cała warstwa danych i dialog żyją w lib/chat (bramka „expert requires request" w rozmowach); Moduł 13 (Monetyzacja-core) — gating tierów Plus/Pro/VIP i kwoty; Moduł 12 — powiadomienia i deep-linki; Moduł 19 — zgoda per-user expert_requests_enabled + toggle tenanta.
@@ -2867,7 +2666,6 @@ Moduł to pełnokrwisty „LinkedIn-lite": graf połączeń 1°/2°/3° z mostam
   2. Dodać paginację/limit z licznikiem do useAdminExpertRequests.
 
 ### 10.18. Wzmianki @ (parser, typeahead, render) — **9/10**
-
 - **Pliki:** src/lib/mentions/parse.ts:1-105, useMentionAutocomplete.ts:1-188, useMentionSuggestions.ts:1-68; src/components/mentions/MentionText.tsx, MentionTextarea.tsx, MentionSuggestionList.tsx; migracja 20260711201000 (process_mentions), 20260808240000 (wzmianki w klubach); testy: parse.test.ts, useMentionSuggestions.test.tsx, MentionText.test.tsx, MentionTextarea.test.tsx
 - **Co robi:** Kompletny system @wzmianek: parser będący lustrem wzorca ARE Postgresa (linkuje DOKŁADNIE to, co generuje powiadomienie w DB), typeahead combobox/listbox (ARIA 1.2) współdzielony między komentarzami a polami formularzy, render przez węzły React (nigdy dangerouslySetInnerHTML).
 - **Relacje:** Moduł 1 (komentarze — CommentsSection/CommentComposerShell), Moduł 21 (Kluby — club.$clubSlug.new/thread), Moduł 3 (MessageComposerField w widgetach formularzy), Moduł 12 — powiadomienia z triggera process_mentions, Moduł 6 — podpowiedzi z RPC search_people_orgs (izolacja tenanta i prywatność discoverable w bazie, useMentionSuggestions.ts:1-10).
@@ -2877,19 +2675,17 @@ Moduł to pełnokrwisty „LinkedIn-lite": graf połączeń 1°/2°/3° z mostam
   1. Dodać test parytetu wzorca JS ↔ SQL (wyciągnięcie ARE z migracji i porównanie na korpusie przypadków), żeby przyszła zmiana w jednej warstwie nie rozjechała się z drugą.
 
 ### 10.19. Obserwowanie autorów/kategorii/tagów/programów + feed obserwowanych — **6,5/10**
-
 - **Pliki:** src/components/FollowButton.tsx:1-69, src/hooks/useFollows.ts:1-75, src/hooks/useFollowedFeed.ts:1-44, src/routes/profile.follows.tsx:1-310; RPC get_followed_feed (migracja 20260711100000:333-395)
 - **Co robi:** Toggle follow/unfollow (tabela user_follows pod RLS) z nagłówków archiwów, huba autora, programów i klubów; strona zarządzania obserwacjami w 4 zakładkach; feed realnych postów obserwowanych bytów z powodami ('author'|'category'|'tag') renderowany w reading-list.tsx.
 - **Relacje:** Moduł 1 (Wpisy-czytelnik) — feed „Obserwowane" w reading-list; Moduł 3 (Silniki treści) — inwalidacja WIDGET_QUERY_ROOTS.recommendedPosts (useFollows.ts:71); Moduł 11 (Newsletter) — alerty publikacji obserwowanych (migracja 20260720124500_follow_publish_alerts); Moduł 15 — liczniki profilu (profile-counts); Moduł 21 (Kluby) — ClubFollowButton na tej samej tabeli.
 - **✅ Mocne:** Upsert z ignoreDuplicates zamiast łapania „duplicate" po treści komunikatu (useFollows.ts:46-53); obserwacje nierozwiązywalne (usunięty byt/RLS) nie znikają po cichu — dostają wiersz z możliwością unfollow (profile.follows.tsx:111-123); feed z total_count i paginacją.
-- **⚠️ Słabe:** Jedyna funkcjonalność modułu bez ŻADNYCH testów (grep useFollows/FollowButton po _.test._ — zero trafień; brak też pgTAP dla get_followed_feed); FollowButton ma inline'owy pseudo-i18n `t = (pl, en) => ...` (FollowButton.tsx:29) zamiast słownika — poza wszystkimi bramkami parytetu; inwalidacje kluczy rozproszone i zduplikowane między useFollows.ts:65-72 a useInterests.ts:233-241 (dwie rodziny hooków piszą do tej samej tabeli, każda z własną listą kluczy — łatwo o rozjazd przy dodaniu nowego konsumenta); profile.follows rozwiązuje byty czterema osobnymi zapytaniami bez stanów błędów.
+- **⚠️ Słabe:** Jedyna funkcjonalność modułu bez ŻADNYCH testów (grep useFollows/FollowButton po *.test.* — zero trafień; brak też pgTAP dla get_followed_feed); FollowButton ma inline'owy pseudo-i18n `t = (pl, en) => ...` (FollowButton.tsx:29) zamiast słownika — poza wszystkimi bramkami parytetu; inwalidacje kluczy rozproszone i zduplikowane między useFollows.ts:65-72 a useInterests.ts:233-241 (dwie rodziny hooków piszą do tej samej tabeli, każda z własną listą kluczy — łatwo o rozjazd przy dodaniu nowego konsumenta); profile.follows rozwiązuje byty czterema osobnymi zapytaniami bez stanów błędów.
 - **🔧 Rekomendacje:**
   1. Dodać testy: unit useFollows/useToggleFollow (upsert/delete/inwalidacje) + pgTAP get_followed_feed (izolacja tenanta, reasons, total_count).
   2. Przenieść FollowButton na i18n-network/i18n-interests i usunąć lokalny helper t (FollowButton.tsx:29-44).
   3. Wynieść wspólną listę inwalidacji user_follows do jednego helpera importowanego przez useFollows i useInterests.
 
 ### 10.20. Zainteresowania (interests): katalog, customizer, widget Join Us — **7,5/10**
-
 - **Pliki:** src/hooks/useInterests.ts:1-253, src/components/interests/InterestsCustomizer.tsx, JoinUsForm.tsx, TopicsDroplist.tsx, CountryCombobox.tsx, src/lib/interests/joinUsSizeCss.ts, src/routes/profile.interests.tsx; testy: joinUsSizeCss.test.ts, joinUsWidgetSizes.test.tsx
 - **Co robi:** Zarządzanie zainteresowaniami (kategorie/tagi) na user_follows dla zalogowanych i localStorage dla anonimów (priming rekomendacji przed logowaniem, merge po zalogowaniu w AuthProvider); customizer jako strona i widget buildera; JoinUsForm łączy zapis newsletterowy z tagowaniem zainteresowań i zgodą RODO.
 - **Relacje:** Moduł 11 (Newsletter) — subscribeToNewsletter + meta pól kontaktowych; Moduł 18 (CRM) — parentSlug jako klucz custom field `interests_<slug>` (useInterests.ts:24-25), linkJoinUsAndBackfill; Moduł 3 (Silniki treści) — widget „join-us"/„customize-interests" w builderze + inwalidacja recommendedPosts; Moduł 19 (RODO) — MARKETING_CONSENT_KEY/setMyConsent; Moduł 12 — realtime katalogu przy zmianach kategorii/tagów przez admina.
@@ -2900,7 +2696,6 @@ Moduł to pełnokrwisty „LinkedIn-lite": graf połączeń 1°/2°/3° z mostam
   2. Dodać unit test diffu save (nie kasuje follow autorów, poprawny insert/delete).
 
 ### 10.21. Program kontrybutorów (/contribute, /contributors, moderacja admin) — **7/10**
-
 - **Pliki:** src/routes/contribute.tsx:1-185, src/routes/contributors.tsx:1-279, src/routes/admin.community.contributors.tsx:1-191; warstwa: src/lib/community/reputation.ts, src/lib/admin/community.ts; migracja 20260713097000_polls_contributor_program.sql; pgTAP community_polls_contrib_test.sql, community_reputation_test.sql
 - **Co robi:** Formularz pitcha tekstu gościnnego (insert pod RLS `user_id = auth.uid() AND status='submitted'`), tablica kontrybutorów z reputacją/poziomami (RPC get_contributor_leaderboard — tylko opt-in discoverable, bez kont redakcyjnych) i oknem 30/90/365 dni oraz moderacja zgłoszeń w adminie (statusy + notatki + filtr języka).
 - **Relacje:** Moduł 16 (Społeczność-admin) — silnik reputacji (lib/community/reputation) i moderacja; Moduł 2 (Edytor/workflow) — zaakceptowany pitch prowadzi do tekstu gościnnego; Moduł 15 — odznaki na tablicy (useBadgesForUsers); Moduł 19 — toggle contributor_program_enabled.
@@ -2911,7 +2706,6 @@ Moduł to pełnokrwisty „LinkedIn-lite": graf połączeń 1°/2°/3° z mostam
   2. Komunikaty walidacyjne pod polami (minimalna długość pitcha) zamiast niemego disabled — contribute.tsx:101.
 
 ### 10.22. Powierzchnie sieciowe w treściach: DossierFollowers + EventGroupButton — **7,5/10**
-
 - **Pliki:** src/components/network/DossierFollowers.tsx, EventGroupButton.tsx; hooki usePolicyItemFollowers/useCreateEventGroup w src/lib/network/useConnections.ts:263-307; migracje 20260807140000_network_event_notifications.sql, 20260728090000_meeting_slots_networking.sql; testy: DossierFollowers.test.tsx, EventGroupButton.test.tsx; pgTAP network_event_notifications_test.sql
 - **Co robi:** „Kto jeszcze śledzi ten plik" — widoczni (discoverable) obserwujący dossier trackera jako powierzchnia nawiązywania kontaktów (montowane w tracker.$slug); przycisk hosta/staffu tworzący idempotentnie grupę czatu z uczestników RSVP 'going' wydarzenia (events.$slug).
 - **Relacje:** Moduł 7 (Treści specjalne) — tracker dossier i wydarzenia jako gospodarze komponentów; Moduł 9 (Czat) — create_event_group zwraca konwersację, inwalidacja ["chat"]; Moduł 12 — powiadomienia wydarzeń sieciowych (migracja 20260807140000).
@@ -2921,27 +2715,26 @@ Moduł to pełnokrwisty „LinkedIn-lite": graf połączeń 1°/2°/3° z mostam
   1. Dodać rozwinięcie listy obserwujących dossier ponad 12 (parametr limit już jest w RPC).
 
 ### Podsumowanie modułu 10
-
 - **Średnia ocen funkcji:** 8,0 · **Rozkład:** 5× 9–10 / 16× 7–8 / 1× 5–6 / 0× <5
 - **Relacje modułu (zbiorczo):**
 
-| Moduł                     | Mechanizm                                                                                                                                                  | Kierunek zależności                                       |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| 9 Czat                    | usePeopleDirectory/useDiscoverable/useExpertRequests żyją w lib/chat; useStartConversation + chatDockBus z ConnectButton; create_event_group → konwersacja | 10 → 9 (silna, w obie strony przez bramkę expert-request) |
-| 12 Realtime/powiadomienia | subscribeToTable (notifications kind='connection', user_pending_counters), deep-linki ?c=/?r=/?box, pendingCounterKeys                                     | 10 → 12                                                   |
-| 15 Profil/konto           | IntroductionsCard/ProfileViewsCard montowane w profile.index; intencje profilu, odznaki, saved_searches, dane CV                                           | 15 → 10 (powierzchnie), 10 → 15 (dane)                    |
-| 13 Monetyzacja-core       | tier gating zapytań do ekspertów (Plus/Pro/VIP), toast „tier disabled" → /pricing                                                                          | 10 → 13                                                   |
-| 19 Ustawienia/authz/RODO  | community_modules toggles, RLS/REVOKE na user_connections i author_profiles, PII odcięte widokiem public, zgody marketingowe w JoinUs                      | 10 → 19                                                   |
-| 8 SEO/feedy               | buildContentHead, JSON-LD Person/Breadcrumb, warunkowa indeksacja profili, og:image versioning                                                             | 10 → 8                                                    |
-| 20 Platforma/SSR          | loadResilient, edgeTtlCache per-isolate, cache-control (no-store przy degradacji)                                                                          | 10 → 20                                                   |
-| 1 Wpisy-czytelnik         | materiały huba z posts; feed obserwowanych w reading-list; wzmianki w komentarzach                                                                         | 1 ↔ 10                                                    |
-| 7 Treści specjalne        | DossierFollowers w trackerze, EventGroupButton w wydarzeniach, wydarzenia/podcasty w materiałach eksperta                                                  | 7 → 10 (montaż), 10 → 7 (dane)                            |
-| 3 Silniki treści          | widgety join-us/customize-interests/networking w builderze; inwalidacja recommendedPosts                                                                   | 3 → 10                                                    |
-| 11 Newsletter             | JoinUsForm → subscribeToNewsletter; follow_publish_alerts                                                                                                  | 10 → 11                                                   |
-| 18 CRM                    | interests_<slug> jako custom fields, linkJoinUsAndBackfill                                                                                                 | 10 → 18                                                   |
-| 6 Wyszukiwarka            | search_people_orgs (podpowiedzi wzmianek), embeddingi trybu semantycznego /people                                                                          | 10 → 6                                                    |
-| 16 Społeczność-admin      | report_user → moderacja; silnik reputacji tablicy kontrybutorów                                                                                            | 10 → 16                                                   |
-| 21 Kluby                  | wzmianki w wątkach klubowych, ClubFollowButton na user_follows                                                                                             | 21 → 10                                                   |
+| Moduł | Mechanizm | Kierunek zależności |
+|---|---|---|
+| 9 Czat | usePeopleDirectory/useDiscoverable/useExpertRequests żyją w lib/chat; useStartConversation + chatDockBus z ConnectButton; create_event_group → konwersacja | 10 → 9 (silna, w obie strony przez bramkę expert-request) |
+| 12 Realtime/powiadomienia | subscribeToTable (notifications kind='connection', user_pending_counters), deep-linki ?c=/?r=/?box, pendingCounterKeys | 10 → 12 |
+| 15 Profil/konto | IntroductionsCard/ProfileViewsCard montowane w profile.index; intencje profilu, odznaki, saved_searches, dane CV | 15 → 10 (powierzchnie), 10 → 15 (dane) |
+| 13 Monetyzacja-core | tier gating zapytań do ekspertów (Plus/Pro/VIP), toast „tier disabled" → /pricing | 10 → 13 |
+| 19 Ustawienia/authz/RODO | community_modules toggles, RLS/REVOKE na user_connections i author_profiles, PII odcięte widokiem public, zgody marketingowe w JoinUs | 10 → 19 |
+| 8 SEO/feedy | buildContentHead, JSON-LD Person/Breadcrumb, warunkowa indeksacja profili, og:image versioning | 10 → 8 |
+| 20 Platforma/SSR | loadResilient, edgeTtlCache per-isolate, cache-control (no-store przy degradacji) | 10 → 20 |
+| 1 Wpisy-czytelnik | materiały huba z posts; feed obserwowanych w reading-list; wzmianki w komentarzach | 1 ↔ 10 |
+| 7 Treści specjalne | DossierFollowers w trackerze, EventGroupButton w wydarzeniach, wydarzenia/podcasty w materiałach eksperta | 7 → 10 (montaż), 10 → 7 (dane) |
+| 3 Silniki treści | widgety join-us/customize-interests/networking w builderze; inwalidacja recommendedPosts | 3 → 10 |
+| 11 Newsletter | JoinUsForm → subscribeToNewsletter; follow_publish_alerts | 10 → 11 |
+| 18 CRM | interests_<slug> jako custom fields, linkJoinUsAndBackfill | 10 → 18 |
+| 6 Wyszukiwarka | search_people_orgs (podpowiedzi wzmianek), embeddingi trybu semantycznego /people | 10 → 6 |
+| 16 Społeczność-admin | report_user → moderacja; silnik reputacji tablicy kontrybutorów | 10 → 16 |
+| 21 Kluby | wzmianki w wątkach klubowych, ClubFollowButton na user_follows | 21 → 10 |
 
 - **5 najpilniejszych rekomendacji:**
   1. (10.19) Domknąć jakościowo warstwę follows: testy unit + pgTAP get_followed_feed, FollowButton na słowniki i18n, wspólny helper inwalidacji user_follows dla useFollows/useInterests — to jedyny fragment modułu poniżej standardu reszty.
@@ -2954,14 +2747,13 @@ Moduł to pełnokrwisty „LinkedIn-lite": graf połączeń 1°/2°/3° z mostam
 
 ## Moduł 11 — Newsletter
 
-**Zakres zbadany:** src/lib/newsletter.functions.ts, newsletter-admin.functions.ts, newsletter-campaigns.functions.ts (1054 l.), newsletter-deliverability.functions.ts, newsletter-popup-events.functions.ts; src/lib/newsletter/ (emailDoc, renderEmailHtml, emailDocResolve, tracking, trackingToken.server, trackingEvents.server, popupDesign, popupFields, popupTelemetry, subscribeFeedback, newsletterFieldLabels + **tests**), src/lib/newsletter-builder/ (schema, types, defaults, registry + **tests**), src/lib/builder/popups.ts; komponenty: NewsletterForm.tsx, NewsletterPopup.tsx, PopupSignupForm.tsx, newsletter/NewsletterDocRenderer.tsx, popups/ (PopupHost, SignupPopupPanel), admin/newsletter/ (OverviewPanel, SubscribersPanel, PopupEventsPanel, CampaignContentBuilder, builder/, deliverability/, runner/, subscribers/), admin/popups/; trasy: newsletter.confirm.tsx, newsletter.unsubscribe.tsx, api.public.newsletter.confirm/unsubscribe, api/public/nl-open.ts, nl-click.ts, jobs-tick.ts, admin.newsletter.* (13 tras), admin.popups.*; hooks/useNewsletterSettings.ts; migracje 20260601054247, 20260702200100, 20260703052720, 20260708160000, 20260711083456, 20260712175237, 20260713170000/174428, 20260718131000, 20260804061939/150000; supabase/tests/newsletter_email_ci_unique_test.sql · **Funkcji:** 17 · **Ocena modułu:** 8,1/10
+**Zakres zbadany:** src/lib/newsletter.functions.ts, newsletter-admin.functions.ts, newsletter-campaigns.functions.ts (1054 l.), newsletter-deliverability.functions.ts, newsletter-popup-events.functions.ts; src/lib/newsletter/ (emailDoc, renderEmailHtml, emailDocResolve, tracking, trackingToken.server, trackingEvents.server, popupDesign, popupFields, popupTelemetry, subscribeFeedback, newsletterFieldLabels + __tests__), src/lib/newsletter-builder/ (schema, types, defaults, registry + __tests__), src/lib/builder/popups.ts; komponenty: NewsletterForm.tsx, NewsletterPopup.tsx, PopupSignupForm.tsx, newsletter/NewsletterDocRenderer.tsx, popups/ (PopupHost, SignupPopupPanel), admin/newsletter/ (OverviewPanel, SubscribersPanel, PopupEventsPanel, CampaignContentBuilder, builder/, deliverability/, runner/, subscribers/), admin/popups/; trasy: newsletter.confirm.tsx, newsletter.unsubscribe.tsx, api.public.newsletter.confirm/unsubscribe, api/public/nl-open.ts, nl-click.ts, jobs-tick.ts, admin.newsletter.* (13 tras), admin.popups.*; hooks/useNewsletterSettings.ts; migracje 20260601054247, 20260702200100, 20260703052720, 20260708160000, 20260711083456, 20260712175237, 20260713170000/174428, 20260718131000, 20260804061939/150000; supabase/tests/newsletter_email_ci_unique_test.sql · **Funkcji:** 17 · **Ocena modułu:** 8,1/10
 
 Moduł obejmuje pełny cykl życia newslettera: zapis z double opt-in po stronie serwera, potwierdzenie i wypis (RFC 8058), dwa wizualne buildery (formularz/popup i treść e-maila), kampanie z wysyłką porcjami i dzierżawą, tracking otwarć/kliknięć podpisany HMAC, higienę listy (suppression + bramka reputacji) oraz telemetrię popupów. Stan ogólny jest wyraźnie produkcyjny — widać świadome decyzje bezpieczeństwa udokumentowane w kodzie i migracjach (usunięcie klienckiego INSERT-u do `newsletter_subscribers`, rozdzielenie tokenu trackingu od tokenu wypisu, guard open-redirect). Najważniejszy wniosek: rdzeń wysyłkowy i bezpieczeństwo są na poziomie 9/10, natomiast warstwa administracyjna (import CSV, paginacja subskrybentów) i pojedynczy błąd logiki widgetu social-proof odstają od reszty; sam pipeline wysyłki nie ma testów jednostkowych mimo największej złożoności w module.
 
 Uwaga metodologiczna: 69–71 testów jednostkowych modułu przechodzi w sandboxie audytu; 4–6 plików testowych nie ładuje się wyłącznie z powodu niezainstalowanego pakietu `@noble/hashes` (zależność zadeklarowana w package.json:63) — to defekt środowiska audytu, nie kodu.
 
 ### 11.1. Zapis do newslettera z double opt-in (server-side) — **8,5/10**
-
 - **Pliki:** src/lib/newsletter.functions.ts:1-422; migracje: supabase/migrations/20260702200100_newsletter_server_side_doi.sql, 20260703052720 (ponowny DROP POLICY + REVOKE INSERT), 20260708160000 (unikalność e-maila case-insensitive)
 - **Co robi:** Publiczna funkcja serwerowa `subscribeToNewsletter`: pinuje tenant po hoście żądania, wymusza politykę pól (`enforce_form_field_policy` + `requiredFields` widgetu jako zaostrzenie), sprawdza listę wykluczeń (blokada trwała odrzuca zapis), limituje per IP (fail-closed, 5/10 min) i per adres odbiorcy (3/60 min), mintuje token DOI serwerowo, upsertuje wiersz `pending`/`subscribed` i wysyła e-mail potwierdzający przez bramkę Resend; synchronizuje kontakt do CRM.
 - **Relacje:** Moduł 18 (CRM) — RPC `crm_upsert_from_form` (linie 391-422); Moduł 19 (Ustawienia/authz/RODO) — RPC `enforce_form_field_policy`, audyt zgód (IP/UA/consents), tabela `form_field_policies`; Moduł 19/20 — `@/lib/email/suppression.server`, `@/lib/email/transactional.server` (`sendTxEmail newsletter_confirmed` z kluczem idempotencji), `@/lib/server/rate-limit.server`; Moduł 20 (Platforma/SSR) — `resolveTenantIdForHost`/`currentTenantHost`
@@ -2973,7 +2765,6 @@ Uwaga metodologiczna: 69–71 testów jednostkowych modułu przechodzi w sandbox
   3. Wynieść `GATEWAY_URL` do env/konfiguracji tenanta, jak `sender_email` (src/lib/newsletter.functions.ts:16).
 
 ### 11.2. Potwierdzenie subskrypcji (endpoint + strona wyniku) — **8,5/10**
-
 - **Pliki:** src/routes/api.public.newsletter.confirm.ts:1-133, src/routes/newsletter.confirm.tsx:1-119, src/routes/-api.public.newsletter.confirm.test.ts
 - **Co robi:** GET z przeglądarki (Accept: text/html) przekierowuje 303 na przyjazną stronę `/newsletter/confirm`, która fetch-em woła ten sam endpoint po JSON; walidacja tokenu (16-128 hex), rozstrzygnięcie `already`/`expired`/`confirm` czystą funkcją, aktualizacja `pending → subscribed` i powitalny mail transakcyjny z kluczem idempotencji.
 - **Relacje:** Moduł 19/20 — `sendTxEmail` (kolejka transakcyjna, typ `newsletter_confirmed`); Moduł 8 (SEO/feedy) — `buildContentHead` z `noindex,nofollow` na stronie wyniku
@@ -2984,7 +2775,6 @@ Uwaga metodologiczna: 69–71 testów jednostkowych modułu przechodzi w sandbox
   2. Rozważyć przechowywanie SHA-256 tokenu zamiast wartości surowej (kolumna `confirmation_token`) — defense-in-depth przy wycieku odczytu bazy.
 
 ### 11.3. Wypis z newslettera (one-click RFC 8058 + strona samoobsługowa) — **8,5/10**
-
 - **Pliki:** src/routes/api.public.newsletter.unsubscribe.ts:1-115, src/routes/newsletter.unsubscribe.tsx:1-180, nagłówki: src/lib/email/provider.server.ts:111-113
 - **Co robi:** GET nigdy nie mutuje (tylko walidacja tokenu; skanery bramek pocztowych nie wypisują ludzi), POST wykonuje idempotentny wypis; przeglądarka jest przekierowywana 303 na stronę z jawnym przyciskiem „Potwierdź wypisanie"; klienci pocztowi wykonują one-click POST zgodnie z `List-Unsubscribe-Post`.
 - **Relacje:** Moduł 19/20 — `rate-limit.server` (10/10 min per IP); nagłówki RFC 8058 dokleja wspólny provider e-mail (Moduł 19/20)
@@ -2994,8 +2784,7 @@ Uwaga metodologiczna: 69–71 testów jednostkowych modułu przechodzi w sandbox
   1. Domknąć symetrię testową z confirm: test `isValidUnsubToken` + rozstrzygnięć already/not_found (nowy plik obok -api.public.newsletter.confirm.test.ts).
 
 ### 11.4. Widget formularza zapisu (inline/card + pola custom) — **8,0/10**
-
-- **Pliki:** src/components/NewsletterForm.tsx:1-670, src/lib/newsletter/subscribeFeedback.ts:1-99, src/lib/newsletter/newsletterFieldLabels.ts:1-120; testy: src/components/**tests**/newsletterFormPlaceholders.test.tsx, src/lib/newsletter/**tests**/subscribeFeedback.test.ts, newsletterFieldLabels.test.ts
+- **Pliki:** src/components/NewsletterForm.tsx:1-670, src/lib/newsletter/subscribeFeedback.ts:1-99, src/lib/newsletter/newsletterFieldLabels.ts:1-120; testy: src/components/__tests__/newsletterFormPlaceholders.test.tsx, src/lib/newsletter/__tests__/subscribeFeedback.test.ts, newsletterFieldLabels.test.ts
 - **Co robi:** Publiczny formularz zapisu w wariantach card/inline, konfigurowalny per widget buildera (widoczność/wymagalność pól imię/nazwisko/firma, pola custom text/textarea/select/checkbox, droplista zainteresowań); mapuje kody błędów serwera na komunikaty PL/EN przez jedno źródło prawdy (`subscribeFeedback`).
 - **Relacje:** Moduł 3 (Silniki treści) — renderowany jako widget buildera (blocks/renderer/molecules.tsx:710, WidgetView.tsx), `useBuilderMode`, `parseCustomFields` z `@/lib/builder/formFields`; Moduł 1 (Wpisy-czytelnik) — montaż w PostSidebarRenderer:157, ArchiveSidebar:61, PostFooterBars; Moduł 15 (Profil/konto) — etykiety pól z globalnej konfiguracji rejestracji (`useRegistrationFields`); Moduł 19 — sanitizeHtml dla policy_html
 - **✅ Mocne:** Dostępność: `aria-live="polite"` na sukcesie, `role="alert"`+`aria-live="assertive"` na błędzie, `aria-required`, floating labels ze wspólnym atomem; komentarz o hookach przed warunkowym returnem dokumentuje realny naprawiony crash (linie 98-101); stan sukcesu rozróżnia pending/subscribed/exists z podpowiedzią „co dalej"; w builderze widget wyłączonego newslettera pokazuje diagnostykę zamiast znikać.
@@ -3005,8 +2794,7 @@ Uwaga metodologiczna: 69–71 testów jednostkowych modułu przechodzi w sandbox
   2. Rozważyć wspólny hook walidacji z NewsletterDocRenderer (duplikacja regexów NAME/PHONE/LINKEDIN między trzema formularzami).
 
 ### 11.5. Popup rejestracji konta (layouty stacked/split/showcase + design system) — **8,5/10**
-
-- **Pliki:** src/components/NewsletterPopup.tsx:1-333, src/components/PopupSignupForm.tsx:1-669, src/components/popups/SignupPopupPanel.tsx:1-224, src/lib/newsletter/popupDesign.ts:1-488, popupFields.ts:1-207; testy: src/components/**tests**/NewsletterPopup.test.ts, popupDesign.test.ts, popupFields.test.ts, **tests**/popupFieldTokens.test.ts, popups/**tests**/SignupPopupPanel.test.tsx
+- **Pliki:** src/components/NewsletterPopup.tsx:1-333, src/components/PopupSignupForm.tsx:1-669, src/components/popups/SignupPopupPanel.tsx:1-224, src/lib/newsletter/popupDesign.ts:1-488, popupFields.ts:1-207; testy: src/components/__tests__/NewsletterPopup.test.ts, popupDesign.test.ts, popupFields.test.ts, __tests__/popupFieldTokens.test.ts, popups/__tests__/SignupPopupPanel.test.tsx
 - **Co robi:** Globalny popup (montowany lazy w __root.tsx:81,529) z triggerami delay/scroll/exit-intent i frequency-gatingiem w localStorage; trzy layouty, paleta ciemna/jasna/auto podążająca za motywem; formularz zakłada realne konto (supabase.auth.signUp) z newsletterem jako opcjonalnym checkboxem; konfiguracja pól i prezentacji w jsonb (`popup_fields`, `popup_design`).
 - **Relacje:** Moduł 15 (Profil/konto) — `supabase.auth.signUp` z user_metadata, `SignupSuccessPanel`; Moduł 19 — `preAuthGuard` (bruteforce.functions), `useAuthSettings` (`allow_public_signup`); Moduł 5 (Chrome/nawigacja) — `requestOverlaySlot`/`cancelOverlayRequest` (koordynator overlay z priorytetami; popup ustępuje banerowi zgód), `useTheme`; Moduł 11 wewn. — telemetria popupu (11.16), `subscribeToNewsletter` przy zaznaczonej zgodzie
 - **✅ Mocne:** Anti-bot dwuwarstwowy: honeypot + minimalny czas wypełnienia 1200 ms z fałszywym sukcesem (PopupSignupForm.tsx:159-168); a11y: `role="dialog"`, `aria-modal`, `aria-labelledby`, focus trap, Escape; wspólny komponent panelu = podgląd w adminie 1:1 z produkcją; walidacje LinkedIn/telefon/imię z komunikatami PL/EN i kodami błędów do telemetrii; domyślna paleta z komentarzem o kontraście WCAG (useNewsletterSettings.ts:160-162); popup nie zamyka się sam po sukcesie (świadome UX).
@@ -3016,8 +2804,7 @@ Uwaga metodologiczna: 69–71 testów jednostkowych modułu przechodzi w sandbox
   2. Przy okazji refaktoru rozważyć zmianę nazwy na `SignupPopup` z aliasem — koszt zerowy w runtime, duży zysk czytelności.
 
 ### 11.6. Builder formularzy newslettera (NlDoc) + renderer runtime — **7,5/10**
-
-- **Pliki:** src/lib/newsletter-builder/{schema.ts:1-210, types.ts, defaults.ts, registry.ts}, src/components/admin/newsletter/builder/{NewsletterBuilder.tsx, BuilderCanvas.tsx, PropertiesPanel.tsx, WidgetLibrary.tsx, WidgetPreview.tsx}, src/components/newsletter/NewsletterDocRenderer.tsx:1-784; trasy admin.newsletter.inline.tsx, admin.newsletter.popup.tsx; testy: newsletter-builder/**tests**/{defaults,sections}.test.ts, components/admin/builder/**tests**/newsletterCanvasParity.test.tsx
+- **Pliki:** src/lib/newsletter-builder/{schema.ts:1-210, types.ts, defaults.ts, registry.ts}, src/components/admin/newsletter/builder/{NewsletterBuilder.tsx, BuilderCanvas.tsx, PropertiesPanel.tsx, WidgetLibrary.tsx, WidgetPreview.tsx}, src/components/newsletter/NewsletterDocRenderer.tsx:1-784; trasy admin.newsletter.inline.tsx, admin.newsletter.popup.tsx; testy: newsletter-builder/__tests__/{defaults,sections}.test.ts, components/admin/builder/__tests__/newsletterCanvasParity.test.tsx
 - **Co robi:** Elementor-style builder (dnd-kit, multi-sekcje, undo/redo, guard niezapisanych zmian) dla dokumentów `inline_doc`/`popup_doc` w `newsletter_settings`; 16 typów widgetów (pola, zgody, mailing-listy, social-proof, countdown, kupon, CTA); `NewsletterDocRenderer` renderuje dokument publicznie i zapisuje przez `subscribeToNewsletter`.
 - **Relacje:** Moduł 3 (Silniki treści) — wspólny wzorzec builderów, rejestr widgetów z `contexts` newsletter/popup; Moduł 18 (CRM) — presety pól mapują się na `crm_upsert_from_form` (komentarz registry.ts:12-13); Moduł 11 wewn. — zapis przez 11.1
 - **✅ Mocne:** Podwójna walidacja dokumentu: Zod discriminated union server-side + defensywne odrzucanie złych widgetów; konwersja legacy layoutów ("1-2"→"1-1") w preprocess (schema.ts:184-186); test parity canvas↔runtime pilnuje zgodności podglądu z produkcją; normalizacja telefonu/LinkedIn przed wysłaniem do CRM (NewsletterDocRenderer.tsx:61-73).
@@ -3027,7 +2814,6 @@ Uwaga metodologiczna: 69–71 testów jednostkowych modułu przechodzi w sandbox
   2. Wydzielić z NewsletterDocRenderer warstwę submit/walidacji współdzieloną z NewsletterForm (obecnie 3 kopie regexów walidacyjnych).
 
 ### 11.7. Kampanie: CRUD, segmentacja odbiorców i edytor — **8,0/10**
-
 - **Pliki:** src/lib/newsletter-campaigns.functions.ts:191-350 (list/get/upsert/delete/count), src/routes/admin.newsletter.campaigns.index.tsx:1-375, admin.newsletter.campaigns.$id.tsx:1-706; migracje 20260711083456 (tabele+RLS), 20260718131000 (content_doc)
 - **Co robi:** CRUD kampanii (RLS staff per tenant), edytor z dwoma silnikami treści (kreator bloków / surowy HTML — oba współistnieją, `editor` wskazuje autorytatywny), segmentacja audiencji (języki, statusy, źródło, min. ranga warstwy członkowskiej przez RPC `newsletter_min_tier_emails`), licznik odbiorców na żywo, wysyłka testowa PL/EN, planowanie `datetime-local`→UTC.
 - **Relacje:** Moduł 13 (Monetyzacja-core) — `useMembershipTiers`/`tierName` + RPC `newsletter_min_tier_emails` (migracja 20260713174428:546-552, EXECUTE tylko service_role); Moduł 2 (Edytor/workflow) — wzorzec współistnienia dwóch silników „jak posts/pages" (komentarz linie 112-114)
@@ -3038,19 +2824,17 @@ Uwaga metodologiczna: 69–71 testów jednostkowych modułu przechodzi w sandbox
   2. Dodać zakładkę „Odbiorcy" z logiem `newsletter_campaign_recipients` (statusy sent/failed/skipped/suppressed) — dane już są w bazie z RLS.
 
 ### 11.8. Pipeline wysyłki: dzierżawa, porcje, idempotencja, bramka reputacji — **9,0/10**
-
 - **Pliki:** src/lib/newsletter-campaigns.functions.ts:417-999 (sendCampaign, tickNewsletterCampaigns, claimCampaign, runCampaignSend, renderCampaignHtml, logRecipient); migracja 20260713170000_newsletter_async_and_job_runner.sql
 - **Co robi:** Atomowe przejęcie kampanii (status→`sending` + lease 3 min) w trzech trybach (manual/due/continue); wysyłka porcjami ≤200 e-maili na wywołanie, paczki po 20 z opóźnieniem 1,1 s; idempotencja wznowienia po logu odbiorców (sent nigdy drugi raz, failed/skipped ponawiane); filtrowanie suppression przed pierwszym requestem do dostawcy z logiem `suppressed`; bramka reputacji (skargi/odbicia) z jawnym potwierdzeniem ryzyka przez operatora; per-odbiorca personalizacja zmiennych, stopka wypisu i nagłówki RFC 8058.
 - **Relacje:** Moduł 19/20 — `sendEmail` z provider.server (jedna droga wyjścia poczty, komentarz linie 54-58), `fetchSuppressedEmails`, `evaluateSendGate`; Moduł 20 (Platforma/SSR) — `/api/public/jobs-tick` (pg_cron+pg_net, sekret w stałym czasie) woła `tickNewsletterCampaigns` cross-tenant; Moduł 13 — przecięcie audiencji po randze warstwy
 - **✅ Mocne:** Twardy guard `missing_site_origin` zatrzymuje kampanię zamiast wysłać maile bez mechanizmu wypisu (komentarz o naruszeniu prawnym, linie 755-762); bramka reputacji liczona raz per tenant w ticku; kampania zaplanowana przy przekroczonym progu skarg przechodzi w `failed` z czytelnym powodem zamiast cichej wysyłki (linie 519-528); mianownik postępu liczy tylko adresy, na które wolno wysłać (linia 739); render dokumentu raz per język per wywołanie — „najnowsze wpisy" świeże w momencie wysyłki.
-- **⚠️ Słabe:** Najbardziej złożona logika modułu (claim/lease/resume/suppression) nie ma ŻADNEGO testu jednostkowego — szukałem w src/lib/newsletter/**tests** i testach tras: testowane są tylko helpery trackingu i renderer; paczka 20 wiadomości idzie `Promise.all` równolegle (komentarz deklaruje limit Resend ~1 msg/s — burst 20/s po czym pauza; działa, ale polega na tolerancji dostawcy); audiencja ładowana w całości do pamięci (akceptowalne przy obecnej skali listy).
+- **⚠️ Słabe:** Najbardziej złożona logika modułu (claim/lease/resume/suppression) nie ma ŻADNEGO testu jednostkowego — szukałem w src/lib/newsletter/__tests__ i testach tras: testowane są tylko helpery trackingu i renderer; paczka 20 wiadomości idzie `Promise.all` równolegle (komentarz deklaruje limit Resend ~1 msg/s — burst 20/s po czym pauza; działa, ale polega na tolerancji dostawcy); audiencja ładowana w całości do pamięci (akceptowalne przy obecnej skali listy).
 - **🔧 Rekomendacje:**
   1. Testy jednostkowe `runCampaignSend`/`claimCampaign` na zamockowanym kliencie DB: wznowienie po crashu, pomijanie `sent`, log suppressed pisany raz, budżet porcji (najwyższy priorytet testowy modułu).
   2. Wygładzić tempo w paczce (sekwencyjnie z ~50 ms odstępu lub p-limit 2-3) zamiast burstu 20 równoległych requestów (linie 776-865).
 
 ### 11.9. Kreator treści e-maila (EmailDoc v1) + render do HTML e-mail-safe — **8,5/10**
-
-- **Pliki:** src/lib/newsletter/emailDoc.ts:1-330, renderEmailHtml.ts:1-162, emailDocResolve.ts:1-150; src/components/admin/newsletter/CampaignContentBuilder.tsx, CampaignBlockProperties.tsx; funkcje resolveCampaignDocPosts, searchCampaignPosts (newsletter-campaigns.functions.ts:1008-1052); testy: **tests**/emailDoc.test.ts, renderEmailHtml.test.ts
+- **Pliki:** src/lib/newsletter/emailDoc.ts:1-330, renderEmailHtml.ts:1-162, emailDocResolve.ts:1-150; src/components/admin/newsletter/CampaignContentBuilder.tsx, CampaignBlockProperties.tsx; funkcje resolveCampaignDocPosts, searchCampaignPosts (newsletter-campaigns.functions.ts:1008-1052); testy: __tests__/emailDoc.test.ts, renderEmailHtml.test.ts
 - **Co robi:** Liniowa lista 9 typów bloków (heading, paragraph, image, button, divider, spacer, quote, post-list, footer-note) z tekstami dwujęzycznymi {pl,en}; defensywny parser jsonb (złe bloki odpadają); czysty, synchroniczny renderer do table-based HTML ze stylami inline — identyczny kod dla podglądu w edytorze i wysyłki; blok post-list rozwiązywany dwustopniowo (fetch wierszy → czyste mapowanie per język).
 - **Relacje:** Moduł 1/3 (Wpisy/Silniki treści) — tabele `posts`, `categories`, `post_categories` dla bloku post-list; wyszukiwarka wpisów do trybu manual; Moduł 19 — `sanitizeHtml` dla paragraph/footer-note
 - **✅ Mocne:** „Podgląd = wysyłka" wymuszone architektonicznie (jedna funkcja render); `safeUrl` przepuszcza wyłącznie http(s) w linkach bloków; kolory tylko hex przez regex (parser emailDoc.ts:240-242); fallback międzyjęzykowy tytułów/excerptów jak `pickLocalized`; kolejność ręcznie wybranych wpisów zachowana (emailDocResolve.ts:59-61); limity rozmiaru i liczby bloków (100).
@@ -3060,8 +2844,7 @@ Uwaga metodologiczna: 69–71 testów jednostkowych modułu przechodzi w sandbox
   2. Wskaźnik kompletności językowej w CampaignContentBuilder (badge „EN pusty" przy bloku).
 
 ### 11.10. Tracking otwarć i kliknięć (HMAC, anty-open-redirect) — **9,0/10**
-
-- **Pliki:** src/lib/newsletter/tracking.ts:1-89, trackingToken.server.ts:1-93, trackingEvents.server.ts:1-56; src/routes/api/public/nl-open.ts:1-56, nl-click.ts:1-55; testy: tracking.test.ts, **tests**/trackingToken.test.ts, trackingLinkSignature.test.ts; migracja 20260712175237 (newsletter_campaign_events + RLS staff-select)
+- **Pliki:** src/lib/newsletter/tracking.ts:1-89, trackingToken.server.ts:1-93, trackingEvents.server.ts:1-56; src/routes/api/public/nl-open.ts:1-56, nl-click.ts:1-55; testy: tracking.test.ts, __tests__/trackingToken.test.ts, trackingLinkSignature.test.ts; migracja 20260712175237 (newsletter_campaign_events + RLS staff-select)
 - **Co robi:** Pixel 1×1 GIF (`nl-open`) i redirect kliknięć (`nl-click`) z tokenem HMAC-SHA256 per (kampania, subskrybent) — celowo ODDZIELNYM od tokenu wypisu — oraz podpisem per-link wiążącym docelowy URL z konkretną wysyłką; zdarzenia zapisywane best-effort z potwierdzeniem przynależności subskrybenta do tenanta kampanii.
 - **Relacje:** Moduł 17 (Analityka/BI) — `newsletter_campaign_events` konsumowane przez warstwę semantyczną (src/lib/analytics/semantic/metrics.ts, streams.ts); Moduł 20 — współdzielony `createRateLimiter`/`clientIpFromHeaders`
 - **✅ Mocne:** Wzorcowa dokumentacja zagrożeń w komentarzach: konflacja identyfikatora telemetrycznego z tokenem akcji (trackingToken.server.ts:1-13) i open-redirect (nl-click.ts:5-11); porównania w stałym czasie; fail-safe (zawsze pixel/redirect, tracking nigdy nie wywraca odpowiedzi); linki przepisywane PRZED doklejeniem stopki wypisu, więc List-Unsubscribe nigdy nie idzie przez tracker (newsletter-campaigns.functions.ts:927-929); komplet testów jednostkowych podpisów i przepisywania linków.
@@ -3071,7 +2854,6 @@ Uwaga metodologiczna: 69–71 testów jednostkowych modułu przechodzi w sandbox
   2. Liczyć w `getCampaignEngagement` unikalnych subskrybentów (`count distinct subscriber_id`) zamiast surowych zdarzeń — realniejszy open rate (newsletter-campaigns.functions.ts:222-242).
 
 ### 11.11. Panel dostarczalności: reputacja, lista wykluczeń, pętla zwrotna — **8,0/10**
-
 - **Pliki:** src/lib/newsletter-deliverability.functions.ts:1-321, src/components/admin/newsletter/deliverability/{DeliverabilityPanel,SuppressionTable,WebhookSetupCard}.tsx, src/routes/admin.newsletter.deliverability.tsx, src/lib/i18n-newsletter-deliverability.ts (277 l.)
 - **Co robi:** Trzy pytania operatora (komentarz w nagłówku pliku): wskaźniki vs progi Google (RPC `newsletter_deliverability_metrics` + `computeReputation`), przegląd/dodawanie/zdejmowanie blokad (RPC `email_suppression_add`/`release` z opcjonalnym, świadomym resubscribe) i status webhooka Resend (dowód życia pętli: `lastEventAt`).
 - **Relacje:** Moduł 19/20 — tabele `email_suppressions`, `email_delivery_events` i webhook `/api/public/webhooks/resend` należą do wspólnej infrastruktury pocztowej (suppressionPolicy, reputation w src/lib/email/); Moduł 11 konsumuje je dla higieny kampanii
@@ -3082,7 +2864,6 @@ Uwaga metodologiczna: 69–71 testów jednostkowych modułu przechodzi w sandbox
   2. Ostrzeżenie w WebhookSetupCard, gdy origin jest pusty (webhook nie może działać bez publicznego URL).
 
 ### 11.12. Automat wysyłki: job runner + tick opportunistyczny — **8,0/10**
-
 - **Pliki:** src/lib/newsletter-admin.functions.ts:99-234 (getJobRunnerSettings/updateJobRunnerSettings), src/components/admin/newsletter/runner/JobRunnerCard.tsx, src/routes/api/public/jobs-tick.ts:1-55, src/routes/admin.newsletter.overview.tsx:23-45, admin.newsletter.campaigns.index.tsx (tick przy montowaniu), src/lib/i18n-newsletter-runner.ts; migracja 20260713170000
 - **Co robi:** Konfiguracja pojedynczego wiersza `job_runner_settings` (service-role-only; enabled, base_url, sekret) + telemetria „czy poczta naprawdę wychodzi": ostatni tick, jego status, licznik i głębokość kolejek pgmq; pg_cron POST-uje co minutę na `/api/public/jobs-tick` (sekret w stałym czasie, limiter), fallbackiem jest tick przy wejściu admina na overview/listę kampanii.
 - **Relacje:** Moduł 20 (Platforma/SSR) — `runJobsTick` obsługuje też inne zadania tła (scheduler, kolejki pocztowe) — newsletter jest jednym z konsumentów; Moduł 19/20 — kolejki `auth_emails`/`transactional_emails` w podglądzie głębokości
@@ -3092,7 +2873,6 @@ Uwaga metodologiczna: 69–71 testów jednostkowych modułu przechodzi w sandbox
   1. Podnieść wymaganie do roli admin (lub super-admin platformy) dla update, a odczyt ograniczyć do adminów (src/lib/newsletter-admin.functions.ts:154-156, 223-226).
 
 ### 11.13. Import subskrybentów z CSV — **7,0/10**
-
 - **Pliki:** src/lib/newsletter-admin.functions.ts:12-97 (importNewsletterSubscribers), src/components/admin/newsletter/subscribers/ImportCsvDialog.tsx
 - **Co robi:** Import do 5000 wierszy (Zod per wiersz: email/imiona/język/status/źródło/firma), idempotentny — istniejące adresy pomijane, nie nadpisywane; raport imported/skipped/errors per adres; zapis service_role w ramach tenanta wywołującego.
 - **Relacje:** Moduł 19/20 — brak (import celowo omija DOI); Moduł 18 (CRM) — brak synchronizacji przy imporcie (w odróżnieniu od zapisu formularzem)
@@ -3104,7 +2884,6 @@ Uwaga metodologiczna: 69–71 testów jednostkowych modułu przechodzi w sandbox
   3. Opcjonalny checkbox „synchronizuj do CRM" wykorzystujący istniejące RPC.
 
 ### 11.14. Panel subskrybentów: tabela, filtry, eksport CSV, akcje — **7,0/10**
-
 - **Pliki:** src/components/admin/newsletter/SubscribersPanel.tsx:1-380, subscribers/SubscriberDetailDialog.tsx, src/routes/admin.newsletter.subscribers.tsx, src/lib/i18n-newsletter-admin.ts (228 l.)
 - **Co robi:** Tabela najnowszych subskrybentów (odczyt user-scoped, RLS staff-read), filtry status/język/szukajka, eksport CSV, dialog szczegółów (zgody, meta, źródło) i akcje wypisz/przywróć/usuń.
 - **Relacje:** Moduł 19 (RODO) — podgląd zgód i audytu (ip/user_agent/consents) w dialogu szczegółów; Moduł 11 wewn. — import (11.13)
@@ -3114,7 +2893,6 @@ Uwaga metodologiczna: 69–71 testów jednostkowych modułu przechodzi w sandbox
   1. Paginacja serwerowa (range + count) z filtrami przeniesionymi do zapytania — odblokuje też pełny eksport strumieniowany server fn (src/components/admin/newsletter/SubscribersPanel.tsx:50-62).
 
 ### 11.15. Ustawienia newslettera + Overview (KPI, tryby, dual preview) — **7,5/10**
-
 - **Pliki:** src/hooks/useNewsletterSettings.ts:1-243, src/components/admin/newsletter/OverviewPanel.tsx:1-460, PopupPreview.tsx, src/routes/admin.newsletter.overview.tsx, admin.newsletter.index.tsx, admin.newsletter.tsx (layout + NewsletterSubNav); RLS: migracje 20260601054247:150-162, 20260728130410
 - **Co robi:** Typowany model ~60 pól `newsletter_settings` (jedna tabela per tenant, publiczny odczyt przez `public_tenant_id()`, edycja staff) z defensywnymi resolverami jsonb (popup_fields, popup_design, listy, showcase); Overview: KPI (wzrost, opt-in rate, wypisy) liczone client-side, wybór trybu off/inline/popup/both, logika DOI/nadawcy/triggerów i podgląd inline+popup obok siebie.
 - **Relacje:** Moduł 19 (Ustawienia) — wzorzec tabeli ustawień per tenant; Moduł 5 — SiteChrome montuje formularze wg `mode`; Moduł 12 — brak (odświeżanie przez invalidację query `["newsletter-settings"]`)
@@ -3125,7 +2903,6 @@ Uwaga metodologiczna: 69–71 testów jednostkowych modułu przechodzi w sandbox
   2. Przenieść KPI do RPC agregującego (wzorzec `newsletter_popup_event_stats`).
 
 ### 11.16. Telemetria popupu (events + raport lejka) — **8,0/10**
-
 - **Pliki:** src/lib/newsletter-popup-events.functions.ts:1-139, src/lib/newsletter/popupTelemetry.ts:1-47, src/components/admin/newsletter/PopupEventsPanel.tsx:1-160; migracja 20260804061939 (tabela + RLS staff-select + RPC `newsletter_popup_event_stats`)
 - **Co robi:** Zdarzenia impression/open/submit/success/error zapisywane WYŁĄCZNIE przez serwer (klient nie zna tenanta, brak grantu INSERT — raportu nie da się zatruć), sesja w sessionStorage łączy lejek bez cookie; panel raportowy z agregacją per dzień przez RPC i wskaźnikami submit/success/error rate.
 - **Relacje:** Moduł 17 (Analityka/BI) — analogiczny wzorzec do beaconów analytics; Moduł 11 wewn. — instrumentacja NewsletterPopup/PopupSignupForm; Moduł 20 — rate-limit.server
@@ -3135,8 +2912,7 @@ Uwaga metodologiczna: 69–71 testów jednostkowych modułu przechodzi w sandbox
   1. Dodać drugi limiter per IP (jak w subscribeToNewsletter) obok limitu per sesja (src/lib/newsletter-popup-events.functions.ts:47-54).
 
 ### 11.17. Popupy builderowe (targetowane kampanie on-site) — **8,0/10**
-
-- **Pliki:** src/lib/builder/popups.ts:1-377, src/components/popups/PopupHost.tsx:1-231, src/routes/admin.popups.tsx:1-447, admin.popups.$id.tsx, src/components/admin/popups/{PopupEditorPane,PopupSettingsPane,SignupPopupContentSection}.tsx + signup/ (edytor popupu rejestracji, 6 zakładek); test: src/lib/builder/**tests**/popups.test.ts; migracja 20260702085900_builder_globals_popups_experiments.sql
+- **Pliki:** src/lib/builder/popups.ts:1-377, src/components/popups/PopupHost.tsx:1-231, src/routes/admin.popups.tsx:1-447, admin.popups.$id.tsx, src/components/admin/popups/{PopupEditorPane,PopupSettingsPane,SignupPopupContentSection}.tsx + signup/ (edytor popupu rejestracji, 6 zakładek); test: src/lib/builder/__tests__/popups.test.ts; migracja 20260702085900_builder_globals_popups_experiments.sql
 - **Co robi:** Osobny od popupu rejestracji system popupów z pełnymi dokumentami buildera stron (`builder_popups.builder_data`): targetowanie ścieżek (exact/prefix z `*`, exclude wygrywa), urządzeń i audiencji (guest/user), triggery immediate/delay/scroll/exit-intent, frequency cap per popup w localStorage, host montowany globalnie wybiera pierwszy kwalifikujący się popup; manager w adminie (CRUD, duplikacja, statusy) + edytor.
 - **Relacje:** Moduł 3 (Silniki treści) — render przez `BuilderRenderer`, `safeParseBuilderDoc`, inwalidacja cache widgetów; Moduł 17 (Analityka/BI) — `beaconPopupEvent("view"/"conversion")`; Moduł 5 (Chrome) — koordynator overlay z priorytetem 1 (popupy targetowane wygrywają z generycznym popupem rejestracji, PopupHost.tsx:92-95); RLS: aktywne popupy czytelne anonimowo
 - **✅ Mocne:** Czysta logika targetowania wydzielona i przetestowana jednostkowo (popups.test.ts); a11y przemyślane: przycisk zamknięcia WYMUSZONY, gdy klik w tło nie zamyka (pułapka dotykowa opisana w komentarzu, PopupHost.tsx:212-215); pusty dokument aktywnego popupu jest cicho pomijany zamiast renderować pusty modal; konwersja liczona raz per pokazanie.
@@ -3145,22 +2921,21 @@ Uwaga metodologiczna: 69–71 testów jednostkowych modułu przechodzi w sandbox
   1. Zwracać/raportować błędy mutacji w usePopupsAdmin (toast w admin.popups.tsx) zamiast cichych `await` bez sprawdzenia (src/lib/builder/popups.ts:267-289).
 
 ### Podsumowanie modułu 11
-
 - **Średnia ocen funkcji:** 8,1 · **Rozkład:** 2× 9–10 / 15× 7–8 / 0× 5–6 / 0× <5
 - **Relacje modułu (zbiorczo):**
 
-| Moduł                                     | Mechanizm                                                                                                                                  | Kierunek zależności                  |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------ |
-| 19/20 Ustawienia/Platforma (infra e-mail) | suppression.server, reputationGate, provider.server (RFC 8058), transactional.server, webhook Resend, rate-limit.server, jobs-tick/pg_cron | 11 → 19/20 (konsument)               |
-| 18 CRM                                    | RPC `crm_upsert_from_form` przy każdym zapisie; presety pól buildera mapowane na CRM                                                       | 11 → 18                              |
-| 13 Monetyzacja-core                       | RPC `newsletter_min_tier_emails`, `useMembershipTiers` — segmentacja kampanii po randze warstwy                                            | 11 → 13                              |
-| 15 Profil/konto                           | PopupSignupForm → supabase.auth.signUp, preAuthGuard, useAuthSettings                                                                      | 11 → 15                              |
-| 3 Silniki treści                          | NewsletterForm jako widget buildera; BuilderRenderer dla builder_popups; wspólny rejestr widgetów                                          | 3 → 11 (osadzanie) i 11 → 3 (render) |
-| 1 Wpisy-czytelnik                         | Montaż formularza w sidebar/stopce wpisu; blok post-list czyta `posts`/`categories`                                                        | dwukierunkowa                        |
-| 17 Analityka/BI                           | `newsletter_campaign_events` w warstwie semantycznej; beaconPopupEvent                                                                     | 17 → 11 (odczyt)                     |
-| 5 Chrome/nawigacja                        | Montaż w __root.tsx, overlayCoordinator (priorytety popupów vs baner zgód)                                                                 | 11 → 5                               |
-| 19 RODO                                   | Zgody z audytem IP/UA, form_field_policies, sanitizeHtml                                                                                   | 11 → 19                              |
-| 8 SEO/feedy                               | buildContentHead + noindex na stronach confirm/unsubscribe                                                                                 | 11 → 8                               |
+| Moduł | Mechanizm | Kierunek zależności |
+|---|---|---|
+| 19/20 Ustawienia/Platforma (infra e-mail) | suppression.server, reputationGate, provider.server (RFC 8058), transactional.server, webhook Resend, rate-limit.server, jobs-tick/pg_cron | 11 → 19/20 (konsument) |
+| 18 CRM | RPC `crm_upsert_from_form` przy każdym zapisie; presety pól buildera mapowane na CRM | 11 → 18 |
+| 13 Monetyzacja-core | RPC `newsletter_min_tier_emails`, `useMembershipTiers` — segmentacja kampanii po randze warstwy | 11 → 13 |
+| 15 Profil/konto | PopupSignupForm → supabase.auth.signUp, preAuthGuard, useAuthSettings | 11 → 15 |
+| 3 Silniki treści | NewsletterForm jako widget buildera; BuilderRenderer dla builder_popups; wspólny rejestr widgetów | 3 → 11 (osadzanie) i 11 → 3 (render) |
+| 1 Wpisy-czytelnik | Montaż formularza w sidebar/stopce wpisu; blok post-list czyta `posts`/`categories` | dwukierunkowa |
+| 17 Analityka/BI | `newsletter_campaign_events` w warstwie semantycznej; beaconPopupEvent | 17 → 11 (odczyt) |
+| 5 Chrome/nawigacja | Montaż w __root.tsx, overlayCoordinator (priorytety popupów vs baner zgód) | 11 → 5 |
+| 19 RODO | Zgody z audytem IP/UA, form_field_policies, sanitizeHtml | 11 → 19 |
+| 8 SEO/feedy | buildContentHead + noindex na stronach confirm/unsubscribe | 11 → 8 |
 
 - **Granica z Modułem 19/20 (odnotowana, nie audytowana):** trasy `admin.newsletter.system-emails`, `email-content`, `email-preview`, `auth-logs` są zamontowane w nawigacji newslettera, ale merytorycznie dotyczą e-maili systemowych/transakcyjnych (Moduł 19/20) — oceniane tam, tu tylko relacja nawigacyjna.
 
@@ -3180,10 +2955,9 @@ Uwaga metodologiczna: 69–71 testów jednostkowych modułu przechodzi w sandbox
 Moduł to warstwa spójności całej platformy: szyna zdarzeń domenowych (`domain_events` + triggery), współdzielone kanały Supabase Realtime, skrzynka powiadomień in-app z 18 rodzajami, oraz kanały wyjściowe — własna implementacja Web Push (VAPID/aes128gcm bez zależności npm) i digest e-mail. Kod warstwy serwerowej i data-layer jest klasy produkcyjnej z ponadprzeciętnym pokryciem testami (Vitest + pgTAP), ale audyt wykrył dwa regresy „ostatniej mili": zakładka ustawień powiadomień (przełączniki rodzajów, opt-in push, digest) nie jest zamontowana na żadnej trasie — cały potok push/digest jest więc produktowo martwy — a migracja klubowa A4 (20260808094000) cofnęła kontrakt rodzaju `meeting_booking` do `meeting`, przez co powiadomienia o spotkaniach 1-1 rozjeżdżają się z frontendem i cichną w CHECK-u. Najważniejszy wniosek: świetna maszyneria, której dwóch kluczowych dźwigni użytkownik dziś nie dosięga.
 
 ### 12.1. Szyna zdarzeń domenowych w DB (domain_events + emitery) — **8,5/10**
-
 - **Pliki:** supabase/migrations/20260711200000_domain_event_bus.sql:24-420, 20260808140000/180000/190000 (emitery klubów), supabase/tests/cohesion_layer_test.sql
 - **Co robi:** Tabela `domain_events` z zamkniętym katalogiem typów `<agregat>.<czasownik>.v<n>`, jedynym producentem `emit_domain_event` (SECURITY DEFINER, REVOKE od klientów, nigdy nie wywraca zapisu źródłowego), correlation_id z nagłówka `x-correlation-id` (GUC `request.headers`), RLS staff-tenant / aktor-własny, publikacja do supabase_realtime i retencja 90 dni (pg_cron).
-- **Relacje:** Moduł 1/2 (wpisy) — trigger tg_posts_emit_events; Moduł 9 (czat) — message.sent.v1 bez treści; Moduł 18 (CRM) — crm_lead/note/task; Moduł 11 (newsletter) — subscribed/confirmed/unsubscribed; Moduł 13/14 (monetyzacja) — 20260723120000; Moduł 21 (kluby) — emitery A12/A16/A17 z regułą Chatham House (klub secret nie emituje); Moduł 7 (wydarzenia/tracker) — event._/policy._; Moduł 16/17 — konsumpcja w panelach.
+- **Relacje:** Moduł 1/2 (wpisy) — trigger tg_posts_emit_events; Moduł 9 (czat) — message.sent.v1 bez treści; Moduł 18 (CRM) — crm_lead/note/task; Moduł 11 (newsletter) — subscribed/confirmed/unsubscribed; Moduł 13/14 (monetyzacja) — 20260723120000; Moduł 21 (kluby) — emitery A12/A16/A17 z regułą Chatham House (klub secret nie emituje); Moduł 7 (wydarzenia/tracker) — event.*/policy.*; Moduł 16/17 — konsumpcja w panelach.
 - **✅ Mocne:** wzorowe bezpieczeństwo (INSERT tylko przez definer, correlation_id walidowany regexem jako niezaufane metadane, payloady klubów niosą wyłącznie identyfikatory bo domain_events czyta cały staff); indeksy pod każdy wzorzec zapytań; pgTAP cohesion_layer_test weryfikuje emisję i cięcie RLS między tenantami.
 - **⚠️ Słabe:** brak partycjonowania/limitu rozmiaru przy dużym wolumenie (retencja tylko dobowym cronem — środowiska bez pg_cron rosną bez ograniczeń, jedynie `RAISE NOTICE`); `get_correlated_events` bez limitu wierszy.
 - **🔧 Rekomendacje:**
@@ -3191,7 +2965,6 @@ Moduł to warstwa spójności całej platformy: szyna zdarzeń domenowych (`doma
   2. `LIMIT 200` w get_correlated_events (obrona przed patologiczną korelacją).
 
 ### 12.2. Katalog zdarzeń + mapa inwalidacji cache — **9/10**
-
 - **Pliki:** src/lib/realtime/domainEvents.ts:10-127, src/lib/realtime/eventInvalidationMap.ts:23-286, testy: domainEventCatalog.test.ts, eventInvalidationMap.test.ts
 - **Co robi:** Zamknięty, wersjonowany katalog 43 typów zdarzeń jako kontrakt TS oraz JEDNO miejsce mapujące zdarzenie → klucze React Query do inwalidacji; nieznany typ (nowszy backend, starszy bundle) zwraca pustą listę zamiast wywracać konsumenta.
 - **Relacje:** Moduł 13/14 — billingKeys (odblokowanie paywalla po webhooku Stripe bez F5); Moduł 9 — chatKeys; Moduł 18 — klucze crm-*; Moduł 11 — newsletter-subscribers/kpis; Moduł 21 — clubKeys (prefiks klubu, bo payload nie niesie sluga); Moduł 10 — profile_badge/eksperci; Moduł 7 — public-events/tracker; Moduł 16 — pendingCounterKeys.
@@ -3201,7 +2974,6 @@ Moduł to warstwa spójności całej platformy: szyna zdarzeń domenowych (`doma
   1. Zawęzić inwalidację post.published do kluczy list i konkretnego sluga (payload niesie slug — eventPayloadText już istnieje).
 
 ### 12.3. Współdzielony hub kanałów Realtime (tableChannelHub) — **8/10**
-
 - **Pliki:** src/lib/realtime/tableChannelHub.ts:41-89, test: tableChannelHub.test.ts
 - **Co robi:** Jeden websocketowy kanał postgres_changes per (schema, table, event, filter) ze zliczaniem referencyjnym — dzwonek, dock i strona dzielą subskrypcję; SSR-safe (no-op na serwerze); losowy sufiks nazwy kanału chroni przed StrictMode double-mount.
 - **Relacje:** Moduł 9 (czat) — konsument przez useNotificationsRealtime; Moduł 16 — liczniki tenantowe; poza hubem żyją własne kanały innych modułów (polls.tsx, LiveBlogBlock, useInterests, admin.names, widget/siteSettings LiveSync — moduły 7/3/10/16/4) — hub ich nie obejmuje, co odnotowuję jako granicę, nie wadę.
@@ -3211,7 +2983,6 @@ Moduł to warstwa spójności całej platformy: szyna zdarzeń domenowych (`doma
   1. Dodać w subscribe() obsługę statusu: po ponownym `SUBSCRIBED` po błędzie wyemitować sygnał „resync" (konsumenci zrobią invalidateQueries), a po powtarzającym się CHANNEL_ERROR — backoff z re-kreacją kanału.
 
 ### 12.4. Warstwa spójności: useModuleRealtime + CohesionLiveSync + liczniki — **8/10**
-
 - **Pliki:** src/lib/realtime/useModuleRealtime.ts:39-132, src/lib/realtime/cohesionLiveSync.tsx:13-17, src/lib/realtime/useDomainEventStream.ts:37-71, src/lib/counters/usePendingCounters.ts:28-108, montaż: src/routes/__root.tsx:508, src/routes/admin.crm.index.tsx:574
 - **Co robi:** Debounced (250 ms), visibility-aware inwalidacja cache dla zdarzeń domenowych: `useDomainEventInvalidation` (jeden kanał bez filtra, montowany raz w root dla zalogowanych) + `useModuleRealtime(moduleKey)` dla stron modułów; do tego zmaterializowane liczniki badge'ów (user/tenant_pending_counters) z realtime.
 - **Relacje:** Moduł 20 (platforma/SSR) — montaż w __root; Moduł 18 — jedyny produkcyjny konsument useModuleRealtime("crm"); Moduł 21 — klucz "club" zdefiniowany w MODULE_AGGREGATES; Moduł 16 — liczniki kolejek staffu.
@@ -3222,29 +2993,26 @@ Moduł to warstwa spójności całej platformy: szyna zdarzeń domenowych (`doma
   2. Test timerowy dla useDebouncedInvalidation (debounce + visibility).
 
 ### 12.5. Correlation-id i mutacje potwierdzane zdarzeniem — **6/10**
-
 - **Pliki:** src/lib/realtime/correlation.ts:37-118, correlationContext.ts, src/integrations/supabase/correlation-fetch.ts:12-28, src/lib/realtime/useEventConfirmedMutation.ts:52-113, testy: correlation.test.ts, useEventConfirmedMutation.test.tsx
 - **Co robi:** UUID od kliknięcia wędruje nagłówkiem `x-correlation-id` do PostgREST (wpięte w createClient), emitery zapisują go w domain_events; `awaitDomainEvent` potwierdza optymistyczne mutacje z fallbackiem do RPC `get_correlated_events` gdy realtime zgubi ramkę; `useEventConfirmedMutation` robi łatkę optymistyczną z rollbackiem po 3 s bez potwierdzenia.
 - **Relacje:** Moduł 20 — wrapper fetch komponowany z fetchWithTenantHost; Moduł 12.1 — GUC request.headers po stronie DB.
 - **✅ Mocne:** przemyślany wzorzec (timeout → jeszcze jedno zapytanie do bazy — „prawda z bazy wygrywa"); stos korelacji zamiast pojedynczej zmiennej; testy obu warstw.
-- **⚠️ Słabe:** **useEventConfirmedMutation nie ma ani jednego produkcyjnego konsumenta** — jedyny import to własny test (grep po src/: tylko **tests**). Cała infrastruktura potwierdzeń jest zbudowana, przetestowana i niepodłączona; martwy kod obniża ocenę.
+- **⚠️ Słabe:** **useEventConfirmedMutation nie ma ani jednego produkcyjnego konsumenta** — jedyny import to własny test (grep po src/: tylko __tests__). Cała infrastruktura potwierdzeń jest zbudowana, przetestowana i niepodłączona; martwy kod obniża ocenę.
 - **🔧 Rekomendacje:**
   1. Podpiąć useEventConfirmedMutation do 1-2 realnych mutacji o wysokim koszcie błędu (np. odpowiedź w klubie, zmiana etapu leada CRM) — wzorzec jest gotowy.
   2. Jeśli decyzja produktowa będzie inna — usunąć hook, zostawiając awaitDomainEvent (używane przez tracker korelacji).
 
 ### 12.6. Presence per encja — **7/10**
-
 - **Pliki:** src/lib/realtime/useEntityPresence.ts:35-90, konsumenci: src/hooks/useEditPresence.ts:17, src/components/molecules/PresenceIndicator.tsx:30
 - **Co robi:** Kanał presence `presence:<tenant>:<typ>:<id>` (private: true — Realtime Authorization tnie topic do tenanta) zgłasza obecność i zwraca pozostałych obecnych, posortowanych od najdłużej obecnego; typy: post, page, crm_lead, conversation, media.
 - **Relacje:** Moduł 2 (edytor) — bannery „kto edytuje" postów/stron przez useEditPresence; Moduł 18 — presence na leadach; Moduł 9 — osobny mechanizm chat-presence (lib/chat/presence.ts) NIE korzysta z tego hooka (granica modułu 9).
 - **✅ Mocne:** naprawiony wyciek prywatności (komentarz w kodzie: publiczny topic ujawniał nazwiska edytorów każdemu, kto odgadł nazwę kanału); poprawny cleanup i sortowanie po `since`.
-- **⚠️ Słabe:** zero testów (szukałem w **tests** — brak); brak throttlingu re-track przy zmianie userName; „?" jako fallback nazwy trafia do UI.
+- **⚠️ Słabe:** zero testów (szukałem w __tests__ — brak); brak throttlingu re-track przy zmianie userName; „?" jako fallback nazwy trafia do UI.
 - **🔧 Rekomendacje:**
   1. Test jednostkowy sync/track z zamockowanym kanałem (wzorzec z tableChannelHub.test.ts).
   2. Rozważyć unifikację z chat-presence (moduł 9) — dwie implementacje presence to dwa miejsca na regres prywatności.
 
 ### 12.7. Warstwa danych powiadomień (lista, licznik, mutacje, realtime) — **8/10**
-
 - **Pliki:** src/lib/notifications/useNotifications.ts:77-367
 - **Co robi:** Paginowana lista (useInfiniteQuery, PAGE_SIZE=25, wspólny cache Bell/Center dzięki normalizeFilter), licznik nieprzeczytanych ze zmaterializowanego `user_pending_counters` z fallbackiem COUNT, mutacje read/unread (RPC batch), delete, preferencje (SELECT wyprowadzony z modelu — naprawiony rozjazd kolumn) i dwie subskrypcje realtime per user przez hub.
 - **Relacje:** Moduł 16 — user_pending_counters utrzymywane triggerami; Moduł 10 — useNotificationsRealtime odświeża moduły sieci przez kindInvalidation; Moduł 19 — RLS auth.uid()+current_tenant_id.
@@ -3255,7 +3023,6 @@ Moduł to warstwa spójności całej platformy: szyna zdarzeń domenowych (`doma
   2. Test integracyjny useNotificationsInfinite z msw/mock supabase (paginacja + wspólny cache).
 
 ### 12.8. Dzwonek powiadomień (NotificationsBell) — **7/10**
-
 - **Pliki:** src/components/notifications/NotificationsBell.tsx:91-499, montaż: src/components/admin/builder/ui/organisms/widget-view/AccountMenuWidget.tsx:569, src/components/share/ReadingHeader.tsx:385
 - **Co robi:** Popover z pierwszą stroną powiadomień, badge nieprzeczytanych, mark-all/mark-group, grupowanie po rozmowie, awatary aktorów z RPC sieci kontaktów, SPA-nawigacja z zachowaniem query stringa (router.navigate({href})), link do skrzynki.
 - **Relacje:** Moduł 5 (chrome/nawigacja) — montaż w AccountMenuWidget i ReadingHeader; Moduł 10 — awatary przez my_connections/my_connection_requests; Moduł 9 — grupy konwersacji linkują do /messages?c=.
@@ -3266,7 +3033,6 @@ Moduł to warstwa spójności całej platformy: szyna zdarzeń domenowych (`doma
   2. Memoizować formatery Intl na poziomie modułu.
 
 ### 12.9. Centrum powiadomień — skrzynka z wyszukiwarką i akcjami grupowymi — **7,5/10**
-
 - **Pliki:** src/components/notifications/NotificationsCenter.tsx:162-722, src/lib/notifications/grouping.ts:36-82 (test: grouping.test.ts), montaż: src/routes/messages.tsx:307
 - **Co robi:** Pełna skrzynka w /messages (tab „Powiadomienia"): zakładki wszystkie/nieprzeczytane, wyszukiwanie po tytule/treści/href, filtr rodzaju z katalogu, optymistyczne mark-read/unread/delete łatające WSZYSTKIE cache list (walk po InfiniteData z zachowaniem stron), paginacja „załaduj więcej", grupowanie wiadomości po conversation_id z href.
 - **Relacje:** Moduł 9 — osadzenie w trasie /messages obok czatu (powiadomienia o wiadomościach czatu są tu, sam czat to moduł 9); Moduł 10 — awatary aktorów.
@@ -3277,7 +3043,6 @@ Moduł to warstwa spójności całej platformy: szyna zdarzeń domenowych (`doma
   2. Test RTL dla patchNotificationLists (only-unread usuwa wiersz, zwykła lista flipuje read_at).
 
 ### 12.10. Ustawienia powiadomień (przełączniki rodzajów, push, digest) — **4/10**
-
 - **Pliki:** src/components/notifications/NotificationsCenter.tsx:352-353, 730-948 (zakładka settings), 960-1024 (martwe ChannelsSettings), src/components/notifications/molecules/NotificationKindToggle.tsx, src/lib/notifications/preferences.ts:21-302 (testy: preferences.test.ts — 18 asercji), montaż: src/routes/messages.tsx:305-331
 - **Co robi:** Zakładka „Ustawienia": 16 przełączników rodzajów w 4 grupach tematycznych + always-on security, zachowanie domyślne (dzwonek czatu, auto-mark, grupowanie) i kanały doręczeń (opt-in Web Push per przeglądarka, digest off/daily/weekly). Model preferencji to czysty, przetestowany moduł z jednym źródłem prawdy dla kolumn SELECT.
 - **Relacje:** Moduł 15 (profil) — VisibilityAndContactSection pisze tylko allow_messages_from/allow_connections_from; Moduł 9 — preferencje prywatności czatu egzekwowane w DB; Moduł 19 — RLS own-row.
@@ -3289,7 +3054,6 @@ Moduł to warstwa spójności całej platformy: szyna zdarzeń domenowych (`doma
   3. Test smoke montażu: asercja, że któraś trasa renderuje tab settings (regres wykrywalny automatycznie).
 
 ### 12.11. Powiadomienie jako zdarzenie domenowe (kindInvalidation) — **8,5/10**
-
 - **Pliki:** src/lib/notifications/kindInvalidation.ts:38-72, test: kindInvalidation.test.ts, konsument: useNotifications.ts:257-276
 - **Co robi:** Czysta mapa rodzaj powiadomienia → klucze React Query modułów, których tabele mają RLS deny-all (sieć kontaktów, kluby) — wiersz w `notifications` powstaje w tej samej transakcji co zmiana i jest jedynym subskrybowalnym kanałem; odbiór powiadomienia odświeża „Kto oglądał profil", wprowadzenia, rekomendacje, sloty spotkań, prefiks klubów.
 - **Relacje:** Moduł 10 (sieć/eksperci) — klucze network/*; Moduł 21 (kluby) — clubKeys.all; Moduł 4 (builder/widgety) — WIDGET_QUERY_ROOTS.meetingSlots.
@@ -3299,7 +3063,6 @@ Moduł to warstwa spójności całej platformy: szyna zdarzeń domenowych (`doma
   1. Po naprawie 12.12 dodać do testu kindInvalidation asercję porównującą klucze mapy z NOTIFICATION_KINDS (wykrywanie osieroconych rodzajów).
 
 ### 12.12. Producent DB: enqueue_notification + bramkowanie + dedup + CHECK rodzajów — **5,5/10**
-
 - **Pliki:** supabase/migrations/20260808094000_discussion_clubs_a4_interaction.sql:212-289 (ostatnia wersja funkcji i CHECK), 20260803090000_harden_enqueue_notification_acl.sql, 20260807073000/082516 (rodzaj meeting_booking + trigger tg_meeting_booking_notify), 20260807140000:488-556 (book_meeting_slot z enqueue 'meeting'), pgTAP: notification_preferences_gating_test.sql:205-282, missing_event_notifications_test.sql, network_event_notifications_test.sql
 - **Co robi:** Kanoniczny, SECURITY DEFINER producent powiadomień: bramkuje po `enabled_<rodzaj>` odbiorcy (security zawsze dociera), stempluje tenant z profilu ODBIORCY, deduplikuje po (user, kind, href) w oknie 5 minut, nigdy nie rzuca; po hardeningu 20260803 bez grantu dla ról klienckich (zamknięty kanał phishingu cross-tenant).
 - **Relacje:** wszyscy producenci powiadomień — Moduł 9 (tg_messages_notify), Moduł 10 (tg_*_notify sieci, spotkania), Moduł 7 (tracker), Moduł 18 (run_crm_task_reminders), Moduł 21 (club_notify), Moduł 6 (run_saved_search_alerts).
@@ -3311,7 +3074,6 @@ Moduł to warstwa spójności całej platformy: szyna zdarzeń domenowych (`doma
   3. Zakazać (lint na PR) dodawania migracji o wersji niższej niż ostatnia zaaplikowana — źródło całego dryfu.
 
 ### 12.13. Web Push serwer: VAPID + aes128gcm bez zależności — **9/10**
-
 - **Pliki:** src/lib/notifications/webpush.server.ts:97-498, test: webpush.test.ts (24 testy, w tym roundtrip szyfrowania i weryfikacja podpisu ES256)
 - **Co robi:** Pełna implementacja RFC 8291/8188/8292 na node:crypto: ECDH P-256 + HKDF-SHA256 + AES-128-GCM, JWT VAPID cache'owany per audience z marginesem odświeżenia, clamp payloadu do 3993 B z ucinaniem UTF-8 bez rozcinania znaku, Topic (RFC 8030) jako SHA-256 ścieżki (nie zdradza celu usłudze push), klasyfikacja odpowiedzi (gone 404/410, permanent 400/413, Retry-After), twardy timeout 10 s.
 - **Relacje:** Moduł 20 (platforma) — egressGuard.server (SSRF: fail-closed odrzucenie endpointów prywatnych/metadata, webpush.server.ts:399-413).
@@ -3321,7 +3083,6 @@ Moduł to warstwa spójności całej platformy: szyna zdarzeń domenowych (`doma
   1. Mapować urgency z rodzaju powiadomienia (security/message → high, profile_view → low) — telefony doze'ują „normal".
 
 ### 12.14. Dyspozytor push + kolejka notification_push_queue — **8,5/10**
-
 - **Pliki:** src/lib/notifications/dispatch.server.ts:121-307, supabase/migrations/20260713092000_notification_channels.sql:76-208, pgTAP: push_and_digest_test.sql, test: pushDispatch.test.ts (11 testów)
 - **Co robi:** Trigger AFTER INSERT na notifications kolejkuje zadanie tylko dla odbiorców z opt-in i żywą subskrypcją; claim atomowy SKIP LOCKED z backoffem wykładniczym już przy claimie (crash = naturalny retry), po 8 próbach dead; dispatcher grupuje wysyłki w „lane" per urządzenie (pełna równoległość między urządzeniami, kolejność na urządzeniu, 410 ucina resztę kolejki bez ruchu sieciowego), serializacja+clamp raz na zadanie, raporty odporne na pojedynczy błąd (bez duplikatów pusha).
 - **Relacje:** Moduł 20 — dwa równoważne wejścia: /api/public/jobs-tick (pg_cron+pg_net co minutę) i /api/public/community-cron (sekret w nagłówku); Moduł 16 — panel zdrowia harmonogramu; Moduł 19 — izolacja tenantów (recipientKey tenant|user — powiadomienie tenanta A nie idzie na urządzenie z tenanta B).
@@ -3331,7 +3092,6 @@ Moduł to warstwa spójności całej platformy: szyna zdarzeń domenowych (`doma
   1. Propagować retryAfterSec do report_push_job (parametr p_delay ustawiający next_attempt_at) zamiast stałego backoffu.
 
 ### 12.15. Web Push klient: subskrypcja + service worker — **6,5/10**
-
 - **Pliki:** src/lib/notifications/push.ts:8-116, src/lib/notifications/pushConfig.functions.ts:7-10, public/push-sw.js:1-56, tabela: 20260713092000:41-71
 - **Co robi:** Opt-in per przeglądarka: permission → rejestracja /push-sw.js → PushManager.subscribe(VAPID z server-fn, nie build-time — rotacja bez przebudowy) → upsert do push_subscriptions (RLS owner-only, CHECK https/długości kluczy); SW renderuje powiadomienie z tagiem kolapsującym, lang PL/EN i nawigacją po kliknięciu z fokusowaniem istniejącej karty.
 - **Relacje:** Moduł 19 — RLS owner-only; Moduł 20 — server-fn createServerFn (TanStack Start).
@@ -3342,7 +3102,6 @@ Moduł to warstwa spójności całej platformy: szyna zdarzeń domenowych (`doma
   2. Przy starcie aplikacji (gdy prefs.push_enabled) porównać bieżącą subskrypcję z DB i naprawić rozjazd (silent re-upsert).
 
 ### 12.16. Digest e-mail (builder + claim + wysyłka) — **7,5/10**
-
 - **Pliki:** src/lib/notifications/digestEmail.ts:47-169 (testy: digestEmail.test.ts, digestGrouping.test.ts), supabase/migrations/20260713092000:217-286 (claim_due_digests), src/lib/notifications/dispatch.server.ts:314-358
 - **Co robi:** Czysty builder HTML (inline style, PL/EN wg profiles.prefs.locale, sekcje tematyczne z trackerem legislacyjnym na górze, escaping, absolutyzacja linków), atomowy claim partii SKIP LOCKED z oknami 20h/6d, wysyłka przez tę samą kolejkę Resend co maile transakcyjne z idempotencyKey `digest:<freq>:<user>:<data>`.
 - **Relacje:** Moduł 11 (newsletter/e-mail) — enqueueRawEmail, wspólna lista wykluczeń i email_send_log; Moduł 7 — sekcja trackera; Moduł 15 — język z profilu.
@@ -3353,7 +3112,6 @@ Moduł to warstwa spójności całej platformy: szyna zdarzeń domenowych (`doma
   2. Dopisać w stopce „+N starszych powiadomień w skrzynce", gdy items uderzyło w LIMIT 20.
 
 ### 12.17. Zgody RODO w skrzynce (ConsentsPanel + katalog + hooki) — **8/10**
-
 - **Pliki:** src/components/notifications/ConsentsPanel.tsx:64-357, src/lib/notifications/useConsents.ts:49-189, src/lib/notifications/consentCatalog.ts:29-58, montaż: src/routes/messages.tsx:330, src/routes/profile.privacy.tsx:27
 - **Co robi:** Panel zgód z wersjonowanym katalogiem (bump wersji = ponowna decyzja z bursztynowym ostrzeżeniem), zapisem wyłącznie przez server-fn `set_user_consent` (audit-log z IP/UA), dwukierunkową unifikacją kategorii cookies z CMP (jeden pisarz — ścieżka CMP), klamrą Global Privacy Control na wartościach efektywnych i historią zmian ze znacznikiem GPC z chwili zapisu.
 - **Relacje:** Moduł 19 (RODO/authz) — consents.functions, registryBridge, gpc.ts — to głównie jego domena, panel mieszka w katalogu notifications; Moduł 15 — montaż w profile.privacy; Moduł 14 — bramkowanie skryptów reklamowych przez CMP.
@@ -3363,7 +3121,6 @@ Moduł to warstwa spójności całej platformy: szyna zdarzeń domenowych (`doma
   1. Unit test buildConsentViews (wersja nieaktualna, required, klamra GPC, defaultGiven).
 
 ### 12.18. Panel administracyjny powiadomień (/admin/community/notifications) — **4/10**
-
 - **Pliki:** src/routes/admin.community.notifications.tsx:18-146, src/lib/admin/community.ts:717-760, RLS: 20260713092000:67-71, 20260703233757:32-56, 20260730085737:67-74
 - **Co robi:** Panel zdrowia harmonogramu (SchedulerHealthPanel — moduł 16) + sześć statystyk (push aktywne/nieudane, wysłane 24h, nieprzeczytane, digest daily/weekly) + akcja czyszczenia nieudanych subskrypcji push.
 - **Relacje:** Moduł 16 (społeczność-admin) — SchedulerHealthPanel i lib/admin/community.ts; Moduł 20 — opis trzech ścieżek drenażu kolejki.
@@ -3375,7 +3132,6 @@ Moduł to warstwa spójności całej platformy: szyna zdarzeń domenowych (`doma
   3. Dodać pgTAP na widoczność: admin bez własnych subskrypcji widzi liczby tenantu > 0.
 
 ### 12.19. Watchdog podglądu edytora — **7,5/10**
-
 - **Pliki:** src/lib/watchdog/previewWatchdog.ts:79-189, test: previewWatchdog.test.ts, montaż: src/routes/__root.tsx:461-462
 - **Co robi:** W iframe podglądu wykrywa dwa tryby zawieszenia (boot bez hydratacji w 15 s — flaga __nesAppReady; freeze wątku głównego > 8 s potwierdzony podwójnie rAF+wall-clock) i przeładowuje z licznikiem w sessionStorage (max 2 przeładowania / 60 s — bez pętli reloadów).
 - **Relacje:** Moduł 4 (builder/motyw) — podgląd edytora jest konsumentem; Moduł 20 — montaż w __root; poza iframe (realny czytelnik) nigdy się nie uruchamia.
@@ -3385,30 +3141,29 @@ Moduł to warstwa spójności całej platformy: szyna zdarzeń domenowych (`doma
   1. Raportować przeładowania do client_errors (tabela już istnieje — moduł 17) z powodem i licznikiem.
 
 ### Podsumowanie modułu 12
-
 - **Średnia ocen funkcji:** 7,3 · **Rozkład:** 2 × 9–10 / 12 × 7–8 / 3 × 5–6 / 2 × <5
 
 - **Relacje modułu (zbiorczo):**
 
-| Moduł                    | Mechanizm                                                                                                                                           | Kierunek zależności                                                        |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| 1/2 Wpisy + edytor       | triggery post.* na szynie; presence post/page; inwalidacja ["public"]/["admin-posts"]                                                               | 12 konsumuje zdarzenia, 1/2 konsumują inwalidację i presence               |
-| 3 Silniki treści         | LiveBlogBlock/PollBlockView własne kanały .channel() poza hubem                                                                                     | równoległe (bez wspólnego kodu)                                            |
-| 4 Motyw/builder          | WIDGET_QUERY_ROOTS.meetingSlots w kindInvalidation; watchdog podglądu; widget/siteSettings LiveSync (własne kanały)                                 | 12 → 4 (inwalidacja, watchdog)                                             |
-| 5 Chrome/nawigacja       | NotificationsBell montowany w AccountMenuWidget/ReadingHeader                                                                                       | 5 → 12 (import komponentu)                                                 |
-| 6 Wyszukiwarka           | run_saved_search_alerts produkuje rodzaj saved_search                                                                                               | 6 → 12 (enqueue_notification)                                              |
-| 7 Treści specjalne       | event._/policy._ na szynie; sekcja trackera w digestcie; rodzaj tracker                                                                             | dwustronna                                                                 |
-| 9 Czat                   | message.sent.v1; rodzaj message + grupowanie po rozmowie; preferencje prywatności czatu (allow_messages_from, read receipts) egzekwowane w DB czatu | dwustronna (granica: same wiadomości = moduł 9, powiadomienia o nich = 12) |
-| 10 Sieć/eksperci         | 6 rodzajów sieciowych; kindInvalidation kluczy network/*; awatary aktorów przez RPC my_connections                                                  | dwustronna                                                                 |
-| 11 Newsletter            | zdarzenia newsletter_subscriber.*; digest przez enqueueRawEmail (wspólny gateway Resend, lista wykluczeń, email_send_log)                           | 12 → 11 (wysyłka), 11 → 12 (zdarzenia)                                     |
-| 13/14 Monetyzacja        | zdarzenia subscription/grant/donation/billing_document → billingKeys (odblokowanie paywalla realtime po webhooku Stripe)                            | 13/14 → 12 (emisja), 12 → 13/14 (inwalidacja)                              |
-| 15 Profil/konto          | ConsentsPanel w profile.privacy; VisibilityAndContactSection pisze allow_*; locale z profiles.prefs dla języka push/digest                          | dwustronna                                                                 |
-| 16 Społeczność-admin     | user/tenant_pending_counters; SchedulerHealthPanel; lib/admin/community.ts (statystyki)                                                             | dwustronna                                                                 |
-| 17 Analityka/BI          | brak bezpośredniej (rekomendowane raportowanie watchdoga do client_errors)                                                                          | —                                                                          |
-| 18 CRM                   | zdarzenia crm_*; rodzaj crm_task; useModuleRealtime("crm") w admin.crm                                                                              | dwustronna                                                                 |
-| 19 Ustawienia/authz/RODO | RLS (current_tenant_id/is_staff/has_role); set_user_consent + GPC + registryBridge; hardening ACL enqueue                                           | 12 zbudowany na prymitywach 19                                             |
-| 20 Platforma/SSR         | jobsTick/community-cron wołają dispatch; correlation-fetch wpięty w klienta Supabase; egressGuard (SSRF); montaż CohesionLiveSync w __root          | 20 → 12 (harmonogram), 12 → 20 (wrappery)                                  |
-| 21 Kluby                 | zdarzenia club_*; rodzaj club; clubKeys; licznik club_unread; reguła Chatham House na szynie                                                        | dwustronna                                                                 |
+| Moduł | Mechanizm | Kierunek zależności |
+|---|---|---|
+| 1/2 Wpisy + edytor | triggery post.* na szynie; presence post/page; inwalidacja ["public"]/["admin-posts"] | 12 konsumuje zdarzenia, 1/2 konsumują inwalidację i presence |
+| 3 Silniki treści | LiveBlogBlock/PollBlockView własne kanały .channel() poza hubem | równoległe (bez wspólnego kodu) |
+| 4 Motyw/builder | WIDGET_QUERY_ROOTS.meetingSlots w kindInvalidation; watchdog podglądu; widget/siteSettings LiveSync (własne kanały) | 12 → 4 (inwalidacja, watchdog) |
+| 5 Chrome/nawigacja | NotificationsBell montowany w AccountMenuWidget/ReadingHeader | 5 → 12 (import komponentu) |
+| 6 Wyszukiwarka | run_saved_search_alerts produkuje rodzaj saved_search | 6 → 12 (enqueue_notification) |
+| 7 Treści specjalne | event.*/policy.* na szynie; sekcja trackera w digestcie; rodzaj tracker | dwustronna |
+| 9 Czat | message.sent.v1; rodzaj message + grupowanie po rozmowie; preferencje prywatności czatu (allow_messages_from, read receipts) egzekwowane w DB czatu | dwustronna (granica: same wiadomości = moduł 9, powiadomienia o nich = 12) |
+| 10 Sieć/eksperci | 6 rodzajów sieciowych; kindInvalidation kluczy network/*; awatary aktorów przez RPC my_connections | dwustronna |
+| 11 Newsletter | zdarzenia newsletter_subscriber.*; digest przez enqueueRawEmail (wspólny gateway Resend, lista wykluczeń, email_send_log) | 12 → 11 (wysyłka), 11 → 12 (zdarzenia) |
+| 13/14 Monetyzacja | zdarzenia subscription/grant/donation/billing_document → billingKeys (odblokowanie paywalla realtime po webhooku Stripe) | 13/14 → 12 (emisja), 12 → 13/14 (inwalidacja) |
+| 15 Profil/konto | ConsentsPanel w profile.privacy; VisibilityAndContactSection pisze allow_*; locale z profiles.prefs dla języka push/digest | dwustronna |
+| 16 Społeczność-admin | user/tenant_pending_counters; SchedulerHealthPanel; lib/admin/community.ts (statystyki) | dwustronna |
+| 17 Analityka/BI | brak bezpośredniej (rekomendowane raportowanie watchdoga do client_errors) | — |
+| 18 CRM | zdarzenia crm_*; rodzaj crm_task; useModuleRealtime("crm") w admin.crm | dwustronna |
+| 19 Ustawienia/authz/RODO | RLS (current_tenant_id/is_staff/has_role); set_user_consent + GPC + registryBridge; hardening ACL enqueue | 12 zbudowany na prymitywach 19 |
+| 20 Platforma/SSR | jobsTick/community-cron wołają dispatch; correlation-fetch wpięty w klienta Supabase; egressGuard (SSRF); montaż CohesionLiveSync w __root | 20 → 12 (harmonogram), 12 → 20 (wrappery) |
+| 21 Kluby | zdarzenia club_*; rodzaj club; clubKeys; licznik club_unread; reguła Chatham House na szynie | dwustronna |
 
 - **5 najpilniejszych rekomendacji:**
   1. **(12.10)** Przywrócić osiągalność ustawień powiadomień — zamontować NotificationsCenter w trybie „preferences" (np. view=settings w /messages albo /profile/notifications); bez tego opt-in Web Push, digest i wyciszanie rodzajów nie istnieją produktowo, a funkcje 12.13–12.16 pracują dla nikogo.
@@ -3421,13 +3176,12 @@ Moduł to warstwa spójności całej platformy: szyna zdarzeń domenowych (`doma
 
 ## Moduł 13 — Monetyzacja: cennik, checkout, subskrypcje, billing, paywall
 
-**Zakres zbadany:** src/lib/billing/ (84 moduły + 38 plików testów — _zweryfikowane na a9b9e14_), src/lib/access/ (gating.ts, metering.ts, visitor.ts + testy), src/lib/pricing/ (queries, selectors + testy), src/lib/stripe.ts, src/lib/stripe.server.ts, src/lib/ci/billingRenewalProbe.ts, src/components/Paywall.tsx, PaymentTestModeBanner.tsx, components/checkout/ (11 plików + 3 testy — bez zmian w delcie), components/pricing/ (9 — bez zmian w delcie), components/billing/ (16), components/admin/billing/ (6, w tym nowy AdminPaymentOrdersPanel), components/membership-join/ (9 — nowe), hooki useCheckout/useCheckoutSettings/useContentAccess/usePasswordUnlock/useUnlockedContent, trasy pricing.tsx, plans.$planId.tsx, checkout.$planId/success/cancel, membership-registration.tsx, membership-join.tsx (nowa), profile.billing/plan/subscription/membership, admin.billing.tsx, admin.billing-reconcile.tsx, admin.pricing.tsx, admin.paywall.tsx, api/public/payments/webhook.ts (+ test), api/public/billing-cron.ts, migracje SQL (payment_orders_environment_isolation, payment_orders_gdpr_retention, pricing_catalog_v3/v4, membership_tiers, metering, 20260811222216 `payment_order_mark_session`, 20260809102603 `verification_domain_tier`) i pgTAP (metering_paywall_test.sql — 17 asercji, tenant_isolation_billing_storage_test.sql — 25 asercji). · **Funkcji:** 25 · **Ocena modułu:** 8,2/10
+**Zakres zbadany:** src/lib/billing/ (84 moduły + 38 plików testów — *zweryfikowane na a9b9e14*), src/lib/access/ (gating.ts, metering.ts, visitor.ts + testy), src/lib/pricing/ (queries, selectors + testy), src/lib/stripe.ts, src/lib/stripe.server.ts, src/lib/ci/billingRenewalProbe.ts, src/components/Paywall.tsx, PaymentTestModeBanner.tsx, components/checkout/ (11 plików + 3 testy — bez zmian w delcie), components/pricing/ (9 — bez zmian w delcie), components/billing/ (16), components/admin/billing/ (6, w tym nowy AdminPaymentOrdersPanel), components/membership-join/ (9 — nowe), hooki useCheckout/useCheckoutSettings/useContentAccess/usePasswordUnlock/useUnlockedContent, trasy pricing.tsx, plans.$planId.tsx, checkout.$planId/success/cancel, membership-registration.tsx, membership-join.tsx (nowa), profile.billing/plan/subscription/membership, admin.billing.tsx, admin.billing-reconcile.tsx, admin.pricing.tsx, admin.paywall.tsx, api/public/payments/webhook.ts (+ test), api/public/billing-cron.ts, migracje SQL (payment_orders_environment_isolation, payment_orders_gdpr_retention, pricing_catalog_v3/v4, membership_tiers, metering, 20260811222216 `payment_order_mark_session`, 20260809102603 `verification_domain_tier`) i pgTAP (metering_paywall_test.sql — 17 asercji, tenant_isolation_billing_storage_test.sql — 25 asercji). · **Funkcji:** 25 · **Ocena modułu:** 8,2/10
 
 Moduł to kompletny rdzeń monetyzacji: CMS-owy cennik segmentowany, dwa silniki Stripe Embedded Checkout z kwotami liczonymi wyłącznie serwerowo, webhook z dziennikiem idempotencji i strażnikiem kolejności zdarzeń, nadawanie/odbieranie uprawnień w jednym miejscu, metering "N artykułów/mies.", miękka windykacja, rekoncyliacja i nocna sonda CI odnowień. Stan jest wyraźnie ponadprzeciętny — kod defensywny, gęsto komentowany decyzjami architektonicznymi (fail-closed mock, izolacja sandbox/live P0, grant-before-flip), z bardzo mocnym pokryciem testami jednostkowymi (m.in. reconcile 815 linii, stripeEvents 769, adhocCheckout 646) i pgTAP. Najważniejszy wniosek: warstwa serwerowa jest klasy światowej, natomiast ogon administracyjny (admin.paywall z bezpośrednimi zapisami z klienta) i twardo zakodowany `BILLING_CATALOG` odstają od reszty; błąd `return_url` portalu Stripe (`/profil`) **nadal nie jest naprawiony (zweryfikowane na a9b9e14)**. Delta 1788ffb→a9b9e14 domknęła natomiast inny, wcześniej nienazwany defekt P1 — utrwalanie `provider_session_id` na zamówieniu (13.22) — dołożyła adminowi zakładkę zamówień płatniczych (13.23) i całą nową publiczną powierzchnię sprzedażową /membership-join (13.24–13.25), która jest jednak najsłabszym fragmentem modułu (kopia sekcji cennika, brak wpisu w rejestrze stron kodowych, zero testów komponentowych).
 
 ### 13.1. Warstwa integracji Stripe (klient przez bramkę, weryfikacja webhooka, środowiska) — **9/10**
-
-- **Pliki:** src/lib/stripe.server.ts:1-153, src/lib/stripe.ts:1-66, src/lib/**tests**/stripeLoader.test.ts, src/lib/billing/mockMode.server.ts (+ test)
+- **Pliki:** src/lib/stripe.server.ts:1-153, src/lib/stripe.ts:1-66, src/lib/__tests__/stripeLoader.test.ts, src/lib/billing/mockMode.server.ts (+ test)
 - **Co robi:** Serwerowy klient SDK z transportem przepiętym na bramkę konektorów (klucz nigdy w kodzie aplikacji), własna weryfikacja podpisu HMAC-SHA256 webhooka (limit wieku 300 s), autorytatywne `resolveEnvironment` (produkcja = zawsze `live`) oraz kliencki lazy-loader `@stripe/stripe-js` z wyprowadzaniem środowiska z prefiksu tokenu publikowalnego.
 - **Relacje:** Moduł 20 (Platforma/SSR) — fetch przez proxy bramki, zmienne środowiskowe; Moduł 14 (Monetyzacja-uzup.) — ten sam klient obsługuje darowizny/kupony.
 - **✅ Mocne:** `resolveEnvironment` z komentarzem uzasadniającym P0 (sandboxowy webhook nie może zrealizować zamówienia live); lazy import SDK z jawną historią regresji bundle (korekta audytu 2026-08-06); `preloadStripeSdk` na intencję (hover) nigdy nie rzuca.
@@ -3436,19 +3190,17 @@ Moduł to kompletny rdzeń monetyzacji: CMS-owy cennik segmentowany, dwa silniki
   1. Porównanie podpisów v1 w `verifyWebhook` przez `crypto.timingSafeEqual` (stripe.server.ts:136) — spójność z resztą repo i eliminacja teoretycznego kanału czasowego.
 
 ### 13.2. Tworzenie zamówień i sesji checkout (plan / one-time / bilet) — **9/10**
-
-- **Pliki:** src/lib/billing/checkout.functions.ts:60-450, stripeCheckout.functions.ts:29-143, adhocCheckout.server.ts, adhocCheckoutOrder.server.ts:175-184, markOrderSession.server.ts (nowy), **tests**/adhocCheckout.server.test.ts (646), **tests**/checkoutSessionFlags.server.test.ts, **tests**/markOrderSession.test.ts (nowy) — _zakresy linii zweryfikowane na a9b9e14_
+- **Pliki:** src/lib/billing/checkout.functions.ts:60-450, stripeCheckout.functions.ts:29-143, adhocCheckout.server.ts, adhocCheckoutOrder.server.ts:175-184, markOrderSession.server.ts (nowy), __tests__/adhocCheckout.server.test.ts (646), __tests__/checkoutSessionFlags.server.test.ts, __tests__/markOrderSession.test.ts (nowy) — *zakresy linii zweryfikowane na a9b9e14*
 - **Co robi:** Serwerowe `createCheckoutOrder` (paywall: one-time treści, bilety, plany) i `createPlanCheckoutSession`/`createAdhocCheckoutSession` (strona /checkout): kwota zawsze liczona serwerowo z planu/reguły dostępu/wydarzenia, wpis `payment_orders` ze stemplem środowiska, sesja Embedded Checkout (cena katalogowa `lookup_key` dla subskrypcji, `price_data` dla ad-hoc), fail-closed mock na produkcji.
 - **Relacje:** Moduł 14 (Monetyzacja-uzup.) — RPC `validate_b2b_coupon`/`redeem_b2b_coupon`/`release_b2b_coupon` (atomowa rezerwacja + zwrot puli przy odmowie operatora); Moduł 16 (Społeczność-admin) — bilety: `events`, `assertSeatAvailable`; Moduł 19 (Ustawienia/authz) — `requireSupabaseAuth`, RLS jako użytkownik przy odczycie cen.
 - **✅ Mocne:** Niezmiennik "klient nigdy nie podaje kwoty" utrzymany we wszystkich czterech ścieżkach; konwersja waluty prezentacji PO walidacji kuponu z zachowaniem `original = final + discount` w walucie docelowej (checkout.functions.ts:205-236); zwolnienie kuponu przy odmowie Stripe. **(zweryfikowane na a9b9e14)** Wszystkie dziesięć zapisów statusu/sesji zamówienia w trzech silnikach przeszło z bezpośredniego `update()` na wspólny `markOrderSession` (checkout.functions.ts:311/364/381/408/429, stripeCheckout.functions.ts:104/133/140, adhocCheckoutOrder.server.ts:178/182) — patrz 13.22; wcześniej te zapisy nie miały prawa się wykonać dla kupującego (jedyna polityka UPDATE na `payment_orders` to "orders admin update").
-- **⚠️ Słabe:** Dwa równoległe silniki checkoutu (createCheckoutOrder vs createPlanCheckoutSession) duplikują insert zamówienia, rezerwację kuponu i obsługę błędów — kod sam to przyznaje ("dwa silniki checkoutu"); rozjazd jest realnym ryzykiem regresji: `redeem_b2b_coupon` w stripeCheckout.functions **nadal** ma `_applied_cents: 0` (stripeCheckout.functions.ts:99 — _zweryfikowane na a9b9e14_), w checkout.functions realny rabat. Delta ujednoliciła tylko warstwę zapisu statusu, nie same silniki.
+- **⚠️ Słabe:** Dwa równoległe silniki checkoutu (createCheckoutOrder vs createPlanCheckoutSession) duplikują insert zamówienia, rezerwację kuponu i obsługę błędów — kod sam to przyznaje ("dwa silniki checkoutu"); rozjazd jest realnym ryzykiem regresji: `redeem_b2b_coupon` w stripeCheckout.functions **nadal** ma `_applied_cents: 0` (stripeCheckout.functions.ts:99 — *zweryfikowane na a9b9e14*), w checkout.functions realny rabat. Delta ujednoliciła tylko warstwę zapisu statusu, nie same silniki.
 - **🔧 Rekomendacje:**
   1. Skonsolidować oba silniki do jednej funkcji domenowej "utwórz zamówienie + sesję" z parametrem źródła (checkout.functions.ts / stripeCheckout.functions.ts) — jedna ścieżka kuponów i statusów. `markOrderSession` pokazuje, że taka ekstrakcja jest tu tania.
   2. Ujednolicić `_applied_cents` przekazywane do `redeem_b2b_coupon` (stripeCheckout.functions.ts:99) z faktycznym rabatem, żeby audyt użyć kuponów był spójny między silnikami. **Nadal otwarte na a9b9e14.**
 
 ### 13.3. Webhook Stripe: odbiór, normalizacja, dziennik idempotencji — **9/10**
-
-- **Pliki:** src/routes/api/public/payments/webhook.ts:14-110, src/lib/billing/stripeEvents.server.ts:1-329, webhookLog.server.ts:1-129, webhookRetry.functions.ts, **tests**/stripeEvents.server.test.ts (769), routes/api/public/payments/-webhook.test.ts
+- **Pliki:** src/routes/api/public/payments/webhook.ts:14-110, src/lib/billing/stripeEvents.server.ts:1-329, webhookLog.server.ts:1-129, webhookRetry.functions.ts, __tests__/stripeEvents.server.test.ts (769), routes/api/public/payments/-webhook.test.ts
 - **Co robi:** Trasa POST weryfikuje podpis per środowisko (`?env=`), normalizuje zdarzenia Stripe (subskrypcje, checkout.session, invoice — z fallbackami API Basil, charge.refunded/dispute, credit_note) do słownika domenowego i rezerwuje wpis w `payment_webhook_events` (unikalny event_id+environment); `failed`/porzucone `received` (>5 min) są przejmowalne ponownie, duplikaty domknięte odrzucane.
 - **Relacje:** Moduł 17 (Analityka/BI) — `duration_ms` i statusy zdarzeń czytane w panelu; Moduł 20 (Platforma/SSR) — `runAfterResponse` (auto-sync katalogu za odpowiedzią).
 - **✅ Mocne:** Poprawka `amount_paid=0` na nieudanej fakturze (stripeEvents.server.ts:154-162) z opisem, jak zero psuło dunning ("wezwanie na 0,00"); test end-to-end trasy webhooka domykający cztery warstwy odczytu (subscriptions, user_subscriptions, crm_leads, notifications).
@@ -3457,7 +3209,6 @@ Moduł to kompletny rdzeń monetyzacji: CMS-owy cennik segmentowany, dwa silniki
   1. Dodać test jednostkowy `verifyWebhook` z realnie policzonym podpisem (poprawny/zły/za stary timestamp) analogiczny do email/webhookSignature.test.ts.
 
 ### 13.4. Dyspozytor zdarzeń domenowych i efekty subskrypcji — **9/10**
-
 - **Pliki:** src/lib/billing/webhookDispatch.server.ts:1-560, purchaseEffects.server.ts:1-450, entitlementSync.server.ts, accessPeriod.ts (+ testy accessPeriod, entitlementSync)
 - **Co robi:** Jedno miejsce obsługi zdarzeń: `claimSubscriptionEvent` (atomowy warunkowy UPDATE `last_event_at`) chroni przed cofnięciem stanu przez spóźnione zdarzenie; `handleUpdated` zakłada subskrypcję gdy `activated` wyprzedzi `created`; efekty: sync uprawnień, miejsca zespołowe, CRM, dzwonek, maile, wykrywanie upgrade/downgrade po randze katalogu.
 - **Relacje:** Moduł 10 (Sieć/eksperci) — `applySubscriptionSeats`/`applySubscriptionOrgState` (organizations/teamSeats.server) dla planu Zespół; Moduł 18 (CRM) — `syncCrmSubscriptionState` (won/archived, tagi plan:*); Moduł 12 (Realtime/powiadomienia) — insert do `notifications`; Moduł 14 — rozgałęzienie darowizn (`purpose === "donation"`).
@@ -3467,7 +3218,6 @@ Moduł to kompletny rdzeń monetyzacji: CMS-owy cennik segmentowany, dwa silniki
   1. Dopisać przypadek testowy "canceled → spóźnione updated" do -webhook.test.ts, dokumentujący, że claim faktycznie blokuje wskrzeszenie subskrypcji.
 
 ### 13.5. Nadawanie i odbieranie uprawnień + realizacja płatności jednorazowych — **9/10**
-
 - **Pliki:** src/lib/billing/grant.server.ts:1-227, entitlement.ts:1-86, oneTimeFulfilment.server.ts:1-271, refunds.server.ts, refundProvider.server.ts (+ testy grant 438, oneTimeFulfilment.event 182, refunds, entitlement)
 - **Co robi:** `grantEntitlement` (jedyny punkt "płatność → dostęp"): subskrypcja → `user_subscriptions` (idempotentnie po `external_ref`), one-time plan → dożywotni dostęp (period_end NULL), one-time treść → `user_purchases`; `fulfilOneTimeTransaction` realizuje zamówienie z guardem środowiska, kontrolą oversell biletu (pełny zwrot po pobraniu pieniędzy) i kolejnością grant-before-flip; `revoke*` cofa dostęp przy zwrocie/chargebacku ze statusem `refunded`.
 - **Relacje:** Moduł 16 (Społeczność-admin) — `event_rsvps` upsert po opłaceniu biletu, `assertSeatAvailable`; Moduł 19 (RODO) — zamówienia zanonimizowane (`user_id NULL`, migracja 20260803090002) księgowane bez grantu i bez pętli ponowień; Moduł 14 — `applyCouponEffectsForOrder` po `paid`.
@@ -3477,18 +3227,16 @@ Moduł to kompletny rdzeń monetyzacji: CMS-owy cennik segmentowany, dwa silniki
   1. Rozszerzyć oneTimeFulfilment.event.test o scenariusz oversold-refund-fails (rzut i retry webhooka) — dziś testowany jest happy path zwrotu.
 
 ### 13.6. Mechanika paywalla: gating body, odblokowanie klienckie, hasło, UI Paywall — **8/10**
-
 - **Pliki:** src/lib/access/gating.ts:1-74 (+ test 75), src/hooks/useUnlockedContent.ts:1-34, src/hooks/usePasswordUnlock.ts:1-95, src/components/Paywall.tsx:1-481, src/lib/i18n-paywall.ts, migracja 20260801121000 (revoke password hints)
 - **Co robi:** Czysta reguła "czy body jest zablokowane" (entitlement dowodzony obecnością body — serwerowy RPC `get_entity_content` wysyła body tylko uprawnionym); kliencki re-fetch po zalogowaniu (klucz per uid), odblokowanie hasłem przez SECURITY DEFINER `verify_content_password` (bcrypt, hash nieczytelny z klienta, cache hasła w sessionStorage); komponent Paywall renderuje warianty members/paid/password/meter z planami, zakupem one-time i lockoutem 5 prób/30 s.
 - **Relacje:** Moduł 1 (Wpisy-czytelnik) — trasa `$.tsx` importuje shouldShowPaywall/pickBody i renderuje Paywall (sam render treści ocenia M1); Moduł 4 (Motyw/media) — `AccessEntityType` obejmuje "media"; Moduł 19 (authz) — rate-limit haseł w lib/auth/bruteforce.functions.
 - **✅ Mocne:** Decyzja o paywallu w jednym czystym module używanym przez SSR, klienta i testy; hasło nigdy nie dotyka localStorage; a11y (role="alert", aria-invalid, aria-label) i pełne PL/EN.
-- **⚠️ Słabe:** Paywall.tsx (481 linii) nie ma żadnego testu komponentowego (szukałem w components/**tests** i src/**/_.test._) — warianty meter/password/paid są testowane tylko pośrednio przez czyste funkcje; lockout hasła jest wyłącznie kliencki (stan Reacta), realną obroną jest rate-limit serwera; `buildAutoTeaser` tnie 20% tekstu bez uwzględnienia HTML-encji.
+- **⚠️ Słabe:** Paywall.tsx (481 linii) nie ma żadnego testu komponentowego (szukałem w components/__tests__ i src/**/*.test.*) — warianty meter/password/paid są testowane tylko pośrednio przez czyste funkcje; lockout hasła jest wyłącznie kliencki (stan Reacta), realną obroną jest rate-limit serwera; `buildAutoTeaser` tnie 20% tekstu bez uwzględnienia HTML-encji.
 - **🔧 Rekomendacje:**
-  1. Test komponentowy Paywall (warianty: members-anonim, paid-zalogowany z planami, password z lockoutem, meter register/exhausted) — plik obok components/checkout/**tests**.
+  1. Test komponentowy Paywall (warianty: members-anonim, paid-zalogowany z planami, password z lockoutem, meter register/exhausted) — plik obok components/checkout/__tests__.
   2. Przenieść licznik prób hasła na serwer (bruteforce.functions już istnieje) i zwracać `retry_after`, żeby odświeżenie strony nie zerowało lockoutu.
 
 ### 13.7. Metering "N darmowych artykułów / miesiąc" — **9/10**
-
 - **Pliki:** src/lib/access/metering.ts:1-402 (+ test 246), src/lib/access/visitor.ts, supabase/tests/metering_paywall_test.sql (17 asercji), migracja 20260721120000 (consume_metered_view), components/atoms/QuotaMeter (użycie w Paywall.tsx:256-272)
 - **Co robi:** Egzekwowanie wyłącznie serwerowe (RPC SECURITY DEFINER `consume_metered_view` — konsumpcja idempotentna per byt/miesiąc, `metering_state` — odczyt bez konsumpcji, `log_metering_event` — telemetria odmów); klient dostarcza konfigurację, czyste reguły uczestnictwa/wariantów, tożsamość gościa (uuid w localStorage) i scalanie zamrożonego stanu per artykuł z żywym licznikiem miesiąca (monotoniczny max, okres UTC w kluczu cache).
 - **Relacje:** Moduł 1 (Wpisy-czytelnik) — useMeteredAccess/MeterBanner w trasie treści; Moduł 17 (Analityka/BI) — log_metering_event zasila dashboard monetyzacji; Moduł 14 — wspólna tożsamość gościa z budżetem kliknięć linku podarunkowego (visitor.ts).
@@ -3498,7 +3246,6 @@ Moduł to kompletny rdzeń monetyzacji: CMS-owy cennik segmentowany, dwa silniki
   1. Dodać zadanie retencji dla `metered_views`/`metering_events` starszych niż ~13 miesięcy (spójnie z payment_orders_gdpr_retention).
 
 ### 13.8. Cennik /pricing (segmenty, warstwy, interwały) + karta planu /plans/$planId — **9/10**
-
 - **Pliki:** src/routes/pricing.tsx:1-471, src/routes/plans.$planId.tsx:1-192, src/lib/pricing/selectors.ts:1-321 (+ test 464), src/lib/pricing/queries.ts, components/pricing/* (TierCard 476, AudienceSwitcher, IntervalToggle, PricingComparisonMatrix, PricingFaq, ContactSalesDialog, SupporterStrip), src/lib/i18n-pricing.ts (959 linii)
 - **Co robi:** W pełni CMS-owy cennik: `pricing_audiences` (przełącznik segmentów z deep-linkiem ?audience=), `membership_tiers` (karty z benefitami NYT/FT i spotlightem "co wyróżnia"), `access_plans` (framing rocznej ceny jako miesięcznej + realny % oszczędności), FAQ globalne/segmentowe z fallbackiem i18n; strona planu z benefitami, matrycą porównawczą i SEO head; wszystko prefetchowane w loaderze (SSR bez migotania).
 - **Relacje:** Moduł 8 (SEO/feedy) — staticPageSeoQueryOptions, canonical, og:*; Moduł 3 (Silniki treści) — widget buildera PricingPlansView (+ test) renderuje plany w dokumentach; Moduł 18 (CRM) — ContactSalesDialog tworzy lead sprzedażowy; Moduł 5 (Chrome/nawigacja) — wejścia z paywalla ("Zobacz wszystkie plany").
@@ -3508,18 +3255,16 @@ Moduł to kompletny rdzeń monetyzacji: CMS-owy cennik segmentowany, dwa silniki
   1. Wynieść domyślny interwał kotwicy do `pricing_audiences` (kolumna default_interval), żeby redakcja mogła testować framing bez deployu.
 
 ### 13.9. Strona checkoutu /checkout/$planId (bramka gościa, dane rozliczeniowe, ramka Stripe) — **8/10**
-
-- **Pliki:** src/routes/checkout.$planId.tsx:1-308 **(zweryfikowane na a9b9e14 — trasa urosła z 298 do 308 linii)**, components/checkout/GuestCheckoutGate.tsx:1-154, EmbeddedCheckoutFrame.tsx:1-95, LazyEmbeddedCheckoutDialog.tsx, StripeEmbeddedFrame.tsx, CheckoutAssurances.tsx (+ 3 testy w **tests**), checkoutIntent.ts, components/billing/BillingProfileForm.tsx (294), hooki useCheckout.ts, useCheckoutSettings.ts
+- **Pliki:** src/routes/checkout.$planId.tsx:1-308 **(zweryfikowane na a9b9e14 — trasa urosła z 298 do 308 linii)**, components/checkout/GuestCheckoutGate.tsx:1-154, EmbeddedCheckoutFrame.tsx:1-95, LazyEmbeddedCheckoutDialog.tsx, StripeEmbeddedFrame.tsx, CheckoutAssurances.tsx (+ 3 testy w __tests__), checkoutIntent.ts, components/billing/BillingProfileForm.tsx (294), hooki useCheckout.ts, useCheckoutSettings.ts
 - **Co robi:** Lejek zakupu planu: bramka gościa (logowanie albo magic-link `shouldCreateUser` z powrotem na checkout), inline formularz danych rozliczeniowych (zapis odblokowuje przycisk bez wyrzucania z lejka), podsumowanie z kuponem i walutą prezentacji, osadzona ramka Stripe przez granicę React.lazy (SDK schodzi dopiero przy intencji zakupu; pilnowane przez CI check:entry-purity), CheckoutAssurances liczone tą samą czystą funkcją co parametry sesji.
 - **Relacje:** Moduł 14 — CouponInput (walidacja kuponu B2B); Moduł 15 (Profil/konto) — BillingProfileForm współdzielony z /profile/billing; Moduł 20 — chunking/lazy boundary (testy embeddedCheckoutLazyBoundary).
 - **✅ Mocne:** Historia regresji bundle udokumentowana w nagłówku EmbeddedCheckoutFrame i zabezpieczona testem granicy lazy; obietnice pod przyciskiem ("Faktura, kod promocyjny…") nie mogą rozjechać się z sesją, bo liczy je `checkoutSessionParams` (ta sama funkcja co serwer). **(zweryfikowane na a9b9e14)** Delta naprawiła realny defekt UX ramki operatora: wyszła z 360-pikselowej kolumny podsumowania na pełną szerokość kontenera i po utworzeniu sesji strona sama przewija do niej (`frameRef` + `scrollIntoView`, checkout.$planId.tsx:56-59, 299-303) — komentarz w kodzie opisuje objaw ("na mobile formularz płatności ląduje poza ekranem i wygląda, jakby przycisk nic nie zrobił").
-- **⚠️ Słabe:** Komunikaty błędów submit są spłaszczone niemal do zera: tylko `not_found`/`limit_reached` dostają osobny tekst (`checkout.applyFailed`), a brak wpisu w katalogu cen, odmowa Stripe, wyjątek i błąd sieci — wszystko to jeden `checkout.paymentsNotConfigured` (checkout.$planId.tsx:107, 119-121, 130 — _ścieżki przeczytane ponownie i skorygowane na a9b9e14; poprzednia wersja audytu podawała, że spłaszczane są wszystkie błędy_); nadal brak testu samej trasy checkoutu (są testy komponentów pomocniczych); przewijanie `scrollIntoView` bez respektowania `prefers-reduced-motion`.
+- **⚠️ Słabe:** Komunikaty błędów submit są spłaszczone niemal do zera: tylko `not_found`/`limit_reached` dostają osobny tekst (`checkout.applyFailed`), a brak wpisu w katalogu cen, odmowa Stripe, wyjątek i błąd sieci — wszystko to jeden `checkout.paymentsNotConfigured` (checkout.$planId.tsx:107, 119-121, 130 — *ścieżki przeczytane ponownie i skorygowane na a9b9e14; poprzednia wersja audytu podawała, że spłaszczane są wszystkie błędy*); nadal brak testu samej trasy checkoutu (są testy komponentów pomocniczych); przewijanie `scrollIntoView` bez respektowania `prefers-reduced-motion`.
 - **🔧 Rekomendacje:**
   1. Rozdzielić komunikaty błędów submit (kupon vs brak ceny katalogowej vs konfiguracja vs sieć) w checkout.$planId.tsx:107-131 — słownik `checkout.errors.*` już ma zaplecze w i18n-profile.
   2. Test integracyjny trasy: hasBilling=false → zapis formularza → aktywny przycisk → clientSecret renderuje ramkę (dziś dodatkowo warto objąć nim nowe przewinięcie do ramki).
 
 ### 13.10. Potwierdzenie i anulowanie zakupu (/checkout/success, /checkout/cancel) — **8/10**
-
 - **Pliki:** src/routes/checkout.success.tsx:1-183, checkout.cancel.tsx:1-41, src/lib/billing/purchaseConfirmation.ts (+ test 140), returnPath.ts (+ test), components/admin/builder/ui/organisms/widget-view/PurchaseConfirmationView
 - **Co robi:** Strona sukcesu: opcjonalny dokument buildera pod slugiem `checkout-success` (budżet SSR 2 s), wbudowany widget potwierdzenia (portal klienta + koniec dostępu), powrót "czytaj dalej" do artykułu sprzed checkoutu (sessionStorage z walidacją ścieżki), finalizacja mock-mode oraz inwalidacja WSZYSTKICH cache uprawnień (resolved content, unlocked-body, subskrypcje, orders, current-tier).
 - **Relacje:** Moduł 3 (Silniki treści) — render dokumentu buildera (ContentRenderer, FootnotesList); Moduł 1 — inwalidacja `["public","resolved"]` odblokowuje artykuł bez przeładowania.
@@ -3529,7 +3274,6 @@ Moduł to kompletny rdzeń monetyzacji: CMS-owy cennik segmentowany, dwa silniki
   1. Dodać cichy odczyt statusu zamówienia (query po `order` z RLS) i baner "płatność w toku/nieudana", gdy status ≠ paid po ~10 s.
 
 ### 13.11. Samoobsługa subskrypcji: anulowanie, wznowienie, zmiana planu, retencja — **9/10**
-
 - **Pliki:** src/lib/billing/checkout.functions.ts:499-715 (cancel/resume/changePlan), subscriptionProvider.server.ts:1-288 (+ test 487), subscriptionStatus.ts:1-137 (+ test 153), planSwitch.ts (+ test), subscriptionQueries.ts (+ test), components/billing/SubscriptionManagerSection.tsx (290), SubscriptionCard.tsx (426), ChangePlanCard, PlanSwitchBoard, RetentionDialog.tsx (331), trasy profile.plan.tsx, profile.subscription.tsx, profile.membership.tsx
 - **Co robi:** Server functions z twardą regułą "najpierw operator, potem baza" (odmowa Stripe = brak zmiany wiersza); zmiana planu: upgrade z proratą od razu, downgrade od nowego okresu, `on_payment_failure=prevent_change`; czysty `deriveSubscriptionStatus` scala stan lokalny, operatorski i nadania (VIP eksperta) do jednego słownika; przepływ anulowania przechodzi przez dialog retencyjny (ankieta powodu + kontroferta), a nadanie/lifetime prezentowane jak plan.
 - **Relacje:** Moduł 14 — kontroferta retencyjna tworzy personalny kupon B2B (acceptRetentionOffer); Moduł 18 (CRM) — migracja subscription_retention_crm_bridge; Moduł 15 (Profil/konto) — sekcja osadzona w hubie profilu.
@@ -3539,7 +3283,6 @@ Moduł to kompletny rdzeń monetyzacji: CMS-owy cennik segmentowany, dwa silniki
   1. Test komponentowy RetentionDialog (ścieżka reason→offer→accepted i reason→cancel) — to najbardziej "biznesowy" dialog modułu.
 
 ### 13.12. Portal klienta, dokumenty rozliczeniowe, historia płatności, NIP — **8/10**
-
 - **Pliki:** src/lib/billing/portalLink.server.ts:1-125, portalLink.functions.ts, billingDocuments.server.ts, invoice.server.ts:1-146, transactionId.ts, nip.ts:1-51 (+ test), paymentHistory.ts:1-228 (+ test 162), exportHistory.ts, components/billing/CustomerPortalButton, InvoiceLookupCard, PaymentHistoryCard (253), OrdersTableCard, BillingDocumentsCard, HowPaymentsWorkCard, trasa profile.billing.tsx
 - **Co robi:** Jednorazowe linki do portalu Stripe (na żądanie + wysyłka mailem przez admina), pobieranie faktury po numerze transakcji z trójścieżkową weryfikacją własności, scalona historia płatności (dokument wygrywa nad zamówieniem, nadania jako "prezent"), eksport CSV, walidacja NIP z pełną sumą kontrolną + łagodny VAT UE, profil rozliczeniowy (firma/osoba, kraj).
 - **Relacje:** Moduł 15 (Profil/konto) — karty osadzone w profilu; Moduł 19 (RODO) — accountingRetention.server (retencja dowodów księgowych), billing_documents RLS testowane pgTAP (tenant_isolation_billing_storage_test, 25 asercji); Moduł 14 — pozycje historii z rabatem/kuponem.
@@ -3550,7 +3293,6 @@ Moduł to kompletny rdzeń monetyzacji: CMS-owy cennik segmentowany, dwa silniki
   2. Dodać test portalLink pokrywający return_url (dziś moduł bez testu).
 
 ### 13.13. Dunning, przypomnienia cyklu życia i cron rozliczeń — **8/10**
-
 - **Pliki:** src/lib/billing/dunning.server.ts:1-187 (+ dunningDedupe.test 111), reminders.server.ts:1-102 (+ test 17), reminders.functions.ts, notifications.server.ts (484), src/routes/api/public/billing-cron.ts:1-124
 - **Co robi:** Miękka windykacja: nieudana płatność nie odbiera dostępu (karencja 14 dni), podbija licznik prób, wysyła mail PL/EN i dzwonek — z deduplikacją pary zdarzeń `payment_failed`/`past_due` po id transakcji; odzyskanie zeruje licznik i potwierdza. Cron (sekret w nagłówku, timingSafeEqual, rate-limit, fallback sekretu z `job_runner_settings`) wysyła przypomnienia o odnowieniu/wygaśnięciu w oknie leadDays oraz domyka karencje miejsc zespołowych.
 - **Relacje:** Moduł 11 (Newsletter/e-mail) — sendTxEmail z idempotencyKey; Moduł 12 (Realtime/powiadomienia) — dzwonek; Moduł 10 (Sieć/eksperci) — teamSeats.server (przypomnienia i wygaszanie karencji miejsc); Moduł 20 — rateLimit, pg_cron → net.http_post.
@@ -3561,7 +3303,6 @@ Moduł to kompletny rdzeń monetyzacji: CMS-owy cennik segmentowany, dwa silniki
   2. Rozważyć okno "catch-up" (od ostatniego przebiegu, nie sztywne 24 h) albo zapis znacznika ostatniego przebiegu, żeby awaria crona nie gubiła przypomnień.
 
 ### 13.14. Rekoncyliacja ze Stripe i samonaprawa (self-sync) — **9/10**
-
 - **Pliki:** src/lib/billing/reconcile.server.ts:1-349 (+ test 815), reconcile.functions.ts, selfSync.server.ts:1-116 (+ test), src/routes/admin.billing-reconcile.tsx:1-208, components/billing/SyncBillingButton.tsx, src/lib/i18n-admin-reconcile
 - **Co robi:** Trzy niezależne sondy rozbieżności (zdarzenie u Stripe nieobecne/failed w dzienniku; zamówienie wiszące mimo opłaconej sesji z 15-min karencją; dryf statusu subskrypcji) i naprawa przez replay TĄ SAMĄ ścieżką co webhook (normalize + dispatch + dziennik jako bramka idempotencji). Self-sync: użytkownik sam odświeża swoje subskrypcje (id z RLS + wyszukiwanie po metadata.userId, obce subskrypcje odsiewane po metadanych operatora).
 - **Relacje:** Moduł 19 (authz) — funkcje serwerowe roli admin; Moduł 13-wewnętrznie — pełna zależność od 13.3/13.4 (świadome współdzielenie ścieżki).
@@ -3571,7 +3312,6 @@ Moduł to kompletny rdzeń monetyzacji: CMS-owy cennik segmentowany, dwa silniki
   1. Dodać kontynuację skanu (kursor starting_after w raporcie) dla okien > 300 zdarzeń — reconcile.server.ts:83-100.
 
 ### 13.15. Panel administracyjny rozliczeń (/admin/billing) — **8/10**
-
 - **Pliki:** src/routes/admin.billing.tsx:1-47, components/admin/billing/AdminBillingPanel.tsx:1-447 (**+9 linii w delcie: nowa zakładka „Płatności"**), AdminWebhookLogPanel, AdminPaymentsDiagnosticsPanel, AdminTicketOrdersPanel, AdminPaymentOrdersPanel (nowy — szczegóły w 13.23), ResendPortalLinkButton, src/lib/billing/diagnostics.server.ts (311), ticketOrders.server.ts (236)
 - **Co robi:** Zakładki: subskrypcje tenanta (statusy, liczniki nieudanych płatności, ponowna wysyłka portalu), **zamówienia płatnicze (nowe — AdminBillingPanel.tsx:307, 434-435)**, dziennik webhooków z retry, diagnostyka płatności, zamówienia biletowe; ręczne uruchomienie przypomnień i synchronizacji katalogu; odczyt w całości przez RLS ("komponent nie ma żadnych uprawnień ponad to, co baza przyzna adminowi").
 - **Relacje:** Moduł 16 (Społeczność-admin) — panel biletów wydarzeń; Moduł 17 (Analityka/BI) — duration_ms, statusy zdarzeń; Moduł 19 — RLS "Admins read tenant subscriptions".
@@ -3581,8 +3321,7 @@ Moduł to kompletny rdzeń monetyzacji: CMS-owy cennik segmentowany, dwa silniki
   1. Przenieść teksty AdminBillingPanel **i AdminPaymentOrdersPanel** do słownika i18n (jak admin-reconcile), żeby tłumaczenia nie żyły w JSX — dziś to już trzy pliki z własnym `L()`.
 
 ### 13.16. Katalog cen operatora: BILLING_CATALOG + synchronizacja i auto-sync — **8/10**
-
-- **Pliki:** src/lib/billing/catalog.ts:1-119, catalogSync.server.ts:1-296 (+ test 562), catalogAutoSync.server.ts/ts (+ test 177), catalogReap.server.ts, catalogSync.functions.ts, **tests**/tierCatalogParity.test.ts
+- **Pliki:** src/lib/billing/catalog.ts:1-119, catalogSync.server.ts:1-296 (+ test 562), catalogAutoSync.server.ts/ts (+ test 177), catalogReap.server.ts, catalogSync.functions.ts, __tests__/tierCatalogParity.test.ts
 - **Co robi:** Twardo zakodowana mapa `${tier_key}:${interval}` → czytelny `lookup_key`/`product` z rangami do wykrywania upgrade/downgrade; idempotentna synchronizacja katalogu w Stripe (tworzenie/korekta produktów i cen z access_plans jako źródła prawdy, kod podatkowy SaaS, archiwizacja osieroconych pozycji); auto-sync wyzwalany odciskiem konta po pierwszym webhooku (odtwarza katalog po podpięciu nowego konta Stripe).
 - **Relacje:** Moduł 13-wewnętrznie — webhook mapuje ceny z powrotem na plany wyłącznie po tym katalogu; Moduł 10 — flaga perSeat planu Zespół.
 - **✅ Mocne:** tierCatalogParity.test pilnuje spójności katalogu z rangami warstw; sync koryguje kwotę/walutę/cykl/trial do wartości z access_plans; auto-odtworzenie po rotacji konta bez ręcznej interwencji.
@@ -3592,7 +3331,6 @@ Moduł to kompletny rdzeń monetyzacji: CMS-owy cennik segmentowany, dwa silniki
   2. Docelowo przenieść BILLING_CATALOG do tabeli (rangi + lookup_key), aby nowe warstwy nie wymagały zmiany kodu. **Nadal otwarte na a9b9e14.**
 
 ### 13.17. Warstwy członkostwa: dane, benefity, warstwa bieżącego użytkownika — **8/10**
-
 - **Pliki:** src/lib/billing/tiers.ts:1-160, tierRanks.ts (33), membership.ts (247), capabilities.ts (+ test 90), types.ts (+ test), migracje 20260713090000_membership_tiers.sql, 20260723180000_chat_plus_tier_gating, **20260809102603 (nowa w delcie: `verification_domains.grants_tier_key` + źródło `org_domain` w `membership_grants`)**
 - **Co robi:** Warstwa danych membership_tiers (parse/serialize benefitów NYT/FT z dziedziczeniem PL↔EN — jedyne miejsce zapisu formatu), RPC SECURITY DEFINER `current_membership_tier` (warstwa rozstrzygana wyłącznie serwerowo; klient dostaje klucz/rangę do miękkiego gatingu UI), flagi features (tierHasFeature/tierFeatureNumber) i nadania membership_grants (useMyGrants).
 - **Relacje:** Moduł 9 (Czat) — gating funkcji czatu po features warstwy (migracja chat_plus_tier_gating); Moduł 10 (Sieć/eksperci) — VIP eksperta jako grant, expert_request_quota z features; Moduł 16 — badge członkostwa **oraz NOWA relacja (zweryfikowane na a9b9e14): panel domen weryfikacyjnych (components/admin/community/VerificationDomainsCard.tsx, lib/admin/verificationDomains.ts) nadaje warstwę członkostwa po domenie e-mail — `verification_domain_tier()` wybiera najwyższą aktywną warstwę z `membership_tiers` i zakłada wpis w `membership_grants` ze źródłem `org_domain` (migracja 20260809102603:17-38, 97-115)**; Moduł 1 — min_tier_rank w regułach dostępu (drabinka Plus vs Pro).
@@ -3603,7 +3341,6 @@ Moduł to kompletny rdzeń monetyzacji: CMS-owy cennik segmentowany, dwa silniki
   2. Pokazać nadania `org_domain` w panelu rozliczeń (licznik obok subskrypcji) — inaczej MRR i liczba „członków płatnych" rozjadą się cicho po każdej nowej domenie dodanej w /admin/community.
 
 ### 13.18. Konfiguracja paywalla i checkoutu w adminie (/admin/paywall) — **7/10**
-
 - **Pliki:** src/routes/admin.paywall.tsx:1-1119, src/lib/billing/checkoutSettings.ts:1-183 (+ testy 214/97), checkoutSettings.server.ts, src/hooks/useCheckoutSettings.ts
 - **Co robi:** CRUD planów access_plans (ceny, cykle, trial, features, badge), edycja ustawień meteringu (metering_settings) i singletonu checkout_settings (kupony/Stripe Tax/NIP/faktury); czysta funkcja `checkoutSessionParams` mapuje ustawienia na parametry sesji Stripe z sześcioma udokumentowanymi regułami zależności API (MoR vs merchant, customer_creation, customer_update...).
 - **Relacje:** Moduł 19 (authz) — zapisy klienckie chronione wyłącznie RLS; Moduł 13.2 — obie ścieżki checkoutu czytają te same ustawienia per tenant zamówienia.
@@ -3615,18 +3352,16 @@ Moduł to kompletny rdzeń monetyzacji: CMS-owy cennik segmentowany, dwa silniki
   3. Zastąpić lokalny formatMoney (pl-PL) wspólnym z lib/billing/types (locale-aware).
 
 ### 13.19. Panel Cennika 2.0 (/admin/pricing: segmenty, marketing warstw, FAQ) — **8/10**
-
 - **Pliki:** src/routes/admin.pricing.tsx:1-1821, src/lib/i18n-admin-pricing.ts, migracje 20260722200000_pricing_audiences_faq.sql, 20260722230000/20260723160000 (catalog v3/v4)
 - **Co robi:** Trzy zakładki CRUD: pricing_audiences (nazwy, tagline, kolejność, aktywność), marketing warstw per segment (badge, wyróżnienie-kotwica, cta_mode, price_note, benefity — wspólny edytor z panelem Członkostwa), pricing_faq_items (globalne/per segment, kolejność); rangi/features/mapowanie planów świadomie zostają w /admin/membership (separacja prezentacji od uprawnień).
 - **Relacje:** Moduł 13.8 — bezpośrednie zasilanie /pricing; Moduł 16 (Społeczność-admin) — sąsiedni panel membership dzieli edytor benefitów; Moduł 12 — inwalidacje przez billingKeys.
 - **✅ Mocne:** Jawny podział odpowiedzialności prezentacja/uprawnienia w nagłówku pliku; słownik i18n wydzielony do chunku trasy.
-- **⚠️ Słabe:** 1821 linii w jednej trasie z mutacjami inline; brak testów (szukałem admin.pricing w _.test._ — brak); operacje na kolejności (ArrowUp/Down) bez transakcji — teoretyczny wyścig dwóch adminów.
+- **⚠️ Słabe:** 1821 linii w jednej trasie z mutacjami inline; brak testów (szukałem admin.pricing w *.test.* — brak); operacje na kolejności (ArrowUp/Down) bez transakcji — teoretyczny wyścig dwóch adminów.
 - **🔧 Rekomendacje:**
   1. Wydzielić zakładki do komponentów i pokryć selektory kolejności testem; rozważyć RPC do zamiany sort_order atomowo.
 
 ### 13.20. Waluta prezentacji PLN/EUR i kurs NBP — **9/10**
-
-- **Pliki:** src/lib/billing/displayCurrency.ts:1-75, fxRate.ts:1-164, components/checkout/FxRateNotice.tsx, **tests**/displayCurrencyApprox.test.ts, couponAuditCurrency.test.ts
+- **Pliki:** src/lib/billing/displayCurrency.ts:1-75, fxRate.ts:1-164, components/checkout/FxRateNotice.tsx, __tests__/displayCurrencyApprox.test.ts, couponAuditCurrency.test.ts
 - **Co robi:** Dla języka EN ceny PLN są wyświetlane i rozliczane w EUR po kursie NBP (tabela A) z cache 6 h, retry 3×(250/750/2000 ms) i fallbackiem na ostatnią kotwicę; konwersja audytu kuponu trzyma niezmiennik `original = final + discount` w walucie docelowej; przybliżona kwota miesięczna kotwicy rocznej zaokrąglana w dół ("nigdy nie zawyża").
 - **Relacje:** Moduł 13.2/13.8/13.9 — jedna sync funkcja dla cennika, koszyka i server functions (ensureFxRateLoaded przed każdą kwotą do Stripe); Moduł 14 — audyt kuponów w walucie prezentacji.
 - **✅ Mocne:** Jedyna zewnętrzna zależność runtime potraktowana wzorcowo (ograniczony retry ~3 s, stan diagnostyczny FxState ze źródłem/stale); testy inwariantu rabatu.
@@ -3635,7 +3370,6 @@ Moduł to kompletny rdzeń monetyzacji: CMS-owy cennik segmentowany, dwa silniki
   1. Podnieść zdarzenie diagnostyczne/dzwonek admina, gdy `state.stale` trwa > 48 h (fxRate.ts) — cena EUR liczona z przeterminowanego kursu to ryzyko finansowe.
 
 ### 13.21. Nocna sonda CI odnowień i dunningu (Stripe Test Clock) — **9/10**
-
 - **Pliki:** src/lib/ci/billingRenewalProbe.ts (+ test), scripts/billing-renewal-probe.ts
 - **Co robi:** Czysta logika sondy: po przesunięciu Test Clocka muszą zgadzać się trzy niezależne fakty (nowa faktura `subscription_cycle` nieznana przy zbrojeniu, przesunięty okres rozliczeniowy, spójność stanu faktury i subskrypcji) — trzeci punkt wykrywa najgorszy scenariusz "dostęp bez płatności przy zielonych metrykach".
 - **Relacje:** Moduł 20 (Platforma/SSR) — workflow CI, bramka konektorów; testuje kontrakty 13.3/13.4 od strony operatora.
@@ -3644,9 +3378,8 @@ Moduł to kompletny rdzeń monetyzacji: CMS-owy cennik segmentowany, dwa silniki
 - **🔧 Rekomendacje:**
   1. Dołożyć do sondy lekki "live smoke": odczyt listy zdarzeń live z ostatniej doby i porównanie z dziennikiem (reużycie sondy `event` z reconcile.server) w trybie tylko-raport.
 
-### 13.22. Utrwalanie sesji operatora na zamówieniu (`payment_order_mark_session` + fallback roli serwisowej) — **7/10** _(nowa w delcie)_
-
-- **Pliki:** src/lib/billing/markOrderSession.server.ts:1-78 (nowy), src/lib/billing/**tests**/markOrderSession.test.ts:1-63 (nowy), supabase/migrations/20260811222216_176d4792-f49b-49e3-a163-d5f3def52068.sql:1-40 (nowa), wywołania: checkout.functions.ts:311/364/381/408/429, stripeCheckout.functions.ts:104/133/140, adhocCheckoutOrder.server.ts:7/178/182
+### 13.22. Utrwalanie sesji operatora na zamówieniu (`payment_order_mark_session` + fallback roli serwisowej) — **7/10** *(nowa w delcie)*
+- **Pliki:** src/lib/billing/markOrderSession.server.ts:1-78 (nowy), src/lib/billing/__tests__/markOrderSession.test.ts:1-63 (nowy), supabase/migrations/20260811222216_176d4792-f49b-49e3-a163-d5f3def52068.sql:1-40 (nowa), wywołania: checkout.functions.ts:311/364/381/408/429, stripeCheckout.functions.ts:104/133/140, adhocCheckoutOrder.server.ts:7/178/182
 - **Co robi:** Jedno miejsce zapisu `provider_session_id` i stanu przejściowego (`processing`/`failed`/`canceled`) na `payment_orders`. Najpierw RPC SECURITY DEFINER `payment_order_mark_session` (własność po `auth.uid()`, `paid_at IS NULL`, status wyłącznie z `pending`/`processing`, twarda odmowa dla stanów końcowych — migracja :14-22), a gdy RPC zwróci `false` albo błąd, zapis domyka rola serwisowa z tymi samymi warunkami minus własność (markOrderSession.server.ts:47-69). Zastępuje dziesięć bezpośrednich `supabase.from("payment_orders").update(...)` rozsianych po trzech silnikach checkoutu (5 w checkout.functions, 3 w stripeCheckout.functions, 2 w adhocCheckoutOrder.server).
 - **Relacje:** Moduł 13.2 (oba silniki checkoutu i ścieżka ad-hoc — jedyni konsumenci); Moduł 13.3/13.4 — webhook dopasowuje zdarzenie do zamówienia po `provider_session_id`, więc brak tego zapisu odcinał księgowanie po sesji; Moduł 13.23 — nowy panel wprost raportuje zamówienia bez sesji; Moduł 19 (authz/RLS) — RPC z `REVOKE ALL ... FROM PUBLIC` i `GRANT EXECUTE TO authenticated, service_role` (migracja :38-40); Moduł 20 (Platforma/SSR) — `supabaseAdmin` przez dynamiczny import, żeby klucz serwisowy nie wpadł do bundla klienta.
 - **✅ Mocne:** Delta domyka realny defekt P1, którego poprzednia edycja audytu nie nazwała: jedyną polityką UPDATE na `payment_orders` jest `orders admin update` (`has_role(auth.uid(),'admin')` — migracje 20260624172041:96-97 i 20260721052806:54-59), więc stary `update()` wykonywany klientem kupującego **filtrował się do zera wierszy bez żadnego błędu** — zamówienie zostawało `pending` bez `provider_session_id`, dokładnie jak opisuje nagłówek nowego pliku (:3-6). Nowy kod nigdy nie może ustawić `paid` ani ruszyć zamówienia już opłaconego (warunek `paid_at IS NULL` powtórzony w RPC i w fallbacku), loguje przyczynę degradacji, a test pokrywa trzy istotne przypadki (RPC true → bez roli serwisowej; RPC false → fallback; błąd RPC + brak sesji → kolumna nienadpisana).
@@ -3657,8 +3390,7 @@ Moduł to kompletny rdzeń monetyzacji: CMS-owy cennik segmentowany, dwa silniki
   3. pgTAP dla `payment_order_mark_session`: obcy użytkownik nie może oznaczyć cudzego zamówienia, `paid` i `refunded` są nieosiągalne, zamówienie opłacone jest nietykalne.
   4. Ujednolicić import (`import { markOrderSession }` na górze pliku, jak w adhocCheckoutOrder.server.ts) — osiem inline'owych `await import` w dwóch plikach to czysty szum.
 
-### 13.23. Rejestr zamówień płatniczych w panelu admina (zakładka „Płatności") — **7/10** _(nowa w delcie)_
-
+### 13.23. Rejestr zamówień płatniczych w panelu admina (zakładka „Płatności") — **7/10** *(nowa w delcie)*
 - **Pliki:** src/lib/billing/paymentOrders.server.ts:1-115 (nowy), paymentOrders.functions.ts:1-33 (nowy), src/components/admin/billing/AdminPaymentOrdersPanel.tsx:1-202 (nowy), podpięcie w AdminBillingPanel.tsx:25/307/434-435
 - **Co robi:** Lista wszystkich zamówień tenanta (data, pozycja z nazwą planu doczytaną z `access_plans`, kupujący, kwota z `Intl.NumberFormat` w walucie wiersza, status, identyfikator sesji) z filtrem po siedmiu statusach i podsumowaniem `total/stuck/paid/failed`, gdzie `stuck` to `pending`/`processing` **bez** `provider_session_id` — dokładnie sygnatura defektu naprawionego w 13.22. Odczyt świadomie przez `context.supabase` (RLS admina), nie rolą serwisową (nagłówek paymentOrders.server.ts:1-4).
 - **Relacje:** Moduł 13.22 — panel jest narzędziem obserwacyjnym dla tej naprawy; Moduł 13.14 (rekoncyliacja) — ta sama klasa rozbieżności („zamówienie wiszące mimo opłaconej sesji"), ale bez linku między panelami; Moduł 13.15 — zakładka w AdminBillingPanel; Moduł 19 (authz/RLS) — `requireSupabaseAuth` + polityka `orders owner read` (admin widzi tenanta, zwykły użytkownik tylko swoje); Moduł 15 (Profil/konto) — te same wiersze `payment_orders` czyta /profile/orders.
@@ -3670,9 +3402,8 @@ Moduł to kompletny rdzeń monetyzacji: CMS-owy cennik segmentowany, dwa silniki
   3. Zarejestrować klucz w `billingKeys.admin.paymentOrders(status)` i wpiąć w istniejącą mapę inwalidacji.
   4. Test modułu `loadPaymentOrders` (dołączanie nazw planów, klasyfikacja `stuck`, filtr statusu) — logika jest czysta i tania w pokryciu.
 
-### 13.24. Publiczna strona członkostwa /membership-join (trasa, SEO, kompozycja, słownik) — **7/10** _(nowa w delcie)_
-
-- **Pliki:** src/routes/membership-join.tsx:1-100 (nowa), src/lib/i18n-membership-join.ts:1-201 (nowy), src/lib/**tests**/i18nMembershipJoin.test.ts:1-31 (nowy), src/components/membership-join/atoms/JoinStat.tsx:1-23, molecules/JoinFeatureCard.tsx:1-43, molecules/JoinStepCard.tsx:1-30, organisms/JoinHero.tsx:1-70, JoinPillars.tsx:1-41, JoinPath.tsx:1-31, JoinAudience.tsx:1-38, JoinClosing.tsx:1-52
+### 13.24. Publiczna strona członkostwa /membership-join (trasa, SEO, kompozycja, słownik) — **7/10** *(nowa w delcie)*
+- **Pliki:** src/routes/membership-join.tsx:1-100 (nowa), src/lib/i18n-membership-join.ts:1-201 (nowy), src/lib/__tests__/i18nMembershipJoin.test.ts:1-31 (nowy), src/components/membership-join/atoms/JoinStat.tsx:1-23, molecules/JoinFeatureCard.tsx:1-43, molecules/JoinStepCard.tsx:1-30, organisms/JoinHero.tsx:1-70, JoinPillars.tsx:1-41, JoinPath.tsx:1-31, JoinAudience.tsx:1-38, JoinClosing.tsx:1-52
 - **Co robi:** Statyczna trasa `/membership-join` (zarejestrowana w routeTree.gen.ts:36/428-429) zastępująca zaimportowaną z WordPressa stronę pod tym samym slugiem: hero z H1, czterema liczbami dowodowymi i CTA zależnym od sesji (zalogowany → /profile, gość → /membership-registration), cztery filary korzyści, trzy kroki dołączenia jako `<ol>`, trzy segmenty odbiorców, sekcja oferty (13.25) i domknięcie z CTA. SEO z `staticPageSeoQueryOptions("membership-join")` — tytuł/opis/OG/canonical/`noindex` z tabeli `pages`, z pełnym fallbackiem PL/EN w kodzie. Loader prefetchuje cztery źródła (SEO, segmenty, warstwy, plany), każde z osobnym `.catch(() => null)`, więc strona wstaje nawet przy niedostępnej ofercie.
 - **Relacje:** Moduł 8 (SEO/feedy) — `staticPageSeoQueryOptions`, `pickStaticSeo`, canonical, `activeLang`/`getRequestUrl`; Moduł 1/3 (Wpisy-czytelnik/Silniki treści) — trasa statyczna wygrywa z resolverem CMS `$.tsx`, więc świadomie nadpisuje dokument buildera pod tym slugiem; Moduł 15 (Profil/konto) — CTA zalogowanego prowadzi do /profile, słownik `i18n-profile` doładowywany w chunku trasy; Moduł 19 (authz) — `useAuth().session` rozstrzyga wariant CTA; Moduł 13.8 — link „Zobacz plany i ceny" do /pricing w dwóch miejscach; Moduł 20 (Platforma/SSR) — loader SSR, `ensureI18n()` trzymający słownik w chunku trasy.
 - **✅ Mocne:** Słownik ma pełną parzystość PL/EN pilnowaną testem, który dodatkowo blokuje puste wartości i pauzę typograficzną (i18nMembershipJoin.test.ts:20-30) — to jedyny nowy plik delty z testem po stronie UI. Semantyka sekcji jest konsekwentna: każda ma `aria-labelledby` na własnym `h2`, kroki są `<ol>` z numerem w treści a nie w tle (komentarz w JoinStepCard.tsx:1-2 uzasadnia to wprost), jedyny `h1` siedzi w hero (komentarz w membership-join.tsx:90), a dekoracje mają `aria-hidden`. `errorComponent` z `role="alert"` domyka błąd loadera.
@@ -3683,8 +3414,7 @@ Moduł to kompletny rdzeń monetyzacji: CMS-owy cennik segmentowany, dwa silniki
   3. Poprawić semantykę hero: `<dl>` z parami `<dt>`/`<dd>` w `JoinStat` (wariant `as="dt"/"dd"`), albo zwykły `<ul>` — dziś struktura jest formalnie niepoprawna.
   4. Test komponentowy hero/closing na wariancie sesji (gość widzi „Załóż konto", zalogowany „Przejdź do profilu") — to jedyna logika warunkowa na tej stronie.
 
-### 13.25. Sekcja oferty na stronie dołączenia (JoinTiers) — **6/10** _(nowa w delcie)_
-
+### 13.25. Sekcja oferty na stronie dołączenia (JoinTiers) — **6/10** *(nowa w delcie)*
 - **Pliki:** src/components/membership-join/organisms/JoinTiers.tsx:1-234 (nowy), reużywane: components/pricing/TierCard, AudienceSwitcher, audienceMeta, IntervalToggle, SupporterStrip, ContactSalesDialog, lib/pricing/selectors.ts, lib/billing/tiers.ts, lib/billing/queries.ts
 - **Co robi:** Druga (po /pricing) publiczna powierzchnia sprzedaży: te same dane (`pricing_audiences`, `membership_tiers`, `access_plans`, `fetchMySubscription`, `useCurrentTier`), ten sam przełącznik segmentów i cykli, ten sam spotlight „co wyróżnia ten plan" (`distinguishingBenefits` względem warstwy o niższej randze), pasek Supportera i dialog kontaktu ze sprzedażą, plus szkielet ładowania i pusty stan. Karty i CTA (a więc wejście do lejka 13.9) są w 100% współdzielone z cennikiem.
 - **Relacje:** Moduł 13.8 — te same selektory i komponenty prezentacji (jedyna warstwa, w której oferta nie może się rozjechać); Moduł 13.17 — `membership_tiers`/`parseTierBenefits`, `useCurrentTier` do oznaczenia bieżącej warstwy; Moduł 13.9 — CTA karty prowadzi do /checkout/$planId; Moduł 18 (CRM) — `ContactSalesDialog` zakłada lead sprzedażowy; Moduł 12 (Realtime/powiadomienia) — `billingKeys.plansActive()`/`mySubscription(uid)` w mapie inwalidacji; Moduł 19 (authz) — `useAuth().session` włącza zapytanie o subskrypcję.
@@ -3697,29 +3427,28 @@ Moduł to kompletny rdzeń monetyzacji: CMS-owy cennik segmentowany, dwa silniki
   4. Domyślny cykl kotwicy wziąć z jednego miejsca (patrz rekomendacja 13.8 o `pricing_audiences.default_interval`), żeby nie było dwóch źródeł prawdy.
 
 ### Podsumowanie modułu 13
-
 - **Średnia ocen funkcji:** 8,2 (205/25) · **Rozkład:** 11× 9-10 / 13× 7-8 / 1× 5-6 / 0× <5
-- _Przed odświeżeniem (1788ffb): 8,5 · 11× 9-10 / 10× 7-8 / 0× 5-6. Spadek nie wynika z regresji w istniejących funkcjach — żadna ocena 13.1-13.21 się nie zmieniła — a z tego, że delta dołożyła cztery funkcje o ocenach 7/7/7/6, w tym pierwszą w module funkcję z oceną 6 (13.25)._
+- *Przed odświeżeniem (1788ffb): 8,5 · 11× 9-10 / 10× 7-8 / 0× 5-6. Spadek nie wynika z regresji w istniejących funkcjach — żadna ocena 13.1-13.21 się nie zmieniła — a z tego, że delta dołożyła cztery funkcje o ocenach 7/7/7/6, w tym pierwszą w module funkcję z oceną 6 (13.25).*
 
 - **Relacje modułu (zbiorczo):**
 
-| Moduł                     | Mechanizm                                                                                                                                                                                                                                                                         | Kierunek zależności           |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
-| 1 Wpisy-czytelnik         | import gating.ts/metering.ts/Paywall w trasie treści; RPC get_entity_content; inwalidacja ["public","resolved"]                                                                                                                                                                   | M1 → M13 (konsumuje bramkę)   |
-| 3 Silniki treści          | widgety buildera PricingPlansView, PurchaseConfirmationView; dokument checkout-success; **NOWE: trasa /membership-join wygrywa z resolverem CMS `$.tsx` i unieważnia dokument buildera pod tym slugiem — bez wpisu w `CODE_PAGES`, więc redakcja nie jest o tym uprzedzona**      | M13 → M3 (render)             |
-| 4 Motyw/media             | AccessEntityType "media" w regułach dostępu                                                                                                                                                                                                                                       | M13 → M4                      |
-| 8 SEO/feedy               | staticPageSeo na /pricing **i /membership-join**, head/canonical planów                                                                                                                                                                                                           | M13 → M8                      |
-| 9 Czat                    | gating funkcji czatu po features warstwy (migracja chat_plus_tier_gating)                                                                                                                                                                                                         | M9 → M13 (czyta tier)         |
-| 10 Sieć/eksperci          | teamSeats.server (miejsca planu Zespół), VIP eksperta jako membership_grant, expert_request_quota z features                                                                                                                                                                      | dwukierunkowa                 |
-| 11 Newsletter             | sendTxEmail (maile transakcyjne billingowe), premiumNewsletter.ts (auto-zapis po zakupie)                                                                                                                                                                                         | M13 → M11                     |
-| 12 Realtime/powiadomienia | insert notifications (dzwonek billing), billingKeys w mapie inwalidacji szyny zdarzeń                                                                                                                                                                                             | M13 → M12                     |
-| 14 Monetyzacja-uzup.      | RPC validate/redeem/release_b2b_coupon, couponEffects, darowizny w dispatcherze, kontroferta retencyjna, wspólna tożsamość gościa (gift links)                                                                                                                                    | dwukierunkowa (najściślejsza) |
-| 15 Profil/konto           | karty billing w hubie profilu, BillingProfileForm, accountClosure (anulowanie subskrypcji przy usunięciu konta)                                                                                                                                                                   | dwukierunkowa                 |
-| 16 Społeczność-admin      | bilety wydarzeń: events, assertSeatAvailable, event_rsvps; panel biletów w /admin/billing; **NOWE: domeny weryfikacyjne nadają warstwę członkostwa (`verification_domains.grants_tier_key` → `membership_grants.source='org_domain'` → ramię UNION w `current_membership_tier`)** | dwukierunkowa                 |
-| 17 Analityka/BI           | log_metering_event, duration_ms webhooków, statusy zdarzeń dla dashboardu monetyzacji                                                                                                                                                                                             | M17 → M13 (czyta)             |
-| 18 CRM                    | syncCrmSubscriptionState (won/archived, tagi plan:*), retention→CRM bridge, ContactSalesDialog                                                                                                                                                                                    | M13 → M18                     |
-| 19 Ustawienia/authz/RODO  | requireSupabaseAuth, RLS (pgTAP tenant_isolation_billing), retencja/anonimizacja payment_orders (user_id NULL)                                                                                                                                                                    | M13 → M19                     |
-| 20 Platforma/SSR          | server functions, runAfterResponse, rateLimit, bramka konektorów, chunking lazy (check:entry-purity), cron                                                                                                                                                                        | M13 → M20                     |
+| Moduł | Mechanizm | Kierunek zależności |
+|---|---|---|
+| 1 Wpisy-czytelnik | import gating.ts/metering.ts/Paywall w trasie treści; RPC get_entity_content; inwalidacja ["public","resolved"] | M1 → M13 (konsumuje bramkę) |
+| 3 Silniki treści | widgety buildera PricingPlansView, PurchaseConfirmationView; dokument checkout-success; **NOWE: trasa /membership-join wygrywa z resolverem CMS `$.tsx` i unieważnia dokument buildera pod tym slugiem — bez wpisu w `CODE_PAGES`, więc redakcja nie jest o tym uprzedzona** | M13 → M3 (render) |
+| 4 Motyw/media | AccessEntityType "media" w regułach dostępu | M13 → M4 |
+| 8 SEO/feedy | staticPageSeo na /pricing **i /membership-join**, head/canonical planów | M13 → M8 |
+| 9 Czat | gating funkcji czatu po features warstwy (migracja chat_plus_tier_gating) | M9 → M13 (czyta tier) |
+| 10 Sieć/eksperci | teamSeats.server (miejsca planu Zespół), VIP eksperta jako membership_grant, expert_request_quota z features | dwukierunkowa |
+| 11 Newsletter | sendTxEmail (maile transakcyjne billingowe), premiumNewsletter.ts (auto-zapis po zakupie) | M13 → M11 |
+| 12 Realtime/powiadomienia | insert notifications (dzwonek billing), billingKeys w mapie inwalidacji szyny zdarzeń | M13 → M12 |
+| 14 Monetyzacja-uzup. | RPC validate/redeem/release_b2b_coupon, couponEffects, darowizny w dispatcherze, kontroferta retencyjna, wspólna tożsamość gościa (gift links) | dwukierunkowa (najściślejsza) |
+| 15 Profil/konto | karty billing w hubie profilu, BillingProfileForm, accountClosure (anulowanie subskrypcji przy usunięciu konta) | dwukierunkowa |
+| 16 Społeczność-admin | bilety wydarzeń: events, assertSeatAvailable, event_rsvps; panel biletów w /admin/billing; **NOWE: domeny weryfikacyjne nadają warstwę członkostwa (`verification_domains.grants_tier_key` → `membership_grants.source='org_domain'` → ramię UNION w `current_membership_tier`)** | dwukierunkowa |
+| 17 Analityka/BI | log_metering_event, duration_ms webhooków, statusy zdarzeń dla dashboardu monetyzacji | M17 → M13 (czyta) |
+| 18 CRM | syncCrmSubscriptionState (won/archived, tagi plan:*), retention→CRM bridge, ContactSalesDialog | M13 → M18 |
+| 19 Ustawienia/authz/RODO | requireSupabaseAuth, RLS (pgTAP tenant_isolation_billing), retencja/anonimizacja payment_orders (user_id NULL) | M13 → M19 |
+| 20 Platforma/SSR | server functions, runAfterResponse, rateLimit, bramka konektorów, chunking lazy (check:entry-purity), cron | M13 → M20 |
 
 - **5 najpilniejszych rekomendacji (po odświeżeniu o deltę):**
   1. **(13.12)** Naprawić `return_url` portalu klienta: `/profil` → `/profile/plan`, budować z nagłówków żądania i usunąć fallback `example.com` (portalLink.server.ts:60-62) — dziś każdy powrót z portalu Stripe kończy się na 404. **Pozycja nr 1 również w poprzedniej edycji; 699 commitów delty nie tknęło tego pliku.**
@@ -3727,9 +3456,9 @@ Moduł to kompletny rdzeń monetyzacji: CMS-owy cennik segmentowany, dwa silniki
   3. **(13.16 + 13.18)** Zwalidować plan cykliczny przy zapisie w adminie względem `BILLING_CATALOG` (ostrzeżenie "plan nie będzie sprzedawalny"), docelowo przenieść katalog do bazy — nowa oferta nie może wymagać deployu kodu.
   4. **(13.18)** Przenieść CRUD access_plans z bezpośrednich zapisów klienckich do server function z walidacją zod i blokadą usunięcia planu z aktywnymi subskrypcjami — wzorzec do skopiowania powstał w tej samej delcie (paymentOrders.functions.ts).
   5. **(13.24 + 13.25, nowe)** Domknąć nową powierzchnię /membership-join: dopisać slug do `CODE_PAGES` (+ odwrotny kierunek w codePages.test) i wyciągnąć wspólną sekcję warstw z pricing.tsx do jednego organizmu, żeby przepustki, plany-sieroty i deep-link `?audience=` nie ginęły w kopii.
-- _Wypadło z top 5 (ale zostaje w rekomendacjach funkcji): konsolidacja dwóch silników checkoutu z `_applied_cents` (13.2) oraz testy UI lejka — Paywall.tsx i trasa /checkout/$planId (13.6 + 13.9). Delta powiększyła dług testowy UI (dziewięć nowych komponentów bez testu komponentowego), ale nie zmieniła jego pilności względem czterech pozycji powyżej._
+- *Wypadło z top 5 (ale zostaje w rekomendacjach funkcji): konsolidacja dwóch silników checkoutu z `_applied_cents` (13.2) oraz testy UI lejka — Paywall.tsx i trasa /checkout/$planId (13.6 + 13.9). Delta powiększyła dług testowy UI (dziewięć nowych komponentów bez testu komponentowego), ale nie zmieniła jego pilności względem czterech pozycji powyżej.*
 
-**Odświeżenie delty 1788ffb→a9b9e14:** wskazany zakres modułu tknięty przez 29 commitów, 19 plików / +1179 −29 linii: 7 plików w src/lib/billing (3 zmodyfikowane — adhocCheckoutOrder.server, checkout.functions, stripeCheckout.functions; 4 nowe — markOrderSession.server, paymentOrders.server, paymentOrders.functions, **tests**/markOrderSession.test), 9 nowych komponentów membership-join, nowa trasa membership-join.tsx, nowy słownik i18n-membership-join.ts, zmodyfikowana trasa checkout.$planId.tsx. Poza wskazanym zakresem delta dorzuciła jeszcze 2 pliki w components/admin/billing (1 nowy panel + podpięcie), 1 nowy test i18n (src/lib/**tests**/i18nMembershipJoin.test.ts) i 2 istotne migracje (`payment_order_mark_session`, `verification_domain_tier`). Sekcja urosła z 21 do 25 funkcji, ocena modułu z 8,5 na 8,2.
+**Odświeżenie delty 1788ffb→a9b9e14:** wskazany zakres modułu tknięty przez 29 commitów, 19 plików / +1179 −29 linii: 7 plików w src/lib/billing (3 zmodyfikowane — adhocCheckoutOrder.server, checkout.functions, stripeCheckout.functions; 4 nowe — markOrderSession.server, paymentOrders.server, paymentOrders.functions, __tests__/markOrderSession.test), 9 nowych komponentów membership-join, nowa trasa membership-join.tsx, nowy słownik i18n-membership-join.ts, zmodyfikowana trasa checkout.$planId.tsx. Poza wskazanym zakresem delta dorzuciła jeszcze 2 pliki w components/admin/billing (1 nowy panel + podpięcie), 1 nowy test i18n (src/lib/__tests__/i18nMembershipJoin.test.ts) i 2 istotne migracje (`payment_order_mark_session`, `verification_domain_tier`). Sekcja urosła z 21 do 25 funkcji, ocena modułu z 8,5 na 8,2.
 
 - **Co naprawiono.** (1) Utrwalanie sesji operatora na zamówieniu — dziesięć bezpośrednich `update()` na `payment_orders` (które przy RLS kupującego filtrowały się do zera wierszy, bo jedyna polityka UPDATE to `orders admin update`) zastąpiono wspólnym `markOrderSession` z RPC SECURITY DEFINER i fallbackiem roli serwisowej; był to defekt P1 przemilczany w poprzedniej edycji audytu — bez `provider_session_id` webhook nie miał czym dopasować zdarzenia do zamówienia (13.22, 13.2). (2) Ramka Stripe na /checkout/$planId wyszła z 360-pikselowej kolumny podsumowania na pełną szerokość kontenera i strona przewija do niej po utworzeniu sesji — koniec objawu „przycisk nic nie zrobił" na mobile (13.9). (3) Admin dostał obserwowalność tego obszaru: zakładka „Płatności" z listą zamówień i jawnym licznikiem zamówień bez sesji operatora (13.23, 13.15).
 - **Co doszło.** (1) Cała nowa publiczna powierzchnia sprzedaży /membership-join: trasa z SEO z tabeli `pages` i czterema niezależnie degradującymi źródłami w loaderze, dziewięć komponentów w atoms/molecules/organisms, słownik PL/EN (201 linii) z testem parzystości blokującym puste wartości (13.24), oraz sekcja oferty reużywająca karty, przełączniki i selektory cennika (13.25). (2) Moduł odczytu zamówień admina: `paymentOrders.server.ts` + cienka server function z zod + panel 202 linii (13.23). (3) Nowe źródło warstwy członkostwa spoza modułu: domena e-mail organizacji nadaje `membership_grants.source='org_domain'`, który wchodzi do tego samego ramienia UNION w `current_membership_tier` co płatna subskrypcja (13.17). (4) Dwa nowe testy jednostkowe (markOrderSession — 3 przypadki, parzystość i18n) — obie nowe funkcje serwerowe mają pokrycie, cała nowa warstwa UI nie ma żadnego.
@@ -3739,14 +3468,13 @@ Moduł to kompletny rdzeń monetyzacji: CMS-owy cennik segmentowany, dwa silniki
 
 ## Moduł 14 — Monetyzacja uzupełniająca: kupony, darowizny, prezenty, reklamy
 
-**Zakres zbadany:** src/components/AdSlot.tsx, src/components/ads/** (AdSlotById, MidPostAds, FooterSlideup, useInFeedAds, atoms/, **tests**/), src/lib/ads/** (types, queries, consent, dimensions, idle, pageType, readingMode, useDeferredAd, **tests**/), src/components/donations/** + src/lib/billing/{donations.server,donations.functions,donationsAdmin.server,donationsAdmin.functions,donationsConfig,donationsConfigQuery,donationTarget,donationsExternal}.ts, src/components/gifting/** + src/lib/gifting/{model,hooks,admin-model}.ts + src/lib/gifting-admin.functions.ts, src/hooks/useValidateCoupon.ts + src/lib/billing/{coupons,couponMoney,couponEffects.server}.ts + src/components/admin/coupons/DatePickerField.tsx, trasy: donate.tsx, support.tsx, admin.donations.tsx, admin.gifting.tsx, admin.ads.tsx, admin.coupons.{tsx,index,campaigns,analytics,redemptions}.tsx, api/public/ad-event.ts; wiring: $.tsx, Header.tsx, ArchiveSidebar.tsx, index/blog.index/search.tsx, admin.settings.reading.tsx; lib/newsletter-campaigns.functions.ts (weryfikacja integracji kampanii); migracje: 20260714111000_donations, 20260722112736, 20260724090600, 20260806170000, 20260721082414, 20260725090200/300; pgTAP: share_full_article_budget_test.sql, coupon_effects_after_payment_test.sql · **Funkcji:** 21 · **Ocena modułu:** 7,7/10
+**Zakres zbadany:** src/components/AdSlot.tsx, src/components/ads/** (AdSlotById, MidPostAds, FooterSlideup, useInFeedAds, atoms/, __tests__/), src/lib/ads/** (types, queries, consent, dimensions, idle, pageType, readingMode, useDeferredAd, __tests__/), src/components/donations/** + src/lib/billing/{donations.server,donations.functions,donationsAdmin.server,donationsAdmin.functions,donationsConfig,donationsConfigQuery,donationTarget,donationsExternal}.ts, src/components/gifting/** + src/lib/gifting/{model,hooks,admin-model}.ts + src/lib/gifting-admin.functions.ts, src/hooks/useValidateCoupon.ts + src/lib/billing/{coupons,couponMoney,couponEffects.server}.ts + src/components/admin/coupons/DatePickerField.tsx, trasy: donate.tsx, support.tsx, admin.donations.tsx, admin.gifting.tsx, admin.ads.tsx, admin.coupons.{tsx,index,campaigns,analytics,redemptions}.tsx, api/public/ad-event.ts; wiring: $.tsx, Header.tsx, ArchiveSidebar.tsx, index/blog.index/search.tsx, admin.settings.reading.tsx; lib/newsletter-campaigns.functions.ts (weryfikacja integracji kampanii); migracje: 20260714111000_donations, 20260722112736, 20260724090600, 20260806170000, 20260721082414, 20260725090200/300; pgTAP: share_full_article_budget_test.sql, coupon_effects_after_payment_test.sql · **Funkcji:** 21 · **Ocena modułu:** 7,7/10
 
 Moduł spina cztery niezależne strumienie przychodu uzupełniającego: system reklamowy first-party (sloty + placementy + telemetria), własny checkout darowizn na Stripe, gifting artykułów w stylu NYT ("Udostępnij pełny artykuł") oraz kupony B2B z kampaniami masowymi. Stan ogólny jest solidnie produkcyjny — gifting i darowizny to najlepiej zaprojektowane i najlepiej przetestowane części (czysta logika domenowa, idempotencja, egzekwowanie serwerowe, pgTAP), system reklamowy ma wzorcową higienę CWV i bezpieczeństwa (sandbox iframe, rezerwacja layoutu, zgody RODO z GPC). Najsłabszym ogniwem są kupony po stronie panelu: kampanie kuponowe obiecują wysyłkę spersonalizowanych kodów newsletterem, ale merge tag `{{coupon_code}}` i filtr segmentu **nie mają wykonawcy** w silniku newslettera — przycisk "Wyślij" tworzy pustą obietnicę i oznacza kampanię jako "sent" bez żadnej wysyłki.
 
 ---
 
 ### 14.1. Renderer slotów i stref reklamowych (AdSlotView / AdZone) — **8,5/10**
-
 - **Pliki:** src/components/AdSlot.tsx:34-169, src/components/ads/atoms/AdContainer.tsx:31-60, src/lib/ads/queries.ts:32-83, src/lib/ads/types.ts:1-96, src/lib/ads/pageType.ts:19-33
 - **Co robi:** Renderuje pojedynczy slot (3 typy: html/script/image) w zarezerwowanym kontenerze i strefę `AdZone` dla pozycji (7 pozycji × 8 typów stron). Pobieranie placementów filtruje okno czasowe emisji (starts_at/ends_at) zarówno w zapytaniu, jak i w RLS; targeting dopasowywany per obserwator w `select` react-query (wspólny fetch, klucz `["ad_placements", position, pageType, pageId]`).
 - **Relacje:** Moduł 1 (Wpisy-czytelnik) — $.tsx renderuje AdZone top/bottom_of_post; Moduł 5 (Chrome/nawigacja) — Header.tsx:163 renderuje header_banner z `adPageTypeForLocation`; Moduł 3 (Silniki treści) — AdSlotById jako widget buildera (WidgetView/lazyWidgets); Moduł 17 (Analityka/BI) — beacon impresji/kliknięć; Moduł 19 (RODO) — bramka `requires_consent`.
@@ -3757,7 +3485,6 @@ Moduł spina cztery niezależne strumienie przychodu uzupełniającego: system r
   2. Udokumentować w AdSlotById.tsx, że syntetyczny `placement.id` celowo nie przejdzie weryfikacji ingestu (zdarzenie liczone per slot).
 
 ### 14.2. Sandbox bezpieczeństwa kreacji html/script (SandboxedAdFrame) — **8/10**
-
 - **Pliki:** src/components/ads/atoms/SandboxedAdFrame.tsx:24-64
 - **Co robi:** Izoluje dowolny HTML/JS z panelu w `iframe sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"` (bez `allow-same-origin` = opaque origin, brak dostępu do cookies/localStorage/DOM strony) — domyka stored XSS przez sloty reklamowe. Heurystyka zaangażowania w stylu SafeFrame: blur okna przy `activeElement === iframe` = kliknięcie w kreację (raz na montaż).
 - **Relacje:** Moduł 19 (Ustawienia/authz) — model zagrożeń "przejęte konto edytora"; Moduł 20 (Platforma/SSR) — dziedziczenie CSP strony przez srcdoc.
@@ -3767,18 +3494,16 @@ Moduł spina cztery niezależne strumienie przychodu uzupełniającego: system r
   1. Zaktualizować etykietę/hint typu "script" w admin.ads.tsx i AD_SLOT_KIND_LABELS — jasno powiedzieć, że zewnętrzne źródła skryptów wymagają zmiany CSP; alternatywnie dodać allowlistę hostów sieci reklamowych w CSP.
 
 ### 14.3. Opóźnione ładowanie i rezerwacja przestrzeni (CWV) — **8,5/10**
-
 - **Pliki:** src/lib/ads/useDeferredAd.ts:34-77, src/lib/ads/idle.ts:31-43, src/lib/ads/dimensions.ts:29-70
 - **Co robi:** Dwie bramki ładowania payloadu (idle po pierwszym paincie przez `requestIdleCallback` z fallbackiem 32 ms, oraz IntersectionObserver z `rootMargin: 200px`), plus strategia rezerwacji boxu: aspect-ratio → min-height → fallback per pozycja (wysokości dobrane do formatów IAB).
 - **Relacje:** Moduł 20 (Platforma/SSR) — degradacja SSR/braku IO do "idle-only"; Moduł 17 (Analityka) — beacon impresji odpalany dopiero po otwarciu bramek (uczciwe metryki).
 - **✅ Mocne:** Testy jednostkowe idle.test.ts (fallback, cancel) i dimensions.test.ts (wszystkie 3 strategie); poprawne sprzątanie observerów; opcja `disabled` nie podpina observerów przy zablokowanej zgodzie.
-- **⚠️ Słabe:** Brak testu samego hooka useDeferredAd (kompozycja bramek) — szukałem w src/lib/ads/**tests**/, jest tylko idle/dimensions/pageType/targeting.
+- **⚠️ Słabe:** Brak testu samego hooka useDeferredAd (kompozycja bramek) — szukałem w src/lib/ads/__tests__/, jest tylko idle/dimensions/pageType/targeting.
 - **🔧 Rekomendacje:**
   1. Dodać test useDeferredAd (renderHook + mock IO) weryfikujący koniunkcję bramek i `disabled` — to jedyny nieprzetestowany element łańcucha CWV.
 
 ### 14.4. Targeting treściowo-językowy slotów — **8/10**
-
-- **Pliki:** src/lib/ads/types.ts:109-164 (parseAdTargeting, matchesAdTargeting, adTargetingToJson), src/routes/admin.ads.tsx:138-228 (TargetingEditor), src/lib/ads/**tests**/targeting.test.ts
+- **Pliki:** src/lib/ads/types.ts:109-164 (parseAdTargeting, matchesAdTargeting, adTargetingToJson), src/routes/admin.ads.tsx:138-228 (TargetingEditor), src/lib/ads/__tests__/targeting.test.ts
 - **Co robi:** Kolumna jsonb `ad_slots.targeting` zawęża emisję do slugów kategorii/tagów (semantyka OR) i wersji językowej (pl/en). Edytor chipów w panelu korzysta z katalogu zainteresowań; strony postów przekazują `AdContentContext` (slugi taksonomii wpisu).
 - **Relacje:** Moduł 10 (Sieć/eksperci) / Moduł 15 — `useInterestCatalog` (wspólny katalog kategorii/tagów); Moduł 1 (Wpisy-czytelnik) — kontekst treści z loadera $.tsx.
 - **✅ Mocne:** Defensywne parsowanie jsonb (uszkodzone struktury → pusty targeting); testy jednostkowe semantyki OR, filtrowania śmieci i klamry językowej; slugi zamiast id (stabilne między środowiskami, uzasadnione w komentarzu).
@@ -3787,41 +3512,37 @@ Moduł spina cztery niezależne strumienie przychodu uzupełniającego: system r
   1. Przekazywać slug bieżącej taksonomii jako `content` w ArchiveSidebar/ArchiveBody — archiwum kategorii to naturalne miejsce emisji slotu targetowanego tą kategorią.
 
 ### 14.5. Strefy specjalne: mid-post, in-feed, footer slide-up — **7,5/10**
-
 - **Pliki:** src/components/ads/MidPostAds.tsx:32-87, src/components/ads/FooterSlideup.tsx:20-101, src/components/ads/useInFeedAds.tsx:28-42, wiring: src/routes/$.tsx:1029,1194,1214,1277, index.tsx:408, blog.index.tsx:166, search.tsx:202
 - **Co robi:** MidPostAds wstrzykuje kreacje po N-tym paragrafie przez createPortal (twardy sufit 2 wstawki/artykuł); FooterSlideup to przyklejony pasek z opóźnieniem, zamykany per sesja, koordynowany z popupami (`requestOverlaySlot`, priorytet -1); useInFeedAds zwraca renderer "co N kart" współdzielony przez home/blog/archiwa/szukajkę.
 - **Relacje:** Moduł 5 (Chrome) — overlayCoordinator (wspólny budżet przerwań z popupami); Moduł 1 (Wpisy) — portal do articleRef; Moduł 6 (Wyszukiwarka) — in-feed w wynikach wyszukiwania.
 - **✅ Mocne:** Cap MAX_MID_POST_ADS=2 z uzasadnieniem audytowym w komentarzu; sprzątanie hostów portalu w cleanup; slide-up honoruje sessionStorage dismiss i nie nakłada się na popupy; degradacja przy błędach storage.
-- **⚠️ Słabe:** Brak testów wszystkich trzech komponentów (szukałem w src/components/ads/**tests**/ — jest tylko AdSlotView.test.tsx); MidPostAds skanuje wszystkie `<p>` bez rozróżnienia zagnieżdżeń (paragraf w blockquote/figure liczy się tak samo — akceptowalne, ale nieudokumentowane).
+- **⚠️ Słabe:** Brak testów wszystkich trzech komponentów (szukałem w src/components/ads/__tests__/ — jest tylko AdSlotView.test.tsx); MidPostAds skanuje wszystkie `<p>` bez rozróżnienia zagnieżdżeń (paragraf w blockquote/figure liczy się tak samo — akceptowalne, ale nieudokumentowane).
 - **🔧 Rekomendacje:**
   1. Test jednostkowy placementsAfterCard (useInFeedAds) — czysta funkcja, zerowy koszt testu, a niesie arytmetykę "co N kart".
   2. Test MidPostAds z jsdom (wstrzyknięcie po N-tym paragrafie, cap 2, cleanup) — to najbardziej kruchy DOM-owy fragment systemu reklam.
 
 ### 14.6. Budżet reklam trybu czytania (reading mode) — **7,5/10**
-
 - **Pliki:** src/lib/ads/readingMode.ts:39-83 (POST_AD_PRIORITY, useReadingAdBudget), src/routes/admin.settings.reading.tsx (edycja), wiring: $.tsx:591,927,1029,1160,1194
 - **Co robi:** Globalny, między-strefowy limit liczby stref reklamowych na stronie artykułu: priorytety stref (top=0 … slideup=4), budżet N z `site_settings["reading"]` osobno dla czytelników darmowych (domyślnie 2) i płacących (domyślnie 1); przed rozstrzygnięciem rangi planu przyjmuje budżet płacącego (świadomy wybór anty-migotaniowy).
 - **Relacje:** Moduł 13 (Monetyzacja-core) — `useCurrentTier` (rank płatnego planu); Moduł 19 (Ustawienia) — klucz site_settings `reading` współdzielony z ustawieniami czytania/TTS; Moduł 1 (Wpisy) — egzekwowanie w $.tsx.
 - **✅ Mocne:** Clamp wartości (0..8) odporny na śmieci w site_settings; wyłącznik całości z fallbackiem na stare zachowanie; komentarz wiąże implementację z konkretnym P0 z audytu produktowego.
-- **⚠️ Słabe:** Zero testów jednostkowych readingMode.ts (szukałem readingMode w plikach _.test._ — brak trafień), mimo że to czysta arytmetyka priorytetów idealna do testu; budżet gate'uje strefy statycznie (priorytet < N), więc gdy strefa o wyższym priorytecie nie ma placementów, niższa i tak nie wejdzie (budżet "slotów potencjalnych", nie faktycznych emisji).
+- **⚠️ Słabe:** Zero testów jednostkowych readingMode.ts (szukałem readingMode w plikach *.test.* — brak trafień), mimo że to czysta arytmetyka priorytetów idealna do testu; budżet gate'uje strefy statycznie (priorytet < N), więc gdy strefa o wyższym priorytecie nie ma placementów, niższa i tak nie wejdzie (budżet "slotów potencjalnych", nie faktycznych emisji).
 - **🔧 Rekomendacje:**
-  1. Dodać src/lib/ads/**tests**/readingMode.test.ts: clamp, wyłącznik, budżet free/paid, zachowanie `isPending` — funkcja steruje przychodem i doświadczeniem płacących, a nie ma żadnej siatki bezpieczeństwa.
+  1. Dodać src/lib/ads/__tests__/readingMode.test.ts: clamp, wyłącznik, budżet free/paid, zachowanie `isPending` — funkcja steruje przychodem i doświadczeniem płacących, a nie ma żadnej siatki bezpieczeństwa.
   2. Rozważyć budżet dynamiczny (licznik faktycznie wyemitowanych stref) — obecnie płacący z budżetem 1 może nie zobaczyć żadnej reklamy, jeśli top_of_post nie ma placementu.
 
 ### 14.7. Telemetria reklam: beacon, ingest, statystyki — **7/10**
-
 - **Pliki:** src/routes/api/public/ad-event.ts:23-99, src/lib/analytics/events.ts:12-26, src/routes/admin.ads.tsx:713-791 (StatsPanel)
 - **Co robi:** `beaconAdEvent` (sendBeacon, tylko przy zgodzie marketingowej) → POST /api/public/ad-event: rate limit 60/IP, walidacja UUID, rozwiązanie tenanta z hosta, weryfikacja własności slotu i placementu w bazie (anty-zatruwanie metryk cross-tenant), insert do `ad_events` przez service-role. Panel liczy impresje/kliki/CTR per slot.
 - **Relacje:** Moduł 17 (Analityka/BI) — tabela ad_events konsumowana przez warstwę semantyczną (migracja 20260725120000_analytics_semantic_layer); Moduł 19 (RODO) — bramka zgody w beaconie zgodna z deklaracją banera; Moduł 20 (Platforma) — rateLimit, resolveTenantIdForHost, redactUrl.
 - **✅ Mocne:** Wzorcowy ingest fire-and-forget (każda ścieżka → 204, błędy połknięte); weryfikacja własności slot/placement per tenant zamiast zaufania klientowi; redakcja URL ścieżki; impresja liczona dopiero po bramkach consent+deferred (AdSlot.tsx:48-53).
-- **⚠️ Słabe:** StatsPanel wykonuje 2 zapytania `count` na KAŻDY slot (admin.ads.tsx:724-740) — komentarz przyznaje "a handful of slots", ale przy dziesiątkach slotów to 2N round-tripów; brak zakresu dat i podziału na placementy; brak retencji/rollupu ad_events (tabela rośnie bez ograniczeń); brak testu endpointu (szukałem ad-event w _.test._ — brak).
+- **⚠️ Słabe:** StatsPanel wykonuje 2 zapytania `count` na KAŻDY slot (admin.ads.tsx:724-740) — komentarz przyznaje "a handful of slots", ale przy dziesiątkach slotów to 2N round-tripów; brak zakresu dat i podziału na placementy; brak retencji/rollupu ad_events (tabela rośnie bez ograniczeń); brak testu endpointu (szukałem ad-event w *.test.* — brak).
 - **🔧 Rekomendacje:**
   1. Zastąpić 2N countów jednym RPC/widokiem agregującym (`select slot_id, kind, count(*) group by 1,2`) — plik admin.ads.tsx, StatsPanel.
   2. Dodać zakres dat do statystyk i politykę retencji ad_events (rollup dzienny + purge surowych zdarzeń po 90 dniach).
   3. Test integracyjny ingestu: odrzucenie obcego slot_id, obcego placementu, brak tenanta.
 
 ### 14.8. Panel administracyjny reklam (sloty + placementy) — **6,5/10**
-
 - **Pliki:** src/routes/admin.ads.tsx:41-708 (SlotsPanel 230-468, PlacementsPanel 470-708)
 - **Co robi:** CRUD slotów (typ, kreacja, wymiary, zgoda, targeting, notatki) i placementów (pozycja, typ strony, config per pozycja: paragraph/every/delay_ms/dismissible, okno czasowe, sort). Bezpośrednie zapisy Supabase pod RLS staff.
 - **Relacje:** Moduł 19 (authz) — RLS "Public can read active ad_slots" + polityki manage dla staffu (migracja 20260703052115); Moduł 16 (Społeczność-admin) — AdminShell.
@@ -3833,18 +3554,16 @@ Moduł spina cztery niezależne strumienie przychodu uzupełniającego: system r
   3. Limit + sortowanie/paginacja list slotów i placementów.
 
 ### 14.9. Zgody marketingowe dla reklam (CMP-lite z GPC) — **8,5/10**
-
 - **Pliki:** src/lib/ads/consent.ts:1-533 (useMarketingConsent 520-532, hasCategoryConsent 504-512, GPC 352-387), src/lib/consent/{gpc,gpcClient,registryBridge}.ts (granica M19)
 - **Co robi:** Cztery kategorie zgód z trwałością localStorage+cookie, synchronizacją do profiles.prefs, audytem w rejestrze RODO i klamrą Global Privacy Control (analytics/marketing wymuszone na "nie", zdejmowane tylko świadomym override'em). AdSlotView bramkuje kreacje przez `useMarketingConsent`, beacony przez `hasCategoryConsent`.
 - **Relacje:** Moduł 19 (RODO) — rejestr user_consents/user_consent_events przez registryBridge (art. 21 i 7.3 RODO w komentarzach); Moduł 15 (Profil) — prefs.consent + hydratacja przy logowaniu; Moduł 17 (Analityka) — hasAnalyticsConsent dla track.ts; Moduł 20 (SSR) — bezpieczne odczyty `typeof window`.
-- **✅ Mocne:** Non-hookowe odczyty dla kodu poza Reactem (spójność bramkowania UI i beaconów — jawnie uzasadniona); tryb podglądu w sessionStorage nie obchodzi GPC; migracja legacy klucza; test klamry GPC↔CMP (src/lib/consent/**tests**/gpcCmpClamp.test.ts); przetrwanie znacznika override przez round-trip localStorage/cookie/profil.
+- **✅ Mocne:** Non-hookowe odczyty dla kodu poza Reactem (spójność bramkowania UI i beaconów — jawnie uzasadniona); tryb podglądu w sessionStorage nie obchodzi GPC; migracja legacy klucza; test klamry GPC↔CMP (src/lib/consent/__tests__/gpcCmpClamp.test.ts); przetrwanie znacznika override przez round-trip localStorage/cookie/profil.
 - **⚠️ Słabe:** Plik żyje w src/lib/ads/, choć jest CMP całej platformy (konsumenci: analityka, injektor skryptów, rejestr RODO) — lokalizacja myli granice modułów; sam consent.ts nie ma dedykowanego testu jednostkowego (safeParse, merge profil/local — testowany pośrednio przez gpcCmpClamp).
 - **🔧 Rekomendacje:**
   1. Przenieść consent.ts do src/lib/consent/ (obok gpc.ts) z re-eksportem w ads — czytelniejsza granica M14/M19.
   2. Test jednostkowy safeParse + rozstrzygania remote/local w hydrateConsentFromProfile (konflikt ts).
 
 ### 14.10. Publiczny formularz darowizn (/donate) — **8,5/10**
-
 - **Pliki:** src/routes/donate.tsx:16-67, src/components/donations/DonationForm.tsx:54-307, src/lib/i18n-donate.ts
 - **Co robi:** Formularz wpłaty jednorazowej/miesięcznej z presetami, kwotą własną, e-mailem i wiadomością (limit 500 zn.); po submit tworzy sesję Stripe Embedded Checkout w modalu ładowanym leniwie (prefetch chunka równolegle z tworzeniem sesji); tryb `external` degraduje do jednego oznaczonego linku; `?status=thanks` pokazuje podziękowanie.
 - **Relacje:** Moduł 13 (Monetyzacja-core) — LazyEmbeddedCheckoutDialog, getStripeEnvironment, checkoutLocale; Moduł 8 (SEO) — buildContentHead z tytułem PL/EN; Moduł 19 (Ustawienia) — konfiguracja z site_settings.donations.
@@ -3854,28 +3573,25 @@ Moduł spina cztery niezależne strumienie przychodu uzupełniającego: system r
   1. Lekka walidacja e-maila przed submit (regex + komunikat i18n) w DonationForm.tsx — jedyne pole bez feedbacku przed round-tripem.
 
 ### 14.11. Serwer darowizn: checkout, księgowanie, wpłaty cykliczne — **8,5/10**
-
 - **Pliki:** src/lib/billing/donations.server.ts:117-469, src/lib/billing/donations.functions.ts:58-189, src/lib/billing/donationsConfig.ts:19-95, migracja 20260714111000_donations.sql
 - **Co robi:** Tworzy sesję Stripe (payment/subscription z price_data, lokalizowane copy PL/EN), rejestruje wiersz `pending` przed sesją (webhook zna kontekst z metadata.donationId), księguje idempotentnie (`settleDonation` — nie wskrzesza refunded, paid_at tylko przy pierwszej zapłacie), obsługuje odnowienia subskrypcji (nowy wiersz per faktura, idempotencja po `renewal:<invoiceId>` i 23505) oraz publiczne statystyki bez PII (sumy tylko w walucie zbiórki, cap skanu 20k wierszy, cache 60 s).
 - **Relacje:** Moduł 13 (Monetyzacja-core) — stripe.server, webhook Stripe woła settleDonation/recordRecurringDonationPayment; Moduł 15 (Profil) — trigger tg_donations_grant_supporter (status wspierającego); Moduł 20 (Platforma) — edgeTtlCache, rateLimit (10 prób/10 min, fail-open z uzasadnieniem), tenant per host; Moduł 19 — RLS "donations admin read".
 - **✅ Mocne:** Rozpisany łańcuch idempotencji z komentarzami domenowymi (spóźnione webhooki, wyścig settle/renewal rozstrzygany warunkiem `.eq("status","pending")` + fallback do insertu); sprzątanie osieroconego wiersza przy nieudanej sesji; odwołanie do dokumentu prawno-podatkowego przy świadomym wyłączeniu automatic_tax; dwuwalutowość statystyk rozwiązana filtrem waluty.
-- **⚠️ Słabe:** Brak testów jednostkowych donations.server.ts (settlement/renewal to czysta logika na mockowalnym kliencie — szukałem donations w _.test._, jest tylko donationTarget.test.ts); pełny paginowany skan wpłat co 60 s na statystyki zamiast agregatu SQL (świadomy cap, ale RPC `sum()` byłoby tańsze).
+- **⚠️ Słabe:** Brak testów jednostkowych donations.server.ts (settlement/renewal to czysta logika na mockowalnym kliencie — szukałem donations w *.test.*, jest tylko donationTarget.test.ts); pełny paginowany skan wpłat co 60 s na statystyki zamiast agregatu SQL (świadomy cap, ale RPC `sum()` byłoby tańsze).
 - **🔧 Rekomendacje:**
   1. RPC agregujące (sum/count per waluta + 5 ostatnich) zamiast skanu do 20k wierszy w getDonationsPublicStats — jedna funkcja SQL usuwa cap i truncated.
   2. Testy jednostkowe applyDonationSettlement/recordRecurringDonationPayment (idempotencja, refunded, wyścig pending→renewal).
 
 ### 14.12. Cel darowizn: CTA i widget CMS — **8/10**
-
 - **Pliki:** src/lib/billing/donationTarget.ts:38-45, src/lib/billing/donationsConfigQuery.ts, src/components/donations/DonationCta.tsx:35-73, src/components/donations/DonationsWidgetView.tsx:86-471, src/routes/support.tsx
 - **Co robi:** `resolveDonationTarget` to jedno źródło prawdy "dokąd prowadzi przycisk darowizny" (internal /donate, external URL, disabled); DonationCta i strona /support czytają wyłącznie tę funkcję; DonationsWidgetView (widget buildera) renderuje 6 wariantów wizualnych (hero/progress/stats-strip/compact-card/inline-bar/thermometer) na publicznych statystykach.
 - **Relacje:** Moduł 3 (Silniki treści) — rejestracja widgetu w WidgetView/lazyWidgets buildera; Moduł 1/5 — CTA w treściach i nawigacji; Moduł 13 — konfiguracja provider stripe/external.
 - **✅ Mocne:** Historia naprawy rozjazdu (każda powierzchnia decydowała sama) udokumentowana w komentarzu; czysty, client-safe moduł z testami (donationTarget.test.ts — 4 przypadki); degradacja trybu wpłaty do zwykłej nawigacji przy wyłączonym module ("przycisk nigdy nie prowadzi w martwy punkt"); testy DonationCta.test.tsx.
 - **⚠️ Słabe:** DonationsWidgetView (471 linii, 6 wariantów) nie ma testu komponentu; fmtRelative liczy czas własnoręcznie zamiast wspólnego formatera i18n.
 - **🔧 Rekomendacje:**
-  1. Test snapshot/DOM przynajmniej wariantów progress i thermometer (arytmetyka procentu celu) w src/components/donations/**tests**/.
+  1. Test snapshot/DOM przynajmniej wariantów progress i thermometer (arytmetyka procentu celu) w src/components/donations/__tests__/.
 
 ### 14.13. Panel administracyjny darowizn + synchronizacja Stripe — **7,5/10**
-
 - **Pliki:** src/routes/admin.donations.tsx:26-311, src/lib/billing/donationsAdmin.server.ts:1-264, src/lib/billing/donationsAdmin.functions.ts
 - **Co robi:** Edycja pełnej konfiguracji (silnik, waluta, presety, limity, cel, treści PL/EN), kafle statystyk, rejestr 50 ostatnich wpłat oraz ręczna synchronizacja ze Stripe (7 dni wstecz): domyka pending, importuje brakujące opłacone sesje, oznacza zwroty — idempotentnie, jako fallback zawodnego webhooka.
 - **Relacje:** Moduł 13 — createStripeClient, wybór środowiska sandbox/live; Moduł 19 — zapis site_settings przez useSettings; Moduł 16 — layout admina.
@@ -3886,7 +3602,6 @@ Moduł spina cztery niezależne strumienie przychodu uzupełniającego: system r
   2. Paginacja/filtr statusu w rejestrze wpłat (listDonationRecords już przyjmuje limit — dodać offset i status).
 
 ### 14.14. Gifting nadawcy: przycisk "Udostępnij pełny artykuł" — **9/10**
-
 - **Pliki:** src/components/gifting/GiftArticleButton.tsx:49-315, src/lib/gifting/model.ts:1-327, src/lib/gifting/hooks.ts:79-236, atoms/molecules (GiftCopyButton, GiftChannelLink, GiftClickBudgetMeter, GiftShareChannels), src/lib/i18n-gifting.ts
 - **Co robi:** Zalogowany czytelnik generuje idempotentny link per artykuł (`create_gift_link`, SECURITY DEFINER), otwierający pełną treść pierwszym N odbiorcom (domyślnie 5). Macierz 7 faz UI (`resolveGiftPhase`): gość→CTA logowania, eligibility=subscribers→CTA planów, wyczerpany budżet kliknięć→stan terminalny; auto-generowanie po otwarciu popovera; 7 kanałów udostępniania + kopiowanie.
 - **Relacje:** Moduł 13 (Monetyzacja-core) — bramka subskrypcji (can_share_full_article, eligibility=subscribers, CTA /pricing); Moduł 15 (Profil) — useAuth/sesja; Moduł 1 (Wpisy) — osadzenie w pasku wpisu $.tsx:905; Moduł 19 — egzekwowanie w SECURITY DEFINER RPC (migracje 20260722112736, 20260724090600, 20260806170000).
@@ -3896,7 +3611,6 @@ Moduł spina cztery niezależne strumienie przychodu uzupełniającego: system r
   1. Test fetchGiftSettings dla ścieżki degradacji 42703 (okno wdrożeniowe) — jedyny nieprzetestowany idiom warstwy danych.
 
 ### 14.15. Gifting odbiorcy: realizacja linku i baner — **8,5/10**
-
 - **Pliki:** src/lib/gifting/hooks.ts:243-334 (useGiftCodeFromUrl, useGiftRedemption), src/lib/gifting/model.ts:280-326 (normalizeRedeemReason, giftBannerVariant), src/components/gifting/GiftBanner.tsx:32-71, wiring: src/routes/$.tsx:639-645,827
 - **Co robi:** Parsuje `?gift=<code>` (walidacja kształtu base64url zanim poleci RPC), realizuje `redeem_gift_link` po hydracji (SSR/crawlery nie palą slotów; tożsamość = konto albo pseudonim gościa z meteringu, więc odświeżenie nie zużywa budżetu), zwraca body wpisu przy ważnym kodzie i wariant banera (gifted/exhausted/expired/invalid) z odrębnym copy i CTA planów.
 - **Relacje:** Moduł 1 (Wpisy-czytelnik) — BodyParts/gating i visitor id współdzielone z meteringiem; Moduł 13 — lejek odbiorca→subskrybent (CTA /pricing); Moduł 8 (SEO) — świadome nieodpalanie podczas SSR.
@@ -3906,7 +3620,6 @@ Moduł spina cztery niezależne strumienie przychodu uzupełniającego: system r
   1. Rozróżnić reason dla ważnego kodu z nierenderowalnym body (np. wariant "gifted" z pustą treścią lub log ostrzegawczy) w hooks.ts:322-324.
 
 ### 14.16. Panel administracyjny gifting (ustawienia, linki, audyt) — **8,5/10**
-
 - **Pliki:** src/routes/admin.gifting.tsx:40-751, src/lib/gifting-admin.functions.ts:43-232, src/lib/gifting/admin-model.ts:49-152, src/lib/i18n-gifting-admin.ts, pgTAP: supabase/tests/share_full_article_budget_test.sql
 - **Co robi:** Trzy zakładki: ustawienia per tenant (limity, TTL, budżet kliknięć, eligibility — draft z semantyką "puste ≠ 0", bo 0 = bez limitu = obejście paywalla), lista linków z cofaniem (revoke_gift_link_admin) i licznikami unikalnych odbiorców, log audytu (created/redeemed/revoked/expired/exhausted) + 10 kafli statystyk.
 - **Relacje:** Moduł 19 (authz) — requireAdminEditor + re-walidacja ról w SECURITY DEFINER RPC (podwójna linia obrony opisana w komentarzu); Moduł 16 — konwencje paneli; Moduł 11 — brak (audyt nie wysyła powiadomień).
@@ -3916,7 +3629,6 @@ Moduł spina cztery niezależne strumienie przychodu uzupełniającego: system r
   1. Wystawić w UI filtr per wpis (parametr post_id już istnieje w listGiftLinksAdmin) — redakcja szuka linków konkretnego artykułu.
 
 ### 14.17. Live-walidacja kuponów na checkoucie — **7,5/10**
-
 - **Pliki:** src/hooks/useValidateCoupon.ts:22-84, src/lib/billing/coupons.ts:1-85 (typy, normalizacja, mapowanie błędów i18n), konsument: src/components/checkout/CouponInput.tsx (Moduł 13)
 - **Co robi:** Hook walidujący kod przez RPC `validate_b2b_coupon` (stable, GRANT anon/authenticated) z natychmiastowym wynikiem rabatu; serwer i tak re-waliduje i atomowo rezerwuje przy checkoucie (granica M13). coupons.ts trzyma 9-wartościową taksonomię błędów z kluczami i18n i formatowanie etykiety rabatu.
 - **Relacje:** Moduł 13 (Monetyzacja-core) — jedyny konsument (CouponInput na checkoucie), redeem/rezerwacja po stronie createCheckoutOrder; Moduł 19 — GRANT RPC.
@@ -3927,7 +3639,6 @@ Moduł spina cztery niezależne strumienie przychodu uzupełniającego: system r
   2. Naprawić typowanie `_plan_id` w wygenerowanych typach RPC zamiast sentinela zerowego UUID.
 
 ### 14.18. CRUD kuponów B2B (lista + tworzenie) — **6,5/10**
-
 - **Pliki:** src/routes/admin.coupons.index.tsx:36-585, src/routes/admin.coupons.tsx:8-79 (layout zakładek), src/components/admin/coupons/DatePickerField.tsx, migracja 20260721082414 (RLS staff, tenant)
 - **Co robi:** Lista kuponów (do 1000) z wyszukiwarką, filtrem statusu, kaflami zbiorczymi, przełącznikiem active i usuwaniem; dialog tworzenia: rabat %/kwotowy, limit użyć, okno ważności, ograniczenie do planów, nadanie warstwy członkostwa (grants_tier_key + duration) — powiązania CRM widoczne w typie wiersza (assigned_company_id/lead_id).
 - **Relacje:** Moduł 13 — access_plans/membership_tiers jako słowniki, redeem przez checkout; Moduł 18 (CRM) — kolumny assigned_company_id/assigned_lead_id (odczytywane, ale bez UI przypisania); Moduł 19 — RLS b2b_coupons staff per tenant.
@@ -3939,7 +3650,6 @@ Moduł spina cztery niezależne strumienie przychodu uzupełniającego: system r
   3. Pokazać/edytować przypisania CRM (assigned_company_id/lead_id są w typie ExtRow, ale nie w UI).
 
 ### 14.19. Kampanie kuponowe masowe + integracja z newsletterem — **4,5/10**
-
 - **Pliki:** src/routes/admin.coupons.campaigns.tsx:55-556 (sendNewsletter 149-184), migracja 20260721082414 (bulk_generate_coupons_for_campaign, SECURITY DEFINER z walidacją roli), weryfikacja integracji: src/lib/newsletter-campaigns.functions.ts:95-102 (AudienceFilter), 920-926 (merge tagi)
 - **Co robi:** CRUD kampanii (prefix, długość, liczba kodów, rabat, tier grant, segment), generowanie kodów RPC `bulk_generate_coupons_for_campaign`, eksport CSV (do 10k kodów) i przycisk "Wyślij" tworzący kampanię newslettera z treścią `{{coupon_code}}`.
 - **Relacje:** Moduł 11 (Newsletter) — insert do newsletter_campaigns z audience_filter.segment; Moduł 13 — grants_tier_key; Moduł 19 — RLS b2b_coupon_campaigns_staff_all.
@@ -3951,8 +3661,7 @@ Moduł spina cztery niezależne strumienie przychodu uzupełniającego: system r
   3. Ustawiać status "sent" dopiero po realnym zakończeniu wysyłki (callback/obserwacja statusu kampanii newslettera), a po utworzeniu draftu — status pośredni "scheduled".
 
 ### 14.20. Realizacje i analityka kuponów — **8/10**
-
-- **Pliki:** src/routes/admin.coupons.redemptions.tsx:41-212, src/routes/admin.coupons.analytics.tsx:36-184, src/lib/billing/couponMoney.ts:27-61 (+ **tests**/couponMoney.test.ts), migracja 20260725090200_fix_coupon_analytics_applied_cents_inversion.sql
+- **Pliki:** src/routes/admin.coupons.redemptions.tsx:41-212, src/routes/admin.coupons.analytics.tsx:36-184, src/lib/billing/couponMoney.ts:27-61 (+ __tests__/couponMoney.test.ts), migracja 20260725090200_fix_coupon_analytics_applied_cents_inversion.sql
 - **Co robi:** Historia realizacji z zakresem dat, kaflami (przychód netto / rabat), statusem efektów ("nadano" vs "czeka na płatność" wg effects_applied_at) i eksportem CSV; analityka: RPC `b2b_coupons_analytics` + wykres TOP10 (ECharts, SSR-safe wrapper) + tabela per kupon.
 - **Relacje:** Moduł 17 (Analityka/BI) — wspólny wrapper EChart z panelu analityki; Moduł 13 — semantyka applied_cents pisana przez redeem_b2b_coupon w checkoucie; Moduł 18 (CRM) — kontekst subskrypcji w wierszach.
 - **✅ Mocne:** couponMoney.ts to wzorcowa poprawka klasy błędu (historyczna inwersja Przychód↔Rabat opisana i zamknięta w jednym nazwanym, przetestowanym miejscu — 6 testów, w tym clamp ujemnego przychodu); nagłówki CSV nazwane po znaczeniu z komentarzem dlaczego; kontrakt RPC po migracji naprawczej udokumentowany w interfejsie.
@@ -3962,7 +3671,6 @@ Moduł spina cztery niezależne strumienie przychodu uzupełniającego: system r
   2. Przemianować metrykę "Konwersja" (np. "Kupony użyte") lub liczyć realną konwersję z walidacji.
 
 ### 14.21. Efekty kuponu po opłaceniu zamówienia — **8,5/10**
-
 - **Pliki:** src/lib/billing/couponEffects.server.ts:56-82, migracja 20260725090300_apply_coupon_effects_after_payment.sql, pgTAP: supabase/tests/coupon_effects_after_payment_test.sql
 - **Co robi:** Wywoływane ze ścieżki potwierdzonej płatności (webhook Stripe + finalizacja mock) `apply_b2b_coupon_effects`: nadaje obiecaną warstwę członkostwa i notatkę/score CRM dopiero gdy `payment_orders.status='paid'` (fail-closed), z idempotencją na zatrzasku `effects_applied_at`.
 - **Relacje:** Moduł 13 (Monetyzacja-core) — wołane z webhooka/finalizacji zamówień (payment_orders); Moduł 18 (CRM) — notatka/score leada; Moduł 15 — nadanie warstwy użytkownikowi.
@@ -3979,19 +3687,19 @@ Moduł spina cztery niezależne strumienie przychodu uzupełniającego: system r
 
 - **Relacje modułu (zbiorczo):**
 
-| Moduł                    | Mechanizm                                                                                                                                                                                       | Kierunek zależności                                                                          |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| 13 Monetyzacja-core      | Stripe client/webhook (settleDonation, couponEffects), LazyEmbeddedCheckoutDialog, validate/redeem_b2b_coupon w checkoucie, useCurrentTier, tabele payment_orders/access_plans/membership_tiers | M14 → M13 (checkout, tiery) i M13 → M14 (webhook woła księgowanie darowizn i efekty kuponów) |
-| 1 Wpisy-czytelnik        | $.tsx renderuje AdZone/MidPostAds/FooterSlideup/GiftArticleButton/GiftBanner; BodyParts/gating + visitor id współdzielone z meteringiem                                                         | M1 → M14 (osadzenie), M14 → M1 (odblokowanie treści przez redeem)                            |
-| 5 Chrome/nawigacja       | Header header_banner + adPageTypeForLocation; overlayCoordinator (wspólny budżet nakładek z popupami)                                                                                           | M5 → M14                                                                                     |
-| 6 Wyszukiwarka           | useInFeedAds w search.tsx                                                                                                                                                                       | M6 → M14                                                                                     |
-| 3 Silniki treści         | Widgety buildera: DonationsWidgetView, AdSlotById (WidgetView/lazyWidgets), widget "ads" w ArchiveSidebar                                                                                       | M3 → M14                                                                                     |
-| 11 Newsletter            | Kampanie kuponowe insert do newsletter_campaigns (integracja NIEDOKOŃCZONA: brak merge tagu i segmentu)                                                                                         | M14 → M11                                                                                    |
-| 18 CRM                   | b2b_coupons.assigned_company_id/lead_id, notatka/score w apply_b2b_coupon_effects                                                                                                               | M14 → M18                                                                                    |
-| 15 Profil/konto          | consent sync do profiles.prefs, donations.user_id + trigger supporter, useAuth w giftingu                                                                                                       | M14 ↔ M15                                                                                    |
-| 17 Analityka/BI          | ad_events → warstwa semantyczna; wrapper EChart; beacony growth                                                                                                                                 | M14 → M17                                                                                    |
-| 19 Ustawienia/authz/RODO | site_settings (donations, reading), RLS/has_role/requireAdminEditor, rejestr zgód + GPC (registryBridge)                                                                                        | M14 ↔ M19                                                                                    |
-| 20 Platforma/SSR         | edgeTtlCache, rateLimit, resolveTenantIdForHost, redactUrl, SSR-safe consent/deferred                                                                                                           | M14 → M20                                                                                    |
+| Moduł | Mechanizm | Kierunek zależności |
+|---|---|---|
+| 13 Monetyzacja-core | Stripe client/webhook (settleDonation, couponEffects), LazyEmbeddedCheckoutDialog, validate/redeem_b2b_coupon w checkoucie, useCurrentTier, tabele payment_orders/access_plans/membership_tiers | M14 → M13 (checkout, tiery) i M13 → M14 (webhook woła księgowanie darowizn i efekty kuponów) |
+| 1 Wpisy-czytelnik | $.tsx renderuje AdZone/MidPostAds/FooterSlideup/GiftArticleButton/GiftBanner; BodyParts/gating + visitor id współdzielone z meteringiem | M1 → M14 (osadzenie), M14 → M1 (odblokowanie treści przez redeem) |
+| 5 Chrome/nawigacja | Header header_banner + adPageTypeForLocation; overlayCoordinator (wspólny budżet nakładek z popupami) | M5 → M14 |
+| 6 Wyszukiwarka | useInFeedAds w search.tsx | M6 → M14 |
+| 3 Silniki treści | Widgety buildera: DonationsWidgetView, AdSlotById (WidgetView/lazyWidgets), widget "ads" w ArchiveSidebar | M3 → M14 |
+| 11 Newsletter | Kampanie kuponowe insert do newsletter_campaigns (integracja NIEDOKOŃCZONA: brak merge tagu i segmentu) | M14 → M11 |
+| 18 CRM | b2b_coupons.assigned_company_id/lead_id, notatka/score w apply_b2b_coupon_effects | M14 → M18 |
+| 15 Profil/konto | consent sync do profiles.prefs, donations.user_id + trigger supporter, useAuth w giftingu | M14 ↔ M15 |
+| 17 Analityka/BI | ad_events → warstwa semantyczna; wrapper EChart; beacony growth | M14 → M17 |
+| 19 Ustawienia/authz/RODO | site_settings (donations, reading), RLS/has_role/requireAdminEditor, rejestr zgód + GPC (registryBridge) | M14 ↔ M19 |
+| 20 Platforma/SSR | edgeTtlCache, rateLimit, resolveTenantIdForHost, redactUrl, SSR-safe consent/deferred | M14 → M20 |
 
 - **5 najpilniejszych rekomendacji:**
   1. **(14.19)** Dokończyć albo wyłączyć wysyłkę kampanii kuponowych: zaimplementować merge tag `{{coupon_code}}` (przydział kodu per subskrybent) i filtr `segment` w silniku newslettera (src/lib/newsletter-campaigns.functions.ts) — dziś e-mail zawiera literalny placeholder, idzie do wszystkich subskrybentów, a status "sent" kłamie.
@@ -4004,24 +3712,22 @@ Moduł spina cztery niezależne strumienie przychodu uzupełniającego: system r
 
 ## Moduł 15 — Profil i konto użytkownika
 
-**Zakres zbadany:** src/routes/profile.* (20 tras), login.tsx, reset-password.tsx, src/components/profile/** (w tym identity/, inline/, privacy/, sections/, **tests**/), src/components/auth/ (AuthPortal, MfaChallenge), src/components/LoginPopup.tsx, src/lib/profile/** (17 plików + 6 testów), src/lib/auth/** (bruteforce, mfa, registrationFields), src/lib/account.functions.ts, src/lib/authSettings.ts, src/lib/auth-email-events.functions.ts, src/lib/onboarding/**, src/lib/personalization/**, src/hooks/{useAuth,useAuthSettings,useBookmarks,useSavedSearches,usePersonalizedSettings,useInterests}.ts, supabase/tests (pgTAP: profiles_pii_grant, profiles_public_anon_gate, profile_intent_semantic, profile_badge_domain_sync, accounting_retention, user_bookmarks_tenant_isolation, people_verification, signup_provisioning) · **Funkcji:** 25 · **Ocena modułu:** 7,7/10
+**Zakres zbadany:** src/routes/profile.* (20 tras), login.tsx, reset-password.tsx, src/components/profile/** (w tym identity/, inline/, privacy/, sections/, __tests__/), src/components/auth/ (AuthPortal, MfaChallenge), src/components/LoginPopup.tsx, src/lib/profile/** (17 plików + 6 testów), src/lib/auth/** (bruteforce, mfa, registrationFields), src/lib/account.functions.ts, src/lib/authSettings.ts, src/lib/auth-email-events.functions.ts, src/lib/onboarding/**, src/lib/personalization/**, src/hooks/{useAuth,useAuthSettings,useBookmarks,useSavedSearches,usePersonalizedSettings,useInterests}.ts, supabase/tests (pgTAP: profiles_pii_grant, profiles_public_anon_gate, profile_intent_semantic, profile_badge_domain_sync, accounting_retention, user_bookmarks_tenant_isolation, people_verification, signup_provisioning) · **Funkcji:** 25 · **Ocena modułu:** 7,7/10
 
 Moduł obejmuje pełny cykl konta: uwierzytelnienie (portal, popup, reset, MFA, brute-force), warstwę profilu (edycja inline, skonsolidowana edycja tożsamości, profil eksperta, CV, intencje, kompletność), personalizację (zakładki, obserwacje, zainteresowania, merge anonimowy) oraz prywatność i prawa do danych (hub prywatności, ekspozycja publiczna, eksport RODO z manifestem, usunięcie konta z retencją księgową). Stan jest wyraźnie produkcyjny — widać świeże, dobrze udokumentowane konsolidacje IA (edycja tożsamości, hub prywatności, finanse) i wzorcowe czyste moduły z bramkami CI (intencje/kompletność, manifest eksportu). Najważniejszy wniosek: warstwa danych i bezpieczeństwa jest mocniejsza niż spójność UI — te same pola profilu edytują trzy równoległe ścieżki zapisu (inline / edit-basic / edit-social) o różnych mechanizmach cache, a pojedyncze elementy (quiz osobowości, diagnostyka maili auth) odstają brakiem testów.
 
 ### 15.1. Portal uwierzytelnienia /login (logowanie, rejestracja, reset) — **8,0/10**
-
 - **Pliki:** src/routes/login.tsx:1-35, src/components/auth/AuthPortal.tsx:1-776, src/routes/reset-password.tsx:1-283
 - **Co robi:** Jeden komponent AuthPortal obsługuje trzy tryby (signin/signup/reset) z brandingiem sterowanym przez admina (hero, tło, pozycja formularza, linki prawne), polami rejestracji z globalnej konfiguracji, pre-checkiem brute-force i step-upem MFA. /reset-password domyka pętlę recovery (nasłuch PASSWORD_RECOVERY, deadline 20 s przy tokenie, wylogowanie pozostałych sesji po zmianie hasła).
 - **Relacje:** Moduł 19 (Ustawienia) — site_settings `auth_branding`; Moduł 11 (Newsletter) — pola rejestracji z `newsletter_settings.popup_fields` (registrationFields.ts); Moduł 8 (SEO) — buildContentHead + noindex; Moduł 13 (Monetyzacja) — ten sam portal zasila /membership-registration.
 - **✅ Mocne:** reset-password.tsx:1-7 dokumentuje i naprawia historyczny 404 linku recovery; po zmianie hasła `signOut({scope:"others"})` (reset-password.tsx:150); walidacja `logged_in_redirect_url` tylko na ścieżki wewnętrzne (AuthPortal.tsx:206-210); pre-auth guard z czytelnym mapowaniem `rate_limited`/`invalid_input` (AuthPortal.tsx:147-165).
-- **⚠️ Słabe:** teksty żyją w lokalnym słowniku PL/EN w komponencie (AuthPortal.tsx:72-131) zamiast w systemie i18n — parzystość jest, ale poza bramką i18nParity; brak testów komponentu (szukałem AuthPortal w _.test._ — brak); brak logowania OAuth/social (wyłącznie e-mail+hasło).
+- **⚠️ Słabe:** teksty żyją w lokalnym słowniku PL/EN w komponencie (AuthPortal.tsx:72-131) zamiast w systemie i18n — parzystość jest, ale poza bramką i18nParity; brak testów komponentu (szukałem AuthPortal w *.test.* — brak); brak logowania OAuth/social (wyłącznie e-mail+hasło).
 - **🔧 Rekomendacje:**
   1. Przenieść słowniki AuthPortal/reset-password do zasobów i18n (spójność z bramką i18nParity), src/components/auth/AuthPortal.tsx.
-  2. Dodać test integracyjny trybu signup z konfigurowalnymi polami (wymagalność z registrationFields), src/components/auth/**tests**/.
+  2. Dodać test integracyjny trybu signup z konfigurowalnymi polami (wymagalność z registrationFields), src/components/auth/__tests__/.
   3. Rozważyć wpięcie realnego `custom_login_url` także dla trasy /login (dziś tylko popup go honoruje), src/routes/login.tsx.
 
 ### 15.2. Popup logowania (LoginPopup) — **7,5/10**
-
 - **Pliki:** src/components/LoginPopup.tsx:1-277, src/lib/loginPopupBus.ts, src/routes/__root.tsx (montaż)
 - **Co robi:** Globalny dialog signin/signup otwierany busem zdarzeń (`onOpenLoginPopup`) z dowolnego miejsca produktu (FollowButton, useSaveArticle, AuthorBusinessCard, reading-list); przy `popup_enabled=false` przekierowuje na custom_login_url (z walidacją `//host`) albo /login. Obsługuje step-up MFA i ten sam pre-auth guard co portal.
 - **Relacje:** Moduł 1 (Wpisy-czytelnik) — otwierany z useSaveArticle/reading-list; Moduł 10 (Sieć) — FollowButton, AuthorBusinessCard; Moduł 19 (Ustawienia) — auth_branding (teksty przycisków, logo, custom_login_url).
@@ -4032,18 +3738,16 @@ Moduł obejmuje pełny cykl konta: uwierzytelnienie (portal, popup, reset, MFA, 
   2. Dodać test busa loginPopupBus (otwarcie z opcjami, fallback przy popup_enabled=false).
 
 ### 15.3. Kontekst sesji i ról — AuthProvider/useAuth — **8,0/10**
-
 - **Pliki:** src/hooks/useAuth.tsx:1-206, src/lib/auth/currentUser.ts, src/lib/auth/optionalUser.server.ts
 - **Co robi:** Jedyny provider tożsamości: sesja Supabase + role (user_roles) + tenant_id (profiles), z gwarancją "loading dopóki role nie doleciały" dla guardów tras; przy zmianie tożsamości unieważnia cache treści bramkowanych; przy SIGNED_IN odpala merge anonimowej personalizacji; signOut czyści cały QueryClient i robi twardą nawigację na skonfigurowany cel.
 - **Relacje:** Moduł 20 (Platforma/SSR) — degradacja do signed-out gdy klient Supabase nie wstanie (incydent 2026-07-16, useAuth.tsx:72-99); Moduł 13/14 (Monetyzacja) — invalidacja ["unlocked-body"], ["public","resolved"] po zmianie tożsamości; Moduł 19 — logout_redirect_url z site_settings; Moduł 15.15 — mergeAnonPersonalization.
 - **✅ Mocne:** deduplikacja INITIAL_SESSION vs getSession (useAuth.tsx:84-98); TOKEN_REFRESHED nie przeładowuje kontekstu (useAuth.tsx:104-107); `queryClient.clear()` przy wylogowaniu chroni współdzielone urządzenie (useAuth.tsx:162-165); walidacja redirectu po wylogowaniu (useAuth.tsx:152-155).
-- **⚠️ Słabe:** brak testów jednostkowych providera (szukałem useAuth w _.test._ — brak); role ładowane osobnym round-tripem po każdej zmianie tożsamości bez cache React Query (świadome, ale nienegocjowane w komentarzu).
+- **⚠️ Słabe:** brak testów jednostkowych providera (szukałem useAuth w *.test.* — brak); role ładowane osobnym round-tripem po każdej zmianie tożsamości bez cache React Query (świadome, ale nienegocjowane w komentarzu).
 - **🔧 Rekomendacje:**
-  1. Test jednostkowy maszyny stanów (INITIAL_SESSION → SIGNED_IN → TOKEN_REFRESHED → SIGNED_OUT) z fake'owym klientem, src/hooks/**tests**/useAuth.test.tsx.
+  1. Test jednostkowy maszyny stanów (INITIAL_SESSION → SIGNED_IN → TOKEN_REFRESHED → SIGNED_OUT) z fake'owym klientem, src/hooks/__tests__/useAuth.test.tsx.
   2. Rozważyć przeniesienie loadContext do React Query (deduplikacja i retry za darmo), src/hooks/useAuth.tsx:49-60.
 
 ### 15.4. Ochrona brute-force pre-auth — **8,0/10**
-
 - **Pliki:** src/lib/auth/bruteforce.functions.ts:1-176, src/lib/http/rateLimit.ts (clientIpFromHeaders)
 - **Co robi:** Server fn `preAuthGuard` wywoływana PRZED Supabase Auth: atomowe koszyki per-IP (15/5 min login) i per-e-mail (8/15 min) przez RPC `rate_limit_hit`, fail-closed przy awarii DB; podmioty hashowane sha256 z solą SESSION_SECRET, więc rate_limits nie przechowuje surowych IP/e-maili. Dodatkowo `unlockContentPassword` — serwerowy wrapper odblokowania treści hasłem z limitem per-encja i per-IP.
 - **Relacje:** Moduł 20 (Platforma) — zaufane nagłówki proxy (clientIpFromHeaders); Moduł 13/14 (Monetyzacja) — unlockContentPassword dla paywalla hasłowego; Moduł 19 — tabela rate_limits/RPC w DB.
@@ -4051,12 +3755,11 @@ Moduł obejmuje pełny cykl konta: uwierzytelnienie (portal, popup, reset, MFA, 
 - **⚠️ Słabe:** brak testów jednostkowych (hashSubject, mapowanie kind, fail-closed) i brak pgTAP dla `rate_limit_hit` (grep po supabase/tests — brak trafień); fallback soli do klucza publishable (:17-21) osłabia nieodwracalność hashy, gdy SESSION_SECRET nie jest ustawiony.
 - **🔧 Rekomendacje:**
   1. pgTAP dla rate_limit_hit (atomowość, okno, reset), supabase/tests/rate_limit_hit_test.sql.
-  2. Test jednostkowy preAuthGuard (alias signin, fail-closed przy błędzie RPC), src/lib/auth/**tests**/.
+  2. Test jednostkowy preAuthGuard (alias signin, fail-closed przy błędzie RPC), src/lib/auth/__tests__/.
   3. Twardy wymóg SESSION_SECRET w środowisku produkcyjnym (błąd startu zamiast fallback-soli), src/lib/auth/bruteforce.functions.ts:17-21.
 
 ### 15.5. Uwierzytelnianie dwuskładnikowe TOTP — **8,0/10**
-
-- **Pliki:** src/lib/auth/mfa.ts:1-47, src/components/auth/MfaChallenge.tsx:1-119, src/routes/profile.security.tsx:139-237 i 374-526, src/lib/auth/**tests**/mfa.test.ts, supabase/migrations/20260714112000_mfa_staff_stepup.sql
+- **Pliki:** src/lib/auth/mfa.ts:1-47, src/components/auth/MfaChallenge.tsx:1-119, src/routes/profile.security.tsx:139-237 i 374-526, src/lib/auth/__tests__/mfa.test.ts, supabase/migrations/20260714112000_mfa_staff_stepup.sql
 - **Co robi:** Enrolacja TOTP w /profile/security (QR + sekret ręczny + weryfikacja kodu, sprzątanie niedokończonego faktora), usunięcie faktora za re-uwierzytelnieniem hasłem, oraz wspólny step-up aal1→aal2 przy logowaniu (MfaChallenge w /login i popupie). Anulowanie challenge'u wylogowuje — sesja aal1 nie może wisieć.
 - **Relacje:** Moduł 19 (authz) — migracja mfa_staff_stepup (wymuszenie aal2 dla staff po stronie DB); Moduł 16 (Społeczność-admin) — polityki staff korzystają z aal.
 - **✅ Mocne:** cancelEnroll usuwa półzapisany faktor (profile.security.tsx:173-180); usunięcie faktora wymaga hasła (:212-237); mfa.test.ts pokrywa toQrDataUri/isMfaChallengeRequired; kod wejściowy filtrowany do cyfr, autoComplete="one-time-code" (MfaChallenge.tsx:96-105).
@@ -4066,8 +3769,7 @@ Moduł obejmuje pełny cykl konta: uwierzytelnienie (portal, popup, reset, MFA, 
   2. Pozwolić wybrać faktor, gdy jest ich więcej niż jeden, src/components/auth/MfaChallenge.tsx:47-53.
 
 ### 15.6. Layout profilu, nawigacja i kanoniczne trasy — **8,0/10**
-
-- **Pliki:** src/routes/profile.tsx:1-200, src/components/profile/ProfileNav.tsx:1-211, src/components/profile/AuthGate.tsx:1-45, src/lib/profile/routes.ts:1-33, src/routes/profile.{account,author,social,orders,subscription}.tsx (przekierowania), src/components/profile/**tests**/ProfileNav.test.tsx
+- **Pliki:** src/routes/profile.tsx:1-200, src/components/profile/ProfileNav.tsx:1-211, src/components/profile/AuthGate.tsx:1-45, src/lib/profile/routes.ts:1-33, src/routes/profile.{account,author,social,orders,subscription}.tsx (przekierowania), src/components/profile/__tests__/ProfileNav.test.tsx
 - **Co robi:** Layout /profile z zapadanym sidebar-em (rail ikon, stan w localStorage, drawer na mobile), pogrupowaną nawigacją (Tożsamość/Treści/Finanse/Prywatność), warunkową pozycją "Organizacja" (tylko posiadacze miejsc B2B) i AuthGate renderującym CTA logowania zamiast redirectu (SSR-friendly). routes.ts trzyma kanoniczne adresy dla powiadomień/e-maili; 5 starych tras to przekierowania.
 - **Relacje:** Moduł 13 (Monetyzacja) — useMyOrganization decyduje o pozycji "Organizacja" (ProfileNav.tsx:141,186); Moduł 12 (Powiadomienia) — pozycja "notifications" linkuje do /messages?view=notifications; Moduł 10 (Sieć) — pozycja /network; Moduł 12/11 — routes.ts importowane przez server functions składające powiadomienia.
 - **✅ Mocne:** przemyślana, udokumentowana w komentarzach konsolidacja IA (ProfileNav.tsx:50-99); sidebar czyta localStorage dopiero po hydracji, żeby SSR i pierwszy render były identyczne (profile.tsx:44-53); ProfileNav.test.tsx istnieje; aria-current/aria-label w pozycjach.
@@ -4077,7 +3779,6 @@ Moduł obejmuje pełny cykl konta: uwierzytelnienie (portal, popup, reset, MFA, 
   2. Dwujęzyczny tytuł head layoutu (jak login.tsx:13-17), src/routes/profile.tsx:16-18.
 
 ### 15.7. Strona profilu z edycją inline i podglądem gościa — **7,5/10**
-
 - **Pliki:** src/routes/profile.index.tsx:1-1230, src/lib/profile/useProfileEditor.ts:1-206, src/components/profile/inline/{InlineText,InlineTextarea}.tsx, src/lib/profile/guestPreviewStore.ts:1-33, src/lib/profile/useHeaderProfile.ts:1-36, src/components/profile/CompanyPickerDialog.tsx:1-509, testy: inlineEditors.test.tsx, profileAtoms.test.tsx
 - **Co robi:** Widok /profile w stylu LinkedIn: hero z okładką/awatarem (upload XHR z paskiem postępu), edycja per pole z optymistycznym zapisem i rollbackiem, zakładki about/experience/badges/activity/settings sterowalne z URL (`?tab=`, `?intro=` z powiadomień, fail-soft walidacja), tryb "Podgląd jak gość" (useSyncExternalStore, chowa sidebar i pokazuje lustro akcji z /author/$slug) oraz picker firmy wpinający profil w CRM.
 - **Relacje:** Moduł 10 (Sieć) — ProfileViewsCard, IntroductionsCard, deep-linki `?intro=bridge#i-<id>` (profile.index.tsx:94-111,673-688); Moduł 18 (CRM) — CompanyPickerDialog przez SECURITY DEFINER RPC tworzy/wiąże crm_companies; Moduł 4 (Motyw/media) — logo firmy z theme_options (CompanyLogoIcon, :1048-1068); Moduł 5 (Chrome) — wspólny cache ["header-profile"] z headerem; Moduł 12 (Powiadomienia) — kotwice #profile-views/#introductions.
@@ -4090,7 +3791,6 @@ Moduł obejmuje pełny cykl konta: uwierzytelnienie (portal, popup, reset, MFA, 
   4. Scalić 4 count-zapytania w jedno RPC lub group-by, src/routes/profile.index.tsx:148-180.
 
 ### 15.8. Skonsolidowana edycja tożsamości (/profile/edit) — **7,0/10**
-
 - **Pliki:** src/routes/profile.edit.tsx:1-120, src/components/profile/identity/AccountIdentityPanel.tsx:1-501, src/components/profile/identity/SocialIdentityPanel.tsx:1-533
 - **Co robi:** Jedna strona z zakładkami basic/expert/social (stan w `?tab=`, bramka roli dla "expert"), łącząca trzy dawne trasy. Basic: formularz danych + prefill z user_metadata + upload z kadrowaniem; Social: publiczny slug z walidacją (regex, rezerwacje, debounce 350 ms unikalności), bio PL/EN, linki społecznościowe, e-mail kontaktowy. Odczyt własnego wiersza przez SECURITY DEFINER RPC get_own_profile (kolumny PII bez grantu role-wide — pgTAP profiles_pii_grant_test.sql).
 - **Relacje:** Moduł 10 (Sieć/eksperci) — slug zasila /author/$slug, origin z tenants.domain (SocialIdentityPanel.tsx:100-127); Moduł 19 (authz) — kolumnowe granty PII + RPC; Moduł 2 (Edytor) — rola author odblokowuje zakładkę expert.
@@ -4100,10 +3800,9 @@ Moduł obejmuje pełny cykl konta: uwierzytelnienie (portal, popup, reset, MFA, 
   1. Zunifikować zapis na useProfileEditor.saveField (lub wspólny mutator) i invalidować profileEditorKey po zapisie panelu, src/components/profile/identity/AccountIdentityPanel.tsx:228-260.
   2. Rozstrzygać unikalność sluga RPC-em (SECURITY DEFINER count) i mapować naruszenie constraintu na komunikat "slug zajęty", src/components/profile/identity/SocialIdentityPanel.tsx:181-217,260-279.
   3. Wydzielić prefill z metadanych do jawnej, jednorazowej mutacji (nie side-effect odczytu), AccountIdentityPanel.tsx:112-159.
-  4. Testy: bramka roli expert, walidacja sluga (rezerwacje/short/taken), src/components/profile/**tests**/.
+  4. Testy: bramka roli expert, walidacja sluga (rezerwacje/short/taken), src/components/profile/__tests__/.
 
 ### 15.9. Edytor profilu eksperta + wzmianki medialne — **7,5/10**
-
 - **Pliki:** src/components/profile/AuthorProfileEditor.tsx:1-1045, src/components/profile/MediaMentionsSection.tsx:1-420, test: MediaMentionsSection.test.tsx, pgTAP: author_profiles_owner_tenant_scope_test.sql, author_contact_privacy_test.sql
 - **Co robi:** Jeden formularz dla self-edycji (/profile/edit?tab=expert) i admina (/admin/users/$id): avatar, bio bullets PL/EN, full_bio, funkcje organizacyjne, obszary ekspertyzy (diff), kontakt publiczny i dla mediów, socials + custom_socials, przełącznik is_public, odświeżenie OG-image. MediaMentionsSection to CRUD media_mentions (5 rodzajów, okładki, is_public) na RLS "owner manage".
 - **Relacje:** Moduł 10 (Sieć/eksperci) — zapis zasila /author/$slug i widget BIO; Moduł 8 (SEO) — refreshAuthorOgImage server fn; Moduł 2 (Edytor) — widget BIO we wpisach; Moduł 19 — pgTAP prywatności kontaktu autora.
@@ -4114,7 +3813,6 @@ Moduł obejmuje pełny cykl konta: uwierzytelnienie (portal, popup, reset, MFA, 
   2. Dodać w UI przycisk "skopiuj z profilu prywatnego" dla socials/bio, żeby rozjazd był decyzją, nie przypadkiem.
 
 ### 15.10. Rozszerzenia CV profilu (doświadczenie, edukacja, umiejętności, nagrody, CV) — **7,0/10**
-
 - **Pliki:** src/components/profile/sections/ProfileExtraSections.tsx:1-1015, test: ProfileExtraSections.test.tsx (304 linie), eksport: export.functions.ts:117-168
 - **Co robi:** Pięć sekcji CRUD na tabelach profile_experiences/education/skills/awards/cv_files (+hobbies w eksporcie), scoped user_id+tenant_id, renderowane w zakładkach "O mnie"/"Doświadczenie"/"Wyróżnienia" profilu; AwardsSection parametryzowana kind (award/recognition/mention).
 - **Relacje:** Moduł 10 (Sieć) — te same sekcje czyta publiczny profil/człon katalogu; Moduł 15.11 — liczniki skills/experience/education wchodzą do kompletności; Moduł 19/15.20 — pełny eksport tabel w RODO.
@@ -4125,17 +3823,15 @@ Moduł obejmuje pełny cykl konta: uwierzytelnienie (portal, popup, reset, MFA, 
   2. pgTAP owner-manage dla profile_experiences/education/skills/awards/cv_files, supabase/tests/.
 
 ### 15.11. Warstwa intencji i kompletność profilu — **9,0/10**
-
-- **Pliki:** src/lib/profile/intents.ts:1-98, src/lib/profile/completeness.ts:1-148, src/lib/profile/useProfileIntent.ts:1-197, src/components/profile/sections/ProfileIntentSection.tsx:1-278, src/lib/profile/peopleSearchParams.ts:1-98; testy: profileIntentI18n.gate.test.ts, peopleSearchParams.test.ts, src/lib/ci/**tests**/profileIntentCatalog.gate.test.ts; pgTAP: profile_intent_semantic_test.sql; migracje 20260807141000/144000
+- **Pliki:** src/lib/profile/intents.ts:1-98, src/lib/profile/completeness.ts:1-148, src/lib/profile/useProfileIntent.ts:1-197, src/components/profile/sections/ProfileIntentSection.tsx:1-278, src/lib/profile/peopleSearchParams.ts:1-98; testy: profileIntentI18n.gate.test.ts, peopleSearchParams.test.ts, src/lib/ci/__tests__/profileIntentCatalog.gate.test.ts; pgTAP: profile_intent_semantic_test.sql; migracje 20260807141000/144000
 - **Co robi:** Zamknięty katalog intencji "open to" (10 kodów, max 6) + pola swobodne seeking/offering PL/EN zasilają fasetę i wyszukiwanie semantyczne katalogu osób; czysty moduł kompletności 0-100 z wagami identycznymi w kliencie i SQL (znaczniki `-- weight:` porównywane bramką CI), miernik z konkretną zachętą ("+14 pkt za opis") i progiem embeddingu (40). peopleSearchParams kanonizuje stan URL /people (ten sam walidator dla trasy, snapshotu z bazy i producenta alertów).
 - **Relacje:** Moduł 10 (Sieć/eksperci) — faseta open_to i discovery_search w /people; Moduł 6 (Wyszukiwarka) — tryb semantyczny (`sem=1`), kolejka embeddingów bramkowana kompletnością; Moduł 12 (Powiadomienia) — alerty saved_searches encji people; Moduł 19 — CHECK-i kardynalności/długości w DB.
 - **✅ Mocne:** wzorcowa architektura "dwa światy, jedne wagi" z bramką CI (completeness.ts:10-17, intents.ts:9-13); podwójny wynik score/indexedScore czyni ewentualny rozjazd widocznym (useProfileIntent.ts:8-14,46-48); nota o zestarzałej intencji po 6 miesiącach (ProfileIntentSection.tsx:43-49,259-263); jedna transakcja formularza zamiast zapisu per pole — uzasadniona jakością rankingu (:10-13).
 - **⚠️ Słabe:** brak testu jednostkowego samego profileCompleteness (wagi pilnuje bramka CI, ale progi PROFILE_BIO_MIN/SEEKING_MIN i grade nie mają asercji wprost — szukałem completeness w testach lib/profile: tylko bramka intent/i18n).
 - **🔧 Rekomendacje:**
-  1. Test jednostkowy profileCompleteness (progi, grade, missing-order, nextGain), src/lib/profile/**tests**/completeness.test.ts.
+  1. Test jednostkowy profileCompleteness (progi, grade, missing-order, nextGain), src/lib/profile/__tests__/completeness.test.ts.
 
 ### 15.12. Zakładki treści (bookmarks) — **7,0/10**
-
 - **Pliki:** src/hooks/useBookmarks.ts:1-62, src/routes/profile.bookmarks.tsx:1-236, pgTAP: user_bookmarks_tenant_isolation_test.sql
 - **Co robi:** user_bookmarks (post/page) z toggle'em idempotentnym na duplikaty; strona /profile/bookmarks pokazuje wyłącznie opublikowane, nieusunięte pozycje, a martwe zakładki dostają wiersz "niedostępne" z możliwością sprzątnięcia — liczniki zakładek zgadzają się z listą.
 - **Relacje:** Moduł 1 (Wpisy-czytelnik) — przycisk zapisu przy wpisie, /reading-list; Moduł 7 (Treści specjalne) — zakładki stron z page_full_path; Moduł 15.15 — merge zakładek gościa; Moduł 3 (Silniki treści) — sekcja "saved" w personalized_system.
@@ -4146,7 +3842,6 @@ Moduł obejmuje pełny cykl konta: uwierzytelnienie (portal, popup, reset, MFA, 
   2. Porównywać error.code === "23505" zamiast treści komunikatu, src/hooks/useBookmarks.ts:48.
 
 ### 15.13. Obserwacje (follows: autorzy, kategorie, tagi, programy) — **7,0/10**
-
 - **Pliki:** src/routes/profile.follows.tsx:1-310, src/hooks/useFollows.ts, src/components/FollowButton.tsx
 - **Co robi:** Cztery zakładki obserwacji z hydracją nazw z tabel źródłowych, wiersze "niedostępne" dla bytów usuniętych/ukrytych przez RLS i unfollow bez opuszczania strony; ta sama tabela user_follows zasila feed obserwowanych i rekomendacje.
 - **Relacje:** Moduł 1/3 (czytelnik/silniki treści) — followed-feed, rekomendacje; Moduł 10 (Sieć) — obserwowanie autorów (target_type=author) to sygnał grafu; Moduł 7 (Treści specjalne) — programy; Moduł 12 (Powiadomienia) — obserwacje sterują digestami.
@@ -4154,10 +3849,9 @@ Moduł obejmuje pełny cykl konta: uwierzytelnienie (portal, popup, reset, MFA, 
 - **⚠️ Słabe:** liczniki zakładek liczone z surowych id (:151-161), a listy filtrują widocznością — przy dużej liczbie ukrytych profili liczba w zakładce myli do czasu hydracji (komentarz deklaruje zgodność, ale liczy ids.length, nie widoczne+missing jak bookmarks); brak testów strony.
 - **🔧 Rekomendacje:**
   1. Ujednolicić liczniki z konwencją bookmarks (widoczne + missing po hydracji), src/routes/profile.follows.tsx:148-162.
-  2. Test hydracji "missing" (byt usunięty → wiersz unfollow), src/routes/**tests**/.
+  2. Test hydracji "missing" (byt usunięty → wiersz unfollow), src/routes/__tests__/.
 
 ### 15.14. Zainteresowania (interests) — **7,5/10**
-
 - **Pliki:** src/hooks/useInterests.ts:1-253, src/routes/profile.interests.tsx:1-19, src/components/interests/InterestsCustomizer.tsx
 - **Co robi:** Katalog kategorii/tagów z etykietami rodzica (grupowanie po obszarach), realtime-odświeżanie przy zmianach admina, zapis diffem do user_follows (upsert ignoreDuplicates + delete) — bez kasowania obserwacji autorów; tryb anonimowy w localStorage priorytetuje rekomendacje przed logowaniem.
 - **Relacje:** Moduł 3 (Silniki treści) — invalidacja WIDGET_QUERY_ROOTS.recommendedPosts i followed-feed (useInterests.ts:235-241); Moduł 12 (Realtime) — kanał postgres_changes na categories/tags (:130-145); Moduł 18 (CRM) — parentSlug jako klucz custom field (interests_<slug>, :25); Moduł 11 (Newsletter) — JoinUsForm grupuje po obszarach.
@@ -4165,53 +3859,48 @@ Moduł obejmuje pełny cykl konta: uwierzytelnienie (portal, popup, reset, MFA, 
 - **⚠️ Słabe:** delete wykonywany per wiersz w pętli (:224-232) — przy dużym odznaczeniu wiele round-tripów; brak testów hooka.
 - **🔧 Rekomendacje:**
   1. Zbiorczy delete (in-lista lub RPC), src/hooks/useInterests.ts:224-232.
-  2. Test diffu save (nie kasuje target_type=author), src/hooks/**tests**/.
+  2. Test diffu save (nie kasuje target_type=author), src/hooks/__tests__/.
 
 ### 15.15. Personalizacja gościa i merge anon→konto — **8,0/10**
-
 - **Pliki:** src/lib/personalization/anonMerge.ts:1-239, src/lib/personalization/slug.ts (+ slug.test.ts), src/hooks/usePersonalizedSettings.ts:1-95, src/hooks/useSaveArticle.ts
 - **Co robi:** Po SIGNED_IN scala zainteresowania i zapisane artykuły gościa z kontem: upsert z ignoreDuplicates, czyszczenie localStorage wyłącznie po potwierdzonym sukcesie, TTL gościa z ustawienia admina (guestExpirationDays), rozwiązanie zakładek po slugu z URL; deduplikacja in-flight na kartę. usePersonalizedSettings definiuje site_setting `personalized_system` (sekcje saved/followed/recommended, bramka gości, ścieżka reading-list z walidacją).
 - **Relacje:** Moduł 3 (Silniki treści) — invalidacje recommendedPosts/followed-feed po merge'u (anonMerge.ts:218-231); Moduł 19 (Ustawienia) — personalized_system w site_settings; Moduł 1 — GUEST_SAVED_ARTICLES_KEY współdzielony z useSaveArticle; Moduł 20 — storageKeys (migracja starych nazw kluczy).
 - **✅ Mocne:** komentarz-changelog trzech usuniętych wad poprzedniej implementacji (anonMerge.ts:7-17); TTL egzekwowany i przy merge'u, i przy odczycie; usuwanie z urządzenia tylko pozycji faktycznie scalonych (:181-188); świadome usunięcie martwego pokrętła userExpirationDays z typu (usePersonalizedSettings.ts:11-15).
 - **⚠️ Słabe:** anonMerge nie ma testu jednostkowego (przetestowany jest tylko slugFromUrl); zakładki gościa rozwiązywane wyłącznie po slugu posta — zapisane strony gościa nie są scalane (świadome zawężenie, ale nienazwane w komentarzu).
 - **🔧 Rekomendacje:**
-  1. Test anonMerge (TTL-cutoff, czyszczenie tylko po sukcesie, dedup in-flight) z mockiem supabase, src/lib/personalization/**tests**/anonMerge.test.ts.
+  1. Test anonMerge (TTL-cutoff, czyszczenie tylko po sukcesie, dedup in-flight) z mockiem supabase, src/lib/personalization/__tests__/anonMerge.test.ts.
 
 ### 15.16. Quiz osobowości Big Five — **6,5/10**
-
 - **Pliki:** src/routes/profile.personality.tsx:1-515, src/lib/profile/personality.ts:1-104
 - **Co robi:** Quiz 30 pytań (skala 1-5, pozycje odwrócone) z autozapisem szkicu w localStorage, pulpit wyników (5 pasków z interpretacją przedziału low/medium/high), historia podejść z deltami (personality_result_history, append-only triggerem DB) i podgląd wyniku na żywo po ukończeniu.
 - **Relacje:** Moduł 15.20 — personality_results w eksporcie RODO (export.functions.ts:163-168); Moduł 19 — RLS tabel wyników; brak innych istotnych (wynik nie zasila dziś katalogu ani rekomendacji).
 - **✅ Mocne:** szkic odporny na przeładowanie z walidacją wejścia (readDraft, profile.personality.tsx:61-77); toast o przywróconym szkicu dopiero gdy quiz widoczny (:260-271); komentarz dokumentuje naprawiony błąd onConflict 42P10, przez który zapis NIGDY nie przechodził (:283-285).
 - **⚠️ Słabe:** zero testów logiki scoreAnswers/isComplete (odwrócone pozycje, normalizacja min-max — łatwe do regresji; szukałem personality w testach src i supabase/tests — brak); duplikat zapytania o tenant_id (["profile-tenant"], :242-254) zamiast tenantId z useAuth; surowe odpowiedzi zapisywane w kolumnie answers bez wzmianki w UI (dane wrażliwe w rozumieniu profilowania — są w eksporcie, ale bez odpowiedzi, tylko wyniki).
 - **🔧 Rekomendacje:**
-  1. Testy jednostkowe scoreAnswers (reverse, normalizacja, osie niepełne), src/lib/profile/**tests**/personality.test.ts.
+  1. Testy jednostkowe scoreAnswers (reverse, normalizacja, osie niepełne), src/lib/profile/__tests__/personality.test.ts.
   2. Użyć tenantId z useAuth zamiast osobnego zapytania, src/routes/profile.personality.tsx:242-254.
   3. pgTAP: RLS personality_results/history (own-row, append-only trigger), supabase/tests/.
 
 ### 15.17. Hub prywatności — widoczność i kontakt — **8,0/10**
-
 - **Pliki:** src/routes/profile.privacy.tsx:1-114, src/components/profile/privacy/VisibilityAndContactSection.tsx:1-304
 - **Co robi:** Jedna strona w trzech blokach rosnącej nieodwracalności: (1) widoczność i kontakt — discoverable, ukrycie awatara, zgoda na zapytania do eksperta, kto może zacząć wątek, kto może zaprosić do sieci, potwierdzenia odczytu/pisanie/status online (każdy przełącznik własną mutacją, egzekwowane w DB), (2) zgody + rejestr RODO + deklaracja GPC, (3) prawa do danych. Krzyżowe linki z /profile/security.
 - **Relacje:** Moduł 9 (Czat) — useDiscoverable/useHideAvatar/chat_accepts_new_thread, preferencje read_receipts/typing/online; Moduł 12 (Powiadomienia) — notification_preferences (allow_messages_from, allow_connections_from); Moduł 10 (Sieć) — allow_connections egzekwowane w DB; Moduł 19 (RODO) — ConsentsPanel, GpcDeclarationSlot, ścieżka set_user_consent z IP/UA serwerowo; Moduł 14 — CMP/cookie banner (OPEN_PREFS_EVENT).
 - **✅ Mocne:** komentarz-audyt §10 dokumentuje stan zastany i naprawę rozproszenia ustawień (profile.privacy.tsx:1-23); nota ekspozycji publicznej NIEZALEŻNA od discoverable (VisibilityAndContactSection.tsx:110-172); etykiety opcji z modelu, nie z szablonu (:47-60).
 - **⚠️ Słabe:** brak testów komponentu (mutacje przełączników, stany disabled); domyślne `expertRequestsOn = data ?? true` po stronie UI (:104) — przy błędzie odczytu pokazuje "włączone", choć egzekwowanie jest w DB (kosmetyka, ale myli).
 - **🔧 Rekomendacje:**
-  1. Testy przełączników (optimistic → toast, disabled podczas isPending), src/components/profile/privacy/**tests**/.
+  1. Testy przełączników (optimistic → toast, disabled podczas isPending), src/components/profile/privacy/__tests__/.
   2. Odróżnić stan "nieznany" od "włączony" przy błędzie zapytania, VisibilityAndContactSection.tsx:102-107.
 
 ### 15.18. Ekspozycja publiczna profilu — **8,5/10**
-
 - **Pliki:** src/lib/profile/publicExposure.ts:1-104 (+ publicExposure.test.ts, 106 linii), src/lib/profile/usePublicExposure.ts, src/components/molecules/PublicExposureNotice.tsx; pgTAP: profiles_public_anon_gate_test.sql
 - **Co robi:** Zastępuje fałszywą obietnicę "niezalogowani nie widzą Twojego profilu" sterowalną notą STANU z POWODAMI (rola redakcyjna, odznaka eksperta, profil autora, profil prelegenta, opublikowane treści) czytaną z RPC get_my_public_exposure; każdy null degraduje do false — nota nie obiecuje prywatności, której nie potwierdziła baza.
 - **Relacje:** Moduł 10 (Sieć/eksperci) — /author/$slug publiczny z założenia; Moduł 19 (authz) — migracja 20260806160000 zamyka wyciek widoku profiles_public (22 kolumny dla anon); Moduł 8 (SEO) — powiadomienie o indeksowalności.
 - **✅ Mocne:** czysty moduł bez I/O z pełnym testem normalizacji; udokumentowana dziura bezpieczeństwa i jej domknięcie (publicExposure.ts:5-15); pgTAP bramki anon.
 - **⚠️ Słabe:** nie znalazłem słabości w samym module; powody ekspozycji wymagają ręcznej synchronizacji z regułami widoku w DB (bramka CI ich nie porównuje — szukałem odpowiednika gate-testu jak przy intencjach).
 - **🔧 Rekomendacje:**
-  1. Bramka CI porównująca listę powodów w TS z definicją RPC/widoku (wzorzec profileIntentCatalog.gate), src/lib/ci/**tests**/.
+  1. Bramka CI porównująca listę powodów w TS z definicją RPC/widoku (wzorzec profileIntentCatalog.gate), src/lib/ci/__tests__/.
 
 ### 15.19. Bezpieczeństwo konta (/profile/security) — **7,5/10**
-
 - **Pliki:** src/routes/profile.security.tsx:1-538
 - **Co robi:** Zmiana hasła z re-uwierzytelnieniem i ubiciem pozostałych sesji, zmiana e-maila przez server fn (hasło + link potwierdzający na nowy adres), "wyloguj pozostałe urządzenia", wylogowanie, oraz pełna sekcja MFA (15.5). Linkuje do huba prywatności z wyjaśnieniem granicy.
 - **Relacje:** Moduł 15.20 — changeMyEmail w account.functions.ts; Moduł 15.5 — MFA; Moduł 12 — brak (celowo: sesje nie są listowane, bo supabase-js nie potrafi — komentarz :126-127).
@@ -4219,10 +3908,9 @@ Moduł obejmuje pełny cykl konta: uwierzytelnienie (portal, popup, reset, MFA, 
 - **⚠️ Słabe:** "sesje" to tylko data ostatniego logowania + jeden przycisk — brak listy urządzeń (ograniczenie Supabase, nazwane w komentarzu, ale UX ubogi); brak wymuszenia weryfikacji starego adresu przy zmianie e-maila (decyzja konfiguracyjna Supabase, nieskomentowana); brak testów strony.
 - **🔧 Rekomendacje:**
   1. Rozważyć double-confirm zmiany e-maila (secure email change w konfiguracji Supabase) i opisać zachowanie w UI, src/routes/profile.security.tsx:101-121.
-  2. Test formularza zmiany hasła (walidacje, re-auth-fail), src/routes/**tests**/.
+  2. Test formularza zmiany hasła (walidacje, re-auth-fail), src/routes/__tests__/.
 
 ### 15.20. Prawa do danych: eksport RODO i usunięcie konta — **9,0/10**
-
 - **Pliki:** src/lib/profile/export.functions.ts:1-385, src/lib/profile/exportManifest.ts:1-230 (+ exportManifest.test.ts, 231 linii), src/lib/account.functions.ts:1-119, src/components/profile/privacy/DataRightsSection.tsx:1-200; pgTAP: accounting_retention_test.sql
 - **Co robi:** Eksport ~45 sekcji (tożsamość, CV, aktywność, sieć, czat — tylko własne wiadomości, zapytania do ekspertów, kluby, płatności, preferencje) klientem user-scoped/RPC SECURITY DEFINER, z manifestem w pliku (sekcje + świadome wyłączenia z powodami + drift deklaracja⇄implementacja + sekcja errors); Promise.allSettled — jedna odmowa nie psuje eksportu. Usunięcie konta: re-auth hasłem → anulowanie subskrypcji u operatora → anonimizacja dowodów księgowych w jednej transakcji → deleteUser; UI raportuje liczbę zatrzymanych dowodów (art. 12 RODO).
 - **Relacje:** Moduł 19 (RODO) — granica modułu: to jest wykonanie art. 15/17/20 od strony konta (rejestr zgód i polityki żyją w M19); Moduł 13 (Monetyzacja) — closeBillingForUser + retainAccountingEvidence (accountClosure/accountingRetention.server); Moduł 9 (Czat), 21 (Kluby), 10 (Sieć) — sekcje eksportu przez ich RPC (club_export_my_data, my_connections, list_my_inmails); Moduł 12 — notifications/push_subscriptions w eksporcie.
@@ -4233,7 +3921,6 @@ Moduł obejmuje pełny cykl konta: uwierzytelnienie (portal, popup, reset, MFA, 
   2. Ścieżka usunięcia konta dla użytkowników bez hasła (re-auth linkiem e-mail), src/lib/account.functions.ts:31-47.
 
 ### 15.21. Odznaki i weryfikacja profilu — **8,0/10**
-
 - **Pliki:** src/lib/profile/badgeCatalog.ts:1-79 (+ badgeCatalog.test.ts), src/lib/profile/badges.ts:1-75, src/components/profile/ProfileBadges.tsx, src/components/profile/VerifiedProfileBadge.tsx:1-57; pgTAP: profile_badge_domain_sync_test.sql, profiles_verification_guard_test.sql, people_verification_test.sql
 - **Co robi:** Kanoniczny katalog 4 odznak (verified/expert/staff/contributor) zsynchronizowany z CHECK-iem w DB, warstwa odczytu batch/single z normalizacją i stabilnym kluczem cache, atom "Zweryfikowany" współdzielony przez /profile, podgląd gościa i /author/$slug; verified_at w profilu jest read-only dla właściciela (useProfileEditor.ts:26-27).
 - **Relacje:** Moduł 16 (Społeczność-admin) — nadawanie odznak przez RPC adminowe (lib/admin/badges); Moduł 10 (Sieć) — odznaki w /people, /author/$slug, contributors; Moduł 9 (Czat) — NewChatSearch/GroupMemberPicker pokazują odznaki; Moduł 15.18 — expertBadge jako powód ekspozycji.
@@ -4243,27 +3930,24 @@ Moduł obejmuje pełny cykl konta: uwierzytelnienie (portal, popup, reset, MFA, 
   1. Przenieść etykiety/opisy odznak do i18n z bramką parzystości, src/lib/profile/badgeCatalog.ts.
 
 ### 15.22. Zapisane wyszukiwania i alerty — **7,5/10**
-
 - **Pliki:** src/hooks/useSavedSearches.ts:1-145, src/components/search/SavedSearchesPanel.tsx; migracja 20260807142000 (kolumna entity, trigger saved_searches_alert_defaults)
 - **Co robi:** CRUD saved_searches z dwiema encjami (posts/people), kanonicznym hrefem wyników (stabilna kolejność parametrów, q pierwsze) uzupełnianym przy włączaniu alertu; producent run_saved_search_alerts rozgałęzia się po encji — alert "dołączył ktoś, kogo szukasz".
 - **Relacje:** Moduł 6 (Wyszukiwarka) — SavedSearchesPanel w /search; Moduł 10 (Sieć) — encja people i katalog /people; Moduł 12 (Powiadomienia) — href powiadomienia = url zapisu, producent alertów w DB.
 - **✅ Mocne:** komentarze wiążą każdą decyzję z migracją i producentem (useSavedSearches.ts:6-18,114-117); zawężenie listy per powierzchnia z uzasadnieniem (:55-60); nazwa przycinana do 120 znaków przy zapisie.
 - **⚠️ Słabe:** brak testu savedSearchHref (sortowanie parametrów, encje) mimo że href jest kontraktem powiadomień; rzutowania `as string` w mapowaniu wierszy (:74-82) zamiast typów wygenerowanych.
 - **🔧 Rekomendacje:**
-  1. Test savedSearchHref + toEntity, src/hooks/**tests**/useSavedSearches.test.ts.
+  1. Test savedSearchHref + toEntity, src/hooks/__tests__/useSavedSearches.test.ts.
 
 ### 15.23. Konfiguracja logowania i pól rejestracji — **8,0/10**
-
 - **Pliki:** src/lib/authSettings.ts:1-79, src/hooks/useAuthSettings.ts:1-36, src/lib/auth/registrationFields.ts:1-123, src/routes/admin.login-settings.tsx (powierzchnia adminowa)
 - **Co robi:** Typowany kontrakt site_setting `auth_branding` (30+ pól: popup, rejestracja publiczna, obrazy per tryb/motyw, pozycja formularza, redirecty, linki prawne) z defaultami zachowującymi historyczny wygląd; registrationFields buduje API pól rejestracji z newsletter_settings.popup_fields — jedno źródło dla /login, popupu, widgetu buildera i newslettera; buildSignupMetadata to kanoniczna mapa user_metadata zsynchronizowana z triggerem handle_new_user (pgTAP signup_provisioning_test.sql).
 - **Relacje:** Moduł 19 (Ustawienia) — site_settings, admin.login-settings; Moduł 11 (Newsletter) — popup_fields, marketing_opt_in; Moduł 18 (CRM) — metadane signup (company/position) zasilają profil/lead; Moduł 2 (Edytor) — widget RegisterFormView.
 - **✅ Mocne:** czysta funkcja buildRegistrationFieldsApi używalna w testach (registrationFields.ts:38-62); default login_position="right" z uzasadnieniem kompatybilności (authSettings.ts:55-57); klucze metadanych jawnie związane z triggerem DB (:84-87).
 - **⚠️ Słabe:** brak testu buildSignupMetadata (kontrakt z triggerem handle_new_user pilnowany tylko pgTAP-em od strony DB); useAuthSettings duplikuje wzorzec resolveSetting ręcznym spreadem (useAuthSettings.ts:12-15).
 - **🔧 Rekomendacje:**
-  1. Test buildSignupMetadata (czyszczenie pól, display_name fallback), src/lib/auth/**tests**/.
+  1. Test buildSignupMetadata (czyszczenie pól, display_name fallback), src/lib/auth/__tests__/.
 
 ### 15.24. Onboarding — coachmark tours — **7,0/10**
-
 - **Pliki:** src/lib/onboarding/{useOnboardingTour.ts,tours.ts,tourStorage.ts,types.ts} (+ testy tours.test.ts, tourStorage.test.ts)
 - **Co robi:** Generyczny hook tury coachmarków (auto-start raz per id, odroczenie o klatkę na zmontowanie kotwic data-tour, trwałe odrzucenie w storage) + dane kroków dla tour buildera i edytora bloków. UWAGA zakresowa: mimo umiejscowienia w liście plików M15, to onboarding EDYTORA (konsumenci: admin/builder/Builder.tsx, admin/blocks/PostBlockEditor.tsx) — żadna trasa profilu z niego nie korzysta; nie jest to martwy kod, ale nie ma tu onboardingu nowego użytkownika profilu.
 - **Relacje:** Moduł 2 (Edytor/workflow) — jedyni konsumenci (Builder, PostBlockEditor); brak relacji z trasami profilu.
@@ -4273,40 +3957,38 @@ Moduł obejmuje pełny cykl konta: uwierzytelnienie (portal, popup, reset, MFA, 
   1. Wykorzystać istniejący silnik do tury profilu (intencje → kompletność → prywatność), src/lib/onboarding/tours.ts + src/routes/profile.index.tsx.
 
 ### 15.25. Diagnostyka maili autoryzacyjnych — **6,5/10**
-
 - **Pliki:** src/lib/auth-email-events.functions.ts:1-44, src/lib/email/auth-events.server.ts, src/lib/i18n-auth-email-logs.ts, src/lib/auth-email-preview.functions.ts
 - **Co robi:** Server fn (requireAdmin) z walidacją Zod stronicująca zdarzenia webhooka maili autoryzacyjnych (enqueued/rejected/failed, filtr języka/typu/fallbacku) dla /admin/newsletter/auth-logs — obserwowalność doręczeń maili potwierdzenia/resetu.
 - **Relacje:** Moduł 11 (Newsletter) — ta sama infrastruktura mailowa i trasa admin.newsletter.*; Moduł 16 (Społeczność-admin) — requireAdmin; Moduł 17 (Analityka) — raport zdarzeń.
 - **✅ Mocne:** twarda walidacja parametrów z sufitami (days≤90, pageSize≤100, auth-email-events.functions.ts:18-30); cienki wrapper z logiką w module serwerowym.
 - **⚠️ Słabe:** brak testów wrappera i modułu serwerowego (szukałem auth-events w testach — brak); funkcjonalnie to bardziej M11 niż M15 — w module konta liczy się tylko jako obserwowalność ścieżki signup/reset.
 - **🔧 Rekomendacje:**
-  1. Test walidatora (odrzucenie days=0/91, default page), src/lib/**tests**/.
+  1. Test walidatora (odrzucenie days=0/91, default page), src/lib/__tests__/.
 
 ### Podsumowanie modułu 15
-
 - **Średnia ocen funkcji:** 7,7 · **Rozkład:** 2 × 9–10 / 21 × 7–8 / 2 × 5–6 / 0 × <5
 
 - **Relacje modułu (zbiorczo):**
 
-| Moduł                     | Mechanizm                                                                                                                                                                                        | Kierunek zależności                                           |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
-| 1 Wpisy-czytelnik         | user_bookmarks/useSaveArticle, LoginPopup z przycisku zapisu, reading-list                                                                                                                       | M15 → M1 (dostarcza personalizację), M1 → M15 (otwiera popup) |
-| 2 Edytor/workflow         | rola author bramkuje zakładkę expert; lib/onboarding konsumowany przez Builder/PostBlockEditor                                                                                                   | dwukierunkowa                                                 |
-| 3 Silniki treści          | user_follows/interests → recommendedPosts, followed-feed (invalidacje query keys)                                                                                                                | M15 → M3                                                      |
-| 5 Chrome/nawigacja        | wspólny cache ["header-profile"] header ↔ profil                                                                                                                                                 | dwukierunkowa                                                 |
-| 6 Wyszukiwarka            | saved_searches (entity=posts), SavedSearchesPanel; kompletność bramkuje embeddingi                                                                                                               | M15 → M6                                                      |
-| 8 SEO/feedy               | buildContentHead na /login i /reset-password; refreshAuthorOgImage                                                                                                                               | M15 → M8                                                      |
-| 9 Czat                    | useDiscoverable/hide_avatar, notification_preferences (allow_messages_from), chat_accepts_new_thread; sekcje czatu w eksporcie                                                                   | M15 → M9 (ustawienia), M9 → M15 (dane eksportu)               |
-| 10 Sieć/eksperci          | ProfileViewsCard/IntroductionsCard w /profile, slug → /author/$slug, faseta open_to w /people, expert-requests, odznaki, RPC my_connections w eksporcie                                          | dwukierunkowa (granica: grafy = M10)                          |
-| 11 Newsletter             | registrationFields z newsletter_settings.popup_fields, marketing_opt_in, auth-email-events na trasie admin.newsletter                                                                            | dwukierunkowa                                                 |
-| 12 Realtime/powiadomienia | deep-linki ?tab=/?intro=/?box=&r=, alerty saved_searches, notification_preferences, kanał realtime interests-catalog                                                                             | dwukierunkowa                                                 |
-| 13 Monetyzacja-core       | trasy profile.{membership,plan,payments,billing,organization} = powierzchnie M13 w chrome M15; deleteMyAccount → closeBillingForUser + retainAccountingEvidence                                  | dwukierunkowa (granica: billing = M13)                        |
-| 14 Monetyzacja-uzup.      | unlockContentPassword (paywall hasłowy), CMP/OPEN_PREFS_EVENT                                                                                                                                    | M15 → M14                                                     |
-| 16 Społeczność-admin      | nadawanie odznak/weryfikacji RPC adminowymi, user_invitations, AuthorProfileEditor mode="admin", admin.login-settings                                                                            | M16 → M15                                                     |
-| 18 CRM                    | CompanyPickerDialog → crm_companies (RPC), metadane signup, interests_<slug> custom fields                                                                                                       | M15 → M18                                                     |
-| 19 Ustawienia/authz/RODO  | site_settings (auth_branding, personalized_system), kolumnowe granty PII + get_own_profile, ConsentsPanel/GPC, rejestr zgód; eksport/usunięcie = wykonanie RODO od strony konta (polityki = M19) | dwukierunkowa                                                 |
-| 20 Platforma/SSR          | storageKeys, siteSettingsQueryOptions, degradacja auth przy awarii klienta, trusted proxy headers dla IP                                                                                         | M15 → M20                                                     |
-| 21 Kluby                  | club_export_my_data (7 sekcji eksportu jednym RPC)                                                                                                                                               | M21 → M15                                                     |
+| Moduł | Mechanizm | Kierunek zależności |
+|---|---|---|
+| 1 Wpisy-czytelnik | user_bookmarks/useSaveArticle, LoginPopup z przycisku zapisu, reading-list | M15 → M1 (dostarcza personalizację), M1 → M15 (otwiera popup) |
+| 2 Edytor/workflow | rola author bramkuje zakładkę expert; lib/onboarding konsumowany przez Builder/PostBlockEditor | dwukierunkowa |
+| 3 Silniki treści | user_follows/interests → recommendedPosts, followed-feed (invalidacje query keys) | M15 → M3 |
+| 5 Chrome/nawigacja | wspólny cache ["header-profile"] header ↔ profil | dwukierunkowa |
+| 6 Wyszukiwarka | saved_searches (entity=posts), SavedSearchesPanel; kompletność bramkuje embeddingi | M15 → M6 |
+| 8 SEO/feedy | buildContentHead na /login i /reset-password; refreshAuthorOgImage | M15 → M8 |
+| 9 Czat | useDiscoverable/hide_avatar, notification_preferences (allow_messages_from), chat_accepts_new_thread; sekcje czatu w eksporcie | M15 → M9 (ustawienia), M9 → M15 (dane eksportu) |
+| 10 Sieć/eksperci | ProfileViewsCard/IntroductionsCard w /profile, slug → /author/$slug, faseta open_to w /people, expert-requests, odznaki, RPC my_connections w eksporcie | dwukierunkowa (granica: grafy = M10) |
+| 11 Newsletter | registrationFields z newsletter_settings.popup_fields, marketing_opt_in, auth-email-events na trasie admin.newsletter | dwukierunkowa |
+| 12 Realtime/powiadomienia | deep-linki ?tab=/?intro=/?box=&r=, alerty saved_searches, notification_preferences, kanał realtime interests-catalog | dwukierunkowa |
+| 13 Monetyzacja-core | trasy profile.{membership,plan,payments,billing,organization} = powierzchnie M13 w chrome M15; deleteMyAccount → closeBillingForUser + retainAccountingEvidence | dwukierunkowa (granica: billing = M13) |
+| 14 Monetyzacja-uzup. | unlockContentPassword (paywall hasłowy), CMP/OPEN_PREFS_EVENT | M15 → M14 |
+| 16 Społeczność-admin | nadawanie odznak/weryfikacji RPC adminowymi, user_invitations, AuthorProfileEditor mode="admin", admin.login-settings | M16 → M15 |
+| 18 CRM | CompanyPickerDialog → crm_companies (RPC), metadane signup, interests_<slug> custom fields | M15 → M18 |
+| 19 Ustawienia/authz/RODO | site_settings (auth_branding, personalized_system), kolumnowe granty PII + get_own_profile, ConsentsPanel/GPC, rejestr zgód; eksport/usunięcie = wykonanie RODO od strony konta (polityki = M19) | dwukierunkowa |
+| 20 Platforma/SSR | storageKeys, siteSettingsQueryOptions, degradacja auth przy awarii klienta, trusted proxy headers dla IP | M15 → M20 |
+| 21 Kluby | club_export_my_data (7 sekcji eksportu jednym RPC) | M21 → M15 |
 
 - **5 najpilniejszych rekomendacji:**
   1. **(15.7/15.8)** Zunifikować trzy równoległe ścieżki zapisu pól profilu na wspólnym mutatorze useProfileEditor z pełną inwalidacją (w tym profileEditorKey po zapisie w /profile/edit) i usunąć martwy klucz ["profile-sidebar"] — dziś edycje w różnych miejscach mogą pokazywać rozjechane dane do końca staleTime.
@@ -4319,24 +4001,22 @@ Moduł obejmuje pełny cykl konta: uwierzytelnienie (portal, popup, reset, MFA, 
 
 ## Moduł 16 — Zarządzanie społecznością (admin): moderacja, badges, engagement, Q&A
 
-**Zakres zbadany:** src/routes/admin.community.tsx + index/badges/contributors/engagement/events/notifications/polls/qa (oraz granicznie admin.community.chat.tsx), admin.comments.tsx, admin.audience.tsx · src/components/admin/community/ (CommunitySubNav, MemberPicker, VerificationDomainsCard, EventSpeakersManager, SchedulerHealthPanel + test) · src/lib/admin/{community,badges,network,verificationDomains}.ts · src/lib/comments/{api,selection}.ts + **tests** · src/lib/community/{modulesSettings,useCommunityModules,reputation,reputationBadges.server}.ts + testy · src/lib/profile/badgeCatalog.ts · src/lib/i18n-community.ts, i18n-cohesion.ts, i18n-admin-comments.ts, i18n-admin-scheduler.ts · src/routes/api/public/community-cron.ts · migracje: 20260713070846 (member analytics), 20260713099000 (engagement overview), 20260721151000 (QA summary), 20260803095150 + 20260803113000 (badges/domeny), 20260803191905 (admin_list_events), 20260727200000 (speaker_profiles) · pgTAP: supabase/tests/ (m.in. member_analytics, community_qa, community_qa_summary, community_polls_contrib, profile_badge_domain_sync, people_verification, community_membership_badges, job_scheduler_heartbeat, connections_v2). · **Funkcji:** 17 · **Ocena modułu:** 7,6/10
+**Zakres zbadany:** src/routes/admin.community.tsx + index/badges/contributors/engagement/events/notifications/polls/qa (oraz granicznie admin.community.chat.tsx), admin.comments.tsx, admin.audience.tsx · src/components/admin/community/ (CommunitySubNav, MemberPicker, VerificationDomainsCard, EventSpeakersManager, SchedulerHealthPanel + test) · src/lib/admin/{community,badges,network,verificationDomains}.ts · src/lib/comments/{api,selection}.ts + __tests__ · src/lib/community/{modulesSettings,useCommunityModules,reputation,reputationBadges.server}.ts + testy · src/lib/profile/badgeCatalog.ts · src/lib/i18n-community.ts, i18n-cohesion.ts, i18n-admin-comments.ts, i18n-admin-scheduler.ts · src/routes/api/public/community-cron.ts · migracje: 20260713070846 (member analytics), 20260713099000 (engagement overview), 20260721151000 (QA summary), 20260803095150 + 20260803113000 (badges/domeny), 20260803191905 (admin_list_events), 20260727200000 (speaker_profiles) · pgTAP: supabase/tests/ (m.in. member_analytics, community_qa, community_qa_summary, community_polls_contrib, profile_badge_domain_sync, people_verification, community_membership_badges, job_scheduler_heartbeat, connections_v2). · **Funkcji:** 17 · **Ocena modułu:** 7,6/10
 
 Moduł to adminowy "panel dowodzenia" społecznością: dashboard z globalnymi przełącznikami modułów w site_settings, moderacja wydarzeń/Q&A/ankiet/zgłoszeń współtwórców/komentarzy/zgłoszeń użytkowników, system odznak (ręczny + trzy ścieżki automatyzacji), telemetria zaangażowania, retencji i zdrowia harmonogramu doręczeń. Stan ogólny jest produkcyjny: autoryzacja konsekwentnie egzekwowana w DB (RLS + RPC SECURITY DEFINER z has_role i tenant-scope), szerokie pokrycie pgTAP (>10 plików testów dotyka RPC modułu), dwujęzyczność PL/EN wszędzie. Najważniejszy wniosek: warstwa danych i bezpieczeństwo są mocniejsze niż warsztat UI — w trasach zostały drobne, ale realne usterki (martwa inwalidacja query key w contributors, window.confirm zamiast confirmDialog, agregacja głosów ankiet po stronie klienta, brak paginacji list) oraz niejednolita strategia i18n (inline ternary vs bundle).
 
 ### 16.1. Dashboard społeczności + globalne przełączniki modułów — **7,5/10**
-
 - **Pliki:** src/routes/admin.community.index.tsx:41-307, src/routes/admin.community.tsx:1-19, src/components/admin/community/CommunitySubNav.tsx:26-164, src/lib/admin/community.ts:26-90, src/lib/community/modulesSettings.ts:6-41, src/lib/community/useCommunityModules.ts:11-16
 - **Co robi:** Ekran /admin/community: 6 metryk z RPC admin_community_stats (jeden round-trip), 10 przełączników modułów (chat, sieć, events, Q&A, polls, contributor program, badges, push, kluby, expert requests) zapisywanych do site_settings.community_modules, wybór TTL wiadomości oraz akcje serwisowe (purge wiadomości, przypomnienia o wydarzeniach). Sub-nav ze sticky zakładkami i plakietką kolejek klubowych.
 - **Relacje:** Moduł 19 (Ustawienia/authz) — wspólna tabela site_settings (klucz community_modules, upsert po tenant_id+key); Moduł 5 (Chrome/nawigacja) — useCommunityModules konsumowany w SiteChrome (wydzielenie modulesSettings.ts właśnie po to, by nie ciągnąć warstwy adminowej do bundla wejściowego); Moduł 9 (Czat) — purgeExpiredMessages / TTL sterują chat_purge_expired_messages; Moduł 21 (Kluby) — toggle clubs_enabled (opt-in, `=== true`) i plakietka admin_club_pending_counts w sub-nav; Moduł 12 (Realtime) — invalidacja ["site_settings_public"] po zapisie.
 - **✅ Mocne:** Świadoma semantyka domyślnych wartości (`!== false` dla modułów opt-out, `=== true` dla klubów — komentarz w community.ts:68-70); optymistyczne setQueryData po zapisie; metryki i moduły w osobnych query z sensownym staleTime; pełne PL/EN.
-- **⚠️ Słabe:** updateCommunityModules (community.ts:76-90) to read-modify-write bez kontroli współbieżności — dwóch adminów klikających przełączniki równolegle może sobie nadpisać zmiany całym obiektem; brak testu jednostkowego dla fetch/updateCommunityModules (szukałem w src/lib/admin/**tests** i src/lib/community/**tests** — brak); stringi inline zamiast bundla i18n.
+- **⚠️ Słabe:** updateCommunityModules (community.ts:76-90) to read-modify-write bez kontroli współbieżności — dwóch adminów klikających przełączniki równolegle może sobie nadpisać zmiany całym obiektem; brak testu jednostkowego dla fetch/updateCommunityModules (szukałem w src/lib/admin/__tests__ i src/lib/community/__tests__ — brak); stringi inline zamiast bundla i18n.
 - **🔧 Rekomendacje:**
   1. Zamienić upsert całego obiektu na patch po stronie DB (RPC z `value = value || p_patch` na jsonb) albo dodać wersjonowanie — eliminacja wyścigu dwóch adminów (src/lib/admin/community.ts:76-90).
   2. Dodać test jednostkowy semantyki domyślnych (`clubs_enabled === true` vs reszta `!== false`) — to reguła biznesowa łatwa do cichego zepsucia.
   3. Pokryć admin_community_stats testem pgTAP (odmowa nie-staffowi, tenant-scope) — grep po supabase/tests nie znalazł żadnego wywołania.
 
 ### 16.2. Panel sieci kontaktów: metryki + zgłoszenia użytkowników — **7,0/10**
-
 - **Pliki:** src/routes/admin.community.index.tsx:311-440 (NetworkPanel), src/lib/admin/network.ts:12-38
 - **Co robi:** Metryki tenanta (połączenia, zaproszenia/akceptacje 30 dni, skuteczność, członkowie z siecią) z admin_network_stats oraz kolejka zgłoszeń użytkowników (admin_list_user_reports) z akcjami rozstrzygnij/oddal (admin_resolve_user_report).
 - **Relacje:** Moduł 10 (Sieć/eksperci) — wspólne tabele connections/user_reports i RPC sieciowe (moderacja tego, co użytkownicy zgłaszają w module sieci); Moduł 19 — is_staff() w DB jako bramka.
@@ -4348,7 +4028,6 @@ Moduł to adminowy "panel dowodzenia" społecznością: dashboard z globalnymi p
   3. Dodać filtr statusu (open/resolved/dismissed) dla audytowalności decyzji.
 
 ### 16.3. CRUD wydarzeń (admin) — **7,0/10**
-
 - **Pliki:** src/routes/admin.community.events.tsx:42-575, src/lib/admin/community.ts:172-249, supabase/migrations/20260803191905 (admin_list_events/admin_get_event)
 - **Co robi:** Lista wydarzeń z filtrem statusu i wyszukiwarką (RPC admin_list_events omijające kolumnowe granty na join_url/recording_url), tworzenie (slug, tytuły PL/EN, rodzaj, widoczność), edycja (opisy, capacity, join URL, okno rejestracji, ranga early-access, cena biletu w groszach + waluta), publikacja/anulowanie/usuwanie z dialogiem potwierdzenia, ręczne przypomnienia.
 - **Relacje:** Moduł 7 (Treści specjalne) — wspólna tabela events, publiczna strona /events/$slug konsumuje publikowane wiersze; Moduł 13 (Monetyzacja-core) — ticket_price_cents/ticket_currency są źródłem prawdy checkoutu biletów; Moduł 12 (Realtime/powiadomienia) — run_event_reminders zasila kolejkę powiadomień, eventInvalidationMap odświeża ["admin-community-events"]; Moduł 14 — early_rsvp_rank/min_tier_rank wiążą się z rangami warstw członkostwa.
@@ -4361,7 +4040,6 @@ Moduł to adminowy "panel dowodzenia" społecznością: dashboard z globalnymi p
   4. Dodać paginację lub "pokaż więcej" dla listy wydarzeń.
 
 ### 16.4. Prelegenci wydarzeń + profil prelegenta z mostem do CRM — **6,5/10**
-
 - **Pliki:** src/components/admin/community/EventSpeakersManager.tsx:42-423, src/lib/admin/community.ts:251-442, supabase/migrations/20260727200000_speaker_profiles_event_widgets.sql
 - **Co robi:** W dialogu edycji wydarzenia: lista event_speakers z kolejnością (góra/dół), dodawanie przez MemberPicker, edycja profilu prelegenta (headline/bio/tematy PL/EN, języki, statystyki, is_public) przez utwardzone RPC admin_upsert_speaker_profile, które opcjonalnie tworzy/aktualizuje lead CRM (tag "speaker") i podpina crm_lead_id.
 - **Relacje:** Moduł 18 (CRM) — RPC woła crm_upsert_lead_from_profile, link do /admin/crm/$id z dialogu; Moduł 7 — publiczne widgety prelegentów na stronie wydarzenia czytają speaker_profiles po płaszczyźnie public_tenant_id(); Moduł 10 — profile/profiles_public jako źródło nazwisk i awatarów.
@@ -4374,7 +4052,6 @@ Moduł to adminowy "panel dowodzenia" społecznością: dashboard z globalnymi p
   4. Zregenerować typy Supabase i usunąć idiom rpcUntyped.
 
 ### 16.5. Moderacja sesji Q&A i pytań — **7,5/10**
-
 - **Pliki:** src/routes/admin.community.qa.tsx:58-651, src/lib/admin/community.ts:444-569, supabase/migrations/20260713095000_qa_sessions.sql
 - **Co robi:** Lista sesji z pełnym workflow (draft → scheduled → open → answering → closed, plus reopen), kreator sesji (slug z sanitizacją, tytuły/intra PL/EN, okna czasowe), drill-in do pytań z filtrami statusu i akcjami approve/reject/answer (zapis odpowiedzi inline).
 - **Relacje:** Moduł 7 (Treści specjalne) — publiczna strona /qa czyta te same qa_sessions/qa_questions; Moduł 12 — invalidacja ["admin-community-stats"] po moderacji; Moduł 19 — kolumnowe odebranie user_id rolom anon/authenticated (anonimowość pytających) wymusza jawną listę kolumn QA_QUESTION_COLUMNS (community.ts:448-456).
@@ -4386,7 +4063,6 @@ Moduł to adminowy "panel dowodzenia" społecznością: dashboard z globalnymi p
   3. Pokazać licznik pending przy każdej sesji na liście (dane są w admin_community_stats tylko globalnie).
 
 ### 16.6. Podsumowanie sesji Q&A jako treść (publish_qa_session_summary) — **8,5/10**
-
 - **Pliki:** src/routes/admin.community.qa.tsx:240-331 (SummaryButton), src/lib/admin/community.ts:505-535, supabase/migrations/20260721151000_qa_session_summary.sql, supabase/tests/community_qa_summary_test.sql
 - **Co robi:** Kompiluje odpowiedziane pytania sesji (porządek: głosy społeczności, potem starszeństwo) w dwujęzyczny wpis powiązany przez qa_sessions.post_id — jako szkic do kolejki redakcyjnej albo natychmiastową publikację; ponowne uruchomienie odświeża istniejący wpis (idempotencja, bez duplikatów).
 - **Relacje:** Moduł 2 (Edytor/workflow) — tworzy wiersz posts i toast linkuje do /admin/posts/$slug; Moduł 1 (Wpisy-czytelnik) — opublikowany recap jest zwykłym wpisem; Moduł 12 — publikacja powiadamia autorów pytań (logika w RPC).
@@ -4397,7 +4073,6 @@ Moduł to adminowy "panel dowodzenia" społecznością: dashboard z globalnymi p
   2. Dodać wariant "utwórz szkic i otwórz w edytorze" jako domyślną ścieżkę (publikacja w ciemno tylko za świadomym potwierdzeniem).
 
 ### 16.7. Ankiety — panel administracyjny — **6,5/10**
-
 - **Pliki:** src/routes/admin.community.polls.tsx:36-362, src/lib/admin/community.ts:571-635, supabase/tests/community_polls_contrib_test.sql
 - **Co robi:** Lista ankiet z filtrem statusu, tworzenie (pytanie PL/EN, 2–8 dwujęzycznych opcji, termin, status draft/open), otwieranie/zamykanie, usuwanie, podgląd wyników z paskami procentowymi liczonymi z poll_votes.
 - **Relacje:** Moduł 7 (Treści specjalne) — publiczny PollCard głosuje w te same tabele polls/poll_votes; RPC głosowania odrzuca głosy po ends_at (migracja 20260713097000:115).
@@ -4410,7 +4085,6 @@ Moduł to adminowy "panel dowodzenia" społecznością: dashboard z globalnymi p
   4. Odzwierciedlać w liście stan "po terminie" (badge "zakończona" gdy ends_at < now, mimo statusu open).
 
 ### 16.8. Program współtwórców — moderacja zgłoszeń — **7,5/10**
-
 - **Pliki:** src/routes/admin.community.contributors.tsx:27-191, src/lib/admin/community.ts:637-704, supabase/migrations/20260713097000_polls_contributor_program.sql:202-330
 - **Co robi:** Kolejka zgłoszeń gościnnych z filtrami status (pending/approved/rejected) i język (PL/EN), akceptacja/odrzucenie z opcjonalną notatką redaktora; mapowanie 4 statusów DB (submitted/in_review/accepted/rejected) na 3 kategorie UI trzymane jednostronnie w warstwie lib.
 - **Relacje:** Moduł 16-wewnętrznie/odznaki — trigger contributor_submissions_reviewed automatycznie nadaje odznakę "contributor" z grant_source='contributor_submission' (migracja 20260803095150:513-575); Moduł 12 — powiadomienie autora o przyjęciu w triggerze; Moduł 7 — publiczny formularz /contribute zapisuje do tej samej tabeli.
@@ -4422,8 +4096,7 @@ Moduł to adminowy "panel dowodzenia" społecznością: dashboard z globalnymi p
   3. Test jednostkowy mapowania DB↔UI statusów (czysta funkcja, łatwy zysk regresyjny).
 
 ### 16.9. Odznaki profilowe — katalog i nadawanie ręczne — **8,0/10**
-
-- **Pliki:** src/routes/admin.community.badges.tsx:33-243, src/lib/admin/badges.ts:5-89, src/lib/profile/badgeCatalog.ts:5-79 (+ **tests**/badgeCatalog.test.ts), src/components/admin/community/MemberPicker.tsx:39-175, src/lib/admin/memberSearch.ts (+ **tests**/memberSearch.test.ts)
+- **Pliki:** src/routes/admin.community.badges.tsx:33-243, src/lib/admin/badges.ts:5-89, src/lib/profile/badgeCatalog.ts:5-79 (+ __tests__/badgeCatalog.test.ts), src/components/admin/community/MemberPicker.tsx:39-175, src/lib/admin/memberSearch.ts (+ __tests__/memberSearch.test.ts)
 - **Co robi:** Panel /admin/community/badges: wybór jednej z 4 odznak (verified/expert/staff/contributor) z opisami i oznaczeniem trybu hybrid, wybór członka przez wyszukiwarkę (nazwa lub UUID), notatka ≤500 znaków, lista ostatnio przyznanych ze źródłem nadania (manual/reputation/contributor_submission/system) i odbieraniem przez confirmDialog.
 - **Relacje:** Moduł 15 (Profil/konto) — profile_badges renderowane na profilu publicznym (invalidacja ["profile-badges"]); Moduł 10 — wyszukiwarka po profiles z izolacją tenanta w RLS; Moduł 12 — eventInvalidationMap odświeża ["admin-badges"] po zdarzeniach realtime.
 - **✅ Mocne:** Kanoniczny katalog odznak zsynchronizowany z CHECK w DB i współdzielony z warstwą publiczną (badgeCatalog.ts:1-5); walidacja UUID i długości notatki po stronie klienta + RPC-only mutacje (admin_grant/revoke_profile_badge); ostrzeżenie o duplikacie przed wysłaniem (badges.tsx:55-57, 167-173); dobra dostępność (aria-pressed na kafelkach, aria-label na akcjach); pokrycie: unit (badgeCatalog, memberSearch) + pgTAP (people_verification, community_membership_badges, security_hardening_rls).
@@ -4433,8 +4106,7 @@ Moduł to adminowy "panel dowodzenia" społecznością: dashboard z globalnymi p
   2. Wystawić w UI revokeUserBadge (istnieje w lib/badges.ts:81-89, nieużywane w tej trasie) do odbierania po parze user+badge bez szukania id wiersza.
 
 ### 16.10. Weryfikacja domenowa (automatyczna odznaka "verified") — **8,5/10**
-
-- **Pliki:** src/components/admin/community/VerificationDomainsCard.tsx:28-224, src/lib/admin/verificationDomains.ts:26-101 (+ src/lib/admin/**tests**/verificationDomains.test.ts), supabase/migrations/20260803113000_profile_badge_domain_sync.sql, supabase/tests/profile_badge_domain_sync_test.sql
+- **Pliki:** src/components/admin/community/VerificationDomainsCard.tsx:28-224, src/lib/admin/verificationDomains.ts:26-101 (+ src/lib/admin/__tests__/verificationDomains.test.ts), supabase/migrations/20260803113000_profile_badge_domain_sync.sql, supabase/tests/profile_badge_domain_sync_test.sql
 - **Co robi:** Katalog zaufanych domen e-mail per tenant: dodawanie z normalizacją wejścia (obcina https://, user@, ścieżki), przełącznik "wymagaj potwierdzenia e-mail", aktywacja/dezaktywacja, usuwanie z potwierdzeniem oraz ręczny przegląd (sweep) nadający/cofający odznakę "verified" z raportem checked/granted/revoked.
 - **Relacje:** Moduł 15 (Profil/konto) — automatyczne nadania profile_badges widoczne na profilach; Moduł 19 (RODO/authz) — RPC SECURITY DEFINER wyprowadzają tenant z sesji (klient nigdy nie podaje tenant_id); Moduł 12 — cron domyka nadania (reconcile_due_profile_badges).
 - **✅ Mocne:** Regex domeny lustrzany z CHECK w bazie (verificationDomains.ts:26) z testem jednostkowym; zasada "cofamy wyłącznie nadania automatyczne" jawnie zakomunikowana w UI (VerificationDomainsCard.tsx:113-115); pgTAP plan(28) na sync/sweep; defensywny parseSweepResult; pełna a11y (aria-label na switchach i akcjach).
@@ -4444,7 +4116,6 @@ Moduł to adminowy "panel dowodzenia" społecznością: dashboard z globalnymi p
   2. Pokazywać szacunkową liczbę kont w domenie przed zapisaniem (mały RPC count) — admin widzi skutek decyzji.
 
 ### 16.11. Reputacja społeczności + automatyzacja odznak reputacyjnych — **7,5/10**
-
 - **Pliki:** src/lib/community/reputation.ts:19-168 (+ reputation.test.ts), src/lib/community/reputationBadges.server.ts:12-21, src/routes/api/public/community-cron.ts:173-175, supabase/migrations/20260721152000_community_reputation.sql, supabase/tests/community_reputation_test.sql, src/components/community/ReputationLevelChip.tsx
 - **Co robi:** Katalog 5 poziomów reputacji (progi punktowe, nazwy PL/EN) z czystymi funkcjami poziomu/postępu, fetchery leaderboardu i własnej reputacji (RPC z wagami w DB) oraz serwerowa partia naprawcza reconcile_due_profile_badges (limit 1–1000) wpięta w community-cron, domykająca odznaki zależne od czasu i importy.
 - **Relacje:** Moduł 7/10 — publiczna tablica /contributors i chip poziomu na profilach konsumują te fetchery; Moduł 20 (Platforma/SSR) — reputationBadges.server używa supabaseAdmin (service-role) wyłącznie po stronie serwera; Moduł 12 — cron jako nośnik reconcile.
@@ -4455,7 +4126,6 @@ Moduł to adminowy "panel dowodzenia" społecznością: dashboard z globalnymi p
   2. Dodać komentarz-kotwicę (lub test) wiążący progi REPUTATION_LEVELS z wagami migracji 20260721152000, by zmiany szły parą.
 
 ### 16.12. Statystyki powiadomień + utrzymanie subskrypcji push — **7,0/10**
-
 - **Pliki:** src/routes/admin.community.notifications.tsx:18-146, src/lib/admin/community.ts:706-760
 - **Co robi:** Sześć metryk (push aktywne/nieudane, wysłane 24h, nieprzeczytane, digest dzienny/tygodniowy) liczonych równoległymi count-query, akcja czyszczenia nieudanych subskrypcji push (failed_at IS NOT NULL) oraz sekcja informacyjna opisująca trzy ścieżki drenowania kolejki push.
 - **Relacje:** Moduł 12 (Realtime/powiadomienia) — wspólne tabele push_subscriptions/notifications/notification_preferences i kolejka notification_push_queue; Moduł 11 (Newsletter) — digesty e-mail jako kanał; Moduł 20 — odwołanie do docs/RUNBOOK_COMMUNITY.md.
@@ -4466,8 +4136,7 @@ Moduł to adminowy "panel dowodzenia" społecznością: dashboard z globalnymi p
   2. Dodać potwierdzenie przed "Wyczyść nieudane subskrypcje" (operacja destrukcyjna bez dialogu — jedyna taka w tej trasie).
 
 ### 16.13. Panel zdrowia harmonogramu doręczeń (SchedulerHealthPanel) — **9,0/10**
-
-- **Pliki:** src/components/admin/community/SchedulerHealthPanel.tsx:84-534 (+ **tests**/SchedulerHealthPanel.test.tsx), src/lib/i18n-admin-scheduler.ts, src/lib/admin/scheduler.functions.ts, src/routes/api/public/community-cron.ts:1-266, supabase/tests/job_scheduler_heartbeat_test.sql (348 linii)
+- **Pliki:** src/components/admin/community/SchedulerHealthPanel.tsx:84-534 (+ __tests__/SchedulerHealthPanel.test.tsx), src/lib/i18n-admin-scheduler.ts, src/lib/admin/scheduler.functions.ts, src/routes/api/public/community-cron.ts:1-266, supabase/tests/job_scheduler_heartbeat_test.sql (348 linii)
 - **Co robi:** Odpowiada na pytanie "czy dyspozytor w ogóle biegnie": świeżość ostatniego udanego przebiegu z alertami naprawczymi (stale/never, brak VAPID, brak bramki e-mail, nieuzbrojony runner, backlog ≥25), 8 kafelków metryk kolejki, stan trzech ścieżek harmonogramu (pg_cron, scheduler repo, ręcznie) z telemetrią przyczyn niepowodzeń ticku, tabela cron-jobów i log ostatnich przebiegów; przycisk "Uruchom tick teraz" woła tę samą funkcję co cron i uzbraja runner bazy.
 - **Relacje:** Moduł 12 (Realtime/powiadomienia) — monitoruje kolejkę push/digestów; Moduł 20 (Platforma/SSR) — server functions (useServerFn), endpoint community-cron z sekretem i rate-limiterem, GitHub Actions scheduler; Moduł 19 — bramka roli admin/editor spójna z RPC i middleware requireAdminEditor.
 - **✅ Mocne:** Test komponentu pilnuje trzech realnych regresji (rozwiązywanie WSZYSTKICH dynamicznych kluczy i18n, podnoszenie alertów, wywołanie ticku); refetchInterval wyłącza się po błędzie (SchedulerHealthPanel.tsx:103 — "nie ma prawa młócić serwera co 30 s"); dedykowany bundle i18n z wymuszonym parytetem; endpoint cron z timingSafeEqual i rate-limitem; pgTAP heartbeatu.
@@ -4476,7 +4145,6 @@ Moduł to adminowy "panel dowodzenia" społecznością: dashboard z globalnymi p
   1. Dodać akcję ponowienia/wyczyszczenia zadań dead-letter przy kafelku pushDead — domknięcie pętli "widzę problem → naprawiam" w jednym panelu.
 
 ### 16.14. Przegląd zaangażowania i konwersji (engagement) — **7,0/10**
-
 - **Pliki:** src/routes/admin.community.engagement.tsx:31-277, src/lib/admin/community.ts:762-843, supabase/migrations/20260713099000_engagement_overview.sql
 - **Co robi:** Jeden RPC get_engagement_overview (staff-gated, SECURITY DEFINER, tenant-scope) zasila: liczebność/przyrost członków, aktywnych 7/30 dni (unia realnych działań: wiadomości, komentarze, RSVP, głosy, Q&A, obserwacje trackera), lejek subskrypcji z paskami rozkładu warstw, opt-in push/digest, puls modułów i top nadchodzące wydarzenia z liczbą RSVP.
 - **Relacje:** Moduł 13 (Monetyzacja-core) — subscriptions_active i tier_distribution z tabel subskrypcji; Moduł 17 (Analityka/BI) — jawnie komplementarny ("dla kohort/retencji użyj CRM i Analytics"); Moduł 3 (Silniki treści) — tracker_follows z eu_policy_follows; Moduł 7 — link do publicznych /events/$slug.
@@ -4487,8 +4155,7 @@ Moduł to adminowy "panel dowodzenia" społecznością: dashboard z globalnymi p
   2. Dodać porównanie okres-do-okresu (delta %) przy kluczowych metrykach — dziś liczby bez kontekstu kierunku.
 
 ### 16.15. Moderacja komentarzy z akcjami zbiorczymi — **8,0/10**
-
-- **Pliki:** src/routes/admin.comments.tsx:45-317, src/lib/comments/api.ts:202-266, src/lib/comments/selection.ts (+ **tests**/selection.test.ts, **tests**/bulkModerate.test.ts), src/lib/i18n-admin-comments.ts
+- **Pliki:** src/routes/admin.comments.tsx:45-317, src/lib/comments/api.ts:202-266, src/lib/comments/selection.ts (+ __tests__/selection.test.ts, __tests__/bulkModerate.test.ts), src/lib/i18n-admin-comments.ts
 - **Co robi:** Kolejka /admin/comments: filtr statusu (pending/approved/spam/deleted) i wyszukiwanie ilike po treści, moderacja pojedyncza i zbiorcza (trójstanowy checkbox nagłówka, licznik zaznaczenia z auto-prune po refetchu, AlertDialog dla destrukcyjnych spam/delete), z metadanymi autora (w tym gości z user_id NULL) i wpisu.
 - **Relacje:** Moduł 1 (Wpisy-czytelnik) — wspólna tabela comments, join do posts po tytuły; Moduł 12 — licznik cohesion.counters.commentsPending w i18n-cohesion konsumowany przez zmaterializowane liczniki; Moduł 19 — RLS: publiczny SELECT tylko approved, staff moderuje w tenancie.
 - **✅ Mocne:** Logika zaznaczenia wydzielona do czystych, testowanych helperów (selection.ts z komentarzem "inaczej licznik kłamie"); bulkModerateComments deduplikuje id i robi jedno `.in()` zamiast N round-tripów, z testem jednostkowym stubującym fluent API; parytet PL/EN wymuszony typem `en: typeof pl` w bundlu; oznaczenie komentarzy gości.
@@ -4499,7 +4166,6 @@ Moduł to adminowy "panel dowodzenia" społecznością: dashboard z globalnymi p
   3. Rozszerzyć wyszukiwanie o autora i tytuł wpisu.
 
 ### 16.16. Dashboard audytorium: lejek, aktywność dzienna, retencja kohortowa — **8,0/10**
-
 - **Pliki:** src/routes/admin.audience.tsx:27-404, supabase/migrations/20260713070846 (admin_member_funnel / admin_member_activity_series / admin_member_retention + assert_admin_tenant), supabase/tests/member_analytics_test.sql
 - **Co robi:** /admin/audience: 4-stopniowy lejek członka (łącznie → discoverable opt-in → aktywni → płacący) z paskami, statystyki boczne (czytający, komentujący, czat, newsletter), wykres liniowy dziennej aktywności i nowych rejestracji z przełącznikiem okna 7/30/90 dni oraz heatmapa retencji kohortowej (8 tygodni, intensywność tła wg procentu).
 - **Relacje:** Moduł 17 (Analityka/BI) — współdzielony komponent Chart/ChartConfig; Moduł 13 — paying_members z aktywnych subskrypcji; Moduł 11 — newsletter_subscribed w lejku; Moduł 19 — assert_admin_tenant (twarda odmowa bez roli admin, tenant z profilu).
@@ -4511,8 +4177,7 @@ Moduł to adminowy "panel dowodzenia" społecznością: dashboard z globalnymi p
   3. Dodać eksport CSV kohort — to dane, które zwykle lądują w arkuszu zarządu.
 
 ### 16.17. Warstwa i18n społeczności i spójności (PL/EN) — **8,0/10**
-
-- **Pliki:** src/lib/i18n-community.ts (442 linie), src/lib/i18n-cohesion.ts:10-92 (+ src/lib/**tests**/i18nCohesion.test.ts), src/lib/i18n-admin-comments.ts:9-59, src/lib/i18n-admin-scheduler.ts (280 linii)
+- **Pliki:** src/lib/i18n-community.ts (442 linie), src/lib/i18n-cohesion.ts:10-92 (+ src/lib/__tests__/i18nCohesion.test.ts), src/lib/i18n-admin-comments.ts:9-59, src/lib/i18n-admin-scheduler.ts (280 linii)
 - **Co robi:** Side-effect bundles dokładane do rdzenia i18n: i18n-community (publiczne Events/Polls/Q&A/Contribute — pełne kategorie liczby mnogiej PL one/few/many/other), i18n-cohesion (presence, panel powiązań cross_references, liczniki zmaterializowane), i18n-admin-comments (overlay moderacji zbiorczej z parytetem wymuszonym typem `en: typeof pl`), i18n-admin-scheduler (słownik panelu zdrowia z kluczami składanymi dynamicznie).
 - **Relacje:** Moduł 7 (Treści specjalne) — i18n-community konsumowane przez publiczne trasy events/polls/qa/contribute; Moduł 12 (Realtime) — i18n-cohesion dla presence i liczników; Moduł 5 (Chrome) — rdzeń i18n, do którego bundles się doklejają.
 - **✅ Mocne:** Test parytetu strukturalnego PL/EN z poprawną obsługą różnych kategorii plural (i18nCohesion.test.ts — strip sufiksu _one/_few/_many/_other); eksport obiektów pl/en właśnie po to, by test mógł je porównać; wzorzec ensureI18n() jako no-op chroniący bundle przed tree-shakingiem.
@@ -4522,30 +4187,29 @@ Moduł to adminowy "panel dowodzenia" społecznością: dashboard z globalnymi p
   2. Objąć nowy bundle tym samym testem parytetu co cohesion.
 
 ### Podsumowanie modułu 16
-
 - **Średnia ocen funkcji:** 7,6 · **Rozkład:** 1× 9–10 / 14× 7–8 / 2× 5–6 / 0× <5
 
 - **Relacje modułu (zbiorczo):**
 
-| Moduł                     | Mechanizm                                                                                                               | Kierunek zależności                          |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| 1 Wpisy-czytelnik         | tabela comments (moderacja), recap Q&A jako post                                                                        | M16 moderuje/tworzy treść dla M1             |
-| 2 Edytor/workflow         | publish_qa_session_summary → posts, link do /admin/posts/$slug, can_publish_content                                     | M16 → M2                                     |
-| 3 Silniki treści          | eu_policy_follows (tracker_follows w engagement)                                                                        | M16 czyta z M3                               |
-| 5 Chrome/nawigacja        | useCommunityModules w SiteChrome (site_settings.community_modules)                                                      | M5 konsumuje ustawienia M16                  |
-| 7 Treści specjalne        | wspólne tabele events/polls/qa_sessions/contributor_submissions; i18n-community                                         | M16 administruje danymi M7                   |
-| 9 Czat                    | conversations/messages: purge, TTL, moderacja (trasa admin.community.chat — audyt w M9)                                 | M16 administruje danymi M9                   |
-| 10 Sieć/eksperci          | admin_network_stats, user_reports, profiles/profiles_public (MemberPicker)                                              | M16 moderuje M10                             |
-| 11 Newsletter             | newsletter_subscribed w lejku, digesty e-mail                                                                           | M16 czyta z M11                              |
-| 12 Realtime/powiadomienia | push_subscriptions, notification_push_queue, SchedulerHealthPanel, eventInvalidationMap, community-cron                 | dwukierunkowa (M16 monitoruje i wyzwala M12) |
-| 13 Monetyzacja-core       | ticket_price_cents/ticket_currency (checkout), subscriptions_active, paying_members                                     | M16 konfiguruje/czyta M13                    |
-| 14 Monetyzacja-uzup.      | early_rsvp_rank/min_tier_rank vs rangi warstw                                                                           | M16 → M14                                    |
-| 15 Profil/konto           | profile_badges na profilach, invalidacja ["profile-badges"]                                                             | M16 nadaje, M15 renderuje                    |
-| 17 Analityka/BI           | komponent Chart, komplementarność engagement/audience z panelami BI                                                     | współdzielenie M17                           |
-| 18 CRM                    | admin_upsert_speaker_profile → crm_leads (tag "speaker"), link /admin/crm/$id                                           | M16 → M18                                    |
-| 19 Ustawienia/authz       | site_settings, has_role/is_staff/assert_admin_tenant, RLS tenant-scope, kolumnowe granty (anonimowość Q&A, crm_lead_id) | M16 zbudowany na M19                         |
-| 20 Platforma/SSR          | server functions, endpoint community-cron (sekret, rate-limit), ssr:false dla /admin                                    | M16 hostowany przez M20                      |
-| 21 Kluby                  | toggle clubs_enabled, plakietka admin_club_pending_counts w CommunitySubNav (trasy clubs.* poza zakresem — M21)         | M16 włącza/sygnalizuje M21                   |
+| Moduł | Mechanizm | Kierunek zależności |
+|---|---|---|
+| 1 Wpisy-czytelnik | tabela comments (moderacja), recap Q&A jako post | M16 moderuje/tworzy treść dla M1 |
+| 2 Edytor/workflow | publish_qa_session_summary → posts, link do /admin/posts/$slug, can_publish_content | M16 → M2 |
+| 3 Silniki treści | eu_policy_follows (tracker_follows w engagement) | M16 czyta z M3 |
+| 5 Chrome/nawigacja | useCommunityModules w SiteChrome (site_settings.community_modules) | M5 konsumuje ustawienia M16 |
+| 7 Treści specjalne | wspólne tabele events/polls/qa_sessions/contributor_submissions; i18n-community | M16 administruje danymi M7 |
+| 9 Czat | conversations/messages: purge, TTL, moderacja (trasa admin.community.chat — audyt w M9) | M16 administruje danymi M9 |
+| 10 Sieć/eksperci | admin_network_stats, user_reports, profiles/profiles_public (MemberPicker) | M16 moderuje M10 |
+| 11 Newsletter | newsletter_subscribed w lejku, digesty e-mail | M16 czyta z M11 |
+| 12 Realtime/powiadomienia | push_subscriptions, notification_push_queue, SchedulerHealthPanel, eventInvalidationMap, community-cron | dwukierunkowa (M16 monitoruje i wyzwala M12) |
+| 13 Monetyzacja-core | ticket_price_cents/ticket_currency (checkout), subscriptions_active, paying_members | M16 konfiguruje/czyta M13 |
+| 14 Monetyzacja-uzup. | early_rsvp_rank/min_tier_rank vs rangi warstw | M16 → M14 |
+| 15 Profil/konto | profile_badges na profilach, invalidacja ["profile-badges"] | M16 nadaje, M15 renderuje |
+| 17 Analityka/BI | komponent Chart, komplementarność engagement/audience z panelami BI | współdzielenie M17 |
+| 18 CRM | admin_upsert_speaker_profile → crm_leads (tag "speaker"), link /admin/crm/$id | M16 → M18 |
+| 19 Ustawienia/authz | site_settings, has_role/is_staff/assert_admin_tenant, RLS tenant-scope, kolumnowe granty (anonimowość Q&A, crm_lead_id) | M16 zbudowany na M19 |
+| 20 Platforma/SSR | server functions, endpoint community-cron (sekret, rate-limit), ssr:false dla /admin | M16 hostowany przez M20 |
+| 21 Kluby | toggle clubs_enabled, plakietka admin_club_pending_counts w CommunitySubNav (trasy clubs.* poza zakresem — M21) | M16 włącza/sygnalizuje M21 |
 
 - **5 najpilniejszych rekomendacji:**
   1. **(16.8)** Naprawić martwą inwalidację query key w moderacji współtwórców: ["admin-engagement-snapshot"] → ["admin-engagement-overview"] (admin.community.contributors.tsx:59) — jednolinijkowy fix realnie nieświeżych metryk.
@@ -4567,7 +4231,6 @@ Najważniejszy wniosek: platforma ma dziś najlepszy w całym repo aparat pojęc
 ---
 
 ### 17.1. Rejestr strumieni i słownik metryk kanonicznych (warstwa semantyczna) — **9/10**
-
 - **Pliki:** `src/lib/analytics/semantic/streams.ts:1-269`, `src/lib/analytics/semantic/metrics.ts:1-630`, `src/lib/analytics/semantic/index.ts:1-74`, `src/lib/analytics/semantic/registry.test.ts:1-183`
 - **Co robi:** Deklaruje sześć strumieni danych (`ga4`, `first_party`, `web_vitals`, `ad_events`, `newsletter`, `content_views`) z jawnymi atrybutami semantycznymi — `consentGate`, `identityGrain`, `timeBasis`, `dedupe`, `latencyHours`, `caps`, `caveats` — oraz 18 metryk kanonicznych, gdzie każda ma dokładnie jedno powiązanie autorytatywne, definicję PL/EN, tolerancję dryfu, oczekiwany porządek wielkości i listę `guards` (zakazanych operacji). Funkcje `comparabilityOf` i `assertSameStreamRatio` rozstrzygają, czy dwie liczby wolno w ogóle porównać albo podzielić.
 - **Relacje:** Moduł 13 (Monetyzacja-core) — strumień `ad_events` (bramka `marketing`), producent `src/lib/analytics/events.ts`; Moduł 11 (Newsletter) — strumień `newsletter` (`newsletter_campaign_events`, producent `src/lib/newsletter/trackingEvents.server.ts`); Moduł 1 (Wpisy-czytelnik) — strumień `content_views` (`post_views`, `user_read_history`, producent `src/hooks/useRecordPostView.ts`); Moduł 3 (Silniki treści) — metryka `related_clicks` (`related_post_clicks`); Moduł 19 (Ustawienia/authz/RODO) — `consentGate` odwzorowuje kategorie z `src/lib/ads/consent.ts`.
@@ -4579,7 +4242,6 @@ Najważniejszy wniosek: platforma ma dziś najlepszy w całym repo aparat pojęc
   3. Dodać do `registry.test.ts` asercję, że każda tabela wymieniona w `store` istnieje w `src/integrations/supabase/types.ts` — rejestr wskazuje `store` napisem, więc zmiana nazwy tabeli dziś nie wywoła żadnego błędu.
 
 ### 17.2. Kanoniczny resolwer okna czasowego — **9/10**
-
 - **Pliki:** `src/lib/analytics/semantic/window.ts:1-279`, `src/lib/analytics/semantic/window.test.ts:1-202`
 - **Co robi:** Jeden resolwer okna dla wszystkich strumieni: presety `24h/7d/14d/28d/30d/90d` przycięte do pełnych dni UTC (domyślnie BEZ dnia otwartego), zakres dat dla GA4 wyprowadzany z tych samych instantów co granice ISO dla Postgresa, rozłączne okno poprzednie (`previousWindow`), detektor nakładania (`windowsOverlap`) i jawne noty (`WindowNote`) na nieusuwalne różnice (strefa property GA4, dzień niedomknięty, starsze RPC liczące `now() - interval`).
 - **Relacje:** Moduł 3 (Silniki treści) — `legacyRpcWindow` (`:270-279`) obsługuje `related_posts_signals`, które liczy okno jako `now() - N dni`; brak innych zależności międzymodułowych (plik czysty).
@@ -4591,7 +4253,6 @@ Najważniejszy wniosek: platforma ma dziś najlepszy w całym repo aparat pojęc
   3. Wyeksportować `crossStreamSafe` do query key dashboardów — dziś tylko panel semantyczny to respektuje, a `Ga4BiDashboard` cache'uje pod `presetId` bez informacji o dniu otwartym.
 
 ### 17.3. Silnik uzgadniania międzystrumieniowego — **9/10**
-
 - **Pliki:** `src/lib/analytics/semantic/reconcile.ts:1-326`, `src/lib/analytics/semantic/reconcile.test.ts:1-190`
 - **Co robi:** Przyjmuje obserwacje tej samej metryki z kilku strumieni i zwraca JEDNĄ liczbę do raportu (ze strumienia autorytatywnego) plus werdykt (`aligned` / `expected_drift` / `order_inverted` / `divergent` / `incomparable` / `single_source` / `unavailable`) oraz zakodowane powody rozjazdu. `safeRatio` odmawia wyliczenia wskaźnika, gdy licznik i mianownik pochodzą z różnych strumieni.
 - **Relacje:** brak istotnych (plik czysty; konsumowany przez `snapshot.functions.ts` i `semanticInsights.ts`).
@@ -4603,7 +4264,6 @@ Najważniejszy wniosek: platforma ma dziś najlepszy w całym repo aparat pojęc
   3. Dodać test property-based (fast-check albo pętla) sprawdzający, że `reconcileMetric` nigdy nie zwraca `canonicalValue` ze strumienia potwierdzającego — to inwariant, na którym stoi cały kontrakt „jedna liczba do raportu”.
 
 ### 17.4. Migawka semantyczna: RPC + serwerowa funkcja — **8/10**
-
 - **Pliki:** `src/lib/analytics/semantic/snapshot.functions.ts:1-494`, `supabase/migrations/20260725120000_analytics_semantic_layer.sql:39-200`, `supabase/tests/analytics_semantic_layer_test.sql:1-146`
 - **Co robi:** `analytics_semantic_snapshot(p_since, p_until)` liczy w jednym przejściu wszystkie obserwacje first-party (analytics_events, web_vitals, ad_events, newsletter_campaign_events, post_views/related_post_clicks/user_read_history) dla identycznych granic okna. Serwerowa funkcja `getSemanticSnapshot` dokłada totale GA4 na TYCH SAMYCH dniach, uzgadnia je przez `reconcileAll`, liczy delty wobec rozłącznego okna poprzedniego, bezpieczne wskaźniki i „zdrowie strumieni” (`not_configured` / `read_failed` / `no_data`).
 - **Relacje:** Moduł 19 (Ustawienia/authz/RODO) — `assert_admin_tenant()` w RPC + `requireAnalyticsAdmin` w `gateway.server.ts`, ustawienie `site_settings.analytics`; Moduł 11 (Newsletter) — czyta `newsletter_campaign_events`; Moduł 13 (Monetyzacja-core) — czyta `ad_events`; Moduł 1 (Wpisy-czytelnik) — czyta `post_views`, `user_read_history`; Moduł 3 (Silniki treści) — czyta `related_post_clicks`.
@@ -4616,7 +4276,6 @@ Najważniejszy wniosek: platforma ma dziś najlepszy w całym repo aparat pojęc
   4. Dodać `staleTime`/cache po stronie serwera (np. `edgeTtlCache` jak w `postViews.functions.ts:90-101`) dla migawki — panel odpytuje ją przy każdej zmianie presetu.
 
 ### 17.5. Panel uzgodnienia liczb w adminie (UI warstwy semantycznej) — **8/10**
-
 - **Pliki:** `src/components/admin/analytics/semantic/organisms/SemanticReconciliationPanel.tsx:1-248`, `.../organisms/MetricDictionary.tsx:1-108`, `.../molecules/{ReconciliationRow,StreamHealthGrid,WindowProvenance,MetricDefinitionPopover}.tsx`, `.../atoms/{StreamChip,VerdictBadge}.tsx`, `src/components/admin/analytics/semantic/semanticInsights.ts:1-140`, `.../semanticInsights.test.ts`, `src/lib/analytics/semantic/format.ts` + `format.test.ts`, `src/lib/i18n-admin-semantic.ts:1-394`, `src/lib/__tests__/i18nSemanticAnalytics.test.ts`
 - **Co robi:** Zakładka „Uzgodnienie” w `/admin/analytics` (`admin.analytics.tsx:70-74, 689-693`, lazy): prowenienacja okna, metryki kanoniczne z werdyktem i deltą, wskaźniki złożone, siatka zdrowia strumieni, sekcja interpretacji i zwijany słownik metryk. `buildSemanticInsights` generuje wpis TYLKO gdy jest decyzja do podjęcia — dryf strukturalny nie produkuje szumu.
 - **Relacje:** Moduł 5 (Chrome/nawigacja) — pozycja `admin.nav.analyticsReconciliation` w nawigacji admina; Moduł 19 (Ustawienia/authz) — dostęp wyłącznie dla admina najemcy przez `getSemanticSnapshot`.
@@ -4628,7 +4287,6 @@ Najważniejszy wniosek: platforma ma dziś najlepszy w całym repo aparat pojęc
   3. Dodać test renderujący `SemanticReconciliationPanel` z `axeViolations` (wzorem `Chart.a11y.test.tsx`) — dziś żaden komponent BI admina nie ma testu dostępności.
 
 ### 17.6. Silnik zdarzeń first-party (klient + ingest) — **6/10**
-
 - **Pliki:** `src/lib/analytics/track.ts:1-197`, `src/routes/api/public/track.ts:1-134`, `supabase/migrations/20260722234931_a2932da5-*.sql:1-51`, `supabase/migrations/20260730085737_*.sql:31-38`, `src/routes/__root.tsx:473`
 - **Co robi:** Buforowany (5 s / 20 zdarzeń) beacon do `/api/public/track` z sesją per karta (`sessionStorage`, TTL 30 min), `anon_id` per przeglądarka (`localStorage`) i pełnym flushem na `pagehide`/`visibilitychange`. Route waliduje typ/encję z białych list, obcina napisy, przepuszcza `path`/`referrer` przez `redactUrl`, limituje 120 burst / 2 na sekundę per IP i wstawia service-rolem do `analytics_events`.
 - **Relacje:** Moduł 19 (Ustawienia/authz/RODO) — `hasAnalyticsConsent()` z `src/lib/ads/consent.ts` gate'uje `track()` (`track.ts:138`); Moduł 6 (Wyszukiwarka) — `trackSearch` w `SearchOverlay.tsx:161`; Moduł 13 (Monetyzacja-core) — `trackCta` w `pricing/TierCard.tsx:209,240,259,290` i `IntervalToggle.tsx:44`; Moduł 5 (Chrome/nawigacja) — `trackFooterLink` (17.20); Moduł 8 (SEO/feedy) — `src/lib/seo/googleSourceBadgeAnalytics.ts`; Moduł 20 (Platforma/SSR) — `trackPageView()` z `router.subscribe("onResolved")`.
@@ -4641,7 +4299,6 @@ Najważniejszy wniosek: platforma ma dziś najlepszy w całym repo aparat pojęc
   4. Przenieść rate limit ingestu na `src/lib/server/rate-limit.server.ts` (licznik w bazie, jak w `/api/public/experiment-event:58-65`) — dzisiejszy licznik w pamięci isolate'a nie chroni tabeli.
 
 ### 17.7. RUM Web Vitals: reporter, ingest, agregacja — **8/10**
-
 - **Pliki:** `src/lib/webVitals.ts:1-212`, `src/routes/api/public/vitals.ts:1-75`, `src/lib/observability/aggregate.ts:1-285`, `src/lib/observability/vitalsThresholds.ts:1-40`, `src/lib/observability/vitals.functions.ts:1-139`, testy: `aggregate.test.ts` (21 it), `__tests__/aggregateTrends.test.ts`, `vitalsThresholds.test.ts`, `index.test.ts`
 - **Co robi:** Reporter na natywnym `PerformanceObserver` (LCP/CLS/INP/FCP/TTFB, bez zależności) atrybuujący próbki do ścieżki, na której metryka narosła — z flushem akumulatorów na miękkiej nawigacji SPA. Ingest waliduje nazwę metryki, redaguje URL i przypisuje tenant z hosta. `aggregateVitals` liczy p75/p50/min/max + kubełki ratingów per metryka, rozbicie per ścieżka i trend dzienny; `getVitalsSummary` czyta z capem 20 000 najnowszych próbek i podmienia trend na policzony w Postgresie po CAŁYM oknie.
 - **Relacje:** Moduł 19 (Ustawienia/authz/RODO) — start telemetrii gate'owany zgodą `categories.analytics` w `__root.tsx:434`, teardown przy cofnięciu; Moduł 20 (Platforma/SSR) — `afterPrerendering` (`__root.tsx:439`) opóźnia start do aktywacji strony, żeby Speculation Rules nie zawyżały RUM; Moduł 4 (Motyw/media) — rekomendacje LCP dotyczą obrazów bohatera (17.8).
@@ -4654,7 +4311,6 @@ Najważniejszy wniosek: platforma ma dziś najlepszy w całym repo aparat pojęc
   4. Dodać do `aggregate.test.ts` przypadek `topPaths` < liczba ścieżek, żeby obcięcie `paths.slice(0, topPaths)` (`:284`) było pokryte.
 
 ### 17.8. Dashboard BI Web Vitals + playbook rekomendacji — **7/10**
-
 - **Pliki:** `src/components/admin/analytics/VitalsBiDashboard.tsx:1-444`, `src/components/admin/analytics/VitalsRecommendations.tsx:1-227`, `src/routes/admin.performance.tsx:76-78`, `src/routes/admin.analytics.tsx:671-681`
 - **Co robi:** Kafelki KPI z deltą i sparkline, trend dzienny p75 z liniami progowymi, rozkład ratingów, tabela per ścieżka + generator rekomendacji, który dla każdej metryki poza „good” wyciąga z i18n playbook (`adminAnalytics.vitals.playbook.<metric>.<ni|poor>.{title,fixes}`) i priorytetyzuje wnioski globalne przed per-ścieżkowymi.
 - **Relacje:** Moduł 20 (Platforma/SSR) — współdzielony z zakładką w `/admin/performance` (dwa punkty montażu, jeden komponent); Moduł 4 (Motyw/media) — rekomendacje LCP/CLS dotyczą obrazów i fontów.
@@ -4666,7 +4322,6 @@ Najważniejszy wniosek: platforma ma dziś najlepszy w całym repo aparat pojęc
   3. Dodać test renderu z pustym raportem i z raportem `poor` (asercja, że playbook dla LCP/poor się pojawia) — najbardziej wartościowa część modułu (rekomendacje) nie ma dziś żadnego pokrycia.
 
 ### 17.9. Telemetria błędów przeglądarki (capture → ingest → dashboard) — **8/10**
-
 - **Pliki:** `src/lib/observability/index.ts:1-46`, `src/lib/observability/report.ts:1-88` + `report.test.ts`, `src/routes/api/public/client-errors.ts:1-87`, `src/lib/observability/clientErrorsAggregate.ts:1-185` + `__tests__/clientErrorsAggregate.test.ts`, `src/lib/observability/clientErrors.functions.ts:1-103`, `src/components/admin/analytics/ClientErrorsDashboard.tsx:1-286`, `src/routes/admin.performance.tsx:79-86`
 - **Co robi:** Jeden bootstrap (`initObservability`) łapie `error` i `unhandledrejection` (czego granice błędów Reacta nie widzą) oraz błędy z granic (`reportBoundaryError` z komponentowym stackiem), beaconuje na zewnętrzny sink lub wbudowany `/api/public/client-errors`. Agregacja grupuje po fingerprintcie znormalizowanego komunikatu (uuid/hex/liczby/URL → placeholdery), zwraca trend dzienny z zerami, top ścieżki i przykładowy stack. Dashboard w `/admin/performance?tab=errors`.
 - **Relacje:** Moduł 20 (Platforma/SSR) — `initObservability` wołany z `__root.tsx:441`, granice błędów w `ErrorBoundary`/`RenderErrorBoundary`; Moduł 19 (RODO) — start gate'owany zgodą analityczną, RLS `client_errors_admin_read` (`20260730085737_*.sql:43-49`).
@@ -4679,7 +4334,6 @@ Najważniejszy wniosek: platforma ma dziś najlepszy w całym repo aparat pojęc
   4. Dodać retencję `client_errors` (pg_cron, np. 90 dni) — tabela z redagowanymi stackami rośnie bezterminowo.
 
 ### 17.10. Redakcja PII w telemetrii — **9/10**
-
 - **Pliki:** `src/lib/observability/redact.ts:1-94`, `src/lib/observability/__tests__/redact.test.ts:1-80`
 - **Co robi:** Trzy funkcje czyszczące dane wchodzące do sinków telemetrycznych: `redactPii` (JWT, `Bearer`/`Basic`, parametry poświadczeń, e-maile, IPv4, długie hexy/base64), `redactUrl` (zachowuje origin+path, wycina cały query i fragment, potem redaguje resztę), `redactMeta` (głębokie, ograniczone do 6 poziomów).
 - **Relacje:** Moduł 19 (Ustawienia/authz/RODO) — realizuje minimalizację danych z RODO; używane przez trzy ingesty tego modułu (`api/public/track.ts:113-114`, `api/public/vitals.ts:44`, `api/public/client-errors.ts:43-54`).
@@ -4690,7 +4344,6 @@ Najważniejszy wniosek: platforma ma dziś najlepszy w całym repo aparat pojęc
   2. Udokumentować (i pokryć testem) świadome „przeredagowanie” hashy chunków przez `LONG_B64_RE`, żeby przyszła zmiana nie została zrobiona przez pomyłkę w imię czytelności.
 
 ### 17.11. Konektor GA4 (4 tryby) + status integracji — **7/10**
-
 - **Pliki:** `src/lib/analytics/ga4.server.ts:1-225`, `src/lib/analytics/ga4.functions.ts:1-154`, `src/lib/analytics/gateway.server.ts:1-70`, `src/lib/analytics/status.functions.ts:1-176`, `src/lib/analytics/config.ts:1-27`, `src/routes/admin.analytics.tsx:142-408`
 - **Co robi:** Cztery ścieżki podłączenia GA4 — Service Account (JWT RS256 podpisywany lokalnie `node:crypto`), OAuth refresh token, Measurement Protocol (wysyłka zdarzeń, z trybem `/debug/mp/collect`) i Embed (Looker Studio iframe) — z cache'em tokenów per worker (odświeżanie 60 s przed wygaśnięciem), rezolwerem `propertyId` (sekret → `site_settings.analytics`) i raportem statusu, który NIGDY nie zwraca wartości sekretów.
 - **Relacje:** Moduł 19 (Ustawienia/authz/RODO) — `site_settings.analytics` (`AnalyticsConfigSchema`), formularz w `admin.settings.analytics.tsx`, kill switch `ga4_enabled`; Moduł 20 (Platforma/SSR) — sekrety środowiska wdrożeniowego; Moduł 5 (Chrome) — `ConsentScriptInjector` ładuje tag GA4/GTM po zgodzie marketingowej.
@@ -4703,7 +4356,6 @@ Najważniejszy wniosek: platforma ma dziś najlepszy w całym repo aparat pojęc
   4. Zakluczować cache tokenów po `propertyId`/źródle (`ga4.server.ts:67-68`), żeby przyszłe per-tenantowe sekrety nie współdzieliły bearer'a.
 
 ### 17.12. Dashboard BI GA4 + generator interpretacji — **7/10**
-
 - **Pliki:** `src/components/admin/analytics/Ga4BiDashboard.tsx:1-605`, `src/components/admin/analytics/ga4Insights.ts:1-229`, `src/components/admin/analytics/semantic/molecules/WindowProvenance.tsx:1-164`
 - **Co robi:** Siedem równoległych raportów GA4 (`useQueries`) — trend dat, źródła, kraje, urządzenia, strony, zaangażowanie i okno poprzednie — złożone w kafelki KPI z deltą, wykresy (area/donut/radar/treemap), drill-down i sekcję interpretacji per element dashboardu.
 - **Relacje:** Moduł 17 wewnętrznie — jedyny dashboard konsumujący `resolveWindow`/`previousWindow` z warstwy semantycznej (`:48, 101-107`); Moduł 19 — bramka admina przez `runGa4Report`.
@@ -4716,7 +4368,6 @@ Najważniejszy wniosek: platforma ma dziś najlepszy w całym repo aparat pojęc
   4. Wyodrębnić budowanie opcji ECharts do `ga4ChartOptions.ts` (czysty modul) — umożliwi testowanie i skróci komponent.
 
 ### 17.13. Konektor + dashboard Google Search Console — **5/10**
-
 - **Pliki:** `src/lib/analytics/gsc.functions.ts:1-148`, `src/components/admin/analytics/GscBiDashboard.tsx:1-735`, `src/components/admin/analytics/gscInsights.ts:1-294`, `src/routes/admin.analytics.tsx:663-669`
 - **Co robi:** Trzy serwerowe funkcje przez bramkę konektorów platformy (lista właściwości, `searchAnalytics/query`, `urlInspection`) i dashboard z KPI (kliknięcia, emisje, CTR, pozycja), trendem, top zapytaniami/stronami, krajami, urządzeniami i generatorem interpretacji z benchmarkami CTR wg pozycji.
 - **Relacje:** Moduł 8 (SEO/feedy) — dane SERP, sitemap health, insighty o CTR i pozycjach są wejściem do pracy SEO; Moduł 19 (Ustawienia/authz) — konektor OAuth podłączany w ustawieniach projektu, sekrety `LOVABLE_API_KEY` + `GOOGLE_SEARCH_CONSOLE_API_KEY`; Moduł 20 (Platforma) — zależność od zewnętrznej bramki `connector-gateway.lovable.dev`.
@@ -4730,7 +4381,6 @@ Najważniejszy wniosek: platforma ma dziś najlepszy w całym repo aparat pojęc
   5. Wynieść host bramki do zmiennej środowiskowej (`gsc.functions.ts:12`), żeby zmiana dostawcy konektorów nie wymagała zmiany kodu.
 
 ### 17.14. Silnik wykresów redakcyjnych (SSR-first, dostępny) — **9/10**
-
 - **Pliki:** `src/components/charts/{Chart,CartesianChart,PieChart,ChartFrame,ChartTooltip,ChoroplethMap}.tsx`, `src/components/charts/Chart.a11y.test.tsx:1-85`, `src/lib/charts/{types,parse,format,scale,csv,geoQuery}.ts`, `src/lib/charts/__tests__/{parse,format,scale,csv}.test.ts`
 - **Co robi:** Deklaratywny silnik wizualizacji renderowany jako inline SVG bez zależności zewnętrznych: słupki/linie/area/pie/donut + choropleta Europy/świata. Konsumowany przez blok CMS „chart”, widget buildera, panel dostarczalności newslettera, `/admin/audience`, `CorridorMap` i `ClubThreadInsightsPanel`.
 - **Relacje:** Moduł 3 (Silniki treści) — blok CMS „chart” (`src/lib/blocks/types.ts`), `src/components/blocks/DataVizViews.tsx`; Moduł 4 (Motyw/media/builder) — widget buildera (`src/lib/builder/schema.ts`, `DataVizWidgets.tsx`, `ChartDataSpreadsheetDialog.tsx`); Moduł 11 (Newsletter) — `DeliverabilityPanel`, `SystemEmailsPanel`; Moduł 21 (Kluby) — `ClubThreadInsightsPanel`; Moduł 17 — `/admin/audience` (17.18) i mapa stanowisk trackera (17.23).
@@ -4741,7 +4391,6 @@ Najważniejszy wniosek: platforma ma dziś najlepszy w całym repo aparat pojęc
   2. Wyeksportować `REGION_ASPECT` z `src/lib/charts/geoQuery.ts` i skonsumować w `ChoroplethMap.tsx:42` oraz `PolicyPositionsMap.tsx:45` — jedna stała, jedno źródło zgodności z generatorem `scripts/generate-geo-maps.ts`.
 
 ### 17.15. Powłoka wykresów BI (ECharts): wrapper, karta, motyw, eksport, drill-down — **6/10**
-
 - **Pliki:** `src/components/admin/analytics/EChart.tsx:1-56`, `EChartClient.tsx:1-136`, `ChartCard.tsx:1-180`, `chartTheme.ts:1-116`, `exportChart.ts:1-60`, `ChartDrillDialog.tsx:1-193`, `KpiTile.tsx:1-128`, `TimeRangeFilter.tsx:1-194`
 - **Co robi:** Warstwa prezentacji wszystkich dashboardów BI admina: stub hydratacyjny odcinający ECharts od grafu SSR, modularna rejestracja wykresów `echarts/core`, karta z pełnym ekranem i eksportem CSV/PNG, motyw czytający tokeny CSS w runtime, dialog drill-down, kafelek KPI ze sparkline i kontrolka zakresu czasu.
 - **Relacje:** Moduł 20 (Platforma/SSR) — `EChart.tsx:1-17` istnieje dlatego, że wciągnięcie ECharts do grafu SSR wywalało Rollupa na OOM przy `build:dev`; Moduł 4 (Motyw/media) — `chartTheme.ts` czyta `--chart-1..5`, `--primary`, `--border` z `DesignTokensStyle`; Moduł 11/13/16 — te same prymitywy w panelach newslettera, monetyzacji i społeczności.
@@ -4755,7 +4404,6 @@ Najważniejszy wniosek: platforma ma dziś najlepszy w całym repo aparat pojęc
   5. Użyć `theme.background` zamiast `"#fff"` w `exportPng` (`exportChart.ts:52`), żeby eksport z dark mode był czytelny.
 
 ### 17.16. Prymityw interpretacji i rekomendacji (InsightSection) — **7/10**
-
 - **Pliki:** `src/components/admin/analytics/InsightSection.tsx:1-179`
 - **Co robi:** Wspólny komponent „Interpretacja i rekomendacje”: lista wpisów z severity (`good`/`info`/`warn`/`critical`), przypięciem do elementu dashboardu, interpretacją i listą konkretnych działań; plus czyste helpery `pctDelta` i `classifyDelta` używane przez wszystkie generatory wniosków.
 - **Relacje:** Moduł 17 wewnętrznie — konsumowany przez 6 dashboardów (GA4, GSC, Vitals, Audience, Related, Semantic, Przegląd); brak zależności zewnętrznych.
@@ -4767,7 +4415,6 @@ Najważniejszy wniosek: platforma ma dziś najlepszy w całym repo aparat pojęc
   3. Przenieść kolory severity na tokeny semantyczne (`--destructive`, `--warning`…) w `:35-56`, spójnie z resztą warstwy prezentacji.
 
 ### 17.17. Analityka segmentów audytorium: zalogowani vs anonimowi — **6/10**
-
 - **Pliki:** `src/lib/analytics/audience.functions.ts:1-190`, `src/components/admin/analytics/AudienceSegmentsDashboard.tsx:1-309`, `src/routes/admin.analytics.tsx:63-67, 683-687`
 - **Co robi:** Czyta surowe wiersze `post_views` z okna (cap 50 000), agreguje w JS na dwa segmenty (`user_id != null` → zalogowani, inaczej anonimowi): KPI odsłon i unikalnych czytelników, seria dzienna z wypełnionymi zerami i top 10 wpisów per segment z dociągniętymi tytułami i slugami.
 - **Relacje:** Moduł 1 (Wpisy-czytelnik) — wspólna tabela `post_views`, dociąganie `posts.title_pl/title_en/slug`; Moduł 15 (Profil/konto) — segment „zalogowani” to użytkownicy z `user_id`; Moduł 16 (Społeczność-admin) — pokrewny widok członków, ale inne RPC (17.18); Moduł 19 — bramka `has_role(admin)` + `resolveUserTenantId`.
@@ -4780,7 +4427,6 @@ Najważniejszy wniosek: platforma ma dziś najlepszy w całym repo aparat pojęc
   4. Przepiąć wybór okna na `resolveWindow`, żeby porównania z GA4 były w ogóle legalne.
 
 ### 17.18. Dashboard audytorium: lejek członka, aktywność, retencja kohortowa — **6/10**
-
 - **Pliki:** `src/routes/admin.audience.tsx:1-404`
 - **Co robi:** Trzy RPC (`admin_member_funnel`, `admin_member_activity_series`, `admin_member_retention`) zamienione na lejek (członkowie → widoczni → aktywni → czytający → komentujący → czat → newsletter → płacący), wykres dziennej aktywności i siatkę retencji kohortowej 8-tygodniowej, renderowane silnikiem wykresów redakcyjnych.
 - **Relacje:** Moduł 16 (Społeczność-admin) — RPC `admin_member_*` i cała semantyka „aktywnego członka” (odczyty, komentarze, czat, zakładki, obserwacje) należą do domeny społeczności; **granica: ten plik jest warstwą prezentacyjno-analityczną nad danymi M16**; Moduł 11 (Newsletter) — krok `newsletter_subscribed`; Moduł 13 (Monetyzacja-core) — krok `paying_members`; Moduł 15 (Profil/konto) — `discoverable_total`.
@@ -4792,7 +4438,6 @@ Najważniejszy wniosek: platforma ma dziś najlepszy w całym repo aparat pojęc
   3. Owinąć trzy RPC serwerowymi funkcjami z `requireAnalyticsAdmin`, spójnie z resztą modułu, i dodać kontrolkę liczby tygodni retencji.
 
 ### 17.19. Analityka silnika rekomendacji — **5/10**
-
 - **Pliki:** `src/lib/relatedInsights.functions.ts:1-125`, `supabase/migrations/20260716212125_f12862d5-*.sql:64-247`, `src/components/admin/analytics/RelatedPostsAnalytics.tsx:1-500`, `src/routes/admin.related-posts.tsx:38, 428`
 - **Co robi:** RPC `related_posts_signals(_tenant, _since_days)` zwraca jednym `jsonb`em top kategorie/tagi, współwystępowanie tagów, popularność wpisów, pary kliknięć źródło→cel i „huby” docelowe; serwerowa funkcja pakuje to w typowane DTO, a `RelatedPostsAnalytics` rysuje to na zakładce „Analiza” w `/admin/related-posts`.
 - **Relacje:** Moduł 3 (Silniki treści) — analizuje jakość silnika rekomendacji, tabele `related_post_clicks` i konfigurację `get_related_posts_config`; Moduł 1 (Wpisy-czytelnik) — `post_views`, `user_read_history`; Moduł 19 (authz) — `has_role(admin)`.
@@ -4805,7 +4450,6 @@ Najważniejszy wniosek: platforma ma dziś najlepszy w całym repo aparat pojęc
   4. Przyjąć `p_since`/`p_until` (timestamptz) w RPC obok `_since_days`, żeby panel mógł pytać o pełne dni UTC.
 
 ### 17.20. Analityka stopki (tracking + agregacja + panel) — **5/10**
-
 - **Pliki:** `src/lib/analytics/footerTracking.ts:1-76`, `src/lib/analytics/footerAnalytics.functions.ts:1-124`, `src/components/admin/analytics/FooterAnalyticsPanel.tsx:1-218`, `src/routes/admin.analytics.tsx:47-51, 695-699`
 - **Co robi:** Podwójny beacon dla linków stopki (własny `/api/public/track` + `window.gtag` gdy skrypt GA4 został wczytany po zgodzie marketingowej), z czterema stabilnymi nazwami zdarzeń, oraz serwerowa agregacja tych zdarzeń w kafelki, tabelę per link i serię dzienną.
 - **Relacje:** Moduł 5 (Chrome/nawigacja) — konsumowane przez stopkę (`src/lib/seo/footerNavigation.ts`, typ `FooterLinkGroup`); Moduł 11 (Newsletter) — `footer_newsletter_signup` liczy zapisy ze stopki; Moduł 19 (authz/RODO) — `requireAdmin` (admin/super_admin + MFA) oraz podwójna bramka zgody (analytics dla własnego beacona, marketing dla `gtag`).
@@ -4817,7 +4461,6 @@ Najważniejszy wniosek: platforma ma dziś najlepszy w całym repo aparat pojęc
   3. Klasyfikować grupę zdarzenia po `payload.group` z `footerNavigation`, nie po podnapisie URL-a (`footerTracking.ts:34`) — dopasowanie do slugu jest kruche na każdą zmianę nawigacji.
 
 ### 17.21. Eksperymenty A/B: przydział, ingest zdarzeń, wyniki z testem z — **6/10**
-
 - **Pliki:** `src/lib/builder/experiments.ts:1-312`, `src/lib/builder/__tests__/experiments.test.ts:1-109`, `src/routes/api/public/experiment-event.ts:1-107`, `src/routes/admin.experiments.tsx:1-217`
 - **Co robi:** Deterministyczny przydział 50/50 (FNV-1a nad `experimentId:visitorId`) obliczany po hydratacji, widoczność sekcji per wariant, beacon ekspozycji/konwersji z dedupem per sesja i panel wyników z testem z dla dwóch proporcji (|z| ≥ 1,96 ≈ 95 %).
 - **Relacje:** Moduł 4 (Motyw/media/builder) — eksperymenty są tworzone z menu kontekstowego sekcji buildera, tag `advanced.abTest` w dokumencie strony, typ `SectionNode`; Moduł 20 (Platforma/SSR) — świadomy kompromis „SSR zawsze wariant A, podmiana po mount” dla parytetu hydratacji; Moduł 19 (authz) — RLS blokuje bezpośredni INSERT do `builder_experiment_events`.
@@ -4831,7 +4474,6 @@ Najważniejszy wniosek: platforma ma dziś najlepszy w całym repo aparat pojęc
   5. Zarejestrować `ab_exposures`/`ab_conversions` jako metryki kanoniczne (17.1), żeby wyniki testów A/B dały się cytować w raporcie zarządczym.
 
 ### 17.22. Licznik odsłon treści (ścieżka zapisu strumienia content_views) — **6/10**
-
 - **Pliki:** `src/hooks/useRecordPostView.ts:1-72`, `src/lib/views/viewerHash.ts:1-25`, `src/lib/views/postViews.functions.ts:26-44`, RPC `public.record_post_view`, `src/routes/cookies.tsx:74-75`
 - **Co robi:** Po 1,5 s obecności na stronie (i tylko po aktywacji strony prerenderowanej) wysyła `recordPostView` z `viewer_hash` z `localStorage`; SQL `record_post_view` deduplikuje parę (wpis, hash) w oknie 5 minut, a hook osobno UPSERT-uje `user_read_history` dla zalogowanego. Odsłony autora własnego wpisu są pomijane.
 - **Relacje:** Moduł 1 (Wpisy-czytelnik) — **granica modułu**: hook jest montowany na stronie wpisu i zasila licznik odsłon oraz Trending; Moduł 3 (Silniki treści) — `user_read_history` napędza wykluczanie „już przeczytane” i scoring zainteresowań; Moduł 17 — autorytatywne źródło metryk `content_views`, `related_clicks`, `reads` (`streams.ts:221-241`); Moduł 19 (RODO) — deklaracja `post_views` w kategorii „Analityka” na `/cookies:74`.
@@ -4844,7 +4486,6 @@ Najważniejszy wniosek: platforma ma dziś najlepszy w całym repo aparat pojęc
   4. Dodać test hooka (fake timers): brak strzału przed 1,5 s, jeden strzał na `postId`, brak strzału gdy `userId === authorId`.
 
 ### 17.23. Analityka trackera legislacyjnego: statystyki, postęp etapów, mapa stanowisk — **7/10**
-
 - **Pliki:** `src/lib/tracker/stages.ts:1-96` + `__tests__/stages.test.ts`, `src/lib/tracker/euCountries.ts:1-89` + `__tests__/euCountries.test.ts`, `src/lib/tracker/queries.ts:427-450`, `supabase/migrations/20260713104316_b3ec6dd8-*.sql:230-255`, `src/components/tracker/PolicyPositionsMap.tsx:1-289`, `src/routes/{tracker.index,tracker.explorer}.tsx`
 - **Co robi:** RPC `get_tracker_stats()` zwraca liczbę opublikowanych dossier z rozbiciem po etapie i obszarze polityki; czysty modul `stages.ts` liczy postęp procedury (0..1) na sześciostopniowej ścieżce z etapami terminalnymi; `PolicyPositionsMap` koduje stanowiska państw UE (za/przeciw/podzielone/brak) na choropletowej mapie Europy w stylu ECFR Coalition Explorer.
 - **Relacje:** Moduł 7 (Treści specjalne) — **granica**: dossier `eu_policy_items` i ich redakcja to M7; tutaj oceniam wyłącznie warstwę statystyczno-wizualizacyjną; Moduł 17 — `PolicyPositionsMap` reużywa `ChartFrame`/`ChartTooltip`/`geoQuery` z silnika wykresów (17.14); Moduł 8 (SEO/feedy) — `tracker/feed.ts` i `jsonld.ts` to feedy/structured data, poza tym punktem.
@@ -4856,7 +4497,6 @@ Najważniejszy wniosek: platforma ma dziś najlepszy w całym repo aparat pojęc
   3. Dodać test renderu + axe dla `PolicyPositionsMap` (mock zasobu geo) — mapa ma nietrywialny kontrakt dostępności opisany w komentarzu i nic go nie pilnuje.
 
 ### 17.24. Obserwowalność Edge Cache dokumentów SSR — **7/10**
-
 - **Pliki:** `src/components/admin/performance/EdgeCacheCard.tsx:1-343`, `src/lib/edgeCache.functions.ts`, `src/lib/i18n-admin-edge-cache.ts`, `src/routes/admin.performance.tsx:87-89`
 - **Co robi:** Żywe statystyki wbudowanego cache'a dokumentów SSR (hit / stale / miss, rozmiar w bajtach, wskaźnik trafień), sonda pojedynczego URL-a ze statusem HIT/STALE/MISS/BYPASS oraz ręczny purge zawężony serwerowo do hosta najemcy.
 - **Relacje:** Moduł 20 (Platforma/SSR) — **granica**: sam cache (`src/lib/ssrCache.ts`, `edgeTtlCache`) należy do platformy; tutaj oceniam warstwę obserwowalności; Moduł 17 — trzecia zakładka `/admin/performance` obok RUM i błędów przeglądarki, domykająca pętlę „szybkość → błędy → cache”.
@@ -4868,7 +4508,6 @@ Najważniejszy wniosek: platforma ma dziś najlepszy w całym repo aparat pojęc
   3. Rozważyć próbkowanie statystyk do `analytics_events` (typ `interaction`, nazwa `edge_cache_sample`), żeby powstał trend zamiast pomiaru chwilowego.
 
 ### 17.25. Powłoka trasy /admin/analytics: taby, status integracji, panel konfiguracji GA4 — **6/10**
-
 - **Pliki:** `src/routes/admin.analytics.tsx:1-703`
 - **Co robi:** Siedem zakładek (Przegląd, GA4, GSC, Web Vitals, Audytorium, Uzgodnienie, Stopka), wszystkie ciężkie dashboardy lazy-loadowane; kafelki statusu integracji, mini-panel Web Vitals, sekcja gotowości z rekomendacjami oraz czterokartowy przewodnik konfiguracji GA4 z przyciskiem „Wyślij testowy event” (Measurement Protocol w trybie debug).
 - **Relacje:** Moduł 5 (Chrome/nawigacja) — pozycja `admin.nav.analytics`; Moduł 19 (Ustawienia/authz) — link do `/admin/settings/analytics` jako miejsca konfiguracji `Measurement ID`, wspólne `site_settings.analytics`; Moduł 20 (Platforma/SSR) — lazy-loading jest tu wymuszony limitem mark-compact V8 przy `build:dev` (`:39-41`).
@@ -4888,29 +4527,28 @@ Najważniejszy wniosek: platforma ma dziś najlepszy w całym repo aparat pojęc
 
 **Relacje modułu (zbiorczo):**
 
-| Moduł                        | Mechanizm                                                                                                                                                                                                                                                                                               | Kierunek zależności                                                   |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| 1 Wpisy-czytelnik            | tabele `post_views`, `user_read_history`; hook `useRecordPostView`; `posts.title_*`/`slug` dociągane do top-list                                                                                                                                                                                        | M17 czyta z M1; M1 dostarcza zapis (granica w 17.22)                  |
-| 2 Edytor/workflow            | brak bezpośredniego styku (brak metryk workflow w słowniku)                                                                                                                                                                                                                                             | brak                                                                  |
-| 3 Silniki treści             | RPC `related_posts_signals`, tabela `related_post_clicks`, metryka `related_clicks`; `user_read_history` napędza wykluczanie „przeczytane”                                                                                                                                                              | dwukierunkowa: M17 analizuje M3, M3 czyta dane odsłon                 |
-| 4 Motyw/media/builder        | tokeny `--chart-1..5` w `chartTheme.ts`; widget „chart” buildera; eksperymenty A/B tagowane w `SectionNode.advanced.abTest`                                                                                                                                                                             | M17 zależy od tokenów M4; M4 konsumuje silnik wykresów i eksperymenty |
-| 5 Chrome/nawigacja           | `trackFooterLink` w stopce; pozycje `admin.nav.analytics`/`analyticsReconciliation`; ticker z `postViews.functions.ts`                                                                                                                                                                                  | M5 emituje zdarzenia do M17                                           |
-| 6 Wyszukiwarka               | `trackSearch` z `SearchOverlay.tsx:161` → metryka `internal_searches`                                                                                                                                                                                                                                   | M6 emituje do M17                                                     |
-| 7 Treści specjalne           | `eu_policy_items` + `get_tracker_stats`, mapa stanowisk (granica w 17.23)                                                                                                                                                                                                                               | M17 wizualizuje dane M7                                               |
-| 8 SEO/feedy                  | dashboard GSC (zapytania, pozycje, CTR, sitemap health); `googleSourceBadgeAnalytics.ts`                                                                                                                                                                                                                | M17 dostarcza pomiar dla M8                                           |
-| 11 Newsletter                | strumień `newsletter` (`newsletter_campaign_events`), metryki `email_opens/clicks/ctr`; `footer_newsletter_signup`                                                                                                                                                                                      | M17 czyta z M11                                                       |
-| 12 Realtime/powiadomienia    | `usePendingCounters` przez `tableChannelHub`; `runTrackerTickNow` uruchamia job runner                                                                                                                                                                                                                  | M17 współdzieli infrastrukturę licznikową z M12                       |
-| 13 Monetyzacja-core          | strumień `ad_events` (bramka marketing), metryki `ad_impressions/clicks/ctr`; `trackCta` w cenniku                                                                                                                                                                                                      | M17 czyta z M13                                                       |
-| 14 Monetyzacja-uzupełniająca | `popup-event` beacon (`events.ts:27-30`), `b2b_coupons_analytics`, `metered_views`                                                                                                                                                                                                                      | M14 emituje do M17                                                    |
-| 15 Profil/konto              | segment „zalogowani” po `user_id`; `profile_view_stats`/`my_profile_viewers` poza słownikiem semantycznym                                                                                                                                                                                               | M17 czyta z M15                                                       |
-| 16 Społeczność-admin         | RPC `admin_member_funnel`/`activity_series`/`retention` na `/admin/audience`; `get_engagement_overview`                                                                                                                                                                                                 | M17 prezentuje dane M16 (granica w 17.18)                             |
-| 18 CRM                       | `tenant_pending_counters.crm_leads_new` przez `usePendingCounters`                                                                                                                                                                                                                                      | wspólna tabela liczników                                              |
-| 19 Ustawienia/authz/RODO     | `site_settings.analytics` (`AnalyticsConfigSchema`); `has_role`/`current_tenant_id`/`assert_admin_tenant`; bramki zgody `hasAnalyticsConsent`/`hasCategoryConsent`; deklaracja `/cookies`                                                                                                               | M17 zależy od M19 (i łamie jej deklarację w 17.22)                    |
-| 20 Platforma/SSR             | lazy-loading wymuszony limitem V8; `afterPrerendering`; `initObservability` w `__root.tsx`; `edgeTtlCache`/Edge Cache                                                                                                                                                                                   | dwukierunkowa                                                         |
-| 21 Kluby                     | `ClubThreadInsightsPanel` konsumuje silnik wykresów; `src/lib/maps` (WorldMap/centroidy) **nie należy do M17** — obsługuje widget WorldMap buildera (`WorldMapEditor.tsx:47-48`, `worldMapContent.ts`), nie analitykę geograficzną; geo-analityka M17 to `ChoroplethMap` + `src/lib/charts/geoQuery.ts` | M21 konsumuje M17                                                     |
+| Moduł | Mechanizm | Kierunek zależności |
+|---|---|---|
+| 1 Wpisy-czytelnik | tabele `post_views`, `user_read_history`; hook `useRecordPostView`; `posts.title_*`/`slug` dociągane do top-list | M17 czyta z M1; M1 dostarcza zapis (granica w 17.22) |
+| 2 Edytor/workflow | brak bezpośredniego styku (brak metryk workflow w słowniku) | brak |
+| 3 Silniki treści | RPC `related_posts_signals`, tabela `related_post_clicks`, metryka `related_clicks`; `user_read_history` napędza wykluczanie „przeczytane” | dwukierunkowa: M17 analizuje M3, M3 czyta dane odsłon |
+| 4 Motyw/media/builder | tokeny `--chart-1..5` w `chartTheme.ts`; widget „chart” buildera; eksperymenty A/B tagowane w `SectionNode.advanced.abTest` | M17 zależy od tokenów M4; M4 konsumuje silnik wykresów i eksperymenty |
+| 5 Chrome/nawigacja | `trackFooterLink` w stopce; pozycje `admin.nav.analytics`/`analyticsReconciliation`; ticker z `postViews.functions.ts` | M5 emituje zdarzenia do M17 |
+| 6 Wyszukiwarka | `trackSearch` z `SearchOverlay.tsx:161` → metryka `internal_searches` | M6 emituje do M17 |
+| 7 Treści specjalne | `eu_policy_items` + `get_tracker_stats`, mapa stanowisk (granica w 17.23) | M17 wizualizuje dane M7 |
+| 8 SEO/feedy | dashboard GSC (zapytania, pozycje, CTR, sitemap health); `googleSourceBadgeAnalytics.ts` | M17 dostarcza pomiar dla M8 |
+| 11 Newsletter | strumień `newsletter` (`newsletter_campaign_events`), metryki `email_opens/clicks/ctr`; `footer_newsletter_signup` | M17 czyta z M11 |
+| 12 Realtime/powiadomienia | `usePendingCounters` przez `tableChannelHub`; `runTrackerTickNow` uruchamia job runner | M17 współdzieli infrastrukturę licznikową z M12 |
+| 13 Monetyzacja-core | strumień `ad_events` (bramka marketing), metryki `ad_impressions/clicks/ctr`; `trackCta` w cenniku | M17 czyta z M13 |
+| 14 Monetyzacja-uzupełniająca | `popup-event` beacon (`events.ts:27-30`), `b2b_coupons_analytics`, `metered_views` | M14 emituje do M17 |
+| 15 Profil/konto | segment „zalogowani” po `user_id`; `profile_view_stats`/`my_profile_viewers` poza słownikiem semantycznym | M17 czyta z M15 |
+| 16 Społeczność-admin | RPC `admin_member_funnel`/`activity_series`/`retention` na `/admin/audience`; `get_engagement_overview` | M17 prezentuje dane M16 (granica w 17.18) |
+| 18 CRM | `tenant_pending_counters.crm_leads_new` przez `usePendingCounters` | wspólna tabela liczników |
+| 19 Ustawienia/authz/RODO | `site_settings.analytics` (`AnalyticsConfigSchema`); `has_role`/`current_tenant_id`/`assert_admin_tenant`; bramki zgody `hasAnalyticsConsent`/`hasCategoryConsent`; deklaracja `/cookies` | M17 zależy od M19 (i łamie jej deklarację w 17.22) |
+| 20 Platforma/SSR | lazy-loading wymuszony limitem V8; `afterPrerendering`; `initObservability` w `__root.tsx`; `edgeTtlCache`/Edge Cache | dwukierunkowa |
+| 21 Kluby | `ClubThreadInsightsPanel` konsumuje silnik wykresów; `src/lib/maps` (WorldMap/centroidy) **nie należy do M17** — obsługuje widget WorldMap buildera (`WorldMapEditor.tsx:47-48`, `worldMapContent.ts`), nie analitykę geograficzną; geo-analityka M17 to `ChoroplethMap` + `src/lib/charts/geoQuery.ts` | M21 konsumuje M17 |
 
 **Ustalenia przekrojowe poza pojedynczymi funkcjami:**
-
 - **Zerowa retencja danych analitycznych.** Grep po `supabase/migrations/` nie znajduje żadnej funkcji prune/purge/retention dla `analytics_events`, `web_vitals`, `client_errors`, `post_views` ani `builder_experiment_events` — repo ma prunery dla `domain_events`, `push_queue`, `command_idempotency`, czatu i księgowości, ale nie dla największych tabel telemetrycznych. To jednocześnie problem RODO (minimalizacja, ograniczenie przechowywania) i problem kosztowy.
 - **Warstwa semantyczna dotarła do 2 z 6 konsumentów.** `resolveWindow` używają wyłącznie `Ga4BiDashboard` i `SemanticReconciliationPanel`. GSC, Web Vitals, Client Errors, Related i Audience nadal budują okna samodzielnie (kroczące, z dniem otwartym, w strefie lokalnej), co odtwarza dokładnie tę fragmentację, którą warstwa opisuje.
 - **Dostępność jest rozdzielona na dwa reżimy.** Wykresy redakcyjne (`src/components/charts/`) mają tabele danych, fokusowalne elementy i testy axe; wykresy BI admina (`src/components/admin/analytics/`) nie mają żadnej alternatywy tekstowej. Ta sama platforma, dwa standardy.
@@ -4932,7 +4570,6 @@ Najważniejszy wniosek: platforma ma dziś najlepszy w całym repo aparat pojęc
 Moduł 18 to pełnowymiarowy CRM wbudowany w platformę: jedna skrzynka osób (`crm_leads`) sklejona z formularzy kontaktowych, newslettera, rejestracji, prelegentów (M16) i zgłoszeń klubowych (M21), kartoteka firm (`crm_companies`), follow-upy z przypomnieniami (`crm_tasks`), behawioralny lead scoring liczony w bazie, lejek marketingowy nad subskrybentami oraz wychodzące integracje partnerskie przez outbox `integration_deliveries`. Rdzeń "silnikowy" jest bardzo dobry — scoring (pgTAP 13 asercji + test parzystości wag), zadania (pgTAP 15 asercji), idempotencja notatek/zadań, paginacja serwerowa z `count:"exact"`, twarda doktryna `requireCrmStaff` (rola + step-up MFA) nad RLS. Warstwa prezentacji jednak wyprzedziła kontrakty danych: zakładka „Aktywność" na pełnej karcie leada wywala się na niezgodności typu, rejestr zgód RODO czyta nieistniejące kolumny (`granted`/`version`/`text_excerpt`), eksport osi czasu do PDF wstrzykuje niezescape'owane imię leada do `document.write` (stored XSS w panelu admina), a konwersja z lejka fabrykuje zgodę marketingową. Najważniejszy wniosek: to nie jest szkielet — to dojrzały produkt z trzema błędami klasy P1 na ścieżkach dowodowych (zgody, PDF, autoryzacja roli `author`), które trzeba domknąć przed uznaniem modułu za produkcyjny.
 
 ### 18.1. Skrzynka leadów — lista, filtry, sortowanie i paginacja serwerowa — **7/10**
-
 - **Pliki:** `src/lib/crm.functions.ts:38-165` (ListInput, `applyLeadListFilters`, `applyLeadListSort`, `listCrmLeads`), `src/lib/crm/leadViews.ts:9-45,135-150,255-311`, `src/routes/admin.crm.index.tsx:406-1057`, `src/components/admin/crm/LeadFilterChips.tsx:40-263`, `src/lib/crm/__tests__/leadViews.test.ts:1-90`, `supabase/migrations/20260718130000_crm_lead_scoring.sql:59-75` (widok `crm_leads_all`, `security_invoker`)
 - **Co robi:** Serwuje stronicowaną listę osób CRM (widok `crm_leads` lub cross-tenantowy `crm_leads_all` dla super admina), z filtrowaniem i sortowaniem liczonym w SQL, deterministycznym tie-breakerem po `id` i dokładnym `total`. Konfiguracja widoku (kolumny/filtr/sort) jest tłumaczona na parametry serwerowe przez czystą funkcję `leadViewToServerParams`.
 - **Relacje:** 11 Newsletter — wspólna kolumna `crm_leads.newsletter_status` i filtr `source=newsletter`; 12 Realtime/powiadomienia — `useModuleRealtime("crm")` + `eventInvalidationMap` (`crm_lead.*` → klucz `["crm-leads"]`); 19 Ustawienia/authz — middleware `requireCrmStaff` (`src/integrations/supabase/require-staff.ts:24-30`); 20 Platforma/SSR — `createServerFn` + serializacja przez `json` string.
@@ -4946,7 +4583,6 @@ Moduł 18 to pełnowymiarowy CRM wbudowany w platformę: jedna skrzynka osób (`
   5. Wystawić w UI istniejące już filtry serwerowe: `owner_ids`, `tags`, `score_min/max`, `newsletter_status`, `activity_to`, `created_to` (`crm.functions.ts:53-67`) — backend je obsługuje, `LeadFilterChips` ich nie zna.
 
 ### 18.2. Zapisane widoki, menedżer kolumn i chip-filtry — **7/10**
-
 - **Pliki:** `src/lib/crm-saved-views.functions.ts:1-113`, `supabase/migrations/20260722070234_5c85e5c5…sql:1-41` (tabela + RLS), `src/components/admin/crm/{LeadViewTabs,LeadColumnManager,LeadFilterChips}.tsx`, `src/components/admin/crm/{CompanyViewTabs,CompanyColumnManager,CompanyFilterChips}.tsx`, `src/lib/crm/leadViews.ts:172-251`, `src/lib/crm/companyViews.ts:142-209`, `src/routes/admin.crm.index.tsx:449-536`, `src/routes/admin.companies.index.tsx:211-292`
 - **Co robi:** Widoki listy (kolumny + filtr + sort) jako JSONB w `saved_views` z podziałem na encje, wraz z widokami wbudowanymi (`BUILTIN_LEAD_VIEWS`, `BUILTIN_COMPANY_VIEWS`), deep-linkiem `?view=`, zmianą nazwy, udostępnianiem zespołowi i usuwaniem.
 - **Relacje:** 19 Ustawienia/authz — RLS `saved_views` (own OR `is_shared`) + `requireCrmStaff`; 5 Chrome/nawigacja — deep-link `?view=` obsługiwany przez `validateSearch` trasy (`admin.crm.index.tsx:124-135`).
@@ -4958,7 +4594,6 @@ Moduł 18 to pełnowymiarowy CRM wbudowany w platformę: jedna skrzynka osób (`
   3. Dopisać test `companyViews.test.ts` symetryczny do `leadViews.test.ts` (parser + mapowanie filtrów), bo lista firm filtruje po kliencie i regresja byłaby niewidoczna.
 
 ### 18.3. Karta kontaktu — quick-view drawer na liście — **6/10**
-
 - **Pliki:** `src/routes/admin.crm.index.tsx:1205-1528`, `src/lib/crm.functions.ts:169-242` (`getCrmLead`), `src/lib/crm/leadMutations.ts:25-59`, `src/components/admin/crm/{LeadScoreBadge,ScoreBreakdownCard,LeadTasksPanel}.tsx`, `src/components/molecules/{PresenceIndicator,LinkedItemsCard}.tsx`
 - **Co robi:** Panel boczny z 7 zakładkami (Profil, Zadania, Oś czasu, Zgody, Historia formularzy, Notatki, Integracje) dla wybranego leada; edycja imienia/nazwiska/telefonu/firmy/etapu/tagów, obecność innych redaktorów, powiązane obiekty.
 - **Relacje:** 11 Newsletter — `newsletter_subscribers` czytane po e-mailu (`crm.functions.ts:196-204`); 21 Kluby / 16 Społeczność-admin — `contact_messages` i zgody wspólne z formularzami; 12 Realtime — `PresenceIndicator entityType="crm_lead"`; 9 Czat/10 Sieć — `LinkedItemsCard itemType="crm_lead"`.
@@ -4970,7 +4605,6 @@ Moduł 18 to pełnowymiarowy CRM wbudowany w platformę: jedna skrzynka osób (`
   3. Zamienić toast „✓" na komunikat PL/EN i usunąć pusty `aria-label` z nagłówka kolumny akcji.
 
 ### 18.4. Pełna karta kontaktu `/admin/crm/$id` (układ 3-kolumnowy) — **5/10**
-
 - **Pliki:** `src/routes/admin.crm.$id.tsx:147-752`, `src/lib/crm.functions.ts:169-242,878-884`, `src/components/admin/crm/{ProfileSyncCard,LeadMembershipCard,MeteringUsageCard,ScoreBreakdownCard,LeadTasksPanel,FaceAwareAvatar}.tsx`
 - **Co robi:** Docelowa karta osoby w stylu HubSpot: lewy rail z edycją inline i etapem, środek z zakładkami Przegląd/Aktywność/Analityka, prawy sidebar z członkostwem, firmą, powiązanym profilem, zadaniami i pushem do partnerów.
 - **Relacje:** 13 Monetyzacja-core — `LeadMembershipCard` (klucz `billingKeys.crmLeadMembership`) i `MeteringUsageCard`; 15 Profil/konto — `ProfileSyncCard` (doświadczenie, umiejętności, CV); 18/13 — link do karty firmy `/admin/companies/$id`; 12 Realtime — inwalidacja `["crm-lead", id]` z mapy zdarzeń.
@@ -4983,7 +4617,6 @@ Moduł 18 to pełnowymiarowy CRM wbudowany w platformę: jedna skrzynka osób (`
   4. Dodać test renderu zakładki „Aktywność" (vitest + mock `getCrmLeadTimeline`) — regresja tego typu przechodzi dziś bez śladu w CI.
 
 ### 18.5. Oś czasu leada i jej eksport (CSV + PDF do druku) — **4/10**
-
 - **Pliki:** `src/lib/crm.functions.ts:724-908` (`buildLeadTimeline`, `getCrmLeadTimeline`, `exportCrmLeadTimelineCsv`), `src/routes/admin.crm.index.tsx:1539-1659` (`LeadTimeline`, `printPdf`, `escapeHtml`)
 - **Co robi:** Skleja jedną osią czasu zgłoszenia formularzy, zdarzenia newslettera (w tym DOI), zgody, notatki i wpisy `audit_log` dla leada; eksportuje ją do CSV (z neutralizacją formuł) oraz do wydruku/PDF przez nowe okno przeglądarki.
 - **Relacje:** 11 Newsletter — `newsletter_subscribers`; 19 Ustawienia/authz/RODO — `audit_log` (`entity_type='crm_lead'`) i `crm_consent_log`; 16 Społeczność-admin — `contact_messages` z formularzy.
@@ -4997,7 +4630,6 @@ Moduł 18 to pełnowymiarowy CRM wbudowany w platformę: jedna skrzynka osób (`
   5. Dodać test jednostkowy `buildLeadTimeline` na fikstrze zgód (blokada regresji nazw kolumn).
 
 ### 18.6. Notatki leada z idempotencją — **8/10**
-
 - **Pliki:** `src/lib/crm.functions.ts:575-618`, `src/lib/crm/leadMutations.ts:25-59`, `src/lib/crm/__tests__/leadMutations.test.tsx:57-121`, `supabase/migrations/20260630053403…sql:131-159` (tabela + RLS), `supabase/migrations/20260711200000_domain_event_bus.sql:320+` (`crm_note.created.v1`)
 - **Co robi:** Dodawanie i usuwanie wewnętrznych notatek przy leadzie, z kluczem idempotencji end-to-end (`command_idempotency`) i inwalidacją wspólnego klucza `["crm-lead", id]` na obu powierzchniach (drawer + pełna karta).
 - **Relacje:** 12 Realtime — `crm_note.created.v1` w mapie inwalidacji (`eventInvalidationMap.ts:54-58`); 19 Ustawienia/authz — RLS `author_id = auth.uid()` przy INSERT.
@@ -5008,7 +4640,6 @@ Moduł 18 to pełnowymiarowy CRM wbudowany w platformę: jedna skrzynka osób (`
   2. Wystawić edycję notatki (polityka `Author edits own notes` już istnieje) lub usunąć nieużywaną politykę UPDATE.
 
 ### 18.7. Zadania / follow-upy z przypomnieniami — **8/10**
-
 - **Pliki:** `src/lib/crm-tasks.functions.ts:31-184`, `src/components/admin/crm/LeadTasksPanel.tsx`, `src/components/admin/crm/FollowUpsPanel.tsx`, `supabase/migrations/20260721120000_crm_tasks_followups.sql:23-342`, `supabase/tests/crm_tasks_followups_test.sql` (plan 15)
 - **Co robi:** Zadania per lead (termin, przypisanie, status open/done/cancelled), denormalizacja `crm_leads.follow_up_at = MIN(due_at)` triggerem, pasek „Follow-upy do zrobienia" nad skrzynką (okno 72 h) i skaner przypomnień `run_crm_task_reminders` z watermarkiem, wysyłający notyfikację `kind='crm_task'` oraz zdarzenie `crm_task.due.v1`.
 - **Relacje:** 12 Realtime/powiadomienia — `enqueue_notification(kind 'crm_task')` + `notification_preferences.enabled_crm_task` (`20260721120000…sql:196-257`); 19 Platforma/cron — `pg_cron` `*/10 * * * *` (`…sql:331-342`); 18 → integracje — `crm_task.due.v1` idzie też do outboxu partnerów.
@@ -5020,7 +4651,6 @@ Moduł 18 to pełnowymiarowy CRM wbudowany w platformę: jedna skrzynka osób (`
   3. Wyprowadzić strefę czasową przypomnienia z ustawień tenanta (`site_settings`) zamiast stałej `Europe/Warsaw`.
 
 ### 18.8. Lead scoring (silnik w bazie, wyjaśnialność, ustawienia per tenant) — **9/10**
-
 - **Pliki:** `supabase/migrations/20260718130000_crm_lead_scoring.sql:41-786`, `supabase/migrations/20260721113000_crm_lead_scoring_page_views.sql:22-352`, `src/lib/crm/scoring.ts:23-215`, `src/lib/crm/__tests__/scoring.test.ts`, `src/lib/crm.functions.ts:916-1041`, `src/components/admin/crm/{ScoringSettingsDialog,ScoreBreakdownCard,LeadScoreBadge}.tsx`, `supabase/tests/crm_lead_scoring_test.sql` (plan 13)
 - **Co robi:** Liczy wynik leada z 15 sygnałów platformy (otwarcia/klliki newslettera, odsłony, formularze, RSVP, pobrania, komentarze, zakupy, darowizny + sygnały fit) z wykładniczym decayem (konfigurowalny półokres), sufitami per sygnał, progami pasm hot/warm/cool/cold i pełnym rozbiciem `score_breakdown` („dlaczego ten wynik").
 - **Relacje:** 11 Newsletter (`newsletter_campaign_events`, `newsletter_subscribers`), 13/14 Monetyzacja (`user_purchases`, `donations`), 16 Społeczność-admin (`event_rsvps`, `comments`), 17 Analityka (`post_views`, `resource_downloads`), 12 Realtime (zmiana wyniku → `crm_lead.updated.v1` → odświeżenie listy), 19 Authz (RLS `crm_scoring_settings` admin-write, RPC guard `is_staff` + `is_super_admin`).
@@ -5032,7 +4662,6 @@ Moduł 18 to pełnowymiarowy CRM wbudowany w platformę: jedna skrzynka osób (`
   3. Wystawić editorowi podgląd wag w trybie read-only (`admin.crm.index.tsx:749`).
 
 ### 18.9. Operacje zbiorcze na leadach (etap, tagi, zgoda, usunięcie) — **7/10**
-
 - **Pliki:** `src/lib/crm.functions.ts:1045-1162`, `src/routes/admin.crm.index.tsx:618-664,922-1051`, `src/components/molecules/BulkActionBar.tsx`
 - **Co robi:** Zbiorcza zmiana etapu, dopisywanie/usuwanie tagów (read-modify-write per rekord, bo PostgREST nie ma `array_append` w PATCH), przestawienie zgody marketingowej i twarde usunięcie leadów (tylko admin), z wpisami w `audit_log`.
 - **Relacje:** 19 Ustawienia/authz/RODO — `audit_log` + guard `has_role('admin')`; 12 Realtime — każda mutacja emituje `crm_lead.updated.v1` i odświeża listę.
@@ -5044,7 +4673,6 @@ Moduł 18 to pełnowymiarowy CRM wbudowany w platformę: jedna skrzynka osób (`
   3. Dodać do `BulkActionBar` przypisanie właściciela (backend już to przyjmuje, `crm.functions.ts:1048`).
 
 ### 18.10. Eksport CSV skrzynki leadów — **7/10**
-
 - **Pliki:** `src/lib/crm.functions.ts:620-664`, `src/routes/admin.crm.index.tsx:576-592`
 - **Co robi:** Eksportuje bieżący widok (te same filtry i sortowanie co lista, bez paginacji, sufit 5000 wierszy) do CSV z 15 stałymi kolumnami.
 - **Relacje:** 11 Newsletter — kolumny `newsletter_status`, `marketing_consent`; 19 RODO — eksport danych osobowych.
@@ -5056,7 +4684,6 @@ Moduł 18 to pełnowymiarowy CRM wbudowany w platformę: jedna skrzynka osób (`
   3. Uzupełnić zestaw kolumn o `position`, `country`, `source_type`.
 
 ### 18.11. Import leadów z CSV (mapowanie + dedup + merge) — **8/10**
-
 - **Pliki:** `src/components/admin/crm/ImportLeadsCsvDialog.tsx:1-380`, `src/lib/crm-tasks.functions.ts:186-254`, `supabase/migrations/20260721120000_crm_tasks_followups.sql:346-459` (`crm_import_leads`), `src/lib/csv/parseCsv.ts`
 - **Co robi:** Trzy-krokowy import (plik → automapowanie nagłówków PL/EN → podgląd), deduplikacja w pliku po stronie klienta, wysyłka porcjami po 500 wierszy do RPC, które w JEDNEJ transakcji robi merge przez kanoniczne `crm_upsert_from_form` i zwraca raport `imported/merged/skipped/errors`.
 - **Relacje:** 18 → `crm_companies` (kanoniczna funkcja tworzy firmę i wiąże lead); 19 Authz — guard `is_staff()` + `current_tenant_id()` w RPC; 12 Realtime — inwalidacja `["crm-leads"]`.
@@ -5068,7 +4695,6 @@ Moduł 18 to pełnowymiarowy CRM wbudowany w platformę: jedna skrzynka osób (`
   3. Dopisać `audit_log` (`crm.lead.import`, plik, liczby) oraz test jednostkowy `mapRows` (dedup, tagi, obcięcie do 300 znaków).
 
 ### 18.12. Własność leada (`owner_id`) — szkielet bez interfejsu — **3/10**
-
 - **Pliki:** `supabase/migrations/20260630053403…sql:80,103` (kolumna + indeks `crm_leads_owner_idx`), `src/lib/crm.functions.ts:1047,1062-1065` (patch bulk), `src/lib/crm.functions.ts:1167-1199` (`listStaffUsers`), `supabase/migrations/20260721120000…sql:294` (fallback odbiorcy przypomnienia)
 - **Co robi:** W schemacie i backendzie istnieje pełna obsługa przypisania leada do pracownika: kolumna z indeksem, filtr serwerowy `owner_ids`, pole w patchu zbiorczym, picker staffu (`listStaffUsers` z użyciem `supabaseAdmin`, bo `user_roles` jest owner-only) oraz konsument — skaner przypomnień wybiera `assignee → owner_id → autor`.
 - **Relacje:** 19 Ustawienia/authz — `user_roles` czytane adminem; 12 Powiadomienia — `owner_id` jako odbiorca przypomnienia follow-upu; 17 Analityka — brak (nie ma raportu per właściciel).
@@ -5081,7 +4707,6 @@ Moduł 18 to pełnowymiarowy CRM wbudowany w platformę: jedna skrzynka osób (`
   4. Jeśli decyzja produktowa jest inna — usunąć `listStaffUsers` i `owner_id` z walidatorów, żeby nie udawały działającej funkcji.
 
 ### 18.13. Lista firm CRM (widoki, kolumny, statystyki, eksport) — **6/10**
-
 - **Pliki:** `src/routes/admin.companies.index.tsx:83-470`, `src/lib/crm-companies.functions.ts:49-122`, `src/lib/crm/companyViews.ts:63-333`, `supabase/migrations/20260725184058…sql:2-43` (`crm_companies_aggregates`), `supabase/migrations/20260721200229…sql:20-21` (indeks trigram)
 - **Co robi:** Indeks kartotek firm z zakładkami zapisanych widoków, menedżerem kolumn, chip-filtrami, sortowaniem, kaflami statystyk i eksportem CSV; liczniki leadów/kontaktów i ostatnia aktywność agregowane jednym RPC po stronie bazy.
 - **Relacje:** 15 Profil/konto — `profiles.current_company_id` jako „kontakty" firmy; 18 → leady (`crm_leads.company_id`); 13/14 Monetyzacja — most `member_organizations.crm_company_id` widoczny na karcie firmy.
@@ -5093,7 +4718,6 @@ Moduł 18 to pełnowymiarowy CRM wbudowany w platformę: jedna skrzynka osób (`
   3. Dodać neutralizację `^[=+\-@]` w `rowsToCsv` (`companyViews.ts:293-297`) — ten eksport jest jedynym w module bez tej ochrony.
 
 ### 18.14. Karta firmy `/admin/companies/$id` (dane, logo, feed aktywności) — **7/10**
-
 - **Pliki:** `src/routes/admin.companies.$id.tsx:136-1000`, `src/lib/crm-companies.functions.ts:126-204,365-493`, `supabase/migrations/20260725182640…sql` (RPC self-service)
 - **Co robi:** Trzykolumnowa karta firmy: dane z edycją inline, logo (upload do bucketu `media` lub favicon z domeny), powiązane profile i leady, feed aktywności sklejony z `audit_log` + notatek leadów + utworzeń leadów, oraz sekcja organizacji członkowskich B2B.
 - **Relacje:** 13/14 Monetyzacja — zapytanie `member_organizations` po `crm_company_id` z `billingKeys` (`admin.companies.$id.tsx:169-180`) i `useMembershipTiers`; 15 Profil — lista `profiles` z `current_company_id`; 4 Motyw/media — upload logo do bucketu `media`; 19 Authz — `requireCrmStaff` + RLS.
@@ -5106,7 +4730,6 @@ Moduł 18 to pełnowymiarowy CRM wbudowany w platformę: jedna skrzynka osób (`
   4. Dodać do feedu aktywności zdarzenia zadań (`crm_task.*`) — dziś follow-upy nie są widoczne na poziomie firmy.
 
 ### 18.15. Tworzenie firmy i kontaktu przy firmie — **7/10**
-
 - **Pliki:** `src/lib/crm-companies.functions.ts:206-357`, `src/components/admin/crm/NewCompanyDialog.tsx:1-221`, `supabase/migrations/20260730053135…sql:3-15` (RLS INSERT)
 - **Co robi:** Serwerowe tworzenie kartoteki firmy (tenant z profilu staffu, `created_by` z sesji, puste stringi → NULL) oraz dodanie kontaktu (leada) powiązanego z firmą, z rozwiązaniem tenanta z firmy-rodzica.
 - **Relacje:** 15 Profil/konto — te same wiersze `crm_companies` tworzy self-service member przez RPC `create_company_self_service` (`src/components/profile/CompanyPickerDialog.tsx:209-221`), bo RLS INSERT wymaga roli staff; 19 Authz — polityka `tenant_id = current_tenant_id() AND created_by = auth.uid() AND rola`.
@@ -5118,7 +4741,6 @@ Moduł 18 to pełnowymiarowy CRM wbudowany w platformę: jedna skrzynka osób (`
   3. Rozważyć użycie `crm_upsert_from_form` również w tej ścieżce (jak w imporcie), żeby kontakt tworzony ręcznie dostawał `aliases`/`source_count`/wiązanie firmy z jednego miejsca.
 
 ### 18.16. Lejek marketingowy (subskrybenci → kontakty) — **5/10**
-
 - **Pliki:** `src/lib/crm-funnel.functions.ts:57-238`, `src/routes/admin.crm.funnel.index.tsx:56-615`, `supabase/migrations/20260722094744…sql:50-93` (`crm_funnel_view`), `supabase/migrations/20260802130000_crm_funnel_stats_aggregate.sql`
 - **Co robi:** Lista subskrybentów newslettera z flagami `is_registered`/`is_contact`, KPI z jednego RPC agregującego, filtry (status, audience, język, źródło), zbiorczy wypis oraz konwersja zaznaczonych do kontaktów CRM.
 - **Relacje:** 11 Newsletter — zapis bezpośrednio do `newsletter_subscribers` (status, `unsubscribed_at`, `confirmed_at`); 15 Profil — join po `profiles` dla `is_registered`; 18 — upsert do `crm_leads`; 17 Analityka — KPI lejka (własne, niezależne od semantycznej warstwy M17).
@@ -5132,7 +4754,6 @@ Moduł 18 to pełnowymiarowy CRM wbudowany w platformę: jedna skrzynka osób (`
   5. Dopisać test pgTAP na `crm_funnel_view` (izolacja tenanta, flagi `is_registered`/`is_contact`) i vitest na mapowanie konwersji.
 
 ### 18.17. Integracje wychodzące: partnerzy CRM + outbox — **8/10**
-
 - **Pliki:** `supabase/migrations/20260802131000_crm_webhook_endpoints_multi_partner.sql:45-308`, `src/components/admin/crm/CrmPartnerEndpointsPanel.tsx:1-721`, `src/lib/crm.functions.ts:666-711` (`pushLeadToPartners`), `src/lib/crm/leadMutations.ts:67-95`, `src/lib/integrations/dispatch.functions.ts`, `src/lib/__tests__/crmSecretsVaultCv.test.ts`
 - **Co robi:** Dowolna liczba partnerów CRM per tenant jako profil `crm_webhook_endpoints` nad `integration_endpoints` (auth HMAC/Bearer, `forward_stages`, `consent_mapping`, `workspace_id`); zdarzenia leadowe trafiają do outboxu `integration_deliveries` z retry/backoff/dead, a ręczny push (`crm_enqueue_lead_push`) świadomie omija filtr etapów.
 - **Relacje:** 12 Realtime/szyna — router `tg_route_domain_event_to_integrations` konsumuje `crm_lead.*`/`crm_task.*`; 19 Ustawienia/authz — sekrety w Supabase Vault, RPC `integration_endpoint_set_secret`; 11 Newsletter — te same endpointy mogą subskrybować inne typy zdarzeń.
@@ -5145,7 +4766,6 @@ Moduł 18 to pełnowymiarowy CRM wbudowany w platformę: jedna skrzynka osób (`
   4. Usunąć tabelę/polityki `crm_integrations` migracją porządkową (dane już przeniesione).
 
 ### 18.18. Synchronizacja profil/subskrybent → lead oraz backfill „Synchronizuj z bazy" — **4/10**
-
 - **Pliki:** `supabase/migrations/20260722080948…sql:1-180` (`crm_upsert_lead_from_profile`, `crm_upsert_lead_from_subscriber`, `crm_backfill_all_leads`, triggery), `src/routes/admin.crm.index.tsx:775-795` (przycisk), `src/components/admin/crm/ProfileSyncCard.tsx:76-177`, `src/lib/crm.functions.ts:475-573` (`getCrmLeadProfileSync`), `supabase/migrations/20260712140000_crm_secrets_vault_and_cv_bucket.sql:160-193` (bucket `cv`)
 - **Co robi:** Trzyma skrzynkę CRM w zgodzie z bazą użytkowników: triggery na `profiles` i `newsletter_subscribers` upsertują leada po e-mailu, przycisk w panelu robi pełny backfill, a karta „Powiązany profil" pokazuje przy leadzie doświadczenie, umiejętności, nagrody, wykształcenie i aktualne CV dopasowanego konta.
 - **Relacje:** 15 Profil/konto — `profiles`, `profile_experiences`, `profile_skills`, `profile_cv_files`, `profile_awards`, `profile_education`; 11 Newsletter — `newsletter_subscribers`; 19 Authz/RODO — świadome pominięcie wyników Big5 (`crm.functions.ts:479-483`) i użycie `supabaseAdmin` do obejścia RLS owner-only; 16/21 — analogiczne mostki dla prelegentów i zgłoszeń klubowych korzystają z tych samych funkcji.
@@ -5159,7 +4779,6 @@ Moduł 18 to pełnowymiarowy CRM wbudowany w platformę: jedna skrzynka osób (`
   5. Dodać pgTAP dla `crm_upsert_lead_from_profile` (kolizja telefonu, brak nadpisania wypełnionych pól, izolacja tenanta).
 
 ### 18.19. Członkostwo i zużycie limitu przy leadzie — **8/10**
-
 - **Pliki:** `src/lib/crm.functions.ts:301-473`, `src/lib/crm/membershipSummary.ts:1-155`, `src/lib/crm/__tests__/membershipSummary.test.ts` (156 l.), `src/components/admin/crm/{LeadMembershipCard,MeteringUsageCard}.tsx`, `src/lib/billing/keys.ts`
 - **Co robi:** Pokazuje sprzedaży, czy lead jest płacącym członkiem: rozstrzyga efektywną warstwę członkostwa (subskrypcje ∪ nadania ∪ miejsca w organizacji → najwyższa ranga → warstwa domyślna) oraz zużycie miesięcznego limitu bezpłatnych artykułów.
 - **Relacje:** 13 Monetyzacja-core — `user_subscriptions`, `access_plans`, `membership_tiers`, `membership_grants`, `organization_seats`, `metering_settings`, `metered_views`; 12 Realtime — klucze `billingKeys.crmLeadMembership*` odświeżane zdarzeniami `subscription.*`/`membership_grant.*`/`organization.*` (`eventInvalidationMap.ts:116,146-155,217-226`); 15 Profil — dopasowanie po `email`/`contact_email`.
@@ -5171,7 +4790,6 @@ Moduł 18 to pełnowymiarowy CRM wbudowany w platformę: jedna skrzynka osób (`
   3. Zsynchronizować fallback limitu z domyślną wartością kolumny (`?? 5` vs `DEFAULT 3`).
 
 ### 18.20. Rejestr zgód RODO (`crm_consent_log`) — **5/10**
-
 - **Pliki:** `supabase/migrations/20260630053403…sql:33-69`, `supabase/migrations/20260705182736…sql:42+` (auto-log z formularzy i newslettera), `supabase/migrations/20260730130000_lock_down_public_inserts.sql:20-51`, `supabase/migrations/20260730135929…sql`, `src/lib/crm.functions.ts:205-212,785-791`, `src/routes/admin.crm.index.tsx:1389-1424`
 - **Co robi:** Niezmienny dziennik zgód (klucz, treść, wersja, formularz, IP, UA, język) zasilany triggerami przy zapisie formularza kontaktowego i subskrypcji, czytany przy karcie leada i w osi czasu.
 - **Relacje:** 11 Newsletter — DOI i zgody subskrypcji; 16 Społeczność-admin / 21 Kluby — zgody z formularzy; 19 Ustawienia/authz/RODO — RLS staff-read, INSERT wyłącznie service_role.
@@ -5183,7 +4801,6 @@ Moduł 18 to pełnowymiarowy CRM wbudowany w platformę: jedna skrzynka osób (`
   3. Dodać eksport „historia zgód osoby" (CSV/PDF) do karty leada i pgTAP na RLS + brak INSERT dla `authenticated`.
 
 ### 18.21. Centrum kontaktu i ścieżka formularz → CRM — **7/10**
-
 - **Pliki:** `src/lib/contact.functions.ts:204-486`, `src/routes/admin.contact.tsx:1-527`, `supabase/migrations/20260706201356…sql:66-160` (`crm_upsert_from_form`), `supabase/migrations/20260730130000…sql:43-44`
 - **Co robi:** Publiczny endpoint przyjmujący zgłoszenie formularza: wymusza politykę pól tenanta, limituje nadużycia, zapisuje wiadomość przypiętą do tenanta hosta, wypycha kontakt do CRM kanoniczną funkcją, wysyła auto-odpowiedź i powiadomienie admina oraz startuje DOI newslettera; panel „Centrum kontaktu" to skrzynka z filtrami (nieprzeczytane/wszystkie/archiwum) i ustawieniami formularza.
 - **Relacje:** 11 Newsletter — DOI, `newsletter_settings`, `newsletter_subscribers`; 18 — `crm_upsert_from_form`; 19 Ustawienia/authz — `contact_form_settings`, `form_field_policies`, `enforce_form_field_policy`; 20 Platforma — `resolveTenantIdForHost`, `rateLimit`.
@@ -5196,7 +4813,6 @@ Moduł 18 to pełnowymiarowy CRM wbudowany w platformę: jedna skrzynka osób (`
   4. Wykorzystać `assigned_to` (picker staffu) albo usunąć kolumnę.
 
 ### 18.22. Autoryzacja i izolacja tenantów modułu CRM — **6/10**
-
 - **Pliki:** `src/integrations/supabase/require-staff.ts:19-115`, `supabase/migrations/20260630053403…sql:92-129` (RLS `crm_leads`, `crm_lead_notes`), `20260721120000…sql:54-88` (RLS `crm_tasks`), `20260718130000…sql:98-118` (RLS `crm_scoring_settings`), `20260802131000…sql:99-105` (RLS `crm_webhook_endpoints`), `20260711203000…sql:184-197` (RLS `integration_endpoints`, `integration_deliveries`), `20260711200000_domain_event_bus.sql:47-60` (RLS `domain_events`), `20260628230000_tenant_isolation_and_authz.sql:42-52` (`is_staff`), `supabase/tests/{crm_upsert_lead_authz_test.sql,pii_column_grants_test.sql}`
 - **Co robi:** Dwuwarstwowa egzekucja dostępu do CRM: middleware `requireCrmStaff` (rola `admin`/`editor`/`super_admin` + wymuszenie `aal2`, gdy użytkownik ma MFA) nad user-scoped klientem Supabase, z RLS jako niezależnym backstopem na każdej tabeli `crm_*`.
 - **Relacje:** 19 Ustawienia/authz/RODO — `has_role`, `is_staff`, `is_super_admin`, `authzSnapshot.generated.ts`/`permissionRows.ts` (gate `fn:crm_backfill_all_leads/0`); 12 Realtime — `domain_events` jako kanał; 20 Platforma — `current_tenant_id()` z profilu.
@@ -5209,26 +4825,25 @@ Moduł 18 to pełnowymiarowy CRM wbudowany w platformę: jedna skrzynka osób (`
   4. Dopisać pgTAP „tenant A nie widzi leadów/notatek/zadań tenanta B" (wzorzec `crm_lead_scoring_test.sql` sekcja 4) — dziś izolacja rdzenia CRM nie jest zablokowana testem.
 
 ### Podsumowanie modułu 18
-
 - **Średnia ocen funkcji:** 6,5 · **Rozkład:** 9–10: 1 · 7–8: 12 · 5–6: 6 · <5: 3
 
 - **Relacje modułu (zbiorczo):**
 
-| Moduł                        | Mechanizm                                                                                                                                                                                                                                                       | Kierunek zależności                                                    |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| 11 Newsletter                | wspólne tabele `newsletter_subscribers`, `newsletter_campaign_events`, `newsletter_settings`; widok `crm_funnel_view`; kolumna `crm_leads.newsletter_status`; DOI z formularza kontaktowego                                                                     | dwukierunkowa (CRM czyta i ZAPISUJE status subskrypcji w lejku)        |
-| 12 Realtime/powiadomienia    | zdarzenia `crm_lead.*`, `crm_note.*`, `crm_task.*` na `domain_events`; `useModuleRealtime("crm")`; `enqueue_notification(kind='crm_task')`; `notification_preferences.enabled_crm_task`                                                                         | CRM → M12 (emisja), M12 → CRM (inwalidacja cache)                      |
-| 13 Monetyzacja-core          | `user_subscriptions`, `access_plans`, `membership_tiers`, `membership_grants`, `organization_seats`; sygnały `purchase`/`donation` w scoringu; `metering_settings`/`metered_views`; most `member_organizations.crm_company_id`; `billingKeys`                   | CRM → M13 (odczyt, admin bypass)                                       |
-| 14 Monetyzacja-uzupełniająca | `donations` jako sygnał scoringu; `purchaseEffects.server.ts` tworzy leady (`source_type='import'`)                                                                                                                                                             | M14 → CRM (zapis), CRM → M14 (odczyt)                                  |
-| 15 Profil/konto              | `profiles` (dopasowanie po `email`/`contact_email`, `current_company_id`, avatar), `profile_experiences/skills/awards/education/cv_files`; triggery `profile_sync_crm_lead`; RPC `create_company_self_service`/`link_current_company`/`search_companies_public` | dwukierunkowa (profil → lead triggerem, CRM → profil odczytem adminem) |
-| 16 Społeczność-admin         | `contact_messages`, `event_rsvps`, `comments`; profile prelegentów zapisują `crm_lead_id` i `source_type='speaker'`                                                                                                                                             | M16 → CRM (zapis leadów), CRM → M16 (odczyt historii)                  |
-| 17 Analityka/BI              | `post_views`, `resource_downloads` jako sygnały scoringu; KPI lejka liczone własnym RPC `crm_funnel_stats` (obok warstwy semantycznej M17)                                                                                                                      | CRM → M17 (odczyt)                                                     |
-| 19 Ustawienia/authz/RODO     | `requireCrmStaff`, `has_role`/`is_staff`/`is_super_admin`, `audit_log`, `crm_consent_log`, `form_field_policies`, `command_idempotency`, gate `fn:crm_backfill_all_leads/0` w snapshocie authz                                                                  | CRM → M19 (konsument reguł i dziennika)                                |
-| 20 Platforma/SSR             | `createServerFn` + serializacja `json`, `resolveTenantIdForHost`, `rateLimit`, `pg_cron` (`crm-task-reminders`), Supabase Vault, outbox `integration_deliveries`                                                                                                | CRM → M20                                                              |
-| 21 Kluby                     | `club_apply_submit` → `club_application_crm_sync` → `crm_upsert_from_form` (`source_type='club_application'`), kolumny `crm_leads.club_*`                                                                                                                       | M21 → CRM (zapis; CRM nie eksponuje tych danych w UI)                  |
-| 4 Motyw/media                | upload logo firmy do bucketu `media`; bucket `cv` (prywatny, bez polityki dla staffu)                                                                                                                                                                           | CRM → M4                                                               |
-| 5 Chrome/nawigacja           | pozycje `/admin/crm`, `/admin/crm/funnel`, `/admin/companies`, `/admin/contact` w `AdminShell`; deep-linki `?lead=&task=&view=`                                                                                                                                 | CRM → M5                                                               |
-| 9 Czat / 10 Sieć             | `LinkedItemsCard itemType="crm_lead"`, `PresenceIndicator entityType="crm_lead"`, `useLinkedItems` (`/admin/crm?lead=`)                                                                                                                                         | dwukierunkowa (graf powiązań)                                          |
+| Moduł | Mechanizm | Kierunek zależności |
+|---|---|---|
+| 11 Newsletter | wspólne tabele `newsletter_subscribers`, `newsletter_campaign_events`, `newsletter_settings`; widok `crm_funnel_view`; kolumna `crm_leads.newsletter_status`; DOI z formularza kontaktowego | dwukierunkowa (CRM czyta i ZAPISUJE status subskrypcji w lejku) |
+| 12 Realtime/powiadomienia | zdarzenia `crm_lead.*`, `crm_note.*`, `crm_task.*` na `domain_events`; `useModuleRealtime("crm")`; `enqueue_notification(kind='crm_task')`; `notification_preferences.enabled_crm_task` | CRM → M12 (emisja), M12 → CRM (inwalidacja cache) |
+| 13 Monetyzacja-core | `user_subscriptions`, `access_plans`, `membership_tiers`, `membership_grants`, `organization_seats`; sygnały `purchase`/`donation` w scoringu; `metering_settings`/`metered_views`; most `member_organizations.crm_company_id`; `billingKeys` | CRM → M13 (odczyt, admin bypass) |
+| 14 Monetyzacja-uzupełniająca | `donations` jako sygnał scoringu; `purchaseEffects.server.ts` tworzy leady (`source_type='import'`) | M14 → CRM (zapis), CRM → M14 (odczyt) |
+| 15 Profil/konto | `profiles` (dopasowanie po `email`/`contact_email`, `current_company_id`, avatar), `profile_experiences/skills/awards/education/cv_files`; triggery `profile_sync_crm_lead`; RPC `create_company_self_service`/`link_current_company`/`search_companies_public` | dwukierunkowa (profil → lead triggerem, CRM → profil odczytem adminem) |
+| 16 Społeczność-admin | `contact_messages`, `event_rsvps`, `comments`; profile prelegentów zapisują `crm_lead_id` i `source_type='speaker'` | M16 → CRM (zapis leadów), CRM → M16 (odczyt historii) |
+| 17 Analityka/BI | `post_views`, `resource_downloads` jako sygnały scoringu; KPI lejka liczone własnym RPC `crm_funnel_stats` (obok warstwy semantycznej M17) | CRM → M17 (odczyt) |
+| 19 Ustawienia/authz/RODO | `requireCrmStaff`, `has_role`/`is_staff`/`is_super_admin`, `audit_log`, `crm_consent_log`, `form_field_policies`, `command_idempotency`, gate `fn:crm_backfill_all_leads/0` w snapshocie authz | CRM → M19 (konsument reguł i dziennika) |
+| 20 Platforma/SSR | `createServerFn` + serializacja `json`, `resolveTenantIdForHost`, `rateLimit`, `pg_cron` (`crm-task-reminders`), Supabase Vault, outbox `integration_deliveries` | CRM → M20 |
+| 21 Kluby | `club_apply_submit` → `club_application_crm_sync` → `crm_upsert_from_form` (`source_type='club_application'`), kolumny `crm_leads.club_*` | M21 → CRM (zapis; CRM nie eksponuje tych danych w UI) |
+| 4 Motyw/media | upload logo firmy do bucketu `media`; bucket `cv` (prywatny, bez polityki dla staffu) | CRM → M4 |
+| 5 Chrome/nawigacja | pozycje `/admin/crm`, `/admin/crm/funnel`, `/admin/companies`, `/admin/contact` w `AdminShell`; deep-linki `?lead=&task=&view=` | CRM → M5 |
+| 9 Czat / 10 Sieć | `LinkedItemsCard itemType="crm_lead"`, `PresenceIndicator entityType="crm_lead"`, `useLinkedItems` (`/admin/crm?lead=`) | dwukierunkowa (graf powiązań) |
 
 - **5 najpilniejszych rekomendacji:**
   1. **Zescape'ować `name` i `lead.email` w eksporcie osi czasu do PDF** (`src/routes/admin.crm.index.tsx:1571-1573`) — imię leada pochodzi z publicznego formularza i trafia niezescape'owane do `document.write` w oknie dziedziczącym origin panelu, co daje stored XSS z dostępem do sesji admina (funkcja 18.5).
@@ -5243,12 +4858,11 @@ Moduł 18 to pełnowymiarowy CRM wbudowany w platformę: jedna skrzynka osób (`
 
 **Zakres zbadany:** `src/lib/authz/*` (+`__tests__`), `src/lib/ci/authzGates.ts`, `src/lib/tenant.ts`, `src/lib/consent/*` (+`__tests__`), `src/lib/ads/consent.ts`, `src/lib/cookieBanner/*`, `src/lib/legal/*`, `src/lib/locale/{pl,en}.ts`, `src/lib/i18n.ts`, `src/lib/useSiteSetting.ts`, `src/lib/admin/{useSettings,useSiteSettingsRevisions,impersonation,impersonation.functions,invitations.functions,users-query}.ts`, `src/lib/consents.{functions,server}.ts`, `src/lib/notifications/{consentCatalog,useConsents}.ts`, `src/lib/organizations/*`, `src/lib/profile/{export.functions,exportManifest}.ts`, `src/lib/account.functions.ts`, `src/lib/http/tenantAssertion*.ts`, `src/lib/server/tenantAssertion.server.ts`, `src/integrations/supabase/tenant-host-fetch.ts`, `src/hooks/{useAuth,useAuthSettings}.tsx|ts`, `src/components/{ConsentBanner,ConsentScriptInjector,ConsentPreviewPanel}.tsx`, `src/components/consent/**`, `src/components/legal/LegalPage.tsx`, `src/components/admin/{settings,users,permissions,cookie-banner,i18n,versions}/**`, `src/components/admin/{ImpersonationBanner,SiteSettingsHistoryDialog,AdminShell}.tsx`, `src/components/notifications/ConsentsPanel.tsx`, `src/components/profile/privacy/*`, trasy `admin.{permissions,users*,settings*,i18n,login-settings,organizations*}.tsx`, `profile.{privacy,organization}.tsx`, `polityka-prywatnosci.tsx`, `cookies.tsx`, `regulamin.tsx`, `[.well-known]/gpc[.]json.ts`, `-gpc.json.test.ts`, skrypty `generate-authz-snapshot.ts`, `check-sql-{tenant-scope,app-role-literals,anon-insert,owner-tenant-scope}.ts`, `.github/workflows/ci.yml`, migracje SQL (m.in. `20260805114407`, `20260805090000`, `20260626162717`, `20260703090100`, `20260717095322`, `20260803140001`, `20260803190927`, `20260805064123`, `20260723201604`, `20260721052806`, `20260715214120`), `supabase/tests/*` (pgTAP) · **Funkcji:** 22 · **Ocena modułu:** 7,5/10
 
-Moduł jest warstwą kontroli platformy: role i bramki autoryzacji, izolacja tenantów (od RLS aż po podpisane poświadczenie hosta), CMP + Global Privacy Control, rejestr zgód RODO, prawa podmiotu danych (eksport/usunięcie), ustawienia serwisu i mechanizm i18n. Jego najsilniejsza część jest wybitna i rzadko spotykana: uprawnienia nie są _deklarowane_ w kodzie, lecz **odtwarzane ze SQL-a** (`authzSnapshot.generated.ts` + trzy blokujące bramki CI), a izolacja tenantów ma cztery niezależne gate'y statyczne i pgTAP-y na trzech tenantach. Najsłabsza część to obszary „obok rdzenia": audytowy rejestr zgód jest **zapisywalny wprost z klienta** (GRANT INSERT/UPDATE/DELETE na `user_consents` i INSERT na `user_consent_events` dla roli `authenticated`), `admin_get_user_consent` jest jedyną bramką modułu **bez zakresu tenanta** (admin tenanta A czyta zgody użytkownika tenanta B), historia ustawień ma zawsze `changed_by = NULL` (nikt nie zapisuje `site_settings.updated_by`), a zacommitowany snapshot bramek jest **nieaktualny wobec HEAD** (748 vs 744 migracji — CI na tym commicie jest czerwone). Najważniejszy wniosek: mechanizmy „mierzone, nie deklarowane" działają i wyłapują dryf, ale trzy konkretne dziury (klient-writable audyt zgód, brak tenanta w `admin_get_user_consent`, martwe `changed_by`) leżą dokładnie w miejscach, których żadna z istniejących bramek nie obejmuje.
+Moduł jest warstwą kontroli platformy: role i bramki autoryzacji, izolacja tenantów (od RLS aż po podpisane poświadczenie hosta), CMP + Global Privacy Control, rejestr zgód RODO, prawa podmiotu danych (eksport/usunięcie), ustawienia serwisu i mechanizm i18n. Jego najsilniejsza część jest wybitna i rzadko spotykana: uprawnienia nie są *deklarowane* w kodzie, lecz **odtwarzane ze SQL-a** (`authzSnapshot.generated.ts` + trzy blokujące bramki CI), a izolacja tenantów ma cztery niezależne gate'y statyczne i pgTAP-y na trzech tenantach. Najsłabsza część to obszary „obok rdzenia": audytowy rejestr zgód jest **zapisywalny wprost z klienta** (GRANT INSERT/UPDATE/DELETE na `user_consents` i INSERT na `user_consent_events` dla roli `authenticated`), `admin_get_user_consent` jest jedyną bramką modułu **bez zakresu tenanta** (admin tenanta A czyta zgody użytkownika tenanta B), historia ustawień ma zawsze `changed_by = NULL` (nikt nie zapisuje `site_settings.updated_by`), a zacommitowany snapshot bramek jest **nieaktualny wobec HEAD** (748 vs 744 migracji — CI na tym commicie jest czerwone). Najważniejszy wniosek: mechanizmy „mierzone, nie deklarowane" działają i wyłapują dryf, ale trzy konkretne dziury (klient-writable audyt zgód, brak tenanta w `admin_get_user_consent`, martwe `changed_by`) leżą dokładnie w miejscach, których żadna z istniejących bramek nie obejmuje.
 
 ---
 
 ### 19.1. Macierz uprawnień /admin/permissions (kompozycja z bramek SQL) — **9/10**
-
 - **Pliki:** `src/lib/authz/permissionMatrix.ts:349-408` (buildPermissionMatrix), `:130-223` (podsumowania bramek), `:435-523` (filtr, etykiety, grupowanie), `src/lib/authz/permissionRows.ts:46-152` (43 wiersze rolowe, 7 grup), `src/lib/authz/roles.ts:1-27`, `src/lib/authz/permissionMatrixQuery.ts:14-64`, `src/routes/admin.permissions.tsx:43-146`, `src/components/admin/permissions/{atoms,molecules,organisms}/*` (14 plików, 966 linii), `src/lib/i18n-admin-permissions.ts` (470 linii PL+EN), testy: `src/lib/authz/__tests__/permissionMatrix.test.ts` (453 linie), `src/components/admin/permissions/__tests__/permissionMatrixTable.test.tsx`
 - **Co robi:** Renderuje macierz „aktor × uprawnienie" (5 ról `app_role` + warstwy członkostwa bieżącego tenanta) w której **żadna komórka nie jest wpisana ręcznie**: poziom roli wynika ze zbioru ról wymienionych przez bramkę SQL w snapshocie, poziom warstwy z `membership_tiers.features`, a znacznik „Egzekwowana / Dekoracyjna" z faktu, czy jakakolwiek bramka czyta daną flagę. 65 wierszy (43 rolowe + 21 flag + 1 limit), KPI liczone raz w `buildPermissionMatrix`.
 - **Relacje:** Moduł 13 (Monetyzacja-core) — import `TIER_CAPABILITIES`/`NUMERIC_FEATURE_KEYS` z `lib/billing/capabilities`, wspólna tabela `membership_tiers`; Moduł 21 (Kluby) — wiersze `clubs_structure`/`clubs_access` (bramki `is_club_admin`, `club_capabilities`); Moduł 16 (Społeczność-admin), 9 (Czat), 18 (CRM), 2 (Edytor/workflow), 7 (Treści specjalne) — wiersze wskazują ich RPC; Moduł 20 (Platforma/SSR) — trasa pod `/admin` z `ssr:false`.
@@ -5261,7 +4875,6 @@ Moduł jest warstwą kontroli platformy: role i bramki autoryzacji, izolacja ten
   4. Wyświetlić w `PermissionSourceNotice` datę snapshotu (najnowsza migracja w `stats`) — audytor musi widzieć, że patrzy na stan świeży (patrz 19.2).
 
 ### 19.2. Generator snapshotu bramek autoryzacji + bramka parytetu CI — **8/10**
-
 - **Pliki:** `scripts/generate-authz-snapshot.ts:34-99`, `src/lib/ci/authzGates.ts` (791 linii — parser SQL, `deriveAuthzSnapshot`, `selectAuthzSnapshot`, `collectAuthzSnapshotDrift`, `renderAuthzSnapshotModule`), `src/lib/authz/authzSnapshot.generated.ts` (43 bramki rolowe, 13 bramek flag, `stats: {migrations:744, functions:822, policies:522}`), `src/lib/authz/authzSnapshotTypes.ts:1-69`, testy: `src/lib/authz/__tests__/authzSnapshotParity.test.ts` (12 przypadków), `src/lib/ci/__tests__/authzGates.test.ts` (582 linie), CI: `.github/workflows/ci.yml:64,213,323` (`check:authz-snapshot` w trzech jobach), `:69,219` (`check:permissions-parity`)
 - **Co robi:** Skanuje `supabase/migrations`, odtwarza ostatnią (żywą) definicję każdej funkcji/polityki, wylicza zbiór ról przechodzących każdą **dokumentowaną** bramkę, komplet flag `membership_tiers.features` realnie czytanych przez SQL, wartości enuma `app_role` oraz `tenantRef`/`securityDefiner`, i zapisuje deterministyczny artefakt TS. Tryb `--check` raportuje dryf z podziałem na wagę (zmiana uprawnień vs. przeniesiona definicja).
 - **Relacje:** Moduł 13 (Monetyzacja-core) — weryfikuje pole `enforced` w rejestrze capabilities (test: „`enforced: true` ma pokrycie w realnej bramce"); Moduł 20 (Platforma/SSR) — parser żyje w warstwie CI i **nie wchodzi do bundla** klienta (`authzSnapshotTypes.ts:1-7`); wszystkie moduły z RPC — dryf ich bramek obleje CI.
@@ -5274,7 +4887,6 @@ Moduł jest warstwą kontroli platformy: role i bramki autoryzacji, izolacja ten
   4. Uzupełnić `authzGates.test.ts` o przypadek „funkcja zdefiniowana z `LANGUAGE plpgsql` i `$function$` w jednej linii" — jedyna kategoria formatowania SQL, której nie widziałem w testach parsera.
 
 ### 19.3. Kontrakt ról aplikacji i nadawanie ról — **8/10**
-
 - **Pliki:** `src/lib/authz/roles.ts:1-27` (`APP_ROLES`, `IMPLICIT_ROLES`), migracja `20260703090100_profiles_column_grants_and_role_audit.sql` (`change_user_role` + `role_audit_log`), `20260625160054_...sql:16-30` (`has_role` — z `ur.tenant_id = current_tenant_id()`), `src/routes/admin.users.index.tsx:76-79,340-360,430-450`, `src/hooks/useAuth.tsx:49-58,172-174`, pgTAP: `supabase/tests/role_management_test.sql` (`plan(11)`), bramka: `scripts/check-sql-app-role-literals.ts` (944 literały `has_role` sprawdzone wobec enuma)
 - **Co robi:** Definiuje pięć ról systemowych jako jedno źródło prawdy po stronie klienta (test parytetu pilnuje zgodności z enumem z migracji) i udostępnia adminowi zmianę roli przez utwardzony RPC `change_user_role`, który podmienia komplet wierszy `user_roles` w obrębie tenanta i zapisuje ślad w `role_audit_log`.
 - **Relacje:** Moduł 15 (Profil/konto) — `useAuth` dostarcza `roles/isStaff/isAdmin` całej aplikacji; Moduł 20 (Platforma/SSR) — guard `/admin`; wszystkie moduły admina — `isStaff`/`isAdmin` jako warunek widoczności; Moduł 19.1 — kolumny macierzy.
@@ -5286,7 +4898,6 @@ Moduł jest warstwą kontroli platformy: role i bramki autoryzacji, izolacja ten
   3. Dopisać pgTAP-owy przypadek „admin tenanta A nie zmieni roli użytkownikowi tenanta B" jawnie na trzech tenantach (dziś `target_not_in_tenant` jest testowany, ale w scenariuszu dwutenantowym).
 
 ### 19.4. Bramki CI inwariantów SQL (tenant-scope, app_role, anon-insert, owner-tenant) — **9/10**
-
 - **Pliki:** `scripts/check-sql-tenant-scope.ts:34-125`, `scripts/check-sql-app-role-literals.ts` (297 linii), `scripts/check-sql-anon-insert.ts:47-138`, `scripts/check-sql-owner-tenant-scope.ts` (149 linii), `scripts/lib/sqlMigrations.ts`, `src/lib/ci/rlsPolicies.ts`, `.github/workflows/ci.yml:194,203,230,311`
 - **Co robi:** Cztery statyczne inwarianty nad stanem końcowym migracji: (a) funkcja `SECURITY DEFINER` nie może łączyć `public_tenant_id()`/`request_public_host()` z `has_role()/is_staff()` poza jawnie uzasadnioną allowlistą, (b) każdy literał roli w `has_role` musi istnieć w enumie, (c) tabele intake nie mogą mieć polityki INSERT dla roli klienckiej, (d) polityki „właścicielskie" muszą wiązać tenanta tam, gdzie inne polityki tej tabeli to robią.
 - **Relacje:** wszystkie moduły z SQL-em; Moduł 13/14 (Monetyzacja) — allowlista `authorize_resource_download`, `get_event_access`; Moduł 21 (Kluby) — `club_capabilities`; Moduł 17 (Analityka) — `analytics_events`, `web_vitals` na liście intake; Moduł 18 (CRM) — `crm_consent_log` na liście intake.
@@ -5298,7 +4909,6 @@ Moduł jest warstwą kontroli platformy: role i bramki autoryzacji, izolacja ten
   3. Nadać 12 pozycjom znanego długu identyfikatory i termin (np. pole `since`/`owner` w strukturze długu w `check-sql-owner-tenant-scope.ts`), żeby lista nie rosła w ciszy.
 
 ### 19.5. Izolacja tenantów: rozstrzyganie tenanta + poświadczenie hosta (HMAC) — **8/10**
-
 - **Pliki:** migracja `20260805114407_...sql:98-285` (`normalize_public_host`, `tenant_id_for_public_host`, `verify_tenant_host_assertion`, `request_asserted_host`, `request_verified_host`, `request_public_host`, `public_tenant_id`), `20260805090000_tenant_host_assertion_hardening.sql`, `20260626180412_...sql:1-8` (`current_tenant_id` = tenant z `profiles`), `src/lib/http/tenantAssertion.ts:33-224`, `src/lib/server/tenantAssertion.server.ts:41-133`, `src/lib/http/tenantAssertionCookie.server.ts`, `src/integrations/supabase/tenant-host-fetch.ts:1-121`, `src/lib/tenant.ts:11-29`, `src/start.ts:400-425` (kolejność middleware), testy: `src/__tests__/tenantHostTrust.invariant.test.ts` (146 linii, statyczny inwariant nad stanem końcowym migracji), `src/lib/http/__tests__/tenantAssertion.test.ts`, `.../tenantAssertionCookie.test.ts`, `src/lib/server/__tests__/tenantAssertion.server.test.ts`, `src/integrations/supabase/__tests__/tenantHostFetch.test.ts`, pgTAP: `tenant_host_assertion_test.sql` (`plan(18)`), `tenant_isolation_three_tenants_test.sql` (`plan(32)`), `rls_tenant_isolation_test.sql` (`plan(7)`), `host_tenant_resolution_test.sql`, `security_definer_tenant_scope_test.sql`, `definer_header_tenant_isolation_test.sql`
 - **Co robi:** Rozstrzyga tenanta na dwóch płaszczyznach: „domowej" (`current_tenant_id()` = `profiles.tenant_id` wołającego) i „treściowej" (`public_tenant_id()` = tenant hosta). Host przychodzi jako deklaracja klienta (`x-tenant-host`) **i** jako poświadczenie krawędzi (`x-tenant-assert`: `v1.<kid>.<b64url(host)>.<exp>.<HMAC-SHA256>`), a baza traktuje je jako dwa różne szczeble zaufania: poświadczony host obowiązuje zawsze, sama deklaracja **nigdy nie wyprowadza zalogowanego z tenanta domowego** (`public_tenant_id():268-282`).
 - **Relacje:** Moduł 20 (Platforma/SSR) — `gpcMiddleware`/`tenantAssertionMiddleware` w `src/start.ts` i kwantyzacja `exp` pod jeden wpis NES Edge Cache; Moduł 1/3/8 (treści, feedy) — RLS `tenant_id = public_tenant_id()`; Moduł 13 (Monetyzacja) — `monetization_dashboard` był historycznym wyciekiem naprawionym tym mechanizmem; Moduł 19.4 — gate `check:sql-tenant-scope` pilnuje reguły.
@@ -5311,7 +4921,6 @@ Moduł jest warstwą kontroli platformy: role i bramki autoryzacji, izolacja ten
   4. Zastąpić `useCurrentTenantId()` (`src/lib/tenant.ts`) odczytem `tenantId` z `useAuth` — jedno źródło, jeden round-trip.
 
 ### 19.6. Zarządzanie użytkownikami /admin/users — **7/10**
-
 - **Pliki:** `src/routes/admin.users.index.tsx` (937 linii), `src/routes/admin.users.$id.tsx` (876 linii), `src/routes/admin.users.tsx:1-5`, `src/lib/admin/users-query.ts:28-42`, RPC `admin_list_users` (`20260703090100`), `admin_get_user` (`20260703173228`), `admin_update_user_avatar` (`20260703175337`)
 - **Co robi:** Lista użytkowników tenanta (sortowanie po 4 kolumnach, grupowanie po roli/planie/statusie subskrypcji, filtry, wyszukiwanie, bulk-akcje: zmiana roli, ponowne wysłanie zaproszeń) plus karta pojedynczego użytkownika z rolą, subskrypcją, zgodami i aktywnością.
 - **Relacje:** Moduł 15 (Profil/konto) — `profiles`, avatary; Moduł 13/14 (Monetyzacja) — `billingKeys`, plany i statusy subskrypcji w tej samej tabeli widoku; Moduł 10 (Sieć/eksperci) — panel zapytań do eksperta na karcie użytkownika; Moduł 16 (Społeczność-admin) — wspólny klucz cache `["admin","all-users",tenantId]` z `/admin/authors`; Moduł 19.3 — `change_user_role`.
@@ -5323,7 +4932,6 @@ Moduł jest warstwą kontroli platformy: role i bramki autoryzacji, izolacja ten
   3. Przenieść `statusLabel`/`roleLabel` i cały `L(pl,en)` z `admin.users.$id.tsx` do słownika `i18n-admin-*` i objąć prefiks bramką parytetu (`src/__tests__/i18nParity.gate.test.ts`).
 
 ### 19.7. Zaproszenia i provisioning kont (import zespołu) — **7/10**
-
 - **Pliki:** `src/lib/admin/invitations.functions.ts` (790 linii: `previewTeamImport`, `createInvitations`, `sendInvitation`, `resendInvitation`, `revokeInvitation`, `linkTeamWidgets`, `assertAdmin:58-77`, `generateTempPassword:47-55`), `src/components/admin/users/InviteUserDialog.tsx`, `src/components/admin/users/TeamImportDialog.tsx`, `src/routes/admin.users.invitations.tsx` (135 linii), tabela `user_invitations` + enum `invitation_mode`
 - **Co robi:** Zakłada konta (magic-link albo hasło tymczasowe), tworzy `profiles`/`author_profiles`/`user_roles`, wysyła e-mail, a osobną ścieżką parsuje widgety `team-member` na stronie buildera i tworzy zaproszenia dla wszystkich osób z sekcji zespołu, dopisując potem `authorSlug`/`authorUserId` do widgetów.
 - **Relacje:** Moduł 2/3 (Edytor/Silniki treści) — parsowanie `builder_data` widgetów `team-member` i zapis z powrotem; Moduł 11 (Newsletter) / Moduł 20 — `sendTransactionalEmail` (bramka Resend); Moduł 15 (Profil/konto) — tworzone `profiles`/`author_profiles`; Moduł 19.3 — nadanie roli przy zakładaniu konta.
@@ -5335,7 +4943,6 @@ Moduł jest warstwą kontroli platformy: role i bramki autoryzacji, izolacja ten
   3. Dodać limit partii + potwierdzenie liczby kont w `TeamImportDialog` (np. max 50 na wysyłkę) — ochrona przed przypadkowym zalaniem skrzynek i reputacji domeny.
 
 ### 19.8. Impersonacja super_admina („Zaloguj jako") — **6/10**
-
 - **Pliki:** `src/lib/admin/impersonation.functions.ts:22-113`, `src/lib/admin/impersonation.ts:26-80`, `src/components/admin/ImpersonationBanner.tsx:10-55`, `src/routes/admin.users.index.tsx:897`, tabela `impersonation_sessions`
 - **Co robi:** Super admin wymienia własną sesję na sesję wskazanego użytkownika (`auth.admin.generateLink` + `verifyOtp('magiclink')`), oryginalne tokeny lądują w `sessionStorage`, każde użycie zapisuje wiersz w `impersonation_sessions`, a żółty baner pozwala wrócić do własnej tożsamości.
 - **Relacje:** Moduł 15 (Profil/konto) — sesja Supabase, powrót przez `setSession`; Moduł 5 (Chrome/nawigacja) — baner renderowany w `SiteChrome` na publicznych stronach; Moduł 19.6 — wejście z listy użytkowników.
@@ -5349,7 +4956,6 @@ Moduł jest warstwą kontroli platformy: role i bramki autoryzacji, izolacja ten
   5. Ustawić TTL sesji impersonacji (np. auto-`ended_at` po 30 min przez zadanie cron M12) — otwarte wiersze audytu inaczej zostają na zawsze.
 
 ### 19.9. CMP: baner zgód cookie (treść, wygląd, deklaracja podmiotów) — **8/10**
-
 - **Pliki:** `src/components/ConsentBanner.tsx` (856 linii), `src/lib/cookieBanner/config.ts:1-171` (`site_settings["cookie_banner_config"]`, 20 pól treści × PL/EN, `bannerStyleVars`), `src/lib/cookieBanner/registry.ts:43-402` (20 wpisów rejestru + skaner `detectCollectedElements`), `src/routes/admin.settings.cookie-banner.tsx` (401 linii + `PreviewOverlay:364-392`), `src/components/admin/cookie-banner/{CookieBannerBrandingSection,DetectedElementsPanel}.tsx`, `src/routes/cookies.tsx` (289 linii), test: `src/components/__tests__/ConsentBanner.test.tsx` (197 linii)
 - **Co robi:** Kompaktowa karta zgód z rozwijanym panelem kategorii oraz modal ze szczegółami i tabelami podmiotów per kategoria; treść, kolory (`--cb-*` z fallbackiem na tokeny motywu), logo i dodatkowe odnośniki prawne konfiguruje admin, a lista elementów danych powstaje z rejestru wzbogaconego realnym skanem cookies/localStorage/sessionStorage.
 - **Relacje:** Moduł 4 (Motyw/media) — `useBrandMarkUrl`, tokeny motywu jako fallback kolorów, `ThemeProvider`; Moduł 5 (Chrome/nawigacja) — `overlayCoordinator` (`setConsentOverlayVisible`) koordynuje z paskami i popupami; Moduł 14 (Monetyzacja-uzupełniająca) — `setMarketingConsent` bramkuje popupy marketingowe; Moduł 19.16 — konfiguracja w `site_settings`; Moduł 19.11 — noty GPC przez sloty.
@@ -5362,7 +4968,6 @@ Moduł jest warstwą kontroli platformy: role i bramki autoryzacji, izolacja ten
   4. Rozstrzygnąć kategorię `nes_lang` (necessary vs functional) i zsynchronizować ją z opisem kategorii w `config.ts:107-108`.
 
 ### 19.10. Rdzeń stanu zgód i bramkowanie skryptów — **8/10**
-
 - **Pliki:** `src/lib/ads/consent.ts` (532 linie: `setConsent:175-212`, `writeLocal/readLocal:118-161`, `syncConsentToProfile:226-247`, `hydrateConsentFromProfile:249-303`, tryb podglądu `:305-355`, `useEffectiveConsent:445-487`, `hasCategoryConsent:496-511`), `src/components/ConsentScriptInjector.tsx:1-198`, `src/components/ConsentPreviewPanel.tsx:1-90`, `src/routes/__root.tsx:519-521`, `src/lib/overlayCoordinator.ts`
 - **Co robi:** Trzyma decyzję zgody (4 kategorie, wersja 2) w localStorage + cookie `nes_cookie_consent` (365 dni) + `profiles.prefs.consent` dla zalogowanych, rozstrzyga stan efektywny (podgląd → zapis → klamra GPC) i na tej podstawie wstrzykuje/usuwa skrypty GA4, GTM, Plausible, Meta Pixel, LinkedIn, TikTok oraz dowolne snippety admina.
 - **Relacje:** Moduł 17 (Analityka/BI) — `hasAnalyticsConsent()` bramkuje beacony spoza drzewa Reacta (`consent.ts:496-517`), konfiguracja `site_settings["analytics"]`; Moduł 14 (Monetyzacja-uzupełniająca) — `setMarketingConsent` → popupy; Moduł 15 (Profil/konto) — `profiles.prefs.consent`, `onAuthStateChange`; Moduł 12 (Realtime/powiadomienia) — zdarzenia okna `consent-change`; Moduł 20 (Platforma/SSR) — montaż w `__root`, brak efektów przed hydratacją.
@@ -5374,7 +4979,6 @@ Moduł jest warstwą kontroli platformy: role i bramki autoryzacji, izolacja ten
   3. Ograniczyć `injectCustomHtml` do allowlisty hostów `src` i zalogować każde wstrzyknięcie do konsoli w trybie dev — dowolny HTML w ustawieniach to najkrótsza droga od przejętego konta admina do XSS na całym serwisie.
 
 ### 19.11. Global Privacy Control (sygnał, klamra, deklaracja maszynowa) — **9/10**
-
 - **Pliki:** `src/lib/consent/gpc.ts:1-257` (czysty rdzeń: parser, klamry, `isGpcHonored`, `buildGpcDeclaration`), `src/lib/consent/gpc.server.ts:24-157` (middleware, cookie transportowe, `Vary: Sec-GPC`), `src/lib/consent/gpcClient.ts:1-54`, `src/routes/[.well-known]/gpc[.]json.ts:1-34`, `src/components/consent/{GpcSurface,GpcSurfaceSlots}.tsx` + `atoms/GpcBadge.tsx`, `molecules/{GpcNotice,GpcRegistryNote,GpcDeclarationLink}.tsx`, `src/lib/i18n-consent-gpc.ts`, `src/start.ts:414-417` (kolejność middleware), testy: `src/lib/consent/__tests__/{gpc,gpcCmpClamp,gpcRegistry,gpcServer,registryBridge}.test.ts`, `src/routes/-gpc.json.test.ts`, `src/components/consent/__tests__/GpcNotice.test.tsx`
 - **Co robi:** Odczytuje maszynowy sygnał opt-outu z trzech nośników (`Sec-GPC` na SSR, cookie transportowe `nes_gpc`, `navigator.globalPrivacyControl`), klamruje kategorie `analytics`/`marketing` oraz klucze rejestru `cookies_analytics`/`cookies_marketing`/`personalization` na „nie", zdejmuje klamrę wyłącznie świadomym override'em przy widocznej nocie, i publikuje deklarację `/.well-known/gpc.json`.
 - **Relacje:** Moduł 20 (Platforma/SSR) — `gpcMiddleware` **musi** stać powyżej `documentCacheMiddleware`, żeby `Set-Cookie` nie wpadł do wpisu NES Edge Cache (`gpc.server.ts:14-19`, `start.ts:414-417`); Moduł 8 (SEO/feedy) — `/.well-known` wykluczone z cache dokumentów (`PUBLIC_DOCUMENT_DENY_PREFIXES`); Moduł 17 (Analityka) i 14 (Monetyzacja-uzupełniająca) — klamra działa też na beaconach i popupach; Moduł 19.12 — sygnał zapisuje wycofanie w rejestrze RODO.
@@ -5386,7 +4990,6 @@ Moduł jest warstwą kontroli platformy: role i bramki autoryzacji, izolacja ten
   3. Przywrócić uruchamialność `gpcServer.test.ts` w CI (weryfikacja pełnej instalacji zależności `@tanstack/react-start` w obrazie testowym).
 
 ### 19.12. Rejestr zgód RODO i most CMP → rejestr — **7/10**
-
 - **Pliki:** `src/lib/consent/registryBridge.ts:1-417` (mapowanie CMP↔rejestr, kolejka FIFO `:216-227`, backfill `:313-344`, wycofanie GPC `:391-417`), `src/lib/consents.functions.ts:18-126` (`listMyConsents`, `setMyConsent`, `setMyConsentsBulk`, `listMyConsentEvents`), `src/lib/consents.server.ts:8-80` (Zod, `readIp`, `readUserAgent`, `resolveGpcForWrite`), `src/lib/notifications/consentCatalog.ts:29-58` (11 zgód), `src/lib/notifications/useConsents.ts`, `src/components/notifications/ConsentsPanel.tsx` (357 linii), migracje `20260717095322` (tabele + RLS), `20260803140001`/`20260803190927` (kolumny `gpc`, `tenant_id`), `20260805064123` (`set_user_consent/11`), test: `src/lib/consent/__tests__/registryBridge.test.ts`
 - **Co robi:** Każda decyzja zgody (baner, hub prywatności, centrum powiadomień, logowanie, sygnał GPC) trafia do `user_consents` (stan) i `user_consent_events` (niezmienny log) z IP/UA czytanym **serwerowo**, wersją treści, językiem, źródłem, `decision_id` wspólnym dla całej decyzji, wersją banera i adresem strony.
 - **Relacje:** Moduł 12 (Realtime/powiadomienia) — wspólny katalog zgód `lib/notifications/consentCatalog` i panel pod dzwonkiem; Moduł 11 (Newsletter) — zgody `marketing_email`/`newsletter_digest` decydują o wysyłkach; Moduł 15 (Profil/konto) — `requireSupabaseAuth`, hub `/profile/privacy`; Moduł 21 (Kluby) — `club.apply.tsx` zapisuje zgodę tym samym RPC; Moduł 10 (Sieć/eksperci) — `JoinUsForm`; Moduł 19.10/19.11 — źródło decyzji i wycofania.
@@ -5399,7 +5002,6 @@ Moduł jest warstwą kontroli platformy: role i bramki autoryzacji, izolacja ten
   4. Zamknąć `setMyConsentsBulk` w jednym wywołaniu SQL (nowy RPC przyjmujący `jsonb[]`), żeby decyzja obejmująca kilka kategorii była atomowa.
 
 ### 19.13. Audyt zgód w panelu administratora — **6/10**
-
 - **Pliki:** `src/components/admin/settings/ConsentAuditSummary.tsx:1-237`, `src/lib/admin/consentAudit.functions.ts`, `src/lib/i18n-admin-consent-audit.ts`, `src/routes/admin.settings.privacy.tsx:44-46`, migracja `20260805064123` (`admin_consent_decisions/3`: guard `has_role(admin)` + `e.tenant_id IS NOT DISTINCT FROM current_tenant_id()`, `admin_consent_stats/1`), `src/routes/admin.users.$id.tsx:786-870` (`UserConsentPanel`), migracja `20260715214120` (`admin_get_user_consent/1`)
 - **Co robi:** Pokazuje na `/admin/settings/privacy` statystyki zgód per klucz (przyznane/odmowy/zdarzenia z GPC/wersje banera/ostatnie zdarzenie, okna 7/30/90 dni) oraz dziennik decyzji zgrupowany po `decision_id` z użytkownikiem, źródłem i adresem strony; na karcie użytkownika — zestaw jego kategorii cookie.
 - **Relacje:** Moduł 19.12 — czyta `user_consent_events`; Moduł 19.6 — panel na karcie użytkownika; Moduł 15 (Profil/konto) — join po `profiles` dla e-maila/nazwy; Moduł 17 (Analityka/BI) — pokrywający się obszar raportowania (osobne RPC).
@@ -5413,7 +5015,6 @@ Moduł jest warstwą kontroli platformy: role i bramki autoryzacji, izolacja ten
   5. Uwzględnić wiersze `tenant_id IS NULL` dla tenanta domyślnego albo je jednorazowo ostemplować migracją — dziś część audytu jest nieosiągalna z UI.
 
 ### 19.14. Eksport danych osobowych (RODO art. 15 i 20) — **9/10**
-
 - **Pliki:** `src/lib/profile/export.functions.ts:34-391` (55 sekcji), `src/lib/profile/exportManifest.ts:1-246` (rejestr sekcji, grupy dziedzinowe, jawne wyłączenia, `diffExportManifest`, `buildExportManifest`), test: `src/lib/profile/__tests__/exportManifest.test.ts` (231 linii, 19 przypadków), UI: `src/components/profile/privacy/DataRightsSection.tsx:45-64`
 - **Co robi:** Server-fn składa pełny, ustrukturyzowany JSON (`nes.personal-data-export.v2`) ze wszystkim, co platforma trzyma o wołającym: tożsamość i podstawa przetwarzania (w tym `user_consents` + `user_consent_events`), rozszerzenia profilu, aktywność, sieć kontaktów, czat, zapytania do ekspertów, kluby, płatności, preferencje doręczeń — z manifestem zakresu i listą wyłączeń w pliku.
 - **Relacje:** Moduł 15 (Profil/konto) — trasa `/profile/privacy`, `get_own_profile`, `get_own_author_profile`; Moduł 9 (Czat) — `conversations`, `messages`, `user_blocks`; Moduł 10 (Sieć/eksperci) — RPC `my_connections`, `list_my_inmails`, `my_profile_viewers`; Moduł 21 (Kluby) — `club_export_my_data` rozbity na 8 sekcji; Moduł 13/14 (Monetyzacja) — `payment_orders`, `user_subscriptions`, `user_purchases`; Moduł 12 (Powiadomienia) — preferencje, `notifications`, `push_subscriptions`; Moduł 19.12 — sekcje zgód.
@@ -5425,7 +5026,6 @@ Moduł jest warstwą kontroli platformy: role i bramki autoryzacji, izolacja ten
   3. Rozważyć tryb asynchroniczny (zadanie + e-mail z linkiem) dla kont przekraczających sufity — dziś eksport ciężkiego konta zależy od jednego żądania HTTP.
 
 ### 19.15. Usunięcie konta i retencja dowodów (art. 17 + obowiązki księgowe) — **8/10**
-
 - **Pliki:** `src/lib/account.functions.ts:31-119` (`deleteMyAccount`, `changeMyEmail`), `src/lib/billing/accountClosure.server.ts`, `src/lib/billing/accountingRetention.server.ts`, migracje `20260803090002_payment_orders_gdpr_retention.sql` (m.in. trigger `BEFORE DELETE ON auth.users`, FK `ON DELETE SET NULL`), `20260805090100_user_purchases_gdpr_retention.sql`, `20260811151210_...sql`, funkcje `anonymize_{payment_orders,user_purchases,accounting_evidence,club_applications}_for_user`, `purge_expired_*`, `accounting_retention_until`, `seed_retention_defaults`, UI: `src/components/profile/privacy/DataRightsSection.tsx:65-90`, pgTAP: `supabase/tests/accounting_retention_test.sql`
 - **Co robi:** Usuwa konto w ustalonej, nienaruszalnej kolejności: re-uwierzytelnienie hasłem → anulowanie subskrypcji u operatora → anonimizacja dowodów księgowych (zamówienia, uprawnienia zakupowe, dowody) → `auth.admin.deleteUser`; zwraca liczbę zachowanych dowodów, którą UI pokazuje użytkownikowi.
 - **Relacje:** Moduł 13/14 (Monetyzacja) — `closeBillingForUser`, `retainAccountingEvidence`, `payment_orders`/`user_purchases`; Moduł 15 (Profil/konto) — sesja, hasło, `/profile/security`; Moduł 21 (Kluby) — `anonymize_club_applications_for_user`; Moduł 12 (Powiadomienia) — kaskada preferencji/subskrypcji push.
@@ -5437,7 +5037,6 @@ Moduł jest warstwą kontroli platformy: role i bramki autoryzacji, izolacja ten
   3. Dodać test kolejności kroków (mock `closeBillingForUser`/`retainAccountingEvidence`, sprawdzenie, że `deleteUser` nie zostaje wywołany po błędzie któregokolwiek z nich).
 
 ### 19.16. Ustawienia serwisu (site_settings): odczyt i zapis — **7/10**
-
 - **Pliki:** `src/lib/useSiteSetting.ts:32-138` (bulk read, `resolveSetting`, `pendingWrites`, `commitSiteSettingWrite`), `src/lib/admin/useSettings.ts:14-81` (odczyt/zapis sekcji z deep-merge), `src/components/admin/settings/fields.tsx:12-106`, `src/routes/admin.settings.tsx:1-83` (14 zakładek), panele `admin.settings.{general,privacy,reading,discussion,seo,site-identity,social-preview,google-source,cookie-banner,mobile-bottom-bar,analytics,marketing,design}.tsx`, migracje `20260531190900` (tabela), `20260626162717:59-86` (tenant_id + polityki), `20260720090804:26-42` (`contact_private` poza publicznym read), `20260714113000_site_settings_tenant_pk.sql` (PK `(tenant_id,key)`)
 - **Co robi:** Jeden bulk-odczyt wszystkich publicznych wierszy `site_settings` obsługuje każde `useSiteSetting()` (jeden round-trip na render, `edgeTtlCache` 60 s na SSR, deep-merge z domyślnymi, opcjonalny schemat Zod), a zapis w panelu re-czyta wiersz i deep-merge'uje szkic, żeby wąska zakładka nie skasowała rodzeństwa w JSON-ie.
 - **Relacje:** praktycznie każdy moduł czyta `site_settings` — Moduł 4 (Motyw: `theme_options`), 5 (Chrome: nawigacja, stopka), 8 (SEO), 17 (Analityka), 14 (Marketing), 19.9 (`cookie_banner_config`), 19.19 (`auth_settings`), 3 (Silniki treści), 21 (przełącznik modułu klubów); Moduł 20 (Platforma/SSR) — `edgeTtlCache`, root loader rozgrzewa mapę.
@@ -5450,7 +5049,6 @@ Moduł jest warstwą kontroli platformy: role i bramki autoryzacji, izolacja ten
   4. Dodać kontrolę współbieżności: przekazywać `updated_at` odczytane przed edycją i odrzucać zapis, gdy wiersz zmienił się w międzyczasie (albo `.eq("updated_at", ...)` w upsercie).
 
 ### 19.17. Historia i wersjonowanie ustawień — **5/10**
-
 - **Pliki:** `src/lib/admin/useSiteSettingsRevisions.ts:19-55`, `src/components/admin/SiteSettingsHistoryDialog.tsx:42-202`, `src/components/admin/versions/{VersionsPane,organisms/{CookieVersionsPane,PolicyVersionsPane,BuilderVersionsPane},molecules/VersionRow,atoms/*}.tsx`, migracja `20260723201604_...sql:1-60` (tabela, RLS, trigger `snapshot_site_settings_revision`), `src/components/admin/ThemeOptionsPane.tsx:1349`
 - **Co robi:** Trigger `BEFORE UPDATE OR DELETE ON site_settings` zapisuje poprzednią wartość każdego klucza do `site_settings_revisions`, a panel pozwala przejrzeć migawki, obejrzeć podgląd i przywrócić wersję (baner cookies, builder, dokumenty prawne, motyw).
 - **Relacje:** Moduł 4 (Motyw/media) — jedyne miejsce, gdzie `SiteSettingsHistoryDialog` jest realnie użyty (`ThemeOptionsPane.tsx:1349`); Moduł 19.9 — `CookieVersionsPane` przywraca konfigurację banera; Moduł 19.18 — `PolicyVersionsPane`; Moduł 2/3 (Edytor/Silniki) — `BuilderVersionsPane`; Moduł 19.16 — źródło danych.
@@ -5464,12 +5062,11 @@ Moduł jest warstwą kontroli platformy: role i bramki autoryzacji, izolacja ten
   5. Dopisać `.eq("tenant_id", tenantId)` w `useSiteSettingsRevisions` — druga bramka po stronie klienta, spójnie z resztą modułu.
 
 ### 19.18. Dokumenty prawne (polityka prywatności, cookies, regulamin, zwroty) — **7/10**
-
 - **Pliki:** `src/lib/legal/{registry.ts:16-40,resolve.ts:19-43,types.ts,versions.ts:47-127,useLegalDocument.ts:9-35,entity.ts,icons.ts}`, `src/lib/legal/content/{privacy,terms,refunds}.ts`, `src/components/legal/LegalPage.tsx`, `src/routes/{polityka-prywatnosci,regulamin,cookies}.tsx`, `src/components/admin/versions/organisms/PolicyVersionsPane.tsx`, RPC `publish_legal_version/1` (`20260730205424`), test: `src/lib/legal/__tests__/legalContent.test.ts`, e2e: `e2e/ssr-completeness.spec.ts:58`
 - **Co robi:** Treść bazowa dokumentów żyje w kodzie (PL/EN, sekcje z ikonami), a opublikowana wersja z panelu (`legal_document_versions`) ma pierwszeństwo; publikacja jest atomowa przez RPC, wersje można archiwizować i usuwać; strony publiczne mają pełne SEO (`buildContentHead`, `staticPageSeoQueryOptions`).
 - **Relacje:** Moduł 8 (SEO/feedy) — `buildContentHead`, `staticPageSeoQueryOptions`, `activeLang`; Moduł 2 (Edytor/workflow) — wzorzec wersja/publikacja + `publish_legal_version` w macierzy jako `legal_publish`; Moduł 19.9 — baner linkuje politykę i dodatkowe dokumenty; Moduł 19.19 — `privacy_url`/`terms_url` na stronie logowania; Moduł 20 (SSR) — e2e kompletności SSR dla `/cookies`.
 - **✅ Mocne:** fallback do treści z kodu jest bezwarunkowy (`pickLegalCopy` — zły kształt w bazie nie wywala strony, `resolve.ts:33-43`); `safeParseLegalContent` waliduje kształt przed użyciem; publikacja przez RPC (jedna opublikowana wersja) zamiast dwóch UPDATE-ów z klienta; strony są w pełni dwujęzyczne i mają własne SEO z możliwością nadpisania; `/cookies` objęte e2e SSR.
-- **⚠️ Słabe:** trzy różne systemy adresów tego samego dokumentu: rejestr (`registry.ts:24` → `/polityka-prywatnosci`), `site_settings.privacy.privacy_page_slug` (używany przez baner, `ConsentBanner.tsx:265-267`) i `auth_settings.privacy_url` (strona logowania) — nic ich nie synchronizuje, więc trzy powierzchnie mogą wskazywać trzy różne strony; ścieżki dokumentów są **polskie także w wersji EN** (`/regulamin`, `/polityka-prywatnosci`) i nie ma wariantu `/en/...` w rejestrze; `unpublish`/`remove` idą bezpośrednim UPDATE/DELETE z klienta (`versions.ts:104-121`), więc jedyną ochroną jest RLS (publikacja ma RPC — asymetria); brak śladu „która wersja obowiązywała w dniu X" powiązanego z rejestrem zgód (`user_consents.version` jest wersją _zgody_, nie dokumentu).
+- **⚠️ Słabe:** trzy różne systemy adresów tego samego dokumentu: rejestr (`registry.ts:24` → `/polityka-prywatnosci`), `site_settings.privacy.privacy_page_slug` (używany przez baner, `ConsentBanner.tsx:265-267`) i `auth_settings.privacy_url` (strona logowania) — nic ich nie synchronizuje, więc trzy powierzchnie mogą wskazywać trzy różne strony; ścieżki dokumentów są **polskie także w wersji EN** (`/regulamin`, `/polityka-prywatnosci`) i nie ma wariantu `/en/...` w rejestrze; `unpublish`/`remove` idą bezpośrednim UPDATE/DELETE z klienta (`versions.ts:104-121`), więc jedyną ochroną jest RLS (publikacja ma RPC — asymetria); brak śladu „która wersja obowiązywała w dniu X" powiązanego z rejestrem zgód (`user_consents.version` jest wersją *zgody*, nie dokumentu).
 - **🔧 Rekomendacje:**
   1. Jedno źródło ścieżki dokumentu: czytać `LEGAL_DOCS[...].path` w banerze i na stronie logowania (albo wypełniać `privacy_page_slug`/`privacy_url` z rejestru), zamiast trzech niezależnych ustawień.
   2. Przenieść `unpublish`/`remove` do RPC z bramką rolową (symetrycznie do `publish_legal_version`) — `src/lib/legal/versions.ts:104-121`.
@@ -5477,7 +5074,6 @@ Moduł jest warstwą kontroli platformy: role i bramki autoryzacji, izolacja ten
   4. Dodać zlokalizowane ścieżki EN (`/privacy-policy`, `/terms`) z przekierowaniem, żeby wersja angielska nie prowadziła na polski URL.
 
 ### 19.19. Ustawienia logowania i rejestracji — **7/10**
-
 - **Pliki:** `src/routes/admin.login-settings.tsx` (523 linie), `src/lib/authSettings.ts:1-79` (`AUTH_DEFAULTS`, `privacy_url`, `terms_url`, `logout_redirect_url`), `src/hooks/useAuthSettings.ts:7-36`, `src/components/admin/auth/RegistrationFieldsSection.tsx`, `src/lib/i18n-admin-login-settings.ts`, `src/lib/i18n-admin-popup-signup.ts`, konsument: `src/components/auth/AuthPortal.tsx:664-683`, `src/hooks/useAuth.tsx:145-158` (`logout_redirect_url`)
 - **Co robi:** Konfiguruje stronę logowania (ilustracje jasna/ciemna, teksty, popup sign-in), pola formularza rejestracji oraz odnośniki prawne i cel przekierowania po wylogowaniu; wszystko w `site_settings["auth_settings"]`.
 - **Relacje:** Moduł 15 (Profil/konto) — `AuthPortal`, przepływ logowania i rejestracji (właściciel przepływu); Moduł 19.18 — `privacy_url`/`terms_url`; Moduł 19.16 — nośnik `site_settings`; Moduł 4 (Motyw/media) — `MediaPickerDialog` dla ilustracji.
@@ -5489,7 +5085,6 @@ Moduł jest warstwą kontroli platformy: role i bramki autoryzacji, izolacja ten
   3. Dodać podgląd strony logowania w panelu (analogicznie do `PreviewOverlay` banera) — dziś zmianę ilustracji weryfikuje się wylogowaniem.
 
 ### 19.20. Mechanizm i18n PL/EN (ładowanie bundli, nakładki, bramki parytetu) — **8/10**
-
 - **Pliki:** `src/lib/i18n.ts:1-177` (split per język, `ensureCoreLanguage`, `getRenderI18n`, wrapper `changeLanguage`), `src/lib/locale/pl.ts` (2270 linii), `src/lib/locale/en.ts` (2235 linii), 81 nakładek `src/lib/i18n-*.ts`, `src/lib/i18n/{localePath,localeRuntime,langCookie}.ts`, bramka: `src/__tests__/i18nParity.gate.test.ts:22-158` (+ `src/lib/ci/i18nParity.ts`, `reports/i18n-parity.json`), `package.json:check:i18n-parity`, audyt treści: `src/routes/admin.i18n.tsx:1-50` + `src/components/admin/i18n/WidgetI18nAuditPane.tsx` (213 linii)
 - **Co robi:** Dostarcza dwujęzyczność całej platformy: klient dociąga **tylko** słownik aktywnego języka (drugi leniwie), serwer ładuje oba i renderuje z **klonu per żądanie**, a 81 nakładek rejestruje słowniki w chunkach swoich tras. Bramka CI porównuje pełne drzewa PL/EN dla wybranych prefiksów; `/admin/i18n` pokazuje widgety, które na `/en` wyrenderują polską treść.
 - **Relacje:** wszystkie moduły (każdy ma nakładkę `i18n-*`); Moduł 20 (Platforma/SSR) — `getRenderI18n()` klonuje instancję, żeby współbieżne żądania w różnych językach nie wyciekały do cache'owanego dokumentu (`i18n.ts:80-94`); Moduł 5 (Chrome) — przełącznik języka; Moduł 8 (SEO) — `activeLang`, prefiks `/en`; Moduł 2/3 (Edytor/Silniki) — audyt tłumaczeń widgetów; Moduł 19.1 — prefiks `adminPermissions` w twardej bramce.
@@ -5501,7 +5096,6 @@ Moduł jest warstwą kontroli platformy: role i bramki autoryzacji, izolacja ten
   3. Dodać do `/admin/i18n` sekcję „kompletność słowników" czytającą `reports/i18n-parity.json` — administrator zobaczy to, co dziś widzi tylko CI.
 
 ### 19.21. Organizacje członkowskie i miejsca (seats) — administracja kontami — **7/10**
-
 - **Pliki:** `src/lib/organizations/{selfservice.functions.ts:16-141,teamSeats.functions.ts,teamSeats.server.ts,teamSeats.ts,inviteEmail.ts}`, `src/routes/admin.organizations.tsx` (380 linii), `src/routes/admin.organizations.$id.tsx` (1265 linii), `src/routes/admin.organizations.new.tsx` (258 linii), `src/routes/profile.organization.tsx` (387 linii), RPC `org_add_seat`, `org_set_seats_limit/3` (`20260729204314`, w macierzy jako `org_seats`), `org_touch_seat_invite`, testy: `src/lib/organizations/__tests__/{inviteEmail,seatGraceReminderDays,seatGraceReminders}.test.ts`
 - **Co robi:** Członkostwo korporacyjne z wieloma kontami-miejscami: admin zakłada organizację (warstwa + limit miejsc), właściciel organizacji samodzielnie zaprasza swoich ludzi na miejsca (`org_add_seat` + e-mail), a realną warstwę zajętego miejsca rozstrzyga `current_membership_tier()`.
 - **Relacje:** Moduł 13 (Monetyzacja-core) — `membership_tiers`, `current_membership_tier()`, `billingKeys`, właściciel domeny „warstwy"; Moduł 14 (Monetyzacja-uzupełniająca) — przypomnienia o wygasających miejscach (`seatGraceReminders`); Moduł 15 (Profil/konto) — `/profile/organization` dla właściciela; Moduł 11 (Newsletter)/20 — `sendTransactionalEmail`; Moduł 19.1 — wiersz `org_seats` w macierzy.
@@ -5513,7 +5107,6 @@ Moduł jest warstwą kontroli platformy: role i bramki autoryzacji, izolacja ten
   3. Dodać testy server-fn `inviteOrgSeat`/`teamSeats` na zamockowanym RPC (limit miejsc, duplikat e-maila, brak uprawnień).
 
 ### 19.22. Hub prywatności użytkownika (/profile/privacy) — **8/10**
-
 - **Pliki:** `src/routes/profile.privacy.tsx:1-115`, `src/components/profile/privacy/VisibilityAndContactSection.tsx` (304 linie), `src/components/profile/privacy/DataRightsSection.tsx` (200 linii), `src/components/notifications/ConsentsPanel.tsx` (357 linii), `src/components/consent/GpcSurfaceSlots.tsx` (`GpcDeclarationSlot`), `src/lib/notifications/useConsents.ts`
 - **Co robi:** Jedna strona zbiera trzy bloki w kolejności rosnącej nieodwracalności: widoczność i kontakt (kto może mnie znaleźć, zaprosić, napisać), zgody (katalog RODO + kategorie cookie + historia zdarzeń + deklaracja GPC), prawa do danych (eksport, usunięcie konta) — z jawnym linkiem do `/profile/security` dla bezpieczeństwa konta.
 - **Relacje:** Moduł 15 (Profil/konto) — właściciel trasy `/profile/*`, przeniesione tu sekcje z `/profile/edit` i `/profile/security`; Moduł 10 (Sieć/eksperci) — ustawienia widoczności i przyjmowania zapytań, słownik `i18n-network`; Moduł 9 (Czat) — kto może zacząć rozmowę, potwierdzenia odczytu; Moduł 12 (Powiadomienia) — `ConsentsPanel` współdzielony z centrum powiadomień; Moduł 19.11/19.12/19.14/19.15 — GPC, rejestr, eksport, usunięcie.
@@ -5527,32 +5120,31 @@ Moduł jest warstwą kontroli platformy: role i bramki autoryzacji, izolacja ten
 ---
 
 ### Podsumowanie modułu 19
-
 - **Średnia ocen funkcji:** 7,5 (166/22) · **Rozkład:** **4 × 9–10** (19.1 macierz, 19.4 bramki SQL, 19.11 GPC, 19.14 eksport RODO) / **15 × 7–8** (8/10: 19.2, 19.3, 19.5, 19.9, 19.10, 19.15, 19.20, 19.22 · 7/10: 19.6, 19.7, 19.12, 19.16, 19.18, 19.19, 19.21) / **3 × 5–6** (6/10: 19.8 impersonacja, 19.13 audyt zgód w adminie · 5/10: 19.17 historia ustawień) / **0 × <5**
 
 - **Relacje modułu (zbiorczo):**
 
-| Moduł                        | Mechanizm                                                                                                                                                               | Kierunek zależności                                |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| 1 Wpisy-czytelnik            | RLS `tenant_id = public_tenant_id()`, `is_staff`/`can_publish_content` w macierzy                                                                                       | 1 → 19 (korzysta z bramek i izolacji)              |
-| 2 Edytor/workflow            | wiersze macierzy (`publish`, `comments_moderate`, `legal_publish`), wzorzec wersji/publikacji, parsowanie `builder_data` przy imporcie zespołu                          | dwustronna                                         |
-| 3 Silniki treści             | `site_settings` jako konfiguracja silników, `admin_set_content_password`                                                                                                | 3 → 19                                             |
-| 4 Motyw/media/WP-import      | `theme_options` + `SiteSettingsHistoryDialog` (jedyny konsument), tokeny motywu jako fallback `--cb-*`, `useBrandMarkUrl` w banerze                                     | dwustronna                                         |
-| 5 Chrome/nawigacja           | `overlayCoordinator` (`setConsentOverlayVisible`), `ImpersonationBanner` w `SiteChrome`, przełącznik języka                                                             | 19 → 5                                             |
-| 7 Treści specjalne           | `admin_set_content_password/5` w macierzy (bramka bez `current_tenant_id()`), `authorize_resource_download` na allowliście tenant-scope                                 | 7 → 19                                             |
-| 8 SEO/feedy                  | `buildContentHead`/`staticPageSeo` na stronach prawnych, `/.well-known` poza cache dokumentów, prefiks `/en`                                                            | 19 → 8                                             |
-| 9 Czat                       | `admin_soft_delete_message`, `can_access_entity_presence` w macierzy; sekcje czatu w eksporcie RODO                                                                     | 9 → 19                                             |
-| 10 Sieć/eksperci             | ustawienia widoczności/kontaktu na `/profile/privacy`, RPC sieci w eksporcie, `JoinUsForm` → `set_user_consent`                                                         | dwustronna                                         |
-| 11 Newsletter                | zgody `marketing_email`/`newsletter_digest` z katalogu, `sendTransactionalEmail` dla zaproszeń                                                                          | 11 → 19                                            |
-| 12 Realtime/powiadomienia    | wspólny katalog zgód `lib/notifications/consentCatalog`, `ConsentsPanel` pod dzwonkiem, zdarzenia okna `consent-change`                                                 | dwustronna                                         |
-| 13 Monetyzacja-core          | `TIER_CAPABILITIES`/`NUMERIC_FEATURE_KEYS` i `membership_tiers` jako kolumny macierzy, `current_membership_tier()` dla miejsc                                           | 19 → 13 (import), 13 → 19 (weryfikacja `enforced`) |
-| 14 Monetyzacja-uzupełniająca | `setMarketingConsent` bramkuje popupy, anonimizacja zamówień przy usunięciu konta, przypomnienia o miejscach                                                            | dwustronna                                         |
-| 15 Profil/konto              | `useAuth` (role, tenant), `requireSupabaseAuth`, `profiles.prefs.consent`, trasy `/profile/*`, sesje impersonacji                                                       | dwustronna                                         |
-| 16 Społeczność-admin         | wspólny klucz cache `["admin","all-users",tenantId]`, `admin_community_stats` w macierzy                                                                                | 16 → 19                                            |
-| 17 Analityka/BI              | `hasAnalyticsConsent()` bramkuje beacony, `site_settings["analytics"]`, `analytics_events`/`web_vitals` jako tabele intake                                              | 17 → 19                                            |
-| 18 CRM                       | `crm_set_merydian_secret`, `crm_backfill_all_leads` w macierzy, `crm_consent_log` jako tabela intake                                                                    | 18 → 19                                            |
-| 20 Platforma/SSR             | kolejność middleware (`gpcMiddleware` > `documentCacheMiddleware` > router), `edgeTtlCache`, klon i18next per żądanie, `ssr:false` dla `/admin`                         | dwustronna (krytyczna)                             |
-| 21 Kluby                     | `is_club_admin`/`club_capabilities` w macierzy, `club_export_my_data` (8 sekcji eksportu), `anonymize_club_applications_for_user`, przełącznik modułu w `site_settings` | 21 → 19                                            |
+| Moduł | Mechanizm | Kierunek zależności |
+|---|---|---|
+| 1 Wpisy-czytelnik | RLS `tenant_id = public_tenant_id()`, `is_staff`/`can_publish_content` w macierzy | 1 → 19 (korzysta z bramek i izolacji) |
+| 2 Edytor/workflow | wiersze macierzy (`publish`, `comments_moderate`, `legal_publish`), wzorzec wersji/publikacji, parsowanie `builder_data` przy imporcie zespołu | dwustronna |
+| 3 Silniki treści | `site_settings` jako konfiguracja silników, `admin_set_content_password` | 3 → 19 |
+| 4 Motyw/media/WP-import | `theme_options` + `SiteSettingsHistoryDialog` (jedyny konsument), tokeny motywu jako fallback `--cb-*`, `useBrandMarkUrl` w banerze | dwustronna |
+| 5 Chrome/nawigacja | `overlayCoordinator` (`setConsentOverlayVisible`), `ImpersonationBanner` w `SiteChrome`, przełącznik języka | 19 → 5 |
+| 7 Treści specjalne | `admin_set_content_password/5` w macierzy (bramka bez `current_tenant_id()`), `authorize_resource_download` na allowliście tenant-scope | 7 → 19 |
+| 8 SEO/feedy | `buildContentHead`/`staticPageSeo` na stronach prawnych, `/.well-known` poza cache dokumentów, prefiks `/en` | 19 → 8 |
+| 9 Czat | `admin_soft_delete_message`, `can_access_entity_presence` w macierzy; sekcje czatu w eksporcie RODO | 9 → 19 |
+| 10 Sieć/eksperci | ustawienia widoczności/kontaktu na `/profile/privacy`, RPC sieci w eksporcie, `JoinUsForm` → `set_user_consent` | dwustronna |
+| 11 Newsletter | zgody `marketing_email`/`newsletter_digest` z katalogu, `sendTransactionalEmail` dla zaproszeń | 11 → 19 |
+| 12 Realtime/powiadomienia | wspólny katalog zgód `lib/notifications/consentCatalog`, `ConsentsPanel` pod dzwonkiem, zdarzenia okna `consent-change` | dwustronna |
+| 13 Monetyzacja-core | `TIER_CAPABILITIES`/`NUMERIC_FEATURE_KEYS` i `membership_tiers` jako kolumny macierzy, `current_membership_tier()` dla miejsc | 19 → 13 (import), 13 → 19 (weryfikacja `enforced`) |
+| 14 Monetyzacja-uzupełniająca | `setMarketingConsent` bramkuje popupy, anonimizacja zamówień przy usunięciu konta, przypomnienia o miejscach | dwustronna |
+| 15 Profil/konto | `useAuth` (role, tenant), `requireSupabaseAuth`, `profiles.prefs.consent`, trasy `/profile/*`, sesje impersonacji | dwustronna |
+| 16 Społeczność-admin | wspólny klucz cache `["admin","all-users",tenantId]`, `admin_community_stats` w macierzy | 16 → 19 |
+| 17 Analityka/BI | `hasAnalyticsConsent()` bramkuje beacony, `site_settings["analytics"]`, `analytics_events`/`web_vitals` jako tabele intake | 17 → 19 |
+| 18 CRM | `crm_set_merydian_secret`, `crm_backfill_all_leads` w macierzy, `crm_consent_log` jako tabela intake | 18 → 19 |
+| 20 Platforma/SSR | kolejność middleware (`gpcMiddleware` > `documentCacheMiddleware` > router), `edgeTtlCache`, klon i18next per żądanie, `ssr:false` dla `/admin` | dwustronna (krytyczna) |
+| 21 Kluby | `is_club_admin`/`club_capabilities` w macierzy, `club_export_my_data` (8 sekcji eksportu), `anonymize_club_applications_for_user`, przełącznik modułu w `site_settings` | 21 → 19 |
 
 - **5 najpilniejszych rekomendacji:**
   1. **Odebrać klientowi prawo zapisu do rejestru zgód RODO** (19.12): `REVOKE INSERT, UPDATE, DELETE ON public.user_consents` i `REVOKE INSERT ON public.user_consent_events FROM authenticated`, jedyną drogą pozostawić `set_user_consent`; następnie dodać obie tabele do `PROTECTED_INTAKE_TABLES` w `scripts/check-sql-anon-insert.ts`. Dziś zalogowany użytkownik może sfabrykować lub usunąć dowód zgody, na którym stoi art. 7 ust. 1 RODO — a żadna z czterech bramek CI tego nie widzi.
@@ -5570,7 +5162,6 @@ Moduł jest warstwą kontroli platformy: role i bramki autoryzacji, izolacja ten
 Moduł 20 to warstwa nośna całej platformy: wejście workera Cloudflare, łańcuch middleware żądania, dwupoziomowy cache dokumentów SSR, drabinka watchdogów chroniących strumień HTML, poczta systemowa, harmonogram zadań tła, serwer MCP, dyspozytor integracji wychodzących oraz 21 odrębnych bramek CI. Jakość inżynierska jest tu wyraźnie najwyższa w repozytorium: prawie każdy mechanizm ma w komentarzu opis ZMIERZONEGO incydentu, który go wymusił (h3-swallowed 500, 61-sekundowy ogon strumienia, cykl chunków → martwa hydratacja, `public/robots.txt` przesłaniający trasę, cicho zielona nocna sonda rozliczeń), a nie deklarację intencji — i w większości przypadków ma też własną bramkę statyczną albo test. Najważniejszy wniosek: siła modułu leży w warstwie transportowej HTTP/cache (oceny 9), a jego najsłabsze ogniwa to **brak testów na samym wejściu workera i na watchdogach zapytań** (`src/server.ts`, `queryTimeout.ts`, `queryStreamGuard.ts` — zero plików testowych), **serwer MCP bez ani jednego testu**, oraz **luki w bramkach wykonawczych**: e2e biegnie na dev-serverze (nie na artefakcie produkcyjnym), build smoke z `vite.smoke.config.ts` nie jest w CI uruchamiany ani razu, `pg-harness` obejmuje wyłącznie migracje modułu klubów, a Lighthouse w domyślnej konfiguracji jest nieblokujący.
 
 ### 20.1. Wejście workera SSR i normalizacja awarii katastroficznych — **8/10**
-
 - **Pliki:** `src/server.ts:1-223`, `src/lib/error-capture.ts:1-43`, `src/lib/error-page.ts:1-47`, `vite.config.ts:80-81` (`tanstackStart.server.entry: "server"`), `vite.smoke.config.ts:33-37`
 - **Co robi:** Własny wrapper wokół wirtualnego `@tanstack/react-start/server-entry`: lazy import (błąd inicjalizacji modułu jest łapalny, nie wywraca izolatu), try/catch wokół `fetch`, rozpoznanie połkniętego przez h3 body `{"unhandled":true,"message":"HTTPError"}` i zamiana go na przyjazną stronę 500 z odzyskanym stackiem (`consumeLastCapturedError`, TTL 5 s), odróżnienie rozłączenia klienta (→ 499, bez logu) oraz spięcie strażnika strumienia i odroczonego zapisu Edge Cache.
 - **Relacje:** Moduł 19 (Ustawienia/authz/RODO) — `error-page` jest `noindex`, więc nie zaśmieca indeksu; Moduł 8 (SEO/feedy) — status 500 vs 499 decyduje o zachowaniu crawlera; Moduł 17 (Analityka/BI) — `console.error(captured)` jest jedynym kanałem tych awarii do Server Logs.
@@ -5583,7 +5174,6 @@ Moduł 20 to warstwa nośna całej platformy: wejście workera Cloudflare, łań
   4. Objąć `consumeLastCapturedError` testem TTL (5 s) — korelacja błędu z niepowiązanym żądaniem na tym samym izolacie to realny fałszywy alarm w logach.
 
 ### 20.2. Łańcuch middleware żądania: nagłówki bezpieczeństwa, CSP, CSRF — **8/10**
-
 - **Pliki:** `src/start.ts:41-65` (errorMiddleware), `:200-242` (CSP), `:244-249`, `:332-389` (`applySecurityHeaders`), `:395-397` (CSRF), `:399-453` (kolejność), `src/start.test.ts:1-56`, `src/__tests__/csrfMiddleware.integration.test.ts`
 - **Co robi:** Definiuje 10-warstwowy `requestMiddleware` z jawnie uzasadnioną kolejnością (komentarz `start.ts:400-431`), nakłada HSTS na każdą odpowiedź https, a na dokumenty HTML CSP / X-Frame-Options / Referrer-Policy / Permissions-Policy / COOP, oraz włącza `createCsrfMiddleware` zawężony filtrem do `handlerType === "serverFn"`.
 - **Relacje:** Moduł 13 (Monetyzacja-core) — `script-src` musi dopuszczać `js.stripe.com`, a `Permissions-Policy: payment` deleguje uprawnienie do ramek operatora (`start.ts:374`); Moduł 19 (Ustawienia/authz) — CSRF chroni wszystkie `serverFn`; Moduł 4 (Motyw/media) — `style-src`/`font-src` dopuszczają Google Fonts dla FontPickera w adminie.
@@ -5595,7 +5185,6 @@ Moduł 20 to warstwa nośna całej platformy: wejście workera Cloudflare, łań
   3. Dopisać akapit uzasadnienia dla `img-src https:` i `frame-src https:` albo zawęzić `frame-src` do listy realnie osadzanych originów (YouTube/Spotify/Stripe) — reszta pliku trzyma standard „każde rozluźnienie ma powód w komentarzu".
 
 ### 20.3. Kanonizacja języka, redirecty i monitor 404 na brzegu — **8/10**
-
 - **Pliki:** `src/start.ts:33-39` (`isInternalPlatformPath`), `:73-107` (`legacyLangQueryMiddleware`), `:117-161` (`homepageLangMiddleware`), `:259-276` (`redirectMiddleware`), `:284-293` (`seo404Middleware`), `src/lib/seo/redirects.server.ts`, `src/lib/i18n/langNegotiation.ts`, `src/lib/http/middlewareResult.ts` (+ test), `src/lib/i18n/__tests__/langNegotiation.test.ts`, `src/lib/seo/__tests__/redirects.test.ts`, `redirectLangAware.test.ts`
 - **Co robi:** Przed dispatchem routera: dopasowanie żądania do per-tenantowych reguł `public.redirects` (301/302/307/308/410), kanonizacja legacy `?lang=` na URL z prefiksem języka (301 dla ścieżek lokalizowalnych, 302 + cookie dla pozostałych), serwerowa decyzja o języku gołej strony głównej (bez migotania po hydracji) oraz post-response log trafień 404 do `seo_404_hits`.
 - **Relacje:** Moduł 8 (SEO/feedy) — reguły redirectów i monitor 404 zasilają `/admin/redirects`; Moduł 5 (Chrome/nawigacja) — prefiks języka w URL jest kontraktem `router.rewrite` (`router.tsx:95-106`); Moduł 12 (Realtime/powiadomienia) i Moduł 11 (Newsletter) — `isInternalPlatformPath` wyłącza `/platform/*`, `/lovable/email/*` i `/email/unsubscribe` z redirectów, żeby dostawca dostał 200, nie 301.
@@ -5607,7 +5196,6 @@ Moduł 20 to warstwa nośna całej platformy: wejście workera Cloudflare, łań
   3. Dopisać test integracyjny middleware języka (wzorem `src/__tests__/csrfMiddleware.integration.test.ts`) na trzy przypadki: `/admin/posts/x?lang=en` bez redirectu, `/post?lang=en` → 301 `/en/post`, `/` z `Accept-Language: en` → 302 + `Vary`.
 
 ### 20.4. NES Edge Cache — dwupoziomowy cache dokumentów SSR — **9/10**
-
 - **Pliki:** `src/lib/http/documentCache.ts:1-184` (polityka), `documentCache.server.ts:1-839` (wykonanie), `documentCacheL2.server.ts:1-251`, `defaultCacheControl.ts:1-94`, `cachePolicy.ts:1-74`, `parseCacheControl.ts:1-56`, `ssrTiming.ts/.server.ts`, `src/lib/edgeCache.functions.ts`, `src/components/admin/performance/EdgeCacheCard.tsx`, testy: `__tests__/documentCache.test.ts`, `documentCache.server.test.ts`, `documentCacheL2.test.ts`, `defaultCacheControl.test.ts`, `src/lib/http/cachePolicy.test.ts`
 - **Co robi:** Własny cache HTML w workerze (platforma nie zakłada CDN honorującego `s-maxage` dla `text/html`): L1 w pamięci izolatu, L2 na Cloudflare Cache API per-colo z kluczem wersjonowanym, stale-while-revalidate single-flight per klucz, approx-LRU liczony w bajtach (24 MB budżet, 1 MB na wpis), klucz zawsze prefiksowany hostem tenanta, `Server-Timing` z `ssr;dur` i `db;dur`, kill-switch `NES_EDGE_CACHE=off`.
 - **Relacje:** Moduł 19 (Ustawienia/authz) — bypass każdego żądania z `Authorization`/ciasteczkiem `sb-*`; Moduł 1 (Wpisy-czytelnik) i Moduł 3 (Silniki treści) — publikacja wymaga purge (podbicie wersji L2 + czyszczenie L1); Moduł 17 (Analityka/BI) — migawka i pierścień decyzji zasilają `/admin/performance`; Moduł 8 (SEO/feedy) — `PUBLIC_DOCUMENT_DENY_PREFIXES` (`documentCache.ts:60`) jest współdzielona z generatorem Speculation Rules; Moduł 15 (Profil/konto) i 13 (Monetyzacja) — ich prefiksy są na liście deny.
@@ -5619,7 +5207,6 @@ Moduł 20 to warstwa nośna całej platformy: wejście workera Cloudflare, łań
   3. Dodać do `EdgeCacheCard` jawny wskaźnik „ile izolatów/kolonii widziało ostatni purge" (licznik `bumps` z `l2Stats` vs `purges`) — operator publikujący treść nie ma dziś sposobu odróżnić „purge zadziałał" od „purge zadziałał w jednym izolacie".
 
 ### 20.5. Strażnik strumienia dokumentu SSR — **9/10**
-
 - **Pliki:** `src/lib/http/documentStreamGuard.server.ts:1-414`, `src/server.ts:24,208`, `src/lib/http/__tests__/documentStreamGuard.server.test.ts`, `e2e/ssr-completeness.spec.ts:1-156`
 - **Co robi:** Opakowuje body KAŻDEJ odpowiedzi `text/html` w strumień domykany deterministycznie: naturalne zamknięcie źródła, wykrycie sentinela `</html>` (+250 ms łaski), cisza między chunkami (12 s) lub twardy limit (20 s). Przy wymuszonym zamknięciu dosztukowuje `</body></html>` POPRZEDZONE sygnaturą `<!--ssr-doc-guard:truncated reason=... ms=... bytes=...-->` i anuluje czytnik źródła.
 - **Relacje:** Moduł 8 (SEO/feedy) — dokument ucięty bez `</html>` to strona wypadająca z indeksu; Moduł 13 (Monetyzacja-core) — incydent źródłowy to monitor operatora płatności raportujący serwis jako offline po ~61 s; Moduł 17 (Analityka/BI) — `getDocumentGuardSnapshot()` zbiera statystyki i pierścień incydentów per host+ścieżka.
@@ -5630,11 +5217,10 @@ Moduł 20 to warstwa nośna całej platformy: wejście workera Cloudflare, łań
   2. Dodać do raportu zgodności wdrożenia (`scripts/deployment-report.ts`) wiersz „strażnik strumienia uzbrojony" czytany z produkcyjnego nagłówka `x-ssr-doc-guard` — kill-switch wyłączony po diagnostyce i niezauważony przywraca dokładnie ten incydent, przed którym plik broni.
 
 ### 20.6. Router i integracja SSR ↔ React Query — **8/10**
-
 - **Pliki:** `src/router.tsx:1-201`, `src/routes/__root.tsx:1-538`
 - **Co robi:** Buduje per-żądaniowy `QueryClient` z defaultami dla serwisu treściowego (staleTime 5 min, gcTime 30 min, retry 1 z backoffem, bez refetchu na focus), `shouldDehydrateQuery: status === "success"`, konfiguruje router (preload `intent` 50 ms, `defaultPendingMs` 500, View Transitions, `rewrite` prefiksu języka) i owija `dehydrate`/`hydrate` integracji własnymi zabezpieczeniami.
 - **Relacje:** Moduł 5 (Chrome/nawigacja) — `rewrite.output` dokleja prefiks języka do KAŻDEGO budowanego href; Moduł 1/3/7 — wszystkie loadery tras korzystają z tego `queryClient`; Moduł 12 (Realtime) — `refetchOnReconnect: "always"` domyka lukę po utracie sieci; Moduł 8 (SEO) — CDN keyuje na URL z prefiksem, więc każdy język jest osobnym, współdzielonym wpisem cache (komentarz `router.tsx:91-94`).
-- **✅ Mocne:** `shouldDehydrateQuery` filtruje do `success` z opisanym mechanizmem: dehydratowane zapytanie _pending_ serializuje swój in-flight promise, a seroval blokuje wtedy CAŁY dokument do twardego limitu, gdy fetch został anulowany (`router.tsx:49-61`). Twardy budżet hydratacji 1500 ms (`:181`) chroni przed najgorszym trybem awarii klienta — nierozstrzygnięty strumień → brak `hydrateRoot` → strona statyczna, w której nic nie klika. Jedno makro-tick opóźnienia po `integrationHydrate` (`:196`) jest uzasadnione konkretnym objawem: React 19 traktował rozjazd „widget pending vs HTML z danymi" jako hydration mismatch i przebudowywał całe drzewo. Disposer watchdoga jest wpięty w `serverSsrLifecycle.onServerSsrAttach` → `onCleanup` (`:128-134`), więc żaden timer nie przeżywa żądania.
+- **✅ Mocne:** `shouldDehydrateQuery` filtruje do `success` z opisanym mechanizmem: dehydratowane zapytanie *pending* serializuje swój in-flight promise, a seroval blokuje wtedy CAŁY dokument do twardego limitu, gdy fetch został anulowany (`router.tsx:49-61`). Twardy budżet hydratacji 1500 ms (`:181`) chroni przed najgorszym trybem awarii klienta — nierozstrzygnięty strumień → brak `hydrateRoot` → strona statyczna, w której nic nie klika. Jedno makro-tick opóźnienia po `integrationHydrate` (`:196`) jest uzasadnione konkretnym objawem: React 19 traktował rozjazd „widget pending vs HTML z danymi" jako hydration mismatch i przebudowywał całe drzewo. Disposer watchdoga jest wpięty w `serverSsrLifecycle.onServerSsrAttach` → `onCleanup` (`:128-134`), więc żaden timer nie przeżywa żądania.
 - **⚠️ Słabe:** (1) Brak jakiegokolwiek testu na `router.tsx` — ani na `shouldDehydrateQuery`, ani na budżet hydratacji; to konfiguracja, od której zależy hydratacja całego serwisu, weryfikowana wyłącznie e2e. (2) Budżet hydratacji kończy się `console.warn` w przeglądarce (`:188`) — nie idzie do beaconu `client-errors`, więc masowe przekraczanie budżetu na produkcji jest niewidoczne. (3) `__root.tsx` ma 538 linii i ~50 statycznych importów; to najgorętszy plik ścieżki bootowania i jedyną barierą przed wciągnięciem do niego ciężkiej zależności jest `check:entry-purity`, który zna tylko SDK płatności.
 - **🔧 Rekomendacje:**
   1. Dodać test jednostkowy `getRouter()`: `shouldDehydrateQuery` odrzuca zapytanie `pending`/`error` i przyjmuje `success`; `options.hydrate` rozstrzyga się w ≤ budżet, gdy `integrationHydrate` nigdy nie rozstrzyga (fake timers).
@@ -5642,7 +5228,6 @@ Moduł 20 to warstwa nośna całej platformy: wejście workera Cloudflare, łań
   3. Rozszerzyć `scripts/check-entry-purity.ts` o markery innych ciężkich SDK osiągalnych z `__root.tsx` (mapy, edytor, wykresy) — bramka mierzy PRZYCZYNĘ i jest odporna na kompensację kilobajtami, więc warto ją wykorzystać poza Stripe.
 
 ### 20.7. Watchdogi zapytań SSR — **7/10**
-
 - **Pliki:** `src/lib/ssr/queryTimeout.ts:1-118`, `queryStreamGuard.ts:1-207`, `pruneUnresolvedQueries.ts`, `postRenderSweep.ts` (+ `__tests__/postRenderSweep.test.ts`), `src/router.tsx:117-162`
 - **Co robi:** Trzy warstwy nad tą samą klasą awarii („jedno wiszące zapytanie zamraża strumień dehydracji i dokument wychodzi ucięty z HTTP 200"): (a) budżet 5 s na każdy fetch fazy renderu z `cancel({revert:true, silent:true})` i ewikcją zapytań nierozstrzygalnych; (b) jednorazowy spis wszystkiego, co po 8 s nadal leci; (c) własny strumień zamykany deterministycznie zamiast strumienia integracji, który router-core potrafi milcząco zostawić otwarty; (d) sweep cache'u przed snapshotem dehydracji.
 - **Relacje:** Moduł 1/3/6/7 — każde `useSuspenseQuery` w fazie renderu podlega tym budżetom; Moduł 20.5 — budżety są celowo NIŻSZE niż idle strażnika dokumentu; Moduł 17 (Analityka) — `console.error` z pełnym kluczem zapytania jest jedyną drogą identyfikacji chronicznie wiszącego zapytania.
@@ -5654,7 +5239,6 @@ Moduł 20 to warstwa nośna całej platformy: wejście workera Cloudflare, łań
   3. Przenieść progi na `envMs(...)` wzorem `documentStreamGuard.server.ts:154-160` — jedna spójna doktryna nastawów dla całej drabinki budżetów SSR.
 
 ### 20.8. Odporne ładowanie loaderów tras — **8/10**
-
 - **Pliki:** `src/lib/ssr/resilientLoad.ts:1-137` (+ `__tests__/resilientLoad.test.ts`), `src/lib/asyncBudget.ts:1-25`, `e2e/ssr-degradation.spec.ts:1-109`, konsumenci: `src/routes/experts.tsx`, `events.tsx`, `live.tsx`, `podcasts.index.tsx`, `podcasts.$show.tsx`, `programs.index.tsx`, `web-stories.index.tsx`, `author.$slug.tsx`
 - **Co robi:** Jeden prymityw zamiast doktryny przepisywanej w każdej trasie: `loadResilient` grzeje zapytanie pod budżetem 4 s (świadomie niższym niż watchdog 5 s), NIGDY nie rzuca, przy porażce anuluje spóźniony fetch PRZED zasiewem fallbacku z `updatedAt: 0` i zwraca flagę `degraded`; `resilientCacheControl(degraded)` zdejmuje nagłówek cache'a wspólnego dla zdegradowanego renderu.
 - **Relacje:** Moduł 10 (Sieć/eksperci), 7 (Treści specjalne), 1 (Wpisy-czytelnik) — ich trasy są bezpośrednimi konsumentami; Moduł 20.4 (Edge Cache) — `degraded` → `no-store`, więc pusta skorupa nie trafia na brzeg; Moduł 8 (SEO) — 500 zamiast 200 wypycha adres z indeksu, co jest udokumentowanym powodem istnienia prymitywu.
@@ -5666,7 +5250,6 @@ Moduł 20 to warstwa nośna całej platformy: wejście workera Cloudflare, łań
   3. Dodać `src/lib/__tests__/asyncBudget.test.ts` (fake timers: praca dłuższa niż budżet rozstrzyga się w budżecie; odrzucenie pracy nie propaguje).
 
 ### 20.9. Płaszczyzna host → tenant i poświadczenie hosta — **8/10**
-
 - **Pliki:** `src/lib/http/host.ts:1-243` (+ `__tests__/host.test.ts`), `requestHost.ts` / `requestHost.server.ts`, `tenantAssertion.ts:1-224` (+ `__tests__/tenantAssertion.test.ts`), `tenantAssertionCookie.ts/.server.ts` (+ test), `src/lib/server/tenantAssertion.server.ts`, `src/__tests__/tenantHostTrust.invariant.test.ts`, `src/lib/ssrCache.ts:1-70`, `src/start.ts:448`
 - **Co robi:** Jedna definicja „czym jest host żądania" dla całej płaszczyzny host→tenant: nagłówek `x-tenant-host` do PostgREST, walidacja krawędziowa przed wstrzyknięciem, rozpoznanie hostów podglądu (`BUILTIN_PREVIEW_HOST_SUFFIXES` + `PREVIEW_HOST_SUFFIXES` z env) oraz poświadczenie `v1.<kid>.<b64url(host)>.<exp>.<b64url(hmac)>` wystawiane w cookie transportowym po odtworzeniu wpisu z cache'a.
 - **Relacje:** Moduł 19 (Ustawienia/authz/RODO) — weryfikacja poświadczenia żyje w `public.verify_tenant_host_assertion()` (migracja 20260805090000) i to tam jest reguła przypięcia zalogowanego do tenanta domowego; Moduł 20.4 — klucz cache'a jest prefiksowany hostem „by construction"; Moduł 8 (SEO) — powierzchnie crawlera fail-CLOSED dla nieznanego hosta (`host.ts:49-55`); Moduł 15 (Profil) — `edgeTtlCache` scopowany hostem chroni przed podaniem rozgrzanego wpisu na innej domenie.
@@ -5678,12 +5261,11 @@ Moduł 20 to warstwa nośna całej platformy: wejście workera Cloudflare, łań
   3. Dodać test scope'owania `edgeTtlCache` (`src/lib/ssrCache.ts`): dwa różne hosty nie widzą wpisów siebie, a brak hosta trafia do osobnego scope'u.
 
 ### 20.10. Higiena i bezpieczeństwo publicznych endpointów HTTP — **7/10**
-
 - **Pliki:** `src/lib/http/rateLimit.ts:1-79` (+ test), `idempotency.ts:1-110` (+ test), `egressGuard.server.ts:1-111` (+ test), `responseHeaders.ts`, `src/routes/api/public/*` (17 tras), `src/routes/api/tts.ts:1-185`, `stt.ts`, `src/routes/api/public/related-click.ts`, `hooks.refresh-og-image.ts`, `jobs-tick.ts:20-40`, `src/lib/server/rate-limit.server.ts`
 - **Co robi:** Warstwa obronna nieuwierzytelnionych powierzchni: token-bucket per izolat dla beaconów (vitals 60/1 s, client-errors 30/0,5 s, jobs-tick 10/0,5 s), trwałe (DB-backed) budżety dla płatnych ścieżek AI (TTS 6/min i 60/h, STT 20/min i 200/h), klucze idempotencji, oraz jeden choke-point SSRF (`assertPublicHttpUrl`) dla każdego fetcha URL-a konfigurowalnego przez użytkownika.
 - **Relacje:** Moduł 17 (Analityka/BI) — `vitals`, `client-errors`, `track`, `ad-event`, `experiment-event` to ingest telemetrii; Moduł 11 (Newsletter) — `nl-open`, `nl-click`, `webhooks.resend`; Moduł 13 (Monetyzacja-core) — `payments/webhook`, `billing-cron`, `fx-rate`; Moduł 18 (CRM) — dyspozytor integracji wychodzących przechodzi przez ten sam egress guard; Moduł 9 (Czat) / 7 (Treści specjalne) — `api/stt.ts`, `api/tts.ts`, `post-tts.ts`.
 - **✅ Mocne:** `egressGuard.server.ts` to wzorcowy fragment: uzasadnia granicę zaufania (customer → infra), wymienia pełny zestaw zakresów prywatnych/zarezerwowanych IPv4 i IPv6 wraz z IPv4-mapped, i UCZCIWIE nazywa własne ograniczenie (DNS rebinding) razem z tym, co je kompensuje — wymóg https, brak echa body upstreamu i `redirect: "manual"`. `hooks.refresh-og-image.ts:10-20` niesie zdiagnozowaną pułapkę runtime'u: bare `"crypto"` nie jest rozwiązywalne na workerd, nierozwiązany import zatruwa CAŁY graf modułów tras i h3 serializuje to jako opaque 500 dla każdej trasy. `jobs-tick.ts` porównuje sekret w stałym czasie (`secretsEqual`) i ładuje kod server-only dynamicznie w handlerze, żeby nie trafił do bundla klienta. `related-click.ts` ma własny limit w DB (30/5 min per `viewer_hash`) zamiast polegać na limiterze w pamięci.
-- **⚠️ Słabe:** (1) Limiter jest per izolat i sam to przyznaje (`rateLimit.ts:6-8`) — dla telemetrii to właściwy kompromis, ale ta sama klasa (10/0,5 s) chroni `jobs-tick`, więc realny limit skaluje się z liczbą izolatów. (2) `MAX_KEYS = 10_000` czyści CAŁY store wholesale (`:47-51`) — przy rozproszonym spoofie IP limiter zeruje się i przez chwilę przepuszcza wszystko. (3) Niespójność porównań sekretów: `jobs-tick` i `platform/email/queue/process` używają `secretsEqual` (stały czas), a `platform/email/transactional/preview.ts:21` (`token !== apiKey`) i `platform/email/auth/preview.ts:90` (`authHeader !== \`Bearer ${apiKey}\``) porównują stringi zwykłym `!==`. (4) `clientIpFromHeaders`czyta`x-forwarded-for` bez weryfikacji, że żądanie przyszło przez zaufany proxy — na Workers to w porządku, ale w innym wdrożeniu klient sam sobie ustawia klucz kubełka.
+- **⚠️ Słabe:** (1) Limiter jest per izolat i sam to przyznaje (`rateLimit.ts:6-8`) — dla telemetrii to właściwy kompromis, ale ta sama klasa (10/0,5 s) chroni `jobs-tick`, więc realny limit skaluje się z liczbą izolatów. (2) `MAX_KEYS = 10_000` czyści CAŁY store wholesale (`:47-51`) — przy rozproszonym spoofie IP limiter zeruje się i przez chwilę przepuszcza wszystko. (3) Niespójność porównań sekretów: `jobs-tick` i `platform/email/queue/process` używają `secretsEqual` (stały czas), a `platform/email/transactional/preview.ts:21` (`token !== apiKey`) i `platform/email/auth/preview.ts:90` (`authHeader !== \`Bearer ${apiKey}\``) porównują stringi zwykłym `!==`. (4) `clientIpFromHeaders` czyta `x-forwarded-for` bez weryfikacji, że żądanie przyszło przez zaufany proxy — na Workers to w porządku, ale w innym wdrożeniu klient sam sobie ustawia klucz kubełka.
 - **🔧 Rekomendacje:**
   1. Ujednolicić porównania sekretów: podmienić `!==` na `secretsEqual` w `src/routes/platform/email/transactional/preview.ts:21` i `src/routes/platform/email/auth/preview.ts:90`, a następnie dodać bramkę CI (wzorem `scripts/check-legacy-payment-refs.ts`) „żaden handler pod `src/routes/platform/**` ani `api/public/**` nie porównuje sekretu operatorem `===`/`!==`".
   2. Zamienić `store.clear()` w `src/lib/http/rateLimit.ts:59` na eviction najstarszego wpisu (Map trzyma kolejność wstawień — ten sam wzorzec, co approx-LRU w `ssrCache.ts`), żeby przeciążenie kluczami nie zdejmowało limitu wszystkim.
@@ -5691,7 +5273,6 @@ Moduł 20 to warstwa nośna całej platformy: wejście workera Cloudflare, łań
   4. Wymagać w `clientIpFromHeaders` (`src/lib/http/rateLimit.ts:73`) nagłówka `cf-connecting-ip` z preferencją przed `x-forwarded-for` (tak robi już `related-click.ts:19`) — jedna definicja klienta dla całej platformy.
 
 ### 20.11. Sanityzacja HTML na serwerze i kanarek silnika — **9/10**
-
 - **Pliki:** `src/lib/sanitize.ts:1-255` (+ `sanitize.test.ts`), `src/lib/ssrSanitizeHtml.ts:1-298` (+ `__tests__/ssrSanitizeHtml.test.ts`), `src/lib/sanitizeEngineGuard.ts:1-168` (+ `__tests__/sanitizeEngineGuard.test.ts`), `eslint.config.js:47-54` (zakaz `isomorphic-dompurify`)
 - **Co robi:** Dwie połowy jednego API: w przeglądarce DOMPurify z kanarkiem, na workerd allowlistowy walker na `node-html-parser` (brak DOM w workerd), którego wynik jest ODBUDOWYWANY z odkodowanego tekstu i ponownie escape'owany — surowe wejście nigdy nie jest emitowane. Kanarek uruchamia cztery minimalne ładunki i przy wycieku przełącza `sanitizeHtml` w tryb fail-closed (treść jako escape'owany tekst).
 - **Relacje:** Moduł 3 (Silniki treści) i Moduł 1 (Wpisy-czytelnik) — cały HTML redakcyjny przechodzi tędy; Moduł 2 (Edytor/workflow) — te same funkcje w podglądzie; Moduł 20.2 — CSP `script-src-attr 'none'` jest drugą warstwą tej samej obrony; Moduł 4 (Motyw/media) — `style` w wariancie markdown bez `url(`/`expression(`/`@import`.
@@ -5702,7 +5283,6 @@ Moduł 20 to warstwa nośna całej platformy: wejście workera Cloudflare, łań
   2. Wystawić `SanitizerEngineProbe.status` w migawce obserwowalności `/admin/performance` — fail-closed jest poprawny, ale niewidoczny dla redakcji, która zobaczy tylko „artykuły wyglądają jak kod".
 
 ### 20.12. Harmonogram zadań tła — trzy ścieżki, jeden kontrakt — **8/10**
-
 - **Pliki:** `src/lib/jobs/scheduler.ts:1-132` (+ `__tests__/scheduler.test.ts`), `src/lib/server/jobScheduler.server.ts`, `src/routes/api/public/jobs-tick.ts:1-54`, `community-cron.ts` (266), `billing-cron.ts` (124), `scripts/scheduler-tick.mjs:1-221`, `.github/workflows/scheduler.yml`, `src/lib/async/pool.ts:1-47` (+ test), `src/lib/email/runnerHealth.ts` (+ test)
 - **Co robi:** Trzy niezależne ścieżki wołają ten sam dyspozytor i raportują do `public.job_runner_runs`: pg_cron + pg_net → `/api/public/jobs-tick` (co minutę, podstawowa), GitHub Actions → `/api/public/community-cron` (co 5 min, siatka bezpieczeństwa, z pętlą kilku ticków w jednym przebiegu), panel admina → `runSchedulerTickNow()`. Czysty moduł normalizuje nazwy jobów/źródeł i liczy świeżość (fresh ≤ 6 min, lagging ≤ 20 min, stale, never).
 - **Relacje:** Moduł 12 (Realtime/powiadomienia) — push i digesty; Moduł 11 (Newsletter) — drenaż kolejki kampanii; Moduł 16 (Społeczność-admin) — przypomnienia o wydarzeniach; Moduł 18 (CRM) — `crm-task-reminders`; Moduł 13/14 (Monetyzacja) — `billing-cron` z własnym nagłówkiem sekretu; Moduł 19 (Ustawienia) — `job_runner_settings` (enabled + secret) i panel `/admin/scheduler`.
@@ -5714,7 +5294,6 @@ Moduł 20 to warstwa nośna całej platformy: wejście workera Cloudflare, łań
   3. Zamienić literał `NewEUStrategies` w `.github/workflows/scheduler.yml:72` na zmienną repozytorium i dodać go do kontraktu `check:workflow-env-contract` — literał w warunku `if:` to dokładnie ta klasa cichej dezaktywacji, którą ten kontrakt powstał, by łapać.
 
 ### 20.13. Potok poczty systemowej i transakcyjnej — **8/10**
-
 - **Pliki:** `src/lib/email/queueDrain.server.ts` (527, + test), `transactional.server.ts:1-407`, `suppression.server.ts` (349), `suppressionPolicy.ts` (190, + test), `provider.server.ts` (240), `reputation.ts` (+ test), `reputationGate.server.ts`, `deliveryEvents.ts` (+ test), `webhookSignature.server.ts:1-101` (+ test), `system-log.server.ts` (236), `auth-events.server.ts`, `auth-lang.ts` (+ test), `txOverrides.ts` (+ test), `platformCompat.server.ts`, `src/lib/email-templates/` (16 plików + 3 testy), trasy: `platform/email/queue/process.ts`, `platform/email/transactional/send.ts` (408), `platform/email/auth/webhook.ts` (333), `platform/email/suppression.ts` (198), `api/public/webhooks.resend.ts` (144), `lovable/email/*` (aliasy zgodności), `src/routes/email/unsubscribe.ts`
 - **Co robi:** Kolejka `transactional_emails` z ponowieniami, TTL, DLQ, limitem tempa i higieną listy w JEDNEJ implementacji (`queueDrain.server.ts`), wołanej zarówno z endpointu HTTP, jak i z ticku pg_cron; wysyłka z idempotencją, listą wykluczeń tenant-scoped, personalizacją odmienioną przez rodzaj gramatyczny (`tx-body`) i nadpisaniami treści z panelu; webhooki dostawcy weryfikowane podpisem Svix/Standard Webhooks.
 - **Relacje:** Moduł 11 (Newsletter) — wspólna kolejka, suppression i raporty deliverability; Moduł 13/14 (Monetyzacja) — maile o subskrypcji, proracie i karencji z `bodyVars`; Moduł 15 (Profil/konto) — maile auth (signup, magic link, recovery, email change); Moduł 19 (Ustawienia/authz) — `requireAdmin` na raportach, RODO w treści stopki; Moduł 12 (Realtime) — digesty; Moduł 20.12 — dren jest jednym z jobów ticku.
@@ -5727,7 +5306,6 @@ Moduł 20 to warstwa nośna całej platformy: wejście workera Cloudflare, łań
   4. Dodać test dla `provider.server.ts` (mapowanie odpowiedzi dostawcy na `sent`/`failed`/`dlq`) — dziś ta translacja jest niesprawdzona, a od niej zależy, czy wiadomość wróci do kolejki, czy trafi do DLQ.
 
 ### 20.14. Podglądy szablonów e-mail i raporty wysyłek — **7/10**
-
 - **Pliki:** `src/routes/platform/email/transactional/preview.ts:1-84`, `platform/email/auth/preview.ts:1-138`, `src/lib/email/tx-preview.server.ts` (331), `auth-preview.server.ts` (117, + `__tests__/auth-preview.test.ts`), `src/lib/tx-email-preview.functions.ts:1-26`, `src/lib/system-emails.functions.ts:1-43`, `src/lib/email/system-log.server.ts` (236), `src/lib/email-templates/registry.ts`
 - **Co robi:** Dwie powierzchnie podglądu: HTTP dla zewnętrznego backendu (renderuje wszystkie zarejestrowane szablony z `previewData`, zwraca status `ready`/`preview_data_required`/`render_failed`) i `serverFn` dla panelu (`/admin/newsletter/email-preview`, `/admin/newsletter/system-emails`) z walidacją Zod i `requireAdmin`, w tym raport wysyłek z filtrami i paginacją.
 - **Relacje:** Moduł 11 (Newsletter) — panele `/admin/newsletter/*` są konsumentem; Moduł 19 (Ustawienia/authz) — `requireAdmin` na obu `serverFn`; Moduł 15 (Profil) — podgląd personalizacji po imieniu i rodzaju gramatycznym; Moduł 20.13 — wspólny rejestr szablonów i nadpisania treści.
@@ -5739,7 +5317,6 @@ Moduł 20 to warstwa nośna całej platformy: wejście workera Cloudflare, łań
   3. Dodać test-bramkę parytetu „każdy szablon w `email-templates/registry.ts` ma `previewData` zgodne z typem propsów" (wzorem `check:widget-fidelity`, który mierzy WYKONANIEM rozjazd panel ⇄ renderer) — to ta sama klasa defektu.
 
 ### 20.15. Serwer MCP (Model Context Protocol) — **6/10**
-
 - **Pliki:** `src/lib/mcp/index.ts:1-44`, `src/lib/mcp/supabaseClient.ts:1-18`, `src/lib/mcp/tools/search-posts.ts:1-50`, `get-post.ts`, `list-recent-posts.ts`, `src/routes/mcp.ts`, `src/routes/[.mcp]/list-tools.ts`, `[.mcp]/invoke-tool/$tool.ts`, `src/routes/[.well-known]/oauth-protected-resource.ts`, `eslint.config.js:16-24`
 - **Co robi:** Wystawia trzy narzędzia read-only nad opublikowanymi wpisami (`search_posts`, `get_post`, `list_recent_posts`) przez SDK MCP, z autoryzacją OAuth na wystawcy JWT Supabase (`<project>/auth/v1`, audience `authenticated`) i metadanymi `oauth-protected-resource`. Każda trasa importuje SDK dynamicznie w handlerze, żeby opcjonalna zależność nie wywróciła globalnego grafu tras.
 - **Relacje:** Moduł 1 (Wpisy-czytelnik) — narzędzia czytają `public.posts` (tytuł/excerpt/cover/published_at); Moduł 19 (Ustawienia/authz) — bramka na wystawcy Supabase; Moduł 20.9 — `mcpSupabase()` taguje klienta nagłówkiem `x-tenant-host`, bez którego `public_tenant_id()` spadałby do tenanta domyślnego i narzędzia serwowałyby inną witrynę; Moduł 6 (Wyszukiwarka) — `search_posts` duplikuje uproszczoną logikę wyszukiwania (ILIKE po dwóch kolumnach) zamiast korzystać z silnika wyszukiwania.
@@ -5752,7 +5329,6 @@ Moduł 20 to warstwa nośna całej platformy: wejście workera Cloudflare, łań
   4. Zawęzić kolumny w `search_posts`/`get_post` do jawnej listy publicznej i dodać test-bramkę, że narzędzia MCP nie mogą wybrać kolumny spoza allowlisty — endpoint jest publiczny dla każdego zalogowanego użytkownika.
 
 ### 20.16. Dyspozytor integracji wychodzących — **7/10**
-
 - **Pliki:** `src/lib/integrations/dispatch.functions.ts:1-207`, `src/lib/integrations/formats.ts:1-553` (+ `__tests__/formats.test.ts`), `src/lib/http/egressGuard.server.ts`, `src/routes/admin.integrations.tsx`
 - **Co robi:** Zdejmuje paczkę dostaw z `integration_deliveries` claimem `FOR UPDATE SKIP LOCKED`, buduje żądanie w formacie odbiorcy (generyczny webhook + HMAC-SHA256 w `x-nes-signature`, Slack Block Kit, HubSpot contact upsert), przepuszcza URL przez guard SSRF, dostarcza z timeoutem 10 s i raportuje wynik; backoff wykładniczy i status `dead` po 8 próbach liczy baza.
 - **Relacje:** Moduł 18 (CRM) — `crm_webhook_endpoints`, mapowanie zgód, świeży snapshot leada czytany w chwili dostawy; Moduł 19 (Ustawienia/authz) — `requireStaff` na `serverFn`; Moduł 20.12 — dyspozytor jest jednym z jobów ticku; Moduł 20.10 — egress guard; zdarzenia domenowe fanoutowane triggerem w DB (relacja przez event domenowy, nie import).
@@ -5764,7 +5340,6 @@ Moduł 20 to warstwa nośna całej platformy: wejście workera Cloudflare, łań
   3. Dodać nagłówek `x-nes-timestamp` do podpisu HMAC (`:157`) — dziś podpis obejmuje tylko body, więc dostawa jest odtwarzalna (replay) bez okna czasu, w przeciwieństwie do webhooków przychodzących, gdzie okno anty-replay jest zaimplementowane (`webhookSignature.server.ts:19`).
 
 ### 20.17. Warstwa `queryOptions` treści publicznej i cache SSR w izolacie — **7/10**
-
 - **Pliki:** `src/lib/queries/` (17 plików, 3728 linii; największe: `blocks.ts` 783, `public.ts` 768, `archives.ts` 604), testy: `__tests__/blocks.test.ts`, `blogArchive.test.ts`, `homepageMode.test.ts`, `liveBlogs.test.ts`, `postAuthors.test.ts`; `src/lib/ssrCache.ts`, `src/lib/prerender.ts`
 - **Co robi:** Jedno źródło prawdy dla kluczy i fetcherów treści publicznej, współdzielone przez loadery tras i komponenty (żeby inwalidacja cache'u miała jedno miejsce), plus per-izolatowy TTL cache dla wolnych, anonimowych odczytów i osłony Speculation Rules.
 - **Relacje:** Moduł 1 (Wpisy-czytelnik) — `public.ts` jest jego warstwą danych; Moduł 3 (Silniki treści) — `blocks.ts`; Moduł 7 (Treści specjalne) — `podcasts`, `programs`, `series`, `webStories`, `liveBlogs`, `glossary`; Moduł 8 (SEO) — `staticPageSeo`, `SEO_FIELDS_SELECT`; Moduł 5 (Chrome) — `megaMenu`, `mobileDrawer`, `sidebarLayouts`; Moduł 13 (Monetyzacja) — kolumny reguły dostępu i teaser paywalla; Moduł 17 (Analityka) — `relatedPosts` i beacon kliknięć.
@@ -5776,7 +5351,6 @@ Moduł 20 to warstwa nośna całej platformy: wejście workera Cloudflare, łań
   3. Rozbić `src/lib/queries/blocks.ts` na rodziny (dokument buildera / dane widgetów / warianty) — plik jest największym pojedynczym punktem sprzężenia między modułami 3 i 20.
 
 ### 20.18. Bramki statyczne CI i skrypty inżynierskie — **9/10**
-
 - **Pliki:** `.github/workflows/ci.yml:1-514` (4 joby, 43 nazwane kroki, 24 wywołania `bun run check:*` = 21 odrębnych bramek), `scripts/` (31 plików + `scripts/lib/` 6 plików), `src/lib/ci/` (19 modułów) + `src/lib/ci/__tests__/` (21 testów), `vitest.config.ts:1-238`, `package.json:23-52`
 - **Co robi:** Aktywna bramka między merge'em a produkcją: typecheck, pełna suita z bramką pokrycia, snapshot autoryzacji vs migracje, parytet macierzy uprawnień, kontrakt SEO/schema, precedencja assetów `public/`, parytet i18n PL/EN, wierność ustawień widgetów, parytet podziału chunków, build, budżet bundla, acykliczność grafu chunków, czystość ścieżki bootowania, lint, sześć inwariantów SQL, replay migracji, kontrakt RPC, kontrakt env workflowów, pgTAP, pg-harness i raport zgodności wdrożenia.
 - **Relacje:** Moduł 19 (Ustawienia/authz/RODO) — `check:authz-snapshot`, `check:permissions-parity`, `check:sql-tenant-scope`, `check:sql-app-role`, `check:sql-anon-insert`, `check:sql-owner-tenant-scope` (bramki domenowe M19, tu wyłącznie egzekwowane); Moduł 8 (SEO) — kontrakt head/schema + `check:public-assets`; Moduł 3/2 (Silniki treści / Edytor) — `check:widget-fidelity`; Moduł 13 (Monetyzacja) — `check:legacy-payment-refs`, `check:entry-purity`; wszystkie moduły — `check:i18n-parity`.
@@ -5790,7 +5364,6 @@ Moduł 20 to warstwa nośna całej platformy: wejście workera Cloudflare, łań
   5. Rozważyć krok deploy (lub jawny komentarz „wdrożenie poza CI"), bo dziś nic w repozytorium nie mówi, jak artefakt trafia na produkcję — a od tego zależy interpretacja `check:public-assets` i `run_worker_first`.
 
 ### 20.19. Budżety bundla i podział chunków — **9/10**
-
 - **Pliki:** `vite.config.ts:286-390` (środowisko `client`, `manualChunks`), `:56-73` (`run_worker_first`, minifikacja Nitro), `scripts/check-bundle-size.ts:1-324`, `check-chunk-graph.ts`, `check-entry-purity.ts:1-189`, `chunk-inventory.ts`, `scripts/lib/chunkInventoryPlugin.ts`, `vite.smoke.config.ts`, `src/lib/ci/__tests__/viteChunkParity.test.ts`
 - **Co robi:** Wydzielenie vendorów WYŁĄCZNIE dla środowiska przeglądarki (worker zostaje jednym samodzielnym wejściem), trzy zamrożone budżety gzip (największy chunk 439 KB, publiczny JS 1915 KB, całość 3175 KB), bramka acykliczności grafu chunków, bramka czystości ścieżki bootowania i inertny przyrząd inwentaryzacji składu bundla.
 - **Relacje:** Moduł 13 (Monetyzacja-core) — `check:entry-purity` pilnuje, że SDK płatności nie jest statycznie osiągalne z bootu; Moduł 8 (SEO) — `run_worker_first` dla powierzchni maszynowych z rejestru `MACHINE_SURFACES`; Moduł 4 (Motyw/media) — `vendor-lucide` i ikony; Moduł 5 (Chrome) — `vendor-radix`; wszystkie moduły — budżet publiczny to koszt, który płaci każdy czytelnik.
@@ -5802,7 +5375,6 @@ Moduł 20 to warstwa nośna całej platformy: wejście workera Cloudflare, łań
   3. Rozszerzyć `FORBIDDEN_SDKS` w `scripts/check-entry-purity.ts:40` o pozostałe ciężkie zależności, które nie mają prawa być w bootcie (edytor, mapy, wykresy, `@react-email`).
 
 ### 20.20. Bramki wykonawcze: e2e, Lighthouse, pgTAP, pg-harness — **7/10**
-
 - **Pliki:** `playwright.config.ts:1-40`, `e2e/` (7 specyfikacji, 849 linii), `.github/workflows/e2e.yml` (dwa joby: backend-agnostyczny + zaseedowany na lokalnym Supabase), `lighthouse.yml`, `lighthouserc.json`, `lighthouserc.deployed.json`, `.github/workflows/ci.yml:328-458` (joby `pgtap`, `pg-harness`), `scripts/pg-harness/run.sh:1-160`, `harness.sql` (44 KB), `runtime_test.sql` (128 KB), `README.md`, `.github/workflows/billing-nightly.yml`
 - **Co robi:** Cztery niezależne bramki mierzące WYKONANIEM: Playwright (kompletność SSR, degradacja SSR, SEO, checkout, ścieżki użytkownika, brak przewijania poziomego), Lighthouse w dwóch trybach, pgTAP na lokalnym Supabase (88 plików) oraz harness Postgresa wykonujący migracje bez Supabase i sprawdzający rzeczy widoczne dopiero przy wykonaniu.
 - **Relacje:** Moduł 21 (Kluby) — pg-harness jest w praktyce jego bramką (dobór migracji po treści `public.club_`/`public.admin_club_`); Moduł 19 (Ustawienia/authz/RODO) — pgTAP to główna bramka RLS; Moduł 13 (Monetyzacja) — `e2e/checkout.spec.ts` i nocna sonda odnowienia; Moduł 8 (SEO) — `e2e/seo.spec.ts`; Moduł 20.5/20.8 — `ssr-completeness` i `ssr-degradation` są bramkami tych funkcji.
@@ -5815,7 +5387,6 @@ Moduł 20 to warstwa nośna całej platformy: wejście workera Cloudflare, łań
   4. Dopisać e2e dla dwóch ścieżek staffu (logowanie → edycja wpisu → zapis; logowanie → ustawienia → zapis) — panel admina to największa nieprzetestowana wykonaniem powierzchnia produktu.
 
 ### 20.21. Samonaprawa i obserwowalność po stronie klienta — **7/10**
-
 - **Pliki:** `src/lib/watchdog/previewWatchdog.ts:1-190` (+ `previewWatchdog.test.ts`), `src/routes/__root.tsx:456-457`, `src/lib/platform-error-reporting.ts:1-74`, `src/lib/observability/report.ts`, `src/routes/api/public/client-errors.ts`, `src/routes/api/public/version.ts:1-31`, `src/lib/cacheBusting.ts`, `src/lib/storageKeys.ts:1-116`
 - **Co robi:** Cztery mechanizmy chroniące sesję czytelnika/redaktora: watchdog podglądu w iframe (reload przy braku `__nesAppReady` w 15 s i przy zamrożeniu głównego wątku > 8 s, z cooldownem max 2 reloady/60 s), mostek raportowania błędów granicy renderu do trzech niezależnych konsumentów, endpoint `/api/public/version` z `BUILD_ID` z izolatu (klient wymusza odświeżenie po deployu, żeby nie zostać ze starym bundlem odwołującym się do usuniętych chunków) oraz kanoniczne klucze magazynu przeglądarki z migracją starych nazw.
 - **Relacje:** Moduł 2 (Edytor/workflow) — watchdog działa TYLKO w iframe, czyli w podglądzie edytora, nigdy na opublikowanej witrynie dla czytelnika; Moduł 17 (Analityka/BI) — `reportBoundaryError` → beacon `client-errors` → `ClientErrorsDashboard`; Moduł 1 (Wpisy-czytelnik) — `GUEST_SAVED_ARTICLES_KEY` i lista do przeczytania; Moduł 19 (Ustawienia/RODO) — nazwa cookie językowego jest WIDOCZNA w tabeli plików cookie w banerze zgód, co jest podanym powodem zmiany prefiksu z nazwy dostawcy na `nes`; Moduł 15 (Profil) — `IMPERSONATION_STORAGE_KEY`.
@@ -5827,33 +5398,32 @@ Moduł 20 to warstwa nośna całej platformy: wejście workera Cloudflare, łań
   3. Dodać test dla `reportPlatformError` (mostek rzuca → beacon nadal woła; beacon rzuca → nic nie propaguje do granicy renderu) — izolacja awarii jest tu obietnicą w komentarzu, nie dowodem.
 
 ### Podsumowanie modułu 20
-
 - **Średnia ocen funkcji:** 7,8 (164/21) · **Rozkład:** 5 ocen 9–10 (20.4, 20.5, 20.11, 20.18, 20.19) / 15 ocen 7–8 (20.1, 20.2, 20.3, 20.6, 20.7, 20.8, 20.9, 20.10, 20.12, 20.13, 20.14, 20.16, 20.17, 20.20, 20.21) / 1 ocena 5–6 (20.15 MCP) / 0 ocen < 5
 
 - **Relacje modułu (zbiorczo):**
 
-| Moduł                        | Mechanizm                                                                                                                                                                                                                                                                     | Kierunek zależności                                                    |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| 1 Wpisy-czytelnik            | `src/lib/queries/public.ts` (query keys), Edge Cache purge po publikacji, narzędzia MCP czytają `public.posts`                                                                                                                                                                | M1 → M20 (konsumuje warstwę danych i cache)                            |
-| 2 Edytor/workflow            | `previewWatchdog` w iframe edytora, `isPreviewHost` → rozluźnienie CSP, podglądy szablonów                                                                                                                                                                                    | M20 → M2 (platforma dostarcza podgląd i samonaprawę)                   |
-| 3 Silniki treści             | `sanitizeHtml`/`ssrSanitizeHtml` dla całego HTML redakcyjnego, `queries/blocks.ts`                                                                                                                                                                                            | M3 → M20 (obowiązkowe przejście przez sanityzację)                     |
-| 4 Motyw/media/WP-import      | `style-src`/`font-src` w CSP dla FontPickera, `vendor-lucide`, reguły redirectów po migracji WP                                                                                                                                                                               | dwukierunkowa                                                          |
-| 5 Chrome/nawigacja           | `router.rewrite` prefiksu języka, `vendor-radix`, `queries/megaMenu` + `mobileDrawer`                                                                                                                                                                                         | M5 → M20                                                               |
-| 6 Wyszukiwarka               | `search_posts` (MCP) duplikuje uproszczone wyszukiwanie ILIKE zamiast silnika M6                                                                                                                                                                                              | M20 → M6 (dług: powinna być zależność, jest duplikat)                  |
-| 7 Treści specjalne           | `queries/{podcasts,programs,series,webStories,liveBlogs,glossary}`, `loadResilient` w ich trasach                                                                                                                                                                             | M7 → M20                                                               |
-| 8 SEO/feedy                  | `MACHINE_SURFACES` → `run_worker_first`, `check:public-assets`, monitor 404, `PUBLIC_DOCUMENT_DENY_PREFIXES` ↔ Speculation Rules, status 500/499                                                                                                                              | dwukierunkowa                                                          |
-| 9 Czat                       | `api/stt.ts` (transkrypcja z limitem kosztowym)                                                                                                                                                                                                                               | M9 → M20                                                               |
-| 10 Sieć/eksperci             | `loadResilient` w `/experts`, progi pokrycia `lib/network`/`components/network` w `vitest.config.ts`                                                                                                                                                                          | M10 → M20                                                              |
-| 11 Newsletter                | wspólna kolejka `transactional_emails`, suppression, `webhooks.resend`, `nl-open`/`nl-click`, panele `/admin/newsletter/*`                                                                                                                                                    | dwukierunkowa (M20 dostarcza potok, M11 politykę)                      |
-| 12 Realtime/powiadomienia    | joby `push`/`digest-*` w ticku, `refetchOnReconnect`, `runAfterResponse`                                                                                                                                                                                                      | M12 → M20                                                              |
-| 13 Monetyzacja-core          | CSP `js.stripe.com` + `Permissions-Policy: payment`, `check:entry-purity`, `payments/webhook`, `billing-cron`, nocna sonda odnowienia, incydent 61 s (monitor operatora)                                                                                                      | dwukierunkowa                                                          |
-| 14 Monetyzacja-uzupełniająca | `fx-rate`, maile transakcyjne z `bodyVars` (prorata, karencja)                                                                                                                                                                                                                | M14 → M20                                                              |
-| 15 Profil/konto              | maile auth (signup/magic-link/recovery), `IMPERSONATION_STORAGE_KEY`, deny-prefix `/profile` w cache                                                                                                                                                                          | M15 → M20                                                              |
-| 16 Społeczność-admin         | `event-reminders` w ticku, `community-cron`                                                                                                                                                                                                                                   | M16 → M20                                                              |
-| 17 Analityka/BI              | ingest `vitals`/`client-errors`/`track`/`ad-event`/`experiment-event`, migawki Edge Cache w `/admin/performance`, `reportBoundaryError`                                                                                                                                       | M17 → M20 (M20 dostarcza transport i migawki)                          |
-| 18 CRM                       | dyspozytor `integration_deliveries`, `crm_webhook_endpoints`, `crm-task-reminders`                                                                                                                                                                                            | dwukierunkowa                                                          |
-| 19 Ustawienia/authz/RODO     | `x-tenant-host` + poświadczenie hosta ↔ `verify_tenant_host_assertion()`, CSRF na `serverFn`, `requireAdmin`/`requireStaff`, bramki `check:authz-snapshot` / `check:sql-tenant-scope` / `check:sql-owner-tenant-scope` / `check:sql-anon-insert` / `check:permissions-parity` | dwukierunkowa (M19 definiuje regułę, M20 egzekwuje w CI i transporcie) |
-| 21 Kluby                     | `scripts/pg-harness/` jest de facto bramką wykonawczą wyłącznie tego modułu                                                                                                                                                                                                   | M21 → M20                                                              |
+| Moduł | Mechanizm | Kierunek zależności |
+| --- | --- | --- |
+| 1 Wpisy-czytelnik | `src/lib/queries/public.ts` (query keys), Edge Cache purge po publikacji, narzędzia MCP czytają `public.posts` | M1 → M20 (konsumuje warstwę danych i cache) |
+| 2 Edytor/workflow | `previewWatchdog` w iframe edytora, `isPreviewHost` → rozluźnienie CSP, podglądy szablonów | M20 → M2 (platforma dostarcza podgląd i samonaprawę) |
+| 3 Silniki treści | `sanitizeHtml`/`ssrSanitizeHtml` dla całego HTML redakcyjnego, `queries/blocks.ts` | M3 → M20 (obowiązkowe przejście przez sanityzację) |
+| 4 Motyw/media/WP-import | `style-src`/`font-src` w CSP dla FontPickera, `vendor-lucide`, reguły redirectów po migracji WP | dwukierunkowa |
+| 5 Chrome/nawigacja | `router.rewrite` prefiksu języka, `vendor-radix`, `queries/megaMenu` + `mobileDrawer` | M5 → M20 |
+| 6 Wyszukiwarka | `search_posts` (MCP) duplikuje uproszczone wyszukiwanie ILIKE zamiast silnika M6 | M20 → M6 (dług: powinna być zależność, jest duplikat) |
+| 7 Treści specjalne | `queries/{podcasts,programs,series,webStories,liveBlogs,glossary}`, `loadResilient` w ich trasach | M7 → M20 |
+| 8 SEO/feedy | `MACHINE_SURFACES` → `run_worker_first`, `check:public-assets`, monitor 404, `PUBLIC_DOCUMENT_DENY_PREFIXES` ↔ Speculation Rules, status 500/499 | dwukierunkowa |
+| 9 Czat | `api/stt.ts` (transkrypcja z limitem kosztowym) | M9 → M20 |
+| 10 Sieć/eksperci | `loadResilient` w `/experts`, progi pokrycia `lib/network`/`components/network` w `vitest.config.ts` | M10 → M20 |
+| 11 Newsletter | wspólna kolejka `transactional_emails`, suppression, `webhooks.resend`, `nl-open`/`nl-click`, panele `/admin/newsletter/*` | dwukierunkowa (M20 dostarcza potok, M11 politykę) |
+| 12 Realtime/powiadomienia | joby `push`/`digest-*` w ticku, `refetchOnReconnect`, `runAfterResponse` | M12 → M20 |
+| 13 Monetyzacja-core | CSP `js.stripe.com` + `Permissions-Policy: payment`, `check:entry-purity`, `payments/webhook`, `billing-cron`, nocna sonda odnowienia, incydent 61 s (monitor operatora) | dwukierunkowa |
+| 14 Monetyzacja-uzupełniająca | `fx-rate`, maile transakcyjne z `bodyVars` (prorata, karencja) | M14 → M20 |
+| 15 Profil/konto | maile auth (signup/magic-link/recovery), `IMPERSONATION_STORAGE_KEY`, deny-prefix `/profile` w cache | M15 → M20 |
+| 16 Społeczność-admin | `event-reminders` w ticku, `community-cron` | M16 → M20 |
+| 17 Analityka/BI | ingest `vitals`/`client-errors`/`track`/`ad-event`/`experiment-event`, migawki Edge Cache w `/admin/performance`, `reportBoundaryError` | M17 → M20 (M20 dostarcza transport i migawki) |
+| 18 CRM | dyspozytor `integration_deliveries`, `crm_webhook_endpoints`, `crm-task-reminders` | dwukierunkowa |
+| 19 Ustawienia/authz/RODO | `x-tenant-host` + poświadczenie hosta ↔ `verify_tenant_host_assertion()`, CSRF na `serverFn`, `requireAdmin`/`requireStaff`, bramki `check:authz-snapshot` / `check:sql-tenant-scope` / `check:sql-owner-tenant-scope` / `check:sql-anon-insert` / `check:permissions-parity` | dwukierunkowa (M19 definiuje regułę, M20 egzekwuje w CI i transporcie) |
+| 21 Kluby | `scripts/pg-harness/` jest de facto bramką wykonawczą wyłącznie tego modułu | M21 → M20 |
 
 - **5 najpilniejszych rekomendacji:**
   1. **Dodać job „boot smoke" na artefakcie produkcyjnym** (20.19 rek. 1, 20.20 rek. 1): `vite build --config vite.smoke.config.ts` → `node .output/server/index.mjs` → test Playwright potwierdzający wykonanie `hydrateRoot` + `check:chunks`. Dziś `vite.smoke.config.ts` nie jest w CI uruchamiany ani razu (`grep "smoke.config" .github/` → tylko komentarz `ci.yml:137`), a e2e biegnie na dev-serverze — czyli najgroźniejsza awaria w historii repozytorium (cykl chunków → martwa hydratacja na każdej stronie, bez błędu widocznego dla użytkownika) nie ma bramki wykonawczej.
@@ -5873,7 +5443,6 @@ Moduł 21 jest największą i najnowszą warstwą platformy: 34 tabele `club_*`,
 Uwaga zakresowa: `src/components/maps/WorldMap.tsx` + `src/lib/maps/*` **nie należą do modułu 21** — jedynym konsumentem jest widget buildera (`src/components/admin/builder/ui/organisms/widget-view/WorldMapWidget.tsx:28`, dane z eksperckich profili), więc to Moduł 4/10; nie oceniam ich tutaj. Natomiast `src/components/files/` + `src/lib/files/` służą wyłącznie klubom (jedyny konsument: `ClubPostCard.tsx:39-41`) i są oceniane w 21.13.
 
 ### 21.1. Model danych, RLS i macierz zdolności klubu — **8/10**
-
 - **Pliki:** `supabase/migrations/20260808090000_discussion_clubs_a1_structure.sql` (39,7 kB; RLS w liniach 243-245), `..._a1_admin_rpc.sql`, `..._a8_hardening.sql`, `src/lib/clubs/capabilityMatrix.ts:1-200`, `src/lib/clubs/types.ts` (42 kB), `src/components/admin/clubs/organisms/ClubPermissionsTab.tsx`, `src/lib/clubs/__tests__/capabilityMatrix.test.ts`, `supabase/tests/discussion_clubs_a1_test.sql:16` (`plan(38)`)
 - **Co robi:** Definiuje 34 tabele (`clubs`, `club_members`, `club_threads`, `club_replies`, `club_reactions`, `club_stances`, `club_documents`, `club_events`, `club_thread_*`, `club_posts`, `club_applications`, `club_specializations`, …) oraz jedną funkcję rozstrzygającą uprawnienia — `club_capabilities()` — z 9 zdolnościami × 8 rólami. Macierz jest zduplikowana w TS jako **dane** (nie komentarz) i renderowana w zakładce „Uprawnienia" panelu.
 - **Relacje:** Moduł 19 (Ustawienia/authz/RODO) — `is_club_admin`, `assert_admin_tenant`, `current_membership_tier()`; Moduł 13 (Monetyzacja-core) — `clubs.min_tier_rank` czyta rangi z `membership_tiers`; Moduł 20 (Platforma/SSR) — `tenant_id` + `clubs_pin_tenant` (izolacja multi-tenant); Moduł 16 (Społeczność-admin) — wspólna tabela `community_modules`.
@@ -5885,7 +5454,6 @@ Uwaga zakresowa: `src/components/maps/WorldMap.tsx` + `src/lib/maps/*` **nie nal
   3. W `capabilityMatrix.ts:9-13` skorygować nagłówek do stanu faktycznego, dopóki test kontraktowy nie istnieje — komentarz obiecujący nieistniejącą bramkę jest gorszy niż jego brak.
 
 ### 21.2. Katalog klubów (hub globalny `/club`) — **8/10**
-
 - **Pliki:** `src/routes/club.index.tsx:62-271`, `src/components/clubs/organisms/ClubDirectory.tsx` (395), `ClubHubHero.tsx` (260), `MyClubsTabs.tsx`, `ClubGlobalSearch.tsx`, `src/components/clubs/molecules/ClubHubLayoutSwitch.tsx`, `ClubTopicNav.tsx`, `src/lib/clubs/clubMatch.ts` + `__tests__/clubMatch.test.ts` (8 przyp.)
 - **Co robi:** Jedna strona-katalog: pas nagłówka z licznikami i stanem dostępu, skrzynka zaproszeń, filtr obszarów polityki, przełącznik układu (localStorage), siatka „Moje kluby" / siatka specjalizacji, paginacja `+100`, oraz wyszukiwanie zastępujące katalog.
 - **Relacje:** Moduł 13 (Monetyzacja-core) — `useCurrentTier()` do rozstrzygnięcia `locked/entitled`; Moduł 8 (SEO/feedy) — `buildClubHead(..., forceNoindex: true)`; Moduł 15 (Profil/konto) — `useAuth()`; Moduł 5 (Chrome/nawigacja) — wejście `/membership-registration`.
@@ -5897,7 +5465,6 @@ Uwaga zakresowa: `src/components/maps/WorldMap.tsx` + `src/lib/maps/*` **nie nal
   3. Wynieść `CATALOG_PAGE = 100` do jednego miejsca z limitem RPC — dziś limit klienta i domyślny limit `club_list` są niezależne.
 
 ### 21.3. Bramki dostępu, progi planu i zdanie o dostępie — **9/10**
-
 - **Pliki:** `src/lib/clubs/hubAccess.ts`, `minisiteAccess.ts`, `planTiers.ts`, `accessSentence.ts`, `src/components/clubs/organisms/ClubAccessGate.tsx` (492), `src/components/admin/clubs/organisms/ClubAccessTab.tsx`, testy: `hubAccess.test.ts` (9), `minisiteAccess.test.ts` (8), `planTiers.test.ts` (4), `accessSentence.test.ts` (9), `clubPlanTierParity.test.ts` (6)
 - **Co robi:** Rozdziela bramki MIĘKKIE (jaki panel narysować) od TWARDEJ (`club_capabilities` w bazie), tłumaczy `min_tier_rank` na katalog cenowy 8 progów, składa ustawienia dostępu w listę zdań PL/EN i wykrywa 3 kombinacje warte ostrzeżenia, a `ClubAccessGate` zamienia odmowę w powierzchnię konwersji (rejestracja inline / upsell planu / prośba o dostęp).
 - **Relacje:** Moduł 13 (Monetyzacja-core) — `TIER_RANKS`, `useCurrentTier`, `SubscribeButton`; Moduł 15 (Profil/konto) — `buildSignupMetadata`, `useRegistrationFields`, `useUserBadges`; Moduł 19 (authz) — `preAuthGuard` (bruteforce) w formularzu rejestracji bramki.
@@ -5908,7 +5475,6 @@ Uwaga zakresowa: `src/components/maps/WorldMap.tsx` + `src/lib/maps/*` **nie nal
   2. W `ClubAccessTab` wymusić potwierdzenie przy `chatham_public` i `public_open` przed zapisem (dziś tylko ostrzeżenie tekstowe).
 
 ### 21.4. Hub klubu — strumień zintegrowany i działy — **7/10**
-
 - **Pliki:** `src/routes/club.$clubSlug.index.tsx:40-124`, `src/components/clubs/organisms/ClubHub.tsx` (619), `ClubFeedItem.tsx` (500), `src/lib/clubs/clubFeed.ts` + `__tests__/clubFeed.test.ts` (14), `src/lib/clubs/groupTree.ts` + test (4), `src/components/clubs/molecules/ClubHubRail.tsx`, `ClubGroupTree.tsx`, `ClubStreamFilters.tsx`, `ClubHubContext.tsx`
 - **Co robi:** Trójkolumnowa powłoka klubu: nawigacja + drzewo działów, strumień scalający wątki, wpisy, dokumenty, wydarzenia i kamienie milowe w jeden ciąg (5 trybów), szyna kontekstu (świeże materiały, etap prac, tablica, spotkanie, skład, spotlight). Segmentacja `#tagami` przez `?tag=` w URL.
 - **Relacje:** Moduł 6 (Wyszukiwarka) — `useClubSearch` + `ClubGlobalSearchResults`; Moduł 12 (Realtime/powiadomienia) — inwalidacja `clubKeys` z szyny zdarzeń (`eventInvalidationMap.ts:168-186`); Moduł 4 (Motyw/media) — `data-club-typography` / `data-club-neutral` ze `styles.css`.
@@ -5920,7 +5486,6 @@ Uwaga zakresowa: `src/components/maps/WorldMap.tsx` + `src/lib/maps/*` **nie nal
   3. Wynieść limity kontekstowych zapytań (dokumenty/kalendarz/harmonogram/pomiar) do stałych z nazwą — dziś są to literały rozsiane po ciele komponentu.
 
 ### 21.5. Wątki: kompozytor i cykl życia — **8/10**
-
 - **Pliki:** `src/routes/club.$clubSlug.new.tsx:53-565`, `src/lib/clubs/api.ts:619-770` (`createClubThread`, `editClubThread`, `resolveClubThread`), `src/lib/clubs/useClubs.ts:791-885`, `src/lib/clubs/threadIcons.ts`, `policyAreas.ts`, `src/components/clubs/molecules/ClubAnchorPicker.tsx`, `ClubIconPicker.tsx`, `ClubTopicSelect.tsx`, `supabase/tests/discussion_clubs_a3_threads_test.sql:10` (`plan(23)`)
 - **Co robi:** Osobna trasa-kompozytor (tytuł, treść do 20 000 znaków, 6 rodzajów wątku z jednozdaniowym wyjaśnieniem skutku, dział, temat, ikona, kotwica w akcie prawnym, tryb atrybucji), tworzenie przez `club_create_thread` z kluczem idempotencji, redakcja i rozstrzyganie wątku.
 - **Relacje:** Moduł 7 (Treści specjalne) — kotwice `anchor_type/anchor_id` i `club_threads_for_anchor` (strona aktu prawnego pyta graf, nie moduł); Moduł 3 (Silniki treści) — `add_cross_reference` w `tg_club_threads_seams`; Moduł 9 (Czat) — wspólny `MentionTextarea` i `process_mentions`; Moduł 12 — `club_thread.created.v1`.
@@ -5932,7 +5497,6 @@ Uwaga zakresowa: `src/components/maps/WorldMap.tsx` + `src/lib/maps/*` **nie nal
   3. pgTAP dla `club_edit_thread`/`club_resolve_thread`: kto może edytować po czasie, czy `edited_at` się ustawia, czy rozstrzygnięcie przenosi się między odpowiedziami.
 
 ### 21.6. Odpowiedzi, drzewo dyskusji i odroczona projekcja — **8/10**
-
 - **Pliki:** `src/routes/club.$clubSlug.t.$threadSlug.tsx:165-1106`, `src/lib/clubs/useDeferredReplies.ts` + test (5), `src/lib/clubs/types.ts` (`buildClubReplyTree`) + `__tests__/replyTree.test.ts` (11), `useThreadDraft.ts` + test (10), `src/components/clubs/molecules/ClubNewRepliesBar.tsx`, `ClubInlineEditor.tsx`, `src/lib/clubs/__tests__/threadRouteHookOrder.test.ts`
 - **Co robi:** Widok wątku: post otwierający, drzewo odpowiedzi z 3 porządkami sortowania, kompozytor z wzmiankami i trybem anonimowym, redakcja inline, oznaczanie rozstrzygnięcia. Nowe cudze odpowiedzi NIE wskakują pod kursor — czekają w pasku „N nowych".
 - **Relacje:** Moduł 12 (Realtime/powiadomienia) — `club_reply.created.v1` inwaliduje `clubKeys.repliesAll` (`eventInvalidationMap.ts:170-173`), a `useDeferredReplies` neutralizuje skutek UX; Moduł 9 (Czat) — `MentionTextarea`; Moduł 16 (Społeczność-admin) — kolejka moderacji dla `queued`.
@@ -5944,7 +5508,6 @@ Uwaga zakresowa: `src/components/maps/WorldMap.tsx` + `src/lib/maps/*` **nie nal
   3. Rozważyć paginację/wirtualizację odpowiedzi po ~200 wpisach — dziś `repliesTruncated` tylko informuje, że część nie zmieściła się w limicie.
 
 ### 21.7. Reakcje, stanowiska i obserwowanie wątku — **8/10**
-
 - **Pliki:** `src/lib/clubs/api.ts:770-880`, `src/lib/clubs/useClubs.ts:885-1029`, `src/components/clubs/molecules/ClubReactionBar.tsx`, `ClubReactionAvatars.tsx`, `ClubStanceBar.tsx`, `ClubFollowButton.tsx`, `src/lib/clubs/stances.ts` + test (4), `__tests__/reactions.test.ts` (14), `reactionActors.test.ts` (5), `supabase/tests/discussion_clubs_a4_interaction_test.sql:13` (`plan(16)`)
 - **Co robi:** Reakcje na wątki i odpowiedzi (wsadowo, jedno zapytanie na partię), twarze reagujących, stanowiska „za/przeciw/wstrzymanie" wyłącznie dla wątków typu `position` (`club_stance_summary`, `club_reactions_stance_exclusive`), poziomy subskrypcji wątku.
 - **Relacje:** Moduł 12 — `club_reactions_notify`, `club_replies_notify` → `notifications`; Moduł 17 (Analityka/BI) — `club_thread_hotness`/`club_thread_quality_score` karmią sortowanie „hot".
@@ -5955,7 +5518,6 @@ Uwaga zakresowa: `src/components/maps/WorldMap.tsx` + `src/lib/maps/*` **nie nal
   2. pgTAP na wyłączność stanowiska (`club_set_stance` dwa razy z różnym stanowiskiem) — dziś tylko trigger bez asercji.
 
 ### 21.8. Przestrzeń robocza wątku (A28) — powłoka i 8 paneli — **8/10**
-
 - **Pliki:** `src/components/clubs/organisms/ClubThreadWorkspace.tsx` (172) + 8 paneli (`ClubThreadParticipantsPanel`, `…DocumentsPanel`, `…SchedulePanel`, `…QuestionsPanel`, `…PollsPanel`, `…LinksPanel`, `…InsightsPanel`, `…FinderPanel`), `src/components/clubs/molecules/ClubWorkspaceTabs.tsx:87-89`, `src/lib/clubs/threadWorkspaceTypes.ts:308` (`visiblePanels`), `threadWorkspaceApi.ts`, `useThreadWorkspace.ts`, warstwa kompatybilności `workspaceTypes.ts`/`workspaceApi.ts`/`useClubWorkspace.ts`, testy: `workspaceTypes.test.ts` (27), `clubWorkspace.test.ts` (19), `workspaceModuleBoundary.test.ts` (4), `workspaceFormatting.test.ts` (8), migracja `..._a28_thread_workspace.sql`
 - **Co robi:** Zamienia wątek w jednostkę pracy: belka zakładek + 8 leniwych paneli (uczestnicy, źródła, harmonogram, pytania, głosowania, powiązania, dane, szukanie). Jedno RPC `club_thread_workspace` liczy wszystkie liczniki belki. `visiblePanels()` ukrywa zakładkę pustą i niezapisywalną.
 - **Relacje:** Moduł 7 (Treści specjalne) — panel powiązań i `club_thread_link_add`; Moduł 10 (Sieć/eksperci) — `club_thread_experts` + `club_thread_expert_ping`; Moduł 16 — sondaże (`club_thread_poll_create` na wspólnej infrastrukturze ankiet).
@@ -5967,19 +5529,17 @@ Uwaga zakresowa: `src/components/maps/WorldMap.tsx` + `src/lib/maps/*` **nie nal
   3. Domknąć migrację warstwy kompatybilności (`workspaceTypes`/`workspaceApi`/`useClubWorkspace`) — po przepisaniu importów zostawić jeden moduł zamiast dwóch.
 
 ### 21.9. Biblioteka dokumentów klubu — **6/10**
-
 - **Pliki:** `src/routes/club.$clubSlug.documents.tsx`, `src/components/clubs/organisms/ClubDocumentLibrary.tsx` (413; `download` w `:149`, `:195`), `src/components/clubs/molecules/ClubDocumentForm.tsx:55-150`, `ClubDocumentRow.tsx`, `src/lib/clubs/workspaceApi.ts`, migracja `20260808195444…` (RLS `:154`), RPC `club_documents_list`, `club_document_upsert`, `club_document_delete`, `club_document_register_download`
 - **Co robi:** Biblioteka materiałów klubu (dokument / link / nagranie), z rejestrowaniem pobrań, filtrami i formularzem dodawania dla uprawnionych.
 - **Relacje:** Moduł 17 (Analityka/BI) — `club_document_register_download` jako licznik; Moduł 4 (Motyw/media) — świadomie POMINIĘTY (dokument jest URL-em, nie wpisem w `media`).
 - **✅ Mocne:** Rozróżnienie „plik pobieramy, link otwieramy" z uzasadnieniem (`ClubDocumentLibrary.tsx:101`); `club_documents_list` nadane `anon`, więc biblioteka klubu publicznego działa bez sesji; formularz ma `aria-invalid` + `aria-describedby` na błędzie URL (`ClubDocumentForm.tsx:142-148`).
-- **⚠️ Słabe:** (1) **Podgląd dokumentów istnieje w repo i NIE jest tu podpięty** — `src/lib/files/fileKinds.ts:3-6` twierdzi, że ta sama funkcja odpowiada „czy pokazać Podgląd" _„w kompozytorze, na karcie wpisu i w panelu dokumentów"_, a jedynym konsumentem jest `ClubPostCard.tsx:39-41`; w bibliotece jest wyłącznie `download`. Członek klubu musi ściągnąć 30 MB PDF, żeby zobaczyć pierwszą stronę. (2) Brak wgrywania plików — `ClubDocumentForm` przyjmuje wyłącznie URL (`:134-140`), więc materiał trzeba wcześniej gdzieś opublikować, choć moduł MA prywatny kubełek dla załączników wpisów. (3) 413-linijkowy organizm bez żadnego testu.
+- **⚠️ Słabe:** (1) **Podgląd dokumentów istnieje w repo i NIE jest tu podpięty** — `src/lib/files/fileKinds.ts:3-6` twierdzi, że ta sama funkcja odpowiada „czy pokazać Podgląd" *„w kompozytorze, na karcie wpisu i w panelu dokumentów"*, a jedynym konsumentem jest `ClubPostCard.tsx:39-41`; w bibliotece jest wyłącznie `download`. Członek klubu musi ściągnąć 30 MB PDF, żeby zobaczyć pierwszą stronę. (2) Brak wgrywania plików — `ClubDocumentForm` przyjmuje wyłącznie URL (`:134-140`), więc materiał trzeba wcześniej gdzieś opublikować, choć moduł MA prywatny kubełek dla załączników wpisów. (3) 413-linijkowy organizm bez żadnego testu.
 - **🔧 Rekomendacje:**
   1. Podpiąć `useDocumentViewer` w `ClubDocumentLibrary.tsx` i `ClubThreadDocumentsPanel.tsx` — kod podglądu jest gotowy i przetestowany produkcyjnie tylko na jednej z trzech deklarowanych powierzchni.
   2. Dodać wgrywanie pliku do biblioteki (ten sam prywatny kubełek co `club_posts`, adres podpisany) — dziś biblioteka wymaga zewnętrznego hostingu materiału członkowskiego.
   3. Test renderu: filtry, brak uprawnienia do dodania, `register_download` wołane raz na klik.
 
 ### 21.10. Kalendarz klubu, spotkania i RSVP — **6/10**
-
 - **Pliki:** `src/routes/club.$clubSlug.calendar.tsx`, `src/routes/club.$clubSlug.e.$eventSlug.tsx:23-71`, `src/components/clubs/organisms/ClubCalendar.tsx` (600), `ClubMeetingScreen.tsx` (330), `ClubThreadCalendar.tsx` (189), `src/components/clubs/molecules/ClubEventForm.tsx`, `ClubMeetingPanel.tsx`, `src/lib/clubs/eventSlug.ts` + `eventSlug.test.ts`, RPC `club_events_list`, `club_event_upsert`, `club_event_rsvp`, `club_event_attendees`, `club_event_view`
 - **Co robi:** Kalendarz klubu (miesiąc/lista), tworzenie i edycja spotkań przez uprawnionych, strona jednego spotkania ze slugiem, potwierdzenia obecności i lista uczestników.
 - **Relacje:** Moduł 7 (Treści specjalne)/Moduł 16 — wydarzenia PUBLICZNE to osobna dziedzina (`community_events`), tu jest własna tabela `club_events`; Moduł 12 — `club_notify` przy zmianie terminu.
@@ -5991,7 +5551,6 @@ Uwaga zakresowa: `src/components/maps/WorldMap.tsx` + `src/lib/maps/*` **nie nal
   3. Test renderu `ClubCalendar` (nawigacja miesiącami, tryb listy, brak uprawnienia do dodania) — 600 linii logiki daty bez testu to najcięższy nietestowany obszar modułu.
 
 ### 21.11. Harmonogram etapów prac (kamienie milowe) — **7/10**
-
 - **Pliki:** `src/routes/club.$clubSlug.schedule.tsx`, `src/components/clubs/organisms/ClubSchedule.tsx` (203), `src/components/clubs/molecules/ClubMilestoneForm.tsx`, `ClubMilestoneRow.tsx`, `ClubHubContext.tsx` (`ClubStagePanel`), `src/components/clubs/organisms/ClubThreadSchedulePanel.tsx` (187), RPC `club_milestones_list`, `club_milestone_upsert`, `club_thread_milestone_upsert`
 - **Co robi:** Harmonogram klubu w rytmie procesu legislacyjnego (etapy `planned/active/done` z datami), z odpowiednikiem na poziomie wątku i kartą „bieżący etap" w szynie huba.
 - **Relacje:** Moduł 7 (Treści specjalne) — etapy odwzorowują proces legislacyjny, do którego prowadzą kotwice wątków; Moduł 12 — `club_thread.milestone_set.v1` inwaliduje `clubKeys.workspace` (`eventInvalidationMap.ts:185`).
@@ -6002,7 +5561,6 @@ Uwaga zakresowa: `src/components/maps/WorldMap.tsx` + `src/lib/maps/*` **nie nal
   2. Test formatowania okna czasowego dla etapu przechodzącego przez zmianę miesiąca/roku.
 
 ### 21.12. Pomiar klubu (insights) — **7/10**
-
 - **Pliki:** `src/routes/club.$clubSlug.insights.tsx` (53), `src/components/clubs/organisms/ClubInsights.tsx` (379), `ClubThreadInsightsPanel.tsx` (159), `src/lib/clubs/threadDynamics.ts` + test (6), `threadPulse.ts` + test (6), `src/components/clubs/molecules/ClubThreadPulse.tsx`, RPC `club_workspace_stats`, `club_activity_series`, `club_thread_insights`
 - **Co robi:** Ekran dynamiki klubu (aktywność w czasie, czas do pierwszej odpowiedzi, udział piszących, liczby wątków/dokumentów/terminów) oraz odpowiednik na poziomie wątku; `threadPulse`/`threadDynamics` liczą sygnały wiersza wątku.
 - **Relacje:** Moduł 17 (Analityka/BI) — świadomie NIE używa `ChartCard` z panelu, żeby nie wciągać `i18n-admin-analytics` do chunku trasy produktowej (`ClubInsights.tsx:9-13`), bierze sam prymityw `EChart`; Moduł 22 — brak.
@@ -6014,7 +5572,6 @@ Uwaga zakresowa: `src/components/maps/WorldMap.tsx` + `src/lib/maps/*` **nie nal
   3. Eksport CSV serii aktywności — ekran mierzy, ale nie pozwala wynieść liczby do raportu.
 
 ### 21.13. Wpisy ścianowe, załączniki i podgląd plików/linków — **6/10**
-
 - **Pliki:** `src/lib/clubs/postTypes.ts:25-106`, `postsApi.ts:1-60`, `useClubPosts.ts`, `src/components/clubs/organisms/ClubPostCard.tsx` (514; `:259`, `:337`), `src/components/clubs/molecules/ClubPostComposer.tsx`, `ClubCreatePanel.tsx`, `src/lib/clubs/linkPreview.functions.ts:107`, `useClubLinkPreview.ts`, `src/components/files/DocumentViewerDialog.tsx` (90), `DocumentViewerBody.tsx` (411), `useDocumentViewer.tsx` (24), `src/lib/files/fileKinds.ts` (94), `officeParse.ts` (162), `src/lib/i18n-file-viewer.ts` (67)
 - **Co robi:** Krótkie wpisy „ścianowe" (do 6000 znaków, do 10 załączników po 50 MB) w prywatnym kubełku z adresami podpisanymi na godzinę, polubienia, podgląd wklejonego linku (OpenGraph przez server fn) oraz **podgląd dokumentów w przeglądarce** dla 12 rodzajów plików (PDF, DOCX/XLSX/PPTX parsowane po stronie klienta, obrazy, wideo, audio, CSV, Markdown).
 - **Relacje:** Moduł 4 (Motyw/media) — świadomie POMINIĘTY (`postsApi.ts:8-11`: pliki idą wprost do magazynu, nie przez `media`); Moduł 9 (Czat) — wzmianki w treści wpisu; Moduł 20 (Platforma/SSR) — server fn `fetchClubLinkPreview` w runtime TanStack Start; Moduł 12 — `club_post_toggle_like` → powiadomienia.
@@ -6027,7 +5584,6 @@ Uwaga zakresowa: `src/components/maps/WorldMap.tsx` + `src/lib/maps/*` **nie nal
   4. Test rozmiaru/typu załącznika po stronie klienta (`clubPostMediaKind`, `CLUB_POST_MAX_FILE_BYTES`) i asercja, że `club_post_create` odrzuca załącznik spoza kubełka.
 
 ### 21.14. Tablica „Szukam / Oferuję" — **7/10**
-
 - **Pliki:** `src/routes/club.$clubSlug.board.tsx`, `src/components/clubs/organisms/ClubBoardScreen.tsx` (338), `src/components/clubs/molecules/ClubBoardPanel.tsx`, `src/lib/clubs/networkApi.ts:28-45`, `networkTypes.ts` (18,9 kB) + `__tests__/networkTypes.test.ts` (39), migracja `..._a32_networking.sql`, RPC `club_board_notices_list`, `club_board_notice_create`, `club_board_notice_close`
 - **Co robi:** Tablica ogłoszeń kompetencyjnych klubu: 2 rodzaje (szukam/oferuję), obszar tematyczny, termin ważności, 3 zakładki (otwarte/moje/archiwum), wynik ogłoszenia („załatwione"/„wygasło"/„zdjęte") i paginacja; streszczenie w szynie huba.
 - **Relacje:** Moduł 9 (Czat) — `DirectMessageButton` z `@/components/network` jako droga do rozmowy; Moduł 10 (Sieć/eksperci) — wspólny język kompetencji; Moduł 16 — moderacja ogłoszeń (`ShieldX`).
@@ -6038,7 +5594,6 @@ Uwaga zakresowa: `src/components/maps/WorldMap.tsx` + `src/lib/maps/*` **nie nal
   2. Test renderu trzech zakładek + paginacji.
 
 ### 21.15. Eksperci klubu i deklaracje kompetencji — **7/10**
-
 - **Pliki:** `src/routes/club.$clubSlug.experts.tsx`, `src/components/clubs/organisms/ClubExpertsScreen.tsx` (233), `ClubThreadExpertsPanel.tsx` (172), `src/components/clubs/molecules/ClubPersonCard.tsx`, `ClubRosterPanel.tsx` (`ClubExpertiseEditor`), `src/lib/clubs/useClubNetwork.ts:96-285`, `networkTypes.ts` (`expertContribution`), RPC `club_member_expertise`, `club_thread_experts`, `club_thread_expert_ping`
 - **Co robi:** Katalog ekspertów klubu: własna deklaracja obszarów na górze, karty z zadeklarowanymi obszarami OBOK dorobku w tym klubie (wątki, odpowiedzi, ostatnia aktywność), filtr obszarów i szukanie; w wątku panel „kto się na tym zna" z możliwością zaproszenia (ping).
 - **Relacje:** Moduł 10 (Sieć/eksperci) — inne pytanie niż katalog ekspertów platformy, ale wspólny `DirectMessageButton` i słownik obszarów; Moduł 9 (Czat) — wiadomość bezpośrednia; Moduł 12 — `club_thread_expert_ping` → powiadomienie.
@@ -6049,7 +5604,6 @@ Uwaga zakresowa: `src/components/maps/WorldMap.tsx` + `src/lib/maps/*` **nie nal
   2. Test renderu: własna deklaracja + filtr obszarów + puste wyniki szukania.
 
 ### 21.16. Spotlight („Poznaj członka") — **7/10**
-
 - **Pliki:** `src/routes/club.$clubSlug.spotlight.tsx`, `src/components/clubs/organisms/ClubSpotlightScreen.tsx` (358), `src/components/clubs/molecules/ClubSpotlightPanel.tsx`, `src/lib/clubs/networkApi.ts`, RPC `club_member_spotlight_current`, `club_member_spotlight_upsert`, `club_member_spotlight_delete`, `club_member_spotlight_history`, migracja `..._a33_network_screens.sql`
 - **Co robi:** Trzy warstwy: osoba tygodnia (duża karta z opisem, kompetencjami i drogą do rozmowy), formularz przypięcia dla redakcji klubu, archiwum wcześniejszych przypięć.
 - **Relacje:** Moduł 15 (Profil/konto) — link do profilu publicznego, jeśli osoba ma `slug`; Moduł 9 (Czat) — droga do rozmowy; Moduł 16 — alternatywna droga zapisu przez panel admina.
@@ -6060,7 +5614,6 @@ Uwaga zakresowa: `src/components/maps/WorldMap.tsx` + `src/lib/maps/*` **nie nal
   2. Rozważyć zgodę członka (opt-out) na przedstawienie — dziś to decyzja jednostronna redakcji klubu.
 
 ### 21.17. Skład klubu (roster, role, sygnały obecności) — **7/10**
-
 - **Pliki:** `src/routes/club.$clubSlug.members.tsx:59-347`, `src/components/clubs/molecules/ClubRosterFaces.tsx`, `ClubRosterPanel.tsx`, `ClubParticipantRow.tsx`, `src/components/clubs/atoms/ClubNetworkPrimitives.tsx`, `src/lib/clubs/membershipSignals.ts` + test (10), `useClubNetwork.ts` (`useClubRosterSignal`), RPC `club_members_list`, `club_set_role`, `club_roster_signal`, migracja `..._a34_roster_faces.sql`
 - **Co robi:** Lista członków z rolą, kadencją, sygnałami aktywności i „twarzami" obecności; zmiana roli z droplisty dla uprawnionych; paginacja po 60.
 - **Relacje:** Moduł 15 (Profil/konto) — link do profilu tylko gdy `slug` istnieje, bo katalog klubu nie może obchodzić ustawienia widoczności profilu (`club.$clubSlug.members.tsx:10-14`); Moduł 12 — `club_member.changed.v1` inwaliduje `clubKeys.memberships()`.
@@ -6071,7 +5624,6 @@ Uwaga zakresowa: `src/components/maps/WorldMap.tsx` + `src/lib/maps/*` **nie nal
   2. pgTAP dla `club_set_role`: kto może nadać `lead`, czy `moderator` może awansować siebie, czy `observer` nie zyskuje `can_reply`.
 
 ### 21.18. Zaproszenia, linki zapraszające i kampanie segmentowe — **8/10**
-
 - **Pliki:** `src/lib/clubs/api.ts:386-513`, `src/components/admin/clubs/organisms/ClubInvitationsTab.tsx`, `ClubSegmentCampaign.tsx`, `src/components/clubs/organisms/ClubInvitationInbox.tsx` (128), `src/routes/club.join.$token.tsx:17-111`, `src/lib/clubs/__tests__/inviteErrors.test.ts` (5), `supabase/tests/discussion_clubs_a2_invitations_test.sql:11` (`plan(20)`), migracja `..._a27_segment_invitations.sql`
 - **Co robi:** Cztery ścieżki wejścia: zaproszenie imienne (po użytkowniku i po e-mailu), link zapraszający z limitem i ważnością, dołączenie otwarte, kampania na segment (reguła w `club_segment_rules` + obowiązkowy podgląd liczby adresatów przed wysyłką).
 - **Relacje:** Moduł 11 (Newsletter) — wysyłka zaproszeń e-mail przez wspólny potok transakcyjny; Moduł 18 (CRM) — segmenty liczone z danych kontaktowych; Moduł 15 — `tg_user_invitations_enroll_club` wiąże zaproszenie platformowe z klubem; Moduł 19 — kody odmów tłumaczone w `adminClubs.invitations.error.*`.
@@ -6083,7 +5635,6 @@ Uwaga zakresowa: `src/components/maps/WorldMap.tsx` + `src/lib/maps/*` **nie nal
   3. Pokazać w `ClubInvitationsTab` historię kampanii (kto, kiedy, ile, na jaką regułę) — dziś operacja masowa nie zostawia śladu widocznego dla operatora.
 
 ### 21.19. Zgłoszenia do klubu (`/club/apply`), CRM i powiadomienia decyzji — **8/10**
-
 - **Pliki:** `src/routes/club.apply.tsx:96-754`, `src/lib/clubs/applyValidation.ts` (22 pola), `applyApi.ts`, `applyPrefill.functions.ts:42`, `applicationNotify.functions.ts:58-59` + `__tests__/applicationNotify.test.ts` (3), `src/components/admin/clubs/organisms/ClubApplicationsInbox.tsx`, `src/routes/admin.community.clubs.applications.tsx`, migracja `..._a35_applications_fixes.sql` (RPC `club_apply_submit`, `admin_club_application_set_status`, `club_application_crm_sync`, `admin_club_application_crm_retry`, `anonymize_club_applications_for_user`)
 - **Co robi:** Jeden formularz zgłoszeniowy (22 pola: profil zawodowy, motywacja, wkład, dostępność, zgody) z dwiema bramkami (konto + plan PRO+), prefill z profilu, historia własnych zgłoszeń, skrzynka wniosków w panelu z 5 statusami, synchronizacja z CRM (z ponowieniem) i e-mail do kandydata przy 3 statusach.
 - **Relacje:** Moduł 18 (CRM) — `club_application_crm_sync` tworzy lead, `crm_sync_status`/`crm_error` widoczne w panelu; Moduł 11 (Newsletter/poczta) — `TxEmailType` `club_application_accepted|rejected|more_info` w tym samym potoku (kolejka, idempotencja, lista wykluczeń); Moduł 13 — próg rangi PRO; Moduł 19 (RODO) — `anonymize_club_applications_for_user`; Moduł 15 — `MARKETING_CONSENT_KEY` i `setMyConsent`.
@@ -6095,7 +5646,6 @@ Uwaga zakresowa: `src/components/maps/WorldMap.tsx` + `src/lib/maps/*` **nie nal
   3. Podać w formularzu przewidywany czas decyzji i pokazać go w historii zgłoszeń — dziś kandydat po wysłaniu 22 pól nie wie, na co czeka.
 
 ### 21.20. Specjalizacje klubowe (8 stron wejściowych) — **8/10**
-
 - **Pliki:** `src/routes/club.specialization.$slug.tsx:18-185`, `src/lib/clubs/specializations.ts`, `specializationHead.ts` (SEO PL/EN dla 8 kluczy), `specializationsApi.ts`, `useClubSpecializations.ts`, `src/components/clubs/organisms/ClubSpecializationGrid.tsx` (137), `src/components/clubs/molecules/ClubSpecializationSelect.tsx`, `src/components/admin/clubs/organisms/ClubSpecializationsManager.tsx`, `src/routes/admin.community.clubs.specializations.tsx`, `__tests__/clubApplyAndSpecSeo.test.ts` (8), RPC `club_specializations_public`, `admin_club_specialization_upsert|delete|set_active`
 - **Co robi:** Osiem tematycznych stron wejściowych (obronność, finanse, …) z własnym tytułem i opisem SEO w PL i EN, listą klubów w danej specjalizacji i drogą do `/club/apply?spec=`; zarządzanie katalogiem w panelu.
 - **Relacje:** Moduł 8 (SEO/feedy) — `buildContentHead` + canonical + hreflang; Moduł 6 (Wyszukiwarka) — strony specjalizacji są indeksowalnym wejściem do modułu; Moduł 16 — administracja katalogiem.
@@ -6106,7 +5656,6 @@ Uwaga zakresowa: `src/components/maps/WorldMap.tsx` + `src/lib/maps/*` **nie nal
   2. Domyślny wpis SEO dla nieznanego sluga (dziś degradacja do `FALLBACK_*` jest ogólnomodułowa, więc nowa specjalizacja dostaje opis „klubu dyskusyjnego" bez tematu).
 
 ### 21.21. Wyszukiwanie klubowe: pełnotekstowe + semantyczne — **7/10**
-
 - **Pliki:** `src/lib/clubs/api.ts:1043-1090`, `clubSemantic.functions.ts:47`, `src/lib/clubs/useClubs.ts:1080-1101`, `__tests__/searchMerge.test.ts` (14), `src/components/clubs/organisms/ClubGlobalSearch.tsx` (172), `ClubThreadFinderPanel.tsx` (125), RPC `club_search`, `club_semantic_search`, `club_thread_search`, `club_upsert_thread_embedding`, `club_threads_needing_embeddings`, `club_prune_thread_embeddings`
 - **Co robi:** Dwie warstwy równolegle: FTS (`club_search`, dostępne dla `anon`) i semantyka (wektor 768D liczony server fn, RPC wołane z sesji użytkownika, żeby `club_capabilities` liczyło widoczność po `auth.uid()` wołającego), scalane przez `mergeClubSearchResults`.
 - **Relacje:** Moduł 6 (Wyszukiwarka) — wspólna doktryna FTS+semantyka i `embeddings.server`; Moduł 17 — batch embeddingów w `jobs-tick`; Moduł 3 (Silniki treści) — `club_thread_embedding_source`.
@@ -6118,7 +5667,6 @@ Uwaga zakresowa: `src/components/maps/WorldMap.tsx` + `src/lib/maps/*` **nie nal
   3. Test hooka `useClubSearch`: fraza < `CLUB_SEMANTIC_MIN_CHARS` nie woła server fn.
 
 ### 21.22. Moderacja klubowa, zgłaszanie treści i anonimowość Chatham House — **8/10**
-
 - **Pliki:** `src/lib/clubs/api.ts:969-1260` (`moderateClubTarget`, `bulkModerateClubTargets`, `banClubMember`, `reportClubContent`, `revealClubAuthor`), `src/components/admin/clubs/organisms/ClubModerationTab.tsx`, `src/components/clubs/molecules/ClubReportButton.tsx`, `ClubReportDialog.tsx`, `src/lib/clubs/types.ts` (`toAuthorLabel`), migracje `..._a5_moderation.sql`, `..._a8_hardening.sql` (RLS `club_anonymity_salts` `:43`), `supabase/tests/discussion_clubs_a5_a6_test.sql:10` (`plan(17)`)
 - **Co robi:** Moderacja treści klubowej (ukrycie/usunięcie/przywrócenie, hurtowo), ban członka z dziennikiem, zgłaszanie każdego wpisu przez każdego, tryb Chatham House (`club_author_alias`, `club_anonymity_salt`) i ujawnienie autora wyłącznie przez staff (`club_moderator_reveal_author`).
 - **Relacje:** Moduł 16 (Społeczność-admin) — wspólna doktryna moderacji i kolejka zgłoszeń; Moduł 19 (authz/RODO) — `club_moderation_log` jako ślad audytowy, sól anonimowości pod RLS; Moduł 12 — powiadomienia o decyzji moderacyjnej.
@@ -6129,7 +5677,6 @@ Uwaga zakresowa: `src/components/maps/WorldMap.tsx` + `src/lib/maps/*` **nie nal
   2. Pokazać moderatorowi w widoku wątku, że wpis ma zgłoszenia (dziś trzeba wejść do panelu, żeby to zobaczyć).
 
 ### 21.23. Panel administracyjny klubów — **8/10**
-
 - **Pliki:** `src/routes/admin.community.clubs.index.tsx` (220), `admin.community.clubs.$clubId.tsx:71-327` (9 zakładek), `admin.community.clubs.elements.tsx`, `admin.community.clubs.topics.tsx`, `admin.community.clubs.specializations.tsx`, `admin.community.clubs.applications.tsx`, `src/components/admin/clubs/**` (21 plików: `ClubsTable`, `ClubGeneralTab`, `ClubAccessTab`, `ClubGroupsTab`, `ClubThreadsTab`, `ClubMembersTab`, `ClubInvitationsTab`, `ClubPermissionsTab`, `ClubModerationTab`, `ClubStatsTab`, `ClubElementsCatalog`, `ClubTopicsManager`, `ClubSpecializationsManager`, `ClubCreateDialog`, `ClubGroupEditorDialog`, `ClubSegmentCampaign`, `ClubLayoutPicker`, `ClubEnumSelect`, `ClubBadges`, `InheritedField`)
 - **Co robi:** Pełna administracja: tabela klubów z filtrami, edytor o 9 zakładkach (stan zakładki w `?tab=`), podgląd zdolności „jako rola" pytający bazę, kreator klubu, edytor działów, katalog elementów (słowniki, macierz, kody odmów) z kopiowaniem surowych wartości, menedżery tematów i specjalizacji, skrzynka wniosków.
 - **Relacje:** Moduł 16 (Społeczność-admin) — trasy pod `/admin/community/*` i wspólna nawigacja panelu; Moduł 19 (authz) — blok `club` w macierzy `/admin/permissions`, `isAdmin` w trasach; Moduł 17 — `ClubStatsTab` (`admin_club_stats`); Moduł 18 — `crm_sync_status` w skrzynce wniosków.
@@ -6141,7 +5688,6 @@ Uwaga zakresowa: `src/components/maps/WorldMap.tsx` + `src/lib/maps/*` **nie nal
   3. Test renderu `ClubPermissionsTab` porównujący wiersze macierzy z odpowiedzią atrapy `admin_club_capabilities_preview`.
 
 ### 21.24. Minisite klubu — **7/10**
-
 - **Pliki:** `src/routes/club.$clubSlug.minisite.tsx:22-115`, `src/components/clubs/organisms/ClubMinisite.tsx` (258), `src/lib/clubs/minisiteAccess.ts` + test (8), `src/lib/clubs/proseBlocks.ts` + test (7), `src/components/clubs/atoms/ClubProse.tsx` + test (8), `src/components/clubs/molecules/ClubSnippet.tsx`, `src/lib/clubs/coverApi.ts` + test (6)
 - **Co robi:** Kuratorski widok klubu: okładka, opis, wyróżnione wątki (porządek „hot"), fragmenty wypowiedzi — alternatywa dla operacyjnej listy wątków, z węższą bramką (Pro+ albo imienne zaproszenie).
 - **Relacje:** Moduł 13 (Monetyzacja) — `CLUB_MINISITE_TIER_RANK`; Moduł 4 (Motyw/media) — okładka w wydzielonym prefiksie `club-covers/<clubId>/` z pominięciem tabeli `media`; Moduł 8 (SEO) — `forceNoindex` bezwarunkowy.
@@ -6152,7 +5698,6 @@ Uwaga zakresowa: `src/components/maps/WorldMap.tsx` + `src/lib/maps/*` **nie nal
   2. Test renderu na 5 stanów `ClubMinisiteAccess` (szczególnie `no_read` i `locked`).
 
 ### 21.25. Infrastruktura modułu: przełącznik, SEO/head, i18n PL/EN, motyw, szyna zdarzeń — **9/10**
-
 - **Pliki:** `src/routes/club.tsx:1-90`, `src/lib/clubs/useClubsModule.ts:29-31`, `src/lib/clubs/clubHead.ts`, `src/lib/i18n-club.ts` (4650 linii), `i18n-club-elements.ts`, `i18n-club-gate.ts`, `i18n-file-viewer.ts`, `src/components/clubs/__tests__/clubI18nKeys.gate.test.ts`, `src/lib/clubs/__tests__/i18nDictionaries.test.ts` (4), `src/components/clubs/atoms/ClubNavyTheme.tsx`, `src/lib/clubs/queryKeys.ts` (16 kB), `src/lib/realtime/domainEvents.ts:68-79`, `eventInvalidationMap.ts:168-262`, migracja `..._a24_module_toggle.sql`
 - **Co robi:** Trasa układu `/club` z bramką `community_modules.clubs_enabled`, granicami błędu i ładowania dla całej rodziny 20 tras, motywem modułu (granat/złoto, skala typografii); jednolita warstwa `head()` z warunkową indeksowalnością; dwa słowniki PL/EN z bramkami CI; klucze cache i wpięcie w szynę zdarzeń domenowych.
 - **Relacje:** Moduł 16 (Społeczność-admin) — `clubs_enabled` zapisywany w panelu społeczności; Moduł 20 (Platforma/SSR) — `siteSettingsQueryOptions` rozgrzane loaderem trasy głównej; Moduł 12 (Realtime) — 7 typów zdarzeń klubowych w `domainEvents.ts` i mapa inwalidacji; Moduł 8 (SEO) — `buildContentHead`; Moduł 5 (Chrome) — `RouteErrorFallback`; Moduł 19 (RODO) — `club_export_my_data` w `src/lib/profile/export.functions.ts:66` z testem manifestu.
@@ -6163,7 +5708,6 @@ Uwaga zakresowa: `src/components/maps/WorldMap.tsx` + `src/lib/maps/*` **nie nal
   2. Dodać do bramki i18n skanowanie `src/components/files` i `src/lib/files` (dziś `SCANNED_DIRS` obejmuje tylko `clubs`), bo `i18n-file-viewer` należy do powierzchni klubowej.
 
 ### 21.26. Zasady klubu, dołączenie/wyjście i poziom powiadomień — **7/10**
-
 - **Pliki:** `src/routes/club.$clubSlug.about.tsx:1-216` (`useAcceptClubRules` `:59`, `useSetClubNotifyLevel` `:60`, kontrolka `:158-169`), `src/lib/clubs/api.ts:467-513` (`joinClub`, `leaveClub`, `setClubNotifyLevel`, `acceptClubRules`), `src/lib/clubs/types.ts` (`CLUB_NOTIFY_LEVELS`, `toClubNotifyLevel`), RPC `club_accept_rules`, `club_join`/`club_autojoin_author`, `club_set_notify_level`, `club_my_memberships`
 - **Co robi:** Strona „o klubie": regulamin pokazany PRZED wejściem, przycisk dołączenia/wyjścia zależny od polityki wejścia oraz wybór poziomu powiadomień z klubu (`all`/`digest`/`mentions`/`none`).
 - **Relacje:** Moduł 12 (Realtime/powiadomienia) — `notify_level` filtruje `club_notify`; Moduł 19 (RODO) — zasady muszą być zaakceptowane WCZEŚNIEJ, bo przy usunięciu konta treść zostaje w klubie z anonimizacją autorstwa (`about.tsx:3-5`); Moduł 15 (Profil) — `club_my_memberships`.
@@ -6174,32 +5718,30 @@ Uwaga zakresowa: `src/components/maps/WorldMap.tsx` + `src/lib/maps/*` **nie nal
   2. Potwierdzenie przy „Opuść klub" z jednym zdaniem o losie własnych wypowiedzi (dziś użytkownik traci dostęp jednym kliknięciem).
 
 ### Podsumowanie modułu 21
-
 - **Średnia ocen funkcji:** 7,5 · **Rozkład:** 2 × 9–10 (21.3, 21.25) / 21 × 7–8 / 3 × 5–6 (21.9 biblioteka dokumentów, 21.10 kalendarz/RSVP, 21.13 wpisy i podgląd plików) / 0 × <5
 
-| Moduł                     | Mechanizm                                                                                                                                                                               | Kierunek zależności                     |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| 4 Motyw/media/WP-import   | `club-covers/<clubId>/` i prywatny kubełek wpisów świadomie POMIJAJĄ tabelę `media`; `data-club-typography`/`data-club-neutral` ze `styles.css`; `WorldMap` należy do M4, nie do klubów | 21 → 4 (jednokierunkowo, celowo luźno)  |
-| 5 Chrome/nawigacja        | `RouteErrorFallback` w `club.tsx`, wejścia `/membership-registration`, sidebar panelu                                                                                                   | 21 → 5                                  |
-| 6 Wyszukiwarka            | `club_search` (FTS) + `club_semantic_search` (768D) + `embeddings.server`, scalanie `mergeClubSearchResults`                                                                            | dwukierunkowo                           |
-| 7 Treści specjalne        | kotwice `anchor_type/anchor_id`, `club_threads_for_anchor`, `add_cross_reference` w seams                                                                                               | dwukierunkowo (M7 pyta graf, nie moduł) |
-| 8 SEO/feedy               | `buildContentHead` w `clubHead.ts` i `specializationHead.ts`, warunkowy `robots` z widoczności klubu                                                                                    | 21 → 8                                  |
-| 9 Czat                    | `MentionTextarea` + `process_mentions` dla `club_reply`, `DirectMessageButton` z `components/network`                                                                                   | 21 → 9                                  |
-| 10 Sieć/eksperci          | `club_member_expertise`, `club_thread_experts`, wspólny słownik obszarów i karta osoby                                                                                                  | 21 → 10                                 |
-| 11 Newsletter/poczta      | `TxEmailType` `club_application_*` w potoku transakcyjnym; zaproszenia e-mail i kampanie segmentowe                                                                                     | 21 → 11                                 |
-| 12 Realtime/powiadomienia | 7 zdarzeń w `domainEvents.ts:68-79`, mapa inwalidacji `clubKeys`, `club_notify`/`club_bump_unread`, triggery `tg_club_*_seams`                                                          | dwukierunkowo                           |
-| 13 Monetyzacja-core       | `clubs.min_tier_rank` ↔ `membership_tiers`, `TIER_RANKS.pro`, `useCurrentTier`, bramka PRO+ w `club_apply_submit`                                                                       | 21 → 13 (twarda zależność)              |
-| 15 Profil/konto           | `useAuth`, `buildSignupMetadata`, prefill zgłoszenia z profilu, link do profilu tylko przy publicznym `slug`, `club_export_my_data` w eksporcie profilu                                 | dwukierunkowo                           |
-| 16 Społeczność-admin      | `community_modules.clubs_enabled`, trasy `/admin/community/clubs/*`, wspólna doktryna moderacji, sondaże                                                                                | dwukierunkowo                           |
-| 17 Analityka/BI           | `admin_club_stats`, `club_activity_series`, `club_thread_hotness`, `club_document_register_download`, batch embeddingów w `jobs-tick`                                                   | 21 → 17                                 |
-| 18 CRM                    | `club_application_crm_sync`, `admin_club_application_crm_retry`, `crm_sync_status` w skrzynce wniosków                                                                                  | 21 → 18                                 |
-| 19 Ustawienia/authz/RODO  | `is_club_admin`, `assert_admin_tenant`, `club_moderation_log`, `club_anonymity_salts`, `anonymize_club_applications_for_user`, blok `club` w macierzy uprawnień                         | dwukierunkowo                           |
-| 20 Platforma/SSR          | loadery `ensureQueryData` + `head()` w 20 trasach, `siteSettingsQueryOptions`, 4 server fn TanStack Start, `tenant_id`/`*_pin_tenant`                                                   | dwukierunkowo                           |
+| Moduł | Mechanizm | Kierunek zależności |
+|---|---|---|
+| 4 Motyw/media/WP-import | `club-covers/<clubId>/` i prywatny kubełek wpisów świadomie POMIJAJĄ tabelę `media`; `data-club-typography`/`data-club-neutral` ze `styles.css`; `WorldMap` należy do M4, nie do klubów | 21 → 4 (jednokierunkowo, celowo luźno) |
+| 5 Chrome/nawigacja | `RouteErrorFallback` w `club.tsx`, wejścia `/membership-registration`, sidebar panelu | 21 → 5 |
+| 6 Wyszukiwarka | `club_search` (FTS) + `club_semantic_search` (768D) + `embeddings.server`, scalanie `mergeClubSearchResults` | dwukierunkowo |
+| 7 Treści specjalne | kotwice `anchor_type/anchor_id`, `club_threads_for_anchor`, `add_cross_reference` w seams | dwukierunkowo (M7 pyta graf, nie moduł) |
+| 8 SEO/feedy | `buildContentHead` w `clubHead.ts` i `specializationHead.ts`, warunkowy `robots` z widoczności klubu | 21 → 8 |
+| 9 Czat | `MentionTextarea` + `process_mentions` dla `club_reply`, `DirectMessageButton` z `components/network` | 21 → 9 |
+| 10 Sieć/eksperci | `club_member_expertise`, `club_thread_experts`, wspólny słownik obszarów i karta osoby | 21 → 10 |
+| 11 Newsletter/poczta | `TxEmailType` `club_application_*` w potoku transakcyjnym; zaproszenia e-mail i kampanie segmentowe | 21 → 11 |
+| 12 Realtime/powiadomienia | 7 zdarzeń w `domainEvents.ts:68-79`, mapa inwalidacji `clubKeys`, `club_notify`/`club_bump_unread`, triggery `tg_club_*_seams` | dwukierunkowo |
+| 13 Monetyzacja-core | `clubs.min_tier_rank` ↔ `membership_tiers`, `TIER_RANKS.pro`, `useCurrentTier`, bramka PRO+ w `club_apply_submit` | 21 → 13 (twarda zależność) |
+| 15 Profil/konto | `useAuth`, `buildSignupMetadata`, prefill zgłoszenia z profilu, link do profilu tylko przy publicznym `slug`, `club_export_my_data` w eksporcie profilu | dwukierunkowo |
+| 16 Społeczność-admin | `community_modules.clubs_enabled`, trasy `/admin/community/clubs/*`, wspólna doktryna moderacji, sondaże | dwukierunkowo |
+| 17 Analityka/BI | `admin_club_stats`, `club_activity_series`, `club_thread_hotness`, `club_document_register_download`, batch embeddingów w `jobs-tick` | 21 → 17 |
+| 18 CRM | `club_application_crm_sync`, `admin_club_application_crm_retry`, `crm_sync_status` w skrzynce wniosków | 21 → 18 |
+| 19 Ustawienia/authz/RODO | `is_club_admin`, `assert_admin_tenant`, `club_moderation_log`, `club_anonymity_salts`, `anonymize_club_applications_for_user`, blok `club` w macierzy uprawnień | dwukierunkowo |
+| 20 Platforma/SSR | loadery `ensureQueryData` + `head()` w 20 trasach, `siteSettingsQueryOptions`, 4 server fn TanStack Start, `tenant_id`/`*_pin_tenant` | dwukierunkowo |
 
 **5 najpilniejszych rekomendacji:**
-
 1. **Domknąć autoryzację server fn (21.13, 21.21):** `.middleware([requireSupabaseAuth])` + limit tempa na `fetchClubLinkPreview` (`src/lib/clubs/linkPreview.functions.ts:107`) i `embedClubQuery` (`src/lib/clubs/clubSemantic.functions.ts:47`), a w `isBlockedHost` sprawdzać ROZWIĄZANE IP, nie literalny hostname — dziś anonim ma darmowe proxy HTTP i darmową bramkę AI.
 2. **pgTAP dla A7–A35 (21.1, 21.8, 21.14, 21.19, 21.22):** testy bazodanowe kończą się na A6 (114 asercji), więc ~80% z 209 funkcji klubowych — workspace wątku, sieciowanie, wpisy, zgłoszenia z CRM, moderacja hurtowa, ujawnianie autora — nie ma ANI JEDNEJ asercji; zacząć od `club_thread_workspace`, `club_apply_submit`, `club_moderator_reveal_author`, `club_segment_recipients`.
-3. **Zabezpieczyć wpięcie `club_scheduler_tick` testem (21.25):** _sprostowanie 12.08 — pierwotna wersja twierdziła, że funkcja nie ma wołającego; ma go (`jobsTick.server.ts:229-247`, co 5 minut)._ Zostaje realna luka: `runJobsTick` nie ma testu na listę kroków, więc ciche wypadnięcie kroku `clubScheduler` nie dałoby żadnego sygnału.
+3. **Zabezpieczyć wpięcie `club_scheduler_tick` testem (21.25):** *sprostowanie 12.08 — pierwotna wersja twierdziła, że funkcja nie ma wołającego; ma go (`jobsTick.server.ts:229-247`, co 5 minut).* Zostaje realna luka: `runJobsTick` nie ma testu na listę kroków, więc ciche wypadnięcie kroku `clubScheduler` nie dałoby żadnego sygnału.
 4. **Podpiąć gotowy podgląd dokumentów i wgrywanie plików do biblioteki (21.9):** `useDocumentViewer` jest zaimplementowany (505 linii w `src/components/files/`) i użyty tylko w `ClubPostCard.tsx:337`, choć `fileKinds.ts:3-6` deklaruje trzy powierzchnie; `ClubDocumentLibrary` i `ClubThreadDocumentsPanel` dają wyłącznie `download`, a formularz przyjmuje tylko URL.
 5. **Testy renderu dla największych organizmów i formularzy (21.4, 21.10, 21.23, 21.19):** `ClubHub` (619), `ClubCalendar` (600), `ClubPostCard` (514), `ClubAccessGate` (492), `club.apply.tsx` (754) i 21 komponentów panelu nie mają żadnego testu; priorytet: mapowanie draftu edytora klubu na `admin_club_upsert` (ścieżka, na której już raz cicho obniżył się próg planu — `planTiers.ts:9-17`) oraz eksport `.ics` w kalendarzu, którego w module nie ma wcale.
