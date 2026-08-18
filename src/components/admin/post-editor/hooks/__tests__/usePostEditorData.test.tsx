@@ -255,3 +255,50 @@ describe("usePostEditorData - zapora przed utratą tekstu", () => {
     expect(refetchOnReconnectOf(query?.options)).toBe(true);
   });
 });
+
+describe("usePostEditorData - puste odpowiedzi bazy", () => {
+  it("`data: null` w KAŻDYM słowniku i relacji daje pustą listę, nie null", async () => {
+    // Ramiona `?? []` w dziewięciu zapytaniach. PostgREST potrafi zwrócić
+    // `null` bez błędu; karty taksonomii wołają na tych listach `.map()`,
+    // więc `null` wysypałby cały panel edytora.
+    for (const table of [...DICTIONARY_TABLES, ...RELATION_TABLES]) {
+      db.setResponse(table, { data: null, error: null });
+    }
+
+    const { result } = renderHook(() => usePostEditorData("moj-wpis"), { wrapper });
+    await waitFor(() => expect(result.current.id).toBe("post-1"));
+
+    await waitFor(() => {
+      expect(result.current.allCats).toEqual([]);
+      expect(result.current.allTags).toEqual([]);
+      expect(result.current.allPrograms).toEqual([]);
+      expect(result.current.allRegions).toEqual([]);
+      expect(result.current.postCats).toEqual([]);
+      expect(result.current.postTags).toEqual([]);
+      expect(result.current.postPrograms).toEqual([]);
+      expect(result.current.postRegions).toEqual([]);
+    });
+  });
+
+  it("wypełnione słowniki i relacje przechodzą bez zmian", async () => {
+    db.setResponse("categories", ok([{ id: "cat-1", name_pl: "Fundusze", name_en: "Funds" }]));
+    db.setResponse("tags", ok([{ id: "tag-1", name: "spójność" }]));
+    db.setResponse("programs", ok([{ id: "prog-1", name_pl: "P", name_en: "P" }]));
+    db.setResponse("regions", ok([{ id: "reg-1", name_pl: "R", name_en: "R" }]));
+    db.setResponse("post_categories", ok([{ category_id: "cat-1" }]));
+    db.setResponse("post_tags", ok([{ tag_id: "tag-1" }]));
+    db.setResponse("post_programs", ok([{ program_id: "prog-1" }]));
+    db.setResponse("post_regions", ok([{ region_id: "reg-1" }]));
+
+    const { result } = renderHook(() => usePostEditorData("moj-wpis"), { wrapper });
+    await waitFor(() => expect(result.current.id).toBe("post-1"));
+
+    await waitFor(() => {
+      expect(result.current.allCats).toHaveLength(1);
+      expect(result.current.postCats).toEqual([{ category_id: "cat-1" }]);
+      expect(result.current.postTags).toEqual([{ tag_id: "tag-1" }]);
+      expect(result.current.postPrograms).toEqual([{ program_id: "prog-1" }]);
+      expect(result.current.postRegions).toEqual([{ region_id: "reg-1" }]);
+    });
+  });
+});
